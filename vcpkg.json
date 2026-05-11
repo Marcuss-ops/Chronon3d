@@ -12,6 +12,7 @@
     "magic-enum",
     "ffmpeg",
     "tracy",
-    "mimalloc"
+    "mimalloc",
+    "doctest"
   ]
 }

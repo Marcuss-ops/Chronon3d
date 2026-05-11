@@ -87,7 +87,8 @@
       "name": "win",
       "configurePreset": "win-release",
       "targets": [
-        "ChrononTemplate"
+        "ChrononTemplate",
+        "chronon_tests"
       ],
       "jobs": 16
     },
@@ -95,7 +96,8 @@
       "name": "win-debug",
       "configurePreset": "win-debug",
       "targets": [
-        "ChrononTemplate"
+        "ChrononTemplate",
+        "chronon_tests"
       ],
       "jobs": 16
     },
@@ -103,7 +105,8 @@
       "name": "linux",
       "configurePreset": "linux-release",
       "targets": [
-        "ChrononTemplate"
+        "ChrononTemplate",
+        "chronon_tests"
       ],
       "jobs": 16
     },
@@ -111,9 +114,26 @@
       "name": "linux-debug",
       "configurePreset": "linux-debug",
       "targets": [
-        "ChrononTemplate"
+        "ChrononTemplate",
+        "chronon_tests"
       ],
       "jobs": 16
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "win-test",
+      "configurePreset": "win-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "linux-test",
+      "configurePreset": "linux-release",
+      "output": {
+        "outputOnFailure": true
+      }
     }
   ]
 }

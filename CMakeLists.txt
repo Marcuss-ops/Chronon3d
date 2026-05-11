@@ -83,6 +83,7 @@ find_package(SDL2 CONFIG REQUIRED)
 find_package(spdlog CONFIG REQUIRED)
 find_package(fmt CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
+find_package(doctest CONFIG REQUIRED)
 
 # Header-only dependencies
 add_library(EnTT INTERFACE)
@@ -95,6 +96,8 @@ target_include_directories(magic_enum INTERFACE deps/include)
 # Include Directories
 include_directories(include)
 include_directories("${FILAMENT_DIR}/include")
+
+include(CTest)
 
 # Compiler-specific flags
 if(MSVC)
@@ -144,6 +147,11 @@ add_executable(ChrononTemplate
 
 set_target_properties(ChrononTemplate PROPERTIES UNITY_BUILD ON)
 
+add_executable(chronon_tests
+    tests/chronon_tests.cpp
+    include/chronon/Chronon.hpp
+)
+
 # Link Libraries
 target_link_libraries(Graphis3d PRIVATE
     ${FILAMENT_LIBRARIES}
@@ -159,6 +167,13 @@ target_link_libraries(ChrononTemplate PRIVATE
     spdlog::spdlog
     fmt::fmt
 )
+
+target_link_libraries(chronon_tests PRIVATE
+    doctest::doctest
+    fmt::fmt
+)
+
+add_test(NAME chronon_tests COMMAND chronon_tests)
 
 option(CHRONON_ENABLE_TRACY "Enable optional Tracy tracing hooks" OFF)
 option(CHRONON_ENABLE_MIMALLOC "Enable optional mimalloc override" OFF)

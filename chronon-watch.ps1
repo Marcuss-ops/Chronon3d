@@ -43,7 +43,7 @@ function Invoke-ChrononBuild {
     if ($Bootstrap) {
         & powershell -ExecutionPolicy Bypass -File "$root\chronon-win.ps1" -Configuration $Configuration
     } else {
-        & powershell -ExecutionPolicy Bypass -File "$root\chronon-win.ps1" -Configuration $Configuration -SkipInstall
+        & powershell -ExecutionPolicy Bypass -File "$root\chronon-win.ps1" -Configuration $Configuration -SkipInstall -SkipCacheInstall
     }
 }
 

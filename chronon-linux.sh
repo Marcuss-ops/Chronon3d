@@ -42,6 +42,7 @@ packages=(
   ffmpeg
   tracy
   mimalloc
+  doctest
 )
 
 if [[ "${CHRONON_SKIP_DEPS:-0}" != "1" ]]; then

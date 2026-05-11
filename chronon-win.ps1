@@ -1,7 +1,8 @@
 param(
     [ValidateSet("Release", "Debug")]
     [string]$Configuration = "Release",
-    [switch]$SkipInstall
+    [switch]$SkipInstall,
+    [switch]$SkipCacheInstall
 )
 
 $ErrorActionPreference = "Stop"
@@ -15,19 +16,26 @@ $vcpkg = if (Test-Path "C:\vcpkg\vcpkg.exe") {
     throw "vcpkg.exe not found at C:\vcpkg\vcpkg.exe"
 }
 
-$vsDevCmdCandidates = @(
-    "C:\Program Files\Microsoft Visual Studio\18\Community\Common7\Tools\VsDevCmd.bat",
-    "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\Tools\VsDevCmd.bat",
-    "C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\Tools\VsDevCmd.bat"
-)
-$vsDevCmd = $vsDevCmdCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+$vsDevCmd = $null
+$vsWhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+if (Test-Path $vsWhere) {
+    $vsDevCmd = & $vsWhere -latest -products * -requires Microsoft.Component.MSBuild -find "Common7\Tools\VsDevCmd.bat" | Select-Object -First 1
+}
+if (-not $vsDevCmd) {
+    $vsDevCmdCandidates = @(
+        "C:\Program Files\Microsoft Visual Studio\18\Community\Common7\Tools\VsDevCmd.bat",
+        "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\Tools\VsDevCmd.bat",
+        "C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\Tools\VsDevCmd.bat"
+    )
+    $vsDevCmd = $vsDevCmdCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+}
 if (-not $vsDevCmd) {
     throw "VsDevCmd.bat not found. Install Visual Studio Build Tools or Community with the C++ workload."
 }
 
 $sccache = Get-ChildItem "$env:LOCALAPPDATA\Microsoft\WinGet\Packages" -Recurse -Filter sccache.exe -ErrorAction SilentlyContinue |
     Select-Object -First 1 -ExpandProperty FullName
-if (-not $sccache) {
+if (-not $sccache -and -not $SkipCacheInstall) {
     $winget = Get-Command winget -ErrorAction SilentlyContinue
     if ($winget) {
         winget install --id Mozilla.sccache -e --accept-package-agreements --accept-source-agreements | Out-Host
@@ -52,7 +60,8 @@ if (-not $SkipInstall) {
         "magic-enum",
         "ffmpeg",
         "tracy",
-        "mimalloc"
+        "mimalloc",
+        "doctest"
     )
 
     & $vcpkg install --classic --triplet x64-windows --x-install-root "$root\vcpkg_installed" --no-print-usage @packages
