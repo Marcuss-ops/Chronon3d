@@ -2,6 +2,7 @@
 build/
 filament-sdk/
 vcpkg_installed/
+temp_assets/
 .vs/
 out/
 bin/

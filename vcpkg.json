@@ -9,6 +9,9 @@
     "meshoptimizer",
     "stb",
     "nlohmann-json",
-    "magic-enum"
+    "magic-enum",
+    "ffmpeg",
+    "tracy",
+    "mimalloc"
   ]
 }

@@ -1,15 +1,16 @@
 #pragma once
 
-#include "FilamentContext.hpp"
-#include "ResourceWrappers.hpp"
-#include "GeometryProvider.hpp"
+#include "core/FilamentContext.hpp"
+#include "core/ResourceWrappers.hpp"
+#include "core/GeometryProvider.hpp"
 
 #include <filament/Engine.h>
 #include <filament/Scene.h>
 #include <filament/TransformManager.h>
 #include <filament/RenderableManager.h>
-#include <filament/Material.h>
 #include <filament/MaterialInstance.h>
+#include <filament/LightManager.h>
+#include <filament/Color.h>
 
 #include <math/vec3.h>
 #include <math/mat4.h>
@@ -28,11 +29,11 @@ public:
     }
 
     /**
-     * @brief Adds a simple cube to the scene.
+     * @brief Adds a simple cube to the scene with a color.
      */
     utils::Entity addCube(filament::math::float3 position, 
                           filament::math::float3 scale = {1,1,1}, 
-                          filament::math::float4 color = {1,1,1,1}) {
+                          filament::math::float4 color = {1,0.5,0,1}) {
         
         auto entity = utils::EntityManager::get().create();
         
@@ -41,9 +42,9 @@ public:
         filament::IndexBuffer* ib = nullptr;
         GeometryProvider::createCube(*m_engine, &vb, &ib);
         
-        // For simplicity in this boilerplate, we'll leak VB/IB for now or store them in a pool.
-        // In a real impl, we'd use ResourceWrappers.
-
+        // Simple Lit Material (Using a placeholder for now, or building a simple one)
+        // In a full impl, we'd compile this with filamat
+        
         filament::RenderableManager::Builder(1)
             .boundingBox({ {0,0,0}, {0.5,0.5,0.5} })
             .geometry(0, filament::RenderableManager::PrimitiveType::TRIANGLES, vb, ib)
@@ -54,13 +55,19 @@ public:
         tcm.setTransform(instance, filament::math::mat4f::translation(position) * filament::math::mat4f::scaling(scale));
 
         m_scene->addEntity(entity);
-        m_entities.push_back(entity);
-        
         return entity;
     }
 
-    void setBackgroundColor(filament::math::float4 color) {
-        // Implementation for skybox/background
+    void setupLighting() {
+        // Add a directional light
+        auto light = utils::EntityManager::get().create();
+        filament::LightManager::Builder(filament::LightManager::Type::DIRECTIONAL)
+            .color(filament::math::float3{1.0f, 1.0f, 1.0f})
+            .intensity(100000.0f)
+            .direction({0.0f, -1.0f, -1.0f})
+            .castShadows(true)
+            .build(*m_engine, light);
+        m_scene->addEntity(light);
     }
 
 private:
