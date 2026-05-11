@@ -1,0 +1,25 @@
+# Build and local SDKs
+build/
+filament-sdk/
+vcpkg_installed/
+.vs/
+out/
+bin/
+
+# Dependency management
+vcpkg/
+
+# IDE files
+.vscode/
+*.user
+*.suo
+*.pdb
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Large binary files
+*.tgz
+*.zip
+*.7z

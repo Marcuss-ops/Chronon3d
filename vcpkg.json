@@ -1,0 +1,14 @@
+{
+  "name": "graphis3d",
+  "version": "0.1.0",
+  "dependencies": [
+    "sdl2",
+    "spdlog",
+    "fmt",
+    "entt",
+    "meshoptimizer",
+    "stb",
+    "nlohmann-json",
+    "magic-enum"
+  ]
+}
