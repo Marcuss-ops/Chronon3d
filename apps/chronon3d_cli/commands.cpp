@@ -1,4 +1,5 @@
 #include "commands.hpp"
+#include "proof_suites.hpp"
 #include <chronon3d/core/pipeline.hpp>
 #include <chronon3d/renderer/software_renderer.hpp>
 #include <chronon3d/io/image_writer.hpp>
@@ -9,6 +10,7 @@
 #include <fmt/format.h>
 #include <chrono>
 #include <thread>
+#include <cstdlib>
 
 namespace chronon3d {
 namespace cli {
@@ -236,6 +238,163 @@ int command_watch(const CompositionRegistry& registry, const std::string& comp_i
         }
     }
     return 0;
+}
+
+// ---------------------------------------------------------------------------
+// video command
+// ---------------------------------------------------------------------------
+
+namespace {
+
+bool ffmpeg_available() {
+#ifdef _WIN32
+    return std::system("ffmpeg -version >nul 2>nul") == 0;
+#else
+    return std::system("ffmpeg -version >/dev/null 2>/dev/null") == 0;
+#endif
+}
+
+int run_ffmpeg_encode(const std::string& frame_pattern, const std::string& output,
+                      int fps, int crf, const std::string& preset) {
+    const std::string cmd = fmt::format(
+        "ffmpeg -y -framerate {} -i \"{}\" -c:v libx264 -pix_fmt yuv420p "
+        "-crf {} -preset {} -movflags +faststart \"{}\"",
+        fps, frame_pattern, crf, preset, output);
+    return std::system(cmd.c_str());
+}
+
+} // anonymous namespace
+
+int command_video(const CompositionRegistry& registry, const VideoArgs& args) {
+    if (!registry.contains(args.comp_id)) {
+        spdlog::error("Unknown composition: {}", args.comp_id);
+        return 1;
+    }
+    if (args.end <= args.start) {
+        spdlog::error("--end ({}) must be greater than --start ({})", args.end, args.start);
+        return 1;
+    }
+
+    namespace fs = std::filesystem;
+
+    // Determine frames directory
+    const fs::path frames_dir = args.frames_dir.empty()
+        ? fs::path("output") / "frames" / args.comp_id
+        : fs::path(args.frames_dir);
+
+    std::error_code ec;
+    fs::create_directories(frames_dir, ec);
+    if (ec) {
+        spdlog::error("Cannot create frames directory {}: {}", frames_dir.string(), ec.message());
+        return 1;
+    }
+
+    // Render PNG sequence
+    const std::string frame_pattern = (frames_dir / "frame_%04d.png").string();
+
+    RenderArgs render_args;
+    render_args.comp_id   = args.comp_id;
+    render_args.start_old = args.start;
+    render_args.end_old   = args.end;
+    render_args.output    = (frames_dir / "frame_####.png").string();
+
+    spdlog::info("Rendering {} frames {} → {} ...", args.comp_id, args.start, args.end);
+    const int render_result = command_render(registry, render_args);
+    if (render_result != 0) {
+        spdlog::error("Frame rendering failed");
+        return render_result;
+    }
+
+    // Encode with ffmpeg
+    if (!ffmpeg_available()) {
+        spdlog::error("ffmpeg not found in PATH — install ffmpeg or add it to PATH");
+        return 1;
+    }
+
+    const fs::path out_path(args.output);
+    fs::create_directories(out_path.parent_path(), ec);
+
+    spdlog::info("Encoding {} → {}", frame_pattern, args.output);
+    const int ff_result = run_ffmpeg_encode(frame_pattern, args.output, args.fps, args.crf, args.preset);
+    if (ff_result != 0) {
+        spdlog::error("ffmpeg exited with code {}", ff_result);
+        return ff_result;
+    }
+
+    if (!fs::exists(out_path) || fs::file_size(out_path) == 0) {
+        spdlog::error("Output video missing or empty: {}", args.output);
+        return 1;
+    }
+
+    if (!args.keep_frames) {
+        fs::remove_all(frames_dir, ec);
+        if (ec) spdlog::warn("Could not remove frames dir {}: {}", frames_dir.string(), ec.message());
+    }
+
+    spdlog::info("Video saved to {}", args.output);
+    return 0;
+}
+
+// ---------------------------------------------------------------------------
+// proofs command
+// ---------------------------------------------------------------------------
+
+static int render_proof_suite(const CompositionRegistry& registry,
+                               const ProofSuite& suite,
+                               const std::filesystem::path& out_dir) {
+    namespace fs = std::filesystem;
+    std::error_code ec;
+    fs::create_directories(out_dir, ec);
+
+    int failed = 0;
+    for (const auto& pf : suite.frames) {
+        if (!registry.contains(pf.composition)) {
+            spdlog::warn("Composition not registered (skipped): {}", pf.composition);
+            continue;
+        }
+        const auto out = out_dir / pf.filename;
+        spdlog::info("  {} frame {} → {}", pf.composition, pf.frame, out.string());
+
+        RenderArgs args;
+        args.comp_id   = pf.composition;
+        args.frame_old = pf.frame;
+        args.output    = out.string();
+
+        const int r = command_render(registry, args);
+        if (r != 0 || !fs::exists(out) || fs::file_size(out) == 0) {
+            spdlog::error("  FAILED: {} frame {}", pf.composition, pf.frame);
+            ++failed;
+        }
+    }
+    return failed == 0 ? 0 : 1;
+}
+
+int command_proofs(const CompositionRegistry& registry, const ProofsArgs& args) {
+    if (args.suite == "list") {
+        fmt::print("Available proof suites:\n");
+        for (const auto& s : proof_suites())
+            fmt::print("  {}\n", s.name);
+        return 0;
+    }
+
+    if (args.suite == "all") {
+        int result = 0;
+        for (const auto& suite : proof_suites()) {
+            spdlog::info("[proofs] Suite: {}", suite.name);
+            const auto suite_dir = std::filesystem::path(args.output_dir) / suite.name;
+            result |= render_proof_suite(registry, suite, suite_dir);
+        }
+        return result;
+    }
+
+    const auto suite = find_proof_suite(args.suite);
+    if (!suite) {
+        spdlog::error("Unknown proof suite '{}'. Use 'proofs list' to see available suites.", args.suite);
+        return 1;
+    }
+
+    spdlog::info("[proofs] Suite: {}", suite->name);
+    return render_proof_suite(registry, *suite, args.output_dir);
 }
 
 } // namespace cli

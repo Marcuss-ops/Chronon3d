@@ -78,6 +78,7 @@ target("chronon3d_examples_lib")
 target("chronon3d_cli")
     set_kind("binary")
     add_files("apps/chronon3d_cli/*.cpp")
+    add_includedirs("apps/chronon3d_cli")
     add_deps("chronon3d_pipeline", "chronon3d_io", "chronon3d_examples_lib")
     add_packages("cli11", "spdlog", "fmt", "meshoptimizer", "xxhash", "toml++")
 
