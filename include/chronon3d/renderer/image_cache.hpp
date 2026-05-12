@@ -5,16 +5,10 @@
 #include <unordered_map>
 #include <memory>
 
-// stbi forward-compatible: pixels owned by the cache entry.
-struct stbi_cached_image {
-    int width{0};
-    int height{0};
-    unsigned char* pixels{nullptr}; // freed on destruction via stbi_image_free
-};
-
 namespace chronon3d {
 
 // Cached image entry. Non-copyable, movable.
+// Pixels are freed via stbi_image_free when the entry is destroyed.
 struct CachedImage {
     int   width{0};
     int   height{0};
@@ -23,8 +17,9 @@ struct CachedImage {
     [[nodiscard]] bool valid() const { return pixels != nullptr && width > 0 && height > 0; }
 };
 
-// Thread-safe: NOT — single-threaded use only (one renderer per thread).
-// Keyed by absolute or relative file path.
+// Per-renderer image cache keyed by file path.
+// NOT thread-safe — one cache per renderer thread.
+// For parallel frame rendering use one SoftwareRenderer per worker thread.
 class ImageCache {
 public:
     // Returns nullptr if the image cannot be loaded.

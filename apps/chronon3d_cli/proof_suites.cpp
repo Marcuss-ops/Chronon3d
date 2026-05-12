@@ -77,6 +77,15 @@ const std::vector<ProofSuite>& proof_suites() {
             }
         },
         {
+            .name = "animation",
+            .frames = {
+                {"KeyframesProof", 0,   "keyframes_0000.png"},
+                {"KeyframesProof", 30,  "keyframes_0030.png"},
+                {"KeyframesProof", 80,  "keyframes_0080.png"},
+                {"KeyframesProof", 110, "keyframes_0110.png"},
+            }
+        },
+        {
             .name = "masks",
             .frames = {
                 {"MaskRectProof",           0,  "mask_rect.png"},
