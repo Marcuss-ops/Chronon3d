@@ -20,6 +20,8 @@ struct Color {
     static constexpr Color red()   { return {1.0f, 0.0f, 0.0f, 1.0f}; }
     static constexpr Color green() { return {0.0f, 1.0f, 0.0f, 1.0f}; }
     static constexpr Color blue()  { return {0.0f, 0.0f, 1.0f, 1.0f}; }
+    static constexpr Color yellow() { return {1.0f, 1.0f, 0.0f, 1.0f}; }
+    static constexpr Color transparent() { return {0.0f, 0.0f, 0.0f, 0.0f}; }
 
     constexpr Color operator+(const Color& other) const { return {r + other.r, g + other.g, b + other.b, a + other.a}; }
     constexpr Color operator*(f32 scalar) const { return {r * scalar, g * scalar, b * scalar, a * scalar}; }

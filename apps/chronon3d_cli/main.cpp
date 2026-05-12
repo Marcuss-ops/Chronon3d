@@ -32,13 +32,33 @@ int main(int argc, char** argv) {
     RenderArgs render_args;
     auto* render_cmd = app.add_subcommand("render", "Render a composition to image(s)");
     render_cmd->add_option("id", render_args.comp_id, "ID of the composition to render")->required();
-    render_cmd->add_option("--frame", render_args.frame, "Single frame to render");
-    render_cmd->add_option("--start", render_args.start, "Start frame of the range");
-    render_cmd->add_option("--end", render_args.end, "End frame of the range");
-    render_cmd->add_option("-o,--output", render_args.output, "Output path or pattern");
+    render_cmd->add_option("--frames", render_args.frames, "Frames to render (e.g. 0, 0-90, 0-90x5)");
+    render_cmd->add_option("-o,--output", render_args.output, "Output path pattern (use #### for frame number)");
+    render_cmd->add_flag("--diagnostic", render_args.diagnostic, "Enable diagnostic rendering overlays");
+    
+    // Legacy options for compatibility
+    render_cmd->add_option("--frame", render_args.frame_old, "Single frame to render (legacy)");
+    render_cmd->add_option("--start", render_args.start_old, "Start frame (legacy)");
+    render_cmd->add_option("--end", render_args.end_old, "End frame (legacy)");
     
     render_cmd->callback([&registry, &render_args]() {
         command_render(registry, render_args);
+    });
+
+    // Batch Command
+    std::string batch_config;
+    auto* batch_cmd = app.add_subcommand("batch", "Run multiple rendering jobs from a config file");
+    batch_cmd->add_option("--config", batch_config, "Path to TOML batch config")->required();
+    batch_cmd->callback([&registry, &batch_config]() {
+        command_batch(registry, batch_config);
+    });
+
+    // Watch Command
+    std::string watch_id;
+    auto* watch_cmd = app.add_subcommand("watch", "Watch for source changes, rebuild and re-render");
+    watch_cmd->add_option("id", watch_id, "ID of the composition to watch")->required();
+    watch_cmd->callback([&registry, &watch_id]() {
+        command_watch(registry, watch_id);
     });
 
     try {
