@@ -3,6 +3,7 @@
 #include <chronon3d/scene/scene.hpp>
 #include <chronon3d/scene/mask_utils.hpp>
 #include <chronon3d/scene/layer_effect.hpp>
+#include <chronon3d/scene/effect_stack.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/core/profiling.hpp>
 #include <chronon3d/math/raster_utils.hpp>
@@ -167,16 +168,21 @@ std::unique_ptr<Framebuffer> SoftwareRenderer::render_scene(
             layer_state.mask             = &layer.mask;
             layer_state.layer_inv_matrix = glm::inverse(layer_state.matrix);
         }
-        if (!layer.effect.has_any() && layer.blend_mode == BlendMode::Normal) {
+        const bool has_effects = !layer.effects.empty() || layer.effect.has_any();
+        if (!has_effects && layer.blend_mode == BlendMode::Normal) {
             render_layer_nodes(*fb, layer, layer_state, camera, width, height);
         } else {
             Framebuffer offscreen(width, height);
             offscreen.clear(Color::transparent());
             render_layer_nodes(offscreen, layer, layer_state, camera, width, height);
-            if (layer.effect.blur_radius > 0.0f)
-                apply_blur(offscreen, layer.effect.blur_radius);
-            if (layer.effect.tint.a > 0.0f || layer.effect.brightness != 0.0f || layer.effect.contrast != 1.0f)
-                apply_color_effects(offscreen, layer.effect);
+            if (!layer.effects.empty()) {
+                apply_effect_stack(offscreen, layer.effects);
+            } else {
+                if (layer.effect.blur_radius > 0.0f)
+                    apply_blur(offscreen, layer.effect.blur_radius);
+                if (layer.effect.tint.a > 0.0f || layer.effect.brightness != 0.0f || layer.effect.contrast != 1.0f)
+                    apply_color_effects(offscreen, layer.effect);
+            }
             composite_layer(*fb, offscreen, layer.blend_mode);
         }
     };
@@ -457,6 +463,29 @@ void SoftwareRenderer::apply_color_effects(Framebuffer& fb, const LayerEffect& e
             }
             fb.set_pixel(x, y, c);
         }
+    }
+}
+
+void SoftwareRenderer::apply_effect_stack(Framebuffer& fb, const EffectStack& stack) {
+    for (const auto& inst : stack) {
+        if (!inst.enabled) continue;
+        std::visit([&fb](const auto& p) {
+            using T = std::decay_t<decltype(p)>;
+            if constexpr (std::is_same_v<T, BlurParams>) {
+                if (p.radius > 0.0f) apply_blur(fb, p.radius);
+            } else if constexpr (std::is_same_v<T, TintParams>) {
+                LayerEffect e;
+                e.tint = Color{p.color.r, p.color.g, p.color.b, p.color.a * p.amount};
+                apply_color_effects(fb, e);
+            } else if constexpr (std::is_same_v<T, BrightnessParams>) {
+                LayerEffect e; e.brightness = p.value;
+                apply_color_effects(fb, e);
+            } else if constexpr (std::is_same_v<T, ContrastParams>) {
+                LayerEffect e; e.contrast = p.value;
+                apply_color_effects(fb, e);
+            }
+            // DropShadow, Glow: applied at node level (RenderNode.shadow/glow)
+        }, inst.params);
     }
 }
 
