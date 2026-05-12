@@ -3,25 +3,16 @@
 
 #include <chronon3d/renderer/text_renderer.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
+#include <chronon3d/math/raster_utils.hpp>
 #include <fstream>
 #include <vector>
 #include <cmath>
 #include <algorithm>
+#include <chronon3d/math/transform.hpp>
+#include <chronon3d/renderer/framebuffer.hpp>
+#include <spdlog/spdlog.h>
 
 namespace chronon3d {
-
-namespace {
-    // Helper to blend a single pixel (already exists in compositor but let's keep it robust here)
-    inline Color blend_normal(Color src, Color dst) {
-        const f32 inv = 1.0f - src.a;
-        return Color{
-            src.r * src.a + dst.r * inv,
-            src.g * src.a + dst.g * inv,
-            src.b * src.a + dst.b * inv,
-            src.a + dst.a * inv
-        };
-    }
-}
 
 bool TextRenderer::read_font_file(const std::string& path, std::vector<unsigned char>& out) {
     std::ifstream file(path, std::ios::binary);
@@ -37,7 +28,7 @@ bool TextRenderer::read_font_file(const std::string& path, std::vector<unsigned 
     return true;
 }
 
-bool TextRenderer::draw_text(const TextShape& t, Framebuffer& framebuffer) {
+bool TextRenderer::draw_text(const TextShape& t, const Transform& tr, Framebuffer& fb) {
     if (t.text.empty() || t.style.font_path.empty()) {
         return true; // Nothing to draw
     }
@@ -52,13 +43,22 @@ bool TextRenderer::draw_text(const TextShape& t, Framebuffer& framebuffer) {
         return false;
     }
 
+    // Phase 2: Log if rotation or scale is used (deferred to Transform 2)
+    if (!tr.is_identity_2d()) {
+        static bool logged = false;
+        if (!logged) {
+            spdlog::warn("Text rotation/scale deferred to Transform 2");
+            logged = true;
+        }
+    }
+
     float scale = stbtt_ScaleForPixelHeight(&font, t.style.size);
 
     int ascent, descent, line_gap;
     stbtt_GetFontVMetrics(&font, &ascent, &descent, &line_gap);
 
-    float cur_x = t.position.x;
-    float baseline_y = t.position.y + static_cast<float>(ascent) * scale;
+    float cur_x = tr.position.x;
+    float baseline_y = tr.position.y + static_cast<float>(ascent) * scale;
 
     for (size_t i = 0; i < t.text.length(); ++i) {
         char c = t.text[i];
@@ -81,20 +81,20 @@ bool TextRenderer::draw_text(const TextShape& t, Framebuffer& framebuffer) {
 
             for (int by = 0; by < h; ++by) {
                 int py = draw_y_start + by;
-                if (py < 0 || py >= framebuffer.height()) continue;
+                if (py < 0 || py >= fb.height()) continue;
 
                 for (int bx = 0; bx < w; ++bx) {
                     int px = draw_x_start + bx;
-                    if (px < 0 || px >= framebuffer.width()) continue;
+                    if (px < 0 || px >= fb.width()) continue;
 
                     float glyph_alpha = static_cast<float>(bitmap[static_cast<size_t>(by * w + bx)]) / 255.0f;
                     if (glyph_alpha <= 0.0f) continue;
 
                     Color src = t.style.color;
-                    src.a *= glyph_alpha;
+                    src.a *= glyph_alpha * tr.opacity; // Opacity integration
 
-                    Color dst = framebuffer.get_pixel(px, py);
-                    framebuffer.set_pixel(px, py, blend_normal(src, dst));
+                    Color dst = fb.get_pixel(px, py);
+                    fb.set_pixel(px, py, raster::blend_normal(src, dst));
                 }
             }
         }

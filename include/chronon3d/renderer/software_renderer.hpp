@@ -23,17 +23,11 @@ public:
     std::unique_ptr<Framebuffer> render_scene(const Scene& scene, const Camera& camera,
                                                i32 width, i32 height) override;
 
+    // Diagnostic mode control
+    void set_diagnostic_mode(bool enabled) { diagnostic_ = enabled; }
+    [[nodiscard]] bool is_diagnostic_mode() const { return diagnostic_; }
+
 private:
-    // Primitive rasterizers
-    void draw_rect(Framebuffer& fb, const Vec3& position, const Vec2& size,
-                   const Color& color, BlendMode mode);
-
-    void draw_rounded_rect(Framebuffer& fb, const Vec3& position, const Vec2& size,
-                           f32 radius, const Color& color, BlendMode mode);
-
-    void draw_circle(Framebuffer& fb, const Vec3& position, f32 radius,
-                     const Color& color, BlendMode mode);
-
     void draw_line(Framebuffer& fb, const Vec3& p1, const Vec3& p2, const Color& color);
 
     void render_mesh_wireframe(Framebuffer& fb, const Mesh& mesh, const Mat4& model,
@@ -43,7 +37,11 @@ private:
     void draw_shadow(Framebuffer& fb, const RenderNode& node);
     void draw_glow(Framebuffer& fb, const RenderNode& node);
 
+    // Diagnostic drawing helpers
+    void draw_diagnostic_info(Framebuffer& fb, const RenderNode& node);
+
     TextRenderer m_text_renderer;
+    bool diagnostic_{false};
 };
 
 } // namespace chronon3d

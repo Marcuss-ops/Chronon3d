@@ -46,7 +46,6 @@ struct TextStyle {
 
 struct TextShape {
     std::string text;
-    Vec3 position{};
     TextStyle style{};
 };
 
