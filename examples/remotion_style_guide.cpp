@@ -20,7 +20,7 @@ Composition AdvancedVideo() {
             SceneBuilder builder(ctx.resource);
             
             // 1. Global background
-            builder.rect("bg", {0, 0, -1}, Color::black());
+            builder.rect("bg", {ctx.width / 2.0f, ctx.height / 2.0f, -1}, Color::black(), {(f32)ctx.width, (f32)ctx.height, 1.0f});
 
             // 2. A sequence that only renders between frame 0 and 120
             if (in_sequence(ctx, 0, 120)) {
@@ -32,7 +32,7 @@ Composition AdvancedVideo() {
                 builder.rect("intro_box", 
                     {ctx.width / 2.0f, ctx.height / 2.0f, 0}, 
                     Color::red(),
-                    {scale, scale, 1.0f},
+                    {200.0f * scale, 200.0f * scale, 1.0f},
                     {0, 0, rot} // Rotation Euler
                 );
             }
@@ -46,7 +46,8 @@ Composition AdvancedVideo() {
 
                 builder.rect("main_content", 
                     {ctx.width / 2.0f + slide, ctx.height / 2.0f, 0}, 
-                    Color::white().with_alpha(opacity)
+                    Color::white().with_alpha(opacity),
+                    {400.0f, 200.0f, 1.0f}
                 );
             }
 
@@ -56,16 +57,17 @@ Composition AdvancedVideo() {
 }
 
 // How to register and use it:
-void setup_showcase() {
-    CompositionRegistry::instance().add("AdvancedShowcase", []() {
+void setup_showcase(CompositionRegistry& registry) {
+    registry.add("AdvancedShowcase", []() {
         return AdvancedVideo();
     });
 }
 
 int main() {
-    setup_showcase();
+    CompositionRegistry registry;
+    setup_showcase(registry);
     
-    auto comp = CompositionRegistry::instance().create("AdvancedShowcase");
+    auto comp = registry.create("AdvancedShowcase");
 
     std::cout << "Rendering frame 60 of " << comp.name() << "..." << std::endl;
     

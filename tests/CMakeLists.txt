@@ -22,18 +22,25 @@ add_executable(chronon3d_tests
     # Scene
     scene/test_scene.cpp
     scene/test_scene_builder.cpp
+    scene/test_line_primitive.cpp
+    scene/test_circle_primitive.cpp
     
     # Rendering
     renderer/test_renderer.cpp
     renderer/test_code_first_render.cpp
+    renderer/test_alpha_blending.cpp
     
     # Other
     deterministic/test_deterministic.cpp
+    
+    # IO
+    io/test_image_writer.cpp
 )
 
 target_link_libraries(chronon3d_tests
     PRIVATE
         chronon3d
+        chronon3d_io
         doctest::doctest
 )
 
