@@ -68,7 +68,7 @@ int main(int argc, char** argv) {
     ProofsArgs proofs_args;
     auto* proofs_cmd = app.add_subcommand("proofs", "Render a proof suite ('proofs list' for names)");
     proofs_cmd->add_option("suite", proofs_args.suite,
-        "Suite: list | all | text | layer | image | effects | animation | camera25d | masks")->required();
+        "Suite: list | all | text | layer | image | effects | animation | depth | camera25d | masks")->required();
     proofs_cmd->add_option("-o,--output-dir", proofs_args.output_dir, "Output directory");
     proofs_cmd->callback([&]() { exit_code = command_proofs(registry, proofs_args); });
 
