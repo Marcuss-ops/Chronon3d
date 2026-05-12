@@ -1,104 +1,159 @@
-# Guida alla Build e Sviluppo di Chronon3d
+# Building Chronon3d
 
-Chronon3d supporta attualmente due flussi di lavoro per la compilazione e lo sviluppo. Questa guida spiega come configurare e utilizzare entrambi.
+## Prerequisites
 
-## 🛠️ Prerequisiti (Windows)
-
-- **C++20 Compiler**: Visual Studio 2022 o superiore (con il workload "Sviluppo di applicazioni desktop con C++").
-- **PowerShell**: Per l'esecuzione degli script di automazione.
-- **Git**: Per il controllo del codice sorgente.
-
-## ⚡ Metodo 1: Xmake (Percorso consigliato per lo sviluppo rapido)
-
-Xmake è il percorso consigliato per lo sviluppo rapido e l'iterazione veloce. Gestisce le dipendenze automaticamente e offre tempi di compilazione incrementale estremamente ridotti. CMake rimane il sistema standard e supportato per le build di produzione.
-
-### Comandi Rapidi
-Usa lo script di sviluppo per compilare ed eseguire un render di prova:
-```powershell
-.\tools\dev.ps1
-```
-
-### Comandi Manuali
-1. **Configurazione**:
-   ```powershell
-   xmake f -m debug          # Modalità Debug (default)
-   xmake f -m release        # Modalità Release
-   xmake f --profiling=true  # Abilita Tracy Profiling
-   ```
-2. **Compilazione**:
-   ```powershell
-   xmake -y
-   ```
-3. **Esecuzione**:
-   ```powershell
-   xmake run chronon3d_cli list
-   ```
+| Tool | Required for |
+|---|---|
+| C++20 compiler (GCC 12+ / Clang 15+ / MSVC 2022+) | Core build |
+| xmake OR cmake + ninja | Build system |
+| ffmpeg (in PATH) | `chronon3d_cli video` only — not linked into the engine |
 
 ---
 
-## 🏛️ Metodo 2: CMake + vcpkg (Sistema Standard)
+## Method 1: xmake (recommended for development)
 
-CMake viene mantenuto per garantire la compatibilità con gli standard di settore e per le build di produzione.
+xmake manages all C++ dependencies automatically.
 
-### Script di Automazione
-Lo script `tools/chronon-win.ps1` gestisce l'installazione delle dipendenze tramite vcpkg e la configurazione di CMake:
-```powershell
-# Build Release (default)
-.\tools\chronon-win.ps1
+### Install xmake (once)
 
-# Build Debug
-.\tools\chronon-win.ps1 -Configuration Debug
+**Linux / macOS:**
+```bash
+curl -fsSL https://xmake.io/shget.text | bash
+source ~/.xmake/profile
 ```
 
-Su Linux, usa `tools/chronon-linux.sh`:
+**Windows:** Download from https://xmake.io or `winget install xmake`
+
+### Build
+
 ```bash
+xmake f -m debug          # configure (debug)
+xmake f -m release        # configure (release)
+xmake -y                  # build (installs deps on first run)
+```
+
+### Run
+
+```bash
+xmake run -w . chronon3d_cli list
+xmake run -w . chronon3d_cli render ImageProof --frame 0 -o output/image.png
+xmake run -w . chronon3d_cli proofs all -o output/proofs/all
+xmake run -w . chronon3d_cli video Camera25DParallaxProof --start 0 --end 90 --fps 30 -o output/parallax.mp4
+```
+
+### Tests
+
+```bash
+xmake run chronon3d_tests
+```
+
+---
+
+## Method 2: CMake + vcpkg
+
+CMake is the production build path. vcpkg manages dependencies.
+
+### Linux
+
+```bash
+# Install vcpkg once
+git clone https://github.com/microsoft/vcpkg ~/vcpkg
+~/vcpkg/bootstrap-vcpkg.sh
+export VCPKG_ROOT=~/vcpkg
+
+# Build
 bash tools/chronon-linux.sh
 ```
 
----
+### Windows
 
-## 🚀 Utilizzo della CLI (chronon3d_cli)
-
-Una volta compilato, puoi usare la CLI per interagire con il motore.
-
-### 1. Elencare le Composizioni
-Mostra tutti i video/scene registrati nel codice:
 ```powershell
-xmake run -w . chronon3d_cli list
+.\tools\chronon-win.ps1           # Release (default)
+.\tools\chronon-win.ps1 -Configuration Debug
 ```
 
-### 2. Rendering di un Frame
-Esegue il render di un singolo frame di una composizione specifica:
-```powershell
-xmake run -w . chronon3d_cli render RoundedRectProof --frame 0 -o output/render.png
-```
+### CMake manual
 
-### 3. Rendering di un'Animazione
-```powershell
-xmake run -w . chronon3d_cli render AnimatedVisualQualityProof --frame 0 -o output/seq_0000.png
-xmake run -w . chronon3d_cli render AnimatedVisualQualityProof --frame 30 -o output/seq_0030.png
+```bash
+cmake --preset linux-release
+cmake --build --preset linux
 ```
 
 ---
 
-## 🧪 Testing e Validazione
+## Workflow
 
-Per verificare che tutto funzioni correttamente dopo una modifica:
-```powershell
-.\tools\test-xmake.ps1
+### Render a single frame
+
+```bash
+chronon3d_cli render MyComp --frame 0 -o output/frame.png
 ```
-Questo script eseguirà una suite completa di test di rendering e verificherà l'integrità dei file prodotti.
 
-## 📁 Struttura Directory
+### Render a frame range
 
-| Percorso | Contenuto |
+```bash
+chronon3d_cli render MyComp --start 0 --end 90 -o output/frames/frame_####.png
+```
+
+Creates `frame_0000.png` … `frame_0089.png` in `output/frames/`.
+
+### Export video (requires ffmpeg)
+
+```bash
+chronon3d_cli video MyComp --start 0 --end 90 --fps 30 -o output/my_comp.mp4
+```
+
+Options: `--crf 18`, `--preset medium`, `--keep-frames`, `--frames-dir <path>`.
+
+**ffmpeg** must be installed separately and available in `PATH`. It is not linked into the engine.
+
+### Run proof suites
+
+```bash
+chronon3d_cli proofs list
+chronon3d_cli proofs image    -o output/proofs/image
+chronon3d_cli proofs masks    -o output/proofs/masks
+chronon3d_cli proofs camera25d -o output/proofs/camera25d
+chronon3d_cli proofs all      -o output/proofs/all
+```
+
+---
+
+## Directory Structure
+
+| Path | Content |
 |---|---|
-| `apps/chronon3d_cli/` | Entry point CLI |
-| `examples/` | Compositions (codice creativo) |
-| `include/chronon3d/` | Header pubblici del motore |
-| `src/` | Implementazioni (renderer, scene, io) |
-| `tests/` | Test automatici (doctest) |
-| `tools/` | Script di build, render e watch |
-| `assets/` | Font, immagini di test |
-| `docs/` | Documentazione interna |
-| `output/` | Destinazione rendering (gitignored) |
+| `apps/chronon3d_cli/` | CLI source |
+| `examples/` | Compositions and proof compositions |
+| `include/chronon3d/` | Public headers |
+| `src/` | Renderer, scene, IO |
+| `tests/` | doctest test suite |
+| `tools/` | Build helper scripts |
+| `assets/` | Fonts and test images |
+| `output/` | Generated output — gitignored |
+| `docs/` | Internal design notes |
+
+---
+
+## Adding a Composition
+
+1. Create `examples/my_comp.cpp`
+2. Include `<chronon3d/chronon3d.hpp>`
+3. Define a function returning `Composition`
+4. Register it with `CHRONON_REGISTER_COMPOSITION("MyComp", MyComp)`
+5. Rebuild — no CMake/xmake changes needed (glob picks it up)
+
+```cpp
+#include <chronon3d/chronon3d.hpp>
+using namespace chronon3d;
+
+static Composition MyComp() {
+    return composition({ .name = "MyComp", .width = 1280, .height = 720, .duration = 60 },
+        [](const FrameContext& ctx) {
+            SceneBuilder s(ctx);
+            s.rect("bg", { .size = {1280, 720}, .color = Color::black(), .pos = {640, 360, 0} });
+            return s.build();
+        });
+}
+CHRONON_REGISTER_COMPOSITION("MyComp", MyComp)
+```
