@@ -23,8 +23,10 @@ int main(int argc, char** argv) {
     ZoneScopedN("Main");
     spdlog::info("Chronon3d CLI v0.1.0 (Code-First)");
 
+    CompositionRegistry registry;
+
     // Register examples if not already done
-    CompositionRegistry::instance().add("CodeFirstSmoke", []() {
+    registry.add("CodeFirstSmoke", []() {
         CompositionSpec spec;
         spec.name = "CodeFirstSmoke";
         spec.width = 512;
@@ -47,19 +49,19 @@ int main(int argc, char** argv) {
     if (comp_id.empty()) {
         std::cout << "Usage: chronon3d_cli --composition <id> [flags]" << std::endl;
         std::cout << "Available compositions:" << std::endl;
-        for (const auto& name : CompositionRegistry::instance().available()) {
+        for (const auto& name : registry.available()) {
             std::cout << "  " << name << std::endl;
         }
         return 1;
     }
 
     try {
-        if (!CompositionRegistry::instance().contains(comp_id)) {
+        if (!registry.contains(comp_id)) {
             spdlog::error("Unknown composition: {}", comp_id);
             return 1;
         }
 
-        auto comp_ptr = std::make_shared<Composition>(CompositionRegistry::instance().create(comp_id));
+        auto comp_ptr = std::make_shared<Composition>(registry.create(comp_id));
         spdlog::info("Loaded composition: {} ({}x{})", comp_ptr->name(), comp_ptr->width(), comp_ptr->height());
 
         i64 start_frame = absl::GetFlag(FLAGS_start);

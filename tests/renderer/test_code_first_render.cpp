@@ -14,7 +14,7 @@ TEST_CASE("Code-first rendering smoke test") {
 
     Composition comp(spec, [](const FrameContext& ctx) {
         SceneBuilder builder(ctx.resource);
-        builder.rect("box", {50, 50, 0}, Color::white());
+        builder.rect("box", {50, 50, 0}, Color::white(), {50, 50, 1});
         return builder.build();
     });
 
@@ -29,7 +29,8 @@ TEST_CASE("Code-first rendering smoke test") {
     bool has_content = false;
     for (i32 y = 0; y < fb->height(); ++y) {
         for (i32 x = 0; x < fb->width(); ++x) {
-            if (fb->get_pixel(x, y).a > 0) {
+            Color c = fb->get_pixel(x, y);
+            if (c.r > 0.0f || c.g > 0.0f || c.b > 0.0f) {
                 has_content = true;
                 break;
             }
@@ -37,4 +38,8 @@ TEST_CASE("Code-first rendering smoke test") {
         if (has_content) break;
     }
     CHECK(has_content);
+
+    // Specific check for center pixel (where the box should be)
+    Color center = fb->get_pixel(50, 50);
+    CHECK((center.r > 0.0f || center.g > 0.0f || center.b > 0.0f));
 }
