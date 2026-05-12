@@ -47,6 +47,21 @@ public:
         return *this;
     }
 
+    // Adjustment layer: applies its effect stack to everything rendered before it.
+    // The lambda receives a LayerBuilder but any visuals added are ignored.
+    template <typename Fn>
+    SceneBuilder& adjustment_layer(std::string name, Fn&& fn) {
+        LayerBuilder builder(std::move(name), scene_.resource());
+        std::forward<Fn>(fn)(builder);
+
+        Layer l = builder.build();
+        l.kind = LayerKind::Adjustment;
+        if (l.active_at(current_frame_)) {
+            scene_.add_layer(std::move(l));
+        }
+        return *this;
+    }
+
     // Fluent API for transformations (root level)
     SceneBuilder& at(Vec3 pos) {
         scene_.last_node().world_transform.position = pos;

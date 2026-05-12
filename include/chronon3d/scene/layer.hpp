@@ -15,8 +15,15 @@
 
 namespace chronon3d {
 
+enum class LayerKind {
+    Normal,       // standard layer: draws its own content, then effects applied
+    Adjustment,   // no own content: effects applied to everything rendered below it
+    Null          // no rendering at all; useful as a parent for transform hierarchy
+};
+
 struct Layer {
     std::pmr::string name;
+    LayerKind kind{LayerKind::Normal};
     Transform transform{};
     Frame from{0};
     Frame duration{-1};
