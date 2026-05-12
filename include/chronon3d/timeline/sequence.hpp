@@ -6,11 +6,7 @@ namespace chronon3d {
 
 struct SequenceContext {
     FrameContext parent;
-    Frame local_frame{0};
-
-    [[nodiscard]] Frame frame() const {
-        return local_frame;
-    }
+    Frame frame{0};
 };
 
 inline bool in_sequence(const FrameContext& ctx, Frame from, Frame duration) {
@@ -20,7 +16,7 @@ inline bool in_sequence(const FrameContext& ctx, Frame from, Frame duration) {
 inline SequenceContext sequence_context(const FrameContext& ctx, Frame from) {
     return SequenceContext{
         .parent = ctx,
-        .local_frame = ctx.frame - from
+        .frame = ctx.frame - from
     };
 }
 

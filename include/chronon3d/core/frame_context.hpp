@@ -9,6 +9,8 @@ struct FrameContext {
     Frame frame{0};
     Frame duration{0};
     FrameRate frame_rate{30, 1};
+    i32 width{1920};
+    i32 height{1080};
     std::pmr::memory_resource* resource{std::pmr::get_default_resource()};
 
     [[nodiscard]] TimeSeconds seconds() const {

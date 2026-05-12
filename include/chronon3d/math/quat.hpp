@@ -17,4 +17,10 @@ inline Quat lerp(const Quat& a, const Quat& b, f32 t) {
     return glm::slerp(a, b, t); // Slerp is usually better for quaternions
 }
 
+namespace math {
+    inline Quat from_euler(const Vec3& euler_degrees) {
+        return Quat(glm::radians(euler_degrees));
+    }
+}
+
 } // namespace chronon3d

@@ -47,7 +47,7 @@ public:
         auto prev = std::prev(it);
 
         f32 t = static_cast<f32>(frame - prev->frame) / static_cast<f32>(next->frame - prev->frame);
-        f32 eased_t = easing::apply(t, prev->easing);
+        f32 eased_t = easing::apply(prev->easing, t);
 
         return lerp(prev->value, next->value, eased_t);
     }

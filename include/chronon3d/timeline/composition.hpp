@@ -36,6 +36,8 @@ public:
             .frame = frame,
             .duration = m_spec.duration,
             .frame_rate = m_spec.frame_rate,
+            .width = m_spec.width,
+            .height = m_spec.height,
             .resource = res
         };
 
@@ -48,5 +50,9 @@ private:
     CompositionSpec m_spec;
     SceneFunction m_render;
 };
+
+inline Composition composition(CompositionSpec spec, Composition::SceneFunction render) {
+    return Composition(std::move(spec), std::move(render));
+}
 
 } // namespace chronon3d

@@ -50,7 +50,7 @@ TEST_CASE("AnimatedValue") {
 
     SUBCASE("Easing") {
         AnimatedValue<f32> val(0.0f);
-        val.add_keyframe(0, 0.0f, Easing::EaseInQuad);
+        val.add_keyframe(0, 0.0f, Easing::InQuad);
         val.add_keyframe(100, 10.0f);
 
         f32 linear_mid = 5.0f;

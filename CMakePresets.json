@@ -88,7 +88,9 @@
       "configurePreset": "win-release",
       "targets": [
         "chronon3d_cli",
-        "chronon3d_tests"
+        "chronon3d_tests",
+        "code_first_smoke",
+        "remotion_style_guide"
       ],
       "jobs": 16
     },
@@ -97,7 +99,9 @@
       "configurePreset": "win-debug",
       "targets": [
         "chronon3d_cli",
-        "chronon3d_tests"
+        "chronon3d_tests",
+        "code_first_smoke",
+        "remotion_style_guide"
       ],
       "jobs": 16
     },

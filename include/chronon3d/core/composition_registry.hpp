@@ -11,6 +11,11 @@ namespace chronon3d {
 
 class CompositionRegistry {
 public:
+    static CompositionRegistry& instance() {
+        static CompositionRegistry registry;
+        return registry;
+    }
+
     using Factory = std::function<Composition()>;
 
     void add(std::string id, Factory factory) {
