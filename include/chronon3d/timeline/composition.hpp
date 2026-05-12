@@ -8,6 +8,8 @@
 #include <memory>
 #include <vector>
 
+#include <tracy/Tracy.hpp>
+
 namespace chronon3d {
 
 struct CompositionSpec {
@@ -32,6 +34,7 @@ public:
     [[nodiscard]] const std::string& name() const { return m_spec.name; }
 
     [[nodiscard]] Scene evaluate(Frame frame, std::pmr::memory_resource* res = std::pmr::get_default_resource()) const {
+        ZoneScoped;
         FrameContext ctx{
             .frame = frame,
             .duration = m_spec.duration,
