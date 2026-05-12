@@ -9,6 +9,7 @@ add_executable(chronon3d_tests
     test_timeline.cpp
     test_renderer.cpp
     test_scene.cpp
+    test_deterministic.cpp
 )
 
 target_link_libraries(chronon3d_tests

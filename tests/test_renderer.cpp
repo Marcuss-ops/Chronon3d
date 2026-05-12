@@ -43,15 +43,18 @@ TEST_CASE("Blending") {
 }
 
 TEST_CASE("Software Rendering Integration") {
-    Composition comp("TestRender", 200, 200, {30, 1});
+    Composition::Builder builder;
+    builder.name("TestRender").size(200, 200).fps({30, 1});
     
-    auto& layer = comp.add_layer("Rect", LayerType::Shape);
+    auto& layer = builder.add_layer("Rect", LayerType::Shape);
     layer.range = {0, 10};
     layer.transform.position.set(Vec3(100.0f, 100.0f, 0.0f));
     layer.opacity.set(1.0f);
 
+    auto comp = builder.build();
+
     SoftwareRenderer renderer;
-    auto fb = renderer.render_frame(comp, 0);
+    auto fb = renderer.render_frame(*comp, 0);
 
     SUBCASE("Verify center pixel") {
         Color center = fb->get_pixel(100, 100);

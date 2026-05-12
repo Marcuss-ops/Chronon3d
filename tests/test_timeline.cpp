@@ -29,16 +29,21 @@ TEST_CASE("AnimatedTransform evaluation") {
 }
 
 TEST_CASE("Composition and Layers") {
-    Composition comp("MainComp", 1920, 1080, {30, 1});
+    Composition::Builder builder;
+    builder.name("MainComp").size(1920, 1080).fps({30, 1});
     
-    auto& layer = comp.add_layer("Background", LayerType::Shape);
+    auto& layer = builder.add_layer("Background", LayerType::Shape);
     layer.range = {0, 300};
     layer.transform.position.add_keyframe(0, Vec3(0.0f));
     layer.transform.position.add_keyframe(300, Vec3(100.0f, 0.0f, 0.0f));
 
+    auto comp = builder.build();
+
     SUBCASE("Layer management") {
-        CHECK(comp.layers().size() == 1);
-        CHECK(comp.layers()[0]->name() == "Background");
+        // We can't access layers directly if they are private, but evaluate() works
+        Scene s = comp->evaluate(0);
+        CHECK(s.nodes().size() == 1);
+        CHECK(s.nodes()[0].name == "Background");
     }
 
     SUBCASE("Layer activity") {
