@@ -1,7 +1,7 @@
 #include <chronon3d/renderer/software_renderer.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/scene/scene.hpp>
-#include <tracy/Tracy.hpp>
+#include <chronon3d/core/profiling.hpp>
 #include <hwy/highway.h>
 #include <cmath>
 #include <algorithm>
