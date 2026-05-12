@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/timeline/layer.hpp>
+#include <chronon3d/timeline/mesh_layer.hpp>
 #include <chronon3d/scene/camera.hpp>
 #include <chronon3d/scene/scene.hpp>
 #include <vector>
@@ -61,8 +62,11 @@ public:
             node.world_transform = layer->transform.evaluate(frame);
             node.color = Color::white() * layer->opacity.evaluate(frame);
             
-            // In a real impl, we'd handle MeshLayer etc.
-            // For now, this is a placeholder for the logic.
+            if (layer->type() == LayerType::Mesh) {
+                auto mesh_layer = static_cast<const MeshLayer*>(layer.get());
+                node.mesh = mesh_layer->mesh();
+            }
+            
             scene.add_node(std::move(node));
         }
         return scene;

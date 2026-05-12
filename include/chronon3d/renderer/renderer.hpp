@@ -2,6 +2,8 @@
 
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/renderer/framebuffer.hpp>
+#include <chronon3d/scene/scene.hpp>
+#include <chronon3d/scene/camera.hpp>
 #include <memory>
 
 namespace chronon3d {
@@ -11,6 +13,12 @@ public:
     virtual ~Renderer() = default;
 
     virtual std::unique_ptr<Framebuffer> render_frame(const Composition& comp, Frame frame) = 0;
+    
+    virtual std::unique_ptr<Framebuffer> render_scene(
+        const Scene& scene, 
+        const Camera& camera, 
+        i32 width, i32 height
+    ) = 0;
 };
 
 } // namespace chronon3d

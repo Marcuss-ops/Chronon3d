@@ -2,33 +2,32 @@
 
 #include <chronon3d/renderer/renderer.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
-#include <chronon3d/timeline/mesh_layer.hpp>
 
 namespace chronon3d {
 
 class SoftwareRenderer : public Renderer {
 public:
     std::unique_ptr<Framebuffer> render_frame(const Composition& comp, Frame frame) override {
-        auto fb = std::make_unique<Framebuffer>(comp.width(), comp.height());
+        Scene scene = comp.evaluate(frame);
+        return render_scene(scene, comp.camera, comp.width(), comp.height());
+    }
+
+    std::unique_ptr<Framebuffer> render_scene(const Scene& scene, const Camera& camera, i32 width, i32 height) override {
+        auto fb = std::make_unique<Framebuffer>(width, height);
         fb->clear(Color::black());
 
-        f32 aspect = static_cast<f32>(comp.width()) / static_cast<f32>(comp.height());
-        Mat4 proj = comp.camera.projection_matrix(aspect);
-        Mat4 view = comp.camera.view_matrix();
+        f32 aspect = static_cast<f32>(width) / static_cast<f32>(height);
+        Mat4 proj = camera.projection_matrix(aspect);
+        Mat4 view = camera.view_matrix();
 
-        for (const auto& layer : comp.layers()) {
-            if (!layer->is_active(frame)) continue;
+        for (const auto& node : scene.nodes()) {
+            if (!node.visible) continue;
 
-            Transform transform = layer->transform.evaluate(frame);
-            f32 opacity = layer->opacity.evaluate(frame);
-            Color color = Color::white() * opacity;
-
-            if (layer->type() == LayerType::Mesh) {
-                auto mesh_layer = static_cast<const MeshLayer*>(layer.get());
-                render_mesh_wireframe(*fb, *mesh_layer->mesh(), transform.to_matrix(), view, proj, color);
+            if (node.mesh) {
+                render_mesh_wireframe(*fb, *node.mesh, node.world_transform.to_matrix(), view, proj, node.color);
             } else {
-                // Default 2D fallback for other layer types
-                draw_rect(*fb, transform, color, BlendMode::Normal);
+                // Default 2D fallback
+                draw_rect(*fb, node.world_transform, node.color, BlendMode::Normal);
             }
         }
 
@@ -41,9 +40,8 @@ private:
 
         auto project = [&](const Vec3& v) -> Vec3 {
             Vec3 p = mvp.transform_point(v);
-            // Convert NDC (-1 to 1) to Screen Space
             f32 x = (p.x + 1.0f) * 0.5f * fb.width();
-            f32 y = (1.0f - (p.y + 1.0f) * 0.5f) * fb.height(); // Flip Y
+            f32 y = (1.0f - (p.y + 1.0f) * 0.5f) * fb.height();
             return {x, y, p.z};
         };
 
