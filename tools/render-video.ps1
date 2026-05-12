@@ -26,9 +26,12 @@ if (Test-Path $framesDir) {
 
 New-Item -ItemType Directory -Path $framesDir | Out-Null
 
+if (-not (Get-Command xmake -ErrorAction SilentlyContinue)) {
+    Write-Error "xmake not found in PATH. Install xmake or add it to PATH."
+    exit 1
+}
+
 Write-Host "[render-video] Build ($Mode)..." -ForegroundColor Cyan
-# Add xmake to path if needed (custom for this environment)
-$env:PATH += ";C:\Users\pater\xmake"
 
 xmake f -m $Mode --profiling=false
 xmake -y
