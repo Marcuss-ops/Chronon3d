@@ -35,6 +35,14 @@ public:
         return factories_.contains(id);
     }
 
+    [[nodiscard]] std::vector<std::string> available() const {
+        std::vector<std::string> ids;
+        for (const auto& [id, _] : factories_) {
+            ids.push_back(id);
+        }
+        return ids;
+    }
+
 private:
     std::unordered_map<std::string, Factory> factories_;
 };

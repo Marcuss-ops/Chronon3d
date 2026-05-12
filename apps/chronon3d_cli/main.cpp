@@ -15,9 +15,16 @@ ABSL_FLAG(int64_t, start, 0, "Start frame of the range");
 ABSL_FLAG(int64_t, end, -1, "End frame of the range (exclusive)");
 ABSL_FLAG(std::string, output, "render.ppm", "Output path for the rendered frames");
 
-// Temporary hardcoded registry for MVP
-void register_examples(CompositionRegistry& registry) {
-    registry.add("CodeFirstSmoke", []() {
+// CLI Entry point
+
+int main(int argc, char** argv) {
+    auto positional_args = absl::ParseCommandLine(argc, argv);
+    
+    ZoneScopedN("Main");
+    spdlog::info("Chronon3d CLI v0.1.0 (Code-First)");
+
+    // Register examples if not already done
+    CompositionRegistry::instance().add("CodeFirstSmoke", []() {
         CompositionSpec spec;
         spec.name = "CodeFirstSmoke";
         spec.width = 512;
@@ -35,32 +42,24 @@ void register_examples(CompositionRegistry& registry) {
             }
         };
     });
-}
-
-int main(int argc, char** argv) {
-    auto positional_args = absl::ParseCommandLine(argc, argv);
-    
-    ZoneScopedN("Main");
-    spdlog::info("Chronon3d CLI v0.1.0 (Code-First)");
-
-    CompositionRegistry registry;
-    register_examples(registry);
 
     std::string comp_id = absl::GetFlag(FLAGS_composition);
     if (comp_id.empty()) {
         std::cout << "Usage: chronon3d_cli --composition <id> [flags]" << std::endl;
         std::cout << "Available compositions:" << std::endl;
-        std::cout << "  CodeFirstSmoke" << std::endl;
+        for (const auto& name : CompositionRegistry::instance().available()) {
+            std::cout << "  " << name << std::endl;
+        }
         return 1;
     }
 
     try {
-        if (!registry.contains(comp_id)) {
+        if (!CompositionRegistry::instance().contains(comp_id)) {
             spdlog::error("Unknown composition: {}", comp_id);
             return 1;
         }
 
-        auto comp_ptr = std::make_shared<Composition>(registry.create(comp_id));
+        auto comp_ptr = std::make_shared<Composition>(CompositionRegistry::instance().create(comp_id));
         spdlog::info("Loaded composition: {} ({}x{})", comp_ptr->name(), comp_ptr->width(), comp_ptr->height());
 
         i64 start_frame = absl::GetFlag(FLAGS_start);
