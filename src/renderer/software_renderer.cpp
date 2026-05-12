@@ -192,10 +192,26 @@ std::unique_ptr<Framebuffer> SoftwareRenderer::render_scene(
         draw_layer_with_state(layer, combine(base_state, layer.transform));
     };
 
+    // Helper: apply an adjustment layer's effect stack directly to the main fb.
+    auto apply_adjustment = [&](const Layer& layer) {
+        if (!layer.effects.empty()) {
+            apply_effect_stack(*fb, layer.effects);
+        } else if (layer.effect.has_any()) {
+            if (layer.effect.blur_radius > 0.0f)
+                apply_blur(*fb, layer.effect.blur_radius);
+            if (layer.effect.tint.a > 0.0f || layer.effect.brightness != 0.0f || layer.effect.contrast != 1.0f)
+                apply_color_effects(*fb, layer.effect);
+        }
+    };
+
     if (!cam25.enabled) {
         for (const auto& layer : scene.layers()) {
             if (!layer.visible) continue;
-            draw_layer(layer, root_state);
+            if (layer.kind == LayerKind::Adjustment) {
+                apply_adjustment(layer);
+            } else if (layer.kind != LayerKind::Null) {
+                draw_layer(layer, root_state);
+            }
         }
         return fb;
     }
@@ -212,6 +228,12 @@ std::unique_ptr<Framebuffer> SoftwareRenderer::render_scene(
 
     for (const auto& layer : scene.layers()) {
         if (!layer.visible) { ++index; continue; }
+
+        if (layer.kind == LayerKind::Adjustment) {
+            apply_adjustment(layer);
+            ++index; continue;
+        }
+        if (layer.kind == LayerKind::Null) { ++index; continue; }
 
         if (!layer.is_3d) {
             draw_layer(layer, root_state);
