@@ -1,9 +1,9 @@
 #include <chronon3d/chronon3d.hpp>
-#include <iostream>
+#include <chronon3d/core/composition_registration.hpp>
 
 using namespace chronon3d;
 
-int main() {
+static Composition CodeFirstSmoke() {
     CompositionSpec spec;
     spec.name = "CodeFirstSmoke";
     spec.width = 512;
@@ -11,7 +11,7 @@ int main() {
     spec.frame_rate = {30, 1};
     spec.duration = 60;
 
-    Composition comp{
+    return Composition{
         spec,
         [](const FrameContext& ctx) {
             SceneBuilder builder(ctx.resource);
@@ -27,12 +27,6 @@ int main() {
             return builder.build();
         }
     };
-
-    SoftwareRenderer renderer;
-    auto fb = renderer.render_frame(comp, 30);
-    fb->save_ppm("code_first_smoke.ppm");
-
-    std::cout << "Rendered smoke frame 30 to code_first_smoke.ppm" << std::endl;
-
-    return 0;
 }
+
+CHRONON_REGISTER_COMPOSITION("CodeFirstSmoke", CodeFirstSmoke)

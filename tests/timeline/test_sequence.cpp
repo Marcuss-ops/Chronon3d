@@ -12,6 +12,7 @@ TEST_CASE("Sequence logic") {
         auto seq = sequence(ctx, Frame{60}, Frame{30});
         CHECK(seq.active == false);
         CHECK(seq.frame == 0);
+        CHECK(seq.progress() == 0.0f);
     }
 
     SUBCASE("Start of sequence") {

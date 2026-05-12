@@ -1,7 +1,6 @@
 #pragma once
 
 #include <chronon3d/math/color.hpp>
-#include <tracy/Tracy.hpp>
 
 namespace chronon3d {
 namespace compositor {
@@ -14,7 +13,6 @@ namespace compositor {
  * This assumes non-premultiplied alpha.
  */
 inline Color blend_normal(const Color& src, const Color& dst) {
-    ZoneScoped;
     f32 out_a = src.a + dst.a * (1.0f - src.a);
     
     // If output alpha is zero, color doesn't matter much but we avoid NaN

@@ -1,11 +1,9 @@
 #include <chronon3d/chronon3d.hpp>
-#include <chronon3d/io/image_writer.hpp>
-#include <iostream>
-#include <filesystem>
+#include <chronon3d/core/composition_registration.hpp>
 
 using namespace chronon3d;
 
-int main() {
+static Composition BlendingShowcase() {
     CompositionSpec spec{
         .name = "BlendingShowcase",
         .width = 512,
@@ -13,7 +11,7 @@ int main() {
         .duration = 1
     };
 
-    Composition comp{
+    return Composition{
         spec,
         [](const FrameContext& ctx) {
             SceneBuilder s(ctx.resource);
@@ -37,14 +35,6 @@ int main() {
             return s.build();
         }
     };
-
-    std::filesystem::create_directories("output");
-    SoftwareRenderer renderer;
-    auto fb = renderer.render_frame(comp, 0);
-    
-    if (save_png(*fb, "output/blending_showcase.png")) {
-        std::cout << "Generated output/blending_showcase.png" << std::endl;
-    }
-
-    return 0;
 }
+
+CHRONON_REGISTER_COMPOSITION("BlendingShowcase", BlendingShowcase)

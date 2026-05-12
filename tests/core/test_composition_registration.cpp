@@ -3,7 +3,7 @@
 
 using namespace chronon3d;
 
-Composition TestComp() {
+static Composition TestComp() {
     CompositionSpec spec{.name = "TestComp"};
     return Composition{spec, [](const FrameContext&) {
         return Scene{};
@@ -12,24 +12,35 @@ Composition TestComp() {
 
 CHRONON_REGISTER_COMPOSITION("TestAutoReg", TestComp)
 
-TEST_CASE("Composition Auto-registration") {
-    CompositionRegistry registry;
-    register_all_compositions(registry);
-
-    SUBCASE("Registered composition is present") {
-        CHECK(registry.contains("TestAutoReg") == true);
+TEST_CASE("Composition Registry & Registration") {
+    
+    SUBCASE("Manual registration and duplication check") {
+        CompositionRegistry registry;
+        registry.add("A", TestComp);
+        CHECK(registry.contains("A") == true);
+        
+        // Duplicate registration should throw
+        CHECK_THROWS_AS(registry.add("A", TestComp), std::runtime_error);
     }
 
-    SUBCASE("Registry returns the correct ID list") {
+    SUBCASE("Deterministic available() list") {
+        CompositionRegistry registry;
+        registry.add("C", TestComp);
+        registry.add("A", TestComp);
+        registry.add("B", TestComp);
+        
         auto ids = registry.available();
-        bool found = false;
-        for (const auto& id : ids) {
-            if (id == "TestAutoReg") found = true;
-        }
-        CHECK(found == true);
+        REQUIRE(ids.size() >= 3);
+        CHECK(ids[0] == "A");
+        CHECK(ids[1] == "B");
+        CHECK(ids[2] == "C");
     }
 
-    SUBCASE("Create from registered factory") {
+    SUBCASE("Auto-registration integration") {
+        CompositionRegistry registry;
+        register_all_compositions(registry);
+        CHECK(registry.contains("TestAutoReg") == true);
+        
         auto comp = registry.create("TestAutoReg");
         CHECK(comp.name() == "TestComp");
     }

@@ -5,7 +5,6 @@
   "dependencies": [
     "spdlog",
     "fmt",
-    "abseil",
     "glm",
     "taskflow",
     "tracy",
