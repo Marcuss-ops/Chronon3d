@@ -79,6 +79,7 @@ add_library(chronon3d_examples_lib STATIC
     examples/foundation_proof.cpp
     examples/basic_shapes.cpp
     examples/moving_rect.cpp
+    examples/animated_title_card.cpp
     examples/axis_debug.cpp
     examples/blending_showcase.cpp
     examples/code_first_smoke.cpp
