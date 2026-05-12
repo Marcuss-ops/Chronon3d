@@ -41,7 +41,12 @@ int main(int argc, char** argv) {
         command_render(registry, render_args);
     });
 
-    CLI11_PARSE(app, argc, argv);
+    try {
+        CLI11_PARSE(app, argc, argv);
+    } catch (const CLI::ParseError& e) {
+        return app.exit(e);
+    }
 
+    spdlog::shutdown();
     return 0;
 }
