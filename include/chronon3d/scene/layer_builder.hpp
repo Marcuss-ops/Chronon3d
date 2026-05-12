@@ -6,6 +6,7 @@
 #include <chronon3d/scene/layer_effect.hpp>
 #include <chronon3d/scene/effect_stack.hpp>
 #include <chronon3d/layout/layout_rules.hpp>
+#include <chronon3d/renderer/video_frame_provider.hpp>
 #include <chronon3d/math/mat4.hpp>
 #include <string>
 #include <memory_resource>
@@ -233,6 +234,29 @@ public:
 
     LayerBuilder& with_glow(Glow glow) {
         m_layer.nodes.back().glow = glow;
+        return *this;
+    }
+
+    // Video layer: resolves frame via VideoFrameProvider and adds as image node.
+    // comp_frame and comp_fps are required to compute the source timestamp.
+    LayerBuilder& video(std::string name, const VideoDesc& v,
+                        Frame comp_frame, float comp_fps,
+                        VideoFrameProvider& provider) {
+        const std::string png = provider.frame_path(v, comp_frame, comp_fps);
+        if (png.empty()) return *this;  // ffmpeg unavailable or failed
+
+        auto* res = m_layer.nodes.get_allocator().resource();
+        RenderNode node(res);
+        node.name = std::pmr::string{name, res};
+        node.shape.type             = ShapeType::Image;
+        node.shape.image.path       = png;
+        node.shape.image.size       = (v.size.x > 0 && v.size.y > 0) ? v.size : Vec2{640,360};
+        node.shape.image.opacity    = v.opacity;
+        node.world_transform.position = v.pos;
+        node.world_transform.anchor   = {node.shape.image.size.x * 0.5f,
+                                          node.shape.image.size.y * 0.5f, 0.0f};
+        node.color = Color{1, 1, 1, v.opacity};
+        m_layer.nodes.push_back(std::move(node));
         return *this;
     }
 
