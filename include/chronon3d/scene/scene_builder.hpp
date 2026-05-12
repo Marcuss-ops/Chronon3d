@@ -9,10 +9,11 @@ namespace chronon3d {
 
 class SceneBuilder {
 public:
-    explicit SceneBuilder(std::pmr::memory_resource* res = std::pmr::get_default_resource()) 
+    explicit SceneBuilder(std::pmr::memory_resource* res = std::pmr::get_default_resource())
         : scene_(res) {}
 
-    SceneBuilder& rect(std::string name, Vec3 position, Color color, Vec2 size = {100, 100}, Vec3 rotation_euler = {0, 0, 0}) {
+    SceneBuilder& rect(std::string name, Vec3 position, Color color,
+                       Vec2 size = {100, 100}, Vec3 rotation_euler = {0, 0, 0}) {
         RenderNode node(scene_.resource());
         node.name = std::move(name);
         node.shape.type = ShapeType::Rect;
@@ -24,7 +25,21 @@ public:
         return *this;
     }
 
-    SceneBuilder& line(std::string name, Vec3 start, Vec3 end, Color color, f32 thickness = 1.0f) {
+    SceneBuilder& rounded_rect(std::string name, Vec3 position, Vec2 size,
+                                f32 radius, Color color) {
+        RenderNode node(scene_.resource());
+        node.name = std::move(name);
+        node.shape.type = ShapeType::RoundedRect;
+        node.shape.rounded_rect.size = size;
+        node.shape.rounded_rect.radius = radius;
+        node.world_transform.position = position;
+        node.color = color;
+        scene_.add_node(std::move(node));
+        return *this;
+    }
+
+    SceneBuilder& line(std::string name, Vec3 start, Vec3 end, Color color,
+                       f32 thickness = 1.0f) {
         RenderNode node(scene_.resource());
         node.name = std::move(name);
         node.shape.type = ShapeType::Line;
@@ -44,6 +59,18 @@ public:
         node.world_transform.position = position;
         node.color = color;
         scene_.add_node(std::move(node));
+        return *this;
+    }
+
+    // Apply a drop shadow to the last added node.
+    SceneBuilder& with_shadow(DropShadow shadow) {
+        scene_.last_node().shadow = shadow;
+        return *this;
+    }
+
+    // Apply a glow to the last added node.
+    SceneBuilder& with_glow(Glow glow) {
+        scene_.last_node().glow = glow;
         return *this;
     }
 
