@@ -22,6 +22,7 @@ add_executable(chronon3d_tests
     # Scene
     scene/test_scene.cpp
     scene/test_scene_builder.cpp
+    scene/test_shape_model.cpp
     scene/test_line_primitive.cpp
     scene/test_circle_primitive.cpp
     

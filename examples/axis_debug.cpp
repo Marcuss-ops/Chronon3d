@@ -17,7 +17,7 @@ int main() {
         spec,
         [](const FrameContext& ctx) {
             SceneBuilder s(ctx.resource);
-            s.rect("bg", {256, 256, -1}, Color::black());
+            s.rect("bg", {256, 256, -1}, Color::black(), {512.0f, 512.0f});
 
             // Main axes
             s.line("x-axis", {0, 256, 0}, {512, 256, 0}, Color::red());

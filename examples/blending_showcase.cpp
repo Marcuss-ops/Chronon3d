@@ -19,7 +19,7 @@ int main() {
             SceneBuilder s(ctx.resource);
 
             // Background
-            s.rect("bg", {256, 256, -1}, Color::black(), {512, 512, 1});
+            s.rect("bg", {256, 256, -1}, Color::black(), {512.0f, 512.0f});
 
             // Three overlapping circles with transparency (RGB)
             // Red circle
@@ -32,7 +32,7 @@ int main() {
             s.circle("blue-circle", {256, 312, 0}, 100.0f, Color(0, 0, 1, 0.5f));
 
             // A white rectangle behind them (to see transparency)
-            s.rect("ref-box", {256, 256, -0.5f}, Color::white(), {50, 50, 1});
+            s.rect("ref-box", {256, 256, -0.5f}, Color::white(), {50, 50});
 
             return s.build();
         }
