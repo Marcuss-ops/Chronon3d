@@ -91,6 +91,22 @@ const std::vector<ProofSuite>& proof_suites() {
             }
         },
         {
+            .name = "camera",
+            .frames = {
+                {"CameraBasicTwoNodeProof",    0,  "basic_two_node_0000.png"},
+                {"CameraFallbackProof",        0,  "fallback_0000.png"},
+                {"CameraZoomComparisonProof",  0,  "zoom_0300.png"},
+                {"CameraZoomComparisonProof",  1,  "zoom_0877.png"},
+                {"CameraZoomComparisonProof",  2,  "zoom_1500.png"},
+                {"CameraParallaxProof",        0,  "parallax_0000.png"},
+                {"CameraParallaxProof",        30, "parallax_0030.png"},
+                {"CameraParallaxProof",        60, "parallax_0060.png"},
+                {"CameraParallaxProof",        89, "parallax_0089.png"},
+                {"CameraAxisDebugProof",       0,  "axis_debug_0000.png"},
+                {"TopViewDebugProof",          0,  "top_view_debug.png"},
+            }
+        },
+        {
             .name = "animation",
             .frames = {
                 {"KeyframesProof", 0,   "keyframes_0000.png"},
