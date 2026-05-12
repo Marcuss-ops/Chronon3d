@@ -10,16 +10,11 @@ namespace chronon3d {
 
 class TextRenderer {
 public:
-    /**
-     * Renders text to the provided framebuffer.
-     * Returns true on success, false if font loading or rendering fails.
-     */
-    bool draw_text(const TextShape& text, const Transform& tr, Framebuffer& fb);
+    // state is optional — when non-null, mask clipping is applied per pixel.
+    bool draw_text(const TextShape& text, const Transform& tr, Framebuffer& fb,
+                   const RenderState* state = nullptr);
 
 private:
-    /**
-     * Helper to read a file into a buffer.
-     */
     static bool read_font_file(const std::string& path, std::vector<unsigned char>& out);
 };
 

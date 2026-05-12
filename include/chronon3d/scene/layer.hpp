@@ -4,6 +4,7 @@
 #include <chronon3d/core/frame.hpp>
 #include <chronon3d/math/transform.hpp>
 #include <chronon3d/scene/render_node.hpp>
+#include <chronon3d/scene/mask.hpp>
 #include <string>
 #include <vector>
 #include <memory_resource>
@@ -17,6 +18,7 @@ struct Layer {
     Frame duration{-1};
     bool visible{true};
     bool is_3d{false};
+    Mask mask{};
     std::pmr::vector<RenderNode> nodes;
 
     explicit Layer(std::pmr::memory_resource* res = std::pmr::get_default_resource())

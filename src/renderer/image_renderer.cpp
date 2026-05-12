@@ -4,6 +4,7 @@
 #include <chronon3d/renderer/image_renderer.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/math/raster_utils.hpp>
+#include <chronon3d/scene/mask_utils.hpp>
 #include <algorithm>
 #include <cmath>
 
@@ -92,6 +93,12 @@ bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state
             if (local.x < 0.0f || local.y < 0.0f ||
                 local.x >= image.size.x || local.y >= image.size.y) {
                 continue;
+            }
+
+            if (state.mask && state.mask->enabled()) {
+                Vec4 layer_local = state.layer_inv_matrix *
+                                   Vec4(static_cast<f32>(x) + 0.5f, static_cast<f32>(y) + 0.5f, 0.0f, 1.0f);
+                if (!mask_contains_local_point(*state.mask, Vec2{layer_local.x, layer_local.y})) continue;
             }
 
             f32 u = local.x / image.size.x;

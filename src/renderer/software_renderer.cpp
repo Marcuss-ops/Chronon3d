@@ -1,6 +1,7 @@
 #include <chronon3d/renderer/software_renderer.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/scene/scene.hpp>
+#include <chronon3d/scene/mask_utils.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/core/profiling.hpp>
 #include <chronon3d/math/raster_utils.hpp>
@@ -94,9 +95,17 @@ bool hit_test(const Shape& s, Vec2 p, f32 spread = 0.0f) {
     }
 }
 
-void draw_transformed_shape(Framebuffer& fb, const Shape& shape, const Mat4& model, const Color& color, f32 spread = 0.0f) {
+// Returns false if the screen-space pixel (x, y) falls outside the layer mask.
+inline bool pixel_passes_mask(const RenderState& state, i32 x, i32 y) {
+    if (!state.mask || !state.mask->enabled()) return true;
+    Vec4 local = state.layer_inv_matrix * Vec4(static_cast<f32>(x), static_cast<f32>(y), 0.0f, 1.0f);
+    return mask_contains_local_point(*state.mask, Vec2{local.x, local.y});
+}
+
+void draw_transformed_shape(Framebuffer& fb, const Shape& shape, const Mat4& model, const Color& color,
+                             f32 spread = 0.0f, const RenderState* state = nullptr) {
     if (color.a <= 0.0f) return;
-    
+
     raster::BBox bbox = compute_world_bbox(shape, model, spread);
     bbox.clip_to(fb.width(), fb.height());
 
@@ -106,6 +115,7 @@ void draw_transformed_shape(Framebuffer& fb, const Shape& shape, const Mat4& mod
 
     for (i32 y = bbox.y0; y < bbox.y1; ++y) {
         for (i32 x = bbox.x0; x < bbox.x1; ++x) {
+            if (state && !pixel_passes_mask(*state, x, y)) continue;
             Vec4 lp = inv_model * Vec4(static_cast<f32>(x), static_cast<f32>(y), 0.0f, 1.0f);
             if (hit_test(shape, Vec2(lp.x, lp.y), spread)) {
                 fb.set_pixel(x, y, compositor::blend(color, fb.get_pixel(x, y), BlendMode::Normal));
@@ -154,6 +164,10 @@ std::unique_ptr<Framebuffer> SoftwareRenderer::render_scene(
         for (const auto& layer : scene.layers()) {
             if (!layer.visible) continue;
             RenderState layer_state = combine(root_state, layer.transform);
+            if (layer.mask.enabled()) {
+                layer_state.mask             = &layer.mask;
+                layer_state.layer_inv_matrix = glm::inverse(layer_state.matrix);
+            }
             for (const auto& node : layer.nodes) {
                 if (!node.visible) continue;
                 RenderState node_state = combine(layer_state, node.world_transform);
@@ -178,6 +192,10 @@ std::unique_ptr<Framebuffer> SoftwareRenderer::render_scene(
 
         if (!layer.is_3d) {
             RenderState layer_state = combine(root_state, layer.transform);
+            if (layer.mask.enabled()) {
+                layer_state.mask             = &layer.mask;
+                layer_state.layer_inv_matrix = glm::inverse(layer_state.matrix);
+            }
             for (const auto& node : layer.nodes) {
                 if (!node.visible) continue;
                 RenderState node_state = combine(layer_state, node.world_transform);
@@ -201,6 +219,10 @@ std::unique_ptr<Framebuffer> SoftwareRenderer::render_scene(
 
     for (const auto& item : three_d_layers) {
         RenderState layer_state = combine(root_state, item.projected_transform);
+        if (item.layer->mask.enabled()) {
+            layer_state.mask             = &item.layer->mask;
+            layer_state.layer_inv_matrix = glm::inverse(layer_state.matrix);
+        }
         for (const auto& node : item.layer->nodes) {
             if (!node.visible) continue;
             RenderState node_state = combine(layer_state, node.world_transform);
@@ -244,7 +266,7 @@ void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node, const 
         // Extract uniform scale from model column lengths so 3D perspective scaling applies to font size.
         text_tr.scale.x  = glm::length(Vec3(model[0]));
         text_tr.scale.y  = glm::length(Vec3(model[1]));
-        m_text_renderer.draw_text(node.shape.text, text_tr, fb);
+        m_text_renderer.draw_text(node.shape.text, text_tr, fb, &state);
         return;
     }
 
@@ -256,7 +278,7 @@ void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node, const 
     // Main shape
     Color fill_color = linear_color;
     fill_color.a *= opacity;
-    draw_transformed_shape(fb, node.shape, model, fill_color);
+    draw_transformed_shape(fb, node.shape, model, fill_color, 0.0f, &state);
 
     if (diagnostic_) {
         draw_diagnostic_info(fb, node, state);
@@ -333,9 +355,9 @@ void SoftwareRenderer::draw_shadow(Framebuffer& fb, const RenderNode& node, cons
         const f32 spread = node.shadow.radius * t;
         const f32 alpha  = base.a * (1.0f - t * t) * state.opacity;
         if (alpha > 0.0f)
-            draw_transformed_shape(fb, node.shape, shadow_model, {base.r, base.g, base.b, alpha}, spread);
+            draw_transformed_shape(fb, node.shape, shadow_model, {base.r, base.g, base.b, alpha}, spread, &state);
     }
-    draw_transformed_shape(fb, node.shape, shadow_model, {base.r, base.g, base.b, base.a * 0.7f * state.opacity}, 0.0f);
+    draw_transformed_shape(fb, node.shape, shadow_model, {base.r, base.g, base.b, base.a * 0.7f * state.opacity}, 0.0f, &state);
 }
 
 void SoftwareRenderer::draw_glow(Framebuffer& fb, const RenderNode& node, const RenderState& state) {
@@ -351,7 +373,7 @@ void SoftwareRenderer::draw_glow(Framebuffer& fb, const RenderNode& node, const 
         const f32 expand = node.glow.radius * t;
         const f32 alpha  = base.a * node.glow.intensity * (1.0f - t) * state.opacity;
         if (alpha > 0.0f)
-            draw_transformed_shape(fb, node.shape, model, {base.r, base.g, base.b, alpha}, expand);
+            draw_transformed_shape(fb, node.shape, model, {base.r, base.g, base.b, alpha}, expand, &state);
     }
 }
 
