@@ -20,13 +20,15 @@ Chronon3d is a high-performance, **code-first** C++20 engine designed for proced
 using namespace chronon3d;
 
 Composition MyVideo() {
-    return composition({
-        .id = "MyAwesomeVideo",
-        .width = 1920,
-        .height = 1080,
-        .fps = 30,
-        .duration = 150, // 5 seconds
-        .render = [](const FrameContext& ctx) {
+    return composition(
+        CompositionSpec{
+            .name = "MyAwesomeVideo",
+            .width = 1920,
+            .height = 1080,
+            .frame_rate = {30, 1},
+            .duration = 150 // 5 seconds
+        },
+        [](const FrameContext& ctx) {
             // 1. Calculate animations based on the current frame
             auto opacity = interpolate(ctx.frame, 0, 30, 0.0f, 1.0f);
             auto pos_y = interpolate(ctx.frame, 30, 90, 0.0f, 200.0f, Easing::InOutQuad);
@@ -43,7 +45,7 @@ Composition MyVideo() {
 
             return builder.build();
         }
-    });
+    );
 }
 ```
 
