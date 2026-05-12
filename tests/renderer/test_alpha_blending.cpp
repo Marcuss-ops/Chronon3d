@@ -11,9 +11,9 @@ TEST_CASE("Alpha blending logic") {
     SUBCASE("Basic transparency over black") {
         Composition comp(spec, [](const FrameContext& ctx) {
             SceneBuilder s(ctx.resource);
-            s.rect("bg", {50, 50, -1}, Color::black(), {100, 100, 1});
+            s.rect("bg", {50, 50, -1}, Color::black(), {100, 100});
             // 50% Red over black should result in (0.5, 0, 0)
-            s.rect("box", {50, 50, 0}, Color(1, 0, 0, 0.5f), {100, 100, 1});
+            s.rect("box", {50, 50, 0}, Color(1, 0, 0, 0.5f), {100, 100});
             return s.build();
         });
         auto fb = renderer.render_frame(comp, 0);
@@ -28,12 +28,12 @@ TEST_CASE("Alpha blending logic") {
     SUBCASE("Overlapping semi-transparent shapes") {
         Composition comp(spec, [](const FrameContext& ctx) {
             SceneBuilder s(ctx.resource);
-            s.rect("bg", {50, 50, -1}, Color::black(), {100, 100, 1});
+            s.rect("bg", {50, 50, -1}, Color::black(), {100, 100});
             
             // Red 50%
-            s.rect("red", {40, 50, 0}, Color(1, 0, 0, 0.5f), {40, 40, 1});
+            s.rect("red", {40, 50, 0}, Color(1, 0, 0, 0.5f), {40, 40});
             // Green 50% on top of red
-            s.rect("green", {60, 50, 0}, Color(0, 1, 0, 0.5f), {40, 40, 1});
+            s.rect("green", {60, 50, 0}, Color(0, 1, 0, 0.5f), {40, 40});
             
             return s.build();
         });

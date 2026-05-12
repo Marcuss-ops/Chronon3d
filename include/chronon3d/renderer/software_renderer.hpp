@@ -25,20 +25,22 @@ public:
         for (const auto& node : scene.nodes()) {
             if (!node.visible) continue;
 
-            switch (node.type) {
-                case NodeType::Mesh:
+            switch (node.shape.type) {
+                case ShapeType::Mesh:
                     if (node.mesh) {
                         render_mesh_wireframe(*fb, *node.mesh, node.world_transform.to_matrix(), view, proj, node.color);
                     }
                     break;
-                case NodeType::Rect:
-                    draw_rect(*fb, node.world_transform.position, node.size, node.color, BlendMode::Normal);
+                case ShapeType::Rect:
+                    draw_rect(*fb, node.world_transform.position, node.shape.rect.size, node.color, BlendMode::Normal);
                     break;
-                case NodeType::Line:
-                    draw_line(*fb, node.world_transform.position, node.line_end, node.color);
+                case ShapeType::Circle:
+                    draw_circle(*fb, node.world_transform.position, node.shape.circle.radius, node.color, BlendMode::Normal);
                     break;
-                case NodeType::Circle:
-                    draw_circle(*fb, node.world_transform.position, node.size.x, node.color, BlendMode::Normal);
+                case ShapeType::Line:
+                    draw_line(*fb, node.world_transform.position, node.shape.line.to, node.color);
+                    break;
+                default:
                     break;
             }
         }
@@ -96,7 +98,7 @@ private:
         }
     }
 
-    void draw_rect(Framebuffer& fb, const Vec3& position, const Vec3& size, const Color& color, BlendMode mode) {
+    void draw_rect(Framebuffer& fb, const Vec3& position, const Vec2& size, const Color& color, BlendMode mode) {
         i32 cx = static_cast<i32>(position.x);
         i32 cy = static_cast<i32>(position.y);
         i32 hw = static_cast<i32>(size.x * 0.5f);
