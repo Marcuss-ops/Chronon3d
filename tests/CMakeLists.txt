@@ -37,7 +37,8 @@ add_executable(chronon3d_tests
     renderer/test_coordinate_system.cpp
     renderer/test_clipping.cpp
     renderer/test_moving_frame.cpp
-    
+    renderer/test_effects.cpp
+
     # Other
     deterministic/test_deterministic.cpp
     
