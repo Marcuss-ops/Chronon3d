@@ -13,8 +13,8 @@ namespace chronon3d {
 
 struct EvaluatedFrame {
     Frame frame;
-    Scene scene;
-    std::shared_ptr<FrameArena> arena;
+    std::shared_ptr<FrameArena> arena;  // must outlive scene (arena owns the PMR buffer)
+    Scene scene;  // destroyed first (before arena), because it calls arena->deallocate()
 };
 
 struct RenderedFrame {
@@ -42,7 +42,9 @@ public:
         for (Frame f = start; f < end; ++f) {
             ZoneScopedN("EvaluateFrame");
             auto arena = std::make_shared<FrameArena>();
-            eval_frames.push_back({f, m_composition->evaluate(f, arena->resource()), std::move(arena)});
+            // Evaluate BEFORE moving arena — arena->resource() must be valid during evaluate().
+            auto scene = m_composition->evaluate(f, arena->resource());
+            eval_frames.push_back({f, std::move(arena), std::move(scene)});
         }
 
         // Stage 2: render all frames in parallel into a pre-indexed vector.

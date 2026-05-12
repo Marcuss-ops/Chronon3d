@@ -12,11 +12,12 @@ struct CompositionRegistration {
     CompositionFactory factory;
 };
 
-// Returns the global list of registrations. 
-// Uses "Meyers' Singleton" pattern for the vector to ensure it's initialized before use.
+// Returns the global list of registrations.
+// Intentionally leaked (never destroyed) to avoid static-destructor-order crashes
+// on Windows, where Tracy/spdlog global teardown races with this vector.
 inline std::vector<CompositionRegistration>& composition_registrations() {
-    static std::vector<CompositionRegistration> regs;
-    return regs;
+    static auto* regs = new std::vector<CompositionRegistration>();
+    return *regs;
 }
 
 struct CompositionAutoRegister {

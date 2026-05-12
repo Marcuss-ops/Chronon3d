@@ -15,6 +15,7 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
 option(CHRONON3D_BUILD_TESTS "Build Chronon3d tests" ON)
 option(CHRONON3D_BUILD_CLI "Build Chronon3d CLI" ON)
 option(CHRONON3D_BUILD_EXAMPLES "Build Chronon3d examples" ON)
+option(CHRONON3D_ENABLE_PROFILING "Enable Tracy profiling (creates background thread, not for release)" OFF)
 
 # Find Dependencies
 find_package(spdlog CONFIG REQUIRED)
@@ -48,10 +49,12 @@ target_link_libraries(chronon3d_renderer
     PUBLIC
         chronon3d
     PRIVATE
-        Tracy::TracyClient
         hwy::hwy
 )
-target_compile_definitions(chronon3d_renderer PRIVATE CHRONON_PROFILING)
+if(CHRONON3D_ENABLE_PROFILING)
+    target_link_libraries(chronon3d_renderer PRIVATE Tracy::TracyClient)
+    target_compile_definitions(chronon3d_renderer PRIVATE CHRONON_PROFILING TRACY_ON_DEMAND)
+endif()
 
 # 3. Pipeline Library (Heavy)
 add_library(chronon3d_pipeline INTERFACE)
@@ -60,9 +63,11 @@ target_link_libraries(chronon3d_pipeline
         chronon3d_renderer
         Taskflow::Taskflow
         concurrentqueue::concurrentqueue
-        Tracy::TracyClient
 )
-target_compile_definitions(chronon3d_pipeline INTERFACE CHRONON_PROFILING)
+if(CHRONON3D_ENABLE_PROFILING)
+    target_link_libraries(chronon3d_pipeline INTERFACE Tracy::TracyClient)
+    target_compile_definitions(chronon3d_pipeline INTERFACE CHRONON_PROFILING TRACY_ON_DEMAND)
+endif()
 
 # 4. IO Library
 add_library(chronon3d_io STATIC
