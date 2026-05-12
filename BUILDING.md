@@ -41,13 +41,18 @@ Usa lo script di sviluppo per compilare ed eseguire un render di prova:
 CMake viene mantenuto per garantire la compatibilità con gli standard di settore e per le build di produzione.
 
 ### Script di Automazione
-Lo script `chronon-win.ps1` gestisce l'installazione delle dipendenze tramite vcpkg e la configurazione di CMake:
+Lo script `tools/chronon-win.ps1` gestisce l'installazione delle dipendenze tramite vcpkg e la configurazione di CMake:
 ```powershell
 # Build Release (default)
-.\chronon-win.ps1
+.\tools\chronon-win.ps1
 
 # Build Debug
-.\chronon-win.ps1 -Configuration Debug
+.\tools\chronon-win.ps1 -Configuration Debug
+```
+
+Su Linux, usa `tools/chronon-linux.sh`:
+```bash
+bash tools/chronon-linux.sh
 ```
 
 ---
@@ -85,8 +90,15 @@ Per verificare che tutto funzioni correttamente dopo una modifica:
 Questo script eseguirà una suite completa di test di rendering e verificherà l'integrità dei file prodotti.
 
 ## 📁 Struttura Directory
-- `apps/chronon3d_cli`: Punto di ingresso dell'applicazione.
-- `examples/`: Contiene le "Compositions" (il tuo codice creativo).
-- `include/chronon3d`: Header del motore core.
-- `src/renderer`: Implementazione del software renderer (SIMD optimized).
-- `output/`: Destinazione predefinita per i rendering.
+
+| Percorso | Contenuto |
+|---|---|
+| `apps/chronon3d_cli/` | Entry point CLI |
+| `examples/` | Compositions (codice creativo) |
+| `include/chronon3d/` | Header pubblici del motore |
+| `src/` | Implementazioni (renderer, scene, io) |
+| `tests/` | Test automatici (doctest) |
+| `tools/` | Script di build, render e watch |
+| `assets/` | Font, immagini di test |
+| `docs/` | Documentazione interna |
+| `output/` | Destinazione rendering (gitignored) |
