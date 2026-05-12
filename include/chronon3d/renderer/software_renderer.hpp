@@ -2,6 +2,7 @@
 
 #include <chronon3d/renderer/renderer.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
+#include <chronon3d/renderer/text_renderer.hpp>
 
 namespace chronon3d {
 
@@ -41,6 +42,8 @@ private:
     // Effect renderers — drawn before the main shape
     void draw_shadow(Framebuffer& fb, const RenderNode& node);
     void draw_glow(Framebuffer& fb, const RenderNode& node);
+
+    TextRenderer m_text_renderer;
 };
 
 } // namespace chronon3d

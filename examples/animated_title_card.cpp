@@ -43,17 +43,27 @@ static Composition AnimatedTitleCard() {
                     .color   = {0.0f, 0.0f, 0.0f, 0.45f * fade},
                     .radius  = 18.0f});
 
+            s.text("title-text", "CHRONON", {240.0f, box_y - 25.0f, 0.0f},
+                   TextStyle{
+                       .font_path = "assets/fonts/Inter-Bold.ttf",
+                       .size = 60.0f,
+                       .color = Color(0.08f, 0.08f, 0.12f, fade)
+                   });
+
             // Accent line — eased growth left→right
             const f32 line_x = interpolate(ctx.frame, 10, 50, 190.0f, 610.0f, Easing::InOutCubic);
             s.line("accent-line",
                 {190.0f, 280.0f, 0.0f}, {line_x, 280.0f, 0.0f},
                 Color(0.38f, 0.68f, 1.0f, fade));
 
-            // Subtitle strip — fades in via sequence + held_progress
+            // Subtitle text — fades in
             const auto sub = sequence(ctx, Frame{20}, Frame{25});
-            s.rounded_rect("subtitle-strip",
-                    {400.0f, 315.0f, 0.0f}, {280.0f, 18.0f}, 4.0f,
-                    Color(0.45f, 0.45f, 0.58f, sub.held_progress() * fade));
+            s.text("subtitle-text", "MOTION GRAPHICS ENGINE", {270.0f, 315.0f, 0.0f},
+                   TextStyle{
+                       .font_path = "assets/fonts/Inter-Regular.ttf",
+                       .size = 22.0f,
+                       .color = Color(0.75f, 0.80f, 1.0f, sub.held_progress() * fade)
+                   });
 
             // Decorative circles — fade in with glow
             const f32 c_alpha = interpolate(ctx.frame, 5, 35, 0.0f, 1.0f) * fade;
