@@ -80,6 +80,7 @@ add_library(chronon3d_examples_lib STATIC
     examples/basic_shapes.cpp
     examples/moving_rect.cpp
     examples/animated_title_card.cpp
+    examples/visual_quality_proof.cpp
     examples/axis_debug.cpp
     examples/blending_showcase.cpp
     examples/code_first_smoke.cpp
