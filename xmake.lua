@@ -17,7 +17,7 @@ option("profiling")
 option_end()
 
 -- Dependencies
-add_requires("glm", "spdlog", "stb", "cli11", "highway", "taskflow", "concurrentqueue", "meshoptimizer", "xxhash", "fmt", "doctest")
+add_requires("glm", "spdlog", "stb", "cli11", "highway", "taskflow", "concurrentqueue", "meshoptimizer", "xxhash", "fmt", "doctest", "toml++")
 
 if has_config("profiling") then
     add_requires("tracy", {configs = {on_demand = true}})
@@ -42,7 +42,7 @@ target("chronon3d_renderer")
     set_kind("static")
     add_files("src/renderer/*.cpp")
     add_deps("chronon3d")
-    add_packages("spdlog", "stb", "highway", "meshoptimizer")
+    add_packages("spdlog", "stb", "highway", "meshoptimizer", "fmt")
     
     if has_config("profiling") then
         add_packages("tracy")
@@ -78,7 +78,7 @@ target("chronon3d_cli")
     set_kind("binary")
     add_files("apps/chronon3d_cli/*.cpp")
     add_deps("chronon3d_pipeline", "chronon3d_io", "chronon3d_examples_lib")
-    add_packages("cli11", "spdlog", "fmt", "meshoptimizer", "xxhash")
+    add_packages("cli11", "spdlog", "fmt", "meshoptimizer", "xxhash", "toml++")
 
     -- Handle auto-registration link issues by forcing whole archive for examples
     if is_plat("windows") then

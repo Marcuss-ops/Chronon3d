@@ -21,19 +21,23 @@ Composition AdvancedVideo() {
             SceneBuilder builder(ctx.resource);
             
             // 1. Global background
-            builder.rect("bg", {ctx.width / 2.0f, ctx.height / 2.0f, -1}, Color::black(), {(f32)ctx.width, (f32)ctx.height});
+            builder.rect("bg", {
+                .size = {(f32)ctx.width, (f32)ctx.height},
+                .color = Color::black(),
+                .pos = {ctx.width / 2.0f, ctx.height / 2.0f, -1}
+            });
 
             // 2. A sequence that only renders between frame 0 and 120
             if (auto sctx = sequence(ctx, 0, 120); sctx.active) {
                 auto scale = interpolate(sctx.frame, 0, 60, 0.0f, 1.0f, Easing::OutBack);
                 auto rot = interpolate(sctx.frame, 0, 120, 0.0f, 360.0f);
 
-                builder.rect("intro_box", 
-                    {ctx.width / 2.0f, ctx.height / 2.0f, 0}, 
-                    Color::red(),
-                    {200.0f * scale, 200.0f * scale},
-                    {0, 0, rot} // Rotation Euler
-                );
+                builder.rect("intro_box", {
+                    .size = {200.0f * scale, 200.0f * scale},
+                    .color = Color::red()
+                })
+                .at({ctx.width / 2.0f, ctx.height / 2.0f, 0})
+                .rotate({0, 0, rot});
             }
 
             // 3. A second sequence that fades in as the first one ends
@@ -41,11 +45,12 @@ Composition AdvancedVideo() {
                 auto opacity = interpolate(sctx.frame, 0, 30, 0.0f, 1.0f);
                 auto slide = interpolate(sctx.frame, 0, 60, -500.0f, 0.0f, Easing::OutExpo);
 
-                builder.rect("main_content", 
-                    {ctx.width / 2.0f + slide, ctx.height / 2.0f, 0}, 
-                    Color::white().with_alpha(opacity),
-                    {400.0f, 200.0f}
-                );
+                builder.rect("main_content", {
+                    .size = {400.0f, 200.0f},
+                    .color = Color::white()
+                })
+                .at({ctx.width / 2.0f + slide, ctx.height / 2.0f, 0})
+                .opacity(opacity);
             }
 
             return builder.build();
