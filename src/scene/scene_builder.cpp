@@ -64,4 +64,19 @@ SceneBuilder& SceneBuilder::text(std::string name, TextParams p) {
     return *this;
 }
 
+SceneBuilder& SceneBuilder::image(std::string name, ImageParams p) {
+    RenderNode node(scene_.resource());
+    node.name = std::pmr::string{name, scene_.resource()};
+    node.shape.type = ShapeType::Image;
+    node.shape.image.path = std::move(p.path);
+    node.shape.image.size = p.size;
+    node.shape.image.opacity = p.opacity;
+    node.world_transform.position = p.pos;
+    node.world_transform.anchor = {p.size.x * 0.5f, p.size.y * 0.5f, 0.0f};
+    node.color = Color{1, 1, 1, p.opacity};
+
+    scene_.add_node(std::move(node));
+    return *this;
+}
+
 } // namespace chronon3d

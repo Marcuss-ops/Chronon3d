@@ -26,6 +26,7 @@ public:
     SceneBuilder& circle(std::string name, CircleParams p);
     SceneBuilder& line(std::string name, LineParams p);
     SceneBuilder& text(std::string name, TextParams p);
+    SceneBuilder& image(std::string name, ImageParams p);
 
     // Hierarchy
     template <typename Fn>

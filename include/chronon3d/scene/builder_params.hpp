@@ -40,4 +40,11 @@ struct TextParams {
     Vec3 pos{0, 0, 0};
 };
 
+struct ImageParams {
+    std::string path;
+    Vec2 size{100.0f, 100.0f};
+    Vec3 pos{0.0f, 0.0f, 0.0f};
+    f32 opacity{1.0f};
+};
+
 } // namespace chronon3d

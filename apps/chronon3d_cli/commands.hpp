@@ -33,7 +33,7 @@ int command_watch(const CompositionRegistry& registry, const std::string& comp_i
 
 // Internal helpers
 FrameRange parse_frames(const std::string& s);
-std::string format_path(const std::string& pattern, int64_t frame);
+std::string format_path(const std::string& pattern, int64_t frame, bool is_range = false);
 
 } // namespace cli
 } // namespace chronon3d
