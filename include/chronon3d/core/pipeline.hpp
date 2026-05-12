@@ -5,9 +5,11 @@
 #include <chronon3d/core/arena.hpp>
 #include <concurrentqueue/moodycamel/concurrentqueue.h>
 #include <taskflow/taskflow.hpp>
-#include <tracy/Tracy.hpp>
-#include <memory>
+#include <chronon3d/core/profiling.hpp>
+#include <atomic>
 #include <functional>
+#include <memory>
+#include <thread>
 
 namespace chronon3d {
 
@@ -25,7 +27,7 @@ struct RenderedFrame {
 
 class RenderPipeline {
 public:
-    RenderPipeline(std::shared_ptr<const Composition> composition, 
+    RenderPipeline(std::shared_ptr<const Composition> composition,
                    std::shared_ptr<Renderer> renderer)
         : m_composition(std::move(composition))
         , m_renderer(std::move(renderer)) {}
@@ -40,8 +42,13 @@ public:
         std::atomic<bool> eval_done{false};
         std::atomic<bool> render_done{false};
 
-        // Stage 1: Evaluation
-        auto eval_task = taskflow.emplace([&]() {
+        // Reserve ~2 threads for eval and output; the rest render in parallel.
+        const unsigned hw = std::thread::hardware_concurrency();
+        const unsigned n_workers = std::max(1u, hw > 2u ? hw - 2u : 1u);
+        std::atomic<unsigned> workers_finished{0};
+
+        // Stage 1: Evaluation — single sequential task, composition is not thread-safe.
+        taskflow.emplace([&]() {
             ZoneScopedN("EvaluationStage");
             for (i64 f = start; f < end; ++f) {
                 ZoneScopedN("EvaluateFrame");
@@ -49,34 +56,44 @@ public:
                 Scene scene = m_composition->evaluate(Frame{f}, arena->resource());
                 eval_queue.enqueue({Frame{f}, std::move(scene), std::move(arena)});
             }
-            eval_done = true;
+            eval_done.store(true, std::memory_order_release);
         }).name("Evaluation");
 
-        // Stage 2: Rendering
-        auto render_task = taskflow.emplace([&]() {
-            ZoneScopedN("RenderingStage");
-            while (!eval_done || eval_queue.size_approx() > 0) {
-                EvaluatedFrame ef;
-                if (eval_queue.try_dequeue(ef)) {
-                    ZoneScopedN("RenderFrame");
-                    auto fb = m_renderer->render_scene(ef.scene, m_composition->camera, m_composition->width(), m_composition->height());
-                    render_queue.enqueue({ef.frame, std::move(fb), std::move(ef.arena)});
-                } else {
-                    std::this_thread::yield();
+        // Stage 2: Rendering — N parallel workers drain eval_queue concurrently.
+        // render_scene() creates a fresh Framebuffer per call and has no mutable state,
+        // so calling it from multiple threads simultaneously is safe.
+        for (unsigned w = 0; w < n_workers; ++w) {
+            taskflow.emplace([&]() {
+                ZoneScopedN("RenderWorker");
+                while (!eval_done.load(std::memory_order_acquire) || eval_queue.size_approx() > 0) {
+                    EvaluatedFrame ef;
+                    if (eval_queue.try_dequeue(ef)) {
+                        ZoneScopedN("RenderFrame");
+                        auto fb = m_renderer->render_scene(
+                            ef.scene,
+                            m_composition->camera,
+                            m_composition->width(),
+                            m_composition->height());
+                        render_queue.enqueue({ef.frame, std::move(fb), std::move(ef.arena)});
+                    } else {
+                        std::this_thread::yield();
+                    }
                 }
-            }
-            render_done = true;
-        }).name("Rendering");
+                // Last worker to finish signals the output stage.
+                if (workers_finished.fetch_add(1, std::memory_order_acq_rel) + 1 == n_workers) {
+                    render_done.store(true, std::memory_order_release);
+                }
+            }).name("RenderWorker");
+        }
 
-        // Stage 3: Output/Encoding
-        auto output_task = taskflow.emplace([&]() {
+        // Stage 3: Output/Encoding — single sequential task preserves callback safety.
+        taskflow.emplace([&]() {
             ZoneScopedN("OutputStage");
-            while (!render_done || render_queue.size_approx() > 0) {
+            while (!render_done.load(std::memory_order_acquire) || render_queue.size_approx() > 0) {
                 RenderedFrame rf;
                 if (render_queue.try_dequeue(rf)) {
                     ZoneScopedN("ProcessOutput");
                     output_callback(std::move(rf));
-                    // rf.arena will be destroyed here, releasing memory
                 } else {
                     std::this_thread::yield();
                 }

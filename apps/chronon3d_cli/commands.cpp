@@ -34,7 +34,7 @@ int command_info(const CompositionRegistry& registry, const std::string& id) {
     std::cout << "Composition: " << id << std::endl;
     std::cout << "  Dimensions: " << comp.width() << "x" << comp.height() << std::endl;
     std::cout << "  Duration:   " << comp.duration() << " frames" << std::endl;
-    std::cout << "  Frame Rate: " << comp.frame_rate().num << "/" << comp.frame_rate().den << " fps" << std::endl;
+    std::cout << "  Frame Rate: " << comp.frame_rate().numerator << "/" << comp.frame_rate().denominator << " fps" << std::endl;
     return 0;
 }
 
