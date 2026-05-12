@@ -13,14 +13,12 @@ public:
     Transform transform;
 
     [[nodiscard]] Mat4 projection_matrix(f32 aspect_ratio) const {
-        return Mat4::perspective(fov_deg * 3.14159f / 180.0f, aspect_ratio, near_plane, far_plane);
+        return math::perspective(glm::radians(fov_deg), aspect_ratio, near_plane, far_plane);
     }
 
     [[nodiscard]] Mat4 view_matrix() const {
         // View matrix is inverse of camera transform
-        // For now, simple translation. In future, implement proper LookAt or full inverse.
-        return Mat4::translate(transform.position * -1.0f) * Mat4::rotate(transform.rotation).identity(); 
-        // Note: Full inverse rotation needed for correct camera behavior.
+        return glm::inverse(transform.to_matrix());
     }
 };
 

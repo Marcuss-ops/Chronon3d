@@ -1,54 +1,45 @@
 #include <doctest/doctest.h>
-#include <chronon3d/timeline/composition.hpp>
-#include <chronon3d/animation/animated_transform.hpp>
+#include <chronon3d/chronon3d.hpp>
 
 using namespace chronon3d;
 
-TEST_CASE("Quaternion interpolation") {
-    Quat q1 = Quat::identity();
-    Quat q2(1.0f, 0.0f, 0.0f, 0.0f); // 180 deg around X (simplified)
+TEST_CASE("Code-first Composition") {
+    CompositionSpec spec;
+    spec.name = "TestComp";
+    spec.duration = 100;
 
-    SUBCASE("Lerp/Slerp placeholder") {
-        Quat mid = lerp(q1, q2, 0.5f);
-        CHECK(mid.w > 0.0f);
-        CHECK(mid.x > 0.0f);
-    }
-}
+    Composition comp{
+        spec,
+        [](const FrameContext& ctx) {
+            SceneBuilder builder(ctx.resource);
+            auto x = interpolate(ctx.frame, 0, 100, 0.0f, 100.0f);
+            builder.rect("box", {x, 0, 0}, Color::white());
+            return builder.build();
+        }
+    };
 
-TEST_CASE("AnimatedTransform evaluation") {
-    AnimatedTransform at;
-    at.position.add_keyframe(0, Vec3(0.0f));
-    at.position.add_keyframe(100, Vec3(10.0f, 20.0f, 30.0f));
-
-    SUBCASE("Evaluate middle frame") {
-        Transform t = at.evaluate(50);
-        CHECK(t.position.x == 5.0f);
-        CHECK(t.position.y == 10.0f);
-        CHECK(t.position.z == 15.0f);
-    }
-}
-
-TEST_CASE("Composition and Layers") {
-    Composition::Builder builder;
-    builder.name("MainComp").size(1920, 1080).fps({30, 1});
-    
-    auto& layer = builder.add_layer("Background", LayerType::Shape);
-    layer.range = {0, 300};
-    layer.transform.position.add_keyframe(0, Vec3(0.0f));
-    layer.transform.position.add_keyframe(300, Vec3(100.0f, 0.0f, 0.0f));
-
-    auto comp = builder.build();
-
-    SUBCASE("Layer management") {
-        // We can't access layers directly if they are private, but evaluate() works
-        Scene s = comp->evaluate(0);
+    SUBCASE("Evaluation at frame 0") {
+        Scene s = comp.evaluate(0);
         CHECK(s.nodes().size() == 1);
-        CHECK(s.nodes()[0].name == "Background");
+        CHECK(s.nodes()[0].world_transform.position.x == 0.0f);
     }
 
-    SUBCASE("Layer activity") {
-        CHECK(layer.is_active(0));
-        CHECK(layer.is_active(150));
-        CHECK_FALSE(layer.is_active(300));
+    SUBCASE("Evaluation at frame 50") {
+        Scene s = comp.evaluate(50);
+        CHECK(s.nodes().size() == 1);
+        CHECK(s.nodes()[0].world_transform.position.x == 50.0f);
     }
+
+    SUBCASE("Evaluation at frame 100") {
+        Scene s = comp.evaluate(100);
+        CHECK(s.nodes().size() == 1);
+        CHECK(s.nodes()[0].world_transform.position.x == 100.0f);
+    }
+}
+
+TEST_CASE("Interpolation helper") {
+    CHECK(interpolate(50.0f, 0.0f, 100.0f, 0.0f, 1.0f) == doctest::Approx(0.5f));
+    CHECK(interpolate(0.0f, 0.0f, 100.0f, 0.0f, 1.0f) == doctest::Approx(0.0f));
+    CHECK(interpolate(100.0f, 0.0f, 100.0f, 0.0f, 1.0f) == doctest::Approx(1.0f));
+    CHECK(interpolate(150.0f, 0.0f, 100.0f, 0.0f, 1.0f) == doctest::Approx(1.0f)); // Clamped
 }

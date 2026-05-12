@@ -31,6 +31,7 @@ public:
     }
 
     [[nodiscard]] const std::pmr::vector<RenderNode>& nodes() const { return m_nodes; }
+    [[nodiscard]] std::pmr::memory_resource* resource() const { return m_nodes.get_allocator().resource(); }
 
 private:
     std::pmr::vector<RenderNode> m_nodes;

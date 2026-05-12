@@ -1,4 +1,5 @@
 #include <doctest/doctest.h>
+#include <chronon3d/chronon3d.hpp>
 #include <chronon3d/renderer/framebuffer.hpp>
 #include <chronon3d/renderer/software_renderer.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
@@ -43,18 +44,23 @@ TEST_CASE("Blending") {
 }
 
 TEST_CASE("Software Rendering Integration") {
-    Composition::Builder builder;
-    builder.name("TestRender").size(200, 200).fps({30, 1});
-    
-    auto& layer = builder.add_layer("Rect", LayerType::Shape);
-    layer.range = {0, 10};
-    layer.transform.position.set(Vec3(100.0f, 100.0f, 0.0f));
-    layer.opacity.set(1.0f);
+    CompositionSpec spec;
+    spec.name = "TestRender";
+    spec.width = 200;
+    spec.height = 200;
+    spec.duration = 10;
 
-    auto comp = builder.build();
+    Composition comp{
+        spec,
+        [](const FrameContext& ctx) {
+            SceneBuilder builder(ctx.resource);
+            builder.rect("Rect", {100.0f, 100.0f, 0.0f}, Color::white());
+            return builder.build();
+        }
+    };
 
     SoftwareRenderer renderer;
-    auto fb = renderer.render_frame(*comp, 0);
+    auto fb = renderer.render_frame(comp, 0);
 
     SUBCASE("Verify center pixel") {
         Color center = fb->get_pixel(100, 100);

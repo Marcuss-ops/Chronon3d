@@ -7,7 +7,7 @@ namespace chronon3d {
 
 struct AnimatedTransform {
     AnimatedValue<Vec3> position{Vec3(0.0f)};
-    AnimatedValue<Quat> rotation{Quat::identity()};
+    AnimatedValue<Quat> rotation{Quat(1.0f, 0.0f, 0.0f, 0.0f)};
     AnimatedValue<Vec3> scale{Vec3(1.0f)};
 
     [[nodiscard]] Transform evaluate(Frame frame) const {

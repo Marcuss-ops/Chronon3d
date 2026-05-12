@@ -1,5 +1,4 @@
 #include <chronon3d/chronon3d.hpp>
-#include <chronon3d/core/loader.hpp>
 #include <chronon3d/core/pipeline.hpp>
 #include <spdlog/spdlog.h>
 #include <tracy/Tracy.hpp>
@@ -10,31 +9,59 @@
 
 using namespace chronon3d;
 
+ABSL_FLAG(std::string, composition, "", "ID of the composition to render");
 ABSL_FLAG(int64_t, frame, -1, "Single frame to render (overrides --start and --end)");
 ABSL_FLAG(int64_t, start, 0, "Start frame of the range");
-ABSL_FLAG(int64_t, end, 1, "End frame of the range (exclusive)");
+ABSL_FLAG(int64_t, end, -1, "End frame of the range (exclusive)");
 ABSL_FLAG(std::string, output, "render.ppm", "Output path for the rendered frames");
+
+// Temporary hardcoded registry for MVP
+void register_examples(CompositionRegistry& registry) {
+    registry.add("CodeFirstSmoke", []() {
+        CompositionSpec spec;
+        spec.name = "CodeFirstSmoke";
+        spec.width = 512;
+        spec.height = 512;
+        spec.frame_rate = {30, 1};
+        spec.duration = 60;
+
+        return Composition{
+            spec,
+            [](const FrameContext& ctx) {
+                SceneBuilder builder(ctx.resource);
+                auto x = interpolate(ctx.frame, 0, 60, 100.0f, 400.0f);
+                builder.rect("moving-box", {x, 256.0f, 0.0f}, Color::white());
+                return builder.build();
+            }
+        };
+    });
+}
 
 int main(int argc, char** argv) {
     auto positional_args = absl::ParseCommandLine(argc, argv);
     
     ZoneScopedN("Main");
-    spdlog::info("Chronon3d CLI v0.1.0");
+    spdlog::info("Chronon3d CLI v0.1.0 (Code-First)");
 
-    if (positional_args.size() < 2) {
-        std::cout << "Usage: chronon3d_cli <scene.json> [flags]" << std::endl;
-        std::cout << "Flags:" << std::endl;
-        std::cout << "  --frame N    Single frame to render" << std::endl;
-        std::cout << "  --start S    Start frame" << std::endl;
-        std::cout << "  --end E      End frame" << std::endl;
-        std::cout << "  --output P   Output path" << std::endl;
+    CompositionRegistry registry;
+    register_examples(registry);
+
+    std::string comp_id = absl::GetFlag(FLAGS_composition);
+    if (comp_id.empty()) {
+        std::cout << "Usage: chronon3d_cli --composition <id> [flags]" << std::endl;
+        std::cout << "Available compositions:" << std::endl;
+        std::cout << "  CodeFirstSmoke" << std::endl;
         return 1;
     }
 
     try {
-        std::string scene_path = positional_args[1];
-        auto comp = SceneLoader::load_from_file(scene_path);
-        spdlog::info("Loaded composition: {} ({}x{})", comp->name(), comp->width(), comp->height());
+        if (!registry.contains(comp_id)) {
+            spdlog::error("Unknown composition: {}", comp_id);
+            return 1;
+        }
+
+        auto comp_ptr = std::make_shared<Composition>(registry.create(comp_id));
+        spdlog::info("Loaded composition: {} ({}x{})", comp_ptr->name(), comp_ptr->width(), comp_ptr->height());
 
         i64 start_frame = absl::GetFlag(FLAGS_start);
         i64 end_frame = absl::GetFlag(FLAGS_end);
@@ -45,16 +72,12 @@ int main(int argc, char** argv) {
             start_frame = absl::GetFlag(FLAGS_frame);
             end_frame = start_frame + 1;
             single_frame = true;
-        } else if (end_frame <= start_frame) {
-            // Default behavior if end is not set or invalid
-            end_frame = start_frame + 1;
-            single_frame = true;
+        } else if (end_frame == -1) {
+            end_frame = comp_ptr->duration();
         }
 
-        if (single_frame && end_frame == 0) end_frame = comp->duration();
-
         auto renderer = std::make_shared<SoftwareRenderer>();
-        RenderPipeline pipeline(comp, renderer);
+        RenderPipeline pipeline(comp_ptr, renderer);
 
         spdlog::info("Rendering frames {} to {}...", start_frame, end_frame);
         
@@ -67,7 +90,7 @@ int main(int argc, char** argv) {
             spdlog::info("Saving frame {} to {}...", rf.frame, path);
             rf.framebuffer->save_ppm(path);
             
-            FrameMark; // Tracy frame mark
+            FrameMark;
         });
 
         spdlog::info("Done!");

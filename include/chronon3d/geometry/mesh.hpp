@@ -4,6 +4,7 @@
 #include <chronon3d/geometry/bounds.hpp>
 #include <vector>
 #include <string>
+#include <meshoptimizer.h>
 
 namespace chronon3d {
 
@@ -30,6 +31,23 @@ public:
         m_vertices.clear();
         m_indices.clear();
         m_bounds = AABB();
+    }
+
+    void optimize() {
+        if (m_indices.empty()) return;
+        
+        // Optimize vertex cache
+        meshopt_optimizeVertexCache(m_indices.data(), m_indices.data(), m_indices.size(), m_vertices.size());
+        
+        // Optimize overdraw
+        // Note: requires vertex positions
+        std::vector<float> positions;
+        for (const auto& v : m_vertices) {
+            positions.push_back(v.position.x);
+            positions.push_back(v.position.y);
+            positions.push_back(v.position.z);
+        }
+        meshopt_optimizeOverdraw(m_indices.data(), m_indices.data(), m_indices.size(), positions.data(), m_vertices.size(), sizeof(float) * 3, 1.05f);
     }
 
 private:

@@ -27,19 +27,19 @@ TEST_CASE("Vec2 operations") {
     }
 
     SUBCASE("Dot Product") {
-        f32 d = a.dot(b);
+        f32 d = glm::dot(a, b);
         CHECK(d == 11.0f); // 1*3 + 2*4 = 3 + 8 = 11
     }
 
     SUBCASE("Length") {
         Vec2 v{3.0f, 4.0f};
-        CHECK(v.length() == 5.0f);
+        CHECK(glm::length(v) == 5.0f);
     }
 
     SUBCASE("Normalization") {
         Vec2 v{3.0f, 4.0f};
-        Vec2 n = v.normalized();
-        CHECK(n.length() == doctest::Approx(1.0f));
+        Vec2 n = glm::normalize(v);
+        CHECK(glm::length(n) == doctest::Approx(1.0f));
         CHECK(n.x == 3.0f / 5.0f);
         CHECK(n.y == 4.0f / 5.0f);
     }
@@ -50,7 +50,7 @@ TEST_CASE("Vec3 operations") {
     Vec3 b{0.0f, 1.0f, 0.0f};
 
     SUBCASE("Cross Product") {
-        Vec3 c = a.cross(b);
+        Vec3 c = glm::cross(a, b);
         CHECK(c.x == 0.0f);
         CHECK(c.y == 0.0f);
         CHECK(c.z == 1.0f);
@@ -59,17 +59,17 @@ TEST_CASE("Vec3 operations") {
     SUBCASE("Dot Product") {
         Vec3 v1{1.0f, 2.0f, 3.0f};
         Vec3 v2{4.0f, 5.0f, 6.0f};
-        CHECK(v1.dot(v2) == 32.0f); // 1*4 + 2*5 + 3*6 = 4 + 10 + 18 = 32
+        CHECK(glm::dot(v1, v2) == 32.0f); // 1*4 + 2*5 + 3*6 = 4 + 10 + 18 = 32
     }
 
     SUBCASE("Length") {
         Vec3 v{0.0f, 3.0f, 4.0f};
-        CHECK(v.length() == 5.0f);
+        CHECK(glm::length(v) == 5.0f);
     }
 
     SUBCASE("Normalization") {
         Vec3 v{1.0f, 2.0f, 3.0f};
-        Vec3 n = v.normalized();
-        CHECK(n.length() == doctest::Approx(1.0f));
+        Vec3 n = glm::normalize(v);
+        CHECK(glm::length(n) == doctest::Approx(1.0f));
     }
 }

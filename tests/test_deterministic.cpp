@@ -1,20 +1,24 @@
 #include <doctest/doctest.h>
-#include <chronon3d/timeline/composition.hpp>
+#include <chronon3d/chronon3d.hpp>
 #include <chronon3d/animation/spring.hpp>
 
 using namespace chronon3d;
 
-TEST_CASE("Composition Builder and Immutability") {
-    Composition::Builder builder;
-    builder.name("TestComp").size(1280, 720).fps({60, 1}).duration(600);
-    
-    auto comp = builder.build();
+TEST_CASE("Composition Immutability") {
+    CompositionSpec spec;
+    spec.name = "TestComp";
+    spec.width = 1280;
+    spec.height = 720;
+    spec.frame_rate = {60, 1};
+    spec.duration = 600;
 
-    CHECK(comp->name() == "TestComp");
-    CHECK(comp->width() == 1280);
-    CHECK(comp->height() == 720);
-    CHECK(comp->frame_rate().fps() == 60.0);
-    CHECK(comp->duration() == 600);
+    Composition comp{spec, [](const FrameContext&) { return Scene(); }};
+
+    CHECK(comp.name() == "TestComp");
+    CHECK(comp.width() == 1280);
+    CHECK(comp.height() == 720);
+    CHECK(comp.frame_rate().fps() == 60.0);
+    CHECK(comp.duration() == 600);
 }
 
 TEST_CASE("Deterministic Spring") {
@@ -36,18 +40,23 @@ TEST_CASE("Deterministic Spring") {
 }
 
 TEST_CASE("Pure Frame Evaluation") {
-    Composition::Builder builder;
-    builder.size(100, 100);
-    
-    auto& layer = builder.add_layer("L1", LayerType::Null);
-    layer.range = {0, 100};
-    layer.transform.position.add_keyframe(0, Vec3(0.0f));
-    layer.transform.position.add_keyframe(100, Vec3(100.0f));
+    CompositionSpec spec;
+    spec.width = 100;
+    spec.height = 100;
+    spec.duration = 100;
 
-    auto comp = builder.build();
+    Composition comp{
+        spec,
+        [](const FrameContext& ctx) {
+            SceneBuilder builder(ctx.resource);
+            auto x = interpolate(ctx.frame, 0, 100, 0.0f, 100.0f);
+            builder.rect("L1", {x, 0, 0}, Color::white());
+            return builder.build();
+        }
+    };
 
-    Scene s1 = comp->evaluate(50);
-    Scene s2 = comp->evaluate(50);
+    Scene s1 = comp.evaluate(50);
+    Scene s2 = comp.evaluate(50);
 
     CHECK(s1.nodes().size() == 1);
     CHECK(s1.nodes()[0].world_transform.position.x == 50.0f);

@@ -2,6 +2,8 @@
 
 #include <chronon3d/renderer/renderer.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
+#include <taskflow/taskflow.hpp>
+#include <hwy/highway.h>
 
 namespace chronon3d {
 
@@ -26,7 +28,6 @@ public:
             if (node.mesh) {
                 render_mesh_wireframe(*fb, *node.mesh, node.world_transform.to_matrix(), view, proj, node.color);
             } else {
-                // Default 2D fallback
                 draw_rect(*fb, node.world_transform, node.color, BlendMode::Normal);
             }
         }
@@ -37,21 +38,27 @@ public:
 private:
     void render_mesh_wireframe(Framebuffer& fb, const Mesh& mesh, const Mat4& model, const Mat4& view, const Mat4& proj, const Color& color) {
         Mat4 mvp = proj * view * model;
-
-        auto project = [&](const Vec3& v) -> Vec3 {
-            Vec3 p = mvp.transform_point(v);
+        const auto& vertices = mesh.vertices();
+        const auto& indices = mesh.indices();
+        
+        std::vector<Vec3> projected_vertices(vertices.size());
+        
+        // Vertex Projection Loop (Hot Path)
+        for (usize i = 0; i < vertices.size(); ++i) {
+            Vec4 p = mvp * Vec4(vertices[i].position, 1.0f);
+            if (p.w != 0.0f) {
+                p.x /= p.w; p.y /= p.w; p.z /= p.w;
+            }
             f32 x = (p.x + 1.0f) * 0.5f * fb.width();
             f32 y = (1.0f - (p.y + 1.0f) * 0.5f) * fb.height();
-            return {x, y, p.z};
-        };
+            projected_vertices[i] = {x, y, p.z};
+        }
 
-        const auto& indices = mesh.indices();
-        const auto& vertices = mesh.vertices();
-
+        // Rasterization Loop
         for (usize i = 0; i < indices.size(); i += 3) {
-            Vec3 p1 = project(vertices[indices[i]].position);
-            Vec3 p2 = project(vertices[indices[i+1]].position);
-            Vec3 p3 = project(vertices[indices[i+2]].position);
+            const Vec3& p1 = projected_vertices[indices[i]];
+            const Vec3& p2 = projected_vertices[indices[i+1]];
+            const Vec3& p3 = projected_vertices[indices[i+2]];
 
             draw_line(fb, p1, p2, color);
             draw_line(fb, p2, p3, color);

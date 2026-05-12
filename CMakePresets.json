@@ -87,8 +87,8 @@
       "name": "win",
       "configurePreset": "win-release",
       "targets": [
-        "ChrononTemplate",
-        "chronon_tests"
+        "chronon3d_cli",
+        "chronon3d_tests"
       ],
       "jobs": 16
     },
@@ -96,8 +96,8 @@
       "name": "win-debug",
       "configurePreset": "win-debug",
       "targets": [
-        "ChrononTemplate",
-        "chronon_tests"
+        "chronon3d_cli",
+        "chronon3d_tests"
       ],
       "jobs": 16
     },
@@ -105,8 +105,8 @@
       "name": "linux",
       "configurePreset": "linux-release",
       "targets": [
-        "ChrononTemplate",
-        "chronon_tests"
+        "chronon3d_cli",
+        "chronon3d_tests"
       ],
       "jobs": 16
     },
@@ -114,8 +114,8 @@
       "name": "linux-debug",
       "configurePreset": "linux-debug",
       "targets": [
-        "ChrononTemplate",
-        "chronon_tests"
+        "chronon3d_cli",
+        "chronon3d_tests"
       ],
       "jobs": 16
     }

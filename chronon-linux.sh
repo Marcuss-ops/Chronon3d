@@ -42,6 +42,13 @@ packages=(
   ffmpeg
   tracy
   mimalloc
+  taskflow
+  concurrentqueue
+  abseil
+  glm
+  simdjson
+  xxhash
+  highway
   doctest
 )
 

@@ -1,12 +1,12 @@
 #pragma once
 
-#include <chronon3d/timeline/layer.hpp>
-#include <chronon3d/timeline/mesh_layer.hpp>
+#include <chronon3d/core/frame_context.hpp>
 #include <chronon3d/scene/camera.hpp>
 #include <chronon3d/scene/scene.hpp>
-#include <vector>
-#include <memory>
+#include <functional>
 #include <string>
+#include <memory>
+#include <vector>
 
 namespace chronon3d {
 
@@ -20,29 +20,10 @@ struct CompositionSpec {
 
 class Composition {
 public:
-    class Builder {
-    public:
-        Builder& name(std::string n) { m_spec.name = std::move(n); return *this; }
-        Builder& size(i32 w, i32 h) { m_spec.width = w; m_spec.height = h; return *this; }
-        Builder& fps(FrameRate fps) { m_spec.frame_rate = fps; return *this; }
-        Builder& duration(Frame d) { m_spec.duration = d; return *this; }
+    using SceneFunction = std::function<Scene(const FrameContext&)>;
 
-        template <typename T = Layer, typename... Args>
-        T& add_layer(Args&&... args) {
-            auto layer = std::make_unique<T>(std::forward<Args>(args)...);
-            T& ref = *layer;
-            m_layers.push_back(std::move(layer));
-            return ref;
-        }
-
-        [[nodiscard]] std::shared_ptr<const Composition> build() {
-            return std::shared_ptr<const Composition>(new Composition(m_spec, std::move(m_layers)));
-        }
-
-    private:
-        CompositionSpec m_spec;
-        std::vector<std::unique_ptr<Layer>> m_layers;
-    };
+    Composition(CompositionSpec spec, SceneFunction render)
+        : m_spec(std::move(spec)), m_render(std::move(render)) {}
 
     [[nodiscard]] i32 width() const { return m_spec.width; }
     [[nodiscard]] i32 height() const { return m_spec.height; }
@@ -50,36 +31,22 @@ public:
     [[nodiscard]] Frame duration() const { return m_spec.duration; }
     [[nodiscard]] const std::string& name() const { return m_spec.name; }
 
-    [[nodiscard]] const std::vector<std::unique_ptr<Layer>>& layers() const { return m_layers; }
-
     [[nodiscard]] Scene evaluate(Frame frame, std::pmr::memory_resource* res = std::pmr::get_default_resource()) const {
-        Scene scene(res);
-        for (const auto& layer : m_layers) {
-            if (!layer->is_active(frame)) continue;
+        FrameContext ctx{
+            .frame = frame,
+            .duration = m_spec.duration,
+            .frame_rate = m_spec.frame_rate,
+            .resource = res
+        };
 
-            RenderNode node(res);
-            node.name = layer->name();
-            node.world_transform = layer->transform.evaluate(frame);
-            node.color = Color::white() * layer->opacity.evaluate(frame);
-            
-            if (layer->type() == LayerType::Mesh) {
-                auto mesh_layer = static_cast<const MeshLayer*>(layer.get());
-                node.mesh = mesh_layer->mesh();
-            }
-            
-            scene.add_node(std::move(node));
-        }
-        return scene;
+        return m_render(ctx);
     }
 
     Camera camera;
 
 private:
-    Composition(CompositionSpec spec, std::vector<std::unique_ptr<Layer>> layers)
-        : m_spec(std::move(spec)), m_layers(std::move(layers)) {}
-
     CompositionSpec m_spec;
-    std::vector<std::unique_ptr<Layer>> m_layers;
+    SceneFunction m_render;
 };
 
 } // namespace chronon3d

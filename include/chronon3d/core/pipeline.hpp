@@ -3,7 +3,7 @@
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/renderer/renderer.hpp>
 #include <chronon3d/core/arena.hpp>
-#include <concurrentqueue.h>
+#include <concurrentqueue/moodycamel/concurrentqueue.h>
 #include <taskflow/taskflow.hpp>
 #include <tracy/Tracy.hpp>
 #include <memory>

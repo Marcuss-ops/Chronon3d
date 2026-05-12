@@ -31,6 +31,10 @@ struct Color {
             std::clamp(a, 0.0f, 1.0f)
         };
     }
+
+    [[nodiscard]] constexpr Color with_alpha(f32 new_a) const {
+        return {r, g, b, new_a};
+    }
 };
 
 // Specialized lerp for AnimatedValue
