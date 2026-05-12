@@ -47,7 +47,8 @@ reauthenticate_drive.py
 # AI context
 .claude/
 
-# Engine Output — entire folder is generated, never committed
+# Engine Output — render artifacts, never committed except proofs
 output/
+!output/proofs/
 transform_output/
 scenes/
