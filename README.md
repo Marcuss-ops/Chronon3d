@@ -52,15 +52,16 @@ Composition MyVideo() {
 
 ### Build and Run
 
-#### Windows
+Per istruzioni dettagliate, consulta **[BUILDING.md](file:///c:/Users/pater/Pyt/Chrono/BUILDING.md)**.
+
+#### Windows (xmake)
 ```powershell
-.\chronon-win.ps1
-.\build\chronon\win-release\apps\chronon3d_cli\chronon3d_cli.exe --composition MyAwesomeVideo --frame 30
+.\tools\dev.ps1
 ```
 
-#### Linux
-```bash
-./chronon-linux.sh
+#### Windows (CMake)
+```powershell
+.\chronon-win.ps1
 ```
 
 ## 🏗️ Architecture
