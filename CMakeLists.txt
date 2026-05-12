@@ -45,6 +45,7 @@ target_compile_features(chronon3d INTERFACE cxx_std_20)
 add_library(chronon3d_renderer STATIC
     src/renderer/software_renderer.cpp
     src/renderer/text_renderer.cpp
+    src/scene/scene_builder.cpp
 )
 target_link_libraries(chronon3d_renderer
     PUBLIC
@@ -92,6 +93,8 @@ add_library(chronon3d_examples_lib STATIC
     examples/code_first_smoke.cpp
     examples/remotion_style_guide.cpp
     examples/text_proof.cpp
+    examples/layer_proof.cpp
+    examples/transform_proof.cpp
 )
 target_link_libraries(chronon3d_examples_lib
     PUBLIC
