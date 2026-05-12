@@ -83,6 +83,7 @@ target("chronon3d_cli")
     add_includedirs("apps/chronon3d_cli")
     add_deps("chronon3d_pipeline", "chronon3d_io", "chronon3d_examples_lib")
     add_packages("cli11", "spdlog", "fmt", "meshoptimizer", "xxhash", "toml++")
+    set_rundir("$(projectdir)")
 
     -- Handle auto-registration link issues by forcing whole archive for examples
     if is_plat("windows") then
@@ -96,6 +97,7 @@ target("chronon3d_cli")
 -- Tests
 target("chronon3d_tests")
     set_kind("binary")
+    set_rundir("$(projectdir)")
     add_files("tests/*.cpp")
     add_files("tests/core/*.cpp")
     add_files("tests/math/*.cpp")

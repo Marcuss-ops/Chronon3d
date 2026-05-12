@@ -10,12 +10,12 @@ static Composition DepthRolesProof() {
     }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
 
-        const auto cam_x = interpolate(ctx.frame, 0, 90, -180.0f, 180.0f);
+        const auto cam_x = interpolate(ctx.frame, 0, 90, -300.0f, 300.0f);
         s.camera_2_5d({
             .enabled          = true,
-            .position         = {cam_x, 0, -1000},
+            .position         = {cam_x, 0, -4000},
             .point_of_interest = {0, 0, 0},
-            .zoom             = 1000.0f
+            .zoom             = 4000.0f
         });
 
         // ---- FarBackground ----
@@ -90,7 +90,7 @@ static Composition DepthRolesProof() {
         // ---- Foreground ----
         s.layer("fg", [](LayerBuilder& l) {
             l.enable_3d(true)
-             .position({640, 580, 0})
+             .position({640, 500, 0})
              .depth_role(DepthRole::Foreground);
             l.text("lbl", {
                 .content = "FOREGROUND",
@@ -99,11 +99,11 @@ static Composition DepthRolesProof() {
             });
         });
 
-        // ---- Overlay (2D HUD — no enable_3d, not affected by camera) ----
+        // ---- Overlay (2D HUD - no enable_3d, not affected by camera) ----
         s.layer("overlay", [](LayerBuilder& l) {
-            l.position({640, 42, 0});  // depth_role not needed for 2D HUD
+            l.position({640, 42, 0});
             l.text("hud", {
-                .content = "OVERLAY (2D HUD — stays fixed)",
+                .content = "OVERLAY (2D HUD - stays fixed)",
                 .style = { .font_path = "assets/fonts/Inter-Bold.ttf", .size = 22,
                            .color = Color{1,1,1,0.6f}, .align = TextAlign::Center }
             });
@@ -158,48 +158,76 @@ CHRONON_REGISTER_COMPOSITION("DepthRoleOffsetProof", DepthRoleOffsetProof)
 // ZSortingProof
 // Three overlapping cards at different Z depths.
 // Near card (red, inserted FIRST) must render on top of far card (blue, inserted LAST).
-// This validates the 2.5D painter-algorithm depth sort.
+// Camera at z=-4000 so scale differences are small (~5-15%) — cards stay readable.
+// Insertion order: near → mid → far (backwards from expected 2D painter order).
 // ---------------------------------------------------------------------------
 static Composition ZSortingProof() {
     return composition({
-        .name = "ZSortingProof", .width = 900, .height = 600, .duration = 1
+        .name = "ZSortingProof", .width = 1280, .height = 720, .duration = 1
     }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
 
+        // Camera far back so the depth-role Z values (-500, 0, +1200) produce
+        // only subtle scale variation — avoids the near card swallowing everything.
         s.camera_2_5d({
-            .enabled = true, .position = {0, 0, -1000}, .zoom = 1000.0f
+            .enabled = true, .position = {0, 0, -4000}, .zoom = 4000.0f
         });
-        s.rect("bg", { .size = {900, 600}, .color = Color{0.03f, 0.03f, 0.05f, 1},
-                        .pos = {450, 300, 0} });
+        s.rect("bg", { .size = {1280, 720}, .color = Color{0.03f, 0.03f, 0.05f, 1},
+                        .pos = {640, 360, 0} });
 
-        // Near-red inserted FIRST — must appear on top after depth sort
+        // Label: insertion order is intentionally reversed vs depth
+        s.layer("title", [](LayerBuilder& l) {
+            l.position({640, 60, 0});
+            l.text("t", { .content = "Z-SORT: inserted near->mid->far  |  should render far->mid->near",
+                .style = { .font_path = "assets/fonts/Inter-Bold.ttf", .size = 22,
+                           .color = Color{1,1,1,0.6f}, .align = TextAlign::Center } });
+        });
+
+        // Near-red — inserted FIRST, depth_role Foreground (z=-500).
+        // After depth sort this must paint LAST (on top).
         s.layer("near-red", [](LayerBuilder& l) {
-            l.enable_3d(true).position({450, 300, 0}).depth_role(DepthRole::Foreground);
-            l.rounded_rect("r", { .size = {320, 200}, .radius = 20,
-                .color = Color{0.9f, 0.2f, 0.2f, 0.9f}, .pos = {0, 0, 0} });
-            l.text("lbl", { .content = "NEAR  (Foreground)",
-                .style = { .font_path = "assets/fonts/Inter-Bold.ttf", .size = 26,
-                           .color = Color{1,1,1,1}, .align = TextAlign::Center } });
+            l.enable_3d(true).position({700, 380, 0}).depth_role(DepthRole::Foreground);
+            l.rounded_rect("r", { .size = {420, 260}, .radius = 24,
+                .color = Color{0.85f, 0.22f, 0.22f, 0.95f}, .pos = {0, 0, 0} });
+            l.text("l1", { .content = "NEAR  (Foreground, z=-500)",
+                .style = { .font_path = "assets/fonts/Inter-Bold.ttf", .size = 24,
+                           .color = Color{1,1,1,1}, .align = TextAlign::Center },
+                .pos = {0, -18, 0} });
+            l.text("l2", { .content = "inserted 1st - renders on top",
+                .style = { .font_path = "assets/fonts/Inter-Bold.ttf", .size = 17,
+                           .color = Color{1,1,1,0.7f}, .align = TextAlign::Center },
+                .pos = {0, 18, 0} });
         });
 
-        // Mid-green inserted SECOND
+        // Mid-green — inserted SECOND, Subject (z=0).
         s.layer("mid-green", [](LayerBuilder& l) {
-            l.enable_3d(true).position({490, 330, 0}).depth_role(DepthRole::Subject);
-            l.rounded_rect("r", { .size = {320, 200}, .radius = 20,
-                .color = Color{0.2f, 0.75f, 0.3f, 0.9f}, .pos = {0, 0, 0} });
-            l.text("lbl", { .content = "MID  (Subject)",
-                .style = { .font_path = "assets/fonts/Inter-Bold.ttf", .size = 26,
-                           .color = Color{1,1,1,1}, .align = TextAlign::Center } });
+            l.enable_3d(true).position({640, 360, 0}).depth_role(DepthRole::Subject);
+            l.rounded_rect("r", { .size = {420, 260}, .radius = 24,
+                .color = Color{0.18f, 0.70f, 0.28f, 0.95f}, .pos = {0, 0, 0} });
+            l.text("l1", { .content = "MID  (Subject, z=0)",
+                .style = { .font_path = "assets/fonts/Inter-Bold.ttf", .size = 24,
+                           .color = Color{1,1,1,1}, .align = TextAlign::Center },
+                .pos = {0, -18, 0} });
+            l.text("l2", { .content = "inserted 2nd - middle layer",
+                .style = { .font_path = "assets/fonts/Inter-Bold.ttf", .size = 17,
+                           .color = Color{1,1,1,0.7f}, .align = TextAlign::Center },
+                .pos = {0, 18, 0} });
         });
 
-        // Far-blue inserted LAST — must appear behind both
+        // Far-blue — inserted LAST, Background (z=+1200).
+        // Must paint FIRST (behind both), despite being inserted last.
         s.layer("far-blue", [](LayerBuilder& l) {
-            l.enable_3d(true).position({530, 360, 0}).depth_role(DepthRole::Background);
-            l.rounded_rect("r", { .size = {320, 200}, .radius = 20,
-                .color = Color{0.2f, 0.3f, 0.9f, 0.9f}, .pos = {0, 0, 0} });
-            l.text("lbl", { .content = "FAR  (Background)",
-                .style = { .font_path = "assets/fonts/Inter-Bold.ttf", .size = 26,
-                           .color = Color{1,1,1,1}, .align = TextAlign::Center } });
+            l.enable_3d(true).position({580, 340, 0}).depth_role(DepthRole::Background);
+            l.rounded_rect("r", { .size = {420, 260}, .radius = 24,
+                .color = Color{0.22f, 0.33f, 0.90f, 0.95f}, .pos = {0, 0, 0} });
+            l.text("l1", { .content = "FAR  (Background, z=+1200)",
+                .style = { .font_path = "assets/fonts/Inter-Bold.ttf", .size = 24,
+                           .color = Color{1,1,1,1}, .align = TextAlign::Center },
+                .pos = {0, -18, 0} });
+            l.text("l2", { .content = "inserted last - renders behind",
+                .style = { .font_path = "assets/fonts/Inter-Bold.ttf", .size = 17,
+                           .color = Color{1,1,1,0.7f}, .align = TextAlign::Center },
+                .pos = {0, 18, 0} });
         });
 
         return s.build();
@@ -224,11 +252,19 @@ static Composition DepthOffsetProof() {
         s.rect("bg", { .size = {1280, 720}, .color = Color{0.03f, 0.03f, 0.05f, 1},
                         .pos = {640, 360, 0} });
 
-        struct C { f32 x; f32 off; Color col; const char* label; };
-        for (auto [x, off, col, label] : std::initializer_list<C>{
-            {280,  200, Color{0.25f, 0.55f, 0.9f,  1}, "Subject +200\n(farther)"},
-            {640,    0, Color{0.35f, 0.75f, 0.35f, 1}, "Subject  ±0\n(normal)"},
-            {1000, -200, Color{0.9f,  0.35f, 0.25f, 1}, "Subject -200\n(closer)"},
+        // 2D title HUD
+        s.layer("title", [](LayerBuilder& l) {
+            l.position({640, 55, 0});
+            l.text("t", { .content = "depth_offset: same role, different Z fine-tuning -> different scale",
+                .style = { .font_path = "assets/fonts/Inter-Bold.ttf", .size = 22,
+                           .color = Color{1,1,1,0.55f}, .align = TextAlign::Center } });
+        });
+
+        struct C { f32 x; f32 off; Color col; const char* line1; const char* line2; };
+        for (auto [x, off, col, line1, line2] : std::initializer_list<C>{
+            {280,   200, Color{0.25f, 0.55f, 0.9f,  1}, "offset +200", "(farther / smaller)"},
+            {640,     0, Color{0.35f, 0.75f, 0.35f, 1}, "offset  0",   "(Subject baseline)"},
+            {1000, -200, Color{0.9f,  0.35f, 0.25f, 1}, "offset -200", "(closer / larger)"},
         }) {
             s.layer("card", [&](LayerBuilder& l) {
                 l.enable_3d(true)
@@ -237,9 +273,14 @@ static Composition DepthOffsetProof() {
                  .depth_offset(off);
                 l.rounded_rect("r", { .size = {280, 180}, .radius = 20,
                     .color = col, .pos = {0, 0, 0} });
-                l.text("lbl", { .content = label,
+                l.text("l1", { .content = line1,
                     .style = { .font_path = "assets/fonts/Inter-Bold.ttf", .size = 28,
-                               .color = Color{1,1,1,1}, .align = TextAlign::Center } });
+                               .color = Color{1,1,1,1}, .align = TextAlign::Center },
+                    .pos = {0, -20, 0} });
+                l.text("l2", { .content = line2,
+                    .style = { .font_path = "assets/fonts/Inter-Bold.ttf", .size = 18,
+                               .color = Color{1,1,1,0.7f}, .align = TextAlign::Center },
+                    .pos = {0, 20, 0} });
             });
         }
 
@@ -266,7 +307,7 @@ static Composition ParallaxRolesProof() {
         });
 
         s.camera_2_5d({
-            .enabled = true, .position = {cam_x, 0, -1000}, .zoom = 1000.0f
+            .enabled = true, .position = {cam_x, 0, -4000}, .zoom = 4000.0f
         });
 
         s.rect("bg-fill", { .size = {1280, 720},
@@ -312,16 +353,16 @@ static Composition ParallaxRolesProof() {
 
         // Foreground — moves most
         s.layer("fg", [](LayerBuilder& l) {
-            l.enable_3d(true).position({640, 580, 0}).depth_role(DepthRole::Foreground);
+            l.enable_3d(true).position({640, 500, 0}).depth_role(DepthRole::Foreground);
             l.text("lbl", { .content = "FOREGROUND",
                 .style = { .font_path = "assets/fonts/Inter-Bold.ttf", .size = 40,
                            .color = Color{1.0f, 0.85f, 0.3f, 1}, .align = TextAlign::Center } });
         });
 
-        // 2D HUD — stays fixed
+        // 2D HUD - stays fixed regardless of camera
         s.layer("hud", [](LayerBuilder& l) {
             l.position({640, 40, 0});
-            l.text("t", { .content = "2D HUD — FIXED",
+            l.text("t", { .content = "2D HUD - FIXED",
                 .style = { .font_path = "assets/fonts/Inter-Bold.ttf", .size = 20,
                            .color = Color{1,1,1,0.5f}, .align = TextAlign::Center } });
         });
