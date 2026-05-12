@@ -45,6 +45,7 @@ target_compile_features(chronon3d INTERFACE cxx_std_20)
 add_library(chronon3d_renderer STATIC
     src/renderer/software_renderer.cpp
     src/renderer/text_renderer.cpp
+    src/renderer/image_renderer.cpp
     src/scene/scene_builder.cpp
 )
 target_link_libraries(chronon3d_renderer
@@ -57,6 +58,7 @@ if(CHRONON3D_ENABLE_PROFILING)
     target_link_libraries(chronon3d_renderer PRIVATE Tracy::TracyClient)
     target_compile_definitions(chronon3d_renderer PRIVATE CHRONON_PROFILING TRACY_ON_DEMAND)
 endif()
+target_include_directories(chronon3d_renderer PRIVATE ${Stb_INCLUDE_DIR})
 
 # 3. Pipeline Library (Heavy)
 add_library(chronon3d_pipeline INTERFACE)
@@ -95,10 +97,12 @@ add_library(chronon3d_examples_lib STATIC
     examples/text_proof.cpp
     examples/layer_proof.cpp
     examples/transform_proof.cpp
+    examples/image_proof.cpp
 )
 target_link_libraries(chronon3d_examples_lib
     PUBLIC
         chronon3d
+        chronon3d_renderer
 )
 
 # Global compiler options

@@ -20,6 +20,7 @@ raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 sprea
         case ShapeType::Rect: size = shape.rect.size; break;
         case ShapeType::RoundedRect: size = shape.rounded_rect.size; break;
         case ShapeType::Circle: size = Vec2{shape.circle.radius * 2, shape.circle.radius * 2}; break;
+        case ShapeType::Image: size = shape.image.size; break;
         default: break;
     }
 
@@ -80,6 +81,13 @@ bool hit_test(const Shape& s, Vec2 p, f32 spread = 0.0f) {
         }
         case ShapeType::Circle:
             return raster::point_in_circle(p.x - s.circle.radius, p.y - s.circle.radius, s.circle.radius + spread);
+        case ShapeType::Image: {
+            f32 hw = s.image.size.x * 0.5f + spread;
+            f32 hh = s.image.size.y * 0.5f + spread;
+            f32 px = p.x - s.image.size.x * 0.5f;
+            f32 py = p.y - s.image.size.y * 0.5f;
+            return px >= -hw && px < hw && py >= -hh && py < hh;
+        }
         default: return false;
     }
 }
@@ -180,6 +188,11 @@ void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node, const 
         text_tr.position = Vec3(model[3]);
         text_tr.opacity = opacity;
         m_text_renderer.draw_text(node.shape.text, text_tr, fb);
+        return;
+    }
+
+    if (node.shape.type == ShapeType::Image) {
+        m_image_renderer.draw_image(node.shape.image, state, fb);
         return;
     }
 

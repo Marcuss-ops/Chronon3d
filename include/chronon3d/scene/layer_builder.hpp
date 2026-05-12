@@ -117,6 +117,23 @@ public:
         return *this;
     }
 
+    LayerBuilder& image(std::string name, ImageParams p) {
+        RenderNode node(m_layer.nodes.get_allocator().resource());
+        auto* res = m_layer.nodes.get_allocator().resource();
+
+        node.name = std::pmr::string{name, res};
+        node.shape.type = ShapeType::Image;
+        node.shape.image.path = std::move(p.path);
+        node.shape.image.size = p.size;
+        node.shape.image.opacity = p.opacity;
+        node.world_transform.position = p.pos;
+        node.world_transform.anchor = {p.size.x * 0.5f, p.size.y * 0.5f, 0.0f};
+        node.color = Color{1, 1, 1, p.opacity};
+
+        m_layer.nodes.push_back(std::move(node));
+        return *this;
+    }
+
     LayerBuilder& with_shadow(DropShadow shadow) {
         m_layer.nodes.back().shadow = shadow;
         return *this;
