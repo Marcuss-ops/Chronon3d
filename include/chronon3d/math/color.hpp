@@ -2,6 +2,7 @@
 
 #include <chronon3d/core/types.hpp>
 #include <algorithm>
+#include <cmath>
 #include <ostream>
 
 namespace chronon3d {

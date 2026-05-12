@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/scene/scene.hpp>
+#include <chronon3d/scene/camera_2_5d.hpp>
 #include <chronon3d/scene/builder_params.hpp>
 #include <chronon3d/scene/layer_builder.hpp>
 #include <chronon3d/math/transform.hpp>
@@ -27,6 +28,11 @@ public:
     SceneBuilder& line(std::string name, LineParams p);
     SceneBuilder& text(std::string name, TextParams p);
     SceneBuilder& image(std::string name, ImageParams p);
+
+    SceneBuilder& camera_2_5d(Camera2_5D camera) {
+        scene_.set_camera_2_5d(camera);
+        return *this;
+    }
 
     // Hierarchy
     template <typename Fn>

@@ -56,6 +56,11 @@ public:
         return *this;
     }
 
+    LayerBuilder& enable_3d(bool value = true) {
+        m_layer.is_3d = value;
+        return *this;
+    }
+
     LayerBuilder& rect(std::string name, RectParams p) {
         RenderNode node(m_layer.nodes.get_allocator().resource());
         node.name = std::pmr::string{name, m_layer.nodes.get_allocator().resource()};

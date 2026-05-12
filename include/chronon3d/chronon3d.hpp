@@ -7,8 +7,10 @@
 #include <chronon3d/timeline.hpp>
 #include <chronon3d/rendering.hpp>
 #include <chronon3d/scene/camera.hpp>
+#include <chronon3d/scene/camera_2_5d.hpp>
 #include <chronon3d/scene/scene.hpp>
 #include <chronon3d/scene/scene_builder.hpp>
+#include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/animation/interpolate.hpp>
 
 namespace chronon3d {
