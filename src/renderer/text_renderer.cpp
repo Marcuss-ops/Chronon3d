@@ -63,7 +63,24 @@ bool TextRenderer::draw_text(const TextShape& t, const Transform& tr, Framebuffe
     int ascent, descent, line_gap;
     stbtt_GetFontVMetrics(&font, &ascent, &descent, &line_gap);
 
-    float cur_x = tr.position.x;
+    // Measure total width for alignment.
+    float text_width = 0.0f;
+    for (size_t i = 0; i < t.text.size(); ++i) {
+        int adv, lsb;
+        stbtt_GetCodepointHMetrics(&font, static_cast<int>(t.text[i]), &adv, &lsb);
+        text_width += static_cast<float>(adv) * scale;
+        if (i + 1 < t.text.size()) {
+            text_width += static_cast<float>(
+                stbtt_GetCodepointKernAdvance(&font, static_cast<int>(t.text[i]),
+                                              static_cast<int>(t.text[i + 1]))) * scale;
+        }
+    }
+
+    float x_offset = 0.0f;
+    if (t.style.align == TextAlign::Center) x_offset = -text_width * 0.5f;
+    else if (t.style.align == TextAlign::Right)  x_offset = -text_width;
+
+    float cur_x = tr.position.x + x_offset;
     float baseline_y = tr.position.y + static_cast<float>(ascent) * scale;
 
     for (size_t i = 0; i < t.text.length(); ++i) {

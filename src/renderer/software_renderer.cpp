@@ -2,6 +2,7 @@
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/scene/scene.hpp>
 #include <chronon3d/scene/mask_utils.hpp>
+#include <chronon3d/scene/layer_effect.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/core/profiling.hpp>
 #include <chronon3d/math/raster_utils.hpp>
@@ -160,19 +161,35 @@ std::unique_ptr<Framebuffer> SoftwareRenderer::render_scene(
     //   no z-buffer; intersecting planes are painter's-algorithm only
     const auto& cam25 = scene.camera_2_5d();
 
+    // Renders one layer given its already-computed layer_state (mask + effects + blend).
+    auto draw_layer_with_state = [&](const Layer& layer, RenderState layer_state) {
+        if (layer.mask.enabled()) {
+            layer_state.mask             = &layer.mask;
+            layer_state.layer_inv_matrix = glm::inverse(layer_state.matrix);
+        }
+        if (!layer.effect.has_any() && layer.blend_mode == BlendMode::Normal) {
+            render_layer_nodes(*fb, layer, layer_state, camera, width, height);
+        } else {
+            Framebuffer offscreen(width, height);
+            offscreen.clear(Color::transparent());
+            render_layer_nodes(offscreen, layer, layer_state, camera, width, height);
+            if (layer.effect.blur_radius > 0.0f)
+                apply_blur(offscreen, layer.effect.blur_radius);
+            if (layer.effect.tint.a > 0.0f || layer.effect.brightness != 0.0f || layer.effect.contrast != 1.0f)
+                apply_color_effects(offscreen, layer.effect);
+            composite_layer(*fb, offscreen, layer.blend_mode);
+        }
+    };
+
+    // Convenience wrapper that combines base_state with layer.transform first.
+    auto draw_layer = [&](const Layer& layer, const RenderState& base_state) {
+        draw_layer_with_state(layer, combine(base_state, layer.transform));
+    };
+
     if (!cam25.enabled) {
         for (const auto& layer : scene.layers()) {
             if (!layer.visible) continue;
-            RenderState layer_state = combine(root_state, layer.transform);
-            if (layer.mask.enabled()) {
-                layer_state.mask             = &layer.mask;
-                layer_state.layer_inv_matrix = glm::inverse(layer_state.matrix);
-            }
-            for (const auto& node : layer.nodes) {
-                if (!node.visible) continue;
-                RenderState node_state = combine(layer_state, node.world_transform);
-                draw_node(*fb, node, node_state, camera, width, height);
-            }
+            draw_layer(layer, root_state);
         }
         return fb;
     }
@@ -191,16 +208,7 @@ std::unique_ptr<Framebuffer> SoftwareRenderer::render_scene(
         if (!layer.visible) { ++index; continue; }
 
         if (!layer.is_3d) {
-            RenderState layer_state = combine(root_state, layer.transform);
-            if (layer.mask.enabled()) {
-                layer_state.mask             = &layer.mask;
-                layer_state.layer_inv_matrix = glm::inverse(layer_state.matrix);
-            }
-            for (const auto& node : layer.nodes) {
-                if (!node.visible) continue;
-                RenderState node_state = combine(layer_state, node.world_transform);
-                draw_node(*fb, node, node_state, camera, width, height);
-            }
+            draw_layer(layer, root_state);
         } else {
             auto projected = project_layer_2_5d(
                 layer.transform, cam25,
@@ -218,16 +226,8 @@ std::unique_ptr<Framebuffer> SoftwareRenderer::render_scene(
         });
 
     for (const auto& item : three_d_layers) {
-        RenderState layer_state = combine(root_state, item.projected_transform);
-        if (item.layer->mask.enabled()) {
-            layer_state.mask             = &item.layer->mask;
-            layer_state.layer_inv_matrix = glm::inverse(layer_state.matrix);
-        }
-        for (const auto& node : item.layer->nodes) {
-            if (!node.visible) continue;
-            RenderState node_state = combine(layer_state, node.world_transform);
-            draw_node(*fb, node, node_state, camera, width, height);
-        }
+        // For 3D layers the transform is already projected; pass it as the computed layer_state.
+        draw_layer_with_state(*item.layer, combine(root_state, item.projected_transform));
     }
 
     return fb;
@@ -374,6 +374,100 @@ void SoftwareRenderer::draw_glow(Framebuffer& fb, const RenderNode& node, const 
         const f32 alpha  = base.a * node.glow.intensity * (1.0f - t) * state.opacity;
         if (alpha > 0.0f)
             draw_transformed_shape(fb, node.shape, model, {base.r, base.g, base.b, alpha}, expand, &state);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Layer-level effects pipeline
+// ---------------------------------------------------------------------------
+
+void SoftwareRenderer::render_layer_nodes(Framebuffer& fb, const Layer& layer,
+                                          const RenderState& layer_state,
+                                          const Camera& camera, i32 width, i32 height) {
+    for (const auto& node : layer.nodes) {
+        if (!node.visible) continue;
+        RenderState node_state = combine(layer_state, node.world_transform);
+        draw_node(fb, node, node_state, camera, width, height);
+    }
+}
+
+void SoftwareRenderer::apply_blur(Framebuffer& fb, f32 radius) {
+    const i32 r = std::max(1, static_cast<i32>(std::round(radius)));
+    const i32 w = fb.width(), h = fb.height();
+    Framebuffer tmp(w, h);
+    tmp.clear(Color::transparent());
+
+    // 3-pass separable box blur ≈ Gaussian
+    for (int pass = 0; pass < 3; ++pass) {
+        // Horizontal
+        for (i32 y = 0; y < h; ++y) {
+            Color sum{0, 0, 0, 0};
+            for (i32 x = -r; x <= r; ++x) {
+                Color p = fb.get_pixel(std::clamp(x, 0, w - 1), y);
+                sum.r += p.r; sum.g += p.g; sum.b += p.b; sum.a += p.a;
+            }
+            const f32 inv = 1.0f / static_cast<f32>(2 * r + 1);
+            for (i32 x = 0; x < w; ++x) {
+                tmp.set_pixel(x, y, {sum.r * inv, sum.g * inv, sum.b * inv, sum.a * inv});
+                Color add = fb.get_pixel(std::min(x + r + 1, w - 1), y);
+                Color rem = fb.get_pixel(std::max(x - r,     0),     y);
+                sum.r += add.r - rem.r; sum.g += add.g - rem.g;
+                sum.b += add.b - rem.b; sum.a += add.a - rem.a;
+            }
+        }
+        // Vertical
+        for (i32 x = 0; x < w; ++x) {
+            Color sum{0, 0, 0, 0};
+            for (i32 y = -r; y <= r; ++y) {
+                Color p = tmp.get_pixel(x, std::clamp(y, 0, h - 1));
+                sum.r += p.r; sum.g += p.g; sum.b += p.b; sum.a += p.a;
+            }
+            const f32 inv = 1.0f / static_cast<f32>(2 * r + 1);
+            for (i32 y = 0; y < h; ++y) {
+                fb.set_pixel(x, y, {sum.r * inv, sum.g * inv, sum.b * inv, sum.a * inv});
+                Color add = tmp.get_pixel(x, std::min(y + r + 1, h - 1));
+                Color rem = tmp.get_pixel(x, std::max(y - r,     0));
+                sum.r += add.r - rem.r; sum.g += add.g - rem.g;
+                sum.b += add.b - rem.b; sum.a += add.a - rem.a;
+            }
+        }
+    }
+}
+
+void SoftwareRenderer::apply_color_effects(Framebuffer& fb, const LayerEffect& effect) {
+    const i32 w = fb.width(), h = fb.height();
+    for (i32 y = 0; y < h; ++y) {
+        for (i32 x = 0; x < w; ++x) {
+            Color c = fb.get_pixel(x, y);
+            if (c.a <= 0.0f) continue;
+
+            // Brightness + contrast: (c + brightness - 0.5) * contrast + 0.5
+            if (effect.brightness != 0.0f || effect.contrast != 1.0f) {
+                auto adj = [&](f32 v) {
+                    return std::clamp((v + effect.brightness - 0.5f) * effect.contrast + 0.5f, 0.0f, 1.0f);
+                };
+                c.r = adj(c.r); c.g = adj(c.g); c.b = adj(c.b);
+            }
+            // Tint overlay
+            if (effect.tint.a > 0.0f) {
+                const f32 t = effect.tint.a;
+                c.r = c.r * (1.0f - t) + effect.tint.r * t;
+                c.g = c.g * (1.0f - t) + effect.tint.g * t;
+                c.b = c.b * (1.0f - t) + effect.tint.b * t;
+            }
+            fb.set_pixel(x, y, c);
+        }
+    }
+}
+
+void SoftwareRenderer::composite_layer(Framebuffer& dst, const Framebuffer& src, BlendMode mode) {
+    const i32 w = dst.width(), h = dst.height();
+    for (i32 y = 0; y < h; ++y) {
+        for (i32 x = 0; x < w; ++x) {
+            const Color s = src.get_pixel(x, y);
+            if (s.a <= 0.0f) continue;
+            dst.set_pixel(x, y, compositor::blend(s, dst.get_pixel(x, y), mode));
+        }
     }
 }
 

@@ -5,6 +5,8 @@
 #include <chronon3d/renderer/text_renderer.hpp>
 #include <chronon3d/renderer/image_renderer.hpp>
 #include <chronon3d/math/transform.hpp>
+#include <chronon3d/scene/layer.hpp>
+#include <chronon3d/scene/layer_effect.hpp>
 
 namespace chronon3d {
 
@@ -32,9 +34,18 @@ private:
     void render_mesh_wireframe(Framebuffer& fb, const Mesh& mesh, const Mat4& model,
                                const Mat4& view, const Mat4& proj, const Color& color);
 
-    // Effect renderers — drawn before the main shape
+    // Node-level effects
     void draw_shadow(Framebuffer& fb, const RenderNode& node, const RenderState& state);
     void draw_glow(Framebuffer& fb, const RenderNode& node, const RenderState& state);
+
+    // Layer-level effects pipeline
+    void render_layer_nodes(Framebuffer& fb, const Layer& layer,
+                            const RenderState& layer_state,
+                            const Camera& camera, i32 width, i32 height);
+
+    static void apply_blur(Framebuffer& fb, f32 radius);
+    static void apply_color_effects(Framebuffer& fb, const LayerEffect& effect);
+    static void composite_layer(Framebuffer& dst, const Framebuffer& src, BlendMode mode);
 
     // Diagnostic drawing helpers
     void draw_diagnostic_info(Framebuffer& fb, const RenderNode& node, const RenderState& state);

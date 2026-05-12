@@ -5,6 +5,8 @@
 #include <chronon3d/math/transform.hpp>
 #include <chronon3d/scene/render_node.hpp>
 #include <chronon3d/scene/mask.hpp>
+#include <chronon3d/scene/layer_effect.hpp>
+#include <chronon3d/compositor/blend_mode.hpp>
 #include <string>
 #include <vector>
 #include <memory_resource>
@@ -19,6 +21,8 @@ struct Layer {
     bool visible{true};
     bool is_3d{false};
     Mask mask{};
+    LayerEffect effect{};
+    BlendMode blend_mode{BlendMode::Normal};
     std::pmr::vector<RenderNode> nodes;
 
     explicit Layer(std::pmr::memory_resource* res = std::pmr::get_default_resource())
