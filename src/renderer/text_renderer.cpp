@@ -5,7 +5,6 @@
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/scene/mask_utils.hpp>
-#include <fstream>
 #include <vector>
 #include <cmath>
 #include <algorithm>
@@ -15,39 +14,18 @@
 
 namespace chronon3d {
 
-bool TextRenderer::read_font_file(const std::string& path, std::vector<unsigned char>& out) {
-    std::ifstream file(path, std::ios::binary);
-    if (!file) return false;
-
-    file.seekg(0, std::ios::end);
-    const auto size = file.tellg();
-    if (size <= 0) return false;
-    file.seekg(0, std::ios::beg);
-
-    out.resize(static_cast<size_t>(size));
-    file.read(reinterpret_cast<char*>(out.data()), size);
-    return true;
-}
-
 bool TextRenderer::draw_text(const TextShape& t, const Transform& tr, Framebuffer& fb,
                              const RenderState* state) {
-    if (t.text.empty() || t.style.font_path.empty()) {
-        return true; // Nothing to draw
-    }
+    if (t.text.empty() || t.style.font_path.empty()) return true;
 
-    std::vector<unsigned char> font_data;
-    if (!read_font_file(t.style.font_path, font_data)) {
-        return false;
-    }
+    const CachedFont* font_entry = m_cache.get_or_load(t.style.font_path);
+    if (!font_entry) return false;
 
     stbtt_fontinfo font;
-    if (!stbtt_InitFont(&font, font_data.data(), 0)) {
-        return false;
-    }
+    if (!stbtt_InitFont(&font, font_entry->data.data(), 0)) return false;
 
     // Rotation is not yet supported; log once if encountered.
-    const bool has_rotation = !(tr.rotation.w > 0.9999f);
-    if (has_rotation) {
+    if (!(tr.rotation.w > 0.9999f)) {
         static bool logged = false;
         if (!logged) {
             spdlog::warn("Text rotation not yet supported (deferred to Transform 2)");
@@ -55,15 +33,13 @@ bool TextRenderer::draw_text(const TextShape& t, const Transform& tr, Framebuffe
         }
     }
 
-    // Scale is supported: tr.scale.x is extracted from the model matrix by the renderer,
-    // so perspective projection from Camera2_5D automatically scales font size.
     const float effective_size = t.style.size * tr.scale.x;
-    float scale = stbtt_ScaleForPixelHeight(&font, effective_size);
+    const float scale = stbtt_ScaleForPixelHeight(&font, effective_size);
 
     int ascent, descent, line_gap;
     stbtt_GetFontVMetrics(&font, &ascent, &descent, &line_gap);
 
-    // Measure total width for alignment.
+    // Measure full text width for alignment
     float text_width = 0.0f;
     for (size_t i = 0; i < t.text.size(); ++i) {
         int adv, lsb;
@@ -80,37 +56,34 @@ bool TextRenderer::draw_text(const TextShape& t, const Transform& tr, Framebuffe
     if (t.style.align == TextAlign::Center) x_offset = -text_width * 0.5f;
     else if (t.style.align == TextAlign::Right)  x_offset = -text_width;
 
-    float cur_x = tr.position.x + x_offset;
+    float cur_x      = tr.position.x + x_offset;
     float baseline_y = tr.position.y + static_cast<float>(ascent) * scale;
 
-    for (size_t i = 0; i < t.text.length(); ++i) {
-        char c = t.text[i];
-        
+    for (size_t i = 0; i < t.text.size(); ++i) {
+        const char c = t.text[i];
+
         int advance, lsb;
         stbtt_GetCodepointHMetrics(&font, static_cast<int>(c), &advance, &lsb);
 
         int x0, y0, x1, y1;
         stbtt_GetCodepointBitmapBox(&font, static_cast<int>(c), scale, scale, &x0, &y0, &x1, &y1);
 
-        int w = x1 - x0;
-        int h = y1 - y0;
-
+        const int w = x1 - x0, h = y1 - y0;
         if (w > 0 && h > 0) {
             std::vector<unsigned char> bitmap(static_cast<size_t>(w * h));
             stbtt_MakeCodepointBitmap(&font, bitmap.data(), w, h, w, scale, scale, static_cast<int>(c));
 
-            int draw_x_start = static_cast<int>(std::floor(cur_x + static_cast<float>(x0)));
-            int draw_y_start = static_cast<int>(std::floor(baseline_y + static_cast<float>(y0)));
+            const int draw_x = static_cast<int>(std::floor(cur_x + static_cast<float>(x0)));
+            const int draw_y = static_cast<int>(std::floor(baseline_y + static_cast<float>(y0)));
 
             for (int by = 0; by < h; ++by) {
-                int py = draw_y_start + by;
+                const int py = draw_y + by;
                 if (py < 0 || py >= fb.height()) continue;
-
                 for (int bx = 0; bx < w; ++bx) {
-                    int px = draw_x_start + bx;
+                    const int px = draw_x + bx;
                     if (px < 0 || px >= fb.width()) continue;
 
-                    float glyph_alpha = static_cast<float>(bitmap[static_cast<size_t>(by * w + bx)]) / 255.0f;
+                    const float glyph_alpha = static_cast<float>(bitmap[static_cast<size_t>(by * w + bx)]) / 255.0f;
                     if (glyph_alpha <= 0.0f) continue;
 
                     if (state && state->mask && state->mask->enabled()) {
@@ -120,21 +93,19 @@ bool TextRenderer::draw_text(const TextShape& t, const Transform& tr, Framebuffe
                     }
 
                     Color src = t.style.color;
-                    src.a *= glyph_alpha * tr.opacity; // Opacity integration
-
-                    Color dst = fb.get_pixel(px, py);
-                    fb.set_pixel(px, py, raster::blend_normal(src, dst));
+                    src.a *= glyph_alpha * tr.opacity;
+                    fb.set_pixel(px, py, raster::blend_normal(src, fb.get_pixel(px, py)));
                 }
             }
         }
 
         cur_x += static_cast<float>(advance) * scale;
-
-        if (i + 1 < t.text.length()) {
-            cur_x += static_cast<float>(stbtt_GetCodepointKernAdvance(&font, static_cast<int>(c), static_cast<int>(t.text[i + 1]))) * scale;
+        if (i + 1 < t.text.size()) {
+            cur_x += static_cast<float>(
+                stbtt_GetCodepointKernAdvance(&font, static_cast<int>(c),
+                                              static_cast<int>(t.text[i + 1]))) * scale;
         }
     }
-
     return true;
 }
 

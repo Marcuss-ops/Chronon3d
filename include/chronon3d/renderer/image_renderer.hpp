@@ -3,12 +3,18 @@
 #include <chronon3d/scene/shape.hpp>
 #include <chronon3d/renderer/framebuffer.hpp>
 #include <chronon3d/math/transform.hpp>
+#include <chronon3d/renderer/image_cache.hpp>
 
 namespace chronon3d {
 
 class ImageRenderer {
 public:
     bool draw_image(const ImageShape& image, const RenderState& state, Framebuffer& fb);
+
+    void clear_cache() { m_cache.clear(); }
+
+private:
+    ImageCache m_cache;
 };
 
 } // namespace chronon3d
