@@ -43,16 +43,20 @@ bool TextRenderer::draw_text(const TextShape& t, const Transform& tr, Framebuffe
         return false;
     }
 
-    // Phase 2: Log if rotation or scale is used (deferred to Transform 2)
-    if (!tr.is_identity_2d()) {
+    // Rotation is not yet supported; log once if encountered.
+    const bool has_rotation = !(tr.rotation.w > 0.9999f);
+    if (has_rotation) {
         static bool logged = false;
         if (!logged) {
-            spdlog::warn("Text rotation/scale deferred to Transform 2");
+            spdlog::warn("Text rotation not yet supported (deferred to Transform 2)");
             logged = true;
         }
     }
 
-    float scale = stbtt_ScaleForPixelHeight(&font, t.style.size);
+    // Scale is supported: tr.scale.x is extracted from the model matrix by the renderer,
+    // so perspective projection from Camera2_5D automatically scales font size.
+    const float effective_size = t.style.size * tr.scale.x;
+    float scale = stbtt_ScaleForPixelHeight(&font, effective_size);
 
     int ascent, descent, line_gap;
     stbtt_GetFontVMetrics(&font, &ascent, &descent, &line_gap);

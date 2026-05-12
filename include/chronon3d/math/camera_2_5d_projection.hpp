@@ -9,6 +9,7 @@ struct ProjectedLayer2_5D {
     Transform transform;
     f32 depth{1000.0f};
     f32 perspective_scale{1.0f};
+    bool visible{true}; // false when layer is behind or on the camera plane
 };
 
 // Project a 3D layer transform through a Camera2_5D into screen space.
@@ -31,8 +32,14 @@ inline ProjectedLayer2_5D project_layer_2_5d(
     out.transform = layer_transform;
 
     const f32 depth = layer_transform.position.z - camera.position.z;
-    const f32 safe_depth = depth <= 1.0f ? 1.0f : depth;
-    const f32 perspective_scale = camera.zoom / safe_depth;
+
+    // Cull layers that are behind or touching the camera plane.
+    if (depth <= 0.0f) {
+        out.visible = false;
+        return out;
+    }
+
+    const f32 perspective_scale = camera.zoom / depth;
 
     const f32 cx = viewport_width  * 0.5f;
     const f32 cy = viewport_height * 0.5f;
@@ -48,7 +55,7 @@ inline ProjectedLayer2_5D project_layer_2_5d(
     out.transform.scale.x *= perspective_scale;
     out.transform.scale.y *= perspective_scale;
 
-    out.depth             = safe_depth;
+    out.depth             = depth;
     out.perspective_scale = perspective_scale;
 
     return out;
