@@ -52,12 +52,12 @@ public:
 
     [[nodiscard]] const std::vector<std::unique_ptr<Layer>>& layers() const { return m_layers; }
 
-    [[nodiscard]] Scene evaluate(Frame frame) const {
-        Scene scene;
+    [[nodiscard]] Scene evaluate(Frame frame, std::pmr::memory_resource* res = std::pmr::get_default_resource()) const {
+        Scene scene(res);
         for (const auto& layer : m_layers) {
             if (!layer->is_active(frame)) continue;
 
-            RenderNode node;
+            RenderNode node(res);
             node.name = layer->name();
             node.world_transform = layer->transform.evaluate(frame);
             node.color = Color::white() * layer->opacity.evaluate(frame);

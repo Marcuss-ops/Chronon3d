@@ -2,10 +2,10 @@
 
 #include <chronon3d/core/types.hpp>
 #include <string>
-#include <map>
 #include <vector>
 #include <memory>
 #include <stdexcept>
+#include <absl/container/flat_hash_map.h>
 
 namespace chronon3d {
 
@@ -43,7 +43,7 @@ public:
     }
 
     [[nodiscard]] bool is_loaded(const AssetId& id) const {
-        return m_loaded_assets.find(id) != m_loaded_assets.end();
+        return m_loaded_assets.contains(id);
     }
 
     [[nodiscard]] std::string get_path(const AssetId& id) const {
@@ -56,7 +56,7 @@ public:
 
 private:
     std::vector<AssetRequest> m_pending;
-    std::map<AssetId, std::string> m_loaded_assets;
+    absl::flat_hash_map<AssetId, std::string> m_loaded_assets;
 };
 
 } // namespace chronon3d

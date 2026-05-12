@@ -19,6 +19,13 @@ option(CHRONON3D_BUILD_CLI "Build Chronon3d CLI" ON)
 find_package(spdlog CONFIG REQUIRED)
 find_package(fmt CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
+find_package(Tracy CONFIG REQUIRED)
+find_package(mimalloc CONFIG REQUIRED)
+find_package(Taskflow CONFIG REQUIRED)
+find_package(concurrentqueue CONFIG REQUIRED)
+find_package(absl CONFIG REQUIRED)
+find_package(glm CONFIG REQUIRED)
+find_package(simdjson CONFIG REQUIRED)
 
 # Core Library
 add_library(chronon3d
@@ -37,6 +44,18 @@ target_link_libraries(chronon3d
         spdlog::spdlog
         fmt::fmt
         nlohmann_json::nlohmann_json
+        Tracy::TracyClient
+        mimalloc
+        Taskflow::Taskflow
+        concurrentqueue::concurrentqueue
+        absl::flat_hash_map
+        absl::status
+        absl::statusor
+        absl::strings
+        absl::flags
+        absl::flags_parse
+        glm::glm
+        simdjson::simdjson
 )
 
 target_compile_features(chronon3d PUBLIC cxx_std_20)

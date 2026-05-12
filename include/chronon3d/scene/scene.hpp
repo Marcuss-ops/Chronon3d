@@ -6,27 +6,34 @@
 #include <vector>
 #include <memory>
 #include <string>
+#include <memory_resource>
 
 namespace chronon3d {
 
 struct RenderNode {
-    std::string name;
+    std::pmr::string name;
     Transform world_transform;
     Color color{1, 1, 1, 1};
     std::shared_ptr<Mesh> mesh;
     bool visible{true};
+
+    RenderNode(std::pmr::memory_resource* res = std::pmr::get_default_resource())
+        : name(res) {}
 };
 
 class Scene {
 public:
+    explicit Scene(std::pmr::memory_resource* res = std::pmr::get_default_resource())
+        : m_nodes(res) {}
+
     void add_node(RenderNode node) {
         m_nodes.push_back(std::move(node));
     }
 
-    [[nodiscard]] const std::vector<RenderNode>& nodes() const { return m_nodes; }
+    [[nodiscard]] const std::pmr::vector<RenderNode>& nodes() const { return m_nodes; }
 
 private:
-    std::vector<RenderNode> m_nodes;
+    std::pmr::vector<RenderNode> m_nodes;
 };
 
 } // namespace chronon3d
