@@ -22,21 +22,19 @@ TEST_CASE("Composition Immutability") {
 }
 
 TEST_CASE("Deterministic Spring") {
-    SpringValue<f32> spring(0.0f);
-    spring.set_target(100.0f);
+    f32 from = 0.0f;
+    f32 to = 100.0f;
 
     // After 0 seconds, it should be at initial position
-    CHECK(spring.evaluate(0.0f) == 0.0f);
+    CHECK(spring(0.0f, from, to) == 0.0f);
     
     // After some time, it should move towards target
-    f32 mid = spring.evaluate(0.5f);
+    f32 mid = spring(0.5f, from, to);
     CHECK(mid > 0.0f);
     CHECK(mid < 200.0f); // might overshoot depending on damping
 
-    // Multiple evaluations at SAME dt should give SAME result (pure function of dt)
-    SpringValue<f32> spring2(0.0f);
-    spring2.set_target(100.0f);
-    CHECK(spring2.evaluate(0.5f) == mid);
+    // Multiple evaluations at SAME t should give SAME result (pure function of t)
+    CHECK(spring(0.5f, from, to) == mid);
 }
 
 TEST_CASE("Pure Frame Evaluation") {

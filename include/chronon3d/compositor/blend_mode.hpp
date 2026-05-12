@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/math/color.hpp>
+#include <chronon3d/compositor/alpha.hpp>
 
 namespace chronon3d {
 
@@ -15,15 +16,7 @@ namespace compositor {
 inline Color blend(const Color& src, const Color& dst, BlendMode mode) {
     switch (mode) {
         case BlendMode::Normal: {
-            // Standard alpha blending: src.a * src + (1 - src.a) * dst
-            f32 out_a = src.a + dst.a * (1.0f - src.a);
-            if (out_a <= 0.0f) return {0,0,0,0};
-            
-            f32 r = (src.r * src.a + dst.r * dst.a * (1.0f - src.a)) / out_a;
-            f32 g = (src.g * src.a + dst.g * dst.a * (1.0f - src.a)) / out_a;
-            f32 b = (src.b * src.a + dst.b * dst.a * (1.0f - src.a)) / out_a;
-            
-            return {r, g, b, out_a};
+            return blend_normal(src, dst);
         }
         case BlendMode::Add: {
             return {

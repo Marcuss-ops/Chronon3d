@@ -2,7 +2,7 @@
   "version": 3,
   "configurePresets": [
     {
-      "name": "base-win",
+      "name": "base",
       "hidden": true,
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/chronon/${presetName}",
@@ -11,25 +11,24 @@
         "CMAKE_CXX_STANDARD_REQUIRED": "ON",
         "CMAKE_CXX_EXTENSIONS": "OFF",
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-        "CMAKE_TOOLCHAIN_FILE": "C:/vcpkg/scripts/buildsystems/vcpkg.cmake",
-        "VCPKG_MANIFEST_MODE": "OFF",
-        "VCPKG_INSTALLED_DIR": "${sourceDir}/vcpkg_installed",
+        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+        "VCPKG_MANIFEST_MODE": "ON",
+        "VCPKG_INSTALLED_DIR": "${sourceDir}/vcpkg_installed"
+      }
+    },
+    {
+      "name": "base-win",
+      "hidden": true,
+      "inherits": "base",
+      "cacheVariables": {
         "VCPKG_TARGET_TRIPLET": "x64-windows"
       }
     },
     {
       "name": "base-linux",
       "hidden": true,
-      "generator": "Ninja",
-      "binaryDir": "${sourceDir}/build/chronon/${presetName}",
+      "inherits": "base",
       "cacheVariables": {
-        "CMAKE_CXX_STANDARD": "20",
-        "CMAKE_CXX_STANDARD_REQUIRED": "ON",
-        "CMAKE_CXX_EXTENSIONS": "OFF",
-        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-        "CMAKE_TOOLCHAIN_FILE": "$env{HOME}/vcpkg/scripts/buildsystems/vcpkg.cmake",
-        "VCPKG_MANIFEST_MODE": "OFF",
-        "VCPKG_INSTALLED_DIR": "${sourceDir}/vcpkg_installed",
         "VCPKG_TARGET_TRIPLET": "x64-linux"
       }
     },
@@ -88,35 +87,13 @@
       "configurePreset": "win-release",
       "targets": [
         "chronon3d_cli",
-        "chronon3d_tests",
-        "code_first_smoke",
-        "remotion_style_guide"
+        "chronon3d_tests"
       ],
       "jobs": 16
     },
     {
       "name": "win-debug",
       "configurePreset": "win-debug",
-      "targets": [
-        "chronon3d_cli",
-        "chronon3d_tests",
-        "code_first_smoke",
-        "remotion_style_guide"
-      ],
-      "jobs": 16
-    },
-    {
-      "name": "linux",
-      "configurePreset": "linux-release",
-      "targets": [
-        "chronon3d_cli",
-        "chronon3d_tests"
-      ],
-      "jobs": 16
-    },
-    {
-      "name": "linux-debug",
-      "configurePreset": "linux-debug",
       "targets": [
         "chronon3d_cli",
         "chronon3d_tests"
@@ -128,13 +105,6 @@
     {
       "name": "win-test",
       "configurePreset": "win-release",
-      "output": {
-        "outputOnFailure": true
-      }
-    },
-    {
-      "name": "linux-test",
-      "configurePreset": "linux-release",
       "output": {
         "outputOnFailure": true
       }

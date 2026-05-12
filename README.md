@@ -77,6 +77,19 @@ Chronon3d is built on a "Pull-based" rendering model:
 - `chronon3d::scene`: Flexible scene graph and fluent `SceneBuilder`.
 - `chronon3d::rendering`: Multi-backend rendering pipeline (Software, Tracy-instrumented).
 
+## 📐 Coordinate System & Rendering Rules
+
+Chronon3d follows standard 2D graphics conventions for its core pipeline:
+- **Origin (0,0)**: Top-Left corner.
+- **Axes**: X increases to the right, Y increases downwards.
+- **Positioning**: 
+  - `rect` and `circle` use **center-based** positioning.
+  - `line` uses absolute pixel coordinates.
+- **Rasterization**: Primitives follow a `[min, max)` range logic for deterministic pixel coverage.
+- **Blending**: Standard alpha blending (`Normal` mode) is applied by default:
+  `out.rgb = src.rgb * src.a + dst.rgb * (1 - src.a)`
+- **Draw Order**: Primitives are rendered in **insertion order** (Painter's Algorithm).
+
 ## 🤝 Contributing
 
 Chronon3d is in early development. We prioritize performance, testability, and a clean, modern C++ API.

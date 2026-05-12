@@ -5,4 +5,5 @@
 #include <chronon3d/core/arena.hpp>
 #include <chronon3d/core/frame_context.hpp>
 #include <chronon3d/core/composition_registry.hpp>
+#include <chronon3d/core/composition_registration.hpp>
 #include <chronon3d/assets/asset_registry.hpp>
