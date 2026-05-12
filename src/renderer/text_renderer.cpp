@@ -4,6 +4,7 @@
 #include <chronon3d/renderer/text_renderer.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/math/raster_utils.hpp>
+#include <chronon3d/scene/mask_utils.hpp>
 #include <fstream>
 #include <vector>
 #include <cmath>
@@ -28,7 +29,8 @@ bool TextRenderer::read_font_file(const std::string& path, std::vector<unsigned 
     return true;
 }
 
-bool TextRenderer::draw_text(const TextShape& t, const Transform& tr, Framebuffer& fb) {
+bool TextRenderer::draw_text(const TextShape& t, const Transform& tr, Framebuffer& fb,
+                             const RenderState* state) {
     if (t.text.empty() || t.style.font_path.empty()) {
         return true; // Nothing to draw
     }
@@ -93,6 +95,12 @@ bool TextRenderer::draw_text(const TextShape& t, const Transform& tr, Framebuffe
 
                     float glyph_alpha = static_cast<float>(bitmap[static_cast<size_t>(by * w + bx)]) / 255.0f;
                     if (glyph_alpha <= 0.0f) continue;
+
+                    if (state && state->mask && state->mask->enabled()) {
+                        Vec4 local = state->layer_inv_matrix *
+                                     Vec4(static_cast<f32>(px), static_cast<f32>(py), 0.0f, 1.0f);
+                        if (!mask_contains_local_point(*state->mask, Vec2{local.x, local.y})) continue;
+                    }
 
                     Color src = t.style.color;
                     src.a *= glyph_alpha * tr.opacity; // Opacity integration
