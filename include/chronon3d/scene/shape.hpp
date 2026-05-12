@@ -15,6 +15,7 @@ enum class ShapeType {
     Circle,
     Line,
     Text,
+    Image,
     Mesh
 };
 
@@ -49,6 +50,12 @@ struct TextShape {
     TextStyle style{};
 };
 
+struct ImageShape {
+    std::string path;
+    Vec2 size{100.0f, 100.0f};
+    f32 opacity{1.0f};
+};
+
 struct Shape {
     ShapeType type{ShapeType::None};
     RectShape rect;
@@ -56,6 +63,7 @@ struct Shape {
     CircleShape circle;
     LineShape line;
     TextShape text;
+    ImageShape image;
 };
 
 } // namespace chronon3d

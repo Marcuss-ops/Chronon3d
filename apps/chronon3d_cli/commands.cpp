@@ -30,12 +30,20 @@ FrameRange parse_frames(const std::string& s) {
     return r;
 }
 
-std::string format_path(const std::string& pattern, int64_t frame) {
+std::string format_path(const std::string& pattern, int64_t frame, bool is_range) {
     std::string s = pattern;
     std::string replacement = fmt::format("{:04d}", frame);
     size_t pos = s.find("####");
     if (pos != std::string::npos) {
         s.replace(pos, 4, replacement);
+    } else if (is_range) {
+        // Automatically append frame number before extension if #### is missing in range mode
+        size_t dot_pos = s.find_last_of('.');
+        if (dot_pos != std::string::npos) {
+            s.insert(dot_pos, "_" + replacement);
+        } else {
+            s += "_" + replacement;
+        }
     }
     return s;
 }
@@ -94,12 +102,14 @@ int command_render(const CompositionRegistry& registry, const RenderArgs& args) 
     spdlog::info("Rendering {} [{} -> {} step {}]...", args.comp_id, range.start, range.end, range.step);
 
     // We use a simplified loop for range rendering to support steps
-    for (int64_t f = range.start; f <= range.end; f += range.step) {
+    int64_t effective_end = (range.start == range.end) ? range.start + 1 : range.end;
+    for (int64_t f = range.start; f < effective_end; f += range.step) {
         auto scene = comp_ptr->evaluate(f);
         auto fb = renderer->render_scene(scene, comp_ptr->camera, comp_ptr->width(), comp_ptr->height());
 
         if (fb) {
-            std::string path = format_path(args.output, f);
+            bool is_range = (range.start != range.end);
+            std::string path = format_path(args.output, f, is_range);
             std::filesystem::path p(path);
             if (p.has_parent_path()) {
                 std::filesystem::create_directories(p.parent_path());

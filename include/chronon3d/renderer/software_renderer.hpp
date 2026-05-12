@@ -3,6 +3,7 @@
 #include <chronon3d/renderer/renderer.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/renderer/text_renderer.hpp>
+#include <chronon3d/renderer/image_renderer.hpp>
 #include <chronon3d/math/transform.hpp>
 
 namespace chronon3d {
@@ -39,6 +40,7 @@ private:
     void draw_diagnostic_info(Framebuffer& fb, const RenderNode& node, const RenderState& state);
 
     TextRenderer m_text_renderer;
+    ImageRenderer m_image_renderer;
     bool diagnostic_{false};
 };
 
