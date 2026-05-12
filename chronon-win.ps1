@@ -56,10 +56,9 @@ if ($sccache) {
 }
 
 $packages = @(
-    "sdl2", "spdlog", "fmt", "entt", "meshoptimizer", "stb",
-    "nlohmann-json", "magic-enum", "ffmpeg", "tracy", "mimalloc",
-    "taskflow", "concurrentqueue", "abseil", "glm", "simdjson",
-    "xxhash", "highway", "doctest"
+    "spdlog", "fmt", "meshoptimizer", "stb",
+    "tracy", "taskflow", "concurrentqueue", "abseil", "glm",
+    "xxhash", "highway", "doctest", "cli11"
 )
 
 $preset = if ($Configuration -eq "Debug") { "win-debug" } else { "win-release" }
@@ -68,7 +67,7 @@ $buildPreset = if ($Configuration -eq "Debug") { "win-debug" } else { "win" }
 $packages_str = $packages -join " "
 
 $cmd = @(
-    "call `"$vsDevCmd`" -arch=x64 -host_arch=x64 >nul",
+    "call `"$vsDevCmd`" -arch=x64 -host_arch=x64",
     "if /i `"%SkipInstall%`" == `"False`" ( `"$vcpkg`" install --classic --triplet x64-windows --x-install-root `"$root\vcpkg_installed`" --no-print-usage $packages_str )",
     "cmake --preset $preset",
     "cmake --build --preset $buildPreset"

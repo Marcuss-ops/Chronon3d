@@ -14,7 +14,8 @@ bool save_png(const Framebuffer& framebuffer, const std::string& path) {
     
     for (i32 y = 0; y < height; ++y) {
         for (i32 x = 0; x < width; ++x) {
-            Color c = framebuffer.get_pixel(x, y);
+            Color linear_c = framebuffer.get_pixel(x, y);
+            Color c = linear_c.to_srgb(); // Convert from linear to sRGB for saving
             usize index = (y * width + x) * 4;
             
             data[index + 0] = static_cast<uint8_t>(std::clamp(c.r * 255.0f, 0.0f, 255.0f));

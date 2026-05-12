@@ -25,8 +25,9 @@ find_package(concurrentqueue CONFIG REQUIRED)
 find_package(absl CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)
 find_package(Stb REQUIRED)
+find_package(CLI11 CONFIG REQUIRED)
 
-# Core Library (Minimal)
+# Core Library (Minimal but with profiling)
 add_library(chronon3d INTERFACE)
 target_include_directories(chronon3d
     INTERFACE
@@ -39,6 +40,7 @@ target_link_libraries(chronon3d
         fmt::fmt
         glm::glm
         absl::flat_hash_map
+        Tracy::TracyClient
 )
 
 # Pipeline Library (Heavy)
@@ -46,7 +48,6 @@ add_library(chronon3d_pipeline INTERFACE)
 target_link_libraries(chronon3d_pipeline
     INTERFACE
         chronon3d
-        Tracy::TracyClient
         Taskflow::Taskflow
         concurrentqueue::concurrentqueue
 )
@@ -65,8 +66,10 @@ target_include_directories(chronon3d_io PRIVATE ${Stb_INCLUDE_DIR})
 target_compile_features(chronon3d INTERFACE cxx_std_20)
 
 if(MSVC)
-    target_compile_options(chronon3d INTERFACE /EHsc)
+    target_compile_options(chronon3d INTERFACE /EHsc /fp:strict)
     target_compile_definitions(chronon3d INTERFACE _DISABLE_STRING_VIEW_FIND_FIRST_NOT_OF_OPTIMIZATION)
+else()
+    target_compile_options(chronon3d INTERFACE -ffp-contract=off)
 endif()
 
 # Subdirectories

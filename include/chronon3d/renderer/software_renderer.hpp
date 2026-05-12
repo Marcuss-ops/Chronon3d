@@ -4,9 +4,18 @@
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <taskflow/taskflow.hpp>
 #include <hwy/highway.h>
+#include <tracy/Tracy.hpp>
 
 namespace chronon3d {
 
+/**
+ * SoftwareRenderer implements a CPU-based rasterizer.
+ * Coordinate System:
+ * - Origin (0,0) is Top-Left.
+ * - X increases Right, Y increases Down.
+ * - Rect/Circle positions are Center-based.
+ * - Line positions are absolute pixel coordinates.
+ */
 class SoftwareRenderer : public Renderer {
 public:
     std::unique_ptr<Framebuffer> render_frame(const Composition& comp, Frame frame) override {
@@ -15,6 +24,7 @@ public:
     }
 
     std::unique_ptr<Framebuffer> render_scene(const Scene& scene, const Camera& camera, i32 width, i32 height) override {
+        ZoneScoped;
         auto fb = std::make_unique<Framebuffer>(width, height);
         fb->clear(Color::black());
 
@@ -22,23 +32,26 @@ public:
         Mat4 proj = camera.projection_matrix(aspect);
         Mat4 view = camera.view_matrix();
 
+        // Primitives are rendered in insertion order.
         for (const auto& node : scene.nodes()) {
             if (!node.visible) continue;
+
+            Color linear_color = node.color.to_linear();
 
             switch (node.shape.type) {
                 case ShapeType::Mesh:
                     if (node.mesh) {
-                        render_mesh_wireframe(*fb, *node.mesh, node.world_transform.to_matrix(), view, proj, node.color);
+                        render_mesh_wireframe(*fb, *node.mesh, node.world_transform.to_matrix(), view, proj, linear_color);
                     }
                     break;
                 case ShapeType::Rect:
-                    draw_rect(*fb, node.world_transform.position, node.shape.rect.size, node.color, BlendMode::Normal);
+                    draw_rect(*fb, node.world_transform.position, node.shape.rect.size, linear_color, BlendMode::Normal);
                     break;
                 case ShapeType::Circle:
-                    draw_circle(*fb, node.world_transform.position, node.shape.circle.radius, node.color, BlendMode::Normal);
+                    draw_circle(*fb, node.world_transform.position, node.shape.circle.radius, linear_color, BlendMode::Normal);
                     break;
                 case ShapeType::Line:
-                    draw_line(*fb, node.world_transform.position, node.shape.line.to, node.color);
+                    draw_line(*fb, node.world_transform.position, node.shape.line.to, linear_color);
                     break;
                 default:
                     break;
@@ -79,7 +92,11 @@ private:
         }
     }
 
+    /**
+     * Bresenham's line algorithm with alpha blending.
+     */
     void draw_line(Framebuffer& fb, const Vec3& p1, const Vec3& p2, const Color& color) {
+        ZoneScoped;
         i32 x0 = static_cast<i32>(p1.x);
         i32 y0 = static_cast<i32>(p1.y);
         i32 x1 = static_cast<i32>(p2.x);
@@ -90,7 +107,9 @@ private:
         i32 err = dx + dy, e2;
 
         while (true) {
-            fb.set_pixel(x0, y0, color);
+            if (x0 >= 0 && x0 < fb.width() && y0 >= 0 && y0 < fb.height()) {
+                fb.set_pixel(x0, y0, compositor::blend(color, fb.get_pixel(x0, y0), BlendMode::Normal));
+            }
             if (x0 == x1 && y0 == y1) break;
             e2 = 2 * err;
             if (e2 >= dy) { err += dy; x0 += sx; }
@@ -99,6 +118,7 @@ private:
     }
 
     void draw_rect(Framebuffer& fb, const Vec3& position, const Vec2& size, const Color& color, BlendMode mode) {
+        ZoneScoped;
         i32 cx = static_cast<i32>(position.x);
         i32 cy = static_cast<i32>(position.y);
         i32 hw = static_cast<i32>(size.x * 0.5f);
@@ -112,6 +132,7 @@ private:
     }
 
     void draw_circle(Framebuffer& fb, const Vec3& position, f32 radius, const Color& color, BlendMode mode) {
+        ZoneScoped;
         i32 cx = static_cast<i32>(position.x);
         i32 cy = static_cast<i32>(position.y);
         i32 r = static_cast<i32>(radius);

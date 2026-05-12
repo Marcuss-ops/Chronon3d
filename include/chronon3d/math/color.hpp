@@ -37,6 +37,30 @@ struct Color {
         return {r, g, b, new_a};
     }
 
+    // Gamma correction helpers
+    [[nodiscard]] Color to_linear() const {
+        auto gamma_to_linear = [](f32 c) {
+            return (c <= 0.04045f) ? (c / 12.92f) : std::pow((c + 0.055f) / 1.055f, 2.4f);
+        };
+        return {gamma_to_linear(r), gamma_to_linear(g), gamma_to_linear(b), a};
+    }
+
+    [[nodiscard]] Color to_srgb() const {
+        auto linear_to_gamma = [](f32 c) {
+            return (c <= 0.0031308f) ? (c * 12.92f) : (1.055f * std::pow(c, 1.0f / 2.4f) - 0.055f);
+        };
+        return {linear_to_gamma(r), linear_to_gamma(g), linear_to_gamma(b), a};
+    }
+
+    // Fast approximations (gamma 2.2)
+    [[nodiscard]] Color to_linear_fast() const {
+        return {std::pow(r, 2.2f), std::pow(g, 2.2f), std::pow(b, 2.2f), a};
+    }
+
+    [[nodiscard]] Color to_srgb_fast() const {
+        return {std::pow(r, 1.0f / 2.2f), std::pow(g, 1.0f / 2.2f), std::pow(b, 1.0f / 2.2f), a};
+    }
+
     constexpr bool operator==(const Color& other) const {
         return r == other.r && g == other.g && b == other.b && a == other.a;
     }

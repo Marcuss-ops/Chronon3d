@@ -1,54 +1,97 @@
 #include <doctest/doctest.h>
 #include <chronon3d/chronon3d.hpp>
 #include <chronon3d/renderer/software_renderer.hpp>
+#include <chronon3d/compositor/alpha.hpp>
 
 using namespace chronon3d;
 
-TEST_CASE("Alpha blending logic") {
+TEST_CASE("Alpha blending - Contro-test 1 (Pure Math)") {
+    // Pure math blending tests (no renderer)
+    
+    SUBCASE("rosso alpha 0.5 sopra nero = rosso 0.5") {
+        Color dst{0, 0, 0, 1};
+        Color src{1, 0, 0, 0.5f};
+        auto out = compositor::blend_normal(src, dst);
+        CHECK(out.r == doctest::Approx(0.5f));
+        CHECK(out.g == 0.0f);
+        CHECK(out.b == 0.0f);
+        CHECK(out.a == 1.0f);
+    }
+
+    SUBCASE("rosso alpha 1 sopra blu = rosso pieno") {
+        Color dst{0, 0, 1, 1};
+        Color src{1, 0, 0, 1.0f};
+        auto out = compositor::blend_normal(src, dst);
+        CHECK(out.r == 1.0f);
+        CHECK(out.g == 0.0f);
+        CHECK(out.b == 0.0f);
+        CHECK(out.a == 1.0f);
+    }
+
+    SUBCASE("rosso alpha 0 sopra blu = blu invariato") {
+        Color dst{0, 0, 1, 1};
+        Color src{1, 0, 0, 0.0f};
+        auto out = compositor::blend_normal(src, dst);
+        CHECK(out.r == 0.0f);
+        CHECK(out.g == 0.0f);
+        CHECK(out.b == 1.0f);
+        CHECK(out.a == 1.0f);
+    }
+
+    SUBCASE("verde alpha 0.5 sopra rosso alpha 1 = mix rosso/verde") {
+        Color dst{1, 0, 0, 1};
+        Color src{0, 1, 0, 0.5f};
+        auto out = compositor::blend_normal(src, dst);
+        CHECK(out.r == 0.5f);
+        CHECK(out.g == 0.5f);
+        CHECK(out.b == 0.0f);
+    }
+}
+
+TEST_CASE("Alpha blending - Contro-test 2 (Renderer Overlap)") {
     SoftwareRenderer renderer;
     CompositionSpec spec{.width = 100, .height = 100};
 
-    SUBCASE("Basic transparency over black") {
+    SUBCASE("Rect alpha overlap") {
         Composition comp(spec, [](const FrameContext& ctx) {
             SceneBuilder s(ctx.resource);
-            s.rect("bg", {50, 50, -1}, Color::black(), {100, 100});
-            // 50% Red over black should result in (0.5, 0, 0)
-            s.rect("box", {50, 50, 0}, Color(1, 0, 0, 0.5f), {100, 100});
+            s.rect("red", {50, 50, 0}, Color(1, 0, 0, 1), {50, 50});
+            s.rect("green", {50, 50, 0}, Color(0, 1, 0, 0.5f), {50, 50});
             return s.build();
         });
         auto fb = renderer.render_frame(comp, 0);
         Color c = fb->get_pixel(50, 50);
-        
-        CHECK(c.r == doctest::Approx(0.5f).epsilon(0.01));
-        CHECK(c.g == 0.0f);
+        CHECK(c.r > 0.0f);
+        CHECK(c.g > 0.0f);
         CHECK(c.b == 0.0f);
-        CHECK(c.a == 1.0f);
+        CHECK(c.r == doctest::Approx(0.5f).epsilon(0.01));
+        CHECK(c.g == doctest::Approx(0.5f).epsilon(0.01));
     }
 
-    SUBCASE("Overlapping semi-transparent shapes") {
+    SUBCASE("Circle alpha overlap") {
         Composition comp(spec, [](const FrameContext& ctx) {
             SceneBuilder s(ctx.resource);
-            s.rect("bg", {50, 50, -1}, Color::black(), {100, 100});
-            
-            // Red 50%
-            s.rect("red", {40, 50, 0}, Color(1, 0, 0, 0.5f), {40, 40});
-            // Green 50% on top of red
-            s.rect("green", {60, 50, 0}, Color(0, 1, 0, 0.5f), {40, 40});
-            
+            s.circle("red", {50, 50, 0}, 20.0f, Color(1, 0, 0, 1));
+            s.circle("green", {50, 50, 0}, 20.0f, Color(0, 1, 0, 0.5f));
             return s.build();
         });
         auto fb = renderer.render_frame(comp, 0);
-        
-        // Pixel at center (50, 50) should have both red and green influence
-        // Background was black.
-        // First draw: Red (1,0,0,0.5) over Black (0,0,0,1) -> (0.5, 0, 0, 1.0)
-        // Second draw: Green (0,1,0,0.5) over (0.5, 0, 0, 1.0)
-        // Normal Blend: src.a * src + (1 - src.a) * dst
-        // 0.5 * (0,1,0) + (1 - 0.5) * (0.5, 0, 0) = (0, 0.5, 0) + (0.25, 0, 0) = (0.25, 0.5, 0)
-        
         Color c = fb->get_pixel(50, 50);
-        CHECK(c.r == doctest::Approx(0.25f).epsilon(0.01));
+        CHECK(c.r == doctest::Approx(0.5f).epsilon(0.01));
         CHECK(c.g == doctest::Approx(0.5f).epsilon(0.01));
-        CHECK(c.b == 0.0f);
+    }
+
+    SUBCASE("Line alpha overlap") {
+        Composition comp(spec, [](const FrameContext& ctx) {
+            SceneBuilder s(ctx.resource);
+            // Draw a thick horizontal line (multiple lines)
+            s.line("red", {20, 50, 0}, {80, 50, 0}, Color(1, 0, 0, 1));
+            s.line("green", {20, 50, 0}, {80, 50, 0}, Color(0, 1, 0, 0.5f));
+            return s.build();
+        });
+        auto fb = renderer.render_frame(comp, 0);
+        Color c = fb->get_pixel(50, 50);
+        CHECK(c.r == doctest::Approx(0.5f).epsilon(0.01));
+        CHECK(c.g == doctest::Approx(0.5f).epsilon(0.01));
     }
 }
