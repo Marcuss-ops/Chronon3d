@@ -2,6 +2,7 @@
 
 #include <chronon3d/core/types.hpp>
 #include <algorithm>
+#include <ostream>
 
 namespace chronon3d {
 
@@ -35,6 +36,10 @@ struct Color {
     [[nodiscard]] constexpr Color with_alpha(f32 new_a) const {
         return {r, g, b, new_a};
     }
+
+    constexpr bool operator==(const Color& other) const {
+        return r == other.r && g == other.g && b == other.b && a == other.a;
+    }
 };
 
 // Specialized lerp for AnimatedValue
@@ -48,3 +53,7 @@ inline Color lerp(const Color& a, const Color& b, f32 t) {
 }
 
 } // namespace chronon3d
+
+inline std::ostream& operator<<(std::ostream& os, const chronon3d::Color& c) {
+    return os << "Color(" << c.r << ", " << c.g << ", " << c.b << ", " << c.a << ")";
+}

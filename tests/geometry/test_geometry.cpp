@@ -57,7 +57,11 @@ TEST_CASE("Mesh operations") {
 
     SUBCASE("Automatic bounds") {
         const AABB& b = mesh.bounds();
-        CHECK(b.min == Vec3(0.0f));
-        CHECK(b.max == Vec3(1.0f));
+        CHECK(b.min.x == 0.0f);
+        CHECK(b.min.y == 0.0f);
+        CHECK(b.min.z == 0.0f);
+        CHECK(b.max.x == 1.0f);
+        CHECK(b.max.y == 1.0f);
+        CHECK(b.max.z == 1.0f);
     }
 }

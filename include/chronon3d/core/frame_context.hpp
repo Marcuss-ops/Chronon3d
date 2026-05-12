@@ -21,6 +21,9 @@ struct FrameContext {
         if (duration <= 0) return 0.0f;
         return static_cast<f32>(frame) / static_cast<f32>(duration);
     }
+
+    [[nodiscard]] bool is_first_frame() const { return frame == 0; }
+    [[nodiscard]] bool is_last_frame() const { return duration > 0 && frame >= duration - 1; }
 };
 
 } // namespace chronon3d
