@@ -25,6 +25,7 @@ struct Color {
     static constexpr Color transparent() { return {0.0f, 0.0f, 0.0f, 0.0f}; }
 
     constexpr Color operator+(const Color& other) const { return {r + other.r, g + other.g, b + other.b, a + other.a}; }
+    constexpr Color operator-(const Color& other) const { return {r - other.r, g - other.g, b - other.b, a - other.a}; }
     constexpr Color operator*(f32 scalar) const { return {r * scalar, g * scalar, b * scalar, a * scalar}; }
 
     [[nodiscard]] constexpr Color clamped() const {
