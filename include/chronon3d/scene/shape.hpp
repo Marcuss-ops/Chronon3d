@@ -43,14 +43,29 @@ enum class TextAlign { Left, Center, Right };
 
 struct TextStyle {
     std::string font_path;
-    f32 size{32.0f};
+    f32   size{32.0f};
     Color color{1.0f, 1.0f, 1.0f, 1.0f};
     TextAlign align{TextAlign::Left};
+
+    f32 line_height{1.2f};   // multiplier of font size
+    f32 tracking{0.0f};      // extra px per glyph advance
+
+    int  max_lines{0};       // 0 = unlimited
+    bool auto_scale{false};  // shrink font to fit TextBox
+    f32  min_size{12.0f};
+    f32  max_size{256.0f};
+};
+
+// Optional bounding box for word-wrap and auto-scale.
+struct TextBox {
+    Vec2 size{0.0f, 0.0f};
+    bool enabled{false};
 };
 
 struct TextShape {
     std::string text;
-    TextStyle style{};
+    TextStyle   style{};
+    TextBox     box{};
 };
 
 struct ImageShape {

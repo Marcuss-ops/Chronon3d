@@ -180,8 +180,9 @@ public:
         RenderNode node(m_layer.nodes.get_allocator().resource());
         node.name = std::pmr::string{name, m_layer.nodes.get_allocator().resource()};
         node.shape.type = ShapeType::Text;
-        node.shape.text.text = std::move(p.content);
+        node.shape.text.text  = std::move(p.content);
         node.shape.text.style = p.style;
+        node.shape.text.box   = p.box;
         node.world_transform.position = p.pos;
         node.color = p.style.color;
         m_layer.nodes.push_back(std::move(node));
