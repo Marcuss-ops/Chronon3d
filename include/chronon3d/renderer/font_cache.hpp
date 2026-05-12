@@ -12,7 +12,8 @@ struct CachedFont {
     [[nodiscard]] bool valid() const { return !data.empty(); }
 };
 
-// Keyed by file path. Single-threaded use only.
+// Per-renderer font cache keyed by file path.
+// NOT thread-safe — one cache per renderer thread.
 class FontCache {
 public:
     // Returns nullptr if the font file cannot be read.
