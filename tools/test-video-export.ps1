@@ -4,8 +4,11 @@ if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) {
     throw "ffmpeg not found in PATH. Install ffmpeg or add it to PATH."
 }
 
+if (-not (Get-Command xmake -ErrorAction SilentlyContinue)) {
+    throw "xmake not found in PATH. Install xmake or add it to PATH."
+}
+
 Write-Host "[Video Export Test] Building..." -ForegroundColor Cyan
-$env:PATH += ";C:\Users\pater\xmake"
 xmake f -m debug --profiling=false
 xmake -y
 

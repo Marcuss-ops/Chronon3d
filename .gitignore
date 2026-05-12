@@ -50,5 +50,6 @@ reauthenticate_drive.py
 # Engine Output
 output/*.png
 output/*.ppm
-output/xmake_*.pngoutput/frames/
+output/xmake_*.png
+output/frames/
 output/*.mp4
