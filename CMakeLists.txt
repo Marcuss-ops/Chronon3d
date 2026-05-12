@@ -22,12 +22,12 @@ find_package(fmt CONFIG REQUIRED)
 find_package(Tracy CONFIG REQUIRED)
 find_package(Taskflow CONFIG REQUIRED)
 find_package(concurrentqueue CONFIG REQUIRED)
-find_package(absl CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)
 find_package(Stb REQUIRED)
 find_package(CLI11 CONFIG REQUIRED)
+find_package(hwy CONFIG REQUIRED)
 
-# Core Library (Minimal but with profiling)
+# 1. Base Core Library (Minimal)
 add_library(chronon3d INTERFACE)
 target_include_directories(chronon3d
     INTERFACE
@@ -36,23 +36,35 @@ target_include_directories(chronon3d
 )
 target_link_libraries(chronon3d
     INTERFACE
-        spdlog::spdlog
-        fmt::fmt
         glm::glm
-        absl::flat_hash_map
-        Tracy::TracyClient
 )
+target_compile_features(chronon3d INTERFACE cxx_std_20)
 
-# Pipeline Library (Heavy)
+# 2. Renderer Library (Static)
+add_library(chronon3d_renderer STATIC
+    src/renderer/software_renderer.cpp
+)
+target_link_libraries(chronon3d_renderer
+    PUBLIC
+        chronon3d
+    PRIVATE
+        Tracy::TracyClient
+        hwy::hwy
+)
+target_compile_definitions(chronon3d_renderer PRIVATE CHRONON_PROFILING)
+
+# 3. Pipeline Library (Heavy)
 add_library(chronon3d_pipeline INTERFACE)
 target_link_libraries(chronon3d_pipeline
     INTERFACE
-        chronon3d
+        chronon3d_renderer
         Taskflow::Taskflow
         concurrentqueue::concurrentqueue
+        Tracy::TracyClient
 )
+target_compile_definitions(chronon3d_pipeline INTERFACE CHRONON_PROFILING)
 
-# IO Library
+# 4. IO Library
 add_library(chronon3d_io STATIC
     src/io/image_writer.cpp
 )
@@ -62,11 +74,24 @@ target_link_libraries(chronon3d_io
 )
 target_include_directories(chronon3d_io PRIVATE ${Stb_INCLUDE_DIR})
 
-# Compile features
-target_compile_features(chronon3d INTERFACE cxx_std_20)
+# 5. Examples Library (Host for auto-registration)
+add_library(chronon3d_examples_lib STATIC
+    examples/foundation_proof.cpp
+    examples/basic_shapes.cpp
+    examples/moving_rect.cpp
+    examples/axis_debug.cpp
+    examples/blending_showcase.cpp
+    examples/code_first_smoke.cpp
+    examples/remotion_style_guide.cpp
+)
+target_link_libraries(chronon3d_examples_lib
+    PUBLIC
+        chronon3d
+)
 
+# Global compiler options
 if(MSVC)
-    target_compile_options(chronon3d INTERFACE /EHsc /fp:strict)
+    target_compile_options(chronon3d INTERFACE /EHsc /fp:strict /utf-8)
     target_compile_definitions(chronon3d INTERFACE _DISABLE_STRING_VIEW_FIND_FIRST_NOT_OF_OPTIMIZATION)
 else()
     target_compile_options(chronon3d INTERFACE -ffp-contract=off)

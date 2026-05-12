@@ -1,29 +1,33 @@
 #pragma once
 
 #include <chronon3d/timeline/composition.hpp>
-#include <chronon3d/core/hash.hpp>
 #include <functional>
 #include <string>
-#include <unordered_map>
+#include <map>
 #include <memory>
 #include <stdexcept>
 #include <vector>
+#include <algorithm>
 
 namespace chronon3d {
 
+/**
+ * CompositionRegistry holds factories for creating compositions by name.
+ * Uses std::map to ensure deterministic (alphabetical) order in available().
+ */
 class CompositionRegistry {
 public:
     using Factory = std::function<Composition()>;
 
     void add(std::string name, Factory factory) {
-        u64 id = Hash::fnv1a(name);
-        factories_[id] = std::move(factory);
-        names_[id] = std::move(name);
+        if (factories_.contains(name)) {
+             throw std::runtime_error("Duplicate composition: " + name);
+        }
+        factories_[std::move(name)] = std::move(factory);
     }
 
     [[nodiscard]] Composition create(const std::string& name) const {
-        u64 id = Hash::fnv1a(name);
-        auto it = factories_.find(id);
+        auto it = factories_.find(name);
         if (it == factories_.end()) {
             throw std::runtime_error("Unknown composition: " + name);
         }
@@ -32,20 +36,20 @@ public:
     }
 
     [[nodiscard]] bool contains(const std::string& name) const {
-        return factories_.contains(Hash::fnv1a(name));
+        return factories_.contains(name);
     }
 
     [[nodiscard]] std::vector<std::string> available() const {
         std::vector<std::string> ids;
-        for (const auto& [_, name] : names_) {
+        for (const auto& [name, _] : factories_) {
             ids.push_back(name);
         }
+        // std::map already keeps keys sorted.
         return ids;
     }
 
 private:
-    std::unordered_map<u64, Factory> factories_;
-    std::unordered_map<u64, std::string> names_;
+    std::map<std::string, Factory> factories_;
 };
 
 } // namespace chronon3d

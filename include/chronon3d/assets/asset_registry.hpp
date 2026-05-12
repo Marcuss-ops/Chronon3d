@@ -5,7 +5,7 @@
 #include <vector>
 #include <memory>
 #include <stdexcept>
-#include <absl/container/flat_hash_map.h>
+#include <unordered_map>
 
 #define XXH_INLINE_ALL
 #include <xxhash.h>
@@ -72,7 +72,7 @@ public:
 
 private:
     std::vector<AssetRequest> m_pending;
-    absl::flat_hash_map<AssetId, std::string> m_loaded_paths;
+    std::unordered_map<AssetId, std::string> m_loaded_paths;
 };
 
 } // namespace chronon3d

@@ -46,6 +46,13 @@ public:
         return true;
     }
 
+    [[nodiscard]] Color* pixels_row(i32 y) {
+        return m_pixels.data() + static_cast<usize>(y) * m_width;
+    }
+    [[nodiscard]] const Color* pixels_row(i32 y) const {
+        return m_pixels.data() + static_cast<usize>(y) * m_width;
+    }
+
     [[nodiscard]] i32 width() const { return m_width; }
     [[nodiscard]] i32 height() const { return m_height; }
 
