@@ -254,8 +254,37 @@ std::unique_ptr<Framebuffer> SoftwareRenderer::render_scene(
         });
 
     for (const auto& item : three_d_layers) {
-        // For 3D layers the transform is already projected; pass it as the computed layer_state.
-        draw_layer_with_state(*item.layer, combine(root_state, item.projected_transform));
+        const Layer&      layer       = *item.layer;
+        const RenderState layer_state = combine(root_state, item.projected_transform);
+
+        // Depth-of-field: compute blur amount from Z distance to focus plane.
+        if (cam25.dof.enabled) {
+            const f32 dist = std::abs(layer.transform.position.z - cam25.dof.focus_z);
+            const f32 blur = std::min(dist * cam25.dof.aperture, cam25.dof.max_blur);
+
+            if (blur > 0.5f) {
+                // Render layer to offscreen, apply DOF blur, then composite.
+                Framebuffer offscreen(width, height);
+                offscreen.clear(Color::transparent());
+                render_layer_nodes(offscreen, layer, layer_state, camera, width, height);
+
+                // Apply layer's own effect stack first, then DOF blur on top.
+                if (!layer.effects.empty())
+                    apply_effect_stack(offscreen, layer.effects);
+                else if (layer.effect.has_any()) {
+                    if (layer.effect.blur_radius > 0.0f)
+                        apply_blur(offscreen, layer.effect.blur_radius);
+                    if (layer.effect.tint.a > 0.0f || layer.effect.brightness != 0.0f || layer.effect.contrast != 1.0f)
+                        apply_color_effects(offscreen, layer.effect);
+                }
+
+                apply_blur(offscreen, blur);  // DOF blur
+                composite_layer(*fb, offscreen, layer.blend_mode);
+                continue;
+            }
+        }
+
+        draw_layer_with_state(layer, layer_state);
     }
 
     return fb;
