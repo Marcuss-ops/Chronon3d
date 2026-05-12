@@ -3,6 +3,7 @@
 #include <chronon3d/scene/layer.hpp>
 #include <chronon3d/scene/builder_params.hpp>
 #include <chronon3d/scene/mask.hpp>
+#include <chronon3d/scene/layer_effect.hpp>
 #include <chronon3d/math/mat4.hpp>
 #include <string>
 #include <memory_resource>
@@ -78,6 +79,13 @@ public:
         m_layer.mask.inverted = p.inverted;
         return *this;
     }
+
+    // Effects
+    LayerBuilder& blur(f32 radius) { m_layer.effect.blur_radius = radius; return *this; }
+    LayerBuilder& tint(Color color) { m_layer.effect.tint = color; return *this; }
+    LayerBuilder& brightness(f32 v) { m_layer.effect.brightness = v; return *this; }
+    LayerBuilder& contrast(f32 v)   { m_layer.effect.contrast   = v; return *this; }
+    LayerBuilder& blend(BlendMode mode) { m_layer.blend_mode = mode; return *this; }
 
     LayerBuilder& mask_circle(CircleMaskParams p) {
         m_layer.mask.type     = MaskType::Circle;

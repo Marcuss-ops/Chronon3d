@@ -39,10 +39,13 @@ struct LineShape {
     f32 thickness{1.0f};
 };
 
+enum class TextAlign { Left, Center, Right };
+
 struct TextStyle {
     std::string font_path;
     f32 size{32.0f};
     Color color{1.0f, 1.0f, 1.0f, 1.0f};
+    TextAlign align{TextAlign::Left};
 };
 
 struct TextShape {
