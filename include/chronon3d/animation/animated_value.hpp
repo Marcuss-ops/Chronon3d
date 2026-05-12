@@ -23,6 +23,11 @@ public:
         std::sort(m_keyframes.begin(), m_keyframes.end());
     }
 
+    void set(const T& value) {
+        clear();
+        m_default_value = value;
+    }
+
     [[nodiscard]] T evaluate(Frame frame) const {
         if (m_keyframes.empty()) {
             return m_default_value;

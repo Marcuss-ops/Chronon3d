@@ -7,6 +7,7 @@ add_executable(chronon3d_tests
     test_geometry.cpp
     test_animation.cpp
     test_timeline.cpp
+    test_renderer.cpp
 )
 
 target_link_libraries(chronon3d_tests
