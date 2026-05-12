@@ -133,8 +133,47 @@ void draw_transformed_shape(Framebuffer& fb, const Shape& shape, const Mat4& mod
 // ---------------------------------------------------------------------------
 
 std::unique_ptr<Framebuffer> SoftwareRenderer::render_frame(const Composition& comp, Frame frame) {
-    Scene scene = comp.evaluate(frame);
-    return render_scene(scene, comp.camera, comp.width(), comp.height());
+    if (!m_motion_blur.enabled || m_motion_blur.samples <= 1) {
+        Scene scene = comp.evaluate(frame);
+        return render_scene(scene, comp.camera, comp.width(), comp.height());
+    }
+
+    // Motion blur: accumulate N subframes evenly distributed over the shutter window.
+    // shutter_duration is expressed in frames (e.g. 180° shutter → 0.5 frames).
+    const int   N       = std::max(2, m_motion_blur.samples);
+    const float shutter = m_motion_blur.shutter_angle / 360.0f; // fraction of a frame
+    const int   w       = comp.width();
+    const int   h       = comp.height();
+
+    // Floating-point accumulator (r,g,b,a per pixel).
+    std::vector<float> accum(static_cast<size_t>(w * h * 4), 0.0f);
+    const float weight = 1.0f / static_cast<float>(N);
+
+    for (int s = 0; s < N; ++s) {
+        const float t = (static_cast<float>(s) / static_cast<float>(N)) * shutter;
+        Scene sub_scene = comp.evaluate(frame, t);
+        auto sub_fb = render_scene(sub_scene, comp.camera, w, h);
+
+        for (int y = 0; y < h; ++y) {
+            for (int x = 0; x < w; ++x) {
+                Color c = sub_fb->get_pixel(x, y);
+                const size_t idx = static_cast<size_t>((y * w + x) * 4);
+                accum[idx + 0] += c.r * weight;
+                accum[idx + 1] += c.g * weight;
+                accum[idx + 2] += c.b * weight;
+                accum[idx + 3] += c.a * weight;
+            }
+        }
+    }
+
+    auto result = std::make_unique<Framebuffer>(w, h);
+    for (int y = 0; y < h; ++y) {
+        for (int x = 0; x < w; ++x) {
+            const size_t idx = static_cast<size_t>((y * w + x) * 4);
+            result->set_pixel(x, y, Color{accum[idx], accum[idx+1], accum[idx+2], accum[idx+3]});
+        }
+    }
+    return result;
 }
 
 std::unique_ptr<Framebuffer> SoftwareRenderer::render_scene(

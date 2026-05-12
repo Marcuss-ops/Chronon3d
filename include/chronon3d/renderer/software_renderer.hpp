@@ -8,6 +8,7 @@
 #include <chronon3d/scene/layer.hpp>
 #include <chronon3d/scene/layer_effect.hpp>
 #include <chronon3d/scene/effect_stack.hpp>
+#include <chronon3d/scene/camera_2_5d.hpp>
 
 namespace chronon3d {
 
@@ -21,6 +22,10 @@ public:
     std::unique_ptr<Framebuffer> render_frame(const Composition& comp, Frame frame) override;
     std::unique_ptr<Framebuffer> render_scene(const Scene& scene, const Camera& camera,
                                                i32 width, i32 height) override;
+
+    // Motion blur: accumulate N subframes when enabled.
+    void set_motion_blur(MotionBlurSettings mb) { m_motion_blur = mb; }
+    [[nodiscard]] const MotionBlurSettings& motion_blur() const { return m_motion_blur; }
 
     // Diagnostic mode control
     void set_diagnostic_mode(bool enabled) { diagnostic_ = enabled; }
@@ -55,9 +60,10 @@ private:
     // Diagnostic drawing helpers
     void draw_diagnostic_info(Framebuffer& fb, const RenderNode& node, const RenderState& state);
 
-    TextRenderer m_text_renderer;
-    ImageRenderer m_image_renderer;
-    bool diagnostic_{false};
+    TextRenderer      m_text_renderer;
+    ImageRenderer     m_image_renderer;
+    bool              diagnostic_{false};
+    MotionBlurSettings m_motion_blur{};
 };
 
 } // namespace chronon3d
