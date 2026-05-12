@@ -42,6 +42,7 @@ target("chronon3d_renderer")
     set_kind("static")
     add_files("src/renderer/*.cpp")
     add_files("src/scene/*.cpp")
+    add_files("src/evaluation/*.cpp")
     -- image_cache.cpp defines STB_IMAGE_IMPLEMENTATION; exclude old image_renderer if it had it
 
     add_deps("chronon3d")
