@@ -5,6 +5,7 @@
 #include <chronon3d/math/transform.hpp>
 #include <chronon3d/renderer/framebuffer.hpp>
 #include <chronon3d/scene/shape.hpp>
+#include <chronon3d/renderer/font_cache.hpp>
 
 namespace chronon3d {
 
@@ -14,8 +15,10 @@ public:
     bool draw_text(const TextShape& text, const Transform& tr, Framebuffer& fb,
                    const RenderState* state = nullptr);
 
+    void clear_cache() { m_cache.clear(); }
+
 private:
-    static bool read_font_file(const std::string& path, std::vector<unsigned char>& out);
+    FontCache m_cache;
 };
 
 } // namespace chronon3d

@@ -25,6 +25,9 @@ public:
     void set_diagnostic_mode(bool enabled) { diagnostic_ = enabled; }
     [[nodiscard]] bool is_diagnostic_mode() const { return diagnostic_; }
 
+    // Clear image and font caches (useful between unrelated render sessions)
+    void clear_caches() { m_image_renderer.clear_cache(); m_text_renderer.clear_cache(); }
+
 private:
     void draw_node(Framebuffer& fb, const RenderNode& node, const RenderState& state, 
                    const Camera& camera, i32 width, i32 height);
