@@ -16,6 +16,7 @@ struct Layer {
     Frame from{0};
     Frame duration{-1};
     bool visible{true};
+    bool is_3d{false};
     std::pmr::vector<RenderNode> nodes;
 
     explicit Layer(std::pmr::memory_resource* res = std::pmr::get_default_resource())
