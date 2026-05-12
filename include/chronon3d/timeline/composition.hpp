@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/timeline/layer.hpp>
+#include <chronon3d/scene/camera.hpp>
 #include <vector>
 #include <memory>
 
@@ -27,6 +28,7 @@ public:
     [[nodiscard]] const std::vector<std::unique_ptr<Layer>>& layers() const { return m_layers; }
 
     Frame duration{0};
+    Camera camera;
 
 private:
     std::string m_name;

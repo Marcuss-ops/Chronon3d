@@ -16,8 +16,7 @@ struct Transform {
         : position(p), rotation(r), scale(s) {}
 
     [[nodiscard]] Mat4 to_matrix() const {
-        // Full implementation will involve TRS matrix construction
-        return Mat4::identity(); 
+        return Mat4::translate(position) * Mat4::rotate(rotation) * Mat4::scale(scale);
     }
 };
 

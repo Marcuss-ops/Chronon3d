@@ -2,6 +2,7 @@
 
 #include <chronon3d/renderer/renderer.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
+#include <chronon3d/timeline/mesh_layer.hpp>
 
 namespace chronon3d {
 
@@ -9,39 +10,84 @@ class SoftwareRenderer : public Renderer {
 public:
     std::unique_ptr<Framebuffer> render_frame(const Composition& comp, Frame frame) override {
         auto fb = std::make_unique<Framebuffer>(comp.width(), comp.height());
-        fb->clear(Color::black()); // Background color
+        fb->clear(Color::black());
+
+        f32 aspect = static_cast<f32>(comp.width()) / static_cast<f32>(comp.height());
+        Mat4 proj = comp.camera.projection_matrix(aspect);
+        Mat4 view = comp.camera.view_matrix();
 
         for (const auto& layer : comp.layers()) {
             if (!layer->is_active(frame)) continue;
 
-            // Evaluate animated properties
             Transform transform = layer->transform.evaluate(frame);
             f32 opacity = layer->opacity.evaluate(frame);
+            Color color = Color::white() * opacity;
 
-            // Simple 2D rect rendering for now
-            // We assume position is center and we draw a 100x100 rect
-            // In the future, this will be more sophisticated
-            draw_rect(*fb, transform, Color::white() * opacity, BlendMode::Normal);
+            if (layer->type() == LayerType::Mesh) {
+                auto mesh_layer = static_cast<const MeshLayer*>(layer.get());
+                render_mesh_wireframe(*fb, *mesh_layer->mesh(), transform.to_matrix(), view, proj, color);
+            } else {
+                // Default 2D fallback for other layer types
+                draw_rect(*fb, transform, color, BlendMode::Normal);
+            }
         }
 
         return fb;
     }
 
 private:
+    void render_mesh_wireframe(Framebuffer& fb, const Mesh& mesh, const Mat4& model, const Mat4& view, const Mat4& proj, const Color& color) {
+        Mat4 mvp = proj * view * model;
+
+        auto project = [&](const Vec3& v) -> Vec3 {
+            Vec3 p = mvp.transform_point(v);
+            // Convert NDC (-1 to 1) to Screen Space
+            f32 x = (p.x + 1.0f) * 0.5f * fb.width();
+            f32 y = (1.0f - (p.y + 1.0f) * 0.5f) * fb.height(); // Flip Y
+            return {x, y, p.z};
+        };
+
+        const auto& indices = mesh.indices();
+        const auto& vertices = mesh.vertices();
+
+        for (usize i = 0; i < indices.size(); i += 3) {
+            Vec3 p1 = project(vertices[indices[i]].position);
+            Vec3 p2 = project(vertices[indices[i+1]].position);
+            Vec3 p3 = project(vertices[indices[i+2]].position);
+
+            draw_line(fb, p1, p2, color);
+            draw_line(fb, p2, p3, color);
+            draw_line(fb, p3, p1, color);
+        }
+    }
+
+    void draw_line(Framebuffer& fb, const Vec3& p1, const Vec3& p2, const Color& color) {
+        i32 x0 = static_cast<i32>(p1.x);
+        i32 y0 = static_cast<i32>(p1.y);
+        i32 x1 = static_cast<i32>(p2.x);
+        i32 y1 = static_cast<i32>(p2.y);
+
+        i32 dx = std::abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
+        i32 dy = -std::abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
+        i32 err = dx + dy, e2;
+
+        while (true) {
+            fb.set_pixel(x0, y0, color);
+            if (x0 == x1 && y0 == y1) break;
+            e2 = 2 * err;
+            if (e2 >= dy) { err += dy; x0 += sx; }
+            if (e2 <= dx) { err += dx; y0 += sy; }
+        }
+    }
+
     void draw_rect(Framebuffer& fb, const Transform& transform, const Color& color, BlendMode mode) {
-        // Simple 2D rect: center at transform.position.x, y
         i32 cx = static_cast<i32>(transform.position.x);
         i32 cy = static_cast<i32>(transform.position.y);
-        i32 half_w = 50; // default size
-        i32 half_h = 50;
-
-        for (i32 y = cy - half_h; y < cy + half_h; ++y) {
-            for (i32 x = cx - half_w; x < cx + half_w; ++x) {
+        i32 hw = 50, hh = 50;
+        for (i32 y = cy - hh; y < cy + hh; ++y) {
+            for (i32 x = cx - hw; x < cx + hw; ++x) {
                 if (x < 0 || x >= fb.width() || y < 0 || y >= fb.height()) continue;
-                
-                Color dst = fb.get_pixel(x, y);
-                Color blended = compositor::blend(color, dst, mode);
-                fb.set_pixel(x, y, blended);
+                fb.set_pixel(x, y, compositor::blend(color, fb.get_pixel(x, y), mode));
             }
         }
     }

@@ -17,7 +17,9 @@
 #include <chronon3d/animation/animated_value.hpp>
 #include <chronon3d/animation/animated_transform.hpp>
 #include <chronon3d/timeline/layer.hpp>
+#include <chronon3d/timeline/mesh_layer.hpp>
 #include <chronon3d/timeline/composition.hpp>
+#include <chronon3d/scene/camera.hpp>
 #include <chronon3d/renderer/framebuffer.hpp>
 #include <chronon3d/renderer/renderer.hpp>
 #include <chronon3d/renderer/software_renderer.hpp>
