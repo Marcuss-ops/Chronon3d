@@ -7,7 +7,7 @@
 #include <hwy/highway.h>
 #include <cmath>
 #include <algorithm>
-#include <vector>
+#include <memory_resource>
 #include <fmt/format.h>
 
 namespace hn = hwy::HWY_NAMESPACE;
@@ -170,7 +170,7 @@ std::unique_ptr<Framebuffer> SoftwareRenderer::render_scene(
         usize        insertion_index{0};
     };
 
-    std::vector<LayerRenderItem> three_d_layers;
+    std::pmr::vector<LayerRenderItem> three_d_layers{scene.resource()};
     usize index = 0;
 
     for (const auto& layer : scene.layers()) {
@@ -187,6 +187,7 @@ std::unique_ptr<Framebuffer> SoftwareRenderer::render_scene(
             auto projected = project_layer_2_5d(
                 layer.transform, cam25,
                 static_cast<f32>(width), static_cast<f32>(height));
+            if (!projected.visible) { ++index; continue; }
             three_d_layers.push_back({&layer, projected.transform, projected.depth, index});
         }
         ++index;
@@ -237,10 +238,12 @@ void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node, const 
     }
 
     if (node.shape.type == ShapeType::Text) {
-        // TextRenderer currently doesn't support full matrix, but it needs correct position and opacity
         Transform text_tr;
         text_tr.position = Vec3(model[3]);
-        text_tr.opacity = opacity;
+        text_tr.opacity  = opacity;
+        // Extract uniform scale from model column lengths so 3D perspective scaling applies to font size.
+        text_tr.scale.x  = glm::length(Vec3(model[0]));
+        text_tr.scale.y  = glm::length(Vec3(model[1]));
         m_text_renderer.draw_text(node.shape.text, text_tr, fb);
         return;
     }
