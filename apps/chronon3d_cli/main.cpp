@@ -1,7 +1,7 @@
 #include <chronon3d/chronon3d.hpp>
 #include <chronon3d/core/composition_registration.hpp>
 #include <CLI/CLI.hpp>
-#include <iostream>
+#include <spdlog/spdlog.h>
 #include "commands.hpp"
 
 using namespace chronon3d;
