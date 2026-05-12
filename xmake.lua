@@ -23,13 +23,12 @@ if has_config("profiling") then
     add_requires("tracy", {configs = {on_demand = true}})
 end
 
--- Core Library
--- Note: Currently mostly headers, but we include include paths for public visibility
+-- Core Library (Interface)
 target("chronon3d")
-    set_kind("static")
+    set_kind("headeronly")
     add_headerfiles("include/(chronon3d/**.hpp)")
     add_includedirs("include", {public = true})
-    add_packages("glm", "meshoptimizer", "xxhash", {public = true})
+    add_packages("glm", {public = true})
     
     if is_plat("windows") then
         add_cxflags("/EHsc", "/fp:strict", "/utf-8", {public = true})
@@ -43,7 +42,7 @@ target("chronon3d_renderer")
     set_kind("static")
     add_files("src/renderer/*.cpp")
     add_deps("chronon3d")
-    add_packages("spdlog", "stb", "highway")
+    add_packages("spdlog", "stb", "highway", "meshoptimizer", "xxhash")
     
     if has_config("profiling") then
         add_packages("tracy")
@@ -55,20 +54,31 @@ target("chronon3d_io")
     set_kind("static")
     add_files("src/io/*.cpp")
     add_deps("chronon3d")
-    add_packages("stb")
+    add_packages("stb", "meshoptimizer", "xxhash")
+
+-- Pipeline Library (Interface)
+target("chronon3d_pipeline")
+    set_kind("headeronly")
+    add_deps("chronon3d_renderer")
+    add_packages("taskflow", "concurrentqueue", {public = true})
+    
+    if has_config("profiling") then
+        add_packages("tracy", {public = true})
+    end
 
 -- Examples Library (Host for auto-registration)
 target("chronon3d_examples_lib")
     set_kind("static")
     add_files("examples/*.cpp")
     add_deps("chronon3d", "chronon3d_renderer")
+    add_packages("meshoptimizer", "xxhash")
 
 -- CLI App
 target("chronon3d_cli")
     set_kind("binary")
     add_files("apps/chronon3d_cli/*.cpp")
-    add_deps("chronon3d", "chronon3d_renderer", "chronon3d_io", "chronon3d_examples_lib")
-    add_packages("cli11", "spdlog", "taskflow", "concurrentqueue", "fmt")
+    add_deps("chronon3d_pipeline", "chronon3d_io", "chronon3d_examples_lib")
+    add_packages("cli11", "spdlog", "fmt", "meshoptimizer", "xxhash")
 
     -- Handle auto-registration link issues by forcing whole archive for examples
     if is_plat("windows") then
