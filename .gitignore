@@ -48,7 +48,8 @@ reauthenticate_drive.py
 .claude/
 
 # Engine Output — render artifacts, never committed except proofs
-output/
+output/*
 !output/proofs/
+!output/proofs/**
 transform_output/
 scenes/
