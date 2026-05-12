@@ -8,11 +8,9 @@ Chronon3d supporta attualmente due flussi di lavoro per la compilazione e lo svi
 - **PowerShell**: Per l'esecuzione degli script di automazione.
 - **Git**: Per il controllo del codice sorgente.
 
----
+## ⚡ Metodo 1: Xmake (Percorso consigliato per lo sviluppo rapido)
 
-## ⚡ Metodo 1: Xmake (Consigliato per Sviluppo Rapido)
-
-Xmake è il sistema di build primario per l'iterazione veloce. Gestisce le dipendenze automaticamente e offre tempi di compilazione incrementale estremamente ridotti.
+Xmake è il percorso consigliato per lo sviluppo rapido e l'iterazione veloce. Gestisce le dipendenze automaticamente e offre tempi di compilazione incrementale estremamente ridotti. CMake rimane il sistema standard e supportato per le build di produzione.
 
 ### Comandi Rapidi
 Usa lo script di sviluppo per compilare ed eseguire un render di prova:

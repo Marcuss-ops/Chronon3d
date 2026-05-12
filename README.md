@@ -52,7 +52,7 @@ Composition MyVideo() {
 
 ### Build and Run
 
-Per istruzioni dettagliate, consulta **[BUILDING.md](file:///c:/Users/pater/Pyt/Chrono/BUILDING.md)**.
+Per istruzioni dettagliate, consulta **[BUILDING.md](BUILDING.md)**.
 
 #### Windows (xmake)
 ```powershell
