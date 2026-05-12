@@ -83,6 +83,12 @@ const std::vector<ProofSuite>& proof_suites() {
                 {"DepthRolesProof",      45, "depth_roles_0045.png"},
                 {"DepthRolesProof",      90, "depth_roles_0090.png"},
                 {"DepthRoleOffsetProof", 0,  "depth_role_offset.png"},
+                {"ZSortingProof",        0,  "z_sorting_0000.png"},
+                {"DepthOffsetProof",     0,  "depth_offset_0000.png"},
+                {"ParallaxRolesProof",   0,  "parallax_0000.png"},
+                {"ParallaxRolesProof",   30, "parallax_0030.png"},
+                {"ParallaxRolesProof",   60, "parallax_0060.png"},
+                {"ParallaxRolesProof",   90, "parallax_0090.png"},
             }
         },
         {
