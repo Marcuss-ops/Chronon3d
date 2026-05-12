@@ -17,7 +17,7 @@ option("profiling")
 option_end()
 
 -- Dependencies
-add_requires("glm", "spdlog", "stb", "cli11", "highway", "taskflow", "concurrentqueue", "meshoptimizer", "xxhash", "fmt")
+add_requires("glm", "spdlog", "stb", "cli11", "highway", "taskflow", "concurrentqueue", "meshoptimizer", "xxhash", "fmt", "doctest")
 
 if has_config("profiling") then
     add_requires("tracy", {configs = {on_demand = true}})
@@ -86,3 +86,19 @@ target("chronon3d_cli")
     else
         add_ldflags("-Wl,--whole-archive", "-lchronon3d_examples_lib", "-Wl,--no-whole-archive", {force = true})
     end
+
+-- Tests
+target("chronon3d_tests")
+    set_kind("binary")
+    add_files("tests/*.cpp")
+    add_files("tests/core/*.cpp")
+    add_files("tests/math/*.cpp")
+    add_files("tests/geometry/*.cpp")
+    add_files("tests/animation/*.cpp")
+    add_files("tests/timeline/*.cpp")
+    add_files("tests/scene/*.cpp")
+    add_files("tests/renderer/*.cpp")
+    add_files("tests/deterministic/*.cpp")
+    add_files("tests/io/*.cpp")
+    add_deps("chronon3d_pipeline", "chronon3d_io")
+    add_packages("doctest", "stb", "meshoptimizer", "xxhash")

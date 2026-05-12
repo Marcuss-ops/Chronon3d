@@ -2,7 +2,9 @@
 
 #include <chronon3d/math/vec2.hpp>
 #include <chronon3d/math/vec3.hpp>
+#include <chronon3d/math/color.hpp>
 #include <chronon3d/core/types.hpp>
+#include <string>
 
 namespace chronon3d {
 
@@ -12,6 +14,7 @@ enum class ShapeType {
     RoundedRect,
     Circle,
     Line,
+    Text,
     Mesh
 };
 
@@ -35,12 +38,25 @@ struct LineShape {
     f32 thickness{1.0f};
 };
 
+struct TextStyle {
+    std::string font_path;
+    f32 size{32.0f};
+    Color color{1.0f, 1.0f, 1.0f, 1.0f};
+};
+
+struct TextShape {
+    std::string text;
+    Vec3 position{};
+    TextStyle style{};
+};
+
 struct Shape {
     ShapeType type{ShapeType::None};
     RectShape rect;
     RoundedRectShape rounded_rect;
     CircleShape circle;
     LineShape line;
+    TextShape text;
 };
 
 } // namespace chronon3d

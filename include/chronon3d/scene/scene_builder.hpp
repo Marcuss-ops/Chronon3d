@@ -62,6 +62,19 @@ public:
         return *this;
     }
 
+    SceneBuilder& text(std::string name, std::string content, Vec3 position,
+                       const TextStyle& style) {
+        RenderNode node(scene_.resource());
+        node.name = std::move(name);
+        node.shape.type = ShapeType::Text;
+        node.shape.text.text = std::move(content);
+        node.shape.text.position = position;
+        node.shape.text.style = style;
+        node.world_transform.position = position;
+        scene_.add_node(std::move(node));
+        return *this;
+    }
+
     // Apply a drop shadow to the last added node.
     SceneBuilder& with_shadow(DropShadow shadow) {
         scene_.last_node().shadow = shadow;

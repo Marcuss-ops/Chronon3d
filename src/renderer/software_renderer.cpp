@@ -138,6 +138,9 @@ std::unique_ptr<Framebuffer> SoftwareRenderer::render_scene(
             case ShapeType::Line:
                 draw_line(*fb, node.world_transform.position, node.shape.line.to, linear_color);
                 break;
+            case ShapeType::Text:
+                m_text_renderer.draw_text(node.shape.text, *fb);
+                break;
             default: break;
         }
     }
