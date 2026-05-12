@@ -6,6 +6,10 @@
 
 namespace chronon3d {
 
+// Forward-declared to avoid a math/ → scene/ include cycle.
+// Full definition is in <chronon3d/scene/mask.hpp>.
+struct Mask;
+
 struct Transform {
     Vec3 position{0.0f, 0.0f, 0.0f};
     Quat rotation{1.0f, 0.0f, 0.0f, 0.0f}; // Identity
@@ -29,13 +33,20 @@ struct Transform {
 
 struct RenderState {
     Mat4 matrix;
-    f32 opacity{1.0f};
+    f32  opacity{1.0f};
+
+    // Set by the renderer when the layer has an active mask.
+    // Both fields propagate from layer_state → node_state via combine().
+    const Mask* mask{nullptr};
+    Mat4 layer_inv_matrix{1.0f};
 };
 
 inline RenderState combine(const RenderState& parent, const Transform& child) {
     return RenderState{
-        .matrix = parent.matrix * child.to_matrix(),
-        .opacity = parent.opacity * child.opacity
+        .matrix           = parent.matrix * child.to_matrix(),
+        .opacity          = parent.opacity * child.opacity,
+        .mask             = parent.mask,
+        .layer_inv_matrix = parent.layer_inv_matrix,
     };
 }
 

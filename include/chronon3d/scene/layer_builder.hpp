@@ -2,6 +2,7 @@
 
 #include <chronon3d/scene/layer.hpp>
 #include <chronon3d/scene/builder_params.hpp>
+#include <chronon3d/scene/mask.hpp>
 #include <chronon3d/math/mat4.hpp>
 #include <string>
 #include <memory_resource>
@@ -58,6 +59,32 @@ public:
 
     LayerBuilder& enable_3d(bool value = true) {
         m_layer.is_3d = value;
+        return *this;
+    }
+
+    LayerBuilder& mask_rect(RectMaskParams p) {
+        m_layer.mask.type     = MaskType::Rect;
+        m_layer.mask.size     = p.size;
+        m_layer.mask.pos      = p.pos;
+        m_layer.mask.inverted = p.inverted;
+        return *this;
+    }
+
+    LayerBuilder& mask_rounded_rect(RoundedRectMaskParams p) {
+        m_layer.mask.type     = MaskType::RoundedRect;
+        m_layer.mask.size     = p.size;
+        m_layer.mask.radius   = p.radius;
+        m_layer.mask.pos      = p.pos;
+        m_layer.mask.inverted = p.inverted;
+        return *this;
+    }
+
+    LayerBuilder& mask_circle(CircleMaskParams p) {
+        m_layer.mask.type     = MaskType::Circle;
+        m_layer.mask.size     = {p.radius * 2.0f, p.radius * 2.0f};
+        m_layer.mask.radius   = p.radius;
+        m_layer.mask.pos      = p.pos;
+        m_layer.mask.inverted = p.inverted;
         return *this;
     }
 
