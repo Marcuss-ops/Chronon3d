@@ -42,7 +42,7 @@ target("chronon3d_renderer")
     set_kind("static")
     add_files("src/renderer/*.cpp")
     add_deps("chronon3d")
-    add_packages("spdlog", "stb", "highway", "meshoptimizer", "xxhash")
+    add_packages("spdlog", "stb", "highway", "meshoptimizer")
     
     if has_config("profiling") then
         add_packages("tracy")
@@ -54,7 +54,7 @@ target("chronon3d_io")
     set_kind("static")
     add_files("src/io/*.cpp")
     add_deps("chronon3d")
-    add_packages("stb", "meshoptimizer", "xxhash")
+    add_packages("stb")
 
 -- Pipeline Library (Interface)
 target("chronon3d_pipeline")
