@@ -56,6 +56,20 @@ struct Color {
         return {linear_to_gamma(r), linear_to_gamma(g), linear_to_gamma(b), a};
     }
 
+    // Alpha compositing helpers.
+    // premultiply: RGB *= A  (for correct filtering and blending)
+    // unpremultiply: RGB /= A  (to restore straight alpha for display/export)
+    [[nodiscard]] constexpr Color premultiplied() const {
+        if (a <= 0.0f) return {0.0f, 0.0f, 0.0f, 0.0f};
+        return {r * a, g * a, b * a, a};
+    }
+
+    [[nodiscard]] constexpr Color unpremultiplied() const {
+        if (a <= 0.0f) return {0.0f, 0.0f, 0.0f, 0.0f};
+        const f32 inv = 1.0f / a;
+        return {r * inv, g * inv, b * inv, a};
+    }
+
     // Fast approximations (gamma 2.2)
     [[nodiscard]] Color to_linear_fast() const {
         return {std::pow(r, 2.2f), std::pow(g, 2.2f), std::pow(b, 2.2f), a};

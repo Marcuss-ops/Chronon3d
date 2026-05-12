@@ -8,10 +8,10 @@
 
 namespace chronon3d {
 
-/**
- * High-precision float framebuffer.
- * Stores pixels in linear space by convention.
- */
+// High-precision float framebuffer.
+// Convention: pixels are stored in LinearSRGB, straight (non-premultiplied) alpha.
+// Convertion to sRGB for output happens in save_ppm() / image_writer.
+// See include/chronon3d/math/color_space.hpp for the full pipeline.
 class Framebuffer {
 public:
     Framebuffer(i32 width, i32 height) : m_width(width), m_height(height) {
