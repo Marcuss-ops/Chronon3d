@@ -56,8 +56,9 @@ SceneBuilder& SceneBuilder::text(std::string name, TextParams p) {
     RenderNode node(scene_.resource());
     node.name = std::pmr::string{name, scene_.resource()};
     node.shape.type = ShapeType::Text;
-    node.shape.text.text = std::move(p.content);
+    node.shape.text.text  = std::move(p.content);
     node.shape.text.style = p.style;
+    node.shape.text.box   = p.box;
     node.world_transform.position = p.pos;
     node.color = p.style.color;
     scene_.add_node(std::move(node));

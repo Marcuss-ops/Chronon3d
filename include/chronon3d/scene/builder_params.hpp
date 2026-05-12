@@ -36,8 +36,9 @@ struct LineParams {
 
 struct TextParams {
     std::string content;
-    TextStyle style;
-    Vec3 pos{0, 0, 0};
+    TextStyle   style;
+    Vec3        pos{0, 0, 0};
+    TextBox     box{};
 };
 
 struct ImageParams {
