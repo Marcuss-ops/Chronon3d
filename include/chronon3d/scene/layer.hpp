@@ -8,6 +8,7 @@
 #include <chronon3d/scene/layer_effect.hpp>
 #include <chronon3d/scene/effect_stack.hpp>
 #include <chronon3d/scene/depth_role.hpp>
+#include <chronon3d/layout/layout_rules.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <string>
 #include <vector>
@@ -33,8 +34,9 @@ struct Layer {
     LayerEffect effect{};    // legacy flat effect — kept for backward compat
     EffectStack effects;     // ordered effect stack (takes precedence when non-empty)
     BlendMode blend_mode{BlendMode::Normal};
-    DepthRole depth_role{DepthRole::None};
-    f32       depth_offset{0.0f};
+    DepthRole   depth_role{DepthRole::None};
+    f32         depth_offset{0.0f};
+    LayoutRules layout{};
     std::pmr::vector<RenderNode> nodes;
 
     explicit Layer(std::pmr::memory_resource* res = std::pmr::get_default_resource())

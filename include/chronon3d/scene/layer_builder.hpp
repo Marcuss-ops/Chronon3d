@@ -5,6 +5,7 @@
 #include <chronon3d/scene/mask.hpp>
 #include <chronon3d/scene/layer_effect.hpp>
 #include <chronon3d/scene/effect_stack.hpp>
+#include <chronon3d/layout/layout_rules.hpp>
 #include <chronon3d/math/mat4.hpp>
 #include <string>
 #include <memory_resource>
@@ -117,6 +118,25 @@ public:
         return *this;
     }
     LayerBuilder& blend(BlendMode mode) { m_layer.blend_mode = mode; return *this; }
+
+    // Layout rules
+    LayerBuilder& pin_to(Anchor anchor, f32 margin = 0.0f) {
+        m_layer.layout.enabled = true;
+        m_layer.layout.pin     = anchor;
+        m_layer.layout.margin  = margin;
+        return *this;
+    }
+    LayerBuilder& keep_in_safe_area(SafeArea area = {}) {
+        m_layer.layout.enabled           = true;
+        m_layer.layout.keep_in_safe_area = true;
+        m_layer.layout.safe_area         = area;
+        return *this;
+    }
+    LayerBuilder& fit_text() {
+        m_layer.layout.enabled  = true;
+        m_layer.layout.fit_text = true;
+        return *this;
+    }
 
     LayerBuilder& mask_circle(CircleMaskParams p) {
         m_layer.mask.type     = MaskType::Circle;
