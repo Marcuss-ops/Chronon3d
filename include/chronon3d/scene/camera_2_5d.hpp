@@ -5,6 +5,12 @@
 
 namespace chronon3d {
 
+struct MotionBlurSettings {
+    bool enabled{false};
+    int  samples{8};           // number of subframes to accumulate
+    f32  shutter_angle{180.0f}; // degrees; 180 = half-frame exposure
+};
+
 struct DepthOfFieldSettings {
     bool  enabled{false};
     f32   focus_z{0.0f};      // world-space Z at which blur = 0

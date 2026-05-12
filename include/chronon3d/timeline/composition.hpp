@@ -31,16 +31,23 @@ public:
     [[nodiscard]] Frame duration() const { return m_spec.duration; }
     [[nodiscard]] const std::string& name() const { return m_spec.name; }
 
-    [[nodiscard]] Scene evaluate(Frame frame, std::pmr::memory_resource* res = std::pmr::get_default_resource()) const {
-        FrameContext ctx{
-            .frame = frame,
-            .duration = m_spec.duration,
-            .frame_rate = m_spec.frame_rate,
-            .width = m_spec.width,
-            .height = m_spec.height,
-            .resource = res
-        };
+    [[nodiscard]] Scene evaluate(Frame frame,
+                                 std::pmr::memory_resource* res = std::pmr::get_default_resource()) const {
+        return evaluate(frame, 0.0f, res);
+    }
 
+    // Evaluate at a fractional frame offset (used by motion blur subsampling).
+    [[nodiscard]] Scene evaluate(Frame frame, f32 frame_time,
+                                 std::pmr::memory_resource* res = std::pmr::get_default_resource()) const {
+        FrameContext ctx{
+            .frame      = frame,
+            .frame_time = frame_time,
+            .duration   = m_spec.duration,
+            .frame_rate = m_spec.frame_rate,
+            .width      = m_spec.width,
+            .height     = m_spec.height,
+            .resource   = res
+        };
         return m_render(ctx);
     }
 
