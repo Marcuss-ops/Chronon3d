@@ -47,9 +47,7 @@ reauthenticate_drive.py
 # AI context
 .claude/
 
-# Engine Output
-output/*.png
-output/*.ppm
-output/xmake_*.png
-output/frames/
-output/*.mp4
+# Engine Output — entire folder is generated, never committed
+output/
+transform_output/
+scenes/
