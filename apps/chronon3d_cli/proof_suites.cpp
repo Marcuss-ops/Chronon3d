@@ -77,6 +77,15 @@ const std::vector<ProofSuite>& proof_suites() {
             }
         },
         {
+            .name = "depth",
+            .frames = {
+                {"DepthRolesProof",      0,  "depth_roles_0000.png"},
+                {"DepthRolesProof",      45, "depth_roles_0045.png"},
+                {"DepthRolesProof",      90, "depth_roles_0090.png"},
+                {"DepthRoleOffsetProof", 0,  "depth_role_offset.png"},
+            }
+        },
+        {
             .name = "animation",
             .frames = {
                 {"KeyframesProof", 0,   "keyframes_0000.png"},

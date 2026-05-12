@@ -80,6 +80,11 @@ public:
         return *this;
     }
 
+    // Depth role — sets layer Z semantically; depth_offset fine-tunes within the role.
+    // The role is resolved to a world Z in build(), so call order with position() does not matter.
+    LayerBuilder& depth_role(DepthRole role) { m_layer.depth_role = role; return *this; }
+    LayerBuilder& depth_offset(f32 offset)   { m_layer.depth_offset = offset; return *this; }
+
     // Effects
     LayerBuilder& blur(f32 radius) { m_layer.effect.blur_radius = radius; return *this; }
     LayerBuilder& tint(Color color) { m_layer.effect.tint = color; return *this; }
@@ -185,6 +190,11 @@ public:
     }
 
     [[nodiscard]] Layer build() {
+        // Apply depth role last so it always wins over any explicit position.z.
+        if (m_layer.depth_role != DepthRole::None) {
+            m_layer.transform.position.z =
+                DepthRoleResolver::z_for(m_layer.depth_role) + m_layer.depth_offset;
+        }
         return std::move(m_layer);
     }
 
