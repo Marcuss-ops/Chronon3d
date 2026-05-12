@@ -85,7 +85,9 @@ target("chronon3d_cli")
     if is_plat("windows") then
         add_ldflags("/WHOLEARCHIVE:chronon3d_examples_lib.lib", {force = true})
     else
-        add_ldflags("-Wl,--whole-archive", "-lchronon3d_examples_lib", "-Wl,--no-whole-archive", {force = true})
+        -- chronon3d_renderer must appear after --no-whole-archive so the linker
+        -- can resolve references made by the force-extracted examples objects.
+        add_ldflags("-Wl,--whole-archive", "-lchronon3d_examples_lib", "-Wl,--no-whole-archive", "-lchronon3d_renderer", {force = true})
     end
 
 -- Tests

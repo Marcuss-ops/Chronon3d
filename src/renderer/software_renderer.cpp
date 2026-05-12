@@ -1,11 +1,13 @@
 #include <chronon3d/renderer/software_renderer.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/scene/scene.hpp>
+#include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/core/profiling.hpp>
 #include <chronon3d/math/raster_utils.hpp>
 #include <hwy/highway.h>
 #include <cmath>
 #include <algorithm>
+#include <vector>
 #include <fmt/format.h>
 
 namespace hn = hwy::HWY_NAMESPACE;
@@ -139,14 +141,66 @@ std::unique_ptr<Framebuffer> SoftwareRenderer::render_scene(
         draw_node(*fb, node, state, camera, width, height);
     }
 
-    // 2. Layers
+    // 2. Layers — 2D in insertion order, 3D projected and depth-sorted.
+    //
+    // Draw order rules:
+    //   root nodes first
+    //   2D layers in insertion order (camera has no effect)
+    //   3D layers sorted by depth (farther first, nearer on top)
+    //   no z-buffer; intersecting planes are painter's-algorithm only
+    const auto& cam25 = scene.camera_2_5d();
+
+    if (!cam25.enabled) {
+        for (const auto& layer : scene.layers()) {
+            if (!layer.visible) continue;
+            RenderState layer_state = combine(root_state, layer.transform);
+            for (const auto& node : layer.nodes) {
+                if (!node.visible) continue;
+                RenderState node_state = combine(layer_state, node.world_transform);
+                draw_node(*fb, node, node_state, camera, width, height);
+            }
+        }
+        return fb;
+    }
+
+    struct LayerRenderItem {
+        const Layer* layer{nullptr};
+        Transform    projected_transform{};
+        f32          depth{0.0f};
+        usize        insertion_index{0};
+    };
+
+    std::vector<LayerRenderItem> three_d_layers;
+    usize index = 0;
+
     for (const auto& layer : scene.layers()) {
-        // SceneBuilder already filters by frame, but we check visible flag
-        if (!layer.visible) continue;
+        if (!layer.visible) { ++index; continue; }
 
-        RenderState layer_state = combine(root_state, layer.transform);
+        if (!layer.is_3d) {
+            RenderState layer_state = combine(root_state, layer.transform);
+            for (const auto& node : layer.nodes) {
+                if (!node.visible) continue;
+                RenderState node_state = combine(layer_state, node.world_transform);
+                draw_node(*fb, node, node_state, camera, width, height);
+            }
+        } else {
+            auto projected = project_layer_2_5d(
+                layer.transform, cam25,
+                static_cast<f32>(width), static_cast<f32>(height));
+            three_d_layers.push_back({&layer, projected.transform, projected.depth, index});
+        }
+        ++index;
+    }
 
-        for (const auto& node : layer.nodes) {
+    // Farther layers first → nearer layers paint on top.
+    std::stable_sort(three_d_layers.begin(), three_d_layers.end(),
+        [](const LayerRenderItem& a, const LayerRenderItem& b) {
+            return a.depth > b.depth;
+        });
+
+    for (const auto& item : three_d_layers) {
+        RenderState layer_state = combine(root_state, item.projected_transform);
+        for (const auto& node : item.layer->nodes) {
             if (!node.visible) continue;
             RenderState node_state = combine(layer_state, node.world_transform);
             draw_node(*fb, node, node_state, camera, width, height);
