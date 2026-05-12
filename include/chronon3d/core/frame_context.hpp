@@ -7,11 +7,17 @@ namespace chronon3d {
 
 struct FrameContext {
     Frame frame{0};
+    f32   frame_time{0.0f};  // fractional frame for motion blur subsampling (0.0 = integral frame)
     Frame duration{0};
     FrameRate frame_rate{30, 1};
     i32 width{1920};
     i32 height{1080};
     std::pmr::memory_resource* resource{std::pmr::get_default_resource()};
+
+    // Effective time: integral frame + fractional offset.
+    [[nodiscard]] f32 effective_frame() const {
+        return static_cast<f32>(frame) + frame_time;
+    }
 
     [[nodiscard]] TimeSeconds seconds() const {
         return frame_rate.to_seconds(frame);
