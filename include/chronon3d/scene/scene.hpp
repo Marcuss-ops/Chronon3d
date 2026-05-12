@@ -10,9 +10,19 @@
 
 namespace chronon3d {
 
+enum class NodeType {
+    Mesh,
+    Rect,
+    Line,
+    Circle
+};
+
 struct RenderNode {
     std::pmr::string name;
+    NodeType type{NodeType::Rect};
     Transform world_transform;
+    Vec3 size{1.0f, 1.0f, 1.0f}; // Rect: size, Circle: size.x = radius
+    Vec3 line_end{0, 0, 0};      // For Lines
     Color color{1, 1, 1, 1};
     std::shared_ptr<Mesh> mesh;
     bool visible{true};

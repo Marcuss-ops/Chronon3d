@@ -20,39 +20,46 @@ option(CHRONON3D_BUILD_EXAMPLES "Build Chronon3d examples" ON)
 find_package(spdlog CONFIG REQUIRED)
 find_package(fmt CONFIG REQUIRED)
 find_package(Tracy CONFIG REQUIRED)
-find_package(mimalloc CONFIG REQUIRED)
 find_package(Taskflow CONFIG REQUIRED)
 find_package(concurrentqueue CONFIG REQUIRED)
 find_package(absl CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)
-find_package(meshoptimizer CONFIG REQUIRED)
-find_package(xxHash CONFIG REQUIRED)
-find_package(hwy CONFIG REQUIRED)
+find_package(Stb REQUIRED)
 
-# Core Library (Header-only for now)
+# Core Library (Minimal)
 add_library(chronon3d INTERFACE)
-
-# Public headers directory
 target_include_directories(chronon3d
     INTERFACE
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>
 )
-
 target_link_libraries(chronon3d
     INTERFACE
+        spdlog::spdlog
+        fmt::fmt
+        glm::glm
+        absl::flat_hash_map
+)
+
+# Pipeline Library (Heavy)
+add_library(chronon3d_pipeline INTERFACE)
+target_link_libraries(chronon3d_pipeline
+    INTERFACE
+        chronon3d
         Tracy::TracyClient
         Taskflow::Taskflow
         concurrentqueue::concurrentqueue
-        absl::flat_hash_map
-        absl::status
-        absl::statusor
-        absl::strings
-        glm::glm
-        meshoptimizer::meshoptimizer
-        xxHash::xxhash
-        hwy::hwy
 )
+
+# IO Library
+add_library(chronon3d_io STATIC
+    src/io/image_writer.cpp
+)
+target_link_libraries(chronon3d_io
+    PUBLIC
+        chronon3d
+)
+target_include_directories(chronon3d_io PRIVATE ${Stb_INCLUDE_DIR})
 
 # Compile features
 target_compile_features(chronon3d INTERFACE cxx_std_20)

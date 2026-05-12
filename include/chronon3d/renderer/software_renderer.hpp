@@ -25,10 +25,21 @@ public:
         for (const auto& node : scene.nodes()) {
             if (!node.visible) continue;
 
-            if (node.mesh) {
-                render_mesh_wireframe(*fb, *node.mesh, node.world_transform.to_matrix(), view, proj, node.color);
-            } else {
-                draw_rect(*fb, node.world_transform, node.color, BlendMode::Normal);
+            switch (node.type) {
+                case NodeType::Mesh:
+                    if (node.mesh) {
+                        render_mesh_wireframe(*fb, *node.mesh, node.world_transform.to_matrix(), view, proj, node.color);
+                    }
+                    break;
+                case NodeType::Rect:
+                    draw_rect(*fb, node.world_transform.position, node.size, node.color, BlendMode::Normal);
+                    break;
+                case NodeType::Line:
+                    draw_line(*fb, node.world_transform.position, node.line_end, node.color);
+                    break;
+                case NodeType::Circle:
+                    draw_circle(*fb, node.world_transform.position, node.size.x, node.color, BlendMode::Normal);
+                    break;
             }
         }
 
@@ -85,14 +96,34 @@ private:
         }
     }
 
-    void draw_rect(Framebuffer& fb, const Transform& transform, const Color& color, BlendMode mode) {
-        i32 cx = static_cast<i32>(transform.position.x);
-        i32 cy = static_cast<i32>(transform.position.y);
-        i32 hw = 50, hh = 50;
+    void draw_rect(Framebuffer& fb, const Vec3& position, const Vec3& size, const Color& color, BlendMode mode) {
+        i32 cx = static_cast<i32>(position.x);
+        i32 cy = static_cast<i32>(position.y);
+        i32 hw = static_cast<i32>(size.x * 0.5f);
+        i32 hh = static_cast<i32>(size.y * 0.5f);
         for (i32 y = cy - hh; y < cy + hh; ++y) {
             for (i32 x = cx - hw; x < cx + hw; ++x) {
                 if (x < 0 || x >= fb.width() || y < 0 || y >= fb.height()) continue;
                 fb.set_pixel(x, y, compositor::blend(color, fb.get_pixel(x, y), mode));
+            }
+        }
+    }
+
+    void draw_circle(Framebuffer& fb, const Vec3& position, f32 radius, const Color& color, BlendMode mode) {
+        i32 cx = static_cast<i32>(position.x);
+        i32 cy = static_cast<i32>(position.y);
+        i32 r = static_cast<i32>(radius);
+        f32 r2 = radius * radius;
+
+        for (i32 y = cy - r; y <= cy + r; ++y) {
+            for (i32 x = cx - r; x <= cx + r; ++x) {
+                if (x < 0 || x >= fb.width() || y < 0 || y >= fb.height()) continue;
+                
+                f32 dx = static_cast<f32>(x - cx);
+                f32 dy = static_cast<f32>(y - cy);
+                if (dx * dx + dy * dy <= r2) {
+                    fb.set_pixel(x, y, compositor::blend(color, fb.get_pixel(x, y), mode));
+                }
             }
         }
     }
