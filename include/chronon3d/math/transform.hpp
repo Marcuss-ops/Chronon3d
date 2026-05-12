@@ -27,4 +27,16 @@ struct Transform {
     }
 };
 
+struct RenderState {
+    Mat4 matrix;
+    f32 opacity{1.0f};
+};
+
+inline RenderState combine(const RenderState& parent, const Transform& child) {
+    return RenderState{
+        .matrix = parent.matrix * child.to_matrix(),
+        .opacity = parent.opacity * child.opacity
+    };
+}
+
 } // namespace chronon3d

@@ -61,6 +61,20 @@ int main(int argc, char** argv) {
         command_watch(registry, watch_id);
     });
 
+    // Render All Command
+    std::string all_output_dir;
+    auto* all_cmd = app.add_subcommand("render-all", "Render one frame of every registered composition for verification");
+    all_cmd->add_option("-o,--output-dir", all_output_dir, "Directory to save renders")->default_val("output/verify");
+    all_cmd->callback([&registry, &all_output_dir]() {
+        for (const auto& id : registry.available()) {
+            RenderArgs args;
+            args.comp_id = id;
+            args.frames = "0";
+            args.output = all_output_dir + "/" + id + ".png";
+            command_render(registry, args);
+        }
+    });
+
     try {
         CLI11_PARSE(app, argc, argv);
     } catch (const CLI::ParseError& e) {
