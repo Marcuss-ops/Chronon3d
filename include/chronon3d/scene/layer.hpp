@@ -6,6 +6,7 @@
 #include <chronon3d/scene/render_node.hpp>
 #include <chronon3d/scene/mask.hpp>
 #include <chronon3d/scene/layer_effect.hpp>
+#include <chronon3d/scene/effect_stack.hpp>
 #include <chronon3d/scene/depth_role.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <string>
@@ -22,7 +23,8 @@ struct Layer {
     bool      visible{true};
     bool      is_3d{false};
     Mask      mask{};
-    LayerEffect effect{};
+    LayerEffect effect{};    // legacy flat effect — kept for backward compat
+    EffectStack effects;     // ordered effect stack (takes precedence when non-empty)
     BlendMode blend_mode{BlendMode::Normal};
     DepthRole depth_role{DepthRole::None};
     f32       depth_offset{0.0f};

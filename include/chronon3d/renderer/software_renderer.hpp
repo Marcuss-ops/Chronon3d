@@ -7,6 +7,7 @@
 #include <chronon3d/math/transform.hpp>
 #include <chronon3d/scene/layer.hpp>
 #include <chronon3d/scene/layer_effect.hpp>
+#include <chronon3d/scene/effect_stack.hpp>
 
 namespace chronon3d {
 
@@ -48,6 +49,7 @@ private:
 
     static void apply_blur(Framebuffer& fb, f32 radius);
     static void apply_color_effects(Framebuffer& fb, const LayerEffect& effect);
+    static void apply_effect_stack(Framebuffer& fb, const EffectStack& stack);
     static void composite_layer(Framebuffer& dst, const Framebuffer& src, BlendMode mode);
 
     // Diagnostic drawing helpers
