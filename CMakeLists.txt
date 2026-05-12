@@ -44,6 +44,7 @@ target_compile_features(chronon3d INTERFACE cxx_std_20)
 # 2. Renderer Library (Static)
 add_library(chronon3d_renderer STATIC
     src/renderer/software_renderer.cpp
+    src/renderer/text_renderer.cpp
 )
 target_link_libraries(chronon3d_renderer
     PUBLIC
@@ -90,6 +91,7 @@ add_library(chronon3d_examples_lib STATIC
     examples/blending_showcase.cpp
     examples/code_first_smoke.cpp
     examples/remotion_style_guide.cpp
+    examples/text_proof.cpp
 )
 target_link_libraries(chronon3d_examples_lib
     PUBLIC
