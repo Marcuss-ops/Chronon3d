@@ -6,15 +6,21 @@ temp_assets/
 .vs/
 out/
 bin/
+lib/
+obj/
 
 # Dependency management
 vcpkg/
 
 # IDE files
 .vscode/
+.idea/
 *.user
 *.suo
 *.pdb
+*.sln
+*.vcxproj
+*.filters
 
 # OS files
 Thumbs.db
@@ -24,3 +30,13 @@ Thumbs.db
 *.tgz
 *.zip
 *.7z
+*.iso
+
+# Python/Watch scripts artifacts
+__pycache__/
+*.pyc
+
+# Local/Secrets
+token.json
+credentials.json
+reauthenticate_drive.py
