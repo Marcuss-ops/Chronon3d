@@ -18,23 +18,35 @@ Composition TransformProof() {
             .pos = {640, 360, 0}
         });
 
-        // 1. Rotating Rect
+        // 1. Rotating Rect with Shadow
         auto rot = interpolate(ctx.frame, 0, 120, 0.0f, 360.0f);
         s.rect("rotating-box", {
             .size = {200, 100},
             .color = Color::red()
         })
         .at({300, 200, 0})
-        .rotate({0, 0, rot});
+        .rotate({0, 0, rot})
+        .with_shadow({
+            .enabled = true,
+            .offset = {10, 10},
+            .color = {0, 0, 0, 0.6f},
+            .radius = 15
+        });
 
-        // 2. Scaling Circle
+        // 2. Scaling Circle with Glow
         auto sc = interpolate(ctx.frame, 0, 120, 0.5f, 1.5f, Easing::InOutQuad);
         s.circle("scaling-circle", {
             .radius = 50,
             .color = Color::green()
         })
         .at({640, 360, 0})
-        .scale({sc, sc, 1.0f});
+        .scale({sc, sc, 1.0f})
+        .with_glow({
+            .enabled = true,
+            .radius = 20,
+            .intensity = 0.8f,
+            .color = Color::green()
+        });
 
         // 3. Transparent Rounded Rect
         auto op = interpolate(ctx.frame, 0, 120, 1.0f, 0.1f);
@@ -45,7 +57,13 @@ Composition TransformProof() {
         })
         .at({980, 520, 0})
         .opacity(op)
-        .rotate({0, 0, -rot * 0.5f});
+        .rotate({0, 0, -rot * 0.5f})
+        .with_shadow({
+            .enabled = true,
+            .offset = {0, 15},
+            .color = {0, 0, 0, 0.4f},
+            .radius = 20
+        });
 
         // 4. Line transform
         s.line("line", {

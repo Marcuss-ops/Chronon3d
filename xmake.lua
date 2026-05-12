@@ -41,6 +41,7 @@ target("chronon3d")
 target("chronon3d_renderer")
     set_kind("static")
     add_files("src/renderer/*.cpp")
+    add_files("src/scene/*.cpp")
     add_deps("chronon3d")
     add_packages("spdlog", "stb", "highway", "meshoptimizer", "fmt")
     
