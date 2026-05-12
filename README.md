@@ -7,8 +7,9 @@ Chronon3d is a high-performance, **code-first** C++20 engine designed for proced
 - **Code-First Architecture**: Define your videos using C++ lambdas. No more static JSON configs.
 - **Fluent Scene DSL**: A clean, type-safe API for building complex 3D scenes.
 - **Temporal Primitives**: Built-in `interpolate()` and `Sequence` logic for smooth animations.
-- **Determinitic Rendering**: Frame-perfect output, ideal for headless video production.
-- **SIMD Optimized**: Built on Google Highway and meshoptimizer for extreme performance.
+- **Deterministic Rendering**: Frame-perfect output, ideal for headless video production.
+- **Parallel Pipeline**: Frames render concurrently via Taskflow; output is always emitted in frame order.
+- **SIMD Blending**: Semi-transparent draw paths use Google Highway for vectorized alpha compositing. Opaque paths use direct scanline fill.
 
 ## 🛠️ Getting Started
 
