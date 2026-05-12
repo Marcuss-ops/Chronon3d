@@ -20,6 +20,13 @@ struct SequenceContext {
         return std::clamp(static_cast<f32>(frame) / static_cast<f32>(duration), 0.0f, 1.0f);
     }
 
+    // Like progress(), but holds at 0 before the sequence and at 1 after it ends.
+    // Use this when an animation should stay at its final state once the window closes.
+    [[nodiscard]] f32 held_progress() const {
+        if (!active && parent.frame >= from + duration) return 1.0f;
+        return progress();
+    }
+
     [[nodiscard]] f32 seconds() const {
         return static_cast<f32>(frame) * (static_cast<f32>(parent.frame_rate.denominator) / static_cast<f32>(parent.frame_rate.numerator));
     }
