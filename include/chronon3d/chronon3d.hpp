@@ -11,6 +11,7 @@
 #include <chronon3d/scene/mask.hpp>
 #include <chronon3d/scene/mask_utils.hpp>
 #include <chronon3d/scene/layer_effect.hpp>
+#include <chronon3d/scene/depth_role.hpp>
 #include <chronon3d/scene/scene.hpp>
 #include <chronon3d/scene/scene_builder.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>

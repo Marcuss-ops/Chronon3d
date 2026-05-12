@@ -6,6 +6,7 @@
 #include <chronon3d/scene/render_node.hpp>
 #include <chronon3d/scene/mask.hpp>
 #include <chronon3d/scene/layer_effect.hpp>
+#include <chronon3d/scene/depth_role.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <string>
 #include <vector>
@@ -18,11 +19,13 @@ struct Layer {
     Transform transform{};
     Frame from{0};
     Frame duration{-1};
-    bool visible{true};
-    bool is_3d{false};
-    Mask mask{};
+    bool      visible{true};
+    bool      is_3d{false};
+    Mask      mask{};
     LayerEffect effect{};
     BlendMode blend_mode{BlendMode::Normal};
+    DepthRole depth_role{DepthRole::None};
+    f32       depth_offset{0.0f};
     std::pmr::vector<RenderNode> nodes;
 
     explicit Layer(std::pmr::memory_resource* res = std::pmr::get_default_resource())
