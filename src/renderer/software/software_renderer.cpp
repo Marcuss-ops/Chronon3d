@@ -212,24 +212,29 @@ void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node, const 
 
     if (node.shape.type == ShapeType::FakeBox3D) {
         auto s = node.shape.fake_box3d;
-        s.cam_ready = true;
-        s.cam_view  = camera.view_matrix();
-        const f32 fw = static_cast<f32>(width);
-        s.cam_focal = camera.focal_length(fw);
-        s.vp_cx     = fw * 0.5f;
-        s.vp_cy     = static_cast<f32>(height) * 0.5f;
+        if (!s.cam_ready) {
+            // Fallback: use legacy camera (only hit when called outside the 2.5D render path)
+            s.cam_ready = true;
+            s.cam_view  = camera.view_matrix();
+            const f32 fw = static_cast<f32>(width);
+            s.cam_focal = camera.focal_length(fw);
+            s.vp_cx     = fw * 0.5f;
+            s.vp_cy     = static_cast<f32>(height) * 0.5f;
+        }
         renderer::draw_fake_box3d(fb, node, state, s);
         return;
     }
 
     if (node.shape.type == ShapeType::GridPlane) {
         auto s = node.shape.grid_plane;
-        s.cam_ready = true;
-        s.cam_view  = camera.view_matrix();
-        const f32 fw = static_cast<f32>(width);
-        s.cam_focal = camera.focal_length(fw);
-        s.vp_cx     = fw * 0.5f;
-        s.vp_cy     = static_cast<f32>(height) * 0.5f;
+        if (!s.cam_ready) {
+            s.cam_ready = true;
+            s.cam_view  = camera.view_matrix();
+            const f32 fw = static_cast<f32>(width);
+            s.cam_focal = camera.focal_length(fw);
+            s.vp_cx     = fw * 0.5f;
+            s.vp_cy     = static_cast<f32>(height) * 0.5f;
+        }
         renderer::draw_grid_plane(fb, node, state, s);
         return;
     }

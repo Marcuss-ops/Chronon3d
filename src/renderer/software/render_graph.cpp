@@ -168,10 +168,14 @@ NodeId RenderGraph::add_transform(std::string label,
         std::string(node->label()),
         node->cache_key(),
         false,
-        [transform, base_state](RenderGraphExecutionContext&, RenderGraphExecutionState&, NodeId) {
+        [transform, base_state, input](RenderGraphExecutionContext&, RenderGraphExecutionState& state, NodeId) {
             RenderPassResult result;
             result.state = combine(base_state, transform);
             result.has_state = true;
+            // Propagate framebuffer so downstream nodes (e.g. Glass) can read the canvas
+            if (auto it = state.results.find(input); it != state.results.end()) {
+                result.framebuffer = it->second.framebuffer;
+            }
             return result;
         });
     return add_entry(std::move(node), std::move(pass));
@@ -305,9 +309,8 @@ NodeId RenderGraph::add_glass(std::string label,
             }
             ctx.renderer.apply_blur(*blurred, blur_radius);
 
-            // 2. Draw glass panel into a new buffer
-            auto glass_fb = std::make_shared<Framebuffer>(ctx.width, ctx.height);
-            glass_fb->clear(Color::transparent());
+            // 2. Draw glass panel into a copy of the canvas (preserve background)
+            auto glass_fb = std::make_shared<Framebuffer>(*result.framebuffer);
 
             RenderState current = result.state;
             if (layer.mask.enabled()) {
