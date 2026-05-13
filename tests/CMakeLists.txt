@@ -40,6 +40,7 @@ add_executable(chronon3d_tests
     renderer/test_effects.cpp
     renderer/test_text_rendering.cpp
     renderer/test_render_graph.cpp
+    render_graph/test_graph_executor.cpp
 
     # Registries & cache
     registry/test_registries.cpp

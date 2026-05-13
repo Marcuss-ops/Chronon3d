@@ -49,6 +49,12 @@ target("chronon3d_cache")
     add_files("src/cache/*.cpp")
     add_deps("chronon3d")
 
+-- Render Graph Facade
+target("chronon3d_render_graph")
+    set_kind("static")
+    add_files("src/render_graph/*.cpp")
+    add_deps("chronon3d", "chronon3d_cache", "chronon3d_renderer")
+
 -- Effects Library
 target("chronon3d_effects")
     set_kind("static")
@@ -64,7 +70,7 @@ target("chronon3d_renderer")
     add_files("src/layout/*.cpp")
     -- image_cache.cpp defines STB_IMAGE_IMPLEMENTATION; exclude old image_renderer if it had it
 
-    add_deps("chronon3d", "chronon3d_registry", "chronon3d_cache", "chronon3d_effects")
+    add_deps("chronon3d", "chronon3d_registry", "chronon3d_cache", "chronon3d_render_graph", "chronon3d_effects")
     add_packages("spdlog", "stb", "highway", "meshoptimizer", "fmt")
     
     if has_config("profiling") then
@@ -82,7 +88,7 @@ target("chronon3d_io")
 -- Pipeline Library (Interface)
 target("chronon3d_pipeline")
     set_kind("headeronly")
-    add_deps("chronon3d_renderer", "chronon3d_registry", "chronon3d_cache")
+    add_deps("chronon3d_renderer", "chronon3d_registry", "chronon3d_cache", "chronon3d_render_graph")
     add_packages("taskflow", "concurrentqueue", {public = true})
     
     if has_config("profiling") then
@@ -128,11 +134,12 @@ target("chronon3d_tests")
     add_files("tests/renderer/*.cpp")
     add_files("tests/registry/*.cpp")
     add_files("tests/cache/*.cpp")
+    add_files("tests/render_graph/*.cpp")
     add_files("tests/effects/*.cpp")
     add_files("tests/deterministic/*.cpp")
     add_files("tests/io/*.cpp")
     add_files("tests/assets/*.cpp")
     add_files("tests/description/*.cpp")
     add_files("tests/evaluation/*.cpp")
-    add_deps("chronon3d_pipeline", "chronon3d_io")
+    add_deps("chronon3d_pipeline", "chronon3d_io", "chronon3d_render_graph")
     add_packages("doctest", "stb", "meshoptimizer", "xxhash")
