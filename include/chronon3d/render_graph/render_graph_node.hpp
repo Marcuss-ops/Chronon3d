@@ -2,6 +2,7 @@
 
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/renderer/framebuffer.hpp>
+#include <chronon3d/scene/camera.hpp>
 #include <memory>
 #include <string>
 #include <vector>
@@ -35,6 +36,7 @@ struct RenderGraphContext {
     float time_seconds{0.0f};
     int width{0};
     int height{0};
+    Camera camera{};
 
     SoftwareRenderer* renderer{nullptr};
     cache::NodeCache* node_cache{nullptr};

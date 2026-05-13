@@ -2,158 +2,199 @@
 
 ## Prerequisites
 
-| Tool | Required for |
-|---|---|
-| C++20 compiler (GCC 12+ / Clang 15+ / MSVC 2022+) | Core build |
-| xmake OR cmake + ninja | Build system |
-| ffmpeg (in PATH) | `chronon3d_cli video` only — not linked into the engine |
+| Tool | Minimum version | Notes |
+|---|---|---|
+| GCC or Clang | GCC 12 / Clang 15 | C++20 required |
+| CMake | 3.24 | Preset support required |
+| Ninja | any | Generator used by all presets |
+| Git | any | Required by vcpkg |
+| ffmpeg | any | CLI `video` command only — not linked into the engine |
 
 ---
 
-## Method 1: xmake (recommended for development)
-
-xmake manages all C++ dependencies automatically.
-
-### Install xmake (once)
-
-**Linux / macOS:**
-```bash
-curl -fsSL https://xmake.io/shget.text | bash
-source ~/.xmake/profile
-```
-
-**Windows:** Download from https://xmake.io or `winget install xmake`
-
-### Build
+## Quick start (Linux)
 
 ```bash
-xmake f -m debug          # configure (debug)
-xmake f -m release        # configure (release)
-xmake -y                  # build (installs deps on first run)
-```
-
-### Run
-
-```bash
-xmake run -w . chronon3d_cli list
-xmake run -w . chronon3d_cli render ImageProof --frame 0 -o output/image.png
-xmake run -w . chronon3d_cli proofs all -o output/proofs/all
-xmake run -w . chronon3d_cli video Camera25DParallaxProof --start 0 --end 90 --fps 30 -o output/parallax.mp4
-```
-
-### Tests
-
-```bash
-xmake run chronon3d_tests
-```
-
----
-
-## Method 2: CMake + vcpkg
-
-CMake is the production build path. vcpkg manages dependencies.
-
-### Linux
-
-```bash
-# Install vcpkg once
+# 1. Clone and bootstrap vcpkg (one-time)
 git clone https://github.com/microsoft/vcpkg ~/vcpkg
-~/vcpkg/bootstrap-vcpkg.sh
+~/vcpkg/bootstrap-vcpkg.sh -disableMetrics
+
+# 2. Export VCPKG_ROOT for this shell (add to ~/.bashrc / ~/.zshrc to persist)
 export VCPKG_ROOT=~/vcpkg
 
-# Build
-bash tools/chronon-linux.sh
+# 3. Configure — vcpkg installs all dependencies automatically via vcpkg.json
+cmake --preset linux-release
+
+# 4. Build
+cmake --build build/chronon/linux-release -j$(nproc)
 ```
 
-### Windows
+That's it. vcpkg reads `vcpkg.json` at the project root and installs every dependency into `vcpkg_installed/` before CMake runs. No manual `vcpkg install` needed.
+
+---
+
+## Build presets
+
+Presets are defined in `CMakePresets.json`.
+
+| Preset | Platform | Use |
+|---|---|---|
+| `linux-release` | Linux | Production / CI |
+| `linux-debug` | Linux | Development |
+| `win-release` | Windows | Production / CI |
+| `win-debug` | Windows | Development |
+
+```bash
+cmake --preset linux-debug
+cmake --build build/chronon/linux-debug -j$(nproc)
+```
+
+---
+
+## Running tests
+
+```bash
+ctest --test-dir build/chronon/linux-release --output-on-failure
+```
+
+Or run the binary directly for faster iteration:
+
+```bash
+./build/chronon/linux-release/chronon3d_tests
+./build/chronon/linux-release/chronon3d_tests -tc="GraphExecutor*"
+```
+
+---
+
+## Running the CLI
+
+```bash
+# List all registered compositions
+./build/chronon/linux-release/chronon3d_cli list
+
+# Render a single frame
+./build/chronon/linux-release/chronon3d_cli render MyComp --frame 0 -o output/frame.png
+
+# Render a frame range
+./build/chronon/linux-release/chronon3d_cli render MyComp --start 0 --end 90 \
+    -o output/frames/frame_####.png
+
+# Export video (requires ffmpeg in PATH)
+./build/chronon/linux-release/chronon3d_cli video MyComp \
+    --start 0 --end 90 --fps 30 -o output/my_comp.mp4
+
+# Run built-in proof suites
+./build/chronon/linux-release/chronon3d_cli proofs all -o output/proofs
+```
+
+---
+
+## Windows
 
 ```powershell
-.\tools\chronon-win.ps1           # Release (default)
-.\tools\chronon-win.ps1 -Configuration Debug
-```
+# 1. Clone and bootstrap vcpkg
+git clone https://github.com/microsoft/vcpkg $env:USERPROFILE\vcpkg
+& "$env:USERPROFILE\vcpkg\bootstrap-vcpkg.bat" -disableMetrics
+$env:VCPKG_ROOT = "$env:USERPROFILE\vcpkg"
 
-### CMake manual
-
-```bash
-cmake --preset linux-release
-cmake --build --preset linux
-```
-
----
-
-## Workflow
-
-### Render a single frame
-
-```bash
-chronon3d_cli render MyComp --frame 0 -o output/frame.png
-```
-
-### Render a frame range
-
-```bash
-chronon3d_cli render MyComp --start 0 --end 90 -o output/frames/frame_####.png
-```
-
-Creates `frame_0000.png` … `frame_0089.png` in `output/frames/`.
-
-### Export video (requires ffmpeg)
-
-```bash
-chronon3d_cli video MyComp --start 0 --end 90 --fps 30 -o output/my_comp.mp4
-```
-
-Options: `--crf 18`, `--preset medium`, `--keep-frames`, `--frames-dir <path>`.
-
-**ffmpeg** must be installed separately and available in `PATH`. It is not linked into the engine.
-
-### Run proof suites
-
-```bash
-chronon3d_cli proofs list
-chronon3d_cli proofs image    -o output/proofs/image
-chronon3d_cli proofs masks    -o output/proofs/masks
-chronon3d_cli proofs camera25d -o output/proofs/camera25d
-chronon3d_cli proofs all      -o output/proofs/all
+# 2. Configure and build
+cmake --preset win-release
+cmake --build build\chronon\win-release
 ```
 
 ---
 
-## Directory Structure
+## Troubleshooting
 
-| Path | Content |
-|---|---|
-| `apps/chronon3d_cli/` | CLI source |
-| `examples/` | Compositions and proof compositions |
-| `include/chronon3d/` | Public headers |
-| `src/` | Renderer, scene, IO |
-| `tests/` | doctest test suite |
-| `tools/` | Build helper scripts |
-| `assets/` | Fonts and test images |
-| `output/` | Generated output — gitignored |
-| `docs/` | Internal design notes |
+### `vcpkg install` fails with "baseline not found"
+
+The clone was shallow. Run:
+
+```bash
+git -C ~/vcpkg fetch --unshallow
+```
+
+### Ninja not found by CMake
+
+Add your Ninja binary directory to PATH before running cmake:
+
+```bash
+export PATH="/path/to/ninja/bin:$PATH"
+```
+
+On Linux, `ninja-build` is the apt package name:
+
+```bash
+sudo apt install ninja-build
+```
+
+### `xxhash` not found
+
+Check the case: it must be `xxHash` (capital H) in `find_package`. The package name in vcpkg is case-sensitive on Linux.
+
+### `tomlplusplus` not found
+
+It must be present in both `vcpkg.json` and `CMakeLists.txt`. If you added it only to one, add it to the other and re-run `cmake --preset linux-release`.
 
 ---
 
-## Adding a Composition
+## Adding a composition
 
 1. Create `examples/my_comp.cpp`
 2. Include `<chronon3d/chronon3d.hpp>`
 3. Define a function returning `Composition`
 4. Register it with `CHRONON_REGISTER_COMPOSITION("MyComp", MyComp)`
-5. Rebuild — no CMake/xmake changes needed (glob picks it up)
+5. Rebuild — the glob in `CMakeLists.txt` picks it up automatically, no CMake changes needed
 
 ```cpp
 #include <chronon3d/chronon3d.hpp>
 using namespace chronon3d;
 
 static Composition MyComp() {
-    return composition({ .name = "MyComp", .width = 1280, .height = 720, .duration = 60 },
+    return composition(
+        { .name = "MyComp", .width = 1280, .height = 720, .duration = 60 },
         [](const FrameContext& ctx) {
             SceneBuilder s(ctx);
             s.rect("bg", { .size = {1280, 720}, .color = Color::black(), .pos = {640, 360, 0} });
             return s.build();
-        });
+        }
+    );
 }
 CHRONON_REGISTER_COMPOSITION("MyComp", MyComp)
 ```
+
+---
+
+## Adding a test
+
+Tests live in `tests/` and are picked up by glob. Create a new `.cpp` file, include `<doctest/doctest.h>`, and write `TEST_CASE` blocks. No CMake changes needed.
+
+```cpp
+#include <doctest/doctest.h>
+#include <chronon3d/render_graph/render_graph.hpp>
+
+TEST_CASE("my test") {
+    CHECK(1 + 1 == 2);
+}
+```
+
+---
+
+## Dependency list
+
+All dependencies are managed by vcpkg via `vcpkg.json`. They are built from source and installed into `vcpkg_installed/` (gitignored).
+
+| Package | Version pinned in baseline | Purpose |
+|---|---|---|
+| glm | via baseline | Math — Vec, Mat, Quat |
+| spdlog + fmt | via baseline | Logging |
+| xxhash | via baseline | Fast hashing for cache keys |
+| taskflow | via baseline | Parallel frame pipeline |
+| highway | via baseline | SIMD pixel blending |
+| meshoptimizer | via baseline | Mesh utilities |
+| concurrentqueue | via baseline | Lock-free queues |
+| stb | via baseline | Image load/write, font rasterization |
+| cli11 | via baseline | CLI argument parsing |
+| doctest | via baseline | Test framework |
+| tomlplusplus | via baseline | TOML config parsing in CLI |
+| tracy | via baseline | Profiling (optional, off by default) |

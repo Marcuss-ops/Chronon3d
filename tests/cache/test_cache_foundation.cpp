@@ -3,6 +3,7 @@
 #include <chronon3d/cache.hpp>
 #include <memory>
 
+using namespace chronon3d;
 using namespace chronon3d::cache;
 
 TEST_CASE("NodeCacheKey digest changes when fields change") {
@@ -38,7 +39,7 @@ TEST_CASE("NodeCache stores and retrieves framebuffer values") {
 
     REQUIRE(cache.contains(key));
     REQUIRE(cache.find(key) != nullptr);
-    CHECK(*cache.find(key) == fb);
+    CHECK(cache.find(key).get() == fb.get());
     CHECK(cache.erase(key));
     CHECK(cache.find(key) == nullptr);
 }
@@ -58,8 +59,9 @@ TEST_CASE("FrameCache stores and retrieves framebuffer values") {
     cache.store(key, fb);
 
     REQUIRE(cache.contains(key));
-    REQUIRE(cache.find(key) != nullptr);
-    CHECK(*cache.find(key) == fb);
+    const auto* found = cache.find(key);
+    REQUIRE(found != nullptr);
+    CHECK(found->get() == fb.get());
     cache.clear();
     CHECK(cache.size() == 0);
 }

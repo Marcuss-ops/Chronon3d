@@ -33,9 +33,9 @@ void register_builtin_sources(SourceRegistry& registry) {
         .id = "source.video",
         .display_name = "Video Source",
         .kind = SourceKind::Video,
-        .temporal = true,
         .description = "Decodes frames from a video clip",
         .builtin = true,
+        .temporal = true,
     });
     registry.register_source(SourceDescriptor{
         .id = "source.layer",

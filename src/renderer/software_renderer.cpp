@@ -12,7 +12,6 @@
 #include <algorithm>
 #include <memory_resource>
 #include <fmt/format.h>
-#include <chronon3d/render_graph/graph_executor.hpp>
 #include <optional>
 #include <cstdint>
 #include <type_traits>
@@ -232,14 +231,6 @@ template <typename T>
     return seed;
 }
 
-[[nodiscard]] u64 hash_layer_effect(const LayerEffect& effect) {
-    u64 seed = hash_value_local(effect.blur_radius);
-    seed = hash_combine(seed, hash_value_local(effect.brightness));
-    seed = hash_combine(seed, hash_value_local(effect.contrast));
-    seed = hash_combine(seed, hash_color(effect.tint));
-    return seed;
-}
-
 [[nodiscard]] u64 hash_effect_stack(const EffectStack& stack) {
     u64 seed = hash_value_local(stack.size());
     for (const auto& inst : stack) {
@@ -318,7 +309,6 @@ template <typename T>
     seed = hash_combine(seed, hash_value_local(layer.visible));
     seed = hash_combine(seed, hash_value_local(layer.is_3d));
     seed = hash_combine(seed, hash_mask_layer(layer.mask));
-    seed = hash_combine(seed, hash_layer_effect(layer.effect));
     seed = hash_combine(seed, hash_effect_stack(layer.effects));
     seed = hash_combine(seed, hash_value_local(static_cast<u64>(layer.blend_mode)));
     seed = hash_combine(seed, hash_value_local(static_cast<u64>(layer.depth_role)));
@@ -405,8 +395,7 @@ std::string SoftwareRenderer::debug_render_graph(const Scene& scene, const Camer
                                                  f32 frame_time) const
 {
     auto graph = build_render_graph(scene, camera, width, height, frame, frame_time);
-    render_graph::GraphExecutor executor(m_node_cache);
-    return executor.debug_dot_decorated(graph);
+    return graph.debug_dot();
 }
 
 
@@ -417,7 +406,6 @@ std::unique_ptr<Framebuffer> SoftwareRenderer::render_scene_internal(
 {
     ZoneScoped;
     auto graph_wrapper = build_render_graph(scene, camera, width, height, frame, frame_time);
-    render_graph::GraphExecutor executor(m_node_cache);
 
     rendergraph::RenderGraphExecutionContext ctx{
         .renderer = *this,
@@ -428,7 +416,7 @@ std::unique_ptr<Framebuffer> SoftwareRenderer::render_scene_internal(
         .diagnostic = diagnostic_,
     };
 
-    return executor.execute(graph_wrapper, ctx);
+    return graph_wrapper.execute(ctx);
 }
 
 
@@ -502,9 +490,9 @@ rendergraph::RenderGraph SoftwareRenderer::build_render_graph(
         current_hash = source_key.digest();
 
         NodeId after_effects = source;
-        if (!layer.effects.empty() || layer.effect.has_any()) {
+        if (!layer.effects.empty()) {
             const auto effect_key = make_key(scope_prefix + ".effect", frame, width, height,
-                                             hash_combine(hash_combine(hash_effect_stack(layer.effects), hash_layer_effect(layer.effect)),
+                                             hash_combine(hash_effect_stack(layer.effects),
                                                           hash_combine(scene_hash, frame_time_hash)),
                                              layer_hash, current_hash);
             after_effects = graph.add_effect(scope_prefix + ".effect",
@@ -515,8 +503,7 @@ rendergraph::RenderGraph SoftwareRenderer::build_render_graph(
         if (dof_blur.has_value() && *dof_blur > 0.5f) {
             Layer blur_layer = layer;
             blur_layer.effects.clear();
-            blur_layer.effect = LayerEffect{};
-            blur_layer.effect.blur_radius = *dof_blur;
+            blur_layer.effects.push_back(EffectInstance{BlurParams{*dof_blur}});
 
             const auto blur_key = make_key(scope_prefix + ".dof", frame, width, height,
                                            hash_combine(hash_value_local(*dof_blur), hash_combine(scene_hash, frame_time_hash)),
@@ -536,10 +523,10 @@ rendergraph::RenderGraph SoftwareRenderer::build_render_graph(
     };
 
     auto apply_adjustment_layer = [&](const Layer& layer, const std::string& scope_prefix) {
-        if (!layer.effects.empty() || layer.effect.has_any()) {
+        if (!layer.effects.empty()) {
             const u64 layer_hash = hash_layer(layer);
             const auto effect_key = make_key(scope_prefix + ".adjustment", frame, width, height,
-                                             hash_combine(hash_combine(hash_effect_stack(layer.effects), hash_layer_effect(layer.effect)),
+                                             hash_combine(hash_effect_stack(layer.effects),
                                                           hash_combine(scene_hash, frame_time_hash)),
                                              layer_hash, current_hash);
             current = graph.add_effect(scope_prefix + ".adjustment",

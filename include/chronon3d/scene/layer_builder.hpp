@@ -3,7 +3,6 @@
 #include <chronon3d/scene/layer.hpp>
 #include <chronon3d/scene/builder_params.hpp>
 #include <chronon3d/scene/mask.hpp>
-#include <chronon3d/scene/layer_effect.hpp>
 #include <chronon3d/scene/effect_stack.hpp>
 #include <chronon3d/layout/layout_rules.hpp>
 #include <chronon3d/renderer/video_frame_provider.hpp>
@@ -88,26 +87,21 @@ public:
     LayerBuilder& depth_role(DepthRole role) { m_layer.depth_role = role; return *this; }
     LayerBuilder& depth_offset(f32 offset)   { m_layer.depth_offset = offset; return *this; }
 
-    // Effects — each call appends to the ordered stack (and mirrors into the
-    // legacy flat effect for renderers that still read layer.effect).
+    // Effects — each call appends to the ordered stack.
     LayerBuilder& blur(f32 radius) {
         m_layer.effects.push_back({BlurParams{radius}});
-        m_layer.effect.blur_radius = radius;
         return *this;
     }
     LayerBuilder& tint(Color color, f32 amount = 1.0f) {
         m_layer.effects.push_back({TintParams{color, amount}});
-        m_layer.effect.tint = Color{color.r, color.g, color.b, color.a * amount};
         return *this;
     }
     LayerBuilder& brightness(f32 v) {
         m_layer.effects.push_back({BrightnessParams{v}});
-        m_layer.effect.brightness = v;
         return *this;
     }
     LayerBuilder& contrast(f32 v) {
         m_layer.effects.push_back({ContrastParams{v}});
-        m_layer.effect.contrast = v;
         return *this;
     }
     LayerBuilder& drop_shadow(Vec2 offset, Color color = {0,0,0,0.35f}, f32 radius = 12.0f) {

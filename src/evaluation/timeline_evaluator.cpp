@@ -20,24 +20,26 @@ inline f32 resolve_z(const LayerDesc& l, Vec3 evaluated_pos) {
     return evaluated_pos.z;
 }
 
-// Map EffectDesc entries to the flat LayerEffect struct.
-inline LayerEffect resolve_effects(const std::vector<EffectDesc>& descs) {
-    LayerEffect eff;
+// Map EffectDesc entries to an ordered EffectStack.
+inline EffectStack resolve_effects(const std::vector<EffectDesc>& descs) {
+    EffectStack stack;
     for (const auto& d : descs) {
-        std::visit([&eff](const auto& e) {
+        std::visit([&stack](const auto& e) {
             using T = std::decay_t<decltype(e)>;
             if constexpr (std::is_same_v<T, BlurEffectDesc>) {
-                eff.blur_radius = e.radius;
+                stack.push_back(EffectInstance{BlurParams{e.radius}});
             } else if constexpr (std::is_same_v<T, TintEffectDesc>) {
-                eff.tint = e.color;
+                stack.push_back(EffectInstance{TintParams{e.color, 1.0f}});
             } else if constexpr (std::is_same_v<T, BrightnessContrastEffectDesc>) {
-                eff.brightness = e.brightness;
-                eff.contrast   = e.contrast;
+                if (e.brightness != 0.0f)
+                    stack.push_back(EffectInstance{BrightnessParams{e.brightness}});
+                if (e.contrast != 1.0f)
+                    stack.push_back(EffectInstance{ContrastParams{e.contrast}});
             }
             // DropShadow / Glow: per-RenderNode; handled by LegacySceneAdapter.
         }, d);
     }
-    return eff;
+    return stack;
 }
 
 } // namespace
@@ -75,8 +77,7 @@ EvaluatedScene TimelineEvaluator::evaluate(const SceneDescription& scene, Frame 
         // Copy static visuals
         el.visuals = ld.visuals;
 
-        // Resolve effects into flat struct
-        el.resolved_effect = resolve_effects(ld.effects);
+        el.resolved_effects = resolve_effects(ld.effects);
 
         result.layers.push_back(std::move(el));
     }

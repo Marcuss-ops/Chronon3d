@@ -24,7 +24,7 @@ find_package(Taskflow CONFIG REQUIRED)
 find_package(concurrentqueue CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)
 find_package(meshoptimizer CONFIG REQUIRED)
-find_package(xxhash CONFIG REQUIRED)
+find_package(xxHash CONFIG REQUIRED)
 find_package(Stb REQUIRED)
 find_package(CLI11 CONFIG REQUIRED)
 find_package(hwy CONFIG REQUIRED)
@@ -46,7 +46,7 @@ target_link_libraries(chronon3d
     INTERFACE
         glm::glm
         meshoptimizer::meshoptimizer
-        xxhash::xxhash
+        xxHash::xxhash
 )
 target_compile_features(chronon3d INTERFACE cxx_std_20)
 
