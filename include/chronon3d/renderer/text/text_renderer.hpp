@@ -15,6 +15,11 @@ public:
     bool draw_text(const TextShape& text, const Transform& tr, Framebuffer& fb,
                    const RenderState* state = nullptr);
 
+    // Returns raw font bytes for mesh-based rendering; null if not found.
+    const CachedFont* get_font(const std::string& path) {
+        return m_cache.get_or_load(path);
+    }
+
     void clear_cache() { m_cache.clear(); }
 
 private:

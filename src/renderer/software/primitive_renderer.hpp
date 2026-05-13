@@ -13,6 +13,8 @@ namespace chronon3d {
 namespace renderer {
 
 void fill_convex_quad(Framebuffer& fb, const Vec2 v[4], const Color& color);
+// Gouraud-shaded quad: colors[i] maps to v[i], bilinear interpolated across the quad.
+void fill_gradient_quad(Framebuffer& fb, const Vec2 v[4], const Color colors[4]);
 void bline(Framebuffer& fb, Vec2 p0, Vec2 p1, const Color& color);
 
 void draw_fake_box3d(Framebuffer& fb, const RenderNode& node, const RenderState& state, const FakeBox3DShape& shape);
