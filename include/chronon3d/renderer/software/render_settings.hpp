@@ -17,9 +17,16 @@ struct RenderSettings {
     MotionBlurSettings motion_blur{};
 
     /**
+     * Anti-aliasing factor (Super Sampling). 
+     * 1.0 = none, 2.0 = 2x2 grid (4 samples/pixel).
+     */
+    float ssaa_factor{1.0f};
+
+    /**
      * If true, enables diagnostic overlays and info in the output.
      */
     bool diagnostic{false};
+
 };
 
 } // namespace chronon3d

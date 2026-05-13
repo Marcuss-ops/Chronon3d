@@ -101,8 +101,38 @@ public:
     // The pos field in params sets both layer world position (for depth sorting)
     // and the shape's world_pos (for proper face projection).
     SceneBuilder& fake_box3d_layer(std::string name, FakeBox3DParams p) {
+        if (p.contact_shadow) {
+            contact_shadow_layer(name + "_shadow", {
+                .pos    = p.pos,
+                .size   = {p.size.x * 1.3f, p.size.y * 1.3f},
+                .blur   = 25.0f,
+                .opacity = 0.40f
+            });
+        }
+        if (p.reflective) {
+            // Add mirrored reflection layer
+            layer(name + "_reflection", [p](LayerBuilder& l) {
+                auto rp = p;
+                const f32 floor_y = p.floor_y; 
+                rp.pos.y = floor_y - (p.pos.y - floor_y);
+                l.enable_3d().position(rp.pos).fake_box3d("reflection", rp)
+                 .opacity(0.35f).blur(12.0f);
+            });
+        }
         return layer(std::move(name), [p](LayerBuilder& l) {
             l.enable_3d().position(p.pos).fake_box3d("box", p);
+        });
+    }
+
+    SceneBuilder& glass_panel_layer(std::string name, Vec3 pos, Vec2 size, f32 blur_radius = 20.0f, f32 opacity = 0.5f) {
+        return layer(std::move(name), [pos, size, blur_radius, opacity](LayerBuilder& l) {
+            l.kind(LayerKind::Glass)
+             .position(pos)
+             .rect("glass_base", { .size = size, .color = Color::white() })
+             .opacity(opacity)
+
+
+             .blur(blur_radius);
         });
     }
 
@@ -111,6 +141,17 @@ public:
             l.enable_3d().position(p.pos).grid_plane("grid", p);
         });
     }
+
+    /**
+     * reflective_floor_layer
+     * 
+     * Creates a studio-grade floor with grid and enables the internal reflection
+     * logic for objects at this floor level.
+     */
+    SceneBuilder& reflective_floor_layer(std::string name, GridPlaneParams p) {
+        return grid_plane_layer(std::move(name), p);
+    }
+
 
     // Contact shadow: double-layered blurred rounded rect for realism.
     // Includes a soft "footprint" and a tighter "occlusion" core.
