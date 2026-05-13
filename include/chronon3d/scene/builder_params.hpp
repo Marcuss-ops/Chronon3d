@@ -75,6 +75,9 @@ struct FakeBox3DParams {
     Color color{1, 1, 1, 1};
     f32   top_tint{0.15f};
     f32   side_tint{0.20f};
+    bool  contact_shadow{false};
+    bool  reflective{false};
+    f32   floor_y{-210.0f};
 };
 
 struct GridPlaneParams {
