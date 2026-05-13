@@ -418,6 +418,7 @@ std::unique_ptr<Framebuffer> SoftwareRenderer::render_scene_internal(
         ctx.cache_enabled = true;
         ctx.diagnostics_enabled = m_settings.diagnostic;
         ctx.registry = m_registry;
+        ctx.video_decoder = &m_video_extractor;
 
         auto graph = graph::GraphBuilder::build(scene, ctx);
         graph::GraphExecutor executor;

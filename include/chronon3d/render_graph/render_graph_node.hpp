@@ -12,6 +12,10 @@ namespace chronon3d {
     class CompositionRegistry;
 }
 
+namespace chronon3d::video {
+    class VideoDecoder;
+}
+
 namespace chronon3d::graph {
 
 class RenderProfiler;
@@ -42,6 +46,7 @@ struct RenderGraphContext {
     cache::NodeCache* node_cache{nullptr};
     RenderProfiler* profiler{nullptr};
     const CompositionRegistry* registry{nullptr};
+    video::VideoDecoder* video_decoder{nullptr};
 
     bool cache_enabled{true};
     bool diagnostics_enabled{false};

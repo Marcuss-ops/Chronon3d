@@ -8,6 +8,7 @@
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/core/frame.hpp>
 #include <chronon3d/core/frame_context.hpp>
+#include <chronon3d/video/video_source.hpp>
 #include <string>
 #include <functional>
 
@@ -74,6 +75,27 @@ public:
             scene_.add_layer(std::move(l));
         }
         return *this;
+    }
+
+    template <typename Fn>
+    SceneBuilder& video_layer(std::string name, video::VideoSource source, Fn&& fn) {
+        LayerBuilder builder(std::move(name), scene_.resource());
+        std::forward<Fn>(fn)(builder);
+
+        Layer l = builder.build();
+        l.kind = LayerKind::Video;
+        l.video_source = std::move(source);
+        if (l.active_at(current_frame_)) {
+            scene_.add_layer(std::move(l));
+        }
+        return *this;
+    }
+
+    template <typename Fn>
+    SceneBuilder& video_layer(std::string name, std::string path, Fn&& fn) {
+        video::VideoSource source;
+        source.path = std::move(path);
+        return video_layer(std::move(name), std::move(source), std::forward<Fn>(fn));
     }
 
     // Fluent API for transformations (root level)
