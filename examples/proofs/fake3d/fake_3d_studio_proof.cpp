@@ -32,12 +32,13 @@ static Composition Fake3DStudioProof() {
                              .color = Materials::studio_background()});
         });
 
-        // Camera: elevated orbit, starts at 25° for visible box sides
+        // Camera: slightly elevated orbit, starts at 35° so the text extrusion side
+        // is clearly visible from the opening frame.
         s.null_layer("cam_rig", [&](LayerBuilder& l) {
-            l.position({0, 0, 0}).rotate({0, 25.0f + t * 360.0f, 0});
+            l.position({0, 0, 0}).rotate({0, 35.0f + t * 360.0f, 0});
         });
         s.enable_camera_2_5d()
-         .camera_position({0, 480, -1100})
+         .camera_position({0, 380, -1100})
          .camera_zoom(1020.0f)
          .camera_parent("cam_rig")
          .camera_look_at({0, 0, 0});
@@ -80,19 +81,20 @@ static Composition Fake3DStudioProof() {
             .contact_shadow = true
         });
 
-        // CHRONON — flat 2D-in-3D. Clean premium title, no fake-extrusion artifacts.
-        s.layer("tilt", [](LayerBuilder& l) {
-            l.enable_3d()
-             .position({0, 240, -120})
-             .text("t", {
-                 .content = "CHRONON",
-                 .style   = {.font_path = "assets/fonts/Inter-Bold.ttf",
-                             .size  = 76,
-                             .color = Color{0.98f, 0.95f, 0.88f, 1.0f},
-                             .align = TextAlign::Center}
-             })
-             .drop_shadow({0, 8}, Color{0, 0, 0, 0.55f}, 14.0f)
-             .glow(12.0f, 0.20f, Color{1.0f, 0.88f, 0.55f, 1.0f});
+        // CHRONON — mesh extrusion (glyph outlines → side quads, camera-correct shading)
+        // extrude_dir.x pushes right (visible at 25° orbit), extrude_z goes into scene
+        s.fake_extruded_text_layer("tilt", {
+            .text           = "CHRONON",
+            .pos            = {0, 240, -80},
+            .font_size      = 76,
+            .depth          = 28,
+            .extrude_dir    = {0.8f, 0.0f},
+            .extrude_z_step = 3.0f,            // depth_z=84 → visible rim ~48px at 35°
+            .front_color    = Color{0.98f, 0.95f, 0.88f, 1.0f},
+            .side_color     = Color{0.48f, 0.40f, 0.28f, 1.0f},
+            .side_fade      = 0.02f,
+            .align          = TextAlign::Center,
+            .highlight_opacity = 0.12f
         });
 
         // Global bloom: Soft but present
