@@ -245,6 +245,12 @@ rendergraph::RenderGraph build_software_render_graph(
                     nd.shape.grid_plane.cam_focal  = fake3d_focal;
                     nd.shape.grid_plane.vp_cx      = vp_cx;
                     nd.shape.grid_plane.vp_cy      = vp_cy;
+                } else if (nd.shape.type == ShapeType::FakeExtrudedText) {
+                    nd.shape.fake_extruded_text.cam_ready = true;
+                    nd.shape.fake_extruded_text.cam_view  = fake3d_view;
+                    nd.shape.fake_extruded_text.cam_focal  = fake3d_focal;
+                    nd.shape.fake_extruded_text.vp_cx      = vp_cx;
+                    nd.shape.fake_extruded_text.vp_cy      = vp_cy;
                 }
             }
         }
