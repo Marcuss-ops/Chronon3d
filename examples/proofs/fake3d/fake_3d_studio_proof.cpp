@@ -80,19 +80,19 @@ static Composition Fake3DStudioProof() {
             .contact_shadow = true
         });
 
-        // CHRONON — back-trace solid, camera projects Z as top face + slight side
-        s.fake_extruded_text_layer("tilt", {
-            .text              = "CHRONON",
-            .pos               = {0, 210, -60},
-            .font_size         = 88,
-            .depth             = 18,
-            .extrude_dir       = {0.3f, 0.0f},   // slight right for side at 25° orbit
-            .extrude_z_step    = 2.2f,
-            .front_color       = Color{0.97f, 0.96f, 0.92f, 1.0f},
-            .side_color        = Color{0.46f, 0.40f, 0.31f, 0.95f},
-            .side_fade         = 0.06f,
-            .align             = TextAlign::Center,
-            .highlight_opacity = 0.11f
+        // CHRONON — flat 2D-in-3D. Clean premium title, no fake-extrusion artifacts.
+        s.layer("tilt", [](LayerBuilder& l) {
+            l.enable_3d()
+             .position({0, 80, -180})
+             .text("t", {
+                 .content = "CHRONON",
+                 .style   = {.font_path = "assets/fonts/Inter-Bold.ttf",
+                             .size  = 72,
+                             .color = Color{0.98f, 0.95f, 0.88f, 1.0f},
+                             .align = TextAlign::Center}
+             })
+             .drop_shadow({0, 8}, Color{0, 0, 0, 0.55f}, 14.0f)
+             .glow(12.0f, 0.20f, Color{1.0f, 0.88f, 0.55f, 1.0f});
         });
 
         // Global bloom: Soft but present
