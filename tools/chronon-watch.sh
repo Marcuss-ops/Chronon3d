@@ -1,18 +1,23 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$ROOT_DIR"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$PROJECT_DIR"
 
 latest_stamp() {
   local latest=0
   local paths=(
-    "include/chronon"
-    "scenes"
+    "include/chronon3d"
+    "apps/chronon3d_cli"
+    "examples"
     "src"
+    "tests"
     "CMakeLists.txt"
     "CMakePresets.json"
     "vcpkg.json"
+    "xmake.lua"
+    "tools"
   )
 
   for path in "${paths[@]}"; do
@@ -36,10 +41,10 @@ latest_stamp() {
   echo "$latest"
 }
 
-bash "$ROOT_DIR/chronon-linux.sh"
+bash "$SCRIPT_DIR/chronon-linux.sh"
 
 last_stamp="$(latest_stamp)"
-echo "Chronon watch running. Watching include/chronon, scenes, src, and build files."
+echo "Chronon watch running. Watching include/chronon3d, apps/chronon3d_cli, examples, src, tests, and build files."
 
 while true; do
   sleep 1
@@ -47,6 +52,6 @@ while true; do
   if [[ "$current_stamp" != "$last_stamp" ]]; then
     last_stamp="$current_stamp"
     echo "Change detected, rebuilding ChrononTemplate..."
-    CHRONON_SKIP_DEPS=1 bash "$ROOT_DIR/chronon-linux.sh"
+    CHRONON_SKIP_DEPS=1 bash "$SCRIPT_DIR/chronon-linux.sh"
   fi
 done
