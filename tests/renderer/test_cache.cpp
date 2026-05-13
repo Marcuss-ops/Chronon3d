@@ -1,6 +1,6 @@
 #include <doctest/doctest.h>
-#include <chronon3d/renderer/image_cache.hpp>
-#include <chronon3d/renderer/font_cache.hpp>
+#include <chronon3d/renderer/assets/image_cache.hpp>
+#include <chronon3d/renderer/assets/font_cache.hpp>
 #include <filesystem>
 
 using namespace chronon3d;

@@ -1,5 +1,5 @@
 #include "render_hash_utils.hpp"
-#include <chronon3d/renderer/render_graph.hpp>
+#include <chronon3d/renderer/software/render_graph.hpp>
 #include <chronon3d/scene/layer_effect.hpp>
 #include <chronon3d/scene/effect_stack.hpp>
 #include <type_traits>

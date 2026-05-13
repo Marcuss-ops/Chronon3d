@@ -2,7 +2,7 @@
 
 #include <chronon3d/render_graph/render_graph_node.hpp>
 #include <chronon3d/render_graph/render_graph_hashing.hpp>
-#include <chronon3d/renderer/software_renderer.hpp>
+#include <chronon3d/renderer/software/software_renderer.hpp>
 #include <chronon3d/scene/layer.hpp>
 #include <chronon3d/scene/mask_utils.hpp>
 

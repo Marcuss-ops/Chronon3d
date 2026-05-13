@@ -4,7 +4,7 @@
 // and invariance of 2D layers under camera movement.
 
 #include <doctest/doctest.h>
-#include <chronon3d/renderer/software_renderer.hpp>
+#include <chronon3d/renderer/software/software_renderer.hpp>
 #include <chronon3d/scene/scene_builder.hpp>
 #include <chronon3d/scene/layer_builder.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
