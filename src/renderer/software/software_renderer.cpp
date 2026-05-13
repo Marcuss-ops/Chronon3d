@@ -6,6 +6,7 @@
 #include "primitive_renderer.hpp"
 #include "render_graph_builder.hpp"
 #include "render_effects_processor.hpp"
+#include <stb_truetype.h>   // implementation compiled in text_renderer.cpp
 #include <fmt/format.h>
 #include <algorithm>
 #include <cmath>
@@ -214,98 +215,266 @@ void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node, const 
         const auto& s = node.shape.fake_extruded_text;
         const f32 op = state.opacity;
 
-        // Compute screen-space front position
-        Vec2 front_sp;
-        if (s.cam_ready) {
-            bool ok;
-            front_sp = renderer::project_2_5d(s.world_pos, s.cam_view, s.cam_focal, s.vp_cx, s.vp_cy, ok);
-            if (!ok) return;
-        } else {
-            front_sp = Vec2{s.world_pos.x, s.world_pos.y};
-        }
+        // ── SCREEN-SPACE FALLBACK (no camera) ─────────────────────────────────
+        // Used by FakeExtrudedTextProof comparison without 3D camera.
+        if (!s.cam_ready) {
+            const Vec2 front_sp{s.world_pos.x, s.world_pos.y};
+            Vec2 dir{s.extrude_dir.x, s.extrude_dir.y};
+            const f32 dir_len = std::sqrt(dir.x*dir.x + dir.y*dir.y);
 
-        // Screen-space extrude direction: project one step from world_pos
-        Vec2 dir;
-        if (s.cam_ready) {
-            bool ok1;
-            Vec3 wp1 = s.world_pos + Vec3{s.extrude_dir.x, s.extrude_dir.y, s.extrude_z_step};
-            Vec2 sp1 = renderer::project_2_5d(wp1, s.cam_view, s.cam_focal, s.vp_cx, s.vp_cy, ok1);
-            dir = ok1 ? (sp1 - front_sp) : Vec2{s.extrude_dir.x, s.extrude_dir.y};
-        } else {
-            dir = Vec2{s.extrude_dir.x, s.extrude_dir.y};
-        }
-
-        const f32 dir_len = std::sqrt(dir.x * dir.x + dir.y * dir.y);
-
-        // Render front face to mask buffer
-        Framebuffer front_mask(fb.width(), fb.height());
-        front_mask.clear(Color::transparent());
-        {
-            TextShape ts;
-            ts.text = s.text; ts.style.font_path = s.font_path;
-            ts.style.size = s.font_size; ts.style.color = Color{1, 1, 1, 1};
-            ts.style.align = s.align;
-            Transform tr; tr.position = Vec3(front_sp.x, front_sp.y, 0.0f);
-            m_text_renderer.draw_text(ts, tr, front_mask);
-        }
-
-        if (dir_len > 0.1f && s.depth > 0) {
-            // Single-pass solid extrusion via back-trace:
-            // For every pixel NOT in front_mask, trace backwards along -dir.
-            // If we hit a front pixel within depth steps → this is a SIDE FACE pixel.
-            // Distance from the hit determines the shading (near=light, far=dark).
-            const f32 inv_depth = 1.0f / static_cast<f32>(s.depth);
-
-            for (int y = 0; y < fb.height(); ++y) {
-                for (int x = 0; x < fb.width(); ++x) {
-                    if (front_mask.get_pixel(x, y).a > 0.05f) continue;
-
-                    bool found = false;
-                    f32  dist  = 0.0f;
-
-                    for (int step = 1; step <= s.depth; ++step) {
-                        const int sx = x - static_cast<int>(dir.x * step + 0.5f);
-                        const int sy = y - static_cast<int>(dir.y * step + 0.5f);
-                        if (sx < 0 || sx >= fb.width() || sy < 0 || sy >= fb.height()) break;
-                        if (front_mask.get_pixel(sx, sy).a > 0.05f) {
-                            dist  = static_cast<f32>(step) * inv_depth;
-                            found = true;
-                            break;
+            Framebuffer front_mask(fb.width(), fb.height());
+            front_mask.clear(Color::transparent());
+            {
+                TextShape ts; ts.text=s.text; ts.style.font_path=s.font_path;
+                ts.style.size=s.font_size; ts.style.color=Color{1,1,1,1};
+                ts.style.align=s.align;
+                Transform tr; tr.position=Vec3(front_sp.x,front_sp.y,0);
+                m_text_renderer.draw_text(ts,tr,front_mask);
+            }
+            if (dir_len > 0.1f && s.depth > 0) {
+                const f32 inv_d = 1.0f/static_cast<f32>(s.depth);
+                for (int y=0; y<fb.height(); ++y) {
+                    for (int x=0; x<fb.width(); ++x) {
+                        if (front_mask.get_pixel(x,y).a > 0.05f) continue;
+                        bool found=false; f32 dist=0;
+                        for (int st=1; st<=s.depth; ++st) {
+                            int sx=x-static_cast<int>(dir.x*st+0.5f);
+                            int sy=y-static_cast<int>(dir.y*st+0.5f);
+                            if (sx<0||sx>=fb.width()||sy<0||sy>=fb.height()) break;
+                            if (front_mask.get_pixel(sx,sy).a > 0.05f) { dist=st*inv_d; found=true; break; }
                         }
-                    }
-
-                    if (found) {
-                        // dist=0 → just at edge (lightest), dist=1 → deepest (darkest)
-                        Color sc = s.side_color;
-                        sc.r = std::max(0.0f, sc.r - 0.30f * dist);
-                        sc.g = std::max(0.0f, sc.g - 0.30f * dist);
-                        sc.b = std::max(0.0f, sc.b - 0.30f * dist);
-                        sc.a = s.side_color.a * (1.0f - s.side_fade * dist) * op;
-                        fb.set_pixel(x, y, compositor::blend(sc, fb.get_pixel(x, y), BlendMode::Normal));
+                        if (found) {
+                            Color sc=s.side_color;
+                            sc.r=std::max(0.0f,sc.r-0.30f*dist); sc.g=std::max(0.0f,sc.g-0.30f*dist);
+                            sc.b=std::max(0.0f,sc.b-0.30f*dist); sc.a=s.side_color.a*(1.0f-s.side_fade*dist)*op;
+                            fb.set_pixel(x,y,compositor::blend(sc,fb.get_pixel(x,y),BlendMode::Normal));
+                        }
                     }
                 }
             }
+            { TextShape ts; ts.text=s.text; ts.style.font_path=s.font_path;
+              ts.style.size=s.font_size; ts.style.color=Color{s.front_color.r,s.front_color.g,s.front_color.b,s.front_color.a*op};
+              ts.style.align=s.align; Transform tr; tr.position=Vec3(front_sp.x,front_sp.y,0); tr.opacity=op;
+              m_text_renderer.draw_text(ts,tr,fb,&state); }
+            if (s.highlight_opacity>0) {
+                TextShape ts; ts.text=s.text; ts.style.font_path=s.font_path;
+                ts.style.size=s.font_size; ts.style.color=Color{1,1,1,s.highlight_opacity*op};
+                ts.style.align=s.align; Transform tr; tr.position=Vec3(front_sp.x,front_sp.y-1,0);
+                m_text_renderer.draw_text(ts,tr,fb,&state);
+            }
+            return;
         }
 
-        // Front face on top — covers interior, exposes only real side-face pixels
+        // ── MESH-BASED 3D EXTRUSION ────────────────────────────────────────────
+        // Uses stb_truetype glyph outlines → side quads with camera-correct shading.
+        const CachedFont* font_entry = m_text_renderer.get_font(s.font_path);
+        if (!font_entry) return;
+
+        stbtt_fontinfo font;
+        if (!stbtt_InitFont(&font, font_entry->data.data(), 0)) return;
+
+        const float sc_f = stbtt_ScaleForPixelHeight(&font, s.font_size);
+        int ascent, descent, line_gap;
+        stbtt_GetFontVMetrics(&font, &ascent, &descent, &line_gap);
+
+        const float depth_z = s.extrude_z_step * static_cast<float>(s.depth);
+        const Mat4  inv_view = glm::inverse(s.cam_view);
+        const Vec3  cam_world = Vec3(inv_view[3]);
+
+        auto proj3 = [&](Vec3 w, bool& ok) -> Vec2 {
+            return renderer::project_2_5d(w, s.cam_view, s.cam_focal, s.vp_cx, s.vp_cy, ok);
+        };
+
+        // Compute total text width for x-start offset (center/right/left align)
+        float total_w = 0.0f;
+        for (char ch : s.text) {
+            int adv, lsb;
+            stbtt_GetCodepointHMetrics(&font, (int)(unsigned char)ch, &adv, &lsb);
+            total_w += (float)adv * sc_f;
+        }
+        float x_cur = (s.align == TextAlign::Center) ? -total_w * 0.5f :
+                      (s.align == TextAlign::Right)   ? -total_w : 0.0f;
+
+        // Collect side quads for painter's-algorithm sort.
+        // c0/c1 are Gouraud-shaded colors at the two edge vertices (start/end).
+        struct SideQ { Vec2 v[4]; Color c0, c1; float depth; };
+        std::vector<SideQ> quads;
+        quads.reserve(1024);
+
+        for (char ch : s.text) {
+            stbtt_vertex* verts = nullptr;
+            int nv = stbtt_GetCodepointShape(&font, (int)(unsigned char)ch, &verts);
+
+            if (nv > 0 && verts) {
+                // Parse outline into closed contours (stb Y-up; same as world Y-up)
+                std::vector<std::vector<Vec2>> contours;
+                for (int vi = 0; vi < nv; ++vi) {
+                    const auto& v = verts[vi];
+                    if (v.type == STBTT_vmove) {
+                        contours.emplace_back();
+                        contours.back().push_back({(float)v.x * sc_f, (float)v.y * sc_f});
+                    } else if (v.type == STBTT_vline) {
+                        if (!contours.empty())
+                            contours.back().push_back({(float)v.x * sc_f, (float)v.y * sc_f});
+                    } else if (v.type == STBTT_vcurve) {
+                        if (contours.empty()) continue;
+                        Vec2 p0 = contours.back().empty() ? Vec2{0,0} : contours.back().back();
+                        Vec2 cp{(float)v.cx * sc_f, (float)v.cy * sc_f};
+                        Vec2 p1{(float)v.x  * sc_f, (float)v.y  * sc_f};
+                        for (int step = 1; step <= 16; ++step) {
+                            float t = (float)step / 16.0f, mt = 1.0f - t;
+                            contours.back().push_back({
+                                mt*mt*p0.x + 2*mt*t*cp.x + t*t*p1.x,
+                                mt*mt*p0.y + 2*mt*t*cp.y + t*t*p1.y});
+                        }
+                    } else if (v.type == STBTT_vcubic) {
+                        if (contours.empty()) continue;
+                        Vec2 p0 = contours.back().empty() ? Vec2{0,0} : contours.back().back();
+                        Vec2 c1{(float)v.cx  * sc_f, (float)v.cy  * sc_f};
+                        Vec2 c2{(float)v.cx1 * sc_f, (float)v.cy1 * sc_f};
+                        Vec2 p1{(float)v.x   * sc_f, (float)v.y   * sc_f};
+                        for (int step = 1; step <= 20; ++step) {
+                            float t = (float)step / 20.0f, mt = 1.0f - t;
+                            contours.back().push_back({
+                                mt*mt*mt*p0.x + 3*mt*mt*t*c1.x + 3*mt*t*t*c2.x + t*t*t*p1.x,
+                                mt*mt*mt*p0.y + 3*mt*mt*t*c1.y + 3*mt*t*t*c2.y + t*t*t*p1.y});
+                        }
+                    }
+                }
+
+                // Build side quads per edge with Gouraud shading (per-vertex normals).
+                for (const auto& contour : contours) {
+                    const int n = (int)contour.size();
+                    if (n < 2) continue;
+
+                    // Pre-compute smooth per-vertex outward normals.
+                    std::vector<Vec3> vnorm(n);
+                    for (int i = 0; i < n; ++i) {
+                        auto edge_normal = [&](int a, int b) -> Vec3 {
+                            Vec2 e{contour[b].x - contour[a].x, contour[b].y - contour[a].y};
+                            float len = std::sqrt(e.x*e.x + e.y*e.y);
+                            if (len < 1e-6f) return {0,0,0};
+                            return Vec3{-e.y/len, e.x/len, 0.0f};
+                        };
+                        Vec3 n0 = edge_normal((i-1+n)%n, i);
+                        Vec3 n1 = edge_normal(i, (i+1)%n);
+                        Vec3 avg{n0.x+n1.x, n0.y+n1.y, 0.0f};
+                        float alen = std::sqrt(avg.x*avg.x + avg.y*avg.y);
+                        vnorm[i] = (alen > 1e-6f) ? Vec3{avg.x/alen, avg.y/alen, 0} : n1;
+                    }
+
+                    for (int i = 0; i < n; ++i) {
+                        const Vec2& fp0 = contour[i];
+                        const Vec2& fp1 = contour[(i+1)%n];
+                        if (std::abs(fp1.x-fp0.x) < 0.01f && std::abs(fp1.y-fp0.y) < 0.01f) continue;
+
+                        Vec3 w00{s.world_pos.x+x_cur+fp0.x, s.world_pos.y+fp0.y, s.world_pos.z};
+                        Vec3 w10{s.world_pos.x+x_cur+fp1.x, s.world_pos.y+fp1.y, s.world_pos.z};
+                        Vec3 w01{s.world_pos.x+x_cur+fp0.x, s.world_pos.y+fp0.y, s.world_pos.z+depth_z};
+                        Vec3 w11{s.world_pos.x+x_cur+fp1.x, s.world_pos.y+fp1.y, s.world_pos.z+depth_z};
+
+                        bool ok0,ok1,ok2,ok3;
+                        Vec2 sv[4];
+                        sv[0]=proj3(w00,ok0); sv[1]=proj3(w10,ok1);
+                        sv[2]=proj3(w11,ok2); sv[3]=proj3(w01,ok3);
+                        if (!(ok0&&ok1&&ok2&&ok3)) continue;
+
+                        Vec3 midpt = (w00+w10+w01+w11)*0.25f;
+                        Vec3 to_cam = glm::normalize(cam_world - midpt);
+
+                        // Per-vertex facing from smooth normals
+                        float f0 = glm::dot(vnorm[i],        to_cam);
+                        float f1 = glm::dot(vnorm[(i+1)%n],  to_cam);
+                        if (f0 <= 0.0f && f1 <= 0.0f) continue;  // both back-facing
+
+                        auto shade_color = [&](float f) -> Color {
+                            float sh = std::max(0.0f, 0.15f + 0.85f * f);
+                            return Color{std::min(1.0f, s.side_color.r*sh),
+                                         std::min(1.0f, s.side_color.g*sh),
+                                         std::min(1.0f, s.side_color.b*sh),
+                                         s.side_color.a * op};
+                        };
+
+                        float d = -(s.cam_view * Vec4(midpt, 1.0f)).z;
+                        SideQ q;
+                        q.v[0]=sv[0]; q.v[1]=sv[1]; q.v[2]=sv[2]; q.v[3]=sv[3];
+                        q.c0 = shade_color(f0);
+                        q.c1 = shade_color(f1);
+                        q.depth = d;
+                        quads.push_back(q);
+                    }
+                }
+                stbtt_FreeShape(&font, verts);
+            }
+
+            int adv, lsb;
+            stbtt_GetCodepointHMetrics(&font, (int)(unsigned char)ch, &adv, &lsb);
+            x_cur += (float)adv * sc_f;
+        }
+
+        // Sort back-to-front
+        std::stable_sort(quads.begin(), quads.end(),
+            [](const SideQ& a, const SideQ& b){ return a.depth > b.depth; });
+
+        // Render side quads into a temporary buffer so we can mask them
+        // against the front-face silhouette before compositing.
+        Framebuffer side_fb(fb.width(), fb.height());
+        side_fb.clear(Color::transparent());
+        for (const auto& q : quads) {
+            Color gc[4] = {q.c0, q.c1, q.c1, q.c0};
+            renderer::fill_gradient_quad(side_fb, q.v, gc);
+        }
+
+        // Project front face origin
+        bool ok_front;
+        Vec2 baseline_sc = proj3(s.world_pos, ok_front);
+        if (!ok_front) {
+            for (int y = 0; y < fb.height(); ++y)
+                for (int x = 0; x < fb.width(); ++x) {
+                    Color sq = side_fb.get_pixel(x, y);
+                    if (sq.a > 0.01f)
+                        fb.set_pixel(x, y, compositor::blend(sq, fb.get_pixel(x, y), BlendMode::Normal));
+                }
+            return;
+        }
+
+        const float asc_px = (float)ascent * sc_f;
+        const Vec3 text_origin{baseline_sc.x, baseline_sc.y - asc_px, 0};
+
+        // Build glyph silhouette mask: anywhere the front face has alpha,
+        // the side quads must not overdraw (they are occluded by the front face).
+        Framebuffer mask_fb(fb.width(), fb.height());
+        mask_fb.clear(Color::transparent());
         {
-            TextShape ts;
-            ts.text = s.text; ts.style.font_path = s.font_path;
-            ts.style.size  = s.font_size;
-            ts.style.color = Color{s.front_color.r, s.front_color.g,
-                                    s.front_color.b, s.front_color.a * op};
-            ts.style.align = s.align;
-            Transform tr; tr.position = Vec3(front_sp.x, front_sp.y, 0.0f); tr.opacity = op;
-            m_text_renderer.draw_text(ts, tr, fb, &state);
+            TextShape mts; mts.text = s.text; mts.style.font_path = s.font_path;
+            mts.style.size = s.font_size; mts.style.color = Color{1,1,1,1};
+            mts.style.align = s.align;
+            Transform mtr; mtr.position = text_origin;
+            m_text_renderer.draw_text(mts, mtr, mask_fb);
         }
 
+        // Composite masked side quads: skip pixels covered by the front face
+        for (int y = 0; y < fb.height(); ++y) {
+            for (int x = 0; x < fb.width(); ++x) {
+                if (mask_fb.get_pixel(x, y).a > 0.01f) continue;
+                Color sq = side_fb.get_pixel(x, y);
+                if (sq.a > 0.01f)
+                    fb.set_pixel(x, y, compositor::blend(sq, fb.get_pixel(x, y), BlendMode::Normal));
+            }
+        }
+
+        // Front face on top
+        { TextShape ts; ts.text = s.text; ts.style.font_path = s.font_path;
+          ts.style.size = s.font_size;
+          ts.style.color = Color{s.front_color.r,s.front_color.g,s.front_color.b,s.front_color.a*op};
+          ts.style.align = s.align;
+          Transform tr; tr.position = text_origin; tr.opacity = op;
+          m_text_renderer.draw_text(ts, tr, fb, &state); }
         if (s.highlight_opacity > 0.0f) {
-            TextShape ts;
-            ts.text = s.text; ts.style.font_path = s.font_path;
-            ts.style.size  = s.font_size;
-            ts.style.color = Color{1, 1, 1, s.highlight_opacity * op};
+            TextShape ts; ts.text = s.text; ts.style.font_path = s.font_path;
+            ts.style.size = s.font_size; ts.style.color = Color{1,1,1,s.highlight_opacity*op};
             ts.style.align = s.align;
-            Transform tr; tr.position = Vec3(front_sp.x, front_sp.y - 1.0f, 0.0f);
+            Transform tr; tr.position = Vec3(text_origin.x, text_origin.y - 1.0f, 0);
             m_text_renderer.draw_text(ts, tr, fb, &state);
         }
         return;
