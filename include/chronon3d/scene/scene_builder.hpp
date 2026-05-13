@@ -69,6 +69,18 @@ public:
         scene_.set_camera_2_5d(cam);
         return *this;
     }
+    SceneBuilder& camera_parent(std::string name) {
+        auto cam = scene_.camera_2_5d();
+        cam.parent_name = std::pmr::string{name, scene_.resource()};
+        scene_.set_camera_2_5d(cam);
+        return *this;
+    }
+    SceneBuilder& camera_rotation(Vec3 euler_deg) {
+        auto cam = scene_.camera_2_5d();
+        cam.rotation = euler_deg;
+        scene_.set_camera_2_5d(cam);
+        return *this;
+    }
 
     // Hierarchy
     template <typename Fn>
@@ -134,7 +146,7 @@ public:
     }
 
     template <typename Fn>
-    SceneBuilder& null(std::string name, Fn&& fn) {
+    SceneBuilder& null_layer(std::string name, Fn&& fn) {
         LayerBuilder builder(std::move(name), scene_.resource());
         std::forward<Fn>(fn)(builder);
 
@@ -209,7 +221,6 @@ public:
     }
 
     [[nodiscard]] Scene build() {
-        resolve_hierarchy();
         return std::move(scene_);
     }
 
@@ -217,8 +228,6 @@ public:
     [[nodiscard]] Frame frame() const { return current_frame_; }
 
 private:
-    void resolve_hierarchy();
-
     Scene scene_;
     Frame current_frame_;
 };

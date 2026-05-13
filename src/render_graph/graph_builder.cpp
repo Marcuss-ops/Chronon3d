@@ -6,6 +6,7 @@
 #include <chronon3d/render_graph/render_graph_hashing.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/scene/layer.hpp>
+#include <chronon3d/scene/layer_hierarchy.hpp>
 #include <algorithm>
 #include <cmath>
 
@@ -50,7 +51,7 @@ void GraphBuilder::append_layer_pipeline(
     const bool needs_transform = item.projected
         || layer.kind == LayerKind::Precomp
         || layer.kind == LayerKind::Video
-        || layer.transform.any();
+        || item.transform.any();
 
     if (needs_transform) {
         auto transform = graph.add_node(
@@ -133,8 +134,20 @@ RenderGraph GraphBuilder::build(const Scene& scene, const RenderGraphContext& ct
         current = composite;
     }
 
-    const Camera2_5D& cam25d = scene.camera_2_5d();
-    const bool use_25d = cam25d.enabled;
+    const Camera2_5D& input_cam = scene.camera_2_5d();
+    const bool use_25d = input_cam.enabled;
+
+    // ── Resolve Layer Hierarchy ──
+    ResolvedCamera resolved_cam;
+    const auto resolved_layers = resolve_layer_hierarchy(
+        scene.layers(),
+        ctx.frame,
+        scene.resource(),
+        &input_cam,
+        &resolved_cam
+    );
+
+    const Camera2_5D& cam25d = resolved_cam.camera;
 
     // ── Helper to append a single item pipeline ──
     auto append_item = [&](const LayerGraphItem& item) {
@@ -161,10 +174,10 @@ RenderGraph GraphBuilder::build(const Scene& scene, const RenderGraphContext& ct
         current_3d_bin.clear();
     };
 
-    usize index = 0;
-    for (const auto& layer : scene.layers()) {
+    for (const auto& resolved : resolved_layers) {
+        const Layer& layer = *resolved.layer;
+
         if (!layer.active_at(ctx.frame)) {
-            ++index;
             continue;
         }
 
@@ -176,21 +189,18 @@ RenderGraph GraphBuilder::build(const Scene& scene, const RenderGraphContext& ct
                 graph.connect(current, adj);
                 current = adj;
             }
-            ++index;
             continue;
         }
 
         // 2. Null layers: skip, but they also break 3D bins (to be safe/standard).
         if (layer.kind == LayerKind::Null) {
             flush_3d_bin();
-            ++index;
             continue;
         }
 
         // 3. 3D Layers
         if (use_25d && layer.is_3d) {
-            // Apply semantic depth if requested.
-            Transform effective_transform = layer.transform;
+            Transform effective_transform = resolved.world_transform;
 
             // Project through camera.
             auto proj = project_layer_2_5d(
@@ -206,7 +216,7 @@ RenderGraph GraphBuilder::build(const Scene& scene, const RenderGraphContext& ct
                     .transform       = proj.transform,
                     .depth           = proj.depth,
                     .projected       = true,
-                    .insertion_index = index
+                    .insertion_index = resolved.insertion_index
                 });
             }
         } 
@@ -215,14 +225,12 @@ RenderGraph GraphBuilder::build(const Scene& scene, const RenderGraphContext& ct
             flush_3d_bin();
             append_item({
                 .layer           = &layer,
-                .transform       = layer.transform,
+                .transform       = resolved.world_transform,
                 .depth           = 0.0f,
                 .projected       = false,
-                .insertion_index = index
+                .insertion_index = resolved.insertion_index
             });
         }
-
-        ++index;
     }
 
     flush_3d_bin();
