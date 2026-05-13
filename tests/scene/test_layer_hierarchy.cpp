@@ -126,6 +126,50 @@ TEST_CASE("Layer hierarchy: parent rotation affects child position") {
     CHECK(resolved[1].world_transform.position.y == doctest::Approx(100.0f));
 }
 
+TEST_CASE("Layer hierarchy: camera target resolves to null world position") {
+    std::pmr::monotonic_buffer_resource res;
+    SceneBuilder s(&res);
+
+    s.null_layer("target", [](LayerBuilder& l) {
+        l.position({100, 50, 0});
+    });
+
+    s.enable_camera_2_5d()
+     .camera_position({0, 0, -1000})
+     .camera_target("target");
+
+    auto scene = s.build();
+    ResolvedCamera resolved_cam;
+    resolve_layer_hierarchy(scene.layers(), 0, scene.resource(), &scene.camera_2_5d(), &resolved_cam);
+
+    CHECK(resolved_cam.camera.point_of_interest.x == doctest::Approx(100.0f));
+    CHECK(resolved_cam.camera.point_of_interest.y == doctest::Approx(50.0f));
+    CHECK(resolved_cam.camera.point_of_interest.z == doctest::Approx(0.0f));
+}
+
+TEST_CASE("Layer hierarchy: camera target tracks parented null world position") {
+    std::pmr::monotonic_buffer_resource res;
+    SceneBuilder s(&res);
+
+    s.null_layer("rig", [](LayerBuilder& l) {
+        l.position({200, 0, 0});
+    });
+    s.null_layer("target", [](LayerBuilder& l) {
+        l.parent("rig").position({50, 30, 0});
+    });
+
+    s.enable_camera_2_5d()
+     .camera_position({0, 0, -1000})
+     .camera_target("target");
+
+    auto scene = s.build();
+    ResolvedCamera resolved_cam;
+    resolve_layer_hierarchy(scene.layers(), 0, scene.resource(), &scene.camera_2_5d(), &resolved_cam);
+
+    CHECK(resolved_cam.camera.point_of_interest.x == doctest::Approx(250.0f));
+    CHECK(resolved_cam.camera.point_of_interest.y == doctest::Approx(30.0f));
+}
+
 TEST_CASE("Layer hierarchy: camera inherits parent position") {
     std::pmr::monotonic_buffer_resource res;
     SceneBuilder s(&res);

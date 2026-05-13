@@ -49,10 +49,9 @@ struct Camera2_5D {
     f32 fov_deg{50.0f};
 
     // Hierarchy
-    // Camera parenting supports orbit-style positional camera rigs.
-    // Full camera orientation / look-at projection is planned for a later pass.
     std::pmr::string parent_name;
-    Vec3 rotation{0, 0, 0}; // Euler degrees (future-proofing)
+    std::pmr::string target_name; // If set, POI is resolved from this layer's world position
+    Vec3 rotation{0, 0, 0};
 
     DepthOfFieldSettings dof;
 };

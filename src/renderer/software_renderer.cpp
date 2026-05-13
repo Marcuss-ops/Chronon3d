@@ -4,6 +4,7 @@
 #include <chronon3d/scene/mask_utils.hpp>
 #include <chronon3d/scene/layer_effect.hpp>
 #include <chronon3d/scene/effect_stack.hpp>
+#include <chronon3d/scene/layer_hierarchy.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/core/profiling.hpp>
 #include <chronon3d/math/raster_utils.hpp>
@@ -568,7 +569,10 @@ rendergraph::RenderGraph SoftwareRenderer::build_render_graph(
         append_root_source(node, current);
     }
 
-    const auto& cam25 = scene.camera_2_5d();
+    ResolvedCamera resolved_cam;
+    const auto resolved_layers = resolve_layer_hierarchy(
+        scene.layers(), frame, scene.resource(), &scene.camera_2_5d(), &resolved_cam);
+    const Camera2_5D& cam25 = resolved_cam.camera;
 
     struct LayerRenderItem {
         Layer layer;
@@ -578,36 +582,33 @@ rendergraph::RenderGraph SoftwareRenderer::build_render_graph(
     };
 
     std::vector<LayerRenderItem> three_d_layers;
-    three_d_layers.reserve(scene.layers().size());
+    three_d_layers.reserve(resolved_layers.size());
 
-    usize index = 0;
-    for (const auto& layer : scene.layers()) {
-        if (!layer.visible) {
-            ++index;
+    for (const auto& resolved : resolved_layers) {
+        const Layer& layer = *resolved.layer;
+
+        if (!layer.visible || !layer.active_at(frame)) {
             continue;
         }
 
         if (layer.kind == LayerKind::Adjustment) {
             apply_adjustment_layer(layer, std::string(layer.name));
-            ++index;
             continue;
         }
 
         if (layer.kind == LayerKind::Null) {
-            ++index;
             continue;
         }
 
         if (!cam25.enabled || !layer.is_3d) {
-            append_layer_pipeline(layer, layer.transform, current, std::string(layer.name));
+            append_layer_pipeline(layer, resolved.world_transform, current, std::string(layer.name));
         } else {
             auto projected = project_layer_2_5d(
-                layer.transform, cam25, static_cast<f32>(width), static_cast<f32>(height));
+                resolved.world_transform, cam25, static_cast<f32>(width), static_cast<f32>(height));
             if (projected.visible) {
-                three_d_layers.push_back({layer, projected.transform, projected.depth, index});
+                three_d_layers.push_back({layer, projected.transform, projected.depth, resolved.insertion_index});
             }
         }
-        ++index;
     }
 
     if (cam25.enabled) {

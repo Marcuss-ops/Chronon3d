@@ -133,8 +133,14 @@ inline std::pmr::vector<ResolvedLayer> resolve_layer_hierarchy(
                 Transform parent_world = resolve_one(it->second);
                 out_camera->world_transform = combine_transforms_simple(parent_world, out_camera->world_transform);
                 out_camera->camera.position = out_camera->world_transform.position;
-                // Note: rotation composition for camera 2.5D is complex for projection, 
-                // but world position is enough for orbits.
+            }
+        }
+
+        if (!input_camera->target_name.empty()) {
+            auto it = name_to_index.find(std::string_view(input_camera->target_name));
+            if (it != name_to_index.end()) {
+                Transform target_world = resolve_one(it->second);
+                out_camera->camera.point_of_interest = target_world.position;
             }
         }
     }
