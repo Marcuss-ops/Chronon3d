@@ -244,14 +244,20 @@ static void draw_fake_box3d(Framebuffer& fb, const RenderNode& node, const Rende
         {{1,5,6,2}, {+1, 0, 0}},  // right
         {{4,0,3,7}, {-1, 0, 0}},  // left
     };
-    // Shading per face: front=base, back=darkest, top=bright, bottom=dark, right=dark, left=darker
+    // Shading per face:
+    // Front: base
+    // Top: bright (+20%)
+    // Side Right: dark (-25%)
+    // Side Left: darker (-35%)
+    // Bottom: very dark (-45%)
+    // Back: deepest (-60%)
     const Color face_colors[NFACES] = {
-        {base.r, base.g, base.b, base.a * op},
-        darken(base, s.side_tint * 2.0f).with_alpha(base.a * op),
-        brighten(base, s.top_tint).with_alpha(base.a * op),
-        darken(base, s.side_tint).with_alpha(base.a * op),
-        darken(base, s.side_tint).with_alpha(base.a * op),
-        darken(base, s.side_tint * 1.5f).with_alpha(base.a * op),
+        {base.r, base.g, base.b, base.a * op},                       // 0 front
+        darken(base, 0.60f).with_alpha(base.a * op),                // 1 back
+        brighten(base, 0.20f).with_alpha(base.a * op),              // 2 top
+        darken(base, 0.45f).with_alpha(base.a * op),                // 3 bottom
+        darken(base, 0.25f).with_alpha(base.a * op),                // 4 right
+        darken(base, 0.35f).with_alpha(base.a * op),                // 5 left
     };
 
     // Painter's: back→front order (back, bottom, left, right, top, front)

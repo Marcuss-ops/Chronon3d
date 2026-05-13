@@ -112,15 +112,29 @@ public:
         });
     }
 
-    // Contact shadow: blurred rounded rect on a floor plane in 3D space.
+    // Contact shadow: double-layered blurred rounded rect for realism.
+    // Includes a soft "footprint" and a tighter "occlusion" core.
     SceneBuilder& contact_shadow_layer(std::string name, ContactShadowParams p) {
+        // Core "occlusion" shadow (sharper, darker, smaller)
+        layer(name + "_core", [p](LayerBuilder& l) {
+            l.enable_3d()
+             .position(p.pos + Vec3{0, 1.0f, 0}) // slightly above to avoid Z-fight
+             .rounded_rect("core", {
+                 .size   = p.size * 0.75f,
+                 .radius = std::min(p.size.x, p.size.y) * 0.25f,
+                 .color  = p.color.with_alpha(p.opacity * 0.9f),
+             })
+             .blur(p.blur * 0.3f);
+        });
+
+        // Soft ambient shadow (larger, softer)
         return layer(std::move(name), [p](LayerBuilder& l) {
             l.enable_3d()
              .position(p.pos)
-             .rounded_rect("shadow", {
+             .rounded_rect("soft", {
                  .size   = p.size,
                  .radius = std::min(p.size.x, p.size.y) * 0.35f,
-                 .color  = p.color.with_alpha(p.opacity),
+                 .color  = p.color.with_alpha(p.opacity * 0.6f),
              })
              .blur(p.blur);
         });
@@ -132,8 +146,10 @@ public:
         for (int i = p.depth; i >= 1; --i) {
             const f32 fi = static_cast<f32>(i);
             const Vec3 off{p.extrude_dir.x * fi, p.extrude_dir.y * fi, 0};
-            const f32 shade = 1.0f - 0.25f * (fi / p.depth);
+            // Side shading: gets slightly darker with depth
+            const f32 shade = 1.0f - 0.20f * (fi / static_cast<f32>(p.depth));
             const Color sc = p.side_color.with_alpha(p.side_color.a * shade);
+            
             layer(base_name + "_s" + std::to_string(i), [p, off, sc](LayerBuilder& l) {
                 l.position(p.pos + off)
                  .text("t", {

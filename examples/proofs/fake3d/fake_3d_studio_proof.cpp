@@ -114,7 +114,7 @@ static Composition Fake3DStudioProof() {
 
         // Global bloom applied last — captures text + all 3D geometry
         s.adjustment_layer("bloom", [](LayerBuilder& l) {
-            l.bloom(0.82f, 22.0f, 0.55f);
+            l.bloom_medium();
         });
 
         return s.build();
