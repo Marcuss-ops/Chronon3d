@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/render_graph/render_graph_node.hpp>
+#include <chronon3d/render_graph/render_graph_hashing.hpp>
 #include <chronon3d/renderer/software_renderer.hpp>
 #include <chronon3d/scene/layer.hpp>
 
@@ -11,6 +12,8 @@ class ClearNode final : public RenderGraphNode {
 public:
     RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::Output; }
     std::string name() const override { return "Clear"; }
+
+    bool cacheable() const override { return false; }
 
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         return cache::NodeCacheKey{
@@ -37,16 +40,18 @@ public:
     RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::Source; }
     std::string name() const override { return m_name; }
 
-    cache::NodeCacheKey cache_key(const RenderGraphContext&) const override { return m_key; }
+    cache::NodeCacheKey cache_key(const RenderGraphContext&) const override { 
+        auto key = m_key;
+        // In the modular system, the SourceNode might depend on its own source hash
+        // which we already have in m_key.source_hash.
+        return key; 
+    }
 
-    std::shared_ptr<Framebuffer> execute(RenderGraphContext& ctx, const std::vector<std::shared_ptr<Framebuffer>>& inputs) override {
+    std::shared_ptr<Framebuffer> execute(RenderGraphContext& ctx, const std::vector<std::shared_ptr<Framebuffer>>&) override {
         auto fb = std::make_shared<Framebuffer>(ctx.width, ctx.height);
         fb->clear(Color::transparent());
         
         RenderState state{Mat4(1.0f), 1.0f};
-        // In the old system, SourceNode took a Transform input. 
-        // We might need to handle state propagation differently in the new modular system.
-        // For now, let's assume we can get state from inputs or external context if needed.
         
         if (ctx.renderer) {
             ctx.renderer->draw_node(*fb, m_node, state, ctx.renderer->camera(), ctx.width, ctx.height);
@@ -56,7 +61,7 @@ public:
 
 private:
     std::string m_name;
-    const ::chronon3d::RenderNode& m_node;
+    ::chronon3d::RenderNode m_node; // Copied for safety
     cache::NodeCacheKey m_key;
 };
 
@@ -74,7 +79,7 @@ public:
             .frame = ctx.frame,
             .width = ctx.width,
             .height = ctx.height,
-            .params_hash = 0 // Needs proper mask hashing
+            .params_hash = hash_mask(m_mask)
         };
     }
 
@@ -82,54 +87,13 @@ public:
         if (inputs.empty()) return std::make_shared<Framebuffer>(ctx.width, ctx.height);
         
         auto result = std::make_shared<Framebuffer>(*inputs[0]);
-        // Masking in Chronon3d is usually handled during drawing, but we can implement it as a post-process
-        // if we want true modularity.
-        // For now, let's keep it simple.
+        // Basic masking implementation could be added here if SoftwareRenderer supports it post-process
+        // For now it remains a placeholder but with correct hashing.
         return result;
     }
 
 private:
     Mask m_mask;
-};
-
-// TransformNode
-class TransformNode final : public RenderGraphNode {
-public:
-    TransformNode(Transform transform) : m_transform(transform) {}
-
-    RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::Transform; }
-    std::string name() const override { return "Transform"; }
-
-    cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
-        return cache::NodeCacheKey{
-            .scope = "transform",
-            .frame = ctx.frame,
-            .width = ctx.width,
-            .height = ctx.height,
-            .params_hash = rendergraph::hash_transform(m_transform)
-        };
-    }
-
-    std::shared_ptr<Framebuffer> execute(RenderGraphContext& ctx, const std::vector<std::shared_ptr<Framebuffer>>& inputs) override {
-        // TransformNode in the user's AE-like plan might actually return a transformed FB or just modify state.
-        // If it's a "RenderGraphNode", it should return a Framebuffer.
-        // But transforming a whole FB is expensive. 
-        // Usually, TransformNode in a graph like this would just pass a "RenderState" downstream.
-        // HOWEVER, the user's `execute` signature returns `std::shared_ptr<Framebuffer>`.
-        // So I must return a FB.
-        
-        if (inputs.empty()) return std::make_shared<Framebuffer>(ctx.width, ctx.height);
-        
-        // For now, let's just pass-through if we don't have a GPU-like texture transform.
-        // In SoftwareRenderer, transform is usually applied during DRAWING, not as a separate pass.
-        // BUT if we want true modularity, we might need a "RenderState" to be passed along.
-        // Maybe the "inputs" can be something more than just FB? No, the signature says FB.
-        
-        return inputs[0]; 
-    }
-
-private:
-    Transform m_transform;
 };
 
 // EffectStackNode
@@ -146,7 +110,7 @@ public:
             .frame = ctx.frame,
             .width = ctx.width,
             .height = ctx.height,
-            .params_hash = rendergraph::hash_bytes(&m_effects, sizeof(m_effects)) // Rough hash for now
+            .params_hash = hash_effect_stack(m_effects)
         };
     }
 
@@ -178,7 +142,7 @@ public:
             .frame = ctx.frame,
             .width = ctx.width,
             .height = ctx.height,
-            .params_hash = rendergraph::hash_bytes(&m_effects, sizeof(m_effects))
+            .params_hash = hash_effect_stack(m_effects)
         };
     }
 

@@ -23,12 +23,22 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute_node(
     auto& node = graph.node(id);
 
     std::vector<std::shared_ptr<Framebuffer>> inputs;
+    u64 input_hash = 0;
     for (auto input_id : graph.inputs(id)) {
-        inputs.push_back(execute_node(graph, input_id, ctx));
+        auto fb = execute_node(graph, input_id, ctx);
+        inputs.push_back(fb);
+        
+        // input_hash is the combined hash of the digests of all input nodes
+        // This ensures that if any upstream node changes, this node's cache key changes too.
+        // Note: we need the digest of the input node, but we only have its ID.
+        // We can get it from the node itself if we pass the context.
+        auto& input_node = graph.node(input_id);
+        input_hash = rendergraph::hash_combine(input_hash, input_node.cache_key(ctx).digest());
     }
 
     auto start_time = std::chrono::high_resolution_clock::now();
     auto key = node.cache_key(ctx);
+    key.input_hash = input_hash;
 
     if (ctx.cache_enabled && ctx.node_cache) {
         if (auto cached = ctx.node_cache->find(key)) {
