@@ -21,6 +21,9 @@ struct RenderArgs {
     std::string output{"render_####.png"};
     bool diagnostic{false};
     bool use_modular_graph{false};
+    bool   motion_blur{false};
+    int    motion_blur_samples{8};
+    float  shutter_angle{180.0f};
 
     // Legacy support
     int64_t start_old{-1};
@@ -38,6 +41,9 @@ struct VideoArgs {
     std::string preset{"medium"};
     bool keep_frames{false};
     bool use_modular_graph{false};
+    bool   motion_blur{false};
+    int    motion_blur_samples{8};
+    float  shutter_angle{180.0f};
     std::string frames_dir;
 };
 

@@ -45,30 +45,34 @@ public:
     KeyframeTrack(std::initializer_list<Keyframe<T>> kfs) : m_keyframes(kfs) {
     }
 
-    [[nodiscard]] T value_at(Frame current) const { return value(current); }
-    [[nodiscard]] T value(Frame current) const {
+    // Float-based query — required for motion blur subframe accuracy.
+    // Use ctx.effective_frame() as the argument when inside a composition.
+    [[nodiscard]] T value_at_time(f32 current) const {
         if (m_keyframes.empty()) return T{};
 
         const auto* data = m_keyframes.data();
         const std::size_t n = m_keyframes.size();
 
-        if (current <= data[0].frame)   return data[0].value;
-        if (current >= data[n-1].frame) return data[n-1].value;
+        if (current <= static_cast<f32>(data[0].frame))     return data[0].value;
+        if (current >= static_cast<f32>(data[n-1].frame))   return data[n-1].value;
 
-        // Binary search for the interval.
-        auto it = std::lower_bound(m_keyframes.begin(), m_keyframes.end(), current,
-            [](const Keyframe<T>& kf, Frame f) { return kf.frame < f; });
+        std::size_t lo = 0, hi = n - 1;
+        while (lo + 1 < hi) {
+            std::size_t mid = (lo + hi) / 2;
+            if (static_cast<f32>(data[mid].frame) <= current) lo = mid;
+            else hi = mid;
+        }
 
-        if (it == m_keyframes.begin()) return it->value;
-        
-        const auto& next = *it;
-        if (current == next.frame) return next.value;
-
-        const auto& prev = *std::prev(it);
-
-        const f32 t = static_cast<f32>(current - prev.frame) / static_cast<f32>(next.frame - prev.frame);
+        const auto& prev = data[lo];
+        const auto& next = data[lo + 1];
+        const f32 t = (current - static_cast<f32>(prev.frame))
+                    / static_cast<f32>(next.frame - prev.frame);
         return interpolate_values(prev.value, next.value, t, prev.easing);
     }
+
+    // Integer-frame aliases — delegate to value_at_time for consistency.
+    [[nodiscard]] T value(Frame current) const { return value_at_time(static_cast<f32>(current)); }
+    [[nodiscard]] T value_at(Frame current) const { return value_at_time(static_cast<f32>(current)); }
 
 private:
     std::vector<Keyframe<T>> m_keyframes;

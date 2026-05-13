@@ -40,11 +40,14 @@ int main(int argc, char** argv) {
     render_cmd->add_option("id",         render_args.comp_id,   "Composition name")->required();
     render_cmd->add_option("--frames",   render_args.frames,    "Frame range: 0 | 0-90 | 0-90x5");
     render_cmd->add_option("-o,--output",render_args.output,    "Output path (use #### for frame number)");
-    render_cmd->add_flag("--diagnostic", render_args.diagnostic,"Enable diagnostic overlays");
-    render_cmd->add_flag("--graph",      render_args.use_modular_graph, "Use modular RenderGraph path");
-    render_cmd->add_option("--frame",    render_args.frame_old, "Single frame (legacy)");
-    render_cmd->add_option("--start",    render_args.start_old, "Start frame (legacy)");
-    render_cmd->add_option("--end",      render_args.end_old,   "End frame exclusive (legacy)");
+    render_cmd->add_flag("--diagnostic",            render_args.diagnostic,          "Enable diagnostic overlays");
+    render_cmd->add_flag("--graph",                 render_args.use_modular_graph,   "Use modular RenderGraph path");
+    render_cmd->add_flag("--motion-blur",           render_args.motion_blur,         "Enable temporal motion blur");
+    render_cmd->add_option("--motion-blur-samples", render_args.motion_blur_samples, "Subframe samples (default 8)");
+    render_cmd->add_option("--shutter-angle",       render_args.shutter_angle,       "Shutter angle in degrees (default 180)");
+    render_cmd->add_option("--frame",               render_args.frame_old,           "Single frame (legacy)");
+    render_cmd->add_option("--start",               render_args.start_old,           "Start frame (legacy)");
+    render_cmd->add_option("--end",                 render_args.end_old,             "End frame exclusive (legacy)");
     render_cmd->callback([&]() { exit_code = command_render(registry, render_args); });
 
     // -------------------------------------------------------------------------
@@ -59,9 +62,12 @@ int main(int argc, char** argv) {
     video_cmd->add_option("--fps",        video_args.fps,         "Output frame rate");
     video_cmd->add_option("--crf",        video_args.crf,         "x264 CRF (0-51, lower=better)");
     video_cmd->add_option("--preset",     video_args.preset,      "x264 preset");
-    video_cmd->add_flag("--keep-frames",  video_args.keep_frames, "Keep temporary PNG frames");
-    video_cmd->add_flag("--graph",        video_args.use_modular_graph, "Use modular RenderGraph path");
-    video_cmd->add_option("--frames-dir", video_args.frames_dir,  "Override temporary frames directory");
+    video_cmd->add_flag("--keep-frames",            video_args.keep_frames,          "Keep temporary PNG frames");
+    video_cmd->add_flag("--graph",                  video_args.use_modular_graph,    "Use modular RenderGraph path");
+    video_cmd->add_flag("--motion-blur",            video_args.motion_blur,          "Enable temporal motion blur");
+    video_cmd->add_option("--motion-blur-samples",  video_args.motion_blur_samples,  "Subframe samples (default 8)");
+    video_cmd->add_option("--shutter-angle",        video_args.shutter_angle,        "Shutter angle in degrees (default 180)");
+    video_cmd->add_option("--frames-dir",           video_args.frames_dir,           "Override temporary frames directory");
     video_cmd->callback([&]() { exit_code = command_video(registry, video_args); });
 
     // -------------------------------------------------------------------------
