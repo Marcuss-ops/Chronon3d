@@ -37,6 +37,12 @@ target("chronon3d")
         add_cxflags("-ffp-contract=off", {public = true})
     end
 
+-- Effects Library
+target("chronon3d_effects")
+    set_kind("static")
+    add_files("src/effects/*.cpp")
+    add_deps("chronon3d")
+
 -- Renderer Library
 target("chronon3d_renderer")
     set_kind("static")
@@ -46,7 +52,7 @@ target("chronon3d_renderer")
     add_files("src/layout/*.cpp")
     -- image_cache.cpp defines STB_IMAGE_IMPLEMENTATION; exclude old image_renderer if it had it
 
-    add_deps("chronon3d")
+    add_deps("chronon3d", "chronon3d_effects")
     add_packages("spdlog", "stb", "highway", "meshoptimizer", "fmt")
     
     if has_config("profiling") then
@@ -108,6 +114,7 @@ target("chronon3d_tests")
     add_files("tests/timeline/*.cpp")
     add_files("tests/scene/*.cpp")
     add_files("tests/renderer/*.cpp")
+    add_files("tests/effects/*.cpp")
     add_files("tests/deterministic/*.cpp")
     add_files("tests/io/*.cpp")
     add_files("tests/assets/*.cpp")
