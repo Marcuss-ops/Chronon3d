@@ -214,65 +214,99 @@ void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node, const 
         const auto& s = node.shape.fake_extruded_text;
         const f32 op = state.opacity;
 
-        auto draw_at = [&](Vec2 sp, Color c) {
-            TextShape ts;
-            ts.text = s.text;
-            ts.style.font_path = s.font_path;
-            ts.style.size  = s.font_size;
-            ts.style.color = c;
-            ts.style.align = s.align;
-            Transform tr;
-            tr.position = Vec3(sp.x, sp.y, 0.0f);
-            tr.opacity  = c.a;
-            m_text_renderer.draw_text(ts, tr, fb, &state);
-        };
-
-        // Compute screen position for each side layer
-        auto side_screen = [&](int i, bool& ok) -> Vec2 {
-            const f32 fi = static_cast<f32>(i);
-            if (s.cam_ready) {
-                const Vec3 wp = s.world_pos + Vec3{
-                    s.extrude_dir.x * fi,
-                    s.extrude_dir.y * fi,
-                    s.extrude_z_step * fi
-                };
-                return renderer::project_2_5d(wp, s.cam_view, s.cam_focal, s.vp_cx, s.vp_cy, ok);
-            } else {
-                // Screen-space fallback: world_pos.xy treated as screen coords
-                ok = true;
-                return Vec2{s.world_pos.x + s.extrude_dir.x * fi,
-                            s.world_pos.y + s.extrude_dir.y * fi};
-            }
-        };
-        auto front_screen = [&](bool& ok) -> Vec2 {
-            if (s.cam_ready)
-                return renderer::project_2_5d(s.world_pos, s.cam_view, s.cam_focal, s.vp_cx, s.vp_cy, ok);
-            ok = true;
-            return Vec2{s.world_pos.x, s.world_pos.y};
-        };
-
-        for (int i = s.depth; i >= 1; --i) {
+        // Compute screen-space front position
+        Vec2 front_sp;
+        if (s.cam_ready) {
             bool ok;
-            Vec2 sp = side_screen(i, ok);
-            if (!ok) continue;
-
-            const f32 k = static_cast<f32>(i) / static_cast<f32>(s.depth);
-            Color sc = s.side_color;
-            sc.r = std::max(0.0f, sc.r - 0.18f * k);
-            sc.g = std::max(0.0f, sc.g - 0.18f * k);
-            sc.b = std::max(0.0f, sc.b - 0.18f * k);
-            sc.a = s.side_color.a * (1.0f - s.side_fade * k) * op;
-            draw_at(sp, sc);
+            front_sp = renderer::project_2_5d(s.world_pos, s.cam_view, s.cam_focal, s.vp_cx, s.vp_cy, ok);
+            if (!ok) return;
+        } else {
+            front_sp = Vec2{s.world_pos.x, s.world_pos.y};
         }
 
-        bool ok_f;
-        Vec2 front = front_screen(ok_f);
-        if (ok_f) {
-            Color fc = s.front_color;
-            fc.a *= op;
-            draw_at(front, fc);
-            if (s.highlight_opacity > 0.0f)
-                draw_at(front + Vec2{0, -1}, Color{1, 1, 1, s.highlight_opacity * op});
+        // Screen-space extrude direction: project one step from world_pos
+        Vec2 dir;
+        if (s.cam_ready) {
+            bool ok1;
+            Vec3 wp1 = s.world_pos + Vec3{s.extrude_dir.x, s.extrude_dir.y, s.extrude_z_step};
+            Vec2 sp1 = renderer::project_2_5d(wp1, s.cam_view, s.cam_focal, s.vp_cx, s.vp_cy, ok1);
+            dir = ok1 ? (sp1 - front_sp) : Vec2{s.extrude_dir.x, s.extrude_dir.y};
+        } else {
+            dir = Vec2{s.extrude_dir.x, s.extrude_dir.y};
+        }
+
+        const f32 dir_len = std::sqrt(dir.x * dir.x + dir.y * dir.y);
+
+        // Render front face to mask buffer
+        Framebuffer front_mask(fb.width(), fb.height());
+        front_mask.clear(Color::transparent());
+        {
+            TextShape ts;
+            ts.text = s.text; ts.style.font_path = s.font_path;
+            ts.style.size = s.font_size; ts.style.color = Color{1, 1, 1, 1};
+            ts.style.align = s.align;
+            Transform tr; tr.position = Vec3(front_sp.x, front_sp.y, 0.0f);
+            m_text_renderer.draw_text(ts, tr, front_mask);
+        }
+
+        if (dir_len > 0.1f && s.depth > 0) {
+            // Single-pass solid extrusion via back-trace:
+            // For every pixel NOT in front_mask, trace backwards along -dir.
+            // If we hit a front pixel within depth steps → this is a SIDE FACE pixel.
+            // Distance from the hit determines the shading (near=light, far=dark).
+            const f32 inv_depth = 1.0f / static_cast<f32>(s.depth);
+
+            for (int y = 0; y < fb.height(); ++y) {
+                for (int x = 0; x < fb.width(); ++x) {
+                    if (front_mask.get_pixel(x, y).a > 0.05f) continue;
+
+                    bool found = false;
+                    f32  dist  = 0.0f;
+
+                    for (int step = 1; step <= s.depth; ++step) {
+                        const int sx = x - static_cast<int>(dir.x * step + 0.5f);
+                        const int sy = y - static_cast<int>(dir.y * step + 0.5f);
+                        if (sx < 0 || sx >= fb.width() || sy < 0 || sy >= fb.height()) break;
+                        if (front_mask.get_pixel(sx, sy).a > 0.05f) {
+                            dist  = static_cast<f32>(step) * inv_depth;
+                            found = true;
+                            break;
+                        }
+                    }
+
+                    if (found) {
+                        // dist=0 → just at edge (lightest), dist=1 → deepest (darkest)
+                        Color sc = s.side_color;
+                        sc.r = std::max(0.0f, sc.r - 0.30f * dist);
+                        sc.g = std::max(0.0f, sc.g - 0.30f * dist);
+                        sc.b = std::max(0.0f, sc.b - 0.30f * dist);
+                        sc.a = s.side_color.a * (1.0f - s.side_fade * dist) * op;
+                        fb.set_pixel(x, y, compositor::blend(sc, fb.get_pixel(x, y), BlendMode::Normal));
+                    }
+                }
+            }
+        }
+
+        // Front face on top — covers interior, exposes only real side-face pixels
+        {
+            TextShape ts;
+            ts.text = s.text; ts.style.font_path = s.font_path;
+            ts.style.size  = s.font_size;
+            ts.style.color = Color{s.front_color.r, s.front_color.g,
+                                    s.front_color.b, s.front_color.a * op};
+            ts.style.align = s.align;
+            Transform tr; tr.position = Vec3(front_sp.x, front_sp.y, 0.0f); tr.opacity = op;
+            m_text_renderer.draw_text(ts, tr, fb, &state);
+        }
+
+        if (s.highlight_opacity > 0.0f) {
+            TextShape ts;
+            ts.text = s.text; ts.style.font_path = s.font_path;
+            ts.style.size  = s.font_size;
+            ts.style.color = Color{1, 1, 1, s.highlight_opacity * op};
+            ts.style.align = s.align;
+            Transform tr; tr.position = Vec3(front_sp.x, front_sp.y - 1.0f, 0.0f);
+            m_text_renderer.draw_text(ts, tr, fb, &state);
         }
         return;
     }
