@@ -61,6 +61,7 @@ struct GraphArgs {
     std::string output{"output/graph.dot"};
 };
 
+
 int command_list(const CompositionRegistry& registry);
 int command_info(const CompositionRegistry& registry, const std::string& id);
 int command_render(const CompositionRegistry& registry, const RenderArgs& args);
