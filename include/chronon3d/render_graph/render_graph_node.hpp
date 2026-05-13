@@ -1,0 +1,63 @@
+#pragma once
+
+#include <chronon3d/cache/node_cache.hpp>
+#include <chronon3d/renderer/framebuffer.hpp>
+#include <memory>
+#include <string>
+#include <vector>
+
+namespace chronon3d {
+    class SoftwareRenderer;
+}
+
+namespace chronon3d::graph {
+
+class RenderProfiler;
+using GraphNodeId = uint32_t;
+
+enum class RenderGraphNodeKind {
+    Source,
+    Mask,
+    Effect,
+    Transform,
+    Composite,
+    Precomp,
+    Video,
+    Adjustment,
+    MotionBlur,
+    ColorConvert,
+    Output
+};
+
+struct RenderGraphContext {
+    Frame frame{0};
+    float time_seconds{0.0f};
+    int width{0};
+    int height{0};
+
+    SoftwareRenderer* renderer{nullptr};
+    cache::NodeCache* node_cache{nullptr};
+    RenderProfiler* profiler{nullptr};
+
+    bool cache_enabled{true};
+    bool diagnostics_enabled{false};
+};
+
+
+
+class RenderGraphNode {
+public:
+    virtual ~RenderGraphNode() = default;
+
+    [[nodiscard]] virtual RenderGraphNodeKind kind() const = 0;
+    [[nodiscard]] virtual std::string name() const = 0;
+
+    [[nodiscard]] virtual cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const = 0;
+
+    virtual std::shared_ptr<Framebuffer> execute(
+        RenderGraphContext& ctx,
+        const std::vector<std::shared_ptr<Framebuffer>>& inputs
+    ) = 0;
+};
+
+} // namespace chronon3d::graph

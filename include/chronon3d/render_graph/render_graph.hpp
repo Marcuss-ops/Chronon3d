@@ -1,70 +1,48 @@
 #pragma once
 
-#include <chronon3d/render_graph/render_node.hpp>
-#include <utility>
+#include <chronon3d/render_graph/render_graph_node.hpp>
+#include <memory>
+#include <vector>
 
-namespace chronon3d::render_graph {
+namespace chronon3d::graph {
+
+struct RenderGraphEdge {
+    GraphNodeId from;
+    GraphNodeId to;
+};
 
 class RenderGraph {
 public:
-    using Native = chronon3d::rendergraph::RenderGraph;
-
-    [[nodiscard]] NodeId add_output(std::string label, RenderCacheKey key) {
-        return m_graph.add_output(std::move(label), std::move(key));
+    GraphNodeId add_node(std::unique_ptr<RenderGraphNode> node) {
+        GraphNodeId id = static_cast<GraphNodeId>(m_nodes.size());
+        m_nodes.push_back(std::move(node));
+        m_inputs.emplace_back();
+        return id;
     }
 
-    [[nodiscard]] NodeId add_transform(std::string label,
-                                       RenderCacheKey key,
-                                       NodeId input,
-                                       Transform transform,
-                                       RenderState base_state) {
-        return m_graph.add_transform(std::move(label), std::move(key), input,
-                                     std::move(transform), std::move(base_state));
+    void connect(GraphNodeId from, GraphNodeId to) {
+        m_inputs[to].push_back(from);
     }
 
-    [[nodiscard]] NodeId add_source(std::string label,
-                                    RenderCacheKey key,
-                                    NodeId input,
-                                    const ::chronon3d::RenderNode& node) {
-        return m_graph.add_source(std::move(label), std::move(key), input, node);
+    [[nodiscard]] const RenderGraphNode& node(GraphNodeId id) const {
+        return *m_nodes[id];
     }
 
-    [[nodiscard]] NodeId add_layer_source(std::string label,
-                                          RenderCacheKey key,
-                                          NodeId input,
-                                          const Layer& layer) {
-        return m_graph.add_layer_source(std::move(label), std::move(key), input, layer);
+    [[nodiscard]] RenderGraphNode& node(GraphNodeId id) {
+        return *m_nodes[id];
     }
 
-    [[nodiscard]] NodeId add_effect(std::string label,
-                                    RenderCacheKey key,
-                                    NodeId input,
-                                    const Layer& layer) {
-        return m_graph.add_effect(std::move(label), std::move(key), input, layer);
+    [[nodiscard]] const std::vector<GraphNodeId>& inputs(GraphNodeId id) const {
+        return m_inputs[id];
     }
 
-    [[nodiscard]] NodeId add_composite(std::string label,
-                                       RenderCacheKey key,
-                                       NodeId bottom,
-                                       NodeId top,
-                                       BlendMode mode) {
-        return m_graph.add_composite(std::move(label), std::move(key), bottom, top, mode);
+    [[nodiscard]] size_t size() const {
+        return m_nodes.size();
     }
-
-    [[nodiscard]] std::string debug_dot() const { return m_graph.debug_dot(); }
-
-    [[nodiscard]] std::unique_ptr<Framebuffer> execute(RenderGraphExecutionContext& ctx) const {
-        return m_graph.execute(ctx);
-    }
-
-    [[nodiscard]] bool empty() const { return m_graph.empty(); }
-    [[nodiscard]] usize size() const { return m_graph.size(); }
-
-    [[nodiscard]] const Native& native() const { return m_graph; }
-    [[nodiscard]] Native& native() { return m_graph; }
 
 private:
-    Native m_graph;
+    std::vector<std::unique_ptr<RenderGraphNode>> m_nodes;
+    std::vector<std::vector<GraphNodeId>> m_inputs;
 };
 
-} // namespace chronon3d::render_graph
+} // namespace chronon3d::graph

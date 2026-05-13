@@ -1,23 +1,26 @@
 #pragma once
 
-#include <chronon3d/cache/frame_cache.hpp>
 #include <chronon3d/render_graph/render_graph.hpp>
+#include <unordered_map>
 
-namespace chronon3d::render_graph {
+namespace chronon3d::graph {
 
 class GraphExecutor {
 public:
-    [[nodiscard]] cache::FrameCache& frame_cache() { return m_frame_cache; }
-    [[nodiscard]] const cache::FrameCache& frame_cache() const { return m_frame_cache; }
-
-    [[nodiscard]] std::unique_ptr<Framebuffer> execute(const RenderGraph& graph,
-                                                       RenderGraphExecutionContext& ctx,
-                                                       std::string composition_id = {},
-                                                       u64 scene_hash = 0,
-                                                       u64 render_hash = 0);
+    std::shared_ptr<Framebuffer> execute(
+        RenderGraph& graph,
+        GraphNodeId output,
+        RenderGraphContext& ctx
+    );
 
 private:
-    cache::FrameCache m_frame_cache;
+    std::unordered_map<GraphNodeId, std::shared_ptr<Framebuffer>> m_temp;
+
+    std::shared_ptr<Framebuffer> execute_node(
+        RenderGraph& graph,
+        GraphNodeId id,
+        RenderGraphContext& ctx
+    );
 };
 
-} // namespace chronon3d::render_graph
+} // namespace chronon3d::graph
