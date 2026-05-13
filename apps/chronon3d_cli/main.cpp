@@ -60,6 +60,7 @@ int main(int argc, char** argv) {
     video_cmd->add_option("--crf",        video_args.crf,         "x264 CRF (0-51, lower=better)");
     video_cmd->add_option("--preset",     video_args.preset,      "x264 preset");
     video_cmd->add_flag("--keep-frames",  video_args.keep_frames, "Keep temporary PNG frames");
+    video_cmd->add_flag("--graph",        video_args.use_modular_graph, "Use modular RenderGraph path");
     video_cmd->add_option("--frames-dir", video_args.frames_dir,  "Override temporary frames directory");
     video_cmd->callback([&]() { exit_code = command_video(registry, video_args); });
 

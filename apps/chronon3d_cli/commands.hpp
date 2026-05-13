@@ -37,6 +37,7 @@ struct VideoArgs {
     int crf{18};
     std::string preset{"medium"};
     bool keep_frames{false};
+    bool use_modular_graph{false};
     std::string frames_dir;
 };
 
