@@ -20,6 +20,11 @@ public:
         m_layer.name = std::pmr::string{name, res};
     }
 
+    LayerBuilder& parent(std::string name) {
+        m_layer.parent_name = std::pmr::string{name, m_layer.name.get_allocator()};
+        return *this;
+    }
+
     LayerBuilder& from(Frame frame) {
         m_layer.from = frame;
         return *this;

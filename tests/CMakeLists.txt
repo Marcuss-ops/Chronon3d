@@ -17,6 +17,10 @@ add_executable(chronon3d_tests
     animation/test_animation.cpp
     animation/test_interpolate.cpp
     animation/test_spring.cpp
+    animation/test_animated_value.cpp
+    animation/test_keyframes.cpp
+    animation/test_keyframe_tracks.cpp
+    animation/test_parenting.cpp
     
     # Timeline
     timeline/test_timeline.cpp

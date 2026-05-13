@@ -11,6 +11,7 @@
 #include <chronon3d/video/video_source.hpp>
 #include <string>
 #include <functional>
+#include <unordered_map>
 
 namespace chronon3d {
 
@@ -132,6 +133,19 @@ public:
         return video_layer(std::move(name), std::move(source), std::forward<Fn>(fn));
     }
 
+    template <typename Fn>
+    SceneBuilder& null(std::string name, Fn&& fn) {
+        LayerBuilder builder(std::move(name), scene_.resource());
+        std::forward<Fn>(fn)(builder);
+
+        Layer l = builder.build();
+        l.kind = LayerKind::Null;
+        if (l.active_at(current_frame_)) {
+            scene_.add_layer(std::move(l));
+        }
+        return *this;
+    }
+
     // Fluent API for transformations (root level)
     SceneBuilder& at(Vec3 pos) {
         scene_.last_node().world_transform.position = pos;
@@ -195,6 +209,7 @@ public:
     }
 
     [[nodiscard]] Scene build() {
+        resolve_hierarchy();
         return std::move(scene_);
     }
 
@@ -202,6 +217,8 @@ public:
     [[nodiscard]] Frame frame() const { return current_frame_; }
 
 private:
+    void resolve_hierarchy();
+
     Scene scene_;
     Frame current_frame_;
 };
