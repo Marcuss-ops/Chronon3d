@@ -387,9 +387,9 @@ std::unique_ptr<Framebuffer> SoftwareRenderer::render_frame(const Composition& c
 }
 
 std::unique_ptr<Framebuffer> SoftwareRenderer::render_scene(
-    const Scene& scene, const Camera& camera, i32 width, i32 height)
+    const Scene& scene, const Camera& camera, i32 width, i32 height, Frame frame)
 {
-    return render_scene_internal(scene, camera, width, height, 0, 0.0f);
+    return render_scene_internal(scene, camera, width, height, frame, 0.0f);
 }
 
 std::string SoftwareRenderer::debug_render_graph(const Scene& scene, const Camera& camera,

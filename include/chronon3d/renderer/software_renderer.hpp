@@ -28,7 +28,7 @@ class SoftwareRenderer : public Renderer {
 public:
     std::unique_ptr<Framebuffer> render_frame(const Composition& comp, Frame frame) override;
     std::unique_ptr<Framebuffer> render_scene(const Scene& scene, const Camera& camera,
-                                               i32 width, i32 height) override;
+                                               i32 width, i32 height, Frame frame = 0) override;
     [[nodiscard]] std::string debug_render_graph(const Scene& scene, const Camera& camera,
                                                  i32 width, i32 height, Frame frame = 0,
                                                  f32 frame_time = 0.0f) const;
