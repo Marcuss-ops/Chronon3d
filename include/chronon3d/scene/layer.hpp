@@ -21,8 +21,10 @@ enum class LayerKind {
     Adjustment,   // no own content: effects applied to everything rendered below it
     Null,         // no rendering at all; useful as a parent for transform hierarchy
     Precomp,      // references a nested composition by name
-    Video         // plays a video file via VideoNode
+    Video,        // plays a video file via VideoNode
+    Glass         // frosted glass: blurs background within shapes, then draws content
 };
+
 
 struct Layer {
     std::pmr::string name;
