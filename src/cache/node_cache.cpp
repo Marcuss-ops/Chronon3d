@@ -61,6 +61,17 @@ void NodeCache::put(u64 key, Value value, usize size_bytes)
     m_stats.current_usage_bytes += size_bytes;
 }
 
+bool NodeCache::erase(u64 key)
+{
+    std::lock_guard lock(m_mutex);
+    auto it = m_entries.find(key);
+    if (it == m_entries.end()) return false;
+    m_stats.current_usage_bytes -= it->second.size_bytes;
+    m_lru_list.erase(it->second.lru_iterator);
+    m_entries.erase(it);
+    return true;
+}
+
 bool NodeCache::contains(u64 key) const
 {
     std::lock_guard lock(m_mutex);

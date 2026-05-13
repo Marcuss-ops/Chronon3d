@@ -265,13 +265,6 @@ NodeId RenderGraph::add_effect(std::string label,
 
             if (!layer.effects.empty()) {
                 ctx.renderer.apply_effect_stack(*result.framebuffer, layer.effects);
-            } else if (layer.effect.has_any()) {
-                if (layer.effect.blur_radius > 0.0f) {
-                    ctx.renderer.apply_blur(*result.framebuffer, layer.effect.blur_radius);
-                }
-                if (layer.effect.tint.a > 0.0f || layer.effect.brightness != 0.0f || layer.effect.contrast != 1.0f) {
-                    ctx.renderer.apply_color_effects(*result.framebuffer, layer.effect);
-                }
             }
 
             return result;

@@ -5,7 +5,6 @@
 #include <chronon3d/math/transform.hpp>
 #include <chronon3d/scene/render_node.hpp>
 #include <chronon3d/scene/mask.hpp>
-#include <chronon3d/scene/layer_effect.hpp>
 #include <chronon3d/scene/effect_stack.hpp>
 #include <chronon3d/scene/depth_role.hpp>
 #include <chronon3d/layout/layout_rules.hpp>
@@ -19,7 +18,8 @@ namespace chronon3d {
 enum class LayerKind {
     Normal,       // standard layer: draws its own content, then effects applied
     Adjustment,   // no own content: effects applied to everything rendered below it
-    Null          // no rendering at all; useful as a parent for transform hierarchy
+    Null,         // no rendering at all; useful as a parent for transform hierarchy
+    Precomp       // references a nested composition by name
 };
 
 struct Layer {
@@ -31,16 +31,16 @@ struct Layer {
     bool      visible{true};
     bool      is_3d{false};
     Mask      mask{};
-    LayerEffect effect{};    // legacy flat effect — kept for backward compat
-    EffectStack effects;     // ordered effect stack (takes precedence when non-empty)
+    EffectStack effects;     // ordered effect stack
     BlendMode blend_mode{BlendMode::Normal};
     DepthRole   depth_role{DepthRole::None};
     f32         depth_offset{0.0f};
     LayoutRules layout{};
     std::pmr::vector<RenderNode> nodes;
+    std::pmr::string precomp_composition_name; // for LayerKind::Precomp
 
     explicit Layer(std::pmr::memory_resource* res = std::pmr::get_default_resource())
-        : name(res), nodes(res) {}
+        : name(res), nodes(res), precomp_composition_name(res) {}
 
     [[nodiscard]] bool active_at(Frame frame) const {
         if (!visible) return false;

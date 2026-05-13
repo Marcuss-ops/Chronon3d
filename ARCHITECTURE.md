@@ -25,18 +25,28 @@ Chronon3d is a code-first, headless, CPU-only motion graphics engine. The goal i
 
 1. A `Composition` is evaluated for a frame.
 2. The composition builds a scene using `SceneBuilder` and related builders.
-3. The evaluated scene is passed to the renderer.
-4. The renderer emits a `Framebuffer` or writes image output.
-5. The CLI optionally turns frame sequences into video with `ffmpeg`.
+3. `GraphBuilder` converts the scene into a `RenderGraph` (DAG of render nodes).
+4. `GraphExecutor` traverses the graph, caching node outputs by content hash via `NodeCache`.
+5. The compositor produces a final `Framebuffer`.
+6. The CLI optionally turns frame sequences into video with `ffmpeg`.
+
+## Render Graph
+
+The render graph (`chronon3d::graph`) is the execution model for a single frame. Each operation — source rendering, masking, effects, compositing, precomps — is a `RenderGraphNode` with explicit inputs and outputs. The executor caches node results by content hash so unchanged subtrees are never re-executed.
+
+See [docs/RENDER_GRAPH.md](docs/RENDER_GRAPH.md) for the full specification.
 
 ## Build Model
 
-Chronon3d currently supports two build entry points:
+CMake + vcpkg is the primary build path. All dependencies are managed via `vcpkg.json` and installed automatically on first configure.
 
-- CMake is the main scripted and CI-aligned path.
-- xmake remains available as an alternative development path.
+```bash
+export VCPKG_ROOT=~/vcpkg
+cmake --preset linux-release
+cmake --build build/chronon/linux-release -j$(nproc)
+```
 
-The two build systems should converge on the same source graph and the same public targets.
+See [BUILDING.md](BUILDING.md) for the complete guide.
 
 ## Internal Layers
 

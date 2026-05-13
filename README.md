@@ -70,29 +70,33 @@ chronon3d_cli video MyVideo --start 0 --end 90 --fps 30 -o output/my_video.mp4
 ### 1. Build (Linux)
 
 ```bash
-bash tools/chronon-linux.sh   # install deps via vcpkg + cmake
+# Install vcpkg once
+git clone https://github.com/microsoft/vcpkg ~/vcpkg
+~/vcpkg/bootstrap-vcpkg.sh -disableMetrics
+export VCPKG_ROOT=~/vcpkg
+
+# Configure (installs all C++ deps automatically) + build
+cmake --preset linux-release
+cmake --build build/chronon/linux-release -j$(nproc)
 ```
 
-Or with xmake (recommended for development):
+Or use the helper script which handles vcpkg bootstrap automatically:
 
 ```bash
-# install xmake once
-curl -fsSL https://xmake.io/shget.text | bash
-
-xmake f -m debug
-xmake -y
+bash tools/chronon-linux.sh
 ```
 
 ### 2. Build (Windows)
 
 ```powershell
-.\tools\chronon-win.ps1          # vcpkg + cmake
-# or
-xmake f -m debug
-xmake -y
+$env:VCPKG_ROOT = "$env:USERPROFILE\vcpkg"
+git clone https://github.com/microsoft/vcpkg $env:VCPKG_ROOT
+& "$env:VCPKG_ROOT\bootstrap-vcpkg.bat" -disableMetrics
+cmake --preset win-release
+cmake --build build\chronon\win-release
 ```
 
-See [BUILDING.md](BUILDING.md) for details.
+See [BUILDING.md](BUILDING.md) for the complete guide including troubleshooting.
 Architecture and planning notes live in [docs/INDEX.md](docs/INDEX.md), [docs/3d_subsystem.md](docs/3d_subsystem.md), [ARCHITECTURE.md](ARCHITECTURE.md), and [ROADMAP.md](ROADMAP.md).
 
 ### 3. Register a composition

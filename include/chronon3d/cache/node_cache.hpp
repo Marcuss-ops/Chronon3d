@@ -56,6 +56,9 @@ public:
     void store(const NodeCacheKey& key, Value value) {
         if (value) put(key.digest(), value, value->size_bytes());
     }
+    [[nodiscard]] bool contains(const NodeCacheKey& key) const { return contains(key.digest()); }
+    bool erase(u64 key);
+    bool erase(const NodeCacheKey& key) { return erase(key.digest()); }
 
 private:
     void evict_if_needed(usize required_bytes);

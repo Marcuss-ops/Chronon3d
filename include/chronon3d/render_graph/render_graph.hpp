@@ -2,6 +2,7 @@
 
 #include <chronon3d/render_graph/render_graph_node.hpp>
 #include <memory>
+#include <stdexcept>
 #include <vector>
 
 namespace chronon3d::graph {
@@ -10,6 +11,8 @@ struct RenderGraphEdge {
     GraphNodeId from;
     GraphNodeId to;
 };
+
+static constexpr GraphNodeId k_invalid_node = static_cast<GraphNodeId>(-1);
 
 class RenderGraph {
 public:
@@ -40,9 +43,20 @@ public:
         return m_nodes.size();
     }
 
+    void set_output(GraphNodeId id) { m_output = id; }
+
+    [[nodiscard]] GraphNodeId output() const {
+        if (m_output == k_invalid_node)
+            throw std::logic_error("RenderGraph: output node not set");
+        return m_output;
+    }
+
+    [[nodiscard]] bool has_output() const { return m_output != k_invalid_node; }
+
 private:
     std::vector<std::unique_ptr<RenderGraphNode>> m_nodes;
     std::vector<std::vector<GraphNodeId>> m_inputs;
+    GraphNodeId m_output{k_invalid_node};
 };
 
 } // namespace chronon3d::graph
