@@ -77,18 +77,19 @@ static Composition Fake3DStudioProof() {
             .contact_shadow = true
         });
 
-        // CHRONON text in world space (camera projects to upper-center of screen)
+        // CHRONON — back-trace solid extrusion, camera-projected direction
         s.fake_extruded_text_layer("tilt", {
             .text              = "CHRONON",
             .pos               = {0, 200, -50},
             .font_size         = 90,
-            .depth             = 32,
-            .extrude_dir       = {0.8f, 1.0f},
-            .extrude_z_step    = 1.2f,
+            .depth             = 20,
+            .extrude_dir       = {0.0f, 0.0f},
+            .extrude_z_step    = 2.5f,            // pure Z: camera projects as upward top face
             .front_color       = Color{0.97f, 0.96f, 0.92f, 1.0f},
-            .side_color        = Color{0.50f, 0.45f, 0.38f, 0.85f},
+            .side_color        = Color{0.48f, 0.42f, 0.33f, 0.95f},
+            .side_fade         = 0.08f,
             .align             = TextAlign::Center,
-            .highlight_opacity = 0.09f
+            .highlight_opacity = 0.10f
         });
 
         // Global bloom: Soft but present
