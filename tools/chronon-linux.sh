@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$ROOT_DIR"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$PROJECT_DIR"
 
 if [[ "${CHRONON_SKIP_DEPS:-0}" != "1" ]]; then
   if command -v apt-get >/dev/null 2>&1; then
@@ -53,7 +54,7 @@ packages=(
 )
 
 if [[ "${CHRONON_SKIP_DEPS:-0}" != "1" ]]; then
-  "$VCPKG_ROOT/vcpkg" install --classic --triplet x64-linux --x-install-root "$ROOT_DIR/vcpkg_installed" --no-print-usage "${packages[@]}"
+  "$VCPKG_ROOT/vcpkg" install --classic --triplet x64-linux --x-install-root "$PROJECT_DIR/vcpkg_installed" --no-print-usage "${packages[@]}"
 fi
 
 cmake --preset linux-release

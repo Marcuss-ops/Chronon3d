@@ -39,6 +39,7 @@ add_executable(chronon3d_tests
     renderer/test_moving_frame.cpp
     renderer/test_effects.cpp
     renderer/test_text_rendering.cpp
+    renderer/test_render_graph.cpp
 
     # Other
     deterministic/test_deterministic.cpp
