@@ -8,6 +8,7 @@
 
 namespace chronon3d {
     class SoftwareRenderer;
+    class CompositionRegistry;
 }
 
 namespace chronon3d::graph {
@@ -38,10 +39,12 @@ struct RenderGraphContext {
     SoftwareRenderer* renderer{nullptr};
     cache::NodeCache* node_cache{nullptr};
     RenderProfiler* profiler{nullptr};
+    CompositionRegistry* registry{nullptr};
 
     bool cache_enabled{true};
     bool diagnostics_enabled{false};
 };
+
 
 
 
@@ -51,6 +54,8 @@ public:
 
     [[nodiscard]] virtual RenderGraphNodeKind kind() const = 0;
     [[nodiscard]] virtual std::string name() const = 0;
+
+    [[nodiscard]] virtual bool cacheable() const { return true; }
 
     [[nodiscard]] virtual cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const = 0;
 
