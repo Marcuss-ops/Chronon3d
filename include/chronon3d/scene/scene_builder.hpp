@@ -97,6 +97,21 @@ public:
         return *this;
     }
 
+    // Fake-3D compound helpers — create a single enable_3d() layer automatically.
+    // The pos field in params sets both layer world position (for depth sorting)
+    // and the shape's world_pos (for proper face projection).
+    SceneBuilder& fake_box3d_layer(std::string name, FakeBox3DParams p) {
+        return layer(std::move(name), [p](LayerBuilder& l) {
+            l.enable_3d().position(p.pos).fake_box3d("box", p);
+        });
+    }
+
+    SceneBuilder& grid_plane_layer(std::string name, GridPlaneParams p) {
+        return layer(std::move(name), [p](LayerBuilder& l) {
+            l.enable_3d().position(p.pos).grid_plane("grid", p);
+        });
+    }
+
     // Hierarchy
     template <typename Fn>
     SceneBuilder& layer(std::string name, Fn&& fn) {

@@ -231,6 +231,40 @@ public:
         return *this;
     }
 
+    LayerBuilder& fake_box3d(std::string name, FakeBox3DParams p) {
+        auto* res = m_layer.nodes.get_allocator().resource();
+        RenderNode node(res);
+        node.name = std::pmr::string{name, res};
+        node.shape.type = ShapeType::FakeBox3D;
+        node.shape.fake_box3d.world_pos  = p.pos;
+        node.shape.fake_box3d.size       = p.size;
+        node.shape.fake_box3d.depth      = p.depth;
+        node.shape.fake_box3d.color      = p.color;
+        node.shape.fake_box3d.top_tint   = p.top_tint;
+        node.shape.fake_box3d.side_tint  = p.side_tint;
+        node.world_transform.position    = {0, 0, 0};
+        node.world_transform.anchor      = {p.size.x * 0.5f, p.size.y * 0.5f, 0.0f};
+        node.color = p.color;
+        m_layer.nodes.push_back(std::move(node));
+        return *this;
+    }
+
+    LayerBuilder& grid_plane(std::string name, GridPlaneParams p) {
+        auto* res = m_layer.nodes.get_allocator().resource();
+        RenderNode node(res);
+        node.name = std::pmr::string{name, res};
+        node.shape.type = ShapeType::GridPlane;
+        node.shape.grid_plane.world_pos = p.pos;
+        node.shape.grid_plane.axis      = p.axis;
+        node.shape.grid_plane.extent    = p.extent;
+        node.shape.grid_plane.spacing   = p.spacing;
+        node.shape.grid_plane.color     = p.color;
+        node.world_transform.position   = {0, 0, 0};
+        node.color = p.color;
+        m_layer.nodes.push_back(std::move(node));
+        return *this;
+    }
+
     LayerBuilder& with_shadow(DropShadow shadow) {
         if (!m_layer.nodes.empty()) m_layer.nodes.back().shadow = shadow;
         return *this;
