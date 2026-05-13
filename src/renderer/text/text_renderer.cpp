@@ -1,8 +1,8 @@
 #define STB_TRUETYPE_IMPLEMENTATION
 #include <stb_truetype.h>
 
-#include <chronon3d/renderer/text_renderer.hpp>
-#include <chronon3d/renderer/text_layout_engine.hpp>
+#include <chronon3d/renderer/text/text_renderer.hpp>
+#include <chronon3d/renderer/text/text_layout_engine.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/scene/mask_utils.hpp>
@@ -10,7 +10,7 @@
 #include <cmath>
 #include <algorithm>
 #include <chronon3d/math/transform.hpp>
-#include <chronon3d/renderer/framebuffer.hpp>
+#include <chronon3d/renderer/software/framebuffer.hpp>
 #include <spdlog/spdlog.h>
 
 namespace chronon3d {

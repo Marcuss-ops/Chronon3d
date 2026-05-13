@@ -4,7 +4,7 @@
 #include <chronon3d/scene/mask.hpp>
 #include <chronon3d/scene/render_node.hpp>
 #include <chronon3d/scene/shape.hpp>
-#include <chronon3d/renderer/render_graph.hpp> // For existing hash_combine etc.
+#include <chronon3d/renderer/software/render_graph.hpp> // For existing hash_combine etc.
 #include <chronon3d/video/video_source.hpp>
 #include <xxhash.h>
 

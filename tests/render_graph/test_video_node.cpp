@@ -1,7 +1,7 @@
 #include <doctest/doctest.h>
 #include <chronon3d/render_graph/nodes/video_node.hpp>
 #include <chronon3d/render_graph/render_graph_node.hpp>
-#include <chronon3d/renderer/framebuffer.hpp>
+#include <chronon3d/renderer/software/framebuffer.hpp>
 
 using namespace chronon3d;
 using namespace chronon3d::graph;

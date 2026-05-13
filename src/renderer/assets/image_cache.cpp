@@ -1,7 +1,7 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
-#include <chronon3d/renderer/image_cache.hpp>
+#include <chronon3d/renderer/assets/image_cache.hpp>
 
 namespace chronon3d {
 

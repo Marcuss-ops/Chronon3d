@@ -1,7 +1,7 @@
 #include <doctest/doctest.h>
 #include <chronon3d/chronon3d.hpp>
-#include <chronon3d/renderer/framebuffer.hpp>
-#include <chronon3d/renderer/software_renderer.hpp>
+#include <chronon3d/renderer/software/framebuffer.hpp>
+#include <chronon3d/renderer/software/software_renderer.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 
 using namespace chronon3d;

@@ -1,6 +1,6 @@
 #include <doctest/doctest.h>
 #include <chronon3d/chronon3d.hpp>
-#include <chronon3d/renderer/software_renderer.hpp>
+#include <chronon3d/renderer/software/software_renderer.hpp>
 #include <chronon3d/compositor/alpha.hpp>
 
 using namespace chronon3d;

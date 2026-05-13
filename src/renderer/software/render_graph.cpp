@@ -1,5 +1,5 @@
-#include <chronon3d/renderer/render_graph.hpp>
-#include <chronon3d/renderer/software_renderer.hpp>
+#include <chronon3d/renderer/software/render_graph.hpp>
+#include <chronon3d/renderer/software/software_renderer.hpp>
 #include <chronon3d/scene/mask_utils.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/core/profiling.hpp>

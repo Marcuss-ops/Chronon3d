@@ -100,6 +100,10 @@ target_link_libraries(chronon3d_effects
 # 6. Renderer Library (Static)
 file(GLOB CHRONON3D_RENDERER_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/software/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/text/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/assets/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/video/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/scene/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/evaluation/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/layout/*.cpp"

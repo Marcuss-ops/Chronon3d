@@ -1,4 +1,4 @@
-#include <chronon3d/renderer/software_renderer.hpp>
+#include <chronon3d/renderer/software/software_renderer.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/scene/scene.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>

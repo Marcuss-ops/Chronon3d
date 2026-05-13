@@ -1,17 +1,17 @@
 #pragma once
 
-#include <chronon3d/renderer/renderer.hpp>
-#include <chronon3d/renderer/render_graph.hpp>
+#include <chronon3d/renderer/software/renderer.hpp>
+#include <chronon3d/renderer/software/render_graph.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
-#include <chronon3d/renderer/text_renderer.hpp>
-#include <chronon3d/renderer/image_renderer.hpp>
+#include <chronon3d/renderer/text/text_renderer.hpp>
+#include <chronon3d/renderer/assets/image_renderer.hpp>
 #include <chronon3d/math/transform.hpp>
 #include <chronon3d/scene/layer.hpp>
 #include <chronon3d/scene/layer_effect.hpp>
 #include <chronon3d/scene/effect_stack.hpp>
 #include <chronon3d/scene/camera_2_5d.hpp>
 #include <chronon3d/cache/node_cache.hpp>
-#include <chronon3d/renderer/render_settings.hpp>
+#include <chronon3d/renderer/software/render_settings.hpp>
 #include <chronon3d/render_graph/graph_builder.hpp>
 #include <chronon3d/render_graph/graph_executor.hpp>
 #include <chronon3d/video/ffmpeg_frame_extractor.hpp>
