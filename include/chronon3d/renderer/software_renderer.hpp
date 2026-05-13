@@ -11,6 +11,9 @@
 #include <chronon3d/scene/effect_stack.hpp>
 #include <chronon3d/scene/camera_2_5d.hpp>
 #include <chronon3d/cache/node_cache.hpp>
+#include <chronon3d/renderer/render_settings.hpp>
+#include <chronon3d/render_graph/graph_builder.hpp>
+#include <chronon3d/render_graph/graph_executor.hpp>
 #include <unordered_map>
 
 namespace chronon3d {
@@ -29,13 +32,16 @@ public:
                                                  i32 width, i32 height, Frame frame = 0,
                                                  f32 frame_time = 0.0f) const;
 
-    // Motion blur: accumulate N subframes when enabled.
-    void set_motion_blur(MotionBlurSettings mb) { m_motion_blur = mb; }
-    [[nodiscard]] const MotionBlurSettings& motion_blur() const { return m_motion_blur; }
+    // Render settings management
+    void set_settings(const RenderSettings& settings) { m_settings = settings; }
+    [[nodiscard]] const RenderSettings& settings() const { return m_settings; }
 
-    // Diagnostic mode control
-    void set_diagnostic_mode(bool enabled) { diagnostic_ = enabled; }
-    [[nodiscard]] bool is_diagnostic_mode() const { return diagnostic_; }
+    // Legacy/Compatibility setters (redirect to m_settings)
+    void set_motion_blur(MotionBlurSettings mb) { m_settings.motion_blur = mb; }
+    [[nodiscard]] const MotionBlurSettings& motion_blur() const { return m_settings.motion_blur; }
+
+    void set_diagnostic_mode(bool enabled) { m_settings.diagnostic = enabled; }
+    [[nodiscard]] bool is_diagnostic_mode() const { return m_settings.diagnostic; }
 
     // Clear image and font caches (useful between unrelated render sessions)
     void clear_caches() {
@@ -82,8 +88,7 @@ private:
     TextRenderer      m_text_renderer;
     ImageRenderer     m_image_renderer;
     mutable cache::NodeCache  m_node_cache;
-    bool              diagnostic_{false};
-    MotionBlurSettings m_motion_blur{};
+    RenderSettings    m_settings{};
 };
 
 
