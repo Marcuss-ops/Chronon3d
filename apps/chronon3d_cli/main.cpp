@@ -41,6 +41,7 @@ int main(int argc, char** argv) {
     render_cmd->add_option("--frames",   render_args.frames,    "Frame range: 0 | 0-90 | 0-90x5");
     render_cmd->add_option("-o,--output",render_args.output,    "Output path (use #### for frame number)");
     render_cmd->add_flag("--diagnostic", render_args.diagnostic,"Enable diagnostic overlays");
+    render_cmd->add_flag("--graph",      render_args.use_modular_graph, "Use modular RenderGraph path");
     render_cmd->add_option("--frame",    render_args.frame_old, "Single frame (legacy)");
     render_cmd->add_option("--start",    render_args.start_old, "Start frame (legacy)");
     render_cmd->add_option("--end",      render_args.end_old,   "End frame exclusive (legacy)");
@@ -70,6 +71,8 @@ int main(int argc, char** argv) {
     proofs_cmd->add_option("suite", proofs_args.suite,
         "Suite: list | all | text | layer | image | effects | animation | depth | camera25d | masks")->required();
     proofs_cmd->add_option("-o,--output-dir", proofs_args.output_dir, "Output directory");
+    proofs_cmd->add_flag("--graph",      proofs_args.use_modular_graph, "Use modular RenderGraph path");
+    proofs_cmd->add_flag("--diagnostic", proofs_args.diagnostic, "Enable diagnostic overlays");
     proofs_cmd->callback([&]() { exit_code = command_proofs(registry, proofs_args); });
 
     // -------------------------------------------------------------------------
@@ -80,6 +83,7 @@ int main(int argc, char** argv) {
     bench_cmd->add_option("id", bench_args.comp_id, "Composition name")->required();
     bench_cmd->add_option("--frames", bench_args.frames, "Measured frames")->default_val(120);
     bench_cmd->add_option("--warmup", bench_args.warmup, "Warmup frames")->default_val(10);
+    bench_cmd->add_flag("--graph", bench_args.use_modular_graph, "Use modular RenderGraph path");
     bench_cmd->callback([&]() { exit_code = command_bench(registry, bench_args); });
 
     // -------------------------------------------------------------------------

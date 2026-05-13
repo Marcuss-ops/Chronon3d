@@ -98,7 +98,11 @@ int command_render(const CompositionRegistry& registry, const RenderArgs& args) 
     auto comp_instance = registry.create(args.comp_id);
     auto comp_ptr = std::make_shared<Composition>(std::move(comp_instance));
     auto renderer = std::make_shared<SoftwareRenderer>();
-    renderer->set_diagnostic_mode(args.diagnostic);
+    
+    RenderSettings settings;
+    settings.diagnostic = args.diagnostic;
+    settings.use_modular_graph = args.use_modular_graph;
+    renderer->set_settings(settings);
     
     RenderPipeline pipeline(comp_ptr, renderer);
 
@@ -157,6 +161,7 @@ int command_batch(const CompositionRegistry& registry, const std::string& config
             args.frames = (*tbl)["frames"].value_or<std::string>("0");
             args.output = (*tbl)["output"].value_or<std::string>("render_####.png");
             args.diagnostic = (*tbl)["diagnostic"].value_or<bool>(false);
+            args.use_modular_graph = (*tbl)["graph"].value_or<bool>(false);
 
             if (args.comp_id.empty()) {
                 spdlog::warn("Skipping job with missing composition ID");
@@ -342,7 +347,8 @@ int command_video(const CompositionRegistry& registry, const VideoArgs& args) {
 
 static int render_proof_suite(const CompositionRegistry& registry,
                                const ProofSuite& suite,
-                               const std::filesystem::path& out_dir) {
+                               const std::filesystem::path& out_dir,
+                               const ProofsArgs& p_args) {
     namespace fs = std::filesystem;
     std::error_code ec;
     fs::create_directories(out_dir, ec);
@@ -360,6 +366,8 @@ static int render_proof_suite(const CompositionRegistry& registry,
         args.comp_id   = pf.composition;
         args.frame_old = pf.frame;
         args.output    = out.string();
+        args.use_modular_graph = p_args.use_modular_graph;
+        args.diagnostic        = p_args.diagnostic;
 
         const int r = command_render(registry, args);
         if (r != 0 || !fs::exists(out) || fs::file_size(out) == 0) {
@@ -383,7 +391,7 @@ int command_proofs(const CompositionRegistry& registry, const ProofsArgs& args) 
         for (const auto& suite : proof_suites()) {
             spdlog::info("[proofs] Suite: {}", suite.name);
             const auto suite_dir = std::filesystem::path(args.output_dir) / suite.name;
-            result |= render_proof_suite(registry, suite, suite_dir);
+            result |= render_proof_suite(registry, suite, suite_dir, args);
         }
         return result;
     }
@@ -395,7 +403,7 @@ int command_proofs(const CompositionRegistry& registry, const ProofsArgs& args) 
     }
 
     spdlog::info("[proofs] Suite: {}", suite->name);
-    return render_proof_suite(registry, *suite, args.output_dir);
+    return render_proof_suite(registry, *suite, args.output_dir, args);
 }
 
 int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
@@ -414,6 +422,9 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
 
     auto comp = registry.create(args.comp_id);
     SoftwareRenderer renderer;
+    RenderSettings settings;
+    settings.use_modular_graph = args.use_modular_graph;
+    renderer.set_settings(settings);
 
     spdlog::info("Benchmarking {} (warmup: {}, frames: {})", args.comp_id, args.warmup, args.frames);
 

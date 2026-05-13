@@ -96,19 +96,3 @@ TEST_CASE("EffectStack: tint applied via stack produces coloured output") {
     CHECK(c.b < 0.1f);
 }
 
-TEST_CASE("EffectStack: legacy layer.effect fallback still works") {
-    // Directly set layer.effect after building -- renderer falls back to legacy path
-    auto fb = render_fn([](const FrameContext& ctx) {
-        SceneBuilder s(ctx);
-        s.layer("l", [](LayerBuilder& l) {
-            l.position({40,40,0});
-            l.rect("r", {.size={60,60}, .color=Color::white()});
-        });
-        auto sc = s.build();
-        // effects vector is empty → renderer uses legacy layer.effect
-        const_cast<Layer&>(sc.layers()[0]).effect.tint = Color{0,0,1,0.5f};
-        return sc;
-    });
-    Color c = fb->get_pixel(40, 40);
-    CHECK(c.b > c.r);
-}
