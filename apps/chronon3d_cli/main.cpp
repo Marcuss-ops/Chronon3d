@@ -76,7 +76,7 @@ int main(int argc, char** argv) {
     ProofsArgs proofs_args;
     auto* proofs_cmd = app.add_subcommand("proofs", "Render a proof suite ('proofs list' for names)");
     proofs_cmd->add_option("suite", proofs_args.suite,
-        "Suite: list | all | text | layer | image | effects | animation | depth | camera25d | masks")->required();
+        "Suite: list | all | text | layer | image | effects | animation | depth | camera25d | masks | fake3d")->required();
     proofs_cmd->add_option("-o,--output-dir", proofs_args.output_dir, "Output directory");
     proofs_cmd->add_flag("--graph",      proofs_args.use_modular_graph, "Use modular RenderGraph path");
     proofs_cmd->add_flag("--diagnostic", proofs_args.diagnostic, "Enable diagnostic overlays");

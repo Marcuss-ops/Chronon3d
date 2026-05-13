@@ -48,4 +48,21 @@ struct ImageParams {
     f32 opacity{1.0f};
 };
 
+struct FakeBox3DParams {
+    Vec3  pos{0, 0, 0};
+    Vec2  size{200, 200};
+    f32   depth{60};
+    Color color{1, 1, 1, 1};
+    f32   top_tint{0.15f};
+    f32   side_tint{0.20f};
+};
+
+struct GridPlaneParams {
+    Vec3      pos{0, 0, 0};
+    PlaneAxis axis{PlaneAxis::XZ};
+    f32       extent{2000};
+    f32       spacing{200};
+    Color     color{1, 1, 1, 0.25f};
+};
+
 } // namespace chronon3d

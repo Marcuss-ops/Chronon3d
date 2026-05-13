@@ -2,6 +2,7 @@
 
 #include <chronon3d/math/vec2.hpp>
 #include <chronon3d/math/vec3.hpp>
+#include <chronon3d/math/mat4.hpp>
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/core/types.hpp>
 #include <string>
@@ -16,8 +17,12 @@ enum class ShapeType {
     Line,
     Text,
     Image,
-    Mesh
+    Mesh,
+    FakeBox3D,
+    GridPlane,
 };
+
+enum class PlaneAxis { XZ, XY };
 
 struct RectShape {
     Vec2 size{100.0f, 100.0f};
@@ -74,6 +79,35 @@ struct ImageShape {
     f32 opacity{1.0f};
 };
 
+struct FakeBox3DShape {
+    Vec3  world_pos{0, 0, 0};   // 3D world-space center (must match layer position)
+    Vec2  size{200, 200};        // width (X), height (Y) in world units
+    f32   depth{60};             // Z extrusion depth (positive = away from camera)
+    Color color{1, 1, 1, 1};
+    f32   top_tint{0.15f};      // brighten top face by this amount
+    f32   side_tint{0.20f};     // darken side faces by this amount
+    // Injected at render time by build_render_graph:
+    bool  cam_ready{false};
+    Mat4  cam_view{1.0f};
+    f32   cam_focal{1000.0f};
+    f32   vp_cx{640};
+    f32   vp_cy{360};
+};
+
+struct GridPlaneShape {
+    Vec3      world_pos{0, 0, 0};
+    PlaneAxis axis{PlaneAxis::XZ};
+    f32       extent{2000};      // half-size in each plane direction
+    f32       spacing{200};      // line spacing
+    Color     color{1, 1, 1, 0.25f};
+    // Injected at render time:
+    bool  cam_ready{false};
+    Mat4  cam_view{1.0f};
+    f32   cam_focal{1000.0f};
+    f32   vp_cx{640};
+    f32   vp_cy{360};
+};
+
 struct Shape {
     ShapeType type{ShapeType::None};
     RectShape rect;
@@ -82,6 +116,8 @@ struct Shape {
     LineShape line;
     TextShape text;
     ImageShape image;
+    FakeBox3DShape fake_box3d;
+    GridPlaneShape grid_plane;
 };
 
 } // namespace chronon3d

@@ -120,6 +120,19 @@ const std::vector<ProofSuite>& proof_suites() {
             }
         },
         {
+            .name = "fake3d",
+            .frames = {
+                {"FakeBox3DProof",  0,   "fakebox3d_0000.png"},
+                {"FakeBox3DProof",  30,  "fakebox3d_0030.png"},
+                {"FakeBox3DProof",  60,  "fakebox3d_0060.png"},
+                {"FakeBox3DProof",  90,  "fakebox3d_0090.png"},
+                {"GridPlaneProof",  0,   "gridplane_0000.png"},
+                {"GridPlaneProof",  30,  "gridplane_0030.png"},
+                {"GridPlaneProof",  60,  "gridplane_0060.png"},
+                {"GridPlaneProof",  90,  "gridplane_0090.png"},
+            }
+        },
+        {
             .name = "masks",
             .frames = {
                 {"MaskRectProof",           0,  "mask_rect.png"},
