@@ -93,6 +93,7 @@ xmake -y
 ```
 
 See [BUILDING.md](BUILDING.md) for details.
+Architecture and planning notes live in [docs/INDEX.md](docs/INDEX.md), [docs/3d_subsystem.md](docs/3d_subsystem.md), [ARCHITECTURE.md](ARCHITECTURE.md), and [ROADMAP.md](ROADMAP.md).
 
 ### 3. Register a composition
 
