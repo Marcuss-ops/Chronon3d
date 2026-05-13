@@ -37,6 +37,18 @@ target("chronon3d")
         add_cxflags("-ffp-contract=off", {public = true})
     end
 
+-- Registry Library
+target("chronon3d_registry")
+    set_kind("static")
+    add_files("src/registry/*.cpp")
+    add_deps("chronon3d")
+
+-- Cache Library
+target("chronon3d_cache")
+    set_kind("static")
+    add_files("src/cache/*.cpp")
+    add_deps("chronon3d")
+
 -- Effects Library
 target("chronon3d_effects")
     set_kind("static")
@@ -52,7 +64,7 @@ target("chronon3d_renderer")
     add_files("src/layout/*.cpp")
     -- image_cache.cpp defines STB_IMAGE_IMPLEMENTATION; exclude old image_renderer if it had it
 
-    add_deps("chronon3d", "chronon3d_effects")
+    add_deps("chronon3d", "chronon3d_registry", "chronon3d_cache", "chronon3d_effects")
     add_packages("spdlog", "stb", "highway", "meshoptimizer", "fmt")
     
     if has_config("profiling") then
@@ -70,7 +82,7 @@ target("chronon3d_io")
 -- Pipeline Library (Interface)
 target("chronon3d_pipeline")
     set_kind("headeronly")
-    add_deps("chronon3d_renderer")
+    add_deps("chronon3d_renderer", "chronon3d_registry", "chronon3d_cache")
     add_packages("taskflow", "concurrentqueue", {public = true})
     
     if has_config("profiling") then
@@ -114,6 +126,8 @@ target("chronon3d_tests")
     add_files("tests/timeline/*.cpp")
     add_files("tests/scene/*.cpp")
     add_files("tests/renderer/*.cpp")
+    add_files("tests/registry/*.cpp")
+    add_files("tests/cache/*.cpp")
     add_files("tests/effects/*.cpp")
     add_files("tests/deterministic/*.cpp")
     add_files("tests/io/*.cpp")
