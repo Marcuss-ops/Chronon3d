@@ -12,6 +12,9 @@
 #include <algorithm>
 #include <memory_resource>
 #include <fmt/format.h>
+#include <optional>
+#include <cstdint>
+#include <type_traits>
 
 namespace hn = hwy::HWY_NAMESPACE;
 
@@ -128,6 +131,220 @@ void draw_transformed_shape(Framebuffer& fb, const Shape& shape, const Mat4& mod
 
 } // namespace
 
+namespace {
+
+using rendergraph::RenderCacheKey;
+using rendergraph::hash_bytes;
+using rendergraph::hash_color;
+using rendergraph::hash_combine;
+using rendergraph::hash_string;
+using rendergraph::hash_transform;
+using rendergraph::hash_vec2;
+using rendergraph::hash_vec3;
+
+template <typename T>
+[[nodiscard]] u64 hash_value_local(const T& value) {
+    return rendergraph::hash_bytes(&value, sizeof(T));
+}
+
+[[nodiscard]] u64 hash_mask(const Mask& mask) {
+    u64 seed = hash_value_local(static_cast<u64>(mask.type));
+    seed = hash_combine(seed, hash_vec3(mask.pos));
+    seed = hash_combine(seed, hash_vec2(mask.size));
+    seed = hash_combine(seed, hash_value_local(mask.radius));
+    seed = hash_combine(seed, hash_value_local(mask.inverted));
+    return seed;
+}
+
+[[nodiscard]] u64 hash_shape(const Shape& shape) {
+    u64 seed = hash_value_local(static_cast<u64>(shape.type));
+    switch (shape.type) {
+        case ShapeType::Rect:
+            seed = hash_combine(seed, hash_vec2(shape.rect.size));
+            break;
+        case ShapeType::RoundedRect:
+            seed = hash_combine(seed, hash_vec2(shape.rounded_rect.size));
+            seed = hash_combine(seed, hash_value_local(shape.rounded_rect.radius));
+            break;
+        case ShapeType::Circle:
+            seed = hash_combine(seed, hash_value_local(shape.circle.radius));
+            break;
+        case ShapeType::Line:
+            seed = hash_combine(seed, hash_vec3(shape.line.to));
+            seed = hash_combine(seed, hash_value_local(shape.line.thickness));
+            break;
+        case ShapeType::Text:
+            seed = hash_combine(seed, hash_string(shape.text.text));
+            seed = hash_combine(seed, hash_string(shape.text.style.font_path));
+            seed = hash_combine(seed, hash_value_local(shape.text.style.size));
+            seed = hash_combine(seed, hash_color(shape.text.style.color));
+            seed = hash_combine(seed, hash_value_local(static_cast<u64>(shape.text.style.align)));
+            seed = hash_combine(seed, hash_value_local(shape.text.style.line_height));
+            seed = hash_combine(seed, hash_value_local(shape.text.style.tracking));
+            seed = hash_combine(seed, hash_value_local(shape.text.style.max_lines));
+            seed = hash_combine(seed, hash_value_local(shape.text.style.auto_scale));
+            seed = hash_combine(seed, hash_value_local(shape.text.style.min_size));
+            seed = hash_combine(seed, hash_value_local(shape.text.style.max_size));
+            seed = hash_combine(seed, hash_vec2(shape.text.box.size));
+            seed = hash_combine(seed, hash_value_local(shape.text.box.enabled));
+            break;
+        case ShapeType::Image:
+            seed = hash_combine(seed, hash_string(shape.image.path));
+            seed = hash_combine(seed, hash_vec2(shape.image.size));
+            seed = hash_combine(seed, hash_value_local(shape.image.opacity));
+            break;
+        case ShapeType::Mesh:
+            seed = hash_combine(seed, hash_value_local(static_cast<u64>(shape.type)));
+            break;
+        case ShapeType::None:
+        default:
+            break;
+    }
+    return seed;
+}
+
+[[nodiscard]] u64 hash_drop_shadow(const DropShadow& shadow) {
+    u64 seed = hash_value_local(shadow.enabled);
+    seed = hash_combine(seed, hash_vec2(shadow.offset));
+    seed = hash_combine(seed, hash_color(shadow.color));
+    seed = hash_combine(seed, hash_value_local(shadow.radius));
+    return seed;
+}
+
+[[nodiscard]] u64 hash_glow(const Glow& glow) {
+    u64 seed = hash_value_local(glow.enabled);
+    seed = hash_combine(seed, hash_value_local(glow.radius));
+    seed = hash_combine(seed, hash_value_local(glow.intensity));
+    seed = hash_combine(seed, hash_color(glow.color));
+    return seed;
+}
+
+[[nodiscard]] u64 hash_node(const RenderNode& node) {
+    u64 seed = hash_string(node.name);
+    seed = hash_combine(seed, hash_transform(node.world_transform));
+    seed = hash_combine(seed, hash_color(node.color));
+    seed = hash_combine(seed, hash_shape(node.shape));
+    seed = hash_combine(seed, hash_drop_shadow(node.shadow));
+    seed = hash_combine(seed, hash_glow(node.glow));
+    seed = hash_combine(seed, hash_value_local(node.visible));
+    seed = hash_combine(seed, hash_value_local(reinterpret_cast<std::uintptr_t>(node.mesh.get())));
+    return seed;
+}
+
+[[nodiscard]] u64 hash_layer_effect(const LayerEffect& effect) {
+    u64 seed = hash_value_local(effect.blur_radius);
+    seed = hash_combine(seed, hash_value_local(effect.brightness));
+    seed = hash_combine(seed, hash_value_local(effect.contrast));
+    seed = hash_combine(seed, hash_color(effect.tint));
+    return seed;
+}
+
+[[nodiscard]] u64 hash_effect_stack(const EffectStack& stack) {
+    u64 seed = hash_value_local(stack.size());
+    for (const auto& inst : stack) {
+        seed = hash_combine(seed, hash_value_local(inst.enabled));
+        std::visit([&](const auto& p) {
+            using T = std::decay_t<decltype(p)>;
+            if constexpr (std::is_same_v<T, BlurParams>) {
+                seed = hash_combine(seed, hash_value_local(p.radius));
+            } else if constexpr (std::is_same_v<T, TintParams>) {
+                seed = hash_combine(seed, hash_color(p.color));
+                seed = hash_combine(seed, hash_value_local(p.amount));
+            } else if constexpr (std::is_same_v<T, BrightnessParams>) {
+                seed = hash_combine(seed, hash_value_local(p.value));
+            } else if constexpr (std::is_same_v<T, ContrastParams>) {
+                seed = hash_combine(seed, hash_value_local(p.value));
+            } else if constexpr (std::is_same_v<T, DropShadowParams>) {
+                seed = hash_combine(seed, hash_vec2(p.offset));
+                seed = hash_combine(seed, hash_color(p.color));
+                seed = hash_combine(seed, hash_value_local(p.radius));
+            } else if constexpr (std::is_same_v<T, GlowParams>) {
+                seed = hash_combine(seed, hash_value_local(p.radius));
+                seed = hash_combine(seed, hash_value_local(p.intensity));
+                seed = hash_combine(seed, hash_color(p.color));
+            }
+        }, inst.params);
+    }
+    return seed;
+}
+
+[[nodiscard]] u64 hash_mask_layer(const Mask& mask) {
+    return hash_mask(mask);
+}
+
+[[nodiscard]] u64 hash_layout_rules(const LayoutRules& layout) {
+    u64 seed = hash_value_local(layout.enabled);
+    seed = hash_combine(seed, hash_value_local(layout.pin.has_value()));
+    if (layout.pin.has_value()) {
+        seed = hash_combine(seed, hash_value_local(static_cast<u64>(*layout.pin)));
+    }
+    seed = hash_combine(seed, hash_value_local(layout.margin));
+    seed = hash_combine(seed, hash_value_local(layout.keep_in_safe_area));
+    seed = hash_combine(seed, hash_value_local(layout.safe_area.top));
+    seed = hash_combine(seed, hash_value_local(layout.safe_area.bottom));
+    seed = hash_combine(seed, hash_value_local(layout.safe_area.left));
+    seed = hash_combine(seed, hash_value_local(layout.safe_area.right));
+    seed = hash_combine(seed, hash_value_local(layout.fit_text));
+    return seed;
+}
+
+[[nodiscard]] u64 hash_camera_2_5d(const Camera2_5D& camera) {
+    u64 seed = hash_value_local(camera.enabled);
+    seed = hash_combine(seed, hash_vec3(camera.position));
+    seed = hash_combine(seed, hash_vec3(camera.point_of_interest));
+    seed = hash_combine(seed, hash_value_local(camera.zoom));
+    seed = hash_combine(seed, hash_value_local(camera.dof.enabled));
+    seed = hash_combine(seed, hash_value_local(camera.dof.focus_z));
+    seed = hash_combine(seed, hash_value_local(camera.dof.aperture));
+    seed = hash_combine(seed, hash_value_local(camera.dof.max_blur));
+    return seed;
+}
+
+[[nodiscard]] u64 hash_camera(const Camera& camera) {
+    u64 seed = hash_transform(camera.transform);
+    seed = hash_combine(seed, hash_value_local(camera.fov_deg));
+    seed = hash_combine(seed, hash_value_local(camera.near_plane));
+    seed = hash_combine(seed, hash_value_local(camera.far_plane));
+    return seed;
+}
+
+[[nodiscard]] u64 hash_layer(const Layer& layer) {
+    u64 seed = hash_string(layer.name);
+    seed = hash_combine(seed, hash_value_local(static_cast<u64>(layer.kind)));
+    seed = hash_combine(seed, hash_transform(layer.transform));
+    seed = hash_combine(seed, hash_value_local(layer.from));
+    seed = hash_combine(seed, hash_value_local(layer.duration));
+    seed = hash_combine(seed, hash_value_local(layer.visible));
+    seed = hash_combine(seed, hash_value_local(layer.is_3d));
+    seed = hash_combine(seed, hash_mask_layer(layer.mask));
+    seed = hash_combine(seed, hash_layer_effect(layer.effect));
+    seed = hash_combine(seed, hash_effect_stack(layer.effects));
+    seed = hash_combine(seed, hash_value_local(static_cast<u64>(layer.blend_mode)));
+    seed = hash_combine(seed, hash_value_local(static_cast<u64>(layer.depth_role)));
+    seed = hash_combine(seed, hash_value_local(layer.depth_offset));
+    seed = hash_combine(seed, hash_layout_rules(layer.layout));
+    seed = hash_combine(seed, hash_value_local(layer.nodes.size()));
+    for (const auto& node : layer.nodes) {
+        seed = hash_combine(seed, hash_node(node));
+    }
+    return seed;
+}
+
+[[nodiscard]] RenderCacheKey make_key(std::string scope, Frame frame, i32 width, i32 height,
+                                     u64 params_hash, u64 source_hash = 0, u64 input_hash = 0) {
+    return RenderCacheKey{
+        .scope = std::move(scope),
+        .frame = frame,
+        .width = width,
+        .height = height,
+        .params_hash = params_hash,
+        .source_hash = source_hash,
+        .input_hash = input_hash,
+    };
+}
+
+} // namespace
+
 // ---------------------------------------------------------------------------
 // SoftwareRenderer
 // ---------------------------------------------------------------------------
@@ -135,7 +352,7 @@ void draw_transformed_shape(Framebuffer& fb, const Shape& shape, const Mat4& mod
 std::unique_ptr<Framebuffer> SoftwareRenderer::render_frame(const Composition& comp, Frame frame) {
     if (!m_motion_blur.enabled || m_motion_blur.samples <= 1) {
         Scene scene = comp.evaluate(frame);
-        return render_scene(scene, comp.camera, comp.width(), comp.height());
+        return render_scene_internal(scene, comp.camera, comp.width(), comp.height(), frame, 0.0f);
     }
 
     // Motion blur: accumulate N subframes evenly distributed over the shutter window.
@@ -152,7 +369,7 @@ std::unique_ptr<Framebuffer> SoftwareRenderer::render_frame(const Composition& c
     for (int s = 0; s < N; ++s) {
         const float t = (static_cast<float>(s) / static_cast<float>(N)) * shutter;
         Scene sub_scene = comp.evaluate(frame, t);
-        auto sub_fb = render_scene(sub_scene, comp.camera, w, h);
+        auto sub_fb = render_scene_internal(sub_scene, comp.camera, w, h, frame, t);
 
         for (int y = 0; y < h; ++y) {
             for (int x = 0; x < w; ++x) {
@@ -179,154 +396,216 @@ std::unique_ptr<Framebuffer> SoftwareRenderer::render_frame(const Composition& c
 std::unique_ptr<Framebuffer> SoftwareRenderer::render_scene(
     const Scene& scene, const Camera& camera, i32 width, i32 height)
 {
+    return render_scene_internal(scene, camera, width, height, 0, 0.0f);
+}
+
+std::string SoftwareRenderer::debug_render_graph(const Scene& scene, const Camera& camera,
+                                                 i32 width, i32 height, Frame frame,
+                                                 f32 frame_time) const
+{
+    return build_render_graph(scene, camera, width, height, frame, frame_time).debug_dot();
+}
+
+std::unique_ptr<Framebuffer> SoftwareRenderer::render_scene_internal(
+    const Scene& scene, const Camera& camera, i32 width, i32 height, Frame frame, f32 frame_time)
+{
     ZoneScoped;
-    auto fb = std::make_unique<Framebuffer>(width, height);
-    fb->clear(Color::black());
+    auto graph = build_render_graph(scene, camera, width, height, frame, frame_time);
+    rendergraph::RenderGraphExecutionContext ctx{
+        .renderer = *this,
+        .camera = camera,
+        .frame = frame,
+        .width = width,
+        .height = height,
+        .diagnostic = diagnostic_,
+    };
+    return graph.execute(ctx);
+}
 
-    RenderState root_state{Mat4(1.0f), 1.0f};
+rendergraph::RenderGraph SoftwareRenderer::build_render_graph(
+    const Scene& scene, const Camera& camera, i32 width, i32 height, Frame frame, f32 frame_time) const
+{
+    using namespace rendergraph;
 
-    // 1. Root nodes
+    RenderGraph graph;
+    const u64 frame_time_hash = hash_value_local(frame_time);
+    u64 scene_hash = hash_value_local(scene.nodes().size());
+    for (const auto& node : scene.nodes()) {
+        scene_hash = hash_combine(scene_hash, hash_node(node));
+    }
+    for (const auto& layer : scene.layers()) {
+        scene_hash = hash_combine(scene_hash, hash_layer(layer));
+    }
+    scene_hash = hash_combine(scene_hash, hash_camera(camera));
+    scene_hash = hash_combine(scene_hash, hash_camera_2_5d(scene.camera_2_5d()));
+
+    RenderCacheKey canvas_key = make_key("canvas", frame, width, height,
+                                         hash_combine(scene_hash, frame_time_hash));
+    NodeId current = graph.add_output("canvas", canvas_key);
+    u64 current_hash = canvas_key.digest();
+
+    auto append_root_source = [&](const ::chronon3d::RenderNode& node, NodeId input) {
+        const u64 node_hash = hash_node(node);
+        const auto transform_key = make_key("root.transform", frame, width, height,
+                                            hash_combine(hash_transform(node.world_transform),
+                                                         hash_combine(scene_hash, frame_time_hash)),
+                                            node_hash, current_hash);
+        NodeId transformed = graph.add_transform(std::string(node.name) + ".transform",
+                                                 transform_key, input, node.world_transform,
+                                                 RenderState{Mat4(1.0f), 1.0f});
+        current_hash = transform_key.digest();
+
+        const auto source_key = make_key("root.source", frame, width, height,
+                                         hash_combine(node_hash, hash_combine(scene_hash, frame_time_hash)),
+                                         node_hash, current_hash);
+        NodeId source = graph.add_source(std::string(node.name) + ".source",
+                                         source_key, transformed, node);
+        current_hash = source_key.digest();
+
+        const auto composite_key = make_key("root.composite", frame, width, height,
+                                            hash_combine(static_cast<u64>(BlendMode::Normal),
+                                                         hash_combine(scene_hash, frame_time_hash)),
+                                            node_hash, current_hash);
+        current = graph.add_composite(std::string(node.name) + ".composite",
+                                      composite_key, current, source, BlendMode::Normal);
+        current_hash = composite_key.digest();
+    };
+
+    auto append_layer_pipeline = [&](const Layer& layer, const Transform& transform,
+                                     NodeId input, const std::string& scope_prefix,
+                                     std::optional<f32> dof_blur = std::nullopt) {
+        const u64 layer_hash = hash_layer(layer);
+        const auto transform_key = make_key(scope_prefix + ".transform", frame, width, height,
+                                            hash_combine(hash_transform(transform),
+                                                         hash_combine(scene_hash, frame_time_hash)),
+                                            layer_hash, current_hash);
+        NodeId transformed = graph.add_transform(scope_prefix + ".transform",
+                                                 transform_key, input, transform,
+                                                 RenderState{Mat4(1.0f), 1.0f});
+        current_hash = transform_key.digest();
+
+        const auto source_key = make_key(scope_prefix + ".source", frame, width, height,
+                                         hash_combine(layer_hash, hash_combine(scene_hash, frame_time_hash)),
+                                         layer_hash, current_hash);
+        NodeId source = graph.add_layer_source(scope_prefix + ".source",
+                                               source_key, transformed, layer);
+        current_hash = source_key.digest();
+
+        NodeId after_effects = source;
+        if (!layer.effects.empty() || layer.effect.has_any()) {
+            const auto effect_key = make_key(scope_prefix + ".effect", frame, width, height,
+                                             hash_combine(hash_combine(hash_effect_stack(layer.effects), hash_layer_effect(layer.effect)),
+                                                          hash_combine(scene_hash, frame_time_hash)),
+                                             layer_hash, current_hash);
+            after_effects = graph.add_effect(scope_prefix + ".effect",
+                                             effect_key, source, layer);
+            current_hash = effect_key.digest();
+        }
+
+        if (dof_blur.has_value() && *dof_blur > 0.5f) {
+            Layer blur_layer = layer;
+            blur_layer.effects.clear();
+            blur_layer.effect = LayerEffect{};
+            blur_layer.effect.blur_radius = *dof_blur;
+
+            const auto blur_key = make_key(scope_prefix + ".dof", frame, width, height,
+                                           hash_combine(hash_value_local(*dof_blur), hash_combine(scene_hash, frame_time_hash)),
+                                           layer_hash, current_hash);
+            after_effects = graph.add_effect(scope_prefix + ".dof",
+                                             blur_key, after_effects, blur_layer);
+            current_hash = blur_key.digest();
+        }
+
+        const auto composite_key = make_key(scope_prefix + ".composite", frame, width, height,
+                                            hash_combine(static_cast<u64>(layer.blend_mode),
+                                                         hash_combine(scene_hash, frame_time_hash)),
+                                            layer_hash, current_hash);
+        current = graph.add_composite(scope_prefix + ".composite",
+                                      composite_key, current, after_effects, layer.blend_mode);
+        current_hash = composite_key.digest();
+    };
+
+    auto apply_adjustment_layer = [&](const Layer& layer, const std::string& scope_prefix) {
+        if (!layer.effects.empty() || layer.effect.has_any()) {
+            const u64 layer_hash = hash_layer(layer);
+            const auto effect_key = make_key(scope_prefix + ".adjustment", frame, width, height,
+                                             hash_combine(hash_combine(hash_effect_stack(layer.effects), hash_layer_effect(layer.effect)),
+                                                          hash_combine(scene_hash, frame_time_hash)),
+                                             layer_hash, current_hash);
+            current = graph.add_effect(scope_prefix + ".adjustment",
+                                       effect_key, current, layer);
+            current_hash = effect_key.digest();
+        }
+    };
+
     for (const auto& node : scene.nodes()) {
         if (!node.visible) continue;
-        RenderState state = combine(root_state, node.world_transform);
-        draw_node(*fb, node, state, camera, width, height);
+        append_root_source(node, current);
     }
 
-    // 2. Layers — 2D in insertion order, 3D projected and depth-sorted.
-    //
-    // Draw order rules:
-    //   root nodes first
-    //   2D layers in insertion order (camera has no effect)
-    //   3D layers sorted by depth (farther first, nearer on top)
-    //   no z-buffer; intersecting planes are painter's-algorithm only
     const auto& cam25 = scene.camera_2_5d();
 
-    // Renders one layer given its already-computed layer_state (mask + effects + blend).
-    auto draw_layer_with_state = [&](const Layer& layer, RenderState layer_state) {
-        if (layer.mask.enabled()) {
-            layer_state.mask             = &layer.mask;
-            layer_state.layer_inv_matrix = glm::inverse(layer_state.matrix);
-        }
-        const bool has_effects = !layer.effects.empty() || layer.effect.has_any();
-        if (!has_effects && layer.blend_mode == BlendMode::Normal) {
-            render_layer_nodes(*fb, layer, layer_state, camera, width, height);
-        } else {
-            Framebuffer offscreen(width, height);
-            offscreen.clear(Color::transparent());
-            render_layer_nodes(offscreen, layer, layer_state, camera, width, height);
-            if (!layer.effects.empty()) {
-                apply_effect_stack(offscreen, layer.effects);
-            } else {
-                if (layer.effect.blur_radius > 0.0f)
-                    apply_blur(offscreen, layer.effect.blur_radius);
-                if (layer.effect.tint.a > 0.0f || layer.effect.brightness != 0.0f || layer.effect.contrast != 1.0f)
-                    apply_color_effects(offscreen, layer.effect);
-            }
-            composite_layer(*fb, offscreen, layer.blend_mode);
-        }
-    };
-
-    // Convenience wrapper that combines base_state with layer.transform first.
-    auto draw_layer = [&](const Layer& layer, const RenderState& base_state) {
-        draw_layer_with_state(layer, combine(base_state, layer.transform));
-    };
-
-    // Helper: apply an adjustment layer's effect stack directly to the main fb.
-    auto apply_adjustment = [&](const Layer& layer) {
-        if (!layer.effects.empty()) {
-            apply_effect_stack(*fb, layer.effects);
-        } else if (layer.effect.has_any()) {
-            if (layer.effect.blur_radius > 0.0f)
-                apply_blur(*fb, layer.effect.blur_radius);
-            if (layer.effect.tint.a > 0.0f || layer.effect.brightness != 0.0f || layer.effect.contrast != 1.0f)
-                apply_color_effects(*fb, layer.effect);
-        }
-    };
-
-    if (!cam25.enabled) {
-        for (const auto& layer : scene.layers()) {
-            if (!layer.visible) continue;
-            if (layer.kind == LayerKind::Adjustment) {
-                apply_adjustment(layer);
-            } else if (layer.kind != LayerKind::Null) {
-                draw_layer(layer, root_state);
-            }
-        }
-        return fb;
-    }
-
     struct LayerRenderItem {
-        const Layer* layer{nullptr};
-        Transform    projected_transform{};
-        f32          depth{0.0f};
-        usize        insertion_index{0};
+        Layer layer;
+        Transform projected_transform{};
+        f32 depth{0.0f};
+        usize insertion_index{0};
     };
 
-    std::pmr::vector<LayerRenderItem> three_d_layers{scene.resource()};
-    usize index = 0;
+    std::vector<LayerRenderItem> three_d_layers;
+    three_d_layers.reserve(scene.layers().size());
 
+    usize index = 0;
     for (const auto& layer : scene.layers()) {
-        if (!layer.visible) { ++index; continue; }
+        if (!layer.visible) {
+            ++index;
+            continue;
+        }
 
         if (layer.kind == LayerKind::Adjustment) {
-            apply_adjustment(layer);
-            ++index; continue;
+            apply_adjustment_layer(layer, std::string(layer.name));
+            ++index;
+            continue;
         }
-        if (layer.kind == LayerKind::Null) { ++index; continue; }
 
-        if (!layer.is_3d) {
-            draw_layer(layer, root_state);
+        if (layer.kind == LayerKind::Null) {
+            ++index;
+            continue;
+        }
+
+        if (!cam25.enabled || !layer.is_3d) {
+            append_layer_pipeline(layer, layer.transform, current, std::string(layer.name));
         } else {
             auto projected = project_layer_2_5d(
-                layer.transform, cam25,
-                static_cast<f32>(width), static_cast<f32>(height));
-            if (!projected.visible) { ++index; continue; }
-            three_d_layers.push_back({&layer, projected.transform, projected.depth, index});
+                layer.transform, cam25, static_cast<f32>(width), static_cast<f32>(height));
+            if (projected.visible) {
+                three_d_layers.push_back({layer, projected.transform, projected.depth, index});
+            }
         }
         ++index;
     }
 
-    // Farther layers first → nearer layers paint on top.
-    std::stable_sort(three_d_layers.begin(), three_d_layers.end(),
-        [](const LayerRenderItem& a, const LayerRenderItem& b) {
-            return a.depth > b.depth;
-        });
+    if (cam25.enabled) {
+        std::stable_sort(three_d_layers.begin(), three_d_layers.end(),
+            [](const LayerRenderItem& a, const LayerRenderItem& b) {
+                return a.depth > b.depth;
+            });
 
-    for (const auto& item : three_d_layers) {
-        const Layer&      layer       = *item.layer;
-        const RenderState layer_state = combine(root_state, item.projected_transform);
-
-        // Depth-of-field: compute blur amount from Z distance to focus plane.
-        if (cam25.dof.enabled) {
-            const f32 dist = std::abs(layer.transform.position.z - cam25.dof.focus_z);
-            const f32 blur = std::min(dist * cam25.dof.aperture, cam25.dof.max_blur);
-
-            if (blur > 0.5f) {
-                // Render layer to offscreen, apply DOF blur, then composite.
-                Framebuffer offscreen(width, height);
-                offscreen.clear(Color::transparent());
-                render_layer_nodes(offscreen, layer, layer_state, camera, width, height);
-
-                // Apply layer's own effect stack first, then DOF blur on top.
-                if (!layer.effects.empty())
-                    apply_effect_stack(offscreen, layer.effects);
-                else if (layer.effect.has_any()) {
-                    if (layer.effect.blur_radius > 0.0f)
-                        apply_blur(offscreen, layer.effect.blur_radius);
-                    if (layer.effect.tint.a > 0.0f || layer.effect.brightness != 0.0f || layer.effect.contrast != 1.0f)
-                        apply_color_effects(offscreen, layer.effect);
+        for (const auto& item : three_d_layers) {
+            const Layer& layer = item.layer;
+            std::optional<f32> dof_blur;
+            if (cam25.dof.enabled) {
+                const f32 dist = std::abs(layer.transform.position.z - cam25.dof.focus_z);
+                const f32 blur = std::min(dist * cam25.dof.aperture, cam25.dof.max_blur);
+                if (blur > 0.5f) {
+                    dof_blur = blur;
                 }
-
-                apply_blur(offscreen, blur);  // DOF blur
-                composite_layer(*fb, offscreen, layer.blend_mode);
-                continue;
             }
+            append_layer_pipeline(layer, item.projected_transform, current, std::string(layer.name), dof_blur);
         }
-
-        draw_layer_with_state(layer, layer_state);
     }
 
-    return fb;
+    return graph;
 }
 
 void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node, const RenderState& state, const Camera& camera, i32 width, i32 height) {

@@ -54,12 +54,12 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          .\chronon-win.ps1 -Configuration Release -SkipCacheInstall
+          .\tools\chronon-win.ps1 -Configuration Release -SkipCacheInstall
           ctest --preset ${{ matrix.test_preset }}
 
       - name: Build Linux
         if: runner.os == 'Linux'
         shell: bash
         run: |
-          CHRONON_SKIP_DEPS=0 bash ./chronon-linux.sh
+          CHRONON_SKIP_DEPS=0 bash ./tools/chronon-linux.sh
           ctest --preset ${{ matrix.test_preset }}
