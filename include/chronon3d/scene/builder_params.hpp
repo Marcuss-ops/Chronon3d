@@ -66,6 +66,7 @@ struct FakeExtrudedTextParams {
     f32   extrude_z_step{1.2f};
     Color front_color{0.96f, 0.94f, 0.88f, 1.0f};
     Color side_color{0.55f, 0.50f, 0.43f, 0.85f};
+    f32   side_fade{0.25f};
     TextAlign align{TextAlign::Center};
     f32   highlight_opacity{0.09f};
 };
