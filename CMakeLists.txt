@@ -50,7 +50,33 @@ target_link_libraries(chronon3d
 )
 target_compile_features(chronon3d INTERFACE cxx_std_20)
 
-# 2. Effects Library (Static)
+# 2. Registry Library (Static)
+file(GLOB CHRONON3D_REGISTRY_SOURCES CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/registry/*.cpp"
+)
+
+add_library(chronon3d_registry STATIC
+    ${CHRONON3D_REGISTRY_SOURCES}
+)
+target_link_libraries(chronon3d_registry
+    PUBLIC
+        chronon3d
+)
+
+# 3. Cache Library (Static)
+file(GLOB CHRONON3D_CACHE_SOURCES CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/cache/*.cpp"
+)
+
+add_library(chronon3d_cache STATIC
+    ${CHRONON3D_CACHE_SOURCES}
+)
+target_link_libraries(chronon3d_cache
+    PUBLIC
+        chronon3d
+)
+
+# 4. Effects Library (Static)
 file(GLOB CHRONON3D_EFFECTS_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/src/effects/*.cpp"
 )
@@ -63,7 +89,7 @@ target_link_libraries(chronon3d_effects
         chronon3d
 )
 
-# 3. Renderer Library (Static)
+# 5. Renderer Library (Static)
 file(GLOB CHRONON3D_RENDERER_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/scene/*.cpp"
@@ -77,6 +103,8 @@ add_library(chronon3d_renderer STATIC
 target_link_libraries(chronon3d_renderer
     PUBLIC
         chronon3d
+        chronon3d_registry
+        chronon3d_cache
         chronon3d_effects
     PRIVATE
         spdlog::spdlog
@@ -89,11 +117,13 @@ if(CHRONON3D_ENABLE_PROFILING AND Tracy_FOUND)
 endif()
 target_include_directories(chronon3d_renderer PRIVATE ${Stb_INCLUDE_DIR})
 
-# 4. Pipeline Library (Heavy)
+# 6. Pipeline Library (Heavy)
 add_library(chronon3d_pipeline INTERFACE)
 target_link_libraries(chronon3d_pipeline
     INTERFACE
         chronon3d_renderer
+        chronon3d_registry
+        chronon3d_cache
         Taskflow::Taskflow
         concurrentqueue::concurrentqueue
 )
@@ -102,7 +132,7 @@ if(CHRONON3D_ENABLE_PROFILING)
     target_compile_definitions(chronon3d_pipeline INTERFACE CHRONON_PROFILING TRACY_ON_DEMAND)
 endif()
 
-# 5. IO Library
+# 7. IO Library
 file(GLOB CHRONON3D_IO_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/src/io/*.cpp"
 )
@@ -116,7 +146,7 @@ target_link_libraries(chronon3d_io
 )
 target_include_directories(chronon3d_io PRIVATE ${Stb_INCLUDE_DIR})
 
-# 6. Examples Library (Host for auto-registration)
+# 8. Examples Library (Host for auto-registration)
 add_library(chronon3d_examples_lib STATIC)
 file(GLOB CHRONON3D_EXAMPLE_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/examples/*.cpp"
