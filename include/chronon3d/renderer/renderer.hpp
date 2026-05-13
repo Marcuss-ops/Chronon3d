@@ -17,7 +17,8 @@ public:
     virtual std::unique_ptr<Framebuffer> render_scene(
         const Scene& scene, 
         const Camera& camera, 
-        i32 width, i32 height
+        i32 width, i32 height,
+        Frame frame = 0
     ) = 0;
 };
 
