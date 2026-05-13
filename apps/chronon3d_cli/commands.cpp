@@ -103,17 +103,19 @@ int command_render(const CompositionRegistry& registry, const RenderArgs& args) 
     RenderSettings settings;
     settings.diagnostic = args.diagnostic;
     settings.use_modular_graph = args.use_modular_graph;
+    settings.motion_blur.enabled      = args.motion_blur;
+    settings.motion_blur.samples      = args.motion_blur_samples;
+    settings.motion_blur.shutter_angle = args.shutter_angle;
     renderer->set_settings(settings);
-    
-    RenderPipeline pipeline(comp_ptr, renderer);
 
-    spdlog::info("Rendering {} [{} -> {} step {}]...", args.comp_id, range.start, range.end, range.step);
+    spdlog::info("Rendering {} [{} -> {} step {}]{}...",
+        args.comp_id, range.start, range.end, range.step,
+        args.motion_blur ? fmt::format(" [MB {}smp {:.0f}°]", args.motion_blur_samples, args.shutter_angle) : "");
 
-    // We use a simplified loop for range rendering to support steps
     int64_t effective_end = (range.start == range.end) ? range.start + 1 : range.end;
     for (int64_t f = range.start; f < effective_end; f += range.step) {
-        auto scene = comp_ptr->evaluate(f);
-        auto fb = renderer->render_scene(scene, comp_ptr->camera, comp_ptr->width(), comp_ptr->height(), f);
+        // render_frame handles both single-frame and motion-blur subframe accumulation.
+        auto fb = renderer->render_frame(*comp_ptr, static_cast<Frame>(f));
 
         if (fb) {
             bool is_range = (range.start != range.end);
@@ -300,11 +302,14 @@ int command_video(const CompositionRegistry& registry, const VideoArgs& args) {
     const std::string frame_pattern = (frames_dir / "frame_%04d.png").string();
 
     RenderArgs render_args;
-    render_args.comp_id   = args.comp_id;
-    render_args.start_old = args.start;
-    render_args.end_old   = args.end;
-    render_args.output    = (frames_dir / "frame_####.png").string();
-    render_args.use_modular_graph = args.use_modular_graph;
+    render_args.comp_id              = args.comp_id;
+    render_args.start_old            = args.start;
+    render_args.end_old              = args.end;
+    render_args.output               = (frames_dir / "frame_####.png").string();
+    render_args.use_modular_graph    = args.use_modular_graph;
+    render_args.motion_blur          = args.motion_blur;
+    render_args.motion_blur_samples  = args.motion_blur_samples;
+    render_args.shutter_angle        = args.shutter_angle;
 
     spdlog::info("Rendering {} frames {} → {} ...", args.comp_id, args.start, args.end);
     const int render_result = command_render(registry, render_args);

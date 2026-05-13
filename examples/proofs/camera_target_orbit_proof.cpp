@@ -25,7 +25,7 @@ static Composition CameraTargetOrbitProof() {
     }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
 
-        const f32 t = ctx.frame / 120.0f; // 0..1 over full duration
+        const f32 t = ctx.effective_frame() / 120.0f; // fractional for MB subframe accuracy
 
         // 1. Target null — slow, non-symmetric drift so lookAt is clearly working
         const Vec3 target_pos = {
