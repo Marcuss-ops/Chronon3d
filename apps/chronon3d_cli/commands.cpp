@@ -6,6 +6,7 @@
 #include <spdlog/spdlog.h>
 #include <toml++/toml.h>
 #include <iostream>
+#include <fstream>
 #include <filesystem>
 #include <fmt/format.h>
 #include <chrono>
@@ -445,6 +446,43 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
     fmt::print(
         "bench {}: frames={} warmup={} elapsed_ms={:.3f} avg_ms={:.3f} fps={:.2f}\n",
         args.comp_id, args.frames, args.warmup, elapsed_ms, avg_ms, fps);
+    return 0;
+}
+
+int command_graph(const CompositionRegistry& registry, const GraphArgs& args) {
+    if (!registry.contains(args.comp_id)) {
+        spdlog::error("Unknown composition: {}", args.comp_id);
+        return 1;
+    }
+
+    auto comp = registry.create(args.comp_id);
+    auto scene = comp.evaluate(args.frame);
+    SoftwareRenderer renderer;
+    const std::string dot = renderer.debug_render_graph(scene, comp.camera, comp.width(), comp.height(), args.frame);
+
+    const std::filesystem::path out_path(args.output);
+    if (out_path.has_parent_path()) {
+        std::error_code ec;
+        std::filesystem::create_directories(out_path.parent_path(), ec);
+        if (ec) {
+            spdlog::error("Cannot create output directory {}: {}", out_path.parent_path().string(), ec.message());
+            return 1;
+        }
+    }
+
+    std::ofstream out(args.output, std::ios::binary | std::ios::trunc);
+    if (!out) {
+        spdlog::error("Cannot open output file: {}", args.output);
+        return 1;
+    }
+
+    out << dot;
+    if (!out) {
+        spdlog::error("Failed to write graph DOT to {}", args.output);
+        return 1;
+    }
+
+    spdlog::info("Graph DOT saved to {}", args.output);
     return 0;
 }
 

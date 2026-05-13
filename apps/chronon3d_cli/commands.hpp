@@ -50,12 +50,19 @@ struct BenchArgs {
     int warmup{10};
 };
 
+struct GraphArgs {
+    std::string comp_id;
+    Frame frame{0};
+    std::string output{"output/graph.dot"};
+};
+
 int command_list(const CompositionRegistry& registry);
 int command_info(const CompositionRegistry& registry, const std::string& id);
 int command_render(const CompositionRegistry& registry, const RenderArgs& args);
 int command_video(const CompositionRegistry& registry, const VideoArgs& args);
 int command_proofs(const CompositionRegistry& registry, const ProofsArgs& args);
 int command_bench(const CompositionRegistry& registry, const BenchArgs& args);
+int command_graph(const CompositionRegistry& registry, const GraphArgs& args);
 int command_batch(const CompositionRegistry& registry, const std::string& config_path);
 int command_watch(const CompositionRegistry& registry, const std::string& comp_id);
 
