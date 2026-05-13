@@ -10,6 +10,7 @@ add_executable(chronon3d_tests
     
     # Math & Geometry
     math/test_math.cpp
+    math/test_camera_2_5d_projection.cpp
     geometry/test_geometry.cpp
     
     # Animation
@@ -43,6 +44,7 @@ add_executable(chronon3d_tests
     render_graph/test_graph_executor.cpp
     render_graph/test_precompositions.cpp
     render_graph/test_modular_features.cpp
+    render_graph/test_camera_2_5d_graph.cpp
 
     # Registries & cache
     registry/test_registries.cpp

@@ -192,10 +192,6 @@ RenderGraph GraphBuilder::build(const Scene& scene, const RenderGraphContext& ct
         if (use_25d && layer.is_3d) {
             // Apply semantic depth if requested.
             Transform effective_transform = layer.transform;
-            if (layer.depth_role != DepthRole::None) {
-                effective_transform.position.z = DepthRoleResolver::z_for(layer.depth_role);
-            }
-            effective_transform.position.z += layer.depth_offset;
 
             // Project through camera.
             auto proj = project_layer_2_5d(
