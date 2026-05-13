@@ -54,9 +54,15 @@ void GraphBuilder::append_layer_pipeline(
         || item.transform.any();
 
     if (needs_transform) {
-        auto transform = graph.add_node(
-            std::make_unique<TransformNode>(item.transform)
-        );
+        std::unique_ptr<TransformNode> transform_node;
+        if (item.projected) {
+            // Apply full projection matrix (includes view, proj, and world orientation)
+            transform_node = std::make_unique<TransformNode>(item.projection_matrix, layer.transform.opacity);
+        } else {
+            transform_node = std::make_unique<TransformNode>(item.transform);
+        }
+        
+        auto transform = graph.add_node(std::move(transform_node));
         graph.connect(layer_output, transform);
         layer_output = transform;
     }
@@ -212,11 +218,12 @@ RenderGraph GraphBuilder::build(const Scene& scene, const RenderGraphContext& ct
 
             if (proj.visible) {
                 current_3d_bin.push_back({
-                    .layer           = &layer,
-                    .transform       = proj.transform,
-                    .depth           = proj.depth,
-                    .projected       = true,
-                    .insertion_index = resolved.insertion_index
+                    .layer             = &layer,
+                    .transform         = proj.transform,
+                    .projection_matrix = proj.projection_matrix,
+                    .depth             = proj.depth,
+                    .projected         = true,
+                    .insertion_index   = resolved.insertion_index
                 });
             }
         } 
