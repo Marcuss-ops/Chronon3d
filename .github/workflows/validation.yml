@@ -1,0 +1,29 @@
+name: Chronon Validation
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  validate:
+    name: Validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Bash syntax
+        shell: bash
+        run: |
+          bash -n tools/chronon-linux.sh
+          bash -n tools/chronon-watch.sh
+
+      - name: CMake presets
+        shell: bash
+        run: |
+          cmake --list-presets
