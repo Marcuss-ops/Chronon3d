@@ -1,78 +1,22 @@
 #include <chronon3d/renderer/software_renderer.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/scene/scene.hpp>
-#include <chronon3d/scene/mask_utils.hpp>
-#include <chronon3d/scene/layer_effect.hpp>
-#include <chronon3d/scene/effect_stack.hpp>
-#include <chronon3d/scene/layer_hierarchy.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/core/profiling.hpp>
-#include <chronon3d/math/raster_utils.hpp>
 #include "primitive_renderer.hpp"
-#include "render_hash_utils.hpp"
-#include <hwy/highway.h>
-#include <cmath>
-#include <algorithm>
-#include <memory_resource>
+#include "render_graph_builder.hpp"
+#include "render_effects_processor.hpp"
 #include <fmt/format.h>
-#include <optional>
-#include <cstdint>
-#include <type_traits>
-
-namespace hn = hwy::HWY_NAMESPACE;
+#include <algorithm>
+#include <cmath>
+#include <vector>
 
 namespace chronon3d {
 
-namespace {
-
 using namespace renderer;
-using rendergraph::hash_combine;
-
-} // namespace
-
-namespace {
-
-using rendergraph::RenderCacheKey;
-using namespace renderer;
-
-template <typename T>
-[[nodiscard]] u64 hash_value_local(const T& value) {
-    return rendergraph::hash_bytes(&value, sizeof(T));
-}
-
-[[nodiscard]] u64 hash_layout_rules(const LayoutRules& layout) {
-    u64 seed = hash_value_local(layout.enabled);
-    seed = hash_combine(seed, hash_value_local(layout.pin.has_value()));
-    if (layout.pin.has_value()) {
-        seed = hash_combine(seed, hash_value_local(static_cast<u64>(*layout.pin)));
-    }
-    seed = hash_combine(seed, hash_value_local(layout.margin));
-    seed = hash_combine(seed, hash_value_local(layout.keep_in_safe_area));
-    seed = hash_combine(seed, hash_value_local(layout.safe_area.top));
-    seed = hash_combine(seed, hash_value_local(layout.safe_area.bottom));
-    seed = hash_combine(seed, hash_value_local(layout.safe_area.left));
-    seed = hash_combine(seed, hash_value_local(layout.safe_area.right));
-    seed = hash_combine(seed, hash_value_local(layout.fit_text));
-    return seed;
-}
-
-[[nodiscard]] RenderCacheKey make_key(std::string scope, Frame frame, i32 width, i32 height,
-                                     u64 params_hash, u64 source_hash = 0, u64 input_hash = 0) {
-    return RenderCacheKey{
-        .scope = std::move(scope),
-        .frame = frame,
-        .width = width,
-        .height = height,
-        .params_hash = params_hash,
-        .source_hash = source_hash,
-        .input_hash = input_hash,
-    };
-}
-
-} // namespace
 
 // ---------------------------------------------------------------------------
-// SoftwareRenderer
+// SoftwareRenderer - Main Interface
 // ---------------------------------------------------------------------------
 
 std::unique_ptr<Framebuffer> SoftwareRenderer::render_frame(const Composition& comp, Frame frame) {
@@ -81,14 +25,11 @@ std::unique_ptr<Framebuffer> SoftwareRenderer::render_frame(const Composition& c
         return render_scene_internal(scene, comp.camera, comp.width(), comp.height(), frame, 0.0f);
     }
 
-    // Motion blur: accumulate N subframes evenly distributed over the shutter window.
-    // shutter_duration is expressed in frames (e.g. 180° shutter → 0.5 frames).
     const int   N       = std::max(2, m_settings.motion_blur.samples);
-    const float shutter = m_settings.motion_blur.shutter_angle / 360.0f; // fraction of a frame
+    const float shutter = m_settings.motion_blur.shutter_angle / 360.0f;
     const int   w       = comp.width();
     const int   h       = comp.height();
 
-    // Floating-point accumulator (r,g,b,a per pixel).
     std::vector<float> accum(static_cast<size_t>(w * h * 4), 0.0f);
     const float weight = 1.0f / static_cast<float>(N);
 
@@ -133,9 +74,6 @@ std::string SoftwareRenderer::debug_render_graph(const Scene& scene, const Camer
     return graph.debug_dot();
 }
 
-
-
-
 std::unique_ptr<Framebuffer> SoftwareRenderer::render_scene_internal(
     const Scene& scene, const Camera& camera, i32 width, i32 height, Frame frame, f32 frame_time)
 {
@@ -144,7 +82,7 @@ std::unique_ptr<Framebuffer> SoftwareRenderer::render_scene_internal(
     if (m_settings.use_modular_graph) {
         graph::RenderGraphContext ctx;
         ctx.frame = frame;
-        ctx.time_seconds = frame_time; // Using frame_time as offset within frame
+        ctx.time_seconds = frame_time;
         ctx.width = width;
         ctx.height = height;
         ctx.camera = camera;
@@ -160,9 +98,6 @@ std::unique_ptr<Framebuffer> SoftwareRenderer::render_scene_internal(
         auto result_shared = executor.execute(graph, ctx);
 
         if (!result_shared) return nullptr;
-
-        // SoftwareRenderer returns unique_ptr<Framebuffer>. 
-        // We copy the content of the shared_ptr to a new unique_ptr.
         return std::make_unique<Framebuffer>(*result_shared);
     }
 
@@ -180,234 +115,31 @@ std::unique_ptr<Framebuffer> SoftwareRenderer::render_scene_internal(
     return graph_wrapper.execute(ctx);
 }
 
-
 rendergraph::RenderGraph SoftwareRenderer::build_render_graph(
     const Scene& scene, const Camera& camera, i32 width, i32 height, Frame frame, f32 frame_time) const
 {
-    using namespace rendergraph;
-
-    RenderGraph graph;
-    const u64 frame_time_hash = hash_value_local(frame_time);
-    u64 scene_hash = hash_value_local(scene.nodes().size());
-    for (const auto& node : scene.nodes()) {
-        scene_hash = hash_combine(scene_hash, hash_node(node));
-    }
-    for (const auto& layer : scene.layers()) {
-        scene_hash = hash_combine(scene_hash, hash_layer(layer));
-    }
-    scene_hash = hash_combine(scene_hash, hash_camera(camera));
-    scene_hash = hash_combine(scene_hash, hash_camera_2_5d(scene.camera_2_5d()));
-
-    RenderCacheKey canvas_key = make_key("canvas", frame, width, height,
-                                         hash_combine(scene_hash, frame_time_hash));
-    NodeId current = graph.add_output("canvas", canvas_key);
-    u64 current_hash = canvas_key.digest();
-
-    auto append_root_source = [&](const ::chronon3d::RenderNode& node, NodeId input) {
-        const u64 node_hash = hash_node(node);
-        const auto transform_key = make_key("root.transform", frame, width, height,
-                                            hash_combine(hash_transform(node.world_transform),
-                                                         hash_combine(scene_hash, frame_time_hash)),
-                                            node_hash, current_hash);
-        NodeId transformed = graph.add_transform(std::string(node.name) + ".transform",
-                                                 transform_key, input, node.world_transform,
-                                                 RenderState{Mat4(1.0f), 1.0f});
-        current_hash = transform_key.digest();
-
-        const auto source_key = make_key("root.source", frame, width, height,
-                                         hash_combine(node_hash, hash_combine(scene_hash, frame_time_hash)),
-                                         node_hash, current_hash);
-        NodeId source = graph.add_source(std::string(node.name) + ".source",
-                                         source_key, transformed, node);
-        current_hash = source_key.digest();
-
-        const auto composite_key = make_key("root.composite", frame, width, height,
-                                            hash_combine(static_cast<u64>(BlendMode::Normal),
-                                                         hash_combine(scene_hash, frame_time_hash)),
-                                            node_hash, current_hash);
-        current = graph.add_composite(std::string(node.name) + ".composite",
-                                      composite_key, current, source, BlendMode::Normal);
-        current_hash = composite_key.digest();
-    };
-
-    auto append_layer_pipeline = [&](const Layer& layer, const Transform& transform,
-                                     NodeId input, const std::string& scope_prefix,
-                                     std::optional<f32> dof_blur = std::nullopt) {
-        const u64 layer_hash = hash_layer(layer);
-        const auto transform_key = make_key(scope_prefix + ".transform", frame, width, height,
-                                            hash_combine(hash_transform(transform),
-                                                         hash_combine(scene_hash, frame_time_hash)),
-                                            layer_hash, current_hash);
-        NodeId transformed = graph.add_transform(scope_prefix + ".transform",
-                                                 transform_key, input, transform,
-                                                 RenderState{Mat4(1.0f), 1.0f});
-        current_hash = transform_key.digest();
-
-        const auto source_key = make_key(scope_prefix + ".source", frame, width, height,
-                                         hash_combine(layer_hash, hash_combine(scene_hash, frame_time_hash)),
-                                         layer_hash, current_hash);
-        NodeId source = graph.add_layer_source(scope_prefix + ".source",
-                                               source_key, transformed, layer);
-        current_hash = source_key.digest();
-
-        NodeId after_effects = source;
-        if (!layer.effects.empty()) {
-            const auto effect_key = make_key(scope_prefix + ".effect", frame, width, height,
-                                             hash_combine(hash_effect_stack(layer.effects),
-                                                          hash_combine(scene_hash, frame_time_hash)),
-                                             layer_hash, current_hash);
-            after_effects = graph.add_effect(scope_prefix + ".effect",
-                                             effect_key, source, layer);
-            current_hash = effect_key.digest();
-        }
-
-        if (dof_blur.has_value() && *dof_blur > 0.5f) {
-            Layer blur_layer = layer;
-            blur_layer.effects.clear();
-            blur_layer.effects.push_back(EffectInstance{BlurParams{*dof_blur}});
-
-            const auto blur_key = make_key(scope_prefix + ".dof", frame, width, height,
-                                           hash_combine(hash_value_local(*dof_blur), hash_combine(scene_hash, frame_time_hash)),
-                                           layer_hash, current_hash);
-            after_effects = graph.add_effect(scope_prefix + ".dof",
-                                             blur_key, after_effects, blur_layer);
-            current_hash = blur_key.digest();
-        }
-
-        const auto composite_key = make_key(scope_prefix + ".composite", frame, width, height,
-                                            hash_combine(static_cast<u64>(layer.blend_mode),
-                                                         hash_combine(scene_hash, frame_time_hash)),
-                                            layer_hash, current_hash);
-        current = graph.add_composite(scope_prefix + ".composite",
-                                      composite_key, current, after_effects, layer.blend_mode);
-        current_hash = composite_key.digest();
-    };
-
-    auto apply_adjustment_layer = [&](const Layer& layer, const std::string& scope_prefix) {
-        if (!layer.effects.empty()) {
-            const u64 layer_hash = hash_layer(layer);
-            const auto effect_key = make_key(scope_prefix + ".adjustment", frame, width, height,
-                                             hash_combine(hash_effect_stack(layer.effects),
-                                                          hash_combine(scene_hash, frame_time_hash)),
-                                             layer_hash, current_hash);
-            current = graph.add_effect(scope_prefix + ".adjustment",
-                                       effect_key, current, layer);
-            current_hash = effect_key.digest();
-        }
-    };
-
-    for (const auto& node : scene.nodes()) {
-        if (!node.visible) continue;
-        append_root_source(node, current);
-    }
-
-    ResolvedCamera resolved_cam;
-    const auto resolved_layers = resolve_layer_hierarchy(
-        scene.layers(), frame, scene.resource(), &scene.camera_2_5d(), &resolved_cam);
-    const Camera2_5D& cam25 = resolved_cam.camera;
-
-    struct LayerRenderItem {
-        Layer layer;
-        Transform projected_transform{};
-        f32 depth{0.0f};
-        usize insertion_index{0};
-    };
-
-    std::vector<LayerRenderItem> three_d_layers;
-    three_d_layers.reserve(resolved_layers.size());
-
-    for (const auto& resolved : resolved_layers) {
-        const Layer& layer = *resolved.layer;
-
-        if (!layer.visible || !layer.active_at(frame)) {
-            continue;
-        }
-
-        if (layer.kind == LayerKind::Adjustment) {
-            apply_adjustment_layer(layer, std::string(layer.name));
-            continue;
-        }
-
-        if (layer.kind == LayerKind::Null) {
-            continue;
-        }
-
-        if (!cam25.enabled || !layer.is_3d) {
-            append_layer_pipeline(layer, resolved.world_transform, current, std::string(layer.name));
-        } else {
-            auto projected = project_layer_2_5d(
-                resolved.world_transform, cam25, static_cast<f32>(width), static_cast<f32>(height));
-            if (projected.visible) {
-                three_d_layers.push_back({layer, projected.transform, projected.depth, resolved.insertion_index});
-            }
-        }
-    }
-
-    // Inject camera state into FakeBox3D/GridPlane nodes so draw_node can project corners.
-    // Must happen after three_d_layers is fully populated (copies of layers are mutable).
-    if (cam25.enabled && !three_d_layers.empty()) {
-        const Mat4  fake3d_view  = get_camera_view_matrix(cam25);
-        const f32   fake3d_focal = (cam25.projection_mode == Camera2_5DProjectionMode::Fov)
-            ? focal_length_from_fov(static_cast<f32>(height), cam25.fov_deg)
-            : cam25.zoom;
-        const f32 vp_cx = static_cast<f32>(width)  * 0.5f;
-        const f32 vp_cy = static_cast<f32>(height) * 0.5f;
-
-        for (auto& item : three_d_layers) {
-            for (auto& nd : item.layer.nodes) {
-                if (nd.shape.type == ShapeType::FakeBox3D) {
-                    nd.shape.fake_box3d.cam_ready = true;
-                    nd.shape.fake_box3d.cam_view  = fake3d_view;
-                    nd.shape.fake_box3d.cam_focal  = fake3d_focal;
-                    nd.shape.fake_box3d.vp_cx      = vp_cx;
-                    nd.shape.fake_box3d.vp_cy      = vp_cy;
-                } else if (nd.shape.type == ShapeType::GridPlane) {
-                    nd.shape.grid_plane.cam_ready = true;
-                    nd.shape.grid_plane.cam_view  = fake3d_view;
-                    nd.shape.grid_plane.cam_focal  = fake3d_focal;
-                    nd.shape.grid_plane.vp_cx      = vp_cx;
-                    nd.shape.grid_plane.vp_cy      = vp_cy;
-                }
-            }
-        }
-    }
-
-    if (cam25.enabled) {
-        std::stable_sort(three_d_layers.begin(), three_d_layers.end(),
-            [](const LayerRenderItem& a, const LayerRenderItem& b) {
-                return a.depth > b.depth;
-            });
-
-        for (const auto& item : three_d_layers) {
-            const Layer& layer = item.layer;
-            std::optional<f32> dof_blur;
-            if (cam25.dof.enabled) {
-                const f32 dist = std::abs(layer.transform.position.z - cam25.dof.focus_z);
-                const f32 blur = std::min(dist * cam25.dof.aperture, cam25.dof.max_blur);
-                if (blur > 0.5f) {
-                    dof_blur = blur;
-                }
-            }
-            append_layer_pipeline(layer, item.projected_transform, current, std::string(layer.name), dof_blur);
-        }
-    }
-
-    return graph;
+    return build_software_render_graph(*this, scene, camera, width, height, frame, frame_time);
 }
 
-void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node, const RenderState& state, const Camera& camera, i32 width, i32 height) {
+// ---------------------------------------------------------------------------
+// Node Drawing Dispatch
+// ---------------------------------------------------------------------------
+
+void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node, const RenderState& state, 
+                                 const Camera& camera, i32 width, i32 height) {
     const Color linear_color = node.color.to_linear();
     const Mat4& model = state.matrix;
     const f32 opacity = state.opacity;
 
-    // Effects (Shadow/Glow)
-    if (node.shadow.enabled) draw_shadow(fb, node, state);
-    if (node.glow.enabled)   draw_glow(fb, node, state);
+    // Node-level effects
+    if (node.shadow.enabled) renderer::draw_shadow(fb, node, state);
+    if (node.glow.enabled)   renderer::draw_glow(fb, node, state);
 
     if (node.shape.type == ShapeType::Mesh) {
         if (node.mesh) {
             const f32 aspect = static_cast<f32>(width) / static_cast<f32>(height);
-            render_mesh_wireframe(fb, *node.mesh, model, camera.view_matrix(), camera.projection_matrix(aspect), linear_color);
+            renderer::render_mesh_wireframe(fb, *node.mesh, model, camera.view_matrix(), 
+                                           camera.projection_matrix(aspect), linear_color);
         }
         return;
     }
@@ -425,7 +157,6 @@ void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node, const 
         Transform text_tr;
         text_tr.position = Vec3(model[3]);
         text_tr.opacity  = opacity;
-        // Extract uniform scale from model column lengths so 3D perspective scaling applies to font size.
         text_tr.scale.x  = glm::length(Vec3(model[0]));
         text_tr.scale.y  = glm::length(Vec3(model[1]));
         m_text_renderer.draw_text(node.shape.text, text_tr, fb, &state);
@@ -438,19 +169,19 @@ void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node, const 
     }
 
     if (node.shape.type == ShapeType::FakeBox3D) {
-        draw_fake_box3d(fb, node, state);
+        renderer::draw_fake_box3d(fb, node, state);
         return;
     }
 
     if (node.shape.type == ShapeType::GridPlane) {
-        draw_grid_plane(fb, node, state);
+        renderer::draw_grid_plane(fb, node, state);
         return;
     }
 
-    // Main shape
+    // Standard 2D Shape
     Color fill_color = linear_color;
     fill_color.a *= opacity;
-    draw_transformed_shape(fb, node.shape, model, fill_color, 0.0f, &state);
+    renderer::draw_transformed_shape(fb, node.shape, model, fill_color, 0.0f, &state);
 
     if (m_settings.diagnostic) {
         draw_diagnostic_info(fb, node, state);
@@ -458,8 +189,6 @@ void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node, const 
 }
 
 void SoftwareRenderer::draw_diagnostic_info(Framebuffer& fb, const RenderNode& node, const RenderState& state) {
-    if (!m_settings.diagnostic) return;
-
     TextStyle debug_style;
     debug_style.font_path = "assets/fonts/Inter-Regular.ttf";
     debug_style.size = 12.0f;
@@ -474,84 +203,46 @@ void SoftwareRenderer::draw_diagnostic_info(Framebuffer& fb, const RenderNode& n
     m_text_renderer.draw_text(debug_text, text_tr, fb);
 }
 
-void SoftwareRenderer::render_mesh_wireframe(
-    Framebuffer& fb, const Mesh& mesh, const Mat4& model,
-    const Mat4& view, const Mat4& proj, const Color& color)
-{
-    const Mat4 mvp = proj * view * model;
-    const auto& vertices = mesh.vertices();
-    const auto& indices  = mesh.indices();
+void SoftwareRenderer::draw_line(Framebuffer& fb, const Vec3& p1, const Vec3& p2, const Color& color) {
+    renderer::bline(fb, Vec2(p1.x, p1.y), Vec2(p2.x, p2.y), color);
+}
 
-    std::vector<Vec3> projected(vertices.size());
-    for (usize i = 0; i < vertices.size(); ++i) {
-        Vec4 p = mvp * Vec4(vertices[i].position, 1.0f);
-        if (p.w != 0.0f) { p.x /= p.w; p.y /= p.w; p.z /= p.w; }
-        projected[i] = {(p.x + 1.0f) * 0.5f * fb.width(),
-                        (1.0f - (p.y + 1.0f) * 0.5f) * fb.height(), p.z};
-    }
-    for (usize i = 0; i < indices.size(); i += 3) {
-        draw_line(fb, projected[indices[i]],   projected[indices[i+1]], color);
-        draw_line(fb, projected[indices[i+1]], projected[indices[i+2]], color);
-        draw_line(fb, projected[indices[i+2]], projected[indices[i]],   color);
+// ---------------------------------------------------------------------------
+// Static Helpers (Effects & Compositing)
+// ---------------------------------------------------------------------------
+
+void SoftwareRenderer::apply_blur(Framebuffer& fb, f32 radius) {
+    renderer::apply_blur(fb, radius);
+}
+
+void SoftwareRenderer::apply_effect_stack(Framebuffer& fb, const EffectStack& stack) {
+    renderer::apply_effect_stack(fb, stack);
+}
+
+void SoftwareRenderer::composite_layer(Framebuffer& dst, const Framebuffer& src, BlendMode mode) {
+    const i32 w = dst.width(), h = dst.height();
+    for (i32 y = 0; y < h; ++y) {
+        for (i32 x = 0; x < w; ++x) {
+            Color s = src.get_pixel(x, y);
+            if (s.a <= 0.0f) continue;
+            s = s.unpremultiplied();
+            dst.set_pixel(x, y, compositor::blend(s, dst.get_pixel(x, y), mode));
+        }
     }
 }
 
-void SoftwareRenderer::draw_line(Framebuffer& fb, const Vec3& p1, const Vec3& p2, const Color& color) {
-    ZoneScoped;
-    i32 x0 = static_cast<i32>(p1.x), y0 = static_cast<i32>(p1.y);
-    i32 x1 = static_cast<i32>(p2.x), y1 = static_cast<i32>(p2.y);
-    const i32 dx = std::abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
-    const i32 dy = -std::abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
-    i32 err = dx + dy, e2;
-    while (true) {
-        if (x0 >= 0 && x0 < fb.width() && y0 >= 0 && y0 < fb.height())
-            fb.set_pixel(x0, y0, compositor::blend(color, fb.get_pixel(x0, y0), BlendMode::Normal));
-        if (x0 == x1 && y0 == y1) break;
-        e2 = 2 * err;
-        if (e2 >= dy) { err += dy; x0 += sx; }
-        if (e2 <= dx) { err += dx; y0 += sy; }
-    }
+// Private dummy for internal usage if needed
+void SoftwareRenderer::apply_color_effects(Framebuffer& fb, const LayerEffect& effect) {
+    renderer::apply_color_effects(fb, effect);
 }
 
 void SoftwareRenderer::draw_shadow(Framebuffer& fb, const RenderNode& node, const RenderState& state) {
-    ZoneScoped;
-    if (node.shadow.color.a <= 0.0f) return;
-
-    const Color base = node.shadow.color.to_linear();
-    const Mat4& base_model = state.matrix;
-    Mat4 shadow_model = math::translate(Vec3(node.shadow.offset.x, node.shadow.offset.y, 0)) * base_model;
-
-    constexpr int LAYERS = 6;
-    for (int i = LAYERS; i >= 1; --i) {
-        const f32 t      = static_cast<f32>(i) / LAYERS;
-        const f32 spread = node.shadow.radius * t;
-        const f32 alpha  = base.a * (1.0f - t * t) * state.opacity;
-        if (alpha > 0.0f)
-            draw_transformed_shape(fb, node.shape, shadow_model, {base.r, base.g, base.b, alpha}, spread, &state);
-    }
-    draw_transformed_shape(fb, node.shape, shadow_model, {base.r, base.g, base.b, base.a * 0.7f * state.opacity}, 0.0f, &state);
+    renderer::draw_shadow(fb, node, state);
 }
 
 void SoftwareRenderer::draw_glow(Framebuffer& fb, const RenderNode& node, const RenderState& state) {
-    ZoneScoped;
-    if (node.glow.intensity <= 0.0f || node.glow.color.a <= 0.0f) return;
-
-    const Color base = node.glow.color.to_linear();
-    const Mat4& model = state.matrix;
-
-    constexpr int LAYERS = 5;
-    for (int i = LAYERS; i >= 1; --i) {
-        const f32 t      = static_cast<f32>(i) / LAYERS;
-        const f32 expand = node.glow.radius * t;
-        const f32 alpha  = base.a * node.glow.intensity * (1.0f - t) * state.opacity;
-        if (alpha > 0.0f)
-            draw_transformed_shape(fb, node.shape, model, {base.r, base.g, base.b, alpha}, expand, &state);
-    }
+    renderer::draw_glow(fb, node, state);
 }
-
-// ---------------------------------------------------------------------------
-// Layer-level effects pipeline
-// ---------------------------------------------------------------------------
 
 void SoftwareRenderer::render_layer_nodes(Framebuffer& fb, const Layer& layer,
                                           const RenderState& layer_state,
@@ -563,144 +254,9 @@ void SoftwareRenderer::render_layer_nodes(Framebuffer& fb, const Layer& layer,
     }
 }
 
-void SoftwareRenderer::apply_blur(Framebuffer& fb, f32 radius) {
-    const i32 r = std::max(1, static_cast<i32>(std::round(radius)));
-    const i32 w = fb.width(), h = fb.height();
-    Framebuffer tmp(w, h);
-    tmp.clear(Color::transparent());
-
-    // 3-pass separable box blur ≈ Gaussian
-    for (int pass = 0; pass < 3; ++pass) {
-        // Horizontal
-        for (i32 y = 0; y < h; ++y) {
-            Color sum{0, 0, 0, 0};
-            for (i32 x = -r; x <= r; ++x) {
-                Color p = fb.get_pixel(std::clamp(x, 0, w - 1), y);
-                sum.r += p.r; sum.g += p.g; sum.b += p.b; sum.a += p.a;
-            }
-            const f32 inv = 1.0f / static_cast<f32>(2 * r + 1);
-            for (i32 x = 0; x < w; ++x) {
-                tmp.set_pixel(x, y, {sum.r * inv, sum.g * inv, sum.b * inv, sum.a * inv});
-                Color add = fb.get_pixel(std::min(x + r + 1, w - 1), y);
-                Color rem = fb.get_pixel(std::max(x - r,     0),     y);
-                sum.r += add.r - rem.r; sum.g += add.g - rem.g;
-                sum.b += add.b - rem.b; sum.a += add.a - rem.a;
-            }
-        }
-        // Vertical
-        for (i32 x = 0; x < w; ++x) {
-            Color sum{0, 0, 0, 0};
-            for (i32 y = -r; y <= r; ++y) {
-                Color p = tmp.get_pixel(x, std::clamp(y, 0, h - 1));
-                sum.r += p.r; sum.g += p.g; sum.b += p.b; sum.a += p.a;
-            }
-            const f32 inv = 1.0f / static_cast<f32>(2 * r + 1);
-            for (i32 y = 0; y < h; ++y) {
-                fb.set_pixel(x, y, {sum.r * inv, sum.g * inv, sum.b * inv, sum.a * inv});
-                Color add = tmp.get_pixel(x, std::min(y + r + 1, h - 1));
-                Color rem = tmp.get_pixel(x, std::max(y - r,     0));
-                sum.r += add.r - rem.r; sum.g += add.g - rem.g;
-                sum.b += add.b - rem.b; sum.a += add.a - rem.a;
-            }
-        }
-    }
-}
-
-void SoftwareRenderer::apply_color_effects(Framebuffer& fb, const LayerEffect& effect) {
-    const i32 w = fb.width(), h = fb.height();
-    for (i32 y = 0; y < h; ++y) {
-        for (i32 x = 0; x < w; ++x) {
-            Color c = fb.get_pixel(x, y);
-            if (c.a <= 0.0f) continue;
-
-            // Brightness + contrast: (c + brightness - 0.5) * contrast + 0.5
-            if (effect.brightness != 0.0f || effect.contrast != 1.0f) {
-                auto adj = [&](f32 v) {
-                    return std::clamp((v + effect.brightness - 0.5f) * effect.contrast + 0.5f, 0.0f, 1.0f);
-                };
-                c.r = adj(c.r); c.g = adj(c.g); c.b = adj(c.b);
-            }
-            // Tint overlay
-            if (effect.tint.a > 0.0f) {
-                const f32 t = effect.tint.a;
-                c.r = c.r * (1.0f - t) + effect.tint.r * t;
-                c.g = c.g * (1.0f - t) + effect.tint.g * t;
-                c.b = c.b * (1.0f - t) + effect.tint.b * t;
-            }
-            fb.set_pixel(x, y, c);
-        }
-    }
-}
-
-void SoftwareRenderer::apply_effect_stack(Framebuffer& fb, const EffectStack& stack) {
-    for (const auto& inst : stack) {
-        if (!inst.enabled) continue;
-        std::visit([&fb](const auto& p) {
-            using T = std::decay_t<decltype(p)>;
-            if constexpr (std::is_same_v<T, BlurParams>) {
-                if (p.radius > 0.0f) apply_blur(fb, p.radius);
-            } else if constexpr (std::is_same_v<T, TintParams>) {
-                LayerEffect e;
-                e.tint = Color{p.color.r, p.color.g, p.color.b, p.color.a * p.amount};
-                apply_color_effects(fb, e);
-            } else if constexpr (std::is_same_v<T, BrightnessParams>) {
-                LayerEffect e; e.brightness = p.value;
-                apply_color_effects(fb, e);
-            } else if constexpr (std::is_same_v<T, ContrastParams>) {
-                LayerEffect e; e.contrast = p.value;
-                apply_color_effects(fb, e);
-            } else if constexpr (std::is_same_v<T, BloomParams>) {
-                // 1. Bright-pass into a scratch buffer
-                const i32 w = fb.width(), h = fb.height();
-                Framebuffer bright(w, h);
-                bright.clear(Color::transparent());
-                for (i32 y = 0; y < h; ++y) {
-                    for (i32 x = 0; x < w; ++x) {
-                        const Color c = fb.get_pixel(x, y);
-                        const f32 lum = 0.2126f * c.r + 0.7152f * c.g + 0.0722f * c.b;
-                        if (lum > p.threshold && c.a > 0.0f) {
-                            const f32 excess = (lum - p.threshold) / (1.0f - p.threshold + 1e-4f);
-                            bright.set_pixel(x, y, {c.r * excess, c.g * excess, c.b * excess, c.a});
-                        }
-                    }
-                }
-                // 2. Blur the bright-pass
-                if (p.radius > 0.0f) apply_blur(bright, p.radius);
-                // 3. Additive blend back
-                for (i32 y = 0; y < h; ++y) {
-                    for (i32 x = 0; x < w; ++x) {
-                        const Color b = bright.get_pixel(x, y);
-                        if (b.a <= 0.0f) continue;
-                        const Color src = fb.get_pixel(x, y);
-                        fb.set_pixel(x, y, {
-                            std::min(1.0f, src.r + b.r * p.intensity),
-                            std::min(1.0f, src.g + b.g * p.intensity),
-                            std::min(1.0f, src.b + b.b * p.intensity),
-                            src.a
-                        });
-                    }
-                }
-            }
-            // DropShadow, Glow: applied at node level (RenderNode.shadow/glow)
-        }, inst.params);
-    }
-}
-
-void SoftwareRenderer::composite_layer(Framebuffer& dst, const Framebuffer& src, BlendMode mode) {
-    const i32 w = dst.width(), h = dst.height();
-    for (i32 y = 0; y < h; ++y) {
-        for (i32 x = 0; x < w; ++x) {
-            Color s = src.get_pixel(x, y);
-            if (s.a <= 0.0f) continue;
-            
-            // The source buffer was rendered into a transparent black background,
-            // so its RGB values are effectively premultiplied by alpha.
-            // We unpremultiply here to get straight alpha for the blend functions.
-            s = s.unpremultiplied();
-            
-            dst.set_pixel(x, y, compositor::blend(s, dst.get_pixel(x, y), mode));
-        }
-    }
+void SoftwareRenderer::render_mesh_wireframe(Framebuffer& fb, const Mesh& mesh, const Mat4& model,
+                                             const Mat4& view, const Mat4& proj, const Color& color) {
+    renderer::render_mesh_wireframe(fb, mesh, model, view, proj, color);
 }
 
 } // namespace chronon3d
