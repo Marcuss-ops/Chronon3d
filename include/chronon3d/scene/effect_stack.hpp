@@ -17,6 +17,7 @@ struct BrightnessParams    { f32   value{0.0f}; };
 struct ContrastParams      { f32   value{1.0f}; };
 struct DropShadowParams    { Vec2 offset{0,8}; Color color{0,0,0,0.35f}; f32 radius{12}; };
 struct GlowParams          { f32 radius{15}; f32 intensity{0.8f}; Color color{1,1,1,1}; };
+struct BloomParams         { f32 threshold{0.80f}; f32 radius{24.0f}; f32 intensity{0.60f}; };
 
 using EffectParams = std::variant<
     BlurParams,
@@ -24,7 +25,8 @@ using EffectParams = std::variant<
     BrightnessParams,
     ContrastParams,
     DropShadowParams,
-    GlowParams
+    GlowParams,
+    BloomParams
 >;
 
 struct EffectInstance {

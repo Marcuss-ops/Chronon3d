@@ -112,6 +112,48 @@ public:
         });
     }
 
+    // Contact shadow: blurred rounded rect on a floor plane in 3D space.
+    SceneBuilder& contact_shadow_layer(std::string name, ContactShadowParams p) {
+        return layer(std::move(name), [p](LayerBuilder& l) {
+            l.enable_3d()
+             .position(p.pos)
+             .rounded_rect("shadow", {
+                 .size   = p.size,
+                 .radius = std::min(p.size.x, p.size.y) * 0.35f,
+                 .color  = p.color.with_alpha(p.opacity),
+             })
+             .blur(p.blur);
+        });
+    }
+
+    // Fake extruded text: stacks N offset copies (side color) then a front layer.
+    SceneBuilder& fake_extruded_text_layer(std::string base_name, FakeExtrudedTextParams p) {
+        // Side layers: deepest first (renders behind front)
+        for (int i = p.depth; i >= 1; --i) {
+            const f32 fi = static_cast<f32>(i);
+            const Vec3 off{p.extrude_dir.x * fi, p.extrude_dir.y * fi, 0};
+            const f32 shade = 1.0f - 0.25f * (fi / p.depth);
+            const Color sc = p.side_color.with_alpha(p.side_color.a * shade);
+            layer(base_name + "_s" + std::to_string(i), [p, off, sc](LayerBuilder& l) {
+                l.position(p.pos + off)
+                 .text("t", {
+                     .content = p.text,
+                     .style   = {.font_path = p.font_path, .size = p.font_size,
+                                 .color = sc, .align = p.align}
+                 });
+            });
+        }
+        // Front face
+        return layer(base_name, [p](LayerBuilder& l) {
+            l.position(p.pos)
+             .text("t", {
+                 .content = p.text,
+                 .style   = {.font_path = p.font_path, .size = p.font_size,
+                             .color = p.front_color, .align = p.align}
+             });
+        });
+    }
+
     // Hierarchy
     template <typename Fn>
     SceneBuilder& layer(std::string name, Fn&& fn) {
