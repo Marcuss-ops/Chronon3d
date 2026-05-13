@@ -98,9 +98,11 @@ struct FakeBox3DShape {
 struct GridPlaneShape {
     Vec3      world_pos{0, 0, 0};
     PlaneAxis axis{PlaneAxis::XZ};
-    f32       extent{2000};      // half-size in each plane direction
-    f32       spacing{200};      // line spacing
+    f32       extent{2000};
+    f32       spacing{200};
     Color     color{1, 1, 1, 0.25f};
+    f32       fade_distance{1800.0f};
+    f32       fade_min_alpha{0.0f};
     // Injected at render time:
     bool  cam_ready{false};
     Mat4  cam_view{1.0f};

@@ -89,6 +89,8 @@ struct GridPlaneParams {
     f32       extent{2000};
     f32       spacing{200};
     Color     color{1, 1, 1, 0.25f};
+    f32       fade_distance{1800.0f};  // 0 = no fade
+    f32       fade_min_alpha{0.0f};    // alpha floor at max distance
 };
 
 } // namespace chronon3d

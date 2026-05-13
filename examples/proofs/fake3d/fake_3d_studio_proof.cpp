@@ -26,28 +26,31 @@ static Composition Fake3DStudioProof() {
 
         const f32 t = ctx.effective_frame() / 120.0f;
 
-        // Background: Deep studio gray
+        // Background: large enough to survive any SSAA factor
         s.layer("bg", [](LayerBuilder& l) {
-            l.rect("fill", {.size = {4000, 4000}, .color = Materials::studio_background()});
+            l.rect("fill", {.size  = {99999.0f, 99999.0f},
+                             .color = Materials::studio_background()});
         });
 
-        // Camera: Elevated orbit rig
+        // Camera: elevated orbit, starts at 25° for visible box sides
         s.null_layer("cam_rig", [&](LayerBuilder& l) {
-            l.position({0, 0, 0}).rotate({0, t * 360.0f, 0});
+            l.position({0, 0, 0}).rotate({0, 25.0f + t * 360.0f, 0});
         });
         s.enable_camera_2_5d()
-         .camera_position({0, 520, -1150})
-         .camera_zoom(1050.0f)
+         .camera_position({0, 480, -1100})
+         .camera_zoom(1020.0f)
          .camera_parent("cam_rig")
          .camera_look_at({0, 0, 0});
 
-        // Grid floor: subtle and professional
+        // Grid floor with depth fade
         s.grid_plane_layer("floor", {
-            .pos     = {0, -210, 0},
-            .axis    = PlaneAxis::XZ,
-            .extent  = 2800,
-            .spacing = 200,
-            .color   = Materials::dark_floor_grid()
+            .pos           = {0, -210, 0},
+            .axis          = PlaneAxis::XZ,
+            .extent        = 3000,
+            .spacing       = 180,
+            .color         = Materials::dark_floor_grid(),
+            .fade_distance = 2200.0f,
+            .fade_min_alpha = 0.0f
         });
 
         // --- Red cube (left) ---
@@ -77,19 +80,19 @@ static Composition Fake3DStudioProof() {
             .contact_shadow = true
         });
 
-        // CHRONON — back-trace solid extrusion, camera-projected direction
+        // CHRONON — back-trace solid, camera projects Z as top face + slight side
         s.fake_extruded_text_layer("tilt", {
             .text              = "CHRONON",
-            .pos               = {0, 200, -50},
-            .font_size         = 90,
-            .depth             = 20,
-            .extrude_dir       = {0.0f, 0.0f},
-            .extrude_z_step    = 2.5f,            // pure Z: camera projects as upward top face
+            .pos               = {0, 210, -60},
+            .font_size         = 88,
+            .depth             = 18,
+            .extrude_dir       = {0.3f, 0.0f},   // slight right for side at 25° orbit
+            .extrude_z_step    = 2.2f,
             .front_color       = Color{0.97f, 0.96f, 0.92f, 1.0f},
-            .side_color        = Color{0.48f, 0.42f, 0.33f, 0.95f},
-            .side_fade         = 0.08f,
+            .side_color        = Color{0.46f, 0.40f, 0.31f, 0.95f},
+            .side_fade         = 0.06f,
             .align             = TextAlign::Center,
-            .highlight_opacity = 0.10f
+            .highlight_opacity = 0.11f
         });
 
         // Global bloom: Soft but present
