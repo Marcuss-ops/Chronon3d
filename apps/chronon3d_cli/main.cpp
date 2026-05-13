@@ -96,8 +96,6 @@ int main(int argc, char** argv) {
     graph_cmd->add_option("--frame", graph_args.frame, "Frame to inspect")->default_val(0);
     graph_cmd->add_option("-o,--output", graph_args.output, "Output .dot path")->default_val("output/graph.dot");
     graph_cmd->callback([&]() { exit_code = command_graph(registry, graph_args); });
-
-    // -------------------------------------------------------------------------
     // batch
     // -------------------------------------------------------------------------
     std::string batch_config;
