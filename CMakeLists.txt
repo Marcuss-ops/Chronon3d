@@ -171,6 +171,7 @@ file(GLOB CHRONON3D_EXAMPLE_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/examples/proofs/core/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/examples/proofs/fake3d/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/examples/proofs/camera/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/examples/proofs/templates/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/examples/debug/*.cpp"
 )
 target_sources(chronon3d_examples_lib PRIVATE ${CHRONON3D_EXAMPLE_SOURCES})
