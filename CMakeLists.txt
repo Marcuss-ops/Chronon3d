@@ -50,7 +50,20 @@ target_link_libraries(chronon3d
 )
 target_compile_features(chronon3d INTERFACE cxx_std_20)
 
-# 2. Renderer Library (Static)
+# 2. Effects Library (Static)
+file(GLOB CHRONON3D_EFFECTS_SOURCES CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/effects/*.cpp"
+)
+
+add_library(chronon3d_effects STATIC
+    ${CHRONON3D_EFFECTS_SOURCES}
+)
+target_link_libraries(chronon3d_effects
+    PUBLIC
+        chronon3d
+)
+
+# 3. Renderer Library (Static)
 file(GLOB CHRONON3D_RENDERER_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/scene/*.cpp"
@@ -64,6 +77,7 @@ add_library(chronon3d_renderer STATIC
 target_link_libraries(chronon3d_renderer
     PUBLIC
         chronon3d
+        chronon3d_effects
     PRIVATE
         spdlog::spdlog
         fmt::fmt
@@ -75,7 +89,7 @@ if(CHRONON3D_ENABLE_PROFILING AND Tracy_FOUND)
 endif()
 target_include_directories(chronon3d_renderer PRIVATE ${Stb_INCLUDE_DIR})
 
-# 3. Pipeline Library (Heavy)
+# 4. Pipeline Library (Heavy)
 add_library(chronon3d_pipeline INTERFACE)
 target_link_libraries(chronon3d_pipeline
     INTERFACE
@@ -88,7 +102,7 @@ if(CHRONON3D_ENABLE_PROFILING)
     target_compile_definitions(chronon3d_pipeline INTERFACE CHRONON_PROFILING TRACY_ON_DEMAND)
 endif()
 
-# 4. IO Library
+# 5. IO Library
 file(GLOB CHRONON3D_IO_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/src/io/*.cpp"
 )
@@ -102,7 +116,7 @@ target_link_libraries(chronon3d_io
 )
 target_include_directories(chronon3d_io PRIVATE ${Stb_INCLUDE_DIR})
 
-# 5. Examples Library (Host for auto-registration)
+# 6. Examples Library (Host for auto-registration)
 add_library(chronon3d_examples_lib STATIC)
 file(GLOB CHRONON3D_EXAMPLE_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/examples/*.cpp"
