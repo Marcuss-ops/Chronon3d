@@ -12,6 +12,11 @@ namespace chronon3d {
 // Convention: pixels are stored in LinearSRGB, straight (non-premultiplied) alpha.
 // Convertion to sRGB for output happens in save_ppm() / image_writer.
 // See include/chronon3d/math/color_space.hpp for the full pipeline.
+enum class SamplingMode {
+    Nearest,
+    Bilinear
+};
+
 class Framebuffer {
 public:
     Framebuffer(i32 width, i32 height) : m_width(width), m_height(height) {
@@ -28,8 +33,37 @@ public:
     }
 
     [[nodiscard]] Color get_pixel(i32 x, i32 y) const {
-        if (x < 0 || x >= m_width || y < 0 || y >= m_height) return Color::black();
+        if (x < 0 || x >= m_width || y < 0 || y >= m_height) return Color::transparent();
         return m_pixels[static_cast<usize>(y) * m_width + x];
+    }
+
+    [[nodiscard]] Color sample(f32 x, f32 y, SamplingMode mode = SamplingMode::Nearest) const {
+        if (mode == SamplingMode::Nearest) return sample_nearest(x, y);
+        return sample_bilinear(x, y);
+    }
+
+    [[nodiscard]] Color sample_nearest(f32 x, f32 y) const {
+        return get_pixel(static_cast<i32>(std::floor(x)), static_cast<i32>(std::floor(y)));
+    }
+
+    [[nodiscard]] Color sample_bilinear(f32 x, f32 y) const {
+        // Pixel centers are at (0.5, 0.5)
+        const f32 u = x - 0.5f;
+        const f32 v = y - 0.5f;
+        const i32 x0 = static_cast<i32>(std::floor(u));
+        const i32 y0 = static_cast<i32>(std::floor(v));
+        const i32 x1 = x0 + 1;
+        const i32 y1 = y0 + 1;
+
+        const f32 tx = u - static_cast<f32>(x0);
+        const f32 ty = v - static_cast<f32>(y0);
+
+        const Color c00 = get_pixel(x0, y0);
+        const Color c10 = get_pixel(x1, y0);
+        const Color c01 = get_pixel(x0, y1);
+        const Color c11 = get_pixel(x1, y1);
+
+        return lerp(lerp(c00, c10, tx), lerp(c01, c11, tx), ty);
     }
 
     bool save_ppm(const std::string& path) const {
