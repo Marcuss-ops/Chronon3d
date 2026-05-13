@@ -13,15 +13,14 @@ static Composition TodayFirst25D() {
     }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
 
-        const f32 t = static_cast<f32>(ctx.frame) / 119.0f;
+        const auto cam_pos = keyframes<Vec3>({
+            {0,   {-120.0f, 30.0f, -1200.0f}, Easing::InOutSine},
+            {119, {120.0f, -30.0f, -900.0f}}
+        }).value(ctx.frame);
 
         s.camera_2_5d({
             .enabled = true,
-            .position = {
-                interpolate(t, 0.0f, 1.0f, -120.0f, 120.0f),
-                interpolate(t, 0.0f, 1.0f, 30.0f, -30.0f),
-                interpolate(t, 0.0f, 1.0f, -1200.0f, -900.0f)
-            },
+            .position = cam_pos,
             .zoom = 1000.0f,
             .dof = {
                 .enabled = true,
@@ -54,9 +53,16 @@ static Composition TodayFirst25D() {
         });
 
         // Background panels
-        s.layer("background_panels", [](LayerBuilder& l) {
+        s.layer("background_panels", [&](LayerBuilder& l) {
+            const f32 bg_opacity = keyframes<f32>({
+                {0,  0.0f, Easing::Linear},
+                {40, 0.0f, Easing::Linear},
+                {70, 0.6f}
+            }).value(ctx.frame);
+
             l.enable_3d()
-             .depth_role(DepthRole::Background);
+             .depth_role(DepthRole::Background)
+             .opacity(bg_opacity);
 
             l.rounded_rect("left_panel", {
                 .size = {500, 280},
@@ -75,10 +81,20 @@ static Composition TodayFirst25D() {
 
         // Subject card
         s.layer("hero_card", [&](LayerBuilder& l) {
-            l.enable_3d()
-             .depth_role(DepthRole::Subject);
+            const f32 reveal_t = keyframes<f32>({
+                {0,  0.0f, Easing::Linear},
+                {20, 0.0f, Easing::OutBack},
+                {60, 1.0f}
+            }).value(ctx.frame);
 
-            const f32 bob = std::sin(static_cast<f32>(ctx.frame) * 0.06f) * 10.0f;
+            const f32 card_opacity = reveal_t;
+            const f32 y_offset = (1.0f - reveal_t) * -100.0f;
+
+            l.enable_3d()
+             .depth_role(DepthRole::Subject)
+             .opacity(card_opacity);
+
+            const f32 bob = std::sin(static_cast<f32>(ctx.frame) * 0.06f) * 10.0f + y_offset;
 
             l.rounded_rect("card_shadow", {
                 .size = {620, 340},
