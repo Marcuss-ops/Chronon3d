@@ -81,47 +81,4 @@ SceneBuilder& SceneBuilder::image(std::string name, ImageParams p) {
     scene_.add_node(std::move(node));
     return *this;
 }
-
-void SceneBuilder::resolve_hierarchy() {
-    auto& layers = const_cast<std::pmr::vector<Layer>&>(scene_.layers());
-    if (layers.empty()) return;
-
-    std::unordered_map<std::string_view, Layer*> layer_map;
-    for (auto& layer : layers) {
-        layer_map[layer.name] = &layer;
-    }
-
-    std::unordered_map<std::string_view, Mat4> world_matrices;
-
-    std::function<Mat4(Layer&)> get_world_matrix = [&](Layer& layer) -> Mat4 {
-        if (world_matrices.count(layer.name)) {
-            return world_matrices[layer.name];
-        }
-
-        Mat4 local = layer.transform.to_mat4();
-        if (layer.parent_name.empty()) {
-            world_matrices[std::string_view(layer.name)] = local;
-            return local;
-        }
-
-        auto it = layer_map.find(layer.parent_name);
-        if (it == layer_map.end()) {
-            world_matrices[std::string_view(layer.name)] = local;
-            return local;
-        }
-
-        Mat4 world = get_world_matrix(*(it->second)) * local;
-        world_matrices[std::string_view(layer.name)] = world;
-        return world;
-    };
-
-    for (auto& layer : layers) {
-        Mat4 world_mat = get_world_matrix(layer);
-        
-        // Update the layer transform to be in world space.
-        // For now, we mainly need world position for 2.5D depth and parallax.
-        layer.transform.position = Vec3(world_mat[3][0], world_mat[3][1], world_mat[3][2]);
-    }
-}
-
 } // namespace chronon3d

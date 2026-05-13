@@ -2,6 +2,7 @@
 
 #include <chronon3d/core/types.hpp>
 #include <chronon3d/math/vec3.hpp>
+#include <string>
 
 namespace chronon3d {
 
@@ -46,6 +47,10 @@ struct Camera2_5D {
     // Field of view in degrees. Used when projection_mode == Fov.
     // 35° ≈ telephoto (less distortion), 70° ≈ wide angle (more parallax).
     f32 fov_deg{50.0f};
+
+    // Hierarchy
+    std::pmr::string parent_name;
+    Vec3 rotation{0, 0, 0}; // Euler degrees (future-proofing)
 
     DepthOfFieldSettings dof;
 };
