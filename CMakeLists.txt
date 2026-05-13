@@ -76,7 +76,22 @@ target_link_libraries(chronon3d_cache
         chronon3d
 )
 
-# 4. Effects Library (Static)
+# 4. Render Graph Facade (Static)
+file(GLOB CHRONON3D_RENDER_GRAPH_SOURCES CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/render_graph/*.cpp"
+)
+
+add_library(chronon3d_render_graph STATIC
+    ${CHRONON3D_RENDER_GRAPH_SOURCES}
+)
+target_link_libraries(chronon3d_render_graph
+    PUBLIC
+        chronon3d
+        chronon3d_cache
+        chronon3d_renderer
+)
+
+# 5. Effects Library (Static)
 file(GLOB CHRONON3D_EFFECTS_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/src/effects/*.cpp"
 )
@@ -89,7 +104,7 @@ target_link_libraries(chronon3d_effects
         chronon3d
 )
 
-# 5. Renderer Library (Static)
+# 6. Renderer Library (Static)
 file(GLOB CHRONON3D_RENDERER_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/scene/*.cpp"
@@ -117,13 +132,14 @@ if(CHRONON3D_ENABLE_PROFILING AND Tracy_FOUND)
 endif()
 target_include_directories(chronon3d_renderer PRIVATE ${Stb_INCLUDE_DIR})
 
-# 6. Pipeline Library (Heavy)
+# 7. Pipeline Library (Heavy)
 add_library(chronon3d_pipeline INTERFACE)
 target_link_libraries(chronon3d_pipeline
     INTERFACE
         chronon3d_renderer
         chronon3d_registry
         chronon3d_cache
+        chronon3d_render_graph
         Taskflow::Taskflow
         concurrentqueue::concurrentqueue
 )
@@ -132,7 +148,7 @@ if(CHRONON3D_ENABLE_PROFILING)
     target_compile_definitions(chronon3d_pipeline INTERFACE CHRONON_PROFILING TRACY_ON_DEMAND)
 endif()
 
-# 7. IO Library
+# 8. IO Library
 file(GLOB CHRONON3D_IO_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/src/io/*.cpp"
 )
@@ -146,7 +162,7 @@ target_link_libraries(chronon3d_io
 )
 target_include_directories(chronon3d_io PRIVATE ${Stb_INCLUDE_DIR})
 
-# 8. Examples Library (Host for auto-registration)
+# 9. Examples Library (Host for auto-registration)
 add_library(chronon3d_examples_lib STATIC)
 file(GLOB CHRONON3D_EXAMPLE_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/examples/*.cpp"
