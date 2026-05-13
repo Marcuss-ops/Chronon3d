@@ -92,8 +92,26 @@
       "jobs": 16
     },
     {
+      "name": "linux",
+      "configurePreset": "linux-release",
+      "targets": [
+        "chronon3d_cli",
+        "chronon3d_tests"
+      ],
+      "jobs": 16
+    },
+    {
       "name": "win-debug",
       "configurePreset": "win-debug",
+      "targets": [
+        "chronon3d_cli",
+        "chronon3d_tests"
+      ],
+      "jobs": 16
+    },
+    {
+      "name": "linux-debug",
+      "configurePreset": "linux-debug",
       "targets": [
         "chronon3d_cli",
         "chronon3d_tests"
@@ -105,6 +123,13 @@
     {
       "name": "win-test",
       "configurePreset": "win-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "linux-test",
+      "configurePreset": "linux-release",
       "output": {
         "outputOnFailure": true
       }

@@ -7,7 +7,8 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$root = Split-Path -Parent $MyInvocation.MyCommand.Path
+$toolDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$root = Split-Path -Parent $toolDir
 Set-Location $root
 
 $vcpkg = if (Test-Path "C:\vcpkg\vcpkg.exe") {

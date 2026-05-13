@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/renderer/renderer.hpp>
+#include <chronon3d/renderer/render_graph.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/renderer/text_renderer.hpp>
 #include <chronon3d/renderer/image_renderer.hpp>
@@ -9,6 +10,7 @@
 #include <chronon3d/scene/layer_effect.hpp>
 #include <chronon3d/scene/effect_stack.hpp>
 #include <chronon3d/scene/camera_2_5d.hpp>
+#include <unordered_map>
 
 namespace chronon3d {
 
@@ -22,6 +24,9 @@ public:
     std::unique_ptr<Framebuffer> render_frame(const Composition& comp, Frame frame) override;
     std::unique_ptr<Framebuffer> render_scene(const Scene& scene, const Camera& camera,
                                                i32 width, i32 height) override;
+    [[nodiscard]] std::string debug_render_graph(const Scene& scene, const Camera& camera,
+                                                 i32 width, i32 height, Frame frame = 0,
+                                                 f32 frame_time = 0.0f) const;
 
     // Motion blur: accumulate N subframes when enabled.
     void set_motion_blur(MotionBlurSettings mb) { m_motion_blur = mb; }
@@ -32,9 +37,22 @@ public:
     [[nodiscard]] bool is_diagnostic_mode() const { return diagnostic_; }
 
     // Clear image and font caches (useful between unrelated render sessions)
-    void clear_caches() { m_image_renderer.clear_cache(); m_text_renderer.clear_cache(); }
+    void clear_caches() {
+        m_image_renderer.clear_cache();
+        m_text_renderer.clear_cache();
+        m_render_cache.clear();
+    }
+
+    friend class rendergraph::RenderGraph;
 
 private:
+    std::unique_ptr<Framebuffer> render_scene_internal(const Scene& scene, const Camera& camera,
+                                                       i32 width, i32 height, Frame frame,
+                                                       f32 frame_time);
+    rendergraph::RenderGraph build_render_graph(const Scene& scene, const Camera& camera,
+                                                i32 width, i32 height, Frame frame,
+                                                f32 frame_time) const;
+
     void draw_node(Framebuffer& fb, const RenderNode& node, const RenderState& state, 
                    const Camera& camera, i32 width, i32 height);
 
@@ -62,6 +80,8 @@ private:
 
     TextRenderer      m_text_renderer;
     ImageRenderer     m_image_renderer;
+    mutable std::unordered_map<rendergraph::RenderCacheKey, rendergraph::RenderPassResult,
+                                rendergraph::RenderCacheKeyHash> m_render_cache;
     bool              diagnostic_{false};
     MotionBlurSettings m_motion_blur{};
 };

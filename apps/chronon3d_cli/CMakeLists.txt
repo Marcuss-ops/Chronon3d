@@ -9,6 +9,7 @@ target_link_libraries(chronon3d_cli
         chronon3d_io
         "$<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_examples_lib>"
         CLI11::CLI11
+        tomlplusplus::tomlplusplus
         spdlog::spdlog
         fmt::fmt
 )
