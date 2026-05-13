@@ -41,7 +41,7 @@ struct RenderGraphContext {
     SoftwareRenderer* renderer{nullptr};
     cache::NodeCache* node_cache{nullptr};
     RenderProfiler* profiler{nullptr};
-    CompositionRegistry* registry{nullptr};
+    const CompositionRegistry* registry{nullptr};
 
     bool cache_enabled{true};
     bool diagnostics_enabled{false};

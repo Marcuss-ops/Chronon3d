@@ -98,6 +98,7 @@ int command_render(const CompositionRegistry& registry, const RenderArgs& args) 
     auto comp_instance = registry.create(args.comp_id);
     auto comp_ptr = std::make_shared<Composition>(std::move(comp_instance));
     auto renderer = std::make_shared<SoftwareRenderer>();
+    renderer->set_composition_registry(&registry);
     
     RenderSettings settings;
     settings.diagnostic = args.diagnostic;
@@ -422,6 +423,7 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
 
     auto comp = registry.create(args.comp_id);
     SoftwareRenderer renderer;
+    renderer.set_composition_registry(&registry);
     RenderSettings settings;
     settings.use_modular_graph = args.use_modular_graph;
     renderer.set_settings(settings);
@@ -469,6 +471,7 @@ int command_graph(const CompositionRegistry& registry, const GraphArgs& args) {
     auto comp = registry.create(args.comp_id);
     auto scene = comp.evaluate(args.frame);
     SoftwareRenderer renderer;
+    renderer.set_composition_registry(&registry);
     const std::string dot = renderer.debug_render_graph(scene, comp.camera, comp.width(), comp.height(), args.frame);
 
     const std::filesystem::path out_path(args.output);

@@ -62,6 +62,20 @@ public:
         return *this;
     }
 
+    template <typename Fn>
+    SceneBuilder& precomp_layer(std::string name, std::string comp_name, Fn&& fn) {
+        LayerBuilder builder(std::move(name), scene_.resource());
+        std::forward<Fn>(fn)(builder);
+
+        Layer l = builder.build();
+        l.kind = LayerKind::Precomp;
+        l.precomp_composition_name = std::pmr::string{comp_name, scene_.resource()};
+        if (l.active_at(current_frame_)) {
+            scene_.add_layer(std::move(l));
+        }
+        return *this;
+    }
+
     // Fluent API for transformations (root level)
     SceneBuilder& at(Vec3 pos) {
         scene_.last_node().world_transform.position = pos;
