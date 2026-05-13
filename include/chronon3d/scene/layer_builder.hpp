@@ -227,14 +227,39 @@ public:
     }
 
     LayerBuilder& with_shadow(DropShadow shadow) {
-        m_layer.nodes.back().shadow = shadow;
+        if (!m_layer.nodes.empty()) m_layer.nodes.back().shadow = shadow;
         return *this;
     }
 
     LayerBuilder& with_glow(Glow glow) {
-        m_layer.nodes.back().glow = glow;
+        if (!m_layer.nodes.empty()) m_layer.nodes.back().glow = glow;
         return *this;
     }
+
+    // Node-level transformations (applies to the last added node)
+    LayerBuilder& at(Vec3 pos) {
+        if (!m_layer.nodes.empty()) m_layer.nodes.back().world_transform.position = pos;
+        return *this;
+    }
+    LayerBuilder& rotate_node(Vec3 euler_deg) {
+        if (!m_layer.nodes.empty()) m_layer.nodes.back().world_transform.rotation = math::from_euler(euler_deg);
+        return *this;
+    }
+    LayerBuilder& scale_node(Vec3 s) {
+        if (!m_layer.nodes.empty()) m_layer.nodes.back().world_transform.scale = s;
+        return *this;
+    }
+    LayerBuilder& anchor_node(Vec3 a) {
+        if (!m_layer.nodes.empty()) m_layer.nodes.back().world_transform.anchor = a;
+        return *this;
+    }
+    LayerBuilder& node_opacity(f32 a) {
+        if (!m_layer.nodes.empty()) m_layer.nodes.back().world_transform.opacity = a;
+        return *this;
+    }
+
+    [[nodiscard]] std::pmr::memory_resource* resource() const { return m_layer.nodes.get_allocator().resource(); }
+
 
     // Video layer: resolves frame via VideoFrameProvider and adds as image node.
     // comp_frame and comp_fps are required to compute the source timestamp.
