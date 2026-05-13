@@ -4,6 +4,7 @@
 #include <chronon3d/math.hpp>
 #include <chronon3d/geometry.hpp>
 #include <chronon3d/animation.hpp>
+#include <chronon3d/effects.hpp>
 #include <chronon3d/timeline.hpp>
 #include <chronon3d/rendering.hpp>
 #include <chronon3d/scene/camera.hpp>

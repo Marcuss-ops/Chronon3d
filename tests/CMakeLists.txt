@@ -41,6 +41,9 @@ add_executable(chronon3d_tests
     renderer/test_text_rendering.cpp
     renderer/test_render_graph.cpp
 
+    # Effects
+    effects/test_effect_registry.cpp
+
     # Other
     deterministic/test_deterministic.cpp
     
