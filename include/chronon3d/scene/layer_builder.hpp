@@ -256,6 +256,29 @@ public:
         return *this;
     }
 
+    LayerBuilder& fake_extruded_text(std::string name, FakeExtrudedTextParams p) {
+        auto* res = m_layer.nodes.get_allocator().resource();
+        RenderNode node(res);
+        node.name = std::pmr::string{name, res};
+        node.shape.type = ShapeType::FakeExtrudedText;
+        auto& s = node.shape.fake_extruded_text;
+        s.text              = std::move(p.text);
+        s.font_path         = std::move(p.font_path);
+        s.font_size         = p.font_size;
+        s.align             = p.align;
+        s.world_pos         = p.pos;
+        s.depth             = p.depth;
+        s.extrude_dir       = p.extrude_dir;
+        s.extrude_z_step    = p.extrude_z_step;
+        s.front_color       = p.front_color;
+        s.side_color        = p.side_color;
+        s.highlight_opacity = p.highlight_opacity;
+        node.world_transform.position = {0, 0, 0};
+        node.color = p.front_color;
+        m_layer.nodes.push_back(std::move(node));
+        return *this;
+    }
+
     LayerBuilder& grid_plane(std::string name, GridPlaneParams p) {
         auto* res = m_layer.nodes.get_allocator().resource();
         RenderNode node(res);

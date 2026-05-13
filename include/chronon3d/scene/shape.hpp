@@ -20,6 +20,7 @@ enum class ShapeType {
     Mesh,
     FakeBox3D,
     GridPlane,
+    FakeExtrudedText,
 };
 
 enum class PlaneAxis { XZ, XY };
@@ -108,6 +109,31 @@ struct GridPlaneShape {
     f32   vp_cy{360};
 };
 
+struct FakeExtrudedTextShape {
+    std::string text;
+    std::string font_path{"assets/fonts/Inter-Bold.ttf"};
+    f32   font_size{80.0f};
+    TextAlign align{TextAlign::Center};
+
+    Vec3  world_pos{0, 0, 0};
+
+    int   depth{32};
+    Vec2  extrude_dir{0.8f, 1.0f};  // world-space X/Y offset per step
+    f32   extrude_z_step{1.2f};      // world-space Z offset per step (positive = away)
+
+    Color front_color{0.96f, 0.94f, 0.88f, 1.0f};
+    Color side_color{0.55f, 0.50f, 0.43f, 0.85f};
+    f32   side_fade{0.25f};          // how much to fade side alpha toward deepest step
+    f32   highlight_opacity{0.09f};
+
+    // Injected at render time by build_render_graph:
+    bool  cam_ready{false};
+    Mat4  cam_view{1.0f};
+    f32   cam_focal{1000.0f};
+    f32   vp_cx{640};
+    f32   vp_cy{360};
+};
+
 struct Shape {
     ShapeType type{ShapeType::None};
     RectShape rect;
@@ -118,6 +144,7 @@ struct Shape {
     ImageShape image;
     FakeBox3DShape fake_box3d;
     GridPlaneShape grid_plane;
+    FakeExtrudedTextShape fake_extruded_text;
 };
 
 } // namespace chronon3d
