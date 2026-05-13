@@ -4,6 +4,8 @@
 #include <algorithm>
 #include <cmath>
 #include <ostream>
+#include <cstdio>
+
 
 namespace chronon3d {
 
@@ -23,6 +25,16 @@ struct Color {
     static constexpr Color blue()  { return {0.0f, 0.0f, 1.0f, 1.0f}; }
     static constexpr Color yellow() { return {1.0f, 1.0f, 0.0f, 1.0f}; }
     static constexpr Color transparent() { return {0.0f, 0.0f, 0.0f, 0.0f}; }
+
+    static Color from_hex(const char* hex) {
+        if (!hex || hex[0] != '#') return black();
+        unsigned int r, g, b;
+        if (std::sscanf(hex + 1, "%02x%02x%02x", &r, &g, &b) == 3) {
+            return {static_cast<f32>(r) / 255.0f, static_cast<f32>(g) / 255.0f, static_cast<f32>(b) / 255.0f, 1.0f};
+        }
+        return black();
+    }
+
 
     constexpr Color operator+(const Color& other) const { return {r + other.r, g + other.g, b + other.b, a + other.a}; }
     constexpr Color operator-(const Color& other) const { return {r - other.r, g - other.g, b - other.b, a - other.a}; }

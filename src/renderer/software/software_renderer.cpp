@@ -19,46 +19,87 @@ using namespace renderer;
 // SoftwareRenderer - Main Interface
 // ---------------------------------------------------------------------------
 
+static std::unique_ptr<Framebuffer> downsample_fb(const Framebuffer& src, int dst_w, int dst_h) {
+    auto dst = std::make_unique<Framebuffer>(dst_w, dst_h);
+    const float sx = static_cast<float>(src.width()) / static_cast<float>(dst_w);
+    const float sy = static_cast<float>(src.height()) / static_cast<float>(dst_h);
+
+    for (int y = 0; y < dst_h; ++y) {
+        for (int x = 0; x < dst_w; ++x) {
+            float r = 0, g = 0, b = 0, a = 0;
+            int count = 0;
+            int x0 = static_cast<int>(x * sx);
+            int y0 = static_cast<int>(y * sy);
+            int x1 = std::min(static_cast<int>((x + 1) * sx), src.width());
+            int y1 = std::min(static_cast<int>((y + 1) * sy), src.height());
+
+            for (int sy_i = y0; sy_i < y1; ++sy_i) {
+                for (int sx_i = x0; sx_i < x1; ++sx_i) {
+                    Color c = src.get_pixel(sx_i, sy_i);
+                    r += c.r; g += c.g; b += c.b; a += c.a;
+                    count++;
+                }
+            }
+            if (count > 0) {
+                float inv = 1.0f / count;
+                dst->set_pixel(x, y, Color{r * inv, g * inv, b * inv, a * inv});
+            }
+        }
+    }
+    return dst;
+}
+
 std::unique_ptr<Framebuffer> SoftwareRenderer::render_frame(const Composition& comp, Frame frame) {
+    const float ssaa = std::max(1.0f, m_settings.ssaa_factor);
+    const int   w    = comp.width();
+    const int   h    = comp.height();
+    const int   rw   = static_cast<int>(w * ssaa);
+    const int   rh   = static_cast<int>(h * ssaa);
+
+    std::unique_ptr<Framebuffer> render_fb;
+
     if (!m_settings.motion_blur.enabled || m_settings.motion_blur.samples <= 1) {
         Scene scene = comp.evaluate(frame);
-        return render_scene_internal(scene, comp.camera, comp.width(), comp.height(), frame, 0.0f);
-    }
+        render_fb = render_scene_internal(scene, comp.camera, rw, rh, frame, 0.0f);
+    } else {
+        const int   N       = std::max(2, m_settings.motion_blur.samples);
+        const float shutter = m_settings.motion_blur.shutter_angle / 360.0f;
 
-    const int   N       = std::max(2, m_settings.motion_blur.samples);
-    const float shutter = m_settings.motion_blur.shutter_angle / 360.0f;
-    const int   w       = comp.width();
-    const int   h       = comp.height();
+        std::vector<float> accum(static_cast<size_t>(rw * rh * 4), 0.0f);
+        const float weight = 1.0f / static_cast<float>(N);
 
-    std::vector<float> accum(static_cast<size_t>(w * h * 4), 0.0f);
-    const float weight = 1.0f / static_cast<float>(N);
+        for (int s = 0; s < N; ++s) {
+            const float t = (static_cast<float>(s) / static_cast<float>(N)) * shutter;
+            Scene sub_scene = comp.evaluate(frame, t);
+            auto sub_fb = render_scene_internal(sub_scene, comp.camera, rw, rh, frame, t);
 
-    for (int s = 0; s < N; ++s) {
-        const float t = (static_cast<float>(s) / static_cast<float>(N)) * shutter;
-        Scene sub_scene = comp.evaluate(frame, t);
-        auto sub_fb = render_scene_internal(sub_scene, comp.camera, w, h, frame, t);
+            for (int y = 0; y < rh; ++y) {
+                for (int x = 0; x < rw; ++x) {
+                    Color c = sub_fb->get_pixel(x, y);
+                    const size_t idx = static_cast<size_t>((y * rw + x) * 4);
+                    accum[idx + 0] += c.r * weight;
+                    accum[idx + 1] += c.g * weight;
+                    accum[idx + 2] += c.b * weight;
+                    accum[idx + 3] += c.a * weight;
+                }
+            }
+        }
 
-        for (int y = 0; y < h; ++y) {
-            for (int x = 0; x < w; ++x) {
-                Color c = sub_fb->get_pixel(x, y);
-                const size_t idx = static_cast<size_t>((y * w + x) * 4);
-                accum[idx + 0] += c.r * weight;
-                accum[idx + 1] += c.g * weight;
-                accum[idx + 2] += c.b * weight;
-                accum[idx + 3] += c.a * weight;
+        render_fb = std::make_unique<Framebuffer>(rw, rh);
+        for (int y = 0; y < rh; ++y) {
+            for (int x = 0; x < rw; ++x) {
+                const size_t idx = static_cast<size_t>((y * rw + x) * 4);
+                render_fb->set_pixel(x, y, Color{accum[idx], accum[idx+1], accum[idx+2], accum[idx+3]});
             }
         }
     }
 
-    auto result = std::make_unique<Framebuffer>(w, h);
-    for (int y = 0; y < h; ++y) {
-        for (int x = 0; x < w; ++x) {
-            const size_t idx = static_cast<size_t>((y * w + x) * 4);
-            result->set_pixel(x, y, Color{accum[idx], accum[idx+1], accum[idx+2], accum[idx+3]});
-        }
+    if (ssaa > 1.0f) {
+        return downsample_fb(*render_fb, w, h);
     }
-    return result;
+    return render_fb;
 }
+
 
 std::unique_ptr<Framebuffer> SoftwareRenderer::render_scene(
     const Scene& scene, const Camera& camera, i32 width, i32 height, Frame frame)
@@ -92,6 +133,7 @@ std::unique_ptr<Framebuffer> SoftwareRenderer::render_scene_internal(
         ctx.diagnostics_enabled = m_settings.diagnostic;
         ctx.registry = m_registry;
         ctx.video_decoder = &m_video_extractor;
+        ctx.ssaa_factor = m_settings.ssaa_factor;
 
         auto graph = graph::GraphBuilder::build(scene, ctx);
         graph::GraphExecutor executor;
@@ -169,12 +211,26 @@ void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node, const 
     }
 
     if (node.shape.type == ShapeType::FakeBox3D) {
-        renderer::draw_fake_box3d(fb, node, state);
+        auto s = node.shape.fake_box3d;
+        s.cam_ready = true;
+        s.cam_view  = camera.view_matrix();
+        const f32 fw = static_cast<f32>(width);
+        s.cam_focal = camera.focal_length(fw);
+        s.vp_cx     = fw * 0.5f;
+        s.vp_cy     = static_cast<f32>(height) * 0.5f;
+        renderer::draw_fake_box3d(fb, node, state, s);
         return;
     }
 
     if (node.shape.type == ShapeType::GridPlane) {
-        renderer::draw_grid_plane(fb, node, state);
+        auto s = node.shape.grid_plane;
+        s.cam_ready = true;
+        s.cam_view  = camera.view_matrix();
+        const f32 fw = static_cast<f32>(width);
+        s.cam_focal = camera.focal_length(fw);
+        s.vp_cx     = fw * 0.5f;
+        s.vp_cy     = static_cast<f32>(height) * 0.5f;
+        renderer::draw_grid_plane(fb, node, state, s);
         return;
     }
 
