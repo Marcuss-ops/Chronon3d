@@ -4,16 +4,116 @@
 #include <chronon3d/render_graph/nodes/transform_node.hpp>
 #include <chronon3d/render_graph/nodes/video_node.hpp>
 #include <chronon3d/render_graph/render_graph_hashing.hpp>
+#include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/scene/layer.hpp>
+#include <algorithm>
+#include <cmath>
 
 namespace chronon3d::graph {
 
+// ---------------------------------------------------------------------------
+// append_layer_pipeline
+// Builds: source → transform → [mask] → [effects] → [dof_blur] → composite
+// Updates 'current' to the output composite node.
+// ---------------------------------------------------------------------------
+void GraphBuilder::append_layer_pipeline(
+    RenderGraph&          graph,
+    const LayerGraphItem& item,
+    GraphNodeId&          current,
+    const RenderGraphContext& ctx,
+    const Camera2_5D&     cam25d
+) {
+    const Layer& layer = *item.layer;
+    const std::string name{layer.name};
+
+    GraphNodeId layer_output;
+
+    if (layer.kind == LayerKind::Normal) {
+        layer_output = build_layer_source(graph, layer, ctx);
+    } else if (layer.kind == LayerKind::Precomp) {
+        layer_output = graph.add_node(std::make_unique<PrecompNode>(
+            std::string(layer.precomp_composition_name),
+            layer.from,
+            layer.duration
+        ));
+    } else {
+        // LayerKind::Video
+        layer_output = graph.add_node(std::make_unique<VideoNode>(
+            layer.video_source,
+            ctx.video_decoder,
+            layer.from
+        ));
+    }
+
+    // Transform — use the (possibly projected) transform.
+    // Always add a TransformNode for projected layers; for 2D layers only if
+    // there is a non-identity transform or the layer type needs it.
+    const bool needs_transform = item.projected
+        || layer.kind == LayerKind::Precomp
+        || layer.kind == LayerKind::Video
+        || layer.transform.any();
+
+    if (needs_transform) {
+        auto transform = graph.add_node(
+            std::make_unique<TransformNode>(item.transform)
+        );
+        graph.connect(layer_output, transform);
+        layer_output = transform;
+    }
+
+    // Mask
+    if (layer.mask.enabled()) {
+        auto masked = graph.add_node(std::make_unique<MaskNode>(layer.mask));
+        graph.connect(layer_output, masked);
+        layer_output = masked;
+    }
+
+    // Effect stack
+    if (!layer.effects.empty()) {
+        auto effects = graph.add_node(
+            std::make_unique<EffectStackNode>(layer.effects)
+        );
+        graph.connect(layer_output, effects);
+        layer_output = effects;
+    }
+
+    // Depth-of-field blur (only for projected 3D layers when DOF is enabled)
+    if (item.projected && cam25d.dof.enabled) {
+        // Distance from the focus plane in world Z units.
+        // item.depth is (world_z - camera_z), so world_z = item.depth + camera_z.
+        const f32 world_z = item.depth + cam25d.position.z;
+        const f32 dist    = std::abs(world_z - cam25d.dof.focus_z);
+        const f32 blur    = std::min(dist * cam25d.dof.aperture, cam25d.dof.max_blur);
+
+        if (blur > 0.5f) {
+            EffectStack dof_stack;
+            dof_stack.push_back(EffectInstance{BlurParams{blur}});
+            auto dof_node = graph.add_node(
+                std::make_unique<EffectStackNode>(std::move(dof_stack))
+            );
+            graph.connect(layer_output, dof_node);
+            layer_output = dof_node;
+        }
+    }
+
+    // Composite onto the current accumulation
+    auto composite = graph.add_node(
+        std::make_unique<CompositeNode>(layer.blend_mode)
+    );
+    graph.connect(current, composite);
+    graph.connect(layer_output, composite);
+    current = composite;
+}
+
+// ---------------------------------------------------------------------------
+// build
+// ---------------------------------------------------------------------------
 RenderGraph GraphBuilder::build(const Scene& scene, const RenderGraphContext& ctx) {
     RenderGraph graph;
 
     GraphNodeId current = graph.add_node(std::make_unique<ClearNode>());
 
-    // Root scene nodes (direct RenderNodes on the Scene, not in any layer)
+    // ── Root scene nodes ──
     for (const auto& node : scene.nodes()) {
         cache::NodeCacheKey source_key{
             .scope = "root.source:" + std::string(node.name),
@@ -34,75 +134,114 @@ RenderGraph GraphBuilder::build(const Scene& scene, const RenderGraphContext& ct
         current = composite;
     }
 
-    // Layers, bottom to top
-    for (const auto& layer : scene.layers()) {
-        if (!layer.active_at(ctx.frame)) continue;
+    const Camera2_5D& cam25d = scene.camera_2_5d();
+    const bool use_25d = cam25d.enabled;
 
-        if (layer.kind == LayerKind::Null) {
+    // ── Helper to append a single item pipeline ──
+    auto append_item = [&](const LayerGraphItem& item) {
+        append_layer_pipeline(graph, item, current, ctx, cam25d);
+    };
+
+    // ── 3D Grouping Logic ──
+    // Contiguous 3D layers are grouped into "bins" and sorted by depth internally.
+    // 2D layers (and Adjustment layers) break these bins to preserve vertical order.
+    std::vector<LayerGraphItem> current_3d_bin;
+
+    auto flush_3d_bin = [&]() {
+        if (current_3d_bin.empty()) return;
+
+        // Sort: farthest layers first (higher depth value).
+        std::stable_sort(current_3d_bin.begin(), current_3d_bin.end(),
+            [](const LayerGraphItem& a, const LayerGraphItem& b) {
+                return a.depth > b.depth;
+            });
+
+        for (const auto& item : current_3d_bin) {
+            append_item(item);
+        }
+        current_3d_bin.clear();
+    };
+
+    usize index = 0;
+    for (const auto& layer : scene.layers()) {
+        if (!layer.active_at(ctx.frame)) {
+            ++index;
             continue;
         }
 
-        if (layer.kind == LayerKind::Normal || 
-            layer.kind == LayerKind::Precomp ||
-            layer.kind == LayerKind::Video) {
-
-            GraphNodeId layer_output;
-
-            if (layer.kind == LayerKind::Normal) {
-                layer_output = build_layer_source(graph, layer, ctx);
-            } else if (layer.kind == LayerKind::Precomp) {
-                layer_output = graph.add_node(std::make_unique<PrecompNode>(
-                    std::string(layer.precomp_composition_name),
-                    layer.from,
-                    layer.duration
-                ));
-            } else {
-                layer_output = graph.add_node(std::make_unique<VideoNode>(
-                    layer.video_source,
-                    ctx.video_decoder,
-                    layer.from
-                ));
-            }
-
-            if (layer.kind == LayerKind::Precomp || 
-                layer.kind == LayerKind::Video ||
-                layer.transform.any()) {
-                auto transform = graph.add_node(std::make_unique<TransformNode>(layer.transform));
-                graph.connect(layer_output, transform);
-                layer_output = transform;
-            }
-
-            if (layer.mask.enabled()) {
-                auto masked = graph.add_node(std::make_unique<MaskNode>(layer.mask));
-                graph.connect(layer_output, masked);
-                layer_output = masked;
-            }
-
+        // 1. Adjustment layers: act as barriers and apply effects inline.
+        if (layer.kind == LayerKind::Adjustment) {
+            flush_3d_bin();
             if (!layer.effects.empty()) {
-                auto effects = graph.add_node(std::make_unique<EffectStackNode>(layer.effects));
-                graph.connect(layer_output, effects);
-                layer_output = effects;
+                auto adj = graph.add_node(std::make_unique<AdjustmentNode>(layer.effects));
+                graph.connect(current, adj);
+                current = adj;
             }
-
-            auto composite = graph.add_node(std::make_unique<CompositeNode>(layer.blend_mode));
-            graph.connect(current, composite);
-            graph.connect(layer_output, composite);
-            current = composite;
-
-        } else if (layer.kind == LayerKind::Adjustment) {
-            auto adj = graph.add_node(std::make_unique<AdjustmentNode>(layer.effects));
-            graph.connect(current, adj);
-            current = adj;
+            ++index;
+            continue;
         }
+
+        // 2. Null layers: skip, but they also break 3D bins (to be safe/standard).
+        if (layer.kind == LayerKind::Null) {
+            flush_3d_bin();
+            ++index;
+            continue;
+        }
+
+        // 3. 3D Layers
+        if (use_25d && layer.is_3d) {
+            // Apply semantic depth if requested.
+            Transform effective_transform = layer.transform;
+            if (layer.depth_role != DepthRole::None) {
+                effective_transform.position.z = DepthRoleResolver::z_for(layer.depth_role);
+            }
+            effective_transform.position.z += layer.depth_offset;
+
+            // Project through camera.
+            auto proj = project_layer_2_5d(
+                effective_transform,
+                cam25d,
+                static_cast<f32>(ctx.width),
+                static_cast<f32>(ctx.height)
+            );
+
+            if (proj.visible) {
+                current_3d_bin.push_back({
+                    .layer           = &layer,
+                    .transform       = proj.transform,
+                    .depth           = proj.depth,
+                    .projected       = true,
+                    .insertion_index = index
+                });
+            }
+        } 
+        // 4. 2D Layers
+        else {
+            flush_3d_bin();
+            append_item({
+                .layer           = &layer,
+                .transform       = layer.transform,
+                .depth           = 0.0f,
+                .projected       = false,
+                .insertion_index = index
+            });
+        }
+
+        ++index;
     }
+
+    flush_3d_bin();
 
     graph.set_output(current);
     return graph;
 }
 
+// ---------------------------------------------------------------------------
+// build_layer_source
+// ---------------------------------------------------------------------------
 GraphNodeId GraphBuilder::build_layer_source(
-    RenderGraph& graph,
-    const Layer& layer,
+    RenderGraph&          graph,
+    const Layer&          layer,
     const RenderGraphContext& ctx
 ) {
     GraphNodeId layer_current = graph.add_node(std::make_unique<ClearNode>());

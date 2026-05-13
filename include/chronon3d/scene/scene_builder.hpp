@@ -30,8 +30,42 @@ public:
     SceneBuilder& text(std::string name, TextParams p);
     SceneBuilder& image(std::string name, ImageParams p);
 
+    // Camera 2.5D — full struct override
     SceneBuilder& camera_2_5d(Camera2_5D camera) {
         scene_.set_camera_2_5d(camera);
+        return *this;
+    }
+
+    // Fluent camera helpers — each mutates only the specified field.
+    SceneBuilder& enable_camera_2_5d(bool enabled = true) {
+        auto cam = scene_.camera_2_5d();
+        cam.enabled = enabled;
+        scene_.set_camera_2_5d(cam);
+        return *this;
+    }
+    SceneBuilder& camera_position(Vec3 p) {
+        auto cam = scene_.camera_2_5d();
+        cam.position = p;
+        scene_.set_camera_2_5d(cam);
+        return *this;
+    }
+    SceneBuilder& camera_zoom(f32 zoom) {
+        auto cam = scene_.camera_2_5d();
+        cam.zoom = zoom;
+        scene_.set_camera_2_5d(cam);
+        return *this;
+    }
+    SceneBuilder& camera_fov(f32 fov_deg) {
+        auto cam = scene_.camera_2_5d();
+        cam.fov_deg = fov_deg;
+        cam.projection_mode = Camera2_5DProjectionMode::Fov;
+        scene_.set_camera_2_5d(cam);
+        return *this;
+    }
+    SceneBuilder& camera_dof(DepthOfFieldSettings dof) {
+        auto cam = scene_.camera_2_5d();
+        cam.dof = dof;
+        scene_.set_camera_2_5d(cam);
         return *this;
     }
 
