@@ -73,6 +73,16 @@ int main(int argc, char** argv) {
     proofs_cmd->callback([&]() { exit_code = command_proofs(registry, proofs_args); });
 
     // -------------------------------------------------------------------------
+    // bench
+    // -------------------------------------------------------------------------
+    BenchArgs bench_args;
+    auto* bench_cmd = app.add_subcommand("bench", "Benchmark a composition in-memory");
+    bench_cmd->add_option("id", bench_args.comp_id, "Composition name")->required();
+    bench_cmd->add_option("--frames", bench_args.frames, "Measured frames")->default_val(120);
+    bench_cmd->add_option("--warmup", bench_args.warmup, "Warmup frames")->default_val(10);
+    bench_cmd->callback([&]() { exit_code = command_bench(registry, bench_args); });
+
+    // -------------------------------------------------------------------------
     // batch
     // -------------------------------------------------------------------------
     std::string batch_config;
