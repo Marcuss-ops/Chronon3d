@@ -48,6 +48,26 @@ struct ImageParams {
     f32 opacity{1.0f};
 };
 
+struct ContactShadowParams {
+    Vec3  pos{0, 0, 0};       // position on the floor
+    Vec2  size{300, 80};       // shadow footprint (width, depth)
+    f32   blur{30.0f};         // blur radius in screen pixels
+    f32   opacity{0.45f};      // overall shadow opacity
+    Color color{0, 0, 0, 1};   // shadow tint
+};
+
+struct FakeExtrudedTextParams {
+    std::string text;
+    std::string font_path{"assets/fonts/Inter-Bold.ttf"};
+    Vec3  pos{0, 0, 0};
+    f32   font_size{80.0f};
+    int   depth{12};               // number of offset steps
+    Vec2  extrude_dir{1.5f, 1.5f}; // screen-space px per step
+    Color front_color{1, 1, 1, 1};
+    Color side_color{0.58f, 0.52f, 0.46f, 1};
+    TextAlign align{TextAlign::Center};
+};
+
 struct FakeBox3DParams {
     Vec3  pos{0, 0, 0};
     Vec2  size{200, 200};
