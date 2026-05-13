@@ -14,7 +14,10 @@ namespace chronon3d::graph {
 class TransformNode final : public RenderGraphNode {
 public:
     explicit TransformNode(Transform transform, SamplingMode mode = SamplingMode::Bilinear) 
-        : m_transform(std::move(transform)), m_mode(mode) {}
+        : m_transform(std::move(transform)), m_mode(mode), m_use_matrix(false) {}
+
+    explicit TransformNode(Mat4 matrix, f32 opacity = 1.0f, SamplingMode mode = SamplingMode::Bilinear)
+        : m_matrix(matrix), m_opacity(opacity), m_mode(mode), m_use_matrix(true) {}
 
     [[nodiscard]] RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::Transform; }
     [[nodiscard]] std::string name() const override { return "Transform"; }
@@ -48,43 +51,64 @@ public:
         const Mat4 src_canvas_offset = math::translate(Vec3(input->width() * 0.5f, input->height() * 0.5f, 0.0f));
         
         // Final pixel matrix: DstPixel <- DstScene <- SrcScene <- SrcPixel
-        const Mat4 pixel_model = dst_canvas_offset * m_transform.to_mat4() * glm::inverse(src_canvas_offset);
-        const Mat4 inv_model = glm::inverse(pixel_model);
+        const Mat4 model = m_use_matrix ? m_matrix : m_transform.to_mat4();
+        const Mat4 pixel_model = dst_canvas_offset * model * glm::inverse(src_canvas_offset);
+        const f32 opacity = m_use_matrix ? m_opacity : m_transform.opacity;
+
+        // Use 3x3 homography for projection (mapping local sx,sy to screen dx,dy)
+        // We extract rows 0,1,3 and columns 0,1,3 from the 4x4 pixel_model.
+        glm::mat3 H;
+        H[0][0] = pixel_model[0][0]; H[0][1] = pixel_model[0][1]; H[0][2] = pixel_model[0][3];
+        H[1][0] = pixel_model[1][0]; H[1][1] = pixel_model[1][1]; H[1][2] = pixel_model[1][3];
+        H[2][0] = pixel_model[3][0]; H[2][1] = pixel_model[3][1]; H[2][2] = pixel_model[3][3];
+        
+        const glm::mat3 inv_H = glm::inverse(H);
+        const f32 w_src = static_cast<f32>(input->width());
+        const f32 h_src = static_cast<f32>(input->height());
 
         // Bounding box for optimization in destination pixels
-        Vec4 corners[4] = {
-            pixel_model * Vec4(0, 0, 0, 1),
-            pixel_model * Vec4(static_cast<f32>(input->width()), 0, 0, 1),
-            pixel_model * Vec4(static_cast<f32>(input->width()), static_cast<f32>(input->height()), 0, 1),
-            pixel_model * Vec4(0, static_cast<f32>(input->height()), 0, 1)
+        // We use the 4 corners of the source image.
+        Vec3 corners[4] = {
+            H * Vec3(0, 0, 1),
+            H * Vec3(w_src, 0, 1),
+            H * Vec3(w_src, h_src, 1),
+            H * Vec3(0, h_src, 1)
         };
 
-        f32 min_x = corners[0].x, max_x = corners[0].x;
-        f32 min_y = corners[0].y, max_y = corners[0].y;
-        for (int i = 1; i < 4; ++i) {
-            min_x = std::min(min_x, corners[i].x); max_x = std::max(max_x, corners[i].x);
-            min_y = std::min(min_y, corners[i].y); max_y = std::max(max_y, corners[i].y);
+        f32 min_x = 1e10f, max_x = -1e10f;
+        f32 min_y = 1e10f, max_y = -1e10f;
+        for (auto& c : corners) {
+            if (std::abs(c.z) < 1e-6f) continue;
+            f32 px = c.x / c.z;
+            f32 py = c.y / c.z;
+            min_x = std::min(min_x, px);
+            max_x = std::max(max_x, px);
+            min_y = std::min(min_y, py);
+            max_y = std::max(max_y, py);
         }
 
-        const i32 x0 = std::max<i32>(0, static_cast<i32>(std::floor(min_x)));
-        const i32 y0 = std::max<i32>(0, static_cast<i32>(std::floor(min_y)));
-        const i32 x1 = std::min<i32>(ctx.width,  static_cast<i32>(std::ceil(max_x)));
-        const i32 y1 = std::min<i32>(ctx.height, static_cast<i32>(std::ceil(max_y)));
-
-        if (x0 >= x1 || y0 >= y1) return result;
+        i32 x0 = std::clamp(static_cast<i32>(std::floor(min_x)), 0, ctx.width);
+        i32 x1 = std::clamp(static_cast<i32>(std::ceil(max_x)), 0, ctx.width);
+        i32 y0 = std::clamp(static_cast<i32>(std::floor(min_y)), 0, ctx.height);
+        i32 y1 = std::clamp(static_cast<i32>(std::ceil(max_y)), 0, ctx.height);
 
         for (i32 y = y0; y < y1; ++y) {
             Color* dst_row = result->pixels_row(y);
             for (i32 x = x0; x < x1; ++x) {
-                Vec4 local = inv_model * Vec4(static_cast<f32>(x) + 0.5f,
-                                              static_cast<f32>(y) + 0.5f, 0.0f, 1.0f);
+                // Map screen pixel (x,y) back to source pixel (sx,sy)
+                glm::vec3 src_p = inv_H * glm::vec3(static_cast<f32>(x) + 0.5f, static_cast<f32>(y) + 0.5f, 1.0f);
+                if (std::abs(src_p.z) < 1e-9f) continue;
+                
+                const f32 sx = src_p.x / src_p.z;
+                const f32 sy = src_p.y / src_p.z;
 
-                // Sample from input using the requested mode
-                Color src = input->sample(local.x, local.y, m_mode);
-                src.a *= m_transform.opacity;
-
-                if (src.a <= 0.0f) continue;
-                dst_row[x] = src; 
+                if (sx >= 0 && sx < w_src && sy >= 0 && sy < h_src) {
+                    Color src = input->sample(sx, sy, m_mode);
+                    src.a *= opacity;
+                    if (src.a > 0.0f) {
+                        dst_row[x] = src; // Simple override since we cleared to transparent
+                    }
+                }
             }
         }
 
@@ -93,7 +117,10 @@ public:
 
 private:
     Transform m_transform;
+    Mat4      m_matrix{1.0f};
+    f32       m_opacity{1.0f};
     SamplingMode m_mode{SamplingMode::Bilinear};
+    bool      m_use_matrix{false};
 };
 
 } // namespace chronon3d::graph

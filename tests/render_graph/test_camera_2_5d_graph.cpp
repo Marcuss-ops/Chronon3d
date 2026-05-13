@@ -160,6 +160,7 @@ TEST_CASE("RenderGraph 2.5D: layer behind camera is culled") {
     auto center = fb->get_pixel(100, 100);
 
     // Color{0.2, 0.2, 0.2} sRGB is approx 0.0331 linear.
+    CHECK(center.r == doctest::Approx(0.0331f).epsilon(0.01f));
     CHECK(center.g == doctest::Approx(0.0331f).epsilon(0.01f));
     CHECK(center.b == doctest::Approx(0.0331f).epsilon(0.01f));
 }
