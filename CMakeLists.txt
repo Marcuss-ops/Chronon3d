@@ -89,8 +89,12 @@ if(CHRONON3D_ENABLE_PROFILING)
 endif()
 
 # 4. IO Library
+file(GLOB CHRONON3D_IO_SOURCES CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/io/*.cpp"
+)
+
 add_library(chronon3d_io STATIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/io/image_writer.cpp
+    ${CHRONON3D_IO_SOURCES}
 )
 target_link_libraries(chronon3d_io
     PUBLIC
