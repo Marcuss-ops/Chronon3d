@@ -482,6 +482,10 @@ template <typename T>
                 seed = hash_combine(seed, hash_value_local(p.radius));
                 seed = hash_combine(seed, hash_value_local(p.intensity));
                 seed = hash_combine(seed, hash_color(p.color));
+            } else if constexpr (std::is_same_v<T, BloomParams>) {
+                seed = hash_combine(seed, hash_value_local(p.threshold));
+                seed = hash_combine(seed, hash_value_local(p.radius));
+                seed = hash_combine(seed, hash_value_local(p.intensity));
             }
         }, inst.params);
     }
@@ -1144,6 +1148,37 @@ void SoftwareRenderer::apply_effect_stack(Framebuffer& fb, const EffectStack& st
             } else if constexpr (std::is_same_v<T, ContrastParams>) {
                 LayerEffect e; e.contrast = p.value;
                 apply_color_effects(fb, e);
+            } else if constexpr (std::is_same_v<T, BloomParams>) {
+                // 1. Bright-pass into a scratch buffer
+                const i32 w = fb.width(), h = fb.height();
+                Framebuffer bright(w, h);
+                bright.clear(Color::transparent());
+                for (i32 y = 0; y < h; ++y) {
+                    for (i32 x = 0; x < w; ++x) {
+                        const Color c = fb.get_pixel(x, y);
+                        const f32 lum = 0.2126f * c.r + 0.7152f * c.g + 0.0722f * c.b;
+                        if (lum > p.threshold && c.a > 0.0f) {
+                            const f32 excess = (lum - p.threshold) / (1.0f - p.threshold + 1e-4f);
+                            bright.set_pixel(x, y, {c.r * excess, c.g * excess, c.b * excess, c.a});
+                        }
+                    }
+                }
+                // 2. Blur the bright-pass
+                if (p.radius > 0.0f) apply_blur(bright, p.radius);
+                // 3. Additive blend back
+                for (i32 y = 0; y < h; ++y) {
+                    for (i32 x = 0; x < w; ++x) {
+                        const Color b = bright.get_pixel(x, y);
+                        if (b.a <= 0.0f) continue;
+                        const Color src = fb.get_pixel(x, y);
+                        fb.set_pixel(x, y, {
+                            std::min(1.0f, src.r + b.r * p.intensity),
+                            std::min(1.0f, src.g + b.g * p.intensity),
+                            std::min(1.0f, src.b + b.b * p.intensity),
+                            src.a
+                        });
+                    }
+                }
             }
             // DropShadow, Glow: applied at node level (RenderNode.shadow/glow)
         }, inst.params);

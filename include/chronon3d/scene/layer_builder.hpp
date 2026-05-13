@@ -122,6 +122,10 @@ public:
         m_layer.effects.push_back({GlowParams{radius, intensity, color}});
         return *this;
     }
+    LayerBuilder& bloom(f32 threshold = 0.80f, f32 radius = 24.0f, f32 intensity = 0.60f) {
+        m_layer.effects.push_back({BloomParams{threshold, radius, intensity}});
+        return *this;
+    }
     LayerBuilder& blend(BlendMode mode) { m_layer.blend_mode = mode; return *this; }
 
     // Layout rules
