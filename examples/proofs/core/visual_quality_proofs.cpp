@@ -19,9 +19,9 @@ static Composition VisualTest_SSAA() {
         });
 
         s.layer("square_layer", [](LayerBuilder& l) {
-            l.position({0, 0, 0}) // Centro (0,0)
+            l.position({200, 200, 0})  // centro del canvas 400x400
              .rotate({0, 0, 30.0f})
-             .rect("sq", { .size = {200, 200}, .color = Color::from_hex("#ff0000") }); // Red
+             .rect("sq", { .size = {200, 200}, .color = Color::from_hex("#ff0000") });
         });
         return s.build();
     });
@@ -80,20 +80,15 @@ static Composition VisualTest_Glass() {
             l.rect("gray", { .size = {1600, 1200}, .color = Color::from_hex("#111111") });
         });
 
-        // Colorful markers behind glass
+        // Colorful markers behind glass (absolute coords for 800x600)
         s.layer("bg_elements", [](LayerBuilder& l) {
-            l.circle("c1", { .radius = 120, .color = Color::from_hex("#e74c3c"), .pos = {100, 100, 0} });
-            l.circle("c2", { .radius = 100, .color = Color::from_hex("#2ecc71"), .pos = {-150, -50, 0} });
-            l.circle("c3", { .radius = 140, .color = Color::from_hex("#f1c40f"), .pos = {50, -180, 0} });
+            l.circle("c1", { .radius = 120, .color = Color::from_hex("#e74c3c"), .pos = {200, 180, 0} });
+            l.circle("c2", { .radius = 100, .color = Color::from_hex("#2ecc71"), .pos = {580, 200, 0} });
+            l.circle("c3", { .radius = 140, .color = Color::from_hex("#f1c40f"), .pos = {400, 450, 0} });
         });
 
-        // Glass panel at center
-        s.glass_panel_layer("glass", 
-            {0, 0, 0}, 
-            {400, 300}, 
-            25.0f, 
-            0.4f
-        );
+        // Glass panel centered
+        s.glass_panel_layer("glass", {400, 300, 0}, {400, 300}, 25.0f, 0.4f);
 
         return s.build();
     });
@@ -115,13 +110,15 @@ static Composition VisualTest_Easing() {
 
         f32 t = std::clamp(static_cast<f32>(ctx.frame) / 60.0f, 0.0f, 1.0f);
         
-        // Elastic (Blue)
+        // Elastic (Blue) — travels from x=100 to x=700, bounces around y=200
         f32 elastic_v = easing::apply(Ease::OutElastic, t);
-        s.circle("elastic_marker", { .radius = 15, .color = Color::from_hex("#3498db"), .pos = {t * 600 - 300, 100 - 100 * elastic_v, 0} });
-
-        // Bounce (Orange)
+        const f32 ex = 100 + t * 600;
+        const f32 bx = 100 + t * 600;
         f32 bounce_v = easing::apply(Ease::OutBounce, t);
-        s.circle("bounce_marker", { .radius = 15, .color = Color::from_hex("#e67e22"), .pos = {t * 600 - 300, 300 - 100 * bounce_v, 0} });
+        s.layer("markers", [&](LayerBuilder& l) {
+            l.circle("elastic", { .radius = 15, .color = Color::from_hex("#3498db"), .pos = {ex, 200 - 100 * elastic_v, 0} });
+            l.circle("bounce",  { .radius = 15, .color = Color::from_hex("#e67e22"), .pos = {bx, 400 - 100 * bounce_v, 0} });
+        });
 
         return s.build();
     });
