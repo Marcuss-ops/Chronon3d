@@ -186,7 +186,19 @@ rendergraph::RenderGraph build_software_render_graph(
             continue;
         }
 
+        if (layer.kind == LayerKind::Glass) {
+            const u64 layer_hash = hash_layer(layer);
+            const auto glass_key = make_key(std::string(layer.name) + ".glass", frame, width, height,
+                                            hash_combine(layer_hash, hash_combine(scene_hash, frame_time_hash)),
+                                            layer_hash, current_hash);
+            current = graph.add_glass(std::string(layer.name) + ".glass",
+                                      glass_key, current, layer);
+            current_hash = glass_key.digest();
+            continue;
+        }
+
         if (layer.kind == LayerKind::Null) {
+
             continue;
         }
 

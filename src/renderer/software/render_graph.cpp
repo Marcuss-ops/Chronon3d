@@ -3,6 +3,8 @@
 #include <chronon3d/scene/mask_utils.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/core/profiling.hpp>
+#include "primitive_renderer.hpp"
+
 #include <fmt/format.h>
 #include <bit>
 #include <iomanip>
@@ -271,6 +273,64 @@ NodeId RenderGraph::add_effect(std::string label,
         });
     return add_entry(std::move(graph_node), std::move(pass));
 }
+
+NodeId RenderGraph::add_glass(std::string label,
+                               RenderCacheKey key,
+                               NodeId input,
+                               const Layer& layer) {
+    auto graph_node = std::make_unique<GraphNode>(RenderNodeKind::Effect, std::move(label), std::move(key), std::vector<NodeId>{input});
+    auto pass = std::make_unique<GraphPass>(
+        RenderPassKind::Effect,
+        std::string(graph_node->label()),
+        graph_node->cache_key(),
+        true,
+        [layer, input](RenderGraphExecutionContext& ctx, RenderGraphExecutionState& state, NodeId) {
+            RenderPassResult result;
+            if (auto it = state.results.find(input); it != state.results.end()) {
+                result = it->second;
+            }
+
+            if (!result.framebuffer) {
+                result.framebuffer = std::make_shared<Framebuffer>(ctx.width, ctx.height);
+                result.framebuffer->clear(Color::transparent());
+            }
+
+            // 1. Create a blurred version of the background
+            auto blurred = std::make_shared<Framebuffer>(*result.framebuffer);
+            f32 blur_radius = 15.0f;
+            for (const auto& inst : layer.effects) {
+                if (std::holds_alternative<BlurParams>(inst.params)) {
+                    blur_radius = std::get<BlurParams>(inst.params).radius;
+                }
+            }
+            ctx.renderer.apply_blur(*blurred, blur_radius);
+
+            // 2. Draw glass panel into a new buffer
+            auto glass_fb = std::make_shared<Framebuffer>(ctx.width, ctx.height);
+            glass_fb->clear(Color::transparent());
+
+            RenderState current = result.state;
+            if (layer.mask.enabled()) {
+                current.mask = &layer.mask;
+                current.layer_inv_matrix = glm::inverse(current.matrix);
+            }
+
+            for (const auto& node : layer.nodes) {
+                if (!node.visible) continue;
+                RenderState node_state = combine(current, node.world_transform);
+                renderer::draw_glass_panel(*glass_fb, *blurred, node.shape, node_state.matrix, node_state.opacity, &node_state);
+            }
+
+
+            RenderPassResult glass_result;
+            glass_result.framebuffer = std::move(glass_fb);
+            glass_result.state = result.state;
+            glass_result.has_state = result.has_state;
+            return glass_result;
+        });
+    return add_entry(std::move(graph_node), std::move(pass));
+}
+
 
 NodeId RenderGraph::add_composite(std::string label,
                                   RenderCacheKey key,

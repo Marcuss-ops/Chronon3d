@@ -17,8 +17,11 @@ public:
     }
 
     [[nodiscard]] Mat4 view_matrix() const {
-        // View matrix is inverse of camera transform
         return glm::inverse(transform.to_matrix());
+    }
+
+    [[nodiscard]] f32 focal_length(f32 width) const {
+        return (width * 0.5f) / std::tan(glm::radians(fov_deg) * 0.5f);
     }
 };
 
