@@ -20,11 +20,14 @@ static Composition PremiumLookProof() {
         f32 wy = cam_wiggle.eval(t + 10.0f);
 
         s.enable_camera_2_5d(true)
-         .camera_position({600.0f * std::sin(t * 0.5f) + wx, -150.0f + wy, -800.0f})
-         .camera_zoom(1200.0f);
+         .camera_position({600.0f * std::sin(t * 0.5f) + wx, 300.0f + wy, -900.0f})
+         .camera_zoom(1100.0f)
+         .camera_look_at({0, 0, 0});
 
-        // Studio Background
-        s.rect("bg", { .size = {1920, 1080}, .color = Materials::studio_background(), .pos = {640, 360, 500} });
+        // Studio Background — full-screen layer, not affected by 2.5D camera
+        s.layer("bg", [](LayerBuilder& l) {
+            l.rect("fill", { .size = {4000, 4000}, .color = Materials::studio_background() });
+        });
 
         // Floor Grid
         s.reflective_floor_layer("floor", {
@@ -34,13 +37,14 @@ static Composition PremiumLookProof() {
             .color = Materials::dark_floor_grid()
         });
 
-        // Glass Panel (Floating)
-        s.glass_panel_layer("glass_card", 
-            {0, 50, 0},
-            {400, 250},
-            30.0f,
-            0.6f
-        );
+        // Glass Panel (Floating) — not 3D, renders as 2D overlay
+        s.layer("glass_card", [](LayerBuilder& l) {
+            l.kind(LayerKind::Glass)
+             .position({640, 360, 0})
+             .rect("glass_base", { .size = {400, 250}, .color = Color::white() })
+             .opacity(0.5f)
+             .blur(20.0f);
+        });
 
         // Animated Boxes with Reflections and Elastic/Bounce Easing
         f32 anim_t = std::clamp(t, 0.0f, 1.0f);
@@ -50,21 +54,23 @@ static Composition PremiumLookProof() {
         f32 bounce_t  = easing::apply(Easing::OutBounce, anim_t2);
 
         s.fake_box3d_layer("orange_box", {
-            .pos = {-200, -210 + 300 * elastic_t, 100},
+            .pos = {-200, -60 + 200 * elastic_t, 100},
             .size = {120, 120},
             .depth = 120.0f,
             .color = Materials::studio_orange(),
             .contact_shadow = true,
-            .reflective = true
+            .reflective = true,
+            .floor_y = -210.0f
         });
 
         s.fake_box3d_layer("blue_box", {
-            .pos = {200, -210 + 200 * bounce_t, -50},
+            .pos = {200, -60 + 160 * bounce_t, -50},
             .size = {100, 100},
             .depth = 100.0f,
             .color = Materials::studio_blue(),
             .contact_shadow = true,
-            .reflective = true
+            .reflective = true,
+            .floor_y = -210.0f
         });
 
         return s.build();

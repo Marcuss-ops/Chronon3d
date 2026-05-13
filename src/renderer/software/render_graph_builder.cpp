@@ -188,11 +188,21 @@ rendergraph::RenderGraph build_software_render_graph(
 
         if (layer.kind == LayerKind::Glass) {
             const u64 layer_hash = hash_layer(layer);
+            // Apply layer transform so glass panel is positioned correctly in screen space
+            const auto xform_key = make_key(std::string(layer.name) + ".glass.transform", frame, width, height,
+                                            hash_combine(hash_transform(resolved.world_transform),
+                                                         hash_combine(scene_hash, frame_time_hash)),
+                                            layer_hash, current_hash);
+            NodeId xformed = graph.add_transform(std::string(layer.name) + ".glass.transform",
+                                                 xform_key, current, resolved.world_transform,
+                                                 RenderState{Mat4(1.0f), 1.0f});
+            current_hash = xform_key.digest();
+
             const auto glass_key = make_key(std::string(layer.name) + ".glass", frame, width, height,
                                             hash_combine(layer_hash, hash_combine(scene_hash, frame_time_hash)),
                                             layer_hash, current_hash);
             current = graph.add_glass(std::string(layer.name) + ".glass",
-                                      glass_key, current, layer);
+                                      glass_key, xformed, layer);
             current_hash = glass_key.digest();
             continue;
         }
