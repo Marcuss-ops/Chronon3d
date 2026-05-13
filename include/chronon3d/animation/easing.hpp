@@ -70,4 +70,6 @@ inline f32 apply(Easing type, f32 t) {
 
 } // namespace easing
 
+using Ease = Easing;
+
 } // namespace chronon3d

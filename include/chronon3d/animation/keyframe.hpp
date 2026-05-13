@@ -45,6 +45,7 @@ public:
     KeyframeTrack(std::initializer_list<Keyframe<T>> kfs) : m_keyframes(kfs) {
     }
 
+    [[nodiscard]] T value_at(Frame current) const { return value(current); }
     [[nodiscard]] T value(Frame current) const {
         if (m_keyframes.empty()) return T{};
 

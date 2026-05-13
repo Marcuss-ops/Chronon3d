@@ -81,6 +81,21 @@ public:
         scene_.set_camera_2_5d(cam);
         return *this;
     }
+    SceneBuilder& camera_point_of_interest(Vec3 poi) {
+        auto cam = scene_.camera_2_5d();
+        cam.point_of_interest = poi;
+        scene_.set_camera_2_5d(cam);
+        return *this;
+    }
+    SceneBuilder& camera_look_at(Vec3 poi) {
+        return camera_point_of_interest(poi);
+    }
+    SceneBuilder& camera_target(std::string name) {
+        auto cam = scene_.camera_2_5d();
+        cam.target_name = std::pmr::string{name, scene_.resource()};
+        scene_.set_camera_2_5d(cam);
+        return *this;
+    }
 
     // Hierarchy
     template <typename Fn>

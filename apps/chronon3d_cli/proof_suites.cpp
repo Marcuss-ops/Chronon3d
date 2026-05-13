@@ -102,8 +102,12 @@ const std::vector<ProofSuite>& proof_suites() {
                 {"CameraParallaxProof",        30, "parallax_0030.png"},
                 {"CameraParallaxProof",        60, "parallax_0060.png"},
                 {"CameraParallaxProof",        89, "parallax_0089.png"},
-                {"CameraAxisDebugProof",       0,  "axis_debug_0000.png"},
-                {"TopViewDebugProof",          0,  "top_view_debug.png"},
+                {"CameraAxisDebugProof",          0,   "axis_debug_0000.png"},
+                {"TopViewDebugProof",             0,   "top_view_debug.png"},
+                {"CameraTargetOrbitProof",        0,   "target_orbit_0000.png"},
+                {"CameraTargetOrbitProof",        30,  "target_orbit_0030.png"},
+                {"CameraTargetOrbitProof",        60,  "target_orbit_0060.png"},
+                {"CameraTargetOrbitProof",        90,  "target_orbit_0090.png"},
             }
         },
         {
