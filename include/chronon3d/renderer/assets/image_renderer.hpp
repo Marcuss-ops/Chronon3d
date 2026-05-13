@@ -1,9 +1,9 @@
 #pragma once
 
 #include <chronon3d/scene/shape.hpp>
-#include <chronon3d/renderer/framebuffer.hpp>
+#include <chronon3d/renderer/software/framebuffer.hpp>
 #include <chronon3d/math/transform.hpp>
-#include <chronon3d/renderer/image_cache.hpp>
+#include <chronon3d/renderer/assets/image_cache.hpp>
 
 namespace chronon3d {
 

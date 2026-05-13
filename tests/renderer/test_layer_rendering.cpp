@@ -1,5 +1,5 @@
 #include <doctest/doctest.h>
-#include <chronon3d/renderer/software_renderer.hpp>
+#include <chronon3d/renderer/software/software_renderer.hpp>
 #include <chronon3d/scene/scene_builder.hpp>
 #include <chronon3d/scene/layer_builder.hpp>
 

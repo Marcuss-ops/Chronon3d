@@ -1,7 +1,7 @@
 #include "commands.hpp"
 #include "proof_suites.hpp"
 #include <chronon3d/core/pipeline.hpp>
-#include <chronon3d/renderer/software_renderer.hpp>
+#include <chronon3d/renderer/software/software_renderer.hpp>
 #include <chronon3d/io/image_writer.hpp>
 #include <spdlog/spdlog.h>
 #include <toml++/toml.h>

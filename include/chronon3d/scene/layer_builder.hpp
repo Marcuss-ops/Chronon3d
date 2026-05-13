@@ -5,7 +5,7 @@
 #include <chronon3d/scene/mask.hpp>
 #include <chronon3d/scene/effect_stack.hpp>
 #include <chronon3d/layout/layout_rules.hpp>
-#include <chronon3d/renderer/video_frame_provider.hpp>
+#include <chronon3d/renderer/video/video_frame_provider.hpp>
 #include <chronon3d/math/mat4.hpp>
 #include <string>
 #include <memory_resource>

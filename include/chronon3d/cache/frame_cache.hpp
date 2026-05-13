@@ -2,7 +2,7 @@
 
 #include <chronon3d/core/frame.hpp>
 #include <chronon3d/core/types.hpp>
-#include <chronon3d/renderer/framebuffer.hpp>
+#include <chronon3d/renderer/software/framebuffer.hpp>
 #include <memory>
 #include <string>
 #include <unordered_map>

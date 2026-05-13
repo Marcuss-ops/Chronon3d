@@ -5,7 +5,7 @@
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/math/transform.hpp>
-#include <chronon3d/renderer/framebuffer.hpp>
+#include <chronon3d/renderer/software/framebuffer.hpp>
 #include <chronon3d/scene/camera.hpp>
 #include <chronon3d/scene/effect_stack.hpp>
 #include <chronon3d/scene/layer.hpp>

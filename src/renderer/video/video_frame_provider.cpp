@@ -1,4 +1,4 @@
-#include <chronon3d/renderer/video_frame_provider.hpp>
+#include <chronon3d/renderer/video/video_frame_provider.hpp>
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
 #include <cstdlib>

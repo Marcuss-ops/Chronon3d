@@ -1,6 +1,6 @@
 #include <chronon3d/render_graph/graph_executor.hpp>
 #include <chronon3d/render_graph/graph_profiler.hpp>
-#include <chronon3d/renderer/render_graph.hpp>
+#include <chronon3d/renderer/software/render_graph.hpp>
 
 namespace chronon3d::graph {
 
