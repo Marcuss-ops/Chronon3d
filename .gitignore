@@ -47,9 +47,8 @@ reauthenticate_drive.py
 # AI context
 .claude/
 
-# Engine Output — render artifacts, never committed except proofs
-output/*
-!output/proofs/
-!output/proofs/**
+# Engine Output
+output/
+
 transform_output/
 scenes/
