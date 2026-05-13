@@ -1,6 +1,7 @@
 add_executable(chronon3d_cli
     main.cpp
     commands.cpp
+    proof_suites.cpp
 )
 
 target_link_libraries(chronon3d_cli

@@ -2,6 +2,8 @@
 
 #include <chronon3d/scene/effect_stack.hpp>
 #include <chronon3d/scene/mask.hpp>
+#include <chronon3d/scene/render_node.hpp>
+#include <chronon3d/scene/shape.hpp>
 #include <chronon3d/renderer/render_graph.hpp> // For existing hash_combine etc.
 #include <xxhash.h>
 
@@ -9,8 +11,14 @@ namespace chronon3d::graph {
 
 // Re-using existing hashing utils from rendergraph namespace
 using rendergraph::hash_combine;
-using rendergraph::hash_value;
 using rendergraph::hash_bytes;
+using rendergraph::hash_string;
+using rendergraph::hash_transform;
+
+template <typename T>
+[[nodiscard]] inline u64 hash_value(T v) {
+    return hash_bytes(&v, sizeof(v));
+}
 
 inline u64 hash_blur_params(const BlurParams& p) {
     return hash_value(p.radius);
@@ -70,6 +78,50 @@ inline u64 hash_mask(const Mask& m) {
     seed = hash_combine(seed, rendergraph::hash_vec2(m.size));
     seed = hash_combine(seed, hash_value(m.radius));
     seed = hash_combine(seed, hash_value(m.inverted));
+    return seed;
+}
+
+inline u64 hash_shape(const Shape& s) {
+    u64 seed = hash_value(static_cast<int>(s.type));
+    switch (s.type) {
+        case ShapeType::Rect:
+            return hash_combine(seed, rendergraph::hash_vec2(s.rect.size));
+        case ShapeType::RoundedRect:
+            seed = hash_combine(seed, rendergraph::hash_vec2(s.rounded_rect.size));
+            return hash_combine(seed, hash_value(s.rounded_rect.radius));
+        case ShapeType::Circle:
+            return hash_combine(seed, hash_value(s.circle.radius));
+        case ShapeType::Line:
+            seed = hash_combine(seed, rendergraph::hash_vec3(s.line.to));
+            return hash_combine(seed, hash_value(s.line.thickness));
+        case ShapeType::Text:
+            seed = hash_combine(seed, hash_bytes(s.text.text.data(), s.text.text.size()));
+            seed = hash_combine(seed, hash_bytes(s.text.style.font_path.data(), s.text.style.font_path.size()));
+            return hash_combine(seed, hash_value(s.text.style.size));
+        case ShapeType::Image:
+            seed = hash_combine(seed, hash_bytes(s.image.path.data(), s.image.path.size()));
+            return hash_combine(seed, rendergraph::hash_vec2(s.image.size));
+        default:
+            return seed;
+    }
+}
+
+inline u64 hash_render_node(const RenderNode& n) {
+    u64 seed = hash_bytes(n.name.data(), n.name.size());
+    seed = hash_combine(seed, hash_transform(n.world_transform));
+    seed = hash_combine(seed, hash_shape(n.shape));
+    seed = hash_combine(seed, rendergraph::hash_color(n.color));
+    seed = hash_combine(seed, hash_value(n.visible));
+    if (n.shadow.enabled) {
+        seed = hash_combine(seed, rendergraph::hash_vec2(n.shadow.offset));
+        seed = hash_combine(seed, rendergraph::hash_color(n.shadow.color));
+        seed = hash_combine(seed, hash_value(n.shadow.radius));
+    }
+    if (n.glow.enabled) {
+        seed = hash_combine(seed, hash_value(n.glow.radius));
+        seed = hash_combine(seed, hash_value(n.glow.intensity));
+        seed = hash_combine(seed, rendergraph::hash_color(n.glow.color));
+    }
     return seed;
 }
 

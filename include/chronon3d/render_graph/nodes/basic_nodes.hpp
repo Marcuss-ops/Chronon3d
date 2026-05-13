@@ -4,6 +4,7 @@
 #include <chronon3d/render_graph/render_graph_hashing.hpp>
 #include <chronon3d/renderer/software_renderer.hpp>
 #include <chronon3d/scene/layer.hpp>
+#include <chronon3d/scene/mask_utils.hpp>
 
 namespace chronon3d::graph {
 
@@ -54,7 +55,7 @@ public:
         RenderState state{Mat4(1.0f), 1.0f};
         
         if (ctx.renderer) {
-            ctx.renderer->draw_node(*fb, m_node, state, ctx.renderer->camera(), ctx.width, ctx.height);
+            ctx.renderer->draw_node(*fb, m_node, state, ctx.camera, ctx.width, ctx.height);
         }
         return fb;
     }
@@ -85,10 +86,19 @@ public:
 
     std::shared_ptr<Framebuffer> execute(RenderGraphContext& ctx, const std::vector<std::shared_ptr<Framebuffer>>& inputs) override {
         if (inputs.empty()) return std::make_shared<Framebuffer>(ctx.width, ctx.height);
-        
+
         auto result = std::make_shared<Framebuffer>(*inputs[0]);
-        // Basic masking implementation could be added here if SoftwareRenderer supports it post-process
-        // For now it remains a placeholder but with correct hashing.
+        const f32 cx = ctx.width  * 0.5f;
+        const f32 cy = ctx.height * 0.5f;
+        for (i32 y = 0; y < ctx.height; ++y) {
+            Color* row = result->pixels_row(y);
+            for (i32 x = 0; x < ctx.width; ++x) {
+                // Convert screen (0,0 = top-left) to canvas-centered local coords
+                Vec2 local{static_cast<f32>(x) - cx, static_cast<f32>(y) - cy};
+                if (!mask_contains_local_point(m_mask, local))
+                    row[x].a = 0.0f;
+            }
+        }
         return result;
     }
 

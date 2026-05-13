@@ -51,10 +51,9 @@ public:
 
         // 4. Execute nested graph
         GraphExecutor executor;
-        // We use the last node as output
-        if (nested_graph.size() == 0) return std::make_shared<Framebuffer>(ctx.width, ctx.height);
-        
-        return executor.execute(nested_graph, static_cast<GraphNodeId>(nested_graph.size() - 1), nested_ctx);
+        if (!nested_graph.has_output()) return std::make_shared<Framebuffer>(ctx.width, ctx.height);
+
+        return executor.execute(nested_graph, nested_graph.output(), nested_ctx);
     }
 
 private:

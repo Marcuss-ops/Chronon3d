@@ -1,4 +1,6 @@
 #include <chronon3d/render_graph/graph_executor.hpp>
+#include <chronon3d/render_graph/graph_profiler.hpp>
+#include <chronon3d/renderer/render_graph.hpp>
 
 namespace chronon3d::graph {
 
@@ -8,6 +10,7 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
     RenderGraphContext& ctx
 ) {
     m_temp.clear();
+    m_resolved_key_digest.clear();
     return execute_node(graph, output, ctx);
 }
 
@@ -28,19 +31,23 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute_node(
         auto fb = execute_node(graph, input_id, ctx);
         inputs.push_back(fb);
         
-        // input_hash is the combined hash of the digests of all input nodes
-        // This ensures that if any upstream node changes, this node's cache key changes too.
-        // Note: we need the digest of the input node, but we only have its ID.
-        // We can get it from the node itself if we pass the context.
-        auto& input_node = graph.node(input_id);
-        input_hash = rendergraph::hash_combine(input_hash, input_node.cache_key(ctx).digest());
+        // Use the resolved digest (post input_hash injection) if available, so the
+        // hash chain is fully recursive. Falls back to the raw cache_key digest on
+        // the first pass (should not happen in a DAG traversal without cycles).
+        auto digest_it = m_resolved_key_digest.find(input_id);
+        u64 input_digest = (digest_it != m_resolved_key_digest.end())
+            ? digest_it->second
+            : graph.node(input_id).cache_key(ctx).digest();
+        input_hash = rendergraph::hash_combine(input_hash, input_digest);
     }
 
     auto start_time = std::chrono::high_resolution_clock::now();
     auto key = node.cache_key(ctx);
     key.input_hash = input_hash;
 
-    if (ctx.cache_enabled && ctx.node_cache) {
+    const bool use_cache = node.cacheable() && ctx.cache_enabled && ctx.node_cache;
+
+    if (use_cache) {
         if (auto cached = ctx.node_cache->find(key)) {
             if (ctx.profiler) {
                 ctx.profiler->record_node({
@@ -51,6 +58,7 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute_node(
                     .memory_bytes = cached->size_bytes()
                 });
             }
+            m_resolved_key_digest[id] = key.digest();
             m_temp[id] = cached;
             return cached;
         }
@@ -70,10 +78,11 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute_node(
         });
     }
 
-    if (ctx.cache_enabled && ctx.node_cache && result) {
+    m_resolved_key_digest[id] = key.digest();
+
+    if (use_cache && result) {
         ctx.node_cache->store(key, result);
     }
-
 
     m_temp[id] = result;
     return result;
