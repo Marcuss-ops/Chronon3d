@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/core/types.hpp>
+#include <glm/gtc/constants.hpp>
 #include <cmath>
 
 namespace chronon3d {
@@ -16,7 +17,13 @@ enum class Easing {
     InExpo,
     OutExpo,
     InOutExpo,
-    OutBack
+    InSine,
+    OutSine,
+    InOutSine,
+    InBack,
+    OutBack,
+    InOutBack,
+    Hold
 };
 
 namespace easing {
@@ -28,7 +35,7 @@ inline f32 apply(Easing type, f32 t) {
         case Easing::OutQuad: return t * (2.0f - t);
         case Easing::InOutQuad: return t < 0.5f ? 2.0f * t * t : -1.0f + (4.0f - 2.0f * t) * t;
         case Easing::InCubic: return t * t * t;
-        case Easing::OutCubic: return (--t) * t * t + 1.0f;
+        case Easing::OutCubic: return (t - 1.0f) * (t - 1.0f) * (t - 1.0f) + 1.0f;
         case Easing::InOutCubic: return t < 0.5f ? 4.0f * t * t * t : (t - 1.0f) * (2.0f * t - 2.0f) * (2.0f * t - 2.0f) + 1.0f;
         case Easing::InExpo: return (t == 0.0f) ? 0.0f : std::pow(2.0f, 10.0f * (t - 1.0f));
         case Easing::OutExpo: return (t == 1.0f) ? 1.0f : 1.0f - std::pow(2.0f, -10.0f * t);
@@ -36,11 +43,27 @@ inline f32 apply(Easing type, f32 t) {
             if (t == 0.0f || t == 1.0f) return t;
             if ((t *= 2.0f) < 1.0f) return 0.5f * std::pow(2.0f, 10.0f * (t - 1.0f));
             return 0.5f * (2.0f - std::pow(2.0f, -10.0f * (t - 1.0f)));
+        case Easing::InSine: return 1.0f - std::cos(t * glm::pi<f32>() * 0.5f);
+        case Easing::OutSine: return std::sin(t * glm::pi<f32>() * 0.5f);
+        case Easing::InOutSine: return -(std::cos(glm::pi<f32>() * t) - 1.0f) * 0.5f;
+        case Easing::InBack: {
+            const f32 c1 = 1.70158f;
+            const f32 c3 = c1 + 1.0f;
+            return c3 * t * t * t - c1 * t * t;
+        }
         case Easing::OutBack: {
             const f32 c1 = 1.70158f;
             const f32 c3 = c1 + 1.0f;
             return 1.0f + c3 * std::pow(t - 1.0f, 3.0f) + c1 * std::pow(t - 1.0f, 2.0f);
         }
+        case Easing::InOutBack: {
+            const f32 c1 = 1.70158f;
+            const f32 c2 = c1 * 1.525f;
+            return t < 0.5f
+                ? (std::pow(2.0f * t, 2.0f) * ((c2 + 1.0f) * 2.0f * t - c2)) * 0.5f
+                : (std::pow(2.0f * t - 2.0f, 2.0f) * ((c2 + 1.0f) * (t * 2.0f - 2.0f) + c2) + 2.0f) * 0.5f;
+        }
+        case Easing::Hold: return 0.0f;
         default: return t;
     }
 }

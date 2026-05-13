@@ -85,3 +85,31 @@ TEST_CASE("AnimatedValue<Vec3>: interpolates component-wise") {
     CHECK(mid.y == doctest::Approx(60.0f));
     CHECK(mid.z == doctest::Approx(90.0f));
 }
+
+// ---------------------------------------------------------------------------
+// Loop modes
+// ---------------------------------------------------------------------------
+TEST_CASE("AnimatedValue: Loop mode") {
+    AnimatedValue<f32> v(0.0f);
+    v.key(0, 0.0f).key(60, 60.0f);
+    v.loop_mode(LoopMode::Loop);
+
+    CHECK(v.value_at(0)   == doctest::Approx(0.0f));
+    CHECK(v.value_at(30)  == doctest::Approx(30.0f));
+    CHECK(v.value_at(60)  == doctest::Approx(0.0f)); // Loops back to start
+    CHECK(v.value_at(90)  == doctest::Approx(30.0f));
+    CHECK(v.value_at(-30) == doctest::Approx(30.0f));
+}
+
+TEST_CASE("AnimatedValue: PingPong mode") {
+    AnimatedValue<f32> v(0.0f);
+    v.key(0, 0.0f).key(60, 60.0f);
+    v.loop_mode(LoopMode::PingPong);
+
+    CHECK(v.value_at(0)   == doctest::Approx(0.0f));
+    CHECK(v.value_at(30)  == doctest::Approx(30.0f));
+    CHECK(v.value_at(60)  == doctest::Approx(60.0f));
+    CHECK(v.value_at(90)  == doctest::Approx(30.0f)); // Bouncing back
+    CHECK(v.value_at(120) == doctest::Approx(0.0f));  // Back to start
+    CHECK(v.value_at(-30) == doctest::Approx(30.0f)); // Bouncing back from negative
+}

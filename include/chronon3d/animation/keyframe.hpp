@@ -6,6 +6,7 @@
 #include <chronon3d/animation/interpolate.hpp>
 #include <initializer_list>
 #include <cstddef>
+#include <vector>
 
 namespace chronon3d {
 
@@ -24,43 +25,69 @@ struct Keyframe {
     bool operator<(Frame f) const { return frame < f; }
 };
 
-// Convenience alias for scalar (f32) keyframes used with keyframes().
+// Convenience alias for scalar (f32) keyframes.
 using KF = Keyframe<f32>;
 
+// Forward declarations for interpolation helpers.
+template <typename T>
+inline T interpolate_values(const T& a, const T& b, f32 t, Easing e) {
+    if (e == Easing::Hold) return a;
+    const f32 eased_t = easing::apply(e, t);
+    return a + (b - a) * eased_t;
+}
+
 // ---------------------------------------------------------------------------
-// keyframes() — evaluate a scalar keyframe list at the given frame.
-//
-// Behaviour:
-//   before first → holds first value
-//   after  last  → holds last  value
-//   between      → interpolates using Keyframe::easing of the earlier kf
-//
+// KeyframeTrack<T> — manages a collection of typed keyframes.
+// ---------------------------------------------------------------------------
+template <typename T>
+class KeyframeTrack {
+public:
+    KeyframeTrack(std::initializer_list<Keyframe<T>> kfs) : m_keyframes(kfs) {
+    }
+
+    [[nodiscard]] T value(Frame current) const {
+        if (m_keyframes.empty()) return T{};
+
+        const auto* data = m_keyframes.data();
+        const std::size_t n = m_keyframes.size();
+
+        if (current <= data[0].frame)   return data[0].value;
+        if (current >= data[n-1].frame) return data[n-1].value;
+
+        // Binary search for the interval.
+        auto it = std::lower_bound(m_keyframes.begin(), m_keyframes.end(), current,
+            [](const Keyframe<T>& kf, Frame f) { return kf.frame < f; });
+
+        if (it == m_keyframes.begin()) return it->value;
+        
+        const auto& next = *it;
+        if (current == next.frame) return next.value;
+
+        const auto& prev = *std::prev(it);
+
+        const f32 t = static_cast<f32>(current - prev.frame) / static_cast<f32>(next.frame - prev.frame);
+        return interpolate_values(prev.value, next.value, t, prev.easing);
+    }
+
+private:
+    std::vector<Keyframe<T>> m_keyframes;
+};
+
+// ---------------------------------------------------------------------------
+// keyframes<T>() — factory for KeyframeTrack<T>.
 // Usage:
-//   auto x = keyframes(ctx.frame, {
-//       KF{  0,   0.0f, Easing::OutCubic  },
-//       KF{ 30, 400.0f, Easing::InOutCubic },
-//       KF{ 60, 400.0f                     },   // hold (Linear = no movement)
-//       KF{ 90, 800.0f }
-//   });
+//   auto x = keyframes<f32>({ {0, 0.0f}, {60, 100.0f, Easing::OutCubic} }).value(frame);
+// ---------------------------------------------------------------------------
+template <typename T>
+inline KeyframeTrack<T> keyframes(std::initializer_list<Keyframe<T>> kfs) {
+    return KeyframeTrack<T>(kfs);
+}
+
+// ---------------------------------------------------------------------------
+// Legacy support: keyframes(frame, {KF, KF, ...})
 // ---------------------------------------------------------------------------
 inline f32 keyframes(Frame current, std::initializer_list<KF> kfs) {
-    const std::size_t n = kfs.size();
-    if (n == 0) return 0.0f;
-
-    const KF* data = kfs.begin();
-
-    if (current <= data[0].frame)    return data[0].value;
-    if (current >= data[n-1].frame)  return data[n-1].value;
-
-    for (std::size_t i = 0; i + 1 < n; ++i) {
-        if (current >= data[i].frame && current < data[i+1].frame) {
-            return interpolate(current,
-                               data[i].frame,   data[i+1].frame,
-                               data[i].value,   data[i+1].value,
-                               data[i].easing);
-        }
-    }
-    return data[n-1].value;
+    return keyframes<f32>(kfs).value(current);
 }
 
 } // namespace chronon3d

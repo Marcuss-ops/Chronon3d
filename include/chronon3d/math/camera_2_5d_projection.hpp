@@ -57,8 +57,6 @@ inline ProjectedLayer2_5D project_layer_2_5d(
 
     const f32 perspective_scale = focal / depth;
 
-    const f32 cx = viewport_width  * 0.5f;
-    const f32 cy = viewport_height * 0.5f;
 
     // Camera movement creates parallax: shift relative to viewport center.
     const f32 relative_x = layer_transform.position.x - camera.position.x;

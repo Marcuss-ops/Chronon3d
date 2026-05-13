@@ -26,6 +26,7 @@ enum class LayerKind {
 
 struct Layer {
     std::pmr::string name;
+    std::pmr::string parent_name;
     LayerKind kind{LayerKind::Normal};
     Transform transform{};
     Frame from{0};

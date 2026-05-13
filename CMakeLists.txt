@@ -163,6 +163,8 @@ file(GLOB CHRONON3D_EXAMPLE_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/examples/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/examples/basics/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/examples/demos/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/examples/proofs/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/examples/debug/*.cpp"
 )
 target_sources(chronon3d_examples_lib PRIVATE ${CHRONON3D_EXAMPLE_SOURCES})
 target_link_libraries(chronon3d_examples_lib

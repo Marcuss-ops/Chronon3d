@@ -24,7 +24,6 @@ void GraphBuilder::append_layer_pipeline(
     const Camera2_5D&     cam25d
 ) {
     const Layer& layer = *item.layer;
-    const std::string name{layer.name};
 
     GraphNodeId layer_output;
 
