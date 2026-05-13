@@ -341,15 +341,15 @@ template <typename T>
 // ---------------------------------------------------------------------------
 
 std::unique_ptr<Framebuffer> SoftwareRenderer::render_frame(const Composition& comp, Frame frame) {
-    if (!m_motion_blur.enabled || m_motion_blur.samples <= 1) {
+    if (!m_settings.motion_blur.enabled || m_settings.motion_blur.samples <= 1) {
         Scene scene = comp.evaluate(frame);
         return render_scene_internal(scene, comp.camera, comp.width(), comp.height(), frame, 0.0f);
     }
 
     // Motion blur: accumulate N subframes evenly distributed over the shutter window.
     // shutter_duration is expressed in frames (e.g. 180° shutter → 0.5 frames).
-    const int   N       = std::max(2, m_motion_blur.samples);
-    const float shutter = m_motion_blur.shutter_angle / 360.0f; // fraction of a frame
+    const int   N       = std::max(2, m_settings.motion_blur.samples);
+    const float shutter = m_settings.motion_blur.shutter_angle / 360.0f; // fraction of a frame
     const int   w       = comp.width();
     const int   h       = comp.height();
 
@@ -405,6 +405,30 @@ std::unique_ptr<Framebuffer> SoftwareRenderer::render_scene_internal(
     const Scene& scene, const Camera& camera, i32 width, i32 height, Frame frame, f32 frame_time)
 {
     ZoneScoped;
+
+    if (m_settings.use_modular_graph) {
+        graph::RenderGraphContext ctx;
+        ctx.frame = frame;
+        ctx.time_seconds = frame_time; // Using frame_time as offset within frame
+        ctx.width = width;
+        ctx.height = height;
+        ctx.camera = camera;
+        ctx.renderer = this;
+        ctx.node_cache = &m_node_cache;
+        ctx.cache_enabled = true;
+        ctx.diagnostics_enabled = m_settings.diagnostic;
+
+        auto graph = graph::GraphBuilder::build(scene, ctx);
+        graph::GraphExecutor executor;
+        auto result_shared = executor.execute(graph, ctx);
+
+        if (!result_shared) return nullptr;
+
+        // SoftwareRenderer returns unique_ptr<Framebuffer>. 
+        // We copy the content of the shared_ptr to a new unique_ptr.
+        return std::make_unique<Framebuffer>(*result_shared);
+    }
+
     auto graph_wrapper = build_render_graph(scene, camera, width, height, frame, frame_time);
 
     rendergraph::RenderGraphExecutionContext ctx{
@@ -413,7 +437,7 @@ std::unique_ptr<Framebuffer> SoftwareRenderer::render_scene_internal(
         .frame = frame,
         .width = width,
         .height = height,
-        .diagnostic = diagnostic_,
+        .diagnostic = m_settings.diagnostic,
     };
 
     return graph_wrapper.execute(ctx);
@@ -652,13 +676,13 @@ void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node, const 
     fill_color.a *= opacity;
     draw_transformed_shape(fb, node.shape, model, fill_color, 0.0f, &state);
 
-    if (diagnostic_) {
+    if (m_settings.diagnostic) {
         draw_diagnostic_info(fb, node, state);
     }
 }
 
 void SoftwareRenderer::draw_diagnostic_info(Framebuffer& fb, const RenderNode& node, const RenderState& state) {
-    if (!diagnostic_) return;
+    if (!m_settings.diagnostic) return;
 
     TextStyle debug_style;
     debug_style.font_path = "assets/fonts/Inter-Regular.ttf";
@@ -859,8 +883,14 @@ void SoftwareRenderer::composite_layer(Framebuffer& dst, const Framebuffer& src,
     const i32 w = dst.width(), h = dst.height();
     for (i32 y = 0; y < h; ++y) {
         for (i32 x = 0; x < w; ++x) {
-            const Color s = src.get_pixel(x, y);
+            Color s = src.get_pixel(x, y);
             if (s.a <= 0.0f) continue;
+            
+            // The source buffer was rendered into a transparent black background,
+            // so its RGB values are effectively premultiplied by alpha.
+            // We unpremultiply here to get straight alpha for the blend functions.
+            s = s.unpremultiplied();
+            
             dst.set_pixel(x, y, compositor::blend(s, dst.get_pixel(x, y), mode));
         }
     }

@@ -127,7 +127,8 @@ TEST_CASE("TimelineEvaluator: blur effect resolved") {
     TimelineEvaluator ev;
     auto r = ev.evaluate(make_scene_with_layer(ld), 0);
 
-    CHECK(r.layers[0].resolved_effect.blur_radius == doctest::Approx(12.0f));
+    REQUIRE(r.layers[0].resolved_effects.size() == 1);
+    CHECK(std::get<BlurParams>(r.layers[0].resolved_effects[0].params).radius == doctest::Approx(12.0f));
 }
 
 TEST_CASE("TimelineEvaluator: brightness/contrast effect resolved") {
@@ -137,8 +138,9 @@ TEST_CASE("TimelineEvaluator: brightness/contrast effect resolved") {
     TimelineEvaluator ev;
     auto r = ev.evaluate(make_scene_with_layer(ld), 0);
 
-    CHECK(r.layers[0].resolved_effect.brightness == doctest::Approx(0.3f));
-    CHECK(r.layers[0].resolved_effect.contrast   == doctest::Approx(1.4f));
+    REQUIRE(r.layers[0].resolved_effects.size() == 2);
+    CHECK(std::get<BrightnessParams>(r.layers[0].resolved_effects[0].params).value == doctest::Approx(0.3f));
+    CHECK(std::get<ContrastParams>(r.layers[0].resolved_effects[1].params).value   == doctest::Approx(1.4f));
 }
 
 // ---------------------------------------------------------------------------

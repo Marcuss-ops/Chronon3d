@@ -20,6 +20,7 @@ struct RenderArgs {
     std::string frames{"0"}; // Supports "0", "0-90", "0-90x5"
     std::string output{"render_####.png"};
     bool diagnostic{false};
+    bool use_modular_graph{false};
 
     // Legacy support
     int64_t start_old{-1};
@@ -42,12 +43,15 @@ struct VideoArgs {
 struct ProofsArgs {
     std::string suite;       // suite name or "list" or "all"
     std::string output_dir{"output/proofs"};
+    bool use_modular_graph{false};
+    bool diagnostic{false};
 };
 
 struct BenchArgs {
     std::string comp_id;
     int frames{120};
     int warmup{10};
+    bool use_modular_graph{false};
 };
 
 struct GraphArgs {

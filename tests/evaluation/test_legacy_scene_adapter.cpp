@@ -111,7 +111,9 @@ TEST_CASE("LegacySceneAdapter: layer effect carried over") {
     auto ev    = eval_at(s, 0);
     auto scene = LegacySceneAdapter{}.convert(ev);
 
-    CHECK(scene.layers()[0].effect.blur_radius == doctest::Approx(16.0f));
+    REQUIRE(scene.layers()[0].effects.size() == 1);
+    const auto& blur = std::get<BlurParams>(scene.layers()[0].effects[0].params);
+    CHECK(blur.radius == doctest::Approx(16.0f));
 }
 
 TEST_CASE("LegacySceneAdapter: camera propagated to Scene") {
