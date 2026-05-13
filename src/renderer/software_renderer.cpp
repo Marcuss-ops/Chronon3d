@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <memory_resource>
 #include <fmt/format.h>
+#include <chronon3d/render_graph/graph_executor.hpp>
 #include <optional>
 #include <cstdint>
 #include <type_traits>
@@ -403,14 +404,21 @@ std::string SoftwareRenderer::debug_render_graph(const Scene& scene, const Camer
                                                  i32 width, i32 height, Frame frame,
                                                  f32 frame_time) const
 {
-    return build_render_graph(scene, camera, width, height, frame, frame_time).debug_dot();
+    auto graph = build_render_graph(scene, camera, width, height, frame, frame_time);
+    render_graph::GraphExecutor executor(m_node_cache);
+    return executor.debug_dot_decorated(graph);
 }
+
+
+
 
 std::unique_ptr<Framebuffer> SoftwareRenderer::render_scene_internal(
     const Scene& scene, const Camera& camera, i32 width, i32 height, Frame frame, f32 frame_time)
 {
     ZoneScoped;
-    auto graph = build_render_graph(scene, camera, width, height, frame, frame_time);
+    auto graph_wrapper = build_render_graph(scene, camera, width, height, frame, frame_time);
+    render_graph::GraphExecutor executor(m_node_cache);
+
     rendergraph::RenderGraphExecutionContext ctx{
         .renderer = *this,
         .camera = camera,
@@ -419,8 +427,10 @@ std::unique_ptr<Framebuffer> SoftwareRenderer::render_scene_internal(
         .height = height,
         .diagnostic = diagnostic_,
     };
-    return graph.execute(ctx);
+
+    return executor.execute(graph_wrapper, ctx);
 }
+
 
 rendergraph::RenderGraph SoftwareRenderer::build_render_graph(
     const Scene& scene, const Camera& camera, i32 width, i32 height, Frame frame, f32 frame_time) const

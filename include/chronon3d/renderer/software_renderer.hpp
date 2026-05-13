@@ -40,8 +40,9 @@ public:
     void clear_caches() {
         m_image_renderer.clear_cache();
         m_text_renderer.clear_cache();
-        m_render_cache.clear();
+        m_node_cache.clear();
     }
+
 
     friend class rendergraph::RenderGraph;
 
@@ -80,10 +81,10 @@ private:
 
     TextRenderer      m_text_renderer;
     ImageRenderer     m_image_renderer;
-    mutable std::unordered_map<rendergraph::RenderCacheKey, rendergraph::RenderPassResult,
-                                rendergraph::RenderCacheKeyHash> m_render_cache;
+    mutable cache::NodeCache  m_node_cache;
     bool              diagnostic_{false};
     MotionBlurSettings m_motion_blur{};
 };
+
 
 } // namespace chronon3d
