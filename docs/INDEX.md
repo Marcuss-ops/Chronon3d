@@ -4,6 +4,7 @@
 
 - [Architecture](../ARCHITECTURE.md)
 - [Roadmap](../ROADMAP.md)
+- [Effects](EFFECTS.md)
 - [3D Subsystem](3d_subsystem.md)
 
 ## Build And Workflow
@@ -28,4 +29,5 @@ Chronon3d is currently focused on:
 - keeping CMake and xmake aligned
 - stabilizing CI and build scripts
 - adding a render graph and cache layers
+- building an ordered effect system
 - improving text, video, and audio workflow support
