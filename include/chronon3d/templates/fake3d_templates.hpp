@@ -54,8 +54,15 @@ struct Fake3DTitleStudioParams {
     f32  grid_spacing{180.0f};
     f32  grid_fade_distance{2200.0f};
 
-    // Text
-    Vec3 text_pos{0, 210, -60};
+    // Text (flat 2D-in-3D by default — looks premium without fake-extrusion artifacts)
+    Vec3 text_pos{0, 80, -180};   // in front of panel, slightly above
+    f32  text_shadow_opacity{0.55f};
+    f32  text_glow_radius{10.0f};
+    f32  text_glow_intensity{0.22f};
+    Color text_glow_color{1.0f, 0.88f, 0.60f, 1.0f};
+
+    // Optional fake extrusion (disabled by default — use FakeExtrudedTextProof for tuning)
+    bool use_extruded_text{false};
     f32  text_depth{18};
     f32  text_extrude_z{2.2f};
     f32  text_extrude_x{0.3f};
@@ -113,21 +120,35 @@ inline void fake3d_title_studio(SceneBuilder& s, const FrameContext& ctx,
         .color = p.theme.primary, .contact_shadow = p.contact_shadows
     });
 
-    // Title text
-    s.fake_extruded_text_layer("tmpl_title", {
-        .text              = p.title,
-        .font_path         = p.font_path,
-        .pos               = p.text_pos,
-        .font_size         = p.font_size,
-        .depth             = static_cast<int>(p.text_depth),
-        .extrude_dir       = {p.text_extrude_x, 0.0f},
-        .extrude_z_step    = p.text_extrude_z,
-        .front_color       = p.theme.text_front,
-        .side_color        = p.theme.text_side,
-        .side_fade         = 0.06f,
-        .align             = TextAlign::Center,
-        .highlight_opacity = 0.11f
-    });
+    // Title text: flat 2D-in-3D (clean, premium) or fake extrusion
+    if (p.use_extruded_text) {
+        s.fake_extruded_text_layer("tmpl_title", {
+            .text           = p.title,
+            .font_path      = p.font_path,
+            .pos            = p.text_pos,
+            .font_size      = p.font_size,
+            .depth          = static_cast<int>(p.text_depth),
+            .extrude_dir    = {p.text_extrude_x, 0.0f},
+            .extrude_z_step = p.text_extrude_z,
+            .front_color    = p.theme.text_front,
+            .side_color     = p.theme.text_side,
+            .side_fade      = 0.06f,
+            .align          = TextAlign::Center,
+            .highlight_opacity = 0.11f
+        });
+    } else {
+        s.layer("tmpl_title", [&p](LayerBuilder& l) {
+            l.enable_3d()
+             .position(p.text_pos)
+             .text("t", {
+                 .content = p.title,
+                 .style   = {.font_path = p.font_path, .size = p.font_size,
+                             .color = p.theme.text_front, .align = TextAlign::Center}
+             })
+             .drop_shadow({0, 6}, Color{0, 0, 0, p.text_shadow_opacity}, 14.0f)
+             .glow(p.text_glow_radius, p.text_glow_intensity, p.text_glow_color);
+        });
+    }
 
     // Bloom
     if (p.bloom) {

@@ -85,9 +85,10 @@ inline ProjectedLayer2_5D project_layer_2_5d(
 
     const f32 perspective_scale = focal / depth;
 
-    // Centroid projection for backward compatibility and depth sorting.
-    out.transform.position.x = cam_pos.x * perspective_scale;
-    out.transform.position.y = -cam_pos.y * perspective_scale; 
+    // Centroid projection: translate to screen-space (origin = top-left).
+    // viewport center is added so shapes using model[3] as screen coords work.
+    out.transform.position.x = cam_pos.x * perspective_scale + viewport_width  * 0.5f;
+    out.transform.position.y = -cam_pos.y * perspective_scale + viewport_height * 0.5f;
     out.transform.position.z = 0.0f;
 
     out.transform.scale.x *= perspective_scale;
