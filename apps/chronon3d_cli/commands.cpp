@@ -304,6 +304,7 @@ int command_video(const CompositionRegistry& registry, const VideoArgs& args) {
     render_args.start_old = args.start;
     render_args.end_old   = args.end;
     render_args.output    = (frames_dir / "frame_####.png").string();
+    render_args.use_modular_graph = args.use_modular_graph;
 
     spdlog::info("Rendering {} frames {} → {} ...", args.comp_id, args.start, args.end);
     const int render_result = command_render(registry, render_args);

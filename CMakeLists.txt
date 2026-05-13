@@ -76,19 +76,12 @@ target_link_libraries(chronon3d_cache
         chronon3d
 )
 
-# 4. Render Graph Facade (Static)
+# 4. Render Graph & Video sources (now part of renderer)
 file(GLOB CHRONON3D_RENDER_GRAPH_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/src/render_graph/*.cpp"
 )
-
-add_library(chronon3d_render_graph STATIC
-    ${CHRONON3D_RENDER_GRAPH_SOURCES}
-)
-target_link_libraries(chronon3d_render_graph
-    PUBLIC
-        chronon3d
-        chronon3d_cache
-        chronon3d_renderer
+file(GLOB CHRONON3D_VIDEO_SOURCES CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/video/*.cpp"
 )
 
 # 5. Effects Library (Static)
@@ -114,6 +107,8 @@ file(GLOB CHRONON3D_RENDERER_SOURCES CONFIGURE_DEPENDS
 
 add_library(chronon3d_renderer STATIC
     ${CHRONON3D_RENDERER_SOURCES}
+    ${CHRONON3D_RENDER_GRAPH_SOURCES}
+    ${CHRONON3D_VIDEO_SOURCES}
 )
 target_link_libraries(chronon3d_renderer
     PUBLIC
@@ -121,6 +116,7 @@ target_link_libraries(chronon3d_renderer
         chronon3d_registry
         chronon3d_cache
         chronon3d_effects
+        chronon3d_io
     PRIVATE
         spdlog::spdlog
         fmt::fmt
@@ -139,7 +135,6 @@ target_link_libraries(chronon3d_pipeline
         chronon3d_renderer
         chronon3d_registry
         chronon3d_cache
-        chronon3d_render_graph
         Taskflow::Taskflow
         concurrentqueue::concurrentqueue
 )
@@ -166,6 +161,8 @@ target_include_directories(chronon3d_io PRIVATE ${Stb_INCLUDE_DIR})
 add_library(chronon3d_examples_lib STATIC)
 file(GLOB CHRONON3D_EXAMPLE_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/examples/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/examples/basics/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/examples/demos/*.cpp"
 )
 target_sources(chronon3d_examples_lib PRIVATE ${CHRONON3D_EXAMPLE_SOURCES})
 target_link_libraries(chronon3d_examples_lib

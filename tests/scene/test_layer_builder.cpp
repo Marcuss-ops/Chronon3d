@@ -42,3 +42,14 @@ TEST_CASE("Layer from/duration controls visibility") {
     CHECK(build_with(ctx_active).layers().size() == 1);
     CHECK(build_with(ctx_late).layers().empty());
 }
+
+TEST_CASE("LayerBuilder resolves depth role only once") {
+    LayerBuilder b("test");
+    auto layer = b.enable_3d()
+                  .depth_role(DepthRole::Foreground)
+                  .depth_offset(25.0f)
+                  .build();
+
+    // Foreground is -500.0f usually. -500 + 25 = -475.
+    CHECK(layer.transform.position.z == doctest::Approx(-475.0f));
+}
