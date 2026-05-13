@@ -14,6 +14,7 @@
 #include <chronon3d/renderer/render_settings.hpp>
 #include <chronon3d/render_graph/graph_builder.hpp>
 #include <chronon3d/render_graph/graph_executor.hpp>
+#include <chronon3d/video/ffmpeg_frame_extractor.hpp>
 #include <unordered_map>
 
 namespace chronon3d {
@@ -48,6 +49,7 @@ public:
         m_image_renderer.clear_cache();
         m_text_renderer.clear_cache();
         m_node_cache.clear();
+        m_video_extractor.clear_memory_cache();
     }
 
     void set_composition_registry(const CompositionRegistry* registry) { m_registry = registry; }
@@ -91,6 +93,7 @@ private:
     TextRenderer      m_text_renderer;
     ImageRenderer     m_image_renderer;
     mutable cache::NodeCache  m_node_cache;
+    video::FfmpegFrameExtractor m_video_extractor;
     RenderSettings    m_settings{};
     const CompositionRegistry* m_registry{nullptr};
 };

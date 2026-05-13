@@ -5,6 +5,7 @@
 #include <chronon3d/scene/render_node.hpp>
 #include <chronon3d/scene/shape.hpp>
 #include <chronon3d/renderer/render_graph.hpp> // For existing hash_combine etc.
+#include <chronon3d/video/video_source.hpp>
 #include <xxhash.h>
 
 namespace chronon3d::graph {
@@ -14,6 +15,17 @@ using rendergraph::hash_combine;
 using rendergraph::hash_bytes;
 using rendergraph::hash_string;
 using rendergraph::hash_transform;
+
+inline u64 hash_video_source(const video::VideoSource& source) {
+    u64 seed = rendergraph::hash_string(source.path);
+    seed = rendergraph::hash_combine(seed, rendergraph::hash_bytes(&source.source_start, sizeof(source.source_start)));
+    seed = rendergraph::hash_combine(seed, rendergraph::hash_bytes(&source.duration, sizeof(source.duration)));
+    seed = rendergraph::hash_combine(seed, rendergraph::hash_bytes(&source.source_fps, sizeof(source.source_fps)));
+    seed = rendergraph::hash_combine(seed, rendergraph::hash_bytes(&source.speed, sizeof(source.speed)));
+    auto loop = static_cast<u64>(source.loop_mode);
+    seed = rendergraph::hash_combine(seed, rendergraph::hash_bytes(&loop, sizeof(loop)));
+    return seed;
+}
 
 template <typename T>
 [[nodiscard]] inline u64 hash_value(T v) {

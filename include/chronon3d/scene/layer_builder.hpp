@@ -35,6 +35,11 @@ public:
         return *this;
     }
 
+    LayerBuilder& kind(LayerKind value) {
+        m_layer.kind = value;
+        return *this;
+    }
+
     LayerBuilder& position(Vec3 p) {
         m_layer.transform.position = p;
         return *this;

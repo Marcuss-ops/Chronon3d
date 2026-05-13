@@ -65,7 +65,7 @@ target("chronon3d_renderer")
     add_files("src/layout/*.cpp")
     add_files("src/render_graph/*.cpp")
 
-    add_deps("chronon3d", "chronon3d_registry", "chronon3d_cache", "chronon3d_effects")
+    add_deps("chronon3d", "chronon3d_registry", "chronon3d_cache", "chronon3d_effects", "chronon3d_video")
     add_packages("spdlog", "stb", "highway", "meshoptimizer", "fmt", "xxhash")
     
     if has_config("profiling") then
@@ -79,6 +79,13 @@ target("chronon3d_io")
     add_files("src/io/*.cpp")
     add_deps("chronon3d")
     add_packages("stb")
+
+-- Video Library
+target("chronon3d_video")
+    set_kind("static")
+    add_files("src/video/*.cpp")
+    add_deps("chronon3d", "chronon3d_io")
+    add_packages("xxhash")
 
 -- Pipeline Library (Interface)
 target("chronon3d_pipeline")
@@ -102,7 +109,7 @@ target("chronon3d_cli")
     set_kind("binary")
     add_files("apps/chronon3d_cli/*.cpp")
     add_includedirs("apps/chronon3d_cli")
-    add_deps("chronon3d_pipeline", "chronon3d_io", "chronon3d_examples_lib")
+    add_deps("chronon3d_pipeline", "chronon3d_io", "chronon3d_examples_lib", "chronon3d_video")
     add_packages("cli11", "spdlog", "fmt", "meshoptimizer", "xxhash", "toml++")
     set_rundir("$(projectdir)")
 
@@ -112,7 +119,7 @@ target("chronon3d_cli")
     else
         -- chronon3d_renderer must appear after --no-whole-archive so the linker
         -- can resolve references made by the force-extracted examples objects.
-        add_ldflags("-Wl,--whole-archive", "-lchronon3d_examples_lib", "-Wl,--no-whole-archive", "-lchronon3d_renderer", {force = true})
+        add_ldflags("-Wl,--whole-archive", "-lchronon3d_examples_lib", "-Wl,--no-whole-archive", "-lchronon3d_renderer", "-lchronon3d_video", "-lchronon3d_io", "-lxxhash", {force = true})
     end
 
 -- Tests
@@ -136,5 +143,6 @@ target("chronon3d_tests")
     add_files("tests/assets/*.cpp")
     add_files("tests/description/*.cpp")
     add_files("tests/evaluation/*.cpp")
-    add_deps("chronon3d_pipeline", "chronon3d_io")
+    add_files("tests/video/*.cpp")
+    add_deps("chronon3d_pipeline", "chronon3d_io", "chronon3d_video")
     add_packages("doctest", "stb", "meshoptimizer", "xxhash")

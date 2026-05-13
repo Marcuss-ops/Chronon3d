@@ -2,6 +2,7 @@
 #include <chronon3d/render_graph/nodes/basic_nodes.hpp>
 #include <chronon3d/render_graph/nodes/precomp_node.hpp>
 #include <chronon3d/render_graph/nodes/transform_node.hpp>
+#include <chronon3d/render_graph/nodes/video_node.hpp>
 #include <chronon3d/render_graph/render_graph_hashing.hpp>
 #include <chronon3d/scene/layer.hpp>
 
@@ -41,19 +42,31 @@ RenderGraph GraphBuilder::build(const Scene& scene, const RenderGraphContext& ct
             continue;
         }
 
-        if (layer.kind == LayerKind::Normal || layer.kind == LayerKind::Precomp) {
+        if (layer.kind == LayerKind::Normal || 
+            layer.kind == LayerKind::Precomp ||
+            layer.kind == LayerKind::Video) {
+
             GraphNodeId layer_output;
+
             if (layer.kind == LayerKind::Normal) {
                 layer_output = build_layer_source(graph, layer, ctx);
-            } else {
+            } else if (layer.kind == LayerKind::Precomp) {
                 layer_output = graph.add_node(std::make_unique<PrecompNode>(
                     std::string(layer.precomp_composition_name),
                     layer.from,
                     layer.duration
                 ));
+            } else {
+                layer_output = graph.add_node(std::make_unique<VideoNode>(
+                    layer.video_source,
+                    ctx.video_decoder,
+                    layer.from
+                ));
             }
 
-            if (layer.kind == LayerKind::Precomp || layer.transform.any()) {
+            if (layer.kind == LayerKind::Precomp || 
+                layer.kind == LayerKind::Video ||
+                layer.transform.any()) {
                 auto transform = graph.add_node(std::make_unique<TransformNode>(layer.transform));
                 graph.connect(layer_output, transform);
                 layer_output = transform;

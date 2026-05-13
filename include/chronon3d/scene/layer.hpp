@@ -9,6 +9,7 @@
 #include <chronon3d/scene/depth_role.hpp>
 #include <chronon3d/layout/layout_rules.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
+#include <chronon3d/video/video_source.hpp>
 #include <string>
 #include <vector>
 #include <memory_resource>
@@ -19,7 +20,8 @@ enum class LayerKind {
     Normal,       // standard layer: draws its own content, then effects applied
     Adjustment,   // no own content: effects applied to everything rendered below it
     Null,         // no rendering at all; useful as a parent for transform hierarchy
-    Precomp       // references a nested composition by name
+    Precomp,      // references a nested composition by name
+    Video         // plays a video file via VideoNode
 };
 
 struct Layer {
@@ -38,6 +40,7 @@ struct Layer {
     LayoutRules layout{};
     std::pmr::vector<RenderNode> nodes;
     std::pmr::string precomp_composition_name; // for LayerKind::Precomp
+    video::VideoSource video_source{};         // for LayerKind::Video
 
     explicit Layer(std::pmr::memory_resource* res = std::pmr::get_default_resource())
         : name(res), nodes(res), precomp_composition_name(res) {}

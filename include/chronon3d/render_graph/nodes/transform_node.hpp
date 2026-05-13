@@ -13,7 +13,8 @@ namespace chronon3d::graph {
  */
 class TransformNode final : public RenderGraphNode {
 public:
-    explicit TransformNode(Transform transform) : m_transform(std::move(transform)) {}
+    explicit TransformNode(Transform transform, SamplingMode mode = SamplingMode::Bilinear) 
+        : m_transform(std::move(transform)), m_mode(mode) {}
 
     [[nodiscard]] RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::Transform; }
     [[nodiscard]] std::string name() const override { return "Transform"; }
@@ -24,7 +25,10 @@ public:
             .frame = ctx.frame,
             .width = ctx.width,
             .height = ctx.height,
-            .params_hash = rendergraph::hash_transform(m_transform)
+            .params_hash = rendergraph::hash_combine(
+                rendergraph::hash_transform(m_transform),
+                static_cast<u64>(m_mode)
+            )
         };
     }
 
@@ -75,19 +79,9 @@ public:
                 Vec4 local = inv_model * Vec4(static_cast<f32>(x) + 0.5f,
                                               static_cast<f32>(y) + 0.5f, 0.0f, 1.0f);
 
-                if (local.x < 0.0f || local.y < 0.0f ||
-                    local.x >= static_cast<f32>(input->width()) || 
-                    local.y >= static_cast<f32>(input->height())) {
-                    continue;
-                }
-
-                // Nearest neighbor sampling
-                int sx = static_cast<int>(local.x);
-                int sy = static_cast<int>(local.y);
-                
-                Color src = input->get_pixel(sx, sy);
+                // Sample from input using the requested mode
+                Color src = input->sample(local.x, local.y, m_mode);
                 src.a *= m_transform.opacity;
-
 
                 if (src.a <= 0.0f) continue;
                 dst_row[x] = src; 
@@ -99,6 +93,7 @@ public:
 
 private:
     Transform m_transform;
+    SamplingMode m_mode{SamplingMode::Bilinear};
 };
 
 } // namespace chronon3d::graph
