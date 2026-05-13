@@ -126,6 +126,9 @@ public:
         m_layer.effects.push_back({BloomParams{threshold, radius, intensity}});
         return *this;
     }
+    LayerBuilder& bloom_soft()   { return bloom(0.85f, 18.0f, 0.35f); }
+    LayerBuilder& bloom_medium() { return bloom(0.80f, 28.0f, 0.60f); }
+    LayerBuilder& bloom_strong() { return bloom(0.75f, 42.0f, 0.85f); }
     LayerBuilder& blend(BlendMode mode) { m_layer.blend_mode = mode; return *this; }
 
     // Layout rules
