@@ -55,7 +55,7 @@ struct Fake3DTitleStudioParams {
     f32  grid_fade_distance{2200.0f};
 
     // Text (flat 2D-in-3D by default — looks premium without fake-extrusion artifacts)
-    Vec3 text_pos{0, 80, -180};   // in front of panel, slightly above
+    Vec3 text_pos{0, 240, -120};  // above panel top (panel height ~240), in front
     f32  text_shadow_opacity{0.55f};
     f32  text_glow_radius{10.0f};
     f32  text_glow_intensity{0.22f};

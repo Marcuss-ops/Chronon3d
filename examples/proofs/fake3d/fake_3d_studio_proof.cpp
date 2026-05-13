@@ -83,11 +83,11 @@ static Composition Fake3DStudioProof() {
         // CHRONON — flat 2D-in-3D. Clean premium title, no fake-extrusion artifacts.
         s.layer("tilt", [](LayerBuilder& l) {
             l.enable_3d()
-             .position({0, 80, -180})
+             .position({0, 240, -120})
              .text("t", {
                  .content = "CHRONON",
                  .style   = {.font_path = "assets/fonts/Inter-Bold.ttf",
-                             .size  = 72,
+                             .size  = 76,
                              .color = Color{0.98f, 0.95f, 0.88f, 1.0f},
                              .align = TextAlign::Center}
              })
