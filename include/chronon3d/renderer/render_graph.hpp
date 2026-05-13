@@ -143,17 +143,20 @@ public:
     [[nodiscard]] bool empty() const { return m_passes.empty(); }
     [[nodiscard]] usize size() const { return m_passes.size(); }
 
-private:
     struct Entry {
         std::unique_ptr<RenderNode> node;
         std::unique_ptr<RenderPass> pass;
     };
 
+    [[nodiscard]] const Entry& get_entry(usize index) const { return m_passes[index]; }
+
+private:
     [[nodiscard]] NodeId add_entry(std::unique_ptr<RenderNode> node,
                                    std::unique_ptr<RenderPass> pass);
 
     std::vector<Entry> m_passes;
 };
+
 
 [[nodiscard]] u64 hash_combine(u64 seed, u64 value);
 [[nodiscard]] u64 hash_string(std::string_view value);

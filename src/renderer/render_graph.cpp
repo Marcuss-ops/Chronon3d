@@ -356,11 +356,10 @@ std::unique_ptr<Framebuffer> RenderGraph::execute(RenderGraphExecutionContext& c
         const auto& pass = *entry.pass;
 
         if (pass.cacheable()) {
-            if (auto cached = ctx.renderer.m_render_cache.find(pass.cache_key()); cached != ctx.renderer.m_render_cache.end()) {
-                state.results.emplace(i, cached->second);
-                if (cached->second.framebuffer) {
-                    final_fb = cached->second.framebuffer;
-                }
+            u64 key = pass.cache_key().digest();
+            if (auto cached = ctx.renderer.m_node_cache.get(key)) {
+                state.results[i] = RenderPassResult{.framebuffer = cached};
+                final_fb = cached;
                 continue;
             }
         }
@@ -368,14 +367,16 @@ std::unique_ptr<Framebuffer> RenderGraph::execute(RenderGraphExecutionContext& c
         RenderPassResult result = pass.execute(ctx, state, i);
         state.results[i] = result;
 
-        if (pass.cacheable()) {
-            ctx.renderer.m_render_cache[pass.cache_key()] = result;
+        if (pass.cacheable() && result.framebuffer) {
+            u64 key = pass.cache_key().digest();
+            ctx.renderer.m_node_cache.put(key, result.framebuffer, result.framebuffer->size_bytes());
         }
 
         if (result.framebuffer) {
             final_fb = result.framebuffer;
         }
     }
+
 
     if (!final_fb) {
         final_fb = std::make_shared<Framebuffer>(ctx.width, ctx.height);

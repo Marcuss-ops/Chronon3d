@@ -55,8 +55,10 @@ public:
 
     [[nodiscard]] i32 width() const { return m_width; }
     [[nodiscard]] i32 height() const { return m_height; }
+    [[nodiscard]] usize size_bytes() const { return m_pixels.size() * sizeof(Color); }
 
 private:
+
     i32 m_width;
     i32 m_height;
     std::vector<Color> m_pixels;
