@@ -160,13 +160,24 @@ public:
             });
         }
         // Front face
-        return layer(base_name, [p](LayerBuilder& l) {
+        layer(base_name, [p](LayerBuilder& l) {
             l.position(p.pos)
              .text("t", {
                  .content = p.text,
                  .style   = {.font_path = p.font_path, .size = p.font_size,
                              .color = p.front_color, .align = p.align}
              });
+        });
+
+        // Subtle highlight (top-edge specular)
+        return layer(base_name + "_hl", [p](LayerBuilder& l) {
+            l.position(p.pos + Vec3{0, -1, 0})
+             .text("t", {
+                 .content = p.text,
+                 .style   = {.font_path = p.font_path, .size = p.font_size,
+                             .color = Color{1, 1, 1, 0.15f}, .align = p.align}
+             })
+             .blend(BlendMode::Add);
         });
     }
 
