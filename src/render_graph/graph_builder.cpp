@@ -1,6 +1,7 @@
 #include <chronon3d/render_graph/graph_builder.hpp>
 #include <chronon3d/render_graph/nodes/basic_nodes.hpp>
 #include <chronon3d/render_graph/nodes/precomp_node.hpp>
+#include <chronon3d/render_graph/nodes/transform_node.hpp>
 #include <chronon3d/render_graph/render_graph_hashing.hpp>
 #include <chronon3d/scene/layer.hpp>
 
@@ -40,8 +41,23 @@ RenderGraph GraphBuilder::build(const Scene& scene, const RenderGraphContext& ct
             continue;
         }
 
-        if (layer.kind == LayerKind::Normal) {
-            GraphNodeId layer_output = build_layer_source(graph, layer, ctx);
+        if (layer.kind == LayerKind::Normal || layer.kind == LayerKind::Precomp) {
+            GraphNodeId layer_output;
+            if (layer.kind == LayerKind::Normal) {
+                layer_output = build_layer_source(graph, layer, ctx);
+            } else {
+                layer_output = graph.add_node(std::make_unique<PrecompNode>(
+                    std::string(layer.precomp_composition_name),
+                    layer.from,
+                    layer.duration
+                ));
+            }
+
+            if (layer.kind == LayerKind::Precomp || layer.transform.any()) {
+                auto transform = graph.add_node(std::make_unique<TransformNode>(layer.transform));
+                graph.connect(layer_output, transform);
+                layer_output = transform;
+            }
 
             if (layer.mask.enabled()) {
                 auto masked = graph.add_node(std::make_unique<MaskNode>(layer.mask));
@@ -64,18 +80,6 @@ RenderGraph GraphBuilder::build(const Scene& scene, const RenderGraphContext& ct
             auto adj = graph.add_node(std::make_unique<AdjustmentNode>(layer.effects));
             graph.connect(current, adj);
             current = adj;
-
-        } else if (layer.kind == LayerKind::Precomp) {
-            auto precomp = graph.add_node(std::make_unique<PrecompNode>(
-                std::string(layer.precomp_composition_name),
-                layer.from,
-                layer.duration
-            ));
-
-            auto composite = graph.add_node(std::make_unique<CompositeNode>(layer.blend_mode));
-            graph.connect(current, composite);
-            graph.connect(precomp, composite);
-            current = composite;
         }
     }
 

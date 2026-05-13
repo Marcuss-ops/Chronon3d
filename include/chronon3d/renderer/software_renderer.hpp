@@ -50,6 +50,9 @@ public:
         m_node_cache.clear();
     }
 
+    void set_composition_registry(const CompositionRegistry* registry) { m_registry = registry; }
+    [[nodiscard]] const CompositionRegistry* composition_registry() const { return m_registry; }
+
 
     friend class rendergraph::RenderGraph;
 
@@ -89,6 +92,7 @@ private:
     ImageRenderer     m_image_renderer;
     mutable cache::NodeCache  m_node_cache;
     RenderSettings    m_settings{};
+    const CompositionRegistry* m_registry{nullptr};
 };
 
 

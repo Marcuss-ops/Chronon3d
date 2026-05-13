@@ -417,6 +417,7 @@ std::unique_ptr<Framebuffer> SoftwareRenderer::render_scene_internal(
         ctx.node_cache = &m_node_cache;
         ctx.cache_enabled = true;
         ctx.diagnostics_enabled = m_settings.diagnostic;
+        ctx.registry = m_registry;
 
         auto graph = graph::GraphBuilder::build(scene, ctx);
         graph::GraphExecutor executor;

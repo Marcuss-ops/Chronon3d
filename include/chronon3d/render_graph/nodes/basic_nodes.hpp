@@ -52,7 +52,12 @@ public:
         auto fb = std::make_shared<Framebuffer>(ctx.width, ctx.height);
         fb->clear(Color::transparent());
         
-        RenderState state{Mat4(1.0f), 1.0f};
+        // Root centering: scene (0,0) -> pixel (width/2, height/2)
+        Mat4 canvas_offset = math::translate(Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
+        RenderState state{canvas_offset, 1.0f};
+
+        // Combine with node's own world transform
+        state = combine(state, m_node.world_transform);
         
         if (ctx.renderer) {
             ctx.renderer->draw_node(*fb, m_node, state, ctx.camera, ctx.width, ctx.height);

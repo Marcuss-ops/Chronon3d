@@ -32,21 +32,24 @@ public:
 
         // 1. Calculate nested time
         Frame nested_frame = ctx.frame - m_start_frame;
+        
         if (nested_frame < 0 || (m_duration > 0 && nested_frame >= m_duration)) {
              auto fb = std::make_shared<Framebuffer>(ctx.width, ctx.height);
              fb->clear(Color::transparent());
              return fb;
         }
 
-        // 2. Fetch/Evaluate nested composition
+        // 2. Fetch nested composition
         auto comp = ctx.registry->create(m_comp_name);
-        Scene nested_scene = comp.evaluate(nested_frame);
 
-        // 3. Build nested graph
+        // 3. Build nested graph context
         RenderGraphContext nested_ctx = ctx;
         nested_ctx.frame = nested_frame;
-        // nested_ctx.time_seconds = ...
+        nested_ctx.width = comp.width();
+        nested_ctx.height = comp.height();
+        nested_ctx.camera = comp.camera;
         
+        Scene nested_scene = comp.evaluate(nested_frame);
         RenderGraph nested_graph = GraphBuilder::build(nested_scene, nested_ctx);
 
         // 4. Execute nested graph
