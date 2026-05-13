@@ -100,7 +100,7 @@ inline ProjectedLayer2_5D project_layer_2_5d(
     // DstScene <- World
     Mat4 proj = Mat4(0.0f);
     proj[0][0] = focal;
-    proj[1][1] = -focal; 
+    proj[1][1] = focal; 
     proj[2][2] = 1.0f;   // Keep Z
     proj[2][3] = -1.0f;  // Perspective w = -z
     proj[3][3] = 0.0001f; // Tiny offset to make it invertible

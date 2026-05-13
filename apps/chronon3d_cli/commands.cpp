@@ -113,7 +113,7 @@ int command_render(const CompositionRegistry& registry, const RenderArgs& args) 
     int64_t effective_end = (range.start == range.end) ? range.start + 1 : range.end;
     for (int64_t f = range.start; f < effective_end; f += range.step) {
         auto scene = comp_ptr->evaluate(f);
-        auto fb = renderer->render_scene(scene, comp_ptr->camera, comp_ptr->width(), comp_ptr->height());
+        auto fb = renderer->render_scene(scene, comp_ptr->camera, comp_ptr->width(), comp_ptr->height(), f);
 
         if (fb) {
             bool is_range = (range.start != range.end);
