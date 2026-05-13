@@ -21,13 +21,24 @@ struct Transform {
     constexpr Transform(Vec3 p, Quat r = Quat(1.0f, 0.0f, 0.0f, 0.0f), Vec3 s = Vec3(1.0f), Vec3 a = Vec3(0.0f), f32 o = 1.0f)
         : position(p), rotation(r), scale(s), anchor(a), opacity(o) {}
 
-    [[nodiscard]] Mat4 to_matrix() const {
+    [[nodiscard]] Mat4 to_mat4() const {
         // Matrix = Translate(position) * Rotate(rotation) * Scale(scale) * Translate(-anchor)
         return math::translate(position) * math::rotate(rotation) * math::scale(scale) * math::translate(-anchor);
     }
 
+    [[nodiscard]] Mat4 to_matrix() const { return to_mat4(); }
+
+    [[nodiscard]] bool any() const {
+        return position.x != 0.0f || position.y != 0.0f || position.z != 0.0f ||
+               rotation.w != 1.0f || scale.x != 1.0f || scale.y != 1.0f || scale.z != 1.0f ||
+               anchor.x != 0.0f || anchor.y != 0.0f || anchor.z != 0.0f ||
+               opacity != 1.0f;
+    }
+
     [[nodiscard]] bool is_identity_2d() const {
-        return rotation.w == 1.0f && scale.x == 1.0f && scale.y == 1.0f && anchor.x == 0.0f && anchor.y == 0.0f;
+        return position.x == 0.0f && position.y == 0.0f && rotation.w == 1.0f && 
+               scale.x == 1.0f && scale.y == 1.0f && anchor.x == 0.0f && anchor.y == 0.0f &&
+               opacity == 1.0f;
     }
 };
 
