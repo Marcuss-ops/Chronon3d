@@ -106,11 +106,15 @@ int command_render(const CompositionRegistry& registry, const RenderArgs& args) 
     settings.motion_blur.enabled      = args.motion_blur;
     settings.motion_blur.samples      = args.motion_blur_samples;
     settings.motion_blur.shutter_angle = args.shutter_angle;
+    settings.ssaa_factor              = args.ssaa;
     renderer->set_settings(settings);
 
-    spdlog::info("Rendering {} [{} -> {} step {}]{}...",
+    spdlog::info("Rendering {} [{} -> {} step {}]{}{}...",
         args.comp_id, range.start, range.end, range.step,
-        args.motion_blur ? fmt::format(" [MB {}smp {:.0f}°]", args.motion_blur_samples, args.shutter_angle) : "");
+        args.motion_blur ? fmt::format(" [MB {}smp {:.0f}°]", args.motion_blur_samples, args.shutter_angle) : "",
+        args.ssaa > 1.0f ? fmt::format(" [SSAA {:.1f}x]", args.ssaa) : "");
+
+
 
     int64_t effective_end = (range.start == range.end) ? range.start + 1 : range.end;
     for (int64_t f = range.start; f < effective_end; f += range.step) {
@@ -375,6 +379,8 @@ static int render_proof_suite(const CompositionRegistry& registry,
         args.output    = out.string();
         args.use_modular_graph = p_args.use_modular_graph;
         args.diagnostic        = p_args.diagnostic;
+        args.ssaa              = p_args.ssaa;
+
 
         const int r = command_render(registry, args);
         if (r != 0 || !fs::exists(out) || fs::file_size(out) == 0) {

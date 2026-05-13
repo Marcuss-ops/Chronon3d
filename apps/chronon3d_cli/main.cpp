@@ -48,6 +48,7 @@ int main(int argc, char** argv) {
     render_cmd->add_option("--frame",               render_args.frame_old,           "Single frame (legacy)");
     render_cmd->add_option("--start",               render_args.start_old,           "Start frame (legacy)");
     render_cmd->add_option("--end",                 render_args.end_old,             "End frame exclusive (legacy)");
+    render_cmd->add_option("--ssaa",                render_args.ssaa,                "Super Sampling factor (default 1.0)");
     render_cmd->callback([&]() { exit_code = command_render(registry, render_args); });
 
     // -------------------------------------------------------------------------
@@ -68,6 +69,7 @@ int main(int argc, char** argv) {
     video_cmd->add_option("--motion-blur-samples",  video_args.motion_blur_samples,  "Subframe samples (default 8)");
     video_cmd->add_option("--shutter-angle",        video_args.shutter_angle,        "Shutter angle in degrees (default 180)");
     video_cmd->add_option("--frames-dir",           video_args.frames_dir,           "Override temporary frames directory");
+    video_cmd->add_option("--ssaa",                 video_args.ssaa,                 "Super Sampling factor (default 1.0)");
     video_cmd->callback([&]() { exit_code = command_video(registry, video_args); });
 
     // -------------------------------------------------------------------------
@@ -80,7 +82,9 @@ int main(int argc, char** argv) {
     proofs_cmd->add_option("-o,--output-dir", proofs_args.output_dir, "Output directory");
     proofs_cmd->add_flag("--graph",      proofs_args.use_modular_graph, "Use modular RenderGraph path");
     proofs_cmd->add_flag("--diagnostic", proofs_args.diagnostic, "Enable diagnostic overlays");
+    proofs_cmd->add_option("--ssaa",     proofs_args.ssaa, "Super Sampling factor (default 1.0)");
     proofs_cmd->callback([&]() { exit_code = command_proofs(registry, proofs_args); });
+
 
     // -------------------------------------------------------------------------
     // bench

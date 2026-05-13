@@ -24,6 +24,8 @@ struct RenderArgs {
     bool   motion_blur{false};
     int    motion_blur_samples{8};
     float  shutter_angle{180.0f};
+    float  ssaa{1.0f};
+
 
     // Legacy support
     int64_t start_old{-1};
@@ -44,6 +46,7 @@ struct VideoArgs {
     bool   motion_blur{false};
     int    motion_blur_samples{8};
     float  shutter_angle{180.0f};
+    float  ssaa{1.0f};
     std::string frames_dir;
 };
 
@@ -52,7 +55,9 @@ struct ProofsArgs {
     std::string output_dir{"output/proofs"};
     bool use_modular_graph{false};
     bool diagnostic{false};
+    float ssaa{1.0f};
 };
+
 
 struct BenchArgs {
     std::string comp_id;

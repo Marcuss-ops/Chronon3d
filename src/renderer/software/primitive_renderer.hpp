@@ -15,14 +15,17 @@ namespace renderer {
 void fill_convex_quad(Framebuffer& fb, const Vec2 v[4], const Color& color);
 void bline(Framebuffer& fb, Vec2 p0, Vec2 p1, const Color& color);
 
-void draw_fake_box3d(Framebuffer& fb, const RenderNode& node, const RenderState& state);
-void draw_grid_plane(Framebuffer& fb, const RenderNode& node, const RenderState& state);
+void draw_fake_box3d(Framebuffer& fb, const RenderNode& node, const RenderState& state, const FakeBox3DShape& shape);
+void draw_grid_plane(Framebuffer& fb, const RenderNode& node, const RenderState& state, const GridPlaneShape& shape);
 
 void render_mesh_wireframe(Framebuffer& fb, const Mesh& mesh, const Mat4& model,
                            const Mat4& view, const Mat4& proj, const Color& color);
 
 void draw_transformed_shape(Framebuffer& fb, const Shape& shape, const Mat4& model, const Color& color,
                              f32 spread = 0.0f, const RenderState* state = nullptr);
+
+void draw_glass_panel(Framebuffer& fb, const Framebuffer& src, const Shape& shape, const Mat4& model, f32 opacity, const RenderState* state);
+
 
 raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 spread = 0.0f);
 bool hit_test(const Shape& s, Vec2 p, f32 spread = 0.0f);

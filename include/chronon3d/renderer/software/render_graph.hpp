@@ -130,6 +130,12 @@ public:
                                     NodeId input,
                                     const Layer& layer);
 
+    [[nodiscard]] NodeId add_glass(std::string label,
+                                   RenderCacheKey key,
+                                   NodeId input,
+                                   const Layer& layer);
+
+
     [[nodiscard]] NodeId add_composite(std::string label,
                                        RenderCacheKey key,
                                        NodeId bottom,
