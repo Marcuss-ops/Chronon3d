@@ -77,16 +77,18 @@ static Composition Fake3DStudioProof() {
             .contact_shadow = true
         });
 
-        // TILT text: Premium look
+        // CHRONON text in world space (camera projects to upper-center of screen)
         s.fake_extruded_text_layer("tilt", {
-            .text        = "CHRONON",
-            .pos         = {640, 160, 0},
-            .font_size   = 90,
-            .depth       = 12,
-            .extrude_dir = {1.5f, 1.5f},
-            .front_color = Color{0.98f, 0.98f, 0.98f, 1.0f},
-            .side_color  = Color{0.45f, 0.45f, 0.45f, 1.0f},
-            .align       = TextAlign::Center
+            .text              = "CHRONON",
+            .pos               = {0, 200, -50},
+            .font_size         = 90,
+            .depth             = 32,
+            .extrude_dir       = {0.8f, 1.0f},
+            .extrude_z_step    = 1.2f,
+            .front_color       = Color{0.97f, 0.96f, 0.92f, 1.0f},
+            .side_color        = Color{0.50f, 0.45f, 0.38f, 0.85f},
+            .align             = TextAlign::Center,
+            .highlight_opacity = 0.09f
         });
 
         // Global bloom: Soft but present

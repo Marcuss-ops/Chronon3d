@@ -210,6 +210,73 @@ void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node, const 
         return;
     }
 
+    if (node.shape.type == ShapeType::FakeExtrudedText) {
+        const auto& s = node.shape.fake_extruded_text;
+        const f32 op = state.opacity;
+
+        auto draw_at = [&](Vec2 sp, Color c) {
+            TextShape ts;
+            ts.text = s.text;
+            ts.style.font_path = s.font_path;
+            ts.style.size  = s.font_size;
+            ts.style.color = c;
+            ts.style.align = s.align;
+            Transform tr;
+            tr.position = Vec3(sp.x, sp.y, 0.0f);
+            tr.opacity  = c.a;
+            m_text_renderer.draw_text(ts, tr, fb, &state);
+        };
+
+        // Compute screen position for each side layer
+        auto side_screen = [&](int i, bool& ok) -> Vec2 {
+            const f32 fi = static_cast<f32>(i);
+            if (s.cam_ready) {
+                const Vec3 wp = s.world_pos + Vec3{
+                    s.extrude_dir.x * fi,
+                    s.extrude_dir.y * fi,
+                    s.extrude_z_step * fi
+                };
+                return renderer::project_2_5d(wp, s.cam_view, s.cam_focal, s.vp_cx, s.vp_cy, ok);
+            } else {
+                // Screen-space fallback: world_pos.xy treated as screen coords
+                ok = true;
+                return Vec2{s.world_pos.x + s.extrude_dir.x * fi,
+                            s.world_pos.y + s.extrude_dir.y * fi};
+            }
+        };
+        auto front_screen = [&](bool& ok) -> Vec2 {
+            if (s.cam_ready)
+                return renderer::project_2_5d(s.world_pos, s.cam_view, s.cam_focal, s.vp_cx, s.vp_cy, ok);
+            ok = true;
+            return Vec2{s.world_pos.x, s.world_pos.y};
+        };
+
+        for (int i = s.depth; i >= 1; --i) {
+            bool ok;
+            Vec2 sp = side_screen(i, ok);
+            if (!ok) continue;
+
+            const f32 k = static_cast<f32>(i) / static_cast<f32>(s.depth);
+            Color sc = s.side_color;
+            sc.r = std::max(0.0f, sc.r - 0.18f * k);
+            sc.g = std::max(0.0f, sc.g - 0.18f * k);
+            sc.b = std::max(0.0f, sc.b - 0.18f * k);
+            sc.a = s.side_color.a * (1.0f - s.side_fade * k) * op;
+            draw_at(sp, sc);
+        }
+
+        bool ok_f;
+        Vec2 front = front_screen(ok_f);
+        if (ok_f) {
+            Color fc = s.front_color;
+            fc.a *= op;
+            draw_at(front, fc);
+            if (s.highlight_opacity > 0.0f)
+                draw_at(front + Vec2{0, -1}, Color{1, 1, 1, s.highlight_opacity * op});
+        }
+        return;
+    }
+
     if (node.shape.type == ShapeType::FakeBox3D) {
         auto s = node.shape.fake_box3d;
         if (!s.cam_ready) {

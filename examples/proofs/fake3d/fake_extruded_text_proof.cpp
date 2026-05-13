@@ -61,14 +61,15 @@ static Composition FakeExtrudedTextProof() {
             });
         });
         s.fake_extruded_text_layer("text_d8", {
-            .text         = "TILT",
-            .pos          = {640, 360, 0},
-            .font_size    = 100,
-            .depth        = 8,
-            .extrude_dir  = {1.5f, 1.5f},
-            .front_color  = Color{0.95f, 0.94f, 0.90f, 1.0f},
-            .side_color   = Color{0.52f, 0.46f, 0.38f, 1.0f},
-            .align        = TextAlign::Center
+            .text              = "TILT",
+            .pos               = {640, 360, 0},
+            .font_size         = 100,
+            .depth             = 8,
+            .extrude_dir       = {1.5f, 1.5f},
+            .extrude_z_step    = 0.0f,
+            .front_color       = Color{0.95f, 0.94f, 0.90f, 1.0f},
+            .side_color        = Color{0.52f, 0.46f, 0.38f, 1.0f},
+            .align             = TextAlign::Center
         });
 
         // depth 20
@@ -81,14 +82,15 @@ static Composition FakeExtrudedTextProof() {
             });
         });
         s.fake_extruded_text_layer("text_d20", {
-            .text         = "TILT",
-            .pos          = {1000, 360, 0},
-            .font_size    = 100,
-            .depth        = 20,
-            .extrude_dir  = {1.5f, 1.5f},
-            .front_color  = Color{0.95f, 0.94f, 0.90f, 1.0f},
-            .side_color   = Color{0.52f, 0.46f, 0.38f, 1.0f},
-            .align        = TextAlign::Center
+            .text              = "TILT",
+            .pos               = {1000, 360, 0},
+            .font_size         = 100,
+            .depth             = 20,
+            .extrude_dir       = {1.5f, 1.5f},
+            .extrude_z_step    = 0.0f,
+            .front_color       = Color{0.95f, 0.94f, 0.90f, 1.0f},
+            .side_color        = Color{0.52f, 0.46f, 0.38f, 1.0f},
+            .align             = TextAlign::Center
         });
 
         return s.build();

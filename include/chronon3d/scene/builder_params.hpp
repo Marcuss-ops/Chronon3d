@@ -61,11 +61,13 @@ struct FakeExtrudedTextParams {
     std::string font_path{"assets/fonts/Inter-Bold.ttf"};
     Vec3  pos{0, 0, 0};
     f32   font_size{80.0f};
-    int   depth{12};               // number of offset steps
-    Vec2  extrude_dir{1.5f, 1.5f}; // screen-space px per step
-    Color front_color{1, 1, 1, 1};
-    Color side_color{0.58f, 0.52f, 0.46f, 1};
+    int   depth{32};
+    Vec2  extrude_dir{0.8f, 1.0f};  // world-space X/Y per step
+    f32   extrude_z_step{1.2f};
+    Color front_color{0.96f, 0.94f, 0.88f, 1.0f};
+    Color side_color{0.55f, 0.50f, 0.43f, 0.85f};
     TextAlign align{TextAlign::Center};
+    f32   highlight_opacity{0.09f};
 };
 
 struct FakeBox3DParams {
