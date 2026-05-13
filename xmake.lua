@@ -100,7 +100,7 @@ target("chronon3d_pipeline")
 -- Examples Library (Host for auto-registration)
 target("chronon3d_examples_lib")
     set_kind("static")
-    add_files("examples/*.cpp")
+    add_files("examples/proofs/*.cpp", "examples/demos/*.cpp", "examples/basics/*.cpp", "examples/debug/*.cpp")
     add_deps("chronon3d", "chronon3d_renderer")
     add_packages("meshoptimizer", "xxhash", "fmt")
 

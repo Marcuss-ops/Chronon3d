@@ -284,7 +284,9 @@ template <typename T>
     u64 seed = hash_value_local(camera.enabled);
     seed = hash_combine(seed, hash_vec3(camera.position));
     seed = hash_combine(seed, hash_vec3(camera.point_of_interest));
+    seed = hash_combine(seed, hash_value_local(static_cast<u64>(camera.projection_mode)));
     seed = hash_combine(seed, hash_value_local(camera.zoom));
+    seed = hash_combine(seed, hash_value_local(camera.fov_deg));
     seed = hash_combine(seed, hash_value_local(camera.dof.enabled));
     seed = hash_combine(seed, hash_value_local(camera.dof.focus_z));
     seed = hash_combine(seed, hash_value_local(camera.dof.aperture));
