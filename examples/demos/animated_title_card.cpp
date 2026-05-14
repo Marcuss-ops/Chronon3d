@@ -11,8 +11,7 @@ using namespace chronon3d;
 //   5–35  decorative circles fade in          (glow)
 //  20–45  subtitle strip fades in             (sequence + held_progress)
 //  60–89  global fade-out
-
-static Composition AnimatedTitleCard() {
+Composition AnimatedTitleCard() {
     CompositionSpec spec{
         .name = "AnimatedTitleCard",
         .width = 800,

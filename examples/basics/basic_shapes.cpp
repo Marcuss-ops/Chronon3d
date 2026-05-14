@@ -1,8 +1,7 @@
 #include <chronon3d/chronon3d.hpp>
 
 using namespace chronon3d;
-
-static Composition BasicShapes() {
+Composition BasicShapes() {
     CompositionSpec spec{
         .name = "BasicShapes",
         .width = 512,

@@ -3,8 +3,7 @@
 #include <vector>
 
 using namespace chronon3d;
-
-static Composition DebugProjection() {
+Composition DebugProjection() {
     return composition({
         .name = "DebugProjection",
         .width = 1280,

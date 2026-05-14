@@ -3,8 +3,7 @@
 #include <chronon3d/presets/studio_presets.hpp>
 
 using namespace chronon3d;
-
-static Composition PremiumLookProof() {
+Composition PremiumLookProof() {
     CompositionSpec spec;
     spec.name = "PremiumLookProof";
     spec.width = 1280;

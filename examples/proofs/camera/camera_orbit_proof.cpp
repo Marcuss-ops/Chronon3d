@@ -2,8 +2,7 @@
 #include <cmath>
 
 using namespace chronon3d;
-
-static Composition CameraOrbitProof() {
+Composition CameraOrbitProof() {
     return composition({
         .name = "CameraOrbitProof",
         .width = 1280,

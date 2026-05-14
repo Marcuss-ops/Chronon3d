@@ -62,9 +62,16 @@ rendergraph::RenderGraph build_software_render_graph(
     scene_hash = hash_combine(scene_hash, hash_camera(camera));
     scene_hash = hash_combine(scene_hash, hash_camera_2_5d(scene.camera_2_5d()));
 
+    // Legacy renderer path keeps scene coordinates in pixel space.
+    // SSAA still scales the virtual framebuffer, but origin stays top-left.
+    Mat4 canvas_scale = math::scale(Vec3(renderer.settings().ssaa_factor,
+                                         renderer.settings().ssaa_factor,
+                                         1.0f));
+    RenderState base_state{canvas_scale, 1.0f};
+
     RenderCacheKey canvas_key = make_key("canvas", frame, width, height,
                                          hash_combine(scene_hash, frame_time_hash));
-    NodeId current = graph.add_output("canvas", canvas_key);
+    NodeId current = graph.add_output("canvas", canvas_key, base_state);
     u64 current_hash = canvas_key.digest();
 
     auto append_root_source = [&](const ::chronon3d::RenderNode& node, NodeId input) {
@@ -74,8 +81,7 @@ rendergraph::RenderGraph build_software_render_graph(
                                                          hash_combine(scene_hash, frame_time_hash)),
                                             node_hash, current_hash);
         NodeId transformed = graph.add_transform(std::string(node.name) + ".transform",
-                                                 transform_key, input, node.world_transform,
-                                                 RenderState{Mat4(1.0f), 1.0f});
+                                                 transform_key, input, node.world_transform);
         current_hash = transform_key.digest();
 
         const auto source_key = make_key("root.source", frame, width, height,
@@ -103,8 +109,7 @@ rendergraph::RenderGraph build_software_render_graph(
                                                          hash_combine(scene_hash, frame_time_hash)),
                                             layer_hash, current_hash);
         NodeId transformed = graph.add_transform(scope_prefix + ".transform",
-                                                 transform_key, input, transform,
-                                                 RenderState{Mat4(1.0f), 1.0f});
+                                                 transform_key, input, transform);
         current_hash = transform_key.digest();
 
         const auto source_key = make_key(scope_prefix + ".source", frame, width, height,
@@ -166,8 +171,19 @@ rendergraph::RenderGraph build_software_render_graph(
     }
 
     ResolvedCamera resolved_cam;
-    const auto resolved_layers = resolve_layer_hierarchy(
-        scene.layers(), frame, scene.resource(), &scene.camera_2_5d(), &resolved_cam);
+    std::pmr::vector<ResolvedLayer> resolved_layers{scene.resource()};
+    if (scene.hierarchy_resolved()) {
+        resolved_cam.camera = scene.camera_2_5d();
+        resolved_layers.resize(scene.layers().size());
+        for (usize i = 0; i < scene.layers().size(); ++i) {
+            resolved_layers[i].layer = &scene.layers()[i];
+            resolved_layers[i].world_transform = scene.layers()[i].transform;
+            resolved_layers[i].insertion_index = i;
+        }
+    } else {
+        resolved_layers = resolve_layer_hierarchy(
+            scene.layers(), frame, scene.resource(), &scene.camera_2_5d(), &resolved_cam);
+    }
     const Camera2_5D& cam25 = resolved_cam.camera;
 
     struct LayerRenderItem {
@@ -200,8 +216,7 @@ rendergraph::RenderGraph build_software_render_graph(
                                                          hash_combine(scene_hash, frame_time_hash)),
                                             layer_hash, current_hash);
             NodeId xformed = graph.add_transform(std::string(layer.name) + ".glass.transform",
-                                                 xform_key, current, resolved.world_transform,
-                                                 RenderState{Mat4(1.0f), 1.0f});
+                                                 xform_key, current, resolved.world_transform);
             current_hash = xform_key.digest();
 
             const auto glass_key = make_key(std::string(layer.name) + ".glass", frame, width, height,
@@ -240,23 +255,23 @@ rendergraph::RenderGraph build_software_render_graph(
         for (auto& item : three_d_layers) {
             for (auto& nd : item.layer.nodes) {
                 if (nd.shape.type == ShapeType::FakeBox3D) {
-                    nd.shape.fake_box3d.cam_ready = true;
-                    nd.shape.fake_box3d.cam_view  = fake3d_view;
-                    nd.shape.fake_box3d.cam_focal  = fake3d_focal;
-                    nd.shape.fake_box3d.vp_cx      = vp_cx;
-                    nd.shape.fake_box3d.vp_cy      = vp_cy;
+                    nd.fake_box3d_runtime.cam_ready = true;
+                    nd.fake_box3d_runtime.cam_view  = fake3d_view;
+                    nd.fake_box3d_runtime.cam_focal  = fake3d_focal;
+                    nd.fake_box3d_runtime.vp_cx      = vp_cx;
+                    nd.fake_box3d_runtime.vp_cy      = vp_cy;
                 } else if (nd.shape.type == ShapeType::GridPlane) {
-                    nd.shape.grid_plane.cam_ready = true;
-                    nd.shape.grid_plane.cam_view  = fake3d_view;
-                    nd.shape.grid_plane.cam_focal  = fake3d_focal;
-                    nd.shape.grid_plane.vp_cx      = vp_cx;
-                    nd.shape.grid_plane.vp_cy      = vp_cy;
+                    nd.grid_plane_runtime.cam_ready = true;
+                    nd.grid_plane_runtime.cam_view  = fake3d_view;
+                    nd.grid_plane_runtime.cam_focal  = fake3d_focal;
+                    nd.grid_plane_runtime.vp_cx      = vp_cx;
+                    nd.grid_plane_runtime.vp_cy      = vp_cy;
                 } else if (nd.shape.type == ShapeType::FakeExtrudedText) {
-                    nd.shape.fake_extruded_text.cam_ready = true;
-                    nd.shape.fake_extruded_text.cam_view  = fake3d_view;
-                    nd.shape.fake_extruded_text.cam_focal  = fake3d_focal;
-                    nd.shape.fake_extruded_text.vp_cx      = vp_cx;
-                    nd.shape.fake_extruded_text.vp_cy      = vp_cy;
+                    nd.fake_extruded_text_runtime.cam_ready = true;
+                    nd.fake_extruded_text_runtime.cam_view  = fake3d_view;
+                    nd.fake_extruded_text_runtime.cam_focal  = fake3d_focal;
+                    nd.fake_extruded_text_runtime.vp_cx      = vp_cx;
+                    nd.fake_extruded_text_runtime.vp_cy      = vp_cy;
                 }
             }
         }

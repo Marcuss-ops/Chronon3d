@@ -6,7 +6,7 @@
 using namespace chronon3d;
 
 // 1. Test SSAA — quadrato rosso su nero (MASSIMO CONTRASTO)
-static Composition VisualTest_SSAA() {
+Composition VisualTest_SSAA() {
     CompositionSpec spec;
     spec.name = "VisualTest_SSAA";
     spec.width = 400;
@@ -29,7 +29,7 @@ static Composition VisualTest_SSAA() {
 }
 
 // 2. Test Floor Reflection
-static Composition VisualTest_Reflection() {
+Composition VisualTest_Reflection() {
     CompositionSpec spec;
     spec.name = "VisualTest_Reflection";
     spec.width = 800;
@@ -68,7 +68,7 @@ static Composition VisualTest_Reflection() {
 }
 
 // 3. Test Glassmorphism
-static Composition VisualTest_Glass() {
+Composition VisualTest_Glass() {
     CompositionSpec spec;
     spec.name = "VisualTest_Glass";
     spec.width = 800;
@@ -96,7 +96,7 @@ static Composition VisualTest_Glass() {
 }
 
 // 4. Test Easing Curves
-static Composition VisualTest_Easing() {
+Composition VisualTest_Easing() {
     CompositionSpec spec;
     spec.name = "VisualTest_Easing";
     spec.width = 800;
@@ -126,7 +126,7 @@ static Composition VisualTest_Easing() {
 }
 
 // 5. Test Wiggle
-static Composition VisualTest_Wiggle() {
+Composition VisualTest_Wiggle() {
     CompositionSpec spec;
     spec.name = "VisualTest_Wiggle";
     spec.width = 800;

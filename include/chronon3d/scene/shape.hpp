@@ -87,12 +87,6 @@ struct FakeBox3DShape {
     Color color{1, 1, 1, 1};
     f32   top_tint{0.15f};      // brighten top face by this amount
     f32   side_tint{0.20f};     // darken side faces by this amount
-    // Injected at render time by build_render_graph:
-    bool  cam_ready{false};
-    Mat4  cam_view{1.0f};
-    f32   cam_focal{1000.0f};
-    f32   vp_cx{640};
-    f32   vp_cy{360};
 };
 
 struct GridPlaneShape {
@@ -103,12 +97,6 @@ struct GridPlaneShape {
     Color     color{1, 1, 1, 0.25f};
     f32       fade_distance{1800.0f};
     f32       fade_min_alpha{0.0f};
-    // Injected at render time:
-    bool  cam_ready{false};
-    Mat4  cam_view{1.0f};
-    f32   cam_focal{1000.0f};
-    f32   vp_cx{640};
-    f32   vp_cy{360};
 };
 
 struct FakeExtrudedTextShape {
@@ -128,13 +116,6 @@ struct FakeExtrudedTextShape {
     f32   side_fade{0.25f};          // how much to fade side alpha toward deepest step
     f32   highlight_opacity{0.09f};
     f32   bevel_size{1.5f};
-
-    // Injected at render time by build_render_graph:
-    bool  cam_ready{false};
-    Mat4  cam_view{1.0f};
-    f32   cam_focal{1000.0f};
-    f32   vp_cx{640};
-    f32   vp_cy{360};
 };
 
 struct Shape {

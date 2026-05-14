@@ -2,8 +2,7 @@
 #include <chronon3d/core/composition_registration.hpp>
 
 using namespace chronon3d;
-
-static Composition AxisDebug() {
+Composition AxisDebug() {
     CompositionSpec spec{
         .name = "AxisDebug",
         .width = 512,

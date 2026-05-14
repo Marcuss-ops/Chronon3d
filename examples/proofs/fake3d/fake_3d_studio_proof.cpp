@@ -16,7 +16,7 @@ using namespace chronon3d;
  *   - Studio-grade background and grid
  *   - Camera orbit with soft bloom
  */
-static Composition Fake3DStudioProof() {
+Composition Fake3DStudioProof() {
     return composition({
         .name     = "Fake3DStudioProof",
         .width    = 1280,

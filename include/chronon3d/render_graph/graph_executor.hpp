@@ -1,8 +1,7 @@
 #pragma once
 
 #include <chronon3d/render_graph/render_graph.hpp>
-#include <robin_hood.h>
-#include <enkiTS/TaskScheduler.h>
+#include <unordered_map>
 
 namespace chronon3d::graph {
 
@@ -23,9 +22,8 @@ public:
     }
 
 private:
-    enki::TaskScheduler m_scheduler;
-    robin_hood::unordered_flat_map<GraphNodeId, std::shared_ptr<Framebuffer>> m_temp;
-    robin_hood::unordered_flat_map<GraphNodeId, u64> m_resolved_key_digest;
+    std::unordered_map<GraphNodeId, std::shared_ptr<Framebuffer>> m_temp;
+    std::unordered_map<GraphNodeId, u64> m_resolved_key_digest;
 
     std::shared_ptr<Framebuffer> execute_node(
         RenderGraph& graph,
