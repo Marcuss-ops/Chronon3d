@@ -5,15 +5,10 @@
 #include <string>
 #include <vector>
 #include <filesystem>
+#include "cli_utils.hpp"
 
 namespace chronon3d {
 namespace cli {
-
-struct FrameRange {
-    int64_t start{0};
-    int64_t end{0};
-    int64_t step{1};
-};
 
 struct RenderArgs {
     std::string comp_id;
@@ -64,7 +59,6 @@ struct GraphArgs {
     std::string output{"output/graph.dot"};
 };
 
-
 int command_list(const CompositionRegistry& registry);
 int command_info(const CompositionRegistry& registry, const std::string& id);
 int command_render(const CompositionRegistry& registry, const RenderArgs& args);
@@ -73,10 +67,6 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args);
 int command_graph(const CompositionRegistry& registry, const GraphArgs& args);
 int command_batch(const CompositionRegistry& registry, const std::string& config_path);
 int command_watch(const CompositionRegistry& registry, const std::string& comp_id);
-
-// Internal helpers
-FrameRange  parse_frames(const std::string& s);
-std::string format_path(const std::string& pattern, int64_t frame, bool is_range = false);
 
 } // namespace cli
 } // namespace chronon3d
