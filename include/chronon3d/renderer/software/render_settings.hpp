@@ -6,8 +6,8 @@ namespace chronon3d {
 
 struct RenderSettings {
     /**
-     * If true, uses the new modular graph system (GraphBuilder/GraphExecutor).
-     * If false, uses the legacy rendergraph pipeline.
+     * Deprecated — kept for CLI/test compatibility. Has no effect.
+     * The rendergraph pipeline is now the only execution path.
      */
     bool use_modular_graph{false};
 
