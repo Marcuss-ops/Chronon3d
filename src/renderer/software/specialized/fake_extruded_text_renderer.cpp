@@ -5,7 +5,7 @@
 #include <stb_truetype.h>
 #include <mapbox/earcut.hpp>
 #include <fmt/format.h>
-#include <glm/gtc/constants.hpp>
+#include <chronon3d/math/constants.hpp>
 #include <algorithm>
 #include <cmath>
 #include <vector>
@@ -149,7 +149,8 @@ void FakeExtrudedTextRenderer::draw(
     const f32 op = state.opacity;
 
     // ── SCREEN-SPACE FALLBACK (no camera) ─────────────────────────────────
-    if (!s.cam_ready) {
+    const auto& rt = node.fake_extruded_text_runtime;
+    if (!rt.cam_ready) {
         const Vec2 front_sp{s.world_pos.x, s.world_pos.y};
         Vec2 dir{s.extrude_dir.x, s.extrude_dir.y};
         const f32 dir_len = std::sqrt(dir.x*dir.x + dir.y*dir.y);
@@ -336,7 +337,7 @@ void FakeExtrudedTextRenderer::draw(
 
                     if (s.bevel_size > 0.01f) {
                         // Curved bevel: k_bevel_n rings with circular arc profile
-                        const float pi_half = glm::pi<float>() * 0.5f;
+                        const float pi_half = math::half_pi;
                         for (int bi = 0; bi < k_bevel_n; ++bi) {
                             float t0 = (float)bi / k_bevel_n;
                             float t1 = (float)(bi + 1) / k_bevel_n;

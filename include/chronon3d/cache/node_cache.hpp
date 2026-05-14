@@ -6,7 +6,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
-#include <robin_hood.h>
+#include <unordered_map>
 #include <list>
 #include <mutex>
 
@@ -71,7 +71,7 @@ private:
     };
 
     mutable std::unique_ptr<std::mutex> m_mutex;
-    robin_hood::unordered_flat_map<u64, Entry> m_entries;
+    std::unordered_map<u64, Entry> m_entries;
     std::list<u64> m_lru_list;
     
     usize m_capacity_bytes;

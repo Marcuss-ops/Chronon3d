@@ -1,8 +1,10 @@
 #include "../commands.hpp"
+#include <spdlog/spdlog.h>
+
+#ifdef CHRONON_WITH_VIDEO
 #include <chronon3d/video/ffmpeg_encoder.hpp>
 #include <chronon3d/specscene/specscene.hpp>
 #include <chronon3d/renderer/software/software_renderer.hpp>
-#include <spdlog/spdlog.h>
 #include <filesystem>
 #include <chrono>
 
@@ -98,3 +100,14 @@ int command_video(const CompositionRegistry& registry, const VideoArgs& args) {
 
 } // namespace cli
 } // namespace chronon3d
+
+#else
+
+namespace chronon3d::cli {
+int command_video(const CompositionRegistry&, const VideoArgs&) {
+    spdlog::error("Chronon3D was built without video support (CHRONON_WITH_VIDEO).");
+    return 1;
+}
+}
+
+#endif

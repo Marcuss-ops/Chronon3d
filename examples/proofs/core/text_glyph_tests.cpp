@@ -74,8 +74,7 @@ static const float kTextTopY   = 350.f;
 static const float kBaseline   = kTextTopY + 95.f;   // 445
 static const float kCapLine    = kBaseline - 70.f;    // 375
 static const float kDescLine   = kBaseline + 25.f;    // 470
-
-static Composition TextGlyph01_BaselineAscendersDescenders() {
+Composition TextGlyph01_BaselineAscendersDescenders() {
     return composition({
         .name = "TextGlyph01_BaselineAscendersDescenders",
         .width = kW, .height = kH, .duration = 1
@@ -101,8 +100,7 @@ static Composition TextGlyph01_BaselineAscendersDescenders() {
 }
 
 // ── 02  Kerning Pairs ─────────────────────────────────────────────────────────
-
-static Composition TextGlyph02_KerningPairs() {
+Composition TextGlyph02_KerningPairs() {
     return composition({
         .name = "TextGlyph02_KerningPairs",
         .width = kW, .height = kH, .duration = 1
@@ -132,8 +130,7 @@ static Composition TextGlyph02_KerningPairs() {
 }
 
 // ── 03  Glyph Coverage: Accents & Symbols ────────────────────────────────────
-
-static Composition TextGlyph03_GlyphCoverageAccentsSymbols() {
+Composition TextGlyph03_GlyphCoverageAccentsSymbols() {
     return composition({
         .name = "TextGlyph03_GlyphCoverageAccentsSymbols",
         .width = kW, .height = kH, .duration = 1
@@ -188,8 +185,7 @@ static Composition TextGlyph03_GlyphCoverageAccentsSymbols() {
 }
 
 // ── 04  Multiline Wrap & Alignment ───────────────────────────────────────────
-
-static Composition TextGlyph04_MultilineWrapAlignment() {
+Composition TextGlyph04_MultilineWrapAlignment() {
     return composition({
         .name = "TextGlyph04_MultilineWrapAlignment",
         .width = kW, .height = kH, .duration = 1
@@ -227,8 +223,7 @@ static Composition TextGlyph04_MultilineWrapAlignment() {
 }
 
 // ── 05  Stroke / Shadow / Glow / Readability ─────────────────────────────────
-
-static Composition TextGlyph05_StrokeShadowGlowReadability() {
+Composition TextGlyph05_StrokeShadowGlowReadability() {
     return composition({
         .name = "TextGlyph05_StrokeShadowGlowReadability",
         .width = kW, .height = kH, .duration = 1
@@ -268,8 +263,7 @@ static Composition TextGlyph05_StrokeShadowGlowReadability() {
 }
 
 // ── 06  Alpha Blending / Text Opacity ────────────────────────────────────────
-
-static Composition TextGlyph06_AlphaBlendingTextOpacity() {
+Composition TextGlyph06_AlphaBlendingTextOpacity() {
     return composition({
         .name = "TextGlyph06_AlphaBlendingTextOpacity",
         .width = kW, .height = kH, .duration = 1
@@ -339,8 +333,7 @@ static Composition TextGlyph06_AlphaBlendingTextOpacity() {
 }
 
 // ── 07  Positioning / Fractional Pixels ──────────────────────────────────────
-
-static Composition TextGlyph07_PositioningFractionalPixels() {
+Composition TextGlyph07_PositioningFractionalPixels() {
     return composition({
         .name = "TextGlyph07_PositioningFractionalPixels",
         .width = kW, .height = kH, .duration = 1
@@ -374,8 +367,7 @@ static Composition TextGlyph07_PositioningFractionalPixels() {
 }
 
 // ── 08  Mixed Scripts / Fallback ─────────────────────────────────────────────
-
-static Composition TextGlyph08_MixedScriptsFallback() {
+Composition TextGlyph08_MixedScriptsFallback() {
     return composition({
         .name = "TextGlyph08_MixedScriptsFallback",
         .width = kW, .height = kH, .duration = 1

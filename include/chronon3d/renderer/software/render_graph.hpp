@@ -32,7 +32,15 @@ using RenderPassKind = render_graph::RenderPassKind;
 using RenderCacheKey = render_graph::RenderCacheKey;
 using RenderCacheKeyHash = render_graph::RenderCacheKeyHash;
 using RenderPassResult = render_graph::RenderPassResult;
-using RenderGraphExecutionContext = render_graph::RenderGraphExecutionContext;
+struct RenderGraphExecutionContext {
+    SoftwareRenderer& renderer;
+    const Camera& camera;
+    Frame frame{0};
+    i32 width{0};
+    i32 height{0};
+    bool diagnostic{false};
+    float ssaa_factor{1.0f};
+};
 
 // Move implementation-heavy structures to their own namespace later if needed
 struct RenderGraphExecutionState {
@@ -66,13 +74,13 @@ public:
     using PassExecutor = std::function<RenderPassResult(RenderGraphExecutionContext&, RenderGraphExecutionState&, NodeId)>;
 
     [[nodiscard]] NodeId add_output(std::string label,
-                                    RenderCacheKey key);
+                                    RenderCacheKey key,
+                                    RenderState state = {Mat4(1.0f), 1.0f});
 
     [[nodiscard]] NodeId add_transform(std::string label,
                                        RenderCacheKey key,
                                        NodeId input,
-                                       Transform transform,
-                                       RenderState base_state);
+                                       Transform transform);
 
     [[nodiscard]] NodeId add_source(std::string label,
                                     RenderCacheKey key,

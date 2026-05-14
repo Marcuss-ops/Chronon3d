@@ -14,7 +14,7 @@ static const TextStyle kBoldCenter{
 // ---------------------------------------------------------------------------
 // TextAlignProof — Left / Center / Right alignment comparison
 // ---------------------------------------------------------------------------
-static Composition TextAlignProof() {
+Composition TextAlignProof() {
     return composition({
         .name = "TextAlignProof", .width = 900, .height = 500, .duration = 1
     }, [](const FrameContext& ctx) {
@@ -42,7 +42,7 @@ CHRONON_REGISTER_COMPOSITION("TextAlignProof", TextAlignProof)
 // ---------------------------------------------------------------------------
 // BlurProof — progressive blur levels
 // ---------------------------------------------------------------------------
-static Composition BlurProof() {
+Composition BlurProof() {
     return composition({
         .name = "BlurProof", .width = 1100, .height = 500, .duration = 1
     }, [](const FrameContext& ctx) {
@@ -72,7 +72,7 @@ CHRONON_REGISTER_COMPOSITION("BlurProof", BlurProof)
 // ---------------------------------------------------------------------------
 // TintProof — color tint overlay
 // ---------------------------------------------------------------------------
-static Composition TintProof() {
+Composition TintProof() {
     return composition({
         .name = "TintProof", .width = 900, .height = 500, .duration = 1
     }, [](const FrameContext& ctx) {
@@ -101,7 +101,7 @@ CHRONON_REGISTER_COMPOSITION("TintProof", TintProof)
 // ---------------------------------------------------------------------------
 // BrightnessContrastProof
 // ---------------------------------------------------------------------------
-static Composition BrightnessContrastProof() {
+Composition BrightnessContrastProof() {
     return composition({
         .name = "BrightnessContrastProof", .width = 1000, .height = 500, .duration = 1
     }, [](const FrameContext& ctx) {
@@ -134,7 +134,7 @@ CHRONON_REGISTER_COMPOSITION("BrightnessContrastProof", BrightnessContrastProof)
 // ---------------------------------------------------------------------------
 // BlendModeProof — Normal / Screen / Multiply / Overlay / Add
 // ---------------------------------------------------------------------------
-static Composition BlendModeProof() {
+Composition BlendModeProof() {
     return composition({
         .name = "BlendModeProof", .width = 1100, .height = 500, .duration = 1
     }, [](const FrameContext& ctx) {
@@ -170,7 +170,7 @@ CHRONON_REGISTER_COMPOSITION("BlendModeProof", BlendModeProof)
 // ---------------------------------------------------------------------------
 // AnimatedBlurRevealProof — blur dissolves from 20 to 0 as card reveals
 // ---------------------------------------------------------------------------
-static Composition AnimatedBlurRevealProof() {
+Composition AnimatedBlurRevealProof() {
     return composition({
         .name = "AnimatedBlurRevealProof", .width = 1280, .height = 720, .duration = 90
     }, [](const FrameContext& ctx) {
