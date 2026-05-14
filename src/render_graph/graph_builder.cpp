@@ -2,7 +2,9 @@
 #include <chronon3d/render_graph/nodes/basic_nodes.hpp>
 #include <chronon3d/render_graph/nodes/precomp_node.hpp>
 #include <chronon3d/render_graph/nodes/transform_node.hpp>
+#ifdef CHRONON_WITH_VIDEO
 #include <chronon3d/render_graph/nodes/video_node.hpp>
+#endif
 #include <chronon3d/render_graph/render_graph_hashing.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/scene/layer/layer.hpp>
@@ -36,6 +38,7 @@ void GraphBuilder::append_layer_pipeline(
             layer.from,
             layer.duration
         ));
+#ifdef CHRONON_WITH_VIDEO
     } else {
         // LayerKind::Video
         layer_output = graph.add_node(std::make_unique<VideoNode>(
@@ -44,6 +47,13 @@ void GraphBuilder::append_layer_pipeline(
             layer.from
         ));
     }
+#else
+    } else {
+        // Video layers are compiled out in the default build.
+        // Keep the pipeline transparent so non-video builds stay linkable.
+        layer_output = graph.add_node(std::make_unique<ClearNode>());
+    }
+#endif
 
     // Transform — use the (possibly projected) transform.
     // Always add a TransformNode for projected layers; for 2D layers only if
@@ -145,13 +155,24 @@ RenderGraph GraphBuilder::build(const Scene& scene, const RenderGraphContext& ct
 
     // ── Resolve Layer Hierarchy ──
     ResolvedCamera resolved_cam;
-    const auto resolved_layers = resolve_layer_hierarchy(
-        scene.layers(),
-        ctx.frame,
-        scene.resource(),
-        &input_cam,
-        &resolved_cam
-    );
+    std::pmr::vector<ResolvedLayer> resolved_layers{scene.resource()};
+    if (scene.hierarchy_resolved()) {
+        resolved_cam.camera = input_cam;
+        resolved_layers.resize(scene.layers().size());
+        for (usize i = 0; i < scene.layers().size(); ++i) {
+            resolved_layers[i].layer = &scene.layers()[i];
+            resolved_layers[i].world_transform = scene.layers()[i].transform;
+            resolved_layers[i].insertion_index = i;
+        }
+    } else {
+        resolved_layers = resolve_layer_hierarchy(
+            scene.layers(),
+            ctx.frame,
+            scene.resource(),
+            &input_cam,
+            &resolved_cam
+        );
+    }
 
     const Camera2_5D& cam25d = resolved_cam.camera;
 
