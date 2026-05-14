@@ -3,7 +3,7 @@
 #include <chronon3d/renderer/software/renderer.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/math/transform.hpp>
-#include <chronon3d/renderer/software/framebuffer.hpp>
+#include <chronon3d/core/framebuffer.hpp>
 #include <chronon3d/scene/shape.hpp>
 #include <chronon3d/renderer/assets/font_cache.hpp>
 

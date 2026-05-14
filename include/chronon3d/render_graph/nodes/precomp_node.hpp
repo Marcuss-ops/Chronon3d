@@ -21,7 +21,7 @@ public:
             .frame = ctx.frame - m_start_frame, // Nested frame time
             .width = ctx.width,
             .height = ctx.height,
-            .params_hash = rendergraph::hash_string(m_comp_name)
+            .params_hash = render_graph::hash_string(m_comp_name)
         };
     }
 

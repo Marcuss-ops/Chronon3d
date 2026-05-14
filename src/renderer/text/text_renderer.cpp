@@ -10,7 +10,7 @@
 #include <cmath>
 #include <algorithm>
 #include <chronon3d/math/transform.hpp>
-#include <chronon3d/renderer/software/framebuffer.hpp>
+#include <chronon3d/core/framebuffer.hpp>
 #include <spdlog/spdlog.h>
 
 namespace chronon3d {

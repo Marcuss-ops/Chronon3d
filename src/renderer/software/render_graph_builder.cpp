@@ -9,13 +9,19 @@ namespace renderer {
 
 namespace {
 
-using rendergraph::RenderCacheKey;
-using rendergraph::hash_combine;
-using rendergraph::NodeId;
+using render_graph::RenderCacheKey;
+using render_graph::hash_combine;
+using render_graph::NodeId;
+using render_graph::hash_transform;
+using render_graph::hash_bytes;
+using render_graph::hash_string;
+using render_graph::hash_vec2;
+using render_graph::hash_vec3;
+using render_graph::hash_color;
 
 template <typename T>
 [[nodiscard]] u64 hash_value_local(const T& value) {
-    return rendergraph::hash_bytes(&value, sizeof(T));
+    return render_graph::hash_bytes(&value, sizeof(T));
 }
 
 [[nodiscard]] RenderCacheKey make_key(std::string scope, Frame frame, i32 width, i32 height,
