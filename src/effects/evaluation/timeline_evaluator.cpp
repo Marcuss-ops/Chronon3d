@@ -1,7 +1,8 @@
 #include <chronon3d/evaluation/timeline_evaluator.hpp>
 #include <chronon3d/math/quat.hpp>
+#include <chronon3d/math/expression.hpp>
 #include <variant>
-#include <tinyexpr.h>
+#include <unordered_map>
 
 namespace chronon3d {
 
@@ -44,22 +45,13 @@ inline EffectStack resolve_effects(const std::vector<EffectDesc>& descs) {
 }
 
 inline f32 eval_expr(const std::string& expr, double frame, double time, double w, double h, f32 fallback) {
-    double v_frame = frame;
-    double v_time = time;
-    double v_width = w;
-    double v_height = h;
-    te_variable vars[] = { 
-        {"frame", &v_frame, 0, nullptr}, 
-        {"time", &v_time, 0, nullptr}, 
-        {"width", &v_width, 0, nullptr}, 
-        {"height", &v_height, 0, nullptr} 
+    const std::unordered_map<std::string, double> vars{
+        {"frame", frame},
+        {"time", time},
+        {"width", w},
+        {"height", h},
     };
-    int err = 0;
-    te_expr* te = te_compile(expr.c_str(), vars, 4, &err);
-    if (!te) return fallback;
-    f32 res = static_cast<f32>(te_eval(te));
-    te_free(te);
-    return res;
+    return static_cast<f32>(math::evaluate_expression(expr, vars, fallback));
 }
 
 } // namespace
@@ -116,6 +108,7 @@ EvaluatedScene TimelineEvaluator::evaluate(const SceneDescription& scene, Frame 
         cam.enabled            = true;
         cam.position           = scene.camera->position.value_at(frame);
         cam.point_of_interest  = scene.camera->point_of_interest;
+        cam.point_of_interest_enabled = scene.camera->point_of_interest_enabled;
         
         double time = static_cast<double>(frame) / (static_cast<double>(scene.frame_rate.numerator) / scene.frame_rate.denominator);
         if (scene.camera->zoom.has_expression()) {

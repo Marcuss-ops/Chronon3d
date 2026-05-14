@@ -6,7 +6,7 @@ using namespace chronon3d;
 // 1. RoundedRectProof
 //    Verifica: angoli tagliati, radius piccolo/grande/clampato, center-based.
 // ---------------------------------------------------------------------------
-static Composition RoundedRectProof() {
+Composition RoundedRectProof() {
     CompositionSpec spec{.name="RoundedRectProof", .width=800, .height=450, .duration=1};
     return Composition{spec, [](const FrameContext& ctx) {
         SceneBuilder s(ctx.resource);
@@ -29,7 +29,7 @@ CHRONON_REGISTER_COMPOSITION("RoundedRectProof", RoundedRectProof)
 // 2. ShadowProof
 //    Verifica: shadow sotto/destra, forma rounded, alpha, disabled=no shadow.
 // ---------------------------------------------------------------------------
-static Composition ShadowProof() {
+Composition ShadowProof() {
     CompositionSpec spec{.name="ShadowProof", .width=800, .height=450, .duration=1};
     return Composition{spec, [](const FrameContext& ctx) {
         SceneBuilder s(ctx.resource);
@@ -64,7 +64,7 @@ CHRONON_REGISTER_COMPOSITION("ShadowProof", ShadowProof)
 //    Verifica: glow fuori dalla shape, shape originale non cancellata,
 //              intensity=0 non visibile, colore glow corretto.
 // ---------------------------------------------------------------------------
-static Composition GlowProof() {
+Composition GlowProof() {
     CompositionSpec spec{.name="GlowProof", .width=800, .height=450, .duration=1};
     return Composition{spec, [](const FrameContext& ctx) {
         SceneBuilder s(ctx.resource);
@@ -103,7 +103,7 @@ CHRONON_REGISTER_COMPOSITION("GlowProof", GlowProof)
 // 4. VisualStackOrderProof
 //    Verifica: shadow < glow < shape < shape2 < line (Painter's Algorithm).
 // ---------------------------------------------------------------------------
-static Composition VisualStackOrderProof() {
+Composition VisualStackOrderProof() {
     CompositionSpec spec{.name="VisualStackOrderProof", .width=800, .height=450, .duration=1};
     return Composition{spec, [](const FrameContext& ctx) {
         SceneBuilder s(ctx.resource);
@@ -134,7 +134,7 @@ CHRONON_REGISTER_COMPOSITION("VisualStackOrderProof", VisualStackOrderProof)
 //    Verifica: spring + shadow + glow animati insieme su 100 frame.
 //    Frame 0: card fuori schermo. Frame 30: in arrivo. Frame 60+: stabile.
 // ---------------------------------------------------------------------------
-static Composition AnimatedVisualQualityProof() {
+Composition AnimatedVisualQualityProof() {
     CompositionSpec spec{.name="AnimatedVisualQualityProof", .width=800, .height=450, .duration=100};
     return Composition{spec, [](const FrameContext& ctx) {
         SceneBuilder s(ctx.resource);

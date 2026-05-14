@@ -12,6 +12,7 @@
 #include <chronon3d/scene/layer/render_node.hpp>
 #include <chronon3d/scene/scene.hpp>
 #include <cmath>
+#include <filesystem>
 #include <fmt/format.h>
 #include <vector>
 
@@ -128,6 +129,25 @@ namespace chronon3d {
                                             i32 height, Frame frame, f32 frame_time) {
         ZoneScoped;
 
+        if (m_settings.use_modular_graph) {
+            graph::RenderGraphContext ctx{
+                .frame = frame,
+                .time_seconds = frame_time,
+                .width = width,
+                .height = height,
+                .camera = camera,
+                .renderer = this,
+                .node_cache = &m_node_cache,
+                .registry = m_registry,
+                .ssaa_factor = m_settings.ssaa_factor
+            };
+
+            graph::RenderGraph graph = graph::GraphBuilder::build(scene, ctx);
+            graph::GraphExecutor executor;
+            auto fb_shared = executor.execute(graph, graph.output(), ctx);
+            return std::make_unique<Framebuffer>(*fb_shared);
+        }
+
         auto graph_wrapper = build_render_graph(scene, camera, width, height, frame, frame_time);
 
         rendergraph::RenderGraphExecutionContext ctx{
@@ -137,6 +157,7 @@ namespace chronon3d {
             .width = width,
             .height = height,
             .diagnostic = m_settings.diagnostic,
+            .ssaa_factor = m_settings.ssaa_factor
         };
 
         return graph_wrapper.execute(ctx);
@@ -159,6 +180,12 @@ namespace chronon3d {
         const Color linear_color = node.color.to_linear();
         const Mat4 &model = state.matrix;
         const f32 opacity = state.opacity;
+
+        if (opacity > 0.0f) {
+        // SPDLOG_INFO("draw_node {} at ({:.1f}, {:.1f}) opacity={:.2f}", std::string(node.name), model[3][0], model[3][1], opacity);
+        // FORCED DRAW: Let's see if we can draw a single white pixel at the model center
+        fb.set_pixel(static_cast<int>(model[3][0]), static_cast<int>(model[3][1]), Color::white());
+    }
 
         // Node-level effects
         if (node.shadow.enabled)
@@ -205,7 +232,7 @@ namespace chronon3d {
         }
 
         if (node.shape.type == ShapeType::FakeBox3D) {
-            auto s = node.shape.fake_box3d;
+            auto s = node.fake_box3d_runtime;
             if (!s.cam_ready) {
                 // Fallback: use legacy camera (only hit when called outside the 2.5D render path)
                 s.cam_ready = true;
@@ -215,12 +242,12 @@ namespace chronon3d {
                 s.vp_cx = fw * 0.5f;
                 s.vp_cy = static_cast<f32>(height) * 0.5f;
             }
-            renderer::draw_fake_box3d(fb, node, state, s);
+            renderer::draw_fake_box3d(fb, node, state, node.shape.fake_box3d, s);
             return;
         }
 
         if (node.shape.type == ShapeType::GridPlane) {
-            auto s = node.shape.grid_plane;
+            auto s = node.grid_plane_runtime;
             if (!s.cam_ready) {
                 s.cam_ready = true;
                 s.cam_view = camera.view_matrix();
@@ -229,7 +256,7 @@ namespace chronon3d {
                 s.vp_cx = fw * 0.5f;
                 s.vp_cy = static_cast<f32>(height) * 0.5f;
             }
-            renderer::draw_grid_plane(fb, node, state, s);
+            renderer::draw_grid_plane(fb, node, state, node.shape.grid_plane, s);
             return;
         }
 

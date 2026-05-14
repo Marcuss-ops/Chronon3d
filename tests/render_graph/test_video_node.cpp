@@ -3,6 +3,11 @@
 #include <chronon3d/render_graph/render_graph_node.hpp>
 #include <chronon3d/core/framebuffer.hpp>
 
+#ifndef CHRONON_WITH_VIDEO
+TEST_CASE("VideoNode is disabled without CHRONON_WITH_VIDEO") {
+    CHECK(true);
+}
+#else
 using namespace chronon3d;
 using namespace chronon3d::graph;
 using namespace chronon3d::video;
@@ -55,3 +60,4 @@ TEST_CASE("VideoNode execution and frame mapping") {
         CHECK(res->get_pixel(0, 0).r == doctest::Approx(0.2f));
     }
 }
+#endif

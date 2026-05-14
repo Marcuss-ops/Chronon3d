@@ -1,5 +1,5 @@
 #include <chronon3d/chronon3d.hpp>
-#include <chronon3d/core/composition_registration.hpp>
+#include <chronon3d/core/builtin_compositions.hpp>
 #include <CLI/CLI.hpp>
 #include <spdlog/spdlog.h>
 #include "commands.hpp"
@@ -11,14 +11,14 @@ int main(int argc, char** argv) {
     CLI::App app{"Chronon3d CLI - Motion Graphics Engine"};
     app.require_subcommand(1);
 
-    bool with_builtins = false;
-    app.add_flag("--with-builtins", with_builtins, "Register all built-in compositions");
+    bool no_builtins = false;
+    app.add_flag("--no-builtins", no_builtins, "Skip registering built-in compositions");
 
     CompositionRegistry registry;
 
     auto ensure_registry = [&]() {
-        if (with_builtins) {
-            register_all_compositions(registry);
+        if (!no_builtins) {
+            register_builtin_compositions(registry);
         }
     };
 
@@ -70,6 +70,7 @@ int main(int argc, char** argv) {
         exit_code = command_render(registry, render_args);
     });
 
+#ifdef CHRONON_WITH_VIDEO
     // -------------------------------------------------------------------------
     // video
     // -------------------------------------------------------------------------
@@ -93,6 +94,7 @@ int main(int argc, char** argv) {
         ensure_registry();
         exit_code = command_video(registry, video_args);
     });
+#endif
 
     // -------------------------------------------------------------------------
     // bench
