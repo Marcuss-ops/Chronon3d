@@ -19,7 +19,6 @@ function Get-LatestStamp {
         "CMakeLists.txt",
         "CMakePresets.json",
         "vcpkg.json",
-        "xmake.lua",
         "tools"
     )
 
@@ -62,7 +61,7 @@ while ($true) {
     $currentStamp = Get-LatestStamp
     if ($currentStamp -gt $lastStamp) {
         $lastStamp = $currentStamp
-        Write-Host "Change detected, rebuilding ChrononTemplate..."
+        Write-Host "Change detected, rebuilding Chronon3d..."
         Invoke-ChrononBuild
     }
 }

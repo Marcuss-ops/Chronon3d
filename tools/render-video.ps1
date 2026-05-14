@@ -26,23 +26,21 @@ if (Test-Path $framesDir) {
 
 New-Item -ItemType Directory -Path $framesDir | Out-Null
 
-if (-not (Get-Command xmake -ErrorAction SilentlyContinue)) {
-    Write-Error "xmake not found in PATH. Install xmake or add it to PATH."
-    exit 1
-}
-
 Write-Host "[render-video] Build ($Mode)..." -ForegroundColor Cyan
 
-xmake f -m $Mode --profiling=false
-xmake -y
+$configuration = if ($Mode -eq "debug") { "Debug" } else { "Release" }
+& powershell -ExecutionPolicy Bypass -File "$PSScriptRoot\chronon-win.ps1" -Configuration $configuration
 
 if ($LASTEXITCODE -ne 0) {
-    Write-Error "xmake build failed"
+    Write-Error "CMake build failed"
     exit 1
 }
 
+$buildDir = if ($configuration -eq "Debug") { "build\chronon\win-debug" } else { "build\chronon\win-release" }
+$cli = Join-Path $buildDir "chronon3d_cli.exe"
+
 Write-Host "[render-video] Rendering frames $Start to $End..." -ForegroundColor Cyan
-xmake run -w . chronon3d_cli render $Composition --start $Start --end $End -o "$framesDir/frame.png"
+& $cli render $Composition --start $Start --end $End -o "$framesDir/frame.png"
 
 if ($LASTEXITCODE -ne 0) {
     Write-Error "chronon3d_cli render failed"

@@ -1,52 +1,78 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-# Chronon3d Development Watcher
-# Rebuilds and renders when source changes are detected.
-
-COMP_ID=$1
-if [ -z "$COMP_ID" ]; then
+COMP_ID=${1:-}
+if [[ -z "$COMP_ID" ]]; then
     echo "Usage: $0 <composition_id>"
     exit 1
 fi
 
-BIN="./bin/chronon3d"
-if [ ! -f "$BIN" ]; then
-    # Try xmake path if not in ./bin
-    BIN="xmake run chronon3d"
-fi
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$PROJECT_DIR"
 
-echo "Watching for changes in src/ and include/ ..."
+PRESET="${CHRONON_PRESET:-linux-release}"
+BUILD_DIR="build/chronon/$PRESET"
+BIN="$BUILD_DIR/chronon3d_cli"
+
+build_once() {
+    cmake --preset "$PRESET"
+    cmake --build "$BUILD_DIR" --target chronon3d_cli -j"${CHRONON_JOBS:-$(nproc)}"
+}
+
+render_once() {
+    "$BIN" render "$COMP_ID" --frames 0 -o "output/watch_####.png" --diagnostic
+}
+
+latest_stamp() {
+    local latest=0
+    local paths=(
+        "include/chronon3d"
+        "apps/chronon3d_cli"
+        "examples"
+        "src"
+        "tests"
+        "CMakeLists.txt"
+        "CMakePresets.json"
+        "vcpkg.json"
+        "tools"
+    )
+
+    for path in "${paths[@]}"; do
+        if [[ -d "$path" ]]; then
+            while IFS= read -r -d '' file; do
+                local stamp
+                stamp="$(stat -c '%Y' "$file")"
+                if (( stamp > latest )); then
+                    latest="$stamp"
+                fi
+            done < <(find "$path" -type f -print0)
+        elif [[ -f "$path" ]]; then
+            local stamp
+            stamp="$(stat -c '%Y' "$path")"
+            if (( stamp > latest )); then
+                latest="$stamp"
+            fi
+        fi
+    done
+
+    echo "$latest"
+}
+
+echo "Watching include/chronon3d, apps/chronon3d_cli, examples, src, tests, and build files."
 echo "Composition: $COMP_ID"
 
-# Initial run
-xmake -y && $BIN render "$COMP_ID" --frames 0 -o "output/watch_####.png" --diagnostic
+build_once
+render_once
 
-# Watch using inotifywait if available, otherwise fallback to polling
-if command -v inotifywait >/dev/null 2>&1; then
-    while inotifywait -r -e modify src include apps; do
-        echo "Change detected! Rebuilding..."
-        if xmake -y; then
-            $BIN render "$COMP_ID" --frames 0 -o "output/watch_####.png" --diagnostic
-        else
-            echo "Build failed. Fix errors to continue."
-        fi
-    done
-else
-    echo "inotify-tools not found. Falling back to simple loop (less efficient)."
-    LAST_SUM=""
-    while true; do
-        CUR_SUM=$(find src include apps -type f -exec md5sum {} + | md5sum)
-        if [ "$CUR_SUM" != "$LAST_SUM" ]; then
-            if [ -n "$LAST_SUM" ]; then
-                echo "Change detected! Rebuilding..."
-                if xmake -y; then
-                    $BIN render "$COMP_ID" --frames 0 -o "output/watch_####.png" --diagnostic
-                else
-                    echo "Build failed."
-                fi
-            fi
-            LAST_SUM=$CUR_SUM
-        fi
-        sleep 1
-    done
-fi
+last_stamp="$(latest_stamp)"
+while true; do
+    sleep 1
+    current_stamp="$(latest_stamp)"
+    if [[ "$current_stamp" != "$last_stamp" ]]; then
+        last_stamp="$current_stamp"
+        echo "Change detected, rebuilding Chronon3d..."
+        build_once
+        render_once
+    fi
+done

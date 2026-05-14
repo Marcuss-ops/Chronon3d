@@ -26,3 +26,7 @@ target_link_libraries(chronon3d_cli
         $<TARGET_OBJECTS:chronon3d_software>
         $<TARGET_OBJECTS:chronon3d_renderer>
 )
+
+if(CHRONON3D_BUILD_EXAMPLES)
+    target_link_libraries(chronon3d_cli PRIVATE $<TARGET_OBJECTS:chronon3d_examples_lib>)
+endif()

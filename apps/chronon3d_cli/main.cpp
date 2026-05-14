@@ -1,5 +1,4 @@
 #include <chronon3d/chronon3d.hpp>
-#include <chronon3d/core/builtin_compositions.hpp>
 #include <CLI/CLI.hpp>
 #include <spdlog/spdlog.h>
 #include "commands.hpp"
@@ -11,16 +10,7 @@ int main(int argc, char** argv) {
     CLI::App app{"Chronon3d CLI - Motion Graphics Engine"};
     app.require_subcommand(1);
 
-    bool no_builtins = false;
-    app.add_flag("--no-builtins", no_builtins, "Skip registering built-in compositions");
-
     CompositionRegistry registry;
-
-    auto ensure_registry = [&]() {
-        if (!no_builtins) {
-            register_builtin_compositions(registry);
-        }
-    };
 
     int exit_code = 0;
 
@@ -29,7 +19,6 @@ int main(int argc, char** argv) {
     // -------------------------------------------------------------------------
     auto* list_cmd = app.add_subcommand("list", "List all registered compositions");
     list_cmd->callback([&]() {
-        ensure_registry();
         exit_code = command_list(registry);
     });
 
@@ -40,7 +29,6 @@ int main(int argc, char** argv) {
     auto* info_cmd = app.add_subcommand("info", "Get information about a composition");
     info_cmd->add_option("id", info_id, "Composition name")->required();
     info_cmd->callback([&]() {
-        ensure_registry();
         exit_code = command_info(registry, info_id);
     });
 
@@ -62,7 +50,6 @@ int main(int argc, char** argv) {
     render_cmd->add_option("--end",                 render_args.end_old,             "End frame exclusive (legacy)");
     render_cmd->add_option("--ssaa",                render_args.ssaa,                "Super Sampling factor (default 1.0)");
     render_cmd->callback([&]() {
-        ensure_registry();
         if (render_args.output.empty()) {
             render_args.output = "render_####.png";
             spdlog::warn("No output path specified, defaulting to {}", render_args.output);
@@ -91,7 +78,6 @@ int main(int argc, char** argv) {
     video_cmd->add_option("--frames-dir",           video_args.frames_dir,           "Override temporary frames directory");
     video_cmd->add_option("--ssaa",                 video_args.ssaa,                 "Super Sampling factor (default 1.0)");
     video_cmd->callback([&]() {
-        ensure_registry();
         exit_code = command_video(registry, video_args);
     });
 #endif
@@ -106,7 +92,6 @@ int main(int argc, char** argv) {
     bench_cmd->add_option("--warmup", bench_args.warmup, "Warmup frames")->default_val(10);
     bench_cmd->add_flag("--graph", bench_args.use_modular_graph, "Use modular RenderGraph path");
     bench_cmd->callback([&]() {
-        ensure_registry();
         exit_code = command_bench(registry, bench_args);
     });
 
@@ -119,7 +104,6 @@ int main(int argc, char** argv) {
     graph_cmd->add_option("--frame", graph_args.frame, "Frame to inspect")->default_val(0);
     graph_cmd->add_option("-o,--output", graph_args.output, "Output .dot path");
     graph_cmd->callback([&]() {
-        ensure_registry();
         if (graph_args.output.empty()) {
             graph_args.output = "output/graph.dot";
             spdlog::warn("No output path specified, defaulting to {}", graph_args.output);
@@ -134,7 +118,6 @@ int main(int argc, char** argv) {
     auto* batch_cmd = app.add_subcommand("batch", "Run multiple rendering jobs from a TOML config");
     batch_cmd->add_option("--config", batch_config, "Path to TOML config")->required();
     batch_cmd->callback([&]() {
-        ensure_registry();
         exit_code = command_batch(registry, batch_config);
     });
 
@@ -148,7 +131,6 @@ int main(int argc, char** argv) {
     auto* watch_cmd = dev_cmd->add_subcommand("watch", "Watch for changes and re-render");
     watch_cmd->add_option("id", watch_id, "Composition name")->required();
     watch_cmd->callback([&]() {
-        ensure_registry();
         exit_code = command_watch(registry, watch_id);
     });
 
@@ -157,7 +139,6 @@ int main(int argc, char** argv) {
     auto* all_cmd = dev_cmd->add_subcommand("render-all", "Render frame 0 of every registered composition");
     all_cmd->add_option("-o,--output-dir", all_output_dir, "Output directory")->default_val("output/verify");
     all_cmd->callback([&]() {
-        ensure_registry();
         for (const auto& id : registry.available()) {
             RenderArgs args;
             args.comp_id = id;
@@ -176,7 +157,6 @@ int main(int argc, char** argv) {
     proofs_cmd->add_flag("--diagnostic", proofs_args.diagnostic, "Enable diagnostic overlays");
     proofs_cmd->add_option("--ssaa", proofs_args.ssaa, "Super-sampling factor (e.g., 2.0)")->default_val(1.0f);
     proofs_cmd->callback([&]() {
-        ensure_registry();
         exit_code = command_proofs(registry, proofs_args);
     });
 

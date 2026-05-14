@@ -46,7 +46,7 @@ private:
                                    int codepoint, const uint8_t* font_data);
 
     void collect_geometry(const RenderNode& node, const RenderState& state,
-                          const Camera& camera, i32 width, i32 height,
+                          i32 width, i32 height,
                           TextRenderer& text_renderer);
 
     std::unordered_map<std::string, GlyphGeometry> m_glyph_cache;

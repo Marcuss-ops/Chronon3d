@@ -10,14 +10,14 @@ This roadmap reflects the current codebase and the next structural steps needed 
 - Blend modes and 2.5D camera support
 - Animation helpers such as interpolation, easing, spring motion, and sequences
 - CLI for listing, rendering, video export, and proof suites
-- CMake and xmake support
+- CMake-only build support
 - Tests and CI coverage
 
 ## Block 1: Foundation Cleanup
 
 Goal: keep the repo easy to build and reason about.
 
-- Keep CMake and xmake aligned on target and source coverage
+- Keep CMake targets and source coverage aligned
 - Keep CI paths pointed at `tools/`
 - Keep build presets valid on Linux and Windows
 - Document architecture and roadmap in-repo

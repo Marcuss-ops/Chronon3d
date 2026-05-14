@@ -7,6 +7,21 @@ namespace cli {
 const std::vector<ProofSuite>& proof_suites() {
     static const std::vector<ProofSuite> suites = {
         {
+            .name = "3dserious",
+            .frames = {
+                {"ExtrudedText01FrontClean",       0, "01_front_text_clean.png"},
+                {"ExtrudedText02ExtrusionDepth",   0, "02_extrusion_side_depth.png"},
+                {"ExtrudedText03GlyphHoles",       0, "03_extrusion_glyph_holes.png"},
+                {"ExtrudedText04BevelEdges",       0, "04_bevel_edges.png"},
+                {"ExtrudedText05AccentsExtruded",  0, "05_accents_extruded.png"},
+                {"ExtrudedText06DepthSorting",     0, "06_depth_sorting_text.png"},
+                {"ExtrudedText07CameraTilt",       0, "07_camera_tilt_text.png"},
+                {"ExtrudedText08NearClipping",     0, "08_near_clipping_text.png"},
+                {"ExtrudedText09LongWordSpacing",  0, "09_long_word_spacing.png"},
+                {"ExtrudedText10ThinVsBold",       0, "10_thin_vs_bold.png"},
+            }
+        },
+        {
             .name = "text",
             .frames = {
                 {"TextProof",           0, "text_proof.png"},

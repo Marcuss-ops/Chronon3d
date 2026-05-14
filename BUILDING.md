@@ -22,11 +22,8 @@ git clone https://github.com/microsoft/vcpkg ~/vcpkg
 # 2. Export VCPKG_ROOT for this shell (add to ~/.bashrc / ~/.zshrc to persist)
 export VCPKG_ROOT=~/vcpkg
 
-# 3. Configure — vcpkg installs all dependencies automatically via vcpkg.json
-cmake --preset linux-release
-
-# 4. Build
-cmake --build build/chronon/linux-release -j$(nproc)
+# 3. Configure and build
+bash tools/chronon-linux.sh
 ```
 
 That's it. vcpkg reads `vcpkg.json` at the project root and installs every dependency into `vcpkg_installed/` before CMake runs. No manual `vcpkg install` needed.
@@ -43,6 +40,12 @@ Presets are defined in `CMakePresets.json`.
 | `linux-debug` | Linux | Development |
 | `win-release` | Windows | Production / CI |
 | `win-debug` | Windows | Development |
+
+The default CMake build includes the CLI, tests, and examples. Disable examples only if you need a smaller build:
+
+```bash
+cmake -DCHRONON3D_BUILD_EXAMPLES=OFF --preset linux-release
+```
 
 ```bash
 cmake --preset linux-debug
@@ -95,9 +98,26 @@ git clone https://github.com/microsoft/vcpkg $env:USERPROFILE\vcpkg
 & "$env:USERPROFILE\vcpkg\bootstrap-vcpkg.bat" -disableMetrics
 $env:VCPKG_ROOT = "$env:USERPROFILE\vcpkg"
 
-# 2. Configure and build
-cmake --preset win-release
-cmake --build build\chronon\win-release
+# 2. Build from a Visual Studio Developer Command Prompt
+.\tools\chronon-win.ps1
+```
+
+The script opens the Visual Studio build environment, configures CMake with the `win-release` preset, and builds the CLI into:
+
+```text
+build\chronon\win-release\apps\chronon3d_cli\chronon3d_cli.exe
+```
+
+If you want the debug build, run:
+
+```powershell
+.\tools\chronon-win.ps1 -Configuration Debug
+```
+
+Run the CLI from the repo root so relative asset paths resolve correctly:
+
+```powershell
+.\build\chronon\win-release\apps\chronon3d_cli\chronon3d_cli.exe list
 ```
 
 ---
@@ -142,7 +162,7 @@ It must be present in both `vcpkg.json` and `CMakeLists.txt`. If you added it on
 2. Include `<chronon3d/chronon3d.hpp>`
 3. Define a function returning `Composition`
 4. Register it with `CHRONON_REGISTER_COMPOSITION("MyComp", MyComp)`
-5. Rebuild — the target that links your module will pick it up through normal compilation
+5. Rebuild - the translation unit registers itself when linked
 
 ```cpp
 #include <chronon3d/chronon3d.hpp>
