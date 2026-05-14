@@ -40,6 +40,7 @@ add_library(chronon3d INTERFACE)
 target_include_directories(chronon3d
     INTERFACE
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/deps/include>
         $<INSTALL_INTERFACE:include>
 )
 target_link_libraries(chronon3d

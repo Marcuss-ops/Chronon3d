@@ -274,6 +274,7 @@ public:
         s.side_color        = p.side_color;
         s.highlight_opacity = p.highlight_opacity;
         s.side_fade         = p.side_fade;
+        s.bevel_size        = p.bevel_size;
         node.world_transform.position = {0, 0, 0};
         node.color = p.front_color;
         m_layer.nodes.push_back(std::move(node));

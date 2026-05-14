@@ -69,6 +69,7 @@ struct FakeExtrudedTextParams {
     f32   side_fade{0.25f};
     TextAlign align{TextAlign::Center};
     f32   highlight_opacity{0.09f};
+    f32   bevel_size{1.5f};
 };
 
 struct FakeBox3DParams {
