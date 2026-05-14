@@ -1,6 +1,7 @@
 #include "../commands.hpp"
 #include <chronon3d/video/ffmpeg_encoder.hpp>
 #include <chronon3d/specscene/specscene.hpp>
+#include <chronon3d/renderer/software/software_renderer.hpp>
 #include <spdlog/spdlog.h>
 #include <filesystem>
 #include <chrono>
@@ -21,78 +22,77 @@ int command_video(const CompositionRegistry& registry, const VideoArgs& args) {
         return 1;
     }
 
-    // Determine frames directory
-    fs::path frames_dir;
-    if (!args.frames_dir.empty()) {
-        frames_dir = fs::path(args.frames_dir);
+    std::shared_ptr<Composition> comp_ptr;
+    std::vector<std::string> specscene_diagnostics;
+
+    if (specscene_input) {
+        auto compiled = specscene::compile_file(args.comp_id, &specscene_diagnostics);
+        if (!compiled) {
+            for (const auto& d : specscene_diagnostics) spdlog::error("{}", d);
+            return 1;
+        }
+        comp_ptr = std::make_shared<Composition>(std::move(*compiled));
     } else {
-        auto tmp_root = fs::temp_directory_path() / "chronon3d";
-        auto session_id = std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
-        frames_dir = tmp_root / ("frames_" + session_id);
+        auto comp_instance = registry.create(args.comp_id);
+        comp_ptr = std::make_shared<Composition>(std::move(comp_instance));
     }
 
-    std::error_code ec;
-    fs::create_directories(frames_dir, ec);
-    if (ec) {
-        spdlog::error("Cannot create frames directory {}: {}", frames_dir.string(), ec.message());
-        return 1;
-    }
+    auto renderer = std::make_shared<SoftwareRenderer>();
+    renderer->set_composition_registry(&registry);
+    
+    RenderSettings settings;
+    settings.diagnostic = false; // Usually not wanted in video
+    settings.use_modular_graph = args.use_modular_graph;
+    settings.motion_blur.enabled = specscene_input ? false : args.motion_blur;
+    settings.motion_blur.samples = args.motion_blur_samples;
+    settings.motion_blur.shutter_angle = args.shutter_angle;
+    settings.ssaa_factor = args.ssaa;
+    renderer->set_settings(settings);
 
-    // Render PNG sequence
-    const std::string frame_pattern = (frames_dir / "frame_%04d.png").string();
-
-    RenderArgs render_args;
-    render_args.comp_id              = args.comp_id;
-    render_args.start_old            = args.start;
-    render_args.end_old              = args.end;
-    render_args.output               = (frames_dir / "frame_####.png").string();
-    render_args.use_modular_graph    = args.use_modular_graph;
-    render_args.motion_blur          = args.motion_blur;
-    render_args.motion_blur_samples  = args.motion_blur_samples;
-    render_args.shutter_angle        = args.shutter_angle;
-    render_args.ssaa                 = args.ssaa;
-
-    spdlog::info("Rendering sequence to {} ...", frames_dir.string());
-    const int render_result = command_render(registry, render_args);
-    if (render_result != 0) {
-        spdlog::error("Frame rendering failed");
-        return render_result;
-    }
-
-    // Encode with ffmpeg
-    ::chronon3d::video::VideoEncodeOptions options;
+    video::VideoEncodeOptions options;
     options.fps = args.fps;
     options.crf = args.crf;
     options.preset = args.preset;
 
-    if (!::chronon3d::video::FfmpegEncoder::is_available(options.ffmpeg_path)) {
-        spdlog::error("ffmpeg not found in PATH — install ffmpeg or add it to PATH");
-        return 1;
-    }
-
+    video::FfmpegEncoder encoder;
+    
     const fs::path out_path(args.output);
     if (out_path.has_parent_path()) {
+        std::error_code ec;
         fs::create_directories(out_path.parent_path(), ec);
     }
 
-    spdlog::info("Encoding {} → {}", frame_pattern, args.output);
-    const int ff_result = ::chronon3d::video::FfmpegEncoder::encode(frame_pattern, args.output, options);
-    if (ff_result != 0) {
-        spdlog::error("ffmpeg exited with code {}", ff_result);
-        return ff_result;
-    }
-
-    if (!fs::exists(out_path) || fs::file_size(out_path) == 0) {
-        spdlog::error("Output video missing or empty: {}", args.output);
+    spdlog::info("Encoding video {}x{} @ {}fps to {} ...", comp_ptr->width(), comp_ptr->height(), options.fps, args.output);
+    
+    if (!encoder.open(args.output, options, comp_ptr->width(), comp_ptr->height())) {
+        spdlog::error("Failed to open video encoder for {}", args.output);
         return 1;
     }
 
-    if (!args.keep_frames) {
-        fs::remove_all(frames_dir, ec);
-        if (ec) spdlog::warn("Could not remove frames dir {}: {}", frames_dir.string(), ec.message());
+    auto t0 = std::chrono::steady_clock::now();
+
+    for (int64_t f = args.start; f < args.end; ++f) {
+        auto fb = renderer->render_frame(*comp_ptr, static_cast<Frame>(f));
+        if (!fb) {
+            spdlog::error("Failed to render frame {}", f);
+            return 1;
+        }
+        if (!encoder.push_frame(*fb)) {
+            spdlog::error("Failed to push frame {} to encoder", f);
+            return 1;
+        }
+
+        if ((f - args.start + 1) % 10 == 0 || (f + 1) == args.end) {
+            spdlog::info("  Progress: {}/{} frames", f - args.start + 1, args.end - args.start);
+        }
     }
 
-    spdlog::info("Video saved to {}", args.output);
+    encoder.close();
+
+    auto t1 = std::chrono::steady_clock::now();
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
+    
+    spdlog::info("Video saved to {} (total time: {}ms)", args.output, ms);
     return 0;
 }
 

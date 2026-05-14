@@ -1,8 +1,15 @@
 #include <chronon3d/render_graph/graph_executor.hpp>
 #include <chronon3d/render_graph/graph_profiler.hpp>
 #include <chronon3d/renderer/software/render_graph.hpp>
+#include <mutex>
 
 namespace chronon3d::graph {
+
+static std::mutex g_exec_mutex;
+
+GraphExecutor::GraphExecutor() {
+    m_scheduler.Initialize();
+}
 
 std::shared_ptr<Framebuffer> GraphExecutor::execute(
     RenderGraph& graph,
@@ -19,21 +26,33 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute_node(
     GraphNodeId id,
     RenderGraphContext& ctx
 ) {
-    if (auto it = m_temp.find(id); it != m_temp.end()) {
-        return it->second;
+    {
+        std::lock_guard<std::mutex> lock(g_exec_mutex);
+        if (auto it = m_temp.find(id); it != m_temp.end()) {
+            return it->second;
+        }
     }
 
     auto& node = graph.node(id);
 
-    std::vector<std::shared_ptr<Framebuffer>> inputs;
+    auto input_ids = graph.inputs(id);
+    std::vector<std::shared_ptr<Framebuffer>> inputs(input_ids.size());
+    
+    if (!input_ids.empty()) {
+        enki::TaskSet input_tasks(static_cast<uint32_t>(input_ids.size()), [&](enki::TaskSetPartition range, uint32_t threadnum) {
+            for (auto i = range.start; i < range.end; ++i) {
+                inputs[i] = execute_node(graph, input_ids[i], ctx);
+            }
+        });
+        m_scheduler.AddTaskSetToPipe(&input_tasks);
+        m_scheduler.WaitforTask(&input_tasks);
+    }
+
     u64 input_hash = 0;
-    for (auto input_id : graph.inputs(id)) {
-        auto fb = execute_node(graph, input_id, ctx);
-        inputs.push_back(fb);
+    for (size_t i = 0; i < input_ids.size(); ++i) {
+        auto input_id = input_ids[i];
         
-        // Use the resolved digest (post input_hash injection) if available, so the
-        // hash chain is fully recursive. Falls back to the raw cache_key digest on
-        // the first pass (should not happen in a DAG traversal without cycles).
+        std::lock_guard<std::mutex> lock(g_exec_mutex);
         auto digest_it = m_resolved_key_digest.find(input_id);
         u64 input_digest = (digest_it != m_resolved_key_digest.end())
             ? digest_it->second
@@ -58,8 +77,11 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute_node(
                     .memory_bytes = cached->size_bytes()
                 });
             }
-            m_resolved_key_digest[id] = key.digest();
-            m_temp[id] = cached;
+            {
+                std::lock_guard<std::mutex> lock(g_exec_mutex);
+                m_resolved_key_digest[id] = key.digest();
+                m_temp[id] = cached;
+            }
             return cached;
         }
     }
@@ -78,13 +100,16 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute_node(
         });
     }
 
-    m_resolved_key_digest[id] = key.digest();
+    {
+        std::lock_guard<std::mutex> lock(g_exec_mutex);
+        m_resolved_key_digest[id] = key.digest();
 
-    if (use_cache && result) {
-        ctx.node_cache->store(key, result);
+        if (use_cache && result) {
+            ctx.node_cache->store(key, result);
+        }
+
+        m_temp[id] = result;
     }
-
-    m_temp[id] = result;
     return result;
 }
 

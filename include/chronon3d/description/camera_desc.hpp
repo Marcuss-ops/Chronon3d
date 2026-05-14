@@ -12,7 +12,7 @@ struct Camera2_5DDesc {
     bool                enabled{false};
     AnimatedValue<Vec3> position{Vec3{0.0f, 0.0f, -1000.0f}};
     Vec3                point_of_interest{0.0f, 0.0f, 0.0f};
-    f32                 zoom{1000.0f};
+    AnimatedValue<f32>  zoom{1000.0f};
 };
 
 } // namespace chronon3d

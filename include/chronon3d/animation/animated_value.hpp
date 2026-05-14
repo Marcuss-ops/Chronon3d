@@ -2,6 +2,7 @@
 
 #include <chronon3d/animation/keyframe.hpp>
 #include <vector>
+#include <string>
 #include <algorithm>
 
 namespace chronon3d {
@@ -58,8 +59,21 @@ public:
     AnimatedValue& set(const T& value) {
         clear();
         m_default_value = value;
+        m_expression.clear();
         return *this;
     }
+
+    AnimatedValue& operator=(const T& value) {
+        return set(value);
+    }
+
+    AnimatedValue& expression(std::string expr) {
+        m_expression = std::move(expr);
+        return *this;
+    }
+
+    [[nodiscard]] const std::string& expression() const { return m_expression; }
+    [[nodiscard]] bool has_expression() const { return !m_expression.empty(); }
 
     // Preferred name in new code.
     [[nodiscard]] T value_at(Frame frame) const { return evaluate(frame); }
@@ -117,6 +131,7 @@ private:
     T m_default_value{};
     std::vector<Keyframe<T>> m_keyframes;
     LoopMode m_loop_mode{LoopMode::Hold};
+    std::string m_expression;
 };
 
 } // namespace chronon3d
