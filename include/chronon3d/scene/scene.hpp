@@ -1,8 +1,8 @@
 #pragma once
 
-#include <chronon3d/scene/render_node.hpp>
-#include <chronon3d/scene/layer.hpp>
-#include <chronon3d/scene/camera_2_5d.hpp>
+#include <chronon3d/scene/layer/render_node.hpp>
+#include <chronon3d/scene/layer/layer.hpp>
+#include <chronon3d/scene/camera/camera_2_5d.hpp>
 #include <vector>
 #include <memory_resource>
 

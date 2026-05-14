@@ -1,6 +1,6 @@
 #include <chronon3d/evaluation/legacy_scene_adapter.hpp>
-#include <chronon3d/scene/layer.hpp>
-#include <chronon3d/scene/render_node.hpp>
+#include <chronon3d/scene/layer/layer.hpp>
+#include <chronon3d/scene/layer/render_node.hpp>
 #include <chronon3d/scene/shape.hpp>
 #include <variant>
 

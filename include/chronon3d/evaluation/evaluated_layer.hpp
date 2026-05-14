@@ -1,8 +1,8 @@
 #pragma once
 
 #include <chronon3d/math/transform.hpp>
-#include <chronon3d/scene/depth_role.hpp>
-#include <chronon3d/scene/effect_stack.hpp>
+#include <chronon3d/scene/layer/depth_role.hpp>
+#include <chronon3d/scene/effects/effect_stack.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/description/visual_desc.hpp>
 #include <string>

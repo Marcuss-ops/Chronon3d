@@ -1,6 +1,6 @@
 #include <doctest/doctest.h>
-#include <chronon3d/scene/depth_role.hpp>
-#include <chronon3d/scene/layer_builder.hpp>
+#include <chronon3d/scene/layer/depth_role.hpp>
+#include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/timeline/composition.hpp>
 
 using namespace chronon3d;

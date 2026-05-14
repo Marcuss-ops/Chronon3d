@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 #include <filesystem>
-#include "cli_utils.hpp"
+#include "utils/cli_utils.hpp"
 
 namespace chronon3d {
 namespace cli {
@@ -46,9 +46,17 @@ struct VideoArgs {
 };
 
 
+struct ProofsArgs {
+    std::string suite;       // suite name or "list" or "all"
+    std::string output_dir{"output/proofs"};
+    bool use_modular_graph{false};
+    bool diagnostic{false};
+    float ssaa{1.0f};
+};
+
 struct BenchArgs {
     std::string comp_id;
-    int frames{120};
+    int frames{100};
     int warmup{10};
     bool use_modular_graph{false};
 };
@@ -63,6 +71,7 @@ int command_list(const CompositionRegistry& registry);
 int command_info(const CompositionRegistry& registry, const std::string& id);
 int command_render(const CompositionRegistry& registry, const RenderArgs& args);
 int command_video(const CompositionRegistry& registry, const VideoArgs& args);
+int command_proofs(const CompositionRegistry& registry, const ProofsArgs& args);
 int command_bench(const CompositionRegistry& registry, const BenchArgs& args);
 int command_graph(const CompositionRegistry& registry, const GraphArgs& args);
 int command_batch(const CompositionRegistry& registry, const std::string& config_path);

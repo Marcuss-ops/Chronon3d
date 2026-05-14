@@ -1,6 +1,6 @@
 #include <doctest/doctest.h>
-#include <chronon3d/scene/scene_builder.hpp>
-#include <chronon3d/scene/layer_hierarchy.hpp>
+#include <chronon3d/scene/builders/scene_builder.hpp>
+#include <chronon3d/scene/layer/layer_hierarchy.hpp>
 
 using namespace chronon3d;
 
