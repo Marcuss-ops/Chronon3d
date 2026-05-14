@@ -62,7 +62,7 @@ TEST_CASE("AdjustmentLayer: Null layer draws nothing") {
             l.position({40,40,0});
         });
         auto sc = s.build();
-        const_cast<Layer&>(sc.layers()[1]).kind = LayerKind::Null;
+        const_cast<Layer&>(sc.layers()[0]).kind = LayerKind::Null;
         return sc;
     });
 
