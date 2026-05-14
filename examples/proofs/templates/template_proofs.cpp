@@ -6,7 +6,7 @@ using namespace chronon3d;
 using namespace chronon3d::templates;
 
 // ─── Fake3DTitleStudio — standard orange theme ────────────────────────────────
-static Composition TmplStudioOrange() {
+Composition TmplStudioOrange() {
     return composition({.name="TmplStudioOrange", .width=1280, .height=720, .duration=120},
     [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
@@ -16,7 +16,7 @@ static Composition TmplStudioOrange() {
 }
 
 // ─── Blue theme with custom title ─────────────────────────────────────────────
-static Composition TmplStudioBlue() {
+Composition TmplStudioBlue() {
     return composition({.name="TmplStudioBlue", .width=1280, .height=720, .duration=120},
     [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
@@ -31,7 +31,7 @@ static Composition TmplStudioBlue() {
 }
 
 // ─── Lower third standalone ───────────────────────────────────────────────────
-static Composition TmplLowerThird() {
+Composition TmplLowerThird() {
     return composition({.name="TmplLowerThird", .width=1280, .height=720},
     [](const FrameContext& ctx) {
         SceneBuilder s(ctx);

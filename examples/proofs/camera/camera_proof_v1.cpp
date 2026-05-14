@@ -40,7 +40,7 @@ constexpr f32  kR    {18};
 // Minimal scene: camera pos + POI, three objects at near/mid/far depths.
 // Verifies: perspective scale, z-order, basic camera setup.
 // ---------------------------------------------------------------------------
-static Composition CameraBasicTwoNodeProof() {
+Composition CameraBasicTwoNodeProof() {
     return composition({
         .name = "CameraBasicTwoNodeProof",
         .width = 1280, .height = 720, .duration = 1
@@ -111,7 +111,7 @@ CHRONON_REGISTER_COMPOSITION("CameraBasicTwoNodeProof", CameraBasicTwoNodeProof)
 // No camera_2_5d. Three cards at different Z depths all appear the same size.
 // Verifies: fallback 2D flat mode, no crash, all objects visible.
 // ---------------------------------------------------------------------------
-static Composition CameraFallbackProof() {
+Composition CameraFallbackProof() {
     return composition({
         .name = "CameraFallbackProof",
         .width = 1280, .height = 720, .duration = 1
@@ -166,7 +166,7 @@ CHRONON_REGISTER_COMPOSITION("CameraFallbackProof", CameraFallbackProof)
 // Frame 2: zoom 1500 -- scene large, telephoto, not cropped
 // Verifies: zoom changes apparent size; 2D overlay stays fixed.
 // ---------------------------------------------------------------------------
-static Composition CameraZoomComparisonProof() {
+Composition CameraZoomComparisonProof() {
     return composition({
         .name = "CameraZoomComparisonProof",
         .width = 1280, .height = 720, .duration = 3
@@ -232,7 +232,7 @@ CHRONON_REGISTER_COMPOSITION("CameraZoomComparisonProof", CameraZoomComparisonPr
 // Near layer shifts MORE, far layer shifts LESS, 2D overlay stays FIXED.
 // Verifies: parallax depth cue, per-role depth, 2D/3D mixed layer.
 // ---------------------------------------------------------------------------
-static Composition CameraParallaxProof() {
+Composition CameraParallaxProof() {
     return composition({
         .name = "CameraParallaxProof",
         .width = 1280, .height = 720, .duration = 90
@@ -323,7 +323,7 @@ CHRONON_REGISTER_COMPOSITION("CameraParallaxProof", CameraParallaxProof)
 // X = red (horizontal), Y = green (vertical), Z = depth (blue/label)
 // Z- = near (closer to viewer), Z+ = far (deeper into scene)
 // ---------------------------------------------------------------------------
-static Composition CameraAxisDebugProof() {
+Composition CameraAxisDebugProof() {
     return composition({
         .name = "CameraAxisDebugProof",
         .width = 1280, .height = 720, .duration = 1
@@ -504,7 +504,7 @@ CHRONON_REGISTER_COMPOSITION("CameraAxisDebugProof", CameraAxisDebugProof)
 // 2D schematic of the Z-depth layout. No camera_2_5d.
 // Shows camera, depth rows, scale bars for zoom 1000 reference.
 // ---------------------------------------------------------------------------
-static Composition TopViewDebugProof() {
+Composition TopViewDebugProof() {
     return composition({
         .name = "TopViewDebugProof",
         .width = 1280, .height = 720, .duration = 1

@@ -16,7 +16,7 @@ using namespace chronon3d;
  * camera at {0,0,-1200} local to rig) — the diff is the lookAt added
  * by camera_target().
  */
-static Composition CameraTargetOrbitProof() {
+Composition CameraTargetOrbitProof() {
     return composition({
         .name     = "CameraTargetOrbitProof",
         .width    = 1280,

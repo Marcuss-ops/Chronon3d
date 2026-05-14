@@ -4,7 +4,7 @@ using namespace chronon3d;
 
 // Demonstrates all DepthRoles stacked in Camera 2.5D.
 // Camera pans slowly in X so parallax between roles is visible.
-static Composition DepthRolesProof() {
+Composition DepthRolesProof() {
     return composition({
         .name = "DepthRolesProof", .width = 1280, .height = 720, .duration = 120
     }, [](const FrameContext& ctx) {
@@ -116,7 +116,7 @@ CHRONON_REGISTER_COMPOSITION("DepthRolesProof", DepthRolesProof)
 
 
 // Shows depth_offset for fine-tuning within a role.
-static Composition DepthRoleOffsetProof() {
+Composition DepthRoleOffsetProof() {
     return composition({
         .name = "DepthRoleOffsetProof", .width = 1280, .height = 720, .duration = 1
     }, [](const FrameContext& ctx) {
@@ -160,7 +160,7 @@ CHRONON_REGISTER_COMPOSITION("DepthRoleOffsetProof", DepthRoleOffsetProof)
 // the opposite of correct render order. Validates depth sort.
 // Each card is staggered so all three are readable even with overlap.
 // ---------------------------------------------------------------------------
-static Composition ZSortingProof() {
+Composition ZSortingProof() {
     return composition({
         .name = "ZSortingProof", .width = 1280, .height = 720, .duration = 1
     }, [](const FrameContext& ctx) {
@@ -239,7 +239,7 @@ CHRONON_REGISTER_COMPOSITION("ZSortingProof", ZSortingProof)
 // Three Subject-role cards with offset -200 / 0 / +200.
 // Card with negative offset appears larger (closer); +200 appears smaller (farther).
 // ---------------------------------------------------------------------------
-static Composition DepthOffsetProof() {
+Composition DepthOffsetProof() {
     return composition({
         .name = "DepthOffsetProof", .width = 1280, .height = 720, .duration = 1
     }, [](const FrameContext& ctx) {
@@ -295,7 +295,7 @@ CHRONON_REGISTER_COMPOSITION("DepthOffsetProof", DepthOffsetProof)
 // FarBackground drifts least, Foreground drifts most.
 // Fixed 2D legend at bottom lists every role with its Z value.
 // ---------------------------------------------------------------------------
-static Composition ParallaxRolesProof() {
+Composition ParallaxRolesProof() {
     return composition({
         .name = "ParallaxRolesProof", .width = 1280, .height = 720, .duration = 120
     }, [](const FrameContext& ctx) {

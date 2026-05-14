@@ -1,7 +1,7 @@
 #pragma once
 
 #include <chronon3d/core/types.hpp>
-#include <glm/gtc/constants.hpp>
+#include <chronon3d/math/constants.hpp>
 #include <cmath>
 
 namespace chronon3d {
@@ -51,9 +51,9 @@ inline f32 apply(Easing type, f32 t) {
             if (t == 0.0f || t == 1.0f) return t;
             if ((t *= 2.0f) < 1.0f) return 0.5f * std::pow(2.0f, 10.0f * (t - 1.0f));
             return 0.5f * (2.0f - std::pow(2.0f, -10.0f * (t - 1.0f)));
-        case Easing::InSine: return 1.0f - std::cos(t * glm::pi<f32>() * 0.5f);
-        case Easing::OutSine: return std::sin(t * glm::pi<f32>() * 0.5f);
-        case Easing::InOutSine: return -(std::cos(glm::pi<f32>() * t) - 1.0f) * 0.5f;
+        case Easing::InSine: return 1.0f - std::cos(t * math::pi * 0.5f);
+        case Easing::OutSine: return std::sin(t * math::pi * 0.5f);
+        case Easing::InOutSine: return -(std::cos(math::pi * t) - 1.0f) * 0.5f;
         case Easing::InBack: {
             const f32 c1 = 1.70158f;
             const f32 c3 = c1 + 1.0f;
@@ -72,17 +72,17 @@ inline f32 apply(Easing type, f32 t) {
                 : (std::pow(2.0f * t - 2.0f, 2.0f) * ((c2 + 1.0f) * (t * 2.0f - 2.0f) + c2) + 2.0f) * 0.5f;
         }
         case Easing::InElastic: {
-            const f32 c4 = (2.0f * glm::pi<f32>()) / 3.0f;
+            const f32 c4 = (2.0f * math::pi) / 3.0f;
             return t == 0.0f ? 0.0f : t == 1.0f ? 1.0f
                 : -std::pow(2.0f, 10.0f * t - 10.0f) * std::sin((t * 10.0f - 10.75f) * c4);
         }
         case Easing::OutElastic: {
-            const f32 c4 = (2.0f * glm::pi<f32>()) / 3.0f;
+            const f32 c4 = (2.0f * math::pi) / 3.0f;
             return t == 0.0f ? 0.0f : t == 1.0f ? 1.0f
                 : std::pow(2.0f, -10.0f * t) * std::sin((t * 10.0f - 0.75f) * c4) + 1.0f;
         }
         case Easing::InOutElastic: {
-            const f32 c5 = (2.0f * glm::pi<f32>()) / 4.5f;
+            const f32 c5 = (2.0f * math::pi) / 4.5f;
             return t == 0.0f ? 0.0f : t == 1.0f ? 1.0f
                 : t < 0.5f ? -(std::pow(2.0f, 20.0f * t - 10.0f) * std::sin((20.0f * t - 11.125f) * c5)) * 0.5f
                 : (std::pow(2.0f, -20.0f * t + 10.0f) * std::sin((20.0f * t - 11.125f) * c5)) * 0.5f + 1.0f;

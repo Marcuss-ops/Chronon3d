@@ -8,6 +8,8 @@ namespace chronon3d {
 namespace renderer {
 
 void draw_grid_plane(Framebuffer& fb, const RenderNode& node, const RenderState& state, const GridPlaneShape& shape);
+void draw_grid_plane(Framebuffer& fb, const RenderNode& node, const RenderState& state,
+                     const GridPlaneShape& shape, const GridPlaneRenderState& runtime);
 
 } // namespace renderer
 } // namespace chronon3d

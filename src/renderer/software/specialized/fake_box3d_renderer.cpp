@@ -19,8 +19,9 @@ static float box_ndotl(const Vec3& normal) {
     return k_box_ambient + k_box_diffuse * std::max(0.0f, glm::dot(normal, k_box_light));
 }
 
-void draw_fake_box3d(Framebuffer& fb, const RenderNode& node, const RenderState& state, const FakeBox3DShape& s) {
-    if (!s.cam_ready) return;
+void draw_fake_box3d(Framebuffer& fb, const RenderNode& node, const RenderState& state,
+                     const FakeBox3DShape& s, const FakeBox3DRenderState& rt) {
+    if (!rt.cam_ready) return;
 
     const Vec3& wp = s.world_pos;
     const f32 hw = s.size.x * 0.5f;
@@ -40,9 +41,9 @@ void draw_fake_box3d(Framebuffer& fb, const RenderNode& node, const RenderState&
     Vec2 sc[8];
     bool ok[8];
     for (int i = 0; i < 8; ++i)
-        sc[i] = project_2_5d(c[i], s.cam_view, s.cam_focal, s.vp_cx, s.vp_cy, ok[i]);
+        sc[i] = project_2_5d(c[i], rt.cam_view, rt.cam_focal, rt.vp_cx, rt.vp_cy, ok[i]);
 
-    const Mat4 inv_view = glm::inverse(s.cam_view);
+    const Mat4 inv_view = glm::inverse(rt.cam_view);
     const Vec3 cam_world = Vec3(inv_view[3]);
     const Vec3 to_cam = glm::normalize(cam_world - wp);
 

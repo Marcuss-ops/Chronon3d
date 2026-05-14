@@ -1,15 +1,14 @@
 #include <chronon3d/render_graph/graph_executor.hpp>
 #include <chronon3d/render_graph/graph_profiler.hpp>
 #include <chronon3d/renderer/software/render_graph.hpp>
+#include <future>
 #include <mutex>
 
 namespace chronon3d::graph {
 
 static std::mutex g_exec_mutex;
 
-GraphExecutor::GraphExecutor() {
-    m_scheduler.Initialize();
-}
+GraphExecutor::GraphExecutor() = default;
 
 std::shared_ptr<Framebuffer> GraphExecutor::execute(
     RenderGraph& graph,
@@ -39,13 +38,16 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute_node(
     std::vector<std::shared_ptr<Framebuffer>> inputs(input_ids.size());
     
     if (!input_ids.empty()) {
-        enki::TaskSet input_tasks(static_cast<uint32_t>(input_ids.size()), [&](enki::TaskSetPartition range, uint32_t threadnum) {
-            for (auto i = range.start; i < range.end; ++i) {
+        std::vector<std::future<void>> futures;
+        futures.reserve(input_ids.size());
+        for (size_t i = 0; i < input_ids.size(); ++i) {
+            futures.emplace_back(std::async(std::launch::async, [&, i] {
                 inputs[i] = execute_node(graph, input_ids[i], ctx);
-            }
-        });
-        m_scheduler.AddTaskSetToPipe(&input_tasks);
-        m_scheduler.WaitforTask(&input_tasks);
+            }));
+        }
+        for (auto& f : futures) {
+            f.get();
+        }
     }
 
     u64 input_hash = 0;

@@ -10,7 +10,7 @@ using namespace chronon3d;
  * Tests the fake-extrusion text technique with three depth levels
  * and a combined scene with a panel behind.
  */
-static Composition FakeExtrudedTextProof() {
+Composition FakeExtrudedTextProof() {
     return composition({
         .name     = "FakeExtrudedTextProof",
         .width    = 1280,

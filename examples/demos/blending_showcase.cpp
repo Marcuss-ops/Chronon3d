@@ -2,8 +2,7 @@
 #include <chronon3d/core/composition_registration.hpp>
 
 using namespace chronon3d;
-
-static Composition BlendingShowcase() {
+Composition BlendingShowcase() {
     CompositionSpec spec{
         .name = "BlendingShowcase",
         .width = 512,

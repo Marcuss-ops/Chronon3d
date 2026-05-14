@@ -94,6 +94,13 @@ void draw_transformed_shape(Framebuffer& fb, const Shape& shape, const Mat4& mod
     raster::BBox bbox = compute_world_bbox(shape, model, spread);
     bbox.clip_to(fb.width(), fb.height());
 
+    // DIAGNOSTIC: Clear the whole bbox with red to see if it's even hit
+    // for (i32 y = bbox.y0; y < bbox.y1; ++y) {
+    //     for (i32 x = bbox.x0; x < bbox.x1; ++x) {
+    //         fb.set_pixel(x, y, Color{1, 0, 0, 1});
+    //     }
+    // }
+
     if (bbox.is_empty()) return;
 
     Mat4 inv_model = glm::inverse(model);
@@ -102,9 +109,11 @@ void draw_transformed_shape(Framebuffer& fb, const Shape& shape, const Mat4& mod
         for (i32 x = bbox.x0; x < bbox.x1; ++x) {
             if (state && !pixel_passes_mask(*state, x, y)) continue;
             Vec4 lp_h = inv_model * Vec4(static_cast<f32>(x) + 0.5f, static_cast<f32>(y) + 0.5f, 0.0f, 1.0f);
+            if (std::abs(lp_h.w) < 1e-9f) continue;
             Vec2 lp(lp_h.x / lp_h.w, lp_h.y / lp_h.w);
             
             if (hit_test(shape, lp, spread)) {
+                // SPDLOG_TRACE("Draw pixel ({}, {}) color={:.2f}", x, y, color.a);
                 fb.set_pixel(x, y, compositor::blend(color, fb.get_pixel(x, y), BlendMode::Normal));
             }
         }

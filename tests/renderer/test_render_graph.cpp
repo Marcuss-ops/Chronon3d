@@ -20,7 +20,6 @@ TEST_CASE("RenderGraph debug output includes nodes and edges") {
 
     auto canvas = graph.add_output("canvas", canvas_key);
 
-    RenderState base_state{Mat4(1.0f), 1.0f};
     const RenderCacheKey transform_key{
         .scope = "root.transform",
         .frame = 12,
@@ -31,7 +30,7 @@ TEST_CASE("RenderGraph debug output includes nodes and edges") {
         .input_hash = canvas_key.digest(),
     };
 
-    auto transform = graph.add_transform("root.transform", transform_key, canvas, Transform{}, base_state);
+    auto transform = graph.add_transform("root.transform", transform_key, canvas, Transform{});
 
     ::chronon3d::RenderNode node;
     node.name = "root";

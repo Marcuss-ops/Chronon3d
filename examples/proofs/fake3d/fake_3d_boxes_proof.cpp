@@ -13,7 +13,7 @@ using namespace chronon3d;
  * Three boxes: orange panel (center), red cube (left), blue cube (right).
  * Grid plane acts as the floor.
  */
-static Composition FakeBox3DProof() {
+Composition FakeBox3DProof() {
     return composition({
         .name     = "FakeBox3DProof",
         .width    = 1280,
@@ -84,7 +84,7 @@ static Composition FakeBox3DProof() {
  * Verifies correct XZ grid plane projection with the 2.5D camera.
  * Camera is positioned high and tilted down so perspective convergence is visible.
  */
-static Composition GridPlaneProof() {
+Composition GridPlaneProof() {
     return composition({
         .name     = "GridPlaneProof",
         .width    = 1280,

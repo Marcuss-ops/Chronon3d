@@ -1,0 +1,31 @@
+#pragma once
+
+#include <chronon3d/math/mat4.hpp>
+
+namespace chronon3d {
+
+struct FakeBox3DRenderState {
+    bool cam_ready{false};
+    Mat4 cam_view{1.0f};
+    f32 cam_focal{1000.0f};
+    f32 vp_cx{640.0f};
+    f32 vp_cy{360.0f};
+};
+
+struct GridPlaneRenderState {
+    bool cam_ready{false};
+    Mat4 cam_view{1.0f};
+    f32 cam_focal{1000.0f};
+    f32 vp_cx{640.0f};
+    f32 vp_cy{360.0f};
+};
+
+struct FakeExtrudedTextRenderState {
+    bool cam_ready{false};
+    Mat4 cam_view{1.0f};
+    f32 cam_focal{1000.0f};
+    f32 vp_cx{640.0f};
+    f32 vp_cy{360.0f};
+};
+
+} // namespace chronon3d

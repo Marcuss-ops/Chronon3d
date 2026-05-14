@@ -70,7 +70,16 @@ target_link_libraries(chronon3d_tests
         chronon3d_pipeline
         chronon3d_io
         doctest::doctest
+        $<TARGET_OBJECTS:chronon3d_graph>
+        $<TARGET_OBJECTS:chronon3d_software>
+        $<TARGET_OBJECTS:chronon3d_renderer>
 )
 target_include_directories(chronon3d_tests PRIVATE ${Stb_INCLUDE_DIR})
+
+# No longer need WHOLEARCHIVE since we use OBJECT libraries
+
+add_executable(debug_parenting ../scratch/debug_parenting.cpp)
+target_link_libraries(debug_parenting PRIVATE chronon3d_renderer)
+target_include_directories(debug_parenting PRIVATE ${Stb_INCLUDE_DIR})
 
 add_test(NAME chronon3d_tests COMMAND chronon3d_tests)
