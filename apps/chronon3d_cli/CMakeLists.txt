@@ -1,6 +1,15 @@
 add_executable(chronon3d_cli
     main.cpp
-    commands.cpp
+    cli_utils.cpp
+    ffmpeg_runner.cpp
+    command_list.cpp
+    command_info.cpp
+    command_render.cpp
+    command_batch.cpp
+    command_watch.cpp
+    command_video.cpp
+    command_bench.cpp
+    command_graph.cpp
 )
 
 target_link_libraries(chronon3d_cli
