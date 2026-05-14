@@ -4,17 +4,14 @@ if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) {
     throw "ffmpeg not found in PATH. Install ffmpeg or add it to PATH."
 }
 
-if (-not (Get-Command xmake -ErrorAction SilentlyContinue)) {
-    throw "xmake not found in PATH. Install xmake or add it to PATH."
-}
-
 Write-Host "[Video Export Test] Building..." -ForegroundColor Cyan
-xmake f -m debug --profiling=false
-xmake -y
+& powershell -ExecutionPolicy Bypass -File "$PSScriptRoot\chronon-win.ps1" -Configuration Debug
 
 if ($LASTEXITCODE -ne 0) {
-    throw "xmake build failed"
+    throw "CMake build failed"
 }
+
+$cli = "build\chronon\win-debug\chronon3d_cli.exe"
 
 # 1. Range render test
 $rangeDir = "output/video_range_test"
@@ -24,7 +21,7 @@ if (Test-Path $rangeDir) {
 New-Item -ItemType Directory -Path $rangeDir | Out-Null
 
 Write-Host "[Video Export Test] Testing frame range 0-10 (expecting 10 frames)..." -ForegroundColor Cyan
-xmake run -w . chronon3d_cli render AnimatedImageProof --start 0 --end 10 -o "$rangeDir/frame.png"
+& $cli render AnimatedImageProof --start 0 --end 10 -o "$rangeDir/frame.png"
 
 if ($LASTEXITCODE -ne 0) {
     throw "range render failed"
@@ -55,7 +52,7 @@ if (Test-Path $boundaryDir) {
 New-Item -ItemType Directory -Path $boundaryDir | Out-Null
 
 Write-Host "[Video Export Test] Testing frame range 30-35 (expecting 5 frames)..." -ForegroundColor Cyan
-xmake run -w . chronon3d_cli render AnimatedImageProof --start 30 --end 35 -o "$boundaryDir/frame.png"
+& $cli render AnimatedImageProof --start 30 --end 35 -o "$boundaryDir/frame.png"
 
 if ($LASTEXITCODE -ne 0) {
     throw "boundary range render failed"

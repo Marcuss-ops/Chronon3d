@@ -189,6 +189,7 @@ rendergraph::RenderGraph build_software_render_graph(
     struct LayerRenderItem {
         Layer layer;
         Transform projected_transform{};
+        Transform world_transform{};
         f32 depth{0.0f};
         usize insertion_index{0};
     };
@@ -239,7 +240,7 @@ rendergraph::RenderGraph build_software_render_graph(
             auto projected = project_layer_2_5d(
                 resolved.world_transform, cam25, static_cast<f32>(width), static_cast<f32>(height));
             if (projected.visible) {
-                three_d_layers.push_back({layer, projected.transform, projected.depth, resolved.insertion_index});
+                three_d_layers.push_back({layer, projected.transform, resolved.world_transform, projected.depth, resolved.insertion_index});
             }
         }
     }
@@ -267,11 +268,12 @@ rendergraph::RenderGraph build_software_render_graph(
                     nd.grid_plane_runtime.vp_cx      = vp_cx;
                     nd.grid_plane_runtime.vp_cy      = vp_cy;
                 } else if (nd.shape.type == ShapeType::FakeExtrudedText) {
-                    nd.fake_extruded_text_runtime.cam_ready = true;
-                    nd.fake_extruded_text_runtime.cam_view  = fake3d_view;
-                    nd.fake_extruded_text_runtime.cam_focal  = fake3d_focal;
-                    nd.fake_extruded_text_runtime.vp_cx      = vp_cx;
-                    nd.fake_extruded_text_runtime.vp_cy      = vp_cy;
+                    nd.fake_extruded_text_runtime.cam_ready    = true;
+                    nd.fake_extruded_text_runtime.cam_view     = fake3d_view;
+                    nd.fake_extruded_text_runtime.cam_focal    = fake3d_focal;
+                    nd.fake_extruded_text_runtime.vp_cx        = vp_cx;
+                    nd.fake_extruded_text_runtime.vp_cy        = vp_cy;
+                    nd.fake_extruded_text_runtime.world_matrix = item.world_transform.to_matrix();
                 }
             }
         }

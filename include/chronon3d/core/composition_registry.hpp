@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chronon3d/core/composition_registration.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <functional>
 #include <string>
@@ -17,7 +18,11 @@ namespace chronon3d {
  */
 class CompositionRegistry {
 public:
-    using Factory = std::function<Composition()>;
+    using Factory = detail::CompositionFactory;
+
+    CompositionRegistry() {
+        detail::populate_registered_compositions(*this);
+    }
 
     void add(std::string name, Factory factory) {
         if (factories_.contains(name)) {
@@ -51,5 +56,15 @@ public:
 private:
     std::map<std::string, Factory> factories_;
 };
+
+namespace detail {
+
+inline void populate_registered_compositions(CompositionRegistry& registry) {
+    for (const auto& entry : builtin_composition_entries()) {
+        registry.add(entry.id, entry.factory);
+    }
+}
+
+} // namespace detail
 
 } // namespace chronon3d

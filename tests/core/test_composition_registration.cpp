@@ -1,5 +1,4 @@
 #include <doctest/doctest.h>
-#include <chronon3d/core/builtin_compositions.hpp>
 
 using namespace chronon3d;
 
@@ -37,13 +36,11 @@ TEST_CASE("Composition Registry & Registration") {
     SUBCASE("Builtin registry integration") {
         CompositionRegistry registry;
 #if defined(CHRONON3D_BUILD_EXAMPLES)
-        register_builtin_compositions(registry);
         CHECK(registry.contains("BasicShapes") == true);
 
         auto comp = registry.create("BasicShapes");
         CHECK(comp.name() == "BasicShapes");
 #else
-        register_builtin_compositions(registry);
         CHECK(registry.available().empty());
 #endif
     }
