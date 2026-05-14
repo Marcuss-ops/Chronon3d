@@ -160,9 +160,9 @@ void FakeExtrudedTextRenderer::draw(
             for (auto& c : contours) {
                 if (c.size() < 3) continue;
                 float a = get_area(c);
-                if (a > 0) { // Outer ring
+                if (a > 0) {
                     islands.push_back({ {std::move(c)}, a });
-                } else { // Hole
+                } else {
                     bool placed = false;
                     for (auto& island : islands) {
                         island.polygon.push_back(std::move(c));

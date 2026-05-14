@@ -63,6 +63,7 @@ struct Fake3DTitleStudioParams {
 
     // Optional fake extrusion for the title shot; disabled by default.
     bool use_extruded_text{false};
+    bool title_is_3d{true};
     f32  text_depth{18};
     f32  text_extrude_z{2.2f};
     f32  text_extrude_x{0.3f};
@@ -122,20 +123,40 @@ inline void fake3d_title_studio(SceneBuilder& s, const FrameContext& ctx,
 
     // Title text: flat 2D-in-3D (clean, premium) or fake extrusion
     if (p.use_extruded_text) {
-        s.fake_extruded_text_layer("tmpl_title", {
-            .text           = p.title,
-            .font_path      = p.font_path,
-            .pos            = p.text_pos,
-            .font_size      = p.font_size,
-            .depth          = static_cast<int>(p.text_depth),
-            .extrude_dir    = {p.text_extrude_x, 0.0f},
-            .extrude_z_step = p.text_extrude_z,
-            .front_color    = p.theme.text_front,
-            .side_color     = p.theme.text_side,
-            .side_fade      = 0.06f,
-            .align          = TextAlign::Center,
-            .highlight_opacity = 0.11f
-        });
+        if (p.title_is_3d) {
+            s.fake_extruded_text_layer("tmpl_title", {
+                .text           = p.title,
+                .font_path      = p.font_path,
+                .pos            = p.text_pos,
+                .font_size      = p.font_size,
+                .depth          = static_cast<int>(p.text_depth),
+                .extrude_dir    = {p.text_extrude_x, 0.0f},
+                .extrude_z_step = p.text_extrude_z,
+                .front_color    = p.theme.text_front,
+                .side_color     = p.theme.text_side,
+                .side_fade      = 0.06f,
+                .align          = TextAlign::Center,
+                .highlight_opacity = 0.11f
+            });
+        } else {
+            s.layer("tmpl_title", [&p](LayerBuilder& l) {
+                l.fake_extruded_text("text", {
+                     .text           = p.title,
+                     .font_path      = p.font_path,
+                     .pos            = p.text_pos,
+                     .font_size      = p.font_size,
+                     .depth          = static_cast<int>(p.text_depth),
+                     .extrude_dir    = {p.text_extrude_x, 0.0f},
+                     .extrude_z_step = p.text_extrude_z,
+                     .front_color    = p.theme.text_front,
+                     .side_color     = p.theme.text_side,
+                     .side_fade      = 0.06f,
+                     .align          = TextAlign::Center,
+                     .highlight_opacity = 0.11f,
+                     .bevel_size     = 1.5f
+                 });
+            });
+        }
     } else {
         s.layer("tmpl_title", [&p](LayerBuilder& l) {
             l.enable_3d()
