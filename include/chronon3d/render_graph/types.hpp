@@ -5,7 +5,7 @@
 #include <chronon3d/core/framebuffer.hpp>
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/math/transform.hpp>
-#include <chronon3d/scene/camera.hpp>
+#include <chronon3d/scene/camera/camera.hpp>
 #include <string>
 #include <string_view>
 #include <unordered_map>

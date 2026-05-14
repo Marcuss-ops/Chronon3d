@@ -1,6 +1,6 @@
 #include "primitive_renderer.hpp"
-#include "render_effects_processor.hpp"
-#include "render_graph_builder.hpp"
+#include "utils/render_effects_processor.hpp"
+#include "graph/render_graph_builder.hpp"
 
 #include <algorithm>
 #include <chronon3d/compositor/blend_mode.hpp>
@@ -8,8 +8,8 @@
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/renderer/software/software_renderer.hpp>
 #include <chronon3d/renderer/software/fake_extruded_text_renderer.hpp>
-#include <chronon3d/scene/camera.hpp>
-#include <chronon3d/scene/render_node.hpp>
+#include <chronon3d/scene/camera/camera.hpp>
+#include <chronon3d/scene/layer/render_node.hpp>
 #include <chronon3d/scene/scene.hpp>
 #include <cmath>
 #include <fmt/format.h>

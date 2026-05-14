@@ -5,7 +5,7 @@
 #include <chronon3d/renderer/text/text_layout_engine.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/math/raster_utils.hpp>
-#include <chronon3d/scene/mask_utils.hpp>
+#include <chronon3d/scene/mask/mask_utils.hpp>
 #include <vector>
 #include <cmath>
 #include <algorithm>

@@ -5,8 +5,8 @@
 #include <chronon3d/render_graph/nodes/video_node.hpp>
 #include <chronon3d/render_graph/render_graph_hashing.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
-#include <chronon3d/scene/layer.hpp>
-#include <chronon3d/scene/layer_hierarchy.hpp>
+#include <chronon3d/scene/layer/layer.hpp>
+#include <chronon3d/scene/layer/layer_hierarchy.hpp>
 #include <algorithm>
 #include <cmath>
 

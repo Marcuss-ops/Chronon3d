@@ -1,6 +1,6 @@
 #pragma once
 
-#include <chronon3d/scene/scene_builder.hpp>
+#include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/renderer/materials.hpp>
 #include <string>
 

@@ -1,5 +1,5 @@
 #include <doctest/doctest.h>
-#include <chronon3d/scene/camera_2_5d.hpp>
+#include <chronon3d/scene/camera/camera_2_5d.hpp>
 #include <chronon3d/chronon3d.hpp>
 #include <chronon3d/renderer/software/software_renderer.hpp>
 

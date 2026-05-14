@@ -2,7 +2,7 @@
 
 #include <chronon3d/core/time.hpp>
 #include <chronon3d/core/types.hpp>
-#include <chronon3d/scene/camera_2_5d.hpp>
+#include <chronon3d/scene/camera/camera_2_5d.hpp>
 #include <chronon3d/evaluation/evaluated_layer.hpp>
 #include <optional>
 #include <vector>

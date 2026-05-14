@@ -101,6 +101,10 @@ target_link_libraries(chronon3d_effects
 file(GLOB CHRONON3D_RENDERER_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/software/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/software/rasterizers/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/software/specialized/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/software/utils/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/software/graph/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/text/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/assets/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/video/*.cpp"
@@ -173,6 +177,30 @@ else()
 endif()
 
 # Subdirectories
+
+# 8. Examples Library (Host for auto-registration)
+if(CHRONON3D_BUILD_EXAMPLES)
+    add_library(chronon3d_examples_lib STATIC)
+    file(GLOB CHRONON3D_EXAMPLE_SOURCES CONFIGURE_DEPENDS
+        "${CMAKE_CURRENT_SOURCE_DIR}/examples/*.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/examples/basics/*.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/examples/demos/*.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/examples/proofs/*.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/examples/proofs/core/*.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/examples/proofs/fake3d/*.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/examples/proofs/camera/*.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/examples/proofs/templates/*.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/examples/debug/*.cpp"
+    )
+    target_sources(chronon3d_examples_lib PRIVATE ${CHRONON3D_EXAMPLE_SOURCES})
+    target_link_libraries(chronon3d_examples_lib
+        PUBLIC
+            chronon3d
+            chronon3d_renderer
+    )
+endif()
+
+# 9. CLI App
 if(CHRONON3D_BUILD_CLI)
     add_subdirectory(apps/chronon3d_cli)
 endif()
