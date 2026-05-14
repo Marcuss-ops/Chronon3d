@@ -1,5 +1,5 @@
-#include <chronon3d/scene/layer_builder.hpp>
-#include <chronon3d/scene/layer_builder_delegates.hpp>
+#include <chronon3d/scene/builders/layer_builder.hpp>
+#include <chronon3d/scene/builders/layer_builder_delegates.hpp>
 #include <chronon3d/render_graph/render_node.hpp>
 #include <chronon3d/math/transform.hpp>
 

@@ -6,10 +6,10 @@
 #include <chronon3d/renderer/text/text_renderer.hpp>
 #include <chronon3d/renderer/assets/image_renderer.hpp>
 #include <chronon3d/math/transform.hpp>
-#include <chronon3d/scene/layer.hpp>
-#include <chronon3d/scene/layer_effect.hpp>
-#include <chronon3d/scene/effect_stack.hpp>
-#include <chronon3d/scene/camera_2_5d.hpp>
+#include <chronon3d/scene/layer/layer.hpp>
+#include <chronon3d/scene/effects/layer_effect.hpp>
+#include <chronon3d/scene/effects/effect_stack.hpp>
+#include <chronon3d/scene/camera/camera_2_5d.hpp>
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/renderer/software/render_settings.hpp>
 #include <chronon3d/render_graph/graph_builder.hpp>

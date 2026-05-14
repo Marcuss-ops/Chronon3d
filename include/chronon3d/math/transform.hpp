@@ -7,7 +7,7 @@
 namespace chronon3d {
 
 // Forward-declared to avoid a math/ → scene/ include cycle.
-// Full definition is in <chronon3d/scene/mask.hpp>.
+// Full definition is in <chronon3d/scene/mask/mask.hpp>.
 struct Mask;
 
 struct Transform {

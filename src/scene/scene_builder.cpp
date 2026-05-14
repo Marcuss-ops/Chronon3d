@@ -1,4 +1,4 @@
-#include <chronon3d/scene/scene_builder.hpp>
+#include <chronon3d/scene/builders/scene_builder.hpp>
 #include <unordered_map>
 #include <functional>
 

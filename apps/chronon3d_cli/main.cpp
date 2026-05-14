@@ -123,6 +123,18 @@ int main(int argc, char** argv) {
         }
     });
 
+    // -------------------------------------------------------------------------
+    // proofs
+    // -------------------------------------------------------------------------
+    ProofsArgs proofs_args;
+    auto* proofs_cmd = app.add_subcommand("proofs", "Render proof suites for visual validation");
+    proofs_cmd->add_option("suite", proofs_args.suite, "Suite name (e.g., 'fake3d', 'camera25d') or 'list' or 'all'")->required();
+    proofs_cmd->add_option("-o,--output-dir", proofs_args.output_dir, "Output directory")->default_val("output/proofs");
+    proofs_cmd->add_flag("--modular", proofs_args.use_modular_graph, "Use modular RenderGraph");
+    proofs_cmd->add_flag("--diagnostic", proofs_args.diagnostic, "Enable diagnostic overlays");
+    proofs_cmd->add_option("--ssaa", proofs_args.ssaa, "Super-sampling factor (e.g., 2.0)")->default_val(1.0f);
+    proofs_cmd->callback([&]() { exit_code = command_proofs(registry, proofs_args); });
+
     try {
         CLI11_PARSE(app, argc, argv);
     } catch (const CLI::ParseError& e) {

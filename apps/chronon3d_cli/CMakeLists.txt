@@ -1,21 +1,24 @@
 add_executable(chronon3d_cli
     main.cpp
-    cli_utils.cpp
-    ffmpeg_runner.cpp
-    command_list.cpp
-    command_info.cpp
-    command_render.cpp
-    command_batch.cpp
-    command_watch.cpp
-    command_video.cpp
-    command_bench.cpp
-    command_graph.cpp
+    proof_suites.cpp
+    utils/cli_utils.cpp
+    utils/ffmpeg_runner.cpp
+    commands/command_list.cpp
+    commands/command_info.cpp
+    commands/command_render.cpp
+    commands/command_batch.cpp
+    commands/command_watch.cpp
+    commands/command_video.cpp
+    commands/command_bench.cpp
+    commands/command_graph.cpp
+    commands/command_proofs.cpp
 )
 
 target_link_libraries(chronon3d_cli
     PRIVATE
         chronon3d_pipeline
         chronon3d_io
+        $<$<BOOL:${CHRONON3D_BUILD_EXAMPLES}>:$<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_examples_lib>>
         CLI11::CLI11
         tomlplusplus::tomlplusplus
         spdlog::spdlog

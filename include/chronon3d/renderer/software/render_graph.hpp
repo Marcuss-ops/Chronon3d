@@ -6,10 +6,10 @@
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/math/transform.hpp>
 #include <chronon3d/core/framebuffer.hpp>
-#include <chronon3d/scene/camera.hpp>
-#include <chronon3d/scene/effect_stack.hpp>
-#include <chronon3d/scene/layer.hpp>
-#include <chronon3d/scene/layer_effect.hpp>
+#include <chronon3d/scene/camera/camera.hpp>
+#include <chronon3d/scene/effects/effect_stack.hpp>
+#include <chronon3d/scene/layer/layer.hpp>
+#include <chronon3d/scene/effects/layer_effect.hpp>
 #include <functional>
 #include <memory>
 #include <span>

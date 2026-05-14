@@ -1,7 +1,7 @@
 #pragma once
 
 #include <chronon3d/core/frame_context.hpp>
-#include <chronon3d/scene/camera.hpp>
+#include <chronon3d/scene/camera/camera.hpp>
 #include <chronon3d/scene/scene.hpp>
 #include <functional>
 #include <string>

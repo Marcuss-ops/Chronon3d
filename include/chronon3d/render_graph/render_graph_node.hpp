@@ -2,7 +2,7 @@
 
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/core/framebuffer.hpp>
-#include <chronon3d/scene/camera.hpp>
+#include <chronon3d/scene/camera/camera.hpp>
 #include <memory>
 #include <string>
 #include <vector>
