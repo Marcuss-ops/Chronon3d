@@ -5,7 +5,7 @@
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/math/transform.hpp>
-#include <chronon3d/renderer/software/framebuffer.hpp>
+#include <chronon3d/core/framebuffer.hpp>
 #include <chronon3d/scene/camera.hpp>
 #include <chronon3d/scene/effect_stack.hpp>
 #include <chronon3d/scene/layer.hpp>
@@ -18,75 +18,34 @@
 #include <unordered_map>
 #include <vector>
 
+#include <chronon3d/render_graph/types.hpp>
+
 namespace chronon3d {
 class SoftwareRenderer;
-class RenderNode;
 
 namespace rendergraph {
 
-using NodeId = usize;
+// Use aliases for legacy compatibility while we migrate
+using NodeId = render_graph::NodeId;
+using RenderNodeKind = render_graph::NodeKind;
+using RenderPassKind = render_graph::RenderPassKind;
+using RenderCacheKey = render_graph::RenderCacheKey;
+using RenderCacheKeyHash = render_graph::RenderCacheKeyHash;
+using RenderPassResult = render_graph::RenderPassResult;
+using RenderGraphExecutionContext = render_graph::RenderGraphExecutionContext;
 
-enum class RenderNodeKind {
-    Output,
-    Transform,
-    Source,
-    Effect,
-    Composite,
-};
-
-enum class RenderPassKind {
-    Output,
-    Transform,
-    Source,
-    Effect,
-    Composite,
-};
-
-struct RenderCacheKey {
-    std::string scope;
-    Frame frame{0};
-    i32 width{0};
-    i32 height{0};
-    u64 params_hash{0};
-    u64 source_hash{0};
-    u64 input_hash{0};
-
-    [[nodiscard]] u64 digest() const;
-    [[nodiscard]] bool operator==(const RenderCacheKey&) const = default;
-};
-
-struct RenderCacheKeyHash {
-    [[nodiscard]] size_t operator()(const RenderCacheKey& key) const noexcept;
-};
-
-struct RenderPassResult {
-    std::shared_ptr<Framebuffer> framebuffer;
-    RenderState state{};
-    bool has_state{false};
-};
-
+// Move implementation-heavy structures to their own namespace later if needed
 struct RenderGraphExecutionState {
     std::unordered_map<NodeId, RenderPassResult> results;
     std::unordered_map<RenderCacheKey, RenderPassResult, RenderCacheKeyHash> cache;
 };
 
-struct RenderGraphExecutionContext {
-    SoftwareRenderer& renderer;
-    const Camera& camera;
-    Frame frame{0};
-    i32 width{0};
-    i32 height{0};
-    bool diagnostic{false};
-};
-
-class RenderNode {
+class RenderNode : public render_graph::RenderGraphNode {
 public:
-    virtual ~RenderNode() = default;
-
-    [[nodiscard]] virtual RenderNodeKind kind() const = 0;
-    [[nodiscard]] virtual std::string_view label() const = 0;
-    [[nodiscard]] virtual const RenderCacheKey& cache_key() const = 0;
-    [[nodiscard]] virtual std::span<const NodeId> inputs() const = 0;
+    [[nodiscard]] render_graph::NodeKind kind() const override = 0;
+    [[nodiscard]] std::string_view label() const override = 0;
+    [[nodiscard]] const render_graph::RenderCacheKey& cache_key() const override = 0;
+    [[nodiscard]] std::span<const render_graph::NodeId> inputs() const override = 0;
 };
 
 class RenderPass {

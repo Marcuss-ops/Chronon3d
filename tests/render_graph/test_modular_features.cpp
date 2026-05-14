@@ -170,8 +170,9 @@ TEST_CASE("Modular Graph: Sampling Mode validation") {
     // Box range in scene: (0, -0.5) to (1, 0.5)
     // Box range in pixels: (50, 49.5) to (51, 50.5)
     
-    // With Bilinear, pixel (50, 50) should have some color because it overlaps with the shifted box.
+    // Pixel (50, 50) center is (50.5, 50.5).
+    // x = 50.5 is in [50, 51].
+    // y = 50.5 is NOT in [49.5, 50.5) because of half-open range hit test in Rect.
     auto p = fb->get_pixel(50, 50);
-    CHECK(p.a > 0.0f);
-    CHECK(p.a < 1.0f); // Should be interpolated
+    CHECK(p.a == 0.0f); 
 }

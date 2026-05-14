@@ -23,13 +23,13 @@ public:
     [[nodiscard]] std::string name() const override { return "Transform"; }
 
     [[nodiscard]] cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
-        u64 params_hash = rendergraph::hash_combine(
-            rendergraph::hash_transform(m_transform),
+        u64 params_hash = render_graph::hash_combine(
+            render_graph::hash_transform(m_transform),
             static_cast<u64>(m_mode)
         );
 
         if (m_use_matrix) {
-            params_hash = rendergraph::hash_combine(params_hash, rendergraph::hash_bytes(&m_matrix, sizeof(m_matrix)));
+            params_hash = render_graph::hash_combine(params_hash, render_graph::hash_bytes(&m_matrix, sizeof(m_matrix)));
         }
 
         return cache::NodeCacheKey{

@@ -3,6 +3,7 @@
 #include <chronon3d/render_graph/render_graph_node.hpp>
 #include <memory>
 #include <stdexcept>
+#include <string>
 #include <vector>
 
 namespace chronon3d::graph {
@@ -52,6 +53,8 @@ public:
     }
 
     [[nodiscard]] bool has_output() const { return m_output != k_invalid_node; }
+
+    [[nodiscard]] std::string to_dot() const;
 
 private:
     std::vector<std::unique_ptr<RenderGraphNode>> m_nodes;

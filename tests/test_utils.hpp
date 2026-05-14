@@ -1,6 +1,6 @@
 #pragma once
 
-#include <chronon3d/renderer/software/framebuffer.hpp>
+#include <chronon3d/core/framebuffer.hpp>
 #include <chronon3d/io/image_writer.hpp>
 #include <stb_image.h>
 #include <string>

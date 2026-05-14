@@ -13,71 +13,11 @@
 #include <type_traits>
 #include <variant>
 
-namespace chronon3d::rendergraph {
-
-namespace {
-
-struct GraphNode final : RenderNode {
-    GraphNode(RenderNodeKind kind,
-              std::string label,
-              RenderCacheKey key,
-              std::vector<NodeId> inputs)
-        : m_kind(kind)
-        , m_label(std::move(label))
-        , m_key(std::move(key))
-        , m_inputs(std::move(inputs)) {}
-
-    [[nodiscard]] RenderNodeKind kind() const override { return m_kind; }
-    [[nodiscard]] std::string_view label() const override { return m_label; }
-    [[nodiscard]] const RenderCacheKey& cache_key() const override { return m_key; }
-    [[nodiscard]] std::span<const NodeId> inputs() const override { return m_inputs; }
-
-    RenderNodeKind m_kind;
-    std::string m_label;
-    RenderCacheKey m_key;
-    std::vector<NodeId> m_inputs;
-};
-
-struct GraphPass final : RenderPass {
-    GraphPass(RenderPassKind kind,
-              std::string label,
-              RenderCacheKey key,
-              bool cacheable,
-              RenderGraph::PassExecutor executor)
-        : m_kind(kind)
-        , m_label(std::move(label))
-        , m_key(std::move(key))
-        , m_cacheable(cacheable)
-        , m_executor(std::move(executor)) {}
-
-    [[nodiscard]] RenderPassKind kind() const override { return m_kind; }
-    [[nodiscard]] std::string_view label() const override { return m_label; }
-    [[nodiscard]] const RenderCacheKey& cache_key() const override { return m_key; }
-    [[nodiscard]] bool cacheable() const override { return m_cacheable; }
-    [[nodiscard]] RenderPassResult execute(RenderGraphExecutionContext& ctx,
-                                           RenderGraphExecutionState& state,
-                                           NodeId self) const override {
-        return m_executor(ctx, state, self);
-    }
-
-    RenderPassKind m_kind;
-    std::string m_label;
-    RenderCacheKey m_key;
-    bool m_cacheable{false};
-    RenderGraph::PassExecutor m_executor;
-};
-
-constexpr u64 fnv_offset = 1469598103934665603ull;
-constexpr u64 fnv_prime = 1099511628211ull;
-
-template <typename T>
-[[nodiscard]] u64 hash_value(const T& value) {
-    return hash_bytes(&value, sizeof(T));
-}
-
-} // namespace
+namespace chronon3d::render_graph {
 
 u64 hash_bytes(const void* data, usize size) {
+    constexpr u64 fnv_offset = 1469598103934665603ull;
+    constexpr u64 fnv_prime = 1099511628211ull;
     const auto* bytes = static_cast<const unsigned char*>(data);
     u64 h = fnv_offset;
     for (usize i = 0; i < size; ++i) {
@@ -96,36 +36,41 @@ u64 hash_combine(u64 seed, u64 value) {
 }
 
 u64 hash_vec2(const Vec2& value) {
-    return hash_combine(hash_value(value.x), hash_value(value.y));
+    auto hv = [](f32 v) { return hash_bytes(&v, sizeof(f32)); };
+    return hash_combine(hv(value.x), hv(value.y));
 }
 
 u64 hash_vec3(const Vec3& value) {
-    return hash_combine(hash_combine(hash_value(value.x), hash_value(value.y)), hash_value(value.z));
+    auto hv = [](f32 v) { return hash_bytes(&v, sizeof(f32)); };
+    return hash_combine(hash_combine(hv(value.x), hv(value.y)), hv(value.z));
 }
 
 u64 hash_color(const Color& color) {
-    u64 seed = hash_value(color.r);
-    seed = hash_combine(seed, hash_value(color.g));
-    seed = hash_combine(seed, hash_value(color.b));
-    seed = hash_combine(seed, hash_value(color.a));
+    auto hv = [](f32 v) { return hash_bytes(&v, sizeof(f32)); };
+    u64 seed = hv(color.r);
+    seed = hash_combine(seed, hv(color.g));
+    seed = hash_combine(seed, hv(color.b));
+    seed = hash_combine(seed, hv(color.a));
     return seed;
 }
 
 u64 hash_transform(const Transform& transform) {
+    auto hv = [](f32 v) { return hash_bytes(&v, sizeof(f32)); };
     u64 seed = hash_vec3(transform.position);
     seed = hash_combine(seed, hash_vec3(transform.scale));
     seed = hash_combine(seed, hash_vec3(Vec3{transform.rotation.x, transform.rotation.y, transform.rotation.z}));
-    seed = hash_combine(seed, hash_value(transform.rotation.w));
+    seed = hash_combine(seed, hv(transform.rotation.w));
     seed = hash_combine(seed, hash_vec3(transform.anchor));
-    seed = hash_combine(seed, hash_value(transform.opacity));
+    seed = hash_combine(seed, hv(transform.opacity));
     return seed;
 }
 
 u64 RenderCacheKey::digest() const {
+    auto hv = [](auto v) { return hash_bytes(&v, sizeof(v)); };
     u64 seed = hash_string(scope);
-    seed = hash_combine(seed, hash_value(frame));
-    seed = hash_combine(seed, hash_value(width));
-    seed = hash_combine(seed, hash_value(height));
+    seed = hash_combine(seed, hv(frame));
+    seed = hash_combine(seed, hv(width));
+    seed = hash_combine(seed, hv(height));
     seed = hash_combine(seed, params_hash);
     seed = hash_combine(seed, source_hash);
     seed = hash_combine(seed, input_hash);
@@ -135,6 +80,64 @@ u64 RenderCacheKey::digest() const {
 size_t RenderCacheKeyHash::operator()(const RenderCacheKey& key) const noexcept {
     return static_cast<size_t>(key.digest());
 }
+
+} // namespace chronon3d::render_graph
+
+namespace chronon3d::rendergraph {
+
+namespace {
+
+struct GraphNode final : RenderNode {
+    GraphNode(render_graph::NodeKind kind,
+              std::string label,
+              render_graph::RenderCacheKey key,
+              std::vector<NodeId> inputs)
+        : m_kind(kind)
+        , m_label(std::move(label))
+        , m_key(std::move(key))
+        , m_inputs(std::move(inputs)) {}
+
+    [[nodiscard]] render_graph::NodeKind kind() const override { return m_kind; }
+    [[nodiscard]] std::string_view label() const override { return m_label; }
+    [[nodiscard]] const render_graph::RenderCacheKey& cache_key() const override { return m_key; }
+    [[nodiscard]] std::span<const NodeId> inputs() const override { return m_inputs; }
+
+    render_graph::NodeKind m_kind;
+    std::string m_label;
+    render_graph::RenderCacheKey m_key;
+    std::vector<NodeId> m_inputs;
+};
+
+struct GraphPass final : RenderPass {
+    GraphPass(render_graph::RenderPassKind kind,
+              std::string label,
+              render_graph::RenderCacheKey key,
+              bool cacheable,
+              RenderGraph::PassExecutor executor)
+        : m_kind(kind)
+        , m_label(std::move(label))
+        , m_key(std::move(key))
+        , m_cacheable(cacheable)
+        , m_executor(std::move(executor)) {}
+
+    [[nodiscard]] render_graph::RenderPassKind kind() const override { return m_kind; }
+    [[nodiscard]] std::string_view label() const override { return m_label; }
+    [[nodiscard]] const render_graph::RenderCacheKey& cache_key() const override { return m_key; }
+    [[nodiscard]] bool cacheable() const override { return m_cacheable; }
+    [[nodiscard]] RenderPassResult execute(render_graph::RenderGraphExecutionContext& ctx,
+                                           RenderGraphExecutionState& state,
+                                           NodeId self) const override {
+        return m_executor(ctx, state, self);
+    }
+
+    render_graph::RenderPassKind m_kind;
+    std::string m_label;
+    render_graph::RenderCacheKey m_key;
+    bool m_cacheable{false};
+    RenderGraph::PassExecutor m_executor;
+};
+
+} // namespace
 
 NodeId RenderGraph::add_entry(std::unique_ptr<RenderNode> node, std::unique_ptr<RenderPass> pass) {
     const NodeId id = m_passes.size();

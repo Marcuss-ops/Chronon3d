@@ -11,19 +11,19 @@
 namespace chronon3d::graph {
 
 // Re-using existing hashing utils from rendergraph namespace
-using rendergraph::hash_combine;
-using rendergraph::hash_bytes;
-using rendergraph::hash_string;
-using rendergraph::hash_transform;
+using render_graph::hash_combine;
+using render_graph::hash_bytes;
+using render_graph::hash_string;
+using render_graph::hash_transform;
 
 inline u64 hash_video_source(const video::VideoSource& source) {
-    u64 seed = rendergraph::hash_string(source.path);
-    seed = rendergraph::hash_combine(seed, rendergraph::hash_bytes(&source.source_start, sizeof(source.source_start)));
-    seed = rendergraph::hash_combine(seed, rendergraph::hash_bytes(&source.duration, sizeof(source.duration)));
-    seed = rendergraph::hash_combine(seed, rendergraph::hash_bytes(&source.source_fps, sizeof(source.source_fps)));
-    seed = rendergraph::hash_combine(seed, rendergraph::hash_bytes(&source.speed, sizeof(source.speed)));
+    u64 seed = render_graph::hash_string(source.path);
+    seed = render_graph::hash_combine(seed, render_graph::hash_bytes(&source.source_start, sizeof(source.source_start)));
+    seed = render_graph::hash_combine(seed, render_graph::hash_bytes(&source.duration, sizeof(source.duration)));
+    seed = render_graph::hash_combine(seed, render_graph::hash_bytes(&source.source_fps, sizeof(source.source_fps)));
+    seed = render_graph::hash_combine(seed, render_graph::hash_bytes(&source.speed, sizeof(source.speed)));
     auto loop = static_cast<u64>(source.loop_mode);
-    seed = rendergraph::hash_combine(seed, rendergraph::hash_bytes(&loop, sizeof(loop)));
+    seed = render_graph::hash_combine(seed, render_graph::hash_bytes(&loop, sizeof(loop)));
     return seed;
 }
 
@@ -37,7 +37,7 @@ inline u64 hash_blur_params(const BlurParams& p) {
 }
 
 inline u64 hash_tint_params(const TintParams& p) {
-    u64 seed = rendergraph::hash_color(p.color);
+    u64 seed = render_graph::hash_color(p.color);
     return hash_combine(seed, hash_value(p.amount));
 }
 
@@ -50,15 +50,15 @@ inline u64 hash_contrast_params(const ContrastParams& p) {
 }
 
 inline u64 hash_drop_shadow_params(const DropShadowParams& p) {
-    u64 seed = rendergraph::hash_vec2(p.offset);
-    seed = hash_combine(seed, rendergraph::hash_color(p.color));
+    u64 seed = render_graph::hash_vec2(p.offset);
+    seed = hash_combine(seed, render_graph::hash_color(p.color));
     return hash_combine(seed, hash_value(p.radius));
 }
 
 inline u64 hash_glow_params(const GlowParams& p) {
     u64 seed = hash_value(p.radius);
     seed = hash_combine(seed, hash_value(p.intensity));
-    return hash_combine(seed, rendergraph::hash_color(p.color));
+    return hash_combine(seed, render_graph::hash_color(p.color));
 }
 
 inline u64 hash_effect_params(const EffectParams& p) {
@@ -86,8 +86,8 @@ inline u64 hash_effect_stack(const EffectStack& effects) {
 inline u64 hash_mask(const Mask& m) {
     if (!m.enabled()) return 0;
     u64 seed = hash_value(static_cast<int>(m.type));
-    seed = hash_combine(seed, rendergraph::hash_vec3(m.pos));
-    seed = hash_combine(seed, rendergraph::hash_vec2(m.size));
+    seed = hash_combine(seed, render_graph::hash_vec3(m.pos));
+    seed = hash_combine(seed, render_graph::hash_vec2(m.size));
     seed = hash_combine(seed, hash_value(m.radius));
     seed = hash_combine(seed, hash_value(m.inverted));
     return seed;
@@ -97,14 +97,14 @@ inline u64 hash_shape(const Shape& s) {
     u64 seed = hash_value(static_cast<int>(s.type));
     switch (s.type) {
         case ShapeType::Rect:
-            return hash_combine(seed, rendergraph::hash_vec2(s.rect.size));
+            return hash_combine(seed, render_graph::hash_vec2(s.rect.size));
         case ShapeType::RoundedRect:
-            seed = hash_combine(seed, rendergraph::hash_vec2(s.rounded_rect.size));
+            seed = hash_combine(seed, render_graph::hash_vec2(s.rounded_rect.size));
             return hash_combine(seed, hash_value(s.rounded_rect.radius));
         case ShapeType::Circle:
             return hash_combine(seed, hash_value(s.circle.radius));
         case ShapeType::Line:
-            seed = hash_combine(seed, rendergraph::hash_vec3(s.line.to));
+            seed = hash_combine(seed, render_graph::hash_vec3(s.line.to));
             return hash_combine(seed, hash_value(s.line.thickness));
         case ShapeType::Text:
             seed = hash_combine(seed, hash_bytes(s.text.text.data(), s.text.text.size()));
@@ -112,7 +112,7 @@ inline u64 hash_shape(const Shape& s) {
             return hash_combine(seed, hash_value(s.text.style.size));
         case ShapeType::Image:
             seed = hash_combine(seed, hash_bytes(s.image.path.data(), s.image.path.size()));
-            return hash_combine(seed, rendergraph::hash_vec2(s.image.size));
+            return hash_combine(seed, render_graph::hash_vec2(s.image.size));
         default:
             return seed;
     }
@@ -122,17 +122,17 @@ inline u64 hash_render_node(const RenderNode& n) {
     u64 seed = hash_bytes(n.name.data(), n.name.size());
     seed = hash_combine(seed, hash_transform(n.world_transform));
     seed = hash_combine(seed, hash_shape(n.shape));
-    seed = hash_combine(seed, rendergraph::hash_color(n.color));
+    seed = hash_combine(seed, render_graph::hash_color(n.color));
     seed = hash_combine(seed, hash_value(n.visible));
     if (n.shadow.enabled) {
-        seed = hash_combine(seed, rendergraph::hash_vec2(n.shadow.offset));
-        seed = hash_combine(seed, rendergraph::hash_color(n.shadow.color));
+        seed = hash_combine(seed, render_graph::hash_vec2(n.shadow.offset));
+        seed = hash_combine(seed, render_graph::hash_color(n.shadow.color));
         seed = hash_combine(seed, hash_value(n.shadow.radius));
     }
     if (n.glow.enabled) {
         seed = hash_combine(seed, hash_value(n.glow.radius));
         seed = hash_combine(seed, hash_value(n.glow.intensity));
-        seed = hash_combine(seed, rendergraph::hash_color(n.glow.color));
+        seed = hash_combine(seed, render_graph::hash_color(n.glow.color));
     }
     return seed;
 }

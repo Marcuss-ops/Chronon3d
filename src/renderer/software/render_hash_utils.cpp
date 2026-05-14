@@ -7,13 +7,13 @@
 namespace chronon3d {
 namespace renderer {
 
-using rendergraph::hash_combine;
-using rendergraph::hash_bytes;
-using rendergraph::hash_vec2;
-using rendergraph::hash_vec3;
-using rendergraph::hash_color;
-using rendergraph::hash_string;
-using rendergraph::hash_transform;
+using render_graph::hash_combine;
+using render_graph::hash_bytes;
+using render_graph::hash_vec2;
+using render_graph::hash_vec3;
+using render_graph::hash_color;
+using render_graph::hash_string;
+using render_graph::hash_transform;
 
 template <typename T>
 u64 hash_value_local(const T& value) {
