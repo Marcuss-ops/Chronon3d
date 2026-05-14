@@ -18,7 +18,7 @@ Chronon3d is a code-first, headless, CPU-only motion graphics engine. The goal i
 - `src/evaluation/` bridges timeline/composition inputs into evaluated runtime state.
 - `src/io/` handles image output.
 - `apps/chronon3d_cli/` provides the command-line interface.
-- `examples/` hosts registered compositions and proof scenes.
+- `templates/` contains reusable scene templates and composition helpers.
 - `tests/` validates the engine behavior.
 
 ## Runtime Flow

@@ -1,8 +1,8 @@
 #include "commands.hpp"
-#include "proof_suites.hpp"
 #include <chronon3d/core/pipeline.hpp>
 #include <chronon3d/renderer/software/software_renderer.hpp>
 #include <chronon3d/io/image_writer.hpp>
+#include <chronon3d/specscene/specscene.hpp>
 #include <spdlog/spdlog.h>
 #include <toml++/toml.h>
 #include <iostream>
@@ -80,11 +80,6 @@ int command_info(const CompositionRegistry& registry, const std::string& id) {
 }
 
 int command_render(const CompositionRegistry& registry, const RenderArgs& args) {
-    if (!registry.contains(args.comp_id)) {
-        spdlog::error("Unknown composition: {}", args.comp_id);
-        return 1;
-    }
-
     auto range = parse_frames(args.frames);
     
     // Handle legacy arguments if present
@@ -95,27 +90,58 @@ int command_render(const CompositionRegistry& registry, const RenderArgs& args) 
         if (args.end_old != -1) range.end = args.end_old;
     }
 
-    auto comp_instance = registry.create(args.comp_id);
-    auto comp_ptr = std::make_shared<Composition>(std::move(comp_instance));
+    namespace fs = std::filesystem;
+
+    const bool specscene_input = fs::exists(args.comp_id) && specscene::is_specscene_file(args.comp_id);
+    std::shared_ptr<Composition> comp_ptr;
+    std::vector<std::string> specscene_diagnostics;
+
+    if (specscene_input) {
+        auto compiled = specscene::compile_file(args.comp_id, &specscene_diagnostics);
+        if (!compiled) {
+            for (const auto& d : specscene_diagnostics) {
+                spdlog::error("{}", d);
+            }
+            return 1;
+        }
+
+        if (!specscene_diagnostics.empty()) {
+            for (const auto& d : specscene_diagnostics) {
+                spdlog::warn("{}", d);
+            }
+        }
+
+        comp_ptr = std::make_shared<Composition>(std::move(*compiled));
+    } else {
+        if (!registry.contains(args.comp_id)) {
+            spdlog::error("Unknown composition or specscene file: {}", args.comp_id);
+            return 1;
+        }
+
+        auto comp_instance = registry.create(args.comp_id);
+        comp_ptr = std::make_shared<Composition>(std::move(comp_instance));
+    }
+
     auto renderer = std::make_shared<SoftwareRenderer>();
     renderer->set_composition_registry(&registry);
     
     RenderSettings settings;
     settings.diagnostic = args.diagnostic;
     settings.use_modular_graph = args.use_modular_graph;
-    settings.motion_blur.enabled      = args.motion_blur;
+    settings.motion_blur.enabled      = specscene_input ? false : args.motion_blur;
     settings.motion_blur.samples      = args.motion_blur_samples;
     settings.motion_blur.shutter_angle = args.shutter_angle;
     settings.ssaa_factor              = args.ssaa;
     renderer->set_settings(settings);
 
+    if (specscene_input && args.motion_blur) {
+        spdlog::warn("Motion blur is ignored for specscene inputs in this build");
+    }
+
     spdlog::info("Rendering {} [{} -> {} step {}]{}{}...",
         args.comp_id, range.start, range.end, range.step,
         args.motion_blur ? fmt::format(" [MB {}smp {:.0f}°]", args.motion_blur_samples, args.shutter_angle) : "",
         args.ssaa > 1.0f ? fmt::format(" [SSAA {:.1f}x]", args.ssaa) : "");
-
-
-
     int64_t effective_end = (range.start == range.end) ? range.start + 1 : range.end;
     for (int64_t f = range.start; f < effective_end; f += range.step) {
         // render_frame handles both single-frame and motion-blur subframe accumulation.
@@ -198,7 +224,7 @@ int command_watch(const CompositionRegistry& registry, const std::string& comp_i
         return 1;
     }
 
-    spdlog::info("Watching for changes... (Polling src/ and examples/)");
+    spdlog::info("Watching for changes... (Polling src/ and include/)");
     
     auto get_latest_mtime = []() {
         std::filesystem::file_time_type latest = std::filesystem::file_time_type::min();
@@ -214,7 +240,6 @@ int command_watch(const CompositionRegistry& registry, const std::string& comp_i
         };
         check_dir("src");
         check_dir("include");
-        check_dir("examples");
         check_dir("apps");
         return latest;
     };
@@ -350,73 +375,6 @@ int command_video(const CompositionRegistry& registry, const VideoArgs& args) {
 
     spdlog::info("Video saved to {}", args.output);
     return 0;
-}
-
-// ---------------------------------------------------------------------------
-// proofs command
-// ---------------------------------------------------------------------------
-
-static int render_proof_suite(const CompositionRegistry& registry,
-                               const ProofSuite& suite,
-                               const std::filesystem::path& out_dir,
-                               const ProofsArgs& p_args) {
-    namespace fs = std::filesystem;
-    std::error_code ec;
-    fs::create_directories(out_dir, ec);
-
-    int failed = 0;
-    for (const auto& pf : suite.frames) {
-        if (!registry.contains(pf.composition)) {
-            spdlog::warn("Composition not registered (skipped): {}", pf.composition);
-            continue;
-        }
-        const auto out = out_dir / pf.filename;
-        spdlog::info("  {} frame {} → {}", pf.composition, pf.frame, out.string());
-
-        RenderArgs args;
-        args.comp_id   = pf.composition;
-        args.frame_old = pf.frame;
-        args.output    = out.string();
-        args.use_modular_graph = p_args.use_modular_graph;
-        args.diagnostic        = p_args.diagnostic;
-        args.ssaa              = p_args.ssaa;
-
-
-        const int r = command_render(registry, args);
-        if (r != 0 || !fs::exists(out) || fs::file_size(out) == 0) {
-            spdlog::error("  FAILED: {} frame {}", pf.composition, pf.frame);
-            ++failed;
-        }
-    }
-    return failed == 0 ? 0 : 1;
-}
-
-int command_proofs(const CompositionRegistry& registry, const ProofsArgs& args) {
-    if (args.suite == "list") {
-        fmt::print("Available proof suites:\n");
-        for (const auto& s : proof_suites())
-            fmt::print("  {}\n", s.name);
-        return 0;
-    }
-
-    if (args.suite == "all") {
-        int result = 0;
-        for (const auto& suite : proof_suites()) {
-            spdlog::info("[proofs] Suite: {}", suite.name);
-            const auto suite_dir = std::filesystem::path(args.output_dir) / suite.name;
-            result |= render_proof_suite(registry, suite, suite_dir, args);
-        }
-        return result;
-    }
-
-    const auto suite = find_proof_suite(args.suite);
-    if (!suite) {
-        spdlog::error("Unknown proof suite '{}'. Use 'proofs list' to see available suites.", args.suite);
-        return 1;
-    }
-
-    spdlog::info("[proofs] Suite: {}", suite->name);
-    return render_proof_suite(registry, *suite, args.output_dir, args);
 }
 
 int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {

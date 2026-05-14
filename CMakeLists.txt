@@ -14,7 +14,6 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
 # Options
 option(CHRONON3D_BUILD_TESTS "Build Chronon3d tests" ON)
 option(CHRONON3D_BUILD_CLI "Build Chronon3d CLI" ON)
-option(CHRONON3D_BUILD_EXAMPLES "Build Chronon3d examples" ON)
 option(CHRONON3D_ENABLE_PROFILING "Enable Tracy profiling (creates background thread, not for release)" OFF)
 
 # Find Dependencies
@@ -107,6 +106,7 @@ file(GLOB CHRONON3D_RENDERER_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/video/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/scene/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/evaluation/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/specscene/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/layout/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/core/*.cpp"
 )
@@ -127,6 +127,7 @@ target_link_libraries(chronon3d_renderer
         spdlog::spdlog
         fmt::fmt
         hwy::hwy
+        tomlplusplus::tomlplusplus
 )
 if(CHRONON3D_ENABLE_PROFILING AND Tracy_FOUND)
     target_link_libraries(chronon3d_renderer PRIVATE Tracy::TracyClient)
@@ -163,28 +164,6 @@ target_link_libraries(chronon3d_io
 )
 target_include_directories(chronon3d_io PRIVATE ${Stb_INCLUDE_DIR})
 
-# 9. Examples Library (Host for auto-registration)
-if(CHRONON3D_BUILD_EXAMPLES)
-    add_library(chronon3d_examples_lib STATIC)
-    file(GLOB CHRONON3D_EXAMPLE_SOURCES CONFIGURE_DEPENDS
-        "${CMAKE_CURRENT_SOURCE_DIR}/examples/*.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/examples/basics/*.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/examples/demos/*.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/examples/proofs/*.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/examples/proofs/core/*.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/examples/proofs/fake3d/*.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/examples/proofs/camera/*.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/examples/proofs/templates/*.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/examples/debug/*.cpp"
-    )
-    target_sources(chronon3d_examples_lib PRIVATE ${CHRONON3D_EXAMPLE_SOURCES})
-    target_link_libraries(chronon3d_examples_lib
-        PUBLIC
-            chronon3d
-            chronon3d_renderer
-    )
-endif()
-
 # Global compiler options
 if(MSVC)
     target_compile_options(chronon3d INTERFACE /EHsc /fp:strict /utf-8)
@@ -196,10 +175,6 @@ endif()
 # Subdirectories
 if(CHRONON3D_BUILD_CLI)
     add_subdirectory(apps/chronon3d_cli)
-endif()
-
-if(CHRONON3D_BUILD_EXAMPLES)
-    add_subdirectory(examples)
 endif()
 
 if(CHRONON3D_BUILD_TESTS)
