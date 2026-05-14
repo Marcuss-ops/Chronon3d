@@ -7,10 +7,20 @@
 #include "render_graph_builder.hpp"
 #include "render_effects_processor.hpp"
 #include <stb_truetype.h>   // implementation compiled in text_renderer.cpp
+#include <mapbox/earcut.hpp>
 #include <fmt/format.h>
 #include <algorithm>
 #include <cmath>
 #include <vector>
+
+namespace mapbox { namespace util {
+    template <> struct nth<0, chronon3d::Vec2> {
+        inline static float get(const chronon3d::Vec2& v) { return v.x; }
+    };
+    template <> struct nth<1, chronon3d::Vec2> {
+        inline static float get(const chronon3d::Vec2& v) { return v.y; }
+    };
+}}
 
 namespace chronon3d {
 
@@ -266,10 +276,8 @@ void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node, const 
         }
 
         // ── MESH-BASED 3D EXTRUSION ────────────────────────────────────────────
-        // Uses stb_truetype glyph outlines → side quads with camera-correct shading.
         const CachedFont* font_entry = m_text_renderer.get_font(s.font_path);
         if (!font_entry) return;
-
         stbtt_fontinfo font;
         if (!stbtt_InitFont(&font, font_entry->data.data(), 0)) return;
 
@@ -277,36 +285,27 @@ void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node, const 
         int ascent, descent, line_gap;
         stbtt_GetFontVMetrics(&font, &ascent, &descent, &line_gap);
 
-        const float depth_z = s.extrude_z_step * static_cast<float>(s.depth);
-        const Mat4  inv_view = glm::inverse(s.cam_view);
-        const Vec3  cam_world = Vec3(inv_view[3]);
-
-        auto proj3 = [&](Vec3 w, bool& ok) -> Vec2 {
-            return renderer::project_2_5d(w, s.cam_view, s.cam_focal, s.vp_cx, s.vp_cy, ok);
-        };
-
-        // Compute total text width for x-start offset (center/right/left align)
-        float total_w = 0.0f;
+        float total_w = 0;
         for (char ch : s.text) {
             int adv, lsb;
             stbtt_GetCodepointHMetrics(&font, (int)(unsigned char)ch, &adv, &lsb);
             total_w += (float)adv * sc_f;
         }
-        float x_cur = (s.align == TextAlign::Center) ? -total_w * 0.5f :
-                      (s.align == TextAlign::Right)   ? -total_w : 0.0f;
+        float x_cur_start = (s.align == TextAlign::Center) ? -total_w * 0.5f :
+                            (s.align == TextAlign::Right)   ? -total_w : 0.0f;
+        float x_cur = x_cur_start;
 
-        // Collect side quads for painter's-algorithm sort.
-        // c0/c1 are Gouraud-shaded colors at the two edge vertices (start/end).
         struct SideQ { Vec2 v[4]; Color c0, c1; float depth; };
+        struct Tri3D { Vec2 v[3]; Color color; float depth; };
         std::vector<SideQ> quads;
-        quads.reserve(1024);
+        std::vector<Tri3D> triangles;
+
+        const float depth_z = (float)s.depth * s.extrude_z_step;
 
         for (char ch : s.text) {
             stbtt_vertex* verts = nullptr;
             int nv = stbtt_GetCodepointShape(&font, (int)(unsigned char)ch, &verts);
-
             if (nv > 0 && verts) {
-                // Parse outline into closed contours (stb Y-up; same as world Y-up)
                 std::vector<std::vector<Vec2>> contours;
                 for (int vi = 0; vi < nv; ++vi) {
                     const auto& v = verts[vi];
@@ -314,168 +313,174 @@ void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node, const 
                         contours.emplace_back();
                         contours.back().push_back({(float)v.x * sc_f, (float)v.y * sc_f});
                     } else if (v.type == STBTT_vline) {
-                        if (!contours.empty())
-                            contours.back().push_back({(float)v.x * sc_f, (float)v.y * sc_f});
+                        if (!contours.empty()) contours.back().push_back({(float)v.x * sc_f, (float)v.y * sc_f});
                     } else if (v.type == STBTT_vcurve) {
                         if (contours.empty()) continue;
-                        Vec2 p0 = contours.back().empty() ? Vec2{0,0} : contours.back().back();
+                        Vec2 p0 = contours.back().back();
                         Vec2 cp{(float)v.cx * sc_f, (float)v.cy * sc_f};
                         Vec2 p1{(float)v.x  * sc_f, (float)v.y  * sc_f};
-                        for (int step = 1; step <= 16; ++step) {
-                            float t = (float)step / 16.0f, mt = 1.0f - t;
-                            contours.back().push_back({
-                                mt*mt*p0.x + 2*mt*t*cp.x + t*t*p1.x,
-                                mt*mt*p0.y + 2*mt*t*cp.y + t*t*p1.y});
+                        for (int step = 1; step <= 12; ++step) {
+                            float t = (float)step / 12.0f, mt = 1.0f - t;
+                            contours.back().push_back({mt*mt*p0.x + 2*mt*t*cp.x + t*t*p1.x, mt*mt*p0.y + 2*mt*t*cp.y + t*t*p1.y});
                         }
                     } else if (v.type == STBTT_vcubic) {
                         if (contours.empty()) continue;
-                        Vec2 p0 = contours.back().empty() ? Vec2{0,0} : contours.back().back();
+                        Vec2 p0 = contours.back().back();
                         Vec2 c1{(float)v.cx  * sc_f, (float)v.cy  * sc_f};
                         Vec2 c2{(float)v.cx1 * sc_f, (float)v.cy1 * sc_f};
                         Vec2 p1{(float)v.x   * sc_f, (float)v.y   * sc_f};
-                        for (int step = 1; step <= 20; ++step) {
-                            float t = (float)step / 20.0f, mt = 1.0f - t;
-                            contours.back().push_back({
-                                mt*mt*mt*p0.x + 3*mt*mt*t*c1.x + 3*mt*t*t*c2.x + t*t*t*p1.x,
-                                mt*mt*mt*p0.y + 3*mt*mt*t*c1.y + 3*mt*t*t*c2.y + t*t*t*p1.y});
+                        for (int step = 1; step <= 16; ++step) {
+                            float t = (float)step / 16.0f, mt = 1.0f - t;
+                            contours.back().push_back({mt*mt*mt*p0.x + 3*mt*mt*t*c1.x + 3*mt*t*t*c2.x + t*t*t*p1.x,
+                                                       mt*mt*mt*p0.y + 3*mt*mt*t*c1.y + 3*mt*t*t*c2.y + t*t*t*p1.y});
                         }
                     }
                 }
 
-                // Build side quads per edge with Gouraud shading (per-vertex normals).
-                for (const auto& contour : contours) {
-                    const int n = (int)contour.size();
-                    if (n < 2) continue;
+                auto get_area = [](const std::vector<Vec2>& c) {
+                    float a = 0;
+                    for (size_t i = 0; i < c.size(); ++i) {
+                        size_t j = (i + 1) % c.size();
+                        a += c[i].x * c[j].y - c[j].x * c[i].y;
+                    }
+                    return a * 0.5f;
+                };
 
-                    // Pre-compute smooth per-vertex outward normals.
-                    std::vector<Vec3> vnorm(n);
-                    for (int i = 0; i < n; ++i) {
-                        auto edge_normal = [&](int a, int b) -> Vec3 {
-                            Vec2 e{contour[b].x - contour[a].x, contour[b].y - contour[a].y};
-                            float len = std::sqrt(e.x*e.x + e.y*e.y);
-                            if (len < 1e-6f) return {0,0,0};
-                            return Vec3{-e.y/len, e.x/len, 0.0f};
-                        };
-                        Vec3 n0 = edge_normal((i-1+n)%n, i);
-                        Vec3 n1 = edge_normal(i, (i+1)%n);
-                        Vec3 avg{n0.x+n1.x, n0.y+n1.y, 0.0f};
-                        float alen = std::sqrt(avg.x*avg.x + avg.y*avg.y);
-                        vnorm[i] = (alen > 1e-6f) ? Vec3{avg.x/alen, avg.y/alen, 0} : n1;
+                // Group contours into islands (outer ring + its holes)
+                struct Island {
+                    std::vector<std::vector<Vec2>> polygon;
+                    float area;
+                };
+                std::vector<Island> islands;
+                for (auto& c : contours) {
+                    if (c.size() < 3) continue;
+                    float a = get_area(c);
+                    // stbtt: positive area is CW (outer in Y-down), negative CCW (hole)
+                    // But we want to be robust. Let's use the fact that holes are inside outer rings.
+                    if (a > 0) { // Outer ring
+                        islands.push_back({ {std::move(c)}, a });
+                    } else { // Hole
+                        bool placed = false;
+                        for (auto& island : islands) {
+                            // Simple heuristic: if the first point is inside the outer ring, it's a hole.
+                            // For speed, we just append to the last island if it's a hole (common in stbtt).
+                            island.polygon.push_back(std::move(c));
+                            placed = true;
+                            break;
+                        }
+                        if (!placed) {
+                            // If no island yet, treat hole as outer ring (shouldn't happen with well-formed fonts)
+                            islands.push_back({ {std::move(c)}, a });
+                        }
+                    }
+                }
+
+                auto transform_pt = [&](Vec2 p, float z) {
+                    // Local text space: x is character advance, y is glyph coords (stbtt uses Y-up internally? No, Y-down in our sc_f scaling)
+                    // Actually stbtt Y is UP, so we negate it for our screen space.
+                    Vec4 local{x_cur + p.x, -p.y, z, 1.0f};
+                    Vec4 world = state.matrix * local;
+                    return Vec3(world.x, world.y, world.z);
+                };
+
+                auto proj3 = [&](const Vec3& w, bool& ok) {
+                    Vec4 p = camera.view_matrix() * Vec4(w, 1.0f);
+                    if (p.z > -1.0f) { ok = false; return Vec2{0, 0}; }
+                    Vec4 clip = camera.projection_matrix((float)width / height) * p;
+                    ok = true;
+                    float inv_w = 1.0f / clip.w;
+                    return Vec2{(clip.x * inv_w + 1.0f) * width * 0.5f, (1.0f - clip.y * inv_w) * height * 0.5f};
+                };
+
+                for (auto& island : islands) {
+                    std::vector<uint32_t> indices = mapbox::earcut<uint32_t>(island.polygon);
+                    std::vector<Vec2> flat_verts;
+                    for (const auto& c : island.polygon) flat_verts.insert(flat_verts.end(), c.begin(), c.end());
+
+                    for (size_t i = 0; i < indices.size(); i += 3) {
+                        Vec3 w_front[3], w_back[3];
+                        Vec2 s_front[3], s_back[3];
+                        bool ok_f[3], ok_b[3];
+                        float d_f = 0, d_b = 0;
+
+                        for (int j = 0; j < 3; ++j) {
+                            w_front[j] = transform_pt(flat_verts[indices[i + j]], 0);
+                            w_back[j]  = transform_pt(flat_verts[indices[i + (2-j)]], depth_z);
+                            s_front[j] = proj3(w_front[j], ok_f[j]);
+                            s_back[j]  = proj3(w_back[j], ok_b[j]);
+                            d_f += -(camera.view_matrix() * Vec4(w_front[j], 1.0f)).z;
+                            d_b += -(camera.view_matrix() * Vec4(w_back[j], 1.0f)).z;
+                        }
+
+                        if (ok_f[0] && ok_f[1] && ok_f[2]) {
+                            triangles.push_back({{s_front[0], s_front[1], s_front[2]}, s.front_color.with_alpha(s.front_color.a * op), d_f / 3.0f});
+                        }
+                        if (ok_b[0] && ok_b[1] && ok_b[2]) {
+                            triangles.push_back({{s_back[0], s_back[1], s_back[2]}, s.side_color.with_alpha(s.side_color.a * 0.5f * op), d_b / 3.0f});
+                        }
                     }
 
-                    for (int i = 0; i < n; ++i) {
-                        const Vec2& fp0 = contour[i];
-                        const Vec2& fp1 = contour[(i+1)%n];
-                        if (std::abs(fp1.x-fp0.x) < 0.01f && std::abs(fp1.y-fp0.y) < 0.01f) continue;
+                    // Side quads
+                    for (const auto& contour : island.polygon) {
+                        for (size_t i = 0; i < contour.size(); ++i) {
+                            Vec2 p0 = contour[i];
+                            Vec2 p1 = contour[(i + 1) % contour.size()];
+                            
+                            Vec2 mid = (p0 + p1) * 0.5f;
+                            float d = -(camera.view_matrix() * Vec4(transform_pt(mid, depth_z * 0.5f), 1.0f)).z;
 
-                        Vec3 w00{s.world_pos.x+x_cur+fp0.x, s.world_pos.y+fp0.y, s.world_pos.z};
-                        Vec3 w10{s.world_pos.x+x_cur+fp1.x, s.world_pos.y+fp1.y, s.world_pos.z};
-                        Vec3 w01{s.world_pos.x+x_cur+fp0.x, s.world_pos.y+fp0.y, s.world_pos.z+depth_z};
-                        Vec3 w11{s.world_pos.x+x_cur+fp1.x, s.world_pos.y+fp1.y, s.world_pos.z+depth_z};
+                            auto add_quad = [&](float z0, float z1, Color c0, Color c1) {
+                                Vec3 w00 = transform_pt(p0, z0), w10 = transform_pt(p1, z0);
+                                Vec3 w01 = transform_pt(p0, z1), w11 = transform_pt(p1, z1);
+                                bool ok[4]; Vec2 sv[4];
+                                sv[0] = proj3(w00, ok[0]); sv[1] = proj3(w10, ok[1]);
+                                sv[2] = proj3(w11, ok[2]); sv[3] = proj3(w01, ok[3]);
+                                if (ok[0] && ok[1] && ok[2] && ok[3]) {
+                                    quads.push_back({{sv[0], sv[1], sv[2], sv[3]}, c0, c1, d});
+                                }
+                            };
 
-                        bool ok0,ok1,ok2,ok3;
-                        Vec2 sv[4];
-                        sv[0]=proj3(w00,ok0); sv[1]=proj3(w10,ok1);
-                        sv[2]=proj3(w11,ok2); sv[3]=proj3(w01,ok3);
-                        if (!(ok0&&ok1&&ok2&&ok3)) continue;
+                            Vec2 edge = p1 - p0;
+                            Vec2 norm = {-edge.y, edge.x};
+                            if (norm.x*norm.x + norm.y*norm.y > 1e-6f) norm = norm / std::sqrt(norm.x*norm.x + norm.y*norm.y);
+                            float shade = std::clamp(0.5f + 0.5f * norm.x, 0.0f, 1.0f);
+                            Color c_side = s.side_color.with_alpha(s.side_color.a * op);
+                            Color c0 = Color(c_side.r * shade, c_side.g * shade, c_side.b * shade, c_side.a);
+                            Color c1 = c0;
 
-                        Vec3 midpt = (w00+w10+w01+w11)*0.25f;
-                        Vec3 to_cam = glm::normalize(cam_world - midpt);
-
-                        // Per-vertex facing from smooth normals
-                        float f0 = glm::dot(vnorm[i],        to_cam);
-                        float f1 = glm::dot(vnorm[(i+1)%n],  to_cam);
-                        if (f0 <= 0.0f && f1 <= 0.0f) continue;  // both back-facing
-
-                        auto shade_color = [&](float f) -> Color {
-                            float sh = std::max(0.0f, 0.15f + 0.85f * f);
-                            return Color{std::min(1.0f, s.side_color.r*sh),
-                                         std::min(1.0f, s.side_color.g*sh),
-                                         std::min(1.0f, s.side_color.b*sh),
-                                         s.side_color.a * op};
-                        };
-
-                        float d = -(s.cam_view * Vec4(midpt, 1.0f)).z;
-                        SideQ q;
-                        q.v[0]=sv[0]; q.v[1]=sv[1]; q.v[2]=sv[2]; q.v[3]=sv[3];
-                        q.c0 = shade_color(f0);
-                        q.c1 = shade_color(f1);
-                        q.depth = d;
-                        quads.push_back(q);
+                            if (s.bevel_size > 0.01f) {
+                                Color rim_c = lerp(s.front_color, Color::white(), 0.3f).with_alpha(s.side_color.a * op);
+                                add_quad(0.0f, s.bevel_size, rim_c, rim_c);
+                                add_quad(s.bevel_size, depth_z, c0, c1);
+                            } else {
+                                add_quad(0.0f, depth_z, c0, c1);
+                            }
+                        }
                     }
                 }
                 stbtt_FreeShape(&font, verts);
             }
-
             int adv, lsb;
             stbtt_GetCodepointHMetrics(&font, (int)(unsigned char)ch, &adv, &lsb);
             x_cur += (float)adv * sc_f;
         }
 
-        // Sort back-to-front
-        std::stable_sort(quads.begin(), quads.end(),
-            [](const SideQ& a, const SideQ& b){ return a.depth > b.depth; });
+        struct RenderPrimitive { enum { Quad, Tri } type; int index; float depth; };
+        std::vector<RenderPrimitive> sorted;
+        sorted.reserve(quads.size() + triangles.size());
+        for (size_t i = 0; i < quads.size(); ++i) sorted.push_back({RenderPrimitive::Quad, (int)i, quads[i].depth});
+        for (size_t i = 0; i < triangles.size(); ++i) sorted.push_back({RenderPrimitive::Tri, (int)i, triangles[i].depth});
+        std::stable_sort(sorted.begin(), sorted.end(), [](const RenderPrimitive& a, const RenderPrimitive& b){ return a.depth > b.depth; });
 
-        // Render side quads into a temporary buffer so we can mask them
-        // against the front-face silhouette before compositing.
-        Framebuffer side_fb(fb.width(), fb.height());
-        side_fb.clear(Color::transparent());
-        for (const auto& q : quads) {
-            Color gc[4] = {q.c0, q.c1, q.c1, q.c0};
-            renderer::fill_gradient_quad(side_fb, q.v, gc);
-        }
-
-        // Project front face origin
-        bool ok_front;
-        Vec2 baseline_sc = proj3(s.world_pos, ok_front);
-        if (!ok_front) {
-            for (int y = 0; y < fb.height(); ++y)
-                for (int x = 0; x < fb.width(); ++x) {
-                    Color sq = side_fb.get_pixel(x, y);
-                    if (sq.a > 0.01f)
-                        fb.set_pixel(x, y, compositor::blend(sq, fb.get_pixel(x, y), BlendMode::Normal));
-                }
-            return;
-        }
-
-        const float asc_px = (float)ascent * sc_f;
-        const Vec3 text_origin{baseline_sc.x, baseline_sc.y - asc_px, 0};
-
-        // Build glyph silhouette mask: anywhere the front face has alpha,
-        // the side quads must not overdraw (they are occluded by the front face).
-        Framebuffer mask_fb(fb.width(), fb.height());
-        mask_fb.clear(Color::transparent());
-        {
-            TextShape mts; mts.text = s.text; mts.style.font_path = s.font_path;
-            mts.style.size = s.font_size; mts.style.color = Color{1,1,1,1};
-            mts.style.align = s.align;
-            Transform mtr; mtr.position = text_origin;
-            m_text_renderer.draw_text(mts, mtr, mask_fb);
-        }
-
-        // Composite masked side quads: skip pixels covered by the front face
-        for (int y = 0; y < fb.height(); ++y) {
-            for (int x = 0; x < fb.width(); ++x) {
-                if (mask_fb.get_pixel(x, y).a > 0.01f) continue;
-                Color sq = side_fb.get_pixel(x, y);
-                if (sq.a > 0.01f)
-                    fb.set_pixel(x, y, compositor::blend(sq, fb.get_pixel(x, y), BlendMode::Normal));
+        for (const auto& p : sorted) {
+            if (p.type == RenderPrimitive::Quad) {
+                const auto& q = quads[p.index];
+                Color gc[4] = {q.c0, q.c1, q.c1, q.c0};
+                renderer::fill_gradient_quad(fb, q.v, gc);
+            } else {
+                const auto& t = triangles[p.index];
+                renderer::fill_triangle(fb, t.v, t.color);
             }
-        }
-
-        // Front face on top
-        { TextShape ts; ts.text = s.text; ts.style.font_path = s.font_path;
-          ts.style.size = s.font_size;
-          ts.style.color = Color{s.front_color.r,s.front_color.g,s.front_color.b,s.front_color.a*op};
-          ts.style.align = s.align;
-          Transform tr; tr.position = text_origin; tr.opacity = op;
-          m_text_renderer.draw_text(ts, tr, fb, &state); }
-        if (s.highlight_opacity > 0.0f) {
-            TextShape ts; ts.text = s.text; ts.style.font_path = s.font_path;
-            ts.style.size = s.font_size; ts.style.color = Color{1,1,1,s.highlight_opacity*op};
-            ts.style.align = s.align;
-            Transform tr; tr.position = Vec3(text_origin.x, text_origin.y - 1.0f, 0);
-            m_text_renderer.draw_text(ts, tr, fb, &state);
         }
         return;
     }
