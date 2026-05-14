@@ -1,9 +1,9 @@
 #pragma once
 
 #include <chronon3d/scene/camera/camera_2_5d.hpp>
+#include <chronon3d/math/constants.hpp>
 #include <chronon3d/math/transform.hpp>
 #include <chronon3d/math/quat.hpp>
-#include <glm/gtc/constants.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <cmath>
 
@@ -21,7 +21,7 @@ struct ProjectedLayer2_5D {
 // focal = (viewport_height / 2) / tan(fov_rad / 2)
 // At depth == focal_length, perspective_scale == 1.
 inline f32 focal_length_from_fov(f32 viewport_height, f32 fov_deg) {
-    const f32 fov_rad = fov_deg * (glm::pi<f32>() / 180.0f);
+    const f32 fov_rad = fov_deg * (math::pi / 180.0f);
     return (viewport_height * 0.5f) / std::tan(fov_rad * 0.5f);
 }
 
@@ -34,7 +34,7 @@ inline Mat4 get_camera_view_matrix(const Camera2_5D& camera) {
     Vec3 up{0, 1, 0}; 
     
     // If POI and eye are same, POI is ignored.
-    bool use_poi = (glm::length(target - eye) > 0.001f);
+    bool use_poi = camera.point_of_interest_enabled && (glm::length(target - eye) > 0.001f);
     
     Mat4 view;
     if (use_poi) {
@@ -54,24 +54,31 @@ inline Mat4 get_camera_view_matrix(const Camera2_5D& camera) {
 inline ProjectedLayer2_5D project_layer_2_5d(
     const Transform& layer_transform,
     const Camera2_5D& camera,
-    f32 viewport_width,
+    [[maybe_unused]] f32 viewport_width,
     f32 viewport_height
 ) {
     ProjectedLayer2_5D out;
     out.transform = layer_transform;
 
-    // View matrix transforms from world to camera space.
-    Mat4 view = get_camera_view_matrix(camera);
-    
     // Position of the layer in camera space.
-    Vec4 world_pos{layer_transform.position.x, layer_transform.position.y, layer_transform.position.z, 1.0f};
-    Vec4 cam_pos = view * world_pos;
+    Mat4 view{1.0f};
+    Vec4 cam_pos{0.0f, 0.0f, 0.0f, 1.0f};
+    if (camera.point_of_interest_enabled) {
+        // Explicit target/orbit mode: use the full view matrix.
+        view = get_camera_view_matrix(camera);
+        Vec4 world_pos{layer_transform.position.x, layer_transform.position.y, layer_transform.position.z, 1.0f};
+        cam_pos = view * world_pos;
+    } else {
+        // Default mode: passive translation only. Camera pans should not orbit.
+        view = math::translate(Vec3(-camera.position.x, -camera.position.y, -camera.position.z));
+        cam_pos.x = layer_transform.position.x - camera.position.x;
+        cam_pos.y = layer_transform.position.y - camera.position.y;
+        cam_pos.z = layer_transform.position.z - camera.position.z;
+    }
 
-    // In camera space (lookAt):
-    // Eye is at origin. Target is along -Z.
-    // So objects in front of camera have negative Z.
-    // Depth for sorting should be positive.
-    const f32 depth = -cam_pos.z;
+    // In passive mode, objects in front of the camera have positive Z.
+    // In explicit look-at mode, glm::lookAt places visible points at negative Z.
+    const f32 depth = camera.point_of_interest_enabled ? -cam_pos.z : cam_pos.z;
 
     // Cull layers that are behind or touching the camera plane.
     if (depth <= 0.0f) {
@@ -87,8 +94,13 @@ inline ProjectedLayer2_5D project_layer_2_5d(
 
     // Centroid projection: translate to screen-space (origin = top-left).
     // viewport center is added so shapes using model[3] as screen coords work.
-    out.transform.position.x = cam_pos.x * perspective_scale + viewport_width  * 0.5f;
-    out.transform.position.y = -cam_pos.y * perspective_scale + viewport_height * 0.5f;
+    if (camera.point_of_interest_enabled) {
+        out.transform.position.x = cam_pos.x * perspective_scale;
+        out.transform.position.y = -cam_pos.y * perspective_scale;
+    } else {
+        out.transform.position.x = layer_transform.position.x - camera.position.x * perspective_scale;
+        out.transform.position.y = layer_transform.position.y - camera.position.y * perspective_scale;
+    }
     out.transform.position.z = 0.0f;
 
     out.transform.scale.x *= perspective_scale;
@@ -103,11 +115,13 @@ inline ProjectedLayer2_5D project_layer_2_5d(
     proj[0][0] = focal;
     proj[1][1] = focal; 
     proj[2][2] = 1.0f;   // Keep Z
-    proj[2][3] = -1.0f;  // Perspective w = -z
+    proj[2][3] = camera.point_of_interest_enabled ? -1.0f : 1.0f; // Perspective w = +/-z depending on camera mode
     proj[3][3] = 0.0001f; // Tiny offset to make it invertible
     
     // Final matrix: Proj * View * Model
-    out.projection_matrix = proj * view * layer_transform.to_mat4();
+    out.projection_matrix = camera.point_of_interest_enabled
+        ? proj * view * layer_transform.to_mat4()
+        : out.transform.to_mat4();
 
     return out;
 }
