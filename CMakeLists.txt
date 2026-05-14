@@ -108,6 +108,7 @@ file(GLOB CHRONON3D_RENDERER_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/src/scene/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/evaluation/*.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/layout/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/core/*.cpp"
 )
 
 add_library(chronon3d_renderer STATIC
@@ -163,24 +164,26 @@ target_link_libraries(chronon3d_io
 target_include_directories(chronon3d_io PRIVATE ${Stb_INCLUDE_DIR})
 
 # 9. Examples Library (Host for auto-registration)
-add_library(chronon3d_examples_lib STATIC)
-file(GLOB CHRONON3D_EXAMPLE_SOURCES CONFIGURE_DEPENDS
-    "${CMAKE_CURRENT_SOURCE_DIR}/examples/*.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/examples/basics/*.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/examples/demos/*.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/examples/proofs/*.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/examples/proofs/core/*.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/examples/proofs/fake3d/*.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/examples/proofs/camera/*.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/examples/proofs/templates/*.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/examples/debug/*.cpp"
-)
-target_sources(chronon3d_examples_lib PRIVATE ${CHRONON3D_EXAMPLE_SOURCES})
-target_link_libraries(chronon3d_examples_lib
-    PUBLIC
-        chronon3d
-        chronon3d_renderer
-)
+if(CHRONON3D_BUILD_EXAMPLES)
+    add_library(chronon3d_examples_lib STATIC)
+    file(GLOB CHRONON3D_EXAMPLE_SOURCES CONFIGURE_DEPENDS
+        "${CMAKE_CURRENT_SOURCE_DIR}/examples/*.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/examples/basics/*.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/examples/demos/*.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/examples/proofs/*.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/examples/proofs/core/*.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/examples/proofs/fake3d/*.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/examples/proofs/camera/*.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/examples/proofs/templates/*.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/examples/debug/*.cpp"
+    )
+    target_sources(chronon3d_examples_lib PRIVATE ${CHRONON3D_EXAMPLE_SOURCES})
+    target_link_libraries(chronon3d_examples_lib
+        PUBLIC
+            chronon3d
+            chronon3d_renderer
+    )
+endif()
 
 # Global compiler options
 if(MSVC)

@@ -2,10 +2,17 @@
 #include <stb_image_write.h>
 #include <chronon3d/io/image_writer.hpp>
 #include <vector>
+#include <filesystem>
 
 namespace chronon3d {
 
 bool save_png(const Framebuffer& framebuffer, const std::string& path) {
+    // Ensure directory exists
+    std::filesystem::path p(path);
+    if (p.has_parent_path()) {
+        std::filesystem::create_directories(p.parent_path());
+    }
+
     i32 width = framebuffer.width();
     i32 height = framebuffer.height();
     

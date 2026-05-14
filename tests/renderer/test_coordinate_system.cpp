@@ -45,7 +45,8 @@ TEST_CASE("Coordinate system - Contro-test 4") {
         auto fb = renderer.render_frame(comp, 0);
         
         CHECK(fb->get_pixel(50, 50).r == 1.0f);
-        CHECK(fb->get_pixel(60, 50).r == 1.0f); // dist = 10 <= 10
-        CHECK(fb->get_pixel(61, 50).r == 0.0f); // dist = 11 > 10
+        CHECK(fb->get_pixel(59, 50).r == 1.0f); // dist = 9.5 < 10
+        CHECK(fb->get_pixel(60, 50).r == 0.0f); // dist = 10.5 > 10
+        CHECK(fb->get_pixel(61, 50).r == 0.0f); // dist = 11.5 > 10
     }
 }

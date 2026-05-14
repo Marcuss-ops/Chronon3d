@@ -1,6 +1,6 @@
 #pragma once
 
-#include <chronon3d/renderer/software/framebuffer.hpp>
+#include <chronon3d/core/framebuffer.hpp>
 #include <chronon3d/scene/shape.hpp>
 #include <chronon3d/scene/render_node.hpp>
 #include <chronon3d/math/mat4.hpp>
@@ -8,6 +8,7 @@
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/math/transform.hpp>
+#include <chronon3d/scene/camera.hpp>
 
 namespace chronon3d {
 namespace renderer {
@@ -34,6 +35,9 @@ void draw_transformed_shape(Framebuffer& fb, const Shape& shape, const Mat4& mod
                              f32 spread = 0.0f, const RenderState* state = nullptr);
 
 void draw_glass_panel(Framebuffer& fb, const Framebuffer& src, const Shape& shape, const Mat4& model, f32 opacity, const RenderState* state);
+void draw_fake_extruded_text(Framebuffer& fb, const RenderNode& node, const RenderState& state, const Camera& camera, i32 width, i32 height);
+
+std::unique_ptr<Framebuffer> downsample_fb(const Framebuffer& src, i32 dst_w, i32 dst_h);
 
 
 raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 spread = 0.0f);

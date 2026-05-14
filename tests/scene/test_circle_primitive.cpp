@@ -19,13 +19,13 @@ TEST_CASE("Circle primitive rendering") {
         // Center should be blue
         CHECK(fb->get_pixel(50, 50).b > 0.9f);
         
-        // Point on edge should be blue (r=20)
-        CHECK(fb->get_pixel(70, 50).b > 0.9f);
-        CHECK(fb->get_pixel(50, 30).b > 0.9f);
+        // Point near edge should be blue (dist = 19.5 < 20)
+        CHECK(fb->get_pixel(69, 50).b > 0.9f);
+        CHECK(fb->get_pixel(50, 31).b > 0.9f);
         
-        // Point outside should be black
-        CHECK(fb->get_pixel(75, 50).b == 0.0f);
-        CHECK(fb->get_pixel(50, 20).b == 0.0f);
+        // Point on/outside edge should be black (dist >= 20.5 > 20)
+        CHECK(fb->get_pixel(70, 50).b == 0.0f);
+        CHECK(fb->get_pixel(50, 29).b == 0.0f);
     }
 
     SUBCASE("Partial clipping") {
@@ -39,7 +39,7 @@ TEST_CASE("Circle primitive rendering") {
         
         CHECK(fb->get_pixel(0, 50).r > 0.9f);
         CHECK(fb->get_pixel(10, 50).r > 0.9f);
-        CHECK(fb->get_pixel(20, 50).r > 0.9f);
-        CHECK(fb->get_pixel(21, 50).r == 0.0f);
+        CHECK(fb->get_pixel(19, 50).r > 0.9f);
+        CHECK(fb->get_pixel(20, 50).r == 0.0f);
     }
 }
