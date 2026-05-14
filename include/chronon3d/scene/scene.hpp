@@ -29,12 +29,17 @@ public:
     void set_camera_2_5d(Camera2_5D camera) { m_camera_2_5d = camera; }
     [[nodiscard]] const Camera2_5D& camera_2_5d() const { return m_camera_2_5d; }
 
+    void resolve_hierarchy(Frame frame);
+    [[nodiscard]] bool hierarchy_baked() const { return m_hierarchy_baked; }
+    [[nodiscard]] bool hierarchy_resolved() const { return m_hierarchy_baked; }
+
     [[nodiscard]] std::pmr::memory_resource* resource() const { return m_nodes.get_allocator().resource(); }
 
 private:
     std::pmr::vector<RenderNode> m_nodes;
     std::pmr::vector<Layer> m_layers;
     Camera2_5D m_camera_2_5d{};
+    bool m_hierarchy_baked{false};
 };
 
 } // namespace chronon3d
