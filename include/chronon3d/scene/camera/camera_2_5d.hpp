@@ -36,6 +36,8 @@ struct Camera2_5D {
 
     // Stored for future two-node camera support; not used for orbit in v1.
     Vec3 point_of_interest{0.0f, 0.0f, 0.0f};
+    bool point_of_interest_enabled{false};
+    bool hierarchy_baked{false};
 
     // Projection mode: Zoom (default) or Fov.
     Camera2_5DProjectionMode projection_mode{Camera2_5DProjectionMode::Zoom};
