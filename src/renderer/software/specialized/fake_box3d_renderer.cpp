@@ -5,9 +5,19 @@
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <glm/glm.hpp>
 #include <algorithm>
+#include <cmath>
 
 namespace chronon3d {
 namespace renderer {
+
+// Key light: upper-left-front direction. Consistent with extruded text renderer.
+static const Vec3 k_box_light = glm::normalize(Vec3(-0.4f, 1.2f, -0.6f));
+static constexpr float k_box_ambient = 0.20f;
+static constexpr float k_box_diffuse = 0.80f;
+
+static float box_ndotl(const Vec3& normal) {
+    return k_box_ambient + k_box_diffuse * std::max(0.0f, glm::dot(normal, k_box_light));
+}
 
 void draw_fake_box3d(Framebuffer& fb, const RenderNode& node, const RenderState& state, const FakeBox3DShape& s) {
     if (!s.cam_ready) return;
@@ -39,31 +49,15 @@ void draw_fake_box3d(Framebuffer& fb, const RenderNode& node, const RenderState&
     const Color base = s.color.to_linear();
     const f32 op = state.opacity;
 
-    auto brighten = [](Color col, f32 t) -> Color {
-        return {std::min(1.0f, col.r+t), std::min(1.0f, col.g+t), std::min(1.0f, col.b+t), col.a};
-    };
-    auto darken = [](Color col, f32 t) -> Color {
-        return {std::max(0.0f, col.r-t), std::max(0.0f, col.g-t), std::max(0.0f, col.b-t), col.a};
-    };
-
     struct FaceDef { int idx[4]; Vec3 normal; };
     constexpr int NFACES = 6;
     const FaceDef faces[NFACES] = {
-        {{0,1,2,3}, { 0, 0,-1}},
-        {{5,4,7,6}, { 0, 0,+1}},
-        {{4,5,1,0}, { 0,+1, 0}},
-        {{3,2,6,7}, { 0,-1, 0}},
-        {{1,5,6,2}, {+1, 0, 0}},
-        {{4,0,3,7}, {-1, 0, 0}},
-    };
-
-    const Color face_colors[NFACES] = {
-        {base.r, base.g, base.b, base.a * op},           // Front
-        darken(base, 0.40f).with_alpha(base.a * op),     // Back
-        brighten(base, 0.15f).with_alpha(base.a * op),   // Top
-        darken(base, 0.30f).with_alpha(base.a * op),     // Bottom
-        darken(base, 0.15f).with_alpha(base.a * op),     // Right
-        darken(base, 0.25f).with_alpha(base.a * op),     // Left
+        {{0,1,2,3}, { 0, 0,-1}},  // Front
+        {{5,4,7,6}, { 0, 0,+1}},  // Back
+        {{4,5,1,0}, { 0,+1, 0}},  // Top
+        {{3,2,6,7}, { 0,-1, 0}},  // Bottom
+        {{1,5,6,2}, {+1, 0, 0}},  // Right
+        {{4,0,3,7}, {-1, 0, 0}},  // Left
     };
 
     const int draw_order[NFACES] = {1, 3, 5, 4, 2, 0};
@@ -79,16 +73,30 @@ void draw_fake_box3d(Framebuffer& fb, const RenderNode& node, const RenderState&
 
         Vec2 quad[4];
         for (int ci = 0; ci < 4; ++ci) quad[ci] = sc[f.idx[ci]];
-        fill_convex_quad(fb, quad, face_colors[fi]);
-    }
 
-    const Color hl = Color{1, 1, 1, 0.25f * op};
-    auto draw_edge = [&](int i0, int i1) {
-        if (ok[i0] && ok[i1]) bline(fb, sc[i0], sc[i1], hl);
-    };
-    draw_edge(0, 1); draw_edge(1, 2); draw_edge(2, 3); draw_edge(3, 0);
-    draw_edge(0, 4); draw_edge(1, 5); draw_edge(2, 6); draw_edge(3, 7);
-    draw_edge(4, 5); draw_edge(5, 6); draw_edge(6, 7); draw_edge(7, 4);
+        float light = box_ndotl(faces[fi].normal);
+
+        if (fi == 2) {
+            // Top face: gradient (back edge slightly darker, front edge brighter)
+            float light_back  = light * 0.92f;
+            float light_front = std::min(1.0f, light * 1.06f);
+            Color c_back  = Color{base.r*light_back,  base.g*light_back,  base.b*light_back,  base.a*op};
+            Color c_front = Color{std::min(1.0f,base.r*light_front), std::min(1.0f,base.g*light_front), std::min(1.0f,base.b*light_front), base.a*op};
+            Color gc[4] = {c_back, c_back, c_front, c_front};
+            fill_gradient_quad(fb, quad, gc);
+        } else if (fi == 0) {
+            // Front face: subtle top-to-bottom gradient
+            float light_top = std::min(1.0f, light * 1.04f);
+            float light_bot = light * 0.94f;
+            Color c_top = Color{std::min(1.0f,base.r*light_top), std::min(1.0f,base.g*light_top), std::min(1.0f,base.b*light_top), base.a*op};
+            Color c_bot = Color{base.r*light_bot, base.g*light_bot, base.b*light_bot, base.a*op};
+            Color gc[4] = {c_top, c_top, c_bot, c_bot};
+            fill_gradient_quad(fb, quad, gc);
+        } else {
+            Color face_c = Color{base.r*light, base.g*light, base.b*light, base.a*op};
+            fill_convex_quad(fb, quad, face_c);
+        }
+    }
 }
 
 } // namespace renderer
