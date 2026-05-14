@@ -92,8 +92,25 @@ bash tools/chronon-linux.sh
 $env:VCPKG_ROOT = "$env:USERPROFILE\vcpkg"
 git clone https://github.com/microsoft/vcpkg $env:VCPKG_ROOT
 & "$env:VCPKG_ROOT\bootstrap-vcpkg.bat" -disableMetrics
-cmake --preset win-release
-cmake --build build\chronon\win-release
+.\tools\chronon-win.ps1
+```
+
+That script opens the Visual Studio build environment, configures the `win-release` preset, and writes the CLI to:
+
+```text
+build\chronon\win-release\apps\chronon3d_cli\chronon3d_cli.exe
+```
+
+For a debug binary, use:
+
+```powershell
+.\tools\chronon-win.ps1 -Configuration Debug
+```
+
+Run commands from the repo root so relative asset paths work:
+
+```powershell
+.\build\chronon\win-release\apps\chronon3d_cli\chronon3d_cli.exe list
 ```
 
 See [BUILDING.md](BUILDING.md) for the complete guide including troubleshooting.
@@ -109,6 +126,8 @@ using namespace chronon3d;
 static Composition MyComp() { ... }
 CHRONON_REGISTER_COMPOSITION("MyComp", MyComp)
 ```
+
+The default build includes the example compositions, so `chronon3d_cli list` and `chronon3d_cli dev proofs ...` work out of the box.
 
 ### 4. Use the CLI
 

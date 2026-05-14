@@ -43,13 +43,24 @@ int command_watch(const CompositionRegistry& registry, const std::string& comp_i
     args.diagnostic = true;
     command_render(registry, args);
 
+#ifdef _WIN32
+    const char* preset_env = std::getenv("CHRONON_PRESET");
+    const std::string preset = preset_env ? preset_env : "win-release";
+    const bool is_debug = preset.find("debug") != std::string::npos;
+    const std::string build_cmd =
+        std::string("powershell -ExecutionPolicy Bypass -File tools\\chronon-win.ps1 -Configuration ") +
+        (is_debug ? "Debug" : "Release") + " -SkipInstall -SkipCacheInstall";
+#else
+    const std::string build_cmd = "bash tools/chronon-linux.sh";
+#endif
+
     while (true) {
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
         auto current = get_latest_mtime();
         if (current > last_write) {
             spdlog::info("Change detected! Rebuilding and rendering...");
             
-            int ret = std::system("xmake -y");
+            int ret = std::system(build_cmd.c_str());
             if (ret == 0) {
                 command_render(registry, args);
                 last_write = current;

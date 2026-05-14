@@ -14,7 +14,7 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
 # Options
 option(CHRONON3D_BUILD_TESTS "Build Chronon3d tests" ON)
 option(CHRONON3D_BUILD_CLI "Build Chronon3d CLI" ON)
-option(CHRONON3D_BUILD_EXAMPLES "Build Chronon3d examples" OFF)
+option(CHRONON3D_BUILD_EXAMPLES "Build Chronon3d examples" ON)
 option(CHRONON3D_ENABLE_PROFILING "Enable Tracy profiling" OFF)
 option(CHRONON3D_ENABLE_VIDEO "Enable FFmpeg-based video output and tests" OFF)
 
@@ -181,9 +181,11 @@ if(CHRONON3D_BUILD_EXAMPLES)
         "examples/proofs/templates/*.cpp" "examples/debug/*.cpp"
     )
     add_library(chronon3d_examples_lib OBJECT ${CHRONON3D_EXAMPLE_SOURCES})
-    target_link_libraries(chronon3d_examples_lib PUBLIC chronon3d chronon3d_renderer)
-    target_sources(chronon3d_renderer PRIVATE $<TARGET_OBJECTS:chronon3d_examples_lib>)
-    target_compile_definitions(chronon3d_renderer PUBLIC CHRONON3D_BUILD_EXAMPLES)
+    # Examples only need the public headers (all under include/) — no dep on renderer objects.
+    # Linking against chronon3d_renderer would create a cycle since renderer gets example
+    # objects directly in the CLI target below.
+    target_link_libraries(chronon3d_examples_lib PUBLIC chronon3d)
+    target_compile_definitions(chronon3d_examples_lib PUBLIC CHRONON3D_BUILD_EXAMPLES)
 endif()
 
 # Subdirectories

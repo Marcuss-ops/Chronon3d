@@ -28,7 +28,7 @@
 
 ## Current Direction
 
-- CMake + vcpkg is the single build path (xmake no longer maintained)
+- CMake + vcpkg is the single build path
 - Render graph architecture complete: nodes, LRU cache, profiler, builder, executor
 - Effect system uses `EffectStack` throughout — `LayerEffect` legacy removed from public API
 - Next: wire `GraphBuilder` into `SoftwareRenderer` production path, then `VideoSource`

@@ -230,7 +230,7 @@ const GlyphGeometry& FakeExtrudedTextRenderer::get_glyph(
 
 void FakeExtrudedTextRenderer::collect_geometry(
     const RenderNode& node, const RenderState& state,
-    const Camera& camera, i32 width, i32 height,
+    i32 width, i32 height,
     TextRenderer& text_renderer)
 {
     const auto& s = node.shape.fake_extruded_text;
@@ -259,9 +259,13 @@ void FakeExtrudedTextRenderer::collect_geometry(
     }
 
     const float depth_z = (float)s.depth * s.extrude_z_step;
-    const float aspect   = (float)width / (float)height;
-    const Mat4  proj_mat = camera.projection_matrix(aspect);
-    const Mat4  view_mat = camera.view_matrix();
+
+    // Use Camera2_5D runtime — pinhole projection matching project_2_5d().
+    const auto& rt      = node.fake_extruded_text_runtime;
+    const Mat4& view_mat = rt.cam_view;
+    const f32   focal    = rt.cam_focal;
+    const f32   vp_cx    = rt.vp_cx;
+    const f32   vp_cy    = rt.vp_cy;
 
     // World → view space
     auto to_view = [&](const Vec3& w) -> Vec3 {
@@ -269,12 +273,10 @@ void FakeExtrudedTextRenderer::collect_geometry(
         return Vec3(v.x, v.y, v.z);
     };
 
-    // View → screen (caller must ensure vp.z < 0)
+    // View → screen using pinhole (cam.z < 0 = in front of camera)
     auto view_to_screen = [&](const Vec3& vp) -> Vec2 {
-        Vec4 clip = proj_mat * Vec4(vp, 1.0f);
-        float inv_w = 1.0f / clip.w;
-        return Vec2{(clip.x * inv_w + 1.0f) * (float)width  * 0.5f,
-                    (1.0f - clip.y * inv_w)  * (float)height * 0.5f};
+        const f32 ps = focal / (-vp.z);
+        return Vec2{vp.x * ps + vp_cx, -vp.y * ps + vp_cy};
     };
 
     // Fan-triangulate a near-clipped polygon into m_tris
@@ -323,9 +325,14 @@ void FakeExtrudedTextRenderer::collect_geometry(
         const GlyphGeometry& geom = get_glyph(
             s.font_path, s.font_size, cp, font_entry->data.data());
 
+        // Transform glyph vertex to world space using the layer's world transform.
+        // s.world_pos is the text origin in world space; glyph coords are relative to it.
         auto transform_pt = [&](Vec2 p, float z) -> Vec3 {
-            Vec4 local{x_cur + p.x, -p.y, z, 1.0f};
-            Vec4 world = state.matrix * local;
+            Vec4 local{s.world_pos.x + x_cur + p.x,
+                       s.world_pos.y + (-p.y),
+                       s.world_pos.z + z,
+                       1.0f};
+            Vec4 world = rt.world_matrix * local;
             return Vec3(world.x, world.y, world.z);
         };
 
@@ -339,8 +346,8 @@ void FakeExtrudedTextRenderer::collect_geometry(
             const float yrange = ymax - ymin + 1e-6f;
 
             // Shared lighting normals (constant per island since faces are planar)
-            const Vec3 front_normal = glm::normalize(Vec3(state.matrix * Vec4(0,0,-1,0)));
-            const Vec3 back_normal  = glm::normalize(Vec3(state.matrix * Vec4(0,0, 1,0)));
+            const Vec3 front_normal = glm::normalize(Vec3(rt.world_matrix * Vec4(0,0,-1,0)));
+            const Vec3 back_normal  = glm::normalize(Vec3(rt.world_matrix * Vec4(0,0, 1,0)));
             const float front_light = ndotl(front_normal);
             const float back_light  = ndotl(back_normal);
 
@@ -391,7 +398,7 @@ void FakeExtrudedTextRenderer::collect_geometry(
                     const Vec2  mid       = (p0 + p1) * 0.5f;
                     const float sort_d    = -to_view(transform_pt(mid, depth_z * 0.5f)).z;
                     const Vec4  n3d_local = {norm2d.x, -norm2d.y, 0.0f, 0.0f};
-                    const Vec3  n3d_world = glm::normalize(Vec3(state.matrix * n3d_local));
+                    const Vec3  n3d_world = glm::normalize(Vec3(rt.world_matrix * n3d_local));
                     const float side_l    = ndotl(n3d_world);
 
                     Color c_base = s.side_color.with_alpha(s.side_color.a * op);
@@ -415,9 +422,9 @@ void FakeExtrudedTextRenderer::collect_geometry(
                             float z1 = s.bevel_size * (1.0f - std::cos(t1 * pi_half));
                             float sl0 = std::cos(t0 * pi_half);
                             float sl1 = std::cos(t1 * pi_half);
-                            Vec3 bn0 = glm::normalize(Vec3(state.matrix *
+                            Vec3 bn0 = glm::normalize(Vec3(rt.world_matrix *
                                 Vec4(norm2d.x*sl0, -norm2d.y*sl0, -(1.0f-sl0), 0.0f)));
-                            Vec3 bn1 = glm::normalize(Vec3(state.matrix *
+                            Vec3 bn1 = glm::normalize(Vec3(rt.world_matrix *
                                 Vec4(norm2d.x*sl1, -norm2d.y*sl1, -(1.0f-sl1), 0.0f)));
                             Color bc0 = {c_base.r*ndotl(bn0), c_base.g*ndotl(bn0),
                                          c_base.b*ndotl(bn0), c_base.a};
@@ -547,7 +554,7 @@ void FakeExtrudedTextRenderer::collect(
     }
 
     // ── 3D mesh-based extrusion: accumulate into m_quads / m_tris ────────────
-    collect_geometry(node, state, camera, width, height, text_renderer);
+    collect_geometry(node, state, width, height, text_renderer);
 }
 
 void FakeExtrudedTextRenderer::draw(

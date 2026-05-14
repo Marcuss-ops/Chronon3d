@@ -16,7 +16,6 @@ latest_stamp() {
     "CMakeLists.txt"
     "CMakePresets.json"
     "vcpkg.json"
-    "xmake.lua"
     "tools"
   )
 
@@ -51,7 +50,7 @@ while true; do
   current_stamp="$(latest_stamp)"
   if [[ "$current_stamp" != "$last_stamp" ]]; then
     last_stamp="$current_stamp"
-    echo "Change detected, rebuilding ChrononTemplate..."
+    echo "Change detected, rebuilding Chronon3d..."
     CHRONON_SKIP_DEPS=1 bash "$SCRIPT_DIR/chronon-linux.sh"
   fi
 done
