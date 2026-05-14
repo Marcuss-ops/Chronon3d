@@ -6,7 +6,7 @@ using namespace chronon3d;
 // Camera25DDepthScaleProof
 // Far card smaller, normal card medium, near card larger.
 // ---------------------------------------------------------------------------
-static Composition Camera25DDepthScaleProof() {
+Composition Camera25DDepthScaleProof() {
     return composition({
         .name = "Camera25DDepthScaleProof",
         .width = 1280,
@@ -92,7 +92,7 @@ CHRONON_REGISTER_COMPOSITION("Camera25DDepthScaleProof", Camera25DDepthScaleProo
 // Camera25DParallaxProof
 // Camera pans X; near layer shifts more than far layer.
 // ---------------------------------------------------------------------------
-static Composition Camera25DParallaxProof() {
+Composition Camera25DParallaxProof() {
     return composition({
         .name = "Camera25DParallaxProof",
         .width = 1280,
@@ -171,7 +171,7 @@ CHRONON_REGISTER_COMPOSITION("Camera25DParallaxProof", Camera25DParallaxProof)
 // Camera25DZOrderProof
 // Near red inserted first but must render on top of far blue.
 // ---------------------------------------------------------------------------
-static Composition Camera25DZOrderProof() {
+Composition Camera25DZOrderProof() {
     return composition({
         .name = "Camera25DZOrderProof",
         .width = 800,
@@ -223,7 +223,7 @@ CHRONON_REGISTER_COMPOSITION("Camera25DZOrderProof", Camera25DZOrderProof)
 // Camera25DCameraPushProof
 // Camera moves closer on Z; card should grow larger.
 // ---------------------------------------------------------------------------
-static Composition Camera25DCameraPushProof() {
+Composition Camera25DCameraPushProof() {
     return composition({
         .name = "Camera25DCameraPushProof",
         .width = 1280,
@@ -277,7 +277,7 @@ CHRONON_REGISTER_COMPOSITION("Camera25DCameraPushProof", Camera25DCameraPushProo
 // Camera25DMixed2D3DProof
 // Camera pans X. 3D card follows; 2D HUD must remain fixed.
 // ---------------------------------------------------------------------------
-static Composition Camera25DMixed2D3DProof() {
+Composition Camera25DMixed2D3DProof() {
     return composition({
         .name = "Camera25DMixed2D3DProof",
         .width = 1000,
@@ -336,7 +336,7 @@ CHRONON_REGISTER_COMPOSITION("Camera25DMixed2D3DProof", Camera25DMixed2D3DProof)
 // Camera25DImageParallaxProof
 // Two images at different Z; near image shifts more as camera pans.
 // ---------------------------------------------------------------------------
-static Composition Camera25DImageParallaxProof() {
+Composition Camera25DImageParallaxProof() {
     return composition({
         .name = "Camera25DImageParallaxProof",
         .width = 1280,

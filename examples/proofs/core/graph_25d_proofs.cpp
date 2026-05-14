@@ -9,7 +9,7 @@
 using namespace chronon3d;
 
 // 1. Projection test: near big, far small
-static Composition camera25d_graph_projection() {
+Composition camera25d_graph_projection() {
     return composition({ .name = "camera25d_graph_projection", .width = 1280, .height = 720 }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         s.camera_2_5d({ .enabled = true, .position = {0, 0, -1000}, .zoom = 1000.0f });
@@ -37,7 +37,7 @@ static Composition camera25d_graph_projection() {
 CHRONON_REGISTER_COMPOSITION("camera25d_graph_projection", camera25d_graph_projection)
 
 // 2 & 3. Parallax test: camera pan (frame 0 and 60)
-static Composition camera25d_graph_parallax() {
+Composition camera25d_graph_parallax() {
     return composition({ .name = "camera25d_graph_parallax", .width = 1280, .height = 720, .duration = 61 }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         const f32 t = static_cast<f32>(ctx.frame) / 60.0f;
@@ -66,7 +66,7 @@ static Composition camera25d_graph_parallax() {
 CHRONON_REGISTER_COMPOSITION("camera25d_graph_parallax", camera25d_graph_parallax)
 
 // 4. Z sorting test: nearer red red must cover farther blue even if red is inserted first
-static Composition camera25d_graph_z_sorting() {
+Composition camera25d_graph_z_sorting() {
     return composition({ .name = "camera25d_graph_z_sorting", .width = 1280, .height = 720 }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         s.camera_2_5d({ .enabled = true, .position = {0, 0, -1000}, .zoom = 1000.0f });
@@ -91,7 +91,7 @@ static Composition camera25d_graph_z_sorting() {
 CHRONON_REGISTER_COMPOSITION("camera25d_graph_z_sorting", camera25d_graph_z_sorting)
 
 // 5. 2D overlay test: UI stays on top and fixed
-static Composition camera25d_graph_2d_overlay() {
+Composition camera25d_graph_2d_overlay() {
     return composition({ .name = "camera25d_graph_2d_overlay", .width = 1280, .height = 720, .duration = 61 }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         const f32 t = static_cast<f32>(ctx.frame) / 60.0f;
@@ -117,7 +117,7 @@ static Composition camera25d_graph_2d_overlay() {
 CHRONON_REGISTER_COMPOSITION("camera25d_graph_2d_overlay", camera25d_graph_2d_overlay)
 
 // 6 & 7. Camera push-in test
-static Composition camera25d_graph_pushin() {
+Composition camera25d_graph_pushin() {
     return composition({ .name = "camera25d_graph_pushin", .width = 1280, .height = 720, .duration = 91 }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         const f32 t = static_cast<f32>(ctx.frame) / 90.0f;
@@ -141,7 +141,7 @@ static Composition camera25d_graph_pushin() {
 CHRONON_REGISTER_COMPOSITION("camera25d_graph_pushin", camera25d_graph_pushin)
 
 // 8. Culling test: layer behind camera invisible
-static Composition camera25d_graph_culling() {
+Composition camera25d_graph_culling() {
     return composition({ .name = "camera25d_graph_culling", .width = 1280, .height = 720 }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         s.camera_2_5d({ .enabled = true, .position = {0, 0, -1000}, .zoom = 1000.0f });
@@ -167,7 +167,7 @@ static Composition camera25d_graph_culling() {
 CHRONON_REGISTER_COMPOSITION("camera25d_graph_culling", camera25d_graph_culling)
 
 // 9. DOF test
-static Composition camera25d_graph_dof() {
+Composition camera25d_graph_dof() {
     return composition({ .name = "camera25d_graph_dof", .width = 1280, .height = 720 }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         s.camera_2_5d({
@@ -194,7 +194,7 @@ static Composition camera25d_graph_dof() {
 CHRONON_REGISTER_COMPOSITION("camera25d_graph_dof", camera25d_graph_dof)
 
 // 10. Simple realistic scene
-static Composition camera25d_graph_scena() {
+Composition camera25d_graph_scena() {
     return composition({ .name = "camera25d_graph_scena", .width = 1280, .height = 720, .duration = 61 }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         const f32 t = static_cast<f32>(ctx.frame) / 60.0f;

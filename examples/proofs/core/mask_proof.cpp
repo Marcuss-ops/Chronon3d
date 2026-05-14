@@ -11,7 +11,7 @@ static const TextStyle kLabelBold{
 // ---------------------------------------------------------------------------
 // MaskRectProof — checker clipped inside a rect
 // ---------------------------------------------------------------------------
-static Composition MaskRectProof() {
+Composition MaskRectProof() {
     return composition({
         .name = "MaskRectProof", .width = 900, .height = 600, .duration = 1
     }, [](const FrameContext& ctx) {
@@ -34,7 +34,7 @@ CHRONON_REGISTER_COMPOSITION("MaskRectProof", MaskRectProof)
 // ---------------------------------------------------------------------------
 // MaskRoundedRectProof — checker + text clipped inside rounded rect
 // ---------------------------------------------------------------------------
-static Composition MaskRoundedRectProof() {
+Composition MaskRoundedRectProof() {
     return composition({
         .name = "MaskRoundedRectProof", .width = 900, .height = 600, .duration = 1
     }, [](const FrameContext& ctx) {
@@ -62,7 +62,7 @@ CHRONON_REGISTER_COMPOSITION("MaskRoundedRectProof", MaskRoundedRectProof)
 // ---------------------------------------------------------------------------
 // MaskCircleProof — checker clipped to circle
 // ---------------------------------------------------------------------------
-static Composition MaskCircleProof() {
+Composition MaskCircleProof() {
     return composition({
         .name = "MaskCircleProof", .width = 800, .height = 600, .duration = 1
     }, [](const FrameContext& ctx) {
@@ -85,7 +85,7 @@ CHRONON_REGISTER_COMPOSITION("MaskCircleProof", MaskCircleProof)
 // ---------------------------------------------------------------------------
 // MaskTextRevealProof — long text visible only through a rect window
 // ---------------------------------------------------------------------------
-static Composition MaskTextRevealProof() {
+Composition MaskTextRevealProof() {
     return composition({
         .name = "MaskTextRevealProof", .width = 1000, .height = 500, .duration = 1
     }, [](const FrameContext& ctx) {
@@ -112,7 +112,7 @@ CHRONON_REGISTER_COMPOSITION("MaskTextRevealProof", MaskTextRevealProof)
 // ---------------------------------------------------------------------------
 // AnimatedMaskRevealProof — width grows from 0 to full over 60 frames
 // ---------------------------------------------------------------------------
-static Composition AnimatedMaskRevealProof() {
+Composition AnimatedMaskRevealProof() {
     return composition({
         .name = "AnimatedMaskRevealProof", .width = 1280, .height = 720, .duration = 90
     }, [](const FrameContext& ctx) {
@@ -158,7 +158,7 @@ CHRONON_REGISTER_COMPOSITION("AnimatedMaskRevealProof", AnimatedMaskRevealProof)
 // ---------------------------------------------------------------------------
 // MaskLayerTransformProof — mask follows layer scale + rotation
 // ---------------------------------------------------------------------------
-static Composition MaskLayerTransformProof() {
+Composition MaskLayerTransformProof() {
     return composition({
         .name = "MaskLayerTransformProof", .width = 900, .height = 600, .duration = 1
     }, [](const FrameContext& ctx) {
@@ -183,7 +183,7 @@ CHRONON_REGISTER_COMPOSITION("MaskLayerTransformProof", MaskLayerTransformProof)
 // ---------------------------------------------------------------------------
 // MaskCamera25DProof — masked layer in 2.5D space
 // ---------------------------------------------------------------------------
-static Composition MaskCamera25DProof() {
+Composition MaskCamera25DProof() {
     return composition({
         .name = "MaskCamera25DProof", .width = 1280, .height = 720, .duration = 90
     }, [](const FrameContext& ctx) {

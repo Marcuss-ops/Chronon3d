@@ -17,8 +17,7 @@
 #include <chronon3d/chronon3d.hpp>
 
 using namespace chronon3d;
-
-static Composition First2_5DShot() {
+Composition First2_5DShot() {
     return composition({
         .name     = "First2_5DShot",
         .width    = 1920,
@@ -187,7 +186,7 @@ CHRONON_REGISTER_COMPOSITION("First2_5DShot", First2_5DShot)
 // First2_5DShotFov — same scene but using FOV projection instead of zoom.
 // 35° ≈ telephoto (compressed depth), 70° ≈ wide angle (exaggerated parallax).
 // ─────────────────────────────────────────────────────────────────────────
-static Composition First2_5DShotFov() {
+Composition First2_5DShotFov() {
     return composition({
         .name     = "First2_5DShotFov",
         .width    = 1920,

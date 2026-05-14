@@ -11,7 +11,7 @@ using namespace chronon3d;
  * Demonstrates a 2-node camera rig with True Look-At.
  * The camera orbits and points at a moving target, creating 3D perspective distortion (keystoning).
  */
-static Composition CameraLookAtProof() {
+Composition CameraLookAtProof() {
     return composition({
         .name = "CameraLookAtProof",
         .width = 1280,

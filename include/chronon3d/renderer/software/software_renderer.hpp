@@ -14,7 +14,6 @@
 #include <chronon3d/renderer/software/render_settings.hpp>
 #include <chronon3d/render_graph/graph_builder.hpp>
 #include <chronon3d/render_graph/graph_executor.hpp>
-#include <chronon3d/video/ffmpeg_frame_extractor.hpp>
 #include <chronon3d/renderer/software/fake_extruded_text_renderer.hpp>
 #include <unordered_map>
 
@@ -50,7 +49,9 @@ public:
         m_image_renderer.clear_cache();
         m_text_renderer.clear_cache();
         m_node_cache.clear();
+#ifdef CHRONON_WITH_VIDEO
         m_video_extractor.clear_memory_cache();
+#endif
     }
 
     void set_composition_registry(const CompositionRegistry* registry) { m_registry = registry; }
@@ -95,7 +96,9 @@ private:
     ImageRenderer     m_image_renderer;
     FakeExtrudedTextRenderer m_fake_extruded_text_renderer;
     mutable cache::NodeCache  m_node_cache;
+#ifdef CHRONON_WITH_VIDEO
     video::FfmpegFrameExtractor m_video_extractor;
+#endif
     RenderSettings    m_settings{};
     const CompositionRegistry* m_registry{nullptr};
 };

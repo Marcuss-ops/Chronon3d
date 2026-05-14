@@ -11,7 +11,7 @@ using namespace chronon3d;
  * left = no shadow, center = soft shadow (blur 28), right = strong (blur 18, higher opacity).
  * Camera slightly elevated so top faces are visible; static at frame 0.
  */
-static Composition ContactShadowProof() {
+Composition ContactShadowProof() {
     return composition({
         .name     = "ContactShadowProof",
         .width    = 1280,

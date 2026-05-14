@@ -3,8 +3,7 @@
 #include <cmath>
 
 using namespace chronon3d;
-
-static Composition TodayFirst25D() {
+Composition TodayFirst25D() {
     return composition({
         .name = "TodayFirst25D",
         .width = 1280,

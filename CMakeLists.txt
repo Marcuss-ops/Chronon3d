@@ -14,7 +14,9 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
 # Options
 option(CHRONON3D_BUILD_TESTS "Build Chronon3d tests" ON)
 option(CHRONON3D_BUILD_CLI "Build Chronon3d CLI" ON)
-option(CHRONON3D_ENABLE_PROFILING "Enable Tracy profiling (creates background thread, not for release)" OFF)
+option(CHRONON3D_BUILD_EXAMPLES "Build Chronon3d examples" OFF)
+option(CHRONON3D_ENABLE_PROFILING "Enable Tracy profiling" OFF)
+option(CHRONON3D_ENABLE_VIDEO "Enable FFmpeg-based video output and tests" OFF)
 
 # Find Dependencies
 find_package(spdlog CONFIG REQUIRED)
@@ -30,145 +32,49 @@ find_package(hwy CONFIG REQUIRED)
 find_package(tomlplusplus CONFIG REQUIRED)
 find_package(Tracy CONFIG QUIET)
 
-if(CHRONON3D_ENABLE_PROFILING AND NOT Tracy_FOUND)
-    message(FATAL_ERROR "CHRONON3D_ENABLE_PROFILING is ON, but Tracy was not found")
+# FFmpeg Setup
+if(CHRONON3D_ENABLE_VIDEO)
+    if(NOT DEFINED VCPKG_INSTALLED_DIR)
+        set(VCPKG_INSTALLED_DIR "${CMAKE_SOURCE_DIR}/vcpkg_installed")
+    endif()
+    if(NOT DEFINED VCPKG_TARGET_TRIPLET)
+        if(WIN32)
+            set(VCPKG_TARGET_TRIPLET "x64-windows")
+        elseif(UNIX)
+            set(VCPKG_TARGET_TRIPLET "x64-linux")
+        endif()
+    endif()
+
+    set(_chronon3d_ffmpeg_include_dir "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/include")
+    set(_chronon3d_ffmpeg_lib_dir "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/lib")
+
+    find_path(FFMPEG_AVCODEC_INCLUDE_DIR NAMES libavcodec/avcodec.h PATHS "${_chronon3d_ffmpeg_include_dir}" NO_DEFAULT_PATH)
+    find_library(FFMPEG_AVCODEC_LIBRARY NAMES avcodec PATHS "${_chronon3d_ffmpeg_lib_dir}" NO_DEFAULT_PATH)
+    find_library(FFMPEG_AVFORMAT_LIBRARY NAMES avformat PATHS "${_chronon3d_ffmpeg_lib_dir}" NO_DEFAULT_PATH)
+    find_library(FFMPEG_AVUTIL_LIBRARY NAMES avutil PATHS "${_chronon3d_ffmpeg_lib_dir}" NO_DEFAULT_PATH)
+    find_library(FFMPEG_SWSCALE_LIBRARY NAMES swscale PATHS "${_chronon3d_ffmpeg_lib_dir}" NO_DEFAULT_PATH)
+
+    if(NOT FFMPEG_AVCODEC_INCLUDE_DIR OR NOT FFMPEG_AVCODEC_LIBRARY)
+        message(FATAL_ERROR "FFmpeg development files not found")
+    endif()
+
+    add_library(chronon3d_ffmpeg INTERFACE)
+    target_include_directories(chronon3d_ffmpeg INTERFACE "${FFMPEG_AVCODEC_INCLUDE_DIR}")
+    target_link_libraries(chronon3d_ffmpeg INTERFACE
+        "${FFMPEG_AVCODEC_LIBRARY}"
+        "${FFMPEG_AVFORMAT_LIBRARY}"
+        "${FFMPEG_AVUTIL_LIBRARY}"
+        "${FFMPEG_SWSCALE_LIBRARY}"
+    )
 endif()
 
-# 1. Base Core Library (Minimal)
+# 1. Interface Library
 add_library(chronon3d INTERFACE)
-target_include_directories(chronon3d
-    INTERFACE
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/deps/include>
-        $<INSTALL_INTERFACE:include>
+target_include_directories(chronon3d INTERFACE 
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/deps/include>
 )
-target_link_libraries(chronon3d
-    INTERFACE
-        glm::glm
-        meshoptimizer::meshoptimizer
-        xxHash::xxhash
-)
-target_compile_features(chronon3d INTERFACE cxx_std_20)
-
-# 2. Registry Library (Static)
-file(GLOB CHRONON3D_REGISTRY_SOURCES CONFIGURE_DEPENDS
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/registry/*.cpp"
-)
-
-add_library(chronon3d_registry STATIC
-    ${CHRONON3D_REGISTRY_SOURCES}
-)
-target_link_libraries(chronon3d_registry
-    PUBLIC
-        chronon3d
-)
-
-# 3. Cache Library (Static)
-file(GLOB CHRONON3D_CACHE_SOURCES CONFIGURE_DEPENDS
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/cache/*.cpp"
-)
-
-add_library(chronon3d_cache STATIC
-    ${CHRONON3D_CACHE_SOURCES}
-)
-target_link_libraries(chronon3d_cache
-    PUBLIC
-        chronon3d
-)
-
-# 4. Render Graph & Video sources (now part of renderer)
-file(GLOB CHRONON3D_RENDER_GRAPH_SOURCES CONFIGURE_DEPENDS
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/render_graph/*.cpp"
-)
-file(GLOB CHRONON3D_VIDEO_SOURCES CONFIGURE_DEPENDS
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/video/*.cpp"
-)
-
-# 5. Effects Library (Static)
-file(GLOB CHRONON3D_EFFECTS_SOURCES CONFIGURE_DEPENDS
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/effects/*.cpp"
-)
-
-add_library(chronon3d_effects STATIC
-    ${CHRONON3D_EFFECTS_SOURCES}
-)
-target_link_libraries(chronon3d_effects
-    PUBLIC
-        chronon3d
-)
-
-# 6. Renderer Library (Static)
-file(GLOB CHRONON3D_RENDERER_SOURCES CONFIGURE_DEPENDS
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/*.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/software/*.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/software/rasterizers/*.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/software/specialized/*.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/software/utils/*.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/software/graph/*.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/text/*.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/assets/*.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/renderer/video/*.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/scene/*.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/evaluation/*.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/specscene/*.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/layout/*.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/core/*.cpp"
-)
-
-add_library(chronon3d_renderer STATIC
-    ${CHRONON3D_RENDERER_SOURCES}
-    ${CHRONON3D_RENDER_GRAPH_SOURCES}
-    ${CHRONON3D_VIDEO_SOURCES}
-)
-target_link_libraries(chronon3d_renderer
-    PUBLIC
-        chronon3d
-        chronon3d_registry
-        chronon3d_cache
-        chronon3d_effects
-        chronon3d_io
-    PRIVATE
-        spdlog::spdlog
-        fmt::fmt
-        hwy::hwy
-        tomlplusplus::tomlplusplus
-)
-if(CHRONON3D_ENABLE_PROFILING AND Tracy_FOUND)
-    target_link_libraries(chronon3d_renderer PRIVATE Tracy::TracyClient)
-    target_compile_definitions(chronon3d_renderer PRIVATE CHRONON_PROFILING TRACY_ON_DEMAND)
-endif()
-target_include_directories(chronon3d_renderer PRIVATE ${Stb_INCLUDE_DIR})
-
-# 7. Pipeline Library (Heavy)
-add_library(chronon3d_pipeline INTERFACE)
-target_link_libraries(chronon3d_pipeline
-    INTERFACE
-        chronon3d_renderer
-        chronon3d_registry
-        chronon3d_cache
-        Taskflow::Taskflow
-        concurrentqueue::concurrentqueue
-)
-if(CHRONON3D_ENABLE_PROFILING)
-    target_link_libraries(chronon3d_pipeline INTERFACE Tracy::TracyClient)
-    target_compile_definitions(chronon3d_pipeline INTERFACE CHRONON_PROFILING TRACY_ON_DEMAND)
-endif()
-
-# 8. IO Library
-file(GLOB CHRONON3D_IO_SOURCES CONFIGURE_DEPENDS
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/io/*.cpp"
-)
-
-add_library(chronon3d_io STATIC
-    ${CHRONON3D_IO_SOURCES}
-)
-target_link_libraries(chronon3d_io
-    PUBLIC
-        chronon3d
-)
-target_include_directories(chronon3d_io PRIVATE ${Stb_INCLUDE_DIR})
-
-# Global compiler options
+target_link_libraries(chronon3d INTERFACE glm::glm meshoptimizer::meshoptimizer xxHash::xxhash)
 if(MSVC)
     target_compile_options(chronon3d INTERFACE /EHsc /fp:strict /utf-8)
     target_compile_definitions(chronon3d INTERFACE _DISABLE_STRING_VIEW_FIND_FIRST_NOT_OF_OPTIMIZATION)
@@ -176,31 +82,111 @@ else()
     target_compile_options(chronon3d INTERFACE -ffp-contract=off)
 endif()
 
-# Subdirectories
+# 2. Core Implementation
+file(GLOB CHRONON3D_CORE_SOURCES CONFIGURE_DEPENDS "src/core/*.cpp")
+add_library(chronon3d_core STATIC ${CHRONON3D_CORE_SOURCES})
+target_link_libraries(chronon3d_core PUBLIC chronon3d Taskflow::Taskflow)
 
-# 8. Examples Library (Host for auto-registration)
-if(CHRONON3D_BUILD_EXAMPLES)
-    add_library(chronon3d_examples_lib STATIC)
-    file(GLOB CHRONON3D_EXAMPLE_SOURCES CONFIGURE_DEPENDS
-        "${CMAKE_CURRENT_SOURCE_DIR}/examples/*.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/examples/basics/*.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/examples/demos/*.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/examples/proofs/*.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/examples/proofs/core/*.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/examples/proofs/fake3d/*.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/examples/proofs/camera/*.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/examples/proofs/templates/*.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/examples/debug/*.cpp"
-    )
-    target_sources(chronon3d_examples_lib PRIVATE ${CHRONON3D_EXAMPLE_SOURCES})
-    target_link_libraries(chronon3d_examples_lib
-        PUBLIC
-            chronon3d
-            chronon3d_renderer
-    )
+# 3. Registry
+file(GLOB CHRONON3D_REGISTRY_SOURCES CONFIGURE_DEPENDS "src/registry/*.cpp")
+add_library(chronon3d_registry STATIC ${CHRONON3D_REGISTRY_SOURCES})
+target_link_libraries(chronon3d_registry PUBLIC chronon3d)
+
+# 4. Cache
+file(GLOB CHRONON3D_CACHE_SOURCES CONFIGURE_DEPENDS "src/cache/*.cpp")
+add_library(chronon3d_cache STATIC ${CHRONON3D_CACHE_SOURCES})
+target_link_libraries(chronon3d_cache PUBLIC chronon3d xxHash::xxhash)
+
+# 5. Render Graph
+file(GLOB CHRONON3D_GRAPH_SOURCES CONFIGURE_DEPENDS 
+    "src/render_graph/*.cpp"
+    "src/renderer/software/graph/*.cpp"
+)
+add_library(chronon3d_graph OBJECT ${CHRONON3D_GRAPH_SOURCES})
+target_link_libraries(chronon3d_graph PUBLIC chronon3d chronon3d_cache fmt::fmt hwy::hwy tomlplusplus::tomlplusplus)
+
+# 6. Effects
+file(GLOB CHRONON3D_EFFECTS_SOURCES CONFIGURE_DEPENDS 
+    "src/effects/*.cpp"
+    "src/effects/evaluation/*.cpp"
+)
+add_library(chronon3d_effects STATIC ${CHRONON3D_EFFECTS_SOURCES})
+target_link_libraries(chronon3d_effects PUBLIC chronon3d meshoptimizer::meshoptimizer)
+
+# 7. Software Renderer
+file(GLOB CHRONON3D_SOFTWARE_SOURCES CONFIGURE_DEPENDS 
+    "src/renderer/software/*.cpp"
+    "src/renderer/software/rasterizers/*.cpp"
+    "src/renderer/software/specialized/*.cpp"
+    "src/renderer/software/utils/*.cpp"
+    "src/renderer/text/*.cpp"
+    "src/renderer/assets/*.cpp"
+    "src/renderer/video/*.cpp"
+)
+add_library(chronon3d_software OBJECT ${CHRONON3D_SOFTWARE_SOURCES})
+target_link_libraries(chronon3d_software 
+    PUBLIC chronon3d chronon3d_graph chronon3d_cache chronon3d_effects
+    PRIVATE spdlog::spdlog hwy::hwy fmt::fmt xxHash::xxhash tomlplusplus::tomlplusplus
+)
+target_include_directories(chronon3d_software PRIVATE ${Stb_INCLUDE_DIR})
+
+# 8. Renderer Implementation (Scene, Layout)
+file(GLOB CHRONON3D_RENDERER_SOURCES CONFIGURE_DEPENDS 
+    "src/scene/*.cpp"
+    "src/layout/*.cpp"
+    "src/specscene/*.cpp"
+)
+add_library(chronon3d_renderer OBJECT ${CHRONON3D_RENDERER_SOURCES})
+target_link_libraries(chronon3d_renderer
+    PUBLIC chronon3d chronon3d_core chronon3d_graph chronon3d_software chronon3d_registry chronon3d_cache chronon3d_effects chronon3d_io
+    PRIVATE spdlog::spdlog fmt::fmt tomlplusplus::tomlplusplus
+)
+
+# 9. IO
+file(GLOB CHRONON3D_IO_SOURCES CONFIGURE_DEPENDS "src/io/*.cpp")
+add_library(chronon3d_io STATIC ${CHRONON3D_IO_SOURCES})
+target_link_libraries(chronon3d_io PUBLIC chronon3d)
+target_include_directories(chronon3d_io PRIVATE ${Stb_INCLUDE_DIR})
+
+# 10. Video (Optional)
+if(CHRONON3D_ENABLE_VIDEO)
+    file(GLOB CHRONON3D_VIDEO_SOURCES CONFIGURE_DEPENDS "src/video/*.cpp")
+    add_library(chronon3d_video STATIC ${CHRONON3D_VIDEO_SOURCES})
+    target_link_libraries(chronon3d_video PUBLIC chronon3d chronon3d_io chronon3d_ffmpeg xxHash::xxhash fmt::fmt spdlog::spdlog)
+    target_compile_definitions(chronon3d_video PUBLIC CHRONON_WITH_VIDEO)
+    target_link_libraries(chronon3d_renderer PUBLIC chronon3d_video)
+    target_compile_definitions(chronon3d_renderer PUBLIC CHRONON_WITH_VIDEO)
 endif()
 
-# 9. CLI App
+# 11. Pipeline (Interface)
+add_library(chronon3d_pipeline INTERFACE)
+target_link_libraries(chronon3d_pipeline INTERFACE 
+    chronon3d_renderer chronon3d_core chronon3d_graph chronon3d_software chronon3d_registry chronon3d_cache 
+    Taskflow::Taskflow concurrentqueue::concurrentqueue
+)
+
+# Profiling
+if(CHRONON3D_ENABLE_PROFILING AND Tracy_FOUND)
+    target_link_libraries(chronon3d_renderer PRIVATE Tracy::TracyClient)
+    target_compile_definitions(chronon3d_renderer PRIVATE CHRONON_PROFILING TRACY_ON_DEMAND)
+    target_link_libraries(chronon3d_pipeline INTERFACE Tracy::TracyClient)
+    target_compile_definitions(chronon3d_pipeline INTERFACE CHRONON_PROFILING TRACY_ON_DEMAND)
+endif()
+
+# Examples Objects
+if(CHRONON3D_BUILD_EXAMPLES)
+    file(GLOB CHRONON3D_EXAMPLE_SOURCES CONFIGURE_DEPENDS 
+        "examples/*.cpp" "examples/basics/*.cpp" "examples/demos/*.cpp" "examples/proofs/*.cpp"
+        "examples/proofs/core/*.cpp" "examples/proofs/fake3d/*.cpp" "examples/proofs/camera/*.cpp"
+        "examples/proofs/templates/*.cpp" "examples/debug/*.cpp"
+    )
+    add_library(chronon3d_examples_lib OBJECT ${CHRONON3D_EXAMPLE_SOURCES})
+    target_link_libraries(chronon3d_examples_lib PUBLIC chronon3d chronon3d_renderer)
+    target_sources(chronon3d_renderer PRIVATE $<TARGET_OBJECTS:chronon3d_examples_lib>)
+    target_compile_definitions(chronon3d_renderer PUBLIC CHRONON3D_BUILD_EXAMPLES)
+endif()
+
+# Subdirectories
 if(CHRONON3D_BUILD_CLI)
     add_subdirectory(apps/chronon3d_cli)
 endif()
