@@ -127,6 +127,7 @@ struct FakeExtrudedTextShape {
     Color side_color{0.55f, 0.50f, 0.43f, 0.85f};
     f32   side_fade{0.25f};          // how much to fade side alpha toward deepest step
     f32   highlight_opacity{0.09f};
+    f32   bevel_size{1.5f};
 
     // Injected at render time by build_render_graph:
     bool  cam_ready{false};

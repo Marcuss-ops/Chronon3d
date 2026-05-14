@@ -15,6 +15,10 @@ namespace renderer {
 void fill_convex_quad(Framebuffer& fb, const Vec2 v[4], const Color& color);
 // Gouraud-shaded quad: colors[i] maps to v[i], bilinear interpolated across the quad.
 void fill_gradient_quad(Framebuffer& fb, const Vec2 v[4], const Color colors[4]);
+
+void fill_triangle(Framebuffer& fb, const Vec2 v[3], const Color& color);
+void fill_gradient_triangle(Framebuffer& fb, const Vec2 v[3], const Color colors[3]);
+
 void bline(Framebuffer& fb, Vec2 p0, Vec2 p1, const Color& color);
 
 void draw_fake_box3d(Framebuffer& fb, const RenderNode& node, const RenderState& state, const FakeBox3DShape& shape);
@@ -22,6 +26,9 @@ void draw_grid_plane(Framebuffer& fb, const RenderNode& node, const RenderState&
 
 void render_mesh_wireframe(Framebuffer& fb, const Mesh& mesh, const Mat4& model,
                            const Mat4& view, const Mat4& proj, const Color& color);
+
+void render_mesh_filled(Framebuffer& fb, const Mesh& mesh, const Mat4& model,
+                        const Mat4& view, const Mat4& proj, const Color& color);
 
 void draw_transformed_shape(Framebuffer& fb, const Shape& shape, const Mat4& model, const Color& color,
                              f32 spread = 0.0f, const RenderState* state = nullptr);
