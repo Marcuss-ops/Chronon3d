@@ -70,7 +70,7 @@ private:
         std::list<u64>::iterator lru_iterator;
     };
 
-    mutable std::mutex m_mutex;
+    mutable std::unique_ptr<std::mutex> m_mutex;
     std::unordered_map<u64, Entry> m_entries;
     std::list<u64> m_lru_list;
     

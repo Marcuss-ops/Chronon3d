@@ -1,5 +1,6 @@
 #include <chronon3d/chronon3d.hpp>
 #include <chronon3d/renderer/materials.hpp>
+#include <chronon3d/presets/studio_presets.hpp>
 
 using namespace chronon3d;
 
@@ -30,7 +31,7 @@ static Composition PremiumLookProof() {
         });
 
         // Floor Grid
-        s.reflective_floor_layer("floor", {
+        presets::Studio::grid_plane(s, "floor", {
             .pos = {0, -210, 0},
             .extent = 2000,
             .spacing = 100,
@@ -48,12 +49,12 @@ static Composition PremiumLookProof() {
 
         // Animated Boxes with Reflections and Elastic/Bounce Easing
         f32 anim_t = std::clamp(t, 0.0f, 1.0f);
-        f32 elastic_t = easing::apply(Easing::OutElastic, anim_t);
+        f32 elastic_t = easing::apply(Ease::OutElastic, anim_t);
         
         f32 anim_t2 = std::clamp(t - 1.0f, 0.0f, 1.0f);
-        f32 bounce_t  = easing::apply(Easing::OutBounce, anim_t2);
+        f32 bounce_t  = easing::apply(Ease::OutBounce, anim_t2);
 
-        s.fake_box3d_layer("orange_box", {
+        presets::Studio::fake_box3d(s, "orange_box", {
             .pos = {-200, -60 + 200 * elastic_t, 100},
             .size = {120, 120},
             .depth = 120.0f,
@@ -63,7 +64,7 @@ static Composition PremiumLookProof() {
             .floor_y = -210.0f
         });
 
-        s.fake_box3d_layer("blue_box", {
+        presets::Studio::fake_box3d(s, "blue_box", {
             .pos = {200, -60 + 160 * bounce_t, -50},
             .size = {100, 100},
             .depth = 100.0f,

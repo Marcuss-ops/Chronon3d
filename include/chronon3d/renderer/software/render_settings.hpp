@@ -27,6 +27,12 @@ struct RenderSettings {
      */
     bool diagnostic{false};
 
+    /**
+     * Path to the font used for diagnostic overlays.
+     * If empty, a default path or built-in fallback is used.
+     */
+    std::string diagnostic_font_path;
+
 };
 
 } // namespace chronon3d

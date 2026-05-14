@@ -21,13 +21,13 @@ u64 NodeCacheKey::digest() const {
 }
 
 NodeCache::NodeCache(usize capacity_bytes)
-    : m_capacity_bytes(capacity_bytes)
+    : m_mutex(std::make_unique<std::mutex>()), m_capacity_bytes(capacity_bytes)
 {
 }
 
 NodeCache::Value NodeCache::get(u64 key)
 {
-    std::lock_guard lock(m_mutex);
+    std::lock_guard lock(*m_mutex);
     auto it = m_entries.find(key);
     if (it == m_entries.end()) {
         m_stats.misses++;
@@ -41,7 +41,7 @@ NodeCache::Value NodeCache::get(u64 key)
 
 void NodeCache::put(u64 key, Value value, usize size_bytes)
 {
-    std::lock_guard lock(m_mutex);
+    std::lock_guard lock(*m_mutex);
     
     if (auto it = m_entries.find(key); it != m_entries.end()) {
         m_stats.current_usage_bytes -= it->second.size_bytes;
@@ -63,7 +63,7 @@ void NodeCache::put(u64 key, Value value, usize size_bytes)
 
 bool NodeCache::erase(u64 key)
 {
-    std::lock_guard lock(m_mutex);
+    std::lock_guard lock(*m_mutex);
     auto it = m_entries.find(key);
     if (it == m_entries.end()) return false;
     m_stats.current_usage_bytes -= it->second.size_bytes;
@@ -74,13 +74,13 @@ bool NodeCache::erase(u64 key)
 
 bool NodeCache::contains(u64 key) const
 {
-    std::lock_guard lock(m_mutex);
+    std::lock_guard lock(*m_mutex);
     return m_entries.contains(key);
 }
 
 void NodeCache::clear()
 {
-    std::lock_guard lock(m_mutex);
+    std::lock_guard lock(*m_mutex);
     m_entries.clear();
     m_lru_list.clear();
     m_stats.current_usage_bytes = 0;
@@ -88,7 +88,7 @@ void NodeCache::clear()
 
 void NodeCache::set_capacity(usize capacity_bytes)
 {
-    std::lock_guard lock(m_mutex);
+    std::lock_guard lock(*m_mutex);
     m_capacity_bytes = capacity_bytes;
     evict_if_needed(0);
 }
@@ -118,4 +118,3 @@ void NodeCache::touch(u64 key)
 }
 
 } // namespace chronon3d::cache
-

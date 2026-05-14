@@ -129,9 +129,6 @@ LayerBuilder& LayerBuilder::bloom(f32 threshold, f32 radius, f32 intensity) {
     return *this;
 }
 
-LayerBuilder& LayerBuilder::bloom_soft()   { return bloom(0.85f, 18.0f, 0.35f); }
-LayerBuilder& LayerBuilder::bloom_medium() { return bloom(0.80f, 28.0f, 0.60f); }
-LayerBuilder& LayerBuilder::bloom_strong() { return bloom(0.75f, 42.0f, 0.85f); }
 LayerBuilder& LayerBuilder::blend(BlendMode mode) { m_layer.blend_mode = mode; return *this; }
 
 LayerBuilder& LayerBuilder::pin_to(Anchor anchor, f32 margin) {
@@ -281,21 +278,16 @@ LayerBuilder& LayerBuilder::node_opacity(f32 a) {
     return *this;
 }
 
-LayerBuilder& LayerBuilder::video(std::string name, const VideoDesc& v, Frame comp_frame, float comp_fps, VideoFrameProvider& provider) {
-    const std::string png = provider.frame_path(v, comp_frame, comp_fps);
-    if (png.empty()) return *this;
-    auto* res = m_layer.nodes.get_allocator().resource();
-    RenderNode node(res);
-    node.name = std::pmr::string{name, res};
-    node.shape.type             = ShapeType::Image;
-    node.shape.image.path       = png;
-    node.shape.image.size       = (v.size.x > 0 && v.size.y > 0) ? v.size : Vec2{640,360};
-    node.shape.image.opacity    = v.opacity;
-    node.world_transform.position = v.pos;
-    node.world_transform.anchor   = {node.shape.image.size.x * 0.5f, node.shape.image.size.y * 0.5f, 0.0f};
-    node.color = Color{1, 1, 1, v.opacity};
-    m_layer.nodes.push_back(std::move(node));
+LayerBuilder& LayerBuilder::video(video::VideoSource source) {
+    m_layer.kind = LayerKind::Video;
+    m_layer.video_source = std::move(source);
     return *this;
+}
+
+LayerBuilder& LayerBuilder::video(std::string path) {
+    video::VideoSource source;
+    source.path = std::move(path);
+    return video(std::move(source));
 }
 
 Layer LayerBuilder::build() {

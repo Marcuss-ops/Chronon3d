@@ -1,5 +1,6 @@
 #include <chronon3d/chronon3d.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
+#include <chronon3d/presets/studio_presets.hpp>
 
 using namespace chronon3d;
 
@@ -60,7 +61,7 @@ static Composition FakeExtrudedTextProof() {
                 .pos     = {640, 240, 0}
             });
         });
-        s.fake_extruded_text_layer("text_d8", {
+        presets::Studio::fake_extruded_text(s, "text_d8", {
             .text              = "TILT",
             .pos               = {640, 360, 0},
             .font_size         = 100,
@@ -83,7 +84,7 @@ static Composition FakeExtrudedTextProof() {
                 .pos     = {1000, 240, 0}
             });
         });
-        s.fake_extruded_text_layer("text_d20", {
+        presets::Studio::fake_extruded_text(s, "text_d20", {
             .text              = "TILT",
             .pos               = {1000, 360, 0},
             .font_size         = 100,
