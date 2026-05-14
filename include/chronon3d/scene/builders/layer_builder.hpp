@@ -48,9 +48,6 @@ public:
     LayerBuilder& drop_shadow(Vec2 offset, Color color = {0,0,0,0.35f}, f32 radius = 12.0f);
     LayerBuilder& glow(f32 radius, f32 intensity = 0.8f, Color color = Color::white());
     LayerBuilder& bloom(f32 threshold = 0.80f, f32 radius = 24.0f, f32 intensity = 0.60f);
-    LayerBuilder& bloom_soft();
-    LayerBuilder& bloom_medium();
-    LayerBuilder& bloom_strong();
     LayerBuilder& blend(BlendMode mode);
 
     // Layout
@@ -83,9 +80,16 @@ public:
     LayerBuilder& node_opacity(f32 a);
 
     // Specialized
-    LayerBuilder& video(std::string name, const VideoDesc& v,
-                        Frame comp_frame, float comp_fps,
-                        VideoFrameProvider& provider);
+    /**
+     * Declarative video layer. 
+     * The actual frame extraction is handled by the renderer/graph.
+     */
+    LayerBuilder& video(video::VideoSource source);
+
+    /**
+     * Convenience helper for video by path.
+     */
+    LayerBuilder& video(std::string path);
 
     [[nodiscard]] std::pmr::memory_resource* resource() const { return m_layer.nodes.get_allocator().resource(); }
     [[nodiscard]] Layer build();

@@ -11,8 +11,16 @@ int main(int argc, char** argv) {
     CLI::App app{"Chronon3d CLI - Motion Graphics Engine"};
     app.require_subcommand(1);
 
+    bool with_builtins = false;
+    app.add_flag("--with-builtins", with_builtins, "Register all built-in compositions");
+
     CompositionRegistry registry;
-    register_all_compositions(registry);
+
+    auto ensure_registry = [&]() {
+        if (with_builtins) {
+            register_all_compositions(registry);
+        }
+    };
 
     int exit_code = 0;
 
@@ -21,6 +29,7 @@ int main(int argc, char** argv) {
     // -------------------------------------------------------------------------
     auto* list_cmd = app.add_subcommand("list", "List all registered compositions");
     list_cmd->callback([&]() {
+        ensure_registry();
         exit_code = command_list(registry);
     });
 
@@ -30,7 +39,10 @@ int main(int argc, char** argv) {
     std::string info_id;
     auto* info_cmd = app.add_subcommand("info", "Get information about a composition");
     info_cmd->add_option("id", info_id, "Composition name")->required();
-    info_cmd->callback([&]() { exit_code = command_info(registry, info_id); });
+    info_cmd->callback([&]() {
+        ensure_registry();
+        exit_code = command_info(registry, info_id);
+    });
 
     // -------------------------------------------------------------------------
     // render
@@ -49,14 +61,21 @@ int main(int argc, char** argv) {
     render_cmd->add_option("--start",               render_args.start_old,           "Start frame (legacy)");
     render_cmd->add_option("--end",                 render_args.end_old,             "End frame exclusive (legacy)");
     render_cmd->add_option("--ssaa",                render_args.ssaa,                "Super Sampling factor (default 1.0)");
-    render_cmd->callback([&]() { exit_code = command_render(registry, render_args); });
+    render_cmd->callback([&]() {
+        ensure_registry();
+        if (render_args.output.empty()) {
+            render_args.output = "render_####.png";
+            spdlog::warn("No output path specified, defaulting to {}", render_args.output);
+        }
+        exit_code = command_render(registry, render_args);
+    });
 
     // -------------------------------------------------------------------------
     // video
     // -------------------------------------------------------------------------
     VideoArgs video_args;
     auto* video_cmd = app.add_subcommand("video", "Render a composition to MP4 via ffmpeg");
-    video_cmd->add_option("id",           video_args.comp_id,     "Composition name")->required();
+    video_cmd->add_option("id",           video_args.comp_id,     "Composition name or .specscene path")->required();
     video_cmd->add_option("-o,--output",  video_args.output,      "Output .mp4 path")->required();
     video_cmd->add_option("--start",      video_args.start,       "Start frame (inclusive)");
     video_cmd->add_option("--end",        video_args.end,         "End frame (exclusive)")->required();
@@ -70,7 +89,10 @@ int main(int argc, char** argv) {
     video_cmd->add_option("--shutter-angle",        video_args.shutter_angle,        "Shutter angle in degrees (default 180)");
     video_cmd->add_option("--frames-dir",           video_args.frames_dir,           "Override temporary frames directory");
     video_cmd->add_option("--ssaa",                 video_args.ssaa,                 "Super Sampling factor (default 1.0)");
-    video_cmd->callback([&]() { exit_code = command_video(registry, video_args); });
+    video_cmd->callback([&]() {
+        ensure_registry();
+        exit_code = command_video(registry, video_args);
+    });
 
     // -------------------------------------------------------------------------
     // bench
@@ -81,7 +103,10 @@ int main(int argc, char** argv) {
     bench_cmd->add_option("--frames", bench_args.frames, "Measured frames")->default_val(120);
     bench_cmd->add_option("--warmup", bench_args.warmup, "Warmup frames")->default_val(10);
     bench_cmd->add_flag("--graph", bench_args.use_modular_graph, "Use modular RenderGraph path");
-    bench_cmd->callback([&]() { exit_code = command_bench(registry, bench_args); });
+    bench_cmd->callback([&]() {
+        ensure_registry();
+        exit_code = command_bench(registry, bench_args);
+    });
 
     // -------------------------------------------------------------------------
     // graph
@@ -90,30 +115,47 @@ int main(int argc, char** argv) {
     auto* graph_cmd = app.add_subcommand("graph", "Export the render graph as DOT");
     graph_cmd->add_option("id", graph_args.comp_id, "Composition name")->required();
     graph_cmd->add_option("--frame", graph_args.frame, "Frame to inspect")->default_val(0);
-    graph_cmd->add_option("-o,--output", graph_args.output, "Output .dot path")->default_val("output/graph.dot");
-    graph_cmd->callback([&]() { exit_code = command_graph(registry, graph_args); });
+    graph_cmd->add_option("-o,--output", graph_args.output, "Output .dot path");
+    graph_cmd->callback([&]() {
+        ensure_registry();
+        if (graph_args.output.empty()) {
+            graph_args.output = "output/graph.dot";
+            spdlog::warn("No output path specified, defaulting to {}", graph_args.output);
+        }
+        exit_code = command_graph(registry, graph_args);
+    });
+
+    // -------------------------------------------------------------------------
     // batch
     // -------------------------------------------------------------------------
     std::string batch_config;
     auto* batch_cmd = app.add_subcommand("batch", "Run multiple rendering jobs from a TOML config");
     batch_cmd->add_option("--config", batch_config, "Path to TOML config")->required();
-    batch_cmd->callback([&]() { exit_code = command_batch(registry, batch_config); });
+    batch_cmd->callback([&]() {
+        ensure_registry();
+        exit_code = command_batch(registry, batch_config);
+    });
 
     // -------------------------------------------------------------------------
-    // watch
+    // dev subcommands
     // -------------------------------------------------------------------------
+    auto* dev_cmd = app.add_subcommand("dev", "Development and verification tools");
+
+    // dev watch
     std::string watch_id;
-    auto* watch_cmd = app.add_subcommand("watch", "Watch for changes and re-render");
+    auto* watch_cmd = dev_cmd->add_subcommand("watch", "Watch for changes and re-render");
     watch_cmd->add_option("id", watch_id, "Composition name")->required();
-    watch_cmd->callback([&]() { exit_code = command_watch(registry, watch_id); });
+    watch_cmd->callback([&]() {
+        ensure_registry();
+        exit_code = command_watch(registry, watch_id);
+    });
 
-    // -------------------------------------------------------------------------
-    // render-all
-    // -------------------------------------------------------------------------
+    // dev render-all
     std::string all_output_dir;
-    auto* all_cmd = app.add_subcommand("render-all", "Render frame 0 of every registered composition");
+    auto* all_cmd = dev_cmd->add_subcommand("render-all", "Render frame 0 of every registered composition");
     all_cmd->add_option("-o,--output-dir", all_output_dir, "Output directory")->default_val("output/verify");
     all_cmd->callback([&]() {
+        ensure_registry();
         for (const auto& id : registry.available()) {
             RenderArgs args;
             args.comp_id = id;
@@ -123,17 +165,18 @@ int main(int argc, char** argv) {
         }
     });
 
-    // -------------------------------------------------------------------------
-    // proofs
-    // -------------------------------------------------------------------------
+    // dev proofs
     ProofsArgs proofs_args;
-    auto* proofs_cmd = app.add_subcommand("proofs", "Render proof suites for visual validation");
+    auto* proofs_cmd = dev_cmd->add_subcommand("proofs", "Render proof suites for visual validation");
     proofs_cmd->add_option("suite", proofs_args.suite, "Suite name (e.g., 'fake3d', 'camera25d') or 'list' or 'all'")->required();
     proofs_cmd->add_option("-o,--output-dir", proofs_args.output_dir, "Output directory")->default_val("output/proofs");
     proofs_cmd->add_flag("--modular", proofs_args.use_modular_graph, "Use modular RenderGraph");
     proofs_cmd->add_flag("--diagnostic", proofs_args.diagnostic, "Enable diagnostic overlays");
     proofs_cmd->add_option("--ssaa", proofs_args.ssaa, "Super-sampling factor (e.g., 2.0)")->default_val(1.0f);
-    proofs_cmd->callback([&]() { exit_code = command_proofs(registry, proofs_args); });
+    proofs_cmd->callback([&]() {
+        ensure_registry();
+        exit_code = command_proofs(registry, proofs_args);
+    });
 
     try {
         CLI11_PARSE(app, argc, argv);

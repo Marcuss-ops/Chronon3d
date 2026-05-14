@@ -8,7 +8,7 @@ TEST_CASE("Layer Parenting basic translation") {
     FrameContext ctx{.frame = 0};
     SceneBuilder s(ctx);
 
-    s.null("parent", [](LayerBuilder& l) {
+    s.null_layer("parent", [](LayerBuilder& l) {
         l.position({100, 200, 0});
     });
 
@@ -37,11 +37,11 @@ TEST_CASE("Layer Parenting nested") {
     FrameContext ctx{.frame = 0};
     SceneBuilder s(ctx);
 
-    s.null("grandparent", [](LayerBuilder& l) {
+    s.null_layer("grandparent", [](LayerBuilder& l) {
         l.position({100, 0, 0});
     });
 
-    s.null("parent", [](LayerBuilder& l) {
+    s.null_layer("parent", [](LayerBuilder& l) {
         l.parent("grandparent")
          .position({100, 0, 0});
     });
@@ -63,7 +63,7 @@ TEST_CASE("Layer Parenting with rotation") {
     SceneBuilder s(ctx);
 
     // Parent at origin, rotated 90 deg around Z
-    s.null("parent", [](LayerBuilder& l) {
+    s.null_layer("parent", [](LayerBuilder& l) {
         l.position({0, 0, 0})
          .rotate({0, 0, 90});
     });

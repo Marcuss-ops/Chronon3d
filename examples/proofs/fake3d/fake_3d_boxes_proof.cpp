@@ -1,5 +1,6 @@
 #include <chronon3d/chronon3d.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
+#include <chronon3d/presets/studio_presets.hpp>
 #include <cmath>
 
 using namespace chronon3d;
@@ -41,7 +42,7 @@ static Composition FakeBox3DProof() {
          .camera_look_at({0, 0, 0});
 
         // Grid floor (XZ plane below the boxes)
-        s.grid_plane_layer("floor", {
+        presets::Studio::grid_plane(s, "floor", {
             .pos     = {0, -200, 0},
             .axis    = PlaneAxis::XZ,
             .extent  = 2200,
@@ -50,7 +51,7 @@ static Composition FakeBox3DProof() {
         });
 
         // Orange panel — center
-        s.fake_box3d_layer("panel", {
+        presets::Studio::fake_box3d(s, "panel", {
             .pos   = {0, 0, 0},
             .size  = {560, 280},
             .depth = 90,
@@ -58,7 +59,7 @@ static Composition FakeBox3DProof() {
         });
 
         // Red cube — left/front
-        s.fake_box3d_layer("cube_red", {
+        presets::Studio::fake_box3d(s, "cube_red", {
             .pos   = {-380, 0, 100},
             .size  = {170, 170},
             .depth = 170,
@@ -66,7 +67,7 @@ static Composition FakeBox3DProof() {
         });
 
         // Blue cube — right/back
-        s.fake_box3d_layer("cube_blue", {
+        presets::Studio::fake_box3d(s, "cube_blue", {
             .pos   = {380, 0, -100},
             .size  = {170, 170},
             .depth = 170,
@@ -110,7 +111,7 @@ static Composition GridPlaneProof() {
          .camera_look_at({0, 0, 0});
 
         // Large grid: 4 wide rows of 220px spacing
-        s.grid_plane_layer("floor", {
+        presets::Studio::grid_plane(s, "floor", {
             .pos     = {0, -150, 0},
             .axis    = PlaneAxis::XZ,
             .extent  = 2600,
@@ -119,7 +120,7 @@ static Composition GridPlaneProof() {
         });
 
         // Reference box at center to verify occlusion
-        s.fake_box3d_layer("ref_box", {
+        presets::Studio::fake_box3d(s, "ref_box", {
             .pos   = {0, 0, 0},
             .size  = {280, 280},
             .depth = 280,
