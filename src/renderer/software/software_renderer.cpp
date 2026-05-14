@@ -346,12 +346,24 @@ namespace chronon3d {
     void SoftwareRenderer::render_layer_nodes(Framebuffer &fb, const Layer &layer,
                                                const RenderState &layer_state, const Camera &camera,
                                                i32 width, i32 height) {
+        // Begin a per-layer accumulation pass for FakeExtrudedText nodes so that
+        // all their primitives are depth-sorted globally before rasterization.
+        m_fake_extruded_text_renderer.begin_frame();
+
         for (const auto &node : layer.nodes) {
             if (!node.visible)
                 continue;
             RenderState node_state = combine(layer_state, node.world_transform);
-            draw_node(fb, node, node_state, camera, width, height);
+            if (node.shape.type == ShapeType::FakeExtrudedText) {
+                m_fake_extruded_text_renderer.collect(fb, node, node_state, camera, width, height,
+                                                      m_text_renderer);
+            } else {
+                draw_node(fb, node, node_state, camera, width, height);
+            }
         }
+
+        // Flush all accumulated extruded-text primitives with global depth sort.
+        m_fake_extruded_text_renderer.flush(fb);
     }
 
     void SoftwareRenderer::render_mesh_wireframe(Framebuffer &fb, const Mesh &mesh,
