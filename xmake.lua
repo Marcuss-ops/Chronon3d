@@ -59,14 +59,18 @@ target("chronon3d_effects")
 -- Renderer Library
 target("chronon3d_renderer")
     set_kind("static")
-    add_files("src/renderer/*.cpp")
+    add_files("src/renderer/software/*.cpp")
+    add_files("src/renderer/text/*.cpp")
+    add_files("src/renderer/assets/*.cpp")
+    add_files("src/renderer/video/*.cpp")
     add_files("src/scene/*.cpp")
     add_files("src/evaluation/*.cpp")
     add_files("src/layout/*.cpp")
     add_files("src/render_graph/*.cpp")
+    add_files("src/specscene/*.cpp")
 
     add_deps("chronon3d", "chronon3d_registry", "chronon3d_cache", "chronon3d_effects", "chronon3d_video")
-    add_packages("spdlog", "stb", "highway", "meshoptimizer", "fmt", "xxhash")
+    add_packages("spdlog", "stb", "highway", "meshoptimizer", "fmt", "xxhash", "toml++", {public = true})
     
     if has_config("profiling") then
         add_packages("tracy")

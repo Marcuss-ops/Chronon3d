@@ -1,9 +1,10 @@
-#include "primitive_renderer.hpp"
+#include <chronon3d/renderer/software/fake_extruded_text_renderer.hpp>
+#include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
+#include "primitive_renderer.hpp"
 #include <stb_truetype.h>
 #include <mapbox/earcut.hpp>
-#include <chronon3d/scene/render_node.hpp>
-#include <chronon3d/scene/camera.hpp>
+#include <fmt/format.h>
 #include <algorithm>
 #include <cmath>
 #include <vector>
@@ -18,37 +19,87 @@ namespace mapbox { namespace util {
 }}
 
 namespace chronon3d {
-namespace renderer {
 
-void draw_fake_extruded_text(Framebuffer& fb, const RenderNode& node, const RenderState& state, const Camera& camera, i32 width, i32 height) {
-    if (node.shape.type != ShapeType::FakeExtrudedText) return;
+void FakeExtrudedTextRenderer::draw(
+    Framebuffer& fb,
+    const RenderNode& node,
+    const RenderState& state,
+    const Camera& camera,
+    i32 width,
+    i32 height,
+    TextRenderer& text_renderer)
+{
     const auto& s = node.shape.fake_extruded_text;
     const f32 op = state.opacity;
 
-    // Load font
-    // Note: In a production engine, this should be cached or passed from a central manager.
-    // For now we keep the existing logic of opening it here or assuming it's available.
-    // Actually SoftwareRenderer::draw_node assumes it can find it.
-    
-    // We need access to the font data. For now, let's assume we re-read it or it's provided.
-    // To keep the refactor simple and safe, I'll copy the logic but I need to make sure
-    // the font path is valid.
-    
-    std::vector<unsigned char> font_data;
-    FILE* f = fopen(s.font_path.c_str(), "rb");
-    if (!f) return;
-    fseek(f, 0, SEEK_END);
-    size_t size = ftell(f);
-    fseek(f, 0, SEEK_SET);
-    font_data.resize(size);
-    fread(font_data.data(), 1, size, f);
-    fclose(f);
+    // ── SCREEN-SPACE FALLBACK (no camera) ─────────────────────────────────
+    if (!s.cam_ready) {
+        const Vec2 front_sp{s.world_pos.x, s.world_pos.y};
+        Vec2 dir{s.extrude_dir.x, s.extrude_dir.y};
+        const f32 dir_len = std::sqrt(dir.x*dir.x + dir.y*dir.y);
 
+        Framebuffer front_mask(fb.width(), fb.height());
+        front_mask.clear(Color::transparent());
+        {
+            TextShape ts; ts.text=s.text; ts.style.font_path=s.font_path;
+            ts.style.size=s.font_size; ts.style.color=Color{1,1,1,1};
+            ts.style.align=s.align;
+            Transform tr; tr.position=Vec3(front_sp.x,front_sp.y,0);
+            text_renderer.draw_text(ts,tr,front_mask);
+        }
+        if (dir_len > 0.1f && s.depth > 0) {
+            const f32 inv_d = 1.0f/static_cast<f32>(s.depth);
+            for (int y=0; y<fb.height(); ++y) {
+                for (int x=0; x<fb.width(); ++x) {
+                    if (front_mask.get_pixel(x,y).a > 0.05f) continue;
+                    bool found=false; f32 dist=0;
+                    for (int st=1; st<=s.depth; ++st) {
+                        int sx=x-static_cast<int>(dir.x*st+0.5f);
+                        int sy=y-static_cast<int>(dir.y*st+0.5f);
+                        if (sx<0||sx>=fb.width()||sy<0||sy>=fb.height()) break;
+                        if (front_mask.get_pixel(sx,sy).a > 0.05f) { dist=st*inv_d; found=true; break; }
+                    }
+                    if (found) {
+                        Color sc=s.side_color;
+                        sc.r=std::max(0.0f,sc.r-0.30f*dist); sc.g=std::max(0.0f,sc.g-0.30f*dist);
+                        sc.b=std::max(0.0f,sc.b-0.30f*dist); sc.a=s.side_color.a*(1.0f-s.side_fade*dist)*op;
+                        fb.set_pixel(x,y,compositor::blend(sc,fb.get_pixel(x,y),BlendMode::Normal));
+                    }
+                }
+            }
+        }
+        { TextShape ts; ts.text=s.text; ts.style.font_path=s.font_path;
+          ts.style.size=s.font_size; ts.style.color=Color{s.front_color.r,s.front_color.g,s.front_color.b,s.front_color.a*op};
+          ts.style.align=s.align; Transform tr; tr.position=Vec3(front_sp.x,front_sp.y,0); tr.opacity=op;
+          text_renderer.draw_text(ts,tr,fb,&state); }
+        if (s.highlight_opacity>0) {
+            TextShape ts; ts.text=s.text; ts.style.font_path=s.font_path;
+            ts.style.size=s.font_size; ts.style.color=Color{1,1,1,s.highlight_opacity*op};
+            ts.style.align=s.align; Transform tr; tr.position=Vec3(front_sp.x,front_sp.y-1,0);
+            text_renderer.draw_text(ts,tr,fb,&state);
+        }
+        return;
+    }
+
+    // ── MESH-BASED 3D EXTRUSION ────────────────────────────────────────────
+    const CachedFont* font_entry = text_renderer.get_font(s.font_path);
+    if (!font_entry) return;
     stbtt_fontinfo font;
-    if (!stbtt_InitFont(&font, font_data.data(), 0)) return;
+    if (!stbtt_InitFont(&font, font_entry->data.data(), 0)) return;
 
-    float sc_f = stbtt_ScaleForPixelHeight(&font, s.font_size);
-    float x_cur = 0;
+    const float sc_f = stbtt_ScaleForPixelHeight(&font, s.font_size);
+    int ascent, descent, line_gap;
+    stbtt_GetFontVMetrics(&font, &ascent, &descent, &line_gap);
+
+    float total_w = 0;
+    for (char ch : s.text) {
+        int adv, lsb;
+        stbtt_GetCodepointHMetrics(&font, (int)(unsigned char)ch, &adv, &lsb);
+        total_w += (float)adv * sc_f;
+    }
+    float x_cur_start = (s.align == TextAlign::Center) ? -total_w * 0.5f :
+                        (s.align == TextAlign::Right)   ? -total_w : 0.0f;
+    float x_cur = x_cur_start;
 
     struct SideQ { Vec2 v[4]; Color c0, c1; float depth; };
     struct Tri3D { Vec2 v[3]; Color color; float depth; };
@@ -101,16 +152,26 @@ void draw_fake_extruded_text(Framebuffer& fb, const RenderNode& node, const Rend
                 return a * 0.5f;
             };
 
-            struct Island { std::vector<std::vector<Vec2>> polygon; float area; };
+            struct Island {
+                std::vector<std::vector<Vec2>> polygon;
+                float area;
+            };
             std::vector<Island> islands;
             for (auto& c : contours) {
                 if (c.size() < 3) continue;
                 float a = get_area(c);
-                if (a > 0) { islands.push_back({ {std::move(c)}, a }); }
-                else {
+                if (a > 0) { // Outer ring
+                    islands.push_back({ {std::move(c)}, a });
+                } else { // Hole
                     bool placed = false;
-                    for (auto& island : islands) { island.polygon.push_back(std::move(c)); placed = true; break; }
-                    if (!placed) { islands.push_back({ {std::move(c)}, a }); }
+                    for (auto& island : islands) {
+                        island.polygon.push_back(std::move(c));
+                        placed = true;
+                        break;
+                    }
+                    if (!placed) {
+                        islands.push_back({ {std::move(c)}, a });
+                    }
                 }
             }
 
@@ -161,6 +222,7 @@ void draw_fake_extruded_text(Framebuffer& fb, const RenderNode& node, const Rend
                     for (size_t i = 0; i < contour.size(); ++i) {
                         Vec2 p0 = contour[i];
                         Vec2 p1 = contour[(i + 1) % contour.size()];
+                        
                         Vec2 mid = (p0 + p1) * 0.5f;
                         float d = -(camera.view_matrix() * Vec4(transform_pt(mid, depth_z * 0.5f), 1.0f)).z;
 
@@ -219,35 +281,4 @@ void draw_fake_extruded_text(Framebuffer& fb, const RenderNode& node, const Rend
     }
 }
 
-std::unique_ptr<Framebuffer> downsample_fb(const Framebuffer& src, i32 dst_w, i32 dst_h) {
-    auto dst = std::make_unique<Framebuffer>(dst_w, dst_h);
-    const float sx = static_cast<float>(src.width()) / static_cast<float>(dst_w);
-    const float sy = static_cast<float>(src.height()) / static_cast<float>(dst_h);
-
-    for (int y = 0; y < dst_h; ++y) {
-        for (int x = 0; x < dst_w; ++x) {
-            float r = 0, g = 0, b = 0, a = 0;
-            int count = 0;
-            int x0 = static_cast<int>(x * sx);
-            int y0 = static_cast<int>(y * sy);
-            int x1 = std::min(static_cast<int>((x + 1) * sx), src.width());
-            int y1 = std::min(static_cast<int>((y + 1) * sy), src.height());
-
-            for (int sy_i = y0; sy_i < y1; ++sy_i) {
-                for (int sx_i = x0; sx_i < x1; ++sx_i) {
-                    Color c = src.get_pixel(sx_i, sy_i);
-                    r += c.r; g += c.g; b += c.b; a += c.a;
-                    count++;
-                }
-            }
-            if (count > 0) {
-                float inv = 1.0f / count;
-                dst->set_pixel(x, y, Color(r * inv, g * inv, b * inv, a * inv));
-            }
-        }
-    }
-    return dst;
-}
-
-} // namespace renderer
 } // namespace chronon3d

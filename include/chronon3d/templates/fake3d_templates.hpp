@@ -61,7 +61,7 @@ struct Fake3DTitleStudioParams {
     f32  text_glow_intensity{0.22f};
     Color text_glow_color{1.0f, 0.88f, 0.60f, 1.0f};
 
-    // Optional fake extrusion (disabled by default — use FakeExtrudedTextProof for tuning)
+    // Optional fake extrusion for the title shot; disabled by default.
     bool use_extruded_text{false};
     f32  text_depth{18};
     f32  text_extrude_z{2.2f};

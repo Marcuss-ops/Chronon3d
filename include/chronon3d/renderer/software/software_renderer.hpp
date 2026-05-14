@@ -15,6 +15,7 @@
 #include <chronon3d/render_graph/graph_builder.hpp>
 #include <chronon3d/render_graph/graph_executor.hpp>
 #include <chronon3d/video/ffmpeg_frame_extractor.hpp>
+#include <chronon3d/renderer/software/fake_extruded_text_renderer.hpp>
 #include <unordered_map>
 
 namespace chronon3d {
@@ -92,6 +93,7 @@ private:
 
     TextRenderer      m_text_renderer;
     ImageRenderer     m_image_renderer;
+    FakeExtrudedTextRenderer m_fake_extruded_text_renderer;
     mutable cache::NodeCache  m_node_cache;
     video::FfmpegFrameExtractor m_video_extractor;
     RenderSettings    m_settings{};
