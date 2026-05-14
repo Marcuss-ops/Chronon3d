@@ -6,7 +6,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
-#include <unordered_map>
+#include <robin_hood.h>
 #include <list>
 #include <mutex>
 
@@ -71,7 +71,7 @@ private:
     };
 
     mutable std::unique_ptr<std::mutex> m_mutex;
-    std::unordered_map<u64, Entry> m_entries;
+    robin_hood::unordered_flat_map<u64, Entry> m_entries;
     std::list<u64> m_lru_list;
     
     usize m_capacity_bytes;
@@ -79,4 +79,3 @@ private:
 };
 
 } // namespace chronon3d::cache
-
