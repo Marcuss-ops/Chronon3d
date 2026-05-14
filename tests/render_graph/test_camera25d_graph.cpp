@@ -52,21 +52,21 @@ TEST_CASE("Camera2_5D Graph: z-sort — near layer composites on top of far laye
 
         // NEAR red square (z = -300) — inserted first but should render last (on top).
         s.layer("near-red", [](LayerBuilder& l) {
-            l.enable_3d().position({100, 100, -300});
+            l.enable_3d().position({0, 0, -300});
             l.rect("r", {
-                .size  = {60, 60},
-                .color = Color{1, 0, 0, 1},
-                .pos   = {0, 0, 0}
-            });
+                 .size  = {60, 60},
+                 .color = Color{1, 0, 0, 1},
+                 .pos   = {0, 0, 0}
+             });
         });
 
         // FAR blue square (z = +600) — inserted second but should render first (below).
         s.layer("far-blue", [](LayerBuilder& l) {
-            l.enable_3d().position({100, 100, 600});
+            l.enable_3d().position({0, 0, 600});
             l.rect("b", {
-                .size  = {60, 60},
-                .color = Color{0, 0, 1, 1},
-                .pos   = {0, 0, 0}
+                 .size  = {60, 60},
+                 .color = Color{0, 0, 1, 1},
+                 .pos   = {0, 0, 0}
             });
         });
 
