@@ -260,6 +260,7 @@ std::optional<Camera2_5DDesc> parse_camera_2_5d(const toml::table& tbl, std::vec
     cam.enabled = read_scalar<bool>(tbl, "enabled", true);
     cam.position.set(read_vec3(tbl, "position", cam.position.value_at(0)));
     cam.point_of_interest = read_vec3(tbl, "point_of_interest", cam.point_of_interest);
+    cam.point_of_interest_enabled = tbl.contains("point_of_interest");
     cam.zoom = read_animated_scalar<f32>(tbl, "zoom", cam.zoom.value_at(0));
     return cam;
 }

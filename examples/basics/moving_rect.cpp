@@ -1,8 +1,7 @@
 #include <chronon3d/chronon3d.hpp>
 
 using namespace chronon3d;
-
-static Composition MovingRect() {
+Composition MovingRect() {
     CompositionSpec spec{
         .name = "MovingRect",
         .width = 512,

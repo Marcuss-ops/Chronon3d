@@ -4,7 +4,7 @@ using namespace chronon3d;
 
 // Shows keyframes() with multi-stop motion and easing.
 // Three shapes each follow a different easing on the same keyframe stops.
-static Composition KeyframesProof() {
+Composition KeyframesProof() {
     return composition({
         .name = "KeyframesProof", .width = 1280, .height = 720, .duration = 120
     }, [](const FrameContext& ctx) {

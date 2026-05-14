@@ -2,8 +2,7 @@
 #include <chronon3d/core/composition_registration.hpp>
 
 using namespace chronon3d;
-
-static Composition CodeFirstSmoke() {
+Composition CodeFirstSmoke() {
     CompositionSpec spec;
     spec.name = "CodeFirstSmoke";
     spec.width = 512;

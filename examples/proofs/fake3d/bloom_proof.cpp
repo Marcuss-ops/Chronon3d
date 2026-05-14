@@ -10,7 +10,7 @@ using namespace chronon3d;
  * An adjustment layer with bloom(0.78, 28, 0.70) is applied after all layers.
  * Expected: soft halo around bright panel, background stays dark.
  */
-static Composition BloomProof() {
+Composition BloomProof() {
     return composition({
         .name     = "BloomProof",
         .width    = 1280,

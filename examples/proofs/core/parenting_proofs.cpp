@@ -3,8 +3,7 @@
 #include <string>
 
 using namespace chronon3d;
-
-static Composition ParentingRigProof() {
+Composition ParentingRigProof() {
     return composition({
         .name = "ParentingRigProof",
         .width = 1280,

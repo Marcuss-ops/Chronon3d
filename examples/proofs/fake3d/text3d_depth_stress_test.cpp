@@ -3,8 +3,7 @@
 #include <chronon3d/core/frame.hpp>
 
 using namespace chronon3d;
-
-static Composition Text3DDepthStressTest() {
+Composition Text3DDepthStressTest() {
     return composition({
         .name     = "Text3DDepthStressTest",
         .width    = 1280,
@@ -58,8 +57,7 @@ static Composition Text3DDepthStressTest() {
         return s.build();
     });
 }
-
-static Composition Text3DWindingTest() {
+Composition Text3DWindingTest() {
     return composition({
         .name     = "Text3DWindingTest",
         .width    = 1280,
@@ -88,8 +86,7 @@ static Composition Text3DWindingTest() {
         return s.build();
     });
 }
-
-static Composition Text3DOrientationTest() {
+Composition Text3DOrientationTest() {
     return composition({
         .name     = "Text3DOrientationTest",
         .width    = 1280,

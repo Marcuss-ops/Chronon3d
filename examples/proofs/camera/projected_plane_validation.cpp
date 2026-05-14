@@ -9,7 +9,7 @@ using namespace chronon3d;
  * ProjectedPlaneValidation
  * Renders the ground truth cases for 2.5D perspective projection.
  */
-static Composition ProjectedPlaneValidation() {
+Composition ProjectedPlaneValidation() {
     return composition({
         .name = "ProjectedPlaneValidation",
         .width = 1280,
