@@ -102,7 +102,7 @@ Architecture and planning notes live in [docs/INDEX.md](docs/INDEX.md), [docs/3d
 ### 3. Register a composition
 
 ```cpp
-// examples/my_comp.cpp
+// your_app/my_comp.cpp
 #include <chronon3d/chronon3d.hpp>
 using namespace chronon3d;
 
@@ -127,11 +127,6 @@ chronon3d_cli render MyComp --start 0 --end 90 -o output/frames/frame_####.png
 
 # export video  (requires ffmpeg in PATH)
 chronon3d_cli video MyComp --start 0 --end 90 --fps 30 -o output/my_comp.mp4
-
-# run a built-in proof suite
-chronon3d_cli proofs list
-chronon3d_cli proofs all -o output/proofs/all
-chronon3d_cli proofs camera25d -o output/proofs/camera25d
 ```
 
 ---
@@ -162,16 +157,6 @@ chronon3d_cli video <Comp> --end N -o output.mp4 [options]
 | `--frames-dir` | auto | Override temp frames directory |
 
 **Requires `ffmpeg` in PATH.** The engine itself has no FFmpeg dependency.
-
-### `proofs`
-```
-chronon3d_cli proofs list
-chronon3d_cli proofs <suite> [-o output_dir]
-chronon3d_cli proofs all -o output/proofs/all
-```
-Built-in suites: `text`, `layer`, `image`, `effects`, `camera25d`, `masks`
-
----
 
 ## API Overview
 
@@ -265,7 +250,7 @@ auto [v, vel] = spring(ctx.frame, target, { .stiffness = 120, .damping = 14 });
 | Path | Content |
 |---|---|
 | `apps/chronon3d_cli/` | CLI entry point and commands |
-| `examples/` | Registered compositions and proofs |
+| `templates/` | Reusable scene templates and composition helpers |
 | `include/chronon3d/` | Public engine headers |
 | `src/` | Renderer, scene, IO implementations |
 | `tests/` | Automated tests (doctest) |

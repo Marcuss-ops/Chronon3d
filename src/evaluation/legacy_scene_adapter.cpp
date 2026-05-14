@@ -69,6 +69,25 @@ RenderNode make_render_node(const VisualDesc& vd,
             node.color                    = Color{1.0f, 1.0f, 1.0f, v.opacity};
             node.world_transform.position = layer_transform.position + v.pos;
             node.world_transform.anchor   = {v.size.x * 0.5f, v.size.y * 0.5f, 0.0f};
+        } else if constexpr (std::is_same_v<T, FakeExtrudedTextParams>) {
+            node.name                     = std::pmr::string{"fake_extruded_text", res};
+            node.shape.type               = ShapeType::FakeExtrudedText;
+            auto& s                       = node.shape.fake_extruded_text;
+            s.text                        = v.text;
+            s.font_path                   = v.font_path;
+            s.font_size                   = v.font_size;
+            s.align                       = v.align;
+            s.world_pos                   = layer_transform.position + v.pos;
+            s.depth                       = v.depth;
+            s.extrude_dir                 = v.extrude_dir;
+            s.extrude_z_step              = v.extrude_z_step;
+            s.front_color                 = v.front_color;
+            s.side_color                  = v.side_color;
+            s.side_fade                   = v.side_fade;
+            s.highlight_opacity           = v.highlight_opacity;
+            s.bevel_size                  = v.bevel_size;
+            node.color                    = v.front_color;
+            node.world_transform.position  = layer_transform.position + v.pos;
         }
 
         // Carry layer scale and rotation into the node transform

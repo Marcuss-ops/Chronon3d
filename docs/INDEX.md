@@ -23,7 +23,7 @@
 - `src/scene/` — scene building and evaluation helpers
 - `src/evaluation/` — composition and timeline evaluation
 - `apps/chronon3d_cli/` — CLI entry point
-- `examples/` — registered compositions and proofs
+- `templates/` — reusable scene templates and composition helpers
 - `tests/` — doctest-based validation
 
 ## Current Direction

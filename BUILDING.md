@@ -83,8 +83,6 @@ Or run the binary directly for faster iteration:
 ./build/chronon/linux-release/chronon3d_cli video MyComp \
     --start 0 --end 90 --fps 30 -o output/my_comp.mp4
 
-# Run built-in proof suites
-./build/chronon/linux-release/chronon3d_cli proofs all -o output/proofs
 ```
 
 ---
@@ -140,11 +138,11 @@ It must be present in both `vcpkg.json` and `CMakeLists.txt`. If you added it on
 
 ## Adding a composition
 
-1. Create `examples/my_comp.cpp`
+1. Create a source file in your application or module
 2. Include `<chronon3d/chronon3d.hpp>`
 3. Define a function returning `Composition`
 4. Register it with `CHRONON_REGISTER_COMPOSITION("MyComp", MyComp)`
-5. Rebuild — the glob in `CMakeLists.txt` picks it up automatically, no CMake changes needed
+5. Rebuild — the target that links your module will pick it up through normal compilation
 
 ```cpp
 #include <chronon3d/chronon3d.hpp>

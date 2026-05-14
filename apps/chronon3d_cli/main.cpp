@@ -36,8 +36,8 @@ int main(int argc, char** argv) {
     // render
     // -------------------------------------------------------------------------
     RenderArgs render_args;
-    auto* render_cmd = app.add_subcommand("render", "Render a composition to image(s)");
-    render_cmd->add_option("id",         render_args.comp_id,   "Composition name")->required();
+    auto* render_cmd = app.add_subcommand("render", "Render a composition id or .specscene file to image(s)");
+    render_cmd->add_option("input",      render_args.comp_id,   "Composition name or .specscene path")->required();
     render_cmd->add_option("--frames",   render_args.frames,    "Frame range: 0 | 0-90 | 0-90x5");
     render_cmd->add_option("-o,--output",render_args.output,    "Output path (use #### for frame number)");
     render_cmd->add_flag("--diagnostic",            render_args.diagnostic,          "Enable diagnostic overlays");
@@ -71,20 +71,6 @@ int main(int argc, char** argv) {
     video_cmd->add_option("--frames-dir",           video_args.frames_dir,           "Override temporary frames directory");
     video_cmd->add_option("--ssaa",                 video_args.ssaa,                 "Super Sampling factor (default 1.0)");
     video_cmd->callback([&]() { exit_code = command_video(registry, video_args); });
-
-    // -------------------------------------------------------------------------
-    // proofs
-    // -------------------------------------------------------------------------
-    ProofsArgs proofs_args;
-    auto* proofs_cmd = app.add_subcommand("proofs", "Render a proof suite ('proofs list' for names)");
-    proofs_cmd->add_option("suite", proofs_args.suite,
-        "Suite: list | all | text | layer | image | effects | animation | depth | camera25d | masks | fake3d")->required();
-    proofs_cmd->add_option("-o,--output-dir", proofs_args.output_dir, "Output directory");
-    proofs_cmd->add_flag("--graph",      proofs_args.use_modular_graph, "Use modular RenderGraph path");
-    proofs_cmd->add_flag("--diagnostic", proofs_args.diagnostic, "Enable diagnostic overlays");
-    proofs_cmd->add_option("--ssaa",     proofs_args.ssaa, "Super Sampling factor (default 1.0)");
-    proofs_cmd->callback([&]() { exit_code = command_proofs(registry, proofs_args); });
-
 
     // -------------------------------------------------------------------------
     // bench
