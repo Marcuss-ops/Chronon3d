@@ -1,5 +1,6 @@
 #include <chronon3d/chronon3d.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
+#include <chronon3d/presets/studio_presets.hpp>
 
 using namespace chronon3d;
 
@@ -36,14 +37,14 @@ static Composition ContactShadowProof() {
          .camera_look_at({0, 0, 0});
 
         // Floor grid
-        s.grid_plane_layer("floor", {
+        presets::Studio::grid_plane(s, "floor", {
             .pos = {0, -180, 0}, .axis = PlaneAxis::XZ,
             .extent = 2000, .spacing = 200,
             .color  = Color{0.35f, 0.50f, 0.65f, 0.25f}
         });
 
         // --- Left: no shadow ---
-        s.fake_box3d_layer("box_l", {
+        presets::Studio::fake_box3d(s, "box_l", {
             .pos   = {-400, 0, 0},
             .size  = {180, 240},
             .depth = 80,
@@ -51,13 +52,13 @@ static Composition ContactShadowProof() {
         });
 
         // --- Center: soft contact shadow ---
-        s.contact_shadow_layer("shadow_c", {
+        presets::Studio::contact_shadow(s, "shadow_c", {
             .pos     = {0, -180, 30},
             .size    = {240, 100},
             .blur    = 28.0f,
             .opacity = 0.50f,
         });
-        s.fake_box3d_layer("box_c", {
+        presets::Studio::fake_box3d(s, "box_c", {
             .pos   = {0, 0, 0},
             .size  = {180, 240},
             .depth = 80,
@@ -65,13 +66,13 @@ static Composition ContactShadowProof() {
         });
 
         // --- Right: stronger shadow ---
-        s.contact_shadow_layer("shadow_r", {
+        presets::Studio::contact_shadow(s, "shadow_r", {
             .pos     = {400, -180, 30},
             .size    = {220, 90},
             .blur    = 16.0f,
             .opacity = 0.70f,
         });
-        s.fake_box3d_layer("box_r", {
+        presets::Studio::fake_box3d(s, "box_r", {
             .pos   = {400, 0, 0},
             .size  = {180, 240},
             .depth = 80,

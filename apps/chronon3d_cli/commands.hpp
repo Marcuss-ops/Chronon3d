@@ -13,7 +13,7 @@ namespace cli {
 struct RenderArgs {
     std::string comp_id;
     std::string frames{"0"}; // Supports "0", "0-90", "0-90x5"
-    std::string output{"render_####.png"};
+    std::string output;      // No default
     bool diagnostic{false};
     bool use_modular_graph{false};
     bool   motion_blur{false};
@@ -48,7 +48,7 @@ struct VideoArgs {
 
 struct ProofsArgs {
     std::string suite;       // suite name or "list" or "all"
-    std::string output_dir{"output/proofs"};
+    std::string output_dir{"output/proofs"}; // Keep this as it's a specific tool dir
     bool use_modular_graph{false};
     bool diagnostic{false};
     float ssaa{1.0f};
@@ -64,7 +64,7 @@ struct BenchArgs {
 struct GraphArgs {
     std::string comp_id;
     Frame frame{0};
-    std::string output{"output/graph.dot"};
+    std::string output; // No default
 };
 
 int command_list(const CompositionRegistry& registry);

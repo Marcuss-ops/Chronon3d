@@ -1,6 +1,7 @@
 #include <chronon3d/chronon3d.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/renderer/materials.hpp>
+#include <chronon3d/presets/studio_presets.hpp>
 #include <cmath>
 
 using namespace chronon3d;
@@ -44,7 +45,7 @@ static Composition Fake3DStudioProof() {
          .camera_look_at({0, 0, 0});
 
         // Grid floor with depth fade
-        s.grid_plane_layer("floor", {
+        presets::Studio::grid_plane(s, "floor", {
             .pos           = {0, -210, 0},
             .axis          = PlaneAxis::XZ,
             .extent        = 3000,
@@ -55,7 +56,7 @@ static Composition Fake3DStudioProof() {
         });
 
         // --- Red cube (left) ---
-        s.fake_box3d_layer("cube_red", {
+        presets::Studio::fake_box3d(s, "cube_red", {
             .pos   = {-420, 0, 0},
             .size  = {160, 160},
             .depth = 160,
@@ -64,7 +65,7 @@ static Composition Fake3DStudioProof() {
         });
 
         // --- Blue cube (right) ---
-        s.fake_box3d_layer("cube_blue", {
+        presets::Studio::fake_box3d(s, "cube_blue", {
             .pos   = {420, 0, 0},
             .size  = {160, 160},
             .depth = 160,
@@ -73,7 +74,7 @@ static Composition Fake3DStudioProof() {
         });
 
         // --- Orange panel (center) ---
-        s.fake_box3d_layer("panel", {
+        presets::Studio::fake_box3d(s, "panel", {
             .pos   = {0, 0, 0},
             .size  = {580, 240},
             .depth = 90,
@@ -83,7 +84,7 @@ static Composition Fake3DStudioProof() {
 
         // CHRONON — mesh extrusion (glyph outlines → side quads, camera-correct shading)
         // extrude_dir.x pushes right (visible at 25° orbit), extrude_z goes into scene
-        s.fake_extruded_text_layer("tilt", {
+        presets::Studio::fake_extruded_text(s, "tilt", {
             .text           = "CHRONON",
             .pos            = {0, 240, -80},
             .font_size      = 76,
@@ -99,7 +100,7 @@ static Composition Fake3DStudioProof() {
 
         // Global bloom: Soft but present
         s.adjustment_layer("bloom", [](LayerBuilder& l) {
-            l.bloom_soft();
+            presets::Effects::bloom_soft(l);
         });
 
         return s.build();

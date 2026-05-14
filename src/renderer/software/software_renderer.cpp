@@ -270,7 +270,17 @@ namespace chronon3d {
     void SoftwareRenderer::draw_diagnostic_info(Framebuffer &fb, const RenderNode &node,
                                                  const RenderState &state) {
         TextStyle debug_style;
-        debug_style.font_path = "assets/fonts/Inter-Regular.ttf";
+        debug_style.font_path = m_settings.diagnostic_font_path.empty() 
+                                 ? "assets/fonts/Inter-Regular.ttf" 
+                                 : m_settings.diagnostic_font_path;
+        
+        // Safety: check if font exists or if we should skip text
+        if (!std::filesystem::exists(debug_style.font_path)) {
+            // If diagnostic is enabled but font is missing, just draw a small red dot/square
+            fb.set_pixel(static_cast<int>(state.matrix[3][0]), static_cast<int>(state.matrix[3][1]), Color{1, 0, 0, 1});
+            return;
+        }
+
         debug_style.size = 12.0f;
         debug_style.color = Color{1, 0, 0, 0.8f};
 

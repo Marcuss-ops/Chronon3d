@@ -1,5 +1,6 @@
 #include <chronon3d/chronon3d.hpp>
 #include <chronon3d/renderer/materials.hpp>
+#include <chronon3d/presets/studio_presets.hpp>
 #include <algorithm>
 
 using namespace chronon3d;
@@ -44,7 +45,7 @@ static Composition VisualTest_Reflection() {
         });
 
         // Floor at Y = -120
-        s.reflective_floor_layer("floor", {
+        presets::Studio::grid_plane(s, "floor", {
             .pos = {0, -120, 0},
             .axis = PlaneAxis::XZ,
             .extent = 2000,
@@ -52,7 +53,7 @@ static Composition VisualTest_Reflection() {
             .color = Color::from_hex("#2c3e50").with_alpha(0.6f)
         });
 
-        s.fake_box3d_layer("cube", {
+        presets::Studio::fake_box3d(s, "cube", {
             .pos = {0, 0, 0},
             .size = {120, 120},
             .depth = 120,
@@ -88,7 +89,7 @@ static Composition VisualTest_Glass() {
         });
 
         // Glass panel centered
-        s.glass_panel_layer("glass", {400, 300, 0}, {400, 300}, 25.0f, 0.4f);
+        presets::Studio::glass_panel(s, "glass", {400, 300, 0}, {400, 300}, 25.0f, 0.4f);
 
         return s.build();
     });
@@ -146,7 +147,7 @@ static Composition VisualTest_Wiggle() {
         s.enable_camera_2_5d(true)
          .camera_position({shake_x, shake_y, -600});
 
-        s.fake_box3d_layer("target", { 
+        presets::Studio::fake_box3d(s, "target", { 
             .pos = {0, 0, 0}, 
             .size = {150, 150}, 
             .depth = 150,

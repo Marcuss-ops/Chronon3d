@@ -119,7 +119,8 @@ TEST_CASE("Camera2_5D Graph: depth scale — far layer is visually smaller") {
 
     auto fb_subject = r.render_frame(make_comp(0.0f,    "SubjectScale"), 0);
     auto fb_far     = r.render_frame(make_comp(1200.0f, "FarScale"), 0);
-    REQUIRE(fb_subject && fb_far);
+    REQUIRE(fb_subject != nullptr);
+    REQUIRE(fb_far != nullptr);
 
     // Count lit pixels in each framebuffer.
     auto count_lit = [](const Framebuffer& fb) {
@@ -299,7 +300,8 @@ TEST_CASE("Camera2_5D Graph: FOV projection mode matches equivalent zoom") {
     SoftwareRenderer r = make_graph_renderer();
     auto fb_fov  = r.render_frame(comp_fov,  0);
     auto fb_zoom = r.render_frame(comp_zoom, 0);
-    REQUIRE(fb_fov && fb_zoom);
+    REQUIRE(fb_fov != nullptr);
+    REQUIRE(fb_zoom != nullptr);
 
     // Both renders should produce very similar output.
     // Compare lit pixel counts.

@@ -2,6 +2,7 @@
 
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/renderer/materials.hpp>
+#include <chronon3d/presets/studio_presets.hpp>
 #include <string>
 
 namespace chronon3d {
@@ -95,7 +96,7 @@ inline void fake3d_title_studio(SceneBuilder& s, const FrameContext& ctx,
      .camera_look_at({0, 0, 0});
 
     // Grid with depth fade
-    s.grid_plane_layer("tmpl_grid", {
+    presets::Studio::grid_plane(s, "tmpl_grid", {
         .pos            = {0, -210, 0},
         .axis           = PlaneAxis::XZ,
         .extent         = p.grid_extent,
@@ -106,17 +107,17 @@ inline void fake3d_title_studio(SceneBuilder& s, const FrameContext& ctx,
     });
 
     // Cubes
-    s.fake_box3d_layer("tmpl_cube_l", {
+    presets::Studio::fake_box3d(s, "tmpl_cube_l", {
         .pos   = p.cube_left_pos,  .size = p.cube_size, .depth = p.cube_depth,
         .color = p.theme.accent,   .contact_shadow = p.contact_shadows
     });
-    s.fake_box3d_layer("tmpl_cube_r", {
+    presets::Studio::fake_box3d(s, "tmpl_cube_r", {
         .pos   = p.cube_right_pos, .size = p.cube_size, .depth = p.cube_depth,
         .color = p.theme.accent,   .contact_shadow = p.contact_shadows
     });
 
     // Center panel
-    s.fake_box3d_layer("tmpl_panel", {
+    presets::Studio::fake_box3d(s, "tmpl_panel", {
         .pos   = p.panel_pos,  .size = p.panel_size, .depth = p.panel_depth,
         .color = p.theme.primary, .contact_shadow = p.contact_shadows
     });
@@ -124,7 +125,7 @@ inline void fake3d_title_studio(SceneBuilder& s, const FrameContext& ctx,
     // Title text: flat 2D-in-3D (clean, premium) or fake extrusion
     if (p.use_extruded_text) {
         if (p.title_is_3d) {
-            s.fake_extruded_text_layer("tmpl_title", {
+            presets::Studio::fake_extruded_text(s, "tmpl_title", {
                 .text           = p.title,
                 .font_path      = p.font_path,
                 .pos            = p.text_pos,
@@ -154,7 +155,7 @@ inline void fake3d_title_studio(SceneBuilder& s, const FrameContext& ctx,
                      .align          = TextAlign::Center,
                      .highlight_opacity = 0.11f,
                      .bevel_size     = 1.5f
-                 });
+                  });
             });
         }
     } else {
@@ -174,7 +175,7 @@ inline void fake3d_title_studio(SceneBuilder& s, const FrameContext& ctx,
     // Bloom
     if (p.bloom) {
         s.adjustment_layer("tmpl_bloom", [](LayerBuilder& l) {
-            l.bloom_soft();
+            presets::Effects::bloom_soft(l);
         });
     }
 }
