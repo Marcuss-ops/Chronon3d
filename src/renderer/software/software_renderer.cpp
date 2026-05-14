@@ -128,30 +128,6 @@ namespace chronon3d {
                                             i32 height, Frame frame, f32 frame_time) {
         ZoneScoped;
 
-        if (m_settings.use_modular_graph) {
-            graph::RenderGraphContext ctx;
-            ctx.frame = frame;
-            ctx.time_seconds = frame_time;
-            ctx.width = width;
-            ctx.height = height;
-            ctx.camera = camera;
-            ctx.renderer = this;
-            ctx.node_cache = &m_node_cache;
-            ctx.cache_enabled = true;
-            ctx.diagnostics_enabled = m_settings.diagnostic;
-            ctx.registry = m_registry;
-            ctx.video_decoder = &m_video_extractor;
-            ctx.ssaa_factor = m_settings.ssaa_factor;
-
-            auto graph = graph::GraphBuilder::build(scene, ctx);
-            graph::GraphExecutor executor;
-            auto result_shared = executor.execute(graph, ctx);
-
-            if (!result_shared)
-                return nullptr;
-            return std::make_unique<Framebuffer>(*result_shared);
-        }
-
         auto graph_wrapper = build_render_graph(scene, camera, width, height, frame, frame_time);
 
         rendergraph::RenderGraphExecutionContext ctx{
