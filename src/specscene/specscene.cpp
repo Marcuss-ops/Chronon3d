@@ -27,6 +27,17 @@ T read_scalar(const toml::table& tbl, const char* key, T fallback) {
     return tbl[key].value_or<T>(T{fallback});
 }
 
+template <typename T>
+AnimatedValue<T> read_animated_scalar(const toml::table& tbl, const char* key, T fallback) {
+    const auto node = tbl[key];
+    if (const auto* str = node.as_string()) {
+        AnimatedValue<T> av(fallback);
+        av.expression(str->get());
+        return av;
+    }
+    return AnimatedValue<T>(read_scalar<T>(tbl, key, fallback));
+}
+
 Vec2 read_vec2(const toml::table& tbl, const char* key, Vec2 fallback) {
     const auto node = tbl[key];
     if (const auto* arr = node.as_array()) {
@@ -233,7 +244,7 @@ std::optional<LayerDesc> parse_layer(const toml::table& tbl, std::vector<std::st
     layer.position            = AnimatedValue<Vec3>(read_vec3(tbl, "position", Vec3{0.0f, 0.0f, 0.0f}));
     layer.rotation            = AnimatedValue<Vec3>(read_vec3(tbl, "rotation", Vec3{0.0f, 0.0f, 0.0f}));
     layer.scale               = AnimatedValue<Vec3>(read_vec3(tbl, "scale", Vec3{1.0f, 1.0f, 1.0f}));
-    layer.opacity             = AnimatedValue<f32>(read_scalar<f32>(tbl, "opacity", 1.0f));
+    layer.opacity             = read_animated_scalar<f32>(tbl, "opacity", 1.0f);
     layer.is_3d               = read_scalar<bool>(tbl, "is_3d", false);
     layer.depth_role          = parse_depth_role(read_scalar<std::string>(tbl, "depth_role", "none"), DepthRole::None);
     layer.depth_offset        = read_scalar<f32>(tbl, "depth_offset", 0.0f);
@@ -249,7 +260,7 @@ std::optional<Camera2_5DDesc> parse_camera_2_5d(const toml::table& tbl, std::vec
     cam.enabled = read_scalar<bool>(tbl, "enabled", true);
     cam.position.set(read_vec3(tbl, "position", cam.position.value_at(0)));
     cam.point_of_interest = read_vec3(tbl, "point_of_interest", cam.point_of_interest);
-    cam.zoom = read_scalar<f32>(tbl, "zoom", cam.zoom);
+    cam.zoom = read_animated_scalar<f32>(tbl, "zoom", cam.zoom.value_at(0));
     return cam;
 }
 
