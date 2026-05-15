@@ -49,10 +49,10 @@ struct NeonBadgeParams {
     Color       text_color{1.f, 1.f, 1.f, 1.f};
 
     // Red box
-    Color box_color  {0.86f, 0.08f, 0.12f, 1.f};
-    f32   box_width  {680.f};
-    Vec2  box_padding{0.f,  24.f};
-    f32   box_depth  {2.f};
+    Color box_color        {0.86f, 0.08f, 0.12f, 1.f};
+    f32   box_width        {680.f};
+    f32   box_padding_y    {24.f};   // vertical padding above/below text
+    f32   box_depth        {2.f};
 
     // Glow (white halo around the box, pulsing)
     Color glow_color    {1.f, 1.f, 1.f, 1.f};
@@ -80,10 +80,7 @@ struct NeonBadgeParams {
 
 inline void neon_badge(SceneBuilder& s, const FrameContext& ctx,
                         const NeonBadgeParams& p = {}) {
-    const f32 fps  = static_cast<f32>(ctx.frame_rate.numerator) /
-                     static_cast<f32>(ctx.frame_rate.denominator > 0
-                                      ? ctx.frame_rate.denominator : 1);
-    const f32 time = static_cast<f32>(ctx.frame) / fps;
+    const f32 time = static_cast<f32>(ctx.seconds());
 
     const f32 glow_intensity = p.glow_base +
         p.glow_amplitude * std::sin(time * p.glow_speed * 6.28318f);
@@ -99,7 +96,7 @@ inline void neon_badge(SceneBuilder& s, const FrameContext& ctx,
     };
     const f32 bar_scale = std::max(0.f, ease_out_back(t_bars));
 
-    const f32 box_h = p.font_size * 0.72f + p.box_padding.y * 2.f;
+    const f32 box_h = p.font_size * 0.72f + p.box_padding_y * 2.f;
 
     s.layer("nb_box", [&](LayerBuilder& l) {
         l.enable_3d().position({0.f, 0.f, 0.f}).rotate({rot_x, rot_y, rot_z});
@@ -126,7 +123,7 @@ inline void neon_badge(SceneBuilder& s, const FrameContext& ctx,
             l.fake_box3d("b", {
                 .pos   = {0.f,  bar_y, 0.f},
                 .size  = {bar_w, p.bar_height},
-                .depth = 2.f,
+                .depth = p.box_depth,
                 .color = p.box_color,
             });
         });
@@ -136,7 +133,7 @@ inline void neon_badge(SceneBuilder& s, const FrameContext& ctx,
             l.fake_box3d("b", {
                 .pos   = {0.f, -bar_y, 0.f},
                 .size  = {bar_w, p.bar_height},
-                .depth = 2.f,
+                .depth = p.box_depth,
                 .color = p.box_color,
             });
         });
