@@ -1,10 +1,12 @@
 #pragma once
 
-#include <chronon3d/scene/scene.hpp>
+#include <chronon3d/core/frame.hpp>
 #include <chronon3d/core/framebuffer.hpp>
-#include <chronon3d/backends/video/video_frame_decoder.hpp>
+#include <chronon3d/core/camera.hpp>
+#include <chronon3d/scene/scene.hpp>
+#include <chronon3d/scene/composition.hpp>
+
 #include <memory>
-#include <optional>
 
 namespace chronon3d {
 
@@ -12,9 +14,19 @@ class Renderer {
 public:
     virtual ~Renderer() = default;
 
-    virtual std::shared_ptr<Framebuffer> render_scene(const Scene& scene, 
-                                                      const std::optional<Camera2_5D>& camera,
-                                                      int width, int height) = 0;
+    virtual std::unique_ptr<Framebuffer> render_frame(
+        const Composition& comp,
+        Frame frame
+    ) = 0;
+
+    virtual std::unique_ptr<Framebuffer> render_scene(
+        const Scene& scene,
+        const Camera& camera,
+        i32 width,
+        i32 height,
+        Frame frame = 0
+    ) = 0;
 };
 
 } // namespace chronon3d
+

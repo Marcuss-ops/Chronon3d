@@ -11,6 +11,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
 
+if(MSVC)
+    add_compile_options(/utf-8)
+endif()
+
 # Options
 option(CHRONON3D_BUILD_TESTS "Build Chronon3d tests" ON)
 option(CHRONON3D_BUILD_CLI "Build Chronon3d CLI" ON)
@@ -160,6 +164,7 @@ file(GLOB CHRONON3D_BACKEND_SOFTWARE_SOURCES CONFIGURE_DEPENDS
     "src/backends/software/rasterizers/*.cpp"
     "src/backends/software/specialized/*.cpp"
     "src/backends/software/utils/*.cpp"
+    "src/backends/software/processors/*.cpp"
 )
 add_library(chronon3d_backend_software OBJECT ${CHRONON3D_BACKEND_SOFTWARE_SOURCES})
 target_link_libraries(chronon3d_backend_software
