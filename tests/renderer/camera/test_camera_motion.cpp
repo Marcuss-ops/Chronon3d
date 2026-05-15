@@ -43,7 +43,9 @@ void render_motion_clip(MotionAxis axis, const char* name, const char* filename)
     std::filesystem::create_directories("output/camera_motion");
 
     SoftwareRenderer renderer;
-    auto comp = camera_motion_clip(name, axis, {}, add_motion_content);
+    CameraMotionParams params;
+    params.axis = axis;
+    auto comp = camera_motion_clip(name, params, add_motion_content);
 
     auto fb_start = renderer.render_frame(comp, 0);
     auto fb_mid = renderer.render_frame(comp, 30);

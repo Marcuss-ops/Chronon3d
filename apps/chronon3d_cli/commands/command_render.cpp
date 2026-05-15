@@ -11,6 +11,7 @@ namespace cli {
 
 int command_render(const CompositionRegistry& registry, const RenderArgs& args) {
     auto range = parse_frames(args.frames);
+    bool ok = true;
 
     if (args.frame_old != -1) {
         range.start = range.end = args.frame_old;
@@ -57,12 +58,16 @@ int command_render(const CompositionRegistry& registry, const RenderArgs& args) 
                 spdlog::info("Frame {} saved to {}", f, path);
             } else {
                 spdlog::error("Failed to save frame {} to {}", f, path);
+                ok = false;
             }
+        } else {
+            spdlog::error("Failed to render frame {}", f);
+            ok = false;
         }
     }
 
     spdlog::info("Render complete.");
-    return 0;
+    return ok ? 0 : 1;
 }
 
 } // namespace cli

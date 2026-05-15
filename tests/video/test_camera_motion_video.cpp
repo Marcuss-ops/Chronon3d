@@ -86,7 +86,9 @@ TEST_CASE("Camera motion tilt exports a real MP4") {
     std::filesystem::create_directories("output/camera_motion");
 
     SoftwareRenderer renderer;
-    auto comp = camera_motion_clip("CameraMotionTiltVideo", MotionAxis::Tilt, {}, add_motion_content);
+    CameraMotionParams params;
+    params.axis = MotionAxis::Tilt;
+    auto comp = camera_motion_clip("CameraMotionTiltVideo", params, add_motion_content);
 
     video::VideoExportOptions options;
     options.start = 0;
