@@ -81,9 +81,9 @@ struct ImageShape {
 };
 
 struct FakeBox3DShape {
-    Vec3  world_pos{0, 0, 0};   // 3D world-space center (must match layer position)
-    Vec2  size{200, 200};        // width (X), height (Y) in world units
-    f32   depth{60};             // Z extrusion depth (positive = away from camera)
+    Vec3  world_pos{0, 0, 0};   // local-space center (transformed by world_matrix)
+    Vec2  size{200, 200};        // width (X), height (Y) in local units
+    f32   depth{60};             // Z extrusion depth
     Color color{1, 1, 1, 1};
     f32   top_tint{0.15f};      // brighten top face by this amount
     f32   side_tint{0.20f};     // darken side faces by this amount
@@ -116,6 +116,9 @@ struct FakeExtrudedTextShape {
     f32   side_fade{0.25f};          // how much to fade side alpha toward deepest step
     f32   highlight_opacity{0.09f};
     f32   bevel_size{1.5f};
+
+    // Light direction for animated glint sweep (world-space, normalized).
+    Vec3  light_dir{-0.577f, 0.577f, -0.577f};
 };
 
 struct Shape {

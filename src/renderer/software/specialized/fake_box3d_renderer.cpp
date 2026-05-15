@@ -27,7 +27,8 @@ void draw_fake_box3d(Framebuffer& fb, const RenderNode& node, const RenderState&
     const f32 hw = s.size.x * 0.5f;
     const f32 hh = s.size.y * 0.5f;
 
-    Vec3 c[8] = {
+    // Build corners in local space, then transform to world via world_matrix
+    const Vec3 local[8] = {
         {wp.x-hw, wp.y+hh, wp.z},
         {wp.x+hw, wp.y+hh, wp.z},
         {wp.x+hw, wp.y-hh, wp.z},
@@ -37,6 +38,11 @@ void draw_fake_box3d(Framebuffer& fb, const RenderNode& node, const RenderState&
         {wp.x+hw, wp.y-hh, wp.z+s.depth},
         {wp.x-hw, wp.y-hh, wp.z+s.depth},
     };
+    Vec3 c[8];
+    for (int i = 0; i < 8; ++i) {
+        Vec4 w = rt.world_matrix * Vec4(local[i], 1.0f);
+        c[i] = {w.x, w.y, w.z};
+    }
 
     Vec2 sc[8];
     bool ok[8];
@@ -45,7 +51,10 @@ void draw_fake_box3d(Framebuffer& fb, const RenderNode& node, const RenderState&
 
     const Mat4 inv_view = glm::inverse(rt.cam_view);
     const Vec3 cam_world = Vec3(inv_view[3]);
-    const Vec3 to_cam = glm::normalize(cam_world - wp);
+    // Use world-space box center for to_cam direction
+    const Vec4 ctr_w = rt.world_matrix * Vec4(wp, 1.0f);
+    const Vec3 box_center{ctr_w.x, ctr_w.y, ctr_w.z};
+    const Vec3 to_cam = glm::normalize(cam_world - box_center);
 
     const Color base = s.color.to_linear();
     const f32 op = state.opacity;
@@ -65,7 +74,9 @@ void draw_fake_box3d(Framebuffer& fb, const RenderNode& node, const RenderState&
 
     for (int oi = 0; oi < NFACES; ++oi) {
         const int fi = draw_order[oi];
-        if (glm::dot(to_cam, faces[fi].normal) <= -0.1f) continue;
+        // Transform face normal to world space for backface culling
+        Vec3 wn = Vec3(rt.world_matrix * Vec4(faces[fi].normal, 0.0f));
+        if (glm::dot(to_cam, wn) <= -0.1f) continue;
 
         const auto& f = faces[fi];
         bool all_ok = true;
