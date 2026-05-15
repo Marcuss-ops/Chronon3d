@@ -21,25 +21,6 @@ struct LayerGraphItem {
 class GraphBuilder {
 public:
     static RenderGraph build(const Scene& scene, const RenderGraphContext& ctx);
-
-private:
-    // Builds the source subgraph for a Normal layer by compositing layer.nodes
-    // bottom-to-top, each wrapped in a SourceNode. Returns the final node id.
-    static GraphNodeId build_layer_source(
-        RenderGraph& graph,
-        const Layer& layer,
-        const RenderGraphContext& ctx
-    );
-
-    // Appends a complete layer pipeline (source → transform → mask → effects → composite)
-    // for one LayerGraphItem. Updates 'current' to the new composite node.
-    static void append_layer_pipeline(
-        RenderGraph& graph,
-        const LayerGraphItem& item,
-        GraphNodeId& current,
-        const RenderGraphContext& ctx,
-        const Camera2_5D& cam25d
-    );
 };
 
 } // namespace chronon3d::graph

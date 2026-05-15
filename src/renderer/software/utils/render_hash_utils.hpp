@@ -1,6 +1,6 @@
 #pragma once
 
-#include <chronon3d/renderer/software/render_graph.hpp>
+#include <chronon3d/render_graph/render_graph_hashing.hpp>
 #include <chronon3d/scene/shape.hpp>
 #include <chronon3d/scene/layer/layer.hpp>
 #include <chronon3d/scene/camera/camera.hpp>

@@ -41,11 +41,7 @@ Presets are defined in `CMakePresets.json`.
 | `win-release` | Windows | Production / CI |
 | `win-debug` | Windows | Development |
 
-The default CMake build includes the CLI, tests, and examples. Disable examples only if you need a smaller build:
-
-```bash
-cmake -DCHRONON3D_BUILD_EXAMPLES=OFF --preset linux-release
-```
+The default CMake build includes the CLI and tests.
 
 ```bash
 cmake --preset linux-debug

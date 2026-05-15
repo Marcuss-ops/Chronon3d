@@ -1,11 +1,11 @@
 #pragma once
 
 #include <chronon3d/renderer/software/renderer.hpp>
-#include <chronon3d/renderer/software/render_graph.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/renderer/text/text_renderer.hpp>
 #include <chronon3d/renderer/assets/image_renderer.hpp>
 #include <chronon3d/math/transform.hpp>
+#include <chronon3d/scene/layer/render_node.hpp>
 #include <chronon3d/scene/layer/layer.hpp>
 #include <chronon3d/scene/effects/layer_effect.hpp>
 #include <chronon3d/scene/effects/effect_stack.hpp>
@@ -18,6 +18,22 @@
 #include <unordered_map>
 
 namespace chronon3d {
+
+class SoftwareRenderer;
+
+namespace software_internal {
+    std::unique_ptr<Framebuffer> render_frame(SoftwareRenderer& renderer, const Composition& comp,
+                                             Frame frame);
+    std::unique_ptr<Framebuffer> render_scene_internal(SoftwareRenderer& renderer,
+                                                       const Scene& scene, const Camera& camera,
+                                                       i32 width, i32 height, Frame frame,
+                                                       f32 frame_time);
+    std::string debug_render_graph(const SoftwareRenderer& renderer, const Scene& scene,
+                                   const Camera& camera, i32 width, i32 height,
+                                   Frame frame, f32 frame_time);
+    void draw_node(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNode& node,
+                   const RenderState& state, const Camera& camera, i32 width, i32 height);
+}
 
 /**
  * SoftwareRenderer — CPU-based rasterizer.
@@ -57,8 +73,13 @@ public:
     void set_composition_registry(const CompositionRegistry* registry) { m_registry = registry; }
     [[nodiscard]] const CompositionRegistry* composition_registry() const { return m_registry; }
 
-
-    friend class rendergraph::RenderGraph;
+    [[nodiscard]] TextRenderer& text_renderer() { return m_text_renderer; }
+    [[nodiscard]] ImageRenderer& image_renderer() { return m_image_renderer; }
+    [[nodiscard]] FakeExtrudedTextRenderer& fake_extruded_text_renderer() {
+        return m_fake_extruded_text_renderer;
+    }
+    [[nodiscard]] cache::NodeCache& node_cache() { return m_node_cache; }
+    [[nodiscard]] const RenderSettings& render_settings() const { return m_settings; }
 
     // Public for use by graph nodes via RenderGraphContext.
     void draw_node(Framebuffer& fb, const RenderNode& node, const RenderState& state,
@@ -71,26 +92,7 @@ private:
     std::unique_ptr<Framebuffer> render_scene_internal(const Scene& scene, const Camera& camera,
                                                        i32 width, i32 height, Frame frame,
                                                        f32 frame_time);
-    rendergraph::RenderGraph build_render_graph(const Scene& scene, const Camera& camera,
-                                                i32 width, i32 height, Frame frame,
-                                                f32 frame_time) const;
-
     void draw_line(Framebuffer& fb, const Vec3& p1, const Vec3& p2, const Color& color);
-
-    void render_mesh_wireframe(Framebuffer& fb, const Mesh& mesh, const Mat4& model,
-                               const Mat4& view, const Mat4& proj, const Color& color);
-
-    void draw_shadow(Framebuffer& fb, const RenderNode& node, const RenderState& state);
-    void draw_glow(Framebuffer& fb, const RenderNode& node, const RenderState& state);
-
-    void render_layer_nodes(Framebuffer& fb, const Layer& layer,
-                            const RenderState& layer_state,
-                            const Camera& camera, i32 width, i32 height);
-
-    static void apply_color_effects(Framebuffer& fb, const LayerEffect& effect);
-
-    // Diagnostic drawing helpers
-    void draw_diagnostic_info(Framebuffer& fb, const RenderNode& node, const RenderState& state);
 
     TextRenderer      m_text_renderer;
     ImageRenderer     m_image_renderer;

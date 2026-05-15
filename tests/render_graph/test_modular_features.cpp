@@ -176,3 +176,33 @@ TEST_CASE("Modular Graph: Sampling Mode validation") {
     auto p = fb->get_pixel(50, 50);
     CHECK(p.a == 0.0f); 
 }
+
+TEST_CASE("Render settings coordinate mode regression") {
+    Composition comp = composition({
+        .name = "CoordinateModeTest",
+        .width = 100,
+        .height = 100,
+    }, [](const FrameContext& ctx) {
+        SceneBuilder s(ctx);
+        s.rect("box", {
+            .size = {10, 10},
+            .color = Color{1, 0, 0, 1},
+            .pos = {0, 0, 0}
+        });
+        return s.build();
+    });
+
+    SoftwareRenderer top_left_renderer;
+    auto top_left_fb = top_left_renderer.render_frame(comp, 0);
+    CHECK(top_left_fb->get_pixel(0, 0).r > 0.9f);
+    CHECK(top_left_fb->get_pixel(50, 50).r == 0.0f);
+
+    SoftwareRenderer modular_renderer;
+    RenderSettings modular_settings;
+    modular_settings.use_modular_graph = true;
+    modular_renderer.set_settings(modular_settings);
+
+    auto modular_fb = modular_renderer.render_frame(comp, 0);
+    CHECK(modular_fb->get_pixel(50, 50).r > 0.9f);
+    CHECK(modular_fb->get_pixel(0, 0).r == 0.0f);
+}

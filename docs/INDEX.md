@@ -5,6 +5,7 @@
 - [Architecture](../ARCHITECTURE.md)
 - [Roadmap](../ROADMAP.md)
 - [Render Graph](RENDER_GRAPH.md)
+- [Proofs Policy](PROOFS_POLICY.md)
 - [Effects](EFFECTS.md)
 - [Registry And Cache](REGISTRY_CACHE.md)
 - [3D Subsystem](3d_subsystem.md)
@@ -23,12 +24,12 @@
 - `src/scene/` — scene building and evaluation helpers
 - `src/evaluation/` — composition and timeline evaluation
 - `apps/chronon3d_cli/` — CLI entry point
-- `templates/` — reusable scene templates and composition helpers
 - `tests/` — doctest-based validation
 
 ## Current Direction
 
 - CMake + vcpkg is the single build path
-- Render graph architecture complete: nodes, LRU cache, profiler, builder, executor
+- Render graph architecture is the production path: nodes, LRU cache, profiler, builder, executor
 - Effect system uses `EffectStack` throughout — `LayerEffect` legacy removed from public API
-- Next: wire `GraphBuilder` into `SoftwareRenderer` production path, then `VideoSource`
+- `use_modular_graph` now controls coordinate mode compatibility only
+- Next: keep trimming builder responsibilities and add focused regression tests for graph features

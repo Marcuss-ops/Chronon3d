@@ -52,10 +52,11 @@ public:
         auto fb = std::make_shared<Framebuffer>(ctx.width, ctx.height);
         fb->clear(Color::transparent());
         
-        // Root centering: scene (0,0) -> pixel (width/2, height/2)
-        // We scale by ssaa_factor to map virtual scene coordinates to the high-res buffer.
-        Mat4 canvas_offset = math::translate(Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f))
-                           * math::scale(Vec3(ctx.ssaa_factor, ctx.ssaa_factor, 1.0f));
+        Mat4 canvas_offset = math::scale(Vec3(ctx.ssaa_factor, ctx.ssaa_factor, 1.0f));
+        if (ctx.modular_coordinates) {
+            canvas_offset = math::translate(Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f)) *
+                            canvas_offset;
+        }
         RenderState state{canvas_offset, 1.0f};
 
         // Combine with node's own world transform

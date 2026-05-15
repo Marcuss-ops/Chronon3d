@@ -14,7 +14,6 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
 # Options
 option(CHRONON3D_BUILD_TESTS "Build Chronon3d tests" ON)
 option(CHRONON3D_BUILD_CLI "Build Chronon3d CLI" ON)
-option(CHRONON3D_BUILD_EXAMPLES "Build Chronon3d examples" ON)
 option(CHRONON3D_ENABLE_PROFILING "Enable Tracy profiling" OFF)
 option(CHRONON3D_ENABLE_VIDEO "Enable FFmpeg-based video output and tests" OFF)
 
@@ -100,7 +99,6 @@ target_link_libraries(chronon3d_cache PUBLIC chronon3d xxHash::xxhash)
 # 5. Render Graph
 file(GLOB CHRONON3D_GRAPH_SOURCES CONFIGURE_DEPENDS 
     "src/render_graph/*.cpp"
-    "src/renderer/software/graph/*.cpp"
 )
 add_library(chronon3d_graph OBJECT ${CHRONON3D_GRAPH_SOURCES})
 target_link_libraries(chronon3d_graph PUBLIC chronon3d chronon3d_cache fmt::fmt hwy::hwy tomlplusplus::tomlplusplus)
@@ -171,21 +169,6 @@ if(CHRONON3D_ENABLE_PROFILING AND Tracy_FOUND)
     target_compile_definitions(chronon3d_renderer PRIVATE CHRONON_PROFILING TRACY_ON_DEMAND)
     target_link_libraries(chronon3d_pipeline INTERFACE Tracy::TracyClient)
     target_compile_definitions(chronon3d_pipeline INTERFACE CHRONON_PROFILING TRACY_ON_DEMAND)
-endif()
-
-# Examples Objects
-if(CHRONON3D_BUILD_EXAMPLES)
-    file(GLOB CHRONON3D_EXAMPLE_SOURCES CONFIGURE_DEPENDS 
-        "examples/*.cpp" "examples/basics/*.cpp" "examples/demos/*.cpp" "examples/proofs/*.cpp"
-        "examples/proofs/core/*.cpp" "examples/proofs/fake3d/*.cpp" "examples/proofs/camera/*.cpp"
-        "examples/proofs/templates/*.cpp" "examples/debug/*.cpp"
-    )
-    add_library(chronon3d_examples_lib OBJECT ${CHRONON3D_EXAMPLE_SOURCES})
-    # Examples only need the public headers (all under include/) — no dep on renderer objects.
-    # Linking against chronon3d_renderer would create a cycle since renderer gets example
-    # objects directly in the CLI target below.
-    target_link_libraries(chronon3d_examples_lib PUBLIC chronon3d)
-    target_compile_definitions(chronon3d_examples_lib PUBLIC CHRONON3D_BUILD_EXAMPLES)
 endif()
 
 # Subdirectories
