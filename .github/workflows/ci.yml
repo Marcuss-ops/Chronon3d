@@ -2,64 +2,47 @@ name: Chronon CI
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
   pull_request:
-    branches:
-      - main
+    branches: [ main ]
 
 jobs:
   build:
-    name: ${{ matrix.os }}
+    name: ${{ matrix.os }} (${{ matrix.preset }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: windows-latest
-            preset: win-release
-            build_preset: win
-            test_preset: win-test
           - os: ubuntu-latest
             preset: linux-release
-            build_preset: linux
             test_preset: linux-test
+          - os: windows-latest
+            preset: win-release
+            test_preset: win-test
+
+    env:
+      VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+      VCPKG_BINARY_SOURCES: "clear;nuget,GitHub,readwrite"
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
-      - name: Prepare vcpkg on Windows
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          if (-not (Test-Path C:\vcpkg\vcpkg.exe)) {
-            git clone https://github.com/microsoft/vcpkg C:\vcpkg
-            C:\vcpkg\bootstrap-vcpkg.bat
-          }
-          if (-not (Get-Command ninja -ErrorAction SilentlyContinue)) {
-            choco install ninja -y --no-progress
-          }
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4' # Matches vcpkg.json baseline
 
-      - name: Prepare vcpkg on Linux
-        if: runner.os == 'Linux'
+      - name: Run CMake
+        uses: lukka/run-cmake@v10
+        with:
+          configurePreset: ${{ matrix.preset }}
+          buildPreset: ${{ matrix.build_preset || matrix.os == 'windows-latest' && 'win' || 'linux' }}
+
+      - name: Run Tests
         shell: bash
         run: |
-          if [[ ! -x "$HOME/vcpkg/vcpkg" ]]; then
-            git clone https://github.com/microsoft/vcpkg "$HOME/vcpkg"
-            "$HOME/vcpkg/bootstrap-vcpkg.sh"
-          fi
-
-      - name: Build Windows
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          .\tools\chronon-win.ps1 -Configuration Release -SkipCacheInstall
-          ctest --preset ${{ matrix.test_preset }}
-
-      - name: Build Linux
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          CHRONON_SKIP_DEPS=0 bash ./tools/chronon-linux.sh
           ctest --preset ${{ matrix.test_preset }}
