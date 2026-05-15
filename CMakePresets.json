@@ -21,6 +21,8 @@
       "hidden": true,
       "inherits": "base",
       "cacheVariables": {
+        "CMAKE_TOOLCHAIN_FILE": "C:/vcpkg/scripts/buildsystems/vcpkg.cmake",
+        "VCPKG_INSTALLED_DIR": "C:/vcpkg/installed",
         "VCPKG_TARGET_TRIPLET": "x64-windows"
       }
     },
@@ -57,9 +59,7 @@
       },
       "cacheVariables": {
         "CHRONON3D_ENABLE_VIDEO": "ON",
-        "CMAKE_TOOLCHAIN_FILE": "C:/vcpkg/scripts/buildsystems/vcpkg.cmake",
-        "VCPKG_MANIFEST_FEATURES": "video",
-        "VCPKG_INSTALLED_DIR": "C:/vcpkg/installed"
+        "VCPKG_MANIFEST_FEATURES": "video"
       }
     },
     {
@@ -87,9 +87,7 @@
       },
       "cacheVariables": {
         "CHRONON3D_ENABLE_VIDEO": "ON",
-        "CMAKE_TOOLCHAIN_FILE": "C:/vcpkg/scripts/buildsystems/vcpkg.cmake",
-        "VCPKG_MANIFEST_FEATURES": "video",
-        "VCPKG_INSTALLED_DIR": "C:/vcpkg/installed"
+        "VCPKG_MANIFEST_FEATURES": "video"
       }
     },
     {
@@ -136,6 +134,7 @@
     {
       "name": "win",
       "configurePreset": "win-release",
+      "configuration": "Release",
       "targets": [
         "chronon3d_cli",
         "chronon3d_tests"
@@ -145,6 +144,7 @@
     {
       "name": "win-video",
       "configurePreset": "win-release-video",
+      "configuration": "Release",
       "targets": [
         "chronon3d_cli"
       ],
@@ -162,6 +162,7 @@
     {
       "name": "win-debug",
       "configurePreset": "win-debug",
+      "configuration": "Debug",
       "targets": [
         "chronon3d_cli",
         "chronon3d_tests"
@@ -171,6 +172,7 @@
     {
       "name": "win-debug-video",
       "configurePreset": "win-debug-video",
+      "configuration": "Debug",
       "targets": [
         "chronon3d_cli"
       ],

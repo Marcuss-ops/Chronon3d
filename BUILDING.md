@@ -40,6 +40,8 @@ Presets are defined in `CMakePresets.json`.
 | `linux-debug` | Linux | Development |
 | `win-release` | Windows | Production / CI |
 | `win-debug` | Windows | Development |
+| `win-release-video` | Windows | Production video build |
+| `win-debug-video` | Windows | Development video build |
 
 The default CMake build includes the CLI and tests.
 
@@ -90,15 +92,15 @@ Or run the binary directly for faster iteration:
 
 ```powershell
 # 1. Clone and bootstrap vcpkg
-git clone https://github.com/microsoft/vcpkg $env:USERPROFILE\vcpkg
-& "$env:USERPROFILE\vcpkg\bootstrap-vcpkg.bat" -disableMetrics
-$env:VCPKG_ROOT = "$env:USERPROFILE\vcpkg"
+git clone https://github.com/microsoft/vcpkg C:\vcpkg
+& "C:\vcpkg\bootstrap-vcpkg.bat" -disableMetrics
 
-# 2. Build from a Visual Studio Developer Command Prompt
-.\tools\chronon-win.ps1
+# 2. Configure and build with CMake presets
+cmake --preset win-release
+cmake --build --preset win
 ```
 
-The script opens the Visual Studio build environment, configures CMake with the `win-release` preset, and builds the CLI into:
+That configures the `win-release` preset and builds the CLI into:
 
 ```text
 build\chronon\win-release\apps\chronon3d_cli\chronon3d_cli.exe
@@ -107,7 +109,8 @@ build\chronon\win-release\apps\chronon3d_cli\chronon3d_cli.exe
 If you want the debug build, run:
 
 ```powershell
-.\tools\chronon-win.ps1 -Configuration Debug
+cmake --preset win-debug
+cmake --build --preset win-debug
 ```
 
 Run the CLI from the repo root so relative asset paths resolve correctly:
