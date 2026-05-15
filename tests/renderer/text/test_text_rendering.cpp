@@ -1,5 +1,6 @@
 #include <doctest/doctest.h>
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/backends/text/stb_font_backend.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <filesystem>
 
@@ -162,4 +163,63 @@ TEST_CASE("Text respects draw order") {
     auto fb = renderer.render_scene(scene, cam, 300, 150);
 
     REQUIRE(fb != nullptr);
+}
+
+TEST_CASE("Text glow adds halo pixels outside the glyph") {
+    const std::string font = "assets/fonts/Inter-Regular.ttf";
+
+    if (!std::filesystem::exists(font)) {
+        MESSAGE("Skipping text glow test because font fixture is missing");
+        return;
+    }
+
+    auto render_scene = [&](bool enable_glow) {
+        SceneBuilder s;
+
+        s.rect("bg", { .size = {320, 180}, .color = Color{0, 0, 0, 1}, .pos = {160, 90, 0} });
+        s.text("text", {
+            .content = "Glow",
+            .style = {
+                .font_path = font,
+                .size = 72.0f,
+                .color = Color{1, 0.2f, 0.2f, 1}
+            },
+            .pos = {52, 86, 0}
+        });
+
+        if (enable_glow) {
+            s.with_glow(Glow{
+                .enabled = true,
+                .radius = 14.0f,
+                .intensity = 0.9f,
+                .color = Color{0.1f, 0.4f, 1.0f, 1.0f},
+            });
+        }
+
+        auto scene = s.build();
+
+        SoftwareRenderer renderer;
+        renderer.set_font_backend(std::make_shared<text::StbFontBackend>());
+        Camera cam;
+        auto fb = renderer.render_scene(scene, cam, 320, 180);
+
+        REQUIRE(fb != nullptr);
+        return fb;
+    };
+
+    auto no_glow_fb = render_scene(false);
+    auto glow_fb = render_scene(true);
+
+    float no_glow_blue = 0.0f;
+    float glow_blue = 0.0f;
+
+    for (int y = 0; y < glow_fb->height(); ++y) {
+        for (int x = 0; x < glow_fb->width(); ++x) {
+            no_glow_blue += no_glow_fb->get_pixel(x, y).b;
+            glow_blue += glow_fb->get_pixel(x, y).b;
+        }
+    }
+
+    CHECK(glow_blue > no_glow_blue);
+    CHECK(glow_blue > 0.0f);
 }

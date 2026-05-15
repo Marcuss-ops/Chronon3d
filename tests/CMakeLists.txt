@@ -6,10 +6,10 @@ add_executable(chronon3d_tests
     # Core
     core/test_core.cpp
     core/test_frame_context.cpp
-    core/test_composition_registration.cpp
     
     # Math & Geometry
     math/test_math.cpp
+    math/test_camera_pose.cpp
     math/test_camera_2_5d_projection.cpp
     geometry/test_geometry.cpp
     
@@ -46,6 +46,7 @@ add_executable(chronon3d_tests
     renderer/basics/test_layer_rendering.cpp
     renderer/camera/test_moving_frame.cpp
     renderer/camera/test_camera_2_5d.cpp
+    renderer/camera/test_camera_motion.cpp
     renderer/camera/test_dof.cpp
     renderer/camera/test_motion_blur.cpp
     renderer/effects/test_effects.cpp
@@ -58,6 +59,7 @@ add_executable(chronon3d_tests
     renderer/perf/test_render_perf.cpp
     renderer/text/test_text_rendering.cpp
     renderer/text/test_text_layout.cpp
+    video/test_camera_motion_video.cpp
     render_graph/test_graph_executor.cpp
     render_graph/test_precompositions.cpp
     render_graph/test_modular_features.cpp
@@ -93,13 +95,9 @@ target_compile_definitions(chronon3d_tests PRIVATE CHRONON_BUILD_TESTS)
 if(CHRONON3D_ENABLE_VIDEO)
     target_link_libraries(chronon3d_tests PRIVATE chronon3d_backend_ffmpeg)
 endif()
+target_include_directories(chronon3d_tests PRIVATE ${CMAKE_SOURCE_DIR})
+target_include_directories(chronon3d_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(chronon3d_tests PRIVATE ${Stb_INCLUDE_DIR})
-
-# No longer need WHOLEARCHIVE since we use OBJECT libraries
-
-add_executable(debug_parenting ../scratch/debug_parenting.cpp)
-target_link_libraries(debug_parenting PRIVATE chronon3d_scene)
-target_include_directories(debug_parenting PRIVATE ${Stb_INCLUDE_DIR})
 
 add_test(NAME chronon3d_tests COMMAND chronon3d_tests)
 

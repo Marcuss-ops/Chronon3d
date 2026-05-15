@@ -77,7 +77,15 @@ bool FfmpegEncoder::open(const std::string& output_path, const VideoEncodeOption
         return false;
     }
 
-    const AVCodec* codec = avcodec_find_encoder_by_name(options.codec.c_str());
+    std::string codec_name = options.codec;
+    const AVCodec* codec = avcodec_find_encoder_by_name(codec_name.c_str());
+    if (!codec && codec_name == "libx264") {
+        codec_name = "mpeg4";
+        codec = avcodec_find_encoder_by_name(codec_name.c_str());
+        if (codec) {
+            spdlog::warn("Codec 'libx264' not found, falling back to '{}' for {}", codec_name, output_path);
+        }
+    }
     if (!codec) {
         spdlog::error("Codec '{}' not found", options.codec);
         return false;
@@ -108,7 +116,7 @@ bool FfmpegEncoder::open(const std::string& output_path, const VideoEncodeOption
         pimpl->codec_context->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
     }
 
-    // Set x264 options
+    // Set codec-specific options
     if (codec->id == AV_CODEC_ID_H264) {
         av_opt_set(pimpl->codec_context->priv_data, "preset", options.preset.c_str(), 0);
         av_opt_set(pimpl->codec_context->priv_data, "crf", std::to_string(options.crf).c_str(), 0);

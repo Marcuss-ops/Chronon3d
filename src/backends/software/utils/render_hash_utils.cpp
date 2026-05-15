@@ -150,6 +150,7 @@ u64 hash_camera_2_5d(const Camera2_5D& camera) {
     seed = hash_combine(seed, hash_vec3(camera.position));
     seed = hash_combine(seed, hash_vec3(camera.point_of_interest));
     seed = hash_combine(seed, hash_value_local(camera.point_of_interest_enabled));
+    seed = hash_combine(seed, hash_vec3(camera.rotation));
     seed = hash_combine(seed, hash_value_local(static_cast<u64>(camera.projection_mode)));
     seed = hash_combine(seed, hash_value_local(camera.zoom));
     seed = hash_combine(seed, hash_value_local(camera.fov_deg));

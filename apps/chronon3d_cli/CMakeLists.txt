@@ -1,8 +1,6 @@
 add_executable(chronon3d_cli
     main.cpp
-    proof_suites.cpp
     utils/cli_utils.cpp
-    utils/ffmpeg_runner.cpp
     utils/cli_render_utils.cpp
 
     commands/command_list.cpp
@@ -13,14 +11,14 @@ add_executable(chronon3d_cli
     commands/command_video.cpp
     commands/command_bench.cpp
     commands/command_graph.cpp
-    commands/command_proofs.cpp
 )
+
+get_target_property(CLI11_INCLUDE_DIRS CLI11::CLI11 INTERFACE_INCLUDE_DIRECTORIES)
 
 target_link_libraries(chronon3d_cli
     PRIVATE
         chronon3d_pipeline
         chronon3d_backend_image
-        CLI11::CLI11
         tomlplusplus::tomlplusplus
         spdlog::spdlog
         fmt::fmt
@@ -28,3 +26,7 @@ target_link_libraries(chronon3d_cli
         $<TARGET_OBJECTS:chronon3d_backend_software>
         $<TARGET_OBJECTS:chronon3d_scene>
 )
+
+if(CLI11_INCLUDE_DIRS)
+    target_include_directories(chronon3d_cli PRIVATE ${CLI11_INCLUDE_DIRS})
+endif()

@@ -167,6 +167,7 @@ file(GLOB CHRONON3D_BACKEND_SOFTWARE_SOURCES CONFIGURE_DEPENDS
     "src/backends/software/*.cpp"
     "src/backends/software/rasterizers/*.cpp"
     "src/backends/software/specialized/*.cpp"
+    "src/backends/software/processors/*.cpp"
     "src/backends/software/utils/*.cpp"
     "src/backends/software/processors/*.cpp"
 )
@@ -182,10 +183,13 @@ target_include_directories(chronon3d_backend_software PRIVATE ${Stb_INCLUDE_DIR}
 # 8. Scene Assembly (Scene, Layout, SpecScene)
 file(GLOB CHRONON3D_SCENE_SOURCES CONFIGURE_DEPENDS
     "src/scene/*.cpp"
+    "src/animations/*.cpp"
+    "src/animations/*/*.cpp"
     "src/layout/*.cpp"
     "src/specscene/*.cpp"
 )
 add_library(chronon3d_scene OBJECT ${CHRONON3D_SCENE_SOURCES})
+target_include_directories(chronon3d_scene PRIVATE ${CMAKE_SOURCE_DIR})
 target_link_libraries(chronon3d_scene
     PUBLIC 
         chronon3d chronon3d_runtime chronon3d_graph chronon3d_backend_software chronon3d_registry 
@@ -229,6 +233,9 @@ endif()
 # Subdirectories
 if(CHRONON3D_BUILD_CLI)
     add_subdirectory(apps/chronon3d_cli)
+endif()
+
+if(CHRONON3D_ENABLE_VIDEO)
 endif()
 
 if(CHRONON3D_BUILD_TESTS)

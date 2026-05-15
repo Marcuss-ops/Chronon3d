@@ -1,5 +1,5 @@
 #include <chronon3d/runtime/timeline_evaluator.hpp>
-#include <chronon3d/math/quat.hpp>
+#include <chronon3d/math/camera_pose.hpp>
 #include <chronon3d/math/expression.hpp>
 #include <variant>
 #include <unordered_map>
@@ -7,11 +7,6 @@
 namespace chronon3d {
 
 namespace {
-
-inline Quat euler_deg_to_quat(Vec3 euler_deg) {
-    const Vec3 r = glm::radians(glm::vec3(euler_deg.x, euler_deg.y, euler_deg.z));
-    return Quat(r);
-}
 
 inline f32 resolve_z(const LayerDesc& l, Vec3 evaluated_pos) {
     if (l.is_3d && l.depth_role != DepthRole::None) {
@@ -82,7 +77,7 @@ EvaluatedScene TimelineEvaluator::evaluate(const SceneDescription& scene, Frame 
         pos.z              = el.resolved_z;
 
         el.world_transform.position = pos;
-        el.world_transform.rotation = euler_deg_to_quat(rot);
+        el.world_transform.rotation = math::camera_rotation_quat(rot);
         el.world_transform.scale    = scl;
         el.world_transform.opacity  = el.opacity;
 
@@ -98,6 +93,7 @@ EvaluatedScene TimelineEvaluator::evaluate(const SceneDescription& scene, Frame 
         cam.position           = scene.camera->position.value_at(frame);
         cam.point_of_interest  = scene.camera->point_of_interest;
         cam.point_of_interest_enabled = scene.camera->point_of_interest_enabled;
+        cam.rotation           = scene.camera->rotation.value_at(frame);
 
         double time = static_cast<double>(frame) / (static_cast<double>(scene.frame_rate.numerator) / scene.frame_rate.denominator);
         if (scene.camera->zoom.has_expression()) {

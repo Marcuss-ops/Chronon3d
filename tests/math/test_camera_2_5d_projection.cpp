@@ -1,5 +1,6 @@
 #include <doctest/doctest.h>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
+#include <cmath>
 
 using namespace chronon3d;
 
@@ -130,4 +131,21 @@ TEST_CASE("Camera2_5D projection: FOV mode changes perspective scale") {
     CHECK(out35.visible);
     CHECK(out70.visible);
     CHECK(out35.perspective_scale > out70.perspective_scale);
+}
+
+TEST_CASE("Camera2_5D projection: camera rotation affects the projection matrix") {
+    Camera2_5D cam;
+    cam.enabled = true;
+    cam.position = {0, 0, -1000};
+    cam.zoom = 1000.0f;
+    cam.rotation = {0.0f, 0.0f, 15.0f};
+
+    Transform tr;
+    tr.position = {100, 0, 0};
+    tr.scale = {1, 1, 1};
+
+    auto out = project_layer_2_5d(tr, cam, 1280, 720);
+
+    CHECK(out.visible);
+    CHECK(std::abs(out.projection_matrix[0][1]) > 0.0001f);
 }

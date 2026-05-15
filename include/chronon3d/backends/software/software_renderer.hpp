@@ -23,7 +23,9 @@
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/core/frame.hpp>
 #include <chronon3d/scene/camera/camera.hpp>
-#include <chronon3d/math/transform.hpp>
+
+#include <memory>
+#include <optional>
 #include <unordered_map>
 
 namespace chronon3d {
@@ -51,9 +53,12 @@ namespace software_internal {
  */
 class SoftwareRenderer : public Renderer {
 public:
-    std::unique_ptr<Framebuffer> render_frame(const Composition& comp, Frame frame) override;
-    std::unique_ptr<Framebuffer> render_scene(const Scene& scene, const Camera& camera,
-                                               i32 width, i32 height, Frame frame = 0) override;
+    std::unique_ptr<Framebuffer> render_frame(const Composition& comp, Frame frame);
+    std::shared_ptr<Framebuffer> render_scene(const Scene& scene, const Camera& camera,
+                                              i32 width, i32 height);
+    std::shared_ptr<Framebuffer> render_scene(const Scene& scene,
+                                              const std::optional<Camera2_5D>& camera,
+                                              i32 width, i32 height) override;
     [[nodiscard]] std::string debug_render_graph(const Scene& scene, const Camera& camera,
                                                  i32 width, i32 height, Frame frame = 0,
                                                  f32 frame_time = 0.0f) const;
@@ -116,7 +121,7 @@ public:
                    const Camera& camera, i32 width, i32 height);
     static void apply_blur(Framebuffer& fb, f32 radius);
     void apply_effect_stack(Framebuffer& fb, const EffectStack& stack);
-    void composite_layer(Framebuffer& dst, const Framebuffer& src, BlendMode mode);
+    static void composite_layer(Framebuffer& dst, const Framebuffer& src, BlendMode mode);
 
     [[nodiscard]] renderer::SoftwareRegistry& software_registry() { return *m_software_registry; }
     [[nodiscard]] const renderer::SoftwareRegistry& software_registry() const { return *m_software_registry; }
@@ -133,7 +138,7 @@ private:
     ImageRenderer     m_image_renderer;
     FakeExtrudedTextRenderer m_fake_extruded_text_renderer;
     mutable cache::NodeCache  m_node_cache;
-    
+
     std::shared_ptr<video::VideoFrameDecoder> m_video_decoder;
     std::shared_ptr<image::ImageBackend> m_image_backend;
     std::shared_ptr<text::FontBackend> m_font_backend;

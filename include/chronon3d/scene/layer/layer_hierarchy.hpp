@@ -2,6 +2,7 @@
 
 #include <chronon3d/scene/layer/layer.hpp>
 #include <chronon3d/scene/camera/camera_2_5d.hpp>
+#include <chronon3d/math/camera_pose.hpp>
 #include <chronon3d/math/transform.hpp>
 #include <chronon3d/math/quat.hpp>
 #include <unordered_map>
@@ -131,7 +132,7 @@ inline std::pmr::vector<ResolvedLayer> resolve_layer_hierarchy(
     if (input_camera && out_camera) {
         out_camera->camera = *input_camera;
         out_camera->world_transform.position = input_camera->position;
-        out_camera->world_transform.rotation = math::from_euler(input_camera->rotation);
+        out_camera->world_transform.rotation = math::camera_rotation_quat(input_camera->rotation);
 
         if (input_camera->hierarchy_baked) {
             return resolved;
