@@ -1,0 +1,25 @@
+[preset.pan_3s]
+axis = "Pan"
+start = 0
+end = 90
+width = 1920
+height = 1080
+fps = 30
+crf = 18
+codec = "libx264"
+encode_preset = "medium"
+reference_image = "assets/images/camera_reference.jpg"
+output = "output/camera_pan_3s.mp4"
+
+[preset.pan_preview]
+axis = "Pan"
+start = 0
+end = 30
+width = 960
+height = 540
+fps = 30
+crf = 20
+codec = "libx264"
+encode_preset = "veryfast"
+reference_image = "assets/images/camera_reference.jpg"
+output = "output/pan_preview.mp4"

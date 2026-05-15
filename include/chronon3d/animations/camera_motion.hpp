@@ -22,6 +22,8 @@ struct CameraMotionParams {
     f32 end_deg{18.0f};
     Frame duration{60};
     Frame start_frame{0};
+    int width{1920};
+    int height{1080};
     Vec3 position{0.0f, 0.0f, -1080.0f};
     f32 zoom{1080.0f};
     std::string reference_image{"assets/images/camera_reference.jpg"};
@@ -70,8 +72,8 @@ inline Composition camera_motion_clip(std::string name,
                                       ContentBuilder content_builder) {
     return composition({
         .name = std::move(name),
-        .width = 1920,
-        .height = 1080,
+        .width = params.width,
+        .height = params.height,
         .duration = params.duration,
     }, [params = std::move(params), content_builder = std::move(content_builder)](
            const FrameContext& ctx) {

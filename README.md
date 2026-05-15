@@ -153,6 +153,9 @@ chronon3d_cli render MyComp --start 0 --end 90 -o output/frames/frame_####.png
 
 # export video  (requires ffmpeg in PATH)
 chronon3d_cli video MyComp --start 0 --end 90 --fps 30 -o output/my_comp.mp4
+
+# render the built-in camera clip from chronon.toml
+chronon3d_cli video camera --preset pan_3s
 ```
 
 ---
@@ -179,7 +182,7 @@ chronon3d_cli video <Comp> --end N -o output.mp4 [options]
 | `--fps` | 30 | Output frame rate |
 | `--crf` | 18 | x264 quality (0=best, 51=worst) |
 | `--codec` | auto | Encoder selection (`auto`, `libx264`, `mpeg4`, etc.) |
-| `--preset` | medium | x264 preset |
+| `--encode-preset` / `--preset` | medium | x264 preset |
 | `--keep-frames` | off | Keep temporary PNG frames |
 | `--frames-dir` | auto | Override temp frames directory |
 
@@ -193,14 +196,27 @@ chronon3d_cli video camera [--axis Tilt|Pan|Roll] [--reference path] [options]
 |---|---|---|
 | `--axis` | Tilt | Camera motion axis |
 | `--reference` | `assets/images/camera_reference.jpg` | Reference image to animate |
+| `--preset` / `--profile` | none | Named preset from `chronon.toml` |
 | `--output` | auto | Output .mp4 path |
 | `--start` | 0 | Start frame (inclusive) |
 | `--end` | 60 | End frame (exclusive) |
 | `--fps` | 30 | Output frame rate |
 | `--crf` | 18 | x264 quality (0=best, 51=worst) |
 | `--codec` | auto | Encoder selection (`auto`, `libx264`, `mpeg4`, etc.) |
-| `--preset` | medium | x264 preset |
+| `--encode-preset` | medium | x264 preset |
 | `--ssaa` | 1.0 | Super sampling factor |
+
+Named camera presets live in [`chronon.toml`](chronon.toml) at the repo root. Example:
+
+```toml
+[preset.pan_3s]
+axis = "Pan"
+start = 0
+end = 90
+width = 1920
+height = 1080
+output = "output/camera_pan_3s.mp4"
+```
 
 ## API Overview
 
