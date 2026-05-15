@@ -1,7 +1,7 @@
 #pragma once
 
 #include <chronon3d/core/framebuffer.hpp>
-#include <chronon3d/io/image_writer.hpp>
+#include <chronon3d/backends/image/image_writer.hpp>
 #include <stb_image.h>
 #include <string>
 #include <vector>

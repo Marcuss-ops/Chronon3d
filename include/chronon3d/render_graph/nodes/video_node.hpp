@@ -2,8 +2,8 @@
 
 #include <chronon3d/render_graph/render_graph_node.hpp>
 #include <chronon3d/render_graph/render_graph_hashing.hpp>
-#include <chronon3d/video/video_source.hpp>
-#include <chronon3d/video/video_decoder.hpp>
+#include <chronon3d/backends/video/video_source.hpp>
+#include <chronon3d/backends/video/video_frame_provider.hpp>
 
 namespace chronon3d::graph {
 

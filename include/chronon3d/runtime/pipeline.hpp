@@ -1,7 +1,7 @@
 #pragma once
 
 #include <chronon3d/timeline/composition.hpp>
-#include <chronon3d/renderer/software/renderer.hpp>
+#include <chronon3d/backends/software/renderer.hpp>
 #include <chronon3d/core/arena.hpp>
 #include <chronon3d/core/framebuffer.hpp>
 #include <functional>
