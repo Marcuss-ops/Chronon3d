@@ -3,9 +3,81 @@
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <algorithm>
 #include <cmath>
+#include <immintrin.h>
 
 namespace chronon3d {
 namespace renderer {
+
+namespace {
+
+inline bool apply_color_effects_avx2(Framebuffer& fb, const LayerEffect& effect) {
+#if defined(__AVX2__) || defined(_MSC_VER)
+    const bool needs_brightness_contrast = effect.brightness != 0.0f || effect.contrast != 1.0f;
+    const bool needs_tint = effect.tint.a > 0.0f;
+    if (!needs_brightness_contrast && !needs_tint) {
+        return true;
+    }
+
+    const i32 w = fb.width();
+    const i32 h = fb.height();
+    const __m256 half = _mm256_set1_ps(0.5f);
+    const __m256 brightness = _mm256_set1_ps(effect.brightness);
+    const __m256 contrast = _mm256_set1_ps(effect.contrast);
+    const __m256 tint_mix = _mm256_set1_ps(effect.tint.a);
+    const __m256 inv_tint_mix = _mm256_set1_ps(1.0f - effect.tint.a);
+    const __m256 tint_rgb = _mm256_set_ps(effect.tint.a, effect.tint.b, effect.tint.g, effect.tint.r,
+                                          effect.tint.a, effect.tint.b, effect.tint.g, effect.tint.r);
+
+    for (i32 y = 0; y < h; ++y) {
+        Color* row = fb.pixels_row(y);
+        i32 x = 0;
+        for (; x + 1 < w; x += 2) {
+            const __m256 src = _mm256_loadu_ps(reinterpret_cast<const float*>(row + x));
+            __m256 work = src;
+            if (needs_brightness_contrast) {
+                work = _mm256_add_ps(work, brightness);
+                work = _mm256_sub_ps(work, half);
+                work = _mm256_mul_ps(work, contrast);
+                work = _mm256_add_ps(work, half);
+                work = _mm256_blend_ps(work, src, 0x88);
+            }
+            if (needs_tint) {
+                work = _mm256_mul_ps(work, inv_tint_mix);
+                work = _mm256_add_ps(work, _mm256_mul_ps(tint_rgb, tint_mix));
+                work = _mm256_blend_ps(work, src, 0x88);
+            }
+            _mm256_storeu_ps(reinterpret_cast<float*>(row + x), work);
+        }
+        for (; x < w; ++x) {
+            Color c = row[x];
+            if (c.a <= 0.0f) {
+                continue;
+            }
+
+            if (needs_brightness_contrast) {
+                auto adj = [&](f32 v) {
+                    return std::clamp((v + effect.brightness - 0.5f) * effect.contrast + 0.5f, 0.0f, 1.0f);
+                };
+                c.r = adj(c.r); c.g = adj(c.g); c.b = adj(c.b);
+            }
+            if (needs_tint) {
+                const f32 t = effect.tint.a;
+                c.r = c.r * (1.0f - t) + effect.tint.r * t;
+                c.g = c.g * (1.0f - t) + effect.tint.g * t;
+                c.b = c.b * (1.0f - t) + effect.tint.b * t;
+            }
+            row[x] = c;
+        }
+    }
+    return true;
+#else
+    (void)fb;
+    (void)effect;
+    return false;
+#endif
+}
+
+} // namespace
 
 void apply_blur(Framebuffer& fb, f32 radius) {
     const i32 r = std::max(1, static_cast<i32>(std::round(radius)));
@@ -15,31 +87,34 @@ void apply_blur(Framebuffer& fb, f32 radius) {
 
     for (int pass = 0; pass < 3; ++pass) {
         for (i32 y = 0; y < h; ++y) {
+            const Color* src_row = fb.pixels_row(y);
+            Color* tmp_row = tmp.pixels_row(y);
             Color sum{0, 0, 0, 0};
             for (i32 x = -r; x <= r; ++x) {
-                Color p = fb.get_pixel(std::clamp(x, 0, w - 1), y);
+                const Color p = src_row[std::clamp(x, 0, w - 1)];
                 sum.r += p.r; sum.g += p.g; sum.b += p.b; sum.a += p.a;
             }
             const f32 inv = 1.0f / static_cast<f32>(2 * r + 1);
             for (i32 x = 0; x < w; ++x) {
-                tmp.set_pixel(x, y, {sum.r * inv, sum.g * inv, sum.b * inv, sum.a * inv});
-                Color add = fb.get_pixel(std::min(x + r + 1, w - 1), y);
-                Color rem = fb.get_pixel(std::max(x - r,     0),     y);
+                tmp_row[x] = {sum.r * inv, sum.g * inv, sum.b * inv, sum.a * inv};
+                const Color add = src_row[std::min(x + r + 1, w - 1)];
+                const Color rem = src_row[std::max(x - r,     0)];
                 sum.r += add.r - rem.r; sum.g += add.g - rem.g;
                 sum.b += add.b - rem.b; sum.a += add.a - rem.a;
             }
         }
         for (i32 x = 0; x < w; ++x) {
+            Color* dst_row = fb.pixels_row(0);
             Color sum{0, 0, 0, 0};
             for (i32 y = -r; y <= r; ++y) {
-                Color p = tmp.get_pixel(x, std::clamp(y, 0, h - 1));
+                const Color p = tmp.pixels_row(std::clamp(y, 0, h - 1))[x];
                 sum.r += p.r; sum.g += p.g; sum.b += p.b; sum.a += p.a;
             }
             const f32 inv = 1.0f / static_cast<f32>(2 * r + 1);
             for (i32 y = 0; y < h; ++y) {
-                fb.set_pixel(x, y, {sum.r * inv, sum.g * inv, sum.b * inv, sum.a * inv});
-                Color add = tmp.get_pixel(x, std::min(y + r + 1, h - 1));
-                Color rem = tmp.get_pixel(x, std::max(y - r,     0));
+                dst_row[y * w + x] = {sum.r * inv, sum.g * inv, sum.b * inv, sum.a * inv};
+                const Color add = tmp.pixels_row(std::min(y + r + 1, h - 1))[x];
+                const Color rem = tmp.pixels_row(std::max(y - r,     0))[x];
                 sum.r += add.r - rem.r; sum.g += add.g - rem.g;
                 sum.b += add.b - rem.b; sum.a += add.a - rem.a;
             }
@@ -48,6 +123,10 @@ void apply_blur(Framebuffer& fb, f32 radius) {
 }
 
 void apply_color_effects(Framebuffer& fb, const LayerEffect& effect) {
+    if (apply_color_effects_avx2(fb, effect)) {
+        return;
+    }
+
     const i32 w = fb.width(), h = fb.height();
     for (i32 y = 0; y < h; ++y) {
         for (i32 x = 0; x < w; ++x) {

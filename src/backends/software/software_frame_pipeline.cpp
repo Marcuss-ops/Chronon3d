@@ -1,5 +1,7 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/core/render_telemetry.hpp>
 #include <algorithm>
+#include <chrono>
 #include <vector>
 
 namespace chronon3d::software_internal {
@@ -43,6 +45,8 @@ std::unique_ptr<Framebuffer> downsample_fb_local(const Framebuffer& src, i32 dst
 
 std::unique_ptr<Framebuffer> render_frame(SoftwareRenderer& renderer, const Composition& comp,
                                           Frame frame) {
+    const auto t0 = std::chrono::steady_clock::now();
+    const auto hits_before = renderer.node_cache().stats().hits;
     const RenderSettings& settings = renderer.render_settings();
     const float ssaa = std::max(1.0f, settings.ssaa_factor);
     const int w = comp.width();
@@ -51,10 +55,23 @@ std::unique_ptr<Framebuffer> render_frame(SoftwareRenderer& renderer, const Comp
     const int rh = static_cast<int>(h * ssaa);
 
     std::unique_ptr<Framebuffer> render_fb;
+    double evaluate_ms = 0.0;
+    double scene_ms = 0.0;
+    double motion_blur_ms = 0.0;
+    double downsample_ms = 0.0;
+    int layer_count = 0;
 
     if (!settings.motion_blur.enabled || settings.motion_blur.samples <= 1) {
+        const auto t_eval0 = std::chrono::steady_clock::now();
         Scene scene = comp.evaluate(frame);
+        const auto t_eval1 = std::chrono::steady_clock::now();
+        evaluate_ms = std::chrono::duration<double, std::milli>(t_eval1 - t_eval0).count();
+        layer_count = static_cast<int>(scene.layers().size());
+
+        const auto t_scene0 = std::chrono::steady_clock::now();
         render_fb = render_scene_internal(renderer, scene, comp.camera, rw, rh, frame, 0.0f);
+        const auto t_scene1 = std::chrono::steady_clock::now();
+        scene_ms = std::chrono::duration<double, std::milli>(t_scene1 - t_scene0).count();
     } else {
         const int N = std::max(2, settings.motion_blur.samples);
         const float shutter = settings.motion_blur.shutter_angle / 360.0f;
@@ -62,9 +79,13 @@ std::unique_ptr<Framebuffer> render_frame(SoftwareRenderer& renderer, const Comp
         std::vector<float> accum(static_cast<size_t>(rw * rh * 4), 0.0f);
         const float weight = 1.0f / static_cast<float>(N);
 
+        const auto t_mb0 = std::chrono::steady_clock::now();
         for (int s = 0; s < N; ++s) {
             const float t = (static_cast<float>(s) / static_cast<float>(N)) * shutter;
             Scene sub_scene = comp.evaluate(frame, t);
+            if (s == 0) {
+                layer_count = static_cast<int>(sub_scene.layers().size());
+            }
             auto sub_fb = render_scene_internal(renderer, sub_scene, comp.camera, rw, rh, frame, t);
 
             for (int y = 0; y < rh; ++y) {
@@ -78,6 +99,8 @@ std::unique_ptr<Framebuffer> render_frame(SoftwareRenderer& renderer, const Comp
                 }
             }
         }
+        const auto t_mb1 = std::chrono::steady_clock::now();
+        motion_blur_ms = std::chrono::duration<double, std::milli>(t_mb1 - t_mb0).count();
 
         render_fb = std::make_unique<Framebuffer>(rw, rh);
         for (int y = 0; y < rh; ++y) {
@@ -90,8 +113,40 @@ std::unique_ptr<Framebuffer> render_frame(SoftwareRenderer& renderer, const Comp
     }
 
     if (ssaa > 1.0f) {
-        return downsample_fb_local(*render_fb, w, h);
+        const auto t_down0 = std::chrono::steady_clock::now();
+        auto out = downsample_fb_local(*render_fb, w, h);
+        const auto t_down1 = std::chrono::steady_clock::now();
+        downsample_ms = std::chrono::duration<double, std::milli>(t_down1 - t_down0).count();
+        const auto t1 = std::chrono::steady_clock::now();
+        telemetry::record_render_telemetry({
+            .event = "frame_render",
+            .frame = frame,
+            .width = w,
+            .height = h,
+            .total_ms = std::chrono::duration<double, std::milli>(t1 - t0).count(),
+            .setup_ms = evaluate_ms,
+            .composite_ms = scene_ms,
+            .blur_ms = motion_blur_ms,
+            .encode_ms = downsample_ms,
+            .cache_hit = renderer.node_cache().stats().hits > hits_before ? 1 : 0,
+            .layer_count = layer_count,
+        });
+        return out;
     }
+    const auto t1 = std::chrono::steady_clock::now();
+    telemetry::record_render_telemetry({
+        .event = "frame_render",
+        .frame = frame,
+        .width = w,
+        .height = h,
+        .total_ms = std::chrono::duration<double, std::milli>(t1 - t0).count(),
+        .setup_ms = evaluate_ms,
+        .composite_ms = scene_ms,
+        .blur_ms = motion_blur_ms,
+        .encode_ms = downsample_ms,
+        .cache_hit = renderer.node_cache().stats().hits > hits_before ? 1 : 0,
+        .layer_count = layer_count,
+    });
     return render_fb;
 }
 

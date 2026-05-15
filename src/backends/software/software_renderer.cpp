@@ -3,11 +3,55 @@
 #include "primitive_renderer.hpp"
 #include "utils/render_effects_processor.hpp"
 
+#include <immintrin.h>
 #include <chronon3d/backends/software/builtin_processors.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/backends/software/fake_extruded_text_renderer.hpp>
 
 namespace chronon3d {
+
+namespace {
+
+inline bool composite_layer_normal_avx2(Framebuffer& dst, const Framebuffer& src) {
+#if defined(__AVX2__) || defined(_MSC_VER)
+    const i32 w = dst.width();
+    const i32 h = dst.height();
+    if (src.width() != w || src.height() != h) {
+        return false;
+    }
+
+    const __m256 one = _mm256_set1_ps(1.0f);
+    const __m256 rgb_mask = _mm256_castsi256_ps(_mm256_set_epi32(0, -1, -1, -1, 0, -1, -1, -1));
+
+    for (i32 y = 0; y < h; ++y) {
+        Color* dst_row = dst.pixels_row(y);
+        const Color* src_row = src.pixels_row(y);
+        i32 x = 0;
+        for (; x + 1 < w; x += 2) {
+            const __m256 srcv = _mm256_loadu_ps(reinterpret_cast<const float*>(src_row + x));
+            const __m256 dstv = _mm256_loadu_ps(reinterpret_cast<const float*>(dst_row + x));
+            const __m256 src_a = _mm256_permute_ps(srcv, _MM_SHUFFLE(3, 3, 3, 3));
+            const __m256 one_minus_a = _mm256_sub_ps(one, src_a);
+            const __m256 src_rgb = _mm256_and_ps(srcv, rgb_mask);
+            const __m256 dst_term = _mm256_mul_ps(dstv, one_minus_a);
+            const __m256 rgb_out = _mm256_add_ps(src_rgb, dst_term);
+            const __m256 alpha_out = _mm256_add_ps(src_a, dst_term);
+            const __m256 outv = _mm256_blend_ps(rgb_out, alpha_out, 0x88);
+            _mm256_storeu_ps(reinterpret_cast<float*>(dst_row + x), outv);
+        }
+        for (; x < w; ++x) {
+            dst_row[x] = compositor::blend(src_row[x].unpremultiplied(), dst_row[x], BlendMode::Normal);
+        }
+    }
+    return true;
+#else
+    (void)dst;
+    (void)src;
+    return false;
+#endif
+}
+
+} // namespace
 
 SoftwareRenderer::SoftwareRenderer()
     : m_software_registry(std::make_unique<renderer::SoftwareRegistry>()) {
@@ -81,6 +125,10 @@ void SoftwareRenderer::apply_effect_stack(Framebuffer& fb, const EffectStack& st
 }
 
 void SoftwareRenderer::composite_layer(Framebuffer& dst, const Framebuffer& src, BlendMode mode) {
+    if (mode == BlendMode::Normal && composite_layer_normal_avx2(dst, src)) {
+        return;
+    }
+
     const i32 w = dst.width(), h = dst.height();
     for (i32 y = 0; y < h; ++y) {
         for (i32 x = 0; x < w; ++x) {

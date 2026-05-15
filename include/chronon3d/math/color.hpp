@@ -3,11 +3,37 @@
 #include <chronon3d/core/types.hpp>
 #include <algorithm>
 #include <cmath>
+#include <array>
 #include <ostream>
 #include <cstdio>
 
 
 namespace chronon3d {
+
+namespace color_detail {
+
+[[nodiscard]] inline const std::array<u8, 4096>& linear_to_srgb8_lut() {
+    static const std::array<u8, 4096> lut = [] {
+        std::array<u8, 4096> values{};
+        for (usize i = 0; i < values.size(); ++i) {
+            const f32 linear = static_cast<f32>(i) / static_cast<f32>(values.size() - 1);
+            const f32 srgb = (linear <= 0.0031308f)
+                ? (linear * 12.92f)
+                : (1.055f * std::pow(linear, 1.0f / 2.4f) - 0.055f);
+            values[i] = static_cast<u8>(std::clamp(srgb * 255.0f, 0.0f, 255.0f));
+        }
+        return values;
+    }();
+    return lut;
+}
+
+[[nodiscard]] inline u8 linear_to_srgb8_fast(f32 value) {
+    const f32 clamped = std::clamp(value, 0.0f, 1.0f);
+    const usize idx = static_cast<usize>(clamped * static_cast<f32>(linear_to_srgb8_lut().size() - 1));
+    return linear_to_srgb8_lut()[idx];
+}
+
+} // namespace color_detail
 
 struct Color {
     f32 r{0.0f};
@@ -89,6 +115,10 @@ struct Color {
 
     [[nodiscard]] Color to_srgb_fast() const {
         return {std::pow(r, 1.0f / 2.2f), std::pow(g, 1.0f / 2.2f), std::pow(b, 1.0f / 2.2f), a};
+    }
+
+    [[nodiscard]] static u8 linear_to_srgb8(f32 value) {
+        return color_detail::linear_to_srgb8_fast(value);
     }
 
     constexpr bool operator==(const Color& other) const {

@@ -72,10 +72,9 @@ public:
 
         ofs << "P6\n" << m_width << " " << m_height << "\n255\n";
         for (const auto& c : m_pixels) {
-            Color srgb = c.to_srgb();
-            ofs.put(static_cast<u8>(std::clamp(srgb.r * 255.0f, 0.0f, 255.0f)));
-            ofs.put(static_cast<u8>(std::clamp(srgb.g * 255.0f, 0.0f, 255.0f)));
-            ofs.put(static_cast<u8>(std::clamp(srgb.b * 255.0f, 0.0f, 255.0f)));
+            ofs.put(Color::linear_to_srgb8(c.r));
+            ofs.put(Color::linear_to_srgb8(c.g));
+            ofs.put(Color::linear_to_srgb8(c.b));
         }
         return true;
     }
