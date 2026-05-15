@@ -47,7 +47,6 @@ TEST_CASE("Camera motion tilt exports a real MP4") {
     options.start = 0;
     options.end = 60;
     options.encode.fps = 30;
-    options.encode.codec = "libx264";
     options.encode.preset = "medium";
     options.encode.crf = 18;
 
