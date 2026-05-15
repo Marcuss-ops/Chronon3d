@@ -3,6 +3,8 @@ add_executable(chronon3d_cli
     proof_suites.cpp
     utils/cli_utils.cpp
     utils/ffmpeg_runner.cpp
+    utils/cli_render_utils.cpp
+
     commands/command_list.cpp
     commands/command_info.cpp
     commands/command_render.cpp
