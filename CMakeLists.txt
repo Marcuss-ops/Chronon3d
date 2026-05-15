@@ -184,7 +184,6 @@ file(GLOB CHRONON3D_SCENE_SOURCES CONFIGURE_DEPENDS
     "src/scene/*.cpp"
     "src/layout/*.cpp"
     "src/specscene/*.cpp"
-    "tests/renderer/basics/test_background_render.cpp"
 )
 add_library(chronon3d_scene OBJECT ${CHRONON3D_SCENE_SOURCES})
 target_link_libraries(chronon3d_scene
@@ -192,6 +191,18 @@ target_link_libraries(chronon3d_scene
         chronon3d chronon3d_runtime chronon3d_graph chronon3d_backend_software chronon3d_registry 
         chronon3d_cache chronon3d_effects chronon3d_backend_image chronon3d_backend_video
     PRIVATE spdlog::spdlog fmt::fmt tomlplusplus::tomlplusplus
+)
+
+# 9. Compositions (Examples/Built-in)
+file(GLOB CHRONON3D_COMPOSITION_SOURCES CONFIGURE_DEPENDS
+    "src/compositions/*.cpp"
+)
+add_library(chronon3d_compositions OBJECT ${CHRONON3D_COMPOSITION_SOURCES})
+target_link_libraries(chronon3d_compositions
+    PUBLIC
+        chronon3d
+        chronon3d_scene
+        chronon3d_registry
 )
 
 if(CHRONON3D_ENABLE_VIDEO)
@@ -203,6 +214,7 @@ endif()
 add_library(chronon3d_pipeline INTERFACE)
 target_link_libraries(chronon3d_pipeline INTERFACE
     chronon3d_scene chronon3d_runtime chronon3d_graph chronon3d_backend_software chronon3d_registry chronon3d_cache
+    chronon3d_compositions
     Taskflow::Taskflow concurrentqueue::concurrentqueue
 )
 
