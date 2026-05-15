@@ -1,4 +1,4 @@
-﻿# Chronon3d Architecture
+# Chronon3d Architecture
 
 Chronon3d is a code-first, headless, CPU-only motion graphics engine. The goal is not to emulate a full 3D DCC tool; the goal is to provide a maintainable rendering engine for scripted compositions, proof scenes, automated video generation, and repeatable frame rendering.
 
@@ -12,10 +12,14 @@ Chronon3d is a code-first, headless, CPU-only motion graphics engine. The goal i
 
 > **core only builds, adapters only call, data only flows in.**
 >
-> Una sola fonte di verità — il core. Tutto il resto è consumo o adattamento.
-> Niente layer che reinventano la stessa logica con nomi diversi.
-> Niente templates/presets/examples che diventano una seconda logica parallela.
-> I proof e i test validano il core, non ricreano una mini-implementazione per conto loro.
+> **Il Core definisce le leggi. Il Runtime decide il flusso.**
+> **I Backend fanno il lavoro concreto. Le Operations chiamano soltanto.**
+> **La CLI traduce comandi umani. Tools ed Examples non comandano mai.**
+>
+> *Core defines the domain. Runtime orchestrates rendering.*
+> *Backends rasterize, decode, encode, and perform concrete IO.*
+> *Operations expose thin adapters. CLI parses human intent only.*
+> *Tools and examples must never become architecture.*
 
 ## Current Topology
 
@@ -39,7 +43,7 @@ Chronon3d is a code-first, headless, CPU-only motion graphics engine. The goal i
 
 ## Render Graph
 
-The render graph (`chronon3d::graph`) is the execution model for a single frame. Each operation â€” source rendering, masking, effects, compositing, precomps â€” is a `RenderGraphNode` with explicit inputs and outputs. The executor caches node results by content hash so unchanged subtrees are never re-executed.
+The render graph (`chronon3d::graph`) is the execution model for a single frame. Each operation — source rendering, masking, effects, compositing, precomps — is a `RenderGraphNode` with explicit inputs and outputs. The executor caches node results by content hash so unchanged subtrees are never re-executed.
 
 See [docs/RENDER_GRAPH.md](docs/RENDER_GRAPH.md) for the full specification.
 
@@ -116,5 +120,3 @@ The next architectural additions should be:
 - more formal color and sampling pipelines
 
 Those additions should happen without turning `SoftwareRenderer` into an ever-growing monolith.
-
-
