@@ -1,7 +1,7 @@
 #include "../commands.hpp"
 #include "../utils/cli_utils.hpp"
 #include "../utils/cli_render_utils.hpp"
-#include <chronon3d/io/image_writer.hpp>
+#include <chronon3d/backends/image/image_writer.hpp>
 #include <spdlog/spdlog.h>
 #include <filesystem>
 #include <fmt/format.h>

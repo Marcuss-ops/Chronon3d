@@ -9,11 +9,9 @@
 namespace chronon3d {
 
 struct CachedFont {
-    // We'll let the backend handle the specific font storage.
-    // This class might become a thin wrapper or be removed if the backend
-    // manages all caching, but for now we'll keep it as a handle.
     std::string path;
-    [[nodiscard]] bool valid() const { return !path.empty(); }
+    std::vector<u8> data;
+    [[nodiscard]] bool valid() const { return !path.empty() && !data.empty(); }
 };
 
 class FontCache {

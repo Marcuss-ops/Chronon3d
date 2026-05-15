@@ -4,7 +4,7 @@
 
 #ifdef CHRONON_WITH_VIDEO
 #include <chronon3d/video/ffmpeg_encoder.hpp>
-#include <chronon3d/renderer/software/software_renderer.hpp>
+#include <chronon3d/backends/software/software_renderer.hpp>
 #include <filesystem>
 #include <chrono>
 

@@ -22,6 +22,10 @@ const CachedFont* FontCache::get_or_load(const std::string& path) {
 
     CachedFont entry;
     entry.path = path;
+    const auto* data = m_backend->get_font_data(path);
+    if (data) {
+        entry.data = *data;
+    }
     auto& stored = m_cache.emplace(path, std::move(entry)).first->second;
     return &stored;
 }

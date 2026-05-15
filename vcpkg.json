@@ -15,7 +15,6 @@
     "xxhash",
     "highway",
     "cli11",
-    "tomlplusplus",
-    "ffmpeg"
+    "tomlplusplus"
   ]
 }

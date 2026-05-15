@@ -21,6 +21,10 @@ option(CHRONON3D_BUILD_CLI "Build Chronon3d CLI" ON)
 option(CHRONON3D_ENABLE_PROFILING "Enable Tracy profiling" OFF)
 option(CHRONON3D_ENABLE_VIDEO "Enable FFmpeg-based video output and tests" OFF)
 
+if(CHRONON3D_BUILD_TESTS)
+    add_definitions(-DCHRONON_BUILD_TESTS)
+endif()
+
 # Find Dependencies
 find_package(spdlog CONFIG REQUIRED)
 find_package(fmt CONFIG REQUIRED)
@@ -180,6 +184,7 @@ file(GLOB CHRONON3D_SCENE_SOURCES CONFIGURE_DEPENDS
     "src/scene/*.cpp"
     "src/layout/*.cpp"
     "src/specscene/*.cpp"
+    "tests/renderer/basics/test_background_render.cpp"
 )
 add_library(chronon3d_scene OBJECT ${CHRONON3D_SCENE_SOURCES})
 target_link_libraries(chronon3d_scene
