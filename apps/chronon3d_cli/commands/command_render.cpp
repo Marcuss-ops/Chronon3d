@@ -2,9 +2,11 @@
 #include "../utils/cli_utils.hpp"
 #include "../utils/cli_render_utils.hpp"
 #include <chronon3d/backends/image/image_writer.hpp>
+#include <chronon3d/core/render_telemetry.hpp>
 #include <spdlog/spdlog.h>
 #include <filesystem>
 #include <fmt/format.h>
+#include <chrono>
 
 namespace chronon3d {
 namespace cli {
@@ -44,7 +46,12 @@ int command_render(const CompositionRegistry& registry, const RenderArgs& args) 
 
     int64_t effective_end = (range.start == range.end) ? range.start + 1 : range.end;
     for (int64_t f = range.start; f < effective_end; f += range.step) {
+        const auto layer_count = static_cast<int>(resolved.comp->evaluate(static_cast<Frame>(f)).layers().size());
+        const auto hits_before = renderer->node_cache().stats().hits;
+        const auto t0 = std::chrono::steady_clock::now();
         auto fb = renderer->render_frame(*resolved.comp, static_cast<Frame>(f));
+        const auto t1 = std::chrono::steady_clock::now();
+        const auto hits_after = renderer->node_cache().stats().hits;
 
         if (fb) {
             bool is_range = (range.start != range.end);
@@ -54,7 +61,20 @@ int command_render(const CompositionRegistry& registry, const RenderArgs& args) 
                 std::filesystem::create_directories(p.parent_path());
             }
 
+            const auto t_png0 = std::chrono::steady_clock::now();
             if (save_png(*fb, path)) {
+                const auto t_png1 = std::chrono::steady_clock::now();
+                telemetry::record_render_telemetry({
+                    .event = "image_render",
+                    .frame = static_cast<Frame>(f),
+                    .width = resolved.comp->width(),
+                    .height = resolved.comp->height(),
+                    .total_ms = std::chrono::duration<double, std::milli>(t_png1 - t0).count(),
+                    .setup_ms = std::chrono::duration<double, std::milli>(t1 - t0).count(),
+                    .encode_ms = std::chrono::duration<double, std::milli>(t_png1 - t_png0).count(),
+                    .cache_hit = hits_after > hits_before ? 1 : 0,
+                    .layer_count = layer_count,
+                });
                 spdlog::info("Frame {} saved to {}", f, path);
             } else {
                 spdlog::error("Failed to save frame {} to {}", f, path);
