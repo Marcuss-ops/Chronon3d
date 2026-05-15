@@ -70,6 +70,7 @@ struct FakeExtrudedTextParams {
     TextAlign align{TextAlign::Center};
     f32   highlight_opacity{0.09f};
     f32   bevel_size{1.5f};
+    Vec3  light_dir{-0.577f, 0.577f, -0.577f};  // world-space, normalized
 };
 
 struct FakeBox3DParams {

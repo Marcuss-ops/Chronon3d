@@ -7,6 +7,7 @@ namespace chronon3d {
 struct FakeBox3DRenderState {
     bool cam_ready{false};
     Mat4 cam_view{1.0f};
+    Mat4 world_matrix{1.0f};  // layer TRS — transforms local vertices to world space
     f32 cam_focal{1000.0f};
     f32 vp_cx{640.0f};
     f32 vp_cy{360.0f};

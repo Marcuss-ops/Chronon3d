@@ -256,11 +256,12 @@ rendergraph::RenderGraph build_software_render_graph(
         for (auto& item : three_d_layers) {
             for (auto& nd : item.layer.nodes) {
                 if (nd.shape.type == ShapeType::FakeBox3D) {
-                    nd.fake_box3d_runtime.cam_ready = true;
-                    nd.fake_box3d_runtime.cam_view  = fake3d_view;
-                    nd.fake_box3d_runtime.cam_focal  = fake3d_focal;
-                    nd.fake_box3d_runtime.vp_cx      = vp_cx;
-                    nd.fake_box3d_runtime.vp_cy      = vp_cy;
+                    nd.fake_box3d_runtime.cam_ready    = true;
+                    nd.fake_box3d_runtime.cam_view     = fake3d_view;
+                    nd.fake_box3d_runtime.world_matrix = item.world_transform.to_matrix();
+                    nd.fake_box3d_runtime.cam_focal    = fake3d_focal;
+                    nd.fake_box3d_runtime.vp_cx        = vp_cx;
+                    nd.fake_box3d_runtime.vp_cy        = vp_cy;
                 } else if (nd.shape.type == ShapeType::GridPlane) {
                     nd.grid_plane_runtime.cam_ready = true;
                     nd.grid_plane_runtime.cam_view  = fake3d_view;
