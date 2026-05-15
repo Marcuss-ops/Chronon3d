@@ -246,6 +246,17 @@ int command_video_camera(const CompositionRegistry& registry, const VideoCameraA
     options.encode.codec = normalized.codec;
     options.encode.preset = normalized.encode_preset;
 
+    spdlog::info("[video camera] axis={}", normalized.axis);
+    spdlog::info("[video camera] reference={}", normalized.reference_image);
+    spdlog::info("[video camera] output={}", normalized.output);
+    spdlog::info("[video camera] range={}-{} fps={}", normalized.start, normalized.end, normalized.fps);
+    spdlog::info("[video camera] size={}x{}", normalized.width, normalized.height);
+    spdlog::info("[video camera] codec={} crf={} encode_preset={}", normalized.codec, normalized.crf, normalized.encode_preset);
+    if (normalized.motion_blur)
+        spdlog::info("[video camera] motion_blur=ON samples={} shutter={}deg", normalized.motion_blur_samples, normalized.shutter_angle);
+    if (normalized.ssaa > 1.0f)
+        spdlog::info("[video camera] ssaa={:.1f}x", normalized.ssaa);
+
     video::FfmpegEncoder encoder;
     return video::render_to_video(*renderer, comp, normalized.output, options, encoder) ? 0 : 1;
 }

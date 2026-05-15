@@ -1,3 +1,44 @@
+# Generic presets (axis-independent, use --axis to override)
+[preset.camera_smoke]
+axis = "Pan"
+start = 0
+end = 12
+width = 640
+height = 360
+fps = 30
+crf = 28
+codec = "auto"
+encode_preset = "ultrafast"
+reference_image = "assets/images/camera_reference.jpg"
+output = "output/camera_smoke.mp4"
+
+[preset.camera_preview]
+axis = "Pan"
+start = 0
+end = 30
+width = 960
+height = 540
+fps = 30
+crf = 23
+codec = "auto"
+encode_preset = "ultrafast"
+reference_image = "assets/images/camera_reference.jpg"
+output = "output/camera_preview.mp4"
+
+[preset.camera_final]
+axis = "Pan"
+start = 0
+end = 90
+width = 1920
+height = 1080
+fps = 30
+crf = 18
+codec = "libx264"
+encode_preset = "medium"
+reference_image = "assets/images/camera_reference.jpg"
+output = "output/camera_final.mp4"
+
+# Pan-specific presets
 [preset.pan_3s]
 axis = "Pan"
 start = 0
