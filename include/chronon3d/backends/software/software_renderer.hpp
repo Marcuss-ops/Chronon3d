@@ -21,7 +21,7 @@
 #include <chronon3d/backends/video/video_frame_decoder.hpp>
 #include <chronon3d/scene/scene.hpp>
 #include <chronon3d/scene/composition.hpp>
-#include <chronon3d/scene/frame.hpp>
+#include <chronon3d/core/frame.hpp>
 #include <chronon3d/core/camera.hpp>
 #include <chronon3d/render_graph/render_state.hpp>
 #include <unordered_map>

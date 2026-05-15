@@ -58,18 +58,8 @@ public:
     }
 };
 
-class TextProcessor final : public ShapeProcessor {
-public:
-    void draw(Framebuffer& fb, const RenderNode& node, const RenderState& state, 
-              const Camera& camera, i32 width, i32 height) override {
-        // We need access to the SoftwareRenderer to get the TextRenderer.
-        // For now we'll assume we can cast or we'll need to pass more context.
-        // Actually, RenderState doesn't have it.
-        // I'll update draw_node to pass the renderer or use a callback.
-    }
-    raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 spread) override { return {0,0,0,0}; }
-    bool hit_test(const Shape& shape, Vec2 local_point, f32 spread) override { return false; }
-};
+// Text is currently handled via legacy fallback in draw_node
+
 
 // --- Effects ---
 

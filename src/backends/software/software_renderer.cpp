@@ -50,15 +50,22 @@ void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node,
 }
 
 void SoftwareRenderer::apply_effect_stack(Framebuffer& fb, const EffectStack& stack) {
+    bool has_unhandled_effect = false;
+
     for (const auto& effect : stack) {
         if (!effect.enabled) continue;
+
         if (auto* processor = m_software_registry->get_effect(effect.params.index())) {
             processor->apply(fb, effect.params);
         } else {
-            // fallback to old monolithic processor
-            renderer::apply_effect_stack(fb, stack); // wait, this would recurse if not careful
-            break; // for now just stop or handle specially
+            has_unhandled_effect = true;
+            break;
         }
+    }
+
+    if (has_unhandled_effect) {
+        // Fallback to legacy monolithic processor for the remaining effects
+        renderer::apply_effect_stack(fb, stack);
     }
 }
 
