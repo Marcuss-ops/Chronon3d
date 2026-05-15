@@ -86,7 +86,9 @@ class TintEffectProcessor final : public EffectProcessor {
 public:
     void apply(Framebuffer& fb, const EffectParams& params) override {
         if (auto* p = std::get_if<TintParams>(&params)) {
-            apply_tint(fb, p->color, p->amount);
+            LayerEffect e;
+            e.tint = Color{p->color.r, p->color.g, p->color.b, p->color.a * p->amount};
+            apply_color_effects(fb, e);
         }
     }
 };
