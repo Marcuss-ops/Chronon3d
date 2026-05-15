@@ -113,7 +113,9 @@ public:
                     Color src = input->sample(sx, sy, m_mode);
                     src.a *= opacity;
                     if (src.a > 0.0f) {
-                        dst_row[x] = src; // Simple override since we cleared to transparent
+                        // Store premultiplied pixels because the downstream compositor
+                        // unpremultiplies layer buffers before blending.
+                        dst_row[x] = src.premultiplied();
                     }
                 }
             }

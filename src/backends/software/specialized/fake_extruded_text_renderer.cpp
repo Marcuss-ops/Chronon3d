@@ -237,11 +237,13 @@ void FakeExtrudedTextRenderer::collect_geometry(
     const auto& s = node.shape.fake_extruded_text;
     const f32 op = state.opacity;
 
-    const CachedFont* font_entry = text_renderer.get_font(s.font_path);
-    if (!font_entry) return;
+    auto backend = text_renderer.backend();
+    if (!backend || !backend->load_font(s.font_path)) return;
+    const auto* font_bytes = backend->get_font_data(s.font_path);
+    if (!font_bytes || font_bytes->empty()) return;
 
     stbtt_fontinfo font;
-    if (!stbtt_InitFont(&font, font_entry->data.data(), 0)) return;
+    if (!stbtt_InitFont(&font, font_bytes->data(), 0)) return;
 
     const float sc_f = stbtt_ScaleForPixelHeight(&font, s.font_size);
     const auto codepoints = utf8_to_codepoints(s.text);
@@ -325,7 +327,7 @@ void FakeExtrudedTextRenderer::collect_geometry(
 
     for (int cp : codepoints) {
         const GlyphGeometry& geom = get_glyph(
-            s.font_path, s.font_size, cp, font_entry->data.data());
+            s.font_path, s.font_size, cp, font_bytes->data());
 
         // Transform glyph vertex to world space using the layer's world transform.
         // s.world_pos is the text origin in world space; glyph coords are relative to it.

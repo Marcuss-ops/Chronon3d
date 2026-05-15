@@ -19,10 +19,23 @@ std::unique_ptr<Framebuffer> SoftwareRenderer::render_frame(const Composition& c
     return software_internal::render_frame(*this, comp, frame);
 }
 
-std::unique_ptr<Framebuffer> SoftwareRenderer::render_scene(const Scene& scene,
-                                                             const Camera& camera, i32 width,
-                                                             i32 height, Frame frame) {
-    return render_scene_internal(scene, camera, width, height, frame, 0.0f);
+std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(const Scene& scene,
+                                                            const Camera& camera, i32 width,
+                                                            i32 height) {
+    return std::shared_ptr<Framebuffer>(
+        render_scene_internal(scene, camera, width, height, 0, 0.0f).release());
+}
+
+std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(
+    const Scene& scene, const std::optional<Camera2_5D>& camera, i32 width, i32 height) {
+    Scene effective_scene = scene;
+    if (camera.has_value()) {
+        effective_scene.set_camera_2_5d(*camera);
+    }
+
+    Camera default_camera;
+    return std::shared_ptr<Framebuffer>(
+        render_scene_internal(effective_scene, default_camera, width, height, 0, 0.0f).release());
 }
 
 std::string SoftwareRenderer::debug_render_graph(const Scene& scene, const Camera& camera,
@@ -39,10 +52,15 @@ SoftwareRenderer::render_scene_internal(const Scene& scene, const Camera& camera
                                                     frame_time);
 }
 
+void SoftwareRenderer::apply_blur(Framebuffer& fb, f32 radius) {
+    renderer::apply_blur(fb, radius);
+}
+
 void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node,
                                  const RenderState& state, const Camera& camera, i32 width,
                                  i32 height) {
-    if (auto* processor = m_software_registry->get_shape(node.shape.type)) {
+    auto& registry = *m_software_registry;
+    if (auto* processor = registry.get_shape(node.shape.type)) {
         processor->draw(fb, node, state, camera, width, height);
     } else {
         software_internal::draw_node(*this, fb, node, state, camera, width, height);
@@ -50,22 +68,15 @@ void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node,
 }
 
 void SoftwareRenderer::apply_effect_stack(Framebuffer& fb, const EffectStack& stack) {
-    bool has_unhandled_effect = false;
-
+    auto& registry = *m_software_registry;
     for (const auto& effect : stack) {
         if (!effect.enabled) continue;
-
-        if (auto* processor = m_software_registry->get_effect(effect.params.index())) {
+        if (auto* processor = registry.get_effect(effect.params.index())) {
             processor->apply(fb, effect.params);
         } else {
-            has_unhandled_effect = true;
-            break;
+            EffectStack single_effect{effect};
+            renderer::apply_effect_stack(fb, single_effect);
         }
-    }
-
-    if (has_unhandled_effect) {
-        // Fallback to legacy monolithic processor for the remaining effects
-        renderer::apply_effect_stack(fb, stack);
     }
 }
 

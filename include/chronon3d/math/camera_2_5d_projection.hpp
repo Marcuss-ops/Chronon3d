@@ -4,6 +4,7 @@
 #include <chronon3d/math/constants.hpp>
 #include <chronon3d/math/transform.hpp>
 #include <chronon3d/math/quat.hpp>
+#include <chronon3d/math/camera_pose.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <cmath>
 
@@ -26,28 +27,10 @@ inline f32 focal_length_from_fov(f32 viewport_height, f32 fov_deg) {
 }
 
 inline Mat4 get_camera_view_matrix(const Camera2_5D& camera) {
-    Vec3 eye = camera.position;
-    Vec3 target = camera.point_of_interest;
-    
-    // In our world, Y is Up. Screen space Y is down.
-    // For lookAt, we use world Up (0, 1, 0).
-    Vec3 up{0, 1, 0}; 
-    
-    // If POI and eye are same, POI is ignored.
-    bool use_poi = camera.point_of_interest_enabled && (glm::length(target - eye) > 0.001f);
-    
-    Mat4 view;
-    if (use_poi) {
-        view = glm::lookAt(eye, target, up);
-    } else {
-        // Use Euler rotation.
-        Mat4 trans = glm::translate(Mat4(1.0f), -eye);
-        // Inverse rotation because we want world-to-camera.
-        Mat4 rot   = glm::mat4_cast(glm::inverse(math::from_euler(camera.rotation)));
-        view = rot * trans;
+    if (camera.point_of_interest_enabled && glm::length(camera.point_of_interest - camera.position) > 0.001f) {
+        return glm::lookAt(camera.position, camera.point_of_interest, Vec3{0.0f, 1.0f, 0.0f});
     }
-    
-    return view;
+    return math::camera_view_matrix(camera.position, camera.rotation_quaternion());
 }
 
 // Project a 3D layer transform through a Camera2_5D into screen space.
@@ -63,8 +46,11 @@ inline ProjectedLayer2_5D project_layer_2_5d(
     // Position of the layer in camera space.
     Mat4 view{1.0f};
     Vec4 cam_pos{0.0f, 0.0f, 0.0f, 1.0f};
-    if (camera.point_of_interest_enabled) {
-        // Explicit target/orbit mode: use the full view matrix.
+    const bool has_rotation = glm::length(camera.rotation) > 0.0001f;
+    const bool use_view_matrix = camera.point_of_interest_enabled || has_rotation;
+
+    if (use_view_matrix) {
+        // Use the full view matrix when the camera is rotating or orbiting a target.
         view = get_camera_view_matrix(camera);
         Vec4 world_pos{layer_transform.position.x, layer_transform.position.y, layer_transform.position.z, 1.0f};
         cam_pos = view * world_pos;
@@ -94,7 +80,7 @@ inline ProjectedLayer2_5D project_layer_2_5d(
 
     // Centroid projection: translate to screen-space (origin = top-left).
     // viewport center is added so shapes using model[3] as screen coords work.
-    if (camera.point_of_interest_enabled) {
+    if (use_view_matrix) {
         out.transform.position.x = cam_pos.x * perspective_scale;
         out.transform.position.y = -cam_pos.y * perspective_scale;
     } else {
@@ -119,7 +105,7 @@ inline ProjectedLayer2_5D project_layer_2_5d(
     proj[3][3] = 0.0001f; // Tiny offset to make it invertible
     
     // Final matrix: Proj * View * Model
-    out.projection_matrix = camera.point_of_interest_enabled
+    out.projection_matrix = use_view_matrix
         ? proj * view * layer_transform.to_mat4()
         : out.transform.to_mat4();
 

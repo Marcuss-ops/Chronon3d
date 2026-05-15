@@ -86,4 +86,10 @@ std::unique_ptr<GlyphBitmap> StbFontBackend::render_glyph(const std::string& pat
     return result;
 }
 
+const std::vector<u8>* StbFontBackend::get_font_data(const std::string& path) const {
+    auto it = m_fonts.find(path);
+    if (it == m_fonts.end()) return nullptr;
+    return &it->second.bytes;
+}
+
 } // namespace chronon3d::text

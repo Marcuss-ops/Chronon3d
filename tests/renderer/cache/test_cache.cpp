@@ -1,6 +1,8 @@
 #include <doctest/doctest.h>
+#include <chronon3d/backends/image/stb_image_backend.hpp>
 #include <chronon3d/backends/assets/image_cache.hpp>
 #include <chronon3d/backends/assets/font_cache.hpp>
+#include <chronon3d/backends/text/stb_font_backend.hpp>
 #include <filesystem>
 
 using namespace chronon3d;
@@ -15,6 +17,7 @@ static bool assets_available() {
 // ---------------------------------------------------------------------------
 TEST_CASE("ImageCache returns null for missing file") {
     ImageCache cache;
+    cache.set_backend(std::make_shared<image::StbImageBackend>());
     const auto* img = cache.get_or_load("does_not_exist_xyz.png");
     CHECK(img == nullptr);
     CHECK(cache.size() == 1); // sentinel inserted so no retry
@@ -22,6 +25,7 @@ TEST_CASE("ImageCache returns null for missing file") {
 
 TEST_CASE("ImageCache does not retry missing file") {
     ImageCache cache;
+    cache.set_backend(std::make_shared<image::StbImageBackend>());
     cache.get_or_load("missing_file.png");
     cache.get_or_load("missing_file.png"); // second call
     CHECK(cache.size() == 1); // still 1 — no duplicate entry
@@ -30,6 +34,7 @@ TEST_CASE("ImageCache does not retry missing file") {
 TEST_CASE("ImageCache loads real image") {
     if (!assets_available()) { MESSAGE("Skipping: assets not found"); return; }
     ImageCache cache;
+    cache.set_backend(std::make_shared<image::StbImageBackend>());
     const auto* img = cache.get_or_load(kCheckerPath);
     REQUIRE(img != nullptr);
     CHECK(img->width  > 0);
@@ -40,6 +45,7 @@ TEST_CASE("ImageCache loads real image") {
 TEST_CASE("ImageCache returns same pointer on repeated access") {
     if (!assets_available()) { MESSAGE("Skipping: assets not found"); return; }
     ImageCache cache;
+    cache.set_backend(std::make_shared<image::StbImageBackend>());
     const auto* a = cache.get_or_load(kCheckerPath);
     const auto* b = cache.get_or_load(kCheckerPath);
     REQUIRE(a != nullptr);
@@ -48,6 +54,7 @@ TEST_CASE("ImageCache returns same pointer on repeated access") {
 
 TEST_CASE("ImageCache clear empties the cache") {
     ImageCache cache;
+    cache.set_backend(std::make_shared<image::StbImageBackend>());
     cache.get_or_load("assets/images/checker.png");
     REQUIRE(cache.size() == 1);
     cache.clear();
@@ -57,6 +64,7 @@ TEST_CASE("ImageCache clear empties the cache") {
 // ---------------------------------------------------------------------------
 TEST_CASE("FontCache returns null for missing file") {
     FontCache cache;
+    cache.set_backend(std::make_shared<text::StbFontBackend>());
     const auto* f = cache.get_or_load("does_not_exist.ttf");
     CHECK(f == nullptr);
     CHECK(cache.size() == 1); // sentinel
@@ -64,6 +72,7 @@ TEST_CASE("FontCache returns null for missing file") {
 
 TEST_CASE("FontCache does not retry missing file") {
     FontCache cache;
+    cache.set_backend(std::make_shared<text::StbFontBackend>());
     cache.get_or_load("missing_font.ttf");
     cache.get_or_load("missing_font.ttf");
     CHECK(cache.size() == 1);
@@ -72,14 +81,17 @@ TEST_CASE("FontCache does not retry missing file") {
 TEST_CASE("FontCache loads real font") {
     if (!assets_available()) { MESSAGE("Skipping: assets not found"); return; }
     FontCache cache;
+    cache.set_backend(std::make_shared<text::StbFontBackend>());
     const auto* f = cache.get_or_load(kFontBoldPath);
     REQUIRE(f != nullptr);
-    CHECK(!f->data.empty());
+    CHECK(f->valid());
+    CHECK(f->path == kFontBoldPath);
 }
 
 TEST_CASE("FontCache returns same pointer on repeated access") {
     if (!assets_available()) { MESSAGE("Skipping: assets not found"); return; }
     FontCache cache;
+    cache.set_backend(std::make_shared<text::StbFontBackend>());
     const auto* a = cache.get_or_load(kFontBoldPath);
     const auto* b = cache.get_or_load(kFontBoldPath);
     REQUIRE(a != nullptr);
@@ -89,6 +101,7 @@ TEST_CASE("FontCache returns same pointer on repeated access") {
 TEST_CASE("FontCache clear empties the cache") {
     if (!assets_available()) { MESSAGE("Skipping: assets not found"); return; }
     FontCache cache;
+    cache.set_backend(std::make_shared<text::StbFontBackend>());
     cache.get_or_load(kFontBoldPath);
     REQUIRE(cache.size() == 1);
     cache.clear();

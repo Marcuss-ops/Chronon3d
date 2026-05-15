@@ -29,6 +29,7 @@ public:
     virtual const std::vector<u8>* get_font_data(const std::string& path) = 0;
     virtual float get_char_advance(const std::string& path, char c, float size) = 0;
     virtual std::unique_ptr<GlyphBitmap> render_glyph(const std::string& path, char c, float size, GlyphMetrics& out_metrics) = 0;
+    virtual const std::vector<u8>* get_font_data(const std::string& path) const { return nullptr; }
 };
 
 } // namespace chronon3d::text

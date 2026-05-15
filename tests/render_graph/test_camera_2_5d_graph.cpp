@@ -6,8 +6,18 @@
 
 using namespace chronon3d;
 
-TEST_CASE("RenderGraph 2.5D: near layer covers far layer regardless of insertion order") {
-    Composition comp = composition({
+namespace {
+
+std::unique_ptr<Framebuffer> render_modular(const Composition& comp, Frame frame = 0) {
+    SoftwareRenderer renderer;
+    RenderSettings settings;
+    settings.use_modular_graph = true;
+    renderer.set_settings(settings);
+    return renderer.render_frame(comp, frame);
+}
+
+Composition make_graph_25d_sorting_test() {
+    return composition({
         .name = "Graph25DSortingTest",
         .width = 200,
         .height = 200,
@@ -27,7 +37,6 @@ TEST_CASE("RenderGraph 2.5D: near layer covers far layer regardless of insertion
             .pos = {0, 0, 0}
         });
 
-        // Near red inserted first.
         s.layer("near_red", [](LayerBuilder& l) {
             l.enable_3d()
              .position({0, 0, -500})
@@ -38,7 +47,6 @@ TEST_CASE("RenderGraph 2.5D: near layer covers far layer regardless of insertion
              });
         });
 
-        // Far blue inserted second.
         s.layer("far_blue", [](LayerBuilder& l) {
             l.enable_3d()
              .position({0, 0, 1000})
@@ -51,22 +59,10 @@ TEST_CASE("RenderGraph 2.5D: near layer covers far layer regardless of insertion
 
         return s.build();
     });
-
-    SoftwareRenderer renderer;
-    RenderSettings settings;
-    settings.use_modular_graph = true;
-    renderer.set_settings(settings);
-
-    auto fb = renderer.render_frame(comp, 0);
-
-    auto center = fb->get_pixel(100, 100);
-
-    CHECK(center.r > 0.8f);
-    CHECK(center.b < 0.2f);
 }
 
-TEST_CASE("RenderGraph 2.5D: 2D overlay stays above previous 3D bin") {
-    Composition comp = composition({
+Composition make_graph_25d_overlay_test() {
+    return composition({
         .name = "Graph25DOverlayTest",
         .width = 200,
         .height = 200,
@@ -90,7 +86,6 @@ TEST_CASE("RenderGraph 2.5D: 2D overlay stays above previous 3D bin") {
              });
         });
 
-        // 2D overlay inserted after 3D layer.
         s.layer("overlay_2d", [](LayerBuilder& l) {
             l.rect("white", {
                 .size = {80, 80},
@@ -101,23 +96,10 @@ TEST_CASE("RenderGraph 2.5D: 2D overlay stays above previous 3D bin") {
 
         return s.build();
     });
-
-    SoftwareRenderer renderer;
-    RenderSettings settings;
-    settings.use_modular_graph = true;
-    renderer.set_settings(settings);
-
-    auto fb = renderer.render_frame(comp, 0);
-
-    auto center = fb->get_pixel(100, 100);
-
-    CHECK(center.r > 0.9f);
-    CHECK(center.g > 0.9f);
-    CHECK(center.b > 0.9f);
 }
 
-TEST_CASE("RenderGraph 2.5D: layer behind camera is culled") {
-    Composition comp = composition({
+Composition make_graph_25d_culling_test() {
+    return composition({
         .name = "Graph25DCullingTest",
         .width = 200,
         .height = 200,
@@ -149,24 +131,10 @@ TEST_CASE("RenderGraph 2.5D: layer behind camera is culled") {
 
         return s.build();
     });
-
-    SoftwareRenderer renderer;
-    RenderSettings settings;
-    settings.use_modular_graph = true;
-    renderer.set_settings(settings);
-
-    auto fb = renderer.render_frame(comp, 0);
-
-    auto center = fb->get_pixel(100, 100);
-
-    // Color{0.2, 0.2, 0.2} sRGB is approx 0.0331 linear.
-    CHECK(center.r == doctest::Approx(0.0331f).epsilon(0.01f));
-    CHECK(center.g == doctest::Approx(0.0331f).epsilon(0.01f));
-    CHECK(center.b == doctest::Approx(0.0331f).epsilon(0.01f));
 }
 
-TEST_CASE("RenderGraph parenting: child inherits null position") {
-    Composition comp = composition({
+Composition make_parenting_2d_test() {
+    return composition({
         .name = "Parenting2DTest",
         .width = 200,
         .height = 200,
@@ -189,24 +157,10 @@ TEST_CASE("RenderGraph parenting: child inherits null position") {
 
         return s.build();
     });
-
-    SoftwareRenderer renderer;
-    RenderSettings settings;
-    settings.use_modular_graph = true;
-    renderer.set_settings(settings);
-
-    auto fb = renderer.render_frame(comp, 0);
-
-    // Center-origin: world x=50 should appear around pixel x=150.
-    auto p = fb->get_pixel(150, 100);
-
-    CHECK(p.r > 0.9f);
-    CHECK(p.g > 0.9f);
-    CHECK(p.b > 0.9f);
 }
 
-TEST_CASE("RenderGraph parenting: 3D child inherits parent Z before projection") {
-    Composition comp = composition({
+Composition make_parenting_25d_test() {
+    return composition({
         .name = "Parenting25DTest",
         .width = 200,
         .height = 200,
@@ -220,7 +174,6 @@ TEST_CASE("RenderGraph parenting: 3D child inherits parent Z before projection")
             .zoom = 1000.0f
         });
 
-        // Parent moves child closer: z = -500, so scale should become 2x.
         s.null_layer("rig", [](LayerBuilder& l) {
             l.position({0, 0, -500});
         });
@@ -237,13 +190,53 @@ TEST_CASE("RenderGraph parenting: 3D child inherits parent Z before projection")
 
         return s.build();
     });
+}
 
-    SoftwareRenderer renderer;
-    RenderSettings settings;
-    settings.use_modular_graph = true;
-    renderer.set_settings(settings);
+} // namespace
 
-    auto fb = renderer.render_frame(comp, 0);
+TEST_CASE("RenderGraph 2.5D: near layer covers far layer regardless of insertion order") {
+    auto fb = render_modular(make_graph_25d_sorting_test());
+
+    auto center = fb->get_pixel(100, 100);
+
+    CHECK(center.r > 0.8f);
+    CHECK(center.b < 0.2f);
+}
+
+TEST_CASE("RenderGraph 2.5D: 2D overlay stays above previous 3D bin") {
+    auto fb = render_modular(make_graph_25d_overlay_test());
+
+    auto center = fb->get_pixel(100, 100);
+
+    CHECK(center.r > 0.9f);
+    CHECK(center.g > 0.9f);
+    CHECK(center.b > 0.9f);
+}
+
+TEST_CASE("RenderGraph 2.5D: layer behind camera is culled") {
+    auto fb = render_modular(make_graph_25d_culling_test());
+
+    auto center = fb->get_pixel(100, 100);
+
+    // Color{0.2, 0.2, 0.2} sRGB is approx 0.0331 linear.
+    CHECK(center.r == doctest::Approx(0.0331f).epsilon(0.01f));
+    CHECK(center.g == doctest::Approx(0.0331f).epsilon(0.01f));
+    CHECK(center.b == doctest::Approx(0.0331f).epsilon(0.01f));
+}
+
+TEST_CASE("RenderGraph parenting: child inherits null position") {
+    auto fb = render_modular(make_parenting_2d_test());
+
+    // Center-origin: world x=50 should appear around pixel x=150.
+    auto p = fb->get_pixel(150, 100);
+
+    CHECK(p.r > 0.9f);
+    CHECK(p.g > 0.9f);
+    CHECK(p.b > 0.9f);
+}
+
+TEST_CASE("RenderGraph parenting: 3D child inherits parent Z before projection") {
+    auto fb = render_modular(make_parenting_25d_test());
 
     // If scale became 2x, rect size is 80x80.
     // Center is (100, 100). Rect should cover from x=60 to x=140.

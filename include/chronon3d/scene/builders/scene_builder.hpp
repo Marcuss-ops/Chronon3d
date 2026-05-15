@@ -82,6 +82,24 @@ namespace chronon3d {
             scene_.set_camera_2_5d(cam);
             return *this;
         }
+        SceneBuilder &camera_tilt(f32 degrees) {
+            auto cam = scene_.camera_2_5d();
+            cam.set_tilt(degrees);
+            scene_.set_camera_2_5d(cam);
+            return *this;
+        }
+        SceneBuilder &camera_pan(f32 degrees) {
+            auto cam = scene_.camera_2_5d();
+            cam.set_pan(degrees);
+            scene_.set_camera_2_5d(cam);
+            return *this;
+        }
+        SceneBuilder &camera_roll(f32 degrees) {
+            auto cam = scene_.camera_2_5d();
+            cam.set_roll(degrees);
+            scene_.set_camera_2_5d(cam);
+            return *this;
+        }
         SceneBuilder &camera_point_of_interest(Vec3 poi) {
             auto cam = scene_.camera_2_5d();
             cam.point_of_interest = poi;

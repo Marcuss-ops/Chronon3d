@@ -14,6 +14,7 @@ public:
     const std::vector<u8>* get_font_data(const std::string& path) override;
     float get_char_advance(const std::string& path, char c, float size) override;
     std::unique_ptr<GlyphBitmap> render_glyph(const std::string& path, char c, float size, GlyphMetrics& out_metrics) override;
+    const std::vector<u8>* get_font_data(const std::string& path) const override;
 
 private:
     struct FontData {
