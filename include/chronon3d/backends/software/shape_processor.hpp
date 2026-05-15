@@ -1,9 +1,12 @@
 #pragma once
 
 #include <chronon3d/core/framebuffer.hpp>
+#include <chronon3d/core/camera.hpp>
 #include <chronon3d/scene/layer/render_node.hpp>
 #include <chronon3d/scene/shape.hpp>
+#include <chronon3d/render_graph/render_state.hpp>
 #include <chronon3d/math/raster_utils.hpp>
+#include <chronon3d/math/math_base.hpp>
 
 namespace chronon3d::renderer {
 
