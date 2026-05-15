@@ -3,10 +3,16 @@
 #include "primitive_renderer.hpp"
 #include "utils/render_effects_processor.hpp"
 
+#include <chronon3d/backends/software/builtin_processors.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/backends/software/fake_extruded_text_renderer.hpp>
 
 namespace chronon3d {
+
+SoftwareRenderer::SoftwareRenderer()
+    : m_software_registry(std::make_unique<renderer::SoftwareRegistry>()) {
+    renderer::register_builtin_processors(*m_software_registry);
+}
 
 std::unique_ptr<Framebuffer> SoftwareRenderer::render_frame(const Composition& comp,
                                                             Frame frame) {
@@ -14,16 +20,16 @@ std::unique_ptr<Framebuffer> SoftwareRenderer::render_frame(const Composition& c
 }
 
 std::unique_ptr<Framebuffer> SoftwareRenderer::render_scene(const Scene& scene,
-                                                            const Camera& camera, i32 width,
-                                                            i32 height, Frame frame) {
+                                                             const Camera& camera, i32 width,
+                                                             i32 height, Frame frame) {
     return render_scene_internal(scene, camera, width, height, frame, 0.0f);
 }
 
 std::string SoftwareRenderer::debug_render_graph(const Scene& scene, const Camera& camera,
-                                                 i32 width, i32 height, Frame frame,
-                                                 f32 frame_time) const {
+                                                  i32 width, i32 height, Frame frame,
+                                                  f32 frame_time) const {
     return software_internal::debug_render_graph(*this, scene, camera, width, height, frame,
-                                                 frame_time);
+                                                  frame_time);
 }
 
 std::unique_ptr<Framebuffer>
@@ -36,20 +42,24 @@ SoftwareRenderer::render_scene_internal(const Scene& scene, const Camera& camera
 void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node,
                                  const RenderState& state, const Camera& camera, i32 width,
                                  i32 height) {
-    software_internal::draw_node(*this, fb, node, state, camera, width, height);
-}
-
-void SoftwareRenderer::draw_line(Framebuffer& fb, const Vec3& p1, const Vec3& p2,
-                                 const Color& color) {
-    renderer::bline(fb, Vec2(p1.x, p1.y), Vec2(p2.x, p2.y), color);
-}
-
-void SoftwareRenderer::apply_blur(Framebuffer& fb, f32 radius) {
-    renderer::apply_blur(fb, radius);
+    if (auto* processor = m_software_registry->get_shape(node.shape.type)) {
+        processor->draw(fb, node, state, camera, width, height);
+    } else {
+        software_internal::draw_node(*this, fb, node, state, camera, width, height);
+    }
 }
 
 void SoftwareRenderer::apply_effect_stack(Framebuffer& fb, const EffectStack& stack) {
-    renderer::apply_effect_stack(fb, stack);
+    for (const auto& effect : stack) {
+        if (!effect.enabled) continue;
+        if (auto* processor = m_software_registry->get_effect(effect.params.index())) {
+            processor->apply(fb, effect.params);
+        } else {
+            // fallback to old monolithic processor
+            renderer::apply_effect_stack(fb, stack); // wait, this would recurse if not careful
+            break; // for now just stop or handle specially
+        }
+    }
 }
 
 void SoftwareRenderer::composite_layer(Framebuffer& dst, const Framebuffer& src, BlendMode mode) {

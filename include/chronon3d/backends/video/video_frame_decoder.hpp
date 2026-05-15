@@ -1,17 +1,19 @@
 #pragma once
 
 #include <chronon3d/core/frame.hpp>
+#include <chronon3d/core/types.hpp>
 #include <chronon3d/core/framebuffer.hpp>
+
 #include <memory>
 #include <string>
 
 namespace chronon3d::video {
 
-class VideoDecoder {
+class VideoFrameDecoder {
 public:
-    virtual ~VideoDecoder() = default;
+    virtual ~VideoFrameDecoder() = default;
 
-    virtual std::shared_ptr<Framebuffer> decode_frame(
+    [[nodiscard]] virtual std::shared_ptr<Framebuffer> decode_frame(
         const std::string& path,
         Frame source_frame,
         i32 width,

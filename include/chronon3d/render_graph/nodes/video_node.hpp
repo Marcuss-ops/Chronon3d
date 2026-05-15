@@ -3,13 +3,13 @@
 #include <chronon3d/render_graph/render_graph_node.hpp>
 #include <chronon3d/render_graph/render_graph_hashing.hpp>
 #include <chronon3d/backends/video/video_source.hpp>
-#include <chronon3d/backends/video/video_frame_provider.hpp>
+#include <chronon3d/backends/video/video_frame_decoder.hpp>
 
 namespace chronon3d::graph {
 
 class VideoNode final : public RenderGraphNode {
 public:
-    VideoNode(video::VideoSource source, video::VideoDecoder* decoder, Frame layer_start)
+    VideoNode(video::VideoSource source, video::VideoFrameDecoder* decoder, Frame layer_start)
         : m_source(std::move(source)),
           m_decoder(decoder),
           m_layer_start(layer_start) {}
@@ -66,7 +66,7 @@ public:
 
 private:
     video::VideoSource m_source;
-    video::VideoDecoder* m_decoder{};
+    video::VideoFrameDecoder* m_decoder{};
     Frame m_layer_start{0};
 };
 
