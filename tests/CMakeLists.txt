@@ -1,4 +1,4 @@
-find_package(doctest CONFIG REQUIRED)
+﻿find_package(doctest CONFIG REQUIRED)
 
 add_executable(chronon3d_tests
     test_main.cpp
@@ -42,9 +42,22 @@ add_executable(chronon3d_tests
     renderer/basics/test_draw_order.cpp
     renderer/basics/test_coordinate_system.cpp
     renderer/basics/test_clipping.cpp
+    renderer/basics/test_layer_rendering.cpp
     renderer/camera/test_moving_frame.cpp
+    renderer/camera/test_camera_2_5d.cpp
+    renderer/camera/test_dof.cpp
+    renderer/camera/test_motion_blur.cpp
     renderer/effects/test_effects.cpp
+    renderer/effects/test_adjustment_layer.cpp
+    renderer/effects/test_effect_stack.cpp
+    renderer/effects/test_effects_stack.cpp
+    renderer/effects/test_masks.cpp
+    renderer/media/test_image_rendering.cpp
+    renderer/media/test_video_frame_provider.cpp
+    renderer/cache/test_cache.cpp
+    renderer/perf/test_render_perf.cpp
     renderer/text/test_text_rendering.cpp
+    renderer/text/test_text_layout.cpp
     render_graph/test_graph_executor.cpp
     render_graph/test_precompositions.cpp
     render_graph/test_modular_features.cpp
@@ -83,3 +96,4 @@ target_link_libraries(debug_parenting PRIVATE chronon3d_renderer)
 target_include_directories(debug_parenting PRIVATE ${Stb_INCLUDE_DIR})
 
 add_test(NAME chronon3d_tests COMMAND chronon3d_tests)
+

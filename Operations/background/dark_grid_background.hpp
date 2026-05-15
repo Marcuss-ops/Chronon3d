@@ -8,7 +8,7 @@
 
 namespace operations::background {
 
-inline void lil_dirk_background(chronon3d::SceneBuilder& s,
+inline void dark_grid_background(chronon3d::SceneBuilder& s,
                                 const chronon3d::FrameContext& ctx,
                                 const chronon3d::DarkGridBgParams& p = {}) {
     const chronon3d::f32 W = static_cast<chronon3d::f32>(ctx.width > 0 ? ctx.width : 1280);
