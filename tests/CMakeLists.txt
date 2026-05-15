@@ -35,16 +35,16 @@ add_executable(chronon3d_tests
     scene/test_layer_hierarchy.cpp
     
     # Rendering
-    renderer/test_renderer.cpp
-    renderer/test_code_first_render.cpp
-    renderer/test_alpha_blending.cpp
-    renderer/test_draw_order.cpp
-    renderer/test_coordinate_system.cpp
-    renderer/test_clipping.cpp
-    renderer/test_moving_frame.cpp
-    renderer/test_effects.cpp
-    renderer/test_text_rendering.cpp
-    renderer/test_render_graph.cpp
+    renderer/basics/test_renderer.cpp
+    renderer/basics/test_code_first_render.cpp
+    renderer/basics/test_background_grid.cpp
+    renderer/basics/test_alpha_blending.cpp
+    renderer/basics/test_draw_order.cpp
+    renderer/basics/test_coordinate_system.cpp
+    renderer/basics/test_clipping.cpp
+    renderer/camera/test_moving_frame.cpp
+    renderer/effects/test_effects.cpp
+    renderer/text/test_text_rendering.cpp
     render_graph/test_graph_executor.cpp
     render_graph/test_precompositions.cpp
     render_graph/test_modular_features.cpp

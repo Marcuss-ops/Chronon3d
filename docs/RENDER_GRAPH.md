@@ -12,11 +12,10 @@ The old renderer applied effects, masks, and compositing in a fixed loop. Adding
 
 ## Namespaces
 
-The new render graph lives in `chronon3d::graph`. The old renderer pipeline lives in `chronon3d::rendergraph`. The two coexist: the old path is still used for production rendering, the new path is wired through `GraphBuilder`.
+The render graph lives in `chronon3d::graph` and is the production execution model for the software renderer.
 
 ```
-chronon3d::graph        ← new modular system (graph nodes, executor, builder)
-chronon3d::rendergraph  ← old renderer pipeline (still in use for production)
+chronon3d::graph  ← graph nodes, executor, builder
 ```
 
 ---
@@ -29,7 +28,7 @@ All nodes inherit from `RenderGraphNode` (`include/chronon3d/render_graph/render
 |---|---|---|
 | `ClearNode` | Output | Produces a fully transparent framebuffer. `cacheable() = false` — never cached. |
 | `SourceNode` | Source | Renders one `RenderNode` (shape/text/image) into a framebuffer via `SoftwareRenderer`. |
-| `MaskNode` | Mask | Clips pixels outside the mask to alpha=0. Coordinate origin is canvas-centered. |
+| `MaskNode` | Mask | Clips pixels outside the mask to alpha=0. Coordinate origin follows the modular graph coordinate mode. |
 | `EffectStackNode` | Effect | Applies an ordered `EffectStack` (blur, tint, brightness, contrast…) to its input. |
 | `AdjustmentNode` | Adjustment | Same as EffectStack but semantically applied to everything below it in the layer stack. |
 | `CompositeNode` | Composite | Alpha-composites two framebuffers (bottom + top) with a given `BlendMode`. |
@@ -113,6 +112,7 @@ struct RenderGraphContext {
 
     bool cache_enabled;
     bool diagnostics_enabled;
+    bool modular_coordinates;       // true when using centered modular graph coordinates
 };
 ```
 
@@ -156,6 +156,6 @@ Nodes must not hold raw pointers to scene data that could outlive the graph. Use
 
 ## Known limitations
 
-- `MaskNode` applies masks in canvas-centered coordinates. It does not apply the layer's world transform. Works correctly for identity-transform layers.
+- `MaskNode` applies masks in the graph's coordinate space. It does not apply the layer's world transform. Works correctly for identity-transform layers.
 - `PrecompNode` does not propagate `ctx.camera` into the nested context — it reuses the parent camera.
-- The new `GraphBuilder` path is not yet wired into `SoftwareRenderer::render_scene_internal`, which still uses the old `rendergraph::` pipeline.
+- `use_modular_graph` is retained as a compatibility switch for coordinate mode only. The renderer always uses the modular graph execution path.

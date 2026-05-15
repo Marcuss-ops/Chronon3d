@@ -1,7 +1,7 @@
 #pragma once
 
 #include <chronon3d/core/framebuffer.hpp>
-#include <chronon3d/render_graph/render_node.hpp>
+#include <chronon3d/scene/layer/render_node.hpp>
 #include <chronon3d/renderer/text/text_renderer.hpp>
 #include <chronon3d/scene/camera/camera_2_5d.hpp>
 #include <chronon3d/math/vec2.hpp>

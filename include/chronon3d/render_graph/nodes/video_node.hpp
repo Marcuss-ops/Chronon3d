@@ -32,7 +32,7 @@ public:
             .width = ctx.width,
             .height = ctx.height,
             .params_hash = hash_video_source(m_source),
-            .source_hash = render_graph::hash_string(m_source.path)
+            .source_hash = hash_string(m_source.path)
         };
     }
 

@@ -1,7 +1,9 @@
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder_delegates.hpp>
-#include <chronon3d/render_graph/render_node.hpp>
 #include <chronon3d/math/transform.hpp>
+#include "layer_builder_internal.hpp"
+
+#include <utility>
 
 namespace chronon3d {
 
@@ -69,27 +71,27 @@ LayerBuilder& LayerBuilder::depth_role(DepthRole role) { m_layer.depth_role = ro
 LayerBuilder& LayerBuilder::depth_offset(f32 offset)   { m_layer.depth_offset = offset; return *this; }
 
 LayerBuilder& LayerBuilder::mask_rect(RectMaskParams p) {
-    m_layer.mask.type     = MaskType::Rect;
-    m_layer.mask.size     = p.size;
-    m_layer.mask.pos      = p.pos;
+    m_layer.mask.type = MaskType::Rect;
+    m_layer.mask.size = p.size;
+    m_layer.mask.pos = p.pos;
     m_layer.mask.inverted = p.inverted;
     return *this;
 }
 
 LayerBuilder& LayerBuilder::mask_rounded_rect(RoundedRectMaskParams p) {
-    m_layer.mask.type     = MaskType::RoundedRect;
-    m_layer.mask.size     = p.size;
-    m_layer.mask.radius   = p.radius;
-    m_layer.mask.pos      = p.pos;
+    m_layer.mask.type = MaskType::RoundedRect;
+    m_layer.mask.size = p.size;
+    m_layer.mask.radius = p.radius;
+    m_layer.mask.pos = p.pos;
     m_layer.mask.inverted = p.inverted;
     return *this;
 }
 
 LayerBuilder& LayerBuilder::mask_circle(CircleMaskParams p) {
-    m_layer.mask.type     = MaskType::Circle;
-    m_layer.mask.size     = {p.radius * 2.0f, p.radius * 2.0f};
-    m_layer.mask.radius   = p.radius;
-    m_layer.mask.pos      = p.pos;
+    m_layer.mask.type = MaskType::Circle;
+    m_layer.mask.size = {p.radius * 2.0f, p.radius * 2.0f};
+    m_layer.mask.radius = p.radius;
+    m_layer.mask.pos = p.pos;
     m_layer.mask.inverted = p.inverted;
     return *this;
 }
@@ -152,79 +154,32 @@ LayerBuilder& LayerBuilder::fit_text() {
 }
 
 LayerBuilder& LayerBuilder::rect(std::string name, RectParams p) {
-    RenderNode node(m_layer.nodes.get_allocator().resource());
-    node.name = std::pmr::string{name, m_layer.nodes.get_allocator().resource()};
-    node.shape.type = ShapeType::Rect;
-    node.shape.rect.size = p.size;
-    node.world_transform.position = p.pos;
-    node.world_transform.anchor = {p.size.x * 0.5f, p.size.y * 0.5f, 0.0f};
-    node.color = p.color;
-    m_layer.nodes.push_back(std::move(node));
+    layer_builder_internal::append_rect(m_layer, std::move(name), p);
     return *this;
 }
 
 LayerBuilder& LayerBuilder::rounded_rect(std::string name, RoundedRectParams p) {
-    RenderNode node(m_layer.nodes.get_allocator().resource());
-    node.name = std::pmr::string{name, m_layer.nodes.get_allocator().resource()};
-    node.shape.type = ShapeType::RoundedRect;
-    node.shape.rounded_rect.size = p.size;
-    node.shape.rounded_rect.radius = p.radius;
-    node.world_transform.position = p.pos;
-    node.world_transform.anchor = {p.size.x * 0.5f, p.size.y * 0.5f, 0.0f};
-    node.color = p.color;
-    m_layer.nodes.push_back(std::move(node));
+    layer_builder_internal::append_rounded_rect(m_layer, std::move(name), p);
     return *this;
 }
 
 LayerBuilder& LayerBuilder::circle(std::string name, CircleParams p) {
-    RenderNode node(m_layer.nodes.get_allocator().resource());
-    node.name = std::pmr::string{name, m_layer.nodes.get_allocator().resource()};
-    node.shape.type = ShapeType::Circle;
-    node.shape.circle.radius = p.radius;
-    node.world_transform.position = p.pos;
-    node.world_transform.anchor = {p.radius, p.radius, 0.0f};
-    node.color = p.color;
-    m_layer.nodes.push_back(std::move(node));
+    layer_builder_internal::append_circle(m_layer, std::move(name), p);
     return *this;
 }
 
 LayerBuilder& LayerBuilder::line(std::string name, LineParams p) {
-    RenderNode node(m_layer.nodes.get_allocator().resource());
-    node.name = std::pmr::string{name, m_layer.nodes.get_allocator().resource()};
-    node.shape.type = ShapeType::Line;
-    node.shape.line.to = p.to - p.from;
-    node.shape.line.thickness = p.thickness;
-    node.world_transform.position = p.from;
-    node.color = p.color;
-    m_layer.nodes.push_back(std::move(node));
+    layer_builder_internal::append_line(m_layer, std::move(name), p);
     return *this;
 }
 
 LayerBuilder& LayerBuilder::text(std::string name, TextParams p) {
-    RenderNode node(m_layer.nodes.get_allocator().resource());
-    node.name = std::pmr::string{name, m_layer.nodes.get_allocator().resource()};
-    node.shape.type = ShapeType::Text;
-    node.shape.text.text  = std::move(p.content);
-    node.shape.text.style = p.style;
-    node.shape.text.box   = p.box;
-    node.world_transform.position = p.pos;
-    node.color = p.style.color;
-    m_layer.nodes.push_back(std::move(node));
+    layer_builder_internal::append_text(m_layer, std::move(name), std::move(p));
     return *this;
 }
 
 LayerBuilder& LayerBuilder::image(std::string name, ImageParams p) {
-    RenderNode node(m_layer.nodes.get_allocator().resource());
-    auto* res = m_layer.nodes.get_allocator().resource();
-    node.name = std::pmr::string{name, res};
-    node.shape.type = ShapeType::Image;
-    node.shape.image.path = std::move(p.path);
-    node.shape.image.size = p.size;
-    node.shape.image.opacity = p.opacity;
-    node.world_transform.position = p.pos;
-    node.world_transform.anchor = {p.size.x * 0.5f, p.size.y * 0.5f, 0.0f};
-    node.color = Color{1, 1, 1, p.opacity};
-    m_layer.nodes.push_back(std::move(node));
+    layer_builder_internal::append_image(m_layer, std::move(name), std::move(p));
     return *this;
 }
 
@@ -244,37 +199,37 @@ LayerBuilder& LayerBuilder::grid_plane(std::string name, GridPlaneParams p) {
 }
 
 LayerBuilder& LayerBuilder::with_shadow(DropShadow shadow) {
-    if (!m_layer.nodes.empty()) m_layer.nodes.back().shadow = shadow;
+    layer_builder_internal::set_last_shadow(m_layer, shadow);
     return *this;
 }
 
 LayerBuilder& LayerBuilder::with_glow(Glow glow) {
-    if (!m_layer.nodes.empty()) m_layer.nodes.back().glow = glow;
+    layer_builder_internal::set_last_glow(m_layer, glow);
     return *this;
 }
 
 LayerBuilder& LayerBuilder::at(Vec3 pos) {
-    if (!m_layer.nodes.empty()) m_layer.nodes.back().world_transform.position = pos;
+    layer_builder_internal::set_last_position(m_layer, pos);
     return *this;
 }
 
 LayerBuilder& LayerBuilder::rotate_node(Vec3 euler_deg) {
-    if (!m_layer.nodes.empty()) m_layer.nodes.back().world_transform.rotation = math::from_euler(euler_deg);
+    layer_builder_internal::set_last_rotation(m_layer, euler_deg);
     return *this;
 }
 
 LayerBuilder& LayerBuilder::scale_node(Vec3 s) {
-    if (!m_layer.nodes.empty()) m_layer.nodes.back().world_transform.scale = s;
+    layer_builder_internal::set_last_scale(m_layer, s);
     return *this;
 }
 
 LayerBuilder& LayerBuilder::anchor_node(Vec3 a) {
-    if (!m_layer.nodes.empty()) m_layer.nodes.back().world_transform.anchor = a;
+    layer_builder_internal::set_last_anchor(m_layer, a);
     return *this;
 }
 
 LayerBuilder& LayerBuilder::node_opacity(f32 a) {
-    if (!m_layer.nodes.empty()) m_layer.nodes.back().world_transform.opacity = a;
+    layer_builder_internal::set_last_opacity(m_layer, a);
     return *this;
 }
 

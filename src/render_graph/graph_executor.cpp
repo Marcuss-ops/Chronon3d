@@ -1,6 +1,6 @@
 #include <chronon3d/render_graph/graph_executor.hpp>
 #include <chronon3d/render_graph/graph_profiler.hpp>
-#include <chronon3d/renderer/software/render_graph.hpp>
+#include <chronon3d/render_graph/render_graph_hashing.hpp>
 #include <future>
 #include <mutex>
 
@@ -59,7 +59,7 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute_node(
         u64 input_digest = (digest_it != m_resolved_key_digest.end())
             ? digest_it->second
             : graph.node(input_id).cache_key(ctx).digest();
-        input_hash = render_graph::hash_combine(input_hash, input_digest);
+        input_hash = hash_combine(input_hash, input_digest);
     }
 
     auto start_time = std::chrono::high_resolution_clock::now();
