@@ -86,6 +86,7 @@ target_link_libraries(chronon3d_tests
         $<TARGET_OBJECTS:chronon3d_backend_software>
         $<TARGET_OBJECTS:chronon3d_scene>
 )
+target_compile_definitions(chronon3d_tests PRIVATE CHRONON_BUILD_TESTS)
 
 if(CHRONON3D_ENABLE_VIDEO)
     target_link_libraries(chronon3d_tests PRIVATE chronon3d_backend_ffmpeg)
