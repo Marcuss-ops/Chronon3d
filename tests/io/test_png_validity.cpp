@@ -1,6 +1,6 @@
 #include <doctest/doctest.h>
 #include <chronon3d/chronon3d.hpp>
-#include <chronon3d/io/image_writer.hpp>
+#include <chronon3d/backends/image/image_writer.hpp>
 #include <fstream>
 #include <vector>
 

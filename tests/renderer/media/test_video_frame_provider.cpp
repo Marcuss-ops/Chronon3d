@@ -1,5 +1,5 @@
 #include <doctest/doctest.h>
-#include <chronon3d/renderer/video/video_frame_provider.hpp>
+#include <chronon3d/backends/video/video_frame_provider.hpp>
 
 using namespace chronon3d;
 
