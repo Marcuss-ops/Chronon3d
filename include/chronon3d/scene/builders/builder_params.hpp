@@ -97,7 +97,7 @@ struct GridPlaneParams {
 
 struct DarkGridBgParams {
     Color bg_color   {0.098f, 0.098f, 0.11f, 1.f};
-    Color grid_color {1.f,    1.f,    1.f,   0.045f};
+    Color grid_color {1.f,    1.f,    1.f,   0.14f};
     f32   spacing    {80.f};
     f32   extent     {4000.f};
 };

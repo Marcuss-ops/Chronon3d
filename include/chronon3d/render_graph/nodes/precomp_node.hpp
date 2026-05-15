@@ -3,6 +3,7 @@
 #include <chronon3d/render_graph/render_graph_node.hpp>
 #include <chronon3d/render_graph/graph_executor.hpp>
 #include <chronon3d/render_graph/graph_builder.hpp>
+#include <chronon3d/render_graph/render_graph_hashing.hpp>
 #include <chronon3d/core/composition_registry.hpp>
 
 namespace chronon3d::graph {
@@ -21,7 +22,7 @@ public:
             .frame = ctx.frame - m_start_frame, // Nested frame time
             .width = ctx.width,
             .height = ctx.height,
-            .params_hash = render_graph::hash_string(m_comp_name)
+            .params_hash = hash_string(m_comp_name)
         };
     }
 

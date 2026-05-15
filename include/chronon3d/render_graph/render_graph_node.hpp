@@ -51,6 +51,7 @@ struct RenderGraphContext {
     bool cache_enabled{true};
     bool diagnostics_enabled{false};
     float ssaa_factor{1.0f};
+    bool modular_coordinates{false};
 };
 
 

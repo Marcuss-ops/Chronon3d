@@ -6,8 +6,8 @@ namespace chronon3d {
 
 struct RenderSettings {
     /**
-     * Deprecated — kept for CLI/test compatibility. Has no effect.
-     * The rendergraph pipeline is now the only execution path.
+     * Compatibility toggle for the modular graph coordinate convention.
+     * false = top-left scene coordinates, true = centered modular graph coordinates.
      */
     bool use_modular_graph{false};
 

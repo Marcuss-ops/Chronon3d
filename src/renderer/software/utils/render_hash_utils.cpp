@@ -1,5 +1,4 @@
 #include "render_hash_utils.hpp"
-#include <chronon3d/renderer/software/render_graph.hpp>
 #include <chronon3d/scene/effects/layer_effect.hpp>
 #include <chronon3d/scene/effects/effect_stack.hpp>
 #include <type_traits>
@@ -7,13 +6,13 @@
 namespace chronon3d {
 namespace renderer {
 
-using render_graph::hash_combine;
-using render_graph::hash_bytes;
-using render_graph::hash_vec2;
-using render_graph::hash_vec3;
-using render_graph::hash_color;
-using render_graph::hash_string;
-using render_graph::hash_transform;
+using chronon3d::graph::hash_combine;
+using chronon3d::graph::hash_bytes;
+using chronon3d::graph::hash_vec2;
+using chronon3d::graph::hash_vec3;
+using chronon3d::graph::hash_color;
+using chronon3d::graph::hash_string;
+using chronon3d::graph::hash_transform;
 
 template <typename T>
 u64 hash_value_local(const T& value) {
