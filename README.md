@@ -89,13 +89,13 @@ bash tools/chronon-linux.sh
 ### 2. Build (Windows)
 
 ```powershell
-$env:VCPKG_ROOT = "$env:USERPROFILE\vcpkg"
-git clone https://github.com/microsoft/vcpkg $env:VCPKG_ROOT
-& "$env:VCPKG_ROOT\bootstrap-vcpkg.bat" -disableMetrics
-.\tools\chronon-win.ps1
+git clone https://github.com/microsoft/vcpkg C:\vcpkg
+& "C:\vcpkg\bootstrap-vcpkg.bat" -disableMetrics
+cmake --preset win-release
+cmake --build --preset win
 ```
 
-That script opens the Visual Studio build environment, configures the `win-release` preset, and writes the CLI to:
+That configures the `win-release` preset and writes the CLI to:
 
 ```text
 build\chronon\win-release\apps\chronon3d_cli\chronon3d_cli.exe
@@ -104,7 +104,8 @@ build\chronon\win-release\apps\chronon3d_cli\chronon3d_cli.exe
 For a debug binary, use:
 
 ```powershell
-.\tools\chronon-win.ps1 -Configuration Debug
+cmake --preset win-debug
+cmake --build --preset win-debug
 ```
 
 Run commands from the repo root so relative asset paths work:
@@ -291,6 +292,6 @@ auto [v, vel] = spring(ctx.frame, target, { .stiffness = 120, .damping = 14 });
 | `include/chronon3d/` | Public engine headers |
 | `src/` | Renderer, scene, IO implementations |
 | `tests/` | Automated tests (doctest) |
-| `tools/` | Build scripts (`chronon-linux.sh`, `chronon-win.ps1`) |
+| `tools/` | Build helpers (`chronon-linux.sh`, `chronon-watch.ps1`) |
 | `assets/` | Test fonts and images |
 | `output/` | Generated files — gitignored |

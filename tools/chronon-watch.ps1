@@ -42,16 +42,21 @@ function Get-LatestStamp {
 }
 
 function Invoke-ChrononBuild {
-    param([switch]$Bootstrap)
+    $configurePreset = if ($Configuration -eq "Debug") { "win-debug" } else { "win-release" }
+    $buildPreset = if ($Configuration -eq "Debug") { "win-debug" } else { "win" }
 
-    if ($Bootstrap) {
-        & powershell -ExecutionPolicy Bypass -File "$toolDir\chronon-win.ps1" -Configuration $Configuration
-    } else {
-        & powershell -ExecutionPolicy Bypass -File "$toolDir\chronon-win.ps1" -Configuration $Configuration -SkipInstall -SkipCacheInstall
+    & cmake --preset $configurePreset
+    if ($LASTEXITCODE -ne 0) {
+        exit $LASTEXITCODE
+    }
+
+    & cmake --build --preset $buildPreset
+    if ($LASTEXITCODE -ne 0) {
+        exit $LASTEXITCODE
     }
 }
 
-Invoke-ChrononBuild -Bootstrap
+Invoke-ChrononBuild
 
 $lastStamp = Get-LatestStamp
 Write-Host "Chronon watch running. Watching include\chronon3d, apps\chronon3d_cli, examples, src, tests, and build files."
