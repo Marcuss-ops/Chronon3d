@@ -1,5 +1,6 @@
 #include <chronon3d/chronon3d.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
+#include <chronon3d/templates/neon_badge_templates.hpp>
 
 using namespace chronon3d;
 
@@ -432,10 +433,7 @@ static Composition TiltMotionDemo() {
 }
 
 // ─── LilDirk-style demo ──────────────────────────────────────────────────────
-// Exact logic from the reference video:
-//   • Two red bars (top/bottom) wipe in with easeOutBack over 0.6 s
-//   • Text + bars tilt continuously on X/Y/Z with sine waves
-//   • All elements rotate around the common center (0,0,0) — pure group transform
+// Matches reference video: dark grid bg, red box, white pulsing glow, XYZ tilt.
 static Composition LilDirkDemo() {
     constexpr int kW = 1280, kH = 720;
     constexpr int kDur = 210;  // 7 s @ 30 fps
@@ -444,71 +442,12 @@ static Composition LilDirkDemo() {
     [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
 
-        const float time = static_cast<float>(ctx.frame) / 30.0f;
+        templates::dark_grid_background(s, ctx, {});
 
-        // easeOutBack: overshoots slightly then settles
-        const float t_bars = std::min(time / 0.6f, 1.0f);
-        auto ease_out_back = [](float t) -> float {
-            constexpr float c1 = 1.70158f, c3 = c1 + 1.f;
-            return 1.f + c3 * std::pow(t - 1.f, 3.f) + c1 * std::pow(t - 1.f, 2.f);
-        };
-        const float bar_scale = std::max(0.f, ease_out_back(t_bars));
-
-        // Continuous XYZ tilt — same as raylib version
-        const float rot_x = std::sin(time * 1.2f) * 5.0f;
-        const float rot_y = std::cos(time * 0.9f) * 4.0f;
-        const float rot_z = std::sin(time * 0.5f) * 2.0f;
-
-        // Straight-on camera (no perspective distance effect)
-        Camera2_5D cam;
-        cam.enabled = true;
-        cam.position = {0.f, 0.f, -720.f};
-        cam.point_of_interest = {0.f, 0.f, 0.f};
-        cam.zoom = 720.f;
-        s.camera_2_5d(cam);
-
-        // Background — oversized rect so it covers the full canvas regardless of anchor
-        s.layer("bg", [](LayerBuilder& l) {
-            l.rect("r", {.size = {99999, 99999}, .color = Color{0.098f, 0.098f, 0.11f}});
-        });
-
-        // Bars first (text renders on top)
-        const float bar_w = 680.f * bar_scale;
-        const Color bar_red{0.86f, 0.08f, 0.12f, 1.f};
-
-        s.layer("bar_top", [rot_x, rot_y, rot_z, bar_w, bar_red](LayerBuilder& l) {
-            l.enable_3d().position({0, 0, 0}).rotate({rot_x, rot_y, rot_z});
-            FakeBox3DParams bp;
-            bp.pos   = {0.f, 88.f, 0.f};
-            bp.size  = {bar_w, 22.f};
-            bp.depth = 2.f;
-            bp.color = bar_red;
-            l.fake_box3d("b", bp);
-        });
-
-        s.layer("bar_bot", [rot_x, rot_y, rot_z, bar_w, bar_red](LayerBuilder& l) {
-            l.enable_3d().position({0, 0, 0}).rotate({rot_x, rot_y, rot_z});
-            FakeBox3DParams bp;
-            bp.pos   = {0.f, -88.f, 0.f};
-            bp.size  = {bar_w, 22.f};
-            bp.depth = 2.f;
-            bp.color = bar_red;
-            l.fake_box3d("b", bp);
-        });
-
-        // Text — FakeExtrudedText with depth=0: full XYZ rotation via world_matrix
-        s.layer("text", [rot_x, rot_y, rot_z](LayerBuilder& l) {
-            l.enable_3d().position({0, 0, 0}).rotate({rot_x, rot_y, rot_z});
-            FakeExtrudedTextParams tp;
-            tp.text              = "LIL DIRK";
-            tp.font_size         = 200.f;
-            tp.depth             = 0;
-            tp.extrude_z_step    = 0.f;
-            tp.front_color       = Color{1.f, 1.f, 1.f, 1.f};
-            tp.side_color        = Color{0.8f, 0.8f, 0.8f, 1.f};
-            tp.bevel_size        = 0.f;
-            tp.highlight_opacity = 0.f;
-            l.fake_extruded_text("t", tp);
+        templates::neon_badge(s, ctx, {
+            .text       = "LIL DIRK",
+            .box_color  = {0.86f, 0.08f, 0.12f, 1.f},
+            .glow_color = Color::white(),
         });
 
         return s.build();
