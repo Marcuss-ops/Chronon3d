@@ -81,10 +81,6 @@ else()
     target_compile_options(chronon3d INTERFACE -ffp-contract=off)
 endif()
 
-# 2. Core Implementation
-file(GLOB CHRONON3D_CORE_SOURCES CONFIGURE_DEPENDS "src/core/*.cpp")
-add_library(chronon3d_core STATIC ${CHRONON3D_CORE_SOURCES})
-target_link_libraries(chronon3d_core PUBLIC chronon3d Taskflow::Taskflow)
 
 # 3. Registry
 file(GLOB CHRONON3D_REGISTRY_SOURCES CONFIGURE_DEPENDS "src/registry/*.cpp")
@@ -104,12 +100,17 @@ add_library(chronon3d_graph OBJECT ${CHRONON3D_GRAPH_SOURCES})
 target_link_libraries(chronon3d_graph PUBLIC chronon3d chronon3d_cache fmt::fmt hwy::hwy tomlplusplus::tomlplusplus)
 
 # 6. Effects
-file(GLOB CHRONON3D_EFFECTS_SOURCES CONFIGURE_DEPENDS 
-    "src/effects/*.cpp"
-    "src/effects/evaluation/*.cpp"
-)
+file(GLOB CHRONON3D_EFFECTS_SOURCES CONFIGURE_DEPENDS "src/effects/*.cpp")
 add_library(chronon3d_effects STATIC ${CHRONON3D_EFFECTS_SOURCES})
 target_link_libraries(chronon3d_effects PUBLIC chronon3d meshoptimizer::meshoptimizer)
+
+# 6b. Runtime
+file(GLOB CHRONON3D_RUNTIME_SOURCES CONFIGURE_DEPENDS "src/runtime/*.cpp")
+add_library(chronon3d_runtime STATIC ${CHRONON3D_RUNTIME_SOURCES})
+target_link_libraries(chronon3d_runtime PUBLIC
+    chronon3d chronon3d_graph chronon3d_effects chronon3d_cache
+    Taskflow::Taskflow
+)
 
 # 7. Software Renderer
 file(GLOB CHRONON3D_SOFTWARE_SOURCES CONFIGURE_DEPENDS 
@@ -122,21 +123,21 @@ file(GLOB CHRONON3D_SOFTWARE_SOURCES CONFIGURE_DEPENDS
     "src/renderer/video/*.cpp"
 )
 add_library(chronon3d_software OBJECT ${CHRONON3D_SOFTWARE_SOURCES})
-target_link_libraries(chronon3d_software 
-    PUBLIC chronon3d chronon3d_graph chronon3d_cache chronon3d_effects
+target_link_libraries(chronon3d_software
+    PUBLIC chronon3d chronon3d_graph chronon3d_cache chronon3d_effects chronon3d_runtime
     PRIVATE spdlog::spdlog hwy::hwy fmt::fmt xxHash::xxhash tomlplusplus::tomlplusplus
 )
 target_include_directories(chronon3d_software PRIVATE ${Stb_INCLUDE_DIR})
 
-# 8. Renderer Implementation (Scene, Layout)
-file(GLOB CHRONON3D_RENDERER_SOURCES CONFIGURE_DEPENDS 
+# 8. Scene Assembly (Scene, Layout, SpecScene)
+file(GLOB CHRONON3D_SCENE_SOURCES CONFIGURE_DEPENDS
     "src/scene/*.cpp"
     "src/layout/*.cpp"
     "src/specscene/*.cpp"
 )
-add_library(chronon3d_renderer OBJECT ${CHRONON3D_RENDERER_SOURCES})
-target_link_libraries(chronon3d_renderer
-    PUBLIC chronon3d chronon3d_core chronon3d_graph chronon3d_software chronon3d_registry chronon3d_cache chronon3d_effects chronon3d_io
+add_library(chronon3d_scene OBJECT ${CHRONON3D_SCENE_SOURCES})
+target_link_libraries(chronon3d_scene
+    PUBLIC chronon3d chronon3d_runtime chronon3d_graph chronon3d_software chronon3d_registry chronon3d_cache chronon3d_effects chronon3d_io
     PRIVATE spdlog::spdlog fmt::fmt tomlplusplus::tomlplusplus
 )
 
@@ -152,21 +153,21 @@ if(CHRONON3D_ENABLE_VIDEO)
     add_library(chronon3d_video STATIC ${CHRONON3D_VIDEO_SOURCES})
     target_link_libraries(chronon3d_video PUBLIC chronon3d chronon3d_io chronon3d_ffmpeg xxHash::xxhash fmt::fmt spdlog::spdlog)
     target_compile_definitions(chronon3d_video PUBLIC CHRONON_WITH_VIDEO)
-    target_link_libraries(chronon3d_renderer PUBLIC chronon3d_video)
-    target_compile_definitions(chronon3d_renderer PUBLIC CHRONON_WITH_VIDEO)
+    target_link_libraries(chronon3d_scene PUBLIC chronon3d_video)
+    target_compile_definitions(chronon3d_scene PUBLIC CHRONON_WITH_VIDEO)
 endif()
 
 # 11. Pipeline (Interface)
 add_library(chronon3d_pipeline INTERFACE)
-target_link_libraries(chronon3d_pipeline INTERFACE 
-    chronon3d_renderer chronon3d_core chronon3d_graph chronon3d_software chronon3d_registry chronon3d_cache 
+target_link_libraries(chronon3d_pipeline INTERFACE
+    chronon3d_scene chronon3d_runtime chronon3d_graph chronon3d_software chronon3d_registry chronon3d_cache
     Taskflow::Taskflow concurrentqueue::concurrentqueue
 )
 
 # Profiling
 if(CHRONON3D_ENABLE_PROFILING AND Tracy_FOUND)
-    target_link_libraries(chronon3d_renderer PRIVATE Tracy::TracyClient)
-    target_compile_definitions(chronon3d_renderer PRIVATE CHRONON_PROFILING TRACY_ON_DEMAND)
+    target_link_libraries(chronon3d_scene PRIVATE Tracy::TracyClient)
+    target_compile_definitions(chronon3d_scene PRIVATE CHRONON_PROFILING TRACY_ON_DEMAND)
     target_link_libraries(chronon3d_pipeline INTERFACE Tracy::TracyClient)
     target_compile_definitions(chronon3d_pipeline INTERFACE CHRONON_PROFILING TRACY_ON_DEMAND)
 endif()

@@ -1,8 +1,8 @@
 #include "graph_builder_effect_pass.hpp"
 
-#include <chronon3d/render_graph/nodes/effect_stack_node.hpp>
+#include <chronon3d/render_graph/nodes/basic_nodes.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
-#include <chronon3d/scene/effects/effect_instance.hpp>
+#include <chronon3d/effects/effect_instance.hpp>
 #include <chronon3d/scene/layer/layer.hpp>
 
 namespace chronon3d::graph::detail {

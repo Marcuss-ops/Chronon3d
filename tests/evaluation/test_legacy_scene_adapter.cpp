@@ -1,6 +1,6 @@
 #include <doctest/doctest.h>
-#include <chronon3d/evaluation/legacy_scene_adapter.hpp>
-#include <chronon3d/evaluation/timeline_evaluator.hpp>
+#include <chronon3d/runtime/legacy_scene_adapter.hpp>
+#include <chronon3d/runtime/timeline_evaluator.hpp>
 #include <chronon3d/description/scene_description.hpp>
 
 using namespace chronon3d;

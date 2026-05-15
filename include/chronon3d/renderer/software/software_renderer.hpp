@@ -13,7 +13,7 @@
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/renderer/software/render_settings.hpp>
 #include <chronon3d/render_graph/graph_builder.hpp>
-#include <chronon3d/render_graph/graph_executor.hpp>
+#include <chronon3d/runtime/graph_executor.hpp>
 #include <chronon3d/renderer/software/fake_extruded_text_renderer.hpp>
 #include <unordered_map>
 

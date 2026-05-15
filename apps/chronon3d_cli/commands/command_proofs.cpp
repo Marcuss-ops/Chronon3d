@@ -1,6 +1,6 @@
 #include "../commands.hpp"
 #include "../proof_suites.hpp"
-#include <chronon3d/core/pipeline.hpp>
+#include <chronon3d/runtime/pipeline.hpp>
 #include <spdlog/spdlog.h>
 #include <fmt/format.h>
 #include <filesystem>

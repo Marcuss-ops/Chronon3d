@@ -1,4 +1,4 @@
-#include <chronon3d/evaluation/legacy_scene_adapter.hpp>
+#include <chronon3d/runtime/legacy_scene_adapter.hpp>
 #include <chronon3d/scene/layer/layer.hpp>
 #include <chronon3d/scene/layer/render_node.hpp>
 #include <chronon3d/scene/shape.hpp>
@@ -8,8 +8,6 @@ namespace chronon3d {
 
 namespace {
 
-// Build a RenderNode from a VisualDesc, applying the layer's world transform
-// as the base position offset.
 RenderNode make_render_node(const VisualDesc& vd,
                             const Transform& layer_transform,
                             std::pmr::memory_resource* res) {
@@ -90,7 +88,6 @@ RenderNode make_render_node(const VisualDesc& vd,
             node.world_transform.position  = layer_transform.position + v.pos;
         }
 
-        // Carry layer scale and rotation into the node transform
         node.world_transform.scale    = layer_transform.scale;
         node.world_transform.rotation = layer_transform.rotation;
     }, vd);
@@ -104,7 +101,6 @@ Scene LegacySceneAdapter::convert(const EvaluatedScene& evaluated,
                                    std::pmr::memory_resource* res) const {
     Scene scene(res);
 
-    // Camera
     if (evaluated.camera) {
         scene.set_camera_2_5d(*evaluated.camera);
     }
