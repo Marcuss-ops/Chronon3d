@@ -17,6 +17,7 @@ enum class MotionAxis {
 };
 
 struct CameraMotionParams {
+    MotionAxis axis{MotionAxis::Tilt};
     f32 start_deg{-18.0f};
     f32 end_deg{18.0f};
     Frame duration{60};
@@ -44,7 +45,6 @@ inline f32 normalized_time(Frame frame, Frame duration) {
 
 inline void apply_camera_motion(SceneBuilder& s,
                                 const FrameContext& ctx,
-                                MotionAxis axis,
                                 const CameraMotionParams& p) {
     s.enable_camera_2_5d(true)
      .camera_position(p.position)
@@ -52,7 +52,7 @@ inline void apply_camera_motion(SceneBuilder& s,
 
     const Frame local_frame = (ctx.frame >= p.start_frame) ? (ctx.frame - p.start_frame) : 0;
     const f32 t = normalized_time(local_frame, p.duration);
-    switch (axis) {
+    switch (p.axis) {
     case MotionAxis::Tilt:
         s.camera_tilt(lerp(p.start_deg, p.end_deg, t));
         break;
@@ -66,7 +66,6 @@ inline void apply_camera_motion(SceneBuilder& s,
 }
 
 inline Composition camera_motion_clip(std::string name,
-                                      MotionAxis axis,
                                       CameraMotionParams params,
                                       ContentBuilder content_builder) {
     return composition({
@@ -74,10 +73,10 @@ inline Composition camera_motion_clip(std::string name,
         .width = 1920,
         .height = 1080,
         .duration = params.duration,
-    }, [axis, params = std::move(params), content_builder = std::move(content_builder)](
+    }, [params = std::move(params), content_builder = std::move(content_builder)](
            const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        apply_camera_motion(s, ctx, axis, params);
+        apply_camera_motion(s, ctx, params);
         content_builder(s, ctx, params);
         return s.build();
     });

@@ -35,6 +35,24 @@ int main(int argc, char** argv) {
     });
 
     // -------------------------------------------------------------------------
+    // doctor
+    // -------------------------------------------------------------------------
+    auto* doctor_cmd = app.add_subcommand("doctor", "Check whether the local Chronon3d environment is ready");
+    doctor_cmd->callback([&]() {
+        exit_code = command_doctor(registry);
+    });
+
+    // -------------------------------------------------------------------------
+    // verify
+    // -------------------------------------------------------------------------
+    std::string verify_output_dir = "output/verify";
+    auto* verify_cmd = app.add_subcommand("verify", "Run a quick render and video smoke test");
+    verify_cmd->add_option("-o,--output-dir", verify_output_dir, "Output directory")->default_val("output/verify");
+    verify_cmd->callback([&]() {
+        exit_code = command_verify(registry, verify_output_dir);
+    });
+
+    // -------------------------------------------------------------------------
     // render
     // -------------------------------------------------------------------------
     RenderArgs render_args;

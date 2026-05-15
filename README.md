@@ -139,6 +139,12 @@ chronon3d_cli list
 # get composition metadata
 chronon3d_cli info MyComp
 
+# check the local environment
+chronon3d_cli doctor
+
+# run a quick render/video smoke test
+chronon3d_cli verify -o output/verify
+
 # render a single frame
 chronon3d_cli render MyComp --frame 0 -o output/frame.png
 
