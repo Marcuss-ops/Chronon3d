@@ -37,6 +37,7 @@ add_executable(chronon3d_tests
     # Rendering
     renderer/basics/test_renderer.cpp
     renderer/basics/test_code_first_render.cpp
+    renderer/basics/test_background_render.cpp
     renderer/basics/test_background_grid.cpp
     renderer/basics/test_alpha_blending.cpp
     renderer/basics/test_draw_order.cpp
@@ -81,6 +82,7 @@ target_link_libraries(chronon3d_tests
     PRIVATE
         chronon3d_pipeline
         chronon3d_backend_image
+        $<TARGET_OBJECTS:chronon3d_compositions>
         doctest::doctest
         $<TARGET_OBJECTS:chronon3d_graph>
         $<TARGET_OBJECTS:chronon3d_backend_software>

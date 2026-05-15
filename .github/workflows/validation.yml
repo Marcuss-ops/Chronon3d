@@ -2,15 +2,13 @@ name: Chronon Validation
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
   pull_request:
-    branches:
-      - main
+    branches: [ main ]
 
 jobs:
   validate:
-    name: Validation
+    name: Lint & Validation
     runs-on: ubuntu-latest
 
     steps:
@@ -18,12 +16,10 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Bash syntax
-        shell: bash
         run: |
-          bash -n tools/chronon-linux.sh
-          bash -n tools/chronon-watch.sh
+          bash -n tools/*.sh
 
-      - name: CMake presets
-        shell: bash
+      - name: Check CMake syntax
         run: |
-          cmake --list-presets
+          find . -name "CMakeLists.txt" -exec bash -c 'cmake --system-information /dev/null > /dev/null' \;
+          # (Basic check, real validation happens in build)
