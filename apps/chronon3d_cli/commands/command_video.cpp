@@ -54,6 +54,30 @@ void apply_camera_cli_overrides(VideoCameraArgs& target, const VideoCameraArgs& 
     if (cli.ssaa != defaults.ssaa) target.ssaa = cli.ssaa;
 }
 
+void apply_camera_pose(animation::CameraMotionPose& target, const CameraVideoPreset::Pose& src) {
+    if (src.position) target.position = *src.position;
+    if (src.rotation) target.rotation = *src.rotation;
+    if (src.zoom) target.zoom = *src.zoom;
+}
+
+void apply_camera_primary(animation::CameraMotionPrimary& target, const CameraVideoPreset::Primary& src) {
+    target.enabled = src.enabled.value_or(true);
+    if (src.duration) target.duration = *src.duration;
+    if (src.easing) target.easing = *src.easing;
+    if (src.from) apply_camera_pose(target.from, *src.from);
+    if (src.to) apply_camera_pose(target.to, *src.to);
+}
+
+void apply_camera_idle(animation::CameraMotionIdle& target, const CameraVideoPreset::Idle& src) {
+    target.enabled = src.enabled.value_or(true);
+    if (src.position_amplitude) target.position_amplitude = *src.position_amplitude;
+    if (src.rotation_amplitude_deg) target.rotation_amplitude_deg = *src.rotation_amplitude_deg;
+    if (src.zoom_amplitude) target.zoom_amplitude = *src.zoom_amplitude;
+    if (src.frequency_hz) target.frequency_hz = *src.frequency_hz;
+    if (src.phase_offset) target.phase_offset = *src.phase_offset;
+    if (src.base_on_final) target.base_on_final = *src.base_on_final;
+}
+
 void build_camera_reference_content(SceneBuilder& s,
                                     const FrameContext& ctx,
                                     const animation::CameraMotionParams& p) {
@@ -126,31 +150,32 @@ int command_video(const CompositionRegistry& registry, const VideoArgs& args) {
 
 int command_video_camera(const CompositionRegistry& registry, const VideoCameraArgs& args) {
     VideoCameraArgs normalized = args;
+    std::optional<CameraVideoPreset> loaded_preset;
     if (!normalized.profile.empty()) {
         std::string preset_error;
         std::filesystem::path preset_source;
-        const auto preset = load_camera_preset(normalized.profile, &preset_source, &preset_error);
-        if (!preset) {
+        loaded_preset = load_camera_preset(normalized.profile, &preset_source, &preset_error);
+        if (!loaded_preset) {
             spdlog::error("Failed to load camera preset '{}': {}", normalized.profile, preset_error);
             return 1;
         }
 
-        if (preset->axis) normalized.axis = *preset->axis;
-        if (preset->reference_image) normalized.reference_image = *preset->reference_image;
-        if (preset->output) normalized.output = *preset->output;
-        if (preset->start) normalized.start = *preset->start;
-        if (preset->end) normalized.end = *preset->end;
-        if (preset->width) normalized.width = *preset->width;
-        if (preset->height) normalized.height = *preset->height;
-        if (preset->fps) normalized.fps = *preset->fps;
-        if (preset->crf) normalized.crf = *preset->crf;
-        if (preset->codec) normalized.codec = *preset->codec;
-        if (preset->encode_preset) normalized.encode_preset = *preset->encode_preset;
-        if (preset->use_modular_graph) normalized.use_modular_graph = *preset->use_modular_graph;
-        if (preset->motion_blur) normalized.motion_blur = *preset->motion_blur;
-        if (preset->motion_blur_samples) normalized.motion_blur_samples = *preset->motion_blur_samples;
-        if (preset->shutter_angle) normalized.shutter_angle = *preset->shutter_angle;
-        if (preset->ssaa) normalized.ssaa = *preset->ssaa;
+        if (loaded_preset->axis) normalized.axis = *loaded_preset->axis;
+        if (loaded_preset->reference_image) normalized.reference_image = *loaded_preset->reference_image;
+        if (loaded_preset->output) normalized.output = *loaded_preset->output;
+        if (loaded_preset->start) normalized.start = *loaded_preset->start;
+        if (loaded_preset->end) normalized.end = *loaded_preset->end;
+        if (loaded_preset->width) normalized.width = *loaded_preset->width;
+        if (loaded_preset->height) normalized.height = *loaded_preset->height;
+        if (loaded_preset->fps) normalized.fps = *loaded_preset->fps;
+        if (loaded_preset->crf) normalized.crf = *loaded_preset->crf;
+        if (loaded_preset->codec) normalized.codec = *loaded_preset->codec;
+        if (loaded_preset->encode_preset) normalized.encode_preset = *loaded_preset->encode_preset;
+        if (loaded_preset->use_modular_graph) normalized.use_modular_graph = *loaded_preset->use_modular_graph;
+        if (loaded_preset->motion_blur) normalized.motion_blur = *loaded_preset->motion_blur;
+        if (loaded_preset->motion_blur_samples) normalized.motion_blur_samples = *loaded_preset->motion_blur_samples;
+        if (loaded_preset->shutter_angle) normalized.shutter_angle = *loaded_preset->shutter_angle;
+        if (loaded_preset->ssaa) normalized.ssaa = *loaded_preset->ssaa;
 
         spdlog::info("Loaded camera preset '{}' from {}", normalized.profile, preset_source.string());
     }
@@ -187,7 +212,24 @@ int command_video_camera(const CompositionRegistry& registry, const VideoCameraA
     params.axis = *axis;
     params.duration = normalized.end - normalized.start;
     params.start_frame = normalized.start;
+    params.width = normalized.width;
+    params.height = normalized.height;
     params.reference_image = normalized.reference_image;
+    params.pose.position = params.position;
+    params.pose.zoom = params.zoom;
+    if (loaded_preset) {
+        if (loaded_preset->pose) {
+            apply_camera_pose(params.pose, *loaded_preset->pose);
+            params.position = params.pose.position;
+            params.zoom = params.pose.zoom;
+        }
+        if (loaded_preset->primary) {
+            apply_camera_primary(params.primary, *loaded_preset->primary);
+        }
+        if (loaded_preset->idle) {
+            apply_camera_idle(params.idle, *loaded_preset->idle);
+        }
+    }
 
     auto comp = animation::camera_motion_clip(
         "CameraImageClip",

@@ -45,6 +45,47 @@ std::optional<T> read_optional(const toml::table& tbl, std::string_view key) {
     return tbl[key].value_or<T>(T{});
 }
 
+std::optional<Vec3> read_vec3_node(const toml::node& node) {
+    if (const auto* arr = node.as_array()) {
+        if (arr->size() >= 3) {
+            const f32 x = (*arr)[0].value_or<f32>(0.0f);
+            const f32 y = (*arr)[1].value_or<f32>(0.0f);
+            const f32 z = (*arr)[2].value_or<f32>(0.0f);
+            return Vec3{x, y, z};
+        }
+    }
+    if (const auto* tbl = node.as_table()) {
+        return Vec3{
+            (*tbl)["x"].value_or<f32>(0.0f),
+            (*tbl)["y"].value_or<f32>(0.0f),
+            (*tbl)["z"].value_or<f32>(0.0f),
+        };
+    }
+    return std::nullopt;
+}
+
+std::optional<Vec3> read_optional_vec3(const toml::table& tbl, std::string_view key) {
+    const auto* node = tbl.get(key);
+    if (!node) {
+        return std::nullopt;
+    }
+    return read_vec3_node(*node);
+}
+
+template <typename Fn>
+auto read_optional_nested(const toml::table& tbl, std::string_view key, Fn&& fn)
+    -> std::optional<std::invoke_result_t<Fn, const toml::table&>> {
+    const auto* node = tbl.get(key);
+    if (!node) {
+        return std::nullopt;
+    }
+    const auto* subt = node->as_table();
+    if (!subt) {
+        return std::nullopt;
+    }
+    return std::invoke(std::forward<Fn>(fn), *subt);
+}
+
 template <typename T, typename Fn>
 auto transform_optional(const std::optional<T>& value, Fn&& fn)
     -> std::optional<std::invoke_result_t<Fn, const T&>> {
@@ -65,6 +106,80 @@ std::string resolve_path(const std::filesystem::path& base, const std::string& v
     }
 
     return (base / path).lexically_normal().string();
+}
+
+CameraVideoPreset::Pose parse_pose(const toml::table& tbl) {
+    CameraVideoPreset::Pose pose;
+    pose.position = read_optional_vec3(tbl, "position");
+    pose.rotation = read_optional_vec3(tbl, "rotation");
+    if (const auto zoom = read_optional<f64>(tbl, "zoom")) {
+        pose.zoom = static_cast<float>(*zoom);
+    }
+    return pose;
+}
+
+CameraVideoPreset::Primary parse_primary(const toml::table& tbl) {
+    CameraVideoPreset::Primary primary;
+    primary.from = read_optional_nested(tbl, "from", parse_pose);
+    primary.to = read_optional_nested(tbl, "to", parse_pose);
+    if (const auto duration = read_optional<chronon3d::i64>(tbl, "duration")) {
+        primary.duration = static_cast<Frame>(*duration);
+    }
+    primary.easing = read_optional<std::string>(tbl, "easing");
+    if (const auto enabled = read_optional<bool>(tbl, "enabled")) {
+        primary.enabled = *enabled;
+    }
+
+    return primary;
+}
+
+CameraVideoPreset::Idle parse_idle(const toml::table& tbl) {
+    CameraVideoPreset::Idle idle;
+    if (const auto enabled = read_optional<bool>(tbl, "enabled")) {
+        idle.enabled = *enabled;
+    }
+    idle.position_amplitude = read_optional_vec3(tbl, "position_amplitude");
+    idle.rotation_amplitude_deg = read_optional_vec3(tbl, "rotation_amplitude_deg");
+    if (const auto zoom = read_optional<f64>(tbl, "zoom_amplitude")) {
+        idle.zoom_amplitude = static_cast<float>(*zoom);
+    }
+    if (const auto hz = read_optional<f64>(tbl, "frequency_hz")) {
+        idle.frequency_hz = static_cast<float>(*hz);
+    }
+    if (const auto phase = read_optional<f64>(tbl, "phase_offset")) {
+        idle.phase_offset = static_cast<float>(*phase);
+    }
+    if (const auto base_on_final = read_optional<bool>(tbl, "base_on_final")) {
+        idle.base_on_final = *base_on_final;
+    }
+    return idle;
+}
+
+std::optional<CameraVideoPreset::Pose> parse_motion_pose(const toml::table& preset_tbl) {
+    const auto* motion_node = preset_tbl.get("motion");
+    const auto* motion_tbl = motion_node ? motion_node->as_table() : nullptr;
+    if (!motion_tbl) {
+        return std::nullopt;
+    }
+    return read_optional_nested(*motion_tbl, "pose", parse_pose);
+}
+
+std::optional<CameraVideoPreset::Primary> parse_motion_primary(const toml::table& preset_tbl) {
+    const auto* motion_node = preset_tbl.get("motion");
+    const auto* motion_tbl = motion_node ? motion_node->as_table() : nullptr;
+    if (!motion_tbl) {
+        return std::nullopt;
+    }
+    return read_optional_nested(*motion_tbl, "primary", parse_primary);
+}
+
+std::optional<CameraVideoPreset::Idle> parse_motion_idle(const toml::table& preset_tbl) {
+    const auto* motion_node = preset_tbl.get("motion");
+    const auto* motion_tbl = motion_node ? motion_node->as_table() : nullptr;
+    if (!motion_tbl) {
+        return std::nullopt;
+    }
+    return read_optional_nested(*motion_tbl, "idle", parse_idle);
 }
 
 } // namespace
@@ -179,6 +294,9 @@ std::optional<CameraVideoPreset> load_camera_preset(const std::string& preset_na
         preset.ssaa = transform_optional(
             read_optional<chronon3d::f64>(*tbl, "ssaa"),
             [](chronon3d::f64 value) { return static_cast<float>(value); });
+        preset.pose = parse_motion_pose(*tbl);
+        preset.primary = parse_motion_primary(*tbl);
+        preset.idle = parse_motion_idle(*tbl);
         return preset;
     } catch (const std::exception& e) {
         if (error) {

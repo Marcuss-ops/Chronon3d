@@ -2,7 +2,11 @@
 #include <spdlog/spdlog.h>
 #include <stdexcept>
 #include <fmt/format.h>
+#include <array>
 #include <vector>
+#include <thread>
+#include <string_view>
+#include <algorithm>
 
 extern "C" {
 #include <libavcodec/avcodec.h>
@@ -68,6 +72,31 @@ const AVCodec* resolve_codec(const VideoEncodeOptions& options, std::string& res
     return nullptr;
 }
 
+bool use_fast_gamma_for_preset(std::string_view preset) {
+    return preset == "ultrafast" || preset == "superfast" || preset == "veryfast";
+}
+
+const std::array<uint8_t, 4096>& srgb_lut() {
+    static const std::array<uint8_t, 4096> lut = [] {
+        std::array<uint8_t, 4096> values{};
+        for (size_t i = 0; i < values.size(); ++i) {
+            const float linear = static_cast<float>(i) / static_cast<float>(values.size() - 1);
+            const float srgb = (linear <= 0.0031308f)
+                ? (linear * 12.92f)
+                : (1.055f * std::pow(linear, 1.0f / 2.4f) - 0.055f);
+            values[i] = static_cast<uint8_t>(std::clamp(srgb * 255.0f, 0.0f, 255.0f));
+        }
+        return values;
+    }();
+    return lut;
+}
+
+uint8_t linear_to_srgb8_lut(float value) {
+    const float clamped = std::clamp(value, 0.0f, 1.0f);
+    const size_t idx = static_cast<size_t>(clamped * static_cast<float>(srgb_lut().size() - 1));
+    return srgb_lut()[idx];
+}
+
 } // namespace
 
 struct FfmpegEncoder::Impl {
@@ -80,6 +109,8 @@ struct FfmpegEncoder::Impl {
     int64_t next_pts = 0;
     int width = 0;
     int height = 0;
+    bool fast_gamma = false;
+    std::vector<uint8_t> rgba_buffer;
 
     void cleanup() {
         if (codec_context) {
@@ -126,6 +157,8 @@ bool FfmpegEncoder::open(const std::string& output_path, const VideoEncodeOption
 
     pimpl->width = width;
     pimpl->height = height;
+    pimpl->fast_gamma = use_fast_gamma_for_preset(options.preset);
+    pimpl->rgba_buffer.resize(static_cast<size_t>(width) * static_cast<size_t>(height) * 4U);
     const std::string requested_codec = options.codec.empty() ? "auto" : options.codec;
 
     // Guess format from filename
@@ -164,6 +197,8 @@ bool FfmpegEncoder::open(const std::string& output_path, const VideoEncodeOption
     pimpl->codec_context->bit_rate = 0; // CRF handles quality
     pimpl->codec_context->width = width;
     pimpl->codec_context->height = height;
+    pimpl->codec_context->thread_count = std::max(1u, std::thread::hardware_concurrency());
+    pimpl->codec_context->thread_type = FF_THREAD_FRAME;
     pimpl->stream->time_base = {1, options.fps};
     pimpl->codec_context->time_base = pimpl->stream->time_base;
     pimpl->codec_context->gop_size = options.gop_size;
@@ -227,21 +262,26 @@ bool FfmpegEncoder::push_frame(const Framebuffer& fb) {
     }
 
     // Convert LinearSRGB float to sRGB 8-bit RGBA
-    std::vector<uint8_t> rgba(fb.width() * fb.height() * 4);
     for (int y = 0; y < fb.height(); ++y) {
         const Color* row = fb.pixels_row(y);
-        uint8_t* dst = rgba.data() + (size_t)y * fb.width() * 4;
+        uint8_t* dst = pimpl->rgba_buffer.data() + (size_t)y * fb.width() * 4;
         for (int x = 0; x < fb.width(); ++x) {
-            Color srgb = row[x].to_srgb();
-            dst[0] = static_cast<uint8_t>(std::clamp(srgb.r * 255.0f, 0.0f, 255.0f));
-            dst[1] = static_cast<uint8_t>(std::clamp(srgb.g * 255.0f, 0.0f, 255.0f));
-            dst[2] = static_cast<uint8_t>(std::clamp(srgb.b * 255.0f, 0.0f, 255.0f));
+            if (pimpl->fast_gamma) {
+                dst[0] = linear_to_srgb8_lut(row[x].r);
+                dst[1] = linear_to_srgb8_lut(row[x].g);
+                dst[2] = linear_to_srgb8_lut(row[x].b);
+            } else {
+                const Color srgb = row[x].to_srgb();
+                dst[0] = static_cast<uint8_t>(std::clamp(srgb.r * 255.0f, 0.0f, 255.0f));
+                dst[1] = static_cast<uint8_t>(std::clamp(srgb.g * 255.0f, 0.0f, 255.0f));
+                dst[2] = static_cast<uint8_t>(std::clamp(srgb.b * 255.0f, 0.0f, 255.0f));
+            }
             dst[3] = 255; // Alpha ignored in YUV420P anyway
             dst += 4;
         }
     }
 
-    const uint8_t* src_data[1] = { rgba.data() };
+    const uint8_t* src_data[1] = { pimpl->rgba_buffer.data() };
     int src_linesize[1] = { fb.width() * 4 };
 
     sws_scale(pimpl->sws_context, src_data, src_linesize, 0, fb.height(),
