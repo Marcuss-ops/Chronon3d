@@ -298,6 +298,6 @@ auto [v, vel] = spring(ctx.frame, target, { .stiffness = 120, .damping = 14 });
 | `include/chronon3d/` | Public engine headers |
 | `src/` | Renderer, scene, IO implementations |
 | `tests/` | Automated tests (doctest) |
-| `tools/` | Build helpers (`chronon-linux.sh`, `chronon-watch.ps1`) |
+| `tools/` | Build helpers (`chronon-linux.sh`) |
 | `assets/` | Test fonts and images |
 | `output/` | Generated files — gitignored |
