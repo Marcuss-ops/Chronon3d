@@ -35,8 +35,9 @@ public:
 // SourceNode
 class SourceNode final : public RenderGraphNode {
 public:
-    SourceNode(std::string name, const ::chronon3d::RenderNode& node, const cache::NodeCacheKey& key)
-        : m_name(std::move(name)), m_node(node), m_key(key) {}
+    SourceNode(std::string name, const ::chronon3d::RenderNode& node, const cache::NodeCacheKey& key,
+               bool centered = false)
+        : m_name(std::move(name)), m_node(node), m_key(key), m_centered(centered) {}
 
     RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::Source; }
     std::string name() const override { return m_name; }
@@ -53,7 +54,7 @@ public:
         fb->clear(Color::transparent());
         
         Mat4 canvas_offset = math::scale(Vec3(ctx.ssaa_factor, ctx.ssaa_factor, 1.0f));
-        if (ctx.modular_coordinates) {
+        if (m_centered || ctx.modular_coordinates) {
             canvas_offset = math::translate(Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f)) *
                             canvas_offset;
         }
@@ -70,8 +71,9 @@ public:
 
 private:
     std::string m_name;
-    ::chronon3d::RenderNode m_node; // Copied for safety
+    ::chronon3d::RenderNode m_node;
     cache::NodeCacheKey m_key;
+    bool m_centered{false};
 };
 
 // MaskNode
