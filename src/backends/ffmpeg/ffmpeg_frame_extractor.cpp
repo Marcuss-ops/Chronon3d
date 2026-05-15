@@ -4,6 +4,16 @@
 #include <cstdlib>
 #include <sstream>
 
+namespace {
+std::string null_redirect() {
+#ifdef _WIN32
+    return "> NUL 2>&1";
+#else
+    return "> /dev/null 2>&1";
+#endif
+}
+}
+
 namespace chronon3d::video {
 
 FfmpegFrameExtractor::FfmpegFrameExtractor(std::filesystem::path temp_dir)
@@ -55,7 +65,7 @@ std::shared_ptr<Framebuffer> FfmpegFrameExtractor::decode_frame(
             << "-vf \"scale=" << width << ":" << height << ":force_original_aspect_ratio=decrease,"
             << "pad=" << width << ":" << height << ":(ow-iw)/2:(oh-ih)/2:color=black@0\" "
             << "\"" << out_path.string() << "\" "
-            << "> /dev/null 2>&1";
+            << null_redirect();
 
         int code = std::system(cmd.str().c_str());
         if (code != 0 || !std::filesystem::exists(out_path)) {

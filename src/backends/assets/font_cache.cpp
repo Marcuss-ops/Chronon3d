@@ -1,5 +1,5 @@
 #include <chronon3d/backends/assets/font_cache.hpp>
-#include <fstream>
+#include <spdlog/spdlog.h>
 
 namespace chronon3d {
 
@@ -9,22 +9,21 @@ const CachedFont* FontCache::get_or_load(const std::string& path) {
         return it->second.valid() ? &it->second : nullptr;
     }
 
-    std::ifstream file(path, std::ios::binary);
-    CachedFont entry;
-
-    if (file) {
-        file.seekg(0, std::ios::end);
-        const auto sz = file.tellg();
-        if (sz > 0) {
-            file.seekg(0, std::ios::beg);
-            entry.data.resize(static_cast<size_t>(sz));
-            file.read(reinterpret_cast<char*>(entry.data.data()), sz);
-        }
+    if (!m_backend) {
+        spdlog::error("FontCache: cannot load '{}' - no backend set", path);
+        return nullptr;
     }
 
-    // Insert even if invalid — prevents repeated disk hits on missing fonts.
+    if (!m_backend->load_font(path)) {
+        // Insert invalid sentinel.
+        m_cache.emplace(path, CachedFont{});
+        return nullptr;
+    }
+
+    CachedFont entry;
+    entry.path = path;
     auto& stored = m_cache.emplace(path, std::move(entry)).first->second;
-    return stored.valid() ? &stored : nullptr;
+    return &stored;
 }
 
 void FontCache::clear() {

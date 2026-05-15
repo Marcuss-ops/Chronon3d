@@ -1,5 +1,10 @@
 #include "cli_render_utils.hpp"
 #include <chronon3d/specscene/specscene.hpp>
+#include <chronon3d/backends/image/stb_image_backend.hpp>
+#include <chronon3d/backends/text/stb_font_backend.hpp>
+#ifdef CHRONON_WITH_VIDEO
+#include <chronon3d/backends/ffmpeg/ffmpeg_frame_extractor.hpp>
+#endif
 #include <spdlog/spdlog.h>
 #include <filesystem>
 
@@ -50,6 +55,15 @@ std::shared_ptr<SoftwareRenderer> create_renderer(
     auto renderer = std::make_shared<SoftwareRenderer>();
     renderer->set_composition_registry(&registry);
     renderer->set_settings(settings);
+
+    // Inject default backends
+    renderer->set_image_backend(std::make_shared<image::StbImageBackend>());
+    renderer->set_font_backend(std::make_shared<text::StbFontBackend>());
+
+#ifdef CHRONON_WITH_VIDEO
+    renderer->set_video_decoder(std::make_shared<video::FfmpegFrameExtractor>());
+#endif
+
     return renderer;
 }
 

@@ -2,7 +2,9 @@
 
 #include <chronon3d/scene/scene.hpp>
 #include <chronon3d/core/framebuffer.hpp>
+#include <chronon3d/backends/video/video_frame_decoder.hpp>
 #include <memory>
+#include <optional>
 
 namespace chronon3d {
 

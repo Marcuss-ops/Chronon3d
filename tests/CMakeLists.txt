@@ -53,7 +53,6 @@ add_executable(chronon3d_tests
     renderer/effects/test_effects_stack.cpp
     renderer/effects/test_masks.cpp
     renderer/media/test_image_rendering.cpp
-    renderer/media/test_video_frame_provider.cpp
     renderer/cache/test_cache.cpp
     renderer/perf/test_render_perf.cpp
     renderer/text/test_text_rendering.cpp

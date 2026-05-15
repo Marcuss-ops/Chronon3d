@@ -1,7 +1,5 @@
-#define STB_IMAGE_IMPLEMENTATION
-#include <stb_image.h>
-
 #include <chronon3d/backends/assets/image_cache.hpp>
+#include <spdlog/spdlog.h>
 
 namespace chronon3d {
 
@@ -11,17 +9,23 @@ const CachedImage* ImageCache::get_or_load(const std::string& path) {
         return it->second.valid() ? &it->second : nullptr;
     }
 
-    CachedImage entry;
-    int channels = 0;
-    unsigned char* raw = stbi_load(path.c_str(), &entry.width, &entry.height, &channels, 4);
+    if (!m_backend) {
+        spdlog::error("ImageCache: cannot load '{}' - no backend set", path);
+        return nullptr;
+    }
 
-    if (!raw || entry.width <= 0 || entry.height <= 0) {
+    auto buffer = m_backend->load_image(path);
+    if (!buffer || !buffer->pixels) {
         // Insert invalid sentinel so we don't retry every frame.
         m_cache.emplace(path, CachedImage{});
         return nullptr;
     }
 
-    entry.pixels = std::unique_ptr<unsigned char[], void(*)(void*)>(raw, stbi_image_free);
+    CachedImage entry;
+    entry.width = buffer->width;
+    entry.height = buffer->height;
+    entry.pixels = std::move(buffer->pixels);
+
     auto& stored = m_cache.emplace(path, std::move(entry)).first->second;
     return &stored;
 }

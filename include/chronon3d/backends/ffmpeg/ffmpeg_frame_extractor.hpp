@@ -1,12 +1,13 @@
 #pragma once
 
-#include <chronon3d/backends/video/video_frame_provider.hpp>
+#include <chronon3d/backends/video/video_frame_decoder.hpp>
 #include <chronon3d/backends/ffmpeg/video_frame_cache.hpp>
+
 #include <filesystem>
 
 namespace chronon3d::video {
 
-class FfmpegFrameExtractor final : public VideoDecoder {
+class FfmpegFrameExtractor final : public VideoFrameDecoder {
 public:
     explicit FfmpegFrameExtractor(std::filesystem::path temp_dir = "output/video_cache");
 

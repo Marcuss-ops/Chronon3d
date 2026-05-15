@@ -11,6 +11,7 @@ namespace chronon3d {
 
 class TextRenderer {
 public:
+    void set_backend(std::shared_ptr<text::FontBackend> backend) { m_cache.set_backend(std::move(backend)); }
     // state is optional — when non-null, mask clipping is applied per pixel.
     bool draw_text(const TextShape& text, const Transform& tr, Framebuffer& fb,
                    const RenderState* state = nullptr);

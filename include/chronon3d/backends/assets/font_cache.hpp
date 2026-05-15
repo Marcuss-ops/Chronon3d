@@ -1,27 +1,32 @@
 #pragma once
 
 #include <chronon3d/core/types.hpp>
+#include <chronon3d/backends/text/font_backend.hpp>
 #include <string>
 #include <unordered_map>
-#include <vector>
+#include <memory>
 
 namespace chronon3d {
 
 struct CachedFont {
-    std::vector<unsigned char> data; // raw TTF bytes kept alive for stbtt
-    [[nodiscard]] bool valid() const { return !data.empty(); }
+    // We'll let the backend handle the specific font storage.
+    // This class might become a thin wrapper or be removed if the backend
+    // manages all caching, but for now we'll keep it as a handle.
+    std::string path;
+    [[nodiscard]] bool valid() const { return !path.empty(); }
 };
 
-// Per-renderer font cache keyed by file path.
-// NOT thread-safe — one cache per renderer thread.
 class FontCache {
 public:
-    // Returns nullptr if the font file cannot be read.
+    void set_backend(std::shared_ptr<text::FontBackend> backend) { m_backend = std::move(backend); }
+    [[nodiscard]] std::shared_ptr<text::FontBackend> get_backend() const { return m_backend; }
+
     const CachedFont* get_or_load(const std::string& path);
     void clear();
     [[nodiscard]] usize size() const { return m_cache.size(); }
 
 private:
+    std::shared_ptr<text::FontBackend> m_backend;
     std::unordered_map<std::string, CachedFont> m_cache;
 };
 
