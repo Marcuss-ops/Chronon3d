@@ -1,22 +1,14 @@
 #pragma once
 
-#include <chronon3d/core/framebuffer.hpp>
+#include <chronon3d/backends/video/video_encoder.hpp>
+
+#include <memory>
 #include <string>
 #include <vector>
-#include <memory>
 
 namespace chronon3d::video {
 
-struct VideoEncodeOptions {
-    std::string codec{"auto"};
-    std::string preset{"medium"};
-    int crf{18};
-    int fps{30};
-    int gop_size{12};
-    bool use_hardware_accel{false};
-};
-
-class FfmpegEncoder {
+class FfmpegEncoder final : public IEncoder {
 public:
     FfmpegEncoder();
     ~FfmpegEncoder();
@@ -33,20 +25,20 @@ public:
      * Opens the encoder for writing to the specified path.
      * @return true if successful
      */
-    bool open(const std::string& output_path, const VideoEncodeOptions& options, int width, int height);
+    bool open(const std::string& output_path, const VideoEncodeOptions& options, int width, int height) override;
 
     /**
      * Pushes a new frame to the encoder.
      * The framebuffer must match the dimensions provided in open().
      */
-    bool push_frame(const Framebuffer& fb);
+    bool push_frame(const Framebuffer& fb) override;
 
     /**
      * Flushes any remaining frames and closes the file.
      */
-    void close();
+    void close() override;
 
-    [[nodiscard]] bool is_open() const;
+    [[nodiscard]] bool is_open() const override;
 
     // Static helpers for compatibility or one-shot encoding (if still needed)
     static bool is_available(); 

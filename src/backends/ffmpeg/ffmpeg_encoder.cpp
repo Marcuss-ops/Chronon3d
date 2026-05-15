@@ -126,6 +126,7 @@ bool FfmpegEncoder::open(const std::string& output_path, const VideoEncodeOption
 
     pimpl->width = width;
     pimpl->height = height;
+    const std::string requested_codec = options.codec.empty() ? "auto" : options.codec;
 
     // Guess format from filename
     avformat_alloc_output_context2(&pimpl->format_context, nullptr, nullptr, output_path.c_str());
@@ -140,11 +141,11 @@ bool FfmpegEncoder::open(const std::string& output_path, const VideoEncodeOption
         spdlog::error("No suitable video encoder was found for {}", output_path);
         return false;
     }
-    if (codec_name != options.codec && options.codec != "auto") {
+    spdlog::info("[video] FFmpeg {} | codec req={} -> sel={} | fps={} crf={} preset={}",
+                 av_version_info(), requested_codec, codec_name, options.fps, options.crf, options.preset);
+    if (requested_codec != "auto" && codec_name != requested_codec) {
         spdlog::warn("Using codec '{}' instead of requested '{}' for {}",
-                     codec_name, options.codec, output_path);
-    } else {
-        spdlog::info("Using codec '{}' for {}", codec_name, output_path);
+                     codec_name, requested_codec, output_path);
     }
 
     pimpl->stream = avformat_new_stream(pimpl->format_context, nullptr);
