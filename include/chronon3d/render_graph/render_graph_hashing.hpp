@@ -8,7 +8,7 @@
 #include <chronon3d/scene/layer/render_node.hpp>
 #include <chronon3d/scene/mask/mask.hpp>
 #include <chronon3d/scene/shape.hpp>
-#include <chronon3d/video/video_source.hpp>
+#include <chronon3d/backends/video/video_source.hpp>
 #include <xxhash.h>
 
 #include <bit>

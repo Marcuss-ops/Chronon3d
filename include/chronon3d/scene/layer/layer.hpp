@@ -9,7 +9,7 @@
 #include <chronon3d/scene/layer/depth_role.hpp>
 #include <chronon3d/layout/layout_rules.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
-#include <chronon3d/video/video_source.hpp>
+#include <chronon3d/backends/video/video_source.hpp>
 #include <string>
 #include <vector>
 #include <memory_resource>

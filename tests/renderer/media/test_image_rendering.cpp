@@ -1,6 +1,6 @@
 #include <doctest/doctest.h>
-#include <chronon3d/renderer/software/software_renderer.hpp>
-#include <chronon3d/renderer/assets/image_renderer.hpp>
+#include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/backends/assets/image_renderer.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <filesystem>
 

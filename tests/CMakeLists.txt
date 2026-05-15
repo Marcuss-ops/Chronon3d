@@ -1,4 +1,4 @@
-﻿find_package(doctest CONFIG REQUIRED)
+find_package(doctest CONFIG REQUIRED)
 
 add_executable(chronon3d_tests
     test_main.cpp
@@ -81,12 +81,16 @@ add_executable(chronon3d_tests
 target_link_libraries(chronon3d_tests
     PRIVATE
         chronon3d_pipeline
-        chronon3d_io
+        chronon3d_backend_image
         doctest::doctest
         $<TARGET_OBJECTS:chronon3d_graph>
-        $<TARGET_OBJECTS:chronon3d_software>
+        $<TARGET_OBJECTS:chronon3d_backend_software>
         $<TARGET_OBJECTS:chronon3d_scene>
 )
+
+if(CHRONON3D_ENABLE_VIDEO)
+    target_link_libraries(chronon3d_tests PRIVATE chronon3d_backend_ffmpeg)
+endif()
 target_include_directories(chronon3d_tests PRIVATE ${Stb_INCLUDE_DIR})
 
 # No longer need WHOLEARCHIVE since we use OBJECT libraries

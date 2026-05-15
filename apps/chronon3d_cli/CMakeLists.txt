@@ -19,12 +19,12 @@ add_executable(chronon3d_cli
 target_link_libraries(chronon3d_cli
     PRIVATE
         chronon3d_pipeline
-        chronon3d_io
+        chronon3d_backend_image
         CLI11::CLI11
         tomlplusplus::tomlplusplus
         spdlog::spdlog
         fmt::fmt
         $<TARGET_OBJECTS:chronon3d_graph>
-        $<TARGET_OBJECTS:chronon3d_software>
+        $<TARGET_OBJECTS:chronon3d_backend_software>
         $<TARGET_OBJECTS:chronon3d_scene>
 )

@@ -8,7 +8,7 @@
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/scene/camera/camera_2_5d.hpp>
 #include <chronon3d/scene/scene.hpp>
-#include <chronon3d/video/video_source.hpp>
+#include <chronon3d/backends/video/video_source.hpp>
 #include <functional>
 #include <string>
 #include <unordered_map>
