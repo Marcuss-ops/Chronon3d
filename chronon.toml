@@ -18,8 +18,55 @@ end = 30
 width = 960
 height = 540
 fps = 30
-crf = 20
+crf = 23
 codec = "libx264"
-encode_preset = "veryfast"
+encode_preset = "ultrafast"
 reference_image = "assets/images/camera_reference.jpg"
 output = "output/pan_preview.mp4"
+
+[preset.pan_smoke]
+axis = "Pan"
+start = 0
+end = 12
+width = 640
+height = 360
+fps = 30
+crf = 28
+codec = "libx264"
+encode_preset = "ultrafast"
+reference_image = "assets/images/camera_reference.jpg"
+output = "output/pan_smoke.mp4"
+
+[preset.pan_idle_demo]
+start = 0
+end = 90
+width = 960
+height = 540
+fps = 30
+crf = 23
+codec = "libx264"
+encode_preset = "ultrafast"
+reference_image = "assets/images/camera_reference.jpg"
+output = "output/pan_idle_demo.mp4"
+
+[preset.pan_idle_demo.motion.pose]
+position = [0, 0, -1080]
+rotation = [0, 0, 0]
+zoom = 1080
+
+[preset.pan_idle_demo.motion.primary]
+duration = 60
+easing = "ease_out_cubic"
+
+[preset.pan_idle_demo.motion.primary.from]
+rotation = [0, 0, 0]
+
+[preset.pan_idle_demo.motion.primary.to]
+rotation = [0, 0, 12]
+
+[preset.pan_idle_demo.motion.idle]
+enabled = true
+rotation_amplitude_deg = [0, 0, 1.5]
+frequency_hz = 0.18
+phase_offset = 0.0
+base_on_final = true
