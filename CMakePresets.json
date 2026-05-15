@@ -45,6 +45,24 @@
       }
     },
     {
+      "name": "win-release-video",
+      "inherits": "win-release",
+      "binaryDir": "${sourceDir}/build/chronon/vs/${presetName}",
+      "generator": "Visual Studio 17 2022",
+      "architecture": "x64",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "cacheVariables": {
+        "CHRONON3D_ENABLE_VIDEO": "ON",
+        "CMAKE_TOOLCHAIN_FILE": "C:/vcpkg/scripts/buildsystems/vcpkg.cmake",
+        "VCPKG_MANIFEST_FEATURES": "video",
+        "VCPKG_INSTALLED_DIR": "C:/vcpkg/installed"
+      }
+    },
+    {
       "name": "win-debug",
       "inherits": "base-win",
       "condition": {
@@ -54,6 +72,24 @@
       },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "win-debug-video",
+      "inherits": "win-debug",
+      "binaryDir": "${sourceDir}/build/chronon/vs/${presetName}",
+      "generator": "Visual Studio 17 2022",
+      "architecture": "x64",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "cacheVariables": {
+        "CHRONON3D_ENABLE_VIDEO": "ON",
+        "CMAKE_TOOLCHAIN_FILE": "C:/vcpkg/scripts/buildsystems/vcpkg.cmake",
+        "VCPKG_MANIFEST_FEATURES": "video",
+        "VCPKG_INSTALLED_DIR": "C:/vcpkg/installed"
       }
     },
     {
@@ -107,6 +143,14 @@
       "jobs": 16
     },
     {
+      "name": "win-video",
+      "configurePreset": "win-release-video",
+      "targets": [
+        "chronon3d_cli"
+      ],
+      "jobs": 16
+    },
+    {
       "name": "linux",
       "configurePreset": "linux-release",
       "targets": [
@@ -121,6 +165,14 @@
       "targets": [
         "chronon3d_cli",
         "chronon3d_tests"
+      ],
+      "jobs": 16
+    },
+    {
+      "name": "win-debug-video",
+      "configurePreset": "win-debug-video",
+      "targets": [
+        "chronon3d_cli"
       ],
       "jobs": 16
     },
