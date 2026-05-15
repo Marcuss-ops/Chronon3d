@@ -1,4 +1,5 @@
 #include <doctest/doctest.h>
+#include <chronon3d/chronon3d.hpp>
 
 using namespace chronon3d;
 

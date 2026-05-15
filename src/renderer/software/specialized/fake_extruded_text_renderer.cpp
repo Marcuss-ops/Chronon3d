@@ -174,7 +174,8 @@ const GlyphGeometry& FakeExtrudedTextRenderer::get_glyph(
             return a * 0.5f;
         };
 
-        // Separate outer contours (area > 0 in stbtt winding) from holes (area < 0)
+        // In stbtt's Y-up coordinate system, outer contours are CW (area < 0),
+        // holes are CCW (area > 0). Use absolute area to sort outers.
         struct OuterInfo { std::vector<Vec2> contour; float area; };
         std::vector<OuterInfo> outers;
         std::vector<std::vector<Vec2>> holes;
@@ -182,8 +183,8 @@ const GlyphGeometry& FakeExtrudedTextRenderer::get_glyph(
         for (auto& c : contours) {
             if (c.size() < 3) continue;
             float a = get_area(c);
-            if (a > 0)
-                outers.push_back({std::move(c), a});
+            if (a < 0)
+                outers.push_back({std::move(c), -a});  // store positive abs area
             else
                 holes.push_back(std::move(c));
         }
@@ -273,10 +274,11 @@ void FakeExtrudedTextRenderer::collect_geometry(
         return Vec3(v.x, v.y, v.z);
     };
 
-    // View → screen using pinhole (cam.z < 0 = in front of camera)
+    // View → screen using pinhole (cam.z < 0 = in front of camera).
+    // Negate vp.x because GLM lookAt (camera looking in +z) flips the X axis.
     auto view_to_screen = [&](const Vec3& vp) -> Vec2 {
         const f32 ps = focal / (-vp.z);
-        return Vec2{vp.x * ps + vp_cx, -vp.y * ps + vp_cy};
+        return Vec2{-vp.x * ps + vp_cx, -vp.y * ps + vp_cy};
     };
 
     // Fan-triangulate a near-clipped polygon into m_tris
@@ -328,8 +330,9 @@ void FakeExtrudedTextRenderer::collect_geometry(
         // Transform glyph vertex to world space using the layer's world transform.
         // s.world_pos is the text origin in world space; glyph coords are relative to it.
         auto transform_pt = [&](Vec2 p, float z) -> Vec3 {
+            // stbtt uses Y-up; keep +p.y so ascenders map to positive world Y.
             Vec4 local{s.world_pos.x + x_cur + p.x,
-                       s.world_pos.y + (-p.y),
+                       s.world_pos.y + p.y,
                        s.world_pos.z + z,
                        1.0f};
             Vec4 world = rt.world_matrix * local;
@@ -369,8 +372,8 @@ void FakeExtrudedTextRenderer::collect_geometry(
                     add_tri(wf, cf);
                 }
 
-                // Back face (z = depth_z, reversed winding)
-                {
+                // Back face (z = depth_z, reversed winding) — skip when flat (depth_z==0)
+                if (depth_z > 0.001f) {
                     Vec3  wb[3];
                     Color cb_arr[3];
                     Color bc     = s.side_color.with_alpha(s.side_color.a * 0.5f * op);
@@ -568,5 +571,6 @@ void FakeExtrudedTextRenderer::draw(
     begin_frame();
     collect(fb, node, state, camera, width, height, text_renderer);
     flush(fb);
+}
 
 } // namespace chronon3d
