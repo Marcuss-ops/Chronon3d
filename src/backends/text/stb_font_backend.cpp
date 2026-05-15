@@ -32,6 +32,12 @@ bool StbFontBackend::load_font(const std::string& path) {
     m_fonts[path] = std::move(data);
     return true;
 }
+    
+const std::vector<u8>* StbFontBackend::get_font_data(const std::string& path) {
+    auto it = m_fonts.find(path);
+    if (it != m_fonts.end()) return &it->second.bytes;
+    return nullptr;
+}
 
 float StbFontBackend::get_char_advance(const std::string& path, char c, float size) {
     auto it = m_fonts.find(path);

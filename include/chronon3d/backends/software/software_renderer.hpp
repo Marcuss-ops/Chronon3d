@@ -20,10 +20,10 @@
 #include <chronon3d/backends/software/software_registry.hpp>
 #include <chronon3d/backends/video/video_frame_decoder.hpp>
 #include <chronon3d/scene/scene.hpp>
-#include <chronon3d/scene/composition.hpp>
+#include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/core/frame.hpp>
-#include <chronon3d/core/camera.hpp>
-#include <chronon3d/render_graph/render_state.hpp>
+#include <chronon3d/scene/camera/camera.hpp>
+#include <chronon3d/math/transform.hpp>
 #include <unordered_map>
 
 namespace chronon3d {
@@ -115,8 +115,8 @@ public:
     void draw_node(Framebuffer& fb, const RenderNode& node, const RenderState& state,
                    const Camera& camera, i32 width, i32 height);
     static void apply_blur(Framebuffer& fb, f32 radius);
-    static void apply_effect_stack(Framebuffer& fb, const EffectStack& stack);
-    static void composite_layer(Framebuffer& dst, const Framebuffer& src, BlendMode mode);
+    void apply_effect_stack(Framebuffer& fb, const EffectStack& stack);
+    void composite_layer(Framebuffer& dst, const Framebuffer& src, BlendMode mode);
 
     [[nodiscard]] renderer::SoftwareRegistry& software_registry() { return *m_software_registry; }
     [[nodiscard]] const renderer::SoftwareRegistry& software_registry() const { return *m_software_registry; }

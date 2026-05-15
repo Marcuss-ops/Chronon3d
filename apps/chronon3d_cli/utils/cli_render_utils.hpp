@@ -2,8 +2,8 @@
 
 #include <chronon3d/core/composition_registry.hpp>
 #include <chronon3d/core/frame.hpp>
-#include <chronon3d/renderer/software/render_settings.hpp>
-#include <chronon3d/renderer/software/software_renderer.hpp>
+#include <chronon3d/backends/software/render_settings.hpp>
+#include <chronon3d/backends/software/software_renderer.hpp>
 #include <memory>
 #include <string>
 #include <vector>

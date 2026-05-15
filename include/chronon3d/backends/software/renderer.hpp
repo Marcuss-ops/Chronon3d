@@ -2,9 +2,9 @@
 
 #include <chronon3d/core/frame.hpp>
 #include <chronon3d/core/framebuffer.hpp>
-#include <chronon3d/core/camera.hpp>
+#include <chronon3d/scene/camera/camera.hpp>
 #include <chronon3d/scene/scene.hpp>
-#include <chronon3d/scene/composition.hpp>
+#include <chronon3d/timeline/composition.hpp>
 
 #include <memory>
 
