@@ -62,8 +62,8 @@ int command_verify(const CompositionRegistry& registry, const std::string& outpu
 #ifdef CHRONON_WITH_VIDEO
     {
         VideoCameraArgs camera_args;
-        camera_args.profile = "pan_preview";
-        camera_args.output = (std::filesystem::path(output_dir) / "camera_pan_preview_verify.mp4").string();
+        camera_args.profile = "pan_smoke";
+        camera_args.output = (std::filesystem::path(output_dir) / "camera_pan_smoke_verify.mp4").string();
         if (command_video_camera(registry, camera_args) != 0) {
             exit_code = 1;
         }
