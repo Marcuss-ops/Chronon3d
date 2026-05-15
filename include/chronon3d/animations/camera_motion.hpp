@@ -21,7 +21,7 @@ struct CameraMotionParams {
     Frame duration{60};
     Vec3 position{0.0f, 0.0f, -1080.0f};
     f32 zoom{1080.0f};
-    const char* reference_image{"output/dark_grid_fixed2.png"};
+    const char* reference_image{"assets/images/camera_reference.jpg"};
 };
 
 using ContentBuilder = std::function<void(SceneBuilder&, const FrameContext&, const CameraMotionParams&)>;

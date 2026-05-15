@@ -2,6 +2,7 @@
 #include <spdlog/spdlog.h>
 #include <stdexcept>
 #include <fmt/format.h>
+#include <vector>
 
 extern "C" {
 #include <libavcodec/avcodec.h>
@@ -12,6 +13,62 @@ extern "C" {
 }
 
 namespace chronon3d::video {
+
+namespace {
+
+const AVCodec* find_first_available_codec(const std::vector<const char*>& names) {
+    for (const char* name : names) {
+        if (const AVCodec* codec = avcodec_find_encoder_by_name(name)) {
+            return codec;
+        }
+    }
+    return nullptr;
+}
+
+const AVCodec* resolve_codec(const VideoEncodeOptions& options, std::string& resolved_name) {
+    const std::vector<const char*> software_candidates{
+        "libx264",
+        "libopenh264",
+        "mpeg4",
+    };
+
+    const std::vector<const char*> hardware_candidates{
+        "h264_mf",
+        "h264_amf",
+        "h264_nvenc",
+        "h264_qsv",
+        "h264_vaapi",
+        "h264_vulkan",
+    };
+
+    const std::string requested = options.codec;
+    if (!requested.empty() && requested != "auto") {
+        if (const AVCodec* codec = avcodec_find_encoder_by_name(requested.c_str())) {
+            resolved_name = requested;
+            return codec;
+        }
+
+        spdlog::warn("Requested codec '{}' was not found; selecting the best available fallback",
+                     requested);
+    }
+
+    if (const AVCodec* codec = find_first_available_codec(software_candidates)) {
+        resolved_name = codec->name ? codec->name : "unknown";
+        return codec;
+    }
+
+    if (options.use_hardware_accel) {
+        if (const AVCodec* codec = find_first_available_codec(hardware_candidates)) {
+            resolved_name = codec->name ? codec->name : "unknown";
+            return codec;
+        }
+    }
+
+    resolved_name.clear();
+    return nullptr;
+}
+
+} // namespace
 
 struct FfmpegEncoder::Impl {
     AVFormatContext* format_context = nullptr;
@@ -77,18 +134,17 @@ bool FfmpegEncoder::open(const std::string& output_path, const VideoEncodeOption
         return false;
     }
 
-    std::string codec_name = options.codec;
-    const AVCodec* codec = avcodec_find_encoder_by_name(codec_name.c_str());
-    if (!codec && codec_name == "libx264") {
-        codec_name = "mpeg4";
-        codec = avcodec_find_encoder_by_name(codec_name.c_str());
-        if (codec) {
-            spdlog::warn("Codec 'libx264' not found, falling back to '{}' for {}", codec_name, output_path);
-        }
-    }
+    std::string codec_name;
+    const AVCodec* codec = resolve_codec(options, codec_name);
     if (!codec) {
-        spdlog::error("Codec '{}' not found", options.codec);
+        spdlog::error("No suitable video encoder was found for {}", output_path);
         return false;
+    }
+    if (codec_name != options.codec && options.codec != "auto") {
+        spdlog::warn("Using codec '{}' instead of requested '{}' for {}",
+                     codec_name, options.codec, output_path);
+    } else {
+        spdlog::info("Using codec '{}' for {}", codec_name, output_path);
     }
 
     pimpl->stream = avformat_new_stream(pimpl->format_context, nullptr);
@@ -116,7 +172,7 @@ bool FfmpegEncoder::open(const std::string& output_path, const VideoEncodeOption
         pimpl->codec_context->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
     }
 
-    // Set codec-specific options
+    // Set codec-specific options.
     if (codec->id == AV_CODEC_ID_H264) {
         av_opt_set(pimpl->codec_context->priv_data, "preset", options.preset.c_str(), 0);
         av_opt_set(pimpl->codec_context->priv_data, "crf", std::to_string(options.crf).c_str(), 0);
