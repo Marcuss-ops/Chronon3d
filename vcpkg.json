@@ -16,5 +16,16 @@
     "highway",
     "cli11",
     "tomlplusplus"
-  ]
+  ],
+  "features": {
+    "video": {
+      "description": "FFmpeg with x264 support for video export",
+      "dependencies": [
+        {
+          "name": "ffmpeg",
+          "features": ["x264"]
+        }
+      ]
+    }
+  }
 }

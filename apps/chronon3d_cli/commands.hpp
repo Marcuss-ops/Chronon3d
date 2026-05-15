@@ -35,6 +35,7 @@ struct VideoArgs {
     Frame end{0};
     int fps{30};
     int crf{18};
+    std::string codec{"auto"};
     std::string preset{"medium"};
     bool keep_frames{false};
     bool use_modular_graph{false};
@@ -43,6 +44,23 @@ struct VideoArgs {
     float  shutter_angle{180.0f};
     float  ssaa{1.0f};
     std::string frames_dir;
+};
+
+struct VideoCameraArgs {
+    std::string axis{"Tilt"};
+    std::string reference_image{"assets/images/camera_reference.jpg"};
+    std::string output;
+    Frame start{0};
+    Frame end{60};
+    int fps{30};
+    int crf{18};
+    std::string codec{"auto"};
+    std::string preset{"medium"};
+    bool use_modular_graph{false};
+    bool   motion_blur{false};
+    int    motion_blur_samples{8};
+    float  shutter_angle{180.0f};
+    float  ssaa{1.0f};
 };
 
 
@@ -63,6 +81,7 @@ int command_list(const CompositionRegistry& registry);
 int command_info(const CompositionRegistry& registry, const std::string& id);
 int command_render(const CompositionRegistry& registry, const RenderArgs& args);
 int command_video(const CompositionRegistry& registry, const VideoArgs& args);
+int command_video_camera(const CompositionRegistry& registry, const VideoCameraArgs& args);
 int command_bench(const CompositionRegistry& registry, const BenchArgs& args);
 int command_graph(const CompositionRegistry& registry, const GraphArgs& args);
 int command_batch(const CompositionRegistry& registry, const std::string& config_path);

@@ -171,11 +171,29 @@ chronon3d_cli video <Comp> --end N -o output.mp4 [options]
 | `--end` | required | End frame (exclusive) |
 | `--fps` | 30 | Output frame rate |
 | `--crf` | 18 | x264 quality (0=best, 51=worst) |
+| `--codec` | auto | Encoder selection (`auto`, `libx264`, `mpeg4`, etc.) |
 | `--preset` | medium | x264 preset |
 | `--keep-frames` | off | Keep temporary PNG frames |
 | `--frames-dir` | auto | Override temp frames directory |
 
 **Requires `ffmpeg` in PATH.** The engine itself has no FFmpeg dependency.
+
+### `video camera`
+```
+chronon3d_cli video camera [--axis Tilt|Pan|Roll] [--reference path] [options]
+```
+| Option | Default | Description |
+|---|---|---|
+| `--axis` | Tilt | Camera motion axis |
+| `--reference` | `assets/images/camera_reference.jpg` | Reference image to animate |
+| `--output` | auto | Output .mp4 path |
+| `--start` | 0 | Start frame (inclusive) |
+| `--end` | 60 | End frame (exclusive) |
+| `--fps` | 30 | Output frame rate |
+| `--crf` | 18 | x264 quality (0=best, 51=worst) |
+| `--codec` | auto | Encoder selection (`auto`, `libx264`, `mpeg4`, etc.) |
+| `--preset` | medium | x264 preset |
+| `--ssaa` | 1.0 | Super sampling factor |
 
 ## API Overview
 

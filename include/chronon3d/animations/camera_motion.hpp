@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <functional>
 #include <utility>
+#include <string>
 
 namespace chronon3d::animation {
 
@@ -19,9 +20,10 @@ struct CameraMotionParams {
     f32 start_deg{-18.0f};
     f32 end_deg{18.0f};
     Frame duration{60};
+    Frame start_frame{0};
     Vec3 position{0.0f, 0.0f, -1080.0f};
     f32 zoom{1080.0f};
-    const char* reference_image{"assets/images/camera_reference.jpg"};
+    std::string reference_image{"assets/images/camera_reference.jpg"};
 };
 
 using ContentBuilder = std::function<void(SceneBuilder&, const FrameContext&, const CameraMotionParams&)>;
@@ -48,7 +50,8 @@ inline void apply_camera_motion(SceneBuilder& s,
      .camera_position(p.position)
      .camera_zoom(p.zoom);
 
-    const f32 t = normalized_time(ctx.frame, p.duration);
+    const Frame local_frame = (ctx.frame >= p.start_frame) ? (ctx.frame - p.start_frame) : 0;
+    const f32 t = normalized_time(local_frame, p.duration);
     switch (axis) {
     case MotionAxis::Tilt:
         s.camera_tilt(lerp(p.start_deg, p.end_deg, t));
