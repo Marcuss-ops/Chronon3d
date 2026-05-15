@@ -1,7 +1,7 @@
 #include <chronon3d/renderer/software/software_renderer.hpp>
 #include <chronon3d/core/profiling.hpp>
 #include <chronon3d/render_graph/graph_builder.hpp>
-#include <chronon3d/render_graph/graph_executor.hpp>
+#include <chronon3d/runtime/graph_executor.hpp>
 
 namespace chronon3d::software_internal {
 

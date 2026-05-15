@@ -1,4 +1,4 @@
-#include <chronon3d/core/pipeline.hpp>
+#include <chronon3d/runtime/pipeline.hpp>
 #include <taskflow/taskflow.hpp>
 #include <chronon3d/core/profiling.hpp>
 
@@ -9,7 +9,6 @@ void RenderPipeline::run(Frame start, Frame end, std::function<void(RenderedFram
     const i32 count = static_cast<i32>(end - start);
     if (count <= 0) return;
 
-    // Stage 1: evaluate all frames in order.
     std::vector<EvaluatedFrame> eval_frames;
     eval_frames.reserve(static_cast<size_t>(count));
     for (Frame f = start; f < end; ++f) {
@@ -19,7 +18,6 @@ void RenderPipeline::run(Frame start, Frame end, std::function<void(RenderedFram
         eval_frames.push_back({f, std::move(arena), std::move(scene)});
     }
 
-    // Stage 2: render all frames in parallel.
     std::vector<RenderedFrame> frame_buffer(static_cast<size_t>(count));
     {
         tf::Executor executor;
@@ -40,7 +38,6 @@ void RenderPipeline::run(Frame start, Frame end, std::function<void(RenderedFram
         executor.run(taskflow).wait();
     }
 
-    // Stage 3: emit frames in original order.
     for (auto& rf : frame_buffer) {
         ZoneScopedN("OutputFrame");
         output_callback(std::move(rf));

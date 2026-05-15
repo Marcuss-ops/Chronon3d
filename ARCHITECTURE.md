@@ -23,14 +23,19 @@ Chronon3d is a code-first, headless, CPU-only motion graphics engine. The goal i
 
 ## Current Topology
 
-- `include/chronon3d/` exposes the public API and domain model.
-- `src/renderer/` contains the software renderer and frame-level rendering utilities.
-- `src/scene/` turns scene builders into renderable scene structures.
-- `src/evaluation/` bridges timeline/composition inputs into evaluated runtime state.
-- `src/io/` handles image output.
-- `apps/chronon3d_cli/` provides the command-line interface.
-- `templates/` contains reusable scene templates and composition helpers.
-- `tests/` validates the engine behavior.
+- `include/chronon3d/` — public API: domain types, contracts, animation, math, scene model.
+- `src/runtime/` — render pipeline, frame evaluation, graph execution.
+- `src/render_graph/` — render graph model and builder passes.
+- `src/scene/` — scene assembly, layer builders, layout, SpecScene.
+- `src/effects/` — effect registry and effect descriptors.
+- `src/registry/` — sampler, shape, and source registries.
+- `src/cache/` — frame and node caches.
+- `src/renderer/` — software renderer backend and asset/text/video utilities.
+- `src/io/` — image IO.
+- `src/video/` — video domain types and FFmpeg backend (optional).
+- `apps/chronon3d_cli/` — CLI: parses human intent, calls engine APIs.
+- `templates/` — reusable scene templates.
+- `tests/` — validates engine behavior.
 
 ## Runtime Flow
 

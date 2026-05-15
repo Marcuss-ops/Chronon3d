@@ -26,5 +26,5 @@ target_link_libraries(chronon3d_cli
         fmt::fmt
         $<TARGET_OBJECTS:chronon3d_graph>
         $<TARGET_OBJECTS:chronon3d_software>
-        $<TARGET_OBJECTS:chronon3d_renderer>
+        $<TARGET_OBJECTS:chronon3d_scene>
 )
