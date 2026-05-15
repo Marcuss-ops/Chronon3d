@@ -1,4 +1,4 @@
-﻿#include "../commands.hpp"
+#include "../commands.hpp"
 #include "../utils/cli_render_utils.hpp"
 #include <spdlog/spdlog.h>
 
