@@ -43,19 +43,17 @@ if ([string]::IsNullOrWhiteSpace($Output)) {
     $Output = "output\camera_${lowerAxis}_video.mp4"
 }
 
-$cacheFile = Join-Path $BuildDir "CMakeCache.txt"
-if (-not (Test-Path $cacheFile)) {
-    cmake -S . -B $BuildDir -G "Visual Studio 17 2022" -A x64 `
-        -DCMAKE_TOOLCHAIN_FILE=$vcpkgToolchain `
-        -DVCPKG_MANIFEST_MODE=ON `
-        -DVCPKG_INSTALLED_DIR=$vcpkgInstalled `
-        -DVCPKG_TARGET_TRIPLET=x64-windows `
-        -DCHRONON3D_ENABLE_VIDEO=ON `
-        -DCHRONON3D_BUILD_TESTS=OFF `
-        -DCHRONON3D_BUILD_CLI=ON
-    if ($LASTEXITCODE -ne 0) {
-        exit $LASTEXITCODE
-    }
+cmake -S . -B $BuildDir -G "Visual Studio 17 2022" -A x64 `
+    -DCMAKE_TOOLCHAIN_FILE=$vcpkgToolchain `
+    -DVCPKG_MANIFEST_MODE=ON `
+    -DVCPKG_MANIFEST_FEATURES=video `
+    -DVCPKG_INSTALLED_DIR=$vcpkgInstalled `
+    -DVCPKG_TARGET_TRIPLET=x64-windows `
+    -DCHRONON3D_ENABLE_VIDEO=ON `
+    -DCHRONON3D_BUILD_TESTS=OFF `
+    -DCHRONON3D_BUILD_CLI=ON
+if ($LASTEXITCODE -ne 0) {
+    exit $LASTEXITCODE
 }
 
 cmake --build $BuildDir --config Debug --target chronon3d_cli -j 16

@@ -1,4 +1,5 @@
-#include <chronon3d/backends/ffmpeg/video_export.hpp>
+#include <chronon3d/backends/video/video_export.hpp>
+#include <chronon3d/backends/ffmpeg/ffmpeg_encoder.hpp>
 
 #include <chrono>
 #include <filesystem>
@@ -6,17 +7,17 @@
 
 namespace chronon3d::video {
 
-bool render_to_mp4(SoftwareRenderer& renderer,
-                   const Composition& comp,
-                   const std::string& output_path,
-                   const VideoExportOptions& options) {
+bool render_to_video(SoftwareRenderer& renderer,
+                     const Composition& comp,
+                     const std::string& output_path,
+                     const VideoExportOptions& options,
+                     IEncoder& encoder) {
     if (options.end <= options.start) {
         spdlog::error("Invalid export range: end ({}) must be greater than start ({})",
                       options.end, options.start);
         return false;
     }
 
-    FfmpegEncoder encoder;
     const std::filesystem::path out_path(output_path);
     if (out_path.has_parent_path()) {
         std::error_code ec;

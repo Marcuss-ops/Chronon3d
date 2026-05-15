@@ -65,12 +65,13 @@ int main(int argc, char** argv) {
     // -------------------------------------------------------------------------
     VideoArgs video_args;
     auto* video_cmd = app.add_subcommand("video", "Render a composition to MP4 via ffmpeg");
-    video_cmd->add_option("id",           video_args.comp_id,     "Composition name or .specscene path")->required();
-    video_cmd->add_option("-o,--output",  video_args.output,      "Output .mp4 path")->required();
+    video_cmd->add_option("id",           video_args.comp_id,     "Composition name or .specscene path");
+    video_cmd->add_option("-o,--output",  video_args.output,      "Output .mp4 path");
     video_cmd->add_option("--start",      video_args.start,       "Start frame (inclusive)");
-    video_cmd->add_option("--end",        video_args.end,         "End frame (exclusive)")->required();
+    video_cmd->add_option("--end",        video_args.end,         "End frame (exclusive)");
     video_cmd->add_option("--fps",        video_args.fps,         "Output frame rate");
     video_cmd->add_option("--crf",        video_args.crf,         "x264 CRF (0-51, lower=better)");
+    video_cmd->add_option("--codec",      video_args.codec,       "Video encoder (auto, libx264, mpeg4, etc.)");
     video_cmd->add_option("--preset",     video_args.preset,      "x264 preset");
     video_cmd->add_flag("--keep-frames",            video_args.keep_frames,          "Keep temporary PNG frames");
     video_cmd->add_flag("--graph",                  video_args.use_modular_graph,    "Use modular RenderGraph path");
@@ -80,7 +81,30 @@ int main(int argc, char** argv) {
     video_cmd->add_option("--frames-dir",           video_args.frames_dir,           "Override temporary frames directory");
     video_cmd->add_option("--ssaa",                 video_args.ssaa,                 "Super Sampling factor (default 1.0)");
     video_cmd->callback([&]() {
+        if (!video_cmd->get_subcommands().empty()) {
+            return;
+        }
         exit_code = command_video(registry, video_args);
+    });
+
+    VideoCameraArgs camera_args;
+    auto* camera_cmd = video_cmd->add_subcommand("camera", "Render the built-in camera reference clip");
+    camera_cmd->add_option("--axis",     camera_args.axis,          "Camera axis: Tilt, Pan, or Roll");
+    camera_cmd->add_option("--reference", camera_args.reference_image, "Reference image path");
+    camera_cmd->add_option("-o,--output", camera_args.output,       "Output .mp4 path");
+    camera_cmd->add_option("--start",    camera_args.start,         "Start frame (inclusive)");
+    camera_cmd->add_option("--end",      camera_args.end,           "End frame (exclusive)");
+    camera_cmd->add_option("--fps",      camera_args.fps,           "Output frame rate");
+    camera_cmd->add_option("--crf",      camera_args.crf,           "x264 CRF (0-51, lower=better)");
+    camera_cmd->add_option("--codec",    camera_args.codec,         "Video encoder (auto, libx264, mpeg4, etc.)");
+    camera_cmd->add_option("--preset",   camera_args.preset,        "x264 preset");
+    camera_cmd->add_flag("--graph",                  camera_args.use_modular_graph,    "Use modular RenderGraph path");
+    camera_cmd->add_flag("--motion-blur",            camera_args.motion_blur,          "Enable temporal motion blur");
+    camera_cmd->add_option("--motion-blur-samples",  camera_args.motion_blur_samples,  "Subframe samples (default 8)");
+    camera_cmd->add_option("--shutter-angle",        camera_args.shutter_angle,        "Shutter angle in degrees (default 180)");
+    camera_cmd->add_option("--ssaa",                 camera_args.ssaa,                 "Super Sampling factor (default 1.0)");
+    camera_cmd->callback([&]() {
+        exit_code = command_video_camera(registry, camera_args);
     });
 #endif
 

@@ -27,6 +27,8 @@ target_link_libraries(chronon3d_cli
         $<TARGET_OBJECTS:chronon3d_scene>
 )
 
+target_include_directories(chronon3d_cli PRIVATE ${CMAKE_SOURCE_DIR})
+
 if(CLI11_INCLUDE_DIRS)
     target_include_directories(chronon3d_cli PRIVATE ${CLI11_INCLUDE_DIRS})
 endif()

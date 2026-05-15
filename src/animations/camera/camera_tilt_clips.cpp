@@ -10,7 +10,7 @@ using chronon3d::animation::ContentBuilder;
 using chronon3d::animation::MotionAxis;
 
 void build_reference_image_content(SceneBuilder& s, const FrameContext& ctx, const CameraMotionParams& p) {
-    const char* reference_image = p.reference_image;
+    const std::string reference_image = p.reference_image;
     operations::background::dark_grid_background(s, ctx);
 
     const f32 inset_x = static_cast<f32>(ctx.width) * 0.06f;
