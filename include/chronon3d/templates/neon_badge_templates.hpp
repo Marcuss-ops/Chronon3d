@@ -149,8 +149,8 @@ inline void neon_badge(SceneBuilder& s, const FrameContext& ctx,
             .extrude_z_step    = 0.f,
             .front_color       = p.text_color,
             .side_color        = {0.8f, 0.8f, 0.8f, 1.f},
-            .bevel_size        = 0.f,
             .highlight_opacity = 0.f,
+            .bevel_size        = 0.f,
         });
     });
 }
