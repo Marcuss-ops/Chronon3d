@@ -8,7 +8,7 @@
 namespace chronon3d::video {
 
 struct VideoEncodeOptions {
-    std::string codec{"libx264"};
+    std::string codec{"auto"};
     std::string preset{"medium"};
     int crf{18};
     int fps{30};

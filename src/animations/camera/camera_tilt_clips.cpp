@@ -1,5 +1,6 @@
 #include <chronon3d/animations/camera_motion.hpp>
 #include <chronon3d/core/composition_registration.hpp>
+#include <Operations/background/dark_grid_background.hpp>
 
 namespace chronon3d {
 namespace {
@@ -10,12 +11,26 @@ using chronon3d::animation::MotionAxis;
 
 void build_reference_image_content(SceneBuilder& s, const FrameContext& ctx, const CameraMotionParams& p) {
     const char* reference_image = p.reference_image;
-    s.layer("reference-image", [ctx, reference_image](LayerBuilder& l) {
+    operations::background::dark_grid_background(s, ctx);
+
+    const f32 inset_x = static_cast<f32>(ctx.width) * 0.06f;
+    const f32 inset_y = static_cast<f32>(ctx.height) * 0.06f;
+    const Vec2 image_size{
+        static_cast<f32>(ctx.width) - inset_x * 2.0f,
+        static_cast<f32>(ctx.height) - inset_y * 2.0f,
+    };
+    const Vec3 image_pos{
+        static_cast<f32>(ctx.width) * 0.5f,
+        static_cast<f32>(ctx.height) * 0.5f,
+        0.0f,
+    };
+
+    s.layer("reference-image", [reference_image, image_size, image_pos](LayerBuilder& l) {
         l.enable_3d()
          .image("grid_reference", {
              .path = reference_image,
-             .size = {static_cast<f32>(ctx.width), static_cast<f32>(ctx.height)},
-             .pos = {static_cast<f32>(ctx.width) * 0.5f, static_cast<f32>(ctx.height) * 0.5f, 0.0f},
+             .size = image_size,
+             .pos = image_pos,
              .opacity = 1.0f,
          });
     });
