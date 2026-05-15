@@ -135,13 +135,22 @@ target_include_directories(chronon3d_backend_text PRIVATE ${Stb_INCLUDE_DIR})
 # 7d. Video Backend (Generic)
 file(GLOB CHRONON3D_BACKEND_VIDEO_SOURCES CONFIGURE_DEPENDS "src/backends/video/*.cpp")
 add_library(chronon3d_backend_video STATIC ${CHRONON3D_BACKEND_VIDEO_SOURCES})
-target_link_libraries(chronon3d_backend_video PUBLIC chronon3d chronon3d_backend_image)
+target_link_libraries(chronon3d_backend_video PUBLIC chronon3d)
 
 # 7e. FFmpeg Backend (Optional)
 if(CHRONON3D_ENABLE_VIDEO)
     file(GLOB CHRONON3D_BACKEND_FFMPEG_SOURCES CONFIGURE_DEPENDS "src/backends/ffmpeg/*.cpp")
     add_library(chronon3d_backend_ffmpeg STATIC ${CHRONON3D_BACKEND_FFMPEG_SOURCES})
-    target_link_libraries(chronon3d_backend_ffmpeg PUBLIC chronon3d chronon3d_backend_video chronon3d_ffmpeg xxHash::xxhash fmt::fmt spdlog::spdlog)
+    target_link_libraries(chronon3d_backend_ffmpeg 
+        PUBLIC 
+            chronon3d 
+            chronon3d_backend_video 
+            chronon3d_backend_image
+            chronon3d_ffmpeg 
+            xxHash::xxhash 
+            fmt::fmt 
+            spdlog::spdlog
+    )
     target_compile_definitions(chronon3d_backend_ffmpeg PUBLIC CHRONON_WITH_VIDEO)
 endif()
 

@@ -19,6 +19,7 @@ graph::RenderGraphContext make_graph_context(SoftwareRenderer& renderer, const C
         .renderer = &renderer,
         .node_cache = &renderer.node_cache(),
         .registry = renderer.composition_registry(),
+        .video_decoder = renderer.video_decoder(),
         .ssaa_factor = renderer.render_settings().ssaa_factor,
         .modular_coordinates = renderer.render_settings().use_modular_graph
     };

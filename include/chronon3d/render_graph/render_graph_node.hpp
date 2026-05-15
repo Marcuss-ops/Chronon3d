@@ -13,7 +13,7 @@ namespace chronon3d {
 }
 
 namespace chronon3d::video {
-    class VideoDecoder;
+    class VideoFrameDecoder;
 }
 
 namespace chronon3d::graph {
@@ -46,16 +46,13 @@ struct RenderGraphContext {
     cache::NodeCache* node_cache{nullptr};
     RenderProfiler* profiler{nullptr};
     const CompositionRegistry* registry{nullptr};
-    video::VideoDecoder* video_decoder{nullptr};
+    video::VideoFrameDecoder* video_decoder{nullptr};
 
     bool cache_enabled{true};
     bool diagnostics_enabled{false};
     float ssaa_factor{1.0f};
     bool modular_coordinates{false};
 };
-
-
-
 
 class RenderGraphNode {
 public:

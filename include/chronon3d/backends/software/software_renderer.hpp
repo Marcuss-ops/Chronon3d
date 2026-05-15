@@ -15,6 +15,10 @@
 #include <chronon3d/render_graph/graph_builder.hpp>
 #include <chronon3d/runtime/graph_executor.hpp>
 #include <chronon3d/backends/software/fake_extruded_text_renderer.hpp>
+#include <chronon3d/backends/image/image_backend.hpp>
+#include <chronon3d/backends/text/font_backend.hpp>
+#include <chronon3d/backends/software/software_registry.hpp>
+#include <chronon3d/backends/video/video_frame_decoder.hpp>
 #include <unordered_map>
 
 namespace chronon3d {
@@ -65,9 +69,7 @@ public:
         m_image_renderer.clear_cache();
         m_text_renderer.clear_cache();
         m_node_cache.clear();
-#ifdef CHRONON_WITH_VIDEO
-        m_video_extractor.clear_memory_cache();
-#endif
+        // Video cache clearing is now responsibility of the decoder implementation
     }
 
     void set_composition_registry(const CompositionRegistry* registry) { m_registry = registry; }
@@ -81,12 +83,40 @@ public:
     [[nodiscard]] cache::NodeCache& node_cache() { return m_node_cache; }
     [[nodiscard]] const RenderSettings& render_settings() const { return m_settings; }
 
+    void set_video_decoder(std::shared_ptr<video::VideoFrameDecoder> decoder) {
+        m_video_decoder = std::move(decoder);
+    }
+    [[nodiscard]] video::VideoFrameDecoder* video_decoder() const {
+        return m_video_decoder.get();
+    }
+
+    void set_image_backend(std::shared_ptr<image::ImageBackend> backend) {
+        m_image_backend = std::move(backend);
+        m_image_renderer.set_backend(m_image_backend);
+    }
+    [[nodiscard]] image::ImageBackend* image_backend() const {
+        return m_image_backend.get();
+    }
+
+    void set_font_backend(std::shared_ptr<text::FontBackend> backend) {
+        m_font_backend = std::move(backend);
+        m_text_renderer.set_backend(m_font_backend);
+    }
+    [[nodiscard]] text::FontBackend* font_backend() const {
+        return m_font_backend.get();
+    }
+
     // Public for use by graph nodes via RenderGraphContext.
     void draw_node(Framebuffer& fb, const RenderNode& node, const RenderState& state,
                    const Camera& camera, i32 width, i32 height);
     static void apply_blur(Framebuffer& fb, f32 radius);
     static void apply_effect_stack(Framebuffer& fb, const EffectStack& stack);
     static void composite_layer(Framebuffer& dst, const Framebuffer& src, BlendMode mode);
+
+    [[nodiscard]] renderer::SoftwareRegistry& software_registry() { return *m_software_registry; }
+    [[nodiscard]] const renderer::SoftwareRegistry& software_registry() const { return *m_software_registry; }
+
+    SoftwareRenderer();
 
 private:
     std::unique_ptr<Framebuffer> render_scene_internal(const Scene& scene, const Camera& camera,
@@ -98,12 +128,15 @@ private:
     ImageRenderer     m_image_renderer;
     FakeExtrudedTextRenderer m_fake_extruded_text_renderer;
     mutable cache::NodeCache  m_node_cache;
-#ifdef CHRONON_WITH_VIDEO
-    video::FfmpegFrameExtractor m_video_extractor;
-#endif
+    
+    std::shared_ptr<video::VideoFrameDecoder> m_video_decoder;
+    std::shared_ptr<image::ImageBackend> m_image_backend;
+    std::shared_ptr<text::FontBackend> m_font_backend;
+
+    std::unique_ptr<renderer::SoftwareRegistry> m_software_registry;
+
     RenderSettings    m_settings{};
     const CompositionRegistry* m_registry{nullptr};
 };
-
 
 } // namespace chronon3d
