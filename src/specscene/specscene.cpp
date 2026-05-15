@@ -4,6 +4,7 @@
 #include <chronon3d/scene/builders/builder_params.hpp>
 #include <chronon3d/scene/layer/depth_role.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
+#include <chronon3d/math/camera_pose.hpp>
 #include <chronon3d/math/transform.hpp>
 #include <toml++/toml.h>
 #include <fmt/format.h>
@@ -261,6 +262,7 @@ std::optional<Camera2_5DDesc> parse_camera_2_5d(const toml::table& tbl, std::vec
     cam.position.set(read_vec3(tbl, "position", cam.position.value_at(0)));
     cam.point_of_interest = read_vec3(tbl, "point_of_interest", cam.point_of_interest);
     cam.point_of_interest_enabled = tbl.contains("point_of_interest");
+    cam.rotation.set(read_vec3(tbl, "rotation", cam.rotation.value_at(0)));
     cam.zoom = read_animated_scalar<f32>(tbl, "zoom", cam.zoom.value_at(0));
     return cam;
 }
@@ -271,7 +273,7 @@ Camera parse_render_camera(const toml::table& tbl) {
     cam.near_plane = read_scalar<f32>(tbl, "near_plane", cam.near_plane);
     cam.far_plane  = read_scalar<f32>(tbl, "far_plane", cam.far_plane);
     cam.transform.position = read_vec3(tbl, "position", cam.transform.position);
-    cam.transform.rotation = math::from_euler(read_vec3(tbl, "rotation", Vec3{0.0f, 0.0f, 0.0f}));
+    cam.transform.rotation = math::camera_rotation_quat(read_vec3(tbl, "rotation", Vec3{0.0f, 0.0f, 0.0f}));
     return cam;
 }
 

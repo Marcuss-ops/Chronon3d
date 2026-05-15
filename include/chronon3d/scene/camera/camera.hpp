@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chronon3d/math/camera_pose.hpp>
 #include <chronon3d/math/mat4.hpp>
 #include <chronon3d/math/transform.hpp>
 
@@ -17,7 +18,51 @@ public:
     }
 
     [[nodiscard]] Mat4 view_matrix() const {
-        return glm::inverse(transform.to_matrix());
+        return math::camera_view_matrix(transform.position, transform.rotation);
+    }
+
+    [[nodiscard]] Vec3 rotation_euler() const {
+        return math::camera_rotation_euler(transform.rotation);
+    }
+
+    void set_rotation_euler(Vec3 euler_deg) {
+        transform.rotation = math::camera_rotation_quat(euler_deg);
+    }
+
+    void set_tilt(f32 degrees) {
+        Vec3 euler = rotation_euler();
+        euler.x = degrees;
+        set_rotation_euler(euler);
+    }
+
+    void add_tilt(f32 delta_degrees) {
+        Vec3 euler = rotation_euler();
+        euler.x += delta_degrees;
+        set_rotation_euler(euler);
+    }
+
+    void set_pan(f32 degrees) {
+        Vec3 euler = rotation_euler();
+        euler.y = degrees;
+        set_rotation_euler(euler);
+    }
+
+    void add_pan(f32 delta_degrees) {
+        Vec3 euler = rotation_euler();
+        euler.y += delta_degrees;
+        set_rotation_euler(euler);
+    }
+
+    void set_roll(f32 degrees) {
+        Vec3 euler = rotation_euler();
+        euler.z = degrees;
+        set_rotation_euler(euler);
+    }
+
+    void add_roll(f32 delta_degrees) {
+        Vec3 euler = rotation_euler();
+        euler.z += delta_degrees;
+        set_rotation_euler(euler);
     }
 
     [[nodiscard]] f32 focal_length(f32 width) const {

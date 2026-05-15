@@ -167,6 +167,22 @@ TEST_CASE("TimelineEvaluator: animated camera position resolved") {
     CHECK(r.camera->position.z == doctest::Approx(-1000.0f));
 }
 
+TEST_CASE("TimelineEvaluator: animated camera rotation resolved") {
+    SceneDescription s; s.width=1280; s.height=720;
+    Camera2_5DDesc cam;
+    cam.enabled = true;
+    cam.rotation.key(0, Vec3{0, 0, 0}).key(60, Vec3{10, 20, 30});
+    s.camera = cam;
+
+    TimelineEvaluator ev;
+    auto r = ev.evaluate(s, 30);
+
+    REQUIRE(r.camera.has_value());
+    CHECK(r.camera->rotation.x == doctest::Approx(5.0f));
+    CHECK(r.camera->rotation.y == doctest::Approx(10.0f));
+    CHECK(r.camera->rotation.z == doctest::Approx(15.0f));
+}
+
 // ---------------------------------------------------------------------------
 // Metadata passthrough
 // ---------------------------------------------------------------------------

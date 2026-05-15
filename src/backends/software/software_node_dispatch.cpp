@@ -43,6 +43,26 @@ void draw_node(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNode& no
     }
 
     if (node.shape.type == ShapeType::Text) {
+        if (node.glow.enabled && node.glow.color.a > 0.0f && node.glow.intensity > 0.0f) {
+            Framebuffer glow_fb(fb.width(), fb.height());
+            glow_fb.clear(Color::transparent());
+
+            TextShape glow_text = node.shape.text;
+            glow_text.style.color = node.glow.color.to_linear();
+
+            Transform glow_tr;
+            glow_tr.position = Vec3(model[3]);
+            glow_tr.opacity = opacity * node.glow.intensity;
+            glow_tr.scale.x = glm::length(Vec3(model[0]));
+            glow_tr.scale.y = glm::length(Vec3(model[1]));
+
+            renderer.text_renderer().draw_text(glow_text, glow_tr, glow_fb, &state);
+            if (node.glow.radius > 0.0f) {
+                SoftwareRenderer::apply_blur(glow_fb, node.glow.radius);
+            }
+            SoftwareRenderer::composite_layer(fb, glow_fb, BlendMode::Normal);
+        }
+
         Transform text_tr;
         text_tr.position = Vec3(model[3]);
         text_tr.opacity = opacity;

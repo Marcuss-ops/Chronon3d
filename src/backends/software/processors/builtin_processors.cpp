@@ -59,8 +59,6 @@ public:
 };
 
 // Text is currently handled via legacy fallback in draw_node
-
-
 // --- Effects ---
 
 class BlurEffectProcessor final : public EffectProcessor {

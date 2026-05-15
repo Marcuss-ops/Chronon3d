@@ -1,8 +1,11 @@
 #pragma once
 
 #include <chronon3d/core/types.hpp>
+#include <chronon3d/math/camera_pose.hpp>
 #include <chronon3d/math/vec3.hpp>
+#include <chronon3d/math/quat.hpp>
 #include <string>
+#include <memory_resource>
 
 namespace chronon3d {
 
@@ -56,6 +59,50 @@ struct Camera2_5D {
     Vec3 rotation{0, 0, 0};
 
     DepthOfFieldSettings dof;
+
+    [[nodiscard]] Quat rotation_quaternion() const {
+        return math::camera_rotation_quat(rotation);
+    }
+
+    [[nodiscard]] Vec3 rotation_euler() const {
+        return rotation;
+    }
+
+    void set_rotation_euler(Vec3 euler_deg) {
+        rotation = euler_deg;
+    }
+
+    void set_tilt(f32 degrees) {
+        rotation.x = degrees;
+    }
+
+    void add_tilt(f32 delta_degrees) {
+        rotation.x += delta_degrees;
+    }
+
+    void set_pan(f32 degrees) {
+        rotation.y = degrees;
+    }
+
+    void add_pan(f32 delta_degrees) {
+        rotation.y += delta_degrees;
+    }
+
+    void set_roll(f32 degrees) {
+        rotation.z = degrees;
+    }
+
+    void add_roll(f32 delta_degrees) {
+        rotation.z += delta_degrees;
+    }
+
+    [[nodiscard]] Mat4 view_matrix() const {
+        const Quat rot = rotation_quaternion();
+        if (point_of_interest_enabled && glm::length(point_of_interest - position) > 0.001f) {
+            return glm::lookAt(position, point_of_interest, Vec3{0.0f, 1.0f, 0.0f});
+        }
+        return math::camera_view_matrix(position, rot);
+    }
 };
 
 } // namespace chronon3d
