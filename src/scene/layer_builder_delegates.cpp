@@ -39,6 +39,7 @@ void Layer3DDelegate::add_fake_extruded_text(Layer& layer, std::string name, Fak
     s.highlight_opacity = p.highlight_opacity;
     s.side_fade         = p.side_fade;
     s.bevel_size        = p.bevel_size;
+    s.light_dir         = p.light_dir;
     node.world_transform.position = {0, 0, 0};
     node.color = p.front_color;
     layer.nodes.push_back(std::move(node));

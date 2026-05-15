@@ -568,6 +568,5 @@ void FakeExtrudedTextRenderer::draw(
     begin_frame();
     collect(fb, node, state, camera, width, height, text_renderer);
     flush(fb);
-}
 
 } // namespace chronon3d

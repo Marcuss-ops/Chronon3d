@@ -153,6 +153,21 @@ const std::vector<ProofSuite>& proof_suites() {
             }
         },
         {
+            .name = "3dserious",
+            .frames = {
+                {"S3D_01_FrontTextClean",     0, "01_front_text_clean.png"},
+                {"S3D_02_ExtrusionSideDepth", 0, "02_extrusion_side_depth.png"},
+                {"S3D_03_ExtrusionGlyphHoles",0, "03_extrusion_glyph_holes.png"},
+                {"S3D_04_BevelEdges",         0, "04_bevel_edges.png"},
+                {"S3D_05_AccentsExtruded",    0, "05_accents_extruded.png"},
+                {"S3D_06_DepthSortingText",   0, "06_depth_sorting_text.png"},
+                {"S3D_07_CameraTiltText",     0, "07_camera_tilt_text.png"},
+                {"S3D_08_NearClippingText",   0, "08_near_clipping_text.png"},
+                {"S3D_09_LongWordSpacing",    0, "09_long_word_spacing.png"},
+                {"S3D_10_ThinVsBold",         0, "10_thin_vs_bold.png"},
+            }
+        },
+        {
             .name = "masks",
             .frames = {
                 {"MaskRectProof",           0,  "mask_rect.png"},
