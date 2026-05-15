@@ -1,6 +1,6 @@
 #include "graph_builder_mask_pass.hpp"
 
-#include <chronon3d/render_graph/nodes/mask_node.hpp>
+#include <chronon3d/render_graph/nodes/basic_nodes.hpp>
 #include <chronon3d/scene/layer/layer.hpp>
 
 namespace chronon3d::graph::detail {

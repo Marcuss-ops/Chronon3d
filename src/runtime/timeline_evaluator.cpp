@@ -1,4 +1,4 @@
-#include <chronon3d/evaluation/timeline_evaluator.hpp>
+#include <chronon3d/runtime/timeline_evaluator.hpp>
 #include <chronon3d/math/quat.hpp>
 #include <chronon3d/math/expression.hpp>
 #include <variant>
@@ -8,13 +8,11 @@ namespace chronon3d {
 
 namespace {
 
-// Convert euler rotation (degrees, XYZ order) to Quat.
 inline Quat euler_deg_to_quat(Vec3 euler_deg) {
     const Vec3 r = glm::radians(glm::vec3(euler_deg.x, euler_deg.y, euler_deg.z));
     return Quat(r);
 }
 
-// Resolve the world-space Z for a layer given its depth role and explicit Z.
 inline f32 resolve_z(const LayerDesc& l, Vec3 evaluated_pos) {
     if (l.is_3d && l.depth_role != DepthRole::None) {
         return DepthRoleResolver::z_for(l.depth_role) + l.depth_offset;
@@ -22,7 +20,6 @@ inline f32 resolve_z(const LayerDesc& l, Vec3 evaluated_pos) {
     return evaluated_pos.z;
 }
 
-// Map EffectDesc entries to an ordered EffectStack.
 inline EffectStack resolve_effects(const std::vector<EffectDesc>& descs) {
     EffectStack stack;
     for (const auto& d : descs) {
@@ -38,7 +35,6 @@ inline EffectStack resolve_effects(const std::vector<EffectDesc>& descs) {
                 if (e.contrast != 1.0f)
                     stack.push_back(EffectInstance{ContrastParams{e.contrast}});
             }
-            // DropShadow / Glow: per-RenderNode; handled by LegacySceneAdapter.
         }, d);
     }
     return stack;
@@ -46,10 +42,7 @@ inline EffectStack resolve_effects(const std::vector<EffectDesc>& descs) {
 
 inline f32 eval_expr(const std::string& expr, double frame, double time, double w, double h, f32 fallback) {
     const std::unordered_map<std::string, double> vars{
-        {"frame", frame},
-        {"time", time},
-        {"width", w},
-        {"height", h},
+        {"frame", frame}, {"time", time}, {"width", w}, {"height", h},
     };
     return static_cast<f32>(math::evaluate_expression(expr, vars, fallback));
 }
@@ -68,9 +61,9 @@ EvaluatedScene TimelineEvaluator::evaluate(const SceneDescription& scene, Frame 
         EvaluatedLayer el;
         el.name       = ld.name;
         el.visible    = true;
-        
+
         double time = static_cast<double>(frame) / (static_cast<double>(scene.frame_rate.numerator) / scene.frame_rate.denominator);
-        
+
         if (ld.opacity.has_expression()) {
             el.opacity = eval_expr(ld.opacity.expression(), (double)frame, time, (double)scene.width, (double)scene.height, ld.opacity.value_at(frame));
         } else {
@@ -81,9 +74,8 @@ EvaluatedScene TimelineEvaluator::evaluate(const SceneDescription& scene, Frame 
         el.depth_role = ld.depth_role;
         el.blend_mode = ld.blend_mode;
 
-        // Resolve animated transform
         Vec3 pos = ld.position.value_at(frame);
-        Vec3 rot = ld.rotation.value_at(frame);  // euler degrees
+        Vec3 rot = ld.rotation.value_at(frame);
         Vec3 scl = ld.scale.value_at(frame);
 
         el.resolved_z      = resolve_z(ld, pos);
@@ -94,29 +86,26 @@ EvaluatedScene TimelineEvaluator::evaluate(const SceneDescription& scene, Frame 
         el.world_transform.scale    = scl;
         el.world_transform.opacity  = el.opacity;
 
-        // Copy static visuals
         el.visuals = ld.visuals;
-
         el.resolved_effects = resolve_effects(ld.effects);
 
         result.layers.push_back(std::move(el));
     }
 
-    // Resolve camera
     if (scene.camera && scene.camera->enabled) {
         Camera2_5D cam;
         cam.enabled            = true;
         cam.position           = scene.camera->position.value_at(frame);
         cam.point_of_interest  = scene.camera->point_of_interest;
         cam.point_of_interest_enabled = scene.camera->point_of_interest_enabled;
-        
+
         double time = static_cast<double>(frame) / (static_cast<double>(scene.frame_rate.numerator) / scene.frame_rate.denominator);
         if (scene.camera->zoom.has_expression()) {
             cam.zoom = eval_expr(scene.camera->zoom.expression(), (double)frame, time, (double)scene.width, (double)scene.height, scene.camera->zoom.value_at(frame));
         } else {
             cam.zoom = scene.camera->zoom.value_at(frame);
         }
-        result.camera          = cam;
+        result.camera = cam;
     }
 
     return result;

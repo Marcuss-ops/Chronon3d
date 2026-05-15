@@ -64,7 +64,7 @@ Hashing utilities live in `include/chronon3d/render_graph/render_graph_hashing.h
 
 ## Graph execution
 
-`GraphExecutor` (`include/chronon3d/render_graph/graph_executor.hpp`) traverses the graph in topological order by recursion, memoizing results in `m_temp`.
+`GraphExecutor` (`include/chronon3d/runtime/graph_executor.hpp`) traverses the graph in topological order by recursion, memoizing results in `m_temp`.
 
 For each node:
 
