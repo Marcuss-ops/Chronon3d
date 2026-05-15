@@ -6,7 +6,6 @@ namespace chronon3d {
 namespace {
 
 using chronon3d::animation::CameraMotionParams;
-using chronon3d::animation::ContentBuilder;
 using chronon3d::animation::MotionAxis;
 
 void build_reference_image_content(SceneBuilder& s, const FrameContext& ctx, const CameraMotionParams& p) {
@@ -36,39 +35,21 @@ void build_reference_image_content(SceneBuilder& s, const FrameContext& ctx, con
     });
 }
 
-Composition make_camera_tilt_image_tilt_clip() {
+Composition make_camera_image_clip() {
+    CameraMotionParams params;
+    params.axis = MotionAxis::Tilt;
+    params.duration = 60;
+    params.start_frame = 0;
+
     return animation::camera_motion_clip(
-        "CameraTiltImageTiltClip",
-        MotionAxis::Tilt,
-        {},
+        "CameraImageClip",
+        params,
         [](SceneBuilder& s, const FrameContext& ctx, const CameraMotionParams& p) {
             build_reference_image_content(s, ctx, p);
         });
 }
 
-Composition make_camera_tilt_image_pan_clip() {
-    return animation::camera_motion_clip(
-        "CameraTiltImagePanClip",
-        MotionAxis::Pan,
-        {},
-        [](SceneBuilder& s, const FrameContext& ctx, const CameraMotionParams& p) {
-            build_reference_image_content(s, ctx, p);
-        });
-}
-
-Composition make_camera_tilt_image_roll_clip() {
-    return animation::camera_motion_clip(
-        "CameraTiltImageRollClip",
-        MotionAxis::Roll,
-        {},
-        [](SceneBuilder& s, const FrameContext& ctx, const CameraMotionParams& p) {
-            build_reference_image_content(s, ctx, p);
-        });
-}
-
-CHRONON_REGISTER_COMPOSITION("CameraTiltImageTiltClip", make_camera_tilt_image_tilt_clip)
-CHRONON_REGISTER_COMPOSITION("CameraTiltImagePanClip", make_camera_tilt_image_pan_clip)
-CHRONON_REGISTER_COMPOSITION("CameraTiltImageRollClip", make_camera_tilt_image_roll_clip)
+CHRONON_REGISTER_COMPOSITION("CameraImageClip", make_camera_image_clip)
 
 } // namespace
 } // namespace chronon3d

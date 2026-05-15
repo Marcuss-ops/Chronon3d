@@ -33,15 +33,6 @@ std::optional<animation::MotionAxis> parse_motion_axis(std::string axis) {
     return std::nullopt;
 }
 
-const char* axis_name(animation::MotionAxis axis) {
-    switch (axis) {
-    case animation::MotionAxis::Tilt: return "Tilt";
-    case animation::MotionAxis::Pan: return "Pan";
-    case animation::MotionAxis::Roll: return "Roll";
-    }
-    return "Tilt";
-}
-
 void build_camera_reference_content(SceneBuilder& s,
                                     const FrameContext& ctx,
                                     const animation::CameraMotionParams& p) {
@@ -121,7 +112,7 @@ int command_video_camera(const CompositionRegistry& registry, const VideoCameraA
 
     VideoCameraArgs normalized = args;
     if (normalized.output.empty()) {
-        normalized.output = "output/camera_" + lower_copy(axis_name(*axis)) + "_video.mp4";
+        normalized.output = "output/camera_" + lower_copy(normalized.axis) + "_video.mp4";
     }
 
     if (normalized.end <= normalized.start) {
@@ -141,14 +132,13 @@ int command_video_camera(const CompositionRegistry& registry, const VideoCameraA
     auto renderer = create_renderer(registry, settings);
 
     animation::CameraMotionParams params;
+    params.axis = *axis;
     params.duration = normalized.end - normalized.start;
     params.start_frame = normalized.start;
     params.reference_image = normalized.reference_image;
 
-    const std::string comp_name = std::string("CameraTiltImage") + axis_name(*axis) + "Clip";
     auto comp = animation::camera_motion_clip(
-        comp_name,
-        *axis,
+        "CameraImageClip",
         params,
         [](SceneBuilder& s, const FrameContext& ctx, const animation::CameraMotionParams& p) {
             build_camera_reference_content(s, ctx, p);
