@@ -90,7 +90,7 @@ int main(int argc, char** argv) {
     video_cmd->add_option("--fps",        video_args.fps,         "Output frame rate");
     video_cmd->add_option("--crf",        video_args.crf,         "x264 CRF (0-51, lower=better)");
     video_cmd->add_option("--codec",      video_args.codec,       "Video encoder (auto, libx264, mpeg4, etc.)");
-    video_cmd->add_option("--preset",     video_args.preset,      "x264 preset");
+    video_cmd->add_option("--encode-preset,--preset", video_args.encode_preset, "x264 preset");
     video_cmd->add_flag("--keep-frames",            video_args.keep_frames,          "Keep temporary PNG frames");
     video_cmd->add_flag("--graph",                  video_args.use_modular_graph,    "Use modular RenderGraph path");
     video_cmd->add_flag("--motion-blur",            video_args.motion_blur,          "Enable temporal motion blur");
@@ -109,13 +109,14 @@ int main(int argc, char** argv) {
     auto* camera_cmd = video_cmd->add_subcommand("camera", "Render the built-in camera reference clip");
     camera_cmd->add_option("--axis",     camera_args.axis,          "Camera axis: Tilt, Pan, or Roll");
     camera_cmd->add_option("--reference", camera_args.reference_image, "Reference image path");
+    camera_cmd->add_option("--preset,--profile", camera_args.profile, "Preset name from chronon.toml");
     camera_cmd->add_option("-o,--output", camera_args.output,       "Output .mp4 path");
     camera_cmd->add_option("--start",    camera_args.start,         "Start frame (inclusive)");
     camera_cmd->add_option("--end",      camera_args.end,           "End frame (exclusive)");
     camera_cmd->add_option("--fps",      camera_args.fps,           "Output frame rate");
     camera_cmd->add_option("--crf",      camera_args.crf,           "x264 CRF (0-51, lower=better)");
     camera_cmd->add_option("--codec",    camera_args.codec,         "Video encoder (auto, libx264, mpeg4, etc.)");
-    camera_cmd->add_option("--preset",   camera_args.preset,        "x264 preset");
+    camera_cmd->add_option("--encode-preset", camera_args.encode_preset, "x264 preset");
     camera_cmd->add_flag("--graph",                  camera_args.use_modular_graph,    "Use modular RenderGraph path");
     camera_cmd->add_flag("--motion-blur",            camera_args.motion_blur,          "Enable temporal motion blur");
     camera_cmd->add_option("--motion-blur-samples",  camera_args.motion_blur_samples,  "Subframe samples (default 8)");

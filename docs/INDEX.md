@@ -9,6 +9,7 @@
 - [Effects](EFFECTS.md)
 - [Registry And Cache](REGISTRY_CACHE.md)
 - [3D Subsystem](3d_subsystem.md)
+- [Project Model](PROJECT_MODEL.md)
 
 ## Build And Workflow
 

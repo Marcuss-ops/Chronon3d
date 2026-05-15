@@ -10,6 +10,7 @@ add_executable(chronon3d_cli
     commands/command_watch.cpp
     commands/command_video.cpp
     commands/command_doctor_verify.cpp
+    commands/video_camera_preset.cpp
     commands/command_bench.cpp
     commands/command_graph.cpp
 )

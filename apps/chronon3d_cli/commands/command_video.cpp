@@ -8,6 +8,7 @@
 #include <chronon3d/backends/video/video_export.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <Operations/background/dark_grid_background.hpp>
+#include "video_camera_preset.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -31,6 +32,26 @@ std::optional<animation::MotionAxis> parse_motion_axis(std::string axis) {
     if (axis == "pan") return animation::MotionAxis::Pan;
     if (axis == "roll") return animation::MotionAxis::Roll;
     return std::nullopt;
+}
+
+void apply_camera_cli_overrides(VideoCameraArgs& target, const VideoCameraArgs& cli) {
+    const VideoCameraArgs defaults{};
+    if (cli.axis != defaults.axis) target.axis = cli.axis;
+    if (cli.reference_image != defaults.reference_image) target.reference_image = cli.reference_image;
+    if (!cli.output.empty()) target.output = cli.output;
+    if (cli.start != defaults.start) target.start = cli.start;
+    if (cli.end != defaults.end) target.end = cli.end;
+    if (cli.width != defaults.width) target.width = cli.width;
+    if (cli.height != defaults.height) target.height = cli.height;
+    if (cli.fps != defaults.fps) target.fps = cli.fps;
+    if (cli.crf != defaults.crf) target.crf = cli.crf;
+    if (cli.codec != defaults.codec) target.codec = cli.codec;
+    if (cli.encode_preset != defaults.encode_preset) target.encode_preset = cli.encode_preset;
+    if (cli.use_modular_graph != defaults.use_modular_graph) target.use_modular_graph = cli.use_modular_graph;
+    if (cli.motion_blur != defaults.motion_blur) target.motion_blur = cli.motion_blur;
+    if (cli.motion_blur_samples != defaults.motion_blur_samples) target.motion_blur_samples = cli.motion_blur_samples;
+    if (cli.shutter_angle != defaults.shutter_angle) target.shutter_angle = cli.shutter_angle;
+    if (cli.ssaa != defaults.ssaa) target.ssaa = cli.ssaa;
 }
 
 void build_camera_reference_content(SceneBuilder& s,
@@ -97,20 +118,51 @@ int command_video(const CompositionRegistry& registry, const VideoArgs& args) {
     options.encode.fps = args.fps;
     options.encode.crf = args.crf;
     options.encode.codec = args.codec;
-    options.encode.preset = args.preset;
+    options.encode.preset = args.encode_preset;
 
     video::FfmpegEncoder encoder;
     return video::render_to_video(*renderer, *resolved.comp, args.output, options, encoder) ? 0 : 1;
 }
 
 int command_video_camera(const CompositionRegistry& registry, const VideoCameraArgs& args) {
-    auto axis = parse_motion_axis(args.axis);
+    VideoCameraArgs normalized = args;
+    if (!normalized.profile.empty()) {
+        std::string preset_error;
+        std::filesystem::path preset_source;
+        const auto preset = load_camera_preset(normalized.profile, &preset_source, &preset_error);
+        if (!preset) {
+            spdlog::error("Failed to load camera preset '{}': {}", normalized.profile, preset_error);
+            return 1;
+        }
+
+        if (preset->axis) normalized.axis = *preset->axis;
+        if (preset->reference_image) normalized.reference_image = *preset->reference_image;
+        if (preset->output) normalized.output = *preset->output;
+        if (preset->start) normalized.start = *preset->start;
+        if (preset->end) normalized.end = *preset->end;
+        if (preset->width) normalized.width = *preset->width;
+        if (preset->height) normalized.height = *preset->height;
+        if (preset->fps) normalized.fps = *preset->fps;
+        if (preset->crf) normalized.crf = *preset->crf;
+        if (preset->codec) normalized.codec = *preset->codec;
+        if (preset->encode_preset) normalized.encode_preset = *preset->encode_preset;
+        if (preset->use_modular_graph) normalized.use_modular_graph = *preset->use_modular_graph;
+        if (preset->motion_blur) normalized.motion_blur = *preset->motion_blur;
+        if (preset->motion_blur_samples) normalized.motion_blur_samples = *preset->motion_blur_samples;
+        if (preset->shutter_angle) normalized.shutter_angle = *preset->shutter_angle;
+        if (preset->ssaa) normalized.ssaa = *preset->ssaa;
+
+        spdlog::info("Loaded camera preset '{}' from {}", normalized.profile, preset_source.string());
+    }
+
+    apply_camera_cli_overrides(normalized, args);
+
+    auto axis = parse_motion_axis(normalized.axis);
     if (!axis) {
-        spdlog::error("Unknown camera axis '{}'. Expected Tilt, Pan, or Roll.", args.axis);
+        spdlog::error("Unknown camera axis '{}'. Expected Tilt, Pan, or Roll.", normalized.axis);
         return 1;
     }
 
-    VideoCameraArgs normalized = args;
     if (normalized.output.empty()) {
         normalized.output = "output/camera_" + lower_copy(normalized.axis) + "_video.mp4";
     }
@@ -150,7 +202,7 @@ int command_video_camera(const CompositionRegistry& registry, const VideoCameraA
     options.encode.fps = normalized.fps;
     options.encode.crf = normalized.crf;
     options.encode.codec = normalized.codec;
-    options.encode.preset = normalized.preset;
+    options.encode.preset = normalized.encode_preset;
 
     video::FfmpegEncoder encoder;
     return video::render_to_video(*renderer, comp, normalized.output, options, encoder) ? 0 : 1;

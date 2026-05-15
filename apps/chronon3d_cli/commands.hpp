@@ -36,7 +36,7 @@ struct VideoArgs {
     int fps{30};
     int crf{18};
     std::string codec{"auto"};
-    std::string preset{"medium"};
+    std::string encode_preset{"medium"};
     bool keep_frames{false};
     bool use_modular_graph{false};
     bool   motion_blur{false};
@@ -49,13 +49,16 @@ struct VideoArgs {
 struct VideoCameraArgs {
     std::string axis{"Tilt"};
     std::string reference_image{"assets/images/camera_reference.jpg"};
+    std::string profile;
     std::string output;
     Frame start{0};
     Frame end{60};
+    int width{1920};
+    int height{1080};
     int fps{30};
     int crf{18};
     std::string codec{"auto"};
-    std::string preset{"medium"};
+    std::string encode_preset{"medium"};
     bool use_modular_graph{false};
     bool   motion_blur{false};
     int    motion_blur_samples{8};
