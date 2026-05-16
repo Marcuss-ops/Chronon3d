@@ -1,5 +1,7 @@
 #include <chronon3d/backends/software/fake_extruded_text_renderer.hpp>
-#include <chronon3d/backends/software/projector_2_5d.hpp>
+#include <chronon3d/math/projector_2_5d.hpp>
+#include <chronon3d/backends/text/text_layout_result.hpp>
+#include <chronon3d/rendering/light_context.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include "../primitive_renderer.hpp"
 #include <stb_truetype.h>
@@ -22,13 +24,11 @@ namespace mapbox { namespace util {
 
 namespace chronon3d {
 
-static const Vec3 k_light_dir = glm::normalize(Vec3(-0.4f, 1.2f, -0.6f));
-static constexpr float k_ambient = 0.20f;
-static constexpr float k_diffuse = 0.80f;
-static constexpr int   k_bevel_n = 6;
+static const rendering::LightContext k_text_light = rendering::LightContext::default_scene();
+static constexpr int k_bevel_n = 6;
 
 static float ndotl(const Vec3& n) {
-    return k_ambient + k_diffuse * std::max(0.0f, glm::dot(n, k_light_dir));
+    return k_text_light.shade_ndotl(n);
 }
 
 // ── UTF-8 decoding ────────────────────────────────────────────────────────────
@@ -258,8 +258,7 @@ void FakeExtrudedTextRenderer::collect_geometry(
             stbtt_GetCodepointHMetrics(&font, cp, &adv, &lsb);
             total_w += (float)adv * sc_f;
         }
-        x_cur = (s.align == TextAlign::Center) ? -total_w * 0.5f :
-                (s.align == TextAlign::Right)   ? -total_w : 0.0f;
+        x_cur = text::layout_x_start(total_w, s.align);
     }
 
     const float depth_z = (float)s.depth * s.extrude_z_step;

@@ -1,7 +1,7 @@
 #include <chronon3d/animations/camera_motion.hpp>
 #include <chronon3d/core/composition_registration.hpp>
 #include <chronon3d/presets/camera_motion_clip.hpp>
-#include <Operations/background/dark_grid_background.hpp>
+#include <chronon3d/scene/utils/dark_grid_background.hpp>
 
 namespace chronon3d {
 namespace {
@@ -24,7 +24,7 @@ void build_reference_image_content(SceneBuilder& s, const FrameContext& ctx, con
         0.0f,
     };
 
-    operations::background::dark_grid_background(s, ctx);
+    scene::utils::dark_grid_background(s, ctx);
 
     s.layer("reference-image", [reference_image, image_size, image_pos](LayerBuilder& l) {
         l.enable_3d()

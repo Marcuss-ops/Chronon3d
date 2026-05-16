@@ -7,7 +7,7 @@
 #include <chronon3d/animations/camera_motion.hpp>
 #include <chronon3d/backends/ffmpeg/ffmpeg_encoder.hpp>
 #include <chronon3d/backends/video/video_export.hpp>
-#include <Operations/background/dark_grid_background.hpp>
+#include <chronon3d/scene/utils/dark_grid_background.hpp>
 #include <chronon3d/presets/camera_motion_clip.hpp>
 
 namespace chronon3d::cli {
@@ -70,7 +70,7 @@ int command_video_camera(const CompositionRegistry& registry, const VideoCameraA
                 0.0f,
             };
 
-            operations::background::dark_grid_background(s, ctx);
+            scene::utils::dark_grid_background(s, ctx);
 
             s.layer("reference-image", [reference_image = p.reference_image, image_size, image_pos](LayerBuilder& l) {
                 l.enable_3d()
