@@ -2,7 +2,6 @@ add_executable(chronon3d_cli
     main.cpp
     utils/cli_utils.cpp
     utils/cli_render_utils.cpp
-    utils/render_job_plan.cpp
     utils/render_job.cpp
     utils/batch_job_spec.cpp
 
