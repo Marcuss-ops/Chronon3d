@@ -108,10 +108,7 @@ public:
         return m_image_backend.get();
     }
 
-    void set_font_backend(std::shared_ptr<text::FontBackend> backend) {
-        m_font_backend = std::move(backend);
-        m_text_renderer.set_backend(m_font_backend);
-    }
+    void set_font_backend(std::shared_ptr<text::FontBackend> backend);
     [[nodiscard]] text::FontBackend* font_backend() const {
         return m_font_backend.get();
     }

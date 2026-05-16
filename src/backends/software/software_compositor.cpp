@@ -14,7 +14,6 @@ void SoftwareCompositor::composite_layer(Framebuffer& dst, const Framebuffer& sr
         for (i32 x = 0; x < w; ++x) {
             Color s = src.get_pixel(x, y);
             if (s.a <= 0.0f) continue;
-            s = s.unpremultiplied();
             dst.set_pixel(x, y, compositor::blend(s, dst.get_pixel(x, y), mode));
         }
     }

@@ -37,7 +37,7 @@ add_executable(chronon3d_scene_tests
     scene/test_camera_hierarchy.cpp
     scene/test_anchor_gallery.cpp
 )
-target_link_libraries(chronon3d_scene_tests PRIVATE chronon3d_pipeline $<TARGET_OBJECTS:chronon3d_scene> $<TARGET_OBJECTS:chronon3d_backend_software> doctest::doctest)
+target_link_libraries(chronon3d_scene_tests PRIVATE chronon3d_pipeline chronon3d_scene chronon3d_backend_software doctest::doctest)
 target_include_directories(chronon3d_scene_tests PRIVATE ${CMAKE_SOURCE_DIR})
 add_test(NAME chronon3d_scene_tests COMMAND chronon3d_scene_tests)
 
@@ -85,10 +85,10 @@ target_link_libraries(chronon3d_renderer_tests
     PRIVATE
         chronon3d_pipeline
         chronon3d_backend_image
-        $<TARGET_OBJECTS:chronon3d_compositions>
-        $<TARGET_OBJECTS:chronon3d_graph>
-        $<TARGET_OBJECTS:chronon3d_backend_software>
-        $<TARGET_OBJECTS:chronon3d_scene>
+        chronon3d_compositions
+        chronon3d_graph
+        chronon3d_backend_software
+        chronon3d_scene
         doctest::doctest
 )
 if(CHRONON3D_ENABLE_VIDEO)

@@ -60,6 +60,7 @@ chronon3d_cli video MyVideo --start 0 --end 90 --fps 30 -o output/my_video.mp4
 | **Animation** | `interpolate()`, `spring()`, `Sequence`, `Easing` presets |
 | **Video export** | PNG sequence → MP4 via external `ffmpeg` |
 | **Node effects** | Drop shadow, Glow (node-level) |
+| **Modular Graph** | Content-hash caching, dependency-aware invalidation, adjustment layers |
 
 **Architecture:** CPU-only, headless, deterministic, code-first, PMR arena per frame.
 
@@ -275,6 +276,9 @@ auto [v, vel] = spring(ctx.frame, target, { .stiffness = 120, .damping = 14 });
 - Origin (0, 0) — top-left
 - X increases right, Y increases down
 - Z negative — closer to camera (Camera 2.5D)
+- **Hybrid Coordinates**:
+    - **2D Layers**: Use standard top-left screen coordinates.
+    - **3D / Projected Layers**: Use centered coordinates (e.g., 0,0 is screen center) to simplify perspective transformations and parallax.
 - Shapes are **center-anchored** by default
 - Draw order — painter's algorithm (insertion order for 2D, depth-sorted for 3D layers)
 
