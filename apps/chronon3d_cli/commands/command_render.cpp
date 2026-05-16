@@ -1,6 +1,7 @@
 #include "../commands.hpp"
 #include "../utils/cli_utils.hpp"
 #include "../utils/cli_render_utils.hpp"
+#include "../utils/render_job_plan.hpp"
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/core/render_telemetry.hpp>
 #include <spdlog/spdlog.h>
@@ -12,32 +13,30 @@ namespace chronon3d {
 namespace cli {
 
 int command_render(const CompositionRegistry& registry, const RenderArgs& args) {
-    auto range = parse_frames(args.frames);
-    bool ok = true;
-
-    if (args.frame_old != -1) {
-        range.start = range.end = args.frame_old;
-    } else if (args.start_old != -1 || args.end_old != -1) {
-        if (args.start_old != -1) range.start = args.start_old;
-        if (args.end_old != -1) range.end = args.end_old;
-    }
-
     auto resolved = resolve_composition(registry, args.comp_id);
     if (!resolved) return 1;
 
-    auto renderer = create_renderer(registry,
-        settings_from_args(args, !resolved.from_specscene, args.diagnostic));
+    auto plan_res = plan_render_job(args, !resolved.from_specscene);
+    if (!plan_res.ok) {
+        spdlog::error("Render plan failed: {}", plan_res.error);
+        return 1;
+    }
+    const auto& plan = plan_res.value;
+    const auto& range = plan.range;
+
+    auto renderer = create_renderer(registry, plan.settings);
 
     if (resolved.from_specscene && args.motion_blur) {
         spdlog::warn("Motion blur is ignored for specscene inputs in this build");
     }
 
     spdlog::info("Rendering {} [{} -> {} step {}]{}{}...",
-        args.comp_id, range.start, range.end, range.step,
-        args.motion_blur ? fmt::format(" [MB {}smp {:.0f}°]", args.motion_blur_samples, args.shutter_angle) : "",
-        args.ssaa > 1.0f ? fmt::format(" [SSAA {:.1f}x]", args.ssaa) : "");
+        plan.comp_id, range.start, range.end, range.step,
+        plan.settings.motion_blur.enabled ? fmt::format(" [MB {}smp {:.0f}°]", plan.settings.motion_blur.samples, plan.settings.motion_blur.shutter_angle) : "",
+        plan.settings.ssaa_factor > 1.0f ? fmt::format(" [SSAA {:.1f}x]", plan.settings.ssaa_factor) : "");
 
     int64_t effective_end = (range.start == range.end) ? range.start + 1 : range.end;
+    bool ok = true;
     for (int64_t f = range.start; f < effective_end; f += range.step) {
         const auto layer_count = static_cast<int>(resolved.comp->evaluate(static_cast<Frame>(f)).layers().size());
         const auto hits_before = renderer->node_cache().stats().hits;
@@ -48,7 +47,7 @@ int command_render(const CompositionRegistry& registry, const RenderArgs& args) 
 
         if (fb) {
             bool is_range = (range.start != range.end);
-            std::string path = format_path(args.output, f, is_range);
+            std::string path = format_path(plan.output, f, is_range);
             std::filesystem::path p(path);
             if (p.has_parent_path()) {
                 std::filesystem::create_directories(p.parent_path());
