@@ -1,4 +1,5 @@
 #include "video_camera_preset.hpp"
+#include "../commands.hpp"
 
 #include <toml++/toml.h>
 
@@ -304,6 +305,25 @@ std::optional<CameraVideoPreset> load_camera_preset(const std::string& preset_na
         }
         return std::nullopt;
     }
+}
+
+void apply_preset_to_args(const CameraVideoPreset& p, VideoCameraArgs& t) {
+    if (p.axis)                t.axis                 = *p.axis;
+    if (p.reference_image)     t.reference_image      = *p.reference_image;
+    if (p.output)              t.output               = *p.output;
+    if (p.start)               t.start                = *p.start;
+    if (p.end)                 t.end                  = *p.end;
+    if (p.width)               t.width                = *p.width;
+    if (p.height)              t.height               = *p.height;
+    if (p.fps)                 t.fps                  = *p.fps;
+    if (p.crf)                 t.crf                  = *p.crf;
+    if (p.codec)               t.codec                = *p.codec;
+    if (p.encode_preset)       t.encode_preset        = *p.encode_preset;
+    if (p.use_modular_graph)   t.use_modular_graph    = *p.use_modular_graph;
+    if (p.motion_blur)         t.motion_blur          = *p.motion_blur;
+    if (p.motion_blur_samples) t.motion_blur_samples  = *p.motion_blur_samples;
+    if (p.shutter_angle)       t.shutter_angle        = *p.shutter_angle;
+    if (p.ssaa)                t.ssaa                 = *p.ssaa;
 }
 
 } // namespace cli
