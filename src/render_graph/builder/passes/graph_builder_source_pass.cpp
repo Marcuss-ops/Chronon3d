@@ -35,7 +35,9 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
             };
 
             auto source = graph.add_node(std::make_unique<SourceNode>(
-                std::string(node.name), node, source_key, should_use_centered_rendering(item, ctx)
+                std::string(node.name), node, source_key,
+                should_use_centered_rendering(item, ctx),
+                item.projected  // is_3d: true for projected 3D layers
             ));
 
             auto composite = graph.add_node(std::make_unique<CompositeNode>(chronon3d::BlendMode::Normal));

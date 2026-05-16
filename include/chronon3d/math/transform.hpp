@@ -3,6 +3,7 @@
 #include <chronon3d/math/vec3.hpp>
 #include <chronon3d/math/quat.hpp>
 #include <chronon3d/math/mat4.hpp>
+#include <chronon3d/math/projector_2_5d.hpp>
 
 namespace chronon3d {
 
@@ -45,6 +46,12 @@ struct Transform {
 struct RenderState {
     Mat4 matrix;
     f32  opacity{1.0f};
+
+    // 3D card rendering — set by SourceNode when layer.is_3d && camera_2_5d active.
+    // Processors use projection to build ProjectedCard; world_matrix is layer TRS without camera.
+    renderer::ProjectionContext projection{};
+    Mat4 world_matrix{1.0f};
+    bool is_3d_layer{false};
 
     // Set by the renderer when the layer has an active mask.
     // Both fields propagate from layer_state → node_state via combine().
