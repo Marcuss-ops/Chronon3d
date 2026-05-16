@@ -28,9 +28,15 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                 .source_hash = hash_bytes(node.name.data(), node.name.size())
             };
 
-            // Center layer content only for non-projected 2D layers.
-            // 3D projected layers use a projection matrix that expects top-left-origin content.
-            const bool centered = !item.projected;
+            // Center layer content only when the layer has an explicit non-zero position.
+            // Layers at origin (0,0) use absolute node coordinates and must NOT be centered.
+            // 3D projected layers use a projection matrix and must NOT be centered either.
+            const bool has_layer_pos = item.transform.position.x != 0.0f
+                                    || item.transform.position.y != 0.0f;
+            const bool centered = !item.projected
+                                && has_layer_pos
+                                && layer.kind == LayerKind::Normal
+                                && !ctx.modular_coordinates;
             auto source = graph.add_node(std::make_unique<SourceNode>(
                 std::string(node.name), node, source_key, centered
             ));
