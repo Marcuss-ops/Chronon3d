@@ -231,7 +231,7 @@ add_library(chronon3d_pipeline INTERFACE)
 target_link_libraries(chronon3d_pipeline INTERFACE
     chronon3d_core
     chronon3d_software
-    chronon3d_compositions
+    $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_compositions>
     Taskflow::Taskflow concurrentqueue::concurrentqueue
 )
 
