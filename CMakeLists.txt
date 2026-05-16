@@ -38,6 +38,7 @@ find_package(CLI11 CONFIG REQUIRED)
 find_package(hwy CONFIG REQUIRED)
 find_package(tomlplusplus CONFIG REQUIRED)
 find_package(Tracy CONFIG QUIET)
+find_package(blend2d CONFIG REQUIRED)
 
 # FFmpeg Setup (Isolated)
 if(CHRONON3D_ENABLE_VIDEO)
@@ -136,7 +137,7 @@ target_include_directories(chronon3d_backend_assets PRIVATE ${Stb_INCLUDE_DIR})
 # 7c. Text Backend
 file(GLOB CHRONON3D_BACKEND_TEXT_SOURCES CONFIGURE_DEPENDS "src/backends/text/*.cpp")
 add_library(chronon3d_backend_text STATIC ${CHRONON3D_BACKEND_TEXT_SOURCES})
-target_link_libraries(chronon3d_backend_text PUBLIC chronon3d chronon3d_backend_assets)
+target_link_libraries(chronon3d_backend_text PUBLIC chronon3d chronon3d_backend_assets blend2d::blend2d)
 target_include_directories(chronon3d_backend_text PRIVATE ${Stb_INCLUDE_DIR})
 
 # 7d. Video Backend (Generic)
@@ -174,6 +175,7 @@ target_link_libraries(chronon3d_backend_software
     PUBLIC 
         chronon3d chronon3d_graph chronon3d_cache chronon3d_effects chronon3d_runtime
         chronon3d_backend_text chronon3d_backend_assets chronon3d_backend_image
+        blend2d::blend2d
     PRIVATE spdlog::spdlog hwy::hwy fmt::fmt xxHash::xxhash tomlplusplus::tomlplusplus
 )
 target_include_directories(chronon3d_backend_software PRIVATE ${Stb_INCLUDE_DIR})

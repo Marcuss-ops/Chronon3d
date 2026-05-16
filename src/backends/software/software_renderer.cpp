@@ -32,6 +32,11 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(const Scene& scene,
         render_scene_internal(scene, camera, width, height, 0, 0.0f).release());
 }
 
+void SoftwareRenderer::set_font_backend(std::shared_ptr<text::FontBackend> backend) {
+    m_font_backend = std::move(backend);
+    m_text_renderer.set_backend(m_font_backend);
+}
+
 std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(
     const Scene& scene, const std::optional<Camera2_5D>& camera, i32 width, i32 height) {
     Scene effective_scene = scene;
@@ -68,6 +73,7 @@ void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node,
     SoftwareNodeDispatcher::draw_node(*this, fb, node, state, camera, width, height, software_registry());
 }
 
+void SoftwareRenderer::apply_effect_stack(Framebuffer& fb, const EffectStack& stack) {
     SoftwareEffectRunner::apply_effect_stack(fb, stack, software_registry());
 }
 

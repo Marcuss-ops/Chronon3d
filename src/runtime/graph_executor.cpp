@@ -55,6 +55,17 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute_node(
 
     if (is_cacheable && ctx.node_cache) {
         key = node.cache_key(ctx);
+        
+        // Combine input hashes to ensure downstream invalidation
+        u64 input_hash = 0;
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            for (auto input_id : input_ids) {
+                input_hash = hash_combine(input_hash, m_resolved_key_digest[input_id]);
+            }
+        }
+        key.input_hash = input_hash;
+
         result = ctx.node_cache->find(key);
     }
 
@@ -68,6 +79,7 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute_node(
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         m_temp[id] = result;
+        m_resolved_key_digest[id] = key.digest();
     }
 
     return result;

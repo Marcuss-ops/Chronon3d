@@ -14,12 +14,8 @@ inline Transform calculate_centered_transform(const Transform& t, const RenderGr
 
 /// Determine if a layer should be rendered in centered mode.
 inline bool should_use_centered_rendering(const LayerGraphItem& item, const RenderGraphContext& ctx) {
-    const bool has_layer_pos = item.transform.position.x != 0.0f
-                            || item.transform.position.y != 0.0f;
-    return !item.projected
-        && has_layer_pos
-        && item.layer->kind == LayerKind::Normal
-        && !ctx.modular_coordinates;
+    if (item.projected) return false;
+    return ctx.modular_coordinates || item.layer->is_3d;
 }
 
 } // namespace chronon3d::graph::detail

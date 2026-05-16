@@ -21,57 +21,40 @@ f32 pixel_delta(const Color& a, const Color& b) {
 }
 
 void build_tilt_text_preview(SceneBuilder& s, const FrameContext& ctx, const CameraMotionParams&) {
-    const Vec3 text_pos{
-        static_cast<f32>(ctx.width) * 0.5f,
-        static_cast<f32>(ctx.height) * 0.5f,
-        0.0f,
-    };
+    const Vec3 text_pos{0.0f, 0.0f, 0.0f};
     const Vec2 banner_size{
         static_cast<f32>(ctx.width) * 0.34f,
         static_cast<f32>(ctx.height) * 0.16f,
     };
-    const Vec3 banner_pos{
-        static_cast<f32>(ctx.width) * 0.5f,
-        static_cast<f32>(ctx.height) * 0.5f + 8.0f,
-        -20.0f,
-    };
+    const Vec3 banner_pos{0.0f, 8.0f, -20.0f};
 
-    operations::background::dark_grid_background(s, ctx);
-
-    s.layer("banner", [banner_size, banner_pos](LayerBuilder& l) {
-        l.enable_3d()
-         .rounded_rect("banner_bg", {
-             .size = banner_size,
-             .radius = 6.0f,
-             .color = Color::from_hex("#ea3b36"),
-             .pos = banner_pos,
-         })
-         .drop_shadow({0.0f, 12.0f}, Color{0.0f, 0.0f, 0.0f, 0.28f}, 18.0f);
+    // operations::background::dark_grid_background(s, ctx);
+    s.layer("background_black", [](LayerBuilder& l) {
+        l.rect("bg", {
+            .size = {2000, 2000},
+            .color = Color::black(),
+            .pos = {0, 0, 0}
+        });
     });
 
     s.layer("title", [text_pos](LayerBuilder& l) {
         l.enable_3d()
-         .drop_shadow({0.0f, 8.0f}, Color{0.0f, 0.0f, 0.0f, 0.26f}, 8.0f)
          .with_glow(Glow{
              .enabled = true,
-             .radius = 14.0f,
-             .intensity = 0.16f,
-             .color = Color{1.0f, 1.0f, 1.0f, 0.16f},
+             .radius = 26.0f,
+             .intensity = 0.9f,
+             .color = Color{1.0f, 1.0f, 1.0f, 1.0f},
          });
-        l.fake_extruded_text("title_text", {
-            .text = "TEST",
-            .font_path = "assets/fonts/Inter-Bold.ttf",
-            .pos = text_pos,
-            .font_size = 156.0f,
-            .depth = 8,
-            .extrude_dir = {0.25f, 0.75f},
-            .extrude_z_step = 0.85f,
-            .front_color = Color::white(),
-            .side_color = Color::from_hex("#c9c9d1"),
-            .side_fade = 0.14f,
-            .align = TextAlign::Center,
-            .highlight_opacity = 0.04f,
-            .bevel_size = 0.55f,
+        
+        l.text("title_text", {
+            .content = "TEST",
+            .style = {
+                .font_path = "assets/fonts/Inter-Bold.ttf",
+                .size = 156.0f,
+                .color = Color::white(),
+                .align = TextAlign::Center
+            },
+            .pos = text_pos
         });
     });
 
@@ -97,6 +80,10 @@ TEST_CASE("Camera tilt text preview renders a centered tilted title PNG") {
 
     auto comp = chronon3d::presets::camera_motion_clip("CameraTiltTextPreview", params, build_tilt_text_preview);
     SoftwareRenderer renderer;
+    renderer.node_cache().clear();
+    RenderSettings settings;
+    settings.use_modular_graph = true;
+    renderer.set_settings(settings);
     renderer.set_font_backend(std::make_shared<text::StbFontBackend>());
 
     auto fb = renderer.render_frame(comp, 15);
