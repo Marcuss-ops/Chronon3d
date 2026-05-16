@@ -1,5 +1,6 @@
 #include <chronon3d/chronon3d.hpp>
 #include <chronon3d/core/composition_registration.hpp>
+#include <chronon3d/scene/camera/camera_motion_presets.hpp>
 
 // Proof composition: all 9 object types in a single 2.5D scene.
 // Render with --graph flag (modular graph required for Camera2_5D).
@@ -23,16 +24,16 @@ static Composition proof_25d_objects() {
             ? static_cast<float>(ctx.frame) / static_cast<float>(ctx.duration - 1)
             : 0.0f;
 
-        // Camera: pan from left to right + slight dolly in.
-        // POI at origin keeps all objects in view.
-        const float cam_x = -120.0f + 240.0f * t;
-        const float cam_z = -1100.0f + 250.0f * t;
-
-        s.camera()
-            .enable(true)
-            .position({cam_x, 0.0f, cam_z})
-            .zoom(1000.0f)
-            .look_at({0.0f, 0.0f, 0.0f});
+        // Orbit around the scene with a slight dolly-in.
+        s.camera().set(camera_motion::orbit(t, {
+            .radius          = 220.0f,
+            .z               = -1000.0f,
+            .y               = -30.0f,
+            .target          = {0.0f, 0.0f, 0.0f},
+            .start_angle_deg = -18.0f,
+            .end_angle_deg   =  18.0f,
+            .zoom            = 1000.0f
+        }));
 
         // ── 1. Background card (far) ──────────────────────────────────────────
         s.layer("background_card", [](LayerBuilder& l) {

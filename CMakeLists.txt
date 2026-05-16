@@ -183,6 +183,7 @@ target_include_directories(chronon3d_backend_software PRIVATE ${Stb_INCLUDE_DIR}
 # 8. Scene Assembly
 file(GLOB CHRONON3D_SCENE_SOURCES CONFIGURE_DEPENDS
     "src/scene/*.cpp"
+    "src/scene/camera/*.cpp"
     "src/presets/*.cpp"
     "src/animations/*.cpp"
     "src/animations/*/*.cpp"

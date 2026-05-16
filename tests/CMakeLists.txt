@@ -85,6 +85,7 @@ add_executable(chronon3d_renderer_tests
     render_graph/test_camera_2_5d_graph.cpp
     renderer/camera/25d/test_25d_parallax.cpp
     renderer/camera/25d/test_25d_tilt.cpp
+    renderer/camera/25d/test_25d_camera_motion.cpp
     registry/test_registries.cpp
     cache/test_cache_foundation.cpp
     effects/test_effect_registry.cpp
