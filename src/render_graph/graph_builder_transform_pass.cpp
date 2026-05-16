@@ -22,10 +22,10 @@ void append_transform_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_outp
     if (item.projected) {
         transform_node = std::make_unique<TransformNode>(item.projection_matrix,
                                                          layer.transform.opacity);
-    } else if (layer.kind == LayerKind::Normal && !ctx.modular_coordinates) {
-        // Non-projected 2D Normal layers: SourceNode renders content in framebuffer-centered
-        // coordinates. The layer position is in absolute pixel coordinates, so subtract
-        // the canvas center to give TransformNode the relative centered offset it expects.
+    } else if (layer.kind == LayerKind::Normal && !ctx.modular_coordinates
+               && (item.transform.position.x != 0.0f || item.transform.position.y != 0.0f)) {
+        // Normal 2D layers with a non-zero position: SourceNode rendered content in
+        // layer-position-centered coordinates. Convert to centered offset for TransformNode.
         Transform centered = item.transform;
         centered.position.x -= ctx.width  * 0.5f;
         centered.position.y -= ctx.height * 0.5f;

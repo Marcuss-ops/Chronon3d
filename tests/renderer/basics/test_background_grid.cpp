@@ -12,21 +12,13 @@ TEST_CASE("Background grid is rendered directly from core APIs") {
     CHECK(fb->width() == 100);
     CHECK(fb->height() == 100);
 
-    const Color off_grid = fb->get_pixel(10, 10);
-    const Color center = fb->get_pixel(50, 50);
-    CHECK(off_grid.r < 0.02f);
-    CHECK(off_grid.g < 0.02f);
-    CHECK(off_grid.b < 0.02f);
+    // Background is near-black everywhere
+    const Color bg = fb->get_pixel(10, 10);
+    CHECK(bg.r < 0.02f);
+    CHECK(bg.g < 0.02f);
+    CHECK(bg.b < 0.02f);
 
-    bool has_grid = false;
-    for (i32 y = 0; y < fb->height() && !has_grid; ++y) {
-        for (i32 x = 0; x < fb->width(); ++x) {
-            const Color p = fb->get_pixel(x, y);
-            if (p.r > off_grid.r || p.g > off_grid.g || p.b > off_grid.b) {
-                has_grid = true;
-                break;
-            }
-        }
-    }
-    CHECK(has_grid);
+    // Grid lines (spacing=80) appear at x=0 and x=80. Line at x=80 should be brighter.
+    const Color on_grid = fb->get_pixel(80, 50);
+    CHECK(on_grid.r > bg.r);
 }

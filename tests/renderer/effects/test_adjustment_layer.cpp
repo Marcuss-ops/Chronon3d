@@ -57,13 +57,10 @@ TEST_CASE("AdjustmentLayer: Null layer draws nothing") {
     auto fb = render_fn([](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         s.rect("bg", {.size={80,80}, .color=Color::white(), .pos={40,40,0}});
-        // A null layer — just a transform anchor, draws nothing
-        s.layer("null-layer", [](LayerBuilder& l) {
+        s.null_layer("null-layer", [](LayerBuilder& l) {
             l.position({40,40,0});
         });
-        auto sc = s.build();
-        const_cast<Layer&>(sc.layers()[0]).kind = LayerKind::Null;
-        return sc;
+        return s.build();
     });
 
     // Background still white

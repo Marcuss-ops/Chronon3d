@@ -106,17 +106,6 @@ void build_camera_reference_content(SceneBuilder& s,
     });
 }
 
-template<typename Args>
-RenderSettings settings_from_args(const Args& args, bool motion_blur_allowed = true) {
-    RenderSettings s;
-    s.use_modular_graph        = args.use_modular_graph;
-    s.motion_blur.enabled      = motion_blur_allowed && args.motion_blur;
-    s.motion_blur.samples      = args.motion_blur_samples;
-    s.motion_blur.shutter_angle = args.shutter_angle;
-    s.ssaa_factor              = args.ssaa;
-    return s;
-}
-
 } // namespace
 
 int command_video(const CompositionRegistry& registry, const VideoArgs& args) {
