@@ -132,6 +132,16 @@ target_link_libraries(chronon3d_cli_tests
 target_include_directories(chronon3d_cli_tests PRIVATE ${CMAKE_SOURCE_DIR})
 add_test(NAME chronon3d_cli_tests COMMAND chronon3d_cli_tests)
 
+# Aggregate target: build all test executables with a single cmake --build ... --target chronon3d_tests
+add_custom_target(chronon3d_tests
+    DEPENDS
+        chronon3d_core_tests
+        chronon3d_scene_tests
+        chronon3d_renderer_tests
+        chronon3d_io_tests
+        chronon3d_cli_tests
+)
+
 # Video Tests (Isolated)
 if(CHRONON3D_ENABLE_VIDEO)
     add_executable(chronon3d_video_tests 
@@ -147,4 +157,5 @@ if(CHRONON3D_ENABLE_VIDEO)
     target_compile_definitions(chronon3d_video_tests PRIVATE CHRONON_BUILD_TESTS CHRONON_WITH_VIDEO)
     target_include_directories(chronon3d_video_tests PRIVATE ${CMAKE_SOURCE_DIR})
     add_test(NAME chronon3d_video_tests COMMAND chronon3d_video_tests)
+    add_dependencies(chronon3d_tests chronon3d_video_tests)
 endif()
