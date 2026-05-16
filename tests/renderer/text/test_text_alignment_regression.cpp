@@ -188,3 +188,48 @@ TEST_CASE("Text glow creates visible pixels outside normal text bounds") {
     CHECK(pixels_outside > 50);
     CHECK(outside_blue > 5.0f);
 }
+
+TEST_CASE("Text glow intensity scales linearly, not quadratically") {
+    const std::string font = "assets/fonts/Inter-Bold.ttf";
+    if (!std::filesystem::exists(font)) return;
+
+    auto render_glow = [&](float intensity) {
+        SceneBuilder s;
+        s.layer("glow_layer", [&](LayerBuilder& l) {
+            l.text("text", {
+                .content = "GLOW",
+                .style = {
+                    .font_path = font,
+                    .size = 64.0f,
+                    .color = Color{0, 0, 0, 1}, // Black text to isolate glow
+                    .align = TextAlign::Center
+                }
+            }).at({180, 90, 0}).with_glow({
+                .enabled = true,
+                .radius = 16.0f,
+                .intensity = intensity,
+                .color = Color{0.0f, 0.5f, 1.0f, 1.0f}
+            });
+        });
+
+        SoftwareRenderer renderer;
+        Camera camera;
+        auto fb = renderer.render_scene(s.build(), camera, 360, 180);
+        REQUIRE(fb != nullptr);
+        return fb;
+    };
+
+    auto full = render_glow(1.0f);
+    auto half = render_glow(0.5f);
+
+    const float full_blue = sum_channel_b(*full);
+    const float half_blue = sum_channel_b(*half);
+
+    REQUIRE(full_blue > 0.1f);
+    const float ratio = half_blue / full_blue;
+
+    // With linear scaling, ratio should be around 0.5.
+    // If it was double-premultiplied (alpha * intensity * intensity), it would be 0.25 or less.
+    CHECK(ratio > 0.4f);
+    CHECK(ratio < 0.6f);
+}

@@ -8,6 +8,9 @@ namespace chronon3d::blend2d_bridge {
 
 /**
  * Composites a Blend2D image (PRGB32) into a Chronon3D Framebuffer (FloatRGBA).
+ * 
+ * WARNING: This function assumes the input BLImage is in PRGB32 (premultiplied) format.
+ * It will blend the pixels assuming the source is already premultiplied.
  */
 inline void composite_bl_image(Framebuffer& fb, const BLImage& img, int x, int y, float opacity, BlendMode mode) {
     BLImageData data;
@@ -60,6 +63,9 @@ inline void composite_bl_image(Framebuffer& fb, const BLImage& img, int x, int y
 }
 /**
  * Composites a Framebuffer into another Framebuffer at an offset.
+ * 
+ * WARNING: This function assumes the source framebuffer contains PREMULTIPLIED alpha pixels.
+ * It multiplies all channels by the global opacity before blending.
  */
 inline void composite_framebuffer_offset(Framebuffer& dst_fb, const Framebuffer& src_fb, int x, int y, float opacity, BlendMode mode) {
     const int sw = src_fb.width();
