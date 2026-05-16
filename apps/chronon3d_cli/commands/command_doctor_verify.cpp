@@ -10,7 +10,6 @@
 #include <chronon3d/backends/ffmpeg/ffmpeg_encoder.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/video/video_export.hpp>
-#include "video_camera_preset.hpp"
 #endif
 
 namespace chronon3d {
@@ -29,14 +28,6 @@ int command_doctor(const CompositionRegistry& registry) {
     }
 
 #ifdef CHRONON_WITH_VIDEO
-    std::string preset_error;
-    const auto preset_count = count_camera_presets(&preset_error);
-    if (preset_count > 0) {
-        spdlog::info("doctor: camera presets={} found", preset_count);
-    } else {
-        spdlog::warn("doctor: camera presets not available ({})", preset_error);
-        ok = false;
-    }
     spdlog::info("doctor: video backend {}", video::FfmpegEncoder::is_available() ? "available" : "missing");
 #else
     spdlog::warn("doctor: video backend disabled at build time");
@@ -62,7 +53,7 @@ int command_verify(const CompositionRegistry& registry, const std::string& outpu
 #ifdef CHRONON_WITH_VIDEO
     {
         VideoCameraArgs camera_args;
-        camera_args.profile = "pan_smoke";
+        camera_args.axis = "Pan";
         camera_args.output = (std::filesystem::path(output_dir) / "camera_pan_smoke_verify.mp4").string();
         if (command_video_camera(registry, camera_args) != 0) {
             exit_code = 1;

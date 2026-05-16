@@ -16,7 +16,7 @@ struct EvaluatedScene {
 
     std::vector<EvaluatedLayer> layers;
 
-    std::optional<Camera2_5D> camera;
+    std::optional<Camera2_5DRuntime> camera;
 };
 
 } // namespace chronon3d

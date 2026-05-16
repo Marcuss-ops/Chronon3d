@@ -14,7 +14,7 @@ u64 hash_shape(const Shape& shape);
 u64 hash_layer(const Layer& layer);
 u64 hash_node(const RenderNode& node);
 u64 hash_effect_stack(const EffectStack& stack);
-u64 hash_camera_2_5d(const Camera2_5D& camera);
+u64 hash_camera_2_5d(const Camera2_5DRuntime& camera);
 u64 hash_camera(const Camera& camera);
 
 } // namespace renderer

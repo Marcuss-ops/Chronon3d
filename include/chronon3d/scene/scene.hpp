@@ -26,8 +26,8 @@ public:
     [[nodiscard]] const std::pmr::vector<RenderNode>& nodes() const { return m_nodes; }
     [[nodiscard]] const std::pmr::vector<Layer>& layers() const { return m_layers; }
 
-    void set_camera_2_5d(Camera2_5D camera) { m_camera_2_5d = camera; }
-    [[nodiscard]] const Camera2_5D& camera_2_5d() const { return m_camera_2_5d; }
+    void set_camera_2_5d(Camera2_5DRuntime camera) { m_camera_2_5d = camera; }
+    [[nodiscard]] const Camera2_5DRuntime& camera_2_5d() const { return m_camera_2_5d; }
 
     void resolve_hierarchy(Frame frame);
     [[nodiscard]] bool hierarchy_baked() const { return m_hierarchy_baked; }
@@ -38,7 +38,7 @@ public:
 private:
     std::pmr::vector<RenderNode> m_nodes;
     std::pmr::vector<Layer> m_layers;
-    Camera2_5D m_camera_2_5d{};
+    Camera2_5DRuntime m_camera_2_5d{};
     bool m_hierarchy_baked{false};
 };
 

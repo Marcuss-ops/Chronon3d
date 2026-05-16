@@ -20,8 +20,8 @@ struct SceneDescription {
     FrameRate   frame_rate{30, 1};
     Frame       duration{0};
 
-    std::vector<LayerDesc>          layers;
-    std::optional<Camera2_5DDesc>   camera;
+    std::vector<LayerDesc>              layers;
+    std::optional<Camera2_5DAuthoring>   camera;
 };
 
 } // namespace chronon3d

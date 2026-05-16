@@ -1,3 +1,4 @@
+#include "utils/render_effects_processor.hpp"
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/software/software_compositor.hpp>
 #include <chronon3d/backends/software/software_effect_runner.hpp>
@@ -67,7 +68,6 @@ void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node,
     SoftwareNodeDispatcher::draw_node(*this, fb, node, state, camera, width, height, software_registry());
 }
 
-void SoftwareRenderer::apply_effect_stack(Framebuffer& fb, const EffectStack& stack) {
     SoftwareEffectRunner::apply_effect_stack(fb, stack, software_registry());
 }
 

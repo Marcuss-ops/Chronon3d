@@ -1,7 +1,7 @@
 #include <chronon3d/render_graph/graph_builder.hpp>
 
-#include "graph_builder_internal.hpp"
-#include "graph_builder_pipeline.hpp"
+#include "builder/graph_builder_internal.hpp"
+#include "builder/graph_builder_pipeline.hpp"
 
 namespace chronon3d::graph {
 

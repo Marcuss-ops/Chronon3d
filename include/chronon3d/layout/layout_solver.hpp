@@ -19,5 +19,9 @@ public:
 
 // Compute the 2D position that places `anchor` of a layer at the given canvas point.
 Vec2 anchor_position(Anchor anchor, i32 canvas_width, i32 canvas_height, f32 margin);
+Vec3 anchor_position(const AnchorPlacement& placement,
+                     i32 canvas_width,
+                     i32 canvas_height,
+                     f32 margin = 0.0f);
 
 } // namespace chronon3d

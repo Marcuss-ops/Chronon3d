@@ -47,7 +47,7 @@ TEST_CASE("MotionBlur: composition evaluate passes frame_time to context") {
             return s.build();
         });
 
-    comp.evaluate(5, 0.333f);
+    [[maybe_unused]] auto evaluated = comp.evaluate(5, 0.333f);
     CHECK(captured_time == doctest::Approx(0.333f));
 }
 

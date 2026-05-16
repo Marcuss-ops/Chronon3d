@@ -3,6 +3,8 @@ add_executable(chronon3d_cli
     utils/cli_utils.cpp
     utils/cli_render_utils.cpp
     utils/render_job_plan.cpp
+    utils/render_job.cpp
+    utils/batch_job_spec.cpp
 
     commands/command_list.cpp
     commands/command_info.cpp
@@ -11,7 +13,6 @@ add_executable(chronon3d_cli
     commands/command_watch.cpp
     commands/command_video.cpp
     commands/command_doctor_verify.cpp
-    commands/video_camera_preset.cpp
     commands/command_bench.cpp
     commands/command_graph.cpp
 )
@@ -22,7 +23,6 @@ target_link_libraries(chronon3d_cli
     PRIVATE
         chronon3d_pipeline
         chronon3d_backend_image
-        tomlplusplus::tomlplusplus
         spdlog::spdlog
         fmt::fmt
         $<TARGET_OBJECTS:chronon3d_graph>

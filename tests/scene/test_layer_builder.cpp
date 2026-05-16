@@ -53,3 +53,16 @@ TEST_CASE("LayerBuilder resolves depth role only once") {
     // Foreground is -500.0f usually. -500 + 25 = -475.
     CHECK(layer.transform.position.z == doctest::Approx(-475.0f));
 }
+
+TEST_CASE("LayerBuilder supports anchor placements") {
+    LayerBuilder b("test");
+    auto layer = b.pin_to(Anchors::TopCenter.offset_by({0.0f, 80.0f}).with_depth(-120.0f))
+                  .build();
+
+    REQUIRE(layer.layout.pin.has_value());
+    CHECK(layer.layout.pin->anchor == Anchor::TopCenter);
+    CHECK(layer.layout.pin->offset.x == doctest::Approx(0.0f));
+    CHECK(layer.layout.pin->offset.y == doctest::Approx(80.0f));
+    REQUIRE(layer.layout.pin->depth.has_value());
+    CHECK(*layer.layout.pin->depth == doctest::Approx(-120.0f));
+}

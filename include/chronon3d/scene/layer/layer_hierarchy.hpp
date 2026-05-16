@@ -5,21 +5,16 @@
 #include <chronon3d/math/camera_pose.hpp>
 #include <chronon3d/math/transform.hpp>
 #include <chronon3d/math/quat.hpp>
+#include <chronon3d/scene/layer/resolved_types.hpp>
 #include <unordered_map>
 #include <vector>
 #include <string>
+#include <string_view>
 #include <functional>
 
 namespace chronon3d {
 
-struct ResolvedLayer {
-    const Layer* layer{nullptr};
-    Transform world_transform{};
-    usize insertion_index{0};
-    bool has_parent{false};
-    bool parent_missing{false};
-    bool cycle_detected{false};
-};
+// Removed ResolvedLayer and ResolvedCamera definitions (now in resolved_types.hpp)
 
 inline Transform combine_transforms_simple(const Transform& parent, const Transform& child) {
     Transform out = child;
@@ -36,79 +31,113 @@ inline Transform combine_transforms_simple(const Transform& parent, const Transf
     return out;
 }
 
-struct ResolvedCamera {
-    Camera2_5D camera;
-    Transform world_transform;
-};
+namespace detail {
 
-inline std::pmr::vector<ResolvedLayer> resolve_layer_hierarchy(
-    const std::pmr::vector<Layer>& layers,
-    Frame frame,
-    std::pmr::memory_resource* res,
-    const Camera2_5D* input_camera = nullptr,
-    ResolvedCamera* out_camera = nullptr
-) {
-    std::pmr::vector<ResolvedLayer> resolved{res};
-    resolved.resize(layers.size());
+class LayerHierarchyResolver {
+public:
+    LayerHierarchyResolver(const std::pmr::vector<Layer>& layers, std::pmr::memory_resource* res)
+        : m_layers(layers)
+        , m_resolved(res)
+        , m_state(layers.size(), VisitState::Unvisited) {
+        m_resolved.resize(layers.size());
+        m_name_to_index.reserve(layers.size());
 
-    std::unordered_map<std::string_view, usize> name_to_index;
-    name_to_index.reserve(layers.size());
-
-    for (usize i = 0; i < layers.size(); ++i) {
-        name_to_index.emplace(std::string_view(layers[i].name), i);
-        resolved[i].layer = &layers[i];
-        resolved[i].world_transform = layers[i].transform;
-        resolved[i].insertion_index = i;
+        for (usize i = 0; i < layers.size(); ++i) {
+            m_name_to_index.emplace(std::string_view(layers[i].name), i);
+            m_resolved[i].layer = &layers[i];
+            m_resolved[i].world_transform = layers[i].transform;
+            m_resolved[i].insertion_index = i;
+        }
     }
 
+    [[nodiscard]] std::pmr::vector<ResolvedLayer> resolve_layers(Frame frame) {
+        for (usize i = 0; i < m_layers.size(); ++i) {
+            if (m_layers[i].active_at(frame)) {
+                resolve_one(i);
+            }
+        }
+        return m_resolved;
+    }
+
+    [[nodiscard]] ResolvedCamera resolve_camera(const Camera2_5DRuntime& input_camera) {
+        ResolvedCamera out_camera;
+        out_camera.camera = input_camera;
+        out_camera.world_transform.position = input_camera.position;
+        out_camera.world_transform.rotation = math::camera_rotation_quat(input_camera.rotation);
+
+        if (input_camera.hierarchy_baked) {
+            return out_camera;
+        }
+
+        if (!input_camera.parent_name.empty()) {
+            auto it = m_name_to_index.find(std::string_view(input_camera.parent_name));
+            if (it != m_name_to_index.end()) {
+                Transform parent_world = resolve_one(it->second);
+                out_camera.world_transform = combine_transforms_simple(parent_world, out_camera.world_transform);
+                out_camera.camera.position = out_camera.world_transform.position;
+            }
+        }
+
+        if (!input_camera.target_name.empty()) {
+            auto it = m_name_to_index.find(std::string_view(input_camera.target_name));
+            if (it != m_name_to_index.end()) {
+                Transform target_world = resolve_one(it->second);
+                out_camera.camera.point_of_interest = target_world.position;
+                out_camera.camera.point_of_interest_enabled = true;
+            }
+        }
+
+        return out_camera;
+    }
+
+private:
     enum class VisitState { Unvisited, Visiting, Visited };
-    std::vector<VisitState> state(layers.size(), VisitState::Unvisited);
 
-    std::function<Transform(usize)> resolve_one = [&](usize index) -> Transform {
-        if (state[index] == VisitState::Visited) {
-            return resolved[index].world_transform;
+    Transform resolve_one(usize index) {
+        if (m_state[index] == VisitState::Visited) {
+            return m_resolved[index].world_transform;
         }
 
-        if (state[index] == VisitState::Visiting) {
-            resolved[index].cycle_detected = true;
-            state[index] = VisitState::Visited;
-            resolved[index].world_transform = layers[index].transform;
-            return resolved[index].world_transform;
+        if (m_state[index] == VisitState::Visiting) {
+            m_resolved[index].cycle_detected = true;
+            m_state[index] = VisitState::Visited;
+            m_resolved[index].world_transform = m_layers[index].transform;
+            return m_resolved[index].world_transform;
         }
 
-        state[index] = VisitState::Visiting;
+        m_state[index] = VisitState::Visiting;
 
-        const Layer& layer = layers[index];
+        const Layer& layer = m_layers[index];
         Transform world = layer.transform;
 
         if (layer.hierarchy_resolved) {
             if (!layer.parent_name.empty()) {
-                resolved[index].has_parent = true;
-                auto it = name_to_index.find(std::string_view(layer.parent_name));
-                if (it == name_to_index.end()) {
-                    resolved[index].parent_missing = true;
+                m_resolved[index].has_parent = true;
+                auto it = m_name_to_index.find(std::string_view(layer.parent_name));
+                if (it == m_name_to_index.end()) {
+                    m_resolved[index].parent_missing = true;
                 } else if (it->second == index) {
-                    resolved[index].cycle_detected = true;
+                    m_resolved[index].cycle_detected = true;
                 }
             }
 
-            resolved[index].world_transform = world;
-            state[index] = VisitState::Visited;
+            m_resolved[index].world_transform = world;
+            m_state[index] = VisitState::Visited;
             return world;
         }
 
         if (!layer.parent_name.empty()) {
-            resolved[index].has_parent = true;
+            m_resolved[index].has_parent = true;
 
-            auto it = name_to_index.find(std::string_view(layer.parent_name));
-            if (it == name_to_index.end()) {
-                resolved[index].parent_missing = true;
+            auto it = m_name_to_index.find(std::string_view(layer.parent_name));
+            if (it == m_name_to_index.end()) {
+                m_resolved[index].parent_missing = true;
                 world = layer.transform;
             } else {
                 const usize parent_index = it->second;
 
                 if (parent_index == index) {
-                    resolved[index].cycle_detected = true;
+                    m_resolved[index].cycle_detected = true;
                     world = layer.transform;
                 } else {
                     Transform parent_world = resolve_one(parent_index);
@@ -117,46 +146,49 @@ inline std::pmr::vector<ResolvedLayer> resolve_layer_hierarchy(
             }
         }
 
-        resolved[index].world_transform = world;
-        state[index] = VisitState::Visited;
+        m_resolved[index].world_transform = world;
+        m_state[index] = VisitState::Visited;
         return world;
-    };
-
-    for (usize i = 0; i < layers.size(); ++i) {
-        if (layers[i].active_at(frame)) {
-            resolve_one(i);
-        }
     }
 
-    // Resolve Camera if provided
+    const std::pmr::vector<Layer>& m_layers;
+    std::pmr::vector<ResolvedLayer> m_resolved;
+    std::unordered_map<std::string_view, usize> m_name_to_index;
+    std::vector<VisitState> m_state;
+};
+
+} // namespace detail
+
+inline std::pmr::vector<ResolvedLayer> resolve_layer_hierarchy(
+    const std::pmr::vector<Layer>& layers,
+    Frame frame,
+    std::pmr::memory_resource* res
+) {
+    detail::LayerHierarchyResolver resolver(layers, res);
+    return resolver.resolve_layers(frame);
+}
+
+inline ResolvedCamera resolve_camera_hierarchy(
+    const std::pmr::vector<Layer>& layers,
+    std::pmr::memory_resource* res,
+    const Camera2_5DRuntime& input_camera
+) {
+    detail::LayerHierarchyResolver resolver(layers, res);
+    return resolver.resolve_camera(input_camera);
+}
+
+[[deprecated("Use resolve_layer_hierarchy and resolve_camera_hierarchy separately")]]
+inline std::pmr::vector<ResolvedLayer> resolve_layer_hierarchy(
+    const std::pmr::vector<Layer>& layers,
+    Frame frame,
+    std::pmr::memory_resource* res,
+    const Camera2_5DRuntime* input_camera,
+    ResolvedCamera* out_camera
+) {
+    auto resolved = resolve_layer_hierarchy(layers, frame, res);
     if (input_camera && out_camera) {
-        out_camera->camera = *input_camera;
-        out_camera->world_transform.position = input_camera->position;
-        out_camera->world_transform.rotation = math::camera_rotation_quat(input_camera->rotation);
-
-        if (input_camera->hierarchy_baked) {
-            return resolved;
-        }
-
-        if (!input_camera->parent_name.empty()) {
-            auto it = name_to_index.find(std::string_view(input_camera->parent_name));
-            if (it != name_to_index.end()) {
-                Transform parent_world = resolve_one(it->second);
-                out_camera->world_transform = combine_transforms_simple(parent_world, out_camera->world_transform);
-                out_camera->camera.position = out_camera->world_transform.position;
-            }
-        }
-
-        if (!input_camera->target_name.empty()) {
-            auto it = name_to_index.find(std::string_view(input_camera->target_name));
-            if (it != name_to_index.end()) {
-                Transform target_world = resolve_one(it->second);
-                out_camera->camera.point_of_interest = target_world.position;
-                out_camera->camera.point_of_interest_enabled = true;
-            }
-        }
+        *out_camera = resolve_camera_hierarchy(layers, res, *input_camera);
     }
-
     return resolved;
 }
 

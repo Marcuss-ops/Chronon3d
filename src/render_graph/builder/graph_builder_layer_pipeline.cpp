@@ -1,13 +1,14 @@
 #include "graph_builder_layer_pipeline.hpp"
 
-#include "graph_builder_source_pass.hpp"
-#include "graph_builder_transform_pass.hpp"
-#include "graph_builder_mask_pass.hpp"
-#include "graph_builder_effect_pass.hpp"
-#include "graph_builder_composite_pass.hpp"
+#include "passes/graph_builder_source_pass.hpp"
+#include "passes/graph_builder_transform_pass.hpp"
+#include "passes/graph_builder_mask_pass.hpp"
+#include "passes/graph_builder_effect_pass.hpp"
+#include "passes/graph_builder_composite_pass.hpp"
 
 #include <chronon3d/render_graph/nodes/basic_nodes.hpp>
 #include <chronon3d/render_graph/render_graph_hashing.hpp>
+#include <chronon3d/effects/effect_registry.hpp>
 
 namespace chronon3d::graph::detail {
 
@@ -41,9 +42,21 @@ GraphNodeId LayerPipelineBuilder::append_root_sources(RenderGraph& graph, const 
 
 void LayerPipelineBuilder::append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
                                                  GraphNodeId& current, const RenderGraphContext& ctx,
-                                                 const Camera2_5D& cam25d) {
+                                                 const Camera2_5DRuntime& cam25d) {
     // 1. Source pass — render layer content
     GraphNodeId layer_output = append_source_pass(graph, item, ctx);
+
+    const Layer& layer = *item.layer;
+    if (layer.kind == LayerKind::Adjustment) {
+        // Apply effects directly on current node, no source or composite needed
+        for (const auto& eff : layer.effects) {
+            auto node = chronon3d::effects::EffectRegistry::instance().create_node(eff);
+            GraphNodeId effect_id = graph.add_node(std::move(node));
+            graph.connect(current, effect_id);
+            current = effect_id;
+        }
+        return;
+    }
 
     // 2. For non-projected 2D Normal layers: apply mask before transform so that mask.pos=(0,0)
     //    aligns with the SourceNode's centered-coordinate output (layer center = canvas center).

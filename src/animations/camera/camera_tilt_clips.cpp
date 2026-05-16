@@ -1,5 +1,6 @@
 #include <chronon3d/animations/camera_motion.hpp>
 #include <chronon3d/core/composition_registration.hpp>
+#include <chronon3d/presets/camera_motion_clip.hpp>
 #include <Operations/background/dark_grid_background.hpp>
 
 namespace chronon3d {
@@ -10,7 +11,6 @@ using chronon3d::animation::MotionAxis;
 
 void build_reference_image_content(SceneBuilder& s, const FrameContext& ctx, const CameraMotionParams& p) {
     const std::string reference_image = p.reference_image;
-    operations::background::dark_grid_background(s, ctx);
 
     const f32 inset_x = static_cast<f32>(ctx.width) * 0.06f;
     const f32 inset_y = static_cast<f32>(ctx.height) * 0.06f;
@@ -23,6 +23,8 @@ void build_reference_image_content(SceneBuilder& s, const FrameContext& ctx, con
         static_cast<f32>(ctx.height) * 0.5f,
         0.0f,
     };
+
+    operations::background::dark_grid_background(s, ctx);
 
     s.layer("reference-image", [reference_image, image_size, image_pos](LayerBuilder& l) {
         l.enable_3d()
@@ -41,7 +43,7 @@ Composition make_camera_image_clip() {
     params.duration = 60;
     params.start_frame = 0;
 
-    return animation::camera_motion_clip(
+    return chronon3d::presets::camera_motion_clip(
         "CameraImageClip",
         params,
         [](SceneBuilder& s, const FrameContext& ctx, const CameraMotionParams& p) {

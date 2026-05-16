@@ -88,7 +88,7 @@ EvaluatedScene TimelineEvaluator::evaluate(const SceneDescription& scene, Frame 
     }
 
     if (scene.camera && scene.camera->enabled) {
-        Camera2_5D cam;
+        Camera2_5DRuntime cam;
         cam.enabled            = true;
         cam.position           = scene.camera->position.value_at(frame);
         cam.point_of_interest  = scene.camera->point_of_interest;

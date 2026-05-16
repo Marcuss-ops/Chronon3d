@@ -97,45 +97,49 @@ LayerBuilder& LayerBuilder::mask_circle(CircleMaskParams p) {
 }
 
 LayerBuilder& LayerBuilder::blur(f32 radius) {
-    m_layer.effects.push_back({BlurParams{radius}});
+    m_layer.effects.push_back(EffectInstance{effects::EffectDescriptor{.id="blur.gaussian"}, BlurParams{radius}});
     return *this;
 }
 
 LayerBuilder& LayerBuilder::tint(Color color, f32 amount) {
-    m_layer.effects.push_back({TintParams{color, amount}});
+    m_layer.effects.push_back(EffectInstance{effects::EffectDescriptor{.id="color.tint"}, TintParams{color, amount}});
     return *this;
 }
 
 LayerBuilder& LayerBuilder::brightness(f32 v) {
-    m_layer.effects.push_back({BrightnessParams{v}});
+    m_layer.effects.push_back(EffectInstance{effects::EffectDescriptor{.id="color.brightness"}, BrightnessParams{v}});
     return *this;
 }
 
 LayerBuilder& LayerBuilder::contrast(f32 v) {
-    m_layer.effects.push_back({ContrastParams{v}});
+    m_layer.effects.push_back(EffectInstance{effects::EffectDescriptor{.id="color.contrast"}, ContrastParams{v}});
     return *this;
 }
 
 LayerBuilder& LayerBuilder::drop_shadow(Vec2 offset, Color color, f32 radius) {
-    m_layer.effects.push_back({DropShadowParams{offset, color, radius}});
+    m_layer.effects.push_back(EffectInstance{effects::EffectDescriptor{.id="light.drop_shadow"}, DropShadowParams{offset, color, radius}});
     return *this;
 }
 
 LayerBuilder& LayerBuilder::glow(f32 radius, f32 intensity, Color color) {
-    m_layer.effects.push_back({GlowParams{radius, intensity, color}});
+    m_layer.effects.push_back(EffectInstance{effects::EffectDescriptor{.id="light.glow"}, GlowParams{radius, intensity, color}});
     return *this;
 }
 
 LayerBuilder& LayerBuilder::bloom(f32 threshold, f32 radius, f32 intensity) {
-    m_layer.effects.push_back({BloomParams{threshold, radius, intensity}});
+    m_layer.effects.push_back(EffectInstance{effects::EffectDescriptor{.id="light.bloom"}, BloomParams{threshold, radius, intensity}});
     return *this;
 }
 
 LayerBuilder& LayerBuilder::blend(BlendMode mode) { m_layer.blend_mode = mode; return *this; }
 
 LayerBuilder& LayerBuilder::pin_to(Anchor anchor, f32 margin) {
+    return pin_to(AnchorPlacement{anchor}, margin);
+}
+
+LayerBuilder& LayerBuilder::pin_to(AnchorPlacement placement, f32 margin) {
     m_layer.layout.enabled = true;
-    m_layer.layout.pin     = anchor;
+    m_layer.layout.pin     = placement;
     m_layer.layout.margin  = margin;
     return *this;
 }
@@ -235,7 +239,7 @@ LayerBuilder& LayerBuilder::node_opacity(f32 a) {
 
 LayerBuilder& LayerBuilder::video(video::VideoSource source) {
     m_layer.kind = LayerKind::Video;
-    m_layer.video_source = std::move(source);
+    m_layer.video_source = std::make_unique<video::VideoSource>(std::move(source));
     return *this;
 }
 

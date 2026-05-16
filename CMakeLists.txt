@@ -39,7 +39,7 @@ find_package(hwy CONFIG REQUIRED)
 find_package(tomlplusplus CONFIG REQUIRED)
 find_package(Tracy CONFIG QUIET)
 
-# FFmpeg Setup
+# FFmpeg Setup (Isolated)
 if(CHRONON3D_ENABLE_VIDEO)
     if(NOT DEFINED VCPKG_INSTALLED_DIR)
         set(VCPKG_INSTALLED_DIR "${CMAKE_SOURCE_DIR}/vcpkg_installed")
@@ -75,7 +75,7 @@ if(CHRONON3D_ENABLE_VIDEO)
     )
 endif()
 
-# 1. Interface Library
+# 1. Base Interface
 add_library(chronon3d INTERFACE)
 target_include_directories(chronon3d INTERFACE 
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -89,7 +89,6 @@ else()
     target_compile_options(chronon3d INTERFACE -ffp-contract=off)
 endif()
 
-
 # 3. Registry
 file(GLOB CHRONON3D_REGISTRY_SOURCES CONFIGURE_DEPENDS "src/registry/*.cpp")
 add_library(chronon3d_registry STATIC ${CHRONON3D_REGISTRY_SOURCES})
@@ -101,10 +100,10 @@ add_library(chronon3d_cache STATIC ${CHRONON3D_CACHE_SOURCES})
 target_link_libraries(chronon3d_cache PUBLIC chronon3d xxHash::xxhash)
 
 # 5. Render Graph
-file(GLOB CHRONON3D_GRAPH_SOURCES CONFIGURE_DEPENDS 
+file(GLOB_RECURSE CHRONON3D_GRAPH_SOURCES CONFIGURE_DEPENDS 
     "src/render_graph/*.cpp"
 )
-add_library(chronon3d_graph OBJECT ${CHRONON3D_GRAPH_SOURCES})
+add_library(chronon3d_graph STATIC ${CHRONON3D_GRAPH_SOURCES})
 target_link_libraries(chronon3d_graph PUBLIC chronon3d chronon3d_cache fmt::fmt hwy::hwy tomlplusplus::tomlplusplus)
 
 # 6. Effects
@@ -122,7 +121,7 @@ target_link_libraries(chronon3d_runtime PUBLIC
 
 # 7. Backends
 
-# 7a. Image Backend (Replacement for IO)
+# 7a. Image Backend
 file(GLOB CHRONON3D_BACKEND_IMAGE_SOURCES CONFIGURE_DEPENDS "src/backends/image/*.cpp")
 add_library(chronon3d_backend_image STATIC ${CHRONON3D_BACKEND_IMAGE_SOURCES})
 target_link_libraries(chronon3d_backend_image PUBLIC chronon3d spdlog::spdlog fmt::fmt)
@@ -169,9 +168,8 @@ file(GLOB CHRONON3D_BACKEND_SOFTWARE_SOURCES CONFIGURE_DEPENDS
     "src/backends/software/specialized/*.cpp"
     "src/backends/software/processors/*.cpp"
     "src/backends/software/utils/*.cpp"
-    "src/backends/software/processors/*.cpp"
 )
-add_library(chronon3d_backend_software OBJECT ${CHRONON3D_BACKEND_SOFTWARE_SOURCES})
+add_library(chronon3d_backend_software STATIC ${CHRONON3D_BACKEND_SOFTWARE_SOURCES})
 target_link_libraries(chronon3d_backend_software
     PUBLIC 
         chronon3d chronon3d_graph chronon3d_cache chronon3d_effects chronon3d_runtime
@@ -180,9 +178,10 @@ target_link_libraries(chronon3d_backend_software
 )
 target_include_directories(chronon3d_backend_software PRIVATE ${Stb_INCLUDE_DIR})
 
-# 8. Scene Assembly (Scene, Layout, SpecScene)
+# 8. Scene Assembly
 file(GLOB CHRONON3D_SCENE_SOURCES CONFIGURE_DEPENDS
     "src/scene/*.cpp"
+    "src/presets/*.cpp"
     "src/animations/*.cpp"
     "src/animations/*/*.cpp"
     "src/layout/*.cpp"
@@ -193,15 +192,15 @@ target_include_directories(chronon3d_scene PRIVATE ${CMAKE_SOURCE_DIR})
 target_link_libraries(chronon3d_scene
     PUBLIC 
         chronon3d chronon3d_runtime chronon3d_graph chronon3d_registry 
-        chronon3d_cache chronon3d_effects chronon3d_backend_image chronon3d_backend_video
+        chronon3d_cache chronon3d_effects chronon3d_backend_image
     PRIVATE spdlog::spdlog fmt::fmt tomlplusplus::tomlplusplus
 )
 
-# 9. Compositions (Examples/Built-in)
+# 9. Compositions
 file(GLOB CHRONON3D_COMPOSITION_SOURCES CONFIGURE_DEPENDS
     "src/compositions/*.cpp"
 )
-add_library(chronon3d_compositions OBJECT ${CHRONON3D_COMPOSITION_SOURCES})
+add_library(chronon3d_compositions STATIC ${CHRONON3D_COMPOSITION_SOURCES})
 target_link_libraries(chronon3d_compositions
     PUBLIC
         chronon3d
@@ -209,15 +208,27 @@ target_link_libraries(chronon3d_compositions
         chronon3d_registry
 )
 
+# Architectural Aggregates (Agent rules)
+add_library(chronon3d_core INTERFACE)
+target_link_libraries(chronon3d_core INTERFACE
+    chronon3d_scene chronon3d_runtime chronon3d_graph chronon3d_registry chronon3d_cache
+)
+
+add_library(chronon3d_software INTERFACE)
+target_link_libraries(chronon3d_software INTERFACE
+    chronon3d_backend_software chronon3d_backend_text chronon3d_backend_assets chronon3d_backend_image
+)
+
 if(CHRONON3D_ENABLE_VIDEO)
-    target_link_libraries(chronon3d_scene PUBLIC chronon3d_backend_ffmpeg)
+    target_link_libraries(chronon3d_scene PRIVATE chronon3d_backend_video chronon3d_backend_ffmpeg)
     target_compile_definitions(chronon3d_scene PUBLIC CHRONON_WITH_VIDEO)
 endif()
 
 # 11. Pipeline (Interface)
 add_library(chronon3d_pipeline INTERFACE)
 target_link_libraries(chronon3d_pipeline INTERFACE
-    chronon3d_scene chronon3d_runtime chronon3d_graph chronon3d_backend_software chronon3d_registry chronon3d_cache
+    chronon3d_core
+    chronon3d_software
     chronon3d_compositions
     Taskflow::Taskflow concurrentqueue::concurrentqueue
 )
@@ -233,9 +244,6 @@ endif()
 # Subdirectories
 if(CHRONON3D_BUILD_CLI)
     add_subdirectory(apps/chronon3d_cli)
-endif()
-
-if(CHRONON3D_ENABLE_VIDEO)
 endif()
 
 if(CHRONON3D_BUILD_TESTS)

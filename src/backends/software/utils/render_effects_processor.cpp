@@ -150,53 +150,71 @@ void apply_color_effects(Framebuffer& fb, const LayerEffect& effect) {
     }
 }
 
-void apply_effect_stack(Framebuffer& fb, const EffectStack& stack) {
-    for (const auto& inst : stack) {
-        if (!inst.enabled) continue;
-        std::visit([&fb](const auto& p) {
-            using T = std::decay_t<decltype(p)>;
-            if constexpr (std::is_same_v<T, BlurParams>) {
-                if (p.radius > 0.0f) apply_blur(fb, p.radius);
-            } else if constexpr (std::is_same_v<T, TintParams>) {
-                LayerEffect e;
-                e.tint = Color{p.color.r, p.color.g, p.color.b, p.color.a * p.amount};
-                apply_color_effects(fb, e);
-            } else if constexpr (std::is_same_v<T, BrightnessParams>) {
-                LayerEffect e; e.brightness = p.value;
-                apply_color_effects(fb, e);
-            } else if constexpr (std::is_same_v<T, ContrastParams>) {
-                LayerEffect e; e.contrast = p.value;
-                apply_color_effects(fb, e);
-            } else if constexpr (std::is_same_v<T, BloomParams>) {
-                const i32 w = fb.width(), h = fb.height();
-                Framebuffer bright(w, h);
-                bright.clear(Color::transparent());
-                for (i32 y = 0; y < h; ++y) {
-                    for (i32 x = 0; x < w; ++x) {
-                        const Color c = fb.get_pixel(x, y);
-                        const f32 lum = 0.2126f * c.r + 0.7152f * c.g + 0.0722f * c.b;
-                        if (lum > p.threshold && c.a > 0.0f) {
-                            const f32 excess = (lum - p.threshold) / (1.0f - p.threshold + 1e-4f);
-                            bright.set_pixel(x, y, {c.r * excess, c.g * excess, c.b * excess, c.a});
-                        }
-                    }
-                }
-                if (p.radius > 0.0f) apply_blur(bright, p.radius);
-                for (i32 y = 0; y < h; ++y) {
-                    for (i32 x = 0; x < w; ++x) {
-                        const Color b = bright.get_pixel(x, y);
-                        if (b.a <= 0.0f) continue;
-                        const Color src = fb.get_pixel(x, y);
-                        fb.set_pixel(x, y, {
-                            std::min(1.0f, src.r + b.r * p.intensity),
-                            std::min(1.0f, src.g + b.g * p.intensity),
-                            std::min(1.0f, src.b + b.b * p.intensity),
-                            src.a
-                        });
+static void apply_one_param(Framebuffer& fb, const EffectParams& params) {
+    std::visit([&fb](const auto& p) {
+        using T = std::decay_t<decltype(p)>;
+        if constexpr (std::is_same_v<T, BlurParams>) {
+            if (p.radius > 0.0f) apply_blur(fb, p.radius);
+        } else if constexpr (std::is_same_v<T, TintParams>) {
+            LayerEffect e;
+            e.tint = Color{p.color.r, p.color.g, p.color.b, p.color.a * p.amount};
+            apply_color_effects(fb, e);
+        } else if constexpr (std::is_same_v<T, BrightnessParams>) {
+            LayerEffect e; e.brightness = p.value;
+            apply_color_effects(fb, e);
+        } else if constexpr (std::is_same_v<T, ContrastParams>) {
+            LayerEffect e; e.contrast = p.value;
+            apply_color_effects(fb, e);
+        } else if constexpr (std::is_same_v<T, BloomParams>) {
+            const i32 w = fb.width(), h = fb.height();
+            Framebuffer bright(w, h);
+            bright.clear(Color::transparent());
+            for (i32 y = 0; y < h; ++y) {
+                for (i32 x = 0; x < w; ++x) {
+                    const Color c = fb.get_pixel(x, y);
+                    const f32 lum = 0.2126f * c.r + 0.7152f * c.g + 0.0722f * c.b;
+                    if (lum > p.threshold && c.a > 0.0f) {
+                        const f32 excess = (lum - p.threshold) / (1.0f - p.threshold + 1e-4f);
+                        bright.set_pixel(x, y, {c.r * excess, c.g * excess, c.b * excess, c.a});
                     }
                 }
             }
-        }, inst.params);
+            if (p.radius > 0.0f) apply_blur(bright, p.radius);
+            for (i32 y = 0; y < h; ++y) {
+                for (i32 x = 0; x < w; ++x) {
+                    const Color b = bright.get_pixel(x, y);
+                    if (b.a <= 0.0f) continue;
+                    const Color src = fb.get_pixel(x, y);
+                    fb.set_pixel(x, y, {
+                        std::min(1.0f, src.r + b.r * p.intensity),
+                        std::min(1.0f, src.g + b.g * p.intensity),
+                        std::min(1.0f, src.b + b.b * p.intensity),
+                        src.a
+                    });
+                }
+            }
+        }
+    }, params);
+}
+
+void apply_effect_stack(Framebuffer& fb, const EffectStack& stack) {
+    for (const auto& inst : stack) {
+        if (!inst.enabled) continue;
+        
+        // Handle both variant (legacy) and direct types (modular)
+        if (auto* v = std::any_cast<EffectParams>(&inst.params)) {
+            apply_one_param(fb, *v);
+        } else if (auto* p = std::any_cast<BlurParams>(&inst.params)) {
+            apply_one_param(fb, EffectParams{*p});
+        } else if (auto* p = std::any_cast<TintParams>(&inst.params)) {
+            apply_one_param(fb, EffectParams{*p});
+        } else if (auto* p = std::any_cast<BrightnessParams>(&inst.params)) {
+            apply_one_param(fb, EffectParams{*p});
+        } else if (auto* p = std::any_cast<ContrastParams>(&inst.params)) {
+            apply_one_param(fb, EffectParams{*p});
+        } else if (auto* p = std::any_cast<BloomParams>(&inst.params)) {
+            apply_one_param(fb, EffectParams{*p});
+        }
     }
 }
 

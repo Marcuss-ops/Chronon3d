@@ -17,4 +17,6 @@ struct Camera2_5DDesc {
     AnimatedValue<f32>  zoom{1000.0f};
 };
 
+using Camera2_5DAuthoring = Camera2_5DDesc;
+
 } // namespace chronon3d

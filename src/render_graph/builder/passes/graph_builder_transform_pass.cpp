@@ -1,7 +1,9 @@
 #include "graph_builder_transform_pass.hpp"
+#include "../graph_builder_coordinates.hpp"
 
 #include <chronon3d/render_graph/nodes/transform_node.hpp>
 #include <chronon3d/scene/layer/layer.hpp>
+#include <memory>
 
 namespace chronon3d::graph::detail {
 
@@ -22,16 +24,9 @@ void append_transform_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_outp
     if (item.projected) {
         transform_node = std::make_unique<TransformNode>(item.projection_matrix,
                                                          layer.transform.opacity);
-    } else if (layer.kind == LayerKind::Normal && !ctx.modular_coordinates
-               && (item.transform.position.x != 0.0f || item.transform.position.y != 0.0f)) {
-        // Normal 2D layers with a non-zero position: SourceNode rendered content in
-        // layer-position-centered coordinates. Convert to centered offset for TransformNode.
-        Transform centered = item.transform;
-        centered.position.x -= ctx.width  * 0.5f;
-        centered.position.y -= ctx.height * 0.5f;
-        transform_node = std::make_unique<TransformNode>(centered);
+    } else if (should_use_centered_rendering(item, ctx)) {
+        transform_node = std::make_unique<TransformNode>(calculate_centered_transform(item.transform, ctx));
     } else {
-        // Precomp, Video, modular-mode layers: use position as-is.
         transform_node = std::make_unique<TransformNode>(item.transform);
     }
 

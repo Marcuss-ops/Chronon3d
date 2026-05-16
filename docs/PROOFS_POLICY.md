@@ -1,51 +1,51 @@
 # Proofs Policy
 
-Questa regola decide cosa può entrare nei proofs del progetto.
+This rule determines what can be included in the project's proofs.
 
-## Regola base
+## Basic Rule
 
-Un proof si aggiunge solo se valida una feature che ha una base vera nel core del progetto.
+A proof is added only if it validates a feature that has a real foundation in the project core.
 
-Per "base vera" intendo:
+By "real foundation," I mean:
 
-- API pubblica presente in `include/chronon3d/...`
-- implementazione reale presente in `src/...`
-- comportamento verificabile senza creare una seconda logica parallela
+- Public API present in `include/chronon3d/...`
+- Real implementation present in `src/...`
+- Verifiable behavior without creating a second parallel logic
 
-Se una cosa non ha questa base, non deve diventare un proof.
+If something does not have this foundation, it must not become a proof.
 
-## Cosa si può aggiungere
+## What Can Be Added
 
-- Proof che testano una feature reale del core
-- Proof di camera, layer, mask, text, image, depth, effects, graph, cache
-- Proof piccoli e mirati, con scopo tecnico chiaro
-- Proof che servono a prevenire regressioni
+- Proofs that test a real feature of the core
+- Proofs for camera, layer, mask, text, image, depth, effects, graph, cache
+- Small and targeted proofs with a clear technical purpose
+- Proofs that serve to prevent regressions
 
-## Cosa non si deve aggiungere
+## What Should Not Be Added
 
-- Demo estetiche senza legame con una feature core
-- Scene che duplicano logica già presente altrove
-- File che introducono una seconda base visiva solo per comodità
-- Proof usati come contenitore di logica applicativa nuova
-- Varianti "premium", "style", "theme", "visual preset" se non esiste una feature core da validare
+- Aesthetic demos with no link to a core feature
+- Scenes that duplicate logic already present elsewhere
+- Files that introduce a second visual base only for convenience
+- Proofs used as a container for new application logic
+- "Premium," "style," "theme," or "visual preset" variants if there is no core feature to validate
 
-## Regola pratica
+## Practical Rule
 
-Prima di aggiungere un proof, chiediti:
+Before adding a proof, ask yourself:
 
-1. La feature esiste già nel core?
-2. Il proof la sta solo verificando, non reimplementando?
-3. Posso coprire la stessa cosa con un test più piccolo?
+1. Does the feature already exist in the core?
+2. Is the proof only verifying it, not reimplementing it?
+3. Can I cover the same thing with a smaller test?
 
-Se la risposta a una sola di queste domande è no, il proof non va aggiunto.
+If the answer to any of these questions is no, the proof should not be added.
 
-## Dove va la logica
+## Where Logic Belongs
 
-- La logica vera va in `include/chronon3d/...` e `src/...`
-- I proof devono solo consumare quella base
-- `Operations/` resta wrapper leggero, non base di sviluppo
+- The real logic belongs in `include/chronon3d/...` and `src/...`
+- Proofs should only consume that base
+- `Operations/` remains a lightweight wrapper, not a development base
 
-## Obiettivo
+## Goal
 
-Meno proof, ma più utili.
-Ogni proof deve servire a validare il core, non a creare un altro strato di progetto.
+Fewer proofs, but more useful ones.
+Every proof must serve to validate the core, not to create another layer of the project.

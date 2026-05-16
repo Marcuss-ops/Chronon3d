@@ -4,6 +4,7 @@
 #include <chronon3d/backends/ffmpeg/ffmpeg_encoder.hpp>
 #include <chronon3d/backends/video/video_export.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/presets/camera_motion_clip.hpp>
 
 #include <filesystem>
 #include <optional>
@@ -82,13 +83,17 @@ std::optional<std::string> read_primary_video_codec(const std::filesystem::path&
 
 } // namespace
 
-TEST_CASE("Camera motion tilt exports a real MP4") {
+namespace {
+
+void render_motion_video(MotionAxis axis, const char* name, const char* filename) {
     std::filesystem::create_directories("output/camera_motion");
 
     SoftwareRenderer renderer;
     CameraMotionParams params;
-    params.axis = MotionAxis::Tilt;
-    auto comp = camera_motion_clip("CameraMotionTiltVideo", params, add_motion_content);
+    params.axis = axis;
+    params.width = 1280;
+    params.height = 720;
+    auto comp = chronon3d::presets::camera_motion_clip(name, params, add_motion_content);
 
     video::VideoExportOptions options;
     options.start = 0;
@@ -98,7 +103,7 @@ TEST_CASE("Camera motion tilt exports a real MP4") {
     options.encode.crf = 20;
     options.encode.codec = "libx264";
 
-    const std::string out = "output/camera_motion/tilt.mp4";
+    const std::string out = (std::filesystem::path("output/camera_motion") / filename).string();
     video::FfmpegEncoder encoder;
     REQUIRE(video::render_to_video(renderer, comp, out, options, encoder));
     CHECK(std::filesystem::exists(out));
@@ -109,9 +114,25 @@ TEST_CASE("Camera motion tilt exports a real MP4") {
     CHECK_EQ(*codec, "h264");
 }
 
+} // namespace
+
+TEST_CASE("Camera motion videos export real MP4s") {
+    SUBCASE("tilt") {
+        render_motion_video(MotionAxis::Tilt, "CameraMotionTiltVideo", "tilt.mp4");
+    }
+
+    SUBCASE("pan") {
+        render_motion_video(MotionAxis::Pan, "CameraMotionPanVideo", "pan.mp4");
+    }
+
+    SUBCASE("roll") {
+        render_motion_video(MotionAxis::Roll, "CameraMotionRollVideo", "roll.mp4");
+    }
+}
+
 #else
 
-TEST_CASE("Camera motion tilt exports a real MP4") {
+TEST_CASE("Camera motion videos export real MP4s") {
     CHECK(true);
 }
 

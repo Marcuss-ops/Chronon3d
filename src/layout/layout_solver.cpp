@@ -22,6 +22,15 @@ Vec2 anchor_position(Anchor anchor, i32 w, i32 h, f32 margin) {
     }
 }
 
+Vec3 anchor_position(const AnchorPlacement& placement, i32 w, i32 h, f32 margin) {
+    Vec2 base = anchor_position(placement.anchor, w, h, margin);
+    return {
+        base.x + placement.offset.x,
+        base.y + placement.offset.y,
+        placement.depth.has_value() ? *placement.depth : 0.0f
+    };
+}
+
 void LayoutSolver::solve(Scene& scene, i32 canvas_w, i32 canvas_h) const {
     const f32 W = static_cast<f32>(canvas_w);
     const f32 H = static_cast<f32>(canvas_h);
@@ -31,10 +40,13 @@ void LayoutSolver::solve(Scene& scene, i32 canvas_w, i32 canvas_h) const {
 
         // --- Pin ---
         if (layer.layout.pin.has_value()) {
-            Vec2 pos = anchor_position(*layer.layout.pin, canvas_w, canvas_h,
+            Vec3 pos = anchor_position(*layer.layout.pin, canvas_w, canvas_h,
                                        layer.layout.margin);
             layer.transform.position.x = pos.x;
             layer.transform.position.y = pos.y;
+            if (layer.layout.pin->depth.has_value()) {
+                layer.transform.position.z = pos.z;
+            }
         }
 
         // --- Safe area clamp ---

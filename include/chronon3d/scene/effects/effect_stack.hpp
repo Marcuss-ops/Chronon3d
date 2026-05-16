@@ -6,6 +6,7 @@
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/math/vec2.hpp>
 #include <chronon3d/core/types.hpp>
+#include <chronon3d/effects/effect_instance.hpp>
 #include <variant>
 #include <vector>
 
@@ -29,11 +30,8 @@ using EffectParams = std::variant<
     BloomParams
 >;
 
-struct EffectInstance {
-    EffectParams params;
-    bool         enabled{true};
-};
-
+// Unify with the modular effects system
+using EffectInstance = effects::EffectInstance;
 using EffectStack = std::vector<EffectInstance>;
 
 } // namespace chronon3d

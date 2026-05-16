@@ -1,5 +1,5 @@
 #include "../commands.hpp"
-#include <chronon3d/backends/software/software_renderer.hpp>
+#include "../utils/cli_render_utils.hpp"
 #include <spdlog/spdlog.h>
 #include <filesystem>
 #include <fstream>
@@ -15,9 +15,8 @@ int command_graph(const CompositionRegistry& registry, const GraphArgs& args) {
 
     auto comp = registry.create(args.comp_id);
     auto scene = comp.evaluate(args.frame);
-    SoftwareRenderer renderer;
-    renderer.set_composition_registry(&registry);
-    const std::string dot = renderer.debug_render_graph(scene, comp.camera, comp.width(), comp.height(), args.frame);
+    auto renderer = create_renderer(registry, RenderSettings{});
+    const std::string dot = renderer->debug_render_graph(scene, comp.camera, comp.width(), comp.height(), args.frame);
 
     const std::filesystem::path out_path(args.output);
     if (out_path.has_parent_path()) {

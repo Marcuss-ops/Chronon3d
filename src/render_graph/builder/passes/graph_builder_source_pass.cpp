@@ -1,4 +1,5 @@
 #include "graph_builder_source_pass.hpp"
+#include "../graph_builder_coordinates.hpp"
 
 #include <chronon3d/render_graph/nodes/basic_nodes.hpp>
 #include <chronon3d/render_graph/nodes/precomp_node.hpp>
@@ -6,6 +7,7 @@
 #include <chronon3d/render_graph/nodes/video_node.hpp>
 #endif
 #include <chronon3d/render_graph/render_graph_hashing.hpp>
+#include <memory>
 
 namespace chronon3d::graph::detail {
 
@@ -14,6 +16,10 @@ using namespace chronon3d::graph;
 GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                                const RenderGraphContext& ctx) {
     const Layer& layer = *item.layer;
+
+    if (layer.kind == LayerKind::Adjustment) {
+        return k_invalid_node;
+    }
 
     if (layer.kind == LayerKind::Normal) {
         GraphNodeId layer_output = graph.add_node(std::make_unique<ClearNode>());
@@ -28,17 +34,8 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                 .source_hash = hash_bytes(node.name.data(), node.name.size())
             };
 
-            // Center layer content only when the layer has an explicit non-zero position.
-            // Layers at origin (0,0) use absolute node coordinates and must NOT be centered.
-            // 3D projected layers use a projection matrix and must NOT be centered either.
-            const bool has_layer_pos = item.transform.position.x != 0.0f
-                                    || item.transform.position.y != 0.0f;
-            const bool centered = !item.projected
-                                && has_layer_pos
-                                && layer.kind == LayerKind::Normal
-                                && !ctx.modular_coordinates;
             auto source = graph.add_node(std::make_unique<SourceNode>(
-                std::string(node.name), node, source_key, centered
+                std::string(node.name), node, source_key, should_use_centered_rendering(item, ctx)
             ));
 
             auto composite = graph.add_node(std::make_unique<CompositeNode>(chronon3d::BlendMode::Normal));
@@ -46,7 +43,6 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
             graph.connect(source, composite);
             layer_output = composite;
         }
-
         return layer_output;
     }
 
@@ -64,7 +60,6 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
     }
 #endif
 
-    // Fallback for unknown / unsupported layer kinds
     return graph.add_node(std::make_unique<ClearNode>());
 }
 

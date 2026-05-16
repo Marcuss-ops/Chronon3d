@@ -8,6 +8,7 @@ This document is the working rulebook for how we structure Chronon3d code.
 - Put variation in data.
 - Put orchestration in the CLI.
 - Put build selection in CMake presets.
+- Prefer shared utilities that any feature can consume, instead of one-off logic owned by a single clip.
 
 ## What Belongs Where
 
@@ -28,7 +29,7 @@ Use data when only values change:
 - camera axis, duration, reference image, and frame range
 - render profiles such as preview or final
 - video encode options such as codec, preset, and CRF
-- asset paths and batch job inputs
+- asset paths and explicit batch job specs passed on the CLI
 
 ### CLI
 
@@ -41,6 +42,16 @@ Use the CLI for user-facing intent:
 - `video camera`
 
 The CLI should assemble existing pieces. It should not duplicate rendering logic.
+
+### Shared Utilities
+
+Some behavior should be reusable across domains:
+
+- camera motion can be consumed by image clips, text cards, or video exports
+- overlays can be attached to any composition that needs them
+- particles, frames, shadows, and effects should be shared helpers when possible
+
+This is the "one behavior, many consumers" rule. If a utility is useful in multiple places, promote it to a public contract.
 
 ### Build Presets
 
@@ -86,4 +97,3 @@ If you are changing:
 - build environment, use presets
 
 If a change forces you to touch many places, ask whether one of those places should become a single source of truth.
-

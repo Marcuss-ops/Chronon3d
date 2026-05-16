@@ -13,6 +13,8 @@
 #include <chronon3d/effects.hpp>
 #include <chronon3d/timeline.hpp>
 #include <chronon3d/rendering.hpp>
+#include <chronon3d/presets/studio_presets.hpp>
+#include <chronon3d/presets/overlay_presets.hpp>
 #include <chronon3d/scene/camera/camera.hpp>
 #include <chronon3d/scene/camera/camera_2_5d.hpp>
 #include <chronon3d/scene/mask/mask.hpp>
