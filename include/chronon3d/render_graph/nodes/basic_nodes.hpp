@@ -42,8 +42,9 @@ public:
     RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::Source; }
     std::string name() const override { return m_name; }
 
-    cache::NodeCacheKey cache_key(const RenderGraphContext&) const override { 
+    cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override { 
         auto key = m_key;
+        key.params_hash = hash_combine(key.params_hash, static_cast<u64>(ctx.modular_coordinates));
         return key; 
     }
 
@@ -58,9 +59,9 @@ public:
                 canvas_offset = math::translate(Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f)) *
                                 canvas_offset;
             }
-            state.matrix = canvas_offset;
+            state.matrix = canvas_offset * m_node.world_transform.to_mat4();
             state.opacity = m_node.world_transform.opacity;
-            ctx.renderer->draw_node(*fb, m_node, state, Camera{}, ctx.width, ctx.height);
+            ctx.renderer->draw_node(*fb, m_node, state, ctx.camera, ctx.width, ctx.height);
         }
         return fb;
     }

@@ -15,7 +15,9 @@
     "xxhash",
     "highway",
     "cli11",
-    "tomlplusplus"
+    "tomlplusplus",
+    "blend2d",
+    "asmjit"
   ],
   "features": {
     "video": {

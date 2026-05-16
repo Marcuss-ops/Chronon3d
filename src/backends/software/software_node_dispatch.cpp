@@ -6,9 +6,11 @@
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/backends/software/fake_extruded_text_renderer.hpp>
 #include <chronon3d/scene/camera/camera.hpp>
-#include <chronon3d/scene/scene.hpp>
 #include <filesystem>
 #include <fmt/format.h>
+
+#include "utils/blend2d_bridge.hpp"
+#include "utils/blend2d_resources.hpp"
 
 namespace chronon3d::software_internal {
 
@@ -18,10 +20,77 @@ void draw_node(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNode& no
     const Mat4& model = state.matrix;
     const f32 opacity = state.opacity;
 
-    if (node.shadow.enabled)
-        chronon3d::renderer::draw_shadow(fb, node, state);
-    if (node.glow.enabled)
-        chronon3d::renderer::draw_glow(fb, node, state);
+    chronon3d::renderer::draw_shadow(fb, node, state);
+
+    if (node.glow.enabled && node.glow.intensity > 0.0f && node.glow.color.a > 0.0f) {
+        // OPTIMIZED GLOW: Blend2D Render -> Blur -> Bridge Add
+        const f32 glow_opacity = opacity * node.glow.intensity * node.glow.color.a;
+
+        if (node.shape.type == ShapeType::Text) {
+            const TextShape& t = node.shape.text;
+            BLFontFace face = blend2d_utils::Blend2DResources::instance().get_face(t.style.font_path);
+            if (!face.empty()) {
+                const float scale_x = glm::length(Vec3(model[0]));
+                const float effective_size = t.style.size * scale_x;
+                BLFont font;
+                font.createFromFace(face, effective_size);
+
+                BLGlyphBuffer gb;
+                gb.setUtf8Text(t.text.c_str(), t.text.size());
+                font.shape(gb);
+
+                BLTextMetrics metrics;
+                font.getTextMetrics(gb, metrics);
+
+                const int padding = static_cast<int>(node.glow.radius * 2.0f) + 10;
+                const int tw = static_cast<int>(std::ceil(metrics.boundingBox.x1 - metrics.boundingBox.x0)) + padding * 2;
+                const int th = static_cast<int>(std::ceil(font.metrics().ascent + font.metrics().descent)) + padding * 2;
+
+                if (tw > 0 && th > 0) {
+                    BLImage img(tw, th, BL_FORMAT_PRGB32);
+                    BLContext ctx(img);
+                    ctx.clearAll();
+                    
+                    // Render glow in white on the temp buffer, we'll tint it during composition if needed
+                    // or just render in glow color.
+                    BLRgba32 bl_color(
+                        static_cast<uint8_t>(std::clamp(node.glow.color.r * 255.0f, 0.0f, 255.0f)),
+                        static_cast<uint8_t>(std::clamp(node.glow.color.g * 255.0f, 0.0f, 255.0f)),
+                        static_cast<uint8_t>(std::clamp(node.glow.color.b * 255.0f, 0.0f, 255.0f)),
+                        255
+                    );
+                    ctx.setFillStyle(bl_color);
+                    ctx.fillUtf8Text(BLPoint(-metrics.boundingBox.x0 + padding, font.metrics().ascent + padding), font, t.text.c_str());
+                    ctx.end();
+
+                    // Fallback blur: Transfer to temp Framebuffer and use existing blur
+                    Framebuffer glow_tmp(tw, th);
+                    glow_tmp.clear(Color::transparent());
+                    blend2d_bridge::composite_bl_image(glow_tmp, img, 0, 0, 1.0f, BlendMode::Normal);
+                    
+                    if (node.glow.radius > 0.0f) {
+                        SoftwareRenderer::apply_blur(glow_tmp, node.glow.radius);
+                    }
+
+                    float x_offset = 0.0f;
+                    if (t.style.align == TextAlign::Center) x_offset = -metrics.advance.x * 0.5f;
+                    else if (t.style.align == TextAlign::Right) x_offset = -metrics.advance.x;
+                    x_offset += metrics.boundingBox.x0 - padding;
+
+                    float y_offset = -font.metrics().ascent - padding;
+                    if (t.style.align == TextAlign::Center) {
+                        y_offset += (font.metrics().ascent - font.metrics().descent) * 0.5f;
+                    }
+
+                    // Composite from temp FB to main FB with ADD
+                    blend2d_bridge::composite_framebuffer_offset(fb, glow_tmp, 
+                        static_cast<int>(model[3][0] + x_offset), 
+                        static_cast<int>(model[3][1] + y_offset), 
+                        glow_opacity, BlendMode::Add);
+                }
+            }
+        }
+    }
 
     if (node.shape.type == ShapeType::Mesh) {
         if (node.mesh) {
@@ -43,31 +112,18 @@ void draw_node(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNode& no
     }
 
     if (node.shape.type == ShapeType::Text) {
-        if (node.glow.enabled && node.glow.color.a > 0.0f && node.glow.intensity > 0.0f) {
-            Framebuffer glow_fb(fb.width(), fb.height());
-            glow_fb.clear(Color::transparent());
-
-            TextShape glow_text = node.shape.text;
-            glow_text.style.color = node.glow.color.to_linear();
-
-            Transform glow_tr;
-            glow_tr.position = Vec3(model[3]);
-            glow_tr.opacity = opacity * node.glow.intensity;
-            glow_tr.scale.x = glm::length(Vec3(model[0]));
-            glow_tr.scale.y = glm::length(Vec3(model[1]));
-
-            renderer.text_renderer().draw_text(glow_text, glow_tr, glow_fb, &state);
-            if (node.glow.radius > 0.0f) {
-                SoftwareRenderer::apply_blur(glow_fb, node.glow.radius);
-            }
-            SoftwareRenderer::composite_layer(fb, glow_fb, BlendMode::Normal);
-        }
-
         Transform text_tr;
         text_tr.position = Vec3(model[3]);
         text_tr.opacity = opacity;
         text_tr.scale.x = glm::length(Vec3(model[0]));
         text_tr.scale.y = glm::length(Vec3(model[1]));
+
+        float y_offset = -metrics.ascent - 2;
+        if (node.shape.text.style.align == TextAlign::Center) {
+            y_offset += (metrics.ascent - metrics.descent) * 0.5f;
+        }
+
+        text_tr.position.y += y_offset;
         renderer.text_renderer().draw_text(node.shape.text, text_tr, fb, &state);
         return;
     }

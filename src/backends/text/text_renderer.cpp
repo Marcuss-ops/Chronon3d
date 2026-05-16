@@ -9,6 +9,9 @@
 #include <chronon3d/math/transform.hpp>
 #include <chronon3d/core/framebuffer.hpp>
 #include <spdlog/spdlog.h>
+#include <type_traits>
+#include "../software/utils/blend2d_bridge.hpp"
+#include "../software/utils/blend2d_resources.hpp"
 
 namespace chronon3d {
 
@@ -16,106 +19,62 @@ bool TextRenderer::draw_text(const TextShape& t, const Transform& tr, Framebuffe
                              const RenderState* state) {
     if (t.text.empty() || t.style.font_path.empty()) return true;
 
-    const CachedFont* font_entry = m_cache.get_or_load(t.style.font_path);
-    if (!font_entry) return false;
-
-    auto backend = m_cache.get_backend();
-    if (!backend) {
-        spdlog::error("TextRenderer: no backend set");
-        return false;
-    }
-
-    // Rotation is not yet supported; log once if encountered.
-    if (!(tr.rotation.w > 0.9999f)) {
-        static bool logged = false;
-        if (!logged) {
-            spdlog::warn("Text rotation not yet supported (deferred to Transform 2)");
-            logged = true;
-        }
-    }
+    BLFontFace face = blend2d_utils::Blend2DResources::instance().get_face(t.style.font_path);
+    if (face.empty()) return false;
 
     const float effective_size = t.style.size * tr.scale.x;
+    BLFont font;
+    font.createFromFace(face, effective_size);
 
-    // Helper: render one line of text at a given (x, baseline_y).
-    auto draw_line_at = [&](const std::string& line_text, float start_x, float baseline_y,
-                             float line_size) {
-        float cur_x = start_x;
-        for (size_t i = 0; i < line_text.size(); ++i) {
-            const char c = line_text[i];
-            text::GlyphMetrics metrics;
-            auto bitmap = backend->render_glyph(t.style.font_path, c, line_size, metrics);
-            
-            if (bitmap && bitmap->pixels) {
-                const int dx = (int)std::floor(cur_x + metrics.offset.x);
-                const int dy = (int)std::floor(baseline_y + metrics.offset.y);
-                const int gw = bitmap->width;
-                const int gh = bitmap->height;
+    // Calculate bounds using GlyphBuffer
+    BLGlyphBuffer gb;
+    gb.setUtf8Text(t.text.c_str(), t.text.size());
+    font.shape(gb);
+    
+    BLTextMetrics metrics;
+    font.getTextMetrics(gb, metrics);
+    
+    // Create a temporary image for the text block.
+    // Padding to avoid clipping near edges
+    const int tw = static_cast<int>(std::ceil(metrics.boundingBox.x1 - metrics.boundingBox.x0)) + 4;
+    const int th = static_cast<int>(std::ceil(font.metrics().ascent + font.metrics().descent)) + 4;
+    
+    if (tw <= 0 || th <= 0) return true;
 
-                for (int by = 0; by < gh; ++by) {
-                    const int py = dy + by;
-                    if (py < 0 || py >= fb.height()) continue;
-                    for (int bx = 0; bx < gw; ++bx) {
-                        const int px = dx + bx;
-                        if (px < 0 || px >= fb.width()) continue;
-                        const float ga = (float)bitmap->pixels[(size_t)(by * gw + bx)] / 255.0f;
-                        if (ga <= 0.0f) continue;
-                        if (state && state->mask && state->mask->enabled()) {
-                            Vec4 loc = state->layer_inv_matrix *
-                                       Vec4((f32)px, (f32)py, 0.0f, 1.0f);
-                            if (!mask_contains_local_point(*state->mask, Vec2{loc.x, loc.y})) continue;
-                        }
-                        Color src = t.style.color;
-                        src.a *= ga * tr.opacity;
-                        fb.set_pixel(px, py, raster::blend_normal(src, fb.get_pixel(px, py)));
-                    }
-                }
-            }
-            cur_x += metrics.advance + t.style.tracking;
-            // Kerning would go here if backend supported it, but we'll stick to advance for now.
-        }
-    };
-
-    // Multi-line path: use TextLayoutEngine when TextBox is enabled.
-    if (t.box.enabled) {
-        auto cw = [&](char c, float sz) -> float {
-            return backend->get_char_advance(t.style.font_path, c, sz);
-        };
-        TextLayoutInput li;
-        li.text       = t.text;
-        li.style      = t.style;
-        li.box        = t.box;
-        li.char_width = cw;
-        const auto result = TextLayoutEngine::layout(li);
-
-        const float line_px      = result.resolved_font_size * t.style.line_height * tr.scale.x;
-        const float render_size  = result.resolved_font_size * tr.scale.x;
-
-        // Baseline calculation would need v-metrics from backend, but for now we'll approximate.
-        // TODO: Add get_font_vmetrics to FontBackend.
-        float y = tr.position.y + render_size * 0.8f; // approximation of ascent
-        for (const auto& line : result.lines) {
-            float x_off = 0.0f;
-            if (t.style.align == TextAlign::Center) x_off = -line.width * 0.5f;
-            else if (t.style.align == TextAlign::Right) x_off = -line.width;
-            draw_line_at(line.text, tr.position.x + x_off, y, render_size);
-            y += line_px;
-        }
-        return true;
-    }
-
-    // Single-line fallback.
-    float text_width = 0.0f;
-    for (size_t i = 0; i < t.text.size(); ++i) {
-        text_width += backend->get_char_advance(t.style.font_path, t.text[i], effective_size) + t.style.tracking;
-    }
+    BLImage img(tw, th, BL_FORMAT_PRGB32);
+    BLContext ctx(img);
+    ctx.clearAll();
+    
+    BLRgba32 bl_color(
+        static_cast<uint8_t>(std::clamp(t.style.color.r * 255.0f, 0.0f, 255.0f)),
+        static_cast<uint8_t>(std::clamp(t.style.color.g * 255.0f, 0.0f, 255.0f)),
+        static_cast<uint8_t>(std::clamp(t.style.color.b * 255.0f, 0.0f, 255.0f)),
+        255 // We handle opacity in the bridge
+    );
+    
+    ctx.setFillStyle(bl_color);
+    ctx.fillUtf8Text(BLPoint(-metrics.boundingBox.x0 + 2, font.metrics().ascent + 2), font, t.text.c_str());
+    ctx.end();
 
     float x_offset = 0.0f;
-    if (t.style.align == TextAlign::Center) x_offset = -text_width * 0.5f;
-    else if (t.style.align == TextAlign::Right)  x_offset = -text_width;
+    const float full_width = metrics.advance.x;
+    if (t.style.align == TextAlign::Center) x_offset = -full_width * 0.5f;
+    else if (t.style.align == TextAlign::Right) x_offset = -full_width;
 
-    const float start_x    = tr.position.x + x_offset;
-    const float baseline_y = tr.position.y + effective_size * 0.8f;
-    draw_line_at(t.text, start_x, baseline_y, effective_size);
+    // Adjust for the bounding box offset
+    x_offset += metrics.boundingBox.x0 - 2;
+
+    float y_offset = -font.metrics().ascent - 2;
+    if (t.style.align == TextAlign::Center) {
+        // Visually center vertically as well when horizontal centering is used
+        y_offset += (font.metrics().ascent - font.metrics().descent) * 0.5f;
+    }
+
+    blend2d_bridge::composite_bl_image(fb, img, 
+        static_cast<int>(tr.position.x + x_offset), 
+        static_cast<int>(tr.position.y + y_offset), 
+        tr.opacity, BlendMode::Normal);
+
     return true;
 }
 
