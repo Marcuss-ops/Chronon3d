@@ -1,7 +1,8 @@
 #include "fake_box3d_renderer.hpp"
 #include "../rasterizers/line_rasterizer.hpp"
 #include "../rasterizers/scanline_rasterizer.hpp"
-#include <chronon3d/backends/software/projector_2_5d.hpp>
+#include <chronon3d/math/projector_2_5d.hpp>
+#include <chronon3d/rendering/light_context.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <glm/glm.hpp>
 #include <algorithm>
@@ -10,14 +11,7 @@
 namespace chronon3d {
 namespace renderer {
 
-// Key light: upper-left-front direction. Consistent with extruded text renderer.
-static const Vec3 k_box_light = glm::normalize(Vec3(-0.4f, 1.2f, -0.6f));
-static constexpr float k_box_ambient = 0.20f;
-static constexpr float k_box_diffuse = 0.80f;
-
-static float box_ndotl(const Vec3& normal) {
-    return k_box_ambient + k_box_diffuse * std::max(0.0f, glm::dot(normal, k_box_light));
-}
+static const rendering::LightContext k_box_light = rendering::LightContext::default_scene();
 
 void draw_fake_box3d(Framebuffer& fb, const RenderNode& node, const RenderState& state,
                      const FakeBox3DShape& s, const FakeBox3DRenderState& rt) {
@@ -87,7 +81,7 @@ void draw_fake_box3d(Framebuffer& fb, const RenderNode& node, const RenderState&
         Vec2 quad[4];
         for (int ci = 0; ci < 4; ++ci) quad[ci] = projected.corners[ci];
 
-        float light = box_ndotl(faces[fi].normal);
+        float light = k_box_light.shade_ndotl(faces[fi].normal);
 
         if (fi == 2) {
             // Top face: gradient (back edge slightly darker, front edge brighter)

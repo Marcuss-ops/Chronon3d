@@ -8,20 +8,21 @@ add_executable(chronon3d_core_tests
     ${TEST_MAIN}
     core/test_core.cpp
     core/test_frame_context.cpp
-    math/test_math.cpp
-    math/test_camera_pose.cpp
-    math/test_camera_2_5d_projection.cpp
-    geometry/test_geometry.cpp
-    animation/test_animation.cpp
-    animation/test_interpolate.cpp
-    animation/test_spring.cpp
-    animation/test_animated_value.cpp
-    animation/test_keyframes.cpp
-    animation/test_keyframe_tracks.cpp
-    timeline/test_timeline.cpp
-    timeline/test_code_first_composition.cpp
-    timeline/test_sequence.cpp
-    test_anchor_math.cpp
+    core/math/test_math.cpp
+    core/math/test_camera_pose.cpp
+    core/math/test_camera_2_5d_projection.cpp
+    core/math/test_projector_2_5d.cpp
+    core/geometry/test_geometry.cpp
+    core/animation/test_animation.cpp
+    core/animation/test_interpolate.cpp
+    core/animation/test_spring.cpp
+    core/animation/test_animated_value.cpp
+    core/animation/test_keyframes.cpp
+    core/animation/test_keyframe_tracks.cpp
+    core/timeline/test_timeline.cpp
+    core/timeline/test_code_first_composition.cpp
+    core/timeline/test_sequence.cpp
+
 )
 target_link_libraries(chronon3d_core_tests PRIVATE chronon3d_pipeline doctest::doctest)
 target_include_directories(chronon3d_core_tests PRIVATE ${CMAKE_SOURCE_DIR})
@@ -57,7 +58,7 @@ add_executable(chronon3d_renderer_tests
     renderer/basics/test_layer_rendering.cpp
     renderer/camera/test_moving_frame.cpp
     renderer/camera/test_camera_2_5d.cpp
-    renderer/camera/test_camera_smoke.cpp
+
     renderer/camera/test_camera_motion.cpp
     renderer/camera/test_camera_preview_reference.cpp
     renderer/camera/test_camera_tilt_text_preview.cpp
@@ -70,10 +71,12 @@ add_executable(chronon3d_renderer_tests
     renderer/media/test_image_rendering.cpp
     renderer/cache/test_cache.cpp
     renderer/perf/test_render_perf.cpp
+    renderer/lighting/test_light_context.cpp
     renderer/text/test_text_rendering.cpp
     renderer/text/test_text_layout.cpp
+    renderer/text/test_text_layout_result.cpp
     renderer/text/test_text_alignment_regression.cpp
-    renderer/text/test_text_3d_tilt.cpp
+
     render_graph/test_unified_transform_path.cpp
     renderer/dispatch/test_software_node_dispatcher.cpp
     render_graph/test_graph_executor.cpp

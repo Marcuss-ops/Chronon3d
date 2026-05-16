@@ -1,13 +1,13 @@
 #include <doctest/doctest.h>
 
 #include <chronon3d/backends/software/software_renderer.hpp>
-#include <Operations/background/dark_grid_background.hpp>
+#include <chronon3d/scene/utils/dark_grid_background.hpp>
 
 using namespace chronon3d;
 
 TEST_CASE("Background grid is rendered directly from core APIs") {
     SoftwareRenderer renderer;
-    auto fb = renderer.render_frame(operations::background::dark_grid_background_scene(100, 100), 0);
+    auto fb = renderer.render_frame(scene::utils::dark_grid_background_scene(100, 100), 0);
     REQUIRE(fb != nullptr);
     CHECK(fb->width() == 100);
     CHECK(fb->height() == 100);

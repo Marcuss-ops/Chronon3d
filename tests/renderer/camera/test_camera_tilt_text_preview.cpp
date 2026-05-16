@@ -1,6 +1,6 @@
 #include <doctest/doctest.h>
 
-#include <Operations/background/dark_grid_background.hpp>
+#include <chronon3d/scene/utils/dark_grid_background.hpp>
 
 #include <chronon3d/animations/camera_motion.hpp>
 #include <chronon3d/backends/image/image_writer.hpp>
@@ -28,7 +28,7 @@ void build_tilt_text_preview(SceneBuilder& s, const FrameContext& ctx, const Cam
     };
     const Vec3 banner_pos{0.0f, 8.0f, -20.0f};
 
-    // operations::background::dark_grid_background(s, ctx);
+    // scene::utils::dark_grid_background(s, ctx);
     s.layer("background_black", [](LayerBuilder& l) {
         l.rect("bg", {
             .size = {2000, 2000},

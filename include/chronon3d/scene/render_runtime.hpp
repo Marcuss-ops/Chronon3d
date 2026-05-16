@@ -1,6 +1,6 @@
 #pragma once
 
-#include <chronon3d/backends/software/projector_2_5d.hpp>
+#include <chronon3d/math/projector_2_5d.hpp>
 #include <chronon3d/math/mat4.hpp>
 
 namespace chronon3d {

@@ -14,3 +14,4 @@ Welcome to the Chronon3d technical documentation.
 
 ## Contribution
 - [Mantra & Guidelines](CONTRIBUTING.md) - The rules we follow to keep the engine clean.
+- [Validation Checklist](CHECKLIST.md) - Protocol to be executed before every merge.

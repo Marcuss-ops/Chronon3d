@@ -1,6 +1,7 @@
 #include "grid_plane_renderer.hpp"
 #include "../rasterizers/line_rasterizer.hpp"
 #include <chronon3d/math/mat4.hpp>
+#include <chronon3d/math/projector_2_5d.hpp>
 #include <algorithm>
 #include <cmath>
 
@@ -34,7 +35,7 @@ void draw_grid_plane(Framebuffer& fb, const RenderNode& node, const RenderState&
         if (a <= 0.005f) return;
         Color c = col; c.a = a;
         Vec2 p0, p1;
-        if (clip_and_project_line(w0, w1, rt.projection.view, rt.projection.focal, rt.projection.vp_cx, rt.projection.vp_cy, p0, p1))
+        if (rt.projection.project_line_clipped(w0, w1, p0, p1))
             bline(fb, p0, p1, c);
     };
 
