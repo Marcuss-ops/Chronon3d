@@ -1,5 +1,6 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/software/shape_processor.hpp>
+#include <chronon3d/backends/software/rasterizers/projected_card_rasterizer.hpp>
 #include <chronon3d/backends/text/text_rasterizer_utils.hpp>
 #include "../utils/render_effects_processor.hpp"
 #include "../utils/blend2d_bridge.hpp"
@@ -17,6 +18,42 @@ public:
         const f32 opacity = state.opacity;
 
         const float effective_size = node.shape.text.style.size;
+
+        // 3D card path: rasterize text to offscreen BLImage, then project as card
+        if (state.is_3d_layer && state.projection.ready) {
+            auto raster = rasterize_text_to_bl_image(node.shape.text, effective_size);
+            if (!raster) return;
+
+            // Apply text color
+            BLImage text_img;
+            text_img.create(raster->image.width(), raster->image.height(), BL_FORMAT_PRGB32);
+            {
+                BLContext bctx(text_img);
+                bctx.clearAll();
+                bctx.blitImage(BLPoint(0, 0), raster->image);
+                bctx.setCompOp(BL_COMP_OP_SRC_IN);
+                bctx.setFillStyle(BLRgba32(
+                    static_cast<uint8_t>(std::clamp(node.shape.text.style.color.r * 255.0f, 0.0f, 255.0f)),
+                    static_cast<uint8_t>(std::clamp(node.shape.text.style.color.g * 255.0f, 0.0f, 255.0f)),
+                    static_cast<uint8_t>(std::clamp(node.shape.text.style.color.b * 255.0f, 0.0f, 255.0f)),
+                    255
+                ));
+                bctx.fillAll();
+            }
+
+            // Convert BLImage to Framebuffer and project as card
+            Framebuffer text_fb(raster->image.width(), raster->image.height());
+            text_fb.clear(Color::transparent());
+            blend2d_bridge::composite_bl_image(text_fb, text_img, 0, 0, 1.0f, BlendMode::Normal);
+
+            const Vec2 text_size{
+                static_cast<f32>(raster->image.width()),
+                static_cast<f32>(raster->image.height())
+            };
+            auto card = state.projection.project_card(state.world_matrix, text_size);
+            composite_projected_framebuffer(fb, text_fb, card, opacity);
+            return;
+        }
         
         // 1. Rasterize text once for both glow and main text
         auto raster = rasterize_text_to_bl_image(node.shape.text, effective_size);

@@ -41,6 +41,16 @@ std::unique_ptr<Framebuffer> render_scene_internal(SoftwareRenderer& renderer,
 
     const auto t_build0 = std::chrono::steady_clock::now();
     auto ctx = make_graph_context(renderer, camera, width, height, frame, frame_time);
+    if (scene.camera_2_5d().enabled) {
+        ctx.camera_2_5d = scene.camera_2_5d();
+        ctx.has_camera_2_5d = true;
+        ctx.projection_ctx = renderer::make_projection_context(
+            ctx.camera_2_5d,
+            ctx.width,
+            ctx.height
+        );
+        ctx.projection_ctx.ready = true;
+    }
     graph::RenderGraph graph = graph::GraphBuilder::build(scene, ctx);
     const auto t_build1 = std::chrono::steady_clock::now();
 
