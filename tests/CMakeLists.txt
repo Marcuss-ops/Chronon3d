@@ -1,40 +1,48 @@
 find_package(doctest CONFIG REQUIRED)
 
-add_executable(chronon3d_tests
-    test_main.cpp
-    
-    # Core
+# Shared test main
+set(TEST_MAIN test_main.cpp)
+
+# Core Tests (Math, Geometry, Animation, Timeline)
+add_executable(chronon3d_core_tests
+    ${TEST_MAIN}
     core/test_core.cpp
     core/test_frame_context.cpp
-    
-    # Math & Geometry
     math/test_math.cpp
     math/test_camera_pose.cpp
     math/test_camera_2_5d_projection.cpp
     geometry/test_geometry.cpp
-    
-    # Animation
     animation/test_animation.cpp
     animation/test_interpolate.cpp
     animation/test_spring.cpp
     animation/test_animated_value.cpp
     animation/test_keyframes.cpp
     animation/test_keyframe_tracks.cpp
-    
-    # Timeline
     timeline/test_timeline.cpp
     timeline/test_code_first_composition.cpp
     timeline/test_sequence.cpp
-    
-    # Scene
+)
+target_link_libraries(chronon3d_core_tests PRIVATE chronon3d_pipeline doctest::doctest)
+target_include_directories(chronon3d_core_tests PRIVATE ${CMAKE_SOURCE_DIR})
+add_test(NAME chronon3d_core_tests COMMAND chronon3d_core_tests)
+
+# Scene Tests
+add_executable(chronon3d_scene_tests
+    ${TEST_MAIN}
     scene/test_scene.cpp
     scene/test_scene_builder.cpp
     scene/test_shape_model.cpp
+    scene/test_layer_hierarchy.cpp
+)
+target_link_libraries(chronon3d_scene_tests PRIVATE chronon3d_pipeline $<TARGET_OBJECTS:chronon3d_scene> $<TARGET_OBJECTS:chronon3d_backend_software> doctest::doctest)
+target_include_directories(chronon3d_scene_tests PRIVATE ${CMAKE_SOURCE_DIR})
+add_test(NAME chronon3d_scene_tests COMMAND chronon3d_scene_tests)
+
+# Renderer & Graph Tests
+add_executable(chronon3d_renderer_tests
+    ${TEST_MAIN}
     scene/test_line_primitive.cpp
     scene/test_circle_primitive.cpp
-    scene/test_layer_hierarchy.cpp
-    
-    # Rendering
     renderer/basics/test_renderer.cpp
     renderer/basics/test_code_first_render.cpp
     renderer/basics/test_background_render.cpp
@@ -64,40 +72,52 @@ add_executable(chronon3d_tests
     render_graph/test_precompositions.cpp
     render_graph/test_modular_features.cpp
     render_graph/test_camera_2_5d_graph.cpp
-
-    # Registries & cache
     registry/test_registries.cpp
     cache/test_cache_foundation.cpp
-
-    # Effects
     effects/test_effect_registry.cpp
-
-    # Other
     deterministic/test_deterministic.cpp
-    
-    # IO
-    io/test_image_writer.cpp
-    io/test_png_validity.cpp
 )
-
-target_link_libraries(chronon3d_tests
+target_link_libraries(chronon3d_renderer_tests
     PRIVATE
         chronon3d_pipeline
         chronon3d_backend_image
         $<TARGET_OBJECTS:chronon3d_compositions>
-        doctest::doctest
         $<TARGET_OBJECTS:chronon3d_graph>
         $<TARGET_OBJECTS:chronon3d_backend_software>
         $<TARGET_OBJECTS:chronon3d_scene>
+        doctest::doctest
 )
-target_compile_definitions(chronon3d_tests PRIVATE CHRONON_BUILD_TESTS)
-
 if(CHRONON3D_ENABLE_VIDEO)
-    target_link_libraries(chronon3d_tests PRIVATE chronon3d_backend_ffmpeg)
+    target_link_libraries(chronon3d_renderer_tests PRIVATE chronon3d_backend_ffmpeg)
 endif()
-target_include_directories(chronon3d_tests PRIVATE ${CMAKE_SOURCE_DIR})
-target_include_directories(chronon3d_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-target_include_directories(chronon3d_tests PRIVATE ${Stb_INCLUDE_DIR})
+target_include_directories(chronon3d_renderer_tests PRIVATE ${CMAKE_SOURCE_DIR})
+target_include_directories(chronon3d_renderer_tests PRIVATE ${Stb_INCLUDE_DIR})
+add_test(NAME chronon3d_renderer_tests COMMAND chronon3d_renderer_tests)
 
-add_test(NAME chronon3d_tests COMMAND chronon3d_tests)
+# IO Tests
+add_executable(chronon3d_io_tests
+    ${TEST_MAIN}
+    io/test_image_writer.cpp
+    io/test_png_validity.cpp
+)
+target_link_libraries(chronon3d_io_tests PRIVATE chronon3d_pipeline chronon3d_backend_image doctest::doctest)
+target_include_directories(chronon3d_io_tests PRIVATE ${CMAKE_SOURCE_DIR})
+add_test(NAME chronon3d_io_tests COMMAND chronon3d_io_tests)
+
+# CLI Tests
+add_executable(chronon3d_cli_tests
+    test_main.cpp
+    cli/test_frame_range_parser.cpp
+    cli/test_render_job_plan.cpp
+    ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/cli_utils.cpp
+    ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/render_job_plan.cpp
+)
+
+target_link_libraries(chronon3d_cli_tests
+    PRIVATE
+        chronon3d_pipeline
+        doctest::doctest
+)
+target_include_directories(chronon3d_cli_tests PRIVATE ${CMAKE_SOURCE_DIR})
+add_test(NAME chronon3d_cli_tests COMMAND chronon3d_cli_tests)
 

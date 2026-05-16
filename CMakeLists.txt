@@ -188,11 +188,11 @@ file(GLOB CHRONON3D_SCENE_SOURCES CONFIGURE_DEPENDS
     "src/layout/*.cpp"
     "src/specscene/*.cpp"
 )
-add_library(chronon3d_scene OBJECT ${CHRONON3D_SCENE_SOURCES})
+add_library(chronon3d_scene STATIC ${CHRONON3D_SCENE_SOURCES})
 target_include_directories(chronon3d_scene PRIVATE ${CMAKE_SOURCE_DIR})
 target_link_libraries(chronon3d_scene
     PUBLIC 
-        chronon3d chronon3d_runtime chronon3d_graph chronon3d_backend_software chronon3d_registry 
+        chronon3d chronon3d_runtime chronon3d_graph chronon3d_registry 
         chronon3d_cache chronon3d_effects chronon3d_backend_image chronon3d_backend_video
     PRIVATE spdlog::spdlog fmt::fmt tomlplusplus::tomlplusplus
 )
