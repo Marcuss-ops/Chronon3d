@@ -1,5 +1,9 @@
 #pragma once
 
+#include <chronon3d/api/composition.hpp>
+#include <chronon3d/api/scene.hpp>
+#include <chronon3d/api/renderer.hpp>
+
 #include <chronon3d/core.hpp>
 #include <chronon3d/math.hpp>
 #include <chronon3d/geometry.hpp>
@@ -15,8 +19,6 @@
 #include <chronon3d/scene/mask/mask_utils.hpp>
 #include <chronon3d/scene/effects/layer_effect.hpp>
 #include <chronon3d/scene/layer/depth_role.hpp>
-#include <chronon3d/scene/scene.hpp>
-#include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/animation/interpolate.hpp>
 

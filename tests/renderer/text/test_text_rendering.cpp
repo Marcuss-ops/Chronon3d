@@ -39,6 +39,7 @@ TEST_CASE("Text renderer fails safely on missing font") {
     tr.position = {20, 40, 0};
 
     TextRenderer renderer;
+    renderer.set_backend(std::make_shared<text::StbFontBackend>());
 
     REQUIRE_FALSE(renderer.draw_text(text, tr, fb));
 }
@@ -64,6 +65,7 @@ TEST_CASE("Text renderer produces non-empty pixels") {
     tr.position = {30, 60, 0};
 
     TextRenderer renderer;
+    renderer.set_backend(std::make_shared<text::StbFontBackend>());
 
     REQUIRE(renderer.draw_text(text, tr, fb));
 
@@ -112,6 +114,7 @@ TEST_CASE("Text alpha affects rendered pixels") {
     tr_half.opacity = 0.5f;
 
     TextRenderer renderer;
+    renderer.set_backend(std::make_shared<text::StbFontBackend>());
     REQUIRE(renderer.draw_text(text, tr, opaque_fb));
     REQUIRE(renderer.draw_text(text, tr_half, half_fb));
 
@@ -159,6 +162,7 @@ TEST_CASE("Text respects draw order") {
     auto scene = s.build();
 
     SoftwareRenderer renderer;
+    renderer.set_font_backend(std::make_shared<text::StbFontBackend>());
     Camera cam;
     auto fb = renderer.render_scene(scene, cam, 300, 150);
 

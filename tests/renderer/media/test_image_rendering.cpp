@@ -2,6 +2,7 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/assets/image_renderer.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
+#include <chronon3d/backends/image/stb_image_backend.hpp>
 #include <filesystem>
 
 using namespace chronon3d;
@@ -16,6 +17,7 @@ TEST_CASE("Image renderer fails safely on missing image") {
     img.opacity = 1.0f;
 
     ImageRenderer renderer;
+    renderer.set_backend(std::make_shared<image::StbImageBackend>());
     RenderState state{Mat4(1.0f), 1.0f};
 
     CHECK_FALSE(renderer.draw_image(img, state, fb));
@@ -46,6 +48,7 @@ TEST_CASE("Image renderer produces non-empty pixels") {
     RenderState state = combine(root, tr);
 
     ImageRenderer renderer;
+    renderer.set_backend(std::make_shared<image::StbImageBackend>());
     REQUIRE(renderer.draw_image(img, state, fb));
 
     bool found = false;
@@ -84,6 +87,7 @@ TEST_CASE("Image opacity affects output") {
         RenderState state = combine(RenderState{Mat4(1.0f), 1.0f}, tr);
 
         ImageRenderer renderer;
+        renderer.set_backend(std::make_shared<image::StbImageBackend>());
         REQUIRE(renderer.draw_image(img, state, fb));
 
         f32 sum = 0.0f;
@@ -130,6 +134,7 @@ TEST_CASE("Image inside layer follows layer position") {
     });
 
     SoftwareRenderer renderer;
+    renderer.set_image_backend(std::make_shared<image::StbImageBackend>());
     auto fb = renderer.render_frame(comp, 0);
 
     auto p = fb->get_pixel(150, 150);
