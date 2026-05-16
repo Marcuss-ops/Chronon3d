@@ -36,8 +36,8 @@ public:
 class SourceNode final : public RenderGraphNode {
 public:
     SourceNode(std::string name, const ::chronon3d::RenderNode& node, const cache::NodeCacheKey& key,
-               bool centered = false)
-        : m_name(std::move(name)), m_node(node), m_key(key), m_centered(centered) {}
+               bool centered = false, bool is_3d = false)
+        : m_name(std::move(name)), m_node(node), m_key(key), m_centered(centered), m_is_3d(is_3d) {}
 
     RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::Source; }
     std::string name() const override { return m_name; }
@@ -61,6 +61,14 @@ public:
             }
             state.matrix = canvas_offset * m_node.world_transform.to_mat4();
             state.opacity = m_node.world_transform.opacity;
+
+            // Expose 3D projection context to processors that draw cards directly.
+            if (ctx.has_camera_2_5d && m_is_3d) {
+                state.projection  = ctx.projection_ctx;
+                state.world_matrix = m_node.world_transform.to_mat4();
+                state.is_3d_layer = true;
+            }
+
             ctx.renderer->draw_node(*fb, m_node, state, ctx.camera, ctx.width, ctx.height);
         }
         return fb;
@@ -71,6 +79,7 @@ private:
     ::chronon3d::RenderNode m_node;
     cache::NodeCacheKey m_key;
     bool m_centered{false};
+    bool m_is_3d{false};
 };
 
 // MaskNode

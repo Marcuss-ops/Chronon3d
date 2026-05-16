@@ -3,6 +3,8 @@
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/core/framebuffer.hpp>
 #include <chronon3d/scene/camera/camera.hpp>
+#include <chronon3d/scene/camera/camera_2_5d.hpp>
+#include <chronon3d/math/projector_2_5d.hpp>
 #include <memory>
 #include <string>
 #include <vector>
@@ -41,6 +43,12 @@ struct RenderGraphContext {
     int width{0};
     int height{0};
     Camera camera{};
+
+    // 2.5D camera — populated from scene.camera_2_5d() when active.
+    // Processors use this to build ProjectionContext for direct card rendering.
+    Camera2_5D camera_2_5d{};
+    bool has_camera_2_5d{false};
+    renderer::ProjectionContext projection_ctx{}; // pre-built from camera_2_5d
 
     SoftwareRenderer* renderer{nullptr};
     cache::NodeCache* node_cache{nullptr};
