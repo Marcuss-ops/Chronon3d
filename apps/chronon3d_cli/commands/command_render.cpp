@@ -25,15 +25,8 @@ int command_render(const CompositionRegistry& registry, const RenderArgs& args) 
     auto resolved = resolve_composition(registry, args.comp_id);
     if (!resolved) return 1;
 
-    RenderSettings settings;
-    settings.diagnostic         = args.diagnostic;
-    settings.use_modular_graph  = args.use_modular_graph;
-    settings.motion_blur.enabled      = resolved.from_specscene ? false : args.motion_blur;
-    settings.motion_blur.samples      = args.motion_blur_samples;
-    settings.motion_blur.shutter_angle = args.shutter_angle;
-    settings.ssaa_factor              = args.ssaa;
-
-    auto renderer = create_renderer(registry, settings);
+    auto renderer = create_renderer(registry,
+        settings_from_args(args, !resolved.from_specscene, args.diagnostic));
 
     if (resolved.from_specscene && args.motion_blur) {
         spdlog::warn("Motion blur is ignored for specscene inputs in this build");
