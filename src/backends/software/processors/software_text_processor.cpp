@@ -16,23 +16,39 @@ public:
         const Mat4& model = state.matrix;
         const f32 opacity = state.opacity;
 
-        // 1. Shadow
-        draw_shadow(fb, node, state);
+        const float effective_size = node.shape.text.style.size;
+        
+        // 1. Rasterize text once for both glow and main text
+        auto raster = rasterize_text_to_bl_image(node.shape.text, effective_size);
+        if (!raster) return;
 
-        // 2. Optimized Glow (Blend2D)
+        // 2. Glow
         if (node.glow.enabled && node.glow.intensity > 0.0f && node.glow.color.a > 0.0f) {
-            draw_text_glow(fb, node, state, renderer);
+            draw_text_glow(fb, node, state, *raster);
         }
 
         // 3. Text
-        Transform text_tr;
-        text_tr.position = Vec3(model[3]);
-        text_tr.opacity = opacity;
-        text_tr.scale.x = glm::length(Vec3(model[0]));
-        text_tr.scale.y = glm::length(Vec3(model[1]));
+        // Apply text color to a copy of the raster
+        BLImage text_img;
+        text_img.create(raster->image.width(), raster->image.height(), BL_FORMAT_PRGB32);
+        {
+            BLContext ctx(text_img);
+            ctx.clearAll();
+            ctx.blitImage(BLPoint(0, 0), raster->image);
+            ctx.setCompOp(BL_COMP_OP_SRC_IN);
+            ctx.setFillStyle(BLRgba32(
+                static_cast<uint8_t>(std::clamp(node.shape.text.style.color.r * 255.0f, 0.0f, 255.0f)),
+                static_cast<uint8_t>(std::clamp(node.shape.text.style.color.g * 255.0f, 0.0f, 255.0f)),
+                static_cast<uint8_t>(std::clamp(node.shape.text.style.color.b * 255.0f, 0.0f, 255.0f)),
+                255
+            ));
+            ctx.fillAll();
+        }
 
-        // Single source of truth: TextRenderer handles all vertical offsets
-        renderer.text_renderer().draw_text(node.shape.text, text_tr, fb, &state);
+        // Use the transformed compositor to respect perspective/tilt
+        Mat4 text_model = model * glm::translate(Mat4(1.0f), Vec3(raster->x_offset, raster->y_offset, 0.0f));
+        
+        blend2d_bridge::composite_bl_image_transformed(fb, text_img, text_model, opacity, BlendMode::Normal);
     }
 
     raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 spread) override {
@@ -51,46 +67,41 @@ public:
     }
 
 private:
-    void draw_text_glow(Framebuffer& fb, const RenderNode& node, const RenderState& state, 
-                        SoftwareRenderer& renderer) {
-        const TextShape& t = node.shape.text;
+    void draw_text_glow(Framebuffer& fb, const RenderNode& node, const RenderState& state, const TextRasterization& raster) {
         const Mat4& model = state.matrix;
         const f32 opacity = state.opacity;
+        // Apply glow color to a copy of the text image
+        BLImage glow_img;
+        glow_img.create(raster.image.width(), raster.image.height(), BL_FORMAT_PRGB32);
+        {
+            BLContext ctx(glow_img);
+            ctx.clearAll();
+            ctx.blitImage(BLPoint(0, 0), raster.image);
+            ctx.setCompOp(BL_COMP_OP_SRC_IN);
+            ctx.setFillStyle(BLRgba32(
+                static_cast<uint8_t>(std::clamp(node.glow.color.r * 255.0f, 0.0f, 255.0f)),
+                static_cast<uint8_t>(std::clamp(node.glow.color.g * 255.0f, 0.0f, 255.0f)),
+                static_cast<uint8_t>(std::clamp(node.glow.color.b * 255.0f, 0.0f, 255.0f)),
+                255
+            ));
+            ctx.fillAll();
+        }
 
-        const float scale_x = glm::length(Vec3(model[0]));
-        const float effective_size = t.style.size * scale_x;
-        
-        // Use a larger padding for glow to avoid clipping the blur
-        const int glow_padding = static_cast<int>(node.glow.radius * 2.0f) + 16;
-        auto raster = rasterize_text_to_bl_image(t, effective_size, glow_padding);
-        if (!raster) return;
-
-        // Apply glow color
-        BLContext ctx(raster->image);
-        ctx.setCompOp(BL_COMP_OP_SRC_IN);
-        ctx.setFillStyle(BLRgba32(
-            static_cast<uint8_t>(std::clamp(node.glow.color.r * 255.0f, 0.0f, 255.0f)),
-            static_cast<uint8_t>(std::clamp(node.glow.color.g * 255.0f, 0.0f, 255.0f)),
-            static_cast<uint8_t>(std::clamp(node.glow.color.b * 255.0f, 0.0f, 255.0f)),
-            255
-        ));
-        ctx.fillAll();
-        ctx.end();
-
-        Framebuffer glow_tmp(raster->image.width(), raster->image.height());
+        // We blur in a temporary framebuffer to use the existing software blur
+        Framebuffer glow_tmp(glow_img.width(), glow_img.height());
         glow_tmp.clear(Color::transparent());
-        blend2d_bridge::composite_bl_image(glow_tmp, raster->image, 0, 0, 1.0f, BlendMode::Normal);
+        blend2d_bridge::composite_bl_image(glow_tmp, glow_img, 0, 0, 1.0f, BlendMode::Normal);
         
         if (node.glow.radius > 0.0f) {
             SoftwareRenderer::apply_blur(glow_tmp, node.glow.radius);
         }
 
-        const f32 glow_opacity = opacity * node.glow.intensity * node.glow.color.a;
+        const f32 glow_intensity_opacity = node.glow.intensity * node.glow.color.a;
 
-        blend2d_bridge::composite_framebuffer_offset(fb, glow_tmp, 
-            static_cast<int>(model[3][0] + raster->x_offset), 
-            static_cast<int>(model[3][1] + raster->y_offset), 
-            glow_opacity, BlendMode::Add);
+        // Use transformed compositor to follow perspective
+        Mat4 glow_model = model * glm::translate(Mat4(1.0f), Vec3(raster.x_offset, raster.y_offset, 0.0f));
+        
+        blend2d_bridge::composite_framebuffer_transformed(fb, glow_tmp, glow_model, opacity * glow_intensity_opacity, BlendMode::Add);
     }
 };
 

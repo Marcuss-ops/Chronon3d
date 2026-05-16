@@ -9,7 +9,7 @@ namespace renderer {
 
 void draw_grid_plane(Framebuffer& fb, const RenderNode& node, const RenderState& state,
                      const GridPlaneShape& s, const GridPlaneRenderState& rt) {
-    if (!rt.cam_ready) return;
+    if (!rt.projection.ready) return;
 
     const Color col = s.color.to_linear();
     const f32 base_a = col.a * state.opacity;
@@ -22,7 +22,7 @@ void draw_grid_plane(Framebuffer& fb, const RenderNode& node, const RenderState&
     auto segment_alpha = [&](const Vec3& w0, const Vec3& w1) -> f32 {
         if (!do_fade) return base_a;
         const Vec3 mid{(w0.x + w1.x) * 0.5f, (w0.y + w1.y) * 0.5f, (w0.z + w1.z) * 0.5f};
-        Vec4 cam = rt.cam_view * Vec4(mid, 1.0f);
+        Vec4 cam = rt.projection.view * Vec4(mid, 1.0f);
         const f32 depth = -cam.z;
         if (depth <= 0.0f) return 0.0f;
         const f32 t = std::clamp(depth / s.fade_distance, 0.0f, 1.0f);
@@ -34,7 +34,7 @@ void draw_grid_plane(Framebuffer& fb, const RenderNode& node, const RenderState&
         if (a <= 0.005f) return;
         Color c = col; c.a = a;
         Vec2 p0, p1;
-        if (clip_and_project_line(w0, w1, rt.cam_view, rt.cam_focal, rt.vp_cx, rt.vp_cy, p0, p1))
+        if (clip_and_project_line(w0, w1, rt.projection.view, rt.projection.focal, rt.projection.vp_cx, rt.projection.vp_cy, p0, p1))
             bline(fb, p0, p1, c);
     };
 

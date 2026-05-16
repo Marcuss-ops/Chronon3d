@@ -1,4 +1,5 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/backends/software/projector_2_5d.hpp>
 #include <chronon3d/backends/software/shape_processor.hpp>
 #include "../primitive_renderer.hpp"
 
@@ -26,13 +27,8 @@ public:
     void draw(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNode& node, const RenderState& state,
               const Camera& camera, i32 width, i32 height) override {
         auto s = node.fake_box3d_runtime;
-        if (!s.cam_ready) {
-            s.cam_ready = true;
-            s.cam_view = camera.view_matrix();
-            const f32 fw = static_cast<f32>(width);
-            s.cam_focal = camera.focal_length(fw);
-            s.vp_cx = fw * 0.5f;
-            s.vp_cy = static_cast<f32>(height) * 0.5f;
+        if (!s.projection.ready) {
+            prepare_projection_context(s, camera, width, height);
         }
         chronon3d::renderer::draw_fake_box3d(fb, node, state, node.shape.fake_box3d, s);
     }
@@ -51,13 +47,8 @@ public:
     void draw(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNode& node, const RenderState& state,
               const Camera& camera, i32 width, i32 height) override {
         auto s = node.grid_plane_runtime;
-        if (!s.cam_ready) {
-            s.cam_ready = true;
-            s.cam_view = camera.view_matrix();
-            const f32 fw = static_cast<f32>(width);
-            s.cam_focal = camera.focal_length(fw);
-            s.vp_cx = fw * 0.5f;
-            s.vp_cy = static_cast<f32>(height) * 0.5f;
+        if (!s.projection.ready) {
+            prepare_projection_context(s, camera, width, height);
         }
         chronon3d::renderer::draw_grid_plane(fb, node, state, node.shape.grid_plane, s);
     }

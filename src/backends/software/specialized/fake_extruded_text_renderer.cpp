@@ -1,6 +1,6 @@
 #include <chronon3d/backends/software/fake_extruded_text_renderer.hpp>
+#include <chronon3d/backends/software/projector_2_5d.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
-#include <chronon3d/math/camera_2_5d_projection.hpp>
 #include "../primitive_renderer.hpp"
 #include <stb_truetype.h>
 #include <mapbox/earcut.hpp>
@@ -232,7 +232,8 @@ const GlyphGeometry& FakeExtrudedTextRenderer::get_glyph(
 void FakeExtrudedTextRenderer::collect_geometry(
     const RenderNode& node, const RenderState& state,
     i32 width, i32 height,
-    TextRenderer& text_renderer)
+    TextRenderer& text_renderer,
+    const renderer::Projector2_5D& projector)
 {
     const auto& s = node.shape.fake_extruded_text;
     const f32 op = state.opacity;
@@ -263,34 +264,17 @@ void FakeExtrudedTextRenderer::collect_geometry(
 
     const float depth_z = (float)s.depth * s.extrude_z_step;
 
-    // Use Camera2_5D runtime — pinhole projection matching project_2_5d().
+    // Use the shared projector passed in from the renderer path.
     const auto& rt      = node.fake_extruded_text_runtime;
-    const Mat4& view_mat = rt.cam_view;
-    const f32   focal    = rt.cam_focal;
-    const f32   vp_cx    = rt.vp_cx;
-    const f32   vp_cy    = rt.vp_cy;
-
-    // World → view space
-    auto to_view = [&](const Vec3& w) -> Vec3 {
-        Vec4 v = view_mat * Vec4(w, 1.0f);
-        return Vec3(v.x, v.y, v.z);
-    };
-
-    // View → screen using pinhole (cam.z < 0 = in front of camera).
-    // Negate vp.x because GLM lookAt (camera looking in +z) flips the X axis.
-    auto view_to_screen = [&](const Vec3& vp) -> Vec2 {
-        const f32 ps = focal / (-vp.z);
-        return Vec2{-vp.x * ps + vp_cx, -vp.y * ps + vp_cy};
-    };
 
     // Fan-triangulate a near-clipped polygon into m_tris
     auto emit_clipped = [&](const std::vector<ClipVert>& poly) {
         if (poly.size() < 3) return;
-        Vec2  sp0 = view_to_screen(poly[0].pos);
+        Vec2  sp0 = projector.view_to_screen(poly[0].pos);
         float d0  = -poly[0].pos.z;
         for (size_t k = 1; k + 1 < poly.size(); ++k) {
-            Vec2  sp1 = view_to_screen(poly[k].pos);
-            Vec2  sp2 = view_to_screen(poly[k+1].pos);
+            Vec2  sp1 = projector.view_to_screen(poly[k].pos);
+            Vec2  sp2 = projector.view_to_screen(poly[k+1].pos);
             float d   = (d0 + (-poly[k].pos.z) + (-poly[k+1].pos.z)) / 3.0f;
             m_tris.push_back({{sp0, sp1, sp2},
                                {poly[0].col, poly[k].col, poly[k+1].col}, d});
@@ -299,9 +283,9 @@ void FakeExtrudedTextRenderer::collect_geometry(
 
     // Add a triangle with per-vertex colors; clips against near plane if needed
     auto add_tri = [&](const Vec3 w[3], const Color c[3]) {
-        Vec3 vp[3] = {to_view(w[0]), to_view(w[1]), to_view(w[2])};
+        Vec3 vp[3] = {projector.to_view(w[0]), projector.to_view(w[1]), projector.to_view(w[2])};
         if (vp[0].z <= -1.0f && vp[1].z <= -1.0f && vp[2].z <= -1.0f) {
-            Vec2  sp[3] = {view_to_screen(vp[0]), view_to_screen(vp[1]), view_to_screen(vp[2])};
+            Vec2  sp[3] = {projector.view_to_screen(vp[0]), projector.view_to_screen(vp[1]), projector.view_to_screen(vp[2])};
             float d     = (-vp[0].z + -vp[1].z + -vp[2].z) / 3.0f;
             m_tris.push_back({{sp[0], sp[1], sp[2]}, {c[0], c[1], c[2]}, d});
             return;
@@ -312,12 +296,12 @@ void FakeExtrudedTextRenderer::collect_geometry(
     // Add a side quad [front-p0, front-p1, back-p1, back-p0] with two edge colors.
     // Uses SideQ (gradient quad) in the fast path; clips to triangles if needed.
     auto add_side_quad = [&](const Vec3 w[4], Color ca, Color cb, float sort_depth) {
-        Vec3 vp[4] = {to_view(w[0]), to_view(w[1]), to_view(w[2]), to_view(w[3])};
+        Vec3 vp[4] = {projector.to_view(w[0]), projector.to_view(w[1]), projector.to_view(w[2]), projector.to_view(w[3])};
         bool all_ok = vp[0].z <= -1.0f && vp[1].z <= -1.0f &&
                       vp[2].z <= -1.0f && vp[3].z <= -1.0f;
         if (all_ok) {
             Vec2 sv[4];
-            for (int j = 0; j < 4; ++j) sv[j] = view_to_screen(vp[j]);
+            for (int j = 0; j < 4; ++j) sv[j] = projector.view_to_screen(vp[j]);
             m_quads.push_back({{sv[0], sv[1], sv[2], sv[3]}, ca, cb, sort_depth});
             return;
         }
@@ -401,7 +385,7 @@ void FakeExtrudedTextRenderer::collect_geometry(
                     norm2d /= nlen;
 
                     const Vec2  mid       = (p0 + p1) * 0.5f;
-                    const float sort_d    = -to_view(transform_pt(mid, depth_z * 0.5f)).z;
+                    const float sort_d    = -projector.to_view(transform_pt(mid, depth_z * 0.5f)).z;
                     const Vec4  n3d_local = {norm2d.x, -norm2d.y, 0.0f, 0.0f};
                     const Vec3  n3d_world = glm::normalize(Vec3(rt.world_matrix * n3d_local));
                     const float side_l    = ndotl(n3d_world);
@@ -497,7 +481,7 @@ void FakeExtrudedTextRenderer::collect(
     const auto& rt = node.fake_extruded_text_runtime;
     const f32   op = state.opacity;
 
-    if (!rt.cam_ready) {
+    if (!rt.projection.ready) {
         // ── Screen-space fallback (no 3D camera) ─────────────────────────────
         // Draws directly to fb (no depth accumulation needed for 2D path).
         const Vec2 front_sp{s.world_pos.x, s.world_pos.y};
@@ -559,7 +543,10 @@ void FakeExtrudedTextRenderer::collect(
     }
 
     // ── 3D mesh-based extrusion: accumulate into m_quads / m_tris ────────────
-    collect_geometry(node, state, width, height, text_renderer);
+    const renderer::Projector2_5D projector = rt.projection.ready
+        ? rt.projection
+        : renderer::make_projection_context(camera, width, height);
+    collect_geometry(node, state, width, height, text_renderer, projector);
 }
 
 void FakeExtrudedTextRenderer::draw(

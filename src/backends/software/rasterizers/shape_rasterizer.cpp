@@ -34,14 +34,18 @@ raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 sprea
         model * Vec4(min_local.x, max_local.y, 0, 1)
     };
 
-    f32 min_x = corners[0].x, max_x = corners[0].x;
-    f32 min_y = corners[0].y, max_y = corners[0].y;
+    f32 min_x = 1e10f, max_x = -1e10f;
+    f32 min_y = 1e10f, max_y = -1e10f;
 
-    for (int i = 1; i < 4; ++i) {
-        min_x = std::min(min_x, corners[i].x);
-        max_x = std::max(max_x, corners[i].x);
-        min_y = std::min(min_y, corners[i].y);
-        max_y = std::max(max_y, corners[i].y);
+    for (int i = 0; i < 4; ++i) {
+        const f32 w = corners[i].w;
+        if (std::abs(w) < 1e-7f) continue;
+        const f32 px = corners[i].x / w;
+        const f32 py = corners[i].y / w;
+        min_x = std::min(min_x, px);
+        max_x = std::max(max_x, px);
+        min_y = std::min(min_y, py);
+        max_y = std::max(max_y, py);
     }
 
     return {
@@ -94,26 +98,25 @@ void draw_transformed_shape(Framebuffer& fb, const Shape& shape, const Mat4& mod
     raster::BBox bbox = compute_world_bbox(shape, model, spread);
     bbox.clip_to(fb.width(), fb.height());
 
-    // DIAGNOSTIC: Clear the whole bbox with red to see if it's even hit
-    // for (i32 y = bbox.y0; y < bbox.y1; ++y) {
-    //     for (i32 x = bbox.x0; x < bbox.x1; ++x) {
-    //         fb.set_pixel(x, y, Color{1, 0, 0, 1});
-    //     }
-    // }
-
     if (bbox.is_empty()) return;
 
-    Mat4 inv_model = glm::inverse(model);
+    // Extract 3x3 homography for local_z = 0 plane
+    glm::mat3 H;
+    H[0][0] = model[0][0]; H[0][1] = model[0][1]; H[0][2] = model[0][3];
+    H[1][0] = model[1][0]; H[1][1] = model[1][1]; H[1][2] = model[1][3];
+    H[2][0] = model[3][0]; H[2][1] = model[3][1]; H[2][2] = model[3][3];
+
+    glm::mat3 invH = glm::inverse(H);
 
     for (i32 y = bbox.y0; y < bbox.y1; ++y) {
         for (i32 x = bbox.x0; x < bbox.x1; ++x) {
             if (state && !pixel_passes_mask(*state, x, y)) continue;
-            Vec4 lp_h = inv_model * Vec4(static_cast<f32>(x) + 0.5f, static_cast<f32>(y) + 0.5f, 0.0f, 1.0f);
-            if (std::abs(lp_h.w) < 1e-9f) continue;
-            Vec2 lp(lp_h.x / lp_h.w, lp_h.y / lp_h.w);
+
+            Vec3 lp_h = invH * Vec3(static_cast<f32>(x) + 0.5f, static_cast<f32>(y) + 0.5f, 1.0f);
+            if (std::abs(lp_h.z) < 1e-7f) continue;
+            Vec2 lp(lp_h.x / lp_h.z, lp_h.y / lp_h.z);
             
             if (hit_test(shape, lp, spread)) {
-                // SPDLOG_TRACE("Draw pixel ({}, {}) color={:.2f}", x, y, color.a);
                 fb.set_pixel(x, y, compositor::blend(color, fb.get_pixel(x, y), BlendMode::Normal));
             }
         }
