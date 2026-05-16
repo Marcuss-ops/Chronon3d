@@ -4,6 +4,33 @@
 
 using namespace chronon3d;
 
+namespace {
+
+static SoftwareRenderer g_renderer;
+
+// Render a 100x100 composition with a single centered layer.
+// setup: configure the layer (position, effects, shapes).
+static std::unique_ptr<Framebuffer> render_layer(std::function<void(LayerBuilder&)> setup,
+                                                  i32 w = 100, i32 h = 100) {
+    Composition comp = composition({.name = "Test", .width = w, .height = h, .duration = 1},
+                                   [&](const FrameContext& ctx) {
+                                       SceneBuilder s(ctx);
+                                       s.layer("l", setup);
+                                       return s.build();
+                                   });
+    return g_renderer.render_frame(comp, 0);
+}
+
+// Convenience: layer setup for a rect centered in a 100x100 canvas.
+static auto rect_at_center(Vec2 size, Color color = Color{1, 1, 1, 1}) {
+    return [=](LayerBuilder& l) {
+        l.position({50.f, 50.f, 0.f})
+         .rect("r", {.size = size, .color = color, .pos = {}});
+    };
+}
+
+} // namespace
+
 // ---------------------------------------------------------------------------
 TEST_CASE("Text align center places text symmetrically") {
     // Two texts: one Left, one Center at same position.
@@ -31,33 +58,10 @@ TEST_CASE("Text align center places text symmetrically") {
 
 // ---------------------------------------------------------------------------
 TEST_CASE("Blur reduces high-frequency detail") {
-    // A sharp checker-board rendered into a layer; after blur, adjacent pixels
-    // that were max-different become more similar.
-    Composition comp_sharp = composition({
-        .name = "SharpLayer", .width = 100, .height = 100, .duration = 1
-    }, [](const FrameContext& ctx) {
-        SceneBuilder s(ctx);
-        s.layer("l", [](LayerBuilder& l) {
-            l.position({50, 50, 0});
-            l.rect("r", { .size = {80, 80}, .color = Color{1,1,1,1}, .pos = {0,0,0} });
-        });
-        return s.build();
+    auto fb_s = render_layer(rect_at_center({80, 80}));
+    auto fb_b = render_layer([](LayerBuilder& l) {
+        l.position({50, 50, 0}).blur(6).rect("r", {.size = {80, 80}, .color = {1,1,1,1}, .pos = {}});
     });
-
-    Composition comp_blurred = composition({
-        .name = "BlurredLayer", .width = 100, .height = 100, .duration = 1
-    }, [](const FrameContext& ctx) {
-        SceneBuilder s(ctx);
-        s.layer("l", [](LayerBuilder& l) {
-            l.position({50, 50, 0}).blur(6);
-            l.rect("r", { .size = {80, 80}, .color = Color{1,1,1,1}, .pos = {0,0,0} });
-        });
-        return s.build();
-    });
-
-    SoftwareRenderer r;
-    auto fb_s = r.render_frame(comp_sharp,   0);
-    auto fb_b = r.render_frame(comp_blurred, 0);
 
     // Rect 80x80 centred at (50,50) → spans (10,10)-(90,90). Pixel (5,50) is outside.
     CHECK(fb_s->get_pixel(5, 50).r < 0.1f);   // clearly outside sharp rect: black
@@ -66,19 +70,10 @@ TEST_CASE("Blur reduces high-frequency detail") {
 
 // ---------------------------------------------------------------------------
 TEST_CASE("Tint shifts layer colour toward tint colour") {
-    Composition comp = composition({
-        .name = "TintTest", .width = 100, .height = 100, .duration = 1
-    }, [](const FrameContext& ctx) {
-        SceneBuilder s(ctx);
-        s.layer("l", [](LayerBuilder& l) {
-            l.position({50, 50, 0})
-             .tint(Color{1, 0, 0, 0.8f}); // strong red tint
-            l.rect("r", { .size = {80, 80}, .color = Color{1,1,1,1}, .pos = {0,0,0} });
-        });
-        return s.build();
+    auto fb = render_layer([](LayerBuilder& l) {
+        l.position({50, 50, 0}).tint(Color{1, 0, 0, 0.8f})
+         .rect("r", {.size = {80, 80}, .color = {1,1,1,1}, .pos = {}});
     });
-    SoftwareRenderer r;
-    auto fb = r.render_frame(comp, 0);
     auto p = fb->get_pixel(50, 50);
     // White + red tint → r stays high, g and b drop
     CHECK(p.r > 0.5f);
@@ -88,47 +83,18 @@ TEST_CASE("Tint shifts layer colour toward tint colour") {
 
 // ---------------------------------------------------------------------------
 TEST_CASE("Brightness positive brightens the layer") {
-    Composition comp_normal = composition({
-        .name = "Normal", .width = 100, .height = 100, .duration = 1
-    }, [](const FrameContext& ctx) {
-        SceneBuilder s(ctx);
-        s.layer("l", [](LayerBuilder& l) {
-            l.position({50, 50, 0});
-            l.rect("r", { .size = {80, 80}, .color = Color{0.4f,0.4f,0.4f,1}, .pos = {0,0,0} });
-        });
-        return s.build();
+    const Color grey{0.4f, 0.4f, 0.4f, 1.f};
+    auto fb_n = render_layer(rect_at_center({80, 80}, grey));
+    auto fb_b = render_layer([grey](LayerBuilder& l) {
+        l.position({50, 50, 0}).brightness(0.3f)
+         .rect("r", {.size = {80, 80}, .color = grey, .pos = {}});
     });
-    Composition comp_bright = composition({
-        .name = "Bright", .width = 100, .height = 100, .duration = 1
-    }, [](const FrameContext& ctx) {
-        SceneBuilder s(ctx);
-        s.layer("l", [](LayerBuilder& l) {
-            l.position({50, 50, 0}).brightness(0.3f);
-            l.rect("r", { .size = {80, 80}, .color = Color{0.4f,0.4f,0.4f,1}, .pos = {0,0,0} });
-        });
-        return s.build();
-    });
-    SoftwareRenderer r;
-    auto fb_n = r.render_frame(comp_normal, 0);
-    auto fb_b = r.render_frame(comp_bright, 0);
     CHECK(fb_b->get_pixel(50, 50).r > fb_n->get_pixel(50, 50).r);
 }
 
 // ---------------------------------------------------------------------------
 TEST_CASE("Layer without effects renders identically to before") {
-    // A plain layer with no effects must behave exactly as the pre-effects code path.
-    Composition comp = composition({
-        .name = "NoEffectsRegression", .width = 100, .height = 100, .duration = 1
-    }, [](const FrameContext& ctx) {
-        SceneBuilder s(ctx);
-        s.layer("l", [](LayerBuilder& l) {
-            l.position({50, 50, 0});
-            l.rect("r", { .size = {60, 60}, .color = Color{0,1,0,1}, .pos = {0,0,0} });
-        });
-        return s.build();
-    });
-    SoftwareRenderer r;
-    auto fb = r.render_frame(comp, 0);
+    auto fb = render_layer(rect_at_center({60, 60}, Color{0, 1, 0, 1}));
     CHECK(fb->get_pixel(50, 50).g > 0.5f);
     CHECK(fb->get_pixel(10, 10).g < 0.1f);
 }

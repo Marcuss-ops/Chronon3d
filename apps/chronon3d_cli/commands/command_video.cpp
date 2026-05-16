@@ -106,6 +106,17 @@ void build_camera_reference_content(SceneBuilder& s,
     });
 }
 
+template<typename Args>
+RenderSettings settings_from_args(const Args& args, bool motion_blur_allowed = true) {
+    RenderSettings s;
+    s.use_modular_graph        = args.use_modular_graph;
+    s.motion_blur.enabled      = motion_blur_allowed && args.motion_blur;
+    s.motion_blur.samples      = args.motion_blur_samples;
+    s.motion_blur.shutter_angle = args.shutter_angle;
+    s.ssaa_factor              = args.ssaa;
+    return s;
+}
+
 } // namespace
 
 int command_video(const CompositionRegistry& registry, const VideoArgs& args) {
@@ -126,14 +137,7 @@ int command_video(const CompositionRegistry& registry, const VideoArgs& args) {
     auto resolved = resolve_composition(registry, args.comp_id);
     if (!resolved) return 1;
 
-    RenderSettings settings;
-    settings.diagnostic = false;
-    settings.use_modular_graph = args.use_modular_graph;
-    settings.motion_blur.enabled = resolved.from_specscene ? false : args.motion_blur;
-    settings.motion_blur.samples = args.motion_blur_samples;
-    settings.motion_blur.shutter_angle = args.shutter_angle;
-    settings.ssaa_factor = args.ssaa;
-
+    auto settings = settings_from_args(args, !resolved.from_specscene);
     auto renderer = create_renderer(registry, settings);
 
     video::VideoExportOptions options;
@@ -160,23 +164,7 @@ int command_video_camera(const CompositionRegistry& registry, const VideoCameraA
             return 1;
         }
 
-        if (loaded_preset->axis) normalized.axis = *loaded_preset->axis;
-        if (loaded_preset->reference_image) normalized.reference_image = *loaded_preset->reference_image;
-        if (loaded_preset->output) normalized.output = *loaded_preset->output;
-        if (loaded_preset->start) normalized.start = *loaded_preset->start;
-        if (loaded_preset->end) normalized.end = *loaded_preset->end;
-        if (loaded_preset->width) normalized.width = *loaded_preset->width;
-        if (loaded_preset->height) normalized.height = *loaded_preset->height;
-        if (loaded_preset->fps) normalized.fps = *loaded_preset->fps;
-        if (loaded_preset->crf) normalized.crf = *loaded_preset->crf;
-        if (loaded_preset->codec) normalized.codec = *loaded_preset->codec;
-        if (loaded_preset->encode_preset) normalized.encode_preset = *loaded_preset->encode_preset;
-        if (loaded_preset->use_modular_graph) normalized.use_modular_graph = *loaded_preset->use_modular_graph;
-        if (loaded_preset->motion_blur) normalized.motion_blur = *loaded_preset->motion_blur;
-        if (loaded_preset->motion_blur_samples) normalized.motion_blur_samples = *loaded_preset->motion_blur_samples;
-        if (loaded_preset->shutter_angle) normalized.shutter_angle = *loaded_preset->shutter_angle;
-        if (loaded_preset->ssaa) normalized.ssaa = *loaded_preset->ssaa;
-
+        apply_preset_to_args(*loaded_preset, normalized);
         spdlog::info("Loaded camera preset '{}' from {}", normalized.profile, preset_source.string());
     }
 
@@ -198,15 +186,7 @@ int command_video_camera(const CompositionRegistry& registry, const VideoCameraA
         return 1;
     }
 
-    RenderSettings settings;
-    settings.diagnostic = false;
-    settings.use_modular_graph = normalized.use_modular_graph;
-    settings.motion_blur.enabled = normalized.motion_blur;
-    settings.motion_blur.samples = normalized.motion_blur_samples;
-    settings.motion_blur.shutter_angle = normalized.shutter_angle;
-    settings.ssaa_factor = normalized.ssaa;
-
-    auto renderer = create_renderer(registry, settings);
+    auto renderer = create_renderer(registry, settings_from_args(normalized));
 
     animation::CameraMotionParams params;
     params.axis = *axis;

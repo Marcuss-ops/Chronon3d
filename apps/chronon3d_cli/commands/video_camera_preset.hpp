@@ -64,5 +64,9 @@ std::optional<CameraVideoPreset> load_camera_preset(const std::string& preset_na
                                                     std::filesystem::path* source_path = nullptr,
                                                     std::string* error = nullptr);
 
+struct VideoCameraArgs;
+// Copies every set field from this preset into target, leaving unset fields untouched.
+void apply_preset_to_args(const CameraVideoPreset& preset, VideoCameraArgs& target);
+
 } // namespace cli
 } // namespace chronon3d
