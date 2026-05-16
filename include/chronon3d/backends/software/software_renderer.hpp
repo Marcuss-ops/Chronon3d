@@ -42,8 +42,6 @@ namespace software_internal {
     std::string debug_render_graph(const SoftwareRenderer& renderer, const Scene& scene,
                                    const Camera& camera, i32 width, i32 height,
                                    Frame frame, f32 frame_time);
-    void draw_node(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNode& node,
-                   const RenderState& state, const Camera& camera, i32 width, i32 height);
 }
 
 /**
@@ -129,7 +127,6 @@ private:
     std::unique_ptr<Framebuffer> render_scene_internal(const Scene& scene, const Camera& camera,
                                                        i32 width, i32 height, Frame frame,
                                                        f32 frame_time);
-    void draw_line(Framebuffer& fb, const Vec3& p1, const Vec3& p2, const Color& color);
 
     TextRenderer      m_text_renderer;
     ImageRenderer     m_image_renderer;

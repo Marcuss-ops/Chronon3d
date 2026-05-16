@@ -38,14 +38,7 @@ void build_tilt_text_preview(SceneBuilder& s, const FrameContext& ctx, const Cam
     });
 
     s.layer("title", [text_pos](LayerBuilder& l) {
-        l.enable_3d()
-         .with_glow(Glow{
-             .enabled = true,
-             .radius = 26.0f,
-             .intensity = 0.9f,
-             .color = Color{1.0f, 1.0f, 1.0f, 1.0f},
-         });
-        
+        l.enable_3d();
         l.text("title_text", {
             .content = "TEST",
             .style = {
@@ -55,7 +48,12 @@ void build_tilt_text_preview(SceneBuilder& s, const FrameContext& ctx, const Cam
                 .align = TextAlign::Center
             },
             .pos = text_pos
-        });
+         }).with_glow(Glow{
+             .enabled = true,
+             .radius = 26.0f,
+             .intensity = 0.9f,
+             .color = Color{1.0f, 1.0f, 1.0f, 1.0f},
+         });
     });
 
 }
