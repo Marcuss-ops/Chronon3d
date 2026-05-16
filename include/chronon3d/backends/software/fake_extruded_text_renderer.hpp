@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/core/framebuffer.hpp>
+#include <chronon3d/backends/software/projector_2_5d.hpp>
 #include <chronon3d/scene/layer/render_node.hpp>
 #include <chronon3d/backends/text/text_renderer.hpp>
 #include <chronon3d/scene/camera/camera_2_5d.hpp>
@@ -47,7 +48,8 @@ private:
 
     void collect_geometry(const RenderNode& node, const RenderState& state,
                           i32 width, i32 height,
-                          TextRenderer& text_renderer);
+                          TextRenderer& text_renderer,
+                          const renderer::Projector2_5D& projector);
 
     std::unordered_map<std::string, GlyphGeometry> m_glyph_cache;
     std::vector<SideQ> m_quads;

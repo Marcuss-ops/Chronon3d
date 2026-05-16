@@ -1,7 +1,7 @@
 #include "fake_box3d_renderer.hpp"
 #include "../rasterizers/line_rasterizer.hpp"
 #include "../rasterizers/scanline_rasterizer.hpp"
-#include "../utils/projection_utils.hpp"
+#include <chronon3d/backends/software/projector_2_5d.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <glm/glm.hpp>
 #include <algorithm>
@@ -21,7 +21,8 @@ static float box_ndotl(const Vec3& normal) {
 
 void draw_fake_box3d(Framebuffer& fb, const RenderNode& node, const RenderState& state,
                      const FakeBox3DShape& s, const FakeBox3DRenderState& rt) {
-    if (!rt.cam_ready) return;
+    if (!rt.projection.ready) return;
+    const Projector2_5D& projector = rt.projection;
 
     const Vec3& wp = s.world_pos;
     const f32 hw = s.size.x * 0.5f;
@@ -44,12 +45,7 @@ void draw_fake_box3d(Framebuffer& fb, const RenderNode& node, const RenderState&
         c[i] = {w.x, w.y, w.z};
     }
 
-    Vec2 sc[8];
-    bool ok[8];
-    for (int i = 0; i < 8; ++i)
-        sc[i] = project_2_5d(c[i], rt.cam_view, rt.cam_focal, rt.vp_cx, rt.vp_cy, ok[i]);
-
-    const Mat4 inv_view = glm::inverse(rt.cam_view);
+    const Mat4 inv_view = glm::inverse(projector.view);
     const Vec3 cam_world = Vec3(inv_view[3]);
     // Use world-space box center for to_cam direction
     const Vec4 ctr_w = rt.world_matrix * Vec4(wp, 1.0f);
@@ -79,12 +75,17 @@ void draw_fake_box3d(Framebuffer& fb, const RenderNode& node, const RenderState&
         if (glm::dot(to_cam, wn) <= -0.1f) continue;
 
         const auto& f = faces[fi];
-        bool all_ok = true;
-        for (int ci = 0; ci < 4; ++ci) if (!ok[f.idx[ci]]) { all_ok = false; break; }
-        if (!all_ok) continue;
+        Vec3 face_world[4] = {
+            c[f.idx[0]],
+            c[f.idx[1]],
+            c[f.idx[2]],
+            c[f.idx[3]],
+        };
+        const auto projected = projector.project_quad(face_world);
+        if (!projected.visible) continue;
 
         Vec2 quad[4];
-        for (int ci = 0; ci < 4; ++ci) quad[ci] = sc[f.idx[ci]];
+        for (int ci = 0; ci < 4; ++ci) quad[ci] = projected.corners[ci];
 
         float light = box_ndotl(faces[fi].normal);
 
