@@ -25,9 +25,6 @@ target_link_libraries(chronon3d_cli
         chronon3d_backend_image
         spdlog::spdlog
         fmt::fmt
-        $<TARGET_OBJECTS:chronon3d_graph>
-        $<TARGET_OBJECTS:chronon3d_backend_software>
-        $<TARGET_OBJECTS:chronon3d_scene>
 )
 
 target_include_directories(chronon3d_cli PRIVATE ${CMAKE_SOURCE_DIR})

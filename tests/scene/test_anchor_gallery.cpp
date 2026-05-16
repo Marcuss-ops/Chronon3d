@@ -1,6 +1,6 @@
 #include <doctest/doctest.h>
 
-#include <Operations/background/dark_grid_background.hpp>
+#include <chronon3d/scene/utils/dark_grid_background.hpp>
 
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
@@ -37,7 +37,7 @@ static const std::array<AnchorCase, 9> kAnchorCases{{
 }};
 
 void build_anchor_scene(SceneBuilder& s, const FrameContext& ctx, const AnchorCase& c) {
-    operations::background::dark_grid_background(s, ctx);
+    scene::utils::dark_grid_background(s, ctx);
 
     s.layer(std::string{"card_"} + c.name, [c](LayerBuilder& l) {
         l.pin_to(c.placement, c.margin)

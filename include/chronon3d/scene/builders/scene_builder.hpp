@@ -171,7 +171,7 @@ namespace chronon3d {
 
             Layer l = builder.build();
             l.kind = LayerKind::Video;
-            l.video_source = std::move(source);
+            l.video_source = std::make_unique<video::VideoSource>(std::move(source));
             if (l.active_at(current_frame_)) {
                 scene_.add_layer(std::move(l));
             }

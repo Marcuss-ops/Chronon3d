@@ -1,6 +1,6 @@
 #include <doctest/doctest.h>
 
-#include <Operations/background/dark_grid_background.hpp>
+#include <chronon3d/scene/utils/dark_grid_background.hpp>
 
 #include <chronon3d/animations/camera_motion.hpp>
 #include <chronon3d/backends/image/image_writer.hpp>
@@ -28,7 +28,7 @@ void build_preview_reference(SceneBuilder& s, const FrameContext& ctx, const Cam
         0.0f,
     };
 
-    operations::background::dark_grid_background(s, ctx);
+    scene::utils::dark_grid_background(s, ctx);
 
     s.camera().set({
         .enabled = true,

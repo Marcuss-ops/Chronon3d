@@ -164,8 +164,9 @@ TEST_CASE("Camera2_5D projection: camera tilt produces a projective warp") {
     auto out = project_layer_2_5d(tr, cam, 1280, 720);
 
     CHECK(out.visible);
-    CHECK(std::abs(out.projection_matrix[3][0]) > 0.0001f ||
-          std::abs(out.projection_matrix[3][1]) > 0.0001f);
+    const bool has_offset = std::abs(out.projection_matrix[3][0]) > 0.0001f
+                         || std::abs(out.projection_matrix[3][1]) > 0.0001f;
+    CHECK(has_offset);
 }
 
 TEST_CASE("Camera2_5D projection: rotated camera still keeps front layers visible") {
