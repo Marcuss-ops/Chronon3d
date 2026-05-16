@@ -3,6 +3,7 @@
 #include <chronon3d/animations/camera_motion.hpp>
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/presets/camera_motion_clip.hpp>
 
 #include <cmath>
 #include <filesystem>
@@ -45,7 +46,7 @@ void render_motion_clip(MotionAxis axis, const char* name, const char* filename)
     SoftwareRenderer renderer;
     CameraMotionParams params;
     params.axis = axis;
-    auto comp = camera_motion_clip(name, params, add_motion_content);
+    auto comp = chronon3d::presets::camera_motion_clip(name, params, add_motion_content);
 
     auto fb_start = renderer.render_frame(comp, 0);
     auto fb_mid = renderer.render_frame(comp, 30);

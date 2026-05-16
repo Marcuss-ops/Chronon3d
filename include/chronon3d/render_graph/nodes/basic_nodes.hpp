@@ -44,8 +44,6 @@ public:
 
     cache::NodeCacheKey cache_key(const RenderGraphContext&) const override { 
         auto key = m_key;
-        // In the modular system, the SourceNode might depend on its own source hash
-        // which we already have in m_key.source_hash.
         return key; 
     }
 
@@ -53,18 +51,16 @@ public:
         auto fb = std::make_shared<Framebuffer>(ctx.width, ctx.height);
         fb->clear(Color::transparent());
         
-        Mat4 canvas_offset = math::scale(Vec3(ctx.ssaa_factor, ctx.ssaa_factor, 1.0f));
-        if (m_centered || ctx.modular_coordinates) {
-            canvas_offset = math::translate(Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f)) *
-                            canvas_offset;
-        }
-        RenderState state{canvas_offset, 1.0f};
-
-        // Combine with node's own world transform
-        state = combine(state, m_node.world_transform);
-        
         if (ctx.renderer) {
-            ctx.renderer->draw_node(*fb, m_node, state, ctx.camera, ctx.width, ctx.height);
+            RenderState state;
+            Mat4 canvas_offset = math::scale(Vec3(ctx.ssaa_factor, ctx.ssaa_factor, 1.0f));
+            if (m_centered || ctx.modular_coordinates) {
+                canvas_offset = math::translate(Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f)) *
+                                canvas_offset;
+            }
+            state.matrix = canvas_offset;
+            state.opacity = m_node.world_transform.opacity;
+            ctx.renderer->draw_node(*fb, m_node, state, Camera{}, ctx.width, ctx.height);
         }
         return fb;
     }
@@ -103,7 +99,6 @@ public:
         for (i32 y = 0; y < ctx.height; ++y) {
             Color* row = result->pixels_row(y);
             for (i32 x = 0; x < ctx.width; ++x) {
-                // Convert screen (0,0 = top-left) to canvas-centered local coords
                 Vec2 local{static_cast<f32>(x) - cx, static_cast<f32>(y) - cy};
                 if (!mask_contains_local_point(m_mask, local))
                     row[x].a = 0.0f;

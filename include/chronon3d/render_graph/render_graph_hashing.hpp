@@ -111,12 +111,19 @@ template <typename T>
 }
 
 [[nodiscard]] inline u64 hash_effect_stack(const EffectStack& effects) {
+    static thread_local int depth = 0;
+    if (depth > 50) return 0; // Prevent stack overflow
+    depth++;
+    struct DepthGuard { ~DepthGuard() { depth--; } } guard;
     u64 seed = 0;
     for (const auto& e : effects) {
         if (!e.enabled) {
             continue;
         }
-        seed = hash_combine(seed, hash_effect_params(e.params));
+        seed = hash_combine(seed, hash_string(e.descriptor.id));
+        if (auto* params = std::any_cast<EffectParams>(&e.params)) {
+            seed = hash_combine(seed, hash_effect_params(*params));
+        }
     }
     return seed;
 }
@@ -159,6 +166,11 @@ template <typename T>
 }
 
 [[nodiscard]] inline u64 hash_render_node(const RenderNode& n) {
+    static thread_local int depth = 0;
+    if (depth > 50) return 0; // Prevent stack overflow
+    depth++;
+    struct DepthGuard { ~DepthGuard() { depth--; } } guard;
+
     u64 seed = hash_bytes(n.name.data(), n.name.size());
     seed = hash_combine(seed, hash_transform(n.world_transform));
     seed = hash_combine(seed, hash_shape(n.shape));

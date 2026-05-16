@@ -49,12 +49,13 @@ struct VideoArgs {
 struct VideoCameraArgs {
     std::string axis{"Tilt"};
     std::string reference_image{"assets/images/camera_reference.jpg"};
-    std::string profile;
     std::string output;
     Frame start{0};
     Frame end{60};
-    int width{1920};
-    int height{1080};
+    float roll_start_deg{-4.0f};
+    float roll_end_deg{0.0f};
+    int width{1280};
+    int height{720};
     int fps{30};
     int crf{18};
     std::string codec{"auto"};
@@ -89,7 +90,7 @@ int command_video(const CompositionRegistry& registry, const VideoArgs& args);
 int command_video_camera(const CompositionRegistry& registry, const VideoCameraArgs& args);
 int command_bench(const CompositionRegistry& registry, const BenchArgs& args);
 int command_graph(const CompositionRegistry& registry, const GraphArgs& args);
-int command_batch(const CompositionRegistry& registry, const std::string& config_path);
+int command_batch(const CompositionRegistry& registry, const std::vector<std::string>& job_specs);
 int command_watch(const CompositionRegistry& registry, const std::string& comp_id);
 
 } // namespace cli

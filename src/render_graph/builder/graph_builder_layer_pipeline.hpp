@@ -11,7 +11,7 @@ struct LayerPipelineBuilder {
 
     static void append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
                                        GraphNodeId& current, const RenderGraphContext& ctx,
-                                       const Camera2_5D& cam25d);
+                                       const Camera2_5DRuntime& cam25d);
 };
 
 } // namespace chronon3d::graph::detail

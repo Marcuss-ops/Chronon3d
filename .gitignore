@@ -1,6 +1,6 @@
 # Build and local SDKs
-build/
-build*/
+/build/
+/build*/
 filament-sdk/
 vcpkg_installed/
 temp_assets/

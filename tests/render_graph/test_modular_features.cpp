@@ -3,6 +3,7 @@
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/core/composition_registry.hpp>
+#include <chronon3d/timeline/composition.hpp>
 
 using namespace chronon3d;
 

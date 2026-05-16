@@ -58,3 +58,10 @@ TEST_CASE("EffectInstance stores descriptor and opaque params") {
     CHECK(std::any_cast<std::string>(&instance.params) != nullptr);
     CHECK(*std::any_cast<std::string>(&instance.params) == "payload");
 }
+
+TEST_CASE("effect registry is data only") {
+    auto& reg = EffectRegistry::instance();
+    auto desc = reg.get("blur.gaussian");
+    CHECK(desc.stage == EffectStage::LayerPostTransform);
+    CHECK(desc.factory != nullptr); 
+}

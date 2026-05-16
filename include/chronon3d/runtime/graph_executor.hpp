@@ -2,6 +2,7 @@
 
 #include <chronon3d/render_graph/render_graph.hpp>
 #include <unordered_map>
+#include <mutex>
 
 namespace chronon3d::graph {
 
@@ -22,6 +23,7 @@ public:
 private:
     std::unordered_map<GraphNodeId, std::shared_ptr<Framebuffer>> m_temp;
     std::unordered_map<GraphNodeId, u64> m_resolved_key_digest;
+    mutable std::mutex m_mutex;
 
     std::shared_ptr<Framebuffer> execute_node(
         RenderGraph& graph,

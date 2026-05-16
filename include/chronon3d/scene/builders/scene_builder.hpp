@@ -12,12 +12,102 @@
 #include <functional>
 #include <string>
 #include <unordered_map>
+#include <utility>
 
 
 namespace chronon3d {
 
     class SceneBuilder {
       public:
+        class CameraApi {
+          public:
+            explicit CameraApi(SceneBuilder& owner)
+                : owner_(&owner) {}
+
+            CameraApi& set(Camera2_5D camera) {
+                owner_->set_camera(std::move(camera));
+                return *this;
+            }
+
+            CameraApi& enable(bool enabled = true) {
+                owner_->edit_camera([&](Camera2_5D& cam) { cam.enabled = enabled; });
+                return *this;
+            }
+
+            CameraApi& position(Vec3 p) {
+                owner_->edit_camera([&](Camera2_5D& cam) { cam.position = p; });
+                return *this;
+            }
+
+            CameraApi& zoom(f32 value) {
+                owner_->edit_camera([&](Camera2_5D& cam) { cam.zoom = value; });
+                return *this;
+            }
+
+            CameraApi& fov(f32 fov_deg) {
+                owner_->edit_camera([&](Camera2_5D& cam) {
+                    cam.fov_deg = fov_deg;
+                    cam.projection_mode = Camera2_5DProjectionMode::Fov;
+                });
+                return *this;
+            }
+
+            CameraApi& dof(DepthOfFieldSettings value) {
+                owner_->edit_camera([&](Camera2_5D& cam) { cam.dof = value; });
+                return *this;
+            }
+
+            CameraApi& parent(std::string name) {
+                owner_->edit_camera([&](Camera2_5D& cam) {
+                    cam.parent_name = std::pmr::string{name, owner_->scene_.resource()};
+                });
+                return *this;
+            }
+
+            CameraApi& rotation(Vec3 euler_deg) {
+                owner_->edit_camera([&](Camera2_5D& cam) { cam.rotation = euler_deg; });
+                return *this;
+            }
+
+            CameraApi& tilt(f32 degrees) {
+                owner_->edit_camera([&](Camera2_5D& cam) { cam.set_tilt(degrees); });
+                return *this;
+            }
+
+            CameraApi& pan(f32 degrees) {
+                owner_->edit_camera([&](Camera2_5D& cam) { cam.set_pan(degrees); });
+                return *this;
+            }
+
+            CameraApi& roll(f32 degrees) {
+                owner_->edit_camera([&](Camera2_5D& cam) { cam.set_roll(degrees); });
+                return *this;
+            }
+
+            CameraApi& point_of_interest(Vec3 poi) {
+                owner_->edit_camera([&](Camera2_5D& cam) {
+                    cam.point_of_interest = poi;
+                    cam.point_of_interest_enabled = true;
+                });
+                return *this;
+            }
+
+            CameraApi& look_at(Vec3 poi) {
+                return point_of_interest(poi);
+            }
+
+            CameraApi& target(std::string name) {
+                owner_->edit_camera([&](Camera2_5D& cam) {
+                    cam.target_name = std::pmr::string{name, owner_->scene_.resource()};
+                    cam.point_of_interest_enabled = true;
+                });
+                return *this;
+            }
+
+          private:
+            SceneBuilder* owner_;
+        };
+
         explicit SceneBuilder(std::pmr::memory_resource *res = std::pmr::get_default_resource())
             : scene_(res), current_frame_(0) {}
 
@@ -25,98 +115,14 @@ namespace chronon3d {
         explicit SceneBuilder(const FrameContext &ctx)
             : scene_(ctx.resource), current_frame_(ctx.frame) {}
 
+        [[nodiscard]] CameraApi camera() { return CameraApi(*this); }
+
         SceneBuilder &rect(std::string name, RectParams p);
         SceneBuilder &rounded_rect(std::string name, RoundedRectParams p);
         SceneBuilder &circle(std::string name, CircleParams p);
         SceneBuilder &line(std::string name, LineParams p);
         SceneBuilder &text(std::string name, TextParams p);
         SceneBuilder &image(std::string name, ImageParams p);
-
-        // Camera 2.5D — full struct override
-        SceneBuilder &camera_2_5d(Camera2_5D camera) {
-            scene_.set_camera_2_5d(camera);
-            return *this;
-        }
-
-        // Fluent camera helpers — each mutates only the specified field.
-        SceneBuilder &enable_camera_2_5d(bool enabled = true) {
-            auto cam = scene_.camera_2_5d();
-            cam.enabled = enabled;
-            scene_.set_camera_2_5d(cam);
-            return *this;
-        }
-        SceneBuilder &camera_position(Vec3 p) {
-            auto cam = scene_.camera_2_5d();
-            cam.position = p;
-            scene_.set_camera_2_5d(cam);
-            return *this;
-        }
-        SceneBuilder &camera_zoom(f32 zoom) {
-            auto cam = scene_.camera_2_5d();
-            cam.zoom = zoom;
-            scene_.set_camera_2_5d(cam);
-            return *this;
-        }
-        SceneBuilder &camera_fov(f32 fov_deg) {
-            auto cam = scene_.camera_2_5d();
-            cam.fov_deg = fov_deg;
-            cam.projection_mode = Camera2_5DProjectionMode::Fov;
-            scene_.set_camera_2_5d(cam);
-            return *this;
-        }
-        SceneBuilder &camera_dof(DepthOfFieldSettings dof) {
-            auto cam = scene_.camera_2_5d();
-            cam.dof = dof;
-            scene_.set_camera_2_5d(cam);
-            return *this;
-        }
-        SceneBuilder &camera_parent(std::string name) {
-            auto cam = scene_.camera_2_5d();
-            cam.parent_name = std::pmr::string{name, scene_.resource()};
-            scene_.set_camera_2_5d(cam);
-            return *this;
-        }
-        SceneBuilder &camera_rotation(Vec3 euler_deg) {
-            auto cam = scene_.camera_2_5d();
-            cam.rotation = euler_deg;
-            scene_.set_camera_2_5d(cam);
-            return *this;
-        }
-        SceneBuilder &camera_tilt(f32 degrees) {
-            auto cam = scene_.camera_2_5d();
-            cam.set_tilt(degrees);
-            scene_.set_camera_2_5d(cam);
-            return *this;
-        }
-        SceneBuilder &camera_pan(f32 degrees) {
-            auto cam = scene_.camera_2_5d();
-            cam.set_pan(degrees);
-            scene_.set_camera_2_5d(cam);
-            return *this;
-        }
-        SceneBuilder &camera_roll(f32 degrees) {
-            auto cam = scene_.camera_2_5d();
-            cam.set_roll(degrees);
-            scene_.set_camera_2_5d(cam);
-            return *this;
-        }
-        SceneBuilder &camera_point_of_interest(Vec3 poi) {
-            auto cam = scene_.camera_2_5d();
-            cam.point_of_interest = poi;
-            cam.point_of_interest_enabled = true;
-            scene_.set_camera_2_5d(cam);
-            return *this;
-        }
-        SceneBuilder &camera_look_at(Vec3 poi) {
-            return camera_point_of_interest(poi);
-        }
-        SceneBuilder &camera_target(std::string name) {
-            auto cam = scene_.camera_2_5d();
-            cam.target_name = std::pmr::string{name, scene_.resource()};
-            cam.point_of_interest_enabled = true;
-            scene_.set_camera_2_5d(cam);
-            return *this;
-        }
 
         // Standard Layers
         template <typename Fn> SceneBuilder &layer(std::string name, Fn &&fn) {
@@ -271,6 +277,17 @@ namespace chronon3d {
         }
 
       private:
+        void set_camera(Camera2_5D camera) {
+            scene_.set_camera_2_5d(std::move(camera));
+        }
+
+        template <typename Fn>
+        void edit_camera(Fn&& fn) {
+            auto cam = scene_.camera_2_5d();
+            std::forward<Fn>(fn)(cam);
+            scene_.set_camera_2_5d(cam);
+        }
+
         Scene scene_;
         Frame current_frame_;
     };

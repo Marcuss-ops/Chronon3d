@@ -1,11 +1,18 @@
 #include <chronon3d/effects/effect_registry.hpp>
-
+#include <chronon3d/effects/effect_instance.hpp>
+#include <chronon3d/render_graph/nodes/basic_nodes.hpp>
 #include <stdexcept>
 #include <utility>
 
 namespace chronon3d::effects {
 
 namespace {
+
+std::unique_ptr<graph::RenderGraphNode> generic_effect_factory(const EffectInstance& effect) {
+    chronon3d::EffectStack stack;
+    stack.push_back(effect);
+    return std::make_unique<graph::EffectStackNode>(std::move(stack));
+}
 
 void register_builtin_effects(EffectRegistry& registry) {
     registry.register_effect(EffectDescriptor{
@@ -16,6 +23,7 @@ void register_builtin_effects(EffectRegistry& registry) {
         .description = "Soft blur for layer content",
         .builtin = true,
         .temporal = false,
+        .factory = generic_effect_factory
     });
 
     registry.register_effect(EffectDescriptor{
@@ -26,6 +34,7 @@ void register_builtin_effects(EffectRegistry& registry) {
         .description = "Blend layer content toward a target color",
         .builtin = true,
         .temporal = false,
+        .factory = generic_effect_factory
     });
 
     registry.register_effect(EffectDescriptor{
@@ -36,6 +45,7 @@ void register_builtin_effects(EffectRegistry& registry) {
         .description = "Shift layer luminance",
         .builtin = true,
         .temporal = false,
+        .factory = generic_effect_factory
     });
 
     registry.register_effect(EffectDescriptor{
@@ -46,6 +56,7 @@ void register_builtin_effects(EffectRegistry& registry) {
         .description = "Scale layer contrast around mid-gray",
         .builtin = true,
         .temporal = false,
+        .factory = generic_effect_factory
     });
 
     registry.register_effect(EffectDescriptor{
@@ -56,6 +67,7 @@ void register_builtin_effects(EffectRegistry& registry) {
         .description = "Project a soft shadow behind the layer",
         .builtin = true,
         .temporal = false,
+        .factory = generic_effect_factory
     });
 
     registry.register_effect(EffectDescriptor{
@@ -66,10 +78,16 @@ void register_builtin_effects(EffectRegistry& registry) {
         .description = "Add halo-style glow around content",
         .builtin = true,
         .temporal = false,
+        .factory = generic_effect_factory
     });
 }
 
 } // namespace
+
+EffectRegistry& EffectRegistry::instance() {
+    static EffectRegistry registry;
+    return registry;
+}
 
 EffectRegistry::EffectRegistry() {
     register_builtin_effects(*this);
@@ -117,6 +135,14 @@ std::vector<EffectDescriptor> EffectRegistry::list() const {
         descriptors.push_back(descriptor);
     }
     return descriptors;
+}
+
+std::unique_ptr<graph::RenderGraphNode> EffectRegistry::create_node(const EffectInstance& effect) const {
+    const auto& desc = get(effect.descriptor.id);
+    if (desc.factory) {
+        return desc.factory(effect);
+    }
+    return nullptr;
 }
 
 } // namespace chronon3d::effects

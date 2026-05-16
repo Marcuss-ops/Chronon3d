@@ -5,9 +5,10 @@ namespace chronon3d {
 
 void Scene::resolve_hierarchy(Frame frame) {
     if (m_hierarchy_baked) return;
-    
-    ResolvedCamera resolved_cam;
-    auto resolved_layers = resolve_layer_hierarchy(m_layers, frame, resource(), &m_camera_2_5d, &resolved_cam);
+
+    detail::LayerHierarchyResolver resolver(m_layers, resource());
+    auto resolved_cam = resolver.resolve_camera(m_camera_2_5d);
+    auto resolved_layers = resolver.resolve_layers(frame);
 
     for (usize i = 0; i < resolved_layers.size(); ++i) {
         if (resolved_layers[i].layer) {

@@ -7,7 +7,8 @@ namespace chronon3d::graph::detail {
 void Camera25DLayerSorter::sort(std::vector<LayerGraphItem>& items) {
     std::stable_sort(items.begin(), items.end(),
         [](const LayerGraphItem& a, const LayerGraphItem& b) {
-            return a.depth > b.depth;
+            if (a.depth != b.depth) return a.depth > b.depth;
+            return a.insertion_index < b.insertion_index;
         });
 }
 

@@ -99,10 +99,12 @@ struct Camera2_5D {
     [[nodiscard]] Mat4 view_matrix() const {
         const Quat rot = rotation_quaternion();
         if (point_of_interest_enabled && glm::length(point_of_interest - position) > 0.001f) {
-            return glm::lookAt(position, point_of_interest, Vec3{0.0f, 1.0f, 0.0f});
+            return math::look_at(position, point_of_interest, Vec3{0.0f, 1.0f, 0.0f});
         }
         return math::camera_view_matrix(position, rot);
     }
 };
+
+using Camera2_5DRuntime = Camera2_5D;
 
 } // namespace chronon3d

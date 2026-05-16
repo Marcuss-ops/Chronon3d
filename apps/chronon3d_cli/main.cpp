@@ -109,10 +109,11 @@ int main(int argc, char** argv) {
     auto* camera_cmd = video_cmd->add_subcommand("camera", "Render the built-in camera reference clip");
     camera_cmd->add_option("--axis",     camera_args.axis,          "Camera axis: Tilt, Pan, or Roll");
     camera_cmd->add_option("--reference", camera_args.reference_image, "Reference image path");
-    camera_cmd->add_option("--preset,--profile", camera_args.profile, "Preset name from chronon.toml");
     camera_cmd->add_option("-o,--output", camera_args.output,       "Output .mp4 path");
     camera_cmd->add_option("--start",    camera_args.start,         "Start frame (inclusive)");
     camera_cmd->add_option("--end",      camera_args.end,           "End frame (exclusive)");
+    camera_cmd->add_option("--roll-start", camera_args.roll_start_deg, "Roll start angle in degrees (Roll axis only)");
+    camera_cmd->add_option("--roll-end",   camera_args.roll_end_deg,   "Roll end angle in degrees (Roll axis only)");
     camera_cmd->add_option("--fps",      camera_args.fps,           "Output frame rate");
     camera_cmd->add_option("--crf",      camera_args.crf,           "x264 CRF (0-51, lower=better)");
     camera_cmd->add_option("--codec",    camera_args.codec,         "Video encoder (auto, libx264, mpeg4, etc.)");
@@ -159,11 +160,11 @@ int main(int argc, char** argv) {
     // -------------------------------------------------------------------------
     // batch
     // -------------------------------------------------------------------------
-    std::string batch_config;
-    auto* batch_cmd = app.add_subcommand("batch", "Run multiple rendering jobs from a TOML config");
-    batch_cmd->add_option("--config", batch_config, "Path to TOML config")->required();
+    std::vector<std::string> batch_jobs;
+    auto* batch_cmd = app.add_subcommand("batch", "Run multiple rendering jobs from explicit CLI job specs");
+    batch_cmd->add_option("--job", batch_jobs, "Job spec: composition|frames|output|diagnostic|graph")->expected(-1);
     batch_cmd->callback([&]() {
-        exit_code = command_batch(registry, batch_config);
+        exit_code = command_batch(registry, batch_jobs);
     });
 
     // -------------------------------------------------------------------------
