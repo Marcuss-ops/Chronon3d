@@ -1,3 +1,4 @@
+#include <iostream>
 #include <chronon3d/backends/software/software_node_dispatcher.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <spdlog/spdlog.h>

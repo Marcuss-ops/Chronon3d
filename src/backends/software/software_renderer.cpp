@@ -6,6 +6,7 @@
 #include <chronon3d/backends/software/builtin_processors.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/backends/software/fake_extruded_text_renderer.hpp>
+#include <spdlog/spdlog.h>
 
 namespace chronon3d {
 

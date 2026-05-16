@@ -149,3 +149,38 @@ TEST_CASE("Camera2_5D projection: camera rotation affects the projection matrix"
     CHECK(out.visible);
     CHECK(std::abs(out.projection_matrix[0][1]) > 0.0001f);
 }
+
+TEST_CASE("Camera2_5D projection: camera tilt produces a projective warp") {
+    Camera2_5D cam;
+    cam.enabled = true;
+    cam.position = {0, 0, -1000};
+    cam.zoom = 1000.0f;
+    cam.rotation = {20.0f, 0.0f, 0.0f};
+
+    Transform tr;
+    tr.position = {0, 0, 0};
+    tr.scale = {1, 1, 1};
+
+    auto out = project_layer_2_5d(tr, cam, 1280, 720);
+
+    CHECK(out.visible);
+    CHECK(std::abs(out.projection_matrix[3][0]) > 0.0001f ||
+          std::abs(out.projection_matrix[3][1]) > 0.0001f);
+}
+
+TEST_CASE("Camera2_5D projection: rotated camera still keeps front layers visible") {
+    Camera2_5D cam;
+    cam.enabled = true;
+    cam.position = {0, 0, -1000};
+    cam.zoom = 1000.0f;
+    cam.rotation = {0.0f, 20.0f, 0.0f};
+
+    Transform tr;
+    tr.position = {0, 0, 0};
+    tr.scale = {1, 1, 1};
+
+    auto out = project_layer_2_5d(tr, cam, 1280, 720);
+
+    CHECK(out.visible);
+    CHECK(out.depth > 0.0f);
+}

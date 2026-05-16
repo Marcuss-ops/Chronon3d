@@ -39,7 +39,7 @@ TEST_CASE("ImageCache loads real image") {
     REQUIRE(img != nullptr);
     CHECK(img->width  > 0);
     CHECK(img->height > 0);
-    CHECK(img->pixels != nullptr);
+    CHECK(img->valid());
 }
 
 TEST_CASE("ImageCache returns same pointer on repeated access") {

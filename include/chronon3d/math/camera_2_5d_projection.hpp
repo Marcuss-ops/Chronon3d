@@ -6,6 +6,7 @@
 #include <chronon3d/math/quat.hpp>
 #include <chronon3d/math/camera_pose.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <algorithm>
 #include <cmath>
 
 namespace chronon3d {
@@ -31,6 +32,121 @@ inline Mat4 get_camera_view_matrix(const Camera2_5D& camera) {
         return math::look_at(camera.position, camera.point_of_interest, Vec3{0.0f, 1.0f, 0.0f});
     }
     return math::camera_view_matrix(camera.position, camera.rotation_quaternion());
+}
+
+inline bool project_world_point_2_5d(
+    const Camera2_5D& camera,
+    const Mat4& view,
+    bool use_view_matrix,
+    f32 focal,
+    const Vec3& world,
+    Vec2& screen,
+    f32& depth
+) {
+    Vec4 cam_pos{0.0f, 0.0f, 0.0f, 1.0f};
+    if (use_view_matrix) {
+        cam_pos = view * Vec4(world, 1.0f);
+    } else {
+        cam_pos.x = world.x - camera.position.x;
+        cam_pos.y = world.y - camera.position.y;
+        cam_pos.z = world.z - camera.position.z;
+    }
+
+    depth = use_view_matrix ? -cam_pos.z : cam_pos.z;
+    if (depth <= 0.0f) {
+        return false;
+    }
+
+    screen.x = cam_pos.x * focal / depth;
+    screen.y = (use_view_matrix ? -cam_pos.y : cam_pos.y) * focal / depth;
+    return true;
+}
+
+inline bool solve_homography_4pt(const Vec2 src[4], const Vec2 dst[4], glm::mat3& out) {
+    double a[8][9]{};
+    for (int i = 0; i < 4; ++i) {
+        const double x = src[i].x;
+        const double y = src[i].y;
+        const double u = dst[i].x;
+        const double v = dst[i].y;
+
+        const int r = i * 2;
+        a[r][0] = x;   a[r][1] = y;   a[r][2] = 1.0;
+        a[r][6] = -u * x; a[r][7] = -u * y; a[r][8] = u;
+
+        a[r + 1][3] = x; a[r + 1][4] = y; a[r + 1][5] = 1.0;
+        a[r + 1][6] = -v * x; a[r + 1][7] = -v * y; a[r + 1][8] = v;
+    }
+
+    for (int col = 0; col < 8; ++col) {
+        int pivot = col;
+        double best = std::abs(a[pivot][col]);
+        for (int row = col + 1; row < 8; ++row) {
+            const double cand = std::abs(a[row][col]);
+            if (cand > best) {
+                best = cand;
+                pivot = row;
+            }
+        }
+        if (best < 1e-9) {
+            return false;
+        }
+        if (pivot != col) {
+            for (int k = col; k < 9; ++k) {
+                std::swap(a[pivot][k], a[col][k]);
+            }
+        }
+
+        const double inv_pivot = 1.0 / a[col][col];
+        for (int k = col; k < 9; ++k) {
+            a[col][k] *= inv_pivot;
+        }
+
+        for (int row = 0; row < 8; ++row) {
+            if (row == col) continue;
+            const double factor = a[row][col];
+            if (std::abs(factor) < 1e-12) continue;
+            for (int k = col; k < 9; ++k) {
+                a[row][k] -= factor * a[col][k];
+            }
+        }
+    }
+
+    const double h00 = a[0][8];
+    const double h01 = a[1][8];
+    const double h02 = a[2][8];
+    const double h10 = a[3][8];
+    const double h11 = a[4][8];
+    const double h12 = a[5][8];
+    const double h20 = a[6][8];
+    const double h21 = a[7][8];
+
+    out = glm::mat3(1.0f);
+    out[0][0] = static_cast<f32>(h00);
+    out[0][1] = static_cast<f32>(h01);
+    out[0][2] = static_cast<f32>(h02);
+    out[1][0] = static_cast<f32>(h10);
+    out[1][1] = static_cast<f32>(h11);
+    out[1][2] = static_cast<f32>(h12);
+    out[2][0] = static_cast<f32>(h20);
+    out[2][1] = static_cast<f32>(h21);
+    out[2][2] = 1.0f;
+    return true;
+}
+
+inline Mat4 pack_homography_3x3_to_4x4(const glm::mat3& h) {
+    Mat4 out(1.0f);
+    out[0][0] = h[0][0];
+    out[0][1] = h[0][1];
+    out[0][3] = h[0][2];
+    out[1][0] = h[1][0];
+    out[1][1] = h[1][1];
+    out[1][3] = h[1][2];
+    out[2][2] = 1.0f;
+    out[3][0] = h[2][0];
+    out[3][1] = h[2][1];
+    out[3][3] = h[2][2];
+    return out;
 }
 
 // Project a 3D layer transform through a Camera2_5D into screen space.
@@ -62,9 +178,9 @@ inline ProjectedLayer2_5D project_layer_2_5d(
         cam_pos.z = layer_transform.position.z - camera.position.z;
     }
 
-    // In passive mode, objects in front of the camera have positive Z.
-    // In explicit look-at mode, glm::lookAt places visible points at negative Z.
-    const f32 depth = camera.point_of_interest_enabled ? -cam_pos.z : cam_pos.z;
+    // In view-space mode (rotation and/or look-at), visible points end up at negative Z.
+    // In passive mode, front-facing layers keep the legacy positive-Z convention.
+    const f32 depth = use_view_matrix ? -cam_pos.z : cam_pos.z;
 
     // Cull layers that are behind or touching the camera plane.
     if (depth <= 0.0f) {
@@ -95,19 +211,49 @@ inline ProjectedLayer2_5D project_layer_2_5d(
     out.depth             = depth;
     out.perspective_scale = perspective_scale;
 
-    // Calculate the full world-to-screen matrix for the TransformNode to use.
-    // DstScene <- World
-    Mat4 proj = Mat4(0.0f);
-    proj[0][0] = focal;
-    proj[1][1] = focal; 
-    proj[2][2] = 1.0f;   // Keep Z
-    proj[2][3] = camera.point_of_interest_enabled ? -1.0f : 1.0f; // Perspective w = +/-z depending on camera mode
-    proj[3][3] = 0.0001f; // Tiny offset to make it invertible
-    
-    // Final matrix: Proj * View * Model
-    out.projection_matrix = use_view_matrix
-        ? proj * view * layer_transform.to_mat4()
-        : out.transform.to_mat4();
+    // Build a proper homography from the source layer quad to the projected quad.
+    // The render graph source pass renders centered layer pixels, so we project the
+    // centered source quad and pack the 3x3 result into the 4x4 matrix layout used
+    // by the software transform node.
+    const f32 src_w = viewport_width;
+    const f32 src_h = viewport_height;
+    const Vec2 src[4] = {
+        {-src_w * 0.5f, -src_h * 0.5f},
+        { src_w * 0.5f, -src_h * 0.5f},
+        { src_w * 0.5f,  src_h * 0.5f},
+        {-src_w * 0.5f,  src_h * 0.5f},
+    };
+
+    Vec2 dst[4];
+    bool all_visible = true;
+    for (int i = 0; i < 4; ++i) {
+        const Vec3 local{src[i].x, src[i].y, 0.0f};
+        const Vec4 world4 = layer_transform.to_mat4() * Vec4(local, 1.0f);
+        Vec2 screen{};
+        f32 corner_depth{0.0f};
+        const bool visible = project_world_point_2_5d(
+            camera,
+            view,
+            use_view_matrix,
+            focal,
+            Vec3{world4.x, world4.y, world4.z},
+            screen,
+            corner_depth
+        );
+        all_visible = all_visible && visible;
+        dst[i] = screen;
+    }
+
+    if (all_visible) {
+        glm::mat3 homography{1.0f};
+        if (solve_homography_4pt(src, dst, homography)) {
+            out.projection_matrix = pack_homography_3x3_to_4x4(homography);
+        } else {
+            out.projection_matrix = out.transform.to_mat4();
+        }
+    } else {
+        out.projection_matrix = out.transform.to_mat4();
+    }
 
     return out;
 }

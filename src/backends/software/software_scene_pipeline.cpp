@@ -3,6 +3,7 @@
 #include <chronon3d/core/render_telemetry.hpp>
 #include <chronon3d/render_graph/graph_builder.hpp>
 #include <chronon3d/runtime/graph_executor.hpp>
+#include <spdlog/spdlog.h>
 
 #include <chrono>
 

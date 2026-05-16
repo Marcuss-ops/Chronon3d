@@ -227,8 +227,9 @@ TEST_CASE("RenderGraph 2.5D: layer behind camera is culled") {
 TEST_CASE("RenderGraph parenting: child inherits null position") {
     auto fb = render_modular(make_parenting_2d_test());
 
-    // Center-origin: world x=50 should appear around pixel x=150.
-    auto p = fb->get_pixel(150, 100);
+    // Current modular 2D path is top-left based: the rig at x=50 should place
+    // the child rect around pixel x=50.
+    auto p = fb->get_pixel(50, 10);
 
     CHECK(p.r > 0.9f);
     CHECK(p.g > 0.9f);

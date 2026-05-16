@@ -6,14 +6,16 @@
 #include <unordered_map>
 #include <memory>
 
+#include <blend2d.h>
+
 namespace chronon3d {
 
 struct CachedImage {
     int width{0};
     int height{0};
-    std::unique_ptr<u8[]> pixels;
+    BLImage bl_img;
 
-    [[nodiscard]] bool valid() const { return pixels != nullptr && width > 0 && height > 0; }
+    [[nodiscard]] bool valid() const { return !bl_img.empty() && width > 0 && height > 0; }
 };
 
 class ImageCache {
