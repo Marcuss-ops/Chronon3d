@@ -1,12 +1,9 @@
 #include "../commands.hpp"
+#include <chronon3d/runtime/watch_service.hpp>
 #include <spdlog/spdlog.h>
-#include <filesystem>
-#include <thread>
-#include <chrono>
 #include <cstdlib>
 
-namespace chronon3d {
-namespace cli {
+namespace chronon3d::cli {
 
 int command_watch(const CompositionRegistry& registry, const std::string& comp_id) {
     if (!registry.contains(comp_id)) {
@@ -14,64 +11,32 @@ int command_watch(const CompositionRegistry& registry, const std::string& comp_i
         return 1;
     }
 
-    spdlog::info("Watching for changes... (Polling src/ and include/)");
+    spdlog::info("Watching for changes in src/, include/, apps/...");
     
-    auto get_latest_mtime = []() {
-        std::filesystem::file_time_type latest = std::filesystem::file_time_type::min();
-        auto check_dir = [&](const std::string& dir) {
-            if (std::filesystem::exists(dir)) {
-                for (const auto& entry : std::filesystem::recursive_directory_iterator(dir)) {
-                    if (entry.is_regular_file()) {
-                        auto mtime = std::filesystem::last_write_time(entry);
-                        if (mtime > latest) latest = mtime;
-                    }
-                }
-            }
-        };
-        check_dir("src");
-        check_dir("include");
-        check_dir("apps");
-        return latest;
-    };
-
-    auto last_write = get_latest_mtime();
+    runtime::WatchOptions options;
+    options.watch_dirs = {"src", "include", "apps"};
     
-    RenderArgs args;
-    args.comp_id = comp_id;
-    args.frames = "0";
-    args.output = "output/watch_####.png";
-    args.diagnostic = true;
-    command_render(registry, args);
-
 #ifdef _WIN32
     const char* preset_env = std::getenv("CHRONON_PRESET");
     const std::string preset = preset_env ? preset_env : "win-release";
     const bool is_debug = preset.find("debug") != std::string::npos;
-    const std::string build_cmd =
-        std::string("powershell -ExecutionPolicy Bypass -File tools\\chronon-win.ps1 -Configuration ") +
-        (is_debug ? "Debug" : "Release") + " -SkipInstall -SkipCacheInstall";
+    options.build_command = std::string("powershell -ExecutionPolicy Bypass -File tools\\chronon-win.ps1 -Configuration ") +
+                            (is_debug ? "Debug" : "Release") + " -SkipInstall -SkipCacheInstall";
 #else
-    const std::string build_cmd = "bash tools/chronon-linux.sh";
+    options.build_command = "bash tools/chronon-linux.sh";
 #endif
 
-    while (true) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
-        auto current = get_latest_mtime();
-        if (current > last_write) {
-            spdlog::info("Change detected! Rebuilding and rendering...");
-            
-            int ret = std::system(build_cmd.c_str());
-            if (ret == 0) {
-                command_render(registry, args);
-                last_write = current;
-            } else {
-                spdlog::error("Build failed. Fix errors to continue.");
-                last_write = current;
-            }
-        }
-    }
+    runtime::WatchService::watch(options, [&]() {
+        spdlog::info("Change detected! Rendering...");
+        RenderArgs args;
+        args.comp_id = comp_id;
+        args.frames = "0";
+        args.output = "output/watch_####.png";
+        args.diagnostic = true;
+        command_render(registry, args);
+    });
+
     return 0;
 }
 
-} // namespace cli
-} // namespace chronon3d
+} // namespace chronon3d::cli

@@ -25,7 +25,7 @@ Composition make_graph_25d_sorting_test() {
     }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
 
-        s.camera_2_5d({
+        s.camera().set({
             .enabled = true,
             .position = {0, 0, -1000},
             .zoom = 1000.0f
@@ -70,7 +70,7 @@ Composition make_graph_25d_overlay_test() {
     }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
 
-        s.camera_2_5d({
+        s.camera().set({
             .enabled = true,
             .position = {0, 0, -1000},
             .zoom = 1000.0f
@@ -107,7 +107,7 @@ Composition make_graph_25d_culling_test() {
     }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
 
-        s.camera_2_5d({
+        s.camera().set({
             .enabled = true,
             .position = {0, 0, -1000},
             .zoom = 1000.0f
@@ -168,7 +168,7 @@ Composition make_parenting_25d_test() {
     }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
 
-        s.camera_2_5d({
+        s.camera().set({
             .enabled = true,
             .position = {0, 0, -1000},
             .zoom = 1000.0f

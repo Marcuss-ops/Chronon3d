@@ -9,12 +9,14 @@
 #include <chronon3d/scene/layer/depth_role.hpp>
 #include <chronon3d/layout/layout_rules.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
-#include <chronon3d/backends/video/video_source.hpp>
 #include <string>
 #include <vector>
+#include <memory>
 #include <memory_resource>
 
 namespace chronon3d {
+
+namespace video { struct VideoSource; }
 
 enum class LayerKind {
     Normal,       // standard layer: draws its own content, then effects applied
@@ -24,7 +26,6 @@ enum class LayerKind {
     Video,        // plays a video file via VideoNode
     Glass         // frosted glass: blurs background within shapes, then draws content
 };
-
 
 struct Layer {
     std::pmr::string name;
@@ -44,10 +45,18 @@ struct Layer {
     LayoutRules layout{};
     std::pmr::vector<RenderNode> nodes;
     std::pmr::string precomp_composition_name; // for LayerKind::Precomp
-    video::VideoSource video_source{};         // for LayerKind::Video
+    
+    // Video source parameters (isolated from FFmpeg/Backend headers)
+    std::unique_ptr<video::VideoSource> video_source;
 
-    explicit Layer(std::pmr::memory_resource* res = std::pmr::get_default_resource())
-        : name(res), nodes(res), precomp_composition_name(res) {}
+    explicit Layer(std::pmr::memory_resource* res = std::pmr::get_default_resource());
+    ~Layer();
+    
+    // Custom copy/move for unique_ptr
+    Layer(const Layer& other);
+    Layer& operator=(const Layer& other);
+    Layer(Layer&& other) noexcept;
+    Layer& operator=(Layer&& other) noexcept;
 
     [[nodiscard]] bool active_at(Frame frame) const {
         if (!visible) return false;

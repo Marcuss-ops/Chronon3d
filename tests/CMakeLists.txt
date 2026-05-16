@@ -21,6 +21,7 @@ add_executable(chronon3d_core_tests
     timeline/test_timeline.cpp
     timeline/test_code_first_composition.cpp
     timeline/test_sequence.cpp
+    test_anchor_math.cpp
 )
 target_link_libraries(chronon3d_core_tests PRIVATE chronon3d_pipeline doctest::doctest)
 target_include_directories(chronon3d_core_tests PRIVATE ${CMAKE_SOURCE_DIR})
@@ -33,6 +34,8 @@ add_executable(chronon3d_scene_tests
     scene/test_scene_builder.cpp
     scene/test_shape_model.cpp
     scene/test_layer_hierarchy.cpp
+    scene/test_camera_hierarchy.cpp
+    scene/test_anchor_gallery.cpp
 )
 target_link_libraries(chronon3d_scene_tests PRIVATE chronon3d_pipeline $<TARGET_OBJECTS:chronon3d_scene> $<TARGET_OBJECTS:chronon3d_backend_software> doctest::doctest)
 target_include_directories(chronon3d_scene_tests PRIVATE ${CMAKE_SOURCE_DIR})
@@ -54,20 +57,21 @@ add_executable(chronon3d_renderer_tests
     renderer/basics/test_layer_rendering.cpp
     renderer/camera/test_moving_frame.cpp
     renderer/camera/test_camera_2_5d.cpp
+    renderer/camera/test_camera_smoke.cpp
     renderer/camera/test_camera_motion.cpp
+    renderer/camera/test_camera_preview_reference.cpp
+    renderer/camera/test_camera_tilt_text_preview.cpp
     renderer/camera/test_dof.cpp
     renderer/camera/test_motion_blur.cpp
     renderer/effects/test_effects.cpp
     renderer/effects/test_adjustment_layer.cpp
     renderer/effects/test_effect_stack.cpp
-    renderer/effects/test_effects_stack.cpp
     renderer/effects/test_masks.cpp
     renderer/media/test_image_rendering.cpp
     renderer/cache/test_cache.cpp
     renderer/perf/test_render_perf.cpp
     renderer/text/test_text_rendering.cpp
     renderer/text/test_text_layout.cpp
-    video/test_camera_motion_video.cpp
     render_graph/test_graph_executor.cpp
     render_graph/test_precompositions.cpp
     render_graph/test_modular_features.cpp
@@ -121,3 +125,19 @@ target_link_libraries(chronon3d_cli_tests
 target_include_directories(chronon3d_cli_tests PRIVATE ${CMAKE_SOURCE_DIR})
 add_test(NAME chronon3d_cli_tests COMMAND chronon3d_cli_tests)
 
+# Video Tests (Isolated)
+if(CHRONON3D_ENABLE_VIDEO)
+    add_executable(chronon3d_video_tests 
+        test_main.cpp
+        video/test_camera_motion_video.cpp
+    )
+    target_link_libraries(chronon3d_video_tests 
+        PRIVATE 
+            chronon3d_pipeline 
+            chronon3d_backend_ffmpeg 
+            doctest::doctest
+    )
+    target_compile_definitions(chronon3d_video_tests PRIVATE CHRONON_BUILD_TESTS CHRONON_WITH_VIDEO)
+    target_include_directories(chronon3d_video_tests PRIVATE ${CMAKE_SOURCE_DIR})
+    add_test(NAME chronon3d_video_tests COMMAND chronon3d_video_tests)
+endif()

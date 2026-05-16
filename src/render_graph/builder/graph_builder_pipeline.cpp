@@ -1,8 +1,9 @@
 #include "graph_builder_pipeline.hpp"
 
-#include "graph_builder_camera25d_sorter.hpp"
+#include "utils/graph_builder_camera25d_sorter.hpp"
 #include "graph_builder_layer_pipeline.hpp"
 
+#include <iostream>
 #include <chronon3d/render_graph/nodes/basic_nodes.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/scene/layer/layer.hpp>
@@ -17,7 +18,7 @@ RenderGraph build_graph(const Scene& scene, const RenderGraphContext& ctx,
     GraphNodeId current = graph.add_node(std::make_unique<ClearNode>());
     current = LayerPipelineBuilder::append_root_sources(graph, scene, ctx, current);
 
-    const Camera2_5D& cam25d = resolved.camera.camera;
+    const Camera2_5DRuntime& cam25d = resolved.camera.camera;
 
     auto append_item = [&](const LayerGraphItem& item) {
         LayerPipelineBuilder::append_layer_pipeline(graph, item, current, ctx, cam25d);
@@ -40,15 +41,6 @@ RenderGraph build_graph(const Scene& scene, const RenderGraphContext& ctx,
             continue;
         }
 
-        if (layer.kind == LayerKind::Adjustment) {
-            flush_3d_bin();
-            if (!layer.effects.empty()) {
-                auto adj = graph.add_node(std::make_unique<AdjustmentNode>(layer.effects));
-                graph.connect(current, adj);
-                current = adj;
-            }
-            continue;
-        }
 
         if (layer.kind == LayerKind::Null) {
             flush_3d_bin();

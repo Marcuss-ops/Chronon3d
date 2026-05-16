@@ -78,7 +78,7 @@ TEST_CASE("Camera 2.5D: z sorting draws near layer on top of far layer") {
     }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
 
-        s.camera_2_5d({
+        s.camera().set({
             .enabled          = true,
             .position         = {0, 0, -1000},
             .point_of_interest = {0, 0, 0},
@@ -159,7 +159,7 @@ TEST_CASE("Camera 2.5D: 2D layer unaffected when camera enabled") {
     }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
 
-        s.camera_2_5d({
+        s.camera().set({
             .enabled  = true,
             .position = {500, 0, -1000}, // large X offset
             .zoom     = 1000.0f

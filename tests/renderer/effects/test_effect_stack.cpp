@@ -12,25 +12,39 @@ static std::unique_ptr<Framebuffer> render_fn(
     return rend.render_frame(comp, 0);
 }
 
+template <typename T>
+static bool holds_effect(const EffectInstance& inst) {
+    if (auto* params = std::any_cast<EffectParams>(&inst.params)) {
+        return std::holds_alternative<T>(*params);
+    }
+    return false;
+}
+
+template <typename T>
+static const T& get_effect(const EffectInstance& inst) {
+    return std::get<T>(*std::any_cast<EffectParams>(&inst.params));
+}
+
 // ---------------------------------------------------------------------------
 // EffectInstance construction
 // ---------------------------------------------------------------------------
 TEST_CASE("EffectStack: EffectInstance holds BlurParams") {
     EffectInstance inst{BlurParams{10.0f}};
     CHECK(inst.enabled);
-    REQUIRE(std::holds_alternative<BlurParams>(inst.params));
-    CHECK(std::get<BlurParams>(inst.params).radius == doctest::Approx(10.0f));
+    REQUIRE(holds_effect<BlurParams>(inst));
+    CHECK(get_effect<BlurParams>(inst).radius == doctest::Approx(10.0f));
 }
 
 TEST_CASE("EffectStack: EffectInstance disabled flag") {
-    EffectInstance inst{TintParams{Color::red(), 0.5f}, false};
+    EffectInstance inst{TintParams{Color::red(), 0.5f}};
+    inst.enabled = false;
     CHECK_FALSE(inst.enabled);
 }
 
 TEST_CASE("EffectStack: EffectStack is a vector of instances") {
     EffectStack stack;
-    stack.push_back({BlurParams{5.0f}});
-    stack.push_back({TintParams{Color::green(), 1.0f}});
+    stack.push_back(EffectInstance{BlurParams{5.0f}});
+    stack.push_back(EffectInstance{TintParams{Color::green(), 1.0f}});
     CHECK(stack.size() == 2);
 }
 
@@ -39,13 +53,12 @@ TEST_CASE("EffectStack: EffectStack is a vector of instances") {
 // ---------------------------------------------------------------------------
 TEST_CASE("EffectStack: blur() adds BlurParams to stack") {
     SceneBuilder sb(nullptr);
-    // Can't call s.layer() without a FrameContext -- test via manual LayerBuilder
     LayerBuilder lb("test");
     lb.blur(8.0f);
     auto layer = lb.build();
     REQUIRE(layer.effects.size() == 1);
-    REQUIRE(std::holds_alternative<BlurParams>(layer.effects[0].params));
-    CHECK(std::get<BlurParams>(layer.effects[0].params).radius == doctest::Approx(8.0f));
+    REQUIRE(holds_effect<BlurParams>(layer.effects[0]));
+    CHECK(get_effect<BlurParams>(layer.effects[0]).radius == doctest::Approx(8.0f));
 }
 
 TEST_CASE("EffectStack: tint() adds TintParams to stack") {
@@ -53,7 +66,7 @@ TEST_CASE("EffectStack: tint() adds TintParams to stack") {
     lb.tint(Color::red(), 0.5f);
     auto layer = lb.build();
     REQUIRE(layer.effects.size() == 1);
-    REQUIRE(std::holds_alternative<TintParams>(layer.effects[0].params));
+    REQUIRE(holds_effect<TintParams>(layer.effects[0]));
 }
 
 TEST_CASE("EffectStack: chained effects preserve order") {
@@ -61,9 +74,9 @@ TEST_CASE("EffectStack: chained effects preserve order") {
     lb.blur(4.0f).tint(Color::blue(), 1.0f).brightness(0.1f);
     auto layer = lb.build();
     REQUIRE(layer.effects.size() == 3);
-    CHECK(std::holds_alternative<BlurParams>(layer.effects[0].params));
-    CHECK(std::holds_alternative<TintParams>(layer.effects[1].params));
-    CHECK(std::holds_alternative<BrightnessParams>(layer.effects[2].params));
+    CHECK(holds_effect<BlurParams>(layer.effects[0]));
+    CHECK(holds_effect<TintParams>(layer.effects[1]));
+    CHECK(holds_effect<BrightnessParams>(layer.effects[2]));
 }
 
 TEST_CASE("EffectStack: drop_shadow and glow added to stack") {
@@ -72,8 +85,8 @@ TEST_CASE("EffectStack: drop_shadow and glow added to stack") {
       .glow(12.0f, 0.9f);
     auto layer = lb.build();
     CHECK(layer.effects.size() == 2);
-    CHECK(std::holds_alternative<DropShadowParams>(layer.effects[0].params));
-    CHECK(std::holds_alternative<GlowParams>(layer.effects[1].params));
+    CHECK(holds_effect<DropShadowParams>(layer.effects[0]));
+    CHECK(holds_effect<GlowParams>(layer.effects[1]));
 }
 
 // ---------------------------------------------------------------------------
@@ -95,4 +108,3 @@ TEST_CASE("EffectStack: tint applied via stack produces coloured output") {
     CHECK(c.g < 0.1f);
     CHECK(c.b < 0.1f);
 }
-

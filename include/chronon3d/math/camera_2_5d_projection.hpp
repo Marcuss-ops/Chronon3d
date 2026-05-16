@@ -28,7 +28,7 @@ inline f32 focal_length_from_fov(f32 viewport_height, f32 fov_deg) {
 
 inline Mat4 get_camera_view_matrix(const Camera2_5D& camera) {
     if (camera.point_of_interest_enabled && glm::length(camera.point_of_interest - camera.position) > 0.001f) {
-        return glm::lookAt(camera.position, camera.point_of_interest, Vec3{0.0f, 1.0f, 0.0f});
+        return math::look_at(camera.position, camera.point_of_interest, Vec3{0.0f, 1.0f, 0.0f});
     }
     return math::camera_view_matrix(camera.position, camera.rotation_quaternion());
 }

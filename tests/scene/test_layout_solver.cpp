@@ -34,6 +34,13 @@ TEST_CASE("LayoutSolver: anchor_position BottomCenter with margin") {
     CHECK(p.y == doctest::Approx(672.0f));
 }
 
+TEST_CASE("LayoutSolver: anchor_position TopCenter with offset") {
+    Vec3 p = anchor_position(Anchors::TopCenter.offset_by({0.0f, 80.0f}), 1280, 720, 0.0f);
+    CHECK(p.x == doctest::Approx(640.0f));
+    CHECK(p.y == doctest::Approx(80.0f));
+    CHECK(p.z == doctest::Approx(0.0f));
+}
+
 // ---------------------------------------------------------------------------
 // Layout rules not enabled -- no change
 // ---------------------------------------------------------------------------
@@ -56,7 +63,7 @@ TEST_CASE("LayoutSolver: pin to BottomCenter sets position") {
     Scene scene;
     LayoutRules rules;
     rules.enabled = true;
-    rules.pin     = Anchor::BottomCenter;
+    rules.pin     = AnchorPlacement{Anchor::BottomCenter};
     rules.margin  = 40.0f;
     scene.add_layer(make_layer({0, 0, 0}, rules));
 
@@ -71,7 +78,7 @@ TEST_CASE("LayoutSolver: pin to TopRight with margin") {
     Scene scene;
     LayoutRules rules;
     rules.enabled = true;
-    rules.pin     = Anchor::TopRight;
+    rules.pin     = AnchorPlacement{Anchor::TopRight};
     rules.margin  = 20.0f;
     scene.add_layer(make_layer({0, 0, 0}, rules));
 
@@ -80,6 +87,22 @@ TEST_CASE("LayoutSolver: pin to TopRight with margin") {
 
     CHECK(scene.layers()[0].transform.position.x == doctest::Approx(1260.0f));
     CHECK(scene.layers()[0].transform.position.y == doctest::Approx(20.0f));
+}
+
+TEST_CASE("LayoutSolver: pin offset and depth are applied") {
+    Scene scene;
+    LayoutRules rules;
+    rules.enabled = true;
+    rules.pin = Anchors::Center.offset_by({0.0f, 80.0f}).with_depth(-300.0f);
+    scene.add_layer(make_layer({0, 0, 0}, rules));
+
+    LayoutSolver solver;
+    solver.solve(scene, 1280, 720);
+
+    const Vec3& p = scene.layers()[0].transform.position;
+    CHECK(p.x == doctest::Approx(640.0f));
+    CHECK(p.y == doctest::Approx(440.0f));
+    CHECK(p.z == doctest::Approx(-300.0f));
 }
 
 // ---------------------------------------------------------------------------

@@ -1,100 +1,99 @@
-# Checklist — Validazione Finale
+# Checklist — Final Validation
 
 > **core only builds, adapters only call, data only flows in.**
 
-Protocollo da eseguire prima di ogni merge o rilascio per verificare che la repo
-sia coerente, compilabile e priva di duplicazioni concettuali.
+Protocol to be executed before every merge or release to verify that the repository is consistent, compilable, and free of conceptual duplications.
 
 ---
 
-## 1. Build completa
+## 1. Full Build
 
 ```powershell
 cmake --build build\chronon\win-release --target chronon3d_cli chronon3d_tests -j 4
 ```
 
-**Esito atteso:**
-- nessun errore di compilazione
-- nessun warning nuovo bloccante
-- binari generati correttamente
-- nessun link error
+**Expected Outcome:**
+- No compilation errors
+- No new blocking warnings
+- Binaries generated correctly
+- No linker errors
 
 ---
 
-## 2. Test automatici
+## 2. Automated Tests
 
 ```powershell
 ctest --test-dir build\chronon\win-release -C Release --output-on-failure
 ```
 
-**Esito atteso:**
-- `chronon3d_tests` passa tutto
-- nessun test fallito, nessun crash
+**Expected Outcome:**
+- `chronon3d_tests` passes everything
+- No failed tests, no crashes
 
 ---
 
-## 3. Render singolo frame (specscene)
+## 3. Render Single Frame (specscene)
 
 ```powershell
 build\chronon\win-release\apps\chronon3d_cli\chronon3d_cli.exe render output\background_preview.specscene -o output\background_preview.png --frames 0
 ```
 
-**Esito atteso:**
-- PNG creato in `output/background_preview.png`
-- sfondo scuro presente
-- griglia visibile
-- nessun testo, nessun badge, nessun elemento extra non richiesto
+**Expected Outcome:**
+- PNG created at `output/background_preview.png`
+- Dark background present
+- Grid visible
+- No text, no badges, no extra elements not requested
 
 ---
 
-## 4. Render full HD (1920×1080)
+## 4. Full HD Render (1920×1080)
 
 ```powershell
 build\chronon\win-release\apps\chronon3d_cli\chronon3d_cli.exe render output\background_preview_1920x1080.specscene -o output\background_preview_1920x1080.png --frames 0
 ```
 
-**Esito atteso:**
-- PNG 1920×1080 creato
-- griglia regolare
-- composizione coerente con il file specscene
+**Expected Outcome:**
+- PNG 1920×1080 created
+- Regular grid
+- Composition consistent with the specscene file
 
 ---
 
-## 5. Git status pulito
+## 5. Clean Git Status
 
 ```powershell
 git status --short
 ```
 
-**Esito atteso:**
-- nessun file non voluto
-- solo le modifiche che si intendono tenere
-- nessun artefatto di build o generato accidentalmente
+**Expected Outcome:**
+- No unwanted files
+- Only the changes intended to be kept
+- No build artifacts or accidentally generated files
 
 ---
 
-## 6. Controllo duplicazioni concettuali
+## 6. Check for Conceptual Duplications
 
 ```powershell
 rg -n "templates|visual_presets|rendergraph|examples/proofs" include src tests docs Operations
 ```
 
-**Esito atteso:**
-- niente layer vecchi riemersi
-- niente logica duplicata sotto nomi nuovi
-- niente `templates` / `presets` / `examples` che diventano una seconda logica parallela
+**Expected Outcome:**
+- No old layers re-emerging
+- No logic duplicated under new names
+- No `templates` / `presets` / `examples` becoming a second parallel logic
 
 ---
 
-## Riepilogo: "ok finale"
+## Summary: "Final OK"
 
-| # | Controllo | Esito |
+| # | Check | Outcome |
 |---|---|---|
-| 1 | Build passa | ✅ / ❌ |
-| 2 | Test passano | ✅ / ❌ |
-| 3 | Render specscene PNG corretto | ✅ / ❌ |
-| 4 | Render full HD coerente | ✅ / ❌ |
-| 5 | `git status` pulito | ✅ / ❌ |
-| 6 | Nessun duplicato (`rg`) | ✅ / ❌ |
+| 1 | Build passes | ✅ / ❌ |
+| 2 | Tests pass | ✅ / ❌ |
+| 3 | Specscene PNG render correct | ✅ / ❌ |
+| 4 | Full HD render consistent | ✅ / ❌ |
+| 5 | `git status` clean | ✅ / ❌ |
+| 6 | No duplicates (`rg`) | ✅ / ❌ |
 
-Tutti ✅ → rilascio pronto.
+All ✅ → ready for release.

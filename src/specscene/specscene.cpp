@@ -256,8 +256,8 @@ std::optional<LayerDesc> parse_layer(const toml::table& tbl, std::vector<std::st
     return layer;
 }
 
-std::optional<Camera2_5DDesc> parse_camera_2_5d(const toml::table& tbl, std::vector<std::string>* diagnostics) {
-    Camera2_5DDesc cam;
+std::optional<Camera2_5DAuthoring> parse_camera_2_5d(const toml::table& tbl, std::vector<std::string>* diagnostics) {
+    Camera2_5DAuthoring cam;
     cam.enabled = read_scalar<bool>(tbl, "enabled", true);
     cam.position.set(read_vec3(tbl, "position", cam.position.value_at(0)));
     cam.point_of_interest = read_vec3(tbl, "point_of_interest", cam.point_of_interest);

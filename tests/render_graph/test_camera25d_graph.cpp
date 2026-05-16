@@ -37,7 +37,7 @@ TEST_CASE("Camera2_5D Graph: z-sort — near layer composites on top of far laye
     }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
 
-        s.camera_2_5d({
+        s.camera().set({
             .enabled  = true,
             .position = {0, 0, -1000},
             .zoom     = 1000.0f
@@ -98,7 +98,7 @@ TEST_CASE("Camera2_5D Graph: depth scale — far layer is visually smaller") {
             .duration = 1
         }, [layer_z](const FrameContext& ctx) {
             SceneBuilder s(ctx);
-            s.camera_2_5d({
+            s.camera().set({
                 .enabled  = true,
                 .position = {0, 0, -1000},
                 .zoom     = 1000.0f
@@ -155,7 +155,7 @@ TEST_CASE("Camera2_5D Graph: parallax — near layer shifts more than far layer"
             .duration = 1
         }, [layer_z, cam_x](const FrameContext& ctx) {
             SceneBuilder s(ctx);
-            s.camera_2_5d({
+            s.camera().set({
                 .enabled  = true,
                 .position = {cam_x, 0, -1000},
                 .zoom     = 1000.0f
@@ -217,7 +217,7 @@ TEST_CASE("Camera2_5D Graph: 2D layer is unaffected by camera pan") {
             .duration = 1
         }, [cam_x](const FrameContext& ctx) {
             SceneBuilder s(ctx);
-            s.camera_2_5d({
+            s.camera().set({
                 .enabled  = true,
                 .position = {cam_x, 0, -1000},
                 .zoom     = 1000.0f
@@ -270,9 +270,9 @@ TEST_CASE("Camera2_5D Graph: FOV projection mode matches equivalent zoom") {
         .name = "FovMode", .width = 300, .height = 300, .duration = 1
     }, [fov_deg](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        s.enable_camera_2_5d()
-         .camera_position({0, 0, -1000})
-         .camera_fov(fov_deg);
+        s.camera().enable()
+         .position({0, 0, -1000})
+         .fov(fov_deg);
         s.layer("item", [](LayerBuilder& l) {
             l.enable_3d().position({150, 150, 0});
             l.rect("r", { .size = {60, 60}, .color = Color{1, 1, 1, 1}, .pos = {0, 0, 0} });
@@ -285,7 +285,7 @@ TEST_CASE("Camera2_5D Graph: FOV projection mode matches equivalent zoom") {
         .name = "ZoomMode", .width = 300, .height = 300, .duration = 1
     }, [expected_focal](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        s.camera_2_5d({
+        s.camera().set({
             .enabled  = true,
             .position = {0, 0, -1000},
             .zoom     = expected_focal

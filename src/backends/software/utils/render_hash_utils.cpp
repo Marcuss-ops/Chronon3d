@@ -1,6 +1,7 @@
 #include "render_hash_utils.hpp"
 #include <chronon3d/scene/effects/layer_effect.hpp>
 #include <chronon3d/scene/effects/effect_stack.hpp>
+#include <chronon3d/render_graph/render_graph_hashing.hpp>
 #include <type_traits>
 
 namespace chronon3d {
@@ -116,31 +117,34 @@ u64 hash_effect_stack(const EffectStack& stack) {
     u64 seed = hash_value_local(stack.size());
     for (const auto& inst : stack) {
         seed = hash_combine(seed, hash_value_local(inst.enabled));
-        std::visit([&](const auto& p) {
-            using T = std::decay_t<decltype(p)>;
-            if constexpr (std::is_same_v<T, BlurParams>) {
-                seed = hash_combine(seed, hash_value_local(p.radius));
-            } else if constexpr (std::is_same_v<T, TintParams>) {
-                seed = hash_combine(seed, hash_color(p.color));
-                seed = hash_combine(seed, hash_value_local(p.amount));
-            } else if constexpr (std::is_same_v<T, BrightnessParams>) {
-                seed = hash_combine(seed, hash_value_local(p.value));
-            } else if constexpr (std::is_same_v<T, ContrastParams>) {
-                seed = hash_combine(seed, hash_value_local(p.value));
-            } else if constexpr (std::is_same_v<T, DropShadowParams>) {
-                seed = hash_combine(seed, hash_vec2(p.offset));
-                seed = hash_combine(seed, hash_color(p.color));
-                seed = hash_combine(seed, hash_value_local(p.radius));
-            } else if constexpr (std::is_same_v<T, GlowParams>) {
-                seed = hash_combine(seed, hash_value_local(p.radius));
-                seed = hash_combine(seed, hash_value_local(p.intensity));
-                seed = hash_combine(seed, hash_color(p.color));
-            } else if constexpr (std::is_same_v<T, BloomParams>) {
-                seed = hash_combine(seed, hash_value_local(p.threshold));
-                seed = hash_combine(seed, hash_value_local(p.radius));
-                seed = hash_combine(seed, hash_value_local(p.intensity));
-            }
-        }, inst.params);
+        seed = hash_combine(seed, hash_string(inst.descriptor.id));
+        if (auto* params = std::any_cast<EffectParams>(&inst.params)) {
+            std::visit([&](const auto& p) {
+                using T = std::decay_t<decltype(p)>;
+                if constexpr (std::is_same_v<T, BlurParams>) {
+                    seed = hash_combine(seed, hash_value_local(p.radius));
+                } else if constexpr (std::is_same_v<T, TintParams>) {
+                    seed = hash_combine(seed, hash_color(p.color));
+                    seed = hash_combine(seed, hash_value_local(p.amount));
+                } else if constexpr (std::is_same_v<T, BrightnessParams>) {
+                    seed = hash_combine(seed, hash_value_local(p.value));
+                } else if constexpr (std::is_same_v<T, ContrastParams>) {
+                    seed = hash_combine(seed, hash_value_local(p.value));
+                } else if constexpr (std::is_same_v<T, DropShadowParams>) {
+                    seed = hash_combine(seed, hash_vec2(p.offset));
+                    seed = hash_combine(seed, hash_color(p.color));
+                    seed = hash_combine(seed, hash_value_local(p.radius));
+                } else if constexpr (std::is_same_v<T, GlowParams>) {
+                    seed = hash_combine(seed, hash_value_local(p.radius));
+                    seed = hash_combine(seed, hash_value_local(p.intensity));
+                    seed = hash_combine(seed, hash_color(p.color));
+                } else if constexpr (std::is_same_v<T, BloomParams>) {
+                    seed = hash_combine(seed, hash_value_local(p.threshold));
+                    seed = hash_combine(seed, hash_value_local(p.radius));
+                    seed = hash_combine(seed, hash_value_local(p.intensity));
+                }
+            }, *params);
+        }
     }
     return seed;
 }

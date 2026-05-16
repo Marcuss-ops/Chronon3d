@@ -1,84 +1,99 @@
 # Chronon3d 3D Subsystem (2.5D Philosophy)
 
-Questo documento delinea l'architettura e le funzionalità del sottosistema 3D di Chronon3d, seguendo la filosofia **2.5D** (After Effects style): livelli piatti posizionati in uno spazio tridimensionale, osservati da una camera virtuale.
+This document outlines the architecture and features of the Chronon3d 3D subsystem, following the **2.5D** philosophy (After Effects style): flat layers positioned in a three-dimensional space, observed by a virtual camera.
 
 ---
 
-## 1. Il Modello 2.5D
+## 1. The 2.5D Model
 
-Chronon3d non è un motore di modellazione 3D (come Blender), ma un motore di **composizione spaziale**. 
+Chronon3d is not a 3D modeling engine (like Blender), but a **spatial composition** engine.
 
-### Livelli come Piani
-- Ogni `Layer` o `RenderNode` è intrinsecamente 2D (un rettangolo di pixel).
-- Abilitando il "3D", il livello guadagna coordinate `Z` e rotazioni `X, Y`.
-- Il rendering avviene proiettando questi piani tramite una matrice di trasformazione prospettica.
+### Layers as Planes
+- Every `Layer` or `RenderNode` is inherently 2D (a rectangle of pixels).
+- By enabling "3D", the layer gains `Z` coordinates and `X, Y` rotations.
+- Rendering occurs by projecting these planes through a perspective transformation matrix.
 
-### Sistema di Coordinate (AE-style)
-- **X**: Destra (+), Sinistra (-)
-- **Y**: Giù (+), Su (-) [Coerente con il sistema 2D]
-- **Z**: Verso l'osservatore (+), Lontano dall'osservatore (-)
+### Coordinate System (AE-style)
+- **X**: Right (+), Left (-)
+- **Y**: Down (+), Up (-) [Consistent with the 2D system]
+- **Z**: Towards the viewer (+), Away from the viewer (-)
 
 ---
 
-## 2. La Camera (DLSR Simulator)
+## 2. The Camera (DLSR Simulator)
 
-La Camera definisce come il mondo 3D viene proiettato sul framebuffer 2D.
+The Camera defines how the 3D world is projected onto the 2D framebuffer.
 
-### Tipologie
-- **One-Node Camera**: Solo posizione e orientamento. Comportamento simile a una telecamera a mano.
-- **Two-Node Camera**: Include un **Point of Interest (POI)**. La camera ruota sempre verso il bersaglio, ideale per orbite e tracking.
+### Types
+- **One-Node Camera**: Position and orientation only. Behaves like a handheld camera.
+- **Two-Node Camera**: Includes a **Point of Interest (POI)**. The camera always rotates towards the target, ideal for orbits and tracking.
 
-### Parametri Ottici
-- **Zoom / Focal Length**: Definisce l'angolo di campo (FOV). Un 50mm simula una visione naturale, un 18mm deforma prospetticamente i bordi (grandangolo).
+### Optical Parameters
+- **Zoom / Focal Length**: Defines the field of view (FOV). A 50mm lens simulates natural vision, while an 18mm lens perspectively deforms the edges (wide-angle).
 - **Depth of Field (DoF)**:
-    - **Focus Distance**: La distanza dal piano focale dove gli oggetti sono nitidi.
-    - **Aperture**: Controlla l'intensità della sfocatura fuori fuoco.
-    - **Blur Level**: Moltiplicatore artistico per la sfocatura.
+    - **Focus Distance**: The distance from the focal plane where objects are sharp.
+    - **Aperture**: Controls the intensity of the out-of-focus blur.
+    - **Blur Level**: Artistic multiplier for the blur.
 
 ---
 
-## 3. Illuminazione e Materiali
+## 3. Lighting and Materials
 
-Le luci interagiscono solo con i livelli che hanno le proprietà 3D abilitate.
+Lights interact only with layers that have 3D properties enabled.
 
-### Tipi di Luci
-- **Ambient**: Luminosità uniforme su tutta la scena, senza direzione.
-- **Parallel**: Simula il sole (raggi paralleli), direzione unica, nessun decadimento.
-- **Point**: Luce omnidirezionale (lampadina) con decadimento basato sulla distanza.
-- **Spot**: Luce conica con parametri di angolo (`Cone Angle`) e sfumatura dei bordi (`Feather`).
+### Types of Lights
+- **Ambient**: Uniform brightness across the entire scene, no direction.
+- **Parallel**: Simulates the sun (parallel rays), single direction, no decay.
+- **Point**: Omnidirectional light (light bulb) with distance-based decay.
+- **Spot**: Conical light with `Cone Angle` and edge `Feather` parameters.
 
-### Proprietà del Materiale (Material Options)
-Ogni layer 3D espone parametri di interazione con la luce:
-- **Accepts Lights**: Se il layer viene influenzato dalle luci.
-- **Accepts Shadows**: Se le ombre degli altri oggetti possono essere proiettate su questo layer.
-- **Casts Shadows**: Se il layer proietta la propria ombra.
-- **Specular/Shininess**: Definisce quanto il layer è "lucido".
-
----
-
-## 4. Pipeline di Rendering
-
-### Classic 3D (Fase 1)
-- **Z-Sorting**: I livelli vengono ordinati in base alla distanza dalla camera (Z-depth) e disegnati in ordine "pittore" (dal più lontano al più vicino).
-- **Transparency**: Gestione perfetta del blending alpha tra piani.
-- **Shadow Maps**: Ombre proiettate calcolate tramite mappe di profondità dal punto di vista della luce.
-
-### Advanced 3D (Futuro)
-- **Z-Buffer**: Per gestire intersezioni corrette tra piani.
-- **PBR (Physically Based Rendering)**: Uso di mappe HDRI (Environment Lights) e materiali fisici (Metallic/Roughness).
+### Material Properties (Material Options)
+Every 3D layer exposes parameters for light interaction:
+- **Accepts Lights**: Whether the layer is affected by lights.
+- **Accepts Shadows**: Whether shadows from other objects can be projected onto this layer.
+- **Casts Shadows**: Whether the layer projects its own shadow.
+- **Specular/Shininess**: Defines how "shiny" the layer is.
 
 ---
 
-## 5. Roadmap di Implementazione
+## 4. Rendering Pipeline
 
-1. **Fase 4: Perspective Foundation**
-    - Refactor `Camera` per supportare matrici prospettiche.
-    - Coordinate Z e rotazioni X/Y nel `Transform`.
-2. **Fase 5: Camera Control**
-    - Supporto per Two-Node Camera (POI).
-    - Integrazione Depth of Field software.
-3. **Fase 6: Lighting System**
-    - Implementazione luci Point/Spot.
-    - Shader di base Lambert/Blinn-Phong per le shape.
-4. **Fase 7: Shadow Casting**
-    - Proiezione di ombre tra layer 3D.
+### Classic 3D (Phase 1)
+- **Z-Sorting**: Layers are ordered based on their distance from the camera (Z-depth) and drawn in "painter's order" (from farthest to nearest).
+- **Transparency**: Perfect handling of alpha blending between planes.
+- **Shadow Maps**: Projected shadows calculated via depth maps from the light's point of view.
+
+### Advanced 3D (Future)
+- **Z-Buffer**: To handle correct intersections between planes.
+- **PBR (Physically Based Rendering)**: Use of HDRI maps (Environment Lights) and physical materials (Metallic/Roughness).
+
+---
+
+## 6. Hierarchy and Resolution
+
+Chronon3d supports parenting between layers and between the camera and layers. This allows for creating complex rigs where the camera follows a layer or is mounted on a "null" for orbiting rotations.
+
+### Camera Parenting
+The camera can have a `parent_name`. In this case, its world position and rotation are calculated by summing the parent's transformations.
+
+### Point of Interest (POI) and Target
+In addition to manual rotation, the camera can lock onto a `target_name`. If set, the Point of Interest is automatically updated to the world position of the target layer at each frame.
+
+### Helper: `resolve_camera_hierarchy`
+For those implementing new backends or render graph passes, a helper is available in `layer_hierarchy.hpp`:
+
+```cpp
+#include <chronon3d/scene/layer/layer_hierarchy.hpp>
+
+// Inside the rendering or evaluation loop
+auto resolved_cam = resolve_camera_hierarchy(
+    scene.layers(),
+    scene.resource(),
+    scene.camera_2_5d()
+);
+
+// resolved_cam.camera contains the final values (resolved position/POI)
+// resolved_cam.world_transform contains the complete transformation matrix
+```
+
+This pattern ensures that camera behavior is consistent across all rendering paths (Modular Graph, Software Legacy, etc.).

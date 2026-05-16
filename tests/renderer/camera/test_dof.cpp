@@ -58,7 +58,7 @@ TEST_CASE("DOF: focus plane has zero blur") {
 TEST_CASE("DOF: render with DOF enabled does not crash") {
     auto fb = render_fn([](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        s.camera_2_5d({
+        s.camera().set({
             .enabled = true,
             .position = {0, 0, -1000},
             .zoom = 1000.0f,

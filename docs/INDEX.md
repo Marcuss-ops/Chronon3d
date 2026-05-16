@@ -10,6 +10,8 @@
 - [Registry And Cache](REGISTRY_CACHE.md)
 - [3D Subsystem](3d_subsystem.md)
 - [Project Model](PROJECT_MODEL.md)
+- [Unified Orchestration](UNIFIED_ORCHESTRATION.md)
+- [Development Notes](DEVELOPMENT_NOTES.md)
 
 ## Build And Workflow
 
@@ -34,4 +36,4 @@
 - Render graph architecture is the production path: nodes, LRU cache, profiler, builder, executor
 - Effect system uses `EffectStack` throughout - `LayerEffect` legacy removed from public API
 - `use_modular_graph` now controls coordinate mode compatibility only
-- Next: keep trimming builder responsibilities and add focused regression tests for graph features
+- Next: keep trimming builder responsibilities, expand shared utilities across clips, and add focused regression tests for graph features

@@ -154,8 +154,8 @@ chronon3d_cli render MyComp --start 0 --end 90 -o output/frames/frame_####.png
 # export video  (requires ffmpeg in PATH)
 chronon3d_cli video MyComp --start 0 --end 90 --fps 30 -o output/my_comp.mp4
 
-# render the built-in camera clip from chronon.toml
-chronon3d_cli video camera --preset pan_3s
+# render the built-in camera clip directly from CLI args
+chronon3d_cli video camera --axis Pan --start 0 --end 90 -o output/camera_pan_3s.mp4
 ```
 
 ---
@@ -196,27 +196,18 @@ chronon3d_cli video camera [--axis Tilt|Pan|Roll] [--reference path] [options]
 |---|---|---|
 | `--axis` | Tilt | Camera motion axis |
 | `--reference` | `assets/images/camera_reference.jpg` | Reference image to animate |
-| `--preset` / `--profile` | none | Named preset from `chronon.toml` |
 | `--output` | auto | Output .mp4 path |
 | `--start` | 0 | Start frame (inclusive) |
 | `--end` | 60 | End frame (exclusive) |
+| `--roll-start` | -18 | Roll image start angle in degrees |
+| `--roll-end` | 0 | Roll image end angle in degrees |
 | `--fps` | 30 | Output frame rate |
 | `--crf` | 18 | x264 quality (0=best, 51=worst) |
 | `--codec` | auto | Encoder selection (`auto`, `libx264`, `mpeg4`, etc.) |
 | `--encode-preset` | medium | x264 preset |
 | `--ssaa` | 1.0 | Super sampling factor |
 
-Named camera presets live in [`chronon.toml`](chronon.toml) at the repo root. Example:
-
-```toml
-[preset.pan_3s]
-axis = "Pan"
-start = 0
-end = 90
-width = 1920
-height = 1080
-output = "output/camera_pan_3s.mp4"
-```
+For `--axis Roll`, the clip now rotates the centered reference image layer instead of rolling the camera itself.
 
 ## API Overview
 

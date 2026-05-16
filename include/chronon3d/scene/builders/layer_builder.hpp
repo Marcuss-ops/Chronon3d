@@ -52,6 +52,7 @@ public:
 
     // Layout
     LayerBuilder& pin_to(Anchor anchor, f32 margin = 0.0f);
+    LayerBuilder& pin_to(AnchorPlacement placement, f32 margin = 0.0f);
     LayerBuilder& keep_in_safe_area(SafeArea area = {});
     LayerBuilder& fit_text();
 

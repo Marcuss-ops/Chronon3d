@@ -13,9 +13,15 @@ struct EffectInstance {
 
     EffectInstance() = default;
 
+    // Standard constructor
     template <typename Params>
     EffectInstance(EffectDescriptor desc, Params&& value)
         : descriptor(std::move(desc)), params(std::forward<Params>(value)) {}
+
+    // Convenience constructor for legacy/inline effects
+    template <typename Params>
+    EffectInstance(Params&& value)
+        : params(std::forward<Params>(value)) {}
 
     [[nodiscard]] bool has_params() const { return params.has_value(); }
 };
