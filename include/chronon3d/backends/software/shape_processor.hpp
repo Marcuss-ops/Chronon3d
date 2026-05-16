@@ -8,13 +8,17 @@
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/math/math_base.hpp>
 
+namespace chronon3d {
+    class SoftwareRenderer;
+}
+
 namespace chronon3d::renderer {
 
 class ShapeProcessor {
 public:
     virtual ~ShapeProcessor() = default;
 
-    virtual void draw(Framebuffer& fb, const RenderNode& node, const RenderState& state, 
+    virtual void draw(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNode& node, const RenderState& state, 
                       const Camera& camera, i32 width, i32 height) = 0;
     
     virtual raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 spread) = 0;

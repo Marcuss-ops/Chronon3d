@@ -72,6 +72,8 @@ add_executable(chronon3d_renderer_tests
     renderer/perf/test_render_perf.cpp
     renderer/text/test_text_rendering.cpp
     renderer/text/test_text_layout.cpp
+    renderer/text/test_text_alignment_regression.cpp
+    renderer/dispatch/test_software_node_dispatcher.cpp
     render_graph/test_graph_executor.cpp
     render_graph/test_precompositions.cpp
     render_graph/test_modular_features.cpp

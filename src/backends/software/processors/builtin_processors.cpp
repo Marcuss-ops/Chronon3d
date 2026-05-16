@@ -2,97 +2,41 @@
 #include <chronon3d/backends/software/shape_processor.hpp>
 #include <chronon3d/backends/software/effect_processor.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
-#include "../rasterizers/shape_rasterizer.hpp"
-#include "../primitive_renderer.hpp"
-#include "../utils/render_effects_processor.hpp"
-#include <chronon3d/math/raster_utils.hpp>
-#include <chronon3d/compositor/blend_mode.hpp>
 
 namespace chronon3d::renderer {
 
-// --- Shapes ---
+// Forward declarations for shape processors
+std::unique_ptr<ShapeProcessor> create_shape_processor();
+std::unique_ptr<ShapeProcessor> create_text_processor();
+std::unique_ptr<ShapeProcessor> create_image_processor();
+std::unique_ptr<ShapeProcessor> create_mesh_processor();
+std::unique_ptr<ShapeProcessor> create_line_processor();
+std::unique_ptr<ShapeProcessor> create_fake_extruded_text_processor();
+std::unique_ptr<ShapeProcessor> create_fake_box3d_processor();
+std::unique_ptr<ShapeProcessor> create_grid_plane_processor();
 
-class StandardShapeProcessor final : public ShapeProcessor {
-public:
-    void draw(Framebuffer& fb, const RenderNode& node, const RenderState& state,
-              const Camera& camera, i32 width, i32 height) override {
-        if (node.shadow.enabled)
-            draw_shadow(fb, node, state);
-        if (node.glow.enabled)
-            draw_glow(fb, node, state);
-        const Color linear_color = node.color.to_linear();
-        Color fill_color = linear_color;
-        fill_color.a *= state.opacity;
-        draw_transformed_shape(fb, node.shape, state.matrix, fill_color, 0.0f, &state);
-    }
-
-    raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 spread) override {
-        return chronon3d::renderer::compute_world_bbox(shape, model, spread);
-    }
-
-    bool hit_test(const Shape& shape, Vec2 local_point, f32 spread) override {
-        return chronon3d::renderer::hit_test(shape, local_point, spread);
-    }
-};
-
-class LineProcessor final : public ShapeProcessor {
-public:
-    void draw(Framebuffer& fb, const RenderNode& node, const RenderState& state, 
-              const Camera& camera, i32 width, i32 height) override {
-        Vec4 p0 = state.matrix * Vec4(0, 0, 0, 1);
-        Vec4 p1 = state.matrix * Vec4(node.shape.line.to, 1);
-        Color col = node.color.to_linear();
-        col.a *= state.opacity;
-        bline(fb, Vec2(p0.x, p0.y), Vec2(p1.x, p1.y), col);
-    }
-
-    raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 spread) override {
-        Vec4 p0 = model * Vec4(0, 0, 0, 1);
-        Vec4 p1 = model * Vec4(shape.line.to, 1);
-        return {
-            static_cast<i32>(std::floor(std::min(p0.x, p1.x) - spread)),
-            static_cast<i32>(std::floor(std::min(p0.y, p1.y) - spread)),
-            static_cast<i32>(std::ceil(std::max(p0.x, p1.x) + spread)),
-            static_cast<i32>(std::ceil(std::max(p0.y, p1.y) + spread))
-        };
-    }
-
-    bool hit_test(const Shape& shape, Vec2 local_point, f32 spread) override {
-        return false; 
-    }
-};
-
-// Text is currently handled via legacy fallback in draw_node
-// --- Effects ---
-
-class BlurEffectProcessor final : public EffectProcessor {
-public:
-    void apply(Framebuffer& fb, const EffectParams& params) override {
-        if (auto* p = std::get_if<BlurParams>(&params)) {
-            apply_blur(fb, p->radius);
-        }
-    }
-};
-
-class TintEffectProcessor final : public EffectProcessor {
-public:
-    void apply(Framebuffer& fb, const EffectParams& params) override {
-        if (auto* p = std::get_if<TintParams>(&params)) {
-            LayerEffect e;
-            e.tint = Color{p->color.r, p->color.g, p->color.b, p->color.a * p->amount};
-            apply_color_effects(fb, e);
-        }
-    }
-};
+// Forward declarations for effect processors
+std::unique_ptr<EffectProcessor> create_blur_effect_processor();
+std::unique_ptr<EffectProcessor> create_tint_effect_processor();
 
 void register_builtin_processors(SoftwareRegistry& registry) {
-    registry.register_shape(ShapeType::Rect, std::make_unique<StandardShapeProcessor>());
-    registry.register_shape(ShapeType::Circle, std::make_unique<StandardShapeProcessor>());
-    registry.register_shape(ShapeType::RoundedRect, std::make_unique<StandardShapeProcessor>());
-    registry.register_shape(ShapeType::Line, std::make_unique<LineProcessor>());
+    // Shapes
+    auto shape_proc = create_shape_processor();
+    registry.register_shape(ShapeType::Rect, std::move(shape_proc));
+    registry.register_shape(ShapeType::Circle, create_shape_processor());
+    registry.register_shape(ShapeType::RoundedRect, create_shape_processor());
     
-    registry.register_effect_processor<BlurParams>(std::make_unique<BlurEffectProcessor>());
-    registry.register_effect_processor<TintParams>(std::make_unique<TintEffectProcessor>());
+    registry.register_shape(ShapeType::Line, create_line_processor());
+    registry.register_shape(ShapeType::Text, create_text_processor());
+    registry.register_shape(ShapeType::Image, create_image_processor());
+    registry.register_shape(ShapeType::Mesh, create_mesh_processor());
+    registry.register_shape(ShapeType::FakeExtrudedText, create_fake_extruded_text_processor());
+    registry.register_shape(ShapeType::FakeBox3D, create_fake_box3d_processor());
+    registry.register_shape(ShapeType::GridPlane, create_grid_plane_processor());
+
+    // Effects
+    registry.register_effect_processor<BlurParams>(create_blur_effect_processor());
+    registry.register_effect_processor<TintParams>(create_tint_effect_processor());
 }
 
 } // namespace chronon3d::renderer
