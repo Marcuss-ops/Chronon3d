@@ -52,7 +52,8 @@ inline bool project_world_point_2_5d(
         cam_pos.z = world.z - camera.position.z;
     }
 
-    depth = use_view_matrix ? -cam_pos.z : cam_pos.z;
+    // look_at flips z (negative = visible); camera_view_matrix and passive both use positive z.
+    depth = (use_view_matrix && camera.point_of_interest_enabled) ? -cam_pos.z : cam_pos.z;
     if (depth <= 0.0f) {
         return false;
     }
@@ -178,9 +179,9 @@ inline ProjectedLayer2_5D project_layer_2_5d(
         cam_pos.z = layer_transform.position.z - camera.position.z;
     }
 
-    // In view-space mode (rotation and/or look-at), visible points end up at negative Z.
-    // In passive mode, front-facing layers keep the legacy positive-Z convention.
-    const f32 depth = use_view_matrix ? -cam_pos.z : cam_pos.z;
+    // Only look_at (point_of_interest) produces negative view_z for front-facing points.
+    // camera_view_matrix (rotation-only) keeps the passive positive-Z convention.
+    const f32 depth = camera.point_of_interest_enabled ? -cam_pos.z : cam_pos.z;
 
     // Cull layers that are behind or touching the camera plane.
     if (depth <= 0.0f) {
@@ -211,46 +212,18 @@ inline ProjectedLayer2_5D project_layer_2_5d(
     out.depth             = depth;
     out.perspective_scale = perspective_scale;
 
-    // Build a proper homography from the source layer quad to the projected quad.
-    // The render graph source pass renders centered layer pixels, so we project the
-    // centered source quad and pack the 3x3 result into the 4x4 matrix layout used
-    // by the software transform node.
-    const f32 src_w = viewport_width;
-    const f32 src_h = viewport_height;
-    const Vec2 src[4] = {
-        {-src_w * 0.5f, -src_h * 0.5f},
-        { src_w * 0.5f, -src_h * 0.5f},
-        { src_w * 0.5f,  src_h * 0.5f},
-        {-src_w * 0.5f,  src_h * 0.5f},
-    };
-
-    Vec2 dst[4];
-    bool all_visible = true;
-    for (int i = 0; i < 4; ++i) {
-        const Vec3 local{src[i].x, src[i].y, 0.0f};
-        const Vec4 world4 = layer_transform.to_mat4() * Vec4(local, 1.0f);
-        Vec2 screen{};
-        f32 corner_depth{0.0f};
-        const bool visible = project_world_point_2_5d(
-            camera,
-            view,
-            use_view_matrix,
-            focal,
-            Vec3{world4.x, world4.y, world4.z},
-            screen,
-            corner_depth
-        );
-        all_visible = all_visible && visible;
-        dst[i] = screen;
-    }
-
-    if (all_visible) {
-        glm::mat3 homography{1.0f};
-        if (solve_homography_4pt(src, dst, homography)) {
-            out.projection_matrix = pack_homography_3x3_to_4x4(homography);
-        } else {
-            out.projection_matrix = out.transform.to_mat4();
-        }
+    // For view-matrix (rotation/POI) path: build a full perspective projection matrix.
+    // proj * view * model maps world vertices to centered screen coords (w = depth).
+    // For passive path: use the simple TRS transform (no perspective skew needed).
+    if (use_view_matrix) {
+        Mat4 proj = Mat4(0.0f);
+        proj[0][0] = focal;
+        proj[1][1] = focal;
+        proj[2][2] = 1.0f;
+        // w = +z for camera_view_matrix convention (passive/rotation), -z for look_at (POI)
+        proj[2][3] = camera.point_of_interest_enabled ? -1.0f : 1.0f;
+        proj[3][3] = 0.0001f;
+        out.projection_matrix = proj * view * layer_transform.to_mat4();
     } else {
         out.projection_matrix = out.transform.to_mat4();
     }
