@@ -147,16 +147,16 @@ template <typename T>
             return hash_combine(seed, hash_vec2(s.rect.size));
         case ShapeType::RoundedRect:
             seed = hash_combine(seed, hash_vec2(s.rounded_rect.size));
-            return hash_combine(seed, hash_value(s.rounded_rect.radius));
+            return hash_combine(seed, hash_bytes(&s.rounded_rect.radius, sizeof(f32)));
         case ShapeType::Circle:
-            return hash_combine(seed, hash_value(s.circle.radius));
+            return hash_combine(seed, hash_bytes(&s.circle.radius, sizeof(f32)));
         case ShapeType::Line:
             seed = hash_combine(seed, hash_vec3(s.line.to));
-            return hash_combine(seed, hash_value(s.line.thickness));
+            return hash_combine(seed, hash_bytes(&s.line.thickness, sizeof(f32)));
         case ShapeType::Text:
             seed = hash_combine(seed, hash_bytes(s.text.text.data(), s.text.text.size()));
             seed = hash_combine(seed, hash_bytes(s.text.style.font_path.data(), s.text.style.font_path.size()));
-            return hash_combine(seed, hash_value(s.text.style.size));
+            return hash_combine(seed, hash_bytes(&s.text.style.size, sizeof(f32)));
         case ShapeType::Image:
             seed = hash_combine(seed, hash_bytes(s.image.path.data(), s.image.path.size()));
             return hash_combine(seed, hash_vec2(s.image.size));
@@ -179,11 +179,11 @@ template <typename T>
     if (n.shadow.enabled) {
         seed = hash_combine(seed, hash_vec2(n.shadow.offset));
         seed = hash_combine(seed, hash_color(n.shadow.color));
-        seed = hash_combine(seed, hash_value(n.shadow.radius));
+        seed = hash_combine(seed, hash_bytes(&n.shadow.radius, sizeof(f32)));
     }
     if (n.glow.enabled) {
-        seed = hash_combine(seed, hash_value(n.glow.radius));
-        seed = hash_combine(seed, hash_value(n.glow.intensity));
+        seed = hash_combine(seed, hash_bytes(&n.glow.radius, sizeof(f32)));
+        seed = hash_combine(seed, hash_bytes(&n.glow.intensity, sizeof(f32)));
         seed = hash_combine(seed, hash_color(n.glow.color));
     }
     return seed;

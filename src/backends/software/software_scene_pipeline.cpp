@@ -1,4 +1,5 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/math/projector_2_5d.hpp>
 #include <chronon3d/core/profiling.hpp>
 #include <chronon3d/core/render_telemetry.hpp>
 #include <chronon3d/render_graph/graph_builder.hpp>

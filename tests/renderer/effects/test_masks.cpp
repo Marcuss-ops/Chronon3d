@@ -11,7 +11,7 @@ TEST_CASE("Mask rect clips layer content") {
     }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         s.layer("masked", [](LayerBuilder& l) {
-            l.position({100, 100, 0})
+            l.position({0, 0, 0})
              .mask_rect({ .size = {60, 60}, .pos = {0, 0, 0} });
             l.rect("big", { .size = {160, 160}, .color = Color{1, 0, 0, 1}, .pos = {0, 0, 0} });
         });
@@ -19,6 +19,9 @@ TEST_CASE("Mask rect clips layer content") {
     });
 
     SoftwareRenderer renderer;
+    RenderSettings settings;
+    settings.use_modular_graph = true;
+    renderer.set_settings(settings);
     auto fb = renderer.render_frame(comp, 0);
 
     // Centre of mask: red
@@ -35,7 +38,7 @@ TEST_CASE("Mask rounded rect clips content with rounded corners") {
     }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         s.layer("masked", [](LayerBuilder& l) {
-            l.position({100, 100, 0})
+            l.position({0, 0, 0})
              .mask_rounded_rect({ .size = {100, 100}, .radius = 30, .pos = {0, 0, 0} });
             l.rect("fill", { .size = {160, 160}, .color = Color{0, 1, 0, 1}, .pos = {0, 0, 0} });
         });
@@ -43,6 +46,9 @@ TEST_CASE("Mask rounded rect clips content with rounded corners") {
     });
 
     SoftwareRenderer renderer;
+    RenderSettings settings;
+    settings.use_modular_graph = true;
+    renderer.set_settings(settings);
     auto fb = renderer.render_frame(comp, 0);
 
     // Centre inside: green
@@ -58,7 +64,7 @@ TEST_CASE("Mask circle clips content to a circle") {
     }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         s.layer("masked", [](LayerBuilder& l) {
-            l.position({100, 100, 0})
+            l.position({0, 0, 0})
              .mask_circle({ .radius = 40, .pos = {0, 0, 0} });
             l.rect("fill", { .size = {160, 160}, .color = Color{0, 0, 1, 1}, .pos = {0, 0, 0} });
         });
@@ -66,6 +72,9 @@ TEST_CASE("Mask circle clips content to a circle") {
     });
 
     SoftwareRenderer renderer;
+    RenderSettings settings;
+    settings.use_modular_graph = true;
+    renderer.set_settings(settings);
     auto fb = renderer.render_frame(comp, 0);
 
     // Centre: inside circle → blue
@@ -81,13 +90,16 @@ TEST_CASE("Layer without mask renders normally") {
     }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         s.layer("normal", [](LayerBuilder& l) {
-            l.position({100, 100, 0});
+            l.position({0, 0, 0});
             l.rect("big", { .size = {160, 160}, .color = Color{1, 0, 0, 1}, .pos = {0, 0, 0} });
         });
         return s.build();
     });
 
     SoftwareRenderer renderer;
+    RenderSettings settings;
+    settings.use_modular_graph = true;
+    renderer.set_settings(settings);
     auto fb = renderer.render_frame(comp, 0);
 
     // Without mask, pixel far from centre is still red
@@ -102,7 +114,7 @@ TEST_CASE("Animated mask size changes visible area") {
         SceneBuilder s(ctx);
         const auto w = interpolate(ctx.frame, 0, 30, 20.0f, 140.0f);
         s.layer("masked", [&](LayerBuilder& l) {
-            l.position({100, 100, 0})
+            l.position({0, 0, 0})
              .mask_rect({ .size = {w, 100}, .pos = {0, 0, 0} });
             l.rect("content", { .size = {140, 100}, .color = Color{1, 0, 0, 1}, .pos = {0, 0, 0} });
         });
@@ -110,6 +122,10 @@ TEST_CASE("Animated mask size changes visible area") {
     });
 
     SoftwareRenderer renderer;
+    RenderSettings settings;
+    settings.use_modular_graph = true;
+    renderer.set_settings(settings);
+
     // Frame 0: mask width ~20 → right edge at ~110 is outside
     auto fb0  = renderer.render_frame(comp, 0);
     // Frame 30: mask width ~140 → right edge at ~170 is inside
@@ -126,7 +142,7 @@ TEST_CASE("Mask follows layer position") {
     }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         s.layer("masked", [](LayerBuilder& l) {
-            l.position({200, 150, 0})
+            l.position({50, 0, 0})
              .mask_rect({ .size = {60, 60}, .pos = {0, 0, 0} });
             l.rect("big", { .size = {160, 160}, .color = Color{1, 0, 0, 1}, .pos = {0, 0, 0} });
         });
@@ -134,6 +150,9 @@ TEST_CASE("Mask follows layer position") {
     });
 
     SoftwareRenderer renderer;
+    RenderSettings settings;
+    settings.use_modular_graph = true;
+    renderer.set_settings(settings);
     auto fb = renderer.render_frame(comp, 0);
 
     // Layer is at (200,150): centre of mask should be red
@@ -149,7 +168,7 @@ TEST_CASE("Inverted mask clips outside-in") {
     }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         s.layer("masked", [](LayerBuilder& l) {
-            l.position({100, 100, 0})
+            l.position({0, 0, 0})
              .mask_rect({ .size = {60, 60}, .pos = {0, 0, 0}, .inverted = true });
             l.rect("fill", { .size = {160, 160}, .color = Color{1, 0, 0, 1}, .pos = {0, 0, 0} });
         });
@@ -157,6 +176,9 @@ TEST_CASE("Inverted mask clips outside-in") {
     });
 
     SoftwareRenderer renderer;
+    RenderSettings settings;
+    settings.use_modular_graph = true;
+    renderer.set_settings(settings);
     auto fb = renderer.render_frame(comp, 0);
 
     // Centre is inside the inverted mask → clipped (black)
