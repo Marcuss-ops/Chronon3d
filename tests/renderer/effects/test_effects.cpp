@@ -24,7 +24,7 @@ static std::unique_ptr<Framebuffer> render_single(
 TEST_CASE("RoundedRect primitive") {
     // 100x100 canvas, rounded rect centered at (50,50) size 60x40 radius 10
     auto fb = render_single(100, 100, [](SceneBuilder& s) {
-        s.rounded_rect("rr", {50, 50, 0}, {60, 40}, 10.0f, Color::white());
+        s.rounded_rect("rr", {.size={60, 40}, .radius=10.0f, .color=Color::white(), .pos={50, 50, 0}});
     });
 
     SUBCASE("Center pixel is filled") {
@@ -50,7 +50,7 @@ TEST_CASE("RoundedRect primitive") {
     SUBCASE("Radius clamped — large radius still renders") {
         // radius > min(hw,hh) should be clamped, not crash
         auto fb2 = render_single(100, 100, [](SceneBuilder& s) {
-            s.rounded_rect("rr", {50, 50, 0}, {60, 40}, 999.0f, Color::white());
+            s.rounded_rect("rr", {.size={60, 40}, .radius=999.0f, .color=Color::white(), .pos={50, 50, 0}});
         });
         CHECK(fb2->get_pixel(50, 50).r == 1.0f);
     }
@@ -63,7 +63,7 @@ TEST_CASE("DropShadow") {
     SUBCASE("Shadow offset pixel is dark") {
         // White rounded rect at center, shadow offset 20px down
         auto fb = render_single(200, 200, [](SceneBuilder& s) {
-            s.rounded_rect("card", {100, 80, 0}, {80, 40}, 8.0f, Color::white())
+            s.rounded_rect("card", {.size={80, 40}, .radius=8.0f, .color=Color::white(), .pos={100, 80, 0}})
              .with_shadow(DropShadow{
                 .enabled = true,
                 .offset  = {0.0f, 20.0f},
@@ -80,10 +80,10 @@ TEST_CASE("DropShadow") {
 
     SUBCASE("Shadow with alpha=0 leaves image unchanged") {
         auto fb_no_shadow = render_single(100, 100, [](SceneBuilder& s) {
-            s.rounded_rect("card", {50, 50, 0}, {60, 40}, 8.0f, Color::white());
+            s.rounded_rect("card", {.size={60, 40}, .radius=8.0f, .color=Color::white(), .pos={50, 50, 0}});
         });
         auto fb_shadow = render_single(100, 100, [](SceneBuilder& s) {
-            s.rounded_rect("card", {50, 50, 0}, {60, 40}, 8.0f, Color::white())
+            s.rounded_rect("card", {.size={60, 40}, .radius=8.0f, .color=Color::white(), .pos={50, 50, 0}})
              .with_shadow(DropShadow{
                 .enabled = true,
                 .offset  = {10.0f, 10.0f},
@@ -102,7 +102,7 @@ TEST_CASE("DropShadow") {
     SUBCASE("Shape is on top of shadow") {
         // White card with black shadow at same position (offset 0)
         auto fb = render_single(100, 100, [](SceneBuilder& s) {
-            s.rounded_rect("card", {50, 50, 0}, {60, 40}, 8.0f, Color::white())
+            s.rounded_rect("card", {.size={60, 40}, .radius=8.0f, .color=Color::white(), .pos={50, 50, 0}})
              .with_shadow(DropShadow{
                 .enabled = true,
                 .offset  = {0.0f, 0.0f},
@@ -122,7 +122,7 @@ TEST_CASE("Glow") {
     SUBCASE("Glow extends pixels beyond circle radius") {
         // Blue circle radius 20, glow radius 15, at center of 100x100
         auto fb = render_single(100, 100, [](SceneBuilder& s) {
-            s.circle("c", {50, 50, 0}, 20.0f, Color::blue())
+            s.circle("c", {.radius=20.0f, .color=Color::blue(), .pos={50, 50, 0}})
              .with_glow(Glow{
                 .enabled   = true,
                 .radius    = 15.0f,
@@ -138,10 +138,10 @@ TEST_CASE("Glow") {
 
     SUBCASE("Glow with intensity=0 produces no extra pixels") {
         auto fb_no_glow = render_single(100, 100, [](SceneBuilder& s) {
-            s.circle("c", {50, 50, 0}, 20.0f, Color::blue());
+            s.circle("c", {.radius=20.0f, .color=Color::blue(), .pos={50, 50, 0}});
         });
         auto fb_glow = render_single(100, 100, [](SceneBuilder& s) {
-            s.circle("c", {50, 50, 0}, 20.0f, Color::blue())
+            s.circle("c", {.radius=20.0f, .color=Color::blue(), .pos={50, 50, 0}})
              .with_glow(Glow{
                 .enabled   = true,
                 .radius    = 15.0f,
@@ -155,7 +155,7 @@ TEST_CASE("Glow") {
     SUBCASE("Main shape is on top of glow") {
         // Red circle, blue glow — center pixel should be red (not blue)
         auto fb = render_single(100, 100, [](SceneBuilder& s) {
-            s.circle("c", {50, 50, 0}, 20.0f, Color::red())
+            s.circle("c", {.radius=20.0f, .color=Color::red(), .pos={50, 50, 0}})
              .with_glow(Glow{
                 .enabled   = true,
                 .radius    = 10.0f,

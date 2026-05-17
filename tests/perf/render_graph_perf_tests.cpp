@@ -28,7 +28,7 @@ TEST_CASE("Test 18.1 — Caching hits and misses tracking") {
 
     Composition comp({.width = 64, .height = 64}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        s.rect("box", {32, 32, 0}, Color::red(), {20, 20});
+        s.rect("box", {.size={20, 20}, .color=Color::red(), .pos={32, 32, 0}});
         return s.build();
     });
 
@@ -84,7 +84,7 @@ TEST_CASE("Test 18.3 — Rendering execution speed comparison (uncached vs cache
         SceneBuilder s(ctx);
         // Add multiple rects to increase rendering workload
         for (int i = 0; i < 50; ++i) {
-            s.rect("box_" + std::to_string(i), {128, 128, 0}, Color::red(), {100, 100});
+            s.rect("box_" + std::to_string(i), {.size={100, 100}, .color=Color::red(), .pos={128, 128, 0}});
         }
         return s.build();
     });

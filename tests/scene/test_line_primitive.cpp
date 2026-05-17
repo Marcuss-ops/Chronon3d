@@ -11,7 +11,7 @@ TEST_CASE("Line primitive rendering") {
     SUBCASE("Horizontal line") {
         Composition comp(spec, [](const FrameContext& ctx) {
             SceneBuilder s(ctx.resource);
-            s.line("h-line", {0, 50, 0}, {100, 50, 0}, Color::red());
+            s.line("h-line", {.from={0, 50, 0}, .to={100, 50, 0}, .color=Color::red()});
             return s.build();
         });
         auto fb = renderer.render_frame(comp, 0);
@@ -24,7 +24,7 @@ TEST_CASE("Line primitive rendering") {
     SUBCASE("Vertical line") {
         Composition comp(spec, [](const FrameContext& ctx) {
             SceneBuilder s(ctx.resource);
-            s.line("v-line", {50, 0, 0}, {50, 100, 0}, Color::green());
+            s.line("v-line", {.from={50, 0, 0}, .to={50, 100, 0}, .color=Color::green()});
             return s.build();
         });
         auto fb = renderer.render_frame(comp, 0);
@@ -38,7 +38,7 @@ TEST_CASE("Line primitive rendering") {
         Composition comp(spec, [](const FrameContext& ctx) {
             SceneBuilder s(ctx.resource);
             // Line starting outside and ending outside
-            s.line("clipped", {-50, 50, 0}, {150, 50, 0}, Color::white());
+            s.line("clipped", {.from={-50, 50, 0}, .to={150, 50, 0}, .color=Color::white()});
             return s.build();
         });
         // Should not crash and should render inside bounds

@@ -10,7 +10,7 @@ using namespace chronon3d::graph;
 TEST_CASE("RenderPipeline - render_scene_via_graph produces valid framebuffer") {
     // Scenario: Scene with a red rectangle
     SceneBuilder builder;
-    builder.rect("red_rect", {0.0f, 0.0f, 0.0f}, Color::red(), {50.0f, 50.0f});
+    builder.rect("red_rect", {.size={50.0f, 50.0f}, .color=Color::red(), .pos={0.0f, 0.0f, 0.0f}});
     Scene scene = builder.build();
 
     SoftwareRenderer renderer;
@@ -49,7 +49,7 @@ TEST_CASE("RenderPipeline - render_scene_via_graph produces valid framebuffer") 
 
 TEST_CASE("RenderPipeline - SoftwareRenderer::render_scene produces same output as render_scene_via_graph") {
     SceneBuilder builder;
-    builder.rect("blue_rect", {10.0f, 10.0f, 0.0f}, Color::blue(), {60.0f, 60.0f});
+    builder.rect("blue_rect", {.size={60.0f, 60.0f}, .color=Color::blue(), .pos={10.0f, 10.0f, 0.0f}});
     Scene scene = builder.build();
 
     SoftwareRenderer renderer;
@@ -95,7 +95,7 @@ TEST_CASE("RenderPipeline - SoftwareRenderer::render_scene produces same output 
 
 TEST_CASE("RenderPipeline - debug_render_graph passes through the unique pipeline and generates DOT representation") {
     SceneBuilder builder;
-    builder.rect("rect", {0.0f, 0.0f, 0.0f}, Color::green(), {40.0f, 40.0f});
+    builder.rect("rect", {.size={40.0f, 40.0f}, .color=Color::green(), .pos={0.0f, 0.0f, 0.0f}});
     Scene scene = builder.build();
 
     SoftwareRenderer renderer;
