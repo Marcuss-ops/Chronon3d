@@ -50,64 +50,76 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute_node(
         return promise->get_future().get();
     }
 
-    if (id >= graph.size()) {
-        promise->set_value(nullptr);
-        return nullptr;
-    }
-    
-    auto& node = graph.node(id);
-    const auto& input_ids = graph.inputs(id);
-    std::vector<std::shared_ptr<Framebuffer>> inputs(input_ids.size());
-
-    if (!input_ids.empty()) {
-        std::vector<std::future<void>> futures;
-        futures.reserve(input_ids.size());
-        for (size_t i = 0; i < input_ids.size(); ++i) {
-            futures.emplace_back(std::async(std::launch::async, [&, i] {
-                inputs[i] = execute_node(graph, input_ids[i], ctx);
-            }));
+    try {
+        if (id >= graph.size()) {
+            {
+                std::lock_guard<std::mutex> lock(m_mutex);
+                m_pending.erase(id);
+            }
+            promise->set_value(nullptr);
+            return nullptr;
         }
-        for (auto& f : futures) {
-            f.get();
-        }
-    }
 
-    std::shared_ptr<Framebuffer> result;
-    const bool is_cacheable = node.cacheable();
-    cache::NodeCacheKey key;
+        auto& node = graph.node(id);
+        const auto& input_ids = graph.inputs(id);
+        std::vector<std::shared_ptr<Framebuffer>> inputs(input_ids.size());
 
-    if (is_cacheable && ctx.node_cache) {
-        key = node.cache_key(ctx);
-        
-        // Combine input hashes to ensure downstream invalidation
-        u64 input_hash = 0;
-        {
-            std::lock_guard<std::mutex> lock(m_mutex);
-            for (auto input_id : input_ids) {
-                input_hash = hash_combine(input_hash, m_resolved_key_digest[input_id]);
+        if (!input_ids.empty()) {
+            std::vector<std::future<void>> futures;
+            futures.reserve(input_ids.size());
+            for (size_t i = 0; i < input_ids.size(); ++i) {
+                futures.emplace_back(std::async(std::launch::async, [&, i] {
+                    inputs[i] = execute_node(graph, input_ids[i], ctx);
+                }));
+            }
+            for (auto& f : futures) {
+                f.get();
             }
         }
-        key.input_hash = input_hash;
 
-        result = ctx.node_cache->find(key);
-    }
+        std::shared_ptr<Framebuffer> result;
+        const bool is_cacheable = node.cacheable();
+        cache::NodeCacheKey key;
 
-    if (!result) {
-        result = node.execute(ctx, inputs);
-        if (is_cacheable && ctx.node_cache && result) {
-            ctx.node_cache->store(key, result);
+        if (is_cacheable && ctx.node_cache) {
+            key = node.cache_key(ctx);
+
+            u64 input_hash = 0;
+            {
+                std::lock_guard<std::mutex> lock(m_mutex);
+                for (auto input_id : input_ids) {
+                    input_hash = hash_combine(input_hash, m_resolved_key_digest[input_id]);
+                }
+            }
+            key.input_hash = input_hash;
+
+            result = ctx.node_cache->find(key);
         }
-    }
 
-    {
-        std::lock_guard<std::mutex> lock(m_mutex);
-        m_temp[id] = result;
-        m_resolved_key_digest[id] = key.digest();
-        m_pending.erase(id);
-    }
+        if (!result) {
+            result = node.execute(ctx, inputs);
+            if (is_cacheable && ctx.node_cache && result) {
+                ctx.node_cache->store(key, result);
+            }
+        }
 
-    promise->set_value(result);
-    return result;
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_temp[id] = result;
+            m_resolved_key_digest[id] = key.digest();
+            m_pending.erase(id);
+        }
+
+        promise->set_value(result);
+        return result;
+    } catch (...) {
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_pending.erase(id);
+        }
+        promise->set_exception(std::current_exception());
+        throw;
+    }
 }
 
 } // namespace chronon3d::graph

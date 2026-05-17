@@ -1,6 +1,5 @@
 #include "utils/render_effects_processor.hpp"
 #include <chronon3d/backends/software/software_renderer.hpp>
-#include "software_pipeline_private.hpp"
 #include <chronon3d/render_graph/render_pipeline.hpp>
 #include <chronon3d/backends/software/software_compositor.hpp>
 #include <chronon3d/backends/software/software_effect_runner.hpp>
@@ -25,7 +24,9 @@ SoftwareRenderer::SoftwareRenderer()
 
 std::unique_ptr<Framebuffer> SoftwareRenderer::render_frame(const Composition& comp,
                                                             Frame frame) {
-    return software_internal::render_frame(*this, comp, frame);
+    return graph::render_composition_frame(
+        *this, m_node_cache, m_settings, m_registry, m_video_decoder.get(), comp, frame
+    );
 }
 
 std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(const Scene& scene,
@@ -90,25 +91,6 @@ std::string SoftwareRenderer::debug_render_graph(const Scene& scene, const Camer
         m_registry,
         m_video_decoder.get()
     );
-}
-
-std::unique_ptr<Framebuffer>
-SoftwareRenderer::render_scene_internal(const Scene& scene, const Camera& camera, i32 width,
-                                        i32 height, Frame frame, f32 frame_time) {
-    auto shared_fb = graph::render_scene_via_graph(
-        *this,
-        m_node_cache,
-        scene,
-        camera,
-        width,
-        height,
-        frame,
-        frame_time,
-        m_settings,
-        m_registry,
-        m_video_decoder.get()
-    );
-    return std::make_unique<Framebuffer>(*shared_fb);
 }
 
 void SoftwareRenderer::apply_blur(Framebuffer& fb, f32 radius) {
