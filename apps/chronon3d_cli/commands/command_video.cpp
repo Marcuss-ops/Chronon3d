@@ -143,7 +143,6 @@ int command_video(const CompositionRegistry& registry, const VideoArgs& args) {
     settings.motion_blur.samples = args.motion_blur_samples;
     settings.motion_blur.shutter_angle = args.shutter_angle;
     settings.ssaa_factor = args.ssaa;
-    auto renderer = create_renderer(registry, settings);
 
     const Frame start = args.start;
     const Frame end   = (args.end > args.start) ? args.end : comp.duration();
@@ -163,8 +162,14 @@ int command_video(const CompositionRegistry& registry, const VideoArgs& args) {
         return 1;
     }
 
+    // Sequential rendering: Blend2D's global thread pool already saturates all
+    // cores inside each frame. Launching N renderers in parallel causes contention
+    // on that pool and yields no throughput gain — measured at identical wall time.
+    auto renderer = create_renderer(registry, settings);
+    const int total = static_cast<int>(end - start);
+
     spdlog::info("[video] Rendering {} frames [{}, {}) at {} fps → {}",
-                 end - start, start, end, args.fps, args.output);
+                 total, start, end, args.fps, args.output);
 
     for (Frame f = start; f < end; ++f) {
         auto fb = renderer->render_frame(comp, f);
@@ -172,13 +177,14 @@ int command_video(const CompositionRegistry& registry, const VideoArgs& args) {
             spdlog::error("[video] Render failed at frame {}", f);
             return 1;
         }
-        const auto png_path = (frames_dir / fmt::format("frame_{:06d}.png", f - start)).string();
-        if (!save_png(*fb, png_path)) {
-            spdlog::error("[video] PNG write failed: {}", png_path);
+        const auto png = (frames_dir / fmt::format("frame_{:06d}.png", f - start)).string();
+        if (!save_png(*fb, png)) {
+            spdlog::error("[video] PNG write failed: {}", png);
             return 1;
         }
-        if ((f - start) % 30 == 0)
-            spdlog::info("[video]   frame {}/{}", f - start, end - start);
+        const int done = static_cast<int>(f - start) + 1;
+        if (done % std::max(1, total / 10) == 0 || done == total)
+            spdlog::info("[video]   {}/{} frames", done, total);
     }
 
     std::filesystem::create_directories(
