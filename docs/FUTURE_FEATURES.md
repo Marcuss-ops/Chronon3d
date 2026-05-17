@@ -47,7 +47,7 @@
 | **Full 3D parenting** | ✅ resolver gerarchico matrix-correct, world transform/world matrix risolti | completato |
 | **Depth of Field** | ✅ V1 per-layer su projected 2.5D layers; focus_z world-space. Formula: `|layer_z - focus_z| * aperture`, clamped a `max_blur`. Va usato con `aperture` e `max_blur` non negativi. | completato |
 | **Lights (ambient + directional)** | ✅ V1 = una luce ambient + una direzionale diffuse Lambert su layer projected 3D con `accepts_lights=true`. Non è ancora un sistema luci completo (no point/spot, no specular, no multiple lights). | completato |
-| **Shadows layer-to-layer** | Dipende da lights | dopo lights |
+| **Shadows layer-to-layer** | ✅ V1 completo (2026-05-17): projected 2.5D, directional light only. `casts_shadows` + `accepts_shadows` su material/LayerBuilder. `ShadowNode` proietta alpha silhouette con offset `dz * light.xz/light.y * px_per_unit`, Gaussian blur, safe clamp su light.y≈0. 7 test pass. No point/spot, no shadow maps, no PBR. | completato |
 
 ### 🟢 NICE TO HAVE
 
