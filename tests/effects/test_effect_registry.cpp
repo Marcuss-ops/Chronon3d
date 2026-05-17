@@ -9,13 +9,14 @@ TEST_CASE("EffectRegistry registers built-in effects with stable ids") {
     EffectRegistry registry;
 
     const auto ids = registry.available();
-    REQUIRE(ids.size() == 6);
+    REQUIRE(ids.size() == 7);
     CHECK(ids[0] == "blur.gaussian");
     CHECK(ids[1] == "color.brightness");
     CHECK(ids[2] == "color.contrast");
     CHECK(ids[3] == "color.tint");
-    CHECK(ids[4] == "light.drop_shadow");
-    CHECK(ids[5] == "light.glow");
+    CHECK(ids[4] == "light.bloom");
+    CHECK(ids[5] == "light.drop_shadow");
+    CHECK(ids[6] == "light.glow");
 
     const auto& blur = registry.get("blur.gaussian");
     CHECK(blur.category == EffectCategory::Blur);

@@ -1,5 +1,7 @@
 #include "utils/render_effects_processor.hpp"
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include "software_pipeline_private.hpp"
+#include <chronon3d/render_graph/render_pipeline.hpp>
 #include <chronon3d/backends/software/software_compositor.hpp>
 #include <chronon3d/backends/software/software_effect_runner.hpp>
 #include <chronon3d/backends/software/software_node_dispatcher.hpp>
@@ -29,8 +31,19 @@ std::unique_ptr<Framebuffer> SoftwareRenderer::render_frame(const Composition& c
 std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(const Scene& scene,
                                                             const Camera& camera, i32 width,
                                                             i32 height) {
-    return std::shared_ptr<Framebuffer>(
-        render_scene_internal(scene, camera, width, height, 0, 0.0f).release());
+    return graph::render_scene_via_graph(
+        *this,
+        m_node_cache,
+        scene,
+        camera,
+        width,
+        height,
+        0,
+        0.0f,
+        m_settings,
+        m_registry,
+        m_video_decoder.get()
+    );
 }
 
 void SoftwareRenderer::set_font_backend(std::shared_ptr<text::FontBackend> backend) {
@@ -46,22 +59,56 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(
     }
 
     Camera default_camera;
-    return std::shared_ptr<Framebuffer>(
-        render_scene_internal(effective_scene, default_camera, width, height, 0, 0.0f).release());
+    return graph::render_scene_via_graph(
+        *this,
+        m_node_cache,
+        effective_scene,
+        default_camera,
+        width,
+        height,
+        0,
+        0.0f,
+        m_settings,
+        m_registry,
+        m_video_decoder.get()
+    );
 }
 
 std::string SoftwareRenderer::debug_render_graph(const Scene& scene, const Camera& camera,
                                                   i32 width, i32 height, Frame frame,
                                                   f32 frame_time) const {
-    return software_internal::debug_render_graph(*this, scene, camera, width, height, frame,
-                                                  frame_time);
+    return graph::debug_scene_graph(
+        const_cast<SoftwareRenderer&>(*this),
+        m_node_cache,
+        scene,
+        camera,
+        width,
+        height,
+        frame,
+        frame_time,
+        m_settings,
+        m_registry,
+        m_video_decoder.get()
+    );
 }
 
 std::unique_ptr<Framebuffer>
 SoftwareRenderer::render_scene_internal(const Scene& scene, const Camera& camera, i32 width,
                                         i32 height, Frame frame, f32 frame_time) {
-    return software_internal::render_scene_internal(*this, scene, camera, width, height, frame,
-                                                    frame_time);
+    auto shared_fb = graph::render_scene_via_graph(
+        *this,
+        m_node_cache,
+        scene,
+        camera,
+        width,
+        height,
+        frame,
+        frame_time,
+        m_settings,
+        m_registry,
+        m_video_decoder.get()
+    );
+    return std::make_unique<Framebuffer>(*shared_fb);
 }
 
 void SoftwareRenderer::apply_blur(Framebuffer& fb, f32 radius) {

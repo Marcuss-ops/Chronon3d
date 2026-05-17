@@ -1,4 +1,6 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include "software_pipeline_private.hpp"
+#include <chronon3d/render_graph/render_pipeline.hpp>
 #include <chronon3d/core/render_telemetry.hpp>
 #include <algorithm>
 #include <chrono>
@@ -69,7 +71,20 @@ std::unique_ptr<Framebuffer> render_frame(SoftwareRenderer& renderer, const Comp
         layer_count = static_cast<int>(scene.layers().size());
 
         const auto t_scene0 = std::chrono::steady_clock::now();
-        render_fb = render_scene_internal(renderer, scene, comp.camera, rw, rh, frame, 0.0f);
+        auto fb_shared = graph::render_scene_via_graph(
+            renderer,
+            renderer.node_cache(),
+            scene,
+            comp.camera,
+            rw,
+            rh,
+            frame,
+            0.0f,
+            renderer.render_settings(),
+            renderer.composition_registry(),
+            renderer.video_decoder()
+        );
+        render_fb = std::make_unique<Framebuffer>(*fb_shared);
         const auto t_scene1 = std::chrono::steady_clock::now();
         scene_ms = std::chrono::duration<double, std::milli>(t_scene1 - t_scene0).count();
     } else {
@@ -86,7 +101,20 @@ std::unique_ptr<Framebuffer> render_frame(SoftwareRenderer& renderer, const Comp
             if (s == 0) {
                 layer_count = static_cast<int>(sub_scene.layers().size());
             }
-            auto sub_fb = render_scene_internal(renderer, sub_scene, comp.camera, rw, rh, frame, t);
+            auto sub_fb_shared = graph::render_scene_via_graph(
+                renderer,
+                renderer.node_cache(),
+                sub_scene,
+                comp.camera,
+                rw,
+                rh,
+                frame,
+                t,
+                renderer.render_settings(),
+                renderer.composition_registry(),
+                renderer.video_decoder()
+            );
+            auto sub_fb = std::make_unique<Framebuffer>(*sub_fb_shared);
 
             for (int y = 0; y < rh; ++y) {
                 for (int x = 0; x < rw; ++x) {

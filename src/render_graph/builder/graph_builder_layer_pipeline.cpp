@@ -63,10 +63,12 @@ void LayerPipelineBuilder::append_layer_pipeline(RenderGraph& graph, const Layer
     if (layer.kind == LayerKind::Adjustment) {
         // Apply effects directly on current node, no source or composite needed
         for (const auto& eff : layer.effects) {
-            auto node = chronon3d::effects::EffectRegistry::instance().create_node(eff);
-            GraphNodeId effect_id = graph.add_node(std::move(node));
-            graph.connect(current, effect_id);
-            current = effect_id;
+            chronon3d::EffectStack stack;
+            stack.push_back(eff);
+            auto node = std::make_unique<AdjustmentNode>(std::move(stack));
+            GraphNodeId adj_id = graph.add_node(std::move(node));
+            graph.connect(current, adj_id);
+            current = adj_id;
         }
         return;
     }

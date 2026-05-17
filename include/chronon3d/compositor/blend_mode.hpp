@@ -16,6 +16,9 @@ enum class BlendMode {
 namespace compositor {
 
 inline Color blend(const Color& src, const Color& dst, BlendMode mode) {
+    if (src.a <= 0.0f) {
+        return dst;
+    }
     switch (mode) {
         case BlendMode::Normal: {
             return blend_normal(src, dst);
