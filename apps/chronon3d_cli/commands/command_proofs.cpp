@@ -12,14 +12,21 @@ namespace cli {
 
 namespace {
 
-static constexpr std::array<const char*, 7> k_proof_names = {{
+static constexpr std::array<const char*, 12> k_proof_names = {{
+    // Geometric diagnostics
     "ProofDepthLadder",
     "ProofPanParallax",
     "ProofTiltParallax",
     "ProofRollStability",
     "ProofOverlayFixed",
     "ProofOrbitSubject",
-    "ProofEdgeOnRotation"
+    "ProofEdgeOnRotation",
+    // YouTube realistic proofs
+    "ProofYouTubeDepthTitle",
+    "ProofYouTubeImageDof",
+    "ProofYouTubeQuoteScene",
+    "ProofYouTubeNewsCard",
+    "ProofYouTubeParallaxThumbnail",
 }};
 
 static constexpr std::array<Frame, 3> k_key_frames = {{0, 44, 89}};
