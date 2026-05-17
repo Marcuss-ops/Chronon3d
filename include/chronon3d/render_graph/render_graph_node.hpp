@@ -34,6 +34,7 @@ enum class RenderGraphNodeKind {
     Adjustment,
     MotionBlur,
     ColorConvert,
+    TrackMatte,
     Output
 };
 

@@ -7,6 +7,7 @@
 #include <chronon3d/scene/mask/mask.hpp>
 #include <chronon3d/scene/effects/effect_stack.hpp>
 #include <chronon3d/scene/layer/depth_role.hpp>
+#include <chronon3d/scene/layer/track_matte.hpp>
 #include <chronon3d/layout/layout_rules.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <string>
@@ -43,6 +44,7 @@ struct Layer {
     DepthRole   depth_role{DepthRole::None};
     f32         depth_offset{0.0f};
     LayoutRules layout{};
+    TrackMatte  track_matte{};
     std::pmr::vector<RenderNode> nodes;
     std::pmr::string precomp_composition_name; // for LayerKind::Precomp
     

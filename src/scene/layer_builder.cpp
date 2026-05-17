@@ -1,5 +1,6 @@
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder_delegates.hpp>
+#include <chronon3d/scene/layer/track_matte.hpp>
 #include <chronon3d/math/transform.hpp>
 #include "layer_builder_internal.hpp"
 
@@ -234,6 +235,27 @@ LayerBuilder& LayerBuilder::anchor_node(Vec3 a) {
 
 LayerBuilder& LayerBuilder::node_opacity(f32 a) {
     layer_builder_internal::set_last_opacity(m_layer, a);
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::track_matte_alpha(std::string src) {
+    m_layer.track_matte.type = TrackMatteType::Alpha;
+    m_layer.track_matte.source_layer = std::pmr::string{src, m_layer.track_matte.source_layer.get_allocator().resource()};
+    return *this;
+}
+LayerBuilder& LayerBuilder::track_matte_alpha_inverted(std::string src) {
+    m_layer.track_matte.type = TrackMatteType::AlphaInverted;
+    m_layer.track_matte.source_layer = std::pmr::string{src, m_layer.track_matte.source_layer.get_allocator().resource()};
+    return *this;
+}
+LayerBuilder& LayerBuilder::track_matte_luma(std::string src) {
+    m_layer.track_matte.type = TrackMatteType::Luma;
+    m_layer.track_matte.source_layer = std::pmr::string{src, m_layer.track_matte.source_layer.get_allocator().resource()};
+    return *this;
+}
+LayerBuilder& LayerBuilder::track_matte_luma_inverted(std::string src) {
+    m_layer.track_matte.type = TrackMatteType::LumaInverted;
+    m_layer.track_matte.source_layer = std::pmr::string{src, m_layer.track_matte.source_layer.get_allocator().resource()};
     return *this;
 }
 
