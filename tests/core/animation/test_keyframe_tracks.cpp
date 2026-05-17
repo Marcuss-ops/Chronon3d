@@ -61,14 +61,30 @@ TEST_CASE("KeyframeTrack Color Interpolation") {
 }
 
 TEST_CASE("KeyframeTrack New API Syntax") {
-    // Verifying the user-requested syntax
-    auto x = keyframes<f32>({
-        {0,  -300.0f, Easing::OutCubic},
-        {40, 0.0f,    Easing::OutBack},
-        {90, 120.0f,  Easing::InOutSine}
-    }).value(40);
-    
-    CHECK(x == doctest::Approx(0.0f));
+    auto track = keyframes<f32>({})
+        .key(0,  -300.0f, Easing::OutCubic)
+        .key(40, 0.0f,    Easing::OutBack)
+        .key(90, 120.0f,  Easing::InOutSine);
+
+    CHECK(track.sample(40) == doctest::Approx(0.0f));
+    CHECK(track.value_at(40) == doctest::Approx(0.0f));
+}
+
+TEST_CASE("KeyframeTrack Empty Track Returns Default Value") {
+    CHECK(keyframes<f32>({}).sample(0) == doctest::Approx(0.0f));
+    CHECK(keyframes<Vec3>({}).sample(0).x == doctest::Approx(0.0f));
+}
+
+TEST_CASE("KeyframeTrack Duplicate Frames Use Last Keyframe At The Frame") {
+    auto track = keyframes<f32>({})
+        .key(0, 10.0f)
+        .key(30, 20.0f)
+        .key(30, 40.0f)
+        .key(60, 100.0f);
+
+    CHECK(track.sample(29) == doctest::Approx(10.0f + (20.0f - 10.0f) * (29.0f / 30.0f)).epsilon(0.0001f));
+    CHECK(track.sample(30) == doctest::Approx(40.0f));
+    CHECK(track.sample(45) == doctest::Approx(70.0f));
 }
 
 TEST_CASE("KeyframeTrack Legacy Compatibility") {

@@ -1,11 +1,14 @@
 #pragma once
 
-#include <chronon3d/core/frame.hpp>
-#include <chronon3d/core/types.hpp>
 #include <chronon3d/animation/easing.hpp>
 #include <chronon3d/animation/interpolate.hpp>
-#include <initializer_list>
+#include <chronon3d/core/frame.hpp>
+#include <chronon3d/core/types.hpp>
+
+#include <algorithm>
 #include <cstddef>
+#include <initializer_list>
+#include <utility>
 #include <vector>
 
 namespace chronon3d {
@@ -42,46 +45,105 @@ inline T interpolate_values(const T& a, const T& b, f32 t, Easing e) {
 template <typename T>
 class KeyframeTrack {
 public:
-    KeyframeTrack(std::initializer_list<Keyframe<T>> kfs) : m_keyframes(kfs) {
+    KeyframeTrack() = default;
+
+    KeyframeTrack(std::initializer_list<Keyframe<T>> kfs) {
+        for (const auto& kf : kfs) {
+            key(kf.frame, kf.value, kf.easing);
+        }
+    }
+
+    KeyframeTrack& key(Frame frame, const T& value, Easing easing = Easing::Linear) {
+        m_keyframes.emplace_back(frame, value, easing);
+        m_sorted = false;
+        return *this;
+    }
+
+    KeyframeTrack& key(Frame frame, T&& value, Easing easing = Easing::Linear) {
+        m_keyframes.emplace_back(frame, std::move(value), easing);
+        m_sorted = false;
+        return *this;
+    }
+
+    [[nodiscard]] bool empty() const { return m_keyframes.empty(); }
+    [[nodiscard]] std::size_t size() const { return m_keyframes.size(); }
+
+    void clear() {
+        m_keyframes.clear();
+        m_sorted = true;
+    }
+
+    [[nodiscard]] T sample_at(f32 current) const {
+        if (m_keyframes.empty()) {
+            return T{};
+        }
+
+        ensure_sorted();
+
+        const auto it = std::upper_bound(
+            m_keyframes.begin(),
+            m_keyframes.end(),
+            current,
+            [](f32 value, const Keyframe<T>& kf) {
+                return value < static_cast<f32>(kf.frame);
+            }
+        );
+
+        if (it == m_keyframes.begin()) {
+            return it->value;
+        }
+
+        if (it == m_keyframes.end()) {
+            return (it - 1)->value;
+        }
+
+        const auto prev = it - 1;
+        const auto& next = *it;
+
+        if (next.frame == prev->frame) {
+            return next.value;
+        }
+
+        const f32 t = (current - static_cast<f32>(prev->frame))
+                     / static_cast<f32>(next.frame - prev->frame);
+        return interpolate_values(prev->value, next.value, t, prev->easing);
+    }
+
+    [[nodiscard]] T sample(Frame current) const {
+        return sample_at(static_cast<f32>(current));
     }
 
     // Float-based query — required for motion blur subframe accuracy.
     // Use ctx.effective_frame() as the argument when inside a composition.
-    [[nodiscard]] T value_at_time(f32 current) const {
-        if (m_keyframes.empty()) return T{};
+    [[nodiscard]] T value_at_time(f32 current) const { return sample_at(current); }
 
-        const auto* data = m_keyframes.data();
-        const std::size_t n = m_keyframes.size();
+    // Integer-frame aliases — delegate to sample for consistency.
+    [[nodiscard]] T value(Frame current) const { return sample(current); }
+    [[nodiscard]] T value_at(Frame current) const { return sample(current); }
 
-        if (current <= static_cast<f32>(data[0].frame))     return data[0].value;
-        if (current >= static_cast<f32>(data[n-1].frame))   return data[n-1].value;
-
-        std::size_t lo = 0, hi = n - 1;
-        while (lo + 1 < hi) {
-            std::size_t mid = (lo + hi) / 2;
-            if (static_cast<f32>(data[mid].frame) <= current) lo = mid;
-            else hi = mid;
-        }
-
-        const auto& prev = data[lo];
-        const auto& next = data[lo + 1];
-        const f32 t = (current - static_cast<f32>(prev.frame))
-                    / static_cast<f32>(next.frame - prev.frame);
-        return interpolate_values(prev.value, next.value, t, prev.easing);
-    }
-
-    // Integer-frame aliases — delegate to value_at_time for consistency.
-    [[nodiscard]] T value(Frame current) const { return value_at_time(static_cast<f32>(current)); }
-    [[nodiscard]] T value_at(Frame current) const { return value_at_time(static_cast<f32>(current)); }
+    [[nodiscard]] T operator()(Frame current) const { return sample(current); }
 
 private:
-    std::vector<Keyframe<T>> m_keyframes;
+    void ensure_sorted() const {
+        if (m_sorted) {
+            return;
+        }
+
+        std::stable_sort(m_keyframes.begin(), m_keyframes.end(),
+            [](const Keyframe<T>& a, const Keyframe<T>& b) {
+                return a.frame < b.frame;
+            });
+        m_sorted = true;
+    }
+
+    mutable std::vector<Keyframe<T>> m_keyframes;
+    mutable bool m_sorted{true};
 };
 
 // ---------------------------------------------------------------------------
 // keyframes<T>() — factory for KeyframeTrack<T>.
 // Usage:
-//   auto x = keyframes<f32>({ {0, 0.0f}, {60, 100.0f, Easing::OutCubic} }).value(frame);
+//   auto x = keyframes<f32>({ {0, 0.0f}, {60, 100.0f, Easing::OutCubic} }).sample(frame);
 // ---------------------------------------------------------------------------
 template <typename T>
 inline KeyframeTrack<T> keyframes(std::initializer_list<Keyframe<T>> kfs) {
@@ -92,7 +154,7 @@ inline KeyframeTrack<T> keyframes(std::initializer_list<Keyframe<T>> kfs) {
 // Legacy support: keyframes(frame, {KF, KF, ...})
 // ---------------------------------------------------------------------------
 inline f32 keyframes(Frame current, std::initializer_list<KF> kfs) {
-    return keyframes<f32>(kfs).value(current);
+    return keyframes<f32>(kfs).sample(current);
 }
 
 } // namespace chronon3d
