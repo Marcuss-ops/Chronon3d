@@ -66,6 +66,7 @@ template <typename T>
     seed = hash_combine(seed, hash_bytes(&source.speed, sizeof(source.speed)));
     const u64 loop = static_cast<u64>(source.loop_mode);
     seed = hash_combine(seed, hash_bytes(&loop, sizeof(loop)));
+    seed = hash_combine(seed, hash_vec2(source.size));
     return seed;
 }
 

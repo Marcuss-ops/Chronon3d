@@ -291,6 +291,13 @@ LayerBuilder& LayerBuilder::video(std::string path) {
     return video(std::move(source));
 }
 
+LayerBuilder& LayerBuilder::video_size(Vec2 size) {
+    if (m_layer.video_source) {
+        m_layer.video_source->size = size;
+    }
+    return *this;
+}
+
 Layer LayerBuilder::build() {
     if (m_layer.depth_role != DepthRole::None) {
         m_layer.transform.position.z =
