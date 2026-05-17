@@ -112,10 +112,6 @@ public:
     SoftwareRenderer();
 
 private:
-    std::unique_ptr<Framebuffer> render_scene_internal(const Scene& scene, const Camera& camera,
-                                                       i32 width, i32 height, Frame frame,
-                                                       f32 frame_time);
-
     TextRenderer      m_text_renderer;
     ImageRenderer     m_image_renderer;
     FakeExtrudedTextRenderer m_fake_extruded_text_renderer;
