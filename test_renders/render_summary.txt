@@ -1,0 +1,6 @@
+Chronon3D render summary
+recent_rows=100
+event=frame_render count=46 total_p50_ms=3.01 total_p95_ms=106.83 setup_p95_ms=0.14 composite_p95_ms=106.69 blur_p95_ms=0.00 encode_p95_ms=0.00 ram_p95_mb=0.00
+event=scene_render count=54 total_p50_ms=1.40 total_p95_ms=104.13 setup_p95_ms=0.10 composite_p95_ms=104.03 blur_p95_ms=0.00 encode_p95_ms=0.00 ram_p95_mb=0.00
+overview bottleneck=frame_render layer_count=0.26 cache_hit_rate=13.00% samples=100
+slowest_event=frame_render frame=2 total_ms=114.31 setup_ms=0.14 composite_ms=114.15 blur_ms=0.00 encode_ms=0.00 cache_hit=0 layer_count=0
