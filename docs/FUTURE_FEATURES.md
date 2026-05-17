@@ -43,7 +43,7 @@
 | Feature | Note | Effort |
 |---|---|---|
 | **Keyframe curves** | ✅ API dichiarativa con easing via `KeyframeTrack<T>` e `.sample()` | completato |
-| **Track matte** | ✅ Layer A come alpha mask per layer B | completato |
+| **Track matte** | ✅ alpha/luma/inverted per layer 2D; 3D source da verificare | quasi completo |
 | **Full 3D parenting** | 2D parenting ok; 3D propaga solo traslazione, non rotation/scale | ~2h |
 | **Depth of Field** | Struct presente, renderer non implementato | ~3h — post-process pass |
 | **Lights (ambient + directional)** | `LightContext` presente, nessuna pipeline | ~4h |
