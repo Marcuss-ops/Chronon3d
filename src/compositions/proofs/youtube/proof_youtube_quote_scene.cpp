@@ -1,13 +1,7 @@
-// ProofYouTubeQuoteScene — scena narrativa con citazione centrata.
+// ProofYouTubeQuoteScene v2
 //
-// Struttura:
-//   z=600  background scuro sfocato
-//   z=0    backdrop card semi-trasparente
-//   z=-100 testo citazione grande
-//
-// Camera: dolly-in molto lento (90 frame)
-//
-//   chronon3d_cli video ProofYouTubeQuoteScene --graph --start 0 --end 89 --fps 30 -o output/proofs/yt_quote.mp4
+// Layout: glass card centrata, testo 2D dentro la card, background DOF sfocato.
+// Testo su 2 righe, nitido, nessun blur sul testo.
 
 #include <chronon3d/chronon3d.hpp>
 #include <chronon3d/core/composition_registration.hpp>
@@ -29,79 +23,74 @@ static Composition proof_youtube_quote_scene() {
             : 0.0f;
         const float st = camera_motion::smoothstep(t);
 
-        // Camera: dolly-in lento, leggero DOF per sfondo
+        // Camera: dolly leggero, DOF per sfondo
         s.camera().set({
             .enabled  = true,
-            .position = {0.0f, 0.0f, camera_motion::lerp(-1000.0f, -940.0f, st)},
+            .position = {0.0f, 0.0f, camera_motion::lerp(-1000.0f, -950.0f, st)},
             .zoom     = 1000.0f,
-            .dof      = {
-                .enabled  = true,
-                .focus_z  = 0.0f,
-                .aperture = 0.018f,
-                .max_blur = 16.0f
-            }
+            .dof      = {.enabled=true, .focus_z=0.0f, .aperture=0.016f, .max_blur=14.0f}
         });
 
-        // ── Background (z=600 → DOF blur ~14px) ──────────────────────────────
+        // ── Background sfocato (z=700 → DOF ~11px) ───────────────────────────
         s.layer("bg", [](LayerBuilder& l) {
-            l.enable_3d().position({0.0f, 0.0f, 600.0f});
-
+            l.enable_3d().position({0.0f, 0.0f, 700.0f});
             l.rect("base", {
-                .size  = {2000.0f, 1200.0f},
+                .size  = {2200.0f, 1300.0f},
                 .color = Color{0.04f, 0.04f, 0.06f, 1.0f},
                 .pos   = {0.0f, 0.0f, 0.0f}
             });
-
-            // Forma luminosa sinistra
-            l.circle("accent_l", {
-                .radius = 280.0f,
-                .color  = Color{0.08f, 0.06f, 0.20f, 0.5f},
-                .pos    = {-500.0f, -50.0f, 0.0f}
+            l.circle("glow_l", {
+                .radius = 260.0f,
+                .color  = Color{0.06f, 0.05f, 0.22f, 0.45f},
+                .pos    = {-430.0f, -40.0f, 0.0f}
             }).blur(60.0f);
-
-            // Forma luminosa destra
-            l.circle("accent_r", {
-                .radius = 200.0f,
-                .color  = Color{0.18f, 0.04f, 0.08f, 0.45f},
-                .pos    = {480.0f, 80.0f, 0.0f}
+            l.circle("glow_r", {
+                .radius = 180.0f,
+                .color  = Color{0.16f, 0.04f, 0.08f, 0.40f},
+                .pos    = {420.0f,  70.0f, 0.0f}
             }).blur(45.0f);
         });
 
-        // ── Backdrop card (z=0 — semi-trasparente) ────────────────────────────
-        s.layer("backdrop", [](LayerBuilder& l) {
+        // ── Glass card (z=0 — fuoco) ──────────────────────────────────────────
+        s.layer("card", [](LayerBuilder& l) {
             l.enable_3d().position({0.0f, 0.0f, 0.0f});
-            l.rounded_rect("card", {
-                .size   = {900.0f, 260.0f},
-                .radius = 8.0f,
-                .color  = Color{0.04f, 0.04f, 0.06f, 0.78f},
+            l.rounded_rect("glass", {
+                .size   = {880.0f, 240.0f},
+                .radius = 12.0f,
+                .color  = Color{0.05f, 0.05f, 0.08f, 0.80f},
                 .pos    = {0.0f, 0.0f, 0.0f}
             });
-
-            // Linea decorativa superiore
-            l.rect("line_top", {
-                .size  = {800.0f, 3.0f},
-                .color = Color{0.6f, 0.5f, 0.9f, 0.8f},
-                .pos   = {0.0f, -115.0f, 0.0f}
+            // Linea accent superiore
+            l.rect("accent", {
+                .size  = {760.0f, 3.0f},
+                .color = Color{0.55f, 0.40f, 0.90f, 0.85f},
+                .pos   = {0.0f, -105.0f, 0.0f}
             });
         });
 
-        // ── Testo citazione (z=-100) ──────────────────────────────────────────
+        // ── Quote text 2D nitido (NO DOF, centrato nella card) ────────────────
+        // (0, 0) in 2D = screen center (640, 360)
         s.layer("quote", [](LayerBuilder& l) {
-            l.enable_3d().position({0.0f, -10.0f, -100.0f});
+            l.position({0.0f, 0.0f, 0.0f});  // screen center
             l.text("q1", {
-                .content = "EVERYTHING CHANGED OVERNIGHT",
+                .content = "EVERYTHING",
                 .style   = {
                     .font_path = "assets/fonts/Inter-Bold.ttf",
-                    .size      = 72.0f,
+                    .size      = 76.0f,
                     .color     = Color{1.0f, 1.0f, 1.0f, 1.0f},
                     .align     = TextAlign::Center,
                 },
-                .pos = {0.0f, -20.0f, 0.0f}
-            }).with_glow(Glow{
-                .enabled   = true,
-                .radius    = 8.0f,
-                .intensity = 0.25f,
-                .color     = Color{0.5f, 0.4f, 0.9f, 1.0f}
+                .pos = {0.0f, -46.0f, 0.0f}
+            });
+            l.text("q2", {
+                .content = "CHANGED OVERNIGHT",
+                .style   = {
+                    .font_path = "assets/fonts/Inter-Bold.ttf",
+                    .size      = 64.0f,
+                    .color     = Color{0.85f, 0.75f, 1.0f, 1.0f},
+                    .align     = TextAlign::Center,
+                },
+                .pos = {0.0f, 46.0f, 0.0f}
             });
         });
 

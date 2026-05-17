@@ -1,12 +1,12 @@
-// ProofYouTubeNewsCard — layout news/gossip: immagine sinistra, headline destra,
-// lower third, badge "BREAKING" 2D fisso.
+// ProofYouTubeNewsCard v2
 //
-// Test:
-//   - layout stabile tra frame 0 e 89
-//   - badge 2D invariato (no camera)
-//   - background più sfocato del subject
+// Layout news disciplinato:
+//   immagine sinistra (z=0)
+//   headline 2D destra (nitida, inside safe area)
+//   lower-third bar (z=-50)
+//   badge "BREAKING" 2D fixed top-left
 //
-//   chronon3d_cli video ProofYouTubeNewsCard --graph --start 0 --end 89 --fps 30 -o output/proofs/yt_news_card.mp4
+// Safe area: x 80-1200, y 80-640
 
 #include <chronon3d/chronon3d.hpp>
 #include <chronon3d/core/composition_registration.hpp>
@@ -28,17 +28,12 @@ static Composition proof_youtube_news_card() {
             : 0.0f;
         const float st = camera_motion::smoothstep(t);
 
-        // Camera: pan leggero, DOF per sfondo
+        // Camera: pan minimo ±15px, DOF per sfondo
         s.camera().set({
             .enabled  = true,
-            .position = {camera_motion::lerp(-20.0f, 20.0f, st), 0.0f, -1000.0f},
+            .position = {camera_motion::lerp(-15.0f, 15.0f, st), 0.0f, -1000.0f},
             .zoom     = 1000.0f,
-            .dof      = {
-                .enabled  = true,
-                .focus_z  = 0.0f,
-                .aperture = 0.020f,
-                .max_blur = 18.0f
-            }
+            .dof      = {.enabled=true, .focus_z=0.0f, .aperture=0.016f, .max_blur=14.0f}
         });
 
         // ── Background sfocato (z=600) ────────────────────────────────────────
@@ -46,74 +41,75 @@ static Composition proof_youtube_news_card() {
             l.enable_3d().position({0.0f, 0.0f, 600.0f});
             l.rect("base", {
                 .size  = {2000.0f, 1200.0f},
-                .color = Color{0.06f, 0.05f, 0.07f, 1.0f},
+                .color = Color{0.05f, 0.05f, 0.07f, 1.0f},
                 .pos   = {0.0f, 0.0f, 0.0f}
             });
-            l.circle("bg_accent", {
-                .radius = 300.0f,
-                .color  = Color{0.10f, 0.05f, 0.05f, 0.4f},
-                .pos    = {400.0f, -100.0f, 0.0f}
+            l.circle("glow", {
+                .radius = 260.0f,
+                .color  = Color{0.10f, 0.05f, 0.05f, 0.38f},
+                .pos    = {350.0f, -80.0f, 0.0f}
             }).blur(60.0f);
         });
 
-        // ── Image card sinistra (z=0) ─────────────────────────────────────────
+        // ── Image card sinistra (z=0, nitida) ─────────────────────────────────
+        // Centrata mondo (0,0) = screen center (640,360)
+        // Card a sinistra: mondo x=-240 = screen x=400. width=380 → x: 210-590
         s.layer("image_card", [](LayerBuilder& l) {
-            l.enable_3d().position({-290.0f, 0.0f, 0.0f});
-
+            l.enable_3d().position({-240.0f, 0.0f, 0.0f});
             l.rounded_rect("portrait", {
-                .size   = {480.0f, 580.0f},
+                .size   = {380.0f, 520.0f},
                 .radius = 10.0f,
                 .color  = Color{0.55f, 0.50f, 0.45f, 1.0f},
                 .pos    = {0.0f, 0.0f, 0.0f}
             });
-            // Zona "capelli" in alto
             l.rect("hair", {
-                .size  = {480.0f, 160.0f},
-                .color = Color{0.18f, 0.14f, 0.10f, 1.0f},
-                .pos   = {0.0f, -210.0f, 0.0f}
+                .size  = {380.0f, 140.0f},
+                .color = Color{0.16f, 0.12f, 0.09f, 1.0f},
+                .pos   = {0.0f, -190.0f, 0.0f}
             });
         });
 
-        // ── Headline testo destra (z=-100) ────────────────────────────────────
-        s.layer("headline", [](LayerBuilder& l) {
-            l.enable_3d().position({260.0f, -80.0f, -100.0f});
-            l.text("h1", {
-                .content = "BREAKING NEWS",
-                .style   = {
-                    .font_path = "assets/fonts/Inter-Bold.ttf",
-                    .size      = 72.0f,
-                    .color     = Color{1.0f, 0.95f, 0.9f, 1.0f},
-                    .align     = TextAlign::Left,
-                },
-                .pos = {0.0f, -40.0f, 0.0f}
-            });
-            l.text("h2", {
-                .content = "SHOCKING DETAILS REVEALED",
-                .style   = {
-                    .font_path = "assets/fonts/Inter-Bold.ttf",
-                    .size      = 44.0f,
-                    .color     = Color{0.85f, 0.82f, 0.78f, 1.0f},
-                    .align     = TextAlign::Left,
-                },
-                .pos = {0.0f, 40.0f, 0.0f}
-            });
-        });
-
-        // ── Lower third bar (z=-50) ───────────────────────────────────────────
+        // ── Lower-third bar (z=-50, leggero DOF blur ~0.9px — trascurabile) ───
         s.layer("lower_third", [](LayerBuilder& l) {
-            l.enable_3d().position({0.0f, 290.0f, -50.0f});
+            l.enable_3d().position({0.0f, 250.0f, -50.0f});
             l.rect("bar", {
-                .size  = {1100.0f, 52.0f},
+                .size  = {1100.0f, 48.0f},
                 .color = Color{0.88f, 0.12f, 0.10f, 1.0f},
                 .pos   = {0.0f, 0.0f, 0.0f}
             });
         });
 
-        // ── Badge "BREAKING" 2D fisso (screen coords) ─────────────────────────
+        // ── Headline 2D nitido (destra, dentro safe area) ─────────────────────
+        // mondo-2D x=170 = screen x=810. Testo align Left, max ~480px → fino a 1200 safe
+        s.layer("headline_2d", [](LayerBuilder& l) {
+            l.position({170.0f, -70.0f, 0.0f});  // destra, lievemente sopra centro
+            l.text("h1", {
+                .content = "BREAKING",
+                .style   = {
+                    .font_path = "assets/fonts/Inter-Bold.ttf",
+                    .size      = 68.0f,
+                    .color     = Color{1.0f, 0.92f, 0.88f, 1.0f},
+                    .align     = TextAlign::Left,
+                },
+                .pos = {0.0f, -44.0f, 0.0f}
+            });
+            l.text("h2", {
+                .content = "SHOCKING DETAILS",
+                .style   = {
+                    .font_path = "assets/fonts/Inter-Bold.ttf",
+                    .size      = 46.0f,
+                    .color     = Color{0.82f, 0.78f, 0.75f, 1.0f},
+                    .align     = TextAlign::Left,
+                },
+                .pos = {0.0f, 20.0f, 0.0f}
+            });
+        });
+
+        // ── Badge "BREAKING" 2D fixed top-left ───────────────────────────────
         s.rect("badge", {
-            .size  = {180.0f, 42.0f},
-            .color = Color{0.92f, 0.10f, 0.08f, 1.0f},
-            .pos   = {110.0f, 36.0f, 0.0f}   // top-left, absolute screen coords
+            .size  = {168.0f, 38.0f},
+            .color = Color{0.90f, 0.10f, 0.08f, 1.0f},
+            .pos   = {164.0f, 36.0f, 0.0f}  // screen coords: left edge at x=80 (safe area)
         });
 
         return s.build();
