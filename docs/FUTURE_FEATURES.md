@@ -1,6 +1,6 @@
 # Chronon3d — Roadmap & AE Comparison
 
-> Last updated: 2026-05-17 — 281/281 tests passing
+> Last updated: 2026-05-17 — 284/284 tests passing
 
 ---
 
@@ -58,7 +58,7 @@
 | Particle system | Emitter + lifetime + color over life |
 | SVG import | parse path → Chronon3d shapes |
 | Lottie import | parse JSON → `Composition` |
-| Video come 3D card | FFmpeg pipeline ok, manca connessione al projected card path |
+| **Video come 3D card** | ✅ V1 completo: `video_size(Vec2)` su LayerBuilder, `VideoSource.size` controlla dimensioni decoder. Path `enable_3d() + video() + video_size()` testato con mock decoder. 3 test pass. | completato |
 | Parallel multi-frame render | Taskflow già linkato, rendering ancora seriale |
 | EXR output | vcpkg openexr |
 | Preview window interattiva | SDL2/GLFW + hot reload |
