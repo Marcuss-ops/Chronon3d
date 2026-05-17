@@ -8,6 +8,7 @@
 #include <chronon3d/math/mat4.hpp>
 #include <chronon3d/rendering/projected_card.hpp>
 #include <chronon3d/core/types.hpp>
+#include <cmath>
 
 namespace chronon3d::renderer {
 
@@ -36,13 +37,14 @@ struct ProjectionContext {
     }
 
     [[nodiscard]] Vec2 view_to_screen(const Vec3& cam) const {
-        const f32 ps = focal / (-cam.z);
-        return {-cam.x * ps + vp_cx, -cam.y * ps + vp_cy};
+        // LH (pos Z forward): cam.z > 0.
+        const f32 ps = (cam.z > 0.0001f) ? (focal / cam.z) : 10000.0f;
+        return {cam.x * ps + vp_cx, -cam.y * ps + vp_cy};
     }
 
     [[nodiscard]] Vec2 project(const Vec3& world, bool& ok) const {
         const Vec3 cam = to_view(world);
-        if (cam.z >= 0.0f) { ok = false; return {}; }
+        if (cam.z <= 0.1f) { ok = false; return {}; }
         ok = true;
         return view_to_screen(cam);
     }
@@ -50,9 +52,9 @@ struct ProjectionContext {
     [[nodiscard]] ProjectedPoint project_point(const Vec3& world) const {
         ProjectedPoint out;
         const Vec3 cam = to_view(world);
-        if (cam.z >= 0.0f) return out;
+        if (cam.z <= 0.1f) return out;
         out.screen = view_to_screen(cam);
-        out.depth = -cam.z;
+        out.depth = cam.z;
         out.visible = true;
         return out;
     }
@@ -98,17 +100,17 @@ struct ProjectionContext {
         Vec4 c0 = view * Vec4(w0, 1.0f);
         Vec4 c1 = view * Vec4(w1, 1.0f);
         constexpr f32 near = 0.5f;
-        if (c0.z >= -near && c1.z >= -near) return false;
-        if (c0.z >= -near) {
-            const f32 t = (-near - c1.z) / (c0.z - c1.z);
+        if (c0.z <= near && c1.z <= near) return false;
+        if (c0.z <= near) {
+            const f32 t = (near - c1.z) / (c0.z - c1.z);
             c0 = c1 + (c0 - c1) * t;
         }
-        if (c1.z >= -near) {
-            const f32 t = (-near - c0.z) / (c1.z - c0.z);
+        if (c1.z <= near) {
+            const f32 t = (near - c0.z) / (c1.z - c0.z);
             c1 = c0 + (c1 - c0) * t;
         }
-        const f32 ps0 = focal / (-c0.z);
-        const f32 ps1 = focal / (-c1.z);
+        const f32 ps0 = focal / c0.z;
+        const f32 ps1 = focal / c1.z;
         p0 = {c0.x * ps0 + vp_cx, -c0.y * ps0 + vp_cy};
         p1 = {c1.x * ps1 + vp_cx, -c1.y * ps1 + vp_cy};
         return true;
