@@ -12,6 +12,8 @@ This roadmap reflects the current codebase and the next structural steps needed 
 - CLI for listing, rendering, video export, and proof suites
 - CMake-only build support
 - Tests and CI coverage
+- RenderGraph execution engine (pass-splitting, explicit caches, and nodes)
+- Descriptive registry layer (sources, shapes, effects, samplers, and blend modes)
 
 ## Block 1: Foundation Cleanup
 
@@ -23,25 +25,25 @@ Goal: keep the repo easy to build and reason about.
 - Document architecture and roadmap in-repo
 - Add basic benchmark commands for repeatable performance checks
 
-## Block 2: Render Graph
+## Block 2: Render Graph (Completed)
 
 Goal: stop growing the renderer as a single monolith.
 
-- Introduce `RenderGraph`
-- Split source, mask, effect, transform, composite, and output steps
-- Make render passes explicit
-- Add graph inspection and debug output
-- Add cache keys and dirty tracking per node
+- [x] Introduce `RenderGraph`
+- [x] Split source, mask, effect, transform, composite, and output steps
+- [x] Make render passes explicit
+- [x] Add graph inspection and debug output
+- [x] Add cache keys and dirty tracking per node
 
-## Block 3: Registry Layer
+## Block 3: Registry Layer (Completed)
 
 Goal: make the engine easier to extend without touching central variants.
 
-- Effect registry
-- Source registry
-- Blend mode registry
-- Sampler registry
-- Shape or primitive registry where it makes sense
+- [x] Effect registry
+- [x] Source registry
+- [x] Blend mode registry
+- [x] Sampler registry
+- [x] Shape or primitive registry where it makes sense
 
 ## Block 4: Production Features
 

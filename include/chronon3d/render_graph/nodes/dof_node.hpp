@@ -5,7 +5,7 @@
 #include <chronon3d/scene/camera/dof.hpp>
 #include <chronon3d/scene/camera/camera_2_5d.hpp>
 #include <chronon3d/scene/effects/effect_stack.hpp>
-#include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/render_graph/render_backend.hpp>
 
 #include <cmath>
 
@@ -46,10 +46,10 @@ public:
         const float blur = compute_dof_blur_radius(m_camera.dof, m_layer_world_z);
 
         auto result = std::make_shared<Framebuffer>(*inputs[0]);
-        if (blur > 0.5f && ctx.renderer) {
+        if (blur > 0.5f && ctx.backend) {
             EffectStack dof_stack;
             dof_stack.push_back(EffectInstance{EffectParams{BlurParams{blur}}});
-            ctx.renderer->apply_effect_stack(*result, dof_stack);
+            ctx.backend->apply_effect_stack(*result, dof_stack);
         }
         return result;
     }
