@@ -59,6 +59,7 @@
 | SVG import | parse path → Chronon3d shapes |
 | Lottie import | parse JSON → `Composition` |
 | **Video come 3D card** | ✅ V1 completo: `video_size(Vec2)` su LayerBuilder, `VideoSource.size` controlla dimensioni decoder. Path `enable_3d() + video() + video_size()` testato con mock decoder. 3 test pass. | completato |
+| **TextBox + YouTube presets** | ✅ V1: `text_box()` preset (bg + text + shadow), `youtube::title_card/subtitle_box/lower_third/quote_box()`. Header-only in `include/chronon3d/presets/`. 5 test pass. | completato |
 | Parallel multi-frame render | Taskflow già linkato, rendering ancora seriale |
 | EXR output | vcpkg openexr |
 | Preview window interattiva | SDL2/GLFW + hot reload |
