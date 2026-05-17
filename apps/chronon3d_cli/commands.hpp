@@ -78,7 +78,8 @@ struct BenchArgs {
 struct GraphArgs {
     std::string comp_id;
     Frame frame{0};
-    std::string output; // No default
+    std::string output;   // optional .dot output path
+    bool summary{false};  // print node/cache/timing diagnostics
 };
 
 struct ProofsArgs {
