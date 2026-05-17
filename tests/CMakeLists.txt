@@ -100,6 +100,8 @@ add_executable(chronon3d_renderer_tests
     cache/test_cache_foundation.cpp
     effects/test_effect_registry.cpp
     deterministic/test_deterministic.cpp
+    render_graph/test_render_pipeline.cpp
+    render_graph/test_render_backend.cpp
     render_graph/cache_key_tests.cpp
 )
 target_link_libraries(chronon3d_renderer_tests
