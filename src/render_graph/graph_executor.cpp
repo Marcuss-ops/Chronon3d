@@ -14,7 +14,12 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
     GraphNodeId output,
     RenderGraphContext& ctx
 ) {
-    // ZoneScoped;
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_temp.clear();
+        m_resolved_key_digest.clear();
+        m_pending.clear();
+    }
     return execute_node(graph, output, ctx);
 }
 
@@ -23,16 +28,34 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute_node(
     GraphNodeId id,
     RenderGraphContext& ctx
 ) {
+    std::shared_ptr<std::promise<std::shared_ptr<Framebuffer>>> promise;
+    bool already_executing = false;
+
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         if (auto it = m_temp.find(id); it != m_temp.end()) {
             return it->second;
         }
+        
+        if (auto it = m_pending.find(id); it != m_pending.end()) {
+            promise = it->second;
+            already_executing = true;
+        } else {
+            promise = std::make_shared<std::promise<std::shared_ptr<Framebuffer>>>();
+            m_pending[id] = promise;
+        }
     }
 
-    if (id >= graph.size()) return nullptr;
-    auto& node = graph.node(id);
+    if (already_executing) {
+        return promise->get_future().get();
+    }
 
+    if (id >= graph.size()) {
+        promise->set_value(nullptr);
+        return nullptr;
+    }
+    
+    auto& node = graph.node(id);
     const auto& input_ids = graph.inputs(id);
     std::vector<std::shared_ptr<Framebuffer>> inputs(input_ids.size());
 
@@ -80,8 +103,10 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute_node(
         std::lock_guard<std::mutex> lock(m_mutex);
         m_temp[id] = result;
         m_resolved_key_digest[id] = key.digest();
+        m_pending.erase(id);
     }
 
+    promise->set_value(result);
     return result;
 }
 
