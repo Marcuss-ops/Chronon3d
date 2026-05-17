@@ -218,6 +218,16 @@ LayerBuilder& LayerBuilder::accepts_lights(bool value) {
     return *this;
 }
 
+LayerBuilder& LayerBuilder::casts_shadows(bool value) {
+    m_layer.material.casts_shadows = value;
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::accepts_shadows(bool value) {
+    m_layer.material.accepts_shadows = value;
+    return *this;
+}
+
 LayerBuilder& LayerBuilder::material(Material2_5D value) {
     m_layer.material = value;
     return *this;

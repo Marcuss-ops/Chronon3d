@@ -74,6 +74,8 @@ public:
     LayerBuilder& with_shadow(DropShadow shadow);
     LayerBuilder& with_glow(Glow glow);
     LayerBuilder& accepts_lights(bool value = true);
+    LayerBuilder& casts_shadows(bool value = true);
+    LayerBuilder& accepts_shadows(bool value = true);
     LayerBuilder& material(Material2_5D value);
 
     // Node Transform
