@@ -53,3 +53,7 @@ output/
 
 transform_output/
 scenes/
+
+# Generated visual test outputs
+test_renders/
+output/new_features/
