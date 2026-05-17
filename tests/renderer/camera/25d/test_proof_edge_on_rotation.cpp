@@ -3,7 +3,6 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/scene/camera/camera_motion_presets.hpp>
 #include <tests/helpers/render_fixtures.hpp>
-#include <tests/helpers/pixel_assertions.hpp>
 #include <cmath>
 
 using namespace chronon3d;
@@ -50,6 +49,7 @@ std::unique_ptr<Framebuffer> render_y_rotation(float angle_deg) {
     return renderer.render_frame(comp, 0);
 }
 
+// Count pixels matching yellow (loose channel check)
 int count_yellow(const Framebuffer& fb) {
     int n = 0;
     for (int y = 0; y < fb.height(); ++y)
@@ -60,31 +60,56 @@ int count_yellow(const Framebuffer& fb) {
     return n;
 }
 
+// Width of yellow pixels at row y (loose channel check)
+int yellow_width_at_row(const Framebuffer& fb, int row) {
+    if (row < 0 || row >= fb.height()) return 0;
+    int first = -1, last = -1;
+    for (int x = 0; x < fb.width(); ++x) {
+        const Color c = fb.get_pixel(x, row);
+        if (c.r > 0.8f && c.g > 0.7f && c.b < 0.3f) {
+            if (first < 0) first = x;
+            last = x;
+        }
+    }
+    return first < 0 ? 0 : (last - first + 1);
+}
+
 } // namespace
 
-TEST_CASE("Proof — EdgeOnRotation: card pixel count decreases monotonically as Y rotation increases") {
-    const int px0  = count_yellow(*render_y_rotation( 0.0f));
-    const int px30 = count_yellow(*render_y_rotation(30.0f));
-    const int px60 = count_yellow(*render_y_rotation(60.0f));
+TEST_CASE("Proof — EdgeOnRotation: card pixel count decreases as Y rotation increases") {
+    auto fb0  = render_y_rotation( 0.0f);
+    auto fb30 = render_y_rotation(30.0f);
+    auto fb60 = render_y_rotation(60.0f);
 
-    save_debug(*render_y_rotation( 0.0f), "output/debug/proofs/edge_on_rotation/rot_0.png");
-    save_debug(*render_y_rotation(30.0f), "output/debug/proofs/edge_on_rotation/rot_30.png");
-    save_debug(*render_y_rotation(60.0f), "output/debug/proofs/edge_on_rotation/rot_60.png");
+    REQUIRE(fb0  != nullptr);
+    REQUIRE(fb30 != nullptr);
+    REQUIRE(fb60 != nullptr);
+
+    save_debug(*fb0,  "output/debug/proofs/edge_on_rotation/rot_0.png");
+    save_debug(*fb30, "output/debug/proofs/edge_on_rotation/rot_30.png");
+    save_debug(*fb60, "output/debug/proofs/edge_on_rotation/rot_60.png");
     save_debug(*render_y_rotation(89.0f), "output/debug/proofs/edge_on_rotation/rot_89.png");
 
-    CHECK(px0  > 0);  // card visible face-on
-    CHECK(px30 > 0);  // still visible at 30°
-    // Each step should have fewer pixels (card is narrowing)
+    const int px0  = count_yellow(*fb0);
+    const int px30 = count_yellow(*fb30);
+    const int px60 = count_yellow(*fb60);
+
+    CHECK(px0  > 0);
+    CHECK(px30 > 0);
     CHECK(px0 > px30);
     CHECK(px30 > px60);
 }
 
-TEST_CASE("Proof — EdgeOnRotation: card does not grow wider during rotation") {
-    // Width should only decrease, never increase
-    const int w0  = width_at_row(*render_y_rotation( 0.0f), 240, Color{1.0f, 0.9f, 0.1f, 1.0f});
-    const int w45 = width_at_row(*render_y_rotation(45.0f), 240, Color{1.0f, 0.9f, 0.1f, 1.0f});
+TEST_CASE("Proof — EdgeOnRotation: card width decreases as Y rotation increases") {
+    auto fb0  = render_y_rotation( 0.0f);
+    auto fb45 = render_y_rotation(45.0f);
+
+    REQUIRE(fb0  != nullptr);
+    REQUIRE(fb45 != nullptr);
+
+    const int w0  = yellow_width_at_row(*fb0,  240);
+    const int w45 = yellow_width_at_row(*fb45, 240);
 
     CHECK(w0  > 0);
-    // At 45° the card must be narrower than at 0°
     CHECK(w45 < w0);
 }

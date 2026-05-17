@@ -19,7 +19,17 @@ SoftwareRenderer make_renderer() {
     return r;
 }
 
-// Pan scene: red at z_near, blue at z_far. Returns frame at t in [0,1].
+// Returns average X of pixels satisfying the channel predicate, or -1 if none found.
+template<typename Pred>
+float scan_centroid_x(const Framebuffer& fb, Pred pred) {
+    double sum = 0.0;
+    int cnt = 0;
+    for (int y = 0; y < fb.height(); ++y)
+        for (int x = 0; x < fb.width(); ++x)
+            if (pred(fb.get_pixel(x, y))) { sum += x; ++cnt; }
+    return cnt > 0 ? static_cast<float>(sum / cnt) : -1.0f;
+}
+
 std::unique_ptr<Framebuffer> render_pan_frame(float t, float z_near, float z_far) {
     auto renderer = make_renderer();
     Composition comp({.name = "PanTest", .width = 640, .height = 480, .duration = 1},
@@ -49,12 +59,12 @@ std::unique_ptr<Framebuffer> render_pan_frame(float t, float z_near, float z_far
     return renderer.render_frame(comp, 0);
 }
 
+auto is_red  = [](const Color& c){ return c.r > 0.7f && c.g < 0.35f && c.b < 0.35f; };
+auto is_blue = [](const Color& c){ return c.b > 0.7f && c.r < 0.35f; };
+
 } // namespace
 
 TEST_CASE("Proof — PanParallax: near object shifts more than far object during camera pan") {
-    const Color red_sel  = Color{1.0f, 0.1f, 0.1f, 1.0f};
-    const Color blue_sel = Color{0.1f, 0.2f, 1.0f, 1.0f};
-
     auto fb0 = render_pan_frame(0.0f, -300.0f, 600.0f);
     auto fb1 = render_pan_frame(1.0f, -300.0f, 600.0f);
 
@@ -64,12 +74,11 @@ TEST_CASE("Proof — PanParallax: near object shifts more than far object during
     save_debug(*fb0, "output/debug/proofs/pan_parallax/frame_start.png");
     save_debug(*fb1, "output/debug/proofs/pan_parallax/frame_end.png");
 
-    const float near_x0 = centroid_x(*fb0, red_sel);
-    const float near_x1 = centroid_x(*fb1, red_sel);
-    const float far_x0  = centroid_x(*fb0, blue_sel);
-    const float far_x1  = centroid_x(*fb1, blue_sel);
+    const float near_x0 = scan_centroid_x(*fb0, is_red);
+    const float near_x1 = scan_centroid_x(*fb1, is_red);
+    const float far_x0  = scan_centroid_x(*fb0, is_blue);
+    const float far_x1  = scan_centroid_x(*fb1, is_blue);
 
-    // Both objects must be visible
     CHECK(near_x0 > 0.0f);
     CHECK(near_x1 > 0.0f);
     CHECK(far_x0  > 0.0f);
@@ -80,6 +89,5 @@ TEST_CASE("Proof — PanParallax: near object shifts more than far object during
 
     // Near object (z=-300) must shift more than far object (z=+600)
     CHECK(near_shift > far_shift);
-    // Sanity: there IS some shift (camera actually moved)
     CHECK(near_shift > 2.0f);
 }
