@@ -43,10 +43,10 @@
 | Feature | Note | Effort |
 |---|---|---|
 | **Keyframe curves** | ✅ API dichiarativa con easing via `KeyframeTrack<T>` e `.sample()` | completato |
-| **Track matte** | ✅ alpha/luma/inverted per layer 2D; 3D source da verificare | quasi completo |
+| **Track matte** | ✅ alpha/luma/inverted per layer 2D verificati; source 3D da follow-up. | quasi completo |
 | **Full 3D parenting** | ✅ resolver gerarchico matrix-correct, world transform/world matrix risolti | completato |
-| **Depth of Field** | ✅ V1 per-layer su projected 2.5D layers; focus_z world-space | completato |
-| **Lights (ambient + directional)** | ✅ V1 diffuse Lambert su layer projected 3D con `accepts_lights=true` | completato |
+| **Depth of Field** | ✅ V1 per-layer su projected 2.5D layers; focus_z world-space. Formula: `|layer_z - focus_z| * aperture`, clamped a `max_blur`. Va usato con `aperture` e `max_blur` non negativi. | completato |
+| **Lights (ambient + directional)** | ✅ V1 = una luce ambient + una direzionale diffuse Lambert su layer projected 3D con `accepts_lights=true`. Non è ancora un sistema luci completo (no point/spot, no specular, no multiple lights). | completato |
 | **Shadows layer-to-layer** | Dipende da lights | dopo lights |
 
 ### 🟢 NICE TO HAVE
