@@ -12,7 +12,7 @@ TEST_CASE("Coordinate system - Contro-test 4") {
         Composition comp(spec, [](const FrameContext& ctx) {
             SceneBuilder s(ctx.resource);
             // rect centro 50,50 size 20,20 -> x da 40 a 59, y da 40 a 59
-            s.rect("box", {50, 50, 0}, Color::white(), {20, 20});
+            s.rect("box", {.size={20, 20}, .color=Color::white(), .pos={50, 50, 0}});
             return s.build();
         });
         auto fb = renderer.render_frame(comp, 0);
@@ -39,7 +39,7 @@ TEST_CASE("Coordinate system - Contro-test 4") {
     SUBCASE("Circle center-based range") {
         Composition comp(spec, [](const FrameContext& ctx) {
             SceneBuilder s(ctx.resource);
-            s.circle("orb", {50, 50, 0}, 10.0f, Color::white());
+            s.circle("orb", {.radius=10.0f, .color=Color::white(), .pos={50, 50, 0}});
             return s.build();
         });
         auto fb = renderer.render_frame(comp, 0);

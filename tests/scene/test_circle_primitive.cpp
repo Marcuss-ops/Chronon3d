@@ -11,7 +11,7 @@ TEST_CASE("Circle primitive rendering") {
     SUBCASE("Basic circle") {
         Composition comp(spec, [](const FrameContext& ctx) {
             SceneBuilder s(ctx.resource);
-            s.circle("circle", {50, 50, 0}, 20.0f, Color::blue());
+            s.circle("circle", {.radius=20.0f, .color=Color::blue(), .pos={50, 50, 0}});
             return s.build();
         });
         auto fb = renderer.render_frame(comp, 0);
@@ -32,7 +32,7 @@ TEST_CASE("Circle primitive rendering") {
         Composition comp(spec, [](const FrameContext& ctx) {
             SceneBuilder s(ctx.resource);
             // Circle centered on the left edge
-            s.circle("clipped-circle", {0, 50, 0}, 20.0f, Color::white());
+            s.circle("clipped-circle", {.radius=20.0f, .color=Color::white(), .pos={0, 50, 0}});
             return s.build();
         });
         auto fb = renderer.render_frame(comp, 0);

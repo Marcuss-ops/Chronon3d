@@ -5,7 +5,7 @@ using namespace chronon3d;
 
 TEST_CASE("SceneBuilder minimal") {
     SceneBuilder builder;
-    builder.rect("test-box", {10, 20, 30}, Color::red());
+    builder.rect("test-box", {.size={100, 100}, .color=Color::red(), .pos={10, 20, 30}});
     
     Scene scene = builder.build();
     
@@ -21,8 +21,8 @@ TEST_CASE("SceneBuilder minimal") {
 
 TEST_CASE("SceneBuilder fluent API") {
     auto scene = SceneBuilder{}
-        .rect("box1", {0, 0, 0}, Color::white())
-        .rect("box2", {1, 1, 1}, Color::black())
+        .rect("box1", {.size={100, 100}, .color=Color::white(), .pos={0, 0, 0}})
+        .rect("box2", {.size={100, 100}, .color=Color::black(), .pos={1, 1, 1}})
         .build();
         
     CHECK(scene.nodes().size() == 2);

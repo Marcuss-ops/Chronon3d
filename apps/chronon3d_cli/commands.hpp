@@ -20,12 +20,6 @@ struct RenderArgs {
     int    motion_blur_samples{8};
     float  shutter_angle{180.0f};
     float  ssaa{1.0f};
-
-
-    // Legacy support
-    int64_t start_old{-1};
-    int64_t end_old{-1};
-    int64_t frame_old{-1};
 };
 
 struct VideoArgs {

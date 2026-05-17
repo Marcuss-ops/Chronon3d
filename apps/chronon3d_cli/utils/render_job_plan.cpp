@@ -13,20 +13,6 @@ RenderJobPlanResult plan_render_job(const RenderArgs& args, bool motion_blur_all
     }
     res.value.range = parsed_frames.value;
 
-    // Handle legacy frame args
-    if (args.frame_old != -1) {
-        res.value.range.start = res.value.range.end = args.frame_old;
-    } else if (args.start_old != -1 || args.end_old != -1) {
-        if (args.start_old != -1) res.value.range.start = args.start_old;
-        if (args.end_old != -1) res.value.range.end = args.end_old;
-        
-        // Post-legacy validation
-        if (res.value.range.end < res.value.range.start) {
-            return {false, {}, fmt::format("Legacy range invalid: end ({}) < start ({})", 
-                                           res.value.range.end, res.value.range.start)};
-        }
-    }
-
     // 2. Validate output
     if (args.output.empty()) {
         return {false, {}, "Output path (--output) is required"};

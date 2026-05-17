@@ -14,8 +14,8 @@ TEST_CASE("Draw order - Contro-test 3") {
     SUBCASE("Test A: Red then Blue (smaller on top)") {
         Composition comp(spec, [&](const FrameContext& ctx) {
             SceneBuilder s(ctx.resource);
-            s.rect("red", center, Color::red(), size);
-            s.rect("blue", center, Color::blue(), smaller_size);
+            s.rect("red", {.size=size, .color=Color::red(), .pos=center});
+            s.rect("blue", {.size=smaller_size, .color=Color::blue(), .pos=center});
             return s.build();
         });
         auto fb = renderer.render_frame(comp, 0);
@@ -28,8 +28,8 @@ TEST_CASE("Draw order - Contro-test 3") {
     SUBCASE("Test B: Blue then Red (larger on top)") {
         Composition comp(spec, [&](const FrameContext& ctx) {
             SceneBuilder s(ctx.resource);
-            s.rect("blue", center, Color::blue(), smaller_size);
-            s.rect("red", center, Color::red(), size);
+            s.rect("blue", {.size=smaller_size, .color=Color::blue(), .pos=center});
+            s.rect("red", {.size=size, .color=Color::red(), .pos=center});
             return s.build();
         });
         auto fb = renderer.render_frame(comp, 0);

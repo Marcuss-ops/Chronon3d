@@ -37,11 +37,11 @@ TEST_CASE("render job accepts valid single frame") {
     CHECK(result.value.range.end == 0);
 }
 
-TEST_CASE("render job handles legacy args") {
+TEST_CASE("render job handles modern frames args") {
     RenderArgs args;
     args.comp_id = "Demo";
     args.output = "out.png";
-    args.frame_old = 42;
+    args.frames = "42";
 
     auto result = plan_render_job(args, false);
     CHECK(result.ok);
