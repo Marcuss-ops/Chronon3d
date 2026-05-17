@@ -57,12 +57,10 @@ public:
                         mask = 1.0f - mc.a;
                         break;
                     case TrackMatteType::Luma:
-                        mask = 0.2126f * mc.r + 0.7152f * mc.g + 0.0722f * mc.b;
-                        mask *= mc.a;
+                        mask = (0.2126f * mc.r + 0.7152f * mc.g + 0.0722f * mc.b) * mc.a;
                         break;
                     case TrackMatteType::LumaInverted:
-                        mask = 1.0f - (0.2126f * mc.r + 0.7152f * mc.g + 0.0722f * mc.b);
-                        mask *= mc.a;
+                        mask = 1.0f - ((0.2126f * mc.r + 0.7152f * mc.g + 0.0722f * mc.b) * mc.a);
                         break;
                     default: break;
                 }

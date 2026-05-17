@@ -18,6 +18,7 @@ endif()
 # Options
 option(CHRONON3D_BUILD_TESTS "Build Chronon3d tests" ON)
 option(CHRONON3D_BUILD_CLI "Build Chronon3d CLI" ON)
+option(CHRONON3D_BUILD_TOOLS "Build Chronon3d developer tools" OFF)
 option(CHRONON3D_ENABLE_PROFILING "Enable Tracy profiling" OFF)
 option(CHRONON3D_ENABLE_VIDEO "Enable FFmpeg-based video output and tests" OFF)
 
@@ -254,14 +255,16 @@ if(CHRONON3D_BUILD_TESTS)
     add_subdirectory(tests)
 endif()
 
-# Feature preview tool — builds with: cmake --build ... --target preview_new_features
-add_executable(preview_new_features tools/preview_new_features.cpp)
-target_link_libraries(preview_new_features PRIVATE
-    chronon3d_pipeline
-    chronon3d_backend_image
-    chronon3d_backend_software
-    chronon3d_compositions
-    chronon3d_graph
-    chronon3d_scene
-)
-target_include_directories(preview_new_features PRIVATE ${CMAKE_SOURCE_DIR})
+if(CHRONON3D_BUILD_TOOLS)
+    # Feature preview tool — opt-in developer target.
+    add_executable(preview_new_features tools/preview_new_features.cpp)
+    target_link_libraries(preview_new_features PRIVATE
+        chronon3d_pipeline
+        chronon3d_backend_image
+        chronon3d_backend_software
+        chronon3d_compositions
+        chronon3d_graph
+        chronon3d_scene
+    )
+    target_include_directories(preview_new_features PRIVATE ${CMAKE_SOURCE_DIR})
+endif()
