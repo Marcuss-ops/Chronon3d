@@ -56,6 +56,8 @@ add_executable(chronon3d_renderer_tests
     renderer/basics/test_coordinate_system.cpp
     renderer/basics/test_clipping.cpp
     renderer/basics/test_layer_rendering.cpp
+    renderer/basics/test_gradient_fill.cpp
+    renderer/basics/test_trim_path.cpp
     renderer/camera/test_moving_frame.cpp
     renderer/camera/test_camera_2_5d.cpp
 
@@ -86,6 +88,7 @@ add_executable(chronon3d_renderer_tests
     renderer/camera/25d/test_25d_parallax.cpp
     renderer/camera/25d/test_25d_tilt.cpp
     renderer/camera/25d/test_25d_camera_motion.cpp
+    renderer/camera/25d/test_25d_layer_rotation.cpp
     registry/test_registries.cpp
     cache/test_cache_foundation.cpp
     effects/test_effect_registry.cpp

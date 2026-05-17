@@ -3,7 +3,9 @@
 #include <chronon3d/math/vec2.hpp>
 #include <chronon3d/math/vec3.hpp>
 #include <chronon3d/math/color.hpp>
+#include <chronon3d/scene/fill.hpp>
 #include <chronon3d/scene/shape.hpp>
+#include <optional>
 #include <string>
 
 namespace chronon3d {
@@ -12,6 +14,7 @@ struct RectParams {
     Vec2 size{100, 100};
     Color color{1, 1, 1, 1};
     Vec3 pos{0, 0, 0};
+    std::optional<Fill> fill{};
 };
 
 struct RoundedRectParams {
@@ -19,12 +22,19 @@ struct RoundedRectParams {
     f32 radius{8.0f};
     Color color{1, 1, 1, 1};
     Vec3 pos{0, 0, 0};
+    std::optional<Fill> fill{};
 };
 
 struct CircleParams {
     f32 radius{50.0f};
     Color color{1, 1, 1, 1};
     Vec3 pos{0, 0, 0};
+    std::optional<Fill> fill{};
+};
+
+struct StrokeParams {
+    f32 trim_start{0.0f};  // normalised [0..1]
+    f32 trim_end{1.0f};
 };
 
 struct LineParams {
@@ -32,6 +42,7 @@ struct LineParams {
     Vec3 to{100, 0, 0};
     f32 thickness{1.0f};
     Color color{1, 1, 1, 1};
+    StrokeParams stroke{};
 };
 
 struct TextParams {
