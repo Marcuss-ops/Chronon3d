@@ -99,14 +99,117 @@ int command_video_camera(const CompositionRegistry& registry, const VideoCameraA
 
 #else
 
+// ── System-ffmpeg fallback (no SDK required, needs ffmpeg in PATH) ─────────
+
+#include "../utils/cli_render_utils.hpp"
+#include <chronon3d/backends/image/image_writer.hpp>
+#include <fmt/format.h>
+#include <filesystem>
+#include <cstdlib>
+
 namespace chronon3d::cli {
-int command_video(const CompositionRegistry&, const VideoArgs&) {
-    spdlog::error("Chronon3D built without video support.");
-    return 1;
+
+namespace {
+bool ffmpeg_in_path() {
+#ifdef _WIN32
+    return std::system("ffmpeg -version > NUL 2>&1") == 0;
+#else
+    return std::system("ffmpeg -version > /dev/null 2>&1") == 0;
+#endif
 }
+} // namespace
+
+int command_video(const CompositionRegistry& registry, const VideoArgs& args) {
+    if (args.comp_id.empty()) {
+        spdlog::error("[video] No composition specified.");
+        return 1;
+    }
+    if (args.output.empty()) {
+        spdlog::error("[video] No output path specified (-o/--output).");
+        return 1;
+    }
+    if (!ffmpeg_in_path()) {
+        spdlog::error("[video] ffmpeg not found in PATH. Install FFmpeg or rebuild with CHRONON3D_ENABLE_VIDEO=ON.");
+        return 1;
+    }
+
+    auto resolved = resolve_composition(registry, args.comp_id);
+    if (!resolved) return 1;
+    const auto& comp = *resolved.comp;
+
+    RenderSettings settings;
+    settings.use_modular_graph = args.use_modular_graph;
+    settings.motion_blur.enabled = args.motion_blur;
+    settings.motion_blur.samples = args.motion_blur_samples;
+    settings.motion_blur.shutter_angle = args.shutter_angle;
+    settings.ssaa_factor = args.ssaa;
+    auto renderer = create_renderer(registry, settings);
+
+    const Frame start = args.start;
+    const Frame end   = (args.end > args.start) ? args.end : comp.duration();
+    if (end <= start) {
+        spdlog::error("[video] Empty frame range [{}, {})", start, end);
+        return 1;
+    }
+
+    // Temporary frames directory
+    const std::filesystem::path frames_dir = args.frames_dir.empty()
+        ? std::filesystem::temp_directory_path() / ("chronon_" + args.comp_id)
+        : std::filesystem::path(args.frames_dir);
+    std::error_code ec;
+    std::filesystem::create_directories(frames_dir, ec);
+    if (ec) {
+        spdlog::error("[video] Cannot create frames dir {}: {}", frames_dir.string(), ec.message());
+        return 1;
+    }
+
+    spdlog::info("[video] Rendering {} frames [{}, {}) at {} fps → {}",
+                 end - start, start, end, args.fps, args.output);
+
+    for (Frame f = start; f < end; ++f) {
+        auto fb = renderer->render_frame(comp, f);
+        if (!fb) {
+            spdlog::error("[video] Render failed at frame {}", f);
+            return 1;
+        }
+        const auto png_path = (frames_dir / fmt::format("frame_{:06d}.png", f - start)).string();
+        if (!save_png(*fb, png_path)) {
+            spdlog::error("[video] PNG write failed: {}", png_path);
+            return 1;
+        }
+        if ((f - start) % 30 == 0)
+            spdlog::info("[video]   frame {}/{}", f - start, end - start);
+    }
+
+    std::filesystem::create_directories(
+        std::filesystem::path(args.output).parent_path(), ec);
+
+    const std::string pattern = (frames_dir / "frame_%06d.png").string();
+    const std::string codec   = (args.codec == "auto") ? "libx264" : args.codec;
+    const std::string cmd     = fmt::format(
+        "ffmpeg -y -framerate {} -i \"{}\" -c:v {} -crf {} -preset {} -pix_fmt yuv420p \"{}\"",
+        args.fps, pattern, codec, args.crf, args.encode_preset, args.output);
+
+    spdlog::info("[video] {}", cmd);
+    const int rc = std::system(cmd.c_str());
+
+    if (!args.keep_frames) {
+        std::filesystem::remove_all(frames_dir, ec);
+    }
+
+    if (rc != 0) {
+        spdlog::error("[video] ffmpeg exited with code {}", rc);
+        return 1;
+    }
+    spdlog::info("[video] Done → {}", args.output);
+    return 0;
+}
+
 int command_video_camera(const CompositionRegistry&, const VideoCameraArgs&) {
-    spdlog::error("Chronon3D built without video support.");
+    spdlog::error("[video] camera requires CHRONON3D_ENABLE_VIDEO=ON (FFmpeg SDK).");
     return 1;
 }
-}
+
+} // namespace chronon3d::cli
+
 #endif
