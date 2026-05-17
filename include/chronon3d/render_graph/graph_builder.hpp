@@ -16,6 +16,7 @@ struct LayerGraphItem {
     f32          depth{0.0f};      // world depth (layer.z - camera.z); 0 for 2D layers
     bool         projected{false}; // true if transform was computed by project_layer_2_5d
     usize        insertion_index{0};
+    GraphNodeId  matte_node{k_invalid_node}; // pre-built matte source node, if any
 };
 
 class GraphBuilder {

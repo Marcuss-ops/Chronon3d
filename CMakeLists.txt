@@ -253,3 +253,15 @@ if(CHRONON3D_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
 endif()
+
+# Feature preview tool — builds with: cmake --build ... --target preview_new_features
+add_executable(preview_new_features tools/preview_new_features.cpp)
+target_link_libraries(preview_new_features PRIVATE
+    chronon3d_pipeline
+    chronon3d_backend_image
+    chronon3d_backend_software
+    chronon3d_compositions
+    chronon3d_graph
+    chronon3d_scene
+)
+target_include_directories(preview_new_features PRIVATE ${CMAKE_SOURCE_DIR})

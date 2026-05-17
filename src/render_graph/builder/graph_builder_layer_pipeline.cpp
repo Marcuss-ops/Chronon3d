@@ -7,6 +7,7 @@
 #include "passes/graph_builder_composite_pass.hpp"
 
 #include <chronon3d/render_graph/nodes/basic_nodes.hpp>
+#include <chronon3d/render_graph/nodes/track_matte_node.hpp>
 #include <chronon3d/render_graph/render_graph_hashing.hpp>
 #include <chronon3d/effects/effect_registry.hpp>
 
@@ -38,6 +39,15 @@ GraphNodeId LayerPipelineBuilder::append_root_sources(RenderGraph& graph, const 
     }
 
     return current;
+}
+
+GraphNodeId LayerPipelineBuilder::build_matte_sub_pipeline(
+    RenderGraph& graph, const LayerGraphItem& item, const RenderGraphContext& ctx)
+{
+    GraphNodeId out = append_source_pass(graph, item, ctx);
+    if (out == k_invalid_node) return k_invalid_node;
+    append_transform_pass_if_needed(graph, out, item, ctx);
+    return out;
 }
 
 void LayerPipelineBuilder::append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
@@ -79,7 +89,29 @@ void LayerPipelineBuilder::append_layer_pipeline(RenderGraph& graph, const Layer
     // 5. Effect pass — apply effect stack + optional DOF blur
     append_effect_pass_if_needed(graph, layer_output, *item.layer, item, cam25d);
 
-    // 6. Composite pass — blend into the current frame buffer
+    // 6. Track matte pass — if a matte source node was pre-built, apply it
+    if (layer.track_matte.active() && item.matte_node != k_invalid_node) {
+        cache::NodeCacheKey matte_key{
+            .scope       = "matte:" + std::string(layer.name),
+            .frame       = ctx.frame,
+            .width       = ctx.width,
+            .height      = ctx.height,
+            .params_hash = hash_bytes(layer.track_matte.source_layer.data(),
+                                      layer.track_matte.source_layer.size()),
+        };
+        matte_key.params_hash = hash_combine(
+            matte_key.params_hash,
+            static_cast<u64>(layer.track_matte.type));
+
+        auto matte_node = graph.add_node(
+            std::make_unique<TrackMatteNode>(layer.track_matte.type,
+                                              std::string(layer.name), matte_key));
+        graph.connect(layer_output,     matte_node);
+        graph.connect(item.matte_node,  matte_node);
+        layer_output = matte_node;
+    }
+
+    // 7. Composite pass — blend into the current frame buffer
     append_composite_pass(graph, current, layer_output, *item.layer);
 }
 
