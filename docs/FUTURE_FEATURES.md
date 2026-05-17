@@ -1,6 +1,6 @@
 # Chronon3d — Roadmap & AE Comparison
 
-> Last updated: 2026-05-17 — 272/272 tests passing
+> Last updated: 2026-05-17 — 281/281 tests passing
 
 ---
 
@@ -12,6 +12,9 @@
 | 2.5D camera — zoom, FOV, pan, tilt, roll, orbit, POI | ✅ completo |
 | Camera motion preset library | ✅ dolly, pan, orbit, tilt_roll, push_in_tilt, parallax_sweep, dramatic_push, roll_reveal |
 | Shape types: Rect, RoundedRect, Circle, Line | ✅ |
+| **Gradient fill** (linear + radial) | ✅ — `Fill::linear()`, `Fill::radial()` su Rect/RoundedRect/Circle |
+| **Trim path / animated stroke** | ✅ — `LineParams.stroke.trim_start/end` [0..1] |
+| **Layer rotation 3D — test visivo** | ✅ — pipeline verificata: Y-rot riduce width proiettato, 90° → edge-on |
 | Shape types: Text (StbFontBackend) | ✅ — richiede `renderer.set_font_backend(make_shared<StbFontBackend>())` |
 | Shape types: Image (StbImageBackend) | ✅ — richiede `renderer.set_image_backend(make_shared<StbImageBackend>())` |
 | Shape types: FakeBox3D, GridPlane, FakeExtrudedText | ✅ proiezione nativa 3D |
@@ -33,11 +36,7 @@
 
 ### 🔴 BLOCCANTI
 
-| Feature | Perché manca | Effort |
-|---|---|---|
-| **Gradient fill** | ShapeType solo solid color | ~2h — nuovo GradientShape + rasterizer |
-| **Trim path / animated stroke** | Nessun sistema di stroke animabile | ~4h — StrokeParams + trim_start/end |
-| **Layer rotation 3D — test visivo** | Pipeline implementata, mai verificata con `.rotate()` reale | ~30min |
+*(tutti risolti — nessuno rimasto)*
 
 ### 🟡 IMPORTANTI
 
