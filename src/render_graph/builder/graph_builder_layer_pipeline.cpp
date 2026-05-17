@@ -3,6 +3,7 @@
 #include "passes/graph_builder_source_pass.hpp"
 #include "passes/graph_builder_transform_pass.hpp"
 #include "passes/graph_builder_lighting_pass.hpp"
+#include "passes/graph_builder_shadow_pass.hpp"
 #include "passes/graph_builder_mask_pass.hpp"
 #include "passes/graph_builder_effect_pass.hpp"
 #include "passes/graph_builder_composite_pass.hpp"
@@ -53,7 +54,8 @@ GraphNodeId LayerPipelineBuilder::build_matte_sub_pipeline(
 
 void LayerPipelineBuilder::append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
                                                  GraphNodeId& current, const RenderGraphContext& ctx,
-                                                 const Camera2_5DRuntime& cam25d) {
+                                                 const Camera2_5DRuntime& cam25d,
+                                                 std::span<const ShadowCasterInfo> casters) {
     // 1. Source pass — render layer content
     GraphNodeId layer_output = append_source_pass(graph, item, ctx);
 
@@ -89,6 +91,9 @@ void LayerPipelineBuilder::append_layer_pipeline(RenderGraph& graph, const Layer
 
     // 5. Lighting pass — diffuse shading for 3D projected layers with lights enabled.
     append_lighting_pass_if_needed(graph, layer_output, item, ctx);
+
+    // 5b. Shadow pass — project caster silhouettes onto this layer if it accepts shadows.
+    append_shadow_passes_if_needed(graph, layer_output, item, casters, ctx);
 
     // 6. Effect pass — apply effect stack + optional DOF blur
     append_effect_pass_if_needed(graph, layer_output, *item.layer, item, cam25d);
