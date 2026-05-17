@@ -60,14 +60,14 @@ inline bool project_world_point_2_5d(
         cam_pos.z = world.z - camera.position.z;
     }
 
-    // look_at flips z (negative = visible); camera_view_matrix and passive both use positive z.
-    depth = (use_view_matrix && camera.point_of_interest_enabled) ? -cam_pos.z : cam_pos.z;
+    // Now that math::look_at uses lookAtLH, all conventions produce positive Z for visible points.
+    depth = cam_pos.z;
     if (depth <= 0.0f) {
         return false;
     }
 
     screen.x = cam_pos.x * focal / depth;
-    screen.y = (use_view_matrix ? -cam_pos.y : cam_pos.y) * focal / depth;
+    screen.y = -cam_pos.y * focal / depth;
     return true;
 }
 
@@ -243,14 +243,12 @@ inline ProjectedLayer2_5D project_layer_2_5d(
     // For passive path: use the simple TRS transform (no perspective skew needed).
     if (use_view_matrix) {
         Mat4 proj = Mat4(0.0f);
-        // glm::lookAt with Y-up produces right={-1,0,0} in a Y-down screen system,
-        // mirroring X. Negate proj[0][0] only for POI path to restore correct handedness.
-        // camera_view_matrix (non-POI rotation) already uses the correct convention.
-        proj[0][0] = camera.point_of_interest_enabled ? -focal : focal;
+        // All paths now use the same convention.
+        proj[0][0] = focal;
         proj[1][1] = focal;
         proj[2][2] = 1.0f;
-        // w = +z for camera_view_matrix convention (passive/rotation), -z for look_at (POI)
-        proj[2][3] = camera.point_of_interest_enabled ? -1.0f : 1.0f;
+        // w = +z for all conventions now
+        proj[2][3] = 1.0f;
         proj[3][3] = 0.0001f;
         out.projection_matrix = proj * view * layer_matrix;
     } else {

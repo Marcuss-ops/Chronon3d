@@ -165,6 +165,60 @@ static void apply_one_param(Framebuffer& fb, const EffectParams& params) {
         } else if constexpr (std::is_same_v<T, ContrastParams>) {
             LayerEffect e; e.contrast = p.value;
             apply_color_effects(fb, e);
+        } else if constexpr (std::is_same_v<T, GlowParams>) {
+            // Full-frame glow: extract non-transparent pixels, blur, tint, composite
+            const i32 w = fb.width(), h = fb.height();
+            Framebuffer alpha_map(w, h);
+            alpha_map.clear(Color::transparent());
+            for (i32 y = 0; y < h; ++y) {
+                for (i32 x = 0; x < w; ++x) {
+                    const Color c = fb.get_pixel(x, y);
+                    if (c.a > 0.0f) {
+                        alpha_map.set_pixel(x, y, {p.color.r, p.color.g, p.color.b, c.a * p.intensity});
+                    }
+                }
+            }
+            if (p.radius > 0.0f) apply_blur(alpha_map, p.radius);
+            for (i32 y = 0; y < h; ++y) {
+                for (i32 x = 0; x < w; ++x) {
+                    const Color glow_c = alpha_map.get_pixel(x, y);
+                    if (glow_c.a <= 0.0f) continue;
+                    const Color src_c = fb.get_pixel(x, y);
+                    fb.set_pixel(x, y, compositor::blend(glow_c, src_c, BlendMode::Normal));
+                }
+            }
+        } else if constexpr (std::is_same_v<T, DropShadowParams>) {
+            // Full-frame shadow: extract alpha, offset, blur, tint, composite behind
+            const i32 w = fb.width(), h = fb.height();
+            Framebuffer shadow_map(w, h);
+            shadow_map.clear(Color::transparent());
+            const i32 ox = static_cast<i32>(std::round(p.offset.x));
+            const i32 oy = static_cast<i32>(std::round(p.offset.y));
+            for (i32 y = 0; y < h; ++y) {
+                for (i32 x = 0; x < w; ++x) {
+                    const Color c = fb.get_pixel(x, y);
+                    if (c.a > 0.0f) {
+                        const i32 dx = x + ox;
+                        const i32 dy = y + oy;
+                        if (dx >= 0 && dx < w && dy >= 0 && dy < h) {
+                            shadow_map.set_pixel(dx, dy, {p.color.r, p.color.g, p.color.b, c.a * p.color.a});
+                        }
+                    }
+                }
+            }
+            if (p.radius > 0.0f) apply_blur(shadow_map, p.radius);
+            
+            // Compose shadow BEHIND: we need a temp buffer for this
+            Framebuffer result(w, h);
+            result.clear(Color::transparent());
+            for (i32 y = 0; y < h; ++y) {
+                for (i32 x = 0; x < w; ++x) {
+                    const Color sc = shadow_map.get_pixel(x, y);
+                    const Color fc = fb.get_pixel(x, y);
+                    result.set_pixel(x, y, compositor::blend(fc, sc, BlendMode::Normal));
+                }
+            }
+            fb = std::move(result);
         } else if constexpr (std::is_same_v<T, BloomParams>) {
             const i32 w = fb.width(), h = fb.height();
             Framebuffer bright(w, h);
@@ -211,6 +265,10 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack) {
         } else if (auto* p = std::any_cast<BrightnessParams>(&inst.params)) {
             apply_one_param(fb, EffectParams{*p});
         } else if (auto* p = std::any_cast<ContrastParams>(&inst.params)) {
+            apply_one_param(fb, EffectParams{*p});
+        } else if (auto* p = std::any_cast<GlowParams>(&inst.params)) {
+            apply_one_param(fb, EffectParams{*p});
+        } else if (auto* p = std::any_cast<DropShadowParams>(&inst.params)) {
             apply_one_param(fb, EffectParams{*p});
         } else if (auto* p = std::any_cast<BloomParams>(&inst.params)) {
             apply_one_param(fb, EffectParams{*p});
