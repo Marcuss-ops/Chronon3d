@@ -203,6 +203,7 @@ target_link_libraries(chronon3d_scene
 # 9. Compositions
 file(GLOB CHRONON3D_COMPOSITION_SOURCES CONFIGURE_DEPENDS
     "src/compositions/*.cpp"
+    "src/compositions/proofs/*.cpp"
 )
 add_library(chronon3d_compositions STATIC ${CHRONON3D_COMPOSITION_SOURCES})
 target_link_libraries(chronon3d_compositions

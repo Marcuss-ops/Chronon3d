@@ -92,6 +92,13 @@ add_executable(chronon3d_renderer_tests
     render_graph/test_track_matte.cpp
     render_graph/test_camera_2_5d_graph.cpp
     renderer/camera/25d/test_25d_parallax.cpp
+    renderer/camera/25d/test_proof_depth_ladder.cpp
+    renderer/camera/25d/test_proof_pan_parallax.cpp
+    renderer/camera/25d/test_proof_tilt_parallax.cpp
+    renderer/camera/25d/test_proof_roll_stability.cpp
+    renderer/camera/25d/test_proof_overlay_fixed.cpp
+    renderer/camera/25d/test_proof_orbit_subject.cpp
+    renderer/camera/25d/test_proof_edge_on_rotation.cpp
     renderer/camera/25d/test_25d_tilt.cpp
     renderer/camera/25d/test_25d_camera_motion.cpp
     renderer/camera/25d/test_25d_layer_rotation.cpp
