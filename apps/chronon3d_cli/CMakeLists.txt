@@ -14,6 +14,7 @@ add_executable(chronon3d_cli
     commands/command_doctor_verify.cpp
     commands/command_bench.cpp
     commands/command_graph.cpp
+    commands/command_proofs.cpp
 )
 
 get_target_property(CLI11_INCLUDE_DIRS CLI11::CLI11 INTERFACE_INCLUDE_DIRECTORIES)

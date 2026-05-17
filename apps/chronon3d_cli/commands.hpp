@@ -81,6 +81,11 @@ struct GraphArgs {
     std::string output; // No default
 };
 
+struct ProofsArgs {
+    std::string output_dir{"output/proofs"};
+    float ssaa{1.0f};
+};
+
 int command_list(const CompositionRegistry& registry);
 int command_info(const CompositionRegistry& registry, const std::string& id);
 int command_doctor(const CompositionRegistry& registry);
@@ -92,6 +97,7 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args);
 int command_graph(const CompositionRegistry& registry, const GraphArgs& args);
 int command_batch(const CompositionRegistry& registry, const std::vector<std::string>& job_specs);
 int command_watch(const CompositionRegistry& registry, const std::string& comp_id);
+int command_proofs(const CompositionRegistry& registry, const ProofsArgs& args);
 
 } // namespace cli
 } // namespace chronon3d

@@ -158,6 +158,17 @@ int main(int argc, char** argv) {
     });
 
     // -------------------------------------------------------------------------
+    // proofs
+    // -------------------------------------------------------------------------
+    ProofsArgs proofs_args;
+    auto* proofs_cmd = app.add_subcommand("proofs", "Render all 7 diagnostic proof compositions to PNG snapshots");
+    proofs_cmd->add_option("-o,--out", proofs_args.output_dir, "Output directory")->default_val("output/proofs");
+    proofs_cmd->add_option("--ssaa",  proofs_args.ssaa,        "Super sampling factor")->default_val(1.0f);
+    proofs_cmd->callback([&]() {
+        exit_code = command_proofs(registry, proofs_args);
+    });
+
+    // -------------------------------------------------------------------------
     // batch
     // -------------------------------------------------------------------------
     std::vector<std::string> batch_jobs;
