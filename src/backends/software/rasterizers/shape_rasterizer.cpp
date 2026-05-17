@@ -1,6 +1,7 @@
 #include "shape_rasterizer.hpp"
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/scene/mask/mask_utils.hpp>
+#include <chronon3d/scene/fill.hpp>
 #include <chronon3d/math/raster_utils.hpp>
 #include <glm/glm.hpp>
 #include <algorithm>
@@ -91,8 +92,46 @@ bool pixel_passes_mask(const RenderState& state, i32 x, i32 y) {
     return mask_contains_local_point(*state.mask, Vec2{local.x, local.y});
 }
 
+// Sample gradient color for a local shape point, in linear space.
+// base_alpha: caller-supplied alpha with opacity already applied.
+static Color resolve_gradient_color(const Fill& fill, Vec2 local_pt, Vec2 shape_size, f32 base_alpha) {
+    // Normalise local_pt to [0..1] over shape_size.
+    const f32 nx = (shape_size.x > 0.0f) ? (local_pt.x / shape_size.x) : 0.0f;
+    const f32 ny = (shape_size.y > 0.0f) ? (local_pt.y / shape_size.y) : 0.0f;
+
+    f32 t = 0.0f;
+    if (fill.type == FillType::LinearGradient) {
+        const Vec2 dir = fill.gradient.to - fill.gradient.from;
+        const f32 len2 = dir.x * dir.x + dir.y * dir.y;
+        if (len2 > 1e-10f) {
+            const Vec2 d{nx - fill.gradient.from.x, ny - fill.gradient.from.y};
+            t = (d.x * dir.x + d.y * dir.y) / len2;
+        }
+    } else { // RadialGradient
+        const Vec2 d{nx - fill.gradient.from.x, ny - fill.gradient.from.y};
+        const Vec2 rv{fill.gradient.to - fill.gradient.from};
+        const f32 r = std::sqrt(rv.x * rv.x + rv.y * rv.y);
+        t = (r > 1e-6f) ? (std::sqrt(d.x * d.x + d.y * d.y) / r) : 0.0f;
+    }
+
+    t = std::clamp(t, 0.0f, 1.0f);
+    Color c = sample_gradient(fill.gradient, t).to_linear();
+    c.a *= base_alpha;
+    return c;
+}
+
+static Vec2 shape_size_for_fill(const Shape& shape) {
+    switch (shape.type) {
+        case ShapeType::Rect:        return shape.rect.size;
+        case ShapeType::RoundedRect: return shape.rounded_rect.size;
+        case ShapeType::Circle:      return {shape.circle.radius * 2.0f, shape.circle.radius * 2.0f};
+        case ShapeType::Image:       return shape.image.size;
+        default:                     return {0, 0};
+    }
+}
+
 void draw_transformed_shape(Framebuffer& fb, const Shape& shape, const Mat4& model, const Color& color,
-                             f32 spread, const RenderState* state) {
+                             f32 spread, const RenderState* state, const Fill* fill) {
     if (color.a <= 0.0f) return;
 
     raster::BBox bbox = compute_world_bbox(shape, model, spread);
@@ -108,6 +147,9 @@ void draw_transformed_shape(Framebuffer& fb, const Shape& shape, const Mat4& mod
 
     glm::mat3 invH = glm::inverse(H);
 
+    const bool use_gradient = fill && fill->type != FillType::Solid;
+    const Vec2 sz = use_gradient ? shape_size_for_fill(shape) : Vec2{0, 0};
+
     for (i32 y = bbox.y0; y < bbox.y1; ++y) {
         for (i32 x = bbox.x0; x < bbox.x1; ++x) {
             if (state && !pixel_passes_mask(*state, x, y)) continue;
@@ -115,10 +157,15 @@ void draw_transformed_shape(Framebuffer& fb, const Shape& shape, const Mat4& mod
             Vec3 lp_h = invH * Vec3(static_cast<f32>(x) + 0.5f, static_cast<f32>(y) + 0.5f, 1.0f);
             if (std::abs(lp_h.z) < 1e-7f) continue;
             Vec2 lp(lp_h.x / lp_h.z, lp_h.y / lp_h.z);
-            
-            if (hit_test(shape, lp, spread)) {
-                fb.set_pixel(x, y, compositor::blend(color, fb.get_pixel(x, y), BlendMode::Normal));
-            }
+
+            if (!hit_test(shape, lp, spread)) continue;
+
+            // color is already in linear space with opacity applied by the caller.
+            const Color pixel_color = use_gradient
+                ? resolve_gradient_color(*fill, lp, sz, color.a)
+                : color;
+
+            fb.set_pixel(x, y, compositor::blend(pixel_color, fb.get_pixel(x, y), BlendMode::Normal));
         }
     }
 }

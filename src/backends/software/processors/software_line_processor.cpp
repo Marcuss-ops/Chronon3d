@@ -6,10 +6,20 @@ namespace chronon3d::renderer {
 
 class SoftwareLineProcessor final : public ShapeProcessor {
 public:
-    void draw(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNode& node, const RenderState& state, 
+    void draw(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNode& node, const RenderState& state,
               const Camera& camera, i32 width, i32 height) override {
-        Vec4 p0 = state.matrix * Vec4(0, 0, 0, 1);
-        Vec4 p1 = state.matrix * Vec4(node.shape.line.to, 1);
+        const auto& stroke = node.shape.line.stroke;
+        const f32 ts = std::clamp(stroke.trim_start, 0.0f, 1.0f);
+        const f32 te = std::clamp(stroke.trim_end,   0.0f, 1.0f);
+        if (ts >= te) return;  // nothing to draw
+
+        // Compute trimmed endpoints in local space then project.
+        const Vec3 full = node.shape.line.to;
+        const Vec3 local_start = full * ts;
+        const Vec3 local_end   = full * te;
+
+        Vec4 p0 = state.matrix * Vec4(local_start, 1);
+        Vec4 p1 = state.matrix * Vec4(local_end,   1);
         Color col = node.color.to_linear();
         col.a *= state.opacity;
         bline(fb, Vec2(p0.x, p0.y), Vec2(p1.x, p1.y), col);

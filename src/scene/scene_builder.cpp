@@ -12,6 +12,7 @@ SceneBuilder& SceneBuilder::rect(std::string name, RectParams p) {
     node.world_transform.position = p.pos;
     node.world_transform.anchor = {p.size.x * 0.5f, p.size.y * 0.5f, 0.0f};
     node.color = p.color;
+    node.fill = p.fill.value_or(Fill::solid_color(p.color));
     scene_.add_node(std::move(node));
     return *this;
 }
@@ -25,6 +26,7 @@ SceneBuilder& SceneBuilder::rounded_rect(std::string name, RoundedRectParams p) 
     node.world_transform.position = p.pos;
     node.world_transform.anchor = {p.size.x * 0.5f, p.size.y * 0.5f, 0.0f};
     node.color = p.color;
+    node.fill = p.fill.value_or(Fill::solid_color(p.color));
     scene_.add_node(std::move(node));
     return *this;
 }
@@ -37,6 +39,7 @@ SceneBuilder& SceneBuilder::circle(std::string name, CircleParams p) {
     node.world_transform.position = p.pos;
     node.world_transform.anchor = {p.radius, p.radius, 0.0f};
     node.color = p.color;
+    node.fill = p.fill.value_or(Fill::solid_color(p.color));
     scene_.add_node(std::move(node));
     return *this;
 }
@@ -47,6 +50,8 @@ SceneBuilder& SceneBuilder::line(std::string name, LineParams p) {
     node.shape.type = ShapeType::Line;
     node.shape.line.to = p.to - p.from;
     node.shape.line.thickness = p.thickness;
+    node.shape.line.stroke.trim_start = p.stroke.trim_start;
+    node.shape.line.stroke.trim_end   = p.stroke.trim_end;
     node.world_transform.position = p.from;
     node.world_transform.anchor = {0, 0, 0};
     node.color = p.color;

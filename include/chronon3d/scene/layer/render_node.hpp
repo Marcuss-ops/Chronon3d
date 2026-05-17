@@ -5,6 +5,7 @@
 #include <chronon3d/math/vec2.hpp>
 #include <chronon3d/geometry/mesh.hpp>
 #include <chronon3d/scene/render_runtime.hpp>
+#include <chronon3d/scene/fill.hpp>
 #include <chronon3d/scene/shape.hpp>
 #include <vector>
 #include <memory>
@@ -33,6 +34,7 @@ struct RenderNode {
     std::pmr::string name;
     Transform world_transform;
     Color color{1, 1, 1, 1};
+    Fill fill{FillType::Solid, {1, 1, 1, 1}, {}};
     Shape shape;
     DropShadow shadow;
     Glow glow;

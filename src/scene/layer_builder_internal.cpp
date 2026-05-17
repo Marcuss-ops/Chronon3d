@@ -31,6 +31,7 @@ void append_rect(Layer& layer, std::string name, const RectParams& p) {
     node.world_transform.position = p.pos;
     node.world_transform.anchor = {p.size.x * 0.5f, p.size.y * 0.5f, 0.0f};
     node.color = p.color;
+    node.fill = p.fill.value_or(Fill::solid_color(p.color));
 }
 
 void append_rounded_rect(Layer& layer, std::string name, const RoundedRectParams& p) {
@@ -41,6 +42,7 @@ void append_rounded_rect(Layer& layer, std::string name, const RoundedRectParams
     node.world_transform.position = p.pos;
     node.world_transform.anchor = {p.size.x * 0.5f, p.size.y * 0.5f, 0.0f};
     node.color = p.color;
+    node.fill = p.fill.value_or(Fill::solid_color(p.color));
 }
 
 void append_circle(Layer& layer, std::string name, const CircleParams& p) {
@@ -50,6 +52,7 @@ void append_circle(Layer& layer, std::string name, const CircleParams& p) {
     node.world_transform.position = p.pos;
     node.world_transform.anchor = {p.radius, p.radius, 0.0f};
     node.color = p.color;
+    node.fill = p.fill.value_or(Fill::solid_color(p.color));
 }
 
 void append_line(Layer& layer, std::string name, const LineParams& p) {
@@ -57,6 +60,8 @@ void append_line(Layer& layer, std::string name, const LineParams& p) {
     node.shape.type = ShapeType::Line;
     node.shape.line.to = p.to - p.from;
     node.shape.line.thickness = p.thickness;
+    node.shape.line.stroke.trim_start = p.stroke.trim_start;
+    node.shape.line.stroke.trim_end   = p.stroke.trim_end;
     node.world_transform.position = p.from;
     node.color = p.color;
 }

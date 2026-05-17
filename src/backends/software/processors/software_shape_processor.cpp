@@ -19,7 +19,8 @@ public:
         Color fill_color = linear_color;
         fill_color.a *= state.opacity;
 
-        draw_transformed_shape(fb, node.shape, state.matrix, fill_color, 0.0f, &state);
+        const Fill* fill_ptr = (node.fill.type != FillType::Solid) ? &node.fill : nullptr;
+        draw_transformed_shape(fb, node.shape, state.matrix, fill_color, 0.0f, &state, fill_ptr);
     }
 
     raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 spread) override {

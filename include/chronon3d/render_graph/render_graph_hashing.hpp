@@ -5,6 +5,7 @@
 #include <chronon3d/math/vec2.hpp>
 #include <chronon3d/math/vec3.hpp>
 #include <chronon3d/scene/effects/effect_stack.hpp>
+#include <chronon3d/scene/fill.hpp>
 #include <chronon3d/scene/layer/render_node.hpp>
 #include <chronon3d/scene/mask/mask.hpp>
 #include <chronon3d/scene/shape.hpp>
@@ -65,6 +66,18 @@ template <typename T>
     seed = hash_combine(seed, hash_bytes(&source.speed, sizeof(source.speed)));
     const u64 loop = static_cast<u64>(source.loop_mode);
     seed = hash_combine(seed, hash_bytes(&loop, sizeof(loop)));
+    return seed;
+}
+
+[[nodiscard]] inline u64 hash_fill(const Fill& f) {
+    u64 seed = hash_bytes(&f.type, sizeof(f.type));
+    seed = hash_combine(seed, hash_color(f.solid));
+    for (const auto& stop : f.gradient.stops) {
+        seed = hash_combine(seed, hash_bytes(&stop.offset, sizeof(f32)));
+        seed = hash_combine(seed, hash_color(stop.color));
+    }
+    seed = hash_combine(seed, hash_vec2(f.gradient.from));
+    seed = hash_combine(seed, hash_vec2(f.gradient.to));
     return seed;
 }
 
@@ -152,7 +165,9 @@ template <typename T>
             return hash_combine(seed, hash_bytes(&s.circle.radius, sizeof(f32)));
         case ShapeType::Line:
             seed = hash_combine(seed, hash_vec3(s.line.to));
-            return hash_combine(seed, hash_bytes(&s.line.thickness, sizeof(f32)));
+            seed = hash_combine(seed, hash_bytes(&s.line.thickness, sizeof(f32)));
+            seed = hash_combine(seed, hash_bytes(&s.line.stroke.trim_start, sizeof(f32)));
+            return hash_combine(seed, hash_bytes(&s.line.stroke.trim_end, sizeof(f32)));
         case ShapeType::Text:
             seed = hash_combine(seed, hash_bytes(s.text.text.data(), s.text.text.size()));
             seed = hash_combine(seed, hash_bytes(s.text.style.font_path.data(), s.text.style.font_path.size()));
@@ -175,6 +190,7 @@ template <typename T>
     seed = hash_combine(seed, hash_transform(n.world_transform));
     seed = hash_combine(seed, hash_shape(n.shape));
     seed = hash_combine(seed, hash_color(n.color));
+    seed = hash_combine(seed, hash_fill(n.fill));
     seed = hash_combine(seed, hash_value(n.visible));
     if (n.shadow.enabled) {
         seed = hash_combine(seed, hash_vec2(n.shadow.offset));

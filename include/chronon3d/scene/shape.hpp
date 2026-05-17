@@ -5,6 +5,7 @@
 #include <chronon3d/math/mat4.hpp>
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/core/types.hpp>
+#include <chronon3d/scene/fill.hpp>
 #include <string>
 
 namespace chronon3d {
@@ -40,9 +41,15 @@ struct CircleShape {
     f32 radius{50.0f};
 };
 
+struct LineStroke {
+    f32 trim_start{0.0f};  // normalised [0..1]
+    f32 trim_end{1.0f};
+};
+
 struct LineShape {
     Vec3 to{0.0f, 0.0f, 0.0f};
     f32 thickness{1.0f};
+    LineStroke stroke{};
 };
 
 enum class TextAlign { Left, Center, Right };
