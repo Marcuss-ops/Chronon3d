@@ -232,3 +232,54 @@ TEST_CASE("Track matte missing source leaves target unchanged") {
     CHECK(fb->get_pixel(100, 100).r > 0.5f);
     CHECK(fb->get_pixel(25, 100).r > 0.5f);
 }
+
+TEST_CASE("Track matte 3D source: projection applies correctly") {
+    // A 3D matte circle rotated 60deg around Y produces a narrower silhouette
+    // than the same circle unrotated. This verifies the matte source goes through
+    // project_layer_2_5d() instead of the 2D flat path.
+    auto make_3d_matte_comp = [](float rotate_y) {
+        return composition({
+            .name = "TrackMatte3D", .width = 320, .height = 200, .duration = 1
+        }, [rotate_y](const FrameContext& ctx) {
+            SceneBuilder s(ctx);
+            s.camera().enable(true).position({0, 0, -800}).zoom(800).look_at({0, 0, 0});
+
+            s.layer("matte_src", [rotate_y](LayerBuilder& l) {
+                l.enable_3d().position({0, 0, 0}).rotate({0, rotate_y, 0});
+                l.circle("c", {.radius = 70.0f, .color = Color::white(), .pos = {}});
+            });
+
+            s.layer("target", [](LayerBuilder& l) {
+                l.enable_3d().position({0, 0, 0}).track_matte_alpha("matte_src");
+                l.rect("r", {.size = {300, 180}, .color = {1, 0, 0, 1}, .pos = {}});
+            });
+
+            return s.build();
+        });
+    };
+
+    auto flat    = test::render_modular(make_3d_matte_comp(0.0f));
+    auto rotated = test::render_modular(make_3d_matte_comp(60.0f));
+    REQUIRE(flat    != nullptr);
+    REQUIRE(rotated != nullptr);
+
+    test::save_debug(*flat,    "output/debug/track_matte/3d_source_flat.png");
+    test::save_debug(*rotated, "output/debug/track_matte/3d_source_rotated.png");
+
+    // Y=60deg rotation collapses the matte circle horizontally
+    CHECK(framebuffer_hash(*flat) != framebuffer_hash(*rotated));
+
+    // Count visible (alpha > 0) pixels in the center row.
+    // The rotated matte must be narrower.
+    auto count_visible_row = [](const Framebuffer& fb, int y) {
+        int count = 0;
+        for (int x = 0; x < fb.width(); ++x) {
+            if (fb.get_pixel(x, y).a > 0.0f) ++count;
+        }
+        return count;
+    };
+
+    const int flat_visible    = count_visible_row(*flat,    100);
+    const int rotated_visible = count_visible_row(*rotated, 100);
+    CHECK(rotated_visible < flat_visible);
+}
