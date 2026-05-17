@@ -12,8 +12,6 @@
 #include <chronon3d/scene/camera/camera_2_5d.hpp>
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/backends/software/render_settings.hpp>
-#include <chronon3d/render_graph/graph_builder.hpp>
-#include <chronon3d/runtime/graph_executor.hpp>
 #include <chronon3d/backends/software/fake_extruded_text_renderer.hpp>
 #include <chronon3d/backends/image/image_backend.hpp>
 #include <chronon3d/backends/text/font_backend.hpp>
@@ -27,29 +25,19 @@
 #include <memory>
 #include <optional>
 #include <unordered_map>
+#include <chronon3d/render_graph/render_backend.hpp>
 
 namespace chronon3d {
 
 class SoftwareRenderer;
-
-namespace software_internal {
-    std::unique_ptr<Framebuffer> render_frame(SoftwareRenderer& renderer, const Composition& comp,
-                                             Frame frame);
-    std::unique_ptr<Framebuffer> render_scene_internal(SoftwareRenderer& renderer,
-                                                       const Scene& scene, const Camera& camera,
-                                                       i32 width, i32 height, Frame frame,
-                                                       f32 frame_time);
-    std::string debug_render_graph(const SoftwareRenderer& renderer, const Scene& scene,
-                                   const Camera& camera, i32 width, i32 height,
-                                   Frame frame, f32 frame_time);
-}
+class CompositionRegistry;
 
 /**
  * SoftwareRenderer — CPU-based rasterizer.
  *
  * Support for hierarchical layers, inverse mapping, and transform-aware effects.
  */
-class SoftwareRenderer : public Renderer {
+class SoftwareRenderer : public Renderer, public graph::RenderBackend {
 public:
     std::unique_ptr<Framebuffer> render_frame(const Composition& comp, Frame frame);
     std::shared_ptr<Framebuffer> render_scene(const Scene& scene, const Camera& camera,
@@ -113,10 +101,10 @@ public:
 
     // Public for use by graph nodes via RenderGraphContext.
     void draw_node(Framebuffer& fb, const RenderNode& node, const RenderState& state,
-                   const Camera& camera, i32 width, i32 height);
-    static void apply_blur(Framebuffer& fb, f32 radius);
-    void apply_effect_stack(Framebuffer& fb, const EffectStack& stack);
-    static void composite_layer(Framebuffer& dst, const Framebuffer& src, BlendMode mode);
+                   const Camera& camera, i32 width, i32 height) override;
+    void apply_blur(Framebuffer& fb, f32 radius) override;
+    void apply_effect_stack(Framebuffer& fb, const EffectStack& stack) override;
+    void composite_layer(Framebuffer& dst, const Framebuffer& src, BlendMode mode) override;
 
     [[nodiscard]] renderer::SoftwareRegistry& software_registry() { return *m_software_registry; }
     [[nodiscard]] const renderer::SoftwareRegistry& software_registry() const { return *m_software_registry; }

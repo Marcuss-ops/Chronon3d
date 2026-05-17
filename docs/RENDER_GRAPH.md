@@ -33,3 +33,33 @@ The modular graph handles two distinct coordinate conventions:
 2. **Projected Space (2.5D)**: Centered origin. Used when `enable_3d(true)` is set on a layer. 
 
 `SourceNodes` are responsible for applying the correct offsets based on the layer's projection mode to ensure consistent positioning across the graph.
+
+## Registry Layer Architecture
+
+The engine implements a decoupled dual-registry model to separate the descriptive structural logic of the timeline and compositions from the concrete executive backend logic that draws pixels.
+
+```mermaid
+graph LR
+    UserAPI["Scene / Composition API"] --> DescRegistry["Public Descriptive Registry (Source/Shape/Sampler)"]
+    DescRegistry --> RenderGraph["RenderGraph Construction"]
+    RenderGraph --> ExecRegistry["Executive Backend Registry (SoftwareRegistry)"]
+    ExecRegistry --> PixelOutput["CPU / GPU Rasterization"]
+```
+
+### 1. Descriptive Public Registries (What exists)
+Defined in `include/chronon3d/registry/`:
+- **`SourceRegistry`**: Declares available media/image/video sources.
+- **`ShapeRegistry`**: Declares valid geometric primitives.
+- **`SamplerRegistry`**: Declares interpolation/sampling routines.
+- **`EffectRegistry`**: Maps dynamic effect parameters to graph construction routines (e.g., `light.bloom`).
+
+These registries define the descriptive blueprint of the composition and remain entirely backend-agnostic.
+
+### 2. Executive Backend Registries (How to render)
+Defined in the renderer backends (e.g., `SoftwareRegistry` in `SoftwareRenderer`):
+- Map renderable shapes or effect variants directly to high-performance concrete CPU/GPU processors (e.g., `SoftwareTextProcessor`, `SoftwareBlurEffectProcessor`).
+
+### Extending features
+Adding a new shape or effect to the engine requires:
+1. A descriptive registry declaration to make it visible to the user and eligible for the RenderGraph.
+2. A backend registry registration mapping the shape/effect identifier to its execution/rendering processor.
