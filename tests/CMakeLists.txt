@@ -78,6 +78,7 @@ add_executable(chronon3d_renderer_tests
     renderer/lighting/test_directional_lights.cpp
     renderer/lighting/test_shadows.cpp
     presets/test_text_box.cpp
+    renderer/text/test_lil_dirk_reference.cpp
     renderer/text/test_text_rendering.cpp
     renderer/text/test_text_layout.cpp
     renderer/text/test_text_layout_result.cpp
