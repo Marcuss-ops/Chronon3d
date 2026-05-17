@@ -136,8 +136,8 @@ inline Color lerp(const Color& a, const Color& b, f32 t) {
     };
 }
 
-} // namespace chronon3d
-
-inline std::ostream& operator<<(std::ostream& os, const chronon3d::Color& c) {
+inline std::ostream& operator<<(std::ostream& os, const Color& c) {
     return os << "Color(" << c.r << ", " << c.g << ", " << c.b << ", " << c.a << ")";
 }
+
+} // namespace chronon3d
