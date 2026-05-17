@@ -4,6 +4,7 @@
 #include "graph_builder_layer_pipeline.hpp"
 
 #include <iostream>
+#include <span>
 #include <unordered_set>
 #include <chronon3d/render_graph/nodes/basic_nodes.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
@@ -63,7 +64,8 @@ RenderGraph build_graph(const Scene& scene, const RenderGraphContext& ctx,
         };
     };
 
-    auto append_item = [&](LayerGraphItem item) {
+    auto append_item = [&](LayerGraphItem item,
+                           std::span<const ShadowCasterInfo> casters = {}) {
         // Pre-build the matte sub-pipeline if this layer has a track matte.
         if (item.layer->track_matte.active()) {
             const std::string src_name(item.layer->track_matte.source_layer);
@@ -73,15 +75,30 @@ RenderGraph build_graph(const Scene& scene, const RenderGraphContext& ctx,
                 item.matte_node = LayerPipelineBuilder::build_matte_sub_pipeline(graph, matte_item, ctx);
             }
         }
-        LayerPipelineBuilder::append_layer_pipeline(graph, item, current, ctx, cam25d);
+        LayerPipelineBuilder::append_layer_pipeline(graph, item, current, ctx, cam25d, casters);
     };
 
     std::vector<LayerGraphItem> current_3d_bin;
     auto flush_3d_bin = [&]() {
         if (current_3d_bin.empty()) return;
         Camera25DLayerSorter::sort(current_3d_bin);
+
+        // Collect projected casters from this bin for shadow projection
+        std::vector<ShadowCasterInfo> bin_casters;
         for (const auto& item : current_3d_bin) {
-            append_item(item);
+            if (item.layer->material.casts_shadows && item.projected && !item.native_3d) {
+                bin_casters.push_back({
+                    .layer             = item.layer,
+                    .world_matrix      = item.world_matrix,
+                    .projection_matrix = item.projection_matrix,
+                    .world_z           = item.world_z,
+                    .projected         = item.projected,
+                });
+            }
+        }
+
+        for (const auto& item : current_3d_bin) {
+            append_item(item, bin_casters);
         }
         current_3d_bin.clear();
     };
