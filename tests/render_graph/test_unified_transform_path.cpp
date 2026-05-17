@@ -87,7 +87,7 @@ TEST_CASE("Unified transform path: Rect, Image, and Text share the same base lay
 
     const int width = 640;
     const int height = 360;
-    const Vec3 center{width * 0.5f, height * 0.5f, 0.0f};
+    const Vec3 center{0.0f, 0.0f, 0.0f};
 
     struct TransformSpec {
         std::string name;

@@ -474,10 +474,11 @@ void FakeExtrudedTextRenderer::collect(
     const RenderState& state,
     const Camera& camera,
     i32 width, i32 height,
-    TextRenderer& text_renderer)
+    TextRenderer& text_renderer,
+    std::optional<FakeExtrudedTextRenderState> rt_override)
 {
     const auto& s  = node.shape.fake_extruded_text;
-    const auto& rt = node.fake_extruded_text_runtime;
+    const auto& rt = rt_override.value_or(node.fake_extruded_text_runtime);
     const f32   op = state.opacity;
 
     if (!rt.projection.ready) {
@@ -542,9 +543,7 @@ void FakeExtrudedTextRenderer::collect(
     }
 
     // ── 3D mesh-based extrusion: accumulate into m_quads / m_tris ────────────
-    const renderer::Projector2_5D projector = rt.projection.ready
-        ? rt.projection
-        : renderer::make_projection_context(camera, width, height);
+    const renderer::Projector2_5D projector = rt.projection;
     collect_geometry(node, state, width, height, text_renderer, projector);
 }
 
@@ -554,10 +553,11 @@ void FakeExtrudedTextRenderer::draw(
     const RenderState& state,
     const Camera& camera,
     i32 width, i32 height,
-    TextRenderer& text_renderer)
+    TextRenderer& text_renderer,
+    std::optional<FakeExtrudedTextRenderState> rt_override)
 {
     begin_frame();
-    collect(fb, node, state, camera, width, height, text_renderer);
+    collect(fb, node, state, camera, width, height, text_renderer, rt_override);
     flush(fb);
 }
 

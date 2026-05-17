@@ -4,7 +4,7 @@
 #include <chronon3d/core/framebuffer.hpp>
 #include <chronon3d/scene/camera/camera.hpp>
 #include <chronon3d/scene/camera/camera_2_5d.hpp>
-#include <chronon3d/math/projector_2_5d.hpp>
+#include <chronon3d/math/projection_context.hpp>
 #include <memory>
 #include <string>
 #include <vector>

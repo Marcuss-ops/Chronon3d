@@ -14,6 +14,9 @@ static std::unique_ptr<Framebuffer> render_fn(
 
 template <typename T>
 static bool holds_effect(const EffectInstance& inst) {
+    if (std::any_cast<T>(&inst.params)) {
+        return true;
+    }
     if (auto* params = std::any_cast<EffectParams>(&inst.params)) {
         return std::holds_alternative<T>(*params);
     }
@@ -22,6 +25,9 @@ static bool holds_effect(const EffectInstance& inst) {
 
 template <typename T>
 static const T& get_effect(const EffectInstance& inst) {
+    if (auto* val = std::any_cast<T>(&inst.params)) {
+        return *val;
+    }
     return std::get<T>(*std::any_cast<EffectParams>(&inst.params));
 }
 

@@ -7,10 +7,24 @@
 #include <chronon3d/render_graph/nodes/basic_nodes.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/scene/layer/layer.hpp>
+#include <chronon3d/scene/shape.hpp>
 
 namespace chronon3d::graph::detail {
 
 using namespace chronon3d::graph;
+
+// Native-3D shapes handle their own screen-space projection internally.
+// They must use an identity projection_matrix so TransformNode is a pass-through.
+static bool is_native_3d_layer(const Layer& layer) {
+    for (const auto& node : layer.nodes) {
+        if (node.shape.type == ShapeType::FakeBox3D  ||
+            node.shape.type == ShapeType::GridPlane   ||
+            node.shape.type == ShapeType::FakeExtrudedText) {
+            return true;
+        }
+    }
+    return false;
+}
 
 RenderGraph build_graph(const Scene& scene, const RenderGraphContext& ctx,
                         const LayerResolutionResult& resolved) {
@@ -49,6 +63,10 @@ RenderGraph build_graph(const Scene& scene, const RenderGraphContext& ctx,
 
         if (cam25d.enabled && layer.is_3d) {
             Transform effective_transform = resolved_layer.world_transform;
+            if (!ctx.modular_coordinates) {
+                effective_transform.position.x -= ctx.width * 0.5f;
+                effective_transform.position.y -= ctx.height * 0.5f;
+            }
             auto proj = project_layer_2_5d(
                 effective_transform,
                 cam25d,
@@ -57,10 +75,17 @@ RenderGraph build_graph(const Scene& scene, const RenderGraphContext& ctx,
             );
 
             if (proj.visible) {
+                // Native-3D shapes (FakeBox3D, GridPlane, FakeExtrudedText) project
+                // directly to screen coords in SourceNode. TransformNode must be
+                // identity (pass-through) to avoid double-projection.
+                const Mat4 eff_proj = is_native_3d_layer(layer)
+                    ? Mat4(1.0f)
+                    : proj.projection_matrix;
+
                 current_3d_bin.push_back({
                     .layer = &layer,
                     .transform = proj.transform,
-                    .projection_matrix = proj.projection_matrix,
+                    .projection_matrix = eff_proj,
                     .depth = proj.depth,
                     .projected = true,
                     .insertion_index = resolved_layer.insertion_index

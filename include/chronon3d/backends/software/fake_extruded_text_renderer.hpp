@@ -28,13 +28,15 @@ class FakeExtrudedTextRenderer {
 public:
     // Standalone draw (used by modular graph path): self-contained per call.
     void draw(Framebuffer& fb, const RenderNode& node, const RenderState& state,
-              const Camera& camera, i32 width, i32 height, TextRenderer& text_renderer);
+              const Camera& camera, i32 width, i32 height, TextRenderer& text_renderer,
+              std::optional<FakeExtrudedTextRenderState> rt_override = std::nullopt);
 
     // Batched API (used by legacy render_layer_nodes): accumulate all FakeExtrudedText
     // primitives across objects in one frame, then flush with global depth sort.
     void begin_frame();
     void collect(Framebuffer& fb, const RenderNode& node, const RenderState& state,
-                 const Camera& camera, i32 width, i32 height, TextRenderer& text_renderer);
+                 const Camera& camera, i32 width, i32 height, TextRenderer& text_renderer,
+                 std::optional<FakeExtrudedTextRenderState> rt_override = std::nullopt);
     void flush(Framebuffer& fb);
 
     void clear_cache() { m_glyph_cache.clear(); }

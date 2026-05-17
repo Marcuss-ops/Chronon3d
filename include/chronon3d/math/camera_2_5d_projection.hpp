@@ -164,15 +164,21 @@ inline ProjectedLayer2_5D project_layer_2_5d(
     Mat4 view{1.0f};
     Vec4 cam_pos{0.0f, 0.0f, 0.0f, 1.0f};
     const bool has_rotation = glm::length(camera.rotation) > 0.0001f;
-    const bool use_view_matrix = camera.point_of_interest_enabled || has_rotation;
+    const bool layer_has_rotation = std::abs(layer_transform.rotation.w - 1.0f) > 0.0001f;
+    const bool use_view_matrix = camera.point_of_interest_enabled || has_rotation || layer_has_rotation;
 
     if (use_view_matrix) {
-        // Use the full view matrix when the camera is rotating or orbiting a target.
-        view = get_camera_view_matrix(camera);
+        // Use the full view matrix when the camera is rotating, orbiting, or the layer has rotation.
+        if (has_rotation || camera.point_of_interest_enabled) {
+            view = get_camera_view_matrix(camera);
+        } else {
+            // Matrix path forced by layer rotation, but camera is straight.
+            view = math::translate(Vec3(-camera.position.x, -camera.position.y, -camera.position.z));
+        }
         Vec4 world_pos{layer_transform.position.x, layer_transform.position.y, layer_transform.position.z, 1.0f};
         cam_pos = view * world_pos;
     } else {
-        // Default mode: passive translation only. Camera pans should not orbit.
+        // Default mode: passive translation only.
         view = math::translate(Vec3(-camera.position.x, -camera.position.y, -camera.position.z));
         cam_pos.x = layer_transform.position.x - camera.position.x;
         cam_pos.y = layer_transform.position.y - camera.position.y;
@@ -217,7 +223,10 @@ inline ProjectedLayer2_5D project_layer_2_5d(
     // For passive path: use the simple TRS transform (no perspective skew needed).
     if (use_view_matrix) {
         Mat4 proj = Mat4(0.0f);
-        proj[0][0] = focal;
+        // glm::lookAt with Y-up produces right={-1,0,0} in a Y-down screen system,
+        // mirroring X. Negate proj[0][0] only for POI path to restore correct handedness.
+        // camera_view_matrix (non-POI rotation) already uses the correct convention.
+        proj[0][0] = camera.point_of_interest_enabled ? -focal : focal;
         proj[1][1] = focal;
         proj[2][2] = 1.0f;
         // w = +z for camera_view_matrix convention (passive/rotation), -z for look_at (POI)
