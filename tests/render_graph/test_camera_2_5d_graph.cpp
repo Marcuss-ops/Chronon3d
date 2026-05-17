@@ -1,8 +1,12 @@
 #include <doctest/doctest.h>
 
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/backends/software/framebuffer_analysis.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/chronon3d.hpp>
+#include <tests/helpers/render_fixtures.hpp>
+
+#include <cmath>
 
 using namespace chronon3d;
 
@@ -192,6 +196,42 @@ Composition make_parenting_25d_test() {
     });
 }
 
+Composition make_parenting_orbit_test(f32 parent_rotation_z) {
+    return composition({
+        .name = "Parenting25DOrbitTest",
+        .width = 240,
+        .height = 240,
+        .duration = 1
+    }, [parent_rotation_z](const FrameContext& ctx) {
+        SceneBuilder s(ctx);
+
+        s.camera().set({
+            .enabled = true,
+            .position = {0, 0, -1000},
+            .zoom = 1000.0f
+        });
+
+        s.null_layer("rig", [parent_rotation_z](LayerBuilder& l) {
+            l.enable_3d()
+             .position({0, 0, -500})
+             .rotate({0, 0, parent_rotation_z});
+        });
+
+        s.layer("child", [](LayerBuilder& l) {
+            l.parent("rig")
+             .enable_3d()
+             .position({100, 0, 0})
+             .rect("red", {
+                 .size = {40, 40},
+                 .color = Color::red(),
+                 .pos = {0, 0, 0}
+             });
+        });
+
+        return s.build();
+    });
+}
+
 } // namespace
 
 TEST_CASE("RenderGraph 2.5D: near layer covers far layer regardless of insertion order") {
@@ -246,4 +286,27 @@ TEST_CASE("RenderGraph parenting: 3D child inherits parent Z before projection")
 
     CHECK(center.r > 0.8f);
     CHECK(right.r > 0.8f);
+}
+
+TEST_CASE("RenderGraph parenting: parent rotation changes child orbit") {
+    auto fb0 = render_modular(make_parenting_orbit_test(0.0f));
+    auto fb1 = render_modular(make_parenting_orbit_test(45.0f));
+
+    if (fb0) {
+        test::save_debug(*fb0, "output/debug/full_3d_parenting/rotation_0.png");
+    }
+    if (fb1) {
+        test::save_debug(*fb1, "output/debug/full_3d_parenting/rotation_45.png");
+    }
+
+    REQUIRE(fb0 != nullptr);
+    REQUIRE(fb1 != nullptr);
+
+    auto c0 = renderer::bright_centroid(*fb0);
+    auto c1 = renderer::bright_centroid(*fb1);
+    REQUIRE(c0.has_value());
+    REQUIRE(c1.has_value());
+
+    CHECK(std::abs(c0->x - c1->x) > 10.0f);
+    CHECK(std::abs(c0->y - c1->y) > 10.0f);
 }

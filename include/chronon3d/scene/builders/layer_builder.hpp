@@ -4,6 +4,7 @@
 #include <chronon3d/scene/builders/builder_params.hpp>
 #include <chronon3d/scene/mask/mask.hpp>
 #include <chronon3d/scene/effects/effect_stack.hpp>
+#include <chronon3d/scene/material_2_5d.hpp>
 #include <chronon3d/layout/layout_rules.hpp>
 #include <chronon3d/backends/video/video_source.hpp>
 #include <chronon3d/math/mat4.hpp>
@@ -72,6 +73,8 @@ public:
     // Node Polish
     LayerBuilder& with_shadow(DropShadow shadow);
     LayerBuilder& with_glow(Glow glow);
+    LayerBuilder& accepts_lights(bool value = true);
+    LayerBuilder& material(Material2_5D value);
 
     // Node Transform
     LayerBuilder& at(Vec3 pos);

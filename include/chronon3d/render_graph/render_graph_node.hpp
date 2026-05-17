@@ -4,6 +4,7 @@
 #include <chronon3d/core/framebuffer.hpp>
 #include <chronon3d/scene/camera/camera.hpp>
 #include <chronon3d/scene/camera/camera_2_5d.hpp>
+#include <chronon3d/rendering/light_context.hpp>
 #include <chronon3d/math/projection_context.hpp>
 #include <memory>
 #include <string>
@@ -50,6 +51,7 @@ struct RenderGraphContext {
     Camera2_5D camera_2_5d{};
     bool has_camera_2_5d{false};
     renderer::ProjectionContext projection_ctx{}; // pre-built from camera_2_5d
+    rendering::LightContext light_context{};
 
     SoftwareRenderer* renderer{nullptr};
     cache::NodeCache* node_cache{nullptr};

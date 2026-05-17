@@ -1,5 +1,8 @@
 #include <doctest/doctest.h>
+#include <xxhash.h>
+
 #include <chronon3d/scene/camera/camera_2_5d.hpp>
+#include <chronon3d/scene/camera/dof.hpp>
 #include <chronon3d/chronon3d.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 
@@ -34,22 +37,25 @@ TEST_CASE("DOF: Camera2_5D has dof field") {
 // ---------------------------------------------------------------------------
 TEST_CASE("DOF: blur amount formula") {
     DepthOfFieldSettings d{.enabled=true, .focus_z=0.0f, .aperture=0.02f, .max_blur=20.0f};
-    float dist    = std::abs(-500.0f - d.focus_z);  // layer at z=-500
-    float blur    = std::min(dist * d.aperture, d.max_blur);
+    float blur    = compute_dof_blur_radius(d, -500.0f);
     CHECK(blur == doctest::Approx(10.0f));          // 500 * 0.02 = 10
 }
 
 TEST_CASE("DOF: blur clamped at max_blur") {
     DepthOfFieldSettings d{.enabled=true, .focus_z=0.0f, .aperture=0.02f, .max_blur=8.0f};
-    float dist = std::abs(-2000.0f - d.focus_z);
-    float blur = std::min(dist * d.aperture, d.max_blur);
+    float blur = compute_dof_blur_radius(d, -2000.0f);
     CHECK(blur == doctest::Approx(8.0f));
 }
 
 TEST_CASE("DOF: focus plane has zero blur") {
     DepthOfFieldSettings d{.enabled=true, .focus_z=0.0f, .aperture=0.02f, .max_blur=20.0f};
-    float blur = std::min(std::abs(0.0f - d.focus_z) * d.aperture, d.max_blur);
+    float blur = compute_dof_blur_radius(d, 0.0f);
     CHECK(blur == doctest::Approx(0.0f));
+}
+
+TEST_CASE("DOF: disabled returns zero blur") {
+    DepthOfFieldSettings d{.enabled=false, .focus_z=0.0f, .aperture=1.0f, .max_blur=20.0f};
+    CHECK(compute_dof_blur_radius(d, 1000.0f) == doctest::Approx(0.0f));
 }
 
 // ---------------------------------------------------------------------------

@@ -42,6 +42,7 @@ std::unique_ptr<Framebuffer> render_scene_internal(SoftwareRenderer& renderer,
 
     const auto t_build0 = std::chrono::steady_clock::now();
     auto ctx = make_graph_context(renderer, camera, width, height, frame, frame_time);
+    ctx.light_context = scene.light_context();
     if (scene.camera_2_5d().enabled) {
         ctx.camera_2_5d = scene.camera_2_5d();
         ctx.has_camera_2_5d = true;

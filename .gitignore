@@ -57,3 +57,4 @@ scenes/
 # Generated visual test outputs
 test_renders/
 output/new_features/
+.history/  

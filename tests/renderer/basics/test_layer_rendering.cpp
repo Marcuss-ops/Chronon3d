@@ -7,18 +7,17 @@ using namespace chronon3d;
 
 namespace {
 
-static SoftwareRenderer g_renderer;
-
 static std::unique_ptr<Framebuffer> render_layer(
     i32 w, i32 h, std::function<void(SceneBuilder&)> build)
 {
+    SoftwareRenderer renderer;
     Composition comp = composition({.name="T",.width=w,.height=h,.duration=1},
                                    [&](const FrameContext& ctx) {
                                        SceneBuilder s(ctx);
                                        build(s);
                                        return s.build();
                                    });
-    return g_renderer.render_frame(comp, 0);
+    return renderer.render_frame(comp, 0);
 }
 
 } // namespace
