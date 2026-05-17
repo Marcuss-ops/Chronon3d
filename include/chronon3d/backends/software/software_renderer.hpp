@@ -12,8 +12,6 @@
 #include <chronon3d/scene/camera/camera_2_5d.hpp>
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/backends/software/render_settings.hpp>
-#include <chronon3d/render_graph/graph_builder.hpp>
-#include <chronon3d/render_graph/graph_executor.hpp>
 #include <chronon3d/backends/software/fake_extruded_text_renderer.hpp>
 #include <chronon3d/backends/image/image_backend.hpp>
 #include <chronon3d/backends/text/font_backend.hpp>
@@ -32,18 +30,7 @@
 namespace chronon3d {
 
 class SoftwareRenderer;
-
-namespace software_internal {
-    std::unique_ptr<Framebuffer> render_frame(SoftwareRenderer& renderer, const Composition& comp,
-                                             Frame frame);
-    std::unique_ptr<Framebuffer> render_scene_internal(SoftwareRenderer& renderer,
-                                                       const Scene& scene, const Camera& camera,
-                                                       i32 width, i32 height, Frame frame,
-                                                       f32 frame_time);
-    std::string debug_render_graph(const SoftwareRenderer& renderer, const Scene& scene,
-                                   const Camera& camera, i32 width, i32 height,
-                                   Frame frame, f32 frame_time);
-}
+class CompositionRegistry;
 
 /**
  * SoftwareRenderer — CPU-based rasterizer.
