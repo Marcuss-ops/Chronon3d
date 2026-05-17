@@ -2,6 +2,7 @@
 
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/math/vec3.hpp>
+#include <chronon3d/rendering/shadow_settings.hpp>
 #include <chronon3d/scene/material_2_5d.hpp>
 #include <glm/glm.hpp>
 #include <algorithm>
@@ -21,6 +22,7 @@ struct LightContext {
     f32  ambient{0.20f};
     Color directional_color{1.0f, 1.0f, 1.0f, 1.0f};
     f32  diffuse{0.80f};
+    ShadowSettings shadows{};
 
     [[nodiscard]] bool empty() const { return !ambient_enabled && !directional_enabled; }
 
