@@ -1,8 +1,7 @@
 #include "../commands.hpp"
-
 #include "../utils/cli_render_utils.hpp"
-
 #include <filesystem>
+#include <cstdlib>
 #include <spdlog/spdlog.h>
 
 #ifdef CHRONON_WITH_VIDEO
@@ -28,9 +27,20 @@ int command_doctor(const CompositionRegistry& registry) {
     }
 
 #ifdef CHRONON_WITH_VIDEO
-    spdlog::info("doctor: video backend {}", video::FfmpegEncoder::is_available() ? "available" : "missing");
+    const bool video_ok = video::FfmpegEncoder::is_available();
+    spdlog::info("doctor: video backend (SDK)    {}", video_ok ? "available" : "missing");
+    if (!video_ok) ok = false;
 #else
-    spdlog::warn("doctor: video backend disabled at build time");
+    {
+        const bool sys_ffmpeg =
+#ifdef _WIN32
+            (std::system("ffmpeg -version > NUL 2>&1") == 0);
+#else
+            (std::system("ffmpeg -version > /dev/null 2>&1") == 0);
+#endif
+        spdlog::info("doctor: ffmpeg (system PATH)   {}", sys_ffmpeg ? "found" : "NOT found");
+        if (!sys_ffmpeg) ok = false;
+    }
 #endif
 
     return ok ? 0 : 1;

@@ -77,34 +77,32 @@ int main(int argc, char** argv) {
         exit_code = command_render(registry, render_args);
     });
 
-#ifdef CHRONON_WITH_VIDEO
     // -------------------------------------------------------------------------
-    // video
+    // video  (always registered; uses SDK encoder when CHRONON_WITH_VIDEO,
+    //         falls back to system ffmpeg otherwise)
     // -------------------------------------------------------------------------
     VideoArgs video_args;
     auto* video_cmd = app.add_subcommand("video", "Render a composition to MP4 via ffmpeg");
-    video_cmd->add_option("id",           video_args.comp_id,     "Composition name or .specscene path");
-    video_cmd->add_option("-o,--output",  video_args.output,      "Output .mp4 path");
-    video_cmd->add_option("--start",      video_args.start,       "Start frame (inclusive)");
-    video_cmd->add_option("--end",        video_args.end,         "End frame (exclusive)");
-    video_cmd->add_option("--fps",        video_args.fps,         "Output frame rate");
-    video_cmd->add_option("--crf",        video_args.crf,         "x264 CRF (0-51, lower=better)");
-    video_cmd->add_option("--codec",      video_args.codec,       "Video encoder (auto, libx264, mpeg4, etc.)");
-    video_cmd->add_option("--encode-preset,--preset", video_args.encode_preset, "x264 preset");
+    video_cmd->add_option("id",           video_args.comp_id,     "Composition name or .specscene path")->required();
+    video_cmd->add_option("-o,--output",  video_args.output,      "Output .mp4 path")->required();
+    video_cmd->add_option("--start",      video_args.start,       "Start frame (inclusive, default 0)");
+    video_cmd->add_option("--end",        video_args.end,         "End frame exclusive (default: composition duration)");
+    video_cmd->add_option("--fps",        video_args.fps,         "Output frame rate")->default_val(30);
+    video_cmd->add_option("--crf",        video_args.crf,         "x264 CRF (0-51, lower=better)")->default_val(18);
+    video_cmd->add_option("--codec",      video_args.codec,       "Video encoder (auto, libx264, mpeg4)")->default_val("auto");
+    video_cmd->add_option("--encode-preset,--preset", video_args.encode_preset, "x264 preset")->default_val("medium");
     video_cmd->add_flag("--keep-frames",            video_args.keep_frames,          "Keep temporary PNG frames");
     video_cmd->add_flag("--graph",                  video_args.use_modular_graph,    "Use modular RenderGraph path");
     video_cmd->add_flag("--motion-blur",            video_args.motion_blur,          "Enable temporal motion blur");
-    video_cmd->add_option("--motion-blur-samples",  video_args.motion_blur_samples,  "Subframe samples (default 8)");
-    video_cmd->add_option("--shutter-angle",        video_args.shutter_angle,        "Shutter angle in degrees (default 180)");
+    video_cmd->add_option("--motion-blur-samples",  video_args.motion_blur_samples,  "Subframe samples")->default_val(8);
+    video_cmd->add_option("--shutter-angle",        video_args.shutter_angle,        "Shutter angle in degrees")->default_val(180.0f);
     video_cmd->add_option("--frames-dir",           video_args.frames_dir,           "Override temporary frames directory");
-    video_cmd->add_option("--ssaa",                 video_args.ssaa,                 "Super Sampling factor (default 1.0)");
+    video_cmd->add_option("--ssaa",                 video_args.ssaa,                 "Super Sampling factor")->default_val(1.0f);
     video_cmd->callback([&]() {
-        if (!video_cmd->get_subcommands().empty()) {
-            return;
-        }
         exit_code = command_video(registry, video_args);
     });
 
+#ifdef CHRONON_WITH_VIDEO
     VideoCameraArgs camera_args;
     auto* camera_cmd = video_cmd->add_subcommand("camera", "Render the built-in camera reference clip");
     camera_cmd->add_option("--axis",     camera_args.axis,          "Camera axis: Tilt, Pan, or Roll");
@@ -112,17 +110,15 @@ int main(int argc, char** argv) {
     camera_cmd->add_option("-o,--output", camera_args.output,       "Output .mp4 path");
     camera_cmd->add_option("--start",    camera_args.start,         "Start frame (inclusive)");
     camera_cmd->add_option("--end",      camera_args.end,           "End frame (exclusive)");
-    camera_cmd->add_option("--roll-start", camera_args.roll_start_deg, "Roll start angle in degrees (Roll axis only)");
-    camera_cmd->add_option("--roll-end",   camera_args.roll_end_deg,   "Roll end angle in degrees (Roll axis only)");
+    camera_cmd->add_option("--roll-start", camera_args.roll_start_deg, "Roll start angle in degrees");
+    camera_cmd->add_option("--roll-end",   camera_args.roll_end_deg,   "Roll end angle in degrees");
     camera_cmd->add_option("--fps",      camera_args.fps,           "Output frame rate");
     camera_cmd->add_option("--crf",      camera_args.crf,           "x264 CRF (0-51, lower=better)");
-    camera_cmd->add_option("--codec",    camera_args.codec,         "Video encoder (auto, libx264, mpeg4, etc.)");
+    camera_cmd->add_option("--codec",    camera_args.codec,         "Video encoder");
     camera_cmd->add_option("--encode-preset", camera_args.encode_preset, "x264 preset");
-    camera_cmd->add_flag("--graph",                  camera_args.use_modular_graph,    "Use modular RenderGraph path");
-    camera_cmd->add_flag("--motion-blur",            camera_args.motion_blur,          "Enable temporal motion blur");
-    camera_cmd->add_option("--motion-blur-samples",  camera_args.motion_blur_samples,  "Subframe samples (default 8)");
-    camera_cmd->add_option("--shutter-angle",        camera_args.shutter_angle,        "Shutter angle in degrees (default 180)");
-    camera_cmd->add_option("--ssaa",                 camera_args.ssaa,                 "Super Sampling factor (default 1.0)");
+    camera_cmd->add_flag("--graph",      camera_args.use_modular_graph, "Use modular RenderGraph path");
+    camera_cmd->add_flag("--motion-blur", camera_args.motion_blur,      "Enable temporal motion blur");
+    camera_cmd->add_option("--ssaa",     camera_args.ssaa,              "Super Sampling factor");
     camera_cmd->callback([&]() {
         exit_code = command_video_camera(registry, camera_args);
     });
@@ -145,14 +141,15 @@ int main(int argc, char** argv) {
     // graph
     // -------------------------------------------------------------------------
     GraphArgs graph_args;
-    auto* graph_cmd = app.add_subcommand("graph", "Export the render graph as DOT");
-    graph_cmd->add_option("id", graph_args.comp_id, "Composition name")->required();
+    auto* graph_cmd = app.add_subcommand("graph", "Inspect the render graph: summary stats or DOT export");
+    graph_cmd->add_option("id", graph_args.comp_id, "Composition name or .specscene path")->required();
     graph_cmd->add_option("--frame", graph_args.frame, "Frame to inspect")->default_val(0);
-    graph_cmd->add_option("-o,--output", graph_args.output, "Output .dot path");
+    graph_cmd->add_option("-o,--output", graph_args.output, "Output .dot file path");
+    graph_cmd->add_flag("--summary", graph_args.summary, "Print node counts, cache stats, and timing");
     graph_cmd->callback([&]() {
-        if (graph_args.output.empty()) {
+        if (!graph_args.summary && graph_args.output.empty()) {
             graph_args.output = "output/graph.dot";
-            spdlog::warn("No output path specified, defaulting to {}", graph_args.output);
+            spdlog::warn("No --output and no --summary; defaulting to {}", graph_args.output);
         }
         exit_code = command_graph(registry, graph_args);
     });
