@@ -3,7 +3,8 @@
 #include <chronon3d/core/profiling.hpp>
 #include <chronon3d/core/render_telemetry.hpp>
 #include <chronon3d/render_graph/graph_builder.hpp>
-#include <chronon3d/runtime/graph_executor.hpp>
+#include <chronon3d/render_graph/graph_executor.hpp>
+#include <chronon3d/runtime/scene_to_render_graph.hpp>
 #include <spdlog/spdlog.h>
 
 #include <chrono>
@@ -42,18 +43,7 @@ std::unique_ptr<Framebuffer> render_scene_internal(SoftwareRenderer& renderer,
 
     const auto t_build0 = std::chrono::steady_clock::now();
     auto ctx = make_graph_context(renderer, camera, width, height, frame, frame_time);
-    ctx.light_context = scene.light_context();
-    if (scene.camera_2_5d().enabled) {
-        ctx.camera_2_5d = scene.camera_2_5d();
-        ctx.has_camera_2_5d = true;
-        ctx.projection_ctx = renderer::make_projection_context(
-            ctx.camera_2_5d,
-            ctx.width,
-            ctx.height
-        );
-        ctx.projection_ctx.ready = true;
-    }
-    graph::RenderGraph graph = graph::GraphBuilder::build(scene, ctx);
+    graph::RenderGraph graph = chronon3d::runtime::build_render_graph_from_scene(scene, ctx);
     const auto t_build1 = std::chrono::steady_clock::now();
 
     const auto t_exec0 = std::chrono::steady_clock::now();
@@ -82,7 +72,7 @@ std::string debug_render_graph(const SoftwareRenderer& renderer, const Scene& sc
                                f32 frame_time) {
     auto ctx = make_graph_context(const_cast<SoftwareRenderer&>(renderer), camera, width, height,
                                   frame, frame_time);
-    return graph::GraphBuilder::build(scene, ctx).to_dot();
+    return chronon3d::runtime::build_render_graph_from_scene(scene, ctx).to_dot();
 }
 
 } // namespace chronon3d::software_internal
