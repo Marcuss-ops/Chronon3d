@@ -22,7 +22,7 @@ graph::RenderGraphContext make_graph_context(SoftwareRenderer& renderer, const C
         .width = width,
         .height = height,
         .camera = camera,
-        .renderer = &renderer,
+        .backend = &renderer,
         .node_cache = &renderer.node_cache(),
         .registry = renderer.composition_registry(),
         .video_decoder = renderer.video_decoder(),
