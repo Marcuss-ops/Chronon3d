@@ -103,6 +103,12 @@ public:
      */
     LayerBuilder& video(std::string path);
 
+    /**
+     * Set the natural render size for the video layer.
+     * {0,0} (default) means use the render context dimensions.
+     */
+    LayerBuilder& video_size(Vec2 size);
+
     [[nodiscard]] std::pmr::memory_resource* resource() const { return m_layer.nodes.get_allocator().resource(); }
     [[nodiscard]] Layer build();
 

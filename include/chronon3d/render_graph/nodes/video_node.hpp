@@ -26,11 +26,13 @@ public:
         const Frame local_frame = ctx.frame - m_layer_start;
         const Frame source_frame = video::map_video_frame(local_frame, m_source);
 
+        const i32 render_w = m_source.size.x > 0.0f ? static_cast<i32>(m_source.size.x) : ctx.width;
+        const i32 render_h = m_source.size.y > 0.0f ? static_cast<i32>(m_source.size.y) : ctx.height;
         return cache::NodeCacheKey{
             .scope = "video:" + m_source.path,
             .frame = source_frame,
-            .width = ctx.width,
-            .height = ctx.height,
+            .width = render_w,
+            .height = render_h,
             .params_hash = hash_video_source(m_source),
             .source_hash = hash_string(m_source.path)
         };
@@ -41,7 +43,9 @@ public:
         const std::vector<std::shared_ptr<Framebuffer>>&
     ) override {
         if (!m_decoder) {
-            auto fb = std::make_shared<Framebuffer>(ctx.width, ctx.height);
+            const i32 render_w = m_source.size.x > 0.0f ? static_cast<i32>(m_source.size.x) : ctx.width;
+            const i32 render_h = m_source.size.y > 0.0f ? static_cast<i32>(m_source.size.y) : ctx.height;
+            auto fb = std::make_shared<Framebuffer>(render_w, render_h);
             fb->clear(Color::transparent());
             return fb;
         }
@@ -55,11 +59,13 @@ public:
 
         const Frame source_frame = video::map_video_frame(local_frame, m_source);
 
+        const i32 render_w = m_source.size.x > 0.0f ? static_cast<i32>(m_source.size.x) : ctx.width;
+        const i32 render_h = m_source.size.y > 0.0f ? static_cast<i32>(m_source.size.y) : ctx.height;
         return m_decoder->decode_frame(
             m_source.path,
             source_frame,
-            ctx.width,
-            ctx.height,
+            render_w,
+            render_h,
             m_source.source_fps
         );
     }

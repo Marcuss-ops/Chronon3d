@@ -3,9 +3,7 @@
 
 #include <chronon3d/render_graph/nodes/basic_nodes.hpp>
 #include <chronon3d/render_graph/nodes/precomp_node.hpp>
-#ifdef CHRONON_WITH_VIDEO
 #include <chronon3d/render_graph/nodes/video_node.hpp>
-#endif
 #include <chronon3d/render_graph/render_graph_hashing.hpp>
 #include <memory>
 
@@ -63,13 +61,11 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
         ));
     }
 
-#ifdef CHRONON_WITH_VIDEO
-    if (layer.kind == LayerKind::Video) {
+    if (layer.kind == LayerKind::Video && layer.video_source) {
         return graph.add_node(std::make_unique<VideoNode>(
-            layer.video_source, ctx.video_decoder, layer.from
+            *layer.video_source, ctx.video_decoder, layer.from
         ));
     }
-#endif
 
     return graph.add_node(std::make_unique<ClearNode>());
 }
