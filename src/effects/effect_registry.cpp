@@ -80,6 +80,17 @@ void register_builtin_effects(EffectRegistry& registry) {
         .temporal = false,
         .factory = generic_effect_factory
     });
+
+    registry.register_effect(EffectDescriptor{
+        .id = "light.bloom",
+        .display_name = "Bloom",
+        .category = EffectCategory::Light,
+        .stage = EffectStage::Adjustment,
+        .description = "Add cinematic bloom highlight glow",
+        .builtin = true,
+        .temporal = false,
+        .factory = generic_effect_factory
+    });
 }
 
 } // namespace

@@ -111,6 +111,12 @@ template <typename T>
     return hash_combine(seed, hash_color(p.color));
 }
 
+[[nodiscard]] inline u64 hash_bloom_params(const BloomParams& p) {
+    u64 seed = hash_value(p.threshold);
+    seed = hash_combine(seed, hash_value(p.radius));
+    return hash_combine(seed, hash_value(p.intensity));
+}
+
 [[nodiscard]] inline u64 hash_effect_params(const EffectParams& p) {
     return std::visit([](const auto& params) -> u64 {
         using T = std::decay_t<decltype(params)>;
@@ -120,6 +126,7 @@ template <typename T>
         if constexpr (std::is_same_v<T, ContrastParams>) return hash_combine(4, hash_contrast_params(params));
         if constexpr (std::is_same_v<T, DropShadowParams>) return hash_combine(5, hash_drop_shadow_params(params));
         if constexpr (std::is_same_v<T, GlowParams>) return hash_combine(6, hash_glow_params(params));
+        if constexpr (std::is_same_v<T, BloomParams>) return hash_combine(7, hash_bloom_params(params));
         return 0;
     }, p);
 }
@@ -169,13 +176,56 @@ template <typename T>
             seed = hash_combine(seed, hash_bytes(&s.line.thickness, sizeof(f32)));
             seed = hash_combine(seed, hash_bytes(&s.line.stroke.trim_start, sizeof(f32)));
             return hash_combine(seed, hash_bytes(&s.line.stroke.trim_end, sizeof(f32)));
-        case ShapeType::Text:
+        case ShapeType::Text: {
             seed = hash_combine(seed, hash_bytes(s.text.text.data(), s.text.text.size()));
             seed = hash_combine(seed, hash_bytes(s.text.style.font_path.data(), s.text.style.font_path.size()));
-            return hash_combine(seed, hash_bytes(&s.text.style.size, sizeof(f32)));
+            seed = hash_combine(seed, hash_bytes(&s.text.style.size, sizeof(f32)));
+            seed = hash_combine(seed, hash_color(s.text.style.color));
+            seed = hash_combine(seed, hash_value(static_cast<int>(s.text.style.align)));
+            seed = hash_combine(seed, hash_bytes(&s.text.style.line_height, sizeof(f32)));
+            seed = hash_combine(seed, hash_bytes(&s.text.style.tracking, sizeof(f32)));
+            seed = hash_combine(seed, hash_value(s.text.style.max_lines));
+            seed = hash_combine(seed, hash_value(s.text.style.auto_scale));
+            seed = hash_combine(seed, hash_bytes(&s.text.style.min_size, sizeof(f32)));
+            seed = hash_combine(seed, hash_bytes(&s.text.style.max_size, sizeof(f32)));
+            seed = hash_combine(seed, hash_value(s.text.box.enabled));
+            seed = hash_combine(seed, hash_vec2(s.text.box.size));
+            return seed;
+        }
         case ShapeType::Image:
             seed = hash_combine(seed, hash_bytes(s.image.path.data(), s.image.path.size()));
-            return hash_combine(seed, hash_vec2(s.image.size));
+            seed = hash_combine(seed, hash_vec2(s.image.size));
+            return hash_combine(seed, hash_bytes(&s.image.opacity, sizeof(f32)));
+        case ShapeType::FakeBox3D:
+            seed = hash_combine(seed, hash_vec3(s.fake_box3d.world_pos));
+            seed = hash_combine(seed, hash_vec2(s.fake_box3d.size));
+            seed = hash_combine(seed, hash_bytes(&s.fake_box3d.depth, sizeof(f32)));
+            seed = hash_combine(seed, hash_color(s.fake_box3d.color));
+            seed = hash_combine(seed, hash_bytes(&s.fake_box3d.top_tint, sizeof(f32)));
+            return hash_combine(seed, hash_bytes(&s.fake_box3d.side_tint, sizeof(f32)));
+        case ShapeType::GridPlane:
+            seed = hash_combine(seed, hash_vec3(s.grid_plane.world_pos));
+            seed = hash_combine(seed, hash_value(static_cast<int>(s.grid_plane.axis)));
+            seed = hash_combine(seed, hash_bytes(&s.grid_plane.extent, sizeof(f32)));
+            seed = hash_combine(seed, hash_bytes(&s.grid_plane.spacing, sizeof(f32)));
+            seed = hash_combine(seed, hash_color(s.grid_plane.color));
+            seed = hash_combine(seed, hash_bytes(&s.grid_plane.fade_distance, sizeof(f32)));
+            return hash_combine(seed, hash_bytes(&s.grid_plane.fade_min_alpha, sizeof(f32)));
+        case ShapeType::FakeExtrudedText:
+            seed = hash_combine(seed, hash_bytes(s.fake_extruded_text.text.data(), s.fake_extruded_text.text.size()));
+            seed = hash_combine(seed, hash_bytes(s.fake_extruded_text.font_path.data(), s.fake_extruded_text.font_path.size()));
+            seed = hash_combine(seed, hash_bytes(&s.fake_extruded_text.font_size, sizeof(f32)));
+            seed = hash_combine(seed, hash_value(static_cast<int>(s.fake_extruded_text.align)));
+            seed = hash_combine(seed, hash_vec3(s.fake_extruded_text.world_pos));
+            seed = hash_combine(seed, hash_value(s.fake_extruded_text.depth));
+            seed = hash_combine(seed, hash_vec2(s.fake_extruded_text.extrude_dir));
+            seed = hash_combine(seed, hash_bytes(&s.fake_extruded_text.extrude_z_step, sizeof(f32)));
+            seed = hash_combine(seed, hash_color(s.fake_extruded_text.front_color));
+            seed = hash_combine(seed, hash_color(s.fake_extruded_text.side_color));
+            seed = hash_combine(seed, hash_bytes(&s.fake_extruded_text.side_fade, sizeof(f32)));
+            seed = hash_combine(seed, hash_bytes(&s.fake_extruded_text.highlight_opacity, sizeof(f32)));
+            seed = hash_combine(seed, hash_bytes(&s.fake_extruded_text.bevel_size, sizeof(f32)));
+            return hash_combine(seed, hash_vec3(s.fake_extruded_text.light_dir));
         default:
             return seed;
     }
