@@ -43,7 +43,7 @@
 | Feature | Note | Effort |
 |---|---|---|
 | **Keyframe curves** | ✅ API dichiarativa con easing via `KeyframeTrack<T>` e `.sample()` | completato |
-| **Track matte** | ✅ alpha/luma/inverted per layer 2D verificati; source 3D da follow-up. | quasi completo |
+| **Track matte** | ✅ alpha/luma/inverted + source 3D proiettato correttamente. 3D matte source usa `project_layer_2_5d()` — silhouette segue camera projection. | completato |
 | **Full 3D parenting** | ✅ resolver gerarchico matrix-correct, world transform/world matrix risolti | completato |
 | **Depth of Field** | ✅ V1 per-layer su projected 2.5D layers; focus_z world-space. Formula: `|layer_z - focus_z| * aperture`, clamped a `max_blur`. Va usato con `aperture` e `max_blur` non negativi. | completato |
 | **Lights (ambient + directional)** | ✅ V1 = una luce ambient + una direzionale diffuse Lambert su layer projected 3D con `accepts_lights=true`. Non è ancora un sistema luci completo (no point/spot, no specular, no multiple lights). | completato |
