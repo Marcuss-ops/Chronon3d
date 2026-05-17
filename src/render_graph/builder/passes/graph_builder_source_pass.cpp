@@ -34,10 +34,19 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                 .source_hash = hash_bytes(node.name.data(), node.name.size())
             };
 
+            std::optional<Mat4> rel_matrix;
+            std::optional<f32> rel_opacity;
+            if (ctx.modular_coordinates) {
+                rel_matrix = node.world_transform.to_mat4();
+                rel_opacity = node.world_transform.opacity;
+            }
+
             auto source = graph.add_node(std::make_unique<SourceNode>(
                 std::string(node.name), node, source_key,
                 should_use_centered_rendering(item, ctx),
-                item.projected  // is_3d: true for projected 3D layers
+                item.projected,
+                rel_matrix,
+                rel_opacity
             ));
 
             auto composite = graph.add_node(std::make_unique<CompositeNode>(chronon3d::BlendMode::Normal));

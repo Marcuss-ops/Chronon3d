@@ -10,17 +10,6 @@ class SoftwareShapeProcessor final : public ShapeProcessor {
 public:
     void draw(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNode& node, const RenderState& state,
               const Camera& camera, i32 width, i32 height) override {
-        // 3D card path: project the rect as a flat card in world space
-        if (state.is_3d_layer && state.projection.ready &&
-            node.shape.type == ShapeType::Rect) {
-            const auto& rect = node.shape.rect;
-            const Color color = node.color.to_linear();
-            Color fill{color.r, color.g, color.b, color.a * state.opacity};
-            auto card = state.projection.project_card(state.world_matrix, rect.size);
-            fill_projected_card(fb, card, fill);
-            return;
-        }
-
         if (node.shadow.enabled)
             draw_shadow(fb, node, state);
         if (node.glow.enabled)

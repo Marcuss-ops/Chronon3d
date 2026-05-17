@@ -61,9 +61,10 @@ void LayerPipelineBuilder::append_layer_pipeline(RenderGraph& graph, const Layer
     // 2. For non-projected 2D Normal layers: apply mask before transform so that mask.pos=(0,0)
     //    aligns with the SourceNode's centered-coordinate output (layer center = canvas center).
     //    For projected/precomp/video layers: mask is applied after transform in world-pixel space.
-    const bool mask_before_transform = (item.layer->kind == LayerKind::Normal
-                                        && !item.projected
-                                        && !ctx.modular_coordinates);
+    const bool mask_before_transform =
+        layer.kind == LayerKind::Normal ||
+        layer.kind == LayerKind::Precomp ||
+        layer.kind == LayerKind::Video;
 
     if (mask_before_transform)
         append_mask_pass_if_needed(graph, layer_output, *item.layer);

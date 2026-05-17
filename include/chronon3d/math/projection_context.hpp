@@ -5,7 +5,6 @@
 
 #include <chronon3d/math/vec2.hpp>
 #include <chronon3d/math/vec3.hpp>
-#include <chronon3d/math/vec4.hpp>
 #include <chronon3d/math/mat4.hpp>
 #include <chronon3d/rendering/projected_card.hpp>
 #include <chronon3d/core/types.hpp>

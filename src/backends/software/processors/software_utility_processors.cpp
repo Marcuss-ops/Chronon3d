@@ -9,8 +9,13 @@ class SoftwareFakeExtrudedTextProcessor final : public ShapeProcessor {
 public:
     void draw(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNode& node, const RenderState& state,
               const Camera& camera, i32 width, i32 height) override {
+        auto s = node.fake_extruded_text_runtime;
+        if (!s.projection.ready && state.projection.ready) {
+            s.projection = state.projection;
+        }
+        s.world_matrix = state.world_matrix;
         renderer.fake_extruded_text_renderer().draw(
-            fb, node, state, camera, width, height, renderer.text_renderer());
+            fb, node, state, camera, width, height, renderer.text_renderer(), s);
     }
 
     raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 spread) override {
@@ -27,9 +32,13 @@ public:
     void draw(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNode& node, const RenderState& state,
               const Camera& camera, i32 width, i32 height) override {
         auto s = node.fake_box3d_runtime;
-        if (!s.projection.ready) {
+        // Prefer the camera_2_5d-based projection context (populated from scene camera)
+        if (!s.projection.ready && state.projection.ready) {
+            s.projection = state.projection;
+        } else if (!s.projection.ready) {
             prepare_projection_context(s, camera, width, height);
         }
+        s.world_matrix = state.world_matrix;
         chronon3d::renderer::draw_fake_box3d(fb, node, state, node.shape.fake_box3d, s);
     }
 
@@ -47,7 +56,9 @@ public:
     void draw(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNode& node, const RenderState& state,
               const Camera& camera, i32 width, i32 height) override {
         auto s = node.grid_plane_runtime;
-        if (!s.projection.ready) {
+        if (!s.projection.ready && state.projection.ready) {
+            s.projection = state.projection;
+        } else if (!s.projection.ready) {
             prepare_projection_context(s, camera, width, height);
         }
         chronon3d::renderer::draw_grid_plane(fb, node, state, node.shape.grid_plane, s);

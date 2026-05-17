@@ -5,9 +5,12 @@
 #include <chronon3d/core/composition_registry.hpp>
 #include <chronon3d/timeline/composition.hpp>
 
+#include <spdlog/spdlog.h>
+
 using namespace chronon3d;
 
 TEST_CASE("Modular Graph: TransformNode validation") {
+    spdlog::set_level(spdlog::level::debug);
     CompositionRegistry registry;
     
     Composition comp = composition({

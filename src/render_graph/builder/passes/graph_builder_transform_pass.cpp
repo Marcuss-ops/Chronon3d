@@ -24,8 +24,6 @@ void append_transform_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_outp
     if (item.projected) {
         transform_node = std::make_unique<TransformNode>(item.projection_matrix,
                                                          layer.transform.opacity);
-    } else if (should_use_centered_rendering(item, ctx)) {
-        transform_node = std::make_unique<TransformNode>(calculate_centered_transform(item.transform, ctx));
     } else {
         transform_node = std::make_unique<TransformNode>(item.transform);
     }

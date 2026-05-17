@@ -28,7 +28,9 @@ public:
 
     std::shared_ptr<Framebuffer> execute(RenderGraphContext& ctx, const std::vector<std::shared_ptr<Framebuffer>>&) override {
         if (!ctx.registry || !ctx.registry->contains(m_comp_name)) {
-            return std::make_shared<Framebuffer>(ctx.width, ctx.height);
+            auto fb = std::make_shared<Framebuffer>(ctx.width, ctx.height);
+            fb->clear(Color::transparent());
+            return fb;
         }
 
         // 1. Calculate nested time
@@ -55,7 +57,11 @@ public:
 
         // 4. Execute nested graph
         GraphExecutor executor;
-        if (!nested_graph.has_output()) return std::make_shared<Framebuffer>(ctx.width, ctx.height);
+        if (!nested_graph.has_output()) {
+            auto fb = std::make_shared<Framebuffer>(ctx.width, ctx.height);
+            fb->clear(Color::transparent());
+            return fb;
+        }
 
         return executor.execute(nested_graph, nested_graph.output(), nested_ctx);
     }

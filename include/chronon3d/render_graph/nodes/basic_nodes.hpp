@@ -5,6 +5,7 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/scene/layer/layer.hpp>
 #include <chronon3d/scene/mask/mask_utils.hpp>
+#include <spdlog/spdlog.h>
 
 namespace chronon3d::graph {
 
@@ -36,8 +37,10 @@ public:
 class SourceNode final : public RenderGraphNode {
 public:
     SourceNode(std::string name, const ::chronon3d::RenderNode& node, const cache::NodeCacheKey& key,
-               bool centered = false, bool is_3d = false)
-        : m_name(std::move(name)), m_node(node), m_key(key), m_centered(centered), m_is_3d(is_3d) {}
+               bool centered = false, bool is_3d = false, std::optional<Mat4> matrix_override = std::nullopt,
+               std::optional<f32> opacity_override = std::nullopt)
+        : m_name(std::move(name)), m_node(node), m_key(key), m_centered(centered), m_is_3d(is_3d), 
+          m_matrix_override(matrix_override), m_opacity_override(opacity_override) {}
 
     RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::Source; }
     std::string name() const override { return m_name; }
@@ -45,6 +48,12 @@ public:
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override { 
         auto key = m_key;
         key.params_hash = hash_combine(key.params_hash, static_cast<u64>(ctx.modular_coordinates));
+        if (m_matrix_override) {
+            key.params_hash = hash_combine(key.params_hash, hash_bytes(&(*m_matrix_override)[0][0], sizeof(Mat4)));
+        }
+        if (m_opacity_override) {
+            key.params_hash = hash_combine(key.params_hash, hash_bytes(&(*m_opacity_override), sizeof(f32)));
+        }
         return key; 
     }
 
@@ -54,19 +63,35 @@ public:
         
         if (ctx.renderer) {
             RenderState state;
-            Mat4 canvas_offset = math::scale(Vec3(ctx.ssaa_factor, ctx.ssaa_factor, 1.0f));
-            if (m_centered || ctx.modular_coordinates) {
-                canvas_offset = math::translate(Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f)) *
-                                canvas_offset;
-            }
-            state.matrix = canvas_offset * m_node.world_transform.to_mat4();
-            state.opacity = m_node.world_transform.opacity;
+            const Mat4 ssaa_scale = math::scale(Vec3(ctx.ssaa_factor, ctx.ssaa_factor, 1.0f));
+            const Mat4 canvas_center = math::translate(Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
 
-            // Expose 3D projection context to processors that draw cards directly.
-            if (ctx.has_camera_2_5d && m_is_3d) {
+            if (m_is_3d) {
+                // Projected 3D layers: draw shapes at their local position relative to layer origin.
+                // TransformNode handles layer-level projection (position, rotation, perspective).
+                // Native-3D shapes (FakeBox3D etc.) ignore state.matrix and use the projector directly.
+                state.matrix = canvas_center * ssaa_scale * m_matrix_override.value_or(m_node.world_transform.to_mat4());
+            } else {
+                if (ctx.modular_coordinates) {
+                    // Modular 2D also uses center-origin logic for consistency.
+                    // The relative transform is handled by TransformNode.
+                    state.matrix = canvas_center * ssaa_scale * m_matrix_override.value_or(m_node.world_transform.to_mat4());
+                } else {
+                    // Legacy path
+                    Mat4 canvas_offset = ssaa_scale;
+                    if (m_centered) {
+                        canvas_offset = canvas_center * canvas_offset;
+                    }
+                    state.matrix = canvas_offset * m_node.world_transform.to_mat4();
+                }
+            }
+            
+            state.opacity = m_opacity_override.value_or(m_node.world_transform.opacity);
+            
+            // Expose projection context to processors that use it directly (FakeBox3D etc.).
+            if (ctx.has_camera_2_5d) {
                 state.projection  = ctx.projection_ctx;
-                state.world_matrix = m_node.world_transform.to_mat4();
-                state.is_3d_layer = true;
+                state.world_matrix = m_matrix_override.value_or(m_node.world_transform.to_mat4());
             }
 
             ctx.renderer->draw_node(*fb, m_node, state, ctx.camera, ctx.width, ctx.height);
@@ -80,6 +105,8 @@ private:
     cache::NodeCacheKey m_key;
     bool m_centered{false};
     bool m_is_3d{false};
+    std::optional<Mat4> m_matrix_override;
+    std::optional<f32> m_opacity_override;
 };
 
 // MaskNode
@@ -104,11 +131,17 @@ public:
         if (inputs.empty()) return std::make_shared<Framebuffer>(ctx.width, ctx.height);
 
         auto result = std::make_shared<Framebuffer>(*inputs[0]);
-        const f32 cx = ctx.width  * 0.5f;
-        const f32 cy = ctx.height * 0.5f;
-        for (i32 y = 0; y < ctx.height; ++y) {
+
+        f32 cx = 0.0f;
+        f32 cy = 0.0f;
+        if (ctx.modular_coordinates) {
+            cx = static_cast<f32>(result->width()) * 0.5f;
+            cy = static_cast<f32>(result->height()) * 0.5f;
+        }
+
+        for (i32 y = 0; y < result->height(); ++y) {
             Color* row = result->pixels_row(y);
-            for (i32 x = 0; x < ctx.width; ++x) {
+            for (i32 x = 0; x < result->width(); ++x) {
                 Vec2 local{static_cast<f32>(x) - cx, static_cast<f32>(y) - cy};
                 if (!mask_contains_local_point(m_mask, local))
                     row[x].a = 0.0f;
