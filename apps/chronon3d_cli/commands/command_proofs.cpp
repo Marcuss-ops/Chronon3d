@@ -12,7 +12,7 @@ namespace cli {
 
 namespace {
 
-static constexpr std::array<const char*, 12> k_proof_names = {{
+static constexpr std::array<const char*, 13> k_proof_names = {{
     // Geometric diagnostics
     "ProofDepthLadder",
     "ProofPanParallax",
@@ -27,9 +27,12 @@ static constexpr std::array<const char*, 12> k_proof_names = {{
     "ProofYouTubeQuoteScene",
     "ProofYouTubeNewsCard",
     "ProofYouTubeParallaxThumbnail",
+    // Showcase demos
+    "ChrononIntroCard",
 }};
 
-static constexpr std::array<Frame, 3> k_key_frames = {{0, 44, 89}};
+static constexpr std::array<Frame, 3> k_proof_key_frames = {{0, 44, 89}};
+static constexpr std::array<Frame, 3> k_demo_key_frames  = {{0, 89, 179}};
 
 } // namespace
 
@@ -60,7 +63,10 @@ int command_proofs(const CompositionRegistry& registry, const ProofsArgs& args) 
         const auto comp = registry.create(name);
         int rendered = 0;
 
-        for (const Frame f : k_key_frames) {
+        const bool is_demo = std::string_view(name).find("Chronon") != std::string_view::npos;
+        const auto& key_frames = is_demo ? k_demo_key_frames : k_proof_key_frames;
+
+        for (const Frame f : key_frames) {
             auto fb = renderer->render_frame(comp, f);
             if (!fb) {
                 spdlog::error("[proofs] {} frame {} render failed", name, f);
@@ -75,7 +81,7 @@ int command_proofs(const CompositionRegistry& registry, const ProofsArgs& args) 
             }
         }
 
-        const int total = static_cast<int>(k_key_frames.size());
+        const int total = static_cast<int>(key_frames.size());
         if (rendered == total) {
             spdlog::info("[proofs] {:30s} ✓  {}/{} frames", name, rendered, total);
             ++pass;
