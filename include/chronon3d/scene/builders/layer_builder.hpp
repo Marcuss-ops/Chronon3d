@@ -80,6 +80,12 @@ public:
     LayerBuilder& anchor_node(Vec3 a);
     LayerBuilder& node_opacity(f32 a);
 
+    // Track matte
+    LayerBuilder& track_matte_alpha(std::string source_layer_name);
+    LayerBuilder& track_matte_alpha_inverted(std::string source_layer_name);
+    LayerBuilder& track_matte_luma(std::string source_layer_name);
+    LayerBuilder& track_matte_luma_inverted(std::string source_layer_name);
+
     // Specialized
     /**
      * Declarative video layer.
