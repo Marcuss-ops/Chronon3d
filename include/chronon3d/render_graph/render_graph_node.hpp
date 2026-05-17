@@ -11,7 +11,6 @@
 #include <vector>
 
 namespace chronon3d {
-    class SoftwareRenderer;
     class CompositionRegistry;
 }
 
@@ -21,6 +20,7 @@ namespace chronon3d::video {
 
 namespace chronon3d::graph {
 
+class RenderBackend;
 class RenderProfiler;
 using GraphNodeId = uint32_t;
 
@@ -53,7 +53,7 @@ struct RenderGraphContext {
     renderer::ProjectionContext projection_ctx{}; // pre-built from camera_2_5d
     rendering::LightContext light_context{};
 
-    SoftwareRenderer* renderer{nullptr};
+    RenderBackend* backend{nullptr};
     cache::NodeCache* node_cache{nullptr};
     RenderProfiler* profiler{nullptr};
     const CompositionRegistry* registry{nullptr};

@@ -4,7 +4,7 @@
 #include <chronon3d/render_graph/render_graph_hashing.hpp>
 #include <chronon3d/rendering/shadow_settings.hpp>
 #include <chronon3d/math/vec3.hpp>
-#include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/render_graph/render_backend.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -90,8 +90,8 @@ public:
             }
         }
 
-        if (m_settings.blur_radius > 0.0f) {
-            SoftwareRenderer::apply_blur(*result, m_settings.blur_radius);
+        if (m_settings.blur_radius > 0.0f && ctx.backend) {
+            ctx.backend->apply_blur(*result, m_settings.blur_radius);
         }
 
         return result;
