@@ -42,8 +42,8 @@
 
 | Feature | Note | Effort |
 |---|---|---|
-| **Keyframe curves** | Lambda `f(ctx.frame)` funziona, manca API dichiarativa con easing | ~1 giorno — `AnimatedValue<T>` + builder |
-| **Track matte** | Layer A come alpha mask per layer B | ~3h — `TrackMatteNode` |
+| **Keyframe curves** | ✅ API dichiarativa con easing via `KeyframeTrack<T>` e `.sample()` | completato |
+| **Track matte** | ✅ Layer A come alpha mask per layer B | completato |
 | **Full 3D parenting** | 2D parenting ok; 3D propaga solo traslazione, non rotation/scale | ~2h |
 | **Depth of Field** | Struct presente, renderer non implementato | ~3h — post-process pass |
 | **Lights (ambient + directional)** | `LightContext` presente, nessuna pipeline | ~4h |
