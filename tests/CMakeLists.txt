@@ -93,6 +93,11 @@ add_executable(chronon3d_renderer_tests
     render_graph/test_camera_2_5d_graph.cpp
     renderer/camera/25d/test_25d_parallax.cpp
     renderer/camera/25d/test_proof_depth_ladder.cpp
+    renderer/camera/25d/test_proof_youtube_depth_title.cpp
+    renderer/camera/25d/test_proof_youtube_image_dof.cpp
+    renderer/camera/25d/test_proof_youtube_quote_scene.cpp
+    renderer/camera/25d/test_proof_youtube_news_card.cpp
+    renderer/camera/25d/test_proof_youtube_parallax_thumbnail.cpp
     renderer/camera/25d/test_proof_pan_parallax.cpp
     renderer/camera/25d/test_proof_tilt_parallax.cpp
     renderer/camera/25d/test_proof_roll_stability.cpp
