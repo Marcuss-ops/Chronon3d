@@ -52,14 +52,49 @@ RenderGraph build_graph(const Scene& scene, const RenderGraphContext& ctx,
         name_to_resolved[std::string(rl.layer->name)] = &rl;
     }
 
-    // Helper: build a LayerGraphItem for a 2D layer (no projection).
-    auto make_2d_item = [&](const ResolvedLayer& rl) -> LayerGraphItem {
+    // Build a LayerGraphItem for a matte source layer.
+    // If the source is a 3D layer and the camera is active, apply the full
+    // 2.5D projection so the matte silhouette matches the projected geometry.
+    auto make_item_for_matte_source = [&](const ResolvedLayer& rl) -> LayerGraphItem {
+        if (cam25d.enabled && rl.layer->is_3d) {
+            Transform effective_transform = rl.world_transform;
+            if (!ctx.modular_coordinates) {
+                effective_transform.position.x -= ctx.width * 0.5f;
+                effective_transform.position.y -= ctx.height * 0.5f;
+            }
+            const Mat4 projection_world_matrix = effective_transform.to_mat4();
+            auto proj = project_layer_2_5d(
+                effective_transform,
+                projection_world_matrix,
+                cam25d,
+                static_cast<f32>(ctx.width),
+                static_cast<f32>(ctx.height)
+            );
+            if (proj.visible) {
+                const Mat4 eff_proj = is_native_3d_layer(*rl.layer)
+                    ? Mat4(1.0f)
+                    : proj.projection_matrix;
+                return LayerGraphItem{
+                    .layer             = rl.layer,
+                    .transform         = proj.transform,
+                    .world_matrix      = rl.world_matrix,
+                    .projection_matrix = eff_proj,
+                    .depth             = proj.depth,
+                    .world_z           = rl.world_transform.position.z,
+                    .projected         = true,
+                    .native_3d         = is_native_3d_layer(*rl.layer),
+                    .insertion_index   = rl.insertion_index,
+                };
+            }
+        }
         return LayerGraphItem{
-            .layer = rl.layer,
-            .transform = rl.world_transform,
-            .world_matrix = rl.world_matrix,
-            .depth = 0.0f,
-            .projected = false,
+            .layer           = rl.layer,
+            .transform       = rl.world_transform,
+            .world_matrix    = rl.world_matrix,
+            .depth           = 0.0f,
+            .world_z         = rl.world_transform.position.z,
+            .projected       = false,
+            .native_3d       = is_native_3d_layer(*rl.layer),
             .insertion_index = rl.insertion_index,
         };
     };
@@ -71,7 +106,7 @@ RenderGraph build_graph(const Scene& scene, const RenderGraphContext& ctx,
             const std::string src_name(item.layer->track_matte.source_layer);
             auto it = name_to_resolved.find(src_name);
             if (it != name_to_resolved.end() && it->second->layer->active_at(ctx.frame)) {
-                LayerGraphItem matte_item = make_2d_item(*it->second);
+                LayerGraphItem matte_item = make_item_for_matte_source(*it->second);
                 item.matte_node = LayerPipelineBuilder::build_matte_sub_pipeline(graph, matte_item, ctx);
             }
         }
