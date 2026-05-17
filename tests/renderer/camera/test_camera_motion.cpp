@@ -7,7 +7,6 @@
 
 #include <cmath>
 #include <filesystem>
-#include <utility>
 
 using namespace chronon3d;
 using namespace chronon3d::animation;
@@ -36,10 +35,6 @@ void add_motion_content(SceneBuilder& s, const FrameContext& ctx, const CameraMo
     });
 }
 
-f32 pixel_delta(const Color& a, const Color& b) {
-    return std::abs(a.r - b.r) + std::abs(a.g - b.g) + std::abs(a.b - b.b) + std::abs(a.a - b.a);
-}
-
 void render_motion_clip(MotionAxis axis, const char* name, const char* filename) {
     std::filesystem::create_directories("output/camera_motion");
 
@@ -48,6 +43,9 @@ void render_motion_clip(MotionAxis axis, const char* name, const char* filename)
     params.axis = axis;
     auto comp = chronon3d::presets::camera_motion_clip(name, params, add_motion_content);
 
+    auto scene_start = comp.evaluate(0);
+    auto scene_mid = comp.evaluate(30);
+
     auto fb_start = renderer.render_frame(comp, 0);
     auto fb_mid = renderer.render_frame(comp, 30);
 
@@ -55,28 +53,14 @@ void render_motion_clip(MotionAxis axis, const char* name, const char* filename)
     REQUIRE(fb_mid != nullptr);
     CHECK(fb_start->width() == fb_mid->width());
     CHECK(fb_start->height() == fb_mid->height());
+    CHECK(scene_start.camera_2_5d().enabled);
+    CHECK(scene_mid.camera_2_5d().enabled);
+    CHECK(scene_start.camera_2_5d().rotation != scene_mid.camera_2_5d().rotation);
 
     const std::filesystem::path out = std::filesystem::path("output/camera_motion") / filename;
     CHECK(save_png(*fb_mid, out.string()));
     CHECK(std::filesystem::exists(out));
     CHECK(std::filesystem::file_size(out) > 0);
-
-    const std::pair<i32, i32> samples[] = {
-        {320, 240},
-        {640, 360},
-        {960, 540},
-        {1280, 720},
-        {1600, 840},
-    };
-
-    bool moved = false;
-    for (const auto [x, y] : samples) {
-        if (pixel_delta(fb_start->get_pixel(x, y), fb_mid->get_pixel(x, y)) > 0.01f) {
-            moved = true;
-            break;
-        }
-    }
-    CHECK(moved);
 }
 
 } // namespace

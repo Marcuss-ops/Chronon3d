@@ -17,8 +17,11 @@
 #include <chronon3d/presets/overlay_presets.hpp>
 #include <chronon3d/scene/camera/camera.hpp>
 #include <chronon3d/scene/camera/camera_2_5d.hpp>
+#include <chronon3d/scene/camera/dof.hpp>
 #include <chronon3d/scene/mask/mask.hpp>
 #include <chronon3d/scene/mask/mask_utils.hpp>
+#include <chronon3d/rendering/light_context.hpp>
+#include <chronon3d/rendering/lighting_eval.hpp>
 #include <chronon3d/scene/effects/layer_effect.hpp>
 #include <chronon3d/scene/layer/depth_role.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>

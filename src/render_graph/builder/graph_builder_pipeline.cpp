@@ -56,6 +56,7 @@ RenderGraph build_graph(const Scene& scene, const RenderGraphContext& ctx,
         return LayerGraphItem{
             .layer = rl.layer,
             .transform = rl.world_transform,
+            .world_matrix = rl.world_matrix,
             .depth = 0.0f,
             .projected = false,
             .insertion_index = rl.insertion_index,
@@ -109,8 +110,10 @@ RenderGraph build_graph(const Scene& scene, const RenderGraphContext& ctx,
                 effective_transform.position.x -= ctx.width * 0.5f;
                 effective_transform.position.y -= ctx.height * 0.5f;
             }
+            const Mat4 projection_world_matrix = effective_transform.to_mat4();
             auto proj = project_layer_2_5d(
                 effective_transform,
+                projection_world_matrix,
                 cam25d,
                 static_cast<f32>(ctx.width),
                 static_cast<f32>(ctx.height)
@@ -127,9 +130,12 @@ RenderGraph build_graph(const Scene& scene, const RenderGraphContext& ctx,
                 current_3d_bin.push_back({
                     .layer = &layer,
                     .transform = proj.transform,
+                    .world_matrix = resolved_layer.world_matrix,
                     .projection_matrix = eff_proj,
                     .depth = proj.depth,
+                    .world_z = resolved_layer.world_transform.position.z,
                     .projected = true,
+                    .native_3d = is_native_3d_layer(layer),
                     .insertion_index = resolved_layer.insertion_index
                 });
             }
@@ -138,8 +144,11 @@ RenderGraph build_graph(const Scene& scene, const RenderGraphContext& ctx,
             append_item({
                 .layer = &layer,
                 .transform = resolved_layer.world_transform,
+                .world_matrix = resolved_layer.world_matrix,
                 .depth = 0.0f,
+                .world_z = resolved_layer.world_transform.position.z,
                 .projected = false,
+                .native_3d = is_native_3d_layer(layer),
                 .insertion_index = resolved_layer.insertion_index
             });
         }

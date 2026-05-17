@@ -6,19 +6,18 @@ using namespace chronon3d;
 
 namespace {
 
-static SoftwareRenderer g_renderer;
-
 // Render a 100x100 composition with a single centered layer.
 // setup: configure the layer (position, effects, shapes).
 static std::unique_ptr<Framebuffer> render_layer(std::function<void(LayerBuilder&)> setup,
                                                   i32 w = 100, i32 h = 100) {
+    SoftwareRenderer renderer;
     Composition comp = composition({.name = "Test", .width = w, .height = h, .duration = 1},
                                    [&](const FrameContext& ctx) {
                                        SceneBuilder s(ctx);
                                        s.layer("l", setup);
                                        return s.build();
                                    });
-    return g_renderer.render_frame(comp, 0);
+    return renderer.render_frame(comp, 0);
 }
 
 // Convenience: layer setup for a rect centered in a 100x100 canvas.

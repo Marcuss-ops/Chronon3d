@@ -2,6 +2,7 @@
 
 #include "passes/graph_builder_source_pass.hpp"
 #include "passes/graph_builder_transform_pass.hpp"
+#include "passes/graph_builder_lighting_pass.hpp"
 #include "passes/graph_builder_mask_pass.hpp"
 #include "passes/graph_builder_effect_pass.hpp"
 #include "passes/graph_builder_composite_pass.hpp"
@@ -86,10 +87,13 @@ void LayerPipelineBuilder::append_layer_pipeline(RenderGraph& graph, const Layer
     if (!mask_before_transform)
         append_mask_pass_if_needed(graph, layer_output, *item.layer);
 
-    // 5. Effect pass — apply effect stack + optional DOF blur
+    // 5. Lighting pass — diffuse shading for 3D projected layers with lights enabled.
+    append_lighting_pass_if_needed(graph, layer_output, item, ctx);
+
+    // 6. Effect pass — apply effect stack + optional DOF blur
     append_effect_pass_if_needed(graph, layer_output, *item.layer, item, cam25d);
 
-    // 6. Track matte pass — if a matte source node was pre-built, apply it
+    // 7. Track matte pass — if a matte source node was pre-built, apply it
     if (layer.track_matte.active() && item.matte_node != k_invalid_node) {
         cache::NodeCacheKey matte_key{
             .scope       = "matte:" + std::string(layer.name),
@@ -111,7 +115,7 @@ void LayerPipelineBuilder::append_layer_pipeline(RenderGraph& graph, const Layer
         layer_output = matte_node;
     }
 
-    // 7. Composite pass — blend into the current frame buffer
+    // 8. Composite pass — blend into the current frame buffer
     append_composite_pass(graph, current, layer_output, *item.layer);
 }
 

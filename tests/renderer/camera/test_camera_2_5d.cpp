@@ -81,15 +81,14 @@ TEST_CASE("Camera 2.5D: z sorting draws near layer on top of far layer") {
         s.camera().set({
             .enabled          = true,
             .position         = {0, 0, -1000},
-            .point_of_interest = {0, 0, 0},
             .zoom             = 1000.0f
         });
 
         s.layer("near-red", [](LayerBuilder& l) {
             l.enable_3d(true)
-             .position({100, 100, -300});
+             .position({0, 0, -500});
             l.rect("red", {
-                .size  = {80, 80},
+                .size  = {100, 100},
                 .color = Color{1, 0, 0, 1},
                 .pos   = {0, 0, 0}
             });
@@ -97,9 +96,9 @@ TEST_CASE("Camera 2.5D: z sorting draws near layer on top of far layer") {
 
         s.layer("far-blue", [](LayerBuilder& l) {
             l.enable_3d(true)
-             .position({100, 100, 400});
+             .position({0, 0, 1000});
             l.rect("blue", {
-                .size  = {80, 80},
+                .size  = {200, 200},
                 .color = Color{0, 0, 1, 1},
                 .pos   = {0, 0, 0}
             });
@@ -109,6 +108,9 @@ TEST_CASE("Camera 2.5D: z sorting draws near layer on top of far layer") {
     });
 
     SoftwareRenderer renderer;
+    RenderSettings settings;
+    settings.use_modular_graph = true;
+    renderer.set_settings(settings);
     auto fb = renderer.render_frame(comp, 0);
     auto p  = fb->get_pixel(100, 100);
 

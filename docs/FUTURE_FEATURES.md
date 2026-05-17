@@ -44,9 +44,9 @@
 |---|---|---|
 | **Keyframe curves** | ✅ API dichiarativa con easing via `KeyframeTrack<T>` e `.sample()` | completato |
 | **Track matte** | ✅ alpha/luma/inverted per layer 2D; 3D source da verificare | quasi completo |
-| **Full 3D parenting** | 2D parenting ok; 3D propaga solo traslazione, non rotation/scale | ~2h |
-| **Depth of Field** | Struct presente, renderer non implementato | ~3h — post-process pass |
-| **Lights (ambient + directional)** | `LightContext` presente, nessuna pipeline | ~4h |
+| **Full 3D parenting** | ✅ resolver gerarchico matrix-correct, world transform/world matrix risolti | completato |
+| **Depth of Field** | ✅ V1 per-layer su projected 2.5D layers; focus_z world-space | completato |
+| **Lights (ambient + directional)** | ✅ V1 diffuse Lambert su layer projected 3D con `accepts_lights=true` | completato |
 | **Shadows layer-to-layer** | Dipende da lights | dopo lights |
 
 ### 🟢 NICE TO HAVE

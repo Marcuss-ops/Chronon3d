@@ -3,6 +3,7 @@
 #include <chronon3d/scene/layer/render_node.hpp>
 #include <chronon3d/scene/layer/layer.hpp>
 #include <chronon3d/scene/camera/camera_2_5d.hpp>
+#include <chronon3d/rendering/light_context.hpp>
 #include <vector>
 #include <memory_resource>
 
@@ -29,6 +30,9 @@ public:
     void set_camera_2_5d(Camera2_5DRuntime camera) { m_camera_2_5d = camera; }
     [[nodiscard]] const Camera2_5DRuntime& camera_2_5d() const { return m_camera_2_5d; }
 
+    [[nodiscard]] rendering::LightContext& light_context() { return m_lights; }
+    [[nodiscard]] const rendering::LightContext& light_context() const { return m_lights; }
+
     void resolve_hierarchy(Frame frame);
     [[nodiscard]] bool hierarchy_baked() const { return m_hierarchy_baked; }
     [[nodiscard]] bool hierarchy_resolved() const { return m_hierarchy_baked; }
@@ -39,6 +43,7 @@ private:
     std::pmr::vector<RenderNode> m_nodes;
     std::pmr::vector<Layer> m_layers;
     Camera2_5DRuntime m_camera_2_5d{};
+    rendering::LightContext m_lights{};
     bool m_hierarchy_baked{false};
 };
 

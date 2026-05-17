@@ -126,3 +126,41 @@ TEST_CASE("Layer hierarchy: parent rotation affects child position") {
     CHECK(resolved[1].world_transform.position.y == doctest::Approx(100.0f));
 }
 
+TEST_CASE("Layer hierarchy: full 3D parenting composes world matrices") {
+    std::pmr::monotonic_buffer_resource res;
+    SceneBuilder s(&res);
+
+    s.null_layer("parent", [](LayerBuilder& l) {
+        l.position({100, 50, 20})
+         .rotate({0, 90, 0})
+         .scale({2, 2, 2})
+         .opacity(0.5f);
+    });
+
+    s.layer("child", [](LayerBuilder& l) {
+        l.parent("parent")
+         .position({10, 0, 0})
+         .rotate({0, 0, 90})
+         .opacity(0.8f);
+    });
+
+    auto scene = s.build();
+    auto resolved = resolve_layer_hierarchy(scene.layers(), 0, scene.resource());
+    REQUIRE(resolved.size() == 2);
+    REQUIRE(resolved[0].layer != nullptr);
+    REQUIRE(resolved[1].layer != nullptr);
+
+    const Vec4 child_origin = resolved[1].world_matrix * Vec4(0.0f, 0.0f, 0.0f, 1.0f);
+    const Vec4 child_local_x = resolved[1].world_matrix * Vec4(1.0f, 0.0f, 0.0f, 0.0f);
+
+    CHECK(child_origin.x == doctest::Approx(100.0f).epsilon(0.001f));
+    CHECK(child_origin.y == doctest::Approx(50.0f).epsilon(0.001f));
+    CHECK(child_origin.z == doctest::Approx(0.0f).epsilon(0.001f));
+
+    CHECK(child_local_x.x == doctest::Approx(0.0f).epsilon(0.001f));
+    CHECK(child_local_x.y == doctest::Approx(2.0f).epsilon(0.001f));
+    CHECK(child_local_x.z == doctest::Approx(0.0f).epsilon(0.001f));
+
+    CHECK(resolved[1].world_transform.opacity == doctest::Approx(0.4f).epsilon(0.0001f));
+}
+

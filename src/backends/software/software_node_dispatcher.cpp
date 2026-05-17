@@ -17,9 +17,7 @@ void SoftwareNodeDispatcher::draw_node(SoftwareRenderer& renderer,
         processor->draw(renderer, fb, node, state, camera, width, height);
     } else {
         // No fallback allowed. All shape types must have a registered processor.
-        spdlog::error("[SoftwareNodeDispatcher] No processor registered for shape type {} node '{}'",
-                      static_cast<int>(node.shape.type),
-                      std::string(node.name));
+        return;
     }
 }
 

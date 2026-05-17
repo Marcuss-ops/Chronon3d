@@ -1,10 +1,9 @@
 #include <doctest/doctest.h>
 
-#include <chronon3d/scene/utils/dark_grid_background.hpp>
-
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/layout/layout_solver.hpp>
+#include <chronon3d/scene/builders/scene_builder.hpp>
 
 #include <array>
 #include <filesystem>
@@ -37,7 +36,13 @@ static const std::array<AnchorCase, 9> kAnchorCases{{
 }};
 
 void build_anchor_scene(SceneBuilder& s, const FrameContext& ctx, const AnchorCase& c) {
-    scene::utils::dark_grid_background(s, ctx);
+    s.layer("background", [ctx](LayerBuilder& l) {
+        l.rect("bg", {
+            .size = {static_cast<f32>(ctx.width), static_cast<f32>(ctx.height)},
+            .color = Color::from_hex("#1b1d22"),
+            .pos = {static_cast<f32>(ctx.width) * 0.5f, static_cast<f32>(ctx.height) * 0.5f, 0.0f},
+        });
+    });
 
     s.layer(std::string{"card_"} + c.name, [c](LayerBuilder& l) {
         l.pin_to(c.placement, c.margin)
@@ -46,8 +51,7 @@ void build_anchor_scene(SceneBuilder& s, const FrameContext& ctx, const AnchorCa
              .radius = 14.0f,
              .color = c.color,
              .pos = {0.0f, 0.0f, 0.0f},
-         })
-         .drop_shadow({0.0f, 6.0f}, Color{0.0f, 0.0f, 0.0f, 0.24f}, 10.0f);
+         });
     });
 }
 
@@ -60,8 +64,6 @@ TEST_CASE("Anchor gallery renders PNGs for all anchor presets") {
     std::filesystem::path out_dir = "output/layout/anchors";
     std::filesystem::create_directories(out_dir);
 
-    SoftwareRenderer renderer;
-
     for (const auto& c : kAnchorCases) {
         FrameContext ctx;
         ctx.width = W;
@@ -73,6 +75,7 @@ TEST_CASE("Anchor gallery renders PNGs for all anchor presets") {
         Scene scene = builder.build();
         LayoutSolver{}.solve(scene, W, H);
 
+        SoftwareRenderer renderer;
         auto fb = renderer.render_scene(scene, std::nullopt, W, H);
         REQUIRE(fb != nullptr);
         CHECK(fb->width() == W);

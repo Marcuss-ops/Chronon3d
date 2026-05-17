@@ -58,7 +58,6 @@ TEST_CASE("EffectStack: EffectStack is a vector of instances") {
 // LayerBuilder API builds the stack
 // ---------------------------------------------------------------------------
 TEST_CASE("EffectStack: blur() adds BlurParams to stack") {
-    SceneBuilder sb(nullptr);
     LayerBuilder lb("test");
     lb.blur(8.0f);
     auto layer = lb.build();

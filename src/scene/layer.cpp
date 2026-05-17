@@ -24,6 +24,8 @@ Layer::Layer(const Layer& other)
       depth_role(other.depth_role),
       depth_offset(other.depth_offset),
       layout(other.layout),
+      track_matte(other.track_matte),
+      material(other.material),
       nodes(other.nodes),
       precomp_composition_name(other.precomp_composition_name) {
     
@@ -51,6 +53,8 @@ Layer& Layer::operator=(const Layer& other) {
     depth_role = other.depth_role;
     depth_offset = other.depth_offset;
     layout = other.layout;
+    track_matte = other.track_matte;
+    material = other.material;
     nodes = other.nodes;
     precomp_composition_name = other.precomp_composition_name;
     

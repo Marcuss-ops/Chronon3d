@@ -21,7 +21,7 @@ void append_effect_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_output,
 
     // DOF blur (only for projected 2.5D layers) - logic moved to DofEffectNode
     if (item.projected && cam25d.dof.enabled) {
-        auto dof_node = graph.add_node(DofEffectNode::create(cam25d, item.depth));
+        auto dof_node = graph.add_node(DofEffectNode::create(cam25d, item.world_z));
         graph.connect(layer_output, dof_node);
         layer_output = dof_node;
     }
