@@ -64,6 +64,14 @@ using namespace chronon3d::graph;
     return Color{base.r * r, base.g * g, base.b * b, base.a};
 }
 
+[[nodiscard]] inline u64 hash_shadow_settings(const ShadowSettings& s) {
+    u64 seed = hash_value(s.opacity);
+    seed = hash_combine(seed, hash_value(s.blur_radius));
+    seed = hash_combine(seed, hash_value(s.px_per_unit));
+    seed = hash_combine(seed, hash_value(s.max_offset));
+    return seed;
+}
+
 [[nodiscard]] inline u64 hash_light_context(const LightContext& light) {
     u64 seed = hash_value(light.enabled);
     seed = hash_combine(seed, hash_value(light.ambient_enabled));
@@ -73,6 +81,7 @@ using namespace chronon3d::graph;
     seed = hash_combine(seed, hash_value(light.ambient));
     seed = hash_combine(seed, hash_color(light.directional_color));
     seed = hash_combine(seed, hash_value(light.diffuse));
+    seed = hash_combine(seed, hash_shadow_settings(light.shadows));
     return seed;
 }
 
