@@ -55,8 +55,8 @@ TEST_CASE("Alpha blending - Contro-test 2 (Renderer Overlap)") {
     SUBCASE("Rect alpha overlap") {
         Composition comp(spec, [](const FrameContext& ctx) {
             SceneBuilder s(ctx.resource);
-            s.rect("red", {50, 50, 0}, Color(1, 0, 0, 1), {50, 50});
-            s.rect("green", {50, 50, 0}, Color(0, 1, 0, 0.5f), {50, 50});
+            s.rect("red", {.size={50, 50}, .color=Color(1, 0, 0, 1), .pos={50, 50, 0}});
+            s.rect("green", {.size={50, 50}, .color=Color(0, 1, 0, 0.5f), .pos={50, 50, 0}});
             return s.build();
         });
         auto fb = renderer.render_frame(comp, 0);
@@ -71,8 +71,8 @@ TEST_CASE("Alpha blending - Contro-test 2 (Renderer Overlap)") {
     SUBCASE("Circle alpha overlap") {
         Composition comp(spec, [](const FrameContext& ctx) {
             SceneBuilder s(ctx.resource);
-            s.circle("red", {50, 50, 0}, 20.0f, Color(1, 0, 0, 1));
-            s.circle("green", {50, 50, 0}, 20.0f, Color(0, 1, 0, 0.5f));
+            s.circle("red", {.radius=20.0f, .color=Color(1, 0, 0, 1), .pos={50, 50, 0}});
+            s.circle("green", {.radius=20.0f, .color=Color(0, 1, 0, 0.5f), .pos={50, 50, 0}});
             return s.build();
         });
         auto fb = renderer.render_frame(comp, 0);
@@ -85,8 +85,8 @@ TEST_CASE("Alpha blending - Contro-test 2 (Renderer Overlap)") {
         Composition comp(spec, [](const FrameContext& ctx) {
             SceneBuilder s(ctx.resource);
             // Draw a thick horizontal line (multiple lines)
-            s.line("red", {20, 50, 0}, {80, 50, 0}, Color(1, 0, 0, 1));
-            s.line("green", {20, 50, 0}, {80, 50, 0}, Color(0, 1, 0, 0.5f));
+            s.line("red", {.from={20, 50, 0}, .to={80, 50, 0}, .color=Color(1, 0, 0, 1)});
+            s.line("green", {.from={20, 50, 0}, .to={80, 50, 0}, .color=Color(0, 1, 0, 0.5f)});
             return s.build();
         });
         auto fb = renderer.render_frame(comp, 0);

@@ -15,9 +15,9 @@ Composition make_test_comp() {
     CompositionSpec spec{.name="Det", .width=160, .height=90, .duration=10};
     return Composition(spec, [](const FrameContext& ctx) {
         SceneBuilder b(ctx.resource);
-        b.rect("bg",  Vec3{80, 45, 0}, Color{0.2f, 0.3f, 0.8f, 1.0f}, Vec2{160, 90});
-        b.rect("box", Vec3{40, 30, 0}, Color::white(), Vec2{30, 20});
-        b.circle("dot", Vec3{120, 60, 0}, 15.0f, Color{1,0.5f,0,1});
+        b.rect("bg",  {.size={160,90},  .color={0.2f,0.3f,0.8f,1.0f}, .pos={80,45,0}});
+        b.rect("box", {.size={30,20},   .color=Color::white(),          .pos={40,30,0}});
+        b.circle("dot", {.radius=15.0f, .color={1,0.5f,0,1},            .pos={120,60,0}});
         return b.build();
     });
 }

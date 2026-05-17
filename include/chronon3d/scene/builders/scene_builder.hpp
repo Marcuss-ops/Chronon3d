@@ -254,37 +254,6 @@ namespace chronon3d {
             return *this;
         }
 
-        // Legacy Overloads (Deprecated)
-        [[deprecated("Use rect(id, RectParams)")]]
-        SceneBuilder &rect(std::string name, Vec3 position, Color color, Vec2 size = {100, 100}) {
-            return rect(std::move(name), {.size = size, .color = color, .pos = position});
-        }
-
-        [[deprecated("Use rounded_rect(id, RoundedRectParams)")]]
-        SceneBuilder &rounded_rect(std::string name, Vec3 position, Vec2 size, f32 radius,
-                                   Color color) {
-            return rounded_rect(std::move(name),
-                                {.size = size, .radius = radius, .color = color, .pos = position});
-        }
-
-        [[deprecated("Use circle(id, CircleParams)")]]
-        SceneBuilder &circle(std::string name, Vec3 position, f32 radius, Color color) {
-            return circle(std::move(name), {.radius = radius, .color = color, .pos = position});
-        }
-        [[deprecated("Use text(id, TextParams)")]]
-        SceneBuilder &text(std::string name, std::string content, Vec3 position,
-                           const TextStyle &style) {
-            return text(std::move(name),
-                        {.content = std::move(content), .style = style, .pos = position});
-        }
-
-        [[deprecated("Use line(id, LineParams)")]]
-        SceneBuilder &line(std::string name, Vec3 start, Vec3 end, Color color,
-                           f32 thickness = 1.0f) {
-            return line(std::move(name),
-                        {.from = start, .to = end, .thickness = thickness, .color = color});
-        }
-
         [[nodiscard]] Scene build() {
             scene_.resolve_hierarchy(current_frame_);
             return std::move(scene_);

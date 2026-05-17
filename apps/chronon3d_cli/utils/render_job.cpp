@@ -67,13 +67,6 @@ bool write_render_frame(const Composition& comp,
 std::optional<RenderJobPlan> plan_render_job(const CompositionRegistry& registry,
                                              const RenderArgs& args) {
     auto range = parse_frames(args.frames);
-    if (args.frame_old != -1) {
-        range.start = range.end = args.frame_old;
-    } else if (args.start_old != -1 || args.end_old != -1) {
-        if (args.start_old != -1) range.start = args.start_old;
-        if (args.end_old != -1) range.end = args.end_old;
-    }
-
     auto resolved = resolve_composition(registry, args.comp_id);
     if (!resolved) {
         return std::nullopt;

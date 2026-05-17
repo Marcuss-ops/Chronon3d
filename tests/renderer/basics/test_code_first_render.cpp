@@ -14,7 +14,7 @@ TEST_CASE("Code-first rendering smoke test") {
 
     Composition comp(spec, [](const FrameContext& ctx) {
         SceneBuilder builder(ctx.resource);
-        builder.rect("box", {50, 50, 0}, Color::white(), {50, 50});
+        builder.rect("box", {.size={50, 50}, .color=Color::white(), .pos={50, 50, 0}});
         return builder.build();
     });
 

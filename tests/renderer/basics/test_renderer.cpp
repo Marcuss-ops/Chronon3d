@@ -56,7 +56,7 @@ TEST_CASE("Software Rendering Integration") {
         spec,
         [](const FrameContext& ctx) {
             SceneBuilder builder(ctx.resource);
-            builder.rect("Rect", {100.0f, 100.0f, 0.0f}, Color::white());
+            builder.rect("Rect", {.size={100, 100}, .color=Color::white(), .pos={100.0f, 100.0f, 0.0f}});
             return builder.build();
         }
     };

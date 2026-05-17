@@ -65,9 +65,6 @@ int main(int argc, char** argv) {
     render_cmd->add_flag("--motion-blur",           render_args.motion_blur,         "Enable temporal motion blur");
     render_cmd->add_option("--motion-blur-samples", render_args.motion_blur_samples, "Subframe samples (default 8)");
     render_cmd->add_option("--shutter-angle",       render_args.shutter_angle,       "Shutter angle in degrees (default 180)");
-    render_cmd->add_option("--frame",               render_args.frame_old,           "Single frame (legacy)");
-    render_cmd->add_option("--start",               render_args.start_old,           "Start frame (legacy)");
-    render_cmd->add_option("--end",                 render_args.end_old,             "End frame exclusive (legacy)");
     render_cmd->add_option("--ssaa",                render_args.ssaa,                "Super Sampling factor (default 1.0)");
     render_cmd->callback([&]() {
         if (render_args.output.empty()) {

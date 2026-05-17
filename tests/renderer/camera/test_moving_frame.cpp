@@ -12,7 +12,7 @@ TEST_CASE("Moving frame - Contro-test 7") {
     auto scene_func = [](const FrameContext& ctx) {
         SceneBuilder s(ctx.resource);
         auto x = interpolate(ctx.frame, 0, 60, 50.0f, 150.0f);
-        s.rect("moving", {x, 50, 0}, Color::white(), {20, 20});
+        s.rect("moving", {.size={20, 20}, .color=Color::white(), .pos={x, 50, 0}});
         return s.build();
     };
 

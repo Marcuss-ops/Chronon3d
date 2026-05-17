@@ -23,7 +23,7 @@ TEST_CASE("Test 6.1 — Scena vuota genera ClearNode come output") {
 
 TEST_CASE("Test 6.2 — Root node genera Source + Composite") {
     auto scene = SceneBuilder{}
-        .rect("root-rect", {0, 0, 0}, Color::red())
+        .rect("root-rect", {.size={100, 100}, .color=Color::red(), .pos={0, 0, 0}})
         .build();
 
     RenderGraphContext ctx{.width = 100, .height = 100};

@@ -12,7 +12,7 @@ TEST_CASE("Clipping - Contro-test 5") {
         Composition comp(spec, [](const FrameContext& ctx) {
             SceneBuilder s(ctx.resource);
             // Center -10, 50, size 40x40 -> x from -30 to 10
-            s.rect("offscreen", {-10, 50, 0}, Color::white(), {40, 40});
+            s.rect("offscreen", {.size={40, 40}, .color=Color::white(), .pos={-10, 50, 0}});
             return s.build();
         });
         // Should not crash
@@ -25,7 +25,7 @@ TEST_CASE("Clipping - Contro-test 5") {
     SUBCASE("Circle offscreen") {
         Composition comp(spec, [](const FrameContext& ctx) {
             SceneBuilder s(ctx.resource);
-            s.circle("circle", {0, 0, 0}, 30, Color::white());
+            s.circle("circle", {.radius=30.0f, .color=Color::white(), .pos={0, 0, 0}});
             return s.build();
         });
         auto fb = renderer.render_frame(comp, 0);
@@ -36,7 +36,7 @@ TEST_CASE("Clipping - Contro-test 5") {
     SUBCASE("Line offscreen") {
         Composition comp(spec, [](const FrameContext& ctx) {
             SceneBuilder s(ctx.resource);
-            s.line("line", {-100, -100, 0}, {600, 600, 0}, Color::white());
+            s.line("line", {.from={-100, -100, 0}, .to={600, 600, 0}, .color=Color::white()});
             return s.build();
         });
         auto fb = renderer.render_frame(comp, 0);

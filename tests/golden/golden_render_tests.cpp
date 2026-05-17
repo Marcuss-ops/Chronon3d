@@ -53,8 +53,8 @@ TEST_CASE("Test 17.1 — Golden image baseline and pixel-by-pixel validation") {
     auto renderer = make_renderer();
     Composition comp({.width = 64, .height = 64}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        s.rect("red_box", {32, 32, 0}, Color::red(), {30, 30});
-        s.circle("blue_dot", {32, 32, 0}, 8.0f, Color::blue());
+        s.rect("red_box", {.size={30, 30}, .color=Color::red(), .pos={32, 32, 0}});
+        s.circle("blue_dot", {.radius=8.0f, .color=Color::blue(), .pos={32, 32, 0}});
         return s.build();
     });
 
@@ -92,7 +92,7 @@ TEST_CASE("Test 17.2 — Framebuffer dimension and float boundary comparisons") 
     auto renderer = make_renderer();
     Composition comp({.width = 128, .height = 64}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        s.rect("box", {64, 32, 0}, Color::white(), {60, 30});
+        s.rect("box", {.size={60, 30}, .color=Color::white(), .pos={64, 32, 0}});
         return s.build();
     });
 
@@ -113,7 +113,7 @@ TEST_CASE("Test 17.3 — Pixel-level difference reporting on mismatch") {
     auto renderer = make_renderer();
     Composition comp({.width = 32, .height = 32}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        s.rect("green_box", {16, 16, 0}, Color::green(), {20, 20});
+        s.rect("green_box", {.size={20, 20}, .color=Color::green(), .pos={16, 16, 0}});
         return s.build();
     });
 

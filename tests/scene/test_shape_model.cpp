@@ -9,7 +9,7 @@ TEST_CASE("Shape model and SceneBuilder") {
     SUBCASE("Rect node has ShapeType::Rect") {
         Composition comp(spec, [](const FrameContext& ctx) {
             SceneBuilder s(ctx.resource);
-            s.rect("test-rect", {0, 0, 0}, Color::white(), {20, 20});
+            s.rect("test-rect", {.size={20, 20}, .color=Color::white(), .pos={0, 0, 0}});
             return s.build();
         });
         auto scene = comp.evaluate(0);
@@ -23,7 +23,7 @@ TEST_CASE("Shape model and SceneBuilder") {
     SUBCASE("Circle node has ShapeType::Circle") {
         Composition comp(spec, [](const FrameContext& ctx) {
             SceneBuilder s(ctx.resource);
-            s.circle("test-circle", {0, 0, 0}, 15.0f, Color::white());
+            s.circle("test-circle", {.radius=15.0f, .color=Color::white(), .pos={0, 0, 0}});
             return s.build();
         });
         auto scene = comp.evaluate(0);
@@ -36,7 +36,7 @@ TEST_CASE("Shape model and SceneBuilder") {
     SUBCASE("Line node has ShapeType::Line") {
         Composition comp(spec, [](const FrameContext& ctx) {
             SceneBuilder s(ctx.resource);
-            s.line("test-line", {0, 0, 0}, {10, 10, 0}, Color::white());
+            s.line("test-line", {.from={0, 0, 0}, .to={10, 10, 0}, .color=Color::white()});
             return s.build();
         });
         auto scene = comp.evaluate(0);

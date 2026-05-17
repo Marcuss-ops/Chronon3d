@@ -13,12 +13,11 @@ Composition make_perf_comp(int w, int h) {
     CompositionSpec spec{.name="PerfTest", .width=w, .height=h, .duration=30};
     return Composition(spec, [w, h](const FrameContext& ctx) {
         SceneBuilder b(ctx.resource);
-        b.rect("bg", Vec3{(f32)w/2, (f32)h/2, 0},
-               Color{0.1f,0.1f,0.1f,1}, Vec2{(f32)w, (f32)h});
+        b.rect("bg", {.size={(f32)w,(f32)h}, .color={0.1f,0.1f,0.1f,1}, .pos={(f32)w/2,(f32)h/2,0}});
         for (int i = 0; i < 8; ++i) {
             f32 x = 40.0f + i * 60.0f;
-            b.rect("r" + std::to_string(i), Vec3{x, 90, 0}, Color::white(), Vec2{40, 40});
-            b.circle("c" + std::to_string(i), Vec3{x, 160, 0}, 18.0f, Color{1,0.5f,0,1});
+            b.rect("r" + std::to_string(i),   {.size={40,40},    .color=Color::white(),   .pos={x,90,0}});
+            b.circle("c" + std::to_string(i), {.radius=18.0f,    .color={1,0.5f,0,1},     .pos={x,160,0}});
         }
         return b.build();
     });
