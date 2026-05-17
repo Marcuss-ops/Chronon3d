@@ -4,19 +4,18 @@
 
 using namespace chronon3d;
 
-static SoftwareRenderer g_renderer;
-
 static std::unique_ptr<Framebuffer> render_single(
     i32 w, i32 h,
     std::function<void(SceneBuilder&)> build_fn)
 {
+    SoftwareRenderer renderer;
     CompositionSpec spec{.width = w, .height = h, .duration = 1};
     Composition comp{spec, [&](const FrameContext& ctx) {
         SceneBuilder s(ctx.resource);
         build_fn(s);
         return s.build();
     }};
-    return g_renderer.render_frame(comp, 0);
+    return renderer.render_frame(comp, 0);
 }
 
 // ---------------------------------------------------------------------------

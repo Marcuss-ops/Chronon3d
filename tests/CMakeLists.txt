@@ -74,6 +74,7 @@ add_executable(chronon3d_renderer_tests
     renderer/cache/test_cache.cpp
     renderer/perf/test_render_perf.cpp
     renderer/lighting/test_light_context.cpp
+    renderer/lighting/test_directional_lights.cpp
     renderer/text/test_text_rendering.cpp
     renderer/text/test_text_layout.cpp
     renderer/text/test_text_layout_result.cpp
@@ -90,6 +91,8 @@ add_executable(chronon3d_renderer_tests
     renderer/camera/25d/test_25d_tilt.cpp
     renderer/camera/25d/test_25d_camera_motion.cpp
     renderer/camera/25d/test_25d_layer_rotation.cpp
+    renderer/camera/25d/test_25d_dof.cpp
+    renderer/camera/25d/test_25d_parenting.cpp
     registry/test_registries.cpp
     cache/test_cache_foundation.cpp
     effects/test_effect_registry.cpp

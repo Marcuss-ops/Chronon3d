@@ -7,8 +7,10 @@
 #include <chronon3d/scene/builders/builder_params.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/scene/camera/camera_2_5d.hpp>
+#include <chronon3d/rendering/light_context.hpp>
 #include <chronon3d/scene/scene.hpp>
 #include <chronon3d/backends/video/video_source.hpp>
+#include <glm/glm.hpp>
 #include <functional>
 #include <string>
 #include <unordered_map>
@@ -116,6 +118,25 @@ namespace chronon3d {
             : scene_(ctx.resource), current_frame_(ctx.frame) {}
 
         [[nodiscard]] CameraApi camera() { return CameraApi(*this); }
+
+        SceneBuilder& ambient_light(Color color = Color{1, 1, 1, 1}, f32 intensity = 0.2f) {
+            scene_.light_context().enabled = true;
+            scene_.light_context().ambient_enabled = true;
+            scene_.light_context().ambient_color = color;
+            scene_.light_context().ambient = intensity;
+            return *this;
+        }
+
+        SceneBuilder& directional_light(Vec3 direction, Color color = Color{1, 1, 1, 1},
+                                        f32 intensity = 1.0f) {
+            scene_.light_context().enabled = true;
+            scene_.light_context().directional_enabled = true;
+            scene_.light_context().direction =
+                glm::length(direction) > 1e-6f ? glm::normalize(direction) : Vec3{0, 0, -1};
+            scene_.light_context().directional_color = color;
+            scene_.light_context().diffuse = intensity;
+            return *this;
+        }
 
         SceneBuilder &rect(std::string name, RectParams p);
         SceneBuilder &rounded_rect(std::string name, RoundedRectParams p);

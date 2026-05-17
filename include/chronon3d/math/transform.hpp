@@ -43,6 +43,34 @@ struct Transform {
     }
 };
 
+[[nodiscard]] inline Transform from_mat4(const Mat4& matrix, f32 opacity = 1.0f) {
+    Vec3 translation{0.0f, 0.0f, 0.0f};
+    Vec3 scale{1.0f, 1.0f, 1.0f};
+    Vec3 skew{0.0f, 0.0f, 0.0f};
+    Quat rotation{1.0f, 0.0f, 0.0f, 0.0f};
+    glm::vec4 perspective{0.0f, 0.0f, 0.0f, 0.0f};
+
+    Mat4 local = matrix;
+    if (!glm::decompose(local, scale, rotation, translation, skew, perspective)) {
+        Transform out;
+        out.opacity = opacity;
+        return out;
+    }
+
+    Transform out;
+    out.position = translation;
+    out.rotation = glm::normalize(rotation);
+    out.scale = scale;
+    out.anchor = {0.0f, 0.0f, 0.0f};
+    out.opacity = opacity;
+    return out;
+}
+
+[[nodiscard]] inline Transform combine_transforms(const Transform& parent, const Transform& child) {
+    const Mat4 world = parent.to_mat4() * child.to_mat4();
+    return from_mat4(world, parent.opacity * child.opacity);
+}
+
 struct RenderState {
     Mat4 matrix;
     f32  opacity{1.0f};

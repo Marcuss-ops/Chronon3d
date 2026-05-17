@@ -213,6 +213,16 @@ LayerBuilder& LayerBuilder::with_glow(Glow glow) {
     return *this;
 }
 
+LayerBuilder& LayerBuilder::accepts_lights(bool value) {
+    m_layer.material.accepts_lights = value;
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::material(Material2_5D value) {
+    m_layer.material = value;
+    return *this;
+}
+
 LayerBuilder& LayerBuilder::at(Vec3 pos) {
     layer_builder_internal::set_last_position(m_layer, pos);
     return *this;

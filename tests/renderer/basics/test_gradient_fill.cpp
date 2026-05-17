@@ -8,18 +8,17 @@
 using namespace chronon3d;
 using namespace chronon3d::test;
 
-static SoftwareRenderer g_rend;
-
 static std::unique_ptr<Framebuffer> render_scene(int w, int h,
     std::function<void(SceneBuilder&)> fn)
 {
+    SoftwareRenderer renderer;
     Composition comp(CompositionSpec{.width = w, .height = h, .duration = 1},
         [&](const FrameContext& ctx) {
             SceneBuilder s(ctx);
             fn(s);
             return s.build();
         });
-    return g_rend.render_frame(comp, 0);
+    return renderer.render_frame(comp, 0);
 }
 
 // ---------------------------------------------------------------------------

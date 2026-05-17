@@ -2,6 +2,7 @@
 
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/layer/layer_hierarchy.hpp>
+#include <cmath>
 
 using namespace chronon3d;
 
@@ -56,4 +57,28 @@ TEST_CASE("Camera hierarchy: parent moves the camera without changing orientatio
     CHECK(resolved_cam.camera.rotation.x == doctest::Approx(5.0f));
     CHECK(resolved_cam.camera.rotation.y == doctest::Approx(10.0f));
     CHECK(resolved_cam.camera.rotation.z == doctest::Approx(15.0f));
+}
+
+TEST_CASE("Camera hierarchy: parent rotation moves the camera in 3D") {
+    std::pmr::monotonic_buffer_resource res;
+    SceneBuilder s(&res);
+
+    s.null_layer("rig", [](LayerBuilder& l) {
+        l.enable_3d()
+         .rotate({0, 90, 0});
+    });
+
+    s.camera().set({
+        .enabled = true,
+        .position = {0, 0, -1000},
+        .rotation = {0.0f, 0.0f, 0.0f}
+    });
+    s.camera().parent("rig");
+
+    auto scene = s.build();
+    auto resolved_cam = resolve_camera_hierarchy(scene.layers(), scene.resource(), scene.camera_2_5d());
+
+    CHECK(std::abs(resolved_cam.camera.position.x) == doctest::Approx(1000.0f).epsilon(0.01f));
+    CHECK(resolved_cam.camera.position.y == doctest::Approx(0.0f).epsilon(0.01f));
+    CHECK(std::abs(resolved_cam.camera.position.z) == doctest::Approx(0.0f).epsilon(0.01f));
 }

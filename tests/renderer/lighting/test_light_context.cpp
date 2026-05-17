@@ -1,5 +1,6 @@
 #include <doctest/doctest.h>
 #include <chronon3d/rendering/light_context.hpp>
+#include <chronon3d/rendering/lighting_eval.hpp>
 #include <glm/glm.hpp>
 
 using namespace chronon3d;
@@ -49,4 +50,32 @@ TEST_CASE("Material2_5D: accepts_lights=true → shade < 1 for back-facing") {
     const f32 r = light.shade(-light.direction, mat);
     CHECK(r < 1.0f);
     CHECK(r >= 0.0f);
+}
+
+TEST_CASE("Lighting eval: disabled light leaves base color unchanged") {
+    LightContext light;
+    Material2_5D mat;
+    mat.accepts_lights = true;
+
+    const Color base{0.25f, 0.5f, 0.75f, 1.0f};
+    const Color out = evaluate_lighting(base, {0, 0, 1}, light, mat);
+
+    CHECK(out.r == doctest::Approx(base.r));
+    CHECK(out.g == doctest::Approx(base.g));
+    CHECK(out.b == doctest::Approx(base.b));
+    CHECK(out.a == doctest::Approx(base.a));
+}
+
+TEST_CASE("Lighting eval: directional facing light is brighter than back-facing") {
+    LightContext light = LightContext::default_scene();
+    Material2_5D mat;
+    mat.accepts_lights = true;
+
+    const Color base{1.0f, 1.0f, 1.0f, 1.0f};
+    const auto facing = evaluate_lighting(base, light.direction, light, mat);
+    const auto away = evaluate_lighting(base, -light.direction, light, mat);
+
+    CHECK(facing.r >= away.r);
+    CHECK(facing.g >= away.g);
+    CHECK(facing.b >= away.b);
 }

@@ -3,6 +3,7 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
+#include <tests/helpers/render_fixtures.hpp>
 
 #include <xxhash.h>
 
@@ -83,6 +84,7 @@ TEST_CASE("Track matte alpha clips target to matte silhouette") {
         Color::white()
     ), 0);
     REQUIRE(fb != nullptr);
+    test::save_debug(*fb, "output/debug/track_matte/alpha.png");
 
     const Color center = fb->get_pixel(100, 100);
     CHECK(center.r > 0.5f);
@@ -100,6 +102,7 @@ TEST_CASE("Track matte alpha inverted reveals outside the matte") {
         Color::white()
     ), 0);
     REQUIRE(fb != nullptr);
+    test::save_debug(*fb, "output/debug/track_matte/alpha_inverted.png");
 
     CHECK(fb->get_pixel(100, 100).a == 0.0f);
     CHECK(fb->get_pixel(25, 100).r > 0.5f);
@@ -112,6 +115,7 @@ TEST_CASE("Track matte luma uses grayscale intensity") {
         Color{0.5f, 0.5f, 0.5f, 1.0f}
     ), 0);
     REQUIRE(fb != nullptr);
+    test::save_debug(*fb, "output/debug/track_matte/luma.png");
 
     const Color center = fb->get_pixel(100, 100);
     CHECK(center.a == doctest::Approx(0.214041f).epsilon(0.02f));
@@ -125,6 +129,7 @@ TEST_CASE("Track matte luma inverted respects premultiplied alpha") {
         Color{1.0f, 1.0f, 1.0f, 0.0f}
     ), 0);
     REQUIRE(fb != nullptr);
+    test::save_debug(*fb, "output/debug/track_matte/luma_inverted.png");
 
     CHECK(fb->get_pixel(100, 100).a > 0.9f);
     CHECK(fb->get_pixel(100, 100).r > 0.5f);

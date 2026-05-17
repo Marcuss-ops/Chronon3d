@@ -12,9 +12,12 @@ namespace chronon3d::graph {
 struct LayerGraphItem {
     const Layer* layer{nullptr};
     Transform    transform{};      // projected transform (or raw transform for 2D layers)
+    Mat4         world_matrix{1.0f}; // exact hierarchical world matrix for transform passes
     Mat4         projection_matrix{1.0f};
     f32          depth{0.0f};      // world depth (layer.z - camera.z); 0 for 2D layers
+    f32          world_z{0.0f};    // world-space Z before camera-relative projection
     bool         projected{false}; // true if transform was computed by project_layer_2_5d
+    bool         native_3d{false}; // true if layer contains native 3D shapes
     usize        insertion_index{0};
     GraphNodeId  matte_node{k_invalid_node}; // pre-built matte source node, if any
 };

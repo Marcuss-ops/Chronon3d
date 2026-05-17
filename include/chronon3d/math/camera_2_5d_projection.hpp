@@ -19,6 +19,14 @@ struct ProjectedLayer2_5D {
     bool      visible{true}; // false when layer is behind or on the camera plane
 };
 
+inline ProjectedLayer2_5D project_layer_2_5d(
+    const Transform& layer_transform,
+    const Mat4& layer_matrix,
+    const Camera2_5D& camera,
+    [[maybe_unused]] f32 viewport_width,
+    f32 viewport_height
+);
+
 // Returns the focal length (pixels) for a given vertical FOV and viewport height.
 // focal = (viewport_height / 2) / tan(fov_rad / 2)
 // At depth == focal_length, perspective_scale == 1.
@@ -157,6 +165,16 @@ inline ProjectedLayer2_5D project_layer_2_5d(
     [[maybe_unused]] f32 viewport_width,
     f32 viewport_height
 ) {
+    return project_layer_2_5d(layer_transform, layer_transform.to_mat4(), camera, viewport_width, viewport_height);
+}
+
+inline ProjectedLayer2_5D project_layer_2_5d(
+    const Transform& layer_transform,
+    const Mat4& layer_matrix,
+    const Camera2_5D& camera,
+    [[maybe_unused]] f32 viewport_width,
+    f32 viewport_height
+) {
     ProjectedLayer2_5D out;
     out.transform = layer_transform;
 
@@ -175,14 +193,15 @@ inline ProjectedLayer2_5D project_layer_2_5d(
             // Matrix path forced by layer rotation, but camera is straight.
             view = math::translate(Vec3(-camera.position.x, -camera.position.y, -camera.position.z));
         }
-        Vec4 world_pos{layer_transform.position.x, layer_transform.position.y, layer_transform.position.z, 1.0f};
+        Vec4 world_pos = layer_matrix * Vec4(0.0f, 0.0f, 0.0f, 1.0f);
         cam_pos = view * world_pos;
     } else {
         // Default mode: passive translation only.
         view = math::translate(Vec3(-camera.position.x, -camera.position.y, -camera.position.z));
-        cam_pos.x = layer_transform.position.x - camera.position.x;
-        cam_pos.y = layer_transform.position.y - camera.position.y;
-        cam_pos.z = layer_transform.position.z - camera.position.z;
+        Vec4 world_pos = layer_matrix * Vec4(0.0f, 0.0f, 0.0f, 1.0f);
+        cam_pos.x = world_pos.x - camera.position.x;
+        cam_pos.y = world_pos.y - camera.position.y;
+        cam_pos.z = world_pos.z - camera.position.z;
     }
 
     // Only look_at (point_of_interest) produces negative view_z for front-facing points.
@@ -207,8 +226,9 @@ inline ProjectedLayer2_5D project_layer_2_5d(
         out.transform.position.x = cam_pos.x * perspective_scale;
         out.transform.position.y = -cam_pos.y * perspective_scale;
     } else {
-        out.transform.position.x = layer_transform.position.x - camera.position.x * perspective_scale;
-        out.transform.position.y = layer_transform.position.y - camera.position.y * perspective_scale;
+        Vec4 world_pos = layer_matrix * Vec4(0.0f, 0.0f, 0.0f, 1.0f);
+        out.transform.position.x = world_pos.x - camera.position.x * perspective_scale;
+        out.transform.position.y = world_pos.y - camera.position.y * perspective_scale;
     }
     out.transform.position.z = 0.0f;
 
@@ -232,7 +252,7 @@ inline ProjectedLayer2_5D project_layer_2_5d(
         // w = +z for camera_view_matrix convention (passive/rotation), -z for look_at (POI)
         proj[2][3] = camera.point_of_interest_enabled ? -1.0f : 1.0f;
         proj[3][3] = 0.0001f;
-        out.projection_matrix = proj * view * layer_transform.to_mat4();
+        out.projection_matrix = proj * view * layer_matrix;
     } else {
         out.projection_matrix = out.transform.to_mat4();
     }

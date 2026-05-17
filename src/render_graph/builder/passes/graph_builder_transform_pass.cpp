@@ -25,7 +25,8 @@ void append_transform_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_outp
         transform_node = std::make_unique<TransformNode>(item.projection_matrix,
                                                          layer.transform.opacity);
     } else {
-        transform_node = std::make_unique<TransformNode>(item.transform);
+        transform_node = std::make_unique<TransformNode>(item.world_matrix,
+                                                         item.transform.opacity);
     }
 
     auto transform = graph.add_node(std::move(transform_node));

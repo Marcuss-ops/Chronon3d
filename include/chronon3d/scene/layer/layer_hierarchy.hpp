@@ -23,7 +23,7 @@ inline Transform combine_transforms_simple(const Transform& parent, const Transf
     // Note: We also need to account for parent scale when propagating child position.
     Vec3 scaled_child_pos = child.position * parent.scale;
     out.position = parent.position + (parent.rotation * scaled_child_pos);
-    
+
     out.rotation = parent.rotation * child.rotation;
     out.scale    = parent.scale * child.scale;
     out.opacity  = parent.opacity * child.opacity;
@@ -46,6 +46,7 @@ public:
             m_name_to_index.emplace(std::string_view(layers[i].name), i);
             m_resolved[i].layer = &layers[i];
             m_resolved[i].world_transform = layers[i].transform;
+            m_resolved[i].world_matrix = layers[i].transform.to_mat4();
             m_resolved[i].insertion_index = i;
         }
     }
@@ -64,6 +65,7 @@ public:
         out_camera.camera = input_camera;
         out_camera.world_transform.position = input_camera.position;
         out_camera.world_transform.rotation = math::camera_rotation_quat(input_camera.rotation);
+        out_camera.world_matrix = out_camera.world_transform.to_mat4();
 
         if (input_camera.hierarchy_baked) {
             return out_camera;
@@ -72,9 +74,16 @@ public:
         if (!input_camera.parent_name.empty()) {
             auto it = m_name_to_index.find(std::string_view(input_camera.parent_name));
             if (it != m_name_to_index.end()) {
-                Transform parent_world = resolve_one(it->second);
-                out_camera.world_transform = combine_transforms_simple(parent_world, out_camera.world_transform);
+                const usize parent_index = it->second;
+                const Transform parent_world = resolve_one(parent_index);
+                const Mat4 parent_matrix = m_resolved[parent_index].world_matrix;
+                const Mat4 local_matrix = out_camera.world_transform.to_mat4();
+                const Mat4 world_matrix = parent_matrix * local_matrix;
+
+                out_camera.world_matrix = world_matrix;
+                out_camera.world_transform = from_mat4(world_matrix);
                 out_camera.camera.position = out_camera.world_transform.position;
+                out_camera.camera.rotation = math::camera_rotation_euler(out_camera.world_transform.rotation);
             }
         }
 
@@ -102,6 +111,7 @@ private:
             m_resolved[index].cycle_detected = true;
             m_state[index] = VisitState::Visited;
             m_resolved[index].world_transform = m_layers[index].transform;
+            m_resolved[index].world_matrix = m_layers[index].transform.to_mat4();
             return m_resolved[index].world_transform;
         }
 
@@ -109,6 +119,7 @@ private:
 
         const Layer& layer = m_layers[index];
         Transform world = layer.transform;
+        Mat4 world_matrix = layer.transform.to_mat4();
 
         if (layer.hierarchy_resolved) {
             if (!layer.parent_name.empty()) {
@@ -122,6 +133,7 @@ private:
             }
 
             m_resolved[index].world_transform = world;
+            m_resolved[index].world_matrix = world_matrix;
             m_state[index] = VisitState::Visited;
             return world;
         }
@@ -132,21 +144,22 @@ private:
             auto it = m_name_to_index.find(std::string_view(layer.parent_name));
             if (it == m_name_to_index.end()) {
                 m_resolved[index].parent_missing = true;
-                world = layer.transform;
             } else {
                 const usize parent_index = it->second;
 
                 if (parent_index == index) {
                     m_resolved[index].cycle_detected = true;
-                    world = layer.transform;
                 } else {
                     Transform parent_world = resolve_one(parent_index);
+                    const Mat4 parent_matrix = m_resolved[parent_index].world_matrix;
                     world = combine_transforms_simple(parent_world, layer.transform);
+                    world_matrix = parent_matrix * layer.transform.to_mat4();
                 }
             }
         }
 
         m_resolved[index].world_transform = world;
+        m_resolved[index].world_matrix = world_matrix;
         m_state[index] = VisitState::Visited;
         return world;
     }
