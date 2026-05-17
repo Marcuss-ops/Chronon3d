@@ -1,5 +1,6 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/software/effect_processor.hpp>
+#include <chronon3d/backends/software/software_effect_runner.hpp>
 #include "../utils/render_effects_processor.hpp"
 
 namespace chronon3d::renderer {
@@ -8,7 +9,7 @@ class SoftwareBlurEffectProcessor final : public EffectProcessor {
 public:
     void apply(Framebuffer& fb, const EffectParams& params) override {
         if (auto* p = std::get_if<BlurParams>(&params)) {
-            SoftwareRenderer::apply_blur(fb, p->radius);
+            SoftwareEffectRunner::apply_blur(fb, p->radius);
         }
     }
 };

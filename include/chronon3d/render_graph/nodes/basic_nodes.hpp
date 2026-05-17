@@ -2,7 +2,7 @@
 
 #include <chronon3d/render_graph/render_graph_node.hpp>
 #include <chronon3d/render_graph/render_graph_hashing.hpp>
-#include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/scene/layer/layer.hpp>
 #include <chronon3d/scene/mask/mask_utils.hpp>
 #include <spdlog/spdlog.h>
@@ -61,7 +61,7 @@ public:
         auto fb = std::make_shared<Framebuffer>(ctx.width, ctx.height);
         fb->clear(Color::transparent());
         
-        if (ctx.renderer) {
+        if (ctx.backend) {
             RenderState state;
             const Mat4 ssaa_scale = math::scale(Vec3(ctx.ssaa_factor, ctx.ssaa_factor, 1.0f));
             const Mat4 canvas_center = math::translate(Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
@@ -94,7 +94,7 @@ public:
                 state.world_matrix = m_matrix_override.value_or(m_node.world_transform.to_mat4());
             }
 
-            ctx.renderer->draw_node(*fb, m_node, state, ctx.camera, ctx.width, ctx.height);
+            ctx.backend->draw_node(*fb, m_node, state, ctx.camera, ctx.width, ctx.height);
         }
         return fb;
     }
@@ -176,8 +176,8 @@ public:
         if (inputs.empty()) return std::make_shared<Framebuffer>(ctx.width, ctx.height);
         
         auto result = std::make_shared<Framebuffer>(*inputs[0]);
-        if (ctx.renderer) {
-            ctx.renderer->apply_effect_stack(*result, m_effects);
+        if (ctx.backend) {
+            ctx.backend->apply_effect_stack(*result, m_effects);
         }
         return result;
     }
@@ -208,8 +208,8 @@ public:
         if (inputs.empty()) return std::make_shared<Framebuffer>(ctx.width, ctx.height);
         
         auto result = std::make_shared<Framebuffer>(*inputs[0]);
-        if (ctx.renderer) {
-            ctx.renderer->apply_effect_stack(*result, m_effects);
+        if (ctx.backend) {
+            ctx.backend->apply_effect_stack(*result, m_effects);
         }
         return result;
     }
@@ -243,8 +243,8 @@ public:
         auto top = inputs[1];
         
         auto result = std::make_shared<Framebuffer>(*bottom);
-        if (ctx.renderer) {
-            ctx.renderer->composite_layer(*result, *top, m_mode);
+        if (ctx.backend) {
+            ctx.backend->composite_layer(*result, *top, m_mode);
         }
         return result;
     }

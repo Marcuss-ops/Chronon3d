@@ -25,7 +25,7 @@ public:
 
         // 2. Glow
         if (node.glow.enabled && node.glow.intensity > 0.0f && node.glow.color.a > 0.0f) {
-            draw_text_glow(fb, node, state, *raster);
+            draw_text_glow(renderer, fb, node, state, *raster);
         }
 
         // 3. Text
@@ -68,7 +68,7 @@ public:
     }
 
 private:
-    void draw_text_glow(Framebuffer& fb, const RenderNode& node, const RenderState& state, const TextRasterization& raster) {
+    void draw_text_glow(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNode& node, const RenderState& state, const TextRasterization& raster) {
         const Mat4& model = state.matrix;
         const f32 opacity = state.opacity;
         // Apply glow color to a copy of the text image
@@ -94,7 +94,7 @@ private:
         blend2d_bridge::composite_bl_image(glow_tmp, glow_img, 0, 0, 1.0f, BlendMode::Normal);
         
         if (node.glow.radius > 0.0f) {
-            SoftwareRenderer::apply_blur(glow_tmp, node.glow.radius);
+            renderer.apply_blur(glow_tmp, node.glow.radius);
         }
 
         const f32 glow_intensity_opacity = node.glow.intensity * node.glow.color.a;
