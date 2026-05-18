@@ -43,6 +43,7 @@ struct VideoArgs {
     bool keep_frames{false};
     RenderPipelineArgs pipeline{};
     std::string frames_dir;
+    std::string hardware_encoder{"none"};
     int chunks{1};
 };
 
@@ -61,6 +62,7 @@ struct VideoCameraArgs {
     std::string codec{"auto"};
     std::string encode_preset{"medium"};
     RenderPipelineArgs pipeline{};
+    std::string hardware_encoder{"none"};
 };
 
 
