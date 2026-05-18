@@ -3,15 +3,11 @@
 Welcome to the Chronon3d technical documentation.
 
 ## Core Documentation
-- [Architecture Overview](../ARCHITECTURE.md) - High-level system design and principles.
-- [Building Guide](../BUILDING.md) - How to set up and compile the engine.
-- [Roadmap & Vision](ROADMAP.md) - Future goals and planned features.
+- [Architecture Overview](../ARCHITECTURE.md) — High-level system design, principles, and architectural decisions.
+- [Building Guide](../BUILDING.md) — How to set up and compile the engine.
+- [Governance](GOVERNANCE.md) — Contribution guidelines, coding standards, pre-merge checklist, and testing philosophy.
+- [Roadmap](ROADMAP.md) — Current status, future goals, and progression toward AE equivalence.
 
 ## Subsystems
-- [3D Subsystem](3d_subsystem.md) - Details on Camera 2.5D, projection, and depth sorting.
-- [Render Graph](RENDER_GRAPH.md) - Execution model, node types, and caching strategies.
-- [Testing Philosophy](TESTING.md) - Guidelines for writing maintainable and minimal tests.
-
-## Contribution
-- [Mantra & Guidelines](CONTRIBUTING.md) - The rules we follow to keep the engine clean.
-- [Validation Checklist](CHECKLIST.md) - Protocol to be executed before every merge.
+- [3D Subsystem](3D_SUBSYSTEM.md) — Coordinate conventions, Camera 2.5D, projection, lighting, depth sorting.
+- [Render Graph](RENDER_GRAPH.md) — Execution model, node types, caching strategies, effects system, and registry architecture.

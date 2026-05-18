@@ -20,7 +20,7 @@ public:
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         return cache::NodeCacheKey{
             .scope = "clear",
-            .frame = ctx.frame,
+            .frame = 0,
             .width = ctx.width,
             .height = ctx.height
         };
@@ -108,7 +108,8 @@ private:
 // MaskNode
 class MaskNode final : public RenderGraphNode {
 public:
-    MaskNode(Mask mask) : m_mask(std::move(mask)) {}
+    MaskNode(Mask mask, Frame cache_frame = Frame{-1})
+        : m_mask(std::move(mask)), m_cache_frame(cache_frame) {}
 
     RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::Mask; }
     std::string name() const override { return "Mask"; }
@@ -116,7 +117,7 @@ public:
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         return cache::NodeCacheKey{
             .scope = "mask",
-            .frame = ctx.frame,
+            .frame = m_cache_frame >= 0 ? m_cache_frame : ctx.frame,
             .width = ctx.width,
             .height = ctx.height,
             .params_hash = hash_mask(m_mask)
@@ -148,12 +149,14 @@ public:
 
 private:
     Mask m_mask;
+    Frame m_cache_frame{-1};
 };
 
 // EffectStackNode
 class EffectStackNode final : public RenderGraphNode {
 public:
-    explicit EffectStackNode(EffectStack effects) : m_effects(std::move(effects)) {}
+    explicit EffectStackNode(EffectStack effects, Frame cache_frame = Frame{-1})
+        : m_effects(std::move(effects)), m_cache_frame(cache_frame) {}
 
     RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::Effect; }
     std::string name() const override { return "EffectStack"; }
@@ -161,7 +164,7 @@ public:
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         return cache::NodeCacheKey{
             .scope = "effect_stack",
-            .frame = ctx.frame,
+            .frame = m_cache_frame >= 0 ? m_cache_frame : ctx.frame,
             .width = ctx.width,
             .height = ctx.height,
             .params_hash = hash_effect_stack(m_effects)
@@ -180,6 +183,7 @@ public:
 
 private:
     EffectStack m_effects;
+    Frame m_cache_frame{-1};
 };
 
 // AdjustmentNode
@@ -217,7 +221,7 @@ private:
 // CompositeNode
 class CompositeNode final : public RenderGraphNode {
 public:
-    CompositeNode(BlendMode mode) : m_mode(mode) {}
+    CompositeNode(BlendMode mode, Frame cache_frame = Frame{-1}) : m_mode(mode), m_cache_frame(cache_frame) {}
 
     RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::Composite; }
     std::string name() const override { return "Composite"; }
@@ -225,7 +229,7 @@ public:
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         return cache::NodeCacheKey{
             .scope = "composite",
-            .frame = ctx.frame,
+            .frame = m_cache_frame >= 0 ? m_cache_frame : ctx.frame,
             .width = ctx.width,
             .height = ctx.height,
             .params_hash = static_cast<u64>(m_mode)
@@ -247,6 +251,7 @@ public:
 
 private:
     BlendMode m_mode;
+    Frame m_cache_frame{-1};
 };
 
 } // namespace chronon3d::graph

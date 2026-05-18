@@ -6,6 +6,7 @@
 #include <chronon3d/core/framebuffer.hpp>
 #include <chronon3d/scene/shape.hpp>
 #include <chronon3d/backends/assets/font_cache.hpp>
+#include <chronon3d/backends/text/text_rasterizer_utils.hpp>
 
 namespace chronon3d {
 
@@ -22,7 +23,10 @@ public:
         return m_cache.get_or_load(path);
     }
 
-    void clear_cache() { m_cache.clear(); }
+    void clear_cache() {
+        m_cache.clear();
+        clear_text_raster_cache();
+    }
 
 private:
     FontCache m_cache;

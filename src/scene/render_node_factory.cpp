@@ -66,6 +66,7 @@ RenderNode RenderNodeFactory::path(std::pmr::memory_resource* res, std::string n
     node.shape.path.fill = p.fill;
     node.shape.path.closed = p.closed;
     node.world_transform.position = p.pos;
+    node.color = p.color;
     node.fill = p.fill;
     return node;
 }

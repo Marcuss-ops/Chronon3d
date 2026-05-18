@@ -83,14 +83,14 @@ void LayerPipelineBuilder::append_layer_pipeline(RenderGraph& graph, const Layer
         layer.kind == LayerKind::Video;
 
     if (mask_before_transform)
-        append_mask_pass_if_needed(graph, layer_output, *item.layer);
+        append_mask_pass_if_needed(graph, layer_output, *item.layer, ctx);
 
     // 3. Transform pass — place the layer at its world position
     append_transform_pass_if_needed(graph, layer_output, item, ctx);
 
     // 4. For all other cases: apply mask after transform in pixel space
     if (!mask_before_transform)
-        append_mask_pass_if_needed(graph, layer_output, *item.layer);
+        append_mask_pass_if_needed(graph, layer_output, *item.layer, ctx);
 
     // 5. Lighting pass — diffuse shading for 3D projected layers with lights enabled.
     append_lighting_pass_if_needed(graph, layer_output, item, ctx);
