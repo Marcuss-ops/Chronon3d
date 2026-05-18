@@ -23,6 +23,7 @@ void register_video_commands(CLI::App& app, CliContext& ctx) {
     cmd->add_option("--crf", args.crf, "x264 CRF (0-51, lower=better)")->default_val(18);
     cmd->add_option("--codec", args.codec, "Video encoder (auto, libx264, mpeg4)")->default_val("auto");
     cmd->add_option("--encode-preset,--preset", args.encode_preset, "x264 preset")->default_val("medium");
+    cmd->add_option("--hardware", args.hardware_encoder, "Hardware encoder: none, auto, nvenc, qsv, videotoolbox, amf")->default_val("none");
     cmd->add_flag("--keep-frames", args.keep_frames, "Keep temporary PNG frames");
     cmd->add_flag("--graph", args.pipeline.use_modular_graph, "Use modular RenderGraph path");
     cmd->add_flag("--motion-blur", args.pipeline.quality.motion_blur, "Enable temporal motion blur");
@@ -47,6 +48,7 @@ void register_video_commands(CLI::App& app, CliContext& ctx) {
     camera_cmd->add_option("--crf", camera_args->crf, "x264 CRF (0-51, lower=better)");
     camera_cmd->add_option("--codec", camera_args->codec, "Video encoder");
     camera_cmd->add_option("--encode-preset", camera_args->encode_preset, "x264 preset");
+    camera_cmd->add_option("--hardware", camera_args->hardware_encoder, "Hardware encoder: none, auto, nvenc, qsv, videotoolbox, amf")->default_val("none");
     camera_cmd->add_flag("--graph", camera_args->pipeline.use_modular_graph, "Use modular RenderGraph path");
     camera_cmd->add_flag("--motion-blur", camera_args->pipeline.quality.motion_blur, "Enable temporal motion blur");
     camera_cmd->add_option("--ssaa", camera_args->pipeline.quality.ssaa, "Super Sampling factor");
