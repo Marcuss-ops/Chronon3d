@@ -187,6 +187,9 @@ chronon3d_cli video <Comp> --end N -o output.mp4 [options]
 | `--hardware` | none | Hardware encoder (`none`, `auto`, `nvenc`, `qsv`, `videotoolbox`, `amf`) |
 | `--keep-frames` | off | Keep temporary PNG frames |
 | `--frames-dir` | auto | Override temp frames directory |
+| `--chunks` | 1 | Render PNG frame range in N parallel chunks before final FFmpeg encode |
+
+`--chunks` applies to the PNG-sequence/system-ffmpeg fallback path. The FFmpeg SDK path encodes directly through the video backend.
 
 **Requires `ffmpeg` in PATH.** The engine itself has no FFmpeg dependency.
 
