@@ -9,13 +9,23 @@
 namespace chronon3d {
     struct RenderNode;
     struct RenderState;
+    class RenderTrace;
+    struct RenderCounters;
 }
 
 namespace chronon3d::graph {
 
 class RenderBackend {
 public:
+    RenderBackend() = default;
     virtual ~RenderBackend() = default;
+    RenderBackend(const RenderBackend&) = default;
+    RenderBackend& operator=(const RenderBackend&) = default;
+    RenderBackend(RenderBackend&&) noexcept = default;
+    RenderBackend& operator=(RenderBackend&&) noexcept = default;
+
+    virtual RenderTrace* trace() { return nullptr; }
+    virtual RenderCounters* counters() { return nullptr; }
 
     virtual void draw_node(
         Framebuffer& fb,

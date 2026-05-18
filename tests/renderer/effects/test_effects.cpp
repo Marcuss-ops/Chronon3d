@@ -20,6 +20,23 @@ static std::unique_ptr<Framebuffer> render_single(
     return renderer.render_frame(comp, 0);
 }
 
+static std::unique_ptr<Framebuffer> render_single_modular(
+    i32 w, i32 h,
+    std::function<void(SceneBuilder&)> build_fn)
+{
+    SoftwareRenderer renderer;
+    RenderSettings settings;
+    settings.use_modular_graph = true;
+    renderer.set_settings(settings);
+    CompositionSpec spec{.width = w, .height = h, .duration = 1};
+    Composition comp{spec, [&](const FrameContext& ctx) {
+        SceneBuilder s(ctx);
+        build_fn(s);
+        return s.build();
+    }};
+    return renderer.render_frame(comp, 0);
+}
+
 struct PixelBounds {
     bool found{false};
     i32 min_x{0};
@@ -344,4 +361,26 @@ TEST_CASE("Fake3DWave preserves LilDirk-style text bounds before and after defor
     CHECK(base_bounds.max_y - base_bounds.min_y > 60);
     CHECK(wave_bounds.max_y - wave_bounds.min_y > 60);
     CHECK(wave_bounds.max_x - wave_bounds.min_x >= base_bounds.max_x - base_bounds.min_x - 30);
+}
+
+TEST_CASE("Screen layers stay centered without an extra center offset") {
+    auto fb = render_single_modular(100, 100, [](SceneBuilder& s) {
+        s.screen_layer("hero", [](LayerBuilder& l) {
+            l.rect("block", {
+                .size = {20.0f, 20.0f},
+                .color = Color::white(),
+                .pos = {0.0f, 0.0f, 0.0f},
+            });
+        });
+    });
+
+    REQUIRE(fb != nullptr);
+
+    const auto bounds = find_nontransparent_bounds(*fb);
+    REQUIRE(bounds.found);
+
+    CHECK(bounds.min_x <= 45);
+    CHECK(bounds.max_x >= 55);
+    CHECK(bounds.min_y <= 45);
+    CHECK(bounds.max_y >= 55);
 }

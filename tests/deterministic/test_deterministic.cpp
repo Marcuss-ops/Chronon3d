@@ -62,3 +62,78 @@ TEST_CASE("Pure Frame Evaluation") {
     // Determinism check
     CHECK(s1.nodes()[0].world_transform.position.x == s2.nodes()[0].world_transform.position.x);
 }
+
+TEST_CASE("Render Determinism & Telemetry Hash") {
+    CompositionSpec spec;
+    spec.name = "VerifyComp";
+    spec.width = 320;
+    spec.height = 180;
+    spec.duration = 10;
+
+    Composition comp{
+        spec,
+        [](const FrameContext& ctx) {
+            SceneBuilder builder(ctx.resource);
+            builder.rect("bg", {.size={320, 180}, .color=Color::red(), .pos={0, 0, 0}});
+            builder.text("lbl", {.content="TraceTest", .style={.size=24.0f, .color=Color::white()}});
+            return builder.build();
+        }
+    };
+
+    SoftwareRenderer renderer;
+    RenderSettings settings;
+    settings.use_modular_graph = true;
+    renderer.set_settings(settings);
+
+    // Render run 1
+    renderer.trace()->clear();
+    renderer.counters()->reset();
+    auto fb1 = renderer.render_frame(comp, 0);
+
+    REQUIRE(fb1 != nullptr);
+
+    // Compute FNV-1a pixel hash
+    auto get_pixel_hash = [](const Framebuffer& fb) -> u64 {
+        u64 h = 0x811c9dc5;
+        for (int y = 0; y < fb.height(); ++y) {
+            for (int x = 0; x < fb.width(); ++x) {
+                Color c = fb.get_pixel(x, y);
+                u32 pixel = (static_cast<u32>(std::clamp(c.r * 255.0f, 0.0f, 255.0f)) << 24) |
+                            (static_cast<u32>(std::clamp(c.g * 255.0f, 0.0f, 255.0f)) << 16) |
+                            (static_cast<u32>(std::clamp(c.b * 255.0f, 0.0f, 255.0f)) << 8)  |
+                            (static_cast<u32>(std::clamp(c.a * 255.0f, 0.0f, 255.0f)));
+                h = (h ^ pixel) * 0x01000193;
+            }
+        }
+        return h;
+    };
+
+    u64 hash1 = get_pixel_hash(*fb1);
+
+    // Render run 2
+    auto fb2 = renderer.render_frame(comp, 0);
+    REQUIRE(fb2 != nullptr);
+    u64 hash2 = get_pixel_hash(*fb2);
+
+    // Check pixel-perfect determinism
+    CHECK(hash1 == hash2);
+
+    // Check telemetry counters are active
+    CHECK(renderer.counters()->nodes_executed.load() > 0);
+    CHECK(renderer.counters()->pixels_touched.load() > 0);
+
+    // Check trace events are recorded
+    const auto& events = renderer.trace()->events();
+    CHECK(!events.empty());
+
+    // Verify presence of specific node execution events
+    bool has_node_execute = false;
+    for (const auto& ev : events) {
+        if (ev.category == "node_execute") {
+            has_node_execute = true;
+            break;
+        }
+    }
+    CHECK(has_node_execute);
+}
+

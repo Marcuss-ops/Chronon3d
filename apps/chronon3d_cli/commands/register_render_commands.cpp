@@ -20,6 +20,7 @@ void register_render(CLI::App& app, CliContext& ctx) {
     cmd->add_option("input", args.comp_id, "Composition name or .specscene path")->required();
     cmd->add_option("--frames", args.frames, "Frame range: 0 | 0-90 | 0-90x5");
     cmd->add_option("-o,--output", args.output, "Output path (use #### for frame number)");
+    cmd->add_option("--trace", args.trace_file, "Path to output Chrome performance trace JSON file");
     cmd->add_flag("--diagnostic", args.pipeline.diagnostic, "Enable diagnostic overlays");
     cmd->add_flag("--graph", args.pipeline.use_modular_graph, "Use modular RenderGraph path");
     cmd->add_flag("--motion-blur", args.pipeline.quality.motion_blur, "Enable temporal motion blur");
@@ -43,6 +44,7 @@ void register_bench(CLI::App& app, CliContext& ctx) {
     cmd->add_option("--frames", args.frames, "Measured frames")->default_val(120);
     cmd->add_option("--warmup", args.warmup, "Warmup frames")->default_val(10);
     cmd->add_flag("--graph", args.use_modular_graph, "Use modular RenderGraph path");
+    cmd->add_option("--json", args.json_file, "Path to output benchmark JSON telemetry");
     cmd->callback([state, &ctx]() { ctx.exit_code = command_bench(ctx.registry, *state->args); });
 }
 

@@ -2,6 +2,7 @@
 #include <chronon3d/core/composition_registration.hpp>
 #include <chronon3d/scene/camera/camera_motion_presets.hpp>
 #include <chronon3d/scene/utils/dark_grid_background.hpp>
+#include <cmath>
 
 using namespace chronon3d;
 
@@ -13,47 +14,45 @@ static Composition lil_dirk_clean() {
         .duration = 120
     }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
+        const float t = ctx.duration > 1
+            ? static_cast<float>(ctx.frame) / static_cast<float>(ctx.duration - 1)
+            : 0.0f;
+
+        s.camera().set(camera_motion::parallax_sweep(t, 18.0f, -1000.0f, 1000.0f));
 
         scene::utils::dark_grid_background(s, ctx, {
             .bg_color = Color{0.05f, 0.05f, 0.055f, 1.0f},
             .grid_color = Color{1.0f, 1.0f, 1.0f, 0.05f},
             .spacing = 84.0f,
-            .extent = 4000.0f
+            .extent = 4000.0f,
+            .centered = true
         });
 
-        s.screen_layer("title", [](LayerBuilder& l) {
+        const float bob = std::sin(t * 6.2831853f) * 5.0f;
+        const float sway = std::sin(t * 3.1415926f * 1.35f) * 6.0f;
 
-            l.text("title", {
-                .content = "LIL DIRK",
-                .style = {
-                    .font_path = "assets/fonts/Inter-Bold.ttf",
-                    .size = 112.0f,
-                    .color = Color::white(),
-                    .align = TextAlign::Center,
-                },
-                .pos = {0.0f, 22.0f, 0.0f},
-            }).with_glow(Glow{
+        presets::motion::soft_glow_text(s, "title", {
+            .text = "LIL DIRK",
+            .font_path_main = "assets/fonts/Inter-Bold.ttf",
+            .font_path_glow = "assets/fonts/Inter-Regular.ttf",
+            .motion = {
                 .enabled = true,
-                .radius = 18.0f,
-                .intensity = 0.72f,
-                .color = Color::white(),
-            }).fake_3d_wave(Fake3DWaveParams{
-                .amplitude_px = 10.0f,
-                .frequency = 1.2f,
-                .speed = 0.08f,
-                .depth_px = 20.0f,
-                .phase = 0.0f,
-                .slices = 24,
-                .axis = WaveAxis::Horizontal,
-                .perspective = 0.06f,
-                .highlight = 0.25f,
-                .side_darkening = 0.18f,
-                .shadow_enabled = false,
-                .shadow_color = Color{1.0f, 0.05f, 0.05f, 0.80f},
-                .shadow_offset = {10.0f, 8.0f},
-                .shadow_blur = 0.0f,
-                .expand_bounds = true,
-            });
+                .position = {0.0f, 18.0f + bob, -120.0f},
+                .rotation = {-2.0f + bob * 0.08f, sway, 0.0f},
+                .scale = {1.0f, 1.0f, 1.0f},
+            },
+            .text_pos = {0.0f, 22.0f, 0.0f},
+            .font_size = 112.0f,
+            .outer_size_boost = 12.0f,
+            .inner_size_boost = 5.0f,
+            .outer_blur = 34.0f,
+            .inner_blur = 16.0f,
+            .outer_opacity = 0.14f,
+            .inner_opacity = 0.30f,
+            .tracking = 1.0f,
+            .align = TextAlign::Center,
+            .main_color = Color{0.98f, 0.98f, 0.96f, 1.0f},
+            .glow_color = Color{1.0f, 1.0f, 1.0f, 1.0f},
         });
 
         return s.build();

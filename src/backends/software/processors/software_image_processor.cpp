@@ -1,5 +1,6 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/software/shape_processor.hpp>
+#include <chronon3d/core/counters.hpp>
 #include "../utils/render_effects_processor.hpp"
 
 namespace chronon3d::renderer {
@@ -8,6 +9,9 @@ class SoftwareImageProcessor final : public ShapeProcessor {
 public:
     void draw(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNode& node, const RenderState& state,
               const Camera& camera, i32 width, i32 height) override {
+        // Increment images sampled counter
+        renderer.counters()->images_sampled.fetch_add(1, std::memory_order_relaxed);
+
         draw_shadow(fb, node, state);
         renderer.image_renderer().draw_image(node.shape.image, state, fb);
     }

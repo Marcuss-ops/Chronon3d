@@ -17,7 +17,8 @@
     "cli11",
     "tomlplusplus",
     "blend2d",
-    "asmjit"
+    "asmjit",
+    "nlohmann-json"
   ],
   "features": {
     "video": {
