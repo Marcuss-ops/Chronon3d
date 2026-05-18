@@ -188,8 +188,11 @@ chronon3d_cli video <Comp> --end N -o output.mp4 [options]
 | `--keep-frames` | off | Keep temporary PNG frames |
 | `--frames-dir` | auto | Override temp frames directory |
 | `--chunks` | 1 | Render PNG frame range in N parallel chunks before final FFmpeg encode |
+| `--ffmpeg-mode` | png | Fallback FFmpeg mode: `png` writes temporary frames, `pipe` streams raw RGBA frames to FFmpeg stdin |
 
 `--chunks` applies to the PNG-sequence/system-ffmpeg fallback path. The FFmpeg SDK path encodes directly through the video backend.
+
+`--ffmpeg-mode pipe` avoids temporary PNG frame files by streaming raw RGBA frames directly to an external `ffmpeg` process. In V1, pipe mode renders frames serially and ignores `--chunks` (with a warning if chunks is set greater than 1).
 
 **Requires `ffmpeg` in PATH.** The engine itself has no FFmpeg dependency.
 
