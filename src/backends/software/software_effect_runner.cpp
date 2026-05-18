@@ -6,7 +6,8 @@
 namespace chronon3d {
 
 void SoftwareEffectRunner::apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
-                                             const renderer::SoftwareRegistry& registry) {
+                                             const renderer::SoftwareRegistry& registry,
+                                             float time_seconds) {
     for (const auto& effect : stack) {
         if (!effect.enabled) continue;
         
@@ -23,18 +24,20 @@ void SoftwareEffectRunner::apply_effect_stack(Framebuffer& fb, const EffectStack
             resolved_params = EffectParams{*p};
         } else if (auto* p = std::any_cast<BloomParams>(&effect.params)) {
             resolved_params = EffectParams{*p};
+        } else if (auto* p = std::any_cast<Fake3DWaveParams>(&effect.params)) {
+            resolved_params = EffectParams{*p};
         }
 
         if (resolved_params) {
             if (auto* processor = registry.get_effect(resolved_params->index())) {
-                processor->apply(fb, *resolved_params);
+                processor->apply(fb, *resolved_params, time_seconds);
                 continue;
             }
         }
 
         // Fallback for effects not in software registry or if resolution failed
         EffectStack single_effect{effect};
-        renderer::apply_effect_stack(fb, single_effect);
+        renderer::apply_effect_stack(fb, single_effect, time_seconds);
     }
 }
 

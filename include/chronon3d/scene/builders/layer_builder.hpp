@@ -64,6 +64,7 @@ public:
     LayerBuilder& drop_shadow(Vec2 offset, Color color = {0,0,0,0.35f}, f32 radius = 12.0f);
     LayerBuilder& glow(f32 radius, f32 intensity = 0.8f, Color color = Color::white());
     LayerBuilder& bloom(f32 threshold = 0.80f, f32 radius = 24.0f, f32 intensity = 0.60f);
+    LayerBuilder& fake_3d_wave(Fake3DWaveParams params);
     LayerBuilder& blend(BlendMode mode);
 
     // Layout
@@ -109,6 +110,9 @@ public:
     LayerBuilder& track_matte_luma_inverted(std::string source_layer_name);
 
     // Specialized
+    LayerBuilder& screen_dimensions(f32 w, f32 h);
+    LayerBuilder& fullscreen_rect(std::string name, Color color);
+    LayerBuilder& fill(Color color);
     /**
      * Declarative video layer.
      * The actual frame extraction is handled by the renderer/graph.
@@ -134,6 +138,8 @@ private:
     Frame m_current_frame{0};
     std::optional<Frame> m_until_frame{};
     bool m_duration_explicit{false};
+    f32 m_screen_width{1920.0f};
+    f32 m_screen_height{1080.0f};
 };
 
 } // namespace chronon3d

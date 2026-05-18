@@ -10,7 +10,8 @@ namespace chronon3d {
 namespace renderer {
 
 void apply_blur(Framebuffer& fb, f32 radius);
-void apply_effect_stack(Framebuffer& fb, const EffectStack& stack);
+void apply_effect_stack(Framebuffer& fb, const EffectStack& stack, float time_seconds);
+void apply_fake_3d_wave(Framebuffer& fb, const Fake3DWaveParams& params, float time_seconds);
 void apply_color_effects(Framebuffer& fb, const LayerEffect& effect);
 
 void draw_shadow(Framebuffer& fb, const RenderNode& node, const RenderState& state);

@@ -7,7 +7,7 @@ namespace chronon3d::renderer {
 
 class SoftwareBlurEffectProcessor final : public EffectProcessor {
 public:
-    void apply(Framebuffer& fb, const EffectParams& params) override {
+    void apply(Framebuffer& fb, const EffectParams& params, float /*time_seconds*/) override {
         if (auto* p = std::get_if<BlurParams>(&params)) {
             SoftwareEffectRunner::apply_blur(fb, p->radius);
         }
@@ -16,11 +16,20 @@ public:
 
 class SoftwareTintEffectProcessor final : public EffectProcessor {
 public:
-    void apply(Framebuffer& fb, const EffectParams& params) override {
+    void apply(Framebuffer& fb, const EffectParams& params, float /*time_seconds*/) override {
         if (auto* p = std::get_if<TintParams>(&params)) {
             LayerEffect e;
             e.tint = Color{p->color.r, p->color.g, p->color.b, p->color.a * p->amount};
             apply_color_effects(fb, e);
+        }
+    }
+};
+
+class SoftwareFake3DWaveEffectProcessor final : public EffectProcessor {
+public:
+    void apply(Framebuffer& fb, const EffectParams& params, float time_seconds) override {
+        if (auto* p = std::get_if<Fake3DWaveParams>(&params)) {
+            apply_fake_3d_wave(fb, *p, time_seconds);
         }
     }
 };
@@ -31,6 +40,10 @@ std::unique_ptr<EffectProcessor> create_blur_effect_processor() {
 
 std::unique_ptr<EffectProcessor> create_tint_effect_processor() {
     return std::make_unique<SoftwareTintEffectProcessor>();
+}
+
+std::unique_ptr<EffectProcessor> create_fake_3d_wave_effect_processor() {
+    return std::make_unique<SoftwareFake3DWaveEffectProcessor>();
 }
 
 } // namespace chronon3d::renderer

@@ -19,6 +19,7 @@ std::unique_ptr<ShapeProcessor> create_grid_plane_processor();
 // Forward declarations for effect processors
 std::unique_ptr<EffectProcessor> create_blur_effect_processor();
 std::unique_ptr<EffectProcessor> create_tint_effect_processor();
+std::unique_ptr<EffectProcessor> create_fake_3d_wave_effect_processor();
 
 void register_builtin_processors(SoftwareRegistry& registry) {
     // Shapes
@@ -40,6 +41,7 @@ void register_builtin_processors(SoftwareRegistry& registry) {
     // Effects
     registry.register_effect_processor<BlurParams>(create_blur_effect_processor());
     registry.register_effect_processor<TintParams>(create_tint_effect_processor());
+    registry.register_effect_processor<Fake3DWaveParams>(create_fake_3d_wave_effect_processor());
 }
 
 } // namespace chronon3d::renderer

@@ -20,6 +20,29 @@ struct DropShadowParams    { Vec2 offset{0,8}; Color color{0,0,0,0.35f}; f32 rad
 struct GlowParams          { f32 radius{15}; f32 intensity{0.8f}; Color color{1,1,1,1}; };
 struct BloomParams         { f32 threshold{0.80f}; f32 radius{24.0f}; f32 intensity{0.60f}; };
 
+enum class WaveAxis {
+    Horizontal,
+    Vertical,
+};
+
+struct Fake3DWaveParams {
+    f32 amplitude_px{18.0f};
+    f32 frequency{2.2f};
+    f32 speed{3.5f};
+    f32 depth_px{35.0f};
+    f32 phase{0.0f};
+    i32 slices{24};
+    WaveAxis axis{WaveAxis::Horizontal};
+    f32 perspective{0.06f};
+    f32 highlight{0.20f};
+    f32 side_darkening{0.18f};
+    bool shadow_enabled{true};
+    Color shadow_color{1.0f, 0.05f, 0.05f, 0.75f};
+    Vec2 shadow_offset{10.0f, 8.0f};
+    f32 shadow_blur{0.0f};
+    bool expand_bounds{true};
+};
+
 using EffectParams = std::variant<
     BlurParams,
     TintParams,
@@ -27,7 +50,8 @@ using EffectParams = std::variant<
     ContrastParams,
     DropShadowParams,
     GlowParams,
-    BloomParams
+    BloomParams,
+    Fake3DWaveParams
 >;
 
 // Unify with the modular effects system

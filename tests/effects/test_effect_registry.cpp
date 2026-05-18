@@ -11,11 +11,12 @@ TEST_CASE("EffectRegistry registers built-in effects with stable ids") {
     EffectRegistry registry;
 
     const auto available_ids = registry.available();
-    REQUIRE(available_ids.size() == 7);
+    REQUIRE(available_ids.size() == 8);
     CHECK(registry.contains(effect_ids::BlurGaussian));
     CHECK(registry.contains(effect_ids::ColorBrightness));
     CHECK(registry.contains(effect_ids::ColorContrast));
     CHECK(registry.contains(effect_ids::ColorTint));
+    CHECK(registry.contains(effect_ids::DistortFake3DWave));
     CHECK(registry.contains(effect_ids::LightBloom));
     CHECK(registry.contains(effect_ids::LightDropShadow));
     CHECK(registry.contains(effect_ids::LightGlow));
@@ -29,6 +30,11 @@ TEST_CASE("EffectRegistry registers built-in effects with stable ids") {
     CHECK(tint.category == EffectCategory::Color);
     CHECK(tint.stage == EffectStage::Adjustment);
     CHECK(tint.builtin);
+
+    const auto& wave = registry.get(effect_ids::DistortFake3DWave);
+    CHECK(wave.category == EffectCategory::Distort);
+    CHECK(wave.stage == EffectStage::LayerPostTransform);
+    CHECK(wave.temporal);
 }
 
 TEST_CASE("EffectRegistry rejects duplicate ids") {

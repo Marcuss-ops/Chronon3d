@@ -54,7 +54,7 @@ RenderGraphContext make_graph_context(
 ) {
     return RenderGraphContext{
         .frame = frame,
-        .time_seconds = frame_time,
+        .time_seconds = static_cast<float>(frame) + frame_time,
         .width = width,
         .height = height,
         .camera = camera,

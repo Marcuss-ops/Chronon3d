@@ -21,7 +21,7 @@ public:
         draw_node_called++;
     }
 
-    void apply_effect_stack(Framebuffer&, const EffectStack&) override {
+    void apply_effect_stack(Framebuffer&, const EffectStack&, float) override {
         apply_effect_stack_called++;
     }
 

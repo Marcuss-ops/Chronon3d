@@ -166,6 +166,22 @@ u64 hash_effect_stack(const EffectStack& stack) {
                     seed = hash_combine(seed, hash_value_local(p.threshold));
                     seed = hash_combine(seed, hash_value_local(p.radius));
                     seed = hash_combine(seed, hash_value_local(p.intensity));
+                } else if constexpr (std::is_same_v<T, Fake3DWaveParams>) {
+                    seed = hash_combine(seed, hash_value_local(p.amplitude_px));
+                    seed = hash_combine(seed, hash_value_local(p.frequency));
+                    seed = hash_combine(seed, hash_value_local(p.speed));
+                    seed = hash_combine(seed, hash_value_local(p.depth_px));
+                    seed = hash_combine(seed, hash_value_local(p.phase));
+                    seed = hash_combine(seed, hash_value_local(p.slices));
+                    seed = hash_combine(seed, hash_value_local(static_cast<u64>(p.axis)));
+                    seed = hash_combine(seed, hash_value_local(p.perspective));
+                    seed = hash_combine(seed, hash_value_local(p.highlight));
+                    seed = hash_combine(seed, hash_value_local(p.side_darkening));
+                    seed = hash_combine(seed, hash_value_local(p.shadow_enabled));
+                    seed = hash_combine(seed, hash_color(p.shadow_color));
+                    seed = hash_combine(seed, hash_vec2(p.shadow_offset));
+                    seed = hash_combine(seed, hash_value_local(p.shadow_blur));
+                    seed = hash_combine(seed, hash_value_local(p.expand_bounds));
                 }
             }, *params);
         }

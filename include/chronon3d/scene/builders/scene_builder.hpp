@@ -116,7 +116,7 @@ namespace chronon3d {
 
         // Convenience constructor for compositions
         explicit SceneBuilder(const FrameContext &ctx)
-            : scene_(ctx.resource), current_frame_(ctx.frame) {}
+            : scene_(ctx.resource), current_frame_(ctx.frame), m_ctx(ctx), m_width(ctx.width), m_height(ctx.height) {}
 
         [[nodiscard]] CameraApi camera() { return CameraApi(*this); }
 
@@ -148,9 +148,57 @@ namespace chronon3d {
         SceneBuilder &image(std::string name, ImageParams p);
         SceneBuilder &shape(std::string_view id, std::string name, registry::ShapeParams params);
 
+        struct SequenceSpec {
+            Frame from{0};
+            Frame duration{0};
+        };
+
+        template <typename Fn>
+        SceneBuilder& sequence(const std::string& /*name*/, SequenceSpec spec, Fn&& fn) {
+            bool active = current_frame_ >= spec.from && current_frame_ < spec.from + spec.duration;
+            if (!active) {
+                return *this;
+            }
+
+            FrameContext local_ctx = m_ctx;
+            local_ctx.frame = Frame{current_frame_ - spec.from};
+            local_ctx.local_frame = local_ctx.frame;
+            local_ctx.duration = spec.duration;
+
+            SceneBuilder sub_builder(local_ctx);
+            std::forward<Fn>(fn)(sub_builder);
+
+            Scene sub_scene = sub_builder.build();
+
+            for (auto& layer : sub_scene.layers()) {
+                if (layer.duration >= 0) {
+                    layer.from += spec.from;
+                } else {
+                    layer.from = spec.from;
+                    layer.duration = spec.duration;
+                }
+                scene_.add_layer(std::move(layer));
+            }
+
+            return *this;
+        }
+
         // Standard Layers
         template <typename Fn> SceneBuilder &layer(std::string name, Fn &&fn) {
             LayerBuilder builder(std::move(name), current_frame_, scene_.resource());
+            std::forward<Fn>(fn)(builder);
+
+            Layer l = builder.build();
+            if (l.active_at(current_frame_)) {
+                scene_.add_layer(std::move(l));
+            }
+            return *this;
+        }
+
+        template <typename Fn> SceneBuilder &screen_layer(std::string name, Fn &&fn) {
+            LayerBuilder builder(std::move(name), current_frame_, scene_.resource());
+            builder.screen_dimensions(static_cast<f32>(m_width), static_cast<f32>(m_height));
+            builder.position({ m_width * 0.5f, m_height * 0.5f, 0.0f });
             std::forward<Fn>(fn)(builder);
 
             Layer l = builder.build();
@@ -283,6 +331,9 @@ namespace chronon3d {
 
         Scene scene_;
         Frame current_frame_;
+        FrameContext m_ctx{};
+        i32 m_width{1920};
+        i32 m_height{1080};
     };
 
 } // namespace chronon3d

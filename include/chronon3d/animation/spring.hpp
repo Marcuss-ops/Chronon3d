@@ -13,6 +13,13 @@ struct SpringConfig {
     f32 mass{1.0f};
 };
 
+namespace Spring {
+    inline constexpr SpringConfig Gentle{120.0f, 14.0f, 1.0f};
+    inline constexpr SpringConfig Snappy{200.0f, 18.0f, 1.0f};
+    inline constexpr SpringConfig Bouncy{300.0f, 12.0f, 1.0f};
+    inline constexpr SpringConfig Heavy{80.0f, 20.0f, 1.0f};
+}
+
 /**
  * Deterministic, closed-form spring animation.
  * Formula based on damped harmonic oscillator.

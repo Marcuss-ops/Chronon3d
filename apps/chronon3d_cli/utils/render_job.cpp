@@ -1,5 +1,4 @@
 #include "render_job.hpp"
-
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/core/render_telemetry.hpp>
 

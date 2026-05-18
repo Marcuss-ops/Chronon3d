@@ -26,6 +26,7 @@ public:
 
     [[nodiscard]] const std::pmr::vector<RenderNode>& nodes() const { return m_nodes; }
     [[nodiscard]] const std::pmr::vector<Layer>& layers() const { return m_layers; }
+    [[nodiscard]] std::pmr::vector<Layer>& layers() { return m_layers; }
 
     void set_camera_2_5d(Camera2_5DRuntime camera) { m_camera_2_5d = camera; }
     [[nodiscard]] const Camera2_5DRuntime& camera_2_5d() const { return m_camera_2_5d; }

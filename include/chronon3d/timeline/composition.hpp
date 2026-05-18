@@ -3,6 +3,7 @@
 #include <chronon3d/core/frame_context.hpp>
 #include <chronon3d/scene/camera/camera.hpp>
 #include <chronon3d/scene/scene.hpp>
+#include <chronon3d/assets/asset_registry.hpp>
 #include <functional>
 #include <string>
 #include <memory>
@@ -16,6 +17,7 @@ struct CompositionSpec {
     i32 height{1080};
     FrameRate frame_rate{30, 1};
     Frame duration{0};
+    std::string assets_root{""};
 };
 
 class Composition {
@@ -30,6 +32,7 @@ public:
     [[nodiscard]] FrameRate frame_rate() const { return m_spec.frame_rate; }
     [[nodiscard]] Frame duration() const { return m_spec.duration; }
     [[nodiscard]] const std::string& name() const { return m_spec.name; }
+    [[nodiscard]] const std::string& assets_root() const { return m_spec.assets_root; }
 
     [[nodiscard]] Scene evaluate(Frame frame,
                                  std::pmr::memory_resource* res = std::pmr::get_default_resource()) const {
@@ -39,6 +42,11 @@ public:
     // Evaluate at a fractional frame offset (used by motion blur subsampling).
     [[nodiscard]] Scene evaluate(Frame frame, f32 frame_time,
                                  std::pmr::memory_resource* res = std::pmr::get_default_resource()) const {
+        // Handle auto-load / auto-mount of assets and props
+        if (!m_spec.assets_root.empty()) {
+            AssetRegistry::mount(m_spec.assets_root);
+        }
+        
         FrameContext ctx{
             .frame      = frame,
             .frame_time = frame_time,
