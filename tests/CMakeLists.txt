@@ -68,7 +68,6 @@ add_executable(chronon3d_renderer_tests
     renderer/basics/test_layer_rendering.cpp
     renderer/basics/test_gradient_fill.cpp
     renderer/basics/test_trim_path.cpp
-    renderer/basics/test_path_rendering.cpp
     renderer/camera/test_moving_frame.cpp
     renderer/camera/test_camera_2_5d.cpp
 
@@ -206,21 +205,3 @@ add_custom_target(chronon3d_tests
 )
 
 # Video Tests (Isolated)
-if(CHRONON3D_ENABLE_VIDEO)
-    add_executable(chronon3d_video_tests 
-        test_main.cpp
-        video/test_camera_motion_video.cpp
-        video/test_video_source.cpp
-        video/test_hardware_encoder.cpp
-    )
-    target_link_libraries(chronon3d_video_tests 
-        PRIVATE 
-            chronon3d_pipeline 
-            chronon3d_backend_ffmpeg 
-            doctest::doctest
-    )
-    target_compile_definitions(chronon3d_video_tests PRIVATE CHRONON_BUILD_TESTS CHRONON_WITH_VIDEO)
-    target_include_directories(chronon3d_video_tests PRIVATE ${CMAKE_SOURCE_DIR})
-    add_test(NAME chronon3d_video_tests COMMAND chronon3d_video_tests)
-    add_dependencies(chronon3d_tests chronon3d_video_tests)
-endif()

@@ -58,3 +58,4 @@ scenes/
 test_renders/
 output/new_features/
 .history/
+/test_output_*.png
