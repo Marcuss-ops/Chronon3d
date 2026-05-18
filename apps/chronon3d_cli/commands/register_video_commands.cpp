@@ -31,6 +31,7 @@ void register_video_commands(CLI::App& app, CliContext& ctx) {
     cmd->add_option("--shutter-angle", args.pipeline.quality.shutter_angle, "Shutter angle in degrees")->default_val(180.0f);
     cmd->add_option("--frames-dir", args.frames_dir, "Override temporary frames directory");
     cmd->add_option("--ssaa", args.pipeline.quality.ssaa, "Super Sampling factor")->default_val(1.0f);
+    cmd->add_option("--chunks", args.chunks, "Render frame range in N parallel chunks before encoding")->default_val(1);
     cmd->callback([state, &ctx]() { ctx.exit_code = command_video(ctx.registry, *state->args); });
 
 #ifdef CHRONON_WITH_VIDEO

@@ -120,6 +120,11 @@ int command_video_camera(const CompositionRegistry& registry, const VideoCameraA
 #include <fmt/format.h>
 #include <filesystem>
 #include <cstdlib>
+#include <thread>
+#include <atomic>
+#include <mutex>
+#include <vector>
+#include <algorithm>
 
 namespace chronon3d::cli {
 
@@ -143,6 +148,27 @@ std::string resolve_cli_ffmpeg_codec(const VideoArgs& args) {
     if (args.hardware_encoder == "amf") return "h264_amf";
 
     return "libx264";
+}
+
+struct FrameChunk {
+    Frame start;
+    Frame end;
+};
+
+static std::vector<FrameChunk> split_frame_range(Frame start, Frame end, int chunks) {
+    std::vector<FrameChunk> out;
+    const Frame total = end - start;
+    if (total <= 0) return out;
+    chunks = std::max(1, std::min<int>(chunks, static_cast<int>(total)));
+    const Frame base = total / chunks;
+    const Frame rem = total % chunks;
+    Frame cursor = start;
+    for (int i = 0; i < chunks; ++i) {
+        const Frame len = base + (i < rem ? 1 : 0);
+        out.push_back(FrameChunk{.start = cursor, .end = cursor + len});
+        cursor += len;
+    }
+    return out;
 }
 } // namespace
 
@@ -184,29 +210,56 @@ int command_video(const CompositionRegistry& registry, const VideoArgs& args) {
         return 1;
     }
 
-    // Sequential rendering: Blend2D's global thread pool already saturates all
-    // cores inside each frame. Launching N renderers in parallel causes contention
-    // on that pool and yields no throughput gain — measured at identical wall time.
-    auto renderer = create_renderer(registry, settings);
     const int total = static_cast<int>(end - start);
 
-    spdlog::info("[video] Rendering {} frames [{}, {}) at {} fps → {}",
-                 total, start, end, args.fps, args.output);
+    int chunks = args.chunks;
+    if (chunks < 1) {
+        spdlog::error("[video] --chunks must be >= 1");
+        return 1;
+    }
+    chunks = std::min(chunks, total);
 
-    for (Frame f = start; f < end; ++f) {
-        auto fb = renderer->render_frame(comp, f);
-        if (!fb) {
-            spdlog::error("[video] Render failed at frame {}", f);
-            return 1;
-        }
-        const auto png = (frames_dir / fmt::format("frame_{:06d}.png", f - start)).string();
-        if (!save_png(*fb, png)) {
-            spdlog::error("[video] PNG write failed: {}", png);
-            return 1;
-        }
-        const int done = static_cast<int>(f - start) + 1;
-        if (done % std::max(1, total / 10) == 0 || done == total)
-            spdlog::info("[video]   {}/{} frames", done, total);
+    spdlog::info("[video] Rendering {} frames [{}, {}) at {} fps in {} chunks → {}",
+                 total, start, end, args.fps, chunks, args.output);
+
+    auto ranges = split_frame_range(start, end, chunks);
+    std::atomic<bool> failed{false};
+    std::atomic<int> frames_done{0};
+    std::vector<std::thread> workers;
+
+    for (const auto& chunk : ranges) {
+        workers.emplace_back([&, chunk]() {
+            auto renderer = create_renderer(registry, settings);
+            for (Frame f = chunk.start; f < chunk.end; ++f) {
+                if (failed.load()) return;
+                auto fb = renderer->render_frame(comp, f);
+                if (!fb) {
+                    spdlog::error("[video] Render failed at frame {}", f);
+                    failed.store(true);
+                    return;
+                }
+                const auto png = (frames_dir / fmt::format("frame_{:06d}.png", f - start)).string();
+                if (!save_png(*fb, png)) {
+                    spdlog::error("[video] PNG write failed: {}", png);
+                    failed.store(true);
+                    return;
+                }
+                
+                int done = ++frames_done;
+                if (done % std::max(1, total / 10) == 0 || done == total) {
+                    spdlog::info("[video]   {}/{} frames", done, total);
+                }
+            }
+        });
+    }
+
+    for (auto& w : workers) {
+        w.join();
+    }
+
+    if (failed.load()) {
+        spdlog::error("[video] Chunked render failed");
+        return 1;
     }
 
     std::filesystem::create_directories(
