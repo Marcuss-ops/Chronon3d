@@ -4,13 +4,6 @@
 #include <cstdlib>
 #include <spdlog/spdlog.h>
 
-#ifdef CHRONON_WITH_VIDEO
-#include <chronon3d/animations/camera_motion.hpp>
-#include <chronon3d/backends/ffmpeg/ffmpeg_encoder.hpp>
-#include <chronon3d/backends/software/software_renderer.hpp>
-#include <chronon3d/backends/video/video_export.hpp>
-#endif
-
 namespace chronon3d {
 namespace cli {
 
@@ -26,11 +19,6 @@ int command_doctor(const CompositionRegistry& registry) {
         ok = false;
     }
 
-#ifdef CHRONON_WITH_VIDEO
-    const bool video_ok = video::FfmpegEncoder::is_available();
-    spdlog::info("doctor: video backend (SDK)    {}", video_ok ? "available" : "missing");
-    if (!video_ok) ok = false;
-#else
     {
         const bool sys_ffmpeg =
 #ifdef _WIN32
@@ -41,7 +29,6 @@ int command_doctor(const CompositionRegistry& registry) {
         spdlog::info("doctor: ffmpeg (system PATH)   {}", sys_ffmpeg ? "found" : "NOT found");
         if (!sys_ffmpeg) ok = false;
     }
-#endif
 
     return ok ? 0 : 1;
 }
@@ -60,7 +47,6 @@ int command_verify(const CompositionRegistry& registry, const std::string& outpu
         }
     }
 
-#ifdef CHRONON_WITH_VIDEO
     {
         VideoCameraArgs camera_args;
         camera_args.axis = "Pan";
@@ -69,7 +55,6 @@ int command_verify(const CompositionRegistry& registry, const std::string& outpu
             exit_code = 1;
         }
     }
-#endif
 
     return exit_code;
 }

@@ -20,6 +20,26 @@ void copy_framebuffer_pixels(Framebuffer& dst, const Framebuffer& src, i32 start
     }
 }
 
+bool save_studio_output(const Framebuffer& fb, const std::string& out_path) {
+    auto parent = std::filesystem::path(out_path).parent_path();
+    if (!parent.empty()) {
+        std::error_code ec;
+        std::filesystem::create_directories(parent, ec);
+        if (ec) {
+            spdlog::error("Failed to create directory {}: {}", parent.string(), ec.message());
+            return false;
+        }
+    }
+
+    if (!save_png(fb, out_path)) {
+        spdlog::error("Failed to save image to {}", out_path);
+        return false;
+    }
+
+    spdlog::info("Studio output saved successfully to: {}", out_path);
+    return true;
+}
+
 } // namespace
 
 int command_preview(const CompositionRegistry& registry, const RenderArgs& args) {
@@ -50,15 +70,7 @@ int command_preview(const CompositionRegistry& registry, const RenderArgs& args)
     }
 
     std::string out_path = args.output.empty() ? "preview.png" : args.output;
-    std::filesystem::create_directories(std::filesystem::path(out_path).parent_path());
-
-    if (!save_png(*fb, out_path)) {
-        spdlog::error("Failed to save preview image to {}", out_path);
-        return 1;
-    }
-
-    spdlog::info("Studio Preview saved successfully to: {}", out_path);
-    return 0;
+    return save_studio_output(*fb, out_path) ? 0 : 1;
 }
 
 int command_contact_sheet(const CompositionRegistry& registry, const RenderArgs& args) {
@@ -95,15 +107,7 @@ int command_contact_sheet(const CompositionRegistry& registry, const RenderArgs&
     }
 
     std::string out_path = args.output.empty() ? "contact_sheet.png" : args.output;
-    std::filesystem::create_directories(std::filesystem::path(out_path).parent_path());
-
-    if (!save_png(sheet, out_path)) {
-        spdlog::error("Failed to save contact sheet to {}", out_path);
-        return 1;
-    }
-
-    spdlog::info("Studio Contact Sheet saved successfully to: {}", out_path);
-    return 0;
+    return save_studio_output(sheet, out_path) ? 0 : 1;
 }
 
 int command_storyboard(const CompositionRegistry& registry, const RenderArgs& args) {
@@ -184,15 +188,7 @@ int command_storyboard(const CompositionRegistry& registry, const RenderArgs& ar
     }
 
     std::string out_path = args.output.empty() ? "storyboard.png" : args.output;
-    std::filesystem::create_directories(std::filesystem::path(out_path).parent_path());
-
-    if (!save_png(storyboard, out_path)) {
-        spdlog::error("Failed to save storyboard to {}", out_path);
-        return 1;
-    }
-
-    spdlog::info("Studio Storyboard saved successfully to: {}", out_path);
-    return 0;
+    return save_studio_output(storyboard, out_path) ? 0 : 1;
 }
 
 } // namespace chronon3d::cli

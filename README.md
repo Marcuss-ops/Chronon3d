@@ -50,6 +50,7 @@ chronon3d_cli video MyVideo --start 0 --end 90 --fps 30 -o output/my_video.mp4
 | Area | What's implemented |
 |---|---|
 | **Shapes** | Rect, RoundedRect, Circle, Line |
+| **SVG Import** | SVG Path Import V1 (`parse_svg_path_data` / `load_svg_path_file` supporting `M L H V C Q Z` absolute/relative) |
 | **Text** | TTF rendering, Left/Center/Right alignment, perspective scale |
 | **Images** | PNG loading, opacity, UV mapping |
 | **Layers** | Hierarchical transforms, opacity, draw order |
@@ -63,6 +64,31 @@ chronon3d_cli video MyVideo --start 0 --end 90 --fps 30 -o output/my_video.mp4
 | **Modular Graph** | Content-hash caching, dependency-aware invalidation, adjustment layers |
 
 **Architecture:** CPU-only, headless, deterministic, code-first, PMR arena per frame.
+
+---
+
+## SVG Path Import V1
+
+Chronon3d supports importing paths directly from SVG path strings or files. This is designed for direct integration with `PathShape`.
+
+### Usage
+```cpp
+#include <chronon3d/assets/svg_path_loader.hpp>
+
+// 1. Parsing directly from path data:
+auto result = chronon3d::assets::parse_svg_path_data("M 10 10 L 50 50 Z");
+if (result.ok) {
+    PathShape my_path = result.path;
+}
+
+// 2. Loading from a file:
+auto result_file = chronon3d::assets::load_svg_path_file("assets/my_icon.svg");
+```
+
+### V1 Supported Features & Limitations
+- **Supported Commands**: `M`, `L`, `H`, `V`, `C`, `Q`, `Z` (and their relative lowercase counterparts `m`, `l`, `h`, `v`, `c`, `q`, `z`).
+- **File Extraction**: Extracts only the first `<path d="...">` attribute found inside the SVG file.
+- **Unsupported Features**: Gradients, masks, multiple paths, groups, transforms, viewBox dimensions, CSS styling (`fill`, `stroke` width), text, or filters. Any unsupported commands will return a result with `ok = false` and a detailed error message.
 
 ---
 
