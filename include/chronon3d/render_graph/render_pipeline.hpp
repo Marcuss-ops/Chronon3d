@@ -81,8 +81,8 @@ struct SceneGraphStats {
     std::size_t motion_blur_nodes{0};
     std::size_t other_nodes{0};
     std::size_t cacheable_nodes{0};
-    cache::NodeCacheStats cache_before{};
-    cache::NodeCacheStats cache_after{};
+    cache::FramebufferCache::Stats cache_before{};
+    cache::FramebufferCache::Stats cache_after{};
     double build_ms{0.0};
     double execute_ms{0.0};
     double total_ms{0.0};

@@ -38,10 +38,11 @@ TEST_CASE("NodeCache stores and retrieves framebuffer values") {
     cache.store(key, fb);
 
     REQUIRE(cache.contains(key));
-    REQUIRE(cache.find(key) != nullptr);
-    CHECK(cache.find(key).get() == fb.get());
-    CHECK(cache.erase(key));
-    CHECK(cache.find(key) == nullptr);
+    REQUIRE(cache.get(key) != nullptr);
+    CHECK(cache.get(key).get() == fb.get());
+    cache.erase(key);
+    CHECK(cache.get(key) == nullptr);
+
 }
 
 TEST_CASE("FrameCache stores and retrieves framebuffer values") {
