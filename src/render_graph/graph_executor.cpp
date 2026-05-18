@@ -1,6 +1,8 @@
 #include <chronon3d/render_graph/graph_executor.hpp>
 #include <chronon3d/render_graph/graph_profiler.hpp>
 #include <chronon3d/render_graph/render_graph_hashing.hpp>
+#include <chronon3d/core/profiling.hpp>
+#include <chronon3d/core/counters.hpp>
 #include <iostream>
 #include <future>
 #include <mutex>
@@ -68,7 +70,9 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute_node(
             std::vector<std::future<void>> futures;
             futures.reserve(input_ids.size());
             for (size_t i = 0; i < input_ids.size(); ++i) {
-                futures.emplace_back(std::async(std::launch::async, [&, i] {
+                futures.emplace_back(std::async(std::launch::async, [&, i, trace = profiling::g_current_trace, frame = profiling::g_current_frame] {
+                    profiling::g_current_trace = trace;
+                    profiling::g_current_frame = frame;
                     inputs[i] = execute_node(graph, input_ids[i], ctx);
                 }));
             }
@@ -94,10 +98,21 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute_node(
             key.input_hash = input_hash;
 
             result = ctx.node_cache->find(key);
+            if (ctx.counters) {
+                if (result) {
+                    ctx.counters->cache_hits.fetch_add(1, std::memory_order_relaxed);
+                } else {
+                    ctx.counters->cache_misses.fetch_add(1, std::memory_order_relaxed);
+                }
+            }
         }
 
         if (!result) {
+            TraceScope scope(ctx.trace, node.name(), "node_execute", ctx.frame);
             result = node.execute(ctx, inputs);
+            if (ctx.counters) {
+                ctx.counters->nodes_executed.fetch_add(1, std::memory_order_relaxed);
+            }
             if (is_cacheable && ctx.node_cache && result) {
                 ctx.node_cache->store(key, result);
             }

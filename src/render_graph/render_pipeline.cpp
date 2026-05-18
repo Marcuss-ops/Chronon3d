@@ -62,6 +62,8 @@ RenderGraphContext make_graph_context(
         .node_cache = &node_cache,
         .registry = registry,
         .video_decoder = video_decoder,
+        .trace = backend.trace(),
+        .counters = backend.counters(),
         .ssaa_factor = settings.ssaa_factor,
         .modular_coordinates = settings.use_modular_graph
     };
@@ -91,6 +93,9 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         backend, node_cache, camera, width, height, frame, frame_time,
         settings, registry, video_decoder
     );
+    
+    profiling::g_current_trace = ctx.trace;
+    profiling::g_current_frame = static_cast<int32_t>(frame);
     
     ctx.light_context = scene.light_context();
     if (scene.camera_2_5d().enabled) {
@@ -262,7 +267,11 @@ std::unique_ptr<Framebuffer> render_composition_frame(
 
     if (!settings.motion_blur.enabled || settings.motion_blur.samples <= 1) {
         const auto t_eval0 = std::chrono::steady_clock::now();
-        Scene scene = comp.evaluate(frame);
+        Scene scene;
+        {
+            CHRONON_ZONE_C("evaluate_composition", "timeline");
+            scene = comp.evaluate(frame);
+        }
         evaluate_ms = std::chrono::duration<double, std::milli>(
             std::chrono::steady_clock::now() - t_eval0).count();
         layer_count = static_cast<int>(scene.layers().size());
@@ -278,19 +287,22 @@ std::unique_ptr<Framebuffer> render_composition_frame(
         const float weight = 1.0f / static_cast<float>(N);
 
         const auto t_mb0 = std::chrono::steady_clock::now();
-        for (int s = 0; s < N; ++s) {
-            const float t = (static_cast<float>(s) / static_cast<float>(N)) * shutter;
-            Scene sub = comp.evaluate(frame, t);
-            if (s == 0) layer_count = static_cast<int>(sub.layers().size());
-            const Framebuffer sub_fb = *call_graph(sub, frame, t);
-            for (int y = 0; y < rh; ++y) {
-                for (int x = 0; x < rw; ++x) {
-                    const Color c = sub_fb.get_pixel(x, y);
-                    const size_t idx = static_cast<size_t>((y * rw + x) * 4);
-                    accum[idx + 0] += c.r * weight;
-                    accum[idx + 1] += c.g * weight;
-                    accum[idx + 2] += c.b * weight;
-                    accum[idx + 3] += c.a * weight;
+        {
+            CHRONON_ZONE_C("motion_blur_accumulation", "effect");
+            for (int s = 0; s < N; ++s) {
+                const float t = (static_cast<float>(s) / static_cast<float>(N)) * shutter;
+                Scene sub = comp.evaluate(frame, t);
+                if (s == 0) layer_count = static_cast<int>(sub.layers().size());
+                const Framebuffer sub_fb = *call_graph(sub, frame, t);
+                for (int y = 0; y < rh; ++y) {
+                    for (int x = 0; x < rw; ++x) {
+                        const Color c = sub_fb.get_pixel(x, y);
+                        const size_t idx = static_cast<size_t>((y * rw + x) * 4);
+                        accum[idx + 0] += c.r * weight;
+                        accum[idx + 1] += c.g * weight;
+                        accum[idx + 2] += c.b * weight;
+                        accum[idx + 3] += c.a * weight;
+                    }
                 }
             }
         }
@@ -308,7 +320,11 @@ std::unique_ptr<Framebuffer> render_composition_frame(
 
     if (ssaa > 1.0f) {
         const auto t_down0 = std::chrono::steady_clock::now();
-        auto out = downsample_fb(*render_fb, w, h);
+        std::unique_ptr<Framebuffer> out;
+        {
+            CHRONON_ZONE_C("downsample_ssaa", "downsample");
+            out = downsample_fb(*render_fb, w, h);
+        }
         downsample_ms = std::chrono::duration<double, std::milli>(
             std::chrono::steady_clock::now() - t_down0).count();
         telemetry::record_render_telemetry({

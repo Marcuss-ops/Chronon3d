@@ -8,6 +8,7 @@ add_executable(chronon3d_core_tests
     ${TEST_MAIN}
     core/test_core.cpp
     core/test_frame_context.cpp
+    core/trace_test.cpp
     core/math/test_math.cpp
     core/math/test_camera_pose.cpp
     core/math/test_camera_2_5d_projection.cpp
@@ -51,6 +52,7 @@ add_executable(chronon3d_renderer_tests
     ${TEST_MAIN}
     scene/test_line_primitive.cpp
     scene/test_circle_primitive.cpp
+    perf/bench_golden.cpp
     renderer/basics/test_renderer.cpp
     renderer/basics/test_code_first_render.cpp
     renderer/basics/test_background_render.cpp

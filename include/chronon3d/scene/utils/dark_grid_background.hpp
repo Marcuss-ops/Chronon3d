@@ -14,16 +14,20 @@ inline void dark_grid_background(SceneBuilder& s,
                                 const DarkGridBgParams& p = {}) {
     const f32 W = static_cast<f32>(ctx.width > 0 ? ctx.width : 1280);
     const f32 H = static_cast<f32>(ctx.height > 0 ? ctx.height : 720);
+    const f32 half_w = W * 0.5f;
+    const f32 half_h = H * 0.5f;
+    const f32 start_x = p.centered ? -half_w : 0.0f;
+    const f32 start_y = p.centered ? -half_h : 0.0f;
+    const f32 end_x = p.centered ? half_w : W;
+    const f32 end_y = p.centered ? half_h : H;
+    const Vec3 bg_pos = p.centered ? Vec3{0.0f, 0.0f, 0.0f}
+                                   : Vec3{half_w, half_h, 0.0f};
 
-    s.layer("nbg_bg", [p, W, H](LayerBuilder& l) {
-        l.rect("r", {.size = {W, H}, .color = p.bg_color, .pos = {W * 0.5f, H * 0.5f, 0.f}});
+    s.layer("nbg_bg", [p, W, H, bg_pos](LayerBuilder& l) {
+        l.rect("r", {.size = {W, H}, .color = p.bg_color, .pos = bg_pos});
     });
 
-    s.layer("nbg_lines", [p, W, H](LayerBuilder& l) {
-        const f32 start_x = 0.0f;
-        const f32 start_y = 0.0f;
-        const f32 end_x = W;
-        const f32 end_y = H;
+    s.layer("nbg_lines", [p, start_x, start_y, end_x, end_y](LayerBuilder& l) {
         const f32 major_step = p.spacing * 4.0f;
         Color major_color = p.grid_color;
         major_color.a = std::min(1.0f, major_color.a * 4.0f);

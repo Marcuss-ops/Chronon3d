@@ -27,6 +27,7 @@ struct RenderArgs {
     std::string comp_id;
     std::string frames{"0"}; // Supports "0", "0-90", "0-90x5"
     std::string output;      // No default
+    std::string trace_file;  // Path to Chrome tracing JSON file
     RenderPipelineArgs pipeline{};
 };
 
@@ -67,6 +68,7 @@ struct BenchArgs {
     int frames{100};
     int warmup{10};
     bool use_modular_graph{false};
+    std::string json_file;
 };
 
 struct GraphArgs {

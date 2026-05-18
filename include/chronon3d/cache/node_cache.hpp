@@ -40,6 +40,8 @@ public:
     using Value = std::shared_ptr<Framebuffer>;
 
     explicit NodeCache(usize capacity_bytes = 1024ULL * 1024 * 1024); // 1GB default
+    NodeCache(NodeCache&&) noexcept = default;
+    NodeCache& operator=(NodeCache&&) noexcept = default;
 
     [[nodiscard]] Value get(u64 key);
     void put(u64 key, Value value, usize size_bytes);

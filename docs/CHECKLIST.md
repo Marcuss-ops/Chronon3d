@@ -8,42 +8,59 @@ Protocol to be executed before every merge or release to verify that the reposit
 
 ## 1. Full Build
 
+Configure and build the project using CMake presets:
+
 ```bash
-# General build command (adjust path to your build directory)
-cmake --build build --target chronon3d_cli chronon3d_tests -j $(nproc)
+# On Linux
+cmake --preset linux-release
+cmake --build --preset linux
+
+# On Windows
+cmake --preset win-release
+cmake --build --preset win
 ```
 
 **Expected Outcome:**
 - No compilation errors
 - No new blocking warnings
-- Binaries generated correctly
+- Binaries generated correctly (`chronon3d_cli` and test suites)
 - No linker errors
 
 ---
 
 ## 2. Automated Tests
 
+Run the complete test suite using CTest presets:
+
 ```bash
-# Run tests using ctest
-ctest --test-dir build --output-on-failure
+# On Linux
+ctest --preset linux-test --output-on-failure
+
+# On Windows
+ctest --preset win-test --output-on-failure
 ```
 
 **Expected Outcome:**
-- `chronon3d_tests` passes everything
+- All tests in all test suites (`chronon3d_core_tests`, `chronon3d_scene_tests`, `chronon3d_renderer_tests`, `chronon3d_io_tests`, `chronon3d_cli_tests`) pass
 - No failed tests, no crashes
 
 ---
 
-## 3. Render Single Frame (specscene)
+## 3. Render Single Frame
+
+Verify CLI rendering by running a sample composition render:
 
 ```bash
-# Verify CLI rendering
-./build/apps/chronon3d_cli/chronon3d_cli render input_file.specscene -o output/test_render.png --frames 0
+# On Linux
+./build/chronon/linux-release/apps/chronon3d_cli/chronon3d_cli render MyComp --frame 0 -o output/test_render.png
+
+# On Windows
+.\build\chronon\win-release\apps\chronon3d_cli\chronon3d_cli.exe render MyComp --frame 0 -o output/test_render.png
 ```
 
 **Expected Outcome:**
-- PNG created at the specified path
-- Output consistent with the input specification
+- PNG created at the specified path (`output/test_render.png`)
+- Output consistent with the composition specification
 - No visual artifacts or missing elements
 
 ---

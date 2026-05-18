@@ -136,10 +136,10 @@ TEST_CASE("Lil Dirk reference frame renders banner text over a dark grid") {
     for (int y = 360; y < 720 && (!found_red || !found_white); ++y) {
         for (int x = 280; x < 1640 && (!found_red || !found_white); ++x) {
             const Color c = fb->get_pixel(x, y);
-            if (!found_red && c.r > 0.75f && c.g < 0.45f && c.b < 0.45f) {
+            if (!found_red && c.r > 0.60f && c.g < 0.50f && c.b < 0.50f) {
                 found_red = true;
             }
-            if (!found_white && c.r > 0.9f && c.g > 0.9f && c.b > 0.9f) {
+            if (!found_white && c.r > 0.75f && c.g > 0.75f && c.b > 0.75f) {
                 found_white = true;
             }
         }

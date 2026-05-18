@@ -13,7 +13,12 @@ namespace chronon3d {
 
 class Renderer {
 public:
+    Renderer() = default;
     virtual ~Renderer() = default;
+    Renderer(const Renderer&) = default;
+    Renderer& operator=(const Renderer&) = default;
+    Renderer(Renderer&&) noexcept = default;
+    Renderer& operator=(Renderer&&) noexcept = default;
 
     virtual std::shared_ptr<Framebuffer> render_scene(const Scene& scene,
                                                       const Camera& camera,

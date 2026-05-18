@@ -21,6 +21,8 @@
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/core/frame.hpp>
 #include <chronon3d/scene/camera/camera.hpp>
+#include <chronon3d/core/trace.hpp>
+#include <chronon3d/core/counters.hpp>
 
 #include <memory>
 #include <optional>
@@ -109,7 +111,15 @@ public:
     [[nodiscard]] renderer::SoftwareRegistry& software_registry() { return *m_software_registry; }
     [[nodiscard]] const renderer::SoftwareRegistry& software_registry() const { return *m_software_registry; }
 
+    [[nodiscard]] RenderTrace* trace() override { return &m_trace; }
+    [[nodiscard]] const RenderTrace* trace() const { return &m_trace; }
+    [[nodiscard]] RenderCounters* counters() override { return &m_counters; }
+    [[nodiscard]] const RenderCounters* counters() const { return &m_counters; }
+
     SoftwareRenderer();
+    ~SoftwareRenderer() override;
+    SoftwareRenderer(SoftwareRenderer&&) noexcept = default;
+    SoftwareRenderer& operator=(SoftwareRenderer&&) noexcept = default;
 
 private:
     TextRenderer      m_text_renderer;
@@ -125,6 +135,9 @@ private:
 
     RenderSettings    m_settings{};
     const CompositionRegistry* m_registry{nullptr};
+
+    RenderTrace       m_trace;
+    RenderCounters    m_counters;
 };
 
 } // namespace chronon3d
