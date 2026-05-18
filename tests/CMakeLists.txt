@@ -39,6 +39,8 @@ add_executable(chronon3d_scene_tests
     scene/test_layer_hierarchy.cpp
     scene/test_camera_hierarchy.cpp
     scene/test_anchor_gallery.cpp
+    scene/test_layer_builder_animated.cpp
+    scene/test_render_node_factory.cpp
 )
 target_link_libraries(chronon3d_scene_tests PRIVATE chronon3d_pipeline chronon3d_scene chronon3d_backend_software doctest::doctest)
 target_include_directories(chronon3d_scene_tests PRIVATE ${CMAKE_SOURCE_DIR})
@@ -61,6 +63,7 @@ add_executable(chronon3d_renderer_tests
     renderer/basics/test_layer_rendering.cpp
     renderer/basics/test_gradient_fill.cpp
     renderer/basics/test_trim_path.cpp
+    renderer/basics/test_path_rendering.cpp
     renderer/camera/test_moving_frame.cpp
     renderer/camera/test_camera_2_5d.cpp
 

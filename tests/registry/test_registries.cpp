@@ -4,6 +4,8 @@
 #include <stdexcept>
 
 using namespace chronon3d::registry;
+using namespace chronon3d;
+namespace shape_ids = chronon3d::registry::shape_ids;
 
 TEST_CASE("SourceRegistry exposes built-in source descriptors") {
     SourceRegistry registry;
@@ -20,10 +22,46 @@ TEST_CASE("ShapeRegistry exposes built-in shape descriptors") {
     ShapeRegistry registry;
 
     CHECK(registry.available().size() == 8);
-    CHECK(registry.contains("shape.rect"));
-    CHECK(registry.contains("shape.path"));
-    CHECK(registry.get("shape.path").kind == ShapeKind::Path);
-    CHECK(registry.get("shape.mesh").builtin);
+    CHECK(registry.contains(shape_ids::Rect));
+    CHECK(registry.contains(shape_ids::Path));
+    CHECK(registry.get(shape_ids::Path).kind == ShapeKind::Path);
+    CHECK(registry.get(shape_ids::Mesh).builtin);
+}
+
+TEST_CASE("ShapeRegistry creates built-in shape nodes") {
+    ShapeRegistry registry;
+
+    auto node = registry.create_node(
+        shape_ids::Rect,
+        std::pmr::get_default_resource(),
+        "box",
+        RectParams{
+            .size = {120.0f, 80.0f},
+            .color = Color::white(),
+            .pos = {10.0f, 20.0f, 30.0f}
+        }
+    );
+
+    CHECK(node.name == "box");
+    CHECK(node.shape.type == ShapeType::Rect);
+    CHECK(node.shape.rect.size.x == doctest::Approx(120.0f));
+    CHECK(node.world_transform.position.z == doctest::Approx(30.0f));
+    CHECK(node.world_transform.anchor.x == doctest::Approx(60.0f));
+    CHECK(node.world_transform.anchor.y == doctest::Approx(40.0f));
+}
+
+TEST_CASE("ShapeRegistry rejects shapes without factories") {
+    ShapeRegistry registry;
+
+    CHECK_THROWS_AS(
+        registry.create_node(
+            shape_ids::Mesh,
+            std::pmr::get_default_resource(),
+            "mesh",
+            RectParams{}
+        ),
+        std::runtime_error
+    );
 }
 
 TEST_CASE("SamplerRegistry exposes built-in sampler descriptors") {

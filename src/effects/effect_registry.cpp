@@ -1,5 +1,6 @@
 #include <chronon3d/effects/effect_registry.hpp>
 #include <chronon3d/effects/effect_instance.hpp>
+#include <chronon3d/effects/effect_ids.hpp>
 #include <chronon3d/render_graph/nodes/basic_nodes.hpp>
 #include <stdexcept>
 #include <utility>
@@ -16,7 +17,7 @@ std::unique_ptr<graph::RenderGraphNode> generic_effect_factory(const EffectInsta
 
 void register_builtin_effects(EffectRegistry& registry) {
     registry.register_effect(EffectDescriptor{
-        .id = "blur.gaussian",
+        .id = std::string{ids::BlurGaussian},
         .display_name = "Gaussian Blur",
         .category = EffectCategory::Blur,
         .stage = EffectStage::LayerPostTransform,
@@ -27,7 +28,7 @@ void register_builtin_effects(EffectRegistry& registry) {
     });
 
     registry.register_effect(EffectDescriptor{
-        .id = "color.tint",
+        .id = std::string{ids::ColorTint},
         .display_name = "Tint",
         .category = EffectCategory::Color,
         .stage = EffectStage::Adjustment,
@@ -38,7 +39,7 @@ void register_builtin_effects(EffectRegistry& registry) {
     });
 
     registry.register_effect(EffectDescriptor{
-        .id = "color.brightness",
+        .id = std::string{ids::ColorBrightness},
         .display_name = "Brightness",
         .category = EffectCategory::Color,
         .stage = EffectStage::Adjustment,
@@ -49,7 +50,7 @@ void register_builtin_effects(EffectRegistry& registry) {
     });
 
     registry.register_effect(EffectDescriptor{
-        .id = "color.contrast",
+        .id = std::string{ids::ColorContrast},
         .display_name = "Contrast",
         .category = EffectCategory::Color,
         .stage = EffectStage::Adjustment,
@@ -60,7 +61,7 @@ void register_builtin_effects(EffectRegistry& registry) {
     });
 
     registry.register_effect(EffectDescriptor{
-        .id = "light.drop_shadow",
+        .id = std::string{ids::LightDropShadow},
         .display_name = "Drop Shadow",
         .category = EffectCategory::Light,
         .stage = EffectStage::LayerPostTransform,
@@ -71,7 +72,7 @@ void register_builtin_effects(EffectRegistry& registry) {
     });
 
     registry.register_effect(EffectDescriptor{
-        .id = "light.glow",
+        .id = std::string{ids::LightGlow},
         .display_name = "Glow",
         .category = EffectCategory::Light,
         .stage = EffectStage::LayerPostTransform,
@@ -82,7 +83,7 @@ void register_builtin_effects(EffectRegistry& registry) {
     });
 
     registry.register_effect(EffectDescriptor{
-        .id = "light.bloom",
+        .id = std::string{ids::LightBloom},
         .display_name = "Bloom",
         .category = EffectCategory::Light,
         .stage = EffectStage::Adjustment,
