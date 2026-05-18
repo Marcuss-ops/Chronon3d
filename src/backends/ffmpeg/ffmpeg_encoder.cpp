@@ -20,44 +20,111 @@ namespace chronon3d::video {
 
 namespace {
 
-const AVCodec* find_first_available_codec(const std::vector<const char*>& names) {
-    for (const char* name : names) {
-        if (const AVCodec* codec = avcodec_find_encoder_by_name(name)) {
-            return codec;
-        }
+struct CodecResolution {
+    const AVCodec* codec{nullptr};
+    std::string selected_name;
+    std::string error;
+    bool used_fallback{false};
+};
+
+std::string_view to_string(HardwareEncoder hw) {
+    switch (hw) {
+        case HardwareEncoder::None: return "none";
+        case HardwareEncoder::Auto: return "auto";
+        case HardwareEncoder::Nvenc: return "nvenc";
+        case HardwareEncoder::Qsv: return "qsv";
+        case HardwareEncoder::VideoToolbox: return "videotoolbox";
+        case HardwareEncoder::Amf: return "amf";
     }
-    return nullptr;
+    return "unknown";
 }
 
-const AVCodec* resolve_codec(const VideoEncodeOptions& options, std::string& resolved_name) {
-    const std::vector<const char*> software_candidates{
+std::vector<const char*> hardware_candidates(HardwareEncoder hw) {
+    switch (hw) {
+        case HardwareEncoder::Nvenc:
+            return {"h264_nvenc", "hevc_nvenc"};
+
+        case HardwareEncoder::Qsv:
+            return {"h264_qsv", "hevc_qsv"};
+
+        case HardwareEncoder::VideoToolbox:
+            return {"h264_videotoolbox", "hevc_videotoolbox"};
+
+        case HardwareEncoder::Amf:
+            return {"h264_amf", "hevc_amf"};
+
+        case HardwareEncoder::Auto:
+            return {
+                "h264_nvenc",
+                "h264_qsv",
+                "h264_videotoolbox",
+                "h264_amf"
+            };
+
+        case HardwareEncoder::None:
+        default:
+            return {};
+    }
+}
+
+std::vector<const char*> software_candidates() {
+    return {
         "libx264",
         "libopenh264",
-        "mpeg4",
+        "mpeg4"
     };
+}
 
-    const std::string requested = options.codec;
-    if (!requested.empty() && requested != "auto") {
+CodecResolution resolve_codec(const VideoEncodeOptions& options) {
+    CodecResolution out;
+
+    const std::string requested = options.codec.empty() ? "auto" : options.codec;
+
+    // 1. If explicit codec is passed, respect it first.
+    if (requested != "auto") {
         if (const AVCodec* codec = avcodec_find_encoder_by_name(requested.c_str())) {
-            resolved_name = requested;
-            return codec;
+            out.codec = codec;
+            out.selected_name = requested;
+            return out;
         }
 
-        spdlog::warn("Requested codec '{}' was not found; selecting the best available fallback",
-                     requested);
+        out.error = fmt::format("Requested codec '{}' was not found", requested);
+        return out;
     }
 
-    if (options.use_hardware_accel) {
-        spdlog::warn("Hardware encode path is not implemented; using software codec fallback");
+    // 2. Hardware-specific candidates.
+    const auto hw_candidates = hardware_candidates(options.hardware);
+
+    for (const char* name : hw_candidates) {
+        if (const AVCodec* codec = avcodec_find_encoder_by_name(name)) {
+            out.codec = codec;
+            out.selected_name = name;
+            return out;
+        }
     }
 
-    if (const AVCodec* codec = find_first_available_codec(software_candidates)) {
-        resolved_name = codec->name ? codec->name : "unknown";
-        return codec;
+    // 3. If user explicitly requested a hardware encoder, fail.
+    if (options.hardware != HardwareEncoder::None &&
+        options.hardware != HardwareEncoder::Auto) {
+        out.error = "Requested hardware encoder is not available in this FFmpeg build";
+        return out;
     }
 
-    resolved_name.clear();
-    return nullptr;
+    // 4. If hardware auto failed, fallback to software.
+    if (options.hardware == HardwareEncoder::Auto) {
+        out.used_fallback = true;
+    }
+
+    for (const char* name : software_candidates()) {
+        if (const AVCodec* codec = avcodec_find_encoder_by_name(name)) {
+            out.codec = codec;
+            out.selected_name = name;
+            return out;
+        }
+    }
+
+    out.error = "No suitable video encoder was found";
+    return out;
 }
 
 bool use_fast_gamma_for_preset(std::string_view preset) {
@@ -152,18 +219,23 @@ bool FfmpegEncoder::open(const std::string& output_path, const VideoEncodeOption
         return false;
     }
 
-    std::string codec_name;
-    const AVCodec* codec = resolve_codec(options, codec_name);
-    if (!codec) {
-        spdlog::error("No suitable video encoder was found for {}", output_path);
+    const auto resolved = resolve_codec(options);
+    if (!resolved.codec) {
+        spdlog::error("{}", resolved.error);
         pimpl->cleanup();
         return false;
     }
-    spdlog::info("[video] FFmpeg {} | codec req={} -> sel={} | fps={} crf={} preset={}",
-                 av_version_info(), requested_codec, codec_name, options.fps, options.crf, options.preset);
-    if (requested_codec != "auto" && codec_name != requested_codec) {
-        spdlog::warn("Using codec '{}' instead of requested '{}' for {}",
-                     codec_name, requested_codec, output_path);
+
+    const AVCodec* codec = resolved.codec;
+    const std::string codec_name = resolved.selected_name;
+
+    spdlog::info("[video] FFmpeg {} | hardware={} | codec req={} -> sel={} | fps={} crf={} preset={}",
+                 av_version_info(), to_string(options.hardware), requested_codec, codec_name,
+                 options.fps, options.crf, options.preset);
+
+    if (resolved.used_fallback) {
+        spdlog::warn("No hardware encoder was available; falling back to software codec '{}'",
+                     codec_name);
     }
 
     pimpl->stream = avformat_new_stream(pimpl->format_context, nullptr);
@@ -203,9 +275,13 @@ bool FfmpegEncoder::open(const std::string& output_path, const VideoEncodeOption
     }
 
     // Set codec-specific options.
-    if (codec->id == AV_CODEC_ID_H264) {
+    const bool is_libx264 = codec_name == "libx264" || codec_name == "libopenh264";
+    if (is_libx264) {
         av_opt_set(pimpl->codec_context->priv_data, "preset", options.preset.c_str(), 0);
         av_opt_set(pimpl->codec_context->priv_data, "crf", std::to_string(options.crf).c_str(), 0);
+    } else if (codec_name == "h264_nvenc" || codec_name == "hevc_nvenc") {
+        av_opt_set(pimpl->codec_context->priv_data, "preset", "p4", 0);
+        av_opt_set(pimpl->codec_context->priv_data, "cq", std::to_string(options.crf).c_str(), 0);
     }
 
     int ret = avcodec_open2(pimpl->codec_context, codec, nullptr);

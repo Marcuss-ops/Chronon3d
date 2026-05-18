@@ -184,6 +184,7 @@ chronon3d_cli video <Comp> --end N -o output.mp4 [options]
 | `--crf` | 18 | x264 quality (0=best, 51=worst) |
 | `--codec` | auto | Encoder selection (`auto`, `libx264`, `mpeg4`, etc.) |
 | `--encode-preset` / `--preset` | medium | x264 preset |
+| `--hardware` | none | Hardware encoder (`none`, `auto`, `nvenc`, `qsv`, `videotoolbox`, `amf`) |
 | `--keep-frames` | off | Keep temporary PNG frames |
 | `--frames-dir` | auto | Override temp frames directory |
 
@@ -206,6 +207,7 @@ chronon3d_cli video camera [--axis Tilt|Pan|Roll] [--reference path] [options]
 | `--crf` | 18 | x264 quality (0=best, 51=worst) |
 | `--codec` | auto | Encoder selection (`auto`, `libx264`, `mpeg4`, etc.) |
 | `--encode-preset` | medium | x264 preset |
+| `--hardware` | none | Hardware encoder (`none`, `auto`, `nvenc`, `qsv`, `videotoolbox`, `amf`) |
 | `--ssaa` | 1.0 | Super sampling factor |
 
 For `--axis Roll`, the clip now rotates the centered reference image layer instead of rolling the camera itself.
