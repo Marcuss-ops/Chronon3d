@@ -1,9 +1,12 @@
 #pragma once
 
 #include <chronon3d/animation/keyframe.hpp>
+#include <chronon3d/math/expression.hpp>
 #include <vector>
 #include <string>
 #include <algorithm>
+#include <type_traits>
+#include <unordered_map>
 
 namespace chronon3d {
 
@@ -31,8 +34,14 @@ struct Wiggle {
     }
 };
 
-template <typename T>
+struct AnimationEvalContext {
+    f32 fps{30.0f};
+    f32 time{0.0f};
+    bool has_explicit_time{false};
+    int index{0};
+};
 
+template <typename T>
 class AnimatedValue {
 public:
     AnimatedValue() = default;
@@ -79,6 +88,63 @@ public:
     [[nodiscard]] T value_at(Frame frame) const { return evaluate(frame); }
 
     [[nodiscard]] T evaluate(Frame frame) const {
+        return evaluate(frame, AnimationEvalContext{});
+    }
+
+    [[nodiscard]] T evaluate(Frame frame, const AnimationEvalContext& ctx) const {
+        const T base = evaluate_base(frame);
+
+        if (!has_expression()) {
+            return base;
+        }
+
+        if constexpr (std::is_same_v<T, f32>) {
+            const double fps = ctx.fps > 0.0f ? static_cast<double>(ctx.fps) : 30.0;
+            const double time = ctx.has_explicit_time
+                ? static_cast<double>(ctx.time)
+                : static_cast<double>(frame) / fps;
+
+            const std::unordered_map<std::string, double> vars{
+                {"frame", static_cast<double>(frame)},
+                {"time", time},
+                {"value", static_cast<double>(base)},
+                {"index", static_cast<double>(ctx.index)},
+            };
+
+            return static_cast<f32>(
+                math::evaluate_expression(m_expression, vars, static_cast<double>(base))
+            );
+        } else {
+            return base;
+        }
+    }
+
+    [[nodiscard]] bool is_animated() const { return !m_keyframes.empty(); }
+
+    /**
+     * @brief Determines if evaluating this property at a specific frame is "expensive"
+     * enough to justify caching.
+     */
+    [[nodiscard]] bool should_cache(Frame frame) const {
+        if (has_expression()) return true;
+        if (m_keyframes.empty()) return false; // Constant value is cheap
+        
+        const Frame start_f = m_keyframes.front().frame;
+        const Frame end_f   = m_keyframes.back().frame;
+        
+        if (frame <= start_f || frame >= end_f) return false; // Edge values are cheap
+        
+        // If we are between keyframes, we check easing complexity.
+        // For now, assume any non-linear easing or many keyframes might benefit,
+        // but simple linear is definitely cheap.
+        // In a real implementation, we'd check the easing of the active segment.
+        return true; 
+    }
+
+    void clear() { m_keyframes.clear(); }
+
+private:
+    [[nodiscard]] T evaluate_base(Frame frame) const {
         if (m_keyframes.empty()) {
             return m_default_value;
         }
@@ -124,31 +190,6 @@ public:
         return interpolate_values(prev->value, next->value, t, prev->easing);
     }
 
-    [[nodiscard]] bool is_animated() const { return !m_keyframes.empty(); }
-
-    /**
-     * @brief Determines if evaluating this property at a specific frame is "expensive"
-     * enough to justify caching.
-     */
-    [[nodiscard]] bool should_cache(Frame frame) const {
-        if (has_expression()) return true;
-        if (m_keyframes.empty()) return false; // Constant value is cheap
-        
-        const Frame start_f = m_keyframes.front().frame;
-        const Frame end_f   = m_keyframes.back().frame;
-        
-        if (frame <= start_f || frame >= end_f) return false; // Edge values are cheap
-        
-        // If we are between keyframes, we check easing complexity.
-        // For now, assume any non-linear easing or many keyframes might benefit,
-        // but simple linear is definitely cheap.
-        // In a real implementation, we'd check the easing of the active segment.
-        return true; 
-    }
-
-    void clear() { m_keyframes.clear(); }
-
-private:
     T m_default_value{};
     std::vector<Keyframe<T>> m_keyframes;
     LoopMode m_loop_mode{LoopMode::Hold};
