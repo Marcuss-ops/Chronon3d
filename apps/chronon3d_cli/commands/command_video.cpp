@@ -26,6 +26,13 @@ int command_video(const CompositionRegistry& registry, const VideoArgs& args) {
     options.encode.codec = args.codec;
     options.encode.preset = args.encode_preset;
 
+    auto hw = parse_hardware_encoder(args.hardware_encoder);
+    if (!hw) {
+        spdlog::error("Unknown hardware encoder '{}'. Expected: none, auto, nvenc, qsv, videotoolbox, amf", args.hardware_encoder);
+        return 1;
+    }
+    options.encode.hardware = *hw;
+
     video::FfmpegEncoder encoder;
     return video::render_to_video(*renderer, *resolved.comp, args.output, options, encoder) ? 0 : 1;
 }
@@ -91,6 +98,13 @@ int command_video_camera(const CompositionRegistry& registry, const VideoCameraA
     options.encode.codec = args.codec;
     options.encode.preset = args.encode_preset;
 
+    auto hw = parse_hardware_encoder(args.hardware_encoder);
+    if (!hw) {
+        spdlog::error("Unknown hardware encoder '{}'. Expected: none, auto, nvenc, qsv, videotoolbox, amf", args.hardware_encoder);
+        return 1;
+    }
+    options.encode.hardware = *hw;
+
     video::FfmpegEncoder encoder;
     return video::render_to_video(*renderer, comp, output, options, encoder) ? 0 : 1;
 }
@@ -116,6 +130,19 @@ bool ffmpeg_in_path() {
 #else
     return std::system("ffmpeg -version > /dev/null 2>&1") == 0;
 #endif
+}
+
+std::string resolve_cli_ffmpeg_codec(const VideoArgs& args) {
+    if (args.codec != "auto") {
+        return args.codec;
+    }
+
+    if (args.hardware_encoder == "nvenc") return "h264_nvenc";
+    if (args.hardware_encoder == "qsv") return "h264_qsv";
+    if (args.hardware_encoder == "videotoolbox" || args.hardware_encoder == "vt") return "h264_videotoolbox";
+    if (args.hardware_encoder == "amf") return "h264_amf";
+
+    return "libx264";
 }
 } // namespace
 
@@ -186,7 +213,7 @@ int command_video(const CompositionRegistry& registry, const VideoArgs& args) {
         std::filesystem::path(args.output).parent_path(), ec);
 
     const std::string pattern = (frames_dir / "frame_%06d.png").string();
-    const std::string codec   = (args.codec == "auto") ? "libx264" : args.codec;
+    const std::string codec   = resolve_cli_ffmpeg_codec(args);
     const std::string cmd     = fmt::format(
         "ffmpeg -y -framerate {} -i \"{}\" -c:v {} -crf {} -preset {} -pix_fmt yuv420p \"{}\"",
         args.fps, pattern, codec, args.crf, args.encode_preset, args.output);

@@ -205,6 +205,8 @@ if(CHRONON3D_ENABLE_VIDEO)
     add_executable(chronon3d_video_tests 
         test_main.cpp
         video/test_camera_motion_video.cpp
+        video/test_video_source.cpp
+        video/test_hardware_encoder.cpp
     )
     target_link_libraries(chronon3d_video_tests 
         PRIVATE 

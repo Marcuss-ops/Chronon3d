@@ -7,13 +7,22 @@
 
 namespace chronon3d::video {
 
+enum class HardwareEncoder {
+    None,
+    Auto,
+    Nvenc,
+    Qsv,
+    VideoToolbox,
+    Amf
+};
+
 struct VideoEncodeOptions {
     std::string codec{"auto"};
     std::string preset{"medium"};
     int crf{18};
     int fps{30};
     int gop_size{12};
-    bool use_hardware_accel{false};
+    HardwareEncoder hardware{HardwareEncoder::None};
 };
 
 class IEncoder {
