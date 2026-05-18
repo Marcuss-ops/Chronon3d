@@ -108,7 +108,7 @@ std::string SoftwareRenderer::debug_render_graph(const Scene& scene, const Camer
 
 void SoftwareRenderer::apply_blur(Framebuffer& fb, f32 radius) {
     m_counters.blur_pixels.fetch_add(static_cast<uint64_t>(fb.width() * fb.height()), std::memory_order_relaxed);
-    CHRONON_ZONE_C("apply_blur", "effect");
+    CHRONON_ZONE_C("apply_blur", trace_category::kEffect);
     SoftwareEffectRunner::apply_blur(fb, radius);
 }
 
@@ -116,19 +116,19 @@ void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node,
                                  const RenderState& state, const Camera& camera, i32 width,
                                  i32 height) {
     m_counters.pixels_touched.fetch_add(static_cast<uint64_t>(width * height), std::memory_order_relaxed);
-    CHRONON_ZONE_C("draw_node", "rasterize");
+    CHRONON_ZONE_C("draw_node", trace_category::kRasterize);
     SoftwareNodeDispatcher::draw_node(*this, fb, node, state, camera, width, height, software_registry());
 }
 
 void SoftwareRenderer::apply_effect_stack(Framebuffer& fb, const EffectStack& stack, float time_seconds) {
-    CHRONON_ZONE_C("apply_effect_stack", "effect");
+    CHRONON_ZONE_C("apply_effect_stack", trace_category::kEffect);
     SoftwareEffectRunner::apply_effect_stack(fb, stack, software_registry(), time_seconds);
 }
 
 void SoftwareRenderer::composite_layer(Framebuffer& dst, const Framebuffer& src, BlendMode mode) {
     m_counters.pixels_touched.fetch_add(static_cast<uint64_t>(dst.width() * dst.height()), std::memory_order_relaxed);
     m_counters.layers_rendered.fetch_add(1, std::memory_order_relaxed);
-    CHRONON_ZONE_C("composite_layer", "composite");
+    CHRONON_ZONE_C("composite_layer", trace_category::kComposite);
     SoftwareCompositor::composite_layer(dst, src, mode);
 }
 } // namespace chronon3d

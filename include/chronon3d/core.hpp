@@ -1,5 +1,7 @@
 #pragma once
 
+#include <chronon3d/core/trace.hpp>
+#include <chronon3d/core/counters.hpp>
 #include <chronon3d/core/types.hpp>
 #include <chronon3d/core/time.hpp>
 #include <chronon3d/core/arena.hpp>
