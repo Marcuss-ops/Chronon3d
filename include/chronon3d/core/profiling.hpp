@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/core/trace.hpp>
+#include <chronon3d/core/trace_categories.hpp>
 
 #ifdef CHRONON_PROFILING
 #include <tracy/Tracy.hpp>

@@ -269,7 +269,7 @@ std::unique_ptr<Framebuffer> render_composition_frame(
         const auto t_eval0 = std::chrono::steady_clock::now();
         Scene scene;
         {
-            CHRONON_ZONE_C("evaluate_composition", "timeline");
+            CHRONON_ZONE_C("evaluate_composition", trace_category::kTimeline);
             scene = comp.evaluate(frame);
         }
         evaluate_ms = std::chrono::duration<double, std::milli>(
@@ -288,7 +288,7 @@ std::unique_ptr<Framebuffer> render_composition_frame(
 
         const auto t_mb0 = std::chrono::steady_clock::now();
         {
-            CHRONON_ZONE_C("motion_blur_accumulation", "effect");
+            CHRONON_ZONE_C("motion_blur_accumulation", trace_category::kEffect);
             for (int s = 0; s < N; ++s) {
                 const float t = (static_cast<float>(s) / static_cast<float>(N)) * shutter;
                 Scene sub = comp.evaluate(frame, t);
@@ -322,7 +322,7 @@ std::unique_ptr<Framebuffer> render_composition_frame(
         const auto t_down0 = std::chrono::steady_clock::now();
         std::unique_ptr<Framebuffer> out;
         {
-            CHRONON_ZONE_C("downsample_ssaa", "downsample");
+            CHRONON_ZONE_C("downsample_ssaa", trace_category::kDownsample);
             out = downsample_fb(*render_fb, w, h);
         }
         downsample_ms = std::chrono::duration<double, std::milli>(
