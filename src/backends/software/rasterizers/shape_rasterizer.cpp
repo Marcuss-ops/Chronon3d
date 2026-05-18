@@ -3,6 +3,7 @@
 #include <chronon3d/scene/mask/mask_utils.hpp>
 #include <chronon3d/scene/fill.hpp>
 #include <chronon3d/math/raster_utils.hpp>
+#include "path_rasterizer.hpp"
 #include <glm/glm.hpp>
 #include <algorithm>
 #include <cmath>
@@ -17,6 +18,10 @@ raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 sprea
         case ShapeType::RoundedRect: size = shape.rounded_rect.size; break;
         case ShapeType::Circle: size = Vec2{shape.circle.radius * 2, shape.circle.radius * 2}; break;
         case ShapeType::Image: size = shape.image.size; break;
+        case ShapeType::Path: {
+            const auto bbox = compute_path_bbox(shape.path, model, spread);
+            return bbox;
+        }
         case ShapeType::FakeBox3D: size = shape.fake_box3d.size; break;
         case ShapeType::GridPlane: size = {shape.grid_plane.extent * 2, shape.grid_plane.extent * 2}; break;
         case ShapeType::FakeExtrudedText: size = {shape.fake_extruded_text.font_size * 20, shape.fake_extruded_text.font_size * 4}; break;
@@ -79,6 +84,8 @@ bool hit_test(const Shape& s, Vec2 p, f32 spread) {
             f32 dy = p.y - s.circle.radius;
             return (dx * dx + dy * dy) <= (s.circle.radius + spread) * (s.circle.radius + spread);
         }
+        case ShapeType::Path:
+            return false;
         case ShapeType::Image:
             return p.x >= -spread && p.x < s.image.size.x + spread &&
                    p.y >= -spread && p.y < s.image.size.y + spread;
@@ -133,6 +140,12 @@ static Vec2 shape_size_for_fill(const Shape& shape) {
 void draw_transformed_shape(Framebuffer& fb, const Shape& shape, const Mat4& model, const Color& color,
                              f32 spread, const RenderState* state, const Fill* fill) {
     if (color.a <= 0.0f) return;
+
+    if (shape.type == ShapeType::Path) {
+        (void)fill;
+        draw_path(fb, shape.path, model, color, state);
+        return;
+    }
 
     raster::BBox bbox = compute_world_bbox(shape, model, spread);
     bbox.clip_to(fb.width(), fb.height());

@@ -21,6 +21,9 @@ TEST_CASE("TextLayout: no box returns single line") {
     CHECK(r.lines.size() == 1);
     CHECK(r.lines[0].text == "Hello World");
     CHECK(r.resolved_font_size == doctest::Approx(32.0f));
+    CHECK(r.lines[0].position.x == doctest::Approx(0.0f));
+    CHECK(r.lines[0].position.y == doctest::Approx(0.0f));
+    CHECK(r.size.x == doctest::Approx(176.0f));
 }
 
 // ---------------------------------------------------------------------------
@@ -38,6 +41,7 @@ TEST_CASE("TextLayout: wraps words to fit box width") {
     auto r = TextLayoutEngine::layout(in);
     CHECK(r.lines.size() > 1);
     CHECK_FALSE(r.clipped);
+    CHECK(r.lines[1].position.y > r.lines[0].position.y);
 }
 
 TEST_CASE("TextLayout: single word longer than box stays on one line") {
@@ -83,6 +87,34 @@ TEST_CASE("TextLayout: max_lines=0 means unlimited") {
     auto r = TextLayoutEngine::layout(in);
     CHECK(r.lines.size() == 6);
     CHECK_FALSE(r.clipped);
+}
+
+TEST_CASE("TextLayout: explicit newlines create separate lines") {
+    TextLayoutInput in;
+    in.text        = "first\nsecond";
+    in.style.size  = 24.0f;
+    in.char_width  = fixed_cw();
+
+    auto r = TextLayoutEngine::layout(in);
+    REQUIRE(r.lines.size() == 2);
+    CHECK(r.lines[0].text == "first");
+    CHECK(r.lines[1].text == "second");
+    CHECK(r.lines[1].position.y > r.lines[0].position.y);
+}
+
+TEST_CASE("TextLayout: box height clips lines") {
+    TextLayoutInput in;
+    in.text             = "one two three four five six";
+    in.style.size       = 20.0f;
+    in.style.line_height = 1.0f;
+    in.style.max_lines  = 0;
+    in.char_width       = fixed_cw();
+    in.box.enabled      = true;
+    in.box.size         = Vec2{40.0f, 40.0f};
+
+    auto r = TextLayoutEngine::layout(in);
+    CHECK(r.size.y <= doctest::Approx(40.0f).epsilon(0.01));
+    CHECK(r.clipped);
 }
 
 // ---------------------------------------------------------------------------

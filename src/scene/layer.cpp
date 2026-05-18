@@ -16,6 +16,7 @@ Layer::Layer(const Layer& other)
       anim_transform(other.anim_transform),
       from(other.from),
       duration(other.duration),
+      time_offset(other.time_offset),
       visible(other.visible),
       is_3d(other.is_3d),
       hierarchy_resolved(other.hierarchy_resolved),
@@ -46,6 +47,7 @@ Layer& Layer::operator=(const Layer& other) {
     anim_transform = other.anim_transform;
     from = other.from;
     duration = other.duration;
+    time_offset = other.time_offset;
     visible = other.visible;
     is_3d = other.is_3d;
     hierarchy_resolved = other.hierarchy_resolved;

@@ -1,6 +1,8 @@
 #include <doctest/doctest.h>
 
+#include <chronon3d/effects/effect_ids.hpp>
 #include <chronon3d/render_graph/render_graph_hashing.hpp>
+#include <string>
 #include <chronon3d/scene/shape.hpp>
 #include <chronon3d/scene/effects/effect_stack.hpp>
 #include <chronon3d/scene/mask/mask.hpp>
@@ -10,6 +12,7 @@
 
 using namespace chronon3d;
 using namespace chronon3d::graph;
+namespace effect_ids = chronon3d::effects::ids;
 
 // Test 4.1 - transform diverso cambia hash
 TEST_CASE("Test 4.1 - transform diverso cambia hash") {
@@ -211,14 +214,14 @@ TEST_CASE("Test 4.16 - mask diverso cambia cache key") {
 TEST_CASE("Test 4.17 - blur radius diverso cambia effect hash") {
     EffectStack e1;
     EffectInstance instance1;
-    instance1.descriptor.id = "blur.gaussian";
+    instance1.descriptor.id = std::string{effect_ids::BlurGaussian};
     instance1.enabled = true;
     instance1.params = EffectParams{BlurParams{.radius = 4.0f}};
     e1.push_back(instance1);
 
     EffectStack e2;
     EffectInstance instance2;
-    instance2.descriptor.id = "blur.gaussian";
+    instance2.descriptor.id = std::string{effect_ids::BlurGaussian};
     instance2.enabled = true;
     instance2.params = EffectParams{BlurParams{.radius = 12.0f}};
     e2.push_back(instance2);
@@ -230,14 +233,14 @@ TEST_CASE("Test 4.17 - blur radius diverso cambia effect hash") {
 TEST_CASE("Test 4.18 - tint diverso cambia effect hash") {
     EffectStack e1;
     EffectInstance i1;
-    i1.descriptor.id = "color.tint";
+    i1.descriptor.id = std::string{effect_ids::ColorTint};
     i1.enabled = true;
     i1.params = EffectParams{TintParams{.color = Color::red(), .amount = 1.0f}};
     e1.push_back(i1);
 
     EffectStack e2;
     EffectInstance i2;
-    i2.descriptor.id = "color.tint";
+    i2.descriptor.id = std::string{effect_ids::ColorTint};
     i2.enabled = true;
     i2.params = EffectParams{TintParams{.color = Color::blue(), .amount = 1.0f}};
     e2.push_back(i2);
@@ -249,14 +252,14 @@ TEST_CASE("Test 4.18 - tint diverso cambia effect hash") {
 TEST_CASE("Test 4.19 - brightness diverso cambia effect hash") {
     EffectStack e1;
     EffectInstance i1;
-    i1.descriptor.id = "color.brightness";
+    i1.descriptor.id = std::string{effect_ids::ColorBrightness};
     i1.enabled = true;
     i1.params = EffectParams{BrightnessParams{.value = 0.8f}};
     e1.push_back(i1);
 
     EffectStack e2;
     EffectInstance i2;
-    i2.descriptor.id = "color.brightness";
+    i2.descriptor.id = std::string{effect_ids::ColorBrightness};
     i2.enabled = true;
     i2.params = EffectParams{BrightnessParams{.value = 1.2f}};
     e2.push_back(i2);
@@ -268,14 +271,14 @@ TEST_CASE("Test 4.19 - brightness diverso cambia effect hash") {
 TEST_CASE("Test 4.20 - contrast diverso cambia effect hash") {
     EffectStack e1;
     EffectInstance i1;
-    i1.descriptor.id = "color.contrast";
+    i1.descriptor.id = std::string{effect_ids::ColorContrast};
     i1.enabled = true;
     i1.params = EffectParams{ContrastParams{.value = 0.8f}};
     e1.push_back(i1);
 
     EffectStack e2;
     EffectInstance i2;
-    i2.descriptor.id = "color.contrast";
+    i2.descriptor.id = std::string{effect_ids::ColorContrast};
     i2.enabled = true;
     i2.params = EffectParams{ContrastParams{.value = 1.5f}};
     e2.push_back(i2);

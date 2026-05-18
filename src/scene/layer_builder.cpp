@@ -1,5 +1,7 @@
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder_delegates.hpp>
+#include <chronon3d/effects/effect_ids.hpp>
+#include <chronon3d/registry/shape_ids.hpp>
 #include <chronon3d/scene/layer/track_matte.hpp>
 #include <chronon3d/math/transform.hpp>
 #include "layer_builder_internal.hpp"
@@ -8,10 +10,13 @@
 
 namespace chronon3d {
 
-LayerBuilder::LayerBuilder(std::string name, std::pmr::memory_resource* res)
-    : m_layer(res) {
+LayerBuilder::LayerBuilder(std::string name, Frame current_frame, std::pmr::memory_resource* res)
+    : m_layer(res), m_current_frame(current_frame) {
     m_layer.name = std::pmr::string{name, res};
 }
+
+LayerBuilder::LayerBuilder(std::string name, std::pmr::memory_resource* res)
+    : LayerBuilder(std::move(name), Frame{0}, res) {}
 
 LayerBuilder& LayerBuilder::parent(std::string name) {
     m_layer.parent_name = std::pmr::string{name, m_layer.name.get_allocator()};
@@ -25,6 +30,19 @@ LayerBuilder& LayerBuilder::from(Frame frame) {
 
 LayerBuilder& LayerBuilder::duration(Frame frames) {
     m_layer.duration = frames;
+    m_duration_explicit = true;
+    m_until_frame.reset();
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::until(Frame frame) {
+    m_until_frame = frame;
+    m_duration_explicit = false;
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::offset(Frame frames) {
+    m_layer.time_offset = frames;
     return *this;
 }
 
@@ -98,37 +116,37 @@ LayerBuilder& LayerBuilder::mask_circle(CircleMaskParams p) {
 }
 
 LayerBuilder& LayerBuilder::blur(f32 radius) {
-    m_layer.effects.push_back(EffectInstance{effects::EffectDescriptor{.id="blur.gaussian"}, BlurParams{radius}});
+    m_layer.effects.push_back(EffectInstance{effects::EffectDescriptor{.id = std::string{effects::ids::BlurGaussian}}, BlurParams{radius}});
     return *this;
 }
 
 LayerBuilder& LayerBuilder::tint(Color color, f32 amount) {
-    m_layer.effects.push_back(EffectInstance{effects::EffectDescriptor{.id="color.tint"}, TintParams{color, amount}});
+    m_layer.effects.push_back(EffectInstance{effects::EffectDescriptor{.id = std::string{effects::ids::ColorTint}}, TintParams{color, amount}});
     return *this;
 }
 
 LayerBuilder& LayerBuilder::brightness(f32 v) {
-    m_layer.effects.push_back(EffectInstance{effects::EffectDescriptor{.id="color.brightness"}, BrightnessParams{v}});
+    m_layer.effects.push_back(EffectInstance{effects::EffectDescriptor{.id = std::string{effects::ids::ColorBrightness}}, BrightnessParams{v}});
     return *this;
 }
 
 LayerBuilder& LayerBuilder::contrast(f32 v) {
-    m_layer.effects.push_back(EffectInstance{effects::EffectDescriptor{.id="color.contrast"}, ContrastParams{v}});
+    m_layer.effects.push_back(EffectInstance{effects::EffectDescriptor{.id = std::string{effects::ids::ColorContrast}}, ContrastParams{v}});
     return *this;
 }
 
 LayerBuilder& LayerBuilder::drop_shadow(Vec2 offset, Color color, f32 radius) {
-    m_layer.effects.push_back(EffectInstance{effects::EffectDescriptor{.id="light.drop_shadow"}, DropShadowParams{offset, color, radius}});
+    m_layer.effects.push_back(EffectInstance{effects::EffectDescriptor{.id = std::string{effects::ids::LightDropShadow}}, DropShadowParams{offset, color, radius}});
     return *this;
 }
 
 LayerBuilder& LayerBuilder::glow(f32 radius, f32 intensity, Color color) {
-    m_layer.effects.push_back(EffectInstance{effects::EffectDescriptor{.id="light.glow"}, GlowParams{radius, intensity, color}});
+    m_layer.effects.push_back(EffectInstance{effects::EffectDescriptor{.id = std::string{effects::ids::LightGlow}}, GlowParams{radius, intensity, color}});
     return *this;
 }
 
 LayerBuilder& LayerBuilder::bloom(f32 threshold, f32 radius, f32 intensity) {
-    m_layer.effects.push_back(EffectInstance{effects::EffectDescriptor{.id="light.bloom"}, BloomParams{threshold, radius, intensity}});
+    m_layer.effects.push_back(EffectInstance{effects::EffectDescriptor{.id = std::string{effects::ids::LightBloom}}, BloomParams{threshold, radius, intensity}});
     return *this;
 }
 
@@ -159,37 +177,40 @@ LayerBuilder& LayerBuilder::fit_text() {
 }
 
 LayerBuilder& LayerBuilder::rect(std::string name, RectParams p) {
-    layer_builder_internal::append_rect(m_layer, std::move(name), p);
-    return *this;
+    return shape(registry::shape_ids::Rect, std::move(name), std::move(p));
 }
 
 LayerBuilder& LayerBuilder::rounded_rect(std::string name, RoundedRectParams p) {
-    layer_builder_internal::append_rounded_rect(m_layer, std::move(name), p);
-    return *this;
+    return shape(registry::shape_ids::RoundedRect, std::move(name), std::move(p));
 }
 
 LayerBuilder& LayerBuilder::circle(std::string name, CircleParams p) {
-    layer_builder_internal::append_circle(m_layer, std::move(name), p);
-    return *this;
+    return shape(registry::shape_ids::Circle, std::move(name), std::move(p));
 }
 
 LayerBuilder& LayerBuilder::line(std::string name, LineParams p) {
-    layer_builder_internal::append_line(m_layer, std::move(name), p);
-    return *this;
+    return shape(registry::shape_ids::Line, std::move(name), std::move(p));
 }
 
 LayerBuilder& LayerBuilder::path(std::string name, PathParams p) {
-    layer_builder_internal::append_path(m_layer, std::move(name), std::move(p));
-    return *this;
+    return shape(registry::shape_ids::Path, std::move(name), std::move(p));
 }
 
 LayerBuilder& LayerBuilder::text(std::string name, TextParams p) {
-    layer_builder_internal::append_text(m_layer, std::move(name), std::move(p));
-    return *this;
+    return shape(registry::shape_ids::Text, std::move(name), std::move(p));
 }
 
 LayerBuilder& LayerBuilder::image(std::string name, ImageParams p) {
-    layer_builder_internal::append_image(m_layer, std::move(name), std::move(p));
+    return shape(registry::shape_ids::Image, std::move(name), std::move(p));
+}
+
+LayerBuilder& LayerBuilder::shape(std::string_view id, std::string name, registry::ShapeParams params) {
+    m_layer.nodes.push_back(registry::ShapeRegistry::instance().create_node(
+        id,
+        m_layer.nodes.get_allocator().resource(),
+        std::move(name),
+        std::move(params)
+    ));
     return *this;
 }
 
@@ -303,10 +324,34 @@ LayerBuilder& LayerBuilder::video_size(Vec2 size) {
     return *this;
 }
 
+AnimatedValue<Vec3>& LayerBuilder::position_anim() { return m_layer.anim_transform.position; }
+AnimatedValue<Vec3>& LayerBuilder::scale_anim()    { return m_layer.anim_transform.scale; }
+AnimatedValue<Vec3>& LayerBuilder::rotate_anim()   { return m_layer.anim_transform.rotation_euler; }
+AnimatedValue<Vec3>& LayerBuilder::anchor_anim()   { return m_layer.anim_transform.anchor; }
+AnimatedValue<f32>&  LayerBuilder::opacity_anim()  { return m_layer.anim_transform.opacity; }
+
 Layer LayerBuilder::build() {
+    if (m_until_frame && !m_duration_explicit) {
+        m_layer.duration = *m_until_frame - m_layer.from;
+    }
+
     if (m_layer.depth_role != DepthRole::None) {
         m_layer.transform.position.z =
             DepthRoleResolver::z_for(m_layer.depth_role) + m_layer.depth_offset;
+    }
+    if (m_layer.anim_transform.is_animated()) {
+        const Frame local_frame = m_layer.local_frame(m_current_frame);
+        Transform baked = m_layer.anim_transform.evaluate(local_frame);
+        if (m_layer.anim_transform.position.is_animated())
+            m_layer.transform.position = baked.position;
+        if (m_layer.anim_transform.rotation_euler.is_animated())
+            m_layer.transform.rotation = baked.rotation;
+        if (m_layer.anim_transform.scale.is_animated())
+            m_layer.transform.scale = baked.scale;
+        if (m_layer.anim_transform.anchor.is_animated())
+            m_layer.transform.anchor = baked.anchor;
+        if (m_layer.anim_transform.opacity.is_animated())
+            m_layer.transform.opacity = baked.opacity;
     }
     return std::move(m_layer);
 }

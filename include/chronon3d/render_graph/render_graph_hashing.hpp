@@ -176,6 +176,30 @@ template <typename T>
             seed = hash_combine(seed, hash_bytes(&s.line.thickness, sizeof(f32)));
             seed = hash_combine(seed, hash_bytes(&s.line.stroke.trim_start, sizeof(f32)));
             return hash_combine(seed, hash_bytes(&s.line.stroke.trim_end, sizeof(f32)));
+        case ShapeType::Path:
+            seed = hash_combine(seed, hash_value(s.path.commands.size()));
+            for (const auto& cmd : s.path.commands) {
+                seed = hash_combine(seed, hash_value(static_cast<int>(cmd.type)));
+                seed = hash_combine(seed, hash_vec2(cmd.p0));
+                seed = hash_combine(seed, hash_vec2(cmd.p1));
+                seed = hash_combine(seed, hash_vec2(cmd.p2));
+            }
+            seed = hash_combine(seed, hash_bytes(&s.path.stroke.width, sizeof(f32)));
+            seed = hash_combine(seed, hash_value(static_cast<int>(s.path.stroke.cap)));
+            seed = hash_combine(seed, hash_value(static_cast<int>(s.path.stroke.join)));
+            seed = hash_combine(seed, hash_bytes(&s.path.stroke.trim_start, sizeof(f32)));
+            seed = hash_combine(seed, hash_bytes(&s.path.stroke.trim_end, sizeof(f32)));
+            seed = hash_combine(seed, hash_value(s.path.closed));
+            seed = hash_combine(seed, hash_value(static_cast<int>(s.path.fill.type)));
+            seed = hash_combine(seed, hash_color(s.path.fill.solid));
+            seed = hash_combine(seed, hash_vec2(s.path.fill.gradient.from));
+            seed = hash_combine(seed, hash_vec2(s.path.fill.gradient.to));
+            seed = hash_combine(seed, hash_value(s.path.fill.gradient.stops.size()));
+            for (const auto& stop : s.path.fill.gradient.stops) {
+                seed = hash_combine(seed, hash_bytes(&stop.offset, sizeof(f32)));
+                seed = hash_combine(seed, hash_color(stop.color));
+            }
+            return seed;
         case ShapeType::Text: {
             seed = hash_combine(seed, hash_bytes(s.text.text.data(), s.text.text.size()));
             seed = hash_combine(seed, hash_bytes(s.text.style.font_path.data(), s.text.style.font_path.size()));
