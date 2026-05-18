@@ -56,6 +56,11 @@ LayerBuilder& LayerBuilder::kind(LayerKind value) {
     return *this;
 }
 
+LayerBuilder& LayerBuilder::cache_static(bool value) {
+    m_layer.cache_static = value;
+    return *this;
+}
+
 LayerBuilder& LayerBuilder::position(Vec3 p) {
     m_layer.transform.position = p;
     return *this;

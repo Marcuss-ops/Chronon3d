@@ -21,6 +21,12 @@ public:
     explicit TransformNode(Mat4 matrix, f32 opacity = 1.0f, SamplingMode mode = SamplingMode::Bilinear)
         : m_matrix(matrix), m_opacity(opacity), m_mode(mode), m_use_matrix(true) {}
 
+    explicit TransformNode(Transform transform, Frame cache_frame, SamplingMode mode = SamplingMode::Bilinear)
+        : m_transform(std::move(transform)), m_mode(mode), m_use_matrix(false), m_cache_frame(cache_frame) {}
+
+    explicit TransformNode(Mat4 matrix, f32 opacity, Frame cache_frame, SamplingMode mode = SamplingMode::Bilinear)
+        : m_matrix(matrix), m_opacity(opacity), m_mode(mode), m_use_matrix(true), m_cache_frame(cache_frame) {}
+
     [[nodiscard]] RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::Transform; }
     [[nodiscard]] std::string name() const override { return "Transform"; }
 
@@ -36,7 +42,7 @@ public:
 
         return cache::NodeCacheKey{
             .scope = "transform",
-            .frame = ctx.frame,
+            .frame = m_cache_frame >= 0 ? m_cache_frame : ctx.frame,
             .width = ctx.width,
             .height = ctx.height,
             .params_hash = params_hash
@@ -135,6 +141,7 @@ private:
     f32       m_opacity{1.0f};
     SamplingMode m_mode{SamplingMode::Bilinear};
     bool      m_use_matrix{false};
+    Frame     m_cache_frame{-1};
 };
 
 } // namespace chronon3d::graph

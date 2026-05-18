@@ -29,6 +29,10 @@
 #include <chronon3d/assets/asset_registry.hpp>
 #include <chronon3d/assets/render_preflight.hpp>
 #include <chronon3d/registry/font_registry.hpp>
+#include <chronon3d/presets/motion_object.hpp>
+#include <chronon3d/presets/motion_state.hpp>
+#include <chronon3d/presets/motion_resolver.hpp>
+#include <chronon3d/presets/motion_renderer.hpp>
 #include <chronon3d/presets/layer_fx.hpp>
 #include <chronon3d/presets/motion_presets.hpp>
 

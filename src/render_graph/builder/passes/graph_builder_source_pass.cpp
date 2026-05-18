@@ -25,7 +25,7 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
         for (const auto& node : layer.nodes) {
             cache::NodeCacheKey source_key{
                 .scope = "layer.source:" + std::string(layer.name) + ":" + std::string(node.name),
-                .frame = ctx.frame,
+                .frame = layer.cache_static ? Frame{0} : ctx.frame,
                 .width = ctx.width,
                 .height = ctx.height,
                 .params_hash = hash_render_node(node),
@@ -57,7 +57,8 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
 
     if (layer.kind == LayerKind::Precomp) {
         return graph.add_node(std::make_unique<PrecompNode>(
-            std::string(layer.precomp_composition_name), layer.from, layer.duration
+            std::string(layer.precomp_composition_name), layer.from, layer.duration,
+            layer.cache_static ? Frame{0} : Frame{-1}
         ));
     }
 

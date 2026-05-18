@@ -3,8 +3,59 @@
 #include <chronon3d/registry/font_registry.hpp>
 #include <algorithm>
 #include <cmath>
+#include <mutex>
+#include <unordered_map>
 
 namespace chronon3d {
+
+namespace {
+
+using CacheKey = u64;
+
+CacheKey hash_combine(CacheKey seed, CacheKey value) {
+    seed ^= value + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2);
+    return seed;
+}
+
+template <typename T>
+CacheKey hash_value(const T& value) {
+    return static_cast<CacheKey>(std::hash<T>{}(value));
+}
+
+CacheKey hash_text_style(const TextShape& t, float effective_size, int padding) {
+    CacheKey seed = 0;
+    seed = hash_combine(seed, hash_value(t.text));
+    seed = hash_combine(seed, hash_value(t.style.font_path));
+    seed = hash_combine(seed, hash_value(t.style.font_family));
+    seed = hash_combine(seed, hash_value(t.style.font_weight));
+    seed = hash_combine(seed, hash_value(t.style.font_style));
+    seed = hash_combine(seed, hash_value(effective_size));
+    seed = hash_combine(seed, hash_value(t.style.color.r));
+    seed = hash_combine(seed, hash_value(t.style.color.g));
+    seed = hash_combine(seed, hash_value(t.style.color.b));
+    seed = hash_combine(seed, hash_value(t.style.color.a));
+    seed = hash_combine(seed, hash_value(static_cast<int>(t.style.align)));
+    seed = hash_combine(seed, hash_value(t.style.line_height));
+    seed = hash_combine(seed, hash_value(t.style.tracking));
+    seed = hash_combine(seed, hash_value(t.style.max_lines));
+    seed = hash_combine(seed, hash_value(t.style.auto_scale));
+    seed = hash_combine(seed, hash_value(t.style.min_size));
+    seed = hash_combine(seed, hash_value(t.style.max_size));
+    seed = hash_combine(seed, hash_value(t.box.size.x));
+    seed = hash_combine(seed, hash_value(t.box.size.y));
+    seed = hash_combine(seed, hash_value(t.box.enabled));
+    seed = hash_combine(seed, hash_value(padding));
+    return seed;
+}
+
+struct CachedRasterEntry {
+    TextRasterization raster;
+};
+
+std::unordered_map<CacheKey, CachedRasterEntry> g_text_raster_cache;
+std::mutex g_text_raster_cache_mutex;
+
+} // namespace
 
 std::optional<TextRasterization> rasterize_text_to_bl_image(
     const TextShape& t,
@@ -16,6 +67,15 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
         font_path = FontRegistry::resolve(t.style.font_family, t.style.font_weight, t.style.font_style);
     }
     if (t.text.empty() || font_path.empty()) return std::nullopt;
+
+    const CacheKey key = hash_text_style(t, effective_size, padding);
+    {
+        std::lock_guard<std::mutex> lock(g_text_raster_cache_mutex);
+        auto it = g_text_raster_cache.find(key);
+        if (it != g_text_raster_cache.end()) {
+            return it->second.raster;
+        }
+    }
 
     BLFontFace face = blend2d_utils::Blend2DResources::instance().get_face(font_path);
     if (face.empty()) return std::nullopt;
@@ -65,8 +125,18 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     res.y_offset = y_offset;
     res.metrics = metrics;
     res.font = font;
-    
+
+    {
+        std::lock_guard<std::mutex> lock(g_text_raster_cache_mutex);
+        g_text_raster_cache.emplace(key, CachedRasterEntry{res});
+    }
+
     return res;
+}
+
+void clear_text_raster_cache() {
+    std::lock_guard<std::mutex> lock(g_text_raster_cache_mutex);
+    g_text_raster_cache.clear();
 }
 
 } // namespace chronon3d

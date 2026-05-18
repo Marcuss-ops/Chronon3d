@@ -49,6 +49,7 @@ struct PathParams {
     std::vector<PathCommand> commands;
     PathStroke stroke{};
     Fill fill{};
+    Color color{1, 1, 1, 1};
     Vec3 pos{0, 0, 0};
     bool closed{false};
 };

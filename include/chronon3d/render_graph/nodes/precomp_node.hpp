@@ -10,8 +10,8 @@ namespace chronon3d::graph {
 
 class PrecompNode final : public RenderGraphNode {
 public:
-    PrecompNode(std::string comp_name, Frame start_frame, Frame duration)
-        : m_comp_name(std::move(comp_name)), m_start_frame(start_frame), m_duration(duration) {}
+    PrecompNode(std::string comp_name, Frame start_frame, Frame duration, Frame cache_frame = Frame{-1})
+        : m_comp_name(std::move(comp_name)), m_start_frame(start_frame), m_duration(duration), m_cache_frame(cache_frame) {}
 
     RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::Precomp; }
     std::string name() const override { return "Precomp:" + m_comp_name; }
@@ -19,7 +19,7 @@ public:
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         return cache::NodeCacheKey{
             .scope = "precomp",
-            .frame = ctx.frame - m_start_frame, // Nested frame time
+            .frame = m_cache_frame >= 0 ? m_cache_frame : (ctx.frame - m_start_frame), // Nested frame time
             .width = ctx.width,
             .height = ctx.height,
             .params_hash = hash_string(m_comp_name)
@@ -70,6 +70,7 @@ private:
     std::string m_comp_name;
     Frame m_start_frame{0};
     Frame m_duration{-1};
+    Frame m_cache_frame{-1};
 };
 
 } // namespace chronon3d::graph

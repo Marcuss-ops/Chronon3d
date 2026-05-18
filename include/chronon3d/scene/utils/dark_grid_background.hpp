@@ -2,7 +2,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <utility>
 #include <chronon3d/chronon3d.hpp>
+#include <chronon3d/scene/path.hpp>
 #include <chronon3d/scene/builders/builder_params.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/camera/camera_2_5d.hpp>
@@ -23,27 +25,39 @@ inline void dark_grid_background(SceneBuilder& s,
     const Vec3 bg_pos = p.centered ? Vec3{0.0f, 0.0f, 0.0f}
                                    : Vec3{half_w, half_h, 0.0f};
 
+    auto make_grid_path = [&](f32 step, f32 thickness, Color color) {
+        PathParams pth;
+        pth.stroke = {.width = thickness, .cap = LineCap::Butt, .join = LineJoin::Miter};
+        pth.fill = Fill::solid_color(Color{0.0f, 0.0f, 0.0f, 0.0f});
+        pth.color = color;
+
+        for (f32 x = start_x; x <= end_x; x += step) {
+            pth.commands.push_back(PathCommand::move_to({x, start_y}));
+            pth.commands.push_back(PathCommand::line_to({x, end_y}));
+        }
+        for (f32 y = start_y; y <= end_y; y += step) {
+            pth.commands.push_back(PathCommand::move_to({start_x, y}));
+            pth.commands.push_back(PathCommand::line_to({end_x, y}));
+        }
+
+        return pth;
+    };
+
     s.layer("nbg_bg", [p, W, H, bg_pos](LayerBuilder& l) {
+        l.cache_static();
         l.rect("r", {.size = {W, H}, .color = p.bg_color, .pos = bg_pos});
     });
 
-    s.layer("nbg_lines", [p, start_x, start_y, end_x, end_y](LayerBuilder& l) {
+    s.layer("nbg_lines", [p, make_grid_path](LayerBuilder& l) {
+        l.cache_static();
         const f32 major_step = p.spacing * 4.0f;
         Color major_color = p.grid_color;
         major_color.a = std::min(1.0f, major_color.a * 4.0f);
 
-        for (f32 x = start_x; x <= end_x; x += p.spacing) {
-            l.line("vx", {.from = {x, start_y, 0.f}, .to = {x, end_y, 0.f}, .thickness = 1.5f, .color = p.grid_color});
-        }
-        for (f32 y = start_y; y <= end_y; y += p.spacing) {
-            l.line("hy", {.from = {start_x, y, 0.f}, .to = {end_x, y, 0.f}, .thickness = 1.5f, .color = p.grid_color});
-        }
-        for (f32 x = start_x; x <= end_x; x += major_step) {
-            l.line("Vx", {.from = {x, start_y, 0.f}, .to = {x, end_y, 0.f}, .thickness = 3.0f, .color = major_color});
-        }
-        for (f32 y = start_y; y <= end_y; y += major_step) {
-            l.line("Hy", {.from = {start_x, y, 0.f}, .to = {end_x, y, 0.f}, .thickness = 3.0f, .color = major_color});
-        }
+        auto minor_path = make_grid_path(p.spacing, 1.25f, p.grid_color);
+        auto major_path = make_grid_path(major_step, 2.75f, major_color);
+        l.path("minor_grid", std::move(minor_path));
+        l.path("major_grid", std::move(major_path));
     });
 }
 

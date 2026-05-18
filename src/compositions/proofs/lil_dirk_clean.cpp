@@ -31,29 +31,24 @@ static Composition lil_dirk_clean() {
         const float bob = std::sin(t * 6.2831853f) * 5.0f;
         const float sway = std::sin(t * 3.1415926f * 1.35f) * 6.0f;
 
-        presets::motion::soft_glow_text(s, "title", {
-            .text = "LIL DIRK",
-            .font_path_main = "assets/fonts/Inter-Bold.ttf",
-            .font_path_glow = "assets/fonts/Inter-Regular.ttf",
-            .motion = {
-                .enabled = true,
-                .position = {0.0f, 18.0f + bob, -120.0f},
-                .rotation = {-2.0f + bob * 0.08f, sway, 0.0f},
-                .scale = {1.0f, 1.0f, 1.0f},
-            },
-            .text_pos = {0.0f, 22.0f, 0.0f},
-            .font_size = 112.0f,
-            .outer_size_boost = 12.0f,
-            .inner_size_boost = 5.0f,
-            .outer_blur = 34.0f,
-            .inner_blur = 16.0f,
-            .outer_opacity = 0.14f,
-            .inner_opacity = 0.30f,
-            .tracking = 1.0f,
-            .align = TextAlign::Center,
-            .main_color = Color{0.98f, 0.98f, 0.96f, 1.0f},
-            .glow_color = Color{1.0f, 1.0f, 1.0f, 1.0f},
-        });
+        std::vector<presets::motion::MotionObject> objects = {
+            presets::motion::MotionObject::text("title", "LIL DIRK")
+                .at({0.0f, 18.0f + bob, -120.0f})
+                .preset(presets::motion::MotionPreset::PushIn3D)
+                .time(0, 120)
+                .font_path("assets/fonts/Inter-Bold.ttf")
+                .font_family("Inter")
+                .font_weight(800)
+                .font_size(112.0f)
+                .tracking(1.0f)
+                .align(TextAlign::Center)
+                .color(Color{0.98f, 0.98f, 0.96f, 1.0f})
+                .glow(true)
+                .enable_3d()
+                .rotate_3d({-2.0f + bob * 0.08f, sway, 0.0f}),
+        };
+
+        presets::motion::draw_motion_objects(s, ctx, objects);
 
         return s.build();
     });

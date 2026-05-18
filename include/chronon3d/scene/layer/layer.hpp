@@ -42,6 +42,7 @@ struct Layer {
     bool      visible{true};
     bool      is_3d{false};
     bool      hierarchy_resolved{false};
+    bool      cache_static{false};
     Mask      mask{};
     EffectStack effects;     // ordered effect stack
     BlendMode blend_mode{BlendMode::Normal};
