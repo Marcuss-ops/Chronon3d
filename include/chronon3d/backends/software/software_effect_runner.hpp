@@ -9,7 +9,8 @@ namespace chronon3d {
 class SoftwareEffectRunner {
 public:
     static void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
-                                  const renderer::SoftwareRegistry& registry);
+                                  const renderer::SoftwareRegistry& registry,
+                                  float time_seconds);
     static void apply_blur(Framebuffer& fb, f32 radius);
 };
 

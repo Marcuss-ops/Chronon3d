@@ -16,7 +16,8 @@ static bool assets_available() {
 
 // ---------------------------------------------------------------------------
 TEST_CASE("ImageCache returns null for missing file") {
-    ImageCache cache;
+    auto& cache = ImageCache::instance();
+    cache.clear();
     cache.set_backend(std::make_shared<image::StbImageBackend>());
     const auto* img = cache.get_or_load("does_not_exist_xyz.png");
     CHECK(img == nullptr);
@@ -24,7 +25,8 @@ TEST_CASE("ImageCache returns null for missing file") {
 }
 
 TEST_CASE("ImageCache does not retry missing file") {
-    ImageCache cache;
+    auto& cache = ImageCache::instance();
+    cache.clear();
     cache.set_backend(std::make_shared<image::StbImageBackend>());
     cache.get_or_load("missing_file.png");
     cache.get_or_load("missing_file.png"); // second call
@@ -33,7 +35,8 @@ TEST_CASE("ImageCache does not retry missing file") {
 
 TEST_CASE("ImageCache loads real image") {
     if (!assets_available()) { MESSAGE("Skipping: assets not found"); return; }
-    ImageCache cache;
+    auto& cache = ImageCache::instance();
+    cache.clear();
     cache.set_backend(std::make_shared<image::StbImageBackend>());
     const auto* img = cache.get_or_load(kCheckerPath);
     REQUIRE(img != nullptr);
@@ -44,7 +47,8 @@ TEST_CASE("ImageCache loads real image") {
 
 TEST_CASE("ImageCache returns same pointer on repeated access") {
     if (!assets_available()) { MESSAGE("Skipping: assets not found"); return; }
-    ImageCache cache;
+    auto& cache = ImageCache::instance();
+    cache.clear();
     cache.set_backend(std::make_shared<image::StbImageBackend>());
     const auto* a = cache.get_or_load(kCheckerPath);
     const auto* b = cache.get_or_load(kCheckerPath);
@@ -53,7 +57,8 @@ TEST_CASE("ImageCache returns same pointer on repeated access") {
 }
 
 TEST_CASE("ImageCache clear empties the cache") {
-    ImageCache cache;
+    auto& cache = ImageCache::instance();
+    cache.clear();
     cache.set_backend(std::make_shared<image::StbImageBackend>());
     cache.get_or_load("assets/images/checker.png");
     REQUIRE(cache.size() == 1);

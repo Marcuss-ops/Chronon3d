@@ -13,6 +13,7 @@ add_executable(chronon3d_cli
     commands/command_list.cpp
     commands/command_info.cpp
     commands/command_render.cpp
+    commands/command_studio.cpp
     commands/command_batch.cpp
     commands/command_watch.cpp
     commands/command_video.cpp

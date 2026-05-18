@@ -173,7 +173,7 @@ public:
         
         auto result = std::make_shared<Framebuffer>(*inputs[0]);
         if (ctx.backend) {
-            ctx.backend->apply_effect_stack(*result, m_effects);
+            ctx.backend->apply_effect_stack(*result, m_effects, ctx.time_seconds);
         }
         return result;
     }
@@ -205,7 +205,7 @@ public:
         
         auto result = std::make_shared<Framebuffer>(*inputs[0]);
         if (ctx.backend) {
-            ctx.backend->apply_effect_stack(*result, m_effects);
+            ctx.backend->apply_effect_stack(*result, m_effects, ctx.time_seconds);
         }
         return result;
     }

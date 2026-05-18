@@ -10,6 +10,135 @@ namespace renderer {
 
 namespace {
 
+constexpr f32 kTau = 6.28318530718f;
+
+inline f32 clamp01(f32 v) {
+    return std::clamp(v, 0.0f, 1.0f);
+}
+
+inline f32 safe_scale(f32 depth, f32 perspective) {
+    return std::max(0.1f, 1.0f + depth * perspective / 100.0f);
+}
+
+void deform_horizontal(const Framebuffer& src, Framebuffer& dst, const Fake3DWaveParams& p,
+                       float time_seconds, bool shadow_pass) {
+    const i32 w = src.width();
+    const i32 h = src.height();
+    const i32 slices = std::clamp(p.slices, 1, 256);
+    const f32 cx = static_cast<f32>(w) * 0.5f;
+
+    for (i32 s = 0; s < slices; ++s) {
+        const i32 y0 = (s * h) / slices;
+        const i32 y1 = ((s + 1) * h) / slices;
+        const i32 yy1 = std::max(y0 + 1, y1);
+        const f32 norm = (static_cast<f32>(s) + 0.5f) / static_cast<f32>(slices);
+        const f32 angle = time_seconds * p.speed + norm * p.frequency * kTau + p.phase;
+        const f32 wave = std::sin(angle);
+        const f32 depth = std::cos(angle);
+        const f32 dx = wave * p.amplitude_px;
+        const f32 scale_x = safe_scale(depth * p.depth_px, p.perspective);
+        f32 shade = 1.0f + std::max(0.0f, depth) * p.highlight;
+        shade *= 1.0f - std::max(0.0f, -depth) * p.side_darkening;
+        shade = clamp01(shade);
+
+        for (i32 y = y0; y < yy1; ++y) {
+            for (i32 x = 0; x < w; ++x) {
+                const f32 src_x = ((static_cast<f32>(x) - cx) / scale_x) + cx - dx;
+                const Color c = src.sample_bilinear(src_x + 0.5f, static_cast<f32>(y) + 0.5f);
+                if (c.a <= 0.0f) continue;
+                if (shadow_pass) {
+                    const f32 a = c.a * p.shadow_color.a;
+                    dst.set_pixel(x, y, {
+                        p.shadow_color.r,
+                        p.shadow_color.g,
+                        p.shadow_color.b,
+                        a
+                    });
+                } else {
+                    dst.set_pixel(x, y, {
+                        c.r * shade,
+                        c.g * shade,
+                        c.b * shade,
+                        c.a
+                    });
+                }
+            }
+        }
+    }
+}
+
+void deform_vertical(const Framebuffer& src, Framebuffer& dst, const Fake3DWaveParams& p,
+                     float time_seconds, bool shadow_pass) {
+    const i32 w = src.width();
+    const i32 h = src.height();
+    const i32 slices = std::clamp(p.slices, 1, 256);
+    const f32 cy = static_cast<f32>(h) * 0.5f;
+
+    for (i32 s = 0; s < slices; ++s) {
+        const i32 x0 = (s * w) / slices;
+        const i32 x1 = ((s + 1) * w) / slices;
+        const i32 xx1 = std::max(x0 + 1, x1);
+        const f32 norm = (static_cast<f32>(s) + 0.5f) / static_cast<f32>(slices);
+        const f32 angle = time_seconds * p.speed + norm * p.frequency * kTau + p.phase;
+        const f32 wave = std::sin(angle);
+        const f32 depth = std::cos(angle);
+        const f32 dy = wave * p.amplitude_px;
+        const f32 scale_y = safe_scale(depth * p.depth_px, p.perspective);
+        f32 shade = 1.0f + std::max(0.0f, depth) * p.highlight;
+        shade *= 1.0f - std::max(0.0f, -depth) * p.side_darkening;
+        shade = clamp01(shade);
+
+        for (i32 x = x0; x < xx1; ++x) {
+            for (i32 y = 0; y < h; ++y) {
+                const f32 src_y = ((static_cast<f32>(y) - cy) / scale_y) + cy - dy;
+                const Color c = src.sample_bilinear(static_cast<f32>(x) + 0.5f, src_y + 0.5f);
+                if (c.a <= 0.0f) continue;
+                if (shadow_pass) {
+                    const f32 a = c.a * p.shadow_color.a;
+                    dst.set_pixel(x, y, {
+                        p.shadow_color.r,
+                        p.shadow_color.g,
+                        p.shadow_color.b,
+                        a
+                    });
+                } else {
+                    dst.set_pixel(x, y, {
+                        c.r * shade,
+                        c.g * shade,
+                        c.b * shade,
+                        c.a
+                    });
+                }
+            }
+        }
+    }
+}
+
+void deform_wave(const Framebuffer& src, Framebuffer& dst, const Fake3DWaveParams& p,
+                 float time_seconds, bool shadow_pass) {
+    switch (p.axis) {
+    case WaveAxis::Horizontal:
+        deform_horizontal(src, dst, p, time_seconds, shadow_pass);
+        break;
+    case WaveAxis::Vertical:
+        deform_vertical(src, dst, p, time_seconds, shadow_pass);
+        break;
+    }
+}
+
+void apply_shadow_buffer(Framebuffer& content, const Framebuffer& shadow) {
+    const i32 w = content.width();
+    const i32 h = content.height();
+    for (i32 y = 0; y < h; ++y) {
+        for (i32 x = 0; x < w; ++x) {
+            const Color shadow_px = shadow.get_pixel(x, y);
+            if (shadow_px.a <= 0.0f) continue;
+            const Color content_px = content.get_pixel(x, y);
+            content.set_pixel(x, y, compositor::blend(content_px, shadow_px, BlendMode::Normal));
+        }
+    }
+}
+
 inline bool apply_color_effects_avx2(Framebuffer& fb, const LayerEffect& effect) {
 #if defined(__AVX2__) || defined(_MSC_VER)
     const bool needs_brightness_contrast = effect.brightness != 0.0f || effect.contrast != 1.0f;
@@ -150,8 +279,45 @@ void apply_color_effects(Framebuffer& fb, const LayerEffect& effect) {
     }
 }
 
-static void apply_one_param(Framebuffer& fb, const EffectParams& params) {
-    std::visit([&fb](const auto& p) {
+void apply_fake_3d_wave(Framebuffer& fb, const Fake3DWaveParams& params, float time_seconds) {
+    if (!params.shadow_enabled && params.amplitude_px <= 0.0f && params.depth_px <= 0.0f) {
+        return;
+    }
+
+    const Framebuffer src = fb;
+    Framebuffer body(src.width(), src.height());
+    body.clear(Color::transparent());
+    deform_wave(src, body, params, time_seconds, false);
+
+    if (params.shadow_enabled && params.shadow_color.a > 0.0f) {
+        Framebuffer shadow(src.width(), src.height());
+        shadow.clear(Color::transparent());
+        deform_wave(src, shadow, params, time_seconds, true);
+        if (params.shadow_offset.x != 0.0f || params.shadow_offset.y != 0.0f) {
+            Framebuffer shifted(src.width(), src.height());
+            shifted.clear(Color::transparent());
+            const i32 ox = static_cast<i32>(std::round(params.shadow_offset.x));
+            const i32 oy = static_cast<i32>(std::round(params.shadow_offset.y));
+            for (i32 y = 0; y < shadow.height(); ++y) {
+                for (i32 x = 0; x < shadow.width(); ++x) {
+                    const Color c = shadow.get_pixel(x, y);
+                    if (c.a <= 0.0f) continue;
+                    shifted.set_pixel(x + ox, y + oy, c);
+                }
+            }
+            shadow = std::move(shifted);
+        }
+        if (params.shadow_blur > 0.0f) {
+            apply_blur(shadow, params.shadow_blur);
+        }
+        apply_shadow_buffer(body, shadow);
+    }
+
+    fb = std::move(body);
+}
+
+static void apply_one_param(Framebuffer& fb, const EffectParams& params, float time_seconds) {
+    std::visit([&fb, time_seconds](const auto& p) {
         using T = std::decay_t<decltype(p)>;
         if constexpr (std::is_same_v<T, BlurParams>) {
             if (p.radius > 0.0f) apply_blur(fb, p.radius);
@@ -247,31 +413,35 @@ static void apply_one_param(Framebuffer& fb, const EffectParams& params) {
                     });
                 }
             }
+        } else if constexpr (std::is_same_v<T, Fake3DWaveParams>) {
+            apply_fake_3d_wave(fb, p, time_seconds);
         }
     }, params);
 }
 
-void apply_effect_stack(Framebuffer& fb, const EffectStack& stack) {
+void apply_effect_stack(Framebuffer& fb, const EffectStack& stack, float time_seconds) {
     for (const auto& inst : stack) {
         if (!inst.enabled) continue;
         
         // Handle both variant (legacy) and direct types (modular)
         if (auto* v = std::any_cast<EffectParams>(&inst.params)) {
-            apply_one_param(fb, *v);
+            apply_one_param(fb, *v, time_seconds);
         } else if (auto* p = std::any_cast<BlurParams>(&inst.params)) {
-            apply_one_param(fb, EffectParams{*p});
+            apply_one_param(fb, EffectParams{*p}, time_seconds);
         } else if (auto* p = std::any_cast<TintParams>(&inst.params)) {
-            apply_one_param(fb, EffectParams{*p});
+            apply_one_param(fb, EffectParams{*p}, time_seconds);
         } else if (auto* p = std::any_cast<BrightnessParams>(&inst.params)) {
-            apply_one_param(fb, EffectParams{*p});
+            apply_one_param(fb, EffectParams{*p}, time_seconds);
         } else if (auto* p = std::any_cast<ContrastParams>(&inst.params)) {
-            apply_one_param(fb, EffectParams{*p});
+            apply_one_param(fb, EffectParams{*p}, time_seconds);
         } else if (auto* p = std::any_cast<GlowParams>(&inst.params)) {
-            apply_one_param(fb, EffectParams{*p});
+            apply_one_param(fb, EffectParams{*p}, time_seconds);
         } else if (auto* p = std::any_cast<DropShadowParams>(&inst.params)) {
-            apply_one_param(fb, EffectParams{*p});
+            apply_one_param(fb, EffectParams{*p}, time_seconds);
         } else if (auto* p = std::any_cast<BloomParams>(&inst.params)) {
-            apply_one_param(fb, EffectParams{*p});
+            apply_one_param(fb, EffectParams{*p}, time_seconds);
+        } else if (auto* p = std::any_cast<Fake3DWaveParams>(&inst.params)) {
+            apply_one_param(fb, EffectParams{*p}, time_seconds);
         }
     }
 }

@@ -4,6 +4,7 @@
 namespace chronon3d {
 
 const CachedImage* ImageCache::get_or_load(const std::string& path) {
+    std::lock_guard<std::mutex> lock(m_mutex);
     auto it = m_cache.find(path);
     if (it != m_cache.end()) {
         return it->second.valid() ? &it->second : nullptr;
@@ -61,6 +62,7 @@ const CachedImage* ImageCache::get_or_load(const std::string& path) {
 }
 
 void ImageCache::clear() {
+    std::lock_guard<std::mutex> lock(m_mutex);
     m_cache.clear();
 }
 

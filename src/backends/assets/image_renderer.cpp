@@ -12,7 +12,7 @@ bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state
     if (image.path.empty() || image.size.x <= 0 || image.size.y <= 0) {
         return false;
     }
-    const CachedImage* cached = m_cache.get_or_load(image.path);
+    const CachedImage* cached = ImageCache::instance().get_or_load(image.path);
     if (!cached || cached->bl_img.empty()) return false;
 
     const f32 final_opacity = image.opacity * state.opacity;
