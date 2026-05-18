@@ -45,6 +45,14 @@ struct LineParams {
     StrokeParams stroke{};
 };
 
+struct PathParams {
+    std::vector<PathCommand> commands;
+    PathStroke stroke{};
+    Fill fill{};
+    Vec3 pos{0, 0, 0};
+    bool closed{false};
+};
+
 struct TextParams {
     std::string content;
     TextStyle   style;

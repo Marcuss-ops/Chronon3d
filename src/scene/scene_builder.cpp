@@ -59,6 +59,21 @@ SceneBuilder& SceneBuilder::line(std::string name, LineParams p) {
     return *this;
 }
 
+SceneBuilder& SceneBuilder::path(std::string name, PathParams p) {
+    RenderNode node(scene_.resource());
+    node.name = std::pmr::string{name, scene_.resource()};
+    node.shape.type = ShapeType::Path;
+    node.shape.path.commands = std::move(p.commands);
+    node.shape.path.stroke = p.stroke;
+    node.shape.path.fill = p.fill;
+    node.shape.path.closed = p.closed;
+    node.world_transform.position = p.pos;
+    node.world_transform.anchor = {0, 0, 0};
+    node.fill = p.fill;
+    scene_.add_node(std::move(node));
+    return *this;
+}
+
 SceneBuilder& SceneBuilder::text(std::string name, TextParams p) {
     RenderNode node(scene_.resource());
     node.name = std::pmr::string{name, scene_.resource()};

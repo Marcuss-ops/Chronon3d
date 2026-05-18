@@ -142,6 +142,7 @@ namespace chronon3d {
         SceneBuilder &rounded_rect(std::string name, RoundedRectParams p);
         SceneBuilder &circle(std::string name, CircleParams p);
         SceneBuilder &line(std::string name, LineParams p);
+        SceneBuilder &path(std::string name, PathParams p);
         SceneBuilder &text(std::string name, TextParams p);
         SceneBuilder &image(std::string name, ImageParams p);
 

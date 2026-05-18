@@ -33,6 +33,7 @@ add_executable(chronon3d_scene_tests
     ${TEST_MAIN}
     scene/test_scene.cpp
     scene/test_scene_builder.cpp
+    scene/test_path_utils.cpp
     scene/test_shape_model.cpp
     scene/test_layer_hierarchy.cpp
     scene/test_camera_hierarchy.cpp
@@ -55,6 +56,7 @@ add_executable(chronon3d_renderer_tests
     renderer/basics/test_draw_order.cpp
     renderer/basics/test_coordinate_system.cpp
     renderer/basics/test_clipping.cpp
+    renderer/basics/test_path_rendering.cpp
     renderer/basics/test_layer_rendering.cpp
     renderer/basics/test_gradient_fill.cpp
     renderer/basics/test_trim_path.cpp
