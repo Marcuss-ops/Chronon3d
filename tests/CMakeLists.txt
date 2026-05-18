@@ -87,6 +87,11 @@ add_executable(chronon3d_renderer_tests
     renderer/lighting/test_directional_lights.cpp
     renderer/lighting/test_shadows.cpp
     presets/test_text_box.cpp
+    presets/test_motion_object.cpp
+    presets/test_motion_resolver.cpp
+    presets/test_motion_3d.cpp
+    presets/test_motion_renderer.cpp
+    presets/test_motion_visual_smoke.cpp
     renderer/text/test_lil_dirk_reference.cpp
     renderer/text/test_text_rendering.cpp
     renderer/text/test_text_layout.cpp
@@ -131,6 +136,7 @@ add_executable(chronon3d_renderer_tests
     cache/node_cache_tests.cpp
     render_graph/graph_builder_tests.cpp
     render_graph/graph_executor_tests.cpp
+    golden/motion_visual_golden_tests.cpp
     scene/scene_builder_tests.cpp
     scene/camera_25d_tests.cpp
     effects/effect_graph_tests.cpp
@@ -149,6 +155,7 @@ target_link_libraries(chronon3d_renderer_tests
         chronon3d_scene
         doctest::doctest
 )
+target_compile_definitions(chronon3d_renderer_tests PRIVATE CHRONON3D_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 if(CHRONON3D_ENABLE_VIDEO)
     target_link_libraries(chronon3d_renderer_tests PRIVATE chronon3d_backend_ffmpeg)
 endif()

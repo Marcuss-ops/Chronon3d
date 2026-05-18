@@ -21,4 +21,6 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     int padding = 4
 );
 
+void clear_text_raster_cache();
+
 } // namespace chronon3d

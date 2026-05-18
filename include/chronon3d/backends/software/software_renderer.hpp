@@ -31,6 +31,10 @@
 
 namespace chronon3d {
 
+namespace renderer {
+void clear_text_glow_cache();
+}
+
 class SoftwareRenderer;
 class CompositionRegistry;
 
@@ -66,6 +70,7 @@ public:
     void clear_caches() {
         m_image_renderer.clear_cache();
         m_text_renderer.clear_cache();
+        renderer::clear_text_glow_cache();
         m_node_cache.clear();
         // Video cache clearing is now responsibility of the decoder implementation
     }

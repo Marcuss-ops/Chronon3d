@@ -32,6 +32,7 @@ public:
     LayerBuilder& offset(Frame frames);
     LayerBuilder& visible(bool value);
     LayerBuilder& kind(LayerKind value);
+    LayerBuilder& cache_static(bool value = true);
 
     // Transform
     LayerBuilder& position(Vec3 p);
