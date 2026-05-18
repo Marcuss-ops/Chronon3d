@@ -44,6 +44,7 @@ struct VideoArgs {
     RenderPipelineArgs pipeline{};
     std::string frames_dir;
     std::string hardware_encoder{"none"};
+    int chunks{1};
 };
 
 struct VideoCameraArgs {
