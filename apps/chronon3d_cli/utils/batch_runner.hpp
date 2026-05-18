@@ -1,12 +1,12 @@
 #pragma once
 
 #include <chronon3d/timeline/composition.hpp>
-#include <chronon3d/core/composition_registry.hpp>
+#include <chronon3d/registry.hpp>
 #include <functional>
 #include <string>
 #include <vector>
 
-namespace chronon3d::runtime {
+namespace chronon3d::cli {
 
 struct BatchJob {
     std::string comp_id;
@@ -30,4 +30,4 @@ public:
     static BatchSummary run(const std::vector<BatchJob>& jobs, JobExecutor executor);
 };
 
-} // namespace chronon3d::runtime
+} // namespace chronon3d::cli

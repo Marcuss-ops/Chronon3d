@@ -5,7 +5,7 @@
 #include <functional>
 #include <filesystem>
 
-namespace chronon3d::runtime {
+namespace chronon3d::cli {
 
 struct WatchOptions {
     std::vector<std::string> watch_dirs;
@@ -23,4 +23,4 @@ private:
     static std::filesystem::file_time_type get_latest_mtime(const std::vector<std::string>& dirs);
 };
 
-} // namespace chronon3d::runtime
+} // namespace chronon3d::cli

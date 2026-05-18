@@ -5,10 +5,8 @@
 namespace chronon3d::cli {
 
 namespace {
-
 struct VideoState { std::shared_ptr<VideoArgs> args{std::make_shared<VideoArgs>()}; };
-
-} // namespace
+}
 
 void register_video_commands(CLI::App& app, CliContext& ctx) {
     auto state = std::make_shared<VideoState>();
@@ -33,25 +31,6 @@ void register_video_commands(CLI::App& app, CliContext& ctx) {
     cmd->add_option("--ssaa", args.pipeline.quality.ssaa, "Super Sampling factor")->default_val(1.0f);
     cmd->add_option("--chunks", args.chunks, "Render frame range in N parallel chunks before encoding")->default_val(1);
     cmd->callback([state, &ctx]() { ctx.exit_code = command_video(ctx.registry, *state->args); });
-
-    auto camera_args = std::make_shared<VideoCameraArgs>();
-    auto* camera_cmd = cmd->add_subcommand("camera", "Render the built-in camera reference clip");
-    camera_cmd->add_option("--axis", camera_args->axis, "Camera axis: Tilt, Pan, or Roll");
-    camera_cmd->add_option("--reference", camera_args->reference_image, "Reference image path");
-    camera_cmd->add_option("-o,--output", camera_args->output, "Output .mp4 path");
-    camera_cmd->add_option("--start", camera_args->start, "Start frame (inclusive)");
-    camera_cmd->add_option("--end", camera_args->end, "End frame (exclusive)");
-    camera_cmd->add_option("--roll-start", camera_args->roll_start_deg, "Roll start angle in degrees");
-    camera_cmd->add_option("--roll-end", camera_args->roll_end_deg, "Roll end angle in degrees");
-    camera_cmd->add_option("--fps", camera_args->fps, "Output frame rate");
-    camera_cmd->add_option("--crf", camera_args->crf, "x264 CRF (0-51, lower=better)");
-    camera_cmd->add_option("--codec", camera_args->codec, "Video encoder");
-    camera_cmd->add_option("--encode-preset", camera_args->encode_preset, "x264 preset");
-    camera_cmd->add_option("--hardware", camera_args->hardware_encoder, "Hardware encoder: none, auto, nvenc, qsv, videotoolbox, amf")->default_val("none");
-    camera_cmd->add_flag("--graph", camera_args->pipeline.use_modular_graph, "Use modular RenderGraph path");
-    camera_cmd->add_flag("--motion-blur", camera_args->pipeline.quality.motion_blur, "Enable temporal motion blur");
-    camera_cmd->add_option("--ssaa", camera_args->pipeline.quality.ssaa, "Super Sampling factor");
-    camera_cmd->callback([camera_args, &ctx]() { ctx.exit_code = command_video_camera(ctx.registry, *camera_args); });
 }
 
 } // namespace chronon3d::cli

@@ -1,9 +1,10 @@
-#include <chronon3d/runtime/watch_service.hpp>
+#include "watch_service.hpp"
 #include <thread>
 #include <chrono>
 #include <cstdlib>
+#include <filesystem>
 
-namespace chronon3d::runtime {
+namespace chronon3d::cli {
 
 void WatchService::watch(const WatchOptions& options, ChangeCallback on_change) {
     auto last_write = get_latest_mtime(options.watch_dirs);
@@ -45,4 +46,4 @@ std::filesystem::file_time_type WatchService::get_latest_mtime(const std::vector
     return latest;
 }
 
-} // namespace chronon3d::runtime
+} // namespace chronon3d::cli

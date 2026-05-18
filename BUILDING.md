@@ -8,7 +8,7 @@
 | CMake | 3.24 | Preset support required |
 | Ninja | any | Generator used by all presets |
 | Git | any | Required by vcpkg |
-| ffmpeg | any | CLI `video` command only — not linked into the engine |
+| ffmpeg | any | Required in PATH for video export |
 
 ---
 
@@ -40,8 +40,6 @@ Presets are defined in `CMakePresets.json`.
 | `linux-debug` | Linux | Development |
 | `win-release` | Windows | Production / CI |
 | `win-debug` | Windows | Development |
-| `win-release-video` | Windows | Production video build |
-| `win-debug-video` | Windows | Development video build |
 
 The default CMake build includes the CLI and tests.
 
@@ -81,7 +79,6 @@ The compiled test binaries reside inside the `tests/` subdirectory of your build
 - `chronon3d_renderer_tests` — Renderer, Effects, Render Graph, and lighting tests
 - `chronon3d_io_tests` — Core IO and PNG output validity tests
 - `chronon3d_cli_tests` — CLI parsing, utilities, and job plan tests
-- `chronon3d_video_tests` — Optional FFmpeg export tests (built if `CHRONON3D_ENABLE_VIDEO=ON`)
 
 The CMake target `chronon3d_tests` is an aggregate custom target that compiles all of these.
 
@@ -89,19 +86,21 @@ The CMake target `chronon3d_tests` is an aggregate custom target that compiles a
 
 ## Running the CLI
 
+Run the CLI from the repo root so relative asset paths resolve correctly.
+
 ```bash
 # List all registered compositions
-./build/chronon/linux-release/chronon3d_cli list
+./build/chronon/linux-release/apps/chronon3d_cli/chronon3d_cli list
 
 # Render a single frame
-./build/chronon/linux-release/chronon3d_cli render MyComp --frame 0 -o output/frame.png
+./build/chronon/linux-release/apps/chronon3d_cli/chronon3d_cli render MyComp --frame 0 -o output/frame.png
 
 # Render a frame range
-./build/chronon/linux-release/chronon3d_cli render MyComp --start 0 --end 90 \
+./build/chronon/linux-release/apps/chronon3d_cli/chronon3d_cli render MyComp --start 0 --end 90 \
     -o output/frames/frame_####.png
 
 # Export video (requires ffmpeg in PATH)
-./build/chronon/linux-release/chronon3d_cli video MyComp \
+./build/chronon/linux-release/apps/chronon3d_cli/chronon3d_cli video MyComp \
     --start 0 --end 90 --fps 30 -o output/my_comp.mp4
 
 ```
@@ -204,7 +203,7 @@ CHRONON_REGISTER_COMPOSITION("MyComp", MyComp)
 
 ## Adding a test
 
-Tests live in `tests/` and are picked up by glob. Create a new `.cpp` file, include `<doctest/doctest.h>`, and write `TEST_CASE` blocks. No CMake changes needed.
+Tests live in `tests/`. Add the new `.cpp` file explicitly to `tests/CMakeLists.txt`. Include `<doctest/doctest.h>`, and write `TEST_CASE` blocks.
 
 ```cpp
 #include <doctest/doctest.h>
