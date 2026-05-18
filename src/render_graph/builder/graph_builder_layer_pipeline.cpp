@@ -31,7 +31,8 @@ GraphNodeId LayerPipelineBuilder::append_root_sources(RenderGraph& graph, const 
         };
 
         auto source = graph.add_node(std::make_unique<SourceNode>(
-            std::string(node.name), node, source_key
+            std::string(node.name), node, source_key,
+            ctx.modular_coordinates
         ));
 
         auto composite = graph.add_node(std::make_unique<CompositeNode>(chronon3d::BlendMode::Normal));

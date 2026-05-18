@@ -1,4 +1,5 @@
 #include <chronon3d/registry/font_registry.hpp>
+#include <chronon3d/assets/asset_registry.hpp>
 #include <algorithm>
 #include <cmath>
 
@@ -7,6 +8,12 @@ namespace chronon3d {
 void FontRegistry::register_font(const FontDescriptor& desc) {
     auto& inst = instance();
     std::lock_guard<std::mutex> lock(inst.m_mutex);
+    
+    if (!desc.path.empty()) {
+        std::string resolved_path = AssetRegistry::resolve(desc.path);
+        // Track the font in the AssetRegistry so RenderPreflight can validate it natively
+        AssetRegistry::instance().import_font(resolved_path);
+    }
     
     // Check if already registered
     auto it = std::find_if(inst.m_fonts.begin(), inst.m_fonts.end(), [&](const FontDescriptor& f) {

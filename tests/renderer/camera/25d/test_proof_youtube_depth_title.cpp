@@ -58,7 +58,7 @@ std::unique_ptr<Framebuffer> render_depth_title(Frame f) {
             });
 
             // Badge 2D
-            s.rect("badge", {.size={80.0f,24.0f}, .color={0.90f,0.15f,0.12f,1.0f}, .pos={580.0f,24.0f,0.0f}});
+            s.rect("badge", {.size={80.0f,24.0f}, .color={0.90f,0.15f,0.12f,1.0f}, .pos={260.0f,-156.0f,0.0f}});
             return s.build();
         });
     return renderer.render_frame(comp, f);

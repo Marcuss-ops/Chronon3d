@@ -112,7 +112,18 @@ namespace chronon3d {
         };
 
         explicit SceneBuilder(std::pmr::memory_resource *res = std::pmr::get_default_resource())
-            : scene_(res), current_frame_(0) {}
+            : scene_(res), current_frame_(0) {
+            m_ctx.resource = res;
+            m_ctx.width = m_width;
+            m_ctx.height = m_height;
+        }
+
+        explicit SceneBuilder(i32 width, i32 height, std::pmr::memory_resource *res = std::pmr::get_default_resource())
+            : scene_(res), current_frame_(0), m_width(width), m_height(height) {
+            m_ctx.resource = res;
+            m_ctx.width = width;
+            m_ctx.height = height;
+        }
 
         // Convenience constructor for compositions
         explicit SceneBuilder(const FrameContext &ctx)
@@ -178,6 +189,10 @@ namespace chronon3d {
                     layer.duration = spec.duration;
                 }
                 scene_.add_layer(std::move(layer));
+            }
+
+            for (auto& node : sub_scene.nodes()) {
+                scene_.add_node(std::move(node));
             }
 
             return *this;

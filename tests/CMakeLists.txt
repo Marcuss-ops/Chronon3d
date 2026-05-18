@@ -142,10 +142,6 @@ add_executable(chronon3d_renderer_tests
 target_link_libraries(chronon3d_renderer_tests
     PRIVATE
         chronon3d_pipeline
-        chronon3d_backend_image
-        chronon3d_compositions
-        chronon3d_graph
-        chronon3d_backend_software
         chronon3d_scene
         doctest::doctest
 )

@@ -55,7 +55,7 @@ std::unique_ptr<Framebuffer> render_news_frame(Frame f) {
             });
 
             // Badge 2D
-            s.rect("badge", {.size={100.0f,26.0f}, .color={0.92f,0.10f,0.08f,1.0f}, .pos={60.0f,20.0f,0.0f}});
+            s.rect("badge", {.size={100.0f,26.0f}, .color={0.92f,0.10f,0.08f,1.0f}, .pos={-260.0f,-160.0f,0.0f}});
             return s.build();
         });
     return renderer.render_frame(comp, f);

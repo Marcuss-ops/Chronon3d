@@ -60,7 +60,7 @@ TEST_CASE("Test 13.1 — Rect primitive rendering") {
     auto renderer = make_renderer();
     Composition comp({.width = 100, .height = 100}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        s.rect("r", {.size = {40, 40}, .color = Color::red(), .pos = {50, 50, 0}});
+        s.rect("r", {.size = {40, 40}, .color = Color::red(), .pos = {0, 0, 0}});
         return s.build();
     });
 
@@ -74,7 +74,7 @@ TEST_CASE("Test 13.2 — Rounded rect primitive rendering") {
     auto renderer = make_renderer();
     Composition comp({.width = 100, .height = 100}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        s.rounded_rect("rr", {.size = {40, 40}, .radius = 8.0f, .color = Color::red(), .pos = {50, 50, 0}});
+        s.rounded_rect("rr", {.size = {40, 40}, .radius = 8.0f, .color = Color::red(), .pos = {0, 0, 0}});
         return s.build();
     });
 
@@ -89,7 +89,7 @@ TEST_CASE("Test 13.3 — Circle primitive rendering") {
     auto renderer = make_renderer();
     Composition comp({.width = 100, .height = 100}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        s.circle("c", {.radius = 20.0f, .color = Color::red(), .pos = {50, 50, 0}});
+        s.circle("c", {.radius = 20.0f, .color = Color::red(), .pos = {0, 0, 0}});
         return s.build();
     });
 
@@ -104,7 +104,7 @@ TEST_CASE("Test 13.4 — Line primitive rendering") {
     auto renderer = make_renderer();
     Composition comp({.width = 100, .height = 100}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        s.line("l", {.from = {10, 50, 0}, .to = {90, 50, 0}, .thickness = 4.0f, .color = Color::red()});
+        s.line("l", {.from = {-40, 0, 0}, .to = {40, 0, 0}, .thickness = 4.0f, .color = Color::red()});
         return s.build();
     });
 
@@ -122,7 +122,7 @@ TEST_CASE("Test 13.5 — Text primitive rendering") {
     Composition comp({.width = 100, .height = 100}, [&](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         TextStyle style{.font_path = font, .size = 30.0f, .color = Color::red()};
-        s.text("t", {.content = "A", .style = style, .pos = {50, 50, 0}});
+        s.text("t", {.content = "A", .style = style, .pos = {0, 0, 0}});
         return s.build();
     });
 
@@ -136,7 +136,7 @@ TEST_CASE("Test 13.6 — Image primitive rendering") {
     auto renderer = make_renderer();
     Composition comp({.width = 100, .height = 100}, [&](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        s.image("img", {.path = white_img, .size = {40, 40}, .pos = {50, 50, 0}});
+        s.image("img", {.path = white_img, .size = {40, 40}, .pos = {0, 0, 0}});
         return s.build();
     });
 
@@ -236,7 +236,7 @@ TEST_CASE("Test 13.11 — Precomp layer subcomp sampling") {
     registry.add("sub", []() {
         return Composition({.name = "sub", .width = 100, .height = 100}, [](const FrameContext& ctx) {
             SceneBuilder s(ctx);
-            s.rect("green_box", {.size = {60, 60}, .color = Color::green(), .pos = {50, 50, 0}});
+            s.rect("green_box", {.size = {60, 60}, .color = Color::green(), .pos = {0, 0, 0}});
             return s.build();
         });
     });
