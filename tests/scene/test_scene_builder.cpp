@@ -1,5 +1,6 @@
 #include <doctest/doctest.h>
 #include <chronon3d/scene/builders/scene_builder.hpp>
+#include <chronon3d/registry/shape_ids.hpp>
 
 using namespace chronon3d;
 
@@ -78,4 +79,19 @@ TEST_CASE("LayerBuilder accepts_lights toggles material") {
     REQUIRE(scene.layers().size() == 1);
     CHECK(scene.layers()[0].material.accepts_lights == false);
     CHECK(scene.layers()[0].material.ambient_multiplier == doctest::Approx(0.5f));
+}
+
+TEST_CASE("SceneBuilder generic shape API creates rect") {
+    auto scene = SceneBuilder{}
+        .shape(registry::shape_ids::Rect, "box", RectParams{
+            .size = {100, 50},
+            .color = Color::white(),
+            .pos = {1, 2, 3}
+        })
+        .build();
+
+    REQUIRE(scene.nodes().size() == 1);
+    CHECK(scene.nodes()[0].name == "box");
+    CHECK(scene.nodes()[0].shape.type == ShapeType::Rect);
+    CHECK(scene.nodes()[0].world_transform.position.z == doctest::Approx(3.0f));
 }

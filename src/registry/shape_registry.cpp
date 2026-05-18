@@ -1,6 +1,5 @@
 #include <chronon3d/registry/shape_registry.hpp>
-
-#include <chronon3d/scene/fill.hpp>
+#include <chronon3d/scene/render_node_factory.hpp>
 
 #include <stdexcept>
 #include <utility>
@@ -9,12 +8,6 @@
 namespace chronon3d::registry {
 
 namespace {
-
-RenderNode make_base_node(std::pmr::memory_resource* res, std::string name) {
-    RenderNode node(res);
-    node.name = std::pmr::string{std::move(name), res};
-    return node;
-}
 
 template <typename T, typename Fn>
 ShapeDescriptor::ShapeFactory make_factory(Fn&& fn) {
@@ -38,14 +31,7 @@ void register_builtin_shapes(ShapeRegistry& registry) {
         .description = "Axis-aligned filled rectangle",
         .builtin = true,
         .factory = make_factory<RectParams>([](auto* res, std::string name, const RectParams& p) {
-            auto node = make_base_node(res, std::move(name));
-            node.shape.type = ShapeType::Rect;
-            node.shape.rect.size = p.size;
-            node.world_transform.position = p.pos;
-            node.world_transform.anchor = {p.size.x * 0.5f, p.size.y * 0.5f, 0.0f};
-            node.color = p.color;
-            node.fill = p.fill.value_or(Fill::solid_color(p.color));
-            return node;
+            return RenderNodeFactory::rect(res, std::move(name), p);
         }),
     });
     registry.register_shape(ShapeDescriptor{
@@ -55,15 +41,7 @@ void register_builtin_shapes(ShapeRegistry& registry) {
         .description = "Rectangle with rounded corners",
         .builtin = true,
         .factory = make_factory<RoundedRectParams>([](auto* res, std::string name, const RoundedRectParams& p) {
-            auto node = make_base_node(res, std::move(name));
-            node.shape.type = ShapeType::RoundedRect;
-            node.shape.rounded_rect.size = p.size;
-            node.shape.rounded_rect.radius = p.radius;
-            node.world_transform.position = p.pos;
-            node.world_transform.anchor = {p.size.x * 0.5f, p.size.y * 0.5f, 0.0f};
-            node.color = p.color;
-            node.fill = p.fill.value_or(Fill::solid_color(p.color));
-            return node;
+            return RenderNodeFactory::rounded_rect(res, std::move(name), p);
         }),
     });
     registry.register_shape(ShapeDescriptor{
@@ -73,14 +51,7 @@ void register_builtin_shapes(ShapeRegistry& registry) {
         .description = "Filled circle or ellipse",
         .builtin = true,
         .factory = make_factory<CircleParams>([](auto* res, std::string name, const CircleParams& p) {
-            auto node = make_base_node(res, std::move(name));
-            node.shape.type = ShapeType::Circle;
-            node.shape.circle.radius = p.radius;
-            node.world_transform.position = p.pos;
-            node.world_transform.anchor = {p.radius, p.radius, 0.0f};
-            node.color = p.color;
-            node.fill = p.fill.value_or(Fill::solid_color(p.color));
-            return node;
+            return RenderNodeFactory::circle(res, std::move(name), p);
         }),
     });
     registry.register_shape(ShapeDescriptor{
@@ -90,16 +61,7 @@ void register_builtin_shapes(ShapeRegistry& registry) {
         .description = "Single segment with thickness",
         .builtin = true,
         .factory = make_factory<LineParams>([](auto* res, std::string name, const LineParams& p) {
-            auto node = make_base_node(res, std::move(name));
-            node.shape.type = ShapeType::Line;
-            node.shape.line.to = p.to - p.from;
-            node.shape.line.thickness = p.thickness;
-            node.shape.line.stroke.trim_start = p.stroke.trim_start;
-            node.shape.line.stroke.trim_end = p.stroke.trim_end;
-            node.world_transform.position = p.from;
-            node.world_transform.anchor = {0, 0, 0};
-            node.color = p.color;
-            return node;
+            return RenderNodeFactory::line(res, std::move(name), p);
         }),
     });
     registry.register_shape(ShapeDescriptor{
@@ -108,16 +70,8 @@ void register_builtin_shapes(ShapeRegistry& registry) {
         .kind = ShapeKind::Path,
         .description = "Vector path that can be stroked or filled",
         .builtin = true,
-        .factory = make_factory<PathParams>([](auto* res, std::string name, const PathParams& p) {
-            auto node = make_base_node(res, std::move(name));
-            node.shape.type = ShapeType::Path;
-            node.shape.path.commands = p.commands;
-            node.shape.path.stroke = p.stroke;
-            node.shape.path.fill = p.fill;
-            node.shape.path.closed = p.closed;
-            node.world_transform.position = p.pos;
-            node.fill = p.fill;
-            return node;
+        .factory = make_factory<PathParams>([](auto* res, std::string name, PathParams p) {
+            return RenderNodeFactory::path(res, std::move(name), std::move(p));
         }),
     });
     registry.register_shape(ShapeDescriptor{
@@ -126,15 +80,8 @@ void register_builtin_shapes(ShapeRegistry& registry) {
         .kind = ShapeKind::Text,
         .description = "Glyph-shaped text object",
         .builtin = true,
-        .factory = make_factory<TextParams>([](auto* res, std::string name, const TextParams& p) {
-            auto node = make_base_node(res, std::move(name));
-            node.shape.type = ShapeType::Text;
-            node.shape.text.text = p.content;
-            node.shape.text.style = p.style;
-            node.shape.text.box = p.box;
-            node.world_transform.position = p.pos;
-            node.color = p.style.color;
-            return node;
+        .factory = make_factory<TextParams>([](auto* res, std::string name, TextParams p) {
+            return RenderNodeFactory::text(res, std::move(name), std::move(p));
         }),
     });
     registry.register_shape(ShapeDescriptor{
@@ -143,16 +90,8 @@ void register_builtin_shapes(ShapeRegistry& registry) {
         .kind = ShapeKind::Image,
         .description = "Bitmap image source",
         .builtin = true,
-        .factory = make_factory<ImageParams>([](auto* res, std::string name, const ImageParams& p) {
-            auto node = make_base_node(res, std::move(name));
-            node.shape.type = ShapeType::Image;
-            node.shape.image.path = p.path;
-            node.shape.image.size = p.size;
-            node.shape.image.opacity = p.opacity;
-            node.world_transform.position = p.pos;
-            node.world_transform.anchor = {p.size.x * 0.5f, p.size.y * 0.5f, 0.0f};
-            node.color = Color{1, 1, 1, p.opacity};
-            return node;
+        .factory = make_factory<ImageParams>([](auto* res, std::string name, ImageParams p) {
+            return RenderNodeFactory::image(res, std::move(name), std::move(p));
         }),
     });
     registry.register_shape(ShapeDescriptor{
