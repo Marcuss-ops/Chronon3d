@@ -40,7 +40,7 @@ std::string format_summary(const std::string& comp_id, Frame frame,
         const size_t hits    = s.cache_after.hits      - s.cache_before.hits;
         const size_t misses  = s.cache_after.misses    - s.cache_before.misses;
         const size_t evicted = s.cache_after.evictions - s.cache_before.evictions;
-        const double mem_mb  = static_cast<double>(s.cache_after.current_usage_bytes) / (1024.0 * 1024.0);
+        const double mem_mb  = static_cast<double>(s.cache_after.current_weight) / (1024.0 * 1024.0);
         out += "\nCache:\n";
         out += fmt::format("  hits:          {}\n", hits);
         out += fmt::format("  misses:        {}\n", misses);
