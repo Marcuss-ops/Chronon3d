@@ -6,15 +6,11 @@
 
 namespace chronon3d::cli {
 
-using RegisterCliCommandFn = void (*)(CLI::App&, CliContext&);
+void register_basic_commands(CLI::App& app, CliContext& ctx);
+void register_render_commands(CLI::App& app, CliContext& ctx);
+void register_video_commands(CLI::App& app, CliContext& ctx);
+void register_dev_commands(CLI::App& app, CliContext& ctx);
 
-struct CliCommandDescriptor {
-    const char* name;
-    const char* description;
-    RegisterCliCommandFn register_fn;
-};
-
-void register_command(CLI::App& app, const CliCommandDescriptor& descriptor, CliContext& ctx);
 void register_all_commands(CLI::App& app, CliContext& ctx);
 
 } // namespace chronon3d::cli

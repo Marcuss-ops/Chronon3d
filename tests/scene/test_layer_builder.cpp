@@ -1,6 +1,7 @@
 #include <doctest/doctest.h>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
+#include <chronon3d/registry/shape_ids.hpp>
 
 using namespace chronon3d;
 
@@ -65,4 +66,20 @@ TEST_CASE("LayerBuilder supports anchor placements") {
     CHECK(layer.layout.pin->offset.y == doctest::Approx(80.0f));
     REQUIRE(layer.layout.pin->depth.has_value());
     CHECK(*layer.layout.pin->depth == doctest::Approx(-120.0f));
+}
+
+TEST_CASE("LayerBuilder generic shape API creates rect node") {
+    auto scene = SceneBuilder{}
+        .layer("layer", [](LayerBuilder& l) {
+            l.shape(registry::shape_ids::Rect, "box", RectParams{
+                .size = {100, 50},
+                .color = Color::white(),
+                .pos = {1, 2, 3}
+            });
+        })
+        .build();
+
+    REQUIRE(scene.layers().size() == 1);
+    REQUIRE(scene.layers()[0].nodes.size() == 1);
+    CHECK(scene.layers()[0].nodes[0].shape.type == ShapeType::Rect);
 }

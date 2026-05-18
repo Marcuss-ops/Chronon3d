@@ -10,16 +10,24 @@
 namespace chronon3d {
 namespace cli {
 
-struct RenderArgs {
-    std::string comp_id;
-    std::string frames{"0"}; // Supports "0", "0-90", "0-90x5"
-    std::string output;      // No default
-    bool diagnostic{false};
-    bool use_modular_graph{false};
+struct RenderQualityArgs {
     bool   motion_blur{false};
     int    motion_blur_samples{8};
     float  shutter_angle{180.0f};
     float  ssaa{1.0f};
+};
+
+struct RenderPipelineArgs {
+    bool   use_modular_graph{false};
+    bool   diagnostic{false};
+    RenderQualityArgs quality{};
+};
+
+struct RenderArgs {
+    std::string comp_id;
+    std::string frames{"0"}; // Supports "0", "0-90", "0-90x5"
+    std::string output;      // No default
+    RenderPipelineArgs pipeline{};
 };
 
 struct VideoArgs {
@@ -32,11 +40,7 @@ struct VideoArgs {
     std::string codec{"auto"};
     std::string encode_preset{"medium"};
     bool keep_frames{false};
-    bool use_modular_graph{false};
-    bool   motion_blur{false};
-    int    motion_blur_samples{8};
-    float  shutter_angle{180.0f};
-    float  ssaa{1.0f};
+    RenderPipelineArgs pipeline{};
     std::string frames_dir;
 };
 
@@ -54,11 +58,7 @@ struct VideoCameraArgs {
     int crf{18};
     std::string codec{"auto"};
     std::string encode_preset{"medium"};
-    bool use_modular_graph{false};
-    bool   motion_blur{false};
-    int    motion_blur_samples{8};
-    float  shutter_angle{180.0f};
-    float  ssaa{1.0f};
+    RenderPipelineArgs pipeline{};
 };
 
 

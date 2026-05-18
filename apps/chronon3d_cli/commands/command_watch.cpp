@@ -32,7 +32,7 @@ int command_watch(const CompositionRegistry& registry, const std::string& comp_i
         args.comp_id = comp_id;
         args.frames = "0";
         args.output = "output/watch_####.png";
-        args.diagnostic = true;
+        args.pipeline.diagnostic = true;
         command_render(registry, args);
     });
 

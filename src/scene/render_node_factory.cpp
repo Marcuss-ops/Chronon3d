@@ -54,6 +54,7 @@ RenderNode RenderNodeFactory::line(std::pmr::memory_resource* res, std::string n
     node.world_transform.position = p.from;
     node.world_transform.anchor = {0, 0, 0};
     node.color = p.color;
+    node.fill = Fill::solid_color(p.color);
     return node;
 }
 
