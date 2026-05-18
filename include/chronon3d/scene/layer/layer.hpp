@@ -3,6 +3,7 @@
 #include <chronon3d/core/types.hpp>
 #include <chronon3d/core/frame.hpp>
 #include <chronon3d/math/transform.hpp>
+#include <chronon3d/animation/animated_transform.hpp>
 #include <chronon3d/scene/layer/render_node.hpp>
 #include <chronon3d/scene/mask/mask.hpp>
 #include <chronon3d/scene/effects/effect_stack.hpp>
@@ -34,6 +35,7 @@ struct Layer {
     std::pmr::string parent_name;
     LayerKind kind{LayerKind::Normal};
     Transform transform{};
+    AnimatedTransform anim_transform{};
     Frame from{0};
     Frame duration{-1};
     bool      visible{true};
