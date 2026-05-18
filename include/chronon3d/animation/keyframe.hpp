@@ -16,11 +16,11 @@ namespace chronon3d {
 // Generic keyframe used by AnimatedValue<T>.
 template <typename T>
 struct Keyframe {
-    Frame  frame{0};
-    T      value{};
-    Easing easing{Easing::Linear};
+    Frame        frame{0};
+    T            value{};
+    EasingCurve  easing{Easing::Linear};
 
-    constexpr Keyframe(Frame f, T v, Easing e = Easing::Linear)
+    constexpr Keyframe(Frame f, T v, EasingCurve e = EasingCurve{Easing::Linear})
         : frame(f), value(v), easing(e) {}
 
     // For std::sort / std::lower_bound
@@ -33,9 +33,9 @@ using KF = Keyframe<f32>;
 
 // Forward declarations for interpolation helpers.
 template <typename T>
-inline T interpolate_values(const T& a, const T& b, f32 t, Easing e) {
-    if (e == Easing::Hold) return a;
-    const f32 eased_t = easing::apply(e, t);
+inline T interpolate_values(const T& a, const T& b, f32 t, EasingCurve e) {
+    if (!e.cubic.has_value() && e.preset == Easing::Hold) return a;
+    const f32 eased_t = e.apply(t);
     return a + (b - a) * eased_t;
 }
 
@@ -53,13 +53,13 @@ public:
         }
     }
 
-    KeyframeTrack& key(Frame frame, const T& value, Easing easing = Easing::Linear) {
+    KeyframeTrack& key(Frame frame, const T& value, EasingCurve easing = EasingCurve{Easing::Linear}) {
         m_keyframes.emplace_back(frame, value, easing);
         m_sorted = false;
         return *this;
     }
 
-    KeyframeTrack& key(Frame frame, T&& value, Easing easing = Easing::Linear) {
+    KeyframeTrack& key(Frame frame, T&& value, EasingCurve easing = EasingCurve{Easing::Linear}) {
         m_keyframes.emplace_back(frame, std::move(value), easing);
         m_sorted = false;
         return *this;

@@ -44,13 +44,13 @@ public:
     }
 
     // Add a keyframe; keys are kept sorted by frame.
-    void add_keyframe(Frame frame, const T& value, Easing easing = Easing::Linear) {
+    void add_keyframe(Frame frame, const T& value, EasingCurve easing = EasingCurve{Easing::Linear}) {
         m_keyframes.emplace_back(frame, value, easing);
         std::sort(m_keyframes.begin(), m_keyframes.end());
     }
 
     // Fluent alias for add_keyframe — enables chaining.
-    AnimatedValue& key(Frame frame, const T& value, Easing easing = Easing::Linear) {
+    AnimatedValue& key(Frame frame, const T& value, EasingCurve easing = EasingCurve{Easing::Linear}) {
         add_keyframe(frame, value, easing);
         return *this;
     }

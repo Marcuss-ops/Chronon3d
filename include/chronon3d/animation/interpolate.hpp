@@ -26,7 +26,7 @@ inline f32 interpolate(
     f32 input_end,
     f32 output_start,
     f32 output_end,
-    Easing easing = Easing::Linear,
+    EasingCurve easing = EasingCurve{},
     ClampMode clamp = ClampMode::Clamp
 ) {
     if (input_end == input_start) {
@@ -38,9 +38,7 @@ inline f32 interpolate(
         t = std::clamp(t, 0.0f, 1.0f);
     }
     
-    if (easing != Easing::Linear) {
-        t = easing::apply(easing, t);
-    }
+    t = easing.apply(t);
 
     return output_start + (output_end - output_start) * t;
 }
@@ -51,7 +49,7 @@ inline f32 interpolate(
     Frame input_end,
     f32 output_start,
     f32 output_end,
-    Easing easing = Easing::Linear,
+    EasingCurve easing = EasingCurve{},
     ClampMode clamp = ClampMode::Clamp
 ) {
     return interpolate(
@@ -70,7 +68,7 @@ struct AnimBuilder {
     
     explicit AnimBuilder(f32 v) : val(v) {}
     
-    AnimBuilder& map(f32 in_min, f32 in_max, f32 out_min, f32 out_max, Easing easing = Easing::Linear, ClampMode clamp = ClampMode::Clamp) {
+    AnimBuilder& map(f32 in_min, f32 in_max, f32 out_min, f32 out_max, EasingCurve easing = EasingCurve{}, ClampMode clamp = ClampMode::Clamp) {
         val = interpolate(val, in_min, in_max, out_min, out_max, easing, clamp);
         return *this;
     }
