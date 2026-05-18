@@ -8,6 +8,7 @@ add_executable(chronon3d_core_tests
     ${TEST_MAIN}
     core/test_core.cpp
     core/test_frame_context.cpp
+    core/public_api_test.cpp
     core/trace_test.cpp
     core/math/test_math.cpp
     core/math/test_camera_pose.cpp

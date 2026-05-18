@@ -2,6 +2,7 @@
 #include <chronon3d/backends/software/shape_processor.hpp>
 #include <chronon3d/backends/software/rasterizers/projected_card_rasterizer.hpp>
 #include <chronon3d/backends/text/text_rasterizer_utils.hpp>
+#include <chronon3d/core/profiling.hpp>
 #include "../utils/render_effects_processor.hpp"
 #include "../utils/blend2d_bridge.hpp"
 #include "../utils/blend2d_resources.hpp"
@@ -15,6 +16,7 @@ class SoftwareTextProcessor final : public ShapeProcessor {
 public:
     void draw(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNode& node, const RenderState& state,
               const Camera& camera, i32 width, i32 height) override {
+        CHRONON_ZONE_C("text_render", trace_category::kText);
         const Mat4& model = state.matrix;
         const f32 opacity = state.opacity;
 
@@ -76,6 +78,7 @@ public:
 
 private:
     void draw_text_glow(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNode& node, const RenderState& state, const TextRasterization& raster) {
+        CHRONON_ZONE_C("text_glow", trace_category::kText);
         const Mat4& model = state.matrix;
         const f32 opacity = state.opacity;
         // Apply glow color to a copy of the text image
