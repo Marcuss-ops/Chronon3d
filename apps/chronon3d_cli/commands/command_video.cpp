@@ -117,6 +117,7 @@ int command_video_camera(const CompositionRegistry& registry, const VideoCameraA
 
 #include "../utils/cli_render_utils.hpp"
 #include "../utils/frame_chunks.hpp"
+#include "../utils/ffmpeg_pipe_encoder.hpp"
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <fmt/format.h>
 #include <filesystem>
@@ -178,6 +179,77 @@ int command_video(const CompositionRegistry& registry, const VideoArgs& args) {
     if (end <= start) {
         spdlog::error("[video] Empty frame range [{}, {})", start, end);
         return 1;
+    }
+
+    if (args.ffmpeg_mode != "png" && args.ffmpeg_mode != "pipe") {
+        spdlog::error(
+            "[video] Unknown --ffmpeg-mode '{}'. Expected: png, pipe",
+            args.ffmpeg_mode
+        );
+        return 1;
+    }
+
+    if (args.ffmpeg_mode == "pipe") {
+        if (args.chunks != 1) {
+            spdlog::warn("[video] --chunks is ignored with --ffmpeg-mode pipe in V1");
+        }
+
+        const std::string codec = resolve_cli_ffmpeg_codec(args);
+
+        FfmpegPipeEncoder pipe;
+        FfmpegPipeOptions pipe_options{
+            .width = comp.width(),
+            .height = comp.height(),
+            .fps = args.fps,
+            .crf = args.crf,
+            .preset = args.encode_preset,
+            .codec = codec,
+            .output_path = args.output,
+        };
+
+        std::error_code ec;
+        const auto output_parent = std::filesystem::path(args.output).parent_path();
+        if (!output_parent.empty()) {
+            std::filesystem::create_directories(output_parent, ec);
+            if (ec) {
+                spdlog::error(
+                    "[video] Cannot create output directory {}: {}",
+                    output_parent.string(),
+                    ec.message()
+                );
+                return 1;
+            }
+        }
+
+        if (!pipe.open(pipe_options)) {
+            spdlog::error("[video] Failed to open FFmpeg raw pipe");
+            return 1;
+        }
+
+        auto renderer = create_renderer(registry, settings);
+
+        for (Frame f = start; f < end; ++f) {
+            auto fb = renderer->render_frame(comp, f);
+            if (!fb) {
+                spdlog::error("[video] Failed to render frame {}", f);
+                pipe.close();
+                return 1;
+            }
+
+            if (!pipe.write_frame(*fb)) {
+                spdlog::error("[video] Failed to write frame {} to FFmpeg pipe", f);
+                pipe.close();
+                return 1;
+            }
+        }
+
+        if (!pipe.close()) {
+            spdlog::error("[video] FFmpeg pipe encoder failed");
+            return 1;
+        }
+
+        spdlog::info("[video] Wrote {}", args.output);
+        return 0;
     }
 
     // Temporary frames directory
