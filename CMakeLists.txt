@@ -94,7 +94,12 @@ endif()
 # 3. Registry
 file(GLOB CHRONON3D_REGISTRY_SOURCES CONFIGURE_DEPENDS "src/registry/*.cpp")
 add_library(chronon3d_registry STATIC ${CHRONON3D_REGISTRY_SOURCES})
-target_link_libraries(chronon3d_registry PUBLIC chronon3d)
+target_link_libraries(chronon3d_registry PUBLIC chronon3d chronon3d_scene)
+
+# 3b. Assets
+file(GLOB CHRONON3D_ASSETS_SOURCES CONFIGURE_DEPENDS "src/assets/*.cpp")
+add_library(chronon3d_assets STATIC ${CHRONON3D_ASSETS_SOURCES})
+target_link_libraries(chronon3d_assets PUBLIC chronon3d chronon3d_registry)
 
 # 4. Cache
 file(GLOB CHRONON3D_CACHE_SOURCES CONFIGURE_DEPENDS "src/cache/*.cpp")
@@ -216,7 +221,7 @@ target_link_libraries(chronon3d_compositions
 # Architectural Aggregates (Agent rules)
 add_library(chronon3d_core INTERFACE)
 target_link_libraries(chronon3d_core INTERFACE
-    chronon3d_scene chronon3d_runtime chronon3d_graph chronon3d_registry chronon3d_cache
+    chronon3d_assets chronon3d_registry chronon3d_scene chronon3d_runtime chronon3d_graph chronon3d_cache
 )
 
 add_library(chronon3d_software INTERFACE)

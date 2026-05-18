@@ -26,7 +26,7 @@ duration = 10
 [[layer]]
 id = "red_rect"
 name = "red_rect"
-position = [50.0, 50.0, 0.0]
+position = [0.0, 0.0, 0.0]
 scale = [1.0, 1.0, 1.0]
 opacity = 1.0
 is_3d = false
