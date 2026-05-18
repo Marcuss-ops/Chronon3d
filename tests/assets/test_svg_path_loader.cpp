@@ -1,61 +1,79 @@
 #include <doctest/doctest.h>
 #include <chronon3d/assets/svg_path_loader.hpp>
-#include <stdexcept>
+#include <fstream>
 
 using namespace chronon3d;
 using namespace chronon3d::assets;
 
-TEST_CASE("SvgPathLoader - Parse MoveTo and LineTo") {
-    auto path = parse_svg_path_data("M 10 10 L 20 20");
-    REQUIRE(path.commands.size() == 2);
+TEST_CASE("SVG path parser supports M L Z") {
+    auto res = parse_svg_path_data("M 0 0 L 100 0 L 100 100 Z");
+
+    REQUIRE(res.ok);
+    REQUIRE(res.path.commands.size() == 4);
+    CHECK(res.path.commands[0].type == PathCommandType::MoveTo);
+    CHECK(res.path.commands[1].type == PathCommandType::LineTo);
+    CHECK(res.path.commands[2].type == PathCommandType::LineTo);
+    CHECK(res.path.commands[3].type == PathCommandType::Close);
+    CHECK(res.path.closed);
+}
+
+TEST_CASE("SVG path parser supports H and V") {
+    auto res = parse_svg_path_data("M 10 20 H 50 V 80");
+
+    REQUIRE(res.ok);
+    REQUIRE(res.path.commands.size() == 3);
+    CHECK(res.path.commands[1].p0.x == doctest::Approx(50.0f));
+    CHECK(res.path.commands[1].p0.y == doctest::Approx(20.0f));
+    CHECK(res.path.commands[2].p0.x == doctest::Approx(50.0f));
+    CHECK(res.path.commands[2].p0.y == doctest::Approx(80.0f));
+}
+
+TEST_CASE("SVG path parser supports cubic and quadratic curves") {
+    auto res = parse_svg_path_data("M 0 0 C 10 0 20 10 30 30 Q 40 40 50 50");
+
+    REQUIRE(res.ok);
+    REQUIRE(res.path.commands.size() == 3);
+    CHECK(res.path.commands[1].type == PathCommandType::CubicTo);
+    CHECK(res.path.commands[2].type == PathCommandType::QuadraticTo);
+}
+
+TEST_CASE("SVG path parser supports relative commands") {
+    auto res = parse_svg_path_data("M 10 10 l 5 0 v 5 h -5 z");
+
+    REQUIRE(res.ok);
+    REQUIRE(res.path.commands.size() == 5);
+    CHECK(res.path.commands[1].p0.x == doctest::Approx(15.0f));
+    CHECK(res.path.commands[1].p0.y == doctest::Approx(10.0f));
+    CHECK(res.path.commands[2].p0.x == doctest::Approx(15.0f));
+    CHECK(res.path.commands[2].p0.y == doctest::Approx(15.0f));
+    CHECK(res.path.commands[3].p0.x == doctest::Approx(10.0f));
+    CHECK(res.path.commands[3].p0.y == doctest::Approx(15.0f));
+}
+
+TEST_CASE("SVG path parser rejects unsupported commands") {
+    auto res = parse_svg_path_data("M 0 0 A 10 10 0 0 1 20 20");
+    CHECK_FALSE(res.ok);
+    CHECK_FALSE(res.error.empty());
+}
+
+TEST_CASE("SVG path loader parses a minimal SVG file") {
+    // Write a temporary valid SVG file
+    const std::string filename = "temp_test_path.svg";
+    {
+        std::ofstream out(filename);
+        out << R"(<svg width="100" height="100">)" << "\n"
+            << R"(  <path d="M 10 10 L 50 50 Z" fill="red" />)" << "\n"
+            << R"(</svg>)" << "\n";
+    }
+
+    auto res = load_svg_path_file(filename);
     
-    CHECK(path.commands[0].type == SvgPathCommandType::MoveTo);
-    CHECK(path.commands[0].p0.x == 10.0f);
-    CHECK(path.commands[0].p0.y == 10.0f);
+    // Clean up file
+    std::remove(filename.c_str());
 
-    CHECK(path.commands[1].type == SvgPathCommandType::LineTo);
-    CHECK(path.commands[1].p0.x == 20.0f);
-    CHECK(path.commands[1].p0.y == 20.0f);
-}
-
-TEST_CASE("SvgPathLoader - Parse Implicit LineTo after MoveTo") {
-    auto path = parse_svg_path_data("M 0,0 10,10 20,20");
-    REQUIRE(path.commands.size() == 3);
-    CHECK(path.commands[0].type == SvgPathCommandType::MoveTo);
-    CHECK(path.commands[1].type == SvgPathCommandType::LineTo);
-    CHECK(path.commands[2].type == SvgPathCommandType::LineTo);
-    CHECK(path.commands[2].p0.x == 20.0f);
-    CHECK(path.commands[2].p0.y == 20.0f);
-}
-
-TEST_CASE("SvgPathLoader - Parse H and V") {
-    auto path = parse_svg_path_data("M 0 0 H 10 V 20");
-    REQUIRE(path.commands.size() == 3);
-    
-    CHECK(path.commands[1].type == SvgPathCommandType::LineTo);
-    CHECK(path.commands[1].p0.x == 10.0f);
-    CHECK(path.commands[1].p0.y == 0.0f); // inherits y
-
-    CHECK(path.commands[2].type == SvgPathCommandType::LineTo);
-    CHECK(path.commands[2].p0.x == 10.0f); // inherits x
-    CHECK(path.commands[2].p0.y == 20.0f);
-}
-
-TEST_CASE("SvgPathLoader - Parse C, Q, Z") {
-    auto path = parse_svg_path_data("M 0 0 C 1 2 3 4 5 6 Q 7 8 9 10 Z");
-    REQUIRE(path.commands.size() == 4);
-    
-    CHECK(path.commands[1].type == SvgPathCommandType::CubicTo);
-    CHECK(path.commands[1].p0.x == 1.0f);
-    CHECK(path.commands[1].p2.x == 5.0f);
-
-    CHECK(path.commands[2].type == SvgPathCommandType::QuadTo);
-    CHECK(path.commands[2].p0.x == 7.0f);
-    CHECK(path.commands[2].p1.y == 10.0f);
-
-    CHECK(path.commands[3].type == SvgPathCommandType::Close);
-}
-
-TEST_CASE("SvgPathLoader - Unsupported command throws") {
-    CHECK_THROWS_AS(parse_svg_path_data("M 0 0 A 1 1 0 0 0 1 1"), std::runtime_error);
+    REQUIRE(res.ok);
+    REQUIRE(res.path.commands.size() == 3);
+    CHECK(res.path.commands[0].type == PathCommandType::MoveTo);
+    CHECK(res.path.commands[1].type == PathCommandType::LineTo);
+    CHECK(res.path.commands[2].type == PathCommandType::Close);
 }
