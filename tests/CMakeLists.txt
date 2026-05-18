@@ -122,6 +122,7 @@ add_executable(chronon3d_renderer_tests
     registry/test_registries.cpp
     registry/test_dx_ergonomics.cpp
     cache/test_cache_foundation.cpp
+    cache/test_cache_sharding.cpp
     effects/test_effect_registry.cpp
     deterministic/test_deterministic.cpp
     render_graph/test_render_pipeline.cpp

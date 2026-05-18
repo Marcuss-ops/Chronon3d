@@ -125,6 +125,27 @@ public:
     }
 
     [[nodiscard]] bool is_animated() const { return !m_keyframes.empty(); }
+
+    /**
+     * @brief Determines if evaluating this property at a specific frame is "expensive"
+     * enough to justify caching.
+     */
+    [[nodiscard]] bool should_cache(Frame frame) const {
+        if (has_expression()) return true;
+        if (m_keyframes.empty()) return false; // Constant value is cheap
+        
+        const Frame start_f = m_keyframes.front().frame;
+        const Frame end_f   = m_keyframes.back().frame;
+        
+        if (frame <= start_f || frame >= end_f) return false; // Edge values are cheap
+        
+        // If we are between keyframes, we check easing complexity.
+        // For now, assume any non-linear easing or many keyframes might benefit,
+        // but simple linear is definitely cheap.
+        // In a real implementation, we'd check the easing of the active segment.
+        return true; 
+    }
+
     void clear() { m_keyframes.clear(); }
 
 private:

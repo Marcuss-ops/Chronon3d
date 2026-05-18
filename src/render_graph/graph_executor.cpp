@@ -97,7 +97,7 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute_node(
             }
             key.input_hash = input_hash;
 
-            result = ctx.node_cache->find(key);
+            result = ctx.node_cache->get(key);
             if (ctx.counters) {
                 if (result) {
                     ctx.counters->cache_hits.fetch_add(1, std::memory_order_relaxed);

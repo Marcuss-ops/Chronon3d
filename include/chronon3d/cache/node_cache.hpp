@@ -1,17 +1,11 @@
 #pragma once
 
+#include <chronon3d/cache/lru_cache.hpp>
 #include <chronon3d/core/frame.hpp>
 #include <chronon3d/core/types.hpp>
 #include <chronon3d/core/framebuffer.hpp>
 #include <memory>
 #include <string>
-#include <string_view>
-#include <unordered_map>
-#include <list>
-#include <mutex>
-
-#define XXH_INLINE_ALL
-#include <xxhash.h>
 
 namespace chronon3d::cache {
 
@@ -28,56 +22,44 @@ struct NodeCacheKey {
     bool operator==(const NodeCacheKey&) const = default;
 };
 
-struct NodeCacheStats {
-    usize hits{0};
-    usize misses{0};
-    usize evictions{0};
-    usize current_usage_bytes{0};
+struct NodeCacheKeyHash {
+    size_t operator()(const NodeCacheKey& key) const noexcept {
+        return static_cast<size_t>(key.digest());
+    }
 };
+
+using FramebufferCache = LruCache<NodeCacheKey, std::shared_ptr<Framebuffer>, NodeCacheKeyHash>;
+
+/**
+ * @brief Domain-specific caches as recommended by the technical audit.
+ */
+using PropertyCache    = LruCache<u64, double>; 
+using LayerCache       = LruCache<u64, std::shared_ptr<void>>; // Placeholder for evaluated layers
+using CompositionCache = LruCache<u64, std::shared_ptr<void>>; // Placeholder for evaluated compositions
 
 class NodeCache {
 public:
     using Value = std::shared_ptr<Framebuffer>;
 
-    explicit NodeCache(usize capacity_bytes = 1024ULL * 1024 * 1024); // 1GB default
+    explicit NodeCache(size_t capacity_bytes = 1024ULL * 1024 * 1024);
     NodeCache(NodeCache&&) noexcept = default;
     NodeCache& operator=(NodeCache&&) noexcept = default;
 
-    [[nodiscard]] Value get(u64 key);
-    void put(u64 key, Value value, usize size_bytes);
+    [[nodiscard]] Value get(const NodeCacheKey& key);
+    void store(const NodeCacheKey& key, Value value);
     
-    [[nodiscard]] bool contains(u64 key) const;
+    [[nodiscard]] bool contains(const NodeCacheKey& key) const;
     void clear();
     
-    [[nodiscard]] const NodeCacheStats& stats() const { return m_stats; }
-    [[nodiscard]] usize size() const { return m_entries.size(); }
+    [[nodiscard]] LruCache<NodeCacheKey, Value, NodeCacheKeyHash>::Stats stats() const { return m_cache.stats(); }
+    [[nodiscard]] size_t size() const { return m_cache.stats().current_size; }
     
-    void set_capacity(usize capacity_bytes);
+    void set_capacity(size_t capacity_bytes);
 
-    [[nodiscard]] Value find(const NodeCacheKey& key) { return get(key.digest()); }
-    void store(const NodeCacheKey& key, Value value) {
-        if (value) put(key.digest(), value, value->size_bytes());
-    }
-    [[nodiscard]] bool contains(const NodeCacheKey& key) const { return contains(key.digest()); }
-    bool erase(u64 key);
-    bool erase(const NodeCacheKey& key) { return erase(key.digest()); }
+    bool erase(const NodeCacheKey& key);
 
 private:
-    void evict_if_needed(usize required_bytes);
-    void touch(u64 key);
-
-    struct Entry {
-        Value value;
-        usize size_bytes;
-        std::list<u64>::iterator lru_iterator;
-    };
-
-    mutable std::unique_ptr<std::mutex> m_mutex;
-    std::unordered_map<u64, Entry> m_entries;
-    std::list<u64> m_lru_list;
-    
-    usize m_capacity_bytes;
-    NodeCacheStats m_stats;
+    FramebufferCache m_cache;
 };
 
 } // namespace chronon3d::cache

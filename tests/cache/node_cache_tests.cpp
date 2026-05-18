@@ -17,7 +17,7 @@ TEST_CASE("Test 5.1 — NodeCache cache hit") {
     auto fb = std::make_shared<Framebuffer>(10, 10);
     cache.store(key, fb);
 
-    auto result = cache.find(key);
+    auto result = cache.get(key);
     REQUIRE(result != nullptr);
     CHECK(result == fb);
     CHECK(cache.stats().hits == 1);
@@ -30,7 +30,7 @@ TEST_CASE("Test 5.2 — NodeCache cache miss") {
         .frame = 42
     };
 
-    auto result = cache.find(key);
+    auto result = cache.get(key);
     CHECK(result == nullptr);
     CHECK(cache.stats().misses == 1);
 }
@@ -48,7 +48,7 @@ TEST_CASE("Test 5.3 — NodeCache clear svuota cache") {
 
     cache.clear();
     CHECK(cache.size() == 0);
-    CHECK(cache.find(key) == nullptr);
+    CHECK(cache.get(key) == nullptr);
 }
 
 TEST_CASE("Test 5.4 — NodeCache eviction con capacita piccola") {
