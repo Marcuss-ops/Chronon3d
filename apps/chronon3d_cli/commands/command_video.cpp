@@ -116,6 +116,7 @@ int command_video_camera(const CompositionRegistry& registry, const VideoCameraA
 // ── System-ffmpeg fallback (no SDK required, needs ffmpeg in PATH) ─────────
 
 #include "../utils/cli_render_utils.hpp"
+#include "../utils/frame_chunks.hpp"
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <fmt/format.h>
 #include <filesystem>
@@ -150,26 +151,6 @@ std::string resolve_cli_ffmpeg_codec(const VideoArgs& args) {
     return "libx264";
 }
 
-struct FrameChunk {
-    Frame start;
-    Frame end;
-};
-
-static std::vector<FrameChunk> split_frame_range(Frame start, Frame end, int chunks) {
-    std::vector<FrameChunk> out;
-    const Frame total = end - start;
-    if (total <= 0) return out;
-    chunks = std::max(1, std::min<int>(chunks, static_cast<int>(total)));
-    const Frame base = total / chunks;
-    const Frame rem = total % chunks;
-    Frame cursor = start;
-    for (int i = 0; i < chunks; ++i) {
-        const Frame len = base + (i < rem ? 1 : 0);
-        out.push_back(FrameChunk{.start = cursor, .end = cursor + len});
-        cursor += len;
-    }
-    return out;
-}
 } // namespace
 
 int command_video(const CompositionRegistry& registry, const VideoArgs& args) {
@@ -262,8 +243,18 @@ int command_video(const CompositionRegistry& registry, const VideoArgs& args) {
         return 1;
     }
 
-    std::filesystem::create_directories(
-        std::filesystem::path(args.output).parent_path(), ec);
+    const auto output_parent = std::filesystem::path(args.output).parent_path();
+    if (!output_parent.empty()) {
+        std::filesystem::create_directories(output_parent, ec);
+        if (ec) {
+            spdlog::error(
+                "[video] Cannot create output directory {}: {}",
+                output_parent.string(),
+                ec.message()
+            );
+            return 1;
+        }
+    }
 
     const std::string pattern = (frames_dir / "frame_%06d.png").string();
     const std::string codec   = resolve_cli_ffmpeg_codec(args);

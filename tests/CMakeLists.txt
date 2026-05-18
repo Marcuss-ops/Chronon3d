@@ -179,6 +179,7 @@ add_executable(chronon3d_cli_tests
     test_main.cpp
     cli/test_frame_range_parser.cpp
     cli/test_render_job_plan.cpp
+    cli/test_frame_chunks.cpp
     ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/cli_utils.cpp
     ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/render_job_plan.cpp
 )
