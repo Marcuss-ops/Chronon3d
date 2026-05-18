@@ -54,7 +54,6 @@ void append_circle(Layer& layer, std::string name, const CircleParams& p) {
     node.color = p.color;
     node.fill = p.fill.value_or(Fill::solid_color(p.color));
 }
-
 void append_line(Layer& layer, std::string name, const LineParams& p) {
     auto& node = append_node(layer, std::move(name));
     node.shape.type = ShapeType::Line;
@@ -64,6 +63,18 @@ void append_line(Layer& layer, std::string name, const LineParams& p) {
     node.shape.line.stroke.trim_end   = p.stroke.trim_end;
     node.world_transform.position = p.from;
     node.color = p.color;
+    node.fill = Fill::solid_color(p.color);
+}
+
+void append_path(Layer& layer, std::string name, PathParams p) {
+    auto& node = append_node(layer, std::move(name));
+    node.shape.type = ShapeType::Path;
+    node.shape.path.commands = std::move(p.commands);
+    node.shape.path.stroke = p.stroke;
+    node.shape.path.fill = p.fill;
+    node.shape.path.closed = p.closed;
+    node.world_transform.position = p.pos;
+    node.fill = p.fill;
 }
 
 void append_text(Layer& layer, std::string name, TextParams p) {

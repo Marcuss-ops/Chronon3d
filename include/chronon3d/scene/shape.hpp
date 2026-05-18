@@ -6,6 +6,7 @@
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/core/types.hpp>
 #include <chronon3d/scene/fill.hpp>
+#include <chronon3d/scene/path.hpp>
 #include <string>
 
 namespace chronon3d {
@@ -16,6 +17,7 @@ enum class ShapeType {
     RoundedRect,
     Circle,
     Line,
+    Path,
     Text,
     Image,
     Mesh,
@@ -134,6 +136,7 @@ struct Shape {
     RoundedRectShape rounded_rect;
     CircleShape circle;
     LineShape line;
+    PathShape path;
     TextShape text;
     ImageShape image;
     FakeBox3DShape fake_box3d;

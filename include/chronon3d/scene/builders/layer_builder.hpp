@@ -62,6 +62,7 @@ public:
     LayerBuilder& rounded_rect(std::string name, RoundedRectParams p);
     LayerBuilder& circle(std::string name, CircleParams p);
     LayerBuilder& line(std::string name, LineParams p);
+    LayerBuilder& path(std::string name, PathParams p);
     LayerBuilder& text(std::string name, TextParams p);
     LayerBuilder& image(std::string name, ImageParams p);
 
