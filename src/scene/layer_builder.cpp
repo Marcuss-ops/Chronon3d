@@ -178,6 +178,11 @@ LayerBuilder& LayerBuilder::line(std::string name, LineParams p) {
     return *this;
 }
 
+LayerBuilder& LayerBuilder::path(std::string name, PathParams p) {
+    layer_builder_internal::append_path(m_layer, std::move(name), std::move(p));
+    return *this;
+}
+
 LayerBuilder& LayerBuilder::text(std::string name, TextParams p) {
     layer_builder_internal::append_text(m_layer, std::move(name), std::move(p));
     return *this;

@@ -19,6 +19,27 @@ TEST_CASE("SceneBuilder minimal") {
     CHECK(node.color.a == Color::red().a);
 }
 
+TEST_CASE("SceneBuilder path API") {
+    auto scene = SceneBuilder{}
+        .path("my-path", {
+            .commands = {
+                PathCommand::move_to({0, 0}),
+                PathCommand::line_to({100, 100})
+            },
+            .stroke = {.width = 5.0f},
+            .pos = {10, 20, 0}
+        })
+        .build();
+
+    REQUIRE(scene.nodes().size() == 1);
+    const auto& node = scene.nodes()[0];
+    CHECK(node.name == "my-path");
+    CHECK(node.shape.type == ShapeType::Path);
+    CHECK(node.shape.path.commands.size() == 2);
+    CHECK(node.shape.path.stroke.width == doctest::Approx(5.0f));
+    CHECK(node.world_transform.position.x == doctest::Approx(10.0f));
+}
+
 TEST_CASE("SceneBuilder fluent API") {
     auto scene = SceneBuilder{}
         .rect("box1", {.size={100, 100}, .color=Color::white(), .pos={0, 0, 0}})

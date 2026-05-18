@@ -16,6 +16,7 @@ void append_rect(Layer& layer, std::string name, const RectParams& p);
 void append_rounded_rect(Layer& layer, std::string name, const RoundedRectParams& p);
 void append_circle(Layer& layer, std::string name, const CircleParams& p);
 void append_line(Layer& layer, std::string name, const LineParams& p);
+void append_path(Layer& layer, std::string name, PathParams p);
 void append_text(Layer& layer, std::string name, TextParams p);
 void append_image(Layer& layer, std::string name, ImageParams p);
 

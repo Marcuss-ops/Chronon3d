@@ -57,10 +57,9 @@ run_test "Test 1.5: software_internal namespace is not in public headers" \
 run_test "Test 1.6: chronon3d_backend_software does not link chronon3d_runtime" \
   "git grep -n \"chronon3d_runtime\" -- CMakeLists.txt | grep -E \"chronon3d_backend_software\"" 1
 
-# Test 2.4: render_scene_internal is only in wrapper and render_pipeline
-# Let's find occurrences of render_scene_internal, filtering out comments and test files
-run_test "Test 2.4: render_scene_internal is not leaked elsewhere" \
-  "grep -Rn \"render_scene_internal\" src include | grep -v \"software_renderer\" | grep -v \"render_pipeline\"" 1
+# Test 2.4: render_scene_internal is completely removed
+run_test "Test 2.4: render_scene_internal is completely removed" \
+  "grep -Rn \"render_scene_internal\" src include" 1
 
 # Test 14.2: SpecScene does not include SoftwareRenderer
 run_test "Test 14.2: SpecScene does not include SoftwareRenderer" \
