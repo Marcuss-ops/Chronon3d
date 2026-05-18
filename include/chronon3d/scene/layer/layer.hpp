@@ -38,6 +38,7 @@ struct Layer {
     AnimatedTransform anim_transform{};
     Frame from{0};
     Frame duration{-1};
+    Frame time_offset{0};
     bool      visible{true};
     bool      is_3d{false};
     bool      hierarchy_resolved{false};
@@ -69,6 +70,10 @@ struct Layer {
         if (frame < from) return false;
         if (duration < 0) return true;
         return frame < from + duration;
+    }
+
+    [[nodiscard]] Frame local_frame(Frame global_frame) const {
+        return global_frame - from + time_offset;
     }
 };
 

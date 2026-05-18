@@ -97,6 +97,12 @@ std::vector<std::vector<Vec2>> flatten_path(const PathShape& path, int segments)
         }
     }
 
+    if (!current_points.empty() && path.closed) {
+        if (current_points.front() != current_points.back()) {
+            current_points.push_back(current_points.front());
+        }
+    }
+
     if (!current_points.empty()) {
         subpaths.push_back(std::move(current_points));
     }

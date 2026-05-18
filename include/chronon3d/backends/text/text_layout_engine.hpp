@@ -23,11 +23,13 @@ namespace chronon3d {
 struct TextLine {
     std::string text;
     float       width{0.0f};
+    Vec2        position{0.0f, 0.0f};
 };
 
 struct TextLayoutResult {
     std::vector<TextLine> lines;
     float resolved_font_size{0.0f};
+    Vec2  size{0.0f, 0.0f};
     bool  clipped{false};  // true if text was cut because max_lines exceeded
 };
 

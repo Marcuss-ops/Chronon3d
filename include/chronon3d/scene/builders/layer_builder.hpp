@@ -2,25 +2,34 @@
 
 #include <chronon3d/scene/layer/layer.hpp>
 #include <chronon3d/scene/builders/builder_params.hpp>
+#include <chronon3d/registry/shape_registry.hpp>
 #include <chronon3d/scene/mask/mask.hpp>
 #include <chronon3d/scene/effects/effect_stack.hpp>
 #include <chronon3d/scene/material_2_5d.hpp>
 #include <chronon3d/layout/layout_rules.hpp>
 #include <chronon3d/backends/video/video_source.hpp>
 #include <chronon3d/math/mat4.hpp>
+#include <chronon3d/animation/animated_value.hpp>
+#include <chronon3d/animation/animated_transform.hpp>
 #include <string>
 #include <memory_resource>
+#include <optional>
 
 namespace chronon3d {
 
 class LayerBuilder {
 public:
     explicit LayerBuilder(std::string name,
+                          Frame current_frame = 0,
                           std::pmr::memory_resource* res = std::pmr::get_default_resource());
+    explicit LayerBuilder(std::string name,
+                          std::pmr::memory_resource* res);
 
     LayerBuilder& parent(std::string name);
     LayerBuilder& from(Frame frame);
     LayerBuilder& duration(Frame frames);
+    LayerBuilder& until(Frame frame);
+    LayerBuilder& offset(Frame frames);
     LayerBuilder& visible(bool value);
     LayerBuilder& kind(LayerKind value);
 
@@ -31,6 +40,12 @@ public:
     LayerBuilder& anchor(Vec3 a);
     LayerBuilder& opacity(f32 value);
     LayerBuilder& enable_3d(bool value = true);
+
+    AnimatedValue<Vec3>& position_anim();
+    AnimatedValue<Vec3>& scale_anim();
+    AnimatedValue<Vec3>& rotate_anim();
+    AnimatedValue<Vec3>& anchor_anim();
+    AnimatedValue<f32>&  opacity_anim();
 
     // Depth
     LayerBuilder& depth_role(DepthRole role);
@@ -65,6 +80,7 @@ public:
     LayerBuilder& path(std::string name, PathParams p);
     LayerBuilder& text(std::string name, TextParams p);
     LayerBuilder& image(std::string name, ImageParams p);
+    LayerBuilder& shape(std::string_view id, std::string name, registry::ShapeParams params);
 
     // 3D Shapes (Delegated)
     LayerBuilder& fake_box3d(std::string name, FakeBox3DParams p);
@@ -115,6 +131,9 @@ public:
 
 private:
     Layer m_layer;
+    Frame m_current_frame{0};
+    std::optional<Frame> m_until_frame{};
+    bool m_duration_explicit{false};
 };
 
 } // namespace chronon3d

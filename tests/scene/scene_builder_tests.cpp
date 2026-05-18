@@ -3,6 +3,7 @@
 #include <chronon3d/scene/builders/layer_builder.hpp>
 
 using namespace chronon3d;
+namespace shape_ids = chronon3d::registry::shape_ids;
 
 TEST_CASE("Test 8.1 — Rect mapping on SceneBuilder") {
     auto scene = SceneBuilder{}
@@ -81,6 +82,23 @@ TEST_CASE("Test 8.6 — Image mapping on SceneBuilder") {
     const auto& node = scene.nodes()[0];
     CHECK(node.shape.type == ShapeType::Image);
     CHECK(node.shape.image.path == "photo.png");
+}
+
+TEST_CASE("Test 8.6b — Generic shape API on SceneBuilder") {
+    auto scene = SceneBuilder{}
+        .shape(
+            shape_ids::Rect,
+            "generic_rect",
+            registry::ShapeParams{RectParams{.size = {64.0f, 32.0f}, .color = Color::blue()}}
+        )
+        .build();
+
+    REQUIRE(scene.nodes().size() == 1);
+    const auto& node = scene.nodes()[0];
+    CHECK(node.name == "generic_rect");
+    CHECK(node.shape.type == ShapeType::Rect);
+    CHECK(node.shape.rect.size.x == doctest::Approx(64.0f));
+    CHECK(node.shape.rect.size.y == doctest::Approx(32.0f));
 }
 
 TEST_CASE("Test 8.7 — Active/inactive layer lifecycle filters") {

@@ -46,6 +46,30 @@ u64 hash_shape(const Shape& shape) {
             seed = hash_combine(seed, hash_vec3(shape.line.to));
             seed = hash_combine(seed, hash_value_local(shape.line.thickness));
             break;
+        case ShapeType::Path:
+            seed = hash_combine(seed, hash_value_local(shape.path.commands.size()));
+            for (const auto& cmd : shape.path.commands) {
+                seed = hash_combine(seed, hash_value_local(static_cast<u64>(cmd.type)));
+                seed = hash_combine(seed, hash_vec2(cmd.p0));
+                seed = hash_combine(seed, hash_vec2(cmd.p1));
+                seed = hash_combine(seed, hash_vec2(cmd.p2));
+            }
+            seed = hash_combine(seed, hash_value_local(shape.path.stroke.width));
+            seed = hash_combine(seed, hash_value_local(static_cast<u64>(shape.path.stroke.cap)));
+            seed = hash_combine(seed, hash_value_local(static_cast<u64>(shape.path.stroke.join)));
+            seed = hash_combine(seed, hash_value_local(shape.path.stroke.trim_start));
+            seed = hash_combine(seed, hash_value_local(shape.path.stroke.trim_end));
+            seed = hash_combine(seed, hash_value_local(shape.path.closed));
+            seed = hash_combine(seed, hash_value_local(static_cast<u64>(shape.path.fill.type)));
+            seed = hash_combine(seed, hash_color(shape.path.fill.solid));
+            seed = hash_combine(seed, hash_vec2(shape.path.fill.gradient.from));
+            seed = hash_combine(seed, hash_vec2(shape.path.fill.gradient.to));
+            seed = hash_combine(seed, hash_value_local(shape.path.fill.gradient.stops.size()));
+            for (const auto& stop : shape.path.fill.gradient.stops) {
+                seed = hash_combine(seed, hash_value_local(stop.offset));
+                seed = hash_combine(seed, hash_color(stop.color));
+            }
+            break;
         case ShapeType::Text:
             seed = hash_combine(seed, hash_string(shape.text.text));
             seed = hash_combine(seed, hash_string(shape.text.style.font_path));

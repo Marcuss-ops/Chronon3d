@@ -1,10 +1,14 @@
 #pragma once
 
+#include <chronon3d/registry/shape_ids.hpp>
+#include <chronon3d/registry/shape_params.hpp>
+#include <chronon3d/scene/layer/render_node.hpp>
 #include <string>
 #include <string_view>
 #include <vector>
 #include <map>
 #include <functional>
+#include <memory_resource>
 
 namespace chronon3d::registry {
 
@@ -33,10 +37,17 @@ struct ShapeDescriptor {
     ShapeKind   kind{ShapeKind::Primitive};
     std::string description;
     bool        builtin{false};
+    using ShapeFactory = std::function<RenderNode(
+        std::pmr::memory_resource*,
+        std::string,
+        ShapeParams)>;
+    ShapeFactory factory{};
 };
 
 class ShapeRegistry {
 public:
+    static ShapeRegistry& instance();
+
     ShapeRegistry();
 
     void register_shape(ShapeDescriptor descriptor);
@@ -45,6 +56,11 @@ public:
     [[nodiscard]] const ShapeDescriptor& get(std::string_view id) const;
     [[nodiscard]] std::vector<std::string> available() const;
     [[nodiscard]] std::vector<ShapeDescriptor> list() const;
+    [[nodiscard]] RenderNode create_node(
+        std::string_view id,
+        std::pmr::memory_resource* res,
+        std::string name,
+        ShapeParams params) const;
 
 private:
     std::map<std::string, ShapeDescriptor, std::less<>> m_shapes;

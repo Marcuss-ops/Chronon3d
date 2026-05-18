@@ -6,6 +6,7 @@
 #include <chronon3d/math/transform.hpp>
 #include <chronon3d/scene/builders/builder_params.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
+#include <chronon3d/registry/shape_registry.hpp>
 #include <chronon3d/scene/camera/camera_2_5d.hpp>
 #include <chronon3d/rendering/light_context.hpp>
 #include <chronon3d/scene/scene.hpp>
@@ -145,10 +146,11 @@ namespace chronon3d {
         SceneBuilder &path(std::string name, PathParams p);
         SceneBuilder &text(std::string name, TextParams p);
         SceneBuilder &image(std::string name, ImageParams p);
+        SceneBuilder &shape(std::string_view id, std::string name, registry::ShapeParams params);
 
         // Standard Layers
         template <typename Fn> SceneBuilder &layer(std::string name, Fn &&fn) {
-            LayerBuilder builder(std::move(name), scene_.resource());
+            LayerBuilder builder(std::move(name), current_frame_, scene_.resource());
             std::forward<Fn>(fn)(builder);
 
             Layer l = builder.build();
@@ -161,7 +163,7 @@ namespace chronon3d {
         // Adjustment layer: applies its effect stack to everything rendered before it.
         // The lambda receives a LayerBuilder but any visuals added are ignored.
         template <typename Fn> SceneBuilder &adjustment_layer(std::string name, Fn &&fn) {
-            LayerBuilder builder(std::move(name), scene_.resource());
+            LayerBuilder builder(std::move(name), current_frame_, scene_.resource());
             std::forward<Fn>(fn)(builder);
 
             Layer l = builder.build();
@@ -174,7 +176,7 @@ namespace chronon3d {
 
         template <typename Fn>
         SceneBuilder &precomp_layer(std::string name, std::string comp_name, Fn &&fn) {
-            LayerBuilder builder(std::move(name), scene_.resource());
+            LayerBuilder builder(std::move(name), current_frame_, scene_.resource());
             std::forward<Fn>(fn)(builder);
 
             Layer l = builder.build();
@@ -188,7 +190,7 @@ namespace chronon3d {
 
         template <typename Fn>
         SceneBuilder &video_layer(std::string name, video::VideoSource source, Fn &&fn) {
-            LayerBuilder builder(std::move(name), scene_.resource());
+            LayerBuilder builder(std::move(name), current_frame_, scene_.resource());
             std::forward<Fn>(fn)(builder);
 
             Layer l = builder.build();
@@ -208,7 +210,7 @@ namespace chronon3d {
         }
 
         template <typename Fn> SceneBuilder &null_layer(std::string name, Fn &&fn) {
-            LayerBuilder builder(std::move(name), scene_.resource());
+            LayerBuilder builder(std::move(name), current_frame_, scene_.resource());
             std::forward<Fn>(fn)(builder);
 
             Layer l = builder.build();
