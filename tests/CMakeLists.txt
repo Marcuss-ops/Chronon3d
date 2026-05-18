@@ -19,6 +19,7 @@ add_executable(chronon3d_core_tests
     core/animation/test_animated_value.cpp
     core/animation/test_keyframes.cpp
     core/animation/test_keyframe_tracks.cpp
+    core/animation/test_animated_transform.cpp
     core/timeline/test_timeline.cpp
     core/timeline/test_code_first_composition.cpp
     core/timeline/test_sequence.cpp
