@@ -25,6 +25,7 @@ public:
     [[nodiscard]] RenderNode& last_node() { return m_nodes.back(); }
 
     [[nodiscard]] const std::pmr::vector<RenderNode>& nodes() const { return m_nodes; }
+    [[nodiscard]] std::pmr::vector<RenderNode>& nodes() { return m_nodes; }
     [[nodiscard]] const std::pmr::vector<Layer>& layers() const { return m_layers; }
     [[nodiscard]] std::pmr::vector<Layer>& layers() { return m_layers; }
 

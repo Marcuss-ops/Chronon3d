@@ -8,6 +8,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <mutex>
 
 #define XXH_INLINE_ALL
 #include <xxhash.h>
@@ -41,11 +42,14 @@ public:
     }
 
     static void mount(const std::filesystem::path& root_path) {
-        instance().m_root_path = root_path;
+        auto& inst = instance();
+        std::lock_guard<std::mutex> lock(inst.m_mutex);
+        inst.m_root_path = root_path;
     }
 
     static void clear() {
         auto& inst = instance();
+        std::lock_guard<std::mutex> lock(inst.m_mutex);
         inst.m_assets.clear();
         inst.m_by_id.clear();
         inst.m_root_path.clear();
@@ -53,6 +57,7 @@ public:
 
     static std::string resolve(const std::filesystem::path& relative_path) {
         auto& inst = instance();
+        std::lock_guard<std::mutex> lock(inst.m_mutex);
         if (relative_path.is_absolute()) {
             return relative_path.lexically_normal().string();
         }
@@ -65,22 +70,27 @@ public:
     // --- New API -----------------------------------------------------------
 
     AssetId import_image(const std::filesystem::path& path) {
-        return register_asset(path, AssetType::Image, ColorSpace::SRGB, AlphaMode::Straight);
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return register_asset_unlocked(path, AssetType::Image, ColorSpace::SRGB, AlphaMode::Straight);
     }
 
     AssetId import_font(const std::filesystem::path& path) {
-        return register_asset(path, AssetType::Font, ColorSpace::LinearSRGB, AlphaMode::None);
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return register_asset_unlocked(path, AssetType::Font, ColorSpace::LinearSRGB, AlphaMode::None);
     }
 
     AssetId import_video(const std::filesystem::path& path) {
-        return register_asset(path, AssetType::Video, ColorSpace::SRGB, AlphaMode::Straight);
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return register_asset_unlocked(path, AssetType::Video, ColorSpace::SRGB, AlphaMode::Straight);
     }
 
     AssetId import_audio(const std::filesystem::path& path) {
-        return register_asset(path, AssetType::Audio, ColorSpace::LinearSRGB, AlphaMode::None);
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return register_asset_unlocked(path, AssetType::Audio, ColorSpace::LinearSRGB, AlphaMode::None);
     }
 
-    [[nodiscard]] const AssetMetadata& metadata(AssetId id) const {
+    [[nodiscard]] AssetMetadata metadata(AssetId id) const {
+        std::lock_guard<std::mutex> lock(m_mutex);
         const auto it = m_by_id.find(id);
         if (it == m_by_id.end())
             throw std::out_of_range("AssetRegistry: unknown AssetId");
@@ -88,14 +98,26 @@ public:
     }
 
     [[nodiscard]] std::optional<AssetId> find_by_path(const std::filesystem::path& path) const {
+        std::lock_guard<std::mutex> lock(m_mutex);
         const AssetId id = asset_id_from_path(path);
         if (m_by_id.contains(id)) return id;
         return std::nullopt;
     }
 
-    [[nodiscard]] bool contains(AssetId id) const { return m_by_id.contains(id); }
-    [[nodiscard]] usize size() const { return m_assets.size(); }
-    [[nodiscard]] const std::vector<AssetMetadata>& assets() const { return m_assets; }
+    [[nodiscard]] bool contains(AssetId id) const {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_by_id.contains(id);
+    }
+
+    [[nodiscard]] usize size() const {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_assets.size();
+    }
+
+    [[nodiscard]] std::vector<AssetMetadata> assets() const {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_assets;
+    }
 
     // --- Legacy API (backward compat) ------------------------------------
 
@@ -104,7 +126,8 @@ public:
     }
 
     void declare_mesh(const std::string& /*name*/, const std::string& path) {
-        register_asset(path, AssetType::Mesh, ColorSpace::LinearSRGB, AlphaMode::None);
+        std::lock_guard<std::mutex> lock(m_mutex);
+        register_asset_unlocked(path, AssetType::Mesh, ColorSpace::LinearSRGB, AlphaMode::None);
     }
 
     void resolve_all() {}  // no-op: resolution is lazy in the renderer
@@ -125,10 +148,10 @@ public:
 
 private:
 
-    AssetId register_asset(const std::filesystem::path& path,
-                           AssetType  type,
-                           ColorSpace cs,
-                           AlphaMode  am) {
+    AssetId register_asset_unlocked(const std::filesystem::path& path,
+                                   AssetType  type,
+                                   ColorSpace cs,
+                                   AlphaMode  am) {
         const AssetId id = asset_id_from_path(path);
         if (m_by_id.contains(id)) return id;  // deduplicate
 
@@ -148,6 +171,7 @@ private:
         return id;
     }
 
+    mutable std::mutex                  m_mutex;
     std::filesystem::path               m_root_path;
     std::vector<AssetMetadata>          m_assets;
     std::unordered_map<AssetId, usize>  m_by_id;

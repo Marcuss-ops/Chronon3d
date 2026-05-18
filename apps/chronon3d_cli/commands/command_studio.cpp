@@ -1,7 +1,6 @@
 #include "../commands.hpp"
 #include "../utils/render_job.hpp"
 #include "../utils/cli_render_utils.hpp"
-#include <chronon3d/registry/props_registry.hpp>
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <fmt/format.h>

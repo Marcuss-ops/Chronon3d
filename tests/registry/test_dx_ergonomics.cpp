@@ -11,14 +11,15 @@ using namespace chronon3d;
 
 TEST_CASE("AssetRegistry mounts and resolves paths correctly") {
     AssetRegistry::clear();
-    AssetRegistry::mount("C:/Users/pater/Pyt/Chrono/assets");
+    auto root = std::filesystem::current_path() / "assets";
+    AssetRegistry::mount(root);
 
     std::string path = AssetRegistry::resolve("images/logo.png");
-    CHECK(std::filesystem::path(path) == std::filesystem::path("C:/Users/pater/Pyt/Chrono/assets/images/logo.png"));
+    CHECK(std::filesystem::path(path) == std::filesystem::path(root / "images/logo.png"));
 
     // Dynamic asset deductions
     std::string image_deduced = asset("images/logo.png");
-    CHECK(std::filesystem::path(image_deduced) == std::filesystem::path("C:/Users/pater/Pyt/Chrono/assets/images/logo.png"));
+    CHECK(std::filesystem::path(image_deduced) == std::filesystem::path(root / "images/logo.png"));
 
     auto assets = AssetRegistry::instance().assets();
     CHECK(!assets.empty());
@@ -41,7 +42,6 @@ TEST_CASE("FontRegistry resolves exact or closest weights/styles") {
     std::string closest = FontRegistry::resolve("Inter", 800, "italic");
     CHECK(closest == "fonts/Inter-Bold.ttf");
 }
-
 
 TEST_CASE("Interpolation and Spring physical presets function correctly") {
     // Easing interpolation
@@ -87,4 +87,22 @@ TEST_CASE("SceneBuilder sequence temporal timeline shifting works correctly") {
     // Shifted from 10 relative to 30 absolute -> 40 absolute
     CHECK(layers[0].from == 40);
     CHECK(layers[0].duration == 20);
+}
+
+TEST_CASE("RenderPreflight validates existence of assets correctly") {
+    AssetRegistry::clear();
+    FontRegistry::clear();
+    auto& preflight = RenderPreflight::instance();
+    preflight.clear();
+
+    // If we require a non-existent font, it should throw
+    preflight.require_font("NonExistentFont", 400, "normal");
+    CHECK_THROWS_AS(preflight.validate_or_throw(), ChrononAssetError);
+
+    preflight.clear();
+    // If we require a non-existent image asset, it should throw
+    preflight.require_image("images/missing_logo.png");
+    CHECK_THROWS_AS(preflight.validate_or_throw(), ChrononAssetError);
+
+    preflight.clear();
 }

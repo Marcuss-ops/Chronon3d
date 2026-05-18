@@ -268,6 +268,10 @@ TEST_CASE("Fake3DWave deforms generic layer content") {
 }
 
 TEST_CASE("Fake3DWave preserves LilDirk-style text bounds before and after deformation") {
+    if (!std::filesystem::exists("assets/fonts/Inter-Bold.ttf")) {
+        MESSAGE("Skipping test because font is missing");
+        return;
+    }
     auto fb_base = render_single(800, 400, [](SceneBuilder& s) {
         s.layer("title", [](LayerBuilder& l) {
             l.position({400.0f, 200.0f, 0.0f});

@@ -106,6 +106,7 @@ float region_brightness(const Framebuffer& fb, int x0, int y0, int x1, int y1) {
 } // namespace
 
 TEST_CASE("ChrononIntroCard: renders without crash at key frames") {
+    if (!std::filesystem::exists("assets/fonts/Inter-Bold.ttf")) return;
     auto fb0   = render_intro(0);
     auto fb45  = render_intro(45);
     auto fb90  = render_intro(90);
@@ -123,6 +124,7 @@ TEST_CASE("ChrononIntroCard: renders without crash at key frames") {
 }
 
 TEST_CASE("ChrononIntroCard: card center is brighter than dark corners at frame 0") {
+    if (!std::filesystem::exists("assets/fonts/Inter-Bold.ttf")) return;
     auto fb = render_intro(0);
     REQUIRE(fb != nullptr);
 
@@ -132,6 +134,7 @@ TEST_CASE("ChrononIntroCard: card center is brighter than dark corners at frame 
 }
 
 TEST_CASE("ChrononIntroCard: title area brightens as title flies in") {
+    if (!std::filesystem::exists("assets/fonts/Inter-Bold.ttf")) return;
     // Frame 0: title at x=-880, very dim near center
     // Frame 45: title partially arrived, center-left area brighter
     auto fb0  = render_intro(0);
@@ -146,6 +149,7 @@ TEST_CASE("ChrononIntroCard: title area brightens as title flies in") {
 }
 
 TEST_CASE("ChrononIntroCard: center is bright by frame 90 (title fully in)") {
+    if (!std::filesystem::exists("assets/fonts/Inter-Bold.ttf")) return;
     auto fb = render_intro(90);
     REQUIRE(fb != nullptr);
 

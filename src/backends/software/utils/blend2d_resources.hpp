@@ -5,6 +5,7 @@
 #include <unordered_map>
 #include <string>
 #include <spdlog/spdlog.h>
+#include <chronon3d/assets/asset_registry.hpp>
 
 namespace chronon3d::blend2d_utils {
 
@@ -19,14 +20,15 @@ struct Blend2DResources {
 
     BLFontFace get_face(const std::string& path) {
         std::lock_guard<std::mutex> lock(mutex);
-        auto it = faces.find(path);
+        std::string resolved_path = AssetRegistry::resolve(path);
+        auto it = faces.find(resolved_path);
         if (it == faces.end()) {
             BLFontFace face;
-            if (face.createFromFile(path.c_str()) != BL_SUCCESS) {
-                spdlog::error("Blend2D: failed to load font {}", path);
+            if (face.createFromFile(resolved_path.c_str()) != BL_SUCCESS) {
+                spdlog::error("Blend2D: failed to load font {} (resolved: {})", path, resolved_path);
                 return BLFontFace();
             }
-            faces[path] = face;
+            faces[resolved_path] = face;
             return face;
         }
         return it->second;

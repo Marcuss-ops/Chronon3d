@@ -26,6 +26,10 @@
 #include <chronon3d/scene/layer/depth_role.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/animation/interpolate.hpp>
+#include <chronon3d/assets/asset_registry.hpp>
+#include <chronon3d/assets/render_preflight.hpp>
+#include <chronon3d/registry/font_registry.hpp>
+#include <chronon3d/presets/motion_presets.hpp>
 
 namespace chronon3d {
     // Umbrella header for Chronon3d

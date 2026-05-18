@@ -11,7 +11,6 @@ inline Transform calculate_centered_transform(const Transform& t, const RenderGr
 
 /// Determine if a layer should be rendered in centered mode.
 inline bool should_use_centered_rendering(const LayerGraphItem& item, const RenderGraphContext& ctx) {
-    if (item.projected) return false;
     return ctx.modular_coordinates || item.layer->is_3d;
 }
 
