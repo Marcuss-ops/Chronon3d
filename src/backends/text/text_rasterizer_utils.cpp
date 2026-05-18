@@ -1,5 +1,6 @@
 #include <chronon3d/backends/text/text_rasterizer_utils.hpp>
 #include "../software/utils/blend2d_resources.hpp"
+#include <chronon3d/registry/font_registry.hpp>
 #include <algorithm>
 #include <cmath>
 
@@ -10,9 +11,13 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     float effective_size,
     int padding
 ) {
-    if (t.text.empty() || t.style.font_path.empty()) return std::nullopt;
+    std::string font_path = t.style.font_path;
+    if (font_path.empty() && !t.style.font_family.empty()) {
+        font_path = FontRegistry::resolve(t.style.font_family, t.style.font_weight, t.style.font_style);
+    }
+    if (t.text.empty() || font_path.empty()) return std::nullopt;
 
-    BLFontFace face = blend2d_utils::Blend2DResources::instance().get_face(t.style.font_path);
+    BLFontFace face = blend2d_utils::Blend2DResources::instance().get_face(font_path);
     if (face.empty()) return std::nullopt;
 
     BLFont font;

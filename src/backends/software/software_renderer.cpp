@@ -103,8 +103,8 @@ void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node,
     SoftwareNodeDispatcher::draw_node(*this, fb, node, state, camera, width, height, software_registry());
 }
 
-void SoftwareRenderer::apply_effect_stack(Framebuffer& fb, const EffectStack& stack) {
-    SoftwareEffectRunner::apply_effect_stack(fb, stack, software_registry());
+void SoftwareRenderer::apply_effect_stack(Framebuffer& fb, const EffectStack& stack, float time_seconds) {
+    SoftwareEffectRunner::apply_effect_stack(fb, stack, software_registry(), time_seconds);
 }
 
 void SoftwareRenderer::composite_layer(Framebuffer& dst, const Framebuffer& src, BlendMode mode) {

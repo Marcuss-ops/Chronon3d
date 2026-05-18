@@ -92,6 +92,17 @@ void register_builtin_effects(EffectRegistry& registry) {
         .temporal = false,
         .factory = generic_effect_factory
     });
+
+    registry.register_effect(EffectDescriptor{
+        .id = std::string{ids::DistortFake3DWave},
+        .display_name = "Fake 3D Wave",
+        .category = EffectCategory::Distort,
+        .stage = EffectStage::LayerPostTransform,
+        .description = "Slice-deform a layer surface into a wave",
+        .builtin = true,
+        .temporal = true,
+        .factory = generic_effect_factory
+    });
 }
 
 } // namespace

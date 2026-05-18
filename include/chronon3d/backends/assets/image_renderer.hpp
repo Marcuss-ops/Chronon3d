@@ -9,13 +9,10 @@ namespace chronon3d {
 
 class ImageRenderer {
 public:
-    void set_backend(std::shared_ptr<image::ImageBackend> backend) { m_cache.set_backend(std::move(backend)); }
+    void set_backend(std::shared_ptr<image::ImageBackend> backend) { ImageCache::instance().set_backend(std::move(backend)); }
     bool draw_image(const ImageShape& image, const RenderState& state, Framebuffer& fb);
 
-    void clear_cache() { m_cache.clear(); }
-
-private:
-    ImageCache m_cache;
+    void clear_cache() { ImageCache::instance().clear(); }
 };
 
 } // namespace chronon3d

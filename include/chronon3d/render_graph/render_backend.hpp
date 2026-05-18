@@ -28,7 +28,8 @@ public:
 
     virtual void apply_effect_stack(
         Framebuffer& fb,
-        const EffectStack& effects
+        const EffectStack& effects,
+        float time_seconds
     ) = 0;
 
     virtual void composite_layer(

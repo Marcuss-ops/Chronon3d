@@ -94,6 +94,31 @@ TEST_CASE("EffectStack: drop_shadow and glow added to stack") {
     CHECK(holds_effect<GlowParams>(layer.effects[1]));
 }
 
+TEST_CASE("EffectStack: fake_3d_wave adds Fake3DWaveParams to stack") {
+    LayerBuilder lb("test");
+    lb.fake_3d_wave(Fake3DWaveParams{
+        .amplitude_px = 12.0f,
+        .frequency = 1.5f,
+        .speed = 2.0f,
+        .depth_px = 35.0f,
+        .phase = 0.0f,
+        .slices = 16,
+        .axis = WaveAxis::Horizontal,
+        .perspective = 0.05f,
+        .highlight = 0.2f,
+        .side_darkening = 0.15f,
+        .shadow_enabled = true,
+        .shadow_color = {1.0f, 0.05f, 0.05f, 0.75f},
+        .shadow_offset = {10.0f, 8.0f},
+        .shadow_blur = 0.0f,
+        .expand_bounds = true,
+    });
+    auto layer = lb.build();
+    CHECK(layer.effects.size() == 1);
+    REQUIRE(holds_effect<Fake3DWaveParams>(layer.effects[0]));
+    CHECK(get_effect<Fake3DWaveParams>(layer.effects[0]).slices == 16);
+}
+
 // ---------------------------------------------------------------------------
 // Rendered output: tint via effect stack
 // ---------------------------------------------------------------------------

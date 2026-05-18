@@ -72,10 +72,53 @@ void register_proofs(CLI::App& app, CliContext& ctx) {
     cmd->callback([state, &ctx]() { ctx.exit_code = command_proofs(ctx.registry, *state->args); });
 }
 
+void register_preview(CLI::App& app, CliContext& ctx) {
+    auto state = std::make_shared<RenderState>();
+    auto& args = *state->args;
+    auto* cmd = app.add_subcommand("preview", "Render a single frame of a composition (default: middle frame)");
+    cmd->add_option("input", args.comp_id, "Composition name or .specscene path")->required();
+    cmd->add_option("--frame", args.frames, "Frame number to preview (default: middle frame)");
+    cmd->add_option("-o,--output", args.output, "Output image path")->default_val("preview.png");
+    cmd->add_flag("--diagnostic", args.pipeline.diagnostic, "Enable diagnostic overlays");
+    cmd->add_flag("--graph", args.pipeline.use_modular_graph, "Use modular RenderGraph path");
+    cmd->callback([state, &ctx]() {
+        ctx.exit_code = command_preview(ctx.registry, *state->args);
+    });
+}
+
+void register_contact_sheet(CLI::App& app, CliContext& ctx) {
+    auto state = std::make_shared<RenderState>();
+    auto& args = *state->args;
+    auto* cmd = app.add_subcommand("contact-sheet", "Render 4 frames stitched horizontally into a contact sheet");
+    cmd->add_option("input", args.comp_id, "Composition name or .specscene path")->required();
+    cmd->add_option("-o,--output", args.output, "Output image path")->default_val("contact_sheet.png");
+    cmd->add_flag("--diagnostic", args.pipeline.diagnostic, "Enable diagnostic overlays");
+    cmd->add_flag("--graph", args.pipeline.use_modular_graph, "Use modular RenderGraph path");
+    cmd->callback([state, &ctx]() {
+        ctx.exit_code = command_contact_sheet(ctx.registry, *state->args);
+    });
+}
+
+void register_storyboard(CLI::App& app, CliContext& ctx) {
+    auto state = std::make_shared<RenderState>();
+    auto& args = *state->args;
+    auto* cmd = app.add_subcommand("storyboard", "Render 6 frames in a 2x3 grid with overlays");
+    cmd->add_option("input", args.comp_id, "Composition name or .specscene path")->required();
+    cmd->add_option("-o,--output", args.output, "Output image path")->default_val("storyboard.png");
+    cmd->add_flag("--diagnostic", args.pipeline.diagnostic, "Enable diagnostic overlays");
+    cmd->add_flag("--graph", args.pipeline.use_modular_graph, "Use modular RenderGraph path");
+    cmd->callback([state, &ctx]() {
+        ctx.exit_code = command_storyboard(ctx.registry, *state->args);
+    });
+}
+
 } // namespace
 
 void register_render_commands(CLI::App& app, CliContext& ctx) {
     register_render(app, ctx);
+    register_preview(app, ctx);
+    register_contact_sheet(app, ctx);
+    register_storyboard(app, ctx);
     register_bench(app, ctx);
     register_graph(app, ctx);
     register_proofs(app, ctx);

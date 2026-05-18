@@ -150,6 +150,11 @@ LayerBuilder& LayerBuilder::bloom(f32 threshold, f32 radius, f32 intensity) {
     return *this;
 }
 
+LayerBuilder& LayerBuilder::fake_3d_wave(Fake3DWaveParams params) {
+    m_layer.effects.push_back(EffectInstance{effects::EffectDescriptor{.id = std::string{effects::ids::DistortFake3DWave}}, std::move(params)});
+    return *this;
+}
+
 LayerBuilder& LayerBuilder::blend(BlendMode mode) { m_layer.blend_mode = mode; return *this; }
 
 LayerBuilder& LayerBuilder::pin_to(Anchor anchor, f32 margin) {
@@ -329,6 +334,24 @@ AnimatedValue<Vec3>& LayerBuilder::scale_anim()    { return m_layer.anim_transfo
 AnimatedValue<Vec3>& LayerBuilder::rotate_anim()   { return m_layer.anim_transform.rotation_euler; }
 AnimatedValue<Vec3>& LayerBuilder::anchor_anim()   { return m_layer.anim_transform.anchor; }
 AnimatedValue<f32>&  LayerBuilder::opacity_anim()  { return m_layer.anim_transform.opacity; }
+
+LayerBuilder& LayerBuilder::screen_dimensions(f32 w, f32 h) {
+    m_screen_width = w;
+    m_screen_height = h;
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::fullscreen_rect(std::string name, Color color) {
+    return rect(std::move(name), {
+        .size = { m_screen_width, m_screen_height },
+        .color = color,
+        .pos = { 0.0f, 0.0f, 0.0f }
+    });
+}
+
+LayerBuilder& LayerBuilder::fill(Color color) {
+    return fullscreen_rect("fill", color);
+}
 
 Layer LayerBuilder::build() {
     if (m_until_frame && !m_duration_explicit) {

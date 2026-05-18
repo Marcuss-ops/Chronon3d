@@ -11,5 +11,6 @@ inline constexpr std::string_view ColorContrast = "color.contrast";
 inline constexpr std::string_view LightDropShadow = "light.drop_shadow";
 inline constexpr std::string_view LightGlow = "light.glow";
 inline constexpr std::string_view LightBloom = "light.bloom";
+inline constexpr std::string_view DistortFake3DWave = "distort.fake_3d_wave";
 
 } // namespace chronon3d::effects::ids

@@ -49,7 +49,7 @@ public:
         if (blur > 0.5f && ctx.backend) {
             EffectStack dof_stack;
             dof_stack.push_back(EffectInstance{EffectParams{BlurParams{blur}}});
-            ctx.backend->apply_effect_stack(*result, dof_stack);
+            ctx.backend->apply_effect_stack(*result, dof_stack, ctx.time_seconds);
         }
         return result;
     }

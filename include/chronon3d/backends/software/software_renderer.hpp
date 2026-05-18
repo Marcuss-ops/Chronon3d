@@ -103,7 +103,7 @@ public:
     void draw_node(Framebuffer& fb, const RenderNode& node, const RenderState& state,
                    const Camera& camera, i32 width, i32 height) override;
     void apply_blur(Framebuffer& fb, f32 radius) override;
-    void apply_effect_stack(Framebuffer& fb, const EffectStack& stack) override;
+    void apply_effect_stack(Framebuffer& fb, const EffectStack& stack, float time_seconds) override;
     void composite_layer(Framebuffer& dst, const Framebuffer& src, BlendMode mode) override;
 
     [[nodiscard]] renderer::SoftwareRegistry& software_registry() { return *m_software_registry; }

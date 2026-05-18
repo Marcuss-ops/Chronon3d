@@ -1,6 +1,8 @@
 #include <doctest/doctest.h>
 #include <chronon3d/chronon3d.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include <cmath>
+#include <algorithm>
 
 using namespace chronon3d;
 
@@ -16,6 +18,36 @@ static std::unique_ptr<Framebuffer> render_single(
         return s.build();
     }};
     return renderer.render_frame(comp, 0);
+}
+
+struct PixelBounds {
+    bool found{false};
+    i32 min_x{0};
+    i32 max_x{0};
+    i32 min_y{0};
+    i32 max_y{0};
+};
+
+static PixelBounds find_nontransparent_bounds(const Framebuffer& fb, float alpha_threshold = 0.05f) {
+    PixelBounds bounds;
+    bounds.min_x = fb.width();
+    bounds.min_y = fb.height();
+    bounds.max_x = -1;
+    bounds.max_y = -1;
+
+    for (i32 y = 0; y < fb.height(); ++y) {
+        for (i32 x = 0; x < fb.width(); ++x) {
+            if (fb.get_pixel(x, y).a > alpha_threshold) {
+                bounds.found = true;
+                bounds.min_x = std::min(bounds.min_x, x);
+                bounds.max_x = std::max(bounds.max_x, x);
+                bounds.min_y = std::min(bounds.min_y, y);
+                bounds.max_y = std::max(bounds.max_y, y);
+            }
+        }
+    }
+
+    return bounds;
 }
 
 // ---------------------------------------------------------------------------
@@ -167,4 +199,145 @@ TEST_CASE("Glow") {
         CHECK(fb->get_pixel(50, 50).r > 0.9f);
         CHECK(fb->get_pixel(50, 50).b < 0.1f);
     }
+}
+
+// ---------------------------------------------------------------------------
+// Fake 3D Wave
+// ---------------------------------------------------------------------------
+TEST_CASE("Fake3DWave deforms generic layer content") {
+    auto fb_base = render_single(100, 100, [](SceneBuilder& s) {
+        s.layer("card", [](LayerBuilder& l) {
+            l.position({50, 50, 0});
+            l.rounded_rect("rr", {
+                .size = {70.0f, 30.0f},
+                .radius = 4.0f,
+                .color = Color::white(),
+                .pos = {0.0f, 0.0f, 0.0f}
+            });
+        });
+    });
+
+    auto fb_wave = render_single(100, 100, [](SceneBuilder& s) {
+        s.layer("card", [](LayerBuilder& l) {
+            l.position({50, 50, 0});
+            l.rounded_rect("rr", {
+                .size = {70.0f, 30.0f},
+                .radius = 4.0f,
+                .color = Color::white(),
+                .pos = {0.0f, 0.0f, 0.0f}
+            });
+            l.fake_3d_wave(Fake3DWaveParams{
+                .amplitude_px = 12.0f,
+                .frequency = 1.25f,
+                .speed = 0.0f,
+                .depth_px = 0.0f,
+                .phase = 0.0f,
+                .slices = 8,
+                .axis = WaveAxis::Horizontal,
+                .perspective = 0.0f,
+                .highlight = 0.0f,
+                .side_darkening = 0.0f,
+                .shadow_enabled = false,
+                .shadow_color = {1.0f, 0.05f, 0.05f, 0.75f},
+                .shadow_offset = {10.0f, 8.0f},
+                .shadow_blur = 0.0f,
+                .expand_bounds = true,
+            });
+        });
+    });
+
+    REQUIRE(fb_base->width() == fb_wave->width());
+    REQUIRE(fb_base->height() == fb_wave->height());
+
+    bool different = false;
+    for (i32 y = 0; y < fb_base->height() && !different; ++y) {
+        for (i32 x = 0; x < fb_base->width(); ++x) {
+            const Color a = fb_base->get_pixel(x, y);
+            const Color b = fb_wave->get_pixel(x, y);
+            if (std::abs(a.r - b.r) > 0.001f ||
+                std::abs(a.g - b.g) > 0.001f ||
+                std::abs(a.b - b.b) > 0.001f ||
+                std::abs(a.a - b.a) > 0.001f) {
+                different = true;
+                break;
+            }
+        }
+    }
+
+    CHECK(different);
+}
+
+TEST_CASE("Fake3DWave preserves LilDirk-style text bounds before and after deformation") {
+    auto fb_base = render_single(800, 400, [](SceneBuilder& s) {
+        s.layer("title", [](LayerBuilder& l) {
+            l.position({400.0f, 200.0f, 0.0f});
+            l.text("title", {
+                .content = "LIL DIRK",
+                .style = {
+                    .font_path = "assets/fonts/Inter-Bold.ttf",
+                    .size = 112.0f,
+                    .color = Color::white(),
+                    .align = TextAlign::Center,
+                },
+                .pos = {0.0f, 22.0f, 0.0f},
+            }).with_glow(Glow{
+                .enabled = true,
+                .radius = 18.0f,
+                .intensity = 0.72f,
+                .color = Color::white(),
+            });
+        });
+    });
+
+    auto fb_wave = render_single(800, 400, [](SceneBuilder& s) {
+        s.layer("title", [](LayerBuilder& l) {
+            l.position({400.0f, 200.0f, 0.0f});
+            l.text("title", {
+                .content = "LIL DIRK",
+                .style = {
+                    .font_path = "assets/fonts/Inter-Bold.ttf",
+                    .size = 112.0f,
+                    .color = Color::white(),
+                    .align = TextAlign::Center,
+                },
+                .pos = {0.0f, 22.0f, 0.0f},
+            }).with_glow(Glow{
+                .enabled = true,
+                .radius = 18.0f,
+                .intensity = 0.72f,
+                .color = Color::white(),
+            }).fake_3d_wave(Fake3DWaveParams{
+                .amplitude_px = 10.0f,
+                .frequency = 1.2f,
+                .speed = 0.0f,
+                .depth_px = 20.0f,
+                .phase = 0.0f,
+                .slices = 24,
+                .axis = WaveAxis::Horizontal,
+                .perspective = 0.06f,
+                .highlight = 0.25f,
+                .side_darkening = 0.18f,
+                .shadow_enabled = false,
+                .shadow_color = {1.0f, 0.05f, 0.05f, 0.80f},
+                .shadow_offset = {10.0f, 8.0f},
+                .shadow_blur = 0.0f,
+                .expand_bounds = true,
+            });
+        });
+    });
+
+    const auto base_bounds = find_nontransparent_bounds(*fb_base);
+    const auto wave_bounds = find_nontransparent_bounds(*fb_wave);
+
+    REQUIRE(base_bounds.found);
+    REQUIRE(wave_bounds.found);
+
+    MESSAGE("base bounds: ", base_bounds.min_x, ",", base_bounds.min_y,
+            " -> ", base_bounds.max_x, ",", base_bounds.max_y);
+    MESSAGE("wave bounds: ", wave_bounds.min_x, ",", wave_bounds.min_y,
+            " -> ", wave_bounds.max_x, ",", wave_bounds.max_y);
+
+    CHECK(base_bounds.max_y - base_bounds.min_y > 60);
+    CHECK(wave_bounds.max_y - wave_bounds.min_y > 60);
+    CHECK(wave_bounds.max_x - wave_bounds.min_x >= base_bounds.max_x - base_bounds.min_x - 30);
 }

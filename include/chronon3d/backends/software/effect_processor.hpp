@@ -9,7 +9,7 @@ class EffectProcessor {
 public:
     virtual ~EffectProcessor() = default;
 
-    virtual void apply(Framebuffer& fb, const EffectParams& params) = 0;
+    virtual void apply(Framebuffer& fb, const EffectParams& params, float time_seconds) = 0;
 };
 
 } // namespace chronon3d::renderer

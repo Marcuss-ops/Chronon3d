@@ -6,20 +6,37 @@
 
 namespace chronon3d {
 
+enum class ClampMode {
+    Clamp,
+    Extrapolate
+};
+
+inline f32 map(f32 value, f32 in_min, f32 in_max, f32 out_min, f32 out_max, ClampMode clamp = ClampMode::Clamp) {
+    if (in_max == in_min) return out_min;
+    f32 t = (value - in_min) / (in_max - in_min);
+    if (clamp == ClampMode::Clamp) {
+        t = std::clamp(t, 0.0f, 1.0f);
+    }
+    return out_min + (out_max - out_min) * t;
+}
+
 inline f32 interpolate(
     f32 input,
     f32 input_start,
     f32 input_end,
     f32 output_start,
     f32 output_end,
-    Easing easing = Easing::Linear
+    Easing easing = Easing::Linear,
+    ClampMode clamp = ClampMode::Clamp
 ) {
     if (input_end == input_start) {
         return output_start;
     }
 
     f32 t = (input - input_start) / (input_end - input_start);
-    t = std::clamp(t, 0.0f, 1.0f);
+    if (clamp == ClampMode::Clamp) {
+        t = std::clamp(t, 0.0f, 1.0f);
+    }
     
     if (easing != Easing::Linear) {
         t = easing::apply(easing, t);
@@ -34,7 +51,8 @@ inline f32 interpolate(
     Frame input_end,
     f32 output_start,
     f32 output_end,
-    Easing easing = Easing::Linear
+    Easing easing = Easing::Linear,
+    ClampMode clamp = ClampMode::Clamp
 ) {
     return interpolate(
         static_cast<f32>(frame),
@@ -42,8 +60,25 @@ inline f32 interpolate(
         static_cast<f32>(input_end),
         output_start,
         output_end,
-        easing
+        easing,
+        clamp
     );
 }
+
+struct AnimBuilder {
+    f32 val;
+    
+    explicit AnimBuilder(f32 v) : val(v) {}
+    
+    AnimBuilder& map(f32 in_min, f32 in_max, f32 out_min, f32 out_max, Easing easing = Easing::Linear, ClampMode clamp = ClampMode::Clamp) {
+        val = interpolate(val, in_min, in_max, out_min, out_max, easing, clamp);
+        return *this;
+    }
+    
+    operator f32() const { return val; }
+};
+
+inline AnimBuilder anim(f32 val) { return AnimBuilder(val); }
+inline AnimBuilder anim(Frame f) { return AnimBuilder(static_cast<f32>(f)); }
 
 } // namespace chronon3d

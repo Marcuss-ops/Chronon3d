@@ -58,6 +58,9 @@ enum class TextAlign { Left, Center, Right };
 
 struct TextStyle {
     std::string font_path;
+    std::string font_family;
+    int   font_weight{400};
+    std::string font_style{"normal"};
     f32   size{32.0f};
     Color color{1.0f, 1.0f, 1.0f, 1.0f};
     TextAlign align{TextAlign::Left};

@@ -117,6 +117,7 @@ add_executable(chronon3d_renderer_tests
     renderer/camera/25d/test_25d_dof.cpp
     renderer/camera/25d/test_25d_parenting.cpp
     registry/test_registries.cpp
+    registry/test_dx_ergonomics.cpp
     cache/test_cache_foundation.cpp
     effects/test_effect_registry.cpp
     deterministic/test_deterministic.cpp
