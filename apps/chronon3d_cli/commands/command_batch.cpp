@@ -1,6 +1,6 @@
 #include "../commands.hpp"
 #include "../utils/batch_job_spec.hpp"
-#include <chronon3d/runtime/batch_runner.hpp>
+#include "../utils/batch_runner.hpp"
 #include <spdlog/spdlog.h>
 
 namespace chronon3d {
@@ -12,7 +12,7 @@ int command_batch(const CompositionRegistry& registry, const std::vector<std::st
         return 1;
     }
 
-    std::vector<runtime::BatchJob> jobs;
+    std::vector<BatchJob> jobs;
     for (const auto& spec : job_specs) {
         std::string parse_error;
         auto parsed = parse_batch_job_spec(spec, &parse_error);
@@ -20,7 +20,7 @@ int command_batch(const CompositionRegistry& registry, const std::vector<std::st
             spdlog::error("Invalid batch job '{}': {}", spec, parse_error);
             return 1;
         }
-        jobs.push_back(runtime::BatchJob{
+        jobs.push_back(BatchJob{
             .comp_id = parsed->comp_id,
             .frames = parsed->frames,
             .output = parsed->output,
@@ -29,7 +29,7 @@ int command_batch(const CompositionRegistry& registry, const std::vector<std::st
         });
     }
 
-    auto summary = runtime::BatchRunner::run(jobs, [&](const runtime::BatchJob& job) {
+    auto summary = BatchRunner::run(jobs, [&](const BatchJob& job) {
         spdlog::info("batch: comp={} frames={} output={}", job.comp_id, job.frames, job.output);
         RenderArgs args;
         args.comp_id = job.comp_id;

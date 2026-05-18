@@ -1,7 +1,7 @@
-#include <chronon3d/runtime/batch_runner.hpp>
+#include "batch_runner.hpp"
 #include <chrono>
 
-namespace chronon3d::runtime {
+namespace chronon3d::cli {
 
 BatchSummary BatchRunner::run(const std::vector<BatchJob>& jobs, JobExecutor executor) {
     const auto t0 = std::chrono::steady_clock::now();
@@ -21,4 +21,4 @@ BatchSummary BatchRunner::run(const std::vector<BatchJob>& jobs, JobExecutor exe
     return summary;
 }
 
-} // namespace chronon3d::runtime
+} // namespace chronon3d::cli
