@@ -1,40 +1,187 @@
 #include "../commands.hpp"
 #include "../utils/cli_render_utils.hpp"
 #include "../utils/cli_mappers.hpp"
-#include <spdlog/spdlog.h>
-
-#ifdef CHRONON_WITH_VIDEO
-#include <chronon3d/animations/camera_motion.hpp>
-#include <chronon3d/backends/ffmpeg/ffmpeg_encoder.hpp>
-#include <chronon3d/backends/video/video_export.hpp>
+#include "../utils/frame_chunks.hpp"
+#include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/scene/utils/dark_grid_background.hpp>
 #include <chronon3d/presets/camera_motion_clip.hpp>
+#include <fmt/format.h>
+#include <spdlog/spdlog.h>
+#include <filesystem>
+#include <cstdlib>
+#include <thread>
+#include <atomic>
+#include <mutex>
+#include <vector>
+#include <algorithm>
 
 namespace chronon3d::cli {
 
-int command_video(const CompositionRegistry& registry, const VideoArgs& args) {
-    auto resolved = resolve_composition(registry, args.comp_id);
-    if (!resolved) return 1;
+namespace {
 
-    auto renderer = create_renderer(registry, settings_from_args(args, !resolved.from_specscene));
-    
-    video::VideoExportOptions options;
-    options.start = args.start;
-    options.end = args.end;
-    options.encode.fps = args.fps;
-    options.encode.crf = args.crf;
-    options.encode.codec = args.codec;
-    options.encode.preset = args.encode_preset;
+bool ffmpeg_in_path() {
+#ifdef _WIN32
+    return std::system("ffmpeg -version > NUL 2>&1") == 0;
+#else
+    return std::system("ffmpeg -version > /dev/null 2>&1") == 0;
+#endif
+}
 
-    auto hw = parse_hardware_encoder(args.hardware_encoder);
-    if (!hw) {
-        spdlog::error("Unknown hardware encoder '{}'. Expected: none, auto, nvenc, qsv, videotoolbox, amf", args.hardware_encoder);
+std::string resolve_cli_ffmpeg_codec(const std::string& codec, const std::string& hw_encoder) {
+    if (codec != "auto") return codec;
+    if (hw_encoder == "nvenc") return "h264_nvenc";
+    if (hw_encoder == "qsv") return "h264_qsv";
+    if (hw_encoder == "videotoolbox" || hw_encoder == "vt") return "h264_videotoolbox";
+    if (hw_encoder == "amf") return "h264_amf";
+    return "libx264";
+}
+
+struct FfmpegExportOptions {
+    std::string output;
+    std::string frames_dir_name;
+    int fps;
+    int crf;
+    std::string codec;
+    std::string hardware_encoder;
+    std::string encode_preset;
+    bool keep_frames;
+    int chunks;
+};
+
+int render_and_encode_ffmpeg(
+    const CompositionRegistry& registry,
+    const Composition& comp,
+    const RenderSettings& settings,
+    Frame start,
+    Frame end,
+    const FfmpegExportOptions& opts)
+{
+    if (opts.output.empty()) {
+        spdlog::error("[video] No output path specified.");
         return 1;
     }
-    options.encode.hardware = *hw;
+    if (!ffmpeg_in_path()) {
+        spdlog::error("[video] ffmpeg not found in PATH.");
+        return 1;
+    }
 
-    video::FfmpegEncoder encoder;
-    return video::render_to_video(*renderer, *resolved.comp, args.output, options, encoder) ? 0 : 1;
+    if (end <= start) {
+        spdlog::error("[video] Empty frame range [{}, {})", start, end);
+        return 1;
+    }
+
+    const std::filesystem::path frames_dir = std::filesystem::temp_directory_path() / opts.frames_dir_name;
+    std::error_code ec;
+    std::filesystem::create_directories(frames_dir, ec);
+    if (ec) {
+        spdlog::error("[video] Cannot create frames dir {}: {}", frames_dir.string(), ec.message());
+        return 1;
+    }
+
+    const int total = static_cast<int>(end - start);
+    int chunks = std::max(1, std::min(opts.chunks, total));
+
+    spdlog::info("[video] Rendering {} frames [{}, {}) at {} fps in {} chunks → {}",
+                 total, start, end, opts.fps, chunks, opts.output);
+
+    auto ranges = split_frame_range(start, end, chunks);
+    std::atomic<bool> failed{false};
+    std::atomic<int> frames_done{0};
+    std::vector<std::thread> workers;
+
+    for (const auto& chunk : ranges) {
+        workers.emplace_back([&, chunk]() {
+            auto renderer = create_renderer(registry, settings);
+            for (Frame f = chunk.start; f < chunk.end; ++f) {
+                if (failed.load()) return;
+                auto fb = renderer->render_frame(comp, f);
+                if (!fb) {
+                    spdlog::error("[video] Render failed at frame {}", f);
+                    failed.store(true);
+                    return;
+                }
+                const auto png = (frames_dir / fmt::format("frame_{:06d}.png", f - start)).string();
+                if (!save_png(*fb, png)) {
+                    spdlog::error("[video] PNG write failed: {}", png);
+                    failed.store(true);
+                    return;
+                }
+                
+                int done = ++frames_done;
+                if (done % std::max(1, total / 10) == 0 || done == total) {
+                    spdlog::info("[video]   {}/{} frames", done, total);
+                }
+            }
+        });
+    }
+
+    for (auto& w : workers) {
+        w.join();
+    }
+
+    if (failed.load()) {
+        spdlog::error("[video] Chunked render failed");
+        return 1;
+    }
+
+    const auto output_parent = std::filesystem::path(opts.output).parent_path();
+    if (!output_parent.empty()) {
+        std::filesystem::create_directories(output_parent, ec);
+        if (ec) {
+            spdlog::error("[video] Cannot create output directory {}: {}", output_parent.string(), ec.message());
+            return 1;
+        }
+    }
+
+    const std::string pattern = (frames_dir / "frame_%06d.png").string();
+    const std::string codec   = resolve_cli_ffmpeg_codec(opts.codec, opts.hardware_encoder);
+    const std::string cmd     = fmt::format(
+        "ffmpeg -y -framerate {} -i \"{}\" -c:v {} -crf {} -preset {} -pix_fmt yuv420p \"{}\"",
+        opts.fps, pattern, codec, opts.crf, opts.encode_preset, opts.output);
+
+    spdlog::info("[video] {}", cmd);
+    const int rc = std::system(cmd.c_str());
+
+    if (!opts.keep_frames) {
+        std::filesystem::remove_all(frames_dir, ec);
+    }
+
+    if (rc != 0) {
+        spdlog::error("[video] ffmpeg exited with code {}", rc);
+        return 1;
+    }
+    spdlog::info("[video] Done → {}", opts.output);
+    return 0;
+}
+
+} // namespace
+
+int command_video(const CompositionRegistry& registry, const VideoArgs& args) {
+    if (args.comp_id.empty()) {
+        spdlog::error("[video] No composition specified.");
+        return 1;
+    }
+
+    auto resolved = resolve_composition(registry, args.comp_id);
+    if (!resolved) return 1;
+    const auto& comp = *resolved.comp;
+
+    RenderSettings settings = settings_from_args(args, !resolved.from_specscene);
+
+    FfmpegExportOptions opts;
+    opts.output = args.output;
+    opts.frames_dir_name = args.frames_dir.empty() ? ("chronon_" + args.comp_id) : args.frames_dir;
+    opts.fps = args.fps;
+    opts.crf = args.crf;
+    opts.codec = args.codec;
+    opts.hardware_encoder = args.hardware_encoder;
+    opts.encode_preset = args.encode_preset;
+    opts.keep_frames = args.keep_frames;
+    opts.chunks = args.chunks;
+
+    const Frame end = (args.end > args.start) ? args.end : comp.duration();
+    
+    return render_and_encode_ffmpeg(registry, comp, settings, args.start, end, opts);
 }
 
 int command_video_camera(const CompositionRegistry& registry, const VideoCameraArgs& args) {
@@ -47,7 +194,7 @@ int command_video_camera(const CompositionRegistry& registry, const VideoCameraA
     std::string output = args.output.empty() ? 
         "output/camera_" + lower_copy(args.axis) + "_video.mp4" : args.output;
 
-    auto renderer = create_renderer(registry, settings_from_args(args));
+    RenderSettings settings = settings_from_args(args);
 
     animation::CameraMotionParams params;
     params.axis = *axis;
@@ -90,198 +237,18 @@ int command_video_camera(const CompositionRegistry& registry, const VideoCameraA
             });
         });
 
-    video::VideoExportOptions options;
-    options.start = args.start;
-    options.end = args.end;
-    options.encode.fps = args.fps;
-    options.encode.crf = args.crf;
-    options.encode.codec = args.codec;
-    options.encode.preset = args.encode_preset;
+    FfmpegExportOptions opts;
+    opts.output = output;
+    opts.frames_dir_name = "chronon_camera_" + lower_copy(args.axis);
+    opts.fps = args.fps;
+    opts.crf = args.crf;
+    opts.codec = args.codec;
+    opts.hardware_encoder = args.hardware_encoder;
+    opts.encode_preset = args.encode_preset;
+    opts.keep_frames = false; // default for camera motion
+    opts.chunks = 1; // can't easily chunk here without extending args, default 1
 
-    auto hw = parse_hardware_encoder(args.hardware_encoder);
-    if (!hw) {
-        spdlog::error("Unknown hardware encoder '{}'. Expected: none, auto, nvenc, qsv, videotoolbox, amf", args.hardware_encoder);
-        return 1;
-    }
-    options.encode.hardware = *hw;
-
-    video::FfmpegEncoder encoder;
-    return video::render_to_video(*renderer, comp, output, options, encoder) ? 0 : 1;
+    return render_and_encode_ffmpeg(registry, comp, settings, args.start, args.end, opts);
 }
 
 } // namespace chronon3d::cli
-
-#else
-
-// ── System-ffmpeg fallback (no SDK required, needs ffmpeg in PATH) ─────────
-
-#include "../utils/cli_render_utils.hpp"
-#include "../utils/frame_chunks.hpp"
-#include <chronon3d/backends/image/image_writer.hpp>
-#include <fmt/format.h>
-#include <filesystem>
-#include <cstdlib>
-#include <thread>
-#include <atomic>
-#include <mutex>
-#include <vector>
-#include <algorithm>
-
-namespace chronon3d::cli {
-
-namespace {
-bool ffmpeg_in_path() {
-#ifdef _WIN32
-    return std::system("ffmpeg -version > NUL 2>&1") == 0;
-#else
-    return std::system("ffmpeg -version > /dev/null 2>&1") == 0;
-#endif
-}
-
-std::string resolve_cli_ffmpeg_codec(const VideoArgs& args) {
-    if (args.codec != "auto") {
-        return args.codec;
-    }
-
-    if (args.hardware_encoder == "nvenc") return "h264_nvenc";
-    if (args.hardware_encoder == "qsv") return "h264_qsv";
-    if (args.hardware_encoder == "videotoolbox" || args.hardware_encoder == "vt") return "h264_videotoolbox";
-    if (args.hardware_encoder == "amf") return "h264_amf";
-
-    return "libx264";
-}
-
-} // namespace
-
-int command_video(const CompositionRegistry& registry, const VideoArgs& args) {
-    if (args.comp_id.empty()) {
-        spdlog::error("[video] No composition specified.");
-        return 1;
-    }
-    if (args.output.empty()) {
-        spdlog::error("[video] No output path specified (-o/--output).");
-        return 1;
-    }
-    if (!ffmpeg_in_path()) {
-        spdlog::error("[video] ffmpeg not found in PATH. Install FFmpeg or rebuild with CHRONON3D_ENABLE_VIDEO=ON.");
-        return 1;
-    }
-
-    auto resolved = resolve_composition(registry, args.comp_id);
-    if (!resolved) return 1;
-    const auto& comp = *resolved.comp;
-
-    RenderSettings settings = settings_from_args(args, !resolved.from_specscene);
-
-    const Frame start = args.start;
-    const Frame end   = (args.end > args.start) ? args.end : comp.duration();
-    if (end <= start) {
-        spdlog::error("[video] Empty frame range [{}, {})", start, end);
-        return 1;
-    }
-
-    // Temporary frames directory
-    const std::filesystem::path frames_dir = args.frames_dir.empty()
-        ? std::filesystem::temp_directory_path() / ("chronon_" + args.comp_id)
-        : std::filesystem::path(args.frames_dir);
-    std::error_code ec;
-    std::filesystem::create_directories(frames_dir, ec);
-    if (ec) {
-        spdlog::error("[video] Cannot create frames dir {}: {}", frames_dir.string(), ec.message());
-        return 1;
-    }
-
-    const int total = static_cast<int>(end - start);
-
-    int chunks = args.chunks;
-    if (chunks < 1) {
-        spdlog::error("[video] --chunks must be >= 1");
-        return 1;
-    }
-    chunks = std::min(chunks, total);
-
-    spdlog::info("[video] Rendering {} frames [{}, {}) at {} fps in {} chunks → {}",
-                 total, start, end, args.fps, chunks, args.output);
-
-    auto ranges = split_frame_range(start, end, chunks);
-    std::atomic<bool> failed{false};
-    std::atomic<int> frames_done{0};
-    std::vector<std::thread> workers;
-
-    for (const auto& chunk : ranges) {
-        workers.emplace_back([&, chunk]() {
-            auto renderer = create_renderer(registry, settings);
-            for (Frame f = chunk.start; f < chunk.end; ++f) {
-                if (failed.load()) return;
-                auto fb = renderer->render_frame(comp, f);
-                if (!fb) {
-                    spdlog::error("[video] Render failed at frame {}", f);
-                    failed.store(true);
-                    return;
-                }
-                const auto png = (frames_dir / fmt::format("frame_{:06d}.png", f - start)).string();
-                if (!save_png(*fb, png)) {
-                    spdlog::error("[video] PNG write failed: {}", png);
-                    failed.store(true);
-                    return;
-                }
-                
-                int done = ++frames_done;
-                if (done % std::max(1, total / 10) == 0 || done == total) {
-                    spdlog::info("[video]   {}/{} frames", done, total);
-                }
-            }
-        });
-    }
-
-    for (auto& w : workers) {
-        w.join();
-    }
-
-    if (failed.load()) {
-        spdlog::error("[video] Chunked render failed");
-        return 1;
-    }
-
-    const auto output_parent = std::filesystem::path(args.output).parent_path();
-    if (!output_parent.empty()) {
-        std::filesystem::create_directories(output_parent, ec);
-        if (ec) {
-            spdlog::error(
-                "[video] Cannot create output directory {}: {}",
-                output_parent.string(),
-                ec.message()
-            );
-            return 1;
-        }
-    }
-
-    const std::string pattern = (frames_dir / "frame_%06d.png").string();
-    const std::string codec   = resolve_cli_ffmpeg_codec(args);
-    const std::string cmd     = fmt::format(
-        "ffmpeg -y -framerate {} -i \"{}\" -c:v {} -crf {} -preset {} -pix_fmt yuv420p \"{}\"",
-        args.fps, pattern, codec, args.crf, args.encode_preset, args.output);
-
-    spdlog::info("[video] {}", cmd);
-    const int rc = std::system(cmd.c_str());
-
-    if (!args.keep_frames) {
-        std::filesystem::remove_all(frames_dir, ec);
-    }
-
-    if (rc != 0) {
-        spdlog::error("[video] ffmpeg exited with code {}", rc);
-        return 1;
-    }
-    spdlog::info("[video] Done → {}", args.output);
-    return 0;
-}
-
-int command_video_camera(const CompositionRegistry&, const VideoCameraArgs&) {
-    spdlog::error("[video] camera requires CHRONON3D_ENABLE_VIDEO=ON (FFmpeg SDK).");
-    return 1;
-}
-
-} // namespace chronon3d::cli
-
-#endif
