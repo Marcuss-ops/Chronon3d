@@ -6,34 +6,14 @@
 #include <filesystem>
 #include <array>
 #include <algorithm>
+#include <string_view>
 
 namespace chronon3d {
 namespace cli {
 
 namespace {
-
-static constexpr std::array<const char*, 13> k_proof_names = {{
-    // Geometric diagnostics
-    "ProofDepthLadder",
-    "ProofPanParallax",
-    "ProofTiltParallax",
-    "ProofRollStability",
-    "ProofOverlayFixed",
-    "ProofOrbitSubject",
-    "ProofEdgeOnRotation",
-    // YouTube realistic proofs
-    "ProofYouTubeDepthTitle",
-    "ProofYouTubeImageDof",
-    "ProofYouTubeQuoteScene",
-    "ProofYouTubeNewsCard",
-    "ProofYouTubeParallaxThumbnail",
-    // Showcase demos
-    "ChrononIntroCard",
-}};
-
 static constexpr std::array<Frame, 3> k_proof_key_frames = {{0, 44, 89}};
 static constexpr std::array<Frame, 3> k_demo_key_frames  = {{0, 89, 179}};
-
 } // namespace
 
 int command_proofs(const CompositionRegistry& registry, const ProofsArgs& args) {
@@ -52,18 +32,22 @@ int command_proofs(const CompositionRegistry& registry, const ProofsArgs& args) 
 
     int pass = 0;
     int fail = 0;
+    int total_processed = 0;
 
-    for (const char* name : k_proof_names) {
-        if (!registry.contains(name)) {
-            spdlog::warn("[proofs] {:30s} ✗  not registered — skipping", name);
-            ++fail;
-            continue;
-        }
+    auto names = registry.available();
+    std::sort(names.begin(), names.end());
 
+    for (const auto& name : names) {
+        // Only run on compositions tagged as "Proof" by naming convention or explicit showcase demos
+        const bool is_proof = name.find("Proof") == 0;
+        const bool is_demo  = (name == "ChrononIntroCard") || (name == "LilDirkClean");
+        
+        if (!is_proof && !is_demo) continue;
+
+        ++total_processed;
         const auto comp = registry.create(name);
         int rendered = 0;
 
-        const bool is_demo = std::string_view(name).find("Chronon") != std::string_view::npos;
         const auto& key_frames = is_demo ? k_demo_key_frames : k_proof_key_frames;
 
         for (const Frame f : key_frames) {
@@ -91,11 +75,10 @@ int command_proofs(const CompositionRegistry& registry, const ProofsArgs& args) 
         }
     }
 
-    const int total_proofs = static_cast<int>(k_proof_names.size());
     const auto abs_dir = std::filesystem::absolute(args.output_dir).string();
 
     spdlog::info("");
-    spdlog::info("[proofs] Result: {}/{} passed  →  {}", pass, total_proofs, abs_dir);
+    spdlog::info("[proofs] Result: {}/{} passed  →  {}", pass, total_processed, abs_dir);
 
     return fail > 0 ? 1 : 0;
 }

@@ -1,5 +1,5 @@
 #include "../commands.hpp"
-#include <chronon3d/runtime/watch_service.hpp>
+#include "../utils/watch_service.hpp"
 #include <spdlog/spdlog.h>
 #include <cstdlib>
 
@@ -13,7 +13,7 @@ int command_watch(const CompositionRegistry& registry, const std::string& comp_i
 
     spdlog::info("Watching for changes in src/, include/, apps/...");
     
-    runtime::WatchOptions options;
+    WatchOptions options;
     options.watch_dirs = {"src", "include", "apps"};
     
 #ifdef _WIN32
@@ -26,7 +26,7 @@ int command_watch(const CompositionRegistry& registry, const std::string& comp_i
     options.build_command = "bash tools/chronon-linux.sh";
 #endif
 
-    runtime::WatchService::watch(options, [&]() {
+    WatchService::watch(options, [&]() {
         spdlog::info("Change detected! Rendering...");
         RenderArgs args;
         args.comp_id = comp_id;

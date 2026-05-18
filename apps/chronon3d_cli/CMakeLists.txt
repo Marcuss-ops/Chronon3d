@@ -5,10 +5,14 @@ add_executable(chronon3d_cli
     commands/register_render_commands.cpp
     commands/register_video_commands.cpp
     commands/register_dev_commands.cpp
+    commands/register_inspect_commands.cpp
+    commands/register_bench_commands.cpp
     utils/cli_utils.cpp
     utils/cli_render_utils.cpp
     utils/render_job.cpp
     utils/batch_job_spec.cpp
+    utils/batch_runner.cpp
+    utils/watch_service.cpp
 
     commands/command_list.cpp
     commands/command_info.cpp
