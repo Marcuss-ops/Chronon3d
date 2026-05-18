@@ -13,6 +13,7 @@ Layer::Layer(const Layer& other)
       parent_name(other.parent_name),
       kind(other.kind),
       transform(other.transform),
+      anim_transform(other.anim_transform),
       from(other.from),
       duration(other.duration),
       visible(other.visible),
@@ -37,11 +38,12 @@ Layer::Layer(const Layer& other)
 
 Layer& Layer::operator=(const Layer& other) {
     if (this == &other) return *this;
-    
+
     name = other.name;
     parent_name = other.parent_name;
     kind = other.kind;
     transform = other.transform;
+    anim_transform = other.anim_transform;
     from = other.from;
     duration = other.duration;
     visible = other.visible;
