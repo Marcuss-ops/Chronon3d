@@ -43,6 +43,7 @@ struct VideoArgs {
     bool keep_frames{false};
     RenderPipelineArgs pipeline{};
     std::string frames_dir;
+    int chunks{1};
 };
 
 struct VideoCameraArgs {
