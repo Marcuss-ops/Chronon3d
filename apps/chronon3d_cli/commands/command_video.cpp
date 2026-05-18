@@ -137,12 +137,7 @@ int command_video(const CompositionRegistry& registry, const VideoArgs& args) {
     if (!resolved) return 1;
     const auto& comp = *resolved.comp;
 
-    RenderSettings settings;
-    settings.use_modular_graph = args.use_modular_graph;
-    settings.motion_blur.enabled = args.motion_blur;
-    settings.motion_blur.samples = args.motion_blur_samples;
-    settings.motion_blur.shutter_angle = args.shutter_angle;
-    settings.ssaa_factor = args.ssaa;
+    RenderSettings settings = settings_from_args(args, !resolved.from_specscene);
 
     const Frame start = args.start;
     const Frame end   = (args.end > args.start) ? args.end : comp.duration();

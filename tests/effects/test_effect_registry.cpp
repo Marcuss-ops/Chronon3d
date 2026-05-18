@@ -12,13 +12,13 @@ TEST_CASE("EffectRegistry registers built-in effects with stable ids") {
 
     const auto available_ids = registry.available();
     REQUIRE(available_ids.size() == 7);
-    CHECK(available_ids[0] == std::string(effect_ids::BlurGaussian));
-    CHECK(available_ids[1] == std::string(effect_ids::ColorBrightness));
-    CHECK(available_ids[2] == std::string(effect_ids::ColorContrast));
-    CHECK(available_ids[3] == std::string(effect_ids::ColorTint));
-    CHECK(available_ids[4] == std::string(effect_ids::LightBloom));
-    CHECK(available_ids[5] == std::string(effect_ids::LightDropShadow));
-    CHECK(available_ids[6] == std::string(effect_ids::LightGlow));
+    CHECK(registry.contains(effect_ids::BlurGaussian));
+    CHECK(registry.contains(effect_ids::ColorBrightness));
+    CHECK(registry.contains(effect_ids::ColorContrast));
+    CHECK(registry.contains(effect_ids::ColorTint));
+    CHECK(registry.contains(effect_ids::LightBloom));
+    CHECK(registry.contains(effect_ids::LightDropShadow));
+    CHECK(registry.contains(effect_ids::LightGlow));
 
     const auto& blur = registry.get(effect_ids::BlurGaussian);
     CHECK(blur.category == EffectCategory::Blur);

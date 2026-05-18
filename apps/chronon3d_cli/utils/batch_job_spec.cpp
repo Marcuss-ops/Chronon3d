@@ -67,7 +67,7 @@ std::optional<RenderArgs> parse_batch_job_spec(std::string_view spec, std::strin
     }
     if (parts.size() > 3 && !parts[3].empty()) {
         std::string bool_error;
-        args.diagnostic = parse_bool(parts[3], false, &bool_error);
+        args.pipeline.diagnostic = parse_bool(parts[3], false, &bool_error);
         if (!bool_error.empty()) {
             if (error) *error = bool_error;
             return std::nullopt;
@@ -75,7 +75,7 @@ std::optional<RenderArgs> parse_batch_job_spec(std::string_view spec, std::strin
     }
     if (parts.size() > 4 && !parts[4].empty()) {
         std::string bool_error;
-        args.use_modular_graph = parse_bool(parts[4], false, &bool_error);
+        args.pipeline.use_modular_graph = parse_bool(parts[4], false, &bool_error);
         if (!bool_error.empty()) {
             if (error) *error = bool_error;
             return std::nullopt;

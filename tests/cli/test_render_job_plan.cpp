@@ -19,7 +19,7 @@ TEST_CASE("render job rejects invalid ssaa") {
     args.comp_id = "Demo";
     args.frames = "0";
     args.output = "out.png";
-    args.ssaa = 0.0f;
+    args.pipeline.quality.ssaa = 0.0f;
 
     auto result = plan_render_job(args, false);
     CHECK_FALSE(result.ok);

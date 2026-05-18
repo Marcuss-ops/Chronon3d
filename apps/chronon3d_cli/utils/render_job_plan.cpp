@@ -20,25 +20,25 @@ RenderJobPlanResult plan_render_job(const RenderArgs& args, bool motion_blur_all
     res.value.output = args.output;
 
     // 3. Validate settings
-    if (args.ssaa < 1.0f) {
-        return {false, {}, fmt::format("SSAA factor must be >= 1.0, got {}", args.ssaa)};
+    if (args.pipeline.quality.ssaa < 1.0f) {
+        return {false, {}, fmt::format("SSAA factor must be >= 1.0, got {}", args.pipeline.quality.ssaa)};
     }
-    if (args.motion_blur_samples <= 0) {
-        return {false, {}, fmt::format("Motion blur samples must be > 0, got {}", args.motion_blur_samples)};
+    if (args.pipeline.quality.motion_blur_samples <= 0) {
+        return {false, {}, fmt::format("Motion blur samples must be > 0, got {}", args.pipeline.quality.motion_blur_samples)};
     }
-    if (args.shutter_angle < 0.0f) {
-        return {false, {}, fmt::format("Shutter angle must be >= 0, got {}", args.shutter_angle)};
+    if (args.pipeline.quality.shutter_angle < 0.0f) {
+        return {false, {}, fmt::format("Shutter angle must be >= 0, got {}", args.pipeline.quality.shutter_angle)};
     }
 
     res.value.comp_id = args.comp_id;
     
     // Fill RenderSettings
-    res.value.settings.diagnostic = args.diagnostic;
-    res.value.settings.use_modular_graph = args.use_modular_graph;
-    res.value.settings.motion_blur.enabled = motion_blur_allowed && args.motion_blur;
-    res.value.settings.motion_blur.samples = args.motion_blur_samples;
-    res.value.settings.motion_blur.shutter_angle = args.shutter_angle;
-    res.value.settings.ssaa_factor = args.ssaa;
+    res.value.settings.diagnostic = args.pipeline.diagnostic;
+    res.value.settings.use_modular_graph = args.pipeline.use_modular_graph;
+    res.value.settings.motion_blur.enabled = motion_blur_allowed && args.pipeline.quality.motion_blur;
+    res.value.settings.motion_blur.samples = args.pipeline.quality.motion_blur_samples;
+    res.value.settings.motion_blur.shutter_angle = args.pipeline.quality.shutter_angle;
+    res.value.settings.ssaa_factor = args.pipeline.quality.ssaa;
 
     res.ok = true;
     return res;
