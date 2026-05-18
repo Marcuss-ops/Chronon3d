@@ -54,16 +54,36 @@ cmake --build build/chronon/linux-debug -j$(nproc)
 
 ## Running tests
 
-```bash
-ctest --test-dir build/chronon/linux-release --output-on-failure
-```
-
-Or run the binary directly for faster iteration:
+The easiest way to run the test suite is via CTest presets:
 
 ```bash
-./build/chronon/linux-release/chronon3d_tests
-./build/chronon/linux-release/chronon3d_tests -tc="GraphExecutor*"
+# On Linux
+ctest --preset linux-test --output-on-failure
+
+# On Windows
+ctest --preset win-test --output-on-failure
 ```
+
+Or run any of the individual test binaries directly for faster iteration:
+
+```bash
+# Example (Linux Release build)
+./build/chronon/linux-release/tests/chronon3d_core_tests
+./build/chronon/linux-release/tests/chronon3d_core_tests -tc="GraphExecutor*"
+
+# Example (Windows Release build)
+.\build\chronon\win-release\tests\chronon3d_core_tests.exe
+```
+
+The compiled test binaries reside inside the `tests/` subdirectory of your build folder. The available test suites are:
+- `chronon3d_core_tests` — Core tests (Math, Geometry, Animation, Timeline)
+- `chronon3d_scene_tests` — Scene build, Layer hierarchy, and SceneBuilder tests
+- `chronon3d_renderer_tests` — Renderer, Effects, Render Graph, and lighting tests
+- `chronon3d_io_tests` — Core IO and PNG output validity tests
+- `chronon3d_cli_tests` — CLI parsing, utilities, and job plan tests
+- `chronon3d_video_tests` — Optional FFmpeg export tests (built if `CHRONON3D_ENABLE_VIDEO=ON`)
+
+The CMake target `chronon3d_tests` is an aggregate custom target that compiles all of these.
 
 ---
 

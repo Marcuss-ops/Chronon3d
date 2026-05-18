@@ -2,6 +2,7 @@
 
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
+#include <chronon3d/presets/layer_fx.hpp>
 #include <chronon3d/animation/spring.hpp>
 #include <chronon3d/animation/interpolate.hpp>
 
@@ -24,24 +25,29 @@ inline void title_card(
     });
 
     // 2. Spring Scale-in for Title Text
-    // Title animations start from frame 0
     f32 title_scale = spring(ctx.frame, ctx.frame_rate, 0.0f, 1.0f, Spring::Bouncy);
     f32 title_opacity = spring(ctx.frame, ctx.frame_rate, 0.0f, 1.0f, Spring::Gentle);
 
-    s.layer("title", [title_content, text_color, title_scale, title_opacity](LayerBuilder& l) {
-        l.position({0.0f, -40.0f, 0.0f})
-         .scale({title_scale, title_scale, 1.0f})
-         .opacity(title_opacity)
-         .text("title_text", {
-             .content = title_content,
-             .style = {
-                 .font_family = "Inter",
-                 .font_weight = 700,
-                 .size = 80.0f,
-                 .color = text_color,
-                 .align = TextAlign::Center
-             }
-         });
+    soft_glow_text(s, "title", {
+        .text = title_content,
+        .font_path_main = "assets/fonts/Inter-Bold.ttf",
+        .font_path_glow = "assets/fonts/Inter-Regular.ttf",
+        .motion = {
+            .enabled = false,
+            .position = {0.0f, -40.0f, 0.0f},
+            .scale = {title_scale, title_scale, 1.0f},
+        },
+        .font_size = 80.0f,
+        .outer_size_boost = 10.0f,
+        .inner_size_boost = 4.0f,
+        .outer_blur = 24.0f,
+        .inner_blur = 12.0f,
+        .outer_opacity = 0.16f * title_opacity,
+        .inner_opacity = 0.30f * title_opacity,
+        .tracking = 0.5f,
+        .align = TextAlign::Center,
+        .main_color = text_color.with_alpha(title_opacity),
+        .glow_color = text_color.with_alpha(1.0f),
     });
 
     // 3. Staggered Spring-in for Subtitle

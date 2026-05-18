@@ -1,6 +1,7 @@
 #include "render_job.hpp"
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/core/render_telemetry.hpp>
+#include <chronon3d/core/trace.hpp>
 
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
@@ -78,11 +79,14 @@ std::optional<RenderJobPlan> plan_render_job(const CompositionRegistry& registry
     plan.output = args.output;
     plan.settings = settings_from_args(args, !resolved.from_specscene, args.pipeline.diagnostic);
     plan.from_specscene = resolved.from_specscene;
+    plan.trace_file = args.trace_file;
     return plan;
 }
 
 bool execute_render_job(const CompositionRegistry& registry, const RenderJobPlan& plan) {
     auto renderer = create_renderer(registry, plan.settings);
+    renderer->trace()->clear();
+    renderer->counters()->reset();
 
     if (plan.from_specscene && plan.settings.motion_blur.enabled) {
         spdlog::warn("Motion blur is ignored for specscene inputs in this build");
@@ -108,6 +112,12 @@ bool execute_render_job(const CompositionRegistry& registry, const RenderJobPlan
     }
 
     spdlog::info("Render complete.");
+
+    if (!plan.trace_file.empty()) {
+        spdlog::info("Writing performance trace to {}...", plan.trace_file);
+        write_trace_json(*renderer->trace(), plan.trace_file);
+    }
+
     return ok;
 }
 

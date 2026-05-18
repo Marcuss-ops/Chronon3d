@@ -116,7 +116,7 @@ Run commands from the repo root so relative asset paths work:
 ```
 
 See [BUILDING.md](BUILDING.md) for the complete guide including troubleshooting.
-Architecture and planning notes live in [docs/INDEX.md](docs/INDEX.md), [docs/3d_subsystem.md](docs/3d_subsystem.md), [ARCHITECTURE.md](ARCHITECTURE.md), and [ROADMAP.md](ROADMAP.md).
+Architecture and planning notes live in [docs/INDEX.md](docs/INDEX.md), [docs/3d_subsystem.md](docs/3d_subsystem.md), [ARCHITECTURE.md](ARCHITECTURE.md), and [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ### 3. Register a composition
 

@@ -119,6 +119,7 @@ struct DarkGridBgParams {
     Color grid_color {1.f,    1.f,    1.f,   0.14f};
     f32   spacing    {80.f};
     f32   extent     {4000.f};
+    bool  centered   {false};
 };
 
 } // namespace chronon3d

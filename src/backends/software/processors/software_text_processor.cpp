@@ -5,6 +5,7 @@
 #include "../utils/render_effects_processor.hpp"
 #include "../utils/blend2d_bridge.hpp"
 #include "../utils/blend2d_resources.hpp"
+#include <chronon3d/core/counters.hpp>
 #include <blend2d.h>
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -22,6 +23,12 @@ public:
         // 1. Rasterize text once for both glow and main text
         auto raster = rasterize_text_to_bl_image(node.shape.text, effective_size);
         if (!raster) return;
+
+        // Increment text glyphs counter
+        renderer.counters()->text_glyphs_rasterized.fetch_add(
+            static_cast<uint64_t>(node.shape.text.text.length()), 
+            std::memory_order_relaxed
+        );
 
         // 2. Glow
         if (node.glow.enabled && node.glow.intensity > 0.0f && node.glow.color.a > 0.0f) {

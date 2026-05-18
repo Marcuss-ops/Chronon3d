@@ -12,8 +12,9 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
 
 if(MSVC)
-    add_compile_options(/utf-8)
+    add_compile_options(/utf-8 /FS)
 endif()
+add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/FS>")
 
 # Options
 option(CHRONON3D_BUILD_TESTS "Build Chronon3d tests" ON)
@@ -40,6 +41,7 @@ find_package(hwy CONFIG REQUIRED)
 find_package(tomlplusplus CONFIG REQUIRED)
 find_package(Tracy CONFIG QUIET)
 find_package(blend2d CONFIG REQUIRED)
+find_package(nlohmann_json CONFIG REQUIRED)
 
 # FFmpeg Setup (Isolated)
 if(CHRONON3D_ENABLE_VIDEO)
@@ -218,10 +220,14 @@ target_link_libraries(chronon3d_compositions
         chronon3d_registry
 )
 
+# 1b. Core Tracing
+add_library(chronon3d_core_impl STATIC src/core/trace.cpp)
+target_link_libraries(chronon3d_core_impl PUBLIC chronon3d nlohmann_json::nlohmann_json)
+
 # Architectural Aggregates (Agent rules)
 add_library(chronon3d_core INTERFACE)
 target_link_libraries(chronon3d_core INTERFACE
-    chronon3d_assets chronon3d_registry chronon3d_scene chronon3d_runtime chronon3d_graph chronon3d_cache
+    chronon3d_assets chronon3d_registry chronon3d_scene chronon3d_runtime chronon3d_graph chronon3d_cache chronon3d_core_impl
 )
 
 add_library(chronon3d_software INTERFACE)
