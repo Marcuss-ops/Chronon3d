@@ -17,19 +17,7 @@
     "cli11",
     "tomlplusplus",
     "blend2d",
-    "asmjit",
     "nlohmann-json"
   ],
-  "features": {
-    "video": {
-      "description": "FFmpeg with x264 support for video export",
-      "dependencies": [
-        {
-          "name": "ffmpeg",
-          "features": ["x264"]
-        }
-      ]
-    }
-  },
   "default-features": []
 }
