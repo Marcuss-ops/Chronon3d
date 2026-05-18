@@ -34,7 +34,6 @@ void register_video_commands(CLI::App& app, CliContext& ctx) {
     cmd->add_option("--chunks", args.chunks, "Render frame range in N parallel chunks before encoding")->default_val(1);
     cmd->callback([state, &ctx]() { ctx.exit_code = command_video(ctx.registry, *state->args); });
 
-#ifdef CHRONON_WITH_VIDEO
     auto camera_args = std::make_shared<VideoCameraArgs>();
     auto* camera_cmd = cmd->add_subcommand("camera", "Render the built-in camera reference clip");
     camera_cmd->add_option("--axis", camera_args->axis, "Camera axis: Tilt, Pan, or Roll");
@@ -53,7 +52,6 @@ void register_video_commands(CLI::App& app, CliContext& ctx) {
     camera_cmd->add_flag("--motion-blur", camera_args->pipeline.quality.motion_blur, "Enable temporal motion blur");
     camera_cmd->add_option("--ssaa", camera_args->pipeline.quality.ssaa, "Super Sampling factor");
     camera_cmd->callback([camera_args, &ctx]() { ctx.exit_code = command_video_camera(ctx.registry, *camera_args); });
-#endif
 }
 
 } // namespace chronon3d::cli

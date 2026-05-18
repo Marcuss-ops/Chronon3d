@@ -19,9 +19,7 @@ add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/FS>")
 # Options
 option(CHRONON3D_BUILD_TESTS "Build Chronon3d tests" ON)
 option(CHRONON3D_BUILD_CLI "Build Chronon3d CLI" ON)
-option(CHRONON3D_BUILD_TOOLS "Build Chronon3d developer tools" OFF)
 option(CHRONON3D_ENABLE_PROFILING "Enable Tracy profiling" OFF)
-option(CHRONON3D_ENABLE_VIDEO "Enable FFmpeg-based video output and tests" OFF)
 
 if(CHRONON3D_BUILD_TESTS)
     add_definitions(-DCHRONON_BUILD_TESTS)
@@ -43,41 +41,7 @@ find_package(Tracy CONFIG QUIET)
 find_package(blend2d CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 
-# FFmpeg Setup (Isolated)
-if(CHRONON3D_ENABLE_VIDEO)
-    if(NOT DEFINED VCPKG_INSTALLED_DIR)
-        set(VCPKG_INSTALLED_DIR "${CMAKE_SOURCE_DIR}/vcpkg_installed")
-    endif()
-    if(NOT DEFINED VCPKG_TARGET_TRIPLET)
-        if(WIN32)
-            set(VCPKG_TARGET_TRIPLET "x64-windows")
-        elseif(UNIX)
-            set(VCPKG_TARGET_TRIPLET "x64-linux")
-        endif()
-    endif()
 
-    set(_chronon3d_ffmpeg_include_dir "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/include")
-    set(_chronon3d_ffmpeg_lib_dir "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/lib")
-
-    find_path(FFMPEG_AVCODEC_INCLUDE_DIR NAMES libavcodec/avcodec.h PATHS "${_chronon3d_ffmpeg_include_dir}" NO_DEFAULT_PATH)
-    find_library(FFMPEG_AVCODEC_LIBRARY NAMES avcodec PATHS "${_chronon3d_ffmpeg_lib_dir}" NO_DEFAULT_PATH)
-    find_library(FFMPEG_AVFORMAT_LIBRARY NAMES avformat PATHS "${_chronon3d_ffmpeg_lib_dir}" NO_DEFAULT_PATH)
-    find_library(FFMPEG_AVUTIL_LIBRARY NAMES avutil PATHS "${_chronon3d_ffmpeg_lib_dir}" NO_DEFAULT_PATH)
-    find_library(FFMPEG_SWSCALE_LIBRARY NAMES swscale PATHS "${_chronon3d_ffmpeg_lib_dir}" NO_DEFAULT_PATH)
-
-    if(NOT FFMPEG_AVCODEC_INCLUDE_DIR OR NOT FFMPEG_AVCODEC_LIBRARY)
-        message(FATAL_ERROR "FFmpeg development files not found")
-    endif()
-
-    add_library(chronon3d_ffmpeg INTERFACE)
-    target_include_directories(chronon3d_ffmpeg INTERFACE "${FFMPEG_AVCODEC_INCLUDE_DIR}")
-    target_link_libraries(chronon3d_ffmpeg INTERFACE
-        "${FFMPEG_AVCODEC_LIBRARY}"
-        "${FFMPEG_AVFORMAT_LIBRARY}"
-        "${FFMPEG_AVUTIL_LIBRARY}"
-        "${FFMPEG_SWSCALE_LIBRARY}"
-    )
-endif()
 
 # 1. Base Interface
 add_library(chronon3d INTERFACE)
@@ -153,22 +117,6 @@ file(GLOB CHRONON3D_BACKEND_VIDEO_SOURCES CONFIGURE_DEPENDS "src/backends/video/
 add_library(chronon3d_backend_video STATIC ${CHRONON3D_BACKEND_VIDEO_SOURCES})
 target_link_libraries(chronon3d_backend_video PUBLIC chronon3d)
 
-# 7e. FFmpeg Backend (Optional)
-if(CHRONON3D_ENABLE_VIDEO)
-    file(GLOB CHRONON3D_BACKEND_FFMPEG_SOURCES CONFIGURE_DEPENDS "src/backends/ffmpeg/*.cpp")
-    add_library(chronon3d_backend_ffmpeg STATIC ${CHRONON3D_BACKEND_FFMPEG_SOURCES})
-    target_link_libraries(chronon3d_backend_ffmpeg 
-        PUBLIC 
-            chronon3d 
-            chronon3d_backend_video 
-            chronon3d_backend_image
-            chronon3d_ffmpeg 
-            xxHash::xxhash 
-            fmt::fmt 
-            spdlog::spdlog
-    )
-    target_compile_definitions(chronon3d_backend_ffmpeg PUBLIC CHRONON_WITH_VIDEO)
-endif()
 
 # 7f. Software Renderer Backend
 file(GLOB CHRONON3D_BACKEND_SOFTWARE_SOURCES CONFIGURE_DEPENDS 
@@ -235,10 +183,7 @@ target_link_libraries(chronon3d_software INTERFACE
     chronon3d_backend_software chronon3d_backend_text chronon3d_backend_assets chronon3d_backend_image
 )
 
-if(CHRONON3D_ENABLE_VIDEO)
-    target_link_libraries(chronon3d_scene PRIVATE chronon3d_backend_video chronon3d_backend_ffmpeg)
-    target_compile_definitions(chronon3d_scene PUBLIC CHRONON_WITH_VIDEO)
-endif()
+
 
 # 11. Pipeline (Interface)
 add_library(chronon3d_pipeline INTERFACE)
