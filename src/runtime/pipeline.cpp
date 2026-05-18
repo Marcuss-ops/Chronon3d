@@ -1,6 +1,7 @@
 #include <chronon3d/runtime/pipeline.hpp>
 #include <taskflow/taskflow.hpp>
 #include <chronon3d/core/profiling.hpp>
+#include <chronon3d/core/render_telemetry.hpp>
 
 namespace chronon3d {
 
@@ -42,6 +43,10 @@ void RenderPipeline::run(Frame start, Frame end, std::function<void(RenderedFram
         ZoneScopedN("OutputFrame");
         output_callback(std::move(rf));
     }
+
+    // Flush telemetry recorded by the threads
+    telemetry::flush_telemetry();
 }
 
 } // namespace chronon3d
+

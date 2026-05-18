@@ -15,6 +15,7 @@
 #include <string>
 #include <string_view>
 #include <vector>
+#include <thread>
 
 namespace chronon3d::telemetry {
 
@@ -40,9 +41,14 @@ inline std::mutex& telemetry_mutex() {
     return mutex;
 }
 
-inline std::vector<RenderTelemetryRow>& recent_rows() {
+inline std::vector<RenderTelemetryRow>& global_rows() {
     static std::vector<RenderTelemetryRow> rows;
     return rows;
+}
+
+inline std::vector<RenderTelemetryRow>& thread_local_buffer() {
+    static thread_local std::vector<RenderTelemetryRow> buffer;
+    return buffer;
 }
 
 inline std::filesystem::path telemetry_csv_path() {
@@ -178,7 +184,7 @@ inline void write_summary_file(const std::vector<RenderTelemetryRow>& rows) {
     }
 
     out << "Chronon3D render summary\n";
-    out << "recent_rows=" << rows.size() << "\n";
+    out << "total_rows=" << rows.size() << "\n";
 
     if (rows.empty()) {
         out << "no render samples\n";
@@ -255,32 +261,23 @@ inline void write_summary_file(const std::vector<RenderTelemetryRow>& rows) {
         << "cache_hit_rate=" << format_ms(cache_hit_rate * 100.0) << "% "
         << "samples=" << total_samples
         << "\n";
-
-    const auto slowest_row = std::max_element(rows.begin(), rows.end(), [](const auto& a, const auto& b) {
-        return a.total_ms < b.total_ms;
-    });
-    if (slowest_row != rows.end()) {
-        out << "slowest_event=" << slowest_row->event
-            << " frame=" << slowest_row->frame
-            << " total_ms=" << format_ms(slowest_row->total_ms)
-            << " setup_ms=" << format_ms(slowest_row->setup_ms)
-            << " composite_ms=" << format_ms(slowest_row->composite_ms)
-            << " blur_ms=" << format_ms(slowest_row->blur_ms)
-            << " encode_ms=" << format_ms(slowest_row->encode_ms)
-            << " cache_hit=" << slowest_row->cache_hit
-            << " layer_count=" << slowest_row->layer_count
-            << "\n";
-    }
 }
 
 } // namespace detail
 
 inline void record_render_telemetry(const RenderTelemetryRow& row) {
+    detail::thread_local_buffer().push_back(row);
+}
+
+inline void flush_telemetry() {
+    auto& buffer = detail::thread_local_buffer();
+    if (buffer.empty()) return;
+
     const auto ts = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::system_clock::now().time_since_epoch()).count();
     const std::size_t run_id = detail::current_run_id();
-
     const std::filesystem::path csv_path = detail::telemetry_csv_path();
+
     if (csv_path.has_parent_path()) {
         std::error_code ec;
         std::filesystem::create_directories(csv_path.parent_path(), ec);
@@ -289,32 +286,37 @@ inline void record_render_telemetry(const RenderTelemetryRow& row) {
     std::scoped_lock lock(detail::telemetry_mutex());
     detail::migrate_legacy_csv(csv_path);
 
-    auto& rows = detail::recent_rows();
-    rows.push_back(row);
-    if (rows.size() > 100) {
-        rows.erase(rows.begin());
-    }
-
+    auto& global = detail::global_rows();
     std::ofstream csv(csv_path, std::ios::app);
     if (csv) {
         detail::ensure_csv_header(csv, csv_path);
-        csv << ts << ','
-            << run_id << ','
-            << detail::csv_escape(row.event) << ','
-            << row.frame << ','
-            << row.width << ','
-            << row.height << ','
-            << row.total_ms << ','
-            << row.setup_ms << ','
-            << row.composite_ms << ','
-            << row.blur_ms << ','
-            << row.encode_ms << ','
-            << row.ram_mb << ','
-            << row.cache_hit << ','
-            << row.layer_count << '\n';
     }
 
-    detail::write_summary_file(rows);
+    for (const auto& row : buffer) {
+        if (csv) {
+            csv << ts << ','
+                << run_id << ','
+                << detail::csv_escape(row.event) << ','
+                << row.frame << ','
+                << row.width << ','
+                << row.height << ','
+                << row.total_ms << ','
+                << row.setup_ms << ','
+                << row.composite_ms << ','
+                << row.blur_ms << ','
+                << row.encode_ms << ','
+                << row.ram_mb << ','
+                << row.cache_hit << ','
+                << row.layer_count << '\n';
+        }
+        global.push_back(row);
+        if (global.size() > 1000) {
+            global.erase(global.begin());
+        }
+    }
+
+    buffer.clear();
+    detail::write_summary_file(global);
 }
 
 } // namespace chronon3d::telemetry

@@ -53,7 +53,7 @@ TEST_CASE("Test 18.1 — Caching hits and misses tracking") {
     fb->clear(Color::red());
 
     CHECK_FALSE(cache.contains(key1));
-    auto cached1 = cache.find(key1);
+    auto cached1 = cache.get(key1);
     CHECK(cached1 == nullptr);
     CHECK(cache.stats().misses == 1);
     CHECK(cache.stats().hits == 0);
@@ -61,7 +61,7 @@ TEST_CASE("Test 18.1 — Caching hits and misses tracking") {
     cache.store(key1, fb);
 
     CHECK(cache.contains(key1));
-    auto cached2 = cache.find(key1);
+    auto cached2 = cache.get(key1);
     CHECK(cached2 != nullptr);
     CHECK(cache.stats().hits == 1);
     CHECK(cache.stats().misses == 1);
@@ -129,7 +129,7 @@ TEST_CASE("Test 18.4 — Multi-threaded cache read/write thread-safety") {
             fb->clear(Color::green());
 
             cache.store(key, fb);
-            auto cached = cache.find(key);
+            auto cached = cache.get(key);
             CHECK(cached != nullptr);
         }
     };
