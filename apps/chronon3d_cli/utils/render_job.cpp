@@ -224,6 +224,10 @@ bool execute_render_job(const CompositionRegistry& registry, const RenderJobPlan
     run.started_at_iso = job_started_iso;
     run.finished_at_iso = telemetry::TelemetryManager::get_current_iso_time();
 
+    // Pool metrics
+    const auto pool_current_bytes = renderer->software_framebuffer_pool().current_bytes();
+    const auto pool_available_count = renderer->software_framebuffer_pool().available_count();
+
     std::vector<telemetry::CounterTelemetryRecord> counters_list = {
         {"pixels_touched", run.pixels_touched},
         {"cache_hits", run.cache_hits},
@@ -254,7 +258,9 @@ bool execute_render_job(const CompositionRegistry& registry, const RenderJobPlan
         {"framebuffer_allocations", run.framebuffer_allocations},
         {"framebuffer_reuses", run.framebuffer_reuses},
         {"framebuffer_bytes_allocated", run.framebuffer_bytes_allocated},
-        {"framebuffer_bytes_peak", run.framebuffer_bytes_peak}
+        {"framebuffer_bytes_peak", run.framebuffer_bytes_peak},
+        {"pool_current_bytes", pool_current_bytes},
+        {"pool_available_count", pool_available_count}
     };
 
     std::vector<telemetry::PhaseTelemetryRecord> phases = {
