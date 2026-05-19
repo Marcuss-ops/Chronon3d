@@ -220,14 +220,8 @@ inline ProjectedLayer2_5D project_layer_2_5d(
 
     // Centroid projection: translate to screen-space (origin = top-left).
     // viewport center is added so shapes using model[3] as screen coords work.
-    if (use_view_matrix) {
-        out.transform.position.x = cam_pos.x * perspective_scale;
-        out.transform.position.y = -cam_pos.y * perspective_scale;
-    } else {
-        Vec4 world_pos = layer_matrix * Vec4(0.0f, 0.0f, 0.0f, 1.0f);
-        out.transform.position.x = world_pos.x - camera.position.x * perspective_scale;
-        out.transform.position.y = world_pos.y - camera.position.y * perspective_scale;
-    }
+    out.transform.position.x = cam_pos.x * perspective_scale;
+    out.transform.position.y = -cam_pos.y * perspective_scale;
     out.transform.position.z = 0.0f;
 
     out.transform.scale.x *= perspective_scale;
@@ -243,7 +237,7 @@ inline ProjectedLayer2_5D project_layer_2_5d(
         Mat4 proj = Mat4(0.0f);
         // All paths now use the same convention.
         proj[0][0] = focal;
-        proj[1][1] = focal;
+        proj[1][1] = -focal;
         proj[2][2] = 1.0f;
         // w = +z for all conventions now
         proj[2][3] = 1.0f;

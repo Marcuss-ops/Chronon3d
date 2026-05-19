@@ -107,15 +107,15 @@ Composition make_chain_scene(f32 grandparent_rot_y) {
         s.null_layer("parent", [](LayerBuilder& l) {
             l.parent("grandparent")
              .enable_3d()
-             .position({40, 0, 0});
+             .position({30, 0, 0});
         });
 
         s.layer("child", [](LayerBuilder& l) {
             l.parent("parent")
              .enable_3d()
-             .position({20, 0, 0})
+             .position({10, 0, 0})
              .rect("fill", {
-                 .size = {80, 80},
+                 .size = {60, 60},
                  .color = Color::red(),
                  .pos = {0, 0, 0}
              });
@@ -410,7 +410,7 @@ TEST_CASE("3D parenting visual: parent position plus child offset shifts the car
 
 TEST_CASE("3D parenting visual: grandparent rotation changes the chain") {
     auto flat = test::render_modular(make_chain_scene(0.0f));
-    auto rot = test::render_modular(make_chain_scene(30.0f));
+    auto rot = test::render_modular(make_chain_scene(45.0f));
 
     REQUIRE(flat != nullptr);
     REQUIRE(rot != nullptr);

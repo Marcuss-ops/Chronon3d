@@ -63,7 +63,7 @@ export default function FrameChart({ frames, selectedFrame, onSelectFrame, hover
 
           return (
             <rect
-              key={f.frame_number}
+              key={`frame-${f.frame_number || i}`}
               x={x}
               y={y}
               width={barWidth}
