@@ -35,7 +35,20 @@ This roadmap reflects the current codebase and the next structural steps needed 
 | **Particles overlay** | ✅ `presets::particles()` with configurable circles, streaks, glow |
 | **Studio presets** | ✅ `Studio::glass_panel/contact_shadow/fake_box3d/grid_plane/fake_extruded_text`, `Effects::bloom_*` |
 | **Motion presets (spring-animated)** | ✅ `motion::title_card()`, `motion::lower_third()`, `motion::progress_bar()` |
+Qui non basta muovere la camera. Serve avere un sistema più completo:
 
+camera null object
+camera target
+parenting pulito tra camera e null
+keyframe multipli
+curve editor equivalente, anche se solo via codice
+ease graph
+auto-orient verso target
+focus distance collegata a layer
+depth of field più controllabile
+preset componibili
+coordinate system super coerente
+export/debug del percorso camera
 ## 🟡 Important Features (Completed)
 
 | Feature | Status |

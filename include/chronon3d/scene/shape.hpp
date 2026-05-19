@@ -8,6 +8,7 @@
 #include <chronon3d/scene/fill.hpp>
 #include <chronon3d/scene/path.hpp>
 #include <string>
+#include <vector>
 
 namespace chronon3d {
 
@@ -56,6 +57,33 @@ struct LineShape {
 
 enum class TextAlign { Left, Center, Right };
 
+struct TextPaint {
+    Color fill{1.0f, 1.0f, 1.0f, 1.0f};
+    bool stroke_enabled{false};
+    Color stroke_color{0.0f, 0.0f, 0.0f, 1.0f};
+    f32 stroke_width{2.0f};
+};
+
+struct TextShadow {
+    bool enabled{false};
+    Vec2 offset{0.0f, 0.0f};
+    f32 blur{0.0f};
+    f32 opacity{1.0f};
+    Color color{0.0f, 0.0f, 0.0f, 1.0f};
+};
+
+struct TextBoxStyle {
+    bool enabled{false};
+    Vec2 padding{0.0f, 0.0f};
+    f32 radius{0.0f};
+    Color background{0.0f, 0.0f, 0.0f, 0.0f};
+    bool border_enabled{false};
+    Color border_color{0.0f, 0.0f, 0.0f, 0.0f};
+    f32 border_width{1.0f};
+};
+
+enum class VerticalAlign { Top, Middle, Bottom };
+
 struct TextStyle {
     std::string font_path;
     std::string font_family;
@@ -72,6 +100,12 @@ struct TextStyle {
     bool auto_scale{false};  // shrink font to fit TextBox
     f32  min_size{12.0f};
     f32  max_size{256.0f};
+
+    // V2 Typography
+    TextPaint paint{};
+    std::vector<TextShadow> shadows{};
+    TextBoxStyle box_style{};
+    VerticalAlign vertical_align{VerticalAlign::Top};
 };
 
 // Optional bounding box for word-wrap and auto-scale.

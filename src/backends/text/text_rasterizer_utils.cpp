@@ -1,4 +1,5 @@
 #include <chronon3d/backends/text/text_rasterizer_utils.hpp>
+#include <chronon3d/backends/text/text_layout_engine.hpp>
 #include "../software/utils/blend2d_resources.hpp"
 #include <chronon3d/registry/font_registry.hpp>
 #include <algorithm>
@@ -45,6 +46,52 @@ CacheKey hash_text_style(const TextShape& t, float effective_size, int padding) 
     seed = hash_combine(seed, hash_value(t.box.size.y));
     seed = hash_combine(seed, hash_value(t.box.enabled));
     seed = hash_combine(seed, hash_value(padding));
+
+    // V2 Paint
+    seed = hash_combine(seed, hash_value(t.style.paint.fill.r));
+    seed = hash_combine(seed, hash_value(t.style.paint.fill.g));
+    seed = hash_combine(seed, hash_value(t.style.paint.fill.b));
+    seed = hash_combine(seed, hash_value(t.style.paint.fill.a));
+    seed = hash_combine(seed, hash_value(t.style.paint.stroke_enabled));
+    seed = hash_combine(seed, hash_value(t.style.paint.stroke_color.r));
+    seed = hash_combine(seed, hash_value(t.style.paint.stroke_color.g));
+    seed = hash_combine(seed, hash_value(t.style.paint.stroke_color.b));
+    seed = hash_combine(seed, hash_value(t.style.paint.stroke_color.a));
+    seed = hash_combine(seed, hash_value(t.style.paint.stroke_width));
+
+    // V2 BoxStyle
+    seed = hash_combine(seed, hash_value(t.style.box_style.enabled));
+    seed = hash_combine(seed, hash_value(t.style.box_style.padding.x));
+    seed = hash_combine(seed, hash_value(t.style.box_style.padding.y));
+    seed = hash_combine(seed, hash_value(t.style.box_style.radius));
+    seed = hash_combine(seed, hash_value(t.style.box_style.background.r));
+    seed = hash_combine(seed, hash_value(t.style.box_style.background.g));
+    seed = hash_combine(seed, hash_value(t.style.box_style.background.b));
+    seed = hash_combine(seed, hash_value(t.style.box_style.background.a));
+    seed = hash_combine(seed, hash_value(t.style.box_style.border_enabled));
+    seed = hash_combine(seed, hash_value(t.style.box_style.border_color.r));
+    seed = hash_combine(seed, hash_value(t.style.box_style.border_color.g));
+    seed = hash_combine(seed, hash_value(t.style.box_style.border_color.b));
+    seed = hash_combine(seed, hash_value(t.style.box_style.border_color.a));
+    seed = hash_combine(seed, hash_value(t.style.box_style.border_width));
+
+    // V2 VerticalAlign
+    seed = hash_combine(seed, hash_value(static_cast<int>(t.style.vertical_align)));
+
+    // V2 Shadows
+    seed = hash_combine(seed, hash_value(t.style.shadows.size()));
+    for (const auto& shadow : t.style.shadows) {
+        seed = hash_combine(seed, hash_value(shadow.enabled));
+        seed = hash_combine(seed, hash_value(shadow.offset.x));
+        seed = hash_combine(seed, hash_value(shadow.offset.y));
+        seed = hash_combine(seed, hash_value(shadow.blur));
+        seed = hash_combine(seed, hash_value(shadow.opacity));
+        seed = hash_combine(seed, hash_value(shadow.color.r));
+        seed = hash_combine(seed, hash_value(shadow.color.g));
+        seed = hash_combine(seed, hash_value(shadow.color.b));
+        seed = hash_combine(seed, hash_value(shadow.color.a));
+    }
+
     return seed;
 }
 
@@ -83,40 +130,161 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     BLFont font;
     font.createFromFace(face, effective_size);
 
-    // Calculate bounds using GlyphBuffer
-    BLGlyphBuffer gb;
-    gb.setUtf8Text(t.text.c_str(), t.text.size());
-    font.shape(gb);
-    
-    BLTextMetrics metrics;
-    font.getTextMetrics(gb, metrics);
-    
-    const int tw = static_cast<int>(std::ceil(metrics.boundingBox.x1 - metrics.boundingBox.x0)) + padding;
-    const int th = static_cast<int>(std::ceil(font.metrics().ascent + font.metrics().descent)) + padding;
-    
+    // Setup custom char_width measuring using Blend2D's loaded font
+    auto cw = [&](char c, float sz) -> float {
+        BLFont measure_font;
+        measure_font.createFromFace(face, sz);
+        BLGlyphBuffer gb;
+        char buf[2] = {c, '\0'};
+        gb.setUtf8Text(buf, 1);
+        measure_font.shape(gb);
+        BLTextMetrics m;
+        measure_font.getTextMetrics(gb, m);
+        return static_cast<float>(m.advance.x);
+    };
+
+    // Account for TextBoxStyle padding if enabled
+    TextBox layout_box = t.box;
+    if (t.style.box_style.enabled && t.box.enabled) {
+        layout_box.size.x = std::max(0.0f, t.box.size.x - 2.0f * t.style.box_style.padding.x);
+        layout_box.size.y = std::max(0.0f, t.box.size.y - 2.0f * t.style.box_style.padding.y);
+    }
+
+    // Run the multi-line layout engine
+    TextLayoutInput layout_in;
+    layout_in.text = t.text;
+    layout_in.style = t.style;
+    layout_in.style.size = effective_size;
+    layout_in.box = layout_box;
+    layout_in.char_width = cw;
+
+    auto layout_res = TextLayoutEngine::layout(layout_in);
+
+    // Calculate dimensions
+    int tw = 0;
+    int th = 0;
+    if (t.box.enabled) {
+        tw = static_cast<int>(std::ceil(t.box.size.x)) + padding;
+        th = static_cast<int>(std::ceil(t.box.size.y)) + padding;
+    } else {
+        float box_w = layout_res.size.x;
+        float box_h = layout_res.size.y;
+        if (t.style.box_style.enabled) {
+            box_w += 2.0f * t.style.box_style.padding.x;
+            box_h += 2.0f * t.style.box_style.padding.y;
+        }
+        tw = static_cast<int>(std::ceil(box_w)) + padding;
+        th = static_cast<int>(std::ceil(box_h)) + padding;
+    }
+
     if (tw <= 0 || th <= 0) return std::nullopt;
 
     BLImage img(tw, th, BL_FORMAT_PRGB32);
     BLContext ctx(img);
     ctx.clearAll();
-    
-    // We render in pure white (base for tinting or direct use)
-    ctx.setFillStyle(BLRgba32(255, 255, 255, 255));
-    ctx.fillUtf8Text(BLPoint(-metrics.boundingBox.x0 + (padding/2), font.metrics().ascent + (padding/2)), font, t.text.c_str());
+
+    // Render TextBox background card if enabled
+    if (t.style.box_style.enabled) {
+        float rect_w = t.box.enabled ? t.box.size.x : (layout_res.size.x + 2.0f * t.style.box_style.padding.x);
+        float rect_h = t.box.enabled ? t.box.size.y : (layout_res.size.y + 2.0f * t.style.box_style.padding.y);
+        BLRoundRect rect(padding / 2.0f, padding / 2.0f, rect_w, rect_h, t.style.box_style.radius, t.style.box_style.radius);
+
+        ctx.setFillStyle(BLRgba32(
+            static_cast<uint8_t>(std::clamp(t.style.box_style.background.r * 255.0f, 0.0f, 255.0f)),
+            static_cast<uint8_t>(std::clamp(t.style.box_style.background.g * 255.0f, 0.0f, 255.0f)),
+            static_cast<uint8_t>(std::clamp(t.style.box_style.background.b * 255.0f, 0.0f, 255.0f)),
+            static_cast<uint8_t>(std::clamp(t.style.box_style.background.a * 255.0f, 0.0f, 255.0f))
+        ));
+        ctx.fillRoundRect(rect);
+
+        if (t.style.box_style.border_enabled && t.style.box_style.border_width > 0.0f) {
+            ctx.setStrokeWidth(t.style.box_style.border_width);
+            ctx.setStrokeStyle(BLRgba32(
+                static_cast<uint8_t>(std::clamp(t.style.box_style.border_color.r * 255.0f, 0.0f, 255.0f)),
+                static_cast<uint8_t>(std::clamp(t.style.box_style.border_color.g * 255.0f, 0.0f, 255.0f)),
+                static_cast<uint8_t>(std::clamp(t.style.box_style.border_color.b * 255.0f, 0.0f, 255.0f)),
+                static_cast<uint8_t>(std::clamp(t.style.box_style.border_color.a * 255.0f, 0.0f, 255.0f))
+            ));
+            ctx.strokeRoundRect(rect);
+        }
+    }
+
+    // Calculate vertical alignment offset
+    float free_h = t.box.enabled ? (t.box.size.y - (t.style.box_style.enabled ? 2.0f * t.style.box_style.padding.y : 0.0f)) : 0.0f;
+    float dy_align = 0.0f;
+    if (t.box.enabled && free_h > layout_res.size.y) {
+        if (t.style.vertical_align == VerticalAlign::Middle) {
+            dy_align = (free_h - layout_res.size.y) * 0.5f;
+        } else if (t.style.vertical_align == VerticalAlign::Bottom) {
+            dy_align = free_h - layout_res.size.y;
+        }
+    }
+
+    // Text starting position offset
+    float text_start_x = padding / 2.0f + (t.style.box_style.enabled ? t.style.box_style.padding.x : 0.0f);
+    float text_start_y = padding / 2.0f + (t.style.box_style.enabled ? t.style.box_style.padding.y : 0.0f) + dy_align;
+
+    // Resolve color
+    Color fill_color = t.style.paint.fill;
+    if (fill_color == Color{1.0f, 1.0f, 1.0f, 1.0f} && !(t.style.color == Color{1.0f, 1.0f, 1.0f, 1.0f})) {
+        fill_color = t.style.color;
+    }
+
+    // Draw lines
+    for (const auto& line : layout_res.lines) {
+        if (line.text.empty()) continue;
+
+        float lx = text_start_x + line.position.x;
+        float ly = text_start_y + line.position.y + font.metrics().ascent;
+
+        if (t.style.paint.stroke_enabled && t.style.paint.stroke_width > 0.0f) {
+            ctx.setStrokeWidth(t.style.paint.stroke_width);
+            ctx.setStrokeStyle(BLRgba32(
+                static_cast<uint8_t>(std::clamp(t.style.paint.stroke_color.r * 255.0f, 0.0f, 255.0f)),
+                static_cast<uint8_t>(std::clamp(t.style.paint.stroke_color.g * 255.0f, 0.0f, 255.0f)),
+                static_cast<uint8_t>(std::clamp(t.style.paint.stroke_color.b * 255.0f, 0.0f, 255.0f)),
+                static_cast<uint8_t>(std::clamp(t.style.paint.stroke_color.a * 255.0f, 0.0f, 255.0f))
+            ));
+            ctx.strokeUtf8Text(BLPoint(lx, ly), font, line.text.c_str());
+        }
+
+        ctx.setFillStyle(BLRgba32(
+            static_cast<uint8_t>(std::clamp(fill_color.r * 255.0f, 0.0f, 255.0f)),
+            static_cast<uint8_t>(std::clamp(fill_color.g * 255.0f, 0.0f, 255.0f)),
+            static_cast<uint8_t>(std::clamp(fill_color.b * 255.0f, 0.0f, 255.0f)),
+            static_cast<uint8_t>(std::clamp(fill_color.a * 255.0f, 0.0f, 255.0f))
+        ));
+        ctx.fillUtf8Text(BLPoint(lx, ly), font, line.text.c_str());
+    }
+
     ctx.end();
 
+    // Calculate layout metrics bounding box
+    BLGlyphBuffer gb;
+    gb.setUtf8Text(t.text.c_str(), t.text.size());
+    font.shape(gb);
+    BLTextMetrics metrics;
+    font.getTextMetrics(gb, metrics);
+
+    // Compute external offsets
     float x_offset = 0.0f;
-    const float full_width = metrics.advance.x;
-    if (t.style.align == TextAlign::Center) x_offset = -full_width * 0.5f;
-    else if (t.style.align == TextAlign::Right) x_offset = -full_width;
+    if (t.box.enabled) {
+        x_offset = -padding / 2.0f;
+    } else {
+        const float full_width = layout_res.size.x;
+        if (t.style.align == TextAlign::Center) x_offset = -full_width * 0.5f;
+        else if (t.style.align == TextAlign::Right) x_offset = -full_width;
+        x_offset += metrics.boundingBox.x0 - (padding / 2.0f);
+    }
 
-    // Adjust for the bounding box offset
-    x_offset += metrics.boundingBox.x0 - (padding/2);
-
-    float y_offset = -font.metrics().ascent - (padding/2);
-    if (t.style.align == TextAlign::Center) {
-        // Visually center vertically as well when horizontal centering is used
-        y_offset += (font.metrics().ascent - font.metrics().descent) * 0.5f;
+    float y_offset = 0.0f;
+    if (t.box.enabled) {
+        y_offset = -padding / 2.0f;
+    } else {
+        y_offset = -font.metrics().ascent - (padding / 2.0f);
+        if (t.style.align == TextAlign::Center) {
+            y_offset += (font.metrics().ascent - font.metrics().descent) * 0.5f;
+        }
     }
 
     TextRasterization res;

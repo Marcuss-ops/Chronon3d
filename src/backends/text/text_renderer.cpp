@@ -17,18 +17,33 @@ bool TextRenderer::draw_text(const TextShape& t, const Transform& tr, Framebuffe
     auto raster = rasterize_text_to_bl_image(t, effective_size);
     if (!raster) return false;
 
-    // Apply text color (rasterize_text_to_bl_image produces white text)
-    BLContext ctx(raster->image);
-    ctx.setCompOp(BL_COMP_OP_SRC_IN);
-    ctx.setFillStyle(BLRgba32(
-        static_cast<uint8_t>(std::clamp(t.style.color.r * 255.0f, 0.0f, 255.0f)),
-        static_cast<uint8_t>(std::clamp(t.style.color.g * 255.0f, 0.0f, 255.0f)),
-        static_cast<uint8_t>(std::clamp(t.style.color.b * 255.0f, 0.0f, 255.0f)),
-        255
-    ));
-    ctx.fillAll();
-    ctx.end();
+    // 1. Draw Drop Shadows
+    for (const auto& shadow : t.style.shadows) {
+        if (!shadow.enabled || shadow.opacity <= 0.0f || shadow.color.a <= 0.0f) continue;
+        
+        BLImage shadow_img;
+        shadow_img.create(raster->image.width(), raster->image.height(), BL_FORMAT_PRGB32);
+        {
+            BLContext ctx(shadow_img);
+            ctx.clearAll();
+            ctx.blitImage(BLPoint(0, 0), raster->image);
+            ctx.setCompOp(BL_COMP_OP_SRC_IN);
+            ctx.setFillStyle(BLRgba32(
+                static_cast<uint8_t>(std::clamp(shadow.color.r * 255.0f, 0.0f, 255.0f)),
+                static_cast<uint8_t>(std::clamp(shadow.color.g * 255.0f, 0.0f, 255.0f)),
+                static_cast<uint8_t>(std::clamp(shadow.color.b * 255.0f, 0.0f, 255.0f)),
+                255
+            ));
+            ctx.fillAll();
+        }
 
+        blend2d_bridge::composite_bl_image(fb, shadow_img, 
+            static_cast<int>(tr.position.x + raster->x_offset + shadow.offset.x), 
+            static_cast<int>(tr.position.y + raster->y_offset + shadow.offset.y), 
+            tr.opacity * shadow.opacity * shadow.color.a, BlendMode::Normal);
+    }
+
+    // 2. Draw Text (already colored and styled internally)
     blend2d_bridge::composite_bl_image(fb, raster->image, 
         static_cast<int>(tr.position.x + raster->x_offset), 
         static_cast<int>(tr.position.y + raster->y_offset), 

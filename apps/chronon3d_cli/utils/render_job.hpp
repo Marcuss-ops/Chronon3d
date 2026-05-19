@@ -19,6 +19,9 @@ struct RenderJobPlan {
     RenderSettings settings;
     bool from_specscene{false};
     std::string trace_file;
+    std::string log_level;
+    bool benchmark_all{false};
+    bool report{false};
 };
 
 std::optional<RenderJobPlan> plan_render_job(const CompositionRegistry& registry,
