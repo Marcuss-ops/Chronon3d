@@ -324,6 +324,7 @@ bool execute_render_job(const CompositionRegistry& registry, const RenderJobPlan
             report_out << "Build Type:   " << run.build_type << "\n\n";
             report_out << "Run ID:         " << run.run_id << "\n";
             report_out << "Composition ID: " << run.composition_id << "\n";
+            report_out << "Output Path:    " << run.output_path << "\n";
             report_out << "Frames Total:   " << run.frames_total << "\n";
             report_out << "Wall Time:      " << run.wall_time_ms << " ms\n";
             report_out << "Render Time:    " << run.render_ms << " ms\n";

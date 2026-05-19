@@ -301,7 +301,7 @@ target_link_libraries(chronon3d_core INTERFACE
 
 add_library(chronon3d_software INTERFACE)
 target_link_libraries(chronon3d_software INTERFACE
-    chronon3d_backend_software chronon3d_backend_assets chronon3d_backend_image
+    $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_backend_software> chronon3d_backend_assets chronon3d_backend_image
 )
 
 
