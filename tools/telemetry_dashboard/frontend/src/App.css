@@ -169,6 +169,42 @@
   margin-bottom: 24px;
 }
 
+.preview-panel {
+  padding: 18px;
+  margin-bottom: 24px;
+}
+
+.preview-path {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  max-width: 65%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.render-preview-media {
+  width: 100%;
+  max-height: 420px;
+  margin-top: 14px;
+  border-radius: 14px;
+  border: 1px solid var(--border-color);
+  background: #000;
+  object-fit: contain;
+  box-shadow: var(--shadow-lg);
+}
+
+.preview-empty {
+  padding: 24px;
+  margin-top: 14px;
+  border: 1px dashed var(--border-color);
+  border-radius: 14px;
+  color: var(--text-muted);
+  text-align: center;
+  background: rgba(0, 0, 0, 0.18);
+}
+
 .metric-card {
   padding: 20px;
   text-align: left;
