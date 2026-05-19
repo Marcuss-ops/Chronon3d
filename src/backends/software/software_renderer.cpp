@@ -118,6 +118,7 @@ std::unique_ptr<Framebuffer> SoftwareRenderer::render_frame(const Composition& c
                                                             Frame frame) {
     profiling::g_current_trace = &m_trace;
     profiling::g_current_frame = static_cast<int32_t>(frame);
+    profiling::g_current_counters = &m_counters;
     profiling::g_current_framebuffer_pool = m_framebuffer_pool.get();
     TraceScope scope(&m_trace, "render_frame", "frame", static_cast<int32_t>(frame));
 
@@ -125,6 +126,7 @@ std::unique_ptr<Framebuffer> SoftwareRenderer::render_frame(const Composition& c
         *this, m_node_cache, m_settings, m_registry, m_video_decoder.get(), comp, frame
     );
 
+    profiling::g_current_counters = nullptr;
     profiling::g_current_framebuffer_pool = nullptr;
     return res;
 }
@@ -134,6 +136,7 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(const Scene& scene,
                                                             i32 height) {
     profiling::g_current_trace = &m_trace;
     profiling::g_current_frame = 0;
+    profiling::g_current_counters = &m_counters;
     profiling::g_current_framebuffer_pool = m_framebuffer_pool.get();
     TraceScope scope(&m_trace, "render_scene", "frame", 0);
 
@@ -151,6 +154,7 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(const Scene& scene,
         m_video_decoder.get()
     );
 
+    profiling::g_current_counters = nullptr;
     profiling::g_current_framebuffer_pool = nullptr;
     return res;
 }
@@ -159,6 +163,7 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(
     const Scene& scene, const std::optional<Camera2_5D>& camera, i32 width, i32 height) {
     profiling::g_current_trace = &m_trace;
     profiling::g_current_frame = 0;
+    profiling::g_current_counters = &m_counters;
     TraceScope scope(&m_trace, "render_scene_2_5d", "frame", 0);
 
     Scene effective_scene = scene;
@@ -167,7 +172,7 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(
     }
 
     Camera default_camera;
-    return graph::render_scene_via_graph(
+    auto res = graph::render_scene_via_graph(
         *this,
         m_node_cache,
         effective_scene,
@@ -180,6 +185,9 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(
         m_registry,
         m_video_decoder.get()
     );
+
+    profiling::g_current_counters = nullptr;
+    return res;
 }
 
 std::string SoftwareRenderer::debug_render_graph(const Scene& scene, const Camera& camera,
