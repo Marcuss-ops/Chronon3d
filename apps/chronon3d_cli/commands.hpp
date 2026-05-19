@@ -29,6 +29,9 @@ struct RenderArgs {
     std::string output;      // No default
     std::string trace_file;  // Path to Chrome tracing JSON file
     RenderPipelineArgs pipeline{};
+    std::string log_level{"info"};
+    bool benchmark_all{false};
+    bool report{false};
 };
 
 struct VideoArgs {

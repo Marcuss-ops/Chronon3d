@@ -20,6 +20,12 @@ add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/FS>")
 option(CHRONON3D_BUILD_TESTS "Build Chronon3d tests" ON)
 option(CHRONON3D_BUILD_CLI "Build Chronon3d CLI" ON)
 option(CHRONON3D_ENABLE_PROFILING "Enable Tracy profiling" OFF)
+option(CHRONON3D_ENABLE_SQLITE_TELEMETRY "Enable SQLite telemetry store" OFF)
+
+if(CHRONON3D_ENABLE_SQLITE_TELEMETRY)
+    find_package(unofficial-sqlite3 CONFIG REQUIRED)
+    add_definitions(-DCHRONON3D_ENABLE_SQLITE_TELEMETRY)
+endif()
 
 if(CHRONON3D_BUILD_TESTS)
     add_definitions(-DCHRONON_BUILD_TESTS)
@@ -79,6 +85,7 @@ target_link_libraries(chronon3d_assets PUBLIC chronon3d chronon3d_registry)
 set(CHRONON3D_CACHE_SOURCES
     src/cache/frame_cache.cpp
     src/cache/node_cache.cpp
+    src/cache/framebuffer_pool.cpp
 )
 add_library(chronon3d_cache STATIC ${CHRONON3D_CACHE_SOURCES})
 target_link_libraries(chronon3d_cache PUBLIC chronon3d xxHash::xxhash)
@@ -120,12 +127,19 @@ set(CHRONON3D_RUNTIME_SOURCES
     src/runtime/pipeline.cpp
     src/runtime/scene_to_render_graph.cpp
     src/runtime/timeline_evaluator.cpp
+    src/runtime/telemetry/jsonl_telemetry_store.cpp
+    src/runtime/telemetry/sqlite_telemetry_store.cpp
+    src/runtime/telemetry/telemetry_manager.cpp
 )
 add_library(chronon3d_runtime STATIC ${CHRONON3D_RUNTIME_SOURCES})
 target_link_libraries(chronon3d_runtime PUBLIC
     chronon3d chronon3d_graph chronon3d_effects chronon3d_cache
     Taskflow::Taskflow
 )
+
+if(CHRONON3D_ENABLE_SQLITE_TELEMETRY)
+    target_link_libraries(chronon3d_runtime PUBLIC unofficial::sqlite3::sqlite3)
+endif()
 
 # 7. Backends
 

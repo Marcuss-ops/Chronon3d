@@ -11,6 +11,8 @@ add_executable(chronon3d_core_tests
     core/public_api_test.cpp
     core/trace_test.cpp
     core/math/test_math.cpp
+    cache/test_lru_weight.cpp
+    cache/test_framebuffer_pool.cpp
     core/math/test_camera_pose.cpp
     core/math/test_camera_2_5d_projection.cpp
     core/math/test_projector_2_5d.cpp
@@ -95,6 +97,7 @@ add_executable(chronon3d_renderer_tests
     presets/test_motion_visual_smoke.cpp
     renderer/text/test_lil_dirk_reference.cpp
     renderer/text/test_text_rendering.cpp
+    renderer/text/test_text_v2.cpp
     renderer/text/test_text_layout.cpp
     renderer/text/test_text_layout_result.cpp
     renderer/text/test_text_alignment_regression.cpp
@@ -149,6 +152,7 @@ add_executable(chronon3d_renderer_tests
     cli/cli_render_tests.cpp
     golden/golden_render_tests.cpp
     perf/render_graph_perf_tests.cpp
+    runtime/test_telemetry.cpp
 )
 target_link_libraries(chronon3d_renderer_tests
     PRIVATE

@@ -17,7 +17,8 @@
     "cli11",
     "tomlplusplus",
     "blend2d",
-    "nlohmann-json"
+    "nlohmann-json",
+    "sqlite3"
   ],
   "default-features": []
 }
