@@ -14,6 +14,7 @@ void append_composite_pass(RenderGraph& graph, GraphNodeId& current,
         layer.blend_mode,
         layer.cache_static ? Frame{0} : Frame{-1}
     ));
+    graph.node(composite).set_frame_dependent(!layer.cache_static);
     graph.connect(current, composite);
     graph.connect(layer_output, composite);
     current = composite;

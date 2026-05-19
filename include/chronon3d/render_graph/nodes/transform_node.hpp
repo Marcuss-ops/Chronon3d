@@ -33,6 +33,10 @@ public:
     [[nodiscard]] RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::Transform; }
     [[nodiscard]] std::string name() const override { return "Transform"; }
 
+    [[nodiscard]] CacheFramePolicy cache_frame_policy() const override {
+        return CacheFramePolicy::FrameInvariant;
+    }
+
     [[nodiscard]] cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         u64 params_hash = hash_combine(
             hash_transform(m_transform),

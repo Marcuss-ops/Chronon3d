@@ -16,6 +16,10 @@ public:
     RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::Precomp; }
     std::string name() const override { return "Precomp:" + m_comp_name; }
 
+    [[nodiscard]] CacheFramePolicy cache_frame_policy() const override {
+        return CacheFramePolicy::FrameInvariant;
+    }
+
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         return cache::NodeCacheKey{
             .scope = "precomp",

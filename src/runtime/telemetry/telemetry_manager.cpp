@@ -78,7 +78,7 @@ void TelemetryManager::initialize_default_stores() {
     }
 }
 
-bool TelemetryManager::record_run(RenderTelemetryRecord run,
+bool TelemetryManager::record_run(RenderTelemetryRecord& run,
                                   const std::vector<FrameTelemetryRecord>& frames,
                                   const std::vector<PhaseTelemetryRecord>& phases,
                                   const std::vector<CounterTelemetryRecord>& counters,

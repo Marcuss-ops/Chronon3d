@@ -33,6 +33,7 @@ void append_transform_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_outp
     }
 
     auto transform = graph.add_node(std::move(transform_node));
+    graph.node(transform).set_frame_dependent(!layer.cache_static);
     graph.connect(layer_output, transform);
     layer_output = transform;
 }

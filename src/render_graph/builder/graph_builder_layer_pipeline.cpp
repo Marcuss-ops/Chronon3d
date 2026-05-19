@@ -77,6 +77,7 @@ void LayerPipelineBuilder::append_layer_pipeline(RenderGraph& graph, const Layer
             stack.push_back(eff);
             auto node = std::make_unique<AdjustmentNode>(std::move(stack));
             GraphNodeId adj_id = graph.add_node(std::move(node));
+            graph.node(adj_id).set_frame_dependent(!layer.cache_static);
             graph.connect(current, adj_id);
             current = adj_id;
         }
@@ -128,6 +129,7 @@ void LayerPipelineBuilder::append_layer_pipeline(RenderGraph& graph, const Layer
         auto matte_node = graph.add_node(
             std::make_unique<TrackMatteNode>(layer.track_matte.type,
                                               std::string(layer.name), matte_key));
+        graph.node(matte_node).set_frame_dependent(!layer.cache_static);
         graph.connect(layer_output,     matte_node);
         graph.connect(item.matte_node,  matte_node);
         layer_output = matte_node;

@@ -23,6 +23,10 @@ public:
     RenderGraphNodeKind kind()   const override { return RenderGraphNodeKind::TrackMatte; }
     std::string         name()   const override { return m_name; }
 
+    [[nodiscard]] CacheFramePolicy cache_frame_policy() const override {
+        return CacheFramePolicy::FrameInvariant;
+    }
+
     cache::NodeCacheKey cache_key(const RenderGraphContext&) const override { return m_key; }
 
     std::shared_ptr<Framebuffer> execute(

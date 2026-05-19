@@ -22,6 +22,7 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
         std::lock_guard<std::mutex> lock(m_mutex);
         m_temp.clear();
         m_resolved_key_digest.clear();
+        m_resolved_frame_dependent.clear();
         m_pending.clear();
     }
     return execute_node(graph, output, ctx);
@@ -89,8 +90,32 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute_node(
         cache::NodeCacheKey key;
         std::string cache_status;
 
+        // ── Determine frame dependency ──────────────────────────────────────
+        bool inputs_frame_dependent = false;
+        bool has_cacheable_inputs = false;
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            for (auto input_id : input_ids) {
+                if (auto it = m_resolved_frame_dependent.find(input_id);
+                    it != m_resolved_frame_dependent.end()) {
+                    inputs_frame_dependent |= it->second;
+                    has_cacheable_inputs = true;
+                }
+            }
+        }
+
+        const bool node_frame_dependent =
+            node.frame_dependent() ||
+            (has_cacheable_inputs && inputs_frame_dependent) ||
+            node.cache_frame_policy() == CacheFramePolicy::FrameDependent;
+
+        // ── Cache key ──────────────────────────────────────────────────────
         if (is_cacheable && ctx.node_cache) {
             key = node.cache_key(ctx);
+
+            if (!node_frame_dependent) {
+                key.frame = 0;
+            }
 
             u64 input_hash = 0;
             {
@@ -176,6 +201,9 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute_node(
             std::lock_guard<std::mutex> lock(m_mutex);
             m_temp[id] = result;
             m_resolved_key_digest[id] = key.digest();
+            if (is_cacheable) {
+                m_resolved_frame_dependent[id] = node_frame_dependent;
+            }
             m_pending.erase(id);
         }
 
