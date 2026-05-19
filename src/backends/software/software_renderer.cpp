@@ -6,7 +6,6 @@
 #include <chronon3d/backends/software/software_node_dispatcher.hpp>
 #include <chronon3d/backends/software/builtin_processors.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
-#include <chronon3d/backends/software/fake_extruded_text_renderer.hpp>
 #include <chronon3d/core/profiling.hpp>
 #include <spdlog/spdlog.h>
 
@@ -54,11 +53,6 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(const Scene& scene,
         m_registry,
         m_video_decoder.get()
     );
-}
-
-void SoftwareRenderer::set_font_backend(std::shared_ptr<text::FontBackend> backend) {
-    m_font_backend = std::move(backend);
-    m_text_renderer.set_backend(m_font_backend);
 }
 
 std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(

@@ -3,7 +3,6 @@
 #include <chronon3d/chronon3d.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/image/image_writer.hpp>
-#include <chronon3d/backends/text/stb_font_backend.hpp>
 #include <memory>
 #include <string>
 #include <filesystem>
@@ -15,7 +14,6 @@ inline std::unique_ptr<Framebuffer> render_modular(const Composition& comp, Fram
     RenderSettings settings;
     settings.use_modular_graph = true;
     renderer.set_settings(settings);
-    renderer.set_font_backend(std::make_shared<text::StbFontBackend>());
     return renderer.render_frame(comp, frame);
 }
 

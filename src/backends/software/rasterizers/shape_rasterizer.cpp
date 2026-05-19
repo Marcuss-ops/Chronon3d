@@ -24,7 +24,6 @@ raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 sprea
         }
         case ShapeType::FakeBox3D: size = shape.fake_box3d.size; break;
         case ShapeType::GridPlane: size = {shape.grid_plane.extent * 2, shape.grid_plane.extent * 2}; break;
-        case ShapeType::FakeExtrudedText: size = {shape.fake_extruded_text.font_size * 20, shape.fake_extruded_text.font_size * 4}; break;
         default: break;
     }
 

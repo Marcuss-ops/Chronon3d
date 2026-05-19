@@ -1,12 +1,9 @@
-// ProofYouTubeImageDof v2
+// ProofYouTubeImageDof v2 (text removed — text engine deprecated)
 //
 // Test DOF a tre piani ben separati:
-//   z=800  background skyline (blur DOF forte ~20px)
+//   z=800  background skyline (blur DOF forte)
 //   z=0    subject card (fuoco — nitido)
-//   z=-300 particelle foreground (blur DOF medio ~7px)
-//   2D     etichetta "FOCUS SUBJECT" nitida
-//
-// Sfondo con grattacieli e luci finestre per rendere l'edge DOF visibile.
+//   z=-300 particelle foreground (blur DOF medio)
 
 #include <chronon3d/chronon3d.hpp>
 #include <chronon3d/core/composition_registration.hpp>
@@ -23,7 +20,6 @@ static Composition proof_youtube_image_dof() {
     }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
 
-        // Camera statica con DOF forte
         s.camera().set({
             .enabled  = true,
             .position = {0.0f, 0.0f, -1000.0f},
@@ -36,7 +32,6 @@ static Composition proof_youtube_image_dof() {
             }
         });
 
-        // ── Background skyline (z=800 → DOF blur ~20px) ───────────────────────
         s.layer("bg", [](LayerBuilder& l) {
             l.enable_3d().position({0.0f, 0.0f, 800.0f});
             l.rect("sky", {
@@ -44,7 +39,6 @@ static Composition proof_youtube_image_dof() {
                 .color = Color{0.03f, 0.04f, 0.10f, 1.0f},
                 .pos   = {0.0f, -200.0f, 0.0f}
             });
-            // Grattacieli con edge ben definite (DOF le sfalsa)
             struct B { float x, y, w, h; Color c; };
             static const B blds[] = {
                 {-600, 60, 100, 400, {0.12f,0.14f,0.22f,1}},
@@ -61,7 +55,6 @@ static Composition proof_youtube_image_dof() {
                 l.rect("b"+std::to_string(i++),
                     {.size={b.w,b.h}, .color=b.c, .pos={b.x,b.y,0.0f}});
             }
-            // Luci finestre — bokeh sfocati dal DOF
             const Color lc{0.95f,0.88f,0.5f,1.0f};
             l.circle("lw1",{.radius=6.0f,.color=lc,.pos={-440.0f,-30.0f,0.0f}});
             l.circle("lw2",{.radius=5.0f,.color=lc,.pos={ -60.0f,-80.0f,0.0f}});
@@ -70,7 +63,6 @@ static Composition proof_youtube_image_dof() {
             l.circle("lw5",{.radius=6.0f,.color=lc,.pos={  580.0f,-60.0f,0.0f}});
         });
 
-        // ── Subject (z=0 — fuoco, nitido) ─────────────────────────────────────
         s.layer("subject", [](LayerBuilder& l) {
             l.enable_3d().position({0.0f, 0.0f, 0.0f});
             l.rounded_rect("card", {
@@ -84,7 +76,6 @@ static Composition proof_youtube_image_dof() {
                 .color = Color{0.38f, 0.50f, 0.70f, 0.9f},
                 .pos   = {0.0f, -195.0f, 0.0f}
             });
-            // Edge contrast strip (nitida — conferma focus)
             l.rect("edge_strip", {
                 .size  = {440.0f, 4.0f},
                 .color = Color{1.0f, 1.0f, 1.0f, 0.55f},
@@ -92,7 +83,6 @@ static Composition proof_youtube_image_dof() {
             });
         });
 
-        // ── Foreground particelle (z=-300 → DOF blur ~7px) ───────────────────
         s.layer("fg", [](LayerBuilder& l) {
             l.enable_3d().position({0.0f, 0.0f, -300.0f});
             const Color pc{0.75f, 0.82f, 1.0f, 0.50f};
@@ -103,20 +93,7 @@ static Composition proof_youtube_image_dof() {
             l.circle("p5",{.radius=16.0f,.color=pc,.pos={-580.0f, -80.0f,0.0f}});
         });
 
-        // ── Label 2D nitida (conferma visivamente dove è il fuoco) ───────────
-        s.layer("label_2d", [](LayerBuilder& l) {
-            l.position({0.0f, -220.0f, 0.0f});  // sopra la card (mondo-2D y=-220 = screen y=140)
-            l.text("lbl", {
-                .content = "FOCUS SUBJECT",
-                .style   = {
-                    .font_path = "assets/fonts/Inter-Bold.ttf",
-                    .size      = 32.0f,
-                    .color     = Color{0.6f, 1.0f, 0.6f, 0.85f},
-                    .align     = TextAlign::Center,
-                },
-                .pos = {0.0f, 0.0f, 0.0f}
-            });
-        });
+        // Label text removed — text engine deprecated
 
         return s.build();
     });

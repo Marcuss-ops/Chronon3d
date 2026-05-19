@@ -14,9 +14,7 @@ using VisualDesc = std::variant<
     RoundedRectParams,
     CircleParams,
     LineParams,
-    TextParams,
-    ImageParams,
-    FakeExtrudedTextParams
+    ImageParams
 >;
 
 } // namespace chronon3d

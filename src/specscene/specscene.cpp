@@ -87,14 +87,6 @@ Color read_color(const toml::table& tbl, const char* key, Color fallback) {
     return fallback;
 }
 
-TextAlign parse_text_align(std::string value, TextAlign fallback = TextAlign::Left) {
-    value = lower_copy(std::move(value));
-    if (value == "center") return TextAlign::Center;
-    if (value == "right") return TextAlign::Right;
-    if (value == "left") return TextAlign::Left;
-    return fallback;
-}
-
 BlendMode parse_blend_mode(std::string value, BlendMode fallback = BlendMode::Normal) {
     value = lower_copy(std::move(value));
     if (value == "add") return BlendMode::Add;
@@ -120,20 +112,6 @@ DepthRole parse_depth_role(std::string value, DepthRole fallback = DepthRole::No
 
 void note(std::vector<std::string>* diagnostics, std::string message) {
     if (diagnostics) diagnostics->push_back(std::move(message));
-}
-
-template <typename T>
-void read_style_text(const toml::table& tbl, T& style) {
-    style.font_path  = read_scalar<std::string>(tbl, "font_path", style.font_path);
-    style.size       = read_scalar<f32>(tbl, "size", style.size);
-    style.color      = read_color(tbl, "color", style.color);
-    style.align      = parse_text_align(read_scalar<std::string>(tbl, "align", "left"), style.align);
-    style.line_height = read_scalar<f32>(tbl, "line_height", style.line_height);
-    style.tracking   = read_scalar<f32>(tbl, "tracking", style.tracking);
-    style.max_lines  = read_scalar<int>(tbl, "max_lines", style.max_lines);
-    style.auto_scale = read_scalar<bool>(tbl, "auto_scale", style.auto_scale);
-    style.min_size   = read_scalar<f32>(tbl, "min_size", style.min_size);
-    style.max_size   = read_scalar<f32>(tbl, "max_size", style.max_size);
 }
 
 std::optional<VisualDesc> parse_visual(const toml::table& tbl, std::vector<std::string>* diagnostics) {
@@ -173,14 +151,6 @@ std::optional<VisualDesc> parse_visual(const toml::table& tbl, std::vector<std::
         p.color     = read_color(tbl, "color", p.color);
         return p;
     }
-    if (type == "text") {
-        TextParams p;
-        p.content = read_scalar<std::string>(tbl, "content", p.content);
-        p.pos     = read_vec3(tbl, "pos", p.pos);
-        read_style_text(tbl, p.style);
-        if (p.style.font_path.empty()) p.style.font_path = "assets/fonts/Inter-Bold.ttf";
-        return p;
-    }
     if (type == "image") {
         ImageParams p;
         p.path    = read_scalar<std::string>(tbl, "path", p.path);
@@ -189,24 +159,6 @@ std::optional<VisualDesc> parse_visual(const toml::table& tbl, std::vector<std::
         p.opacity = read_scalar<f32>(tbl, "opacity", p.opacity);
         return p;
     }
-    if (type == "fake_extruded_text") {
-        FakeExtrudedTextParams p;
-        p.text               = read_scalar<std::string>(tbl, "text", p.text);
-        p.font_path          = read_scalar<std::string>(tbl, "font_path", p.font_path);
-        p.pos                = read_vec3(tbl, "pos", p.pos);
-        p.font_size          = read_scalar<f32>(tbl, "font_size", p.font_size);
-        p.depth              = read_scalar<int>(tbl, "depth", p.depth);
-        p.extrude_dir        = read_vec2(tbl, "extrude_dir", p.extrude_dir);
-        p.extrude_z_step     = read_scalar<f32>(tbl, "extrude_z_step", p.extrude_z_step);
-        p.front_color        = read_color(tbl, "front_color", p.front_color);
-        p.side_color         = read_color(tbl, "side_color", p.side_color);
-        p.side_fade          = read_scalar<f32>(tbl, "side_fade", p.side_fade);
-        p.align              = parse_text_align(read_scalar<std::string>(tbl, "align", "center"), p.align);
-        p.highlight_opacity  = read_scalar<f32>(tbl, "highlight_opacity", p.highlight_opacity);
-        p.bevel_size         = read_scalar<f32>(tbl, "bevel_size", p.bevel_size);
-        return p;
-    }
-
     note(diagnostics, fmt::format("unknown visual type `{}`", type));
     return std::nullopt;
 }

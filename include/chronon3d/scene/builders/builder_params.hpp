@@ -54,13 +54,6 @@ struct PathParams {
     bool closed{false};
 };
 
-struct TextParams {
-    std::string content;
-    TextStyle   style;
-    Vec3        pos{0, 0, 0};
-    TextBox     box{};
-};
-
 struct ImageParams {
     std::string path;
     Vec2 size{100.0f, 100.0f};
@@ -74,23 +67,6 @@ struct ContactShadowParams {
     f32   blur{30.0f};         // blur radius in screen pixels
     f32   opacity{0.45f};      // overall shadow opacity
     Color color{0, 0, 0, 1};   // shadow tint
-};
-
-struct FakeExtrudedTextParams {
-    std::string text;
-    std::string font_path{"assets/fonts/Inter-Bold.ttf"};
-    Vec3  pos{0, 0, 0};
-    f32   font_size{80.0f};
-    int   depth{32};
-    Vec2  extrude_dir{0.8f, 1.0f};  // world-space X/Y per step
-    f32   extrude_z_step{1.2f};
-    Color front_color{0.96f, 0.94f, 0.88f, 1.0f};
-    Color side_color{0.55f, 0.50f, 0.43f, 0.85f};
-    f32   side_fade{0.25f};
-    TextAlign align{TextAlign::Center};
-    f32   highlight_opacity{0.09f};
-    f32   bevel_size{1.5f};
-    Vec3  light_dir{-0.577f, 0.577f, -0.577f};  // world-space, normalized
 };
 
 struct FakeBox3DParams {

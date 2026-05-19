@@ -58,19 +58,7 @@ void LayoutSolver::solve(Scene& scene, i32 canvas_w, i32 canvas_h) const {
                 layer.transform.position.y, sa.top, H - sa.bottom);
         }
 
-        // --- fit_text: enable auto_scale on all text nodes in this layer ---
-        if (layer.layout.fit_text) {
-            for (auto& node : layer.nodes) {
-                if (node.shape.type == ShapeType::Text) {
-                    node.shape.text.style.auto_scale = true;
-                    if (!node.shape.text.box.enabled) {
-                        // Enable a default text box matching the canvas
-                        node.shape.text.box.enabled  = true;
-                        node.shape.text.box.size      = {W, H};
-                    }
-                }
-            }
-        }
+
     }
 }
 

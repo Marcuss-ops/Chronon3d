@@ -2,7 +2,6 @@
 #include <chronon3d/chronon3d.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/image/stb_image_backend.hpp>
-#include <chronon3d/backends/text/stb_font_backend.hpp>
 #include <chrono>
 
 using namespace chronon3d;
@@ -37,7 +36,6 @@ TEST_CASE("perf: 3 frame 480x270 sotto 500ms") {
     auto comp = make_perf_comp(480, 270);
     SoftwareRenderer renderer;
     renderer.set_image_backend(std::make_shared<image::StbImageBackend>());
-    renderer.set_font_backend(std::make_shared<text::StbFontBackend>());
 
     auto ms = render_ms(renderer, comp, 3);
     MESSAGE("480x270 x3 frames: ", ms, "ms");
@@ -48,7 +46,6 @@ TEST_CASE("perf: render frame singolo 480x270 sotto 200ms") {
     auto comp = make_perf_comp(480, 270);
     SoftwareRenderer renderer;
     renderer.set_image_backend(std::make_shared<image::StbImageBackend>());
-    renderer.set_font_backend(std::make_shared<text::StbFontBackend>());
 
     auto t0 = std::chrono::steady_clock::now();
     auto fb = renderer.render_frame(comp, 0);
@@ -64,7 +61,6 @@ TEST_CASE("perf: warm render e' piu' veloce del cold") {
     auto comp = make_perf_comp(480, 270);
     SoftwareRenderer renderer;
     renderer.set_image_backend(std::make_shared<image::StbImageBackend>());
-    renderer.set_font_backend(std::make_shared<text::StbFontBackend>());
 
     // Cold
     auto t0 = std::chrono::steady_clock::now();

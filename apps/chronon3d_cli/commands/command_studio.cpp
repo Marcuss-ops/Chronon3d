@@ -160,19 +160,6 @@ int command_storyboard(const CompositionRegistry& registry, const RenderArgs& ar
             .pos = { 0.0f, h * 0.5f - 80.0f, 0.0f }
         });
 
-        // Overlay metadata text
-        builder.text("hud_text", {
-            .content = fmt::format("PANEL {} | F: {} | {:.2f}s", i + 1, f, static_cast<f32>(f) / plan->comp->frame_rate().fps()),
-            .style = {
-                .font_family = "Inter",
-                .font_weight = 700,
-                .size = 20.0f,
-                .color = Color::white(),
-                .align = TextAlign::Center
-            },
-            .box = { .size = { 400.0f, 40.0f }, .enabled = true }
-        }).at({ 0.0f, h * 0.5f - 80.0f, 0.0f });
-
         scene.add_layer(builder.build());
 
         // Render the scene directly with HUD overlay

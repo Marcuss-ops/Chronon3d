@@ -41,7 +41,6 @@ struct RenderNode {
     std::shared_ptr<Mesh> mesh;
     FakeBox3DRenderState fake_box3d_runtime;
     GridPlaneRenderState grid_plane_runtime;
-    FakeExtrudedTextRenderState fake_extruded_text_runtime;
     bool visible{true};
 
     explicit RenderNode(std::pmr::memory_resource* res = std::pmr::get_default_resource())
