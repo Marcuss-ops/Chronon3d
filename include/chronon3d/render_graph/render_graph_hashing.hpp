@@ -262,4 +262,24 @@ template <typename T>
     return seed;
 }
 
+[[nodiscard]] inline u64 hash_render_node_content_only(const RenderNode& n) {
+    u64 seed = hash_bytes(n.name.data(), n.name.size());
+    // Ignore world_transform for content-only hashing
+    seed = hash_combine(seed, hash_shape(n.shape));
+    seed = hash_combine(seed, hash_color(n.color));
+    seed = hash_combine(seed, hash_fill(n.fill));
+    seed = hash_combine(seed, hash_value(n.visible));
+    if (n.shadow.enabled) {
+        seed = hash_combine(seed, hash_vec2(n.shadow.offset));
+        seed = hash_combine(seed, hash_color(n.shadow.color));
+        seed = hash_combine(seed, hash_bytes(&n.shadow.radius, sizeof(f32)));
+    }
+    if (n.glow.enabled) {
+        seed = hash_combine(seed, hash_bytes(&n.glow.radius, sizeof(f32)));
+        seed = hash_combine(seed, hash_bytes(&n.glow.intensity, sizeof(f32)));
+        seed = hash_combine(seed, hash_color(n.glow.color));
+    }
+    return seed;
+}
+
 } // namespace chronon3d::graph

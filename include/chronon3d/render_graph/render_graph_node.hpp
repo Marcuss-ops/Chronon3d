@@ -8,10 +8,12 @@
 #include <chronon3d/scene/camera/camera_2_5d.hpp>
 #include <chronon3d/rendering/light_context.hpp>
 #include <chronon3d/math/projection_context.hpp>
+#include <chronon3d/math/raster_utils.hpp>
 #include <memory>
 #include <string>
 #include <string_view>
 #include <vector>
+#include <optional>
 
 namespace chronon3d {
     class CompositionRegistry;
@@ -111,6 +113,13 @@ struct RenderGraphContext {
     float ssaa_factor{1.0f};
     bool modular_coordinates{false};
 
+    // Tiling and clipping
+    int tile_size{0};
+    std::optional<raster::BBox> clip_rect;
+
+    // Optimization flags
+    bool optimize_compositing{true};
+
     // ── Per-node / per-layer telemetry collectors ────────────────────────────
     // Populated during graph execution; flushed via TelemetryManager after frame.
     std::vector<chronon3d::telemetry::NodeTelemetryRecord> node_telemetry;
@@ -121,7 +130,11 @@ class RenderGraphNode {
 public:
     virtual ~RenderGraphNode() = default;
 
-    [[nodiscard]] virtual RenderGraphNodeKind kind() const = 0;
+    [[nodiscard]]    virtual std::optional<raster::BBox> predicted_bbox(const RenderGraphContext& ctx) const {
+        return std::nullopt;
+    }
+    
+    virtual RenderGraphNodeKind kind() const = 0;
     [[nodiscard]] virtual std::string name() const = 0;
 
     [[nodiscard]] std::string layer_id() const { return m_layer_id; }
@@ -140,7 +153,8 @@ public:
 
     virtual std::shared_ptr<Framebuffer> execute(
         RenderGraphContext& ctx,
-        const std::vector<std::shared_ptr<Framebuffer>>& inputs
+        const std::vector<std::shared_ptr<Framebuffer>>& inputs,
+        const std::vector<std::optional<raster::BBox>>& input_bboxes
     ) = 0;
 
 private:

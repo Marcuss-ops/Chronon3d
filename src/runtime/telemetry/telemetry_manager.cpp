@@ -62,6 +62,10 @@ void TelemetryManager::initialize_default_stores() {
     clear_stores();
 
     std::string base_dir = get_telemetry_directory();
+    
+    // Ensure base directory exists
+    std::error_code ec;
+    std::filesystem::create_directories(base_dir, ec);
 
     // 1. JSONL Store (Always enabled)
     auto jsonl_path = (std::filesystem::path(base_dir) / "render_history.jsonl").string();
@@ -71,7 +75,14 @@ void TelemetryManager::initialize_default_stores() {
     }
 
     // 2. SQLite Store (Uses fallback stub internally if disabled in compile options)
-    auto sqlite_path = (std::filesystem::path(base_dir) / "chronon3d_render_history.sqlite").string();
+    // Preference: local output/telemetry.db if we are in a workspace
+    std::string sqlite_path;
+    if (std::filesystem::exists("CMakeLists.txt")) {
+        sqlite_path = "output/telemetry.db";
+    } else {
+        sqlite_path = (std::filesystem::path(base_dir) / "chronon3d_render_history.sqlite").string();
+    }
+    
     auto sqlite_store = std::make_shared<SqliteTelemetryStore>();
     if (sqlite_store->initialize(sqlite_path)) {
         add_store(std::move(sqlite_store));

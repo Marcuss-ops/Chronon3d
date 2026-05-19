@@ -1,6 +1,9 @@
 #pragma once
 
 #include <chronon3d/scene/camera/camera_2_5d.hpp>
+#include <string>
+#include <optional>
+#include <chronon3d/math/raster_utils.hpp>
 
 namespace chronon3d {
 
@@ -29,10 +32,18 @@ struct RenderSettings {
 
     /**
      * Path to the font used for diagnostic overlays.
-     * If empty, a default path or built-in fallback is used.
      */
     std::string diagnostic_font_path;
 
+    /**
+     * Tiling size (e.g. 256 or 512). 0 = disabled.
+     */
+    int tile_size{0};
+
+    /**
+     * If true, enables in-place composition to avoid costly framebuffer copies.
+     */
+    bool optimize_compositing{true};
 };
 
 } // namespace chronon3d

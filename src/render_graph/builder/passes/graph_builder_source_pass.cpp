@@ -4,6 +4,7 @@
 #include <chronon3d/render_graph/nodes/basic_nodes.hpp>
 #include <chronon3d/render_graph/nodes/precomp_node.hpp>
 #include <chronon3d/render_graph/nodes/video_node.hpp>
+#include <chronon3d/render_graph/nodes/transform_node.hpp>
 #include <chronon3d/render_graph/render_graph_hashing.hpp>
 #include <memory>
 
@@ -23,30 +24,55 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
         GraphNodeId layer_output = graph.add_node(std::make_unique<ClearNode>());
 
         for (const auto& node : layer.nodes) {
-            cache::NodeCacheKey source_key{
-                .scope = "layer.source:" + std::string(layer.name) + ":" + std::string(node.name),
-                .frame = layer.cache_static ? Frame{0} : ctx.frame,
-                .width = ctx.width,
-                .height = ctx.height,
-                .params_hash = hash_render_node(node),
-                .source_hash = hash_bytes(node.name.data(), node.name.size())
-            };
+            GraphNodeId source;
+            if (node.shape.type == ShapeType::Text) {
+                // Text Freezing: separate content from transform to allow cross-frame caching
+                cache::NodeCacheKey source_key{
+                    .scope = "layer.source.frozen:" + std::string(layer.name) + ":" + std::string(node.name),
+                    .frame = 0, // Content is frame-invariant
+                    .width = ctx.width,
+                    .height = ctx.height,
+                    .params_hash = chronon3d::graph::hash_render_node_content_only(node),
+                    .source_hash = hash_string(node.name)
+                };
 
-            std::optional<Mat4> rel_matrix;
-            std::optional<f32> rel_opacity;
-            if (ctx.modular_coordinates) {
-                rel_matrix = node.world_transform.to_mat4();
-                rel_opacity = node.world_transform.opacity;
+                // Create a frozen source node at origin
+                auto frozen_source = graph.add_node(std::make_unique<SourceNode>(
+                    std::string(node.name) + ":frozen", node, source_key,
+                    true,  // Centered
+                    false, // 2D source for text raster
+                    Mat4(1.0f), // Identity
+                    1.0f  // Full opacity for source
+                ));
+                graph.node(frozen_source).set_frame_dependent(false);
+
+                // Add TransformNode to apply the actual animated transform
+                source = graph.add_node(std::make_unique<TransformNode>(
+                    node.world_transform,
+                    SamplingMode::Bilinear
+                ));
+                graph.connect(frozen_source, source);
+                graph.node(source).set_frame_dependent(!layer.cache_static);
+            } else {
+                // Standard path for other nodes
+                cache::NodeCacheKey source_key{
+                    .scope = "layer.source:" + std::string(layer.name) + ":" + std::string(node.name),
+                    .frame = layer.cache_static ? Frame{0} : ctx.frame,
+                    .width = ctx.width,
+                    .height = ctx.height,
+                    .params_hash = hash_render_node(node),
+                    .source_hash = hash_string(node.name)
+                };
+
+                source = graph.add_node(std::make_unique<SourceNode>(
+                    std::string(node.name), node, source_key,
+                    should_use_centered_rendering(item, ctx),
+                    item.projected,
+                    ctx.modular_coordinates ? std::optional<Mat4>(node.world_transform.to_mat4()) : std::nullopt,
+                    ctx.modular_coordinates ? std::optional<f32>(node.world_transform.opacity) : std::nullopt
+                ));
+                graph.node(source).set_frame_dependent(!layer.cache_static);
             }
-
-            auto source = graph.add_node(std::make_unique<SourceNode>(
-                std::string(node.name), node, source_key,
-                should_use_centered_rendering(item, ctx),
-                item.projected,
-                rel_matrix,
-                rel_opacity
-            ));
-            graph.node(source).set_frame_dependent(!layer.cache_static);
 
             auto composite = graph.add_node(std::make_unique<CompositeNode>(chronon3d::BlendMode::Normal));
             graph.node(composite).set_frame_dependent(!layer.cache_static);

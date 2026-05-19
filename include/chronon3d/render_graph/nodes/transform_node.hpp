@@ -33,6 +33,8 @@ public:
     [[nodiscard]] RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::Transform; }
     [[nodiscard]] std::string name() const override { return "Transform"; }
 
+    std::optional<raster::BBox> predicted_bbox(const RenderGraphContext& ctx) const override;
+
     [[nodiscard]] CacheFramePolicy cache_frame_policy() const override {
         return CacheFramePolicy::FrameInvariant;
     }
@@ -56,7 +58,11 @@ public:
         };
     }
 
-    std::shared_ptr<Framebuffer> execute(RenderGraphContext& ctx, const std::vector<std::shared_ptr<Framebuffer>>& inputs) override;
+    std::shared_ptr<Framebuffer> execute(
+        RenderGraphContext& ctx,
+        const std::vector<std::shared_ptr<Framebuffer>>& inputs,
+        const std::vector<std::optional<raster::BBox>>& input_bboxes
+    ) override;
 
 private:
     Transform m_transform;

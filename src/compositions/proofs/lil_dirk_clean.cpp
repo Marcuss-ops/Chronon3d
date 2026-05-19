@@ -18,8 +18,14 @@ static Composition lil_dirk_clean() {
             ? static_cast<float>(ctx.frame) / static_cast<float>(ctx.duration - 1)
             : 0.0f;
         
-        // 1. Dynamic parallax sweep camera
-        s.camera().set(camera_motion::parallax_sweep(t, 24.0f, -1000.0f, 1000.0f));
+        // 1. Dynamic parallax sweep camera (Centered on 960, 540)
+        {
+            auto cam = camera_motion::parallax_sweep(t, 24.0f, -1000.0f, 1000.0f);
+            cam.position.x += 960.0f;
+            cam.position.y += 540.0f;
+            cam.point_of_interest = {960.0f, 540.0f, 0.0f};
+            s.camera().set(cam);
+        }
 
         // 2. High-end dark grid background
         scene::utils::dark_grid_background(s, ctx, {
@@ -37,7 +43,7 @@ static Composition lil_dirk_clean() {
         // 4. Create typography object with PushIn3D transition and highly visible rotation sway
         std::vector<presets::motion::MotionObject> objects = {
             presets::motion::MotionObject::text("title", "LIL DIRK")
-                .at({0.0f, 18.0f + bob, -120.0f})
+                .at({960.0f, 540.0f + bob, -120.0f})
                 .preset(presets::motion::MotionPreset::PushIn3D)
                 .time(0, 120)
                 .font_path("assets/fonts/Inter-Bold.ttf")
@@ -70,8 +76,14 @@ static Composition lil_dirk_clean_fast() {
             ? static_cast<float>(ctx.frame) / static_cast<float>(ctx.duration - 1)
             : 0.0f;
         
-        // 1. Dynamic parallax sweep camera
-        s.camera().set(camera_motion::parallax_sweep(t, 24.0f, -1000.0f, 1000.0f));
+        // 1. Dynamic parallax sweep camera (Centered on 960, 540)
+        {
+            auto cam = camera_motion::parallax_sweep(t, 24.0f, -1000.0f, 1000.0f);
+            cam.position.x += 960.0f;
+            cam.position.y += 540.0f;
+            cam.point_of_interest = {960.0f, 540.0f, 0.0f};
+            s.camera().set(cam);
+        }
 
         // 2. High-end dark grid background (Static cached!)
         scene::utils::dark_grid_background(s, ctx, {
@@ -89,7 +101,7 @@ static Composition lil_dirk_clean_fast() {
         // 4. Create typography object without costly multi-pass CPU glow
         std::vector<presets::motion::MotionObject> objects = {
             presets::motion::MotionObject::text("title", "LIL DIRK")
-                .at({0.0f, 18.0f + bob, -120.0f})
+                .at({960.0f, 540.0f + bob, -120.0f})
                 .preset(presets::motion::MotionPreset::PushIn3D)
                 .time(0, 120)
                 .font_path("assets/fonts/Inter-Bold.ttf")
@@ -112,4 +124,3 @@ static Composition lil_dirk_clean_fast() {
 
 CHRONON_REGISTER_COMPOSITION("LilDirkClean", lil_dirk_clean)
 CHRONON_REGISTER_COMPOSITION("LilDirkCleanFast", lil_dirk_clean_fast)
-
