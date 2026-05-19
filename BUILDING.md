@@ -19,11 +19,19 @@
 git clone https://github.com/microsoft/vcpkg ~/vcpkg
 ~/vcpkg/bootstrap-vcpkg.sh -disableMetrics
 
-# 2. Export VCPKG_ROOT for this shell (add to ~/.bashrc / ~/.zshrc to persist)
-export VCPKG_ROOT=~/vcpkg
-
-# 3. Configure and build
+# 2. Configure and build
 bash tools/chronon-linux.sh
+```
+
+## Quick start (Windows)
+
+```powershell
+# 1. Clone and bootstrap vcpkg (one-time)
+git clone https://github.com/microsoft/vcpkg $env:USERPROFILE\vcpkg
+& "$env:USERPROFILE\vcpkg\bootstrap-vcpkg.bat" -disableMetrics
+
+# 2. Configure and build
+.\tools\chronon-win.ps1
 ```
 
 That's it. vcpkg reads `vcpkg.json` at the project root and installs every dependency into `vcpkg_installed/` before CMake runs. No manual `vcpkg install` needed.
@@ -107,35 +115,14 @@ Run the CLI from the repo root so relative asset paths resolve correctly.
 
 ---
 
-## Windows
+## Windows Support
 
+Windows is fully supported via CMake and PowerShell. For the fastest setup, use the `tools/chronon-win.ps1` script as described in the [Quick start](#quick-start-windows).
+
+Manual build via CMake:
 ```powershell
-# 1. Clone and bootstrap vcpkg
-git clone https://github.com/microsoft/vcpkg C:\vcpkg
-& "C:\vcpkg\bootstrap-vcpkg.bat" -disableMetrics
-
-# 2. Configure and build with CMake presets
 cmake --preset win-release
-cmake --build --preset win
-```
-
-That configures the `win-release` preset and builds the CLI into:
-
-```text
-build\chronon\win-release\apps\chronon3d_cli\chronon3d_cli.exe
-```
-
-If you want the debug build, run:
-
-```powershell
-cmake --preset win-debug
-cmake --build --preset win-debug
-```
-
-Run the CLI from the repo root so relative asset paths resolve correctly:
-
-```powershell
-.\build\chronon\win-release\apps\chronon3d_cli\chronon3d_cli.exe list
+cmake --build build/chronon/win-release -j16
 ```
 
 ---
