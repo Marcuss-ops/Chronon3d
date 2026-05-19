@@ -220,7 +220,7 @@ Composition make_parenting_orbit_test(f32 parent_rotation_z) {
         s.layer("child", [](LayerBuilder& l) {
             l.parent("rig")
              .enable_3d()
-             .position({100, 0, 0})
+             .position({40, 0, 0})
              .rect("red", {
                  .size = {40, 40},
                  .color = Color::red(),

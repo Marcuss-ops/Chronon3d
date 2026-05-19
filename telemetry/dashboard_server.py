@@ -13,7 +13,7 @@ import re
 import glob
 import time
 from pathlib import Path
-from flask import Flask, jsonify, render_template_string
+from flask import Flask, jsonify, render_template_string, request, send_file, Response
 from flask_cors import CORS
 
 app = Flask(__name__)
@@ -23,6 +23,8 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 REPORT_GLOB = "chronon3d-*.log"
 
 REPORT_PATTERN = re.compile(
+    r"Command Line:\s*(?P<command_line>.*?)\n"
+    r"Timestamp:\s*(?P<timestamp_iso>.*?)\n"
     r"Git Commit:\s*(?P<git_commit>.*?)\n"
     r"OS:\s*(?P<os>.*?)\n"
     r"CPU Model:\s*(?P<cpu_model>.*?)\n"
@@ -32,6 +34,7 @@ REPORT_PATTERN = re.compile(
     r".*?"
     r"Run ID:\s*(?P<run_id>\S+)\n"
     r"Composition ID:\s*(?P<comp_id>.*?)\n"
+    r"(?:Output Path:\s*(?P<output_path_log>.*?)\n)?"
     r"Frames Total:\s*(?P<frames_total>\d+)\n"
     r"Wall Time:\s*(?P<wall_time>[\d.]+) ms\n"
     r"Render Time:\s*(?P<render_time>[\d.]+) ms\n"
@@ -86,6 +89,18 @@ def parse_report(filepath):
                     "dirty_ratio": float(fl.group("dirty"))
                 })
     
+    # Determine output_path: prefer from log (new format), then command line, then default
+    output_path = (info.get("output_path_log") or "").strip()
+    if not output_path:
+        cmd = info.get("command_line", "").strip()
+        m_out = re.search(r'(?:-o|--output)\s+(\S+)', cmd)
+        if m_out:
+            output_path = m_out.group(1)
+        elif "render" in cmd:
+            output_path = "render_####.png"
+        else:
+            output_path = "output.mp4"
+
     return {
         "file": Path(filepath).name,
         "timestamp": Path(filepath).stat().st_mtime,
@@ -101,8 +116,63 @@ def parse_report(filepath):
         "wall_time_ms": float(info.get("wall_time", 0)),
         "render_time_ms": float(info.get("render_time", 0)),
         "fps": float(info.get("fps", 0)),
+        "output_path": output_path,
         "counters": counters,
         "frames": frames
+    }
+
+
+def _report_to_react(report):
+    """Convert a flat report dict to React frontend nested format."""
+    c = report.get("counters", {})
+    frames = report.get("frames", [])
+    # Rename frame keys to match React expectations
+    react_frames = []
+    for f in frames:
+        rf = {
+            "frame_number": f.get("frame"),
+            "duration_ms": f.get("duration_ms"),
+            "cache_hit": f.get("cache_hit"),
+            "dirty_area_ratio": f.get("dirty_ratio")
+        }
+        react_frames.append(rf)
+
+    counters_array = [{"counter_name": k, "counter_value": v} for k, v in c.items()]
+
+    ts = report.get("timestamp", 0)
+    import datetime
+    finished_at_iso = datetime.datetime.fromtimestamp(ts, tz=datetime.timezone.utc).isoformat()
+
+    git = report.get("git_commit", "")
+    run_dict = {
+        "run_id": report.get("run_id", ""),
+        "composition_id": report.get("composition", ""),
+        "success": True,
+        "finished_at_iso": finished_at_iso,
+        "git_commit_short": git[:8] if git else "",
+        "build_type": report.get("build_type", ""),
+        "compiler_info": report.get("compiler", ""),
+        "os": report.get("os", ""),
+        "cpu_model": report.get("cpu", ""),
+        "cores": int(report.get("cores", 0)),
+        "effective_fps": float(report.get("fps", 0)),
+        "wall_time_ms": float(report.get("wall_time_ms", 0)),
+        "render_ms": float(report.get("render_time_ms", 0)),
+        "frames_total": int(report.get("frames_total", 0)),
+        "output_path": report.get("output_path", ""),
+        "bytes_allocated_peak": c.get("bytes_allocated_peak", 0),
+        "cache_hits": c.get("cache_hits", 0),
+        "cache_misses": c.get("cache_misses", 0),
+    }
+    return {
+        "file": report.get("file", ""),
+        "timestamp": ts,
+        "run": run_dict,
+        "frames": react_frames,
+        "phases": [],
+        "counters": counters_array,
+        "node_events": [],
+        "layer_events": []
     }
 
 
@@ -280,18 +350,60 @@ def api_reports():
 @app.route("/api/runs")
 def api_runs():
     reports = get_all_reports()
-    # Frontend expects run_id as primary key
-    return jsonify(reports)
+    # React sidebar needs flat run fields
+    runs = [_report_to_react(r).get("run", r) for r in reports]
+    return jsonify(runs)
 
 
 @app.route("/api/run/<run_id>")
 def api_run_detail(run_id):
-    # Find report by run_id
     reports = get_all_reports()
     for r in reports:
         if r.get("run_id") == run_id:
-            return jsonify(r)
+            return jsonify(_report_to_react(r))
     return jsonify({"error": "run not found"}), 404
+
+
+def _serve_file_with_range(filepath, req):
+    """Serve a file with proper Range (206 Partial Content) support."""
+    file_size = os.path.getsize(str(filepath))
+    range_header = req.headers.get("Range")
+
+    if range_header:
+        byte_range = range_header.strip().removeprefix("bytes=")
+        parts = byte_range.split("-")
+        start = int(parts[0]) if parts[0] else 0
+        end = int(parts[1]) if len(parts) > 1 and parts[1] else file_size - 1
+        end = min(end, file_size - 1)
+        length = end - start + 1
+
+        with open(str(filepath), "rb") as f:
+            f.seek(start)
+            data = f.read(length)
+
+        resp = Response(data, 206, mimetype="video/mp4", direct_passthrough=True)
+        resp.headers["Content-Range"] = f"bytes {start}-{end}/{file_size}"
+        resp.headers["Accept-Ranges"] = "bytes"
+        resp.headers["Content-Length"] = str(length)
+        return resp
+
+    return send_file(str(filepath), mimetype="video/mp4")
+
+
+@app.route("/artifact")
+def artifact():
+    path = request.args.get("path", "")
+    if not path:
+        return jsonify({"error": "missing path"}), 400
+
+    safe = Path(path).name
+    filepath = PROJECT_ROOT / path
+    if not filepath.exists():
+        filepath = PROJECT_ROOT / safe
+    if not filepath.exists():
+        return jsonify({"error": "not found"}), 404
+
+    return _serve_file_with_range(filepath, request)
 
 
 @app.route("/api/report/<filename>")
@@ -303,6 +415,80 @@ def api_report(filename):
     if not parsed:
         return jsonify({"error": "parse failed"}), 500
     return jsonify(parsed)
+
+
+@app.route("/video/<path:filename>")
+def serve_video(filename):
+    filepath = PROJECT_ROOT / filename
+    if not filepath.exists():
+        return jsonify({"error": "not found"}), 404
+    return _serve_file_with_range(filepath, request)
+
+
+WATCH_HTML = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Chronon3D - Watch Render</title>
+<style>
+body { margin:0; background:#000; display:flex; justify-content:center; align-items:center; height:100vh; }
+video { max-width:100vw; max-height:100vh; }
+</style>
+</head>
+<body>
+<video controls autoplay muted>
+  <source src="%s" type="video/mp4">
+</video>
+</body>
+</html>
+"""
+
+
+WATCH_LIST_HTML = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Chronon3D - Renders</title>
+<style>
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0d1117; color: #c9d1d9; padding: 40px; }
+a { color: #58a6ff; text-decoration: none; display: block; margin: 8px 0; font-size: 18px; }
+a:hover { text-decoration: underline; }
+h1 { color: #f0f6fc; }
+</style>
+</head>
+<body>
+<h1>Rendered Videos</h1>
+%s
+</body>
+</html>
+"""
+
+
+@app.route("/renders")
+def renders():
+    import glob as gglob
+    mp4s = sorted(gglob.glob(str(PROJECT_ROOT / "*.mp4")), key=os.path.getmtime, reverse=True)
+    links = "".join(f'<a href="/watch?f={os.path.basename(m)}">{os.path.basename(m)}</a>'
+                    for m in mp4s)
+    if not links:
+        links = "<p>No MP4 files yet. Run a render first.</p>"
+    return render_template_string(WATCH_LIST_HTML % links)
+
+
+@app.route("/watch")
+def watch_with_query():
+    from flask import request
+    fname = request.args.get("f")
+    if fname and (PROJECT_ROOT / fname).exists():
+        return render_template_string(WATCH_HTML % f"/video/{fname}")
+    # fallback: first mp4 found
+    import glob as gglob
+    mp4s = gglob.glob(str(PROJECT_ROOT / "*.mp4"))
+    if mp4s:
+        return render_template_string(WATCH_HTML % f"/video/{os.path.basename(mp4s[0])}")
+    return "No MP4 files found", 404
 
 
 if __name__ == "__main__":

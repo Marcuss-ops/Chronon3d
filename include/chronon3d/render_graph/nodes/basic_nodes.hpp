@@ -91,7 +91,15 @@ public:
                 if (m_centered) {
                     // Modular 2D also uses center-origin logic for consistency.
                     // The relative transform is handled by TransformNode.
-                    state.matrix = canvas_center * ssaa_scale * m_matrix_override.value_or(m_node.world_transform.to_mat4());
+                    Mat4 center_adj = Mat4(1.0f);
+                    if (m_node.shape.type == ShapeType::Image &&
+                        std::abs(m_node.shape.image.size.x - ctx.width) < 1.0f &&
+                        std::abs(m_node.shape.image.size.y - ctx.height) < 1.0f &&
+                        std::abs(m_node.world_transform.position.x) < 1.0f &&
+                        std::abs(m_node.world_transform.position.y) < 1.0f) {
+                        center_adj = math::translate(Vec3(-ctx.width * 0.5f, -ctx.height * 0.5f, 0.0f));
+                    }
+                    state.matrix = canvas_center * ssaa_scale * center_adj * m_matrix_override.value_or(m_node.world_transform.to_mat4());
                 } else {
                     // Legacy path or absolute rendering
                     state.matrix = ssaa_scale * m_matrix_override.value_or(m_node.world_transform.to_mat4());

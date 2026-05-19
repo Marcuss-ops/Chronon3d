@@ -51,6 +51,11 @@ reauthenticate_drive.py
 # Engine Output
 output/
 
+# Generated render artifacts
+render_*.png
+chronon3d-*.log
+*.mp4
+
 transform_output/
 scenes/
 
@@ -59,3 +64,9 @@ test_renders/
 output/new_features/
 .history/
 /test_output_*.png
+
+# Local tool metadata and scratch
+.antigravitycli/
+scratch/
+update
+self-update
