@@ -15,10 +15,15 @@ struct RenderGraphEdge {
 
 static constexpr GraphNodeId k_invalid_node = static_cast<GraphNodeId>(-1);
 
+extern thread_local std::string g_current_builder_layer_id;
+
 class RenderGraph {
 public:
     GraphNodeId add_node(std::unique_ptr<RenderGraphNode> node) {
         GraphNodeId id = static_cast<GraphNodeId>(m_nodes.size());
+        if (node) {
+            node->set_layer_id(g_current_builder_layer_id);
+        }
         m_nodes.push_back(std::move(node));
         m_inputs.emplace_back();
         return id;

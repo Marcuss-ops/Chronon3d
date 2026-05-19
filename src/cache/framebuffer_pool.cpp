@@ -1,4 +1,6 @@
 #include <chronon3d/cache/framebuffer_pool.hpp>
+#include <chronon3d/core/trace.hpp>
+#include <chronon3d/core/counters.hpp>
 
 namespace chronon3d::cache {
 
@@ -16,6 +18,11 @@ std::shared_ptr<Framebuffer> FramebufferPool::acquire(int width, int height) {
         bucket.pop_back();
         m_current_bytes -= fb->size_bytes();
         fb->clear(Color::transparent());
+
+        if (profiling::g_current_counters) {
+            profiling::g_current_counters->framebuffer_reuses.fetch_add(1, std::memory_order_relaxed);
+        }
+
         return fb;
     }
 

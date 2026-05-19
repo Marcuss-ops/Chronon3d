@@ -176,18 +176,18 @@ TEST_CASE("Test 10.7 — Disabled effects do not affect hash or rendering") {
 }
 
 TEST_CASE("Test 10.8 — Effect execution order affects output result") {
-    // Blur then Tint vs Tint then Blur yields different pixel layouts.
-    auto blur_then_tint = render_with_effects([](LayerBuilder& l) {
-        l.blur(10.0f);
-        l.tint(Color::red(), 1.0f);
+    // Brightness then Contrast vs Contrast then Brightness yields different pixel layouts.
+    auto brightness_then_contrast = render_with_effects([](LayerBuilder& l) {
+        l.brightness(0.3f);
+        l.contrast(1.5f);
     });
 
-    auto tint_then_blur = render_with_effects([](LayerBuilder& l) {
-        l.tint(Color::red(), 1.0f);
-        l.blur(10.0f);
+    auto contrast_then_brightness = render_with_effects([](LayerBuilder& l) {
+        l.contrast(1.5f);
+        l.brightness(0.3f);
     });
 
-    REQUIRE(blur_then_tint != nullptr);
-    REQUIRE(tint_then_blur != nullptr);
-    CHECK(fb_hash(*blur_then_tint) != fb_hash(*tint_then_blur));
+    REQUIRE(brightness_then_contrast != nullptr);
+    REQUIRE(contrast_then_brightness != nullptr);
+    CHECK(fb_hash(*brightness_then_contrast) != fb_hash(*contrast_then_brightness));
 }

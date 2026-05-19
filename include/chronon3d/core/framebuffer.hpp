@@ -1,6 +1,8 @@
 #pragma once
 
 #include <chronon3d/math/color.hpp>
+#include <chronon3d/core/trace.hpp>
+#include <chronon3d/core/counters.hpp>
 #include <vector>
 #include <string>
 #include <fstream>
@@ -21,6 +23,45 @@ class Framebuffer {
 public:
     Framebuffer(i32 width, i32 height) : m_width(width), m_height(height) {
         m_pixels.resize(width * height, Color::black());
+        increment_allocations(width * height * sizeof(Color));
+    }
+
+    Framebuffer(const Framebuffer& other)
+        : m_width(other.m_width), m_height(other.m_height), m_pixels(other.m_pixels) {
+        increment_allocations(size_bytes());
+    }
+
+    Framebuffer(Framebuffer&& other) noexcept
+        : m_width(other.m_width), m_height(other.m_height), m_pixels(std::move(other.m_pixels)) {
+        other.m_width = 0;
+        other.m_height = 0;
+    }
+
+    Framebuffer& operator=(const Framebuffer& other) {
+        if (this != &other) {
+            decrement_allocations(size_bytes());
+            m_width = other.m_width;
+            m_height = other.m_height;
+            m_pixels = other.m_pixels;
+            increment_allocations(size_bytes());
+        }
+        return *this;
+    }
+
+    Framebuffer& operator=(Framebuffer&& other) noexcept {
+        if (this != &other) {
+            decrement_allocations(size_bytes());
+            m_width = other.m_width;
+            m_height = other.m_height;
+            m_pixels = std::move(other.m_pixels);
+            other.m_width = 0;
+            other.m_height = 0;
+        }
+        return *this;
+    }
+
+    ~Framebuffer() {
+        decrement_allocations(size_bytes());
     }
 
     void clear(const Color& color) {
@@ -91,6 +132,26 @@ public:
     [[nodiscard]] usize size_bytes() const { return m_pixels.size() * sizeof(Color); }
 
 private:
+    void increment_allocations(size_t bytes) {
+        if (profiling::g_current_counters) {
+            profiling::g_current_counters->framebuffer_allocations.fetch_add(1, std::memory_order_relaxed);
+            uint64_t current = profiling::g_current_counters->framebuffer_bytes_allocated.fetch_add(bytes, std::memory_order_relaxed) + bytes;
+            uint64_t peak = profiling::g_current_counters->framebuffer_bytes_peak.load(std::memory_order_relaxed);
+            while (current > peak && !profiling::g_current_counters->framebuffer_bytes_peak.compare_exchange_weak(peak, current, std::memory_order_relaxed)) {
+                // retry
+            }
+        }
+    }
+
+    void decrement_allocations(size_t bytes) {
+        if (profiling::g_current_counters) {
+            uint64_t prev = profiling::g_current_counters->framebuffer_bytes_allocated.load(std::memory_order_relaxed);
+            uint64_t next = (prev > bytes) ? (prev - bytes) : 0;
+            while (!profiling::g_current_counters->framebuffer_bytes_allocated.compare_exchange_weak(prev, next, std::memory_order_relaxed)) {
+                next = (prev > bytes) ? (prev - bytes) : 0;
+            }
+        }
+    }
 
     i32 m_width;
     i32 m_height;

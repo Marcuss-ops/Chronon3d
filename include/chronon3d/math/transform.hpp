@@ -4,10 +4,11 @@
 #include <chronon3d/math/quat.hpp>
 #include <chronon3d/math/mat4.hpp>
 #include <chronon3d/math/projection_context.hpp>
+#include <string>
 
 namespace chronon3d {
 
-// Forward-declared to avoid a math/ → scene/ include cycle.
+// Forward-declared to avoid a math/ -> scene/ include cycle.
 // Full definition is in <chronon3d/scene/mask/mask.hpp>.
 struct Mask;
 
@@ -85,6 +86,8 @@ struct RenderState {
     // Both fields propagate from layer_state → node_state via combine().
     const Mask* mask{nullptr};
     Mat4 layer_inv_matrix{1.0f};
+
+    std::string layer_id;
 };
 
 inline RenderState combine(const RenderState& parent, const Transform& child) {
@@ -93,6 +96,7 @@ inline RenderState combine(const RenderState& parent, const Transform& child) {
         .opacity          = parent.opacity * child.opacity,
         .mask             = parent.mask,
         .layer_inv_matrix = parent.layer_inv_matrix,
+        .layer_id         = parent.layer_id,
     };
 }
 
