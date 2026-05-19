@@ -1,5 +1,7 @@
 #include "../command_registry.hpp"
 #include "../commands.hpp"
+#include <CLI/Validators.hpp>
+#include <CLI/ExtraValidators.hpp>
 #include <memory>
 
 namespace chronon3d::cli {
@@ -30,6 +32,9 @@ void register_video_commands(CLI::App& app, CliContext& ctx) {
     cmd->add_option("--frames-dir", args.frames_dir, "Override temporary frames directory");
     cmd->add_option("--ssaa", args.pipeline.quality.ssaa, "Super Sampling factor")->default_val(1.0f);
     cmd->add_option("--chunks", args.chunks, "Render frame range in N parallel chunks before encoding")->default_val(1);
+    cmd->add_option("--ffmpeg-mode", args.ffmpeg_mode, "Fallback FFmpeg mode: png, pipe")
+        ->default_val("png")
+        ->check(CLI::IsMember({"png", "pipe"}));
     cmd->callback([state, &ctx]() { ctx.exit_code = command_video(ctx.registry, *state->args); });
 }
 
