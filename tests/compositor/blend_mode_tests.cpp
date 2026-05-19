@@ -1,5 +1,8 @@
 #include <doctest/doctest.h>
 #include <chronon3d/compositor/blend_mode.hpp>
+#include <chronon3d/backends/software/software_compositor.hpp>
+#include <chronon3d/core/framebuffer.hpp>
+#include <chronon3d/core/trace.hpp>
 
 using namespace chronon3d;
 using namespace chronon3d::compositor;
@@ -76,4 +79,75 @@ TEST_CASE("Test 11.7 — Blend mode guard: opacity 1 covers background under Nor
     CHECK(res.r == doctest::Approx(1.0f));
     CHECK(res.g == doctest::Approx(0.0f));
     CHECK(res.a == doctest::Approx(1.0f));
+}
+
+// ---------------------------------------------------------------------------
+// Telemetry / counter tests for SIMD compositing path
+// ---------------------------------------------------------------------------
+
+TEST_CASE("compositor_normal_uses_simd_counter") {
+    RenderCounters counters;
+    profiling::g_current_counters = &counters;
+
+    Framebuffer dst(1920, 1080);
+    Framebuffer src(1920, 1080);
+
+    dst.clear(Color{0, 0, 0, 1});
+    src.clear(Color{1, 0, 0, 0.5f});
+
+    SoftwareCompositor::composite_layer(dst, src, BlendMode::Normal);
+
+    REQUIRE(counters.simd_lerp_calls.load() > 0);
+    REQUIRE(counters.pixels_touched.load() == 0); // not set by compositor directly
+
+    profiling::g_current_counters = nullptr;
+}
+
+TEST_CASE("compositor_normal_simd_matches_scalar") {
+    Framebuffer src(1920, 1080);
+    Framebuffer dst_simd(1920, 1080);
+    Framebuffer dst_scalar(1920, 1080);
+
+    // Fill src with varied semi-transparent colors
+    for (int y = 0; y < 1080; ++y) {
+        for (int x = 0; x < 1920; ++x) {
+            float u = static_cast<float>(x) / 1919.0f;
+            float v = static_cast<float>(y) / 1079.0f;
+            src.set_pixel(x, y, Color{u, v, 1.0f - u * v, 0.5f + u * 0.5f});
+            dst_simd.set_pixel(x, y, Color{0.1f, 0.2f, 0.3f, 1.0f});
+            dst_scalar.set_pixel(x, y, Color{0.1f, 0.2f, 0.3f, 1.0f});
+        }
+    }
+
+    // SIMD path
+    SoftwareCompositor::composite_layer(dst_simd, src, BlendMode::Normal);
+
+    // Scalar path — force by using non-Normal blend mode, then do Normal manually
+    const i32 w = 1920, h = 1080;
+    for (i32 y = 0; y < h; ++y) {
+        for (i32 x = 0; x < w; ++x) {
+            Color s = src.get_pixel(x, y);
+            if (s.a <= 0.0f) continue;
+            Color d = dst_scalar.get_pixel(x, y);
+            float inv_a = 1.0f - s.a;
+            dst_scalar.set_pixel(x, y, Color{
+                s.r + d.r * inv_a,
+                s.g + d.g * inv_a,
+                s.b + d.b * inv_a,
+                s.a + d.a * inv_a
+            });
+        }
+    }
+
+    // Compare every pixel
+    for (int y = 0; y < h; ++y) {
+        for (int x = 0; x < w; ++x) {
+            Color simd = dst_simd.get_pixel(x, y);
+            Color scalar = dst_scalar.get_pixel(x, y);
+            CHECK(simd.r == doctest::Approx(scalar.r).epsilon(0.0001f));
+            CHECK(simd.g == doctest::Approx(scalar.g).epsilon(0.0001f));
+            CHECK(simd.b == doctest::Approx(scalar.b).epsilon(0.0001f));
+            CHECK(simd.a == doctest::Approx(scalar.a).epsilon(0.0001f));
+        }
+    }
 }

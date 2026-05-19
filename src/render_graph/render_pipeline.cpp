@@ -97,6 +97,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     
     profiling::g_current_trace = ctx.trace;
     profiling::g_current_frame = static_cast<int32_t>(frame);
+    profiling::g_current_counters = ctx.counters;
     
     ctx.light_context = scene.light_context();
     if (scene.camera_2_5d().enabled) {
@@ -131,6 +132,8 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         .cache_hit = hits_after > hits_before ? 1 : 0,
         .layer_count = static_cast<int>(scene.layers().size()),
     });
+
+    profiling::g_current_counters = nullptr;
     return fb_shared;
 }
 
@@ -278,7 +281,10 @@ std::unique_ptr<Framebuffer> render_composition_frame(
         layer_count = static_cast<int>(scene.layers().size());
 
         const auto t_scene0 = std::chrono::steady_clock::now();
-        render_fb = std::make_unique<Framebuffer>(*call_graph(scene, frame, 0.0f));
+        {
+            auto shared = call_graph(scene, frame, 0.0f);
+            render_fb = std::make_unique<Framebuffer>(std::move(*shared));
+        }
         scene_ms = std::chrono::duration<double, std::milli>(
             std::chrono::steady_clock::now() - t_scene0).count();
     } else {

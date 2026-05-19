@@ -1,8 +1,10 @@
 #include <doctest/doctest.h>
 #include <chronon3d/render_graph/render_pipeline.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/backends/image/stb_image_backend.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/cache/node_cache.hpp>
+#include <chronon3d/core/trace.hpp>
 
 using namespace chronon3d;
 using namespace chronon3d::graph;
@@ -107,4 +109,38 @@ TEST_CASE("RenderPipeline - debug_render_graph passes through the unique pipelin
     CHECK(dot.find("Clear") != std::string::npos);
     CHECK(dot.find("rect") != std::string::npos);
     CHECK(dot.find("Composite") != std::string::npos);
+}
+
+TEST_CASE("render_graph_uses_framebuffer_pool") {
+    SceneBuilder builder;
+    builder.rect("A", {.size={50, 50}, .color=Color::red(), .pos={0, 0, 0}});
+    builder.rect("B", {.size={50, 50}, .color=Color::blue(), .pos={25, 25, 0}});
+    Scene scene = builder.build();
+
+    SoftwareRenderer renderer;
+    renderer.set_image_backend(std::make_shared<image::StbImageBackend>());
+    Camera camera;
+
+    // Reuse the same composition to exercise the pool across frames
+    CompositionSpec spec;
+    spec.name = "PoolTest";
+    spec.width = 100;
+    spec.height = 100;
+    spec.duration = 10;
+    Composition comp{spec, [](const FrameContext&) {
+        SceneBuilder sb;
+        sb.rect("A", {.size={50, 50}, .color=Color::red(), .pos={0, 0, 0}});
+        sb.rect("B", {.size={50, 50}, .color=Color::blue(), .pos={25, 25, 0}});
+        return sb.build();
+    }};
+
+    // First frame — populates pool
+    renderer.render_frame(comp, 0);
+    auto reuses_after_first = renderer.counters()->framebuffer_reuses.load();
+
+    // Second frame — should reuse pool buffers
+    renderer.render_frame(comp, 1);
+    auto reuses_after_second = renderer.counters()->framebuffer_reuses.load();
+
+    REQUIRE(reuses_after_second > reuses_after_first);
 }

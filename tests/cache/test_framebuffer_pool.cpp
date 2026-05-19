@@ -1,6 +1,8 @@
 #include <doctest/doctest.h>
 
 #include <chronon3d/cache/framebuffer_pool.hpp>
+#include <chronon3d/core/trace.hpp>
+#include <chronon3d/core/counters.hpp>
 
 using namespace chronon3d;
 using namespace chronon3d::cache;
@@ -142,4 +144,26 @@ TEST_CASE("PooledFramebuffer detach releases from pool management") {
     // Explicitly release the detached framebuffer
     pool.release(std::move(detached));
     CHECK(pool.available_count() == 1);
+}
+
+TEST_CASE("framebuffer_pool_reuses_after_release") {
+    RenderCounters counters;
+    profiling::g_current_counters = &counters;
+
+    auto pool = std::make_shared<FramebufferPool>();
+    REQUIRE(counters.framebuffer_reuses.load() == 0);
+
+    {
+        auto a = pool->acquire_pooled(1920, 1080, pool);
+    }
+    // After release, no reuse yet
+    REQUIRE(counters.framebuffer_reuses.load() == 0);
+
+    {
+        auto b = pool->acquire_pooled(1920, 1080, pool);
+    }
+    // Second acquire should have reused the released framebuffer
+    REQUIRE(counters.framebuffer_reuses.load() >= 1);
+
+    profiling::g_current_counters = nullptr;
 }

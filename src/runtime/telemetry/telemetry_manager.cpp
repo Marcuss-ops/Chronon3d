@@ -202,7 +202,11 @@ std::string TelemetryManager::get_build_type() {
 }
 
 std::string TelemetryManager::get_git_commit() {
-    return "unknown"; // Default short commit hash placeholder
+#ifdef CHRONON3D_GIT_COMMIT
+    return CHRONON3D_GIT_COMMIT;
+#else
+    return "unknown";
+#endif
 }
 
 std::string TelemetryManager::get_current_iso_time() {

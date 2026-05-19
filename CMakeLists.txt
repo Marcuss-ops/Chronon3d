@@ -56,13 +56,26 @@ find_package(nlohmann_json CONFIG REQUIRED)
 
 
 
+# Capture git commit hash at configure time (works if .git exists)
+execute_process(
+    COMMAND git rev-parse --short HEAD
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    OUTPUT_VARIABLE CHRONON3D_GIT_COMMIT
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+)
+if(NOT CHRONON3D_GIT_COMMIT)
+    set(CHRONON3D_GIT_COMMIT "unknown")
+endif()
+
 # 1. Base Interface
 add_library(chronon3d INTERFACE)
 target_include_directories(chronon3d INTERFACE 
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/deps/include>
 )
-target_link_libraries(chronon3d INTERFACE glm::glm meshoptimizer::meshoptimizer xxHash::xxhash)
+target_compile_definitions(chronon3d INTERFACE CHRONON3D_GIT_COMMIT="${CHRONON3D_GIT_COMMIT}")
+target_link_libraries(chronon3d INTERFACE glm::glm meshoptimizer::meshoptimizer xxHash::xxhash chronon3d_core_impl)
 if(MSVC)
     target_compile_options(chronon3d INTERFACE /EHsc /fp:strict /utf-8)
     target_compile_definitions(chronon3d INTERFACE _DISABLE_STRING_VIEW_FIND_FIRST_NOT_OF_OPTIMIZATION)
