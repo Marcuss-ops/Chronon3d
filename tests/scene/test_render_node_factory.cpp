@@ -28,24 +28,3 @@ TEST_CASE("RenderNodeFactory creates rect nodes with centered anchors") {
     CHECK(node.world_transform.anchor.y == doctest::Approx(40.0f));
     CHECK(node.color.r == doctest::Approx(Color::red().r));
 }
-
-TEST_CASE("RenderNodeFactory creates text nodes with text style and position") {
-    auto* res = std::pmr::get_default_resource();
-
-    TextParams params;
-    params.content = "Title";
-    params.style.font_path = "assets/fonts/Inter-Bold.ttf";
-    params.style.size = 48.0f;
-    params.style.color = Color::white();
-    params.pos = {100.0f, 200.0f, 0.0f};
-
-    auto node = RenderNodeFactory::text(res, "title", params);
-
-    CHECK(node.name == "title");
-    CHECK(node.shape.type == ShapeType::Text);
-    CHECK(node.shape.text.text == "Title");
-    CHECK(node.shape.text.style.size == doctest::Approx(48.0f));
-    CHECK(node.world_transform.position.x == doctest::Approx(100.0f));
-    CHECK(node.world_transform.position.y == doctest::Approx(200.0f));
-    CHECK(node.color.a == doctest::Approx(1.0f));
-}

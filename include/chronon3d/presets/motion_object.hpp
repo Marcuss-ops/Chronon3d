@@ -62,6 +62,10 @@ struct Motion3D {
     bool face_camera{false};
 };
 
+// Text style for motion objects — kept for data model backward compatibility
+// (text rendering was deprecated; text motion objects are silently no-ops)
+enum class TextAlign { Left, Center, Right };
+
 struct TextStyleMotion {
     std::string font_path{"assets/fonts/Inter-Bold.ttf"};
     std::string font_family{"Inter"};

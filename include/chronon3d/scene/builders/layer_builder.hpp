@@ -80,13 +80,11 @@ public:
     LayerBuilder& circle(std::string name, CircleParams p);
     LayerBuilder& line(std::string name, LineParams p);
     LayerBuilder& path(std::string name, PathParams p);
-    LayerBuilder& text(std::string name, TextParams p);
     LayerBuilder& image(std::string name, ImageParams p);
     LayerBuilder& shape(std::string_view id, std::string name, registry::ShapeParams params);
 
     // 3D Shapes (Delegated)
     LayerBuilder& fake_box3d(std::string name, FakeBox3DParams p);
-    LayerBuilder& fake_extruded_text(std::string name, FakeExtrudedTextParams p);
     LayerBuilder& grid_plane(std::string name, GridPlaneParams p);
 
     // Node Polish

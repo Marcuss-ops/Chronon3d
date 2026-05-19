@@ -70,21 +70,7 @@ u64 hash_shape(const Shape& shape) {
                 seed = hash_combine(seed, hash_color(stop.color));
             }
             break;
-        case ShapeType::Text:
-            seed = hash_combine(seed, hash_string(shape.text.text));
-            seed = hash_combine(seed, hash_string(shape.text.style.font_path));
-            seed = hash_combine(seed, hash_value_local(shape.text.style.size));
-            seed = hash_combine(seed, hash_color(shape.text.style.color));
-            seed = hash_combine(seed, hash_value_local(static_cast<u64>(shape.text.style.align)));
-            seed = hash_combine(seed, hash_value_local(shape.text.style.line_height));
-            seed = hash_combine(seed, hash_value_local(shape.text.style.tracking));
-            seed = hash_combine(seed, hash_value_local(shape.text.style.max_lines));
-            seed = hash_combine(seed, hash_value_local(shape.text.style.auto_scale));
-            seed = hash_combine(seed, hash_value_local(shape.text.style.min_size));
-            seed = hash_combine(seed, hash_value_local(shape.text.style.max_size));
-            seed = hash_combine(seed, hash_vec2(shape.text.box.size));
-            seed = hash_combine(seed, hash_value_local(shape.text.box.enabled));
-            break;
+
         case ShapeType::Image:
             seed = hash_combine(seed, hash_string(shape.image.path));
             seed = hash_combine(seed, hash_vec2(shape.image.size));
