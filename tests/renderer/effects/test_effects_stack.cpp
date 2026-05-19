@@ -31,31 +31,6 @@ static auto rect_at_center(Vec2 size, Color color = Color{1, 1, 1, 1}) {
 } // namespace
 
 // ---------------------------------------------------------------------------
-TEST_CASE("Text align center places text symmetrically") {
-    // Two texts: one Left, one Center at same position.
-    // Center text should start further left (shifted by half width).
-    Composition comp = composition({
-        .name = "TextAlignTest", .width = 400, .height = 200, .duration = 1
-    }, [](const FrameContext& ctx) {
-        SceneBuilder s(ctx);
-        s.layer("l", [](LayerBuilder& l) {
-            l.position({200, 100, 0});
-            l.text("t", { .content = "X", .style = {
-                .font_path = "assets/fonts/Inter-Bold.ttf",
-                .size = 50, .color = Color{1,1,1,1}, .align = TextAlign::Center
-            }, .pos = {0, 0, 0} });
-        });
-        return s.build();
-    });
-    SoftwareRenderer r;
-    auto fb = r.render_frame(comp, 0);
-    // Pixel at centre should be visible (non-black) because text is centred there.
-    // We just verify it doesn't crash and produces output.
-    CHECK(fb->width() == 400);
-    CHECK(fb->height() == 200);
-}
-
-// ---------------------------------------------------------------------------
 TEST_CASE("Blur reduces high-frequency detail") {
     auto fb_s = render_layer(rect_at_center({80, 80}));
     auto fb_b = render_layer([](LayerBuilder& l) {

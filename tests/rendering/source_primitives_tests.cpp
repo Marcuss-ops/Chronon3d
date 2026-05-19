@@ -2,7 +2,6 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/image/stb_image_backend.hpp>
 #include <chronon3d/backends/image/image_writer.hpp>
-#include <chronon3d/backends/text/stb_font_backend.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/chronon3d.hpp>
 #include <filesystem>
@@ -17,7 +16,6 @@ SoftwareRenderer make_renderer() {
     settings.use_modular_graph = true;
     renderer.set_settings(settings);
     renderer.set_image_backend(std::make_shared<image::StbImageBackend>());
-    renderer.set_font_backend(std::make_shared<text::StbFontBackend>());
     return renderer;
 }
 
@@ -114,35 +112,7 @@ TEST_CASE("Test 13.4 — Line primitive rendering") {
     CHECK(fb->get_pixel(50, 40).a == 0.0f);
 }
 
-TEST_CASE("Test 13.5 — Text primitive rendering") {
-    const std::string font = "assets/fonts/Inter-Bold.ttf";
-    if (!std::filesystem::exists(font)) return;
-
-    auto renderer = make_renderer();
-    Composition comp({.width = 100, .height = 100}, [&](const FrameContext& ctx) {
-        SceneBuilder s(ctx);
-        TextStyle style{.font_path = font, .size = 50.0f, .color = Color::red(), .align = TextAlign::Center};
-        s.text("t", {.content = "A", .style = style, .pos = {0, 0, 0}});
-        return s.build();
-    });
-
-    auto fb = renderer.render_frame(comp, 0);
-    REQUIRE(fb != nullptr);
-    
-    bool found = false;
-    for (int y = 30; y < 70; ++y) {
-        for (int x = 30; x < 70; ++x) {
-            if (fb->get_pixel(x, y).r > 0.1f) {
-                found = true;
-                break;
-            }
-        }
-        if (found) break;
-    }
-    CHECK(found);
-}
-
-TEST_CASE("Test 13.6 — Image primitive rendering") {
+TEST_CASE("Test 13.5 — Image primitive rendering") {
     const std::string white_img = make_white_image();
     auto renderer = make_renderer();
     Composition comp({.width = 100, .height = 100}, [&](const FrameContext& ctx) {
@@ -156,7 +126,7 @@ TEST_CASE("Test 13.6 — Image primitive rendering") {
     CHECK(fb->get_pixel(50, 50).r > 0.9f);
 }
 
-TEST_CASE("Test 13.7 — FakeBox3D primitive rendering") {
+TEST_CASE("Test 13.6 — FakeBox3D primitive rendering") {
     auto renderer = make_renderer();
     Composition comp({.width = 100, .height = 100}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
@@ -173,46 +143,7 @@ TEST_CASE("Test 13.7 — FakeBox3D primitive rendering") {
     CHECK(fb->get_pixel(50, 50).r > 0.5f);
 }
 
-TEST_CASE("Test 13.8 — FakeExtrudedText primitive rendering") {
-    const std::string font = "assets/fonts/Inter-Bold.ttf";
-    if (!std::filesystem::exists(font)) return;
-
-    auto renderer = make_renderer();
-    Composition comp({.width = 100, .height = 100}, [&](const FrameContext& ctx) {
-        SceneBuilder s(ctx);
-        s.camera().set({.enabled = true, .position = {0,0,-500}, .zoom = 500.0f});
-        s.layer("t", [&](LayerBuilder& l) {
-            l.enable_3d();
-            l.fake_extruded_text("text", {
-                .text = "H",
-                .font_path = font,
-                .pos = {0,0,0},
-                .font_size = 60.0f,
-                .depth = 10,
-                .front_color = Color::red(),
-                .align = TextAlign::Center
-            });
-        });
-        return s.build();
-    });
-
-    auto fb = renderer.render_frame(comp, 0);
-    REQUIRE(fb != nullptr);
-
-    bool found = false;
-    for (int y = 20; y < 80; ++y) {
-        for (int x = 20; x < 80; ++x) {
-            if (fb->get_pixel(x, y).r > 0.1f) {
-                found = true;
-                break;
-            }
-        }
-        if (found) break;
-    }
-    CHECK(found);
-}
-
-TEST_CASE("Test 13.9 — GridPlane primitive rendering") {
+TEST_CASE("Test 13.7 — GridPlane primitive rendering") {
     auto renderer = make_renderer();
     Composition comp({.width = 100, .height = 100}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
@@ -233,7 +164,7 @@ TEST_CASE("Test 13.9 — GridPlane primitive rendering") {
     REQUIRE(fb != nullptr);
 }
 
-TEST_CASE("Test 13.10 — Video layer runtime frame sampling") {
+TEST_CASE("Test 13.8 — Video layer runtime frame sampling") {
     auto renderer = make_renderer();
     auto mock_decoder = std::make_shared<MockVideoDecoder>();
     renderer.set_video_decoder(mock_decoder);
@@ -251,7 +182,7 @@ TEST_CASE("Test 13.10 — Video layer runtime frame sampling") {
     CHECK(fb->get_pixel(50, 50).r < 0.2f);
 }
 
-TEST_CASE("Test 13.11 — Precomp layer subcomp sampling") {
+TEST_CASE("Test 13.9 — Precomp layer subcomp sampling") {
     auto renderer = make_renderer();
     CompositionRegistry registry;
 

@@ -1,6 +1,5 @@
 #include <chronon3d/presets/motion_renderer.hpp>
 #include <chronon3d/presets/motion_resolver.hpp>
-#include <chronon3d/presets/layer_fx.hpp>
 
 #include <algorithm>
 #include <utility>
@@ -27,15 +26,6 @@ std::string prefix_name(const std::string& prefix, const std::string& id) {
     return prefix + "__" + id;
 }
 
-LayerMotion3D to_layer_motion(const MotionState& st, bool enable_3d) {
-    LayerMotion3D motion;
-    motion.enabled = enable_3d;
-    motion.position = st.position;
-    motion.rotation = st.rotation;
-    motion.scale = st.scale;
-    return motion;
-}
-
 void apply_state(LayerBuilder& l, const MotionState& st, bool enable_3d) {
     if (enable_3d) {
         l.enable_3d();
@@ -51,22 +41,6 @@ void apply_state(LayerBuilder& l, const MotionState& st, bool enable_3d) {
 
 void draw_content(LayerBuilder& l, const MotionObject& obj, const std::string& layer_name) {
     switch (obj.type) {
-    case MotionObjectType::Text:
-        l.text(layer_name + "_text", {
-            .content = obj.text_value,
-            .style = {
-                .font_path = obj.text_style.font_path,
-                .font_family = obj.text_style.font_family,
-                .font_weight = obj.text_style.font_weight,
-                .font_style = obj.text_style.font_style,
-                .size = obj.text_style.font_size,
-                .color = obj.color_value.with_alpha(1.0f),
-                .align = obj.text_style.align,
-                .tracking = obj.text_style.tracking,
-            },
-            .pos = {0.0f, 0.0f, 0.0f},
-        });
-        break;
     case MotionObjectType::Image:
         l.image(layer_name + "_image", {
             .path = obj.image_path_value,
@@ -134,31 +108,6 @@ void draw_motion_object_impl(
 
     const std::string layer_name = prefix_name(prefix, obj.id);
 
-    if (obj.type == MotionObjectType::Text && obj.glow_enabled) {
-        const f32 base_opacity = st.opacity * obj.color_value.a;
-        soft_glow_text(s, layer_name, {
-            .text = obj.text_value,
-            .font_path_main = obj.text_style.font_path,
-            .font_path_glow = obj.text_style.font_path,
-            .font_family_main = obj.text_style.font_family,
-            .font_family_glow = obj.text_style.font_family,
-            .font_weight_main = obj.text_style.font_weight,
-            .font_weight_glow = std::max(400, obj.text_style.font_weight - 400),
-            .font_style_main = obj.text_style.font_style,
-            .font_style_glow = obj.text_style.font_style,
-            .motion = to_layer_motion(st, enable_3d),
-            .text_pos = {0.0f, 0.0f, 0.0f},
-            .font_size = obj.text_style.font_size,
-            .outer_blur = 26.0f + st.blur,
-            .outer_opacity = 0.22f * base_opacity,
-            .main_opacity = base_opacity,
-            .tracking = obj.text_style.tracking,
-            .align = obj.text_style.align,
-            .main_color = obj.color_value.with_alpha(1.0f),
-            .glow_color = obj.color_value.with_alpha(1.0f),
-        });
-        return;
-    }
 
     s.layer(layer_name, [obj, st, layer_name, enable_3d](LayerBuilder& l) {
         apply_state(l, st, enable_3d);

@@ -15,7 +15,6 @@ namespace chronon3d::registry {
 enum class ShapeKind {
     Primitive,
     Path,
-    Text,
     Image,
     Mesh,
 };
@@ -24,7 +23,6 @@ enum class ShapeKind {
     switch (kind) {
     case ShapeKind::Primitive: return "primitive";
     case ShapeKind::Path:      return "path";
-    case ShapeKind::Text:      return "text";
     case ShapeKind::Image:     return "image";
     case ShapeKind::Mesh:      return "mesh";
     }

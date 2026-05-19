@@ -100,41 +100,9 @@ TEST_CASE("Test 4.7 - trim path diverso cambia hash") {
     CHECK(hash_shape(s1) != hash_shape(s2));
 }
 
-// Test 4.8 - text content diverso cambia hash
-TEST_CASE("Test 4.8 - text content diverso cambia hash") {
-    Shape s1;
-    s1.type = ShapeType::Text;
-    s1.text.text = "Hello";
-
-    Shape s2 = s1;
-    s2.text.text = "World";
-
-    CHECK(hash_shape(s1) != hash_shape(s2));
-}
-
-// Test 4.9 - text font path diverso cambia hash
-TEST_CASE("Test 4.9 - text font path diverso cambia hash") {
-    Shape s1;
-    s1.type = ShapeType::Text;
-    s1.text.style.font_path = "Inter-Regular.ttf";
-
-    Shape s2 = s1;
-    s2.text.style.font_path = "Inter-Bold.ttf";
-
-    CHECK(hash_shape(s1) != hash_shape(s2));
-}
-
-// Test 4.10 - text size diversa cambia hash
-TEST_CASE("Test 4.10 - text size diversa cambia hash") {
-    Shape s1;
-    s1.type = ShapeType::Text;
-    s1.text.style.size = 32.0f;
-
-    Shape s2 = s1;
-    s2.text.style.size = 64.0f;
-
-    CHECK(hash_shape(s1) != hash_shape(s2));
-}
+// Test 4.8 - text content diverso cambia hash (REMOVED: text engine deprecated)
+// Test 4.9 - text font path diverso cambia hash (REMOVED)
+// Test 4.10 - text size diversa cambia hash (REMOVED)
 
 // Test 4.11 - image path diverso cambia hash
 TEST_CASE("Test 4.11 - image path diverso cambia hash") {

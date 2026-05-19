@@ -12,7 +12,7 @@ namespace chronon3d::rendering {
 
 // Simple directional light for 2.5D rendering.
 // Default matches the historical k_box_light / k_light_dir used in FakeBox3D
-// and FakeExtrudedText, so existing visuals are unchanged.
+// so existing visuals are unchanged.
 struct LightContext {
     bool enabled{false};
     bool ambient_enabled{false};

@@ -74,13 +74,6 @@ struct Studio {
         });
     }
 
-    static void fake_extruded_text(SceneBuilder& s, std::string name, FakeExtrudedTextParams p) {
-        s.layer(std::move(name), [p](LayerBuilder& l) {
-            l.enable_3d()
-             .position(p.pos)
-             .fake_extruded_text("text", p);
-        });
-    }
 };
 
 /**

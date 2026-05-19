@@ -11,7 +11,6 @@ using ShapeParams = std::variant<
     CircleParams,
     LineParams,
     PathParams,
-    TextParams,
     ImageParams
 >;
 

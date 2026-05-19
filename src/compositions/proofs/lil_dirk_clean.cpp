@@ -33,7 +33,7 @@ static Composition lil_dirk_clean() {
 
         std::vector<presets::motion::MotionObject> objects = {
             presets::motion::MotionObject::text("title", "LIL DIRK")
-                .at({0.0f, 18.0f + bob, -120.0f})
+                .at({0.0f, bob, -120.0f})
                 .preset(presets::motion::MotionPreset::PushIn3D)
                 .time(0, 120)
                 .font_path("assets/fonts/Inter-Bold.ttf")
@@ -41,7 +41,7 @@ static Composition lil_dirk_clean() {
                 .font_weight(800)
                 .font_size(112.0f)
                 .tracking(1.0f)
-                .align(TextAlign::Center)
+                .align(presets::motion::TextAlign::Center)
                 .color(Color{0.98f, 0.98f, 0.96f, 1.0f})
                 .glow(true)
                 .enable_3d()
