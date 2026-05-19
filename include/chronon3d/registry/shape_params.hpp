@@ -11,7 +11,8 @@ using ShapeParams = std::variant<
     CircleParams,
     LineParams,
     PathParams,
-    ImageParams
+    ImageParams,
+    TextParams
 >;
 
 } // namespace chronon3d::registry

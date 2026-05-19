@@ -64,6 +64,19 @@
       }
     },
     {
+      "name": "win-debug-render",
+      "inherits": "base-win",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CHRONON3D_BUILD_TESTS": "OFF"
+      }
+    },
+    {
       "name": "win-release-video",
       "inherits": "win-release",
       "binaryDir": "${sourceDir}/build/chronon/vs/${presetName}",
@@ -129,6 +142,19 @@
       }
     },
     {
+      "name": "linux-debug-render",
+      "inherits": "base-linux",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CHRONON3D_BUILD_TESTS": "OFF"
+      }
+    },
+    {
       "name": "linux-asan",
       "inherits": "base-linux",
       "condition": {
@@ -164,6 +190,14 @@
       "jobs": 16
     },
     {
+      "name": "linux-debug-render",
+      "configurePreset": "linux-debug-render",
+      "targets": [
+        "chronon3d_cli"
+      ],
+      "jobs": 16
+    },
+    {
       "name": "win",
       "configurePreset": "win-release",
       "configuration": "Release",
@@ -180,6 +214,15 @@
       "targets": [
         "chronon3d_cli",
         "chronon3d_tests"
+      ],
+      "jobs": 16
+    },
+    {
+      "name": "win-debug-render",
+      "configurePreset": "win-debug-render",
+      "configuration": "Debug",
+      "targets": [
+        "chronon3d_cli"
       ],
       "jobs": 16
     },

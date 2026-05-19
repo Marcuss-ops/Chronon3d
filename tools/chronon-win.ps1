@@ -38,10 +38,16 @@ if (Test-Path $vcpkgGitDir) {
 }
 
 # ── Compiler cache (optional) ─────────────────────────────────────────────────
+$CacheLauncher = $null
 if (Get-Command sccache -ErrorAction SilentlyContinue) {
-    $env:CMAKE_C_COMPILER_LAUNCHER = "sccache"
-    $env:CMAKE_CXX_COMPILER_LAUNCHER = "sccache"
-    Write-Host "Using sccache for build acceleration." -ForegroundColor Green
+    $CacheLauncher = "sccache"
+} elseif (Get-Command ccache -ErrorAction SilentlyContinue) {
+    $CacheLauncher = "ccache"
+}
+if ($CacheLauncher) {
+    $env:CMAKE_C_COMPILER_LAUNCHER = $CacheLauncher
+    $env:CMAKE_CXX_COMPILER_LAUNCHER = $CacheLauncher
+    Write-Host "Using $CacheLauncher for build acceleration." -ForegroundColor Green
 }
 
 # ── Configure + Build ─────────────────────────────────────────────────────────

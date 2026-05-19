@@ -62,8 +62,8 @@ struct Motion3D {
     bool face_camera{false};
 };
 
-// Text style for motion objects — kept for data model backward compatibility
-// (text rendering was deprecated; text motion objects are silently no-ops)
+// Text style for motion objects. Text objects are mapped to the text shape
+// pipeline so they can render with the same motion data model.
 enum class TextAlign { Left, Center, Right };
 
 struct TextStyleMotion {

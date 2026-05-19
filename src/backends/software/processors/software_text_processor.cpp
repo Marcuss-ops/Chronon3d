@@ -3,6 +3,7 @@
 #include <chronon3d/backends/software/rasterizers/projected_card_rasterizer.hpp>
 #include <chronon3d/backends/text/text_rasterizer_utils.hpp>
 #include <chronon3d/core/profiling.hpp>
+#include <spdlog/spdlog.h>
 #include "../utils/render_effects_processor.hpp"
 #include "../utils/blend2d_bridge.hpp"
 #include "../utils/blend2d_resources.hpp"
@@ -97,7 +98,10 @@ public:
         
         // 1. Rasterize text once for both glow and main text
         auto raster = rasterize_text_to_bl_image(node.shape.text, effective_size);
-        if (!raster) return;
+        if (!raster) {
+            spdlog::warn("Text rasterization failed for node '{}'", node.name);
+            return;
+        }
 
         // Increment text glyphs counter
         renderer.counters()->text_glyphs_rasterized.fetch_add(
