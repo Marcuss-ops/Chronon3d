@@ -89,6 +89,14 @@ const INFO_DESCRIPTIONS = {
 
 const API_BASE = 'http://localhost:8000';
 
+const outputPathToArtifactUrl = (outputPath) => {
+  if (!outputPath) return '';
+  return `${API_BASE}/artifact?path=${encodeURIComponent(outputPath)}`;
+};
+
+const isVideoOutput = (outputPath) => /\.(mp4|webm|mov)$/i.test(outputPath || '');
+const isImageOutput = (outputPath) => /\.(png|jpg|jpeg|webp|gif|svg)$/i.test(outputPath || '');
+
 function App() {
   const [runs, setRuns] = useState([]);
   const [selectedRunId, setSelectedRunId] = useState('');
@@ -326,6 +334,34 @@ ${countersText}`;
     );
   };
 
+  const renderPreviewPanel = () => {
+    if (!runDetail || !runDetail.run) return null;
+
+    const outputPath = runDetail.run.output_path || '';
+    const artifactUrl = outputPathToArtifactUrl(outputPath);
+    const canPreview = Boolean(outputPath) && (isVideoOutput(outputPath) || isImageOutput(outputPath));
+
+    return (
+      <section className="glass-panel preview-panel">
+        <div className="panel-title">
+          <span>Render Preview</span>
+          <span className="preview-path">{outputPath || 'No output path'}</span>
+        </div>
+        {canPreview ? (
+          isVideoOutput(outputPath) ? (
+            <video className="render-preview-media" controls playsInline src={artifactUrl} />
+          ) : (
+            <img className="render-preview-media" src={artifactUrl} alt={runDetail.run.composition_id} />
+          )
+        ) : (
+          <div className="preview-empty">
+            No preview available for this output type.
+          </div>
+        )}
+      </section>
+    );
+  };
+
   // Generate SVG elements for the frame chart
   const renderFrameChart = () => {
     if (!runDetail || !runDetail.frames || runDetail.frames.length === 0) {
@@ -517,6 +553,8 @@ ${countersText}`;
                 </button>
               </div>
             </header>
+
+            {renderPreviewPanel()}
 
             {/* Metrics cards grid */}
             <section className="metrics-grid">

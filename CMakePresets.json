@@ -73,7 +73,8 @@
       },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "CHRONON3D_BUILD_TESTS": "OFF"
+        "CHRONON3D_BUILD_TESTS": "OFF",
+        "CHRONON3D_ENABLE_SQLITE_TELEMETRY": "ON"
       }
     },
     {
@@ -151,7 +152,8 @@
       },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "CHRONON3D_BUILD_TESTS": "OFF"
+        "CHRONON3D_BUILD_TESTS": "OFF",
+        "CHRONON3D_ENABLE_SQLITE_TELEMETRY": "ON"
       }
     },
     {

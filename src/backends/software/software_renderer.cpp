@@ -4,12 +4,103 @@
 #include <chronon3d/backends/software/software_compositor.hpp>
 #include <chronon3d/backends/software/software_effect_runner.hpp>
 #include <chronon3d/backends/software/software_node_dispatcher.hpp>
+#include <chronon3d/backends/software/shape_processor.hpp>
 #include <chronon3d/backends/software/builtin_processors.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/core/profiling.hpp>
 #include <spdlog/spdlog.h>
+#include "rasterizers/line_rasterizer.hpp"
+#include "rasterizers/shape_rasterizer.hpp"
+#include <algorithm>
+#include <cmath>
 
 namespace chronon3d {
+
+namespace {
+
+void draw_crosshair(Framebuffer& fb, Vec2 center, f32 radius, const Color& color) {
+    renderer::bline(fb, {center.x - radius, center.y}, {center.x + radius, center.y}, color);
+    renderer::bline(fb, {center.x, center.y - radius}, {center.x, center.y + radius}, color);
+}
+
+void draw_bbox_overlay(Framebuffer& fb, const raster::BBox& bbox, const Color& color) {
+    if (bbox.is_empty()) {
+        return;
+    }
+
+    const f32 x0 = static_cast<f32>(bbox.x0);
+    const f32 y0 = static_cast<f32>(bbox.y0);
+    const f32 x1 = static_cast<f32>(std::max(bbox.x0, bbox.x1 - 1));
+    const f32 y1 = static_cast<f32>(std::max(bbox.y0, bbox.y1 - 1));
+
+    renderer::bline(fb, {x0, y0}, {x1, y0}, color);
+    renderer::bline(fb, {x1, y0}, {x1, y1}, color);
+    renderer::bline(fb, {x1, y1}, {x0, y1}, color);
+    renderer::bline(fb, {x0, y1}, {x0, y0}, color);
+}
+
+const char* shape_type_name(ShapeType type) {
+    switch (type) {
+    case ShapeType::None: return "None";
+    case ShapeType::Rect: return "Rect";
+    case ShapeType::RoundedRect: return "RoundedRect";
+    case ShapeType::Circle: return "Circle";
+    case ShapeType::Line: return "Line";
+    case ShapeType::Path: return "Path";
+    case ShapeType::Text: return "Text";
+    case ShapeType::Image: return "Image";
+    case ShapeType::Mesh: return "Mesh";
+    case ShapeType::FakeBox3D: return "FakeBox3D";
+    case ShapeType::GridPlane: return "GridPlane";
+    case ShapeType::FakeExtrudedText: return "FakeExtrudedText";
+    }
+    return "Unknown";
+}
+
+void draw_layout_preview(Framebuffer& fb, const RenderNode& node, const RenderState& state,
+                         renderer::ShapeProcessor& processor) {
+    const auto bbox = processor.compute_world_bbox(node.shape, state.matrix, 0.0f);
+    draw_bbox_overlay(fb, bbox, Color{0.15f, 0.90f, 1.0f, 0.95f});
+
+    Vec4 anchor = state.matrix * Vec4(node.world_transform.anchor, 1.0f);
+    if (std::abs(anchor.w) > 1e-7f) {
+        draw_crosshair(fb, {anchor.x / anchor.w, anchor.y / anchor.w}, 6.0f,
+                       Color{1.0f, 0.20f, 0.72f, 0.95f});
+    }
+
+    draw_crosshair(
+        fb,
+        {static_cast<f32>(fb.width()) * 0.5f, static_cast<f32>(fb.height()) * 0.5f},
+        16.0f,
+        Color{1.0f, 1.0f, 1.0f, 0.55f}
+    );
+
+    const Vec4 world_pos = state.matrix * Vec4(0.0f, 0.0f, 0.0f, 1.0f);
+    Vec2 anchor_screen{0.0f, 0.0f};
+    if (std::abs(anchor.w) > 1e-7f) {
+        anchor_screen = {anchor.x / anchor.w, anchor.y / anchor.w};
+    }
+
+    spdlog::info(
+        "[layout-preview] node='{}' type={} pos=({:.1f},{:.1f},{:.1f}) anchor=({:.1f},{:.1f},{:.1f}) bbox=[{},{},{},{}] screen_anchor=({:.1f},{:.1f})",
+        node.name,
+        shape_type_name(node.shape.type),
+        world_pos.x,
+        world_pos.y,
+        world_pos.z,
+        node.world_transform.anchor.x,
+        node.world_transform.anchor.y,
+        node.world_transform.anchor.z,
+        bbox.x0,
+        bbox.y0,
+        bbox.x1,
+        bbox.y1,
+        anchor_screen.x,
+        anchor_screen.y
+    );
+}
+
+} // namespace
 
 SoftwareRenderer::SoftwareRenderer()
     : m_software_registry(std::make_unique<renderer::SoftwareRegistry>()) {
@@ -111,7 +202,16 @@ void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node,
                                  i32 height) {
     m_counters.pixels_touched.fetch_add(static_cast<uint64_t>(width * height), std::memory_order_relaxed);
     CHRONON_ZONE_C("draw_node", trace_category::kRasterize);
-    SoftwareNodeDispatcher::draw_node(*this, fb, node, state, camera, width, height, software_registry());
+    auto* processor = software_registry().get_shape(node.shape.type);
+    if (!processor) {
+        SoftwareNodeDispatcher::draw_node(*this, fb, node, state, camera, width, height, software_registry());
+        return;
+    }
+
+    processor->draw(*this, fb, node, state, camera, width, height);
+    if (m_settings.diagnostic) {
+        draw_layout_preview(fb, node, state, *processor);
+    }
 }
 
 void SoftwareRenderer::apply_effect_stack(Framebuffer& fb, const EffectStack& stack, float time_seconds) {
