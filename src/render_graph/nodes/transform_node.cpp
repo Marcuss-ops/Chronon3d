@@ -5,7 +5,11 @@
 
 namespace chronon3d::graph {
 
-std::shared_ptr<Framebuffer> TransformNode::execute(RenderGraphContext& ctx, const std::vector<std::shared_ptr<Framebuffer>>& inputs) {
+std::shared_ptr<Framebuffer> TransformNode::execute(
+    RenderGraphContext& ctx,
+    const std::vector<std::shared_ptr<Framebuffer>>& inputs,
+    const std::vector<std::optional<raster::BBox>>& input_bboxes
+) {
     CHRONON_ZONE_C("transform_node", trace_category::kRasterize);
     if (ctx.backend) {
         ctx.backend->counters()->pixels_touched.fetch_add(static_cast<uint64_t>(ctx.width * ctx.height), std::memory_order_relaxed);
@@ -117,6 +121,45 @@ std::shared_ptr<Framebuffer> TransformNode::execute(RenderGraphContext& ctx, con
     }
 
     return result;
+}
+
+std::optional<raster::BBox> TransformNode::predicted_bbox(const RenderGraphContext& ctx) const {
+    const Mat4 model = m_use_matrix ? m_matrix : m_transform.to_mat4();
+    const Mat4 dst_canvas_offset = math::translate(Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
+    
+    // We assume input is same size as output for simplicity if we don't have it yet.
+    // In many cases (text freezing), it is!
+    const f32 w_src = static_cast<f32>(ctx.width);
+    const f32 h_src = static_cast<f32>(ctx.height);
+    const Mat4 src_canvas_offset = math::translate(Vec3(w_src * 0.5f, h_src * 0.5f, 0.0f));
+    
+    const Mat4 pixel_model = dst_canvas_offset * model * glm::inverse(src_canvas_offset);
+
+    Vec4 corners[4] = {
+        pixel_model * Vec4(0, 0, 0, 1),
+        pixel_model * Vec4(w_src, 0, 0, 1),
+        pixel_model * Vec4(w_src, h_src, 0, 1),
+        pixel_model * Vec4(0, h_src, 0, 1)
+    };
+
+    f32 min_x = 1e10f, max_x = -1e10f;
+    f32 min_y = 1e10f, max_y = -1e10f;
+    for (auto& c : corners) {
+        if (std::abs(c.w) < 1e-6f) continue;
+        f32 px = c.x / c.w;
+        f32 py = c.y / c.w;
+        min_x = std::min(min_x, px);
+        max_x = std::max(max_x, px);
+        min_y = std::min(min_y, py);
+        max_y = std::max(max_y, py);
+    }
+
+    return raster::BBox{
+        std::clamp(static_cast<i32>(std::floor(min_x)), 0, ctx.width),
+        std::clamp(static_cast<i32>(std::floor(min_y)), 0, ctx.height),
+        std::clamp(static_cast<i32>(std::ceil(max_x)), 0, ctx.width),
+        std::clamp(static_cast<i32>(std::ceil(max_y)), 0, ctx.height)
+    };
 }
 
 } // namespace chronon3d::graph

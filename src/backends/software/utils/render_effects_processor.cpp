@@ -222,23 +222,37 @@ std::shared_ptr<Framebuffer> acquire_temp_framebuffer(int w, int h) {
 
 } // namespace
 
-void apply_blur(Framebuffer& fb, f32 radius) {
+void apply_blur(Framebuffer& fb, f32 radius, const std::optional<raster::BBox>& clip) {
     const i32 r = std::max(1, static_cast<i32>(std::round(radius)));
     const i32 w = fb.width(), h = fb.height();
+    
+    i32 x0 = 0, x1 = w;
+    i32 y0 = 0, y1 = h;
+
+    if (clip) {
+        // Expand clip by radius to account for blur spread
+        x0 = std::clamp(clip->x0 - r - 2, 0, w);
+        x1 = std::clamp(clip->x1 + r + 2, 0, w);
+        y0 = std::clamp(clip->y0 - r - 2, 0, h);
+        y1 = std::clamp(clip->y1 + r + 2, 0, h);
+    }
+
+    if (x0 >= x1 || y0 >= y1) return;
+
     auto tmp_fb = acquire_temp_framebuffer(w, h);
     Framebuffer& tmp = *tmp_fb;
 
     for (int pass = 0; pass < 3; ++pass) {
-        for (i32 y = 0; y < h; ++y) {
+        for (i32 y = y0; y < y1; ++y) {
             const Color* src_row = fb.pixels_row(y);
             Color* tmp_row = tmp.pixels_row(y);
             Color sum{0, 0, 0, 0};
-            for (i32 x = -r; x <= r; ++x) {
+            for (i32 x = x0 - r; x <= x0 + r; ++x) {
                 const Color p = src_row[std::clamp(x, 0, w - 1)];
                 sum.r += p.r; sum.g += p.g; sum.b += p.b; sum.a += p.a;
             }
             const f32 inv = 1.0f / static_cast<f32>(2 * r + 1);
-            for (i32 x = 0; x < w; ++x) {
+            for (i32 x = x0; x < x1; ++x) {
                 tmp_row[x] = {sum.r * inv, sum.g * inv, sum.b * inv, sum.a * inv};
                 const Color add = src_row[std::min(x + r + 1, w - 1)];
                 const Color rem = src_row[std::max(x - r,     0)];
@@ -246,16 +260,15 @@ void apply_blur(Framebuffer& fb, f32 radius) {
                 sum.b += add.b - rem.b; sum.a += add.a - rem.a;
             }
         }
-        for (i32 x = 0; x < w; ++x) {
-            Color* dst_row = fb.pixels_row(0);
+        for (i32 x = x0; x < x1; ++x) {
             Color sum{0, 0, 0, 0};
-            for (i32 y = -r; y <= r; ++y) {
+            for (i32 y = y0 - r; y <= y0 + r; ++y) {
                 const Color p = tmp.pixels_row(std::clamp(y, 0, h - 1))[x];
                 sum.r += p.r; sum.g += p.g; sum.b += p.b; sum.a += p.a;
             }
             const f32 inv = 1.0f / static_cast<f32>(2 * r + 1);
-            for (i32 y = 0; y < h; ++y) {
-                dst_row[y * w + x] = {sum.r * inv, sum.g * inv, sum.b * inv, sum.a * inv};
+            for (i32 y = y0; y < y1; ++y) {
+                fb.set_pixel(x, y, {sum.r * inv, sum.g * inv, sum.b * inv, sum.a * inv});
                 const Color add = tmp.pixels_row(std::min(y + r + 1, h - 1))[x];
                 const Color rem = tmp.pixels_row(std::max(y - r,     0))[x];
                 sum.r += add.r - rem.r; sum.g += add.g - rem.g;
@@ -265,14 +278,22 @@ void apply_blur(Framebuffer& fb, f32 radius) {
     }
 }
 
-void apply_color_effects(Framebuffer& fb, const LayerEffect& effect) {
+void apply_color_effects(Framebuffer& fb, const LayerEffect& effect, const std::optional<raster::BBox>& clip) {
     if (apply_color_effects_avx2(fb, effect)) {
         return;
     }
 
     const i32 w = fb.width(), h = fb.height();
-    for (i32 y = 0; y < h; ++y) {
-        for (i32 x = 0; x < w; ++x) {
+    i32 x0 = 0, x1 = w, y0 = 0, y1 = h;
+    if (clip) {
+        x0 = std::clamp(clip->x0, 0, w);
+        x1 = std::clamp(clip->x1, 0, w);
+        y0 = std::clamp(clip->y0, 0, h);
+        y1 = std::clamp(clip->y1, 0, h);
+    }
+
+    for (i32 y = y0; y < y1; ++y) {
+        for (i32 x = x0; x < x1; ++x) {
             Color c = fb.get_pixel(x, y);
             if (c.a <= 0.0f) continue;
 
@@ -327,21 +348,21 @@ void apply_fake_3d_wave(Framebuffer& fb, const Fake3DWaveParams& params, float t
     fb = std::move(*body_fb);
 }
 
-static void apply_one_param(Framebuffer& fb, const EffectParams& params, float time_seconds) {
-    std::visit([&fb, time_seconds](const auto& p) {
+static void apply_one_param(Framebuffer& fb, const EffectParams& params, float time_seconds, const std::optional<raster::BBox>& clip) {
+    std::visit([&fb, time_seconds, &clip](const auto& p) {
         using T = std::decay_t<decltype(p)>;
         if constexpr (std::is_same_v<T, BlurParams>) {
-            if (p.radius > 0.0f) apply_blur(fb, p.radius);
+            if (p.radius > 0.0f) apply_blur(fb, p.radius, clip);
         } else if constexpr (std::is_same_v<T, TintParams>) {
             LayerEffect e;
             e.tint = Color{p.color.r, p.color.g, p.color.b, p.color.a * p.amount};
-            apply_color_effects(fb, e);
+            apply_color_effects(fb, e, clip);
         } else if constexpr (std::is_same_v<T, BrightnessParams>) {
             LayerEffect e; e.brightness = p.value;
-            apply_color_effects(fb, e);
+            apply_color_effects(fb, e, clip);
         } else if constexpr (std::is_same_v<T, ContrastParams>) {
             LayerEffect e; e.contrast = p.value;
-            apply_color_effects(fb, e);
+            apply_color_effects(fb, e, clip);
         } else if constexpr (std::is_same_v<T, GlowParams>) {
             // Full-frame glow: extract non-transparent pixels, blur, tint, composite
             const i32 w = fb.width(), h = fb.height();
@@ -430,29 +451,29 @@ static void apply_one_param(Framebuffer& fb, const EffectParams& params, float t
     }, params);
 }
 
-void apply_effect_stack(Framebuffer& fb, const EffectStack& stack, float time_seconds) {
+void apply_effect_stack(Framebuffer& fb, const EffectStack& stack, float time_seconds, const std::optional<raster::BBox>& clip) {
     for (const auto& inst : stack) {
         if (!inst.enabled) continue;
         
         // Handle both variant (legacy) and direct types (modular)
         if (auto* v = std::any_cast<EffectParams>(&inst.params)) {
-            apply_one_param(fb, *v, time_seconds);
+            apply_one_param(fb, *v, time_seconds, clip);
         } else if (auto* p = std::any_cast<BlurParams>(&inst.params)) {
-            apply_one_param(fb, EffectParams{*p}, time_seconds);
+            apply_one_param(fb, EffectParams{*p}, time_seconds, clip);
         } else if (auto* p = std::any_cast<TintParams>(&inst.params)) {
-            apply_one_param(fb, EffectParams{*p}, time_seconds);
+            apply_one_param(fb, EffectParams{*p}, time_seconds, clip);
         } else if (auto* p = std::any_cast<BrightnessParams>(&inst.params)) {
-            apply_one_param(fb, EffectParams{*p}, time_seconds);
+            apply_one_param(fb, EffectParams{*p}, time_seconds, clip);
         } else if (auto* p = std::any_cast<ContrastParams>(&inst.params)) {
-            apply_one_param(fb, EffectParams{*p}, time_seconds);
+            apply_one_param(fb, EffectParams{*p}, time_seconds, clip);
         } else if (auto* p = std::any_cast<GlowParams>(&inst.params)) {
-            apply_one_param(fb, EffectParams{*p}, time_seconds);
+            apply_one_param(fb, EffectParams{*p}, time_seconds, clip);
         } else if (auto* p = std::any_cast<DropShadowParams>(&inst.params)) {
-            apply_one_param(fb, EffectParams{*p}, time_seconds);
+            apply_one_param(fb, EffectParams{*p}, time_seconds, clip);
         } else if (auto* p = std::any_cast<BloomParams>(&inst.params)) {
-            apply_one_param(fb, EffectParams{*p}, time_seconds);
+            apply_one_param(fb, EffectParams{*p}, time_seconds, clip);
         } else if (auto* p = std::any_cast<Fake3DWaveParams>(&inst.params)) {
-            apply_one_param(fb, EffectParams{*p}, time_seconds);
+            apply_one_param(fb, EffectParams{*p}, time_seconds, clip);
         }
     }
 }

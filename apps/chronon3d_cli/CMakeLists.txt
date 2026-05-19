@@ -7,6 +7,7 @@ add_executable(chronon3d_cli
     commands/register_dev_commands.cpp
     commands/register_inspect_commands.cpp
     commands/register_bench_commands.cpp
+    commands/register_telemetry_commands.cpp
     utils/cli_utils.cpp
     utils/cli_render_utils.cpp
     utils/ffmpeg_pipe_encoder.cpp
@@ -26,6 +27,7 @@ add_executable(chronon3d_cli
     commands/command_bench.cpp
     commands/command_graph.cpp
     commands/command_proofs.cpp
+    commands/command_telemetry.cpp
 )
 
 get_target_property(CLI11_INCLUDE_DIRS CLI11::CLI11 INTERFACE_INCLUDE_DIRECTORIES)
@@ -36,6 +38,7 @@ target_link_libraries(chronon3d_cli
         chronon3d_backend_image
         spdlog::spdlog
         fmt::fmt
+        sqlite3
 )
 
 target_include_directories(chronon3d_cli PRIVATE ${CMAKE_SOURCE_DIR})

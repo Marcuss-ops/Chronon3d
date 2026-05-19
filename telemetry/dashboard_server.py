@@ -176,12 +176,81 @@ def _report_to_react(report):
     }
 
 
+import sqlite3
+
 def get_all_reports():
+    db_path = PROJECT_ROOT / "output" / "telemetry.db"
+    if not db_path.exists():
+        return []
+    
     reports = []
+    try:
+        conn = sqlite3.connect(str(db_path))
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        # Get latest runs
+        runs = cursor.execute("SELECT * FROM render_runs ORDER BY finished_at_iso DESC").fetchall()
+        
+        for run in runs:
+            run_id = run["run_id"]
+            
+            # Get counters for this run
+            counters = {}
+            cursor.execute("SELECT counter_name, counter_value FROM render_counters WHERE run_id = ?", (run_id,))
+            for row in cursor.fetchall():
+                counters[row["counter_name"]] = row["counter_value"]
+            
+            # Get frames for this run
+            frames = []
+            cursor.execute("SELECT frame_number, duration_ms, cache_hit, dirty_area_ratio FROM render_frames WHERE run_id = ? ORDER BY frame_number", (run_id,))
+            for row in cursor.fetchall():
+                frames.append({
+                    "frame": row["frame_number"],
+                    "duration_ms": row["duration_ms"],
+                    "cache_hit": bool(row["cache_hit"]),
+                    "dirty_ratio": row["dirty_area_ratio"]
+                })
+            
+            # Map SQL fields to the format expected by parse_report/dashboard
+            try:
+                # Handle ISO format with 'Z' and possible sub-seconds
+                iso_str = run["finished_at_iso"].replace("Z", "+00:00")
+                from datetime import datetime
+                ts = datetime.fromisoformat(iso_str).timestamp()
+            except Exception:
+                # Fallback
+                ts = time.mktime(time.strptime(run["finished_at_iso"].split(".")[0].replace("Z", ""), "%Y-%m-%dT%H:%M:%S"))
+            
+            reports.append({
+                "file": "database",
+                "timestamp": ts,
+                "git_commit": run["git_commit_short"],
+                "os": run["os"],
+                "cpu": run["cpu_model"],
+                "cores": run["cores"],
+                "compiler": run["compiler_info"],
+                "build_type": run["build_type"],
+                "run_id": run_id,
+                "composition": run["composition_id"],
+                "frames_total": run["frames_total"],
+                "wall_time_ms": run["wall_time_ms"],
+                "render_time_ms": run["render_ms"],
+                "fps": run["effective_fps"],
+                "output_path": run["output_path"],
+                "counters": counters,
+                "frames": frames
+            })
+        conn.close()
+    except Exception as e:
+        print(f"Error reading SQLite: {e}")
+        
+    # Also include legacy log files if they exist
     for f in sorted(glob.glob(str(PROJECT_ROOT / REPORT_GLOB)), key=os.path.getmtime, reverse=True):
         parsed = parse_report(f)
         if parsed:
             reports.append(parsed)
+            
     return reports
 
 

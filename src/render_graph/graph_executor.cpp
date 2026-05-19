@@ -85,6 +85,11 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute_node(
             }
         }
 
+        std::vector<std::optional<raster::BBox>> input_bboxes(input_ids.size());
+        for (size_t i = 0; i < input_ids.size(); ++i) {
+            input_bboxes[i] = graph.node(input_ids[i]).predicted_bbox(ctx);
+        }
+
         std::shared_ptr<Framebuffer> result;
         const bool is_cacheable = node.cacheable();
         cache::NodeCacheKey key;
@@ -147,7 +152,7 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute_node(
 
         if (!result) {
             TraceScope scope(ctx.trace, node.name(), "node_execute", ctx.frame);
-            result = node.execute(ctx, inputs);
+            result = node.execute(ctx, inputs, input_bboxes);
             if (ctx.counters) {
                 ctx.counters->nodes_executed.fetch_add(1, std::memory_order_relaxed);
             }

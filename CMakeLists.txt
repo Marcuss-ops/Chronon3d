@@ -27,7 +27,7 @@ endif()
 option(CHRONON3D_BUILD_TESTS "Build Chronon3d tests" ON)
 option(CHRONON3D_BUILD_CLI "Build Chronon3d CLI" ON)
 option(CHRONON3D_ENABLE_PROFILING "Enable Tracy profiling" OFF)
-option(CHRONON3D_ENABLE_SQLITE_TELEMETRY "Enable SQLite telemetry store" OFF)
+option(CHRONON3D_ENABLE_SQLITE_TELEMETRY "Enable SQLite telemetry store" ON)
 
 if(CHRONON3D_ENABLE_SQLITE_TELEMETRY)
     find_package(unofficial-sqlite3 CONFIG REQUIRED)

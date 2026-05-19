@@ -40,7 +40,8 @@ public:
 
     std::shared_ptr<Framebuffer> execute(
         RenderGraphContext& ctx,
-        const std::vector<std::shared_ptr<Framebuffer>>&
+        const std::vector<std::shared_ptr<Framebuffer>>&,
+        const std::vector<std::optional<raster::BBox>>&
     ) override {
         if (!m_decoder) {
             const i32 render_w = m_source.size.x > 0.0f ? static_cast<i32>(m_source.size.x) : ctx.width;

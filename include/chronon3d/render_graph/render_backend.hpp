@@ -4,7 +4,9 @@
 #include <chronon3d/scene/camera/camera.hpp>
 #include <chronon3d/scene/effects/effect_stack.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
+#include <chronon3d/math/raster_utils.hpp>
 #include <memory>
+#include <optional>
 
 namespace chronon3d {
     struct RenderNode;
@@ -44,18 +46,21 @@ public:
     virtual void apply_effect_stack(
         Framebuffer& fb,
         const EffectStack& effects,
-        float time_seconds
+        float time_seconds,
+        const std::optional<raster::BBox>& clip = std::nullopt
     ) = 0;
 
     virtual void composite_layer(
         Framebuffer& dest,
         const Framebuffer& src,
-        BlendMode mode
+        BlendMode mode,
+        const std::optional<raster::BBox>& clip = std::nullopt
     ) = 0;
 
     virtual void apply_blur(
         Framebuffer& fb,
-        float radius
+        float radius,
+        const std::optional<raster::BBox>& clip = std::nullopt
     ) = 0;
 };
 
