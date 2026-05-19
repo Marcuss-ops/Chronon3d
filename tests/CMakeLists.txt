@@ -126,6 +126,7 @@ add_executable(chronon3d_renderer_tests
     render_graph/test_render_pipeline.cpp
     render_graph/test_render_backend.cpp
     render_graph/cache_key_tests.cpp
+    render_graph/cache_frame_invariant_tests.cpp
     cache/node_cache_tests.cpp
     render_graph/graph_builder_tests.cpp
     render_graph/graph_executor_tests.cpp

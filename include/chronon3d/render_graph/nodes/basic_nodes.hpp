@@ -17,6 +17,10 @@ public:
 
     bool cacheable() const override { return false; }
 
+    [[nodiscard]] CacheFramePolicy cache_frame_policy() const override {
+        return CacheFramePolicy::FrameInvariant;
+    }
+
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         return cache::NodeCacheKey{
             .scope = "clear",
@@ -48,6 +52,10 @@ public:
 
     RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::Source; }
     std::string name() const override { return m_name; }
+
+    [[nodiscard]] CacheFramePolicy cache_frame_policy() const override {
+        return CacheFramePolicy::FrameInvariant;
+    }
 
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override { 
         auto key = m_key;
@@ -122,6 +130,10 @@ public:
     RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::Mask; }
     std::string name() const override { return "Mask"; }
 
+    [[nodiscard]] CacheFramePolicy cache_frame_policy() const override {
+        return CacheFramePolicy::FrameInvariant;
+    }
+
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         return cache::NodeCacheKey{
             .scope = "mask",
@@ -169,6 +181,10 @@ public:
     RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::Effect; }
     std::string name() const override { return "EffectStack"; }
 
+    [[nodiscard]] CacheFramePolicy cache_frame_policy() const override {
+        return CacheFramePolicy::FrameInvariant;
+    }
+
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         return cache::NodeCacheKey{
             .scope = "effect_stack",
@@ -206,6 +222,10 @@ public:
     RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::Adjustment; }
     std::string name() const override { return "Adjustment"; }
 
+    [[nodiscard]] CacheFramePolicy cache_frame_policy() const override {
+        return CacheFramePolicy::FrameInvariant;
+    }
+
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         return cache::NodeCacheKey{
             .scope = "adjustment",
@@ -241,6 +261,10 @@ public:
 
     RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::Composite; }
     std::string name() const override { return "Composite"; }
+
+    [[nodiscard]] CacheFramePolicy cache_frame_policy() const override {
+        return CacheFramePolicy::FrameInvariant;
+    }
 
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         return cache::NodeCacheKey{

@@ -46,8 +46,10 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                 rel_matrix,
                 rel_opacity
             ));
+            graph.node(source).set_frame_dependent(!layer.cache_static);
 
             auto composite = graph.add_node(std::make_unique<CompositeNode>(chronon3d::BlendMode::Normal));
+            graph.node(composite).set_frame_dependent(!layer.cache_static);
             graph.connect(layer_output, composite);
             graph.connect(source, composite);
             layer_output = composite;
@@ -56,16 +58,20 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
     }
 
     if (layer.kind == LayerKind::Precomp) {
-        return graph.add_node(std::make_unique<PrecompNode>(
+        auto precomp_id = graph.add_node(std::make_unique<PrecompNode>(
             std::string(layer.precomp_composition_name), layer.from, layer.duration,
             layer.cache_static ? Frame{0} : Frame{-1}
         ));
+        graph.node(precomp_id).set_frame_dependent(!layer.cache_static);
+        return precomp_id;
     }
 
     if (layer.kind == LayerKind::Video && layer.video_source) {
-        return graph.add_node(std::make_unique<VideoNode>(
+        auto video_id = graph.add_node(std::make_unique<VideoNode>(
             *layer.video_source, ctx.video_decoder, layer.from
         ));
+        graph.node(video_id).set_frame_dependent(true);
+        return video_id;
     }
 
     return graph.add_node(std::make_unique<ClearNode>());

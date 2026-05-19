@@ -189,7 +189,7 @@ ${countersText}`;
           </div>
         )}
 
-        {runDetail && (
+        {runDetail && runDetail.run && (
           <>
             <header className="content-header">
               <div>
