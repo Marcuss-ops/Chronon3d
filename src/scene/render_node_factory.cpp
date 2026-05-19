@@ -83,4 +83,27 @@ RenderNode RenderNodeFactory::image(std::pmr::memory_resource* res, std::string 
     return node;
 }
 
+RenderNode RenderNodeFactory::text(std::pmr::memory_resource* res, std::string name, TextParams p) {
+    auto node = base(res, std::move(name));
+    node.shape.type = ShapeType::Text;
+    node.shape.text.text = std::move(p.text);
+    node.shape.text.style.font_path = std::move(p.font_path);
+    node.shape.text.style.font_family = std::move(p.font_family);
+    node.shape.text.style.font_weight = p.font_weight;
+    node.shape.text.style.font_style = std::move(p.font_style);
+    node.shape.text.style.size = p.font_size;
+    node.shape.text.style.color = p.color;
+    node.shape.text.style.align = p.align;
+    node.shape.text.style.line_height = p.line_height;
+    node.shape.text.style.tracking = p.tracking;
+    node.shape.text.box.enabled = true;
+    node.shape.text.box.size = p.size;
+    node.shape.text.box.enabled = true;
+    node.world_transform.position = p.pos;
+    node.world_transform.anchor = {0.0f, 0.0f, 0.0f};
+    node.color = p.color;
+    node.fill = Fill::solid_color(p.color);
+    return node;
+}
+
 } // namespace chronon3d

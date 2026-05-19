@@ -1,5 +1,6 @@
 #include <chronon3d/presets/motion_renderer.hpp>
 #include <chronon3d/presets/motion_resolver.hpp>
+#include <chronon3d/registry/shape_ids.hpp>
 
 #include <algorithm>
 #include <utility>
@@ -41,6 +42,26 @@ void apply_state(LayerBuilder& l, const MotionState& st, bool enable_3d) {
 
 void draw_content(LayerBuilder& l, const MotionObject& obj, const std::string& layer_name) {
     switch (obj.type) {
+    case MotionObjectType::Text:
+        l.shape(chronon3d::registry::shape_ids::Text, layer_name + "_text", chronon3d::TextParams{
+            .text = obj.text_value,
+            .size = obj.size_value,
+            .pos = {0.0f, 0.0f, 0.0f},
+            .font_path = obj.text_style.font_path,
+            .font_family = obj.text_style.font_family,
+            .font_weight = obj.text_style.font_weight,
+            .font_style = obj.text_style.font_style,
+            .font_size = obj.text_style.font_size,
+            .color = obj.color_value,
+            .align = obj.text_style.align == TextAlign::Left
+                ? chronon3d::TextAlign::Left
+                : obj.text_style.align == TextAlign::Right
+                    ? chronon3d::TextAlign::Right
+                    : chronon3d::TextAlign::Center,
+            .line_height = 1.2f,
+            .tracking = obj.text_style.tracking,
+        });
+        break;
     case MotionObjectType::Image:
         l.image(layer_name + "_image", {
             .path = obj.image_path_value,

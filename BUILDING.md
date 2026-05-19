@@ -46,14 +46,20 @@ Presets are defined in `CMakePresets.json`.
 |---|---|---|
 | `linux-release` | Linux | Production / CI |
 | `linux-debug` | Linux | Development |
+| `linux-debug-render` | Linux | Fast CLI-only render loop |
 | `win-release` | Windows | Production / CI |
 | `win-debug` | Windows | Development |
+| `win-debug-render` | Windows | Fast CLI-only render loop |
 
 The default CMake build includes the CLI and tests.
 
 ```bash
 cmake --preset linux-debug
 cmake --build build/chronon/linux-debug -j$(nproc)
+
+# Faster render-only loop
+cmake --preset linux-debug-render
+cmake --build build/chronon/linux-debug-render -j$(nproc) --target chronon3d_cli
 ```
 
 ---
@@ -123,6 +129,10 @@ Manual build via CMake:
 ```powershell
 cmake --preset win-release
 cmake --build build/chronon/win-release -j16
+
+# Faster render-only loop
+cmake --preset win-debug-render
+cmake --build build/chronon/win-debug-render --config Debug --target chronon3d_cli
 ```
 
 ---

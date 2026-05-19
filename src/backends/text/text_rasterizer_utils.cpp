@@ -1,7 +1,6 @@
 #include <chronon3d/backends/text/text_rasterizer_utils.hpp>
 #include <chronon3d/backends/text/text_layout_engine.hpp>
 #include "../software/utils/blend2d_resources.hpp"
-#include <chronon3d/registry/font_registry.hpp>
 #include <algorithm>
 #include <cmath>
 #include <mutex>
@@ -110,9 +109,6 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     int padding
 ) {
     std::string font_path = t.style.font_path;
-    if (font_path.empty() && !t.style.font_family.empty()) {
-        font_path = FontRegistry::resolve(t.style.font_family, t.style.font_weight, t.style.font_style);
-    }
     if (t.text.empty() || font_path.empty()) return std::nullopt;
 
     const CacheKey key = hash_text_style(t, effective_size, padding);

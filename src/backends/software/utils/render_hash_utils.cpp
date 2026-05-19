@@ -76,6 +76,20 @@ u64 hash_shape(const Shape& shape) {
             seed = hash_combine(seed, hash_vec2(shape.image.size));
             seed = hash_combine(seed, hash_value_local(shape.image.opacity));
             break;
+        case ShapeType::Text:
+            seed = hash_combine(seed, hash_string(shape.text.text));
+            seed = hash_combine(seed, hash_string(shape.text.style.font_path));
+            seed = hash_combine(seed, hash_string(shape.text.style.font_family));
+            seed = hash_combine(seed, hash_value_local(shape.text.style.font_weight));
+            seed = hash_combine(seed, hash_string(shape.text.style.font_style));
+            seed = hash_combine(seed, hash_vec2(shape.text.box.size));
+            seed = hash_combine(seed, hash_value_local(shape.text.box.enabled));
+            seed = hash_combine(seed, hash_value_local(shape.text.style.size));
+            seed = hash_combine(seed, hash_color(shape.text.style.color));
+            seed = hash_combine(seed, hash_value_local(static_cast<u64>(shape.text.style.align)));
+            seed = hash_combine(seed, hash_value_local(shape.text.style.line_height));
+            seed = hash_combine(seed, hash_value_local(shape.text.style.tracking));
+            break;
         case ShapeType::FakeBox3D:
             seed = hash_combine(seed, hash_vec3(shape.fake_box3d.world_pos));
             seed = hash_combine(seed, hash_vec2(shape.fake_box3d.size));

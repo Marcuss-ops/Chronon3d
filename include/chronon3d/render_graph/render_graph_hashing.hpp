@@ -204,6 +204,19 @@ template <typename T>
             seed = hash_combine(seed, hash_bytes(s.image.path.data(), s.image.path.size()));
             seed = hash_combine(seed, hash_vec2(s.image.size));
             return hash_combine(seed, hash_bytes(&s.image.opacity, sizeof(f32)));
+        case ShapeType::Text:
+            seed = hash_combine(seed, hash_bytes(s.text.text.data(), s.text.text.size()));
+            seed = hash_combine(seed, hash_bytes(s.text.style.font_path.data(), s.text.style.font_path.size()));
+            seed = hash_combine(seed, hash_bytes(s.text.style.font_family.data(), s.text.style.font_family.size()));
+            seed = hash_combine(seed, hash_bytes(s.text.style.font_style.data(), s.text.style.font_style.size()));
+            seed = hash_combine(seed, hash_vec2(s.text.box.size));
+            seed = hash_combine(seed, hash_value(s.text.box.enabled));
+            seed = hash_combine(seed, hash_bytes(&s.text.style.font_weight, sizeof(int)));
+            seed = hash_combine(seed, hash_bytes(&s.text.style.size, sizeof(f32)));
+            seed = hash_combine(seed, hash_color(s.text.style.color));
+            seed = hash_combine(seed, hash_bytes(&s.text.style.align, sizeof(TextAlign)));
+            seed = hash_combine(seed, hash_bytes(&s.text.style.line_height, sizeof(f32)));
+            return hash_combine(seed, hash_bytes(&s.text.style.tracking, sizeof(f32)));
         case ShapeType::FakeBox3D:
             seed = hash_combine(seed, hash_vec3(s.fake_box3d.world_pos));
             seed = hash_combine(seed, hash_vec2(s.fake_box3d.size));

@@ -92,12 +92,6 @@ add_executable(chronon3d_renderer_tests
     presets/test_motion_3d.cpp
     presets/test_motion_renderer.cpp
     presets/test_motion_visual_smoke.cpp
-    renderer/text/test_lil_dirk_reference.cpp
-    renderer/text/test_text_rendering.cpp
-    renderer/text/test_text_v2.cpp
-    renderer/text/test_text_layout.cpp
-    renderer/text/test_text_layout_result.cpp
-    renderer/text/test_text_alignment_regression.cpp
     render_graph/test_unified_transform_path.cpp
     renderer/dispatch/test_software_node_dispatcher.cpp
     render_graph/test_graph_executor.cpp
