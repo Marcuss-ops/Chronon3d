@@ -81,7 +81,14 @@ void TelemetryManager::initialize_default_stores() {
 bool TelemetryManager::record_run(RenderTelemetryRecord run,
                                   const std::vector<FrameTelemetryRecord>& frames,
                                   const std::vector<PhaseTelemetryRecord>& phases,
-                                  const std::vector<CounterTelemetryRecord>& counters) {
+                                  const std::vector<CounterTelemetryRecord>& counters,
+                                  const std::vector<NodeTelemetryRecord>& node_events,
+                                  const std::vector<LayerTelemetryRecord>& layer_events,
+                                  const std::vector<CacheTelemetryRecord>& cache_events,
+                                  const std::vector<CullingTelemetryRecord>& culling_events,
+                                  const std::vector<TextTelemetryRecord>& text_events,
+                                  const std::vector<ImageTelemetryRecord>& image_events,
+                                  const std::vector<TileTelemetryRecord>& tile_events) {
     // Inject automatically gathered host attributes
     if (run.run_id.empty()) {
         run.run_id = generate_uuid();
@@ -119,6 +126,27 @@ bool TelemetryManager::record_run(RenderTelemetryRecord run,
         }
         if (!counters.empty()) {
             ok &= store->write_counters(run.run_id, counters);
+        }
+        if (!node_events.empty()) {
+            ok &= store->write_node_events(run.run_id, node_events);
+        }
+        if (!layer_events.empty()) {
+            ok &= store->write_layer_events(run.run_id, layer_events);
+        }
+        if (!cache_events.empty()) {
+            ok &= store->write_cache_events(run.run_id, cache_events);
+        }
+        if (!culling_events.empty()) {
+            ok &= store->write_culling_events(run.run_id, culling_events);
+        }
+        if (!text_events.empty()) {
+            ok &= store->write_text_events(run.run_id, text_events);
+        }
+        if (!image_events.empty()) {
+            ok &= store->write_image_events(run.run_id, image_events);
+        }
+        if (!tile_events.empty()) {
+            ok &= store->write_tile_events(run.run_id, tile_events);
         }
         all_ok &= ok;
     }

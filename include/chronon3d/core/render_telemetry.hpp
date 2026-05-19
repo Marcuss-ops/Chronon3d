@@ -1,6 +1,9 @@
 #pragma once
 
 #include <chronon3d/core/types.hpp>
+#include <chronon3d/core/frame.hpp>
+#include <chronon3d/runtime/telemetry/render_telemetry_record.hpp>
+#include <chronon3d/core/trace.hpp>
 
 #include <algorithm>
 #include <chrono>
@@ -21,7 +24,7 @@ namespace chronon3d::telemetry {
 
 struct RenderTelemetryRow {
     std::string event;
-    Frame frame{0};
+    chronon3d::Frame frame{0};
     int width{0};
     int height{0};
     double total_ms{0.0};
@@ -267,6 +270,126 @@ inline void write_summary_file(const std::vector<RenderTelemetryRow>& rows) {
 
 inline void record_render_telemetry(const RenderTelemetryRow& row) {
     detail::thread_local_buffer().push_back(row);
+}
+
+// ── Per-node telemetry accumulator (thread_local, cleared per frame) ───────────
+// Populated during graph execution, flushed via collect_node_telemetry().
+
+namespace detail {
+inline std::vector<NodeTelemetryRecord>& node_telemetry_buffer() {
+    static thread_local std::vector<NodeTelemetryRecord> buf;
+    return buf;
+}
+inline std::vector<LayerTelemetryRecord>& layer_telemetry_buffer() {
+    static thread_local std::vector<LayerTelemetryRecord> buf;
+    return buf;
+}
+inline std::vector<CacheTelemetryRecord>& cache_telemetry_buffer() {
+    static thread_local std::vector<CacheTelemetryRecord> buf;
+    return buf;
+}
+inline std::vector<CullingTelemetryRecord>& culling_telemetry_buffer() {
+    static thread_local std::vector<CullingTelemetryRecord> buf;
+    return buf;
+}
+inline std::vector<TextTelemetryRecord>& text_telemetry_buffer() {
+    static thread_local std::vector<TextTelemetryRecord> buf;
+    return buf;
+}
+inline std::vector<ImageTelemetryRecord>& image_telemetry_buffer() {
+    static thread_local std::vector<ImageTelemetryRecord> buf;
+    return buf;
+}
+inline std::vector<TileTelemetryRecord>& tile_telemetry_buffer() {
+    static thread_local std::vector<TileTelemetryRecord> buf;
+    return buf;
+}
+} // namespace detail
+
+inline void record_node_telemetry(const NodeTelemetryRecord& rec) {
+    detail::node_telemetry_buffer().push_back(rec);
+}
+
+// Returns collected node telemetry and clears the buffer.
+inline std::vector<NodeTelemetryRecord> collect_node_telemetry() {
+    auto& buf = detail::node_telemetry_buffer();
+    if (buf.empty()) return {};
+    std::vector<NodeTelemetryRecord> result = std::move(buf);
+    buf.clear();
+    return result;
+}
+
+inline void record_layer_telemetry(const LayerTelemetryRecord& rec) {
+    detail::layer_telemetry_buffer().push_back(rec);
+}
+
+// Returns collected layer telemetry and clears the buffer.
+inline std::vector<LayerTelemetryRecord> collect_layer_telemetry() {
+    auto& buf = detail::layer_telemetry_buffer();
+    if (buf.empty()) return {};
+    std::vector<LayerTelemetryRecord> result = std::move(buf);
+    buf.clear();
+    return result;
+}
+
+inline void record_cache_telemetry(const CacheTelemetryRecord& rec) {
+    detail::cache_telemetry_buffer().push_back(rec);
+}
+
+inline std::vector<CacheTelemetryRecord> collect_cache_telemetry() {
+    auto& buf = detail::cache_telemetry_buffer();
+    if (buf.empty()) return {};
+    std::vector<CacheTelemetryRecord> result = std::move(buf);
+    buf.clear();
+    return result;
+}
+
+inline void record_culling_telemetry(const CullingTelemetryRecord& rec) {
+    detail::culling_telemetry_buffer().push_back(rec);
+}
+
+inline std::vector<CullingTelemetryRecord> collect_culling_telemetry() {
+    auto& buf = detail::culling_telemetry_buffer();
+    if (buf.empty()) return {};
+    std::vector<CullingTelemetryRecord> result = std::move(buf);
+    buf.clear();
+    return result;
+}
+
+inline void record_text_telemetry(const TextTelemetryRecord& rec) {
+    detail::text_telemetry_buffer().push_back(rec);
+}
+
+inline std::vector<TextTelemetryRecord> collect_text_telemetry() {
+    auto& buf = detail::text_telemetry_buffer();
+    if (buf.empty()) return {};
+    std::vector<TextTelemetryRecord> result = std::move(buf);
+    buf.clear();
+    return result;
+}
+
+inline void record_image_telemetry(const ImageTelemetryRecord& rec) {
+    detail::image_telemetry_buffer().push_back(rec);
+}
+
+inline std::vector<ImageTelemetryRecord> collect_image_telemetry() {
+    auto& buf = detail::image_telemetry_buffer();
+    if (buf.empty()) return {};
+    std::vector<ImageTelemetryRecord> result = std::move(buf);
+    buf.clear();
+    return result;
+}
+
+inline void record_tile_telemetry(const TileTelemetryRecord& rec) {
+    detail::tile_telemetry_buffer().push_back(rec);
+}
+
+inline std::vector<TileTelemetryRecord> collect_tile_telemetry() {
+    auto& buf = detail::tile_telemetry_buffer();
+    if (buf.empty()) return {};
+    std::vector<TileTelemetryRecord> result = std::move(buf);
+    buf.clear();
+    return result;
 }
 
 inline void flush_telemetry() {

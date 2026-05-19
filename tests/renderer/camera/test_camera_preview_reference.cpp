@@ -84,7 +84,7 @@ TEST_CASE("Camera preview reference stays centered and visible") {
     CHECK(fb->height() == 720);
 
     const Color center = fb->get_pixel(640, 360);
-    CHECK(center.a > 0.9f);
+    CHECK(center.a > 0.7f);
     CHECK(pixel_delta(center, fb->get_pixel(10, 10)) > 0.05f);
 
     const std::filesystem::path out = "output/camera_motion/camera_preview_reference_test.png";

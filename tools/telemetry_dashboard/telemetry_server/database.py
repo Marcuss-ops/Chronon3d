@@ -1,0 +1,476 @@
+import sqlite3
+
+from .config import (
+    DB_PATH, ALL_TABLES,
+    RUN_COLUMNS, FRAME_COLUMNS, PHASE_COLUMNS, COUNTER_COLUMNS,
+    NODE_COLUMNS, LAYER_COLUMNS, CACHE_COLUMNS, CULLING_COLUMNS,
+    TEXT_COLUMNS, IMAGE_COLUMNS, TILE_COLUMNS,
+)
+from .jsonl_loader import load_jsonl_records
+
+
+# ── Schema DDL ─────────────────────────────────────────────────────────────────────
+SCHEMA_SQL = """
+CREATE TABLE IF NOT EXISTS render_runs (
+    run_id TEXT PRIMARY KEY,
+    composition_id TEXT,
+    output_path TEXT,
+    success INTEGER,
+    error_code TEXT,
+    error_message TEXT,
+    frames_total INTEGER,
+    frames_written INTEGER,
+    wall_time_ms REAL,
+    render_ms REAL,
+    encode_ms REAL,
+    effective_fps REAL,
+    pixels_touched INTEGER,
+    cache_hits INTEGER,
+    cache_misses INTEGER,
+    nodes_executed INTEGER,
+    layers_rendered INTEGER,
+    text_glyphs_rasterized INTEGER,
+    images_sampled INTEGER,
+    blur_pixels INTEGER,
+    simd_lerp_calls INTEGER,
+    tiles_total INTEGER,
+    tiles_hit INTEGER,
+    tiles_miss INTEGER,
+    tiles_partial INTEGER,
+    bytes_allocated_peak INTEGER,
+    node_cache_hash_collisions INTEGER,
+    clear_calls INTEGER,
+    clear_pixels INTEGER,
+    composite_calls INTEGER,
+    composite_pixels INTEGER,
+    transform_calls INTEGER,
+    transform_pixels INTEGER,
+    effect_stack_calls INTEGER,
+    effect_pixels INTEGER,
+    layer_culling_tests INTEGER,
+    layers_culled INTEGER,
+    layers_visible INTEGER,
+    framebuffer_allocations INTEGER,
+    framebuffer_reuses INTEGER,
+    framebuffer_bytes_allocated INTEGER,
+    framebuffer_bytes_peak INTEGER,
+    started_at_iso TEXT,
+    finished_at_iso TEXT,
+    git_commit_short TEXT,
+    build_type TEXT,
+    compiler_info TEXT,
+    os TEXT,
+    cpu_model TEXT,
+    cores INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS render_frames (
+    run_id TEXT,
+    frame_number INTEGER,
+    duration_ms REAL,
+    cache_hit INTEGER,
+    dirty_area_ratio REAL,
+    PRIMARY KEY (run_id, frame_number)
+);
+
+CREATE TABLE IF NOT EXISTS render_phase_events (
+    run_id TEXT,
+    phase_name TEXT,
+    duration_ms REAL,
+    PRIMARY KEY (run_id, phase_name)
+);
+
+CREATE TABLE IF NOT EXISTS render_counters (
+    run_id TEXT,
+    counter_name TEXT,
+    counter_value INTEGER,
+    PRIMARY KEY (run_id, counter_name)
+);
+
+CREATE TABLE IF NOT EXISTS render_node_events (
+    run_id TEXT,
+    frame_number INTEGER,
+    node_name TEXT,
+    node_type TEXT,
+    layer_id TEXT,
+    duration_ms REAL,
+    cache_status TEXT,
+    cache_key_digest TEXT,
+    input_count INTEGER,
+    output_width INTEGER,
+    output_height INTEGER,
+    output_bytes INTEGER,
+    bbox_x REAL,
+    bbox_y REAL,
+    bbox_w REAL,
+    bbox_h REAL,
+    visible_x REAL,
+    visible_y REAL,
+    visible_w REAL,
+    visible_h REAL,
+    pixels_touched INTEGER,
+    pixels_cleared INTEGER,
+    pixels_composited INTEGER,
+    pixels_transformed INTEGER,
+    pixels_blurred INTEGER,
+    PRIMARY KEY (run_id, frame_number, node_name, node_type)
+);
+
+CREATE TABLE IF NOT EXISTS render_layer_events (
+    run_id TEXT,
+    frame_number INTEGER,
+    layer_id TEXT,
+    layer_name TEXT,
+    layer_type TEXT,
+    duration_ms REAL,
+    visible INTEGER,
+    cull_reason TEXT,
+    opacity REAL,
+    blend_mode TEXT,
+    bbox_x REAL,
+    bbox_y REAL,
+    bbox_w REAL,
+    bbox_h REAL,
+    visible_x REAL,
+    visible_y REAL,
+    visible_w REAL,
+    visible_h REAL,
+    area_pixels INTEGER,
+    visible_pixels INTEGER,
+    dirty_pixels INTEGER,
+    effects TEXT,
+    effect_padding REAL,
+    glyphs_rasterized INTEGER,
+    images_sampled INTEGER,
+    PRIMARY KEY (run_id, frame_number, layer_id)
+);
+
+CREATE TABLE IF NOT EXISTS render_cache_events (
+    run_id TEXT,
+    frame_number INTEGER,
+    node_name TEXT,
+    cacheable INTEGER,
+    cache_status TEXT,
+    key_digest TEXT,
+    params_hash TEXT,
+    source_hash TEXT,
+    input_hash TEXT,
+    output_bytes INTEGER,
+    PRIMARY KEY (run_id, frame_number, node_name)
+);
+
+CREATE TABLE IF NOT EXISTS render_culling_events (
+    run_id TEXT,
+    frame_number INTEGER,
+    layer_id TEXT,
+    visible INTEGER,
+    reason TEXT,
+    bbox_x REAL,
+    bbox_y REAL,
+    bbox_w REAL,
+    bbox_h REAL,
+    visible_x REAL,
+    visible_y REAL,
+    visible_w REAL,
+    visible_h REAL,
+    saved_pixels INTEGER,
+    PRIMARY KEY (run_id, frame_number, layer_id)
+);
+
+CREATE TABLE IF NOT EXISTS render_text_events (
+    run_id TEXT,
+    frame_number INTEGER,
+    layer_id TEXT,
+    text_length INTEGER,
+    line_count INTEGER,
+    glyph_count INTEGER,
+    glyphs_rasterized INTEGER,
+    glyph_cache_hits INTEGER,
+    glyph_cache_misses INTEGER,
+    layout_ms REAL,
+    raster_ms REAL,
+    composite_ms REAL,
+    font_path TEXT,
+    font_size REAL
+);
+
+CREATE TABLE IF NOT EXISTS render_image_events (
+    run_id TEXT,
+    frame_number INTEGER,
+    layer_id TEXT,
+    image_path TEXT,
+    image_width INTEGER,
+    image_height INTEGER,
+    cache_status TEXT,
+    decode_ms REAL,
+    sample_ms REAL,
+    sampled_pixels INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS render_tile_events (
+    run_id TEXT,
+    frame_number INTEGER,
+    layer_id TEXT,
+    tile_x INTEGER,
+    tile_y INTEGER,
+    tile_status TEXT,
+    dirty_rects_count INTEGER,
+    PRIMARY KEY (run_id, frame_number, layer_id, tile_x, tile_y)
+);
+"""
+
+
+def _load_existing_db(cursor):
+    """Copy data from the on-disk SQLite DB into the in-memory connection."""
+    if not DB_PATH.exists():
+        return
+
+    source = sqlite3.connect(str(DB_PATH))
+    source.row_factory = sqlite3.Row
+    try:
+        for table in ALL_TABLES:
+            try:
+                rows = source.execute(f"SELECT * FROM {table}").fetchall()
+            except Exception:
+                rows = []
+            if not rows:
+                continue
+            cols = rows[0].keys()
+            placeholders = ', '.join(['?'] * len(cols))
+            col_list = ', '.join(cols)
+            sql = f"INSERT OR REPLACE INTO {table} ({col_list}) VALUES ({placeholders})"
+            cursor.executemany(sql, [[row[col] for col in cols] for row in rows])
+    finally:
+        source.close()
+
+
+def _build_run_row(record):
+    return [record.get(col) for col in RUN_COLUMNS]
+
+
+def _build_frame_row(record):
+    return [
+        record.get('run_id'),
+        record.get('frame_number'),
+        record.get('duration_ms'),
+        int(bool(record.get('cache_hit'))),
+        record.get('dirty_area_ratio'),
+    ]
+
+
+def _build_phase_row(record):
+    return [
+        record.get('run_id'),
+        record.get('phase_name'),
+        record.get('duration_ms'),
+    ]
+
+
+def _build_counter_row(record):
+    return [
+        record.get('run_id'),
+        record.get('counter_name'),
+        record.get('counter_value'),
+    ]
+
+
+def _build_node_row(record):
+    return [
+        record.get('run_id') or record.get('run_id_context') or '',
+        record.get('frame_number'),
+        record.get('node_name'),
+        record.get('node_type'),
+        record.get('layer_id') or '',
+        record.get('duration_ms') or 0.0,
+        record.get('cache_status') or 'miss',
+        record.get('cache_key_digest') or '',
+        record.get('input_count') or 0,
+        record.get('output_width') or 0,
+        record.get('output_height') or 0,
+        record.get('output_bytes') or 0,
+        record.get('bbox_x') or 0.0,
+        record.get('bbox_y') or 0.0,
+        record.get('bbox_w') or 0.0,
+        record.get('bbox_h') or 0.0,
+        record.get('visible_x') or 0.0,
+        record.get('visible_y') or 0.0,
+        record.get('visible_w') or 0.0,
+        record.get('visible_h') or 0.0,
+        record.get('pixels_touched') or 0,
+        record.get('pixels_cleared') or 0,
+        record.get('pixels_composited') or 0,
+        record.get('pixels_transformed') or 0,
+        record.get('pixels_blurred') or 0,
+    ]
+
+
+def _build_layer_row(record):
+    return [
+        record.get('run_id') or record.get('run_id_context') or '',
+        record.get('frame_number'),
+        record.get('layer_id'),
+        record.get('layer_name'),
+        record.get('layer_type'),
+        record.get('duration_ms') or 0.0,
+        int(bool(record.get('visible'))),
+        record.get('cull_reason') or '',
+        record.get('opacity') or 1.0,
+        record.get('blend_mode') or 'Normal',
+        record.get('bbox_x') or 0.0,
+        record.get('bbox_y') or 0.0,
+        record.get('bbox_w') or 0.0,
+        record.get('bbox_h') or 0.0,
+        record.get('visible_x') or 0.0,
+        record.get('visible_y') or 0.0,
+        record.get('visible_w') or 0.0,
+        record.get('visible_h') or 0.0,
+        record.get('area_pixels') or 0,
+        record.get('visible_pixels') or 0,
+        record.get('dirty_pixels') or 0,
+        record.get('effects') or '',
+        record.get('effect_padding') or 0.0,
+        record.get('glyphs_rasterized') or 0,
+        record.get('images_sampled') or 0,
+    ]
+
+
+def _build_cache_row(record):
+    return [
+        record.get('run_id') or record.get('run_id_context') or '',
+        record.get('frame_number'),
+        record.get('node_name'),
+        int(bool(record.get('cacheable'))),
+        record.get('cache_status') or 'miss',
+        record.get('key_digest') or '',
+        record.get('params_hash') or '',
+        record.get('source_hash') or '',
+        record.get('input_hash') or '',
+        record.get('output_bytes') or 0,
+    ]
+
+
+def _build_culling_row(record):
+    return [
+        record.get('run_id') or record.get('run_id_context') or '',
+        record.get('frame_number'),
+        record.get('layer_id'),
+        int(bool(record.get('visible'))),
+        record.get('reason') or '',
+        record.get('bbox_x') or 0.0,
+        record.get('bbox_y') or 0.0,
+        record.get('bbox_w') or 0.0,
+        record.get('bbox_h') or 0.0,
+        record.get('visible_x') or 0.0,
+        record.get('visible_y') or 0.0,
+        record.get('visible_w') or 0.0,
+        record.get('visible_h') or 0.0,
+        record.get('saved_pixels') or 0,
+    ]
+
+
+def _build_text_row(record):
+    return [
+        record.get('run_id') or record.get('run_id_context') or '',
+        record.get('frame_number'),
+        record.get('layer_id'),
+        record.get('text_length') or 0,
+        record.get('line_count') or 0,
+        record.get('glyph_count') or 0,
+        record.get('glyphs_rasterized') or 0,
+        record.get('glyph_cache_hits') or 0,
+        record.get('glyph_cache_misses') or 0,
+        record.get('layout_ms') or 0.0,
+        record.get('raster_ms') or 0.0,
+        record.get('composite_ms') or 0.0,
+        record.get('font_path') or '',
+        record.get('font_size') or 0.0,
+    ]
+
+
+def _build_image_row(record):
+    return [
+        record.get('run_id') or record.get('run_id_context') or '',
+        record.get('frame_number'),
+        record.get('layer_id'),
+        record.get('image_path') or '',
+        record.get('image_width') or 0,
+        record.get('image_height') or 0,
+        record.get('cache_status') or 'miss',
+        record.get('decode_ms') or 0.0,
+        record.get('sample_ms') or 0.0,
+        record.get('sampled_pixels') or 0,
+    ]
+
+
+def _build_tile_row(record):
+    return [
+        record.get('run_id') or record.get('run_id_context') or '',
+        record.get('frame_number'),
+        record.get('layer_id'),
+        record.get('tile_x') or 0,
+        record.get('tile_y') or 0,
+        record.get('tile_status') or '',
+        record.get('dirty_rects_count') or 0,
+    ]
+
+
+# ── Record type → (row_builder, columns, table_name) mapping ──────────────────────
+_BUILDERS = {
+    'run':          (_build_run_row,    RUN_COLUMNS,    'render_runs'),
+    'frame':        (_build_frame_row,  FRAME_COLUMNS,  'render_frames'),
+    'phase':        (_build_phase_row,  PHASE_COLUMNS,  'render_phase_events'),
+    'counter':      (_build_counter_row, COUNTER_COLUMNS, 'render_counters'),
+    'node_event':   (_build_node_row,   NODE_COLUMNS,   'render_node_events'),
+    'layer_event':  (_build_layer_row,  LAYER_COLUMNS,  'render_layer_events'),
+    'cache_event':  (_build_cache_row,  CACHE_COLUMNS,  'render_cache_events'),
+    'culling_event':(_build_culling_row, CULLING_COLUMNS,'render_culling_events'),
+    'text_event':   (_build_text_row,   TEXT_COLUMNS,   'render_text_events'),
+    'image_event':  (_build_image_row,  IMAGE_COLUMNS,  'render_image_events'),
+    'tile_event':   (_build_tile_row,   TILE_COLUMNS,   'render_tile_events'),
+}
+
+
+def _insert_batch(cursor, rows, columns, table):
+    """Insert a batch of rows into the given table."""
+    if not rows:
+        return
+    col_list = ', '.join(columns)
+    placeholders = ', '.join(['?'] * len(columns))
+    sql = f"INSERT OR REPLACE INTO {table} ({col_list}) VALUES ({placeholders})"
+    cursor.executemany(sql, rows)
+
+
+def create_merged_connection():
+    """
+    Create an in-memory SQLite connection pre-populated with:
+    1. The schema for all telemetry tables.
+    2. Data from the on-disk SQLite DB (if it exists).
+    3. Data from the JSONL history file (if it exists).
+
+    Returns a new sqlite3.Connection with row_factory = sqlite3.Row.
+    """
+    conn = sqlite3.connect(':memory:')
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    # 1. Create schema
+    cursor.executescript(SCHEMA_SQL)
+
+    # 2. Load existing on-disk DB
+    _load_existing_db(cursor)
+
+    # 3. Load JSONL records
+    batches = {rtype: [] for rtype in _BUILDERS}
+    for record in load_jsonl_records():
+        rtype = record.get('type')
+        builder = _BUILDERS.get(rtype)
+        if builder:
+            batches[rtype].append(builder[0](record))
+
+    for rtype, rows in batches.items():
+        if rows:
+            _, columns, table = _BUILDERS[rtype]
+            _insert_batch(cursor, rows, columns, table)
+
+    conn.commit()
+    return conn

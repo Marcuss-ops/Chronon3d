@@ -47,9 +47,15 @@ GraphNodeId LayerPipelineBuilder::append_root_sources(RenderGraph& graph, const 
 GraphNodeId LayerPipelineBuilder::build_matte_sub_pipeline(
     RenderGraph& graph, const LayerGraphItem& item, const RenderGraphContext& ctx)
 {
+    std::string prev_layer = g_current_builder_layer_id;
+    g_current_builder_layer_id = std::string(item.layer->name);
     GraphNodeId out = append_source_pass(graph, item, ctx);
-    if (out == k_invalid_node) return k_invalid_node;
+    if (out == k_invalid_node) {
+        g_current_builder_layer_id = prev_layer;
+        return k_invalid_node;
+    }
     append_transform_pass_if_needed(graph, out, item, ctx);
+    g_current_builder_layer_id = prev_layer;
     return out;
 }
 
@@ -57,6 +63,9 @@ void LayerPipelineBuilder::append_layer_pipeline(RenderGraph& graph, const Layer
                                                  GraphNodeId& current, const RenderGraphContext& ctx,
                                                  const Camera2_5DRuntime& cam25d,
                                                  std::span<const ShadowCasterInfo> casters) {
+    std::string prev_layer = g_current_builder_layer_id;
+    g_current_builder_layer_id = std::string(item.layer->name);
+
     // 1. Source pass — render layer content
     GraphNodeId layer_output = append_source_pass(graph, item, ctx);
 
@@ -71,6 +80,7 @@ void LayerPipelineBuilder::append_layer_pipeline(RenderGraph& graph, const Layer
             graph.connect(current, adj_id);
             current = adj_id;
         }
+        g_current_builder_layer_id = prev_layer;
         return;
     }
 
@@ -125,6 +135,7 @@ void LayerPipelineBuilder::append_layer_pipeline(RenderGraph& graph, const Layer
 
     // 8. Composite pass — blend into the current frame buffer
     append_composite_pass(graph, current, layer_output, *item.layer);
+    g_current_builder_layer_id = prev_layer;
 }
 
 } // namespace chronon3d::graph::detail

@@ -29,6 +29,10 @@ public:
     std::shared_ptr<Framebuffer> execute(RenderGraphContext& ctx, const std::vector<std::shared_ptr<Framebuffer>>&) override {
         auto fb = std::make_shared<Framebuffer>(ctx.width, ctx.height);
         fb->clear(Color::transparent());
+        if (ctx.counters) {
+            ctx.counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
+            ctx.counters->clear_pixels.fetch_add(static_cast<uint64_t>(ctx.width * ctx.height), std::memory_order_relaxed);
+        }
         return fb;
     }
 };
@@ -60,6 +64,10 @@ public:
     std::shared_ptr<Framebuffer> execute(RenderGraphContext& ctx, const std::vector<std::shared_ptr<Framebuffer>>&) override {
         auto fb = std::make_shared<Framebuffer>(ctx.width, ctx.height);
         fb->clear(Color::transparent());
+        if (ctx.counters) {
+            ctx.counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
+            ctx.counters->clear_pixels.fetch_add(static_cast<uint64_t>(ctx.width * ctx.height), std::memory_order_relaxed);
+        }
         
         if (ctx.backend) {
             RenderState state;
@@ -177,6 +185,10 @@ public:
         auto result = std::make_shared<Framebuffer>(*inputs[0]);
         if (ctx.backend) {
             ctx.backend->apply_effect_stack(*result, m_effects, ctx.time_seconds);
+            if (ctx.counters) {
+                ctx.counters->effect_stack_calls.fetch_add(1, std::memory_order_relaxed);
+                ctx.counters->effect_pixels.fetch_add(static_cast<uint64_t>(ctx.width * ctx.height), std::memory_order_relaxed);
+            }
         }
         return result;
     }
@@ -210,6 +222,10 @@ public:
         auto result = std::make_shared<Framebuffer>(*inputs[0]);
         if (ctx.backend) {
             ctx.backend->apply_effect_stack(*result, m_effects, ctx.time_seconds);
+            if (ctx.counters) {
+                ctx.counters->effect_stack_calls.fetch_add(1, std::memory_order_relaxed);
+                ctx.counters->effect_pixels.fetch_add(static_cast<uint64_t>(ctx.width * ctx.height), std::memory_order_relaxed);
+            }
         }
         return result;
     }
@@ -245,6 +261,10 @@ public:
         auto result = std::make_shared<Framebuffer>(*bottom);
         if (ctx.backend) {
             ctx.backend->composite_layer(*result, *top, m_mode);
+            if (ctx.counters) {
+                ctx.counters->composite_calls.fetch_add(1, std::memory_order_relaxed);
+                ctx.counters->composite_pixels.fetch_add(static_cast<uint64_t>(ctx.width * ctx.height), std::memory_order_relaxed);
+            }
         }
         return result;
     }

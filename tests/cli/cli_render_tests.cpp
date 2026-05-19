@@ -9,6 +9,7 @@ namespace {
 
 std::string find_cli_path() {
     std::vector<std::string> candidates = {
+        "build_vs/apps/chronon3d_cli/Release/chronon3d_cli.exe",
         "build/chronon/linux-debug/apps/chronon3d_cli/chronon3d_cli",
         "build/chronon/linux-release/apps/chronon3d_cli/chronon3d_cli",
         "build/chronon/linux-relwithdebinfo/apps/chronon3d_cli/chronon3d_cli",
@@ -19,14 +20,21 @@ std::string find_cli_path() {
     };
     for (const auto& path : candidates) {
         if (std::filesystem::exists(path)) {
-            return path;
+            return std::filesystem::path(path).make_preferred().string();
         }
     }
     // Try scanning the build directory recursively if not found in common paths
     if (std::filesystem::exists("build")) {
         for (const auto& entry : std::filesystem::recursive_directory_iterator("build")) {
-            if (entry.is_regular_file() && entry.path().filename() == "chronon3d_cli") {
-                return entry.path().string();
+            if (entry.is_regular_file() && (entry.path().filename() == "chronon3d_cli" || entry.path().filename() == "chronon3d_cli.exe")) {
+                return std::filesystem::path(entry.path()).make_preferred().string();
+            }
+        }
+    }
+    if (std::filesystem::exists("build_vs")) {
+        for (const auto& entry : std::filesystem::recursive_directory_iterator("build_vs")) {
+            if (entry.is_regular_file() && (entry.path().filename() == "chronon3d_cli" || entry.path().filename() == "chronon3d_cli.exe")) {
+                return std::filesystem::path(entry.path()).make_preferred().string();
             }
         }
     }

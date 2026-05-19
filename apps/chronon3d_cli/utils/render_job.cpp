@@ -205,6 +205,21 @@ bool execute_render_job(const CompositionRegistry& registry, const RenderJobPlan
     run.tiles_partial = counters->tiles_partial.load(std::memory_order_relaxed);
     run.bytes_allocated_peak = telemetry::TelemetryManager::get_peak_memory_usage();
     run.node_cache_hash_collisions = counters->node_cache_hash_collisions.load(std::memory_order_relaxed);
+    run.clear_calls = counters->clear_calls.load(std::memory_order_relaxed);
+    run.clear_pixels = counters->clear_pixels.load(std::memory_order_relaxed);
+    run.composite_calls = counters->composite_calls.load(std::memory_order_relaxed);
+    run.composite_pixels = counters->composite_pixels.load(std::memory_order_relaxed);
+    run.transform_calls = counters->transform_calls.load(std::memory_order_relaxed);
+    run.transform_pixels = counters->transform_pixels.load(std::memory_order_relaxed);
+    run.effect_stack_calls = counters->effect_stack_calls.load(std::memory_order_relaxed);
+    run.effect_pixels = counters->effect_pixels.load(std::memory_order_relaxed);
+    run.layer_culling_tests = counters->layer_culling_tests.load(std::memory_order_relaxed);
+    run.layers_culled = counters->layers_culled.load(std::memory_order_relaxed);
+    run.layers_visible = counters->layers_visible.load(std::memory_order_relaxed);
+    run.framebuffer_allocations = counters->framebuffer_allocations.load(std::memory_order_relaxed);
+    run.framebuffer_reuses = counters->framebuffer_reuses.load(std::memory_order_relaxed);
+    run.framebuffer_bytes_allocated = counters->framebuffer_bytes_allocated.load(std::memory_order_relaxed);
+    run.framebuffer_bytes_peak = counters->framebuffer_bytes_peak.load(std::memory_order_relaxed);
 
     run.started_at_iso = job_started_iso;
     run.finished_at_iso = telemetry::TelemetryManager::get_current_iso_time();
@@ -224,7 +239,22 @@ bool execute_render_job(const CompositionRegistry& registry, const RenderJobPlan
         {"tiles_miss", run.tiles_miss},
         {"tiles_partial", run.tiles_partial},
         {"bytes_allocated_peak", run.bytes_allocated_peak},
-        {"node_cache_hash_collisions", run.node_cache_hash_collisions}
+        {"node_cache_hash_collisions", run.node_cache_hash_collisions},
+        {"clear_calls", run.clear_calls},
+        {"clear_pixels", run.clear_pixels},
+        {"composite_calls", run.composite_calls},
+        {"composite_pixels", run.composite_pixels},
+        {"transform_calls", run.transform_calls},
+        {"transform_pixels", run.transform_pixels},
+        {"effect_stack_calls", run.effect_stack_calls},
+        {"effect_pixels", run.effect_pixels},
+        {"layer_culling_tests", run.layer_culling_tests},
+        {"layers_culled", run.layers_culled},
+        {"layers_visible", run.layers_visible},
+        {"framebuffer_allocations", run.framebuffer_allocations},
+        {"framebuffer_reuses", run.framebuffer_reuses},
+        {"framebuffer_bytes_allocated", run.framebuffer_bytes_allocated},
+        {"framebuffer_bytes_peak", run.framebuffer_bytes_peak}
     };
 
     std::vector<telemetry::PhaseTelemetryRecord> phases = {
@@ -244,7 +274,20 @@ bool execute_render_job(const CompositionRegistry& registry, const RenderJobPlan
         }
     }
 
-    telemetry::TelemetryManager::instance().record_run(run, telemetry_frames, phases, counters_list);
+    // Flush per-node telemetry collected during graph execution
+    auto node_events = telemetry::collect_node_telemetry();
+    auto layer_events = telemetry::collect_layer_telemetry();
+    auto cache_events = telemetry::collect_cache_telemetry();
+    auto culling_events = telemetry::collect_culling_telemetry();
+    auto text_events = telemetry::collect_text_telemetry();
+    auto image_events = telemetry::collect_image_telemetry();
+    auto tile_events = telemetry::collect_tile_telemetry();
+
+    telemetry::TelemetryManager::instance().record_run(run, telemetry_frames, phases, counters_list,
+                                                        node_events, layer_events,
+                                                        cache_events, culling_events,
+                                                        text_events, image_events,
+                                                        tile_events);
 
     if (plan.report) {
         auto now = std::chrono::system_clock::now();

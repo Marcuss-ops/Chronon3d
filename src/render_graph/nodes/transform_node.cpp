@@ -10,6 +10,10 @@ std::shared_ptr<Framebuffer> TransformNode::execute(RenderGraphContext& ctx, con
     if (ctx.backend) {
         ctx.backend->counters()->pixels_touched.fetch_add(static_cast<uint64_t>(ctx.width * ctx.height), std::memory_order_relaxed);
     }
+    if (ctx.counters) {
+        ctx.counters->transform_calls.fetch_add(1, std::memory_order_relaxed);
+        ctx.counters->transform_pixels.fetch_add(static_cast<uint64_t>(ctx.width * ctx.height), std::memory_order_relaxed);
+    }
 
     if (inputs.empty() || !inputs[0]) {
         auto fb = std::make_shared<Framebuffer>(ctx.width, ctx.height);
