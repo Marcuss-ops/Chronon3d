@@ -20,8 +20,7 @@ using namespace chronon3d::graph;
 static bool is_native_3d_layer(const Layer& layer) {
     for (const auto& node : layer.nodes) {
         if (node.shape.type == ShapeType::FakeBox3D  ||
-            node.shape.type == ShapeType::GridPlane   ||
-            node.shape.type == ShapeType::FakeExtrudedText) {
+            node.shape.type == ShapeType::GridPlane) {
             return true;
         }
     }
@@ -172,7 +171,7 @@ RenderGraph build_graph(const Scene& scene, const RenderGraphContext& ctx,
             );
 
             if (proj.visible) {
-                // Native-3D shapes (FakeBox3D, GridPlane, FakeExtrudedText) project
+                // Native-3D shapes (FakeBox3D, GridPlane) project
                 // directly to screen coords in SourceNode. TransformNode must be
                 // identity (pass-through) to avoid double-projection.
                 const Mat4 eff_proj = is_native_3d_layer(layer)

@@ -12,7 +12,6 @@ static Layer make_layer(Vec3 pos, LayoutRules rules = {}) {
     l.layout = rules;
     return l;
 }
-
 // ---------------------------------------------------------------------------
 // anchor_position helper
 // ---------------------------------------------------------------------------
@@ -21,7 +20,6 @@ TEST_CASE("LayoutSolver: anchor_position TopLeft + margin") {
     CHECK(p.x == doctest::Approx(20.0f));
     CHECK(p.y == doctest::Approx(20.0f));
 }
-
 TEST_CASE("LayoutSolver: anchor_position Center") {
     Vec2 p = anchor_position(Anchor::Center, 1280, 720, 0.0f);
     CHECK(p.x == doctest::Approx(640.0f));
@@ -122,28 +120,4 @@ TEST_CASE("LayoutSolver: keep_in_safe_area clamps out-of-bounds position") {
     const Vec3& p = scene.layers()[0].transform.position;
     CHECK(p.x >= 40.0f);
     CHECK(p.y <= 680.0f);  // 720 - 40
-}
-
-// ---------------------------------------------------------------------------
-// fit_text enables auto_scale on text nodes
-// ---------------------------------------------------------------------------
-TEST_CASE("LayoutSolver: fit_text enables auto_scale on text nodes") {
-    Scene scene;
-    Layer l;
-    l.layout.enabled  = true;
-    l.layout.fit_text = true;
-
-    RenderNode node;
-    node.shape.type           = ShapeType::Text;
-    node.shape.text.text      = "Hello";
-    node.shape.text.style.size = 48.0f;
-    node.shape.text.style.auto_scale = false;
-    l.nodes.push_back(std::move(node));
-    scene.add_layer(std::move(l));
-
-    LayoutSolver solver;
-    solver.solve(scene, 1280, 720);
-
-    CHECK(scene.layers()[0].nodes[0].shape.text.style.auto_scale);
-    CHECK(scene.layers()[0].nodes[0].shape.text.box.enabled);
 }

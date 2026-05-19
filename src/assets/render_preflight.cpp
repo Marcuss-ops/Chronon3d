@@ -1,14 +1,9 @@
 #include <chronon3d/assets/render_preflight.hpp>
-#include <chronon3d/registry/font_registry.hpp>
 #include <chronon3d/assets/asset_registry.hpp>
 #include <filesystem>
 #include <sstream>
 
 namespace chronon3d {
-
-void RenderPreflight::require_font(const std::string& family, int weight, const std::string& style) {
-    m_required_fonts.push_back({family, weight, style});
-}
 
 void RenderPreflight::require_image(const std::string& path) {
     m_required_images.push_back(path);
@@ -21,24 +16,6 @@ void RenderPreflight::require_video(const std::string& path) {
 void RenderPreflight::validate_or_throw() {
     namespace fs = std::filesystem;
     std::vector<std::string> failures;
-
-    // Validate fonts
-    for (const auto& f : m_required_fonts) {
-        std::string path = FontRegistry::resolve(f.family, f.weight, f.style);
-        if (path.empty()) {
-            std::ostringstream ss;
-            ss << "Missing Font: '" << f.family << "' (weight: " << f.weight << ", style: " << f.style << ")\n"
-               << "    -> Path resolved: '' (Not registered)\n"
-               << "    -> Recommendation: Register the font using FontRegistry::register_font() in your setup.";
-            failures.push_back(ss.str());
-        } else if (!fs::exists(path)) {
-            std::ostringstream ss;
-            ss << "Missing Font File: '" << f.family << "' (weight: " << f.weight << ", style: " << f.style << ")\n"
-               << "    -> Path resolved: '" << path << "' (File not found)\n"
-               << "    -> Recommendation: Verify that the font file actually exists at the resolved path.";
-            failures.push_back(ss.str());
-        }
-    }
 
     // Validate images
     for (const auto& img_path : m_required_images) {
@@ -89,7 +66,6 @@ void RenderPreflight::validate_or_throw() {
 }
 
 void RenderPreflight::clear() {
-    m_required_fonts.clear();
     m_required_images.clear();
     m_required_videos.clear();
 }

@@ -3,7 +3,6 @@
 #include <chronon3d/core/trace.hpp>
 #include <chronon3d/core/counters.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
-#include <chronon3d/backends/text/stb_font_backend.hpp>
 #include <nlohmann/json.hpp>
 #include <chrono>
 #include <filesystem>
@@ -30,7 +29,6 @@ struct BenchResult {
     uint64_t pixels_touched    = 0;
     uint64_t blur_pixels       = 0;
     uint64_t images_sampled    = 0;
-    uint64_t text_glyphs       = 0;
     std::map<std::string, double> category_durations;
 };
 
@@ -39,7 +37,6 @@ SoftwareRenderer create_bench_renderer() {
     RenderSettings settings;
     settings.use_modular_graph = true;
     renderer.set_settings(settings);
-    renderer.set_font_backend(std::make_shared<text::StbFontBackend>());
     return renderer;
 }
 
@@ -101,7 +98,6 @@ BenchResult run_bench(const Composition& comp, int warmup, int frames) {
         .pixels_touched    = cnt->pixels_touched.load(std::memory_order_relaxed),
         .blur_pixels       = cnt->blur_pixels.load(std::memory_order_relaxed),
         .images_sampled    = cnt->images_sampled.load(std::memory_order_relaxed),
-        .text_glyphs       = cnt->text_glyphs_rasterized.load(std::memory_order_relaxed),
         .category_durations = cat_durations,
     };
 }
@@ -187,27 +183,6 @@ Composition bench_100_rects(int W = 640, int H = 360) {
         });
 }
 
-Composition bench_20_text_layers(int W = 640, int H = 360) {
-    return composition({.name="bench_20_text", .width=W, .height=H, .duration=10},
-        [](const FrameContext& ctx) {
-            SceneBuilder s(ctx);
-            for (int i = 0; i < 12; ++i) {
-                s.text("label_" + std::to_string(i), {
-                    .content = "Hello Bench " + std::to_string(i),
-                    .style = {
-                        .font_family = "Inter",
-                        .font_weight = 400,
-                        .size = 20.0f,
-                        .color = Color::white(),
-                        .align = TextAlign::Left
-                    },
-                    .pos = {20.0f, 30.0f * i + 10.0f, 0.0f}
-                });
-            }
-            return s.build();
-        });
-}
-
 Composition bench_10_blurred_layers(int W = 640, int H = 360) {
     return composition({.name="bench_10_blur", .width=W, .height=H, .duration=10},
         [W, H](const FrameContext& ctx) {
@@ -280,15 +255,6 @@ TEST_CASE("bench_100_rects cache hit rate improves on re-render") {
     CHECK(hit_rate2 > 0.5);
     // Second run should be comparable or faster (cached)
     CHECK(r2.avg_ms <= r1.avg_ms * 1.5); // generous tolerance since first run fills cache
-}
-
-TEST_CASE("bench_20_text_layers rasterizes glyphs") {
-    auto comp = bench_20_text_layers();
-    auto r = run_bench(comp, 3, 15);
-
-    CHECK(r.text_glyphs > 0);
-    CHECK(r.pixels_touched > 0);
-    CHECK(r.avg_ms > 0.0);
 }
 
 TEST_CASE("bench_10_blurred_layers counts blur pixels") {

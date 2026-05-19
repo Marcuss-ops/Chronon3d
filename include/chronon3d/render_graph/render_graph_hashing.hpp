@@ -200,22 +200,6 @@ template <typename T>
                 seed = hash_combine(seed, hash_color(stop.color));
             }
             return seed;
-        case ShapeType::Text: {
-            seed = hash_combine(seed, hash_bytes(s.text.text.data(), s.text.text.size()));
-            seed = hash_combine(seed, hash_bytes(s.text.style.font_path.data(), s.text.style.font_path.size()));
-            seed = hash_combine(seed, hash_bytes(&s.text.style.size, sizeof(f32)));
-            seed = hash_combine(seed, hash_color(s.text.style.color));
-            seed = hash_combine(seed, hash_value(static_cast<int>(s.text.style.align)));
-            seed = hash_combine(seed, hash_bytes(&s.text.style.line_height, sizeof(f32)));
-            seed = hash_combine(seed, hash_bytes(&s.text.style.tracking, sizeof(f32)));
-            seed = hash_combine(seed, hash_value(s.text.style.max_lines));
-            seed = hash_combine(seed, hash_value(s.text.style.auto_scale));
-            seed = hash_combine(seed, hash_bytes(&s.text.style.min_size, sizeof(f32)));
-            seed = hash_combine(seed, hash_bytes(&s.text.style.max_size, sizeof(f32)));
-            seed = hash_combine(seed, hash_value(s.text.box.enabled));
-            seed = hash_combine(seed, hash_vec2(s.text.box.size));
-            return seed;
-        }
         case ShapeType::Image:
             seed = hash_combine(seed, hash_bytes(s.image.path.data(), s.image.path.size()));
             seed = hash_combine(seed, hash_vec2(s.image.size));
@@ -235,21 +219,6 @@ template <typename T>
             seed = hash_combine(seed, hash_color(s.grid_plane.color));
             seed = hash_combine(seed, hash_bytes(&s.grid_plane.fade_distance, sizeof(f32)));
             return hash_combine(seed, hash_bytes(&s.grid_plane.fade_min_alpha, sizeof(f32)));
-        case ShapeType::FakeExtrudedText:
-            seed = hash_combine(seed, hash_bytes(s.fake_extruded_text.text.data(), s.fake_extruded_text.text.size()));
-            seed = hash_combine(seed, hash_bytes(s.fake_extruded_text.font_path.data(), s.fake_extruded_text.font_path.size()));
-            seed = hash_combine(seed, hash_bytes(&s.fake_extruded_text.font_size, sizeof(f32)));
-            seed = hash_combine(seed, hash_value(static_cast<int>(s.fake_extruded_text.align)));
-            seed = hash_combine(seed, hash_vec3(s.fake_extruded_text.world_pos));
-            seed = hash_combine(seed, hash_value(s.fake_extruded_text.depth));
-            seed = hash_combine(seed, hash_vec2(s.fake_extruded_text.extrude_dir));
-            seed = hash_combine(seed, hash_bytes(&s.fake_extruded_text.extrude_z_step, sizeof(f32)));
-            seed = hash_combine(seed, hash_color(s.fake_extruded_text.front_color));
-            seed = hash_combine(seed, hash_color(s.fake_extruded_text.side_color));
-            seed = hash_combine(seed, hash_bytes(&s.fake_extruded_text.side_fade, sizeof(f32)));
-            seed = hash_combine(seed, hash_bytes(&s.fake_extruded_text.highlight_opacity, sizeof(f32)));
-            seed = hash_combine(seed, hash_bytes(&s.fake_extruded_text.bevel_size, sizeof(f32)));
-            return hash_combine(seed, hash_vec3(s.fake_extruded_text.light_dir));
         default:
             return seed;
     }

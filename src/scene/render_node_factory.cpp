@@ -71,17 +71,6 @@ RenderNode RenderNodeFactory::path(std::pmr::memory_resource* res, std::string n
     return node;
 }
 
-RenderNode RenderNodeFactory::text(std::pmr::memory_resource* res, std::string name, TextParams p) {
-    auto node = base(res, std::move(name));
-    node.shape.type = ShapeType::Text;
-    node.shape.text.text = std::move(p.content);
-    node.shape.text.style = p.style;
-    node.shape.text.box = p.box;
-    node.world_transform.position = p.pos;
-    node.color = p.style.color;
-    return node;
-}
-
 RenderNode RenderNodeFactory::image(std::pmr::memory_resource* res, std::string name, ImageParams p) {
     auto node = base(res, std::move(name));
     node.shape.type = ShapeType::Image;

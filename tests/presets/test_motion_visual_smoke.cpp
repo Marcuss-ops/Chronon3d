@@ -2,7 +2,6 @@
 #include <chronon3d/chronon3d.hpp>
 #include <chronon3d/backends/image/stb_image_backend.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
-#include <chronon3d/backends/text/stb_font_backend.hpp>
 #include <chronon3d/core/composition_registration.hpp>
 
 #include <cstdint>
@@ -18,7 +17,6 @@ SoftwareRenderer make_renderer() {
     settings.use_modular_graph = true;
     renderer.set_settings(settings);
     renderer.set_image_backend(std::make_shared<image::StbImageBackend>());
-    renderer.set_font_backend(std::make_shared<text::StbFontBackend>());
     return renderer;
 }
 

@@ -3,7 +3,6 @@
 #include <chronon3d/core/framebuffer.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/image/stb_image_backend.hpp>
-#include <chronon3d/backends/text/stb_font_backend.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 
 using namespace chronon3d;
@@ -63,7 +62,6 @@ TEST_CASE("Software Rendering Integration") {
 
     SoftwareRenderer renderer;
     renderer.set_image_backend(std::make_shared<image::StbImageBackend>());
-    renderer.set_font_backend(std::make_shared<text::StbFontBackend>());
     auto fb = renderer.render_frame(comp, 0);
 
     SUBCASE("Verify center pixel") {

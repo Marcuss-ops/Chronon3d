@@ -75,16 +75,6 @@ void register_builtin_shapes(ShapeRegistry& registry) {
         }),
     });
     registry.register_shape(ShapeDescriptor{
-        .id = std::string{shape_ids::Text},
-        .display_name = "Text",
-        .kind = ShapeKind::Text,
-        .description = "Glyph-shaped text object",
-        .builtin = true,
-        .factory = make_factory<TextParams>([](auto* res, std::string name, TextParams p) {
-            return RenderNodeFactory::text(res, std::move(name), std::move(p));
-        }),
-    });
-    registry.register_shape(ShapeDescriptor{
         .id = std::string{shape_ids::Image},
         .display_name = "Image",
         .kind = ShapeKind::Image,

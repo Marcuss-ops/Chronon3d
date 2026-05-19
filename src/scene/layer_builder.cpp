@@ -206,10 +206,6 @@ LayerBuilder& LayerBuilder::path(std::string name, PathParams p) {
     return shape(registry::shape_ids::Path, std::move(name), std::move(p));
 }
 
-LayerBuilder& LayerBuilder::text(std::string name, TextParams p) {
-    return shape(registry::shape_ids::Text, std::move(name), std::move(p));
-}
-
 LayerBuilder& LayerBuilder::image(std::string name, ImageParams p) {
     return shape(registry::shape_ids::Image, std::move(name), std::move(p));
 }
@@ -226,11 +222,6 @@ LayerBuilder& LayerBuilder::shape(std::string_view id, std::string name, registr
 
 LayerBuilder& LayerBuilder::fake_box3d(std::string name, FakeBox3DParams p) {
     Layer3DDelegate::add_fake_box3d(m_layer, name, p);
-    return *this;
-}
-
-LayerBuilder& LayerBuilder::fake_extruded_text(std::string name, FakeExtrudedTextParams p) {
-    Layer3DDelegate::add_fake_extruded_text(m_layer, name, p);
     return *this;
 }
 
