@@ -164,6 +164,7 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(
     profiling::g_current_trace = &m_trace;
     profiling::g_current_frame = 0;
     profiling::g_current_counters = &m_counters;
+    profiling::g_current_framebuffer_pool = m_framebuffer_pool.get();
     TraceScope scope(&m_trace, "render_scene_2_5d", "frame", 0);
 
     Scene effective_scene = scene;
@@ -187,6 +188,7 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(
     );
 
     profiling::g_current_counters = nullptr;
+    profiling::g_current_framebuffer_pool = nullptr;
     return res;
 }
 

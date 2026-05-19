@@ -29,6 +29,11 @@ class RenderBackend;
 class RenderProfiler;
 using GraphNodeId = uint32_t;
 
+enum class CacheFramePolicy {
+    FrameDependent,
+    FrameInvariant
+};
+
 enum class RenderGraphNodeKind {
     Source,
     Mask,
@@ -124,6 +129,13 @@ public:
 
     [[nodiscard]] virtual bool cacheable() const { return true; }
 
+    [[nodiscard]] virtual CacheFramePolicy cache_frame_policy() const {
+        return CacheFramePolicy::FrameDependent;
+    }
+
+    [[nodiscard]] bool frame_dependent() const { return m_frame_dependent; }
+    void set_frame_dependent(bool value) { m_frame_dependent = value; }
+
     [[nodiscard]] virtual cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const = 0;
 
     virtual std::shared_ptr<Framebuffer> execute(
@@ -133,6 +145,7 @@ public:
 
 private:
     std::string m_layer_id;
+    bool m_frame_dependent{true};
 };
 
 } // namespace chronon3d::graph
