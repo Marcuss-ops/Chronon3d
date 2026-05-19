@@ -21,15 +21,18 @@ public:
         draw_node_called++;
     }
 
-    void apply_effect_stack(Framebuffer&, const EffectStack&, float) override {
+    void apply_effect_stack(Framebuffer&, const EffectStack&, float,
+                            const std::optional<raster::BBox>& = std::nullopt) override {
         apply_effect_stack_called++;
     }
 
-    void composite_layer(Framebuffer&, const Framebuffer&, BlendMode) override {
+    void composite_layer(Framebuffer&, const Framebuffer&, BlendMode,
+                         const std::optional<raster::BBox>& = std::nullopt) override {
         composite_layer_called++;
     }
 
-    void apply_blur(Framebuffer&, float) override {
+    void apply_blur(Framebuffer&, float,
+                    const std::optional<raster::BBox>& = std::nullopt) override {
         apply_blur_called++;
     }
 };
