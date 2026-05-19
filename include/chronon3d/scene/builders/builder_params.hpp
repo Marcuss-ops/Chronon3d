@@ -61,6 +61,21 @@ struct ImageParams {
     f32 opacity{1.0f};
 };
 
+struct TextParams {
+    std::string text;
+    Vec2 size{900.0f, 160.0f};
+    Vec3 pos{0.0f, 0.0f, 0.0f};
+    std::string font_path{"assets/fonts/Inter-Bold.ttf"};
+    std::string font_family{"Inter"};
+    int font_weight{800};
+    std::string font_style{"normal"};
+    f32 font_size{72.0f};
+    Color color{1.0f, 1.0f, 1.0f, 1.0f};
+    TextAlign align{TextAlign::Center};
+    f32 line_height{1.2f};
+    f32 tracking{0.0f};
+};
+
 struct ContactShadowParams {
     Vec3  pos{0, 0, 0};       // position on the floor
     Vec2  size{300, 80};       // shadow footprint (width, depth)

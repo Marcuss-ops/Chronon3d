@@ -16,6 +16,13 @@ if(MSVC)
 endif()
 add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/FS>")
 
+if(NOT DEFINED CMAKE_C_COMPILER_LAUNCHER AND DEFINED ENV{CMAKE_C_COMPILER_LAUNCHER})
+    set(CMAKE_C_COMPILER_LAUNCHER "$ENV{CMAKE_C_COMPILER_LAUNCHER}")
+endif()
+if(NOT DEFINED CMAKE_CXX_COMPILER_LAUNCHER AND DEFINED ENV{CMAKE_CXX_COMPILER_LAUNCHER})
+    set(CMAKE_CXX_COMPILER_LAUNCHER "$ENV{CMAKE_CXX_COMPILER_LAUNCHER}")
+endif()
+
 # Options
 option(CHRONON3D_BUILD_TESTS "Build Chronon3d tests" ON)
 option(CHRONON3D_BUILD_CLI "Build Chronon3d CLI" ON)
@@ -179,7 +186,9 @@ set(CHRONON3D_BACKEND_SOFTWARE_SOURCES
     src/backends/software/processors/software_line_processor.cpp
     src/backends/software/processors/software_mesh_processor.cpp
     src/backends/software/processors/software_shape_processor.cpp
+    src/backends/software/processors/software_text_processor.cpp
     src/backends/software/processors/software_utility_processors.cpp
+    src/backends/text/text_rasterizer_utils.cpp
     src/backends/software/rasterizers/line_rasterizer.cpp
     src/backends/software/rasterizers/path_rasterizer.cpp
     src/backends/software/rasterizers/projected_card_rasterizer.cpp

@@ -67,7 +67,6 @@ public:
     // Clear image and font caches (useful between unrelated render sessions)
     void clear_caches() {
         m_image_renderer.clear_cache();
-        m_text_renderer.clear_cache();
         renderer::clear_text_glow_cache();
         renderer::clear_text_shadow_cache();
         m_node_cache.clear();

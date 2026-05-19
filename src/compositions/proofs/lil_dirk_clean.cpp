@@ -17,6 +17,8 @@ static Composition lil_dirk_clean() {
         const float t = ctx.duration > 1
             ? static_cast<float>(ctx.frame) / static_cast<float>(ctx.duration - 1)
             : 0.0f;
+        const float cx = static_cast<float>(ctx.width) * 0.5f;
+        const float cy = static_cast<float>(ctx.height) * 0.5f;
 
         s.camera().set(camera_motion::parallax_sweep(t, 18.0f, -1000.0f, 1000.0f));
 
@@ -33,8 +35,8 @@ static Composition lil_dirk_clean() {
 
         std::vector<presets::motion::MotionObject> objects = {
             presets::motion::MotionObject::text("title", "LIL DIRK")
-                .at({0.0f, bob, -120.0f})
-                .preset(presets::motion::MotionPreset::PushIn3D)
+                .at({cx, cy + bob, -120.0f})
+                .preset(presets::motion::MotionPreset::None)
                 .time(0, 120)
                 .font_path("assets/fonts/Inter-Bold.ttf")
                 .font_family("Inter")

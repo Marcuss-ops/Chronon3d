@@ -15,6 +15,7 @@ public:
     static RenderNode line(std::pmr::memory_resource* res, std::string name, const LineParams& p);
     static RenderNode path(std::pmr::memory_resource* res, std::string name, PathParams p);
     static RenderNode image(std::pmr::memory_resource* res, std::string name, ImageParams p);
+    static RenderNode text(std::pmr::memory_resource* res, std::string name, TextParams p);
     
     // Specialized 3D Shapes
     static RenderNode fake_box3d(std::pmr::memory_resource* res, std::string name, const FakeBox3DParams& p);

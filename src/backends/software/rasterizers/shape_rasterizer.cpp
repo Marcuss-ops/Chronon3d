@@ -22,6 +22,7 @@ raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 sprea
             const auto bbox = compute_path_bbox(shape.path, model, spread);
             return bbox;
         }
+        case ShapeType::Text: size = shape.text.box.enabled ? shape.text.box.size : Vec2{shape.text.style.size * 12.0f, shape.text.style.size * 2.0f}; break;
         case ShapeType::FakeBox3D: size = shape.fake_box3d.size; break;
         case ShapeType::GridPlane: size = {shape.grid_plane.extent * 2, shape.grid_plane.extent * 2}; break;
         default: break;
@@ -88,6 +89,9 @@ bool hit_test(const Shape& s, Vec2 p, f32 spread) {
         case ShapeType::Image:
             return p.x >= -spread && p.x < s.image.size.x + spread &&
                    p.y >= -spread && p.y < s.image.size.y + spread;
+        case ShapeType::Text:
+            return p.x >= -spread && p.x < (s.text.box.enabled ? s.text.box.size.x : 0.0f) + spread &&
+                   p.y >= -spread && p.y < (s.text.box.enabled ? s.text.box.size.y : 0.0f) + spread;
         default: return false;
     }
 }
@@ -132,6 +136,7 @@ static Vec2 shape_size_for_fill(const Shape& shape) {
         case ShapeType::RoundedRect: return shape.rounded_rect.size;
         case ShapeType::Circle:      return {shape.circle.radius * 2.0f, shape.circle.radius * 2.0f};
         case ShapeType::Image:       return shape.image.size;
+        case ShapeType::Text:        return shape.text.box.enabled ? shape.text.box.size : Vec2{0.0f, 0.0f};
         default:                     return {0, 0};
     }
 }
