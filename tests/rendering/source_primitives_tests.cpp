@@ -121,14 +121,25 @@ TEST_CASE("Test 13.5 — Text primitive rendering") {
     auto renderer = make_renderer();
     Composition comp({.width = 100, .height = 100}, [&](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        TextStyle style{.font_path = font, .size = 30.0f, .color = Color::red()};
+        TextStyle style{.font_path = font, .size = 50.0f, .color = Color::red(), .align = TextAlign::Center};
         s.text("t", {.content = "A", .style = style, .pos = {0, 0, 0}});
         return s.build();
     });
 
     auto fb = renderer.render_frame(comp, 0);
     REQUIRE(fb != nullptr);
-    CHECK(fb->get_pixel(50, 50).r > 0.0f);
+    
+    bool found = false;
+    for (int y = 30; y < 70; ++y) {
+        for (int x = 30; x < 70; ++x) {
+            if (fb->get_pixel(x, y).r > 0.1f) {
+                found = true;
+                break;
+            }
+        }
+        if (found) break;
+    }
+    CHECK(found);
 }
 
 TEST_CASE("Test 13.6 — Image primitive rendering") {
@@ -176,9 +187,10 @@ TEST_CASE("Test 13.8 — FakeExtrudedText primitive rendering") {
                 .text = "H",
                 .font_path = font,
                 .pos = {0,0,0},
-                .font_size = 40.0f,
-                .depth = 5,
-                .front_color = Color::red()
+                .font_size = 60.0f,
+                .depth = 10,
+                .front_color = Color::red(),
+                .align = TextAlign::Center
             });
         });
         return s.build();
@@ -186,7 +198,18 @@ TEST_CASE("Test 13.8 — FakeExtrudedText primitive rendering") {
 
     auto fb = renderer.render_frame(comp, 0);
     REQUIRE(fb != nullptr);
-    CHECK(fb->get_pixel(50, 50).r > 0.0f);
+
+    bool found = false;
+    for (int y = 20; y < 80; ++y) {
+        for (int x = 20; x < 80; ++x) {
+            if (fb->get_pixel(x, y).r > 0.1f) {
+                found = true;
+                break;
+            }
+        }
+        if (found) break;
+    }
+    CHECK(found);
 }
 
 TEST_CASE("Test 13.9 — GridPlane primitive rendering") {

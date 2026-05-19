@@ -122,6 +122,14 @@ void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node,
 
 void SoftwareRenderer::apply_effect_stack(Framebuffer& fb, const EffectStack& stack, float time_seconds) {
     CHRONON_ZONE_C("apply_effect_stack", trace_category::kEffect);
+    
+    // Count blur pixels if any blur effect is present in the stack
+    for (const auto& effect : stack) {
+        if (effect.enabled && effect.params.type() == typeid(BlurParams)) {
+            m_counters.blur_pixels.fetch_add(static_cast<uint64_t>(fb.width() * fb.height()), std::memory_order_relaxed);
+        }
+    }
+
     SoftwareEffectRunner::apply_effect_stack(fb, stack, software_registry(), time_seconds);
 }
 

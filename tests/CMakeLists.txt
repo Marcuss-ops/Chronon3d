@@ -31,7 +31,7 @@ add_executable(chronon3d_core_tests
 )
 target_link_libraries(chronon3d_core_tests PRIVATE chronon3d_pipeline doctest::doctest)
 target_include_directories(chronon3d_core_tests PRIVATE ${CMAKE_SOURCE_DIR})
-add_test(NAME chronon3d_core_tests COMMAND chronon3d_core_tests)
+add_test(NAME chronon3d_core_tests COMMAND chronon3d_core_tests WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 # Scene Tests
 add_executable(chronon3d_scene_tests
@@ -48,7 +48,7 @@ add_executable(chronon3d_scene_tests
 )
 target_link_libraries(chronon3d_scene_tests PRIVATE chronon3d_pipeline chronon3d_scene chronon3d_backend_software doctest::doctest)
 target_include_directories(chronon3d_scene_tests PRIVATE ${CMAKE_SOURCE_DIR})
-add_test(NAME chronon3d_scene_tests COMMAND chronon3d_scene_tests)
+add_test(NAME chronon3d_scene_tests COMMAND chronon3d_scene_tests WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 # Renderer & Graph Tests
 add_executable(chronon3d_renderer_tests
@@ -162,7 +162,7 @@ if(CHRONON3D_ENABLE_VIDEO)
 endif()
 target_include_directories(chronon3d_renderer_tests PRIVATE ${CMAKE_SOURCE_DIR})
 target_include_directories(chronon3d_renderer_tests PRIVATE ${Stb_INCLUDE_DIR})
-add_test(NAME chronon3d_renderer_tests COMMAND chronon3d_renderer_tests)
+add_test(NAME chronon3d_renderer_tests COMMAND chronon3d_renderer_tests WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 # IO Tests
 add_executable(chronon3d_io_tests
@@ -172,7 +172,7 @@ add_executable(chronon3d_io_tests
 )
 target_link_libraries(chronon3d_io_tests PRIVATE chronon3d_pipeline chronon3d_backend_image doctest::doctest)
 target_include_directories(chronon3d_io_tests PRIVATE ${CMAKE_SOURCE_DIR})
-add_test(NAME chronon3d_io_tests COMMAND chronon3d_io_tests)
+add_test(NAME chronon3d_io_tests COMMAND chronon3d_io_tests WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 # CLI Tests
 add_executable(chronon3d_cli_tests
@@ -192,7 +192,7 @@ target_link_libraries(chronon3d_cli_tests
         doctest::doctest
 )
 target_include_directories(chronon3d_cli_tests PRIVATE ${CMAKE_SOURCE_DIR})
-add_test(NAME chronon3d_cli_tests COMMAND chronon3d_cli_tests)
+add_test(NAME chronon3d_cli_tests COMMAND chronon3d_cli_tests WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 # Aggregate target: build all test executables with a single cmake --build ... --target chronon3d_tests
 add_custom_target(chronon3d_tests
