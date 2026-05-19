@@ -2,12 +2,14 @@
 
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/core/framebuffer.hpp>
+#include <chronon3d/runtime/telemetry/render_telemetry_record.hpp>
 #include <chronon3d/scene/camera/camera.hpp>
 #include <chronon3d/scene/camera/camera_2_5d.hpp>
 #include <chronon3d/rendering/light_context.hpp>
 #include <chronon3d/math/projection_context.hpp>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace chronon3d {
@@ -41,6 +43,25 @@ enum class RenderGraphNodeKind {
     Output
 };
 
+[[nodiscard]] inline std::string_view to_string(RenderGraphNodeKind kind) {
+    using enum RenderGraphNodeKind;
+    switch (kind) {
+        case Source:         return "Source";
+        case Mask:           return "Mask";
+        case Effect:         return "Effect";
+        case Transform:      return "Transform";
+        case Composite:      return "Composite";
+        case Precomp:        return "Precomp";
+        case Video:          return "Video";
+        case Adjustment:     return "Adjustment";
+        case MotionBlur:     return "MotionBlur";
+        case ColorConvert:   return "ColorConvert";
+        case TrackMatte:     return "TrackMatte";
+        case Output:         return "Output";
+    }
+    return "Unknown";
+}
+
 struct RenderGraphContext {
     Frame frame{0};
     float time_seconds{0.0f};
@@ -68,6 +89,11 @@ struct RenderGraphContext {
     bool diagnostics_enabled{false};
     float ssaa_factor{1.0f};
     bool modular_coordinates{false};
+
+    // ── Per-node / per-layer telemetry collectors ────────────────────────────
+    // Populated during graph execution; flushed via TelemetryManager after frame.
+    std::vector<chronon3d::telemetry::NodeTelemetryRecord> node_telemetry;
+    std::vector<chronon3d::telemetry::LayerTelemetryRecord> layer_telemetry;
 };
 
 class RenderGraphNode {
@@ -77,6 +103,9 @@ public:
     [[nodiscard]] virtual RenderGraphNodeKind kind() const = 0;
     [[nodiscard]] virtual std::string name() const = 0;
 
+    [[nodiscard]] std::string layer_id() const { return m_layer_id; }
+    void set_layer_id(std::string id) { m_layer_id = std::move(id); }
+
     [[nodiscard]] virtual bool cacheable() const { return true; }
 
     [[nodiscard]] virtual cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const = 0;
@@ -85,6 +114,9 @@ public:
         RenderGraphContext& ctx,
         const std::vector<std::shared_ptr<Framebuffer>>& inputs
     ) = 0;
+
+private:
+    std::string m_layer_id;
 };
 
 } // namespace chronon3d::graph

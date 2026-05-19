@@ -39,6 +39,22 @@ struct RenderTelemetryRecord {
     uint64_t bytes_allocated_peak{0};
     uint64_t node_cache_hash_collisions{0};
 
+    uint64_t clear_calls{0};
+    uint64_t clear_pixels{0};
+    uint64_t composite_calls{0};
+    uint64_t composite_pixels{0};
+    uint64_t transform_calls{0};
+    uint64_t transform_pixels{0};
+    uint64_t effect_stack_calls{0};
+    uint64_t effect_pixels{0};
+    uint64_t layer_culling_tests{0};
+    uint64_t layers_culled{0};
+    uint64_t layers_visible{0};
+    uint64_t framebuffer_allocations{0};
+    uint64_t framebuffer_reuses{0};
+    uint64_t framebuffer_bytes_allocated{0};
+    uint64_t framebuffer_bytes_peak{0};
+
     // Host & environment specs
     std::string started_at_iso;
     std::string finished_at_iso;
@@ -65,6 +81,116 @@ struct PhaseTelemetryRecord {
 struct CounterTelemetryRecord {
     std::string counter_name;
     uint64_t counter_value{0};
+};
+
+// ── Per-node telemetry (populated during GraphExecutor::execute_node) ──────────
+struct NodeTelemetryRecord {
+    std::string run_id;
+    int frame_number{0};
+    std::string node_name;
+    std::string node_type;       // stringified RenderGraphNodeKind
+    std::string layer_id;        // layer name when known, empty otherwise
+    double duration_ms{0.0};
+    std::string cache_status;    // "hit", "miss", "bypass_no_cache", "bypass_not_cacheable"
+    std::string cache_key_digest;
+    int input_count{0};
+    int output_width{0};
+    int output_height{0};
+    uint64_t output_bytes{0};
+    float bbox_x{0}, bbox_y{0}, bbox_w{0}, bbox_h{0};
+    float visible_x{0}, visible_y{0}, visible_w{0}, visible_h{0};
+    uint64_t pixels_touched{0};
+    uint64_t pixels_cleared{0};
+    uint64_t pixels_composited{0};
+    uint64_t pixels_transformed{0};
+    uint64_t pixels_blurred{0};
+};
+
+// ── Per-layer telemetry (aggregated from scene/layer pipeline) ─────────────────
+struct LayerTelemetryRecord {
+    std::string run_id;
+    int frame_number{0};
+    std::string layer_id;
+    std::string layer_name;
+    std::string layer_type;      // stringified LayerKind
+    double duration_ms{0.0};
+    bool visible{true};
+    std::string cull_reason;     // "" if visible, descriptive reason if culled
+    float opacity{1.0f};
+    std::string blend_mode{"Normal"};
+    float bbox_x{0}, bbox_y{0}, bbox_w{0}, bbox_h{0};
+    float visible_x{0}, visible_y{0}, visible_w{0}, visible_h{0};
+    int area_pixels{0};
+    int visible_pixels{0};
+    int dirty_pixels{0};
+    std::string effects;         // comma-separated effect names
+    float effect_padding{0};
+    int glyphs_rasterized{0};
+    int images_sampled{0};
+};
+
+struct CacheTelemetryRecord {
+    std::string run_id;
+    int frame_number{0};
+    std::string node_name;
+    bool cacheable{false};
+    std::string cache_status; // "hit", "miss_non_cacheable", "miss_hash_mismatch", etc.
+    std::string key_digest;
+    std::string params_hash;
+    std::string source_hash;
+    std::string input_hash;
+    uint64_t output_bytes{0};
+};
+
+struct CullingTelemetryRecord {
+    std::string run_id;
+    int frame_number{0};
+    std::string layer_id;
+    bool visible{true};
+    std::string reason;
+    float bbox_x{0}, bbox_y{0}, bbox_w{0}, bbox_h{0};
+    float visible_x{0}, visible_y{0}, visible_w{0}, visible_h{0};
+    uint64_t saved_pixels{0};
+};
+
+struct TextTelemetryRecord {
+    std::string run_id;
+    int frame_number{0};
+    std::string layer_id;
+    int text_length{0};
+    int line_count{0};
+    int glyph_count{0};
+    int glyphs_rasterized{0};
+    int glyph_cache_hits{0};
+    int glyph_cache_misses{0};
+    double layout_ms{0.0};
+    double raster_ms{0.0};
+    double composite_ms{0.0};
+    std::string font_path;
+    double font_size{0.0};
+};
+
+struct ImageTelemetryRecord {
+    std::string run_id;
+    int frame_number{0};
+    std::string layer_id;
+    std::string image_path;
+    int image_width{0};
+    int image_height{0};
+    std::string cache_status; // "hit", "miss_decode", etc.
+    double decode_ms{0.0};
+    double sample_ms{0.0};
+    uint64_t sampled_pixels{0};
+};
+
+struct TileTelemetryRecord {
+    std::string run_id;
+    int frame_number{0};
+    std::string layer_id;
+    int tile_x{0};
+    int tile_y{0};
+    std::string tile_status; // "hit", "miss", "partial"
+    int dirty_rects_count{0};
 };
 
 } // namespace chronon3d::telemetry

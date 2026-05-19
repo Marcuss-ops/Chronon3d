@@ -3,9 +3,11 @@
 #include <chronon3d/render_graph/render_graph_hashing.hpp>
 #include <chronon3d/core/profiling.hpp>
 #include <chronon3d/core/counters.hpp>
+#include <chronon3d/core/render_telemetry.hpp>
 #include <iostream>
 #include <future>
 #include <mutex>
+#include <chrono>
 
 namespace chronon3d::graph {
 
@@ -70,9 +72,10 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute_node(
             std::vector<std::future<void>> futures;
             futures.reserve(input_ids.size());
             for (size_t i = 0; i < input_ids.size(); ++i) {
-                futures.emplace_back(std::async(std::launch::async, [&, i, trace = profiling::g_current_trace, frame = profiling::g_current_frame] {
+                futures.emplace_back(std::async(std::launch::async, [&, i, trace = profiling::g_current_trace, frame = profiling::g_current_frame, counters = profiling::g_current_counters] {
                     profiling::g_current_trace = trace;
                     profiling::g_current_frame = frame;
+                    profiling::g_current_counters = counters;
                     inputs[i] = execute_node(graph, input_ids[i], ctx);
                 }));
             }
@@ -84,6 +87,7 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute_node(
         std::shared_ptr<Framebuffer> result;
         const bool is_cacheable = node.cacheable();
         cache::NodeCacheKey key;
+        std::string cache_status;
 
         if (is_cacheable && ctx.node_cache) {
             key = node.cache_key(ctx);
@@ -101,11 +105,20 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute_node(
             if (ctx.counters) {
                 if (result) {
                     ctx.counters->cache_hits.fetch_add(1, std::memory_order_relaxed);
+                    cache_status = "hit";
                 } else {
                     ctx.counters->cache_misses.fetch_add(1, std::memory_order_relaxed);
+                    cache_status = "miss";
                 }
+            } else {
+                cache_status = result ? "hit" : "miss";
             }
+        } else {
+            cache_status = !ctx.node_cache ? "bypass_no_cache" : "bypass_not_cacheable";
         }
+
+        // ── Execute (or skip if cache hit) ────────────────────────────────────
+        const auto exec_t0 = std::chrono::steady_clock::now();
 
         if (!result) {
             TraceScope scope(ctx.trace, node.name(), "node_execute", ctx.frame);
@@ -116,6 +129,47 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute_node(
             if (is_cacheable && ctx.node_cache && result) {
                 ctx.node_cache->store(key, result);
             }
+        }
+        const auto exec_t1 = std::chrono::steady_clock::now();
+        const double duration_ms = std::chrono::duration<double, std::milli>(exec_t1 - exec_t0).count();
+
+        // ── Record cache telemetry ─────────────────────────────────────────────
+        {
+            telemetry::CacheTelemetryRecord cache_rec;
+            cache_rec.frame_number = static_cast<int>(ctx.frame);
+            cache_rec.node_name = node.name();
+            cache_rec.cacheable = is_cacheable;
+            cache_rec.cache_status = cache_status;
+            cache_rec.key_digest = (is_cacheable && ctx.node_cache) ? std::to_string(key.digest()) : "";
+            cache_rec.params_hash = (is_cacheable && ctx.node_cache) ? std::to_string(key.params_hash) : "";
+            cache_rec.source_hash = (is_cacheable && ctx.node_cache) ? std::to_string(key.source_hash) : "";
+            cache_rec.input_hash = (is_cacheable && ctx.node_cache) ? std::to_string(key.input_hash) : "";
+            if (result) {
+                cache_rec.output_bytes = static_cast<uint64_t>(result->width()) *
+                                         static_cast<uint64_t>(result->height()) * 4;
+            }
+            telemetry::record_cache_telemetry(std::move(cache_rec));
+        }
+
+        // ── Record node telemetry ─────────────────────────────────────────────
+        {
+            telemetry::NodeTelemetryRecord rec;
+            rec.frame_number = static_cast<int>(ctx.frame);
+            rec.node_name = node.name();
+            rec.node_type = std::string(to_string(node.kind()));
+            rec.duration_ms = duration_ms;
+            rec.cache_status = cache_status;
+            rec.cache_key_digest = (is_cacheable && ctx.node_cache)
+                ? std::to_string(key.digest()) : "";
+            rec.input_count = static_cast<int>(input_ids.size());
+            rec.layer_id = node.layer_id();
+            if (result) {
+                rec.output_width = result->width();
+                rec.output_height = result->height();
+                rec.output_bytes = static_cast<uint64_t>(result->width()) *
+                                   static_cast<uint64_t>(result->height()) * 4;
+            }
+            telemetry::record_node_telemetry(std::move(rec));
         }
 
         {

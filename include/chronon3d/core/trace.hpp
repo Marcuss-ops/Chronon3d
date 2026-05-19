@@ -65,9 +65,12 @@ private:
     RenderTrace::Clock::time_point start_;
 };
 
+struct RenderCounters;
+
 namespace profiling {
     extern thread_local RenderTrace* g_current_trace;
     extern thread_local int32_t g_current_frame;
+    extern thread_local RenderCounters* g_current_counters;
 }
 
 void write_trace_json(const RenderTrace& t, const std::string& path);

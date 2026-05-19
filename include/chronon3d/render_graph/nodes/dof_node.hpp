@@ -50,6 +50,10 @@ public:
             EffectStack dof_stack;
             dof_stack.push_back(EffectInstance{EffectParams{BlurParams{blur}}});
             ctx.backend->apply_effect_stack(*result, dof_stack, ctx.time_seconds);
+            if (ctx.counters) {
+                ctx.counters->effect_stack_calls.fetch_add(1, std::memory_order_relaxed);
+                ctx.counters->effect_pixels.fetch_add(static_cast<uint64_t>(ctx.width * ctx.height), std::memory_order_relaxed);
+            }
         }
         return result;
     }
