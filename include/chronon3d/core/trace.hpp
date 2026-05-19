@@ -60,7 +60,7 @@ public:
 
 private:
     RenderTrace* trace_;
-    std::string_view name_, cat_;
+    std::string name_, cat_;
     int32_t frame_;
     RenderTrace::Clock::time_point start_;
 };

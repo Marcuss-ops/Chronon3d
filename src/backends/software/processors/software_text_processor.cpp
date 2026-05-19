@@ -64,8 +64,24 @@ CacheKey hash_glow_params(const RenderNode& node, float effective_size) {
     return seed;
 }
 
+CacheKey hash_shadow_params(const RenderNode& node, float effective_size, size_t index) {
+    CacheKey seed = hash_text_shape(node.shape.text, effective_size);
+    seed = hash_combine(seed, hash_value(index));
+    const auto& shadow = node.shape.text.style.shadows[index];
+    seed = hash_combine(seed, hash_value(shadow.blur));
+    seed = hash_combine(seed, hash_value(shadow.opacity));
+    seed = hash_combine(seed, hash_value(shadow.color.r));
+    seed = hash_combine(seed, hash_value(shadow.color.g));
+    seed = hash_combine(seed, hash_value(shadow.color.b));
+    seed = hash_combine(seed, hash_value(shadow.color.a));
+    return seed;
+}
+
 std::unordered_map<CacheKey, std::shared_ptr<Framebuffer>> g_text_glow_cache;
 std::mutex g_text_glow_cache_mutex;
+
+std::unordered_map<CacheKey, std::shared_ptr<Framebuffer>> g_text_shadow_cache;
+std::mutex g_text_shadow_cache_mutex;
 
 } // namespace
 
@@ -89,33 +105,23 @@ public:
             std::memory_order_relaxed
         );
 
+        // 1. Drop Shadows (behind)
+        for (size_t i = 0; i < node.shape.text.style.shadows.size(); ++i) {
+            const auto& shadow = node.shape.text.style.shadows[i];
+            if (shadow.enabled && shadow.opacity > 0.0f && shadow.color.a > 0.0f) {
+                draw_text_shadow(renderer, fb, node, state, *raster, shadow, i);
+            }
+        }
+
         // 2. Glow
         if (node.glow.enabled && node.glow.intensity > 0.0f && node.glow.color.a > 0.0f) {
             draw_text_glow(renderer, fb, node, state, *raster);
         }
 
         // 3. Text
-        // Apply text color to a copy of the raster
-        BLImage text_img;
-        text_img.create(raster->image.width(), raster->image.height(), BL_FORMAT_PRGB32);
-        {
-            BLContext ctx(text_img);
-            ctx.clearAll();
-            ctx.blitImage(BLPoint(0, 0), raster->image);
-            ctx.setCompOp(BL_COMP_OP_SRC_IN);
-            ctx.setFillStyle(BLRgba32(
-                static_cast<uint8_t>(std::clamp(node.shape.text.style.color.r * 255.0f, 0.0f, 255.0f)),
-                static_cast<uint8_t>(std::clamp(node.shape.text.style.color.g * 255.0f, 0.0f, 255.0f)),
-                static_cast<uint8_t>(std::clamp(node.shape.text.style.color.b * 255.0f, 0.0f, 255.0f)),
-                255
-            ));
-            ctx.fillAll();
-        }
-
         // Use the transformed compositor to respect perspective/tilt
         Mat4 text_model = model * glm::translate(Mat4(1.0f), Vec3(raster->x_offset, raster->y_offset, 0.0f));
-        
-        blend2d_bridge::composite_bl_image_transformed(fb, text_img, text_model, opacity, BlendMode::Normal);
+        blend2d_bridge::composite_bl_image_transformed(fb, raster->image, text_model, opacity, BlendMode::Normal);
     }
 
     raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 spread) override {
@@ -134,6 +140,60 @@ public:
     }
 
 private:
+    void draw_text_shadow(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNode& node, const RenderState& state, const TextRasterization& raster, const TextShadow& shadow, size_t index) {
+        CHRONON_ZONE_C("text_shadow", trace_category::kText);
+        const Mat4& model = state.matrix;
+        const f32 opacity = state.opacity;
+
+        const CacheKey key = hash_shadow_params(node, node.shape.text.style.size, index);
+        std::shared_ptr<Framebuffer> shadow_cache;
+        {
+            std::lock_guard<std::mutex> lock(g_text_shadow_cache_mutex);
+            auto it = g_text_shadow_cache.find(key);
+            if (it != g_text_shadow_cache.end()) {
+                shadow_cache = it->second;
+            }
+        }
+
+        if (!shadow_cache) {
+            // Apply shadow color to copy of raster image
+            BLImage shadow_img;
+            shadow_img.create(raster.image.width(), raster.image.height(), BL_FORMAT_PRGB32);
+            {
+                BLContext ctx(shadow_img);
+                ctx.clearAll();
+                ctx.blitImage(BLPoint(0, 0), raster.image);
+                ctx.setCompOp(BL_COMP_OP_SRC_IN);
+                ctx.setFillStyle(BLRgba32(
+                    static_cast<uint8_t>(std::clamp(shadow.color.r * 255.0f, 0.0f, 255.0f)),
+                    static_cast<uint8_t>(std::clamp(shadow.color.g * 255.0f, 0.0f, 255.0f)),
+                    static_cast<uint8_t>(std::clamp(shadow.color.b * 255.0f, 0.0f, 255.0f)),
+                    255
+                ));
+                ctx.fillAll();
+            }
+
+            auto cached_fb = std::make_shared<Framebuffer>(shadow_img.width(), shadow_img.height());
+            cached_fb->clear(Color::transparent());
+            blend2d_bridge::composite_bl_image(*cached_fb, shadow_img, 0, 0, 1.0f, BlendMode::Normal);
+
+            if (shadow.blur > 0.0f) {
+                renderer.apply_blur(*cached_fb, shadow.blur);
+            }
+
+            {
+                std::lock_guard<std::mutex> lock(g_text_shadow_cache_mutex);
+                shadow_cache = g_text_shadow_cache.emplace(key, std::move(cached_fb)).first->second;
+            }
+        }
+
+        const f32 shadow_opacity = shadow.opacity * shadow.color.a;
+
+        // Use transformed compositor to follow perspective
+        Mat4 shadow_model = model * glm::translate(Mat4(1.0f), Vec3(raster.x_offset + shadow.offset.x, raster.y_offset + shadow.offset.y, 0.0f));
+        blend2d_bridge::composite_framebuffer_transformed(fb, *shadow_cache, shadow_model, opacity * shadow_opacity, BlendMode::Normal);
+    }
+
     void draw_text_glow(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNode& node, const RenderState& state, const TextRasterization& raster) {
         CHRONON_ZONE_C("text_glow", trace_category::kText);
         const Mat4& model = state.matrix;
@@ -193,6 +253,11 @@ private:
 void clear_text_glow_cache() {
     std::lock_guard<std::mutex> lock(g_text_glow_cache_mutex);
     g_text_glow_cache.clear();
+}
+
+void clear_text_shadow_cache() {
+    std::lock_guard<std::mutex> lock(g_text_shadow_cache_mutex);
+    g_text_shadow_cache.clear();
 }
 
 std::unique_ptr<ShapeProcessor> create_text_processor() {
