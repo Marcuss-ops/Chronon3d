@@ -45,14 +45,14 @@ public:
         if (!m_decoder) {
             const i32 render_w = m_source.size.x > 0.0f ? static_cast<i32>(m_source.size.x) : ctx.width;
             const i32 render_h = m_source.size.y > 0.0f ? static_cast<i32>(m_source.size.y) : ctx.height;
-            auto fb = std::make_shared<Framebuffer>(render_w, render_h);
+            auto fb = ctx.acquire_framebuffer(render_w, render_h);
             fb->clear(Color::transparent());
             return fb;
         }
 
         const Frame local_frame = ctx.frame - m_layer_start;
         if (local_frame < 0) {
-            auto fb = std::make_shared<Framebuffer>(ctx.width, ctx.height);
+            auto fb = ctx.acquire_framebuffer(ctx.width, ctx.height);
             fb->clear(Color::transparent());
             return fb;
         }

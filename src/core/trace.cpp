@@ -5,10 +5,15 @@
 
 namespace chronon3d {
 
+namespace cache {
+    class FramebufferPool;
+}
+
 namespace profiling {
     thread_local RenderTrace* g_current_trace = nullptr;
     thread_local int32_t g_current_frame = 0;
     thread_local RenderCounters* g_current_counters = nullptr;
+    thread_local cache::FramebufferPool* g_current_framebuffer_pool = nullptr;
 }
 
 RenderTrace::RenderTrace() : mtx_(std::make_unique<std::mutex>()) {}

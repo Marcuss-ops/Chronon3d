@@ -21,12 +21,6 @@ export default function TabNavigation({ activeTab, onTabChange, layerCount, node
       >
         🌳 Node Execution ({nodeCount})
       </button>
-      <button
-        className={`tab-btn ${activeTab === 'query_console' ? 'active' : ''}`}
-        onClick={() => onTabChange('query_console')}
-      >
-        💻 SQL Analysis Console
-      </button>
     </div>
   );
 }

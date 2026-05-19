@@ -27,7 +27,7 @@ public:
     }
 
     std::shared_ptr<Framebuffer> execute(RenderGraphContext& ctx, const std::vector<std::shared_ptr<Framebuffer>>&) override {
-        auto fb = std::make_shared<Framebuffer>(ctx.width, ctx.height);
+        auto fb = ctx.acquire_framebuffer(ctx.width, ctx.height);
         fb->clear(Color::transparent());
         if (ctx.counters) {
             ctx.counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
@@ -62,7 +62,7 @@ public:
     }
 
     std::shared_ptr<Framebuffer> execute(RenderGraphContext& ctx, const std::vector<std::shared_ptr<Framebuffer>>&) override {
-        auto fb = std::make_shared<Framebuffer>(ctx.width, ctx.height);
+        auto fb = ctx.acquire_framebuffer(ctx.width, ctx.height);
         fb->clear(Color::transparent());
         if (ctx.counters) {
             ctx.counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
@@ -133,9 +133,9 @@ public:
     }
 
     std::shared_ptr<Framebuffer> execute(RenderGraphContext& ctx, const std::vector<std::shared_ptr<Framebuffer>>& inputs) override {
-        if (inputs.empty()) return std::make_shared<Framebuffer>(ctx.width, ctx.height);
+        if (inputs.empty()) return ctx.acquire_framebuffer(ctx.width, ctx.height);
 
-        auto result = std::make_shared<Framebuffer>(*inputs[0]);
+        auto result = ctx.acquire_framebuffer(*inputs[0]);
 
         f32 cx = 0.0f;
         f32 cy = 0.0f;
@@ -180,9 +180,9 @@ public:
     }
 
     std::shared_ptr<Framebuffer> execute(RenderGraphContext& ctx, const std::vector<std::shared_ptr<Framebuffer>>& inputs) override {
-        if (inputs.empty()) return std::make_shared<Framebuffer>(ctx.width, ctx.height);
+        if (inputs.empty()) return ctx.acquire_framebuffer(ctx.width, ctx.height);
         
-        auto result = std::make_shared<Framebuffer>(*inputs[0]);
+        auto result = ctx.acquire_framebuffer(*inputs[0]);
         if (ctx.backend) {
             ctx.backend->apply_effect_stack(*result, m_effects, ctx.time_seconds);
             if (ctx.counters) {
@@ -217,9 +217,9 @@ public:
     }
 
     std::shared_ptr<Framebuffer> execute(RenderGraphContext& ctx, const std::vector<std::shared_ptr<Framebuffer>>& inputs) override {
-        if (inputs.empty()) return std::make_shared<Framebuffer>(ctx.width, ctx.height);
+        if (inputs.empty()) return ctx.acquire_framebuffer(ctx.width, ctx.height);
         
-        auto result = std::make_shared<Framebuffer>(*inputs[0]);
+        auto result = ctx.acquire_framebuffer(*inputs[0]);
         if (ctx.backend) {
             ctx.backend->apply_effect_stack(*result, m_effects, ctx.time_seconds);
             if (ctx.counters) {
@@ -253,12 +253,12 @@ public:
     }
 
     std::shared_ptr<Framebuffer> execute(RenderGraphContext& ctx, const std::vector<std::shared_ptr<Framebuffer>>& inputs) override {
-        if (inputs.size() < 2) return inputs.empty() ? std::make_shared<Framebuffer>(ctx.width, ctx.height) : inputs[0];
+        if (inputs.size() < 2) return inputs.empty() ? ctx.acquire_framebuffer(ctx.width, ctx.height) : inputs[0];
         
         auto bottom = inputs[0];
         auto top = inputs[1];
         
-        auto result = std::make_shared<Framebuffer>(*bottom);
+        auto result = ctx.acquire_framebuffer(*bottom);
         if (ctx.backend) {
             ctx.backend->composite_layer(*result, *top, m_mode);
             if (ctx.counters) {

@@ -31,6 +31,15 @@ std::shared_ptr<Framebuffer> FramebufferPool::acquire(int width, int height) {
     return fb;
 }
 
+std::shared_ptr<Framebuffer> FramebufferPool::acquire_pooled(int width, int height, std::shared_ptr<FramebufferPool> pool) {
+    auto original = acquire(width, height);
+    if (!pool) return original;
+
+    return std::shared_ptr<Framebuffer>(original.get(), [original, pool](Framebuffer*) mutable {
+        pool->release(std::move(original));
+    });
+}
+
 void FramebufferPool::release(std::shared_ptr<Framebuffer> fb) {
     if (!fb) return;
 

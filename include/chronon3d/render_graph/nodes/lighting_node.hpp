@@ -38,10 +38,10 @@ public:
     std::shared_ptr<Framebuffer> execute(RenderGraphContext& ctx,
                                          const std::vector<std::shared_ptr<Framebuffer>>& inputs) override {
         if (inputs.empty()) {
-            return std::make_shared<Framebuffer>(ctx.width, ctx.height);
+            return ctx.acquire_framebuffer(ctx.width, ctx.height);
         }
 
-        auto result = std::make_shared<Framebuffer>(*inputs[0]);
+        auto result = ctx.acquire_framebuffer(*inputs[0]);
         if (!ctx.light_context.enabled || !m_material.accepts_lights) {
             return result;
         }

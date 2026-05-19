@@ -103,7 +103,8 @@ void draw_layout_preview(Framebuffer& fb, const RenderNode& node, const RenderSt
 } // namespace
 
 SoftwareRenderer::SoftwareRenderer()
-    : m_software_registry(std::make_unique<renderer::SoftwareRegistry>()) {
+    : m_software_registry(std::make_unique<renderer::SoftwareRegistry>())
+    , m_framebuffer_pool(std::make_shared<cache::FramebufferPool>()) {
     renderer::register_builtin_processors(*m_software_registry);
 }
 
@@ -117,11 +118,15 @@ std::unique_ptr<Framebuffer> SoftwareRenderer::render_frame(const Composition& c
                                                             Frame frame) {
     profiling::g_current_trace = &m_trace;
     profiling::g_current_frame = static_cast<int32_t>(frame);
+    profiling::g_current_framebuffer_pool = m_framebuffer_pool.get();
     TraceScope scope(&m_trace, "render_frame", "frame", static_cast<int32_t>(frame));
 
-    return graph::render_composition_frame(
+    auto res = graph::render_composition_frame(
         *this, m_node_cache, m_settings, m_registry, m_video_decoder.get(), comp, frame
     );
+
+    profiling::g_current_framebuffer_pool = nullptr;
+    return res;
 }
 
 std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(const Scene& scene,
@@ -129,9 +134,10 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(const Scene& scene,
                                                             i32 height) {
     profiling::g_current_trace = &m_trace;
     profiling::g_current_frame = 0;
+    profiling::g_current_framebuffer_pool = m_framebuffer_pool.get();
     TraceScope scope(&m_trace, "render_scene", "frame", 0);
 
-    return graph::render_scene_via_graph(
+    auto res = graph::render_scene_via_graph(
         *this,
         m_node_cache,
         scene,
@@ -144,6 +150,9 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(const Scene& scene,
         m_registry,
         m_video_decoder.get()
     );
+
+    profiling::g_current_framebuffer_pool = nullptr;
+    return res;
 }
 
 std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(

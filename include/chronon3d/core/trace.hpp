@@ -67,10 +67,15 @@ private:
 
 struct RenderCounters;
 
+namespace cache {
+    class FramebufferPool;
+}
+
 namespace profiling {
     extern thread_local RenderTrace* g_current_trace;
     extern thread_local int32_t g_current_frame;
     extern thread_local RenderCounters* g_current_counters;
+    extern thread_local cache::FramebufferPool* g_current_framebuffer_pool;
 }
 
 void write_trace_json(const RenderTrace& t, const std::string& path);

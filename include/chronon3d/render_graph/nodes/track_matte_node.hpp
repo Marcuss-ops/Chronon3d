@@ -34,7 +34,7 @@ public:
         const Framebuffer& target = *inputs[0];
         const Framebuffer& matte  = *inputs[1];
 
-        auto out = std::make_shared<Framebuffer>(target.width(), target.height());
+        auto out = ctx.acquire_framebuffer(target.width(), target.height());
 
         const int W = target.width();
         const int H = target.height();
