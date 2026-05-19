@@ -177,6 +177,12 @@ namespace chronon3d::math {
 
 Never use `<cmath>` directly in renderer code — always use `math::pi`.
 
+### 6. CLI Utility Decoupling (Core Purity)
+
+**Problem:** Development tools like `WatchService` (filesystem polling) and `BatchRunner` (system-level batching) were previously in `src/runtime/`, mixing development-only intent with the core engine.
+
+**Solution:** Relocated development utilities to `apps/chronon3d_cli/utils/` under the `chronon3d::cli` namespace. The `chronon3d_runtime` remains a pure orchestration layer for composition evaluation and rendering, free from filesystem polling or CLI-specific batch logic.
+
 ## Near-Term Engine Direction
 
 - node and asset registries

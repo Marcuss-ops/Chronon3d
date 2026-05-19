@@ -85,7 +85,7 @@ static std::vector<ClipVert> clip_near(const std::vector<ClipVert>& pts, float n
     std::vector<ClipVert> out;
     const size_t n = pts.size();
     if (n == 0) return out;
-    auto inside  = [=](const ClipVert& p){ return p.pos.z <= -near_z; };
+    auto inside  = [=](const ClipVert& p){ return p.pos.z >= near_z; };
     auto lerp_c  = [](Color a, Color b, float t) {
         return Color{a.r + t*(b.r-a.r), a.g + t*(b.g-a.g),
                      a.b + t*(b.b-a.b), a.a + t*(b.a-a.a)};
@@ -96,7 +96,7 @@ static std::vector<ClipVert> clip_near(const std::vector<ClipVert>& pts, float n
         bool a_in = inside(a), b_in = inside(b);
         if (a_in) out.push_back(a);
         if (a_in != b_in) {
-            float t = (-near_z - a.pos.z) / (b.pos.z - a.pos.z);
+            float t = (near_z - a.pos.z) / (b.pos.z - a.pos.z);
             out.push_back({a.pos + t*(b.pos - a.pos), lerp_c(a.col, b.col, t)});
         }
     }
@@ -283,9 +283,9 @@ void FakeExtrudedTextRenderer::collect_geometry(
     // Add a triangle with per-vertex colors; clips against near plane if needed
     auto add_tri = [&](const Vec3 w[3], const Color c[3]) {
         Vec3 vp[3] = {projector.to_view(w[0]), projector.to_view(w[1]), projector.to_view(w[2])};
-        if (vp[0].z <= -1.0f && vp[1].z <= -1.0f && vp[2].z <= -1.0f) {
+        if (vp[0].z >= 1.0f && vp[1].z >= 1.0f && vp[2].z >= 1.0f) {
             Vec2  sp[3] = {projector.view_to_screen(vp[0]), projector.view_to_screen(vp[1]), projector.view_to_screen(vp[2])};
-            float d     = (-vp[0].z + -vp[1].z + -vp[2].z) / 3.0f;
+            float d     = (vp[0].z + vp[1].z + vp[2].z) / 3.0f;
             m_tris.push_back({{sp[0], sp[1], sp[2]}, {c[0], c[1], c[2]}, d});
             return;
         }
@@ -296,8 +296,8 @@ void FakeExtrudedTextRenderer::collect_geometry(
     // Uses SideQ (gradient quad) in the fast path; clips to triangles if needed.
     auto add_side_quad = [&](const Vec3 w[4], Color ca, Color cb, float sort_depth) {
         Vec3 vp[4] = {projector.to_view(w[0]), projector.to_view(w[1]), projector.to_view(w[2]), projector.to_view(w[3])};
-        bool all_ok = vp[0].z <= -1.0f && vp[1].z <= -1.0f &&
-                      vp[2].z <= -1.0f && vp[3].z <= -1.0f;
+        bool all_ok = vp[0].z >= 1.0f && vp[1].z >= 1.0f &&
+                      vp[2].z >= 1.0f && vp[3].z >= 1.0f;
         if (all_ok) {
             Vec2 sv[4];
             for (int j = 0; j < 4; ++j) sv[j] = projector.view_to_screen(vp[j]);
@@ -384,7 +384,7 @@ void FakeExtrudedTextRenderer::collect_geometry(
                     norm2d /= nlen;
 
                     const Vec2  mid       = (p0 + p1) * 0.5f;
-                    const float sort_d    = -projector.to_view(transform_pt(mid, depth_z * 0.5f)).z;
+                    const float sort_d    = projector.to_view(transform_pt(mid, depth_z * 0.5f)).z;
                     const Vec4  n3d_local = {norm2d.x, -norm2d.y, 0.0f, 0.0f};
                     const Vec3  n3d_world = glm::normalize(Vec3(rt.world_matrix * n3d_local));
                     const float side_l    = ndotl(n3d_world);

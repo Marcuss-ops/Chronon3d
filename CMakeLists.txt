@@ -101,6 +101,7 @@ set(CHRONON3D_GRAPH_SOURCES
     src/render_graph/graph_profiler.cpp
     src/render_graph/render_graph.cpp
     src/render_graph/render_pipeline.cpp
+    src/render_graph/nodes/transform_node.cpp
 )
 add_library(chronon3d_graph STATIC ${CHRONON3D_GRAPH_SOURCES})
 target_link_libraries(chronon3d_graph PUBLIC chronon3d chronon3d_cache fmt::fmt hwy::hwy tomlplusplus::tomlplusplus)

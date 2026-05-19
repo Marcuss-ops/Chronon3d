@@ -21,8 +21,6 @@
       "hidden": true,
       "inherits": "base",
       "cacheVariables": {
-        "CMAKE_TOOLCHAIN_FILE": "C:/vcpkg/scripts/buildsystems/vcpkg.cmake",
-        "VCPKG_INSTALLED_DIR": "C:/vcpkg/installed",
         "VCPKG_TARGET_TRIPLET": "x64-windows"
       }
     },
