@@ -33,10 +33,6 @@ SceneBuilder& SceneBuilder::path(std::string name, PathParams p) {
     return shape(registry::shape_ids::Path, std::move(name), std::move(p));
 }
 
-SceneBuilder& SceneBuilder::text(std::string name, TextParams p) {
-    return shape(registry::shape_ids::Text, std::move(name), std::move(p));
-}
-
 SceneBuilder& SceneBuilder::image(std::string name, ImageParams p) {
     return shape(registry::shape_ids::Image, std::move(name), std::move(p));
 }

@@ -59,7 +59,6 @@ endif()
 
 # 3. Registry
 set(CHRONON3D_REGISTRY_SOURCES
-    src/registry/font_registry.cpp
     src/registry/sampler_registry.cpp
     src/registry/shape_registry.cpp
     src/registry/source_registry.cpp
@@ -141,24 +140,12 @@ target_include_directories(chronon3d_backend_image PRIVATE ${Stb_INCLUDE_DIR})
 
 # 7b. Assets Backend
 set(CHRONON3D_BACKEND_ASSETS_SOURCES
-    src/backends/assets/font_cache.cpp
     src/backends/assets/image_cache.cpp
     src/backends/assets/image_renderer.cpp
 )
 add_library(chronon3d_backend_assets STATIC ${CHRONON3D_BACKEND_ASSETS_SOURCES})
 target_link_libraries(chronon3d_backend_assets PUBLIC chronon3d chronon3d_backend_image)
 target_include_directories(chronon3d_backend_assets PRIVATE ${Stb_INCLUDE_DIR})
-
-# 7c. Text Backend
-set(CHRONON3D_BACKEND_TEXT_SOURCES
-    src/backends/text/stb_font_backend.cpp
-    src/backends/text/text_layout_engine.cpp
-    src/backends/text/text_rasterizer_utils.cpp
-    src/backends/text/text_renderer.cpp
-)
-add_library(chronon3d_backend_text STATIC ${CHRONON3D_BACKEND_TEXT_SOURCES})
-target_link_libraries(chronon3d_backend_text PUBLIC chronon3d chronon3d_backend_assets blend2d::blend2d)
-target_include_directories(chronon3d_backend_text PRIVATE ${Stb_INCLUDE_DIR})
 
 # 7d. Video Backend (Generic)
 set(CHRONON3D_BACKEND_VIDEO_SOURCES
@@ -178,7 +165,6 @@ set(CHRONON3D_BACKEND_SOFTWARE_SOURCES
     src/backends/software/processors/software_line_processor.cpp
     src/backends/software/processors/software_mesh_processor.cpp
     src/backends/software/processors/software_shape_processor.cpp
-    src/backends/software/processors/software_text_processor.cpp
     src/backends/software/processors/software_utility_processors.cpp
     src/backends/software/rasterizers/line_rasterizer.cpp
     src/backends/software/rasterizers/path_rasterizer.cpp
@@ -190,7 +176,6 @@ set(CHRONON3D_BACKEND_SOFTWARE_SOURCES
     src/backends/software/software_node_dispatcher.cpp
     src/backends/software/software_renderer.cpp
     src/backends/software/specialized/fake_box3d_renderer.cpp
-    src/backends/software/specialized/fake_extruded_text_renderer.cpp
     src/backends/software/specialized/glass_panel_renderer.cpp
     src/backends/software/specialized/grid_plane_renderer.cpp
     src/backends/software/specialized/mesh_renderer.cpp
@@ -203,7 +188,7 @@ add_library(chronon3d_backend_software STATIC ${CHRONON3D_BACKEND_SOFTWARE_SOURC
 target_link_libraries(chronon3d_backend_software
     PUBLIC 
         chronon3d chronon3d_graph chronon3d_cache chronon3d_effects
-        chronon3d_backend_text chronon3d_backend_assets chronon3d_backend_image
+        chronon3d_backend_assets chronon3d_backend_image
         blend2d::blend2d
     PRIVATE spdlog::spdlog hwy::hwy fmt::fmt xxHash::xxhash tomlplusplus::tomlplusplus
 )
@@ -280,7 +265,7 @@ target_link_libraries(chronon3d_core INTERFACE
 
 add_library(chronon3d_software INTERFACE)
 target_link_libraries(chronon3d_software INTERFACE
-    chronon3d_backend_software chronon3d_backend_text chronon3d_backend_assets chronon3d_backend_image
+    chronon3d_backend_software chronon3d_backend_assets chronon3d_backend_image
 )
 
 

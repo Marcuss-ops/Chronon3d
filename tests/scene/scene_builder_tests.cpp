@@ -56,23 +56,6 @@ TEST_CASE("Test 8.4 — Line mapping on SceneBuilder") {
     CHECK(node.shape.line.thickness == 3.0f);
 }
 
-TEST_CASE("Test 8.5 — Text mapping on SceneBuilder") {
-    TextStyle style;
-    style.font_path = "Inter-Regular.ttf";
-    style.size = 24.0f;
-    style.color = Color::black();
-
-    auto scene = SceneBuilder{}
-        .text("t", {.content = "test text", .style = style})
-        .build();
-
-    REQUIRE(scene.nodes().size() == 1);
-    const auto& node = scene.nodes()[0];
-    CHECK(node.shape.type == ShapeType::Text);
-    CHECK(node.shape.text.text == "test text");
-    CHECK(node.shape.text.style.size == 24.0f);
-}
-
 TEST_CASE("Test 8.6 — Image mapping on SceneBuilder") {
     auto scene = SceneBuilder{}
         .image("img", {.path = "photo.png"})

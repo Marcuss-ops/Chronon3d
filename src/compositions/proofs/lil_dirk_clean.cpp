@@ -41,7 +41,7 @@ static Composition lil_dirk_clean() {
                 .font_weight(800)
                 .font_size(112.0f)
                 .tracking(1.0f)
-                .align(TextAlign::Center)
+                .align(presets::motion::TextAlign::Center)
                 .color(Color{0.98f, 0.98f, 0.96f, 1.0f})
                 .glow(true)
                 .enable_3d()

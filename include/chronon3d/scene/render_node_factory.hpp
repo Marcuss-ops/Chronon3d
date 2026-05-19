@@ -14,12 +14,10 @@ public:
     static RenderNode circle(std::pmr::memory_resource* res, std::string name, const CircleParams& p);
     static RenderNode line(std::pmr::memory_resource* res, std::string name, const LineParams& p);
     static RenderNode path(std::pmr::memory_resource* res, std::string name, PathParams p);
-    static RenderNode text(std::pmr::memory_resource* res, std::string name, TextParams p);
     static RenderNode image(std::pmr::memory_resource* res, std::string name, ImageParams p);
     
     // Specialized 3D Shapes
     static RenderNode fake_box3d(std::pmr::memory_resource* res, std::string name, const FakeBox3DParams& p);
-    static RenderNode fake_extruded_text(std::pmr::memory_resource* res, std::string name, FakeExtrudedTextParams p);
     static RenderNode grid_plane(std::pmr::memory_resource* res, std::string name, const GridPlaneParams& p);
 
 private:

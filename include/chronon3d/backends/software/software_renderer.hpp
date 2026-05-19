@@ -2,7 +2,6 @@
 
 #include <chronon3d/backends/software/renderer.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
-#include <chronon3d/backends/text/text_renderer.hpp>
 #include <chronon3d/backends/assets/image_renderer.hpp>
 #include <chronon3d/math/transform.hpp>
 #include <chronon3d/scene/layer/render_node.hpp>
@@ -12,9 +11,7 @@
 #include <chronon3d/scene/camera/camera_2_5d.hpp>
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/backends/software/render_settings.hpp>
-#include <chronon3d/backends/software/fake_extruded_text_renderer.hpp>
 #include <chronon3d/backends/image/image_backend.hpp>
-#include <chronon3d/backends/text/font_backend.hpp>
 #include <chronon3d/backends/software/software_registry.hpp>
 #include <chronon3d/backends/video/video_frame_decoder.hpp>
 #include <chronon3d/scene/scene.hpp>
@@ -69,8 +66,6 @@ public:
     // Clear image and font caches (useful between unrelated render sessions)
     void clear_caches() {
         m_image_renderer.clear_cache();
-        m_text_renderer.clear_cache();
-        renderer::clear_text_glow_cache();
         m_node_cache.clear();
         // Video cache clearing is now responsibility of the decoder implementation
     }
@@ -78,11 +73,7 @@ public:
     void set_composition_registry(const CompositionRegistry* registry) { m_registry = registry; }
     [[nodiscard]] const CompositionRegistry* composition_registry() const { return m_registry; }
 
-    [[nodiscard]] TextRenderer& text_renderer() { return m_text_renderer; }
     [[nodiscard]] ImageRenderer& image_renderer() { return m_image_renderer; }
-    [[nodiscard]] FakeExtrudedTextRenderer& fake_extruded_text_renderer() {
-        return m_fake_extruded_text_renderer;
-    }
     [[nodiscard]] cache::NodeCache& node_cache() { return m_node_cache; }
     [[nodiscard]] const RenderSettings& render_settings() const { return m_settings; }
 
@@ -99,11 +90,6 @@ public:
     }
     [[nodiscard]] image::ImageBackend* image_backend() const {
         return m_image_backend.get();
-    }
-
-    void set_font_backend(std::shared_ptr<text::FontBackend> backend);
-    [[nodiscard]] text::FontBackend* font_backend() const {
-        return m_font_backend.get();
     }
 
     // Public for use by graph nodes via RenderGraphContext.
@@ -127,14 +113,11 @@ public:
     SoftwareRenderer& operator=(SoftwareRenderer&&) noexcept = default;
 
 private:
-    TextRenderer      m_text_renderer;
     ImageRenderer     m_image_renderer;
-    FakeExtrudedTextRenderer m_fake_extruded_text_renderer;
     mutable cache::NodeCache  m_node_cache;
 
     std::shared_ptr<video::VideoFrameDecoder> m_video_decoder;
     std::shared_ptr<image::ImageBackend> m_image_backend;
-    std::shared_ptr<text::FontBackend> m_font_backend;
 
     std::unique_ptr<renderer::SoftwareRegistry> m_software_registry;
 

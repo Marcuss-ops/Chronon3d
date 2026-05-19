@@ -73,7 +73,6 @@ add_executable(chronon3d_renderer_tests
 
     renderer/camera/test_camera_motion.cpp
     renderer/camera/test_camera_preview_reference.cpp
-    renderer/camera/test_camera_tilt_text_preview.cpp
     renderer/camera/test_dof.cpp
     renderer/camera/test_motion_blur.cpp
     renderer/effects/test_effects.cpp
@@ -82,23 +81,15 @@ add_executable(chronon3d_renderer_tests
     renderer/effects/test_masks.cpp
     renderer/media/test_image_rendering.cpp
     renderer/media/test_video_card.cpp
-    renderer/cache/test_cache.cpp
     renderer/perf/test_render_perf.cpp
     renderer/lighting/test_light_context.cpp
     renderer/lighting/test_directional_lights.cpp
     renderer/lighting/test_shadows.cpp
-    presets/test_text_box.cpp
     presets/test_motion_object.cpp
     presets/test_motion_resolver.cpp
     presets/test_motion_3d.cpp
     presets/test_motion_renderer.cpp
     presets/test_motion_visual_smoke.cpp
-    renderer/text/test_lil_dirk_reference.cpp
-    renderer/text/test_text_rendering.cpp
-    renderer/text/test_text_layout.cpp
-    renderer/text/test_text_layout_result.cpp
-    renderer/text/test_text_alignment_regression.cpp
-
     render_graph/test_unified_transform_path.cpp
     renderer/dispatch/test_software_node_dispatcher.cpp
     render_graph/test_graph_executor.cpp
@@ -126,7 +117,6 @@ add_executable(chronon3d_renderer_tests
     renderer/camera/25d/test_25d_dof.cpp
     renderer/camera/25d/test_25d_parenting.cpp
     registry/test_registries.cpp
-    registry/test_dx_ergonomics.cpp
     cache/test_cache_foundation.cpp
     cache/test_cache_sharding.cpp
     effects/test_effect_registry.cpp

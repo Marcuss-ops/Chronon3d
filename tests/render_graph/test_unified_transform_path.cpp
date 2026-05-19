@@ -5,7 +5,6 @@
 #include <chronon3d/backends/image/stb_image_backend.hpp>
 #include <chronon3d/backends/software/framebuffer_analysis.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
-#include <chronon3d/backends/text/stb_font_backend.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 
@@ -24,7 +23,6 @@ SoftwareRenderer make_renderer() {
     settings.use_modular_graph = true;
     renderer.set_settings(settings);
     renderer.set_image_backend(std::make_shared<image::StbImageBackend>());
-    renderer.set_font_backend(std::make_shared<text::StbFontBackend>());
     return renderer;
 }
 
@@ -75,15 +73,8 @@ RenderResult render_single_element_scene([[maybe_unused]] const std::string& typ
 
 } // namespace
 
-TEST_CASE("Unified transform path: Rect, Image, and Text share the same base layer matrix") {
-    const std::string font = "assets/fonts/Inter-Bold.ttf";
-    if (!std::filesystem::exists(font)) {
-        MESSAGE("Skipping unified transform test because font fixture is missing");
-        return;
-    }
-
+TEST_CASE("Unified transform path: Rect and Image share the same base layer matrix") {
     const std::string white_image = make_white_image_asset();
-
 
     const int width = 640;
     const int height = 360;
@@ -111,7 +102,7 @@ TEST_CASE("Unified transform path: Rect, Image, and Text share the same base lay
         }},
     }};
 
-    const std::array<std::string, 3> types = {"rect", "image", "text"};
+    const std::array<std::string, 2> types = {"rect", "image"};
 
     for (const auto& transform : transforms) {
         std::optional<Mat4> ref_layer_matrix;
@@ -130,17 +121,6 @@ TEST_CASE("Unified transform path: Rect, Image, and Text share the same base lay
                         .size = {160.0f, 90.0f},
                         .pos = {0.0f, 0.0f, 0.0f},
                         .opacity = 1.0f
-                    });
-                } else {
-                    l.text("txt", {
-                        .content = "TEST",
-                        .style = {
-                            .font_path = font,
-                            .size = 72.0f,
-                            .color = Color::white(),
-                            .align = TextAlign::Center
-                        },
-                        .pos = {0.0f, 0.0f, 0.0f}
                     });
                 }
             }, width, height);
@@ -162,13 +142,7 @@ TEST_CASE("Unified transform path: Rect, Image, and Text share the same base lay
     }
 }
 
-TEST_CASE("Unified 2.5D projection: Rect, Image, and Text share the same projected layer matrix") {
-    const std::string font = "assets/fonts/Inter-Bold.ttf";
-    if (!std::filesystem::exists(font)) {
-        MESSAGE("Skipping unified 2.5D test because font fixture is missing");
-        return;
-    }
-
+TEST_CASE("Unified 2.5D projection: Rect and Image share the same projected layer matrix") {
     const std::string white_image = make_white_image_asset();
 
     Camera2_5D cam;
@@ -179,7 +153,7 @@ TEST_CASE("Unified 2.5D projection: Rect, Image, and Text share the same project
     const int width = 640;
     const int height = 360;
 
-    const std::array<std::pair<std::string, std::function<void(LayerBuilder&)>>, 3> cases = {{
+    const std::array<std::pair<std::string, std::function<void(LayerBuilder&)>>, 2> cases = {{
         {"rect", [=](LayerBuilder& l) {
             l.enable_3d();
             l.rotate({30.0f, 0.0f, 0.0f});
@@ -197,20 +171,6 @@ TEST_CASE("Unified 2.5D projection: Rect, Image, and Text share the same project
                 .size = {160.0f, 90.0f},
                 .pos = {0.0f, 0.0f, 0.0f},
                 .opacity = 1.0f
-            });
-        }},
-        {"text", [=](LayerBuilder& l) {
-            l.enable_3d();
-            l.rotate({30.0f, 0.0f, 0.0f});
-            l.text("txt", {
-                .content = "TEST",
-                .style = {
-                    .font_path = font,
-                    .size = 72.0f,
-                    .color = Color::white(),
-                    .align = TextAlign::Center
-                },
-                .pos = {0.0f, 0.0f, 0.0f}
             });
         }},
     }};
@@ -347,70 +307,4 @@ TEST_CASE("Unified FakeBox3D: front face matches Rect in shared composition") {
     CHECK((bbox->max_y - bbox->min_y + 1) > 80);
 }
 
-TEST_CASE("Unified FakeExtrudedText: front face matches Text in shared composition") {
-    const std::string font = "assets/fonts/Inter-Bold.ttf";
-    if (!std::filesystem::exists(font)) {
-        MESSAGE("Skipping fake extruded text test because font fixture is missing");
-        return;
-    }
 
-    SoftwareRenderer renderer = make_renderer();
-    auto comp = composition({
-        .name = "UnifiedFakeExtrudedTextFrontParity",
-        .width = 640,
-        .height = 360,
-        .duration = 1
-    }, [&](const FrameContext& ctx) {
-        SceneBuilder s(ctx);
-
-        s.camera().set({
-            .enabled = true,
-            .position = {0.0f, 0.0f, -800.0f},
-            .zoom = 800.0f
-        });
-
-        s.layer("ref_text", [&](LayerBuilder& l) {
-            l.enable_3d();
-            l.text("ref", {
-                .content = "A",
-                .style = {
-                    .font_path = font,
-                    .size = 120.0f,
-                    .color = Color::white(),
-                    .align = TextAlign::Center
-                },
-                .pos = {-180.0f, 0.0f, 0.0f}
-            });
-        });
-
-        s.layer("test_extruded", [&](LayerBuilder& l) {
-            l.enable_3d();
-            l.fake_extruded_text("extruded", {
-                .text = "A",
-                .font_path = font,
-                .pos = {180.0f, 0.0f, 0.0f},
-                .font_size = 120.0f,
-                .depth = 0,
-                .front_color = Color::white(),
-                .side_color = Color::white(),
-                .align = TextAlign::Center
-            });
-        });
-
-        return s.build();
-    });
-
-    auto fb = renderer.render_frame(comp, 0);
-    REQUIRE(fb != nullptr);
-
-    const std::filesystem::path out = "output/debug/render_graph_unified/fake_extruded_text_front_parity.png";
-    CHECK(save_png(*fb, out.string()));
-    CHECK(std::filesystem::exists(out));
-
-    auto bbox = renderer::bright_bbox(*fb);
-    auto centroid = renderer::bright_centroid(*fb);
-    REQUIRE(bbox.has_value());
-    REQUIRE(centroid.has_value());
-    CHECK((bbox->max_x - bbox->min_x + 1) > 40);
-    CHECK((bbox->max_y - bbox->min_y + 1) > 80);
-}

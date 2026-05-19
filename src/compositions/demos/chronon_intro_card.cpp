@@ -100,40 +100,16 @@ static Composition chronon_intro_card() {
             });
         });
 
-        // ── Title (2D, fly in from left) ──────────────────────────────────
-        // No enable_3d → immune to DOF; fake_extruded_text gives the 3D look
-        const float title_x = ease(-880.0f,  0.0f, 0.0f, 0.26f, t);
-        const float title_a = ease(  0.0f,   1.0f, 0.0f, 0.18f, t);
-
-        s.layer("title", [title_x, title_a](LayerBuilder& l) {
-            l.position({title_x, -52.0f, 0.0f}).opacity(title_a);
-            l.fake_extruded_text("main", {
-                .text        = "CHRONON 3D",
-                .font_path   = "assets/fonts/Inter-Bold.ttf",
-                .pos         = {0.0f, 0.0f, 0.0f},
-                .font_size   = 88.0f,
-                .depth       = 16,
-                .extrude_dir = {0.55f, 0.75f},
-                .front_color = Color{1.00f, 1.00f, 1.00f, 1.0f},
-                .side_color  = Color{0.38f, 0.52f, 0.96f, 0.82f},
-            });
-        });
-
         // ── Tagline (2D, slide up from below) ─────────────────────────────
         const float tag_y = ease(95.0f, 44.0f, 0.22f, 0.46f, t);
         const float tag_a = ease( 0.0f,  1.0f, 0.22f, 0.40f, t);
 
         s.layer("tagline", [tag_y, tag_a](LayerBuilder& l) {
             l.position({0.0f, tag_y, 0.0f}).opacity(tag_a);
-            l.text("tl", {
-                .content = "2.5D Motion Graphics Engine",
-                .style = {
-                    .font_path = "assets/fonts/Inter-Bold.ttf",
-                    .size      = 29.0f,
-                    .color     = Color{0.62f, 0.76f, 1.00f, 1.0f},
-                    .align     = TextAlign::Center,
-                },
-                .pos = {0.0f, 0.0f, 0.0f}
+            l.rect("tl", {
+                .size  = {380.0f, 60.0f},
+                .color = Color{0.62f, 0.76f, 1.00f, 0.0f},
+                .pos   = {0.0f, 0.0f, 0.0f}
             });
         });
 
@@ -179,15 +155,10 @@ static Composition chronon_intro_card() {
                     .color = col,
                     .pos   = {0.0f, -19.25f, 0.0f}
                 });
-                l.text("lbl", {
-                    .content = label,
-                    .style = {
-                        .font_path = "assets/fonts/Inter-Bold.ttf",
-                        .size      = 14.5f,
-                        .color     = col,
-                        .align     = TextAlign::Center,
-                    },
-                    .pos = {0.0f, 1.0f, 0.0f}
+                l.rect("lbl", {
+                    .size  = {0.0f, 0.0f},
+                    .color = col,
+                    .pos   = {0.0f, 1.0f, 0.0f}
                 });
             });
         }
