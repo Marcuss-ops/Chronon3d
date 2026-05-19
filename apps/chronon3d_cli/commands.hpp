@@ -45,6 +45,8 @@ struct VideoArgs {
     std::string frames_dir;
     std::string hardware_encoder{"none"};
     int chunks{1};
+
+    std::string ffmpeg_mode{"png"};
 };
 
 struct VideoCameraArgs {

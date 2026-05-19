@@ -2,6 +2,7 @@
 #include "../utils/cli_render_utils.hpp"
 #include "../utils/cli_mappers.hpp"
 #include "../utils/frame_chunks.hpp"
+#include "../utils/ffmpeg_pipe_encoder.hpp"
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/scene/utils/dark_grid_background.hpp>
 #include <chronon3d/presets/camera_motion_clip.hpp>
@@ -46,6 +47,7 @@ struct FfmpegExportOptions {
     std::string encode_preset;
     bool keep_frames;
     int chunks;
+    std::string ffmpeg_mode{"png"};
 };
 
 int render_and_encode_ffmpeg(
@@ -68,6 +70,70 @@ int render_and_encode_ffmpeg(
     if (end <= start) {
         spdlog::error("[video] Empty frame range [{}, {})", start, end);
         return 1;
+    }
+
+    if (opts.ffmpeg_mode != "png" && opts.ffmpeg_mode != "pipe") {
+        spdlog::error("[video] Unknown --ffmpeg-mode '{}'. Expected: png, pipe", opts.ffmpeg_mode);
+        return 1;
+    }
+
+    if (opts.ffmpeg_mode == "pipe") {
+        if (opts.chunks != 1) {
+            spdlog::warn("[video] --chunks is ignored with --ffmpeg-mode pipe in V1");
+        }
+
+        const std::string codec = resolve_cli_ffmpeg_codec(opts.codec, opts.hardware_encoder);
+
+        FfmpegPipeEncoder pipe;
+        FfmpegPipeOptions pipe_options{
+            .width = comp.width(),
+            .height = comp.height(),
+            .fps = opts.fps,
+            .crf = opts.crf,
+            .preset = opts.encode_preset,
+            .codec = codec,
+            .output_path = opts.output,
+        };
+
+        std::error_code ec;
+        const auto output_parent = std::filesystem::path(opts.output).parent_path();
+        if (!output_parent.empty()) {
+            std::filesystem::create_directories(output_parent, ec);
+            if (ec) {
+                spdlog::error("[video] Cannot create output directory {}: {}", output_parent.string(), ec.message());
+                return 1;
+            }
+        }
+
+        if (!pipe.open(pipe_options)) {
+            spdlog::error("[video] Failed to open FFmpeg raw pipe");
+            return 1;
+        }
+
+        auto renderer = create_renderer(registry, settings);
+
+        for (Frame f = start; f < end; ++f) {
+            auto fb = renderer->render_frame(comp, f);
+            if (!fb) {
+                spdlog::error("[video] Failed to render frame {}", f);
+                pipe.close();
+                return 1;
+            }
+
+            if (!pipe.write_frame(*fb)) {
+                spdlog::error("[video] Failed to write frame {} to FFmpeg pipe", f);
+                pipe.close();
+                return 1;
+            }
+        }
+
+        if (!pipe.close()) {
+            spdlog::error("[video] FFmpeg pipe encoder failed");
+            return 1;
+        }
+
+        spdlog::info("[video] Wrote {}", opts.output);
+        return 0;
     }
 
     const std::filesystem::path frames_dir = std::filesystem::temp_directory_path() / opts.frames_dir_name;
@@ -178,6 +244,7 @@ int command_video(const CompositionRegistry& registry, const VideoArgs& args) {
     opts.encode_preset = args.encode_preset;
     opts.keep_frames = args.keep_frames;
     opts.chunks = args.chunks;
+    opts.ffmpeg_mode = args.ffmpeg_mode;
 
     const Frame end = (args.end > args.start) ? args.end : comp.duration();
     
@@ -247,6 +314,7 @@ int command_video_camera(const CompositionRegistry& registry, const VideoCameraA
     opts.encode_preset = args.encode_preset;
     opts.keep_frames = false; // default for camera motion
     opts.chunks = 1; // can't easily chunk here without extending args, default 1
+    opts.ffmpeg_mode = "png";
 
     return render_and_encode_ffmpeg(registry, comp, settings, args.start, args.end, opts);
 }
