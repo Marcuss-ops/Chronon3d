@@ -10,6 +10,7 @@
 #include <chronon3d/scene/effects/effect_stack.hpp>
 #include <chronon3d/scene/camera/camera_2_5d.hpp>
 #include <chronon3d/cache/node_cache.hpp>
+#include <chronon3d/cache/framebuffer_pool.hpp>
 #include <chronon3d/backends/software/render_settings.hpp>
 #include <chronon3d/backends/image/image_backend.hpp>
 #include <chronon3d/backends/software/software_registry.hpp>
@@ -70,6 +71,7 @@ public:
         renderer::clear_text_glow_cache();
         renderer::clear_text_shadow_cache();
         m_node_cache.clear();
+        if (m_framebuffer_pool) m_framebuffer_pool->clear();
         // Video cache clearing is now responsibility of the decoder implementation
     }
 
@@ -107,6 +109,9 @@ public:
 
     [[nodiscard]] RenderTrace* trace() override { return &m_trace; }
     [[nodiscard]] const RenderTrace* trace() const { return &m_trace; }
+    std::shared_ptr<cache::FramebufferPool> framebuffer_pool() override { return m_framebuffer_pool; }
+    [[nodiscard]] cache::FramebufferPool& software_framebuffer_pool() { return *m_framebuffer_pool; }
+    [[nodiscard]] const cache::FramebufferPool& software_framebuffer_pool() const { return *m_framebuffer_pool; }
     [[nodiscard]] RenderCounters* counters() override { return &m_counters; }
     [[nodiscard]] const RenderCounters* counters() const { return &m_counters; }
 
@@ -118,6 +123,7 @@ public:
 private:
     ImageRenderer     m_image_renderer;
     mutable cache::NodeCache  m_node_cache;
+    std::shared_ptr<cache::FramebufferPool> m_framebuffer_pool;
 
     std::shared_ptr<video::VideoFrameDecoder> m_video_decoder;
     std::shared_ptr<image::ImageBackend> m_image_backend;

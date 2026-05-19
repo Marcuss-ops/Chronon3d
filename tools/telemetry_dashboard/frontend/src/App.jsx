@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import './App.css';
 
 import { fetchRuns, fetchRunDetail } from './api/telemetryApi.js';
-import { QUERY_PRESETS } from './data/constants.js';
 import { formatBytes, formatIso, formatCounterValue } from './utils/format.jsx';
 
 import Sidebar from './components/Sidebar.jsx';
@@ -13,7 +12,6 @@ import FrameChart from './components/FrameChart.jsx';
 import ProfilePanels from './components/ProfilePanels.jsx';
 import LayersTable from './components/LayersTable.jsx';
 import NodesTable from './components/NodesTable.jsx';
-import QueryConsole from './components/QueryConsole.jsx';
 
 function App() {
   const [runs, setRuns] = useState([]);
@@ -26,6 +24,11 @@ function App() {
   useEffect(() => {
     selectedRunIdRef.current = selectedRunId;
   }, [selectedRunId]);
+
+  const runsRef = useRef(runs);
+  useEffect(() => {
+    runsRef.current = runs;
+  }, [runs]);
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
@@ -76,16 +79,22 @@ function App() {
     const interval = setInterval(async () => {
       try {
         const data = await fetchRuns();
-        setRuns(data);
-        setSelectedRunId(prev => {
-          if (prev && data.some(r => r.run_id === prev)) {
-            return prev;
-          }
-          return data.length > 0 ? data[0].run_id : '';
-        });
+        const prevRuns = runsRef.current;
 
-        if (selectedRunIdRef.current) {
-          loadRunDetail(selectedRunIdRef.current, true);
+        let newSelectedId = selectedRunIdRef.current;
+        if (data.length > 0 && prevRuns.length > 0) {
+          const isNewRun = !prevRuns.some(r => r.run_id === data[0].run_id);
+          if (isNewRun) {
+            newSelectedId = data[0].run_id;
+          }
+        } else if (data.length > 0 && !selectedRunIdRef.current) {
+          newSelectedId = data[0].run_id;
+        }
+
+        setRuns(data);
+        if (newSelectedId) {
+          setSelectedRunId(newSelectedId);
+          loadRunDetail(newSelectedId, true);
         }
       } catch (err) {
         console.error('Polling error:', err);
@@ -280,9 +289,7 @@ ${countersText}`;
               />
             )}
 
-            {activeTab === 'query_console' && (
-              <QueryConsole initialQuery={QUERY_PRESETS[0].query} />
-            )}
+
           </>
         )}
       </main>

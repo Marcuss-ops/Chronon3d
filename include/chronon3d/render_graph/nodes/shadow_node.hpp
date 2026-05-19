@@ -56,7 +56,7 @@ public:
         RenderGraphContext& ctx,
         const std::vector<std::shared_ptr<Framebuffer>>& inputs) override
     {
-        auto result = std::make_shared<Framebuffer>(ctx.width, ctx.height);
+        auto result = ctx.acquire_framebuffer(ctx.width, ctx.height);
         result->clear(Color::transparent());
 
         if (inputs.empty() || !inputs[0]) return result;

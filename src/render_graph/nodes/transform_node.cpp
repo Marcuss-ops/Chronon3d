@@ -16,13 +16,13 @@ std::shared_ptr<Framebuffer> TransformNode::execute(RenderGraphContext& ctx, con
     }
 
     if (inputs.empty() || !inputs[0]) {
-        auto fb = std::make_shared<Framebuffer>(ctx.width, ctx.height);
+        auto fb = ctx.acquire_framebuffer(ctx.width, ctx.height);
         fb->clear(Color::transparent());
         return fb;
     }
 
     auto input = inputs[0];
-    auto result = std::make_shared<Framebuffer>(ctx.width, ctx.height);
+    auto result = ctx.acquire_framebuffer(ctx.width, ctx.height);
     result->clear(Color::transparent());
 
     // Centering logic: both source and destination framebuffers are centered at (0,0) in scene space.
