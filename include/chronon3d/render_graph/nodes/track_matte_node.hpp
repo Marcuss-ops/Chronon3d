@@ -31,8 +31,9 @@ public:
 
     std::shared_ptr<Framebuffer> execute(
         RenderGraphContext& ctx,
-        const std::vector<std::shared_ptr<Framebuffer>>& inputs) override
-    {
+        const std::vector<std::shared_ptr<Framebuffer>>& inputs,
+        const std::vector<std::optional<raster::BBox>>&
+    ) override {
         if (inputs.size() < 2 || !inputs[0] || !inputs[1]) return inputs.empty() ? nullptr : inputs[0];
 
         const Framebuffer& target = *inputs[0];

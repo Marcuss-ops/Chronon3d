@@ -66,7 +66,9 @@ RenderGraphContext make_graph_context(
         .trace = backend.trace(),
         .counters = backend.counters(),
         .ssaa_factor = settings.ssaa_factor,
-        .modular_coordinates = settings.use_modular_graph
+        .modular_coordinates = settings.use_modular_graph,
+        .tile_size = settings.tile_size,
+        .optimize_compositing = settings.optimize_compositing
     };
 }
 

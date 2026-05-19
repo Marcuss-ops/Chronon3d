@@ -30,7 +30,7 @@ public:
         };
     }
 
-    std::shared_ptr<Framebuffer> execute(RenderGraphContext& ctx, const std::vector<std::shared_ptr<Framebuffer>>&) override {
+    std::shared_ptr<Framebuffer> execute(RenderGraphContext& ctx, const std::vector<std::shared_ptr<Framebuffer>>&, const std::vector<std::optional<raster::BBox>>&) override {
         if (!ctx.registry || !ctx.registry->contains(m_comp_name)) {
             auto fb = ctx.acquire_framebuffer(ctx.width, ctx.height);
             fb->clear(Color::transparent());

@@ -9,6 +9,7 @@ void register_all_commands(CLI::App& app, CliContext& ctx) {
     register_inspect_commands(app, ctx);
     register_bench_commands(app, ctx);
     register_dev_commands(app, ctx);
+    register_telemetry_commands(app, ctx);
 }
 
 } // namespace chronon3d::cli

@@ -7,12 +7,26 @@
 #include <chronon3d/backends/software/shape_processor.hpp>
 #include <chronon3d/backends/software/builtin_processors.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
+#include <optional>
 #include <chronon3d/core/profiling.hpp>
 #include <spdlog/spdlog.h>
 #include "rasterizers/line_rasterizer.hpp"
 #include "rasterizers/shape_rasterizer.hpp"
 #include <algorithm>
 #include <cmath>
+
+namespace chronon3d {
+    struct RenderNode;
+    struct RenderState;
+    namespace raster { struct BBox; }
+}
+
+namespace chronon3d::renderer {
+
+void apply_blur(Framebuffer& fb, f32 radius, const std::optional<raster::BBox>& clip);
+void apply_color_effects(Framebuffer& fb, const LayerEffect& effect, const std::optional<raster::BBox>& clip);
+void apply_effect_stack(Framebuffer& fb, const EffectStack& stack, float time_seconds, const std::optional<raster::BBox>& clip);
+}
 
 namespace chronon3d {
 
@@ -210,10 +224,23 @@ std::string SoftwareRenderer::debug_render_graph(const Scene& scene, const Camer
     );
 }
 
-void SoftwareRenderer::apply_blur(Framebuffer& fb, f32 radius) {
+void SoftwareRenderer::apply_blur(Framebuffer& fb, f32 radius, const std::optional<raster::BBox>& clip) {
     m_counters.blur_pixels.fetch_add(static_cast<uint64_t>(fb.width() * fb.height()), std::memory_order_relaxed);
     CHRONON_ZONE_C("apply_blur", trace_category::kEffect);
-    SoftwareEffectRunner::apply_blur(fb, radius);
+    renderer::apply_blur(fb, radius, clip);
+}
+
+void SoftwareRenderer::apply_effect_stack(Framebuffer& fb, const EffectStack& stack, float time_seconds, const std::optional<raster::BBox>& clip) {
+    CHRONON_ZONE_C("apply_effect_stack", trace_category::kEffect);
+    
+    // Count blur pixels if any blur effect is present in the stack
+    for (const auto& effect : stack) {
+        if (effect.enabled && effect.params.type() == typeid(BlurParams)) {
+            m_counters.blur_pixels.fetch_add(static_cast<uint64_t>(fb.width() * fb.height()), std::memory_order_relaxed);
+        }
+    }
+
+    renderer::apply_effect_stack(fb, stack, time_seconds, clip);
 }
 
 void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node,
@@ -226,30 +253,17 @@ void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node,
         SoftwareNodeDispatcher::draw_node(*this, fb, node, state, camera, width, height, software_registry());
         return;
     }
-
     processor->draw(*this, fb, node, state, camera, width, height);
     if (m_settings.diagnostic) {
         draw_layout_preview(fb, node, state, *processor);
     }
 }
 
-void SoftwareRenderer::apply_effect_stack(Framebuffer& fb, const EffectStack& stack, float time_seconds) {
-    CHRONON_ZONE_C("apply_effect_stack", trace_category::kEffect);
-    
-    // Count blur pixels if any blur effect is present in the stack
-    for (const auto& effect : stack) {
-        if (effect.enabled && effect.params.type() == typeid(BlurParams)) {
-            m_counters.blur_pixels.fetch_add(static_cast<uint64_t>(fb.width() * fb.height()), std::memory_order_relaxed);
-        }
-    }
-
-    SoftwareEffectRunner::apply_effect_stack(fb, stack, software_registry(), time_seconds);
-}
-
-void SoftwareRenderer::composite_layer(Framebuffer& dst, const Framebuffer& src, BlendMode mode) {
+void SoftwareRenderer::composite_layer(Framebuffer& dst, const Framebuffer& src, BlendMode mode, const std::optional<raster::BBox>& clip) {
     m_counters.pixels_touched.fetch_add(static_cast<uint64_t>(dst.width() * dst.height()), std::memory_order_relaxed);
     m_counters.layers_rendered.fetch_add(1, std::memory_order_relaxed);
     CHRONON_ZONE_C("composite_layer", trace_category::kComposite);
-    SoftwareCompositor::composite_layer(dst, src, mode);
+    SoftwareCompositor::composite_layer(dst, src, mode, clip);
 }
+
 } // namespace chronon3d

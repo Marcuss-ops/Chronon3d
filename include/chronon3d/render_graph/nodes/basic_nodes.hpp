@@ -30,9 +30,13 @@ public:
         };
     }
 
-    std::shared_ptr<Framebuffer> execute(RenderGraphContext& ctx, const std::vector<std::shared_ptr<Framebuffer>>&) override {
+    std::shared_ptr<Framebuffer> execute(
+        RenderGraphContext& ctx,
+        const std::vector<std::shared_ptr<Framebuffer>>&,
+        const std::vector<std::optional<raster::BBox>>&
+    ) override {
         auto fb = ctx.acquire_framebuffer(ctx.width, ctx.height);
-        fb->clear(Color::transparent());
+        // acquire_framebuffer already returns a cleared buffer from the pool
         if (ctx.counters) {
             ctx.counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
             ctx.counters->clear_pixels.fetch_add(static_cast<uint64_t>(ctx.width * ctx.height), std::memory_order_relaxed);
@@ -53,6 +57,11 @@ public:
     RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::Source; }
     std::string name() const override { return m_name; }
 
+    std::optional<raster::BBox> predicted_bbox(const RenderGraphContext& ctx) const override {
+        // For standard source nodes, we assume full frame for now.
+        return raster::BBox{0, 0, ctx.width, ctx.height};
+    }
+
     [[nodiscard]] CacheFramePolicy cache_frame_policy() const override {
         return CacheFramePolicy::FrameInvariant;
     }
@@ -69,9 +78,13 @@ public:
         return key; 
     }
 
-    std::shared_ptr<Framebuffer> execute(RenderGraphContext& ctx, const std::vector<std::shared_ptr<Framebuffer>>&) override {
+    std::shared_ptr<Framebuffer> execute(
+        RenderGraphContext& ctx,
+        const std::vector<std::shared_ptr<Framebuffer>>&,
+        const std::vector<std::optional<raster::BBox>>&
+    ) override {
         auto fb = ctx.acquire_framebuffer(ctx.width, ctx.height);
-        fb->clear(Color::transparent());
+        // acquire_framebuffer already returns a cleared buffer from the pool
         if (ctx.counters) {
             ctx.counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
             ctx.counters->clear_pixels.fetch_add(static_cast<uint64_t>(ctx.width * ctx.height), std::memory_order_relaxed);
@@ -152,7 +165,7 @@ public:
         };
     }
 
-    std::shared_ptr<Framebuffer> execute(RenderGraphContext& ctx, const std::vector<std::shared_ptr<Framebuffer>>& inputs) override {
+    std::shared_ptr<Framebuffer> execute(RenderGraphContext& ctx, const std::vector<std::shared_ptr<Framebuffer>>& inputs, const std::vector<std::optional<raster::BBox>>&) override {
         if (inputs.empty()) return ctx.acquire_framebuffer(ctx.width, ctx.height);
 
         auto result = ctx.acquire_framebuffer(*inputs[0]);
@@ -203,12 +216,12 @@ public:
         };
     }
 
-    std::shared_ptr<Framebuffer> execute(RenderGraphContext& ctx, const std::vector<std::shared_ptr<Framebuffer>>& inputs) override {
+    std::shared_ptr<Framebuffer> execute(RenderGraphContext& ctx, const std::vector<std::shared_ptr<Framebuffer>>& inputs, const std::vector<std::optional<raster::BBox>>&) override {
         if (inputs.empty()) return ctx.acquire_framebuffer(ctx.width, ctx.height);
         
         auto result = ctx.acquire_framebuffer(*inputs[0]);
         if (ctx.backend) {
-            ctx.backend->apply_effect_stack(*result, m_effects, ctx.time_seconds);
+            ctx.backend->apply_effect_stack(*result, m_effects, ctx.time_seconds, ctx.clip_rect);
             if (ctx.counters) {
                 ctx.counters->effect_stack_calls.fetch_add(1, std::memory_order_relaxed);
                 ctx.counters->effect_pixels.fetch_add(static_cast<uint64_t>(ctx.width * ctx.height), std::memory_order_relaxed);
@@ -244,12 +257,12 @@ public:
         };
     }
 
-    std::shared_ptr<Framebuffer> execute(RenderGraphContext& ctx, const std::vector<std::shared_ptr<Framebuffer>>& inputs) override {
+    std::shared_ptr<Framebuffer> execute(RenderGraphContext& ctx, const std::vector<std::shared_ptr<Framebuffer>>& inputs, const std::vector<std::optional<raster::BBox>>&) override {
         if (inputs.empty()) return ctx.acquire_framebuffer(ctx.width, ctx.height);
         
         auto result = ctx.acquire_framebuffer(*inputs[0]);
         if (ctx.backend) {
-            ctx.backend->apply_effect_stack(*result, m_effects, ctx.time_seconds);
+            ctx.backend->apply_effect_stack(*result, m_effects, ctx.time_seconds, ctx.clip_rect);
             if (ctx.counters) {
                 ctx.counters->effect_stack_calls.fetch_add(1, std::memory_order_relaxed);
                 ctx.counters->effect_pixels.fetch_add(static_cast<uint64_t>(ctx.width * ctx.height), std::memory_order_relaxed);
@@ -265,7 +278,7 @@ private:
 // CompositeNode
 class CompositeNode final : public RenderGraphNode {
 public:
-    CompositeNode(BlendMode mode, Frame cache_frame = Frame{-1}) : m_mode(mode), m_cache_frame(cache_frame) {}
+    CompositeNode(::chronon3d::BlendMode mode, Frame cache_frame = Frame{-1}) : m_mode(mode), m_cache_frame(cache_frame) {}
 
     RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::Composite; }
     std::string name() const override { return "Composite"; }
@@ -284,18 +297,33 @@ public:
         };
     }
 
-    std::shared_ptr<Framebuffer> execute(RenderGraphContext& ctx, const std::vector<std::shared_ptr<Framebuffer>>& inputs) override {
+    std::shared_ptr<Framebuffer> execute(
+        RenderGraphContext& ctx,
+        const std::vector<std::shared_ptr<Framebuffer>>& inputs,
+        const std::vector<std::optional<raster::BBox>>& input_bboxes
+    ) override {
         if (inputs.size() < 2) return inputs.empty() ? ctx.acquire_framebuffer(ctx.width, ctx.height) : inputs[0];
         
         auto bottom = inputs[0];
         auto top = inputs[1];
         
-        auto result = ctx.acquire_framebuffer(*bottom);
+        std::shared_ptr<Framebuffer> result;
+        // Optimization: In-place composition if we are the unique owner of the bottom buffer
+        if (ctx.optimize_compositing && bottom.use_count() == 1 && bottom->width() == ctx.width && bottom->height() == ctx.height) {
+            result = bottom;
+        } else {
+            result = ctx.acquire_framebuffer(*bottom);
+        }
+
         if (ctx.backend) {
-            ctx.backend->composite_layer(*result, *top, m_mode);
+            // Optimization: Only composite the area where the top node actually drew something
+            const auto& clip = (input_bboxes.size() >= 2) ? input_bboxes[1] : std::nullopt;
+            ctx.backend->composite_layer(*result, *top, m_mode, clip);
             if (ctx.counters) {
                 ctx.counters->composite_calls.fetch_add(1, std::memory_order_relaxed);
-                ctx.counters->composite_pixels.fetch_add(static_cast<uint64_t>(ctx.width * ctx.height), std::memory_order_relaxed);
+                uint64_t area = clip ? (static_cast<uint64_t>(clip->x1 - clip->x0) * (clip->y1 - clip->y0))
+                                     : static_cast<uint64_t>(ctx.width * ctx.height);
+                ctx.counters->composite_pixels.fetch_add(area, std::memory_order_relaxed);
             }
         }
         return result;
