@@ -63,7 +63,8 @@ void register_studio_tools(CLI::App& dev, CliContext& ctx) {
         cmd->add_option("input", args.comp_id, "Composition name or .specscene path")->required();
         cmd->add_option("--frame", args.frames, "Frame number to preview (default: middle frame)");
         cmd->add_option("-o,--output", args.output, "Output image path")->default_val("preview.png");
-        cmd->add_flag("--diagnostic", args.pipeline.diagnostic, "Enable diagnostic overlays");
+        cmd->add_flag("--diagnostic,--layout-preview", args.pipeline.diagnostic,
+                      "Enable layout preview overlays (bbox, anchors, center guide)");
         cmd->add_flag("--graph", args.pipeline.use_modular_graph, "Use modular RenderGraph path");
         cmd->callback([state, &ctx]() {
             ctx.exit_code = command_preview(ctx.registry, *state->args);
@@ -76,7 +77,8 @@ void register_studio_tools(CLI::App& dev, CliContext& ctx) {
         auto* cmd = dev.add_subcommand("contact-sheet", "Render 4 frames stitched horizontally into a contact sheet");
         cmd->add_option("input", args.comp_id, "Composition name or .specscene path")->required();
         cmd->add_option("-o,--output", args.output, "Output image path")->default_val("contact_sheet.png");
-        cmd->add_flag("--diagnostic", args.pipeline.diagnostic, "Enable diagnostic overlays");
+        cmd->add_flag("--diagnostic,--layout-preview", args.pipeline.diagnostic,
+                      "Enable layout preview overlays (bbox, anchors, center guide)");
         cmd->add_flag("--graph", args.pipeline.use_modular_graph, "Use modular RenderGraph path");
         cmd->callback([state, &ctx]() {
             ctx.exit_code = command_contact_sheet(ctx.registry, *state->args);
@@ -89,7 +91,8 @@ void register_studio_tools(CLI::App& dev, CliContext& ctx) {
         auto* cmd = dev.add_subcommand("storyboard", "Render 6 frames in a 2x3 grid with overlays");
         cmd->add_option("input", args.comp_id, "Composition name or .specscene path")->required();
         cmd->add_option("-o,--output", args.output, "Output image path")->default_val("storyboard.png");
-        cmd->add_flag("--diagnostic", args.pipeline.diagnostic, "Enable diagnostic overlays");
+        cmd->add_flag("--diagnostic,--layout-preview", args.pipeline.diagnostic,
+                      "Enable layout preview overlays (bbox, anchors, center guide)");
         cmd->add_flag("--graph", args.pipeline.use_modular_graph, "Use modular RenderGraph path");
         cmd->callback([state, &ctx]() {
             ctx.exit_code = command_storyboard(ctx.registry, *state->args);

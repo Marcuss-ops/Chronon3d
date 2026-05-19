@@ -134,6 +134,14 @@ void draw_motion_object_impl(
         apply_state(l, st, enable_3d);
         l.opacity(st.opacity * obj.color_value.a);
         draw_content(l, obj, layer_name);
+        if (obj.glow_enabled) {
+            l.with_glow(Glow{
+                .enabled = true,
+                .radius = 12.0f,
+                .intensity = 0.65f,
+                .color = obj.color_value.with_alpha(1.0f),
+            });
+        }
     });
 }
 

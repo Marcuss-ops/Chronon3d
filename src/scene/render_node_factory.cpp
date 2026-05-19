@@ -100,7 +100,7 @@ RenderNode RenderNodeFactory::text(std::pmr::memory_resource* res, std::string n
     node.shape.text.box.size = p.size;
     node.shape.text.box.enabled = true;
     node.world_transform.position = p.pos;
-    node.world_transform.anchor = {0.0f, 0.0f, 0.0f};
+    node.world_transform.anchor = {p.size.x * 0.5f, p.size.y * 0.5f, 0.0f};
     node.color = p.color;
     node.fill = Fill::solid_color(p.color);
     return node;

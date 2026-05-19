@@ -206,8 +206,17 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     }
 
     // Calculate vertical alignment offset
+    float free_w = t.box.enabled ? (t.box.size.x - (t.style.box_style.enabled ? 2.0f * t.style.box_style.padding.x : 0.0f)) : 0.0f;
     float free_h = t.box.enabled ? (t.box.size.y - (t.style.box_style.enabled ? 2.0f * t.style.box_style.padding.y : 0.0f)) : 0.0f;
+    float dx_align = 0.0f;
     float dy_align = 0.0f;
+    if (t.box.enabled && free_w > layout_res.size.x) {
+        if (t.style.align == TextAlign::Center) {
+            dx_align = (free_w - layout_res.size.x) * 0.5f;
+        } else if (t.style.align == TextAlign::Right) {
+            dx_align = free_w - layout_res.size.x;
+        }
+    }
     if (t.box.enabled && free_h > layout_res.size.y) {
         if (t.style.vertical_align == VerticalAlign::Middle) {
             dy_align = (free_h - layout_res.size.y) * 0.5f;
@@ -217,7 +226,7 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     }
 
     // Text starting position offset
-    float text_start_x = padding / 2.0f + (t.style.box_style.enabled ? t.style.box_style.padding.x : 0.0f);
+    float text_start_x = padding / 2.0f + (t.style.box_style.enabled ? t.style.box_style.padding.x : 0.0f) + dx_align;
     float text_start_y = padding / 2.0f + (t.style.box_style.enabled ? t.style.box_style.padding.y : 0.0f) + dy_align;
 
     // Resolve color
