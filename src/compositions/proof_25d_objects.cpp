@@ -86,29 +86,7 @@ static Composition proof_25d_objects() {
             });
         });
 
-        // ── 5. Text card (upper-right) ────────────────────────────────────────
-        s.layer("text_card", [](LayerBuilder& l) {
-            l.enable_3d()
-             .position({370.0f, -110.0f, -160.0f})
-             .rotate({20.0f, -18.0f, 0.0f});
-            l.text("title", {
-                .content = "2.5D",
-                .style = {
-                    .font_path = "assets/fonts/Inter-Bold.ttf",
-                    .size      = 90.0f,
-                    .color     = Color{1.0f, 1.0f, 1.0f, 1.0f},
-                    .align     = TextAlign::Center
-                },
-                .pos = {0.0f, 0.0f, 0.0f}
-            }).with_glow(Glow{
-                .enabled   = true,
-                .radius    = 14.0f,
-                .intensity = 0.85f,
-                .color     = Color{0.1f, 0.45f, 1.0f, 1.0f}
-            });
-        });
-
-        // ── 6. Rounded rect (lower-left) ──────────────────────────────────────
+        // ── 5. Rounded rect (lower-left) ──────────────────────────────────────
         s.layer("rounded_rect_card", [](LayerBuilder& l) {
             l.enable_3d()
              .position({-390.0f, 140.0f, -80.0f})
@@ -121,7 +99,7 @@ static Composition proof_25d_objects() {
             });
         });
 
-        // ── 7. Circle (lower-center-left) ─────────────────────────────────────
+        // ── 6. Circle (lower-center-left) ─────────────────────────────────────
         s.layer("circle_card", [](LayerBuilder& l) {
             l.enable_3d()
              .position({-130.0f, 140.0f, -260.0f})
@@ -133,7 +111,7 @@ static Composition proof_25d_objects() {
             });
         });
 
-        // ── 8. Fake box (lower-center-right) ──────────────────────────────────
+        // ── 7. Fake box (lower-center-right) ──────────────────────────────────
         s.layer("fake_box", [](LayerBuilder& l) {
             l.enable_3d()
              .position({130.0f, 150.0f, -140.0f})
@@ -146,37 +124,7 @@ static Composition proof_25d_objects() {
             });
         });
 
-        // ── 9. Line (diagonal, lower-right area) ──────────────────────────────
-        s.layer("line_card", [](LayerBuilder& l) {
-            l.enable_3d()
-             .position({350.0f, 130.0f, -80.0f})
-             .rotate({8.0f, -15.0f, 0.0f});
-            l.line("diag", {
-                .from      = {-80.0f, -60.0f, 0.0f},
-                .to        = { 80.0f,  60.0f, 0.0f},
-                .thickness = 3.0f,
-                .color     = Color{1.0f, 0.9f, 0.2f, 1.0f}
-            });
-        });
-
-        // ── 10. Fake extruded text (far-right) ────────────────────────────────
-        s.layer("fake_extruded", [](LayerBuilder& l) {
-            l.enable_3d()
-             .position({460.0f, 150.0f, -240.0f})
-             .rotate({14.0f, -20.0f, 0.0f});
-            l.fake_extruded_text("extruded", {
-                .text       = "AE",
-                .font_path  = "assets/fonts/Inter-Bold.ttf",
-                .pos        = {0.0f, 0.0f, 0.0f},
-                .font_size  = 100.0f,
-                .depth      = 40,
-                .front_color = Color{1.0f, 1.0f, 1.0f, 1.0f},
-                .side_color  = Color{0.1f, 0.35f, 1.0f, 1.0f},
-                .align      = TextAlign::Center
-            });
-        });
-
-        // ── 11. Foreground frame (very near, semi-transparent) ────────────────
+        // ── 8. Foreground frame (very near, semi-transparent) ────────────────
         s.layer("foreground_frame", [](LayerBuilder& l) {
             l.enable_3d()
              .position({0.0f, 0.0f, -520.0f});

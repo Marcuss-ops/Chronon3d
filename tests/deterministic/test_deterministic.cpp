@@ -75,7 +75,6 @@ TEST_CASE("Render Determinism & Telemetry Hash") {
         [](const FrameContext& ctx) {
             SceneBuilder builder(ctx.resource);
             builder.rect("bg", {.size={320, 180}, .color=Color::red(), .pos={0, 0, 0}});
-            builder.text("lbl", {.content="TraceTest", .style={.size=24.0f, .color=Color::white()}});
             return builder.build();
         }
     };

@@ -37,19 +37,8 @@ static Composition motion_depth_proof() {
             .centered = true,
         });
 
-        s.layer("header", [](LayerBuilder& l) {
-            l.position({0.0f, -280.0f, 0.0f});
-            l.text("depth_title", {
-                .content = "2.5D DEPTH PROOF",
-                .style = {
-                    .font_path = "assets/fonts/Inter-Bold.ttf",
-                    .size = 58.0f,
-                    .color = Color{0.96f, 0.96f, 0.98f, 1.0f},
-                    .align = TextAlign::Center,
-                    .tracking = 0.8f,
-                },
-            });
-        });
+        // text header "2.5D DEPTH PROOF" removed — text engine deprecated
+
 
         struct CardSpec {
             const char* id;

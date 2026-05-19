@@ -58,33 +58,10 @@ std::unique_ptr<Framebuffer> render_intro(Frame f) {
                                     .pos={0.0f,-171.0f,0.0f}});
             });
 
-            const float title_x = ease(-880.0f, 0.0f, 0.0f, 0.26f, t);
-            const float title_a = ease(0.0f, 1.0f, 0.0f, 0.18f, t);
-
-            s.layer("title", [title_x, title_a](LayerBuilder& l) {
-                l.position({title_x, -52.0f, 0.0f}).opacity(title_a);
-                l.fake_extruded_text("main", {
-                    .text        = "CHRONON 3D",
-                    .font_path   = "assets/fonts/Inter-Bold.ttf",
-                    .pos         = {0.0f, 0.0f, 0.0f},
-                    .font_size   = 88.0f,
-                    .depth       = 16,
-                    .front_color = Color{1.0f, 1.0f, 1.0f, 1.0f},
-                    .side_color  = Color{0.38f, 0.52f, 0.96f, 0.82f},
-                });
-            });
-
-            const float tag_y = ease(95.0f, 44.0f, 0.22f, 0.46f, t);
-            const float tag_a = ease( 0.0f,  1.0f, 0.22f, 0.40f, t);
-
-            s.layer("tagline", [tag_y, tag_a](LayerBuilder& l) {
-                l.position({0.0f, tag_y, 0.0f}).opacity(tag_a);
-                l.text("tl", {
-                    .content = "2.5D Motion Graphics Engine",
-                    .style = {.font_path="assets/fonts/Inter-Bold.ttf", .size=29.0f,
-                              .color={0.62f,0.76f,1.0f,1.0f}, .align=TextAlign::Center},
-                    .pos = {0.0f, 0.0f, 0.0f}
-                });
+            s.layer("decoration", [](LayerBuilder& l) {
+                l.position({0.0f, 0.0f, 0.0f}).opacity(1.0f);
+                l.rect("stripe", {.size={240.0f,2.0f}, .color={0.42f,0.64f,1.00f,0.6f},
+                                  .pos={0.0f, 0.0f, 0.0f}});
             });
 
             return s.build();
@@ -133,26 +110,11 @@ TEST_CASE("ChrononIntroCard: card center is brighter than dark corners at frame 
     CHECK(center > corner);
 }
 
-TEST_CASE("ChrononIntroCard: title area brightens as title flies in") {
-    if (!std::filesystem::exists("assets/fonts/Inter-Bold.ttf")) return;
-    // Frame 0: title at x=-880, very dim near center
-    // Frame 45: title partially arrived, center-left area brighter
-    auto fb0  = render_intro(0);
-    auto fb45 = render_intro(45);
-    REQUIRE(fb0  != nullptr);
-    REQUIRE(fb45 != nullptr);
-
-    // Center band at title height (y=120-160 in 360px canvas)
-    const float bright0  = region_brightness(*fb0,  150, 110, 490, 165);
-    const float bright45 = region_brightness(*fb45, 150, 110, 490, 165);
-    CHECK(bright45 > bright0);
-}
-
-TEST_CASE("ChrononIntroCard: center is bright by frame 90 (title fully in)") {
+TEST_CASE("ChrononIntroCard: center band is visible by frame 90") {
     if (!std::filesystem::exists("assets/fonts/Inter-Bold.ttf")) return;
     auto fb = render_intro(90);
     REQUIRE(fb != nullptr);
 
     const float center = region_brightness(*fb, 180, 100, 460, 220);
-    CHECK(center > 0.01f);  // not pure black — card and/or title visible
+    CHECK(center > 0.01f);  // not pure black — card and/or decoration visible
 }

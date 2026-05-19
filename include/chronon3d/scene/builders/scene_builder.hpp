@@ -155,9 +155,10 @@ namespace chronon3d {
         SceneBuilder &circle(std::string name, CircleParams p);
         SceneBuilder &line(std::string name, LineParams p);
         SceneBuilder &path(std::string name, PathParams p);
-        SceneBuilder &text(std::string name, TextParams p);
         SceneBuilder &image(std::string name, ImageParams p);
         SceneBuilder &shape(std::string_view id, std::string name, registry::ShapeParams params);
+
+        // text() removed — text engine deprecated
 
         struct SequenceSpec {
             Frame from{0};
