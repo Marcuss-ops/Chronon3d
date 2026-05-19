@@ -38,6 +38,9 @@ public:
     /// If a compatible framebuffer exists in the pool, it is reused.
     std::shared_ptr<Framebuffer> acquire(int width, int height);
 
+    /// Acquire a framebuffer that automatically releases itself back to the pool upon destruction.
+    std::shared_ptr<Framebuffer> acquire_pooled(int width, int height, std::shared_ptr<FramebufferPool> pool);
+
     /// Return a framebuffer to the pool for reuse.
     /// If the pool has reached max_bytes, the framebuffer is dropped.
     void release(std::shared_ptr<Framebuffer> fb);

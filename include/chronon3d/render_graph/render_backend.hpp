@@ -13,6 +13,10 @@ namespace chronon3d {
     struct RenderCounters;
 }
 
+namespace chronon3d::cache {
+    class FramebufferPool;
+}
+
 namespace chronon3d::graph {
 
 class RenderBackend {
@@ -26,6 +30,7 @@ public:
 
     virtual RenderTrace* trace() { return nullptr; }
     virtual RenderCounters* counters() { return nullptr; }
+    virtual std::shared_ptr<cache::FramebufferPool> framebuffer_pool() { return nullptr; }
 
     virtual void draw_node(
         Framebuffer& fb,

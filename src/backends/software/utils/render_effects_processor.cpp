@@ -1,6 +1,8 @@
 #include "render_effects_processor.hpp"
 #include "../primitive_renderer.hpp"
 #include <chronon3d/compositor/blend_mode.hpp>
+#include <chronon3d/core/trace.hpp>
+#include <chronon3d/cache/framebuffer_pool.hpp>
 #include <algorithm>
 #include <cmath>
 #include <immintrin.h>
@@ -206,13 +208,25 @@ inline bool apply_color_effects_avx2(Framebuffer& fb, const LayerEffect& effect)
 #endif
 }
 
+std::shared_ptr<Framebuffer> acquire_temp_framebuffer(int w, int h) {
+    if (profiling::g_current_framebuffer_pool) {
+        return profiling::g_current_framebuffer_pool->acquire_pooled(
+            w, h,
+            std::shared_ptr<cache::FramebufferPool>(profiling::g_current_framebuffer_pool, [](auto*){})
+        );
+    }
+    auto fb = std::make_shared<Framebuffer>(w, h);
+    fb->clear(Color::transparent());
+    return fb;
+}
+
 } // namespace
 
 void apply_blur(Framebuffer& fb, f32 radius) {
     const i32 r = std::max(1, static_cast<i32>(std::round(radius)));
     const i32 w = fb.width(), h = fb.height();
-    Framebuffer tmp(w, h);
-    tmp.clear(Color::transparent());
+    auto tmp_fb = acquire_temp_framebuffer(w, h);
+    Framebuffer& tmp = *tmp_fb;
 
     for (int pass = 0; pass < 3; ++pass) {
         for (i32 y = 0; y < h; ++y) {
@@ -285,35 +299,32 @@ void apply_fake_3d_wave(Framebuffer& fb, const Fake3DWaveParams& params, float t
     }
 
     const Framebuffer src = fb;
-    Framebuffer body(src.width(), src.height());
-    body.clear(Color::transparent());
-    deform_wave(src, body, params, time_seconds, false);
+    auto body_fb = acquire_temp_framebuffer(src.width(), src.height());
+    deform_wave(src, *body_fb, params, time_seconds, false);
 
     if (params.shadow_enabled && params.shadow_color.a > 0.0f) {
-        Framebuffer shadow(src.width(), src.height());
-        shadow.clear(Color::transparent());
-        deform_wave(src, shadow, params, time_seconds, true);
+        auto shadow_fb = acquire_temp_framebuffer(src.width(), src.height());
+        deform_wave(src, *shadow_fb, params, time_seconds, true);
         if (params.shadow_offset.x != 0.0f || params.shadow_offset.y != 0.0f) {
-            Framebuffer shifted(src.width(), src.height());
-            shifted.clear(Color::transparent());
+            auto shifted_fb = acquire_temp_framebuffer(src.width(), src.height());
             const i32 ox = static_cast<i32>(std::round(params.shadow_offset.x));
             const i32 oy = static_cast<i32>(std::round(params.shadow_offset.y));
-            for (i32 y = 0; y < shadow.height(); ++y) {
-                for (i32 x = 0; x < shadow.width(); ++x) {
-                    const Color c = shadow.get_pixel(x, y);
+            for (i32 y = 0; y < shadow_fb->height(); ++y) {
+                for (i32 x = 0; x < shadow_fb->width(); ++x) {
+                    const Color c = shadow_fb->get_pixel(x, y);
                     if (c.a <= 0.0f) continue;
-                    shifted.set_pixel(x + ox, y + oy, c);
+                    shifted_fb->set_pixel(x + ox, y + oy, c);
                 }
             }
-            shadow = std::move(shifted);
+            shadow_fb = std::move(shifted_fb);
         }
         if (params.shadow_blur > 0.0f) {
-            apply_blur(shadow, params.shadow_blur);
+            apply_blur(*shadow_fb, params.shadow_blur);
         }
-        apply_shadow_buffer(body, shadow);
+        apply_shadow_buffer(*body_fb, *shadow_fb);
     }
 
-    fb = std::move(body);
+    fb = std::move(*body_fb);
 }
 
 static void apply_one_param(Framebuffer& fb, const EffectParams& params, float time_seconds) {
@@ -334,8 +345,8 @@ static void apply_one_param(Framebuffer& fb, const EffectParams& params, float t
         } else if constexpr (std::is_same_v<T, GlowParams>) {
             // Full-frame glow: extract non-transparent pixels, blur, tint, composite
             const i32 w = fb.width(), h = fb.height();
-            Framebuffer alpha_map(w, h);
-            alpha_map.clear(Color::transparent());
+            auto alpha_map_fb = acquire_temp_framebuffer(w, h);
+            auto& alpha_map = *alpha_map_fb;
             for (i32 y = 0; y < h; ++y) {
                 for (i32 x = 0; x < w; ++x) {
                     const Color c = fb.get_pixel(x, y);
@@ -356,8 +367,8 @@ static void apply_one_param(Framebuffer& fb, const EffectParams& params, float t
         } else if constexpr (std::is_same_v<T, DropShadowParams>) {
             // Full-frame shadow: extract alpha, offset, blur, tint, composite behind
             const i32 w = fb.width(), h = fb.height();
-            Framebuffer shadow_map(w, h);
-            shadow_map.clear(Color::transparent());
+            auto shadow_map_fb = acquire_temp_framebuffer(w, h);
+            auto& shadow_map = *shadow_map_fb;
             const i32 ox = static_cast<i32>(std::round(p.offset.x));
             const i32 oy = static_cast<i32>(std::round(p.offset.y));
             for (i32 y = 0; y < h; ++y) {
@@ -375,8 +386,8 @@ static void apply_one_param(Framebuffer& fb, const EffectParams& params, float t
             if (p.radius > 0.0f) apply_blur(shadow_map, p.radius);
             
             // Compose shadow BEHIND: we need a temp buffer for this
-            Framebuffer result(w, h);
-            result.clear(Color::transparent());
+            auto result_fb = acquire_temp_framebuffer(w, h);
+            auto& result = *result_fb;
             for (i32 y = 0; y < h; ++y) {
                 for (i32 x = 0; x < w; ++x) {
                     const Color sc = shadow_map.get_pixel(x, y);
@@ -387,8 +398,8 @@ static void apply_one_param(Framebuffer& fb, const EffectParams& params, float t
             fb = std::move(result);
         } else if constexpr (std::is_same_v<T, BloomParams>) {
             const i32 w = fb.width(), h = fb.height();
-            Framebuffer bright(w, h);
-            bright.clear(Color::transparent());
+            auto bright_fb = acquire_temp_framebuffer(w, h);
+            auto& bright = *bright_fb;
             for (i32 y = 0; y < h; ++y) {
                 for (i32 x = 0; x < w; ++x) {
                     const Color c = fb.get_pixel(x, y);

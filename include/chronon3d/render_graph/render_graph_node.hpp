@@ -2,6 +2,7 @@
 
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/core/framebuffer.hpp>
+#include <chronon3d/cache/framebuffer_pool.hpp>
 #include <chronon3d/runtime/telemetry/render_telemetry_record.hpp>
 #include <chronon3d/scene/camera/camera.hpp>
 #include <chronon3d/scene/camera/camera_2_5d.hpp>
@@ -78,6 +79,21 @@ struct RenderGraphContext {
 
     RenderBackend* backend{nullptr};
     cache::NodeCache* node_cache{nullptr};
+    std::shared_ptr<cache::FramebufferPool> framebuffer_pool;
+
+    std::shared_ptr<Framebuffer> acquire_framebuffer(int w, int h) const {
+        if (framebuffer_pool) {
+            return framebuffer_pool->acquire_pooled(w, h, framebuffer_pool);
+        }
+        return std::make_shared<Framebuffer>(w, h);
+    }
+
+    std::shared_ptr<Framebuffer> acquire_framebuffer(const Framebuffer& other) const {
+        auto fb = acquire_framebuffer(other.width(), other.height());
+        *fb = other;
+        return fb;
+    }
+
     RenderProfiler* profiler{nullptr};
     const CompositionRegistry* registry{nullptr};
     video::VideoFrameDecoder* video_decoder{nullptr};

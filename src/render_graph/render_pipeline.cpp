@@ -60,6 +60,7 @@ RenderGraphContext make_graph_context(
         .camera = camera,
         .backend = &backend,
         .node_cache = &node_cache,
+        .framebuffer_pool = backend.framebuffer_pool(),
         .registry = registry,
         .video_decoder = video_decoder,
         .trace = backend.trace(),
@@ -293,7 +294,7 @@ std::unique_ptr<Framebuffer> render_composition_frame(
                 const float t = (static_cast<float>(s) / static_cast<float>(N)) * shutter;
                 Scene sub = comp.evaluate(frame, t);
                 if (s == 0) layer_count = static_cast<int>(sub.layers().size());
-                const Framebuffer sub_fb = *call_graph(sub, frame, t);
+                const Framebuffer& sub_fb = *call_graph(sub, frame, t);
                 for (int y = 0; y < rh; ++y) {
                     for (int x = 0; x < rw; ++x) {
                         const Color c = sub_fb.get_pixel(x, y);

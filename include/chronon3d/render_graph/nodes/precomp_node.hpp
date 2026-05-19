@@ -28,7 +28,7 @@ public:
 
     std::shared_ptr<Framebuffer> execute(RenderGraphContext& ctx, const std::vector<std::shared_ptr<Framebuffer>>&) override {
         if (!ctx.registry || !ctx.registry->contains(m_comp_name)) {
-            auto fb = std::make_shared<Framebuffer>(ctx.width, ctx.height);
+            auto fb = ctx.acquire_framebuffer(ctx.width, ctx.height);
             fb->clear(Color::transparent());
             return fb;
         }
@@ -37,7 +37,7 @@ public:
         Frame nested_frame = ctx.frame - m_start_frame;
         
         if (nested_frame < 0 || (m_duration > 0 && nested_frame >= m_duration)) {
-             auto fb = std::make_shared<Framebuffer>(ctx.width, ctx.height);
+             auto fb = ctx.acquire_framebuffer(ctx.width, ctx.height);
              fb->clear(Color::transparent());
              return fb;
         }
@@ -58,7 +58,7 @@ public:
         // 4. Execute nested graph
         GraphExecutor executor;
         if (!nested_graph.has_output()) {
-            auto fb = std::make_shared<Framebuffer>(ctx.width, ctx.height);
+            auto fb = ctx.acquire_framebuffer(ctx.width, ctx.height);
             fb->clear(Color::transparent());
             return fb;
         }
