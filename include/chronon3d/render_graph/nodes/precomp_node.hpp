@@ -33,7 +33,6 @@ public:
     std::shared_ptr<Framebuffer> execute(RenderGraphContext& ctx, const std::vector<std::shared_ptr<Framebuffer>>&, const std::vector<std::optional<raster::BBox>>&) override {
         if (!ctx.registry || !ctx.registry->contains(m_comp_name)) {
             auto fb = ctx.acquire_framebuffer(ctx.width, ctx.height);
-            fb->clear(Color::transparent());
             return fb;
         }
 
@@ -42,7 +41,6 @@ public:
         
         if (nested_frame < 0 || (m_duration > 0 && nested_frame >= m_duration)) {
              auto fb = ctx.acquire_framebuffer(ctx.width, ctx.height);
-             fb->clear(Color::transparent());
              return fb;
         }
 
@@ -63,7 +61,6 @@ public:
         GraphExecutor executor;
         if (!nested_graph.has_output()) {
             auto fb = ctx.acquire_framebuffer(ctx.width, ctx.height);
-            fb->clear(Color::transparent());
             return fb;
         }
 

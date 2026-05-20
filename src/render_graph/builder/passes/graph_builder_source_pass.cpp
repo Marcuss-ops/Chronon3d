@@ -20,13 +20,82 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
     }
 
     if (layer.kind == LayerKind::Normal) {
-        GraphNodeId layer_output = graph.add_node(std::make_unique<ClearNode>());
+        if (layer.nodes.empty()) {
+            return graph.add_node(std::make_unique<ClearNode>());
+        }
 
         const bool layer_needs_transform = item.projected
             || layer.kind == LayerKind::Precomp
             || layer.kind == LayerKind::Video
             || item.transform.any();
         const bool use_local = ctx.modular_coordinates && layer_needs_transform && !item.native_3d;
+
+        if (layer.nodes.size() == 1) {
+            const auto& node = layer.nodes[0];
+            GraphNodeId source;
+            if (node.shape.type == ShapeType::Text) {
+                cache::NodeCacheKey source_key{
+                    .scope = "layer.source:" + std::string(layer.name) + ":" + std::string(node.name),
+                    .frame = layer.cache_static ? Frame{0} : ctx.frame,
+                    .width = ctx.width,
+                    .height = ctx.height,
+                    .params_hash = hash_render_node(node),
+                    .source_hash = hash_bytes(node.name.data(), node.name.size())
+                };
+
+                const Mat4 text_matrix = use_local
+                    ? (layer.hierarchy_resolved ? node.world_transform.to_mat4() 
+                                                : (glm::inverse(item.world_matrix) * node.world_transform.to_mat4()))
+                    : node.world_transform.to_mat4();
+                const f32 layer_opacity = item.projected ? layer.transform.opacity : item.transform.opacity;
+                const f32 text_opacity = use_local
+                    ? (layer.hierarchy_resolved ? node.world_transform.opacity 
+                                                : (node.world_transform.opacity / std::max(layer_opacity, 0.0001f)))
+                    : node.world_transform.opacity;
+
+                source = graph.add_node(std::make_unique<SourceNode>(
+                    std::string(node.name), node, source_key,
+                    should_use_centered_rendering(item, ctx),
+                    item.projected,
+                    ctx.modular_coordinates ? std::optional<Mat4>(text_matrix) : std::nullopt,
+                    ctx.modular_coordinates ? std::optional<f32>(text_opacity) : std::nullopt,
+                    layer.cache_static
+                ));
+                graph.node(source).set_frame_dependent(!layer.cache_static);
+            } else {
+                cache::NodeCacheKey source_key{
+                    .scope = "layer.source:" + std::string(layer.name) + ":" + std::string(node.name),
+                    .frame = layer.cache_static ? Frame{0} : ctx.frame,
+                    .width = ctx.width,
+                    .height = ctx.height,
+                    .params_hash = hash_render_node(node),
+                    .source_hash = hash_string(node.name)
+                };
+
+                const Mat4 shape_matrix = use_local
+                    ? (layer.hierarchy_resolved ? node.world_transform.to_mat4() 
+                                                 : (glm::inverse(item.world_matrix) * node.world_transform.to_mat4()))
+                    : node.world_transform.to_mat4();
+                const f32 layer_opacity = item.projected ? layer.transform.opacity : item.transform.opacity;
+                const f32 shape_opacity = use_local
+                    ? (layer.hierarchy_resolved ? node.world_transform.opacity 
+                                                 : (node.world_transform.opacity / std::max(layer_opacity, 0.0001f)))
+                    : node.world_transform.opacity;
+
+                source = graph.add_node(std::make_unique<SourceNode>(
+                    std::string(node.name), node, source_key,
+                    should_use_centered_rendering(item, ctx),
+                    item.projected,
+                    ctx.modular_coordinates ? std::optional<Mat4>(shape_matrix) : std::nullopt,
+                    ctx.modular_coordinates ? std::optional<f32>(shape_opacity) : std::nullopt,
+                    layer.cache_static
+                ));
+                graph.node(source).set_frame_dependent(!layer.cache_static);
+            }
+            return source;
+        }
+
+        GraphNodeId layer_output = graph.add_node(std::make_unique<ClearNode>());
 
         for (const auto& node : layer.nodes) {
             GraphNodeId source;
@@ -72,12 +141,12 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
 
                 const Mat4 shape_matrix = use_local
                     ? (layer.hierarchy_resolved ? node.world_transform.to_mat4() 
-                                                : (glm::inverse(item.world_matrix) * node.world_transform.to_mat4()))
+                                                 : (glm::inverse(item.world_matrix) * node.world_transform.to_mat4()))
                     : node.world_transform.to_mat4();
                 const f32 layer_opacity = item.projected ? layer.transform.opacity : item.transform.opacity;
                 const f32 shape_opacity = use_local
                     ? (layer.hierarchy_resolved ? node.world_transform.opacity 
-                                                : (node.world_transform.opacity / std::max(layer_opacity, 0.0001f)))
+                                                 : (node.world_transform.opacity / std::max(layer_opacity, 0.0001f)))
                     : node.world_transform.opacity;
 
                 source = graph.add_node(std::make_unique<SourceNode>(

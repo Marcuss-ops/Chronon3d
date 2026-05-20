@@ -23,7 +23,6 @@ std::shared_ptr<Framebuffer> TransformNode::execute(
 
     if (inputs.empty() || !inputs[0]) {
         auto fb = ctx.acquire_framebuffer(ctx.width, ctx.height);
-        fb->clear(Color::transparent());
         return fb;
     }
 
