@@ -132,8 +132,9 @@ inline void dark_grid_background(SceneBuilder& s,
         l.image("grid_bg", {
             .path = grid_path.string(),
             .size = {W, H},
-            // Images are centered on their anchor, so place the grid at screen center.
-            .pos = {W * 0.5f, H * 0.5f, 0.0f},
+            // Full-frame background starts from the layer origin; the source node handles centering
+            // only when the modular graph path is active.
+            .pos = {0.0f, 0.0f, 0.0f},
             .opacity = 1.0f
         });
     });

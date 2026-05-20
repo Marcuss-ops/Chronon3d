@@ -55,7 +55,8 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                     should_use_centered_rendering(item, ctx),
                     item.projected,
                     ctx.modular_coordinates ? std::optional<Mat4>(text_matrix) : std::nullopt,
-                    ctx.modular_coordinates ? std::optional<f32>(text_opacity) : std::nullopt
+                    ctx.modular_coordinates ? std::optional<f32>(text_opacity) : std::nullopt,
+                    layer.cache_static
                 ));
                 graph.node(source).set_frame_dependent(!layer.cache_static);
             } else {
@@ -84,12 +85,16 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                     should_use_centered_rendering(item, ctx),
                     item.projected,
                     ctx.modular_coordinates ? std::optional<Mat4>(shape_matrix) : std::nullopt,
-                    ctx.modular_coordinates ? std::optional<f32>(shape_opacity) : std::nullopt
+                    ctx.modular_coordinates ? std::optional<f32>(shape_opacity) : std::nullopt,
+                    layer.cache_static
                 ));
                 graph.node(source).set_frame_dependent(!layer.cache_static);
             }
 
-            auto composite = graph.add_node(std::make_unique<CompositeNode>(chronon3d::BlendMode::Normal));
+            auto composite = graph.add_node(std::make_unique<CompositeNode>(
+                chronon3d::BlendMode::Normal,
+                layer.cache_static ? Frame{0} : Frame{-1}
+            ));
             graph.node(composite).set_frame_dependent(!layer.cache_static);
             graph.connect(layer_output, composite);
             graph.connect(source, composite);
