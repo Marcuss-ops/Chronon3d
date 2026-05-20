@@ -1,22 +1,28 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { outputPathToArtifactUrl } from '../api/telemetryApi.js';
 
 export default function PreviewPanel({ run }) {
   if (!run) return null;
 
-  const [mode, setMode] = useState('video'); // default to video playback
-
   const outputPath = run.output_path || '';
-  
+  const isVideoRun = outputPath.endsWith('.mp4') || outputPath.endsWith('.webm') || outputPath.endsWith('.mov');
+
+  const [mode, setMode] = useState(isVideoRun ? 'video' : 'frame');
+
+  // Automatically switch mode when run changes
+  useEffect(() => {
+    setMode(isVideoRun ? 'video' : 'frame');
+  }, [run.run_id, isVideoRun]);
+
   // Resolve image frame path (replace #### template with 0000 frame)
   const resolvedFramePath = outputPath.includes('####')
     ? outputPath.replace('####', '0000')
     : outputPath;
 
-  // Resolve video path (predict lil_dirk.mp4 location if it is a PNG template)
+  // Resolve video path (predict composition_id.mp4 location if it is a PNG template)
   let resolvedVideoPath = outputPath;
   if (outputPath.includes('####') || outputPath.endsWith('.png')) {
-    resolvedVideoPath = 'output/lil_dirk.mp4';
+    resolvedVideoPath = `output/${run.composition_id}.mp4`;
   }
 
   const frameUrl = outputPathToArtifactUrl(resolvedFramePath);
@@ -49,16 +55,23 @@ export default function PreviewPanel({ run }) {
 
       <div className="preview-media-container" style={{ marginTop: '14px' }}>
         {mode === 'video' ? (
-          <video 
-            className="render-preview-media animate-fade-in" 
-            controls 
-            playsInline 
-            autoPlay
-            loop
-            muted
-            src={videoUrl}
-            style={{ marginTop: 0 }}
-          />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <video 
+              className="render-preview-media animate-fade-in" 
+              controls 
+              playsInline 
+              autoPlay
+              loop
+              muted
+              src={videoUrl}
+              style={{ marginTop: 0 }}
+            />
+            {!isVideoRun && (
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontStyle: 'italic', display: 'block', textAlign: 'center', marginTop: '4px' }}>
+                ℹ️ Questo run ha generato singoli frame (PNG). Stai visualizzando una predizione del video della composizione ({resolvedVideoPath}).
+              </span>
+            )}
+          </div>
         ) : (
           <img 
             className="render-preview-media animate-fade-in" 

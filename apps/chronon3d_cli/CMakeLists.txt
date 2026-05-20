@@ -38,7 +38,7 @@ target_link_libraries(chronon3d_cli
         chronon3d_backend_image
         spdlog::spdlog
         fmt::fmt
-        sqlite3
+        unofficial::sqlite3::sqlite3
 )
 
 target_include_directories(chronon3d_cli PRIVATE ${CMAKE_SOURCE_DIR})

@@ -40,6 +40,15 @@ void apply_state(LayerBuilder& l, const MotionState& st, bool enable_3d) {
     }
 }
 
+Vec3 face_camera_rotation(const SceneBuilder& s, bool face_camera) {
+    if (!face_camera) {
+        return {0.0f, 0.0f, 0.0f};
+    }
+
+    // Cancel the current camera rotation so text and cards remain front-facing.
+    return -s.camera_2_5d().rotation_euler();
+}
+
 void draw_content(LayerBuilder& l, const MotionObject& obj, const std::string& layer_name) {
     switch (obj.type) {
     case MotionObjectType::Text:
@@ -130,8 +139,13 @@ void draw_motion_object_impl(
     const std::string layer_name = prefix_name(prefix, obj.id);
 
 
-    s.layer(layer_name, [obj, st, layer_name, enable_3d](LayerBuilder& l) {
+    const Vec3 face_cam_rot = face_camera_rotation(s, obj.motion3d.face_camera);
+
+    s.layer(layer_name, [obj, st, layer_name, enable_3d, face_cam_rot](LayerBuilder& l) {
         apply_state(l, st, enable_3d);
+        if (obj.motion3d.face_camera) {
+            l.rotate(st.rotation + face_cam_rot);
+        }
         l.opacity(st.opacity * obj.color_value.a);
         draw_content(l, obj, layer_name);
         if (obj.glow_enabled) {
