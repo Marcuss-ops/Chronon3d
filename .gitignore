@@ -68,6 +68,7 @@ output/new_features/
 
 # Local tool metadata and scratch
 .antigravitycli/
+tools/antigravity/
 scratch/
 update
 self-update
