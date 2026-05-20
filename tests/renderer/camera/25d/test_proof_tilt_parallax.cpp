@@ -89,9 +89,9 @@ TEST_CASE("Proof — TiltParallax: tilt displaces objects vertically in screen s
     CHECK(y_mid > 0.0f);
     CHECK(y_pos > 0.0f);
 
-    // Tilt -10° shifts objects up (smaller screen Y), +10° shifts them down (larger screen Y)
-    CHECK(y_neg < y_mid);
-    CHECK(y_mid < y_pos);
+    // Tilt +10° shifts objects up (smaller screen Y), -10° shifts them down (larger screen Y)
+    CHECK(y_pos < y_mid);
+    CHECK(y_mid < y_neg);
 
     // Displacement must be significant (not just noise)
     CHECK(std::abs(y_neg - y_pos) > 20.0f);

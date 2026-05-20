@@ -285,7 +285,11 @@ std::unique_ptr<Framebuffer> render_composition_frame(
         const auto t_scene0 = std::chrono::steady_clock::now();
         {
             auto shared = call_graph(scene, frame, 0.0f);
-            render_fb = std::make_unique<Framebuffer>(std::move(*shared));
+            if (shared.use_count() == 1) {
+                render_fb = std::make_unique<Framebuffer>(std::move(*shared));
+            } else {
+                render_fb = std::make_unique<Framebuffer>(*shared);
+            }
         }
         scene_ms = std::chrono::duration<double, std::milli>(
             std::chrono::steady_clock::now() - t_scene0).count();

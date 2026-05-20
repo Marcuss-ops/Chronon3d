@@ -144,6 +144,22 @@ template <typename T>
         seed = hash_combine(seed, hash_string(e.descriptor.id));
         if (auto* params = std::any_cast<EffectParams>(&e.params)) {
             seed = hash_combine(seed, hash_effect_params(*params));
+        } else if (auto* p = std::any_cast<BlurParams>(&e.params)) {
+            seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
+        } else if (auto* p = std::any_cast<TintParams>(&e.params)) {
+            seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
+        } else if (auto* p = std::any_cast<BrightnessParams>(&e.params)) {
+            seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
+        } else if (auto* p = std::any_cast<ContrastParams>(&e.params)) {
+            seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
+        } else if (auto* p = std::any_cast<DropShadowParams>(&e.params)) {
+            seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
+        } else if (auto* p = std::any_cast<GlowParams>(&e.params)) {
+            seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
+        } else if (auto* p = std::any_cast<BloomParams>(&e.params)) {
+            seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
+        } else if (auto* p = std::any_cast<Fake3DWaveParams>(&e.params)) {
+            seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
         }
     }
     return seed;
