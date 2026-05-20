@@ -89,3 +89,45 @@ Ecco le miniere d'oro strutturate per quello che serve a te:
 ### Il consiglio per fare Reverse-Engineering
 
 Non spaventarti per la mole di codice. Se scarichi la repo di **PBRT-v4** o di **Embree**, non guardare tutto il progetto. Apri la barra di ricerca del tuo editor (VS Code o Visual Studio) e cerca parole chiave come: `alignas(64)` (allineamento della cache), `ParallelFor` (il loro schedulatore di thread), o `Allocator`. Copiare il modo in cui gestiscono i puntatori ti darà una spinta enorme.
+
+L'architettura di Chronon3d, essendo headless (senza vincoli legati al refresh rate di un monitor), deterministica e già strutturata in un `render_graph` (con un `framebuffer_pool` e file come `arena.hpp`), si presta a tecniche di ottimizzazione di livello engine AAA.
+
+Visto che stai già esplorando il pre-warming, se vuoi spingerti verso ottimizzazioni "estreme" per spremere ogni singolo ciclo di clock della CPU, ecco i pattern più aggressivi che puoi implementare.
+
+### 1. Zero-Allocation per-Frame (Il pattern "Bump/Arena")
+
+Nel ciclo di vita di un frame, allocare e deallocare memoria (`new`, `std::make_shared`, o `std::string` dinamiche) è un suicidio prestazionale.
+Dato che il tuo motore genera un Grafo di Rendering diverso per ogni frame, la soluzione estrema è usare l'allocazione lineare:
+
+* All'inizio del rendering del frame, assegni un blocco di memoria contiguo pre-allocato (usando la logica del tuo `arena.hpp`).
+* Tutti i nodi, i parametri e le stringhe temporanee di quel frame vengono costruite su questa arena spostando semplicemente un puntatore in avanti (costo: zero).
+* Alla fine del frame, invece di chiamare i distruttori o scansionare alberi di memoria, riporti il puntatore dell'arena a zero in un singolo colpo di clock.
+
+### 2. Hashing e Caching Aggressivo (Memoization a livello Nodo)
+
+Se un testo ("THIS CHANGES EVERYTHING") o uno sfondo sfocato non cambia dal frame 10 al frame 50, ricalcolarlo è uno spreco.
+
+* **Hash del Nodo:** Usa il sistema di hashing che hai in `render_graph_hashing.hpp`. Ogni nodo (`TransformNode`, `TextNode`, `EffectNode`) calcola un hash dei suoi input (testo, colore, scala, tempo).
+* Se l'hash è identico a quello del frame precedente, il nodo restituisce immediatamente il framebuffer della cache dal `framebuffer_pool`, saltando completamente rasterizzazione ed effetti.
+
+### 3. Parallelismo Multi-Frame (Il vantaggio del "Headless")
+
+I motori di gioco tradizionali devono renderizzare il frame $N$ prima del frame $N+1$. Chronon3d no. Essendo un renderizzatore video offline e deterministico, l'approccio più violento per scalare le performance è il parallelismo orizzontale estremo.
+
+* Invece di usare il multithreading per renderizzare *un singolo frame più velocemente*, istanzia un pool di thread e fai renderizzare **frame completamente diversi in parallelo**.
+* Se hai 16 core, calcoli simultaneamente i frame da 1 a 16. L'unico blocco (mutex) sarà il salvataggio dei frame o l'invio al demultiplexer di FFmpeg (`ffmpeg_pipe_encoder.cpp`).
+
+### 4. Culling Aggressivo e Frame Graph Pruning
+
+Il tempo di rendering più veloce è quello per qualcosa che non disegni.
+
+* **Occlusion Culling:** Se un layer solido (es. uno sfondo opaco) copre interamente i layer sottostanti, il Render Graph Parser deve eliminare (prunare) i rami coperti prima ancora di inviarli al renderer.
+* **Zero-Opacity Pruning:** Se uno stato di animazione (Motion State) risolve l'opacità di un layer o di una frase a `0.0f` per un determinato frame, l'intero ramo di quel layer nel Render Graph deve essere scartato durante la fase di build.
+
+### 5. Compilazione JIT e SIMD per gli Effetti
+
+Per il rendering vettoriale vedo che usi **Blend2D** (`blend2d_bridge.hpp`), che è già un mostro di velocità perché usa un compilatore JIT (Just-In-Time) per generare assembly ottimizzato in tempo reale. Il vero collo di bottiglia saranno i tuoi effetti personalizzati (`software_effect_runner.cpp` come Blur, Glow, Color Grading), che operano pixel per pixel.
+
+* **La via estrema:** Riscrivere i passaggi pesanti (es. filtri kernel come il blur) sfruttando intrinseci SIMD (AVX2 / AVX-512 in C++). In alternativa, integrare librerie come **Halide** (uno standard nel processing delle immagini) o **ISPC** (Intel Implicit SPMD Program Compiler), che generano codice vettorizzato perfetto per CPU, permettendoti di processare 8 o 16 pixel per ciclo di clock invece di uno.
+
+---

@@ -33,6 +33,7 @@
 #include <chronon3d/presets/motion_resolver.hpp>
 #include <chronon3d/presets/motion_renderer.hpp>
 #include <chronon3d/presets/motion_presets.hpp>
+#include <chronon3d/presets/phrase/phrase_presets.hpp>
 
 namespace chronon3d {
     // Umbrella header for Chronon3d
