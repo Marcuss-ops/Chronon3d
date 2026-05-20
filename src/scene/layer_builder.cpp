@@ -210,6 +210,10 @@ LayerBuilder& LayerBuilder::image(std::string name, ImageParams p) {
     return shape(registry::shape_ids::Image, std::move(name), std::move(p));
 }
 
+LayerBuilder& LayerBuilder::text(std::string name, TextParams p) {
+    return shape(registry::shape_ids::Text, std::move(name), std::move(p));
+}
+
 LayerBuilder& LayerBuilder::shape(std::string_view id, std::string name, registry::ShapeParams params) {
     m_layer.nodes.push_back(registry::ShapeRegistry::instance().create_node(
         id,
