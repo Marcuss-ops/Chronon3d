@@ -30,9 +30,9 @@ std::unique_ptr<Framebuffer> render_with_effects(
 
         s.layer("test_layer", [=](LayerBuilder& l) {
             effect_fn(l);
-            l.rect("white_rect", {
+            l.rect("gray_rect", {
                 .size = {40, 40},
-                .color = Color{1, 1, 1, 1},
+                .color = Color{0.5, 0.5, 0.5, 1},
                 .pos = {0, 0, 0}
             });
         });

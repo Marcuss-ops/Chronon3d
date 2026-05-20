@@ -92,7 +92,9 @@ struct RenderGraphContext {
         if (framebuffer_pool) {
             return framebuffer_pool->acquire_pooled(w, h, framebuffer_pool);
         }
-        return std::make_shared<Framebuffer>(w, h);
+        auto fb = std::make_shared<Framebuffer>(w, h);
+        fb->clear(Color::transparent());
+        return fb;
     }
 
     std::shared_ptr<Framebuffer> acquire_framebuffer(const Framebuffer& other) const {
