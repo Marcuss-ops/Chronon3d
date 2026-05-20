@@ -35,6 +35,9 @@ enum class MotionPreset {
     ParallaxDrift,
     Orbit2_5D,
     ShakeImpact,
+    TypewriterReveal,
+    KineticBounce,
+    GlitchIn,
 };
 
 struct MotionTime {

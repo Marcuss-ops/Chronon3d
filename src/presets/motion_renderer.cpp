@@ -4,12 +4,23 @@
 #include <chronon3d/math/camera_pose.hpp>
 
 #include <algorithm>
+#include <cmath>
 #include <utility>
 #include <glm/gtc/matrix_inverse.hpp>
 
 namespace chronon3d::presets::motion {
 
 namespace {
+
+std::string apply_text_reveal(const std::string& text, f32 reveal) {
+    if (text.empty()) {
+        return {};
+    }
+
+    const f32 clamped = std::clamp(reveal, 0.0f, 1.0f);
+    const size_t count = static_cast<size_t>(std::ceil(static_cast<f32>(text.size()) * clamped));
+    return text.substr(0, std::min(count, text.size()));
+}
 
 MotionState compose_state(const MotionState& parent, const MotionState& child) {
     MotionState out = child;
@@ -62,11 +73,11 @@ Vec3 face_camera_rotation(const SceneBuilder& s, const MotionState& st, bool fac
     return euler;
 }
 
-void draw_content(LayerBuilder& l, const MotionObject& obj, const std::string& layer_name) {
+void draw_content(LayerBuilder& l, const MotionObject& obj, const MotionState& st, const std::string& layer_name) {
     switch (obj.type) {
     case MotionObjectType::Text:
         l.shape(chronon3d::registry::shape_ids::Text, layer_name + "_text", chronon3d::TextParams{
-            .text = obj.text_value,
+            .text = apply_text_reveal(obj.text_value, st.text_reveal),
             .size = obj.size_value,
             .pos = {0.0f, 0.0f, 0.0f},
             .font_path = obj.text_style.font_path,
@@ -160,7 +171,7 @@ void draw_motion_object_impl(
             l.rotate(st.rotation + face_cam_rot);
         }
         l.opacity(st.opacity * obj.color_value.a);
-        draw_content(l, obj, layer_name);
+        draw_content(l, obj, st, layer_name);
         if (obj.glow_enabled) {
             l.with_glow(Glow{
                 .enabled = true,

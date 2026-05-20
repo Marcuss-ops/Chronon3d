@@ -5,6 +5,7 @@
 namespace chronon3d::cli {
 
 void register_telemetry_commands(CLI::App& app, CliContext& ctx) {
+#if defined(CHRONON3D_ENABLE_SQLITE_TELEMETRY)
     auto args = std::make_shared<TelemetryArgs>();
     auto* cmd = app.add_subcommand("telemetry", "Generate a markdown report from the local telemetry database");
     
@@ -14,6 +15,10 @@ void register_telemetry_commands(CLI::App& app, CliContext& ctx) {
     cmd->callback([args, &ctx]() {
         ctx.exit_code = command_telemetry(*args);
     });
+#else
+    (void)app;
+    (void)ctx;
+#endif
 }
 
 } // namespace chronon3d::cli

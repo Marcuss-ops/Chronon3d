@@ -10,6 +10,7 @@ struct MotionState {
     Vec3 rotation{0.0f, 0.0f, 0.0f};
     f32 opacity{1.0f};
     f32 blur{0.0f};
+    f32 text_reveal{1.0f};
     bool visible{true};
 };
 

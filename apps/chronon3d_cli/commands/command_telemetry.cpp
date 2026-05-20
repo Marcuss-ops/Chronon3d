@@ -1,4 +1,6 @@
 #include "../commands.hpp"
+
+#if defined(CHRONON3D_ENABLE_SQLITE_TELEMETRY)
 #include <chronon3d/core/structured_telemetry.hpp>
 #include <sqlite3.h>
 #include <spdlog/spdlog.h>
@@ -6,9 +8,11 @@
 #include <fstream>
 #include <vector>
 #include <map>
+#endif
 
 namespace chronon3d::cli {
 
+#if defined(CHRONON3D_ENABLE_SQLITE_TELEMETRY)
 int command_telemetry(const TelemetryArgs& args) {
     std::string db_path = "output/telemetry.db";
     sqlite3* db = nullptr;
@@ -112,5 +116,11 @@ int command_telemetry(const TelemetryArgs& args) {
     sqlite3_close(db);
     return 0;
 }
+#else
+int command_telemetry(const TelemetryArgs& args) {
+    (void)args;
+    return 0;
+}
+#endif
 
 } // namespace chronon3d::cli
