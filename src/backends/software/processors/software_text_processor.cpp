@@ -123,9 +123,15 @@ public:
         }
 
         // 3. Text
-        // Use the transformed compositor to respect perspective/tilt
-        Mat4 text_model = model * glm::translate(Mat4(1.0f), Vec3(raster->x_offset, raster->y_offset, 0.0f));
-        blend2d_bridge::composite_bl_image_transformed(fb, raster->image, text_model, opacity, BlendMode::Normal);
+        if (state.projection.ready) {
+            const int x = static_cast<int>(std::lround(model[3][0] + raster->x_offset));
+            const int y = static_cast<int>(std::lround(model[3][1] + raster->y_offset));
+            blend2d_bridge::composite_bl_image(fb, raster->image, x, y, opacity, BlendMode::Normal);
+        } else {
+            // Use the transformed compositor when no projection pass is active.
+            Mat4 text_model = model * glm::translate(Mat4(1.0f), Vec3(raster->x_offset, raster->y_offset, 0.0f));
+            blend2d_bridge::composite_bl_image_transformed(fb, raster->image, text_model, opacity, BlendMode::Normal);
+        }
     }
 
     raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 spread) override {
@@ -193,9 +199,15 @@ private:
 
         const f32 shadow_opacity = shadow.opacity * shadow.color.a;
 
-        // Use transformed compositor to follow perspective
-        Mat4 shadow_model = model * glm::translate(Mat4(1.0f), Vec3(raster.x_offset + shadow.offset.x, raster.y_offset + shadow.offset.y, 0.0f));
-        blend2d_bridge::composite_framebuffer_transformed(fb, *shadow_cache, shadow_model, opacity * shadow_opacity, BlendMode::Normal);
+        if (state.projection.ready) {
+            const int x = static_cast<int>(std::lround(model[3][0] + raster.x_offset + shadow.offset.x));
+            const int y = static_cast<int>(std::lround(model[3][1] + raster.y_offset + shadow.offset.y));
+            blend2d_bridge::composite_framebuffer(fb, *shadow_cache, x, y, opacity * shadow_opacity, BlendMode::Normal);
+        } else {
+            // Use transformed compositor to follow perspective
+            Mat4 shadow_model = model * glm::translate(Mat4(1.0f), Vec3(raster.x_offset + shadow.offset.x, raster.y_offset + shadow.offset.y, 0.0f));
+            blend2d_bridge::composite_framebuffer_transformed(fb, *shadow_cache, shadow_model, opacity * shadow_opacity, BlendMode::Normal);
+        }
     }
 
     void draw_text_glow(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNode& node, const RenderState& state, const TextRasterization& raster) {
@@ -247,10 +259,16 @@ private:
 
         const f32 glow_intensity_opacity = node.glow.intensity * node.glow.color.a;
 
-        // Use transformed compositor to follow perspective
-        Mat4 glow_model = model * glm::translate(Mat4(1.0f), Vec3(raster.x_offset, raster.y_offset, 0.0f));
-        
-        blend2d_bridge::composite_framebuffer_transformed(fb, *glow_cache, glow_model, opacity * glow_intensity_opacity, BlendMode::Add);
+        if (state.projection.ready) {
+            const int x = static_cast<int>(std::lround(model[3][0] + raster.x_offset));
+            const int y = static_cast<int>(std::lround(model[3][1] + raster.y_offset));
+            blend2d_bridge::composite_framebuffer(fb, *glow_cache, x, y, opacity * glow_intensity_opacity, BlendMode::Add);
+        } else {
+            // Use transformed compositor to follow perspective
+            Mat4 glow_model = model * glm::translate(Mat4(1.0f), Vec3(raster.x_offset, raster.y_offset, 0.0f));
+            
+            blend2d_bridge::composite_framebuffer_transformed(fb, *glow_cache, glow_model, opacity * glow_intensity_opacity, BlendMode::Add);
+        }
     }
 };
 

@@ -1,8 +1,13 @@
 import { API_BASE } from '../data/constants.js';
 
-export const outputPathToArtifactUrl = (outputPath) => {
+export const outputPathToArtifactUrl = (outputPath, cacheBuster = '') => {
   if (!outputPath) return '';
-  return `${API_BASE}/artifact?path=${encodeURIComponent(outputPath)}`;
+  const url = new URL(`${API_BASE}/artifact`);
+  url.searchParams.set('path', outputPath);
+  if (cacheBuster) {
+    url.searchParams.set('v', String(cacheBuster));
+  }
+  return url.toString();
 };
 
 export const isVideoOutput = (outputPath) => /\.(mp4|webm|mov)$/i.test(outputPath || '');
