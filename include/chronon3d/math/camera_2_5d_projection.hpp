@@ -236,7 +236,7 @@ inline ProjectedLayer2_5D project_layer_2_5d(
     if (use_view_matrix) {
         Mat4 proj = Mat4(0.0f);
         // All paths now use the same convention.
-        proj[0][0] = focal;
+        proj[0][0] = -focal;
         proj[1][1] = -focal;
         proj[2][2] = 1.0f;
         // w = +z for all conventions now
