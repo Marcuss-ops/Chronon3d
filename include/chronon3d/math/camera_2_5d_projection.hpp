@@ -8,6 +8,8 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <algorithm>
 #include <cmath>
+#include <optional>
+#include <spdlog/spdlog.h>
 
 namespace chronon3d {
 
@@ -67,8 +69,40 @@ inline bool project_world_point_2_5d(
     }
 
     screen.x = cam_pos.x * focal / depth;
-    screen.y = -cam_pos.y * focal / depth;
+    screen.y = cam_pos.y * focal / depth;
     return true;
+}
+
+inline f32 quad_signed_area(const Vec2& p0, const Vec2& p1, const Vec2& p2, const Vec2& p3) {
+    const f32 twice_area =
+        p0.x * p1.y - p1.x * p0.y +
+        p1.x * p2.y - p2.x * p1.y +
+        p2.x * p3.y - p3.x * p2.y +
+        p3.x * p0.y - p0.x * p3.y;
+    return twice_area * 0.5f;
+}
+
+inline std::optional<f32> projected_quad_signed_area(
+    const Mat4& matrix,
+    f32 width,
+    f32 height
+) {
+    const Vec4 corners[4] = {
+        matrix * Vec4(0.0f, 0.0f, 0.0f, 1.0f),
+        matrix * Vec4(width, 0.0f, 0.0f, 1.0f),
+        matrix * Vec4(width, height, 0.0f, 1.0f),
+        matrix * Vec4(0.0f, height, 0.0f, 1.0f)
+    };
+
+    Vec2 projected[4];
+    for (int i = 0; i < 4; ++i) {
+        if (std::abs(corners[i].w) < 1e-6f) {
+            return std::nullopt;
+        }
+        projected[i] = {corners[i].x / corners[i].w, corners[i].y / corners[i].w};
+    }
+
+    return quad_signed_area(projected[0], projected[1], projected[2], projected[3]);
 }
 
 inline bool solve_homography_4pt(const Vec2 src[4], const Vec2 dst[4], glm::mat3& out) {
@@ -221,7 +255,7 @@ inline ProjectedLayer2_5D project_layer_2_5d(
     // Centroid projection: translate to screen-space (origin = top-left).
     // viewport center is added so shapes using model[3] as screen coords work.
     out.transform.position.x = cam_pos.x * perspective_scale;
-    out.transform.position.y = -cam_pos.y * perspective_scale;
+    out.transform.position.y = cam_pos.y * perspective_scale;
     out.transform.position.z = 0.0f;
 
     out.transform.scale.x *= perspective_scale;
@@ -235,14 +269,23 @@ inline ProjectedLayer2_5D project_layer_2_5d(
     // For passive path: use the simple TRS transform (no perspective skew needed).
     if (use_view_matrix) {
         Mat4 proj = Mat4(0.0f);
-        // All paths now use the same convention: +X right, +Y up in world space.
+        // Both X and Y axes project with positive signs, matching screen-space LHS.
         proj[0][0] = focal;
-        proj[1][1] = -focal;
+        proj[1][1] = focal;
         proj[2][2] = 1.0f;
         // w = +z for all conventions now.
         proj[2][3] = 1.0f;
         proj[3][3] = 0.0001f;
         out.projection_matrix = proj * view * layer_matrix;
+
+        // Diagnostic Winding and Homography Determinant Check
+        glm::mat3 H_diag;
+        H_diag[0][0] = out.projection_matrix[0][0]; H_diag[0][1] = out.projection_matrix[0][1]; H_diag[0][2] = out.projection_matrix[0][3];
+        H_diag[1][0] = out.projection_matrix[1][0]; H_diag[1][1] = out.projection_matrix[1][1]; H_diag[1][2] = out.projection_matrix[1][3];
+        H_diag[2][0] = out.projection_matrix[3][0]; H_diag[2][1] = out.projection_matrix[3][1]; H_diag[2][2] = out.projection_matrix[3][3];
+        f32 det = glm::determinant(H_diag);
+        spdlog::info("[diagnostics-3d] Compiled projection matrix. Depth={:.2f}, Det={:.4f} ({})",
+                     depth, det, (det >= 0.0f ? "OK" : "FLIPPED/MIRRORED"));
     } else {
         out.projection_matrix = out.transform.to_mat4();
     }

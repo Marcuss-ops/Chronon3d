@@ -26,6 +26,7 @@ struct RenderCounters {
     std::atomic<uint64_t> composite_pixels{0};
     std::atomic<uint64_t> transform_calls{0};
     std::atomic<uint64_t> transform_pixels{0};
+    std::atomic<uint64_t> projected_winding_flips{0};
     std::atomic<uint64_t> effect_stack_calls{0};
     std::atomic<uint64_t> effect_pixels{0};
     std::atomic<uint64_t> layer_culling_tests{0};
@@ -59,6 +60,7 @@ struct RenderCounters {
         composite_pixels.store(other.composite_pixels.load(std::memory_order_relaxed), std::memory_order_relaxed);
         transform_calls.store(other.transform_calls.load(std::memory_order_relaxed), std::memory_order_relaxed);
         transform_pixels.store(other.transform_pixels.load(std::memory_order_relaxed), std::memory_order_relaxed);
+        projected_winding_flips.store(other.projected_winding_flips.load(std::memory_order_relaxed), std::memory_order_relaxed);
         effect_stack_calls.store(other.effect_stack_calls.load(std::memory_order_relaxed), std::memory_order_relaxed);
         effect_pixels.store(other.effect_pixels.load(std::memory_order_relaxed), std::memory_order_relaxed);
         layer_culling_tests.store(other.layer_culling_tests.load(std::memory_order_relaxed), std::memory_order_relaxed);
@@ -92,6 +94,7 @@ struct RenderCounters {
             composite_pixels.store(other.composite_pixels.load(std::memory_order_relaxed), std::memory_order_relaxed);
             transform_calls.store(other.transform_calls.load(std::memory_order_relaxed), std::memory_order_relaxed);
             transform_pixels.store(other.transform_pixels.load(std::memory_order_relaxed), std::memory_order_relaxed);
+            projected_winding_flips.store(other.projected_winding_flips.load(std::memory_order_relaxed), std::memory_order_relaxed);
             effect_stack_calls.store(other.effect_stack_calls.load(std::memory_order_relaxed), std::memory_order_relaxed);
             effect_pixels.store(other.effect_pixels.load(std::memory_order_relaxed), std::memory_order_relaxed);
             layer_culling_tests.store(other.layer_culling_tests.load(std::memory_order_relaxed), std::memory_order_relaxed);
@@ -126,6 +129,7 @@ struct RenderCounters {
         composite_pixels.store(other.composite_pixels.load(std::memory_order_relaxed), std::memory_order_relaxed);
         transform_calls.store(other.transform_calls.load(std::memory_order_relaxed), std::memory_order_relaxed);
         transform_pixels.store(other.transform_pixels.load(std::memory_order_relaxed), std::memory_order_relaxed);
+        projected_winding_flips.store(other.projected_winding_flips.load(std::memory_order_relaxed), std::memory_order_relaxed);
         effect_stack_calls.store(other.effect_stack_calls.load(std::memory_order_relaxed), std::memory_order_relaxed);
         effect_pixels.store(other.effect_pixels.load(std::memory_order_relaxed), std::memory_order_relaxed);
         layer_culling_tests.store(other.layer_culling_tests.load(std::memory_order_relaxed), std::memory_order_relaxed);
@@ -159,6 +163,7 @@ struct RenderCounters {
             composite_pixels.store(other.composite_pixels.load(std::memory_order_relaxed), std::memory_order_relaxed);
             transform_calls.store(other.transform_calls.load(std::memory_order_relaxed), std::memory_order_relaxed);
             transform_pixels.store(other.transform_pixels.load(std::memory_order_relaxed), std::memory_order_relaxed);
+            projected_winding_flips.store(other.projected_winding_flips.load(std::memory_order_relaxed), std::memory_order_relaxed);
             effect_stack_calls.store(other.effect_stack_calls.load(std::memory_order_relaxed), std::memory_order_relaxed);
             effect_pixels.store(other.effect_pixels.load(std::memory_order_relaxed), std::memory_order_relaxed);
             layer_culling_tests.store(other.layer_culling_tests.load(std::memory_order_relaxed), std::memory_order_relaxed);
@@ -193,6 +198,7 @@ struct RenderCounters {
         composite_pixels.store(0, std::memory_order_relaxed);
         transform_calls.store(0, std::memory_order_relaxed);
         transform_pixels.store(0, std::memory_order_relaxed);
+        projected_winding_flips.store(0, std::memory_order_relaxed);
         effect_stack_calls.store(0, std::memory_order_relaxed);
         effect_pixels.store(0, std::memory_order_relaxed);
         layer_culling_tests.store(0, std::memory_order_relaxed);

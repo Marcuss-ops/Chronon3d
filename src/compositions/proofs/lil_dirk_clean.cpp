@@ -1,4 +1,5 @@
 #include <chronon3d/chronon3d.hpp>
+#include <chronon3d/compositions/proofs/lil_dirk_clean.hpp>
 #include <chronon3d/core/composition_registration.hpp>
 #include <chronon3d/scene/camera/camera_motion_presets.hpp>
 
@@ -7,7 +8,7 @@
 
 using namespace chronon3d;
 
-namespace {
+namespace chronon3d::compositions {
 
 void build_centered_grid(LayerBuilder& l, int width, int height) {
     const float half_w = static_cast<float>(width) * 0.5f;
@@ -39,7 +40,8 @@ void build_centered_grid(LayerBuilder& l, int width, int height) {
     }
 }
 
-void build_lil_dirk_stage(SceneBuilder& s, const FrameContext& ctx) {
+Scene build_lil_dirk_clean_scene(const FrameContext& ctx) {
+    SceneBuilder s(ctx);
     const int width = ctx.width;
     const int height = ctx.height;
     const float t = (ctx.duration > 1)
@@ -59,7 +61,6 @@ void build_lil_dirk_stage(SceneBuilder& s, const FrameContext& ctx) {
 
     s.layer("title", [](LayerBuilder& l) {
         l.enable_3d();
-        l.rotate({-2.0f, -4.0f, 0.0f});
         l.text("title", TextParams{
             .text = "LIL DIRK CLEAN",
             .size = {820.0f, 160.0f},
@@ -72,7 +73,7 @@ void build_lil_dirk_stage(SceneBuilder& s, const FrameContext& ctx) {
             .color = Color{0.98f, 0.98f, 0.99f, 1.0f},
             .align = TextAlign::Center,
             .line_height = 1.0f,
-            .tracking = 1.0f
+        .tracking = 1.0f
         });
         l.with_glow(Glow{
             .enabled = true,
@@ -81,35 +82,32 @@ void build_lil_dirk_stage(SceneBuilder& s, const FrameContext& ctx) {
             .color = Color{0.96f, 0.96f, 1.0f, 0.62f}
         });
     });
+    return s.build();
 }
 
-} // namespace
-
-static Composition lil_dirk_clean() {
+Composition LilDirkClean() {
     return composition({
         .name     = "LilDirkClean",
         .width    = 1920,
         .height   = 1080,
         .duration = 90
     }, [](const FrameContext& ctx) {
-        SceneBuilder s(ctx);
-        build_lil_dirk_stage(s, ctx);
-        return s.build();
+        return build_lil_dirk_clean_scene(ctx);
     });
 }
 
-static Composition lil_dirk_clean_fast() {
+Composition LilDirkCleanFast() {
     return composition({
         .name     = "LilDirkCleanFast",
         .width    = 1920,
         .height   = 1080,
         .duration = 90
     }, [](const FrameContext& ctx) {
-        SceneBuilder s(ctx);
-        build_lil_dirk_stage(s, ctx);
-        return s.build();
+        return build_lil_dirk_clean_scene(ctx);
     });
 }
 
-CHRONON_REGISTER_COMPOSITION("LilDirkClean", lil_dirk_clean)
-CHRONON_REGISTER_COMPOSITION("LilDirkCleanFast", lil_dirk_clean_fast)
+} // namespace chronon3d::compositions
+
+CHRONON_REGISTER_COMPOSITION("LilDirkClean", chronon3d::compositions::LilDirkClean)
+CHRONON_REGISTER_COMPOSITION("LilDirkCleanFast", chronon3d::compositions::LilDirkCleanFast)
