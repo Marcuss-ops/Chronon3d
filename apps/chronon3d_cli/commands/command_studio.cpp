@@ -1,6 +1,7 @@
 #include "../commands.hpp"
 #include "../utils/render_job.hpp"
 #include "../utils/cli_render_utils.hpp"
+#include "../utils/telemetry_run.hpp"
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <fmt/format.h>
@@ -40,6 +41,10 @@ bool save_studio_output(const Framebuffer& fb, const std::string& out_path) {
     return true;
 }
 
+std::string resolve_output_path(const std::string& requested, const std::string& fallback) {
+    return requested.empty() ? fallback : requested;
+}
+
 } // namespace
 
 int command_preview(const CompositionRegistry& registry, const RenderArgs& args) {
@@ -60,17 +65,49 @@ int command_preview(const CompositionRegistry& registry, const RenderArgs& args)
         }
     }
 
+    const auto started_at_iso = chronon3d::telemetry::TelemetryManager::get_current_iso_time();
+    const auto wall_t0 = std::chrono::steady_clock::now();
+
     auto renderer = create_renderer(registry, plan->settings);
+    const auto setup_t1 = std::chrono::steady_clock::now();
     spdlog::info("Studio Preview: Rendering frame {} of composition '{}'...", frame, plan->comp_id);
 
+    const auto render_t0 = std::chrono::steady_clock::now();
     auto fb = renderer->render_frame(*plan->comp, frame);
+    const auto render_t1 = std::chrono::steady_clock::now();
     if (!fb) {
         spdlog::error("Failed to render preview frame {}", frame);
         return 1;
     }
 
-    std::string out_path = args.output.empty() ? "preview.png" : args.output;
-    return save_studio_output(*fb, out_path) ? 0 : 1;
+    std::string out_path = resolve_output_path(args.output, "preview.png");
+    const auto encode_t0 = std::chrono::steady_clock::now();
+    const bool saved = save_studio_output(*fb, out_path);
+    const auto encode_t1 = std::chrono::steady_clock::now();
+    const auto wall_t1 = std::chrono::steady_clock::now();
+
+    if (saved) {
+        const auto phases = std::vector<chronon3d::telemetry::PhaseTelemetryRecord>{
+            {"setup_renderer", std::chrono::duration<double, std::milli>(setup_t1 - wall_t0).count()},
+            {"rendering_loop", std::chrono::duration<double, std::milli>(render_t1 - render_t0).count()},
+            {"encoding", std::chrono::duration<double, std::milli>(encode_t1 - encode_t0).count()},
+        };
+        cli::telemetry::record_output_run(
+            plan->comp_id,
+            out_path,
+            true,
+            1,
+            1,
+            std::chrono::duration<double, std::milli>(wall_t1 - wall_t0).count(),
+            std::chrono::duration<double, std::milli>(render_t1 - render_t0).count(),
+            std::chrono::duration<double, std::milli>(encode_t1 - encode_t0).count(),
+            started_at_iso,
+            phases,
+            cli::telemetry::capture_counters(*renderer->counters()),
+            renderer->counters());
+    }
+
+    return saved ? 0 : 1;
 }
 
 int command_contact_sheet(const CompositionRegistry& registry, const RenderArgs& args) {
@@ -79,7 +116,11 @@ int command_contact_sheet(const CompositionRegistry& registry, const RenderArgs&
         return 1;
     }
 
+    const auto started_at_iso = chronon3d::telemetry::TelemetryManager::get_current_iso_time();
+    const auto wall_t0 = std::chrono::steady_clock::now();
+
     auto renderer = create_renderer(registry, plan->settings);
+    const auto setup_t1 = std::chrono::steady_clock::now();
     i32 w = plan->comp->width();
     i32 h = plan->comp->height();
     Frame duration = plan->comp->duration();
@@ -96,6 +137,7 @@ int command_contact_sheet(const CompositionRegistry& registry, const RenderArgs&
     Framebuffer sheet(w * 4, h);
     sheet.clear(Color::black());
 
+    const auto render_t0 = std::chrono::steady_clock::now();
     for (i32 i = 0; i < 4; ++i) {
         spdlog::info("Rendering sheet frame {} / 4 (Frame: {})...", i + 1, frames[i]);
         auto fb = renderer->render_frame(*plan->comp, frames[i]);
@@ -105,9 +147,36 @@ int command_contact_sheet(const CompositionRegistry& registry, const RenderArgs&
         }
         copy_framebuffer_pixels(sheet, *fb, i * w, 0);
     }
+    const auto render_t1 = std::chrono::steady_clock::now();
 
-    std::string out_path = args.output.empty() ? "contact_sheet.png" : args.output;
-    return save_studio_output(sheet, out_path) ? 0 : 1;
+    std::string out_path = resolve_output_path(args.output, "contact_sheet.png");
+    const auto encode_t0 = std::chrono::steady_clock::now();
+    const bool saved = save_studio_output(sheet, out_path);
+    const auto encode_t1 = std::chrono::steady_clock::now();
+    const auto wall_t1 = std::chrono::steady_clock::now();
+
+    if (saved) {
+        const auto phases = std::vector<chronon3d::telemetry::PhaseTelemetryRecord>{
+            {"setup_renderer", std::chrono::duration<double, std::milli>(setup_t1 - wall_t0).count()},
+            {"rendering_loop", std::chrono::duration<double, std::milli>(render_t1 - render_t0).count()},
+            {"encoding", std::chrono::duration<double, std::milli>(encode_t1 - encode_t0).count()},
+        };
+        cli::telemetry::record_output_run(
+            plan->comp_id,
+            out_path,
+            true,
+            4,
+            4,
+            std::chrono::duration<double, std::milli>(wall_t1 - wall_t0).count(),
+            std::chrono::duration<double, std::milli>(render_t1 - render_t0).count(),
+            std::chrono::duration<double, std::milli>(encode_t1 - encode_t0).count(),
+            started_at_iso,
+            phases,
+            cli::telemetry::capture_counters(*renderer->counters()),
+            renderer->counters());
+    }
+
+    return saved ? 0 : 1;
 }
 
 int command_storyboard(const CompositionRegistry& registry, const RenderArgs& args) {
@@ -116,7 +185,11 @@ int command_storyboard(const CompositionRegistry& registry, const RenderArgs& ar
         return 1;
     }
 
+    const auto started_at_iso = chronon3d::telemetry::TelemetryManager::get_current_iso_time();
+    const auto wall_t0 = std::chrono::steady_clock::now();
+
     auto renderer = create_renderer(registry, plan->settings);
+    const auto setup_t1 = std::chrono::steady_clock::now();
     i32 w = plan->comp->width();
     i32 h = plan->comp->height();
     Frame duration = plan->comp->duration();
@@ -132,6 +205,7 @@ int command_storyboard(const CompositionRegistry& registry, const RenderArgs& ar
     Framebuffer storyboard(w * 3, h * 2);
     storyboard.clear(Color::black());
 
+    const auto render_t0 = std::chrono::steady_clock::now();
     for (i32 i = 0; i < 6; ++i) {
         Frame f = frames[i];
         spdlog::info("Rendering storyboard panel {} / 6 (Frame: {})...", i + 1, f);
@@ -173,9 +247,36 @@ int command_storyboard(const CompositionRegistry& registry, const RenderArgs& ar
         i32 row = i / 3;
         copy_framebuffer_pixels(storyboard, *panel_fb, col * w, row * h);
     }
+    const auto render_t1 = std::chrono::steady_clock::now();
 
-    std::string out_path = args.output.empty() ? "storyboard.png" : args.output;
-    return save_studio_output(storyboard, out_path) ? 0 : 1;
+    std::string out_path = resolve_output_path(args.output, "storyboard.png");
+    const auto encode_t0 = std::chrono::steady_clock::now();
+    const bool saved = save_studio_output(storyboard, out_path);
+    const auto encode_t1 = std::chrono::steady_clock::now();
+    const auto wall_t1 = std::chrono::steady_clock::now();
+
+    if (saved) {
+        const auto phases = std::vector<chronon3d::telemetry::PhaseTelemetryRecord>{
+            {"setup_renderer", std::chrono::duration<double, std::milli>(setup_t1 - wall_t0).count()},
+            {"rendering_loop", std::chrono::duration<double, std::milli>(render_t1 - render_t0).count()},
+            {"encoding", std::chrono::duration<double, std::milli>(encode_t1 - encode_t0).count()},
+        };
+        cli::telemetry::record_output_run(
+            plan->comp_id,
+            out_path,
+            true,
+            6,
+            6,
+            std::chrono::duration<double, std::milli>(wall_t1 - wall_t0).count(),
+            std::chrono::duration<double, std::milli>(render_t1 - render_t0).count(),
+            std::chrono::duration<double, std::milli>(encode_t1 - encode_t0).count(),
+            started_at_iso,
+            phases,
+            cli::telemetry::capture_counters(*renderer->counters()),
+            renderer->counters());
+    }
+
+    return saved ? 0 : 1;
 }
 
 } // namespace chronon3d::cli

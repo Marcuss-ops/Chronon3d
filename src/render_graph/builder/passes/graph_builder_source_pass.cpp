@@ -4,7 +4,6 @@
 #include <chronon3d/render_graph/nodes/basic_nodes.hpp>
 #include <chronon3d/render_graph/nodes/precomp_node.hpp>
 #include <chronon3d/render_graph/nodes/video_node.hpp>
-#include <chronon3d/render_graph/nodes/transform_node.hpp>
 #include <chronon3d/render_graph/render_graph_hashing.hpp>
 #include <memory>
 
@@ -32,27 +31,15 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
         for (const auto& node : layer.nodes) {
             GraphNodeId source;
             if (node.shape.type == ShapeType::Text) {
-                // Text Freezing: separate content from transform to allow cross-frame caching
                 cache::NodeCacheKey source_key{
-                    .scope = "layer.source.frozen:" + std::string(layer.name) + ":" + std::string(node.name),
-                    .frame = 0, // Content is frame-invariant
+                    .scope = "layer.source:" + std::string(layer.name) + ":" + std::string(node.name),
+                    .frame = layer.cache_static ? Frame{0} : ctx.frame,
                     .width = ctx.width,
                     .height = ctx.height,
-                    .params_hash = chronon3d::graph::hash_render_node_content_only(node),
-                    .source_hash = hash_string(node.name)
+                    .params_hash = hash_render_node(node),
+                    .source_hash = hash_bytes(node.name.data(), node.name.size())
                 };
 
-                // Create a frozen source node at origin
-                auto frozen_source = graph.add_node(std::make_unique<SourceNode>(
-                    std::string(node.name) + ":frozen", node, source_key,
-                    true,  // Centered
-                    false, // 2D source for text raster
-                    Mat4(1.0f), // Identity
-                    1.0f  // Full opacity for source
-                ));
-                graph.node(frozen_source).set_frame_dependent(false);
-
-                // Add TransformNode to apply the actual animated transform (local relative to layer if needed)
                 const Mat4 text_matrix = use_local
                     ? (layer.hierarchy_resolved ? node.world_transform.to_mat4() 
                                                 : (glm::inverse(item.world_matrix) * node.world_transform.to_mat4()))
@@ -63,12 +50,13 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                                                 : (node.world_transform.opacity / std::max(layer_opacity, 0.0001f)))
                     : node.world_transform.opacity;
 
-                source = graph.add_node(std::make_unique<TransformNode>(
-                    text_matrix,
-                    text_opacity,
-                    layer.cache_static ? Frame{0} : Frame{-1}
+                source = graph.add_node(std::make_unique<SourceNode>(
+                    std::string(node.name), node, source_key,
+                    should_use_centered_rendering(item, ctx),
+                    item.projected,
+                    ctx.modular_coordinates ? std::optional<Mat4>(text_matrix) : std::nullopt,
+                    ctx.modular_coordinates ? std::optional<f32>(text_opacity) : std::nullopt
                 ));
-                graph.connect(frozen_source, source);
                 graph.node(source).set_frame_dependent(!layer.cache_static);
             } else {
                 // Standard path for other nodes

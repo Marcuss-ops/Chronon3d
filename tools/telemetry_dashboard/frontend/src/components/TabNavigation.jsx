@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function TabNavigation({ activeTab, onTabChange, layerCount, nodeCount }) {
+export default function TabNavigation({ activeTab, onTabChange, layerCount, nodeCount, hasComparison }) {
   return (
     <div className="tab-navigation">
       <button
@@ -9,6 +9,15 @@ export default function TabNavigation({ activeTab, onTabChange, layerCount, node
       >
         📊 Run Overview
       </button>
+      {hasComparison && (
+        <button
+          className={`tab-btn ${activeTab === 'comparison' ? 'active' : ''}`}
+          onClick={() => onTabChange('comparison')}
+          style={{ borderColor: 'var(--color-accent)', color: 'var(--color-accent)' }}
+        >
+          ⚖️ A/B Comparison
+        </button>
+      )}
       <button
         className={`tab-btn ${activeTab === 'layers' ? 'active' : ''}`}
         onClick={() => onTabChange('layers')}

@@ -89,7 +89,7 @@ public:
             ctx.counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
             ctx.counters->clear_pixels.fetch_add(static_cast<uint64_t>(ctx.width * ctx.height), std::memory_order_relaxed);
         }
-        
+
         if (ctx.backend) {
             RenderState state;
             const Mat4 ssaa_scale = math::scale(Vec3(ctx.ssaa_factor, ctx.ssaa_factor, 1.0f));

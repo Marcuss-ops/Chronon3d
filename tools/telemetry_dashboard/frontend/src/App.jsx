@@ -15,11 +15,14 @@ import ProfilePanels from './components/ProfilePanels.jsx';
 import LayersTable from './components/LayersTable.jsx';
 import NodesTable from './components/NodesTable.jsx';
 import RenderGraph from './components/RenderGraph.jsx';
+import ComparisonMetrics from './components/ComparisonMetrics.jsx';
 
 function App() {
   const [runs, setRuns] = useState([]);
   const [selectedRunId, setSelectedRunId] = useState('');
+  const [comparisonRunId, setComparisonRunId] = useState('');
   const [runDetail, setRunDetail] = useState(null);
+  const [comparisonRunDetail, setComparisonRunDetail] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -27,6 +30,11 @@ function App() {
   useEffect(() => {
     selectedRunIdRef.current = selectedRunId;
   }, [selectedRunId]);
+
+  const comparisonRunIdRef = useRef(comparisonRunId);
+  useEffect(() => {
+    comparisonRunIdRef.current = comparisonRunId;
+  }, [comparisonRunId]);
 
   const runsRef = useRef(runs);
   useEffect(() => {
@@ -43,24 +51,15 @@ function App() {
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
-    const socket = io('http://localhost:8000');
-    socket.on('new_run', (data) => {
-      console.log('New run detected via WebSocket:', data.run_id);
-      loadRuns();
-      setSelectedRunId(data.run_id);
-    });
-    return () => socket.disconnect();
-  }, [loadRuns]);
-
-  useEffect(() => {
     setSelectedFrame(null);
-  }, [selectedRunId]);
+  }, [selectedRunId, comparisonRunId]);
 
   const loadRuns = useCallback(async () => {
     try {
       setLoading(true);
       const data = await fetchRuns();
       setRuns(data);
+      
       setSelectedRunId(prev => {
         if (prev && data.some(r => r.run_id === prev)) {
           return prev;
@@ -75,11 +74,19 @@ function App() {
     }
   }, []);
 
-  const loadRunDetail = useCallback(async (id, silent = false) => {
+  const loadRunDetail = useCallback(async (id, isComparison = false, silent = false) => {
+    if (!id) {
+      if (isComparison) setComparisonRunDetail(null);
+      return;
+    }
     try {
       if (!silent) setLoading(true);
       const data = await fetchRunDetail(id);
-      setRunDetail(data);
+      if (isComparison) {
+        setComparisonRunDetail(data);
+      } else {
+        setRunDetail(data);
+      }
       if (!silent) setError('');
     } catch (err) {
       if (!silent) setError(err.message);
@@ -87,6 +94,16 @@ function App() {
       if (!silent) setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    const socket = io('http://localhost:8000');
+    socket.on('new_run', (data) => {
+      console.log('New run detected via WebSocket:', data.run_id);
+      loadRuns();
+      setSelectedRunId(data.run_id);
+    });
+    return () => socket.disconnect();
+  }, [loadRuns]);
 
   useEffect(() => {
     loadRuns();
@@ -108,7 +125,11 @@ function App() {
         setRuns(data);
         if (newSelectedId) {
           setSelectedRunId(newSelectedId);
-          loadRunDetail(newSelectedId, true);
+          loadRunDetail(newSelectedId, false, true);
+        }
+        
+        if (comparisonRunIdRef.current) {
+          loadRunDetail(comparisonRunIdRef.current, true, true);
         }
       } catch (err) {
         console.error('Polling error:', err);
@@ -119,9 +140,17 @@ function App() {
 
   useEffect(() => {
     if (selectedRunId) {
-      loadRunDetail(selectedRunId);
+      loadRunDetail(selectedRunId, false);
     }
   }, [selectedRunId, loadRunDetail]);
+
+  useEffect(() => {
+    if (comparisonRunId) {
+      loadRunDetail(comparisonRunId, true);
+    } else {
+      setComparisonRunDetail(null);
+    }
+  }, [comparisonRunId, loadRunDetail]);
 
   const copyMetricsToClipboard = () => {
     if (!runDetail || !runDetail.run) return;
@@ -183,6 +212,8 @@ ${countersText}`;
         runs={runs}
         selectedRunId={selectedRunId}
         onSelectRun={setSelectedRunId}
+        comparisonRunId={comparisonRunId}
+        onSelectComparisonRun={setComparisonRunId}
         collapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
       />
@@ -242,11 +273,23 @@ ${countersText}`;
               onTabChange={setActiveTab}
               layerCount={runDetail.layer_events ? runDetail.layer_events.length : 0}
               nodeCount={runDetail.node_events ? runDetail.node_events.length : 0}
+              hasComparison={!!comparisonRunDetail}
             />
+
+            {activeTab === 'comparison' && comparisonRunDetail && (
+              <ComparisonMetrics 
+                baseRun={runDetail.run} 
+                compRun={comparisonRunDetail.run} 
+              />
+            )}
 
             {activeTab === 'overview' && (
               <>
-                <PreviewPanel run={runDetail.run} />
+                <PreviewPanel 
+                  run={runDetail.run} 
+                  selectedFrame={selectedFrame}
+                  nodeEvents={runDetail.node_events}
+                />
                 <MetricsGrid runDetail={runDetail} />
                 <PerformanceCharts frames={runDetail.frames} phases={runDetail.phases} />
 
@@ -307,6 +350,7 @@ ${countersText}`;
             {activeTab === 'graph' && (
               <RenderGraph 
                 compositionId={runDetail.run.composition_id} 
+                runDetail={runDetail}
               />
             )}
 
