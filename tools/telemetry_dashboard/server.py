@@ -5,19 +5,11 @@ Thin entry point -- all logic lives in the telemetry_server/ package.
 """
 
 import sys
-from http.server import HTTPServer
-from telemetry_server.handler import TelemetryAPIHandler
-
+from telemetry_server.flask_app import app, socketio
 
 def run_server(port=8000):
-    server_address = ('', port)
-    httpd = HTTPServer(server_address, TelemetryAPIHandler)
-    print(f"Chronon3D Telemetry Server running on http://localhost:{port}")
-    try:
-        httpd.serve_forever()
-    except KeyboardInterrupt:
-        print("\nStopping server...")
-        httpd.server_close()
+    print(f"Chronon3D Telemetry Flask Server running on http://localhost:{port}")
+    socketio.run(app, host='0.0.0.0', port=port, debug=False)
 
 
 if __name__ == '__main__':

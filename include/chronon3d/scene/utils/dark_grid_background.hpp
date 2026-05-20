@@ -125,7 +125,6 @@ inline void dark_grid_background(SceneBuilder& s,
                                 const DarkGridBgParams& p = {}) {
     const f32 W = static_cast<f32>(ctx.width > 0 ? ctx.width : 1280);
     const f32 H = static_cast<f32>(ctx.height > 0 ? ctx.height : 720);
-    const Vec3 bg_pos = {W * 0.5f, H * 0.5f, 0.0f};
     const auto grid_path = detail::ensure_dark_grid_background_image(static_cast<i32>(W), static_cast<i32>(H), p);
 
     s.layer("nbg_bg", [grid_path, W, H](LayerBuilder& l) {
@@ -133,7 +132,8 @@ inline void dark_grid_background(SceneBuilder& s,
         l.image("grid_bg", {
             .path = grid_path.string(),
             .size = {W, H},
-            .pos = {0.0f, 0.0f, 0.0f},
+            // Images are centered on their anchor, so place the grid at screen center.
+            .pos = {W * 0.5f, H * 0.5f, 0.0f},
             .opacity = 1.0f
         });
     });

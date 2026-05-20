@@ -325,6 +325,10 @@ namespace chronon3d {
             return std::move(scene_);
         }
 
+        [[nodiscard]] const Camera2_5D& camera_2_5d() const {
+            return scene_.camera_2_5d();
+        }
+
         [[nodiscard]] std::pmr::memory_resource *resource() const {
             return scene_.resource();
         }
