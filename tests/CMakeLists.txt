@@ -112,6 +112,7 @@ add_executable(chronon3d_renderer_tests
     renderer/camera/25d/test_proof_overlay_fixed.cpp
     renderer/camera/25d/test_proof_orbit_subject.cpp
     renderer/camera/25d/test_proof_edge_on_rotation.cpp
+    renderer/camera/25d/test_lil_dirk_clean_regression.cpp
     renderer/camera/25d/test_chronon_intro_card.cpp
     renderer/camera/25d/test_25d_tilt.cpp
     renderer/camera/25d/test_25d_camera_motion.cpp
