@@ -1,0 +1,44 @@
+:root {
+  --color-primary: #8b5cf6;
+  --color-primary-glow: rgba(139, 92, 246, 0.15);
+  --color-accent: #d946ef;
+  --color-accent-glow: rgba(217, 70, 239, 0.15);
+  --color-success: #10b981;
+  --color-success-glow: rgba(16, 185, 129, 0.1);
+  --color-danger: #ef4444;
+  --color-danger-glow: rgba(239, 68, 68, 0.1);
+  --color-info: #3b82f6;
+  --bg-main: #0a0a0f;
+  --bg-surface: rgba(20, 20, 30, 0.8);
+  --border-color: rgba(255, 255, 255, 0.08);
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --font-sans: 'Inter', -apple-system, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --shadow-lg: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+  --shadow-glow: 0 0 20px rgba(139, 92, 246, 0.2);
+  --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background-color: var(--bg-main);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+.glass-panel {
+  background: var(--bg-surface);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  box-shadow: var(--shadow-lg);
+}

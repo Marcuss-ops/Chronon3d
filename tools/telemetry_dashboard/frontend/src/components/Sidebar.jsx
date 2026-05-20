@@ -1,6 +1,14 @@
 import React, { useState } from 'react';
 
-export default function Sidebar({ runs, selectedRunId, onSelectRun, collapsed, onToggleCollapse }) {
+export default function Sidebar({ 
+  runs, 
+  selectedRunId, 
+  onSelectRun, 
+  comparisonRunId,
+  onSelectComparisonRun,
+  collapsed, 
+  onToggleCollapse 
+}) {
   const [query, setQuery] = useState('');
 
   const filteredRuns = runs.filter(r => 
@@ -36,17 +44,32 @@ export default function Sidebar({ runs, selectedRunId, onSelectRun, collapsed, o
             {filteredRuns.map((r) => (
               <div
                 key={r.run_id}
-                className={`run-card ${selectedRunId === r.run_id ? 'active' : ''}`}
+                className={`run-card ${selectedRunId === r.run_id ? 'active' : ''} ${comparisonRunId === r.run_id ? 'comparing' : ''}`}
                 onClick={() => onSelectRun(r.run_id)}
               >
                 <div className="run-card-header">
                   <span className="comp-name">{r.composition_id}</span>
-                  <span className={`status-indicator ${r.success ? 'status-success' : 'status-failed'}`} />
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    {selectedRunId === r.run_id && <span className="label-badge primary">Base</span>}
+                    {comparisonRunId === r.run_id && <span className="label-badge secondary">Comp</span>}
+                    <span className={`status-indicator ${r.success ? 'status-success' : 'status-failed'}`} />
+                  </div>
                 </div>
                 <div className="run-meta">
                   <span>{r.frames_total} frames</span>
                   <span style={{ fontSize: '0.75rem', opacity: 0.7 }}>{r.git_commit_short}</span>
                 </div>
+                {!collapsed && (
+                   <button 
+                    className={`compare-small-btn ${comparisonRunId === r.run_id ? 'active' : ''}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSelectComparisonRun(comparisonRunId === r.run_id ? '' : r.run_id);
+                    }}
+                  >
+                    {comparisonRunId === r.run_id ? 'Remove Comp' : 'Compare'}
+                  </button>
+                )}
               </div>
             ))}
           </div>
