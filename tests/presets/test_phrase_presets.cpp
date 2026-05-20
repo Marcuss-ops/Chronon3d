@@ -74,6 +74,58 @@ TEST_CASE("WarningPulse phrase shakes the title over time") {
     CHECK(std::abs(start.position.x - mid.position.x) > 0.1f);
 }
 
+TEST_CASE("TypewriterCaption phrase reveals text progressively") {
+    const PhraseParams params{
+        .id = "typewriter",
+        .text = "TYPEWRITER CAPTION",
+        .subtitle = "Characters appear progressively",
+        .start = 0,
+        .end = 90,
+    };
+
+    const MotionObject phrase = make_phrase(PhrasePreset::TypewriterCaption, params);
+    const MotionObject* title = find_child(phrase, "title");
+    REQUIRE(title != nullptr);
+
+    const MotionState start = resolve_motion_state(make_ctx(0), *title);
+    const MotionState end = resolve_motion_state(make_ctx(90), *title);
+
+    CHECK(start.text_reveal < 0.2f);
+    CHECK(end.text_reveal > 0.95f);
+}
+
+TEST_CASE("BounceTitle phrase uses kinetic bounce") {
+    const PhraseParams params{
+        .id = "bounce",
+        .text = "BOUNCE TITLE",
+        .subtitle = "Kinetic pop-in",
+        .start = 0,
+        .end = 90,
+    };
+
+    const MotionObject phrase = make_phrase(PhrasePreset::BounceTitle, params);
+    const MotionObject* title = find_child(phrase, "title");
+    REQUIRE(title != nullptr);
+
+    CHECK(title->preset_value == MotionPreset::KineticBounce);
+}
+
+TEST_CASE("GlitchBanner phrase uses glitch motion") {
+    const PhraseParams params{
+        .id = "glitch",
+        .text = "GLITCH BANNER",
+        .subtitle = "Short burst of instability",
+        .start = 0,
+        .end = 90,
+    };
+
+    const MotionObject phrase = make_phrase(PhrasePreset::GlitchBanner, params);
+    const MotionObject* title = find_child(phrase, "title");
+    REQUIRE(title != nullptr);
+
+    CHECK(title->preset_value == MotionPreset::GlitchIn);
+}
+
 TEST_CASE("draw_phrase builds visible layers for captions") {
     const PhraseParams params{
         .id = "caption",

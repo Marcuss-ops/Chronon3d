@@ -74,7 +74,7 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CHRONON3D_BUILD_TESTS": "OFF",
-        "CHRONON3D_ENABLE_SQLITE_TELEMETRY": "ON"
+        "CHRONON3D_ENABLE_SQLITE_TELEMETRY": "OFF"
       }
     },
     {
@@ -90,6 +90,8 @@
       },
       "cacheVariables": {
         "CHRONON3D_ENABLE_VIDEO": "ON",
+        "CHRONON3D_BUILD_TESTS": "OFF",
+        "CHRONON3D_ENABLE_SQLITE_TELEMETRY": "OFF",
         "VCPKG_MANIFEST_FEATURES": "video"
       }
     },
@@ -106,6 +108,8 @@
       },
       "cacheVariables": {
         "CHRONON3D_ENABLE_VIDEO": "ON",
+        "CHRONON3D_BUILD_TESTS": "OFF",
+        "CHRONON3D_ENABLE_SQLITE_TELEMETRY": "OFF",
         "VCPKG_MANIFEST_FEATURES": "video"
       }
     },
@@ -153,7 +157,7 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CHRONON3D_BUILD_TESTS": "OFF",
-        "CHRONON3D_ENABLE_SQLITE_TELEMETRY": "ON"
+        "CHRONON3D_ENABLE_SQLITE_TELEMETRY": "OFF"
       }
     },
     {

@@ -29,23 +29,29 @@ static Composition phrase_preset_gallery() {
             .centered = true,
         });
 
-        const std::array<PhrasePreset, 5> presets{
+        const std::array<PhrasePreset, 8> presets{
             PhrasePreset::TitlePop,
             PhrasePreset::LowerThird,
             PhrasePreset::CaptionClean,
             PhrasePreset::QuoteImpact,
             PhrasePreset::WarningPulse,
+            PhrasePreset::TypewriterCaption,
+            PhrasePreset::BounceTitle,
+            PhrasePreset::GlitchBanner,
         };
 
-        const std::array<Vec3, 5> positions{
-            Vec3{-620.0f, -220.0f, 0.0f},
-            Vec3{580.0f, -220.0f, 0.0f},
-            Vec3{-620.0f, 220.0f, 0.0f},
-            Vec3{580.0f, 220.0f, 0.0f},
-            Vec3{0.0f, 0.0f, 0.0f},
+        const std::array<Vec3, 8> positions{
+            Vec3{-660.0f, -300.0f, 0.0f},
+            Vec3{-220.0f, -300.0f, 0.0f},
+            Vec3{220.0f, -300.0f, 0.0f},
+            Vec3{660.0f, -300.0f, 0.0f},
+            Vec3{-660.0f, 120.0f, 0.0f},
+            Vec3{-220.0f, 120.0f, 0.0f},
+            Vec3{220.0f, 120.0f, 0.0f},
+            Vec3{660.0f, 120.0f, 0.0f},
         };
 
-        const std::array<PhraseParams, 5> phrases{{
+        const std::array<PhraseParams, 8> phrases{{
             PhraseParams{
                 .id = "title_pop",
                 .text = "THIS CHANGES EVERYTHING",
@@ -122,6 +128,54 @@ static Composition phrase_preset_gallery() {
                 .panel_color = Color{0.16f, 0.04f, 0.05f, 0.88f},
                 .accent_color = Color{1.0f, 0.38f, 0.28f, 1.0f},
                 .text_color = Color{1.0f, 0.95f, 0.94f, 1.0f},
+            },
+            PhraseParams{
+                .id = "typewriter_caption",
+                .text = "TYPEWRITER CAPTION",
+                .subtitle = "Characters appear progressively",
+                .start = 0,
+                .end = 90,
+                .position = positions[5],
+                .box_size = {760.0f, 200.0f},
+                .title_size = {680.0f, 110.0f},
+                .subtitle_size = {560.0f, 40.0f},
+                .title_font_size = 50.0f,
+                .subtitle_font_size = 20.0f,
+                .panel_color = Color{0.05f, 0.05f, 0.06f, 0.78f},
+                .accent_color = Color{0.90f, 0.90f, 0.95f, 1.0f},
+                .text_color = Color{0.97f, 0.98f, 1.0f, 1.0f},
+            },
+            PhraseParams{
+                .id = "bounce_title",
+                .text = "BOUNCE TITLE",
+                .subtitle = "Kinetic pop-in",
+                .start = 0,
+                .end = 90,
+                .position = positions[6],
+                .box_size = {700.0f, 210.0f},
+                .title_size = {620.0f, 110.0f},
+                .subtitle_size = {500.0f, 40.0f},
+                .title_font_size = 52.0f,
+                .subtitle_font_size = 20.0f,
+                .panel_color = Color{0.07f, 0.07f, 0.09f, 0.86f},
+                .accent_color = Color{0.55f, 0.95f, 0.74f, 1.0f},
+                .text_color = Color{1.0f, 1.0f, 1.0f, 1.0f},
+            },
+            PhraseParams{
+                .id = "glitch_banner",
+                .text = "GLITCH BANNER",
+                .subtitle = "Short burst of instability",
+                .start = 0,
+                .end = 90,
+                .position = positions[7],
+                .box_size = {740.0f, 210.0f},
+                .title_size = {660.0f, 110.0f},
+                .subtitle_size = {520.0f, 40.0f},
+                .title_font_size = 50.0f,
+                .subtitle_font_size = 20.0f,
+                .panel_color = Color{0.10f, 0.03f, 0.06f, 0.86f},
+                .accent_color = Color{1.0f, 0.37f, 0.72f, 1.0f},
+                .text_color = Color{1.0f, 0.97f, 0.99f, 1.0f},
             },
         }};
 
