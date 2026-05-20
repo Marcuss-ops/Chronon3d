@@ -35,6 +35,20 @@ struct RenderTelemetryRow {
     double ram_mb{0.0};
     int cache_hit{0};
     int layer_count{0};
+    uint64_t cache_hits{0};
+    uint64_t cache_misses{0};
+    uint64_t nodes_executed{0};
+    uint64_t clear_calls{0};
+    uint64_t clear_pixels{0};
+    uint64_t composite_calls{0};
+    uint64_t composite_pixels{0};
+    uint64_t transform_calls{0};
+    uint64_t transform_pixels{0};
+    uint64_t effect_stack_calls{0};
+    uint64_t effect_pixels{0};
+    uint64_t text_glyphs_rasterized{0};
+    uint64_t framebuffer_allocations{0};
+    uint64_t framebuffer_reuses{0};
 };
 
 namespace detail {
@@ -87,7 +101,10 @@ inline std::string csv_escape(std::string_view value) {
 
 inline void ensure_csv_header(std::ofstream& out, const std::filesystem::path& path) {
     if (!std::filesystem::exists(path) || std::filesystem::file_size(path) == 0) {
-        out << "ts,run_id,event,frame,w,h,total_ms,setup_ms,composite_ms,blur_ms,encode_ms,ram_mb,cache_hit,layer_count\n";
+        out << "ts,run_id,event,frame,w,h,total_ms,setup_ms,composite_ms,blur_ms,encode_ms,ram_mb,cache_hit,layer_count,"
+               "cache_hits,cache_misses,nodes_executed,clear_calls,clear_pixels,composite_calls,composite_pixels,"
+               "transform_calls,transform_pixels,effect_stack_calls,effect_pixels,text_glyphs_rasterized,"
+               "framebuffer_allocations,framebuffer_reuses\n";
     }
 }
 
@@ -101,7 +118,7 @@ inline bool csv_header_matches(const std::filesystem::path& path) {
     if (!std::getline(in, header)) {
         return true;
     }
-    return header == "ts,run_id,event,frame,w,h,total_ms,setup_ms,composite_ms,blur_ms,encode_ms,ram_mb,cache_hit,layer_count";
+    return header == "ts,run_id,event,frame,w,h,total_ms,setup_ms,composite_ms,blur_ms,encode_ms,ram_mb,cache_hit,layer_count,cache_hits,cache_misses,nodes_executed,clear_calls,clear_pixels,composite_calls,composite_pixels,transform_calls,transform_pixels,effect_stack_calls,effect_pixels,text_glyphs_rasterized,framebuffer_allocations,framebuffer_reuses";
 }
 
 inline void migrate_legacy_csv(const std::filesystem::path& path) {
@@ -220,6 +237,20 @@ inline void write_summary_file(const std::vector<RenderTelemetryRow>& rows) {
         std::vector<double> blur;
         std::vector<double> encode;
         std::vector<double> ram;
+        std::vector<double> cache_hits;
+        std::vector<double> cache_misses;
+        std::vector<double> nodes_executed;
+        std::vector<double> clear_calls;
+        std::vector<double> clear_pixels;
+        std::vector<double> composite_calls;
+        std::vector<double> composite_pixels;
+        std::vector<double> transform_calls;
+        std::vector<double> transform_pixels;
+        std::vector<double> effect_stack_calls;
+        std::vector<double> effect_pixels;
+        std::vector<double> text_glyphs_rasterized;
+        std::vector<double> framebuffer_allocations;
+        std::vector<double> framebuffer_reuses;
     };
 
     std::map<std::string, Series> grouped;
@@ -231,6 +262,20 @@ inline void write_summary_file(const std::vector<RenderTelemetryRow>& rows) {
         s.blur.push_back(row.blur_ms);
         s.encode.push_back(row.encode_ms);
         s.ram.push_back(row.ram_mb);
+        s.cache_hits.push_back(static_cast<double>(row.cache_hits));
+        s.cache_misses.push_back(static_cast<double>(row.cache_misses));
+        s.nodes_executed.push_back(static_cast<double>(row.nodes_executed));
+        s.clear_calls.push_back(static_cast<double>(row.clear_calls));
+        s.clear_pixels.push_back(static_cast<double>(row.clear_pixels));
+        s.composite_calls.push_back(static_cast<double>(row.composite_calls));
+        s.composite_pixels.push_back(static_cast<double>(row.composite_pixels));
+        s.transform_calls.push_back(static_cast<double>(row.transform_calls));
+        s.transform_pixels.push_back(static_cast<double>(row.transform_pixels));
+        s.effect_stack_calls.push_back(static_cast<double>(row.effect_stack_calls));
+        s.effect_pixels.push_back(static_cast<double>(row.effect_pixels));
+        s.text_glyphs_rasterized.push_back(static_cast<double>(row.text_glyphs_rasterized));
+        s.framebuffer_allocations.push_back(static_cast<double>(row.framebuffer_allocations));
+        s.framebuffer_reuses.push_back(static_cast<double>(row.framebuffer_reuses));
     }
 
     for (const auto& [event, s] : grouped) {
@@ -242,6 +287,20 @@ inline void write_summary_file(const std::vector<RenderTelemetryRow>& rows) {
             << " blur_p95_ms=" << format_ms(percentile(s.blur, 0.95))
             << " encode_p95_ms=" << format_ms(percentile(s.encode, 0.95))
             << " ram_p95_mb=" << format_ms(percentile(s.ram, 0.95))
+            << " cache_hits_p95=" << format_ms(percentile(s.cache_hits, 0.95))
+            << " cache_misses_p95=" << format_ms(percentile(s.cache_misses, 0.95))
+            << " nodes_executed_p95=" << format_ms(percentile(s.nodes_executed, 0.95))
+            << " clear_calls_p95=" << format_ms(percentile(s.clear_calls, 0.95))
+            << " clear_pixels_p95=" << format_ms(percentile(s.clear_pixels, 0.95))
+            << " composite_calls_p95=" << format_ms(percentile(s.composite_calls, 0.95))
+            << " composite_pixels_p95=" << format_ms(percentile(s.composite_pixels, 0.95))
+            << " transform_calls_p95=" << format_ms(percentile(s.transform_calls, 0.95))
+            << " transform_pixels_p95=" << format_ms(percentile(s.transform_pixels, 0.95))
+            << " effect_stack_calls_p95=" << format_ms(percentile(s.effect_stack_calls, 0.95))
+            << " effect_pixels_p95=" << format_ms(percentile(s.effect_pixels, 0.95))
+            << " text_glyphs_rasterized_p95=" << format_ms(percentile(s.text_glyphs_rasterized, 0.95))
+            << " framebuffer_allocations_p95=" << format_ms(percentile(s.framebuffer_allocations, 0.95))
+            << " framebuffer_reuses_p95=" << format_ms(percentile(s.framebuffer_reuses, 0.95))
             << "\n";
     }
 
@@ -430,7 +489,21 @@ inline void flush_telemetry() {
                 << row.encode_ms << ','
                 << row.ram_mb << ','
                 << row.cache_hit << ','
-                << row.layer_count << '\n';
+                << row.layer_count << ','
+                << row.cache_hits << ','
+                << row.cache_misses << ','
+                << row.nodes_executed << ','
+                << row.clear_calls << ','
+                << row.clear_pixels << ','
+                << row.composite_calls << ','
+                << row.composite_pixels << ','
+                << row.transform_calls << ','
+                << row.transform_pixels << ','
+                << row.effect_stack_calls << ','
+                << row.effect_pixels << ','
+                << row.text_glyphs_rasterized << ','
+                << row.framebuffer_allocations << ','
+                << row.framebuffer_reuses << '\n';
         }
         global.push_back(row);
         if (global.size() > 1000) {

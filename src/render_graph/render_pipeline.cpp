@@ -1,5 +1,6 @@
 #include <chronon3d/render_graph/render_pipeline.hpp>
 #include <chronon3d/math/projector_2_5d.hpp>
+#include <chronon3d/core/counters.hpp>
 #include <chronon3d/core/profiling.hpp>
 #include <chronon3d/core/render_telemetry.hpp>
 #include <chronon3d/render_graph/graph_builder.hpp>
@@ -11,6 +12,51 @@
 namespace chronon3d::graph {
 
 namespace {
+
+telemetry::RenderTelemetryRow make_telemetry_row(
+    std::string event,
+    Frame frame,
+    int width,
+    int height,
+    double total_ms,
+    double setup_ms,
+    double composite_ms,
+    double blur_ms,
+    double encode_ms,
+    int cache_hit,
+    int layer_count,
+    const RenderCounters* counters
+) {
+    telemetry::RenderTelemetryRow row;
+    row.event = event;
+    row.frame = frame;
+    row.width = width;
+    row.height = height;
+    row.total_ms = total_ms;
+    row.setup_ms = setup_ms;
+    row.composite_ms = composite_ms;
+    row.blur_ms = blur_ms;
+    row.encode_ms = encode_ms;
+    row.cache_hit = cache_hit;
+    row.layer_count = layer_count;
+    if (counters) {
+        row.cache_hits = counters->cache_hits.load(std::memory_order_relaxed);
+        row.cache_misses = counters->cache_misses.load(std::memory_order_relaxed);
+        row.nodes_executed = counters->nodes_executed.load(std::memory_order_relaxed);
+        row.clear_calls = counters->clear_calls.load(std::memory_order_relaxed);
+        row.clear_pixels = counters->clear_pixels.load(std::memory_order_relaxed);
+        row.composite_calls = counters->composite_calls.load(std::memory_order_relaxed);
+        row.composite_pixels = counters->composite_pixels.load(std::memory_order_relaxed);
+        row.transform_calls = counters->transform_calls.load(std::memory_order_relaxed);
+        row.transform_pixels = counters->transform_pixels.load(std::memory_order_relaxed);
+        row.effect_stack_calls = counters->effect_stack_calls.load(std::memory_order_relaxed);
+        row.effect_pixels = counters->effect_pixels.load(std::memory_order_relaxed);
+        row.text_glyphs_rasterized = counters->text_glyphs_rasterized.load(std::memory_order_relaxed);
+        row.framebuffer_allocations = counters->framebuffer_allocations.load(std::memory_order_relaxed);
+        row.framebuffer_reuses = counters->framebuffer_reuses.load(std::memory_order_relaxed);
+    }
+    return row;
+}
 
 std::unique_ptr<Framebuffer> downsample_fb(const Framebuffer& src, i32 dst_w, i32 dst_h) {
     auto dst = std::make_unique<Framebuffer>(dst_w, dst_h);
@@ -124,17 +170,20 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     const auto hits_after = node_cache.stats().hits;
 
     const auto t1 = std::chrono::steady_clock::now();
-    telemetry::record_render_telemetry({
-        .event = "scene_render",
-        .frame = frame,
-        .width = width,
-        .height = height,
-        .total_ms = std::chrono::duration<double, std::milli>(t1 - t0).count(),
-        .setup_ms = std::chrono::duration<double, std::milli>(t_build1 - t_build0).count(),
-        .composite_ms = std::chrono::duration<double, std::milli>(t_exec1 - t_exec0).count(),
-        .cache_hit = hits_after > hits_before ? 1 : 0,
-        .layer_count = static_cast<int>(scene.layers().size()),
-    });
+    telemetry::record_render_telemetry(make_telemetry_row(
+        "scene_render",
+        frame,
+        width,
+        height,
+        std::chrono::duration<double, std::milli>(t1 - t0).count(),
+        std::chrono::duration<double, std::milli>(t_build1 - t_build0).count(),
+        std::chrono::duration<double, std::milli>(t_exec1 - t_exec0).count(),
+        0.0,
+        0.0,
+        hits_after > hits_before ? 1 : 0,
+        static_cast<int>(scene.layers().size()),
+        ctx.counters
+    ));
 
     profiling::g_current_counters = nullptr;
     return fb_shared;
@@ -341,25 +390,37 @@ std::unique_ptr<Framebuffer> render_composition_frame(
         }
         downsample_ms = std::chrono::duration<double, std::milli>(
             std::chrono::steady_clock::now() - t_down0).count();
-        telemetry::record_render_telemetry({
-            .event = "frame_render", .frame = frame, .width = w, .height = h,
-            .total_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count(),
-            .setup_ms = evaluate_ms, .composite_ms = scene_ms,
-            .blur_ms = motion_blur_ms, .encode_ms = downsample_ms,
-            .cache_hit = node_cache.stats().hits > hits_before ? 1 : 0,
-            .layer_count = layer_count,
-        });
+        telemetry::record_render_telemetry(make_telemetry_row(
+            "frame_render",
+            frame,
+            w,
+            h,
+            std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count(),
+            evaluate_ms,
+            scene_ms,
+            motion_blur_ms,
+            downsample_ms,
+            node_cache.stats().hits > hits_before ? 1 : 0,
+            layer_count,
+            backend.counters()
+        ));
         return out;
     }
 
-    telemetry::record_render_telemetry({
-        .event = "frame_render", .frame = frame, .width = w, .height = h,
-        .total_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count(),
-        .setup_ms = evaluate_ms, .composite_ms = scene_ms,
-        .blur_ms = motion_blur_ms, .encode_ms = downsample_ms,
-        .cache_hit = node_cache.stats().hits > hits_before ? 1 : 0,
-        .layer_count = layer_count,
-    });
+    telemetry::record_render_telemetry(make_telemetry_row(
+        "frame_render",
+        frame,
+        w,
+        h,
+        std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count(),
+        evaluate_ms,
+        scene_ms,
+        motion_blur_ms,
+        downsample_ms,
+        node_cache.stats().hits > hits_before ? 1 : 0,
+        layer_count,
+        backend.counters()
+    ));
     return render_fb;
 }
 

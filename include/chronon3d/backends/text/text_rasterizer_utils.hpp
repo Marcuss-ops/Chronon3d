@@ -18,7 +18,8 @@ struct TextRasterization {
 std::optional<TextRasterization> rasterize_text_to_bl_image(
     const TextShape& text,
     float effective_size,
-    int padding = 4
+    int padding = 4,
+    bool* cache_hit = nullptr
 );
 
 void clear_text_raster_cache();

@@ -24,6 +24,8 @@ CacheKey hash_value(const T& value) {
 
 CacheKey hash_text_style(const TextShape& t, float effective_size, int padding) {
     CacheKey seed = 0;
+    // Content-only text atlas key:
+    // keep raster-relevant typography fields, but do not include placement or runtime state.
     seed = hash_combine(seed, hash_value(t.text));
     seed = hash_combine(seed, hash_value(t.style.font_path));
     seed = hash_combine(seed, hash_value(t.style.font_family));
@@ -106,7 +108,8 @@ std::mutex g_text_raster_cache_mutex;
 std::optional<TextRasterization> rasterize_text_to_bl_image(
     const TextShape& t,
     float effective_size,
-    int padding
+    int padding,
+    bool* cache_hit
 ) {
     std::string font_path = t.style.font_path;
     if (t.text.empty() || font_path.empty()) return std::nullopt;
@@ -116,8 +119,15 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
         std::lock_guard<std::mutex> lock(g_text_raster_cache_mutex);
         auto it = g_text_raster_cache.find(key);
         if (it != g_text_raster_cache.end()) {
+            if (cache_hit) {
+                *cache_hit = true;
+            }
             return it->second.raster;
         }
+    }
+
+    if (cache_hit) {
+        *cache_hit = false;
     }
 
     BLFontFace face = blend2d_utils::Blend2DResources::instance().get_face(font_path);
