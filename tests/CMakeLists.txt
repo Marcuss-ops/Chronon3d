@@ -91,6 +91,7 @@ add_executable(chronon3d_renderer_tests
     presets/test_motion_resolver.cpp
     presets/test_motion_3d.cpp
     presets/test_motion_renderer.cpp
+    presets/test_phrase_presets.cpp
     presets/test_motion_visual_smoke.cpp
     render_graph/test_unified_transform_path.cpp
     renderer/dispatch/test_software_node_dispatcher.cpp
