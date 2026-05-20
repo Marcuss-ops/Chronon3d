@@ -1,6 +1,7 @@
 # Build and local SDKs
 /build/
 /build*/
+/tests/build/
 filament-sdk/
 vcpkg_installed/
 temp_assets/
