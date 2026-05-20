@@ -65,6 +65,7 @@ RenderGraphContext make_graph_context(
         .video_decoder = video_decoder,
         .trace = backend.trace(),
         .counters = backend.counters(),
+        .diagnostics_enabled = settings.diagnostic,
         .ssaa_factor = settings.ssaa_factor,
         .modular_coordinates = settings.use_modular_graph,
         .tile_size = settings.tile_size,

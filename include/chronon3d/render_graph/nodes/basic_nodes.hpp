@@ -48,6 +48,8 @@ public:
 // SourceNode
 class SourceNode final : public RenderGraphNode {
 public:
+    bool cacheable() const override { return false; }
+
     SourceNode(std::string name, const ::chronon3d::RenderNode& node, const cache::NodeCacheKey& key,
                bool centered = false, bool is_3d = false, std::optional<Mat4> matrix_override = std::nullopt,
                std::optional<f32> opacity_override = std::nullopt)
@@ -128,6 +130,29 @@ public:
             }
 
             ctx.backend->draw_node(*fb, m_node, state, ctx.camera, ctx.width, ctx.height);
+
+            if (ctx.diagnostics_enabled) {
+                int nonzero_pixels = 0;
+                for (i32 y = 0; y < fb->height(); ++y) {
+                    const Color* row = fb->pixels_row(y);
+                    for (i32 x = 0; x < fb->width(); ++x) {
+                        const Color& c = row[x];
+                        if (c.a > 0.001f || c.r > 0.001f || c.g > 0.001f || c.b > 0.001f) {
+                            ++nonzero_pixels;
+                        }
+                    }
+                }
+
+                spdlog::info(
+                    "[source-debug] node='{}' shape={} nonzero_pixels={} opacity={:.3f} matrix_tx={:.3f} matrix_ty={:.3f}",
+                    m_name,
+                    static_cast<int>(m_node.shape.type),
+                    nonzero_pixels,
+                    state.opacity,
+                    state.matrix[3][0],
+                    state.matrix[3][1]
+                );
+            }
         }
         return fb;
     }
@@ -278,6 +303,8 @@ private:
 // CompositeNode
 class CompositeNode final : public RenderGraphNode {
 public:
+    bool cacheable() const override { return false; }
+
     CompositeNode(::chronon3d::BlendMode mode, Frame cache_frame = Frame{-1}) : m_mode(mode), m_cache_frame(cache_frame) {}
 
     RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::Composite; }
