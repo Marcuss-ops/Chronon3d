@@ -2,6 +2,8 @@
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/core/profiling.hpp>
 #include <chronon3d/core/counters.hpp>
+#include <spdlog/spdlog.h>
+#include <chronon3d/math/camera_2_5d_projection.hpp>
 
 namespace chronon3d::graph {
 
@@ -37,6 +39,8 @@ std::shared_ptr<Framebuffer> TransformNode::execute(
     const Mat4 model = m_use_matrix ? m_matrix : m_transform.to_mat4();
     const f32 opacity = m_use_matrix ? m_opacity : m_transform.opacity;
     const Mat4 pixel_model = dst_canvas_offset * model * glm::inverse(src_canvas_offset);
+    const f32 w_src = static_cast<f32>(input->width());
+    const f32 h_src = static_cast<f32>(input->height());
 
     // Extract 3x3 homography for local_z = 0 plane
     glm::mat3 H;
@@ -46,8 +50,27 @@ std::shared_ptr<Framebuffer> TransformNode::execute(
 
     const glm::mat3 inv_pixel_model_3x3 = glm::inverse(H);
 
-    const f32 w_src = static_cast<f32>(input->width());
-    const f32 h_src = static_cast<f32>(input->height());
+    const auto winding = projected_quad_signed_area(pixel_model, w_src, h_src);
+    const bool flipped = winding.has_value() && *winding < 0.0f;
+    if (ctx.counters && flipped) {
+        ctx.counters->projected_winding_flips.fetch_add(1, std::memory_order_relaxed);
+    }
+
+    if (ctx.diagnostics_enabled) {
+        const f32 det = glm::determinant(H);
+        spdlog::info(
+            "[transform-debug] node='{}' det={:.6f} winding={} H=[[{:.3f},{:.3f},{:.3f}],[{:.3f},{:.3f},{:.3f}],[{:.3f},{:.3f},{:.3f}]]",
+            name(),
+            det,
+            winding.has_value() ? (*winding < 0.0f ? "flipped" : "ok") : "invalid",
+            H[0][0], H[0][1], H[0][2],
+            H[1][0], H[1][1], H[1][2],
+            H[2][0], H[2][1], H[2][2]
+        );
+        if (flipped) {
+            spdlog::warn("[transform-debug] node='{}' projected quad has negative winding", name());
+        }
+    }
 
     // Bounding box for optimization in destination pixels
     Vec4 corners[4] = {

@@ -144,13 +144,18 @@ public:
                 }
 
                 spdlog::info(
-                    "[source-debug] node='{}' shape={} nonzero_pixels={} opacity={:.3f} matrix_tx={:.3f} matrix_ty={:.3f}",
+                    "[source-debug] node='{}' shape={} nonzero_pixels={} opacity={:.3f} matrix_tx={:.3f} matrix_ty={:.3f} det2d={:.6f}",
                     m_name,
                     static_cast<int>(m_node.shape.type),
                     nonzero_pixels,
                     state.opacity,
                     state.matrix[3][0],
-                    state.matrix[3][1]
+                    state.matrix[3][1],
+                    glm::determinant(glm::mat3(
+                        state.matrix[0][0], state.matrix[0][1], state.matrix[0][3],
+                        state.matrix[1][0], state.matrix[1][1], state.matrix[1][3],
+                        state.matrix[3][0], state.matrix[3][1], state.matrix[3][3]
+                    ))
                 );
             }
         }
