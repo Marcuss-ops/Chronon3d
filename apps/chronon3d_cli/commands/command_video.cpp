@@ -123,19 +123,29 @@ int render_and_encode_ffmpeg(
         auto renderer = create_renderer(registry, settings);
 
         const auto render_t0 = std::chrono::steady_clock::now();
-        for (Frame f = start; f < end; ++f) {
-            auto fb = renderer->render_frame(comp, f);
-            if (!fb) {
-                spdlog::error("[video] Failed to render frame {}", f);
-                pipe.close();
-                return 1;
-            }
+        try {
+            for (Frame f = start; f < end; ++f) {
+                auto fb = renderer->render_frame(comp, f);
+                if (!fb) {
+                    spdlog::error("[video] Failed to render frame {}", f);
+                    pipe.close();
+                    return 1;
+                }
 
-            if (!pipe.write_frame(*fb)) {
-                spdlog::error("[video] Failed to write frame {} to FFmpeg pipe", f);
-                pipe.close();
-                return 1;
+                if (!pipe.write_frame(*fb)) {
+                    spdlog::error("[video] Failed to write frame {} to FFmpeg pipe", f);
+                    pipe.close();
+                    return 1;
+                }
             }
+        } catch (const std::exception& e) {
+            spdlog::error("[video] Exception during render loop: {}", e.what());
+            pipe.close();
+            return 1;
+        } catch (...) {
+            spdlog::error("[video] Unknown exception during render loop");
+            pipe.close();
+            return 1;
         }
         const auto render_t1 = std::chrono::steady_clock::now();
         const auto setup_t1 = render_t0;
@@ -199,30 +209,38 @@ int render_and_encode_ffmpeg(
 
     for (const auto& chunk : ranges) {
         workers.emplace_back([&, chunk]() {
-            auto renderer = create_renderer(registry, settings);
-            for (Frame f = chunk.start; f < chunk.end; ++f) {
-                if (failed.load()) return;
-                auto fb = renderer->render_frame(comp, f);
-                if (!fb) {
-                    spdlog::error("[video] Render failed at frame {}", f);
-                    failed.store(true);
-                    return;
+            try {
+                auto renderer = create_renderer(registry, settings);
+                for (Frame f = chunk.start; f < chunk.end; ++f) {
+                    if (failed.load()) return;
+                    auto fb = renderer->render_frame(comp, f);
+                    if (!fb) {
+                        spdlog::error("[video] Render failed at frame {}", f);
+                        failed.store(true);
+                        return;
+                    }
+                    const auto png = (frames_dir / fmt::format("frame_{:06d}.png", f - start)).string();
+                    if (!save_png(*fb, png)) {
+                        spdlog::error("[video] PNG write failed: {}", png);
+                        failed.store(true);
+                        return;
+                    }
+                    
+                    int done = ++frames_done;
+                    if (done % std::max(1, total / 10) == 0 || done == total) {
+                        spdlog::info("[video]   {}/{} frames", done, total);
+                    }
                 }
-                const auto png = (frames_dir / fmt::format("frame_{:06d}.png", f - start)).string();
-                if (!save_png(*fb, png)) {
-                    spdlog::error("[video] PNG write failed: {}", png);
-                    failed.store(true);
-                    return;
-                }
-                
-                int done = ++frames_done;
-                if (done % std::max(1, total / 10) == 0 || done == total) {
-                    spdlog::info("[video]   {}/{} frames", done, total);
-                }
-            }
 
-            std::lock_guard<std::mutex> lock(aggregate_mutex);
-            cli::telemetry::add_counters(aggregate_counters, *renderer->counters());
+                std::lock_guard<std::mutex> lock(aggregate_mutex);
+                cli::telemetry::add_counters(aggregate_counters, *renderer->counters());
+            } catch (const std::exception& e) {
+                spdlog::error("[video] Exception in render worker: {}", e.what());
+                failed.store(true);
+            } catch (...) {
+                spdlog::error("[video] Unknown exception in render worker");
+                failed.store(true);
+            }
         });
     }
 

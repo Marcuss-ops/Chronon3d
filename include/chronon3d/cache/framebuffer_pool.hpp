@@ -30,20 +30,18 @@ struct FramebufferPoolKeyHash {
 // ---------------------------------------------------------------------------
 // FramebufferPool
 // ---------------------------------------------------------------------------
-class FramebufferPool {
+class FramebufferPool : public std::enable_shared_from_this<FramebufferPool> {
 public:
-    explicit FramebufferPool(size_t max_bytes = 512ULL * 1024ULL * 1024ULL);
+    explicit FramebufferPool(size_t max_bytes = 2ULL * 1024ULL * 1024ULL * 1024ULL);
 
-    /// Acquire a cleared framebuffer of the requested size.
+    /// Acquire a framebuffer of the requested size, optionally cleared.
     /// If a compatible framebuffer exists in the pool, it is reused.
-    std::shared_ptr<Framebuffer> acquire(int width, int height);
+    std::shared_ptr<Framebuffer> acquire(int width, int height, bool clear = true);
 
     /// Acquire a framebuffer that automatically releases itself back to the pool upon destruction.
-    std::shared_ptr<Framebuffer> acquire_pooled(int width, int height, std::shared_ptr<FramebufferPool> pool);
+    std::shared_ptr<Framebuffer> acquire_pooled(int width, int height, std::shared_ptr<FramebufferPool> pool, bool clear = true);
 
-    /// Return a framebuffer to the pool for reuse.
-    /// If the pool has reached max_bytes, the framebuffer is dropped.
-    void release(std::shared_ptr<Framebuffer> fb);
+    void release(Framebuffer* fb);
 
     /// Release all pooled framebuffers.
     void clear();
@@ -52,70 +50,17 @@ public:
     [[nodiscard]] size_t available_count() const;
 
 private:
+    std::unique_ptr<Framebuffer> acquire_unique(int width, int height, bool clear = true);
+
     mutable std::mutex m_mutex;
     size_t m_max_bytes;
     size_t m_current_bytes{0};
 
     std::unordered_map<
         FramebufferPoolKey,
-        std::vector<std::shared_ptr<Framebuffer>>,
+        std::vector<std::unique_ptr<Framebuffer>>,
         FramebufferPoolKeyHash
     > m_free;
-};
-
-// ---------------------------------------------------------------------------
-// PooledFramebuffer — RAII handle that auto-releases to pool on destruction
-// ---------------------------------------------------------------------------
-class PooledFramebuffer {
-public:
-    PooledFramebuffer() = default;
-
-    PooledFramebuffer(std::shared_ptr<Framebuffer> fb, FramebufferPool* pool)
-        : m_fb(std::move(fb)), m_pool(pool) {}
-
-    ~PooledFramebuffer() {
-        if (m_pool && m_fb) {
-            m_pool->release(std::move(m_fb));
-        }
-    }
-
-    // Move-only
-    PooledFramebuffer(PooledFramebuffer&& other) noexcept
-        : m_fb(std::move(other.m_fb)), m_pool(other.m_pool) {
-        other.m_pool = nullptr;
-    }
-
-    PooledFramebuffer& operator=(PooledFramebuffer&& other) noexcept {
-        if (this != &other) {
-            if (m_pool && m_fb) {
-                m_pool->release(std::move(m_fb));
-            }
-            m_fb = std::move(other.m_fb);
-            m_pool = other.m_pool;
-            other.m_pool = nullptr;
-        }
-        return *this;
-    }
-
-    // No copying
-    PooledFramebuffer(const PooledFramebuffer&) = delete;
-    PooledFramebuffer& operator=(const PooledFramebuffer&) = delete;
-
-    [[nodiscard]] Framebuffer* get() const { return m_fb.get(); }
-    Framebuffer& operator*() const { return *m_fb; }
-    Framebuffer* operator->() const { return m_fb.get(); }
-
-    [[nodiscard]] bool valid() const { return m_fb != nullptr; }
-
-    /// Detach the framebuffer from pool management (ownership transfers to caller).
-    std::shared_ptr<Framebuffer> detach() {
-        m_pool = nullptr;
-        return std::move(m_fb);
-    }
-
-private:
-    std::shared_ptr<Framebuffer> m_fb;
-    FramebufferPool* m_pool{nullptr};
 };
 
 } // namespace chronon3d::cache

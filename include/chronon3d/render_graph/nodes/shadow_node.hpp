@@ -58,7 +58,6 @@ public:
         const std::vector<std::optional<raster::BBox>>&
     ) override {
         auto result = ctx.acquire_framebuffer(ctx.width, ctx.height);
-        result->clear(Color::transparent());
 
         if (inputs.empty() || !inputs[0]) return result;
         const Framebuffer& src = *inputs[0];

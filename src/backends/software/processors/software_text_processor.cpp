@@ -95,19 +95,22 @@ public:
         const f32 opacity = state.opacity;
 
         const float effective_size = node.shape.text.style.size;
-        
-        // 1. Rasterize text once for both glow and main text
-        auto raster = rasterize_text_to_bl_image(node.shape.text, effective_size);
+
+        bool raster_cache_hit = false;
+        // Rasterize once and reuse the cached atlas when the text content is unchanged.
+        auto raster = rasterize_text_to_bl_image(node.shape.text, effective_size, 4, &raster_cache_hit);
         if (!raster) {
             spdlog::warn("Text rasterization failed for node '{}'", node.name);
             return;
         }
 
-        // Increment text glyphs counter
-        renderer.counters()->text_glyphs_rasterized.fetch_add(
-            static_cast<uint64_t>(node.shape.text.text.length()), 
-            std::memory_order_relaxed
-        );
+        if (!raster_cache_hit) {
+            // Count only the frames that actually had to rasterize glyphs.
+            renderer.counters()->text_glyphs_rasterized.fetch_add(
+                static_cast<uint64_t>(node.shape.text.text.length()),
+                std::memory_order_relaxed
+            );
+        }
 
         // 1. Drop Shadows (behind)
         for (size_t i = 0; i < node.shape.text.style.shadows.size(); ++i) {

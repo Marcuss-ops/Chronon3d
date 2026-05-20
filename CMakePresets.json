@@ -114,6 +114,36 @@
       }
     },
     {
+      "name": "win-relwithdebinfo",
+      "inherits": "base-win",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+      }
+    },
+    {
+      "name": "win-relwithdebinfo-video",
+      "inherits": "win-relwithdebinfo",
+      "binaryDir": "${sourceDir}/build/chronon/vs/${presetName}",
+      "generator": "Visual Studio 17 2022",
+      "architecture": "x64",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "cacheVariables": {
+        "CHRONON3D_ENABLE_VIDEO": "ON",
+        "CHRONON3D_BUILD_TESTS": "OFF",
+        "CHRONON3D_ENABLE_SQLITE_TELEMETRY": "OFF",
+        "VCPKG_MANIFEST_FEATURES": "video"
+      }
+    },
+    {
       "name": "win-vs-novideo",
       "inherits": "base-win-vs",
       "binaryDir": "${sourceDir}/build/win-vs-novideo",
@@ -245,6 +275,15 @@
       "name": "win-debug-video",
       "configurePreset": "win-debug-video",
       "configuration": "Debug",
+      "targets": [
+        "chronon3d_cli"
+      ],
+      "jobs": 16
+    },
+    {
+      "name": "win-relwithdebinfo-video",
+      "configurePreset": "win-relwithdebinfo-video",
+      "configuration": "RelWithDebInfo",
       "targets": [
         "chronon3d_cli"
       ],

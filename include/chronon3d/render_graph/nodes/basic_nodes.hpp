@@ -85,9 +85,20 @@ public:
         const std::vector<std::shared_ptr<Framebuffer>>&,
         const std::vector<std::optional<raster::BBox>>&
     ) override {
-        auto fb = ctx.acquire_framebuffer(ctx.width, ctx.height);
-        // acquire_framebuffer already returns a cleared buffer from the pool
-        if (ctx.counters) {
+        bool clear = true;
+        if (m_node.shape.type == ShapeType::Image && !m_matrix_override.has_value() && !m_centered) {
+            const auto& t = m_node.world_transform;
+            const auto& img = m_node.shape.image;
+            if (t.position == Vec3(0.0f) && t.rotation == Quat(1.0f, 0.0f, 0.0f, 0.0f) && t.scale == Vec3(1.0f) &&
+                t.opacity >= 0.999f && img.opacity >= 0.999f &&
+                std::abs(img.size.x - static_cast<f32>(ctx.width)) < 1e-3f &&
+                std::abs(img.size.y - static_cast<f32>(ctx.height)) < 1e-3f) {
+                clear = false;
+            }
+        }
+
+        auto fb = ctx.acquire_framebuffer(ctx.width, ctx.height, clear);
+        if (clear && ctx.counters) {
             ctx.counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
             ctx.counters->clear_pixels.fetch_add(static_cast<uint64_t>(ctx.width * ctx.height), std::memory_order_relaxed);
         }

@@ -88,17 +88,19 @@ struct RenderGraphContext {
     cache::NodeCache* node_cache{nullptr};
     std::shared_ptr<cache::FramebufferPool> framebuffer_pool;
 
-    std::shared_ptr<Framebuffer> acquire_framebuffer(int w, int h) const {
+    std::shared_ptr<Framebuffer> acquire_framebuffer(int w, int h, bool clear = true) const {
         if (framebuffer_pool) {
-            return framebuffer_pool->acquire_pooled(w, h, framebuffer_pool);
+            return framebuffer_pool->acquire_pooled(w, h, framebuffer_pool, clear);
         }
         auto fb = std::make_shared<Framebuffer>(w, h);
-        fb->clear(Color::transparent());
+        if (clear) {
+            fb->clear(Color::transparent());
+        }
         return fb;
     }
 
     std::shared_ptr<Framebuffer> acquire_framebuffer(const Framebuffer& other) const {
-        auto fb = acquire_framebuffer(other.width(), other.height());
+        auto fb = acquire_framebuffer(other.width(), other.height(), false);
         *fb = other;
         return fb;
     }
