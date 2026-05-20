@@ -6,7 +6,7 @@
 using namespace chronon3d::cache;
 
 TEST_CASE("LruCache respects weight capacity") {
-    LruCache<int, std::string> cache(10);
+    LruCache<int, std::string> cache(10, 1);
 
     cache.put(1, "aaaaa", 5);
     cache.put(2, "bbbbb", 5);
@@ -22,7 +22,7 @@ TEST_CASE("LruCache respects weight capacity") {
 }
 
 TEST_CASE("LruCache zero-weight items do not trigger eviction") {
-    LruCache<int, std::string> cache(10);
+    LruCache<int, std::string> cache(10, 1);
 
     cache.put(1, "hello", 0);
     cache.put(2, "world", 0);
@@ -32,7 +32,7 @@ TEST_CASE("LruCache zero-weight items do not trigger eviction") {
 }
 
 TEST_CASE("LruCache single oversized item is stored but evicts others") {
-    LruCache<int, std::string> cache(10);
+    LruCache<int, std::string> cache(10, 1);
 
     // Even though item 1 has weight > capacity, it should be stored
     cache.put(1, "oversized", 20);
@@ -45,7 +45,7 @@ TEST_CASE("LruCache single oversized item is stored but evicts others") {
 }
 
 TEST_CASE("LruCache put with same key replaces weight") {
-    LruCache<int, std::string> cache(10);
+    LruCache<int, std::string> cache(10, 1);
 
     cache.put(1, "five", 5);
     cache.put(2, "five", 5);

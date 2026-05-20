@@ -1,9 +1,11 @@
 #include <chronon3d/presets/motion_renderer.hpp>
 #include <chronon3d/presets/motion_resolver.hpp>
 #include <chronon3d/registry/shape_ids.hpp>
+#include <chronon3d/math/camera_pose.hpp>
 
 #include <algorithm>
 #include <utility>
+#include <glm/gtc/matrix_inverse.hpp>
 
 namespace chronon3d::presets::motion {
 
@@ -40,13 +42,24 @@ void apply_state(LayerBuilder& l, const MotionState& st, bool enable_3d) {
     }
 }
 
-Vec3 face_camera_rotation(const SceneBuilder& s, bool face_camera) {
+Vec3 face_camera_rotation(const SceneBuilder& s, const MotionState& st, bool face_camera) {
     if (!face_camera) {
         return {0.0f, 0.0f, 0.0f};
     }
 
-    // Cancel the current camera rotation so text and cards remain front-facing.
-    return -s.camera_2_5d().rotation_euler();
+    const auto& cam = s.camera_2_5d();
+    const Vec3 to_cam = cam.position - st.position;
+    if (glm::dot(to_cam, to_cam) < 1e-6f) {
+        return {0.0f, 0.0f, 0.0f};
+    }
+
+    // Build a billboard that faces the actual camera position.
+    // This also handles point-of-interest cameras, where rotation_euler() is zero.
+    const Mat4 billboard_view = glm::lookAtLH(st.position, cam.position, Vec3{0.0f, 1.0f, 0.0f});
+    const Quat billboard_rot = glm::quat_cast(glm::mat3(glm::inverse(billboard_view)));
+    Vec3 euler = math::camera_rotation_euler(billboard_rot);
+    euler.y += 180.0f;
+    return euler;
 }
 
 void draw_content(LayerBuilder& l, const MotionObject& obj, const std::string& layer_name) {
@@ -139,7 +152,7 @@ void draw_motion_object_impl(
     const std::string layer_name = prefix_name(prefix, obj.id);
 
 
-    const Vec3 face_cam_rot = face_camera_rotation(s, obj.motion3d.face_camera);
+    const Vec3 face_cam_rot = face_camera_rotation(s, st, obj.motion3d.face_camera);
 
     s.layer(layer_name, [obj, st, layer_name, enable_3d, face_cam_rot](LayerBuilder& l) {
         apply_state(l, st, enable_3d);

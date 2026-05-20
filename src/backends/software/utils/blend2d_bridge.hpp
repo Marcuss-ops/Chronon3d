@@ -67,6 +67,49 @@ inline void composite_bl_image(Framebuffer& fb, const BLImage& img, int x, int y
 }
 
 /**
+ * Composites a framebuffer into another framebuffer using a simple axis-aligned blit.
+ */
+inline void composite_framebuffer(Framebuffer& dst_fb, const Framebuffer& src_fb, int x, int y, float opacity, BlendMode mode, const RenderState* state = nullptr) {
+    const int sw = src_fb.width();
+    const int sh = src_fb.height();
+
+    for (int iy = 0; iy < sh; ++iy) {
+        const int py = y + iy;
+        if (py < 0 || py >= dst_fb.height()) continue;
+
+        const Color* src_row = src_fb.pixels_row(iy);
+        Color* dst_row = dst_fb.pixels_row(py);
+
+        for (int ix = 0; ix < sw; ++ix) {
+            const int px = x + ix;
+            if (px < 0 || px >= dst_fb.width()) continue;
+            if (state && !pixel_passes_mask(*state, px, py)) continue;
+
+            Color src = src_row[ix];
+            src.r *= opacity;
+            src.g *= opacity;
+            src.b *= opacity;
+            src.a *= opacity;
+            if (src.a <= 0.001f) continue;
+
+            Color& dst = dst_row[px];
+            if (mode == BlendMode::Add) {
+                dst.r = std::min(dst.r + src.r, 1.0f);
+                dst.g = std::min(dst.g + src.g, 1.0f);
+                dst.b = std::min(dst.b + src.b, 1.0f);
+                dst.a = std::min(dst.a + src.a, 1.0f);
+            } else {
+                const float inv_sa = 1.0f - src.a;
+                dst.r = src.r + dst.r * inv_sa;
+                dst.g = src.g + dst.g * inv_sa;
+                dst.b = src.b + dst.b * inv_sa;
+                dst.a = src.a + dst.a * inv_sa;
+            }
+        }
+    }
+}
+
+/**
  * Composites a Blend2D image (PRGB32) into a Chronon3D Framebuffer with a full 4x4 transform.
  * This uses inverse mapping to support perspective and rotation.
  */
