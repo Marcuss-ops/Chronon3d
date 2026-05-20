@@ -235,11 +235,11 @@ inline ProjectedLayer2_5D project_layer_2_5d(
     // For passive path: use the simple TRS transform (no perspective skew needed).
     if (use_view_matrix) {
         Mat4 proj = Mat4(0.0f);
-        // All paths now use the same convention.
-        proj[0][0] = -focal;
+        // All paths now use the same convention: +X right, +Y up in world space.
+        proj[0][0] = focal;
         proj[1][1] = -focal;
         proj[2][2] = 1.0f;
-        // w = +z for all conventions now
+        // w = +z for all conventions now.
         proj[2][3] = 1.0f;
         proj[3][3] = 0.0001f;
         out.projection_matrix = proj * view * layer_matrix;

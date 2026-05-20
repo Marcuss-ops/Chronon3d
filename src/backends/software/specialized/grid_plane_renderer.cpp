@@ -24,7 +24,7 @@ void draw_grid_plane(Framebuffer& fb, const RenderNode& node, const RenderState&
         if (!do_fade) return base_a;
         const Vec3 mid{(w0.x + w1.x) * 0.5f, (w0.y + w1.y) * 0.5f, (w0.z + w1.z) * 0.5f};
         Vec4 cam = rt.projection.view * Vec4(mid, 1.0f);
-        const f32 depth = -cam.z;
+        const f32 depth = cam.z;
         if (depth <= 0.0f) return 0.0f;
         const f32 t = std::clamp(depth / s.fade_distance, 0.0f, 1.0f);
         return base_a * (1.0f - t * (1.0f - s.fade_min_alpha));

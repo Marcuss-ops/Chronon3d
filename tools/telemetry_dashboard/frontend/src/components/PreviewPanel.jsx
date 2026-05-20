@@ -8,6 +8,7 @@ export default function PreviewPanel({ run, selectedFrame, nodeEvents }) {
   const isVideoRun = outputPath.endsWith('.mp4') || outputPath.endsWith('.webm') || outputPath.endsWith('.mov');
 
   const [mode, setMode] = useState(isVideoRun ? 'video' : 'frame');
+  const [mediaError, setMediaError] = useState('');
 
   useEffect(() => {
     if (!selectedFrame) {
@@ -24,8 +25,9 @@ export default function PreviewPanel({ run, selectedFrame, nodeEvents }) {
     resolvedVideoPath = `output/${run.composition_id}.mp4`;
   }
 
-  const frameUrl = outputPathToArtifactUrl(resolvedFramePath);
-  const videoUrl = outputPathToArtifactUrl(resolvedVideoPath);
+  const previewVersion = `${run.run_id}:${selectedFrame?.frame_number ?? 'base'}:${run.finished_at_iso || ''}`;
+  const frameUrl = outputPathToArtifactUrl(resolvedFramePath, previewVersion);
+  const videoUrl = outputPathToArtifactUrl(resolvedVideoPath, previewVersion);
 
   // Filter node events for spatial heatmap
   const currentFrameNodes = selectedFrame && nodeEvents
@@ -90,6 +92,8 @@ export default function PreviewPanel({ run, selectedFrame, nodeEvents }) {
               muted
               key={videoUrl}
               src={videoUrl}
+              onError={() => setMediaError('Video preview unavailable')}
+              onLoadedData={() => setMediaError('')}
             />
           ) : (
             <>
@@ -97,6 +101,9 @@ export default function PreviewPanel({ run, selectedFrame, nodeEvents }) {
                 className="preview-media-content" 
                 src={frameUrl} 
                 alt="Preview"
+                key={frameUrl}
+                onError={() => setMediaError('Frame preview unavailable')}
+                onLoad={() => setMediaError('')}
               />
               {mode === 'heatmap' && (
                 <div className="heatmap-overlay">
@@ -125,6 +132,11 @@ export default function PreviewPanel({ run, selectedFrame, nodeEvents }) {
                       {!selectedFrame ? "Seleziona un frame dalla timeline per vedere la heatmap" : "Nessuna area ridisegnata (Cache Hit totale)"}
                     </div>
                   )}
+                </div>
+              )}
+              {mediaError && (
+                <div className="heatmap-empty-msg">
+                  {mediaError}
                 </div>
               )}
             </>

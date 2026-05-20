@@ -194,3 +194,34 @@ TEST_CASE("ProjectionContext: project_line_clipped — straddling near plane cli
     bool ok = ctx.project_line_clipped({0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -2000.0f}, p0, p1);
     CHECK(ok);
 }
+
+TEST_CASE("ProjectionContext: Compare simple projection vs projection_matrix") {
+    Camera2_5D cam;
+    cam.enabled = true;
+    cam.position = {0.0f, 0.0f, 0.0f};
+    cam.zoom = 1000.0f;
+    cam.projection_mode = Camera2_5DProjectionMode::Zoom;
+
+    Transform layer;
+    layer.position = {100.0f, 0.0f, 1000.0f};
+    layer.scale = {1.0f, 1.0f, 1.0f};
+
+    auto projected = project_layer_2_5d(
+        layer,
+        layer.to_mat4(),
+        cam,
+        1920.0f,
+        1080.0f
+    );
+
+    REQUIRE(projected.visible);
+
+    // Path semplice
+    CHECK(projected.transform.position.x > 0.0f);
+
+    // Path matrice
+    Vec4 p = projected.projection_matrix * Vec4(0.0f, 0.0f, 0.0f, 1.0f);
+    float matrix_x = p.x / p.w;
+
+    CHECK(matrix_x > 0.0f);
+}

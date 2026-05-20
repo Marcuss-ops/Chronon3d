@@ -185,3 +185,40 @@ TEST_CASE("Camera2_5D projection: rotated camera still keeps front layers visibl
     CHECK(out.visible);
     CHECK(out.depth > 0.0f);
 }
+
+TEST_CASE("Camera2_5D projection: direct point projection keeps X and Y orientation") {
+    Camera2_5D cam;
+    cam.position = {0.0f, 0.0f, 0.0f};
+    cam.zoom = 1000.0f;
+    cam.projection_mode = Camera2_5DProjectionMode::Zoom;
+
+    Mat4 view = Mat4(1.0f);
+
+    Vec2 screen{};
+    f32 depth{};
+
+    bool ok_center = project_world_point_2_5d(
+        cam, view, false, 1000.0f,
+        Vec3{0.0f, 0.0f, 1000.0f},
+        screen, depth
+    );
+    CHECK(ok_center);
+    CHECK(screen.x == doctest::Approx(0.0f));
+    CHECK(screen.y == doctest::Approx(0.0f));
+
+    bool ok_right = project_world_point_2_5d(
+        cam, view, false, 1000.0f,
+        Vec3{100.0f, 0.0f, 1000.0f},
+        screen, depth
+    );
+    CHECK(ok_right);
+    CHECK(screen.x > 0.0f);
+
+    bool ok_up = project_world_point_2_5d(
+        cam, view, false, 1000.0f,
+        Vec3{0.0f, 100.0f, 1000.0f},
+        screen, depth
+    );
+    CHECK(ok_up);
+    CHECK(screen.y < 0.0f);
+}
