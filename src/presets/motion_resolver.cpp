@@ -24,6 +24,7 @@ MotionState resolve_motion_state(const FrameContext& ctx, const MotionObject& ob
     st.rotation = obj.rotation_value + obj.motion3d.rotation;
     st.opacity = obj.opacity_value;
     st.blur = 0.0f;
+    st.text_reveal = 1.0f;
 
     if (!st.visible) {
         st.opacity = 0.0f;
@@ -103,6 +104,31 @@ MotionState resolve_motion_state(const FrameContext& ctx, const MotionObject& ob
         const f32 amp = interpolate(t, 0.0f, 0.35f, 18.0f, 0.0f, Easing::OutCubic);
         st.position.x += std::sin(static_cast<f32>(ctx.frame) * 1.7f) * amp;
         st.position.y += std::cos(static_cast<f32>(ctx.frame) * 2.1f) * amp;
+        break;
+    }
+
+    case MotionPreset::TypewriterReveal:
+        st.opacity *= interpolate(t, 0.0f, 0.14f, 0.0f, 1.0f, Easing::OutCubic);
+        st.text_reveal = interpolate(t, 0.0f, 0.80f, 0.0f, 1.0f, Easing::OutCubic);
+        st.position.x += interpolate(t, 0.0f, 0.20f, -24.0f, 0.0f, Easing::OutCubic);
+        st.blur = interpolate(t, 0.0f, 0.12f, 8.0f, 0.0f, Easing::OutCubic);
+        break;
+
+    case MotionPreset::KineticBounce: {
+        st.opacity *= interpolate(t, 0.0f, 0.18f, 0.0f, 1.0f, Easing::OutCubic);
+        const f32 s = interpolate(t, 0.0f, 0.35f, 0.78f, 1.0f, Easing::OutBack);
+        st.scale = {obj.scale_value.x * s, obj.scale_value.y * s, obj.scale_value.z};
+        st.position.y += interpolate(t, 0.0f, 0.24f, 42.0f, 0.0f, Easing::OutBounce);
+        st.rotation.z += interpolate(t, 0.0f, 0.24f, -3.0f, 0.0f, Easing::OutCubic);
+        break;
+    }
+
+    case MotionPreset::GlitchIn: {
+        st.opacity *= interpolate(t, 0.0f, 0.08f, 0.0f, 1.0f, Easing::OutCubic);
+        st.position.x += std::sin(static_cast<f32>(ctx.frame) * 4.2f) * interpolate(t, 0.0f, 0.18f, 22.0f, 0.0f, Easing::OutCubic);
+        st.position.y += std::cos(static_cast<f32>(ctx.frame) * 3.7f) * interpolate(t, 0.0f, 0.18f, 14.0f, 0.0f, Easing::OutCubic);
+        st.rotation.z += std::sin(static_cast<f32>(ctx.frame) * 5.0f) * interpolate(t, 0.0f, 0.18f, 4.0f, 0.0f, Easing::OutCubic);
+        st.blur = interpolate(t, 0.0f, 0.12f, 14.0f, 0.0f, Easing::OutCubic);
         break;
     }
     }

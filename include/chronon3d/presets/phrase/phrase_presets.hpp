@@ -22,6 +22,9 @@ enum class PhrasePreset {
     CaptionClean,
     QuoteImpact,
     WarningPulse,
+    TypewriterCaption,
+    BounceTitle,
+    GlitchBanner,
 };
 
 struct PhraseParams {
@@ -314,6 +317,97 @@ inline MotionObject make_phrase(PhrasePreset preset, PhraseParams p) {
             .at(p.position)
             .preset(MotionPreset::ShakeImpact)
             .time(p.start, p.end);
+        }
+
+    case PhrasePreset::TypewriterCaption:
+        {
+            std::vector<MotionObject> children;
+            children.reserve(3);
+            children.push_back(detail::make_panel("bg", p, MotionPreset::FadeIn, p.box_size, p.corner_radius));
+            children.push_back(detail::make_title_text(
+                "title",
+                p,
+                MotionPreset::TypewriterReveal,
+                {0.0f, -10.0f, 2.0f},
+                p.title_size,
+                TextAlign::Center
+            ));
+            if (!p.subtitle.empty()) {
+                children.push_back(detail::make_subtitle_text(
+                    "subtitle",
+                    p,
+                    MotionPreset::FadeIn,
+                    {0.0f, 74.0f, 2.0f},
+                    p.subtitle_size,
+                    TextAlign::Center
+                ));
+            }
+            return MotionObject::group(std::move(p.id), std::move(children))
+                .at(p.position)
+                .preset(MotionPreset::TypewriterReveal)
+                .time(p.start, p.end);
+        }
+
+    case PhrasePreset::BounceTitle:
+        {
+            std::vector<MotionObject> children;
+            children.reserve(3);
+            children.push_back(detail::make_panel("bg", p, MotionPreset::KineticBounce, p.box_size, p.corner_radius));
+            children.push_back(detail::make_accent_bar(
+                "accent",
+                p,
+                MotionPreset::FadeIn,
+                {-p.box_size.x * 0.34f, -p.box_size.y * 0.28f, 1.0f},
+                {p.box_size.x * 0.22f, 10.0f}
+            ));
+            children.push_back(detail::make_title_text(
+                "title",
+                p,
+                MotionPreset::KineticBounce,
+                {0.0f, -8.0f, 2.0f},
+                p.title_size,
+                TextAlign::Center
+            ));
+            return MotionObject::group(std::move(p.id), std::move(children))
+                .at(p.position)
+                .preset(MotionPreset::KineticBounce)
+                .time(p.start, p.end);
+        }
+
+    case PhrasePreset::GlitchBanner:
+        {
+            std::vector<MotionObject> children;
+            children.reserve(4);
+            children.push_back(detail::make_panel("bg", p, MotionPreset::GlitchIn, p.box_size, p.corner_radius));
+            children.push_back(detail::make_accent_bar(
+                "accent",
+                p,
+                MotionPreset::GlitchIn,
+                {-p.box_size.x * 0.46f, 0.0f, 1.0f},
+                {12.0f, p.box_size.y * 0.80f}
+            ));
+            children.push_back(detail::make_title_text(
+                "title",
+                p,
+                MotionPreset::GlitchIn,
+                {0.0f, -10.0f, 2.0f},
+                p.title_size,
+                TextAlign::Center
+            ));
+            if (!p.subtitle.empty()) {
+                children.push_back(detail::make_subtitle_text(
+                    "subtitle",
+                    p,
+                    MotionPreset::FadeIn,
+                    {0.0f, 82.0f, 2.0f},
+                    p.subtitle_size,
+                    TextAlign::Center
+                ));
+            }
+            return MotionObject::group(std::move(p.id), std::move(children))
+                .at(p.position)
+                .preset(MotionPreset::GlitchIn)
+                .time(p.start, p.end);
         }
     }
 

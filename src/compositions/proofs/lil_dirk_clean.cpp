@@ -40,8 +40,7 @@ void build_centered_grid(LayerBuilder& l, int width, int height) {
     }
 }
 
-Scene build_lil_dirk_clean_scene(const FrameContext& ctx) {
-    SceneBuilder s(ctx);
+void build_lil_dirk_clean_background(SceneBuilder& s, const FrameContext& ctx) {
     const int width = ctx.width;
     const int height = ctx.height;
     const float t = (ctx.duration > 1)
@@ -82,6 +81,11 @@ Scene build_lil_dirk_clean_scene(const FrameContext& ctx) {
             .color = Color{0.96f, 0.96f, 1.0f, 0.62f}
         });
     });
+}
+
+Scene build_lil_dirk_clean_scene(const FrameContext& ctx) {
+    SceneBuilder s(ctx);
+    build_lil_dirk_clean_background(s, ctx);
     return s.build();
 }
 

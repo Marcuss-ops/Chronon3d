@@ -38,14 +38,14 @@ target_link_libraries(chronon3d_cli
         chronon3d_backend_image
         spdlog::spdlog_header_only
         fmt::fmt
-        $<$<CONFIG:Debug>:${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/debug/lib/sqlite3.lib>
-        $<$<CONFIG:Release>:${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/lib/sqlite3.lib>
-        $<$<CONFIG:RelWithDebInfo>:${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/lib/sqlite3.lib>
-        $<$<CONFIG:MinSizeRel>:${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/lib/sqlite3.lib>
 )
 
 target_include_directories(chronon3d_cli PRIVATE ${CMAKE_SOURCE_DIR})
 
 if(CLI11_INCLUDE_DIRS)
     target_include_directories(chronon3d_cli PRIVATE ${CLI11_INCLUDE_DIRS})
+endif()
+
+if(CHRONON3D_ENABLE_SQLITE_TELEMETRY)
+    target_link_libraries(chronon3d_cli PRIVATE unofficial::sqlite3::sqlite3)
 endif()

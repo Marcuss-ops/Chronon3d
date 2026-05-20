@@ -265,6 +265,7 @@ set(CHRONON3D_COMPOSITION_SOURCES
     src/compositions/demos/chronon_intro_card.cpp
     src/compositions/proof_25d_objects.cpp
     src/compositions/proofs/lil_dirk_clean.cpp
+    src/compositions/proofs/lil_dirk_phrase_test.cpp
     src/compositions/proofs/phrase_preset_gallery.cpp
     src/compositions/proofs/motion_depth_proof.cpp
     src/compositions/proofs/motion_object_proof.cpp
