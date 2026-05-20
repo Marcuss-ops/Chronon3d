@@ -4,14 +4,17 @@ import './App.css';
 import { fetchRuns, fetchRunDetail } from './api/telemetryApi.js';
 import { formatBytes, formatIso, formatCounterValue } from './utils/format.jsx';
 
+import { io } from 'socket.io-client';
 import Sidebar from './components/Sidebar.jsx';
 import TabNavigation from './components/TabNavigation.jsx';
 import PreviewPanel from './components/PreviewPanel.jsx';
 import MetricsGrid from './components/MetricsGrid.jsx';
 import FrameChart from './components/FrameChart.jsx';
+import PerformanceCharts from './components/PerformanceCharts.jsx';
 import ProfilePanels from './components/ProfilePanels.jsx';
 import LayersTable from './components/LayersTable.jsx';
 import NodesTable from './components/NodesTable.jsx';
+import RenderGraph from './components/RenderGraph.jsx';
 
 function App() {
   const [runs, setRuns] = useState([]);
@@ -37,6 +40,17 @@ function App() {
   const [hoveredFrame, setHoveredFrame] = useState(null);
 
   const [copiedMetrics, setCopiedMetrics] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  useEffect(() => {
+    const socket = io('http://localhost:8000');
+    socket.on('new_run', (data) => {
+      console.log('New run detected via WebSocket:', data.run_id);
+      loadRuns();
+      setSelectedRunId(data.run_id);
+    });
+    return () => socket.disconnect();
+  }, [loadRuns]);
 
   useEffect(() => {
     setSelectedFrame(null);
@@ -234,6 +248,7 @@ ${countersText}`;
               <>
                 <PreviewPanel run={runDetail.run} />
                 <MetricsGrid runDetail={runDetail} />
+                <PerformanceCharts frames={runDetail.frames} phases={runDetail.phases} />
 
                 <div className="details-layout">
                   <section className="glass-panel details-panel">
@@ -286,6 +301,12 @@ ${countersText}`;
                 runDetail={runDetail}
                 selectedFrame={selectedFrame}
                 onResetFrame={() => setSelectedFrame(null)}
+              />
+            )}
+
+            {activeTab === 'graph' && (
+              <RenderGraph 
+                compositionId={runDetail.run.composition_id} 
               />
             )}
 

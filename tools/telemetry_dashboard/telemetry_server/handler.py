@@ -51,14 +51,8 @@ class TelemetryAPIHandler(BaseHTTPRequestHandler):
             self.handle_static_file(path)
 
     def do_POST(self):
-        parsed_url = urllib.parse.urlparse(self.path)
-        path = parsed_url.path
-
-        if path == '/api/query':
-            self.handle_post_query()
-        else:
-            self.send_response(404)
-            self.end_headers()
+        self.send_response(404)
+        self.end_headers()
 
     # ── API: GET /api/runs ────────────────────────────────────────────────────────
     def handle_get_runs(self):
@@ -176,45 +170,6 @@ class TelemetryAPIHandler(BaseHTTPRequestHandler):
         except Exception:
             self.send_response(404)
             self.end_headers()
-
-    # ── API: POST /api/query ──────────────────────────────────────────────────────
-    def handle_post_query(self):
-        content_length = int(self.headers.get('Content-Length', 0))
-        post_data = self.rfile.read(content_length)
-        try:
-            req_body = json.loads(post_data.decode('utf-8'))
-            sql_query = req_body.get('query', '')
-        except Exception as e:
-            self.send_json({"error": "Invalid JSON body"}, 400)
-            return
-
-        if not sql_query:
-            self.send_json({"error": "Query parameter is required"}, 400)
-            return
-
-        conn = None
-        try:
-            conn = create_merged_connection()
-            cursor = conn.cursor()
-            cursor.execute(sql_query)
-            if cursor.description:
-                columns = [col[0] for col in cursor.description]
-                rows = [dict(row) for row in cursor.fetchall()]
-                self.send_json({"columns": columns, "rows": rows})
-            else:
-                conn.commit()
-                self.send_json({
-                    "message": "Query executed successfully",
-                    "rows_affected": cursor.rowcount,
-                })
-        except Exception as e:
-            self.send_json({"error": str(e)}, 400)
-        finally:
-            try:
-                if conn:
-                    conn.close()
-            except Exception:
-                pass
 
     # ── Static file serving (React SPA) ────────────────────────────────────────────
     def handle_static_file(self, path):

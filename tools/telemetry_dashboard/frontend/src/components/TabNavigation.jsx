@@ -21,6 +21,12 @@ export default function TabNavigation({ activeTab, onTabChange, layerCount, node
       >
         🌳 Node Execution ({nodeCount})
       </button>
+      <button
+        className={`tab-btn ${activeTab === 'graph' ? 'active' : ''}`}
+        onClick={() => onTabChange('graph')}
+      >
+        🕸️ Render Graph
+      </button>
     </div>
   );
 }

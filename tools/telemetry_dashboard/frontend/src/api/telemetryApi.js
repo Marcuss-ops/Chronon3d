@@ -19,16 +19,3 @@ export const fetchRunDetail = async (id) => {
   if (!res.ok) throw new Error('Failed to load run details');
   return await res.json();
 };
-
-export const executeQuery = async (queryText) => {
-  const res = await fetch(`${API_BASE}/api/query`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query: queryText })
-  });
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.error || 'Failed to execute query');
-  }
-  return data;
-};
