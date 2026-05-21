@@ -1,12 +1,14 @@
 #pragma once
 
 #include <chronon3d/math/color.hpp>
+#include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/core/trace.hpp>
 #include <chronon3d/core/counters.hpp>
 #include <vector>
 #include <string>
 #include <fstream>
 #include <algorithm>
+#include <optional>
 
 namespace chronon3d {
 
@@ -66,6 +68,24 @@ public:
 
     void clear(const Color& color) {
         std::fill(m_pixels.begin(), m_pixels.end(), color);
+    }
+
+    void clear(const Color& color, const std::optional<raster::BBox>& clip) {
+        if (!clip) {
+            clear(color);
+            return;
+        }
+
+        raster::BBox box = *clip;
+        box.clip_to(m_width, m_height);
+        if (box.is_empty()) {
+            return;
+        }
+
+        for (i32 y = box.y0; y < box.y1; ++y) {
+            Color* row = pixels_row(y);
+            std::fill(row + box.x0, row + box.x1, color);
+        }
     }
 
     void set_pixel(i32 x, i32 y, const Color& color) {

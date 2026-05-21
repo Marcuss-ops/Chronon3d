@@ -1,12 +1,18 @@
 import { INFO_DESCRIPTIONS } from '../data/constants.js';
 
 export const formatBytes = (bytes) => {
-  if (!bytes) return 'N/A';
+  if (bytes === null || bytes === undefined) return 'N/A';
+  if (bytes === 0) return '0 B';
   if (bytes >= 1024 * 1024 * 1024) {
     return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
   }
-  const mb = bytes / (1024 * 1024);
-  return `${mb.toFixed(1)} MB`;
+  if (bytes >= 1024 * 1024) {
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+  if (bytes >= 1024) {
+    return `${(bytes / 1024).toFixed(1)} KB`;
+  }
+  return `${bytes} B`;
 };
 
 export const formatIso = (isoStr) => {

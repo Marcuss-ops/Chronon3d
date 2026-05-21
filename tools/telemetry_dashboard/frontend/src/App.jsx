@@ -3,6 +3,8 @@ import './App.css';
 
 import { fetchRuns, fetchRunDetail } from './api/telemetryApi.js';
 import { formatBytes, formatIso, formatCounterValue } from './utils/format.jsx';
+import { API_BASE } from './data/constants.js';
+import { copyTextToClipboard } from './utils/clipboard.js';
 
 import { io } from 'socket.io-client';
 import Sidebar from './components/Sidebar.jsx';
@@ -96,7 +98,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    const socket = io('http://localhost:8000', {
+    const socket = io(API_BASE || window.location.origin, {
       transports: ['websocket', 'polling']
     });
     socket.on('new_run', (data) => {
@@ -157,58 +159,140 @@ function App() {
     }
   }, [comparisonRunId, loadRunDetail]);
 
-  const copyMetricsToClipboard = () => {
-    if (!runDetail || !runDetail.run) return;
+  const mdEscape = (value) => String(value ?? '').replace(/\|/g, '\\|');
+
+  const mdTable = (headers, rows) => {
+    if (!rows || rows.length === 0) return '- None';
+    const headerRow = `| ${headers.map(mdEscape).join(' | ')} |`;
+    const dividerRow = `| ${headers.map(() => '---').join(' | ')} |`;
+    const bodyRows = rows.map(row => `| ${row.map(mdEscape).join(' | ')} |`);
+    return [headerRow, dividerRow, ...bodyRows].join('\n');
+  };
+
+  const buildMetricsReport = () => {
+    if (!runDetail || !runDetail.run) return '';
+
     const r = runDetail.run;
-    const cacheRate = r.cache_hits + r.cache_misses > 0
-      ? `${(r.cache_hits / (r.cache_hits + r.cache_misses) * 100).toFixed(1)}%`
+    const frames = runDetail.frames || [];
+    const phases = runDetail.phases || [];
+    const counters = runDetail.counters || [];
+
+    const cacheHits = Number(r.cache_hits || 0);
+    const cacheMisses = Number(r.cache_misses || 0);
+    const cacheRate = cacheHits + cacheMisses > 0
+      ? `${((cacheHits / (cacheHits + cacheMisses)) * 100).toFixed(1)}%`
       : '0.0%';
 
-    const corePhasesText = runDetail.phases
-      .filter(p => !p.phase_name.startsWith('node:'))
-      .map(p => `- **${p.phase_name}**: ${p.duration_ms.toFixed(2)} ms`)
-      .join('\n');
+    const frameDurations = frames.map(f => Number(f.duration_ms || 0));
+    const frameCount = frames.length;
+    const minFrame = frameCount > 0 ? Math.min(...frameDurations) : 0;
+    const maxFrame = frameCount > 0 ? Math.max(...frameDurations) : 0;
+    const avgFrame = frameCount > 0
+      ? frameDurations.reduce((sum, v) => sum + v, 0) / frameCount
+      : 0;
+    const frameHitRate = frameCount > 0
+      ? `${((frames.filter(f => f.cache_hit).length / frameCount) * 100).toFixed(1)}%`
+      : '0.0%';
 
-    const nodePhasesText = runDetail.phases
+    const phaseRows = phases
+      .slice()
+      .sort((a, b) => b.duration_ms - a.duration_ms)
+      .map(p => [p.phase_name, `${p.duration_ms.toFixed(2)} ms`]);
+
+    const nodePhases = phases
       .filter(p => p.phase_name.startsWith('node:'))
-      .map(p => `- **${p.phase_name.replace('node:', '')}**: ${p.duration_ms.toFixed(2)} ms`)
-      .join('\n');
+      .slice()
+      .sort((a, b) => b.duration_ms - a.duration_ms)
+      .map(p => [p.phase_name.replace('node:', ''), `${p.duration_ms.toFixed(2)} ms`]);
 
-    const countersText = runDetail.counters && runDetail.counters.length > 0
-      ? runDetail.counters.map(c => `- **${c.counter_name.replace(/_/g, ' ')}**: ${formatCounterValue(c.counter_name, c.counter_value)}`).join('\n')
-      : 'None';
+    const counterRows = counters
+      .slice()
+      .sort((a, b) => a.counter_name.localeCompare(b.counter_name))
+      .map(c => [c.counter_name.replace(/_/g, ' '), formatCounterValue(c.counter_name, c.counter_value)]);
 
-    const text = `# Chronon3D Telemetry Report - ${r.composition_id}
+    const sampleFrames = frames
+      .slice(0, 12)
+      .map(f => [
+        `#${f.frame_number}`,
+        `${Number(f.duration_ms || 0).toFixed(2)} ms`,
+        f.cache_hit ? 'hit' : 'miss',
+        `${((Number(f.dirty_area_ratio || 0)) * 100).toFixed(1)}%`,
+      ]);
 
-## Composition & Environment
-- **Composition**: ${r.composition_id}
-- **Run ID**: ${r.run_id}
-- **Status**: ${r.success ? 'SUCCESS' : 'FAILED'}
-- **Finished At**: ${formatIso(r.finished_at_iso)}
-- **Git Commit**: ${r.git_commit_short}
-- **Build**: ${r.build_type} (${r.compiler_info})
-- **OS/CPU**: ${r.os} / ${r.cpu_model} (${r.cores} cores)
+    const reportSections = [
+      `# Chronon3D Telemetry Report - ${r.composition_id}`,
+      '',
+      '## Overview',
+      mdTable(
+        ['Field', 'Value'],
+        [
+          ['Composition', r.composition_id],
+          ['Run ID', r.run_id],
+          ['Status', r.success ? 'SUCCESS' : 'FAILED'],
+          ['Finished At', formatIso(r.finished_at_iso)],
+          ['Output', r.output_path],
+          ['Git Commit', r.git_commit_short],
+          ['Build', `${r.build_type} (${r.compiler_info})`],
+          ['OS / CPU', `${r.os} / ${r.cpu_model} (${r.cores} cores)`],
+        ],
+      ),
+      '',
+      '## Performance',
+      mdTable(
+        ['Metric', 'Value'],
+        [
+          ['Effective FPS', `${Number(r.effective_fps || 0).toFixed(2)} fps`],
+          ['Wall Duration', `${(Number(r.wall_time_ms || 0) / 1000).toFixed(2)} s`],
+          ['Render Duration', `${(Number(r.render_ms || 0) / 1000).toFixed(2)} s`],
+          ['Encode Duration', `${(Number(r.encode_ms || 0) / 1000).toFixed(2)} s`],
+          ['Peak Memory', formatBytes(r.bytes_allocated_peak)],
+          ['Cache Hit Rate', cacheRate],
+          ['Frames Total', String(r.frames_total || 0)],
+          ['Frames Written', String(r.frames_written || 0)],
+        ],
+      ),
+      '',
+      '## Frame Summary',
+      mdTable(
+        ['Metric', 'Value'],
+        [
+          ['Frame Count', String(frameCount)],
+          ['Average Frame', `${avgFrame.toFixed(2)} ms`],
+          ['Min Frame', `${minFrame.toFixed(2)} ms`],
+          ['Max Frame', `${maxFrame.toFixed(2)} ms`],
+          ['Frame Cache Hit Rate', frameHitRate],
+        ],
+      ),
+      '',
+      '## Frame Samples',
+      mdTable(['Frame', 'Duration', 'Cache', 'Dirty Ratio'], sampleFrames),
+      '',
+      '## Core Render Phases',
+      mdTable(['Phase', 'Duration'], phaseRows.filter(row => !row[0].startsWith('node:'))),
+      '',
+      '## Node Execution Bottlenecks',
+      nodePhases.length > 0
+        ? mdTable(['Node', 'Duration'], nodePhases.slice(0, 10))
+        : '- None. Use `--benchmark-all` to gather node timings.',
+      '',
+      '## Telemetry Counters',
+      mdTable(['Counter', 'Value'], counterRows),
+    ];
 
-## Performance Metrics
-- **Effective FPS**: ${r.effective_fps ? r.effective_fps.toFixed(2) : '0.00'} fps
-- **Wall Duration**: ${(r.wall_time_ms / 1000).toFixed(2)} s
-- **Render Duration**: ${(r.render_ms / 1000).toFixed(2)} s
-- **Peak Memory**: ${formatBytes(r.bytes_allocated_peak)}
-- **Cache Hit Rate**: ${cacheRate}
-- **Frames Total**: ${r.frames_total}
+    return reportSections.join('\n');
+  };
 
-## Core Render Phases
-${corePhasesText || 'None'}
+  const copyMetricsToClipboard = async () => {
+    const text = buildMetricsReport();
+    if (!text) return;
 
-## Node Execution Bottlenecks
-${nodePhasesText || 'None'}
-
-## Telemetry Counters
-${countersText}`;
-
-    navigator.clipboard.writeText(text);
-    setCopiedMetrics(true);
-    setTimeout(() => setCopiedMetrics(false), 2000);
+    const copied = await copyTextToClipboard(text);
+    if (copied) {
+      setCopiedMetrics(true);
+      setTimeout(() => setCopiedMetrics(false), 2000);
+    } else {
+      setError('Unable to copy metrics report to clipboard');
+    }
   };
 
   return (

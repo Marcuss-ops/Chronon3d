@@ -1,4 +1,6 @@
-export const API_BASE = import.meta.env.DEV ? 'http://localhost:8000' : '';
+const dashboardHost = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+
+export const API_BASE = import.meta.env.DEV ? `http://${dashboardHost}:8000` : '';
 
 
 export const INFO_DESCRIPTIONS = {

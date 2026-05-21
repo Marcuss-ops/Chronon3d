@@ -171,11 +171,10 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
                     (has_cacheable_inputs && inputs_frame_dependent) ||
                     node.cache_frame_policy() == CacheFramePolicy::FrameDependent;
 
-                if (is_cacheable && ctx.node_cache) {
+                const bool use_cache = is_cacheable && ctx.node_cache && !node_frame_dependent;
+
+                if (use_cache) {
                     key = node.cache_key(ctx);
-                    if (!node_frame_dependent) {
-                        key.frame = 0;
-                    }
                     key.input_hash = input_hash;
 
                     result = ctx.node_cache->get(key);
@@ -191,24 +190,33 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
                         cache_status = result ? "hit" : "miss";
                     }
                 } else {
-                    cache_status = !ctx.node_cache ? "bypass_no_cache" : "bypass_not_cacheable";
+                    if (!ctx.node_cache) {
+                        cache_status = "bypass_no_cache";
+                    } else if (!is_cacheable) {
+                        cache_status = "bypass_not_cacheable";
+                    } else {
+                        cache_status = "bypass_frame_dependent";
+                    }
                 }
+
+                const auto predicted_bbox = node.predicted_bbox(ctx, input_bboxes);
+
+                RenderGraphContext node_ctx = ctx;
+                node_ctx.clip_rect = predicted_bbox;
 
                 const auto exec_t0 = std::chrono::steady_clock::now();
                 if (!result) {
-                    TraceScope scope(ctx.trace, node.name(), "node_execute", ctx.frame);
-                    result = node.execute(ctx, inputs, input_bboxes);
+                    TraceScope scope(node_ctx.trace, node.name(), "node_execute", node_ctx.frame);
+                    result = node.execute(node_ctx, inputs, input_bboxes);
                     if (ctx.counters) {
                         ctx.counters->nodes_executed.fetch_add(1, std::memory_order_relaxed);
                     }
-                    if (is_cacheable && ctx.node_cache && result) {
+                    if (use_cache && result) {
                         ctx.node_cache->store(key, result);
                     }
                 }
                 const auto exec_t1 = std::chrono::steady_clock::now();
                 const double duration_ms = std::chrono::duration<double, std::milli>(exec_t1 - exec_t0).count();
-
-                const auto predicted_bbox = node.predicted_bbox(ctx, input_bboxes);
 
                 {
                     telemetry::CacheTelemetryRecord cache_rec;
@@ -249,9 +257,7 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
 
                 temp[id] = result;
                 resolved_key_digest[id] = key.digest();
-                if (is_cacheable) {
-                    resolved_frame_dependent[id] = node_frame_dependent ? 1 : 0;
-                }
+                resolved_frame_dependent[id] = node_frame_dependent ? 1 : 0;
                 resolved_bboxes[id] = predicted_bbox;
 
                 for (GraphNodeId input_id : input_ids) {
