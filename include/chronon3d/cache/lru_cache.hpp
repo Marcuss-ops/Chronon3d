@@ -121,6 +121,12 @@ private:
 
         void put(const Key& key, Value value, size_t weight, std::atomic<size_t>& evictions) {
             std::lock_guard lock(mutex);
+            if (weight > capacity_weight) {
+                // Oversized entries are never cached. This keeps a single large framebuffer
+                // from consuming an entire shard and bypassing the intended capacity bound.
+                return;
+            }
+
             auto it = entries.find(key);
             if (it != entries.end()) {
                 current_weight -= it->second.weight;

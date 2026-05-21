@@ -96,7 +96,9 @@ function App() {
   }, []);
 
   useEffect(() => {
-    const socket = io('http://localhost:8000');
+    const socket = io('http://localhost:8000', {
+      transports: ['websocket', 'polling']
+    });
     socket.on('new_run', (data) => {
       console.log('New run detected via WebSocket:', data.run_id);
       loadRuns();
@@ -132,6 +134,9 @@ function App() {
           loadRunDetail(comparisonRunIdRef.current, true, true);
         }
       } catch (err) {
+        if (err instanceof TypeError) {
+          return;
+        }
         console.error('Polling error:', err);
       }
     }, 3000);

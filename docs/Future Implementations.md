@@ -414,3 +414,6 @@ Il concetto di "Render Graph" che stai usando in Chronon3D (il grafo dei nodi ch
     Cosa stanno facendo: Immagina che il tuo grafo di rendering non giri solo sulla tua CPU da 16 core, ma sia "liquido". Mentre modifichi un parametro, il grafo si spezza in micro-operazioni immutabili ed esegue il caching non solo in RAM, ma su server aziendali decentralizzati. Se un tuo collega a 1000 km di distanza ha già renderizzato lo stesso sfondo vettoriale, il tuo motore locale non lo calcola nemmeno: scarica il chunk di pixel istantaneamente via rete tramite memorie condivise ultra-veloci.
 
     Chi lo fa: Netflix con la sua infrastruttura di rendering in cloud per gli effetti visivi, e Pixar con le evoluzioni di RenderMan accoppiato a sistemi di storage a bassissima latenza.
+
+
+1 Computer Ragiona Gli altri modificano solo quello che ha senso essere modificato e basta non tutti fanno la stessa cosa più volte senza senso e senza riusare quello ceh hanno già fatto gli altri 

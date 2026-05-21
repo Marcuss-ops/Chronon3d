@@ -42,6 +42,7 @@ endif()
 find_package(spdlog CONFIG REQUIRED)
 find_package(fmt CONFIG REQUIRED)
 find_package(Taskflow CONFIG REQUIRED)
+find_package(TBB CONFIG REQUIRED)
 find_package(concurrentqueue CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)
 find_package(meshoptimizer CONFIG REQUIRED)
@@ -130,7 +131,7 @@ set(CHRONON3D_GRAPH_SOURCES
     src/render_graph/nodes/transform_node.cpp
 )
 add_library(chronon3d_graph STATIC ${CHRONON3D_GRAPH_SOURCES})
-target_link_libraries(chronon3d_graph PUBLIC chronon3d chronon3d_cache fmt::fmt hwy::hwy tomlplusplus::tomlplusplus)
+target_link_libraries(chronon3d_graph PUBLIC chronon3d chronon3d_cache fmt::fmt hwy::hwy tomlplusplus::tomlplusplus TBB::tbb)
 
 # 6. Effects
 set(CHRONON3D_EFFECTS_SOURCES
@@ -226,7 +227,7 @@ target_link_libraries(chronon3d_backend_software
         chronon3d chronon3d_graph chronon3d_cache chronon3d_effects
         chronon3d_backend_assets chronon3d_backend_image
         blend2d::blend2d
-    PRIVATE spdlog::spdlog_header_only hwy::hwy fmt::fmt xxHash::xxhash tomlplusplus::tomlplusplus
+    PRIVATE spdlog::spdlog_header_only hwy::hwy fmt::fmt xxHash::xxhash tomlplusplus::tomlplusplus TBB::tbb
 )
 target_include_directories(chronon3d_backend_software PRIVATE ${Stb_INCLUDE_DIR})
 

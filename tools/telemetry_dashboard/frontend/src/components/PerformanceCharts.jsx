@@ -1,8 +1,15 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Chart from 'react-apexcharts';
 
 export default function PerformanceCharts({ frames, phases }) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   if (!frames || frames.length === 0) return null;
+  if (!mounted) return null;
 
   const frameData = frames.map(f => f.duration_ms.toFixed(2));
   const dirtyData = frames.map(f => (f.dirty_area_ratio * 100).toFixed(1));
@@ -13,7 +20,7 @@ export default function PerformanceCharts({ frames, phases }) {
       id: 'frame-durations',
       toolbar: { show: true },
       background: 'transparent',
-      animations: { enabled: true }
+      animations: { enabled: false }
     },
     theme: { mode: 'dark' },
     stroke: { curve: 'smooth', width: 2 },

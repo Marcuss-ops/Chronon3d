@@ -137,6 +137,13 @@ public:
     [[nodiscard]]    virtual std::optional<raster::BBox> predicted_bbox(const RenderGraphContext& ctx) const {
         return std::nullopt;
     }
+    [[nodiscard]] virtual std::optional<raster::BBox> predicted_bbox(
+        const RenderGraphContext& ctx,
+        const std::vector<std::optional<raster::BBox>>& input_bboxes
+    ) const {
+        (void)input_bboxes;
+        return predicted_bbox(ctx);
+    }
     
     virtual RenderGraphNodeKind kind() const = 0;
     [[nodiscard]] virtual std::string name() const = 0;

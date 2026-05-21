@@ -1,11 +1,32 @@
 #include <chronon3d/cache/framebuffer_pool.hpp>
 #include <chronon3d/core/trace.hpp>
 #include <chronon3d/core/counters.hpp>
+#include <cstdlib>
 
 namespace chronon3d::cache {
 
+namespace {
+
+size_t resolve_default_max_bytes(size_t fallback) {
+    const char* env = std::getenv("CHRONON_FB_POOL_MAX_MB");
+    if (!env || !*env) {
+        return fallback;
+    }
+    try {
+        const size_t mb = static_cast<size_t>(std::stoull(env));
+        if (mb == 0) {
+            return fallback;
+        }
+        return mb * 1024ULL * 1024ULL;
+    } catch (...) {
+        return fallback;
+    }
+}
+
+} // namespace
+
 FramebufferPool::FramebufferPool(size_t max_bytes)
-    : m_max_bytes(max_bytes) {}
+    : m_max_bytes(resolve_default_max_bytes(max_bytes)) {}
 
 std::shared_ptr<Framebuffer> FramebufferPool::acquire(int width, int height, bool clear) {
     auto fb = acquire_unique(width, height, clear);

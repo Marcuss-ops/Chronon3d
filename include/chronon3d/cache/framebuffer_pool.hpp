@@ -32,7 +32,7 @@ struct FramebufferPoolKeyHash {
 // ---------------------------------------------------------------------------
 class FramebufferPool : public std::enable_shared_from_this<FramebufferPool> {
 public:
-    explicit FramebufferPool(size_t max_bytes = 2ULL * 1024ULL * 1024ULL * 1024ULL);
+    explicit FramebufferPool(size_t max_bytes = 64ULL * 1024ULL * 1024ULL);
 
     /// Acquire a framebuffer of the requested size, optionally cleared.
     /// If a compatible framebuffer exists in the pool, it is reused.

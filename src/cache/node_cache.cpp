@@ -2,6 +2,7 @@
 
 #define XXH_INLINE_ALL
 #include <xxhash.h>
+#include <cstdlib>
 #include <string_view>
 
 namespace chronon3d::cache {
@@ -23,6 +24,26 @@ template <typename T>
 
 } // namespace
 
+namespace {
+
+size_t resolve_default_capacity(size_t fallback) {
+    const char* env = std::getenv("CHRONON_NODE_CACHE_MAX_MB");
+    if (!env || !*env) {
+        return fallback;
+    }
+    try {
+        const size_t mb = static_cast<size_t>(std::stoull(env));
+        if (mb == 0) {
+            return fallback;
+        }
+        return mb * 1024ULL * 1024ULL;
+    } catch (...) {
+        return fallback;
+    }
+}
+
+} // namespace
+
 u64 NodeCacheKey::digest() const {
     u64 seed = hash_string(scope);
     seed = hash_combine(seed, hash_value(frame));
@@ -35,7 +56,7 @@ u64 NodeCacheKey::digest() const {
 }
 
 NodeCache::NodeCache(size_t capacity_bytes)
-    : m_cache(capacity_bytes, capacity_bytes > 64 * 1024 ? 16 : 1) {}
+    : m_cache(resolve_default_capacity(capacity_bytes), 1) {}
 
 NodeCache::Value NodeCache::get(const NodeCacheKey& key) {
     auto opt = m_cache.get(key);
@@ -62,7 +83,7 @@ void NodeCache::set_capacity(size_t capacity_bytes) {
     // In a real scenario, we might want Shard::set_capacity.
     // Let's keep it simple for now.
     clear();
-    m_cache = FramebufferCache(capacity_bytes);
+    m_cache = FramebufferCache(capacity_bytes, 1);
 }
 
 bool NodeCache::erase(const NodeCacheKey& key) {
