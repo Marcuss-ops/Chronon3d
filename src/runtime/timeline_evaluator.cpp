@@ -83,6 +83,8 @@ EvaluatedScene TimelineEvaluator::evaluate(const SceneDescription& scene, Frame 
 
         el.visuals = ld.visuals;
         el.resolved_effects = resolve_effects(ld.effects);
+        el.transition_in = ld.transition_in;
+        el.transition_out = ld.transition_out;
 
         result.layers.push_back(std::move(el));
     }
