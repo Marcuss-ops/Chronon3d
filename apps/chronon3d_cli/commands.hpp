@@ -22,6 +22,11 @@ struct RenderPipelineArgs {
     bool   diagnostic{false};
     bool   dirty_rects{false};
     RenderQualityArgs quality{};
+
+    // Renderer warmup (preallocation + optional dummy frame)
+    bool   warmup_renderer{false};
+    size_t warmup_framebuffers{16};
+    bool   warmup_dummy_frame{false};
 };
 
 struct RenderArgs {
@@ -88,6 +93,11 @@ struct BenchArgs {
 
     double fail_if_avg_slower_pct{0.0};
     double fail_if_p95_slower_pct{0.0};
+
+    // Renderer warmup (preallocation + optional dummy frame)
+    bool   warmup_renderer{false};
+    size_t warmup_framebuffers{16};
+    bool   warmup_dummy_frame{false};
 };
 
 struct GraphArgs {

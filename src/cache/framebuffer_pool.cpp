@@ -121,4 +121,68 @@ size_t FramebufferPool::available_count() const {
     return count;
 }
 
+size_t FramebufferPool::preallocate(const FramebufferPoolPreallocOptions& options) {
+    if (options.width <= 0 || options.height <= 0 || options.count == 0) {
+        return 0;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
+
+    FramebufferPoolKey key{options.width, options.height};
+    auto& bucket = m_free[key];
+
+    size_t created = 0;
+
+    for (size_t i = 0; i < options.count; ++i) {
+        auto fb = std::make_unique<Framebuffer>(options.width, options.height);
+
+        if (options.clear) {
+            fb->clear(Color::transparent());
+        } else if (options.touch_memory) {
+            // Touch the pixel data to commit physical pages.
+            // We write-back the same values to avoid changing visual content.
+            for (i32 y = 0; y < options.height; ++y) {
+                Color* row = fb->pixels_row(y);
+                for (i32 x = 0; x < options.width; ++x) {
+                    // Read and write-back to force OS page commitment
+                    Color c = row[x];
+                    row[x] = c;
+                }
+            }
+        }
+
+        const size_t weight = fb->size_bytes();
+
+        if (m_current_bytes + weight > m_max_bytes) {
+            break;
+        }
+
+        m_current_bytes += weight;
+        bucket.push_back(std::move(fb));
+        ++created;
+    }
+
+    return created;
+}
+
+size_t FramebufferPool::max_bytes() const {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_max_bytes;
+}
+
+FramebufferPoolStats FramebufferPool::stats() const {
+    std::lock_guard<std::mutex> lock(m_mutex);
+
+    size_t count = 0;
+    for (const auto& [key, bucket] : m_free) {
+        count += bucket.size();
+    }
+
+    return FramebufferPoolStats{
+        .current_bytes = m_current_bytes,
+        .available_count = count,
+        .max_bytes = m_max_bytes
+    };
+}
+
 } // namespace chronon3d::cache
