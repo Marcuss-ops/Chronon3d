@@ -192,7 +192,8 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
                     projection_world_matrix,
                     cam,
                     static_cast<f32>(ctx.width),
-                    static_cast<f32>(ctx.height)
+                    static_cast<f32>(ctx.height),
+                    ctx.diagnostics_enabled
                 );
                 if (proj.visible) {
                     const Mat4 eff_proj = detail::is_native_3d_layer(*rl.layer)
@@ -343,8 +344,44 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     
     ctx.dirty_rect = dirty_rect;
 
-    RenderGraph graph = detail::build_graph(scene, ctx, resolved);
+    const bool fast_path_reuse = sw_renderer &&
+                                 settings.enable_dirty_rects &&
+                                 dirty_rect &&
+                                 dirty_rect->is_empty() &&
+                                 sw_renderer->m_prev_framebuffer &&
+                                 sw_renderer->m_prev_framebuffer->width() == width &&
+                                 sw_renderer->m_prev_framebuffer->height() == height;
+
     const auto t_build1 = std::chrono::steady_clock::now();
+
+    if (fast_path_reuse) {
+        sw_renderer->m_last_dirty_area_ratio = 0.0;
+        sw_renderer->m_prev_layer_bboxes = std::move(current_layer_bboxes);
+        sw_renderer->m_prev_frame = frame;
+        sw_renderer->m_prev_camera = resolved.camera.camera;
+        sw_renderer->m_prev_camera_valid = resolved.camera.camera.enabled;
+
+        telemetry::record_render_telemetry(make_telemetry_row(
+            "scene_render",
+            frame,
+            width,
+            height,
+            std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count(),
+            std::chrono::duration<double, std::milli>(t_build1 - t_build0).count(),
+            0.0,
+            0.0,
+            0.0,
+            1,
+            static_cast<int>(scene.layers().size()),
+            ctx.counters
+        ));
+
+        profiling::g_current_counters = nullptr;
+        return sw_renderer->m_prev_framebuffer;
+    }
+
+    RenderGraph graph = detail::build_graph(scene, ctx, resolved);
+    const auto t_build2 = std::chrono::steady_clock::now();
 
     const auto t_exec0 = std::chrono::steady_clock::now();
     GraphExecutor executor;
@@ -367,7 +404,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         width,
         height,
         std::chrono::duration<double, std::milli>(t1 - t0).count(),
-        std::chrono::duration<double, std::milli>(t_build1 - t_build0).count(),
+        std::chrono::duration<double, std::milli>(t_build2 - t_build0).count(),
         std::chrono::duration<double, std::milli>(t_exec1 - t_exec0).count(),
         0.0,
         0.0,
@@ -484,7 +521,7 @@ SceneGraphStats analyze_scene_graph(
     return stats;
 }
 
-std::unique_ptr<Framebuffer> render_composition_frame(
+std::shared_ptr<Framebuffer> render_composition_frame(
     RenderBackend& backend,
     cache::NodeCache& node_cache,
     const RenderSettings& settings,
@@ -502,7 +539,7 @@ std::unique_ptr<Framebuffer> render_composition_frame(
     const int rh = static_cast<int>(h * ssaa);
     SoftwareRenderer* sw_renderer = dynamic_cast<SoftwareRenderer*>(&backend);
 
-    std::unique_ptr<Framebuffer> render_fb;
+    std::shared_ptr<Framebuffer> render_fb;
     double evaluate_ms = 0.0;
     double scene_ms = 0.0;
     double motion_blur_ms = 0.0;
@@ -528,14 +565,7 @@ std::unique_ptr<Framebuffer> render_composition_frame(
         layer_count = static_cast<int>(scene.layers().size());
 
         const auto t_scene0 = std::chrono::steady_clock::now();
-        {
-            auto shared = call_graph(scene, frame, 0.0f);
-            if (shared.use_count() == 1) {
-                render_fb = std::make_unique<Framebuffer>(std::move(*shared));
-            } else {
-                render_fb = std::make_unique<Framebuffer>(*shared);
-            }
-        }
+        render_fb = call_graph(scene, frame, 0.0f);
         scene_ms = std::chrono::duration<double, std::milli>(
             std::chrono::steady_clock::now() - t_scene0).count();
     } else {
@@ -567,7 +597,7 @@ std::unique_ptr<Framebuffer> render_composition_frame(
         motion_blur_ms = std::chrono::duration<double, std::milli>(
             std::chrono::steady_clock::now() - t_mb0).count();
 
-        render_fb = std::make_unique<Framebuffer>(rw, rh);
+        render_fb = std::make_shared<Framebuffer>(rw, rh);
         for (int y = 0; y < rh; ++y) {
             for (int x = 0; x < rw; ++x) {
                 const size_t idx = static_cast<size_t>((y * rw + x) * 4);
@@ -603,7 +633,7 @@ std::unique_ptr<Framebuffer> render_composition_frame(
             layer_count,
             backend.counters()
         ));
-        return out;
+        return std::shared_ptr<Framebuffer>(out.release());
     }
 
     telemetry::record_render_telemetry(make_telemetry_row(

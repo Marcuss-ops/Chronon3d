@@ -56,7 +56,7 @@ std::string debug_scene_graph(
  * Renders a single frame of a Composition (handles SSAA, motion blur, telemetry).
  * Replaces software_internal::render_frame — backend-agnostic entry point.
  */
-std::unique_ptr<Framebuffer> render_composition_frame(
+std::shared_ptr<Framebuffer> render_composition_frame(
     RenderBackend& backend,
     cache::NodeCache& node_cache,
     const RenderSettings& settings,

@@ -187,7 +187,8 @@ RenderGraph build_graph(const Scene& scene, const RenderGraphContext& ctx,
                 projection_world_matrix,
                 cam25d,
                 static_cast<f32>(ctx.width),
-                static_cast<f32>(ctx.height)
+                static_cast<f32>(ctx.height),
+                ctx.diagnostics_enabled
             );
             if (proj.visible) {
                 const Mat4 eff_proj = is_native_3d_layer(*rl.layer)
@@ -345,7 +346,8 @@ RenderGraph build_graph(const Scene& scene, const RenderGraphContext& ctx,
                 projection_world_matrix,
                 cam25d,
                 static_cast<f32>(ctx.width),
-                static_cast<f32>(ctx.height)
+                static_cast<f32>(ctx.height),
+                ctx.diagnostics_enabled
             );
 
             if (proj.visible) {
