@@ -1,6 +1,7 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/math/projector_2_5d.hpp>
 #include <chronon3d/backends/software/shape_processor.hpp>
+#include "../rasterizers/shape_rasterizer.hpp"
 #include "../primitive_renderer.hpp"
 
 namespace chronon3d::renderer {
@@ -21,7 +22,7 @@ public:
     }
 
     raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 spread) override {
-        return {-1000, -1000, 1000, 1000};
+        return renderer::compute_world_bbox(shape, model, spread);
     }
 
     bool hit_test(const Shape& shape, Vec2 local_point, f32 spread) override {
@@ -43,7 +44,7 @@ public:
     }
 
     raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 spread) override {
-        return {-1000, -1000, 1000, 1000};
+        return renderer::compute_world_bbox(shape, model, spread);
     }
 
     bool hit_test(const Shape& shape, Vec2 local_point, f32 spread) override {
