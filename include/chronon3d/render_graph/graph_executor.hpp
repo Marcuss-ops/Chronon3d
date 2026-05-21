@@ -1,10 +1,9 @@
 #pragma once
 
 #include <chronon3d/render_graph/render_graph.hpp>
-#include <unordered_map>
-#include <mutex>
+#include <tbb/task_arena.h>
 #include <memory>
-#include <future>
+#include <vector>
 
 namespace chronon3d::graph {
 
@@ -23,17 +22,14 @@ public:
     }
 
 private:
-    std::unordered_map<GraphNodeId, std::shared_ptr<Framebuffer>> m_temp;
-    std::unordered_map<GraphNodeId, u64> m_resolved_key_digest;
-    std::unordered_map<GraphNodeId, bool> m_resolved_frame_dependent;
-    std::unordered_map<GraphNodeId, std::shared_ptr<std::promise<std::shared_ptr<Framebuffer>>>> m_pending;
-    mutable std::mutex m_mutex;
+    struct ExecutionPlan {
+        std::vector<std::vector<GraphNodeId>> levels;
+        std::vector<size_t> consumer_counts;
+    };
 
-    std::shared_ptr<Framebuffer> execute_node(
-        RenderGraph& graph,
-        GraphNodeId id,
-        RenderGraphContext& ctx
-    );
+    tbb::task_arena m_arena;
+
+    [[nodiscard]] ExecutionPlan build_execution_plan(RenderGraph& graph, GraphNodeId output) const;
 };
 
 } // namespace chronon3d::graph

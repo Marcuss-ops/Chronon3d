@@ -7,6 +7,10 @@
 #include <chronon3d/scene/mask/mask_utils.hpp>
 #include <spdlog/spdlog.h>
 
+namespace chronon3d::renderer {
+    chronon3d::raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 spread = 0.0f);
+}
+
 namespace chronon3d::graph {
 
 // ClearNode (Output/Start)
@@ -59,9 +63,41 @@ public:
     RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::Source; }
     std::string name() const override { return m_name; }
 
-    std::optional<raster::BBox> predicted_bbox(const RenderGraphContext& ctx) const override {
-        // For standard source nodes, we assume full frame for now.
-        return raster::BBox{0, 0, ctx.width, ctx.height};
+    std::optional<raster::BBox> predicted_bbox(
+        const RenderGraphContext& ctx,
+        const std::vector<std::optional<raster::BBox>>& = {}
+    ) const override {
+        if (ctx.has_camera_2_5d || m_is_3d ||
+            m_node.shape.type == ShapeType::FakeBox3D ||
+            m_node.shape.type == ShapeType::GridPlane) {
+            return raster::BBox{0, 0, ctx.width, ctx.height};
+        }
+
+        const Mat4 ssaa_scale = math::scale(Vec3(ctx.ssaa_factor, ctx.ssaa_factor, 1.0f));
+        const Mat4 canvas_center = math::translate(Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
+
+        Mat4 matrix;
+        if (m_centered) {
+            matrix = canvas_center * ssaa_scale * m_matrix_override.value_or(m_node.world_transform.to_mat4());
+        } else {
+            matrix = ssaa_scale * m_matrix_override.value_or(m_node.world_transform.to_mat4());
+        }
+
+        f32 spread = 0.0f;
+        if (m_node.shadow.enabled) {
+            spread = std::max(spread, m_node.shadow.radius + std::max(std::abs(m_node.shadow.offset.x), std::abs(m_node.shadow.offset.y)));
+        }
+        if (m_node.glow.enabled) {
+            spread = std::max(spread, m_node.glow.radius);
+        }
+        spread += 8.0f;
+
+        auto bbox = renderer::compute_world_bbox(m_node.shape, matrix, spread);
+        bbox.clip_to(ctx.width, ctx.height);
+        if (bbox.is_empty()) {
+            return std::nullopt;
+        }
+        return bbox;
     }
 
     [[nodiscard]] CacheFramePolicy cache_frame_policy() const override {
@@ -184,6 +220,14 @@ public:
 
     RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::Mask; }
     std::string name() const override { return "Mask"; }
+
+    std::optional<raster::BBox> predicted_bbox(
+        const RenderGraphContext&,
+        const std::vector<std::optional<raster::BBox>>& input_bboxes = {}
+    ) const override {
+        if (input_bboxes.empty()) return std::nullopt;
+        return input_bboxes[0];
+    }
 
     [[nodiscard]] CacheFramePolicy cache_frame_policy() const override {
         return CacheFramePolicy::FrameInvariant;
@@ -318,6 +362,26 @@ public:
 
     RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::Composite; }
     std::string name() const override { return "Composite"; }
+
+    std::optional<raster::BBox> predicted_bbox(
+        const RenderGraphContext&,
+        const std::vector<std::optional<raster::BBox>>& input_bboxes = {}
+    ) const override {
+        if (input_bboxes.empty()) return std::nullopt;
+        if (input_bboxes.size() == 1) return input_bboxes[0];
+
+        auto bottom = input_bboxes[0];
+        auto top = input_bboxes[1];
+        if (!bottom) return top;
+        if (!top) return bottom;
+
+        raster::BBox union_box;
+        union_box.x0 = std::min(bottom->x0, top->x0);
+        union_box.y0 = std::min(bottom->y0, top->y0);
+        union_box.x1 = std::max(bottom->x1, top->x1);
+        union_box.y1 = std::max(bottom->y1, top->y1);
+        return union_box;
+    }
 
     [[nodiscard]] CacheFramePolicy cache_frame_policy() const override {
         return CacheFramePolicy::FrameInvariant;

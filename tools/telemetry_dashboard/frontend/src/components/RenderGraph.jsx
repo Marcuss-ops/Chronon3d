@@ -7,6 +7,7 @@ import ReactFlow, {
   useEdgesState
 } from 'reactflow';
 import 'reactflow/dist/style.css';
+import { API_BASE } from '../data/constants.js';
 import { getAggregatedNodes } from '../utils/aggregate.js';
 import { formatBytes } from '../utils/format.jsx';
 
@@ -28,7 +29,7 @@ export default function RenderGraph({ compositionId, runDetail }) {
     const fetchGraph = async () => {
       setLoading(true);
       try {
-        const resp = await fetch(`http://localhost:8000/api/graph/${compositionId}`);
+        const resp = await fetch(`${API_BASE}/api/graph/${compositionId}`);
         const data = await resp.json();
         
         if (data.error) {

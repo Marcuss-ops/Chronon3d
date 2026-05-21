@@ -7,6 +7,7 @@
     "fmt",
     "glm",
     "taskflow",
+    "tbb",
     "tracy",
     "doctest",
     "stb",
