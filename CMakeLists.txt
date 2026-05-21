@@ -144,7 +144,6 @@ target_link_libraries(chronon3d_effects PUBLIC chronon3d meshoptimizer::meshopti
 # 6b. Runtime
 set(CHRONON3D_RUNTIME_SOURCES
     src/runtime/bench_runner.cpp
-    src/runtime/legacy_scene_adapter.cpp
     src/runtime/pipeline.cpp
     src/runtime/scene_to_render_graph.cpp
     src/runtime/timeline_evaluator.cpp
