@@ -50,6 +50,7 @@ struct FfmpegExportOptions {
     bool keep_frames;
     int chunks;
     std::string ffmpeg_mode{"png"};
+    bool ffmpeg_verbose{false};
 };
 
 int render_and_encode_ffmpeg(
@@ -104,6 +105,7 @@ int render_and_encode_ffmpeg(
             .preset = opts.encode_preset,
             .codec = codec,
             .output_path = opts.output,
+            .verbose = opts.ffmpeg_verbose,
         };
 
         std::error_code ec;
@@ -130,6 +132,7 @@ int render_and_encode_ffmpeg(
                 const auto hits_before = renderer->node_cache().stats().hits;
                 auto fb = renderer->render_frame(comp, f);
                 const auto hits_after_render = renderer->node_cache().stats().hits;
+                const double dirty_ratio = renderer->last_dirty_area_ratio();
                 if (!fb) {
                     spdlog::error("[video] Failed to render frame {}", f);
                     pipe.close();
@@ -147,7 +150,7 @@ int render_and_encode_ffmpeg(
                     .frame_number = static_cast<int>(f),
                     .duration_ms = std::chrono::duration<double, std::milli>(frame_t1 - frame_t0).count(),
                     .cache_hit = (hits_after_render > hits_before),
-                    .dirty_area_ratio = 1.0
+                    .dirty_area_ratio = dirty_ratio
                 });
             }
         } catch (const std::exception& e) {
@@ -236,6 +239,7 @@ int render_and_encode_ffmpeg(
                     const auto hits_before = renderer->node_cache().stats().hits;
                     auto fb = renderer->render_frame(comp, f);
                     const auto hits_after_render = renderer->node_cache().stats().hits;
+                    const double dirty_ratio = renderer->last_dirty_area_ratio();
                     if (!fb) {
                         spdlog::error("[video] Render failed at frame {}", f);
                         failed.store(true);
@@ -252,7 +256,7 @@ int render_and_encode_ffmpeg(
                         .frame_number = static_cast<int>(f),
                         .duration_ms = std::chrono::duration<double, std::milli>(frame_t1 - frame_t0).count(),
                         .cache_hit = (hits_after_render > hits_before),
-                        .dirty_area_ratio = 1.0
+                        .dirty_area_ratio = dirty_ratio
                     });
                     
                     int done = ++frames_done;
@@ -373,6 +377,7 @@ int command_video(const CompositionRegistry& registry, const VideoArgs& args) {
     opts.keep_frames = args.keep_frames;
     opts.chunks = args.chunks;
     opts.ffmpeg_mode = args.ffmpeg_mode;
+    opts.ffmpeg_verbose = args.ffmpeg_verbose;
 
     const Frame end = (args.end > args.start) ? args.end : comp.duration();
     
@@ -443,6 +448,7 @@ int command_video_camera(const CompositionRegistry& registry, const VideoCameraA
     opts.keep_frames = false; // default for camera motion
     opts.chunks = 1; // can't easily chunk here without extending args, default 1
     opts.ffmpeg_mode = "png";
+    opts.ffmpeg_verbose = false;
 
     return render_and_encode_ffmpeg(registry, comp, comp.name(), settings, args.start, args.end, opts);
 }

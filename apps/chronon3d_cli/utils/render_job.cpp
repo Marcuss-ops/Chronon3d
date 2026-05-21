@@ -39,6 +39,7 @@ bool write_render_frame(const Composition& comp,
     auto fb = renderer.render_frame(comp, frame);
     const auto t1 = std::chrono::steady_clock::now();
     const auto hits_after = renderer.node_cache().stats().hits;
+    const double dirty_ratio = renderer.last_dirty_area_ratio();
 
     if (!fb) {
         spdlog::error("Failed to render frame {}", frame);
@@ -101,7 +102,7 @@ bool write_render_frame(const Composition& comp,
         .frame_number = static_cast<int>(frame),
         .duration_ms = render_ms + encode_ms,
         .cache_hit = hit,
-        .dirty_area_ratio = 1.0
+        .dirty_area_ratio = dirty_ratio
     });
 
     spdlog::info("Frame {} saved to {}", frame, path);

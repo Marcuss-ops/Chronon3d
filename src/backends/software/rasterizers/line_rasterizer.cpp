@@ -6,7 +6,7 @@
 namespace chronon3d {
 namespace renderer {
 
-void bline(Framebuffer& fb, Vec2 p0, Vec2 p1, const Color& color) {
+void bline(Framebuffer& fb, Vec2 p0, Vec2 p1, const Color& color, const std::optional<raster::BBox>& clip) {
     if (color.a <= 0.0f) return;
     i32 x0 = static_cast<i32>(p0.x), y0 = static_cast<i32>(p0.y);
     i32 x1 = static_cast<i32>(p1.x), y1 = static_cast<i32>(p1.y);
@@ -14,8 +14,16 @@ void bline(Framebuffer& fb, Vec2 p0, Vec2 p1, const Color& color) {
     const i32 dy = -std::abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
     i32 err = dx + dy, e2;
     while (true) {
-        if (x0 >= 0 && x0 < fb.width() && y0 >= 0 && y0 < fb.height())
-            fb.set_pixel(x0, y0, compositor::blend(color, fb.get_pixel(x0, y0), BlendMode::Normal));
+        if (x0 >= 0 && x0 < fb.width() && y0 >= 0 && y0 < fb.height()) {
+            bool in_clip = true;
+            if (clip) {
+                in_clip = (x0 >= clip->x0 && x0 < clip->x1 && y0 >= clip->y0 && y0 < clip->y1);
+            }
+            if (in_clip) {
+                Color* row = fb.pixels_row(y0);
+                row[x0] = compositor::blend(color, row[x0], BlendMode::Normal);
+            }
+        }
         if (x0 == x1 && y0 == y1) break;
         e2 = 2 * err;
         if (e2 >= dy) { err += dy; x0 += sx; }

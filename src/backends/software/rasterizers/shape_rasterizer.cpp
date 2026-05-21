@@ -152,6 +152,14 @@ void draw_transformed_shape(Framebuffer& fb, const Shape& shape, const Mat4& mod
     }
 
     raster::BBox bbox = compute_world_bbox(shape, model, spread);
+    if (state && state->clip_rect) {
+        bbox = raster::BBox{
+            .x0 = std::max(bbox.x0, state->clip_rect->x0),
+            .y0 = std::max(bbox.y0, state->clip_rect->y0),
+            .x1 = std::min(bbox.x1, state->clip_rect->x1),
+            .y1 = std::min(bbox.y1, state->clip_rect->y1)
+        };
+    }
     bbox.clip_to(fb.width(), fb.height());
 
     if (bbox.is_empty()) return;
@@ -168,6 +176,7 @@ void draw_transformed_shape(Framebuffer& fb, const Shape& shape, const Mat4& mod
     const Vec2 sz = use_gradient ? shape_size_for_fill(shape) : Vec2{0, 0};
 
     for (i32 y = bbox.y0; y < bbox.y1; ++y) {
+        Color* row = fb.pixels_row(y);
         for (i32 x = bbox.x0; x < bbox.x1; ++x) {
             if (state && !pixel_passes_mask(*state, x, y)) continue;
 
@@ -182,7 +191,7 @@ void draw_transformed_shape(Framebuffer& fb, const Shape& shape, const Mat4& mod
                 ? resolve_gradient_color(*fill, lp, sz, color.a)
                 : color;
 
-            fb.set_pixel(x, y, compositor::blend(pixel_color, fb.get_pixel(x, y), BlendMode::Normal));
+            row[x] = compositor::blend(pixel_color, row[x], BlendMode::Normal);
         }
     }
 }

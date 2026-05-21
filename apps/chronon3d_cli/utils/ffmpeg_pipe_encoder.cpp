@@ -14,11 +14,6 @@
 namespace chronon3d::cli {
 namespace {
 
-uint8_t to_u8(f32 value) {
-    value = std::clamp(value, 0.0f, 1.0f);
-    return static_cast<uint8_t>(value * 255.0f + 0.5f);
-}
-
 std::string quote_path(const std::string& path) {
     std::string out = "\"";
     for (char c : path) {
@@ -35,10 +30,15 @@ std::string quote_path(const std::string& path) {
 } // namespace
 
 std::string build_ffmpeg_raw_pipe_command(const FfmpegPipeOptions& options) {
+    const std::string log_flags = options.verbose
+        ? ""
+        : "-hide_banner -loglevel error ";
+
     return fmt::format(
         "ffmpeg -y "
+        "{}"
         "-f rawvideo "
-        "-pix_fmt rgba "
+        "-pix_fmt {} "
         "-s {}x{} "
         "-r {} "
         "-i - "
@@ -46,14 +46,17 @@ std::string build_ffmpeg_raw_pipe_command(const FfmpegPipeOptions& options) {
         "-c:v {} "
         "-crf {} "
         "-preset {} "
-        "-pix_fmt yuv420p "
+        "-pix_fmt {} "
         "{}",
+        log_flags,
+        options.input_pix_fmt,
         options.width,
         options.height,
         options.fps,
         options.codec,
         options.crf,
         options.preset,
+        options.output_pix_fmt,
         quote_path(options.output_path)
     );
 }
@@ -63,11 +66,22 @@ bool FfmpegPipeEncoder::open(const FfmpegPipeOptions& options) {
         return false;
     }
 
-    if (options.width <= 0 || options.height <= 0 || options.fps <= 0 || options.output_path.empty()) {
+    if (options.width <= 0 || options.height <= 0 ||
+        options.fps <= 0 || options.output_path.empty()) {
         return false;
     }
 
     options_ = options;
+    frames_written_ = 0;
+    bytes_written_ = 0;
+
+    const size_t frame_bytes =
+        static_cast<size_t>(options_.width) *
+        static_cast<size_t>(options_.height) *
+        4u;
+
+    rgba_buffer_.assign(frame_bytes, 0);
+
     const std::string cmd = build_ffmpeg_raw_pipe_command(options_);
 
 #if defined(_WIN32)
@@ -79,31 +93,56 @@ bool FfmpegPipeEncoder::open(const FfmpegPipeOptions& options) {
     return pipe_ != nullptr;
 }
 
+bool FfmpegPipeEncoder::convert_framebuffer_to_rgba(const Framebuffer& fb) {
+    if (fb.width() != options_.width || fb.height() != options_.height) {
+        return false;
+    }
+
+    const size_t count =
+        static_cast<size_t>(options_.width) *
+        static_cast<size_t>(options_.height);
+
+    if (rgba_buffer_.size() != count * 4u) {
+        return false;
+    }
+
+    const Color* src = fb.data();
+    uint8_t* dst = rgba_buffer_.data();
+
+    for (size_t i = 0; i < count; ++i) {
+        dst[i * 4 + 0] = Color::linear_to_srgb8(src[i].r);
+        dst[i * 4 + 1] = Color::linear_to_srgb8(src[i].g);
+        dst[i * 4 + 2] = Color::linear_to_srgb8(src[i].b);
+        dst[i * 4 + 3] = Color::linear_to_srgb8(src[i].a);
+    }
+
+    return true;
+}
+
 bool FfmpegPipeEncoder::write_frame(const Framebuffer& fb) {
     if (!pipe_) {
         return false;
     }
 
-    if (fb.width() != options_.width || fb.height() != options_.height) {
+    if (!convert_framebuffer_to_rgba(fb)) {
         return false;
     }
 
-    std::vector<uint8_t> rgba;
-    rgba.resize(static_cast<size_t>(options_.width) * static_cast<size_t>(options_.height) * 4);
+    const size_t written = std::fwrite(
+        rgba_buffer_.data(),
+        1,
+        rgba_buffer_.size(),
+        pipe_
+    );
 
-    size_t i = 0;
-    for (int y = 0; y < options_.height; ++y) {
-        for (int x = 0; x < options_.width; ++x) {
-            const Color c = fb.get_pixel(x, y);
-            rgba[i++] = to_u8(c.r);
-            rgba[i++] = to_u8(c.g);
-            rgba[i++] = to_u8(c.b);
-            rgba[i++] = to_u8(c.a);
-        }
+    if (written != rgba_buffer_.size()) {
+        return false;
     }
 
-    const size_t written = std::fwrite(rgba.data(), 1, rgba.size(), pipe_);
-    return written == rgba.size();
+    ++frames_written_;
+    bytes_written_ += written;
+
+    return true;
 }
 
 bool FfmpegPipeEncoder::close() {

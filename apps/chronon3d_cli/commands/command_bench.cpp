@@ -31,7 +31,10 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
     }
 
     auto comp = registry.create(args.comp_id);
-    auto renderer = create_renderer(registry, RenderSettings{.use_modular_graph = args.use_modular_graph});
+    RenderSettings settings;
+    settings.use_modular_graph = args.use_modular_graph;
+    settings.dirty_rects = args.dirty_rects;
+    auto renderer = create_renderer(registry, settings);
 
     if (!args.quiet) {
         spdlog::info("Benchmarking {} (warmup: {}, frames: {})", args.comp_id, args.warmup, args.frames);
@@ -50,16 +53,19 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
 
     // 3. Timed execution
     const auto t0 = std::chrono::steady_clock::now();
+    double dirty_ratio_sum = 0.0;
     for (int i = 0; i < args.frames; ++i) {
         const auto frame = static_cast<Frame>(args.warmup + i);
         auto scene = comp.evaluate(frame);
         renderer->render_scene(scene, comp.camera, comp.width(), comp.height());
+        dirty_ratio_sum += renderer->last_dirty_area_ratio();
     }
     const auto t1 = std::chrono::steady_clock::now();
 
     const auto elapsed_ms = std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(t1 - t0).count();
     const double avg_ms = elapsed_ms / static_cast<double>(args.frames);
     const double fps = 1000.0 / avg_ms;
+    const double avg_dirty_ratio = args.frames > 0 ? (dirty_ratio_sum / static_cast<double>(args.frames)) : 1.0;
 
     // 4. Trace event processing (Average, P95, Min, Max, Median, and Category Breakdown)
     const auto& events = renderer->trace()->events();
@@ -106,6 +112,10 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
     uint64_t blur_pixels = renderer->counters()->blur_pixels.load(std::memory_order_relaxed);
     uint64_t images_sampled = renderer->counters()->images_sampled.load(std::memory_order_relaxed);
     uint64_t glyphs = renderer->counters()->text_glyphs_rasterized.load(std::memory_order_relaxed);
+    uint64_t clear_copy_pixels = renderer->counters()->clear_copy_pixels.load(std::memory_order_relaxed);
+    uint64_t dirty_rect_count = renderer->counters()->dirty_rect_count.load(std::memory_order_relaxed);
+    uint64_t dirty_pixels = renderer->counters()->dirty_pixels.load(std::memory_order_relaxed);
+    uint64_t dirty_fallbacks = renderer->counters()->dirty_full_fallbacks.load(std::memory_order_relaxed);
 
     // 5. Build structured report
     BenchmarkReport report;
@@ -162,6 +172,17 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
         fmt::print("Blur Pixels:      {}\n", blur_pixels);
         fmt::print("Images Sampled:   {}\n", images_sampled);
         fmt::print("Glyphs Rasterized:{}\n", glyphs);
+        if (clear_copy_pixels > 0) {
+            fmt::print("Clear Copy Pixels:{}\n", clear_copy_pixels);
+        }
+        if (dirty_rect_count > 0 || dirty_pixels > 0 || dirty_fallbacks > 0) {
+            fmt::print("Dirty Rects Count:{}\n", dirty_rect_count);
+            fmt::print("Dirty Rect Pixels:{}\n", dirty_pixels);
+            fmt::print("Dirty Fallbacks:  {}\n", dirty_fallbacks);
+        }
+        if (args.dirty_rects) {
+            fmt::print("Dirty Avg Ratio:  {:.1f}%\n", avg_dirty_ratio * 100.0);
+        }
         fmt::print("\n");
         fmt::print("--- Category Breakdown (Total Duration) ---\n");
 

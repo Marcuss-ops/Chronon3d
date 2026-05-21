@@ -6,6 +6,7 @@
 #include <chronon3d/math/projector_2_5d.hpp>
 #include <chronon3d/scene/layer/layer.hpp>
 #include <chronon3d/scene/mask/mask_utils.hpp>
+#include <chronon3d/backends/software/software_renderer.hpp>
 #include <spdlog/spdlog.h>
 #include <array>
 #include <cmath>
@@ -163,8 +164,25 @@ public:
         const std::vector<std::shared_ptr<Framebuffer>>&,
         const std::vector<std::optional<raster::BBox>>&
     ) override {
-        auto fb = ctx.acquire_framebuffer(ctx.width, ctx.height);
-        return fb;
+        auto* sw_renderer = dynamic_cast<SoftwareRenderer*>(ctx.backend);
+        bool use_dirty_rects = sw_renderer && ctx.dirty_rect.has_value() && sw_renderer->m_prev_framebuffer;
+        
+        if (use_dirty_rects) {
+            auto fb = sw_renderer->m_prev_framebuffer;
+            if (ctx.counters) {
+                ctx.counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
+                const uint64_t area = ctx.clip_rect
+                    ? static_cast<uint64_t>(std::max(0, ctx.clip_rect->x1 - ctx.clip_rect->x0)) *
+                      static_cast<uint64_t>(std::max(0, ctx.clip_rect->y1 - ctx.clip_rect->y0))
+                    : static_cast<uint64_t>(ctx.width) * static_cast<uint64_t>(ctx.height);
+                ctx.counters->clear_pixels.fetch_add(area, std::memory_order_relaxed);
+            }
+            fb->clear(Color::transparent(), ctx.clip_rect);
+            return fb;
+        } else {
+            auto fb = ctx.acquire_framebuffer(ctx.width, ctx.height, true);
+            return fb;
+        }
     }
 };
 
@@ -279,6 +297,7 @@ public:
             
             state.opacity = m_opacity_override.value_or(m_node.world_transform.opacity);
             state.world_matrix = m_matrix_override.value_or(m_node.world_transform.to_mat4());
+            state.clip_rect = ctx.clip_rect;
             
             // Expose projection context to processors that use it directly (FakeBox3D etc.).
             if (ctx.has_camera_2_5d) {
@@ -534,11 +553,26 @@ public:
 
         if (ctx.backend) {
             // Optimization: Only composite the area where the top node actually drew something
-            const auto& clip = (input_bboxes.size() >= 2) ? input_bboxes[1] : std::nullopt;
+            std::optional<raster::BBox> clip = (input_bboxes.size() >= 2) ? input_bboxes[1] : std::nullopt;
+            if (ctx.clip_rect) {
+                if (clip) {
+                    clip = raster::BBox{
+                        .x0 = std::max(clip->x0, ctx.clip_rect->x0),
+                        .y0 = std::max(clip->y0, ctx.clip_rect->y0),
+                        .x1 = std::min(clip->x1, ctx.clip_rect->x1),
+                        .y1 = std::min(clip->y1, ctx.clip_rect->y1)
+                    };
+                    if (clip->x0 >= clip->x1 || clip->y0 >= clip->y1) {
+                        clip = raster::BBox{0, 0, 0, 0};
+                    }
+                } else {
+                    clip = ctx.clip_rect;
+                }
+            }
             ctx.backend->composite_layer(*result, *top, m_mode, clip);
             if (ctx.counters) {
                 ctx.counters->composite_calls.fetch_add(1, std::memory_order_relaxed);
-                uint64_t area = clip ? (static_cast<uint64_t>(clip->x1 - clip->x0) * (clip->y1 - clip->y0))
+                uint64_t area = clip ? (static_cast<uint64_t>(std::max(0, clip->x1 - clip->x0)) * std::max(0, clip->y1 - clip->y0))
                                      : static_cast<uint64_t>(ctx.width * ctx.height);
                 ctx.counters->composite_pixels.fetch_add(area, std::memory_order_relaxed);
             }
