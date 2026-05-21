@@ -53,16 +53,30 @@ bool write_render_frame(const Composition& comp,
         std::filesystem::create_directories(p.parent_path());
     }
 
-    const auto t_png0 = std::chrono::steady_clock::now();
-    if (!save_png(*fb, path)) {
-        spdlog::error("Failed to save frame {} to {}", frame, path);
+    const auto t_encode0 = std::chrono::steady_clock::now();
+
+    ImageWriteOptions write_options;
+    write_options.format = image_format_from_path(path);
+
+    if (write_options.format == ImageFormat::Unknown) {
+        spdlog::error("Unsupported image output format for path: {}", path);
         ok = false;
         return false;
     }
-    const auto t_png1 = std::chrono::steady_clock::now();
+
+    if (!save_image(*fb, path, write_options)) {
+        spdlog::error("Failed to save frame {} to {} as {}",
+                      frame,
+                      path,
+                      image_format_name(write_options.format));
+        ok = false;
+        return false;
+    }
+
+    const auto t_encode1 = std::chrono::steady_clock::now();
 
     const double render_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
-    const double encode_ms = std::chrono::duration<double, std::milli>(t_png1 - t_png0).count();
+    const double encode_ms = std::chrono::duration<double, std::milli>(t_encode1 - t_encode0).count();
     total_render_ms += render_ms;
     total_encode_ms += encode_ms;
     frames_written++;
@@ -75,7 +89,7 @@ bool write_render_frame(const Composition& comp,
         .frame = frame,
         .width = comp.width(),
         .height = comp.height(),
-        .total_ms = std::chrono::duration<double, std::milli>(t_png1 - t0).count(),
+        .total_ms = std::chrono::duration<double, std::milli>(t_encode1 - t0).count(),
         .setup_ms = render_ms,
         .encode_ms = encode_ms,
         .cache_hit = hit ? 1 : 0,
