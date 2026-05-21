@@ -246,8 +246,21 @@ void SoftwareRenderer::apply_effect_stack(Framebuffer& fb, const EffectStack& st
 void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node,
                                  const RenderState& state, const Camera& camera, i32 width,
                                  i32 height) {
-    m_counters.pixels_touched.fetch_add(static_cast<uint64_t>(width * height), std::memory_order_relaxed);
     CHRONON_ZONE_C("draw_node", trace_category::kRasterize);
+    uint64_t touched = static_cast<uint64_t>(std::max(0, width)) * static_cast<uint64_t>(std::max(0, height));
+    if (state.clip_rect) {
+        raster::BBox local_clip = *state.clip_rect;
+        local_clip.x0 -= fb.origin_x();
+        local_clip.x1 -= fb.origin_x();
+        local_clip.y0 -= fb.origin_y();
+        local_clip.y1 -= fb.origin_y();
+        local_clip.clip_to(width, height);
+        touched = local_clip.is_empty()
+            ? 0
+            : static_cast<uint64_t>(std::max(0, local_clip.x1 - local_clip.x0)) *
+              static_cast<uint64_t>(std::max(0, local_clip.y1 - local_clip.y0));
+    }
+    m_counters.pixels_touched.fetch_add(touched, std::memory_order_relaxed);
     auto* processor = software_registry().get_shape(node.shape.type);
     if (!processor) {
         SoftwareNodeDispatcher::draw_node(*this, fb, node, state, camera, width, height, software_registry());
@@ -260,9 +273,22 @@ void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node,
 }
 
 void SoftwareRenderer::composite_layer(Framebuffer& dst, const Framebuffer& src, BlendMode mode, const std::optional<raster::BBox>& clip) {
-    m_counters.pixels_touched.fetch_add(static_cast<uint64_t>(dst.width() * dst.height()), std::memory_order_relaxed);
     m_counters.layers_rendered.fetch_add(1, std::memory_order_relaxed);
     CHRONON_ZONE_C("composite_layer", trace_category::kComposite);
+    uint64_t touched = static_cast<uint64_t>(dst.width()) * static_cast<uint64_t>(dst.height());
+    if (clip) {
+        raster::BBox local_clip = *clip;
+        local_clip.x0 -= dst.origin_x();
+        local_clip.x1 -= dst.origin_x();
+        local_clip.y0 -= dst.origin_y();
+        local_clip.y1 -= dst.origin_y();
+        local_clip.clip_to(dst.width(), dst.height());
+        touched = local_clip.is_empty()
+            ? 0
+            : static_cast<uint64_t>(std::max(0, local_clip.x1 - local_clip.x0)) *
+              static_cast<uint64_t>(std::max(0, local_clip.y1 - local_clip.y0));
+    }
+    m_counters.pixels_touched.fetch_add(touched, std::memory_order_relaxed);
     SoftwareCompositor::composite_layer(dst, src, mode, clip);
 }
 

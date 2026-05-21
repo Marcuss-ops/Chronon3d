@@ -4,6 +4,8 @@
 #include <chronon3d/core/counters.hpp>
 #include <spdlog/spdlog.h>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
+#include <tbb/blocked_range.h>
+#include <tbb/parallel_for.h>
 
 namespace chronon3d::graph {
 
@@ -110,6 +112,14 @@ std::shared_ptr<Framebuffer> TransformNode::execute(
     i32 x1 = std::clamp(static_cast<i32>(std::ceil(max_x)), result->origin_x(), result->origin_x() + result->width());
     i32 y0 = std::clamp(static_cast<i32>(std::floor(min_y)), result->origin_y(), result->origin_y() + result->height());
     i32 y1 = std::clamp(static_cast<i32>(std::ceil(max_y)), result->origin_y(), result->origin_y() + result->height());
+
+    if (ctx.clip_rect) {
+        x0 = std::max(x0, ctx.clip_rect->x0);
+        y0 = std::max(y0, ctx.clip_rect->y0);
+        x1 = std::min(x1, ctx.clip_rect->x1);
+        y1 = std::min(y1, ctx.clip_rect->y1);
+    }
+
     const uint64_t area = (x1 > x0 && y1 > y0)
         ? static_cast<uint64_t>(x1 - x0) * static_cast<uint64_t>(y1 - y0)
         : 0;
@@ -127,31 +137,13 @@ std::shared_ptr<Framebuffer> TransformNode::execute(
     const Vec3 h_step_x = inv_pixel_model_3x3[0];
     const Vec3 h_step_y = inv_pixel_model_3x3[1];
 
-    if (is_affine) {
-        const f32 inv_z = 1.0f / h_col_start.z;
-        for (i32 y = y0; y < y1; ++y) {
-            Color* dst_row = result->pixels_row(y - result->origin_y());
-            Vec3 h_row = h_col_start + h_step_y * static_cast<f32>(y - y0);
-            for (i32 x = x0; x < x1; ++x) {
-                const f32 sx = h_row.x * inv_z;
-                const f32 sy = h_row.y * inv_z;
-                if (sx >= x_min_src && sx < x_max_src && sy >= y_min_src && sy < y_max_src) {
-                    Color src = input->sample(sx, sy, m_mode);
-                    if (src.a > 0.001f) {
-                        src.r *= opacity; src.g *= opacity; src.b *= opacity; src.a *= opacity;
-                        dst_row[x - result->origin_x()] = src;
-                    }
-                }
-                h_row += h_step_x;
-            }
-        }
-    } else {
-        for (i32 y = y0; y < y1; ++y) {
-            Color* dst_row = result->pixels_row(y - result->origin_y());
-            Vec3 h_row = h_col_start + h_step_y * static_cast<f32>(y - y0);
-            for (i32 x = x0; x < x1; ++x) {
-                if (std::abs(h_row.z) > 1e-9f) {
-                    const f32 inv_z = 1.0f / h_row.z;
+    const auto process_rows = [&](i32 row_begin, i32 row_end) {
+        if (is_affine) {
+            const f32 inv_z = 1.0f / h_col_start.z;
+            for (i32 y = row_begin; y < row_end; ++y) {
+                Color* dst_row = result->pixels_row(y - result->origin_y());
+                Vec3 h_row = h_col_start + h_step_y * static_cast<f32>(y - y0);
+                for (i32 x = x0; x < x1; ++x) {
                     const f32 sx = h_row.x * inv_z;
                     const f32 sy = h_row.y * inv_z;
                     if (sx >= x_min_src && sx < x_max_src && sy >= y_min_src && sy < y_max_src) {
@@ -161,10 +153,41 @@ std::shared_ptr<Framebuffer> TransformNode::execute(
                             dst_row[x - result->origin_x()] = src;
                         }
                     }
+                    h_row += h_step_x;
                 }
-                h_row += h_step_x;
+            }
+        } else {
+            for (i32 y = row_begin; y < row_end; ++y) {
+                Color* dst_row = result->pixels_row(y - result->origin_y());
+                Vec3 h_row = h_col_start + h_step_y * static_cast<f32>(y - y0);
+                for (i32 x = x0; x < x1; ++x) {
+                    if (std::abs(h_row.z) > 1e-9f) {
+                        const f32 inv_z = 1.0f / h_row.z;
+                        const f32 sx = h_row.x * inv_z;
+                        const f32 sy = h_row.y * inv_z;
+                        if (sx >= x_min_src && sx < x_max_src && sy >= y_min_src && sy < y_max_src) {
+                            Color src = input->sample(sx, sy, m_mode);
+                            if (src.a > 0.001f) {
+                                src.r *= opacity; src.g *= opacity; src.b *= opacity; src.a *= opacity;
+                                dst_row[x - result->origin_x()] = src;
+                            }
+                        }
+                    }
+                    h_row += h_step_x;
+                }
             }
         }
+    };
+
+    if (y1 - y0 >= 24) {
+        tbb::parallel_for(
+            tbb::blocked_range<i32>(y0, y1),
+            [&](const tbb::blocked_range<i32>& range) {
+                process_rows(range.begin(), range.end());
+            }
+        );
+    } else {
+        process_rows(y0, y1);
     }
 
     return result;

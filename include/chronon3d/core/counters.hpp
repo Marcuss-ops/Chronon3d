@@ -22,6 +22,7 @@ struct RenderCounters {
 
     std::atomic<uint64_t> clear_calls{0};
     std::atomic<uint64_t> clear_pixels{0};
+    std::atomic<uint64_t> clear_copy_pixels{0};
     std::atomic<uint64_t> composite_calls{0};
     std::atomic<uint64_t> composite_pixels{0};
     std::atomic<uint64_t> transform_calls{0};
@@ -36,6 +37,10 @@ struct RenderCounters {
     std::atomic<uint64_t> framebuffer_reuses{0};
     std::atomic<uint64_t> framebuffer_bytes_allocated{0};
     std::atomic<uint64_t> framebuffer_bytes_peak{0};
+
+    std::atomic<uint64_t> dirty_rect_count{0};
+    std::atomic<uint64_t> dirty_pixels{0};
+    std::atomic<uint64_t> dirty_full_fallbacks{0};
 
     RenderCounters() = default;
 
@@ -56,6 +61,7 @@ struct RenderCounters {
         node_cache_hash_collisions.store(other.node_cache_hash_collisions.load(std::memory_order_relaxed), std::memory_order_relaxed);
         clear_calls.store(other.clear_calls.load(std::memory_order_relaxed), std::memory_order_relaxed);
         clear_pixels.store(other.clear_pixels.load(std::memory_order_relaxed), std::memory_order_relaxed);
+        clear_copy_pixels.store(other.clear_copy_pixels.load(std::memory_order_relaxed), std::memory_order_relaxed);
         composite_calls.store(other.composite_calls.load(std::memory_order_relaxed), std::memory_order_relaxed);
         composite_pixels.store(other.composite_pixels.load(std::memory_order_relaxed), std::memory_order_relaxed);
         transform_calls.store(other.transform_calls.load(std::memory_order_relaxed), std::memory_order_relaxed);
@@ -70,6 +76,9 @@ struct RenderCounters {
         framebuffer_reuses.store(other.framebuffer_reuses.load(std::memory_order_relaxed), std::memory_order_relaxed);
         framebuffer_bytes_allocated.store(other.framebuffer_bytes_allocated.load(std::memory_order_relaxed), std::memory_order_relaxed);
         framebuffer_bytes_peak.store(other.framebuffer_bytes_peak.load(std::memory_order_relaxed), std::memory_order_relaxed);
+        dirty_rect_count.store(other.dirty_rect_count.load(std::memory_order_relaxed), std::memory_order_relaxed);
+        dirty_pixels.store(other.dirty_pixels.load(std::memory_order_relaxed), std::memory_order_relaxed);
+        dirty_full_fallbacks.store(other.dirty_full_fallbacks.load(std::memory_order_relaxed), std::memory_order_relaxed);
     }
 
     RenderCounters& operator=(RenderCounters&& other) noexcept {
@@ -90,6 +99,7 @@ struct RenderCounters {
             node_cache_hash_collisions.store(other.node_cache_hash_collisions.load(std::memory_order_relaxed), std::memory_order_relaxed);
             clear_calls.store(other.clear_calls.load(std::memory_order_relaxed), std::memory_order_relaxed);
             clear_pixels.store(other.clear_pixels.load(std::memory_order_relaxed), std::memory_order_relaxed);
+            clear_copy_pixels.store(other.clear_copy_pixels.load(std::memory_order_relaxed), std::memory_order_relaxed);
             composite_calls.store(other.composite_calls.load(std::memory_order_relaxed), std::memory_order_relaxed);
             composite_pixels.store(other.composite_pixels.load(std::memory_order_relaxed), std::memory_order_relaxed);
             transform_calls.store(other.transform_calls.load(std::memory_order_relaxed), std::memory_order_relaxed);
@@ -104,6 +114,9 @@ struct RenderCounters {
             framebuffer_reuses.store(other.framebuffer_reuses.load(std::memory_order_relaxed), std::memory_order_relaxed);
             framebuffer_bytes_allocated.store(other.framebuffer_bytes_allocated.load(std::memory_order_relaxed), std::memory_order_relaxed);
             framebuffer_bytes_peak.store(other.framebuffer_bytes_peak.load(std::memory_order_relaxed), std::memory_order_relaxed);
+            dirty_rect_count.store(other.dirty_rect_count.load(std::memory_order_relaxed), std::memory_order_relaxed);
+            dirty_pixels.store(other.dirty_pixels.load(std::memory_order_relaxed), std::memory_order_relaxed);
+            dirty_full_fallbacks.store(other.dirty_full_fallbacks.load(std::memory_order_relaxed), std::memory_order_relaxed);
         }
         return *this;
     }
@@ -125,6 +138,7 @@ struct RenderCounters {
         node_cache_hash_collisions.store(other.node_cache_hash_collisions.load(std::memory_order_relaxed), std::memory_order_relaxed);
         clear_calls.store(other.clear_calls.load(std::memory_order_relaxed), std::memory_order_relaxed);
         clear_pixels.store(other.clear_pixels.load(std::memory_order_relaxed), std::memory_order_relaxed);
+        clear_copy_pixels.store(other.clear_copy_pixels.load(std::memory_order_relaxed), std::memory_order_relaxed);
         composite_calls.store(other.composite_calls.load(std::memory_order_relaxed), std::memory_order_relaxed);
         composite_pixels.store(other.composite_pixels.load(std::memory_order_relaxed), std::memory_order_relaxed);
         transform_calls.store(other.transform_calls.load(std::memory_order_relaxed), std::memory_order_relaxed);
@@ -139,6 +153,9 @@ struct RenderCounters {
         framebuffer_reuses.store(other.framebuffer_reuses.load(std::memory_order_relaxed), std::memory_order_relaxed);
         framebuffer_bytes_allocated.store(other.framebuffer_bytes_allocated.load(std::memory_order_relaxed), std::memory_order_relaxed);
         framebuffer_bytes_peak.store(other.framebuffer_bytes_peak.load(std::memory_order_relaxed), std::memory_order_relaxed);
+        dirty_rect_count.store(other.dirty_rect_count.load(std::memory_order_relaxed), std::memory_order_relaxed);
+        dirty_pixels.store(other.dirty_pixels.load(std::memory_order_relaxed), std::memory_order_relaxed);
+        dirty_full_fallbacks.store(other.dirty_full_fallbacks.load(std::memory_order_relaxed), std::memory_order_relaxed);
     }
 
     RenderCounters& operator=(const RenderCounters& other) {
@@ -159,6 +176,7 @@ struct RenderCounters {
             node_cache_hash_collisions.store(other.node_cache_hash_collisions.load(std::memory_order_relaxed), std::memory_order_relaxed);
             clear_calls.store(other.clear_calls.load(std::memory_order_relaxed), std::memory_order_relaxed);
             clear_pixels.store(other.clear_pixels.load(std::memory_order_relaxed), std::memory_order_relaxed);
+            clear_copy_pixels.store(other.clear_copy_pixels.load(std::memory_order_relaxed), std::memory_order_relaxed);
             composite_calls.store(other.composite_calls.load(std::memory_order_relaxed), std::memory_order_relaxed);
             composite_pixels.store(other.composite_pixels.load(std::memory_order_relaxed), std::memory_order_relaxed);
             transform_calls.store(other.transform_calls.load(std::memory_order_relaxed), std::memory_order_relaxed);
@@ -173,6 +191,9 @@ struct RenderCounters {
             framebuffer_reuses.store(other.framebuffer_reuses.load(std::memory_order_relaxed), std::memory_order_relaxed);
             framebuffer_bytes_allocated.store(other.framebuffer_bytes_allocated.load(std::memory_order_relaxed), std::memory_order_relaxed);
             framebuffer_bytes_peak.store(other.framebuffer_bytes_peak.load(std::memory_order_relaxed), std::memory_order_relaxed);
+            dirty_rect_count.store(other.dirty_rect_count.load(std::memory_order_relaxed), std::memory_order_relaxed);
+            dirty_pixels.store(other.dirty_pixels.load(std::memory_order_relaxed), std::memory_order_relaxed);
+            dirty_full_fallbacks.store(other.dirty_full_fallbacks.load(std::memory_order_relaxed), std::memory_order_relaxed);
         }
         return *this;
     }
@@ -194,6 +215,7 @@ struct RenderCounters {
         node_cache_hash_collisions.store(0, std::memory_order_relaxed);
         clear_calls.store(0, std::memory_order_relaxed);
         clear_pixels.store(0, std::memory_order_relaxed);
+        clear_copy_pixels.store(0, std::memory_order_relaxed);
         composite_calls.store(0, std::memory_order_relaxed);
         composite_pixels.store(0, std::memory_order_relaxed);
         transform_calls.store(0, std::memory_order_relaxed);
@@ -208,6 +230,9 @@ struct RenderCounters {
         framebuffer_reuses.store(0, std::memory_order_relaxed);
         framebuffer_bytes_allocated.store(0, std::memory_order_relaxed);
         framebuffer_bytes_peak.store(0, std::memory_order_relaxed);
+        dirty_rect_count.store(0, std::memory_order_relaxed);
+        dirty_pixels.store(0, std::memory_order_relaxed);
+        dirty_full_fallbacks.store(0, std::memory_order_relaxed);
     }
 };
 

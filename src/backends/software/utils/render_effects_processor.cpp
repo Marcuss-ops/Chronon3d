@@ -44,25 +44,26 @@ void deform_horizontal(const Framebuffer& src, Framebuffer& dst, const Fake3DWav
         shade = clamp01(shade);
 
         for (i32 y = y0; y < yy1; ++y) {
+            Color* dst_row = dst.pixels_row(y);
             for (i32 x = 0; x < w; ++x) {
                 const f32 src_x = ((static_cast<f32>(x) - cx) / scale_x) + cx - dx;
                 const Color c = src.sample_bilinear(src_x + 0.5f, static_cast<f32>(y) + 0.5f);
                 if (c.a <= 0.0f) continue;
                 if (shadow_pass) {
                     const f32 a = c.a * p.shadow_color.a;
-                    dst.set_pixel(x, y, {
+                    dst_row[x] = {
                         p.shadow_color.r,
                         p.shadow_color.g,
                         p.shadow_color.b,
                         a
-                    });
+                    };
                 } else {
-                    dst.set_pixel(x, y, {
+                    dst_row[x] = {
                         c.r * shade,
                         c.g * shade,
                         c.b * shade,
                         c.a
-                    });
+                    };
                 }
             }
         }
@@ -92,24 +93,25 @@ void deform_vertical(const Framebuffer& src, Framebuffer& dst, const Fake3DWaveP
 
         for (i32 x = x0; x < xx1; ++x) {
             for (i32 y = 0; y < h; ++y) {
+                Color* dst_row = dst.pixels_row(y);
                 const f32 src_y = ((static_cast<f32>(y) - cy) / scale_y) + cy - dy;
                 const Color c = src.sample_bilinear(static_cast<f32>(x) + 0.5f, src_y + 0.5f);
                 if (c.a <= 0.0f) continue;
                 if (shadow_pass) {
                     const f32 a = c.a * p.shadow_color.a;
-                    dst.set_pixel(x, y, {
+                    dst_row[x] = {
                         p.shadow_color.r,
                         p.shadow_color.g,
                         p.shadow_color.b,
                         a
-                    });
+                    };
                 } else {
-                    dst.set_pixel(x, y, {
+                    dst_row[x] = {
                         c.r * shade,
                         c.g * shade,
                         c.b * shade,
                         c.a
-                    });
+                    };
                 }
             }
         }
@@ -132,11 +134,12 @@ void apply_shadow_buffer(Framebuffer& content, const Framebuffer& shadow) {
     const i32 w = content.width();
     const i32 h = content.height();
     for (i32 y = 0; y < h; ++y) {
+        const Color* shadow_row = shadow.pixels_row(y);
+        Color* content_row = content.pixels_row(y);
         for (i32 x = 0; x < w; ++x) {
-            const Color shadow_px = shadow.get_pixel(x, y);
+            const Color shadow_px = shadow_row[x];
             if (shadow_px.a <= 0.0f) continue;
-            const Color content_px = content.get_pixel(x, y);
-            content.set_pixel(x, y, compositor::blend(content_px, shadow_px, BlendMode::Normal));
+            content_row[x] = compositor::blend(content_row[x], shadow_px, BlendMode::Normal);
         }
     }
 }
@@ -268,7 +271,8 @@ void apply_blur(Framebuffer& fb, f32 radius, const std::optional<raster::BBox>& 
             }
             const f32 inv = 1.0f / static_cast<f32>(2 * r + 1);
             for (i32 y = y0; y < y1; ++y) {
-                fb.set_pixel(x, y, {sum.r * inv, sum.g * inv, sum.b * inv, sum.a * inv});
+                Color* fb_row = fb.pixels_row(y);
+                fb_row[x] = {sum.r * inv, sum.g * inv, sum.b * inv, sum.a * inv};
                 const Color add = tmp.pixels_row(std::min(y + r + 1, h - 1))[x];
                 const Color rem = tmp.pixels_row(std::max(y - r,     0))[x];
                 sum.r += add.r - rem.r; sum.g += add.g - rem.g;
@@ -293,8 +297,9 @@ void apply_color_effects(Framebuffer& fb, const LayerEffect& effect, const std::
     }
 
     for (i32 y = y0; y < y1; ++y) {
+        Color* row = fb.pixels_row(y);
         for (i32 x = x0; x < x1; ++x) {
-            Color c = fb.get_pixel(x, y);
+            Color c = row[x];
             if (c.a <= 0.0f) continue;
 
             if (effect.brightness != 0.0f || effect.contrast != 1.0f) {
@@ -309,7 +314,7 @@ void apply_color_effects(Framebuffer& fb, const LayerEffect& effect, const std::
                 c.g = c.g * (1.0f - t) + effect.tint.g * t;
                 c.b = c.b * (1.0f - t) + effect.tint.b * t;
             }
-            fb.set_pixel(x, y, c);
+            row[x] = c;
         }
     }
 }
@@ -331,10 +336,16 @@ void apply_fake_3d_wave(Framebuffer& fb, const Fake3DWaveParams& params, float t
             const i32 ox = static_cast<i32>(std::round(params.shadow_offset.x));
             const i32 oy = static_cast<i32>(std::round(params.shadow_offset.y));
             for (i32 y = 0; y < shadow_fb->height(); ++y) {
+                const Color* shadow_row = shadow_fb->pixels_row(y);
                 for (i32 x = 0; x < shadow_fb->width(); ++x) {
-                    const Color c = shadow_fb->get_pixel(x, y);
+                    const Color c = shadow_row[x];
                     if (c.a <= 0.0f) continue;
-                    shifted_fb->set_pixel(x + ox, y + oy, c);
+                    const i32 dx = x + ox;
+                    const i32 dy = y + oy;
+                    if (dx >= 0 && dx < shifted_fb->width() && dy >= 0 && dy < shifted_fb->height()) {
+                        Color* shifted_row = shifted_fb->pixels_row(dy);
+                        shifted_row[dx] = c;
+                    }
                 }
             }
             shadow_fb = std::move(shifted_fb);
@@ -369,20 +380,23 @@ static void apply_one_param(Framebuffer& fb, const EffectParams& params, float t
             auto alpha_map_fb = acquire_temp_framebuffer(w, h);
             auto& alpha_map = *alpha_map_fb;
             for (i32 y = 0; y < h; ++y) {
+                const Color* src_row = fb.pixels_row(y);
+                Color* alpha_row = alpha_map.pixels_row(y);
                 for (i32 x = 0; x < w; ++x) {
-                    const Color c = fb.get_pixel(x, y);
+                    const Color c = src_row[x];
                     if (c.a > 0.0f) {
-                        alpha_map.set_pixel(x, y, {p.color.r, p.color.g, p.color.b, c.a * p.intensity});
+                        alpha_row[x] = {p.color.r, p.color.g, p.color.b, c.a * p.intensity};
                     }
                 }
             }
             if (p.radius > 0.0f) apply_blur(alpha_map, p.radius);
             for (i32 y = 0; y < h; ++y) {
+                Color* dst_row = fb.pixels_row(y);
+                const Color* glow_row = alpha_map.pixels_row(y);
                 for (i32 x = 0; x < w; ++x) {
-                    const Color glow_c = alpha_map.get_pixel(x, y);
+                    const Color glow_c = glow_row[x];
                     if (glow_c.a <= 0.0f) continue;
-                    const Color src_c = fb.get_pixel(x, y);
-                    fb.set_pixel(x, y, compositor::blend(glow_c, src_c, BlendMode::Normal));
+                    dst_row[x] = compositor::blend(glow_c, dst_row[x], BlendMode::Normal);
                 }
             }
         } else if constexpr (std::is_same_v<T, DropShadowParams>) {
@@ -393,13 +407,15 @@ static void apply_one_param(Framebuffer& fb, const EffectParams& params, float t
             const i32 ox = static_cast<i32>(std::round(p.offset.x));
             const i32 oy = static_cast<i32>(std::round(p.offset.y));
             for (i32 y = 0; y < h; ++y) {
+                const Color* src_row = fb.pixels_row(y);
                 for (i32 x = 0; x < w; ++x) {
-                    const Color c = fb.get_pixel(x, y);
+                    const Color c = src_row[x];
                     if (c.a > 0.0f) {
                         const i32 dx = x + ox;
                         const i32 dy = y + oy;
                         if (dx >= 0 && dx < w && dy >= 0 && dy < h) {
-                            shadow_map.set_pixel(dx, dy, {p.color.r, p.color.g, p.color.b, c.a * p.color.a});
+                            Color* shadow_row = shadow_map.pixels_row(dy);
+                            shadow_row[dx] = {p.color.r, p.color.g, p.color.b, c.a * p.color.a};
                         }
                     }
                 }
@@ -410,10 +426,11 @@ static void apply_one_param(Framebuffer& fb, const EffectParams& params, float t
             auto result_fb = acquire_temp_framebuffer(w, h);
             auto& result = *result_fb;
             for (i32 y = 0; y < h; ++y) {
+                const Color* shadow_row = shadow_map.pixels_row(y);
+                const Color* src_row = fb.pixels_row(y);
+                Color* result_row = result.pixels_row(y);
                 for (i32 x = 0; x < w; ++x) {
-                    const Color sc = shadow_map.get_pixel(x, y);
-                    const Color fc = fb.get_pixel(x, y);
-                    result.set_pixel(x, y, compositor::blend(fc, sc, BlendMode::Normal));
+                    result_row[x] = compositor::blend(src_row[x], shadow_row[x], BlendMode::Normal);
                 }
             }
             fb = std::move(result);
@@ -422,27 +439,31 @@ static void apply_one_param(Framebuffer& fb, const EffectParams& params, float t
             auto bright_fb = acquire_temp_framebuffer(w, h);
             auto& bright = *bright_fb;
             for (i32 y = 0; y < h; ++y) {
+                const Color* src_row = fb.pixels_row(y);
+                Color* bright_row = bright.pixels_row(y);
                 for (i32 x = 0; x < w; ++x) {
-                    const Color c = fb.get_pixel(x, y);
+                    const Color c = src_row[x];
                     const f32 lum = 0.2126f * c.r + 0.7152f * c.g + 0.0722f * c.b;
                     if (lum > p.threshold && c.a > 0.0f) {
                         const f32 excess = (lum - p.threshold) / (1.0f - p.threshold + 1e-4f);
-                        bright.set_pixel(x, y, {c.r * excess, c.g * excess, c.b * excess, c.a});
+                        bright_row[x] = {c.r * excess, c.g * excess, c.b * excess, c.a};
                     }
                 }
             }
             if (p.radius > 0.0f) apply_blur(bright, p.radius);
             for (i32 y = 0; y < h; ++y) {
+                Color* dst_row = fb.pixels_row(y);
+                const Color* bright_row = bright.pixels_row(y);
                 for (i32 x = 0; x < w; ++x) {
-                    const Color b = bright.get_pixel(x, y);
+                    const Color b = bright_row[x];
                     if (b.a <= 0.0f) continue;
-                    const Color src = fb.get_pixel(x, y);
-                    fb.set_pixel(x, y, {
+                    const Color src = dst_row[x];
+                    dst_row[x] = {
                         std::min(1.0f, src.r + b.r * p.intensity),
                         std::min(1.0f, src.g + b.g * p.intensity),
                         std::min(1.0f, src.b + b.b * p.intensity),
                         src.a
-                    });
+                    };
                 }
             }
         } else if constexpr (std::is_same_v<T, Fake3DWaveParams>) {

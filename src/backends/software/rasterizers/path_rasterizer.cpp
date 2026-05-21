@@ -285,6 +285,14 @@ void draw_path(Framebuffer& fb, const PathShape& path, const Mat4& model, const 
     }
 
     raster::BBox bbox = compute_path_bbox(path, model, 0.0f);
+    if (state && state->clip_rect) {
+        bbox = raster::BBox{
+            .x0 = std::max(bbox.x0, state->clip_rect->x0),
+            .y0 = std::max(bbox.y0, state->clip_rect->y0),
+            .x1 = std::min(bbox.x1, state->clip_rect->x1),
+            .y1 = std::min(bbox.y1, state->clip_rect->y1)
+        };
+    }
     bbox.clip_to(fb.width(), fb.height());
     if (bbox.is_empty()) return;
 
@@ -293,6 +301,7 @@ void draw_path(Framebuffer& fb, const PathShape& path, const Mat4& model, const 
     const bool fill_enabled = true;
 
     for (i32 y = bbox.y0; y < bbox.y1; ++y) {
+        Color* row = fb.pixels_row(y);
         for (i32 x = bbox.x0; x < bbox.x1; ++x) {
             if (state && !pixel_passes_mask(*state, x, y)) continue;
 
@@ -307,7 +316,7 @@ void draw_path(Framebuffer& fb, const PathShape& path, const Mat4& model, const 
                 }
                 if (inside) {
                     const Color pixel_color = resolve_fill_color(path.fill, p, bbox, opacity);
-                    fb.set_pixel(x, y, compositor::blend(pixel_color, fb.get_pixel(x, y), BlendMode::Normal));
+                    row[x] = compositor::blend(pixel_color, row[x], BlendMode::Normal);
                     continue;
                 }
             }
@@ -387,7 +396,7 @@ void draw_path(Framebuffer& fb, const PathShape& path, const Mat4& model, const 
                 }
 
                 if (hit) {
-                    fb.set_pixel(x, y, compositor::blend(pixel_color, fb.get_pixel(x, y), BlendMode::Normal));
+                    row[x] = compositor::blend(pixel_color, row[x], BlendMode::Normal);
                     break;
                 }
             }

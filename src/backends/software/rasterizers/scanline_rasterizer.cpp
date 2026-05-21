@@ -28,8 +28,10 @@ void fill_convex_quad(Framebuffer& fb, const Vec2 v[4], const Color& color) {
         }
         const i32 x0 = std::max(0, static_cast<i32>(std::ceil(x_left)));
         const i32 x1 = std::min(fb.width() - 1, static_cast<i32>(std::floor(x_right)));
-        for (i32 x = x0; x <= x1; ++x)
-            fb.set_pixel(x, y, compositor::blend(color, fb.get_pixel(x, y), BlendMode::Normal));
+        Color* row = fb.pixels_row(y);
+        for (i32 x = x0; x <= x1; ++x) {
+            row[x] = compositor::blend(color, row[x], BlendMode::Normal);
+        }
     }
 }
 
@@ -57,12 +59,14 @@ void fill_gradient_quad(Framebuffer& fb, const Vec2 v[4], const Color colors[4])
         const i32 x0 = std::max(0, static_cast<i32>(std::ceil(x_left)));
         const i32 x1 = std::min(fb.width()-1, static_cast<i32>(std::floor(x_right)));
         const f32 span = x_right - x_left;
+        Color* row = fb.pixels_row(y);
         for (i32 x = x0; x <= x1; ++x) {
             f32 t = (span > 0.01f) ? (x - x_left) / span : 0.5f;
             Color c{cl.r+t*(cr.r-cl.r), cl.g+t*(cr.g-cl.g),
                     cl.b+t*(cr.b-cl.b), cl.a+t*(cr.a-cl.a)};
-            if (c.a > 0.01f)
-                fb.set_pixel(x, y, compositor::blend(c, fb.get_pixel(x, y), BlendMode::Normal));
+            if (c.a > 0.01f) {
+                row[x] = compositor::blend(c, row[x], BlendMode::Normal);
+            }
         }
     }
 }
@@ -90,8 +94,10 @@ void fill_triangle(Framebuffer& fb, const Vec2 v[3], const Color& color) {
         }
         const i32 x0 = std::max(0, static_cast<i32>(std::ceil(x_left)));
         const i32 x1 = std::min(fb.width() - 1, static_cast<i32>(std::floor(x_right)));
-        for (i32 x = x0; x <= x1; ++x)
-            fb.set_pixel(x, y, compositor::blend(color, fb.get_pixel(x, y), BlendMode::Normal));
+        Color* row = fb.pixels_row(y);
+        for (i32 x = x0; x <= x1; ++x) {
+            row[x] = compositor::blend(color, row[x], BlendMode::Normal);
+        }
     }
 }
 
@@ -119,12 +125,14 @@ void fill_gradient_triangle(Framebuffer& fb, const Vec2 v[3], const Color colors
         const i32 x0 = std::max(0, static_cast<i32>(std::ceil(x_left)));
         const i32 x1 = std::min(fb.width()-1, static_cast<i32>(std::floor(x_right)));
         const f32 span = x_right - x_left;
+        Color* row = fb.pixels_row(y);
         for (i32 x = x0; x <= x1; ++x) {
             f32 t = (span > 0.01f) ? (x - x_left) / span : 0.5f;
             Color c{cl.r+t*(cr.r-cl.r), cl.g+t*(cr.g-cl.g),
                     cl.b+t*(cr.b-cl.b), cl.a+t*(cr.a-cl.a)};
-            if (c.a > 0.01f)
-                fb.set_pixel(x, y, compositor::blend(c, fb.get_pixel(x, y), BlendMode::Normal));
+            if (c.a > 0.01f) {
+                row[x] = compositor::blend(c, row[x], BlendMode::Normal);
+            }
         }
     }
 }

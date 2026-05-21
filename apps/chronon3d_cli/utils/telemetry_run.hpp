@@ -26,6 +26,7 @@ inline std::vector<chronon3d::telemetry::CounterTelemetryRecord> capture_counter
         {"node_cache_hash_collisions", counters.node_cache_hash_collisions.load(std::memory_order_relaxed)},
         {"clear_calls", counters.clear_calls.load(std::memory_order_relaxed)},
         {"clear_pixels", counters.clear_pixels.load(std::memory_order_relaxed)},
+        {"clear_copy_pixels", counters.clear_copy_pixels.load(std::memory_order_relaxed)},
         {"composite_calls", counters.composite_calls.load(std::memory_order_relaxed)},
         {"composite_pixels", counters.composite_pixels.load(std::memory_order_relaxed)},
         {"transform_calls", counters.transform_calls.load(std::memory_order_relaxed)},
@@ -59,6 +60,7 @@ inline void add_counters(chronon3d::RenderCounters& dst, const chronon3d::Render
     dst.node_cache_hash_collisions.fetch_add(src.node_cache_hash_collisions.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.clear_calls.fetch_add(src.clear_calls.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.clear_pixels.fetch_add(src.clear_pixels.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.clear_copy_pixels.fetch_add(src.clear_copy_pixels.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.composite_calls.fetch_add(src.composite_calls.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.composite_pixels.fetch_add(src.composite_pixels.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.transform_calls.fetch_add(src.transform_calls.load(std::memory_order_relaxed), std::memory_order_relaxed);
