@@ -3,15 +3,139 @@
 #include <chronon3d/render_graph/render_graph_node.hpp>
 #include <chronon3d/render_graph/render_graph_hashing.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
+#include <chronon3d/math/projector_2_5d.hpp>
 #include <chronon3d/scene/layer/layer.hpp>
 #include <chronon3d/scene/mask/mask_utils.hpp>
 #include <spdlog/spdlog.h>
+#include <array>
+#include <cmath>
+#include <limits>
 
 namespace chronon3d::renderer {
     chronon3d::raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 spread = 0.0f);
 }
 
 namespace chronon3d::graph {
+
+namespace detail {
+
+template <size_t N>
+[[nodiscard]] inline std::optional<raster::BBox> project_points_bbox(
+    const renderer::ProjectionContext& projection,
+    const std::array<Vec3, N>& points,
+    i32 width,
+    i32 height,
+    f32 padding = 0.0f
+) {
+    if (!projection.ready) {
+        return std::nullopt;
+    }
+
+    f32 min_x = std::numeric_limits<f32>::max();
+    f32 min_y = std::numeric_limits<f32>::max();
+    f32 max_x = std::numeric_limits<f32>::lowest();
+    f32 max_y = std::numeric_limits<f32>::lowest();
+
+    for (const auto& point : points) {
+        const auto projected = projection.project_point(point);
+        if (!projected.visible) {
+            return std::nullopt;
+        }
+        min_x = std::min(min_x, projected.screen.x);
+        min_y = std::min(min_y, projected.screen.y);
+        max_x = std::max(max_x, projected.screen.x);
+        max_y = std::max(max_y, projected.screen.y);
+    }
+
+    raster::BBox bbox{
+        static_cast<i32>(std::floor(min_x - padding)),
+        static_cast<i32>(std::floor(min_y - padding)),
+        static_cast<i32>(std::ceil(max_x + padding)),
+        static_cast<i32>(std::ceil(max_y + padding))
+    };
+    bbox.clip_to(width, height);
+    if (bbox.is_empty()) {
+        return std::nullopt;
+    }
+    return bbox;
+}
+
+[[nodiscard]] inline std::optional<raster::BBox> projected_native_3d_bbox(
+    const RenderGraphContext& ctx,
+    const ::chronon3d::RenderNode& node,
+    const Mat4& world_matrix,
+    f32 spread = 0.0f
+) {
+    if (!ctx.has_camera_2_5d || !ctx.projection_ctx.ready) {
+        return std::nullopt;
+    }
+
+    const auto expand = [spread](f32 value) {
+        return value + spread;
+    };
+
+    switch (node.shape.type) {
+        case ShapeType::FakeBox3D: {
+            const auto& s = node.shape.fake_box3d;
+            const Vec3 center = s.world_pos;
+            const f32 hw = expand(s.size.x * 0.5f);
+            const f32 hh = expand(s.size.y * 0.5f);
+            const f32 depth = expand(s.depth);
+            const std::array<Vec3, 8> corners = {{
+                {center.x - hw, center.y + hh, center.z},
+                {center.x + hw, center.y + hh, center.z},
+                {center.x + hw, center.y - hh, center.z},
+                {center.x - hw, center.y - hh, center.z},
+                {center.x - hw, center.y + hh, center.z + depth},
+                {center.x + hw, center.y + hh, center.z + depth},
+                {center.x + hw, center.y - hh, center.z + depth},
+                {center.x - hw, center.y - hh, center.z + depth},
+            }};
+
+            std::array<Vec3, 8> transformed{};
+            for (size_t i = 0; i < corners.size(); ++i) {
+                const Vec4 w = world_matrix * Vec4(corners[i], 1.0f);
+                transformed[i] = {w.x, w.y, w.z};
+            }
+            return project_points_bbox(ctx.projection_ctx, transformed, ctx.width, ctx.height, spread);
+        }
+
+        case ShapeType::GridPlane: {
+            const auto& s = node.shape.grid_plane;
+            const f32 extent = expand(s.extent);
+            std::array<Vec3, 4> corners{};
+            if (s.axis == PlaneAxis::XZ) {
+                corners = {{
+                    {s.world_pos.x - extent, s.world_pos.y, s.world_pos.z - extent},
+                    {s.world_pos.x + extent, s.world_pos.y, s.world_pos.z - extent},
+                    {s.world_pos.x + extent, s.world_pos.y, s.world_pos.z + extent},
+                    {s.world_pos.x - extent, s.world_pos.y, s.world_pos.z + extent},
+                }};
+            } else {
+                corners = {{
+                    {s.world_pos.x - extent, s.world_pos.y - extent, s.world_pos.z},
+                    {s.world_pos.x + extent, s.world_pos.y - extent, s.world_pos.z},
+                    {s.world_pos.x + extent, s.world_pos.y + extent, s.world_pos.z},
+                    {s.world_pos.x - extent, s.world_pos.y + extent, s.world_pos.z},
+                }};
+            }
+
+            std::array<Vec3, 4> transformed{};
+            for (size_t i = 0; i < 4; ++i) {
+                const Vec4 w = world_matrix * Vec4(corners[i], 1.0f);
+                transformed[i] = {w.x, w.y, w.z};
+            }
+            return project_points_bbox(ctx.projection_ctx, transformed, ctx.width, ctx.height, spread);
+        }
+
+        default:
+            break;
+    }
+
+    return std::nullopt;
+}
+
+} // namespace detail
 
 // ClearNode (Output/Start)
 class ClearNode final : public RenderGraphNode {
@@ -62,12 +186,6 @@ public:
         const RenderGraphContext& ctx,
         const std::vector<std::optional<raster::BBox>>& = {}
     ) const override {
-        if (ctx.has_camera_2_5d || m_is_3d ||
-            m_node.shape.type == ShapeType::FakeBox3D ||
-            m_node.shape.type == ShapeType::GridPlane) {
-            return raster::BBox{0, 0, ctx.width, ctx.height};
-        }
-
         const Mat4 ssaa_scale = math::scale(Vec3(ctx.ssaa_factor, ctx.ssaa_factor, 1.0f));
         const Mat4 canvas_center = math::translate(Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
 
@@ -86,6 +204,15 @@ public:
             spread = std::max(spread, m_node.glow.radius);
         }
         spread += 8.0f;
+
+        if (ctx.has_camera_2_5d &&
+            (m_node.shape.type == ShapeType::FakeBox3D || m_node.shape.type == ShapeType::GridPlane)) {
+            const Mat4 world_matrix = m_matrix_override.value_or(m_node.world_transform.to_mat4());
+            if (auto bbox = detail::projected_native_3d_bbox(ctx, m_node, world_matrix, spread)) {
+                return bbox;
+            }
+            return raster::BBox{0, 0, ctx.width, ctx.height};
+        }
 
         auto bbox = renderer::compute_world_bbox(m_node.shape, matrix, spread);
         bbox.clip_to(ctx.width, ctx.height);
