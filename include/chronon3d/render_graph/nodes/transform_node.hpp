@@ -33,7 +33,10 @@ public:
     [[nodiscard]] RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::Transform; }
     [[nodiscard]] std::string name() const override { return "Transform"; }
 
-    std::optional<raster::BBox> predicted_bbox(const RenderGraphContext& ctx) const override;
+    std::optional<raster::BBox> predicted_bbox(
+        const RenderGraphContext& ctx,
+        const std::vector<std::optional<raster::BBox>>& input_bboxes = {}
+    ) const override;
 
     [[nodiscard]] CacheFramePolicy cache_frame_policy() const override {
         return CacheFramePolicy::FrameInvariant;

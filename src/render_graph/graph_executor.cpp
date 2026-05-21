@@ -4,224 +4,274 @@
 #include <chronon3d/core/profiling.hpp>
 #include <chronon3d/core/counters.hpp>
 #include <chronon3d/core/render_telemetry.hpp>
-#include <iostream>
-#include <future>
-#include <mutex>
+#include <algorithm>
+#include <atomic>
 #include <chrono>
+#include <tbb/blocked_range.h>
+#include <tbb/parallel_for.h>
+#include <stdexcept>
+#include <thread>
+#include <unordered_set>
 
 namespace chronon3d::graph {
 
-GraphExecutor::GraphExecutor() {}
+namespace {
+
+template <typename T>
+[[nodiscard]] bool contains_index(const std::vector<T>& values, GraphNodeId id) {
+    return id < values.size();
+}
+
+} // namespace
+
+GraphExecutor::GraphExecutor()
+    : m_arena(std::max(1u, std::thread::hardware_concurrency())) {}
+
+GraphExecutor::ExecutionPlan GraphExecutor::build_execution_plan(RenderGraph& graph, GraphNodeId output) const {
+    ExecutionPlan plan;
+    const size_t node_count = graph.size();
+    if (node_count == 0 || output >= node_count) {
+        return plan;
+    }
+
+    std::vector<char> reachable(node_count, 0);
+    std::vector<GraphNodeId> stack{output};
+    while (!stack.empty()) {
+        GraphNodeId id = stack.back();
+        stack.pop_back();
+        if (id >= node_count || reachable[id]) {
+            continue;
+        }
+        reachable[id] = 1;
+        for (GraphNodeId parent : graph.inputs(id)) {
+            stack.push_back(parent);
+        }
+    }
+
+    std::vector<std::vector<GraphNodeId>> children(node_count);
+    std::vector<size_t> indegree(node_count, 0);
+    plan.consumer_counts.assign(node_count, 0);
+
+    for (GraphNodeId child = 0; child < node_count; ++child) {
+        if (!reachable[child]) {
+            continue;
+        }
+        for (GraphNodeId parent : graph.inputs(child)) {
+            if (!reachable[parent]) {
+                continue;
+            }
+            children[parent].push_back(child);
+            ++indegree[child];
+            ++plan.consumer_counts[parent];
+        }
+    }
+
+    std::vector<GraphNodeId> current_level;
+    current_level.reserve(node_count);
+    for (GraphNodeId id = 0; id < node_count; ++id) {
+        if (reachable[id] && indegree[id] == 0) {
+            current_level.push_back(id);
+        }
+    }
+
+    size_t scheduled = 0;
+    while (!current_level.empty()) {
+        plan.levels.push_back(current_level);
+        scheduled += current_level.size();
+
+        std::vector<GraphNodeId> next_level;
+        for (GraphNodeId id : current_level) {
+            for (GraphNodeId child : children[id]) {
+                if (--indegree[child] == 0) {
+                    next_level.push_back(child);
+                }
+            }
+        }
+        current_level.swap(next_level);
+    }
+
+    const size_t reachable_count = static_cast<size_t>(
+        std::count(reachable.begin(), reachable.end(), static_cast<char>(1))
+    );
+    if (scheduled != reachable_count) {
+        throw std::runtime_error("GraphExecutor: graph is not a DAG or contains unreachable dependency cycles");
+    }
+
+    return plan;
+}
 
 std::shared_ptr<Framebuffer> GraphExecutor::execute(
     RenderGraph& graph,
     GraphNodeId output,
     RenderGraphContext& ctx
 ) {
-    {
-        std::lock_guard<std::mutex> lock(m_mutex);
-        m_temp.clear();
-        m_resolved_key_digest.clear();
-        m_resolved_frame_dependent.clear();
-        m_pending.clear();
-    }
-    return execute_node(graph, output, ctx);
-}
-
-std::shared_ptr<Framebuffer> GraphExecutor::execute_node(
-    RenderGraph& graph,
-    GraphNodeId id,
-    RenderGraphContext& ctx
-) {
-    std::shared_ptr<std::promise<std::shared_ptr<Framebuffer>>> promise;
-    bool already_executing = false;
-
-    {
-        std::lock_guard<std::mutex> lock(m_mutex);
-        if (auto it = m_temp.find(id); it != m_temp.end()) {
-            return it->second;
-        }
-        
-        if (auto it = m_pending.find(id); it != m_pending.end()) {
-            promise = it->second;
-            already_executing = true;
-        } else {
-            promise = std::make_shared<std::promise<std::shared_ptr<Framebuffer>>>();
-            m_pending[id] = promise;
-        }
+    const auto plan = build_execution_plan(graph, output);
+    if (plan.levels.empty()) {
+        return nullptr;
     }
 
-    if (already_executing) {
-        return promise->get_future().get();
-    }
-
-    try {
-        if (id >= graph.size()) {
-            {
-                std::lock_guard<std::mutex> lock(m_mutex);
-                m_pending.erase(id);
-            }
-            promise->set_value(nullptr);
-            return nullptr;
+    return m_arena.execute([&]() -> std::shared_ptr<Framebuffer> {
+        std::vector<std::shared_ptr<Framebuffer>> temp(graph.size());
+        std::vector<u64> resolved_key_digest(graph.size(), 0);
+        std::vector<char> resolved_frame_dependent(graph.size(), 0);
+        std::vector<std::optional<raster::BBox>> resolved_bboxes(graph.size());
+        std::vector<std::atomic_size_t> consumer_remaining(graph.size());
+        for (size_t i = 0; i < plan.consumer_counts.size(); ++i) {
+            consumer_remaining[i].store(plan.consumer_counts[i], std::memory_order_relaxed);
         }
 
-        auto& node = graph.node(id);
-        const auto& input_ids = graph.inputs(id);
-        std::vector<std::shared_ptr<Framebuffer>> inputs(input_ids.size());
+        for (const auto& level : plan.levels) {
+            tbb::parallel_for(
+                tbb::blocked_range<size_t>(0, level.size()),
+                [&](const tbb::blocked_range<size_t>& range) {
+                    for (size_t level_index = range.begin(); level_index != range.end(); ++level_index) {
+                        const GraphNodeId id = level[level_index];
+                        auto trace = profiling::g_current_trace;
+                        auto frame = profiling::g_current_frame;
+                        auto counters = profiling::g_current_counters;
+                        auto framebuffer_pool = profiling::g_current_framebuffer_pool;
+                profiling::g_current_trace = trace;
+                profiling::g_current_frame = frame;
+                profiling::g_current_counters = counters;
+                profiling::g_current_framebuffer_pool = framebuffer_pool;
 
-        if (!input_ids.empty()) {
-            std::vector<std::future<void>> futures;
-            futures.reserve(input_ids.size());
-            for (size_t i = 0; i < input_ids.size(); ++i) {
-                futures.emplace_back(std::async(std::launch::async, [&, i, trace = profiling::g_current_trace, frame = profiling::g_current_frame, counters = profiling::g_current_counters] {
-                    profiling::g_current_trace = trace;
-                    profiling::g_current_frame = frame;
-                    profiling::g_current_counters = counters;
-                    inputs[i] = execute_node(graph, input_ids[i], ctx);
-                }));
-            }
-            for (auto& f : futures) {
-                f.get();
-            }
-        }
+                auto& node = graph.node(id);
+                const auto& input_ids = graph.inputs(id);
 
-        std::vector<std::optional<raster::BBox>> input_bboxes(input_ids.size());
-        for (size_t i = 0; i < input_ids.size(); ++i) {
-            input_bboxes[i] = graph.node(input_ids[i]).predicted_bbox(ctx);
-        }
+                std::vector<std::shared_ptr<Framebuffer>> inputs(input_ids.size());
+                std::vector<std::optional<raster::BBox>> input_bboxes(input_ids.size());
 
-        std::shared_ptr<Framebuffer> result;
-        const bool is_cacheable = node.cacheable();
-        cache::NodeCacheKey key;
-        std::string cache_status;
-
-        // ── Determine frame dependency ──────────────────────────────────────
-        bool inputs_frame_dependent = false;
-        bool has_cacheable_inputs = false;
-        {
-            std::lock_guard<std::mutex> lock(m_mutex);
-            for (auto input_id : input_ids) {
-                if (auto it = m_resolved_frame_dependent.find(input_id);
-                    it != m_resolved_frame_dependent.end()) {
-                    inputs_frame_dependent |= it->second;
-                    has_cacheable_inputs = true;
+                bool inputs_frame_dependent = false;
+                bool has_cacheable_inputs = false;
+                u64 input_hash = 0;
+                for (size_t i = 0; i < input_ids.size(); ++i) {
+                    const GraphNodeId input_id = input_ids[i];
+                    if (contains_index(temp, input_id)) {
+                        inputs[i] = temp[input_id];
+                    }
+                    if (contains_index(resolved_bboxes, input_id)) {
+                        input_bboxes[i] = resolved_bboxes[input_id];
+                    }
+                    if (contains_index(resolved_frame_dependent, input_id)) {
+                        inputs_frame_dependent |= (resolved_frame_dependent[input_id] != 0);
+                        has_cacheable_inputs = true;
+                    }
+                    if (contains_index(resolved_key_digest, input_id)) {
+                        input_hash = hash_combine(input_hash, resolved_key_digest[input_id]);
+                    }
                 }
-            }
-        }
 
-        const bool node_frame_dependent =
-            node.frame_dependent() ||
-            (has_cacheable_inputs && inputs_frame_dependent) ||
-            node.cache_frame_policy() == CacheFramePolicy::FrameDependent;
+                const bool is_cacheable = node.cacheable();
+                cache::NodeCacheKey key;
+                std::shared_ptr<Framebuffer> result;
+                std::string cache_status;
 
-        // ── Cache key ──────────────────────────────────────────────────────
-        if (is_cacheable && ctx.node_cache) {
-            key = node.cache_key(ctx);
+                const bool node_frame_dependent =
+                    node.frame_dependent() ||
+                    (has_cacheable_inputs && inputs_frame_dependent) ||
+                    node.cache_frame_policy() == CacheFramePolicy::FrameDependent;
 
-            if (!node_frame_dependent) {
-                key.frame = 0;
-            }
+                if (is_cacheable && ctx.node_cache) {
+                    key = node.cache_key(ctx);
+                    if (!node_frame_dependent) {
+                        key.frame = 0;
+                    }
+                    key.input_hash = input_hash;
 
-            u64 input_hash = 0;
-            {
-                std::lock_guard<std::mutex> lock(m_mutex);
-                for (auto input_id : input_ids) {
-                    input_hash = hash_combine(input_hash, m_resolved_key_digest[input_id]);
-                }
-            }
-            key.input_hash = input_hash;
-
-            result = ctx.node_cache->get(key);
-            if (ctx.counters) {
-                if (result) {
-                    ctx.counters->cache_hits.fetch_add(1, std::memory_order_relaxed);
-                    cache_status = "hit";
+                    result = ctx.node_cache->get(key);
+                    if (ctx.counters) {
+                        if (result) {
+                            ctx.counters->cache_hits.fetch_add(1, std::memory_order_relaxed);
+                            cache_status = "hit";
+                        } else {
+                            ctx.counters->cache_misses.fetch_add(1, std::memory_order_relaxed);
+                            cache_status = "miss";
+                        }
+                    } else {
+                        cache_status = result ? "hit" : "miss";
+                    }
                 } else {
-                    ctx.counters->cache_misses.fetch_add(1, std::memory_order_relaxed);
-                    cache_status = "miss";
+                    cache_status = !ctx.node_cache ? "bypass_no_cache" : "bypass_not_cacheable";
                 }
-            } else {
-                cache_status = result ? "hit" : "miss";
-            }
-        } else {
-            cache_status = !ctx.node_cache ? "bypass_no_cache" : "bypass_not_cacheable";
+
+                const auto exec_t0 = std::chrono::steady_clock::now();
+                if (!result) {
+                    TraceScope scope(ctx.trace, node.name(), "node_execute", ctx.frame);
+                    result = node.execute(ctx, inputs, input_bboxes);
+                    if (ctx.counters) {
+                        ctx.counters->nodes_executed.fetch_add(1, std::memory_order_relaxed);
+                    }
+                    if (is_cacheable && ctx.node_cache && result) {
+                        ctx.node_cache->store(key, result);
+                    }
+                }
+                const auto exec_t1 = std::chrono::steady_clock::now();
+                const double duration_ms = std::chrono::duration<double, std::milli>(exec_t1 - exec_t0).count();
+
+                const auto predicted_bbox = node.predicted_bbox(ctx, input_bboxes);
+
+                {
+                    telemetry::CacheTelemetryRecord cache_rec;
+                    cache_rec.frame_number = static_cast<int>(ctx.frame);
+                    cache_rec.node_name = node.name();
+                    cache_rec.cacheable = is_cacheable;
+                    cache_rec.cache_status = cache_status;
+                    cache_rec.key_digest = (is_cacheable && ctx.node_cache) ? std::to_string(key.digest()) : "";
+                    cache_rec.params_hash = (is_cacheable && ctx.node_cache) ? std::to_string(key.params_hash) : "";
+                    cache_rec.source_hash = (is_cacheable && ctx.node_cache) ? std::to_string(key.source_hash) : "";
+                    cache_rec.input_hash = (is_cacheable && ctx.node_cache) ? std::to_string(key.input_hash) : "";
+                    if (result) {
+                        cache_rec.output_bytes = static_cast<uint64_t>(result->width()) *
+                                                 static_cast<uint64_t>(result->height()) * 4;
+                    }
+                    telemetry::record_cache_telemetry(std::move(cache_rec));
+                }
+
+                {
+                    telemetry::NodeTelemetryRecord rec;
+                    rec.frame_number = static_cast<int>(ctx.frame);
+                    rec.node_name = node.name();
+                    rec.node_type = std::string(to_string(node.kind()));
+                    rec.duration_ms = duration_ms;
+                    rec.cache_status = cache_status;
+                    rec.cache_key_digest = (is_cacheable && ctx.node_cache)
+                        ? std::to_string(key.digest()) : "";
+                    rec.input_count = static_cast<int>(input_ids.size());
+                    rec.layer_id = node.layer_id();
+                    if (result) {
+                        rec.output_width = result->width();
+                        rec.output_height = result->height();
+                        rec.output_bytes = static_cast<uint64_t>(result->width()) *
+                                           static_cast<uint64_t>(result->height()) * 4;
+                    }
+                    telemetry::record_node_telemetry(std::move(rec));
+                }
+
+                temp[id] = result;
+                resolved_key_digest[id] = key.digest();
+                if (is_cacheable) {
+                    resolved_frame_dependent[id] = node_frame_dependent ? 1 : 0;
+                }
+                resolved_bboxes[id] = predicted_bbox;
+
+                for (GraphNodeId input_id : input_ids) {
+                    if (!contains_index(consumer_remaining, input_id)) {
+                        continue;
+                    }
+                    if (consumer_remaining[input_id].fetch_sub(1, std::memory_order_acq_rel) == 1) {
+                        temp[input_id].reset();
+                        resolved_key_digest[input_id] = 0;
+                        resolved_frame_dependent[input_id] = 0;
+                        resolved_bboxes[input_id].reset();
+                    }
+                }
+                    }
+                }
+            );
         }
 
-        // ── Execute (or skip if cache hit) ────────────────────────────────────
-        const auto exec_t0 = std::chrono::steady_clock::now();
-
-        if (!result) {
-            TraceScope scope(ctx.trace, node.name(), "node_execute", ctx.frame);
-            result = node.execute(ctx, inputs, input_bboxes);
-            if (ctx.counters) {
-                ctx.counters->nodes_executed.fetch_add(1, std::memory_order_relaxed);
-            }
-            if (is_cacheable && ctx.node_cache && result) {
-                ctx.node_cache->store(key, result);
-            }
-        }
-        const auto exec_t1 = std::chrono::steady_clock::now();
-        const double duration_ms = std::chrono::duration<double, std::milli>(exec_t1 - exec_t0).count();
-
-        // ── Record cache telemetry ─────────────────────────────────────────────
-        {
-            telemetry::CacheTelemetryRecord cache_rec;
-            cache_rec.frame_number = static_cast<int>(ctx.frame);
-            cache_rec.node_name = node.name();
-            cache_rec.cacheable = is_cacheable;
-            cache_rec.cache_status = cache_status;
-            cache_rec.key_digest = (is_cacheable && ctx.node_cache) ? std::to_string(key.digest()) : "";
-            cache_rec.params_hash = (is_cacheable && ctx.node_cache) ? std::to_string(key.params_hash) : "";
-            cache_rec.source_hash = (is_cacheable && ctx.node_cache) ? std::to_string(key.source_hash) : "";
-            cache_rec.input_hash = (is_cacheable && ctx.node_cache) ? std::to_string(key.input_hash) : "";
-            if (result) {
-                cache_rec.output_bytes = static_cast<uint64_t>(result->width()) *
-                                         static_cast<uint64_t>(result->height()) * 4;
-            }
-            telemetry::record_cache_telemetry(std::move(cache_rec));
-        }
-
-        // ── Record node telemetry ─────────────────────────────────────────────
-        {
-            telemetry::NodeTelemetryRecord rec;
-            rec.frame_number = static_cast<int>(ctx.frame);
-            rec.node_name = node.name();
-            rec.node_type = std::string(to_string(node.kind()));
-            rec.duration_ms = duration_ms;
-            rec.cache_status = cache_status;
-            rec.cache_key_digest = (is_cacheable && ctx.node_cache)
-                ? std::to_string(key.digest()) : "";
-            rec.input_count = static_cast<int>(input_ids.size());
-            rec.layer_id = node.layer_id();
-            if (result) {
-                rec.output_width = result->width();
-                rec.output_height = result->height();
-                rec.output_bytes = static_cast<uint64_t>(result->width()) *
-                                   static_cast<uint64_t>(result->height()) * 4;
-            }
-            telemetry::record_node_telemetry(std::move(rec));
-        }
-
-        {
-            std::lock_guard<std::mutex> lock(m_mutex);
-            m_temp[id] = result;
-            m_resolved_key_digest[id] = key.digest();
-            if (is_cacheable) {
-                m_resolved_frame_dependent[id] = node_frame_dependent;
-            }
-            m_pending.erase(id);
-        }
-
-        promise->set_value(result);
-        return result;
-    } catch (...) {
-        {
-            std::lock_guard<std::mutex> lock(m_mutex);
-            m_pending.erase(id);
-        }
-        promise->set_exception(std::current_exception());
-        throw;
-    }
+        return temp[output];
+    });
 }
 
 } // namespace chronon3d::graph
