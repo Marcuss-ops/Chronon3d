@@ -54,6 +54,7 @@ find_package(tomlplusplus CONFIG REQUIRED)
 find_package(Tracy CONFIG QUIET)
 find_package(blend2d CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
+find_package(OpenEXR CONFIG REQUIRED)
 
 
 
@@ -170,7 +171,7 @@ set(CHRONON3D_BACKEND_IMAGE_SOURCES
     src/backends/image/stb_image_backend.cpp
 )
 add_library(chronon3d_backend_image STATIC ${CHRONON3D_BACKEND_IMAGE_SOURCES})
-target_link_libraries(chronon3d_backend_image PUBLIC chronon3d spdlog::spdlog_header_only fmt::fmt)
+target_link_libraries(chronon3d_backend_image PUBLIC chronon3d spdlog::spdlog_header_only fmt::fmt OpenEXR::OpenEXR)
 target_include_directories(chronon3d_backend_image PRIVATE ${Stb_INCLUDE_DIR})
 
 # 7b. Assets Backend
