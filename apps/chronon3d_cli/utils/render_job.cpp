@@ -1,6 +1,7 @@
 #include "render_job.hpp"
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/core/render_telemetry.hpp>
+#include <chronon3d/runtime/renderer_warmup.hpp>
 #include <chronon3d/core/trace.hpp>
 #include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
 
@@ -130,6 +131,9 @@ std::optional<RenderJobPlan> plan_render_job(const CompositionRegistry& registry
     plan.log_level = args.log_level;
     plan.benchmark_all = args.benchmark_all;
     plan.report = args.report;
+    plan.warmup_renderer = args.pipeline.warmup_renderer;
+    plan.warmup_framebuffers = args.pipeline.warmup_framebuffers;
+    plan.warmup_dummy_frame = args.pipeline.warmup_dummy_frame;
     return plan;
 }
 
@@ -139,6 +143,19 @@ bool execute_render_job(const CompositionRegistry& registry, const RenderJobPlan
 
     const auto setup_t0 = std::chrono::steady_clock::now();
     auto renderer = create_renderer(registry, plan.settings);
+    // Renderer warmup (preallocate framebuffers + optional dummy frame)
+    if (plan.warmup_renderer) {
+        runtime::warmup_renderer(*renderer, *plan.comp, runtime::RendererWarmupOptions{
+            .width = plan.comp->width(),
+            .height = plan.comp->height(),
+            .framebuffer_count = plan.warmup_framebuffers,
+            .preallocate_framebuffers = true,
+            .touch_memory = true,
+            .render_dummy_frame = plan.warmup_dummy_frame,
+            .dummy_frame = 0,
+            .quiet = (plan.log_level != "trace" && plan.log_level != "debug")
+        });
+    }
     renderer->trace()->clear();
     renderer->counters()->reset();
     const auto setup_t1 = std::chrono::steady_clock::now();

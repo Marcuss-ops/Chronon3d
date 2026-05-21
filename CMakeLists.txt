@@ -129,6 +129,7 @@ set(CHRONON3D_GRAPH_SOURCES
     src/render_graph/graph_profiler.cpp
     src/render_graph/render_graph.cpp
     src/render_graph/render_pipeline.cpp
+    src/render_graph/graph_filter.cpp
     src/render_graph/nodes/transform_node.cpp
     src/render_graph/nodes/transition_node.cpp
 )
@@ -151,6 +152,7 @@ set(CHRONON3D_RUNTIME_SOURCES
     src/runtime/telemetry/jsonl_telemetry_store.cpp
     src/runtime/telemetry/sqlite_telemetry_store.cpp
     src/runtime/telemetry/telemetry_manager.cpp
+    src/runtime/renderer_warmup.cpp
 )
 add_library(chronon3d_runtime STATIC ${CHRONON3D_RUNTIME_SOURCES})
 target_link_libraries(chronon3d_runtime PUBLIC

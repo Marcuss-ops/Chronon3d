@@ -1,6 +1,7 @@
 #include "../commands.hpp"
 #include "../utils/cli_render_utils.hpp"
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/runtime/renderer_warmup.hpp>
 #include <chronon3d/core/trace.hpp>
 #include <chronon3d/core/counters.hpp>
 #include <chronon3d/core/benchmark_report.hpp>
@@ -40,7 +41,25 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
         spdlog::info("Benchmarking {} (warmup: {}, frames: {})", args.comp_id, args.warmup, args.frames);
     }
 
-    // 1. Warmup
+    // 1a. Renderer warmup (framebuffer preallocation + optional dummy frame)
+    if (args.warmup_renderer) {
+        auto warmup = runtime::warmup_renderer(*renderer, comp, runtime::RendererWarmupOptions{
+            .width = comp.width(),
+            .height = comp.height(),
+            .framebuffer_count = args.warmup_framebuffers,
+            .preallocate_framebuffers = true,
+            .touch_memory = true,
+            .render_dummy_frame = args.warmup_dummy_frame,
+            .dummy_frame = 0,
+            .quiet = args.quiet
+        });
+        if (!args.quiet) {
+            spdlog::info("Renderer warmup: {} framebuffers, {} bytes, {:.2f} ms",
+                         warmup.framebuffers_created, warmup.pool_bytes_after, warmup.elapsed_ms);
+        }
+    }
+
+    // 1b. Legacy warmup
     for (int i = 0; i < args.warmup; ++i) {
         const auto frame = static_cast<Frame>(i);
         auto scene = comp.evaluate(frame);

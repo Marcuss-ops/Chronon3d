@@ -7,6 +7,7 @@
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/scene/utils/dark_grid_background.hpp>
 #include <chronon3d/presets/camera_motion_clip.hpp>
+#include <chronon3d/runtime/renderer_warmup.hpp>
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
 #include <chrono>
@@ -51,6 +52,11 @@ struct FfmpegExportOptions {
     int chunks;
     std::string ffmpeg_mode{"png"};
     bool ffmpeg_verbose{false};
+
+    // Renderer warmup
+    bool   warmup_renderer{false};
+    size_t warmup_framebuffers{16};
+    bool   warmup_dummy_frame{false};
 };
 
 int render_and_encode_ffmpeg(
@@ -124,6 +130,20 @@ int render_and_encode_ffmpeg(
         }
 
         auto renderer = create_renderer(registry, settings);
+
+        // Warmup
+        if (opts.warmup_renderer) {
+            runtime::warmup_renderer(*renderer, comp, runtime::RendererWarmupOptions{
+                .width = comp.width(),
+                .height = comp.height(),
+                .framebuffer_count = opts.warmup_framebuffers,
+                .preallocate_framebuffers = true,
+                .touch_memory = true,
+                .render_dummy_frame = opts.warmup_dummy_frame,
+                .dummy_frame = 0,
+                .quiet = false
+            });
+        }
 
         const auto render_t0 = std::chrono::steady_clock::now();
         try {
@@ -231,6 +251,21 @@ int render_and_encode_ffmpeg(
         workers.emplace_back([&, chunk]() {
             try {
                 auto renderer = create_renderer(registry, settings);
+
+                // Warmup
+                if (opts.warmup_renderer) {
+                    runtime::warmup_renderer(*renderer, comp, runtime::RendererWarmupOptions{
+                        .width = comp.width(),
+                        .height = comp.height(),
+                        .framebuffer_count = opts.warmup_framebuffers,
+                        .preallocate_framebuffers = true,
+                        .touch_memory = true,
+                        .render_dummy_frame = opts.warmup_dummy_frame,
+                        .dummy_frame = 0,
+                        .quiet = false
+                    });
+                }
+
                 std::vector<chronon3d::telemetry::FrameTelemetryRecord> local_frames;
                 local_frames.reserve(static_cast<size_t>(chunk.end - chunk.start));
                 for (Frame f = chunk.start; f < chunk.end; ++f) {
@@ -378,6 +413,9 @@ int command_video(const CompositionRegistry& registry, const VideoArgs& args) {
     opts.chunks = args.chunks;
     opts.ffmpeg_mode = args.ffmpeg_mode;
     opts.ffmpeg_verbose = args.ffmpeg_verbose;
+    opts.warmup_renderer = args.pipeline.warmup_renderer;
+    opts.warmup_framebuffers = args.pipeline.warmup_framebuffers;
+    opts.warmup_dummy_frame = args.pipeline.warmup_dummy_frame;
 
     const Frame end = (args.end > args.start) ? args.end : comp.duration();
     

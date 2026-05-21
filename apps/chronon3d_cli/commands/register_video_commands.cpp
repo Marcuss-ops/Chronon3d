@@ -37,6 +37,12 @@ void register_video_commands(CLI::App& app, CliContext& ctx) {
         ->default_val("png")
         ->check(CLI::IsMember({"png", "pipe"}));
     cmd->add_flag("--ffmpeg-verbose", args.ffmpeg_verbose, "Show FFmpeg logs in pipe mode");
+    cmd->add_flag("--warmup-renderer", args.pipeline.warmup_renderer,
+                  "Preallocate framebuffers and prime caches before rendering");
+    cmd->add_option("--warmup-framebuffers", args.pipeline.warmup_framebuffers,
+                    "Number of framebuffers to preallocate (default 16)");
+    cmd->add_flag("--warmup-dummy-frame", args.pipeline.warmup_dummy_frame,
+                  "Render a dummy frame 0 to prime all caches");
     cmd->callback([state, &ctx]() { ctx.exit_code = command_video(ctx.registry, *state->args); });
 }
 

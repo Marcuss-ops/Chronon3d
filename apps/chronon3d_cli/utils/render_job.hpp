@@ -22,6 +22,11 @@ struct RenderJobPlan {
     std::string log_level;
     bool benchmark_all{false};
     bool report{false};
+
+    // Renderer warmup
+    bool   warmup_renderer{false};
+    size_t warmup_framebuffers{16};
+    bool   warmup_dummy_frame{false};
 };
 
 std::optional<RenderJobPlan> plan_render_job(const CompositionRegistry& registry,

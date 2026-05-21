@@ -126,6 +126,15 @@ struct PreflightArgs {
     std::string json_file;
 };
 
+struct BakeLayerArgs {
+    std::string comp_id;
+    std::string layer_id;
+    int frame{0};
+    std::string output;
+    bool quiet{false};
+    bool diagnostic{false};
+};
+
 int command_list(const CompositionRegistry& registry);
 int command_info(const CompositionRegistry& registry, const std::string& id);
 int command_doctor(const CompositionRegistry& registry);
@@ -143,6 +152,7 @@ int command_watch(const CompositionRegistry& registry, const std::string& comp_i
 int command_proofs(const CompositionRegistry& registry, const ProofsArgs& args);
 int command_telemetry(const TelemetryArgs& args);
 int command_preflight(const CompositionRegistry& registry, const PreflightArgs& args);
+int command_bake_layer(const CompositionRegistry& registry, const BakeLayerArgs& args);
 
 } // namespace cli
 } // namespace chronon3d
