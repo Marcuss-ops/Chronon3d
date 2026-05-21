@@ -7,6 +7,10 @@
 #include <memory>
 #include <string>
 
+namespace chronon3d {
+class SoftwareRenderer;
+}
+
 namespace chronon3d::runtime {
 
 // ---------------------------------------------------------------------------
@@ -43,7 +47,7 @@ struct RendererWarmupResult {
 /// optionally rendering a dummy frame to prime caches and resolve page faults
 /// before the actual render session begins.
 RendererWarmupResult warmup_renderer(
-    class SoftwareRenderer& renderer,
+    ::chronon3d::SoftwareRenderer& renderer,
     const Composition& composition,
     const RendererWarmupOptions& options);
 

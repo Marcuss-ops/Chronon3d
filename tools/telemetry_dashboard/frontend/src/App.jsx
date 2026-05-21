@@ -19,6 +19,7 @@ import LayersTable from './components/LayersTable.jsx';
 import NodesTable from './components/NodesTable.jsx';
 import RenderGraph from './components/RenderGraph.jsx';
 import ComparisonMetrics from './components/ComparisonMetrics.jsx';
+import { getAggregatedLayers, getAggregatedNodes } from './utils/aggregate.js';
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(true);
   const [password, setPassword] = useState('');
@@ -209,11 +210,24 @@ function App() {
     const frames = runDetail.frames || [];
     const phases = runDetail.phases || [];
     const counters = runDetail.counters || [];
+    const nodeEvents = getAggregatedNodes(runDetail)
+      .slice()
+      .sort((a, b) => b.duration_ms - a.duration_ms);
+    const layerEvents = getAggregatedLayers(runDetail)
+      .slice()
+      .sort((a, b) => b.duration_ms - a.duration_ms);
 
     const cacheHits = Number(r.cache_hits || 0);
     const cacheMisses = Number(r.cache_misses || 0);
     const cacheRate = cacheHits + cacheMisses > 0
       ? `${((cacheHits / (cacheHits + cacheMisses)) * 100).toFixed(1)}%`
+      : '0.0%';
+    const framebufferReuseRate = (Number(r.framebuffer_allocations || 0) + Number(r.framebuffer_reuses || 0)) > 0
+      ? `${((Number(r.framebuffer_reuses || 0) / (Number(r.framebuffer_allocations || 0) + Number(r.framebuffer_reuses || 0))) * 100).toFixed(1)}%`
+      : '0.0%';
+    const dirtyPixels = Number(r.dirty_pixels || 0);
+    const dirtyCoverage = Number(r.pixels_touched || 0) > 0
+      ? `${((dirtyPixels / Number(r.pixels_touched || 1)) * 100).toFixed(1)}%`
       : '0.0%';
 
     const frameDurations = frames.map(f => Number(f.duration_ms || 0));
@@ -227,16 +241,42 @@ function App() {
       ? `${((frames.filter(f => f.cache_hit).length / frameCount) * 100).toFixed(1)}%`
       : '0.0%';
 
+    const avgDirtyRatio = frameCount > 0
+      ? `${((frames.reduce((sum, f) => sum + Number(f.dirty_area_ratio || 0), 0) / frameCount) * 100).toFixed(1)}%`
+      : '0.0%';
+
     const phaseRows = phases
       .slice()
       .sort((a, b) => b.duration_ms - a.duration_ms)
       .map(p => [p.phase_name, `${p.duration_ms.toFixed(2)} ms`]);
 
-    const nodePhases = phases
-      .filter(p => p.phase_name.startsWith('node:'))
-      .slice()
-      .sort((a, b) => b.duration_ms - a.duration_ms)
-      .map(p => [p.phase_name.replace('node:', ''), `${p.duration_ms.toFixed(2)} ms`]);
+    const nodeRows = nodeEvents.length > 0
+      ? nodeEvents.map(n => [
+          n.node_name,
+          n.node_type,
+          `${n.executions}x`,
+          `${n.duration_ms.toFixed(2)} ms`,
+          `${(n.hit_rate * 100).toFixed(1)}%`,
+          `${n.pixels_touched?.toLocaleString?.() || Number(n.pixels_touched || 0).toLocaleString()}`,
+        ])
+      : phases
+          .filter(p => p.phase_name.startsWith('node:'))
+          .slice()
+          .sort((a, b) => b.duration_ms - a.duration_ms)
+          .map(p => [p.phase_name.replace('node:', ''), 'phase', '1x', `${p.duration_ms.toFixed(2)} ms`, '0.0%', '0']);
+
+    const layerRows = layerEvents.length > 0
+      ? layerEvents.map(l => [
+          l.layer_name || 'Unnamed',
+          l.layer_type || 'Unknown',
+          `${l.executions || frames.length || 0}x`,
+          `${l.duration_ms.toFixed(2)} ms`,
+          `${Number(l.visible_pixels || 0).toLocaleString()}`,
+          `${Number(l.dirty_pixels || 0).toLocaleString()}`,
+          `${Number(l.glyphs_rasterized || 0).toLocaleString()}`,
+          `${Number(l.images_sampled || 0).toLocaleString()}`,
+        ])
+      : [];
 
     const counterRows = counters
       .slice()
@@ -251,6 +291,12 @@ function App() {
         f.cache_hit ? 'hit' : 'miss',
         `${((Number(f.dirty_area_ratio || 0)) * 100).toFixed(1)}%`,
       ]);
+
+    const cacheEventCounts = (runDetail.cache_events || []).reduce((acc, ev) => {
+      const key = ev.cache_status || 'unknown';
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {});
 
     const reportSections = [
       `# Chronon3D Telemetry Report - ${r.composition_id}`,
@@ -294,22 +340,41 @@ function App() {
           ['Min Frame', `${minFrame.toFixed(2)} ms`],
           ['Max Frame', `${maxFrame.toFixed(2)} ms`],
           ['Frame Cache Hit Rate', frameHitRate],
+          ['Average Dirty Ratio', avgDirtyRatio],
         ],
       ),
-      '',
-      '## Frame Samples',
-      mdTable(['Frame', 'Duration', 'Cache', 'Dirty Ratio'], sampleFrames),
       '',
       '## Core Render Phases',
       mdTable(['Phase', 'Duration'], phaseRows.filter(row => !row[0].startsWith('node:'))),
       '',
-      '## Node Execution Bottlenecks',
-      nodePhases.length > 0
-        ? mdTable(['Node', 'Duration'], nodePhases.slice(0, 10))
-        : '- None. Use `--benchmark-all` to gather node timings.',
-      '',
       '## Telemetry Counters',
       mdTable(['Counter', 'Value'], counterRows),
+      '',
+      '## Hot Nodes',
+      nodeRows.length > 0
+        ? mdTable(['Node', 'Type', 'Calls', 'Total', 'Hit Rate', 'Pixels Touched'], nodeRows.slice(0, 10))
+        : '- None. No node telemetry events recorded for this run.',
+      '',
+      '## Layer Cost Breakdown',
+      layerRows.length > 0
+        ? mdTable(['Layer', 'Type', 'Calls', 'Time', 'Visible Pixels', 'Dirty Pixels', 'Glyphs', 'Images'], layerRows.slice(0, 10))
+        : '- None. No layer telemetry events recorded for this run.',
+      '',
+      '## Frame Samples',
+      mdTable(['Frame', 'Duration', 'Cache', 'Dirty Ratio'], sampleFrames),
+      '',
+      '## Cache Diagnostics',
+      Object.keys(cacheEventCounts).length > 0
+        ? Object.entries(cacheEventCounts).map(([k, v]) => `- ${k}: ${v}`).join('\n')
+        : '- None',
+      '',
+      '## Things to Know',
+      `- Cache hit rate: ${cacheRate}.`,
+      `- Average dirty coverage: ${dirtyCoverage} of touched pixels.`,
+      `- Dirty full fallbacks: ${Number(r.dirty_full_fallbacks || 0)}.`,
+      `- Framebuffer reuse rate: ${framebufferReuseRate}.`,
+      '- If render time stays high while cache hit rate is strong, the hot path is likely compositing, clear passes, or framebuffer churn rather than rasterization.',
+      '- If text glyph rasterization is low, text is probably not the main bottleneck anymore; blur/glow and layer recomposition become the next suspects.',
     ];
 
     return reportSections.join('\n');

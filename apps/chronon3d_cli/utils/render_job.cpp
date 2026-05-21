@@ -34,13 +34,13 @@ bool write_render_frame(const Composition& comp,
                         double& total_render_ms,
                         double& total_encode_ms,
                         int& frames_written) {
-    const auto layer_count = static_cast<int>(comp.evaluate(frame).layers().size());
     const auto hits_before = renderer.node_cache().stats().hits;
     const auto t0 = std::chrono::steady_clock::now();
     auto fb = renderer.render_frame(comp, frame);
     const auto t1 = std::chrono::steady_clock::now();
     const auto hits_after = renderer.node_cache().stats().hits;
     const double dirty_ratio = renderer.last_dirty_area_ratio();
+    const auto layer_count = renderer.last_layer_count();
 
     if (!fb) {
         spdlog::error("Failed to render frame {}", frame);
@@ -252,6 +252,9 @@ bool execute_render_job(const CompositionRegistry& registry, const RenderJobPlan
     run.framebuffer_reuses = counters->framebuffer_reuses.load(std::memory_order_relaxed);
     run.framebuffer_bytes_allocated = counters->framebuffer_bytes_allocated.load(std::memory_order_relaxed);
     run.framebuffer_bytes_peak = counters->framebuffer_bytes_peak.load(std::memory_order_relaxed);
+    run.dirty_rect_count = counters->dirty_rect_count.load(std::memory_order_relaxed);
+    run.dirty_pixels = counters->dirty_pixels.load(std::memory_order_relaxed);
+    run.dirty_full_fallbacks = counters->dirty_full_fallbacks.load(std::memory_order_relaxed);
 
     run.started_at_iso = job_started_iso;
     run.finished_at_iso = telemetry::TelemetryManager::get_current_iso_time();
@@ -291,6 +294,9 @@ bool execute_render_job(const CompositionRegistry& registry, const RenderJobPlan
         {"framebuffer_reuses", run.framebuffer_reuses},
         {"framebuffer_bytes_allocated", run.framebuffer_bytes_allocated},
         {"framebuffer_bytes_peak", run.framebuffer_bytes_peak},
+        {"dirty_rect_count", run.dirty_rect_count},
+        {"dirty_pixels", run.dirty_pixels},
+        {"dirty_full_fallbacks", run.dirty_full_fallbacks},
         {"pool_current_bytes", pool_current_bytes},
         {"pool_available_count", pool_available_count}
     };

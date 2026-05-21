@@ -136,8 +136,11 @@ public:
     std::unordered_map<std::string, LayerBBoxState> m_prev_layer_bboxes;
     Frame m_prev_frame{-1};
     double m_last_dirty_area_ratio{1.0};
+    int m_last_layer_count{0};
     Camera2_5D m_prev_camera;
     bool m_prev_camera_valid{false};
+
+    [[nodiscard]] int last_layer_count() const { return m_last_layer_count; }
 
 private:
     ImageRenderer     m_image_renderer;

@@ -43,6 +43,7 @@ export const getAggregatedLayers = (runDetail, selectedFrame) => {
       layer_id: g.layer_id,
       layer_name: g.layer_name,
       layer_type: g.layer_type,
+      executions: g.total_count,
       duration_ms: avgDur,
       visible: g.visible_count > 0,
       cull_rate: 1.0 - (g.visible_count / g.total_count),

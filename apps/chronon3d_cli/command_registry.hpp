@@ -13,6 +13,7 @@ void register_dev_commands(CLI::App& app, CliContext& ctx);
 void register_inspect_commands(CLI::App& app, CliContext& ctx);
 void register_bench_commands(CLI::App& app, CliContext& ctx);
 void register_telemetry_commands(CLI::App& app, CliContext& ctx);
+void register_bake_layer_commands(CLI::App& app, CliContext& ctx);
 
 void register_all_commands(CLI::App& app, CliContext& ctx);
 

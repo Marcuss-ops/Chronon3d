@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { renderInfoIcon, formatCounterValue } from '../utils/format.jsx';
 import { copyTextToClipboard } from '../utils/clipboard.js';
+import { getAggregatedNodes } from '../utils/aggregate.js';
 
 function CopyBtn({ onClick, label, copiedLabel }) {
   const [copied, setCopied] = useState(false);
@@ -35,13 +36,32 @@ export default function ProfilePanels({ runDetail, selectedFrame }) {
     return Math.round(value / runDetail.run.frames_total);
   };
 
-  const copyPhasesText = async () => {
-    if (!runDetail.phases) return;
-    const text = runDetail.phases.map(p => {
-      const isNode = p.phase_name.startsWith('node:');
-      const name = isNode ? p.phase_name.substring(5) : p.phase_name;
-      return `${name}: ${p.duration_ms.toFixed(2)} ms`;
-    }).join('\n');
+  const aggregatedNodes = getAggregatedNodes(runDetail, selectedFrame)
+    .slice()
+    .sort((a, b) => b.duration_ms - a.duration_ms);
+  const fallbackNodePhases = (runDetail.phases || [])
+    .filter(p => p.phase_name.startsWith('node:'))
+    .slice()
+    .sort((a, b) => b.duration_ms - a.duration_ms)
+    .map(p => ({
+      node_name: p.phase_name.replace('node:', ''),
+      node_type: 'phase',
+      duration_ms: p.duration_ms,
+      executions: 1,
+    }));
+  const nodeRows = aggregatedNodes.length > 0 ? aggregatedNodes : fallbackNodePhases;
+
+  const copyProfileText = async () => {
+    const phasesText = (runDetail.phases || [])
+      .filter(p => !p.phase_name.startsWith('node:'))
+      .map(p => `${p.phase_name}: ${p.duration_ms.toFixed(2)} ms`);
+
+    const nodeText = nodeRows.map(n => {
+      const suffix = selectedFrame ? `Frame #${selectedFrame.frame_number}` : `${n.executions}x`;
+      return `${n.node_name} (${n.node_type}) - ${n.duration_ms.toFixed(2)} ms [${suffix}]`;
+    });
+
+    const text = [...phasesText, '', ...nodeText].join('\n');
     await copyTextToClipboard(text);
   };
 
@@ -53,7 +73,7 @@ export default function ProfilePanels({ runDetail, selectedFrame }) {
           <div className="panel-title">
             <span>Core Render Phases</span>
             {renderInfoIcon('rendering_loop')}
-            <CopyBtn onClick={copyPhasesText} label="📋" copiedLabel="✓" />
+            <CopyBtn onClick={copyProfileText} label="📋" copiedLabel="✓" />
           </div>
           <div className="phases-list">
             {runDetail.phases
@@ -83,16 +103,15 @@ export default function ProfilePanels({ runDetail, selectedFrame }) {
           </div>
           <div className="phases-list">
             {(() => {
-              const nodePhases = runDetail.phases.filter(p => p.phase_name.startsWith('node:'));
-              const maxNodeDur = Math.max(...nodePhases.map(p => getScaledNodeDuration(p.duration_ms)), 1);
+              const maxNodeDur = Math.max(...nodeRows.map(n => getScaledNodeDuration(n.duration_ms)), 1);
 
-              return nodePhases.map((p, idx) => {
-                const scaledTime = getScaledNodeDuration(p.duration_ms);
+              return nodeRows.map((n, idx) => {
+                const scaledTime = getScaledNodeDuration(n.duration_ms);
                 const pct = (scaledTime / maxNodeDur) * 100;
-                const cleanName = p.phase_name.replace('node:', '');
+                const cleanName = n.node_name;
 
                 return (
-                  <div key={idx} className="phase-item relative-item">
+                  <div key={`${n.node_name}-${n.node_type}-${idx}`} className="phase-item relative-item">
                     <div className="sparkline-bg" style={{ width: `${pct}%` }} />
                     <span className="phase-name phase-name-node">
                       {cleanName}
@@ -106,9 +125,9 @@ export default function ProfilePanels({ runDetail, selectedFrame }) {
                 );
               });
             })()}
-            {runDetail.phases.filter(p => p.phase_name.startsWith('node:')).length === 0 && (
+            {nodeRows.length === 0 && (
               <div className="text-muted" style={{ padding: '10px 14px', fontSize: '0.85rem', textAlign: 'center' }}>
-                No node execution trace data. Use --benchmark-all to gather.
+                No node telemetry events recorded for this run.
               </div>
             )}
           </div>

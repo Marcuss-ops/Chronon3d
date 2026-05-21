@@ -40,6 +40,9 @@ inline std::vector<chronon3d::telemetry::CounterTelemetryRecord> capture_counter
         {"framebuffer_reuses", counters.framebuffer_reuses.load(std::memory_order_relaxed)},
         {"framebuffer_bytes_allocated", counters.framebuffer_bytes_allocated.load(std::memory_order_relaxed)},
         {"framebuffer_bytes_peak", counters.framebuffer_bytes_peak.load(std::memory_order_relaxed)},
+        {"dirty_rect_count", counters.dirty_rect_count.load(std::memory_order_relaxed)},
+        {"dirty_pixels", counters.dirty_pixels.load(std::memory_order_relaxed)},
+        {"dirty_full_fallbacks", counters.dirty_full_fallbacks.load(std::memory_order_relaxed)},
     };
 }
 
@@ -74,6 +77,9 @@ inline void add_counters(chronon3d::RenderCounters& dst, const chronon3d::Render
     dst.framebuffer_reuses.fetch_add(src.framebuffer_reuses.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.framebuffer_bytes_allocated.fetch_add(src.framebuffer_bytes_allocated.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.framebuffer_bytes_peak.fetch_add(src.framebuffer_bytes_peak.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.dirty_rect_count.fetch_add(src.dirty_rect_count.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.dirty_pixels.fetch_add(src.dirty_pixels.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.dirty_full_fallbacks.fetch_add(src.dirty_full_fallbacks.load(std::memory_order_relaxed), std::memory_order_relaxed);
 }
 
 inline void record_output_run(const std::string& composition_id,
@@ -87,6 +93,7 @@ inline void record_output_run(const std::string& composition_id,
                               const std::string& started_at_iso = {},
                               const std::vector<chronon3d::telemetry::PhaseTelemetryRecord>& phases = {},
                               const std::vector<chronon3d::telemetry::CounterTelemetryRecord>& counters = {},
+                              const std::vector<chronon3d::telemetry::NodeTelemetryRecord>& node_events = {},
                               const chronon3d::RenderCounters* counters_src = nullptr,
                               const std::vector<chronon3d::telemetry::FrameTelemetryRecord>& frames = {}) {
     chronon3d::telemetry::TelemetryManager::instance().initialize_default_stores();
@@ -136,13 +143,45 @@ inline void record_output_run(const std::string& composition_id,
         run.framebuffer_reuses = counters_src->framebuffer_reuses.load(std::memory_order_relaxed);
         run.framebuffer_bytes_allocated = counters_src->framebuffer_bytes_allocated.load(std::memory_order_relaxed);
         run.framebuffer_bytes_peak = counters_src->framebuffer_bytes_peak.load(std::memory_order_relaxed);
+        run.dirty_rect_count = counters_src->dirty_rect_count.load(std::memory_order_relaxed);
+        run.dirty_pixels = counters_src->dirty_pixels.load(std::memory_order_relaxed);
+        run.dirty_full_fallbacks = counters_src->dirty_full_fallbacks.load(std::memory_order_relaxed);
     }
 
     const auto resolved_counters = counters.empty() && counters_src
         ? capture_counters(*counters_src)
         : counters;
 
-    chronon3d::telemetry::TelemetryManager::instance().record_run(run, frames, phases, resolved_counters);
+    chronon3d::telemetry::TelemetryManager::instance().record_run(run, frames, phases, resolved_counters, node_events);
+}
+
+inline void record_output_run(const std::string& composition_id,
+                              const std::string& output_path,
+                              bool success,
+                              int frames_total,
+                              int frames_written,
+                              double wall_time_ms,
+                              double render_ms,
+                              double encode_ms,
+                              const std::string& started_at_iso,
+                              const std::vector<chronon3d::telemetry::PhaseTelemetryRecord>& phases,
+                              const std::vector<chronon3d::telemetry::CounterTelemetryRecord>& counters,
+                              const chronon3d::RenderCounters* counters_src,
+                              const std::vector<chronon3d::telemetry::FrameTelemetryRecord>& frames) {
+    record_output_run(composition_id,
+                      output_path,
+                      success,
+                      frames_total,
+                      frames_written,
+                      wall_time_ms,
+                      render_ms,
+                      encode_ms,
+                      started_at_iso,
+                      phases,
+                      counters,
+                      {},
+                      counters_src,
+                      frames);
 }
 
 } // namespace chronon3d::cli::telemetry
