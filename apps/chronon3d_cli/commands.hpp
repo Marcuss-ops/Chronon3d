@@ -76,7 +76,15 @@ struct BenchArgs {
     int frames{100};
     int warmup{10};
     bool use_modular_graph{false};
+
     std::string json_file;
+    std::string compare_file;
+
+    bool quiet{false};
+    bool include_frame_times{false};
+
+    double fail_if_avg_slower_pct{0.0};
+    double fail_if_p95_slower_pct{0.0};
 };
 
 struct GraphArgs {

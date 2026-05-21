@@ -294,7 +294,7 @@ target_link_libraries(chronon3d_compositions
 )
 
 # 1b. Core Tracing
-add_library(chronon3d_core_impl STATIC src/core/trace.cpp)
+add_library(chronon3d_core_impl STATIC src/core/trace.cpp src/core/benchmark_report.cpp)
 target_link_libraries(chronon3d_core_impl PUBLIC chronon3d nlohmann_json::nlohmann_json)
 
 # Architectural Aggregates (Agent rules)

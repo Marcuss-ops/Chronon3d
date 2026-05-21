@@ -17,6 +17,11 @@ void register_bench_commands(CLI::App& app, CliContext& ctx) {
     cmd->add_option("--warmup", args.warmup, "Warmup frames")->default_val(10);
     cmd->add_flag("--graph", args.use_modular_graph, "Use modular RenderGraph path");
     cmd->add_option("--json", args.json_file, "Path to output benchmark JSON telemetry");
+    cmd->add_option("--compare", args.compare_file, "Compare against previous benchmark JSON");
+    cmd->add_flag("--quiet", args.quiet, "Only print summary");
+    cmd->add_flag("--include-frame-times", args.include_frame_times, "Include per-frame timings in JSON");
+    cmd->add_option("--fail-if-avg-slower-pct", args.fail_if_avg_slower_pct, "Fail if avg frame time regresses by this percent")->default_val(0.0);
+    cmd->add_option("--fail-if-p95-slower-pct", args.fail_if_p95_slower_pct, "Fail if p95 frame time regresses by this percent")->default_val(0.0);
     cmd->callback([state, &ctx]() { ctx.exit_code = command_bench(ctx.registry, *state->args); });
 }
 
