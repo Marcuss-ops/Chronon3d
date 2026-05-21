@@ -68,6 +68,9 @@ bool JsonlTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
     j["framebuffer_reuses"] = run.framebuffer_reuses;
     j["framebuffer_bytes_allocated"] = run.framebuffer_bytes_allocated;
     j["framebuffer_bytes_peak"] = run.framebuffer_bytes_peak;
+    j["dirty_rect_count"] = run.dirty_rect_count;
+    j["dirty_pixels"] = run.dirty_pixels;
+    j["dirty_full_fallbacks"] = run.dirty_full_fallbacks;
 
     // Host & Environment specs
     j["started_at_iso"] = run.started_at_iso;

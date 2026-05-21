@@ -1,5 +1,5 @@
 import React from 'react';
-import { formatBytes, getFpsColor, getCacheHitColor, renderInfoIcon } from '../utils/format.jsx';
+import { formatBytes, getFpsColor, getCacheHitColor } from '../utils/format.jsx';
 
 export default function ComparisonMetrics({ baseRun, compRun }) {
   if (!baseRun || !compRun) return null;
@@ -25,34 +25,62 @@ export default function ComparisonMetrics({ baseRun, compRun }) {
 
   const metrics = [
     {
+      label: 'Wall Duration',
+      base: baseRun.wall_time_ms || 0,
+      comp: compRun.wall_time_ms || 0,
+      format: (v) => (v / 1000).toFixed(2) + ' s',
+      inverse: true
+    },
+    {
       label: 'Effective FPS',
-      base: baseRun.effective_fps,
-      comp: compRun.effective_fps,
+      base: baseRun.effective_fps || 0,
+      comp: compRun.effective_fps || 0,
       format: (v) => v.toFixed(2) + ' fps',
       color: getFpsColor,
       inverse: false
     },
     {
       label: 'Render Time',
-      base: baseRun.render_ms,
-      comp: compRun.render_ms,
+      base: baseRun.render_ms || 0,
+      comp: compRun.render_ms || 0,
+      format: (v) => (v / 1000).toFixed(2) + ' s',
+      inverse: true
+    },
+    {
+      label: 'Encode Time',
+      base: baseRun.encode_ms || 0,
+      comp: compRun.encode_ms || 0,
       format: (v) => (v / 1000).toFixed(2) + ' s',
       inverse: true
     },
     {
       label: 'Peak Memory',
-      base: baseRun.bytes_allocated_peak,
-      comp: compRun.bytes_allocated_peak,
+      base: baseRun.bytes_allocated_peak || 0,
+      comp: compRun.bytes_allocated_peak || 0,
       format: (v) => formatBytes(v),
       inverse: true
     },
     {
       label: 'Cache Hit Rate',
-      base: (baseRun.cache_hits / (baseRun.cache_hits + baseRun.cache_misses || 1)) * 100,
-      comp: (compRun.cache_hits / (compRun.cache_hits + compRun.cache_misses || 1)) * 100,
+      base: ((baseRun.cache_hits || 0) / Math.max((baseRun.cache_hits || 0) + (baseRun.cache_misses || 0), 1)) * 100,
+      comp: ((compRun.cache_hits || 0) / Math.max((compRun.cache_hits || 0) + (compRun.cache_misses || 0), 1)) * 100,
       format: (v) => v.toFixed(1) + '%',
       color: getCacheHitColor,
       inverse: false
+    },
+    {
+      label: 'Framebuffer Reuse',
+      base: ((baseRun.framebuffer_reuses || 0) / Math.max((baseRun.framebuffer_allocations || 0) + (baseRun.framebuffer_reuses || 0), 1)) * 100,
+      comp: ((compRun.framebuffer_reuses || 0) / Math.max((compRun.framebuffer_allocations || 0) + (compRun.framebuffer_reuses || 0), 1)) * 100,
+      format: (v) => v.toFixed(1) + '%',
+      inverse: false
+    },
+    {
+      label: 'Dirty Pixels',
+      base: baseRun.dirty_pixels || 0,
+      comp: compRun.dirty_pixels || 0,
+      format: (v) => v.toLocaleString(),
+      inverse: true
     }
   ];
 

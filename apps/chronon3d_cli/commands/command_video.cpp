@@ -5,6 +5,7 @@
 #include "../utils/ffmpeg_pipe_encoder.hpp"
 #include "../utils/telemetry_run.hpp"
 #include <chronon3d/backends/image/image_writer.hpp>
+#include <chronon3d/core/render_telemetry.hpp>
 #include <chronon3d/scene/utils/dark_grid_background.hpp>
 #include <chronon3d/presets/camera_motion_clip.hpp>
 #include <chronon3d/runtime/renderer_warmup.hpp>
@@ -184,6 +185,7 @@ int render_and_encode_ffmpeg(
         }
         const auto render_t1 = std::chrono::steady_clock::now();
         const auto setup_t1 = render_t0;
+        auto node_events = chronon3d::telemetry::collect_node_telemetry();
 
         if (!pipe.close()) {
             spdlog::error("[video] FFmpeg pipe encoder failed");
@@ -212,6 +214,7 @@ int render_and_encode_ffmpeg(
             /*started_at_iso=*/started_at_iso,
             /*phases=*/phases,
             /*counters=*/telemetry::capture_counters(*renderer->counters()),
+            /*node_events=*/node_events,
             /*counters_src=*/renderer->counters(),
             /*frames=*/telemetry_frames);
 
@@ -237,6 +240,8 @@ int render_and_encode_ffmpeg(
     const auto setup_t0 = wall_t0;
     chronon3d::RenderCounters aggregate_counters{};
     std::mutex aggregate_mutex;
+    std::vector<chronon3d::telemetry::NodeTelemetryRecord> node_events;
+    std::mutex node_events_mutex;
     std::vector<chronon3d::telemetry::FrameTelemetryRecord> telemetry_frames;
     std::mutex frames_mutex;
 
@@ -302,6 +307,13 @@ int render_and_encode_ffmpeg(
 
                 std::lock_guard<std::mutex> lock(aggregate_mutex);
                 cli::telemetry::add_counters(aggregate_counters, *renderer->counters());
+                auto local_node_events = chronon3d::telemetry::collect_node_telemetry();
+                if (!local_node_events.empty()) {
+                    std::lock_guard<std::mutex> node_lock(node_events_mutex);
+                    node_events.insert(node_events.end(),
+                                       std::make_move_iterator(local_node_events.begin()),
+                                       std::make_move_iterator(local_node_events.end()));
+                }
                 {
                     std::lock_guard<std::mutex> frames_lock(frames_mutex);
                     telemetry_frames.insert(telemetry_frames.end(), local_frames.begin(), local_frames.end());
@@ -380,6 +392,7 @@ int render_and_encode_ffmpeg(
         /*started_at_iso=*/started_at_iso,
         /*phases=*/phases,
         /*counters=*/telemetry::capture_counters(aggregate_counters),
+        /*node_events=*/node_events,
         /*counters_src=*/&aggregate_counters,
         /*frames=*/telemetry_frames);
 

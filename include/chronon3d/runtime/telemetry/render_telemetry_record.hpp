@@ -54,6 +54,9 @@ struct RenderTelemetryRecord {
     uint64_t framebuffer_reuses{0};
     uint64_t framebuffer_bytes_allocated{0};
     uint64_t framebuffer_bytes_peak{0};
+    uint64_t dirty_rect_count{0};
+    uint64_t dirty_pixels{0};
+    uint64_t dirty_full_fallbacks{0};
 
     // Host & environment specs
     std::string started_at_iso;
