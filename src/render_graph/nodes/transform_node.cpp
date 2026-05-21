@@ -30,9 +30,7 @@ std::shared_ptr<Framebuffer> TransformNode::execute(
     auto result = ctx.acquire_framebuffer(out_w, out_h, true, out_bounds);
 
     // Centering logic: both source and destination framebuffers are centered at (0,0) in scene space.
-    const Mat4 dst_canvas_offset = math::translate(Vec3(static_cast<f32>(result->origin_x()) + result->width() * 0.5f,
-                                                        static_cast<f32>(result->origin_y()) + result->height() * 0.5f,
-                                                        0.0f));
+    const Mat4 dst_canvas_offset = math::translate(Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
     const Mat4 src_canvas_offset = math::translate(Vec3(input->width() * 0.5f, input->height() * 0.5f, 0.0f));
     
     // Final pixel matrix: DstPixel <- DstScene <- SrcScene <- SrcPixel
