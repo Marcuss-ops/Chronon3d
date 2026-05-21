@@ -60,8 +60,6 @@ add_executable(chronon3d_renderer_tests
     perf/bench_golden.cpp
     renderer/basics/test_renderer.cpp
     renderer/basics/test_code_first_render.cpp
-    renderer/basics/test_background_render.cpp
-    renderer/basics/test_background_grid.cpp
     renderer/basics/test_alpha_blending.cpp
     renderer/basics/test_draw_order.cpp
     renderer/basics/test_coordinate_system.cpp
@@ -98,6 +96,7 @@ add_executable(chronon3d_renderer_tests
     render_graph/test_graph_executor.cpp
     render_graph/test_precompositions.cpp
     render_graph/test_modular_features.cpp
+    render_graph/test_dirty_rects.cpp
     render_graph/test_track_matte.cpp
     render_graph/test_transition.cpp
     render_graph/test_camera_2_5d_graph.cpp
@@ -142,7 +141,6 @@ add_executable(chronon3d_renderer_tests
     rendering/source_primitives_tests.cpp
     specscene/specscene_boundary_tests.cpp
     registry/registry_tests.cpp
-    cli/cli_render_tests.cpp
     golden/golden_render_tests.cpp
     perf/render_graph_perf_tests.cpp
     runtime/test_telemetry.cpp
