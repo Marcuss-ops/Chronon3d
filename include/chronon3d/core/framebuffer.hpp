@@ -155,6 +155,18 @@ public:
         return m_pixels.data() + static_cast<usize>(y) * m_width;
     }
 
+    [[nodiscard]] Color* data() {
+        return m_pixels.data();
+    }
+
+    [[nodiscard]] const Color* data() const {
+        return m_pixels.data();
+    }
+
+    [[nodiscard]] usize pixel_count() const {
+        return m_pixels.size();
+    }
+
     [[nodiscard]] i32 width() const { return m_width; }
     [[nodiscard]] i32 height() const { return m_height; }
     [[nodiscard]] i32 origin_x() const { return m_origin_x; }

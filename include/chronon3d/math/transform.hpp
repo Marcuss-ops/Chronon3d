@@ -4,6 +4,11 @@
 #include <chronon3d/math/quat.hpp>
 #include <chronon3d/math/mat4.hpp>
 #include <chronon3d/math/projection_context.hpp>
+#include <chronon3d/math/raster_utils.hpp>
+#include <chronon3d/scene/mask/mask_utils.hpp>
+#include <cstdint>
+#include <memory>
+#include <optional>
 #include <string>
 
 namespace chronon3d {
@@ -86,9 +91,28 @@ struct RenderState {
     // Both fields propagate from layer_state → node_state via combine().
     const Mask* mask{nullptr};
     Mat4 layer_inv_matrix{1.0f};
+    mutable std::shared_ptr<Framebuffer> mask_alpha_cache;
+    mutable std::uint64_t mask_alpha_cache_key{0};
 
     std::string layer_id;
+    std::optional<raster::BBox> clip_rect;
 };
+
+inline void ensure_mask_alpha_cache(const RenderState& state, i32 width, i32 height) {
+    if (!state.mask || !state.mask->enabled()) {
+        state.mask_alpha_cache.reset();
+        state.mask_alpha_cache_key = 0;
+        return;
+    }
+
+    const std::uint64_t key = hash_mask_cache_key(*state.mask, state.layer_inv_matrix, width, height);
+    if (state.mask_alpha_cache && state.mask_alpha_cache_key == key) {
+        return;
+    }
+
+    state.mask_alpha_cache = rasterize_mask_alpha(*state.mask, state.layer_inv_matrix, width, height);
+    state.mask_alpha_cache_key = key;
+}
 
 inline RenderState combine(const RenderState& parent, const Transform& child) {
     return RenderState{
@@ -96,7 +120,10 @@ inline RenderState combine(const RenderState& parent, const Transform& child) {
         .opacity          = parent.opacity * child.opacity,
         .mask             = parent.mask,
         .layer_inv_matrix = parent.layer_inv_matrix,
+        .mask_alpha_cache = parent.mask_alpha_cache,
+        .mask_alpha_cache_key = parent.mask_alpha_cache_key,
         .layer_id         = parent.layer_id,
+        .clip_rect        = parent.clip_rect,
     };
 }
 

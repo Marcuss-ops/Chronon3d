@@ -36,7 +36,7 @@ void draw_grid_plane(Framebuffer& fb, const RenderNode& node, const RenderState&
         Color c = col; c.a = a;
         Vec2 p0, p1;
         if (rt.projection.project_line_clipped(w0, w1, p0, p1))
-            bline(fb, p0, p1, c);
+            bline(fb, p0, p1, c, state.clip_rect);
     };
 
     if (s.axis == PlaneAxis::XZ) {

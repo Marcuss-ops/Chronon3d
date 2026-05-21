@@ -98,6 +98,10 @@ bool hit_test(const Shape& s, Vec2 p, f32 spread) {
 
 bool pixel_passes_mask(const RenderState& state, i32 x, i32 y) {
     if (!state.mask || !state.mask->enabled()) return true;
+    if (state.mask_alpha_cache && y >= 0 && y < state.mask_alpha_cache->height() &&
+        x >= 0 && x < state.mask_alpha_cache->width()) {
+        return state.mask_alpha_cache->get_pixel(x, y).a > 0.0f;
+    }
     Vec4 local = state.layer_inv_matrix * Vec4(static_cast<f32>(x) + 0.5f, static_cast<f32>(y) + 0.5f, 0.0f, 1.0f);
     return mask_contains_local_point(*state.mask, Vec2{local.x, local.y});
 }
@@ -163,6 +167,9 @@ void draw_transformed_shape(Framebuffer& fb, const Shape& shape, const Mat4& mod
     bbox.clip_to(fb.width(), fb.height());
 
     if (bbox.is_empty()) return;
+    if (state && state->mask && state->mask->enabled()) {
+        ensure_mask_alpha_cache(*state, fb.width(), fb.height());
+    }
 
     // Extract 3x3 homography for local_z = 0 plane
     glm::mat3 H;

@@ -66,6 +66,14 @@ nlohmann::json to_json(const BenchmarkReport& report, bool include_frame_times) 
     }
     js["categories_ms"] = cats;
 
+    if (!report.node_durations_ms.empty()) {
+        nlohmann::json nodes = nlohmann::json::object();
+        for (const auto& [k, v] : report.node_durations_ms) {
+            nodes[k] = v;
+        }
+        js["node_durations_ms"] = nodes;
+    }
+
     if (include_frame_times && !report.frame_times_ms.empty()) {
         js["frame_times_ms"] = report.frame_times_ms;
     }
@@ -117,6 +125,14 @@ BenchmarkReport benchmark_report_from_json(const nlohmann::json& js) {
         for (const auto& [k, v] : js["categories_ms"].items()) {
             if (v.is_number()) {
                 report.categories_ms[k] = v.get<double>();
+            }
+        }
+    }
+
+    if (js.contains("node_durations_ms") && js["node_durations_ms"].is_object()) {
+        for (const auto& [k, v] : js["node_durations_ms"].items()) {
+            if (v.is_number()) {
+                report.node_durations_ms[k] = v.get<double>();
             }
         }
     }

@@ -43,15 +43,18 @@ public:
 
         const int W = target.width();
         const int H = target.height();
+        const int matte_w = matte.width();
+        const int matte_h = matte.height();
 
         for (int y = 0; y < H; ++y) {
+            const Color* target_row = target.pixels_row(y);
+            const Color* matte_row = y < matte_h ? matte.pixels_row(y) : nullptr;
+            Color* out_row = out->pixels_row(y);
             for (int x = 0; x < W; ++x) {
-                Color tc = target.get_pixel(x, y);
-                if (tc.a <= 0.0f) { out->set_pixel(x, y, tc); continue; }
+                Color tc = target_row[x];
+                if (tc.a <= 0.0f) { out_row[x] = tc; continue; }
 
-                Color mc = (x < matte.width() && y < matte.height())
-                    ? matte.get_pixel(x, y)
-                    : Color{0, 0, 0, 0};
+                const Color mc = (matte_row && x < matte_w) ? matte_row[x] : Color{0, 0, 0, 0};
 
                 f32 mask = 1.0f;
                 switch (m_type) {
@@ -71,7 +74,7 @@ public:
                 }
 
                 tc.a *= std::clamp(mask, 0.0f, 1.0f);
-                out->set_pixel(x, y, tc);
+                out_row[x] = tc;
             }
         }
         return out;

@@ -15,7 +15,7 @@ void Layer3DDelegate::add_fake_box3d(Layer& layer, std::string name, FakeBox3DPa
     node.shape.fake_box3d.top_tint   = p.top_tint;
     node.shape.fake_box3d.side_tint  = p.side_tint;
     node.world_transform.position    = {0, 0, 0};
-    node.world_transform.anchor      = {p.size.x * 0.5f, p.size.y * 0.5f, 0.0f};
+    node.world_transform.anchor      = {0.0f, 0.0f, 0.0f};
     node.color = p.color;
     layer.nodes.push_back(std::move(node));
 }

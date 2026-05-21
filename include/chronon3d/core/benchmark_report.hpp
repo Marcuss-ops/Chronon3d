@@ -43,6 +43,7 @@ struct BenchmarkReport {
     BenchmarkMetrics metrics{};
     BenchmarkCountersSnapshot counters{};
     std::map<std::string, double> categories_ms;
+    std::map<std::string, double> node_durations_ms;
     std::vector<double> frame_times_ms;
 };
 

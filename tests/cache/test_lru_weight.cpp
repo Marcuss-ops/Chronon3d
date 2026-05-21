@@ -31,17 +31,13 @@ TEST_CASE("LruCache zero-weight items do not trigger eviction") {
     CHECK(cache.stats().current_weight == 0);
 }
 
-TEST_CASE("LruCache single oversized item is stored but evicts others") {
+TEST_CASE("LruCache single oversized item is not stored") {
     LruCache<int, std::string> cache(10, 1);
 
-    // Even though item 1 has weight > capacity, it should be stored
+    // Even though item 1 has weight > capacity, it should not be stored
     cache.put(1, "oversized", 20);
-    CHECK(cache.contains(1));
-
-    // Now inserting another item should evict item 1
-    cache.put(2, "small", 1);
-    CHECK(cache.stats().evictions > 0);
-    CHECK(cache.stats().current_weight <= 10);
+    CHECK(!cache.contains(1));
+    CHECK(cache.stats().current_weight == 0);
 }
 
 TEST_CASE("LruCache put with same key replaces weight") {

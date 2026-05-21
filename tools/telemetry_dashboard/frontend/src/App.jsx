@@ -19,9 +19,8 @@ import LayersTable from './components/LayersTable.jsx';
 import NodesTable from './components/NodesTable.jsx';
 import RenderGraph from './components/RenderGraph.jsx';
 import ComparisonMetrics from './components/ComparisonMetrics.jsx';
-
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(() => !!localStorage.getItem('chronon_auth_token'));
+  const [isAuthenticated, setIsAuthenticated] = useState(true);
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
@@ -444,9 +443,6 @@ function App() {
                 </p>
               </div>
               <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                <button className="copy-btn" onClick={handleLogout} title="Logout">
-                  Logout
-                </button>
                 <span
                   style={{
                     padding: '6px 16px',

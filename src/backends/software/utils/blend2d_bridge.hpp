@@ -11,6 +11,10 @@ namespace chronon3d::blend2d_bridge {
 
 inline bool pixel_passes_mask(const RenderState& state, i32 x, i32 y) {
     if (!state.mask || !state.mask->enabled()) return true;
+    if (state.mask_alpha_cache && y >= 0 && y < state.mask_alpha_cache->height() &&
+        x >= 0 && x < state.mask_alpha_cache->width()) {
+        return state.mask_alpha_cache->get_pixel(x, y).a > 0.0f;
+    }
     Vec4 local = state.layer_inv_matrix * Vec4(static_cast<f32>(x) + 0.5f, static_cast<f32>(y) + 0.5f, 0.0f, 1.0f);
     return mask_contains_local_point(*state.mask, Vec2{local.x, local.y});
 }
@@ -28,6 +32,9 @@ inline void composite_bl_image(Framebuffer& fb, const BLImage& img, int x, int y
     const int stride = static_cast<int>(data.stride / sizeof(uint32_t));
 
     const float inv255 = 1.0f / 255.0f;
+    if (state && state->mask && state->mask->enabled()) {
+        ensure_mask_alpha_cache(*state, fb.width(), fb.height());
+    }
 
     for (int iy = 0; iy < sh; ++iy) {
         const int py = y + iy;
@@ -72,6 +79,9 @@ inline void composite_bl_image(Framebuffer& fb, const BLImage& img, int x, int y
 inline void composite_framebuffer(Framebuffer& dst_fb, const Framebuffer& src_fb, int x, int y, float opacity, BlendMode mode, const RenderState* state = nullptr) {
     const int sw = src_fb.width();
     const int sh = src_fb.height();
+    if (state && state->mask && state->mask->enabled()) {
+        ensure_mask_alpha_cache(*state, dst_fb.width(), dst_fb.height());
+    }
 
     for (int iy = 0; iy < sh; ++iy) {
         const int py = y + iy;
@@ -121,6 +131,9 @@ inline void composite_bl_image_transformed(Framebuffer& fb, const BLImage& img, 
     const int sw = data.size.w;
     const int sh = data.size.h;
     const int stride = static_cast<int>(data.stride / sizeof(uint32_t));
+    if (state && state->mask && state->mask->enabled()) {
+        ensure_mask_alpha_cache(*state, fb.width(), fb.height());
+    }
 
     // Extract 3x3 homography for local_z = 0 plane
     glm::mat3 H;
@@ -209,6 +222,9 @@ inline void composite_bl_image_transformed(Framebuffer& fb, const BLImage& img, 
 inline void composite_framebuffer_transformed(Framebuffer& dst_fb, const Framebuffer& src_fb, const Mat4& model, float opacity, BlendMode mode, const RenderState* state = nullptr) {
     const int sw = src_fb.width();
     const int sh = src_fb.height();
+    if (state && state->mask && state->mask->enabled()) {
+        ensure_mask_alpha_cache(*state, dst_fb.width(), dst_fb.height());
+    }
 
     // Extract 3x3 homography for local_z = 0 plane
     glm::mat3 H;
