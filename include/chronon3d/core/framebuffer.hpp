@@ -29,16 +29,17 @@ public:
     }
 
     Framebuffer(const Framebuffer& other)
-        : m_width(other.m_width), m_height(other.m_height), m_origin_x(other.m_origin_x), m_origin_y(other.m_origin_y), m_pixels(other.m_pixels) {
+        : m_width(other.m_width), m_height(other.m_height), m_origin_x(other.m_origin_x), m_origin_y(other.m_origin_y), m_pixels(other.m_pixels), m_opaque(other.m_opaque) {
         increment_allocations(size_bytes());
     }
 
     Framebuffer(Framebuffer&& other) noexcept
-        : m_width(other.m_width), m_height(other.m_height), m_origin_x(other.m_origin_x), m_origin_y(other.m_origin_y), m_pixels(std::move(other.m_pixels)) {
+        : m_width(other.m_width), m_height(other.m_height), m_origin_x(other.m_origin_x), m_origin_y(other.m_origin_y), m_pixels(std::move(other.m_pixels)), m_opaque(other.m_opaque) {
         other.m_width = 0;
         other.m_height = 0;
         other.m_origin_x = 0;
         other.m_origin_y = 0;
+        other.m_opaque = false;
     }
 
     Framebuffer& operator=(const Framebuffer& other) {
@@ -49,6 +50,7 @@ public:
             m_origin_x = other.m_origin_x;
             m_origin_y = other.m_origin_y;
             m_pixels = other.m_pixels;
+            m_opaque = other.m_opaque;
             increment_allocations(size_bytes());
         }
         return *this;
@@ -62,10 +64,12 @@ public:
             m_origin_x = other.m_origin_x;
             m_origin_y = other.m_origin_y;
             m_pixels = std::move(other.m_pixels);
+            m_opaque = other.m_opaque;
             other.m_width = 0;
             other.m_height = 0;
             other.m_origin_x = 0;
             other.m_origin_y = 0;
+            other.m_opaque = false;
         }
         return *this;
     }
@@ -76,6 +80,7 @@ public:
 
     void clear(const Color& color) {
         std::fill(m_pixels.begin(), m_pixels.end(), color);
+        m_opaque = color.a >= 0.999f;
     }
 
     void clear(const Color& color, const std::optional<raster::BBox>& clip) {
@@ -93,6 +98,9 @@ public:
         for (i32 y = box.y0; y < box.y1; ++y) {
             Color* row = pixels_row(y);
             std::fill(row + box.x0, row + box.x1, color);
+        }
+        if (!m_opaque || color.a < 0.999f) {
+            m_opaque = false;
         }
     }
 
@@ -176,6 +184,8 @@ public:
         m_origin_y = y;
     }
     [[nodiscard]] usize size_bytes() const { return m_pixels.size() * sizeof(Color); }
+    [[nodiscard]] bool is_opaque() const { return m_opaque; }
+    void set_opaque(bool opaque) { m_opaque = opaque; }
 
 private:
     void increment_allocations(size_t bytes) {
@@ -203,6 +213,7 @@ private:
     i32 m_height;
     i32 m_origin_x{0};
     i32 m_origin_y{0};
+    bool m_opaque{false};
     std::vector<Color> m_pixels;
 };
 

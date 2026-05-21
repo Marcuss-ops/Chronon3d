@@ -149,39 +149,40 @@ int render_and_encode_ffmpeg(
         }
 
         const auto render_t0 = std::chrono::steady_clock::now();
+        Frame current_frame = start;
         try {
-            for (Frame f = start; f < end; ++f) {
+            for (; current_frame < end; ++current_frame) {
                 const auto frame_t0 = std::chrono::steady_clock::now();
                 const auto hits_before = renderer->node_cache().stats().hits;
-                auto fb = renderer->render_frame(comp, f);
+                auto fb = renderer->render_frame(comp, current_frame);
                 const auto hits_after_render = renderer->node_cache().stats().hits;
                 const double dirty_ratio = renderer->last_dirty_area_ratio();
                 if (!fb) {
-                    spdlog::error("[video] Failed to render frame {}", f);
+                    spdlog::error("[video] Failed to render frame {}", current_frame);
                     pipe.close();
                     return 1;
                 }
 
                 if (!pipe.write_frame(*fb)) {
-                    spdlog::error("[video] Failed to write frame {} to FFmpeg pipe", f);
+                    spdlog::error("[video] Failed to write frame {} to FFmpeg pipe", current_frame);
                     pipe.close();
                     return 1;
                 }
                 const auto frame_t1 = std::chrono::steady_clock::now();
 
                 telemetry_frames.push_back({
-                    .frame_number = static_cast<int>(f),
+                    .frame_number = static_cast<int>(current_frame),
                     .duration_ms = std::chrono::duration<double, std::milli>(frame_t1 - frame_t0).count(),
                     .cache_hit = (hits_after_render > hits_before),
                     .dirty_area_ratio = dirty_ratio
                 });
             }
         } catch (const std::exception& e) {
-            spdlog::error("[video] Exception during render loop: {}", e.what());
+            spdlog::error("[video] Exception during render loop (frame {}): {}", current_frame, e.what());
             pipe.close();
             return 1;
         } catch (...) {
-            spdlog::error("[video] Unknown exception during render loop");
+            spdlog::error("[video] Unknown exception during render loop at frame {}", current_frame);
             pipe.close();
             return 1;
         }
@@ -323,10 +324,10 @@ int render_and_encode_ffmpeg(
                     telemetry_frames.insert(telemetry_frames.end(), local_frames.begin(), local_frames.end());
                 }
             } catch (const std::exception& e) {
-                spdlog::error("[video] Exception in render worker: {}", e.what());
+                spdlog::error("[video] Exception in render worker for chunk [{}, {}): {}", chunk.start, chunk.end, e.what());
                 failed.store(true);
             } catch (...) {
-                spdlog::error("[video] Unknown exception in render worker");
+                spdlog::error("[video] Unknown exception in render worker for chunk [{}, {})", chunk.start, chunk.end);
                 failed.store(true);
             }
         });

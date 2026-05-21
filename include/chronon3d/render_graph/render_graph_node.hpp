@@ -215,6 +215,13 @@ public:
 
     [[nodiscard]] virtual bool cacheable() const { return true; }
 
+    /// Returns true when the node can serve as a fully opaque full-frame seed
+    /// for the first layer in a composition. This lets the builder skip the
+    /// initial clear/composite pass for static full-frame backgrounds.
+    [[nodiscard]] virtual bool can_seed_full_frame(const RenderGraphContext&) const {
+        return false;
+    }
+
     [[nodiscard]] virtual CacheFramePolicy cache_frame_policy() const {
         return CacheFramePolicy::FrameDependent;
     }

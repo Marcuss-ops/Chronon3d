@@ -1,13 +1,19 @@
 #include <doctest/doctest.h>
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/render_graph/nodes/basic_nodes.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/core/composition_registry.hpp>
 #include <chronon3d/timeline/composition.hpp>
+#include <chronon3d/render_graph/nodes/transform_node.hpp>
+#include <chronon3d/scene/layer/render_node.hpp>
+#include <chronon3d/scene/effects/effect_stack.hpp>
+#include <chronon3d/effects/effect_instance.hpp>
 
 #include <spdlog/spdlog.h>
 
 using namespace chronon3d;
+using namespace chronon3d::graph;
 
 TEST_CASE("Modular Graph: TransformNode validation") {
     spdlog::set_level(spdlog::level::debug);
@@ -47,6 +53,101 @@ TEST_CASE("Modular Graph: TransformNode validation") {
     
     auto p_outside = fb->get_pixel(40, 50);
     CHECK(p_outside.a == 0.0f);
+}
+
+TEST_CASE("Modular Graph: TransformNode keeps empty bbox as empty output") {
+    TransformNode node(Transform{}, SamplingMode::Bilinear);
+    RenderGraphContext ctx{};
+    ctx.width = 100;
+    ctx.height = 100;
+
+    std::vector<std::optional<raster::BBox>> input_bboxes{
+        raster::BBox{20, 30, 20, 30}
+    };
+
+    auto predicted = node.predicted_bbox(ctx, input_bboxes);
+    REQUIRE(predicted.has_value());
+    CHECK(predicted->is_empty());
+}
+
+TEST_CASE("Modular Graph: CompositeNode returns nullopt with empty inputs") {
+    CompositeNode node(BlendMode::Normal);
+    RenderGraphContext ctx{};
+    ctx.width = 100;
+    ctx.height = 100;
+
+    // No input bboxes → should return nullopt (triggers CompositeMissingInputBounds)
+    auto predicted = node.predicted_bbox(ctx, {});
+    CHECK_FALSE(predicted.has_value());
+}
+
+TEST_CASE("Modular Graph: EffectStackNode returns nullopt (default predicted_bbox)") {
+    EffectStack effects = {effects::EffectInstance{BlurParams{}}};
+    EffectStackNode node(effects);
+    RenderGraphContext ctx{};
+    ctx.width = 100;
+    ctx.height = 100;
+
+    // EffectStackNode inherits default predicted_bbox which returns nullopt
+    // This triggers EffectBoundsUnknown in graph_executor
+    auto predicted = node.predicted_bbox(ctx, {});
+    CHECK_FALSE(predicted.has_value());
+}
+
+TEST_CASE("Modular Graph: SourceNode returns nullopt for empty bbox shape") {
+    // A SourceNode with an empty-sized shape should return nullopt
+    RenderNode rn;
+    rn.name = "empty";
+    rn.shape.type = ShapeType::Rect;
+    rn.shape.rect.size = {0, 0}; // zero-size → empty bbox
+    rn.world_transform = Transform{};
+
+    cache::NodeCacheKey key{
+        .scope = "test",
+        .frame = 0,
+        .width = 100,
+        .height = 100
+    };
+
+    SourceNode node("empty-source", rn, key);
+    RenderGraphContext ctx{};
+    ctx.width = 100;
+    ctx.height = 100;
+
+    auto predicted = node.predicted_bbox(ctx, {});
+    // Zero-size rect produces empty bbox → SourceNode returns nullopt
+    // This triggers PredictedBoundsMissing in graph_executor
+    CHECK_FALSE(predicted.has_value());
+}
+
+TEST_CASE("Modular Graph: SourceNode can seed full-frame static backgrounds") {
+    RenderNode bg;
+    bg.name = "bg";
+    bg.shape.type = ShapeType::Image;
+    bg.shape.image.path = "bg.png";
+    bg.shape.image.size = {100.0f, 100.0f};
+    bg.shape.image.opacity = 1.0f;
+    bg.world_transform.position = {0.0f, 0.0f, 0.0f};
+    bg.world_transform.rotation = Quat(1.0f, 0.0f, 0.0f, 0.0f);
+    bg.world_transform.scale = {1.0f, 1.0f, 1.0f};
+
+    cache::NodeCacheKey key{
+        .scope = "layer.source:bg",
+        .frame = 0,
+        .width = 100,
+        .height = 100
+    };
+
+    SourceNode node("bg", bg, key, false, false, std::nullopt, std::nullopt, true);
+
+    RenderGraphContext ctx{};
+    ctx.width = 100;
+    ctx.height = 100;
+
+    CHECK(node.can_seed_full_frame(ctx));
+
+    ctx.clip_rect = raster::BBox{10, 10, 20, 20};
+    CHECK_FALSE(node.can_seed_full_frame(ctx));
 }
 
 TEST_CASE("Modular Graph: MaskNode validation") {

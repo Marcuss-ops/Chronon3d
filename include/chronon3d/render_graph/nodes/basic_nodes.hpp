@@ -313,6 +313,7 @@ public:
             }
 
             ctx.backend->draw_node(*fb, m_node, state, ctx.camera, ctx.width, ctx.height);
+            fb->set_opaque(can_seed_full_frame(ctx));
 
             if (ctx.diagnostics_enabled) {
                 int nonzero_pixels = 0;
@@ -343,6 +344,41 @@ public:
             }
         }
         return fb;
+    }
+
+    [[nodiscard]] bool can_seed_full_frame(const RenderGraphContext& ctx) const override {
+        if (!m_cache_static || m_is_3d) {
+            return false;
+        }
+
+        if (m_matrix_override && *m_matrix_override != Mat4(1.0f)) {
+            return false;
+        }
+
+        if (m_node.shape.type != ShapeType::Image) {
+            return false;
+        }
+
+        const auto& img = m_node.shape.image;
+        const auto& tr = m_node.world_transform;
+        constexpr f32 eps = 1e-3f;
+
+        if (ctx.clip_rect) {
+            const bool clip_is_full = ctx.clip_rect->x0 <= 0 && ctx.clip_rect->y0 <= 0 &&
+                                      ctx.clip_rect->x1 >= ctx.width && ctx.clip_rect->y1 >= ctx.height;
+            if (!clip_is_full) {
+                return false;
+            }
+        }
+
+        const bool full_size = std::abs(img.size.x - static_cast<f32>(ctx.width)) < eps &&
+                               std::abs(img.size.y - static_cast<f32>(ctx.height)) < eps;
+        const bool opaque = img.opacity >= 0.999f && tr.opacity >= 0.999f;
+        const bool identity = tr.position == Vec3(0.0f) &&
+                              tr.rotation == Quat(1.0f, 0.0f, 0.0f, 0.0f) &&
+                              tr.scale == Vec3(1.0f);
+
+        return full_size && opaque && identity;
     }
 
 private:
@@ -562,6 +598,14 @@ public:
         auto top = input_bboxes[1];
         if (!bottom) return top;
         if (!top) return bottom;
+        // Both inputs have valid (known) but empty bounding boxes.
+        // Return a valid empty bbox (not nullopt) so the dirty-rect system
+        // knows the output is empty rather than falling back to a full-frame render.
+        if (bottom->is_empty() && top->is_empty()) {
+            const i32 x = std::min(bottom->x0, top->x0);
+            const i32 y = std::min(bottom->y0, top->y0);
+            return raster::BBox{x, y, x, y};
+        }
 
         raster::BBox union_box;
         union_box.x0 = std::min(bottom->x0, top->x0);
@@ -626,7 +670,11 @@ public:
                 ctx.counters->composite_calls.fetch_add(1, std::memory_order_relaxed);
                 uint64_t area = clip ? (static_cast<uint64_t>(std::max(0, clip->x1 - clip->x0)) * std::max(0, clip->y1 - clip->y0))
                                      : static_cast<uint64_t>(ctx.width * ctx.height);
-                ctx.counters->composite_pixels.fetch_add(area, std::memory_order_relaxed);
+                if (m_mode == BlendMode::Normal && top->is_opaque()) {
+                    ctx.counters->clear_copy_pixels.fetch_add(area, std::memory_order_relaxed);
+                } else {
+                    ctx.counters->composite_pixels.fetch_add(area, std::memory_order_relaxed);
+                }
             }
         }
         return result;

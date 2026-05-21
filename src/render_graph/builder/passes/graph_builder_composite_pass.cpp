@@ -8,8 +8,19 @@ namespace chronon3d::graph::detail {
 using namespace chronon3d::graph;
 
 void append_composite_pass(RenderGraph& graph, GraphNodeId& current,
-                           GraphNodeId layer_output, const Layer& layer) {
+                           GraphNodeId layer_output, const Layer& layer,
+                           const RenderGraphContext& ctx) {
     if (layer_output == k_invalid_node || layer_output == current) return;
+
+    if (current < graph.size() &&
+        graph.node(current).kind() == RenderGraphNodeKind::Output &&
+        graph.node(current).name() == "Clear" &&
+        layer.blend_mode == chronon3d::BlendMode::Normal &&
+        graph.node(layer_output).can_seed_full_frame(ctx)) {
+        current = layer_output;
+        return;
+    }
+
     auto composite = graph.add_node(std::make_unique<CompositeNode>(
         layer.blend_mode,
         layer.cache_static ? Frame{0} : Frame{-1}

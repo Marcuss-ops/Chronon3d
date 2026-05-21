@@ -199,10 +199,20 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
         if (clear_copy_pixels > 0) {
             fmt::print("Clear Copy Pixels:{}\n", clear_copy_pixels);
         }
+        uint64_t fallback_predicted = renderer->counters()->dirty_full_fallback_reasons[static_cast<std::size_t>(DirtyFallbackReason::PredictedBoundsMissing)].load(std::memory_order_relaxed);
+        uint64_t fallback_composite = renderer->counters()->dirty_full_fallback_reasons[static_cast<std::size_t>(DirtyFallbackReason::CompositeMissingInputBounds)].load(std::memory_order_relaxed);
+        uint64_t fallback_transform = renderer->counters()->dirty_full_fallback_reasons[static_cast<std::size_t>(DirtyFallbackReason::TransformBoundsUnknown)].load(std::memory_order_relaxed);
+        uint64_t fallback_effect = renderer->counters()->dirty_full_fallback_reasons[static_cast<std::size_t>(DirtyFallbackReason::EffectBoundsUnknown)].load(std::memory_order_relaxed);
         if (dirty_rect_count > 0 || dirty_pixels > 0 || dirty_fallbacks > 0) {
             fmt::print("Dirty Rects Count:{}\n", dirty_rect_count);
             fmt::print("Dirty Rect Pixels:{}\n", dirty_pixels);
             fmt::print("Dirty Fallbacks:  {}\n", dirty_fallbacks);
+            if (fallback_predicted > 0 || fallback_composite > 0 || fallback_transform > 0 || fallback_effect > 0) {
+                fmt::print("  - PredictedBounds:   {}\n", fallback_predicted);
+                fmt::print("  - CompositeMissing:  {}\n", fallback_composite);
+                fmt::print("  - TransformUnknown:  {}\n", fallback_transform);
+                fmt::print("  - EffectUnknown:     {}\n", fallback_effect);
+            }
         }
         if (args.dirty_rects) {
             fmt::print("Dirty Avg Ratio:  {:.1f}%\n", avg_dirty_ratio * 100.0);

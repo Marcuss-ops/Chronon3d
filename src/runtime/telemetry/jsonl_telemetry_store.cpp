@@ -71,6 +71,10 @@ bool JsonlTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
     j["dirty_rect_count"] = run.dirty_rect_count;
     j["dirty_pixels"] = run.dirty_pixels;
     j["dirty_full_fallbacks"] = run.dirty_full_fallbacks;
+    j["dirty_full_fallback_predicted_bounds_missing"] = run.dirty_full_fallback_predicted_bounds_missing;
+    j["dirty_full_fallback_composite_missing_input_bounds"] = run.dirty_full_fallback_composite_missing_input_bounds;
+    j["dirty_full_fallback_transform_bounds_unknown"] = run.dirty_full_fallback_transform_bounds_unknown;
+    j["dirty_full_fallback_effect_bounds_unknown"] = run.dirty_full_fallback_effect_bounds_unknown;
 
     // Host & Environment specs
     j["started_at_iso"] = run.started_at_iso;

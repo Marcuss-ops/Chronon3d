@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chronon3d/core/dirty_fallback_reason.hpp>
 #include <chronon3d/core/types.hpp>
 #include <chronon3d/core/frame.hpp>
 #include <chronon3d/runtime/telemetry/render_telemetry_record.hpp>
@@ -49,6 +50,11 @@ struct RenderTelemetryRow {
     uint64_t text_glyphs_rasterized{0};
     uint64_t framebuffer_allocations{0};
     uint64_t framebuffer_reuses{0};
+    uint64_t dirty_full_fallbacks{0};
+    uint64_t dirty_full_fallback_predicted_bounds_missing{0};
+    uint64_t dirty_full_fallback_composite_missing_input_bounds{0};
+    uint64_t dirty_full_fallback_transform_bounds_unknown{0};
+    uint64_t dirty_full_fallback_effect_bounds_unknown{0};
 };
 
 namespace detail {
@@ -104,7 +110,9 @@ inline void ensure_csv_header(std::ofstream& out, const std::filesystem::path& p
         out << "ts,run_id,event,frame,w,h,total_ms,setup_ms,composite_ms,blur_ms,encode_ms,ram_mb,cache_hit,layer_count,"
                "cache_hits,cache_misses,nodes_executed,clear_calls,clear_pixels,composite_calls,composite_pixels,"
                "transform_calls,transform_pixels,effect_stack_calls,effect_pixels,text_glyphs_rasterized,"
-               "framebuffer_allocations,framebuffer_reuses\n";
+               "framebuffer_allocations,framebuffer_reuses,dirty_full_fallbacks,"
+               "dirty_full_fallback_predicted_bounds_missing,dirty_full_fallback_composite_missing_input_bounds,"
+               "dirty_full_fallback_transform_bounds_unknown,dirty_full_fallback_effect_bounds_unknown\n";
     }
 }
 
@@ -118,7 +126,7 @@ inline bool csv_header_matches(const std::filesystem::path& path) {
     if (!std::getline(in, header)) {
         return true;
     }
-    return header == "ts,run_id,event,frame,w,h,total_ms,setup_ms,composite_ms,blur_ms,encode_ms,ram_mb,cache_hit,layer_count,cache_hits,cache_misses,nodes_executed,clear_calls,clear_pixels,composite_calls,composite_pixels,transform_calls,transform_pixels,effect_stack_calls,effect_pixels,text_glyphs_rasterized,framebuffer_allocations,framebuffer_reuses";
+    return header == "ts,run_id,event,frame,w,h,total_ms,setup_ms,composite_ms,blur_ms,encode_ms,ram_mb,cache_hit,layer_count,cache_hits,cache_misses,nodes_executed,clear_calls,clear_pixels,composite_calls,composite_pixels,transform_calls,transform_pixels,effect_stack_calls,effect_pixels,text_glyphs_rasterized,framebuffer_allocations,framebuffer_reuses,dirty_full_fallbacks,dirty_full_fallback_predicted_bounds_missing,dirty_full_fallback_composite_missing_input_bounds,dirty_full_fallback_transform_bounds_unknown,dirty_full_fallback_effect_bounds_unknown";
 }
 
 inline void migrate_legacy_csv(const std::filesystem::path& path) {
@@ -191,6 +199,12 @@ inline std::string format_ms(double value) {
     return oss.str();
 }
 
+inline std::string format_count(double value) {
+    std::ostringstream oss;
+    oss << static_cast<uint64_t>(std::llround(value));
+    return oss.str();
+}
+
 inline void write_summary_file(const std::vector<RenderTelemetryRow>& rows) {
     const auto path = telemetry_summary_path();
     if (path.has_parent_path()) {
@@ -251,6 +265,11 @@ inline void write_summary_file(const std::vector<RenderTelemetryRow>& rows) {
         std::vector<double> text_glyphs_rasterized;
         std::vector<double> framebuffer_allocations;
         std::vector<double> framebuffer_reuses;
+        std::vector<double> dirty_full_fallbacks;
+        std::vector<double> dirty_full_fallback_predicted_bounds_missing;
+        std::vector<double> dirty_full_fallback_composite_missing_input_bounds;
+        std::vector<double> dirty_full_fallback_transform_bounds_unknown;
+        std::vector<double> dirty_full_fallback_effect_bounds_unknown;
     };
 
     std::map<std::string, Series> grouped;
@@ -276,7 +295,16 @@ inline void write_summary_file(const std::vector<RenderTelemetryRow>& rows) {
         s.text_glyphs_rasterized.push_back(static_cast<double>(row.text_glyphs_rasterized));
         s.framebuffer_allocations.push_back(static_cast<double>(row.framebuffer_allocations));
         s.framebuffer_reuses.push_back(static_cast<double>(row.framebuffer_reuses));
+        s.dirty_full_fallbacks.push_back(static_cast<double>(row.dirty_full_fallbacks));
+        s.dirty_full_fallback_predicted_bounds_missing.push_back(static_cast<double>(row.dirty_full_fallback_predicted_bounds_missing));
+        s.dirty_full_fallback_composite_missing_input_bounds.push_back(static_cast<double>(row.dirty_full_fallback_composite_missing_input_bounds));
+        s.dirty_full_fallback_transform_bounds_unknown.push_back(static_cast<double>(row.dirty_full_fallback_transform_bounds_unknown));
+        s.dirty_full_fallback_effect_bounds_unknown.push_back(static_cast<double>(row.dirty_full_fallback_effect_bounds_unknown));
     }
+
+    auto max_value = [](const std::vector<double>& values) {
+        return values.empty() ? 0.0 : *std::max_element(values.begin(), values.end());
+    };
 
     for (const auto& [event, s] : grouped) {
         out << "event=" << event << " count=" << s.total.size()
@@ -301,6 +329,11 @@ inline void write_summary_file(const std::vector<RenderTelemetryRow>& rows) {
             << " text_glyphs_rasterized_p95=" << format_ms(percentile(s.text_glyphs_rasterized, 0.95))
             << " framebuffer_allocations_p95=" << format_ms(percentile(s.framebuffer_allocations, 0.95))
             << " framebuffer_reuses_p95=" << format_ms(percentile(s.framebuffer_reuses, 0.95))
+            << " dirty_full_fallbacks_total=" << format_count(max_value(s.dirty_full_fallbacks))
+            << " dirty_full_fallback_predicted_bounds_missing_total=" << format_count(max_value(s.dirty_full_fallback_predicted_bounds_missing))
+            << " dirty_full_fallback_composite_missing_input_bounds_total=" << format_count(max_value(s.dirty_full_fallback_composite_missing_input_bounds))
+            << " dirty_full_fallback_transform_bounds_unknown_total=" << format_count(max_value(s.dirty_full_fallback_transform_bounds_unknown))
+            << " dirty_full_fallback_effect_bounds_unknown_total=" << format_count(max_value(s.dirty_full_fallback_effect_bounds_unknown))
             << "\n";
     }
 
@@ -503,7 +536,12 @@ inline void flush_telemetry() {
                 << row.effect_pixels << ','
                 << row.text_glyphs_rasterized << ','
                 << row.framebuffer_allocations << ','
-                << row.framebuffer_reuses << '\n';
+                << row.framebuffer_reuses << ','
+                << row.dirty_full_fallbacks << ','
+                << row.dirty_full_fallback_predicted_bounds_missing << ','
+                << row.dirty_full_fallback_composite_missing_input_bounds << ','
+                << row.dirty_full_fallback_transform_bounds_unknown << ','
+                << row.dirty_full_fallback_effect_bounds_unknown << '\n';
         }
         global.push_back(row);
         if (global.size() > 1000) {

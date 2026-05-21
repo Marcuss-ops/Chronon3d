@@ -8,7 +8,7 @@
 using namespace chronon3d;
 using namespace chronon3d::test;
 
-static std::unique_ptr<Framebuffer> render_scene(int w, int h,
+static std::shared_ptr<Framebuffer> render_scene(int w, int h,
     std::function<void(SceneBuilder&)> fn)
 {
     SoftwareRenderer renderer;

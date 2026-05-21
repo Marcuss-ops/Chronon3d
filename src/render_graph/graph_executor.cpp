@@ -232,6 +232,29 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
                             );
                         } else {
                             ctx.counters->dirty_full_fallbacks.fetch_add(1, std::memory_order_relaxed);
+                            const auto reason = [&]() {
+                                switch (node.kind()) {
+                                    case RenderGraphNodeKind::Composite:
+                                        return DirtyFallbackReason::CompositeMissingInputBounds;
+                                    case RenderGraphNodeKind::Transform:
+                                        return DirtyFallbackReason::TransformBoundsUnknown;
+                                    case RenderGraphNodeKind::Effect:
+                                    case RenderGraphNodeKind::Mask:
+                                    case RenderGraphNodeKind::Adjustment:
+                                    case RenderGraphNodeKind::MotionBlur:
+                                    case RenderGraphNodeKind::ColorConvert:
+                                    case RenderGraphNodeKind::TrackMatte:
+                                    case RenderGraphNodeKind::Transition:
+                                        return DirtyFallbackReason::EffectBoundsUnknown;
+                                    case RenderGraphNodeKind::Source:
+                                    case RenderGraphNodeKind::Precomp:
+                                    case RenderGraphNodeKind::Video:
+                                    case RenderGraphNodeKind::Output:
+                                        return DirtyFallbackReason::PredictedBoundsMissing;
+                                }
+                                return DirtyFallbackReason::PredictedBoundsMissing;
+                            }();
+                            ctx.counters->increment_dirty_full_fallback_reason(reason);
                         }
                     }
                 } else {

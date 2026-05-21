@@ -25,6 +25,17 @@ void SoftwareCompositor::composite_layer(Framebuffer& dst, const Framebuffer& sr
         const i32 src_x1 = std::min(x1, src.origin_x() + src.width());
         const i32 src_y1 = std::min(y1, src.origin_y() + src.height());
 
+        if (src.is_opaque() && src_x0 < src_x1 && src_y0 < src_y1) {
+            for (i32 y = src_y0; y < src_y1; ++y) {
+                const i32 sy = y - src.origin_y();
+                const i32 sx = src_x0 - src.origin_x();
+                const Color* s_row = src.pixels_row(sy);
+                Color* d_row = dst.pixels_row(y);
+                std::copy(s_row + sx, s_row + sx + (src_x1 - src_x0), d_row + src_x0);
+            }
+            return;
+        }
+
         if (src_x0 < src_x1 && src_y0 < src_y1 &&
             composite_layer_normal_optimized(dst, src, src_x0, src_y0, src_x1, src_y1)) {
             return;
