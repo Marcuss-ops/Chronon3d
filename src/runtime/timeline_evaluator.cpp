@@ -1,12 +1,75 @@
 #include <chronon3d/runtime/timeline_evaluator.hpp>
 #include <chronon3d/math/camera_pose.hpp>
 #include <chronon3d/math/expression.hpp>
+#include <chronon3d/scene/layer/layer.hpp>
+#include <chronon3d/scene/layer/render_node.hpp>
+#include <chronon3d/scene/shape.hpp>
 #include <variant>
 #include <unordered_map>
 
 namespace chronon3d {
 
 namespace {
+
+RenderNode make_render_node(const VisualDesc& vd,
+                            const Transform& layer_transform,
+                            std::pmr::memory_resource* res) {
+    RenderNode node(res);
+
+    std::visit([&node, &layer_transform, res](const auto& v) {
+        using T = std::decay_t<decltype(v)>;
+
+        if constexpr (std::is_same_v<T, RectParams>) {
+            node.name            = std::pmr::string{"rect", res};
+            node.shape.type      = ShapeType::Rect;
+            node.shape.rect.size = v.size;
+            node.color           = v.color;
+            node.world_transform.position = layer_transform.position + v.pos;
+            node.world_transform.anchor   = {v.size.x * 0.5f, v.size.y * 0.5f, 0.0f};
+
+        } else if constexpr (std::is_same_v<T, RoundedRectParams>) {
+            node.name                         = std::pmr::string{"rrect", res};
+            node.shape.type                   = ShapeType::RoundedRect;
+            node.shape.rounded_rect.size      = v.size;
+            node.shape.rounded_rect.radius    = v.radius;
+            node.color                        = v.color;
+            node.world_transform.position     = layer_transform.position + v.pos;
+            node.world_transform.anchor       = {v.size.x * 0.5f, v.size.y * 0.5f, 0.0f};
+
+        } else if constexpr (std::is_same_v<T, CircleParams>) {
+            node.name                     = std::pmr::string{"circle", res};
+            node.shape.type               = ShapeType::Circle;
+            node.shape.circle.radius      = v.radius;
+            node.color                    = v.color;
+            node.world_transform.position = layer_transform.position + v.pos;
+            node.world_transform.anchor   = {v.radius, v.radius, 0.0f};
+
+        } else if constexpr (std::is_same_v<T, LineParams>) {
+            node.name                     = std::pmr::string{"line", res};
+            node.shape.type               = ShapeType::Line;
+            node.shape.line.to            = v.to - v.from;
+            node.shape.line.thickness     = v.thickness;
+            node.color                    = v.color;
+            node.world_transform.position = layer_transform.position + v.from;
+            node.world_transform.anchor   = {0.0f, 0.0f, 0.0f};
+
+        } else if constexpr (std::is_same_v<T, ImageParams>) {
+            node.name                     = std::pmr::string{"image", res};
+            node.shape.type               = ShapeType::Image;
+            node.shape.image.path         = v.path;
+            node.shape.image.size         = v.size;
+            node.shape.image.opacity      = v.opacity;
+            node.color                    = Color{1.0f, 1.0f, 1.0f, v.opacity};
+            node.world_transform.position = layer_transform.position + v.pos;
+            node.world_transform.anchor   = {v.size.x * 0.5f, v.size.y * 0.5f, 0.0f};
+        }
+
+        node.world_transform.scale    = layer_transform.scale;
+        node.world_transform.rotation = layer_transform.rotation;
+    }, vd);
+
+    return node;
+}
 
 inline f32 resolve_z(const LayerDesc& l, Vec3 evaluated_pos) {
     if (l.is_3d && l.depth_role != DepthRole::None) {
@@ -44,49 +107,48 @@ inline f32 eval_expr(const std::string& expr, double frame, double time, double 
 
 } // namespace
 
-EvaluatedScene TimelineEvaluator::evaluate(const SceneDescription& scene, Frame frame) const {
-    EvaluatedScene result;
-    result.frame  = frame;
-    result.width  = scene.width;
-    result.height = scene.height;
+Scene TimelineEvaluator::evaluate(const SceneDescription& scene, Frame frame, std::pmr::memory_resource* res) const {
+    Scene result(res);
 
     for (const auto& ld : scene.layers) {
         if (!ld.time_range.contains(frame)) continue;
 
-        EvaluatedLayer el;
-        el.name       = ld.name;
-        el.visible    = true;
+        Layer layer(res);
+        layer.name         = std::pmr::string{ld.name, res};
+        layer.is_3d        = ld.is_3d;
+        layer.depth_role   = ld.depth_role;
+        layer.blend_mode   = ld.blend_mode;
+        layer.effects      = resolve_effects(ld.effects);
+        layer.transition_in = ld.transition_in;
+        layer.transition_out = ld.transition_out;
+        layer.visible      = true;
 
         double time = static_cast<double>(frame) / (static_cast<double>(scene.frame_rate.numerator) / scene.frame_rate.denominator);
 
+        f32 opacity = 1.0f;
         if (ld.opacity.has_expression()) {
-            el.opacity = eval_expr(ld.opacity.expression(), (double)frame, time, (double)scene.width, (double)scene.height, ld.opacity.value_at(frame));
+            opacity = eval_expr(ld.opacity.expression(), (double)frame, time, (double)scene.width, (double)scene.height, ld.opacity.value_at(frame));
         } else {
-            el.opacity = ld.opacity.value_at(frame);
+            opacity = ld.opacity.value_at(frame);
         }
-
-        el.is_3d      = ld.is_3d;
-        el.depth_role = ld.depth_role;
-        el.blend_mode = ld.blend_mode;
 
         Vec3 pos = ld.position.value_at(frame);
         Vec3 rot = ld.rotation.value_at(frame);
         Vec3 scl = ld.scale.value_at(frame);
 
-        el.resolved_z      = resolve_z(ld, pos);
-        pos.z              = el.resolved_z;
+        f32 resolved_z = resolve_z(ld, pos);
+        pos.z = resolved_z;
 
-        el.world_transform.position = pos;
-        el.world_transform.rotation = math::camera_rotation_quat(rot);
-        el.world_transform.scale    = scl;
-        el.world_transform.opacity  = el.opacity;
+        layer.transform.position = pos;
+        layer.transform.rotation = math::camera_rotation_quat(rot);
+        layer.transform.scale    = scl;
+        layer.transform.opacity  = opacity;
 
-        el.visuals = ld.visuals;
-        el.resolved_effects = resolve_effects(ld.effects);
-        el.transition_in = ld.transition_in;
-        el.transition_out = ld.transition_out;
+        for (const auto& vd : ld.visuals) {
+            layer.nodes.push_back(make_render_node(vd, layer.transform, res));
+        }
 
-        result.layers.push_back(std::move(el));
+        result.add_layer(std::move(layer));
     }
 
     if (scene.camera && scene.camera->enabled) {
@@ -103,7 +165,7 @@ EvaluatedScene TimelineEvaluator::evaluate(const SceneDescription& scene, Frame 
         } else {
             cam.zoom = scene.camera->zoom.value_at(frame);
         }
-        result.camera = cam;
+        result.set_camera_2_5d(cam);
     }
 
     return result;
