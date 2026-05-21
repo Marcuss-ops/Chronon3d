@@ -28,6 +28,26 @@ struct FramebufferPoolKeyHash {
 };
 
 // ---------------------------------------------------------------------------
+// FramebufferPoolPreallocOptions
+// ---------------------------------------------------------------------------
+struct FramebufferPoolPreallocOptions {
+    int width{0};
+    int height{0};
+    size_t count{0};
+    bool clear{true};
+    bool touch_memory{true};
+};
+
+// ---------------------------------------------------------------------------
+// FramebufferPoolStats
+// ---------------------------------------------------------------------------
+struct FramebufferPoolStats {
+    size_t current_bytes{0};
+    size_t available_count{0};
+    size_t max_bytes{0};
+};
+
+// ---------------------------------------------------------------------------
 // FramebufferPool
 // ---------------------------------------------------------------------------
 class FramebufferPool : public std::enable_shared_from_this<FramebufferPool> {
@@ -46,8 +66,15 @@ public:
     /// Release all pooled framebuffers.
     void clear();
 
+    /// Preallocate framebuffers of a given size into the pool.
+    /// Returns the number of framebuffers actually created (may be less than
+    /// requested if the pool size limit is reached).
+    size_t preallocate(const FramebufferPoolPreallocOptions& options);
+
     [[nodiscard]] size_t current_bytes() const;
     [[nodiscard]] size_t available_count() const;
+    [[nodiscard]] size_t max_bytes() const;
+    [[nodiscard]] FramebufferPoolStats stats() const;
 
 private:
     std::unique_ptr<Framebuffer> acquire_unique(int width, int height, bool clear = true);
