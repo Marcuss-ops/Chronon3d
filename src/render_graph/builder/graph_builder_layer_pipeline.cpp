@@ -10,8 +10,10 @@
 
 #include <chronon3d/render_graph/nodes/basic_nodes.hpp>
 #include <chronon3d/render_graph/nodes/track_matte_node.hpp>
+#include <chronon3d/render_graph/nodes/transition_node.hpp>
 #include <chronon3d/render_graph/render_graph_hashing.hpp>
 #include <chronon3d/effects/effect_registry.hpp>
+#include <chronon3d/animation/easing.hpp>
 
 namespace chronon3d::graph::detail {
 
@@ -135,7 +137,70 @@ void LayerPipelineBuilder::append_layer_pipeline(RenderGraph& graph, const Layer
         layer_output = matte_node;
     }
 
-    // 8. Composite pass — blend into the current frame buffer
+    // 8. Transition pass — if a transition is active, apply it
+    double global_time_seconds = ctx.time_seconds / ctx.fps;
+    double layer_start_seconds = static_cast<double>(layer.from) / ctx.fps;
+    double layer_time = global_time_seconds - layer_start_seconds;
+
+    double layer_duration_seconds = (layer.duration >= 0)
+        ? (static_cast<double>(layer.duration) / ctx.fps)
+        : std::numeric_limits<double>::infinity();
+
+    const bool has_in_trans = !layer.transition_in.transition_id.empty() && layer.transition_in.transition_id != "none";
+    const bool has_out_trans = !layer.transition_out.transition_id.empty() && layer.transition_out.transition_id != "none";
+
+    if (has_in_trans || has_out_trans) {
+        std::string trans_id = "none";
+        LayerTransitionSpec active_spec;
+        bool is_out = false;
+        double progress = 0.0;
+
+        if (has_in_trans && layer_time < (layer.transition_in.delay + layer.transition_in.duration)) {
+            if (layer_time >= layer.transition_in.delay) {
+                trans_id = layer.transition_in.transition_id;
+                active_spec = layer.transition_in;
+                is_out = false;
+                if (layer.transition_in.duration > 0.0) {
+                    progress = (layer_time - layer.transition_in.delay) / layer.transition_in.duration;
+                } else {
+                    progress = 1.0;
+                }
+            } else {
+                trans_id = layer.transition_in.transition_id;
+                active_spec = layer.transition_in;
+                is_out = false;
+                progress = 0.0;
+            }
+        } else if (has_out_trans && std::isfinite(layer_duration_seconds)) {
+            double trans_out_start = layer_duration_seconds - layer.transition_out.duration - layer.transition_out.delay;
+            if (layer_time >= trans_out_start) {
+                trans_id = layer.transition_out.transition_id;
+                active_spec = layer.transition_out;
+                is_out = true;
+                if (layer_time < layer_duration_seconds - layer.transition_out.delay) {
+                    if (layer.transition_out.duration > 0.0) {
+                        progress = (layer_time - trans_out_start) / layer.transition_out.duration;
+                    } else {
+                        progress = 1.0;
+                    }
+                } else {
+                    progress = 1.0;
+                }
+            }
+        }
+
+        if (trans_id != "none") {
+            float eased_progress = easing::apply(active_spec.easing, static_cast<float>(std::clamp(progress, 0.0, 1.0)));
+            auto trans_node = graph.add_node(std::make_unique<TransitionNode>(
+                std::string(layer.name), active_spec, is_out, eased_progress
+            ));
+            graph.node(trans_node).set_frame_dependent(true);
+            graph.connect(layer_output, trans_node);
+            layer_output = trans_node;
+        }
+    }
+
+    // 9. Composite pass — blend into the current frame buffer
     append_composite_pass(graph, current, layer_output, *item.layer);
     g_current_builder_layer_id = prev_layer;
 }

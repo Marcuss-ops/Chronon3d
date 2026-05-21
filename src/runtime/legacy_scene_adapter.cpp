@@ -89,6 +89,8 @@ Scene LegacySceneAdapter::convert(const EvaluatedScene& evaluated,
         layer.depth_role   = el.depth_role;
         layer.blend_mode   = el.blend_mode;
         layer.effects      = el.resolved_effects;
+        layer.transition_in = el.transition_in;
+        layer.transition_out = el.transition_out;
         layer.visible      = true;
 
         for (const auto& vd : el.visuals) {

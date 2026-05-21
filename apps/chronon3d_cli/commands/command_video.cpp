@@ -87,6 +87,7 @@ int render_and_encode_ffmpeg(
         const auto wall_t0 = std::chrono::steady_clock::now();
         const auto setup_t0 = wall_t0;
         double render_ms = 0.0;
+        std::vector<chronon3d::telemetry::FrameTelemetryRecord> telemetry_frames;
 
         if (opts.chunks != 1) {
             spdlog::warn("[video] --chunks is ignored with --ffmpeg-mode pipe in V1");
@@ -125,7 +126,10 @@ int render_and_encode_ffmpeg(
         const auto render_t0 = std::chrono::steady_clock::now();
         try {
             for (Frame f = start; f < end; ++f) {
+                const auto frame_t0 = std::chrono::steady_clock::now();
+                const auto hits_before = renderer->node_cache().stats().hits;
                 auto fb = renderer->render_frame(comp, f);
+                const auto hits_after_render = renderer->node_cache().stats().hits;
                 if (!fb) {
                     spdlog::error("[video] Failed to render frame {}", f);
                     pipe.close();
@@ -137,6 +141,14 @@ int render_and_encode_ffmpeg(
                     pipe.close();
                     return 1;
                 }
+                const auto frame_t1 = std::chrono::steady_clock::now();
+
+                telemetry_frames.push_back({
+                    .frame_number = static_cast<int>(f),
+                    .duration_ms = std::chrono::duration<double, std::milli>(frame_t1 - frame_t0).count(),
+                    .cache_hit = (hits_after_render > hits_before),
+                    .dirty_area_ratio = 1.0
+                });
             }
         } catch (const std::exception& e) {
             spdlog::error("[video] Exception during render loop: {}", e.what());
@@ -158,6 +170,8 @@ int render_and_encode_ffmpeg(
         const auto wall_t1 = std::chrono::steady_clock::now();
         render_ms = std::chrono::duration<double, std::milli>(render_t1 - render_t0).count();
         const double wall_time_ms = std::chrono::duration<double, std::milli>(wall_t1 - wall_t0).count();
+        std::sort(telemetry_frames.begin(), telemetry_frames.end(),
+                  [](const auto& a, const auto& b) { return a.frame_number < b.frame_number; });
         const auto phases = std::vector<chronon3d::telemetry::PhaseTelemetryRecord>{
             {"setup_renderer", std::chrono::duration<double, std::milli>(setup_t1 - setup_t0).count()},
             {"rendering_loop", std::chrono::duration<double, std::milli>(render_t1 - render_t0).count()},
@@ -175,7 +189,8 @@ int render_and_encode_ffmpeg(
             /*started_at_iso=*/started_at_iso,
             /*phases=*/phases,
             /*counters=*/telemetry::capture_counters(*renderer->counters()),
-            /*counters_src=*/renderer->counters());
+            /*counters_src=*/renderer->counters(),
+            /*frames=*/telemetry_frames);
 
         spdlog::info("[video] Wrote {}", opts.output);
         return 0;
@@ -199,6 +214,8 @@ int render_and_encode_ffmpeg(
     const auto setup_t0 = wall_t0;
     chronon3d::RenderCounters aggregate_counters{};
     std::mutex aggregate_mutex;
+    std::vector<chronon3d::telemetry::FrameTelemetryRecord> telemetry_frames;
+    std::mutex frames_mutex;
 
     auto ranges = split_frame_range(start, end, chunks);
     const auto setup_done_at = std::chrono::steady_clock::now();
@@ -211,9 +228,14 @@ int render_and_encode_ffmpeg(
         workers.emplace_back([&, chunk]() {
             try {
                 auto renderer = create_renderer(registry, settings);
+                std::vector<chronon3d::telemetry::FrameTelemetryRecord> local_frames;
+                local_frames.reserve(static_cast<size_t>(chunk.end - chunk.start));
                 for (Frame f = chunk.start; f < chunk.end; ++f) {
                     if (failed.load()) return;
+                    const auto frame_t0 = std::chrono::steady_clock::now();
+                    const auto hits_before = renderer->node_cache().stats().hits;
                     auto fb = renderer->render_frame(comp, f);
+                    const auto hits_after_render = renderer->node_cache().stats().hits;
                     if (!fb) {
                         spdlog::error("[video] Render failed at frame {}", f);
                         failed.store(true);
@@ -225,6 +247,13 @@ int render_and_encode_ffmpeg(
                         failed.store(true);
                         return;
                     }
+                    const auto frame_t1 = std::chrono::steady_clock::now();
+                    local_frames.push_back({
+                        .frame_number = static_cast<int>(f),
+                        .duration_ms = std::chrono::duration<double, std::milli>(frame_t1 - frame_t0).count(),
+                        .cache_hit = (hits_after_render > hits_before),
+                        .dirty_area_ratio = 1.0
+                    });
                     
                     int done = ++frames_done;
                     if (done % std::max(1, total / 10) == 0 || done == total) {
@@ -234,6 +263,10 @@ int render_and_encode_ffmpeg(
 
                 std::lock_guard<std::mutex> lock(aggregate_mutex);
                 cli::telemetry::add_counters(aggregate_counters, *renderer->counters());
+                {
+                    std::lock_guard<std::mutex> frames_lock(frames_mutex);
+                    telemetry_frames.insert(telemetry_frames.end(), local_frames.begin(), local_frames.end());
+                }
             } catch (const std::exception& e) {
                 spdlog::error("[video] Exception in render worker: {}", e.what());
                 failed.store(true);
@@ -289,6 +322,8 @@ int render_and_encode_ffmpeg(
     const double render_ms = std::chrono::duration<double, std::milli>(render_t1 - render_t0).count();
     const double encode_ms = std::chrono::duration<double, std::milli>(encode_t1 - encode_t0).count();
     const double wall_time_ms = std::chrono::duration<double, std::milli>(wall_t1 - wall_t0).count();
+    std::sort(telemetry_frames.begin(), telemetry_frames.end(),
+              [](const auto& a, const auto& b) { return a.frame_number < b.frame_number; });
     const auto phases = std::vector<chronon3d::telemetry::PhaseTelemetryRecord>{
         {"setup_renderer", std::chrono::duration<double, std::milli>(setup_t1 - setup_t0).count()},
         {"rendering_loop", std::chrono::duration<double, std::milli>(render_t1 - render_t0).count()},
@@ -306,7 +341,8 @@ int render_and_encode_ffmpeg(
         /*started_at_iso=*/started_at_iso,
         /*phases=*/phases,
         /*counters=*/telemetry::capture_counters(aggregate_counters),
-        /*counters_src=*/&aggregate_counters);
+        /*counters_src=*/&aggregate_counters,
+        /*frames=*/telemetry_frames);
 
     spdlog::info("[video] Done → {}", opts.output);
     return 0;

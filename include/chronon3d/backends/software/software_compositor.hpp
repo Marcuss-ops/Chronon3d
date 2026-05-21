@@ -3,6 +3,7 @@
 #include <chronon3d/core/framebuffer.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/math/raster_utils.hpp>
+#include <optional>
 
 namespace chronon3d {
 
