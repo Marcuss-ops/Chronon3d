@@ -205,6 +205,32 @@ std::optional<LayerDesc> parse_layer(const toml::table& tbl, std::vector<std::st
     layer.parent              = std::nullopt;
     layer.visuals              = parse_visuals(tbl, diagnostics);
 
+    auto parse_trans = [&](const toml::table& t, const char* prefix, LayerTransitionSpec& spec) {
+        std::string sub_tbl_key = prefix;
+        if (const auto* sub_tbl = t[sub_tbl_key].as_table()) {
+            spec.transition_id = read_scalar<std::string>(*sub_tbl, "id", "none");
+            spec.duration = read_scalar<double>(*sub_tbl, "duration", 0.4);
+            spec.delay = read_scalar<double>(*sub_tbl, "delay", 0.0);
+            spec.direction = string_to_transition_direction(read_scalar<std::string>(*sub_tbl, "direction", "none"));
+            spec.easing = string_to_easing(read_scalar<std::string>(*sub_tbl, "easing", "linear"));
+        } else {
+            std::string id_key = std::string(prefix) + "_id";
+            std::string dur_key = std::string(prefix) + "_duration";
+            std::string delay_key = std::string(prefix) + "_delay";
+            std::string dir_key = std::string(prefix) + "_direction";
+            std::string ease_key = std::string(prefix) + "_easing";
+            if (t.contains(id_key)) {
+                spec.transition_id = read_scalar<std::string>(t, id_key.c_str(), "none");
+                spec.duration = read_scalar<double>(t, dur_key.c_str(), 0.4);
+                spec.delay = read_scalar<double>(t, delay_key.c_str(), 0.0);
+                spec.direction = string_to_transition_direction(read_scalar<std::string>(t, dir_key.c_str(), "none"));
+                spec.easing = string_to_easing(read_scalar<std::string>(t, ease_key.c_str(), "linear"));
+            }
+        }
+    };
+    parse_trans(tbl, "transition_in", layer.transition_in);
+    parse_trans(tbl, "transition_out", layer.transition_out);
+
     return layer;
 }
 

@@ -8,6 +8,10 @@
 #include <sstream>
 #include <iomanip>
 #include <cstdlib>
+#if defined(__linux__)
+#include <fstream>
+#include <sys/resource.h>
+#endif
 
 #if defined(_WIN32)
 #include <windows.h>
@@ -252,6 +256,28 @@ uint64_t TelemetryManager::get_peak_memory_usage() {
     PROCESS_MEMORY_COUNTERS pmc;
     if (GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc))) {
         return static_cast<uint64_t>(pmc.PeakPagefileUsage);
+    }
+    return 0;
+#elif defined(__linux__)
+    {
+        std::ifstream status("/proc/self/status");
+        std::string line;
+        while (std::getline(status, line)) {
+            if (line.rfind("VmHWM:", 0) == 0) {
+                std::istringstream iss(line.substr(6));
+                uint64_t kb = 0;
+                iss >> kb;
+                if (kb > 0) {
+                    return kb * 1024ULL;
+                }
+                break;
+            }
+        }
+    }
+
+    struct rusage usage {};
+    if (getrusage(RUSAGE_SELF, &usage) == 0 && usage.ru_maxrss > 0) {
+        return static_cast<uint64_t>(usage.ru_maxrss) * 1024ULL;
     }
     return 0;
 #else

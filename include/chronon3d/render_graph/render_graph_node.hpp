@@ -48,7 +48,8 @@ enum class RenderGraphNodeKind {
     MotionBlur,
     ColorConvert,
     TrackMatte,
-    Output
+    Output,
+    Transition
 };
 
 [[nodiscard]] inline std::string_view to_string(RenderGraphNodeKind kind) {
@@ -66,6 +67,7 @@ enum class RenderGraphNodeKind {
         case ColorConvert:   return "ColorConvert";
         case TrackMatte:     return "TrackMatte";
         case Output:         return "Output";
+        case Transition:     return "Transition";
     }
     return "Unknown";
 }
@@ -73,6 +75,7 @@ enum class RenderGraphNodeKind {
 struct RenderGraphContext {
     Frame frame{0};
     float time_seconds{0.0f};
+    float fps{30.0f};
     int width{0};
     int height{0};
     Camera camera{};
@@ -88,19 +91,75 @@ struct RenderGraphContext {
     cache::NodeCache* node_cache{nullptr};
     std::shared_ptr<cache::FramebufferPool> framebuffer_pool;
 
-    std::shared_ptr<Framebuffer> acquire_framebuffer(int w, int h, bool clear = true) const {
+    std::shared_ptr<Framebuffer> acquire_framebuffer(
+        int w,
+        int h,
+        bool clear = true,
+        std::optional<raster::BBox> bounds = std::nullopt
+    ) const {
         if (framebuffer_pool) {
-            return framebuffer_pool->acquire_pooled(w, h, framebuffer_pool, clear);
+            auto fb = framebuffer_pool->acquire_pooled(w, h, framebuffer_pool, false);
+            if (bounds) {
+                fb->set_origin(bounds->x0, bounds->y0);
+            } else {
+                fb->set_origin(0, 0);
+            }
+            if (clear) {
+                std::optional<raster::BBox> local_clip = clip_rect;
+                if (local_clip) {
+                    local_clip->x0 -= fb->origin_x();
+                    local_clip->x1 -= fb->origin_x();
+                    local_clip->y0 -= fb->origin_y();
+                    local_clip->y1 -= fb->origin_y();
+                    local_clip->clip_to(w, h);
+                    if (local_clip->is_empty()) {
+                        local_clip.reset();
+                    }
+                }
+                fb->clear(Color::transparent(), local_clip);
+                if (counters) {
+                    counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
+                    const uint64_t pixels = local_clip
+                        ? static_cast<uint64_t>(std::max(0, local_clip->x1 - local_clip->x0)) *
+                          static_cast<uint64_t>(std::max(0, local_clip->y1 - local_clip->y0))
+                        : static_cast<uint64_t>(w) * static_cast<uint64_t>(h);
+                    counters->clear_pixels.fetch_add(pixels, std::memory_order_relaxed);
+                }
+            }
+            return fb;
         }
         auto fb = std::make_shared<Framebuffer>(w, h);
+        if (bounds) {
+            fb->set_origin(bounds->x0, bounds->y0);
+        }
         if (clear) {
-            fb->clear(Color::transparent());
+            std::optional<raster::BBox> local_clip = clip_rect;
+            if (local_clip) {
+                local_clip->x0 -= fb->origin_x();
+                local_clip->x1 -= fb->origin_x();
+                local_clip->y0 -= fb->origin_y();
+                local_clip->y1 -= fb->origin_y();
+                local_clip->clip_to(w, h);
+                if (local_clip->is_empty()) {
+                    local_clip.reset();
+                }
+            }
+            fb->clear(Color::transparent(), local_clip);
+            if (counters) {
+                counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
+                const uint64_t pixels = local_clip
+                    ? static_cast<uint64_t>(std::max(0, local_clip->x1 - local_clip->x0)) *
+                      static_cast<uint64_t>(std::max(0, local_clip->y1 - local_clip->y0))
+                    : static_cast<uint64_t>(w) * static_cast<uint64_t>(h);
+                counters->clear_pixels.fetch_add(pixels, std::memory_order_relaxed);
+            }
         }
         return fb;
     }
 
     std::shared_ptr<Framebuffer> acquire_framebuffer(const Framebuffer& other) const {
         auto fb = acquire_framebuffer(other.width(), other.height(), false);
+        fb->set_origin(other.origin_x(), other.origin_y());
         *fb = other;
         return fb;
     }
