@@ -28,6 +28,8 @@ Layer::Layer(const Layer& other)
       layout(other.layout),
       track_matte(other.track_matte),
       material(other.material),
+      transition_in(other.transition_in),
+      transition_out(other.transition_out),
       nodes(other.nodes),
       precomp_composition_name(other.precomp_composition_name) {
     
@@ -59,6 +61,8 @@ Layer& Layer::operator=(const Layer& other) {
     layout = other.layout;
     track_matte = other.track_matte;
     material = other.material;
+    transition_in = other.transition_in;
+    transition_out = other.transition_out;
     nodes = other.nodes;
     precomp_composition_name = other.precomp_composition_name;
     

@@ -85,7 +85,8 @@ inline void record_output_run(const std::string& composition_id,
                               const std::string& started_at_iso = {},
                               const std::vector<chronon3d::telemetry::PhaseTelemetryRecord>& phases = {},
                               const std::vector<chronon3d::telemetry::CounterTelemetryRecord>& counters = {},
-                              const chronon3d::RenderCounters* counters_src = nullptr) {
+                              const chronon3d::RenderCounters* counters_src = nullptr,
+                              const std::vector<chronon3d::telemetry::FrameTelemetryRecord>& frames = {}) {
     chronon3d::telemetry::TelemetryManager::instance().initialize_default_stores();
 
     chronon3d::telemetry::RenderTelemetryRecord run;
@@ -99,6 +100,7 @@ inline void record_output_run(const std::string& composition_id,
     run.render_ms = render_ms;
     run.encode_ms = encode_ms;
     run.effective_fps = wall_time_ms > 0.0 ? (frames_written * 1000.0 / wall_time_ms) : 0.0;
+    run.bytes_allocated_peak = chronon3d::telemetry::TelemetryManager::get_peak_memory_usage();
     run.started_at_iso = started_at_iso;
     run.finished_at_iso = chronon3d::telemetry::TelemetryManager::get_current_iso_time();
 
@@ -138,7 +140,7 @@ inline void record_output_run(const std::string& composition_id,
         ? capture_counters(*counters_src)
         : counters;
 
-    chronon3d::telemetry::TelemetryManager::instance().record_run(run, {}, phases, resolved_counters);
+    chronon3d::telemetry::TelemetryManager::instance().record_run(run, frames, phases, resolved_counters);
 }
 
 } // namespace chronon3d::cli::telemetry

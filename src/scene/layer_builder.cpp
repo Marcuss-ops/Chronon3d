@@ -309,6 +309,14 @@ LayerBuilder& LayerBuilder::track_matte_luma_inverted(std::string src) {
     m_layer.track_matte.source_layer = std::pmr::string{src, m_layer.track_matte.source_layer.get_allocator().resource()};
     return *this;
 }
+LayerBuilder& LayerBuilder::transition_in(LayerTransitionSpec spec) {
+    m_layer.transition_in = std::move(spec);
+    return *this;
+}
+LayerBuilder& LayerBuilder::transition_out(LayerTransitionSpec spec) {
+    m_layer.transition_out = std::move(spec);
+    return *this;
+}
 
 LayerBuilder& LayerBuilder::video(video::VideoSource source) {
     m_layer.kind = LayerKind::Video;

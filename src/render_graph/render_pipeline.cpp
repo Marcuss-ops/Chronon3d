@@ -96,11 +96,13 @@ RenderGraphContext make_graph_context(
     f32 frame_time,
     const RenderSettings& settings,
     const CompositionRegistry* registry,
-    video::VideoFrameDecoder* video_decoder
+    video::VideoFrameDecoder* video_decoder,
+    float fps
 ) {
     return RenderGraphContext{
         .frame = frame,
         .time_seconds = static_cast<float>(frame) + frame_time,
+        .fps = fps,
         .width = width,
         .height = height,
         .camera = camera,
@@ -132,7 +134,8 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     f32 frame_time,
     const RenderSettings& settings,
     const CompositionRegistry* registry,
-    video::VideoFrameDecoder* video_decoder
+    video::VideoFrameDecoder* video_decoder,
+    float fps
 ) {
     ZoneScoped;
     const auto t0 = std::chrono::steady_clock::now();
@@ -141,7 +144,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     const auto t_build0 = std::chrono::steady_clock::now();
     auto ctx = make_graph_context(
         backend, node_cache, camera, width, height, frame, frame_time,
-        settings, registry, video_decoder
+        settings, registry, video_decoder, fps
     );
     
     profiling::g_current_trace = ctx.trace;
@@ -200,11 +203,12 @@ std::string debug_scene_graph(
     f32 frame_time,
     const RenderSettings& settings,
     const CompositionRegistry* registry,
-    video::VideoFrameDecoder* video_decoder
+    video::VideoFrameDecoder* video_decoder,
+    float fps
 ) {
     auto ctx = make_graph_context(
         backend, node_cache, camera, width, height, frame, frame_time,
-        settings, registry, video_decoder
+        settings, registry, video_decoder, fps
     );
     
     ctx.light_context = scene.light_context();
@@ -233,7 +237,8 @@ SceneGraphStats analyze_scene_graph(
     const CompositionRegistry* registry,
     video::VideoFrameDecoder* video_decoder,
     bool execute,
-    bool include_dot
+    bool include_dot,
+    float fps
 ) {
     SceneGraphStats stats;
     stats.scene_layers = static_cast<int>(scene.layers().size());
@@ -241,7 +246,7 @@ SceneGraphStats analyze_scene_graph(
     const auto t0 = std::chrono::steady_clock::now();
 
     auto ctx = make_graph_context(backend, node_cache, camera, width, height,
-                                   frame, frame_time, settings, registry, video_decoder);
+                                   frame, frame_time, settings, registry, video_decoder, fps);
     ctx.light_context = scene.light_context();
     if (scene.camera_2_5d().enabled) {
         ctx.camera_2_5d  = scene.camera_2_5d();
@@ -317,7 +322,8 @@ std::unique_ptr<Framebuffer> render_composition_frame(
 
     auto call_graph = [&](const Scene& scene, Frame fr, f32 t) {
         return render_scene_via_graph(
-            backend, node_cache, scene, comp.camera, rw, rh, fr, t, settings, registry, video_decoder
+            backend, node_cache, scene, comp.camera, rw, rh, fr, t, settings, registry, video_decoder,
+            static_cast<float>(comp.frame_rate().fps())
         );
     };
 

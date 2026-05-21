@@ -9,6 +9,7 @@
 #include <chronon3d/scene/effects/effect_stack.hpp>
 #include <chronon3d/scene/layer/depth_role.hpp>
 #include <chronon3d/scene/layer/track_matte.hpp>
+#include <chronon3d/scene/layer/transition.hpp>
 #include <chronon3d/scene/material_2_5d.hpp>
 #include <chronon3d/layout/layout_rules.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
@@ -51,6 +52,8 @@ struct Layer {
     LayoutRules layout{};
     TrackMatte  track_matte{};
     Material2_5D material{};
+    LayerTransitionSpec transition_in{};
+    LayerTransitionSpec transition_out{};
     std::pmr::vector<RenderNode> nodes;
     std::pmr::string precomp_composition_name; // for LayerKind::Precomp
     

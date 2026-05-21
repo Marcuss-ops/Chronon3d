@@ -30,7 +30,8 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     f32 frame_time,
     const RenderSettings& settings,
     const CompositionRegistry* registry,
-    video::VideoFrameDecoder* video_decoder
+    video::VideoFrameDecoder* video_decoder,
+    float fps = 30.0f
 );
 
 /**
@@ -47,7 +48,8 @@ std::string debug_scene_graph(
     f32 frame_time,
     const RenderSettings& settings,
     const CompositionRegistry* registry,
-    video::VideoFrameDecoder* video_decoder
+    video::VideoFrameDecoder* video_decoder,
+    float fps = 30.0f
 );
 
 /**
@@ -104,7 +106,8 @@ SceneGraphStats analyze_scene_graph(
     const CompositionRegistry* registry,
     video::VideoFrameDecoder* video_decoder,
     bool execute = true,
-    bool include_dot = false
+    bool include_dot = false,
+    float fps = 30.0f
 );
 
 } // namespace chronon3d::graph
