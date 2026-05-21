@@ -104,6 +104,15 @@ struct TelemetryArgs {
     std::string output_file;
 };
 
+struct PreflightArgs {
+    std::string comp_id;
+    Frame start{0};
+    Frame end{0};
+    int sample_step{1};
+    std::string output;
+    std::string json_file;
+};
+
 int command_list(const CompositionRegistry& registry);
 int command_info(const CompositionRegistry& registry, const std::string& id);
 int command_doctor(const CompositionRegistry& registry);
@@ -120,6 +129,7 @@ int command_batch(const CompositionRegistry& registry, const std::vector<std::st
 int command_watch(const CompositionRegistry& registry, const std::string& comp_id);
 int command_proofs(const CompositionRegistry& registry, const ProofsArgs& args);
 int command_telemetry(const TelemetryArgs& args);
+int command_preflight(const CompositionRegistry& registry, const PreflightArgs& args);
 
 } // namespace cli
 } // namespace chronon3d
