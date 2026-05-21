@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { renderInfoIcon, formatCounterValue } from '../utils/format.jsx';
+import { copyTextToClipboard } from '../utils/clipboard.js';
 
 function CopyBtn({ onClick, label, copiedLabel }) {
   const [copied, setCopied] = useState(false);
@@ -34,14 +35,14 @@ export default function ProfilePanels({ runDetail, selectedFrame }) {
     return Math.round(value / runDetail.run.frames_total);
   };
 
-  const copyPhasesText = () => {
+  const copyPhasesText = async () => {
     if (!runDetail.phases) return;
     const text = runDetail.phases.map(p => {
       const isNode = p.phase_name.startsWith('node:');
       const name = isNode ? p.phase_name.substring(5) : p.phase_name;
       return `${name}: ${p.duration_ms.toFixed(2)} ms`;
     }).join('\n');
-    navigator.clipboard.writeText(text);
+    await copyTextToClipboard(text);
   };
 
   return (

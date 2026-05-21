@@ -4,6 +4,7 @@
 #include <tbb/parallel_for.h>
 #include <immintrin.h>
 #include <algorithm>
+#include <optional>
 
 namespace chronon3d {
 
