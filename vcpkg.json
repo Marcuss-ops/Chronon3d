@@ -19,7 +19,8 @@
     "tomlplusplus",
     "blend2d",
     "nlohmann-json",
-    "sqlite3"
+    "sqlite3",
+    "openexr"
   ],
   "default-features": []
 }
