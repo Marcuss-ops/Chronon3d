@@ -21,6 +21,7 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
     cmd->add_flag("--diagnostic,--layout-preview", args.pipeline.diagnostic,
                   "Enable layout preview overlays (bbox, anchors, center guide)");
     cmd->add_flag("--graph", args.pipeline.use_modular_graph, "Use modular RenderGraph path");
+    cmd->add_flag("--dirty-rects", args.pipeline.dirty_rects, "Enable dirty rectangles invalidation");
     cmd->add_flag("--motion-blur", args.pipeline.quality.motion_blur, "Enable temporal motion blur");
     cmd->add_option("--motion-blur-samples", args.pipeline.quality.motion_blur_samples, "Subframe samples (default 8)");
     cmd->add_option("--shutter-angle", args.pipeline.quality.shutter_angle, "Shutter angle in degrees (default 180)");

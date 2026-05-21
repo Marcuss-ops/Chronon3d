@@ -71,6 +71,7 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
     const auto& events = renderer->trace()->events();
     std::vector<double> frame_times;
     std::map<std::string, double> category_durations;
+    std::map<std::string, double> node_durations;
     double total_category_time = 0.0;
 
     for (const auto& ev : events) {
@@ -79,6 +80,9 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
         } else {
             category_durations[ev.category] += ev.dur_us / 1000.0;
             total_category_time += ev.dur_us / 1000.0;
+            if (ev.category == "node_execute") {
+                node_durations[ev.name] += ev.dur_us / 1000.0;
+            }
         }
     }
 
@@ -144,6 +148,7 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
     report.counters.images_sampled = images_sampled;
     report.counters.text_glyphs_rasterized = glyphs;
     report.categories_ms = category_durations;
+    report.node_durations_ms = node_durations;
     report.frame_times_ms = frame_times;
 
     // 6. Print terminal report (unless --quiet)
@@ -194,6 +199,20 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
         for (const auto& cat : sorted_cats) {
             double pct = total_category_time > 0.0 ? (cat.second / total_category_time) * 100.0 : 0.0;
             fmt::print("  - {:14}: {:10.3f} ms ({:5.1f}%)\n", cat.first, cat.second, pct);
+        }
+
+        if (!report.node_durations_ms.empty()) {
+            fmt::print("\n");
+            fmt::print("--- Node Bottlenecks ---\n");
+            std::vector<std::pair<std::string, double>> node_times(report.node_durations_ms.begin(), report.node_durations_ms.end());
+            std::sort(node_times.begin(), node_times.end(), [](const auto& a, const auto& b) {
+                return a.second > b.second;
+            });
+            const std::size_t limit = std::min<std::size_t>(node_times.size(), 8);
+            for (std::size_t i = 0; i < limit; ++i) {
+                const auto& [name, ms] = node_times[i];
+                fmt::print("  - {:24}: {:10.3f} ms\n", name, ms);
+            }
         }
         fmt::print("================================================================================\n");
         fmt::print("\n");

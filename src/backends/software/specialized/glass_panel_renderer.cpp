@@ -18,6 +18,9 @@ void draw_glass_panel(Framebuffer& fb, const Framebuffer& src, const Shape& shap
     }
     bbox.clip_to(fb.width(), fb.height());
     if (bbox.is_empty()) return;
+    if (state && state->mask && state->mask->enabled()) {
+        ensure_mask_alpha_cache(*state, fb.width(), fb.height());
+    }
     Mat4 inv_model = glm::inverse(model);
     for (i32 y = bbox.y0; y < bbox.y1; ++y) {
         Color* dst_row = fb.pixels_row(y);

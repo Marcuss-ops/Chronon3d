@@ -44,6 +44,17 @@ struct RenderSettings {
      * If true, enables in-place composition to avoid costly framebuffer copies.
      */
     bool optimize_compositing{true};
+
+    /**
+     * If true, enables dirty rectangles partial invalidation optimization.
+     */
+    bool enable_dirty_rects{true};
+
+    /**
+     * If true, graph nodes may restrict clear/composite/effect work to predicted bounds.
+     * V1 uses node predicted_bbox as clip_rect.
+     */
+    bool dirty_rects{false};
 };
 
 } // namespace chronon3d

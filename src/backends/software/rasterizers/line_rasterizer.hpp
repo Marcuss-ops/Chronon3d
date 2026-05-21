@@ -9,7 +9,7 @@
 namespace chronon3d {
 namespace renderer {
 
-void bline(Framebuffer& fb, Vec2 p0, Vec2 p1, const Color& color);
+void bline(Framebuffer& fb, Vec2 p0, Vec2 p1, const Color& color, const std::optional<raster::BBox>& clip = std::nullopt);
 
 bool clip_and_project_line(const Vec3& w0, const Vec3& w1,
                            const Mat4& view, f32 focal, f32 vp_cx, f32 vp_cy,

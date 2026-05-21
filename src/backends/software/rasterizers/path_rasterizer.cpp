@@ -295,6 +295,9 @@ void draw_path(Framebuffer& fb, const PathShape& path, const Mat4& model, const 
     }
     bbox.clip_to(fb.width(), fb.height());
     if (bbox.is_empty()) return;
+    if (state && state->mask && state->mask->enabled()) {
+        ensure_mask_alpha_cache(*state, fb.width(), fb.height());
+    }
 
     const f32 radius = std::max(0.0f, path.stroke.width * 0.5f);
     const f32 opacity = stroke_color.a;

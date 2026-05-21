@@ -26,6 +26,7 @@ void register_video_commands(CLI::App& app, CliContext& ctx) {
     cmd->add_option("--hardware", args.hardware_encoder, "Hardware encoder: none, auto, nvenc, qsv, videotoolbox, amf")->default_val("none");
     cmd->add_flag("--keep-frames", args.keep_frames, "Keep temporary PNG frames");
     cmd->add_flag("--graph", args.pipeline.use_modular_graph, "Use modular RenderGraph path");
+    cmd->add_flag("--dirty-rects", args.pipeline.dirty_rects, "Enable dirty rectangles invalidation");
     cmd->add_flag("--motion-blur", args.pipeline.quality.motion_blur, "Enable temporal motion blur");
     cmd->add_option("--motion-blur-samples", args.pipeline.quality.motion_blur_samples, "Subframe samples")->default_val(8);
     cmd->add_option("--shutter-angle", args.pipeline.quality.shutter_angle, "Shutter angle in degrees")->default_val(180.0f);
@@ -35,6 +36,7 @@ void register_video_commands(CLI::App& app, CliContext& ctx) {
     cmd->add_option("--ffmpeg-mode", args.ffmpeg_mode, "Fallback FFmpeg mode: png, pipe")
         ->default_val("png")
         ->check(CLI::IsMember({"png", "pipe"}));
+    cmd->add_flag("--ffmpeg-verbose", args.ffmpeg_verbose, "Show FFmpeg logs in pipe mode");
     cmd->callback([state, &ctx]() { ctx.exit_code = command_video(ctx.registry, *state->args); });
 }
 

@@ -20,6 +20,7 @@ struct RenderQualityArgs {
 struct RenderPipelineArgs {
     bool   use_modular_graph{false};
     bool   diagnostic{false};
+    bool   dirty_rects{false};
     RenderQualityArgs quality{};
 };
 
@@ -50,6 +51,7 @@ struct VideoArgs {
     int chunks{1};
 
     std::string ffmpeg_mode{"png"};
+    bool ffmpeg_verbose{false};
 };
 
 struct VideoCameraArgs {
@@ -76,6 +78,7 @@ struct BenchArgs {
     int frames{100};
     int warmup{10};
     bool use_modular_graph{false};
+    bool dirty_rects{false};
 
     std::string json_file;
     std::string compare_file;
