@@ -94,7 +94,7 @@ TEST_CASE("camera_motion convenience: dramatic_push matches push_in_tilt") {
 
 namespace {
 
-std::unique_ptr<Framebuffer> render25d(const Composition& comp) {
+std::shared_ptr<Framebuffer> render25d(const Composition& comp) {
     SoftwareRenderer renderer;
     RenderSettings settings;
     settings.use_modular_graph = true;

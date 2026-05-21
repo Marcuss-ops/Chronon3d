@@ -34,7 +34,7 @@ public:
     Color m_color;
 };
 
-std::unique_ptr<Framebuffer> render_video_comp(const Composition& comp, Color mock_color = {0.2f, 0.6f, 1.0f, 1.0f}) {
+std::shared_ptr<Framebuffer> render_video_comp(const Composition& comp, Color mock_color = {0.2f, 0.6f, 1.0f, 1.0f}) {
     SoftwareRenderer renderer;
     RenderSettings settings;
     settings.use_modular_graph = true;

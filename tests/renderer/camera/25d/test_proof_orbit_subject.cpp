@@ -19,7 +19,7 @@ SoftwareRenderer make_renderer() {
     return r;
 }
 
-std::unique_ptr<Framebuffer> render_orbit_frame(float t) {
+std::shared_ptr<Framebuffer> render_orbit_frame(float t) {
     auto renderer = make_renderer();
     Composition comp({.name = "OrbitTest", .width = 640, .height = 480, .duration = 1},
         [t](const FrameContext& ctx) {

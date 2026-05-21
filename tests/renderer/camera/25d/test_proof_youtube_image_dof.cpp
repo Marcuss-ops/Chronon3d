@@ -19,7 +19,7 @@ SoftwareRenderer make_renderer() {
 }
 
 // Builds a test DOF scene: background shapes at z_bg, subject rect at z_sub.
-std::unique_ptr<Framebuffer> render_dof_scene(float z_bg, float z_sub, bool dof_on) {
+std::shared_ptr<Framebuffer> render_dof_scene(float z_bg, float z_sub, bool dof_on) {
     auto renderer = make_renderer();
     Composition comp({.name="YTDof", .width=640, .height=360, .duration=1},
         [z_bg, z_sub, dof_on](const FrameContext& ctx) {

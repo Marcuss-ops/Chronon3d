@@ -35,7 +35,7 @@ float scan_centroid_y(const Framebuffer& fb, Pred pred) {
 }
 
 // Render a single red card at (0, 0, z_near) with the camera tilted to tilt_deg.
-std::unique_ptr<Framebuffer> render_tilt_frame(float tilt_deg, float z_near) {
+std::shared_ptr<Framebuffer> render_tilt_frame(float tilt_deg, float z_near) {
     auto renderer = make_renderer();
     Composition comp({.name = "TiltTest", .width = 640, .height = 480, .duration = 1},
         [tilt_deg, z_near](const FrameContext& ctx) {

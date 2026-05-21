@@ -9,7 +9,7 @@ using namespace chronon3d;
 
 namespace {
 
-std::unique_ptr<Framebuffer> render_with_camera(
+std::shared_ptr<Framebuffer> render_with_camera(
     bool cam_enabled,
     Vec3 cam_pos,
     f32 cam_zoom,

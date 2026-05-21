@@ -58,6 +58,19 @@ telemetry::RenderTelemetryRow make_telemetry_row(
         row.text_glyphs_rasterized = counters->text_glyphs_rasterized.load(std::memory_order_relaxed);
         row.framebuffer_allocations = counters->framebuffer_allocations.load(std::memory_order_relaxed);
         row.framebuffer_reuses = counters->framebuffer_reuses.load(std::memory_order_relaxed);
+        row.dirty_full_fallbacks = counters->dirty_full_fallbacks.load(std::memory_order_relaxed);
+        row.dirty_full_fallback_predicted_bounds_missing =
+            counters->dirty_full_fallback_reasons[static_cast<std::size_t>(DirtyFallbackReason::PredictedBoundsMissing)]
+                .load(std::memory_order_relaxed);
+        row.dirty_full_fallback_composite_missing_input_bounds =
+            counters->dirty_full_fallback_reasons[static_cast<std::size_t>(DirtyFallbackReason::CompositeMissingInputBounds)]
+                .load(std::memory_order_relaxed);
+        row.dirty_full_fallback_transform_bounds_unknown =
+            counters->dirty_full_fallback_reasons[static_cast<std::size_t>(DirtyFallbackReason::TransformBoundsUnknown)]
+                .load(std::memory_order_relaxed);
+        row.dirty_full_fallback_effect_bounds_unknown =
+            counters->dirty_full_fallback_reasons[static_cast<std::size_t>(DirtyFallbackReason::EffectBoundsUnknown)]
+                .load(std::memory_order_relaxed);
     }
     return row;
 }

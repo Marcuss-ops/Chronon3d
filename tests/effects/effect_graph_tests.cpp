@@ -11,7 +11,7 @@ using namespace chronon3d;
 
 namespace {
 
-std::unique_ptr<Framebuffer> render_with_effects(
+std::shared_ptr<Framebuffer> render_with_effects(
     std::function<void(LayerBuilder&)> effect_fn,
     bool modular = true
 ) {

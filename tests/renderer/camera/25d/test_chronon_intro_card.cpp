@@ -19,7 +19,7 @@ SoftwareRenderer make_renderer() {
 }
 
 // Renders ChrononIntroCard at frame f (half-res for speed)
-std::unique_ptr<Framebuffer> render_intro(Frame f) {
+std::shared_ptr<Framebuffer> render_intro(Frame f) {
     auto renderer = make_renderer();
     Composition comp({.name="ChrononIntroCardTest", .width=640, .height=360, .duration=180},
         [](const FrameContext& ctx) {

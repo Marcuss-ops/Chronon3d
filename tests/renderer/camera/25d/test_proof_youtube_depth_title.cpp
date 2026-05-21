@@ -20,7 +20,7 @@ SoftwareRenderer make_renderer() {
 }
 
 // Renders DepthTitle at frame f
-std::unique_ptr<Framebuffer> render_depth_title(Frame f) {
+std::shared_ptr<Framebuffer> render_depth_title(Frame f) {
     auto renderer = make_renderer();
     Composition comp({.name="YTDepthTitle", .width=640, .height=360, .duration=90},
         [](const FrameContext& ctx) {

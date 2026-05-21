@@ -7,7 +7,7 @@
 using namespace chronon3d;
 using namespace chronon3d::test;
 
-static std::unique_ptr<Framebuffer> render_line(f32 trim_start, f32 trim_end) {
+static std::shared_ptr<Framebuffer> render_line(f32 trim_start, f32 trim_end) {
     SoftwareRenderer renderer;
     Composition comp(CompositionSpec{.width = 100, .height = 10, .duration = 1},
         [=](const FrameContext& ctx) {

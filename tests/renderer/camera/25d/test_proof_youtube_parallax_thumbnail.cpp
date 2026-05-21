@@ -19,7 +19,7 @@ SoftwareRenderer make_renderer() {
 }
 
 // Pan scene: background at z_bg, subject at z_sub, foreground at z_fg
-std::unique_ptr<Framebuffer> render_parallax_frame(float t, float z_bg, float z_sub, float z_fg) {
+std::shared_ptr<Framebuffer> render_parallax_frame(float t, float z_bg, float z_sub, float z_fg) {
     auto renderer = make_renderer();
     Composition comp({.name="YTParallax", .width=640, .height=360, .duration=1},
         [t, z_bg, z_sub, z_fg](const FrameContext& ctx) {

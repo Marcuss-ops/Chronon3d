@@ -14,7 +14,7 @@ u64 framebuffer_hash(const Framebuffer& fb) {
     return XXH64(fb.pixels_row(0), fb.size_bytes(), 0);
 }
 
-std::unique_ptr<Framebuffer> render_dof_scene(f32 focus_z, f32 card_z, bool enabled, f32 aperture) {
+std::shared_ptr<Framebuffer> render_dof_scene(f32 focus_z, f32 card_z, bool enabled, f32 aperture) {
     return render_modular(composition({
         .name = "DoFVisual",
         .width = 320,

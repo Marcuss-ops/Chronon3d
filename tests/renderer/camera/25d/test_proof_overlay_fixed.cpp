@@ -20,7 +20,7 @@ SoftwareRenderer make_renderer() {
 
 // 2D HUD: magenta rect added as a direct scene element (absolute screen coords).
 // 3D card: blue rect in 3D space that moves with camera pan.
-std::unique_ptr<Framebuffer> render_overlay_frame(float pan_t) {
+std::shared_ptr<Framebuffer> render_overlay_frame(float pan_t) {
     auto renderer = make_renderer();
     Composition comp({.name = "OverlayTest", .width = 640, .height = 480, .duration = 1},
         [pan_t](const FrameContext& ctx) {

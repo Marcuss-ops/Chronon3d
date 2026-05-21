@@ -1,4 +1,5 @@
 #pragma once
+#include <chronon3d/core/dirty_fallback_reason.hpp>
 #include <string>
 #include <vector>
 #include <cstdint>
@@ -57,6 +58,10 @@ struct RenderTelemetryRecord {
     uint64_t dirty_rect_count{0};
     uint64_t dirty_pixels{0};
     uint64_t dirty_full_fallbacks{0};
+    uint64_t dirty_full_fallback_predicted_bounds_missing{0};
+    uint64_t dirty_full_fallback_composite_missing_input_bounds{0};
+    uint64_t dirty_full_fallback_transform_bounds_unknown{0};
+    uint64_t dirty_full_fallback_effect_bounds_unknown{0};
 
     // Host & environment specs
     std::string started_at_iso;

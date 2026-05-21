@@ -113,6 +113,11 @@ TEST_CASE("Telemetry: JsonlTelemetryStore serialization") {
     run.frames_total = 5;
     run.effective_fps = 60.0;
     run.pixels_touched = 10000;
+    run.dirty_full_fallbacks = 7;
+    run.dirty_full_fallback_predicted_bounds_missing = 3;
+    run.dirty_full_fallback_composite_missing_input_bounds = 2;
+    run.dirty_full_fallback_transform_bounds_unknown = 1;
+    run.dirty_full_fallback_effect_bounds_unknown = 1;
 
     REQUIRE(store->write_render_run(run));
 
@@ -138,6 +143,11 @@ TEST_CASE("Telemetry: JsonlTelemetryStore serialization") {
             CHECK(j["frames_total"] == 5);
             CHECK(j["effective_fps"] == 60.0);
             CHECK(j["pixels_touched"] == 10000);
+            CHECK(j["dirty_full_fallbacks"] == 7);
+            CHECK(j["dirty_full_fallback_predicted_bounds_missing"] == 3);
+            CHECK(j["dirty_full_fallback_composite_missing_input_bounds"] == 2);
+            CHECK(j["dirty_full_fallback_transform_bounds_unknown"] == 1);
+            CHECK(j["dirty_full_fallback_effect_bounds_unknown"] == 1);
         } else if (line_count == 1) {
             CHECK(j["type"] == "frame");
             CHECK(j["run_id"] == "run_123");

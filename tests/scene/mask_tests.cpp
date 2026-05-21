@@ -8,7 +8,7 @@ using namespace chronon3d;
 
 namespace {
 
-std::unique_ptr<Framebuffer> render_masked_layer(
+std::shared_ptr<Framebuffer> render_masked_layer(
     std::function<void(LayerBuilder&)> mask_fn
 ) {
     SoftwareRenderer renderer;

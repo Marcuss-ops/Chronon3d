@@ -210,8 +210,13 @@ std::optional<raster::BBox> TransformNode::predicted_bbox(
         y_min_src = static_cast<f32>(std::clamp(in_box.y0, 0, ctx.height));
         x_max_src = static_cast<f32>(std::clamp(in_box.x1, 0, ctx.width));
         y_max_src = static_cast<f32>(std::clamp(in_box.y1, 0, ctx.height));
+        // Input bbox is empty (zero area) but valid.
+        // Return a valid empty bbox (not nullopt) so the dirty-rect system
+        // skips this node rather than triggering a full-frame fallback.
         if (x_min_src >= x_max_src || y_min_src >= y_max_src) {
-            return std::nullopt;
+            const i32 empty_x = static_cast<i32>(std::floor(x_min_src));
+            const i32 empty_y = static_cast<i32>(std::floor(y_min_src));
+            return raster::BBox{empty_x, empty_y, empty_x, empty_y};
         }
     }
 
