@@ -26,6 +26,7 @@ add_executable(chronon3d_cli
     commands/command_doctor_verify.cpp
     commands/command_bench.cpp
     commands/command_graph.cpp
+    commands/command_preflight.cpp
     commands/command_proofs.cpp
     commands/command_telemetry.cpp
 )

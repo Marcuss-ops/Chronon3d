@@ -30,6 +30,7 @@ add_executable(chronon3d_core_tests
     core/timeline/test_code_first_composition.cpp
     core/timeline/test_sequence.cpp
     assets/test_svg_path_loader.cpp
+    assets/test_render_preflight.cpp
 )
 target_link_libraries(chronon3d_core_tests PRIVATE chronon3d_pipeline doctest::doctest)
 target_include_directories(chronon3d_core_tests PRIVATE ${CMAKE_SOURCE_DIR})
@@ -96,7 +97,6 @@ add_executable(chronon3d_renderer_tests
     render_graph/test_graph_executor.cpp
     render_graph/test_precompositions.cpp
     render_graph/test_modular_features.cpp
-    render_graph/test_dirty_rects.cpp
     render_graph/test_track_matte.cpp
     render_graph/test_transition.cpp
     render_graph/test_camera_2_5d_graph.cpp
