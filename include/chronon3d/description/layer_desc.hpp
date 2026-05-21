@@ -8,6 +8,7 @@
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/description/visual_desc.hpp>
 #include <chronon3d/description/effect_desc.hpp>
+#include <chronon3d/scene/layer/transition.hpp>
 #include <optional>
 #include <string>
 #include <vector>
@@ -51,6 +52,9 @@ struct LayerDesc {
     std::vector<EffectDesc> effects;
 
     std::optional<LayerId> parent;
+
+    LayerTransitionSpec transition_in{};
+    LayerTransitionSpec transition_out{};
 };
 
 } // namespace chronon3d

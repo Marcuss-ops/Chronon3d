@@ -5,6 +5,7 @@
 #include <chronon3d/scene/effects/effect_stack.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/description/visual_desc.hpp>
+#include <chronon3d/scene/layer/transition.hpp>
 #include <string>
 #include <vector>
 
@@ -26,6 +27,9 @@ struct EvaluatedLayer {
     std::vector<VisualDesc> visuals;
 
     EffectStack resolved_effects;
+
+    LayerTransitionSpec transition_in{};
+    LayerTransitionSpec transition_out{};
 };
 
 } // namespace chronon3d

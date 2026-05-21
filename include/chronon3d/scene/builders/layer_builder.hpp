@@ -109,6 +109,10 @@ public:
     LayerBuilder& track_matte_luma(std::string source_layer_name);
     LayerBuilder& track_matte_luma_inverted(std::string source_layer_name);
 
+    // Transitions
+    LayerBuilder& transition_in(LayerTransitionSpec spec);
+    LayerBuilder& transition_out(LayerTransitionSpec spec);
+
     // Specialized
     LayerBuilder& screen_dimensions(f32 w, f32 h);
     LayerBuilder& fullscreen_rect(std::string name, Color color);
