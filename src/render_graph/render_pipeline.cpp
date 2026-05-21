@@ -352,12 +352,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     const auto t_exec1 = std::chrono::steady_clock::now();
     
     if (sw_renderer) {
-        if (!sw_renderer->m_prev_framebuffer || sw_renderer->m_prev_framebuffer->width() != width || sw_renderer->m_prev_framebuffer->height() != height) {
-            sw_renderer->m_prev_framebuffer = std::make_shared<Framebuffer>(width, height);
-        }
-        if (fb_shared && fb_shared.get() != sw_renderer->m_prev_framebuffer.get()) {
-            std::copy(fb_shared->data(), fb_shared->data() + fb_shared->pixel_count(), sw_renderer->m_prev_framebuffer->data());
-        }
+        sw_renderer->m_prev_framebuffer = fb_shared;
         sw_renderer->m_prev_layer_bboxes = std::move(current_layer_bboxes);
         sw_renderer->m_prev_frame = frame;
         sw_renderer->m_prev_camera = resolved.camera.camera;
@@ -505,6 +500,7 @@ std::unique_ptr<Framebuffer> render_composition_frame(
     const int h = comp.height();
     const int rw = static_cast<int>(w * ssaa);
     const int rh = static_cast<int>(h * ssaa);
+    SoftwareRenderer* sw_renderer = dynamic_cast<SoftwareRenderer*>(&backend);
 
     std::unique_ptr<Framebuffer> render_fb;
     double evaluate_ms = 0.0;
@@ -578,6 +574,10 @@ std::unique_ptr<Framebuffer> render_composition_frame(
                 render_fb->set_pixel(x, y, Color{accum[idx], accum[idx+1], accum[idx+2], accum[idx+3]});
             }
         }
+    }
+
+    if (sw_renderer) {
+        sw_renderer->m_last_layer_count = layer_count;
     }
 
     if (ssaa > 1.0f) {

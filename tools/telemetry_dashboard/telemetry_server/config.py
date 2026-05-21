@@ -52,6 +52,7 @@ RUN_COLUMNS = [
     'layer_culling_tests', 'layers_culled', 'layers_visible',
     'framebuffer_allocations', 'framebuffer_reuses', 'framebuffer_bytes_allocated',
     'framebuffer_bytes_peak',
+    'dirty_rect_count', 'dirty_pixels', 'dirty_full_fallbacks',
     'started_at_iso', 'finished_at_iso', 'git_commit_short', 'build_type',
     'compiler_info', 'os', 'cpu_model', 'cores',
 ]

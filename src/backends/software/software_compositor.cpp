@@ -16,16 +16,17 @@ void SoftwareCompositor::composite_layer(Framebuffer& dst, const Framebuffer& sr
         x1 = std::clamp(clip->x1, 0, x1);
         y1 = std::clamp(clip->y1, 0, y1);
     }
-    
+
     if (x0 >= x1 || y0 >= y1) return;
 
-    const i32 src_x0 = x0 - src.origin_x();
-    const i32 src_y0 = y0 - src.origin_y();
-    const i32 src_x1 = x1 - src.origin_x();
-    const i32 src_y1 = y1 - src.origin_y();
+    if (mode == BlendMode::Normal) {
+        const i32 src_x0 = std::max(x0, src.origin_x());
+        const i32 src_y0 = std::max(y0, src.origin_y());
+        const i32 src_x1 = std::min(x1, src.origin_x() + src.width());
+        const i32 src_y1 = std::min(y1, src.origin_y() + src.height());
 
-    if (mode == BlendMode::Normal && src.origin_x() == 0 && src.origin_y() == 0) {
-        if (composite_layer_normal_optimized(dst, src, x0, y0, x1, y1)) {
+        if (src_x0 < src_x1 && src_y0 < src_y1 &&
+            composite_layer_normal_optimized(dst, src, src_x0, src_y0, src_x1, src_y1)) {
             return;
         }
     }
@@ -46,8 +47,6 @@ void SoftwareCompositor::composite_layer(Framebuffer& dst, const Framebuffer& sr
 }
 
 bool SoftwareCompositor::composite_layer_normal_optimized(Framebuffer& dst, const Framebuffer& src, i32 x0, i32 y0, i32 x1, i32 y1) {
-    if (src.width() != dst.width() || src.height() != dst.height()) return false;
-
     // Track SIMD calls if profiling is active
     if (profiling::g_current_counters) {
         profiling::g_current_counters->simd_lerp_calls.fetch_add(1, std::memory_order_relaxed);
@@ -59,7 +58,7 @@ bool SoftwareCompositor::composite_layer_normal_optimized(Framebuffer& dst, cons
     auto process_rows = [&](i32 row_begin, i32 row_end) {
         for (i32 y = row_begin; y < row_end; ++y) {
             Color* d_row = dst.pixels_row(y) + x0;
-            const Color* s_row = src.pixels_row(y) + x0;
+            const Color* s_row = src.pixels_row(y - src.origin_y()) + (x0 - src.origin_x());
             i32 lx = 0;
 
 #if defined(__AVX2__) || defined(_MSC_VER)

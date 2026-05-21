@@ -104,6 +104,7 @@ int command_preview(const CompositionRegistry& registry, const RenderArgs& args)
             started_at_iso,
             phases,
             cli::telemetry::capture_counters(*renderer->counters()),
+            {},
             renderer->counters());
     }
 
@@ -173,6 +174,7 @@ int command_contact_sheet(const CompositionRegistry& registry, const RenderArgs&
             started_at_iso,
             phases,
             cli::telemetry::capture_counters(*renderer->counters()),
+            {},
             renderer->counters());
     }
 
@@ -273,6 +275,7 @@ int command_storyboard(const CompositionRegistry& registry, const RenderArgs& ar
             started_at_iso,
             phases,
             cli::telemetry::capture_counters(*renderer->counters()),
+            {},
             renderer->counters());
     }
 
