@@ -161,15 +161,15 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
                     }
                 }
 
-                const bool is_cacheable = node.cacheable();
+                const auto policy = node.cache_policy();
+                const bool is_cacheable = policy.cacheable;
                 cache::NodeCacheKey key;
                 std::shared_ptr<Framebuffer> result;
                 std::string cache_status;
 
                 const bool node_frame_dependent =
-                    node.frame_dependent() ||
-                    (has_cacheable_inputs && inputs_frame_dependent) ||
-                    node.cache_frame_policy() == CacheFramePolicy::FrameDependent;
+                    policy.frame_dependent ||
+                    (has_cacheable_inputs && inputs_frame_dependent);
 
                 const bool use_cache = is_cacheable && ctx.node_cache && !node_frame_dependent;
 
