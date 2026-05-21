@@ -153,7 +153,8 @@ TEST_CASE("RenderPreflight: require_output_path to writable location") {
 
     std::string path = (fs::temp_directory_path() / "chronon3d_test_output.mp4").string();
     // Remove it if it exists
-    fs::remove(path, std::error_code{});
+    std::error_code ec;
+    fs::remove(path, ec);
     RenderPreflight::instance().require_output_path(path);
     auto issues = RenderPreflight::instance().validate();
 
@@ -319,7 +320,8 @@ TEST_CASE("RenderPreflight: JSON roundtrip is valid JSON") {
 
     std::string dumped = js.dump();
     // Should parse back as valid JSON
-    CHECK_NOTHROW(nlohmann::json::parse(dumped));
+    auto parsed = nlohmann::json::parse(dumped);
+    CHECK(parsed.is_object());
 
     RenderPreflight::instance().clear();
 }

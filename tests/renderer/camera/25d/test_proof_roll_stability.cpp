@@ -19,7 +19,7 @@ SoftwareRenderer make_renderer() {
     return r;
 }
 
-std::unique_ptr<Framebuffer> render_roll_frame(float roll_deg) {
+std::shared_ptr<Framebuffer> render_roll_frame(float roll_deg) {
     auto renderer = make_renderer();
     Composition comp({.name = "RollTest", .width = 640, .height = 480, .duration = 1},
         [roll_deg](const FrameContext& ctx) {

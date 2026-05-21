@@ -30,7 +30,7 @@ float scan_centroid_x(const Framebuffer& fb, Pred pred) {
     return cnt > 0 ? static_cast<float>(sum / cnt) : -1.0f;
 }
 
-std::unique_ptr<Framebuffer> render_pan_frame(float t, float z_near, float z_far) {
+std::shared_ptr<Framebuffer> render_pan_frame(float t, float z_near, float z_far) {
     auto renderer = make_renderer();
     Composition comp({.name = "PanTest", .width = 640, .height = 480, .duration = 1},
         [t, z_near, z_far](const FrameContext& ctx) {

@@ -6,6 +6,7 @@ namespace chronon3d::graph::detail {
 
 /// Blend the layer output into the current frame buffer using the layer's blend mode.
 void append_composite_pass(RenderGraph& graph, GraphNodeId& current,
-                           GraphNodeId layer_output, const Layer& layer);
+                           GraphNodeId layer_output, const Layer& layer,
+                           const RenderGraphContext& ctx);
 
 } // namespace chronon3d::graph::detail

@@ -6,7 +6,7 @@
 
 using namespace chronon3d;
 
-static std::unique_ptr<Framebuffer> render_single(
+static std::shared_ptr<Framebuffer> render_single(
     i32 w, i32 h,
     std::function<void(SceneBuilder&)> build_fn)
 {
@@ -20,7 +20,7 @@ static std::unique_ptr<Framebuffer> render_single(
     return renderer.render_frame(comp, 0);
 }
 
-static std::unique_ptr<Framebuffer> render_single_modular(
+static std::shared_ptr<Framebuffer> render_single_modular(
     i32 w, i32 h,
     std::function<void(SceneBuilder&)> build_fn)
 {

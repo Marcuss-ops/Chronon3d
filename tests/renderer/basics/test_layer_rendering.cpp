@@ -7,7 +7,7 @@ using namespace chronon3d;
 
 namespace {
 
-static std::unique_ptr<Framebuffer> render_layer(
+static std::shared_ptr<Framebuffer> render_layer(
     i32 w, i32 h, std::function<void(SceneBuilder&)> build)
 {
     SoftwareRenderer renderer;

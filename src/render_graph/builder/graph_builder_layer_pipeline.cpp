@@ -201,7 +201,7 @@ void LayerPipelineBuilder::append_layer_pipeline(RenderGraph& graph, const Layer
     }
 
     // 9. Composite pass — blend into the current frame buffer
-    append_composite_pass(graph, current, layer_output, *item.layer);
+    append_composite_pass(graph, current, layer_output, *item.layer, ctx);
     g_current_builder_layer_id = prev_layer;
 }
 

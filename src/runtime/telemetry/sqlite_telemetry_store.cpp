@@ -51,7 +51,7 @@ bool SqliteTelemetryStore::initialize(const std::string& db_path) {
     sqlite3_exec(m_impl->db, "PRAGMA journal_mode=WAL;", nullptr, nullptr, nullptr);
     sqlite3_exec(m_impl->db, "PRAGMA synchronous=NORMAL;", nullptr, nullptr, nullptr);
 
-    // Self-healing schema migration: Check if render_runs exists and has fewer columns than expected (53)
+    // Self-healing schema migration: Check if render_runs exists and has fewer columns than expected (57)
     bool needs_recreate = false;
     sqlite3_stmt* check_stmt{nullptr};
     if (sqlite3_prepare_v2(m_impl->db, "PRAGMA table_info(render_runs);", -1, &check_stmt, nullptr) == SQLITE_OK) {
@@ -60,7 +60,7 @@ bool SqliteTelemetryStore::initialize(const std::string& db_path) {
             cols++;
         }
         sqlite3_finalize(check_stmt);
-        if (cols > 0 && cols < 53) {
+        if (cols > 0 && cols < 57) {
             needs_recreate = true;
         }
     }
@@ -126,6 +126,10 @@ bool SqliteTelemetryStore::initialize(const std::string& db_path) {
         "    dirty_rect_count INTEGER,\n"
         "    dirty_pixels INTEGER,\n"
         "    dirty_full_fallbacks INTEGER,\n"
+        "    dirty_full_fallback_predicted_bounds_missing INTEGER,\n"
+        "    dirty_full_fallback_composite_missing_input_bounds INTEGER,\n"
+        "    dirty_full_fallback_transform_bounds_unknown INTEGER,\n"
+        "    dirty_full_fallback_effect_bounds_unknown INTEGER,\n"
         "    started_at_iso TEXT,\n"
         "    finished_at_iso TEXT,\n"
         "    git_commit_short TEXT,\n"
@@ -303,13 +307,29 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
     std::lock_guard<std::mutex> lock(m_impl->mutex);
     if (!m_impl->db) return false;
 
+    // Column index reference for positional binds (57 columns):
+    //   1)run_id  2)composition_id  3)output_path  4)success  5)error_code
+    //   6)error_message  7)frames_total  8)frames_written  9)wall_time_ms  10)render_ms
+    //  11)encode_ms  12)effective_fps  13)pixels_touched  14)cache_hits  15)cache_misses
+    //  16)nodes_executed  17)layers_rendered  18)text_glyphs_rasterized  19)images_sampled  20)blur_pixels
+    //  21)simd_lerp_calls  22)tiles_total  23)tiles_hit  24)tiles_miss  25)tiles_partial
+    //  26)bytes_allocated_peak  27)node_cache_hash_collisions
+    //  28)clear_calls  29)clear_pixels  30)composite_calls  31)composite_pixels  32)transform_calls
+    //  33)transform_pixels  34)effect_stack_calls  35)effect_pixels  36)layer_culling_tests
+    //  37)layers_culled  38)layers_visible  39)framebuffer_allocations  40)framebuffer_reuses
+    //  41)framebuffer_bytes_allocated  42)framebuffer_bytes_peak  43)dirty_rect_count  44)dirty_pixels
+    //  45)dirty_full_fallbacks
+    //  46)dirty_full_fallback_predicted_bounds_missing  47)dirty_full_fallback_composite_missing_input_bounds
+    //  48)dirty_full_fallback_transform_bounds_unknown  49)dirty_full_fallback_effect_bounds_unknown
+    //  50)started_at_iso  51)finished_at_iso  52)git_commit_short  53)build_type
+    //  54)compiler_info  55)os  56)cpu_model  57)cores
     const char* sql = "INSERT OR REPLACE INTO render_runs VALUES ("
         "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "
         "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "
         "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "
         "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "
         "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "
-        "?, ?, ?);"; // 53 ?s
+        "?, ?, ?, ?, ?);";
     sqlite3_stmt* stmt{nullptr};
     if (sqlite3_prepare_v2(m_impl->db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
         return false;
@@ -362,14 +382,19 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
     sqlite3_bind_int64(stmt, 44, run.dirty_pixels);
     sqlite3_bind_int64(stmt, 45, run.dirty_full_fallbacks);
 
-    sqlite3_bind_text(stmt, 46, run.started_at_iso.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 47, run.finished_at_iso.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 48, run.git_commit_short.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 49, run.build_type.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 50, run.compiler_info.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 51, run.os.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 52, run.cpu_model.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_int(stmt, 53, run.cores);
+    sqlite3_bind_int64(stmt, 46, run.dirty_full_fallback_predicted_bounds_missing);
+    sqlite3_bind_int64(stmt, 47, run.dirty_full_fallback_composite_missing_input_bounds);
+    sqlite3_bind_int64(stmt, 48, run.dirty_full_fallback_transform_bounds_unknown);
+    sqlite3_bind_int64(stmt, 49, run.dirty_full_fallback_effect_bounds_unknown);
+
+    sqlite3_bind_text(stmt, 50, run.started_at_iso.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 51, run.finished_at_iso.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 52, run.git_commit_short.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 53, run.build_type.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 54, run.compiler_info.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 55, run.os.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 56, run.cpu_model.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int(stmt, 57, run.cores);
 
     int rc = sqlite3_step(stmt);
     sqlite3_finalize(stmt);

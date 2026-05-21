@@ -4,7 +4,7 @@
 
 using namespace chronon3d;
 
-static std::unique_ptr<Framebuffer> render_fn(
+static std::shared_ptr<Framebuffer> render_fn(
     std::function<Scene(const FrameContext&)> fn, int w = 80, int h = 80)
 {
     SoftwareRenderer rend;

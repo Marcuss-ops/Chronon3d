@@ -18,7 +18,7 @@ SoftwareRenderer make_renderer() {
     return r;
 }
 
-std::unique_ptr<Framebuffer> render_news_frame(Frame f) {
+std::shared_ptr<Framebuffer> render_news_frame(Frame f) {
     auto renderer = make_renderer();
     Composition comp({.name="YTNews", .width=640, .height=360, .duration=90},
         [](const FrameContext& ctx) {

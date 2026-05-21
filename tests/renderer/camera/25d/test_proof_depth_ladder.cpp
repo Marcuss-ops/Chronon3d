@@ -20,7 +20,7 @@ SoftwareRenderer make_renderer() {
 }
 
 // Minimal scene: red card at z_red, blue card at z_blue, both at world XY center.
-std::unique_ptr<Framebuffer> render_two_cards(float z_red, float z_blue) {
+std::shared_ptr<Framebuffer> render_two_cards(float z_red, float z_blue) {
     auto renderer = make_renderer();
     Composition comp({.name = "DepthSort", .width = 400, .height = 400, .duration = 1},
         [z_red, z_blue](const FrameContext& ctx) {
@@ -44,7 +44,7 @@ std::unique_ptr<Framebuffer> render_two_cards(float z_red, float z_blue) {
 }
 
 // Separate cards at different Y to measure apparent size without overlap.
-std::unique_ptr<Framebuffer> render_scale_comparison() {
+std::shared_ptr<Framebuffer> render_scale_comparison() {
     auto renderer = make_renderer();
     Composition comp({.name = "DepthScale", .width = 640, .height = 480, .duration = 1},
         [](const FrameContext& ctx) {

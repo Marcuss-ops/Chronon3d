@@ -9,7 +9,7 @@ using namespace chronon3d;
 
 namespace {
 
-std::unique_ptr<Framebuffer> render25d(const Composition& comp) {
+std::shared_ptr<Framebuffer> render25d(const Composition& comp) {
     SoftwareRenderer renderer;
     RenderSettings settings;
     settings.use_modular_graph = true;

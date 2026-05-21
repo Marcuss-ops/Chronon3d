@@ -43,6 +43,18 @@ inline std::vector<chronon3d::telemetry::CounterTelemetryRecord> capture_counter
         {"dirty_rect_count", counters.dirty_rect_count.load(std::memory_order_relaxed)},
         {"dirty_pixels", counters.dirty_pixels.load(std::memory_order_relaxed)},
         {"dirty_full_fallbacks", counters.dirty_full_fallbacks.load(std::memory_order_relaxed)},
+        {"dirty_full_fallback_predicted_bounds_missing",
+            counters.dirty_full_fallback_reasons[static_cast<std::size_t>(DirtyFallbackReason::PredictedBoundsMissing)]
+                .load(std::memory_order_relaxed)},
+        {"dirty_full_fallback_composite_missing_input_bounds",
+            counters.dirty_full_fallback_reasons[static_cast<std::size_t>(DirtyFallbackReason::CompositeMissingInputBounds)]
+                .load(std::memory_order_relaxed)},
+        {"dirty_full_fallback_transform_bounds_unknown",
+            counters.dirty_full_fallback_reasons[static_cast<std::size_t>(DirtyFallbackReason::TransformBoundsUnknown)]
+                .load(std::memory_order_relaxed)},
+        {"dirty_full_fallback_effect_bounds_unknown",
+            counters.dirty_full_fallback_reasons[static_cast<std::size_t>(DirtyFallbackReason::EffectBoundsUnknown)]
+                .load(std::memory_order_relaxed)},
     };
 }
 
@@ -80,6 +92,12 @@ inline void add_counters(chronon3d::RenderCounters& dst, const chronon3d::Render
     dst.dirty_rect_count.fetch_add(src.dirty_rect_count.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.dirty_pixels.fetch_add(src.dirty_pixels.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.dirty_full_fallbacks.fetch_add(src.dirty_full_fallbacks.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    for (std::size_t i = 0; i < dirty_fallback_reason_count(); ++i) {
+        dst.dirty_full_fallback_reasons[i].fetch_add(
+            src.dirty_full_fallback_reasons[i].load(std::memory_order_relaxed),
+            std::memory_order_relaxed
+        );
+    }
 }
 
 inline void record_output_run(const std::string& composition_id,
@@ -146,6 +164,18 @@ inline void record_output_run(const std::string& composition_id,
         run.dirty_rect_count = counters_src->dirty_rect_count.load(std::memory_order_relaxed);
         run.dirty_pixels = counters_src->dirty_pixels.load(std::memory_order_relaxed);
         run.dirty_full_fallbacks = counters_src->dirty_full_fallbacks.load(std::memory_order_relaxed);
+        run.dirty_full_fallback_predicted_bounds_missing =
+            counters_src->dirty_full_fallback_reasons[static_cast<std::size_t>(DirtyFallbackReason::PredictedBoundsMissing)]
+                .load(std::memory_order_relaxed);
+        run.dirty_full_fallback_composite_missing_input_bounds =
+            counters_src->dirty_full_fallback_reasons[static_cast<std::size_t>(DirtyFallbackReason::CompositeMissingInputBounds)]
+                .load(std::memory_order_relaxed);
+        run.dirty_full_fallback_transform_bounds_unknown =
+            counters_src->dirty_full_fallback_reasons[static_cast<std::size_t>(DirtyFallbackReason::TransformBoundsUnknown)]
+                .load(std::memory_order_relaxed);
+        run.dirty_full_fallback_effect_bounds_unknown =
+            counters_src->dirty_full_fallback_reasons[static_cast<std::size_t>(DirtyFallbackReason::EffectBoundsUnknown)]
+                .load(std::memory_order_relaxed);
     }
 
     const auto resolved_counters = counters.empty() && counters_src
