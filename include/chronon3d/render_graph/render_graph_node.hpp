@@ -48,7 +48,8 @@ enum class RenderGraphNodeKind {
     MotionBlur,
     ColorConvert,
     TrackMatte,
-    Output
+    Output,
+    Transition
 };
 
 [[nodiscard]] inline std::string_view to_string(RenderGraphNodeKind kind) {
@@ -66,6 +67,7 @@ enum class RenderGraphNodeKind {
         case ColorConvert:   return "ColorConvert";
         case TrackMatte:     return "TrackMatte";
         case Output:         return "Output";
+        case Transition:     return "Transition";
     }
     return "Unknown";
 }
@@ -73,6 +75,7 @@ enum class RenderGraphNodeKind {
 struct RenderGraphContext {
     Frame frame{0};
     float time_seconds{0.0f};
+    float fps{30.0f};
     int width{0};
     int height{0};
     Camera camera{};

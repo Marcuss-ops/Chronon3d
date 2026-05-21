@@ -99,6 +99,7 @@ add_executable(chronon3d_renderer_tests
     render_graph/test_precompositions.cpp
     render_graph/test_modular_features.cpp
     render_graph/test_track_matte.cpp
+    render_graph/test_transition.cpp
     render_graph/test_camera_2_5d_graph.cpp
     renderer/camera/25d/test_25d_parallax.cpp
     renderer/camera/25d/test_proof_depth_ladder.cpp
