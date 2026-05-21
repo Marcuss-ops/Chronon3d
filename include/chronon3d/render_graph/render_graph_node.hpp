@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/cache/node_cache.hpp>
+#include <chronon3d/render_graph/cache_policy.hpp>
 #include <chronon3d/core/framebuffer.hpp>
 #include <chronon3d/cache/framebuffer_pool.hpp>
 #include <chronon3d/runtime/telemetry/render_telemetry_record.hpp>
@@ -216,6 +217,24 @@ public:
 
     [[nodiscard]] virtual CacheFramePolicy cache_frame_policy() const {
         return CacheFramePolicy::FrameDependent;
+    }
+
+    /// Rich cache policy descriptor.  Default implementation wraps the legacy
+    /// cacheable() / cache_frame_policy() / frame_dependent() API.
+    [[nodiscard]] virtual RenderNodeCachePolicy cache_policy() const {
+        return RenderNodeCachePolicy{
+            .cacheable = cacheable(),
+            .frame_dependent = frame_dependent() || cache_frame_policy() == CacheFramePolicy::FrameDependent,
+            .frame_invariant = cache_frame_policy() == CacheFramePolicy::FrameInvariant,
+            .disk_cacheable = false,
+            .lifetime = cache_frame_policy() == CacheFramePolicy::FrameInvariant
+                ? CacheLifetime::PerComposition
+                : CacheLifetime::PerFrame,
+            .invalidation = cache_frame_policy() == CacheFramePolicy::FrameInvariant
+                ? CacheInvalidation::WhenParamsChange
+                : CacheInvalidation::WhenInputsChange,
+            .debug_reason = "legacy_policy"
+        };
     }
 
     [[nodiscard]] bool frame_dependent() const { return m_frame_dependent; }

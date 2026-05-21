@@ -7,6 +7,8 @@ namespace chronon3d::cli {
 
 namespace {
 struct RenderState { std::shared_ptr<RenderArgs> args{std::make_shared<RenderArgs>()}; };
+
+struct BakeLayerState { std::shared_ptr<BakeLayerArgs> args{std::make_shared<BakeLayerArgs>()}; };
 }
 
 void register_render_commands(CLI::App& app, CliContext& ctx) {
@@ -54,6 +56,23 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
         }
         ctx.exit_code = command_render(ctx.registry, *state->args);
     });
+}
+
+    // ── bake-layer subcommand ─────────────────────────────────────────────
+    {
+        auto state = std::make_shared<BakeLayerState>();
+        auto& bake_args = *state->args;
+        auto* bake = app.add_subcommand("bake-layer", "Bake a single static layer to a PNG image");
+        bake->add_option("comp", bake_args.comp_id, "Composition id")->required();
+        bake->add_option("--layer", bake_args.layer_id, "Layer id to bake")->required();
+        bake->add_option("--frame", bake_args.frame, "Frame to bake")->default_val(0);
+        bake->add_option("-o,--output", bake_args.output, "Output PNG image path")->required();
+        bake->add_flag("--quiet", bake_args.quiet, "Suppress informational messages");
+        bake->add_flag("--diagnostic", bake_args.diagnostic, "Enable diagnostic overlays");
+        bake->callback([state, &ctx]() {
+            ctx.exit_code = command_bake_layer(ctx.registry, *state->args);
+        });
+    }
 }
 
 } // namespace chronon3d::cli

@@ -29,6 +29,7 @@ add_executable(chronon3d_cli
     commands/command_preflight.cpp
     commands/command_proofs.cpp
     commands/command_telemetry.cpp
+    commands/command_bake_layer.cpp
 )
 
 get_target_property(CLI11_INCLUDE_DIRS CLI11::CLI11 INTERFACE_INCLUDE_DIRECTORIES)
