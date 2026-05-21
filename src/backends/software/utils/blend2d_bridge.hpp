@@ -264,7 +264,8 @@ inline void composite_framebuffer_transformed(Framebuffer& dst_fb, const Framebu
             const int sx = std::clamp(static_cast<int>(lx), 0, sw - 1);
             const int sy = std::clamp(static_cast<int>(ly), 0, sh - 1);
             
-            Color src = src_fb.get_pixel(sx, sy);
+            const Color* src_row = src_fb.pixels_row(sy);
+            Color src = src_row[sx];
             src.r *= opacity;
             src.g *= opacity;
             src.b *= opacity;

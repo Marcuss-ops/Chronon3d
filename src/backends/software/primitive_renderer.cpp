@@ -18,8 +18,9 @@ std::unique_ptr<Framebuffer> downsample_fb(const Framebuffer& src, i32 dst_w, i3
             int y1 = std::min(static_cast<int>((y + 1) * sy), src.height());
 
             for (int sy_i = y0; sy_i < y1; ++sy_i) {
+                const Color* src_row = src.pixels_row(sy_i);
                 for (int sx_i = x0; sx_i < x1; ++sx_i) {
-                    Color c = src.get_pixel(sx_i, sy_i);
+                    Color c = src_row[sx_i];
                     r += c.r;
                     g += c.g;
                     b += c.b;

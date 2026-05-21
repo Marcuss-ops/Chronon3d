@@ -5,6 +5,10 @@
 #include <chronon3d/core/render_telemetry.hpp>
 #include <chronon3d/render_graph/graph_builder.hpp>
 #include <chronon3d/render_graph/graph_executor.hpp>
+#include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/math/camera_2_5d_projection.hpp>
+#include "builder/graph_builder_pipeline.hpp"
+#include "builder/graph_builder_internal.hpp"
 #include <spdlog/spdlog.h>
 #include <algorithm>
 #include <chrono>
@@ -117,7 +121,8 @@ RenderGraphContext make_graph_context(
         .ssaa_factor = settings.ssaa_factor,
         .modular_coordinates = settings.use_modular_graph,
         .tile_size = settings.tile_size,
-        .optimize_compositing = settings.optimize_compositing
+        .optimize_compositing = settings.optimize_compositing,
+        .dirty_rects_enabled = settings.dirty_rects
     };
 }
 
@@ -163,13 +168,201 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         ctx.projection_ctx.ready = true;
     }
     
-    RenderGraph graph = GraphBuilder::build(scene, ctx);
+    SoftwareRenderer* sw_renderer = dynamic_cast<SoftwareRenderer*>(&backend);
+    const auto resolved = detail::resolve_layers(scene, ctx);
+    
+    std::unordered_map<std::string, SoftwareRenderer::LayerBBoxState> current_layer_bboxes;
+    std::optional<raster::BBox> dirty_rect;
+
+    if (sw_renderer) {
+        const Camera2_5DRuntime& cam25d = resolved.camera.camera;
+
+        // Lambda to compute a bbox for a resolved layer
+        auto compute_bbox_for_resolved = [&](const ResolvedLayer& rl, const Camera2_5DRuntime& cam) -> raster::BBox {
+            LayerGraphItem item;
+            if (cam.enabled && rl.layer->is_3d) {
+                Transform effective_transform = rl.world_transform;
+                if (!ctx.modular_coordinates) {
+                    effective_transform.position.x -= ctx.width * 0.5f;
+                    effective_transform.position.y -= ctx.height * 0.5f;
+                }
+                const Mat4 projection_world_matrix = effective_transform.to_mat4();
+                auto proj = project_layer_2_5d(
+                    effective_transform,
+                    projection_world_matrix,
+                    cam,
+                    static_cast<f32>(ctx.width),
+                    static_cast<f32>(ctx.height)
+                );
+                if (proj.visible) {
+                    const Mat4 eff_proj = detail::is_native_3d_layer(*rl.layer)
+                        ? Mat4(1.0f)
+                        : proj.projection_matrix;
+                    item = LayerGraphItem{
+                        .layer             = rl.layer,
+                        .transform         = proj.transform,
+                        .world_matrix      = rl.world_matrix,
+                        .projection_matrix = eff_proj,
+                        .depth             = proj.depth,
+                        .world_z           = rl.world_transform.position.z,
+                        .projected         = true,
+                        .native_3d         = detail::is_native_3d_layer(*rl.layer),
+                        .insertion_index   = rl.insertion_index,
+                    };
+                } else {
+                    return raster::BBox{0, 0, 0, 0};
+                }
+            } else {
+                item = LayerGraphItem{
+                    .layer           = rl.layer,
+                    .transform       = rl.world_transform,
+                    .world_matrix    = rl.world_matrix,
+                    .depth           = 0.0f,
+                    .world_z         = rl.world_transform.position.z,
+                    .projected       = false,
+                    .native_3d       = detail::is_native_3d_layer(*rl.layer),
+                    .insertion_index = rl.insertion_index,
+                };
+            }
+            return detail::compute_layer_bbox(item, ctx, sw_renderer);
+        };
+
+        // Compute current bboxes and build current state map
+        for (const auto& rl : resolved.layers) {
+            if (rl.layer && rl.layer->active_at(frame)) {
+                raster::BBox bbox = compute_bbox_for_resolved(rl, cam25d);
+                SoftwareRenderer::LayerBBoxState state;
+                state.bbox = bbox;
+                state.world_matrix = rl.world_matrix;
+                state.opacity = rl.world_transform.opacity;
+                state.visible = rl.layer->visible;
+                state.cache_static = rl.layer->cache_static;
+                state.is_3d = rl.layer->is_3d;
+                current_layer_bboxes[std::string(rl.layer->name)] = state;
+            }
+        }
+
+        bool use_dirty_rects = settings.enable_dirty_rects &&
+                               sw_renderer->m_prev_framebuffer &&
+                               sw_renderer->m_prev_framebuffer->width() == width &&
+                               sw_renderer->m_prev_framebuffer->height() == height &&
+                               sw_renderer->m_prev_frame == frame - 1;
+
+        if (use_dirty_rects) {
+            bool camera_changed = !sw_renderer->m_prev_camera_valid ||
+                                  sw_renderer->m_prev_camera.enabled != cam25d.enabled ||
+                                  (cam25d.enabled && (
+                                      sw_renderer->m_prev_camera.position != cam25d.position ||
+                                      sw_renderer->m_prev_camera.zoom != cam25d.zoom ||
+                                      sw_renderer->m_prev_camera.fov_deg != cam25d.fov_deg ||
+                                      sw_renderer->m_prev_camera.rotation != cam25d.rotation ||
+                                      sw_renderer->m_prev_camera.projection_mode != cam25d.projection_mode
+                                  ));
+
+            raster::BBox union_dirty{0, 0, 0, 0};
+            bool has_dirty = false;
+            auto add_dirty_bbox = [&](const raster::BBox& b) {
+                if (b.is_empty()) return;
+                raster::BBox clipped = b;
+                clipped.clip_to(width, height);
+                if (clipped.is_empty()) return;
+                
+                if (!has_dirty) {
+                    union_dirty = clipped;
+                    has_dirty = true;
+                } else {
+                    union_dirty.x0 = std::min(union_dirty.x0, clipped.x0);
+                    union_dirty.y0 = std::min(union_dirty.y0, clipped.y0);
+                    union_dirty.x1 = std::max(union_dirty.x1, clipped.x1);
+                    union_dirty.y1 = std::max(union_dirty.y1, clipped.y1);
+                }
+            };
+
+            // Check every layer active in the current frame
+            for (const auto& pair : current_layer_bboxes) {
+                const std::string& name = pair.first;
+                const auto& curr = pair.second;
+
+                auto prev_it = sw_renderer->m_prev_layer_bboxes.find(name);
+                if (prev_it == sw_renderer->m_prev_layer_bboxes.end()) {
+                    // New layer!
+                    add_dirty_bbox(curr.bbox);
+                } else {
+                    const auto& prev = prev_it->second;
+                    bool layer_dirty = false;
+                    
+                    if (camera_changed && curr.is_3d) {
+                        layer_dirty = true;
+                    } else if (!curr.cache_static) {
+                        layer_dirty = true;
+                    } else if (curr.world_matrix != prev.world_matrix ||
+                               curr.opacity != prev.opacity ||
+                               curr.visible != prev.visible) {
+                        layer_dirty = true;
+                    }
+
+                    if (layer_dirty) {
+                        add_dirty_bbox(curr.bbox);
+                        add_dirty_bbox(prev.bbox);
+                    }
+                }
+            }
+
+            // Check for layers that were present in previous frame but are gone in current frame
+            for (const auto& pair : sw_renderer->m_prev_layer_bboxes) {
+                const std::string& name = pair.first;
+                const auto& prev = pair.second;
+                if (current_layer_bboxes.find(name) == current_layer_bboxes.end()) {
+                    // Layer was removed!
+                    add_dirty_bbox(prev.bbox);
+                }
+            }
+
+            if (has_dirty) {
+                dirty_rect = union_dirty;
+            } else {
+                dirty_rect = raster::BBox{0, 0, 0, 0};
+            }
+        } else {
+            dirty_rect = raster::BBox{0, 0, width, height};
+        }
+    } else {
+        dirty_rect = raster::BBox{0, 0, width, height};
+    }
+
+    double dirty_ratio = 1.0;
+    if (dirty_rect) {
+        double dirty_area = static_cast<double>(std::max(0, dirty_rect->x1 - dirty_rect->x0)) * std::max(0, dirty_rect->y1 - dirty_rect->y0);
+        double total_area = static_cast<double>(width) * height;
+        dirty_ratio = dirty_area / total_area;
+    }
+    
+    if (sw_renderer) {
+        sw_renderer->m_last_dirty_area_ratio = dirty_ratio;
+    }
+    
+    ctx.dirty_rect = dirty_rect;
+
+    RenderGraph graph = detail::build_graph(scene, ctx, resolved);
     const auto t_build1 = std::chrono::steady_clock::now();
 
     const auto t_exec0 = std::chrono::steady_clock::now();
     GraphExecutor executor;
     auto fb_shared = executor.execute(graph, graph.output(), ctx);
     const auto t_exec1 = std::chrono::steady_clock::now();
+    
+    if (sw_renderer) {
+        if (!sw_renderer->m_prev_framebuffer || sw_renderer->m_prev_framebuffer->width() != width || sw_renderer->m_prev_framebuffer->height() != height) {
+            sw_renderer->m_prev_framebuffer = std::make_shared<Framebuffer>(width, height);
+        }
+        if (fb_shared && fb_shared.get() != sw_renderer->m_prev_framebuffer.get()) {
+            std::copy(fb_shared->data(), fb_shared->data() + fb_shared->pixel_count(), sw_renderer->m_prev_framebuffer->data());
+        }
+        sw_renderer->m_prev_layer_bboxes = std::move(current_layer_bboxes);
+        sw_renderer->m_prev_frame = frame;
+        sw_renderer->m_prev_camera = resolved.camera.camera;
+        sw_renderer->m_prev_camera_valid = resolved.camera.camera.enabled;
+    }
     const auto hits_after = node_cache.stats().hits;
 
     const auto t1 = std::chrono::steady_clock::now();
