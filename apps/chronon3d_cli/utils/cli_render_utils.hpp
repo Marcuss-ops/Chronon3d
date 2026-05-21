@@ -22,6 +22,7 @@ RenderSettings settings_from_args(const Args& args,
     RenderSettings s;
     s.diagnostic               = diagnostic || args.pipeline.diagnostic;
     s.use_modular_graph        = args.pipeline.use_modular_graph;
+    s.dirty_rects              = args.pipeline.dirty_rects;
     s.motion_blur.enabled      = motion_blur_allowed && args.pipeline.quality.motion_blur;
     s.motion_blur.samples      = args.pipeline.quality.motion_blur_samples;
     s.motion_blur.shutter_angle = args.pipeline.quality.shutter_angle;

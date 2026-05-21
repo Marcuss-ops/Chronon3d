@@ -22,7 +22,7 @@ using namespace chronon3d::graph;
 
 // Native-3D shapes handle their own screen-space projection internally.
 // They must use an identity projection_matrix so TransformNode is a pass-through.
-static bool is_native_3d_layer(const Layer& layer) {
+bool is_native_3d_layer(const Layer& layer) {
     for (const auto& node : layer.nodes) {
         if (node.shape.type == ShapeType::FakeBox3D  ||
             node.shape.type == ShapeType::GridPlane) {
@@ -32,7 +32,7 @@ static bool is_native_3d_layer(const Layer& layer) {
     return false;
 }
 
-static raster::BBox compute_layer_bbox(const LayerGraphItem& item, const RenderGraphContext& ctx, SoftwareRenderer* renderer) {
+raster::BBox compute_layer_bbox(const LayerGraphItem& item, const RenderGraphContext& ctx, SoftwareRenderer* renderer) {
     const Layer& layer = *item.layer;
 
     // Adjustment layers always cover the full canvas

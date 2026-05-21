@@ -138,13 +138,38 @@ public:
     }
 
     raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 spread) override {
-        // Simple approximation for text bbox
-        Vec3 pos = Vec3(model[3]);
+        const auto& txt = shape.text;
+        f32 w = 400.0f;
+        f32 h = 200.0f;
+        if (txt.box.enabled && txt.box.size.x > 0.0f && txt.box.size.y > 0.0f) {
+            w = txt.box.size.x;
+            h = txt.box.size.y;
+        }
+
+        // Corners in local space
+        Vec4 corners[4] = {
+            model * Vec4(0.0f, 0.0f, 0.0f, 1.0f),
+            model * Vec4(w,    0.0f, 0.0f, 1.0f),
+            model * Vec4(w,    h,    0.0f, 1.0f),
+            model * Vec4(0.0f, h,    0.0f, 1.0f)
+        };
+
+        f32 min_x = 1e10f, max_x = -1e10f;
+        f32 min_y = 1e10f, max_y = -1e10f;
+        for (const auto& c : corners) {
+            min_x = std::min(min_x, c.x);
+            max_x = std::max(max_x, c.x);
+            min_y = std::min(min_y, c.y);
+            max_y = std::max(max_y, c.y);
+        }
+
+        const f32 pad = spread + 20.0f;
+
         return {
-            static_cast<i32>(pos.x - 200),
-            static_cast<i32>(pos.y - 100),
-            static_cast<i32>(pos.x + 200),
-            static_cast<i32>(pos.y + 100)
+            static_cast<i32>(std::floor(min_x - pad)),
+            static_cast<i32>(std::floor(min_y - pad)),
+            static_cast<i32>(std::ceil(max_x + pad)),
+            static_cast<i32>(std::ceil(max_y + pad))
         };
     }
 

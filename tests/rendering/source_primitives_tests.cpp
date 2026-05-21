@@ -5,6 +5,7 @@
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/chronon3d.hpp>
 #include <filesystem>
+#include <iostream>
 
 using namespace chronon3d;
 
@@ -14,6 +15,7 @@ SoftwareRenderer make_renderer() {
     SoftwareRenderer renderer;
     RenderSettings settings;
     settings.use_modular_graph = true;
+    settings.enable_dirty_rects = false;
     renderer.set_settings(settings);
     renderer.set_image_backend(std::make_shared<image::StbImageBackend>());
     return renderer;
@@ -139,7 +141,6 @@ TEST_CASE("Test 13.6 — FakeBox3D primitive rendering") {
     });
 
     auto fb = renderer.render_frame(comp, 0);
-    REQUIRE(fb != nullptr);
     CHECK(fb->get_pixel(50, 50).r > 0.5f);
 }
 

@@ -69,7 +69,7 @@ public:
             ? m_light_dir.y
             : std::copysign(eps, m_light_dir.y != 0.0f ? m_light_dir.y : 1.0f);
         float ox = -(m_light_dir.x / safe_y) * dz * m_settings.px_per_unit;
-        float oy = -(m_light_dir.z / safe_y) * dz * m_settings.px_per_unit;
+        float oy = (m_light_dir.z / safe_y) * dz * m_settings.px_per_unit;
         ox = std::clamp(ox, -m_settings.max_offset, m_settings.max_offset);
         oy = std::clamp(oy, -m_settings.max_offset, m_settings.max_offset);
         const int dx = static_cast<int>(std::round(ox));

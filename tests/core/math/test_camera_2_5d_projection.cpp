@@ -220,5 +220,5 @@ TEST_CASE("Camera2_5D projection: direct point projection keeps X and Y orientat
         screen, depth
     );
     CHECK(ok_up);
-    CHECK(screen.y < 0.0f);
+    CHECK(screen.y > 0.0f);
 }

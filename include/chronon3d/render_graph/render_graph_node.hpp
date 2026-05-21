@@ -90,6 +90,7 @@ struct RenderGraphContext {
     RenderBackend* backend{nullptr};
     cache::NodeCache* node_cache{nullptr};
     std::shared_ptr<cache::FramebufferPool> framebuffer_pool;
+    std::optional<raster::BBox> dirty_rect;
 
     std::shared_ptr<Framebuffer> acquire_framebuffer(
         int w,
@@ -145,17 +146,17 @@ struct RenderGraphContext {
                 }
             }
             fb->clear(Color::transparent(), local_clip);
-            if (counters) {
-                counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
+                if (counters) {
+                    counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
                 const uint64_t pixels = local_clip
                     ? static_cast<uint64_t>(std::max(0, local_clip->x1 - local_clip->x0)) *
                       static_cast<uint64_t>(std::max(0, local_clip->y1 - local_clip->y0))
                     : static_cast<uint64_t>(w) * static_cast<uint64_t>(h);
                 counters->clear_pixels.fetch_add(pixels, std::memory_order_relaxed);
+                }
             }
+            return fb;
         }
-        return fb;
-    }
 
     std::shared_ptr<Framebuffer> acquire_framebuffer(const Framebuffer& other) const {
         auto fb = acquire_framebuffer(other.width(), other.height(), false);
@@ -182,6 +183,7 @@ struct RenderGraphContext {
 
     // Optimization flags
     bool optimize_compositing{true};
+    bool dirty_rects_enabled{false};
 
     // ── Per-node / per-layer telemetry collectors ────────────────────────────
     // Populated during graph execution; flushed via TelemetryManager after frame.

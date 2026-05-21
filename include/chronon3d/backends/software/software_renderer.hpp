@@ -97,6 +97,8 @@ public:
         return m_image_backend.get();
     }
 
+    [[nodiscard]] double last_dirty_area_ratio() const { return m_last_dirty_area_ratio; }
+
     // Public for use by graph nodes via RenderGraphContext.
     void draw_node(Framebuffer& fb, const RenderNode& node, const RenderState& state,
                    const Camera& camera, i32 width, i32 height) override;
@@ -119,6 +121,23 @@ public:
     ~SoftwareRenderer() override;
     SoftwareRenderer(SoftwareRenderer&&) noexcept = default;
     SoftwareRenderer& operator=(SoftwareRenderer&&) noexcept = default;
+
+    struct LayerBBoxState {
+        raster::BBox bbox;
+        Mat4 world_matrix;
+        f32 opacity{1.0f};
+        bool visible{true};
+        bool cache_static{false};
+        bool is_3d{false};
+    };
+
+    // Dirty rectangles tracking
+    std::shared_ptr<Framebuffer> m_prev_framebuffer;
+    std::unordered_map<std::string, LayerBBoxState> m_prev_layer_bboxes;
+    Frame m_prev_frame{-1};
+    double m_last_dirty_area_ratio{1.0};
+    Camera2_5D m_prev_camera;
+    bool m_prev_camera_valid{false};
 
 private:
     ImageRenderer     m_image_renderer;
