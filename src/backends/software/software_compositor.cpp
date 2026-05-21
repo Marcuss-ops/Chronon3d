@@ -19,17 +19,28 @@ void SoftwareCompositor::composite_layer(Framebuffer& dst, const Framebuffer& sr
     
     if (x0 >= x1 || y0 >= y1) return;
 
-    if (mode == BlendMode::Normal) {
+    const i32 src_x0 = x0 - src.origin_x();
+    const i32 src_y0 = y0 - src.origin_y();
+    const i32 src_x1 = x1 - src.origin_x();
+    const i32 src_y1 = y1 - src.origin_y();
+
+    if (mode == BlendMode::Normal && src.origin_x() == 0 && src.origin_y() == 0) {
         if (composite_layer_normal_optimized(dst, src, x0, y0, x1, y1)) {
             return;
         }
     }
 
     for (i32 y = y0; y < y1; ++y) {
+        const i32 sy = y - src.origin_y();
+        if (sy < 0 || sy >= src.height()) continue;
+        const Color* s_row = src.pixels_row(sy);
+        Color* d_row = dst.pixels_row(y);
         for (i32 x = x0; x < x1; ++x) {
-            Color s = src.get_pixel(x, y);
+            const i32 sx = x - src.origin_x();
+            if (sx < 0 || sx >= src.width()) continue;
+            Color s = s_row[sx];
             if (s.a <= 0.0f) continue;
-            dst.set_pixel(x, y, compositor::blend(s, dst.get_pixel(x, y), mode));
+            d_row[x] = compositor::blend(s, d_row[x], mode);
         }
     }
 }

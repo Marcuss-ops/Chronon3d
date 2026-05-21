@@ -23,10 +23,16 @@ std::shared_ptr<Framebuffer> TransformNode::execute(
     }
 
     auto input = inputs[0];
-    auto result = ctx.acquire_framebuffer(ctx.width, ctx.height, true);
+    const auto predicted = predicted_bbox(ctx, input_bboxes);
+    const raster::BBox out_bounds = predicted.value_or(raster::BBox{0, 0, ctx.width, ctx.height});
+    const i32 out_w = std::max(1, out_bounds.x1 - out_bounds.x0);
+    const i32 out_h = std::max(1, out_bounds.y1 - out_bounds.y0);
+    auto result = ctx.acquire_framebuffer(out_w, out_h, true, out_bounds);
 
     // Centering logic: both source and destination framebuffers are centered at (0,0) in scene space.
-    const Mat4 dst_canvas_offset = math::translate(Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
+    const Mat4 dst_canvas_offset = math::translate(Vec3(static_cast<f32>(result->origin_x()) + result->width() * 0.5f,
+                                                        static_cast<f32>(result->origin_y()) + result->height() * 0.5f,
+                                                        0.0f));
     const Mat4 src_canvas_offset = math::translate(Vec3(input->width() * 0.5f, input->height() * 0.5f, 0.0f));
     
     // Final pixel matrix: DstPixel <- DstScene <- SrcScene <- SrcPixel
@@ -102,10 +108,10 @@ std::shared_ptr<Framebuffer> TransformNode::execute(
         max_y = std::max(max_y, py);
     }
 
-    i32 x0 = std::clamp(static_cast<i32>(std::floor(min_x)), 0, ctx.width);
-    i32 x1 = std::clamp(static_cast<i32>(std::ceil(max_x)), 0, ctx.width);
-    i32 y0 = std::clamp(static_cast<i32>(std::floor(min_y)), 0, ctx.height);
-    i32 y1 = std::clamp(static_cast<i32>(std::ceil(max_y)), 0, ctx.height);
+    i32 x0 = std::clamp(static_cast<i32>(std::floor(min_x)), result->origin_x(), result->origin_x() + result->width());
+    i32 x1 = std::clamp(static_cast<i32>(std::ceil(max_x)), result->origin_x(), result->origin_x() + result->width());
+    i32 y0 = std::clamp(static_cast<i32>(std::floor(min_y)), result->origin_y(), result->origin_y() + result->height());
+    i32 y1 = std::clamp(static_cast<i32>(std::ceil(max_y)), result->origin_y(), result->origin_y() + result->height());
     const uint64_t area = (x1 > x0 && y1 > y0)
         ? static_cast<uint64_t>(x1 - x0) * static_cast<uint64_t>(y1 - y0)
         : 0;
@@ -126,7 +132,7 @@ std::shared_ptr<Framebuffer> TransformNode::execute(
     if (is_affine) {
         const f32 inv_z = 1.0f / h_col_start.z;
         for (i32 y = y0; y < y1; ++y) {
-            Color* dst_row = result->pixels_row(y);
+            Color* dst_row = result->pixels_row(y - result->origin_y());
             Vec3 h_row = h_col_start + h_step_y * static_cast<f32>(y - y0);
             for (i32 x = x0; x < x1; ++x) {
                 const f32 sx = h_row.x * inv_z;
@@ -135,7 +141,7 @@ std::shared_ptr<Framebuffer> TransformNode::execute(
                     Color src = input->sample(sx, sy, m_mode);
                     if (src.a > 0.001f) {
                         src.r *= opacity; src.g *= opacity; src.b *= opacity; src.a *= opacity;
-                        dst_row[x] = src;
+                        dst_row[x - result->origin_x()] = src;
                     }
                 }
                 h_row += h_step_x;
@@ -143,7 +149,7 @@ std::shared_ptr<Framebuffer> TransformNode::execute(
         }
     } else {
         for (i32 y = y0; y < y1; ++y) {
-            Color* dst_row = result->pixels_row(y);
+            Color* dst_row = result->pixels_row(y - result->origin_y());
             Vec3 h_row = h_col_start + h_step_y * static_cast<f32>(y - y0);
             for (i32 x = x0; x < x1; ++x) {
                 if (std::abs(h_row.z) > 1e-9f) {
@@ -154,7 +160,7 @@ std::shared_ptr<Framebuffer> TransformNode::execute(
                         Color src = input->sample(sx, sy, m_mode);
                         if (src.a > 0.001f) {
                             src.r *= opacity; src.g *= opacity; src.b *= opacity; src.a *= opacity;
-                            dst_row[x] = src;
+                            dst_row[x - result->origin_x()] = src;
                         }
                     }
                 }
