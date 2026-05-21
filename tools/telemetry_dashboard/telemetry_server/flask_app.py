@@ -2,6 +2,8 @@ import os
 import json
 import sqlite3
 import time
+import secrets
+from functools import wraps
 from pathlib import Path
 from flask import Flask, jsonify, request, send_file, Response
 from flask_cors import CORS
@@ -13,9 +15,40 @@ app = Flask(__name__)
 CORS(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
+# ── Simple Password Auth ─────────────────────────────────────────────────────────────
+DASHBOARD_PASSWORD = "ciao"
+# In-memory token store (valid for session lifetime)
+auth_tokens = set()
+
+def require_auth(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = request.headers.get('Authorization', '').replace('Bearer ', '')
+        if token not in auth_tokens:
+            return jsonify({"error": "Unauthorized"}), 401
+        return f(*args, **kwargs)
+    return decorated
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 
+@app.route('/api/login', methods=['POST'])
+def login():
+    data = request.get_json() or {}
+    password = data.get('password', '')
+    if password == DASHBOARD_PASSWORD:
+        token = secrets.token_urlsafe(32)
+        auth_tokens.add(token)
+        return jsonify({"token": token, "success": True})
+    return jsonify({"error": "Invalid password"}), 403
+
+@app.route('/api/logout', methods=['POST'])
+def logout():
+    token = request.headers.get('Authorization', '').replace('Bearer ', '')
+    auth_tokens.discard(token)
+    return jsonify({"success": True})
+
 @app.route('/api/runs')
+@require_auth
 def get_runs():
     conn = None
     try:
@@ -31,6 +64,7 @@ def get_runs():
             conn.close()
 
 @app.route('/api/run/<run_id>')
+@require_auth
 def get_run_detail(run_id):
     conn = None
     try:
@@ -73,6 +107,13 @@ def get_run_detail(run_id):
 
 @app.route('/artifact')
 def get_artifact():
+    # Allow token via query param for browser <img>/<video> tags that can't send headers
+    token = request.headers.get('Authorization', '').replace('Bearer ', '')
+    if not token:
+        token = request.args.get('token', '')
+    if token not in auth_tokens:
+        return "Unauthorized", 401
+
     raw_path = request.args.get('path', '')
     if not raw_path:
         return "Missing path", 400
@@ -107,6 +148,7 @@ def serve_static(path):
 import re
 
 @app.route('/api/graph/<composition_id>')
+@require_auth
 def get_graph(composition_id):
     dot_path = PROJECT_ROOT / "output" / f"{composition_id}_graph.dot"
     cli_path = PROJECT_ROOT / "build_vs" / "apps" / "chronon3d_cli" / "Release" / "chronon3d_cli.exe"
