@@ -1,5 +1,4 @@
 #include <chronon3d/specscene/specscene.hpp>
-#include <chronon3d/runtime/legacy_scene_adapter.hpp>
 #include <chronon3d/runtime/timeline_evaluator.hpp>
 #include <chronon3d/scene/builders/builder_params.hpp>
 #include <chronon3d/scene/layer/depth_role.hpp>
@@ -345,9 +344,7 @@ std::optional<Composition> compile_file(const std::filesystem::path& path,
     SceneDescription scene = std::move(doc->scene);
     Composition comp(spec, [scene = std::move(scene)](const FrameContext& ctx) {
         TimelineEvaluator evaluator;
-        const auto evaluated = evaluator.evaluate(scene, ctx.frame);
-        LegacySceneAdapter adapter;
-        return adapter.convert(evaluated, ctx.resource);
+        return evaluator.evaluate(scene, ctx.frame, ctx.resource);
     });
 
     if (doc->has_render_camera) {
