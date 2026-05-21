@@ -29,14 +29,16 @@ public:
     }
 
     Framebuffer(const Framebuffer& other)
-        : m_width(other.m_width), m_height(other.m_height), m_pixels(other.m_pixels) {
+        : m_width(other.m_width), m_height(other.m_height), m_origin_x(other.m_origin_x), m_origin_y(other.m_origin_y), m_pixels(other.m_pixels) {
         increment_allocations(size_bytes());
     }
 
     Framebuffer(Framebuffer&& other) noexcept
-        : m_width(other.m_width), m_height(other.m_height), m_pixels(std::move(other.m_pixels)) {
+        : m_width(other.m_width), m_height(other.m_height), m_origin_x(other.m_origin_x), m_origin_y(other.m_origin_y), m_pixels(std::move(other.m_pixels)) {
         other.m_width = 0;
         other.m_height = 0;
+        other.m_origin_x = 0;
+        other.m_origin_y = 0;
     }
 
     Framebuffer& operator=(const Framebuffer& other) {
@@ -44,6 +46,8 @@ public:
             decrement_allocations(size_bytes());
             m_width = other.m_width;
             m_height = other.m_height;
+            m_origin_x = other.m_origin_x;
+            m_origin_y = other.m_origin_y;
             m_pixels = other.m_pixels;
             increment_allocations(size_bytes());
         }
@@ -55,9 +59,13 @@ public:
             decrement_allocations(size_bytes());
             m_width = other.m_width;
             m_height = other.m_height;
+            m_origin_x = other.m_origin_x;
+            m_origin_y = other.m_origin_y;
             m_pixels = std::move(other.m_pixels);
             other.m_width = 0;
             other.m_height = 0;
+            other.m_origin_x = 0;
+            other.m_origin_y = 0;
         }
         return *this;
     }
@@ -149,6 +157,12 @@ public:
 
     [[nodiscard]] i32 width() const { return m_width; }
     [[nodiscard]] i32 height() const { return m_height; }
+    [[nodiscard]] i32 origin_x() const { return m_origin_x; }
+    [[nodiscard]] i32 origin_y() const { return m_origin_y; }
+    void set_origin(i32 x, i32 y) {
+        m_origin_x = x;
+        m_origin_y = y;
+    }
     [[nodiscard]] usize size_bytes() const { return m_pixels.size() * sizeof(Color); }
 
 private:
@@ -175,6 +189,8 @@ private:
 
     i32 m_width;
     i32 m_height;
+    i32 m_origin_x{0};
+    i32 m_origin_y{0};
     std::vector<Color> m_pixels;
 };
 
