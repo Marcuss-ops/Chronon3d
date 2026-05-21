@@ -93,11 +93,31 @@ struct RenderGraphContext {
 
     std::shared_ptr<Framebuffer> acquire_framebuffer(int w, int h, bool clear = true) const {
         if (framebuffer_pool) {
-            return framebuffer_pool->acquire_pooled(w, h, framebuffer_pool, clear);
+            auto fb = framebuffer_pool->acquire_pooled(w, h, framebuffer_pool, false);
+            if (clear) {
+                fb->clear(Color::transparent(), clip_rect);
+                if (counters) {
+                    counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
+                    const uint64_t pixels = clip_rect
+                        ? static_cast<uint64_t>(std::max(0, clip_rect->x1 - clip_rect->x0)) *
+                          static_cast<uint64_t>(std::max(0, clip_rect->y1 - clip_rect->y0))
+                        : static_cast<uint64_t>(w) * static_cast<uint64_t>(h);
+                    counters->clear_pixels.fetch_add(pixels, std::memory_order_relaxed);
+                }
+            }
+            return fb;
         }
         auto fb = std::make_shared<Framebuffer>(w, h);
         if (clear) {
-            fb->clear(Color::transparent());
+            fb->clear(Color::transparent(), clip_rect);
+            if (counters) {
+                counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
+                const uint64_t pixels = clip_rect
+                    ? static_cast<uint64_t>(std::max(0, clip_rect->x1 - clip_rect->x0)) *
+                      static_cast<uint64_t>(std::max(0, clip_rect->y1 - clip_rect->y0))
+                    : static_cast<uint64_t>(w) * static_cast<uint64_t>(h);
+                counters->clear_pixels.fetch_add(pixels, std::memory_order_relaxed);
+            }
         }
         return fb;
     }

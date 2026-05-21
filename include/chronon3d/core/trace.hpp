@@ -6,6 +6,7 @@
 #include <atomic>
 #include <cstdint>
 #include <string_view>
+#include <memory>
 
 namespace chronon3d {
 
