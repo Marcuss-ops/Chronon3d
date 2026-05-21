@@ -9,7 +9,7 @@ from telemetry_server.flask_app import app, socketio
 
 def run_server(port=8000):
     print(f"Chronon3D Telemetry Flask Server running on http://localhost:{port}")
-    socketio.run(app, host='0.0.0.0', port=port, debug=False)
+    socketio.run(app, host='0.0.0.0', port=port, debug=False, allow_unsafe_werkzeug=True)
 
 
 if __name__ == '__main__':

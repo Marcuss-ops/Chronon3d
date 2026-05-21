@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import './App.css';
 
-import { fetchRuns, fetchRunDetail } from './api/telemetryApi.js';
+import { fetchRuns, fetchRunDetail, login, logout } from './api/telemetryApi.js';
 import { formatBytes, formatIso, formatCounterValue } from './utils/format.jsx';
 
 import { io } from 'socket.io-client';
+import { WS_BASE } from './data/constants.js';
 import Sidebar from './components/Sidebar.jsx';
 import TabNavigation from './components/TabNavigation.jsx';
 import PreviewPanel from './components/PreviewPanel.jsx';
@@ -18,6 +19,11 @@ import RenderGraph from './components/RenderGraph.jsx';
 import ComparisonMetrics from './components/ComparisonMetrics.jsx';
 
 function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(() => !!localStorage.getItem('chronon_auth_token'));
+  const [password, setPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
   const [runs, setRuns] = useState([]);
   const [selectedRunId, setSelectedRunId] = useState('');
   const [comparisonRunId, setComparisonRunId] = useState('');
@@ -95,8 +101,35 @@ function App() {
     }
   }, []);
 
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setLoginError('');
+    setIsLoggingIn(true);
+    try {
+      const data = await login(password);
+      localStorage.setItem('chronon_auth_token', data.token);
+      setIsAuthenticated(true);
+      setPassword('');
+    } catch (err) {
+      setLoginError(err.message || 'Login failed');
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
+  const handleLogout = () => {
+    logout();
+    setIsAuthenticated(false);
+    setRunDetail(null);
+    setComparisonRunDetail(null);
+    setRuns([]);
+    setSelectedRunId('');
+    setComparisonRunId('');
+  };
+
   useEffect(() => {
-    const socket = io('http://localhost:8000', {
+    if (!isAuthenticated) return;
+    const socket = io(WS_BASE, {
       transports: ['websocket', 'polling']
     });
     socket.on('new_run', (data) => {
@@ -105,9 +138,10 @@ function App() {
       setSelectedRunId(data.run_id);
     });
     return () => socket.disconnect();
-  }, [loadRuns]);
+  }, [loadRuns, isAuthenticated]);
 
   useEffect(() => {
+    if (!isAuthenticated) return;
     loadRuns();
     const interval = setInterval(async () => {
       try {
@@ -211,6 +245,78 @@ ${countersText}`;
     setTimeout(() => setCopiedMetrics(false), 2000);
   };
 
+  if (!isAuthenticated) {
+    return (
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100vh',
+        width: '100vw',
+        background: 'linear-gradient(135deg, #0a0a0f 0%, #12121a 50%, #0a0a0f 100%)',
+        color: '#e2e8f0',
+      }}>
+        <form onSubmit={handleLogin} style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '16px',
+          padding: '40px',
+          borderRadius: '16px',
+          background: 'rgba(255,255,255,0.03)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          backdropFilter: 'blur(20px)',
+          boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)',
+          width: '320px',
+        }}>
+          <h2 style={{ margin: 0, textAlign: 'center', fontSize: '1.5rem', fontWeight: 700, color: '#fff' }}>
+            Chronon3D Dashboard
+          </h2>
+          <p style={{ margin: 0, textAlign: 'center', fontSize: '0.85rem', color: '#94a3b8' }}>
+            Inserisci la password per accedere
+          </p>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Password..."
+            style={{
+              padding: '12px 16px',
+              borderRadius: '8px',
+              border: '1px solid rgba(255,255,255,0.1)',
+              background: 'rgba(255,255,255,0.05)',
+              color: '#fff',
+              fontSize: '0.95rem',
+              outline: 'none',
+            }}
+            autoFocus
+          />
+          {loginError && (
+            <p style={{ margin: 0, color: '#ef4444', fontSize: '0.8rem', textAlign: 'center' }}>
+              {loginError}
+            </p>
+          )}
+          <button
+            type="submit"
+            disabled={isLoggingIn}
+            style={{
+              padding: '12px',
+              borderRadius: '8px',
+              border: 'none',
+              background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
+              color: '#fff',
+              fontWeight: 600,
+              fontSize: '0.95rem',
+              cursor: isLoggingIn ? 'wait' : 'pointer',
+              opacity: isLoggingIn ? 0.7 : 1,
+            }}
+          >
+            {isLoggingIn ? 'Accesso in corso...' : 'Accedi'}
+          </button>
+        </form>
+      </div>
+    );
+  }
+
   return (
     <div className={`dashboard-container ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       <Sidebar
@@ -254,6 +360,9 @@ ${countersText}`;
                 </p>
               </div>
               <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                <button className="copy-btn" onClick={handleLogout} title="Logout">
+                  Logout
+                </button>
                 <span
                   style={{
                     padding: '6px 16px',
