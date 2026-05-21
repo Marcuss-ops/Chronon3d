@@ -44,7 +44,7 @@ class CompositionRegistry;
  */
 class SoftwareRenderer : public Renderer, public graph::RenderBackend {
 public:
-    std::unique_ptr<Framebuffer> render_frame(const Composition& comp, Frame frame);
+    std::shared_ptr<Framebuffer> render_frame(const Composition& comp, Frame frame);
     std::shared_ptr<Framebuffer> render_scene(const Scene& scene, const Camera& camera,
                                               i32 width, i32 height);
     std::shared_ptr<Framebuffer> render_scene(const Scene& scene,

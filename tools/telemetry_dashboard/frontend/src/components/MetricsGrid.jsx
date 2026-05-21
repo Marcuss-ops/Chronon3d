@@ -26,6 +26,8 @@ export default function MetricsGrid({ runDetail }) {
   const framebufferReuseNum = (framebufferAllocations + framebufferReuses) > 0
     ? (framebufferReuses / (framebufferAllocations + framebufferReuses) * 100)
     : 0;
+  const framebufferBytesAllocated = Number(r.framebuffer_bytes_allocated || 0);
+  const framebufferBytesPeak = Number(r.framebuffer_bytes_peak || 0);
 
   return (
     <section className="metrics-grid">
@@ -103,6 +105,24 @@ export default function MetricsGrid({ runDetail }) {
         </div>
         <div className="metric-value">
           {framebufferReuseNum.toFixed(1)}%
+        </div>
+      </div>
+      <div className="glass-panel metric-card">
+        <div className="metric-label">
+          FB Allocations (last frame)
+          {renderInfoIcon('framebuffer_bytes_allocated')}
+        </div>
+        <div className="metric-value">
+          {formatBytes(framebufferBytesAllocated)}
+        </div>
+      </div>
+      <div className="glass-panel metric-card">
+        <div className="metric-label">
+          FB Peak (last frame)
+          {renderInfoIcon('framebuffer_bytes_peak')}
+        </div>
+        <div className="metric-value">
+          {formatBytes(framebufferBytesPeak)}
         </div>
       </div>
       <div className="glass-panel metric-card">

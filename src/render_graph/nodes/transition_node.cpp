@@ -168,17 +168,14 @@ std::shared_ptr<Framebuffer> TransitionNode::execute(
     const std::vector<std::optional<raster::BBox>>&
 ) {
     if (inputs.empty() || !inputs[0]) {
-        auto fb = ctx.acquire_framebuffer(ctx.width, ctx.height);
-        fb->clear(Color::transparent());
-        return fb;
+        return ctx.acquire_framebuffer(ctx.width, ctx.height, true);
     }
 
     const auto& src = inputs[0];
     const i32 w = src->width();
     const i32 h = src->height();
 
-    auto out_fb = ctx.acquire_framebuffer(w, h);
-    out_fb->clear(Color::transparent());
+    auto out_fb = ctx.acquire_framebuffer(w, h, false);
 
     if (m_spec.transition_id == "none" || m_spec.transition_id.empty()) {
         *out_fb = *src;

@@ -128,7 +128,7 @@ SoftwareRenderer::~SoftwareRenderer() {
     }
 }
 
-std::unique_ptr<Framebuffer> SoftwareRenderer::render_frame(const Composition& comp,
+std::shared_ptr<Framebuffer> SoftwareRenderer::render_frame(const Composition& comp,
                                                             Frame frame) {
     profiling::g_current_trace = &m_trace;
     profiling::g_current_frame = static_cast<int32_t>(frame);

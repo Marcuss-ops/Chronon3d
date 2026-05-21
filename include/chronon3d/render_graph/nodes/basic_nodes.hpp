@@ -147,6 +147,13 @@ public:
 
     bool cacheable() const override { return false; }
 
+    std::optional<raster::BBox> predicted_bbox(const RenderGraphContext& ctx) const override {
+        if (ctx.clip_rect) {
+            return *ctx.clip_rect;
+        }
+        return raster::BBox{0, 0, ctx.width, ctx.height};
+    }
+
     [[nodiscard]] CacheFramePolicy cache_frame_policy() const override {
         return CacheFramePolicy::FrameInvariant;
     }

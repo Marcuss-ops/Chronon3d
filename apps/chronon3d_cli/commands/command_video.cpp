@@ -144,6 +144,8 @@ int render_and_encode_ffmpeg(
                 .dummy_frame = 0,
                 .quiet = false
             });
+            renderer->trace()->clear();
+            renderer->counters()->reset();
         }
 
         const auto render_t0 = std::chrono::steady_clock::now();
@@ -269,6 +271,8 @@ int render_and_encode_ffmpeg(
                         .dummy_frame = 0,
                         .quiet = false
                     });
+                    renderer->trace()->clear();
+                    renderer->counters()->reset();
                 }
 
                 std::vector<chronon3d::telemetry::FrameTelemetryRecord> local_frames;
