@@ -7,6 +7,19 @@
 
 using namespace chronon3d;
 
+TEST_CASE("image writer detects output format from path") {
+    CHECK(image_format_from_path("frame.png") == ImageFormat::Png);
+    CHECK(image_format_from_path("frame.PNG") == ImageFormat::Png);
+    CHECK(image_format_from_path("frame.exr") == ImageFormat::Exr);
+    CHECK(image_format_from_path("frame.EXR") == ImageFormat::Exr);
+    CHECK(image_format_from_path("frame.jpg") == ImageFormat::Unknown);
+}
+
+TEST_CASE("save_image rejects unknown extension") {
+    Framebuffer fb(2, 2);
+    CHECK_FALSE(save_image(fb, "output/test_unknown_format.jpg"));
+}
+
 TEST_CASE("Image writer (PNG)") {
     Framebuffer fb(32, 32);
     fb.clear(Color::red());
