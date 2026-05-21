@@ -26,7 +26,8 @@ inline ProjectedLayer2_5D project_layer_2_5d(
     const Mat4& layer_matrix,
     const Camera2_5D& camera,
     [[maybe_unused]] f32 viewport_width,
-    f32 viewport_height
+    f32 viewport_height,
+    bool diagnostics_enabled = false
 );
 
 // Returns the focal length (pixels) for a given vertical FOV and viewport height.
@@ -197,9 +198,10 @@ inline ProjectedLayer2_5D project_layer_2_5d(
     const Transform& layer_transform,
     const Camera2_5D& camera,
     [[maybe_unused]] f32 viewport_width,
-    f32 viewport_height
+    f32 viewport_height,
+    bool diagnostics_enabled = false
 ) {
-    return project_layer_2_5d(layer_transform, layer_transform.to_mat4(), camera, viewport_width, viewport_height);
+    return project_layer_2_5d(layer_transform, layer_transform.to_mat4(), camera, viewport_width, viewport_height, diagnostics_enabled);
 }
 
 inline ProjectedLayer2_5D project_layer_2_5d(
@@ -207,7 +209,8 @@ inline ProjectedLayer2_5D project_layer_2_5d(
     const Mat4& layer_matrix,
     const Camera2_5D& camera,
     [[maybe_unused]] f32 viewport_width,
-    f32 viewport_height
+    f32 viewport_height,
+    bool diagnostics_enabled
 ) {
     ProjectedLayer2_5D out;
     out.transform = layer_transform;
@@ -284,8 +287,10 @@ inline ProjectedLayer2_5D project_layer_2_5d(
         H_diag[1][0] = out.projection_matrix[1][0]; H_diag[1][1] = out.projection_matrix[1][1]; H_diag[1][2] = out.projection_matrix[1][3];
         H_diag[2][0] = out.projection_matrix[3][0]; H_diag[2][1] = out.projection_matrix[3][1]; H_diag[2][2] = out.projection_matrix[3][3];
         f32 det = glm::determinant(H_diag);
-        spdlog::info("[diagnostics-3d] Compiled projection matrix. Depth={:.2f}, Det={:.4f} ({})",
-                     depth, det, (det >= 0.0f ? "OK" : "FLIPPED/MIRRORED"));
+        if (diagnostics_enabled) {
+            spdlog::info("[diagnostics-3d] Compiled projection matrix. Depth={:.2f}, Det={:.4f} ({})",
+                         depth, det, (det >= 0.0f ? "OK" : "FLIPPED/MIRRORED"));
+        }
     } else {
         out.projection_matrix = out.transform.to_mat4();
     }

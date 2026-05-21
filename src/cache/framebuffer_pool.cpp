@@ -41,6 +41,7 @@ std::shared_ptr<Framebuffer> FramebufferPool::acquire(int width, int height, boo
 }
 
 std::unique_ptr<Framebuffer> FramebufferPool::acquire_unique(int width, int height, bool clear) {
+    (void)clear;
     std::lock_guard<std::mutex> lock(m_mutex);
 
     FramebufferPoolKey key{width, height};
@@ -50,10 +51,6 @@ std::unique_ptr<Framebuffer> FramebufferPool::acquire_unique(int width, int heig
         auto fb = std::move(bucket.back());
         bucket.pop_back();
         m_current_bytes -= fb->size_bytes();
-        if (clear) {
-            fb->clear(Color::transparent());
-        }
-
         if (profiling::g_current_counters) {
             profiling::g_current_counters->framebuffer_reuses.fetch_add(1, std::memory_order_relaxed);
         }
@@ -62,9 +59,6 @@ std::unique_ptr<Framebuffer> FramebufferPool::acquire_unique(int width, int heig
     }
 
     auto fb = std::make_unique<Framebuffer>(width, height);
-    if (clear) {
-        fb->clear(Color::transparent());
-    }
     return fb;
 }
 

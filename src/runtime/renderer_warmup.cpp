@@ -27,15 +27,18 @@ RendererWarmupResult warmup_renderer(
         });
     }
 
-    // 2. Optionally render a dummy frame to prime all caches
+    // 2. Optionally render a dummy frame to prime all caches.
+    // Run it twice so the second pass exercises the fully warmed pool and cache.
     if (options.render_dummy_frame) {
-        auto scene = composition.evaluate(options.dummy_frame);
-        auto fb = renderer.render_scene(
-            scene,
-            composition.camera,
-            composition.width(),
-            composition.height());
-        (void)fb; // discard the result
+        for (int pass = 0; pass < 2; ++pass) {
+            auto scene = composition.evaluate(options.dummy_frame);
+            auto fb = renderer.render_scene(
+                scene,
+                composition.camera,
+                composition.width(),
+                composition.height());
+            (void)fb; // discard the result
+        }
     }
 
     // 3. Capture post-warmup pool stats

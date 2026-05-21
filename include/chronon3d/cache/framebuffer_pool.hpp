@@ -54,12 +54,12 @@ class FramebufferPool : public std::enable_shared_from_this<FramebufferPool> {
 public:
     explicit FramebufferPool(size_t max_bytes = 64ULL * 1024ULL * 1024ULL);
 
-    /// Acquire a framebuffer of the requested size, optionally cleared.
-    /// If a compatible framebuffer exists in the pool, it is reused.
-    std::shared_ptr<Framebuffer> acquire(int width, int height, bool clear = true);
+    /// Acquire a framebuffer of the requested size.
+    /// The pool never clears memory; callers own clear semantics.
+    std::shared_ptr<Framebuffer> acquire(int width, int height, bool clear = false);
 
     /// Acquire a framebuffer that automatically releases itself back to the pool upon destruction.
-    std::shared_ptr<Framebuffer> acquire_pooled(int width, int height, std::shared_ptr<FramebufferPool> pool, bool clear = true);
+    std::shared_ptr<Framebuffer> acquire_pooled(int width, int height, std::shared_ptr<FramebufferPool> pool, bool clear = false);
 
     void release(Framebuffer* fb);
 
@@ -77,7 +77,7 @@ public:
     [[nodiscard]] FramebufferPoolStats stats() const;
 
 private:
-    std::unique_ptr<Framebuffer> acquire_unique(int width, int height, bool clear = true);
+    std::unique_ptr<Framebuffer> acquire_unique(int width, int height, bool clear = false);
 
     mutable std::mutex m_mutex;
     size_t m_max_bytes;
