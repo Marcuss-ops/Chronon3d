@@ -3,6 +3,7 @@
 
 using namespace chronon3d::color;
 using chronon3d::Color;
+namespace color = chronon3d::color;
 
 // ---------------------------------------------------------------------------
 // Float-level helpers
@@ -87,9 +88,9 @@ TEST_CASE("color::linear_to_srgb8: 0.0 and 1.0") {
 }
 
 TEST_CASE("color::linear_to_srgb8: mid-grey") {
-    // Linear 0.5 → sRGB ~0.735 → 187 (floor truncation in LUT)
+    // Linear 0.5 → sRGB ~0.735 → 188 with round-to-nearest LUT sampling
     const uint8_t result = linear_to_srgb8(0.5f);
-    CHECK(result == 187); // 0.735 * 255 ≈ 187.4, truncated to 187
+    CHECK(result == 188);
 }
 
 TEST_CASE("color::linear_to_srgb8: clamps out-of-range") {
@@ -123,12 +124,12 @@ TEST_CASE("color::linear_to_output_rgb8: LinearsRGB bypasses gamma") {
     OutputTransformOptions opts;
     opts.output = color::ColorSpace::LinearSRGB;
     const auto rgb = linear_to_output_rgb8(linear, opts);
-    // 0.5 * 255 = 127.5 → floor = 127 (LUT uses floor truncation)
-    CHECK(rgb.r == 127);
-    // 0.3 * 255 = 76.5 → floor = 76
-    CHECK(rgb.g == 76);
-    // 0.1 * 255 = 25.5 → floor = 25
-    CHECK(rgb.b == 25);
+    // 0.5 * 255 = 127.5 → round = 128
+    CHECK(rgb.r == 128);
+    // 0.3 * 255 = 76.5 → round = 77
+    CHECK(rgb.g == 77);
+    // 0.1 * 255 = 25.5 → round = 26
+    CHECK(rgb.b == 26);
 }
 
 TEST_CASE("color::linear_to_output_rgb8: clamps negative values") {
@@ -143,10 +144,10 @@ TEST_CASE("color::linear_to_output_rgb8: without gamma") {
     OutputTransformOptions opts;
     opts.apply_gamma = false;
     const auto rgb = linear_to_output_rgb8(linear, opts);
-    // Same as LinearSRGB - floor truncation in LUT
-    CHECK(rgb.r == 127); // 0.5 * 255 = 127.5 → floor = 127
-    CHECK(rgb.g == 76);  // 0.3 * 255 = 76.5 → floor = 76
-    CHECK(rgb.b == 25);  // 0.1 * 255 = 25.5 → floor = 25
+    // Same as LinearSRGB - round to nearest
+    CHECK(rgb.r == 128); // 0.5 * 255 = 127.5 → round = 128
+    CHECK(rgb.g == 77);  // 0.3 * 255 = 76.5 → round = 77
+    CHECK(rgb.b == 26);  // 0.1 * 255 = 25.5 → round = 26
 }
 
 // ---------------------------------------------------------------------------

@@ -55,7 +55,7 @@ public:
         }
         
         if (use_dirty_rects) {
-            auto fb = sw_renderer->m_prev_framebuffer;
+            auto fb = std::move(sw_renderer->m_prev_framebuffer);
             if (ctx.counters) {
                 ctx.counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
                 const uint64_t area = ctx.clip_rect

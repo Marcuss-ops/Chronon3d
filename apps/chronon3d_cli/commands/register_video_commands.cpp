@@ -25,7 +25,7 @@ void register_video_commands(CLI::App& app, CliContext& ctx) {
     cmd->add_option("--encode-preset,--preset", args.encode_preset, "x264 preset")->default_val("medium");
     cmd->add_option("--hardware", args.hardware_encoder, "Hardware encoder: none, auto, nvenc, qsv, videotoolbox, amf")->default_val("none");
     cmd->add_flag("--keep-frames", args.keep_frames, "Keep temporary PNG frames");
-    cmd->add_flag("--graph", args.pipeline.use_modular_graph, "Use modular RenderGraph path");
+    cmd->add_flag("--graph,!--no-graph", args.pipeline.use_modular_graph, "Use modular RenderGraph path");
     cmd->add_flag("--dirty-rects", args.pipeline.dirty_rects, "Enable dirty rectangles invalidation");
     cmd->add_flag("--motion-blur", args.pipeline.quality.motion_blur, "Enable temporal motion blur");
     cmd->add_option("--motion-blur-samples", args.pipeline.quality.motion_blur_samples, "Subframe samples")->default_val(8);

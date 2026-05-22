@@ -18,7 +18,7 @@ struct RenderQualityArgs {
 };
 
 struct RenderPipelineArgs {
-    bool   use_modular_graph{false};
+    bool   use_modular_graph{true};
     bool   diagnostic{false};
     bool   dirty_rects{false};
     RenderQualityArgs quality{};
@@ -84,7 +84,7 @@ struct BenchArgs {
     std::string comp_id;
     int frames{100};
     int warmup{10};
-    bool use_modular_graph{false};
+    bool use_modular_graph{true};
     bool dirty_rects{false};
 
     std::string json_file;

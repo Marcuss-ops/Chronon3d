@@ -4,18 +4,22 @@ find_package(doctest CONFIG REQUIRED)
 set(TEST_MAIN test_main.cpp)
 
 function(chronon3d_enable_test_pch target_name)
-    target_precompile_headers(${target_name} PRIVATE
-        <algorithm>
-        <chrono>
-        <filesystem>
-        <memory>
-        <optional>
-        <string>
-        <vector>
-        <chronon3d/chronon3d.hpp>
-        <spdlog/spdlog.h>
-        <fmt/format.h>
-    )
+    if(target_name STREQUAL "chronon3d_core_tests")
+        target_precompile_headers(chronon3d_core_tests PRIVATE
+            <algorithm>
+            <chrono>
+            <filesystem>
+            <memory>
+            <optional>
+            <string>
+            <vector>
+            <chronon3d/chronon3d.hpp>
+            <spdlog/spdlog.h>
+            <fmt/format.h>
+        )
+    else()
+        target_precompile_headers(${target_name} REUSE_FROM chronon3d_core_tests)
+    endif()
 endfunction()
 
 # Core Tests (Math, Geometry, Animation, Timeline)
@@ -56,6 +60,7 @@ add_executable(chronon3d_core_tests
 target_link_libraries(chronon3d_core_tests PRIVATE chronon3d_pipeline doctest::doctest)
 target_include_directories(chronon3d_core_tests PRIVATE ${CMAKE_SOURCE_DIR})
 chronon3d_enable_test_pch(chronon3d_core_tests)
+set_target_properties(chronon3d_core_tests PROPERTIES UNITY_BUILD OFF)
 # This file re-includes framebuffer_pool.hpp already in the test PCH via chronon3d.hpp;
 # skip Unity Build merging to avoid struct redefinition errors.
 set_source_files_properties(cache/test_framebuffer_pool.cpp PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON)
@@ -79,6 +84,7 @@ add_executable(chronon3d_scene_tests
 target_link_libraries(chronon3d_scene_tests PRIVATE chronon3d_pipeline chronon3d_scene chronon3d_backend_software doctest::doctest)
 target_include_directories(chronon3d_scene_tests PRIVATE ${CMAKE_SOURCE_DIR})
 chronon3d_enable_test_pch(chronon3d_scene_tests)
+set_target_properties(chronon3d_scene_tests PROPERTIES UNITY_BUILD OFF)
 add_test(NAME chronon3d_scene_tests COMMAND chronon3d_scene_tests WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 # Renderer & Graph Tests
@@ -162,6 +168,7 @@ endif()
 target_include_directories(chronon3d_renderer_tests PRIVATE ${CMAKE_SOURCE_DIR})
 target_include_directories(chronon3d_renderer_tests PRIVATE ${Stb_INCLUDE_DIR})
 chronon3d_enable_test_pch(chronon3d_renderer_tests)
+set_target_properties(chronon3d_renderer_tests PROPERTIES UNITY_BUILD OFF)
 add_test(NAME chronon3d_renderer_tests COMMAND chronon3d_renderer_tests WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 # IO Tests
@@ -174,6 +181,7 @@ add_executable(chronon3d_io_tests
 target_link_libraries(chronon3d_io_tests PRIVATE chronon3d_pipeline chronon3d_backend_image doctest::doctest)
 target_include_directories(chronon3d_io_tests PRIVATE ${CMAKE_SOURCE_DIR})
 chronon3d_enable_test_pch(chronon3d_io_tests)
+set_target_properties(chronon3d_io_tests PROPERTIES UNITY_BUILD OFF)
 add_test(NAME chronon3d_io_tests COMMAND chronon3d_io_tests WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 # CLI Tests
@@ -197,6 +205,7 @@ target_link_libraries(chronon3d_cli_tests
 )
 target_include_directories(chronon3d_cli_tests PRIVATE ${CMAKE_SOURCE_DIR})
 chronon3d_enable_test_pch(chronon3d_cli_tests)
+set_target_properties(chronon3d_cli_tests PROPERTIES UNITY_BUILD OFF)
 add_test(NAME chronon3d_cli_tests COMMAND chronon3d_cli_tests WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 # Aggregate target: build all test executables with a single cmake --build ... --target chronon3d_tests

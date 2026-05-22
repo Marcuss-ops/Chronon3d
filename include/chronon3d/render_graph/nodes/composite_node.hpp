@@ -62,8 +62,8 @@ public:
     ) override {
         if (inputs.size() < 2) return inputs.empty() ? ctx.acquire_framebuffer(ctx.width, ctx.height) : inputs[0];
         
-        auto bottom = inputs[0];
-        auto top = inputs[1];
+        const auto& bottom = inputs[0];
+        const auto& top = inputs[1];
 
         if (ctx.diagnostics_enabled) {
             spdlog::info(

@@ -73,10 +73,15 @@ public:
                     default: break;
                 }
 
-                tc.a *= std::clamp(mask, 0.0f, 1.0f);
+                f32 clamp_mask = std::clamp(mask, 0.0f, 1.0f);
+                tc.r *= clamp_mask;
+                tc.g *= clamp_mask;
+                tc.b *= clamp_mask;
+                tc.a *= clamp_mask;
                 out_row[x] = tc;
             }
         }
+        out->set_opaque(false);
         return out;
     }
 

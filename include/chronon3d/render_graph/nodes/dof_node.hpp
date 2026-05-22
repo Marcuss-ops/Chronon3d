@@ -44,9 +44,15 @@ public:
         if (inputs.empty()) return ctx.acquire_framebuffer(ctx.width, ctx.height);
         
         const float blur = compute_dof_blur_radius(m_camera.dof, m_layer_world_z);
+        if (blur <= 0.5f) {
+            if (inputs[0].use_count() == 1) {
+                return inputs[0];
+            }
+            return ctx.acquire_framebuffer(*inputs[0]);
+        }
 
         auto result = ctx.acquire_framebuffer(*inputs[0]);
-        if (blur > 0.5f && ctx.backend) {
+        if (ctx.backend) {
             EffectStack dof_stack;
             dof_stack.push_back(EffectInstance{EffectParams{BlurParams{blur}}});
             ctx.backend->apply_effect_stack(*result, dof_stack, ctx.time_seconds);
