@@ -1,6 +1,7 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/math/projector_2_5d.hpp>
 #include <chronon3d/backends/software/shape_processor.hpp>
+#include <chronon3d/scene/render_runtime.hpp>
 #include "../rasterizers/shape_rasterizer.hpp"
 #include "../primitive_renderer.hpp"
 
@@ -10,7 +11,12 @@ class SoftwareFakeBox3DProcessor final : public ShapeProcessor {
 public:
     void draw(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNode& node, const RenderState& state,
               const Camera& camera, i32 width, i32 height) override {
-        auto s = node.fake_box3d_runtime;
+        FakeBox3DRenderState s;
+        if (node.params.has_value()) {
+            if (auto* ptr = std::any_cast<FakeBox3DRenderState>(&node.params)) {
+                s = *ptr;
+            }
+        }
         // Prefer the camera_2_5d-based projection context (populated from scene camera)
         if (!s.projection.ready && state.projection.ready) {
             s.projection = state.projection;
@@ -34,7 +40,12 @@ class SoftwareGridPlaneProcessor final : public ShapeProcessor {
 public:
     void draw(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNode& node, const RenderState& state,
               const Camera& camera, i32 width, i32 height) override {
-        auto s = node.grid_plane_runtime;
+        GridPlaneRenderState s;
+        if (node.params.has_value()) {
+            if (auto* ptr = std::any_cast<GridPlaneRenderState>(&node.params)) {
+                s = *ptr;
+            }
+        }
         if (!s.projection.ready && state.projection.ready) {
             s.projection = state.projection;
         } else if (!s.projection.ready) {

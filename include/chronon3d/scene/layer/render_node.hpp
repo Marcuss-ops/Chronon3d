@@ -4,13 +4,13 @@
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/math/vec2.hpp>
 #include <chronon3d/geometry/mesh.hpp>
-#include <chronon3d/scene/render_runtime.hpp>
 #include <chronon3d/scene/fill.hpp>
 #include <chronon3d/scene/shape.hpp>
 #include <vector>
 #include <memory>
 #include <string>
 #include <memory_resource>
+#include <any>
 
 namespace chronon3d {
 
@@ -39,8 +39,10 @@ struct RenderNode {
     DropShadow shadow;
     Glow glow;
     std::shared_ptr<Mesh> mesh;
-    FakeBox3DRenderState fake_box3d_runtime;
-    GridPlaneRenderState grid_plane_runtime;
+
+    // Runtime/shape-specific parameters to avoid hardcoding in RenderNode
+    std::any params;
+
     bool visible{true};
 
     explicit RenderNode(std::pmr::memory_resource* res = std::pmr::get_default_resource())
