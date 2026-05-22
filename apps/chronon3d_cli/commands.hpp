@@ -57,6 +57,8 @@ struct VideoArgs {
 
     std::string ffmpeg_mode{"png"};
     bool ffmpeg_verbose{false};
+    std::string pipe_pixfmt{"rgba"};
+    std::string color_output{"srgb"};
 };
 
 struct VideoCameraArgs {
