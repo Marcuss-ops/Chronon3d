@@ -3,7 +3,10 @@
 #include <chronon3d/backends/image/stb_image_backend.hpp>
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
-#include <chronon3d/chronon3d.hpp>
+#include <chronon3d/api/composition.hpp>
+#include <chronon3d/api/scene.hpp>
+#include <chronon3d/api/renderer.hpp>
+#include <chronon3d/core/frame_context.hpp>
 #include <tests/helpers/test_utils.hpp>
 #include <filesystem>
 #include <cmath>

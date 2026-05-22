@@ -1,7 +1,10 @@
 #include <doctest/doctest.h>
 #include <xxhash.h>
 
-#include <chronon3d/chronon3d.hpp>
+#include <chronon3d/api/composition.hpp>
+#include <chronon3d/api/scene.hpp>
+#include <chronon3d/api/renderer.hpp>
+#include <chronon3d/core/frame_context.hpp>
 #include <chronon3d/backends/software/framebuffer_analysis.hpp>
 #include <tests/helpers/render_fixtures.hpp>
 #include <tests/helpers/test_utils.hpp>
