@@ -61,6 +61,15 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     
     SoftwareRenderer* sw_renderer = dynamic_cast<SoftwareRenderer*>(&backend);
 
+    std::optional<uint64_t> current_scene_fingerprint;
+
+    auto ensure_scene_fingerprint = [&]() -> uint64_t {
+        if (!current_scene_fingerprint.has_value()) {
+            current_scene_fingerprint = compute_scene_fingerprint(scene, frame);
+        }
+        return *current_scene_fingerprint;
+    };
+
     // ── Quick skip: consecutive frame with no layer changes ─────────────
     // Avoid resolve_layers entirely when nothing can have changed.
     if (sw_renderer &&
@@ -82,7 +91,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
                                          sw_renderer->m_prev_camera.projection_mode != cam.projection_mode
                                      ));
 
-        const uint64_t current_fingerprint = compute_scene_fingerprint(scene, frame);
+        const uint64_t current_fingerprint = ensure_scene_fingerprint();
         if (!camera_changed &&
             sw_renderer->m_prev_scene_fingerprint == current_fingerprint) {
             // Fast path: nothing changed, reuse previous framebuffer
@@ -190,24 +199,62 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
                 }
             };
 
+            auto same_bbox = [](const raster::BBox& a, const raster::BBox& b) {
+                return a.x0 == b.x0 && a.y0 == b.y0 && a.x1 == b.x1 && a.y1 == b.y1;
+            };
+
+            auto add_layer_dirty = [&](const SoftwareRenderer::LayerBBoxState& curr,
+                                       const SoftwareRenderer::LayerBBoxState* prev) {
+                const bool prev_exists = prev != nullptr;
+                const bool curr_visible = curr.visible;
+                const bool prev_visible = prev_exists ? prev->visible : false;
+
+                if (!prev_exists) {
+                    add_dirty_bbox(curr.bbox);
+                    return;
+                }
+
+                if (curr_visible != prev_visible) {
+                    add_dirty_bbox(curr_visible ? curr.bbox : prev->bbox);
+                    return;
+                }
+
+                if (!curr_visible) {
+                    return;
+                }
+
+                const bool geometry_changed =
+                    (camera_changed && curr.is_3d) ||
+                    (curr.world_matrix != prev->world_matrix);
+                const bool content_changed =
+                    !curr.cache_static ||
+                    curr.opacity != prev->opacity;
+
+                if (geometry_changed) {
+                    if (same_bbox(curr.bbox, prev->bbox)) {
+                        add_dirty_bbox(curr.bbox);
+                    } else {
+                        add_dirty_bbox(curr.bbox);
+                        add_dirty_bbox(prev->bbox);
+                    }
+                    return;
+                }
+
+                if (content_changed) {
+                    add_dirty_bbox(curr.bbox);
+                }
+            };
+
             for (const auto& pair : current_layer_bboxes) {
                 const auto& name = pair.first;
                 const auto& curr = pair.second;
                 auto prev_it = sw_renderer->m_prev_layer_bboxes.find(name);
-                if (prev_it == sw_renderer->m_prev_layer_bboxes.end()) {
-                    add_dirty_bbox(curr.bbox);
-                } else {
-                    const auto& prev = prev_it->second;
-                    bool layer_dirty = false;
-                    if (camera_changed && curr.is_3d) layer_dirty = true;
-                    else if (!curr.cache_static) layer_dirty = true;
-                    else if (curr.world_matrix != prev.world_matrix ||
-                             curr.opacity != prev.opacity || curr.visible != prev.visible) layer_dirty = true;
-                    if (layer_dirty) {
-                        add_dirty_bbox(curr.bbox);
-                        add_dirty_bbox(prev.bbox);
-                    }
-                }
+                add_layer_dirty(
+                    curr,
+                    prev_it == sw_renderer->m_prev_layer_bboxes.end()
+                        ? nullptr
+                        : &prev_it->second
+                );
             }
             for (const auto& pair : sw_renderer->m_prev_layer_bboxes) {
                 if (current_layer_bboxes.find(pair.first) == current_layer_bboxes.end()) {
@@ -280,7 +327,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         sw_renderer->m_prev_layer_bboxes = std::move(current_layer_bboxes);
         sw_renderer->m_prev_frame = frame;
         const uint64_t current_fingerprint = compute_scene_fingerprint(scene, frame);
-        sw_renderer->m_prev_scene_fingerprint = current_fingerprint;
+        sw_renderer->m_prev_scene_fingerprint = ensure_scene_fingerprint();
         sw_renderer->m_prev_camera = resolved.camera.camera;
         sw_renderer->m_prev_camera_valid = resolved.camera.camera.enabled;
         telemetry::record_render_telemetry(make_telemetry_row(
@@ -313,7 +360,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         sw_renderer->m_prev_framebuffer = fb_shared;
         sw_renderer->m_prev_layer_bboxes = std::move(current_layer_bboxes);
         sw_renderer->m_prev_frame = frame;
-        sw_renderer->m_prev_scene_fingerprint = compute_scene_fingerprint(scene, frame);
+        sw_renderer->m_prev_scene_fingerprint = ensure_scene_fingerprint();
         sw_renderer->m_prev_camera = resolved.camera.camera;
         sw_renderer->m_prev_camera_valid = resolved.camera.camera.enabled;
     }

@@ -23,27 +23,27 @@ namespace {
 constexpr f32 kEpsilon = 1e-6f;
 using CacheKey = u64;
 
-CacheKey hash_combine(CacheKey seed, CacheKey value) {
+CacheKey path_cache_hash_combine(CacheKey seed, CacheKey value) {
     seed ^= value + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2);
     return seed;
 }
 
 template <typename T>
-CacheKey hash_value(const T& value) {
+CacheKey path_cache_hash_value(const T& value) {
     return static_cast<CacheKey>(std::hash<T>{}(value));
 }
 
-CacheKey hash_path(const PathShape& path) {
-    CacheKey seed = hash_value(path.closed);
-    seed = hash_combine(seed, hash_value(path.commands.size()));
+CacheKey path_cache_hash_path(const PathShape& path) {
+    CacheKey seed = path_cache_hash_value(path.closed);
+    seed = path_cache_hash_combine(seed, path_cache_hash_value(path.commands.size()));
     for (const auto& cmd : path.commands) {
-        seed = hash_combine(seed, hash_value(static_cast<int>(cmd.type)));
-        seed = hash_combine(seed, hash_value(cmd.p0.x));
-        seed = hash_combine(seed, hash_value(cmd.p0.y));
-        seed = hash_combine(seed, hash_value(cmd.p1.x));
-        seed = hash_combine(seed, hash_value(cmd.p1.y));
-        seed = hash_combine(seed, hash_value(cmd.p2.x));
-        seed = hash_combine(seed, hash_value(cmd.p2.y));
+        seed = path_cache_hash_combine(seed, path_cache_hash_value(static_cast<int>(cmd.type)));
+        seed = path_cache_hash_combine(seed, path_cache_hash_value(cmd.p0.x));
+        seed = path_cache_hash_combine(seed, path_cache_hash_value(cmd.p0.y));
+        seed = path_cache_hash_combine(seed, path_cache_hash_value(cmd.p1.x));
+        seed = path_cache_hash_combine(seed, path_cache_hash_value(cmd.p1.y));
+        seed = path_cache_hash_combine(seed, path_cache_hash_value(cmd.p2.x));
+        seed = path_cache_hash_combine(seed, path_cache_hash_value(cmd.p2.y));
     }
     return seed;
 }
@@ -194,7 +194,7 @@ std::vector<Vec2> trim_polyline_points(const std::vector<Vec2>& points, bool clo
 }
 
 std::vector<PathContour> flatten_to_contours(const PathShape& path) {
-    const CacheKey key = hash_path(path);
+    const CacheKey key = path_cache_hash_path(path);
     {
         std::lock_guard<std::mutex> lock(g_flatten_cache_mutex);
         auto it = g_flatten_cache.find(key);

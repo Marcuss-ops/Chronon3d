@@ -44,11 +44,14 @@ public:
             return ctx.acquire_framebuffer(ctx.width, ctx.height);
         }
 
-        auto result = ctx.acquire_framebuffer(*inputs[0]);
         if (!ctx.light_context.enabled || !m_material.accepts_lights) {
-            return result;
+            if (inputs[0].use_count() == 1) {
+                return inputs[0];
+            }
+            return ctx.acquire_framebuffer(*inputs[0]);
         }
 
+        auto result = ctx.acquire_framebuffer(*inputs[0]);
         const Vec3 normal_world = rendering::transform_normal(m_world_matrix, {0.0f, 0.0f, 1.0f});
 
         for (i32 y = 0; y < result->height(); ++y) {

@@ -34,6 +34,7 @@ add_executable(chronon3d_cli
     commands/command_telemetry.cpp
     commands/command_bake_layer.cpp
 )
+set_target_properties(chronon3d_cli PROPERTIES UNITY_BUILD OFF)
 
 get_target_property(CLI11_INCLUDE_DIRS CLI11::CLI11 INTERFACE_INCLUDE_DIRECTORIES)
 

@@ -24,8 +24,6 @@ template <typename T>
 
 } // namespace node_cache_detail
 
-using namespace node_cache_detail;
-
 namespace {
 
 size_t resolve_default_capacity(size_t fallback) {
@@ -47,13 +45,13 @@ size_t resolve_default_capacity(size_t fallback) {
 } // namespace
 
 u64 NodeCacheKey::digest() const {
-    u64 seed = hash_string(scope);
-    seed = hash_combine(seed, hash_value(frame));
-    seed = hash_combine(seed, hash_value(width));
-    seed = hash_combine(seed, hash_value(height));
-    seed = hash_combine(seed, params_hash);
-    seed = hash_combine(seed, source_hash);
-    seed = hash_combine(seed, input_hash);
+    u64 seed = node_cache_detail::hash_string(scope);
+    seed = node_cache_detail::hash_combine(seed, node_cache_detail::hash_value(frame));
+    seed = node_cache_detail::hash_combine(seed, node_cache_detail::hash_value(width));
+    seed = node_cache_detail::hash_combine(seed, node_cache_detail::hash_value(height));
+    seed = node_cache_detail::hash_combine(seed, params_hash);
+    seed = node_cache_detail::hash_combine(seed, source_hash);
+    seed = node_cache_detail::hash_combine(seed, input_hash);
     return seed;
 }
 

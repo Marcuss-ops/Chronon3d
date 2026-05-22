@@ -12,7 +12,8 @@ void append_composite_pass(RenderGraph& graph, GraphNodeId& current,
                            const RenderGraphContext& ctx) {
     if (layer_output == k_invalid_node || layer_output == current) return;
 
-    if (current < graph.size() &&
+    if (!ctx.dirty_rects_enabled &&
+        current < graph.size() &&
         graph.node(current).kind() == RenderGraphNodeKind::Output &&
         graph.node(current).name() == "Clear" &&
         layer.blend_mode == chronon3d::BlendMode::Normal &&

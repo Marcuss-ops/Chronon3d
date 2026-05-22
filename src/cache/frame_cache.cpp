@@ -22,15 +22,13 @@ template <typename T>
 
 } // namespace frame_cache_detail
 
-using namespace frame_cache_detail;
-
 u64 FrameCacheKey::digest() const {
-    u64 seed = hash_string(composition_id);
-    seed = hash_combine(seed, hash_value(frame));
-    seed = hash_combine(seed, hash_value(width));
-    seed = hash_combine(seed, hash_value(height));
-    seed = hash_combine(seed, scene_hash);
-    seed = hash_combine(seed, render_hash);
+    u64 seed = frame_cache_detail::hash_string(composition_id);
+    seed = frame_cache_detail::hash_combine(seed, frame_cache_detail::hash_value(frame));
+    seed = frame_cache_detail::hash_combine(seed, frame_cache_detail::hash_value(width));
+    seed = frame_cache_detail::hash_combine(seed, frame_cache_detail::hash_value(height));
+    seed = frame_cache_detail::hash_combine(seed, scene_hash);
+    seed = frame_cache_detail::hash_combine(seed, render_hash);
     return seed;
 }
 

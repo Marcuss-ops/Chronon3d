@@ -65,7 +65,7 @@ void register_studio_tools(CLI::App& dev, CliContext& ctx) {
         cmd->add_option("-o,--output", args.output, "Output image path")->default_val("preview.png");
         cmd->add_flag("--diagnostic,--layout-preview", args.pipeline.diagnostic,
                       "Enable layout preview overlays (bbox, anchors, center guide)");
-        cmd->add_flag("--graph", args.pipeline.use_modular_graph, "Use modular RenderGraph path");
+        cmd->add_flag("--graph,!--no-graph", args.pipeline.use_modular_graph, "Use modular RenderGraph path");
         cmd->callback([state, &ctx]() {
             ctx.exit_code = command_preview(ctx.registry, *state->args);
         });
@@ -79,7 +79,7 @@ void register_studio_tools(CLI::App& dev, CliContext& ctx) {
         cmd->add_option("-o,--output", args.output, "Output image path")->default_val("contact_sheet.png");
         cmd->add_flag("--diagnostic,--layout-preview", args.pipeline.diagnostic,
                       "Enable layout preview overlays (bbox, anchors, center guide)");
-        cmd->add_flag("--graph", args.pipeline.use_modular_graph, "Use modular RenderGraph path");
+        cmd->add_flag("--graph,!--no-graph", args.pipeline.use_modular_graph, "Use modular RenderGraph path");
         cmd->callback([state, &ctx]() {
             ctx.exit_code = command_contact_sheet(ctx.registry, *state->args);
         });
@@ -93,7 +93,7 @@ void register_studio_tools(CLI::App& dev, CliContext& ctx) {
         cmd->add_option("-o,--output", args.output, "Output image path")->default_val("storyboard.png");
         cmd->add_flag("--diagnostic,--layout-preview", args.pipeline.diagnostic,
                       "Enable layout preview overlays (bbox, anchors, center guide)");
-        cmd->add_flag("--graph", args.pipeline.use_modular_graph, "Use modular RenderGraph path");
+        cmd->add_flag("--graph,!--no-graph", args.pipeline.use_modular_graph, "Use modular RenderGraph path");
         cmd->callback([state, &ctx]() {
             ctx.exit_code = command_storyboard(ctx.registry, *state->args);
         });
@@ -115,7 +115,7 @@ void register_camera_video(CLI::App& dev, CliContext& ctx) {
     camera_cmd->add_option("--codec", camera_args->codec, "Video encoder");
     camera_cmd->add_option("--encode-preset", camera_args->encode_preset, "x264 preset");
     camera_cmd->add_option("--hardware", camera_args->hardware_encoder, "Hardware encoder: none, auto, nvenc, qsv, videotoolbox, amf")->default_val("none");
-    camera_cmd->add_flag("--graph", camera_args->pipeline.use_modular_graph, "Use modular RenderGraph path");
+    camera_cmd->add_flag("--graph,!--no-graph", camera_args->pipeline.use_modular_graph, "Use modular RenderGraph path");
     camera_cmd->add_flag("--motion-blur", camera_args->pipeline.quality.motion_blur, "Enable temporal motion blur");
     camera_cmd->add_option("--ssaa", camera_args->pipeline.quality.ssaa, "Super Sampling factor");
     camera_cmd->callback([camera_args, &ctx]() { ctx.exit_code = command_video_camera(ctx.registry, *camera_args); });

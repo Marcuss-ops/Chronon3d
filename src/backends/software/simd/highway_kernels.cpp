@@ -41,7 +41,18 @@ HWY_ATTR void composite_normal_premul_impl(float* HWY_RESTRICT dst,
 
     for (int i = 0; i < pixel_count; ++i) {
         const float* s_ptr = src + i * 4;
-        float* d_ptr       = dst + i * 4;
+        const float alpha = s_ptr[3];
+        if (alpha <= 0.001f) {
+            continue;
+        }
+        float* d_ptr = dst + i * 4;
+        if (alpha >= 0.999f) {
+            d_ptr[0] = s_ptr[0];
+            d_ptr[1] = s_ptr[1];
+            d_ptr[2] = s_ptr[2];
+            d_ptr[3] = s_ptr[3];
+            continue;
+        }
 
         auto s = hn::LoadU(d4, s_ptr);
         auto d = hn::LoadU(d4, d_ptr);
@@ -52,8 +63,10 @@ HWY_ATTR void composite_normal_premul_impl(float* HWY_RESTRICT dst,
         // inv_a = 1.0f - a
         const auto inv_a = hn::Sub(one, s_alpha);
 
-        // dst = src + dst * (1 - src.a)  [premultiplied alpha over]
-        const auto blended = hn::Add(s, hn::Mul(d, inv_a));
+        // Premultiplied alpha OVER blend:
+        // dst = src + dst * (1 - src.a)
+        const auto dst_scaled = hn::Mul(d, inv_a);
+        const auto blended = hn::Add(s, dst_scaled);
 
         hn::StoreU(blended, d4, d_ptr);
     }

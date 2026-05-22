@@ -12,7 +12,7 @@ struct RenderSettings {
      * Compatibility toggle for the modular graph coordinate convention.
      * false = top-left scene coordinates, true = centered modular graph coordinates.
      */
-    bool use_modular_graph{false};
+    bool use_modular_graph{true};
 
     /**
      * Global motion blur settings.
