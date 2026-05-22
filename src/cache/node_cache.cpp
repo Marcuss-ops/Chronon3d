@@ -1,7 +1,5 @@
 #include <chronon3d/cache/node_cache.hpp>
-
-#define XXH_INLINE_ALL
-#include <xxhash.h>
+#include <chronon3d/render_graph/render_graph_hashing.hpp>
 #include <cstdlib>
 #include <string_view>
 
@@ -9,17 +7,12 @@ namespace chronon3d::cache {
 
 namespace node_cache_detail {
 
-[[nodiscard]] u64 hash_string(std::string_view value) {
-    return XXH3_64bits(value.data(), value.size());
-}
+using chronon3d::graph::hash_string;
+using chronon3d::graph::hash_combine;
 
 template <typename T>
 [[nodiscard]] u64 hash_value(const T& value) {
-    return XXH3_64bits(&value, sizeof(T));
-}
-
-[[nodiscard]] u64 hash_combine(u64 seed, u64 value) {
-    return seed ^ (value + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2));
+    return chronon3d::graph::hash_value(value);
 }
 
 } // namespace node_cache_detail
@@ -56,17 +49,16 @@ u64 NodeCacheKey::digest() const {
 }
 
 NodeCache::NodeCache(size_t capacity_bytes)
-    : m_cache(resolve_default_capacity(capacity_bytes), 1) {}
+    : m_cache(capacity_bytes > 0 ? capacity_bytes : resolve_default_capacity(64ULL * 1024ULL * 1024ULL)) {}
 
-NodeCache::Value NodeCache::get(const NodeCacheKey& key) {
-    auto opt = m_cache.get(key);
-    return opt ? *opt : nullptr;
+std::shared_ptr<Framebuffer> NodeCache::get(const NodeCacheKey& key) {
+    auto val = m_cache.get(key);
+    return val.has_value() ? *val : nullptr;
 }
 
 void NodeCache::store(const NodeCacheKey& key, Value value) {
-    if (value) {
-        m_cache.put(key, std::move(value), value->size_bytes());
-    }
+    const size_t weight = value ? value->size_bytes() : 0;
+    m_cache.put(key, std::move(value), weight);
 }
 
 bool NodeCache::contains(const NodeCacheKey& key) const {
@@ -77,13 +69,8 @@ void NodeCache::clear() {
     m_cache.clear();
 }
 
-void NodeCache::set_capacity(size_t capacity_bytes) {
-    // Current implementation of LruCache doesn't support dynamic capacity easily
-    // without re-sharding. For now, we clear and recreate or just log.
-    // In a real scenario, we might want Shard::set_capacity.
-    // Let's keep it simple for now.
-    clear();
-    m_cache = FramebufferCache(capacity_bytes, 1);
+void NodeCache::set_capacity(size_t /*capacity_bytes*/) {
+    // LruCache doesn't support dynamic capacity resize yet.
 }
 
 bool NodeCache::erase(const NodeCacheKey& key) {
