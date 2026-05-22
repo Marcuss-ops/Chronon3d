@@ -117,20 +117,6 @@ template <typename T>
     return hash_combine(seed, hash_value(p.intensity));
 }
 
-[[nodiscard]] inline u64 hash_effect_params(const EffectParams& p) {
-    return std::visit([](const auto& params) -> u64 {
-        using T = std::decay_t<decltype(params)>;
-        if constexpr (std::is_same_v<T, BlurParams>) return hash_combine(1, hash_blur_params(params));
-        if constexpr (std::is_same_v<T, TintParams>) return hash_combine(2, hash_tint_params(params));
-        if constexpr (std::is_same_v<T, BrightnessParams>) return hash_combine(3, hash_brightness_params(params));
-        if constexpr (std::is_same_v<T, ContrastParams>) return hash_combine(4, hash_contrast_params(params));
-        if constexpr (std::is_same_v<T, DropShadowParams>) return hash_combine(5, hash_drop_shadow_params(params));
-        if constexpr (std::is_same_v<T, GlowParams>) return hash_combine(6, hash_glow_params(params));
-        if constexpr (std::is_same_v<T, BloomParams>) return hash_combine(7, hash_bloom_params(params));
-        return 0;
-    }, p);
-}
-
 [[nodiscard]] inline u64 hash_effect_stack(const EffectStack& effects) {
     static thread_local int depth = 0;
     if (depth > 50) return 0; // Prevent stack overflow
@@ -142,9 +128,7 @@ template <typename T>
             continue;
         }
         seed = hash_combine(seed, hash_string(e.descriptor.id));
-        if (auto* params = std::any_cast<EffectParams>(&e.params)) {
-            seed = hash_combine(seed, hash_effect_params(*params));
-        } else if (auto* p = std::any_cast<BlurParams>(&e.params)) {
+        if (auto* p = std::any_cast<BlurParams>(&e.params)) {
             seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
         } else if (auto* p = std::any_cast<TintParams>(&e.params)) {
             seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));

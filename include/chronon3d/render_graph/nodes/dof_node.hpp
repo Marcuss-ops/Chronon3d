@@ -54,7 +54,7 @@ public:
         auto result = ctx.acquire_framebuffer(*inputs[0]);
         if (ctx.backend) {
             EffectStack dof_stack;
-            dof_stack.push_back(EffectInstance{EffectParams{BlurParams{blur}}});
+            dof_stack.push_back(EffectInstance{BlurParams{blur}});
             ctx.backend->apply_effect_stack(*result, dof_stack, ctx.time_seconds);
             if (ctx.counters) {
                 ctx.counters->effect_stack_calls.fetch_add(1, std::memory_order_relaxed);
