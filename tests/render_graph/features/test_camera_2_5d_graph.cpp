@@ -9,16 +9,9 @@
 #include <cmath>
 
 using namespace chronon3d;
+using namespace chronon3d::test;
 
 namespace {
-
-std::shared_ptr<Framebuffer> render_modular(const Composition& comp, Frame frame = 0) {
-    SoftwareRenderer renderer;
-    RenderSettings settings;
-    settings.use_modular_graph = true;
-    renderer.set_settings(settings);
-    return renderer.render_frame(comp, frame);
-}
 
 Composition make_graph_25d_sorting_test() {
     return composition({

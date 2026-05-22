@@ -1,18 +1,11 @@
 #include <doctest/doctest.h>
 #include <chronon3d/presets/motion_object.hpp>
 #include <chronon3d/presets/motion_renderer.hpp>
+#include <tests/helpers/test_utils.hpp>
 
 using namespace chronon3d;
 using namespace chronon3d::presets::motion;
-
-static FrameContext make_ctx(Frame frame) {
-    FrameContext ctx;
-    ctx.frame = frame;
-    ctx.frame_rate = FrameRate{30, 1};
-    ctx.width = 1920;
-    ctx.height = 1080;
-    return ctx;
-}
+using namespace chronon3d::test;
 
 TEST_CASE("draw_motion_object skips object outside time") {
     auto ctx = make_ctx(0);

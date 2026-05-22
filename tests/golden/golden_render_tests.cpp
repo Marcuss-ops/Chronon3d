@@ -4,21 +4,14 @@
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/chronon3d.hpp>
+#include <tests/helpers/test_utils.hpp>
 #include <filesystem>
 #include <cmath>
 
 using namespace chronon3d;
+using namespace chronon3d::test;
 
 namespace {
-
-SoftwareRenderer make_renderer() {
-    SoftwareRenderer renderer;
-    RenderSettings settings;
-    settings.use_modular_graph = true;
-    renderer.set_settings(settings);
-    renderer.set_image_backend(std::make_shared<image::StbImageBackend>());
-    return renderer;
-}
 
 std::shared_ptr<Framebuffer> load_png_as_framebuffer(const std::string& path) {
     image::StbImageBackend backend;

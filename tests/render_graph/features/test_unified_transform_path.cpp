@@ -7,6 +7,7 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
+#include <tests/helpers/test_utils.hpp>
 
 #include <algorithm>
 #include <array>
@@ -15,16 +16,9 @@
 #include <optional>
 
 using namespace chronon3d;
+using namespace chronon3d::test;
 
 namespace {
-SoftwareRenderer make_renderer() {
-    SoftwareRenderer renderer;
-    RenderSettings settings;
-    settings.use_modular_graph = true;
-    renderer.set_settings(settings);
-    renderer.set_image_backend(std::make_shared<image::StbImageBackend>());
-    return renderer;
-}
 std::string make_white_image_asset() {
     const std::filesystem::path dir = "output/debug/render_graph_unified";
     std::filesystem::create_directories(dir);

@@ -1,7 +1,32 @@
 #include <doctest/doctest.h>
 #include <chronon3d/math/color_space.hpp>
+#include <chronon3d/math/color.hpp>
+#include <optional>
+#include <algorithm>
 
 using namespace chronon3d;
+
+TEST_CASE("Color: safe hex parsing") {
+    SUBCASE("try_from_hex") {
+        auto c1 = Color::try_from_hex("#ff0000");
+        REQUIRE(c1.has_value());
+        CHECK(c1->r == 1.0f);
+        CHECK(c1->g == 0.0f);
+        CHECK(c1->b == 0.0f);
+        CHECK(c1->a == 1.0f);
+
+        auto c2 = Color::try_from_hex("#00ff007f"); // semi-transparent green
+        REQUIRE(c2.has_value());
+        CHECK(c2->r == 0.0f);
+        CHECK(c2->g == 1.0f);
+        CHECK(c2->b == 0.0f);
+        CHECK(c2->a == doctest::Approx(0.5f).epsilon(0.01));
+
+        CHECK_FALSE(Color::try_from_hex("red").has_value());
+        CHECK_FALSE(Color::try_from_hex("#ff").has_value());
+        CHECK_FALSE(Color::try_from_hex("#GGGGGG").has_value());
+    }
+}
 
 // ---------------------------------------------------------------------------
 // sRGB <-> linear round-trip

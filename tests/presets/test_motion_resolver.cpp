@@ -2,18 +2,11 @@
 #include <chronon3d/presets/motion_object.hpp>
 #include <chronon3d/presets/motion_resolver.hpp>
 #include <chronon3d/presets/anim_factory.hpp>
+#include <tests/helpers/test_utils.hpp>
 
 using namespace chronon3d;
 using namespace chronon3d::presets::motion;
-
-static FrameContext ctx_at(Frame frame) {
-    FrameContext ctx;
-    ctx.frame = frame;
-    ctx.frame_rate = FrameRate{30, 1};
-    ctx.width = 1920;
-    ctx.height = 1080;
-    return ctx;
-}
+using namespace chronon3d::test;
 
 TEST_CASE("MotionTime normalizes frame range") {
     MotionTime t{10, 20};
@@ -28,7 +21,7 @@ TEST_CASE("MotionTime normalizes frame range") {
 TEST_CASE("resolve_motion_state hides object outside time") {
     auto obj = MotionObject::rect("box").time(10, 20);
 
-    auto st = resolve_motion_state(ctx_at(5), obj);
+    auto st = resolve_motion_state(make_ctx(5), obj);
 
     CHECK_FALSE(st.visible);
     CHECK(st.opacity == doctest::Approx(0.0f));
@@ -40,7 +33,7 @@ TEST_CASE("resolve_motion_state keeps base transform for None preset") {
         .opacity(0.75f)
         .time(0, 60);
 
-    auto st = resolve_motion_state(ctx_at(30), obj);
+    auto st = resolve_motion_state(make_ctx(30), obj);
 
     CHECK(st.visible);
     CHECK(st.position.x == doctest::Approx(100.0f));
@@ -55,8 +48,8 @@ TEST_CASE("PushIn3D changes z and rotation") {
         .preset(MotionPreset::PushIn3D)
         .time(0, 100);
 
-    auto start = resolve_motion_state(ctx_at(0), obj);
-    auto end = resolve_motion_state(ctx_at(100), obj);
+    auto start = resolve_motion_state(make_ctx(0), obj);
+    auto end = resolve_motion_state(make_ctx(100), obj);
 
     CHECK(start.position.z != doctest::Approx(end.position.z));
     CHECK(start.rotation.y != doctest::Approx(end.rotation.y));
@@ -68,9 +61,9 @@ TEST_CASE("MotionObject fluent API with custom animations") {
         .animate(anim::fade_in(0, 30))
         .animate(anim::up(100.0f, 0, 30, Easing::Linear));
 
-    auto start = resolve_motion_state(ctx_at(0), obj);
-    auto mid = resolve_motion_state(ctx_at(15), obj);
-    auto end = resolve_motion_state(ctx_at(30), obj);
+    auto start = resolve_motion_state(make_ctx(0), obj);
+    auto mid = resolve_motion_state(make_ctx(15), obj);
+    auto end = resolve_motion_state(make_ctx(30), obj);
 
     // fade_in maps opacity: 0.0 at frame 0, 0.5 at frame 15, 1.0 at frame 30
     CHECK(start.opacity == doctest::Approx(0.0f));
@@ -92,9 +85,9 @@ TEST_CASE("Spring physics computes correct physical response") {
         .time(0, 100)
         .animate(anim::spring_up(100.0f, 0, 1.0f, 100.0f, 10.0f));
 
-    auto start = resolve_motion_state(ctx_at(0), obj);
-    auto mid = resolve_motion_state(ctx_at(30), obj);
-    auto end = resolve_motion_state(ctx_at(90), obj);
+    auto start = resolve_motion_state(make_ctx(0), obj);
+    auto mid = resolve_motion_state(make_ctx(30), obj);
+    auto end = resolve_motion_state(make_ctx(90), obj);
 
     // Initial position.y should be 100.0 (progress = 0, spring_value = 0, offset = 100)
     CHECK(start.position.y == doctest::Approx(100.0f));
@@ -110,8 +103,8 @@ TEST_CASE("3D space animations push and flip") {
         .animate(anim::push_in_3d(-500.0f, 0, 30))
         .animate(anim::flip_y(-180.0f, 0, 30));
 
-    auto start = resolve_motion_state(ctx_at(0), obj);
-    auto end = resolve_motion_state(ctx_at(30), obj);
+    auto start = resolve_motion_state(make_ctx(0), obj);
+    auto end = resolve_motion_state(make_ctx(30), obj);
 
     // push_in_3d adds (1.0 - progress) * start_z to position.z
     // at frame 0, offset = -500.0 -> z = -500.0
