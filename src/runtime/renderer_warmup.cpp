@@ -18,13 +18,34 @@ RendererWarmupResult warmup_renderer(
 
     // 1. Preallocate framebuffers into the pool
     if (options.preallocate_framebuffers && pool) {
-        result.framebuffers_created = pool->preallocate({
+        // Primary canvas size (4-8 buffers)
+        result.framebuffers_created += pool->preallocate({
             .width = options.width,
             .height = options.height,
-            .count = options.framebuffer_count,
+            .count = std::max<size_t>(4, options.framebuffer_count),
             .clear = true,
             .touch_memory = options.touch_memory
         });
+        // Half-canvas size (2-4 buffers)
+        const int half_w = options.width / 2;
+        const int half_h = options.height / 2;
+        if (half_w > 0 && half_h > 0) {
+            result.framebuffers_created += pool->preallocate({
+                .width = half_w, .height = half_h,
+                .count = 4, .clear = true,
+                .touch_memory = options.touch_memory
+            });
+        }
+        // Quarter-canvas size (2 buffers)
+        const int qw = options.width / 4;
+        const int qh = options.height / 4;
+        if (qw > 0 && qh > 0) {
+            result.framebuffers_created += pool->preallocate({
+                .width = qw, .height = qh,
+                .count = 2, .clear = true,
+                .touch_memory = options.touch_memory
+            });
+        }
     }
 
     // 2. Optionally render a dummy frame to prime all caches.

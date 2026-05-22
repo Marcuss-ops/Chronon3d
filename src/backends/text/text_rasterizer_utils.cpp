@@ -1,19 +1,22 @@
 #include <chronon3d/backends/text/text_rasterizer_utils.hpp>
 #include <chronon3d/backends/text/text_layout_engine.hpp>
+#include <chronon3d/cache/lru_cache.hpp>
 #include "../software/utils/blend2d_resources.hpp"
 #include <algorithm>
 #include <cmath>
 #include <mutex>
-#include <unordered_map>
+#include <cstdlib>
 
 namespace chronon3d {
 
 namespace {
 
 using CacheKey = u64;
+using TextCache = cache::LruCache<CacheKey, std::shared_ptr<TextRasterization>>;
 
+// Use the same hash_combine as render_graph_hashing for consistency
 CacheKey hash_combine(CacheKey seed, CacheKey value) {
-    seed ^= value + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2);
+    seed ^= value + 0x9e3779b9 + (seed << 6) + (seed >> 2);
     return seed;
 }
 
@@ -22,10 +25,8 @@ CacheKey hash_value(const T& value) {
     return static_cast<CacheKey>(std::hash<T>{}(value));
 }
 
-CacheKey hash_text_style(const TextShape& t, float effective_size, int padding) {
+CacheKey hash_text_style(const TextShape& t, float effective_size, int padding, const Mat4* transform) {
     CacheKey seed = 0;
-    // Content-only text atlas key:
-    // keep raster-relevant typography fields, but do not include placement or runtime state.
     seed = hash_combine(seed, hash_value(t.text));
     seed = hash_combine(seed, hash_value(t.style.font_path));
     seed = hash_combine(seed, hash_value(t.style.font_family));
@@ -93,15 +94,35 @@ CacheKey hash_text_style(const TextShape& t, float effective_size, int padding) 
         seed = hash_combine(seed, hash_value(shadow.color.a));
     }
 
+    // Transform hash
+    if (transform) {
+        for (int i = 0; i < 4; ++i) {
+            for (int j = 0; j < 4; ++j) {
+                seed = hash_combine(seed, hash_value((*transform)[i][j]));
+            }
+        }
+    }
+
     return seed;
 }
 
-struct CachedRasterEntry {
-    TextRasterization raster;
-};
+size_t resolve_cache_max_mb(const char* env_name, size_t default_mb) {
+    const char* env = std::getenv(env_name);
+    if (!env || !*env) return default_mb * 1024ULL * 1024ULL;
+    try {
+        size_t mb = static_cast<size_t>(std::stoull(env));
+        return mb > 0 ? mb * 1024ULL * 1024ULL : default_mb * 1024ULL * 1024ULL;
+    } catch (...) {
+        return default_mb * 1024ULL * 1024ULL;
+    }
+}
 
-std::unordered_map<CacheKey, CachedRasterEntry> g_text_raster_cache;
-std::mutex g_text_raster_cache_mutex;
+TextCache& get_text_cache() {
+    static TextCache cache(resolve_cache_max_mb("CHRONON_TEXT_CACHE_MAX_MB", 128), 8);
+    return cache;
+}
+
+std::mutex g_text_cache_mutex;
 
 } // namespace
 
@@ -109,26 +130,23 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     const TextShape& t,
     float effective_size,
     int padding,
-    bool* cache_hit
+    bool* cache_hit,
+    const Mat4* transform
 ) {
     std::string font_path = t.style.font_path;
     if (t.text.empty() || font_path.empty()) return std::nullopt;
 
-    const CacheKey key = hash_text_style(t, effective_size, padding);
+    const CacheKey key = hash_text_style(t, effective_size, padding, transform);
     {
-        std::lock_guard<std::mutex> lock(g_text_raster_cache_mutex);
-        auto it = g_text_raster_cache.find(key);
-        if (it != g_text_raster_cache.end()) {
-            if (cache_hit) {
-                *cache_hit = true;
-            }
-            return it->second.raster;
+        std::lock_guard<std::mutex> lock(g_text_cache_mutex);
+        auto cached = get_text_cache().get(key);
+        if (cached) {
+            if (cache_hit) *cache_hit = true;
+            return *(*cached);
         }
     }
 
-    if (cache_hit) {
-        *cache_hit = false;
-    }
+    if (cache_hit) *cache_hit = false;
 
     BLFontFace face = blend2d_utils::Blend2DResources::instance().get_face(font_path);
     if (face.empty()) return std::nullopt;
@@ -136,7 +154,6 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     BLFont font;
     font.createFromFace(face, effective_size);
 
-    // Setup custom char_width measuring using Blend2D's loaded font
     auto cw = [&](char c, float sz) -> float {
         BLFont measure_font;
         measure_font.createFromFace(face, sz);
@@ -149,14 +166,12 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
         return static_cast<float>(m.advance.x);
     };
 
-    // Account for TextBoxStyle padding if enabled
     TextBox layout_box = t.box;
     if (t.style.box_style.enabled && t.box.enabled) {
         layout_box.size.x = std::max(0.0f, t.box.size.x - 2.0f * t.style.box_style.padding.x);
         layout_box.size.y = std::max(0.0f, t.box.size.y - 2.0f * t.style.box_style.padding.y);
     }
 
-    // Run the multi-line layout engine
     TextLayoutInput layout_in;
     layout_in.text = t.text;
     layout_in.style = t.style;
@@ -166,7 +181,6 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
 
     auto layout_res = TextLayoutEngine::layout(layout_in);
 
-    // Calculate dimensions
     int tw = 0;
     int th = 0;
     if (t.box.enabled) {
@@ -185,9 +199,74 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
 
     if (tw <= 0 || th <= 0) return std::nullopt;
 
-    BLImage img(tw, th, BL_FORMAT_PRGB32);
+    // Check if transform is affine (suitable for Blend2D BLContext)
+    bool use_geometric_transform = false;
+    float bbox_min_x = 0.0f, bbox_min_y = 0.0f;
+    int img_w = tw, img_h = th;
+
+    if (transform) {
+        bool is_affine =
+            std::abs((*transform)[0][2]) < 1e-5f &&
+            std::abs((*transform)[1][2]) < 1e-5f &&
+            std::abs((*transform)[2][0]) < 1e-5f &&
+            std::abs((*transform)[2][1]) < 1e-5f &&
+            std::abs((*transform)[2][2] - 1.0f) < 1e-5f &&
+            std::abs((*transform)[2][3]) < 1e-5f &&
+            std::abs((*transform)[3][2]) < 1e-5f;
+
+        if (is_affine) {
+            // Compute screen-space bbox of text content area under transform
+            const float margin = 2.0f;
+            float cx0 = static_cast<float>(padding) / 2.0f;
+            float cy0 = static_cast<float>(padding) / 2.0f;
+            float cx1 = static_cast<float>(tw) - static_cast<float>(padding) / 2.0f;
+            float cy1 = static_cast<float>(th) - static_cast<float>(padding) / 2.0f;
+
+            Vec4 corners[4] = {
+                *transform * Vec4(cx0, cy0, 0.0f, 1.0f),
+                *transform * Vec4(cx1, cy0, 0.0f, 1.0f),
+                *transform * Vec4(cx1, cy1, 0.0f, 1.0f),
+                *transform * Vec4(cx0, cy1, 0.0f, 1.0f),
+            };
+
+            bbox_min_x = corners[0].x;
+            bbox_min_y = corners[0].y;
+            float bbox_max_x = corners[0].x;
+            float bbox_max_y = corners[0].y;
+            for (int i = 1; i < 4; ++i) {
+                bbox_min_x = std::min(bbox_min_x, corners[i].x);
+                bbox_min_y = std::min(bbox_min_y, corners[i].y);
+                bbox_max_x = std::max(bbox_max_x, corners[i].x);
+                bbox_max_y = std::max(bbox_max_y, corners[i].y);
+            }
+
+            img_w = static_cast<int>(std::ceil(bbox_max_x - bbox_min_x + margin * 2.0f));
+            img_h = static_cast<int>(std::ceil(bbox_max_y - bbox_min_y + margin * 2.0f));
+            bbox_min_x -= margin;
+            bbox_min_y -= margin;
+
+            if (img_w > 0 && img_h > 0) {
+                use_geometric_transform = true;
+            }
+        }
+    }
+
+    BLImage img(img_w, img_h, BL_FORMAT_PRGB32);
     BLContext ctx(img);
     ctx.clearAll();
+
+    if (use_geometric_transform) {
+        // Apply affine transform to BLContext so text is rendered already oriented
+        // Maps text-local -> image-local: image_pos = model * text_pos - bbox_min
+        BLMatrix2D bl_mat;
+        bl_mat.reset(
+            (*transform)[0][0], (*transform)[0][1],
+            (*transform)[1][0], (*transform)[1][1],
+            (*transform)[3][0] - bbox_min_x,
+            (*transform)[3][1] - bbox_min_y
+        );
+        ctx.setTransform(bl_mat);
+    }
 
     // Render TextBox background card if enabled
     if (t.style.box_style.enabled) {
@@ -215,7 +294,6 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
         }
     }
 
-    // Calculate vertical alignment offset
     float free_w = t.box.enabled ? (t.box.size.x - (t.style.box_style.enabled ? 2.0f * t.style.box_style.padding.x : 0.0f)) : 0.0f;
     float free_h = t.box.enabled ? (t.box.size.y - (t.style.box_style.enabled ? 2.0f * t.style.box_style.padding.y : 0.0f)) : 0.0f;
     float dx_align = 0.0f;
@@ -235,17 +313,14 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
         }
     }
 
-    // Text starting position offset
     float text_start_x = padding / 2.0f + (t.style.box_style.enabled ? t.style.box_style.padding.x : 0.0f) + dx_align;
     float text_start_y = padding / 2.0f + (t.style.box_style.enabled ? t.style.box_style.padding.y : 0.0f) + dy_align;
 
-    // Resolve color
     Color fill_color = t.style.paint.fill;
     if (fill_color == Color{1.0f, 1.0f, 1.0f, 1.0f} && !(t.style.color == Color{1.0f, 1.0f, 1.0f, 1.0f})) {
         fill_color = t.style.color;
     }
 
-    // Draw lines
     for (const auto& line : layout_res.lines) {
         if (line.text.empty()) continue;
 
@@ -274,52 +349,56 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
 
     ctx.end();
 
-    // Calculate layout metrics bounding box
     BLGlyphBuffer gb;
     gb.setUtf8Text(t.text.c_str(), t.text.size());
     font.shape(gb);
     BLTextMetrics metrics;
     font.getTextMetrics(gb, metrics);
 
-    // Compute external offsets
-    float x_offset = 0.0f;
-    if (t.box.enabled) {
-        x_offset = -padding / 2.0f;
+    float x_offset, y_offset;
+    if (use_geometric_transform) {
+        x_offset = bbox_min_x;
+        y_offset = bbox_min_y;
     } else {
-        const float full_width = layout_res.size.x;
-        if (t.style.align == TextAlign::Center) x_offset = -full_width * 0.5f;
-        else if (t.style.align == TextAlign::Right) x_offset = -full_width;
-        x_offset += metrics.boundingBox.x0 - (padding / 2.0f);
-    }
+        if (t.box.enabled) {
+            x_offset = -padding / 2.0f;
+        } else {
+            const float full_width = layout_res.size.x;
+            if (t.style.align == TextAlign::Center) x_offset = -full_width * 0.5f;
+            else if (t.style.align == TextAlign::Right) x_offset = -full_width;
+            x_offset += metrics.boundingBox.x0 - (padding / 2.0f);
+        }
 
-    float y_offset = 0.0f;
-    if (t.box.enabled) {
-        y_offset = -padding / 2.0f;
-    } else {
-        y_offset = -font.metrics().ascent - (padding / 2.0f);
-        if (t.style.align == TextAlign::Center) {
-            y_offset += (font.metrics().ascent - font.metrics().descent) * 0.5f;
+        if (t.box.enabled) {
+            y_offset = -padding / 2.0f;
+        } else {
+            y_offset = -font.metrics().ascent - (padding / 2.0f);
+            if (t.style.align == TextAlign::Center) {
+                y_offset += (font.metrics().ascent - font.metrics().descent) * 0.5f;
+            }
         }
     }
 
-    TextRasterization res;
-    res.image = std::move(img);
-    res.x_offset = x_offset;
-    res.y_offset = y_offset;
-    res.metrics = metrics;
-    res.font = font;
+    auto result = std::make_shared<TextRasterization>();
+    result->image = std::move(img);
+    result->x_offset = x_offset;
+    result->y_offset = y_offset;
+    result->metrics = metrics;
+    result->font = font;
 
     {
-        std::lock_guard<std::mutex> lock(g_text_raster_cache_mutex);
-        g_text_raster_cache.emplace(key, CachedRasterEntry{res});
+        std::lock_guard<std::mutex> lock(g_text_cache_mutex);
+        size_t weight = static_cast<size_t>(result->image.width()) *
+                        static_cast<size_t>(result->image.height()) * 4;
+        get_text_cache().put(key, result, weight);
     }
 
-    return res;
+    return *result;
 }
 
 void clear_text_raster_cache() {
-    std::lock_guard<std::mutex> lock(g_text_raster_cache_mutex);
-    g_text_raster_cache.clear();
+    std::lock_guard<std::mutex> lock(g_text_cache_mutex);
+    get_text_cache().clear();
 }
 
 } // namespace chronon3d

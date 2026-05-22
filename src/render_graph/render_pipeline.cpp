@@ -12,10 +12,102 @@
 #include <spdlog/spdlog.h>
 #include <algorithm>
 #include <chrono>
+#include <functional>
+#include <iostream>
 
 namespace chronon3d::graph {
 
 namespace {
+
+[[nodiscard]] uint64_t compute_scene_fingerprint(const Scene& scene, Frame frame) {
+    uint64_t h = 0;
+    auto combine = [](uint64_t& s, uint64_t v) {
+        s ^= v + 0x9e3779b97f4a7c15ULL + (s << 6) + (s >> 2);
+    };
+
+    combine(h, std::hash<int64_t>{}(static_cast<int64_t>(frame)));
+
+    for (const auto& layer : scene.layers()) {
+        if (!layer.active_at(frame)) continue;
+
+        combine(h, std::hash<std::string_view>{}(layer.name));
+        combine(h, std::hash<std::string_view>{}(layer.parent_name));
+        combine(h, std::hash<int>{}(static_cast<int>(layer.kind)));
+        combine(h, std::hash<int64_t>{}(static_cast<int64_t>(layer.from)));
+        combine(h, std::hash<int64_t>{}(static_cast<int64_t>(layer.duration)));
+        combine(h, std::hash<int64_t>{}(static_cast<int64_t>(layer.time_offset)));
+        combine(h, std::hash<bool>{}(layer.visible));
+        combine(h, std::hash<bool>{}(layer.is_3d));
+        combine(h, std::hash<bool>{}(layer.cache_static));
+        combine(h, std::hash<int>{}(static_cast<int>(layer.blend_mode)));
+
+        combine(h, std::hash<float>{}(layer.transform.position.x));
+        combine(h, std::hash<float>{}(layer.transform.position.y));
+        combine(h, std::hash<float>{}(layer.transform.position.z));
+        combine(h, std::hash<float>{}(layer.transform.rotation.x));
+        combine(h, std::hash<float>{}(layer.transform.rotation.y));
+        combine(h, std::hash<float>{}(layer.transform.rotation.z));
+        combine(h, std::hash<float>{}(layer.transform.rotation.w));
+        combine(h, std::hash<float>{}(layer.transform.scale.x));
+        combine(h, std::hash<float>{}(layer.transform.scale.y));
+        combine(h, std::hash<float>{}(layer.transform.scale.z));
+        combine(h, std::hash<float>{}(layer.transform.anchor.x));
+        combine(h, std::hash<float>{}(layer.transform.anchor.y));
+        combine(h, std::hash<float>{}(layer.transform.anchor.z));
+        combine(h, std::hash<float>{}(layer.transform.opacity));
+
+        combine(h, std::hash<int>{}(static_cast<int>(layer.mask.type)));
+        combine(h, std::hash<float>{}(layer.mask.pos.x));
+        combine(h, std::hash<float>{}(layer.mask.pos.y));
+        combine(h, std::hash<float>{}(layer.mask.pos.z));
+        combine(h, std::hash<float>{}(layer.mask.size.x));
+        combine(h, std::hash<float>{}(layer.mask.size.y));
+        combine(h, std::hash<float>{}(layer.mask.radius));
+        combine(h, std::hash<bool>{}(layer.mask.inverted));
+
+        combine(h, std::hash<size_t>{}(layer.effects.size()));
+        for (const auto& effect : layer.effects) {
+            combine(h, std::hash<std::string_view>{}(effect.descriptor.id));
+            combine(h, std::hash<bool>{}(effect.enabled));
+        }
+
+        combine(h, std::hash<size_t>{}(layer.nodes.size()));
+        for (const auto& node : layer.nodes) {
+            combine(h, std::hash<std::string_view>{}(node.name));
+            combine(h, std::hash<float>{}(node.world_transform.position.x));
+            combine(h, std::hash<float>{}(node.world_transform.position.y));
+            combine(h, std::hash<float>{}(node.world_transform.position.z));
+            combine(h, std::hash<float>{}(node.world_transform.rotation.x));
+            combine(h, std::hash<float>{}(node.world_transform.rotation.y));
+            combine(h, std::hash<float>{}(node.world_transform.rotation.z));
+            combine(h, std::hash<float>{}(node.world_transform.rotation.w));
+            combine(h, std::hash<float>{}(node.world_transform.scale.x));
+            combine(h, std::hash<float>{}(node.world_transform.scale.y));
+            combine(h, std::hash<float>{}(node.world_transform.scale.z));
+            combine(h, std::hash<float>{}(node.world_transform.anchor.x));
+            combine(h, std::hash<float>{}(node.world_transform.anchor.y));
+            combine(h, std::hash<float>{}(node.world_transform.anchor.z));
+            combine(h, std::hash<float>{}(node.world_transform.opacity));
+            combine(h, std::hash<float>{}(node.color.r));
+            combine(h, std::hash<float>{}(node.color.g));
+            combine(h, std::hash<float>{}(node.color.b));
+            combine(h, std::hash<float>{}(node.color.a));
+            combine(h, std::hash<int>{}(static_cast<int>(node.fill.type)));
+            combine(h, std::hash<int>{}(static_cast<int>(node.shape.type)));
+            combine(h, std::hash<bool>{}(node.visible));
+            combine(h, std::hash<bool>{}(node.shadow.enabled));
+            combine(h, std::hash<bool>{}(node.glow.enabled));
+        }
+
+        if (layer.kind == LayerKind::Precomp) {
+            combine(h, std::hash<std::string_view>{}(layer.precomp_composition_name));
+        }
+
+        combine(h, std::hash<int>{}(static_cast<int>(layer.depth_role)));
+        combine(h, std::hash<float>{}(layer.depth_offset));
+    }
+    return h;
+}
 
 telemetry::RenderTelemetryRow make_telemetry_row(
     std::string event,
@@ -182,15 +274,62 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     }
     
     SoftwareRenderer* sw_renderer = dynamic_cast<SoftwareRenderer*>(&backend);
+
+    // ── Quick skip: consecutive frame with no layer changes ─────────────
+    // Avoid resolve_layers entirely when nothing can have changed.
+    if (sw_renderer &&
+        settings.enable_dirty_rects &&
+        sw_renderer->m_prev_framebuffer &&
+        sw_renderer->m_prev_framebuffer->width() == width &&
+        sw_renderer->m_prev_framebuffer->height() == height &&
+        sw_renderer->m_prev_frame == frame - 1)
+    {
+        CHRONON_ZONE_C("dirty_fast_check", trace_category::kFrame);
+        const Camera2_5D& cam = ctx.camera_2_5d;
+        const bool camera_changed = !sw_renderer->m_prev_camera_valid ||
+                                     sw_renderer->m_prev_camera.enabled != cam.enabled ||
+                                     (cam.enabled && (
+                                         sw_renderer->m_prev_camera.position != cam.position ||
+                                         sw_renderer->m_prev_camera.zoom != cam.zoom ||
+                                         sw_renderer->m_prev_camera.fov_deg != cam.fov_deg ||
+                                         sw_renderer->m_prev_camera.rotation != cam.rotation ||
+                                         sw_renderer->m_prev_camera.projection_mode != cam.projection_mode
+                                     ));
+
+        const uint64_t current_fingerprint = compute_scene_fingerprint(scene, frame);
+        if (!camera_changed &&
+            sw_renderer->m_prev_scene_fingerprint == current_fingerprint) {
+            // Fast path: nothing changed, reuse previous framebuffer
+                sw_renderer->m_last_dirty_area_ratio = 0.0;
+                sw_renderer->m_prev_frame = frame;
+                sw_renderer->m_prev_scene_fingerprint = current_fingerprint;
+                sw_renderer->m_prev_camera = cam;
+                sw_renderer->m_prev_camera_valid = cam.enabled;
+                if (ctx.counters) {
+                    ctx.counters->dirty_union_area_pixels.store(0, std::memory_order_relaxed);
+                }
+                telemetry::record_render_telemetry(make_telemetry_row(
+                    "scene_render", frame, width, height,
+                    std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count(),
+                    0.0, 0.0, 0.0, 0.0, 1,
+                    static_cast<int>(scene.layers().size()), ctx.counters
+                ));
+                profiling::g_current_counters = nullptr;
+                return sw_renderer->m_prev_framebuffer;
+            }
+        }
+
+    // ── Full path ───────────────────────────────────────────────────────
     const auto resolved = detail::resolve_layers(scene, ctx);
-    
+
     std::unordered_map<std::string, SoftwareRenderer::LayerBBoxState> current_layer_bboxes;
     std::optional<raster::BBox> dirty_rect;
+    bool use_dirty_rects = false;
 
     if (sw_renderer) {
+        CHRONON_ZONE_C("dirty_rect_compute", trace_category::kFrame);
         const Camera2_5DRuntime& cam25d = resolved.camera.camera;
 
-        // Lambda to compute a bbox for a resolved layer
         auto compute_bbox_for_resolved = [&](const ResolvedLayer& rl, const Camera2_5DRuntime& cam) -> raster::BBox {
             LayerGraphItem item;
             if (cam.enabled && rl.layer->is_3d) {
@@ -201,77 +340,51 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
                 }
                 const Mat4 projection_world_matrix = effective_transform.to_mat4();
                 auto proj = project_layer_2_5d(
-                    effective_transform,
-                    projection_world_matrix,
-                    cam,
-                    static_cast<f32>(ctx.width),
-                    static_cast<f32>(ctx.height),
-                    ctx.diagnostics_enabled
-                );
+                    effective_transform, projection_world_matrix, cam,
+                    static_cast<f32>(ctx.width), static_cast<f32>(ctx.height), ctx.diagnostics_enabled);
                 if (proj.visible) {
-                    const Mat4 eff_proj = detail::is_native_3d_layer(*rl.layer)
-                        ? Mat4(1.0f)
-                        : proj.projection_matrix;
-                    item = LayerGraphItem{
-                        .layer             = rl.layer,
-                        .transform         = proj.transform,
-                        .world_matrix      = rl.world_matrix,
-                        .projection_matrix = eff_proj,
-                        .depth             = proj.depth,
-                        .world_z           = rl.world_transform.position.z,
-                        .projected         = true,
-                        .native_3d         = detail::is_native_3d_layer(*rl.layer),
-                        .insertion_index   = rl.insertion_index,
-                    };
+                    const Mat4 eff_proj = detail::is_native_3d_layer(*rl.layer) ? Mat4(1.0f) : proj.projection_matrix;
+                    item = LayerGraphItem{.layer = rl.layer, .transform = proj.transform, .world_matrix = rl.world_matrix,
+                        .projection_matrix = eff_proj, .depth = proj.depth, .world_z = rl.world_transform.position.z,
+                        .projected = true, .native_3d = detail::is_native_3d_layer(*rl.layer), .insertion_index = rl.insertion_index};
                 } else {
                     return raster::BBox{0, 0, 0, 0};
                 }
             } else {
-                item = LayerGraphItem{
-                    .layer           = rl.layer,
-                    .transform       = rl.world_transform,
-                    .world_matrix    = rl.world_matrix,
-                    .depth           = 0.0f,
-                    .world_z         = rl.world_transform.position.z,
-                    .projected       = false,
-                    .native_3d       = detail::is_native_3d_layer(*rl.layer),
-                    .insertion_index = rl.insertion_index,
-                };
+                item = LayerGraphItem{.layer = rl.layer, .transform = rl.world_transform, .world_matrix = rl.world_matrix,
+                    .depth = 0.0f, .world_z = rl.world_transform.position.z, .projected = false,
+                    .native_3d = detail::is_native_3d_layer(*rl.layer), .insertion_index = rl.insertion_index};
             }
             return detail::compute_layer_bbox(item, ctx, sw_renderer);
         };
 
-        // Compute current bboxes and build current state map
         for (const auto& rl : resolved.layers) {
             if (rl.layer && rl.layer->active_at(frame)) {
                 raster::BBox bbox = compute_bbox_for_resolved(rl, cam25d);
                 SoftwareRenderer::LayerBBoxState state;
-                state.bbox = bbox;
-                state.world_matrix = rl.world_matrix;
-                state.opacity = rl.world_transform.opacity;
-                state.visible = rl.layer->visible;
-                state.cache_static = rl.layer->cache_static;
-                state.is_3d = rl.layer->is_3d;
+                state.bbox = bbox; state.world_matrix = rl.world_matrix;
+                state.opacity = rl.world_transform.opacity; state.visible = rl.layer->visible;
+                state.cache_static = rl.layer->cache_static; state.is_3d = rl.layer->is_3d;
                 current_layer_bboxes[std::string(rl.layer->name)] = state;
             }
         }
 
-        bool use_dirty_rects = settings.enable_dirty_rects &&
-                               sw_renderer->m_prev_framebuffer &&
-                               sw_renderer->m_prev_framebuffer->width() == width &&
-                               sw_renderer->m_prev_framebuffer->height() == height &&
-                               sw_renderer->m_prev_frame == frame - 1;
+        use_dirty_rects = settings.enable_dirty_rects &&
+                          sw_renderer->m_prev_framebuffer &&
+                          sw_renderer->m_prev_framebuffer->width() == width &&
+                          sw_renderer->m_prev_framebuffer->height() == height &&
+                          sw_renderer->m_prev_frame == frame - 1;
 
         if (use_dirty_rects) {
             bool camera_changed = !sw_renderer->m_prev_camera_valid ||
-                                  sw_renderer->m_prev_camera.enabled != cam25d.enabled ||
-                                  (cam25d.enabled && (
-                                      sw_renderer->m_prev_camera.position != cam25d.position ||
-                                      sw_renderer->m_prev_camera.zoom != cam25d.zoom ||
-                                      sw_renderer->m_prev_camera.fov_deg != cam25d.fov_deg ||
-                                      sw_renderer->m_prev_camera.rotation != cam25d.rotation ||
-                                      sw_renderer->m_prev_camera.projection_mode != cam25d.projection_mode
-                                  ));
+                                   sw_renderer->m_prev_camera.enabled != cam25d.enabled ||
+                                   (cam25d.enabled && (
+                                       sw_renderer->m_prev_camera.position != cam25d.position ||
+                                       sw_renderer->m_prev_camera.zoom != cam25d.zoom ||
+                                       sw_renderer->m_prev_camera.fov_deg != cam25d.fov_deg ||
+                                       sw_renderer->m_prev_camera.rotation != cam25d.rotation ||
+                                       sw_renderer->m_prev_camera.projection_mode != cam25d.projection_mode
+                                   ));
 
             raster::BBox union_dirty{0, 0, 0, 0};
             bool has_dirty = false;
@@ -280,7 +393,6 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
                 raster::BBox clipped = b;
                 clipped.clip_to(width, height);
                 if (clipped.is_empty()) return;
-                
                 if (!has_dirty) {
                     union_dirty = clipped;
                     has_dirty = true;
@@ -292,51 +404,32 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
                 }
             };
 
-            // Check every layer active in the current frame
             for (const auto& pair : current_layer_bboxes) {
-                const std::string& name = pair.first;
+                const auto& name = pair.first;
                 const auto& curr = pair.second;
-
                 auto prev_it = sw_renderer->m_prev_layer_bboxes.find(name);
                 if (prev_it == sw_renderer->m_prev_layer_bboxes.end()) {
-                    // New layer!
                     add_dirty_bbox(curr.bbox);
                 } else {
                     const auto& prev = prev_it->second;
                     bool layer_dirty = false;
-                    
-                    if (camera_changed && curr.is_3d) {
-                        layer_dirty = true;
-                    } else if (!curr.cache_static) {
-                        layer_dirty = true;
-                    } else if (curr.world_matrix != prev.world_matrix ||
-                               curr.opacity != prev.opacity ||
-                               curr.visible != prev.visible) {
-                        layer_dirty = true;
-                    }
-
+                    if (camera_changed && curr.is_3d) layer_dirty = true;
+                    else if (!curr.cache_static) layer_dirty = true;
+                    else if (curr.world_matrix != prev.world_matrix ||
+                             curr.opacity != prev.opacity || curr.visible != prev.visible) layer_dirty = true;
                     if (layer_dirty) {
                         add_dirty_bbox(curr.bbox);
                         add_dirty_bbox(prev.bbox);
                     }
                 }
             }
-
-            // Check for layers that were present in previous frame but are gone in current frame
             for (const auto& pair : sw_renderer->m_prev_layer_bboxes) {
-                const std::string& name = pair.first;
-                const auto& prev = pair.second;
-                if (current_layer_bboxes.find(name) == current_layer_bboxes.end()) {
-                    // Layer was removed!
-                    add_dirty_bbox(prev.bbox);
+                if (current_layer_bboxes.find(pair.first) == current_layer_bboxes.end()) {
+                    add_dirty_bbox(pair.second.bbox);
                 }
             }
 
-            if (has_dirty) {
-                dirty_rect = union_dirty;
-            } else {
-                dirty_rect = raster::BBox{0, 0, 0, 0};
-            }
+            dirty_rect = has_dirty ? std::optional(union_dirty) : std::optional(raster::BBox{0, 0, 0, 0});
         } else {
             dirty_rect = raster::BBox{0, 0, width, height};
         }
@@ -345,22 +438,32 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     }
 
     double dirty_ratio = 1.0;
+    u64 dirty_union_area_pixels = 0;
     if (dirty_rect) {
-        double dirty_area = static_cast<double>(std::max(0, dirty_rect->x1 - dirty_rect->x0)) * std::max(0, dirty_rect->y1 - dirty_rect->y0);
+        int dbg_w = std::max(0, dirty_rect->x1 - dirty_rect->x0);
+        int dbg_h = std::max(0, dirty_rect->y1 - dirty_rect->y0);
+        bool dbg_is_empty = (dbg_w == 0 || dbg_h == 0);
+        std::cout << "Frame #" << frame 
+                  << " | Dirty Rect: " << dbg_w << "x" << dbg_h 
+                  << " | Is Empty: " << dbg_is_empty << std::endl;
+
+        double dirty_area = static_cast<double>(dbg_w) * static_cast<double>(dbg_h);
         double total_area = static_cast<double>(width) * height;
-        dirty_ratio = dirty_area / total_area;
+        if (total_area > 0) dirty_ratio = dirty_area / total_area;
+        dirty_union_area_pixels = static_cast<u64>(dirty_area);
     }
-    
+    if (ctx.counters) {
+        ctx.counters->dirty_union_area_pixels.store(dirty_union_area_pixels, std::memory_order_relaxed);
+    }
     if (sw_renderer) {
         sw_renderer->m_last_dirty_area_ratio = dirty_ratio;
     }
-    
     ctx.dirty_rect = dirty_rect;
+    ctx.reuse_prev_framebuffer = use_dirty_rects;
 
     const bool fast_path_reuse = sw_renderer &&
                                  settings.enable_dirty_rects &&
-                                 dirty_rect &&
-                                 dirty_rect->is_empty() &&
+                                 dirty_rect && dirty_rect->is_empty() &&
                                  sw_renderer->m_prev_framebuffer &&
                                  sw_renderer->m_prev_framebuffer->width() == width &&
                                  sw_renderer->m_prev_framebuffer->height() == height;
@@ -371,40 +474,41 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         sw_renderer->m_last_dirty_area_ratio = 0.0;
         sw_renderer->m_prev_layer_bboxes = std::move(current_layer_bboxes);
         sw_renderer->m_prev_frame = frame;
+        const uint64_t current_fingerprint = compute_scene_fingerprint(scene, frame);
+        sw_renderer->m_prev_scene_fingerprint = current_fingerprint;
         sw_renderer->m_prev_camera = resolved.camera.camera;
         sw_renderer->m_prev_camera_valid = resolved.camera.camera.enabled;
-
         telemetry::record_render_telemetry(make_telemetry_row(
-            "scene_render",
-            frame,
-            width,
-            height,
+            "scene_render", frame, width, height,
             std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count(),
             std::chrono::duration<double, std::milli>(t_build1 - t_build0).count(),
-            0.0,
-            0.0,
-            0.0,
-            1,
-            static_cast<int>(scene.layers().size()),
-            ctx.counters
+            0.0, 0.0, 0.0, 1,
+            static_cast<int>(scene.layers().size()), ctx.counters
         ));
-
         profiling::g_current_counters = nullptr;
         return sw_renderer->m_prev_framebuffer;
     }
 
-    RenderGraph graph = detail::build_graph(scene, ctx, resolved);
+    RenderGraph graph = [&]() {
+        CHRONON_ZONE_C("build_graph", trace_category::kGraph);
+        return detail::build_graph(scene, ctx, resolved);
+    }();
     const auto t_build2 = std::chrono::steady_clock::now();
 
     const auto t_exec0 = std::chrono::steady_clock::now();
     GraphExecutor executor;
-    auto fb_shared = executor.execute(graph, graph.output(), ctx);
+    std::shared_ptr<Framebuffer> fb_shared;
+    {
+        CHRONON_ZONE_C("graph_execute", trace_category::kGraph);
+        fb_shared = executor.execute(graph, graph.output(), ctx);
+    }
     const auto t_exec1 = std::chrono::steady_clock::now();
-    
+
     if (sw_renderer) {
         sw_renderer->m_prev_framebuffer = fb_shared;
         sw_renderer->m_prev_layer_bboxes = std::move(current_layer_bboxes);
         sw_renderer->m_prev_frame = frame;
+        sw_renderer->m_prev_scene_fingerprint = compute_scene_fingerprint(scene, frame);
         sw_renderer->m_prev_camera = resolved.camera.camera;
         sw_renderer->m_prev_camera_valid = resolved.camera.camera.enabled;
     }
@@ -412,18 +516,13 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
 
     const auto t1 = std::chrono::steady_clock::now();
     telemetry::record_render_telemetry(make_telemetry_row(
-        "scene_render",
-        frame,
-        width,
-        height,
+        "scene_render", frame, width, height,
         std::chrono::duration<double, std::milli>(t1 - t0).count(),
         std::chrono::duration<double, std::milli>(t_build2 - t_build0).count(),
         std::chrono::duration<double, std::milli>(t_exec1 - t_exec0).count(),
-        0.0,
-        0.0,
+        0.0, 0.0,
         hits_after > hits_before ? 1 : 0,
-        static_cast<int>(scene.layers().size()),
-        ctx.counters
+        static_cast<int>(scene.layers().size()), ctx.counters
     ));
 
     profiling::g_current_counters = nullptr;
@@ -522,10 +621,14 @@ SceneGraphStats analyze_scene_graph(
 
     if (execute && graph.has_output()) {
         stats.cache_before = node_cache.stats();
-        const auto t_exec0 = std::chrono::steady_clock::now();
-        GraphExecutor executor;
-        executor.execute(graph, graph.output(), ctx);
-        const auto t_exec1 = std::chrono::steady_clock::now();
+    const auto t_exec0 = std::chrono::steady_clock::now();
+    GraphExecutor executor;
+    std::shared_ptr<Framebuffer> fb_shared;
+    {
+        CHRONON_ZONE_C("execute_graph", trace_category::kGraph);
+        fb_shared = executor.execute(graph, graph.output(), ctx);
+    }
+    const auto t_exec1 = std::chrono::steady_clock::now();
         stats.cache_after  = node_cache.stats();
         stats.execute_ms   = std::chrono::duration<double, std::milli>(t_exec1 - t_exec0).count();
     }
@@ -578,7 +681,10 @@ std::shared_ptr<Framebuffer> render_composition_frame(
         layer_count = static_cast<int>(scene.layers().size());
 
         const auto t_scene0 = std::chrono::steady_clock::now();
-        render_fb = call_graph(scene, frame, 0.0f);
+        {
+            CHRONON_ZONE_C("render_scene_graph", trace_category::kGraph);
+            render_fb = call_graph(scene, frame, 0.0f);
+        }
         scene_ms = std::chrono::duration<double, std::milli>(
             std::chrono::steady_clock::now() - t_scene0).count();
     } else {

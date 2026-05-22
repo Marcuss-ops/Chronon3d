@@ -7,11 +7,14 @@
 #include <chronon3d/scene/layer/layer.hpp>
 #include <chronon3d/scene/mask/mask_utils.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/core/profiling.hpp>
 #include <spdlog/spdlog.h>
+#include <any>
 #include <array>
 #include <cmath>
 #include <cstdint>
 #include <limits>
+#include <variant>
 
 namespace chronon3d::renderer {
     chronon3d::raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 spread = 0.0f);
@@ -173,7 +176,7 @@ public:
         const std::vector<std::optional<raster::BBox>>&
     ) override {
         auto* sw_renderer = dynamic_cast<SoftwareRenderer*>(ctx.backend);
-        bool use_dirty_rects = sw_renderer && ctx.dirty_rect.has_value() && sw_renderer->m_prev_framebuffer;
+        bool use_dirty_rects = sw_renderer && ctx.reuse_prev_framebuffer && sw_renderer->m_prev_framebuffer;
         
         if (use_dirty_rects) {
             auto fb = sw_renderer->m_prev_framebuffer;
@@ -252,6 +255,21 @@ public:
         return CacheFramePolicy::FrameInvariant;
     }
 
+    [[nodiscard]] RenderNodeCachePolicy cache_policy() const override {
+        if (m_cache_static) {
+            return static_memory_cache("source_static");
+        }
+        return RenderNodeCachePolicy{
+            .cacheable = false,
+            .frame_dependent = false,
+            .frame_invariant = true,
+            .disk_cacheable = false,
+            .lifetime = CacheLifetime::PerComposition,
+            .invalidation = CacheInvalidation::Always,
+            .debug_reason = "source_animated"
+        };
+    }
+
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override { 
         auto key = m_key;
         key.params_hash = hash_combine(key.params_hash, static_cast<u64>(ctx.modular_coordinates));
@@ -269,6 +287,7 @@ public:
         const std::vector<std::shared_ptr<Framebuffer>>&,
         const std::vector<std::optional<raster::BBox>>&
     ) override {
+        CHRONON_ZONE_C("source_render", trace_category::kRasterize);
         bool clear = true;
         if (m_node.shape.type == ShapeType::Image && !m_matrix_override.has_value() && !m_centered) {
             const auto& t = m_node.world_transform;
@@ -518,6 +537,31 @@ public:
         };
     }
 
+    std::optional<raster::BBox> predicted_bbox(
+        const RenderGraphContext& ctx,
+        const std::vector<std::optional<raster::BBox>>& input_bboxes = {}
+    ) const override {
+        if (input_bboxes.empty() || !input_bboxes[0]) {
+            return std::nullopt;
+        }
+        auto bbox = *input_bboxes[0];
+        if (bbox.is_empty()) {
+            return bbox;
+        }
+        const f32 spread = compute_max_effect_spread();
+        if (spread <= 0.0f) {
+            return bbox;
+        }
+        bbox.x0 = std::max(0, static_cast<i32>(std::floor(static_cast<f32>(bbox.x0) - spread)));
+        bbox.y0 = std::max(0, static_cast<i32>(std::floor(static_cast<f32>(bbox.y0) - spread)));
+        bbox.x1 = std::min(ctx.width, static_cast<i32>(std::ceil(static_cast<f32>(bbox.x1) + spread)));
+        bbox.y1 = std::min(ctx.height, static_cast<i32>(std::ceil(static_cast<f32>(bbox.y1) + spread)));
+        if (bbox.is_empty()) {
+            return std::nullopt;
+        }
+        return bbox;
+    }
+
     std::shared_ptr<Framebuffer> execute(RenderGraphContext& ctx, const std::vector<std::shared_ptr<Framebuffer>>& inputs, const std::vector<std::optional<raster::BBox>>&) override {
         if (inputs.empty()) return ctx.acquire_framebuffer(ctx.width, ctx.height);
         
@@ -533,6 +577,55 @@ public:
     }
 
 private:
+    [[nodiscard]] f32 compute_max_effect_spread() const {
+        f32 max_spread = 0.0f;
+        for (const auto& inst : m_effects) {
+            if (!inst.enabled) continue;
+
+            if (auto* p = std::any_cast<BlurParams>(&inst.params)) {
+                max_spread = std::max(max_spread, p->radius);
+            } else if (auto* p = std::any_cast<DropShadowParams>(&inst.params)) {
+                max_spread = std::max(max_spread,
+                    std::max(std::abs(p->offset.x), std::abs(p->offset.y)) + p->radius);
+            } else if (auto* p = std::any_cast<GlowParams>(&inst.params)) {
+                max_spread = std::max(max_spread, p->radius);
+            } else if (auto* p = std::any_cast<BloomParams>(&inst.params)) {
+                max_spread = std::max(max_spread, p->radius);
+            } else if (auto* p = std::any_cast<Fake3DWaveParams>(&inst.params)) {
+                f32 s = p->depth_px + p->amplitude_px;
+                if (p->shadow_enabled) {
+                    s += std::max(std::abs(p->shadow_offset.x),
+                                  std::abs(p->shadow_offset.y)) + p->shadow_blur;
+                }
+                if (p->expand_bounds) {
+                    max_spread = std::max(max_spread, s);
+                }
+            } else if (auto* vp = std::any_cast<EffectParams>(&inst.params)) {
+                if (auto* p = std::get_if<BlurParams>(vp)) {
+                    max_spread = std::max(max_spread, p->radius);
+                } else if (auto* p = std::get_if<DropShadowParams>(vp)) {
+                    max_spread = std::max(max_spread,
+                        std::max(std::abs(p->offset.x), std::abs(p->offset.y)) + p->radius);
+                } else if (auto* p = std::get_if<GlowParams>(vp)) {
+                    max_spread = std::max(max_spread, p->radius);
+                } else if (auto* p = std::get_if<BloomParams>(vp)) {
+                    max_spread = std::max(max_spread, p->radius);
+                } else if (auto* p = std::get_if<Fake3DWaveParams>(vp)) {
+                    f32 s = p->depth_px + p->amplitude_px;
+                    if (p->shadow_enabled) {
+                        s += std::max(std::abs(p->shadow_offset.x),
+                                      std::abs(p->shadow_offset.y)) + p->shadow_blur;
+                    }
+                    if (p->expand_bounds) {
+                        max_spread = std::max(max_spread, s);
+                    }
+                }
+            }
+        }
+        // Add 2px safety margin for anti-aliasing fringes
+        return max_spread > 0.0f ? max_spread + 2.0f : 0.0f;
+    }
+
     EffectStack m_effects;
     Frame m_cache_frame{-1};
 };
@@ -557,6 +650,14 @@ public:
             .height = ctx.height,
             .params_hash = hash_effect_stack(m_effects)
         };
+    }
+
+    std::optional<raster::BBox> predicted_bbox(
+        const RenderGraphContext&,
+        const std::vector<std::optional<raster::BBox>>& input_bboxes = {}
+    ) const override {
+        if (input_bboxes.empty()) return std::nullopt;
+        return input_bboxes[0];
     }
 
     std::shared_ptr<Framebuffer> execute(RenderGraphContext& ctx, const std::vector<std::shared_ptr<Framebuffer>>& inputs, const std::vector<std::optional<raster::BBox>>&) override {

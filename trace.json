@@ -1,0 +1,124 @@
+{
+  "traceEvents": [
+    {
+      "args": {
+        "frame": 0
+      },
+      "cat": "timeline",
+      "dur": 193,
+      "name": "evaluate_composition",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 1850101392
+    },
+    {
+      "args": {
+        "frame": 0
+      },
+      "cat": "node_execute",
+      "dur": 44045,
+      "name": "Clear",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 1850102687
+    },
+    {
+      "args": {
+        "frame": 0
+      },
+      "cat": "node_execute",
+      "dur": 129909,
+      "name": "title",
+      "ph": "X",
+      "pid": 1,
+      "tid": 2,
+      "ts": 1850102891
+    },
+    {
+      "args": {
+        "frame": 0
+      },
+      "cat": "node_execute",
+      "dur": 4291700,
+      "name": "grid_bg",
+      "ph": "X",
+      "pid": 1,
+      "tid": 3,
+      "ts": 1850102891
+    },
+    {
+      "args": {
+        "frame": 0
+      },
+      "cat": "node_execute",
+      "dur": 42009,
+      "name": "Transform",
+      "ph": "X",
+      "pid": 1,
+      "tid": 3,
+      "ts": 1854394734
+    },
+    {
+      "args": {
+        "frame": 0
+      },
+      "cat": "composite",
+      "dur": 2839,
+      "name": "composite_layer",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 1854437020
+    },
+    {
+      "args": {
+        "frame": 0
+      },
+      "cat": "node_execute",
+      "dur": 45136,
+      "name": "Composite",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 1854394733
+    },
+    {
+      "args": {
+        "frame": 0
+      },
+      "cat": "composite",
+      "dur": 225,
+      "name": "composite_layer",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 1854446045
+    },
+    {
+      "args": {
+        "frame": 0
+      },
+      "cat": "node_execute",
+      "dur": 6347,
+      "name": "Composite",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 1854439929
+    },
+    {
+      "args": {
+        "frame": 0
+      },
+      "cat": "frame",
+      "dur": 4344989,
+      "name": "render_frame",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 1850101381
+    }
+  ]
+}

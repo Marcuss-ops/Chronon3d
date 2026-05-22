@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <cstdint>
 #include <vector>
+#include <chrono>
 
 #if defined(_WIN32)
     #include <io.h>
@@ -264,12 +265,20 @@ bool FfmpegPipeEncoder::write_frame(const Framebuffer& fb) {
         return false;
     }
 
+    auto timed_fwrite = [&](const void* ptr, size_t size, size_t count, FILE* stream) -> size_t {
+        const auto t0 = std::chrono::high_resolution_clock::now();
+        size_t res = std::fwrite(ptr, size, count, stream);
+        const auto t1 = std::chrono::high_resolution_clock::now();
+        total_write_blocked_ms_ += std::chrono::duration<double, std::milli>(t1 - t0).count();
+        return res;
+    };
+
     switch (options_.input_format) {
         case PipePixelFormat::RGBA: {
             if (!convert_framebuffer_to_rgba(fb)) {
                 return false;
             }
-            const size_t written = std::fwrite(
+            const size_t written = timed_fwrite(
                 rgba_buffer_.data(), 1, rgba_buffer_.size(), pipe_);
             if (written != rgba_buffer_.size()) {
                 return false;
@@ -282,9 +291,9 @@ bool FfmpegPipeEncoder::write_frame(const Framebuffer& fb) {
                 return false;
             }
             // Write planes: Y, U, V
-            size_t w1 = std::fwrite(y_plane_.data(), 1, y_plane_.size(), pipe_);
-            size_t w2 = std::fwrite(u_plane_.data(), 1, u_plane_.size(), pipe_);
-            size_t w3 = std::fwrite(v_plane_.data(), 1, v_plane_.size(), pipe_);
+            size_t w1 = timed_fwrite(y_plane_.data(), 1, y_plane_.size(), pipe_);
+            size_t w2 = timed_fwrite(u_plane_.data(), 1, u_plane_.size(), pipe_);
+            size_t w3 = timed_fwrite(v_plane_.data(), 1, v_plane_.size(), pipe_);
             if (w1 != y_plane_.size() || w2 != u_plane_.size() || w3 != v_plane_.size()) {
                 return false;
             }
@@ -296,8 +305,8 @@ bool FfmpegPipeEncoder::write_frame(const Framebuffer& fb) {
                 return false;
             }
             // Write planes: Y, interleaved UV
-            size_t w1 = std::fwrite(y_plane_.data(), 1, y_plane_.size(), pipe_);
-            size_t w2 = std::fwrite(nv12_uv_plane_.data(), 1, nv12_uv_plane_.size(), pipe_);
+            size_t w1 = timed_fwrite(y_plane_.data(), 1, y_plane_.size(), pipe_);
+            size_t w2 = timed_fwrite(nv12_uv_plane_.data(), 1, nv12_uv_plane_.size(), pipe_);
             if (w1 != y_plane_.size() || w2 != nv12_uv_plane_.size()) {
                 return false;
             }

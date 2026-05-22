@@ -57,7 +57,9 @@ struct RenderTelemetryRecord {
     uint64_t framebuffer_bytes_peak{0};
     uint64_t dirty_rect_count{0};
     uint64_t dirty_pixels{0};
+    uint64_t dirty_union_area_pixels{0};
     uint64_t dirty_full_fallbacks{0};
+    uint64_t bypass_not_cacheable_count{0};
     uint64_t dirty_full_fallback_predicted_bounds_missing{0};
     uint64_t dirty_full_fallback_composite_missing_input_bounds{0};
     uint64_t dirty_full_fallback_transform_bounds_unknown{0};

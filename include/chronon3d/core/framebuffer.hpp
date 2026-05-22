@@ -9,6 +9,7 @@
 #include <fstream>
 #include <algorithm>
 #include <optional>
+#include <stdexcept>
 
 namespace chronon3d {
 
@@ -24,7 +25,10 @@ enum class SamplingMode {
 class Framebuffer {
 public:
     Framebuffer(i32 width, i32 height) : m_width(width), m_height(height) {
-        m_pixels.resize(width * height, Color::black());
+        if (width <= 0 || height <= 0) {
+            throw std::invalid_argument("Framebuffer dimensions must be positive");
+        }
+        m_pixels.resize(static_cast<size_t>(width) * height, Color::black());
         increment_allocations(width * height * sizeof(Color));
     }
 

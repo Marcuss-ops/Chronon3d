@@ -1,7 +1,7 @@
 #pragma once
 
 #include <chronon3d/scene/shape.hpp>
-#include <chronon3d/math/vec3.hpp>
+#include <chronon3d/math/math_base.hpp>
 #include <blend2d.h>
 #include <optional>
 
@@ -19,7 +19,8 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     const TextShape& text,
     float effective_size,
     int padding = 4,
-    bool* cache_hit = nullptr
+    bool* cache_hit = nullptr,
+    const Mat4* transform = nullptr
 );
 
 void clear_text_raster_cache();

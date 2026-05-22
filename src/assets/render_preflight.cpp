@@ -143,6 +143,7 @@ void validate_output_writable(const PreflightRequirement& req,
         // If not, or if we walked all the way up, report a warning (not error —
         // the render pipeline will attempt creation at render time).
         bool can_create = !check_parent.empty() && fs::exists(check_parent);
+        bool ancestor_writable = false;
         if (can_create) {
             // Check if the nearest existing ancestor is writable
             auto tmp = check_parent / ".chronon3d_preflight_test";
@@ -151,23 +152,28 @@ void validate_output_writable(const PreflightRequirement& req,
                 test.close();
                 std::error_code ec;
                 fs::remove(tmp, ec);
-                // Ancestor is writable, so directory can be created at render time
-                // No error to report
-                return;
+                ancestor_writable = true;
             }
         }
 
-        // Can't verify writability of a non-existent path without creating it.
-        // Report a warning — the render pipeline may succeed or fail.
+        // Report a warning or error based on ancestor writability
         PreflightIssue issue;
-        issue.severity       = PreflightSeverity::Warning;
         issue.type           = PreflightAssetType::OutputPath;
-        issue.code           = "OUTPUT_DIR_MISSING";
         issue.path           = req.path;
         issue.composition_id = req.composition_id;
         issue.layer_id       = req.layer_id;
-        issue.message        = "Output directory does not exist: '" + parent.string() + "'";
-        issue.recommendation = "The render pipeline will attempt to create it. Ensure the parent path is writable.";
+
+        if (can_create && ancestor_writable) {
+            issue.severity       = PreflightSeverity::Warning;
+            issue.code           = "OUTPUT_DIR_MISSING";
+            issue.message        = "Output directory does not exist: '" + parent.string() + "'";
+            issue.recommendation = "The render pipeline will attempt to create it. Ensure the parent path is writable.";
+        } else {
+            issue.severity       = PreflightSeverity::Error;
+            issue.code           = "OUTPUT_DIR_UNWRITABLE_ANCESTOR";
+            issue.message        = "Output directory does not exist and nearest ancestor is not writable: '" + parent.string() + "'";
+            issue.recommendation = "Check filesystem permissions or create the directory manually.";
+        }
         issues.push_back(issue);
         return;
     }
