@@ -133,6 +133,16 @@ MotionState resolve_motion_state(const FrameContext& ctx, const MotionObject& ob
     }
     }
 
+    // Apply custom modular animations
+    AnimationContext actx{
+        ctx.frame,
+        obj.time_value.end - obj.time_value.start,
+        ctx.fps()
+    };
+    for (const auto& anim : obj.get_animations()) {
+        anim.apply(actx, st);
+    }
+
     st.opacity = clamp01(st.opacity);
     return st;
 }

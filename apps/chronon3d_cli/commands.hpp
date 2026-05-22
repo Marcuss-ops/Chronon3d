@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 #include <filesystem>
-#include "utils/cli_utils.hpp"
+#include "utils/common/cli_utils.hpp"
 
 namespace chronon3d {
 namespace cli {
@@ -59,6 +59,7 @@ struct VideoArgs {
     bool ffmpeg_verbose{false};
     std::string pipe_pixfmt{"rgba"};
     std::string color_output{"srgb"};
+    std::string pipe_writer{"classic"};
 };
 
 struct VideoCameraArgs {
@@ -135,6 +136,7 @@ struct BakeLayerArgs {
     std::string output;
     bool quiet{false};
     bool diagnostic{false};
+    bool exr_bake{false};
 };
 
 int command_list(const CompositionRegistry& registry);

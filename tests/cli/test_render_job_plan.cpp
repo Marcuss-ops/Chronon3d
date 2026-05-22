@@ -1,5 +1,5 @@
 #include <doctest/doctest.h>
-#include <apps/chronon3d_cli/utils/render_job_plan.hpp>
+#include <apps/chronon3d_cli/utils/job/render_job_plan.hpp>
 
 using namespace chronon3d::cli;
 

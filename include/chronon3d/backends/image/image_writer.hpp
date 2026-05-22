@@ -20,6 +20,12 @@ struct ImageWriteOptions {
 
     // For V1 keep EXR as 32-bit float.
     bool exr_half_float{false};
+
+    // Tiled EXR (256x256)
+    bool exr_tiled{false};
+
+    // DWAA compression
+    bool exr_dwaa{false};
 };
 
 ImageFormat image_format_from_path(const std::string& path);

@@ -4,6 +4,7 @@
 #include <chronon3d/core/profiling.hpp>
 
 #include <OpenEXR/ImfOutputFile.h>
+#include <OpenEXR/ImfTiledOutputFile.h>
 #include <OpenEXR/ImfChannelList.h>
 #include <OpenEXR/ImfFrameBuffer.h>
 #include <OpenEXR/ImfHeader.h>
@@ -116,7 +117,6 @@ bool save_exr(const Framebuffer& framebuffer,
                 for (int x = 0; x < width; ++x) {
                     const Color c = framebuffer.get_pixel(x, y);
                     const size_t index = static_cast<size_t>(y) * width + x;
-                    // EXR stores scene-linear values. Do NOT convert to sRGB here.
                     r[index] = static_cast<half>(c.r);
                     g[index] = static_cast<half>(c.g);
                     b[index] = static_cast<half>(c.b);
@@ -130,6 +130,10 @@ bool save_exr(const Framebuffer& framebuffer,
             header.channels().insert("B", Imf::Channel(pixel_type));
             header.channels().insert("A", Imf::Channel(pixel_type));
 
+            if (options.exr_dwaa) {
+                header.compression() = Imf::DWAA_COMPRESSION;
+            }
+
             Imf::FrameBuffer frame_buffer;
             const size_t x_stride = sizeof(half);
             const size_t y_stride = static_cast<size_t>(width) * sizeof(half);
@@ -139,9 +143,16 @@ bool save_exr(const Framebuffer& framebuffer,
             frame_buffer.insert("B", Imf::Slice(pixel_type, reinterpret_cast<char*>(b.data()), x_stride, y_stride));
             frame_buffer.insert("A", Imf::Slice(pixel_type, reinterpret_cast<char*>(a.data()), x_stride, y_stride));
 
-            Imf::OutputFile file(path.c_str(), header);
-            file.setFrameBuffer(frame_buffer);
-            file.writePixels(height);
+            if (options.exr_tiled) {
+                header.setTileDescription(Imf::TileDescription(256, 256, Imf::ONE_LEVEL));
+                Imf::TiledOutputFile file(path.c_str(), header);
+                file.setFrameBuffer(frame_buffer);
+                file.writeTiles(0, file.numXTiles() - 1, 0, file.numYTiles() - 1);
+            } else {
+                Imf::OutputFile file(path.c_str(), header);
+                file.setFrameBuffer(frame_buffer);
+                file.writePixels(height);
+            }
         } else {
             std::vector<float> r(pixel_count);
             std::vector<float> g(pixel_count);
@@ -152,7 +163,6 @@ bool save_exr(const Framebuffer& framebuffer,
                 for (int x = 0; x < width; ++x) {
                     const Color c = framebuffer.get_pixel(x, y);
                     const size_t index = static_cast<size_t>(y) * width + x;
-                    // EXR stores scene-linear values. Do NOT convert to sRGB here.
                     r[index] = c.r;
                     g[index] = c.g;
                     b[index] = c.b;
@@ -166,6 +176,10 @@ bool save_exr(const Framebuffer& framebuffer,
             header.channels().insert("B", Imf::Channel(pixel_type));
             header.channels().insert("A", Imf::Channel(pixel_type));
 
+            if (options.exr_dwaa) {
+                header.compression() = Imf::DWAA_COMPRESSION;
+            }
+
             Imf::FrameBuffer frame_buffer;
             const size_t x_stride = sizeof(float);
             const size_t y_stride = static_cast<size_t>(width) * sizeof(float);
@@ -175,9 +189,16 @@ bool save_exr(const Framebuffer& framebuffer,
             frame_buffer.insert("B", Imf::Slice(pixel_type, reinterpret_cast<char*>(b.data()), x_stride, y_stride));
             frame_buffer.insert("A", Imf::Slice(pixel_type, reinterpret_cast<char*>(a.data()), x_stride, y_stride));
 
-            Imf::OutputFile file(path.c_str(), header);
-            file.setFrameBuffer(frame_buffer);
-            file.writePixels(height);
+            if (options.exr_tiled) {
+                header.setTileDescription(Imf::TileDescription(256, 256, Imf::ONE_LEVEL));
+                Imf::TiledOutputFile file(path.c_str(), header);
+                file.setFrameBuffer(frame_buffer);
+                file.writeTiles(0, file.numXTiles() - 1, 0, file.numYTiles() - 1);
+            } else {
+                Imf::OutputFile file(path.c_str(), header);
+                file.setFrameBuffer(frame_buffer);
+                file.writePixels(height);
+            }
         }
 
         return true;

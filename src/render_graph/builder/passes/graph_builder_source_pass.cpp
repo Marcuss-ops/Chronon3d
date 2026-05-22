@@ -14,6 +14,7 @@ using namespace chronon3d::graph;
 GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                                const RenderGraphContext& ctx) {
     const Layer& layer = *item.layer;
+    const bool is_static = layer.cache_static || item.is_static;
 
     if (layer.kind == LayerKind::Adjustment) {
         return k_invalid_node;
@@ -36,7 +37,7 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
             if (node.shape.type == ShapeType::Text) {
                 cache::NodeCacheKey source_key{
                     .scope = "layer.source:" + std::string(layer.name) + ":" + std::string(node.name),
-                    .frame = layer.cache_static ? Frame{0} : ctx.frame,
+                    .frame = is_static ? Frame{0} : ctx.frame,
                     .width = ctx.width,
                     .height = ctx.height,
                     .params_hash = hash_render_node(node),
@@ -59,13 +60,13 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                     item.projected,
                     ctx.modular_coordinates ? std::optional<Mat4>(text_matrix) : std::nullopt,
                     ctx.modular_coordinates ? std::optional<f32>(text_opacity) : std::nullopt,
-                    layer.cache_static
+                    is_static
                 ));
-                graph.node(source).set_frame_dependent(!layer.cache_static);
+                graph.node(source).set_frame_dependent(!is_static);
             } else {
                 cache::NodeCacheKey source_key{
                     .scope = "layer.source:" + std::string(layer.name) + ":" + std::string(node.name),
-                    .frame = layer.cache_static ? Frame{0} : ctx.frame,
+                    .frame = is_static ? Frame{0} : ctx.frame,
                     .width = ctx.width,
                     .height = ctx.height,
                     .params_hash = hash_render_node(node),
@@ -88,9 +89,9 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                     item.projected,
                     ctx.modular_coordinates ? std::optional<Mat4>(shape_matrix) : std::nullopt,
                     ctx.modular_coordinates ? std::optional<f32>(shape_opacity) : std::nullopt,
-                    layer.cache_static
+                    is_static
                 ));
-                graph.node(source).set_frame_dependent(!layer.cache_static);
+                graph.node(source).set_frame_dependent(!is_static);
             }
             return source;
         }
@@ -102,7 +103,7 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
             if (node.shape.type == ShapeType::Text) {
                 cache::NodeCacheKey source_key{
                     .scope = "layer.source:" + std::string(layer.name) + ":" + std::string(node.name),
-                    .frame = layer.cache_static ? Frame{0} : ctx.frame,
+                    .frame = is_static ? Frame{0} : ctx.frame,
                     .width = ctx.width,
                     .height = ctx.height,
                     .params_hash = hash_render_node(node),
@@ -125,14 +126,14 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                     item.projected,
                     ctx.modular_coordinates ? std::optional<Mat4>(text_matrix) : std::nullopt,
                     ctx.modular_coordinates ? std::optional<f32>(text_opacity) : std::nullopt,
-                    layer.cache_static
+                    is_static
                 ));
-                graph.node(source).set_frame_dependent(!layer.cache_static);
+                graph.node(source).set_frame_dependent(!is_static);
             } else {
                 // Standard path for other nodes
                 cache::NodeCacheKey source_key{
                     .scope = "layer.source:" + std::string(layer.name) + ":" + std::string(node.name),
-                    .frame = layer.cache_static ? Frame{0} : ctx.frame,
+                    .frame = is_static ? Frame{0} : ctx.frame,
                     .width = ctx.width,
                     .height = ctx.height,
                     .params_hash = hash_render_node(node),
@@ -155,16 +156,16 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                     item.projected,
                     ctx.modular_coordinates ? std::optional<Mat4>(shape_matrix) : std::nullopt,
                     ctx.modular_coordinates ? std::optional<f32>(shape_opacity) : std::nullopt,
-                    layer.cache_static
+                    is_static
                 ));
-                graph.node(source).set_frame_dependent(!layer.cache_static);
+                graph.node(source).set_frame_dependent(!is_static);
             }
 
             auto composite = graph.add_node(std::make_unique<CompositeNode>(
                 chronon3d::BlendMode::Normal,
-                layer.cache_static ? Frame{0} : Frame{-1}
+                is_static ? Frame{0} : Frame{-1}
             ));
-            graph.node(composite).set_frame_dependent(!layer.cache_static);
+            graph.node(composite).set_frame_dependent(!is_static);
             graph.connect(layer_output, composite);
             graph.connect(source, composite);
             layer_output = composite;
@@ -175,9 +176,9 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
     if (layer.kind == LayerKind::Precomp) {
         auto precomp_id = graph.add_node(std::make_unique<PrecompNode>(
             std::string(layer.precomp_composition_name), layer.from, layer.duration,
-            layer.cache_static ? Frame{0} : Frame{-1}
+            is_static ? Frame{0} : Frame{-1}
         ));
-        graph.node(precomp_id).set_frame_dependent(!layer.cache_static);
+        graph.node(precomp_id).set_frame_dependent(!is_static);
         return precomp_id;
     }
 

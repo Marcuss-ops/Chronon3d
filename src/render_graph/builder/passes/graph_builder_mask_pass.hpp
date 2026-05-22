@@ -6,7 +6,7 @@ namespace chronon3d::graph::detail {
 
 /// Append a MaskNode if the layer has an enabled mask.
 void append_mask_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_output,
-                                const Layer& layer,
+                                const LayerGraphItem& item,
                                 const RenderGraphContext& ctx);
 
 } // namespace chronon3d::graph::detail

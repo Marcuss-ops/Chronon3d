@@ -20,6 +20,7 @@ struct LayerGraphItem {
     bool         native_3d{false}; // true if layer contains native 3D shapes
     usize        insertion_index{0};
     GraphNodeId  matte_node{k_invalid_node}; // pre-built matte source node, if any
+    bool         is_static{false};
 };
 
 class GraphBuilder {
