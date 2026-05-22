@@ -171,10 +171,15 @@ set(CHRONON3D_GRAPH_SOURCES
     src/render_graph/graph_builder.cpp
     src/render_graph/graph_executor.cpp
     src/render_graph/executor/graph_executor_plan.cpp
+    src/render_graph/executor/graph_executor_cache.cpp
+    src/render_graph/executor/graph_executor_dirty.cpp
+    src/render_graph/executor/graph_executor_telemetry.cpp
     src/render_graph/executor/graph_executor_phases.cpp
     src/render_graph/graph_profiler.cpp
     src/render_graph/render_graph.cpp
-    src/render_graph/render_pipeline.cpp
+    src/render_graph/render_pipeline_scene.cpp
+    src/render_graph/render_pipeline_debug.cpp
+    src/render_graph/render_pipeline_composition.cpp
     src/render_graph/graph_filter.cpp
     src/render_graph/nodes/transform_node.cpp
     src/render_graph/nodes/transition_node.cpp
@@ -271,6 +276,10 @@ set(CHRONON3D_BACKEND_SOFTWARE_SOURCES
     src/backends/software/processors/software_mesh_processor.cpp
     src/backends/software/processors/software_shape_processor.cpp
     src/backends/software/processors/software_text_processor.cpp
+    src/backends/software/processors/software_text_processor_hash.cpp
+    src/backends/software/processors/software_text_processor_cache.cpp
+    src/backends/software/processors/software_text_processor_shadow.cpp
+    src/backends/software/processors/software_text_processor_glow.cpp
     src/backends/software/processors/software_utility_processors.cpp
     src/backends/text/text_rasterizer_utils.cpp
     src/backends/software/rasterizers/line_rasterizer.cpp
