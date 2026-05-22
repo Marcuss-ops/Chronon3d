@@ -89,26 +89,6 @@ private:
                 if (p->expand_bounds) {
                     max_spread = std::max(max_spread, s);
                 }
-            } else if (auto* vp = std::any_cast<EffectParams>(&inst.params)) {
-                if (auto* p = std::get_if<BlurParams>(vp)) {
-                    max_spread = std::max(max_spread, p->radius);
-                } else if (auto* p = std::get_if<DropShadowParams>(vp)) {
-                    max_spread = std::max(max_spread,
-                        std::max(std::abs(p->offset.x), std::abs(p->offset.y)) + p->radius);
-                } else if (auto* p = std::get_if<GlowParams>(vp)) {
-                    max_spread = std::max(max_spread, p->radius);
-                } else if (auto* p = std::get_if<BloomParams>(vp)) {
-                    max_spread = std::max(max_spread, p->radius);
-                } else if (auto* p = std::get_if<Fake3DWaveParams>(vp)) {
-                    f32 s = p->depth_px + p->amplitude_px;
-                    if (p->shadow_enabled) {
-                        s += std::max(std::abs(p->shadow_offset.x),
-                                      std::abs(p->shadow_offset.y)) + p->shadow_blur;
-                    }
-                    if (p->expand_bounds) {
-                        max_spread = std::max(max_spread, s);
-                    }
-                }
             }
         }
         // Add 2px safety margin for anti-aliasing fringes

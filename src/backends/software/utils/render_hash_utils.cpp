@@ -142,48 +142,44 @@ u64 hash_effect_stack(const EffectStack& stack) {
     for (const auto& inst : stack) {
         seed = hash_combine(seed, hash_value_local(inst.enabled));
         seed = hash_combine(seed, hash_string(inst.descriptor.id));
-        if (auto* params = std::any_cast<EffectParams>(&inst.params)) {
-            std::visit([&](const auto& p) {
-                using T = std::decay_t<decltype(p)>;
-                if constexpr (std::is_same_v<T, BlurParams>) {
-                    seed = hash_combine(seed, hash_value_local(p.radius));
-                } else if constexpr (std::is_same_v<T, TintParams>) {
-                    seed = hash_combine(seed, hash_color(p.color));
-                    seed = hash_combine(seed, hash_value_local(p.amount));
-                } else if constexpr (std::is_same_v<T, BrightnessParams>) {
-                    seed = hash_combine(seed, hash_value_local(p.value));
-                } else if constexpr (std::is_same_v<T, ContrastParams>) {
-                    seed = hash_combine(seed, hash_value_local(p.value));
-                } else if constexpr (std::is_same_v<T, DropShadowParams>) {
-                    seed = hash_combine(seed, hash_vec2(p.offset));
-                    seed = hash_combine(seed, hash_color(p.color));
-                    seed = hash_combine(seed, hash_value_local(p.radius));
-                } else if constexpr (std::is_same_v<T, GlowParams>) {
-                    seed = hash_combine(seed, hash_value_local(p.radius));
-                    seed = hash_combine(seed, hash_value_local(p.intensity));
-                    seed = hash_combine(seed, hash_color(p.color));
-                } else if constexpr (std::is_same_v<T, BloomParams>) {
-                    seed = hash_combine(seed, hash_value_local(p.threshold));
-                    seed = hash_combine(seed, hash_value_local(p.radius));
-                    seed = hash_combine(seed, hash_value_local(p.intensity));
-                } else if constexpr (std::is_same_v<T, Fake3DWaveParams>) {
-                    seed = hash_combine(seed, hash_value_local(p.amplitude_px));
-                    seed = hash_combine(seed, hash_value_local(p.frequency));
-                    seed = hash_combine(seed, hash_value_local(p.speed));
-                    seed = hash_combine(seed, hash_value_local(p.depth_px));
-                    seed = hash_combine(seed, hash_value_local(p.phase));
-                    seed = hash_combine(seed, hash_value_local(p.slices));
-                    seed = hash_combine(seed, hash_value_local(static_cast<u64>(p.axis)));
-                    seed = hash_combine(seed, hash_value_local(p.perspective));
-                    seed = hash_combine(seed, hash_value_local(p.highlight));
-                    seed = hash_combine(seed, hash_value_local(p.side_darkening));
-                    seed = hash_combine(seed, hash_value_local(p.shadow_enabled));
-                    seed = hash_combine(seed, hash_color(p.shadow_color));
-                    seed = hash_combine(seed, hash_vec2(p.shadow_offset));
-                    seed = hash_combine(seed, hash_value_local(p.shadow_blur));
-                    seed = hash_combine(seed, hash_value_local(p.expand_bounds));
-                }
-            }, *params);
+        
+        if (auto* p = std::any_cast<BlurParams>(&inst.params)) {
+            seed = hash_combine(seed, hash_value_local(p->radius));
+        } else if (auto* p = std::any_cast<TintParams>(&inst.params)) {
+            seed = hash_combine(seed, hash_color(p->color));
+            seed = hash_combine(seed, hash_value_local(p->amount));
+        } else if (auto* p = std::any_cast<BrightnessParams>(&inst.params)) {
+            seed = hash_combine(seed, hash_value_local(p->value));
+        } else if (auto* p = std::any_cast<ContrastParams>(&inst.params)) {
+            seed = hash_combine(seed, hash_value_local(p->value));
+        } else if (auto* p = std::any_cast<DropShadowParams>(&inst.params)) {
+            seed = hash_combine(seed, hash_vec2(p->offset));
+            seed = hash_combine(seed, hash_color(p->color));
+            seed = hash_combine(seed, hash_value_local(p->radius));
+        } else if (auto* p = std::any_cast<GlowParams>(&inst.params)) {
+            seed = hash_combine(seed, hash_value_local(p->radius));
+            seed = hash_combine(seed, hash_value_local(p->intensity));
+            seed = hash_combine(seed, hash_color(p->color));
+        } else if (auto* p = std::any_cast<BloomParams>(&inst.params)) {
+            seed = hash_combine(seed, hash_value_local(p->threshold));
+            seed = hash_combine(seed, hash_value_local(p->radius));
+            seed = hash_combine(seed, hash_value_local(p->intensity));
+        } else if (auto* p = std::any_cast<Fake3DWaveParams>(&inst.params)) {
+            seed = hash_combine(seed, hash_value_local(p->amplitude_px));
+            seed = hash_combine(seed, hash_value_local(p->frequency));
+            seed = hash_combine(seed, hash_value_local(p->speed));
+            seed = hash_combine(seed, hash_value_local(p->depth_px));
+            seed = hash_combine(seed, hash_value_local(p->phase));
+            seed = hash_combine(seed, hash_value_local(p->slices));
+            seed = hash_combine(seed, hash_value_local(static_cast<u64>(p->axis)));
+            seed = hash_combine(seed, hash_value_local(p->perspective));
+            seed = hash_combine(seed, hash_value_local(p->highlight));
+            seed = hash_combine(seed, hash_value_local(p->side_darkening));
+            seed = hash_combine(seed, hash_value_local(p->shadow_enabled));
+            seed = hash_combine(seed, hash_color(p->shadow_color));
+            seed = hash_combine(seed, hash_vec2(p->shadow_offset));
+            seed = hash_combine(seed, hash_value_local(p->shadow_blur));
+            seed = hash_combine(seed, hash_value_local(p->expand_bounds));
         }
     }
     return seed;

@@ -184,14 +184,14 @@ TEST_CASE("Test 4.17 - blur radius diverso cambia effect hash") {
     EffectInstance instance1;
     instance1.descriptor.id = std::string{effect_ids::BlurGaussian};
     instance1.enabled = true;
-    instance1.params = EffectParams{BlurParams{.radius = 4.0f}};
+    instance1.params = BlurParams{.radius = 4.0f};
     e1.push_back(instance1);
 
     EffectStack e2;
     EffectInstance instance2;
     instance2.descriptor.id = std::string{effect_ids::BlurGaussian};
     instance2.enabled = true;
-    instance2.params = EffectParams{BlurParams{.radius = 12.0f}};
+    instance2.params = BlurParams{.radius = 12.0f};
     e2.push_back(instance2);
 
     CHECK(hash_effect_stack(e1) != hash_effect_stack(e2));
@@ -203,14 +203,14 @@ TEST_CASE("Test 4.18 - tint diverso cambia effect hash") {
     EffectInstance i1;
     i1.descriptor.id = std::string{effect_ids::ColorTint};
     i1.enabled = true;
-    i1.params = EffectParams{TintParams{.color = Color::red(), .amount = 1.0f}};
+    i1.params = TintParams{.color = Color::red(), .amount = 1.0f};
     e1.push_back(i1);
 
     EffectStack e2;
     EffectInstance i2;
     i2.descriptor.id = std::string{effect_ids::ColorTint};
     i2.enabled = true;
-    i2.params = EffectParams{TintParams{.color = Color::blue(), .amount = 1.0f}};
+    i2.params = TintParams{.color = Color::blue(), .amount = 1.0f};
     e2.push_back(i2);
 
     CHECK(hash_effect_stack(e1) != hash_effect_stack(e2));
@@ -222,14 +222,14 @@ TEST_CASE("Test 4.19 - brightness diverso cambia effect hash") {
     EffectInstance i1;
     i1.descriptor.id = std::string{effect_ids::ColorBrightness};
     i1.enabled = true;
-    i1.params = EffectParams{BrightnessParams{.value = 0.8f}};
+    i1.params = BrightnessParams{.value = 0.8f};
     e1.push_back(i1);
 
     EffectStack e2;
     EffectInstance i2;
     i2.descriptor.id = std::string{effect_ids::ColorBrightness};
     i2.enabled = true;
-    i2.params = EffectParams{BrightnessParams{.value = 1.2f}};
+    i2.params = BrightnessParams{.value = 1.2f};
     e2.push_back(i2);
 
     CHECK(hash_effect_stack(e1) != hash_effect_stack(e2));
@@ -241,14 +241,14 @@ TEST_CASE("Test 4.20 - contrast diverso cambia effect hash") {
     EffectInstance i1;
     i1.descriptor.id = std::string{effect_ids::ColorContrast};
     i1.enabled = true;
-    i1.params = EffectParams{ContrastParams{.value = 0.8f}};
+    i1.params = ContrastParams{.value = 0.8f};
     e1.push_back(i1);
 
     EffectStack e2;
     EffectInstance i2;
     i2.descriptor.id = std::string{effect_ids::ColorContrast};
     i2.enabled = true;
-    i2.params = EffectParams{ContrastParams{.value = 1.5f}};
+    i2.params = ContrastParams{.value = 1.5f};
     e2.push_back(i2);
 
     CHECK(hash_effect_stack(e1) != hash_effect_stack(e2));

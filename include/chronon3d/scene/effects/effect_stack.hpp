@@ -43,17 +43,6 @@ struct Fake3DWaveParams {
     bool expand_bounds{true};
 };
 
-using EffectParams = std::variant<
-    BlurParams,
-    TintParams,
-    BrightnessParams,
-    ContrastParams,
-    DropShadowParams,
-    GlowParams,
-    BloomParams,
-    Fake3DWaveParams
->;
-
 // Unify with the modular effects system
 using EffectInstance = effects::EffectInstance;
 using EffectStack = std::vector<EffectInstance>;
