@@ -12,6 +12,8 @@ add_executable(chronon3d_cli
     utils/cli_render_utils.cpp
     utils/ffmpeg_pipe_encoder.cpp
     utils/render_job.cpp
+    utils/render_job_write_frame.cpp
+    utils/render_job_execute.cpp
     utils/batch_job_spec.cpp
     utils/batch_runner.cpp
     utils/watch_service.cpp
@@ -32,6 +34,9 @@ add_executable(chronon3d_cli
     commands/command_preflight.cpp
     commands/command_proofs.cpp
     commands/command_telemetry.cpp
+    commands/command_telemetry_helpers.cpp
+    commands/command_telemetry_summary.cpp
+    commands/command_telemetry_report.cpp
     commands/command_bake_layer.cpp
 )
 set_target_properties(chronon3d_cli PROPERTIES UNITY_BUILD OFF)
