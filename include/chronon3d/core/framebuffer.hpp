@@ -190,8 +190,11 @@ public:
     [[nodiscard]] usize size_bytes() const { return m_pixels.size() * sizeof(Color); }
     [[nodiscard]] bool is_opaque() const { return m_opaque; }
     void set_opaque(bool opaque) { m_opaque = opaque; }
+    [[nodiscard]] u64 key_digest() const { return m_key_digest; }
+    void set_key_digest(u64 digest) { m_key_digest = digest; }
 
 private:
+    u64 m_key_digest{0};
     void increment_allocations(size_t bytes) {
         if (profiling::g_current_counters) {
             profiling::g_current_counters->framebuffer_allocations.fetch_add(1, std::memory_order_relaxed);

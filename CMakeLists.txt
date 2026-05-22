@@ -33,10 +33,30 @@ if(NOT CMAKE_CXX_COMPILER_LAUNCHER AND NOT CMAKE_C_COMPILER_LAUNCHER)
     endif()
 endif()
 
-# Unity / Jumbo builds — disabled by default. Many files share anonymous-namespace
-# helpers (hash_combine, hash_value) that collide in unity TUs.
-# Enable per-target with: set_property(TARGET mytarget PROPERTY UNITY_BUILD ON)
-option(CHRONON3D_UNITY_BUILD "Enable unity (jumbo) build" OFF)
+# mold / lld — fast linker, auto-detected
+if(NOT MSVC AND NOT CMAKE_CXX_LINKER_LAUNCHER)
+    find_program(MOLD_PROGRAM mold)
+    if(MOLD_PROGRAM)
+        message(STATUS "mold found: ${MOLD_PROGRAM}")
+        add_link_options("-fuse-ld=mold")
+    else()
+        find_program(LLD_PROGRAM ld.lld)
+        if(LLD_PROGRAM)
+            message(STATUS "lld found: ${LLD_PROGRAM}")
+            add_link_options("-fuse-ld=lld")
+        endif()
+    endif()
+endif()
+
+# Unity / Jumbo builds — enabled by default in release mode.
+# Anonymous namespace helpers have been refactored into uniquely-named detail
+# namespaces to avoid symbol collisions when multiple files are merged into one TU.
+# Batch size of 2 keeps memory pressure low; larger batches may cause OOM.
+option(CHRONON3D_UNITY_BUILD "Enable unity (jumbo) build" ON)
+if(CHRONON3D_UNITY_BUILD)
+    set(CMAKE_UNITY_BUILD ON)
+    set(CMAKE_UNITY_BUILD_BATCH_SIZE 2)
+endif()
 
 # Options
 option(CHRONON3D_BUILD_TESTS "Build Chronon3d tests" ON)
@@ -125,6 +145,9 @@ set(CHRONON3D_CACHE_SOURCES
 )
 add_library(chronon3d_cache STATIC ${CHRONON3D_CACHE_SOURCES})
 target_link_libraries(chronon3d_cache PUBLIC chronon3d xxHash::xxhash)
+target_precompile_headers(chronon3d_cache PRIVATE
+    <xxhash.h>
+)
 
 # 5. Render Graph
 set(CHRONON3D_GRAPH_SOURCES
@@ -179,6 +202,10 @@ target_link_libraries(chronon3d_runtime PUBLIC
     chronon3d chronon3d_graph chronon3d_effects chronon3d_cache
     Taskflow::Taskflow
 )
+target_precompile_headers(chronon3d_runtime PRIVATE
+    <spdlog/spdlog.h>
+    <fmt/core.h>
+)
 
 if(CHRONON3D_ENABLE_SQLITE_TELEMETRY)
     target_link_libraries(chronon3d_runtime PUBLIC unofficial::sqlite3::sqlite3)
@@ -195,6 +222,10 @@ set(CHRONON3D_BACKEND_IMAGE_SOURCES
 add_library(chronon3d_backend_image STATIC ${CHRONON3D_BACKEND_IMAGE_SOURCES})
 target_link_libraries(chronon3d_backend_image PUBLIC chronon3d spdlog::spdlog_header_only fmt::fmt OpenEXR::OpenEXR)
 target_include_directories(chronon3d_backend_image PRIVATE ${Stb_INCLUDE_DIR})
+target_precompile_headers(chronon3d_backend_image PRIVATE
+    <spdlog/spdlog.h>
+    <fmt/core.h>
+)
 
 # 7b. Assets Backend
 set(CHRONON3D_BACKEND_ASSETS_SOURCES

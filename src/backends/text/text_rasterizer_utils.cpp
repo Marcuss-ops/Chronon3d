@@ -1,7 +1,9 @@
 #include <chronon3d/backends/text/text_rasterizer_utils.hpp>
 #include <chronon3d/backends/text/text_layout_engine.hpp>
 #include <chronon3d/cache/lru_cache.hpp>
+#include <chronon3d/render_graph/render_graph_hashing.hpp>
 #include "../software/utils/blend2d_resources.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <mutex>
@@ -14,24 +16,17 @@ namespace {
 using CacheKey = u64;
 using TextCache = cache::LruCache<CacheKey, std::shared_ptr<TextRasterization>>;
 
-// Use the same hash_combine as render_graph_hashing for consistency
-CacheKey hash_combine(CacheKey seed, CacheKey value) {
-    seed ^= value + 0x9e3779b9 + (seed << 6) + (seed >> 2);
-    return seed;
-}
-
-template <typename T>
-CacheKey hash_value(const T& value) {
-    return static_cast<CacheKey>(std::hash<T>{}(value));
-}
+using chronon3d::graph::hash_combine;
+using chronon3d::graph::hash_value;
+using chronon3d::graph::hash_string;
 
 CacheKey hash_text_style(const TextShape& t, float effective_size, int padding, const Mat4* transform) {
     CacheKey seed = 0;
-    seed = hash_combine(seed, hash_value(t.text));
-    seed = hash_combine(seed, hash_value(t.style.font_path));
-    seed = hash_combine(seed, hash_value(t.style.font_family));
+    seed = hash_combine(seed, hash_string(t.text));
+    seed = hash_combine(seed, hash_string(t.style.font_path));
+    seed = hash_combine(seed, hash_string(t.style.font_family));
     seed = hash_combine(seed, hash_value(t.style.font_weight));
-    seed = hash_combine(seed, hash_value(t.style.font_style));
+    seed = hash_combine(seed, hash_string(t.style.font_style));
     seed = hash_combine(seed, hash_value(effective_size));
     seed = hash_combine(seed, hash_value(t.style.color.r));
     seed = hash_combine(seed, hash_value(t.style.color.g));
@@ -122,7 +117,7 @@ TextCache& get_text_cache() {
     return cache;
 }
 
-std::mutex g_text_cache_mutex;
+// LruCache provides per-shard internal mutexes, so no outer mutex is needed.
 
 } // namespace
 
@@ -138,7 +133,6 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
 
     const CacheKey key = hash_text_style(t, effective_size, padding, transform);
     {
-        std::lock_guard<std::mutex> lock(g_text_cache_mutex);
         auto cached = get_text_cache().get(key);
         if (cached) {
             if (cache_hit) *cache_hit = true;
@@ -387,7 +381,6 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     result->font = font;
 
     {
-        std::lock_guard<std::mutex> lock(g_text_cache_mutex);
         size_t weight = static_cast<size_t>(result->image.width()) *
                         static_cast<size_t>(result->image.height()) * 4;
         get_text_cache().put(key, result, weight);
@@ -397,7 +390,6 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
 }
 
 void clear_text_raster_cache() {
-    std::lock_guard<std::mutex> lock(g_text_cache_mutex);
     get_text_cache().clear();
 }
 
