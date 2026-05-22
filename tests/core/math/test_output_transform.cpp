@@ -1,8 +1,8 @@
 #include <doctest/doctest.h>
 #include <chronon3d/color/output_transform.hpp>
 
-using namespace chronon3d;
 using namespace chronon3d::color;
+using chronon3d::Color;
 
 // ---------------------------------------------------------------------------
 // Float-level helpers

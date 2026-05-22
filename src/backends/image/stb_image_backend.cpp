@@ -1,3 +1,4 @@
+#define STBI_NO_SIMD
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 #include <chronon3d/backends/image/stb_image_backend.hpp>

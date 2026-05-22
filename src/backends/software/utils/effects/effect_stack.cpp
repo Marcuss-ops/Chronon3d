@@ -1,0 +1,207 @@
+// ---------------------------------------------------------------------------
+// effect_stack.cpp — Effect stack dispatcher + shadow/glow node-level primitives
+// ---------------------------------------------------------------------------
+
+#include "../render_effects_processor.hpp"
+#include "../../primitive_renderer.hpp"
+#include "effects_internal.hpp"
+#include <chronon3d/compositor/blend_mode.hpp>
+#include <algorithm>
+
+namespace chronon3d {
+namespace renderer {
+
+namespace {
+
+void apply_one_param(Framebuffer& fb, const EffectParams& params,
+                     float time_seconds, const std::optional<raster::BBox>& clip) {
+    std::visit([&fb, time_seconds, &clip](const auto& p) {
+        using T = std::decay_t<decltype(p)>;
+        if constexpr (std::is_same_v<T, BlurParams>) {
+            if (p.radius > 0.0f) apply_blur(fb, p.radius, clip);
+
+        } else if constexpr (std::is_same_v<T, TintParams>) {
+            LayerEffect e;
+            e.tint = Color{p.color.r, p.color.g, p.color.b, p.color.a * p.amount};
+            apply_color_effects(fb, e, clip);
+
+        } else if constexpr (std::is_same_v<T, BrightnessParams>) {
+            LayerEffect e; e.brightness = p.value;
+            apply_color_effects(fb, e, clip);
+
+        } else if constexpr (std::is_same_v<T, ContrastParams>) {
+            LayerEffect e; e.contrast = p.value;
+            apply_color_effects(fb, e, clip);
+
+        } else if constexpr (std::is_same_v<T, GlowParams>) {
+            // Extract alpha-masked version, blur it with glow tint, composite in front
+            const i32 w = fb.width(), h = fb.height();
+            auto alpha_map_fb = acquire_temp_framebuffer(w, h);
+            auto& alpha_map = *alpha_map_fb;
+            for (i32 y = 0; y < h; ++y) {
+                const Color* src_row = fb.pixels_row(y);
+                Color* alpha_row = alpha_map.pixels_row(y);
+                for (i32 x = 0; x < w; ++x) {
+                    const Color c = src_row[x];
+                    if (c.a > 0.0f) {
+                        alpha_row[x] = {p.color.r, p.color.g, p.color.b, c.a * p.intensity};
+                    }
+                }
+            }
+            if (p.radius > 0.0f) apply_blur(alpha_map, p.radius);
+            for (i32 y = 0; y < h; ++y) {
+                Color* dst_row = fb.pixels_row(y);
+                const Color* glow_row = alpha_map.pixels_row(y);
+                for (i32 x = 0; x < w; ++x) {
+                    const Color glow_c = glow_row[x];
+                    if (glow_c.a <= 0.0f) continue;
+                    dst_row[x] = compositor::blend(glow_c, dst_row[x], BlendMode::Normal);
+                }
+            }
+
+        } else if constexpr (std::is_same_v<T, DropShadowParams>) {
+            // Offset + blur alpha mask, composite behind content
+            const i32 w = fb.width(), h = fb.height();
+            auto shadow_map_fb = acquire_temp_framebuffer(w, h);
+            auto& shadow_map = *shadow_map_fb;
+            const i32 ox = static_cast<i32>(std::round(p.offset.x));
+            const i32 oy = static_cast<i32>(std::round(p.offset.y));
+            for (i32 y = 0; y < h; ++y) {
+                const Color* src_row = fb.pixels_row(y);
+                for (i32 x = 0; x < w; ++x) {
+                    const Color c = src_row[x];
+                    if (c.a > 0.0f) {
+                        const i32 dx = x + ox;
+                        const i32 dy = y + oy;
+                        if (dx >= 0 && dx < w && dy >= 0 && dy < h) {
+                            Color* shadow_row = shadow_map.pixels_row(dy);
+                            shadow_row[dx] = {p.color.r, p.color.g, p.color.b, c.a * p.color.a};
+                        }
+                    }
+                }
+            }
+            if (p.radius > 0.0f) apply_blur(shadow_map, p.radius);
+            // Composite shadow BEHIND content using a temp result buffer
+            auto result_fb = acquire_temp_framebuffer(w, h);
+            auto& result = *result_fb;
+            for (i32 y = 0; y < h; ++y) {
+                const Color* shadow_row = shadow_map.pixels_row(y);
+                const Color* src_row    = fb.pixels_row(y);
+                Color*       result_row = result.pixels_row(y);
+                for (i32 x = 0; x < w; ++x) {
+                    result_row[x] = compositor::blend(src_row[x], shadow_row[x], BlendMode::Normal);
+                }
+            }
+            fb = std::move(result);
+
+        } else if constexpr (std::is_same_v<T, BloomParams>) {
+            const i32 w = fb.width(), h = fb.height();
+            auto bright_fb = acquire_temp_framebuffer(w, h);
+            auto& bright = *bright_fb;
+            for (i32 y = 0; y < h; ++y) {
+                const Color* src_row   = fb.pixels_row(y);
+                Color*       bright_row = bright.pixels_row(y);
+                for (i32 x = 0; x < w; ++x) {
+                    const Color c = src_row[x];
+                    const f32 lum = 0.2126f * c.r + 0.7152f * c.g + 0.0722f * c.b;
+                    if (lum > p.threshold && c.a > 0.0f) {
+                        const f32 excess = (lum - p.threshold) / (1.0f - p.threshold + 1e-4f);
+                        bright_row[x] = {c.r * excess, c.g * excess, c.b * excess, c.a};
+                    }
+                }
+            }
+            if (p.radius > 0.0f) apply_blur(bright, p.radius);
+            for (i32 y = 0; y < h; ++y) {
+                Color*       dst_row    = fb.pixels_row(y);
+                const Color* bright_row = bright.pixels_row(y);
+                for (i32 x = 0; x < w; ++x) {
+                    const Color b = bright_row[x];
+                    if (b.a <= 0.0f) continue;
+                    const Color src = dst_row[x];
+                    dst_row[x] = {
+                        std::min(1.0f, src.r + b.r * p.intensity),
+                        std::min(1.0f, src.g + b.g * p.intensity),
+                        std::min(1.0f, src.b + b.b * p.intensity),
+                        src.a
+                    };
+                }
+            }
+
+        } else if constexpr (std::is_same_v<T, Fake3DWaveParams>) {
+            apply_fake_3d_wave(fb, p, time_seconds);
+        }
+    }, params);
+}
+
+} // namespace
+
+void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
+                        float time_seconds, const std::optional<raster::BBox>& clip) {
+    for (const auto& inst : stack) {
+        if (!inst.enabled) continue;
+
+        // Handle both variant (legacy) and direct types (modular)
+        if (auto* v = std::any_cast<EffectParams>(&inst.params)) {
+            apply_one_param(fb, *v, time_seconds, clip);
+        } else if (auto* p = std::any_cast<BlurParams>(&inst.params)) {
+            apply_one_param(fb, EffectParams{*p}, time_seconds, clip);
+        } else if (auto* p = std::any_cast<TintParams>(&inst.params)) {
+            apply_one_param(fb, EffectParams{*p}, time_seconds, clip);
+        } else if (auto* p = std::any_cast<BrightnessParams>(&inst.params)) {
+            apply_one_param(fb, EffectParams{*p}, time_seconds, clip);
+        } else if (auto* p = std::any_cast<ContrastParams>(&inst.params)) {
+            apply_one_param(fb, EffectParams{*p}, time_seconds, clip);
+        } else if (auto* p = std::any_cast<GlowParams>(&inst.params)) {
+            apply_one_param(fb, EffectParams{*p}, time_seconds, clip);
+        } else if (auto* p = std::any_cast<DropShadowParams>(&inst.params)) {
+            apply_one_param(fb, EffectParams{*p}, time_seconds, clip);
+        } else if (auto* p = std::any_cast<BloomParams>(&inst.params)) {
+            apply_one_param(fb, EffectParams{*p}, time_seconds, clip);
+        } else if (auto* p = std::any_cast<Fake3DWaveParams>(&inst.params)) {
+            apply_one_param(fb, EffectParams{*p}, time_seconds, clip);
+        }
+    }
+}
+
+// ── Node-level shadow and glow primitives ────────────────────────────────────
+//
+// These are the shape-level effects (per-RenderNode), distinct from the
+// layer-level EffectStack above.
+
+void draw_shadow(Framebuffer& fb, const RenderNode& node, const RenderState& state) {
+    if (node.shadow.color.a <= 0.0f) return;
+
+    const Color base        = node.shadow.color.to_linear();
+    const Mat4& base_model  = state.matrix;
+    Mat4 shadow_model = math::translate(Vec3(node.shadow.offset.x, node.shadow.offset.y, 0)) * base_model;
+
+    constexpr int LAYERS = 6;
+    for (int i = LAYERS; i >= 1; --i) {
+        const f32 t      = static_cast<f32>(i) / LAYERS;
+        const f32 spread = node.shadow.radius * t;
+        const f32 alpha  = base.a * (1.0f - t * t) * state.opacity;
+        if (alpha > 0.0f)
+            draw_transformed_shape(fb, node.shape, shadow_model, {base.r, base.g, base.b, alpha}, spread, &state);
+    }
+    draw_transformed_shape(fb, node.shape, shadow_model,
+                           {base.r, base.g, base.b, base.a * 0.7f * state.opacity}, 0.0f, &state);
+}
+
+void draw_glow(Framebuffer& fb, const RenderNode& node, const RenderState& state) {
+    if (node.glow.intensity <= 0.0f || node.glow.color.a <= 0.0f) return;
+
+    const Color base    = node.glow.color.to_linear();
+    const Mat4& model   = state.matrix;
+
+    constexpr int LAYERS = 5;
+    for (int i = LAYERS; i >= 1; --i) {
+        const f32 t      = static_cast<f32>(i) / LAYERS;
+        const f32 expand = node.glow.radius * t;
+        const f32 alpha  = base.a * node.glow.intensity * (1.0f - t) * state.opacity;
+        if (alpha > 0.0f)
+            draw_transformed_shape(fb, node.shape, model, {base.r, base.g, base.b, alpha}, expand, &state);
+    }
+}
+
+} // namespace renderer
+} // namespace chronon3d
