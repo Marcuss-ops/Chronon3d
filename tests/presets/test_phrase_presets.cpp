@@ -2,21 +2,14 @@
 
 #include <chronon3d/presets/phrase/phrase_presets.hpp>
 #include <chronon3d/presets/motion_resolver.hpp>
+#include <tests/helpers/test_utils.hpp>
 
 #include <cmath>
 
 using namespace chronon3d;
 using namespace chronon3d::presets::motion;
 using namespace chronon3d::presets::phrase;
-
-static FrameContext make_ctx(Frame frame) {
-    FrameContext ctx;
-    ctx.frame = frame;
-    ctx.frame_rate = FrameRate{30, 1};
-    ctx.width = 1920;
-    ctx.height = 1080;
-    return ctx;
-}
+using namespace chronon3d::test;
 
 static const MotionObject* find_child(const MotionObject& group, const char* id) {
     for (const auto& child : group.children) {

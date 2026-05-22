@@ -4,7 +4,7 @@
 
 using namespace chronon3d;
 
-static std::shared_ptr<Framebuffer> render_fn(
+static std::shared_ptr<Framebuffer> render_adj_fn(
     std::function<Scene(const FrameContext&)> fn, int w = 80, int h = 80)
 {
     SoftwareRenderer rend;
@@ -19,7 +19,7 @@ TEST_CASE("AdjustmentLayer: LayerKind default is Normal") {
 
 TEST_CASE("AdjustmentLayer: adjustment_layer sets kind to Adjustment") {
     // Build via SceneBuilder and inspect the produced Scene
-    auto fb = render_fn([](const FrameContext& ctx) {
+    auto fb = render_adj_fn([](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         s.rect("bg", {.size={80,80}, .color=Color::white(), .pos={40,40,0}});
         s.adjustment_layer("grade", [](LayerBuilder& l) {
@@ -36,7 +36,7 @@ TEST_CASE("AdjustmentLayer: adjustment_layer sets kind to Adjustment") {
 
 TEST_CASE("AdjustmentLayer: does not draw content of its own") {
     // Adjustment layer with a rect visual — the rect should NOT appear
-    auto fb = render_fn([](const FrameContext& ctx) {
+    auto fb = render_adj_fn([](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         // solid dark background
         s.rect("bg", {.size={80,80}, .color=Color{0.1f,0.1f,0.1f,1}, .pos={40,40,0}});
@@ -54,7 +54,7 @@ TEST_CASE("AdjustmentLayer: does not draw content of its own") {
 }
 
 TEST_CASE("AdjustmentLayer: Null layer draws nothing") {
-    auto fb = render_fn([](const FrameContext& ctx) {
+    auto fb = render_adj_fn([](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         s.rect("bg", {.size={80,80}, .color=Color::white(), .pos={40,40,0}});
         s.null_layer("null-layer", [](LayerBuilder& l) {
@@ -70,7 +70,7 @@ TEST_CASE("AdjustmentLayer: Null layer draws nothing") {
 }
 
 TEST_CASE("AdjustmentLayer: multiple effects applied in order") {
-    auto fb = render_fn([](const FrameContext& ctx) {
+    auto fb = render_adj_fn([](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         s.rect("bg", {.size={80,80}, .color=Color::white(), .pos={40,40,0}});
         s.adjustment_layer("grade", [](LayerBuilder& l) {

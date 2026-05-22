@@ -8,7 +8,7 @@
 
 using namespace chronon3d;
 
-static std::shared_ptr<Framebuffer> render_fn(
+static std::shared_ptr<Framebuffer> render_dof_fn(
     std::function<Scene(const FrameContext&)> fn, int w = 120, int h = 120)
 {
     SoftwareRenderer rend;
@@ -62,7 +62,7 @@ TEST_CASE("DOF: disabled returns zero blur") {
 // Render with DOF enabled -- just verify no crash and frame is produced
 // ---------------------------------------------------------------------------
 TEST_CASE("DOF: render with DOF enabled does not crash") {
-    auto fb = render_fn([](const FrameContext& ctx) {
+    auto fb = render_dof_fn([](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         s.camera().set({
             .enabled = true,

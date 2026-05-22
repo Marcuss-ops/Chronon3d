@@ -4,24 +4,14 @@
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <tests/helpers/render_fixtures.hpp>
+#include <tests/helpers/test_utils.hpp>
 
 #include <xxhash.h>
 
 using namespace chronon3d;
+using namespace chronon3d::test;
 
 namespace {
-
-SoftwareRenderer make_renderer() {
-    SoftwareRenderer renderer;
-    RenderSettings settings;
-    settings.use_modular_graph = true;
-    renderer.set_settings(settings);
-    return renderer;
-}
-
-u64 framebuffer_hash(const Framebuffer& fb) {
-    return XXH64(fb.pixels_row(0), fb.size_bytes(), 0);
-}
 
 Composition make_track_matte_comp(
     TrackMatteType type,

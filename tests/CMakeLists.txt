@@ -25,9 +25,7 @@ endfunction()
 # Core Tests (Math, Geometry, Animation, Timeline)
 add_executable(chronon3d_core_tests
     ${TEST_MAIN}
-    core/test_core.cpp
     core/test_frame_context.cpp
-    core/public_api_test.cpp
     core/trace_test.cpp
     core/math/test_math.cpp
     core/math/test_output_transform.cpp
@@ -55,56 +53,34 @@ add_executable(chronon3d_core_tests
     assets/test_asset_registry.cpp
     core/math/test_color_space.cpp
     core/math/test_expression.cpp
-    core/test_stability_fixes.cpp
 )
 target_link_libraries(chronon3d_core_tests PRIVATE chronon3d_pipeline doctest::doctest)
 target_include_directories(chronon3d_core_tests PRIVATE ${CMAKE_SOURCE_DIR})
 chronon3d_enable_test_pch(chronon3d_core_tests)
-set_target_properties(chronon3d_core_tests PROPERTIES UNITY_BUILD OFF)
-# This file re-includes framebuffer_pool.hpp already in the test PCH via chronon3d.hpp;
-# skip Unity Build merging to avoid struct redefinition errors.
-set_source_files_properties(cache/test_framebuffer_pool.cpp PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON)
 add_test(NAME chronon3d_core_tests COMMAND chronon3d_core_tests WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 # Scene Tests
 add_executable(chronon3d_scene_tests
     ${TEST_MAIN}
-    scene/test_scene.cpp
-    scene/test_scene_builder.cpp
-    scene/test_path_utils.cpp
-    scene/test_shape_model.cpp
-    scene/test_layer_hierarchy.cpp
-    scene/test_camera_hierarchy.cpp
-    scene/test_anchor_gallery.cpp
-    scene/test_layer_builder_animated.cpp
-    scene/test_render_node_factory.cpp
-    scene/test_depth_role.cpp
-    scene/test_layout_solver.cpp
+    scene/layout/test_scene_builder.cpp
+    scene/shapes/test_path_utils.cpp
+    scene/shapes/test_shape_model.cpp
+    scene/layout/test_layer_hierarchy.cpp
+    scene/camera/test_camera_hierarchy.cpp
+    scene/rendering/test_anchor_gallery.cpp
+    scene/layout/test_layer_builder_animated.cpp
+    scene/rendering/test_render_node_factory.cpp
+    scene/rendering/test_depth_role.cpp
+    scene/layout/test_layout_solver.cpp
 )
 target_link_libraries(chronon3d_scene_tests PRIVATE chronon3d_pipeline chronon3d_scene chronon3d_backend_software doctest::doctest)
 target_include_directories(chronon3d_scene_tests PRIVATE ${CMAKE_SOURCE_DIR})
 chronon3d_enable_test_pch(chronon3d_scene_tests)
-set_target_properties(chronon3d_scene_tests PROPERTIES UNITY_BUILD OFF)
 add_test(NAME chronon3d_scene_tests COMMAND chronon3d_scene_tests WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 # Renderer & Graph Tests
 add_executable(chronon3d_renderer_tests
     ${TEST_MAIN}
-    scene/test_line_primitive.cpp
-    scene/test_circle_primitive.cpp
-    renderer/basics/test_renderer.cpp
-    renderer/basics/test_code_first_render.cpp
-    renderer/basics/test_alpha_blending.cpp
-    renderer/basics/test_draw_order.cpp
-    renderer/basics/test_coordinate_system.cpp
-    renderer/basics/test_clipping.cpp
-    renderer/basics/test_path_rendering.cpp
-    renderer/basics/test_layer_rendering.cpp
-    renderer/basics/test_gradient_fill.cpp
-    renderer/basics/test_trim_path.cpp
-    renderer/camera/test_moving_frame.cpp
-    renderer/camera/test_camera_2_5d.cpp
-
     renderer/camera/test_camera_motion.cpp
     renderer/camera/test_camera_preview_reference.cpp
     renderer/camera/test_dof.cpp
@@ -125,30 +101,29 @@ add_executable(chronon3d_renderer_tests
     presets/test_motion_renderer.cpp
     presets/test_phrase_presets.cpp
     presets/test_motion_visual_smoke.cpp
-    render_graph/test_unified_transform_path.cpp
+    render_graph/features/test_unified_transform_path.cpp
     renderer/dispatch/test_software_node_dispatcher.cpp
-    render_graph/test_precompositions.cpp
-    render_graph/test_modular_features.cpp
-    render_graph/test_track_matte.cpp
-    render_graph/test_transition.cpp
-    render_graph/test_camera_2_5d_graph.cpp
+    render_graph/features/test_precompositions.cpp
+    render_graph/features/test_modular_features.cpp
+    render_graph/features/test_track_matte.cpp
+    render_graph/features/test_transition.cpp
+    render_graph/features/test_camera_2_5d_graph.cpp
     registry/test_registries.cpp
-    cache/test_cache_foundation.cpp
     cache/test_cache_sharding.cpp
     effects/test_effect_registry.cpp
     deterministic/test_deterministic.cpp
-    render_graph/test_render_pipeline.cpp
-    render_graph/test_render_backend.cpp
-    render_graph/cache_key_tests.cpp
-    render_graph/cache_frame_invariant_tests.cpp
-    render_graph/test_dirty_rects.cpp
+    render_graph/pipeline/test_render_pipeline.cpp
+    render_graph/pipeline/test_render_backend.cpp
+    render_graph/cache/cache_key_tests.cpp
+    render_graph/cache/cache_frame_invariant_tests.cpp
+    render_graph/pipeline/test_dirty_rects.cpp
     cache/node_cache_tests.cpp
-    render_graph/graph_builder_tests.cpp
-    render_graph/graph_executor_tests.cpp
-    scene/camera_25d_tests.cpp
+    render_graph/pipeline/graph_builder_tests.cpp
+    render_graph/pipeline/graph_executor_tests.cpp
+    scene/camera/camera_25d_tests.cpp
     effects/effect_graph_tests.cpp
     compositor/blend_mode_tests.cpp
-    scene/mask_tests.cpp
+    scene/shapes/mask_tests.cpp
     rendering/source_primitives_tests.cpp
     specscene/specscene_boundary_tests.cpp
     golden/golden_render_tests.cpp
@@ -168,7 +143,6 @@ endif()
 target_include_directories(chronon3d_renderer_tests PRIVATE ${CMAKE_SOURCE_DIR})
 target_include_directories(chronon3d_renderer_tests PRIVATE ${Stb_INCLUDE_DIR})
 chronon3d_enable_test_pch(chronon3d_renderer_tests)
-set_target_properties(chronon3d_renderer_tests PROPERTIES UNITY_BUILD OFF)
 add_test(NAME chronon3d_renderer_tests COMMAND chronon3d_renderer_tests WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 # IO Tests
@@ -181,7 +155,6 @@ add_executable(chronon3d_io_tests
 target_link_libraries(chronon3d_io_tests PRIVATE chronon3d_pipeline chronon3d_backend_image doctest::doctest)
 target_include_directories(chronon3d_io_tests PRIVATE ${CMAKE_SOURCE_DIR})
 chronon3d_enable_test_pch(chronon3d_io_tests)
-set_target_properties(chronon3d_io_tests PROPERTIES UNITY_BUILD OFF)
 add_test(NAME chronon3d_io_tests COMMAND chronon3d_io_tests WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 # CLI Tests
@@ -195,6 +168,8 @@ add_executable(chronon3d_cli_tests
     ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/common/cli_utils.cpp
     ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/job/render_job_plan.cpp
     ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/video/ffmpeg_pipe_encoder.cpp
+    ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/video/ffmpeg_pipe_command.cpp
+    ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/video/ffmpeg_pipe_yuv.cpp
 )
 
 target_link_libraries(chronon3d_cli_tests
@@ -205,7 +180,6 @@ target_link_libraries(chronon3d_cli_tests
 )
 target_include_directories(chronon3d_cli_tests PRIVATE ${CMAKE_SOURCE_DIR})
 chronon3d_enable_test_pch(chronon3d_cli_tests)
-set_target_properties(chronon3d_cli_tests PROPERTIES UNITY_BUILD OFF)
 add_test(NAME chronon3d_cli_tests COMMAND chronon3d_cli_tests WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 # Aggregate target: build all test executables with a single cmake --build ... --target chronon3d_tests

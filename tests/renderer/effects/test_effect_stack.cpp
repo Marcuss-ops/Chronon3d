@@ -4,7 +4,7 @@
 
 using namespace chronon3d;
 
-static std::shared_ptr<Framebuffer> render_fn(
+static std::shared_ptr<Framebuffer> render_stack_fn(
     std::function<Scene(const FrameContext&)> fn, int w = 80, int h = 80)
 {
     SoftwareRenderer rend;
@@ -123,7 +123,7 @@ TEST_CASE("EffectStack: fake_3d_wave adds Fake3DWaveParams to stack") {
 // Rendered output: tint via effect stack
 // ---------------------------------------------------------------------------
 TEST_CASE("EffectStack: tint applied via stack produces coloured output") {
-    auto fb = render_fn([](const FrameContext& ctx) {
+    auto fb = render_stack_fn([](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         s.layer("l", [](LayerBuilder& l) {
             l.position({40,40,0});
