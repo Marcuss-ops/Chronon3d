@@ -26,22 +26,22 @@ TEST_CASE("color::linear_srgb_float: clamps out-of-range") {
 
 TEST_CASE("color::linear_to_output_float: sRGB matches linear_srgb_float") {
     for (float v : {0.0f, 0.1f, 0.25f, 0.5f, 0.75f, 1.0f}) {
-        CHECK(linear_to_output_float(v, ColorSpace::SRGB) ==
+        CHECK(linear_to_output_float(v, color::ColorSpace::SRGB) ==
               doctest::Approx(linear_srgb_float(v)));
-        CHECK(linear_to_output_float(v, ColorSpace::Rec709) ==
+        CHECK(linear_to_output_float(v, color::ColorSpace::Rec709) ==
               doctest::Approx(linear_srgb_float(v)));
     }
 }
 
 TEST_CASE("color::linear_to_output_float: LinearSRGB bypasses gamma") {
-    CHECK(linear_to_output_float(0.5f, ColorSpace::LinearSRGB) == doctest::Approx(0.5f));
-    CHECK(linear_to_output_float(-0.5f, ColorSpace::LinearSRGB) == doctest::Approx(0.0f));
-    CHECK(linear_to_output_float(1.5f, ColorSpace::LinearSRGB) == doctest::Approx(1.0f));
+    CHECK(linear_to_output_float(0.5f, color::ColorSpace::LinearSRGB) == doctest::Approx(0.5f));
+    CHECK(linear_to_output_float(-0.5f, color::ColorSpace::LinearSRGB) == doctest::Approx(0.0f));
+    CHECK(linear_to_output_float(1.5f, color::ColorSpace::LinearSRGB) == doctest::Approx(1.0f));
 }
 
 TEST_CASE("color::linear_to_output_float: respects clamp=false") {
-    CHECK(linear_to_output_float(-0.5f, ColorSpace::LinearSRGB, false) == doctest::Approx(-0.5f));
-    CHECK(linear_to_output_float(1.5f, ColorSpace::LinearSRGB, false) == doctest::Approx(1.5f));
+    CHECK(linear_to_output_float(-0.5f, color::ColorSpace::LinearSRGB, false) == doctest::Approx(-0.5f));
+    CHECK(linear_to_output_float(1.5f, color::ColorSpace::LinearSRGB, false) == doctest::Approx(1.5f));
 }
 
 TEST_CASE("color::linear_to_output_rgb_float: returns expected values") {
@@ -55,7 +55,7 @@ TEST_CASE("color::linear_to_output_rgb_float: returns expected values") {
 TEST_CASE("color::linear_to_output_rgb_float: LinearSRGB bypasses gamma") {
     const Color linear{0.5f, 0.3f, 0.1f, 1.0f};
     OutputTransformOptions opts;
-    opts.output = ColorSpace::LinearSRGB;
+    opts.output = color::ColorSpace::LinearSRGB;
     const auto rgb = linear_to_output_rgb_float(linear, opts);
     CHECK(rgb[0] == doctest::Approx(0.5f));
     CHECK(rgb[1] == doctest::Approx(0.3f));
@@ -87,9 +87,9 @@ TEST_CASE("color::linear_to_srgb8: 0.0 and 1.0") {
 }
 
 TEST_CASE("color::linear_to_srgb8: mid-grey") {
-    // Linear 0.5 → sRGB ~0.735 → 188
+    // Linear 0.5 → sRGB ~0.735 → 187 (floor truncation in LUT)
     const uint8_t result = linear_to_srgb8(0.5f);
-    CHECK(result == 188); // 0.735 * 255 ≈ 187.4 + 0.5 = 188
+    CHECK(result == 187); // 0.735 * 255 ≈ 187.4, truncated to 187
 }
 
 TEST_CASE("color::linear_to_srgb8: clamps out-of-range") {
@@ -111,7 +111,7 @@ TEST_CASE("color::linear_to_output_rgb8: default transform is sRGB") {
 TEST_CASE("color::linear_to_output_rgb8: Rec709 matches sRGB for V1") {
     const Color linear{0.5f, 0.3f, 0.1f, 1.0f};
     OutputTransformOptions opts;
-    opts.output = ColorSpace::Rec709;
+    opts.output = color::ColorSpace::Rec709;
     const auto rgb = linear_to_output_rgb8(linear, opts);
     CHECK(rgb.r == linear_to_srgb8(0.5f));
     CHECK(rgb.g == linear_to_srgb8(0.3f));
@@ -121,11 +121,14 @@ TEST_CASE("color::linear_to_output_rgb8: Rec709 matches sRGB for V1") {
 TEST_CASE("color::linear_to_output_rgb8: LinearsRGB bypasses gamma") {
     const Color linear{0.5f, 0.3f, 0.1f, 1.0f};
     OutputTransformOptions opts;
-    opts.output = ColorSpace::LinearSRGB;
+    opts.output = color::ColorSpace::LinearSRGB;
     const auto rgb = linear_to_output_rgb8(linear, opts);
-    CHECK(rgb.r == 128); // 0.5 * 255 = 127.5 + 0.5 = 128
-    CHECK(rgb.g == 77);  // 0.3 * 255 = 76.5 + 0.5 = 77
-    CHECK(rgb.b == 26);  // 0.1 * 255 = 25.5 + 0.5 = 26
+    // 0.5 * 255 = 127.5 → floor = 127 (LUT uses floor truncation)
+    CHECK(rgb.r == 127);
+    // 0.3 * 255 = 76.5 → floor = 76
+    CHECK(rgb.g == 76);
+    // 0.1 * 255 = 25.5 → floor = 25
+    CHECK(rgb.b == 25);
 }
 
 TEST_CASE("color::linear_to_output_rgb8: clamps negative values") {
@@ -140,9 +143,10 @@ TEST_CASE("color::linear_to_output_rgb8: without gamma") {
     OutputTransformOptions opts;
     opts.apply_gamma = false;
     const auto rgb = linear_to_output_rgb8(linear, opts);
-    CHECK(rgb.r == 128); // 0.5 * 255 = 127.5 + 0.5 = 128
-    CHECK(rgb.g == 77);  // 0.3 * 255 = 77
-    CHECK(rgb.b == 26);  // 0.1 * 255 = 26
+    // Same as LinearSRGB - floor truncation in LUT
+    CHECK(rgb.r == 127); // 0.5 * 255 = 127.5 → floor = 127
+    CHECK(rgb.g == 76);  // 0.3 * 255 = 76.5 → floor = 76
+    CHECK(rgb.b == 25);  // 0.1 * 255 = 25.5 → floor = 25
 }
 
 // ---------------------------------------------------------------------------

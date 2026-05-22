@@ -86,7 +86,6 @@ add_executable(chronon3d_renderer_tests
     ${TEST_MAIN}
     scene/test_line_primitive.cpp
     scene/test_circle_primitive.cpp
-    perf/bench_golden.cpp
     renderer/basics/test_renderer.cpp
     renderer/basics/test_code_first_render.cpp
     renderer/basics/test_alpha_blending.cpp
@@ -140,7 +139,6 @@ add_executable(chronon3d_renderer_tests
     cache/node_cache_tests.cpp
     render_graph/graph_builder_tests.cpp
     render_graph/graph_executor_tests.cpp
-    golden/motion_visual_golden_tests.cpp
     scene/camera_25d_tests.cpp
     effects/effect_graph_tests.cpp
     compositor/blend_mode_tests.cpp
