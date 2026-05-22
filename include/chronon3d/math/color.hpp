@@ -21,7 +21,7 @@ namespace color_detail {
             const f32 srgb = (linear <= 0.0031308f)
                 ? (linear * 12.92f)
                 : (1.055f * std::pow(linear, 1.0f / 2.4f) - 0.055f);
-            values[i] = static_cast<u8>(std::clamp(srgb * 255.0f, 0.0f, 255.0f));
+            values[i] = static_cast<u8>(std::clamp(std::round(srgb * 255.0f), 0.0f, 255.0f));
         }
         return values;
     }();
