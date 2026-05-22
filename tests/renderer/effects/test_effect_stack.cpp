@@ -17,21 +17,16 @@ static std::shared_ptr<Framebuffer> render_stack_fn(
 
 template <typename T>
 static bool holds_effect(const EffectInstance& inst) {
-    if (std::any_cast<T>(&inst.params)) {
-        return true;
-    }
-    if (auto* params = std::any_cast<EffectParams>(&inst.params)) {
-        return std::holds_alternative<T>(*params);
-    }
-    return false;
+    return std::any_cast<T>(&inst.params) != nullptr;
 }
 
 template <typename T>
 static const T& get_effect(const EffectInstance& inst) {
-    if (auto* val = std::any_cast<T>(&inst.params)) {
-        return *val;
+    auto* val = std::any_cast<T>(&inst.params);
+    if (!val) {
+        throw std::bad_any_cast();
     }
-    return std::get<T>(*std::any_cast<EffectParams>(&inst.params));
+    return *val;
 }
 
 // ---------------------------------------------------------------------------
