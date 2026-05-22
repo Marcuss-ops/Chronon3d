@@ -11,8 +11,9 @@ export default function Sidebar({
 }) {
   const [query, setQuery] = useState('');
 
-  const filteredRuns = runs.filter(r => 
-    r.composition_id.toLowerCase().includes(query.toLowerCase()) ||
+  const runsArray = Array.isArray(runs) ? runs : [];
+  const filteredRuns = runsArray.filter(r => 
+    (r.composition_id || '').toLowerCase().includes(query.toLowerCase()) ||
     (r.git_commit_short && r.git_commit_short.toLowerCase().includes(query.toLowerCase()))
   );
 

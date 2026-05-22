@@ -44,6 +44,7 @@ public:
     [[nodiscard]] uint64_t frames_written() const { return frames_written_; }
     [[nodiscard]] uint64_t bytes_written() const { return bytes_written_; }
     [[nodiscard]] bool is_open() const { return pipe_ != nullptr; }
+    [[nodiscard]] double total_write_blocked_ms() const { return total_write_blocked_ms_; }
 
     bool convert_framebuffer_to_rgba(const Framebuffer& fb);
     bool convert_framebuffer_to_yuv420p(const Framebuffer& fb);
@@ -59,6 +60,7 @@ private:
     std::vector<uint8_t> nv12_uv_plane_;
     uint64_t frames_written_{0};
     uint64_t bytes_written_{0};
+    double total_write_blocked_ms_{0.0};
 };
 
 } // namespace chronon3d::cli

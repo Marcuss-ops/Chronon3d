@@ -1,6 +1,7 @@
 #include "render_job.hpp"
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/core/render_telemetry.hpp>
+#include <chronon3d/core/profiling.hpp>
 #include <chronon3d/runtime/renderer_warmup.hpp>
 #include <chronon3d/core/trace.hpp>
 #include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
@@ -13,6 +14,7 @@
 #include <vector>
 #include <fstream>
 #include <unordered_map>
+#include <algorithm>
 #include <sstream>
 #include <iomanip>
 
@@ -66,14 +68,22 @@ bool write_render_frame(const Composition& comp,
         return false;
     }
 
-    if (!save_image(*fb, path, write_options)) {
-        spdlog::error("Failed to save frame {} to {} as {}",
-                      frame,
-                      path,
-                      image_format_name(write_options.format));
-        ok = false;
-        return false;
+    // Set trace context so CHRONON_ZONE zones inside save_image work.
+    // render_frame clears g_current_trace after returning, so we restore it.
+    profiling::g_current_trace = renderer.trace();
+    profiling::g_current_frame = static_cast<int32_t>(frame);
+    {
+        CHRONON_ZONE_C("write_frame_to_disk", trace_category::kOutput);
+        if (!save_image(*fb, path, write_options)) {
+            spdlog::error("Failed to save frame {} to {} as {}",
+                          frame,
+                          path,
+                          image_format_name(write_options.format));
+            ok = false;
+            return false;
+        }
     }
+    profiling::g_current_trace = nullptr;
 
     const auto t_encode1 = std::chrono::steady_clock::now();
 
@@ -198,7 +208,13 @@ bool execute_render_job(const CompositionRegistry& registry, const RenderJobPlan
     spdlog::info("Render complete.");
 
     // Write legacy CSV and summary
-    telemetry::flush_telemetry();
+    {
+        CHRONON_ZONE_C("telemetry_flush", trace_category::kPipeline);
+        profiling::g_current_trace = renderer->trace();
+        profiling::g_current_frame = 0;
+        telemetry::flush_telemetry();
+        profiling::g_current_trace = nullptr;
+    }
 
     if (!plan.trace_file.empty()) {
         spdlog::info("Writing performance trace to {}...", plan.trace_file);
@@ -254,7 +270,9 @@ bool execute_render_job(const CompositionRegistry& registry, const RenderJobPlan
     run.framebuffer_bytes_peak = counters->framebuffer_bytes_peak.load(std::memory_order_relaxed);
     run.dirty_rect_count = counters->dirty_rect_count.load(std::memory_order_relaxed);
     run.dirty_pixels = counters->dirty_pixels.load(std::memory_order_relaxed);
+    run.dirty_union_area_pixels = counters->dirty_union_area_pixels.load(std::memory_order_relaxed);
     run.dirty_full_fallbacks = counters->dirty_full_fallbacks.load(std::memory_order_relaxed);
+    run.bypass_not_cacheable_count = counters->bypass_not_cacheable_count.load(std::memory_order_relaxed);
 
     run.started_at_iso = job_started_iso;
     run.finished_at_iso = telemetry::TelemetryManager::get_current_iso_time();
@@ -296,7 +314,9 @@ bool execute_render_job(const CompositionRegistry& registry, const RenderJobPlan
         {"framebuffer_bytes_peak", run.framebuffer_bytes_peak},
         {"dirty_rect_count", run.dirty_rect_count},
         {"dirty_pixels", run.dirty_pixels},
+        {"dirty_union_area_pixels", run.dirty_union_area_pixels},
         {"dirty_full_fallbacks", run.dirty_full_fallbacks},
+        {"bypass_not_cacheable_count", run.bypass_not_cacheable_count},
         {"pool_current_bytes", pool_current_bytes},
         {"pool_available_count", pool_available_count}
     };
@@ -307,12 +327,25 @@ bool execute_render_job(const CompositionRegistry& registry, const RenderJobPlan
     };
 
     if (plan.benchmark_all && renderer->trace()) {
+        std::unordered_map<std::string, double> cat_durations;
         std::unordered_map<std::string, double> node_durations;
         for (const auto& ev : renderer->trace()->events()) {
             if (ev.category == "node_execute") {
                 node_durations[ev.name] += ev.dur_us / 1000.0;
             }
+            // Aggregate other pipeline-level categories
+            if (ev.category != "default" && ev.category != "node_execute" && ev.category != "frame") {
+                cat_durations[std::string(ev.category) + ":" + ev.name] += ev.dur_us / 1000.0;
+            }
         }
+        // Add pipeline-level events first (sorted by duration descending)
+        std::vector<std::pair<std::string, double>> sorted_cat(cat_durations.begin(), cat_durations.end());
+        std::sort(sorted_cat.begin(), sorted_cat.end(),
+                  [](const auto& a, const auto& b) { return a.second > b.second; });
+        for (const auto& [name, dur_ms] : sorted_cat) {
+            phases.push_back({name, dur_ms});
+        }
+        // Then add per-node events
         for (const auto& [node_name, dur_ms] : node_durations) {
             phases.push_back({"node:" + node_name, dur_ms});
         }

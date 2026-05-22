@@ -3,6 +3,7 @@
 #include <chronon3d/backends/software/rasterizers/projected_card_rasterizer.hpp>
 #include <chronon3d/backends/text/text_rasterizer_utils.hpp>
 #include <chronon3d/core/profiling.hpp>
+#include <chronon3d/cache/lru_cache.hpp>
 #include <spdlog/spdlog.h>
 #include "../utils/render_effects_processor.hpp"
 #include "../utils/blend2d_bridge.hpp"
@@ -11,13 +12,14 @@
 #include <blend2d.h>
 #include <glm/gtc/matrix_transform.hpp>
 #include <mutex>
-#include <unordered_map>
+#include <cstdlib>
 
 namespace chronon3d::renderer {
 
 namespace {
 
 using CacheKey = u64;
+using ShadowCache = cache::LruCache<CacheKey, std::shared_ptr<Framebuffer>>;
 
 CacheKey hash_combine(CacheKey seed, CacheKey value) {
     seed ^= value + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2);
@@ -78,11 +80,48 @@ CacheKey hash_shadow_params(const RenderNode& node, float effective_size, size_t
     return seed;
 }
 
-std::unordered_map<CacheKey, std::shared_ptr<Framebuffer>> g_text_glow_cache;
-std::mutex g_text_glow_cache_mutex;
+size_t resolve_cache_max_mb(const char* env_name, size_t default_mb) {
+    const char* env = std::getenv(env_name);
+    if (!env || !*env) return default_mb * 1024ULL * 1024ULL;
+    try {
+        size_t mb = static_cast<size_t>(std::stoull(env));
+        return mb > 0 ? mb * 1024ULL * 1024ULL : default_mb * 1024ULL * 1024ULL;
+    } catch (...) {
+        return default_mb * 1024ULL * 1024ULL;
+    }
+}
 
-std::unordered_map<CacheKey, std::shared_ptr<Framebuffer>> g_text_shadow_cache;
+ShadowCache& get_shadow_cache() {
+    static ShadowCache cache(resolve_cache_max_mb("CHRONON_SHADOW_CACHE_MAX_MB", 64), 4);
+    return cache;
+}
+
+ShadowCache& get_glow_cache() {
+    static ShadowCache cache(resolve_cache_max_mb("CHRONON_GLOW_CACHE_MAX_MB", 64), 4);
+    return cache;
+}
+
+std::mutex g_text_glow_cache_mutex;
 std::mutex g_text_shadow_cache_mutex;
+
+bool is_affine_transform(const Mat4& m) {
+    return
+        std::abs(m[0][2]) < 1e-5f &&
+        std::abs(m[1][2]) < 1e-5f &&
+        std::abs(m[2][0]) < 1e-5f &&
+        std::abs(m[2][1]) < 1e-5f &&
+        std::abs(m[2][2] - 1.0f) < 1e-5f &&
+        std::abs(m[2][3]) < 1e-5f &&
+        std::abs(m[3][2]) < 1e-5f;
+}
+
+bool has_non_translation(const Mat4& m) {
+    return
+        std::abs(m[0][0] - 1.0f) > 1e-5f ||
+        std::abs(m[0][1]) > 1e-5f ||
+        std::abs(m[1][0]) > 1e-5f ||
+        std::abs(m[1][1] - 1.0f) > 1e-5f;
+}
 
 } // namespace
 
@@ -93,19 +132,29 @@ public:
         CHRONON_ZONE_C("text_render", trace_category::kText);
         const Mat4& model = state.matrix;
         const f32 opacity = state.opacity;
-
         const float effective_size = node.shape.text.style.size;
 
+        // Determine if geometric transform should be used (non-trivial affine transform)
+        const bool use_geo_transform = !state.projection.ready &&
+                                       is_affine_transform(model) &&
+                                       has_non_translation(model);
+
+        const Mat4* raster_transform = nullptr;
+        Mat4 text_model_storage;
+
+        if (use_geo_transform) {
+            text_model_storage = model;
+            raster_transform = &text_model_storage;
+        }
+
         bool raster_cache_hit = false;
-        // Rasterize once and reuse the cached atlas when the text content is unchanged.
-        auto raster = rasterize_text_to_bl_image(node.shape.text, effective_size, 4, &raster_cache_hit);
+        auto raster = rasterize_text_to_bl_image(node.shape.text, effective_size, 4, &raster_cache_hit, raster_transform);
         if (!raster) {
             spdlog::warn("Text rasterization failed for node '{}'", node.name);
             return;
         }
 
         if (!raster_cache_hit) {
-            // Count only the frames that actually had to rasterize glyphs.
             renderer.counters()->text_glyphs_rasterized.fetch_add(
                 static_cast<uint64_t>(node.shape.text.text.length()),
                 std::memory_order_relaxed
@@ -126,12 +175,15 @@ public:
         }
 
         // 3. Text
-        if (state.projection.ready) {
+        if (use_geo_transform) {
+            int x = static_cast<int>(std::lround(raster->x_offset));
+            int y = static_cast<int>(std::lround(raster->y_offset));
+            blend2d_bridge::composite_bl_image(fb, raster->image, x, y, opacity, BlendMode::Normal);
+        } else if (state.projection.ready) {
             const int x = static_cast<int>(std::lround(model[3][0] + raster->x_offset));
             const int y = static_cast<int>(std::lround(model[3][1] + raster->y_offset));
             blend2d_bridge::composite_bl_image(fb, raster->image, x, y, opacity, BlendMode::Normal);
         } else {
-            // Use the transformed compositor when no projection pass is active.
             Mat4 text_model = model * glm::translate(Mat4(1.0f), Vec3(raster->x_offset, raster->y_offset, 0.0f));
             blend2d_bridge::composite_bl_image_transformed(fb, raster->image, text_model, opacity, BlendMode::Normal);
         }
@@ -146,7 +198,6 @@ public:
             h = txt.box.size.y;
         }
 
-        // Corners in local space
         Vec4 corners[4] = {
             model * Vec4(0.0f, 0.0f, 0.0f, 1.0f),
             model * Vec4(w,    0.0f, 0.0f, 1.0f),
@@ -183,18 +234,19 @@ private:
         const Mat4& model = state.matrix;
         const f32 opacity = state.opacity;
 
+        const bool use_geo_transform = !state.projection.ready &&
+                                       is_affine_transform(model) &&
+                                       has_non_translation(model);
+
         const CacheKey key = hash_shadow_params(node, node.shape.text.style.size, index);
         std::shared_ptr<Framebuffer> shadow_cache;
         {
             std::lock_guard<std::mutex> lock(g_text_shadow_cache_mutex);
-            auto it = g_text_shadow_cache.find(key);
-            if (it != g_text_shadow_cache.end()) {
-                shadow_cache = it->second;
-            }
+            auto cached = get_shadow_cache().get(key);
+            if (cached) shadow_cache = *cached;
         }
 
         if (!shadow_cache) {
-            // Apply shadow color to copy of raster image
             BLImage shadow_img;
             shadow_img.create(raster.image.width(), raster.image.height(), BL_FORMAT_PRGB32);
             {
@@ -221,18 +273,23 @@ private:
 
             {
                 std::lock_guard<std::mutex> lock(g_text_shadow_cache_mutex);
-                shadow_cache = g_text_shadow_cache.emplace(key, std::move(cached_fb)).first->second;
+                size_t weight = cached_fb->size_bytes();
+                get_shadow_cache().put(key, cached_fb, weight);
+                shadow_cache = cached_fb;
             }
         }
 
         const f32 shadow_opacity = shadow.opacity * shadow.color.a;
 
-        if (state.projection.ready) {
+        if (use_geo_transform) {
+            int x = static_cast<int>(std::lround(raster.x_offset + shadow.offset.x));
+            int y = static_cast<int>(std::lround(raster.y_offset + shadow.offset.y));
+            blend2d_bridge::composite_framebuffer(fb, *shadow_cache, x, y, opacity * shadow_opacity, BlendMode::Normal);
+        } else if (state.projection.ready) {
             const int x = static_cast<int>(std::lround(model[3][0] + raster.x_offset + shadow.offset.x));
             const int y = static_cast<int>(std::lround(model[3][1] + raster.y_offset + shadow.offset.y));
             blend2d_bridge::composite_framebuffer(fb, *shadow_cache, x, y, opacity * shadow_opacity, BlendMode::Normal);
         } else {
-            // Use transformed compositor to follow perspective
             Mat4 shadow_model = model * glm::translate(Mat4(1.0f), Vec3(raster.x_offset + shadow.offset.x, raster.y_offset + shadow.offset.y, 0.0f));
             blend2d_bridge::composite_framebuffer_transformed(fb, *shadow_cache, shadow_model, opacity * shadow_opacity, BlendMode::Normal);
         }
@@ -243,18 +300,19 @@ private:
         const Mat4& model = state.matrix;
         const f32 opacity = state.opacity;
 
+        const bool use_geo_transform = !state.projection.ready &&
+                                       is_affine_transform(model) &&
+                                       has_non_translation(model);
+
         const CacheKey key = hash_glow_params(node, node.shape.text.style.size);
         std::shared_ptr<Framebuffer> glow_cache;
         {
             std::lock_guard<std::mutex> lock(g_text_glow_cache_mutex);
-            auto it = g_text_glow_cache.find(key);
-            if (it != g_text_glow_cache.end()) {
-                glow_cache = it->second;
-            }
+            auto cached = get_glow_cache().get(key);
+            if (cached) glow_cache = *cached;
         }
 
         if (!glow_cache) {
-            // Apply glow color to a copy of the text image
             BLImage glow_img;
             glow_img.create(raster.image.width(), raster.image.height(), BL_FORMAT_PRGB32);
             {
@@ -281,20 +339,24 @@ private:
 
             {
                 std::lock_guard<std::mutex> lock(g_text_glow_cache_mutex);
-                glow_cache = g_text_glow_cache.emplace(key, std::move(cached_fb)).first->second;
+                size_t weight = cached_fb->size_bytes();
+                get_glow_cache().put(key, cached_fb, weight);
+                glow_cache = cached_fb;
             }
         }
 
         const f32 glow_intensity_opacity = node.glow.intensity * node.glow.color.a;
 
-        if (state.projection.ready) {
+        if (use_geo_transform) {
+            int x = static_cast<int>(std::lround(raster.x_offset));
+            int y = static_cast<int>(std::lround(raster.y_offset));
+            blend2d_bridge::composite_framebuffer(fb, *glow_cache, x, y, opacity * glow_intensity_opacity, BlendMode::Add);
+        } else if (state.projection.ready) {
             const int x = static_cast<int>(std::lround(model[3][0] + raster.x_offset));
             const int y = static_cast<int>(std::lround(model[3][1] + raster.y_offset));
             blend2d_bridge::composite_framebuffer(fb, *glow_cache, x, y, opacity * glow_intensity_opacity, BlendMode::Add);
         } else {
-            // Use transformed compositor to follow perspective
             Mat4 glow_model = model * glm::translate(Mat4(1.0f), Vec3(raster.x_offset, raster.y_offset, 0.0f));
-            
             blend2d_bridge::composite_framebuffer_transformed(fb, *glow_cache, glow_model, opacity * glow_intensity_opacity, BlendMode::Add);
         }
     }
@@ -302,12 +364,12 @@ private:
 
 void clear_text_glow_cache() {
     std::lock_guard<std::mutex> lock(g_text_glow_cache_mutex);
-    g_text_glow_cache.clear();
+    get_glow_cache().clear();
 }
 
 void clear_text_shadow_cache() {
     std::lock_guard<std::mutex> lock(g_text_shadow_cache_mutex);
-    g_text_shadow_cache.clear();
+    get_shadow_cache().clear();
 }
 
 std::unique_ptr<ShapeProcessor> create_text_processor() {

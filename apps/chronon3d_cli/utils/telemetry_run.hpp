@@ -113,7 +113,13 @@ inline void record_output_run(const std::string& composition_id,
                               const std::vector<chronon3d::telemetry::CounterTelemetryRecord>& counters = {},
                               const std::vector<chronon3d::telemetry::NodeTelemetryRecord>& node_events = {},
                               const chronon3d::RenderCounters* counters_src = nullptr,
-                              const std::vector<chronon3d::telemetry::FrameTelemetryRecord>& frames = {}) {
+                              const std::vector<chronon3d::telemetry::FrameTelemetryRecord>& frames = {},
+                              const std::vector<chronon3d::telemetry::LayerTelemetryRecord>& layer_events = {},
+                              const std::vector<chronon3d::telemetry::CacheTelemetryRecord>& cache_events = {},
+                              const std::vector<chronon3d::telemetry::CullingTelemetryRecord>& culling_events = {},
+                              const std::vector<chronon3d::telemetry::TextTelemetryRecord>& text_events = {},
+                              const std::vector<chronon3d::telemetry::ImageTelemetryRecord>& image_events = {},
+                              const std::vector<chronon3d::telemetry::TileTelemetryRecord>& tile_events = {}) {
     chronon3d::telemetry::TelemetryManager::instance().initialize_default_stores();
 
     chronon3d::telemetry::RenderTelemetryRecord run;
@@ -182,7 +188,11 @@ inline void record_output_run(const std::string& composition_id,
         ? capture_counters(*counters_src)
         : counters;
 
-    chronon3d::telemetry::TelemetryManager::instance().record_run(run, frames, phases, resolved_counters, node_events);
+    chronon3d::telemetry::TelemetryManager::instance().record_run(
+        run, frames, phases, resolved_counters, node_events,
+        layer_events, cache_events, culling_events,
+        text_events, image_events, tile_events
+    );
 }
 
 inline void record_output_run(const std::string& composition_id,
@@ -211,7 +221,8 @@ inline void record_output_run(const std::string& composition_id,
                       counters,
                       {},
                       counters_src,
-                      frames);
+                      frames,
+                      {}, {}, {}, {}, {}, {});
 }
 
 } // namespace chronon3d::cli::telemetry

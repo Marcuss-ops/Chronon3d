@@ -1,0 +1,448 @@
+{
+  "traceEvents": [
+    {
+      "args": {
+        "frame": 0
+      },
+      "cat": "timeline",
+      "dur": 214,
+      "name": "evaluate_composition",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 2803028242
+    },
+    {
+      "args": {
+        "frame": 0
+      },
+      "cat": "node_execute",
+      "dur": 113044,
+      "name": "Clear",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 2803029546
+    },
+    {
+      "args": {
+        "frame": 0
+      },
+      "cat": "node_execute",
+      "dur": 275144,
+      "name": "title",
+      "ph": "X",
+      "pid": 1,
+      "tid": 2,
+      "ts": 2803032130
+    },
+    {
+      "args": {
+        "frame": 0
+      },
+      "cat": "node_execute",
+      "dur": 7596517,
+      "name": "grid_bg",
+      "ph": "X",
+      "pid": 1,
+      "tid": 3,
+      "ts": 2803030541
+    },
+    {
+      "args": {
+        "frame": 0
+      },
+      "cat": "node_execute",
+      "dur": 110275,
+      "name": "Transform",
+      "ph": "X",
+      "pid": 1,
+      "tid": 4,
+      "ts": 2810635856
+    },
+    {
+      "args": {
+        "frame": 0
+      },
+      "cat": "composite",
+      "dur": 27142,
+      "name": "composite_layer",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 2810753151
+    },
+    {
+      "args": {
+        "frame": 0
+      },
+      "cat": "node_execute",
+      "dur": 144538,
+      "name": "Composite",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 2810635773
+    },
+    {
+      "args": {
+        "frame": 0
+      },
+      "cat": "composite",
+      "dur": 544,
+      "name": "composite_layer",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 2810795799
+    },
+    {
+      "args": {
+        "frame": 0
+      },
+      "cat": "node_execute",
+      "dur": 15849,
+      "name": "Composite",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 2810780506
+    },
+    {
+      "args": {
+        "frame": 0
+      },
+      "cat": "frame",
+      "dur": 7772147,
+      "name": "render_frame",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 2803028233
+    },
+    {
+      "args": {
+        "frame": 1
+      },
+      "cat": "timeline",
+      "dur": 403,
+      "name": "evaluate_composition",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 2812251685
+    },
+    {
+      "args": {
+        "frame": 1
+      },
+      "cat": "node_execute",
+      "dur": 793,
+      "name": "Clear",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 2812262078
+    },
+    {
+      "args": {
+        "frame": 1
+      },
+      "cat": "node_execute",
+      "dur": 10648,
+      "name": "title",
+      "ph": "X",
+      "pid": 1,
+      "tid": 5,
+      "ts": 2812252608
+    },
+    {
+      "args": {
+        "frame": 1
+      },
+      "cat": "composite",
+      "dur": 1779,
+      "name": "composite_layer",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 2812277970
+    },
+    {
+      "args": {
+        "frame": 1
+      },
+      "cat": "node_execute",
+      "dur": 8566,
+      "name": "Composite",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 2812271197
+    },
+    {
+      "args": {
+        "frame": 1
+      },
+      "cat": "node_execute",
+      "dur": 31687,
+      "name": "Transform",
+      "ph": "X",
+      "pid": 1,
+      "tid": 3,
+      "ts": 2812271253
+    },
+    {
+      "args": {
+        "frame": 1
+      },
+      "cat": "composite",
+      "dur": 1401,
+      "name": "composite_layer",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 2812316912
+    },
+    {
+      "args": {
+        "frame": 1
+      },
+      "cat": "node_execute",
+      "dur": 15194,
+      "name": "Composite",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 2812303142
+    },
+    {
+      "args": {
+        "frame": 1
+      },
+      "cat": "frame",
+      "dur": 71786,
+      "name": "render_frame",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 2812251675
+    },
+    {
+      "args": {
+        "frame": 2
+      },
+      "cat": "timeline",
+      "dur": 206,
+      "name": "evaluate_composition",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 2813891952
+    },
+    {
+      "args": {
+        "frame": 2
+      },
+      "cat": "node_execute",
+      "dur": 1372,
+      "name": "title",
+      "ph": "X",
+      "pid": 1,
+      "tid": 3,
+      "ts": 2813892755
+    },
+    {
+      "args": {
+        "frame": 2
+      },
+      "cat": "node_execute",
+      "dur": 5408,
+      "name": "Clear",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 2813892506
+    },
+    {
+      "args": {
+        "frame": 2
+      },
+      "cat": "node_execute",
+      "dur": 67043,
+      "name": "Transform",
+      "ph": "X",
+      "pid": 1,
+      "tid": 2,
+      "ts": 2813904990
+    },
+    {
+      "args": {
+        "frame": 2
+      },
+      "cat": "composite",
+      "dur": 684,
+      "name": "composite_layer",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 2813978528
+    },
+    {
+      "args": {
+        "frame": 2
+      },
+      "cat": "node_execute",
+      "dur": 76772,
+      "name": "Composite",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 2813902452
+    },
+    {
+      "args": {
+        "frame": 2
+      },
+      "cat": "composite",
+      "dur": 545,
+      "name": "composite_layer",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 2813993057
+    },
+    {
+      "args": {
+        "frame": 2
+      },
+      "cat": "node_execute",
+      "dur": 14238,
+      "name": "Composite",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 2813979381
+    },
+    {
+      "args": {
+        "frame": 2
+      },
+      "cat": "frame",
+      "dur": 108344,
+      "name": "render_frame",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 2813891513
+    },
+    {
+      "args": {
+        "frame": 3
+      },
+      "cat": "timeline",
+      "dur": 207,
+      "name": "evaluate_composition",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 2815249668
+    },
+    {
+      "args": {
+        "frame": 3
+      },
+      "cat": "node_execute",
+      "dur": 903,
+      "name": "Clear",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 2815250245
+    },
+    {
+      "args": {
+        "frame": 3
+      },
+      "cat": "node_execute",
+      "dur": 1241,
+      "name": "title",
+      "ph": "X",
+      "pid": 1,
+      "tid": 2,
+      "ts": 2815250402
+    },
+    {
+      "args": {
+        "frame": 3
+      },
+      "cat": "composite",
+      "dur": 2008,
+      "name": "composite_layer",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 2815299160
+    },
+    {
+      "args": {
+        "frame": 3
+      },
+      "cat": "node_execute",
+      "dur": 49471,
+      "name": "Composite",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 2815251709
+    },
+    {
+      "args": {
+        "frame": 3
+      },
+      "cat": "node_execute",
+      "dur": 59234,
+      "name": "Transform",
+      "ph": "X",
+      "pid": 1,
+      "tid": 2,
+      "ts": 2815251717
+    },
+    {
+      "args": {
+        "frame": 3
+      },
+      "cat": "composite",
+      "dur": 1329,
+      "name": "composite_layer",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 2815317729
+    },
+    {
+      "args": {
+        "frame": 3
+      },
+      "cat": "node_execute",
+      "dur": 7857,
+      "name": "Composite",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 2815311211
+    },
+    {
+      "args": {
+        "frame": 3
+      },
+      "cat": "frame",
+      "dur": 72190,
+      "name": "render_frame",
+      "ph": "X",
+      "pid": 1,
+      "tid": 1,
+      "ts": 2815249659
+    }
+  ]
+}

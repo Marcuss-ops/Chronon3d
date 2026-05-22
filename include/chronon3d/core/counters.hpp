@@ -42,8 +42,11 @@ struct RenderCounters {
 
     std::atomic<uint64_t> dirty_rect_count{0};
     std::atomic<uint64_t> dirty_pixels{0};
+    std::atomic<uint64_t> dirty_union_area_pixels{0};
     std::atomic<uint64_t> dirty_full_fallbacks{0};
     std::array<std::atomic<uint64_t>, dirty_fallback_reason_count()> dirty_full_fallback_reasons{};
+
+    std::atomic<uint64_t> bypass_not_cacheable_count{0};
 
     RenderCounters() = default;
 
@@ -86,6 +89,7 @@ private:
         framebuffer_bytes_peak.store(other.framebuffer_bytes_peak.load(std::memory_order_relaxed), std::memory_order_relaxed);
         dirty_rect_count.store(other.dirty_rect_count.load(std::memory_order_relaxed), std::memory_order_relaxed);
         dirty_pixels.store(other.dirty_pixels.load(std::memory_order_relaxed), std::memory_order_relaxed);
+        dirty_union_area_pixels.store(other.dirty_union_area_pixels.load(std::memory_order_relaxed), std::memory_order_relaxed);
         dirty_full_fallbacks.store(other.dirty_full_fallbacks.load(std::memory_order_relaxed), std::memory_order_relaxed);
         for (std::size_t i = 0; i < dirty_fallback_reason_count(); ++i) {
             dirty_full_fallback_reasons[i].store(
@@ -152,7 +156,9 @@ public:
         framebuffer_bytes_peak.store(0, std::memory_order_relaxed);
         dirty_rect_count.store(0, std::memory_order_relaxed);
         dirty_pixels.store(0, std::memory_order_relaxed);
+        dirty_union_area_pixels.store(0, std::memory_order_relaxed);
         dirty_full_fallbacks.store(0, std::memory_order_relaxed);
+        bypass_not_cacheable_count.store(0, std::memory_order_relaxed);
         for (auto& reason : dirty_full_fallback_reasons) {
             reason.store(0, std::memory_order_relaxed);
         }

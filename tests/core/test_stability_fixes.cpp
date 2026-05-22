@@ -12,38 +12,44 @@ TEST_CASE("NodeCache: replacing existing key does not leave stale LRU entries") 
     auto a = std::make_shared<Framebuffer>(2, 2);
     auto b = std::make_shared<Framebuffer>(2, 2);
 
-    c.put(1, a, 64);
-    c.put(1, b, 64);
+    cache::NodeCacheKey key{.scope = "test", .frame = 1};
+
+    c.store(key, a);
+    c.store(key, b);
 
     CHECK(c.size() == 1);
-    CHECK(c.contains(1));
-    CHECK(c.stats().current_usage_bytes == 64);
+    CHECK(c.contains(key));
+    CHECK(c.stats().current_weight == b->size_bytes());
 }
 
 TEST_CASE("NodeCache: does not store entries larger than capacity") {
     cache::NodeCache c(10);
 
     auto fb = std::make_shared<Framebuffer>(2, 2);
-    c.put(1, fb, 1000);
+    cache::NodeCacheKey key{.scope = "test", .frame = 1};
+    c.store(key, fb);
 
-    CHECK_FALSE(c.contains(1));
-    CHECK(c.stats().current_usage_bytes == 0);
+    CHECK_FALSE(c.contains(key));
+    CHECK(c.stats().current_weight == 0);
 }
 
 TEST_CASE("NodeCache: clear resets usage and all stats") {
     cache::NodeCache c(1000);
     auto fb = std::make_shared<Framebuffer>(2, 2);
     
-    c.put(1, fb, 64);
-    c.get(1); // hit
-    c.get(2); // miss
+    cache::NodeCacheKey key1{.scope = "test", .frame = 1};
+    cache::NodeCacheKey key2{.scope = "test", .frame = 2};
+
+    c.store(key1, fb);
+    (void)c.get(key1); // hit
+    (void)c.get(key2); // miss
     
     CHECK(c.stats().hits == 1);
     CHECK(c.stats().misses == 1);
     
     c.clear();
     
-    CHECK(c.stats().current_usage_bytes == 0);
+    CHECK(c.stats().current_weight == 0);
     CHECK(c.stats().hits == 0);
     CHECK(c.stats().misses == 0);
 }

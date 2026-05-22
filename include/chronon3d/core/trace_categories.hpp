@@ -14,5 +14,7 @@ inline constexpr std::string_view kRasterize{"rasterize"};
 inline constexpr std::string_view kTimeline{"timeline"};
 inline constexpr std::string_view kComposite{"composite"};
 inline constexpr std::string_view kDownsample{"downsample"};
+inline constexpr std::string_view kPipeline{"pipeline"};
+inline constexpr std::string_view kOutput{"output"};
 
 } // namespace chronon3d::trace_category

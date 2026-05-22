@@ -185,6 +185,7 @@ struct RenderGraphContext {
     // Optimization flags
     bool optimize_compositing{true};
     bool dirty_rects_enabled{false};
+    bool reuse_prev_framebuffer{false};
 
     // ── Per-node / per-layer telemetry collectors ────────────────────────────
     // Populated during graph execution; flushed via TelemetryManager after frame.

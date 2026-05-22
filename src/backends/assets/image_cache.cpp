@@ -1,5 +1,6 @@
 #include <chronon3d/backends/assets/image_cache.hpp>
 #include <spdlog/spdlog.h>
+#include <chrono>
 
 namespace chronon3d {
 
@@ -7,7 +8,11 @@ const CachedImage* ImageCache::get_or_load(const std::string& path) {
     std::lock_guard<std::mutex> lock(m_mutex);
     auto it = m_cache.find(path);
     if (it != m_cache.end()) {
-        return it->second.valid() ? &it->second : nullptr;
+        if (it->second.valid()) {
+            spdlog::debug("ImageCache: hit '{}' ({}x{})", path, it->second.width, it->second.height);
+            return &it->second;
+        }
+        return nullptr;
     }
 
     if (!m_backend) {
@@ -15,6 +20,7 @@ const CachedImage* ImageCache::get_or_load(const std::string& path) {
         return nullptr;
     }
 
+    const auto t0 = std::chrono::steady_clock::now();
     auto buffer = m_backend->load_image(path);
     if (!buffer || !buffer->pixels) {
         // Insert invalid sentinel so we don't retry every frame.
@@ -56,6 +62,10 @@ const CachedImage* ImageCache::get_or_load(const std::string& path) {
             }
         }
     }
+
+    const auto t1 = std::chrono::steady_clock::now();
+    const double load_dur_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+    spdlog::info("ImageCache: loaded '{}' ({}x{}) in {:.3f}ms", path, entry.width, entry.height, load_dur_ms);
 
     auto& stored = m_cache.emplace(path, std::move(entry)).first->second;
     return &stored;
