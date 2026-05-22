@@ -5,15 +5,12 @@
 #include <chronon3d/backends/video/video_frame_decoder.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <tests/helpers/render_fixtures.hpp>
+#include <tests/helpers/test_utils.hpp>
 
 using namespace chronon3d;
 using namespace chronon3d::test;
 
 namespace {
-
-u64 framebuffer_hash(const Framebuffer& fb) {
-    return XXH64(fb.pixels_row(0), fb.size_bytes(), 0);
-}
 
 // Mock decoder: returns a solid color at the requested size
 class MockVideoDecoder final : public video::VideoFrameDecoder {
@@ -35,10 +32,7 @@ public:
 };
 
 std::shared_ptr<Framebuffer> render_video_comp(const Composition& comp, Color mock_color = {0.2f, 0.6f, 1.0f, 1.0f}) {
-    SoftwareRenderer renderer;
-    RenderSettings settings;
-    settings.use_modular_graph = true;
-    renderer.set_settings(settings);
+    SoftwareRenderer renderer = make_renderer();
     auto decoder = std::make_shared<MockVideoDecoder>(mock_color);
     renderer.set_video_decoder(decoder);
     return renderer.render_frame(comp, 0);

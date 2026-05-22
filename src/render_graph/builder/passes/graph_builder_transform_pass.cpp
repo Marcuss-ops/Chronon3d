@@ -28,7 +28,11 @@ void append_transform_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_outp
                                                          layer.transform.opacity,
                                                          cache_frame);
     } else {
-        transform_node = std::make_unique<TransformNode>(item.world_matrix,
+        Mat4 effective_matrix = item.world_matrix;
+        if (should_use_centered_rendering(item, ctx)) {
+            effective_matrix = math::translate(Vec3(-ctx.width * 0.5f, -ctx.height * 0.5f, 0.0f)) * effective_matrix;
+        }
+        transform_node = std::make_unique<TransformNode>(effective_matrix,
                                                          item.transform.opacity,
                                                          cache_frame);
     }

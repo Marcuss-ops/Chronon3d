@@ -160,6 +160,8 @@ set(CHRONON3D_GRAPH_SOURCES
     src/render_graph/builder/graph_builder_internal.cpp
     src/render_graph/builder/graph_builder_layer_pipeline.cpp
     src/render_graph/builder/graph_builder_pipeline.cpp
+    src/render_graph/builder/graph_builder_bbox.cpp
+    src/render_graph/builder/graph_builder_static.cpp
     src/render_graph/builder/passes/graph_builder_composite_pass.cpp
     src/render_graph/builder/passes/graph_builder_effect_pass.cpp
     src/render_graph/builder/passes/graph_builder_lighting_pass.cpp
@@ -206,14 +208,15 @@ set(CHRONON3D_RUNTIME_SOURCES
     src/runtime/pipeline.cpp
     src/runtime/scene_to_render_graph.cpp
     src/runtime/timeline_evaluator.cpp
-    src/runtime/telemetry/jsonl_telemetry_store.cpp
-    src/runtime/telemetry/sqlite_telemetry_store.cpp
-    src/runtime/telemetry/sqlite_telemetry_store_schema.cpp
-    src/runtime/telemetry/sqlite_telemetry_store_write.cpp
-    src/runtime/telemetry/sqlite_telemetry_store_batch.cpp
-    src/runtime/telemetry/sqlite_telemetry_store_events.cpp
-    src/runtime/telemetry/sqlite_telemetry_store_media.cpp
-    src/runtime/telemetry/sqlite_telemetry_store_stub.cpp
+    src/runtime/telemetry/jsonl/jsonl_serializers.cpp
+    src/runtime/telemetry/jsonl/jsonl_telemetry_store.cpp
+    src/runtime/telemetry/sqlite/sqlite_telemetry_store.cpp
+    src/runtime/telemetry/sqlite/sqlite_telemetry_store_schema.cpp
+    src/runtime/telemetry/sqlite/sqlite_telemetry_store_write.cpp
+    src/runtime/telemetry/sqlite/sqlite_telemetry_store_batch.cpp
+    src/runtime/telemetry/sqlite/sqlite_telemetry_store_events.cpp
+    src/runtime/telemetry/sqlite/sqlite_telemetry_store_media.cpp
+    src/runtime/telemetry/sqlite/sqlite_telemetry_store_stub.cpp
     src/runtime/telemetry/telemetry_manager.cpp
     src/runtime/renderer_warmup.cpp
 )

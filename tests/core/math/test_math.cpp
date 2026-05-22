@@ -1,6 +1,8 @@
 #include <doctest/doctest.h>
 #include <chronon3d/math/vec2.hpp>
 #include <chronon3d/math/vec3.hpp>
+#include <chronon3d/math/mat4.hpp>
+#include <chronon3d/scene/camera/camera.hpp>
 
 using namespace chronon3d;
 
@@ -71,5 +73,45 @@ TEST_CASE("Vec3 operations") {
         Vec3 v{1.0f, 2.0f, 3.0f};
         Vec3 n = glm::normalize(v);
         CHECK(glm::length(n) == doctest::Approx(1.0f));
+    }
+}
+
+TEST_CASE("Matrix operations") {
+    SUBCASE("Translation") {
+        Mat4 m = math::translate(Vec3(10, 20, 30));
+        Vec4 p_h = m * Vec4(0, 0, 0, 1);
+        Vec3 p = Vec3(p_h) / p_h.w;
+        CHECK(p.x == 10.0f);
+        CHECK(p.y == 20.0f);
+        CHECK(p.z == 30.0f);
+    }
+
+    SUBCASE("Scale") {
+        Mat4 m = math::scale(Vec3(2, 3, 4));
+        Vec4 p_h = m * Vec4(1, 1, 1, 1);
+        Vec3 p = Vec3(p_h) / p_h.w;
+        CHECK(p.x == 2.0f);
+        CHECK(p.y == 3.0f);
+        CHECK(p.z == 4.0f);
+    }
+}
+
+TEST_CASE("3D Projection") {
+    Camera cam;
+    cam.transform.position = Vec3(0, 0, 5);
+    
+    SUBCASE("Perspective check") {
+        Mat4 proj = cam.projection_matrix(1.0f);
+        Mat4 view = cam.view_matrix();
+        Mat4 mvp = proj * view;
+
+        // Point at (0,0,0) in world space
+        // With camera at (0,0,5), point is at (0,0,-5) in view space
+        Vec4 p_h = mvp * Vec4(0, 0, 0, 1);
+        Vec3 p = Vec3(p_h) / p_h.w;
+        
+        // In NDC, it should be at center (0,0)
+        CHECK(p.x == doctest::Approx(0.0f));
+        CHECK(p.y == doctest::Approx(0.0f));
     }
 }

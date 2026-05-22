@@ -3,24 +3,14 @@
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/chronon3d.hpp>
+#include <tests/helpers/test_utils.hpp>
 #include <chrono>
 #include <thread>
 #include <vector>
 
 using namespace chronon3d;
 using namespace chronon3d::cache;
-
-namespace {
-
-SoftwareRenderer make_renderer() {
-    SoftwareRenderer renderer;
-    RenderSettings settings;
-    settings.use_modular_graph = true;
-    renderer.set_settings(settings);
-    return renderer;
-}
-
-} // namespace
+using namespace chronon3d::test;
 
 TEST_CASE("Test 18.1 — Caching hits and misses tracking") {
     auto renderer = make_renderer();

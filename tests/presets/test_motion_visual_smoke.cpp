@@ -3,22 +3,15 @@
 #include <chronon3d/backends/image/stb_image_backend.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/core/composition_registration.hpp>
+#include <tests/helpers/test_utils.hpp>
 
 #include <cstdint>
 #include <memory>
 
 using namespace chronon3d;
+using namespace chronon3d::test;
 
 namespace {
-
-SoftwareRenderer make_renderer() {
-    SoftwareRenderer renderer;
-    RenderSettings settings;
-    settings.use_modular_graph = true;
-    renderer.set_settings(settings);
-    renderer.set_image_backend(std::make_shared<image::StbImageBackend>());
-    return renderer;
-}
 
 u64 frame_signature(const Framebuffer& fb) {
     u64 h = 1469598103934665603ULL;

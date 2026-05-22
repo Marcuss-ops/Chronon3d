@@ -4,6 +4,7 @@
 #include <chronon3d/chronon3d.hpp>
 #include <chronon3d/backends/software/framebuffer_analysis.hpp>
 #include <tests/helpers/render_fixtures.hpp>
+#include <tests/helpers/test_utils.hpp>
 
 #include <algorithm>
 
@@ -11,24 +12,6 @@ using namespace chronon3d;
 using namespace chronon3d::test;
 
 namespace {
-
-u64 framebuffer_hash(const Framebuffer& fb) {
-    return XXH64(fb.pixels_row(0), fb.size_bytes(), 0);
-}
-
-float average_luma_rect(const Framebuffer& fb, int x0, int y0, int x1, int y1) {
-    double sum = 0.0;
-    int count = 0;
-    for (int y = std::max(0, y0); y < std::min(fb.height(), y1); ++y) {
-        for (int x = std::max(0, x0); x < std::min(fb.width(), x1); ++x) {
-            const Color c = fb.get_pixel(x, y);
-            if (c.a <= 0.0f) continue;
-            sum += 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
-            ++count;
-        }
-    }
-    return count > 0 ? static_cast<float>(sum / count) : 0.0f;
-}
 
 // Scene with a light-gray floor (accepts_shadows) and a red card above (casts_shadows).
 Composition make_shadow_scene(bool casts, bool accepts,
