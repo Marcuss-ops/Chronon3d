@@ -11,6 +11,8 @@ add_executable(chronon3d_core_tests
     core/public_api_test.cpp
     core/trace_test.cpp
     core/math/test_math.cpp
+    core/math/test_output_transform.cpp
+    simd/test_simd_kernels.cpp
     cache/test_lru_weight.cpp
     cache/test_framebuffer_pool.cpp
     core/math/test_camera_pose.cpp

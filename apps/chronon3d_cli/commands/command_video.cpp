@@ -32,6 +32,18 @@ bool ffmpeg_in_path() {
 #endif
 }
 
+PipePixelFormat parse_pipe_pixfmt(const std::string& fmt) {
+    if (fmt == "yuv420p") return PipePixelFormat::YUV420P;
+    if (fmt == "nv12")    return PipePixelFormat::NV12;
+    return PipePixelFormat::RGBA;
+}
+
+color::ColorSpace parse_color_output(const std::string& cs) {
+    if (cs == "rec709") return color::ColorSpace::Rec709;
+    if (cs == "linearsrgb") return color::ColorSpace::LinearSRGB;
+    return color::ColorSpace::SRGB;
+}
+
 std::string resolve_cli_ffmpeg_codec(const std::string& codec, const std::string& hw_encoder) {
     if (codec != "auto") return codec;
     if (hw_encoder == "nvenc") return "h264_nvenc";
@@ -53,6 +65,8 @@ struct FfmpegExportOptions {
     int chunks;
     std::string ffmpeg_mode{"png"};
     bool ffmpeg_verbose{false};
+    std::string pipe_pixfmt{"rgba"};
+    std::string color_output{"srgb"};
 
     // Renderer warmup
     bool   warmup_renderer{false};
@@ -112,7 +126,11 @@ int render_and_encode_ffmpeg(
             .preset = opts.encode_preset,
             .codec = codec,
             .output_path = opts.output,
+            .input_format = parse_pipe_pixfmt(opts.pipe_pixfmt),
             .verbose = opts.ffmpeg_verbose,
+            .color_transform = {
+                .output = parse_color_output(opts.color_output),
+            },
         };
 
         std::error_code ec;
@@ -431,6 +449,8 @@ int command_video(const CompositionRegistry& registry, const VideoArgs& args) {
     opts.chunks = args.chunks;
     opts.ffmpeg_mode = args.ffmpeg_mode;
     opts.ffmpeg_verbose = args.ffmpeg_verbose;
+    opts.pipe_pixfmt = args.pipe_pixfmt;
+    opts.color_output = args.color_output;
     opts.warmup_renderer = args.pipeline.warmup_renderer;
     opts.warmup_framebuffers = args.pipeline.warmup_framebuffers;
     opts.warmup_dummy_frame = args.pipeline.warmup_dummy_frame;
