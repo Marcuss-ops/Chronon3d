@@ -9,6 +9,10 @@
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
 
+#if defined(__AVX2__)
+#include <immintrin.h>
+#endif
+
 namespace chronon3d::blend2d_bridge {
 
 inline bool pixel_passes_mask(const RenderState& state, i32 x, i32 y) {
@@ -492,7 +496,112 @@ inline void composite_framebuffer_transformed(Framebuffer& dst_fb, const Framebu
                     const float ly = (static_cast<float>(y) + 0.5f - ty) * inv_sy;
                     if (ly < 0.0f || ly >= static_cast<float>(sh)) continue;
 
-                    for (int x = x0_st; x < x1_st; ++x) {
+                    // Precompute constant Y bilinear factors for this row
+                    const float vy = ly - 0.5f;
+                    int sy0 = static_cast<int>(std::floor(vy));
+                    const float ty_factor = vy - static_cast<float>(sy0);
+                    int sy1 = sy0 + 1;
+                    sy0 = std::clamp(sy0, 0, sh - 1);
+                    sy1 = std::clamp(sy1, 0, sh - 1);
+                    const float wyb = 1.0f - ty_factor;
+                    const float wyt = ty_factor;
+                    const Color* src_row0 = src_base + sy0 * sw;
+                    const Color* src_row1 = src_base + sy1 * sw;
+
+                    int x = x0_st;
+#if defined(__AVX2__)
+                    // Process 2 pixels at a time with AVX2 blend.
+                    // Individual mask/bounds failures set src to transparent
+                    // instead of using continue, so the other pixel isn't lost.
+                    for (; x + 1 < x1_st; x += 2) {
+                        const bool mask0 = !state || pixel_passes_mask(*state, x, y);
+                        const bool mask1 = !state || pixel_passes_mask(*state, x + 1, y);
+
+                        Color src[2];
+
+                        // Pixel 0
+                        if (mask0) {
+                            const float lx0 = (static_cast<float>(x) + 0.5f - tx) * inv_sx;
+                            if (lx0 >= 0.0f && lx0 < static_cast<float>(sw)) {
+                                const float vx0 = lx0 - 0.5f;
+                                int sx00 = static_cast<int>(std::floor(vx0));
+                                const float tx0 = vx0 - static_cast<float>(sx00);
+                                int sx01 = sx00 + 1;
+                                sx00 = std::clamp(sx00, 0, sw - 1);
+                                sx01 = std::clamp(sx01, 0, sw - 1);
+                                const Color& c000 = src_row0[sx00];
+                                const Color& c001 = src_row0[sx01];
+                                const Color& c010 = src_row1[sx00];
+                                const Color& c011 = src_row1[sx01];
+                                const float w00 = (1.0f - tx0) * wyb;
+                                const float w01 = tx0 * wyb;
+                                const float w02 = (1.0f - tx0) * wyt;
+                                const float w03 = tx0 * wyt;
+                                src[0].r = c000.r * w00 + c001.r * w01 + c010.r * w02 + c011.r * w03;
+                                src[0].g = c000.g * w00 + c001.g * w01 + c010.g * w02 + c011.g * w03;
+                                src[0].b = c000.b * w00 + c001.b * w01 + c010.b * w02 + c011.b * w03;
+                                src[0].a = c000.a * w00 + c001.a * w01 + c010.a * w02 + c011.a * w03;
+                                src[0].r *= opacity;
+                                src[0].g *= opacity;
+                                src[0].b *= opacity;
+                                src[0].a *= opacity;
+                            } else {
+                                src[0] = Color{0, 0, 0, 0};
+                            }
+                        } else {
+                            src[0] = Color{0, 0, 0, 0};
+                        }
+
+                        // Pixel 1
+                        if (mask1) {
+                            const float lx1 = (static_cast<float>(x + 1) + 0.5f - tx) * inv_sx;
+                            if (lx1 >= 0.0f && lx1 < static_cast<float>(sw)) {
+                                const float vx1 = lx1 - 0.5f;
+                                int sx10 = static_cast<int>(std::floor(vx1));
+                                const float tx1 = vx1 - static_cast<float>(sx10);
+                                int sx11 = sx10 + 1;
+                                sx10 = std::clamp(sx10, 0, sw - 1);
+                                sx11 = std::clamp(sx11, 0, sw - 1);
+                                const Color& c100 = src_row0[sx10];
+                                const Color& c101 = src_row0[sx11];
+                                const Color& c110 = src_row1[sx10];
+                                const Color& c111 = src_row1[sx11];
+                                const float w10 = (1.0f - tx1) * wyb;
+                                const float w11 = tx1 * wyb;
+                                const float w12 = (1.0f - tx1) * wyt;
+                                const float w13 = tx1 * wyt;
+                                src[1].r = c100.r * w10 + c101.r * w11 + c110.r * w12 + c111.r * w13;
+                                src[1].g = c100.g * w10 + c101.g * w11 + c110.g * w12 + c111.g * w13;
+                                src[1].b = c100.b * w10 + c101.b * w11 + c110.b * w12 + c111.b * w13;
+                                src[1].a = c100.a * w10 + c101.a * w11 + c110.a * w12 + c111.a * w13;
+                                src[1].r *= opacity;
+                                src[1].g *= opacity;
+                                src[1].b *= opacity;
+                                src[1].a *= opacity;
+                            } else {
+                                src[1] = Color{0, 0, 0, 0};
+                            }
+                        } else {
+                            src[1] = Color{0, 0, 0, 0};
+                        }
+
+                        // Skip SIMD blend if both pixels are transparent
+                        if (src[0].a <= 0.001f && src[1].a <= 0.001f) continue;
+
+                        __m256 src_v = _mm256_loadu_ps(&src[0].r);
+                        __m256 dst_v = _mm256_loadu_ps(&dst_row[x].r);
+
+                        if (mode == BlendMode::Add) {
+                            dst_v = _mm256_min_ps(_mm256_add_ps(dst_v, src_v), _mm256_set1_ps(1.0f));
+                        } else {
+                            const __m256 sa = _mm256_shuffle_ps(src_v, src_v, 0xFF);
+                            const __m256 inv_sa = _mm256_sub_ps(_mm256_set1_ps(1.0f), sa);
+                            dst_v = _mm256_add_ps(_mm256_mul_ps(dst_v, inv_sa), src_v);
+                        }
+                        _mm256_storeu_ps(&dst_row[x].r, dst_v);
+                    }
+#endif
+                    for (; x < x1_st; ++x) {
                         if (state && !pixel_passes_mask(*state, x, y)) continue;
 
                         const float lx = (static_cast<float>(x) + 0.5f - tx) * inv_sx;

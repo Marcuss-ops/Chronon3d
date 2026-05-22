@@ -7,6 +7,8 @@
 #include <unordered_map>
 #include <vector>
 #include <memory>
+#include <cstdio>
+#include <spdlog/spdlog.h>
 
 namespace chronon3d::cache {
 
@@ -124,8 +126,10 @@ private:
         void put(const Key& key, Value value, size_t weight, std::atomic<size_t>& evictions) {
             std::lock_guard lock(mutex);
             if (weight > capacity_weight) {
-                // Oversized entries are never cached. This keeps a single large framebuffer
-                // from consuming an entire shard and bypassing the intended capacity bound.
+                // Oversized entries are never cached. Log a warning so the caller knows
+                // the item was silently dropped from the cache.
+                spdlog::warn("[LRU] Warning: item weight {} exceeds shard capacity {} - not cached",
+                             weight, capacity_weight);
                 return;
             }
 

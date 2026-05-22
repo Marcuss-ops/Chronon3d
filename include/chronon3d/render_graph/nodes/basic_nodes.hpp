@@ -177,6 +177,21 @@ public:
     ) override {
         auto* sw_renderer = dynamic_cast<SoftwareRenderer*>(ctx.backend);
         bool use_dirty_rects = sw_renderer && ctx.reuse_prev_framebuffer && sw_renderer->m_prev_framebuffer;
+
+        if (sw_renderer && ctx.diagnostics_enabled) {
+            spdlog::info(
+                "[dirty-debug] frame={} Clear reuse_prev={} clip=[{}:{} -> {}:{}] prev_origin=[{},{}] prev_opaque={}",
+                static_cast<int>(ctx.frame),
+                use_dirty_rects ? 1 : 0,
+                ctx.clip_rect ? ctx.clip_rect->x0 : 0,
+                ctx.clip_rect ? ctx.clip_rect->y0 : 0,
+                ctx.clip_rect ? ctx.clip_rect->x1 : ctx.width,
+                ctx.clip_rect ? ctx.clip_rect->y1 : ctx.height,
+                sw_renderer->m_prev_framebuffer ? sw_renderer->m_prev_framebuffer->origin_x() : 0,
+                sw_renderer->m_prev_framebuffer ? sw_renderer->m_prev_framebuffer->origin_y() : 0,
+                sw_renderer->m_prev_framebuffer ? (sw_renderer->m_prev_framebuffer->is_opaque() ? 1 : 0) : 0
+            );
+        }
         
         if (use_dirty_rects) {
             auto fb = sw_renderer->m_prev_framebuffer;
@@ -260,12 +275,12 @@ public:
             return static_memory_cache("source_static");
         }
         return RenderNodeCachePolicy{
-            .cacheable = false,
-            .frame_dependent = false,
-            .frame_invariant = true,
+            .cacheable = true,
+            .frame_dependent = true,
+            .frame_invariant = false,
             .disk_cacheable = false,
-            .lifetime = CacheLifetime::PerComposition,
-            .invalidation = CacheInvalidation::Always,
+            .lifetime = CacheLifetime::PerFrame,
+            .invalidation = CacheInvalidation::WhenParamsChange,
             .debug_reason = "source_animated"
         };
     }
@@ -723,7 +738,7 @@ public:
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         return cache::NodeCacheKey{
             .scope = "composite",
-            .frame = m_cache_frame >= 0 ? m_cache_frame : ctx.frame,
+            .frame = m_cache_frame >= 0 ? m_cache_frame : Frame{0},
             .width = ctx.width,
             .height = ctx.height,
             .params_hash = static_cast<u64>(m_mode)
@@ -739,6 +754,21 @@ public:
         
         auto bottom = inputs[0];
         auto top = inputs[1];
+
+        if (ctx.diagnostics_enabled) {
+            spdlog::info(
+                "[dirty-debug] frame={} Composite mode={} bottom_use_count={} bottom_opaque={} top_opaque={} clip=[{}:{} -> {}:{}]",
+                static_cast<int>(ctx.frame),
+                static_cast<int>(m_mode),
+                bottom.use_count(),
+                bottom ? (bottom->is_opaque() ? 1 : 0) : 0,
+                top ? (top->is_opaque() ? 1 : 0) : 0,
+                ctx.clip_rect ? ctx.clip_rect->x0 : 0,
+                ctx.clip_rect ? ctx.clip_rect->y0 : 0,
+                ctx.clip_rect ? ctx.clip_rect->x1 : ctx.width,
+                ctx.clip_rect ? ctx.clip_rect->y1 : ctx.height
+            );
+        }
         
         std::shared_ptr<Framebuffer> result;
         // Optimization: In-place composition if we are the unique owner of the bottom buffer

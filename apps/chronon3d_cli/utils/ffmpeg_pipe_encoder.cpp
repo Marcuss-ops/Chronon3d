@@ -100,6 +100,8 @@ bool FfmpegPipeEncoder::open(const FfmpegPipeOptions& options) {
             break;
         case PipePixelFormat::NV12:
             y_plane_.assign(w * h, 0);
+            u_plane_.assign(w * h / 4u, 0);
+            v_plane_.assign(w * h / 4u, 0);
             nv12_uv_plane_.assign(w * h / 2u, 0);
             break;
     }

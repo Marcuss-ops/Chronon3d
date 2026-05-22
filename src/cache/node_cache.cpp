@@ -7,7 +7,7 @@
 
 namespace chronon3d::cache {
 
-namespace {
+namespace node_cache_detail {
 
 [[nodiscard]] u64 hash_string(std::string_view value) {
     return XXH3_64bits(value.data(), value.size());
@@ -22,7 +22,9 @@ template <typename T>
     return seed ^ (value + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2));
 }
 
-} // namespace
+} // namespace node_cache_detail
+
+using namespace node_cache_detail;
 
 namespace {
 
