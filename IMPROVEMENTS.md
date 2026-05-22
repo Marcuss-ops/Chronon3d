@@ -72,6 +72,7 @@ public:
     // Iterator per scanare solo le celle dirty senza iterare tutta l'immagine
 };
 ```
+**Note dal codice:** Il sistema di tracking esiste già (`dirty_rect_count`, `dirty_pixels`, `dirty_full_fallbacks`, `dirty_full_fallback_reasons` in `counters.hpp`), ma vengono solo incrementati come contatori — non vengono usati per fare skip regioni. La `DirtyFallbackReason` enum ha solo 4 valori, expandable.
 **Prossimi passi:**
 - [ ] Definire `DirtyRectMask` con bitmask compact
 - [ ] Integrare in `RenderNode::resolve()` — ogni nodo marca la propria bbox nella mask
@@ -80,32 +81,75 @@ public:
 
 ---
 
-### I4. Thread Affinity + NUMA per i Worker
+### I4. Thread Affinity per TBB Arena + NUMA
 
-**Problema:** I thread worker vagano liberamente tra core → cache L1/L2 non Hot, NUMA cross-socket.
-**Soluzione:** `SetThreadAffinityMask` per pin su core fisici, `VirtualAllocExNuma` per allocare sul nodo locale.
-**Dove:** `src/backends/software/software_renderer.cpp` + worker pool initialization.
+**Problema:** I thread TBB (`tbb::parallel_for` in `graph_executor.cpp`) vagano liberamente tra core → cache L1/L2 non hot, NUMA cross-socket.
+**Soluzione:** `GraphExecutor` ha già un `m_arena` (task_arena), ma non setta affinity. Pin dei thread ai core fisici.
+**Dove:** `src/render_graph/graph_executor.cpp` — costruttore `GraphExecutor()` e `m_arena.execute()`.
 **Guadagno stimato:** 5-10% throughput su sistemi multi-socket (Threadripper, Xeon).
 **Codice minimo:**
 ```cpp
-// Nel costruttore del worker pool
-void pin_to_core(int core_id) {
-    SetThreadAffinityMask(GetCurrentThread(), 1ULL << core_id);
+// Nel costruttore di GraphExecutor
+GraphExecutor::GraphExecutor()
+    : m_arena(std::max(1u, std::thread::hardware_concurrency())) 
+{
+    // Su Windows: SetThreadAffinityMask per ogni thread hardware
+    // Su Linux: sched_setaffinity
+    // L'arena TBB può essere affinitized al costruttore
 }
-
-// Nell'acquire del framebuffer pool
-#ifdef _WIN32
-    VirtualAllocExNuma(GetCurrentProcess(), NULL, bytes,
-        MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE, numa_node);
-#else
-    // numa_alloc_onnode su Linux
-#endif
 ```
 **Prossimi passi:**
-- [ ] Determinare il numero di core fisici con `GetActiveProcessorCount`
-- [ ] Allocare il framebuffer pool sul nodo NUMA 0 (o quello corrente)
-- [ ] Pin each worker thread a un core fisico specifico
+- [ ] Aggiungere `pin_current_thread_to_core(core_id)` in un helper
+- [ ] Nel `execute()` di GraphExecutor, ogni thread worker chiama `SetThreadAffinityMask`
+- [ ] Allocare il framebuffer pool sul nodo NUMA locale con `VirtualAllocExNuma`
 - [ ] Disabilitare hyperthreading per i task blur/composite (prefetches più puliti)
+
+---
+
+### I5. Usa FrameArena nel Render Pipeline
+
+**Problema:** `FrameArena` esiste (`include/chronon3d/core/arena.hpp`) ma è usato solo in `FrameContext::memory`. Non è sfruttato per le allocazioni temporanee nel render loop.
+**Soluzione:** Il `GraphExecutor` alloca i vettori temporanei (inputs, input_bboxes, resolved_*) sulla heap ogni frame. Dovrebbero usare la `FrameArena`.
+**Dove:** `src/render_graph/graph_executor.cpp` — la lambda dentro `execute()` e i `PreResolvedNode` vectors.
+**Guadagno stimato:** Eliminare malloc/free nel hot path — ~1-2% speedup.
+**Codice minimo:**
+```cpp
+// Dentro execute(), passare m_arena.resource() ai vettori temporanei
+FrameArena frame_arena;
+std::vector<PreResolvedNode, FrameArena::vector<PreResolvedNode>> level_resolved(frame_arena.resource());
+// Tutti i std::vector dentro execute() che non servono dopo il frame → usano arena
+```
+**Prossimi passi:**
+- [ ] Passare `FrameArena&` dentro `execute()` 
+- [ ] Cambiare i `std::vector` temporanei in `FrameArena::vector`
+- [ ] Alla fine del frame: `frame_arena.reset()` invece di deallocare
+
+---
+
+### I6. Disk Cache per Nodi Statici (PersistentDisk Lifetime)
+
+**Problema:** I nodi con `CacheLifetime::PersistentDisk` (già definito in `cache_policy.hpp`) non hanno implementazione. Il campo `disk_cacheable` è sempre `false`.
+**Soluzione:** Implementare un layer di cache su disco per nodi statici come `grid_bg` — hashed su params+input, salvato come file binario.
+**Dove:** Nuovo file `src/cache/disk_node_cache.cpp` + modifica a `graph_executor.cpp`.
+**Guadagno stimato:** Skip rendering completo di nodi statici tra sessioni.
+**Struttura esistente da sfruttare:**
+```cpp
+// In cache_policy.hpp già esiste:
+enum class CacheLifetime { PerFrame, PerComposition, PersistentDisk };
+
+// Il RenderNodeCachePolicy ha già:
+bool disk_cacheable{false};  // mai usato, sempre false
+
+// Servono:
+// 1. Hash della key → path su disco
+// 2. Formato binario (raw RGBA floats o compressed)
+// 3. Load/save atomici (rename dopo write)
+```
+**Prossimi passi:**
+- [ ] Definire `DiskNodeCache` class con `put(key, fb)` e `get(key)` 
+- [ ] Metadata: `{digest, params_hash, source_hash, input_hash, width, height, timestamp}`
+- [ ] `load(path)` / `save(path, framebuffer)` — usare `XXH3_64bits` per generare path unico
+- [ ] In `GraphExecutor::execute()`, se `policy.disk_cacheable && disk_cache.exists(key)` → load from disk
 
 ---
 
@@ -120,7 +164,7 @@ void pin_to_core(int core_id) {
 **Alternativa Windows:** Named pipe con `FILE_FLAG_NO_BUFFERING` + `WriteFileGather`.
 **Prossimi passi:**
 - [ ] Wrap `io_uring` in una classe `RingWriter` con setup/teardown
-- [ ] Registrare i buffer YUV/KV12 come registered buffers
+- [ ] Registrare i buffer YUV/NV12 come registered buffers
 - [ ] Sostituire la `write()` loop attuale con `io_uring_enter(IORING_OP_WRITE_FIXED)`
 - [ ] Fallback a `write()` normale se `io_uring` non è disponibile (kernel < 5.1)
 
@@ -179,7 +223,7 @@ for (int y = y0; y < y1; ++y) {
 ### S4. OpenEXR con DWAA per Bake Statici
 
 **Problema:** I bake vengono salvati come PNG 8-bit → perdita qualità, decompressione lenta.
-**Soluzione:** EXR tiled 256×256 con compressione DWAA (loseless, molto più veloce di ZIP).
+**Soluzione:** EXR tiled 256×256 con compressione DWAA (lossless, molto più veloce di ZIP).
 **Dove:** `apps/chronon3d_cli/commands/command_bake_layer.cpp` + `src/backends/image/exr_writer.cpp` (da creare).
 **Guadagno stimato:** Bake 16-bit più veloci di PNG, mmap read parziale, nessuna perdita cromatica.
 **Dipendenza:** Il progetto sembra avere OpenEXR già come deps (vcpkg.json → `openexr`).
@@ -188,6 +232,40 @@ for (int y = y0; y < y1; ++y) {
 - [ ] Creare `exr_writer.cpp` con tiled writes (256×256 tile, DWAA)
 - [ ] Modificare `command_bake_layer` per salvare in EXR invece di PNG di default
 - [ ] Aggiungere `--exr-bake` flag
+
+---
+
+### S5. Shard Lock per Path Flatten Cache
+
+**Problema:** In `path_rasterizer.cpp` c'è un mutex globale (`g_flatten_cache_mutex`) che protegge l'intera mappa di path flattened. Tutti i thread aspettano su questo lock.
+**Soluzione:** Sostituire l'`std::unordered_map` globale + mutex con 16 shard, ognuno col suo mutex. Pattern identico a `LruCache`.
+**Dove:** `src/backends/software/rasterizers/path_rasterizer.cpp`.
+**Guadagno stimato:** Elimina contention su mutex nel hot path — ~2-5% speedup in scene con molti path.
+**Codice esistente da modificare:**
+```cpp
+// Il pattern LruCache sharded è già implementato in lru_cache.hpp
+// Basta fare lo stesso per g_flatten_cache:
+using PathCache = cache::LruCache<CacheKey, std::shared_ptr<const std::vector<PathContour>>>;
+static PathCache g_path_cache(64 * 1024 * 1024, 16);  // 64MB, 16 shard
+// Sostituire tutti gli accessi: get → cache.get(), put → cache.put()
+```
+**Prossimi passi:**
+- [ ] Sostituire `g_flatten_cache` + mutex con `LruCache` sharded
+- [ ] Verificare che `hash_path()` generi chiavi stabili
+- [ ] Benchmark: misurare prima/dopo su scene con 100+ path
+
+---
+
+### S6. SIMD Point-in-Polygon per Path Rasterizer
+
+**Problema:** `point_in_polygon_even_odd()` in `path_rasterizer.cpp` è chiamato per ogni pixel dentro la bbox. È interamente scalar.
+**Soluzione:** Batch processing — per 8 pixel contemporaneamente, calcola se sono dentro il poligono usando SIMD. Oppure: salvare il polygon in una texture e usare `pointInPolygon` vettorizzato.
+**Dove:** `src/backends/software/rasterizers/path_rasterizer.cpp` — funzione `point_in_polygon_even_odd`.
+**Guadagno stimato:** Se il 60% del tempo è in questo loop → 3-5x speedup su quel 60%.
+**Prossimi passi:**
+- [ ] Identificare se è effettivamente il collo di bottiglia (profiling con `perf`)
+- [ ] Riscrivere il loop in stile SIMD: processare 8 x-coord alla volta
+- [ ] Alternativa: rasterizzare il polygon shape una volta su una mask texture, poi campionare
 
 ---
 
@@ -291,6 +369,48 @@ public:
 
 ---
 
+### M5. Transform Cache — Risultati Animazione Baked
+
+**Problema:** `TransformNode` ricalcola la matrice ogni frame anche per animazioni identiche (es. opacity fade lineare, position animation tra keyframe).
+**Soluzione:** Cache della matrice transform risolta per ogni frame. Se la sequence di keyframe non cambia tra frame consecutivi → skip recompute.
+**Dove:** `src/scene/layer.cpp` — `m_layer.anim_transform.evaluate()` già esiste, il risultato non è cacheato.
+**Guadagno stimato:** Per scene con molti layer animati → ~5-10% speedup.
+**Prossimi passi:**
+- [ ] Aggiungere `TransformCache` in `Layer` — mappa frame → Transform baked
+- [ ] Nel `LayerBuilder::resolve()`, controllare la cache prima di valutare
+- [ ] Invalutare quando keyframe list cambia
+- [ ] Wire up in `scene.cpp` — `Scene::resolve_layer_at_frame()`
+
+---
+
+### M6. ImageCache LRU con Memory Budget
+
+**Problema:** `ImageCache` (`src/backends/assets/image_cache.cpp`) è un semplice `unordered_map` — nessuna eviction policy, nessun memory limit. Le immagini caricate restano in RAM per sempre.
+**Soluzione:** Trasformare in `LruCache<string, CachedImage>` usando il pattern già esistente in `lru_cache.hpp`.
+**Dove:** `src/backends/assets/image_cache.cpp` — sostituire `std::unordered_map` con `cache::LruCache`.
+**Guadagno stimato:** Memory bounded, nessun OOM, reuse ottimo per texture ripetute.
+**Prossimi passi:**
+- [ ] Sostituire `m_cache` (unordered_map) con `cache::LruCache<string, CachedImage>`
+- [ ] Implementare weight come `width * height * 4` byte per immagine
+- [ ] Aggiungere `CHRONON_IMAGE_CACHE_MAX_MB` env var (esiste già in node_cache e text_cache)
+- [ ] Aggiungere preload hint: `ImageCache::preload_async()` per iniziare a caricare prima che serva
+
+---
+
+### M7. Aggiungere Cache Hit/Miss Telemetry nel Render Report
+
+**Problema:** Il sistema di cache (node, text, image) ha `Stats` strutture con hits/misses/evictions, ma non vengono riportate nel benchmark JSON finale.
+**Soluzione:** Aggregare tutte le cache stats e includerle nel `BenchmarkReport` JSON.
+**Dove:** `include/chronon3d/core/benchmark_report.hpp` + `src/core/benchmark_report.cpp`.
+**Guadagno stimato:** Visibilità completa sulle performance — permette di identificare bottleneck di cache.
+**Prossimi passi:**
+- [ ] Aggiungere `CacheStatsReport` struttura con hits/misses/evictions per ogni cache type
+- [ ] In `BenchmarkReport`, aggiungere `cache_stats: CacheStatsReport`
+- [ ] In `command_bench`, popolare le stats da `node_cache.stats()`, `text_cache.stats()`, `image_cache.stats()`
+- [ ] Stampare nel JSON finale sotto `render.cache`
+
+---
+
 ## 🌀 LONG-TERM — Mesi (grandi architetture)
 
 ### L1. GPU Backend per EffectStack (Vulkan Compute)
@@ -301,9 +421,9 @@ public:
 **Guadagno stimato:** Blur gaussiano → 10-20x più veloce. Glow → 15x.
 **Note:** Questo trasforma Chronon3D da pure-CPU a hybrid CPU/GPU. È il cambio architetturale più grosso.
 **Sotto-passi:**
-- [ ] InizializzareVkInstance +VkDevice con VK_KHR_external_memory +
+- [ ] Inizializzare VkInstance + VkDevice con VK_KHR_external_memory +
 - [ ] Allocare VKBuffer condiviso tra CPU e GPU (VK_KHR_dedicated_allocation)
-- [ ] Compilare compute shader per Gaussian blur (usa un已有的 HLSL/GLSL)
+- [ ] Compilare compute shader per Gaussian blur (usa un già esistente HLSL/GLSL)
 - [ ] Bind del buffer → dispatch → readback del risultato
 - [ ] Fallback: se GPU non disponibile, usa la path CPU attuale
 
@@ -330,7 +450,7 @@ public:
 **Dove:** `src/render_graph/graph_builder.cpp` + `include/chronon3d/render_graph/rdg.hpp` (nuovo).
 **Pattern:** Come Frostbite Engine e Unreal Engine 5 Render Graph.
 **Guadagno stimato:** -30% memcpy, pool preallocato staticamente per frame.
-**Struttura:
+**Struttura:**
 ```cpp
 // Ogni pass dichiara:
 Pass* add_pass(“blur_horizontal”, read: {src_fb}, write: {tmp_fb});
@@ -394,6 +514,48 @@ Merge: ffmpeg -f concat -i list.txt -c copy output.mp4
 
 ---
 
+### L6. HarfBuzz Text Shaping Integration
+
+**Problema:** Il text rendering usa il layout engine custom (`TextLayoutEngine::layout`). Supporto limitato per lingue non-latine, legature, e forme complicate.
+**Soluzione:** Integrare HarfBuzz per lo shaping dei glifi — standard industriale, usato da Chrome, Firefox, Android.
+**Dove:** `src/backends/text/text_layout_engine.cpp` — sostituire o estendere il layout engine attuale.
+**Guadagno stimato:** Supporto completo Unicode, shaping corretto per Arabo, Hindi, Thai, etc.
+**Prossimi passi:**
+- [ ] Aggiungere HarfBuzz come dipendenza vcpkg
+- [ ] Creare `hb_shape(text, font)` → glyph positions
+- [ ] Integrare con `TextLayoutEngine` esistente
+- [ ] Benchmark: verificare che lo shaping non rallenti il text rendering
+
+---
+
+### L7. MSDF Font Atlas per Text Scalability
+
+**Problema:** Text scaling/rotation su textures rasterizzate causa blur o pixelation.
+**Soluzione:** Multi-channel Signed Distance Fields (MSDF) — il glypo è memorizzato come distanza dai bordi, non come pixel bitmap. Renderizza perfettamente a qualsiasi scala.
+**Dove:** Nuovo file `src/backends/text/msdf_generator.cpp` + modifica a `text_rasterizer_utils.cpp`.
+**Guadagno stimato:** Text perfetto a qualsiasi risoluzione, scaling istantaneo senza re-rasterize.
+**Prossimi passi:**
+- [ ] Integrare `chlumsky/msdfgen` (header-only, MIT license)
+- [ ] Generare MSDF atlas per ogni font in uso
+- [ ] Modificare `rasterize_text_to_bl_image()` — se MSDF disponibile, usare quello
+- [ ] Shader di reconstruction nel composite: `distance → alpha` con smoothing
+
+---
+
+### L8. Parallel Tile Rendering (Bucket-Based)
+
+**Problema:** Il rendering processa l'immagine in modo lineare — se un layer è in alto a sinistra, i core右边 non lavorano.
+**Soluzione:** Dividere l'immagine in tile (es. 256×256), processare tile indipendenti in parallelo — come Cycles e RenderMan.
+**Dove:** `src/render_graph/graph_executor.cpp` + `src/backends/software/software_renderer.cpp`.
+**Guadagno stimato:** Utilizzo 100% dei core — 2-4x speedup su scene complesse.
+**Prossimi passi:**
+- [ ] Aggiungere `TileScheduler` — divide viewport in tile
+- [ ] Ogni tile è un mini-render-graph indipendente
+- [ ] Worker pool processa tile in parallelo
+- [ ] Risultati mergiati nel buffer finale
+
+---
+
 ## 📋 RIEPILOGO MATRICE
 
 | ID | Improvement | Quando | Complessità | Impatto | Stato |
@@ -402,25 +564,67 @@ Merge: ffmpeg -f concat -i list.txt -c copy output.mp4
 | I2 | Huge pages | Oggi | 🟢 Bassa | 🔴 Alto | Da fare |
 | I3 | Dirty rect bitmask | Oggi | 🟢 Bassa | 🔴 Alto | Da fare |
 | I4 | Thread affinity + NUMA | Questa settimana | 🟢 Bassa | 🟡 Medio | Da fare |
+| I5 | FrameArena nel render pipeline | Oggi | 🟢 Bassa | 🟡 Medio | Da fare |
+| I6 | PersistentDisk cache (disk) | Oggi | 🟡 Media | 🔴 Alto | Da fare |
 | S1 | io_uring pipe | Questa settimana | 🟡 Media | 🟡 Medio | Da fare |
 | S2 | Temporal hashing | Questa settimana | 🟡 Media | 🔴 Alto | Da fare |
 | S3 | L1/L2 prefetch | Questa settimana | 🟢 Bassa | 🟡 Medio | Da fare |
 | S4 | OpenEXR DWAA bake | Questa settimana | 🟡 Media | 🟡 Medio | Da fare |
+| S5 | Path flatten cache sharded | Questa settimana | 🟢 Bassa | 🟡 Medio | Da fare |
+| S6 | SIMD point-in-polygon | Questa settimana | 🟡 Media | 🟡 Medio | Da fare |
 | M1 | Graph compiler | Questo mese | 🔴 Alta | 🔴 Alto | Da fare |
 | M2 | ISPC blur | Questo mese | 🔴 Alta | 🟡 Medio | Da fare |
 | M3 | SPSC lock-free queue | Questo mese | 🟡 Media | 🟡 Medio | Da fare |
 | M4 | Speculative render | Questo mese | 🔴 Alta | 🔴 Alto | Da fare |
+| M5 | Transform cache | Questo mese | 🟡 Media | 🟡 Medio | Da fare |
+| M6 | ImageCache LRU | Questo mese | 🟢 Bassa | 🟡 Medio | Da fare |
+| M7 | Cache telemetry nel report | Questo mese | 🟢 Bassa | 🟡 Medio | Da fare |
 | L1 | GPU Vulkan compute | Mesi | ⚫ Molto Alta | 🔴 Alto | Da fare |
 | L2 | ECS architecture | Mesi | 🔴 Alta | 🟡 Medio | Da fare |
 | L3 | Frame Graph RDG | Mesi | 🔴 Alta | 🔴 Alto | Da fare |
 | L4 | Persistent daemon | Mesi | 🟡 Media | 🔴 Alto | Da fare |
 | L5 | Distributed render farm | Mesi | ⚫ Molto Alta | 🔴 Alto | Da fare |
+| L6 | HarfBuzz text shaping | Mesi | 🔴 Alta | 🟡 Medio | Da fare |
+| L7 | MSDF font atlas | Mesi | 🔴 Alta | 🟡 Medio | Da fare |
+| L8 | Parallel tile rendering | Mesi | 🔴 Alta | 🔴 Alto | Da fare |
+
+---
+
+## 🔍 Cose Già Implementate nel Codebase (non toccare)
+
+| Feature | Dove |
+|---|---|
+| **TBB parallel_for** | `graph_executor.cpp` (execute level), `software_compositor.cpp` (composite_layer) |
+| **TBB task_arena** | `GraphExecutor::m_arena` — esiste ma senza affinity |
+| **LRU Cache sharded** | `include/chronon3d/cache/lru_cache.hpp` — 16 shard, mutex per shard |
+| **xxHash (XXH3_64bits)** | `node_cache.cpp`, `text_rasterizer_utils.cpp`, `render_hash_utils.cpp` |
+| **FrameArena** | `include/chronon3d/core/arena.hpp` — monotonic_buffer_resource, 1MB default |
+| **CachePolicy completo** | `include/chronon3d/render_graph/cache_policy.hpp` — PerFrame/PerComposition/PersistentDisk |
+| **static_memory_cache()** | Helper già esiste in `cache_policy.hpp` |
+| **FrameInvariant policy** | `frame_invariant{true}` già supportato nel GraphExecutor |
+| **Consumer reference counting** | `consumer_remaining` atomic in `graph_executor.cpp` — ottimo pattern |
+| **Dirty rect tracking** | Contatori in counters.hpp (dirty_rect_count, dirty_pixels, dirty_full_fallbacks) |
+| **DirtyFallbackReason enum** | 4 motivi di fallback, expandable |
+| **NodeCache con xxHash** | `src/cache/node_cache.cpp` — disk_cacheable mai usato però |
+| **Text raster LRU cache** | `text_rasterizer_utils.cpp` — sharded LruCache, env var `CHRONON_TEXT_CACHE_MAX_MB` |
+| **NodeCache env var** | `CHRONON_NODE_CACHE_MAX_MB` — configurabile |
+| **Path flatten cache** | `path_rasterizer.cpp` — globale mutex però, va sharded |
+| **Compute_path_bbox** | Con flatten cache — bounding box preciso |
+| **ImageCache singleton** | `ImageCache::instance()` — ma senza eviction, memory unbounded |
+| **FramebufferPool preallocato** | `preallocate()` con 3 risoluzioni, stats, touch_memory |
+| **Renderer warmup** | `warmup_renderer()` — dummy frame + prealloc |
+| **Color space pipeline** | `color_space.hpp` — sRGB↔Linear IEC 61966-2-1 |
+| **YUV420P/NV12 in pipe** | `ffmpeg_pipe_encoder.cpp` — BT.601 coeffs, default yuv420p |
+| **Highway SIMD kernels** | `highway_kernels.cpp` — composite_normal_premul |
+| **Effect stack splittato** | `effects/` dir — blur, color, wave, stack |
+| **Blend2D JIT bridge** | `blend2d_bridge.cpp` — rasterizzazione JIT |
 
 ---
 
 ## 🎯 Priorità Raccomandata
 
-Se dovessi scegliere **una sola cosa** da implementare oggi: **I1 (Bake grid EXR)**.
+Se dovessi scegliere **una sola cosa** da implementare oggi: **I6 (PersistentDisk cache)** — sfrutta il campo `disk_cacheable` che è già definito ma mai usato, e dà beneficio enorme sui nodi statici.
+
 Se potessi implementare **3 cose** questa settimana: **I1 + I2 + I3** insieme.
 Il guadagno combinato è ~25-35% faster overall, principalmente sul primo frame.
 
