@@ -72,3 +72,32 @@ TEST_CASE("save_exr writes RGBA EXR file (half float)") {
     // Half-float file should be roughly half the size of float (4 channels × 2 bytes vs 4 bytes)
     std::filesystem::remove(path);
 }
+
+TEST_CASE("save_exr writes tiled RGBA EXR file with DWAA compression") {
+    const std::string path = "output/tests/io/test_frame_tiled_dwaa.exr";
+
+    Framebuffer fb(512, 512);
+    fb.clear(Color{0.0f, 0.0f, 0.0f, 1.0f});
+
+    ImageWriteOptions opts;
+    opts.format = ImageFormat::Exr;
+    opts.exr_half_float = true;
+    opts.exr_tiled = true;
+    opts.exr_dwaa = true;
+
+    CHECK(save_image(fb, path, opts));
+    CHECK(std::filesystem::exists(path));
+
+    Imf::InputFile file(path.c_str());
+    const Imf::Header& header = file.header();
+
+    CHECK(header.channels().findChannel("R") != nullptr);
+    CHECK(header.channels().findChannel("G") != nullptr);
+    CHECK(header.channels().findChannel("B") != nullptr);
+    CHECK(header.channels().findChannel("A") != nullptr);
+
+    CHECK(header.hasTileDescription());
+    CHECK(header.compression() == Imf::DWAA_COMPRESSION);
+
+    std::filesystem::remove(path);
+}

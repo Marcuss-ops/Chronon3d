@@ -192,9 +192,9 @@ add_executable(chronon3d_cli_tests
     cli/test_frame_chunks.cpp
     cli/test_ffmpeg_pipe_encoder.cpp
     cli/bench_json_tests.cpp
-    ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/cli_utils.cpp
-    ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/render_job_plan.cpp
-    ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/ffmpeg_pipe_encoder.cpp
+    ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/common/cli_utils.cpp
+    ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/job/render_job_plan.cpp
+    ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/video/ffmpeg_pipe_encoder.cpp
 )
 
 target_link_libraries(chronon3d_cli_tests

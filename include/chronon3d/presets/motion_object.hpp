@@ -4,8 +4,7 @@
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/math/vec2.hpp>
 #include <chronon3d/math/vec3.hpp>
-#include <chronon3d/scene/shape.hpp>
-
+#include <chronon3d/presets/motion_animation.hpp>
 #include <algorithm>
 #include <string>
 #include <utility>
@@ -294,6 +293,24 @@ struct MotionObject {
         children.push_back(std::move(child));
         return *this;
     }
+
+    MotionObject& animate(MotionAnimation anim) {
+        m_animations.push_back(std::move(anim));
+        return *this;
+    }
+
+    MotionObject& animate(std::vector<MotionAnimation> anims) {
+        for (auto& a : anims) {
+            m_animations.push_back(std::move(a));
+        }
+        return *this;
+    }
+
+    [[nodiscard]] const std::vector<MotionAnimation>& get_animations() const {
+        return m_animations;
+    }
+
+    std::vector<MotionAnimation> m_animations;
 };
 
 } // namespace chronon3d::presets::motion

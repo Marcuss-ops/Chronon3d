@@ -1,43 +1,43 @@
 add_executable(chronon3d_cli
     main.cpp
     command_registry.cpp
-    commands/register_basic_commands.cpp
-    commands/register_render_commands.cpp
-    commands/register_video_commands.cpp
-    commands/register_dev_commands.cpp
-    commands/register_inspect_commands.cpp
-    commands/register_bench_commands.cpp
-    commands/register_telemetry_commands.cpp
-    utils/cli_utils.cpp
-    utils/cli_render_utils.cpp
-    utils/ffmpeg_pipe_encoder.cpp
-    utils/render_job.cpp
-    utils/render_job_write_frame.cpp
-    utils/render_job_execute.cpp
-    utils/batch_job_spec.cpp
-    utils/batch_runner.cpp
-    utils/watch_service.cpp
+    commands/basic/register_basic_commands.cpp
+    commands/render/register_render_commands.cpp
+    commands/video/register_video_commands.cpp
+    commands/dev/register_dev_commands.cpp
+    commands/dev/register_inspect_commands.cpp
+    commands/bench/register_bench_commands.cpp
+    commands/telemetry/register_telemetry_commands.cpp
+    utils/common/cli_utils.cpp
+    utils/job/cli_render_utils.cpp
+    utils/video/ffmpeg_pipe_encoder.cpp
+    utils/job/render_job.cpp
+    utils/job/render_job_write_frame.cpp
+    utils/job/render_job_execute.cpp
+    utils/batch/batch_job_spec.cpp
+    utils/batch/batch_runner.cpp
+    utils/watch/watch_service.cpp
 
-    commands/command_list.cpp
-    commands/command_info.cpp
-    commands/command_render.cpp
-    commands/command_studio.cpp
-    commands/command_batch.cpp
-    commands/command_watch.cpp
-    commands/command_video.cpp
-    commands/video_export_common.cpp
-    commands/video_export_pipe.cpp
-    commands/video_export_chunked.cpp
-    commands/command_doctor_verify.cpp
-    commands/command_bench.cpp
-    commands/command_graph.cpp
-    commands/command_preflight.cpp
-    commands/command_proofs.cpp
-    commands/command_telemetry.cpp
-    commands/command_telemetry_helpers.cpp
-    commands/command_telemetry_summary.cpp
-    commands/command_telemetry_report.cpp
-    commands/command_bake_layer.cpp
+    commands/basic/command_list.cpp
+    commands/basic/command_info.cpp
+    commands/render/command_render.cpp
+    commands/dev/command_studio.cpp
+    commands/dev/command_batch.cpp
+    commands/basic/command_watch.cpp
+    commands/video/command_video.cpp
+    commands/video/video_export_common.cpp
+    commands/video/video_export_pipe.cpp
+    commands/video/video_export_chunked.cpp
+    commands/dev/command_doctor_verify.cpp
+    commands/bench/command_bench.cpp
+    commands/render/command_graph.cpp
+    commands/render/command_preflight.cpp
+    commands/render/command_proofs.cpp
+    commands/telemetry/command_telemetry.cpp
+    commands/telemetry/command_telemetry_helpers.cpp
+    commands/telemetry/command_telemetry_summary.cpp
+    commands/telemetry/command_telemetry_report.cpp
+    commands/render/command_bake_layer.cpp
 )
 set_target_properties(chronon3d_cli PROPERTIES UNITY_BUILD OFF)
 

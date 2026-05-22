@@ -1,5 +1,5 @@
 #include <doctest/doctest.h>
-#include <apps/chronon3d_cli/utils/ffmpeg_pipe_encoder.hpp>
+#include <apps/chronon3d_cli/utils/video/ffmpeg_pipe_encoder.hpp>
 #include <chronon3d/core/framebuffer.hpp>
 #include <chronon3d/math/color.hpp>
 

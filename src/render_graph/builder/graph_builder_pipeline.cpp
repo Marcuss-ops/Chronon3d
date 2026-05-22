@@ -171,10 +171,84 @@ RenderGraph build_graph(const Scene& scene, const RenderGraphContext& ctx,
         name_to_resolved[std::string(rl.layer->name)] = &rl;
     }
 
+    // Map layer name to computed is_static state
+    std::unordered_map<std::string, bool> is_static_cache;
+    std::unordered_set<std::string> visited;
+
+    auto check_static_recursive = [&](auto& self, const ResolvedLayer& rl) -> bool {
+        const Layer& l = *rl.layer;
+        std::string name(l.name);
+        
+        auto cached_it = is_static_cache.find(name);
+        if (cached_it != is_static_cache.end()) {
+            return cached_it->second;
+        }
+
+        if (visited.count(name)) {
+            return false; // Loop fallback
+        }
+        visited.insert(name);
+
+        bool static_flag = false;
+        if (l.cache_static) {
+            static_flag = true;
+        } else {
+            bool is_local_static = true;
+            if (l.kind == LayerKind::Video || l.kind == LayerKind::Precomp) {
+                is_local_static = false;
+            } else if ((!l.transition_in.transition_id.empty() && l.transition_in.transition_id != "none") ||
+                       (!l.transition_out.transition_id.empty() && l.transition_out.transition_id != "none")) {
+                is_local_static = false;
+            } else if (l.anim_transform.is_animated()) {
+                is_local_static = false;
+            } else if (l.anim_transform.position.has_expression() ||
+                       l.anim_transform.rotation_euler.has_expression() ||
+                       l.anim_transform.scale.has_expression() ||
+                       l.anim_transform.anchor.has_expression() ||
+                       l.anim_transform.opacity.has_expression()) {
+                is_local_static = false;
+            }
+
+            if (is_local_static) {
+                if (rl.has_parent && !rl.parent_missing && !rl.cycle_detected) {
+                    auto parent_it = name_to_resolved.find(std::string(l.parent_name));
+                    if (parent_it != name_to_resolved.end()) {
+                        if (!self(self, *parent_it->second)) {
+                            is_local_static = false;
+                        }
+                    }
+                }
+            }
+
+            if (is_local_static) {
+                if (l.track_matte.active()) {
+                    auto matte_it = name_to_resolved.find(std::string(l.track_matte.source_layer));
+                    if (matte_it != name_to_resolved.end()) {
+                        if (!self(self, *matte_it->second)) {
+                            is_local_static = false;
+                        }
+                    }
+                }
+            }
+
+            static_flag = is_local_static;
+        }
+
+        visited.erase(name);
+        is_static_cache[name] = static_flag;
+        return static_flag;
+    };
+
+    // Precompute for all resolved layers
+    for (const auto& rl : resolved.layers) {
+        check_static_recursive(check_static_recursive, rl);
+    }
+
     // Build a LayerGraphItem for a matte source layer.
     // If the source is a 3D layer and the camera is active, apply the full
     // 2.5D projection so the matte silhouette matches the projected geometry.
     auto make_item_for_matte_source = [&](const ResolvedLayer& rl) -> LayerGraphItem {
+        const bool is_static_val = is_static_cache[std::string(rl.layer->name)];
         if (cam25d.enabled && rl.layer->is_3d) {
             Transform effective_transform = rl.world_transform;
             if (!ctx.modular_coordinates) {
@@ -204,6 +278,8 @@ RenderGraph build_graph(const Scene& scene, const RenderGraphContext& ctx,
                     .projected         = true,
                     .native_3d         = is_native_3d_layer(*rl.layer),
                     .insertion_index   = rl.insertion_index,
+                    .matte_node        = k_invalid_node,
+                    .is_static         = is_static_val,
                 };
             }
         }
@@ -216,6 +292,8 @@ RenderGraph build_graph(const Scene& scene, const RenderGraphContext& ctx,
             .projected       = false,
             .native_3d       = is_native_3d_layer(*rl.layer),
             .insertion_index = rl.insertion_index,
+            .matte_node      = k_invalid_node,
+            .is_static       = is_static_val,
         };
     };
 
@@ -318,6 +396,7 @@ RenderGraph build_graph(const Scene& scene, const RenderGraphContext& ctx,
 
     for (const auto& resolved_layer : resolved.layers) {
         const Layer& layer = *resolved_layer.layer;
+        const bool is_static_val = is_static_cache[std::string(layer.name)];
 
         if (!layer.active_at(ctx.frame)) {
             continue;
@@ -367,7 +446,9 @@ RenderGraph build_graph(const Scene& scene, const RenderGraphContext& ctx,
                     .world_z = resolved_layer.world_transform.position.z,
                     .projected = true,
                     .native_3d = is_native_3d_layer(layer),
-                    .insertion_index = resolved_layer.insertion_index
+                    .insertion_index = resolved_layer.insertion_index,
+                    .matte_node = k_invalid_node,
+                    .is_static = is_static_val,
                 });
             } else {
                 if (ctx.counters) {
@@ -394,7 +475,9 @@ RenderGraph build_graph(const Scene& scene, const RenderGraphContext& ctx,
                 .world_z = resolved_layer.world_transform.position.z,
                 .projected = false,
                 .native_3d = is_native_3d_layer(layer),
-                .insertion_index = resolved_layer.insertion_index
+                .insertion_index = resolved_layer.insertion_index,
+                .matte_node = k_invalid_node,
+                .is_static = is_static_val,
             });
         }
     }
