@@ -227,7 +227,10 @@ RenderGraphContext make_graph_context(
         .modular_coordinates = settings.use_modular_graph,
         .tile_size = settings.tile_size,
         .optimize_compositing = settings.optimize_compositing,
-        .dirty_rects_enabled = settings.dirty_rects
+        // Keep node clipping in sync with framebuffer reuse.
+        // Without this, the Clear node can erase an entire reused buffer,
+        // which wipes cached full-frame backgrounds on the next frame.
+        .dirty_rects_enabled = settings.enable_dirty_rects || settings.dirty_rects
     };
 }
 
@@ -440,15 +443,10 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     double dirty_ratio = 1.0;
     u64 dirty_union_area_pixels = 0;
     if (dirty_rect) {
-        int dbg_w = std::max(0, dirty_rect->x1 - dirty_rect->x0);
-        int dbg_h = std::max(0, dirty_rect->y1 - dirty_rect->y0);
-        bool dbg_is_empty = (dbg_w == 0 || dbg_h == 0);
-        std::cout << "Frame #" << frame 
-                  << " | Dirty Rect: " << dbg_w << "x" << dbg_h 
-                  << " | Is Empty: " << dbg_is_empty << std::endl;
-
-        double dirty_area = static_cast<double>(dbg_w) * static_cast<double>(dbg_h);
-        double total_area = static_cast<double>(width) * height;
+        const int dbg_w = std::max(0, dirty_rect->x1 - dirty_rect->x0);
+        const int dbg_h = std::max(0, dirty_rect->y1 - dirty_rect->y0);
+        const double dirty_area = static_cast<double>(dbg_w) * static_cast<double>(dbg_h);
+        const double total_area = static_cast<double>(width) * height;
         if (total_area > 0) dirty_ratio = dirty_area / total_area;
         dirty_union_area_pixels = static_cast<u64>(dirty_area);
     }
@@ -461,6 +459,27 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     ctx.dirty_rect = dirty_rect;
     ctx.reuse_prev_framebuffer = use_dirty_rects;
 
+    if (sw_renderer && ctx.diagnostics_enabled) {
+        if (dirty_rect) {
+            spdlog::info(
+                "[dirty-debug] frame={} use_dirty_rects={} prev_fb={} dirty_rect=[{},{} -> {},{}] prev_frame={}",
+                static_cast<int>(frame),
+                use_dirty_rects ? 1 : 0,
+                sw_renderer->m_prev_framebuffer ? 1 : 0,
+                dirty_rect->x0, dirty_rect->y0, dirty_rect->x1, dirty_rect->y1,
+                static_cast<int>(sw_renderer->m_prev_frame)
+            );
+        } else {
+            spdlog::info(
+                "[dirty-debug] frame={} use_dirty_rects={} prev_fb={} dirty_rect=null prev_frame={}",
+                static_cast<int>(frame),
+                use_dirty_rects ? 1 : 0,
+                sw_renderer->m_prev_framebuffer ? 1 : 0,
+                static_cast<int>(sw_renderer->m_prev_frame)
+            );
+        }
+    }
+
     const bool fast_path_reuse = sw_renderer &&
                                  settings.enable_dirty_rects &&
                                  dirty_rect && dirty_rect->is_empty() &&
@@ -471,6 +490,9 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     const auto t_build1 = std::chrono::steady_clock::now();
 
     if (fast_path_reuse) {
+        if (ctx.diagnostics_enabled) {
+            spdlog::info("[dirty-debug] frame={} fast_path_reuse=1", static_cast<int>(frame));
+        }
         sw_renderer->m_last_dirty_area_ratio = 0.0;
         sw_renderer->m_prev_layer_bboxes = std::move(current_layer_bboxes);
         sw_renderer->m_prev_frame = frame;

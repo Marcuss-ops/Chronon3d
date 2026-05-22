@@ -85,3 +85,93 @@ TEST_CASE("SourceRegistry rejects duplicate ids") {
         std::runtime_error
     );
 }
+
+TEST_CASE("ShapeRegistry shape registration and contains check") {
+    ShapeRegistry registry;
+
+    CHECK_FALSE(registry.contains("my_custom_poly"));
+
+    ShapeDescriptor desc{
+        .id = "my_custom_poly",
+        .display_name = "My Custom Polygon",
+        .kind = ShapeKind::Path,
+        .description = "A polygon shape descriptor",
+        .builtin = false
+    };
+
+    registry.register_shape(desc);
+
+    CHECK(registry.contains("my_custom_poly"));
+    const auto& fetched = registry.get("my_custom_poly");
+    CHECK(fetched.display_name == "My Custom Polygon");
+    CHECK(fetched.kind == ShapeKind::Path);
+    CHECK_FALSE(fetched.builtin);
+}
+
+TEST_CASE("SamplerRegistry sampler registration and list") {
+    SamplerRegistry registry;
+
+    CHECK_FALSE(registry.contains("super_sampler"));
+
+    SamplerDescriptor desc{
+        .id = "super_sampler",
+        .display_name = "Super Sampler",
+        .kind = SamplerKind::Lanczos,
+        .description = "Advanced scaling filter",
+        .builtin = false
+    };
+
+    registry.register_sampler(desc);
+
+    CHECK(registry.contains("super_sampler"));
+    const auto& fetched = registry.get("super_sampler");
+    CHECK(fetched.display_name == "Super Sampler");
+    CHECK(fetched.kind == SamplerKind::Lanczos);
+
+    auto available = registry.available();
+    bool found = false;
+    for (const auto& name : available) {
+        if (name == "super_sampler") {
+            found = true;
+            break;
+        }
+    }
+    CHECK(found);
+}
+
+TEST_CASE("SourceRegistry custom source registration") {
+    SourceRegistry registry;
+
+    CHECK_FALSE(registry.contains("3d_volumetric"));
+
+    SourceDescriptor desc{
+        .id = "3d_volumetric",
+        .display_name = "3D Volumetric Source",
+        .kind = SourceKind::Layer,
+        .description = "Mesh volume layer",
+        .builtin = false,
+        .temporal = true,
+        .composable = true
+    };
+
+    registry.register_source(desc);
+
+    CHECK(registry.contains("3d_volumetric"));
+    const auto& fetched = registry.get("3d_volumetric");
+    CHECK(fetched.temporal == true);
+    CHECK(fetched.composable == true);
+}
+
+TEST_CASE("Registries throw on missing ID") {
+    ShapeRegistry shape_reg;
+    SamplerRegistry sampler_reg;
+    SourceRegistry source_reg;
+
+    CHECK_FALSE(shape_reg.contains("missing_id"));
+    CHECK_FALSE(sampler_reg.contains("missing_id"));
+    CHECK_FALSE(source_reg.contains("missing_id"));
+
+    CHECK_THROWS(shape_reg.get("missing_id"));
+    CHECK_THROWS(sampler_reg.get("missing_id"));
+    CHECK_THROWS(source_reg.get("missing_id"));
+}

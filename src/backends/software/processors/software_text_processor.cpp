@@ -9,6 +9,8 @@
 #include "../utils/blend2d_bridge.hpp"
 #include "../utils/blend2d_resources.hpp"
 #include <chronon3d/core/counters.hpp>
+#include <chronon3d/render_graph/render_graph_hashing.hpp>
+
 #include <blend2d.h>
 #include <glm/gtc/matrix_transform.hpp>
 #include <mutex>
@@ -19,25 +21,20 @@ namespace chronon3d::renderer {
 namespace {
 
 using CacheKey = u64;
-using ShadowCache = cache::LruCache<CacheKey, std::shared_ptr<Framebuffer>>;
+using ShadowCache = cache::LruCache<CacheKey, std::shared_ptr<BLImage>>;
 
-CacheKey hash_combine(CacheKey seed, CacheKey value) {
-    seed ^= value + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2);
-    return seed;
-}
-
-template <typename T>
-CacheKey hash_value(const T& value) {
-    return static_cast<CacheKey>(std::hash<T>{}(value));
-}
+using chronon3d::graph::hash_combine;
+using chronon3d::graph::hash_value;
+using chronon3d::graph::hash_string;
+using chronon3d::graph::hash_bytes;
 
 CacheKey hash_text_shape(const TextShape& text, float effective_size) {
     CacheKey seed = 0;
-    seed = hash_combine(seed, hash_value(text.text));
-    seed = hash_combine(seed, hash_value(text.style.font_path));
-    seed = hash_combine(seed, hash_value(text.style.font_family));
+    seed = hash_combine(seed, hash_string(text.text));
+    seed = hash_combine(seed, hash_string(text.style.font_path));
+    seed = hash_combine(seed, hash_string(text.style.font_family));
     seed = hash_combine(seed, hash_value(text.style.font_weight));
-    seed = hash_combine(seed, hash_value(text.style.font_style));
+    seed = hash_combine(seed, hash_string(text.style.font_style));
     seed = hash_combine(seed, hash_value(effective_size));
     seed = hash_combine(seed, hash_value(text.style.color.r));
     seed = hash_combine(seed, hash_value(text.style.color.g));
@@ -239,7 +236,7 @@ private:
                                        has_non_translation(model);
 
         const CacheKey key = hash_shadow_params(node, node.shape.text.style.size, index);
-        std::shared_ptr<Framebuffer> shadow_cache;
+        std::shared_ptr<BLImage> shadow_cache;
         {
             std::lock_guard<std::mutex> lock(g_text_shadow_cache_mutex);
             auto cached = get_shadow_cache().get(key);
@@ -263,35 +260,79 @@ private:
                 ctx.fillAll();
             }
 
-            auto cached_fb = std::make_shared<Framebuffer>(shadow_img.width(), shadow_img.height());
-            cached_fb->clear(Color::transparent());
-            blend2d_bridge::composite_bl_image(*cached_fb, shadow_img, 0, 0, 1.0f, BlendMode::Normal);
+            auto cached_img = std::make_shared<BLImage>(shadow_img);
 
             if (shadow.blur > 0.0f) {
-                renderer.apply_blur(*cached_fb, shadow.blur);
+                // Blur requires pixel-level operations, so we use the FB path via renderer
+                // This is the one case where double conversion is unavoidable
+                auto shadow_fb = std::make_shared<Framebuffer>(shadow_img.width(), shadow_img.height());
+                shadow_fb->clear(Color::transparent());
+                blend2d_bridge::composite_bl_image(*shadow_fb, shadow_img, 0, 0, 1.0f, BlendMode::Normal);
+                renderer.apply_blur(*shadow_fb, shadow.blur);
+                
+                // For simplicity when blur is needed, just don't cache as BLImage
+                // The shadow/glow effect with blur will not be cached to avoid complexity
+                cached_img = nullptr; // Signal no caching for blurry shadows
             }
 
-            {
+            if (cached_img) {
                 std::lock_guard<std::mutex> lock(g_text_shadow_cache_mutex);
-                size_t weight = cached_fb->size_bytes();
-                get_shadow_cache().put(key, cached_fb, weight);
-                shadow_cache = cached_fb;
+                size_t weight = cached_img->width() * cached_img->height() * 4;
+                get_shadow_cache().put(key, cached_img, weight);
+                shadow_cache = cached_img;
             }
         }
 
         const f32 shadow_opacity = shadow.opacity * shadow.color.a;
 
-        if (use_geo_transform) {
-            int x = static_cast<int>(std::lround(raster.x_offset + shadow.offset.x));
-            int y = static_cast<int>(std::lround(raster.y_offset + shadow.offset.y));
-            blend2d_bridge::composite_framebuffer(fb, *shadow_cache, x, y, opacity * shadow_opacity, BlendMode::Normal);
-        } else if (state.projection.ready) {
-            const int x = static_cast<int>(std::lround(model[3][0] + raster.x_offset + shadow.offset.x));
-            const int y = static_cast<int>(std::lround(model[3][1] + raster.y_offset + shadow.offset.y));
-            blend2d_bridge::composite_framebuffer(fb, *shadow_cache, x, y, opacity * shadow_opacity, BlendMode::Normal);
-        } else {
-            Mat4 shadow_model = model * glm::translate(Mat4(1.0f), Vec3(raster.x_offset + shadow.offset.x, raster.y_offset + shadow.offset.y, 0.0f));
-            blend2d_bridge::composite_framebuffer_transformed(fb, *shadow_cache, shadow_model, opacity * shadow_opacity, BlendMode::Normal);
+        if (shadow_cache) {
+            if (use_geo_transform) {
+                int x = static_cast<int>(std::lround(raster.x_offset + shadow.offset.x));
+                int y = static_cast<int>(std::lround(raster.y_offset + shadow.offset.y));
+                blend2d_bridge::composite_bl_image(fb, *shadow_cache, x, y, opacity * shadow_opacity, BlendMode::Normal);
+            } else if (state.projection.ready) {
+                const int x = static_cast<int>(std::lround(model[3][0] + raster.x_offset + shadow.offset.x));
+                const int y = static_cast<int>(std::lround(model[3][1] + raster.y_offset + shadow.offset.y));
+                blend2d_bridge::composite_bl_image(fb, *shadow_cache, x, y, opacity * shadow_opacity, BlendMode::Normal);
+            } else {
+                Mat4 shadow_model = model * glm::translate(Mat4(1.0f), Vec3(raster.x_offset + shadow.offset.x, raster.y_offset + shadow.offset.y, 0.0f));
+                blend2d_bridge::composite_bl_image_transformed(fb, *shadow_cache, shadow_model, opacity * shadow_opacity, BlendMode::Normal);
+            }
+        } else if (shadow.blur > 0.0f) {
+            // Fallback for blurry shadows: render directly without caching
+            BLImage shadow_img;
+            shadow_img.create(raster.image.width(), raster.image.height(), BL_FORMAT_PRGB32);
+            {
+                BLContext ctx(shadow_img);
+                ctx.clearAll();
+                ctx.blitImage(BLPoint(0, 0), raster.image);
+                ctx.setCompOp(BL_COMP_OP_SRC_IN);
+                ctx.setFillStyle(BLRgba32(
+                    static_cast<uint8_t>(std::clamp(shadow.color.r * 255.0f, 0.0f, 255.0f)),
+                    static_cast<uint8_t>(std::clamp(shadow.color.g * 255.0f, 0.0f, 255.0f)),
+                    static_cast<uint8_t>(std::clamp(shadow.color.b * 255.0f, 0.0f, 255.0f)),
+                    255
+                ));
+                ctx.fillAll();
+            }
+            
+            auto shadow_fb = std::make_shared<Framebuffer>(shadow_img.width(), shadow_img.height());
+            shadow_fb->clear(Color::transparent());
+            blend2d_bridge::composite_bl_image(*shadow_fb, shadow_img, 0, 0, 1.0f, BlendMode::Normal);
+            renderer.apply_blur(*shadow_fb, shadow.blur);
+            
+            if (use_geo_transform) {
+                int x = static_cast<int>(std::lround(raster.x_offset + shadow.offset.x));
+                int y = static_cast<int>(std::lround(raster.y_offset + shadow.offset.y));
+                blend2d_bridge::composite_framebuffer(fb, *shadow_fb, x, y, opacity * shadow_opacity, BlendMode::Normal);
+            } else if (state.projection.ready) {
+                const int x = static_cast<int>(std::lround(model[3][0] + raster.x_offset + shadow.offset.x));
+                const int y = static_cast<int>(std::lround(model[3][1] + raster.y_offset + shadow.offset.y));
+                blend2d_bridge::composite_framebuffer(fb, *shadow_fb, x, y, opacity * shadow_opacity, BlendMode::Normal);
+            } else {
+                Mat4 shadow_model = model * glm::translate(Mat4(1.0f), Vec3(raster.x_offset + shadow.offset.x, raster.y_offset + shadow.offset.y, 0.0f));
+                blend2d_bridge::composite_framebuffer_transformed(fb, *shadow_fb, shadow_model, opacity * shadow_opacity, BlendMode::Normal);
+            }
         }
     }
 
@@ -305,7 +346,7 @@ private:
                                        has_non_translation(model);
 
         const CacheKey key = hash_glow_params(node, node.shape.text.style.size);
-        std::shared_ptr<Framebuffer> glow_cache;
+        std::shared_ptr<BLImage> glow_cache;
         {
             std::lock_guard<std::mutex> lock(g_text_glow_cache_mutex);
             auto cached = get_glow_cache().get(key);
@@ -329,35 +370,77 @@ private:
                 ctx.fillAll();
             }
 
-            auto cached_fb = std::make_shared<Framebuffer>(glow_img.width(), glow_img.height());
-            cached_fb->clear(Color::transparent());
-            blend2d_bridge::composite_bl_image(*cached_fb, glow_img, 0, 0, 1.0f, BlendMode::Normal);
+            auto cached_img = std::make_shared<BLImage>(glow_img);
 
             if (node.glow.radius > 0.0f) {
-                renderer.apply_blur(*cached_fb, node.glow.radius);
+                // Blur requires pixel-level operations, so we use the FB path via renderer
+                auto glow_fb = std::make_shared<Framebuffer>(glow_img.width(), glow_img.height());
+                glow_fb->clear(Color::transparent());
+                blend2d_bridge::composite_bl_image(*glow_fb, glow_img, 0, 0, 1.0f, BlendMode::Normal);
+                renderer.apply_blur(*glow_fb, node.glow.radius);
+                
+                // For simplicity when blur is needed, just don't cache as BLImage
+                cached_img = nullptr; // Signal no caching for blurry glows
             }
 
-            {
+            if (cached_img) {
                 std::lock_guard<std::mutex> lock(g_text_glow_cache_mutex);
-                size_t weight = cached_fb->size_bytes();
-                get_glow_cache().put(key, cached_fb, weight);
-                glow_cache = cached_fb;
+                size_t weight = cached_img->width() * cached_img->height() * 4;
+                get_glow_cache().put(key, cached_img, weight);
+                glow_cache = cached_img;
             }
         }
 
         const f32 glow_intensity_opacity = node.glow.intensity * node.glow.color.a;
 
-        if (use_geo_transform) {
-            int x = static_cast<int>(std::lround(raster.x_offset));
-            int y = static_cast<int>(std::lround(raster.y_offset));
-            blend2d_bridge::composite_framebuffer(fb, *glow_cache, x, y, opacity * glow_intensity_opacity, BlendMode::Add);
-        } else if (state.projection.ready) {
-            const int x = static_cast<int>(std::lround(model[3][0] + raster.x_offset));
-            const int y = static_cast<int>(std::lround(model[3][1] + raster.y_offset));
-            blend2d_bridge::composite_framebuffer(fb, *glow_cache, x, y, opacity * glow_intensity_opacity, BlendMode::Add);
-        } else {
-            Mat4 glow_model = model * glm::translate(Mat4(1.0f), Vec3(raster.x_offset, raster.y_offset, 0.0f));
-            blend2d_bridge::composite_framebuffer_transformed(fb, *glow_cache, glow_model, opacity * glow_intensity_opacity, BlendMode::Add);
+        if (glow_cache) {
+            if (use_geo_transform) {
+                int x = static_cast<int>(std::lround(raster.x_offset));
+                int y = static_cast<int>(std::lround(raster.y_offset));
+                blend2d_bridge::composite_bl_image(fb, *glow_cache, x, y, opacity * glow_intensity_opacity, BlendMode::Add);
+            } else if (state.projection.ready) {
+                const int x = static_cast<int>(std::lround(model[3][0] + raster.x_offset));
+                const int y = static_cast<int>(std::lround(model[3][1] + raster.y_offset));
+                blend2d_bridge::composite_bl_image(fb, *glow_cache, x, y, opacity * glow_intensity_opacity, BlendMode::Add);
+            } else {
+                Mat4 glow_model = model * glm::translate(Mat4(1.0f), Vec3(raster.x_offset, raster.y_offset, 0.0f));
+                blend2d_bridge::composite_bl_image_transformed(fb, *glow_cache, glow_model, opacity * glow_intensity_opacity, BlendMode::Add);
+            }
+        } else if (node.glow.radius > 0.0f) {
+            // Fallback for blurry glow: render directly without caching
+            BLImage glow_img;
+            glow_img.create(raster.image.width(), raster.image.height(), BL_FORMAT_PRGB32);
+            {
+                BLContext ctx(glow_img);
+                ctx.clearAll();
+                ctx.blitImage(BLPoint(0, 0), raster.image);
+                ctx.setCompOp(BL_COMP_OP_SRC_IN);
+                ctx.setFillStyle(BLRgba32(
+                    static_cast<uint8_t>(std::clamp(node.glow.color.r * 255.0f, 0.0f, 255.0f)),
+                    static_cast<uint8_t>(std::clamp(node.glow.color.g * 255.0f, 0.0f, 255.0f)),
+                    static_cast<uint8_t>(std::clamp(node.glow.color.b * 255.0f, 0.0f, 255.0f)),
+                    255
+                ));
+                ctx.fillAll();
+            }
+            
+            auto glow_fb = std::make_shared<Framebuffer>(glow_img.width(), glow_img.height());
+            glow_fb->clear(Color::transparent());
+            blend2d_bridge::composite_bl_image(*glow_fb, glow_img, 0, 0, 1.0f, BlendMode::Normal);
+            renderer.apply_blur(*glow_fb, node.glow.radius);
+            
+            if (use_geo_transform) {
+                int x = static_cast<int>(std::lround(raster.x_offset));
+                int y = static_cast<int>(std::lround(raster.y_offset));
+                blend2d_bridge::composite_framebuffer(fb, *glow_fb, x, y, opacity * glow_intensity_opacity, BlendMode::Add);
+            } else if (state.projection.ready) {
+                const int x = static_cast<int>(std::lround(model[3][0] + raster.x_offset));
+                const int y = static_cast<int>(std::lround(model[3][1] + raster.y_offset));
+                blend2d_bridge::composite_framebuffer(fb, *glow_fb, x, y, opacity * glow_intensity_opacity, BlendMode::Add);
+            } else {
+                Mat4 glow_model = model * glm::translate(Mat4(1.0f), Vec3(raster.x_offset, raster.y_offset, 0.0f));
+                blend2d_bridge::composite_framebuffer_transformed(fb, *glow_fb, glow_model, opacity * glow_intensity_opacity, BlendMode::Add);
+            }
         }
     }
 };

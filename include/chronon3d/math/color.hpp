@@ -30,7 +30,7 @@ namespace color_detail {
 
 [[nodiscard]] inline u8 linear_to_srgb8_fast(f32 value) {
     const f32 clamped = std::clamp(value, 0.0f, 1.0f);
-    const usize idx = static_cast<usize>(clamped * static_cast<f32>(linear_to_srgb8_lut().size() - 1));
+    const usize idx = static_cast<usize>(clamped * static_cast<f32>(linear_to_srgb8_lut().size() - 1) + 0.5f);
     return linear_to_srgb8_lut()[idx];
 }
 

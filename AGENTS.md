@@ -94,10 +94,12 @@ chronon3d (INTERFACE — headers/defines)
 
 ## Performance build
 
-| Scenario | Prima | Dopo (ccache + PCH) |
+| Scenario | Prima | Dopo (ccache + PCH + mold) |
 |---|---|---|
 | Full clean build | ~8-10 min | ~6 min |
 | Rebuild singolo .cpp | ~2 min | ~14s (cold) / ~3s (hot) |
 | Rebuild header inline | ~5 min | ~30s-1min (dipende dalla portata) |
+| Link CLI | ~30-60s | ~5s (mold) |
 
-**ccache** taglia i rebuild ridondanti. **PCH** evita di ricompilare `glm.hpp` e `blend2d.h` 30+ volte.
+**ccache** taglia i rebuild ridondanti. **PCH** evita di ricompilare `glm.hpp` e `blend2d.h` 30+ volte.  
+**mold** (linker) accelera il link finale di 10x — rilevato automaticamente se installato.

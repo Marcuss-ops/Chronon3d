@@ -38,6 +38,7 @@ target_link_libraries(chronon3d_cli
     PRIVATE
         chronon3d_pipeline
         chronon3d_backend_image
+        CLI11::CLI11
         spdlog::spdlog_header_only
         fmt::fmt
 )
@@ -47,6 +48,22 @@ target_include_directories(chronon3d_cli PRIVATE ${CMAKE_SOURCE_DIR})
 if(CLI11_INCLUDE_DIRS)
     target_include_directories(chronon3d_cli PRIVATE ${CLI11_INCLUDE_DIRS})
 endif()
+
+target_precompile_headers(chronon3d_cli PRIVATE
+    <algorithm>
+    <atomic>
+    <condition_variable>
+    <chrono>
+    <deque>
+    <filesystem>
+    <memory>
+    <mutex>
+    <thread>
+    <vector>
+    <spdlog/spdlog.h>
+    <fmt/format.h>
+    <CLI/CLI.hpp>
+)
 
 if(CHRONON3D_ENABLE_SQLITE_TELEMETRY)
     target_link_libraries(chronon3d_cli PRIVATE unofficial::sqlite3::sqlite3)

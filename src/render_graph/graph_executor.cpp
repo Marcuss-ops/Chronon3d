@@ -31,6 +31,7 @@ struct ExecutionState {
     std::vector<std::shared_ptr<Framebuffer>> temp;
     std::vector<u64> resolved_key_digest;
     std::vector<char> resolved_frame_dependent;
+    std::vector<char> resolved_cache_hit;
     std::vector<std::optional<raster::BBox>> resolved_bboxes;
 };
 
@@ -43,6 +44,7 @@ struct PreResolvedNode {
     std::vector<std::optional<raster::BBox>> input_bboxes;
     bool inputs_frame_dependent = false;
     bool has_cacheable_inputs = false;
+    bool inputs_all_cache_hits = false;
     u64 input_hash = 0;
 };
 
@@ -69,6 +71,7 @@ struct CacheEvalResult {
     PreResolvedNode pr;
     pr.inputs.resize(input_ids.size());
     pr.input_bboxes.resize(input_ids.size());
+    pr.inputs_all_cache_hits = !input_ids.empty();
 
     for (size_t j = 0; j < input_ids.size(); ++j) {
         const GraphNodeId input_id = input_ids[j];
@@ -81,6 +84,11 @@ struct CacheEvalResult {
         if (contains_index(state.resolved_frame_dependent, input_id)) {
             pr.inputs_frame_dependent |= (state.resolved_frame_dependent[input_id] != 0);
             pr.has_cacheable_inputs = true;
+        }
+        if (contains_index(state.resolved_cache_hit, input_id)) {
+            pr.inputs_all_cache_hits &= (state.resolved_cache_hit[input_id] != 0);
+        } else {
+            pr.inputs_all_cache_hits = false;
         }
         if (contains_index(state.resolved_key_digest, input_id)) {
             pr.input_hash = hash_combine(pr.input_hash, state.resolved_key_digest[input_id]);
@@ -99,15 +107,21 @@ struct CacheEvalResult {
     u64 input_hash,
     bool inputs_frame_dependent,
     bool has_cacheable_inputs,
-    GraphNodeId node_id
+    GraphNodeId node_id,
+    bool inputs_all_cache_hits
 ) {
     CacheEvalResult cr;
     const auto policy = node.cache_policy();
-    const bool is_cacheable = policy.cacheable;
+    bool is_cacheable = policy.cacheable;
 
     cr.node_frame_dependent =
         policy.frame_dependent ||
         (has_cacheable_inputs && inputs_frame_dependent);
+
+    if (node.kind() == RenderGraphNodeKind::Composite && inputs_all_cache_hits) {
+        is_cacheable = true;
+        cr.node_frame_dependent = false;
+    }
 
     cr.use_cache = is_cacheable && ctx.node_cache && !cr.node_frame_dependent;
 
@@ -137,12 +151,16 @@ struct CacheEvalResult {
             if (ctx.counters) {
                 ctx.counters->bypass_not_cacheable_count.fetch_add(1, std::memory_order_relaxed);
             }
-            spdlog::warn("[cache-bypass] frame={} node='{}' node_id={} kind='{}' reason='not_cacheable'",
-                         static_cast<int>(ctx.frame), node.name(), node_id, to_string(node.kind()));
+            if (ctx.diagnostics_enabled) {
+                spdlog::warn("[cache-bypass] frame={} node='{}' node_id={} kind='{}' reason='not_cacheable'",
+                             static_cast<int>(ctx.frame), node.name(), node_id, to_string(node.kind()));
+            }
         } else {
             cr.cache_status = "bypass_frame_dependent";
-            spdlog::debug("[cache-bypass] frame={} node='{}' node_id={} kind='{}' reason='frame_dependent'",
-                          static_cast<int>(ctx.frame), node.name(), node_id, to_string(node.kind()));
+            if (ctx.diagnostics_enabled) {
+                spdlog::debug("[cache-bypass] frame={} node='{}' node_id={} kind='{}' reason='frame_dependent'",
+                              static_cast<int>(ctx.frame), node.name(), node_id, to_string(node.kind()));
+            }
         }
     }
     return cr;
@@ -243,6 +261,9 @@ struct CacheEvalResult {
     if (ctx.counters) {
         ctx.counters->nodes_executed.fetch_add(1, std::memory_order_relaxed);
     }
+    if (result) {
+        result->set_key_digest(key.digest());
+    }
     if (use_cache && result) {
         ctx.node_cache->store(key, result);
     }
@@ -328,8 +349,10 @@ void emit_node_records(
     }
 
     // Per-node log line
-    spdlog::info("[graph-debug] frame={} node='{}' kind='{}' cache_status='{}' dur={:.3f}ms",
-                 static_cast<int>(ctx.frame), node.name(), to_string(node.kind()), cache_status, duration_ms);
+    if (ctx.diagnostics_enabled) {
+        spdlog::info("[graph-debug] frame={} node='{}' kind='{}' cache_status='{}' dur={:.3f}ms",
+                     static_cast<int>(ctx.frame), node.name(), to_string(node.kind()), cache_status, duration_ms);
+    }
 }
 
 // ── Phase G: Execute a single node inside the parallel_for loop ─────────────
@@ -364,11 +387,12 @@ void execute_single_node(
         pr.input_hash,
         pr.inputs_frame_dependent,
         pr.has_cacheable_inputs,
-        id
+        id,
+        pr.inputs_all_cache_hits
     );
 
     // ── Predicted bbox ──────────────────────────────────────────────────
-    const auto predicted_bbox = node.predicted_bbox(ctx, pr.input_bboxes);
+    auto predicted_bbox = node.predicted_bbox(ctx, pr.input_bboxes);
 
     // ── Dirty-rect clipping ─────────────────────────────────────────────
     RenderGraphContext node_ctx = ctx;
@@ -403,6 +427,7 @@ void execute_single_node(
     state.temp[id] = cache_eval.result;
     state.resolved_key_digest[id] = cache_eval.key.digest();
     state.resolved_frame_dependent[id] = cache_eval.node_frame_dependent ? 1 : 0;
+    state.resolved_cache_hit[id] = (cache_eval.cache_status == "hit") ? 1 : 0;
     state.resolved_bboxes[id] = predicted_bbox;
 }
 
@@ -504,6 +529,7 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
         state.temp.resize(node_count);
         state.resolved_key_digest.assign(node_count, 0);
         state.resolved_frame_dependent.assign(node_count, 0);
+        state.resolved_cache_hit.assign(node_count, 0);
         state.resolved_bboxes.resize(node_count);
 
         std::vector<std::atomic_size_t> consumer_remaining(node_count);
@@ -531,6 +557,7 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
                         state.temp[input_id].reset();
                         state.resolved_key_digest[input_id] = 0;
                         state.resolved_frame_dependent[input_id] = 0;
+                        state.resolved_cache_hit[input_id] = 0;
                         state.resolved_bboxes[input_id].reset();
                     }
                 }

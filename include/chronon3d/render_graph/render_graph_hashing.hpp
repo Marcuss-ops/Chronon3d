@@ -20,7 +20,7 @@
 namespace chronon3d::graph {
 
 [[nodiscard]] inline u64 hash_combine(u64 seed, u64 value) {
-    seed ^= value + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+    seed ^= value + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2);
     return seed;
 }
 
@@ -33,7 +33,7 @@ namespace chronon3d::graph {
 }
 
 template <typename T>
-[[nodiscard]] inline u64 hash_value(T value) {
+[[nodiscard]] inline u64 hash_value(const T& value) {
     return hash_bytes(&value, sizeof(value));
 }
 
