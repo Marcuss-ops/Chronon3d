@@ -56,7 +56,7 @@ public:
     explicit FramebufferPool(size_t max_bytes = 256ULL * 1024ULL * 1024ULL);
 
     /// Acquire a framebuffer of the requested size.
-    /// The pool never clears memory; callers own clear semantics.
+    /// Clearing is optional and only happens when requested by the caller.
     std::shared_ptr<Framebuffer> acquire(int width, int height, bool clear = true);
 
     /// Acquire a framebuffer that automatically releases itself back to the pool upon destruction.

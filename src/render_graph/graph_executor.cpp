@@ -65,7 +65,8 @@ struct CacheEvalResult {
 [[nodiscard]] PreResolvedNode resolve_inputs(
     const RenderGraph& graph,
     GraphNodeId id,
-    const ExecutionState& state
+    ExecutionState& state,
+    const std::vector<std::atomic_size_t>& consumer_remaining
 ) {
     const auto& input_ids = graph.inputs(id);
     PreResolvedNode pr;
@@ -76,7 +77,17 @@ struct CacheEvalResult {
     for (size_t j = 0; j < input_ids.size(); ++j) {
         const GraphNodeId input_id = input_ids[j];
         if (contains_index(state.temp, input_id)) {
-            pr.inputs[j] = state.temp[input_id];
+            const bool is_last_consumer =
+                contains_index(consumer_remaining, input_id) &&
+                consumer_remaining[input_id].load(std::memory_order_relaxed) == 1;
+            const bool duplicated_input =
+                std::count(input_ids.begin(), input_ids.end(), input_id) > 1;
+
+            if (is_last_consumer && !duplicated_input && !state.resolved_cache_hit[input_id]) {
+                pr.inputs[j] = std::move(state.temp[input_id]);
+            } else {
+                pr.inputs[j] = state.temp[input_id];
+            }
         }
         if (contains_index(state.resolved_bboxes, input_id)) {
             pr.input_bboxes[j] = state.resolved_bboxes[input_id];
@@ -196,8 +207,8 @@ struct CacheEvalResult {
 
     if (ctx.counters) {
         if (predicted_bbox) {
-            const int w = std::max(0, predicted_bbox->x1 - predicted_bbox->x0);
-            const int h = std::max(0, predicted_bbox->y1 - predicted_bbox->y0);
+            const int w = std::max(0, clip->x1 - clip->x0);
+            const int h = std::max(0, clip->y1 - clip->y0);
             ctx.counters->dirty_rect_count.fetch_add(1, std::memory_order_relaxed);
             ctx.counters->dirty_pixels.fetch_add(
                 static_cast<uint64_t>(w) * static_cast<uint64_t>(h),
@@ -280,6 +291,7 @@ void emit_node_records(
     const RenderGraphNode& node,
     const cache::NodeCacheKey& key,
     const std::shared_ptr<Framebuffer>& result,
+    const std::optional<raster::BBox>& clip_rect,
     const std::string& cache_status,
     bool is_cacheable,
     int input_count,
@@ -339,7 +351,14 @@ void emit_node_records(
         layer_rec.layer_type = std::string(to_string(node.kind()));
         layer_rec.duration_ms = duration_ms;
         layer_rec.visible = true;
-        if (result) {
+        if (clip_rect) {
+            const int w = std::max(0, clip_rect->x1 - clip_rect->x0);
+            const int h = std::max(0, clip_rect->y1 - clip_rect->y0);
+            layer_rec.bbox_w = static_cast<float>(w);
+            layer_rec.bbox_h = static_cast<float>(h);
+            layer_rec.area_pixels = static_cast<uint64_t>(w) * static_cast<uint64_t>(h);
+            layer_rec.visible_pixels = static_cast<uint64_t>(w) * static_cast<uint64_t>(h);
+        } else if (result) {
             layer_rec.bbox_w = static_cast<float>(result->width());
             layer_rec.bbox_h = static_cast<float>(result->height());
             layer_rec.area_pixels = result->width() * result->height();
@@ -417,6 +436,7 @@ void execute_single_node(
         ctx, node,
         cache_eval.key,
         cache_eval.result,
+        node_ctx.clip_rect,
         cache_eval.cache_status,
         cache_eval.is_cacheable,
         static_cast<int>(input_ids.size()),
@@ -543,7 +563,7 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
             // ── Sequential pre-resolve phase ─────────────────────────────
             std::vector<PreResolvedNode> level_resolved(level.size());
             for (size_t i = 0; i < level.size(); ++i) {
-                level_resolved[i] = resolve_inputs(graph, level[i], state);
+                level_resolved[i] = resolve_inputs(graph, level[i], state, consumer_remaining);
             }
 
             // ── Decrement consumer counts & release dead references ──────

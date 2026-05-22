@@ -248,7 +248,9 @@ private:
             shadow_img.create(raster.image.width(), raster.image.height(), BL_FORMAT_PRGB32);
             {
                 BLContext ctx(shadow_img);
-                ctx.clearAll();
+                ctx.setCompOp(BL_COMP_OP_SRC_COPY);
+                ctx.setFillStyle(BLRgba32(0, 0, 0, 0));
+                ctx.fillAll();
                 ctx.blitImage(BLPoint(0, 0), raster.image);
                 ctx.setCompOp(BL_COMP_OP_SRC_IN);
                 ctx.setFillStyle(BLRgba32(
@@ -304,7 +306,9 @@ private:
             shadow_img.create(raster.image.width(), raster.image.height(), BL_FORMAT_PRGB32);
             {
                 BLContext ctx(shadow_img);
-                ctx.clearAll();
+                ctx.setCompOp(BL_COMP_OP_SRC_COPY);
+                ctx.setFillStyle(BLRgba32(0, 0, 0, 0));
+                ctx.fillAll();
                 ctx.blitImage(BLPoint(0, 0), raster.image);
                 ctx.setCompOp(BL_COMP_OP_SRC_IN);
                 ctx.setFillStyle(BLRgba32(
@@ -358,7 +362,9 @@ private:
             glow_img.create(raster.image.width(), raster.image.height(), BL_FORMAT_PRGB32);
             {
                 BLContext ctx(glow_img);
-                ctx.clearAll();
+                ctx.setCompOp(BL_COMP_OP_SRC_COPY);
+                ctx.setFillStyle(BLRgba32(0, 0, 0, 0));
+                ctx.fillAll();
                 ctx.blitImage(BLPoint(0, 0), raster.image);
                 ctx.setCompOp(BL_COMP_OP_SRC_IN);
                 ctx.setFillStyle(BLRgba32(
@@ -412,7 +418,9 @@ private:
             glow_img.create(raster.image.width(), raster.image.height(), BL_FORMAT_PRGB32);
             {
                 BLContext ctx(glow_img);
-                ctx.clearAll();
+                ctx.setCompOp(BL_COMP_OP_SRC_COPY);
+                ctx.setFillStyle(BLRgba32(0, 0, 0, 0));
+                ctx.fillAll();
                 ctx.blitImage(BLPoint(0, 0), raster.image);
                 ctx.setCompOp(BL_COMP_OP_SRC_IN);
                 ctx.setFillStyle(BLRgba32(
