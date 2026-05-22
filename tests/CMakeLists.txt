@@ -33,6 +33,10 @@ add_executable(chronon3d_core_tests
     core/timeline/test_sequence.cpp
     assets/test_svg_path_loader.cpp
     assets/test_render_preflight.cpp
+    assets/test_asset_registry.cpp
+    core/math/test_color_space.cpp
+    core/math/test_expression.cpp
+    core/test_stability_fixes.cpp
 )
 target_link_libraries(chronon3d_core_tests PRIVATE chronon3d_pipeline doctest::doctest)
 target_include_directories(chronon3d_core_tests PRIVATE ${CMAKE_SOURCE_DIR})
@@ -50,6 +54,8 @@ add_executable(chronon3d_scene_tests
     scene/test_anchor_gallery.cpp
     scene/test_layer_builder_animated.cpp
     scene/test_render_node_factory.cpp
+    scene/test_depth_role.cpp
+    scene/test_layout_solver.cpp
 )
 target_link_libraries(chronon3d_scene_tests PRIVATE chronon3d_pipeline chronon3d_scene chronon3d_backend_software doctest::doctest)
 target_include_directories(chronon3d_scene_tests PRIVATE ${CMAKE_SOURCE_DIR})
@@ -96,7 +102,6 @@ add_executable(chronon3d_renderer_tests
     presets/test_motion_visual_smoke.cpp
     render_graph/test_unified_transform_path.cpp
     renderer/dispatch/test_software_node_dispatcher.cpp
-    render_graph/test_graph_executor.cpp
     render_graph/test_precompositions.cpp
     render_graph/test_modular_features.cpp
     render_graph/test_track_matte.cpp

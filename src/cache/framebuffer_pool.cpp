@@ -1,5 +1,5 @@
 #include <chronon3d/cache/framebuffer_pool.hpp>
-#include <chronon3d/core/trace.hpp>
+#include <chronon3d/core/profiling.hpp>
 #include <chronon3d/core/counters.hpp>
 #include <cstdlib>
 
@@ -41,24 +41,42 @@ std::shared_ptr<Framebuffer> FramebufferPool::acquire(int width, int height, boo
 }
 
 std::unique_ptr<Framebuffer> FramebufferPool::acquire_unique(int width, int height, bool clear) {
-    (void)clear;
+    CHRONON_ZONE_C("framebuffer_acquire", trace_category::kPipeline);
     std::lock_guard<std::mutex> lock(m_mutex);
 
-    FramebufferPoolKey key{width, height};
-    auto& bucket = m_free[key];
-
-    if (!bucket.empty()) {
-        auto fb = std::move(bucket.back());
-        bucket.pop_back();
-        m_current_bytes -= fb->size_bytes();
-        if (profiling::g_current_counters) {
-            profiling::g_current_counters->framebuffer_reuses.fetch_add(1, std::memory_order_relaxed);
+    // Best-fit: search for the smallest framebuffer with area >= requested
+    {
+        size_t best_area = SIZE_MAX;
+        FramebufferPoolKey best_key{0, 0};
+        for (const auto& [k, v] : m_free) {
+            if (!v.empty()) {
+                const size_t area = static_cast<size_t>(k.width) * static_cast<size_t>(k.height);
+                const size_t req_area = static_cast<size_t>(width) * static_cast<size_t>(height);
+                if (area >= req_area && area < best_area) {
+                    best_area = area;
+                    best_key = k;
+                }
+            }
         }
-
-        return fb;
+        if (best_area != SIZE_MAX) {
+            auto& best_bucket = m_free[best_key];
+            auto fb = std::move(best_bucket.back());
+            best_bucket.pop_back();
+            m_current_bytes -= fb->size_bytes();
+            if (profiling::g_current_counters) {
+                profiling::g_current_counters->framebuffer_reuses.fetch_add(1, std::memory_order_relaxed);
+            }
+            if (clear) {
+                fb->clear(Color::transparent());
+            }
+            return fb;
+        }
     }
 
     auto fb = std::make_unique<Framebuffer>(width, height);
+    if (clear) {
+        fb->clear(Color::transparent());
+    }
     return fb;
 }
 
@@ -79,6 +97,7 @@ std::shared_ptr<Framebuffer> FramebufferPool::acquire_pooled(int width, int heig
 }
 
 void FramebufferPool::release(Framebuffer* fb) {
+    CHRONON_ZONE_C("framebuffer_release", trace_category::kPipeline);
     if (!fb) return;
 
     std::lock_guard<std::mutex> lock(m_mutex);

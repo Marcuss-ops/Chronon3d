@@ -3,7 +3,8 @@ from pathlib import Path
 
 # ── Paths ──────────────────────────────────────────────────────────────────────────
 TELEMETRY_DIR = Path(os.path.expanduser('~')) / '.chronon3d' / 'telemetry'
-DB_PATH = TELEMETRY_DIR / 'chronon3d_render_history.sqlite'
+PROJECT_DB = Path(__file__).resolve().parent.parent.parent.parent / 'output' / 'telemetry.db'
+DB_PATH = PROJECT_DB if PROJECT_DB.exists() else TELEMETRY_DIR / 'chronon3d_render_history.sqlite'
 JSONL_PATH = TELEMETRY_DIR / 'render_history.jsonl'
 
 

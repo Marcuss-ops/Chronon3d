@@ -207,6 +207,15 @@ int render_and_encode_ffmpeg(
         const auto render_t1 = std::chrono::steady_clock::now();
         const auto setup_t1 = render_t0;
         auto node_events = chronon3d::telemetry::collect_node_telemetry();
+        auto layer_events = chronon3d::telemetry::collect_layer_telemetry();
+        auto cache_events = chronon3d::telemetry::collect_cache_telemetry();
+        auto culling_events = chronon3d::telemetry::collect_culling_telemetry();
+        auto text_events = chronon3d::telemetry::collect_text_telemetry();
+        auto image_events = chronon3d::telemetry::collect_image_telemetry();
+        auto tile_events = chronon3d::telemetry::collect_tile_telemetry();
+
+        const double write_blocked_ms = pipe.total_write_blocked_ms();
+        spdlog::info("[video] FFmpeg pipe write blocked duration: {:.2f} ms", write_blocked_ms);
 
         if (!pipe.close()) {
             spdlog::error("[video] FFmpeg pipe encoder failed");
@@ -223,6 +232,9 @@ int render_and_encode_ffmpeg(
             {"rendering_loop", std::chrono::duration<double, std::milli>(render_t1 - render_t0).count()},
             {"encoding", std::chrono::duration<double, std::milli>(wall_t1 - render_t1).count()},
         };
+        auto resolved_counters = telemetry::capture_counters(*renderer->counters());
+        resolved_counters.push_back({"ffmpeg_pipe_write_blocked_duration_ms", static_cast<uint64_t>(std::llround(write_blocked_ms))});
+
         cli::telemetry::record_output_run(
             /*composition_id=*/composition_id,
             /*output_path=*/opts.output,
@@ -231,13 +243,19 @@ int render_and_encode_ffmpeg(
             /*frames_written=*/total,
             /*wall_time_ms=*/wall_time_ms,
             /*render_ms=*/render_ms,
-            /*encode_ms=*/0.0,
+            /*encode_ms=*/write_blocked_ms,
             /*started_at_iso=*/started_at_iso,
             /*phases=*/phases,
-            /*counters=*/telemetry::capture_counters(*renderer->counters()),
+            /*counters=*/resolved_counters,
             /*node_events=*/node_events,
             /*counters_src=*/renderer->counters(),
-            /*frames=*/telemetry_frames);
+            /*frames=*/telemetry_frames,
+            /*layer_events=*/layer_events,
+            /*cache_events=*/cache_events,
+            /*culling_events=*/culling_events,
+            /*text_events=*/text_events,
+            /*image_events=*/image_events,
+            /*tile_events=*/tile_events);
 
         spdlog::info("[video] Wrote {}", opts.output);
         return 0;

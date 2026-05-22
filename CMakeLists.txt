@@ -23,6 +23,21 @@ if(NOT DEFINED CMAKE_CXX_COMPILER_LAUNCHER AND DEFINED ENV{CMAKE_CXX_COMPILER_LA
     set(CMAKE_CXX_COMPILER_LAUNCHER "$ENV{CMAKE_CXX_COMPILER_LAUNCHER}")
 endif()
 
+# ccache — automatic when available, unless a launcher is already set
+if(NOT CMAKE_CXX_COMPILER_LAUNCHER AND NOT CMAKE_C_COMPILER_LAUNCHER)
+    find_program(CCACHE_PROGRAM ccache)
+    if(CCACHE_PROGRAM)
+        message(STATUS "ccache found: ${CCACHE_PROGRAM}")
+        set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_PROGRAM}" CACHE FILEPATH "C++ compiler launcher (ccache)")
+        set(CMAKE_C_COMPILER_LAUNCHER "${CCACHE_PROGRAM}" CACHE FILEPATH "C compiler launcher (ccache)")
+    endif()
+endif()
+
+# Unity / Jumbo builds — disabled by default. Many files share anonymous-namespace
+# helpers (hash_combine, hash_value) that collide in unity TUs.
+# Enable per-target with: set_property(TARGET mytarget PROPERTY UNITY_BUILD ON)
+option(CHRONON3D_UNITY_BUILD "Enable unity (jumbo) build" OFF)
+
 # Options
 option(CHRONON3D_BUILD_TESTS "Build Chronon3d tests" ON)
 option(CHRONON3D_BUILD_CLI "Build Chronon3d CLI" ON)
@@ -135,6 +150,11 @@ set(CHRONON3D_GRAPH_SOURCES
 )
 add_library(chronon3d_graph STATIC ${CHRONON3D_GRAPH_SOURCES})
 target_link_libraries(chronon3d_graph PUBLIC chronon3d chronon3d_cache fmt::fmt hwy::hwy tomlplusplus::tomlplusplus TBB::tbb)
+target_precompile_headers(chronon3d_graph PRIVATE
+    <glm/glm.hpp>
+    <glm/gtc/matrix_transform.hpp>
+    <fmt/core.h>
+)
 
 # 6. Effects
 set(CHRONON3D_EFFECTS_SOURCES
@@ -235,6 +255,17 @@ target_link_libraries(chronon3d_backend_software
 )
 target_include_directories(chronon3d_backend_software PRIVATE ${Stb_INCLUDE_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
 
+# Precompiled headers — biggest win for glm + blend2d included across 30+ translation units
+target_precompile_headers(chronon3d_backend_software PRIVATE
+    <glm/glm.hpp>
+    <glm/gtc/matrix_transform.hpp>
+    <glm/gtc/type_ptr.hpp>
+    <glm/gtc/quaternion.hpp>
+    <blend2d.h>
+    <spdlog/spdlog.h>
+    <fmt/core.h>
+)
+
 # 8. Scene Assembly
 set(CHRONON3D_SCENE_SOURCES
     src/scene/camera/camera_motion_presets.cpp
@@ -262,6 +293,12 @@ target_link_libraries(chronon3d_scene
         chronon3d chronon3d_runtime chronon3d_graph chronon3d_registry 
         chronon3d_cache chronon3d_effects chronon3d_backend_image
     PRIVATE spdlog::spdlog_header_only fmt::fmt tomlplusplus::tomlplusplus
+)
+target_precompile_headers(chronon3d_scene PRIVATE
+    <glm/glm.hpp>
+    <glm/gtc/matrix_transform.hpp>
+    <spdlog/spdlog.h>
+    <fmt/core.h>
 )
 
 # 9. Compositions
@@ -294,6 +331,10 @@ target_link_libraries(chronon3d_compositions
         chronon3d
         chronon3d_scene
         chronon3d_registry
+)
+target_precompile_headers(chronon3d_compositions PRIVATE
+    <glm/glm.hpp>
+    <glm/gtc/matrix_transform.hpp>
 )
 
 # 1b. Core Tracing

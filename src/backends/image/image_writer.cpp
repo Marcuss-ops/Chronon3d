@@ -1,6 +1,7 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb_image_write.h>
 #include <chronon3d/backends/image/image_writer.hpp>
+#include <chronon3d/core/profiling.hpp>
 
 #include <OpenEXR/ImfOutputFile.h>
 #include <OpenEXR/ImfChannelList.h>
@@ -61,6 +62,9 @@ const char* image_format_name(ImageFormat format) {
 }
 
 bool save_png(const Framebuffer& framebuffer, const std::string& path) {
+    CHRONON_ZONE_C("write_png", trace_category::kOutput);
+    // Use lower compression (2 vs default 8) for ~3x faster encoding
+    stbi_write_png_compression_level = 2;
     ensure_parent_dir(path);
 
     i32 width = framebuffer.width();
@@ -88,6 +92,7 @@ bool save_png(const Framebuffer& framebuffer, const std::string& path) {
 bool save_exr(const Framebuffer& framebuffer,
               const std::string& path,
               const ImageWriteOptions& options) {
+    CHRONON_ZONE_C("write_exr", trace_category::kOutput);
     try {
         ensure_parent_dir(path);
 
@@ -184,6 +189,7 @@ bool save_exr(const Framebuffer& framebuffer,
 bool save_image(const Framebuffer& framebuffer,
                 const std::string& path,
                 const ImageWriteOptions& options) {
+    CHRONON_ZONE_C("save_image", trace_category::kOutput);
     ImageFormat format = options.format;
 
     if (format == ImageFormat::Unknown) {

@@ -6,6 +6,7 @@
 #include <array>
 #include <ostream>
 #include <cstdio>
+#include <optional>
 
 
 namespace chronon3d {
@@ -59,6 +60,32 @@ struct Color {
             return {static_cast<f32>(r) / 255.0f, static_cast<f32>(g) / 255.0f, static_cast<f32>(b) / 255.0f, 1.0f};
         }
         return black();
+    }
+
+    static std::optional<Color> try_from_hex(const char* hex) {
+        if (!hex || hex[0] != '#') return std::nullopt;
+        size_t len = 0;
+        while (hex[len] != '\0') {
+            len++;
+        }
+        if (len != 7 && len != 9) return std::nullopt;
+        for (size_t i = 1; i < len; ++i) {
+            char c = hex[i];
+            if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'))) {
+                return std::nullopt;
+            }
+        }
+        unsigned int r, g, b, a = 255;
+        if (len == 7) {
+            if (std::sscanf(hex + 1, "%02x%02x%02x", &r, &g, &b) == 3) {
+                return Color{static_cast<f32>(r) / 255.0f, static_cast<f32>(g) / 255.0f, static_cast<f32>(b) / 255.0f, 1.0f};
+            }
+        } else if (len == 9) {
+            if (std::sscanf(hex + 1, "%02x%02x%02x%02x", &r, &g, &b, &a) == 4) {
+                return Color{static_cast<f32>(r) / 255.0f, static_cast<f32>(g) / 255.0f, static_cast<f32>(b) / 255.0f, static_cast<f32>(a) / 255.0f};
+            }
+        }
+        return std::nullopt;
     }
 
 
