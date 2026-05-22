@@ -1,0 +1,76 @@
+#pragma once
+
+#include <chronon3d/render_graph/nodes/basic_nodes_common.hpp>
+
+namespace chronon3d::graph {
+
+class ClearNode final : public RenderGraphNode {
+public:
+    RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::Output; }
+    std::string name() const override { return "Clear"; }
+
+    bool cacheable() const override { return false; }
+
+    std::optional<raster::BBox> predicted_bbox(const RenderGraphContext& ctx) const override {
+        if (ctx.clip_rect) {
+            return *ctx.clip_rect;
+        }
+        return raster::BBox{0, 0, ctx.width, ctx.height};
+    }
+
+    [[nodiscard]] CacheFramePolicy cache_frame_policy() const override {
+        return CacheFramePolicy::FrameInvariant;
+    }
+
+    cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
+        return cache::NodeCacheKey{
+            .scope = "clear",
+            .frame = 0,
+            .width = ctx.width,
+            .height = ctx.height
+        };
+    }
+
+    std::shared_ptr<Framebuffer> execute(
+        RenderGraphContext& ctx,
+        const std::vector<std::shared_ptr<Framebuffer>>&,
+        const std::vector<std::optional<raster::BBox>>&
+    ) override {
+        auto* sw_renderer = dynamic_cast<SoftwareRenderer*>(ctx.backend);
+        bool use_dirty_rects = sw_renderer && ctx.reuse_prev_framebuffer && sw_renderer->m_prev_framebuffer;
+
+        if (sw_renderer && ctx.diagnostics_enabled) {
+            spdlog::info(
+                "[dirty-debug] frame={} Clear reuse_prev={} clip=[{}:{} -> {}:{}] prev_origin=[{},{}] prev_opaque={}",
+                static_cast<int>(ctx.frame),
+                use_dirty_rects ? 1 : 0,
+                ctx.clip_rect ? ctx.clip_rect->x0 : 0,
+                ctx.clip_rect ? ctx.clip_rect->y0 : 0,
+                ctx.clip_rect ? ctx.clip_rect->x1 : ctx.width,
+                ctx.clip_rect ? ctx.clip_rect->y1 : ctx.height,
+                sw_renderer->m_prev_framebuffer ? sw_renderer->m_prev_framebuffer->origin_x() : 0,
+                sw_renderer->m_prev_framebuffer ? sw_renderer->m_prev_framebuffer->origin_y() : 0,
+                sw_renderer->m_prev_framebuffer ? (sw_renderer->m_prev_framebuffer->is_opaque() ? 1 : 0) : 0
+            );
+        }
+        
+        if (use_dirty_rects) {
+            auto fb = sw_renderer->m_prev_framebuffer;
+            if (ctx.counters) {
+                ctx.counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
+                const uint64_t area = ctx.clip_rect
+                    ? static_cast<uint64_t>(std::max(0, ctx.clip_rect->x1 - ctx.clip_rect->x0)) *
+                      static_cast<uint64_t>(std::max(0, ctx.clip_rect->y1 - ctx.clip_rect->y0))
+                    : static_cast<uint64_t>(ctx.width) * static_cast<uint64_t>(ctx.height);
+                ctx.counters->clear_pixels.fetch_add(area, std::memory_order_relaxed);
+            }
+            fb->clear(Color::transparent(), ctx.clip_rect);
+            return fb;
+        } else {
+            auto fb = ctx.acquire_framebuffer(ctx.width, ctx.height, true);
+            return fb;
+        }
+    }
+};
+
+} // namespace chronon3d::graph

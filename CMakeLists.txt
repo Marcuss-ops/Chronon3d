@@ -170,12 +170,15 @@ set(CHRONON3D_GRAPH_SOURCES
     src/render_graph/builder/utils/graph_builder_camera25d_sorter.cpp
     src/render_graph/graph_builder.cpp
     src/render_graph/graph_executor.cpp
+    src/render_graph/executor/graph_executor_plan.cpp
+    src/render_graph/executor/graph_executor_phases.cpp
     src/render_graph/graph_profiler.cpp
     src/render_graph/render_graph.cpp
     src/render_graph/render_pipeline.cpp
     src/render_graph/graph_filter.cpp
     src/render_graph/nodes/transform_node.cpp
     src/render_graph/nodes/transition_node.cpp
+    src/render_graph/nodes/transition/transition_node_math.cpp
 )
 add_library(chronon3d_graph STATIC ${CHRONON3D_GRAPH_SOURCES})
 target_link_libraries(chronon3d_graph PUBLIC chronon3d chronon3d_cache fmt::fmt hwy::hwy tomlplusplus::tomlplusplus TBB::tbb)
@@ -200,6 +203,12 @@ set(CHRONON3D_RUNTIME_SOURCES
     src/runtime/timeline_evaluator.cpp
     src/runtime/telemetry/jsonl_telemetry_store.cpp
     src/runtime/telemetry/sqlite_telemetry_store.cpp
+    src/runtime/telemetry/sqlite_telemetry_store_schema.cpp
+    src/runtime/telemetry/sqlite_telemetry_store_write.cpp
+    src/runtime/telemetry/sqlite_telemetry_store_batch.cpp
+    src/runtime/telemetry/sqlite_telemetry_store_events.cpp
+    src/runtime/telemetry/sqlite_telemetry_store_media.cpp
+    src/runtime/telemetry/sqlite_telemetry_store_stub.cpp
     src/runtime/telemetry/telemetry_manager.cpp
     src/runtime/renderer_warmup.cpp
 )
@@ -280,6 +289,10 @@ set(CHRONON3D_BACKEND_SOFTWARE_SOURCES
     src/backends/software/utils/framebuffer_analysis.cpp
     src/backends/software/utils/projection_utils.cpp
     src/backends/software/utils/blend2d_bridge.cpp
+    src/backends/software/utils/blend2d_bridge/bl2d_sampling.cpp
+    src/backends/software/utils/blend2d_bridge/bl2d_compositing.cpp
+    src/backends/software/utils/blend2d_bridge/bl2d_blimage_transformed.cpp
+    src/backends/software/utils/blend2d_bridge/bl2d_framebuffer_transformed.cpp
     src/backends/software/utils/effects/effect_blur.cpp
     src/backends/software/utils/effects/effect_color.cpp
     src/backends/software/utils/effects/effect_wave.cpp
