@@ -1,6 +1,7 @@
 #include "fake_box3d_renderer.hpp"
 #include "../rasterizers/line_rasterizer.hpp"
 #include "../rasterizers/scanline_rasterizer.hpp"
+#include <chronon3d/scene/render_runtime.hpp>
 #include <chronon3d/math/projector_2_5d.hpp>
 #include <chronon3d/rendering/light_context.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>

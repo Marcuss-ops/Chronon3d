@@ -162,6 +162,7 @@ set(CHRONON3D_GRAPH_SOURCES
     src/render_graph/builder/graph_builder_pipeline.cpp
     src/render_graph/builder/graph_builder_bbox.cpp
     src/render_graph/builder/graph_builder_static.cpp
+    src/scene/mask/mask_utils.cpp
     src/render_graph/builder/passes/graph_builder_composite_pass.cpp
     src/render_graph/builder/passes/graph_builder_effect_pass.cpp
     src/render_graph/builder/passes/graph_builder_lighting_pass.cpp

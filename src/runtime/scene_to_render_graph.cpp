@@ -1,3 +1,4 @@
+#include <chronon3d/math/projector_2_5d.hpp>
 #include <chronon3d/runtime/scene_to_render_graph.hpp>
 #include <chronon3d/math/projector_2_5d.hpp>
 
