@@ -48,14 +48,14 @@ if(NOT MSVC AND NOT CMAKE_CXX_LINKER_LAUNCHER)
     endif()
 endif()
 
-# Unity / Jumbo builds — enabled by default in release mode.
-# Anonymous namespace helpers have been refactored into uniquely-named detail
-# namespaces to avoid symbol collisions when multiple files are merged into one TU.
-# Batch size of 2 keeps memory pressure low; larger batches may cause OOM.
+# Unity / Jumbo builds — enabled by default.
+# Batch size of 8 is the sweet spot for RAM ≥16 GB; each merged TU
+# covers 8 .cpp files, reducing parse overhead significantly.
+# Set CHRONON3D_UNITY_BUILD=OFF in Debug presets for fast ccache hits.
 option(CHRONON3D_UNITY_BUILD "Enable unity (jumbo) build" ON)
 if(CHRONON3D_UNITY_BUILD)
     set(CMAKE_UNITY_BUILD ON)
-    set(CMAKE_UNITY_BUILD_BATCH_SIZE 2)
+    set(CMAKE_UNITY_BUILD_BATCH_SIZE 8)
 endif()
 
 # Options
@@ -128,6 +128,12 @@ set(CHRONON3D_REGISTRY_SOURCES
 )
 add_library(chronon3d_registry STATIC ${CHRONON3D_REGISTRY_SOURCES})
 target_link_libraries(chronon3d_registry PUBLIC chronon3d chronon3d_scene)
+target_precompile_headers(chronon3d_registry PRIVATE
+    <glm/glm.hpp>
+    <glm/gtc/matrix_transform.hpp>
+    <spdlog/spdlog.h>
+    <fmt/core.h>
+)
 
 # 3b. Assets
 set(CHRONON3D_ASSETS_SOURCES
@@ -205,6 +211,7 @@ target_link_libraries(chronon3d_runtime PUBLIC
 target_precompile_headers(chronon3d_runtime PRIVATE
     <spdlog/spdlog.h>
     <fmt/core.h>
+    <glm/glm.hpp>
 )
 
 if(CHRONON3D_ENABLE_SQLITE_TELEMETRY)
@@ -272,7 +279,11 @@ set(CHRONON3D_BACKEND_SOFTWARE_SOURCES
     src/backends/software/specialized/mesh_renderer.cpp
     src/backends/software/utils/framebuffer_analysis.cpp
     src/backends/software/utils/projection_utils.cpp
-    src/backends/software/utils/render_effects_processor.cpp
+    src/backends/software/utils/blend2d_bridge.cpp
+    src/backends/software/utils/effects/effect_blur.cpp
+    src/backends/software/utils/effects/effect_color.cpp
+    src/backends/software/utils/effects/effect_wave.cpp
+    src/backends/software/utils/effects/effect_stack.cpp
     src/backends/software/utils/render_hash_utils.cpp
     src/backends/software/simd/highway_kernels.cpp
 )
@@ -325,6 +336,7 @@ target_link_libraries(chronon3d_scene
         chronon3d_cache chronon3d_effects chronon3d_backend_image
     PRIVATE spdlog::spdlog_header_only fmt::fmt tomlplusplus::tomlplusplus
 )
+# Own PCH: spdlog_header_only sets _FILE_OFFSET_BITS which prevents REUSE_FROM chronon3d_graph
 target_precompile_headers(chronon3d_scene PRIVATE
     <glm/glm.hpp>
     <glm/gtc/matrix_transform.hpp>
@@ -363,6 +375,7 @@ target_link_libraries(chronon3d_compositions
         chronon3d_scene
         chronon3d_registry
 )
+# Own PCH: inherits _FILE_OFFSET_BITS from scene linkage, preventing REUSE_FROM chronon3d_graph
 target_precompile_headers(chronon3d_compositions PRIVATE
     <glm/glm.hpp>
     <glm/gtc/matrix_transform.hpp>

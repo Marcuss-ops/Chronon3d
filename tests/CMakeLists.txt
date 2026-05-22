@@ -56,6 +56,9 @@ add_executable(chronon3d_core_tests
 target_link_libraries(chronon3d_core_tests PRIVATE chronon3d_pipeline doctest::doctest)
 target_include_directories(chronon3d_core_tests PRIVATE ${CMAKE_SOURCE_DIR})
 chronon3d_enable_test_pch(chronon3d_core_tests)
+# This file re-includes framebuffer_pool.hpp already in the test PCH via chronon3d.hpp;
+# skip Unity Build merging to avoid struct redefinition errors.
+set_source_files_properties(cache/test_framebuffer_pool.cpp PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON)
 add_test(NAME chronon3d_core_tests COMMAND chronon3d_core_tests WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 # Scene Tests

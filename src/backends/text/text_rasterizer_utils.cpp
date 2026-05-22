@@ -247,7 +247,9 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
 
     BLImage img(img_w, img_h, BL_FORMAT_PRGB32);
     BLContext ctx(img);
-    ctx.clearAll();
+    ctx.setCompOp(BL_COMP_OP_SRC_COPY);
+    ctx.setFillStyle(BLRgba32(0, 0, 0, 0));
+    ctx.fillAll();
 
     if (use_geometric_transform) {
         // Apply affine transform to BLContext so text is rendered already oriented
