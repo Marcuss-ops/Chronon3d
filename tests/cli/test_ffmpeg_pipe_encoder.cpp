@@ -1,7 +1,70 @@
 #include <doctest/doctest.h>
 #include <apps/chronon3d_cli/utils/ffmpeg_pipe_encoder.hpp>
+#include <chronon3d/core/framebuffer.hpp>
+#include <chronon3d/math/color.hpp>
 
+using namespace chronon3d;
 using namespace chronon3d::cli;
+
+TEST_CASE("RGBA to YUV420P buffer sizes are correct") {
+    Framebuffer fb(4, 4);
+    fb.clear(Color{1, 0, 0, 1});
+
+    FfmpegPipeEncoder enc;
+    FfmpegPipeOptions opts{
+        .width = 4,
+        .height = 4,
+        .fps = 1,
+        .output_path = "/dev/null",
+        .input_format = PipePixelFormat::YUV420P,
+    };
+    REQUIRE(enc.open(opts));
+
+    auto result = enc.convert_framebuffer_to_yuv420p(fb);
+    CHECK(result);
+
+    enc.close();
+}
+
+TEST_CASE("YUV420P conversion produces correct plane sizes for 4x4") {
+    Framebuffer fb(4, 4);
+    fb.clear(Color{1, 0, 0, 1});
+
+    FfmpegPipeEncoder enc;
+    FfmpegPipeOptions opts{
+        .width = 4,
+        .height = 4,
+        .fps = 1,
+        .output_path = "/dev/null",
+        .input_format = PipePixelFormat::YUV420P,
+    };
+    REQUIRE(enc.open(opts));
+
+    CHECK(enc.convert_framebuffer_to_yuv420p(fb));
+    CHECK(enc.frames_written() == 0);  // not written, only converted
+
+    enc.close();
+}
+
+TEST_CASE("YUV420P conversion fails for odd dimensions") {
+    Framebuffer fb(3, 3);
+    fb.clear(Color{0, 1, 0, 1});
+
+    FfmpegPipeEncoder enc;
+    FfmpegPipeOptions opts{
+        .width = 3,
+        .height = 3,
+        .fps = 1,
+        .output_path = "/dev/null",
+        .input_format = PipePixelFormat::YUV420P,
+    };
+    REQUIRE(enc.open(opts));
+
+    // YUV420P requires even dimensions
+    CHECK_FALSE(enc.convert_framebuffer_to_yuv420p(fb));
+
+    enc.close();
+}
 
 TEST_CASE("build_ffmpeg_raw_pipe_command contains rawvideo input settings") {
     FfmpegPipeOptions opt;
@@ -50,7 +113,7 @@ TEST_CASE("ffmpeg raw pipe command includes configured pixel formats") {
     opt.codec = "libx264";
     opt.preset = "ultrafast";
     opt.output_path = "out.mp4";
-    opt.input_pix_fmt = "rgba";
+    opt.input_format = PipePixelFormat::RGBA;
     opt.output_pix_fmt = "yuv420p";
 
     const auto cmd = build_ffmpeg_raw_pipe_command(opt);

@@ -37,7 +37,13 @@ void register_video_commands(CLI::App& app, CliContext& ctx) {
         ->default_val("png")
         ->check(CLI::IsMember({"png", "pipe"}));
     cmd->add_flag("--ffmpeg-verbose", args.ffmpeg_verbose, "Show FFmpeg logs in pipe mode");
-    cmd->add_flag("--warmup-renderer", args.pipeline.warmup_renderer,
+    cmd->add_option("--pipe-pixfmt", args.pipe_pixfmt, "Pixel format for raw pipe input: rgba, yuv420p, nv12")
+        ->default_val("rgba")
+        ->check(CLI::IsMember({"rgba", "yuv420p", "nv12"}));
+    cmd->add_option("--color-output", args.color_output, "Output color space: srgb, rec709, linearsrgb")
+        ->default_val("srgb")
+        ->check(CLI::IsMember({"srgb", "rec709", "linearsrgb"}));
+    cmd->add_flag("--warmup,--warmup-renderer", args.pipeline.warmup_renderer,
                   "Preallocate framebuffers and prime caches before rendering");
     cmd->add_option("--warmup-framebuffers", args.pipeline.warmup_framebuffers,
                     "Number of framebuffers to preallocate (default 16)");

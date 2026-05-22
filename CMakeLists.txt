@@ -223,6 +223,7 @@ set(CHRONON3D_BACKEND_SOFTWARE_SOURCES
     src/backends/software/utils/projection_utils.cpp
     src/backends/software/utils/render_effects_processor.cpp
     src/backends/software/utils/render_hash_utils.cpp
+    src/backends/software/simd/highway_kernels.cpp
 )
 add_library(chronon3d_backend_software STATIC ${CHRONON3D_BACKEND_SOFTWARE_SOURCES})
 target_link_libraries(chronon3d_backend_software
@@ -232,7 +233,7 @@ target_link_libraries(chronon3d_backend_software
         blend2d::blend2d
     PRIVATE spdlog::spdlog_header_only hwy::hwy fmt::fmt xxHash::xxhash tomlplusplus::tomlplusplus TBB::tbb
 )
-target_include_directories(chronon3d_backend_software PRIVATE ${Stb_INCLUDE_DIR})
+target_include_directories(chronon3d_backend_software PRIVATE ${Stb_INCLUDE_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
 
 # 8. Scene Assembly
 set(CHRONON3D_SCENE_SOURCES
