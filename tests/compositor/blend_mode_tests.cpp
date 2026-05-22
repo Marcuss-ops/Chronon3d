@@ -122,20 +122,14 @@ TEST_CASE("compositor_normal_simd_matches_scalar") {
     // SIMD path
     SoftwareCompositor::composite_layer(dst_simd, src, BlendMode::Normal);
 
-    // Scalar path — force by using non-Normal blend mode, then do Normal manually
+    // Scalar path — use blend_normal
     const i32 w = 1920, h = 1080;
     for (i32 y = 0; y < h; ++y) {
         for (i32 x = 0; x < w; ++x) {
             Color s = src.get_pixel(x, y);
             if (s.a <= 0.0f) continue;
             Color d = dst_scalar.get_pixel(x, y);
-            float inv_a = 1.0f - s.a;
-            dst_scalar.set_pixel(x, y, Color{
-                s.r + d.r * inv_a,
-                s.g + d.g * inv_a,
-                s.b + d.b * inv_a,
-                s.a + d.a * inv_a
-            });
+            dst_scalar.set_pixel(x, y, blend_normal(s, d));
         }
     }
 

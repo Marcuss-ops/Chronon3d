@@ -29,6 +29,46 @@ std::shared_ptr<Framebuffer> TransformNode::execute(
     const raster::BBox out_bounds = predicted.value_or(raster::BBox{0, 0, ctx.width, ctx.height});
     const i32 out_w = std::max(1, out_bounds.x1 - out_bounds.x0);
     const i32 out_h = std::max(1, out_bounds.y1 - out_bounds.y0);
+
+    const Mat4 model = m_use_matrix ? m_matrix : m_transform.to_mat4();
+    const f32 opacity = m_use_matrix ? m_opacity : m_transform.opacity;
+
+    // Fast-path: check if we are doing a no-op identity transform with opacity 1.0f
+    // and input bounds match output bounds exactly.
+    bool is_identity = true;
+    for (int i = 0; i < 4; ++i) {
+        for (int j = 0; j < 4; ++j) {
+            const float expected = (i == j) ? 1.0f : 0.0f;
+            if (std::abs(model[i][j] - expected) > 1e-6f) {
+                is_identity = false;
+                break;
+            }
+        }
+        if (!is_identity) break;
+    }
+
+    if (is_identity && std::abs(opacity - 1.0f) < 1e-6f &&
+        input->width() == out_w && input->height() == out_h &&
+        input->origin_x() == out_bounds.x0 && input->origin_y() == out_bounds.y0) {
+        
+        const uint64_t area = static_cast<uint64_t>(out_w) * out_h;
+        if (ctx.backend) {
+            ctx.backend->counters()->pixels_touched.fetch_add(area, std::memory_order_relaxed);
+        }
+        if (ctx.counters) {
+            ctx.counters->transform_pixels.fetch_add(area, std::memory_order_relaxed);
+        }
+
+        if (input.use_count() == 1) {
+            return input;
+        } else {
+            auto result = ctx.acquire_framebuffer(out_w, out_h, true, out_bounds);
+            std::copy(input->data(), input->data() + input->pixel_count(), result->data());
+            result->set_opaque(input->is_opaque());
+            return result;
+        }
+    }
+
     auto result = ctx.acquire_framebuffer(out_w, out_h, true, out_bounds);
 
     // Centering logic: both source and destination framebuffers are centered at (0,0) in scene space.
@@ -36,8 +76,6 @@ std::shared_ptr<Framebuffer> TransformNode::execute(
     const Mat4 src_canvas_offset = math::translate(Vec3(input->width() * 0.5f, input->height() * 0.5f, 0.0f));
     
     // Final pixel matrix: DstPixel <- DstScene <- SrcScene <- SrcPixel
-    const Mat4 model = m_use_matrix ? m_matrix : m_transform.to_mat4();
-    const f32 opacity = m_use_matrix ? m_opacity : m_transform.opacity;
     const Mat4 pixel_model = dst_canvas_offset * model * glm::inverse(src_canvas_offset);
 
     f32 x_min_src = 0.0f;

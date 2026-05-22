@@ -119,6 +119,11 @@ TEST_CASE("render_graph_uses_framebuffer_pool") {
 
     SoftwareRenderer renderer;
     renderer.set_image_backend(std::make_shared<image::StbImageBackend>());
+    
+    RenderSettings settings = renderer.settings();
+    settings.enable_dirty_rects = false;
+    renderer.set_settings(settings);
+
     Camera camera;
 
     // Reuse the same composition to exercise the pool across frames

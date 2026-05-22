@@ -357,29 +357,10 @@ target_precompile_headers(chronon3d_scene PRIVATE
     <fmt/core.h>
 )
 
-# 9. Compositions
 set(CHRONON3D_COMPOSITION_SOURCES
     src/compositions/background_grid.cpp
     src/compositions/demos/chronon_intro_card.cpp
-    src/compositions/proof_25d_objects.cpp
-    src/compositions/proofs/lil_dirk_clean.cpp
     src/compositions/proofs/grid_title_motion.cpp
-    src/compositions/proofs/phrase_preset_gallery.cpp
-    src/compositions/proofs/motion_depth_proof.cpp
-    src/compositions/proofs/motion_object_proof.cpp
-    src/compositions/proofs/motion_preset_gallery.cpp
-    src/compositions/proofs/proof_depth_ladder.cpp
-    src/compositions/proofs/proof_edge_on_rotation.cpp
-    src/compositions/proofs/proof_orbit_subject.cpp
-    src/compositions/proofs/proof_overlay_fixed.cpp
-    src/compositions/proofs/proof_pan_parallax.cpp
-    src/compositions/proofs/proof_roll_stability.cpp
-    src/compositions/proofs/proof_tilt_parallax.cpp
-    src/compositions/proofs/youtube/proof_youtube_depth_title.cpp
-    src/compositions/proofs/youtube/proof_youtube_image_dof.cpp
-    src/compositions/proofs/youtube/proof_youtube_news_card.cpp
-    src/compositions/proofs/youtube/proof_youtube_parallax_thumbnail.cpp
-    src/compositions/proofs/youtube/proof_youtube_quote_scene.cpp
 )
 add_library(chronon3d_compositions STATIC ${CHRONON3D_COMPOSITION_SOURCES})
 target_link_libraries(chronon3d_compositions
