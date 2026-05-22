@@ -808,4 +808,11 @@ Quick win da non trascurare: **I7** e **I8** — sono da 30 minuti ciascuno, pul
 
 La più divertente a lungo termine: **M1 (Graph Compiler)** — è come passare da una ricetta letta ogni volta a un robot che sa già tutti i movimenti a memoria.
 
-✅ **Già completati in questa iterazione:** S1 (io_uring pipe), S4 (OpenEXR DWAA bake).
+✅ **Già completati in questa iterazione:**
+- S1 (io_uring pipe), S4 (OpenEXR DWAA bake).
+- I7 (Unificazione hash_string).
+- I8 (Riduzione boilerplate RenderCounters).
+- A1 (Ottimizzazione Umbrella Headers).
+- A2 (Decoupling RenderNode shape state).
+- C1 (SIMD Rect Rasterizer).
+- E1 (Unificazione Effect System std::any).

@@ -33,5 +33,16 @@ void composite_normal_premul(Color* __restrict__ dst,
 /// Fill `pixel_count` contiguous Color elements with `color`.
 void clear_framebuffer(Color* data, int pixel_count, const Color& color);
 
+/// Vectorized rasterization for transformed rectangles.
+void rasterize_rect_simd(
+    Color* __restrict__ row,
+    const float* __restrict__ lp_h_start,
+    const float* __restrict__ col0,
+    int pixel_count,
+    float rect_w, float rect_h,
+    float spread,
+    const Color& color
+);
+
 } // namespace simd
 } // namespace chronon3d

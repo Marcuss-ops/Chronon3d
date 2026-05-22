@@ -1,5 +1,5 @@
 #include <chronon3d/cache/frame_cache.hpp>
-
+#include <chronon3d/render_graph/render_graph_hashing.hpp>
 #include <string_view>
 #include <utility>
 
@@ -7,17 +7,12 @@ namespace chronon3d::cache {
 
 namespace frame_cache_detail {
 
-[[nodiscard]] u64 hash_string(std::string_view value) {
-    return XXH3_64bits(value.data(), value.size());
-}
+using chronon3d::graph::hash_string;
+using chronon3d::graph::hash_combine;
 
 template <typename T>
 [[nodiscard]] u64 hash_value(const T& value) {
-    return XXH3_64bits(&value, sizeof(T));
-}
-
-[[nodiscard]] u64 hash_combine(u64 seed, u64 value) {
-    return seed ^ (value + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2));
+    return chronon3d::graph::hash_value(value);
 }
 
 } // namespace frame_cache_detail
