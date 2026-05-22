@@ -79,7 +79,7 @@ void LayerPipelineBuilder::append_layer_pipeline(RenderGraph& graph, const Layer
             stack.push_back(eff);
             auto node = std::make_unique<AdjustmentNode>(std::move(stack));
             GraphNodeId adj_id = graph.add_node(std::move(node));
-            graph.node(adj_id).set_frame_dependent(!layer.cache_static);
+            graph.node(adj_id).set_frame_dependent(!(layer.cache_static || item.is_static));
             graph.connect(current, adj_id);
             current = adj_id;
         }
@@ -96,14 +96,14 @@ void LayerPipelineBuilder::append_layer_pipeline(RenderGraph& graph, const Layer
         layer.kind == LayerKind::Video;
 
     if (mask_before_transform)
-        append_mask_pass_if_needed(graph, layer_output, *item.layer, ctx);
+        append_mask_pass_if_needed(graph, layer_output, item, ctx);
 
     // 3. Transform pass — place the layer at its world position
     append_transform_pass_if_needed(graph, layer_output, item, ctx);
 
     // 4. For all other cases: apply mask after transform in pixel space
     if (!mask_before_transform)
-        append_mask_pass_if_needed(graph, layer_output, *item.layer, ctx);
+        append_mask_pass_if_needed(graph, layer_output, item, ctx);
 
     // 5. Lighting pass — diffuse shading for 3D projected layers with lights enabled.
     append_lighting_pass_if_needed(graph, layer_output, item, ctx);
@@ -118,7 +118,7 @@ void LayerPipelineBuilder::append_layer_pipeline(RenderGraph& graph, const Layer
     if (layer.track_matte.active() && item.matte_node != k_invalid_node) {
         cache::NodeCacheKey matte_key{
             .scope       = "matte:" + std::string(layer.name),
-            .frame       = ctx.frame,
+            .frame       = (layer.cache_static || item.is_static) ? Frame{0} : ctx.frame,
             .width       = ctx.width,
             .height      = ctx.height,
             .params_hash = hash_bytes(layer.track_matte.source_layer.data(),
@@ -131,7 +131,7 @@ void LayerPipelineBuilder::append_layer_pipeline(RenderGraph& graph, const Layer
         auto matte_node = graph.add_node(
             std::make_unique<TrackMatteNode>(layer.track_matte.type,
                                               std::string(layer.name), matte_key));
-        graph.node(matte_node).set_frame_dependent(!layer.cache_static);
+        graph.node(matte_node).set_frame_dependent(!(layer.cache_static || item.is_static));
         graph.connect(layer_output,     matte_node);
         graph.connect(item.matte_node,  matte_node);
         layer_output = matte_node;

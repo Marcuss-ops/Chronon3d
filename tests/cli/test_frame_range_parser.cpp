@@ -1,5 +1,5 @@
 #include <doctest/doctest.h>
-#include <apps/chronon3d_cli/utils/cli_utils.hpp>
+#include <apps/chronon3d_cli/utils/common/cli_utils.hpp>
 
 using namespace chronon3d::cli;
 

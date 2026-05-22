@@ -21,7 +21,8 @@ void append_transform_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_outp
     if (!needs_transform) return;
 
     std::unique_ptr<TransformNode> transform_node;
-    const Frame cache_frame = layer.cache_static ? Frame{0} : Frame{-1};
+    const bool is_static = layer.cache_static || item.is_static;
+    const Frame cache_frame = is_static ? Frame{0} : Frame{-1};
     if (item.projected) {
         transform_node = std::make_unique<TransformNode>(item.projection_matrix,
                                                          layer.transform.opacity,
@@ -33,7 +34,7 @@ void append_transform_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_outp
     }
 
     auto transform = graph.add_node(std::move(transform_node));
-    graph.node(transform).set_frame_dependent(!layer.cache_static);
+    graph.node(transform).set_frame_dependent(!is_static);
     graph.connect(layer_output, transform);
     layer_output = transform;
 }

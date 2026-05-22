@@ -153,6 +153,32 @@ bool disk_cacheable{false};  // mai usato, sempre false
 
 ---
 
+### I7. Unificare `hash_string` Duplicato
+
+**Problema:** `hash_string(string_view)` è definito identicamente in `node_cache.cpp` e `frame_cache.cpp`. Violazione DRY, rischio di divergenza.
+**Soluzione:** Spostare in un header comune (`render_hash_utils.hpp` esiste già) ed eliminare le copie.
+**Dove:** `src/cache/node_cache.cpp`, `src/cache/frame_cache.cpp` → `include/chronon3d/render_graph/render_hash_utils.hpp`.
+**Guadagno stimato:** Manutenibilità, zero overhead.
+**Prossimi passi:**
+- [ ] Spostare `hash_string` in `render_hash_utils.hpp` come `inline`
+- [ ] Rimuovere le definizioni duplicate da `node_cache.cpp` e `frame_cache.cpp`
+- [ ] Verificare che non ci siano altre copie nascoste
+
+---
+
+### I8. Ridurre Boilerplate dei RenderCounters
+
+**Problema:** `RenderCounters` in `counters.hpp` ha 30+ campi `std::atomic` e il costruttore `reset()` ha 100+ linee ripetitive. Ogni nuovo counter richiede modifiche in 4-5 punti.
+**Soluzione:** Usare X-macro o un generatore di codice per definire i campi una volta sola. Template reflection-like con macro.
+**Dove:** `include/chronon3d/core/counters.hpp`.
+**Guadagno stimato:** Manutenibilità, meno errori di copia-incolla, aggiungere un counter scende da 5 minuti a 30 secondi.
+**Prossimi passi:**
+- [ ] Definire una X-macro `CHRONON_COUNTERS(X)` con tutti i campi
+- [ ] Generare dichiarazioni, reset, merge, e serializzazione da un'unica lista
+- [ ] Verificare che i test esistenti passino invariati
+
+---
+
 ## ⚡ SHORT-TERM — Questa settimana (1-3 giorni ciascuno)
 
 ### S1. io_uring per la Pipe FFmpeg (Linux)
@@ -266,6 +292,60 @@ static PathCache g_path_cache(64 * 1024 * 1024, 16);  // 64MB, 16 shard
 - [ ] Identificare se è effettivamente il collo di bottiglia (profiling con `perf`)
 - [ ] Riscrivere il loop in stile SIMD: processare 8 x-coord alla volta
 - [ ] Alternativa: rasterizzare il polygon shape una volta su una mask texture, poi campionare
+
+---
+
+### S7. Eliminare `std::shared_ptr<Framebuffer>` nel Hot Path
+
+**Problema:** Il codebase usa `shared_ptr<Framebuffer>` in 162+ posizioni, incluso dentro `execute()` di ogni `RenderNode`. Ogni copy aggiunge overhead di atomic reference count (lock prefix x86) in pieno hot path di rendering.
+**Soluzione:** Sostituire con `Framebuffer*` raw pointers gestiti dal pool. Il `FramebufferPool` già garantisce lifetime — non serve ref counting.
+**Dove:** Tutti i nodi in `include/chronon3d/render_graph/nodes/*.hpp` + `graph_executor.cpp`.
+**Guadagno stimato:** -3-5% overhead frame, eliminazione di ~50 atomic ops per nodo.
+**Prossimi passi:**
+- [ ] Cambiare la signature di `RenderNode::execute()`: `vector<shared_ptr<FB>>` → `vector<FB*>`
+- [ ] Aggiornare tutti i nodi concreti (source, blur, composite, transform, mask, shadow, text, ecc.)
+- [ ] Rimuovere `shared_ptr` dove possibile, tenendolo solo per ownership nel pool
+- [ ] Benchmark prima/dopo su una composition complessa per validare il guadagno
+
+---
+
+### S8. RenderCounters Thread-Local Accumulator
+
+**Problema:** `RenderCounters` ha **30+ `std::atomic`** campi. Ogni `fetch_add` costa anche con `memory_order_relaxed`. In scenari multi-thread, la contention sulla cache line degli atomics è misurabile.
+**Soluzione:** Usare counter thread-local (`thread_local RenderCountersRaw`) che vengono mergiati a fine frame con un singolo passaggio atomico. Pattern già usato in motori di gioco (Unreal, Unity).
+**Dove:** `include/chronon3d/core/counters.hpp`.
+**Guadagno stimato:** Elimina 30+ operazioni atomiche per frame. -0.5-1% overhead su frame medi.
+**Prossimi passi:**
+- [ ] Definire `RenderCountersRaw` senza atomics (struct POD)
+- [ ] Creare `thread_local RenderCountersRaw tls_counters`
+- [ ] Alla fine del frame: `global_counters.merge(tls_counters)` con un solo passaggio
+- [ ] Verificare che i test di telemetry passino invariati
+
+---
+
+### S9. ImageCache Sharding + Read-Write Lock
+
+**Problema:** `ImageCache` usa un singolo `std::mutex m_mutex` per tutte le operazioni. Durante il preload multi-thread delle immagini, tutti i thread aspettano su questo lock.
+**Soluzione:** Trasformare in cache sharded con `std::shared_mutex` (pattern `LruCache` già esistente nel progetto).
+**Dove:** `include/chronon3d/backends/assets/image_cache.hpp` + `src/backends/assets/image_cache.cpp`.
+**Guadagno stimato:** Preload parallelo di immagini 2-3x più veloce.
+**Prossimi passi:**
+- [ ] Sostituire `std::mutex m_mutex` con 16 shard di `std::shared_mutex`
+- [ ] `get_or_load()` usa `shared_lock` (read), `insert()` usa `unique_lock` (write)
+- [ ] Mergiare questa modifica con M6 (LRU con memory budget)
+
+---
+
+### S10. SIMD Alpha Premultiplication in ImageCache
+
+**Problema:** `ImageCache::get_or_load()` ha un loop pixel-by-pixel scalare per premoltiplicare alpha. Su immagini 4K sono 33M iterazioni.
+**Soluzione:** Usare Highway SIMD (già dipendenza del progetto) per processare 4/8 pixel per istruzione.
+**Dove:** `src/backends/assets/image_cache.cpp`.
+**Guadagno stimato:** Caricamento immagini 2-3x più veloce, startup ridotto.
+**Prossimi passi:**
+- [ ] Scrivere `premultiply_alpha_simd(uint8_t* rgba, size_t pixel_count)` con Highway
+- [ ] Sostituire il loop scalare in `get_or_load()` con la versione SIMD
+- [ ] Benchmark su immagini 4K: confrontare tempi di load prima/dopo
 
 ---
 
@@ -408,6 +488,76 @@ public:
 - [ ] In `BenchmarkReport`, aggiungere `cache_stats: CacheStatsReport`
 - [ ] In `command_bench`, popolare le stats da `node_cache.stats()`, `text_cache.stats()`, `image_cache.stats()`
 - [ ] Stampare nel JSON finale sotto `render.cache`
+
+---
+
+### M8. CI Static Analysis con clang-tidy
+
+**Problema:** Nessun controllo automatico di qualità del codice. Bug come `reinterpret_cast` non necessari, variabili unused, o potenziali memory leak passano inosservati.
+**Soluzione:** Aggiungere un job `clang-tidy` alla CI esistente (`.github/workflows/ci.yml`) con regole selezionate.
+**Dove:** `.github/workflows/ci.yml` + eventuale `.clang-tidy` config file.
+**Guadagno stimato:** Qualità del codice più alta, meno bug in produzione, enforcement automatico delle best practice.
+**Prossimi passi:**
+- [ ] Creare `.clang-tidy` con regole: `modernize-*`, `performance-*`, `readability-*` (escludendo quelle troppo pedanti)
+- [ ] Aggiungere step `clang-tidy` al workflow CI esistente
+- [ ] Fixare i warning esistenti (o aggiungere `// NOLINT` giustificati)
+- [ ] Opzionale: aggiungere `clang-format --check` per forzare lo stile
+
+---
+
+### M9. CancellationToken per Shutdown Graceful
+
+**Problema:** Durante un render lungo (es. 900+ frame), un SIGINT/Ctrl-C causa terminazione immediata. Nessuna pulizia ordinata di risorse (file temporanei, ffmpeg pipe, telemetry).
+**Soluzione:** `CancellationToken` passato al render loop — ogni frame controlla `is_cancelled()` e fa cleanup prima di uscire.
+**Dove:** Nuovo file `include/chronon3d/core/cancellation_token.hpp` + modifica a `render_pipeline.cpp`.
+**Guadagno stimato:** Nessuna perdita di risorse su interrupt, telemetry salvato anche in caso di stop.
+**Prossimi passi:**
+- [ ] Definire `CancellationToken` con `atomic<bool>` e metodo `cancel()`
+- [ ] Passarlo a `render_pipeline::render_range()` e `command_video()`
+- [ ] Installare signal handler (`sigaction` su Linux, `SetConsoleCtrlHandler` su Windows)
+- [ ] Nel loop: `if (token.is_cancelled()) { flush_telemetry(); close_pipe(); return; }`
+
+---
+
+### M10. CLI `--dry-run` per Validazione Pre-Render
+
+**Problema:** L'unico modo per sapere se una composition funziona è avviare un render completo. Errori di configurazione (asset mancanti, parametri errati) vengono scoperti solo a runtime.
+**Soluzione:** Aggiungere flag `--dry-run` che esegue tutto il setup (caricamento asset, build del grafo, validazione parametri) ma NON renderizza.
+**Dove:** `apps/chronon3d_cli/commands/command_video.cpp` + `command_bake_layer.cpp`.
+**Guadagno stimato:** Feedback immediato (1-2s invece di minuti) su errori di configurazione.
+**Prossimi passi:**
+- [ ] Aggiungere flag `--dry-run` ai comandi `video` e `bake-layer`
+- [ ] Eseguire `RenderPreflight::validate_or_throw()` + `GraphBuilder::build()` + validazione parametri
+- [ ] Stampare report: "N nodi, M layer, K effetti, X MB stimati — OK"
+- [ ] Uscire con codice 0 se tutto valido, 1 con errori
+
+---
+
+### M11. Test Coverage per Nodi Render Graph Mancanti
+
+**Problema:** Solo una parte dei `RenderNode` ha test dedicati. Nodi complessi come `ShadowNode`, `GlowNode`, `GradientNode` non hanno test unitari. Bug in questi nodi sono silenziosi fino al render visivo.
+**Soluzione:** Aggiungere test per ogni nodo non coperto, con input sintetici e output verificati via hash/pixel.
+**Dove:** `tests/render_graph/` — nuovi file test per ogni nodo mancante.
+**Guadagno stimato:** Regression detection automatica, refactoring sicuro, meno bug visivi.
+**Prossimi passi:**
+- [ ] Identificare tutti i nodi senza test (confrontare `nodes/*.hpp` con `tests/render_graph/*.cpp`)
+- [ ] Scrivere test per: `ShadowNode`, `GlowNode`, `BloomNode`, `GradientNode`, `DoFNode`, `MaskNode`
+- [ ] Usare pattern esistente: `RenderFixtures` + `pixel_assertions` + golden references
+- [ ] Integrare nel `test_registry` e far girare in CI
+
+---
+
+### M12. `std::pmr` Allocator nei Comandi CLI
+
+**Problema:** I comandi CLI (`command_video.cpp`, `command_bench.cpp`) allocano `std::string`, `std::vector`, `nlohmann::json` sulla heap globale. In un contesto batch, la frammentazione si accumula.
+**Soluzione:** Usare `std::pmr::string` e `std::pmr::vector` con un `monotonic_buffer_resource` scoped al comando. Pattern già usato da `FrameArena`.
+**Dove:** `apps/chronon3d_cli/commands/command_video.cpp`, `command_bench.cpp`, `command_bake_layer.cpp`.
+**Guadagno stimato:** Meno frammentazione heap in esecuzioni batch, cleanup immediato a fine comando.
+**Prossimi passi:**
+- [ ] Creare `CliArena` wrapper intorno a `monotonic_buffer_resource` (1MB)
+- [ ] Sostituire `std::string` → `std::pmr::string`, `std::vector` → `std::pmr::vector` nei comandi
+- [ ] Per `nlohmann::json`, usare allocator polimorfico se supportato
+- [ ] Benchmark: verificare che non ci sia regressione di performance
 
 ---
 
@@ -556,6 +706,20 @@ Merge: ffmpeg -f concat -i list.txt -c copy output.mp4
 
 ---
 
+### L9. CI Multi-Platform (Windows + macOS)
+
+**Problema:** La CI attuale (`.github/workflows/ci.yml`) builda e testa solo su Linux. Bug specifici di piattaforma (encoding path Windows, mmap macOS, ifdef errate) non vengono catturati.
+**Soluzione:** Aggiungere matrix build con `ubuntu-latest`, `windows-latest`, `macos-latest` al workflow CI.
+**Dove:** `.github/workflows/ci.yml`.
+**Guadagno stimato:** Nessun bug di piattaforma in produzione, coverage reale multi-OS.
+**Prossimi passi:**
+- [ ] Aggiungere `strategy: matrix: { os: [ubuntu-latest, windows-latest, macos-latest] }`
+- [ ] Adattare gli step di build per ogni OS (vcpkg setup, CMake presets)
+- [ ] Filtrare test Linux-only (es. io_uring tests)
+- [ ] Verificare che tutti i test passino su tutte le piattaforme
+
+---
+
 ## 📋 RIEPILOGO MATRICE
 
 | ID | Improvement | Quando | Complessità | Impatto | Stato |
@@ -566,12 +730,18 @@ Merge: ffmpeg -f concat -i list.txt -c copy output.mp4
 | I4 | Thread affinity + NUMA | Questa settimana | 🟢 Bassa | 🟡 Medio | Da fare |
 | I5 | FrameArena nel render pipeline | Oggi | 🟢 Bassa | 🟡 Medio | Da fare |
 | I6 | PersistentDisk cache (disk) | Oggi | 🟡 Media | 🔴 Alto | Da fare |
-| S1 | io_uring pipe | Questa settimana | 🟡 Media | 🟡 Medio | Da fare |
+| I7 | Unificare hash_string | Oggi | 🟢 Bassa | 🟢 Basso | Da fare |
+| I8 | Ridurre boilerplate counters | Oggi | 🟢 Bassa | 🟢 Basso | Da fare |
+| S1 | io_uring pipe | Questa settimana | 🟡 Media | 🟡 Medio | ✅ Fatto |
 | S2 | Temporal hashing | Questa settimana | 🟡 Media | 🔴 Alto | Da fare |
 | S3 | L1/L2 prefetch | Questa settimana | 🟢 Bassa | 🟡 Medio | Da fare |
-| S4 | OpenEXR DWAA bake | Questa settimana | 🟡 Media | 🟡 Medio | Da fare |
+| S4 | OpenEXR DWAA bake | Questa settimana | 🟡 Media | 🟡 Medio | ✅ Fatto |
 | S5 | Path flatten cache sharded | Questa settimana | 🟢 Bassa | 🟡 Medio | Da fare |
 | S6 | SIMD point-in-polygon | Questa settimana | 🟡 Media | 🟡 Medio | Da fare |
+| S7 | Eliminare shared_ptr nel hot path | Questa settimana | 🟡 Media | 🔴 Alto | Da fare |
+| S8 | RenderCounters thread-local | Questa settimana | 🟢 Bassa | 🟡 Medio | Da fare |
+| S9 | ImageCache sharding | Questa settimana | 🟢 Bassa | 🟡 Medio | Da fare |
+| S10 | SIMD alpha premultiply | Questa settimana | 🟢 Bassa | 🟡 Medio | Da fare |
 | M1 | Graph compiler | Questo mese | 🔴 Alta | 🔴 Alto | Da fare |
 | M2 | ISPC blur | Questo mese | 🔴 Alta | 🟡 Medio | Da fare |
 | M3 | SPSC lock-free queue | Questo mese | 🟡 Media | 🟡 Medio | Da fare |
@@ -579,6 +749,11 @@ Merge: ffmpeg -f concat -i list.txt -c copy output.mp4
 | M5 | Transform cache | Questo mese | 🟡 Media | 🟡 Medio | Da fare |
 | M6 | ImageCache LRU | Questo mese | 🟢 Bassa | 🟡 Medio | Da fare |
 | M7 | Cache telemetry nel report | Questo mese | 🟢 Bassa | 🟡 Medio | Da fare |
+| M8 | CI clang-tidy | Questo mese | 🟢 Bassa | 🟡 Medio | Da fare |
+| M9 | CancellationToken | Questo mese | 🟡 Media | 🟡 Medio | Da fare |
+| M10 | CLI --dry-run | Questo mese | 🟢 Bassa | 🟡 Medio | Da fare |
+| M11 | Test coverage nodi mancanti | Questo mese | 🟡 Media | 🔴 Alto | Da fare |
+| M12 | std::pmr nei comandi CLI | Questo mese | 🟡 Media | 🟡 Medio | Da fare |
 | L1 | GPU Vulkan compute | Mesi | ⚫ Molto Alta | 🔴 Alto | Da fare |
 | L2 | ECS architecture | Mesi | 🔴 Alta | 🟡 Medio | Da fare |
 | L3 | Frame Graph RDG | Mesi | 🔴 Alta | 🔴 Alto | Da fare |
@@ -587,6 +762,7 @@ Merge: ffmpeg -f concat -i list.txt -c copy output.mp4
 | L6 | HarfBuzz text shaping | Mesi | 🔴 Alta | 🟡 Medio | Da fare |
 | L7 | MSDF font atlas | Mesi | 🔴 Alta | 🟡 Medio | Da fare |
 | L8 | Parallel tile rendering | Mesi | 🔴 Alta | 🔴 Alto | Da fare |
+| L9 | CI multi-platform | Mesi | 🟡 Media | 🟡 Medio | Da fare |
 
 ---
 
@@ -628,4 +804,8 @@ Se dovessi scegliere **una sola cosa** da implementare oggi: **I6 (PersistentDis
 Se potessi implementare **3 cose** questa settimana: **I1 + I2 + I3** insieme.
 Il guadagno combinato è ~25-35% faster overall, principalmente sul primo frame.
 
+Quick win da non trascurare: **I7** e **I8** — sono da 30 minuti ciascuno, puliscono il codebase senza rischi.
+
 La più divertente a lungo termine: **M1 (Graph Compiler)** — è come passare da una ricetta letta ogni volta a un robot che sa già tutti i movimenti a memoria.
+
+✅ **Già completati in questa iterazione:** S1 (io_uring pipe), S4 (OpenEXR DWAA bake).
