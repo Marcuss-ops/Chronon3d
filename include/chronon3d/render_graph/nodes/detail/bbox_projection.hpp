@@ -6,6 +6,8 @@ namespace chronon3d::graph {
 
 namespace detail {
 
+inline constexpr f32 kProjectedBBoxSafetyPadding = 1.5f;
+
 template <size_t N>
 [[nodiscard]] inline std::optional<raster::BBox> project_points_bbox(
     const renderer::ProjectionContext& projection,
@@ -84,7 +86,13 @@ template <size_t N>
                 const Vec4 w = world_matrix * Vec4(corners[i], 1.0f);
                 transformed[i] = {w.x, w.y, w.z};
             }
-            return project_points_bbox(ctx.projection_ctx, transformed, ctx.width, ctx.height, spread);
+            return project_points_bbox(
+                ctx.projection_ctx,
+                transformed,
+                ctx.width,
+                ctx.height,
+                spread + kProjectedBBoxSafetyPadding
+            );
         }
 
         case ShapeType::GridPlane: {
@@ -112,7 +120,13 @@ template <size_t N>
                 const Vec4 w = world_matrix * Vec4(corners[i], 1.0f);
                 transformed[i] = {w.x, w.y, w.z};
             }
-            return project_points_bbox(ctx.projection_ctx, transformed, ctx.width, ctx.height, spread);
+            return project_points_bbox(
+                ctx.projection_ctx,
+                transformed,
+                ctx.width,
+                ctx.height,
+                spread + kProjectedBBoxSafetyPadding
+            );
         }
 
         default:

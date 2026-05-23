@@ -1,6 +1,7 @@
 #include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
 #include <chronon3d/runtime/telemetry/jsonl_telemetry_store.hpp>
 #include <chronon3d/runtime/telemetry/sqlite_telemetry_store.hpp>
+#include <spdlog/spdlog.h>
 #include <filesystem>
 #include <thread>
 #include <chrono>
@@ -43,6 +44,21 @@ std::string get_telemetry_directory() {
     return (home_path / ".chronon3d" / "telemetry").string();
 }
 
+std::filesystem::path find_workspace_root() {
+    std::filesystem::path current = std::filesystem::current_path();
+    while (!current.empty()) {
+        if (std::filesystem::exists(current / "CMakeLists.txt")) {
+            return current;
+        }
+        auto parent = current.parent_path();
+        if (parent == current) {
+            break;
+        }
+        current = parent;
+    }
+    return {};
+}
+
 } // namespace
 
 TelemetryManager& TelemetryManager::instance() {
@@ -80,17 +96,39 @@ void TelemetryManager::initialize_default_stores() {
 
     // 2. SQLite Store (Uses fallback stub internally if disabled in compile options)
     // Preference: local output/telemetry.db if we are in a workspace
-    std::string sqlite_path;
-    if (std::filesystem::exists("CMakeLists.txt")) {
-        sqlite_path = "output/telemetry.db";
-    } else {
-        sqlite_path = (std::filesystem::path(base_dir) / "chronon3d_render_history.sqlite").string();
-    }
+    const std::filesystem::path sqlite_path = resolve_sqlite_telemetry_path();
     
     auto sqlite_store = std::make_shared<SqliteTelemetryStore>();
-    if (sqlite_store->initialize(sqlite_path)) {
+    if (sqlite_store->initialize(sqlite_path.string())) {
         add_store(std::move(sqlite_store));
+    } else {
+        spdlog::warn("[telemetry] Failed to initialize workspace SQLite store at {}; falling back to user telemetry DB",
+                     sqlite_path.string());
+        const std::filesystem::path fallback_path =
+            std::filesystem::path(get_telemetry_directory()) / "chronon3d_render_history.sqlite";
+        auto fallback_store = std::make_shared<SqliteTelemetryStore>();
+        if (fallback_store->initialize(fallback_path.string())) {
+            add_store(std::move(fallback_store));
+        } else {
+            spdlog::warn("[telemetry] Failed to initialize fallback SQLite store at {}", fallback_path.string());
+        }
     }
+}
+
+std::filesystem::path TelemetryManager::resolve_sqlite_telemetry_path() {
+    if (const char* env = std::getenv("CHRONON3D_TELEMETRY_PATH")) {
+        std::filesystem::path env_base(env);
+        if (env_base.extension() == ".db" || env_base.extension() == ".sqlite") {
+            return env_base;
+        }
+        return env_base / "chronon3d_render_history.sqlite";
+    }
+
+    if (const auto workspace_root = find_workspace_root(); !workspace_root.empty()) {
+        return workspace_root / "output" / "telemetry.db";
+    }
+
+    return std::filesystem::path(get_telemetry_directory()) / "chronon3d_render_history.sqlite";
 }
 
 bool TelemetryManager::record_run(RenderTelemetryRecord& run,

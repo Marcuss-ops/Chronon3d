@@ -1,5 +1,6 @@
 #include <tests/presets/backgrounds/parallax_space_background.hpp>
 #include <chronon3d/scene/camera/camera_2_5d.hpp>
+#include <algorithm>
 #include <cmath>
 #include <string>
 
@@ -10,16 +11,17 @@ void parallax_space_background(
     const FrameContext& ctx,
     const ParallaxSpaceBackgroundParams& params
 ) {
+    const float fps = std::max(1.0f, ctx.fps());
+    const float time = static_cast<float>(ctx.effective_frame()) / fps;
+
     // 1. Setup camera and DOF
     if (params.animated) {
-        const float time = static_cast<float>(ctx.frame) * 0.012f;
-        const float cam_x = std::sin(time) * 120.0f;
-        const float cam_y = std::cos(time * 0.9f) * 25.0f;
-        const float cam_z = -1000.0f + std::sin(time * 0.3f) * 70.0f; // dolly
+        const float cam_x = std::sin(time * 1.44f) * 120.0f;
+        const float cam_y = std::cos(time * 1.08f) * 25.0f;
 
         s.camera().set({
             .enabled = true,
-            .position = {cam_x, cam_y, cam_z},
+            .position = {cam_x, cam_y, -1000.0f},
             .zoom = 1000.0f,
             .dof = {
                 .enabled = params.dof_enabled,
@@ -49,7 +51,7 @@ void parallax_space_background(
     });
 
     // 3. Background Layer (z = 600.0f)
-    s.layer("parallax_z_far_bg", [params, ctx](LayerBuilder& l) {
+    s.layer("parallax_z_far_bg", [params](LayerBuilder& l) {
         l.enable_3d();
         l.position({0.0f, 0.0f, 600.0f});
 
@@ -99,13 +101,13 @@ void parallax_space_background(
     });
 
     // 5. Mid Cards Layer (z = 200.0f)
-    s.layer("parallax_z_mid_cards", [params, ctx](LayerBuilder& l) {
+    s.layer("parallax_z_mid_cards", [params, time](LayerBuilder& l) {
         l.enable_3d();
         l.position({0.0f, 0.0f, 200.0f});
 
         // 3 mid cards with slight animation
         for (int i = 0; i < 3; ++i) {
-            float offset_y = params.animated ? std::sin(ctx.frame * 0.02f + static_cast<float>(i)) * 25.0f : 0.0f;
+            float offset_y = params.animated ? std::sin(time * 1.2f + static_cast<float>(i)) * 25.0f : 0.0f;
             float x = -500.0f + static_cast<float>(i) * 500.0f;
             float y = -120.0f + static_cast<float>(i % 2) * 200.0f + offset_y;
 
@@ -161,7 +163,7 @@ void parallax_space_background(
     });
 
     // 7. Foreground particles close to the camera (z = -150.0f) - Deeply blurred
-    s.layer("parallax_z_foreground", [params, ctx](LayerBuilder& l) {
+    s.layer("parallax_z_foreground", [params, time](LayerBuilder& l) {
         l.enable_3d();
         l.position({0.0f, 0.0f, -150.0f});
 
@@ -171,16 +173,12 @@ void parallax_space_background(
             float seed_z = std::sin(static_cast<float>(i) * 99.88f) * 80.0f;
             float speed = 0.5f + std::abs(std::sin(static_cast<float>(i) * 3.3f)) * 0.8f;
             float size = 4.0f + std::abs(std::cos(static_cast<float>(i) * 1.5f)) * 6.0f;
-            float alpha = 0.15f + std::abs(std::sin(static_cast<float>(i) * 8.7f)) * 0.35f;
+                float alpha = 0.15f + std::abs(std::sin(static_cast<float>(i) * 8.7f)) * 0.35f;
 
-            float offset_y = 0.0f;
-            if (params.animated) {
-                // Swift float down
-                offset_y = std::fmod(static_cast<float>(ctx.frame) * speed * 2.0f, 800.0f);
-            }
-
-            float y_pos = seed_y + offset_y;
-            if (y_pos > 400.0f) y_pos -= 800.0f;
+                float offset_y = params.animated
+                    ? std::sin(time * speed * 1.7f + static_cast<float>(i) * 0.5f) * 400.0f
+                    : 0.0f;
+                float y_pos = seed_y + offset_y;
 
             l.circle("foreground_particle_" + std::to_string(i), CircleParams{
                 .radius = size,

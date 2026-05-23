@@ -71,3 +71,4 @@ output/new_features/
 scratch/
 update
 self-update
+*.db

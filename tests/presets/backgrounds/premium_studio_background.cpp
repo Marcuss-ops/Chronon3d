@@ -1,6 +1,7 @@
 #include <tests/presets/backgrounds/premium_studio_background.hpp>
 #include <chronon3d/presets/studio_presets.hpp>
 #include <chronon3d/scene/camera/camera_2_5d.hpp>
+#include <algorithm>
 #include <cmath>
 #include <string>
 
@@ -11,16 +12,17 @@ void premium_studio_background(
     const FrameContext& ctx,
     const PremiumStudioBackgroundParams& params
 ) {
+    const float fps = std::max(1.0f, ctx.fps());
+    const float time = static_cast<float>(ctx.effective_frame()) / fps;
+
     // 1. Camera Animation
     if (params.camera_motion) {
-        const float time = static_cast<float>(ctx.frame) * 0.01f;
-        const float cam_x = std::sin(time) * 80.0f;
-        const float cam_y = std::cos(time * 0.8f) * 15.0f;
-        const float cam_z = -1000.0f + std::sin(time * 0.3f) * 50.0f;
+        const float cam_x = std::sin(time * 1.2f) * 80.0f;
+        const float cam_y = std::cos(time * 0.96f) * 15.0f;
 
         s.camera().set({
             .enabled = true,
-            .position = {cam_x, cam_y, cam_z},
+            .position = {cam_x, cam_y, -1000.0f},
             .zoom = 1000.0f,
             .dof = {
                 .enabled = true,
@@ -87,25 +89,25 @@ void premium_studio_background(
     });
 
     // 4b. Animated 3D backstage: glow orbs only — position changes every frame
-    s.layer("studio_premium_glows", [glow_l_color, glow_r_color, ctx, params](LayerBuilder& l) {
+    s.layer("studio_premium_glows", [glow_l_color, glow_r_color, time, params](LayerBuilder& l) {
         l.enable_3d();
         l.position({0.0f, 0.0f, 400.0f});
 
         // Left Glow Orb
-        float offset_lx = params.camera_motion ? std::sin(ctx.frame * 0.01f) * 50.0f : 0.0f;
+        float offset_lx = params.camera_motion ? std::sin(time * 1.0f) * 50.0f : 0.0f;
         l.circle("glow_l", CircleParams{
             .radius = 350.0f,
             .color = glow_l_color,
             .pos = {-450.0f + offset_lx, 100.0f, 0.0f}
-        }).blur(100.0f);
+        }).blur(72.0f);
 
         // Right Glow Orb
-        float offset_rx = params.camera_motion ? std::cos(ctx.frame * 0.012f) * 40.0f : 0.0f;
+        float offset_rx = params.camera_motion ? std::cos(time * 1.2f) * 40.0f : 0.0f;
         l.circle("glow_r", CircleParams{
             .radius = 300.0f,
             .color = glow_r_color,
             .pos = {450.0f + offset_rx, -100.0f, -50.0f}
-        }).blur(80.0f);
+        }).blur(60.0f);
     });
 
     // 5. Contact Shadow for Central Glass Panel (z = 10.0f, placed behind the glass z=0)
@@ -129,11 +131,11 @@ void premium_studio_background(
             .size = {760.0f, 460.0f},
             .radius = 24.0f,
             .color = Color{0.05f, 0.05f, 0.05f, 0.85f} // Glass opacity and base color
-        }).blur(25.0f); // Soft glass blur
+        }).blur(18.0f); // Soft glass blur
     });
 
     // Glass panel borders & accent lines (also at z = 0.0f, overlayed on glass)
-    s.layer("studio_glass_accents", [accent_color, grid_color, ctx, params](LayerBuilder& l) {
+    s.layer("studio_glass_accents", [accent_color, grid_color, time, params](LayerBuilder& l) {
         l.enable_3d();
         l.position({0.0f, 0.0f, -1.0f}); // slightly in front of the glass surface
 
@@ -153,7 +155,7 @@ void premium_studio_background(
 
         // Animated neon scanner bar sweeping across the glass panel
         if (params.camera_motion) {
-            float sweep_t = std::sin(static_cast<float>(ctx.frame) * 0.025f);
+            float sweep_t = std::sin(time * 1.5f);
             float sweep_x = sweep_t * 330.0f;
             l.rect("scanner_bar", RectParams{
                 .size = {3.0f, 400.0f},
@@ -165,11 +167,11 @@ void premium_studio_background(
 
     // 7. Ambient particles (z = -80.0f, slightly out of focus)
     if (params.particles) {
-        s.layer("studio_premium_particles", [accent_color, ctx, params](LayerBuilder& l) {
+        s.layer("studio_premium_particles", [accent_color, time, params](LayerBuilder& l) {
             l.enable_3d();
             l.position({0.0f, 0.0f, -80.0f});
 
-            for (int i = 0; i < 20; ++i) {
+            for (int i = 0; i < 12; ++i) {
                 float seed_x = std::sin(static_cast<float>(i) * 44.55f) * 800.0f;
                 float seed_y = std::cos(static_cast<float>(i) * 11.22f) * 450.0f;
                 float seed_z = std::sin(static_cast<float>(i) * 77.66f) * 50.0f;
@@ -177,13 +179,10 @@ void premium_studio_background(
                 float size = 1.5f + std::abs(std::cos(static_cast<float>(i) * 2.7f)) * 2.0f;
                 float alpha = 0.10f + std::abs(std::sin(static_cast<float>(i) * 9.8f)) * 0.35f;
 
-                float offset_y = 0.0f;
-                if (params.camera_motion) {
-                    offset_y = -std::fmod(static_cast<float>(ctx.frame) * speed * 1.2f, 900.0f);
-                }
-
+                float offset_y = params.camera_motion
+                    ? std::sin(time * speed * 1.35f + static_cast<float>(i) * 0.4f) * 450.0f
+                    : 0.0f;
                 float y_pos = seed_y + offset_y;
-                if (y_pos < -450.0f) y_pos += 900.0f;
 
                 l.circle("particle_" + std::to_string(i), CircleParams{
                     .radius = size,

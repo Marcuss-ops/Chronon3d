@@ -1,5 +1,6 @@
 #include <tests/presets/backgrounds/data_stream_background.hpp>
 #include <chronon3d/scene/camera/camera_2_5d.hpp>
+#include <algorithm>
 #include <cmath>
 #include <string>
 
@@ -10,16 +11,17 @@ void data_stream_background(
     const FrameContext& ctx,
     const DataStreamBackgroundParams& params
 ) {
+    const float fps = std::max(1.0f, ctx.fps());
+    const float time = static_cast<float>(ctx.effective_frame()) / fps;
+
     // 1. Slow camera drift
     if (params.animated) {
-        const float time = static_cast<float>(ctx.frame) * 0.008f;
-        const float cam_x = std::sin(time) * 45.0f;
-        const float cam_y = std::cos(time * 0.9f) * 15.0f;
-        const float cam_z = -1000.0f + std::sin(time * 0.4f) * 40.0f;
+        const float cam_x = std::sin(time * 0.96f) * 45.0f;
+        const float cam_y = std::cos(time * 0.86f) * 15.0f;
 
         s.camera().set({
             .enabled = true,
-            .position = {cam_x, cam_y, cam_z},
+            .position = {cam_x, cam_y, -1000.0f},
             .point_of_interest = {0.0f, 0.0f, 0.0f},
             .point_of_interest_enabled = true,
             .zoom = 1000.0f
@@ -33,7 +35,7 @@ void data_stream_background(
     });
 
     // 3. Data Streams Layer (3D)
-    s.layer("data_streams", [params, ctx](LayerBuilder& l) {
+    s.layer("data_streams", [params, time](LayerBuilder& l) {
         l.enable_3d();
         l.position({0.0f, 0.0f, 300.0f});
 
@@ -54,11 +56,10 @@ void data_stream_background(
             
             float y = -600.0f;
             if (params.animated) {
-                y += std::fmod(static_cast<float>(ctx.frame) * params.speed * speed_factor + vertical_offset, 1300.0f);
+                y += std::sin(time * params.speed * speed_factor * 1.4f + vertical_offset * 0.01f) * 650.0f;
             } else {
                 y += std::fmod(vertical_offset, 1300.0f);
             }
-            if (y > 650.0f) y -= 1300.0f;
 
             // Stream block opacity and height random variations
             float opacity_mod = 0.3f + std::abs(std::sin(static_cast<float>(i) * 5.4f)) * 0.7f;
@@ -91,7 +92,7 @@ void data_stream_background(
         }
 
         // Apply neon flow glow to the entire layer
-        l.glow(14.0f, 0.45f, params.stream_color);
+        l.glow(params.glow_radius, 0.45f, params.stream_color);
     });
 }
 

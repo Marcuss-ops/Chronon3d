@@ -22,12 +22,12 @@ Composition background_showcase() {
         .name = "BackgroundShowcase",
         .width = 1920,
         .height = 1080,
-        .duration = 180
+        .duration = 90
     }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
 
-        // Partition 180 frames into 5 segments (36 frames each)
-        const int segment_len = 36;
+        // Partition 90 frames into 5 segments (18 frames each = 3 seconds at 30 fps).
+        const int segment_len = 18;
         const int segment = std::min(static_cast<int>(ctx.frame) / segment_len, 4);
         const int local_frame = static_cast<int>(ctx.frame) % segment_len;
 
@@ -68,7 +68,7 @@ Composition background_showcase() {
             }
             case 3: {
                 DataStreamBackgroundParams params;
-                params.density = 70;
+                params.density = 30;
                 params.speed = 3.0f;
                 params.animated = true;
                 data_stream_background(s, segment_ctx, params);
@@ -89,10 +89,10 @@ Composition background_showcase() {
         }
 
         // Draw overlay title and subtitle dynamically in 3D space
-        // Let's place it at z = -40.0f (in front of the glass/grids) to stand out
+        // Screen-space overlay: keep it 2D so it doesn't wobble/scale with the camera.
         s.layer("showcase_titles", [subtitle_text](LayerBuilder& l) {
-            l.enable_3d();
-            l.position({0.0f, -80.0f, -40.0f});
+            l.cache_static();
+            l.position({0.0f, -80.0f, 0.0f});
 
             // Showcase Header
             l.text("main_title", TextParams{
@@ -126,6 +126,7 @@ Composition background_showcase() {
 
         // Corner info badge (2D Screen Space Overlay)
         s.layer("showcase_info_badge", [](LayerBuilder& l) {
+            l.cache_static();
             l.rounded_rect("badge_bg", RoundedRectParams{
                 .size = {220.0f, 50.0f},
                 .radius = 8.0f,
@@ -161,7 +162,7 @@ Composition studio_grid_showcase() {
         .name = "StudioGridShowcase",
         .width = 1920,
         .height = 1080,
-        .duration = 120
+        .duration = 90
     }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         StudioGridBackgroundParams params;
@@ -178,7 +179,7 @@ Composition gradient_orbs_showcase() {
         .name = "GradientOrbsShowcase",
         .width = 1920,
         .height = 1080,
-        .duration = 120
+        .duration = 90
     }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         GradientOrbsBackgroundParams params;
@@ -194,7 +195,7 @@ Composition parallax_space_showcase() {
         .name = "ParallaxSpaceShowcase",
         .width = 1920,
         .height = 1080,
-        .duration = 120
+        .duration = 90
     }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         ParallaxSpaceBackgroundParams params;
@@ -212,11 +213,11 @@ Composition data_stream_showcase() {
         .name = "DataStreamShowcase",
         .width = 1920,
         .height = 1080,
-        .duration = 120
+        .duration = 90
     }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         DataStreamBackgroundParams params;
-        params.density = 70;
+        params.density = 30;
         params.speed = 3.0f;
         params.animated = true;
         data_stream_background(s, ctx, params);
@@ -229,7 +230,7 @@ Composition premium_studio_showcase() {
         .name = "PremiumStudioShowcase",
         .width = 1920,
         .height = 1080,
-        .duration = 120
+        .duration = 90
     }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         PremiumStudioBackgroundParams params;
@@ -248,4 +249,3 @@ CHRONON_REGISTER_COMPOSITION("GradientOrbsShowcase", gradient_orbs_showcase)
 CHRONON_REGISTER_COMPOSITION("ParallaxSpaceShowcase", parallax_space_showcase)
 CHRONON_REGISTER_COMPOSITION("DataStreamShowcase", data_stream_showcase)
 CHRONON_REGISTER_COMPOSITION("PremiumStudioShowcase", premium_studio_showcase)
-

@@ -43,6 +43,9 @@ class CompositionRegistry;
  * Support for hierarchical layers, inverse mapping, and transform-aware effects.
  */
 class SoftwareRenderer : public Renderer, public graph::RenderBackend {
+private:
+    std::shared_ptr<cache::FramebufferPool> m_framebuffer_pool;
+
 public:
     std::shared_ptr<Framebuffer> render_frame(const Composition& comp, Frame frame);
     std::shared_ptr<Framebuffer> render_scene(const Scene& scene, const Camera& camera,
@@ -146,7 +149,6 @@ public:
 private:
     ImageRenderer     m_image_renderer;
     mutable cache::NodeCache  m_node_cache;
-    std::shared_ptr<cache::FramebufferPool> m_framebuffer_pool;
 
     std::shared_ptr<video::VideoFrameDecoder> m_video_decoder;
     std::shared_ptr<image::ImageBackend> m_image_backend;

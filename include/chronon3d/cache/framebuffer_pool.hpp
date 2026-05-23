@@ -52,8 +52,8 @@ struct FramebufferPoolStats {
 // ---------------------------------------------------------------------------
 class FramebufferPool : public std::enable_shared_from_this<FramebufferPool> {
 public:
-    // Default to 256 MB so 1080p float framebuffers can actually stay hot in the pool.
-    explicit FramebufferPool(size_t max_bytes = 256ULL * 1024ULL * 1024ULL);
+    // Default to 1 GB so 1080p float framebuffers and intermediates can stay hot in the pool.
+    explicit FramebufferPool(size_t max_bytes = 1024ULL * 1024ULL * 1024ULL);
 
     /// Acquire a framebuffer of the requested size.
     /// Clearing is optional and only happens when requested by the caller.
