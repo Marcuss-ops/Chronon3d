@@ -22,7 +22,7 @@ public:
         Vec4 p1 = state.matrix * Vec4(local_end,   1);
         Color col = node.color.to_linear();
         col.a *= state.opacity;
-        bline(fb, Vec2(p0.x, p0.y), Vec2(p1.x, p1.y), col);
+        bline(fb, Vec2(p0.x, p0.y), Vec2(p1.x, p1.y), col, node.shape.line.thickness, state.clip_rect);
     }
 
     raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 spread) override {

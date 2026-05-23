@@ -168,10 +168,6 @@ RenderGraph build_graph(const Scene& scene, const RenderGraphContext& ctx,
 
         if (cam25d.enabled && layer.is_3d) {
             Transform effective_transform = resolved_layer.world_transform;
-            if (!ctx.modular_coordinates) {
-                effective_transform.position.x -= ctx.width * 0.5f;
-                effective_transform.position.y -= ctx.height * 0.5f;
-            }
             const Mat4 projection_world_matrix = effective_transform.to_mat4();
             auto proj = project_layer_2_5d(
                 effective_transform,
