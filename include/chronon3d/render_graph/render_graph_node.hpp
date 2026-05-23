@@ -11,6 +11,7 @@
 #include <chronon3d/math/projection_context.hpp>
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/core/dirty_rect_mask.hpp>
+#include <algorithm>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -102,6 +103,25 @@ struct RenderGraphContext {
         bool clear = true,
         std::optional<raster::BBox> bounds = std::nullopt
     ) const {
+        auto resolve_clear_clip = [&](Framebuffer& fb) -> std::optional<raster::BBox> {
+            if (!clear) {
+                return std::nullopt;
+            }
+
+            std::optional<raster::BBox> local_clip = clip_rect;
+            if (local_clip) {
+                local_clip->x0 -= fb.origin_x();
+                local_clip->x1 -= fb.origin_x();
+                local_clip->y0 -= fb.origin_y();
+                local_clip->y1 -= fb.origin_y();
+                local_clip->clip_to(w, h);
+                if (local_clip->is_empty()) {
+                    local_clip.reset();
+                }
+            }
+            return local_clip;
+        };
+
         if (framebuffer_pool) {
             auto fb = framebuffer_pool->acquire_pooled(w, h, framebuffer_pool, false);
             if (bounds) {
@@ -110,17 +130,7 @@ struct RenderGraphContext {
                 fb->set_origin(0, 0);
             }
             if (clear) {
-                std::optional<raster::BBox> local_clip = clip_rect;
-                if (local_clip) {
-                    local_clip->x0 -= fb->origin_x();
-                    local_clip->x1 -= fb->origin_x();
-                    local_clip->y0 -= fb->origin_y();
-                    local_clip->y1 -= fb->origin_y();
-                    local_clip->clip_to(w, h);
-                    if (local_clip->is_empty()) {
-                        local_clip.reset();
-                    }
-                }
+                const auto local_clip = resolve_clear_clip(*fb);
                 fb->clear(Color::transparent(), local_clip);
                 if (counters) {
                     counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
@@ -138,34 +148,30 @@ struct RenderGraphContext {
             fb->set_origin(bounds->x0, bounds->y0);
         }
         if (clear) {
-            std::optional<raster::BBox> local_clip = clip_rect;
-            if (local_clip) {
-                local_clip->x0 -= fb->origin_x();
-                local_clip->x1 -= fb->origin_x();
-                local_clip->y0 -= fb->origin_y();
-                local_clip->y1 -= fb->origin_y();
-                local_clip->clip_to(w, h);
-                if (local_clip->is_empty()) {
-                    local_clip.reset();
-                }
-            }
+            const auto local_clip = resolve_clear_clip(*fb);
             fb->clear(Color::transparent(), local_clip);
-                if (counters) {
-                    counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
+            if (counters) {
+                counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
                 const uint64_t pixels = local_clip
                     ? static_cast<uint64_t>(std::max(0, local_clip->x1 - local_clip->x0)) *
                       static_cast<uint64_t>(std::max(0, local_clip->y1 - local_clip->y0))
                     : static_cast<uint64_t>(w) * static_cast<uint64_t>(h);
                 counters->clear_pixels.fetch_add(pixels, std::memory_order_relaxed);
-                }
             }
-            return fb;
         }
+        return fb;
+    }
 
     std::shared_ptr<Framebuffer> acquire_framebuffer(const Framebuffer& other) const {
         auto fb = acquire_framebuffer(other.width(), other.height(), false);
         fb->set_origin(other.origin_x(), other.origin_y());
-        *fb = other;
+        if (fb.get() == &other) {
+            return fb;
+        }
+
+        std::copy_n(other.data(), other.pixel_count(), fb->data());
+        fb->set_opaque(other.is_opaque());
+        fb->set_key_digest(other.key_digest());
         return fb;
     }
 

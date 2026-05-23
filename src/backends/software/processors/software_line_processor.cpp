@@ -28,11 +28,12 @@ public:
     raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 spread) override {
         Vec4 p0 = model * Vec4(0, 0, 0, 1);
         Vec4 p1 = model * Vec4(shape.line.to, 1);
+        const f32 pad = spread + std::max(kBBoxSafetyPadding, shape.line.thickness * 0.5f);
         return {
-            static_cast<i32>(std::floor(std::min(p0.x, p1.x) - spread)),
-            static_cast<i32>(std::floor(std::min(p0.y, p1.y) - spread)),
-            static_cast<i32>(std::ceil(std::max(p0.x, p1.x) + spread)),
-            static_cast<i32>(std::ceil(std::max(p0.y, p1.y) + spread))
+            static_cast<i32>(std::floor(std::min(p0.x, p1.x) - pad)),
+            static_cast<i32>(std::floor(std::min(p0.y, p1.y) - pad)),
+            static_cast<i32>(std::ceil(std::max(p0.x, p1.x) + pad)),
+            static_cast<i32>(std::ceil(std::max(p0.y, p1.y) + pad))
         };
     }
 

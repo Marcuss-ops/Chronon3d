@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <string>
 #include <vector>
+#include <mutex>
 
 namespace chronon3d::telemetry {
 
@@ -109,11 +110,13 @@ inline void record_render_telemetry(const RenderTelemetryRow& row) {
 }
 
 inline void record_node_telemetry(const NodeTelemetryRecord& rec) {
-    detail::node_telemetry_buffer().push_back(rec);
+    std::lock_guard<std::mutex> lock(detail::node_telemetry_mutex());
+    detail::node_telemetry_store().push_back(rec);
 }
 
 inline std::vector<NodeTelemetryRecord> collect_node_telemetry() {
-    auto& buf = detail::node_telemetry_buffer();
+    std::lock_guard<std::mutex> lock(detail::node_telemetry_mutex());
+    auto& buf = detail::node_telemetry_store();
     if (buf.empty()) return {};
     std::vector<NodeTelemetryRecord> result = std::move(buf);
     buf.clear();
@@ -121,11 +124,13 @@ inline std::vector<NodeTelemetryRecord> collect_node_telemetry() {
 }
 
 inline void record_layer_telemetry(const LayerTelemetryRecord& rec) {
-    detail::layer_telemetry_buffer().push_back(rec);
+    std::lock_guard<std::mutex> lock(detail::layer_telemetry_mutex());
+    detail::layer_telemetry_store().push_back(rec);
 }
 
 inline std::vector<LayerTelemetryRecord> collect_layer_telemetry() {
-    auto& buf = detail::layer_telemetry_buffer();
+    std::lock_guard<std::mutex> lock(detail::layer_telemetry_mutex());
+    auto& buf = detail::layer_telemetry_store();
     if (buf.empty()) return {};
     std::vector<LayerTelemetryRecord> result = std::move(buf);
     buf.clear();
@@ -133,11 +138,13 @@ inline std::vector<LayerTelemetryRecord> collect_layer_telemetry() {
 }
 
 inline void record_cache_telemetry(const CacheTelemetryRecord& rec) {
-    detail::cache_telemetry_buffer().push_back(rec);
+    std::lock_guard<std::mutex> lock(detail::cache_telemetry_mutex());
+    detail::cache_telemetry_store().push_back(rec);
 }
 
 inline std::vector<CacheTelemetryRecord> collect_cache_telemetry() {
-    auto& buf = detail::cache_telemetry_buffer();
+    std::lock_guard<std::mutex> lock(detail::cache_telemetry_mutex());
+    auto& buf = detail::cache_telemetry_store();
     if (buf.empty()) return {};
     std::vector<CacheTelemetryRecord> result = std::move(buf);
     buf.clear();
@@ -145,11 +152,13 @@ inline std::vector<CacheTelemetryRecord> collect_cache_telemetry() {
 }
 
 inline void record_culling_telemetry(const CullingTelemetryRecord& rec) {
-    detail::culling_telemetry_buffer().push_back(rec);
+    std::lock_guard<std::mutex> lock(detail::culling_telemetry_mutex());
+    detail::culling_telemetry_store().push_back(rec);
 }
 
 inline std::vector<CullingTelemetryRecord> collect_culling_telemetry() {
-    auto& buf = detail::culling_telemetry_buffer();
+    std::lock_guard<std::mutex> lock(detail::culling_telemetry_mutex());
+    auto& buf = detail::culling_telemetry_store();
     if (buf.empty()) return {};
     std::vector<CullingTelemetryRecord> result = std::move(buf);
     buf.clear();
@@ -157,11 +166,13 @@ inline std::vector<CullingTelemetryRecord> collect_culling_telemetry() {
 }
 
 inline void record_text_telemetry(const TextTelemetryRecord& rec) {
-    detail::text_telemetry_buffer().push_back(rec);
+    std::lock_guard<std::mutex> lock(detail::text_telemetry_mutex());
+    detail::text_telemetry_store().push_back(rec);
 }
 
 inline std::vector<TextTelemetryRecord> collect_text_telemetry() {
-    auto& buf = detail::text_telemetry_buffer();
+    std::lock_guard<std::mutex> lock(detail::text_telemetry_mutex());
+    auto& buf = detail::text_telemetry_store();
     if (buf.empty()) return {};
     std::vector<TextTelemetryRecord> result = std::move(buf);
     buf.clear();
@@ -169,11 +180,13 @@ inline std::vector<TextTelemetryRecord> collect_text_telemetry() {
 }
 
 inline void record_image_telemetry(const ImageTelemetryRecord& rec) {
-    detail::image_telemetry_buffer().push_back(rec);
+    std::lock_guard<std::mutex> lock(detail::image_telemetry_mutex());
+    detail::image_telemetry_store().push_back(rec);
 }
 
 inline std::vector<ImageTelemetryRecord> collect_image_telemetry() {
-    auto& buf = detail::image_telemetry_buffer();
+    std::lock_guard<std::mutex> lock(detail::image_telemetry_mutex());
+    auto& buf = detail::image_telemetry_store();
     if (buf.empty()) return {};
     std::vector<ImageTelemetryRecord> result = std::move(buf);
     buf.clear();
@@ -181,11 +194,13 @@ inline std::vector<ImageTelemetryRecord> collect_image_telemetry() {
 }
 
 inline void record_tile_telemetry(const TileTelemetryRecord& rec) {
-    detail::tile_telemetry_buffer().push_back(rec);
+    std::lock_guard<std::mutex> lock(detail::tile_telemetry_mutex());
+    detail::tile_telemetry_store().push_back(rec);
 }
 
 inline std::vector<TileTelemetryRecord> collect_tile_telemetry() {
-    auto& buf = detail::tile_telemetry_buffer();
+    std::lock_guard<std::mutex> lock(detail::tile_telemetry_mutex());
+    auto& buf = detail::tile_telemetry_store();
     if (buf.empty()) return {};
     std::vector<TileTelemetryRecord> result = std::move(buf);
     buf.clear();

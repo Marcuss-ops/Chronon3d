@@ -233,11 +233,14 @@ TEST_CASE("Render all frames of LilDirkClean and save as PNGs") {
 
     for (int f = 0; f < 90; ++f) {
         auto start_frame = std::chrono::high_resolution_clock::now();
+        spdlog::info("About to render frame {}...", f);
         auto fb = renderer.render_frame(comp, f);
         REQUIRE(fb != nullptr);
         
         std::string filename = fmt::format("output/seq/lil_dirk.{:04d}.png", f);
+        spdlog::info("About to save frame {} to {}...", f, filename);
         save_png(*fb, filename);
+        spdlog::info("Finished frame {} successfully.", f);
 
         auto end_frame = std::chrono::high_resolution_clock::now();
         double frame_duration = std::chrono::duration<double, std::milli>(end_frame - start_frame).count();
