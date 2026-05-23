@@ -244,7 +244,7 @@ namespace chronon3d::graph {
         // Keep node clipping in sync with framebuffer reuse.
         // Without this, the Clear node can erase an entire reused buffer,
         // which wipes cached full-frame backgrounds on the next frame.
-        .dirty_rects_enabled = settings.enable_dirty_rects || settings.dirty_rects
+        .dirty_rects_enabled = settings.enable_dirty_rects || settings.dirty_rects || settings.enable_dirty_bitmask
     };
 }
 
