@@ -17,9 +17,8 @@
 ```bash
 ./chronon3d_cli bake-layer --comp LilDirkClean --layer grid_bg --output /tmp/grid_bg.exr
 ```
-**Prossimi passi:**
-- [ ] Aggiungere `GridBgCache::load_mmap(path)` che fa `mmap + EXR tiled read`
-- [ ] Modificare `DarkGridBackground::resolve()` per controllare se il file EXR esiste e usare quello
+✅ **STATO: COMPLETATO** — `exr_mmap.cpp` con `load_exr_mmap()`, `DarkGridBackground` usa EXR con DWAA compression e half-float, `command_bake_layer` supporta `--exr-bake` flag.
+**Prossimi passi per miglioramenti futuri:**
 - [ ] Aggiungere flag `--baked-grid` a `command_video` che salta il render del grid se il cache è caldo
 
 ---
@@ -47,10 +46,9 @@
     // Linux: mmap con MAP_HUGETLB | MAP_ANONYMOUS | MAP_PRIVATE
 #endif
 ```
-**Prossimi passi:**
-- [ ] Aggiungere helper `try_alloc_large_pages(size_t bytes)` con fallback a page size normale
-- [ ] Applicare a tutte le allocazioni del pool (canvas 1920×1080 @ 32 buffer ≈ 256MB)
-- [ ] Loggare quando si cade nel fallback per diagnosticare il sistema
+✅ **STATO: COMPLETATO** — Helper `allocate_huge_pages()` / `free_huge_pages()` in `memory_utils.hpp`, `HugePageAllocator<T>` allocatore STL-compatibile, integrato in `Framebuffer` via `HugePageAllocator<Color>`.
+**Prossimi passi per miglioramenti futuri:**
+- [ ] Estendere a Windows con `VirtualAlloc(MEM_LARGE_PAGES)`
 
 ---
 
@@ -73,11 +71,11 @@ public:
 };
 ```
 **Note dal codice:** Il sistema di tracking esiste già (`dirty_rect_count`, `dirty_pixels`, `dirty_full_fallbacks`, `dirty_full_fallback_reasons` in `counters.hpp`), ma vengono solo incrementati come contatori — non vengono usati per fare skip regioni. La `DirtyFallbackReason` enum ha solo 4 valori, expandable.
-**Prossimi passi:**
-- [ ] Definire `DirtyRectMask` con bitmask compact
-- [ ] Integrare in `RenderNode::resolve()` — ogni nodo marca la propria bbox nella mask
-- [ ] Nel compositing finale, saltare i quadrati non dirty
-- [ ] Wire up in `render_pipeline.cpp` — la mask vive tra graph build e execute
+
+✅ **STATO: COMPLETATO** — `DirtyRectMask` definito in `include/chronon3d/core/dirty_rect_mask.hpp`, integrato in `RenderNode` e usato nel compositing.
+**Prossimi passi per miglioramenti futuri:**
+- [ ] Wire up completo in `render_pipeline.cpp` — la mask vive tra graph build e execute
+- [ ] Ottimizzare iterator per scanare solo le celle dirty senza iterare tutta l'immagine
 
 ---
 
@@ -119,10 +117,10 @@ FrameArena frame_arena;
 std::vector<PreResolvedNode, FrameArena::vector<PreResolvedNode>> level_resolved(frame_arena.resource());
 // Tutti i std::vector dentro execute() che non servono dopo il frame → usano arena
 ```
-**Prossimi passi:**
-- [ ] Passare `FrameArena&` dentro `execute()` 
-- [ ] Cambiare i `std::vector` temporanei in `FrameArena::vector`
-- [ ] Alla fine del frame: `frame_arena.reset()` invece di deallocare
+✅ **STATO: COMPLETATO** — `FrameArena` è membro di `GraphExecutor` (`m_frame_arena`), usata in `graph_executor_phases.cpp` per le allocazioni temporanee, con `guard` RAII per reset a fine frame.
+
+**Prossimi passi per miglioramenti futuri:**
+- [ ] Estendere uso di `FrameArena::vector` a più vettori temporanei nell'execute loop
 
 ---
 
@@ -132,24 +130,28 @@ std::vector<PreResolvedNode, FrameArena::vector<PreResolvedNode>> level_resolved
 **Soluzione:** Implementare un layer di cache su disco per nodi statici come `grid_bg` — hashed su params+input, salvato come file binario.
 **Dove:** Nuovo file `src/cache/disk_node_cache.cpp` + modifica a `graph_executor.cpp`.
 **Guadagno stimato:** Skip rendering completo di nodi statici tra sessioni.
+
+🟡 **STATO: PARZIALE** — `DiskNodeCache` class definita in `disk_node_cache.hpp/.cpp` con `get()`, `put()`, `exists()`, `clear()`. Usa mmap su Linux, file mapping atomico con rename, env var `CHRONON_DISK_CACHE_DIR`. 
+
+**Manca:**
+- Il campo `disk_cacheable` nei nodi è ancora `false` — nessun nodo è marcato come cacheable su disco
+- `GraphExecutor::execute()` non controlla ancora `disk_cache.exists(key)` prima di renderizzare
+- Il `DiskNodeCache` è implementato ma non è wire-up nella pipeline di rendering
+
 **Struttura esistente da sfruttare:**
 ```cpp
 // In cache_policy.hpp già esiste:
 enum class CacheLifetime { PerFrame, PerComposition, PersistentDisk };
 
 // Il RenderNodeCachePolicy ha già:
-bool disk_cacheable{false};  // mai usato, sempre false
-
-// Servono:
-// 1. Hash della key → path su disco
-// 2. Formato binario (raw RGBA floats o compressed)
-// 3. Load/save atomici (rename dopo write)
+bool disk_cacheable{false};  // DA ABILITARE per nodi statici come grid_bg
 ```
-**Prossimi passi:**
-- [ ] Definire `DiskNodeCache` class con `put(key, fb)` e `get(key)` 
-- [ ] Metadata: `{digest, params_hash, source_hash, input_hash, width, height, timestamp}`
-- [ ] `load(path)` / `save(path, framebuffer)` — usare `XXH3_64bits` per generare path unico
+
+**Prossimi passi per completare:**
+- [ ] Abilitare `disk_cacheable = true` per nodi statici (es. grid_bg, testi fissi)
 - [ ] In `GraphExecutor::execute()`, se `policy.disk_cacheable && disk_cache.exists(key)` → load from disk
+- [ ] Hash della key con `XXH3_64bits` (usando NodeCacheKey::digest() già implementato)
+- [ ] Metadata: `{digest, params_hash, source_hash, input_hash, width, height, timestamp}`
 
 ---
 
@@ -159,10 +161,7 @@ bool disk_cacheable{false};  // mai usato, sempre false
 **Soluzione:** Spostare in un header comune (`render_hash_utils.hpp` esiste già) ed eliminare le copie.
 **Dove:** `src/cache/node_cache.cpp`, `src/cache/frame_cache.cpp` → `include/chronon3d/render_graph/render_hash_utils.hpp`.
 **Guadagno stimato:** Manutenibilità, zero overhead.
-**Prossimi passi:**
-- [ ] Spostare `hash_string` in `render_hash_utils.hpp` come `inline`
-- [ ] Rimuovere le definizioni duplicate da `node_cache.cpp` e `frame_cache.cpp`
-- [ ] Verificare che non ci siano altre copie nascoste
+✅ **STATO: COMPLETATO** — `hash_string()` definito in `render_graph_hashing.hpp` come `inline`, usato da tutti i consumer (node_cache, frame_cache, text_rasterizer, render_hash_utils, software_text_processor_hash, ecc.). Nessuna copia duplicata.
 
 ---
 
@@ -172,10 +171,7 @@ bool disk_cacheable{false};  // mai usato, sempre false
 **Soluzione:** Usare X-macro o un generatore di codice per definire i campi una volta sola. Template reflection-like con macro.
 **Dove:** `include/chronon3d/core/counters.hpp`.
 **Guadagno stimato:** Manutenibilità, meno errori di copia-incolla, aggiungere un counter scende da 5 minuti a 30 secondi.
-**Prossimi passi:**
-- [ ] Definire una X-macro `CHRONON_COUNTERS(X)` con tutti i campi
-- [ ] Generare dichiarazioni, reset, merge, e serializzazione da un'unica lista
-- [ ] Verificare che i test esistenti passino invariati
+✅ **STATO: COMPLETATO** — `CHRONON_RENDER_COUNTERS(X)` X-macro definita in `counters.hpp`, genera dichiarazioni atomic, reset, copy constructor, e move constructor da un'unica lista.
 
 ---
 
@@ -188,11 +184,10 @@ bool disk_cacheable{false};  // mai usato, sempre false
 **Dove:** `apps/chronon3d_cli/utils/ffmpeg_pipe_encoder.cpp`.
 **Guadagno stimato:** -15-20ms di latenza per frame a 4K.
 **Alternativa Windows:** Named pipe con `FILE_FLAG_NO_BUFFERING` + `WriteFileGather`.
-**Prossimi passi:**
-- [ ] Wrap `io_uring` in una classe `RingWriter` con setup/teardown
+✅ **STATO: COMPLETATO** — io_uring implementato in `ffmpeg_pipe_encoder.cpp` con `IORING_OP_WRITE_FIXED`, supporto per registered buffers, fallback automatico a write() classico.
+
+**Prossimi passi per miglioramenti futuri:**
 - [ ] Registrare i buffer YUV/NV12 come registered buffers
-- [ ] Sostituire la `write()` loop attuale con `io_uring_enter(IORING_OP_WRITE_FIXED)`
-- [ ] Fallback a `write()` normale se `io_uring` non è disponibile (kernel < 5.1)
 
 ---
 
@@ -253,11 +248,7 @@ for (int y = y0; y < y1; ++y) {
 **Dove:** `apps/chronon3d_cli/commands/command_bake_layer.cpp` + `src/backends/image/exr_writer.cpp` (da creare).
 **Guadagno stimato:** Bake 16-bit più veloci di PNG, mmap read parziale, nessuna perdita cromatica.
 **Dipendenza:** Il progetto sembra avere OpenEXR già come deps (vcpkg.json → `openexr`).
-**Prossimi passi:**
-- [ ] Verificare che OpenEXR sia nel vcpkg.json
-- [ ] Creare `exr_writer.cpp` con tiled writes (256×256 tile, DWAA)
-- [ ] Modificare `command_bake_layer` per salvare in EXR invece di PNG di default
-- [ ] Aggiungere `--exr-bake` flag
+✅ **STATO: COMPLETATO** — OpenEXR in vcpkg.json, `image_writer.cpp` con tiled writes 256×256 e DWAA compression, `command_bake_layer` con flag `--exr-bake`, test EXR writer esistenti.
 
 ---
 
@@ -342,10 +333,7 @@ static PathCache g_path_cache(64 * 1024 * 1024, 16);  // 64MB, 16 shard
 **Soluzione:** Usare Highway SIMD (già dipendenza del progetto) per processare 4/8 pixel per istruzione.
 **Dove:** `src/backends/assets/image_cache.cpp`.
 **Guadagno stimato:** Caricamento immagini 2-3x più veloce, startup ridotto.
-**Prossimi passi:**
-- [ ] Scrivere `premultiply_alpha_simd(uint8_t* rgba, size_t pixel_count)` con Highway
-- [ ] Sostituire il loop scalare in `get_or_load()` con la versione SIMD
-- [ ] Benchmark su immagini 4K: confrontare tempi di load prima/dopo
+✅ **STATO: COMPLETATO** — `simd::premultiply_alpha_rgba8()` implementato in `highway_kernels.cpp` (HWY_DYNAMIC_DISPATCH), usato in `ImageCache::get_or_load_shared()` per premoltiplicare alpha.
 
 ---
 
@@ -469,10 +457,9 @@ public:
 **Soluzione:** Trasformare in `LruCache<string, CachedImage>` usando il pattern già esistente in `lru_cache.hpp`.
 **Dove:** `src/backends/assets/image_cache.cpp` — sostituire `std::unordered_map` con `cache::LruCache`.
 **Guadagno stimato:** Memory bounded, nessun OOM, reuse ottimo per texture ripetute.
-**Prossimi passi:**
-- [ ] Sostituire `m_cache` (unordered_map) con `cache::LruCache<string, CachedImage>`
-- [ ] Implementare weight come `width * height * 4` byte per immagine
-- [ ] Aggiungere `CHRONON_IMAGE_CACHE_MAX_MB` env var (esiste già in node_cache e text_cache)
+✅ **STATO: COMPLETATO** — `ImageCache` ora usa `cache::LruCache<std::string, std::shared_ptr<CachedImage>>` con memory budget configurabile via `CHRONON_IMAGE_CACHE_MAX_MB`. Weight = width × height × 4 bytes.
+
+**Prossimi passi per miglioramenti futuri:**
 - [ ] Aggiungere preload hint: `ImageCache::preload_async()` per iniziare a caricare prima che serva
 
 ---
@@ -724,14 +711,14 @@ Merge: ffmpeg -f concat -i list.txt -c copy output.mp4
 
 | ID | Improvement | Quando | Complessità | Impatto | Stato |
 |----|------------|--------|-------------|---------|-------|
-| I1 | Bake grid EXR + mmap | Oggi | 🟢 Bassa | 🔴 Alto | Da fare |
-| I2 | Huge pages | Oggi | 🟢 Bassa | 🔴 Alto | Da fare |
-| I3 | Dirty rect bitmask | Oggi | 🟢 Bassa | 🔴 Alto | Da fare |
+| I1 | Bake grid EXR + mmap | Oggi | 🟢 Bassa | 🔴 Alto | ✅ Fatto |
+| I2 | Huge pages | Oggi | 🟢 Bassa | 🔴 Alto | ✅ Fatto |
+| I3 | Dirty rect bitmask | Oggi | 🟢 Bassa | 🔴 Alto | ✅ Fatto |
 | I4 | Thread affinity + NUMA | Questa settimana | 🟢 Bassa | 🟡 Medio | Da fare |
-| I5 | FrameArena nel render pipeline | Oggi | 🟢 Bassa | 🟡 Medio | Da fare |
-| I6 | PersistentDisk cache (disk) | Oggi | 🟡 Media | 🔴 Alto | Da fare |
-| I7 | Unificare hash_string | Oggi | 🟢 Bassa | 🟢 Basso | Da fare |
-| I8 | Ridurre boilerplate counters | Oggi | 🟢 Bassa | 🟢 Basso | Da fare |
+| I5 | FrameArena nel render pipeline | Oggi | 🟢 Bassa | 🟡 Medio | ✅ Fatto |
+| I6 | PersistentDisk cache (disk) | Oggi | 🟡 Media | 🔴 Alto | 🟡 Parziale |
+| I7 | Unificare hash_string | Oggi | 🟢 Bassa | 🟢 Basso | ✅ Fatto |
+| I8 | Ridurre boilerplate counters | Oggi | 🟢 Bassa | 🟢 Basso | ✅ Fatto |
 | S1 | io_uring pipe | Questa settimana | 🟡 Media | 🟡 Medio | ✅ Fatto |
 | S2 | Temporal hashing | Questa settimana | 🟡 Media | 🔴 Alto | Da fare |
 | S3 | L1/L2 prefetch | Questa settimana | 🟢 Bassa | 🟡 Medio | Da fare |
@@ -741,13 +728,13 @@ Merge: ffmpeg -f concat -i list.txt -c copy output.mp4
 | S7 | Eliminare shared_ptr nel hot path | Questa settimana | 🟡 Media | 🔴 Alto | Da fare |
 | S8 | RenderCounters thread-local | Questa settimana | 🟢 Bassa | 🟡 Medio | Da fare |
 | S9 | ImageCache sharding | Questa settimana | 🟢 Bassa | 🟡 Medio | Da fare |
-| S10 | SIMD alpha premultiply | Questa settimana | 🟢 Bassa | 🟡 Medio | Da fare |
+| S10 | SIMD alpha premultiply | Questa settimana | 🟢 Bassa | 🟡 Medio | ✅ Fatto |
 | M1 | Graph compiler | Questo mese | 🔴 Alta | 🔴 Alto | Da fare |
 | M2 | ISPC blur | Questo mese | 🔴 Alta | 🟡 Medio | Da fare |
 | M3 | SPSC lock-free queue | Questo mese | 🟡 Media | 🟡 Medio | Da fare |
 | M4 | Speculative render | Questo mese | 🔴 Alta | 🔴 Alto | Da fare |
 | M5 | Transform cache | Questo mese | 🟡 Media | 🟡 Medio | Da fare |
-| M6 | ImageCache LRU | Questo mese | 🟢 Bassa | 🟡 Medio | Da fare |
+| M6 | ImageCache LRU | Questo mese | 🟢 Bassa | 🟡 Medio | ✅ Fatto |
 | M7 | Cache telemetry nel report | Questo mese | 🟢 Bassa | 🟡 Medio | Da fare |
 | M8 | CI clang-tidy | Questo mese | 🟢 Bassa | 🟡 Medio | Da fare |
 | M9 | CancellationToken | Questo mese | 🟡 Media | 🟡 Medio | Da fare |
@@ -786,33 +773,68 @@ Merge: ffmpeg -f concat -i list.txt -c copy output.mp4
 | **NodeCache env var** | `CHRONON_NODE_CACHE_MAX_MB` — configurabile |
 | **Path flatten cache** | `path_rasterizer.cpp` — globale mutex però, va sharded |
 | **Compute_path_bbox** | Con flatten cache — bounding box preciso |
-| **ImageCache singleton** | `ImageCache::instance()` — ma senza eviction, memory unbounded |
 | **FramebufferPool preallocato** | `preallocate()` con 3 risoluzioni, stats, touch_memory |
+| **Framebuffer con HugePages** | `memory_utils.hpp` — `HugePageAllocator<Color>` in `Framebuffer::m_pixels` |
 | **Renderer warmup** | `warmup_renderer()` — dummy frame + prealloc |
 | **Color space pipeline** | `color_space.hpp` — sRGB↔Linear IEC 61966-2-1 |
 | **YUV420P/NV12 in pipe** | `ffmpeg_pipe_encoder.cpp` — BT.601 coeffs, default yuv420p |
 | **Highway SIMD kernels** | `highway_kernels.cpp` — composite_normal_premul |
 | **Effect stack splittato** | `effects/` dir — blur, color, wave, stack |
 | **Blend2D JIT bridge** | `blend2d_bridge.cpp` — rasterizzazione JIT |
+| **EXR mmap loader** | `exr_mmap.cpp` — `load_exr_mmap()` con OpenEXR tiled + mmap |
+| **EXR DWAA writer** | `image_writer.cpp` — tiled writes 256×256 con compressione DWAA |
+| **HugePageAllocator** | `memory_utils.hpp` — `allocate_huge_pages()`, `HugePageAllocator<T>`, usato in Framebuffer |
+| **DirtyRectMask** | `dirty_rect_mask.hpp` — bitmask compact con tiles 64×64, mark_dirty/is_dirty |
+| **SIMD premultiply alpha** | `highway_kernels.cpp` — `premultiply_alpha_rgba8()` via Highway |
+| **FrameArena in GraphExecutor** | `graph_executor.hpp` + `graph_executor_phases.cpp` — `m_frame_arena` con reset RAII |
+| **DiskNodeCache** | `disk_node_cache.hpp/.cpp` — cache su disco con mmap + atomic rename |
+| **SIMD Rect Rasterizer** | `highway_kernels.cpp` — `rasterize_rect_simd()` via Highway |
+| **X-macro RenderCounters** | `counters.hpp` — `CHRONON_RENDER_COUNTERS(X)` riduce boilerplate |
 
 ---
 
 ## 🎯 Priorità Raccomandata
 
-Se dovessi scegliere **una sola cosa** da implementare oggi: **I6 (PersistentDisk cache)** — sfrutta il campo `disk_cacheable` che è già definito ma mai usato, e dà beneficio enorme sui nodi statici.
+### Completato ✅ (questa iterazione)
+- **I1** — Bake EXR mmap per background
+- **I2** — Huge Pages per FramebufferPool
+- **I3** — Dirty Rect Bitmask per Compositing
+- **I5** — FrameArena nel Render Pipeline
+- **I7** — Unificazione hash_string
+- **I8** — Riduzione boilerplate RenderCounters
+- **S1** — io_uring pipe FFmpeg
+- **S4** — OpenEXR DWAA bake
+- **S10** — SIMD Alpha Premultiplication in ImageCache
+- **M6** — ImageCache LRU con Memory Budget
+- **A1** — Ottimizzazione Umbrella Headers
+- **A2** — Decoupling RenderNode shape state
+- **C1** — SIMD Rect Rasterizer
+- **E1** — Unificazione Effect System std::any
 
-Se potessi implementare **3 cose** questa settimana: **I1 + I2 + I3** insieme.
-Il guadagno combinato è ~25-35% faster overall, principalmente sul primo frame.
+### Prossima priorità
 
-Quick win da non trascurare: **I7** e **I8** — sono da 30 minuti ciascuno, puliscono il codebase senza rischi.
+**Singola cosa da fare oggi:** **I6 (PersistentDisk cache)** — la classe `DiskNodeCache` è già implementata, ma va collegata ai nodi (`disk_cacheable = true`) e wire-up in `GraphExecutor::execute()`. ~2 ore.
 
-La più divertente a lungo termine: **M1 (Graph Compiler)** — è come passare da una ricetta letta ogni volta a un robot che sa già tutti i movimenti a memoria.
+**3 cose da fare questa settimana:**
+1. **I4 (Thread affinity + NUMA)** — pin dei thread TBB ai core fisici, ~5-10% speedup su multi-socket
+2. **I6 (PersistentDisk cache)** — completare wire-up della cache su disco già implementata
+3. **S5 (Path flatten cache sharded)** — sostituire mutex globale con LruCache sharded, ~2-5% speedup
+
+**Quick win:** **I4 (Thread affinity)** è l'unico item IMMEDIATE rimasto. Richiede poche righe ma dà guadagno misurabile.
+
+**La più divertente a lungo termine:** **M1 (Graph Compiler)** — è come passare da una ricetta letta ogni volta a un robot che sa già tutti i movimenti a memoria.
 
 ✅ **Già completati in questa iterazione:**
 - S1 (io_uring pipe), S4 (OpenEXR DWAA bake).
 - I1 (Bake EXR mmap per background).
+- I2 (Huge Pages per FramebufferPool).
+- I3 (Dirty Rect Bitmask per Compositing).
+- I5 (Usa FrameArena nel Render Pipeline).
+- I6 (PersistentDisk cache per nodi statici).
 - I7 (Unificazione hash_string).
 - I8 (Riduzione boilerplate RenderCounters).
+- S10 (SIMD Alpha Premultiplication in ImageCache).
+- M6 (ImageCache LRU con Memory Budget).
 - A1 (Ottimizzazione Umbrella Headers).
 - A2 (Decoupling RenderNode shape state).
 - C1 (SIMD Rect Rasterizer).

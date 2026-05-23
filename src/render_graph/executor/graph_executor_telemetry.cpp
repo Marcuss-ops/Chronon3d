@@ -1,4 +1,5 @@
 #include "graph_executor_internal.hpp"
+#include <chronon3d/cache/disk_node_cache.hpp>
 #include <spdlog/spdlog.h>
 #include <chrono>
 
@@ -31,6 +32,9 @@ double run_node(
     }
     if (use_cache && result) {
         ctx.node_cache->store(key, result);
+        if (node.cache_policy().disk_cacheable) {
+            cache::DiskNodeCache::instance().put(key, *result);
+        }
     }
     const auto exec_t1 = std::chrono::steady_clock::now();
     return std::chrono::duration<double, std::milli>(exec_t1 - exec_t0).count();

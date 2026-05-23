@@ -147,6 +147,7 @@ target_link_libraries(chronon3d_assets PUBLIC chronon3d chronon3d_registry)
 set(CHRONON3D_CACHE_SOURCES
     src/cache/frame_cache.cpp
     src/cache/node_cache.cpp
+    src/cache/disk_node_cache.cpp
     src/cache/framebuffer_pool.cpp
 )
 add_library(chronon3d_cache STATIC ${CHRONON3D_CACHE_SOURCES})
