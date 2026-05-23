@@ -6,15 +6,12 @@
 namespace chronon3d::telemetry {
 
 bool SqliteTelemetryStore::write_frames(const std::string& run_id, const std::vector<FrameTelemetryRecord>& frames) {
-    std::lock_guard<std::mutex> lock(m_impl->mutex);
+    std::scoped_lock lock(m_impl->mutex);
     if (!m_impl->db) return false;
-
-    sqlite3_exec(m_impl->db, "BEGIN TRANSACTION;", nullptr, nullptr, nullptr);
 
     const char* sql = "INSERT OR REPLACE INTO render_frames VALUES (?, ?, ?, ?, ?);";
     sqlite3_stmt* stmt{nullptr};
     if (sqlite3_prepare_v2(m_impl->db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
-        sqlite3_exec(m_impl->db, "ROLLBACK;", nullptr, nullptr, nullptr);
         return false;
     }
 
@@ -34,24 +31,16 @@ bool SqliteTelemetryStore::write_frames(const std::string& run_id, const std::ve
     }
 
     sqlite3_finalize(stmt);
-    if (success) {
-        sqlite3_exec(m_impl->db, "COMMIT;", nullptr, nullptr, nullptr);
-    } else {
-        sqlite3_exec(m_impl->db, "ROLLBACK;", nullptr, nullptr, nullptr);
-    }
     return success;
 }
 
 bool SqliteTelemetryStore::write_phases(const std::string& run_id, const std::vector<PhaseTelemetryRecord>& phases) {
-    std::lock_guard<std::mutex> lock(m_impl->mutex);
+    std::scoped_lock lock(m_impl->mutex);
     if (!m_impl->db) return false;
-
-    sqlite3_exec(m_impl->db, "BEGIN TRANSACTION;", nullptr, nullptr, nullptr);
 
     const char* sql = "INSERT OR REPLACE INTO render_phase_events VALUES (?, ?, ?);";
     sqlite3_stmt* stmt{nullptr};
     if (sqlite3_prepare_v2(m_impl->db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
-        sqlite3_exec(m_impl->db, "ROLLBACK;", nullptr, nullptr, nullptr);
         return false;
     }
 
@@ -69,24 +58,16 @@ bool SqliteTelemetryStore::write_phases(const std::string& run_id, const std::ve
     }
 
     sqlite3_finalize(stmt);
-    if (success) {
-        sqlite3_exec(m_impl->db, "COMMIT;", nullptr, nullptr, nullptr);
-    } else {
-        sqlite3_exec(m_impl->db, "ROLLBACK;", nullptr, nullptr, nullptr);
-    }
     return success;
 }
 
 bool SqliteTelemetryStore::write_counters(const std::string& run_id, const std::vector<CounterTelemetryRecord>& counters) {
-    std::lock_guard<std::mutex> lock(m_impl->mutex);
+    std::scoped_lock lock(m_impl->mutex);
     if (!m_impl->db) return false;
-
-    sqlite3_exec(m_impl->db, "BEGIN TRANSACTION;", nullptr, nullptr, nullptr);
 
     const char* sql = "INSERT OR REPLACE INTO render_counters VALUES (?, ?, ?);";
     sqlite3_stmt* stmt{nullptr};
     if (sqlite3_prepare_v2(m_impl->db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
-        sqlite3_exec(m_impl->db, "ROLLBACK;", nullptr, nullptr, nullptr);
         return false;
     }
 
@@ -104,24 +85,16 @@ bool SqliteTelemetryStore::write_counters(const std::string& run_id, const std::
     }
 
     sqlite3_finalize(stmt);
-    if (success) {
-        sqlite3_exec(m_impl->db, "COMMIT;", nullptr, nullptr, nullptr);
-    } else {
-        sqlite3_exec(m_impl->db, "ROLLBACK;", nullptr, nullptr, nullptr);
-    }
     return success;
 }
 
 bool SqliteTelemetryStore::write_tile_events(const std::string& run_id, const std::vector<TileTelemetryRecord>& events) {
-    std::lock_guard<std::mutex> lock(m_impl->mutex);
+    std::scoped_lock lock(m_impl->mutex);
     if (!m_impl->db) return false;
-
-    sqlite3_exec(m_impl->db, "BEGIN TRANSACTION;", nullptr, nullptr, nullptr);
 
     const char* sql = "INSERT OR REPLACE INTO render_tile_events VALUES (?, ?, ?, ?, ?, ?, ?);";
     sqlite3_stmt* stmt{nullptr};
     if (sqlite3_prepare_v2(m_impl->db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
-        sqlite3_exec(m_impl->db, "ROLLBACK;", nullptr, nullptr, nullptr);
         return false;
     }
 
@@ -143,11 +116,6 @@ bool SqliteTelemetryStore::write_tile_events(const std::string& run_id, const st
     }
 
     sqlite3_finalize(stmt);
-    if (success) {
-        sqlite3_exec(m_impl->db, "COMMIT;", nullptr, nullptr, nullptr);
-    } else {
-        sqlite3_exec(m_impl->db, "ROLLBACK;", nullptr, nullptr, nullptr);
-    }
     return success;
 }
 

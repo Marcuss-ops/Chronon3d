@@ -26,7 +26,7 @@ public:
         size_t current_weight{0};
     };
 
-    explicit LruCache(size_t capacity_weight, size_t num_shards = 16)
+    explicit LruCache(size_t capacity_weight, size_t num_shards = 2)
         : m_shards(num_shards) {
         size_t shard_capacity = capacity_weight / num_shards;
         if (shard_capacity == 0) shard_capacity = 1;
@@ -44,6 +44,16 @@ public:
             m_misses.fetch_add(1, std::memory_order_relaxed);
         }
         return val;
+    }
+
+    template <typename Func>
+    void for_each(Func&& func) const {
+        for (const auto& shard : m_shards) {
+            std::lock_guard lock(shard->mutex);
+            for (const auto& [k, entry] : shard->entries) {
+                func(k, entry.value, Hash{}(k));
+            }
+        }
     }
 
     void put(const Key& key, Value value, size_t weight = 1) {

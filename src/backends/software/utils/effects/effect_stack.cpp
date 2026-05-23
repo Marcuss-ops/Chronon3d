@@ -35,94 +35,131 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
         } else if (auto* p = std::any_cast<GlowParams>(&inst.params)) {
             // Extract alpha-masked version, blur it with glow tint, composite in front
             const i32 w = fb.width(), h = fb.height();
+            i32 x_min = 0, x_max = w;
+            i32 y_min = 0, y_max = h;
+            if (clip) {
+                x_min = std::max(0, clip->x0);
+                x_max = std::min(w, clip->x1);
+                y_min = std::max(0, clip->y0);
+                y_max = std::min(h, clip->y1);
+            }
             auto alpha_map_fb = acquire_temp_framebuffer(w, h);
+            alpha_map_fb->clear(Color{0.0f, 0.0f, 0.0f, 0.0f});
             auto& alpha_map = *alpha_map_fb;
-            for (i32 y = 0; y < h; ++y) {
-                const Color* src_row = fb.pixels_row(y);
-                Color* alpha_row = alpha_map.pixels_row(y);
-                for (i32 x = 0; x < w; ++x) {
-                    const Color c = src_row[x];
-                    if (c.a > 0.0f) {
-                        alpha_row[x] = {p->color.r, p->color.g, p->color.b, c.a * p->intensity};
+            if (x_min < x_max && y_min < y_max) {
+                for (i32 y = y_min; y < y_max; ++y) {
+                    const Color* src_row = fb.pixels_row(y);
+                    Color* alpha_row = alpha_map.pixels_row(y);
+                    for (i32 x = x_min; x < x_max; ++x) {
+                        const Color c = src_row[x];
+                        if (c.a > 0.0f) {
+                            alpha_row[x] = {p->color.r, p->color.g, p->color.b, c.a * p->intensity};
+                        }
                     }
                 }
-            }
-            if (p->radius > 0.0f) apply_blur(alpha_map, p->radius);
-            for (i32 y = 0; y < h; ++y) {
-                Color* dst_row = fb.pixels_row(y);
-                const Color* glow_row = alpha_map.pixels_row(y);
-                for (i32 x = 0; x < w; ++x) {
-                    const Color glow_c = glow_row[x];
-                    if (glow_c.a <= 0.0f) continue;
-                    dst_row[x] = compositor::blend(glow_c, dst_row[x], BlendMode::Normal);
+                if (p->radius > 0.0f) apply_blur(alpha_map, p->radius, clip);
+                for (i32 y = y_min; y < y_max; ++y) {
+                    Color* dst_row = fb.pixels_row(y);
+                    const Color* glow_row = alpha_map.pixels_row(y);
+                    for (i32 x = x_min; x < x_max; ++x) {
+                        const Color glow_c = glow_row[x];
+                        if (glow_c.a <= 0.0f) continue;
+                        dst_row[x] = compositor::blend(glow_c, dst_row[x], BlendMode::Normal);
+                    }
                 }
             }
 
         } else if (auto* p = std::any_cast<DropShadowParams>(&inst.params)) {
             // Offset + blur alpha mask, composite behind content
             const i32 w = fb.width(), h = fb.height();
-            auto shadow_map_fb = acquire_temp_framebuffer(w, h);
-            auto& shadow_map = *shadow_map_fb;
+            i32 x_min_src = 0, x_max_src = w;
+            i32 y_min_src = 0, y_max_src = h;
+            i32 x_min_dst = 0, x_max_dst = w;
+            i32 y_min_dst = 0, y_max_dst = h;
             const i32 ox = static_cast<i32>(std::round(p->offset.x));
             const i32 oy = static_cast<i32>(std::round(p->offset.y));
-            for (i32 y = 0; y < h; ++y) {
-                const Color* src_row = fb.pixels_row(y);
-                for (i32 x = 0; x < w; ++x) {
-                    const Color c = src_row[x];
-                    if (c.a > 0.0f) {
-                        const i32 dx = x + ox;
-                        const i32 dy = y + oy;
-                        if (dx >= 0 && dx < w && dy >= 0 && dy < h) {
-                            Color* shadow_row = shadow_map.pixels_row(dy);
-                            shadow_row[dx] = {p->color.r, p->color.g, p->color.b, c.a * p->color.a};
+            if (clip) {
+                x_min_dst = std::max(0, clip->x0);
+                x_max_dst = std::min(w, clip->x1);
+                y_min_dst = std::max(0, clip->y0);
+                y_max_dst = std::min(h, clip->y1);
+
+                x_min_src = std::max(0, clip->x0 - ox);
+                x_max_src = std::min(w, clip->x1 - ox);
+                y_min_src = std::max(0, clip->y0 - oy);
+                y_max_src = std::min(h, clip->y1 - oy);
+            }
+            auto shadow_map_fb = acquire_temp_framebuffer(w, h);
+            shadow_map_fb->clear(Color{0.0f, 0.0f, 0.0f, 0.0f});
+            auto& shadow_map = *shadow_map_fb;
+            if (x_min_dst < x_max_dst && y_min_dst < y_max_dst) {
+                for (i32 y = y_min_src; y < y_max_src; ++y) {
+                    const Color* src_row = fb.pixels_row(y);
+                    for (i32 x = x_min_src; x < x_max_src; ++x) {
+                        const Color c = src_row[x];
+                        if (c.a > 0.0f) {
+                            const i32 dx = x + ox;
+                            const i32 dy = y + oy;
+                            if (dx >= 0 && dx < w && dy >= 0 && dy < h) {
+                                Color* shadow_row = shadow_map.pixels_row(dy);
+                                shadow_row[dx] = {p->color.r, p->color.g, p->color.b, c.a * p->color.a};
+                            }
                         }
                     }
                 }
-            }
-            if (p->radius > 0.0f) apply_blur(shadow_map, p->radius);
-            // Composite shadow BEHIND content using a temp result buffer
-            auto result_fb = acquire_temp_framebuffer(w, h);
-            auto& result = *result_fb;
-            for (i32 y = 0; y < h; ++y) {
-                const Color* shadow_row = shadow_map.pixels_row(y);
-                const Color* src_row    = fb.pixels_row(y);
-                Color*       result_row = result.pixels_row(y);
-                for (i32 x = 0; x < w; ++x) {
-                    result_row[x] = compositor::blend(src_row[x], shadow_row[x], BlendMode::Normal);
-                }
-            }
-            fb = std::move(result);
-
-        } else if (auto* p = std::any_cast<BloomParams>(&inst.params)) {
-            const i32 w = fb.width(), h = fb.height();
-            auto bright_fb = acquire_temp_framebuffer(w, h);
-            auto& bright = *bright_fb;
-            for (i32 y = 0; y < h; ++y) {
-                const Color* src_row   = fb.pixels_row(y);
-                Color*       bright_row = bright.pixels_row(y);
-                for (i32 x = 0; x < w; ++x) {
-                    const Color c = src_row[x];
-                    const f32 lum = 0.2126f * c.r + 0.7152f * c.g + 0.0722f * c.b;
-                    if (lum > p->threshold && c.a > 0.0f) {
-                        const f32 excess = (lum - p->threshold) / (1.0f - p->threshold + 1e-4f);
-                        bright_row[x] = {c.r * excess, c.g * excess, c.b * excess, c.a};
+                if (p->radius > 0.0f) apply_blur(shadow_map, p->radius, clip);
+                
+                // Composite shadow BEHIND content in-place
+                for (i32 y = y_min_dst; y < y_max_dst; ++y) {
+                    Color*       fb_row = fb.pixels_row(y);
+                    const Color* shadow_row = shadow_map.pixels_row(y);
+                    for (i32 x = x_min_dst; x < x_max_dst; ++x) {
+                        fb_row[x] = compositor::blend(fb_row[x], shadow_row[x], BlendMode::Normal);
                     }
                 }
             }
-            if (p->radius > 0.0f) apply_blur(bright, p->radius);
-            for (i32 y = 0; y < h; ++y) {
-                Color*       dst_row    = fb.pixels_row(y);
-                const Color* bright_row = bright.pixels_row(y);
-                for (i32 x = 0; x < w; ++x) {
-                    const Color b = bright_row[x];
-                    if (b.a <= 0.0f) continue;
-                    const Color src = dst_row[x];
-                    dst_row[x] = {
-                        std::min(1.0f, src.r + b.r * p->intensity),
-                        std::min(1.0f, src.g + b.g * p->intensity),
-                        std::min(1.0f, src.b + b.b * p->intensity),
-                        src.a
-                    };
+
+        } else if (auto* p = std::any_cast<BloomParams>(&inst.params)) {
+            const i32 w = fb.width(), h = fb.height();
+            i32 x_min = 0, x_max = w;
+            i32 y_min = 0, y_max = h;
+            if (clip) {
+                x_min = std::max(0, clip->x0);
+                x_max = std::min(w, clip->x1);
+                y_min = std::max(0, clip->y0);
+                y_max = std::min(h, clip->y1);
+            }
+            auto bright_fb = acquire_temp_framebuffer(w, h);
+            bright_fb->clear(Color{0.0f, 0.0f, 0.0f, 0.0f});
+            auto& bright = *bright_fb;
+            if (x_min < x_max && y_min < y_max) {
+                for (i32 y = y_min; y < y_max; ++y) {
+                    const Color* src_row   = fb.pixels_row(y);
+                    Color*       bright_row = bright.pixels_row(y);
+                    for (i32 x = x_min; x < x_max; ++x) {
+                        const Color c = src_row[x];
+                        const f32 lum = 0.2126f * c.r + 0.7152f * c.g + 0.0722f * c.b;
+                        if (lum > p->threshold && c.a > 0.0f) {
+                            const f32 excess = (lum - p->threshold) / (1.0f - p->threshold + 1e-4f);
+                            bright_row[x] = {c.r * excess, c.g * excess, c.b * excess, c.a};
+                        }
+                    }
+                }
+                if (p->radius > 0.0f) apply_blur(bright, p->radius, clip);
+                for (i32 y = y_min; y < y_max; ++y) {
+                    Color*       dst_row    = fb.pixels_row(y);
+                    const Color* bright_row = bright.pixels_row(y);
+                    for (i32 x = x_min; x < x_max; ++x) {
+                        const Color b = bright_row[x];
+                        if (b.a <= 0.0f) continue;
+                        const Color src = dst_row[x];
+                        dst_row[x] = {
+                            std::min(1.0f, src.r + b.r * p->intensity),
+                            std::min(1.0f, src.g + b.g * p->intensity),
+                            std::min(1.0f, src.b + b.b * p->intensity),
+                            src.a
+                        };
+                    }
                 }
             }
 
