@@ -19,7 +19,7 @@ public:
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         return cache::NodeCacheKey{
             .scope = "adjustment",
-            .frame = ctx.frame,
+            .frame = frame_dependent() ? ctx.frame : Frame{0},
             .width = ctx.width,
             .height = ctx.height,
             .params_hash = hash_effect_stack(m_effects)

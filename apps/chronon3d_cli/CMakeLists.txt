@@ -40,6 +40,13 @@ add_executable(chronon3d_cli
     commands/telemetry/command_telemetry_summary.cpp
     commands/telemetry/command_telemetry_report.cpp
     commands/render/command_bake_layer.cpp
+
+    ${CMAKE_SOURCE_DIR}/tests/presets/backgrounds/studio_grid_background.cpp
+    ${CMAKE_SOURCE_DIR}/tests/presets/backgrounds/gradient_orbs_background.cpp
+    ${CMAKE_SOURCE_DIR}/tests/presets/backgrounds/parallax_space_background.cpp
+    ${CMAKE_SOURCE_DIR}/tests/presets/backgrounds/data_stream_background.cpp
+    ${CMAKE_SOURCE_DIR}/tests/presets/backgrounds/premium_studio_background.cpp
+    ${CMAKE_SOURCE_DIR}/tests/compositions/background_showcase.cpp
 )
 set_target_properties(chronon3d_cli PROPERTIES UNITY_BUILD OFF)
 

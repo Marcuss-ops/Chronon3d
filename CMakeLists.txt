@@ -199,6 +199,15 @@ target_precompile_headers(chronon3d_runtime PRIVATE <spdlog/spdlog.h> <fmt/core.
 if(CHRONON3D_ENABLE_SQLITE_TELEMETRY)
     target_link_libraries(chronon3d_runtime PUBLIC unofficial::sqlite3::sqlite3)
     target_compile_definitions(chronon3d_runtime PRIVATE CHRONON3D_ENABLE_SQLITE_TELEMETRY)
+
+    # Generate telemetry schema header from canonical .sql file
+    file(READ "${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/telemetry/sqlite/telemetry_schema.sql" TELEMETRY_SCHEMA_CONTENT)
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/telemetry/sqlite/telemetry_schema.hpp.in"
+        "${CMAKE_CURRENT_BINARY_DIR}/telemetry_schema.hpp"
+        @ONLY
+    )
+    target_include_directories(chronon3d_runtime PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
 endif()
 
 # 7. Backends (Image, Assets, Video, Software)

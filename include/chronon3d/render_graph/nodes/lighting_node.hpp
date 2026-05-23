@@ -29,11 +29,21 @@ public:
 
         return cache::NodeCacheKey{
             .scope = "lighting:" + m_layer_name,
-            .frame = ctx.frame,
+            .frame = frame_dependent() ? ctx.frame : Frame{0},
             .width = ctx.width,
             .height = ctx.height,
             .params_hash = hash_combine(hash_combine(light_hash, material_hash), world_hash)
         };
+    }
+
+    std::optional<raster::BBox> predicted_bbox(
+        const RenderGraphContext&,
+        std::span<const std::optional<raster::BBox>> input_bboxes = {}
+    ) const override {
+        if (input_bboxes.empty() || !input_bboxes[0]) {
+            return std::nullopt;
+        }
+        return input_bboxes[0];
     }
 
     std::shared_ptr<Framebuffer> execute(

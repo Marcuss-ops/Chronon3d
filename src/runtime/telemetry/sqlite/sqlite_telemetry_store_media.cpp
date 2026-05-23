@@ -6,15 +6,12 @@
 namespace chronon3d::telemetry {
 
 bool SqliteTelemetryStore::write_text_events(const std::string& run_id, const std::vector<TextTelemetryRecord>& events) {
-    std::lock_guard<std::mutex> lock(m_impl->mutex);
+    std::scoped_lock lock(m_impl->mutex);
     if (!m_impl->db) return false;
-
-    sqlite3_exec(m_impl->db, "BEGIN TRANSACTION;", nullptr, nullptr, nullptr);
 
     const char* sql = "INSERT INTO render_text_events VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);";
     sqlite3_stmt* stmt{nullptr};
     if (sqlite3_prepare_v2(m_impl->db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
-        sqlite3_exec(m_impl->db, "ROLLBACK;", nullptr, nullptr, nullptr);
         return false;
     }
 
@@ -43,24 +40,16 @@ bool SqliteTelemetryStore::write_text_events(const std::string& run_id, const st
     }
 
     sqlite3_finalize(stmt);
-    if (success) {
-        sqlite3_exec(m_impl->db, "COMMIT;", nullptr, nullptr, nullptr);
-    } else {
-        sqlite3_exec(m_impl->db, "ROLLBACK;", nullptr, nullptr, nullptr);
-    }
     return success;
 }
 
 bool SqliteTelemetryStore::write_image_events(const std::string& run_id, const std::vector<ImageTelemetryRecord>& events) {
-    std::lock_guard<std::mutex> lock(m_impl->mutex);
+    std::scoped_lock lock(m_impl->mutex);
     if (!m_impl->db) return false;
-
-    sqlite3_exec(m_impl->db, "BEGIN TRANSACTION;", nullptr, nullptr, nullptr);
 
     const char* sql = "INSERT INTO render_image_events VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);";
     sqlite3_stmt* stmt{nullptr};
     if (sqlite3_prepare_v2(m_impl->db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
-        sqlite3_exec(m_impl->db, "ROLLBACK;", nullptr, nullptr, nullptr);
         return false;
     }
 
@@ -85,11 +74,6 @@ bool SqliteTelemetryStore::write_image_events(const std::string& run_id, const s
     }
 
     sqlite3_finalize(stmt);
-    if (success) {
-        sqlite3_exec(m_impl->db, "COMMIT;", nullptr, nullptr, nullptr);
-    } else {
-        sqlite3_exec(m_impl->db, "ROLLBACK;", nullptr, nullptr, nullptr);
-    }
     return success;
 }
 

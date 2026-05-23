@@ -132,6 +132,7 @@ bool TelemetryManager::record_run(RenderTelemetryRecord& run,
 
     bool all_ok = true;
     for (auto& store : m_stores) {
+        store->begin_transaction();
         bool ok = store->write_render_run(run);
         if (!frames.empty()) {
             ok &= store->write_frames(run.run_id, frames);
@@ -163,6 +164,7 @@ bool TelemetryManager::record_run(RenderTelemetryRecord& run,
         if (!tile_events.empty()) {
             ok &= store->write_tile_events(run.run_id, tile_events);
         }
+        store->end_transaction(ok);
         all_ok &= ok;
     }
     return all_ok;

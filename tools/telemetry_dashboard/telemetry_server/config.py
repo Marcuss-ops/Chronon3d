@@ -7,6 +7,12 @@ PROJECT_DB = Path(__file__).resolve().parent.parent.parent.parent / 'output' / '
 DB_PATH = PROJECT_DB if PROJECT_DB.exists() else TELEMETRY_DIR / 'chronon3d_render_history.sqlite'
 JSONL_PATH = TELEMETRY_DIR / 'render_history.jsonl'
 
+# Canonical schema file (single source of truth, shared with C++)
+SCHEMA_SQL_PATH = (
+    Path(__file__).resolve().parent.parent.parent.parent
+    / 'src' / 'runtime' / 'telemetry' / 'sqlite' / 'telemetry_schema.sql'
+)
+
 
 # ── Utilities ──────────────────────────────────────────────────────────────────────
 def parse_iso(value):
@@ -53,7 +59,12 @@ RUN_COLUMNS = [
     'layer_culling_tests', 'layers_culled', 'layers_visible',
     'framebuffer_allocations', 'framebuffer_reuses', 'framebuffer_bytes_allocated',
     'framebuffer_bytes_peak',
-    'dirty_rect_count', 'dirty_pixels', 'dirty_full_fallbacks',
+    'dirty_rect_count', 'dirty_pixels', 'dirty_union_area_pixels', 'dirty_full_fallbacks',
+    'bypass_not_cacheable_count',
+    'dirty_full_fallback_predicted_bounds_missing',
+    'dirty_full_fallback_composite_missing_input_bounds',
+    'dirty_full_fallback_transform_bounds_unknown',
+    'dirty_full_fallback_effect_bounds_unknown',
     'started_at_iso', 'finished_at_iso', 'git_commit_short', 'build_type',
     'compiler_info', 'os', 'cpu_model', 'cores',
 ]
