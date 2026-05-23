@@ -4,6 +4,7 @@
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/core/trace.hpp>
 #include <chronon3d/core/counters.hpp>
+#include <chronon3d/core/memory_utils.hpp>
 #include <vector>
 #include <string>
 #include <fstream>
@@ -221,7 +222,7 @@ private:
     i32 m_origin_x{0};
     i32 m_origin_y{0};
     bool m_opaque{false};
-    std::vector<Color> m_pixels;
+    std::vector<Color, memory::HugePageAllocator<Color>> m_pixels;
 };
 
 } // namespace chronon3d

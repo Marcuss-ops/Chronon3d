@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/render_graph/nodes/basic_nodes_common.hpp>
+#include <span>
 
 namespace chronon3d::graph {
 
@@ -33,8 +34,8 @@ public:
 
     std::shared_ptr<Framebuffer> execute(
         RenderGraphContext& ctx,
-        const std::vector<std::shared_ptr<Framebuffer>>&,
-        const std::vector<std::optional<raster::BBox>>&
+        std::span<const std::shared_ptr<Framebuffer>>,
+        std::span<const std::optional<raster::BBox>>
     ) override {
         auto* sw_renderer = dynamic_cast<SoftwareRenderer*>(ctx.backend);
         bool use_dirty_rects = sw_renderer && ctx.reuse_prev_framebuffer && sw_renderer->m_prev_framebuffer;

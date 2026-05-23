@@ -2,6 +2,7 @@
 #include <chronon3d/render_graph/nodes/transition_node_math.hpp>
 #include <cmath>
 #include <algorithm>
+#include <span>
 
 namespace chronon3d::graph {
 
@@ -10,8 +11,8 @@ namespace chronon3d::graph {
 
 std::shared_ptr<Framebuffer> TransitionNode::execute(
     RenderGraphContext& ctx,
-    const std::vector<std::shared_ptr<Framebuffer>>& inputs,
-    const std::vector<std::optional<raster::BBox>>&
+    std::span<const std::shared_ptr<Framebuffer>> inputs,
+    std::span<const std::optional<raster::BBox>>
 ) {
     if (inputs.empty() || !inputs[0]) {
         return ctx.acquire_framebuffer(ctx.width, ctx.height, true);

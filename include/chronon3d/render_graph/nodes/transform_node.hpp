@@ -9,6 +9,7 @@
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <glm/glm.hpp>
 #include <spdlog/spdlog.h>
+#include <span>
 
 namespace chronon3d::graph {
 
@@ -35,7 +36,7 @@ public:
 
     std::optional<raster::BBox> predicted_bbox(
         const RenderGraphContext& ctx,
-        const std::vector<std::optional<raster::BBox>>& input_bboxes = {}
+        std::span<const std::optional<raster::BBox>> input_bboxes = {}
     ) const override;
 
     [[nodiscard]] CacheFramePolicy cache_frame_policy() const override {
@@ -63,8 +64,8 @@ public:
 
     std::shared_ptr<Framebuffer> execute(
         RenderGraphContext& ctx,
-        const std::vector<std::shared_ptr<Framebuffer>>& inputs,
-        const std::vector<std::optional<raster::BBox>>& input_bboxes
+        std::span<const std::shared_ptr<Framebuffer>> inputs,
+        std::span<const std::optional<raster::BBox>> input_bboxes
     ) override;
 
 private:

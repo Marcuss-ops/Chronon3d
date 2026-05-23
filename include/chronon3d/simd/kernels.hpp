@@ -44,5 +44,9 @@ void rasterize_rect_simd(
     const Color& color
 );
 
+/// Vectorized alpha premultiplication for RGBA8 to PRGB32 (Blend2D format).
+/// `src` is RGBA8, `dst` is PRGB32 (0xAARRGGBB).
+void premultiply_alpha_rgba8(uint32_t* __restrict__ dst, const uint8_t* __restrict__ src, int pixel_count);
+
 } // namespace simd
 } // namespace chronon3d

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/render_graph/nodes/basic_nodes_common.hpp>
+#include <span>
 
 namespace chronon3d::graph {
 
@@ -15,7 +16,7 @@ public:
 
     std::optional<raster::BBox> predicted_bbox(
         const RenderGraphContext&,
-        const std::vector<std::optional<raster::BBox>>& input_bboxes = {}
+        std::span<const std::optional<raster::BBox>> input_bboxes = {}
     ) const override {
         if (input_bboxes.empty()) return std::nullopt;
         if (input_bboxes.size() == 1) return input_bboxes[0];
@@ -57,8 +58,8 @@ public:
 
     std::shared_ptr<Framebuffer> execute(
         RenderGraphContext& ctx,
-        const std::vector<std::shared_ptr<Framebuffer>>& inputs,
-        const std::vector<std::optional<raster::BBox>>& input_bboxes
+        std::span<const std::shared_ptr<Framebuffer>> inputs,
+        std::span<const std::optional<raster::BBox>> input_bboxes
     ) override {
         if (inputs.size() < 2) return inputs.empty() ? ctx.acquire_framebuffer(ctx.width, ctx.height) : inputs[0];
         

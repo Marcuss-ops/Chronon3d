@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/render_graph/render_graph.hpp>
+#include <chronon3d/core/arena.hpp>
 #include <tbb/task_arena.h>
 #include <memory>
 #include <vector>
@@ -28,6 +29,7 @@ private:
     };
 
     tbb::task_arena m_arena;
+    FrameArena      m_frame_arena;
 
     [[nodiscard]] ExecutionPlan build_execution_plan(RenderGraph& graph, GraphNodeId output) const;
 };

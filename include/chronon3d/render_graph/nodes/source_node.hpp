@@ -2,6 +2,7 @@
 
 #include <chronon3d/render_graph/nodes/basic_nodes_common.hpp>
 #include <chronon3d/render_graph/nodes/detail/bbox_projection.hpp>
+#include <span>
 
 namespace chronon3d::graph {
 
@@ -20,7 +21,7 @@ public:
 
     std::optional<raster::BBox> predicted_bbox(
         const RenderGraphContext& ctx,
-        const std::vector<std::optional<raster::BBox>>& = {}
+        std::span<const std::optional<raster::BBox>> = {}
     ) const override {
         const Mat4 ssaa_scale = math::scale(Vec3(ctx.ssaa_factor, ctx.ssaa_factor, 1.0f));
         const Mat4 canvas_center = math::translate(Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
@@ -91,8 +92,8 @@ public:
 
     std::shared_ptr<Framebuffer> execute(
         RenderGraphContext& ctx,
-        const std::vector<std::shared_ptr<Framebuffer>>&,
-        const std::vector<std::optional<raster::BBox>>&
+        std::span<const std::shared_ptr<Framebuffer>>,
+        std::span<const std::optional<raster::BBox>>
     ) override {
         CHRONON_ZONE_C("source_render", trace_category::kRasterize);
         bool clear = true;
