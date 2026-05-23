@@ -1,7 +1,9 @@
 import sqlite3
+import threading
+from pathlib import Path
 
 from .config import (
-    DB_PATH, ALL_TABLES,
+    DB_PATH, JSONL_PATH, SCHEMA_SQL_PATH, ALL_TABLES,
     RUN_COLUMNS, FRAME_COLUMNS, PHASE_COLUMNS, COUNTER_COLUMNS,
     NODE_COLUMNS, LAYER_COLUMNS, CACHE_COLUMNS, CULLING_COLUMNS,
     TEXT_COLUMNS, IMAGE_COLUMNS, TILE_COLUMNS,
@@ -9,8 +11,18 @@ from .config import (
 from .jsonl_loader import load_jsonl_records
 
 
-# ── Schema DDL ─────────────────────────────────────────────────────────────────────
-SCHEMA_SQL = """
+# ── Schema DDL (read from canonical .sql file shared with C++) ────────────────────
+def _load_schema_sql():
+    """Read the canonical schema from the shared .sql file."""
+    if SCHEMA_SQL_PATH.exists():
+        return SCHEMA_SQL_PATH.read_text(encoding='utf-8')
+    # Fallback: embedded copy of the canonical schema for when source tree is unavailable
+    import logging
+    logging.warning("telemetry_schema.sql not found at %s, using embedded fallback", SCHEMA_SQL_PATH)
+    return _FALLBACK_SCHEMA
+
+
+_FALLBACK_SCHEMA = r"""
 CREATE TABLE IF NOT EXISTS render_runs (
     run_id TEXT PRIMARY KEY,
     composition_id TEXT,
@@ -56,7 +68,13 @@ CREATE TABLE IF NOT EXISTS render_runs (
     framebuffer_bytes_peak INTEGER,
     dirty_rect_count INTEGER,
     dirty_pixels INTEGER,
+    dirty_union_area_pixels INTEGER,
     dirty_full_fallbacks INTEGER,
+    bypass_not_cacheable_count INTEGER,
+    dirty_full_fallback_predicted_bounds_missing INTEGER,
+    dirty_full_fallback_composite_missing_input_bounds INTEGER,
+    dirty_full_fallback_transform_bounds_unknown INTEGER,
+    dirty_full_fallback_effect_bounds_unknown INTEGER,
     started_at_iso TEXT,
     finished_at_iso TEXT,
     git_commit_short TEXT,
@@ -221,6 +239,99 @@ CREATE TABLE IF NOT EXISTS render_tile_events (
     PRIMARY KEY (run_id, frame_number, layer_id, tile_x, tile_y)
 );
 """
+
+
+SCHEMA_SQL = _load_schema_sql()
+
+
+# ── Shared read-only connection wrapper (avoids backup() copy of entire DB) ──────
+class SharedReadConnection:
+    """Wraps a cached in-memory SQLite connection for safe concurrent reads.
+
+    Instead of copying the entire cached DB via backup() on every request,
+    we share the master connection using a lock for serialized reads.
+    The close() is a no-op so the cached connection survives.
+    """
+
+    def __init__(self, master_conn, lock):
+        self._conn = master_conn
+        self._lock = lock
+
+    def cursor(self):
+        return _LockedCursor(self._conn, self._lock)
+
+    def close(self):
+        pass  # Don't close the shared master connection
+
+
+class _LockedCursor:
+    """Cursor wrapper that acquires the shared lock for execute() and releases on fetch().
+
+    Stores the inner sqlite3.Cursor after execute() and delegates fetchall()/fetchone()
+    to it, releasing the lock once data is retrieved.
+
+    Supports context manager protocol (with cursor.execute(...) as cur:) and iteration.
+    """
+
+    def __init__(self, conn, lock):
+        self._conn = conn
+        self._lock = lock
+        self._cur = None
+        self._locked = False
+
+    def execute(self, sql, params=None):
+        self._lock.acquire()
+        self._locked = True
+        try:
+            if params:
+                self._cur = self._conn.execute(sql, params)
+            else:
+                self._cur = self._conn.execute(sql)
+            return self
+        except Exception:
+            self._release()
+            raise
+
+    def _release(self):
+        if self._locked:
+            self._locked = False
+            try:
+                if self._cur:
+                    self._cur.close()
+            finally:
+                self._cur = None
+                self._lock.release()
+
+    def fetchall(self):
+        try:
+            return self._cur.fetchall() if self._cur else []
+        finally:
+            self._release()
+
+    def fetchone(self):
+        try:
+            return self._cur.fetchone() if self._cur else None
+        finally:
+            self._release()
+
+    def __iter__(self):
+        if not self._cur:
+            self._release()
+            return iter([])
+        try:
+            rows = self._cur.fetchall()
+            return iter(rows)
+        finally:
+            self._release()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self._release()
+
+    def __del__(self):
+        self._release()
 
 
 def _load_existing_db(cursor):
@@ -443,37 +554,61 @@ def _insert_batch(cursor, rows, columns, table):
     cursor.executemany(sql, rows)
 
 
+# ── Global cache: one shared in-memory master DB, rebuilt only on file change ────
+_cached_master = None
+_last_db_mtime = 0
+_last_jsonl_mtime = 0
+_db_lock = threading.Lock()
+
+
 def create_merged_connection():
     """
-    Create an in-memory SQLite connection pre-populated with:
-    1. The schema for all telemetry tables.
-    2. Data from the on-disk SQLite DB (if it exists).
-    3. Data from the JSONL history file (if it exists).
+    Create a read-only connection to the merged telemetry data.
 
-    Returns a new sqlite3.Connection with row_factory = sqlite3.Row.
+    Returns a SharedReadConnection that wraps the cached in-memory database.
+    Unlike the previous approach that used sqlite3.backup() to copy the entire
+    cached DB (potentially 1+ GB) for every HTTP request, this shares the
+    single in-memory connection using a lock for serialized reads.
+
+    The cached master database is rebuilt only when the on-disk SQLite DB or
+    JSONL file has been modified since the last rebuild.
     """
-    conn = sqlite3.connect(':memory:')
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
+    global _cached_master, _last_db_mtime, _last_jsonl_mtime
 
-    # 1. Create schema
-    cursor.executescript(SCHEMA_SQL)
+    with _db_lock:
+        db_mtime = DB_PATH.stat().st_mtime if DB_PATH.exists() else 0
+        jsonl_mtime = JSONL_PATH.stat().st_mtime if JSONL_PATH.exists() else 0
 
-    # 2. Load existing on-disk DB
-    _load_existing_db(cursor)
+        if _cached_master is None or db_mtime > _last_db_mtime or jsonl_mtime > _last_jsonl_mtime:
+            schema_sql = _load_schema_sql()
+            master = sqlite3.connect(':memory:', check_same_thread=False)
+            master.row_factory = sqlite3.Row
+            cursor = master.cursor()
+            cursor.executescript(schema_sql)
+            _load_existing_db(cursor)
 
-    # 3. Load JSONL records
-    batches = {rtype: [] for rtype in _BUILDERS}
-    for record in load_jsonl_records():
-        rtype = record.get('type')
-        builder = _BUILDERS.get(rtype)
-        if builder:
-            batches[rtype].append(builder[0](record))
+            batches = {rtype: [] for rtype in _BUILDERS}
+            for record in load_jsonl_records():
+                rtype = record.get('type')
+                builder = _BUILDERS.get(rtype)
+                if builder:
+                    batches[rtype].append(builder[0](record))
 
-    for rtype, rows in batches.items():
-        if rows:
-            _, columns, table = _BUILDERS[rtype]
-            _insert_batch(cursor, rows, columns, table)
+            for rtype, rows in batches.items():
+                if rows:
+                    _, columns, table = _BUILDERS[rtype]
+                    _insert_batch(cursor, rows, columns, table)
 
-    conn.commit()
-    return conn
+            master.commit()
+
+            if _cached_master:
+                try:
+                    _cached_master.close()
+                except Exception:
+                    pass
+            _cached_master = master
+            _last_db_mtime = db_mtime
+            _last_jsonl_mtime = jsonl_mtime
+
+    # Return a shared read wrapper — no backup() copy needed
+    return SharedReadConnection(_cached_master, _db_lock)

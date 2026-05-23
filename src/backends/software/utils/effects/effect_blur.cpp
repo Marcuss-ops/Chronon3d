@@ -31,7 +31,9 @@ void apply_blur(Framebuffer& fb, f32 radius, const std::optional<raster::BBox>& 
     Framebuffer& tmp = *tmp_fb;
 
     for (int pass = 0; pass < 3; ++pass) {
-        for (i32 y = y0; y < y1; ++y) {
+        const i32 y_start = std::max(0, y0 - r);
+        const i32 y_end = std::min(h, y1 + r + 1);
+        for (i32 y = y_start; y < y_end; ++y) {
             const Color* src_row = fb.pixels_row(y);
             Color* tmp_row = tmp.pixels_row(y);
             Color sum{0, 0, 0, 0};

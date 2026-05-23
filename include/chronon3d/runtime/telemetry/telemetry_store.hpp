@@ -10,6 +10,12 @@ public:
     virtual ~TelemetryStore() = default;
 
     virtual bool initialize(const std::string& db_path) = 0;
+
+    // Transaction boundary: begin_transaction()/end_transaction() bracket a batch of writes.
+    // For SQL stores this wraps all writes in a single BEGIN/COMMIT.
+    virtual void begin_transaction() {}
+    virtual void end_transaction(bool commit) {}
+
     virtual bool write_render_run(const RenderTelemetryRecord& run) = 0;
     virtual bool write_frames(const std::string& run_id, const std::vector<FrameTelemetryRecord>& frames) = 0;
     virtual bool write_phases(const std::string& run_id, const std::vector<PhaseTelemetryRecord>& phases) = 0;

@@ -46,11 +46,55 @@ public:
         h = hash_combine(h, hash_value(m_settings.max_offset));
         return cache::NodeCacheKey{
             .scope = "shadow:" + m_caster_name,
-            .frame = ctx.frame,
+            .frame = frame_dependent() ? ctx.frame : Frame{0},
             .width = ctx.width,
             .height = ctx.height,
             .params_hash = h
         };
+    }
+
+    std::optional<raster::BBox> predicted_bbox(
+        const RenderGraphContext& ctx,
+        std::span<const std::optional<raster::BBox>> input_bboxes = {}
+    ) const override {
+        if (input_bboxes.empty() || !input_bboxes[0]) {
+            return std::nullopt;
+        }
+        auto bbox = *input_bboxes[0];
+        if (bbox.is_empty()) {
+            return bbox;
+        }
+
+        const float dz = m_caster_world_z - m_receiver_world_z;
+        const float eps = 1e-4f;
+        const float safe_y = std::abs(m_light_dir.y) > eps
+            ? m_light_dir.y
+            : std::copysign(eps, m_light_dir.y != 0.0f ? m_light_dir.y : 1.0f);
+        float ox = -(m_light_dir.x / safe_y) * dz * m_settings.px_per_unit;
+        float oy = (m_light_dir.z / safe_y) * dz * m_settings.px_per_unit;
+        ox = std::clamp(ox, -m_settings.max_offset, m_settings.max_offset);
+        oy = std::clamp(oy, -m_settings.max_offset, m_settings.max_offset);
+        const int dx = static_cast<int>(std::round(ox));
+        const int dy = static_cast<int>(std::round(oy));
+
+        bbox.x0 += dx;
+        bbox.y0 += dy;
+        bbox.x1 += dx;
+        bbox.y1 += dy;
+
+        if (m_settings.blur_radius > 0.0f) {
+            const float blur = m_settings.blur_radius;
+            bbox.x0 = std::max(0, static_cast<i32>(std::floor(static_cast<f32>(bbox.x0) - blur)));
+            bbox.y0 = std::max(0, static_cast<i32>(std::floor(static_cast<f32>(bbox.y0) - blur)));
+            bbox.x1 = std::min(ctx.width, static_cast<i32>(std::ceil(static_cast<f32>(bbox.x1) + blur)));
+            bbox.y1 = std::min(ctx.height, static_cast<i32>(std::ceil(static_cast<f32>(bbox.y1) + blur)));
+        } else {
+            bbox.x0 = std::max(0, bbox.x0);
+            bbox.y0 = std::max(0, bbox.y0);
+            bbox.x1 = std::min(ctx.width, bbox.x1);
+            bbox.y1 = std::min(ctx.height, bbox.y1);
+        }
+        return bbox;
     }
 
     std::shared_ptr<Framebuffer> execute(
@@ -76,15 +120,15 @@ public:
         const int dx = static_cast<int>(std::round(ox));
         const int dy = static_cast<int>(std::round(oy));
 
-        // Translate caster alpha → opaque-black shadow pixels at (x+dx, y+dy)
+        // Translate caster alpha → opaque-black shadow pixels at (x + origin_x + dx, y + origin_y + dy)
         for (int y = 0; y < src.height(); ++y) {
             const Color* src_row = src.pixels_row(y);
-            const int dst_y = y + dy;
+            const int dst_y = y + src.origin_y() + dy;
             if (dst_y < 0 || dst_y >= result->height()) continue;
             Color* dst_row = result->pixels_row(dst_y);
             for (int x = 0; x < src.width(); ++x) {
                 if (src_row[x].a <= 0.0f) continue;
-                const int dst_x = x + dx;
+                const int dst_x = x + src.origin_x() + dx;
                 if (dst_x < 0 || dst_x >= result->width()) continue;
                 const float alpha = std::min(1.0f, src_row[x].a * m_settings.opacity);
                 dst_row[dst_x].a = std::min(1.0f, dst_row[dst_x].a + alpha);
@@ -92,7 +136,7 @@ public:
         }
 
         if (m_settings.blur_radius > 0.0f && ctx.backend) {
-            ctx.backend->apply_blur(*result, m_settings.blur_radius);
+            ctx.backend->apply_blur(*result, m_settings.blur_radius, ctx.clip_rect);
         }
 
         return result;

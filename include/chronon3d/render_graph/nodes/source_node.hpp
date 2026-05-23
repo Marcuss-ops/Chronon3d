@@ -54,7 +54,7 @@ public:
         auto bbox = renderer::compute_world_bbox(m_node.shape, matrix, spread);
         bbox.clip_to(ctx.width, ctx.height);
         if (bbox.is_empty()) {
-            return std::nullopt;
+            return raster::BBox{0, 0, 0, 0};
         }
         return bbox;
     }

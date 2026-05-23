@@ -1,0 +1,6 @@
+#pragma once
+// Auto-generated from telemetry_schema.sql — DO NOT EDIT BY HAND
+// Source: src/runtime/telemetry/sqlite/telemetry_schema.sql
+constexpr const char* TELEMETRY_SCHEMA_SQL = R"raw(
+@TELEMETRY_SCHEMA_CONTENT@
+)raw";

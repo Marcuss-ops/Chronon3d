@@ -9,7 +9,7 @@ using namespace chronon3d::graph;
 
 void append_composite_pass(RenderGraph& graph, GraphNodeId& current,
                            GraphNodeId layer_output, const Layer& layer,
-                           const RenderGraphContext& ctx) {
+                           bool is_static, const RenderGraphContext& ctx) {
     if (layer_output == k_invalid_node || layer_output == current) return;
 
     if (!ctx.dirty_rects_enabled &&
@@ -24,9 +24,9 @@ void append_composite_pass(RenderGraph& graph, GraphNodeId& current,
 
     auto composite = graph.add_node(std::make_unique<CompositeNode>(
         layer.blend_mode,
-        layer.cache_static ? Frame{0} : Frame{-1}
+        is_static ? Frame{0} : Frame{-1}
     ));
-    graph.node(composite).set_frame_dependent(!layer.cache_static);
+    graph.node(composite).set_frame_dependent(!is_static);
     graph.connect(current, composite);
     graph.connect(layer_output, composite);
     current = composite;
