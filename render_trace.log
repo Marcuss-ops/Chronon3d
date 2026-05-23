@@ -1,0 +1,591 @@
+[2026-05-23 09:57:35.062] [warning] No output path specified, defaulting to render_####.png
+[2026-05-23 09:57:35.062] [info] Rendering GradientOrbsShowcase [0 -> 2 step 1]...
+[2026-05-23 09:57:35.063] [info] [diagnostics-3d] Compiled projection matrix. Depth=1400.07, Det=1399999872.0000 (OK)
+[2026-05-23 09:57:35.063] [info] [diagnostics-3d] Compiled projection matrix. Depth=1100.10, Det=1100000000.0000 (OK)
+[2026-05-23 09:57:35.063] [info] [dirty-debug] frame=0 use_dirty_rects=0 prev_fb=0 dirty_rect=[0,0 -> 1920,1080] prev_frame=-1
+[2026-05-23 09:57:35.063] [info] [diagnostics-3d] Compiled projection matrix. Depth=1400.07, Det=1399999872.0000 (OK)
+[2026-05-23 09:57:35.063] [info] [diagnostics-3d] Compiled projection matrix. Depth=1100.10, Det=1100000000.0000 (OK)
+[2026-05-23 09:57:35.065] [warning] [cache-bypass] frame=0 node='Clear' node_id=0 kind='Output' reason='not_cacheable'
+[2026-05-23 09:57:35.065] [info] [dirty-debug] frame=0 Clear reuse_prev=0 clip=[0:0 -> 1920:1080] prev_origin=[0,0] prev_opaque=0
+[2026-05-23 09:57:35.089] [info] [graph-debug] frame=0 node='Clear' kind='Output' cache_status='bypass_not_cacheable' dur=23.910ms
+[2026-05-23 09:57:35.108] [info] [layout-preview] node='grain_21' type=Circle pos=(908.4,383.9,149.9) anchor=(1.6,1.6,0.0) bbox=[908,383,912,388] screen_anchor=(910.0,385.5)
+[2026-05-23 09:57:35.120] [info] [source-debug] node='grain_21' shape=3 nonzero_pixels=2073217 opacity=1.000 matrix_tx=908.377 matrix_ty=383.911 det2d=1.000000
+[2026-05-23 09:57:35.120] [info] [graph-debug] frame=0 node='grain_21' kind='Source' cache_status='miss' dur=55.260ms
+[2026-05-23 09:57:35.140] [info] [layout-preview] node='grain_35' type=Circle pos=(874.2,-2.0,-149.6) anchor=(2.5,2.5,0.0) bbox=[874,-3,880,3] screen_anchor=(876.7,0.4)
+[2026-05-23 09:57:35.145] [info] [source-debug] node='grain_35' shape=3 nonzero_pixels=2073387 opacity=1.000 matrix_tx=874.183 matrix_ty=-2.040 det2d=1.000000
+[2026-05-23 09:57:35.145] [info] [graph-debug] frame=0 node='grain_35' kind='Source' cache_status='miss' dur=80.267ms
+[2026-05-23 09:57:35.167] [info] [layout-preview] node='grain_28' type=Circle pos=(1024.3,111.2,-8.3) anchor=(2.3,2.3,0.0) bbox=[1024,111,1030,116] screen_anchor=(1026.7,113.5)
+[2026-05-23 09:57:35.184] [info] [source-debug] node='grain_28' shape=3 nonzero_pixels=2073183 opacity=1.000 matrix_tx=1024.349 matrix_ty=111.176 det2d=1.000000
+[2026-05-23 09:57:35.184] [info] [graph-debug] frame=0 node='grain_28' kind='Source' cache_status='miss' dur=119.394ms
+[2026-05-23 09:57:35.204] [info] [layout-preview] node='grain_31' type=Circle pos=(884.1,446.4,-100.5) anchor=(2.1,2.1,0.0) bbox=[884,446,889,451] screen_anchor=(886.3,448.5)
+[2026-05-23 09:57:35.209] [info] [source-debug] node='grain_31' shape=3 nonzero_pixels=2073200 opacity=1.000 matrix_tx=884.117 matrix_ty=446.360 det2d=1.000000
+[2026-05-23 09:57:35.209] [info] [graph-debug] frame=0 node='grain_31' kind='Source' cache_status='miss' dur=143.964ms
+[2026-05-23 09:57:35.228] [info] [layout-preview] node='grain_24' type=Circle pos=(1014.7,153.7,112.7) anchor=(2.5,2.5,0.0) bbox=[1014,153,1020,159] screen_anchor=(1017.2,156.2)
+[2026-05-23 09:57:35.233] [info] [source-debug] node='grain_24' shape=3 nonzero_pixels=2073166 opacity=1.000 matrix_tx=1014.686 matrix_ty=153.711 det2d=1.000000
+[2026-05-23 09:57:35.233] [info] [graph-debug] frame=0 node='grain_24' kind='Source' cache_status='miss' dur=167.469ms
+[2026-05-23 09:57:35.253] [info] [layout-preview] node='grain_42' type=Circle pos=(1057.9,86.4,12.4) anchor=(2.0,2.0,0.0) bbox=[1057,86,1062,91] screen_anchor=(1059.9,88.4)
+[2026-05-23 09:57:35.259] [info] [source-debug] node='grain_42' shape=3 nonzero_pixels=2073200 opacity=1.000 matrix_tx=1057.882 matrix_ty=86.387 det2d=1.000000
+[2026-05-23 09:57:35.259] [info] [graph-debug] frame=0 node='grain_42' kind='Source' cache_status='miss' dur=193.252ms
+[2026-05-23 09:57:35.283] [info] [layout-preview] node='grain_38' type=Circle pos=(1049.1,773.7,-109.9) anchor=(1.3,1.3,0.0) bbox=[1049,773,1052,777] screen_anchor=(1050.4,775.0)
+[2026-05-23 09:57:35.296] [info] [source-debug] node='grain_38' shape=3 nonzero_pixels=2073251 opacity=1.000 matrix_tx=1049.100 matrix_ty=773.702 det2d=1.000000
+[2026-05-23 09:57:35.296] [info] [graph-debug] frame=0 node='grain_38' kind='Source' cache_status='miss' dur=229.944ms
+[2026-05-23 09:57:35.325] [info] [layout-preview] node='bg_rect' type=Rect pos=(0.0,0.0,0.0) anchor=(960.0,540.0,0.0) bbox=[0,0,1920,1080] screen_anchor=(960.0,540.0)
+[2026-05-23 09:57:35.332] [info] [source-debug] node='bg_rect' shape=1 nonzero_pixels=2073600 opacity=1.000 matrix_tx=0.000 matrix_ty=0.000 det2d=1.000000
+[2026-05-23 09:57:35.332] [info] [graph-debug] frame=0 node='bg_rect' kind='Source' cache_status='miss' dur=243.499ms
+[2026-05-23 09:57:35.332] [warning] [cache-bypass] frame=0 node='Clear' node_id=3 kind='Output' reason='not_cacheable'
+[2026-05-23 09:57:35.332] [info] [dirty-debug] frame=0 Clear reuse_prev=0 clip=[0:0 -> 1920:1080] prev_origin=[0,0] prev_opaque=0
+[2026-05-23 09:57:35.356] [info] [layout-preview] node='grain_22' type=Circle pos=(1009.9,499.7,144.7) anchor=(2.4,2.4,0.0) bbox=[1009,499,1015,505] screen_anchor=(1012.4,502.2)
+[2026-05-23 09:57:35.365] [info] [source-debug] node='grain_22' shape=3 nonzero_pixels=2073165 opacity=1.000 matrix_tx=1009.942 matrix_ty=499.739 det2d=1.000000
+[2026-05-23 09:57:35.365] [info] [graph-debug] frame=0 node='grain_22' kind='Source' cache_status='miss' dur=244.971ms
+[2026-05-23 09:57:35.386] [info] [layout-preview] node='grain_36' type=Circle pos=(1044.6,1036.2,-143.5) anchor=(1.1,1.1,0.0) bbox=[1044,1036,1047,1039] screen_anchor=(1045.7,1037.3)
+[2026-05-23 09:57:35.391] [info] [source-debug] node='grain_36' shape=3 nonzero_pixels=2073268 opacity=1.000 matrix_tx=1044.564 matrix_ty=1036.200 det2d=1.000000
+[2026-05-23 09:57:35.391] [info] [graph-debug] frame=0 node='grain_36' kind='Source' cache_status='miss' dur=245.565ms
+[2026-05-23 09:57:35.405] [info] [layout-preview] node='grain_29' type=Circle pos=(889.1,820.5,-41.7) anchor=(1.9,1.9,0.0) bbox=[889,820,893,825] screen_anchor=(890.9,822.3)
+[2026-05-23 09:57:35.410] [info] [source-debug] node='grain_29' shape=3 nonzero_pixels=2073217 opacity=1.000 matrix_tx=889.091 matrix_ty=820.467 det2d=1.000000
+[2026-05-23 09:57:35.410] [info] [graph-debug] frame=0 node='grain_29' kind='Source' cache_status='miss' dur=225.497ms
+[2026-05-23 09:57:35.427] [info] [layout-preview] node='grain_32' type=Circle pos=(1034.4,811.3,-122.9) anchor=(1.8,1.8,0.0) bbox=[1034,811,1038,815] screen_anchor=(1036.2,813.2)
+[2026-05-23 09:57:35.432] [info] [source-debug] node='grain_32' shape=3 nonzero_pixels=2073234 opacity=1.000 matrix_tx=1034.353 matrix_ty=811.332 det2d=1.000000
+[2026-05-23 09:57:35.432] [info] [graph-debug] frame=0 node='grain_32' kind='Source' cache_status='miss' dur=223.185ms
+[2026-05-23 09:57:35.458] [info] [layout-preview] node='grain_25' type=Circle pos=(899.3,1031.9,87.6) anchor=(1.1,1.1,0.0) bbox=[899,1031,902,1035] screen_anchor=(900.4,1033.0)
+[2026-05-23 09:57:35.464] [info] [source-debug] node='grain_25' shape=3 nonzero_pixels=2073251 opacity=1.000 matrix_tx=899.308 matrix_ty=1031.894 det2d=1.000000
+[2026-05-23 09:57:35.464] [info] [graph-debug] frame=0 node='grain_25' kind='Source' cache_status='miss' dur=231.101ms
+[2026-05-23 09:57:35.484] [info] [layout-preview] node='grain_43' type=Circle pos=(855.7,1065.0,45.6) anchor=(2.0,2.0,0.0) bbox=[855,1064,860,1069] screen_anchor=(857.7,1067.0)
+[2026-05-23 09:57:35.489] [info] [source-debug] node='grain_43' shape=3 nonzero_pixels=2073200 opacity=1.000 matrix_tx=855.714 matrix_ty=1064.974 det2d=1.000000
+[2026-05-23 09:57:35.489] [info] [graph-debug] frame=0 node='grain_43' kind='Source' cache_status='miss' dur=230.060ms
+[2026-05-23 09:57:35.508] [info] [layout-preview] node='grain_39' type=Circle pos=(864.8,489.1,-84.2) anchor=(2.4,2.4,0.0) bbox=[864,489,870,494] screen_anchor=(867.2,491.5)
+[2026-05-23 09:57:35.513] [info] [source-debug] node='grain_39' shape=3 nonzero_pixels=2073183 opacity=1.000 matrix_tx=864.759 matrix_ty=489.095 det2d=1.000000
+[2026-05-23 09:57:35.513] [info] [graph-debug] frame=0 node='grain_39' kind='Source' cache_status='miss' dur=217.787ms
+[2026-05-23 09:57:35.545] [info] [graph-debug] frame=0 node='Clear' kind='Output' cache_status='bypass_not_cacheable' dur=212.331ms
+[2026-05-23 09:57:35.562] [info] [layout-preview] node='grain_23' type=Circle pos=(904.0,764.0,132.1) anchor=(1.3,1.3,0.0) bbox=[903,764,907,767] screen_anchor=(905.2,765.3)
+[2026-05-23 09:57:35.567] [info] [source-debug] node='grain_23' shape=3 nonzero_pixels=2073251 opacity=1.000 matrix_tx=903.995 matrix_ty=764.012 det2d=1.000000
+[2026-05-23 09:57:35.567] [info] [graph-debug] frame=0 node='grain_23' kind='Source' cache_status='miss' dur=201.913ms
+[2026-05-23 09:57:35.592] [info] [layout-preview] node='grain_37' type=Circle pos=(869.4,146.3,-130.0) anchor=(2.5,2.5,0.0) bbox=[869,146,875,152] screen_anchor=(871.9,148.8)
+[2026-05-23 09:57:35.597] [info] [source-debug] node='grain_37' shape=3 nonzero_pixels=2073166 opacity=1.000 matrix_tx=869.420 matrix_ty=146.268 det2d=1.000000
+[2026-05-23 09:57:35.598] [info] [graph-debug] frame=0 node='grain_37' kind='Source' cache_status='miss' dur=206.610ms
+[2026-05-23 09:57:35.618] [info] [layout-preview] node='grain_30' type=Circle pos=(1029.3,435.9,-73.0) anchor=(2.1,2.1,0.0) bbox=[1029,435,1034,441] screen_anchor=(1031.4,438.0)
+[2026-05-23 09:57:35.623] [info] [source-debug] node='grain_30' shape=3 nonzero_pixels=2073183 opacity=1.000 matrix_tx=1029.315 matrix_ty=435.869 det2d=1.000000
+[2026-05-23 09:57:35.623] [info] [graph-debug] frame=0 node='grain_30' kind='Source' cache_status='miss' dur=212.851ms
+[2026-05-23 09:57:35.647] [info] [layout-preview] node='grain_33' type=Circle pos=(879.0,117.9,-139.1) anchor=(2.4,2.4,0.0) bbox=[879,117,884,123] screen_anchor=(881.4,120.2)
+[2026-05-23 09:57:35.653] [info] [source-debug] node='grain_33' shape=3 nonzero_pixels=2073183 opacity=1.000 matrix_tx=879.046 matrix_ty=117.881 det2d=1.000000
+[2026-05-23 09:57:35.653] [info] [graph-debug] frame=0 node='grain_33' kind='Source' cache_status='miss' dur=220.537ms
+[2026-05-23 09:57:35.672] [info] [layout-preview] node='grain_26' type=Circle pos=(1019.5,-1.5,58.1) anchor=(2.5,2.5,0.0) bbox=[1019,-2,1025,4] screen_anchor=(1021.9,1.0)
+[2026-05-23 09:57:35.678] [info] [source-debug] node='grain_26' shape=3 nonzero_pixels=2073370 opacity=1.000 matrix_tx=1019.470 matrix_ty=-1.497 det2d=1.000000
+[2026-05-23 09:57:35.678] [info] [graph-debug] frame=0 node='grain_26' kind='Source' cache_status='miss' dur=213.790ms
+[2026-05-23 09:57:35.700] [info] [layout-preview] node='grain_44' type=Circle pos=(1062.4,3.1,76.5) anchor=(2.2,2.2,0.0) bbox=[1062,3,1067,8] screen_anchor=(1064.6,5.3)
+[2026-05-23 09:57:35.705] [info] [source-debug] node='grain_44' shape=3 nonzero_pixels=2073304 opacity=1.000 matrix_tx=1062.356 matrix_ty=3.060 det2d=1.000000
+[2026-05-23 09:57:35.705] [info] [graph-debug] frame=0 node='grain_44' kind='Source' cache_status='miss' dur=216.010ms
+[2026-05-23 09:57:35.726] [info] [layout-preview] node='grain_40' type=Circle pos=(1053.5,394.2,-54.2) anchor=(1.7,1.7,0.0) bbox=[1053,394,1057,398] screen_anchor=(1055.1,395.9)
+[2026-05-23 09:57:35.731] [info] [source-debug] node='grain_40' shape=3 nonzero_pixels=2073234 opacity=1.000 matrix_tx=1053.470 matrix_ty=394.211 det2d=1.000000
+[2026-05-23 09:57:35.731] [info] [graph-debug] frame=0 node='grain_40' kind='Source' cache_status='miss' dur=217.417ms
+[2026-05-23 09:57:35.762] [info] [layout-preview] node='orb_0' type=Circle pos=(654.0,484.0,0.0) anchor=(306.0,306.0,0.0) bbox=[654,484,1266,1096] screen_anchor=(960.0,790.0)
+[2026-05-23 09:57:35.767] [info] [source-debug] node='orb_0' shape=3 nonzero_pixels=1988060 opacity=1.000 matrix_tx=654.000 matrix_ty=484.000 det2d=1.000000
+[2026-05-23 09:57:35.767] [info] [graph-debug] frame=0 node='orb_0' kind='Source' cache_status='miss' dur=222.149ms
+[2026-05-23 09:57:35.783] [info] [layout-preview] node='grain_46' type=Circle pos=(1066.9,185.5,125.3) anchor=(2.4,2.4,0.0) bbox=[1066,185,1072,191] screen_anchor=(1069.3,187.9)
+[2026-05-23 09:57:35.788] [info] [source-debug] node='grain_46' shape=3 nonzero_pixels=2073166 opacity=1.000 matrix_tx=1066.910 matrix_ty=185.528 det2d=1.000000
+[2026-05-23 09:57:35.788] [info] [graph-debug] frame=0 node='grain_46' kind='Source' cache_status='miss' dur=220.560ms
+[2026-05-23 09:57:35.809] [info] [layout-preview] node='grain_41' type=Circle pos=(860.2,856.1,-21.5) anchor=(2.3,2.3,0.0) bbox=[860,856,865,861] screen_anchor=(862.4,858.4)
+[2026-05-23 09:57:35.814] [info] [source-debug] node='grain_41' shape=3 nonzero_pixels=2073200 opacity=1.000 matrix_tx=860.194 matrix_ty=856.110 det2d=1.000000
+[2026-05-23 09:57:35.816] [info] [graph-debug] frame=0 node='grain_41' kind='Source' cache_status='miss' dur=218.843ms
+[2026-05-23 09:57:35.835] [info] [layout-preview] node='grain_45' type=Circle pos=(851.3,1012.1,103.5) anchor=(1.7,1.7,0.0) bbox=[851,1012,855,1016] screen_anchor=(853.0,1013.8)
+[2026-05-23 09:57:35.840] [info] [source-debug] node='grain_45' shape=3 nonzero_pixels=2073234 opacity=1.000 matrix_tx=851.304 matrix_ty=1012.139 det2d=1.000000
+[2026-05-23 09:57:35.840] [info] [graph-debug] frame=0 node='grain_45' kind='Source' cache_status='miss' dur=217.375ms
+[2026-05-23 09:57:35.865] [info] [layout-preview] node='grain_34' type=Circle pos=(1039.4,1051.1,-148.1) anchor=(1.5,1.5,0.0) bbox=[1039,1051,1043,1055] screen_anchor=(1040.9,1052.6)
+[2026-05-23 09:57:35.870] [info] [source-debug] node='grain_34' shape=3 nonzero_pixels=2073234 opacity=1.000 matrix_tx=1039.444 matrix_ty=1051.111 det2d=1.000000
+[2026-05-23 09:57:35.871] [info] [graph-debug] frame=0 node='grain_34' kind='Source' cache_status='miss' dur=217.573ms
+[2026-05-23 09:57:35.897] [info] [layout-preview] node='grain_27' type=Circle pos=(894.2,1054.3,25.6) anchor=(1.5,1.5,0.0) bbox=[894,1054,898,1058] screen_anchor=(895.7,1055.8)
+[2026-05-23 09:57:35.902] [info] [source-debug] node='grain_27' shape=3 nonzero_pixels=2073234 opacity=1.000 matrix_tx=894.182 matrix_ty=1054.335 det2d=1.000000
+[2026-05-23 09:57:35.902] [info] [graph-debug] frame=0 node='grain_27' kind='Source' cache_status='miss' dur=224.861ms
+[2026-05-23 09:57:35.926] [info] [layout-preview] node='grain_48' type=Circle pos=(1071.7,543.0,148.7) anchor=(2.5,2.5,0.0) bbox=[1071,543,1077,549] screen_anchor=(1074.2,545.5)
+[2026-05-23 09:57:35.931] [info] [source-debug] node='grain_48' shape=3 nonzero_pixels=2073165 opacity=1.000 matrix_tx=1071.672 matrix_ty=543.041 det2d=1.000000
+[2026-05-23 09:57:35.931] [info] [graph-debug] frame=0 node='grain_48' kind='Source' cache_status='miss' dur=226.405ms
+[2026-05-23 09:57:35.950] [info] [layout-preview] node='grain_49' type=Circle pos=(842.5,343.5,149.3) anchor=(1.1,1.1,0.0) bbox=[842,343,845,346] screen_anchor=(843.5,344.6)
+[2026-05-23 09:57:35.955] [info] [source-debug] node='grain_49' shape=3 nonzero_pixels=2073268 opacity=1.000 matrix_tx=842.458 matrix_ty=343.486 det2d=1.000000
+[2026-05-23 09:57:35.955] [info] [graph-debug] frame=0 node='grain_49' kind='Source' cache_status='miss' dur=223.796ms
+[2026-05-23 09:57:35.986] [info] [layout-preview] node='orb_1' type=Circle pos=(1043.8,109.1,129.9) anchor=(306.0,306.0,0.0) bbox=[1043,109,1656,722] screen_anchor=(1349.8,415.1)
+[2026-05-23 09:57:35.994] [info] [source-debug] node='orb_1' shape=3 nonzero_pixels=1974537 opacity=1.000 matrix_tx=1043.800 matrix_ty=109.086 det2d=1.000000
+[2026-05-23 09:57:35.994] [info] [graph-debug] frame=0 node='orb_1' kind='Source' cache_status='miss' dur=226.786ms
+[2026-05-23 09:57:36.004] [info] [layout-preview] node='grain_47' type=Circle pos=(846.9,723.9,140.6) anchor=(1.3,1.3,0.0) bbox=[846,723,850,727] screen_anchor=(848.3,725.2)
+[2026-05-23 09:57:36.009] [info] [source-debug] node='grain_47' shape=3 nonzero_pixels=2073234 opacity=1.000 matrix_tx=846.941 matrix_ty=723.891 det2d=1.000000
+[2026-05-23 09:57:36.010] [info] [graph-debug] frame=0 node='grain_47' kind='Source' cache_status='miss' dur=221.667ms
+[2026-05-23 09:57:36.031] [info] [layout-preview] node='grain_7' type=Circle pos=(941.1,977.2,-150.0) anchor=(2.2,2.2,0.0) bbox=[941,977,946,982] screen_anchor=(943.3,979.4)
+[2026-05-23 09:57:36.038] [info] [source-debug] node='grain_7' shape=3 nonzero_pixels=2073200 opacity=1.000 matrix_tx=941.138 matrix_ty=977.215 det2d=1.000000
+[2026-05-23 09:57:36.039] [info] [graph-debug] frame=0 node='grain_7' kind='Source' cache_status='miss' dur=222.141ms
+[2026-05-23 09:57:36.057] [info] [layout-preview] node='grain_0' type=Circle pos=(957.5,1077.5,0.0) anchor=(2.5,2.5,0.0) bbox=[957,1077,963,1083] screen_anchor=(960.0,1080.0)
+[2026-05-23 09:57:36.062] [info] [source-debug] node='grain_0' shape=3 nonzero_pixels=2073379 opacity=1.000 matrix_tx=957.500 matrix_ty=1077.500 det2d=1.000000
+[2026-05-23 09:57:36.062] [info] [graph-debug] frame=0 node='grain_0' kind='Source' cache_status='miss' dur=221.761ms
+[2026-05-23 09:57:36.089] [info] [layout-preview] node='grain_3' type=Circle pos=(951.3,284.2,-94.2) anchor=(1.6,1.6,0.0) bbox=[951,284,955,288] screen_anchor=(952.8,285.8)
+[2026-05-23 09:57:36.094] [info] [source-debug] node='grain_3' shape=3 nonzero_pixels=2073234 opacity=1.000 matrix_tx=951.281 matrix_ty=284.184 det2d=1.000000
+[2026-05-23 09:57:36.094] [info] [graph-debug] frame=0 node='grain_3' kind='Source' cache_status='miss' dur=223.867ms
+[2026-05-23 09:57:36.113] [info] [layout-preview] node='grain_14' type=Circle pos=(992.0,713.7,4.1) anchor=(1.4,1.4,0.0) bbox=[992,713,995,717] screen_anchor=(993.4,715.1)
+[2026-05-23 09:57:36.118] [info] [source-debug] node='grain_14' shape=3 nonzero_pixels=2073251 opacity=1.000 matrix_tx=992.007 matrix_ty=713.710 det2d=1.000000
+[2026-05-23 09:57:36.118] [info] [graph-debug] frame=0 node='grain_14' kind='Source' cache_status='miss' dur=215.801ms
+[2026-05-23 09:57:36.140] [info] [layout-preview] node='grain_1' type=Circle pos=(956.4,33.5,-33.7) anchor=(1.2,1.2,0.0) bbox=[956,33,959,36] screen_anchor=(957.6,34.7)
+[2026-05-23 09:57:36.144] [info] [source-debug] node='grain_1' shape=3 nonzero_pixels=2073268 opacity=1.000 matrix_tx=956.424 matrix_ty=33.458 det2d=1.000000
+[2026-05-23 09:57:36.145] [info] [graph-debug] frame=0 node='grain_1' kind='Source' cache_status='miss' dur=213.230ms
+[2026-05-23 09:57:36.164] [info] [layout-preview] node='grain_10' type=Circle pos=(982.4,54.8,-115.4) anchor=(1.4,1.4,0.0) bbox=[982,54,986,58] screen_anchor=(983.8,56.2)
+[2026-05-23 09:57:36.169] [info] [source-debug] node='grain_10' shape=3 nonzero_pixels=2073234 opacity=1.000 matrix_tx=982.406 matrix_ty=54.777 det2d=1.000000
+[2026-05-23 09:57:36.169] [info] [graph-debug] frame=0 node='grain_10' kind='Source' cache_status='miss' dur=214.157ms
+[2026-05-23 09:57:36.195] [info] [layout-preview] node='orb_2' type=Circle pos=(264.5,108.8,-129.8) anchor=(306.0,306.0,0.0) bbox=[264,108,877,721] screen_anchor=(570.5,414.8)
+[2026-05-23 09:57:36.200] [info] [source-debug] node='orb_2' shape=3 nonzero_pixels=1974525 opacity=1.000 matrix_tx=264.466 matrix_ty=108.829 det2d=1.000000
+[2026-05-23 09:57:36.200] [info] [graph-debug] frame=0 node='orb_2' kind='Source' cache_status='miss' dur=206.198ms
+[2026-05-23 09:57:36.200] [warning] [cache-bypass] frame=0 node='Clear' node_id=13 kind='Output' reason='not_cacheable'
+[2026-05-23 09:57:36.200] [info] [dirty-debug] frame=0 Clear reuse_prev=0 clip=[0:0 -> 1920:1080] prev_origin=[0,0] prev_opaque=0
+[2026-05-23 09:57:36.215] [info] [layout-preview] node='grain_12' type=Circle pos=(987.6,333.6,-61.9) anchor=(1.0,1.0,0.0) bbox=[987,333,990,336] screen_anchor=(988.6,334.6)
+[2026-05-23 09:57:36.220] [info] [source-debug] node='grain_12' shape=3 nonzero_pixels=2073268 opacity=1.000 matrix_tx=987.575 matrix_ty=333.600 det2d=1.000000
+[2026-05-23 09:57:36.220] [info] [graph-debug] frame=0 node='grain_12' kind='Source' cache_status='miss' dur=210.223ms
+[2026-05-23 09:57:36.239] [info] [layout-preview] node='grain_8' type=Circle pos=(977.3,16.4,-145.7) anchor=(1.8,1.8,0.0) bbox=[977,16,981,20] screen_anchor=(979.1,18.2)
+[2026-05-23 09:57:36.244] [info] [source-debug] node='grain_8' shape=3 nonzero_pixels=2073234 opacity=1.000 matrix_tx=977.294 matrix_ty=16.397 det2d=1.000000
+[2026-05-23 09:57:36.244] [info] [graph-debug] frame=0 node='grain_8' kind='Source' cache_status='miss' dur=205.134ms
+[2026-05-23 09:57:36.264] [info] [layout-preview] node='grain_13' type=Circle pos=(926.5,553.7,-29.6) anchor=(2.5,2.5,0.0) bbox=[926,553,932,559] screen_anchor=(929.0,556.2)
+[2026-05-23 09:57:36.269] [info] [source-debug] node='grain_13' shape=3 nonzero_pixels=2073166 opacity=1.000 matrix_tx=926.526 matrix_ty=553.668 det2d=1.000000
+[2026-05-23 09:57:36.269] [info] [graph-debug] frame=0 node='grain_13' kind='Source' cache_status='miss' dur=206.839ms
+[2026-05-23 09:57:36.288] [info] [layout-preview] node='grain_4' type=Circle pos=(967.2,607.7,-118.0) anchor=(2.3,2.3,0.0) bbox=[967,607,972,613] screen_anchor=(969.5,610.0)
+[2026-05-23 09:57:36.293] [info] [source-debug] node='grain_4' shape=3 nonzero_pixels=2073183 opacity=1.000 matrix_tx=967.227 matrix_ty=607.728 det2d=1.000000
+[2026-05-23 09:57:36.293] [info] [graph-debug] frame=0 node='grain_4' kind='Source' cache_status='miss' dur=198.718ms
+[2026-05-23 09:57:36.313] [info] [layout-preview] node='grain_15' type=Circle pos=(921.9,193.7,37.7) anchor=(2.4,2.4,0.0) bbox=[921,193,927,199] screen_anchor=(924.3,196.1)
+[2026-05-23 09:57:36.318] [info] [source-debug] node='grain_15' shape=3 nonzero_pixels=2073166 opacity=1.000 matrix_tx=921.861 matrix_ty=193.718 det2d=1.000000
+[2026-05-23 09:57:36.318] [info] [graph-debug] frame=0 node='grain_15' kind='Source' cache_status='miss' dur=199.718ms
+[2026-05-23 09:57:36.335] [info] [layout-preview] node='grain_2' type=Circle pos=(962.3,943.4,-65.6) anchor=(2.5,2.5,0.0) bbox=[962,943,968,949] screen_anchor=(964.8,945.8)
+[2026-05-23 09:57:36.340] [info] [source-debug] node='grain_2' shape=3 nonzero_pixels=2073166 opacity=1.000 matrix_tx=962.316 matrix_ty=943.393 det2d=1.000000
+[2026-05-23 09:57:36.340] [info] [graph-debug] frame=0 node='grain_2' kind='Source' cache_status='miss' dur=195.917ms
+[2026-05-23 09:57:36.360] [info] [layout-preview] node='grain_11' type=Circle pos=(931.3,905.7,-91.0) anchor=(2.5,2.5,0.0) bbox=[931,905,937,911] screen_anchor=(933.8,908.2)
+[2026-05-23 09:57:36.365] [info] [source-debug] node='grain_11' shape=3 nonzero_pixels=2073166 opacity=1.000 matrix_tx=931.319 matrix_ty=905.738 det2d=1.000000
+[2026-05-23 09:57:36.365] [info] [graph-debug] frame=0 node='grain_11' kind='Source' cache_status='miss' dur=196.187ms
+[2026-05-23 09:57:36.391] [info] [graph-debug] frame=0 node='Clear' kind='Output' cache_status='bypass_not_cacheable' dur=191.326ms
+[2026-05-23 09:57:36.411] [info] [layout-preview] node='grain_17' type=Circle pos=(917.3,4.7,97.4) anchor=(2.2,2.2,0.0) bbox=[917,4,922,10] screen_anchor=(919.5,6.9)
+[2026-05-23 09:57:36.416] [info] [source-debug] node='grain_17' shape=3 nonzero_pixels=2073267 opacity=1.000 matrix_tx=917.291 matrix_ty=4.683 det2d=1.000000
+[2026-05-23 09:57:36.416] [info] [graph-debug] frame=0 node='grain_17' kind='Source' cache_status='miss' dur=196.444ms
+[2026-05-23 09:57:36.436] [info] [layout-preview] node='grain_9' type=Circle pos=(936.2,1074.9,-134.0) anchor=(2.4,2.4,0.0) bbox=[936,1074,941,1080] screen_anchor=(938.6,1077.3)
+[2026-05-23 09:57:36.441] [info] [source-debug] node='grain_9' shape=3 nonzero_pixels=2073347 opacity=1.000 matrix_tx=936.182 matrix_ty=1074.920 det2d=1.000000
+[2026-05-23 09:57:36.441] [info] [graph-debug] frame=0 node='grain_9' kind='Source' cache_status='miss' dur=197.094ms
+[2026-05-23 09:57:36.461] [info] [layout-preview] node='grain_16' type=Circle pos=(996.4,1006.8,69.3) anchor=(1.7,1.7,0.0) bbox=[996,1006,1000,1011] screen_anchor=(998.1,1008.6)
+[2026-05-23 09:57:36.466] [info] [source-debug] node='grain_16' shape=3 nonzero_pixels=2073217 opacity=1.000 matrix_tx=996.402 matrix_ty=1006.848 det2d=1.000000
+[2026-05-23 09:57:36.466] [info] [graph-debug] frame=0 node='grain_16' kind='Source' cache_status='miss' dur=196.660ms
+[2026-05-23 09:57:36.488] [info] [layout-preview] node='grain_5' type=Circle pos=(946.2,661.3,-135.8) anchor=(1.9,1.9,0.0) bbox=[946,661,950,666] screen_anchor=(948.1,663.2)
+[2026-05-23 09:57:36.494] [info] [source-debug] node='grain_5' shape=3 nonzero_pixels=2073217 opacity=1.000 matrix_tx=946.186 matrix_ty=661.269 det2d=1.000000
+[2026-05-23 09:57:36.494] [info] [graph-debug] frame=0 node='grain_5' kind='Source' cache_status='miss' dur=200.407ms
+[2026-05-23 09:57:36.510] [info] [layout-preview] node='grain_6' type=Circle pos=(972.2,237.3,-146.6) anchor=(2.1,2.1,0.0) bbox=[972,237,977,242] screen_anchor=(974.3,239.4)
+[2026-05-23 09:57:36.515] [info] [source-debug] node='grain_6' shape=3 nonzero_pixels=2073200 opacity=1.000 matrix_tx=972.233 matrix_ty=237.346 det2d=1.000000
+[2026-05-23 09:57:36.515] [info] [graph-debug] frame=0 node='grain_6' kind='Source' cache_status='miss' dur=196.648ms
+[2026-05-23 09:57:36.534] [info] [layout-preview] node='grain_19' type=Circle pos=(912.8,80.6,137.5) anchor=(2.0,2.0,0.0) bbox=[912,80,917,85] screen_anchor=(914.8,82.6)
+[2026-05-23 09:57:36.539] [info] [source-debug] node='grain_19' shape=3 nonzero_pixels=2073200 opacity=1.000 matrix_tx=912.802 matrix_ty=80.611 det2d=1.000000
+[2026-05-23 09:57:36.539] [info] [graph-debug] frame=0 node='grain_19' kind='Source' cache_status='miss' dur=198.444ms
+[2026-05-23 09:57:36.560] [info] [layout-preview] node='grain_20' type=Circle pos=(1005.4,864.7,147.4) anchor=(2.3,2.3,0.0) bbox=[1005,864,1010,870] screen_anchor=(1007.6,866.9)
+[2026-05-23 09:57:36.565] [info] [source-debug] node='grain_20' shape=3 nonzero_pixels=2073183 opacity=1.000 matrix_tx=1005.351 matrix_ty=864.660 det2d=1.000000
+[2026-05-23 09:57:36.565] [info] [graph-debug] frame=0 node='grain_20' kind='Source' cache_status='miss' dur=199.557ms
+[2026-05-23 09:57:36.589] [info] [layout-preview] node='grain_18' type=Circle pos=(1000.8,1067.2,120.5) anchor=(2.0,2.0,0.0) bbox=[1000,1067,1005,1072] screen_anchor=(1002.9,1069.2)
+[2026-05-23 09:57:36.594] [info] [source-debug] node='grain_18' shape=3 nonzero_pixels=2073200 opacity=1.000 matrix_tx=1000.843 matrix_ty=1067.187 det2d=1.000000
+[2026-05-23 09:57:36.595] [info] [graph-debug] frame=0 node='grain_18' kind='Source' cache_status='miss' dur=178.260ms
+[2026-05-23 09:57:36.595] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=1 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:36.595] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=1 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:36.595] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=1 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:36.595] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=0.056ms
+[2026-05-23 09:57:36.596] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=0.998ms
+[2026-05-23 09:57:36.597] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=2.074ms
+[2026-05-23 09:57:36.597] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:36.597] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:36.604] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=6.916ms
+[2026-05-23 09:57:36.604] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=7.574ms
+[2026-05-23 09:57:36.604] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:36.604] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:36.611] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=6.944ms
+[2026-05-23 09:57:36.612] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=7.691ms
+[2026-05-23 09:57:36.612] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:36.615] [info] [transform-debug] node='Transform' det=1399999872.000000 winding=ok H=[[1000.000,0.000,0.000],[-14.398,991.788,-0.015],[391839.875,226470.000,1408.167]]
+[2026-05-23 09:57:36.619] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=6.869ms
+[2026-05-23 09:57:36.622] [info] [graph-debug] frame=0 node='Transform' kind='Transform' cache_status='miss' dur=10.322ms
+[2026-05-23 09:57:36.622] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:36.630] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=7.262ms
+[2026-05-23 09:57:36.841] [info] [graph-debug] frame=0 node='EffectStack' kind='Effect' cache_status='miss' dur=218.498ms
+[2026-05-23 09:57:36.841] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:36.841] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:36.849] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=8.171ms
+[2026-05-23 09:57:36.881] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=40.082ms
+[2026-05-23 09:57:36.881] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:36.889] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=7.360ms
+[2026-05-23 09:57:36.889] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:36.896] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=6.858ms
+[2026-05-23 09:57:36.896] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:36.903] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=7.022ms
+[2026-05-23 09:57:36.903] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:36.910] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=6.863ms
+[2026-05-23 09:57:36.910] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:36.917] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=6.958ms
+[2026-05-23 09:57:36.917] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:36.924] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=6.829ms
+[2026-05-23 09:57:36.924] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:36.931] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=6.932ms
+[2026-05-23 09:57:36.931] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:36.937] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=6.809ms
+[2026-05-23 09:57:36.937] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:36.944] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=6.806ms
+[2026-05-23 09:57:36.944] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:36.951] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=6.819ms
+[2026-05-23 09:57:36.951] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:36.958] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=6.820ms
+[2026-05-23 09:57:36.960] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:36.967] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=6.894ms
+[2026-05-23 09:57:36.968] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:36.975] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=6.805ms
+[2026-05-23 09:57:36.977] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:36.983] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=6.866ms
+[2026-05-23 09:57:36.985] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:36.993] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=7.332ms
+[2026-05-23 09:57:36.995] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:37.002] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=7.019ms
+[2026-05-23 09:57:37.004] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:37.011] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=6.975ms
+[2026-05-23 09:57:37.014] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:37.022] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=7.513ms
+[2026-05-23 09:57:37.022] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:37.030] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=8.046ms
+[2026-05-23 09:57:37.033] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:37.041] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=7.498ms
+[2026-05-23 09:57:37.044] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:37.051] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=7.435ms
+[2026-05-23 09:57:37.055] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:37.062] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=7.353ms
+[2026-05-23 09:57:37.066] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:37.073] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=7.305ms
+[2026-05-23 09:57:37.077] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:37.084] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=6.912ms
+[2026-05-23 09:57:37.087] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:37.094] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=6.959ms
+[2026-05-23 09:57:37.096] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:37.103] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=6.821ms
+[2026-05-23 09:57:37.105] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:37.112] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=6.931ms
+[2026-05-23 09:57:37.115] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:37.122] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=6.838ms
+[2026-05-23 09:57:37.124] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:37.131] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=6.835ms
+[2026-05-23 09:57:37.134] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:37.140] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=6.765ms
+[2026-05-23 09:57:37.143] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:37.150] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=6.911ms
+[2026-05-23 09:57:37.152] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:37.159] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=6.831ms
+[2026-05-23 09:57:37.162] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:37.169] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=6.870ms
+[2026-05-23 09:57:37.171] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:37.178] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=7.318ms
+[2026-05-23 09:57:37.181] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:37.188] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=6.910ms
+[2026-05-23 09:57:37.191] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:37.198] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=6.848ms
+[2026-05-23 09:57:37.200] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:37.207] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=6.870ms
+[2026-05-23 09:57:37.211] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:37.218] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=6.982ms
+[2026-05-23 09:57:37.220] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:37.227] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=7.005ms
+[2026-05-23 09:57:37.230] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:37.236] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=6.881ms
+[2026-05-23 09:57:37.239] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:37.246] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=6.873ms
+[2026-05-23 09:57:37.248] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:37.255] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=6.790ms
+[2026-05-23 09:57:37.257] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:37.264] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=6.857ms
+[2026-05-23 09:57:37.266] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:37.273] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=6.823ms
+[2026-05-23 09:57:37.279] [info] [transform-debug] node='Transform' det=1100000128.000000 winding=ok H=[[1000.000,0.000,0.000],[-14.398,991.788,-0.015],[103872.375,59988.750,1108.200]]
+[2026-05-23 09:57:37.292] [info] [graph-debug] frame=0 node='Transform' kind='Transform' cache_status='miss' dur=16.338ms
+[2026-05-23 09:57:37.292] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=1 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 1920:1080]
+[2026-05-23 09:57:37.296] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=4.121ms
+[2026-05-23 09:57:37.503] [info] Frame 0 saved to render_0000.png
+[2026-05-23 09:57:37.503] [info] [diagnostics-3d] Compiled projection matrix. Depth=1400.07, Det=1399999872.0000 (OK)
+[2026-05-23 09:57:37.503] [info] [diagnostics-3d] Compiled projection matrix. Depth=1100.10, Det=1100000000.0000 (OK)
+[2026-05-23 09:57:37.503] [info] [dirty-debug] frame=1 use_dirty_rects=1 prev_fb=1 dirty_rect=[457,51 -> 1461,1039] prev_frame=0
+[2026-05-23 09:57:37.503] [info] [diagnostics-3d] Compiled projection matrix. Depth=1400.07, Det=1399999872.0000 (OK)
+[2026-05-23 09:57:37.503] [info] [diagnostics-3d] Compiled projection matrix. Depth=1100.10, Det=1100000000.0000 (OK)
+[2026-05-23 09:57:37.503] [warning] [cache-bypass] frame=1 node='Clear' node_id=0 kind='Output' reason='not_cacheable'
+[2026-05-23 09:57:37.503] [info] [dirty-debug] frame=1 Clear reuse_prev=1 clip=[457:51 -> 1461:1039] prev_origin=[0,0] prev_opaque=0
+[2026-05-23 09:57:37.503] [info] [layout-preview] node='grain_21' type=Circle pos=(908.4,383.5,149.9) anchor=(1.6,1.6,0.0) bbox=[908,383,912,387] screen_anchor=(910.0,385.1)
+[2026-05-23 09:57:37.503] [info] [layout-preview] node='grain_14' type=Circle pos=(992.0,713.2,4.1) anchor=(1.4,1.4,0.0) bbox=[992,713,995,716] screen_anchor=(993.4,714.6)
+[2026-05-23 09:57:37.503] [info] [layout-preview] node='grain_42' type=Circle pos=(1057.9,85.9,12.4) anchor=(2.0,2.0,0.0) bbox=[1057,85,1062,90] screen_anchor=(1059.9,87.9)
+[2026-05-23 09:57:37.503] [info] [layout-preview] node='grain_7' type=Circle pos=(941.1,976.8,-150.0) anchor=(2.2,2.2,0.0) bbox=[941,976,946,982] screen_anchor=(943.3,979.0)
+[2026-05-23 09:57:37.506] [info] [graph-debug] frame=1 node='Clear' kind='Output' cache_status='bypass_not_cacheable' dur=2.866ms
+[2026-05-23 09:57:37.509] [info] [layout-preview] node='grain_0' type=Circle pos=(957.5,1077.3,0.0) anchor=(2.5,2.5,0.0) bbox=[957,1077,963,1083] screen_anchor=(960.0,1079.8)
+[2026-05-23 09:57:37.509] [info] [layout-preview] node='grain_35' type=Circle pos=(874.2,-2.5,-149.6) anchor=(2.5,2.5,0.0) bbox=[874,-3,880,3] screen_anchor=(876.7,0.0)
+[2026-05-23 09:57:37.510] [info] [source-debug] node='grain_21' shape=3 nonzero_pixels=1356 opacity=1.000 matrix_tx=908.377 matrix_ty=383.525 det2d=1.000000
+[2026-05-23 09:57:37.510] [info] [graph-debug] frame=1 node='grain_21' kind='Source' cache_status='miss' dur=6.778ms
+[2026-05-23 09:57:37.510] [info] [layout-preview] node='grain_22' type=Circle pos=(1009.9,499.2,144.7) anchor=(2.4,2.4,0.0) bbox=[1009,499,1015,505] screen_anchor=(1012.4,501.7)
+[2026-05-23 09:57:37.511] [info] [source-debug] node='grain_42' shape=3 nonzero_pixels=2073200 opacity=1.000 matrix_tx=1057.882 matrix_ty=85.889 det2d=1.000000
+[2026-05-23 09:57:37.511] [info] [graph-debug] frame=1 node='grain_42' kind='Source' cache_status='miss' dur=7.386ms
+[2026-05-23 09:57:37.512] [info] [source-debug] node='grain_14' shape=3 nonzero_pixels=144 opacity=1.000 matrix_tx=992.007 matrix_ty=713.210 det2d=1.000000
+[2026-05-23 09:57:37.512] [info] [graph-debug] frame=1 node='grain_14' kind='Source' cache_status='miss' dur=8.654ms
+[2026-05-23 09:57:37.512] [info] [layout-preview] node='grain_15' type=Circle pos=(921.9,193.3,37.7) anchor=(2.4,2.4,0.0) bbox=[921,193,927,199] screen_anchor=(924.3,195.7)
+[2026-05-23 09:57:37.512] [info] [layout-preview] node='bg_rect' type=Rect pos=(0.0,0.0,0.0) anchor=(960.0,540.0,0.0) bbox=[0,0,1920,1080] screen_anchor=(960.0,540.0)
+[2026-05-23 09:57:37.515] [info] [source-debug] node='grain_35' shape=3 nonzero_pixels=91 opacity=1.000 matrix_tx=874.183 matrix_ty=-2.456 det2d=1.000000
+[2026-05-23 09:57:37.515] [info] [graph-debug] frame=1 node='grain_35' kind='Source' cache_status='miss' dur=11.528ms
+[2026-05-23 09:57:37.515] [info] [layout-preview] node='grain_36' type=Circle pos=(1044.6,1036.0,-143.5) anchor=(1.1,1.1,0.0) bbox=[1044,1036,1047,1039] screen_anchor=(1045.7,1037.1)
+[2026-05-23 09:57:37.515] [info] [source-debug] node='grain_0' shape=3 nonzero_pixels=91 opacity=1.000 matrix_tx=957.500 matrix_ty=1077.350 det2d=1.000000
+[2026-05-23 09:57:37.515] [info] [graph-debug] frame=1 node='grain_0' kind='Source' cache_status='miss' dur=11.586ms
+[2026-05-23 09:57:37.515] [info] [layout-preview] node='grain_17' type=Circle pos=(917.3,4.3,97.4) anchor=(2.2,2.2,0.0) bbox=[917,4,922,9] screen_anchor=(919.5,6.5)
+[2026-05-23 09:57:37.516] [info] [layout-preview] node='grain_43' type=Circle pos=(855.7,1064.6,45.6) anchor=(2.0,2.0,0.0) bbox=[855,1064,860,1069] screen_anchor=(857.7,1066.6)
+[2026-05-23 09:57:37.517] [info] [source-debug] node='grain_22' shape=3 nonzero_pixels=1577 opacity=1.000 matrix_tx=1009.942 matrix_ty=499.240 det2d=1.000000
+[2026-05-23 09:57:37.517] [info] [graph-debug] frame=1 node='grain_22' kind='Source' cache_status='miss' dur=6.855ms
+[2026-05-23 09:57:37.517] [info] [layout-preview] node='grain_23' type=Circle pos=(904.0,763.6,132.1) anchor=(1.3,1.3,0.0) bbox=[903,763,907,767] screen_anchor=(905.2,764.9)
+[2026-05-23 09:57:37.517] [info] [source-debug] node='grain_7' shape=3 nonzero_pixels=1446943 opacity=1.000 matrix_tx=941.138 matrix_ty=976.814 det2d=1.000000
+[2026-05-23 09:57:37.517] [info] [graph-debug] frame=1 node='grain_7' kind='Source' cache_status='miss' dur=13.750ms
+[2026-05-23 09:57:37.518] [info] [source-debug] node='grain_15' shape=3 nonzero_pixels=1545 opacity=1.000 matrix_tx=921.861 matrix_ty=193.312 det2d=1.000000
+[2026-05-23 09:57:37.518] [info] [graph-debug] frame=1 node='grain_15' kind='Source' cache_status='miss' dur=6.276ms
+[2026-05-23 09:57:37.518] [info] [layout-preview] node='grain_16' type=Circle pos=(996.4,1006.7,69.3) anchor=(1.7,1.7,0.0) bbox=[996,1006,1000,1011] screen_anchor=(998.1,1008.4)
+[2026-05-23 09:57:37.518] [info] [source-debug] node='bg_rect' shape=1 nonzero_pixels=1009526 opacity=1.000 matrix_tx=0.000 matrix_ty=0.000 det2d=1.000000
+[2026-05-23 09:57:37.518] [info] [graph-debug] frame=1 node='bg_rect' kind='Source' cache_status='miss' dur=12.234ms
+[2026-05-23 09:57:37.518] [warning] [cache-bypass] frame=1 node='Clear' node_id=3 kind='Output' reason='not_cacheable'
+[2026-05-23 09:57:37.518] [info] [dirty-debug] frame=1 Clear reuse_prev=0 clip=[457:51 -> 1461:1039] prev_origin=[0,0] prev_opaque=0
+[2026-05-23 09:57:37.520] [info] [layout-preview] node='grain_1' type=Circle pos=(956.4,33.1,-33.7) anchor=(1.2,1.2,0.0) bbox=[956,33,959,36] screen_anchor=(957.6,34.3)
+[2026-05-23 09:57:37.521] [info] [source-debug] node='grain_36' shape=3 nonzero_pixels=1622 opacity=1.000 matrix_tx=1044.564 matrix_ty=1036.022 det2d=1.000000
+[2026-05-23 09:57:37.521] [info] [graph-debug] frame=1 node='grain_36' kind='Source' cache_status='miss' dur=5.950ms
+[2026-05-23 09:57:37.521] [info] [layout-preview] node='grain_37' type=Circle pos=(869.4,145.9,-130.0) anchor=(2.5,2.5,0.0) bbox=[869,145,875,151] screen_anchor=(871.9,148.4)
+[2026-05-23 09:57:37.521] [info] [graph-debug] frame=1 node='Clear' kind='Output' cache_status='bypass_not_cacheable' dur=2.636ms
+[2026-05-23 09:57:37.522] [info] [source-debug] node='grain_43' shape=3 nonzero_pixels=102 opacity=1.000 matrix_tx=855.714 matrix_ty=1064.554 det2d=1.000000
+[2026-05-23 09:57:37.523] [info] [source-debug] node='grain_23' shape=3 nonzero_pixels=1782 opacity=1.000 matrix_tx=903.995 matrix_ty=763.602 det2d=1.000000
+[2026-05-23 09:57:37.526] [info] [source-debug] node='grain_1' shape=3 nonzero_pixels=94 opacity=1.000 matrix_tx=956.424 matrix_ty=33.061 det2d=1.000000
+[2026-05-23 09:57:37.526] [info] [source-debug] node='grain_37' shape=3 nonzero_pixels=1738 opacity=1.000 matrix_tx=869.420 matrix_ty=145.892 det2d=1.000000
+[2026-05-23 09:57:37.526] [info] [layout-preview] node='grain_8' type=Circle pos=(977.3,16.2,-145.7) anchor=(1.8,1.8,0.0) bbox=[977,16,981,20] screen_anchor=(979.1,18.0)
+[2026-05-23 09:57:37.527] [info] [source-debug] node='grain_16' shape=3 nonzero_pixels=2015 opacity=1.000 matrix_tx=996.402 matrix_ty=1006.686 det2d=1.000000
+[2026-05-23 09:57:37.528] [info] [source-debug] node='grain_17' shape=3 nonzero_pixels=102 opacity=1.000 matrix_tx=917.291 matrix_ty=4.295 det2d=1.000000
+[2026-05-23 09:57:37.533] [info] [source-debug] node='grain_8' shape=3 nonzero_pixels=98 opacity=1.000 matrix_tx=977.294 matrix_ty=16.241 det2d=1.000000
+[2026-05-23 09:57:37.538] [info] [graph-debug] frame=1 node='grain_23' kind='Source' cache_status='miss' dur=21.187ms
+[2026-05-23 09:57:37.538] [info] [graph-debug] frame=1 node='grain_16' kind='Source' cache_status='miss' dur=19.898ms
+[2026-05-23 09:57:37.538] [info] [graph-debug] frame=1 node='grain_1' kind='Source' cache_status='miss' dur=23.278ms
+[2026-05-23 09:57:37.538] [info] [layout-preview] node='grain_3' type=Circle pos=(951.3,283.8,-94.2) anchor=(1.6,1.6,0.0) bbox=[951,283,955,287] screen_anchor=(952.8,285.4)
+[2026-05-23 09:57:37.538] [info] [graph-debug] frame=1 node='grain_37' kind='Source' cache_status='miss' dur=17.445ms
+[2026-05-23 09:57:37.538] [info] [graph-debug] frame=1 node='grain_43' kind='Source' cache_status='miss' dur=27.412ms
+[2026-05-23 09:57:37.538] [info] [graph-debug] frame=1 node='grain_8' kind='Source' cache_status='miss' dur=21.230ms
+[2026-05-23 09:57:37.538] [info] [graph-debug] frame=1 node='grain_17' kind='Source' cache_status='miss' dur=34.615ms
+[2026-05-23 09:57:37.538] [info] [layout-preview] node='grain_38' type=Circle pos=(1049.1,773.2,-109.9) anchor=(1.3,1.3,0.0) bbox=[1049,773,1052,776] screen_anchor=(1050.4,774.5)
+[2026-05-23 09:57:37.538] [info] [layout-preview] node='grain_2' type=Circle pos=(962.3,942.9,-65.6) anchor=(2.5,2.5,0.0) bbox=[962,942,968,948] screen_anchor=(964.8,945.3)
+[2026-05-23 09:57:37.538] [info] [layout-preview] node='grain_24' type=Circle pos=(1014.7,153.5,112.7) anchor=(2.5,2.5,0.0) bbox=[1014,153,1020,159] screen_anchor=(1017.2,156.0)
+[2026-05-23 09:57:37.542] [info] [layout-preview] node='orb_0' type=Circle pos=(658.9,483.5,0.9) anchor=(306.5,306.5,0.0) bbox=[658,483,1272,1097] screen_anchor=(965.4,790.0)
+[2026-05-23 09:57:37.544] [info] [source-debug] node='grain_38' shape=3 nonzero_pixels=1984 opacity=1.000 matrix_tx=1049.100 matrix_ty=773.204 det2d=1.000000
+[2026-05-23 09:57:37.544] [info] [graph-debug] frame=1 node='grain_38' kind='Source' cache_status='miss' dur=6.074ms
+[2026-05-23 09:57:37.545] [info] [source-debug] node='grain_2' shape=3 nonzero_pixels=1818 opacity=1.000 matrix_tx=962.316 matrix_ty=942.893 det2d=1.000000
+[2026-05-23 09:57:37.545] [info] [graph-debug] frame=1 node='grain_2' kind='Source' cache_status='miss' dur=6.623ms
+[2026-05-23 09:57:37.545] [info] [layout-preview] node='grain_44' type=Circle pos=(1062.4,2.9,76.5) anchor=(2.2,2.2,0.0) bbox=[1062,2,1067,8] screen_anchor=(1064.6,5.1)
+[2026-05-23 09:57:37.547] [info] [source-debug] node='orb_0' shape=3 nonzero_pixels=2001092 opacity=1.000 matrix_tx=658.910 matrix_ty=483.499 det2d=1.000000
+[2026-05-23 09:57:37.547] [info] [graph-debug] frame=1 node='orb_0' kind='Source' cache_status='miss' dur=26.202ms
+[2026-05-23 09:57:37.549] [info] [source-debug] node='grain_3' shape=3 nonzero_pixels=3019 opacity=1.000 matrix_tx=951.281 matrix_ty=283.785 det2d=1.000000
+[2026-05-23 09:57:37.549] [info] [graph-debug] frame=1 node='grain_3' kind='Source' cache_status='miss' dur=10.914ms
+[2026-05-23 09:57:37.549] [info] [source-debug] node='grain_24' shape=3 nonzero_pixels=1853 opacity=1.000 matrix_tx=1014.686 matrix_ty=153.543 det2d=1.000000
+[2026-05-23 09:57:37.549] [info] [graph-debug] frame=1 node='grain_24' kind='Source' cache_status='miss' dur=11.375ms
+[2026-05-23 09:57:37.552] [info] [source-debug] node='grain_44' shape=3 nonzero_pixels=103 opacity=1.000 matrix_tx=1062.356 matrix_ty=2.876 det2d=1.000000
+[2026-05-23 09:57:37.552] [info] [graph-debug] frame=1 node='grain_44' kind='Source' cache_status='miss' dur=13.628ms
+[2026-05-23 09:57:37.571] [info] [layout-preview] node='grain_18' type=Circle pos=(1000.8,1066.7,120.5) anchor=(2.0,2.0,0.0) bbox=[1000,1066,1005,1071] screen_anchor=(1002.9,1068.7)
+[2026-05-23 09:57:37.577] [info] [source-debug] node='grain_18' shape=3 nonzero_pixels=102 opacity=1.000 matrix_tx=1000.843 matrix_ty=1066.688 det2d=1.000000
+[2026-05-23 09:57:37.577] [info] [graph-debug] frame=1 node='grain_18' kind='Source' cache_status='miss' dur=38.899ms
+[2026-05-23 09:57:37.589] [info] [layout-preview] node='grain_9' type=Circle pos=(936.2,1074.5,-134.0) anchor=(2.4,2.4,0.0) bbox=[936,1074,941,1080] screen_anchor=(938.6,1076.9)
+[2026-05-23 09:57:37.595] [info] [source-debug] node='grain_9' shape=3 nonzero_pixels=101 opacity=1.000 matrix_tx=936.182 matrix_ty=1074.528 det2d=1.000000
+[2026-05-23 09:57:37.595] [info] [graph-debug] frame=1 node='grain_9' kind='Source' cache_status='miss' dur=53.216ms
+[2026-05-23 09:57:37.607] [info] [layout-preview] node='grain_39' type=Circle pos=(864.8,488.7,-84.2) anchor=(2.4,2.4,0.0) bbox=[864,488,870,494] screen_anchor=(867.2,491.1)
+[2026-05-23 09:57:37.612] [info] [source-debug] node='grain_39' shape=3 nonzero_pixels=2073166 opacity=1.000 matrix_tx=864.759 matrix_ty=488.677 det2d=1.000000
+[2026-05-23 09:57:37.612] [info] [graph-debug] frame=1 node='grain_39' kind='Source' cache_status='miss' dur=67.647ms
+[2026-05-23 09:57:37.628] [info] [layout-preview] node='grain_28' type=Circle pos=(1024.3,111.0,-8.3) anchor=(2.3,2.3,0.0) bbox=[1024,111,1030,116] screen_anchor=(1026.7,113.3)
+[2026-05-23 09:57:37.633] [info] [source-debug] node='grain_28' shape=3 nonzero_pixels=2073183 opacity=1.000 matrix_tx=1024.349 matrix_ty=111.004 det2d=1.000000
+[2026-05-23 09:57:37.633] [info] [graph-debug] frame=1 node='grain_28' kind='Source' cache_status='miss' dur=88.323ms
+[2026-05-23 09:57:37.651] [info] [layout-preview] node='orb_1' type=Circle pos=(1040.1,106.1,129.4) anchor=(306.6,306.6,0.0) bbox=[1040,106,1654,720] screen_anchor=(1346.7,412.7)
+[2026-05-23 09:57:37.656] [info] [source-debug] node='orb_1' shape=3 nonzero_pixels=2020797 opacity=1.000 matrix_tx=1040.097 matrix_ty=106.139 det2d=1.000000
+[2026-05-23 09:57:37.656] [info] [graph-debug] frame=1 node='orb_1' kind='Source' cache_status='miss' dur=108.550ms
+[2026-05-23 09:57:37.666] [info] [layout-preview] node='grain_4' type=Circle pos=(967.2,607.6,-118.0) anchor=(2.3,2.3,0.0) bbox=[967,607,972,613] screen_anchor=(969.5,609.9)
+[2026-05-23 09:57:37.672] [info] [source-debug] node='grain_4' shape=3 nonzero_pixels=2073183 opacity=1.000 matrix_tx=967.227 matrix_ty=607.575 det2d=1.000000
+[2026-05-23 09:57:37.672] [info] [graph-debug] frame=1 node='grain_4' kind='Source' cache_status='miss' dur=122.605ms
+[2026-05-23 09:57:37.685] [info] [layout-preview] node='grain_25' type=Circle pos=(899.3,1031.5,87.6) anchor=(1.1,1.1,0.0) bbox=[899,1031,902,1034] screen_anchor=(900.4,1032.6)
+[2026-05-23 09:57:37.690] [info] [source-debug] node='grain_25' shape=3 nonzero_pixels=2073325 opacity=1.000 matrix_tx=899.308 matrix_ty=1031.511 det2d=1.000000
+[2026-05-23 09:57:37.690] [info] [graph-debug] frame=1 node='grain_25' kind='Source' cache_status='miss' dur=140.405ms
+[2026-05-23 09:57:37.703] [info] [layout-preview] node='grain_45' type=Circle pos=(851.3,1011.8,103.5) anchor=(1.7,1.7,0.0) bbox=[851,1011,855,1016] screen_anchor=(853.0,1013.4)
+[2026-05-23 09:57:37.710] [info] [source-debug] node='grain_45' shape=3 nonzero_pixels=2073217 opacity=1.000 matrix_tx=851.304 matrix_ty=1011.767 det2d=1.000000
+[2026-05-23 09:57:37.711] [info] [graph-debug] frame=1 node='grain_45' kind='Source' cache_status='miss' dur=158.669ms
+[2026-05-23 09:57:37.724] [info] [layout-preview] node='grain_19' type=Circle pos=(912.8,80.2,137.5) anchor=(2.0,2.0,0.0) bbox=[912,80,917,85] screen_anchor=(914.8,82.2)
+[2026-05-23 09:57:37.730] [info] [source-debug] node='grain_19' shape=3 nonzero_pixels=2073200 opacity=1.000 matrix_tx=912.802 matrix_ty=80.204 det2d=1.000000
+[2026-05-23 09:57:37.730] [info] [graph-debug] frame=1 node='grain_19' kind='Source' cache_status='miss' dur=152.520ms
+[2026-05-23 09:57:37.742] [info] [layout-preview] node='grain_10' type=Circle pos=(982.4,54.3,-115.4) anchor=(1.4,1.4,0.0) bbox=[982,54,986,58] screen_anchor=(983.8,55.7)
+[2026-05-23 09:57:37.747] [info] [source-debug] node='grain_10' shape=3 nonzero_pixels=2073332 opacity=1.000 matrix_tx=982.406 matrix_ty=54.277 det2d=1.000000
+[2026-05-23 09:57:37.747] [info] [graph-debug] frame=1 node='grain_10' kind='Source' cache_status='miss' dur=152.727ms
+[2026-05-23 09:57:37.765] [info] [layout-preview] node='grain_40' type=Circle pos=(1053.5,394.0,-54.2) anchor=(1.7,1.7,0.0) bbox=[1053,394,1057,398] screen_anchor=(1055.1,395.7)
+[2026-05-23 09:57:37.771] [info] [source-debug] node='grain_40' shape=3 nonzero_pixels=2073234 opacity=1.000 matrix_tx=1053.470 matrix_ty=394.030 det2d=1.000000
+[2026-05-23 09:57:37.771] [info] [graph-debug] frame=1 node='grain_40' kind='Source' cache_status='miss' dur=158.719ms
+[2026-05-23 09:57:37.789] [info] [layout-preview] node='grain_29' type=Circle pos=(889.1,820.1,-41.7) anchor=(1.9,1.9,0.0) bbox=[889,820,893,824] screen_anchor=(890.9,821.9)
+[2026-05-23 09:57:37.795] [info] [source-debug] node='grain_29' shape=3 nonzero_pixels=2073234 opacity=1.000 matrix_tx=889.091 matrix_ty=820.086 det2d=1.000000
+[2026-05-23 09:57:37.795] [info] [graph-debug] frame=1 node='grain_29' kind='Source' cache_status='miss' dur=161.577ms
+[2026-05-23 09:57:37.810] [info] [layout-preview] node='orb_2' type=Circle pos=(260.4,110.9,-130.4) anchor=(306.6,306.6,0.0) bbox=[260,110,874,725] screen_anchor=(567.0,417.5)
+[2026-05-23 09:57:37.815] [info] [source-debug] node='orb_2' shape=3 nonzero_pixels=2020539 opacity=1.000 matrix_tx=260.363 matrix_ty=110.903 det2d=1.000000
+[2026-05-23 09:57:37.815] [info] [graph-debug] frame=1 node='orb_2' kind='Source' cache_status='miss' dur=159.198ms
+[2026-05-23 09:57:37.815] [warning] [cache-bypass] frame=1 node='Clear' node_id=13 kind='Output' reason='not_cacheable'
+[2026-05-23 09:57:37.815] [info] [dirty-debug] frame=1 Clear reuse_prev=0 clip=[457:51 -> 1461:1039] prev_origin=[0,0] prev_opaque=0
+[2026-05-23 09:57:37.826] [info] [layout-preview] node='grain_5' type=Circle pos=(946.2,660.9,-135.8) anchor=(1.9,1.9,0.0) bbox=[946,660,950,665] screen_anchor=(948.1,662.8)
+[2026-05-23 09:57:37.832] [info] [source-debug] node='grain_5' shape=3 nonzero_pixels=2073217 opacity=1.000 matrix_tx=946.186 matrix_ty=660.874 det2d=1.000000
+[2026-05-23 09:57:37.832] [info] [graph-debug] frame=1 node='grain_5' kind='Source' cache_status='miss' dur=160.173ms
+[2026-05-23 09:57:37.854] [info] [layout-preview] node='grain_26' type=Circle pos=(1019.5,-2.0,58.1) anchor=(2.5,2.5,0.0) bbox=[1019,-2,1025,3] screen_anchor=(1021.9,0.5)
+[2026-05-23 09:57:37.859] [info] [source-debug] node='grain_26' shape=3 nonzero_pixels=91 opacity=1.000 matrix_tx=1019.470 matrix_ty=-1.997 det2d=1.000000
+[2026-05-23 09:57:37.859] [info] [graph-debug] frame=1 node='grain_26' kind='Source' cache_status='miss' dur=169.120ms
+[2026-05-23 09:57:37.867] [info] [layout-preview] node='grain_46' type=Circle pos=(1066.9,185.0,125.3) anchor=(2.4,2.4,0.0) bbox=[1066,185,1072,190] screen_anchor=(1069.3,187.4)
+[2026-05-23 09:57:37.873] [info] [source-debug] node='grain_46' shape=3 nonzero_pixels=2073183 opacity=1.000 matrix_tx=1066.910 matrix_ty=185.030 det2d=1.000000
+[2026-05-23 09:57:37.873] [info] [graph-debug] frame=1 node='grain_46' kind='Source' cache_status='miss' dur=162.118ms
+[2026-05-23 09:57:37.885] [info] [layout-preview] node='grain_20' type=Circle pos=(1005.4,864.5,147.4) anchor=(2.3,2.3,0.0) bbox=[1005,864,1010,870] screen_anchor=(1007.6,866.8)
+[2026-05-23 09:57:37.890] [info] [source-debug] node='grain_20' shape=3 nonzero_pixels=2073183 opacity=1.000 matrix_tx=1005.351 matrix_ty=864.495 det2d=1.000000
+[2026-05-23 09:57:37.891] [info] [graph-debug] frame=1 node='grain_20' kind='Source' cache_status='miss' dur=160.819ms
+[2026-05-23 09:57:37.905] [info] [layout-preview] node='grain_11' type=Circle pos=(931.3,905.3,-91.0) anchor=(2.5,2.5,0.0) bbox=[931,905,937,911] screen_anchor=(933.8,907.8)
+[2026-05-23 09:57:37.911] [info] [source-debug] node='grain_11' shape=3 nonzero_pixels=2073166 opacity=1.000 matrix_tx=931.319 matrix_ty=905.334 det2d=1.000000
+[2026-05-23 09:57:37.911] [info] [graph-debug] frame=1 node='grain_11' kind='Source' cache_status='miss' dur=163.923ms
+[2026-05-23 09:57:37.924] [info] [layout-preview] node='grain_41' type=Circle pos=(860.2,855.7,-21.5) anchor=(2.3,2.3,0.0) bbox=[860,855,865,861] screen_anchor=(862.4,858.0)
+[2026-05-23 09:57:37.929] [info] [source-debug] node='grain_41' shape=3 nonzero_pixels=2073183 opacity=1.000 matrix_tx=860.194 matrix_ty=855.736 det2d=1.000000
+[2026-05-23 09:57:37.929] [info] [graph-debug] frame=1 node='grain_41' kind='Source' cache_status='miss' dur=158.713ms
+[2026-05-23 09:57:37.951] [info] [layout-preview] node='grain_30' type=Circle pos=(1029.3,435.4,-73.0) anchor=(2.1,2.1,0.0) bbox=[1029,435,1034,440] screen_anchor=(1031.4,437.5)
+[2026-05-23 09:57:37.956] [info] [source-debug] node='grain_30' shape=3 nonzero_pixels=2073200 opacity=1.000 matrix_tx=1029.315 matrix_ty=435.370 det2d=1.000000
+[2026-05-23 09:57:37.956] [info] [graph-debug] frame=1 node='grain_30' kind='Source' cache_status='miss' dur=161.355ms
+[2026-05-23 09:57:37.971] [info] [graph-debug] frame=1 node='Clear' kind='Output' cache_status='bypass_not_cacheable' dur=156.242ms
+[2026-05-23 09:57:37.990] [info] [layout-preview] node='grain_6' type=Circle pos=(972.2,236.8,-146.6) anchor=(2.1,2.1,0.0) bbox=[972,236,977,241] screen_anchor=(974.3,238.9)
+[2026-05-23 09:57:37.995] [info] [source-debug] node='grain_6' shape=3 nonzero_pixels=2073200 opacity=1.000 matrix_tx=972.233 matrix_ty=236.846 det2d=1.000000
+[2026-05-23 09:57:37.996] [info] [graph-debug] frame=1 node='grain_6' kind='Source' cache_status='miss' dur=163.699ms
+[2026-05-23 09:57:38.012] [info] [layout-preview] node='grain_27' type=Circle pos=(894.2,1053.9,25.6) anchor=(1.5,1.5,0.0) bbox=[894,1053,898,1057] screen_anchor=(895.7,1055.4)
+[2026-05-23 09:57:38.017] [info] [source-debug] node='grain_27' shape=3 nonzero_pixels=98 opacity=1.000 matrix_tx=894.182 matrix_ty=1053.923 det2d=1.000000
+[2026-05-23 09:57:38.017] [info] [graph-debug] frame=1 node='grain_27' kind='Source' cache_status='miss' dur=158.202ms
+[2026-05-23 09:57:38.027] [info] [layout-preview] node='grain_47' type=Circle pos=(846.9,723.5,140.6) anchor=(1.3,1.3,0.0) bbox=[846,723,850,727] screen_anchor=(848.3,724.8)
+[2026-05-23 09:57:38.032] [info] [source-debug] node='grain_47' shape=3 nonzero_pixels=2073234 opacity=1.000 matrix_tx=846.941 matrix_ty=723.469 det2d=1.000000
+[2026-05-23 09:57:38.032] [info] [graph-debug] frame=1 node='grain_47' kind='Source' cache_status='miss' dur=159.661ms
+[2026-05-23 09:57:38.045] [info] [layout-preview] node='grain_12' type=Circle pos=(987.6,333.4,-61.9) anchor=(1.0,1.0,0.0) bbox=[987,333,990,336] screen_anchor=(988.6,334.5)
+[2026-05-23 09:57:38.050] [info] [source-debug] node='grain_12' shape=3 nonzero_pixels=2073268 opacity=1.000 matrix_tx=987.575 matrix_ty=333.440 det2d=1.000000
+[2026-05-23 09:57:38.050] [info] [graph-debug] frame=1 node='grain_12' kind='Source' cache_status='miss' dur=159.508ms
+[2026-05-23 09:57:38.066] [info] [layout-preview] node='grain_48' type=Circle pos=(1071.7,542.9,148.7) anchor=(2.5,2.5,0.0) bbox=[1071,542,1077,548] screen_anchor=(1074.2,545.3)
+[2026-05-23 09:57:38.072] [info] [source-debug] node='grain_48' shape=3 nonzero_pixels=2073166 opacity=1.000 matrix_tx=1071.672 matrix_ty=542.854 det2d=1.000000
+[2026-05-23 09:57:38.072] [info] [graph-debug] frame=1 node='grain_48' kind='Source' cache_status='miss' dur=160.398ms
+[2026-05-23 09:57:38.084] [info] [layout-preview] node='grain_13' type=Circle pos=(926.5,553.3,-29.6) anchor=(2.5,2.5,0.0) bbox=[926,553,932,559] screen_anchor=(929.0,555.8)
+[2026-05-23 09:57:38.090] [info] [source-debug] node='grain_13' shape=3 nonzero_pixels=2073166 opacity=1.000 matrix_tx=926.526 matrix_ty=553.277 det2d=1.000000
+[2026-05-23 09:57:38.090] [info] [graph-debug] frame=1 node='grain_13' kind='Source' cache_status='miss' dur=160.167ms
+[2026-05-23 09:57:38.104] [info] [layout-preview] node='grain_31' type=Circle pos=(884.1,445.9,-100.5) anchor=(2.1,2.1,0.0) bbox=[884,445,889,451] screen_anchor=(886.3,448.1)
+[2026-05-23 09:57:38.109] [info] [source-debug] node='grain_31' shape=3 nonzero_pixels=2073183 opacity=1.000 matrix_tx=884.117 matrix_ty=445.946 det2d=1.000000
+[2026-05-23 09:57:38.109] [info] [graph-debug] frame=1 node='grain_31' kind='Source' cache_status='miss' dur=153.343ms
+[2026-05-23 09:57:38.122] [info] [layout-preview] node='grain_33' type=Circle pos=(879.0,117.5,-139.1) anchor=(2.4,2.4,0.0) bbox=[879,117,884,123] screen_anchor=(881.4,119.9)
+[2026-05-23 09:57:38.127] [info] [source-debug] node='grain_33' shape=3 nonzero_pixels=2073183 opacity=1.000 matrix_tx=879.046 matrix_ty=117.502 det2d=1.000000
+[2026-05-23 09:57:38.127] [info] [graph-debug] frame=1 node='grain_33' kind='Source' cache_status='miss' dur=155.717ms
+[2026-05-23 09:57:38.157] [info] [layout-preview] node='grain_49' type=Circle pos=(842.5,343.1,149.3) anchor=(1.1,1.1,0.0) bbox=[842,343,845,346] screen_anchor=(843.5,344.2)
+[2026-05-23 09:57:38.163] [info] [source-debug] node='grain_49' shape=3 nonzero_pixels=2073268 opacity=1.000 matrix_tx=842.458 matrix_ty=343.117 det2d=1.000000
+[2026-05-23 09:57:38.163] [info] [graph-debug] frame=1 node='grain_49' kind='Source' cache_status='miss' dur=167.305ms
+[2026-05-23 09:57:38.179] [info] [layout-preview] node='grain_34' type=Circle pos=(1039.4,1050.6,-148.1) anchor=(1.5,1.5,0.0) bbox=[1039,1050,1043,1054] screen_anchor=(1040.9,1052.1)
+[2026-05-23 09:57:38.184] [info] [source-debug] node='grain_34' shape=3 nonzero_pixels=98 opacity=1.000 matrix_tx=1039.444 matrix_ty=1050.612 det2d=1.000000
+[2026-05-23 09:57:38.184] [info] [graph-debug] frame=1 node='grain_34' kind='Source' cache_status='miss' dur=166.913ms
+[2026-05-23 09:57:38.192] [info] [layout-preview] node='grain_32' type=Circle pos=(1034.4,811.2,-122.9) anchor=(1.8,1.8,0.0) bbox=[1034,811,1038,815] screen_anchor=(1036.2,813.0)
+[2026-05-23 09:57:38.198] [info] [source-debug] node='grain_32' shape=3 nonzero_pixels=2073234 opacity=1.000 matrix_tx=1034.353 matrix_ty=811.158 det2d=1.000000
+[2026-05-23 09:57:38.198] [info] [graph-debug] frame=1 node='grain_32' kind='Source' cache_status='miss' dur=88.402ms
+[2026-05-23 09:57:38.198] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=1 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.198] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=1 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.198] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=1 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.198] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=0.027ms
+[2026-05-23 09:57:38.199] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=0.692ms
+[2026-05-23 09:57:38.200] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=2.309ms
+[2026-05-23 09:57:38.200] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.200] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.208] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=7.209ms
+[2026-05-23 09:57:38.209] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=8.784ms
+[2026-05-23 09:57:38.209] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.209] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.218] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=8.823ms
+[2026-05-23 09:57:38.220] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=10.623ms
+[2026-05-23 09:57:38.220] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.222] [info] [transform-debug] node='Transform' det=1399999872.000000 winding=ok H=[[999.856,-0.083,-0.000],[-14.398,991.788,-0.015],[392038.062,226549.938,1408.311]]
+[2026-05-23 09:57:38.228] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=7.627ms
+[2026-05-23 09:57:38.229] [info] [graph-debug] frame=1 node='Transform' kind='Transform' cache_status='miss' dur=9.298ms
+[2026-05-23 09:57:38.229] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.236] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=6.891ms
+[2026-05-23 09:57:38.370] [info] [graph-debug] frame=1 node='EffectStack' kind='Effect' cache_status='miss' dur=141.078ms
+[2026-05-23 09:57:38.371] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.371] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.399] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=28.548ms
+[2026-05-23 09:57:38.406] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=34.979ms
+[2026-05-23 09:57:38.406] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.413] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=6.953ms
+[2026-05-23 09:57:38.413] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.419] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=6.572ms
+[2026-05-23 09:57:38.419] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.427] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=7.666ms
+[2026-05-23 09:57:38.427] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.434] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=6.884ms
+[2026-05-23 09:57:38.434] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.441] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=6.892ms
+[2026-05-23 09:57:38.441] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.448] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=7.167ms
+[2026-05-23 09:57:38.448] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.457] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=8.758ms
+[2026-05-23 09:57:38.457] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.464] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=7.308ms
+[2026-05-23 09:57:38.464] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.471] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=7.091ms
+[2026-05-23 09:57:38.471] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.479] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=7.076ms
+[2026-05-23 09:57:38.479] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.486] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=7.903ms
+[2026-05-23 09:57:38.489] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.496] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=7.485ms
+[2026-05-23 09:57:38.499] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.507] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=7.674ms
+[2026-05-23 09:57:38.507] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.514] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=7.392ms
+[2026-05-23 09:57:38.514] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.522] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=8.291ms
+[2026-05-23 09:57:38.522] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.531] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=8.432ms
+[2026-05-23 09:57:38.533] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.541] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=7.440ms
+[2026-05-23 09:57:38.541] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.548] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=7.440ms
+[2026-05-23 09:57:38.551] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.559] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=8.006ms
+[2026-05-23 09:57:38.561] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.568] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=7.215ms
+[2026-05-23 09:57:38.568] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.576] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=7.388ms
+[2026-05-23 09:57:38.576] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.583] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=6.932ms
+[2026-05-23 09:57:38.583] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.589] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=6.670ms
+[2026-05-23 09:57:38.589] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.596] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=6.616ms
+[2026-05-23 09:57:38.596] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.603] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=6.987ms
+[2026-05-23 09:57:38.603] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.610] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=7.455ms
+[2026-05-23 09:57:38.611] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.617] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=6.971ms
+[2026-05-23 09:57:38.618] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.635] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=17.102ms
+[2026-05-23 09:57:38.638] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.646] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=7.479ms
+[2026-05-23 09:57:38.649] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.657] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=7.153ms
+[2026-05-23 09:57:38.659] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.666] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=7.149ms
+[2026-05-23 09:57:38.668] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.675] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=6.998ms
+[2026-05-23 09:57:38.677] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.684] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=7.831ms
+[2026-05-23 09:57:38.686] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.700] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=13.693ms
+[2026-05-23 09:57:38.700] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.708] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=7.386ms
+[2026-05-23 09:57:38.708] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.715] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=7.324ms
+[2026-05-23 09:57:38.715] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.722] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=7.240ms
+[2026-05-23 09:57:38.725] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.733] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=7.831ms
+[2026-05-23 09:57:38.735] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.742] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=7.314ms
+[2026-05-23 09:57:38.744] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.752] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=7.701ms
+[2026-05-23 09:57:38.752] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.759] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=6.956ms
+[2026-05-23 09:57:38.759] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.766] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=6.985ms
+[2026-05-23 09:57:38.768] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.775] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=7.218ms
+[2026-05-23 09:57:38.775] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.783] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=7.187ms
+[2026-05-23 09:57:38.785] [info] [transform-debug] node='Transform' det=1100000000.000000 winding=ok H=[[999.856,-0.083,-0.000],[-14.398,991.788,-0.015],[104025.562,60068.688,1108.344]]
+[2026-05-23 09:57:38.793] [info] [graph-debug] frame=1 node='Transform' kind='Transform' cache_status='miss' dur=10.175ms
+[2026-05-23 09:57:38.793] [info] [dirty-debug] frame=1 Composite mode=0 bottom_use_count=1 bottom_opaque=0 top_opaque=0 clip=[457:51 -> 1461:1039]
+[2026-05-23 09:57:38.793] [info] [graph-debug] frame=1 node='Composite' kind='Composite' cache_status='miss' dur=0.618ms
+[2026-05-23 09:57:38.991] [info] Frame 1 saved to render_0001.png
+[2026-05-23 09:57:38.991] [info] Render complete.
