@@ -110,24 +110,10 @@ struct RenderGraphContext {
                 fb->set_origin(0, 0);
             }
             if (clear) {
-                std::optional<raster::BBox> local_clip = clip_rect;
-                if (local_clip) {
-                    local_clip->x0 -= fb->origin_x();
-                    local_clip->x1 -= fb->origin_x();
-                    local_clip->y0 -= fb->origin_y();
-                    local_clip->y1 -= fb->origin_y();
-                    local_clip->clip_to(w, h);
-                    if (local_clip->is_empty()) {
-                        local_clip.reset();
-                    }
-                }
-                fb->clear(Color::transparent(), local_clip);
+                fb->clear(Color::transparent());
                 if (counters) {
                     counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
-                    const uint64_t pixels = local_clip
-                        ? static_cast<uint64_t>(std::max(0, local_clip->x1 - local_clip->x0)) *
-                          static_cast<uint64_t>(std::max(0, local_clip->y1 - local_clip->y0))
-                        : static_cast<uint64_t>(w) * static_cast<uint64_t>(h);
+                    const uint64_t pixels = static_cast<uint64_t>(w) * static_cast<uint64_t>(h);
                     counters->clear_pixels.fetch_add(pixels, std::memory_order_relaxed);
                 }
             }
