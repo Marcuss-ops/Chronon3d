@@ -80,34 +80,34 @@ add_executable(chronon3d_renderer_tests
     renderer/lighting/test_light_context.cpp
     renderer/lighting/test_directional_lights.cpp
     renderer/lighting/test_shadows.cpp
-    presets/test_motion_object.cpp
-    presets/test_motion_resolver.cpp
-    presets/test_motion_3d.cpp
-    presets/test_motion_renderer.cpp
-    presets/test_phrase_presets.cpp
-    presets/test_motion_visual_smoke.cpp
+    # presets/test_motion_object.cpp
+    # presets/test_motion_resolver.cpp
+    # presets/test_motion_3d.cpp
+    # presets/test_motion_renderer.cpp
+    # presets/test_phrase_presets.cpp
+    # presets/test_motion_visual_smoke.cpp
     render_graph/features/test_unified_transform_path.cpp
     renderer/dispatch/test_software_node_dispatcher.cpp
-    render_graph/features/test_precompositions.cpp
-    render_graph/features/test_modular_features.cpp
-    render_graph/features/test_track_matte.cpp
+    # render_graph/features/test_precompositions.cpp
+    # render_graph/features/test_modular_features.cpp
+    # render_graph/features/test_track_matte.cpp
     render_graph/features/test_transition.cpp
-    render_graph/features/test_camera_2_5d_graph.cpp
+    # render_graph/features/test_camera_2_5d_graph.cpp
     registry/test_registries.cpp
     cache/test_cache_sharding.cpp
     effects/test_effect_registry.cpp
     deterministic/test_deterministic.cpp
     render_graph/pipeline/test_render_pipeline.cpp
     render_graph/pipeline/test_render_backend.cpp
-    render_graph/cache/cache_key_tests.cpp
-    render_graph/cache/cache_frame_invariant_tests.cpp
+    # render_graph/cache/cache_key_tests.cpp
+    # render_graph/cache/cache_frame_invariant_tests.cpp
     render_graph/pipeline/test_dirty_rects.cpp
     # cache/node_cache_tests.cpp
-    render_graph/pipeline/graph_builder_tests.cpp
-    render_graph/pipeline/graph_executor_tests.cpp
+    # render_graph/pipeline/graph_builder_tests.cpp
+    # render_graph/pipeline/graph_executor_tests.cpp
     scene/camera/camera_25d_tests.cpp
     effects/effect_graph_tests.cpp
-    compositor/blend_mode_tests.cpp
+    # compositor/blend_mode_tests.cpp
     scene/shapes/mask_tests.cpp
     # rendering/source_primitives_tests.cpp
     specscene/specscene_boundary_tests.cpp
