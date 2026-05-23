@@ -5,6 +5,7 @@
 #include <chronon3d/render_graph/graph_builder.hpp>
 #include <chronon3d/render_graph/render_graph_hashing.hpp>
 #include <chronon3d/core/composition_registry.hpp>
+#include <span>
 
 namespace chronon3d::graph {
 
@@ -30,7 +31,7 @@ public:
         };
     }
 
-    std::shared_ptr<Framebuffer> execute(RenderGraphContext& ctx, const std::vector<std::shared_ptr<Framebuffer>>&, const std::vector<std::optional<raster::BBox>>&) override {
+    std::shared_ptr<Framebuffer> execute(RenderGraphContext& ctx, std::span<const std::shared_ptr<Framebuffer>>, std::span<const std::optional<raster::BBox>>) override {
         if (!ctx.registry || !ctx.registry->contains(m_comp_name)) {
             auto fb = ctx.acquire_framebuffer(ctx.width, ctx.height);
             return fb;

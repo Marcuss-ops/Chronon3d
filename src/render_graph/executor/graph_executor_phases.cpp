@@ -11,7 +11,7 @@ void execute_single_node(
     ExecutionState& state,
     RenderGraph& graph,
     RenderGraphContext& ctx,
-    const std::vector<PreResolvedNode>& level_resolved,
+    const std::pmr::vector<PreResolvedNode>& level_resolved,
     GraphNodeId id,
     size_t level_index
 ) {
@@ -89,16 +89,22 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
         return nullptr;
     }
 
+    auto* res = m_frame_arena.resource();
+    struct ArenaGuard { 
+        FrameArena& arena;
+        ~ArenaGuard() { arena.reset(); }
+    } guard{m_frame_arena};
+
     return m_arena.execute([&]() -> std::shared_ptr<Framebuffer> {
         const size_t node_count = graph.size();
-        ExecutionState state;
+        ExecutionState state(res);
         state.temp.resize(node_count);
         state.resolved_key_digest.assign(node_count, 0);
         state.resolved_frame_dependent.assign(node_count, 0);
         state.resolved_cache_hit.assign(node_count, 0);
         state.resolved_bboxes.resize(node_count);
 
-        std::vector<std::atomic_size_t> consumer_remaining(node_count);
+        std::pmr::vector<std::atomic_size_t> consumer_remaining(node_count, res);
         for (size_t i = 0; i < plan.consumer_counts.size(); ++i) {
             consumer_remaining[i].store(plan.consumer_counts[i], std::memory_order_relaxed);
         }
@@ -107,10 +113,22 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
             CHRONON_ZONE_C("execute_level", trace_category::kGraph);
 
             // Sequential pre-resolve phase
-            std::vector<PreResolvedNode> level_resolved(level.size());
+            std::pmr::vector<PreResolvedNode> level_resolved(res);
+            level_resolved.reserve(level.size());
             for (size_t i = 0; i < level.size(); ++i) {
-                level_resolved[i] = resolve_inputs(graph, level[i], state, consumer_remaining);
+                level_resolved.emplace_back(res);
+                level_resolved[i] = resolve_inputs(graph, level[i], state, consumer_remaining, res);
             }
+
+            // Parallel execution phase
+            tbb::parallel_for(
+                tbb::blocked_range<size_t>(0, level.size()),
+                [&](const tbb::blocked_range<size_t>& range) {
+                    for (size_t level_index = range.begin(); level_index != range.end(); ++level_index) {
+                        execute_single_node(state, graph, ctx, level_resolved, level[level_index], level_index);
+                    }
+                }
+            );
 
             // Decrement consumer counts & release dead references
             for (size_t i = 0; i < level.size(); ++i) {
@@ -128,16 +146,6 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
                     }
                 }
             }
-
-            // Parallel execution phase
-            tbb::parallel_for(
-                tbb::blocked_range<size_t>(0, level.size()),
-                [&](const tbb::blocked_range<size_t>& range) {
-                    for (size_t level_index = range.begin(); level_index != range.end(); ++level_index) {
-                        execute_single_node(state, graph, ctx, level_resolved, level[level_index], level_index);
-                    }
-                }
-            );
         }
 
         return state.temp[output];

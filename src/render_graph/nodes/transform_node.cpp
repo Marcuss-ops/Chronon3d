@@ -6,13 +6,14 @@
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
+#include <span>
 
 namespace chronon3d::graph {
 
 std::shared_ptr<Framebuffer> TransformNode::execute(
     RenderGraphContext& ctx,
-    const std::vector<std::shared_ptr<Framebuffer>>& inputs,
-    const std::vector<std::optional<raster::BBox>>& input_bboxes
+    std::span<const std::shared_ptr<Framebuffer>> inputs,
+    std::span<const std::optional<raster::BBox>> input_bboxes
 ) {
     CHRONON_ZONE_C("transform_node", trace_category::kRasterize);
     if (ctx.counters) {
@@ -233,7 +234,7 @@ std::shared_ptr<Framebuffer> TransformNode::execute(
 
 std::optional<raster::BBox> TransformNode::predicted_bbox(
     const RenderGraphContext& ctx,
-    const std::vector<std::optional<raster::BBox>>& input_bboxes
+    std::span<const std::optional<raster::BBox>> input_bboxes
 ) const {
     const Mat4 model = m_use_matrix ? m_matrix : m_transform.to_mat4();
     const Mat4 dst_canvas_offset = math::translate(Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));

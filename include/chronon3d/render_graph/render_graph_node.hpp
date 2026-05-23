@@ -15,6 +15,7 @@
 #include <string_view>
 #include <vector>
 #include <optional>
+#include <span>
 
 namespace chronon3d {
     class CompositionRegistry;
@@ -202,7 +203,7 @@ public:
     }
     [[nodiscard]] virtual std::optional<raster::BBox> predicted_bbox(
         const RenderGraphContext& ctx,
-        const std::vector<std::optional<raster::BBox>>& input_bboxes
+        std::span<const std::optional<raster::BBox>> input_bboxes
     ) const {
         (void)input_bboxes;
         return predicted_bbox(ctx);
@@ -252,8 +253,8 @@ public:
 
     virtual std::shared_ptr<Framebuffer> execute(
         RenderGraphContext& ctx,
-        const std::vector<std::shared_ptr<Framebuffer>>& inputs,
-        const std::vector<std::optional<raster::BBox>>& input_bboxes
+        std::span<const std::shared_ptr<Framebuffer>> inputs,
+        std::span<const std::optional<raster::BBox>> input_bboxes
     ) = 0;
 
 private:

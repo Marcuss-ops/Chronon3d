@@ -13,28 +13,35 @@
 
 namespace chronon3d::graph {
 
-template <typename T>
-[[nodiscard]] inline bool contains_index(const std::vector<T>& values, GraphNodeId id) {
-    return id < values.size();
+template <typename Container>
+[[nodiscard]] inline bool contains_index(const Container& values, GraphNodeId id) {
+    return static_cast<size_t>(id) < values.size();
 }
 
 // ── Shared execution state ──────────────────────────────────────
 struct ExecutionState {
-    std::vector<std::shared_ptr<Framebuffer>> temp;
-    std::vector<u64> resolved_key_digest;
-    std::vector<char> resolved_frame_dependent;
-    std::vector<char> resolved_cache_hit;
-    std::vector<std::optional<raster::BBox>> resolved_bboxes;
+    std::pmr::vector<std::shared_ptr<Framebuffer>> temp;
+    std::pmr::vector<u64> resolved_key_digest;
+    std::pmr::vector<char> resolved_frame_dependent;
+    std::pmr::vector<char> resolved_cache_hit;
+    std::pmr::vector<std::optional<raster::BBox>> resolved_bboxes;
+
+    explicit ExecutionState(std::pmr::memory_resource* res)
+        : temp(res), resolved_key_digest(res), resolved_frame_dependent(res),
+          resolved_cache_hit(res), resolved_bboxes(res) {}
 };
 
 // ── Pre-resolved inputs for a single node ───────────────────────
 struct PreResolvedNode {
-    std::vector<std::shared_ptr<Framebuffer>> inputs;
-    std::vector<std::optional<raster::BBox>> input_bboxes;
+    std::pmr::vector<std::shared_ptr<Framebuffer>> inputs;
+    std::pmr::vector<std::optional<raster::BBox>> input_bboxes;
     bool inputs_frame_dependent = false;
     bool has_cacheable_inputs = false;
     bool inputs_all_cache_hits = false;
     u64 input_hash = 0;
+
+    explicit PreResolvedNode(std::pmr::memory_resource* res)
+        : inputs(res), input_bboxes(res) {}
 };
 
 // ── Cache evaluation result ─────────────────────────────────────
@@ -51,7 +58,8 @@ struct CacheEvalResult {
     const RenderGraph& graph,
     GraphNodeId id,
     ExecutionState& state,
-    const std::vector<std::atomic_size_t>& consumer_remaining
+    const std::pmr::vector<std::atomic_size_t>& consumer_remaining,
+    std::pmr::memory_resource* res
 );
 
 [[nodiscard]] CacheEvalResult evaluate_cache(
@@ -73,8 +81,8 @@ struct CacheEvalResult {
 [[nodiscard]] double run_node(
     RenderGraphNode& node,
     RenderGraphContext& node_ctx,
-    const std::vector<std::shared_ptr<Framebuffer>>& inputs,
-    const std::vector<std::optional<raster::BBox>>& input_bboxes,
+    std::span<const std::shared_ptr<Framebuffer>> inputs,
+    std::span<const std::optional<raster::BBox>> input_bboxes,
     bool use_cache,
     const cache::NodeCacheKey& key,
     std::shared_ptr<Framebuffer>& result,
@@ -97,7 +105,7 @@ void execute_single_node(
     ExecutionState& state,
     RenderGraph& graph,
     RenderGraphContext& ctx,
-    const std::vector<PreResolvedNode>& level_resolved,
+    const std::pmr::vector<PreResolvedNode>& level_resolved,
     GraphNodeId id,
     size_t level_index
 );
