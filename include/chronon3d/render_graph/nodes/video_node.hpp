@@ -23,6 +23,15 @@ public:
         return "Video:" + m_source.path;
     }
 
+    std::optional<raster::BBox> predicted_bbox(
+        const RenderGraphContext& ctx,
+        std::span<const std::optional<raster::BBox>> = {}
+    ) const override {
+        const i32 render_w = m_source.size.x > 0.0f ? static_cast<i32>(m_source.size.x) : ctx.width;
+        const i32 render_h = m_source.size.y > 0.0f ? static_cast<i32>(m_source.size.y) : ctx.height;
+        return raster::BBox{0, 0, render_w, render_h};
+    }
+
     [[nodiscard]] cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         const Frame local_frame = ctx.frame - m_layer_start;
         const Frame source_frame = video::map_video_frame(local_frame, m_source);

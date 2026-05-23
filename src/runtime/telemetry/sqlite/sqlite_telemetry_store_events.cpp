@@ -6,16 +6,13 @@
 namespace chronon3d::telemetry {
 
 bool SqliteTelemetryStore::write_node_events(const std::string& run_id, const std::vector<NodeTelemetryRecord>& events) {
-    std::lock_guard<std::mutex> lock(m_impl->mutex);
+    std::scoped_lock lock(m_impl->mutex);
     if (!m_impl->db) return false;
-
-    sqlite3_exec(m_impl->db, "BEGIN TRANSACTION;", nullptr, nullptr, nullptr);
 
     const char* sql = "INSERT OR REPLACE INTO render_node_events "
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);";
     sqlite3_stmt* stmt{nullptr};
     if (sqlite3_prepare_v2(m_impl->db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
-        sqlite3_exec(m_impl->db, "ROLLBACK;", nullptr, nullptr, nullptr);
         return false;
     }
 
@@ -55,25 +52,17 @@ bool SqliteTelemetryStore::write_node_events(const std::string& run_id, const st
     }
 
     sqlite3_finalize(stmt);
-    if (success) {
-        sqlite3_exec(m_impl->db, "COMMIT;", nullptr, nullptr, nullptr);
-    } else {
-        sqlite3_exec(m_impl->db, "ROLLBACK;", nullptr, nullptr, nullptr);
-    }
     return success;
 }
 
 bool SqliteTelemetryStore::write_layer_events(const std::string& run_id, const std::vector<LayerTelemetryRecord>& events) {
-    std::lock_guard<std::mutex> lock(m_impl->mutex);
+    std::scoped_lock lock(m_impl->mutex);
     if (!m_impl->db) return false;
-
-    sqlite3_exec(m_impl->db, "BEGIN TRANSACTION;", nullptr, nullptr, nullptr);
 
     const char* sql = "INSERT OR REPLACE INTO render_layer_events "
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);";
     sqlite3_stmt* stmt{nullptr};
     if (sqlite3_prepare_v2(m_impl->db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
-        sqlite3_exec(m_impl->db, "ROLLBACK;", nullptr, nullptr, nullptr);
         return false;
     }
 
@@ -113,24 +102,16 @@ bool SqliteTelemetryStore::write_layer_events(const std::string& run_id, const s
     }
 
     sqlite3_finalize(stmt);
-    if (success) {
-        sqlite3_exec(m_impl->db, "COMMIT;", nullptr, nullptr, nullptr);
-    } else {
-        sqlite3_exec(m_impl->db, "ROLLBACK;", nullptr, nullptr, nullptr);
-    }
     return success;
 }
 
 bool SqliteTelemetryStore::write_cache_events(const std::string& run_id, const std::vector<CacheTelemetryRecord>& events) {
-    std::lock_guard<std::mutex> lock(m_impl->mutex);
+    std::scoped_lock lock(m_impl->mutex);
     if (!m_impl->db) return false;
-
-    sqlite3_exec(m_impl->db, "BEGIN TRANSACTION;", nullptr, nullptr, nullptr);
 
     const char* sql = "INSERT OR REPLACE INTO render_cache_events VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);";
     sqlite3_stmt* stmt{nullptr};
     if (sqlite3_prepare_v2(m_impl->db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
-        sqlite3_exec(m_impl->db, "ROLLBACK;", nullptr, nullptr, nullptr);
         return false;
     }
 
@@ -155,24 +136,16 @@ bool SqliteTelemetryStore::write_cache_events(const std::string& run_id, const s
     }
 
     sqlite3_finalize(stmt);
-    if (success) {
-        sqlite3_exec(m_impl->db, "COMMIT;", nullptr, nullptr, nullptr);
-    } else {
-        sqlite3_exec(m_impl->db, "ROLLBACK;", nullptr, nullptr, nullptr);
-    }
     return success;
 }
 
 bool SqliteTelemetryStore::write_culling_events(const std::string& run_id, const std::vector<CullingTelemetryRecord>& events) {
-    std::lock_guard<std::mutex> lock(m_impl->mutex);
+    std::scoped_lock lock(m_impl->mutex);
     if (!m_impl->db) return false;
-
-    sqlite3_exec(m_impl->db, "BEGIN TRANSACTION;", nullptr, nullptr, nullptr);
 
     const char* sql = "INSERT OR REPLACE INTO render_culling_events VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);";
     sqlite3_stmt* stmt{nullptr};
     if (sqlite3_prepare_v2(m_impl->db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
-        sqlite3_exec(m_impl->db, "ROLLBACK;", nullptr, nullptr, nullptr);
         return false;
     }
 
@@ -201,11 +174,6 @@ bool SqliteTelemetryStore::write_culling_events(const std::string& run_id, const
     }
 
     sqlite3_finalize(stmt);
-    if (success) {
-        sqlite3_exec(m_impl->db, "COMMIT;", nullptr, nullptr, nullptr);
-    } else {
-        sqlite3_exec(m_impl->db, "ROLLBACK;", nullptr, nullptr, nullptr);
-    }
     return success;
 }
 

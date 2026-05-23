@@ -11,6 +11,8 @@ public:
     ~SqliteTelemetryStore() override;
 
     bool initialize(const std::string& db_path) override;
+    void begin_transaction() override;
+    void end_transaction(bool commit) override;
     bool write_render_run(const RenderTelemetryRecord& run) override;
     bool write_frames(const std::string& run_id, const std::vector<FrameTelemetryRecord>& frames) override;
     bool write_phases(const std::string& run_id, const std::vector<PhaseTelemetryRecord>& phases) override;
