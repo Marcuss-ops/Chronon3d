@@ -1,3 +1,5 @@
+> ⚠️ **NOTA:** Questo documento contiene idee speculative e brainstorming. Molte sono state implementate nell'attuale codebase. Vedi [IMPROVEMENTS.md](../IMPROVEMENTS.md) per la matrice aggiornata con gli item completati.
+
 Sì, puoi preriscaldare il forno. Anzi, è la cosa più facile e più ignorata. E poi ci sono un paio di idee "pazze" che in un renderer come il tuo funzionano davvero.
 
 ### 1. Preriscaldamento vero

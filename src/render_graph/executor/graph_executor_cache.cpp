@@ -1,4 +1,5 @@
 #include "graph_executor_internal.hpp"
+#include <chronon3d/cache/disk_node_cache.hpp>
 #include <spdlog/spdlog.h>
 
 namespace chronon3d::graph {
@@ -80,6 +81,15 @@ CacheEvalResult evaluate_cache(
         cr.key.input_hash = input_hash;
 
         cr.result = ctx.node_cache->get(cr.key);
+        
+        if (!cr.result && policy.disk_cacheable) {
+            cr.result = cache::DiskNodeCache::instance().get(cr.key);
+            if (cr.result) {
+                // Warm up RAM cache
+                ctx.node_cache->store(cr.key, cr.result);
+            }
+        }
+
         if (ctx.counters) {
             if (cr.result) {
                 ctx.counters->cache_hits.fetch_add(1, std::memory_order_relaxed);

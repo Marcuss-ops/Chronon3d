@@ -69,7 +69,7 @@ export/debug del percorso camera
 | Expression system (wiggle, loopOut) | Lua or mini-DSL on `AnimatedValue<T>` | Medium |
 | SVG import | Parse path → Chronon3d shapes | Medium |
 | Lottie import | Parse JSON → `Composition` | Medium |
-| EXR output | vcpkg openexr available | Low |
+| EXR output | ✅ implemented — DWAA tiled + mmap | Low |
 | Preview window (SDL2/GLFW + hot reload) | SDL2 in deps, no window code yet | High |
 | GPU backend (Vulkan) | Future architecture | Very High |
 | WASM / browser | Depends on GPU backend | Very High |
