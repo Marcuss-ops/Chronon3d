@@ -91,7 +91,7 @@ void data_stream_background(
         }
 
         // Apply neon flow glow to the entire layer
-        l.glow(14.0f, 0.45f, params.stream_color);
+        l.glow(params.glow_radius, 0.45f, params.stream_color);
     });
 }
 

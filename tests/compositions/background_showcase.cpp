@@ -68,7 +68,7 @@ Composition background_showcase() {
             }
             case 3: {
                 DataStreamBackgroundParams params;
-                params.density = 70;
+                params.density = 30;
                 params.speed = 3.0f;
                 params.animated = true;
                 data_stream_background(s, segment_ctx, params);
@@ -216,7 +216,7 @@ Composition data_stream_showcase() {
     }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         DataStreamBackgroundParams params;
-        params.density = 70;
+        params.density = 30;
         params.speed = 3.0f;
         params.animated = true;
         data_stream_background(s, ctx, params);

@@ -16,7 +16,7 @@ double run_node(
     const RenderGraphContext& ctx
 ) {
     if (result) {
-        return 0.0;
+        return 0.001;
     }
 
     const auto exec_t0 = std::chrono::steady_clock::now();
