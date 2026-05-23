@@ -7,10 +7,11 @@ PreResolvedNode resolve_inputs(
     const RenderGraph& graph,
     GraphNodeId id,
     ExecutionState& state,
-    const std::vector<std::atomic_size_t>& consumer_remaining
+    const std::pmr::vector<std::atomic_size_t>& consumer_remaining,
+    std::pmr::memory_resource* res
 ) {
     const auto& input_ids = graph.inputs(id);
-    PreResolvedNode pr;
+    PreResolvedNode pr(res);
     pr.inputs.resize(input_ids.size());
     pr.input_bboxes.resize(input_ids.size());
     pr.inputs_all_cache_hits = !input_ids.empty();

@@ -11,6 +11,7 @@
 #include <memory>
 #include <string>
 #include <utility>
+#include <span>
 
 namespace chronon3d::graph {
 
@@ -54,8 +55,8 @@ public:
 
     std::shared_ptr<Framebuffer> execute(
         RenderGraphContext& ctx,
-        const std::vector<std::shared_ptr<Framebuffer>>& inputs,
-        const std::vector<std::optional<raster::BBox>>&
+        std::span<const std::shared_ptr<Framebuffer>> inputs,
+        std::span<const std::optional<raster::BBox>>
     ) override {
         auto result = ctx.acquire_framebuffer(ctx.width, ctx.height);
 

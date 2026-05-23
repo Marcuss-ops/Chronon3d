@@ -7,8 +7,8 @@ namespace chronon3d::graph {
 double run_node(
     RenderGraphNode& node,
     RenderGraphContext& node_ctx,
-    const std::vector<std::shared_ptr<Framebuffer>>& inputs,
-    const std::vector<std::optional<raster::BBox>>& input_bboxes,
+    std::span<const std::shared_ptr<Framebuffer>> inputs,
+    std::span<const std::optional<raster::BBox>> input_bboxes,
     bool use_cache,
     const cache::NodeCacheKey& key,
     std::shared_ptr<Framebuffer>& result,

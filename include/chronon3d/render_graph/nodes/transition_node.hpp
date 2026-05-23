@@ -3,6 +3,7 @@
 #include <chronon3d/render_graph/render_graph_node.hpp>
 #include <chronon3d/render_graph/render_graph_hashing.hpp>
 #include <chronon3d/scene/layer/transition.hpp>
+#include <span>
 
 namespace chronon3d::graph {
 
@@ -34,7 +35,7 @@ public:
 
     std::optional<raster::BBox> predicted_bbox(
         const RenderGraphContext& ctx,
-        const std::vector<std::optional<raster::BBox>>& input_bboxes
+        std::span<const std::optional<raster::BBox>> input_bboxes
     ) const override {
         if (!input_bboxes.empty()) {
             return input_bboxes[0];
@@ -44,8 +45,8 @@ public:
 
     std::shared_ptr<Framebuffer> execute(
         RenderGraphContext& ctx,
-        const std::vector<std::shared_ptr<Framebuffer>>& inputs,
-        const std::vector<std::optional<raster::BBox>>& input_bboxes
+        std::span<const std::shared_ptr<Framebuffer>> inputs,
+        std::span<const std::optional<raster::BBox>> input_bboxes
     ) override;
 
 private:

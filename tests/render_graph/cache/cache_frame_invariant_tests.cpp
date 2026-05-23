@@ -37,7 +37,7 @@ public:
         };
     }
 
-    std::shared_ptr<Framebuffer> execute(RenderGraphContext& ctx, const std::vector<std::shared_ptr<Framebuffer>>&, const std::vector<std::optional<raster::BBox>>&) override {
+    std::shared_ptr<Framebuffer> execute(RenderGraphContext& ctx, std::span<const std::shared_ptr<Framebuffer>>, std::span<const std::optional<raster::BBox>>) override {
         m_exec_count++;
         auto fb = std::make_shared<Framebuffer>(ctx.width, ctx.height);
         fb->clear(Color::transparent());
@@ -74,7 +74,7 @@ public:
         };
     }
 
-    std::shared_ptr<Framebuffer> execute(RenderGraphContext& ctx, const std::vector<std::shared_ptr<Framebuffer>>&, const std::vector<std::optional<raster::BBox>>&) override {
+    std::shared_ptr<Framebuffer> execute(RenderGraphContext& ctx, std::span<const std::shared_ptr<Framebuffer>>, std::span<const std::optional<raster::BBox>>) override {
         m_exec_count++;
         auto fb = std::make_shared<Framebuffer>(ctx.width, ctx.height);
         fb->clear(Color::transparent());

@@ -8,6 +8,7 @@
 #include <chronon3d/render_graph/render_backend.hpp>
 
 #include <cmath>
+#include <span>
 
 namespace chronon3d::graph {
 
@@ -40,7 +41,7 @@ public:
         };
     }
 
-    std::shared_ptr<Framebuffer> execute(RenderGraphContext& ctx, const std::vector<std::shared_ptr<Framebuffer>>& inputs, const std::vector<std::optional<raster::BBox>>&) override {
+    std::shared_ptr<Framebuffer> execute(RenderGraphContext& ctx, std::span<const std::shared_ptr<Framebuffer>> inputs, std::span<const std::optional<raster::BBox>>) override {
         if (inputs.empty()) return ctx.acquire_framebuffer(ctx.width, ctx.height);
         
         const float blur = compute_dof_blur_radius(m_camera.dof, m_layer_world_z);

@@ -4,6 +4,7 @@
 #include <chronon3d/render_graph/render_graph_hashing.hpp>
 #include <chronon3d/backends/video/video_source.hpp>
 #include <chronon3d/backends/video/video_frame_decoder.hpp>
+#include <span>
 
 namespace chronon3d::graph {
 
@@ -40,8 +41,8 @@ public:
 
     std::shared_ptr<Framebuffer> execute(
         RenderGraphContext& ctx,
-        const std::vector<std::shared_ptr<Framebuffer>>&,
-        const std::vector<std::optional<raster::BBox>>&
+        std::span<const std::shared_ptr<Framebuffer>>,
+        std::span<const std::optional<raster::BBox>>
     ) override {
         if (!m_decoder) {
             const i32 render_w = m_source.size.x > 0.0f ? static_cast<i32>(m_source.size.x) : ctx.width;
