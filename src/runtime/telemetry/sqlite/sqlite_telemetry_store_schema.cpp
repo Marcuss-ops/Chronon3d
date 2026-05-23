@@ -1,13 +1,152 @@
 #include "sqlite_telemetry_store_impl.hpp"
+#include "telemetry_schema.hpp"
 #include <filesystem>
+#include <string>
+#include <vector>
 
 #ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
 #include <sqlite3.h>
 
 namespace chronon3d::telemetry {
 
+namespace {
+
+// Canonical column count for render_runs (from telemetry_schema.sql)
+constexpr int CANONICAL_RUN_COLUMNS = 59;
+
+// Ordered column names for render_runs matching telemetry_schema.sql
+constexpr const char* RUN_COLUMN_NAMES[] = {
+    "run_id", "composition_id", "output_path", "success", "error_code", "error_message",
+    "frames_total", "frames_written", "wall_time_ms", "render_ms", "encode_ms",
+    "effective_fps", "pixels_touched", "cache_hits", "cache_misses", "nodes_executed",
+    "layers_rendered", "text_glyphs_rasterized", "images_sampled", "blur_pixels",
+    "simd_lerp_calls", "tiles_total", "tiles_hit", "tiles_miss", "tiles_partial",
+    "bytes_allocated_peak", "node_cache_hash_collisions",
+    "clear_calls", "clear_pixels", "composite_calls", "composite_pixels",
+    "transform_calls", "transform_pixels", "effect_stack_calls", "effect_pixels",
+    "layer_culling_tests", "layers_culled", "layers_visible",
+    "framebuffer_allocations", "framebuffer_reuses", "framebuffer_bytes_allocated",
+    "framebuffer_bytes_peak",
+    "dirty_rect_count", "dirty_pixels", "dirty_union_area_pixels", "dirty_full_fallbacks",
+    "bypass_not_cacheable_count",
+    "dirty_full_fallback_predicted_bounds_missing",
+    "dirty_full_fallback_composite_missing_input_bounds",
+    "dirty_full_fallback_transform_bounds_unknown",
+    "dirty_full_fallback_effect_bounds_unknown",
+    "started_at_iso", "finished_at_iso", "git_commit_short", "build_type",
+    "compiler_info", "os", "cpu_model", "cores"
+};
+
+// Map of table name → expected column names (for migration across all tables)
+struct TableDef {
+    const char* name;
+    const char* const* columns;
+    size_t column_count;
+};
+
+#define COLUMNS_OF(arr) (arr), (sizeof(arr) / sizeof((arr)[0]))
+
+// Column definitions for all tables
+constexpr const char* FRAME_COL_NAMES[] = {"run_id", "frame_number", "duration_ms", "cache_hit", "dirty_area_ratio"};
+constexpr const char* PHASE_COL_NAMES[] = {"run_id", "phase_name", "duration_ms"};
+constexpr const char* COUNTER_COL_NAMES[] = {"run_id", "counter_name", "counter_value"};
+constexpr const char* NODE_EVENT_COL_NAMES[] = {
+    "run_id", "frame_number", "node_name", "node_type", "layer_id", "duration_ms",
+    "cache_status", "cache_key_digest", "input_count", "output_width", "output_height",
+    "output_bytes", "bbox_x", "bbox_y", "bbox_w", "bbox_h",
+    "visible_x", "visible_y", "visible_w", "visible_h",
+    "pixels_touched", "pixels_cleared", "pixels_composited", "pixels_transformed", "pixels_blurred"
+};
+constexpr const char* LAYER_EVENT_COL_NAMES[] = {
+    "run_id", "frame_number", "layer_id", "layer_name", "layer_type", "duration_ms",
+    "visible", "cull_reason", "opacity", "blend_mode",
+    "bbox_x", "bbox_y", "bbox_w", "bbox_h",
+    "visible_x", "visible_y", "visible_w", "visible_h",
+    "area_pixels", "visible_pixels", "dirty_pixels", "effects",
+    "effect_padding", "glyphs_rasterized", "images_sampled"
+};
+constexpr const char* CACHE_EVENT_COL_NAMES[] = {
+    "run_id", "frame_number", "node_name", "cacheable", "cache_status",
+    "key_digest", "params_hash", "source_hash", "input_hash", "output_bytes"
+};
+constexpr const char* CULLING_EVENT_COL_NAMES[] = {
+    "run_id", "frame_number", "layer_id", "visible", "reason",
+    "bbox_x", "bbox_y", "bbox_w", "bbox_h",
+    "visible_x", "visible_y", "visible_w", "visible_h", "saved_pixels"
+};
+constexpr const char* TEXT_EVENT_COL_NAMES[] = {
+    "run_id", "frame_number", "layer_id",
+    "text_length", "line_count", "glyph_count", "glyphs_rasterized",
+    "glyph_cache_hits", "glyph_cache_misses",
+    "layout_ms", "raster_ms", "composite_ms", "font_path", "font_size"
+};
+constexpr const char* IMAGE_EVENT_COL_NAMES[] = {
+    "run_id", "frame_number", "layer_id",
+    "image_path", "image_width", "image_height", "cache_status",
+    "decode_ms", "sample_ms", "sampled_pixels"
+};
+constexpr const char* TILE_EVENT_COL_NAMES[] = {
+    "run_id", "frame_number", "layer_id", "tile_x", "tile_y",
+    "tile_status", "dirty_rects_count"
+};
+
+constexpr TableDef ALL_TABLES[] = {
+    {"render_runs", COLUMNS_OF(RUN_COLUMN_NAMES)},
+    {"render_frames", COLUMNS_OF(FRAME_COL_NAMES)},
+    {"render_phase_events", COLUMNS_OF(PHASE_COL_NAMES)},
+    {"render_counters", COLUMNS_OF(COUNTER_COL_NAMES)},
+    {"render_node_events", COLUMNS_OF(NODE_EVENT_COL_NAMES)},
+    {"render_layer_events", COLUMNS_OF(LAYER_EVENT_COL_NAMES)},
+    {"render_cache_events", COLUMNS_OF(CACHE_EVENT_COL_NAMES)},
+    {"render_culling_events", COLUMNS_OF(CULLING_EVENT_COL_NAMES)},
+    {"render_text_events", COLUMNS_OF(TEXT_EVENT_COL_NAMES)},
+    {"render_image_events", COLUMNS_OF(IMAGE_EVENT_COL_NAMES)},
+    {"render_tile_events", COLUMNS_OF(TILE_EVENT_COL_NAMES)},
+};
+
+#undef COLUMNS_OF
+
+// Non-destructive migration: add missing columns to ALL tables with ALTER TABLE ADD COLUMN
+void migrate_add_missing_columns(sqlite3* db) {
+    for (const auto& table_def : ALL_TABLES) {
+        std::string pragma_sql = "PRAGMA table_info(" + std::string(table_def.name) + ");";
+        sqlite3_stmt* check_stmt{nullptr};
+        if (sqlite3_prepare_v2(db, pragma_sql.c_str(), -1, &check_stmt, nullptr) != SQLITE_OK) {
+            continue;
+        }
+
+        // Collect existing column names for this table
+        std::vector<std::string> existing;
+        while (sqlite3_step(check_stmt) == SQLITE_ROW) {
+            const char* col_name = reinterpret_cast<const char*>(sqlite3_column_text(check_stmt, 1));
+            if (col_name) existing.push_back(col_name);
+        }
+        sqlite3_finalize(check_stmt);
+
+        if (existing.empty()) continue; // Table doesn't exist yet, CREATE will handle it
+
+        // Add any missing columns
+        for (size_t i = 0; i < table_def.column_count; ++i) {
+            bool found = false;
+            for (const auto& ex : existing) {
+                if (ex == table_def.columns[i]) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                std::string alter_sql = "ALTER TABLE " + std::string(table_def.name)
+                    + " ADD COLUMN " + std::string(table_def.columns[i]) + " INTEGER DEFAULT 0;";
+                sqlite3_exec(db, alter_sql.c_str(), nullptr, nullptr, nullptr);
+            }
+        }
+    }
+}
+
+} // namespace
+
 bool SqliteTelemetryStore::initialize(const std::string& db_path) {
-    std::lock_guard<std::mutex> lock(m_impl->mutex);
+    std::scoped_lock lock(m_impl->mutex);
     m_impl->close();
 
     std::filesystem::path fs_path(db_path);
@@ -22,255 +161,18 @@ bool SqliteTelemetryStore::initialize(const std::string& db_path) {
         return false;
     }
 
+    sqlite3_busy_timeout(m_impl->db, 5000);
+
     // Set performance PRAGMAs
     sqlite3_exec(m_impl->db, "PRAGMA journal_mode=WAL;", nullptr, nullptr, nullptr);
     sqlite3_exec(m_impl->db, "PRAGMA synchronous=NORMAL;", nullptr, nullptr, nullptr);
 
-    // Self-healing schema migration: Check if render_runs exists and has fewer columns than expected (57)
-    bool needs_recreate = false;
-    sqlite3_stmt* check_stmt{nullptr};
-    if (sqlite3_prepare_v2(m_impl->db, "PRAGMA table_info(render_runs);", -1, &check_stmt, nullptr) == SQLITE_OK) {
-        int cols = 0;
-        while (sqlite3_step(check_stmt) == SQLITE_ROW) {
-            cols++;
-        }
-        sqlite3_finalize(check_stmt);
-        if (cols > 0 && cols < 57) {
-            needs_recreate = true;
-        }
-    }
+    // Non-destructive migration: add any missing columns to existing tables
+    migrate_add_missing_columns(m_impl->db);
 
-    if (needs_recreate) {
-        sqlite3_exec(m_impl->db, "DROP TABLE IF EXISTS render_runs;", nullptr, nullptr, nullptr);
-        sqlite3_exec(m_impl->db, "DROP TABLE IF EXISTS render_frames;", nullptr, nullptr, nullptr);
-        sqlite3_exec(m_impl->db, "DROP TABLE IF EXISTS render_phase_events;", nullptr, nullptr, nullptr);
-        sqlite3_exec(m_impl->db, "DROP TABLE IF EXISTS render_counters;", nullptr, nullptr, nullptr);
-        sqlite3_exec(m_impl->db, "DROP TABLE IF EXISTS render_node_events;", nullptr, nullptr, nullptr);
-        sqlite3_exec(m_impl->db, "DROP TABLE IF EXISTS render_layer_events;", nullptr, nullptr, nullptr);
-        sqlite3_exec(m_impl->db, "DROP TABLE IF EXISTS render_cache_events;", nullptr, nullptr, nullptr);
-        sqlite3_exec(m_impl->db, "DROP TABLE IF EXISTS render_culling_events;", nullptr, nullptr, nullptr);
-        sqlite3_exec(m_impl->db, "DROP TABLE IF EXISTS render_text_events;", nullptr, nullptr, nullptr);
-        sqlite3_exec(m_impl->db, "DROP TABLE IF EXISTS render_image_events;", nullptr, nullptr, nullptr);
-        sqlite3_exec(m_impl->db, "DROP TABLE IF EXISTS render_tile_events;", nullptr, nullptr, nullptr);
-    }
-
-    const char* schema =
-        "CREATE TABLE IF NOT EXISTS render_runs (\n"
-        "    run_id TEXT PRIMARY KEY,\n"
-        "    composition_id TEXT,\n"
-        "    output_path TEXT,\n"
-        "    success INTEGER,\n"
-        "    error_code TEXT,\n"
-        "    error_message TEXT,\n"
-        "    frames_total INTEGER,\n"
-        "    frames_written INTEGER,\n"
-        "    wall_time_ms REAL,\n"
-        "    render_ms REAL,\n"
-        "    encode_ms REAL,\n"
-        "    effective_fps REAL,\n"
-        "    pixels_touched INTEGER,\n"
-        "    cache_hits INTEGER,\n"
-        "    cache_misses INTEGER,\n"
-        "    nodes_executed INTEGER,\n"
-        "    layers_rendered INTEGER,\n"
-        "    text_glyphs_rasterized INTEGER,\n"
-        "    images_sampled INTEGER,\n"
-        "    blur_pixels INTEGER,\n"
-        "    simd_lerp_calls INTEGER,\n"
-        "    tiles_total INTEGER,\n"
-        "    tiles_hit INTEGER,\n"
-        "    tiles_miss INTEGER,\n"
-        "    tiles_partial INTEGER,\n"
-        "    bytes_allocated_peak INTEGER,\n"
-        "    node_cache_hash_collisions INTEGER,\n"
-        "    clear_calls INTEGER,\n"
-        "    clear_pixels INTEGER,\n"
-        "    composite_calls INTEGER,\n"
-        "    composite_pixels INTEGER,\n"
-        "    transform_calls INTEGER,\n"
-        "    transform_pixels INTEGER,\n"
-        "    effect_stack_calls INTEGER,\n"
-        "    effect_pixels INTEGER,\n"
-        "    layer_culling_tests INTEGER,\n"
-        "    layers_culled INTEGER,\n"
-        "    layers_visible INTEGER,\n"
-        "    framebuffer_allocations INTEGER,\n"
-        "    framebuffer_reuses INTEGER,\n"
-        "    framebuffer_bytes_allocated INTEGER,\n"
-        "    framebuffer_bytes_peak INTEGER,\n"
-        "    dirty_rect_count INTEGER,\n"
-        "    dirty_pixels INTEGER,\n"
-        "    dirty_full_fallbacks INTEGER,\n"
-        "    dirty_full_fallback_predicted_bounds_missing INTEGER,\n"
-        "    dirty_full_fallback_composite_missing_input_bounds INTEGER,\n"
-        "    dirty_full_fallback_transform_bounds_unknown INTEGER,\n"
-        "    dirty_full_fallback_effect_bounds_unknown INTEGER,\n"
-        "    started_at_iso TEXT,\n"
-        "    finished_at_iso TEXT,\n"
-        "    git_commit_short TEXT,\n"
-        "    build_type TEXT,\n"
-        "    compiler_info TEXT,\n"
-        "    os TEXT,\n"
-        "    cpu_model TEXT,\n"
-        "    cores INTEGER\n"
-        ");\n"
-        "\n"
-        "CREATE TABLE IF NOT EXISTS render_frames (\n"
-        "    run_id TEXT,\n"
-        "    frame_number INTEGER,\n"
-        "    duration_ms REAL,\n"
-        "    cache_hit INTEGER,\n"
-        "    dirty_area_ratio REAL,\n"
-        "    PRIMARY KEY (run_id, frame_number)\n"
-        ");\n"
-        "\n"
-        "CREATE TABLE IF NOT EXISTS render_phase_events (\n"
-        "    run_id TEXT,\n"
-        "    phase_name TEXT,\n"
-        "    duration_ms REAL,\n"
-        "    PRIMARY KEY (run_id, phase_name)\n"
-        ");\n"
-        "\n"
-        "CREATE TABLE IF NOT EXISTS render_counters (\n"
-        "    run_id TEXT,\n"
-        "    counter_name TEXT,\n"
-        "    counter_value INTEGER,\n"
-        "    PRIMARY KEY (run_id, counter_name)\n"
-        ");\n"
-        "\n"
-        "CREATE TABLE IF NOT EXISTS render_node_events (\n"
-        "    run_id TEXT,\n"
-        "    frame_number INTEGER,\n"
-        "    node_name TEXT,\n"
-        "    node_type TEXT,\n"
-        "    layer_id TEXT,\n"
-        "    duration_ms REAL,\n"
-        "    cache_status TEXT,\n"
-        "    cache_key_digest TEXT,\n"
-        "    input_count INTEGER,\n"
-        "    output_width INTEGER,\n"
-        "    output_height INTEGER,\n"
-        "    output_bytes INTEGER,\n"
-        "    bbox_x REAL,\n"
-        "    bbox_y REAL,\n"
-        "    bbox_w REAL,\n"
-        "    bbox_h REAL,\n"
-        "    visible_x REAL,\n"
-        "    visible_y REAL,\n"
-        "    visible_w REAL,\n"
-        "    visible_h REAL,\n"
-        "    pixels_touched INTEGER,\n"
-        "    pixels_cleared INTEGER,\n"
-        "    pixels_composited INTEGER,\n"
-        "    pixels_transformed INTEGER,\n"
-        "    pixels_blurred INTEGER,\n"
-        "    PRIMARY KEY (run_id, frame_number, node_name, node_type)\n"
-        ");\n"
-        "\n"
-        "CREATE TABLE IF NOT EXISTS render_layer_events (\n"
-        "    run_id TEXT,\n"
-        "    frame_number INTEGER,\n"
-        "    layer_id TEXT,\n"
-        "    layer_name TEXT,\n"
-        "    layer_type TEXT,\n"
-        "    duration_ms REAL,\n"
-        "    visible INTEGER,\n"
-        "    cull_reason TEXT,\n"
-        "    opacity REAL,\n"
-        "    blend_mode TEXT,\n"
-        "    bbox_x REAL,\n"
-        "    bbox_y REAL,\n"
-        "    bbox_w REAL,\n"
-        "    bbox_h REAL,\n"
-        "    visible_x REAL,\n"
-        "    visible_y REAL,\n"
-        "    visible_w REAL,\n"
-        "    visible_h REAL,\n"
-        "    area_pixels INTEGER,\n"
-        "    visible_pixels INTEGER,\n"
-        "    dirty_pixels INTEGER,\n"
-        "    effects TEXT,\n"
-        "    effect_padding REAL,\n"
-        "    glyphs_rasterized INTEGER,\n"
-        "    images_sampled INTEGER,\n"
-        "    PRIMARY KEY (run_id, frame_number, layer_id)\n"
-        ");\n"
-        "\n"
-        "CREATE TABLE IF NOT EXISTS render_cache_events (\n"
-        "    run_id TEXT,\n"
-        "    frame_number INTEGER,\n"
-        "    node_name TEXT,\n"
-        "    cacheable INTEGER,\n"
-        "    cache_status TEXT,\n"
-        "    key_digest TEXT,\n"
-        "    params_hash TEXT,\n"
-        "    source_hash TEXT,\n"
-        "    input_hash TEXT,\n"
-        "    output_bytes INTEGER,\n"
-        "    PRIMARY KEY (run_id, frame_number, node_name)\n"
-        ");\n"
-        "\n"
-        "CREATE TABLE IF NOT EXISTS render_culling_events (\n"
-        "    run_id TEXT,\n"
-        "    frame_number INTEGER,\n"
-        "    layer_id TEXT,\n"
-        "    visible INTEGER,\n"
-        "    reason TEXT,\n"
-        "    bbox_x REAL,\n"
-        "    bbox_y REAL,\n"
-        "    bbox_w REAL,\n"
-        "    bbox_h REAL,\n"
-        "    visible_x REAL,\n"
-        "    visible_y REAL,\n"
-        "    visible_w REAL,\n"
-        "    visible_h REAL,\n"
-        "    saved_pixels INTEGER,\n"
-        "    PRIMARY KEY (run_id, frame_number, layer_id)\n"
-        ");\n"
-        "\n"
-        "CREATE TABLE IF NOT EXISTS render_text_events (\n"
-        "    run_id TEXT,\n"
-        "    frame_number INTEGER,\n"
-        "    layer_id TEXT,\n"
-        "    text_length INTEGER,\n"
-        "    line_count INTEGER,\n"
-        "    glyph_count INTEGER,\n"
-        "    glyphs_rasterized INTEGER,\n"
-        "    glyph_cache_hits INTEGER,\n"
-        "    glyph_cache_misses INTEGER,\n"
-        "    layout_ms REAL,\n"
-        "    raster_ms REAL,\n"
-        "    composite_ms REAL,\n"
-        "    font_path TEXT,\n"
-        "    font_size REAL\n"
-        ");\n"
-        "\n"
-        "CREATE TABLE IF NOT EXISTS render_image_events (\n"
-        "    run_id TEXT,\n"
-        "    frame_number INTEGER,\n"
-        "    layer_id TEXT,\n"
-        "    image_path TEXT,\n"
-        "    image_width INTEGER,\n"
-        "    image_height INTEGER,\n"
-        "    cache_status TEXT,\n"
-        "    decode_ms REAL,\n"
-        "    sample_ms REAL,\n"
-        "    sampled_pixels INTEGER\n"
-        ");\n"
-        "\n"
-        "CREATE TABLE IF NOT EXISTS render_tile_events (\n"
-        "    run_id TEXT,\n"
-        "    frame_number INTEGER,\n"
-        "    layer_id TEXT,\n"
-        "    tile_x INTEGER,\n"
-        "    tile_y INTEGER,\n"
-        "    tile_status TEXT,\n"
-        "    dirty_rects_count INTEGER,\n"
-        "    PRIMARY KEY (run_id, frame_number, layer_id, tile_x, tile_y)\n"
-        ");\n";
-
+    // Apply schema from the canonical .sql file (embedded at build time)
     char* err_msg = nullptr;
-    rc = sqlite3_exec(m_impl->db, schema, nullptr, nullptr, &err_msg);
+    rc = sqlite3_exec(m_impl->db, TELEMETRY_SCHEMA_SQL, nullptr, nullptr, &err_msg);
     if (rc != SQLITE_OK) {
         if (err_msg) sqlite3_free(err_msg);
         return false;

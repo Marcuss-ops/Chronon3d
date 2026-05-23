@@ -92,6 +92,13 @@ add_executable(chronon3d_renderer_tests
     compositions/background_grid.cpp
     compositions/chronon_intro_card.cpp
     compositions/grid_title_motion.cpp
+    presets/backgrounds/studio_grid_background.cpp
+    presets/backgrounds/gradient_orbs_background.cpp
+    presets/backgrounds/parallax_space_background.cpp
+    presets/backgrounds/data_stream_background.cpp
+    presets/backgrounds/premium_studio_background.cpp
+    compositions/background_showcase.cpp
+    compositions/background_showcase_test.cpp
     # render_graph/features/test_precompositions.cpp
     # render_graph/features/test_modular_features.cpp
     # render_graph/features/test_track_matte.cpp

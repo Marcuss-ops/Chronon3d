@@ -10,7 +10,7 @@ namespace chronon3d::telemetry {
 
 struct SqliteTelemetryStore::Impl {
     sqlite3* db{nullptr};
-    std::mutex mutex;
+    std::recursive_mutex mutex;
 
     ~Impl() {
         close();

@@ -129,51 +129,14 @@ HWY_ATTR void rasterize_rect_simd_impl(
 HWY_ATTR void premultiply_alpha_rgba8_impl(uint32_t* HWY_RESTRICT dst,
                                            const uint8_t* HWY_RESTRICT src,
                                            int pixel_count) {
-    const hn::CappedTag<uint8_t, 16> d8;
-    const hn::CappedTag<uint16_t, 8> d16;
-    const auto zero = hn::Zero(d8);
-
-    for (int i = 0; i < pixel_count / 4; ++i) {
-        // Load 4 pixels (16 bytes)
-        auto rgba = hn::LoadU(d8, src + i * 16);
-
-        // [R0 G0 B0 A0 R1 G1 B1 A1 R2 G2 B2 A2 R3 G3 B3 A3]
-        
-        // Unpack to 16-bit to avoid overflow in multiply
-        auto lo = hn::PromoteLowerTo(d16, rgba); // Pixels 0, 1 as [R0 G0 B0 A0 R1 G1 B1 A1]
-        auto hi = hn::PromoteUpperTo(d16, rgba); // Pixels 2, 3
-
-        // Broadcast alpha
-        // For lo: alpha0 at index 3, alpha1 at index 7
-        alignas(16) uint16_t lo_data[8];
-        hn::StoreU(lo, d16, lo_data);
-        const auto a0 = hn::Set(d16, lo_data[3]);
-        const auto a1 = hn::Set(d16, lo_data[7]);
-
-        // This is getting complicated for a quick win. 
-        // Let's use a simpler approach: process 4 pixels as 4 floats? No, too slow.
-        // Process 1 pixel at a time in SIMD using 16-bit shifts/masks?
-        
-        // Actually, Highway has better ways.
-        // But for now, I'll provide a high-quality scalar fallback or a simpler SIMD.
-        // Let's do it 1 pixel at a time if SIMD is too complex for this turn,
-        // or just implement the correct logic.
-        
-        // Correct logic:
-        // pr = (r * a + 127) / 255
-        // pg = (g * a + 127) / 255
-        // pb = (b * a + 127) / 255
-    }
-
-    // Fallback/Tail
-    for (int i = (pixel_count / 4) * 4; i < pixel_count; ++i) {
-        uint8_t r = src[i * 4 + 0];
-        uint8_t g = src[i * 4 + 1];
-        uint8_t b = src[i * 4 + 2];
-        uint8_t a = src[i * 4 + 3];
-        uint32_t pr = (r * a + 127) / 255;
-        uint32_t pg = (g * a + 127) / 255;
-        uint32_t pb = (b * a + 127) / 255;
+    for (int i = 0; i < pixel_count; ++i) {
+        const uint8_t r = src[i * 4 + 0];
+        const uint8_t g = src[i * 4 + 1];
+        const uint8_t b = src[i * 4 + 2];
+        const uint8_t a = src[i * 4 + 3];
+        const uint32_t pr = (static_cast<uint32_t>(r) * a + 127) / 255;
+        const uint32_t pg = (static_cast<uint32_t>(g) * a + 127) / 255;
+        const uint32_t pb = (static_cast<uint32_t>(b) * a + 127) / 255;
         dst[i] = (static_cast<uint32_t>(a) << 24) | (pr << 16) | (pg << 8) | pb;
     }
 }

@@ -24,6 +24,16 @@ public:
     RenderGraphNodeKind kind()   const override { return RenderGraphNodeKind::TrackMatte; }
     std::string         name()   const override { return m_name; }
 
+    std::optional<raster::BBox> predicted_bbox(
+        const RenderGraphContext&,
+        std::span<const std::optional<raster::BBox>> input_bboxes = {}
+    ) const override {
+        if (input_bboxes.empty() || !input_bboxes[0]) {
+            return std::nullopt;
+        }
+        return input_bboxes[0];
+    }
+
     [[nodiscard]] CacheFramePolicy cache_frame_policy() const override {
         return CacheFramePolicy::FrameInvariant;
     }

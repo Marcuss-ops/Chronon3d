@@ -24,11 +24,18 @@ public:
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         return cache::NodeCacheKey{
             .scope = "precomp",
-            .frame = m_cache_frame >= 0 ? m_cache_frame : (ctx.frame - m_start_frame), // Nested frame time
+            .frame = m_cache_frame >= 0 ? m_cache_frame : (frame_dependent() ? (ctx.frame - m_start_frame) : Frame{0}), // Nested frame time
             .width = ctx.width,
             .height = ctx.height,
             .params_hash = hash_string(m_comp_name)
         };
+    }
+
+    std::optional<raster::BBox> predicted_bbox(
+        const RenderGraphContext& ctx,
+        std::span<const std::optional<raster::BBox>> = {}
+    ) const override {
+        return raster::BBox{0, 0, ctx.width, ctx.height};
     }
 
     std::shared_ptr<Framebuffer> execute(RenderGraphContext& ctx, std::span<const std::shared_ptr<Framebuffer>>, std::span<const std::optional<raster::BBox>>) override {

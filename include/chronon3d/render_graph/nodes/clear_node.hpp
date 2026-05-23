@@ -7,6 +7,10 @@ namespace chronon3d::graph {
 
 class ClearNode final : public RenderGraphNode {
 public:
+    ClearNode() {
+        set_frame_dependent(false);
+    }
+
     RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::Output; }
     std::string name() const override { return "Clear"; }
 

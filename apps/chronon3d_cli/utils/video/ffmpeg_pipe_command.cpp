@@ -46,6 +46,7 @@ std::string build_ffmpeg_raw_pipe_command(const FfmpegPipeOptions& options) {
         "-crf {} "
         "-preset {} "
         "-pix_fmt {} "
+        "-movflags +faststart "
         "{}",
         log_flags,
         pix_fmt_to_ffmpeg_str(options.input_format),
