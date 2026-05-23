@@ -51,6 +51,11 @@ struct RenderSettings {
     bool enable_dirty_rects{true};
 
     /**
+     * If true, enables dirty rect bitmask (64x64 grid) for precise invalidation.
+     */
+    bool enable_dirty_bitmask{true};
+
+    /**
      * If true, graph nodes may restrict clear/composite/effect work to predicted bounds.
      * V1 uses node predicted_bbox as clip_rect.
      */
