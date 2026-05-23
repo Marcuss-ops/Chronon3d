@@ -100,15 +100,6 @@ add_executable(chronon3d_renderer_tests
     render_graph/features/test_unified_transform_path.cpp
     renderer/dispatch/test_software_node_dispatcher.cpp
     renderer/test_lil_dirk_clean.cpp
-    compositions/background_grid.cpp
-    compositions/chronon_intro_card.cpp
-    compositions/grid_title_motion.cpp
-    presets/backgrounds/studio_grid_background.cpp
-    presets/backgrounds/gradient_orbs_background.cpp
-    presets/backgrounds/parallax_space_background.cpp
-    presets/backgrounds/data_stream_background.cpp
-    presets/backgrounds/premium_studio_background.cpp
-    compositions/background_showcase.cpp
     compositions/background_showcase_test.cpp
     # render_graph/features/test_precompositions.cpp
     # render_graph/features/test_modular_features.cpp
@@ -120,6 +111,9 @@ add_executable(chronon3d_renderer_tests
     effects/test_effect_registry.cpp
     deterministic/test_deterministic.cpp
     render_graph/pipeline/test_render_pipeline.cpp
+    render_graph/pipeline/test_line_grid.cpp
+    render_graph/pipeline/test_pipeline_robustness.cpp
+    render_graph/pipeline/test_grid_math.cpp
     render_graph/pipeline/test_render_backend.cpp
     # render_graph/cache/cache_key_tests.cpp
     # render_graph/cache/cache_frame_invariant_tests.cpp

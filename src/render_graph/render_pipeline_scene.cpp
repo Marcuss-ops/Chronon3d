@@ -129,10 +129,6 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
             LayerGraphItem item;
             if (cam.enabled && rl.layer->is_3d) {
                 Transform effective_transform = rl.world_transform;
-                if (!ctx.modular_coordinates) {
-                    effective_transform.position.x -= ctx.width * 0.5f;
-                    effective_transform.position.y -= ctx.height * 0.5f;
-                }
                 const Mat4 projection_world_matrix = effective_transform.to_mat4();
                 auto proj = project_layer_2_5d(
                     effective_transform, projection_world_matrix, cam,

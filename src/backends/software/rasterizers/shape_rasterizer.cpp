@@ -66,6 +66,18 @@ bool pixel_passes_mask(const RenderState& state, i32 x, i32 y) {
 }
 
 raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 spread) {
+    if (shape.type == ShapeType::Line) {
+        Vec4 p0 = model * Vec4(0, 0, 0, 1);
+        Vec4 p1 = model * Vec4(shape.line.to, 1);
+        const f32 pad = spread + std::max(kBBoxSafetyPadding, shape.line.thickness * 0.5f);
+        return {
+            static_cast<i32>(std::floor(std::min(p0.x, p1.x) - pad)),
+            static_cast<i32>(std::floor(std::min(p0.y, p1.y) - pad)),
+            static_cast<i32>(std::ceil(std::max(p0.x, p1.x) + pad)),
+            static_cast<i32>(std::ceil(std::max(p0.y, p1.y) + pad))
+        };
+    }
+
     Vec2 size{0, 0};
     switch (shape.type) {
         case ShapeType::Rect:        size = shape.rect.size; break;
