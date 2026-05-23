@@ -134,9 +134,9 @@ std::vector<PreResolvedNode, FrameArena::vector<PreResolvedNode>> level_resolved
 🟡 **STATO: PARZIALE** — `DiskNodeCache` class definita in `disk_node_cache.hpp/.cpp` con `get()`, `put()`, `exists()`, `clear()`. Usa mmap su Linux, file mapping atomico con rename, env var `CHRONON_DISK_CACHE_DIR`. 
 
 **Manca:**
-- Il campo `disk_cacheable` nei nodi è ancora `false` — nessun nodo è marcato come cacheable su disco
-- `GraphExecutor::execute()` non controlla ancora `disk_cache.exists(key)` prima di renderizzare
-- Il `DiskNodeCache` è implementato ma non è wire-up nella pipeline di rendering
+- `disk_cacheable` è `false` in tutti i nodi — nessun nodo marcato come cacheable su disco
+- `GraphExecutor::execute()` non controlla `disk_cache.exists(key)` prima di renderizzare
+- Nessuna telemetry per disk cache hit/miss
 
 **Struttura esistente da sfruttare:**
 ```cpp
@@ -148,9 +148,10 @@ bool disk_cacheable{false};  // DA ABILITARE per nodi statici come grid_bg
 ```
 
 **Prossimi passi per completare:**
-- [ ] Abilitare `disk_cacheable = true` per nodi statici (es. grid_bg, testi fissi)
-- [ ] In `GraphExecutor::execute()`, se `policy.disk_cacheable && disk_cache.exists(key)` → load from disk
-- [ ] Hash della key con `XXH3_64bits` (usando NodeCacheKey::digest() già implementato)
+- [ ] Abilitare `disk_cacheable = true` per nodi statici (es. grid_bg, immagini fisse, testi non animati)
+- [ ] In `GraphExecutor::execute()`, prima di `evaluate_cache()`, controllare `disk_cache.exists(key)` → load from disk se presente
+- [ ] Hash della key con `NodeCacheKey::digest()` già implementato (XXH3-based)
+- [ ] Aggiungere telemetry: disk cache hit/miss nei contatori
 - [ ] Metadata: `{digest, params_hash, source_hash, input_hash, width, height, timestamp}`
 
 ---
@@ -707,6 +708,293 @@ Merge: ffmpeg -f concat -i list.txt -c copy output.mp4
 
 ---
 
+## 🆕 NUOVE OPPORTUNITÀ (SCOPERTE IN QUESTA ANALISI)
+
+> Le seguenti opportunità sono emerse da un'analisi approfondita del codebase eseguita a maggio 2026.
+> Non erano precedentemente documentate in questo roadmap.
+
+---
+
+### N1. Motion Blur Accumulation Parallel + SIMD
+
+**Problema:** In `render_pipeline_composition.cpp`, quando motion blur è attivo, gli N samples vengono valutati e renderizzati **sequenzialmente**, poi accumulati in loop `for (int y... for (int x...)` pixel-per-pixel con accessi `accum[idx]`.
+
+**Soluzione:** (a) Parallelizzare gli N samples con `tbb::parallel_for`. (b) SIMD-izzare l'accumulazione floating-point con Highway. (c) Ri-usare framebuffer dal pool invece di crearli ogni sample.
+
+**Dove:** `src/render_graph/render_pipeline_composition.cpp` — sezione motion blur ~righe 80-120.
+
+**Guadagno stimato:** 4-8× speedup su CPU multi-core con 8 samples.
+
+**Codice attuale (da parallelizzare):**
+```cpp
+// Loop seriale su N samples
+for (int s = 0; s < N; ++s) {
+    Scene sub = comp.evaluate(frame, t);
+    const Framebuffer& sub_fb = *call_graph(sub, frame, t);
+    for (int y = 0; y < rh; ++y) {
+        for (int x = 0; x < rw; ++x) {
+            const Color c = sub_fb.get_pixel(x, y);
+            accum[idx + 0] += c.r * weight;
+            accum[idx + 1] += c.g * weight;
+            accum[idx + 2] += c.b * weight;
+            accum[idx + 3] += c.a * weight;
+        }
+    }
+}
+```
+
+**Prossimi passi:**
+- [ ] Parallelizzare il loop `for (int s = 0; s < N; ++s)` con `tbb::parallel_for`
+- [ ] Sostituire `get_pixel` con accesso diretto a righe (puntatori raw)
+- [ ] SIMD-izzare l'accumulazione con Highway (4 lane float × 4 canali = 16 lane)
+- [ ] Ri-usare framebuffer intermedio dal pool invece di crearne uno per sample
+
+---
+
+### N2. Box Blur 3-Pass Parallelizzato
+
+**Problema:** In `effect_blur.cpp`, i 3 passaggi di blur box-filter (orizzontale → verticale → orizzontale) sono completamente seriali. Ogni riga/colonna è processata una alla volta.
+
+**Soluzione:** Parallelizzare ogni pass con `tbb::parallel_for` per righe separate. Inoltre, fondere i 3 passaggi in 2 con kernel più grandi (2-pass separable).
+
+**Dove:** `src/backends/software/utils/effects/effect_blur.cpp`.
+
+**Guadagno stimato:** 4-8× speedup su raggi grandi (50+) e risoluzioni 4K.
+
+**Codice attuale:**
+```cpp
+for (int pass = 0; pass < 3; ++pass) {
+    for (i32 y = y0; y < y1; ++y) {     // ← seriale!
+        // processing riga orizzontale
+    }
+    for (i32 x = x0; x < x1; ++x) {     // ← seriale!
+        // processing colonna verticale
+    }
+}
+```
+
+**Prossimi passi:**
+- [ ] Avvolgere i loop di riga con `tbb::parallel_for(tbb::blocked_range<i32>(y0, y1), ...)`
+- [ ] Avvolgere i loop di colonna con `tbb::parallel_for(tbb::blocked_range<i32>(x0, x1), ...)`
+- [ ] Valutare fusione 3-pass → 2-pass con kernel di raggio maggiore
+- [ ] Aggiungere benchmark dedicato blur per misurare speedup
+
+---
+
+### N3. Downsample SSAA Parallel + Raw Pointer Access
+
+**Problema:** `downsample_fb()` in `render_pipeline_helpers.hpp` chiama `src.get_pixel(ix, iy)` e `dst->set_pixel(x, y, ...)` per ogni pixel — overhead di function call e bounds check. Loop interamente seriale.
+
+**Soluzione:** (a) Accesso diretto alle row con puntatori raw. (b) Parallelizzare con TBB. (c) SIMD-izzare il box filter.
+
+**Dove:** `src/render_graph/render_pipeline_helpers.hpp` — funzione `downsample_fb()`.
+
+**Guadagno stimato:** 2-4× speedup con SSAA 2× attivo.
+
+**Prossimi passi:**
+- [ ] Sostituire `get_pixel`/`set_pixel` con `pixels_row()` raw pointer
+- [ ] Parallelizzare il loop `for (int y = 0; y < dst_h; ++y)` con TBB
+- [ ] SIMD-izzare il box filter con Highway (accumulazione 4-lane)
+
+---
+
+### N4. std::any_cast Chain → Enum Dispatch
+
+**Problema:** In `effect_stack.cpp`, ogni effetto fa `std::any_cast<BlurParams>(&inst.params)` poi `std::any_cast<TintParams>`, ecc. in cascata — overhead O(n) di type-erasure per ogni effetto.
+
+**Soluzione:** Aggiungere un enum `EffectType` a `EffectInstance` per dispatch O(1) con switch invece di O(n) any_cast.
+
+**Dove:** `include/chronon3d/effects/effect_instance.hpp` + `src/backends/software/utils/effects/effect_stack.cpp`.
+
+**Guadagno stimato:** Overhead eliminato per ogni effetto applicato. Minore, ma si accumula su layer con 4-5 effetti.
+
+**Prossimi passi:**
+- [ ] Aggiungere `enum class EffectType { Blur, Tint, Brightness, Contrast, Glow, DropShadow, Bloom, Fake3DWave };` a `EffectInstance`
+- [ ] Popolare l'enum al construction time
+- [ ] Sostituire la catena di `any_cast` con uno switch sull'enum
+- [ ] Mantenere `std::any` per i parametri (non rimuovere, solo ottimizzare il dispatch)
+
+---
+
+### N5. compute_scene_fingerprint — Hash Costoso per Frame
+
+**Problema:** `compute_scene_fingerprint()` in `render_pipeline_helpers.hpp` hash manualmente ~50+ valori per layer usando XOR + 0x9e3779b97f4a7c15. Per 100 layer: migliaia di operazioni di hash per frame.
+
+**Soluzione:** (a) Usare XXH3 (già presente nel progetto) invece della combinazione manuale. (b) Hash incrementale — solo ciò che cambia. (c) Cache dell'hash quando la scena è statica.
+
+**Dove:** `src/render_graph/render_pipeline_helpers.hpp` — funzione `compute_scene_fingerprint()`.
+
+**Guadagno stimato:** 2-3× più veloce, hash più robusto con meno collisioni.
+
+**Prossimi passi:**
+- [ ] Sostituire `combine()` manuale con `XXH3_64bits_update()`
+- [ ] Mantenere una versione cached dello fingerprint tra frame
+- [ ] Se lo scene state non è cambiato, riusare l'hash precedente
+
+---
+
+### N6. Blend Mode Switch Per-Pixel
+
+**Problema:** In `blend_mode.hpp`, `compositor::blend()` ha uno switch su `BlendMode` per ogni pixel. Per blend non-Normal, ogni pixel paga un branch indiretto.
+
+**Soluzione:** Template specialization per blend mode comune (Normal), function pointer o jump table per dispatch più veloce.
+
+**Dove:** `include/chronon3d/compositor/blend_mode.hpp`.
+
+**Guadagno stimato:** Minore (~1-2%), ma si applica a TUTTI i pixel blendati.
+
+**Prossimi passi:**
+- [ ] Creare template `blend<BlendMode>(src, dst)` per dispatch compile-time
+- [ ] Nei loop hot, chiamare `blend<BlendMode::Normal>` che è senza branch
+- [ ] Per blend mode variabili, usare function pointer array invece di switch
+
+---
+
+### N7. Shadow/Glow Multi-Layer Fusione
+
+**Problema:** `draw_shadow()` e `draw_glow()` in `effect_stack.cpp` disegnano 5-6 layer separati con spread progressivo. Ognuno chiama `draw_transformed_shape()` separatamente — draw calls ridondanti.
+
+**Soluzione:** Fusionare in una singola passata con accumulazione. Invece di 6 draw separate, una sola con blending cumulativo.
+
+**Dove:** `src/backends/software/utils/effects/effect_stack.cpp` — funzioni `draw_shadow()`, `draw_glow()`.
+
+**Guadagno stimato:** ~5-6× meno draw calls per nodo con shadow/glow.
+
+**Codice attuale:**
+```cpp
+for (int i = LAYERS; i >= 1; --i) {
+    // Una draw separata per ogni layer — 6 chiamate!
+    draw_transformed_shape(fb, node.shape, shadow_model, {base.r, base.g, base.b, alpha}, spread, &state);
+}
+```
+
+**Prossimi passi:**
+- [ ] Creare `draw_shadow_fused()` che accumula alpha in un buffer temporaneo
+- [ ] Unico `draw_transformed_shape()` con alpha pre-calcolato
+- [ ] Benchmark con `perf stat` per misurare la riduzione di draw calls
+
+---
+
+### N8. Acquire Temp Framebuffer — Overhead Aliasing shared_ptr
+
+**Problema:** `acquire_temp_framebuffer()` in `effects_internal.hpp` crea `shared_ptr<FramebufferPool>(pool, [](auto*){})` — aliasing constructor con deleter vuoto. Ogni frame temporaneo paga questo overhead.
+
+**Soluzione:** Pool dedicato per temporanei con bump allocator + release esplicita a fine effetto.
+
+**Dove:** `src/backends/software/utils/effects/effects_internal.hpp` + `include/chronon3d/cache/framebuffer_pool.hpp`.
+
+**Guadagno stimato:** Riduce overhead allocazione per frame con molti effetti.
+
+**Prossimi passi:**
+- [ ] Creare `TempFramebufferArena` — bump allocator con release a fine scope
+- [ ] Sostituire `shared_ptr` con `unique_ptr` dove possibile
+- [ ] Tracciare `framebuffer_reuses` counter per i temp buffer
+
+---
+
+### N9. Trace Events — Lock-Free Queue + Interned Strings
+
+**Problema:** `RenderTrace::add()` prende `std::mutex` e costruisce `std::string` per ogni evento trace. Con 100+ nodi per frame, overhead misurabile.
+
+**Soluzione:** Usare lock-free SPSC queue per-thread + interned string IDs. Merge a fine frame.
+
+**Dove:** `include/chronon3d/core/trace.hpp` + `src/core/trace.cpp`.
+
+**Guadagno stimato:** Riduce overhead tracing, specialmente in debug/diagnostic mode.
+
+**Prossimi passi:**
+- [ ] Creare `ThreadLocalTraceBuffer` con lock-free queue
+- [ ] Usare `string_view` + interned pool invece di `std::string`
+- [ ] Merge dei buffer per-thread in un unico `RenderTrace` a fine frame
+
+---
+
+### N10. Thread-Local Ptrs con RAII Guard
+
+**Problema:** `profiling::g_current_trace`, `g_current_frame`, `g_current_counters`, `g_current_framebuffer_pool` sono settati e resettati manualmente in ogni chiamata render in `software_renderer.cpp`. Se un'eccezione viene lanciata, i ptrs restano sporchi.
+
+**Soluzione:** RAII guard (`ScopeGuard`) per garantire reset automatico anche in caso di eccezioni.
+
+**Dove:** `src/backends/software/software_renderer.cpp` + `src/render_graph/render_pipeline_composition.cpp`.
+
+**Guadagno stimato:** Robustezza, prevenzione di dangling pointer post-eccezione.
+
+**Prossimi passi:**
+- [ ] Creare `ProfilingGuard` che setta e resetta automaticamente i thread_local ptrs
+- [ ] Sostituire assegnamenti manuali con guard RAII
+- [ ] Test con eccezione artificiale per verificare il cleanup
+
+---
+
+### N11. Bug: Double Registration ShapeType::Path
+
+**Problema:** In `builtin_processors.cpp`, `create_shape_processor()` e `create_path_processor()` sono entrambi registrati per `ShapeType::Path`. La seconda sovrascrive la prima.
+
+```cpp
+registry.register_shape(ShapeType::Path, create_shape_processor());     // sovrascritto
+registry.register_shape(ShapeType::Path, create_path_processor());     // vince questo
+```
+
+**Soluzione:** Rimuovere la registrazione duplicata.
+
+**Dove:** `src/backends/software/processors/builtin_processors.cpp` riga ~21.
+
+**Guadagno stimato:** Manutenibilità, zero overhead di registrazione sprecata. 5 minuti di fix.
+
+---
+
+### N12. Path Flatten Cache Assente
+
+**Problema:** Non esiste cache per path flattening. Ogni path SVG viene ricalcolato da zero ogni frame, anche se identico al frame precedente.
+
+**Soluzione:** Cache basata su hash del path data + transform. Usare `LruCache` (pattern già esistente).
+
+**Dove:** `src/backends/software/rasterizers/path_rasterizer.cpp`.
+
+**Guadagno stimato:** Skip ricalcolo path per path statici tra frame consecutivi.
+
+**Prossimi passi:**
+- [ ] Definire `PathFlattenCacheKey` con hash di path data + transform
+- [ ] Integrare con `LruCache<Key, shared_ptr<const vector<Contour>>>`
+- [ ] Invalutare quando path data cambia
+
+---
+
+### N13. Layout Solver Minimalista
+
+**Problema:** Il layout solver supporta solo pin-to-anchor e safe area. Nessun flexbox, flow, o auto-layout per testi multi-linea e griglie.
+
+**Soluzione:** Implementare layout flow per composizioni di testo e griglie semplici.
+
+**Dove:** `src/layout/layout_solver.cpp` + `include/chronon3d/layout/layout_rules.hpp`.
+
+**Guadagno stimato:** Feature richiesta per composizioni complesse. Dipende dall'uso.
+
+**Prossimi passi:**
+- [ ] Aggiungere `LayoutFlow` — disposizione in riga con wrap
+- [ ] Aggiungere `LayoutGrid` — griglia di celle uniformi
+- [ ] Integrare con `LayoutSolver::solve()`
+
+---
+
+### N14. Benchmark Mancanti per Hot-Path
+
+**Problema:** I benchmark esistenti (`tests/perf/`) non coprono blur, effect stack, compositing puro, o motion blur. Le ottimizzazioni proposte non hanno metriche di baseline.
+
+**Soluzione:** Aggiungere benchmark specifici per blur (vari raggi), compositing blend modes, effect stack (blur+tint+glow), e motion blur (vari sample count).
+
+**Dove:** `tests/perf/` — nuovo file `test_hotpath_benchmarks.cpp`.
+
+**Guadagno stimato:** Baseline per guidare e validare le ottimizzazioni proposte.
+
+**Prossimi passi:**
+- [ ] Creare benchmark per `apply_blur()` con raggio 10, 50, 100
+- [ ] Creare benchmark per `compositor::blend()` su tutti i blend mode
+- [ ] Creare benchmark per motion blur con 4, 8, 16 samples
+- [ ] Aggiungere al CTest con tag `perf`
+
+---
+
 ## 📋 RIEPILOGO MATRICE
 
 | ID | Improvement | Quando | Complessità | Impatto | Stato |
@@ -750,6 +1038,20 @@ Merge: ffmpeg -f concat -i list.txt -c copy output.mp4
 | L7 | MSDF font atlas | Mesi | 🔴 Alta | 🟡 Medio | Da fare |
 | L8 | Parallel tile rendering | Mesi | 🔴 Alta | 🔴 Alto | Da fare |
 | L9 | CI multi-platform | Mesi | 🟡 Media | 🟡 Medio | Da fare |
+| N1 | Motion blur parallel + SIMD | Questa settimana | 🟡 Media | 🔴 Alto | Da fare |
+| N2 | Box blur 3-pass parallel | Questa settimana | 🟡 Media | 🔴 Alto | Da fare |
+| N3 | Downsample SSAA parallel | Questa settimana | 🟢 Bassa | 🟡 Medio | Da fare |
+| N4 | any_cast chain → enum dispatch | Oggi | 🟢 Bassa | 🟢 Basso | Da fare |
+| N5 | compute_scene_fingerprint hash | Questa settimana | 🟢 Bassa | 🟡 Medio | Da fare |
+| N6 | Blend mode switch per-pixel | Oggi | 🟢 Bassa | 🟢 Basso | Da fare |
+| N7 | Shadow/Glow multi-layer fused | Questa settimana | 🟡 Media | 🟡 Medio | Da fare |
+| N8 | Temp FB aliasing shared_ptr | Oggi | 🟢 Bassa | 🟢 Basso | Da fare |
+| N9 | Trace lock-free queue | Oggi | 🟡 Media | 🟢 Basso | Da fare |
+| N10 | RAII guard thread_local ptrs | Oggi | 🟢 Bassa | 🟢 Basso | Da fare |
+| N11 | Fix double registration Path | Oggi | 🟢 Bassa | 🟢 Basso | Da fare |
+| N12 | Path flatten cache | Questa settimana | 🟡 Media | 🟡 Medio | Da fare |
+| N13 | Layout solver esteso | Questo mese | 🟡 Media | 🟢 Basso | Da fare |
+| N14 | Benchmark hot-path mancanti | Questa settimana | 🟢 Bassa | 🟡 Medio | Da fare |
 
 ---
 
@@ -813,14 +1115,14 @@ Merge: ffmpeg -f concat -i list.txt -c copy output.mp4
 
 ### Prossima priorità
 
-**Singola cosa da fare oggi:** **I6 (PersistentDisk cache)** — la classe `DiskNodeCache` è già implementata, ma va collegata ai nodi (`disk_cacheable = true`) e wire-up in `GraphExecutor::execute()`. ~2 ore.
+**Singola cosa da fare oggi:** **N1 (Motion Blur Parallel)** — il motion blur accumulation è completamente seriale e processa pixel-per-pixel. Parallelizzare con TBB dà speedup 4-8× su 8 samples. ~2-3 ore.
 
 **3 cose da fare questa settimana:**
-1. **I4 (Thread affinity + NUMA)** — pin dei thread TBB ai core fisici, ~5-10% speedup su multi-socket
-2. **I6 (PersistentDisk cache)** — completare wire-up della cache su disco già implementata
-3. **S5 (Path flatten cache sharded)** — sostituire mutex globale con LruCache sharded, ~2-5% speedup
+1. **N1 (Motion Blur Parallel + SIMD)** — massimo impatto, speedup potenziale 4-8×
+2. **N2 (Box Blur Parallel)** — impatto su ogni frame con blur attivo, speedup 4-8×
+3. **I6 (Disk Cache Wire-up Completo)** — completare la cache su disco già implementata a metà
 
-**Quick win:** **I4 (Thread affinity)** è l'unico item IMMEDIATE rimasto. Richiede poche righe ma dà guadagno misurabile.
+**Quick win di oggi:** **N11 (Fix double registration Path)** — 5 minuti, zero rischi. **N10 (RAII guard thread_local)** — 15 minuti, robustezza immediata.
 
 **La più divertente a lungo termine:** **M1 (Graph Compiler)** — è come passare da una ricetta letta ogni volta a un robot che sa già tutti i movimenti a memoria.
 
@@ -839,3 +1141,14 @@ Merge: ffmpeg -f concat -i list.txt -c copy output.mp4
 - A2 (Decoupling RenderNode shape state).
 - C1 (SIMD Rect Rasterizer).
 - E1 (Unificazione Effect System std::any).
+
+**Nuove scoperte in questa analisi (da implementare):**
+- **N1** (Motion blur parallel + SIMD) — 4-8× speedup
+- **N2** (Box blur parallel) — 4-8× speedup
+- **N3** (Downsample SSAA parallel) — 2-4× speedup
+- **N4-N10** (Miglioramenti codice: enum dispatch, hash, blend, shadow fused, temp FB, trace, RAII guard)
+- **N11** (Bug fix: double registration Path)
+- **N12** (Path flatten cache)
+- **N13** (Layout solver esteso)
+- **N14** (Benchmark hot-path mancanti)
+- **I6** (Disk cache wire-up completo — vedi sezione IMMEDIATE)
