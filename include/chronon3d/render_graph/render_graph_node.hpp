@@ -10,6 +10,7 @@
 #include <chronon3d/rendering/light_context.hpp>
 #include <chronon3d/math/projection_context.hpp>
 #include <chronon3d/math/raster_utils.hpp>
+#include <chronon3d/core/dirty_rect_mask.hpp>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -93,6 +94,7 @@ struct RenderGraphContext {
     cache::NodeCache* node_cache{nullptr};
     std::shared_ptr<cache::FramebufferPool> framebuffer_pool;
     std::optional<raster::BBox> dirty_rect;
+    std::optional<raster::DirtyRectMask> dirty_mask;
 
     std::shared_ptr<Framebuffer> acquire_framebuffer(
         int w,
