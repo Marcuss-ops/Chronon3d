@@ -27,7 +27,7 @@ public:
         const Mat4 canvas_center = math::translate(Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
 
         Mat4 matrix;
-        if (m_centered) {
+        if (m_is_3d || m_centered) {
             matrix = canvas_center * ssaa_scale * m_matrix_override.value_or(m_node.world_transform.to_mat4());
         } else {
             matrix = ssaa_scale * m_matrix_override.value_or(m_node.world_transform.to_mat4());
@@ -246,7 +246,7 @@ public:
         for (const auto& item : m_items) {
             if (!item.node) continue;
             Mat4 matrix;
-            if (m_centered) {
+            if (m_is_3d || m_centered) {
                 matrix = canvas_center * ssaa_scale * item.matrix;
             } else {
                 matrix = ssaa_scale * item.matrix;
