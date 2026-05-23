@@ -50,7 +50,59 @@ struct RenderTelemetryRow {
 
 #include <chronon3d/core/render_telemetry_detail.hpp>
 
-namespace chronon3d::telemetry {
+inline std::vector<RenderTelemetryRow>& global_rows() {
+    static std::vector<RenderTelemetryRow> rows;
+    return rows;
+}
+
+inline std::vector<RenderTelemetryRow>& thread_local_buffer() {
+    static thread_local std::vector<RenderTelemetryRow> buffer;
+    return buffer;
+}
+
+inline std::filesystem::path telemetry_csv_path() {
+    if (const char* env = std::getenv("CHRONON_RENDER_LOG"); env && *env) {
+        return std::filesystem::path(env);
+    }
+    return std::filesystem::path("output") / "render_telemetry.csv";
+}
+
+inline std::filesystem::path telemetry_summary_path() {
+    auto path = telemetry_csv_path();
+    return path.replace_filename("render_summary.txt");
+}
+
+inline std::string csv_escape(std::string_view value) {
+    const bool needs_quotes = value.find_first_of(",\"\n\r") != std::string_view::npos;
+    if (!needs_quotes) {
+        return std::string(value);
+    }
+
+    std::string out;
+    out.reserve(value.size() + 2);
+    out.push_back('"');
+    for (char c : value) {
+        if (c == '"') {
+            out.push_back('"');
+        }
+        out.push_back(c);
+    }
+    out.push_back('"');
+    return out;
+}
+
+void ensure_csv_header(std::ofstream& out, const std::filesystem::path& path);
+
+bool csv_header_matches(const std::filesystem::path& path);
+
+void migrate_legacy_csv(const std::filesystem::path& path);
+
+std::size_t read_last_run_id(const std::filesystem::path& path);
+
+std::size_t current_run_id();
+
+void write_summary_file(const std::vector<RenderTelemetryRow>& rows);
+} // namespace detail
 
 inline void record_render_telemetry(const RenderTelemetryRow& row) {
     detail::thread_local_buffer().push_back(row);
@@ -140,73 +192,6 @@ inline std::vector<TileTelemetryRecord> collect_tile_telemetry() {
     return result;
 }
 
-inline void flush_telemetry() {
-    auto& buffer = detail::thread_local_buffer();
-    if (buffer.empty()) return;
-
-    const auto ts = std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::system_clock::now().time_since_epoch()).count();
-    const std::size_t run_id = detail::current_run_id();
-    const std::filesystem::path csv_path = detail::telemetry_csv_path();
-
-    if (csv_path.has_parent_path()) {
-        std::error_code ec;
-        std::filesystem::create_directories(csv_path.parent_path(), ec);
-    }
-
-    std::scoped_lock lock(detail::telemetry_mutex());
-    detail::migrate_legacy_csv(csv_path);
-
-    auto& global = detail::global_rows();
-    std::ofstream csv(csv_path, std::ios::app);
-    if (csv) {
-        detail::ensure_csv_header(csv, csv_path);
-    }
-
-    for (const auto& row : buffer) {
-        if (csv) {
-            csv << ts << ','
-                << run_id << ','
-                << detail::csv_escape(row.event) << ','
-                << row.frame << ','
-                << row.width << ','
-                << row.height << ','
-                << row.total_ms << ','
-                << row.setup_ms << ','
-                << row.composite_ms << ','
-                << row.blur_ms << ','
-                << row.encode_ms << ','
-                << row.ram_mb << ','
-                << row.cache_hit << ','
-                << row.layer_count << ','
-                << row.cache_hits << ','
-                << row.cache_misses << ','
-                << row.nodes_executed << ','
-                << row.clear_calls << ','
-                << row.clear_pixels << ','
-                << row.composite_calls << ','
-                << row.composite_pixels << ','
-                << row.transform_calls << ','
-                << row.transform_pixels << ','
-                << row.effect_stack_calls << ','
-                << row.effect_pixels << ','
-                << row.text_glyphs_rasterized << ','
-                << row.framebuffer_allocations << ','
-                << row.framebuffer_reuses << ','
-                << row.dirty_full_fallbacks << ','
-                << row.dirty_full_fallback_predicted_bounds_missing << ','
-                << row.dirty_full_fallback_composite_missing_input_bounds << ','
-                << row.dirty_full_fallback_transform_bounds_unknown << ','
-                << row.dirty_full_fallback_effect_bounds_unknown << '\n';
-        }
-        global.push_back(row);
-        if (global.size() > 1000) {
-            global.erase(global.begin());
-        }
-    }
-
-    buffer.clear();
-    detail::write_summary_file(global);
-}
+void flush_telemetry();
 
 } // namespace chronon3d::telemetry
