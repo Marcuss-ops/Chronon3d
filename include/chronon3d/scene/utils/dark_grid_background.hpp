@@ -56,7 +56,7 @@ inline std::filesystem::path cache_path(f32 W, f32 H, const DarkGridBgParams& p)
     seed = mix_hash(seed, static_cast<u64>(p.centered));
 
     std::ostringstream oss;
-    oss << std::hex << seed << ".png";
+    oss << std::hex << seed << ".exr";
     return cache_dir() / oss.str();
 }
 
@@ -117,7 +117,14 @@ inline std::filesystem::path ensure_dark_grid_background_image(
 
     Framebuffer fb(width, height);
     rasterize_dark_grid_background(fb, p);
-    save_png(fb, path.string());
+    
+    ImageWriteOptions opts;
+    opts.format = ImageFormat::Exr;
+    opts.exr_half_float = true; // DWAA works with half float
+    opts.exr_tiled = true;
+    opts.exr_dwaa = true;
+    save_exr(fb, path.string(), opts);
+    
     return path;
 }
 
