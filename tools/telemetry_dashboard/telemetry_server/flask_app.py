@@ -216,6 +216,8 @@ def watch_database():
 def handle_connect():
     print('Client connected')
 
+# Start the database watcher background task eagerly when imported
+socketio.start_background_task(watch_database)
+
 if __name__ == '__main__':
-    socketio.start_background_task(watch_database)
     socketio.run(app, host='0.0.0.0', port=8000, debug=True, allow_unsafe_werkzeug=True)

@@ -41,7 +41,7 @@ class NodeCache {
 public:
     using Value = std::shared_ptr<Framebuffer>;
 
-    explicit NodeCache(size_t capacity_bytes = 64ULL * 1024 * 1024);
+    explicit NodeCache(size_t capacity_bytes = 512ULL * 1024 * 1024);
     NodeCache(NodeCache&&) noexcept = default;
     NodeCache& operator=(NodeCache&&) noexcept = default;
 

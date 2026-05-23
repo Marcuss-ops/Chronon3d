@@ -13,6 +13,7 @@ inline std::shared_ptr<Framebuffer> render_modular(const Composition& comp, Fram
     SoftwareRenderer renderer;
     RenderSettings settings;
     settings.use_modular_graph = true;
+    settings.diagnostic = true;
     renderer.set_settings(settings);
     return renderer.render_frame(comp, frame);
 }

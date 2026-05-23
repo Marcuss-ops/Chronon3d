@@ -20,7 +20,7 @@ public:
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         return cache::NodeCacheKey{
             .scope = "effect_stack",
-            .frame = m_cache_frame >= 0 ? m_cache_frame : ctx.frame,
+            .frame = m_cache_frame >= 0 ? m_cache_frame : (frame_dependent() ? ctx.frame : Frame{0}),
             .width = ctx.width,
             .height = ctx.height,
             .params_hash = hash_effect_stack(m_effects)
@@ -47,7 +47,7 @@ public:
         bbox.x1 = std::min(ctx.width, static_cast<i32>(std::ceil(static_cast<f32>(bbox.x1) + spread)));
         bbox.y1 = std::min(ctx.height, static_cast<i32>(std::ceil(static_cast<f32>(bbox.y1) + spread)));
         if (bbox.is_empty()) {
-            return std::nullopt;
+            return bbox;
         }
         return bbox;
     }
@@ -60,7 +60,17 @@ public:
             ctx.backend->apply_effect_stack(*result, m_effects, ctx.time_seconds, ctx.clip_rect);
             if (ctx.counters) {
                 ctx.counters->effect_stack_calls.fetch_add(1, std::memory_order_relaxed);
-                ctx.counters->effect_pixels.fetch_add(static_cast<uint64_t>(ctx.width * ctx.height), std::memory_order_relaxed);
+                uint64_t area = static_cast<uint64_t>(ctx.width * ctx.height);
+                if (ctx.clip_rect) {
+                    raster::BBox clipped = *ctx.clip_rect;
+                    clipped.clip_to(ctx.width, ctx.height);
+                    if (!clipped.is_empty()) {
+                        area = static_cast<uint64_t>(clipped.x1 - clipped.x0) * (clipped.y1 - clipped.y0);
+                    } else {
+                        area = 0;
+                    }
+                }
+                ctx.counters->effect_pixels.fetch_add(area, std::memory_order_relaxed);
             }
         }
         return result;
