@@ -3,6 +3,7 @@
 #include <vector>
 #include <memory>
 #include <string>
+#include <filesystem>
 
 namespace chronon3d::telemetry {
 
@@ -45,6 +46,7 @@ public:
     static std::string get_current_iso_time();
     static std::string generate_uuid();
     static uint64_t get_peak_memory_usage();
+    static std::filesystem::path resolve_sqlite_telemetry_path();
 
 private:
     std::vector<std::shared_ptr<TelemetryStore>> m_stores;

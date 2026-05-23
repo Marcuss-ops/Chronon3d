@@ -104,7 +104,7 @@ endif()
 # 1. Core Impl (Spostato in alto per evitare anomalie di risoluzione del target)
 add_library(chronon3d_core_impl STATIC src/core/trace.cpp src/core/benchmark_report.cpp)
 target_include_directories(chronon3d_core_impl PUBLIC include deps/include)
-target_link_libraries(chronon3d_core_impl PUBLIC nlohmann_json::nlohmann_json)
+target_link_libraries(chronon3d_core_impl PUBLIC nlohmann_json::nlohmann_json fmt::fmt spdlog::spdlog_header_only)
 
 # 2. Base Interface
 add_library(chronon3d INTERFACE)
@@ -174,7 +174,14 @@ target_precompile_headers(chronon3d_graph PRIVATE
 add_library(chronon3d_effects STATIC src/effects/effect_registry.cpp)
 target_link_libraries(chronon3d_effects PUBLIC chronon3d meshoptimizer::meshoptimizer)
 
-# 6. Runtime & Telemetry
+# 6. Animations catalog
+add_library(chronon3d_animations STATIC
+    src/animations/animation_catalog.cpp
+    src/animations/background_presets.cpp
+)
+target_link_libraries(chronon3d_animations PUBLIC chronon3d chronon3d_scene chronon3d_backend_software nlohmann_json::nlohmann_json)
+
+# 7. Runtime & Telemetry
 set(CHRONON3D_RUNTIME_SOURCES
     src/runtime/bench_runner.cpp
     src/runtime/pipeline.cpp
@@ -210,7 +217,7 @@ if(CHRONON3D_ENABLE_SQLITE_TELEMETRY)
     target_include_directories(chronon3d_runtime PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
 endif()
 
-# 7. Backends (Image, Assets, Video, Software)
+# 8. Backends (Image, Assets, Video, Software)
 set(CHRONON3D_BACKEND_IMAGE_SOURCES
     src/backends/image/image_loader.cpp
     src/backends/image/image_writer.cpp
@@ -284,7 +291,7 @@ target_precompile_headers(chronon3d_backend_software PRIVATE
     <blend2d.h> <spdlog/spdlog.h> <fmt/core.h>
 )
 
-# 8. Registry & Scene Assembly (Risolto il ciclo: Registry NON linka direttamente scene qui)
+# 9. Registry & Scene Assembly (Risolto il ciclo: Registry NON linka direttamente scene qui)
 set(CHRONON3D_REGISTRY_SOURCES
     src/registry/sampler_registry.cpp
     src/registry/shape_registry.cpp
@@ -328,7 +335,7 @@ target_precompile_headers(chronon3d_scene PRIVATE <glm/glm.hpp> <glm/gtc/matrix_
 # --- Aggregati Architetturali finali ---
 add_library(chronon3d_core INTERFACE)
 target_link_libraries(chronon3d_core INTERFACE
-    chronon3d_assets chronon3d_registry chronon3d_scene chronon3d_runtime chronon3d_graph chronon3d_cache chronon3d_core_impl
+    chronon3d_assets chronon3d_registry chronon3d_scene chronon3d_runtime chronon3d_graph chronon3d_cache $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_animations> chronon3d_core_impl
 )
 
 add_library(chronon3d_software INTERFACE)

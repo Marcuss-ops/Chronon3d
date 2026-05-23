@@ -22,13 +22,14 @@ public:
         const auto& img = shape.image;
         const f32 w = img.size.x;
         const f32 h = img.size.y;
+        const f32 pad = spread + kBBoxSafetyPadding;
         
         // Corners in local space (centered around 0,0)
         Vec4 corners[4] = {
-            model * Vec4(0, 0, 0, 1),
-            model * Vec4(w, 0, 0, 1),
-            model * Vec4(w, h, 0, 1),
-            model * Vec4(0, h, 0, 1)
+            model * Vec4(-pad, -pad, 0, 1),
+            model * Vec4(w + pad, -pad, 0, 1),
+            model * Vec4(w + pad, h + pad, 0, 1),
+            model * Vec4(-pad, h + pad, 0, 1)
         };
 
         f32 min_x = 1e10f, max_x = -1e10f;
@@ -41,10 +42,10 @@ public:
         }
 
         return {
-            static_cast<i32>(std::floor(min_x - spread)),
-            static_cast<i32>(std::floor(min_y - spread)),
-            static_cast<i32>(std::ceil(max_x + spread)),
-            static_cast<i32>(std::ceil(max_y + spread))
+            static_cast<i32>(std::floor(min_x)),
+            static_cast<i32>(std::floor(min_y)),
+            static_cast<i32>(std::ceil(max_x)),
+            static_cast<i32>(std::ceil(max_y))
         };
     }
 

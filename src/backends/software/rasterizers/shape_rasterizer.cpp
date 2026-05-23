@@ -1,4 +1,5 @@
 #include "shape_rasterizer.hpp"
+#include <chronon3d/backends/software/shape_processor.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/scene/mask/mask_utils.hpp>
 #include <chronon3d/scene/fill.hpp>
@@ -76,11 +77,13 @@ raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 sprea
         default: break;
     }
 
+    const f32 pad = spread + kBBoxSafetyPadding;
+
     const Vec4 corners[4] = {
-        model * Vec4{-spread, -spread, 0, 1},
-        model * Vec4{size.x + spread, -spread, 0, 1},
-        model * Vec4{size.x + spread, size.y + spread, 0, 1},
-        model * Vec4{-spread, size.y + spread, 0, 1}
+        model * Vec4{-pad, -pad, 0, 1},
+        model * Vec4{size.x + pad, -pad, 0, 1},
+        model * Vec4{size.x + pad, size.y + pad, 0, 1},
+        model * Vec4{-pad, size.y + pad, 0, 1}
     };
 
     f32 min_x = 1e10f, min_y = 1e10f, max_x = -1e10f, max_y = -1e10f;
