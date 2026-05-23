@@ -8,7 +8,6 @@
 //   - Glow sweep accent traverses the frame
 //
 // Duration: 180 frames (6 seconds at 30 fps)
-// Export: chronon3d_cli video --comp ChrononIntroCard --end 179 --output output/chronon_intro.mp4
 
 #include <chronon3d/api/composition.hpp>
 #include <chronon3d/api/scene.hpp>

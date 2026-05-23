@@ -1,5 +1,4 @@
 // GridTitleMotion
-//   chronon3d_cli video GridTitleMotion --graph --start 0 --end 72 --fps 24 -o output/proofs/grid_title_motion_3s.mp4
 
 #include <chronon3d/api/composition.hpp>
 #include <chronon3d/api/scene.hpp>
@@ -8,7 +7,6 @@
 #include <chronon3d/core/composition_registration.hpp>
 #include <chronon3d/scene/camera/camera_motion_presets.hpp>
 #include <chronon3d/scene/utils/dark_grid_background.hpp>
-
 #include <cmath>
 
 using namespace chronon3d;
@@ -64,11 +62,7 @@ static Composition grid_title_motion() {
                 .line_height = 1.0f,
                 .tracking = 1.0f,
             });
-            l.with_glow(Glow{
-                .radius = 32.0f,
-                .intensity = 0.9f,
-                .color = Color{0.98f, 0.98f, 1.0f, 0.95f}
-            });
+            l.glow(32.0f, 0.9f, Color{0.98f, 0.98f, 1.0f, 0.95f});
         });
 
         return s.build();
