@@ -810,6 +810,7 @@ La più divertente a lungo termine: **M1 (Graph Compiler)** — è come passare 
 
 ✅ **Già completati in questa iterazione:**
 - S1 (io_uring pipe), S4 (OpenEXR DWAA bake).
+- I1 (Bake EXR mmap per background).
 - I7 (Unificazione hash_string).
 - I8 (Riduzione boilerplate RenderCounters).
 - A1 (Ottimizzazione Umbrella Headers).
