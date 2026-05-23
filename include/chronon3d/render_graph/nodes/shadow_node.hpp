@@ -121,6 +121,7 @@ public:
         const int dy = static_cast<int>(std::round(oy));
 
         // Translate caster alpha → opaque-black shadow pixels at (x + origin_x + dx, y + origin_y + dy)
+        int projected_pixels = 0;
         for (int y = 0; y < src.height(); ++y) {
             const Color* src_row = src.pixels_row(y);
             const int dst_y = y + src.origin_y() + dy;
@@ -132,8 +133,11 @@ public:
                 if (dst_x < 0 || dst_x >= result->width()) continue;
                 const float alpha = std::min(1.0f, src_row[x].a * m_settings.opacity);
                 dst_row[dst_x].a = std::min(1.0f, dst_row[dst_x].a + alpha);
+                ++projected_pixels;
             }
         }
+        spdlog::info("[shadow-node] caster='{}' src_size={}x{} origin=({},{}) dx={} dy={} projected_pixels={}",
+                     m_caster_name, src.width(), src.height(), src.origin_x(), src.origin_y(), dx, dy, projected_pixels);
 
         if (m_settings.blur_radius > 0.0f && ctx.backend) {
             ctx.backend->apply_blur(*result, m_settings.blur_radius, ctx.clip_rect);
