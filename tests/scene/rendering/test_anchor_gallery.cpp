@@ -84,6 +84,10 @@ TEST_CASE("Anchor gallery renders PNGs for all anchor presets") {
         Vec2 expected = anchor_position(c.placement.anchor, W, H, c.margin);
         const Color center = fb->get_pixel(static_cast<i32>(expected.x), static_cast<i32>(expected.y));
         const Color background = fb->get_pixel(10, 10);
+        std::cout << "DEBUG CARD: " << c.name 
+                  << " expected_pos=(" << expected.x << ", " << expected.y 
+                  << ") center_color=(" << center.r << ", " << center.g << ", " << center.b << ", " << center.a 
+                  << ") bg_color=(" << background.r << ", " << background.g << ", " << background.b << ", " << background.a << ")" << std::endl;
         INFO("Case: " << c.name << " expected_pos=(" << expected.x << ", " << expected.y << ") center_color=(" << center.r << ", " << center.g << ", " << center.b << ", " << center.a << ") bg_color=(" << background.r << ", " << background.g << ", " << background.b << ", " << background.a << ")");
         CHECK(center.a > 0.9f);
         CHECK(pixel_delta(center, background) > 0.05f);

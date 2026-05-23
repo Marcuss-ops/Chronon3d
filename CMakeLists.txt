@@ -243,6 +243,7 @@ set(CHRONON3D_BACKEND_IMAGE_SOURCES
     src/backends/image/image_loader.cpp
     src/backends/image/image_writer.cpp
     src/backends/image/stb_image_backend.cpp
+    src/backends/image/exr_mmap.cpp
 )
 add_library(chronon3d_backend_image STATIC ${CHRONON3D_BACKEND_IMAGE_SOURCES})
 target_link_libraries(chronon3d_backend_image PUBLIC chronon3d spdlog::spdlog_header_only fmt::fmt OpenEXR::OpenEXR)
