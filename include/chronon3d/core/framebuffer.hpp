@@ -29,7 +29,7 @@ public:
         if (width <= 0 || height <= 0) {
             throw std::invalid_argument("Framebuffer dimensions must be positive");
         }
-        m_pixels.resize(static_cast<size_t>(width) * height, Color::black());
+        m_pixels.resize(static_cast<size_t>(width) * height, Color::transparent());
         increment_allocations(width * height * sizeof(Color));
     }
 
