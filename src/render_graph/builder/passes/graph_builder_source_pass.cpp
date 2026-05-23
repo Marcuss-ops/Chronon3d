@@ -96,81 +96,53 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
             return source;
         }
 
-        GraphNodeId layer_output = graph.add_node(std::make_unique<ClearNode>());
+        // Build an aggregated cache key
+        u64 aggregated_params_hash = 0;
+        u64 aggregated_source_hash = hash_string(std::string(layer.name) + "_multisource");
+        for (const auto& node : layer.nodes) {
+            aggregated_params_hash = hash_combine(aggregated_params_hash, hash_render_node(node));
+        }
+
+        cache::NodeCacheKey source_key{
+            .scope = "layer.multisource:" + std::string(layer.name),
+            .frame = is_static ? Frame{0} : ctx.frame,
+            .width = ctx.width,
+            .height = ctx.height,
+            .params_hash = aggregated_params_hash,
+            .source_hash = aggregated_source_hash
+        };
+
+        std::vector<MultiSourceItem> items;
+        items.reserve(layer.nodes.size());
 
         for (const auto& node : layer.nodes) {
-            GraphNodeId source;
-            if (node.shape.type == ShapeType::Text) {
-                cache::NodeCacheKey source_key{
-                    .scope = "layer.source:" + std::string(layer.name) + ":" + std::string(node.name),
-                    .frame = is_static ? Frame{0} : ctx.frame,
-                    .width = ctx.width,
-                    .height = ctx.height,
-                    .params_hash = hash_render_node(node),
-                    .source_hash = hash_bytes(node.name.data(), node.name.size())
-                };
+            const Mat4 shape_matrix = use_local
+                ? (layer.hierarchy_resolved ? node.world_transform.to_mat4() 
+                                             : (glm::inverse(item.world_matrix) * node.world_transform.to_mat4()))
+                : node.world_transform.to_mat4();
+            const f32 layer_opacity = item.projected ? layer.transform.opacity : item.transform.opacity;
+            const f32 shape_opacity = use_local
+                ? (layer.hierarchy_resolved ? node.world_transform.opacity 
+                                             : (node.world_transform.opacity / std::max(layer_opacity, 0.0001f)))
+                : node.world_transform.opacity;
 
-                const Mat4 text_matrix = use_local
-                    ? (layer.hierarchy_resolved ? node.world_transform.to_mat4() 
-                                                : (glm::inverse(item.world_matrix) * node.world_transform.to_mat4()))
-                    : node.world_transform.to_mat4();
-                const f32 layer_opacity = item.projected ? layer.transform.opacity : item.transform.opacity;
-                const f32 text_opacity = use_local
-                    ? (layer.hierarchy_resolved ? node.world_transform.opacity 
-                                                : (node.world_transform.opacity / std::max(layer_opacity, 0.0001f)))
-                    : node.world_transform.opacity;
-
-                source = graph.add_node(std::make_unique<SourceNode>(
-                    std::string(node.name), node, source_key,
-                    should_use_centered_rendering(item, ctx),
-                    item.projected,
-                    ctx.modular_coordinates ? std::optional<Mat4>(text_matrix) : std::nullopt,
-                    ctx.modular_coordinates ? std::optional<f32>(text_opacity) : std::nullopt,
-                    is_static
-                ));
-                graph.node(source).set_frame_dependent(!is_static);
-            } else {
-                // Standard path for other nodes
-                cache::NodeCacheKey source_key{
-                    .scope = "layer.source:" + std::string(layer.name) + ":" + std::string(node.name),
-                    .frame = is_static ? Frame{0} : ctx.frame,
-                    .width = ctx.width,
-                    .height = ctx.height,
-                    .params_hash = hash_render_node(node),
-                    .source_hash = hash_string(node.name)
-                };
-
-                const Mat4 shape_matrix = use_local
-                    ? (layer.hierarchy_resolved ? node.world_transform.to_mat4() 
-                                                 : (glm::inverse(item.world_matrix) * node.world_transform.to_mat4()))
-                    : node.world_transform.to_mat4();
-                const f32 layer_opacity = item.projected ? layer.transform.opacity : item.transform.opacity;
-                const f32 shape_opacity = use_local
-                    ? (layer.hierarchy_resolved ? node.world_transform.opacity 
-                                                 : (node.world_transform.opacity / std::max(layer_opacity, 0.0001f)))
-                    : node.world_transform.opacity;
-
-                source = graph.add_node(std::make_unique<SourceNode>(
-                    std::string(node.name), node, source_key,
-                    should_use_centered_rendering(item, ctx),
-                    item.projected,
-                    ctx.modular_coordinates ? std::optional<Mat4>(shape_matrix) : std::nullopt,
-                    ctx.modular_coordinates ? std::optional<f32>(shape_opacity) : std::nullopt,
-                    is_static
-                ));
-                graph.node(source).set_frame_dependent(!is_static);
-            }
-
-            auto composite = graph.add_node(std::make_unique<CompositeNode>(
-                chronon3d::BlendMode::Normal,
-                is_static ? Frame{0} : Frame{-1}
-            ));
-            graph.node(composite).set_frame_dependent(!is_static);
-            graph.connect(layer_output, composite);
-            graph.connect(source, composite);
-            layer_output = composite;
+            items.push_back(MultiSourceItem{
+                .node = &node,
+                .matrix = shape_matrix,
+                .opacity = shape_opacity
+            });
         }
-        return layer_output;
+
+        auto multi_source = graph.add_node(std::make_unique<MultiSourceNode>(
+            std::string(layer.name) + "_multi",
+            std::move(items),
+            source_key,
+            should_use_centered_rendering(item, ctx),
+            item.projected,
+            is_static
+        ));
+        graph.node(multi_source).set_frame_dependent(!is_static);
+        return multi_source;
     }
 
     if (layer.kind == LayerKind::Precomp) {

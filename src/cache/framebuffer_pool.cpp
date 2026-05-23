@@ -44,24 +44,14 @@ std::unique_ptr<Framebuffer> FramebufferPool::acquire_unique(int width, int heig
     CHRONON_ZONE_C("framebuffer_acquire", trace_category::kPipeline);
     std::lock_guard<std::mutex> lock(m_mutex);
 
-    // Best-fit: search for the smallest framebuffer with area >= requested
+    // Enforce exact matching for dimensions to prevent stride, viewport, or coordinate corruption
     {
-        size_t best_area = SIZE_MAX;
-        FramebufferPoolKey best_key{0, 0};
-        for (const auto& [k, v] : m_free) {
-            if (!v.empty()) {
-                const size_t area = static_cast<size_t>(k.width) * static_cast<size_t>(k.height);
-                const size_t req_area = static_cast<size_t>(width) * static_cast<size_t>(height);
-                if (area >= req_area && area < best_area) {
-                    best_area = area;
-                    best_key = k;
-                }
-            }
-        }
-        if (best_area != SIZE_MAX) {
-            auto& best_bucket = m_free[best_key];
-            auto fb = std::move(best_bucket.back());
-            best_bucket.pop_back();
+        FramebufferPoolKey key{width, height};
+        auto it = m_free.find(key);
+        if (it != m_free.end() && !it->second.empty()) {
+            auto& bucket = it->second;
+            auto fb = std::move(bucket.back());
+            bucket.pop_back();
             m_current_bytes -= fb->size_bytes();
             if (profiling::g_current_counters) {
                 profiling::g_current_counters->framebuffer_reuses.fetch_add(1, std::memory_order_relaxed);
