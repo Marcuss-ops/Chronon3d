@@ -33,6 +33,76 @@ inline std::vector<RenderTelemetryRow>& thread_local_buffer() {
     return buffer;
 }
 
+inline std::mutex& node_telemetry_mutex() {
+    static std::mutex mutex;
+    return mutex;
+}
+
+inline std::mutex& layer_telemetry_mutex() {
+    static std::mutex mutex;
+    return mutex;
+}
+
+inline std::mutex& cache_telemetry_mutex() {
+    static std::mutex mutex;
+    return mutex;
+}
+
+inline std::mutex& culling_telemetry_mutex() {
+    static std::mutex mutex;
+    return mutex;
+}
+
+inline std::mutex& text_telemetry_mutex() {
+    static std::mutex mutex;
+    return mutex;
+}
+
+inline std::mutex& image_telemetry_mutex() {
+    static std::mutex mutex;
+    return mutex;
+}
+
+inline std::mutex& tile_telemetry_mutex() {
+    static std::mutex mutex;
+    return mutex;
+}
+
+inline std::vector<NodeTelemetryRecord>& node_telemetry_store() {
+    static std::vector<NodeTelemetryRecord> store;
+    return store;
+}
+
+inline std::vector<LayerTelemetryRecord>& layer_telemetry_store() {
+    static std::vector<LayerTelemetryRecord> store;
+    return store;
+}
+
+inline std::vector<CacheTelemetryRecord>& cache_telemetry_store() {
+    static std::vector<CacheTelemetryRecord> store;
+    return store;
+}
+
+inline std::vector<CullingTelemetryRecord>& culling_telemetry_store() {
+    static std::vector<CullingTelemetryRecord> store;
+    return store;
+}
+
+inline std::vector<TextTelemetryRecord>& text_telemetry_store() {
+    static std::vector<TextTelemetryRecord> store;
+    return store;
+}
+
+inline std::vector<ImageTelemetryRecord>& image_telemetry_store() {
+    static std::vector<ImageTelemetryRecord> store;
+    return store;
+}
+
+inline std::vector<TileTelemetryRecord>& tile_telemetry_store() {
+    static std::vector<TileTelemetryRecord> store;
+    return store;
+}
+
 inline std::filesystem::path telemetry_csv_path() {
     if (const char* env = std::getenv("CHRONON_RENDER_LOG"); env && *env) {
         return std::filesystem::path(env);
@@ -315,38 +385,6 @@ inline void write_summary_file(const std::vector<RenderTelemetryRow>& rows) {
         << "cache_hit_rate=" << format_ms(cache_hit_rate * 100.0) << "% "
         << "samples=" << total_samples
         << "\n";
-}
-
-// ── Per-node telemetry accumulator (thread_local, cleared per frame) ───────────
-// Populated during graph execution, flushed via collect_node_telemetry().
-
-inline std::vector<NodeTelemetryRecord>& node_telemetry_buffer() {
-    static thread_local std::vector<NodeTelemetryRecord> buf;
-    return buf;
-}
-inline std::vector<LayerTelemetryRecord>& layer_telemetry_buffer() {
-    static thread_local std::vector<LayerTelemetryRecord> buf;
-    return buf;
-}
-inline std::vector<CacheTelemetryRecord>& cache_telemetry_buffer() {
-    static thread_local std::vector<CacheTelemetryRecord> buf;
-    return buf;
-}
-inline std::vector<CullingTelemetryRecord>& culling_telemetry_buffer() {
-    static thread_local std::vector<CullingTelemetryRecord> buf;
-    return buf;
-}
-inline std::vector<TextTelemetryRecord>& text_telemetry_buffer() {
-    static thread_local std::vector<TextTelemetryRecord> buf;
-    return buf;
-}
-inline std::vector<ImageTelemetryRecord>& image_telemetry_buffer() {
-    static thread_local std::vector<ImageTelemetryRecord> buf;
-    return buf;
-}
-inline std::vector<TileTelemetryRecord>& tile_telemetry_buffer() {
-    static thread_local std::vector<TileTelemetryRecord> buf;
-    return buf;
 }
 
 } // namespace chronon3d::telemetry::detail
