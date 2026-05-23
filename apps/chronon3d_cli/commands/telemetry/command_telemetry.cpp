@@ -1,5 +1,6 @@
 #include "command_telemetry_internal.hpp"
 #include "../../commands.hpp"
+#include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
 
 #if defined(CHRONON3D_ENABLE_SQLITE_TELEMETRY)
 #include <sqlite3.h>
@@ -15,7 +16,7 @@ namespace chronon3d::cli {
 #if defined(CHRONON3D_ENABLE_SQLITE_TELEMETRY)
 
 int command_telemetry(const TelemetryArgs& args) {
-    const std::string db_path = "output/telemetry.db";
+    const std::string db_path = chronon3d::telemetry::TelemetryManager::resolve_sqlite_telemetry_path().string();
     sqlite3* db = nullptr;
     if (sqlite3_open(db_path.c_str(), &db) != SQLITE_OK) {
         spdlog::error("Failed to open telemetry database: {}", db_path);

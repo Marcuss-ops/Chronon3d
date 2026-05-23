@@ -44,6 +44,17 @@ target_include_directories(chronon3d_core_tests PRIVATE ${CMAKE_SOURCE_DIR})
 chronon3d_enable_test_pch(chronon3d_core_tests)
 add_test(NAME chronon3d_core_tests COMMAND chronon3d_core_tests WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
+# Animation Catalog Tests
+add_executable(chronon3d_animation_tests
+    ${TEST_MAIN}
+    animations/test_animation_catalog.cpp
+    animations/test_background_catalog.cpp
+)
+target_link_libraries(chronon3d_animation_tests PRIVATE chronon3d_animations doctest::doctest)
+target_include_directories(chronon3d_animation_tests PRIVATE ${CMAKE_SOURCE_DIR})
+chronon3d_enable_test_pch(chronon3d_animation_tests)
+add_test(NAME chronon3d_animation_tests COMMAND chronon3d_animation_tests WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
 # Scene Tests
 add_executable(chronon3d_scene_tests
     ${TEST_MAIN}
@@ -181,6 +192,7 @@ add_test(NAME chronon3d_cli_tests COMMAND chronon3d_cli_tests WORKING_DIRECTORY 
 # Aggregate target: build all test executables with a single cmake --build ... --target chronon3d_tests
 add_custom_target(chronon3d_tests
     DEPENDS
+        chronon3d_animation_tests
         chronon3d_core_tests
         chronon3d_scene_tests
         chronon3d_renderer_tests

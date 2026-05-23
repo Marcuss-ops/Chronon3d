@@ -8,7 +8,7 @@ from pathlib import Path
 from flask import Flask, jsonify, request, send_file, Response
 from flask_cors import CORS
 from flask_socketio import SocketIO, emit
-from .config import DB_PATH, ARTIFACT_MIME_TYPES, STATIC_MIME_TYPES
+from .config import DB_PATH, JSONL_PATH, ARTIFACT_MIME_TYPES, STATIC_MIME_TYPES
 from .database import create_merged_connection
 
 app = Flask(__name__)
@@ -183,29 +183,35 @@ def watch_database():
     """Background thread that watches the database for changes and emits events."""
     last_mtime = 0
     if DB_PATH.exists():
-        last_mtime = os.path.getmtime(DB_PATH)
+        last_mtime = max(last_mtime, os.path.getmtime(DB_PATH))
+    if JSONL_PATH.exists():
+        last_mtime = max(last_mtime, os.path.getmtime(JSONL_PATH))
     
     last_run_id = None
 
     while True:
         try:
+            current_mtime = 0
             if DB_PATH.exists():
-                current_mtime = os.path.getmtime(DB_PATH)
-                if current_mtime > last_mtime:
-                    last_mtime = current_mtime
-                    
-                    # Check for new runs
-                    conn = sqlite3.connect(DB_PATH)
-                    conn.row_factory = sqlite3.Row
-                    cursor = conn.cursor()
-                    cursor.execute("SELECT run_id FROM render_runs ORDER BY finished_at_iso DESC LIMIT 1")
-                    row = cursor.fetchone()
-                    if row:
-                        current_run_id = row['run_id']
-                        if current_run_id != last_run_id:
-                            last_run_id = current_run_id
-                            socketio.emit('new_run', {'run_id': current_run_id})
-                    conn.close()
+                current_mtime = max(current_mtime, os.path.getmtime(DB_PATH))
+            if JSONL_PATH.exists():
+                current_mtime = max(current_mtime, os.path.getmtime(JSONL_PATH))
+
+            if current_mtime > last_mtime:
+                last_mtime = current_mtime
+
+                # Check for the latest merged run, regardless of whether it landed in SQLite or JSONL.
+                conn = create_merged_connection()
+                cursor = conn.cursor()
+                cursor.execute("SELECT run_id FROM render_runs ORDER BY finished_at_iso DESC LIMIT 1")
+                row = cursor.fetchone()
+                conn.close()
+
+                if row:
+                    current_run_id = row['run_id']
+                    if current_run_id != last_run_id:
+                        last_run_id = current_run_id
+                        socketio.emit('new_run', {'run_id': current_run_id})
             
             socketio.sleep(2)
         except Exception as e:

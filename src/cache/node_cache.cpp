@@ -49,7 +49,7 @@ u64 NodeCacheKey::digest() const {
 }
 
 NodeCache::NodeCache(size_t capacity_bytes)
-    : m_cache(capacity_bytes > 0 ? capacity_bytes : resolve_default_capacity(512ULL * 1024ULL * 1024ULL)) {}
+    : m_cache(capacity_bytes > 0 ? capacity_bytes : resolve_default_capacity(2048ULL * 1024ULL * 1024ULL), 2) {}
 
 std::shared_ptr<Framebuffer> NodeCache::get(const NodeCacheKey& key) {
     auto val = m_cache.get(key);

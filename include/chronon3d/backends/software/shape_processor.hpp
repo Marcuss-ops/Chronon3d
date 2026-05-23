@@ -14,6 +14,10 @@ namespace chronon3d {
 
 namespace chronon3d::renderer {
 
+// Small safety margin added to raster bounds so AA fringes and fractional
+// transforms do not leave stale pixels behind when dirty-rect rendering is on.
+inline constexpr f32 kBBoxSafetyPadding = 1.5f;
+
 class ShapeProcessor {
 public:
     virtual ~ShapeProcessor() = default;

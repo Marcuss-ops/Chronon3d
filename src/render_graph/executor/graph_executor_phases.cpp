@@ -13,16 +13,16 @@ void execute_single_node(
     RenderGraphContext& ctx,
     const std::pmr::vector<PreResolvedNode>& level_resolved,
     GraphNodeId id,
-    size_t level_index
+    size_t level_index,
+    RenderTrace* parent_trace,
+    int32_t parent_frame,
+    RenderCounters* parent_counters,
+    cache::FramebufferPool* parent_pool
 ) {
-    auto trace = profiling::g_current_trace;
-    auto frame = profiling::g_current_frame;
-    auto counters = profiling::g_current_counters;
-    auto framebuffer_pool = profiling::g_current_framebuffer_pool;
-    profiling::g_current_trace = trace;
-    profiling::g_current_frame = frame;
-    profiling::g_current_counters = counters;
-    profiling::g_current_framebuffer_pool = framebuffer_pool;
+    profiling::g_current_trace = parent_trace;
+    profiling::g_current_frame = parent_frame;
+    profiling::g_current_counters = parent_counters;
+    profiling::g_current_framebuffer_pool = parent_pool;
 
     auto& node = graph.node(id);
     const auto& input_ids = graph.inputs(id);
@@ -77,6 +77,11 @@ void execute_single_node(
     state.resolved_frame_dependent[id] = cache_eval.node_frame_dependent ? 1 : 0;
     state.resolved_cache_hit[id] = (cache_eval.cache_status == "hit") ? 1 : 0;
     state.resolved_bboxes[id] = predicted_bbox;
+
+    // Restore worker thread-local hygiene
+    profiling::g_current_trace = nullptr;
+    profiling::g_current_counters = nullptr;
+    profiling::g_current_framebuffer_pool = nullptr;
 }
 
 std::shared_ptr<Framebuffer> GraphExecutor::execute(
@@ -109,6 +114,11 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
             consumer_remaining[i].store(plan.consumer_counts[i], std::memory_order_relaxed);
         }
 
+        auto* parent_trace = profiling::g_current_trace;
+        int32_t parent_frame = profiling::g_current_frame;
+        auto* parent_counters = profiling::g_current_counters;
+        auto* parent_pool = profiling::g_current_framebuffer_pool;
+
         for (const auto& level : plan.levels) {
             CHRONON_ZONE_C("execute_level", trace_category::kGraph);
 
@@ -125,7 +135,10 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
                 tbb::blocked_range<size_t>(0, level.size()),
                 [&](const tbb::blocked_range<size_t>& range) {
                     for (size_t level_index = range.begin(); level_index != range.end(); ++level_index) {
-                        execute_single_node(state, graph, ctx, level_resolved, level[level_index], level_index);
+                        execute_single_node(
+                            state, graph, ctx, level_resolved, level[level_index], level_index,
+                            parent_trace, parent_frame, parent_counters, parent_pool
+                        );
                     }
                 }
             );
