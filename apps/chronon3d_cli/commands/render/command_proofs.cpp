@@ -41,7 +41,7 @@ int command_proofs(const CompositionRegistry& registry, const ProofsArgs& args) 
     for (const auto& name : names) {
         // Only run on compositions tagged as "Proof" by naming convention or explicit showcase demos
         const bool is_proof = name.find("Proof") == 0;
-        const bool is_demo  = (name == "ChrononIntroCard") || (name == "LilDirkClean");
+        const bool is_demo  = (name == "ChrononIntroCard");
         
         if (!is_proof && !is_demo) continue;
 

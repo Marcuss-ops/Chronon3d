@@ -11,29 +11,28 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
 
+# --- Opzioni di Compilazione Globali ---
 if(MSVC)
-    add_compile_options(/utf-8 /FS)
+    add_compile_options(/utf-8 /FS /EHsc /fp:strict)
+else()
+    add_compile_options(-ffp-contract=off)
 endif()
-add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/FS>")
 
-if(NOT DEFINED CMAKE_C_COMPILER_LAUNCHER AND DEFINED ENV{CMAKE_C_COMPILER_LAUNCHER})
-    set(CMAKE_C_COMPILER_LAUNCHER "$ENV{CMAKE_C_COMPILER_LAUNCHER}")
-endif()
+# --- Configurazione Strumenti di Build (ccache / linkers) ---
 if(NOT DEFINED CMAKE_CXX_COMPILER_LAUNCHER AND DEFINED ENV{CMAKE_CXX_COMPILER_LAUNCHER})
     set(CMAKE_CXX_COMPILER_LAUNCHER "$ENV{CMAKE_CXX_COMPILER_LAUNCHER}")
+    set(CMAKE_C_COMPILER_LAUNCHER "$ENV{CMAKE_C_COMPILER_LAUNCHER}")
 endif()
 
-# ccache — automatic when available, unless a launcher is already set
-if(NOT CMAKE_CXX_COMPILER_LAUNCHER AND NOT CMAKE_C_COMPILER_LAUNCHER)
+if(NOT CMAKE_CXX_COMPILER_LAUNCHER)
     find_program(CCACHE_PROGRAM ccache)
     if(CCACHE_PROGRAM)
         message(STATUS "ccache found: ${CCACHE_PROGRAM}")
-        set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_PROGRAM}" CACHE FILEPATH "C++ compiler launcher (ccache)")
-        set(CMAKE_C_COMPILER_LAUNCHER "${CCACHE_PROGRAM}" CACHE FILEPATH "C compiler launcher (ccache)")
+        set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_PROGRAM}" CACHE FILEPATH "C++ compiler launcher")
+        set(CMAKE_C_COMPILER_LAUNCHER "${CCACHE_PROGRAM}" CACHE FILEPATH "C compiler launcher")
     endif()
 endif()
 
-# mold / lld — fast linker, auto-detected
 if(NOT MSVC AND NOT CMAKE_CXX_LINKER_LAUNCHER)
     find_program(MOLD_PROGRAM mold)
     if(MOLD_PROGRAM)
@@ -48,32 +47,20 @@ if(NOT MSVC AND NOT CMAKE_CXX_LINKER_LAUNCHER)
     endif()
 endif()
 
-# Unity / Jumbo builds — enabled by default.
-# Batch size of 8 is the sweet spot for RAM ≥16 GB; each merged TU
-# covers 8 .cpp files, reducing parse overhead significantly.
-# Set CHRONON3D_UNITY_BUILD=OFF in Debug presets for fast ccache hits.
+# --- Opzioni del Progetto ---
 option(CHRONON3D_UNITY_BUILD "Enable unity (jumbo) build" ON)
+option(CHRONON3D_BUILD_TESTS "Build Chronon3d tests" ON)
+option(CHRONON3D_BUILD_CLI "Build Chronon3d CLI" ON)
+option(CHRONON3D_BUILD_TOOLS "Build development tools" OFF)
+option(CHRONON3D_ENABLE_PROFILING "Enable Tracy profiling" OFF)
+option(CHRONON3D_ENABLE_SQLITE_TELEMETRY "Enable SQLite telemetry store" ON)
+
 if(CHRONON3D_UNITY_BUILD)
     set(CMAKE_UNITY_BUILD ON)
     set(CMAKE_UNITY_BUILD_BATCH_SIZE 8)
 endif()
 
-# Options
-option(CHRONON3D_BUILD_TESTS "Build Chronon3d tests" ON)
-option(CHRONON3D_BUILD_CLI "Build Chronon3d CLI" ON)
-option(CHRONON3D_ENABLE_PROFILING "Enable Tracy profiling" OFF)
-option(CHRONON3D_ENABLE_SQLITE_TELEMETRY "Enable SQLite telemetry store" ON)
-
-if(CHRONON3D_ENABLE_SQLITE_TELEMETRY)
-    find_package(unofficial-sqlite3 CONFIG REQUIRED)
-    add_definitions(-DCHRONON3D_ENABLE_SQLITE_TELEMETRY)
-endif()
-
-if(CHRONON3D_BUILD_TESTS)
-    add_definitions(-DCHRONON_BUILD_TESTS)
-endif()
-
-# Find Dependencies
+# --- Ricerca Dipendenze ---
 find_package(spdlog CONFIG REQUIRED)
 find_package(fmt CONFIG REQUIRED)
 find_package(Taskflow CONFIG REQUIRED)
@@ -86,14 +73,19 @@ find_package(Stb REQUIRED)
 find_package(CLI11 CONFIG REQUIRED)
 find_package(hwy CONFIG REQUIRED)
 find_package(tomlplusplus CONFIG REQUIRED)
-find_package(Tracy CONFIG QUIET)
 find_package(blend2d CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(OpenEXR CONFIG REQUIRED)
 
+if(CHRONON3D_ENABLE_SQLITE_TELEMETRY)
+    find_package(unofficial-sqlite3 CONFIG REQUIRED)
+endif()
 
+if(CHRONON3D_ENABLE_PROFILING)
+    find_package(Tracy CONFIG QUIET)
+endif()
 
-# Capture git commit hash at configure time (works if .git exists)
+# --- Git Commit Hash Extraction ---
 execute_process(
     COMMAND git rev-parse --short HEAD
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
@@ -105,45 +97,28 @@ if(NOT CHRONON3D_GIT_COMMIT)
     set(CHRONON3D_GIT_COMMIT "unknown")
 endif()
 
-# 1. Base Interface
+# ==============================================================================
+# TARGETS DEFINITION (Ordinati per Grafo di Dipendenza Lineare)
+# ==============================================================================
+
+# 1. Core Impl (Spostato in alto per evitare anomalie di risoluzione del target)
+add_library(chronon3d_core_impl STATIC src/core/trace.cpp src/core/benchmark_report.cpp)
+target_include_directories(chronon3d_core_impl PUBLIC include deps/include)
+target_link_libraries(chronon3d_core_impl PUBLIC nlohmann_json::nlohmann_json)
+
+# 2. Base Interface
 add_library(chronon3d INTERFACE)
 target_include_directories(chronon3d INTERFACE 
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/deps/include>
 )
-target_compile_definitions(chronon3d INTERFACE CHRONON3D_GIT_COMMIT="${CHRONON3D_GIT_COMMIT}")
+target_compile_definitions(chronon3d INTERFACE 
+    CHRONON3D_GIT_COMMIT="${CHRONON3D_GIT_COMMIT}"
+    $<$<BOOL:${MSVC}>:_DISABLE_STRING_VIEW_FIND_FIRST_NOT_OF_OPTIMIZATION>
+)
 target_link_libraries(chronon3d INTERFACE glm::glm meshoptimizer::meshoptimizer xxHash::xxhash chronon3d_core_impl)
-if(MSVC)
-    target_compile_options(chronon3d INTERFACE /EHsc /fp:strict /utf-8)
-    target_compile_definitions(chronon3d INTERFACE _DISABLE_STRING_VIEW_FIND_FIRST_NOT_OF_OPTIMIZATION)
-else()
-    target_compile_options(chronon3d INTERFACE -ffp-contract=off)
-endif()
 
-# 3. Registry
-set(CHRONON3D_REGISTRY_SOURCES
-    src/registry/sampler_registry.cpp
-    src/registry/shape_registry.cpp
-    src/registry/source_registry.cpp
-)
-add_library(chronon3d_registry STATIC ${CHRONON3D_REGISTRY_SOURCES})
-target_link_libraries(chronon3d_registry PUBLIC chronon3d chronon3d_scene)
-target_precompile_headers(chronon3d_registry PRIVATE
-    <glm/glm.hpp>
-    <glm/gtc/matrix_transform.hpp>
-    <spdlog/spdlog.h>
-    <fmt/core.h>
-)
-
-# 3b. Assets
-set(CHRONON3D_ASSETS_SOURCES
-    src/assets/render_preflight.cpp
-    src/assets/svg_path_loader.cpp
-)
-add_library(chronon3d_assets STATIC ${CHRONON3D_ASSETS_SOURCES})
-target_link_libraries(chronon3d_assets PUBLIC chronon3d chronon3d_registry)
-
-# 4. Cache
+# 3. Cache
 set(CHRONON3D_CACHE_SOURCES
     src/cache/frame_cache.cpp
     src/cache/node_cache.cpp
@@ -152,11 +127,9 @@ set(CHRONON3D_CACHE_SOURCES
 )
 add_library(chronon3d_cache STATIC ${CHRONON3D_CACHE_SOURCES})
 target_link_libraries(chronon3d_cache PUBLIC chronon3d xxHash::xxhash)
-target_precompile_headers(chronon3d_cache PRIVATE
-    <xxhash.h>
-)
+target_precompile_headers(chronon3d_cache PRIVATE <xxhash.h>)
 
-# 5. Render Graph
+# 4. Render Graph
 set(CHRONON3D_GRAPH_SOURCES
     src/render_graph/builder/graph_builder_internal.cpp
     src/render_graph/builder/graph_builder_layer_pipeline.cpp
@@ -197,14 +170,11 @@ target_precompile_headers(chronon3d_graph PRIVATE
     <fmt/core.h>
 )
 
-# 6. Effects
-set(CHRONON3D_EFFECTS_SOURCES
-    src/effects/effect_registry.cpp
-)
-add_library(chronon3d_effects STATIC ${CHRONON3D_EFFECTS_SOURCES})
+# 5. Effects
+add_library(chronon3d_effects STATIC src/effects/effect_registry.cpp)
 target_link_libraries(chronon3d_effects PUBLIC chronon3d meshoptimizer::meshoptimizer)
 
-# 6b. Runtime
+# 6. Runtime & Telemetry
 set(CHRONON3D_RUNTIME_SOURCES
     src/runtime/bench_runner.cpp
     src/runtime/pipeline.cpp
@@ -223,23 +193,15 @@ set(CHRONON3D_RUNTIME_SOURCES
     src/runtime/renderer_warmup.cpp
 )
 add_library(chronon3d_runtime STATIC ${CHRONON3D_RUNTIME_SOURCES})
-target_link_libraries(chronon3d_runtime PUBLIC
-    chronon3d chronon3d_graph chronon3d_effects chronon3d_cache
-    Taskflow::Taskflow
-)
-target_precompile_headers(chronon3d_runtime PRIVATE
-    <spdlog/spdlog.h>
-    <fmt/core.h>
-    <glm/glm.hpp>
-)
+target_link_libraries(chronon3d_runtime PUBLIC chronon3d chronon3d_graph chronon3d_effects chronon3d_cache Taskflow::Taskflow)
+target_precompile_headers(chronon3d_runtime PRIVATE <spdlog/spdlog.h> <fmt/core.h> <glm/glm.hpp>)
 
 if(CHRONON3D_ENABLE_SQLITE_TELEMETRY)
     target_link_libraries(chronon3d_runtime PUBLIC unofficial::sqlite3::sqlite3)
+    target_compile_definitions(chronon3d_runtime PRIVATE CHRONON3D_ENABLE_SQLITE_TELEMETRY)
 endif()
 
-# 7. Backends
-
-# 7a. Image Backend
+# 7. Backends (Image, Assets, Video, Software)
 set(CHRONON3D_BACKEND_IMAGE_SOURCES
     src/backends/image/image_loader.cpp
     src/backends/image/image_writer.cpp
@@ -249,29 +211,16 @@ set(CHRONON3D_BACKEND_IMAGE_SOURCES
 add_library(chronon3d_backend_image STATIC ${CHRONON3D_BACKEND_IMAGE_SOURCES})
 target_link_libraries(chronon3d_backend_image PUBLIC chronon3d spdlog::spdlog_header_only fmt::fmt OpenEXR::OpenEXR)
 target_include_directories(chronon3d_backend_image PRIVATE ${Stb_INCLUDE_DIR})
-target_precompile_headers(chronon3d_backend_image PRIVATE
-    <spdlog/spdlog.h>
-    <fmt/core.h>
-)
+target_precompile_headers(chronon3d_backend_image PRIVATE <spdlog/spdlog.h> <fmt/core.h>)
 
-# 7b. Assets Backend
-set(CHRONON3D_BACKEND_ASSETS_SOURCES
-    src/backends/assets/image_cache.cpp
-    src/backends/assets/image_renderer.cpp
-)
-add_library(chronon3d_backend_assets STATIC ${CHRONON3D_BACKEND_ASSETS_SOURCES})
+add_library(chronon3d_backend_assets STATIC src/backends/assets/image_cache.cpp src/backends/assets/image_renderer.cpp)
 target_link_libraries(chronon3d_backend_assets PUBLIC chronon3d chronon3d_backend_image)
 target_include_directories(chronon3d_backend_assets PRIVATE ${Stb_INCLUDE_DIR})
 
-# 7d. Video Backend (Generic)
-set(CHRONON3D_BACKEND_VIDEO_SOURCES
-    src/backends/video/video_source.cpp
-)
-add_library(chronon3d_backend_video STATIC ${CHRONON3D_BACKEND_VIDEO_SOURCES})
+add_library(chronon3d_backend_video STATIC src/backends/video/video_source.cpp)
 target_link_libraries(chronon3d_backend_video PUBLIC chronon3d)
 
-
-# 7f. Software Renderer Backend
+# Software Renderer Backend
 set(CHRONON3D_BACKEND_SOFTWARE_SOURCES
     src/backends/software/primitive_renderer.cpp
     src/backends/software/processors/builtin_processors.cpp
@@ -317,26 +266,29 @@ set(CHRONON3D_BACKEND_SOFTWARE_SOURCES
 )
 add_library(chronon3d_backend_software STATIC ${CHRONON3D_BACKEND_SOFTWARE_SOURCES})
 target_link_libraries(chronon3d_backend_software
-    PUBLIC 
-        chronon3d chronon3d_graph chronon3d_cache chronon3d_effects
-        chronon3d_backend_assets chronon3d_backend_image
-        blend2d::blend2d
+    PUBLIC chronon3d chronon3d_graph chronon3d_cache chronon3d_effects chronon3d_backend_assets chronon3d_backend_image blend2d::blend2d
     PRIVATE spdlog::spdlog_header_only hwy::hwy fmt::fmt xxHash::xxhash tomlplusplus::tomlplusplus TBB::tbb
 )
 target_include_directories(chronon3d_backend_software PRIVATE ${Stb_INCLUDE_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
-
-# Precompiled headers — biggest win for glm + blend2d included across 30+ translation units
 target_precompile_headers(chronon3d_backend_software PRIVATE
-    <glm/glm.hpp>
-    <glm/gtc/matrix_transform.hpp>
-    <glm/gtc/type_ptr.hpp>
-    <glm/gtc/quaternion.hpp>
-    <blend2d.h>
-    <spdlog/spdlog.h>
-    <fmt/core.h>
+    <glm/glm.hpp> <glm/gtc/matrix_transform.hpp> <glm/gtc/type_ptr.hpp> <glm/gtc/quaternion.hpp>
+    <blend2d.h> <spdlog/spdlog.h> <fmt/core.h>
 )
 
-# 8. Scene Assembly
+# 8. Registry & Scene Assembly (Risolto il ciclo: Registry NON linka direttamente scene qui)
+set(CHRONON3D_REGISTRY_SOURCES
+    src/registry/sampler_registry.cpp
+    src/registry/shape_registry.cpp
+    src/registry/source_registry.cpp
+)
+add_library(chronon3d_registry STATIC ${CHRONON3D_REGISTRY_SOURCES})
+target_link_libraries(chronon3d_registry PUBLIC chronon3d) # Rimossa dipendenza diretta circolare da chronon3d_scene
+target_precompile_headers(chronon3d_registry PRIVATE <glm/glm.hpp> <glm/gtc/matrix_transform.hpp> <spdlog/spdlog.h> <fmt/core.h>)
+
+set(CHRONON3D_ASSETS_SOURCES src/assets/render_preflight.cpp src/assets/svg_path_loader.cpp)
+add_library(chronon3d_assets STATIC ${CHRONON3D_ASSETS_SOURCES})
+target_link_libraries(chronon3d_assets PUBLIC chronon3d chronon3d_registry)
+
 set(CHRONON3D_SCENE_SOURCES
     src/scene/camera/camera_motion_presets.cpp
     src/scene/dark_grid_background.cpp
@@ -359,42 +311,12 @@ set(CHRONON3D_SCENE_SOURCES
 add_library(chronon3d_scene STATIC ${CHRONON3D_SCENE_SOURCES})
 target_include_directories(chronon3d_scene PRIVATE ${CMAKE_SOURCE_DIR})
 target_link_libraries(chronon3d_scene
-    PUBLIC 
-        chronon3d chronon3d_runtime chronon3d_graph chronon3d_registry 
-        chronon3d_cache chronon3d_effects chronon3d_backend_image
+    PUBLIC chronon3d chronon3d_runtime chronon3d_graph chronon3d_registry chronon3d_cache chronon3d_effects chronon3d_backend_image
     PRIVATE spdlog::spdlog_header_only fmt::fmt tomlplusplus::tomlplusplus
 )
-# Own PCH: spdlog_header_only sets _FILE_OFFSET_BITS which prevents REUSE_FROM chronon3d_graph
-target_precompile_headers(chronon3d_scene PRIVATE
-    <glm/glm.hpp>
-    <glm/gtc/matrix_transform.hpp>
-    <spdlog/spdlog.h>
-    <fmt/core.h>
-)
+target_precompile_headers(chronon3d_scene PRIVATE <glm/glm.hpp> <glm/gtc/matrix_transform.hpp> <spdlog/spdlog.h> <fmt/core.h>)
 
-set(CHRONON3D_COMPOSITION_SOURCES
-    src/compositions/background_grid.cpp
-    src/compositions/demos/chronon_intro_card.cpp
-    src/compositions/proofs/grid_title_motion.cpp
-)
-add_library(chronon3d_compositions STATIC ${CHRONON3D_COMPOSITION_SOURCES})
-target_link_libraries(chronon3d_compositions
-    PUBLIC
-        chronon3d
-        chronon3d_scene
-        chronon3d_registry
-)
-# Own PCH: inherits _FILE_OFFSET_BITS from scene linkage, preventing REUSE_FROM chronon3d_graph
-target_precompile_headers(chronon3d_compositions PRIVATE
-    <glm/glm.hpp>
-    <glm/gtc/matrix_transform.hpp>
-)
-
-# 1b. Core Tracing
-add_library(chronon3d_core_impl STATIC src/core/trace.cpp src/core/benchmark_report.cpp)
-target_link_libraries(chronon3d_core_impl PUBLIC chronon3d nlohmann_json::nlohmann_json)
-
-# Architectural Aggregates (Agent rules)
+# --- Aggregati Architetturali finali ---
 add_library(chronon3d_core INTERFACE)
 target_link_libraries(chronon3d_core INTERFACE
     chronon3d_assets chronon3d_registry chronon3d_scene chronon3d_runtime chronon3d_graph chronon3d_cache chronon3d_core_impl
@@ -405,18 +327,10 @@ target_link_libraries(chronon3d_software INTERFACE
     $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_backend_software> chronon3d_backend_assets chronon3d_backend_image
 )
 
-
-
-# 11. Pipeline (Interface)
 add_library(chronon3d_pipeline INTERFACE)
-target_link_libraries(chronon3d_pipeline INTERFACE
-    chronon3d_core
-    chronon3d_software
-    $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_compositions>
-    Taskflow::Taskflow concurrentqueue::concurrentqueue
-)
+target_link_libraries(chronon3d_pipeline INTERFACE chronon3d_core chronon3d_software Taskflow::Taskflow concurrentqueue::concurrentqueue)
 
-# Profiling
+# --- Profiling & Condizionali di Build ---
 if(CHRONON3D_ENABLE_PROFILING AND Tracy_FOUND)
     target_link_libraries(chronon3d_scene PRIVATE Tracy::TracyClient)
     target_compile_definitions(chronon3d_scene PRIVATE CHRONON_PROFILING TRACY_ON_DEMAND)
@@ -424,26 +338,18 @@ if(CHRONON3D_ENABLE_PROFILING AND Tracy_FOUND)
     target_compile_definitions(chronon3d_pipeline INTERFACE CHRONON_PROFILING TRACY_ON_DEMAND)
 endif()
 
-# Subdirectories
+if(CHRONON3D_BUILD_TESTS)
+    enable_testing()
+    target_compile_definitions(chronon3d_core_impl PUBLIC CHRONON_BUILD_TESTS)
+    add_subdirectory(tests)
+endif()
+
 if(CHRONON3D_BUILD_CLI)
     add_subdirectory(apps/chronon3d_cli)
 endif()
 
-if(CHRONON3D_BUILD_TESTS)
-    enable_testing()
-    add_subdirectory(tests)
-endif()
-
 if(CHRONON3D_BUILD_TOOLS)
-    # Feature preview tool — opt-in developer target.
     add_executable(preview_new_features tools/preview_new_features.cpp)
-    target_link_libraries(preview_new_features PRIVATE
-        chronon3d_pipeline
-        chronon3d_backend_image
-        chronon3d_backend_software
-        chronon3d_compositions
-        chronon3d_graph
-        chronon3d_scene
-    )
+    target_link_libraries(preview_new_features PRIVATE chronon3d_pipeline chronon3d_backend_image chronon3d_backend_software chronon3d_graph chronon3d_scene)
     target_include_directories(preview_new_features PRIVATE ${CMAKE_SOURCE_DIR})
 endif()
