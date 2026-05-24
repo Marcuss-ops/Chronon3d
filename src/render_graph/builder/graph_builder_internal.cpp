@@ -2,6 +2,7 @@
 
 #include <chronon3d/scene/layer/layer_hierarchy.hpp>
 #include <chronon3d/scene/scene.hpp>
+#include <tbb/task_group.h>
 
 namespace chronon3d::graph::detail {
 
@@ -11,9 +12,17 @@ LayerResolutionResult resolve_layers(const Scene& scene, const RenderGraphContex
     chronon3d::detail::LayerHierarchyResolver resolver(scene.layers(), scene.resource());
     
     LayerResolutionResult result;
-    result.camera = resolver.resolve_camera(scene.camera_2_5d());
-    result.layers = resolver.resolve_layers(ctx.frame);
+    tbb::task_group tg;
     
+    tg.run([&]() {
+        result.camera = resolver.resolve_camera(scene.camera_2_5d());
+    });
+    
+    tg.run([&]() {
+        result.layers = resolver.resolve_layers(ctx.frame);
+    });
+    
+    tg.wait();
     return result;
 }
 

@@ -80,8 +80,18 @@ void register_builtin_shapes(ShapeRegistry& registry) {
         .kind = ShapeKind::Image,
         .description = "Bitmap image source",
         .builtin = true,
-        .factory = make_factory<ImageParams>([](auto* res, std::string name, ImageParams p) {
-            return RenderNodeFactory::image(res, std::move(name), std::move(p));
+        .factory = make_factory<ImageParams>([](auto* res, std::string name, const ImageParams& p) {
+            return RenderNodeFactory::image(res, std::move(name), p);
+        }),
+    });
+    registry.register_shape(ShapeDescriptor{
+        .id = std::string{shape_ids::TiledImage},
+        .display_name = "Tiled Image",
+        .kind = ShapeKind::Image,
+        .description = "Repeating bitmap pattern",
+        .builtin = true,
+        .factory = make_factory<ImageParams>([](auto* res, std::string name, const ImageParams& p) {
+            return RenderNodeFactory::tiled_image(res, std::move(name), p);
         }),
     });
     registry.register_shape(ShapeDescriptor{

@@ -30,6 +30,8 @@ public:
         instance().get_or_load(path);
     }
 
+    static void preload_async(const std::string& path);
+
     static std::shared_ptr<const CachedImage> get(const std::string& path) {
         return instance().get_or_load_shared(path);
     }

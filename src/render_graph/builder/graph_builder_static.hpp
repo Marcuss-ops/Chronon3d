@@ -4,6 +4,7 @@
 #include <chronon3d/scene/layer/resolved_types.hpp>
 #include <chronon3d/render_graph/nodes/basic_nodes.hpp>
 #include "graph_builder_coordinates.hpp"
+#include "graph_builder_internal.hpp"
 #include <unordered_map>
 #include <string>
 

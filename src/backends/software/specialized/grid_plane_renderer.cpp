@@ -18,7 +18,8 @@ void draw_grid_plane(Framebuffer& fb, const RenderNode& node, const RenderState&
     if (base_a <= 0.0f) return;
 
     const Vec3& cp = s.world_pos;
-    const int n = static_cast<int>(s.extent / s.spacing) + 1;
+    if (s.spacing <= 0.0f || s.extent <= 0.0f) return;
+    const int n = static_cast<int>(std::floor(s.extent / s.spacing));
     const bool do_fade = s.fade_distance > 0.1f;
 
     auto segment_alpha = [&](const Vec3& w0, const Vec3& w1) -> f32 {
@@ -37,7 +38,7 @@ void draw_grid_plane(Framebuffer& fb, const RenderNode& node, const RenderState&
         Color c = col; c.a = a;
         Vec2 p0, p1;
         if (rt.projection.project_line_clipped(w0, w1, p0, p1))
-            bline(fb, p0, p1, c, state.clip_rect);
+            bline(fb, p0, p1, c, 1.0f, state.clip_rect);
     };
 
     if (s.axis == PlaneAxis::XZ) {

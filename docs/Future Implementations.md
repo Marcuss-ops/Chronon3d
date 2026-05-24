@@ -1,4 +1,4 @@
-> ⚠️ **NOTA:** Questo documento contiene idee speculative e brainstorming. Molte sono state implementate nell'attuale codebase. Vedi [IMPROVEMENTS.md](../IMPROVEMENTS.md) per la matrice aggiornata con gli item completati.
+> ⚠️ **NOTA:** Questo documento contiene idee speculative e brainstorming. Molte sono state implementate nell'attuale codebase. Vedi [IMPROVEMENTS.md](IMPROVEMENTS.md) per la matrice aggiornata con gli item completati.
 
 Sì, puoi preriscaldare il forno. Anzi, è la cosa più facile e più ignorata. E poi ci sono un paio di idee "pazze" che in un renderer come il tuo funzionano davvero.
 
@@ -7,7 +7,7 @@ Adesso il primo frame paga tutto: alloca le 30 teglie, compila i percorsi del co
 
 In `SoftwareRenderer::init()` aggiungi:
 - alloca subito il pool alla dimensione massima che userai (es. 1920x1080 x 32 buffer)
-- fai un render fittizio di 1 frame di LilDirkClean e buttalo via
+- fai un render fittizio di 1 frame di una composition (es. GridTitleMotion) e buttalo via
 - tocca tutta la memoria con un memset, così il sistema operativo non fa page fault dopo
 
 Risultato: il "rendering_loop 1455 ms" del primo frame sparisce dai tempi reali. Guadagni 150-200 ms subito.
@@ -20,7 +20,7 @@ Il tuo grid_bg e title_text sono fissi. Invece di metterli in cache RAM, fai un 
 È il forno già caldo da ieri.
 
 ### 3. Trasforma il grafo in codice, non in nodi
-Oggi ogni nodo è una chiamata virtuale. È come avere 12 cuochi che si passano la pizza dicendo "tocca a te". La cosa pazza: compila LilDirkClean in una singola funzione C++.
+Oggi ogni nodo è una chiamata virtuale. È come avere 12 cuochi che si passano la pizza dicendo "tocca a te". La cosa pazza: compila la composition in una singola funzione C++.
 
 Usa LLVM o anche solo un generatore: prendi il grafo, scrivi un file .cpp con un unico for loop che fa clear → grid → blur → composite → transform, compila con `/O2 /arch:AVX2` all'avvio. Elimini 35 chiamate virtuali per frame. Mai visto in renderer 2D commerciali, ma Halide lo fa. Guadagno stimato: altro 30-40%.
 
@@ -36,7 +36,7 @@ Non serve riscrivere tutto. Prendi solo EffectStack e Composite e mandali su Vul
 **Server caldo permanente:** non chiudere mai il processo. Tieni Chronon3D come daemon in ascolto su una socket. Remotion paga 800 ms solo per avviare Chrome, tu paghi zero. È il forno sempre acceso del panificio.
 
 
-**Compilazione AOT del progetto:** invece di interpretare LilDirkClean, genera un .exe dedicato `LilDirkClean_renderer.exe` che contiene solo i nodi che usi. Niente if, niente mappe, solo codice lineare.
+**Compilazione AOT del progetto:** invece di interpretare la composition, genera un .exe dedicato `Composition_renderer.exe` che contiene solo i nodi che usi. Niente if, niente mappe, solo codice lineare.
 
 Se dovessi scegliere una sola "pazzia" da provare domani mattina: fai il warmup + huge pages + bake del grid. Sono 20 righe di codice e ti tolgono il 90% del tempo del primo frame.
 

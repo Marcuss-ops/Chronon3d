@@ -141,8 +141,7 @@ Run commands from the repo root so relative asset paths work:
 .\build\chronon\win-release\apps\chronon3d_cli\chronon3d_cli.exe list
 ```
 
-See [BUILDING.md](BUILDING.md) for the complete guide including troubleshooting.
-Architecture and planning notes live in [docs/INDEX.md](docs/INDEX.md), [docs/3d_subsystem.md](docs/3d_subsystem.md), [ARCHITECTURE.md](ARCHITECTURE.md), and [docs/ROADMAP.md](docs/ROADMAP.md).
+See [ORIENTATION.md](docs/ORIENTATION.md) for the repo map, build guide, architecture overview, and key references.
 
 ### 3. Register a composition
 

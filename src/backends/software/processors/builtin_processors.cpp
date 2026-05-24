@@ -8,6 +8,7 @@ namespace chronon3d::renderer {
 // Forward declarations for shape processors
 std::unique_ptr<ShapeProcessor> create_shape_processor();
 std::unique_ptr<ShapeProcessor> create_image_processor();
+std::unique_ptr<ShapeProcessor> create_tiled_image_processor();
 std::unique_ptr<ShapeProcessor> create_mesh_processor();
 std::unique_ptr<ShapeProcessor> create_line_processor();
 std::unique_ptr<ShapeProcessor> create_path_processor();
@@ -31,6 +32,7 @@ void register_builtin_processors(SoftwareRegistry& registry) {
     registry.register_shape(ShapeType::Line, create_line_processor());
     registry.register_shape(ShapeType::Path, create_path_processor());
     registry.register_shape(ShapeType::Image, create_image_processor());
+    registry.register_shape(ShapeType::TiledImage, create_tiled_image_processor());
     registry.register_shape(ShapeType::Text, create_text_processor());
     registry.register_shape(ShapeType::Mesh, create_mesh_processor());
     registry.register_shape(ShapeType::FakeBox3D, create_fake_box3d_processor());

@@ -6,28 +6,90 @@
 namespace chronon3d {
 namespace renderer {
 
-void bline(Framebuffer& fb, Vec2 p0, Vec2 p1, const Color& color, const std::optional<raster::BBox>& clip) {
+void bline(Framebuffer& fb, Vec2 p0, Vec2 p1, const Color& color, f32 thickness, const std::optional<raster::BBox>& clip) {
     if (color.a <= 0.0f) return;
-    i32 x0 = static_cast<i32>(p0.x), y0 = static_cast<i32>(p0.y);
-    i32 x1 = static_cast<i32>(p1.x), y1 = static_cast<i32>(p1.y);
-    const i32 dx = std::abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
-    const i32 dy = -std::abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
-    i32 err = dx + dy, e2;
-    while (true) {
-        if (x0 >= 0 && x0 < fb.width() && y0 >= 0 && y0 < fb.height()) {
-            bool in_clip = true;
-            if (clip) {
-                in_clip = (x0 >= clip->x0 && x0 < clip->x1 && y0 >= clip->y0 && y0 < clip->y1);
+
+
+    if (thickness <= 0.0f) {
+        i32 x0 = static_cast<i32>(std::round(p0.x));
+        i32 y0 = static_cast<i32>(std::round(p0.y));
+        i32 x1 = static_cast<i32>(std::round(p1.x));
+        i32 y1 = static_cast<i32>(std::round(p1.y));
+        const i32 dx = std::abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
+        const i32 dy = -std::abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
+        i32 err = dx + dy, e2;
+        while (true) {
+            if (x0 >= 0 && x0 < fb.width() && y0 >= 0 && y0 < fb.height()) {
+                bool in_clip = true;
+                if (clip) {
+                    in_clip = (x0 >= clip->x0 && x0 < clip->x1 && y0 >= clip->y0 && y0 < clip->y1);
+                }
+                if (in_clip) {
+                    Color* row = fb.pixels_row(y0);
+                    row[x0] = compositor::blend(color, row[x0], BlendMode::Normal);
+                }
             }
-            if (in_clip) {
-                Color* row = fb.pixels_row(y0);
-                row[x0] = compositor::blend(color, row[x0], BlendMode::Normal);
+            if (x0 == x1 && y0 == y1) break;
+            e2 = 2 * err;
+            if (e2 >= dy) { err += dy; x0 += sx; }
+            if (e2 <= dx) { err += dx; y0 += sy; }
+        }
+        return;
+    }
+
+    // Thick line rasterizer using anti-aliased capsule distance field
+    const f32 radius = thickness * 0.5f;
+    const f32 pad = radius + 1.0f;
+
+    f32 min_x = std::min(p0.x, p1.x) - pad;
+    f32 max_x = std::max(p0.x, p1.x) + pad;
+    f32 min_y = std::min(p0.y, p1.y) - pad;
+    f32 max_y = std::max(p0.y, p1.y) + pad;
+
+    i32 x0 = std::clamp(static_cast<i32>(std::floor(min_x)), 0, fb.width());
+    i32 x1 = std::clamp(static_cast<i32>(std::ceil(max_x)), 0, fb.width());
+    i32 y0 = std::clamp(static_cast<i32>(std::floor(min_y)), 0, fb.height());
+    i32 y1 = std::clamp(static_cast<i32>(std::ceil(max_y)), 0, fb.height());
+
+    if (clip) {
+        x0 = std::max(x0, clip->x0);
+        x1 = std::min(x1, clip->x1);
+        y0 = std::max(y0, clip->y0);
+        y1 = std::min(y1, clip->y1);
+    }
+
+    if (x0 >= x1 || y0 >= y1) return;
+
+    const Vec2 ab = p1 - p0;
+    const f32 len_sq = glm::dot(ab, ab);
+
+    for (i32 y = y0; y < y1; ++y) {
+        Color* row = fb.pixels_row(y);
+        for (i32 x = x0; x < x1; ++x) {
+            const Vec2 p{static_cast<f32>(x) + 0.5f, static_cast<f32>(y) + 0.5f};
+            f32 dist = 0.0f;
+            if (len_sq < 1e-6f) {
+                dist = glm::length(p - p0);
+            } else {
+                const f32 t = std::clamp(glm::dot(p - p0, ab) / len_sq, 0.0f, 1.0f);
+                const Vec2 closest = p0 + ab * t;
+                dist = glm::length(p - closest);
+            }
+
+            const f32 aa = 1.0f;
+            f32 cov = 0.0f;
+            if (dist <= radius - aa) {
+                cov = 1.0f;
+            } else if (dist < radius + aa) {
+                cov = 1.0f - ((dist - (radius - aa)) / (2.0f * aa));
+            }
+
+            if (cov > 0.0f) {
+                Color c = color;
+                c.a *= cov;
+                row[x] = compositor::blend(c, row[x], BlendMode::Normal);
             }
         }
-        if (x0 == x1 && y0 == y1) break;
-        e2 = 2 * err;
-        if (e2 >= dy) { err += dy; x0 += sx; }
-        if (e2 <= dx) { err += dx; y0 += sy; }
     }
 }
 

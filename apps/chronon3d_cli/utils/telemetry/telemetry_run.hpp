@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/core/counters.hpp>
+#include <chronon3d/core/framebuffer.hpp>
 #include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
 
 #include <string>
@@ -38,8 +39,8 @@ inline std::vector<chronon3d::telemetry::CounterTelemetryRecord> capture_counter
         {"layers_visible", counters.layers_visible.load(std::memory_order_relaxed)},
         {"framebuffer_allocations", counters.framebuffer_allocations.load(std::memory_order_relaxed)},
         {"framebuffer_reuses", counters.framebuffer_reuses.load(std::memory_order_relaxed)},
-        {"framebuffer_bytes_allocated", counters.framebuffer_bytes_allocated.load(std::memory_order_relaxed)},
-        {"framebuffer_bytes_peak", counters.framebuffer_bytes_peak.load(std::memory_order_relaxed)},
+        {"framebuffer_bytes_allocated", profiling::g_live_framebuffer_bytes.load(std::memory_order_relaxed)},
+        {"framebuffer_bytes_peak", profiling::g_peak_live_framebuffer_bytes.load(std::memory_order_relaxed)},
         {"dirty_rect_count", counters.dirty_rect_count.load(std::memory_order_relaxed)},
         {"dirty_pixels", counters.dirty_pixels.load(std::memory_order_relaxed)},
         {"dirty_full_fallbacks", counters.dirty_full_fallbacks.load(std::memory_order_relaxed)},
@@ -55,6 +56,13 @@ inline std::vector<chronon3d::telemetry::CounterTelemetryRecord> capture_counter
         {"dirty_full_fallback_effect_bounds_unknown",
             counters.dirty_full_fallback_reasons[static_cast<std::size_t>(DirtyFallbackReason::EffectBoundsUnknown)]
                 .load(std::memory_order_relaxed)},
+        {"framebuffer_acquire_ms", counters.framebuffer_acquire_ms.load(std::memory_order_relaxed)},
+        {"framebuffer_clear_ms", counters.framebuffer_clear_ms.load(std::memory_order_relaxed)},
+        {"framebuffer_enqueue_ms", counters.framebuffer_enqueue_ms.load(std::memory_order_relaxed)},
+        {"framebuffer_pool_miss_count_size_mismatch", counters.framebuffer_pool_miss_count_size_mismatch.load(std::memory_order_relaxed)},
+        {"framebuffer_pool_miss_count_empty", counters.framebuffer_pool_miss_count_empty.load(std::memory_order_relaxed)},
+        {"framebuffer_buffer_returned_to_pool_count", counters.framebuffer_buffer_returned_to_pool_count.load(std::memory_order_relaxed)},
+        {"frame_conversion_copy_ms", counters.frame_conversion_copy_ms.load(std::memory_order_relaxed)},
     };
 }
 
@@ -87,6 +95,13 @@ inline void add_counters(chronon3d::RenderCounters& dst, const chronon3d::Render
     dst.layers_visible.fetch_add(src.layers_visible.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.framebuffer_allocations.fetch_add(src.framebuffer_allocations.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.framebuffer_reuses.fetch_add(src.framebuffer_reuses.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.framebuffer_acquire_ms.fetch_add(src.framebuffer_acquire_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.framebuffer_clear_ms.fetch_add(src.framebuffer_clear_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.framebuffer_enqueue_ms.fetch_add(src.framebuffer_enqueue_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.framebuffer_pool_miss_count_size_mismatch.fetch_add(src.framebuffer_pool_miss_count_size_mismatch.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.framebuffer_pool_miss_count_empty.fetch_add(src.framebuffer_pool_miss_count_empty.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.framebuffer_buffer_returned_to_pool_count.fetch_add(src.framebuffer_buffer_returned_to_pool_count.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.frame_conversion_copy_ms.fetch_add(src.frame_conversion_copy_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.framebuffer_bytes_allocated.fetch_add(src.framebuffer_bytes_allocated.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.framebuffer_bytes_peak.fetch_add(src.framebuffer_bytes_peak.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.dirty_rect_count.fetch_add(src.dirty_rect_count.load(std::memory_order_relaxed), std::memory_order_relaxed);
@@ -165,8 +180,8 @@ inline void record_output_run(const std::string& composition_id,
         run.layers_visible = counters_src->layers_visible.load(std::memory_order_relaxed);
         run.framebuffer_allocations = counters_src->framebuffer_allocations.load(std::memory_order_relaxed);
         run.framebuffer_reuses = counters_src->framebuffer_reuses.load(std::memory_order_relaxed);
-        run.framebuffer_bytes_allocated = counters_src->framebuffer_bytes_allocated.load(std::memory_order_relaxed);
-        run.framebuffer_bytes_peak = counters_src->framebuffer_bytes_peak.load(std::memory_order_relaxed);
+        run.framebuffer_bytes_allocated = profiling::g_live_framebuffer_bytes.load(std::memory_order_relaxed);
+        run.framebuffer_bytes_peak = profiling::g_peak_live_framebuffer_bytes.load(std::memory_order_relaxed);
         run.dirty_rect_count = counters_src->dirty_rect_count.load(std::memory_order_relaxed);
         run.dirty_pixels = counters_src->dirty_pixels.load(std::memory_order_relaxed);
         run.dirty_full_fallbacks = counters_src->dirty_full_fallbacks.load(std::memory_order_relaxed);
@@ -182,6 +197,13 @@ inline void record_output_run(const std::string& composition_id,
         run.dirty_full_fallback_effect_bounds_unknown =
             counters_src->dirty_full_fallback_reasons[static_cast<std::size_t>(DirtyFallbackReason::EffectBoundsUnknown)]
                 .load(std::memory_order_relaxed);
+        run.framebuffer_acquire_ms = counters_src->framebuffer_acquire_ms.load(std::memory_order_relaxed);
+        run.framebuffer_clear_ms = counters_src->framebuffer_clear_ms.load(std::memory_order_relaxed);
+        run.framebuffer_enqueue_ms = counters_src->framebuffer_enqueue_ms.load(std::memory_order_relaxed);
+        run.framebuffer_pool_miss_count_size_mismatch = counters_src->framebuffer_pool_miss_count_size_mismatch.load(std::memory_order_relaxed);
+        run.framebuffer_pool_miss_count_empty = counters_src->framebuffer_pool_miss_count_empty.load(std::memory_order_relaxed);
+        run.framebuffer_buffer_returned_to_pool_count = counters_src->framebuffer_buffer_returned_to_pool_count.load(std::memory_order_relaxed);
+        run.frame_conversion_copy_ms = counters_src->frame_conversion_copy_ms.load(std::memory_order_relaxed);
     }
 
     const auto resolved_counters = counters.empty() && counters_src

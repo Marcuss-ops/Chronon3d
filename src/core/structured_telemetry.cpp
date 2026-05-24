@@ -269,6 +269,15 @@ void StructuredTelemetry::record_counters(const std::string& run_id, int frame, 
     record("effect_pixels", c.effect_pixels.load());
     record("text_glyphs_rasterized", c.text_glyphs_rasterized.load());
     record("images_sampled", c.images_sampled.load());
+
+    // Framebuffer pipeline diagnostics
+    record("framebuffer_acquire_ms", c.framebuffer_acquire_ms.load());
+    record("framebuffer_clear_ms", c.framebuffer_clear_ms.load());
+    record("frame_conversion_copy_ms", c.frame_conversion_copy_ms.load());
+    record("framebuffer_pool_miss_count_size_mismatch", c.framebuffer_pool_miss_count_size_mismatch.load());
+    record("framebuffer_pool_miss_count_empty", c.framebuffer_pool_miss_count_empty.load());
+    record("framebuffer_enqueue_ms", c.framebuffer_enqueue_ms.load());
+    record("framebuffer_buffer_returned_to_pool_count", c.framebuffer_buffer_returned_to_pool_count.load());
 }
 
 void StructuredTelemetry::record_text_event(const std::string& run_id, int frame, const TextEvent& e) {

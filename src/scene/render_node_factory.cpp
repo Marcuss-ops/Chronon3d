@@ -83,6 +83,18 @@ RenderNode RenderNodeFactory::image(std::pmr::memory_resource* res, std::string 
     return node;
 }
 
+RenderNode RenderNodeFactory::tiled_image(std::pmr::memory_resource* res, std::string name, ImageParams p) {
+    auto node = base(res, std::move(name));
+    node.shape.type = ShapeType::TiledImage;
+    node.shape.image.path = std::move(p.path);
+    node.shape.image.size = p.size;
+    node.shape.image.opacity = p.opacity;
+    node.world_transform.position = p.pos;
+    node.world_transform.anchor = {0, 0, 0};
+    node.color = Color{1, 1, 1, p.opacity};
+    return node;
+}
+
 RenderNode RenderNodeFactory::text(std::pmr::memory_resource* res, std::string name, TextParams p) {
     auto node = base(res, std::move(name));
     node.shape.type = ShapeType::Text;
