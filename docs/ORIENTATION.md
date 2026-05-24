@@ -13,7 +13,7 @@
 | `src/backends/software/` | **Software renderer**: rasterizzatori, compositor, processori effetti, SIMD blending |
 | `src/render_graph/` | **Render graph**: DAG builder, executor, caching, profiling, pipeline |
 | `src/runtime/` | **Orchestrazione**: pipeline, timeline evaluator, bench runner, warmup, telemetry |
-| `src/compositions/` | **Composizioni registrate**: tutte le scene demo, proof, preset (BackgroundGrid, GridTitleMotion, LilDirkClean, ecc.) |
+| `src/compositions/` | **Composizioni registrate**: tutte le scene demo, proof, preset (BackgroundGrid, GridTitleMotion, ecc.) |
 | `apps/chronon3d_cli/` | **CLI**: entry point (`main.cpp`), comandi (`commands/`), utilities (`utils/`) |
 | `tests/` | **Test**: unità, integrazione, golden test, performance, CLI |
 | `tools/` | **Strumenti**: build scripts, telemetry dashboard (Python + React), compare PNG |
@@ -248,8 +248,8 @@ Visualizza run storici, grafici interattivi (frame timeline, category breakdown,
 
 | Documento | Contenuto |
 |---|---|
-| `ARCHITECTURE.md` | Design ad alto livello, principi, decisioni architetturali |
-| `BUILDING.md` | Setup build, troubleshooting, dipendenze |
+| `docs/ARCHITECTURE.md` | Design ad alto livello, principi, decisioni architetturali |
+| `docs/BUILDING.md` | Setup build, troubleshooting, dipendenze |
 | `README.md` | Panoramica progetto, API, esempi codice |
 | `docs/RENDER_GRAPH.md` | Specifica del render graph (DAG, nodi, caching) |
 | `docs/3d_subsystem.md` | Sistema 3D/2.5D: coordinate, camera, proiezione, luci |

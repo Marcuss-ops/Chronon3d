@@ -29,4 +29,23 @@ bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state
     return true;
 }
 
+bool ImageRenderer::draw_image_tiled(const ImageShape& image, const RenderState& state, Framebuffer& fb) {
+    if (image.path.empty() || image.size.x <= 0 || image.size.y <= 0) {
+        return false;
+    }
+    const CachedImage* cached = ImageCache::instance().get_or_load(image.path);
+    if (!cached || cached->bl_img.empty()) return false;
+
+    const f32 final_opacity = image.opacity * state.opacity;
+    if (final_opacity <= 0.001f) return true;
+
+    const float sx = image.size.x / static_cast<float>(cached->width);
+    const float sy = image.size.y / static_cast<float>(cached->height);
+    Mat4 scaled_model = state.matrix * glm::scale(Mat4(1.0f), Vec3(sx, sy, 1.0f));
+
+    blend2d_bridge::composite_bl_image_tiled(fb, cached->bl_img, scaled_model, final_opacity, BlendMode::Normal, &state);
+
+    return true;
+}
+
 } // namespace chronon3d

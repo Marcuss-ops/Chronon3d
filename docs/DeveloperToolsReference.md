@@ -53,9 +53,9 @@ cmake -B build_vs -S . -DCMAKE_CXX_COMPILER_LAUNCHER="C:\Users\pater\AppData\Loc
 
 ## 🏎️ Fast Build Script: `build_fast.ps1`
 
-We have created an automated fast-build script `build_fast.ps1` in the root of the repository. This script automatically configures CMake to use `sccache` and builds the project in parallel using all CPU cores.
+We have created an automated fast-build script `build_fast.ps1` in `tools/`. This script automatically configures CMake to use `sccache` and builds the project in parallel using all CPU cores.
 
 Run it directly from PowerShell:
 ```powershell
-.\build_fast.ps1
+.\tools\build_fast.ps1
 ```

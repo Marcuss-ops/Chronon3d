@@ -3,6 +3,7 @@
 #include <spdlog/spdlog.h>
 #include <chrono>
 #include <cstdlib>
+#include <thread>
 
 namespace chronon3d {
 
@@ -21,6 +22,12 @@ size_t resolve_image_cache_capacity(size_t fallback) {
 }
 
 } // namespace
+
+void ImageCache::preload_async(const std::string& path) {
+    std::thread([path]() {
+        instance().get_or_load(path);
+    }).detach();
+}
 
 ImageCache::ImageCache()
     : m_cache(resolve_image_cache_capacity(512ULL * 1024ULL * 1024ULL)) {}

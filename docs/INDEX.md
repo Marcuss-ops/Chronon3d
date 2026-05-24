@@ -3,8 +3,8 @@
 Welcome to the Chronon3d technical documentation.
 
 ## Core Documentation
-- [Architecture Overview](../ARCHITECTURE.md) — High-level system design, principles, and architectural decisions.
-- [Building Guide](../BUILDING.md) — How to set up and compile the engine.
+- [Architecture Overview](ARCHITECTURE.md) — High-level system design, principles, and architectural decisions.
+- [Building Guide](BUILDING.md) — How to set up and compile the engine.
 - [Governance](GOVERNANCE.md) — Contribution guidelines, coding standards, pre-merge checklist, and testing philosophy.
 - [Roadmap](ROADMAP.md) — Current status, future goals, and progression toward AE equivalence.
 
