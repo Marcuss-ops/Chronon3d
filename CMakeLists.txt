@@ -361,7 +361,7 @@ target_precompile_headers(chronon3d_scene PRIVATE <glm/glm.hpp> <glm/gtc/matrix_
 # --- Aggregati Architetturali finali ---
 add_library(chronon3d_core INTERFACE)
 target_link_libraries(chronon3d_core INTERFACE
-    chronon3d_assets chronon3d_registry chronon3d_scene chronon3d_runtime chronon3d_graph chronon3d_cache $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_animations> chronon3d_core_impl $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_backend_video>
+    chronon3d_assets chronon3d_registry $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_scene> chronon3d_runtime chronon3d_graph chronon3d_cache $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_animations> chronon3d_core_impl $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_backend_video>
 )
 
 add_library(chronon3d_software INTERFACE)
