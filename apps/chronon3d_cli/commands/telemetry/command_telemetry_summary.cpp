@@ -21,7 +21,7 @@ RunSummary query_run_summary(sqlite3* db, const std::string& run_id) {
         "framebuffer_pool_hits, framebuffer_buffer_returned_to_pool_count, "
         "unaligned_memory_copies, frame_conversion_copy_ms, "
         "video_graph_eval_ms, video_conversion_ms, video_pipe_write_ms, video_ffmpeg_latency_ms, "
-        "io_queue_push_blocked_ms, io_queue_pop_wait_ms, io_queue_peak_depth, ffmpeg_pipe_write_blocked_ms, ffmpeg_flush_ms, "
+        "io_queue_push_blocked_ms, io_queue_pop_wait_ms, io_queue_peak_depth, ffmpeg_pipe_write_blocked_ms, converted_frame_cache_hits, ffmpeg_flush_ms, "
         "started_at_iso, finished_at_iso, git_commit_short, build_type, compiler_info, os, cpu_model, cores "
         "FROM render_runs WHERE run_id = ?;";
     sqlite3_stmt* stmt = nullptr;
@@ -89,15 +89,16 @@ RunSummary query_run_summary(sqlite3* db, const std::string& run_id) {
         run.io_queue_pop_wait_ms = static_cast<uint64_t>(sql_i64(stmt, 60));
         run.io_queue_peak_depth = static_cast<uint64_t>(sql_i64(stmt, 61));
         run.ffmpeg_pipe_write_blocked_ms = static_cast<uint64_t>(sql_i64(stmt, 62));
-        run.ffmpeg_flush_ms = static_cast<uint64_t>(sql_i64(stmt, 63));
-        run.started_at_iso = sql_text(stmt, 64);
-        run.finished_at_iso = sql_text(stmt, 65);
-        run.git_commit_short = sql_text(stmt, 66);
-        run.build_type = sql_text(stmt, 67);
-        run.compiler_info = sql_text(stmt, 68);
-        run.os = sql_text(stmt, 69);
-        run.cpu_model = sql_text(stmt, 70);
-        run.cores = static_cast<int>(sql_i64(stmt, 71));
+        run.converted_frame_cache_hits = static_cast<uint64_t>(sql_i64(stmt, 63));
+        run.ffmpeg_flush_ms = static_cast<uint64_t>(sql_i64(stmt, 64));
+        run.started_at_iso = sql_text(stmt, 65);
+        run.finished_at_iso = sql_text(stmt, 66);
+        run.git_commit_short = sql_text(stmt, 67);
+        run.build_type = sql_text(stmt, 68);
+        run.compiler_info = sql_text(stmt, 69);
+        run.os = sql_text(stmt, 70);
+        run.cpu_model = sql_text(stmt, 71);
+        run.cores = static_cast<int>(sql_i64(stmt, 72));
     }
     sqlite3_finalize(stmt);
     return run;

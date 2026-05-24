@@ -52,6 +52,7 @@ TEST_CASE("Telemetry Coherence: JSONL serializes all RenderTelemetryRecord timin
     run.io_queue_pop_wait_ms = 120;
     run.io_queue_peak_depth = 16;
     run.ffmpeg_pipe_write_blocked_ms = 130;
+    run.converted_frame_cache_hits = 131;
     run.ffmpeg_flush_ms = 140;
 
     // Also set basic counters
@@ -96,6 +97,7 @@ TEST_CASE("Telemetry Coherence: JSONL serializes all RenderTelemetryRecord timin
     CHECK(j["io_queue_pop_wait_ms"] == 120);
     CHECK(j["io_queue_peak_depth"] == 16);
     CHECK(j["ffmpeg_pipe_write_blocked_ms"] == 130);
+    CHECK(j["converted_frame_cache_hits"] == 131);
     CHECK(j["ffmpeg_flush_ms"] == 140);
 
     // Clear counters must be present with correct values
@@ -140,6 +142,7 @@ TEST_CASE("Telemetry Coherence: JSONL field names match semantic categories") {
     run.io_queue_pop_wait_ms = 1;
     run.io_queue_peak_depth = 1;
     run.ffmpeg_pipe_write_blocked_ms = 1;
+    run.converted_frame_cache_hits = 1;
     run.ffmpeg_flush_ms = 1;
     run.clear_skipped_calls = 1;
     run.clear_skipped_pixels = 1;
@@ -184,6 +187,7 @@ TEST_CASE("Telemetry Coherence: JSONL field names match semantic categories") {
 
     // FFmpeg pipe group
     CHECK(fields.count("ffmpeg_pipe_write_blocked_ms") == 1);
+    CHECK(fields.count("converted_frame_cache_hits") == 1);
     CHECK(fields.count("ffmpeg_flush_ms") == 1);
 
     file.close();

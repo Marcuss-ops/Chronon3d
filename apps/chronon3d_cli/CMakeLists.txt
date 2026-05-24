@@ -14,6 +14,8 @@ add_executable(chronon3d_cli
     utils/video/ffmpeg_pipe_encoder_uring.cpp
     utils/video/ffmpeg_pipe_command.cpp
     utils/video/ffmpeg_pipe_yuv.cpp
+    ${CMAKE_SOURCE_DIR}/src/video/frame_converter.cpp
+    ${CMAKE_SOURCE_DIR}/src/video/converted_frame_cache.cpp
     utils/job/render_job.cpp
     utils/job/render_job_write_frame.cpp
     utils/job/render_job_execute.cpp

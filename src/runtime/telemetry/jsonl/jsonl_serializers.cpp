@@ -81,6 +81,7 @@ nlohmann::json serialize_run(const RenderTelemetryRecord& run) {
     j["io_queue_pop_wait_ms"] = run.io_queue_pop_wait_ms;
     j["io_queue_peak_depth"] = run.io_queue_peak_depth;
     j["ffmpeg_pipe_write_blocked_ms"] = run.ffmpeg_pipe_write_blocked_ms;
+    j["converted_frame_cache_hits"] = run.converted_frame_cache_hits;
     j["ffmpeg_flush_ms"] = run.ffmpeg_flush_ms;
 
     // Benchmark times

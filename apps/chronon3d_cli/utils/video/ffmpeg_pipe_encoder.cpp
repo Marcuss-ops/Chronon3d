@@ -14,6 +14,20 @@
 
 namespace chronon3d::cli {
 
+namespace {
+
+[[nodiscard]] int encode_color_matrix_id(const FfmpegPipeOptions& options) {
+    switch (options.color_transform.output) {
+        case chronon3d::color::ColorSpace::Rec709:
+        case chronon3d::color::ColorSpace::SRGB:
+        case chronon3d::color::ColorSpace::LinearSRGB:
+        default:
+            return 0;
+    }
+}
+
+} // namespace
+
 bool FfmpegPipeEncoder::open(const FfmpegPipeOptions& options) {
     if (pipe_) {
         return false;
@@ -78,22 +92,53 @@ bool FfmpegPipeEncoder::write_frame(const Framebuffer& fb) {
     }
 
     uint8_t* target_buffer = nullptr;
-    size_t bytes_to_write = 0;
-    bool ok = false;
-    const u64 frame_digest = fb.key_digest();
-    const bool can_cache_frame = options_.pipe_writer != "io_uring" && frame_digest != 0;
-    const bool cache_hit = can_cache_frame &&
-        cached_frame_valid_ &&
-        cached_frame_digest_ == frame_digest &&
-        cached_frame_format_ == options_.input_format &&
-        cached_frame_size_ > 0;
+    size_t   bytes_to_write = 0;
+    bool     ok = false;
 
+    // ── Build cache key ────────────────────────────────────────────────────
+    const u64 frame_digest = fb.key_digest();
+    const video::EncoderPixelFormat enc_fmt = [&]() -> video::EncoderPixelFormat {
+        switch (options_.input_format) {
+            case PipePixelFormat::YUV420P: return video::EncoderPixelFormat::YUV420P;
+            case PipePixelFormat::NV12:    return video::EncoderPixelFormat::NV12;
+            default:                       return video::EncoderPixelFormat::RGB24;
+        }
+    }();
+
+    // io_uring path bypasses cache because ring buffers are recycled asynchronously.
+    const bool can_cache = (options_.pipe_writer != "io_uring") && (frame_digest != 0);
+
+    const video::ConvertedFrameCacheKey cache_key{
+        .framebuffer_digest = frame_digest,
+        .width              = options_.width,
+        .height             = options_.height,
+        .format             = enc_fmt,
+        .color_matrix       = encode_color_matrix_id(options_),
+        .apply_gamma        = options_.color_transform.apply_gamma,
+    };
+
+    // ── Cache lookup ────────────────────────────────────────────────────────
     const auto t_conv0 = std::chrono::high_resolution_clock::now();
-    if (cache_hit) {
-        target_buffer = cached_frame_bytes_.data();
-        bytes_to_write = cached_frame_size_;
-        ok = true;
-    } else {
+
+    if (can_cache) {
+        const auto* hit = frame_cache_.lookup(cache_key);
+        if (hit) {
+            target_buffer  = const_cast<uint8_t*>(hit->data.data());
+            bytes_to_write = hit->data_size;
+            ok = true;
+
+            // Cache hit: record hit count, NOT conversion time (no work done).
+            if (profiling::g_current_counters) {
+                profiling::g_current_counters->converted_frame_cache_hits
+                    .fetch_add(1, std::memory_order_relaxed);
+            }
+
+            goto do_pipe_write;
+        }
+    }
+
+    // ── Cache miss: actual conversion ───────────────────────────────────────
+    {
         switch (options_.input_format) {
             case PipePixelFormat::YUV420P: {
 #ifdef __linux__
@@ -109,19 +154,22 @@ bool FfmpegPipeEncoder::write_frame(const Framebuffer& fb) {
                     target_buffer = ring_buffers_[buf_idx].data();
                     ok = convert_framebuffer_to_yuv420p(fb, target_buffer);
                     if (ok) {
-                        ring_buffer_pending_[buf_idx] = true;
+                        ring_buffer_pending_[buf_idx]       = true;
                         ring_buffer_bytes_written_[buf_idx] = 0;
                         ring_buffer_index_ = (buf_idx + 1) % kRingEntries;
                     }
                 } else
 #endif
                 {
-                    const size_t req_size = static_cast<size_t>(options_.width) * static_cast<size_t>(options_.height) * 3u / 2u;
-                    cached_frame_bytes_.resize(req_size);
+                    const size_t req_size =
+                        static_cast<size_t>(options_.width) *
+                        static_cast<size_t>(options_.height) * 3u / 2u;
+                    if (cached_frame_bytes_.size() < req_size)
+                        cached_frame_bytes_.resize(req_size);
                     ok = convert_framebuffer_to_yuv420p(fb, cached_frame_bytes_.data());
                     if (ok) {
                         cached_frame_size_ = req_size;
-                        target_buffer = cached_frame_bytes_.data();
+                        target_buffer  = cached_frame_bytes_.data();
                         bytes_to_write = cached_frame_size_;
                     }
                 }
@@ -141,19 +189,22 @@ bool FfmpegPipeEncoder::write_frame(const Framebuffer& fb) {
                     target_buffer = ring_buffers_[buf_idx].data();
                     ok = convert_framebuffer_to_nv12(fb, target_buffer);
                     if (ok) {
-                        ring_buffer_pending_[buf_idx] = true;
+                        ring_buffer_pending_[buf_idx]       = true;
                         ring_buffer_bytes_written_[buf_idx] = 0;
                         ring_buffer_index_ = (buf_idx + 1) % kRingEntries;
                     }
                 } else
 #endif
                 {
-                    const size_t req_size = static_cast<size_t>(options_.width) * static_cast<size_t>(options_.height) * 3u / 2u;
-                    cached_frame_bytes_.resize(req_size);
+                    const size_t req_size =
+                        static_cast<size_t>(options_.width) *
+                        static_cast<size_t>(options_.height) * 3u / 2u;
+                    if (cached_frame_bytes_.size() < req_size)
+                        cached_frame_bytes_.resize(req_size);
                     ok = convert_framebuffer_to_nv12(fb, cached_frame_bytes_.data());
                     if (ok) {
                         cached_frame_size_ = req_size;
-                        target_buffer = cached_frame_bytes_.data();
+                        target_buffer  = cached_frame_bytes_.data();
                         bytes_to_write = cached_frame_size_;
                     }
                 }
@@ -173,19 +224,22 @@ bool FfmpegPipeEncoder::write_frame(const Framebuffer& fb) {
                     target_buffer = ring_buffers_[buf_idx].data();
                     ok = convert_framebuffer_to_rgba(fb, target_buffer);
                     if (ok) {
-                        ring_buffer_pending_[buf_idx] = true;
+                        ring_buffer_pending_[buf_idx]       = true;
                         ring_buffer_bytes_written_[buf_idx] = 0;
                         ring_buffer_index_ = (buf_idx + 1) % kRingEntries;
                     }
                 } else
 #endif
                 {
-                    const size_t req_size = static_cast<size_t>(options_.width) * static_cast<size_t>(options_.height) * 4u;
-                    cached_frame_bytes_.resize(req_size);
+                    const size_t req_size =
+                        static_cast<size_t>(options_.width) *
+                        static_cast<size_t>(options_.height) * 4u;
+                    if (cached_frame_bytes_.size() < req_size)
+                        cached_frame_bytes_.resize(req_size);
                     ok = convert_framebuffer_to_rgba(fb, cached_frame_bytes_.data());
                     if (ok) {
                         cached_frame_size_ = req_size;
-                        target_buffer = cached_frame_bytes_.data();
+                        target_buffer  = cached_frame_bytes_.data();
                         bytes_to_write = cached_frame_size_;
                     }
                 }
@@ -195,21 +249,25 @@ bool FfmpegPipeEncoder::write_frame(const Framebuffer& fb) {
                 return false;
         }
 
-        if (ok && !use_uring_) {
-            cached_frame_digest_ = frame_digest;
-            cached_frame_format_ = options_.input_format;
-            cached_frame_valid_ = true;
-        }
-    }
-    const auto t_conv1 = std::chrono::high_resolution_clock::now();
-    if (profiling::g_current_counters) {
+        const auto t_conv1 = std::chrono::high_resolution_clock::now();
         const auto conv_ms = static_cast<uint64_t>(
             std::chrono::duration<double, std::milli>(t_conv1 - t_conv0).count());
-        profiling::g_current_counters->frame_conversion_copy_ms.fetch_add(conv_ms,
-            std::memory_order_relaxed);
-        profiling::g_current_counters->video_conversion_ms.fetch_add(conv_ms,
-            std::memory_order_relaxed);
+        if (profiling::g_current_counters) {
+            // video_conversion_ms = only real conversion work (cache misses).
+            profiling::g_current_counters->video_conversion_ms
+                .fetch_add(conv_ms, std::memory_order_relaxed);
+            profiling::g_current_counters->frame_conversion_copy_ms
+                .fetch_add(conv_ms, std::memory_order_relaxed);
+        }
+
+        // Store in LRU cache for future frames.
+        if (ok && can_cache && !use_uring_) {
+            frame_cache_.insert(cache_key, target_buffer, bytes_to_write);
+        }
     }
+
+do_pipe_write:
+    ++current_frame_;
 
     if (!ok) {
         return false;
@@ -221,7 +279,12 @@ bool FfmpegPipeEncoder::write_frame(const Framebuffer& fb) {
         const auto t_write0 = std::chrono::high_resolution_clock::now();
         bool written = write_uring(prev_idx, ring_buffer_size_);
         const auto t_write1 = std::chrono::high_resolution_clock::now();
-        total_write_blocked_ms_ += std::chrono::duration<double, std::milli>(t_write1 - t_write0).count();
+        const auto write_ms = std::chrono::duration<double, std::milli>(t_write1 - t_write0).count();
+        total_write_blocked_ms_ += write_ms;
+        if (profiling::g_current_counters) {
+            profiling::g_current_counters->video_pipe_write_ms.fetch_add(
+                static_cast<uint64_t>(write_ms), std::memory_order_relaxed);
+        }
         if (!written) return false;
     } else
 #endif
@@ -229,7 +292,12 @@ bool FfmpegPipeEncoder::write_frame(const Framebuffer& fb) {
         const auto t_write0 = std::chrono::high_resolution_clock::now();
         size_t res = std::fwrite(target_buffer, 1, bytes_to_write, pipe_);
         const auto t_write1 = std::chrono::high_resolution_clock::now();
-        total_write_blocked_ms_ += std::chrono::duration<double, std::milli>(t_write1 - t_write0).count();
+        const auto write_ms = std::chrono::duration<double, std::milli>(t_write1 - t_write0).count();
+        total_write_blocked_ms_ += write_ms;
+        if (profiling::g_current_counters) {
+            profiling::g_current_counters->video_pipe_write_ms.fetch_add(
+                static_cast<uint64_t>(write_ms), std::memory_order_relaxed);
+        }
         if (res != bytes_to_write) {
             return false;
         }

@@ -143,7 +143,7 @@ void ensure_csv_header(std::ofstream& out, const std::filesystem::path& path) {
                "framebuffer_pool_miss_count_size_mismatch,framebuffer_pool_miss_count_empty,framebuffer_pool_hits,"
                "framebuffer_buffer_returned_to_pool_count,unaligned_memory_copies,frame_conversion_copy_ms,"
                "video_graph_eval_ms,video_conversion_ms,video_pipe_write_ms,video_ffmpeg_latency_ms,"
-               "io_queue_push_blocked_ms,io_queue_pop_wait_ms,io_queue_peak_depth,ffmpeg_pipe_write_blocked_ms,ffmpeg_flush_ms\n";
+               "io_queue_push_blocked_ms,io_queue_pop_wait_ms,io_queue_peak_depth,ffmpeg_pipe_write_blocked_ms,converted_frame_cache_hits,ffmpeg_flush_ms\n";
     }
 }
 
@@ -157,7 +157,7 @@ bool csv_header_matches(const std::filesystem::path& path) {
     if (!std::getline(in, header)) {
         return true;
     }
-    return header == "ts,run_id,event,frame,w,h,total_ms,setup_ms,composite_ms,blur_ms,encode_ms,ram_mb,cache_hit,layer_count,cache_hits,cache_misses,nodes_executed,clear_skipped_calls,clear_skipped_pixels,clear_calls,clear_pixels,composite_calls,composite_pixels,transform_calls,transform_pixels,effect_stack_calls,effect_pixels,text_glyphs_rasterized,framebuffer_allocations,framebuffer_reuses,dirty_full_fallbacks,dirty_full_fallback_predicted_bounds_missing,dirty_full_fallback_composite_missing_input_bounds,dirty_full_fallback_transform_bounds_unknown,dirty_full_fallback_effect_bounds_unknown,framebuffer_acquire_ms,framebuffer_clear_ms,clearnode_ms,framebuffer_pool_clear_ms,framebuffer_enqueue_ms,framebuffer_pool_miss_count_size_mismatch,framebuffer_pool_miss_count_empty,framebuffer_pool_hits,framebuffer_buffer_returned_to_pool_count,unaligned_memory_copies,frame_conversion_copy_ms,video_graph_eval_ms,video_conversion_ms,video_pipe_write_ms,video_ffmpeg_latency_ms,io_queue_push_blocked_ms,io_queue_pop_wait_ms,io_queue_peak_depth,ffmpeg_pipe_write_blocked_ms,ffmpeg_flush_ms";
+    return header == "ts,run_id,event,frame,w,h,total_ms,setup_ms,composite_ms,blur_ms,encode_ms,ram_mb,cache_hit,layer_count,cache_hits,cache_misses,nodes_executed,clear_skipped_calls,clear_skipped_pixels,clear_calls,clear_pixels,composite_calls,composite_pixels,transform_calls,transform_pixels,effect_stack_calls,effect_pixels,text_glyphs_rasterized,framebuffer_allocations,framebuffer_reuses,dirty_full_fallbacks,dirty_full_fallback_predicted_bounds_missing,dirty_full_fallback_composite_missing_input_bounds,dirty_full_fallback_transform_bounds_unknown,dirty_full_fallback_effect_bounds_unknown,framebuffer_acquire_ms,framebuffer_clear_ms,clearnode_ms,framebuffer_pool_clear_ms,framebuffer_enqueue_ms,framebuffer_pool_miss_count_size_mismatch,framebuffer_pool_miss_count_empty,framebuffer_pool_hits,framebuffer_buffer_returned_to_pool_count,unaligned_memory_copies,frame_conversion_copy_ms,video_graph_eval_ms,video_conversion_ms,video_pipe_write_ms,video_ffmpeg_latency_ms,io_queue_push_blocked_ms,io_queue_pop_wait_ms,io_queue_peak_depth,ffmpeg_pipe_write_blocked_ms,converted_frame_cache_hits,ffmpeg_flush_ms";
 }
 
 void migrate_legacy_csv(const std::filesystem::path& path) {

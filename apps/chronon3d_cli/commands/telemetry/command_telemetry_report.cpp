@@ -179,6 +179,7 @@ void generate_telemetry_report(std::stringstream& out, sqlite3* db, const std::s
     out << "| Metric | Value |\n";
     out << "| --- | --- |\n";
     out << "| ffmpeg pipe write blocked | " << format_ms(run.ffmpeg_pipe_write_blocked_ms) << " |\n";
+    out << "| converted frame cache hits | " << run.converted_frame_cache_hits << " |\n";
     out << "| ffmpeg flush | " << format_ms(run.ffmpeg_flush_ms) << " |\n";
     out << "| video ffmpeg latency | " << format_ms(run.video_ffmpeg_latency_ms) << " |\n\n";
 

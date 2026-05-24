@@ -122,6 +122,9 @@ public:
         return result;
     }
 
+    // ── Accessor for graph optimization ─────────────────────────────────
+    [[nodiscard]] BlendMode blend_mode() const { return m_mode; }
+
 private:
     BlendMode m_mode;
     Frame m_cache_frame{-1};

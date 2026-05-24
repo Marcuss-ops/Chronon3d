@@ -1,9 +1,37 @@
 #include <chronon3d/render_graph/optimizer/graph_optimizer.hpp>
 #include <chronon3d/render_graph/nodes/transform_node.hpp>
+#include <chronon3d/render_graph/nodes/effect_stack_node.hpp>
+#include <chronon3d/render_graph/nodes/adjustment_node.hpp>
 #include <algorithm>
+#include <stack>
 #include <unordered_set>
 
 namespace chronon3d::graph::optimizer {
+
+// ── Helper: count consumers of a node ───────────────────────────────────
+static size_t count_consumers(const RenderGraph& graph, GraphNodeId id) {
+    size_t count = 0;
+    for (GraphNodeId n = 0; n < static_cast<GraphNodeId>(graph.size()); ++n) {
+        if (!graph.has_node(n)) continue;
+        for (GraphNodeId in : graph.inputs(n)) {
+            if (in == id) ++count;
+        }
+    }
+    return count;
+}
+
+// ── Helper: build consumer counts vector ────────────────────────────────
+static std::vector<size_t> build_consumer_counts(const RenderGraph& graph) {
+    const size_t n = graph.size();
+    std::vector<size_t> consumers(n, 0);
+    for (GraphNodeId id = 0; id < static_cast<GraphNodeId>(n); ++id) {
+        if (!graph.has_node(id)) continue;
+        for (GraphNodeId in : graph.inputs(id)) {
+            if (in < n) consumers[in]++;
+        }
+    }
+    return consumers;
+}
 
 // ── Helper: check if two transform nodes can be fused ───────────────────
 static bool can_fuse_transforms(const RenderGraph& graph, GraphNodeId child_id) {
@@ -23,33 +51,125 @@ static bool can_fuse_transforms(const RenderGraph& graph, GraphNodeId child_id) 
     return true;
 }
 
-// ── Helper: count consumers of a node ───────────────────────────────────
-static size_t count_consumers(const RenderGraph& graph, GraphNodeId id) {
-    size_t count = 0;
-    for (GraphNodeId n = 0; n < static_cast<GraphNodeId>(graph.size()); ++n) {
-        if (!graph.has_node(n)) continue;
-        for (GraphNodeId in : graph.inputs(n)) {
-            if (in == id) ++count;
-        }
-    }
-    return count;
+static bool is_effect_like(RenderGraphNodeKind kind) {
+    return kind == RenderGraphNodeKind::Effect || kind == RenderGraphNodeKind::Adjustment;
 }
 
-// ── Fusion main: actually rewires the graph ─────────────────────────────
+static EffectStack* effect_stack_mut(RenderGraphNode& node) {
+    if (auto* effect = dynamic_cast<EffectStackNode*>(&node)) {
+        return &effect->effects();
+    }
+    if (auto* adjustment = dynamic_cast<AdjustmentNode*>(&node)) {
+        return &adjustment->effects();
+    }
+    return nullptr;
+}
+
+// ── Pass: eliminate unreachable nodes ───────────────────────────────────
+// Removes all nodes that cannot be reached from the graph's output node.
+// This is a purely topological pass with no semantic knowledge; it is safe
+// to run first so that subsequent passes operate on a minimal graph.
+size_t eliminate_dead_nodes(RenderGraph& graph) {
+    if (!graph.has_output()) return 0;
+
+    const size_t node_count = graph.size();
+    std::vector<bool> reachable(node_count, false);
+    std::vector<GraphNodeId> stack{graph.output()};
+
+    while (!stack.empty()) {
+        GraphNodeId id = stack.back();
+        stack.pop_back();
+        if (id >= node_count || reachable[id] || !graph.has_node(id)) continue;
+        reachable[id] = true;
+        for (GraphNodeId in : graph.inputs(id)) {
+            stack.push_back(in);
+        }
+    }
+
+    size_t removed = 0;
+    for (GraphNodeId id = static_cast<GraphNodeId>(node_count) - 1; ; --id) {
+        if (graph.has_node(id) && !reachable[id]) {
+            graph.remove_node(id);
+            ++removed;
+        }
+        if (id == 0) break;
+    }
+    return removed;
+}
+
+// ── Pass: fuse adjacent effect-like nodes ────────────────────────────────
+// When two effect-like nodes (EffectStackNode or AdjustmentNode) are chained
+// parent → child with a single consumer on the parent and matching
+// frame_dependent, the parent's effect list is prepended into the child and
+// the parent is removed.
+// This eliminates one intermediate framebuffer per fused pair.
+size_t fuse_effect_stacks(RenderGraph& graph) {
+    const size_t node_count = graph.size();
+    if (node_count < 2) return 0;
+
+    std::vector<bool> absorbed(node_count, false);
+    auto consumers = build_consumer_counts(graph);
+
+    for (GraphNodeId child_id = 0; child_id < static_cast<GraphNodeId>(node_count); ++child_id) {
+        if (absorbed[child_id]) continue;
+        if (!graph.has_node(child_id)) continue;
+
+        auto& child_node = graph.node(child_id);
+        if (!is_effect_like(child_node.kind())) continue;
+
+        auto* child_effect = effect_stack_mut(child_node);
+        if (!child_effect) continue;
+
+        const auto& inputs = graph.inputs(child_id);
+        if (inputs.size() != 1) continue;
+
+        GraphNodeId parent_id = inputs[0];
+        if (absorbed[parent_id]) continue;
+        if (!graph.has_node(parent_id)) continue;
+
+        auto& parent_node = graph.node(parent_id);
+        if (!is_effect_like(parent_node.kind())) continue;
+
+        auto* parent_effect = effect_stack_mut(parent_node);
+        if (!parent_effect) continue;
+
+        // Must share the same frame_dependent policy
+        if (parent_node.frame_dependent() != child_node.frame_dependent()) continue;
+
+        // Only safe to absorb if parent has exactly 1 consumer
+        if (consumers[parent_id] != 1) continue;
+
+        // Merge: parent effects run first, so prepend them before child's effects
+        child_effect->insert(child_effect->begin(), parent_effect->begin(), parent_effect->end());
+
+        // Rewire: child adopts parent's inputs
+        const auto grandparent_inputs = graph.inputs(parent_id); // copy — will be modified
+        graph.disconnect(parent_id, child_id);
+        for (GraphNodeId gp_id : grandparent_inputs) {
+            graph.connect(gp_id, child_id);
+        }
+
+        absorbed[parent_id] = true;
+        consumers[parent_id] = 0;
+    }
+
+    for (GraphNodeId id = static_cast<GraphNodeId>(node_count) - 1; ; --id) {
+        if (absorbed[id]) graph.remove_node(id);
+        if (id == 0) break;
+    }
+
+    size_t fused = 0;
+    for (bool a : absorbed) if (a) ++fused;
+    return fused;
+}
+
+// ── Pass: fuse adjacent Transform nodes ─────────────────────────────────
 size_t fuse_nodes(RenderGraph& graph) {
     const size_t node_count = graph.size();
     if (node_count < 2) return 0;
 
     std::vector<bool> absorbed(node_count, false);
-
-    // Build consumer counts
-    std::vector<size_t> consumers(node_count, 0);
-    for (GraphNodeId n = 0; n < static_cast<GraphNodeId>(node_count); ++n) {
-        if (!graph.has_node(n)) continue;
-        for (GraphNodeId in : graph.inputs(n)) {
-            if (in < node_count) consumers[in]++;
-        }
-    }
+    auto consumers = build_consumer_counts(graph);
 
     for (GraphNodeId child_id = 0; child_id < static_cast<GraphNodeId>(node_count); ++child_id) {
         if (absorbed[child_id]) continue;
@@ -70,7 +190,7 @@ size_t fuse_nodes(RenderGraph& graph) {
         child_node->set_opacity(combined_opacity);
 
         // Rewire: child now takes parent's inputs instead of parent
-        const auto& grandparent_inputs = graph.inputs(parent_id);
+        const auto grandparent_inputs = graph.inputs(parent_id); // copy
         graph.disconnect(parent_id, child_id);
         for (GraphNodeId gp_id : grandparent_inputs) {
             graph.connect(gp_id, child_id);
@@ -80,11 +200,8 @@ size_t fuse_nodes(RenderGraph& graph) {
         consumers[parent_id] = 0;
     }
 
-    // Remove absorbed nodes (reverse iteration to avoid ID shifts in the bitmap)
     for (GraphNodeId id = static_cast<GraphNodeId>(node_count) - 1; ; --id) {
-        if (absorbed[id]) {
-            graph.remove_node(id);
-        }
+        if (absorbed[id]) graph.remove_node(id);
         if (id == 0) break;
     }
 
@@ -93,7 +210,8 @@ size_t fuse_nodes(RenderGraph& graph) {
     return fused_count;
 }
 
-// ── Branch pruning: remove identity transforms and empty-bbox nodes ─────
+// ── Pass: branch pruning ─────────────────────────────────────────────────
+// Removes identity transforms and nodes with empty predicted bbox.
 size_t prune_branches(RenderGraph& graph, const RenderGraphContext& ctx) {
     const size_t node_count = graph.size();
     if (node_count < 2) return 0;
@@ -160,21 +278,17 @@ size_t prune_branches(RenderGraph& graph, const RenderGraphContext& ctx) {
         }
     }
 
-    // Remove pruned nodes
     for (GraphNodeId id = static_cast<GraphNodeId>(node_count) - 1; ; --id) {
-        if (pruned[id]) {
-            graph.remove_node(id);
-        }
+        if (pruned[id]) graph.remove_node(id);
         if (id == 0) break;
     }
 
     return pruned_count;
 }
 
-// ── Count nodes eligible for static bake (those with static inputs and
-//     cache policies). The actual baking/persistence happens lazily during
-//     first execution via the node cache + PersistentBakeCache.
-// ─────────────────────────────────────────────────────────────────────────
+// ── Pass: count static bake eligible nodes ───────────────────────────────
+// The actual baking/persistence happens lazily during first execution via
+// the node cache + PersistentBakeCache.
 size_t count_bake_eligible_nodes(
     RenderGraph&           graph,
     const RenderGraphContext& ctx)
@@ -208,6 +322,12 @@ size_t count_bake_eligible_nodes(
 }
 
 // ── Main optimization entry point ───────────────────────────────────────
+// Pass order:
+//  1. eliminate_dead_nodes  — reduce graph to reachable nodes only
+//  2. count_bake_eligible   — read-only, no mutations
+//  3. fuse_effect_stacks    — merge consecutive EffectStackNode pairs
+//  4. fuse_nodes            — merge consecutive TransformNode pairs
+//  5. prune_branches        — remove identity nodes + empty-bbox subtrees
 OptimizationResult optimize_graph(
     RenderGraph&           graph,
     const RenderGraphContext& ctx,
@@ -216,8 +336,16 @@ OptimizationResult optimize_graph(
     OptimizationResult result;
     result.nodes_before = graph.size();
 
+    if (config.enable_dead_node_elimination) {
+        result.dead_nodes_removed = eliminate_dead_nodes(graph);
+    }
+
     if (config.enable_static_bake) {
         result.static_bakes = count_bake_eligible_nodes(graph, ctx);
+    }
+
+    if (config.enable_effect_fusion) {
+        result.effects_fused = fuse_effect_stacks(graph);
     }
 
     if (config.enable_node_fusion) {
