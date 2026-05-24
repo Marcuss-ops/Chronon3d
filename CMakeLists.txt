@@ -124,6 +124,7 @@ set(CHRONON3D_CACHE_SOURCES
     src/cache/node_cache.cpp
     src/cache/disk_node_cache.cpp
     src/cache/framebuffer_pool.cpp
+    src/cache/video_frame_cache.cpp
 )
 add_library(chronon3d_cache STATIC ${CHRONON3D_CACHE_SOURCES})
 target_link_libraries(chronon3d_cache PUBLIC chronon3d xxHash::xxhash)
@@ -240,6 +241,15 @@ target_link_libraries(chronon3d_backend_assets PUBLIC chronon3d chronon3d_backen
 target_include_directories(chronon3d_backend_assets PRIVATE ${Stb_INCLUDE_DIR})
 
 
+# Video Export Backend
+set(CHRONON3D_BACKEND_VIDEO_SOURCES
+    src/backends/video/video_export.cpp
+    src/backends/video/video_source.cpp
+)
+add_library(chronon3d_backend_video STATIC ${CHRONON3D_BACKEND_VIDEO_SOURCES})
+target_link_libraries(chronon3d_backend_video PUBLIC chronon3d chronon3d_cache spdlog::spdlog_header_only fmt::fmt TBB::tbb hwy::hwy)
+target_include_directories(chronon3d_backend_video PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+
 # Software Renderer Backend
 set(CHRONON3D_BACKEND_SOFTWARE_SOURCES
     src/backends/software/primitive_renderer.cpp
@@ -355,7 +365,7 @@ target_link_libraries(chronon3d_core INTERFACE
 
 add_library(chronon3d_software INTERFACE)
 target_link_libraries(chronon3d_software INTERFACE
-    $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_backend_software> chronon3d_backend_assets chronon3d_backend_image
+    $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_backend_software> chronon3d_backend_assets chronon3d_backend_image chronon3d_backend_video
 )
 
 add_library(chronon3d_pipeline INTERFACE)

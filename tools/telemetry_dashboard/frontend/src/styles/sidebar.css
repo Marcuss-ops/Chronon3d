@@ -1,20 +1,85 @@
-/* Sidebar styles */
+/* ── Peek trigger strip (sempre visibile sul bordo sinistro) ── */
+.sidebar-peek-trigger {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 14px;
+  height: 100vh;
+  z-index: 999;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.sidebar-peek-trigger:hover {
+  background: rgba(139, 92, 246, 0.25);
+  box-shadow: 0 0 12px rgba(139, 92, 246, 0.3);
+}
+
+/* ── Sidebar (fixed, slide laterale) ── */
 .sidebar {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 998;
+  width: 320px;
+  height: 100vh;
   display: flex;
   flex-direction: column;
   border-right: 1px solid var(--border-color);
-  background: rgba(15, 11, 28, 0.85);
-  height: 100%;
+  background: rgba(15, 11, 28, 0.96);
   overflow: hidden;
-  transition: var(--transition-smooth);
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.35s ease;
+  transform: translateX(0);
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.4);
 }
 
+.sidebar.hidden {
+  transform: translateX(-100%);
+  box-shadow: none;
+  pointer-events: none; /* evita click accidentali quando nascosta */
+}
+
+/* Contenuto interno — scrollabile */
 .sidebar-header {
-  padding: 24px;
+  padding: 20px 24px;
   border-bottom: 1px solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-shrink: 0;
+  gap: 8px;
+}
+
+/* ── Pin button ── */
+.pin-btn {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  border-radius: 6px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 0.95rem;
+  transition: var(--transition-smooth);
+  outline: none;
+  flex-shrink: 0;
+}
+
+.pin-btn:hover {
+  border-color: var(--color-accent);
+  color: var(--text-primary);
+  box-shadow: 0 0 8px var(--color-accent-glow);
+}
+
+.pin-btn.pinned {
+  background: var(--color-accent-glow);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  box-shadow: 0 0 10px rgba(236, 72, 153, 0.3);
 }
 
 .brand {
@@ -24,7 +89,7 @@
 }
 
 .brand-logo {
-  font-size: 1.5rem;
+  font-size: 1.35rem;
   font-weight: 800;
   background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
   -webkit-background-clip: text;
@@ -32,7 +97,7 @@
 }
 
 .brand-badge {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   padding: 2px 8px;
   background: var(--color-primary-glow);
   color: var(--text-primary);
@@ -45,6 +110,7 @@
 .sidebar-search {
   padding: 12px 16px;
   border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
 }
 
 .search-input {
@@ -134,28 +200,6 @@
   justify-content: space-between;
 }
 
-.collapse-btn {
-  background: transparent;
-  border: 1px solid var(--border-color);
-  color: var(--text-secondary);
-  border-radius: 6px;
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  font-size: 0.75rem;
-  transition: var(--transition-smooth);
-  outline: none;
-}
-
-.collapse-btn:hover {
-  border-color: var(--color-primary);
-  color: var(--text-primary);
-  box-shadow: 0 0 6px var(--color-primary-glow);
-}
-
 .compare-small-btn {
   margin-top: 10px;
   width: 100%;
@@ -195,4 +239,23 @@
   background: var(--color-accent-glow);
   color: var(--color-accent);
   border: 1px solid var(--color-accent);
+}
+
+/* ── Hint bar in fondo alla sidebar ── */
+.sidebar-auto-hint {
+  flex-shrink: 0;
+  padding: 8px 16px;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  text-align: center;
+  border-top: 1px solid var(--border-color);
+  cursor: pointer;
+  user-select: none;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.sidebar-auto-hint:hover {
+  opacity: 1;
+  color: var(--text-secondary);
 }

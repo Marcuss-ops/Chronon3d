@@ -20,10 +20,18 @@ void draw_text_shadow(SoftwareRenderer& renderer, Framebuffer& fb, const RenderN
     {
         std::lock_guard<std::mutex> lock(g_text_shadow_cache_mutex);
         auto cached = get_shadow_cache().get(key);
-        if (cached) shadow_cache = *cached;
+        if (cached) {
+            shadow_cache = *cached;
+            if (profiling::g_current_counters) {
+                profiling::g_current_counters->text_shadow_cache_hits.fetch_add(1, std::memory_order_relaxed);
+            }
+        }
     }
 
     if (!shadow_cache) {
+        if (profiling::g_current_counters) {
+            profiling::g_current_counters->text_shadow_cache_misses.fetch_add(1, std::memory_order_relaxed);
+        }
         BLImage shadow_img;
         shadow_img.create(raster.image.width(), raster.image.height(), BL_FORMAT_PRGB32);
         {

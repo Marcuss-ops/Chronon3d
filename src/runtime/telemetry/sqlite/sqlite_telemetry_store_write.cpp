@@ -9,7 +9,7 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
     std::scoped_lock lock(m_impl->mutex);
     if (!m_impl->db) return false;
 
-    // Named-column INSERT: column order matches telemetry_schema.sql exactly (59 columns)
+    // Named-column INSERT: column order matches telemetry_schema.sql exactly (66 columns)
     const char* sql =
         "INSERT OR REPLACE INTO render_runs ("
         "run_id, composition_id, output_path, success, error_code, error_message, "
@@ -29,6 +29,9 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
         "dirty_full_fallback_composite_missing_input_bounds, "
         "dirty_full_fallback_transform_bounds_unknown, "
         "dirty_full_fallback_effect_bounds_unknown, "
+        "chronon_render_only_ms, chronon_conversion_copy_ms, chronon_queue_wait_ms, "
+        "chronon_render_throughput_ms, ffmpeg_encode_total_ms, ffmpeg_flush_close_ms, "
+        "e2e_wall_ms, "
         "started_at_iso, finished_at_iso, git_commit_short, build_type, "
         "compiler_info, os, cpu_model, cores"
         ") VALUES ("
@@ -37,7 +40,8 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
         "?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, "
         "?31, ?32, ?33, ?34, ?35, ?36, ?37, ?38, ?39, ?40, "
         "?41, ?42, ?43, ?44, ?45, ?46, ?47, ?48, ?49, ?50, "
-        "?51, ?52, ?53, ?54, ?55, ?56, ?57, ?58, ?59"
+        "?51, ?52, ?53, ?54, ?55, ?56, ?57, ?58, ?59, ?60, "
+        "?61, ?62, ?63, ?64, ?65, ?66"
         ");";
     sqlite3_stmt* stmt{nullptr};
     if (sqlite3_prepare_v2(m_impl->db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
@@ -98,14 +102,23 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
     sqlite3_bind_int64(stmt, 50, run.dirty_full_fallback_transform_bounds_unknown);
     sqlite3_bind_int64(stmt, 51, run.dirty_full_fallback_effect_bounds_unknown);
 
-    sqlite3_bind_text(stmt, 52, run.started_at_iso.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 53, run.finished_at_iso.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 54, run.git_commit_short.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 55, run.build_type.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 56, run.compiler_info.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 57, run.os.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 58, run.cpu_model.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_int(stmt, 59, run.cores);
+    sqlite3_bind_double(stmt, 52, run.chronon_render_only_ms);
+    sqlite3_bind_double(stmt, 53, run.chronon_conversion_copy_ms);
+    sqlite3_bind_double(stmt, 54, run.chronon_queue_wait_ms);
+    sqlite3_bind_double(stmt, 55, run.chronon_render_throughput_ms);
+    sqlite3_bind_double(stmt, 56, run.ffmpeg_encode_total_ms);
+    sqlite3_bind_double(stmt, 57, run.ffmpeg_flush_close_ms);
+    sqlite3_bind_double(stmt, 58, run.e2e_wall_ms);
+
+    sqlite3_bind_text(stmt, 59, run.started_at_iso.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 60, run.finished_at_iso.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 61, run.git_commit_short.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 62, run.build_type.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 63, run.compiler_info.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 64, run.os.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 65, run.cpu_model.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int(stmt, 66, run.cores);
+
 
     int rc = sqlite3_step(stmt);
     sqlite3_finalize(stmt);

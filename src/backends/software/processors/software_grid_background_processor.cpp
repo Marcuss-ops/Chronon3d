@@ -1,6 +1,6 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/software/shape_processor.hpp>
-#include <chronon3d/core/profiling.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/math/raster_utils.hpp>
 #include <tbb/parallel_for.h>
 
@@ -86,10 +86,7 @@ public:
             }
         }
 
-        const i32 draw_x1 = std::max(clip.x0, clip.x1 - 1);
-        const i32 draw_y1 = std::max(clip.y0, clip.y1 - 1);
-
-        tbb::parallel_for(tbb::blocked_range<i32>(clip.y0, draw_y1), [&](const tbb::blocked_range<i32>& range) {
+        tbb::parallel_for(tbb::blocked_range<i32>(clip.y0, clip.y1), [&](const tbb::blocked_range<i32>& range) {
             for (i32 y = range.begin(); y != range.end(); ++y) {
                 Color* row = fb.pixels_row(y);
                 const f32 gy = static_cast<f32>(y) - origin_y - offset_y;
@@ -98,7 +95,7 @@ public:
                 const f32 row_minor = line_weight(minor_dy, minor_thickness);
                 const f32 row_major = line_weight(major_dy, major_thickness);
 
-                for (i32 x = clip.x0; x < draw_x1; ++x) {
+                for (i32 x = clip.x0; x < clip.x1; ++x) {
                     if (mask_pixels) {
                         if (x < 0 || x >= mask_w || y < 0 || y >= mask_h) {
                             continue;

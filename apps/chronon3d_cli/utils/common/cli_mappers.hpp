@@ -1,7 +1,6 @@
 #pragma once
 
 #include <chronon3d/animations/camera_motion.hpp>
-#include <chronon3d/backends/video/video_encoder.hpp>
 #include <string>
 #include <algorithm>
 #include <optional>
@@ -20,31 +19,6 @@ inline std::optional<animation::MotionAxis> parse_motion_axis(const std::string&
     if (lower == "tilt") return animation::MotionAxis::Tilt;
     if (lower == "pan") return animation::MotionAxis::Pan;
     if (lower == "roll") return animation::MotionAxis::Roll;
-    return std::nullopt;
-}
-
-inline std::optional<video::HardwareEncoder> parse_hardware_encoder(const std::string& value) {
-    std::string lower = lower_copy(value);
-
-    if (lower == "none" || lower == "software" || lower == "off") {
-        return video::HardwareEncoder::None;
-    }
-    if (lower == "auto") {
-        return video::HardwareEncoder::Auto;
-    }
-    if (lower == "nvenc") {
-        return video::HardwareEncoder::Nvenc;
-    }
-    if (lower == "qsv") {
-        return video::HardwareEncoder::Qsv;
-    }
-    if (lower == "videotoolbox" || lower == "vt") {
-        return video::HardwareEncoder::VideoToolbox;
-    }
-    if (lower == "amf") {
-        return video::HardwareEncoder::Amf;
-    }
-
     return std::nullopt;
 }
 

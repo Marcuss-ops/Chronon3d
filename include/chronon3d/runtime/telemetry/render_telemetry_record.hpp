@@ -73,6 +73,17 @@ struct RenderTelemetryRecord {
     uint64_t framebuffer_buffer_returned_to_pool_count{0};
     uint64_t frame_conversion_copy_ms{0};
 
+    // ── Chronon Render Throughput Benchmark (pure Chronon pipeline) ──
+    double chronon_render_only_ms{0.0};     // graph + cache + pixel ops (excl. conversion/copy/queue)
+    double chronon_conversion_copy_ms{0.0};   // pixel conversion + copy for encoder
+    double chronon_queue_wait_ms{0.0};        // time render thread blocked on full queue
+    double chronon_render_throughput_ms{0.0}; // chronon_render_only + conversion_copy + queue_wait
+
+    // ── End-to-End Export Benchmark (incl. FFmpeg) ──
+    double ffmpeg_encode_total_ms{0.0};   // FFmpeg pipe write blocked (codec + pipe I/O)
+    double ffmpeg_flush_close_ms{0.0};    // FFmpeg flush + mux + file close after render loop
+    double e2e_wall_ms{0.0};              // total wall time (setup + render + encode + close)
+
     // Host & environment specs
     std::string started_at_iso;
     std::string finished_at_iso;

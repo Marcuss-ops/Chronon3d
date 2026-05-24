@@ -190,6 +190,11 @@ int render_and_encode_ffmpeg_pipe(
                 *renderer, node_cache, render_opts, &registry, video_decoder, comp, current_frame);
             
             const auto frame_t1 = std::chrono::steady_clock::now();
+            if (renderer->counters()) {
+                renderer->counters()->video_graph_eval_ms.fetch_add(
+                    static_cast<uint64_t>(std::chrono::duration<double, std::milli>(frame_t1 - frame_t0).count()),
+                    std::memory_order_relaxed);
+            }
             const double dirty_ratio = sw_renderer ? sw_renderer->last_dirty_area_ratio() : 1.0;
 
             if (!fb) {
@@ -234,8 +239,18 @@ int render_and_encode_ffmpeg_pipe(
     auto tile_events = chronon3d::telemetry::collect_tile_telemetry();
 
     const double write_blocked_ms = pipe.total_write_blocked_ms();
+    const double conv_copy_ms = static_cast<double>(renderer->counters()->frame_conversion_copy_ms.load());
+    // Store per-run total counters for benchmark separation
+    if (renderer->counters()) {
+        renderer->counters()->video_pipe_write_ms.store(
+            static_cast<uint64_t>(write_blocked_ms),
+            std::memory_order_relaxed);
+        renderer->counters()->video_ffmpeg_latency_ms.store(
+            static_cast<uint64_t>(queue_wait_ms_total),
+            std::memory_order_relaxed);
+    }
     spdlog::info("[video] FFmpeg pipe write blocked duration: {:.2f} ms", write_blocked_ms);
-    spdlog::info("[video_diag] conversion_and_copy_duration_ms: {} ms", renderer->counters()->frame_conversion_copy_ms.load());
+    spdlog::info("[video_diag] conversion_and_copy_duration_ms: {} ms", conv_copy_ms);
     spdlog::info("[video] FFmpeg queue wait duration: {:.2f} ms", queue_wait_ms_total);
 
     if (!pipe.close()) {
@@ -247,12 +262,34 @@ int render_and_encode_ffmpeg_pipe(
     render_ms = std::chrono::duration<double, std::milli>(render_t1 - render_t0).count();
     const double encode_ms = std::chrono::duration<double, std::milli>(wall_t1 - render_t1).count();
     const double wall_time_ms = std::chrono::duration<double, std::milli>(wall_t1 - wall_t0).count();
+
+    // ── Benchmark breakdown calculations ──
+    // chronon_render_only_ms = render loop minus queue wait and conversion/copy
+    const double chronon_render_only_ms = render_ms - queue_wait_ms_total - conv_copy_ms;
+    const double chronon_queue_wait_ms = queue_wait_ms_total;
+    const double chronon_conversion_copy_ms = conv_copy_ms;
+    const double ffmpeg_encode_total_ms = write_blocked_ms;
+    // ffmpeg_flush_close = time from render_t1 to wall_t1 (includes pipe.close())
+    const double ffmpeg_flush_close_ms = std::chrono::duration<double, std::milli>(wall_t1 - render_t1).count();
+
+    spdlog::info("[benchmark_chronon] render_only={:.2f}ms  conv_copy={:.2f}ms  queue_wait={:.2f}ms  throughput={:.2f}ms",
+                 chronon_render_only_ms, chronon_conversion_copy_ms, chronon_queue_wait_ms,
+                 chronon_render_only_ms + chronon_conversion_copy_ms + chronon_queue_wait_ms);
+    spdlog::info("[benchmark_e2e] ffmpeg_encode={:.2f}ms  ffmpeg_flush_close={:.2f}ms  wall={:.2f}ms",
+                 ffmpeg_encode_total_ms, ffmpeg_flush_close_ms, wall_time_ms);
+
     std::sort(telemetry_frames.begin(), telemetry_frames.end(),
               [](const auto& a, const auto& b) { return a.frame_number < b.frame_number; });
     const auto phases = std::vector<chronon3d::telemetry::PhaseTelemetryRecord>{
         {"setup_renderer", std::chrono::duration<double, std::milli>(setup_t1 - setup_t0).count()},
         {"rendering_loop", std::chrono::duration<double, std::milli>(render_t1 - render_t0).count()},
         {"encoding", encode_ms},
+        {"chronon_render_only_ms", chronon_render_only_ms},
+        {"chronon_conversion_copy_ms", chronon_conversion_copy_ms},
+        {"chronon_queue_wait_ms", chronon_queue_wait_ms},
+        {"ffmpeg_encode_total_ms", ffmpeg_encode_total_ms},
+        {"ffmpeg_flush_close_ms", ffmpeg_flush_close_ms},
+        {"e2e_wall_ms", wall_time_ms},
     };
     auto resolved_counters = telemetry::capture_counters(*renderer->counters());
     resolved_counters.push_back({"ffmpeg_pipe_write_blocked_duration_ms", static_cast<uint64_t>(std::llround(write_blocked_ms))});
