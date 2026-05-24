@@ -204,6 +204,16 @@ template <typename T>
             seed = hash_combine(seed, hash_bytes(s.image.path.data(), s.image.path.size()));
             seed = hash_combine(seed, hash_vec2(s.image.size));
             return hash_combine(seed, hash_bytes(&s.image.opacity, sizeof(f32)));
+        case ShapeType::GridBackground:
+            seed = hash_combine(seed, hash_vec2(s.grid_background.size));
+            seed = hash_combine(seed, hash_vec2(s.grid_background.offset));
+            seed = hash_combine(seed, hash_color(s.grid_background.bg_color));
+            seed = hash_combine(seed, hash_color(s.grid_background.grid_color));
+            seed = hash_combine(seed, hash_bytes(&s.grid_background.spacing, sizeof(f32)));
+            seed = hash_combine(seed, hash_bytes(&s.grid_background.minor_thickness, sizeof(f32)));
+            seed = hash_combine(seed, hash_bytes(&s.grid_background.major_thickness, sizeof(f32)));
+            seed = hash_combine(seed, hash_bytes(&s.grid_background.major_every, sizeof(i32)));
+            return hash_combine(seed, hash_bytes(&s.grid_background.centered, sizeof(bool)));
         case ShapeType::Text:
             seed = hash_combine(seed, hash_bytes(s.text.text.data(), s.text.text.size()));
             seed = hash_combine(seed, hash_bytes(s.text.style.font_path.data(), s.text.style.font_path.size()));

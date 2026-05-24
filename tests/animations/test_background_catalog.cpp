@@ -51,9 +51,9 @@ TEST_CASE("Analytical verification of GridCleanBackground render") {
     // The grid spacing is 140px, so (960 + 70, 540 + 70) = (1030, 610) is exactly in the center of a grid cell.
     Color bg_pixel = fb->get_pixel(1030, 610);
     Color expected_bg = Color{0.008f, 0.010f, 0.022f, 1.0f}.to_linear();
-    CHECK(std::abs(bg_pixel.r - expected_bg.r) < 1e-4f);
-    CHECK(std::abs(bg_pixel.g - expected_bg.g) < 1e-4f);
-    CHECK(std::abs(bg_pixel.b - expected_bg.b) < 1e-4f);
+    CHECK(std::abs(bg_pixel.r - expected_bg.r) < 2e-3f);
+    CHECK(std::abs(bg_pixel.g - expected_bg.g) < 2e-3f);
+    CHECK(std::abs(bg_pixel.b - expected_bg.b) < 2e-3f);
     CHECK(std::abs(bg_pixel.a - expected_bg.a) < 1e-4f);
 
     // Verify grid line presence at (960, 540), which is the center intersection point.

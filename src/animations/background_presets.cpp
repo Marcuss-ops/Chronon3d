@@ -6,7 +6,6 @@
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/camera/camera_2_5d.hpp>
-
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
@@ -38,30 +37,20 @@ const BackgroundCatalog& builtin_background_catalog_storage() {
 }
 
 void render_grid_clean(SceneBuilder& s, const FrameContext& ctx, const BackgroundOptions& opt) {
-    const float offset_x = ctx.effective_frame() * 2.0f;
-    
-    // Set camera for P2 Scroll optimization to pick up the integer shift
-    s.camera().set({
-        .enabled = true,
-        .position = {offset_x, 0.0f, -1000.0f},
-        .point_of_interest = {offset_x, 0.0f, 0.0f},
-        .point_of_interest_enabled = true,
-        .zoom = 1000.0f,
-    });
+    GridBackgroundParams grid_params{};
+    grid_params.size = {1920.0f, 1080.0f};
+    grid_params.offset = {0.0f, 0.0f}; // static and perfectly symmetric
+    grid_params.bg_color = opt.background;
+    grid_params.grid_color = opt.accent.with_alpha(std::max(0.15f, opt.accent.a * opt.intensity));
+    grid_params.spacing = 240.0f; // fewer lines (less dense)
+    grid_params.minor_thickness = 1.25f;
+    grid_params.major_thickness = 2.75f;
+    grid_params.major_every = 4;
+    grid_params.centered = true;
 
-    s.layer("grid_clean_base", [opt](LayerBuilder& l) {
+    s.layer("grid_clean_lines", [grid_params](LayerBuilder& l) {
         l.cache_static();
-        l.fullscreen_rect("bg", opt.background);
-    });
-
-    // P1: Use a single tiled image node for the grid lines.
-    // This is infinitely efficient as it replaces hundreds of nodes with one.
-    // The tiling logic in the renderer handles the infinite grid look.
-    s.layer("grid_clean_lines", [opt](LayerBuilder& l) {
-        l.tiled_image("grid", ImageParams{
-            .path = "assets/images/grid_tile.png",
-            .size = {140.0f, 140.0f}
-        });
+        l.grid_background("grid", grid_params);
     });
 }
 
@@ -127,7 +116,7 @@ Composition grid_clean_background() {
         SceneBuilder s(ctx);
         api::BackgroundOptions opt;
         opt.background = Color{0.008f, 0.010f, 0.022f, 1.0f};
-        opt.accent = Color{0.25f, 0.52f, 1.0f, 0.05f}; // subtle blue grid lines
+        opt.accent = Color{1.0f, 1.0f, 1.0f, 0.08f}; // subtle white grid lines
         opt.glow = Color{0.0f, 0.0f, 0.0f, 0.0f};
         api::render_builtin_background(s, ctx, "grid_clean", opt);
         return s.build();

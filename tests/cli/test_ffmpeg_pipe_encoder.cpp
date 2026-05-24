@@ -15,7 +15,7 @@ TEST_CASE("RGBA to YUV420P buffer sizes are correct") {
         .width = 4,
         .height = 4,
         .fps = 1,
-        .output_path = "/dev/null",
+        .output_path = "/tmp/test_out.mp4",
         .input_format = PipePixelFormat::YUV420P,
     };
     REQUIRE(enc.open(opts));
@@ -35,7 +35,7 @@ TEST_CASE("YUV420P conversion produces correct plane sizes for 4x4") {
         .width = 4,
         .height = 4,
         .fps = 1,
-        .output_path = "/dev/null",
+        .output_path = "/tmp/test_out.mp4",
         .input_format = PipePixelFormat::YUV420P,
     };
     REQUIRE(enc.open(opts));
@@ -55,15 +55,11 @@ TEST_CASE("YUV420P conversion fails for odd dimensions") {
         .width = 3,
         .height = 3,
         .fps = 1,
-        .output_path = "/dev/null",
+        .output_path = "/tmp/test_out.mp4",
         .input_format = PipePixelFormat::YUV420P,
     };
-    REQUIRE(enc.open(opts));
-
-    // YUV420P requires even dimensions
-    CHECK_FALSE(enc.convert_framebuffer_to_yuv420p(fb));
-
-    enc.close();
+    // Opening with odd dimensions under YUV420P must fail early
+    REQUIRE_FALSE(enc.open(opts));
 }
 
 TEST_CASE("build_ffmpeg_raw_pipe_command contains rawvideo input settings") {
@@ -114,7 +110,7 @@ TEST_CASE("ffmpeg raw pipe command includes configured pixel formats") {
     opt.preset = "ultrafast";
     opt.output_path = "out.mp4";
     opt.input_format = PipePixelFormat::RGBA;
-    opt.output_pix_fmt = "yuv420p";
+    opt.output_pix_fmt = "rgb24";
 
     const auto cmd = build_ffmpeg_raw_pipe_command(opt);
 
@@ -123,4 +119,22 @@ TEST_CASE("ffmpeg raw pipe command includes configured pixel formats") {
     CHECK(cmd.find("-r 30") != std::string::npos);
     CHECK(cmd.find("-c:v libx264") != std::string::npos);
     CHECK(cmd.find("-preset ultrafast") != std::string::npos);
+    CHECK(cmd.find("-pix_fmt rgb24") != std::string::npos);
+}
+
+TEST_CASE("ffmpeg raw pipe command respects raw input formats") {
+    FfmpegPipeOptions opt;
+    opt.width = 1280;
+    opt.height = 720;
+    opt.fps = 60;
+    opt.codec = "libx264";
+    opt.preset = "veryfast";
+    opt.output_path = "out.mp4";
+    opt.input_format = PipePixelFormat::YUV420P;
+
+    const auto cmd = build_ffmpeg_raw_pipe_command(opt);
+
+    // It should configure both the input format and output format to yuv420p
+    CHECK(cmd.find("-pix_fmt yuv420p") != std::string::npos);
+    CHECK(cmd.find("-pix_fmt rgba") == std::string::npos);
 }

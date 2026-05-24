@@ -95,6 +95,24 @@ RenderNode RenderNodeFactory::tiled_image(std::pmr::memory_resource* res, std::s
     return node;
 }
 
+RenderNode RenderNodeFactory::grid_background(std::pmr::memory_resource* res, std::string name, const GridBackgroundParams& p) {
+    auto node = base(res, std::move(name));
+    node.shape.type = ShapeType::GridBackground;
+    node.shape.grid_background.size = p.size;
+    node.shape.grid_background.offset = p.offset;
+    node.shape.grid_background.bg_color = p.bg_color;
+    node.shape.grid_background.grid_color = p.grid_color;
+    node.shape.grid_background.spacing = p.spacing;
+    node.shape.grid_background.minor_thickness = p.minor_thickness;
+    node.shape.grid_background.major_thickness = p.major_thickness;
+    node.shape.grid_background.major_every = p.major_every;
+    node.shape.grid_background.centered = p.centered;
+    node.world_transform.position = {0.0f, 0.0f, 0.0f};
+    node.world_transform.anchor = {0.0f, 0.0f, 0.0f};
+    node.color = p.bg_color;
+    return node;
+}
+
 RenderNode RenderNodeFactory::text(std::pmr::memory_resource* res, std::string name, TextParams p) {
     auto node = base(res, std::move(name));
     node.shape.type = ShapeType::Text;

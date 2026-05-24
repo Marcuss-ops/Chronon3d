@@ -59,6 +59,7 @@ private:
     uint64_t frames_written_{0};
     uint64_t bytes_written_{0};
     double total_write_blocked_ms_{0.0};
+    bool pipe_failed_{false};
 
 #ifdef __linux__
     bool use_uring_{false};
