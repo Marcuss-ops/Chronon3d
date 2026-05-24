@@ -58,15 +58,24 @@ inline std::vector<chronon3d::telemetry::CounterTelemetryRecord> capture_counter
                 .load(std::memory_order_relaxed)},
         {"framebuffer_acquire_ms", counters.framebuffer_acquire_ms.load(std::memory_order_relaxed)},
         {"framebuffer_clear_ms", counters.framebuffer_clear_ms.load(std::memory_order_relaxed)},
+        {"clearnode_ms", counters.clearnode_ms.load(std::memory_order_relaxed)},
+        {"framebuffer_pool_clear_ms", counters.framebuffer_pool_clear_ms.load(std::memory_order_relaxed)},
         {"framebuffer_enqueue_ms", counters.framebuffer_enqueue_ms.load(std::memory_order_relaxed)},
         {"framebuffer_pool_miss_count_size_mismatch", counters.framebuffer_pool_miss_count_size_mismatch.load(std::memory_order_relaxed)},
         {"framebuffer_pool_miss_count_empty", counters.framebuffer_pool_miss_count_empty.load(std::memory_order_relaxed)},
+        {"framebuffer_pool_hits", counters.framebuffer_pool_hits.load(std::memory_order_relaxed)},
         {"framebuffer_buffer_returned_to_pool_count", counters.framebuffer_buffer_returned_to_pool_count.load(std::memory_order_relaxed)},
+        {"unaligned_memory_copies", counters.unaligned_memory_copies.load(std::memory_order_relaxed)},
         {"frame_conversion_copy_ms", counters.frame_conversion_copy_ms.load(std::memory_order_relaxed)},
         {"video_graph_eval_ms", counters.video_graph_eval_ms.load(std::memory_order_relaxed)},
         {"video_conversion_ms", counters.video_conversion_ms.load(std::memory_order_relaxed)},
         {"video_pipe_write_ms", counters.video_pipe_write_ms.load(std::memory_order_relaxed)},
         {"video_ffmpeg_latency_ms", counters.video_ffmpeg_latency_ms.load(std::memory_order_relaxed)},
+        {"io_queue_push_blocked_ms", counters.io_queue_push_blocked_ms.load(std::memory_order_relaxed)},
+        {"io_queue_pop_wait_ms", counters.io_queue_pop_wait_ms.load(std::memory_order_relaxed)},
+        {"io_queue_peak_depth", counters.io_queue_peak_depth.load(std::memory_order_relaxed)},
+        {"ffmpeg_pipe_write_blocked_ms", counters.ffmpeg_pipe_write_blocked_ms.load(std::memory_order_relaxed)},
+        {"ffmpeg_flush_ms", counters.ffmpeg_flush_ms.load(std::memory_order_relaxed)},
     };
 }
 
@@ -101,15 +110,24 @@ inline void add_counters(chronon3d::RenderCounters& dst, const chronon3d::Render
     dst.framebuffer_reuses.fetch_add(src.framebuffer_reuses.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.framebuffer_acquire_ms.fetch_add(src.framebuffer_acquire_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.framebuffer_clear_ms.fetch_add(src.framebuffer_clear_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.clearnode_ms.fetch_add(src.clearnode_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.framebuffer_pool_clear_ms.fetch_add(src.framebuffer_pool_clear_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.framebuffer_enqueue_ms.fetch_add(src.framebuffer_enqueue_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.framebuffer_pool_miss_count_size_mismatch.fetch_add(src.framebuffer_pool_miss_count_size_mismatch.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.framebuffer_pool_miss_count_empty.fetch_add(src.framebuffer_pool_miss_count_empty.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.framebuffer_pool_hits.fetch_add(src.framebuffer_pool_hits.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.framebuffer_buffer_returned_to_pool_count.fetch_add(src.framebuffer_buffer_returned_to_pool_count.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.unaligned_memory_copies.fetch_add(src.unaligned_memory_copies.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.frame_conversion_copy_ms.fetch_add(src.frame_conversion_copy_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.video_graph_eval_ms.fetch_add(src.video_graph_eval_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.video_conversion_ms.fetch_add(src.video_conversion_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.video_pipe_write_ms.fetch_add(src.video_pipe_write_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.video_ffmpeg_latency_ms.fetch_add(src.video_ffmpeg_latency_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.io_queue_push_blocked_ms.fetch_add(src.io_queue_push_blocked_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.io_queue_pop_wait_ms.fetch_add(src.io_queue_pop_wait_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.io_queue_peak_depth.fetch_add(src.io_queue_peak_depth.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.ffmpeg_pipe_write_blocked_ms.fetch_add(src.ffmpeg_pipe_write_blocked_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.ffmpeg_flush_ms.fetch_add(src.ffmpeg_flush_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.framebuffer_bytes_allocated.fetch_add(src.framebuffer_bytes_allocated.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.framebuffer_bytes_peak.fetch_add(src.framebuffer_bytes_peak.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.dirty_rect_count.fetch_add(src.dirty_rect_count.load(std::memory_order_relaxed), std::memory_order_relaxed);
@@ -228,11 +246,24 @@ inline void record_output_run(const std::string& composition_id,
                 .load(std::memory_order_relaxed);
         run.framebuffer_acquire_ms = counters_src->framebuffer_acquire_ms.load(std::memory_order_relaxed);
         run.framebuffer_clear_ms = counters_src->framebuffer_clear_ms.load(std::memory_order_relaxed);
+        run.clearnode_ms = counters_src->clearnode_ms.load(std::memory_order_relaxed);
+        run.framebuffer_pool_clear_ms = counters_src->framebuffer_pool_clear_ms.load(std::memory_order_relaxed);
         run.framebuffer_enqueue_ms = counters_src->framebuffer_enqueue_ms.load(std::memory_order_relaxed);
         run.framebuffer_pool_miss_count_size_mismatch = counters_src->framebuffer_pool_miss_count_size_mismatch.load(std::memory_order_relaxed);
         run.framebuffer_pool_miss_count_empty = counters_src->framebuffer_pool_miss_count_empty.load(std::memory_order_relaxed);
+        run.framebuffer_pool_hits = counters_src->framebuffer_pool_hits.load(std::memory_order_relaxed);
         run.framebuffer_buffer_returned_to_pool_count = counters_src->framebuffer_buffer_returned_to_pool_count.load(std::memory_order_relaxed);
+        run.unaligned_memory_copies = counters_src->unaligned_memory_copies.load(std::memory_order_relaxed);
         run.frame_conversion_copy_ms = counters_src->frame_conversion_copy_ms.load(std::memory_order_relaxed);
+        run.video_graph_eval_ms = counters_src->video_graph_eval_ms.load(std::memory_order_relaxed);
+        run.video_conversion_ms = counters_src->video_conversion_ms.load(std::memory_order_relaxed);
+        run.video_pipe_write_ms = counters_src->video_pipe_write_ms.load(std::memory_order_relaxed);
+        run.video_ffmpeg_latency_ms = counters_src->video_ffmpeg_latency_ms.load(std::memory_order_relaxed);
+        run.io_queue_push_blocked_ms = counters_src->io_queue_push_blocked_ms.load(std::memory_order_relaxed);
+        run.io_queue_pop_wait_ms = counters_src->io_queue_pop_wait_ms.load(std::memory_order_relaxed);
+        run.io_queue_peak_depth = counters_src->io_queue_peak_depth.load(std::memory_order_relaxed);
+        run.ffmpeg_pipe_write_blocked_ms = counters_src->ffmpeg_pipe_write_blocked_ms.load(std::memory_order_relaxed);
+        run.ffmpeg_flush_ms = counters_src->ffmpeg_flush_ms.load(std::memory_order_relaxed);
 
         run.chronon_conversion_copy_ms = counters_src->frame_conversion_copy_ms.load(std::memory_order_relaxed);
     }

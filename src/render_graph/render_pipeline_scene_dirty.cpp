@@ -6,6 +6,7 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
+#include <chronon3d/core/dirty_fallback_reason.hpp>
 #include "builder/graph_builder_internal.hpp"
 #include "builder/graph_builder_pipeline.hpp"
 #include "render_pipeline_scene_internal.hpp"
@@ -137,6 +138,18 @@ DirtyRectOutput compute_dirty_rect(
                 const auto& rl = resolved.layers[i];
                 if (rl.layer && rl.layer->active_at(frame)) {
                     raster::BBox bbox = compute_bbox_for_resolved(rl, cam25d);
+
+                    // ── Check whether this layer is safe for dirty rects ─
+                    // Effects like blur, non-Normal blend modes, and active masks
+                    // bleed outside the geometric bbox — force full-frame for safety.
+                    if (!is_safe_for_dirty_rects(*rl.layer, settings.motion_blur.enabled)) {
+                        bbox = raster::BBox{0, 0, width, height};
+                        if (ctx.counters) {
+                            ctx.counters->increment_dirty_full_fallback_reason(
+                                DirtyFallbackReason::EffectBoundsUnknown);
+                        }
+                    }
+
                     SoftwareRenderer::LayerBBoxState state;
                     state.bbox = bbox;
                     state.world_matrix = rl.world_matrix;
