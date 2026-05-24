@@ -244,7 +244,7 @@ HWY_ATTR void convert_f32_rgba_to_yuv420p_simd_rows_impl(
     // row ranges can alias and overwrite the same chroma line twice.
     if (u_ptr && v_ptr) {
         const int uv_row_begin = std::max((y_start + 1) & ~1, 0);
-        const int uv_row_end = std::min(y_end, height - 1) & ~1;
+        const int uv_row_end = std::min(y_end, height) & ~1;
         const int uv_width = width / 2;
 
         for (int y = uv_row_begin; y < uv_row_end; y += 2) {
@@ -306,7 +306,7 @@ HWY_ATTR void convert_f32_rgba_to_nv12_simd_rows_impl(
     
     // UV Interleaved
     const int uv_row_begin = std::max((y_start + 1) & ~1, 0);
-    const int uv_row_end = std::min(y_end, height - 1) & ~1;
+    const int uv_row_end = std::min(y_end, height) & ~1;
     const int uv_width = width / 2;
 
     for (int y = uv_row_begin; y < uv_row_end; y += 2) {
