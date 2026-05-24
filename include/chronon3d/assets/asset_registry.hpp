@@ -1,7 +1,7 @@
 #pragma once
 
 #include <chronon3d/assets/asset_metadata.hpp>
-#include <chronon3d/core/types.hpp>
+#include <chronon3d/core/types/types.hpp>
 #include <filesystem>
 #include <optional>
 #include <stdexcept>

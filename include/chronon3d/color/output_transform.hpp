@@ -20,7 +20,7 @@
 // Future: add ACEScg, Display P3, and LUT-based transforms here.
 // ---------------------------------------------------------------------------
 
-#include <chronon3d/core/types.hpp>
+#include <chronon3d/core/types/types.hpp>
 #include <chronon3d/math/color.hpp>
 #include <algorithm>
 #include <array>

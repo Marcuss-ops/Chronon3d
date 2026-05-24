@@ -17,10 +17,10 @@
 #include <chronon3d/backends/video/video_frame_decoder.hpp>
 #include <chronon3d/scene/scene.hpp>
 #include <chronon3d/timeline/composition.hpp>
-#include <chronon3d/core/frame.hpp>
+#include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/scene/camera/camera.hpp>
-#include <chronon3d/core/trace.hpp>
-#include <chronon3d/core/counters.hpp>
+#include <chronon3d/core/profiling/trace.hpp>
+#include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/render_graph/scene_hasher.hpp>
 
 #include <memory>

@@ -1,10 +1,10 @@
 #include "render_job_detail.hpp"
 
-#include <chronon3d/core/framebuffer.hpp>
-#include <chronon3d/core/render_telemetry.hpp>
-#include <chronon3d/core/profiling.hpp>
+#include <chronon3d/core/memory/framebuffer.hpp>
+#include <chronon3d/core/telemetry/render_telemetry.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/runtime/renderer_warmup.hpp>
-#include <chronon3d/core/trace.hpp>
+#include <chronon3d/core/profiling/trace.hpp>
 #include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
 
 #include <fmt/format.h>

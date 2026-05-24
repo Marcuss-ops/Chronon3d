@@ -1,9 +1,9 @@
 #include "render_job_detail.hpp"
 
 #include <chronon3d/backends/image/image_writer.hpp>
-#include <chronon3d/core/render_telemetry.hpp>
-#include <chronon3d/core/profiling.hpp>
-#include <chronon3d/core/trace.hpp>
+#include <chronon3d/core/telemetry/render_telemetry.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/core/profiling/trace.hpp>
 
 #include <spdlog/spdlog.h>
 

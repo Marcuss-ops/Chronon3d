@@ -2,7 +2,7 @@
 #include <chronon3d/backends/software/software_node_dispatcher.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/software/software_registry.hpp>
-#include <chronon3d/core/framebuffer.hpp>
+#include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/scene/layer/render_node.hpp>
 #include <chronon3d/math/transform.hpp>
 

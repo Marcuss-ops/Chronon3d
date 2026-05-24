@@ -3,7 +3,7 @@
 #include <chronon3d/scene/scene.hpp>
 #include <chronon3d/scene/camera/camera.hpp>
 #include <chronon3d/scene/camera/camera_2_5d.hpp>
-#include <chronon3d/core/framebuffer.hpp>
+#include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/timeline/composition.hpp>
 
 #include <memory>

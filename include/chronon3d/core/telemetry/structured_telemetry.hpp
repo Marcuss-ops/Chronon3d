@@ -1,7 +1,7 @@
 #pragma once
 
-#include <chronon3d/core/trace.hpp>
-#include <chronon3d/core/counters.hpp>
+#include <chronon3d/core/profiling/trace.hpp>
+#include <chronon3d/core/profiling/counters.hpp>
 #include <string>
 #include <vector>
 #include <memory>

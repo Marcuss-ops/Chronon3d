@@ -1,7 +1,7 @@
 #pragma once
 
-#include <chronon3d/core/types.hpp>
-#include <chronon3d/core/time.hpp>
+#include <chronon3d/core/types/types.hpp>
+#include <chronon3d/core/types/time.hpp>
 #include <chronon3d/description/layer_desc.hpp>
 #include <chronon3d/description/camera_desc.hpp>
 #include <optional>

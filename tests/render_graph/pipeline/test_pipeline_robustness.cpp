@@ -3,8 +3,9 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/cache/node_cache.hpp>
-#include <chronon3d/core/trace.hpp>
+#include <chronon3d/core/profiling/trace.hpp>
 #include <chronon3d/render_graph/nodes/source_node.hpp>
+#include <chronon3d/render_graph/nodes/multi_source_node.hpp>
 #include <chronon3d/scene/render_node_factory.hpp>
 #include <cmath>
 

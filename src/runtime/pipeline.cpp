@@ -1,7 +1,7 @@
 #include <chronon3d/runtime/pipeline.hpp>
 #include <taskflow/taskflow.hpp>
-#include <chronon3d/core/profiling.hpp>
-#include <chronon3d/core/render_telemetry.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/core/telemetry/render_telemetry.hpp>
 
 namespace chronon3d {
 

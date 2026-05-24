@@ -1,6 +1,6 @@
 #include "software_text_processor_internal.hpp"
 #include "../utils/blend2d_bridge.hpp"
-#include <chronon3d/core/profiling.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <spdlog/spdlog.h>
 #include <glm/gtc/matrix_transform.hpp>
 

@@ -1,8 +1,8 @@
 #include <doctest/doctest.h>
 
 #include <chronon3d/cache/framebuffer_pool.hpp>
-#include <chronon3d/core/trace.hpp>
-#include <chronon3d/core/counters.hpp>
+#include <chronon3d/core/profiling/trace.hpp>
+#include <chronon3d/core/profiling/counters.hpp>
 
 using namespace chronon3d;
 using namespace chronon3d::cache;

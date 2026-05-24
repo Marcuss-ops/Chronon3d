@@ -1,7 +1,7 @@
 #include <doctest/doctest.h>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
-#include <chronon3d/core/frame_context.hpp>
+#include <chronon3d/core/types/frame_context.hpp>
 
 using namespace chronon3d;
 

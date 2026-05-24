@@ -1,8 +1,8 @@
 #include "video_export_common.hpp"
-#include <chronon3d/core/framebuffer.hpp>
+#include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/framebuffer_arena.hpp>
 #include <chronon3d/core/triple_buffer_arena.hpp>
-#include <chronon3d/core/profiling.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/render_graph/render_pipeline.hpp>
 #include <spdlog/spdlog.h>
 #include <chrono>

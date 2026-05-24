@@ -1,6 +1,6 @@
 #include <doctest/doctest.h>
 #include <chronon3d/api/composition.hpp>
-#include <chronon3d/core/composition_registry.hpp>
+#include <chronon3d/core/composition/composition_registry.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/backends/image/stb_image_backend.hpp>

@@ -1,6 +1,6 @@
 #include <doctest/doctest.h>
 #include <chronon3d/backends/image/image_writer.hpp>
-#include <chronon3d/core/framebuffer.hpp>
+#include <chronon3d/core/memory/framebuffer.hpp>
 
 #include <OpenEXR/ImfInputFile.h>
 #include <OpenEXR/ImfChannelList.h>

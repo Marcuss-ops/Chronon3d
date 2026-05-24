@@ -1,7 +1,7 @@
 #pragma once
 
 #include <chronon3d/animation/easing.hpp>
-#include <chronon3d/core/time.hpp>
+#include <chronon3d/core/types/time.hpp>
 #include <algorithm>
 
 namespace chronon3d {

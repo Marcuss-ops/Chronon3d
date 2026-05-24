@@ -1,6 +1,6 @@
 #pragma once
 
-#include <chronon3d/core/render_telemetry.hpp>
+#include <chronon3d/core/telemetry/render_telemetry.hpp>
 #include <nlohmann/json.hpp>
 #include <string>
 

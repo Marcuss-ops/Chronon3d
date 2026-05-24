@@ -3,7 +3,7 @@
 #include "render_job.hpp"
 
 #include <chronon3d/backends/software/software_renderer.hpp>
-#include <chronon3d/core/frame.hpp>
+#include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/runtime/telemetry/render_telemetry_record.hpp>
 
 #include <string>

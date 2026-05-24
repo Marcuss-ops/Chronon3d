@@ -12,8 +12,8 @@
 #include <chronon3d/api/composition.hpp>
 #include <chronon3d/api/scene.hpp>
 #include <chronon3d/api/renderer.hpp>
-#include <chronon3d/core/frame_context.hpp>
-#include <chronon3d/core/composition_registration.hpp>
+#include <chronon3d/core/types/frame_context.hpp>
+#include <chronon3d/core/composition/composition_registration.hpp>
 #include <chronon3d/scene/camera/camera_motion_presets.hpp>
 #include <algorithm>
 #include <cmath>

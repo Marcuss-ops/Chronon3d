@@ -1,5 +1,5 @@
 #include <doctest/doctest.h>
-#include <chronon3d/core/benchmark_report.hpp>
+#include <chronon3d/core/profiling/benchmark_report.hpp>
 #include <nlohmann/json.hpp>
 #include <sstream>
 

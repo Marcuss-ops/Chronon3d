@@ -2,7 +2,7 @@
 
 #include <chronon3d/cache/framebuffer_pool.hpp>
 #include <chronon3d/timeline/composition.hpp>
-#include <chronon3d/core/frame.hpp>
+#include <chronon3d/core/types/frame.hpp>
 
 #include <memory>
 #include <string>

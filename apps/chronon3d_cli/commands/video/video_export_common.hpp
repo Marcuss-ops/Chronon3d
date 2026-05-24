@@ -7,7 +7,7 @@
 #include "../../utils/video/ffmpeg_pipe_encoder.hpp"
 #include "../../utils/telemetry/telemetry_run.hpp"
 #include <chronon3d/backends/image/image_writer.hpp>
-#include <chronon3d/core/render_telemetry.hpp>
+#include <chronon3d/core/telemetry/render_telemetry.hpp>
 #include <chronon3d/presets/camera_motion_clip.hpp>
 #include <chronon3d/runtime/renderer_warmup.hpp>
 #include <string>

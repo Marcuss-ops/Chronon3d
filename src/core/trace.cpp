@@ -1,4 +1,4 @@
-#include <chronon3d/core/trace.hpp>
+#include <chronon3d/core/profiling/trace.hpp>
 #include <fstream>
 #include <sstream>
 #include <nlohmann/json.hpp>

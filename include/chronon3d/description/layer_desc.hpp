@@ -2,8 +2,8 @@
 
 #include <chronon3d/animation/animated_value.hpp>
 #include <chronon3d/math/vec3.hpp>
-#include <chronon3d/core/types.hpp>
-#include <chronon3d/core/frame.hpp>
+#include <chronon3d/core/types/types.hpp>
+#include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/scene/layer/depth_role.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/description/visual_desc.hpp>

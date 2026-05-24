@@ -1,7 +1,7 @@
 #pragma once
 
-#include <chronon3d/core/framebuffer.hpp>
-#include <chronon3d/core/memory_utils.hpp>
+#include <chronon3d/core/memory/framebuffer.hpp>
+#include <chronon3d/core/memory/memory_utils.hpp>
 #include <mutex>
 #include <vector>
 #include <cstdint>

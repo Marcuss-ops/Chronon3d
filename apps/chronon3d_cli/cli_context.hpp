@@ -1,6 +1,6 @@
 #pragma once
 
-#include <chronon3d/core/composition_registry.hpp>
+#include <chronon3d/core/composition/composition_registry.hpp>
 
 namespace chronon3d::cli {
 
