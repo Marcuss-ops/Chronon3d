@@ -80,6 +80,7 @@ struct RunSummary {
     uint64_t io_queue_pop_wait_ms{0};
     uint64_t io_queue_peak_depth{0};
     uint64_t ffmpeg_pipe_write_blocked_ms{0};
+    uint64_t converted_frame_cache_hits{0};
     uint64_t ffmpeg_flush_ms{0};
 };
 

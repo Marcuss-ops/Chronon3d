@@ -12,7 +12,10 @@ RenderGraph GraphBuilder::build(const Scene& scene, const RenderGraphContext& ct
     auto mutable_ctx = ctx;
     const auto resolved = detail::resolve_layers(scene, mutable_ctx);
     auto graph = detail::build_graph(scene, mutable_ctx, resolved);
-    std::ignore = optimizer::optimize_graph(graph, mutable_ctx);
+    // NOTE: this path is used by diagnostic/tooling callers (analyze_scene_graph,
+    // debug_scene_graph).  The hot render path uses render_pipeline_scene.cpp which
+    // already calls optimize_graph() and logs the result.
+    optimizer::optimize_graph(graph, mutable_ctx);
     return graph;
 }
 

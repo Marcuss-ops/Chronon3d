@@ -4,6 +4,8 @@
 #include <chronon3d/render_graph/render_graph.hpp>
 #include <chronon3d/render_graph/render_graph_node.hpp>
 #include <chronon3d/render_graph/nodes/transform_node.hpp>
+#include <chronon3d/render_graph/nodes/effect_stack_node.hpp>
+#include <chronon3d/render_graph/nodes/adjustment_node.hpp>
 #include <chronon3d/cache/node_cache.hpp>
 
 using namespace chronon3d;
@@ -69,6 +71,30 @@ static RenderGraph make_chain_of_transforms(int count, bool identity = false) {
 
     graph.set_output(prev);
     return graph;
+}
+
+static EffectStack make_blur_stack(f32 radius) {
+    EffectStack stack;
+    stack.emplace_back(BlurParams{radius});
+    return stack;
+}
+
+static EffectStack make_tint_stack() {
+    EffectStack stack;
+    stack.emplace_back(TintParams{Color{1.0f, 0.0f, 0.0f, 1.0f}, 0.5f});
+    return stack;
+}
+
+static std::unique_ptr<EffectStackNode> make_effect_node(bool frame_dep = true) {
+    auto node = std::make_unique<EffectStackNode>(make_blur_stack(8.0f));
+    node->set_frame_dependent(frame_dep);
+    return node;
+}
+
+static std::unique_ptr<AdjustmentNode> make_adjustment_node(bool frame_dep = true) {
+    auto node = std::make_unique<AdjustmentNode>(make_tint_stack());
+    node->set_frame_dependent(frame_dep);
+    return node;
 }
 
 // ── Test 1: Pruning useless branches ────────────────────────────────────
@@ -292,4 +318,172 @@ TEST_CASE("No unsafe optimization - frame-dependent vs frame-invariant not fused
 
     CHECK(fused == 0); // Mismatched frame_dependent
     CHECK(graph.live_count() == 3);
+}
+
+// ── Test 6: Dead node elimination ───────────────────────────────────────
+
+TEST_CASE("Dead node elimination - orphan node is removed") {
+    RenderGraph graph;
+    GraphNodeId root    = graph.add_node(std::make_unique<TestNode>("root", false, false));
+    GraphNodeId orphan  = graph.add_node(std::make_unique<TestNode>("orphan", false, false));
+    // orphan is not connected to anything
+    graph.set_output(root);
+    (void)orphan;
+
+    size_t removed = eliminate_dead_nodes(graph);
+
+    CHECK(removed == 1);
+    CHECK(graph.live_count() == 1);
+    CHECK(graph.has_node(root));
+}
+
+TEST_CASE("Dead node elimination - all reachable nodes are kept") {
+    RenderGraph graph;
+    GraphNodeId a = graph.add_node(std::make_unique<TestNode>("a", false, false));
+    GraphNodeId b = graph.add_node(std::make_unique<TestNode>("b", false, false));
+    GraphNodeId c = graph.add_node(std::make_unique<TestNode>("c", false, false));
+    graph.connect(a, b);
+    graph.connect(b, c);
+    graph.set_output(c);
+
+    size_t removed = eliminate_dead_nodes(graph);
+
+    CHECK(removed == 0);
+    CHECK(graph.live_count() == 3);
+}
+
+TEST_CASE("Dead node elimination - no output set does nothing") {
+    RenderGraph graph;
+    graph.add_node(std::make_unique<TestNode>("a", false, false));
+    graph.add_node(std::make_unique<TestNode>("b", false, false));
+    // No set_output call
+
+    size_t removed = eliminate_dead_nodes(graph);
+    CHECK(removed == 0); // No output → nothing to reach from
+    CHECK(graph.live_count() == 2);
+}
+
+// ── Test 7: EffectStack fusion ───────────────────────────────────────────
+
+TEST_CASE("Effect fusion - two adjacent EffectStackNodes are fused") {
+    RenderGraph graph;
+    GraphNodeId root   = graph.add_node(std::make_unique<TestNode>("root", false, false));
+    GraphNodeId eff_a  = graph.add_node(make_effect_node(false));
+    GraphNodeId eff_b  = graph.add_node(make_effect_node(false));
+    graph.connect(root, eff_a);
+    graph.connect(eff_a, eff_b);
+    graph.set_output(eff_b);
+
+    size_t fused = fuse_effect_stacks(graph);
+
+    CHECK(fused == 1);
+    // root + eff_b remain; eff_a absorbed
+    CHECK(graph.live_count() == 2);
+    auto& fused_node = dynamic_cast<EffectStackNode&>(graph.node(eff_b));
+    CHECK(fused_node.effects().size() == 2);
+}
+
+TEST_CASE("Effect fusion - no fusion when parent has multiple consumers") {
+    RenderGraph graph;
+    GraphNodeId root   = graph.add_node(std::make_unique<TestNode>("root", false, false));
+    GraphNodeId eff_a  = graph.add_node(make_effect_node(false));
+    GraphNodeId eff_b  = graph.add_node(make_effect_node(false));
+    GraphNodeId eff_c  = graph.add_node(make_effect_node(false));
+    graph.connect(root, eff_a);
+    graph.connect(eff_a, eff_b);  // eff_a has 2 consumers
+    graph.connect(eff_a, eff_c);
+    graph.set_output(eff_b);
+
+    size_t fused = fuse_effect_stacks(graph);
+
+    CHECK(fused == 0); // eff_a cannot be absorbed
+    CHECK(graph.live_count() == 4);
+}
+
+TEST_CASE("Effect fusion - no fusion across mismatched frame_dependent") {
+    RenderGraph graph;
+    GraphNodeId root    = graph.add_node(std::make_unique<TestNode>("root", false, false));
+    GraphNodeId eff_sta = graph.add_node(make_effect_node(false)); // frame_dep=false
+    GraphNodeId eff_dyn = graph.add_node(make_effect_node(true));  // frame_dep=true
+    graph.connect(root, eff_sta);
+    graph.connect(eff_sta, eff_dyn);
+    graph.set_output(eff_dyn);
+
+    size_t fused = fuse_effect_stacks(graph);
+
+    CHECK(fused == 0); // Mismatched frame_dependent
+    CHECK(graph.live_count() == 3);
+}
+
+TEST_CASE("Effect fusion - chain of three effects fused iteratively") {
+    RenderGraph graph;
+    GraphNodeId root   = graph.add_node(std::make_unique<TestNode>("root", false, false));
+    GraphNodeId eff_a  = graph.add_node(make_effect_node(false));
+    GraphNodeId eff_b  = graph.add_node(make_adjustment_node(false));
+    GraphNodeId eff_c  = graph.add_node(make_effect_node(false));
+    graph.connect(root, eff_a);
+    graph.connect(eff_a, eff_b);
+    graph.connect(eff_b, eff_c);
+    graph.set_output(eff_c);
+
+    // First pass fuses eff_a into eff_b.  Second pass fuses the resulting
+    // effect-like node into eff_c.
+    size_t fused1 = fuse_effect_stacks(graph);
+    size_t fused2 = fuse_effect_stacks(graph);
+
+    CHECK(fused1 + fused2 >= 2);
+    CHECK(graph.live_count() == 2); // root + final node
+    auto& fused_node = dynamic_cast<EffectStackNode&>(graph.node(eff_c));
+    CHECK(fused_node.effects().size() == 3);
+}
+
+TEST_CASE("Effect fusion - mixed EffectStackNode and AdjustmentNode are fused") {
+    RenderGraph graph;
+    GraphNodeId root = graph.add_node(std::make_unique<TestNode>("root", false, false));
+    GraphNodeId adj  = graph.add_node(make_adjustment_node(false));
+    GraphNodeId eff  = graph.add_node(make_effect_node(false));
+    graph.connect(root, adj);
+    graph.connect(adj, eff);
+    graph.set_output(eff);
+
+    size_t fused = fuse_effect_stacks(graph);
+
+    CHECK(fused == 1);
+    CHECK(graph.live_count() == 2);
+    auto& fused_node = dynamic_cast<EffectStackNode&>(graph.node(eff));
+    CHECK(fused_node.effects().size() == 2);
+}
+
+// ── Test 8: New config flags respected ──────────────────────────────────
+
+TEST_CASE("Config - effect_fusion and dead_node_elimination flags honored") {
+    RenderGraph graph;
+    GraphNodeId root   = graph.add_node(std::make_unique<TestNode>("root", false, false));
+    GraphNodeId orphan = graph.add_node(std::make_unique<TestNode>("orphan", false, false));
+    GraphNodeId eff_a  = graph.add_node(make_effect_node(false));
+    GraphNodeId eff_b  = graph.add_node(make_effect_node(false));
+    graph.connect(root, eff_a);
+    graph.connect(eff_a, eff_b);
+    graph.set_output(eff_b);
+    (void)orphan;
+
+    auto ctx = make_test_context(100, 100);
+    cache::NodeCache node_cache;
+    ctx.node_cache = &node_cache;
+
+    OptimizationConfig off;
+    off.enable_node_fusion          = false;
+    off.enable_branch_pruning       = false;
+    off.enable_static_bake          = false;
+    off.enable_effect_fusion        = false;
+    off.enable_dead_node_elimination = false;
+
+    auto result = optimize_graph(graph, ctx, off);
+
+    CHECK(result.effects_fused     == 0);
+    CHECK(result.dead_nodes_removed == 0);
+    CHECK(result.nodes_fused        == 0);
+    CHECK(result.nodes_pruned       == 0);
+    // orphan still present
+    CHECK(graph.live_count() == 4);
 }

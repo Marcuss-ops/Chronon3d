@@ -2,6 +2,8 @@
 
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/color/output_transform.hpp>
+#include <chronon3d/video/frame_converter.hpp>
+#include <chronon3d/video/converted_frame_cache.hpp>
 #include <string>
 #include <vector>
 
@@ -56,11 +58,13 @@ private:
     FfmpegPipeOptions options_{};
     std::vector<uint8_t> rgba_buffer_;
     std::vector<uint8_t> yuv_buffer_;
-    std::vector<uint8_t> cached_frame_bytes_;
-    u64 cached_frame_digest_{0};
-    size_t cached_frame_size_{0};
-    PipePixelFormat cached_frame_format_{PipePixelFormat::RGBA};
-    bool cached_frame_valid_{false};
+
+    // ── Converted frame cache (LRU, replaces the old single-entry digest cache) ──
+    chronon3d::video::ConvertedFrameCache frame_cache_{};
+    std::vector<uint8_t> cached_frame_bytes_; // reuse buffer for non-cache writes
+    size_t cached_frame_size_{0};             // last converted frame byte count
+    uint64_t current_frame_{0};              // incremented each write_frame() call
+
     uint64_t frames_written_{0};
     uint64_t bytes_written_{0};
     double total_write_blocked_ms_{0.0};

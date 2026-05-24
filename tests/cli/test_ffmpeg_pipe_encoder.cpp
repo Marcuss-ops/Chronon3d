@@ -1,6 +1,8 @@
 #include <doctest/doctest.h>
 #include <apps/chronon3d_cli/utils/video/ffmpeg_pipe_encoder.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
+#include <chronon3d/core/profiling/counters.hpp>
+#include <chronon3d/core/profiling/trace.hpp>
 #include <chronon3d/math/color.hpp>
 
 using namespace chronon3d;
@@ -137,4 +139,48 @@ TEST_CASE("ffmpeg raw pipe command respects raw input formats") {
     // It should configure both the input format and output format to yuv420p
     CHECK(cmd.find("-pix_fmt yuv420p") != std::string::npos);
     CHECK(cmd.find("-pix_fmt rgba") == std::string::npos);
+}
+
+TEST_CASE("ffmpeg pipe encoder records converted frame cache hits on repeated frames") {
+    Framebuffer fb(16, 16);
+    fb.clear(Color{0.15f, 0.25f, 0.35f, 1.0f});
+
+    FfmpegPipeEncoder enc;
+    FfmpegPipeOptions opts{
+        .width = 16,
+        .height = 16,
+        .fps = 1,
+        .output_path = "/tmp/test_cache_hits.mp4",
+        .input_format = PipePixelFormat::YUV420P,
+    };
+    if (!enc.open(opts)) {
+        MESSAGE("Skipping — FFmpeg not available");
+        return;
+    }
+
+    RenderCounters counters;
+    profiling::g_current_counters = &counters;
+
+    REQUIRE(enc.write_frame(fb));
+    const auto conv_after_first = counters.video_conversion_ms.load(std::memory_order_relaxed);
+    const auto copy_after_first = counters.frame_conversion_copy_ms.load(std::memory_order_relaxed);
+    const auto cache_after_first = counters.converted_frame_cache_hits.load(std::memory_order_relaxed);
+    const auto pipe_after_first = counters.video_pipe_write_ms.load(std::memory_order_relaxed);
+
+    REQUIRE(enc.write_frame(fb));
+    const auto conv_after_second = counters.video_conversion_ms.load(std::memory_order_relaxed);
+    const auto copy_after_second = counters.frame_conversion_copy_ms.load(std::memory_order_relaxed);
+    const auto cache_after_second = counters.converted_frame_cache_hits.load(std::memory_order_relaxed);
+    const auto pipe_after_second = counters.video_pipe_write_ms.load(std::memory_order_relaxed);
+
+    CHECK(conv_after_first > 0);
+    CHECK(copy_after_first > 0);
+    CHECK(cache_after_first == 0);
+    CHECK(cache_after_second == 1);
+    CHECK(conv_after_second == conv_after_first);
+    CHECK(copy_after_second == copy_after_first);
+    CHECK(pipe_after_second >= pipe_after_first);
+
+    profiling::g_current_counters = nullptr;
+    enc.close();
 }

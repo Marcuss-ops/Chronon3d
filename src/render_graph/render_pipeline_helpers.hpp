@@ -115,6 +115,7 @@ namespace chronon3d::graph {
         row.io_queue_pop_wait_ms = counters->io_queue_pop_wait_ms.load(std::memory_order_relaxed);
         row.io_queue_peak_depth = counters->io_queue_peak_depth.load(std::memory_order_relaxed);
         row.ffmpeg_pipe_write_blocked_ms = counters->ffmpeg_pipe_write_blocked_ms.load(std::memory_order_relaxed);
+        row.converted_frame_cache_hits = counters->converted_frame_cache_hits.load(std::memory_order_relaxed);
         row.ffmpeg_flush_ms = counters->ffmpeg_flush_ms.load(std::memory_order_relaxed);
     }
     return row;

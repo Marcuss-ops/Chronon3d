@@ -3,15 +3,9 @@
 #include <atomic>
 #include <array>
 #include <cstdint>
-#include <new>
-
 namespace chronon3d {
 
-#ifdef __cpp_lib_hardware_interference_size
-    using std::hardware_destructive_interference_size;
-#else
-    constexpr std::size_t hardware_destructive_interference_size = 64;
-#endif
+constexpr std::size_t kHardwareDestructiveInterferenceSize = 64;
 
 #define CHRONON_RENDER_COUNTERS(X) \
     X(pixels_touched) \
@@ -79,11 +73,12 @@ namespace chronon3d {
     X(io_queue_pop_wait_ms) \
     X(io_queue_peak_depth) \
     X(ffmpeg_pipe_write_blocked_ms) \
+    X(converted_frame_cache_hits) \
     X(ffmpeg_flush_ms)
 
 
 struct RenderCounters {
-#define X(name) alignas(hardware_destructive_interference_size) std::atomic<uint64_t> name{0};
+#define X(name) alignas(kHardwareDestructiveInterferenceSize) std::atomic<uint64_t> name{0};
     CHRONON_RENDER_COUNTERS(X)
 #undef X
 

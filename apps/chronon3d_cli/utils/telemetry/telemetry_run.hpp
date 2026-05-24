@@ -75,6 +75,7 @@ inline std::vector<chronon3d::telemetry::CounterTelemetryRecord> capture_counter
         {"io_queue_pop_wait_ms", counters.io_queue_pop_wait_ms.load(std::memory_order_relaxed)},
         {"io_queue_peak_depth", counters.io_queue_peak_depth.load(std::memory_order_relaxed)},
         {"ffmpeg_pipe_write_blocked_ms", counters.ffmpeg_pipe_write_blocked_ms.load(std::memory_order_relaxed)},
+        {"converted_frame_cache_hits",  counters.converted_frame_cache_hits.load(std::memory_order_relaxed)},
         {"ffmpeg_flush_ms", counters.ffmpeg_flush_ms.load(std::memory_order_relaxed)},
     };
 }
@@ -127,6 +128,7 @@ inline void add_counters(chronon3d::RenderCounters& dst, const chronon3d::Render
     dst.io_queue_pop_wait_ms.fetch_add(src.io_queue_pop_wait_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.io_queue_peak_depth.fetch_add(src.io_queue_peak_depth.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.ffmpeg_pipe_write_blocked_ms.fetch_add(src.ffmpeg_pipe_write_blocked_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.converted_frame_cache_hits.fetch_add(src.converted_frame_cache_hits.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.ffmpeg_flush_ms.fetch_add(src.ffmpeg_flush_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.framebuffer_bytes_allocated.fetch_add(src.framebuffer_bytes_allocated.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.framebuffer_bytes_peak.fetch_add(src.framebuffer_bytes_peak.load(std::memory_order_relaxed), std::memory_order_relaxed);
@@ -263,6 +265,7 @@ inline void record_output_run(const std::string& composition_id,
         run.io_queue_pop_wait_ms = counters_src->io_queue_pop_wait_ms.load(std::memory_order_relaxed);
         run.io_queue_peak_depth = counters_src->io_queue_peak_depth.load(std::memory_order_relaxed);
         run.ffmpeg_pipe_write_blocked_ms = counters_src->ffmpeg_pipe_write_blocked_ms.load(std::memory_order_relaxed);
+        run.converted_frame_cache_hits = counters_src->converted_frame_cache_hits.load(std::memory_order_relaxed);
         run.ffmpeg_flush_ms = counters_src->ffmpeg_flush_ms.load(std::memory_order_relaxed);
 
         run.chronon_conversion_copy_ms = counters_src->frame_conversion_copy_ms.load(std::memory_order_relaxed);

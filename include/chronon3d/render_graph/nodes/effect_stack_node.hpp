@@ -76,6 +76,16 @@ public:
         return result;
     }
 
+    // ── Accessors / mutators for graph optimization ────────────────────
+    [[nodiscard]] const EffectStack& effects() const { return m_effects; }
+    [[nodiscard]] EffectStack& effects() { return m_effects; }
+
+    /// Prepend `prefix` effects before this node's own effects.
+    /// Used by the optimizer to merge an upstream EffectStackNode into this one.
+    void prepend_effects(const EffectStack& prefix) {
+        m_effects.insert(m_effects.begin(), prefix.begin(), prefix.end());
+    }
+
 private:
     [[nodiscard]] f32 compute_max_effect_spread() const {
         f32 max_spread = 0.0f;

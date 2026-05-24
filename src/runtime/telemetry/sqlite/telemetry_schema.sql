@@ -71,6 +71,7 @@ CREATE TABLE IF NOT EXISTS render_runs (
     io_queue_pop_wait_ms INTEGER DEFAULT 0,
     io_queue_peak_depth INTEGER DEFAULT 0,
     ffmpeg_pipe_write_blocked_ms INTEGER DEFAULT 0,
+    converted_frame_cache_hits INTEGER DEFAULT 0,
     ffmpeg_flush_ms INTEGER DEFAULT 0,
     chronon_render_only_ms REAL DEFAULT 0,
     chronon_conversion_copy_ms REAL DEFAULT 0,
