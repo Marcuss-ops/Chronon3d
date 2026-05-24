@@ -83,6 +83,23 @@ nlohmann::json serialize_run(const RenderTelemetryRecord& run) {
     j["ffmpeg_pipe_write_blocked_ms"] = run.ffmpeg_pipe_write_blocked_ms;
     j["converted_frame_cache_hits"] = run.converted_frame_cache_hits;
     j["ffmpeg_flush_ms"] = run.ffmpeg_flush_ms;
+    j["io_queue_peak_bytes"] = run.io_queue_peak_bytes;
+
+    // Setup deep dive
+    j["setup_graph_parsing_ms"] = run.setup_graph_parsing_ms;
+    j["setup_asset_io_load_ms"] = run.setup_asset_io_load_ms;
+    j["setup_pool_preallocation_ms"] = run.setup_pool_preallocation_ms;
+    j["image_decode_ms"] = run.image_decode_ms;
+
+    // OS & Process diagnostics
+    j["process_context_switches_voluntary"] = run.process_context_switches_voluntary;
+    j["process_context_switches_involuntary"] = run.process_context_switches_involuntary;
+    j["os_page_faults_major"] = run.os_page_faults_major;
+    j["os_page_faults_minor"] = run.os_page_faults_minor;
+    j["ffmpeg_cpu_user_pct"] = run.ffmpeg_cpu_user_pct;
+    j["ffmpeg_cpu_sys_pct"] = run.ffmpeg_cpu_sys_pct;
+    j["llc_references"] = run.llc_references;
+    j["llc_misses"] = run.llc_misses;
 
     // Benchmark times
     j["chronon_render_only_ms"] = run.chronon_render_only_ms;

@@ -32,7 +32,7 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
     cmd->add_flag("--warmup-renderer", args.pipeline.warmup_renderer,
                   "Preallocate framebuffers and prime caches before rendering");
     cmd->add_option("--warmup-framebuffers", args.pipeline.warmup_framebuffers,
-                    "Number of framebuffers to preallocate (default 16)");
+                    "Number of framebuffers to preallocate (default 8)");
     cmd->add_flag("--warmup-dummy-frame", args.pipeline.warmup_dummy_frame,
                   "Render a dummy frame 0 to prime all caches");
     cmd->allow_windows_style_options();

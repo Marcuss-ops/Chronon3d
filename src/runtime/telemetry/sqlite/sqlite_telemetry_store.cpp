@@ -2,7 +2,6 @@
 
 #ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
 #include <sqlite3.h>
-#endif
 
 namespace chronon3d::telemetry {
 
@@ -34,3 +33,4 @@ void SqliteTelemetryStore::end_transaction(bool commit) {
 }
 
 } // namespace chronon3d::telemetry
+#endif

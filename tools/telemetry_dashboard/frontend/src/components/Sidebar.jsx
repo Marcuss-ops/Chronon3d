@@ -14,12 +14,19 @@ export default function Sidebar({
   const hideTimerRef = useRef(null);
   const [query, setQuery] = useState('');
 
+  // Track actual hover state to prevent race conditions
+  const isHoveredRef = useRef(false);
+
   // ── Auto-hide timer ────────────────────────────────────────────────
   const scheduleHide = useCallback(() => {
     if (isPinned) return; // pinned → no auto-hide
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
     hideTimerRef.current = setTimeout(() => {
-      setIsVisible(false);
+      // Only hide if cursor is NOT over the sidebar or peek trigger
+      // This prevents the race condition where mouseleave fires before mouseenter
+      if (!isHoveredRef.current) {
+        setIsVisible(false);
+      }
     }, AUTO_HIDE_DELAY_MS);
   }, [isPinned]);
 
@@ -32,20 +39,38 @@ export default function Sidebar({
 
   // Mouse entra → espandi e cancella timer
   const handleSidebarEnter = useCallback(() => {
+    isHoveredRef.current = true;
     cancelHide();
     setIsVisible(true);
   }, [cancelHide]);
 
   // Mouse esce → avvia timer auto-hide (se non pinnato)
   const handleSidebarLeave = useCallback(() => {
+    isHoveredRef.current = false;
     scheduleHide();
   }, [scheduleHide]);
 
   // Mouse entra nel peek trigger → espandi
   const handlePeekEnter = useCallback(() => {
+    isHoveredRef.current = true;
     cancelHide();
     setIsVisible(true);
   }, [cancelHide]);
+
+  // Mouse esce dal peek trigger → avvia timer (solo se non si va nella sidebar)
+  const handlePeekLeave = useCallback(() => {
+    isHoveredRef.current = false;
+    // Don't hide immediately - give a small buffer before scheduling
+    // This prevents flickering when moving cursor from peek to sidebar
+    if (!isPinned) {
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+      hideTimerRef.current = setTimeout(() => {
+        if (!isHoveredRef.current) {
+          setIsVisible(false);
+        }
+      }, AUTO_HIDE_DELAY_MS);
+    }
+  }, [isPinned]);
 
   // Toggle pin
   const togglePin = useCallback(() => {
@@ -69,6 +94,13 @@ export default function Sidebar({
     };
   }, [scheduleHide]);
 
+  // Reset hover state when pinned changes
+  useEffect(() => {
+    if (isPinned) {
+      isHoveredRef.current = true;
+    }
+  }, [isPinned]);
+
   const runsArray = Array.isArray(runs) ? runs : [];
   const filteredRuns = runsArray.filter(r => 
     (r.composition_id || '').toLowerCase().includes(query.toLowerCase()) ||
@@ -81,6 +113,7 @@ export default function Sidebar({
       <div
         className="sidebar-peek-trigger"
         onMouseEnter={handlePeekEnter}
+        onMouseLeave={handlePeekLeave}
         title="Hover per aprire sidebar"
       />
 

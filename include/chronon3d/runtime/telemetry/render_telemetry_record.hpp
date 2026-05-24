@@ -88,6 +88,23 @@ struct RenderTelemetryRecord {
     uint64_t ffmpeg_pipe_write_blocked_ms{0};
     uint64_t converted_frame_cache_hits{0};
     uint64_t ffmpeg_flush_ms{0};
+    uint64_t io_queue_peak_bytes{0};
+
+    // ── Setup Deep Dive (cold start diagnostics) ──
+    uint64_t setup_graph_parsing_ms{0};
+    uint64_t setup_asset_io_load_ms{0};
+    uint64_t setup_pool_preallocation_ms{0};
+    uint64_t image_decode_ms{0};
+
+    // ── OS & Process Diagnostics ──
+    uint64_t process_context_switches_voluntary{0};
+    uint64_t process_context_switches_involuntary{0};
+    uint64_t os_page_faults_major{0};
+    uint64_t os_page_faults_minor{0};
+    uint64_t ffmpeg_cpu_user_pct{0};
+    uint64_t ffmpeg_cpu_sys_pct{0};
+    uint64_t llc_references{0};
+    uint64_t llc_misses{0};
 
     // ── Chronon Render Throughput Benchmark (pure Chronon pipeline) ──
     double chronon_render_only_ms{0.0};     // graph + cache + pixel ops (excl. conversion/copy/queue)
@@ -99,6 +116,11 @@ struct RenderTelemetryRecord {
     double ffmpeg_encode_total_ms{0.0};   // FFmpeg pipe write blocked (codec + pipe I/O)
     double ffmpeg_flush_close_ms{0.0};    // FFmpeg flush + mux + file close after render loop
     double e2e_wall_ms{0.0};              // total wall time (setup + render + encode + close)
+
+    // ── Cache efficiency derived metrics ──
+    double cache_hit_rate{0.0};
+    double dirty_area_ratio{0.0};
+    double framebuffer_reuse_rate{0.0};
 
     // Host & environment specs
     std::string started_at_iso;

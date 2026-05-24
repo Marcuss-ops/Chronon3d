@@ -227,7 +227,7 @@ int render_and_encode_ffmpeg_pipe(
                 while (q_size > current_peak && !renderer->counters()->io_queue_peak_depth.compare_exchange_weak(current_peak, q_size, std::memory_order_relaxed));
             }
 
-            while (queue.size_approx() > 16) {
+            while (queue.size_approx() > 64) {
                 if (writer_failed.load()) break;
                 std::this_thread::yield();
             }
