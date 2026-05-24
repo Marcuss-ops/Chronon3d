@@ -63,6 +63,10 @@ inline std::vector<chronon3d::telemetry::CounterTelemetryRecord> capture_counter
         {"framebuffer_pool_miss_count_empty", counters.framebuffer_pool_miss_count_empty.load(std::memory_order_relaxed)},
         {"framebuffer_buffer_returned_to_pool_count", counters.framebuffer_buffer_returned_to_pool_count.load(std::memory_order_relaxed)},
         {"frame_conversion_copy_ms", counters.frame_conversion_copy_ms.load(std::memory_order_relaxed)},
+        {"video_graph_eval_ms", counters.video_graph_eval_ms.load(std::memory_order_relaxed)},
+        {"video_conversion_ms", counters.video_conversion_ms.load(std::memory_order_relaxed)},
+        {"video_pipe_write_ms", counters.video_pipe_write_ms.load(std::memory_order_relaxed)},
+        {"video_ffmpeg_latency_ms", counters.video_ffmpeg_latency_ms.load(std::memory_order_relaxed)},
     };
 }
 
@@ -102,6 +106,10 @@ inline void add_counters(chronon3d::RenderCounters& dst, const chronon3d::Render
     dst.framebuffer_pool_miss_count_empty.fetch_add(src.framebuffer_pool_miss_count_empty.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.framebuffer_buffer_returned_to_pool_count.fetch_add(src.framebuffer_buffer_returned_to_pool_count.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.frame_conversion_copy_ms.fetch_add(src.frame_conversion_copy_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.video_graph_eval_ms.fetch_add(src.video_graph_eval_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.video_conversion_ms.fetch_add(src.video_conversion_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.video_pipe_write_ms.fetch_add(src.video_pipe_write_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.video_ffmpeg_latency_ms.fetch_add(src.video_ffmpeg_latency_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.framebuffer_bytes_allocated.fetch_add(src.framebuffer_bytes_allocated.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.framebuffer_bytes_peak.fetch_add(src.framebuffer_bytes_peak.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.dirty_rect_count.fetch_add(src.dirty_rect_count.load(std::memory_order_relaxed), std::memory_order_relaxed);
@@ -151,6 +159,23 @@ inline void record_output_run(const std::string& composition_id,
     run.bytes_allocated_peak = chronon3d::telemetry::TelemetryManager::get_peak_memory_usage();
     run.started_at_iso = started_at_iso;
     run.finished_at_iso = chronon3d::telemetry::TelemetryManager::get_current_iso_time();
+
+    // Derive chronon render throughput and FFmpeg breakdown from phases
+    for (const auto& phase : phases) {
+        if (phase.phase_name == "chronon_render_only_ms") {
+            run.chronon_render_only_ms = phase.duration_ms;
+        } else if (phase.phase_name == "chronon_queue_wait_ms") {
+            run.chronon_queue_wait_ms = phase.duration_ms;
+        } else if (phase.phase_name == "ffmpeg_flush_close_ms") {
+            run.ffmpeg_flush_close_ms = phase.duration_ms;
+        } else if (phase.phase_name == "ffmpeg_encode_total_ms") {
+            run.ffmpeg_encode_total_ms = phase.duration_ms;
+        } else if (phase.phase_name == "e2e_wall_ms") {
+            run.e2e_wall_ms = phase.duration_ms;
+        }
+    }
+    // Compute chronon_render_throughput_ms as sum of the three Chronon phases
+    run.chronon_render_throughput_ms = run.chronon_render_only_ms + run.chronon_conversion_copy_ms + run.chronon_queue_wait_ms;
 
     if (counters_src) {
         run.pixels_touched = counters_src->pixels_touched.load(std::memory_order_relaxed);
@@ -204,6 +229,8 @@ inline void record_output_run(const std::string& composition_id,
         run.framebuffer_pool_miss_count_empty = counters_src->framebuffer_pool_miss_count_empty.load(std::memory_order_relaxed);
         run.framebuffer_buffer_returned_to_pool_count = counters_src->framebuffer_buffer_returned_to_pool_count.load(std::memory_order_relaxed);
         run.frame_conversion_copy_ms = counters_src->frame_conversion_copy_ms.load(std::memory_order_relaxed);
+
+        run.chronon_conversion_copy_ms = counters_src->frame_conversion_copy_ms.load(std::memory_order_relaxed);
     }
 
     const auto resolved_counters = counters.empty() && counters_src

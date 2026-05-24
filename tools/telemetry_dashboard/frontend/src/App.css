@@ -1,17 +1,11 @@
 .dashboard-container {
-  display: grid;
-  grid-template-columns: 320px 1fr;
+  display: block;
   height: 100vh;
   width: 100vw;
   overflow: hidden;
-  transition: var(--transition-smooth);
 }
 
-.dashboard-container.sidebar-collapsed {
-  grid-template-columns: 0px 1fr;
-}
-
-/* Main content area */
+/* Main content area — no margin because sidebar is fixed/overlay */
 .main-content {
   display: flex;
   flex-direction: column;
@@ -111,22 +105,6 @@
   margin-bottom: 24px;
   background: var(--color-danger-glow);
   color: var(--color-danger);
-}
-
-.expand-sidebar-btn {
-  position: absolute;
-  left: 20px;
-  top: 20px;
-  z-index: 100;
-  padding: 8px 16px;
-  background: var(--bg-surface);
-  border: 1px solid var(--border-color);
-  color: var(--text-primary);
-  border-radius: 8px;
-  cursor: pointer;
-  font-weight: 600;
-  transition: var(--transition-smooth);
-  backdrop-filter: blur(8px);
 }
 
 .copy-btn {

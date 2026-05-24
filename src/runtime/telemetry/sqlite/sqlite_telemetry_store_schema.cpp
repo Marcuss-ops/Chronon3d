@@ -12,7 +12,7 @@ namespace chronon3d::telemetry {
 namespace {
 
 // Canonical column count for render_runs (from telemetry_schema.sql)
-constexpr int CANONICAL_RUN_COLUMNS = 59;
+constexpr int CANONICAL_RUN_COLUMNS = 66;
 
 // Ordered column names for render_runs matching telemetry_schema.sql
 constexpr const char* RUN_COLUMN_NAMES[] = {
@@ -33,6 +33,9 @@ constexpr const char* RUN_COLUMN_NAMES[] = {
     "dirty_full_fallback_composite_missing_input_bounds",
     "dirty_full_fallback_transform_bounds_unknown",
     "dirty_full_fallback_effect_bounds_unknown",
+    "chronon_render_only_ms", "chronon_conversion_copy_ms", "chronon_queue_wait_ms",
+    "chronon_render_throughput_ms", "ffmpeg_encode_total_ms", "ffmpeg_flush_close_ms",
+    "e2e_wall_ms",
     "started_at_iso", "finished_at_iso", "git_commit_short", "build_type",
     "compiler_info", "os", "cpu_model", "cores"
 };

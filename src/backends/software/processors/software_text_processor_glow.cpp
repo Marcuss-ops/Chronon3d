@@ -20,10 +20,18 @@ void draw_text_glow(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNod
     {
         std::lock_guard<std::mutex> lock(g_text_glow_cache_mutex);
         auto cached = get_glow_cache().get(key);
-        if (cached) glow_cache = *cached;
+        if (cached) {
+            glow_cache = *cached;
+            if (profiling::g_current_counters) {
+                profiling::g_current_counters->text_glow_cache_hits.fetch_add(1, std::memory_order_relaxed);
+            }
+        }
     }
 
     if (!glow_cache) {
+        if (profiling::g_current_counters) {
+            profiling::g_current_counters->text_glow_cache_misses.fetch_add(1, std::memory_order_relaxed);
+        }
         BLImage glow_img;
         glow_img.create(raster.image.width(), raster.image.height(), BL_FORMAT_PRGB32);
         {

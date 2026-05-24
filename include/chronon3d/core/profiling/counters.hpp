@@ -13,6 +13,14 @@ namespace chronon3d {
     X(nodes_executed) \
     X(layers_rendered) \
     X(text_glyphs_rasterized) \
+    X(text_cache_hits) \
+    X(text_cache_misses) \
+    X(text_layout_ms) \
+    X(text_rasterization_ms) \
+    X(text_shadow_cache_hits) \
+    X(text_shadow_cache_misses) \
+    X(text_glow_cache_hits) \
+    X(text_glow_cache_misses) \
     X(images_sampled) \
     X(blur_pixels) \
     X(simd_lerp_calls) \
@@ -49,7 +57,12 @@ namespace chronon3d {
     X(framebuffer_pool_miss_count_size_mismatch) \
     X(framebuffer_pool_miss_count_empty) \
     X(framebuffer_buffer_returned_to_pool_count) \
-    X(frame_conversion_copy_ms)
+    X(frame_conversion_copy_ms) \
+    X(video_graph_eval_ms) \
+    X(video_conversion_ms) \
+    X(video_pipe_write_ms) \
+    X(video_ffmpeg_latency_ms)
+
 
 struct RenderCounters {
 #define X(name) std::atomic<uint64_t> name{0};
