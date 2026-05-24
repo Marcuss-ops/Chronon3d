@@ -12,6 +12,9 @@
 #include "builder/graph_builder_internal.hpp"
 #include "render_pipeline_helpers.hpp"
 #include <spdlog/spdlog.h>
+#include <tbb/parallel_for.h>
+#include <tbb/blocked_range.h>
+#include <tbb/enumerable_thread_specific.h>
 #include <algorithm>
 #include <chrono>
 #include <functional>
@@ -65,7 +68,11 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
 
     auto ensure_scene_fingerprint = [&]() -> uint64_t {
         if (!current_scene_fingerprint.has_value()) {
-            current_scene_fingerprint = compute_scene_fingerprint(scene, frame);
+            if (sw_renderer) {
+                current_scene_fingerprint = sw_renderer->m_scene_hasher.compute_fingerprint(scene, frame);
+            } else {
+                current_scene_fingerprint = compute_scene_fingerprint(scene, frame);
+            }
         }
         return *current_scene_fingerprint;
     };
@@ -129,10 +136,6 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
             LayerGraphItem item;
             if (cam.enabled && rl.layer->is_3d) {
                 Transform effective_transform = rl.world_transform;
-                if (!ctx.modular_coordinates) {
-                    effective_transform.position.x -= ctx.width * 0.5f;
-                    effective_transform.position.y -= ctx.height * 0.5f;
-                }
                 const Mat4 projection_world_matrix = effective_transform.to_mat4();
                 auto proj = project_layer_2_5d(
                     effective_transform, projection_world_matrix, cam,
@@ -153,14 +156,26 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
             return detail::compute_layer_bbox(item, ctx, sw_renderer);
         };
 
-        for (const auto& rl : resolved.layers) {
-            if (rl.layer && rl.layer->active_at(frame)) {
-                raster::BBox bbox = compute_bbox_for_resolved(rl, cam25d);
-                SoftwareRenderer::LayerBBoxState state;
-                state.bbox = bbox; state.world_matrix = rl.world_matrix;
-                state.opacity = rl.world_transform.opacity; state.visible = rl.layer->visible;
-                state.cache_static = rl.layer->cache_static; state.is_3d = rl.layer->is_3d;
-                current_layer_bboxes[std::string(rl.layer->name)] = state;
+        tbb::enumerable_thread_specific<std::unordered_map<std::string, SoftwareRenderer::LayerBBoxState>> tls_bboxes;
+        
+        tbb::parallel_for(tbb::blocked_range<size_t>(0, resolved.layers.size()), [&](const tbb::blocked_range<size_t>& r) {
+            auto& local_map = tls_bboxes.local();
+            for (size_t i = r.begin(); i < r.end(); ++i) {
+                const auto& rl = resolved.layers[i];
+                if (rl.layer && rl.layer->active_at(frame)) {
+                    raster::BBox bbox = compute_bbox_for_resolved(rl, cam25d);
+                    SoftwareRenderer::LayerBBoxState state;
+                    state.bbox = bbox; state.world_matrix = rl.world_matrix;
+                    state.opacity = rl.world_transform.opacity; state.visible = rl.layer->visible;
+                    state.cache_static = rl.layer->cache_static; state.is_3d = rl.layer->is_3d;
+                    local_map[std::string(rl.layer->name)] = state;
+                }
+            }
+        });
+
+        for (auto& local_map : tls_bboxes) {
+            for (auto&& [name, state] : local_map) {
+                current_layer_bboxes[name] = std::move(state);
             }
         }
 
@@ -262,7 +277,44 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
                 }
             }
 
-            dirty_rect = has_dirty ? std::optional(union_dirty) : std::optional(raster::BBox{0, 0, 0, 0});
+            // ── P2: Scroll Optimization ─────────────────────────────────────
+            bool scroll_detected = false;
+            i32 dx = 0, dy = 0;
+
+            if (sw_renderer->m_prev_camera_valid && sw_renderer->m_prev_camera.enabled && cam25d.enabled) {
+                const Vec3& cp = cam25d.position;
+                const Vec3& pp = sw_renderer->m_prev_camera.position;
+                Vec3 camera_delta = cp - pp;
+                
+                bool camera_params_compatible = (std::abs(sw_renderer->m_prev_camera.zoom - cam25d.zoom) < 1e-3f);
+                
+                if (camera_params_compatible && std::abs(camera_delta.z) < 1e-3f &&
+                    std::abs(camera_delta.x - std::round(camera_delta.x)) < 0.1f &&
+                    std::abs(camera_delta.y - std::round(camera_delta.y)) < 0.1f) {
+                    
+                    dx = -static_cast<i32>(std::round(camera_delta.x));
+                    dy = -static_cast<i32>(std::round(camera_delta.y));
+                    scroll_detected = true;
+                }
+            }
+
+            if (scroll_detected && (dx != 0 || dy != 0) && std::abs(dx) < width && std::abs(dy) < height) {
+                CHRONON_ZONE_C("scroll_optimization", trace_category::kFrame);
+
+                if (sw_renderer->m_prev_framebuffer.use_count() > 1) {
+                    sw_renderer->m_prev_framebuffer = std::make_shared<Framebuffer>(*sw_renderer->m_prev_framebuffer);
+                }
+                sw_renderer->m_prev_framebuffer->shift(dx, dy);
+
+                raster::BBox strip{0, 0, width, height};
+                if (dx > 0) strip.x1 = dx;
+                else if (dx < 0) strip.x0 = width + dx;
+                if (dy > 0) strip.y1 = dy;
+                else if (dy < 0) strip.y0 = height + dy;
+                dirty_rect = strip;
+            } else {
+                dirty_rect = has_dirty ? std::optional(union_dirty) : std::optional(raster::BBox{0, 0, 0, 0});
+            }
         } else {
             dirty_rect = raster::BBox{0, 0, width, height};
         }
@@ -348,11 +400,15 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     const auto t_build2 = std::chrono::steady_clock::now();
 
     const auto t_exec0 = std::chrono::steady_clock::now();
-    GraphExecutor executor;
     std::shared_ptr<Framebuffer> fb_shared;
     {
         CHRONON_ZONE_C("graph_execute", trace_category::kGraph);
-        fb_shared = executor.execute(graph, graph.output(), ctx);
+        if (sw_renderer && sw_renderer->executor()) {
+            fb_shared = sw_renderer->executor()->execute(graph, graph.output(), ctx);
+        } else {
+            GraphExecutor local_executor;
+            fb_shared = local_executor.execute(graph, graph.output(), ctx);
+        }
     }
     const auto t_exec1 = std::chrono::steady_clock::now();
 

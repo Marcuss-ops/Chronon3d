@@ -11,6 +11,7 @@ class ImageRenderer {
 public:
     void set_backend(std::shared_ptr<image::ImageBackend> backend) { ImageCache::instance().set_backend(std::move(backend)); }
     bool draw_image(const ImageShape& image, const RenderState& state, Framebuffer& fb);
+    bool draw_image_tiled(const ImageShape& image, const RenderState& state, Framebuffer& fb);
 
     void clear_cache() { ImageCache::instance().clear(); }
 };

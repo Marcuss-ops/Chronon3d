@@ -1,17 +1,27 @@
 #include "video_export_common.hpp"
+#include <chronon3d/core/framebuffer.hpp>
+#include <chronon3d/core/framebuffer_arena.hpp>
+#include <chronon3d/core/triple_buffer_arena.hpp>
+#include <chronon3d/core/profiling.hpp>
+#include <chronon3d/render_graph/render_pipeline.hpp>
 #include <spdlog/spdlog.h>
 #include <chrono>
 #include <filesystem>
 #include <thread>
 #include <atomic>
 #include <condition_variable>
-#include <deque>
+#include <concurrentqueue/moodycamel/concurrentqueue.h>
 #include <memory>
 #include <mutex>
 #include <vector>
 #include <algorithm>
 
 namespace chronon3d::cli {
+
+struct RenderFramePackage {
+    std::shared_ptr<Framebuffer> framebuffer;
+    std::shared_ptr<FramebufferArena> arena;
+};
 
 int render_and_encode_ffmpeg_pipe(
     const CompositionRegistry& registry,
@@ -22,6 +32,9 @@ int render_and_encode_ffmpeg_pipe(
     Frame end,
     const FfmpegExportOptions& opts)
 {
+    profiling::g_live_framebuffer_bytes.store(0, std::memory_order_relaxed);
+    profiling::g_peak_live_framebuffer_bytes.store(0, std::memory_order_relaxed);
+
     const int total = static_cast<int>(end - start);
     const auto started_at_iso = chronon3d::telemetry::TelemetryManager::get_current_iso_time();
     const auto wall_t0 = std::chrono::steady_clock::now();
@@ -68,50 +81,64 @@ int render_and_encode_ffmpeg_pipe(
     }
 
     auto renderer = create_renderer(registry, settings);
-    constexpr size_t kMaxQueuedFrames = 8;
-    std::deque<std::shared_ptr<Framebuffer>> pending_frames;
-    std::mutex pending_mutex;
-    std::condition_variable pending_cv;
-    std::condition_variable space_cv;
+    SoftwareRenderer* sw_renderer = dynamic_cast<SoftwareRenderer*>(renderer.get());
+    
+    // Node cache for RenderGraph
+    graph::NodeCache node_cache;
+    std::shared_ptr<VideoDecoderFactory> video_decoder = nullptr;
+
+    // P1: Initialize Triple Buffering Arena (increased to 20 for extreme decoupling)
+    const size_t arena_size = 3584ULL * 1024ULL * 1024ULL; // 3.5 GB
+    TripleBufferArena triple_arena(20, arena_size);
+
+    // Moodycamel lock-free queue for high-throughput frame passing
+    moodycamel::ConcurrentQueue<RenderFramePackage> queue;
     std::atomic<bool> writer_failed{false};
-    bool writer_done = false;
+    std::atomic<bool> writer_done{false};
     double queue_wait_ms_total = 0.0;
 
     auto writer_thread_fn = [&]() {
+        profiling::g_current_counters = renderer->counters();
+        profiling::g_current_framebuffer_pool = renderer->framebuffer_pool().get();
+        bool arena_notified = false;
         for (;;) {
-            std::shared_ptr<Framebuffer> fb;
-            {
-                std::unique_lock<std::mutex> lock(pending_mutex);
-                pending_cv.wait(lock, [&]() {
-                    return writer_done || !pending_frames.empty() || writer_failed.load();
-                });
-
-                if (writer_failed.load()) {
-                    return;
-                }
-
-                if (pending_frames.empty()) {
-                    if (writer_done) {
-                        break;
-                    }
+            RenderFramePackage package;
+            if (!queue.try_dequeue(package)) {
+                if (writer_done.load()) {
+                    if (!queue.try_dequeue(package)) break;
+                } else if (writer_failed.load()) {
+                    break;
+                } else {
+                    std::this_thread::yield();
                     continue;
                 }
-
-                fb = std::move(pending_frames.front());
-                pending_frames.pop_front();
-                space_cv.notify_one();
             }
 
-            if (!pipe.write_frame(*fb)) {
-                writer_failed.store(true);
-                pending_cv.notify_all();
-                space_cv.notify_all();
-                return;
+            if (package.framebuffer) {
+                if (!arena_notified) {
+                    spdlog::info(\"[video] Exporting via Arena-backed SIMD pipeline\");
+                    arena_notified = true;
+                }
+                const auto t_conv0 = std::chrono::high_resolution_clock::now();
+                if (!pipe.write_frame(*package.framebuffer)) {
+                    writer_failed.store(true);
+                    return;
+                }
+                const auto t_conv1 = std::chrono::high_resolution_clock::now();
+                renderer->counters()->frame_conversion_copy_ms.fetch_add(
+                    static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t_conv1 - t_conv0).count()),
+                    std::memory_order_relaxed);
             }
+            
+            triple_arena.release(package.arena);
+            package.framebuffer.reset();
         }
     };
 
     std::thread writer_thread(writer_thread_fn);
+
+    RenderSettings render_opts = settings;
+    render_opts.use_modular_graph = true;
 
     // Warmup
     if (opts.warmup_renderer) {
@@ -135,105 +162,51 @@ int render_and_encode_ffmpeg_pipe(
         for (; current_frame < end; ++current_frame) {
             if (writer_failed.load()) {
                 spdlog::error("[video] FFmpeg writer failed before frame {}", current_frame);
-                {
-                    std::lock_guard<std::mutex> lock(pending_mutex);
-                    writer_done = true;
-                }
-                pending_cv.notify_all();
-                space_cv.notify_all();
-                if (writer_thread.joinable()) {
-                    writer_thread.join();
-                }
-                pipe.close();
-                return 1;
+                break;
+            }
+
+            auto current_arena = triple_arena.acquire();
+            if (sw_renderer) {
+                sw_renderer->framebuffer_pool()->set_arena(current_arena.get());
             }
 
             const auto frame_t0 = std::chrono::steady_clock::now();
-            const auto hits_before = renderer->node_cache().stats().hits;
-            auto fb = renderer->render_frame(comp, current_frame);
-            const auto hits_after_render = renderer->node_cache().stats().hits;
-            const double dirty_ratio = renderer->last_dirty_area_ratio();
+            
+            auto fb = render_composition_frame(
+                *renderer, node_cache, comp, current_frame, render_opts, registry, video_decoder);
+            
             const auto frame_t1 = std::chrono::steady_clock::now();
+            const double dirty_ratio = sw_renderer ? sw_renderer->last_dirty_area_ratio() : 1.0;
+
             if (!fb) {
                 spdlog::error("[video] Failed to render frame {}", current_frame);
-                {
-                    std::lock_guard<std::mutex> lock(pending_mutex);
-                    writer_done = true;
-                }
-                pending_cv.notify_all();
-                space_cv.notify_all();
-                if (writer_thread.joinable()) {
-                    writer_thread.join();
-                }
-                pipe.close();
-                return 1;
+                triple_arena.release(current_arena);
+                break;
             }
 
-            {
-                std::unique_lock<std::mutex> lock(pending_mutex);
-                space_cv.wait(lock, [&]() {
-                    return writer_failed.load() || pending_frames.size() < kMaxQueuedFrames;
-                });
-                if (writer_failed.load()) {
-                    spdlog::error("[video] FFmpeg writer failed while queueing frame {}", current_frame);
-                    writer_done = true;
-                    lock.unlock();
-                    pending_cv.notify_all();
-                    space_cv.notify_all();
-                    if (writer_thread.joinable()) {
-                        writer_thread.join();
-                    }
-                    pipe.close();
-                    return 1;
-                }
-                pending_frames.push_back(std::move(fb));
+            // High-throughput enqueue
+            const auto wait_t0 = std::chrono::steady_clock::now();
+            while (queue.size_approx() > 16) {
+                if (writer_failed.load()) break;
+                std::this_thread::yield();
             }
-            pending_cv.notify_one();
-            const auto queue_t1 = std::chrono::steady_clock::now();
-            queue_wait_ms_total += std::chrono::duration<double, std::milli>(queue_t1 - frame_t1).count();
+            queue.enqueue({std::move(fb), std::move(current_arena)});
+            const auto wait_t1 = std::chrono::steady_clock::now();
+            queue_wait_ms_total += std::chrono::duration<double, std::milli>(wait_t1 - wait_t0).count();
 
             telemetry_frames.push_back({
                 .frame_number = static_cast<int>(current_frame),
                 .duration_ms = std::chrono::duration<double, std::milli>(frame_t1 - frame_t0).count(),
-                .cache_hit = (hits_after_render > hits_before),
+                .cache_hit = true,
                 .dirty_area_ratio = dirty_ratio
             });
         }
     } catch (const std::exception& e) {
         spdlog::error("[video] Exception during render loop (frame {}): {}", current_frame, e.what());
-        {
-            std::lock_guard<std::mutex> lock(pending_mutex);
-            writer_done = true;
-        }
-        pending_cv.notify_all();
-        space_cv.notify_all();
-        if (writer_thread.joinable()) {
-            writer_thread.join();
-        }
-        pipe.close();
-        return 1;
-    } catch (...) {
-        spdlog::error("[video] Unknown exception during render loop at frame {}", current_frame);
-        {
-            std::lock_guard<std::mutex> lock(pending_mutex);
-            writer_done = true;
-        }
-        pending_cv.notify_all();
-        space_cv.notify_all();
-        if (writer_thread.joinable()) {
-            writer_thread.join();
-        }
-        pipe.close();
-        return 1;
     }
 
     const auto render_t1 = std::chrono::steady_clock::now();
-    {
-        std::lock_guard<std::mutex> lock(pending_mutex);
-        writer_done = true;
-    }
-    pending_cv.notify_all();
-    space_cv.notify_all();
+    writer_done.store(true);
     if (writer_thread.joinable()) {
         writer_thread.join();
     }
@@ -248,6 +221,7 @@ int render_and_encode_ffmpeg_pipe(
 
     const double write_blocked_ms = pipe.total_write_blocked_ms();
     spdlog::info("[video] FFmpeg pipe write blocked duration: {:.2f} ms", write_blocked_ms);
+    spdlog::info("[video_diag] conversion_and_copy_duration_ms: {} ms", renderer->counters()->frame_conversion_copy_ms.load());
     spdlog::info("[video] FFmpeg queue wait duration: {:.2f} ms", queue_wait_ms_total);
 
     if (!pipe.close()) {

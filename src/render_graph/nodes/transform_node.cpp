@@ -170,7 +170,114 @@ std::shared_ptr<Framebuffer> TransformNode::execute(
         ctx.counters->transform_pixels.fetch_add(area, std::memory_order_relaxed);
     }
 
+    const bool is_pure_translation = 
+        std::abs(H[0][0] - 1.0f) < 1e-6f && std::abs(H[0][1]) < 1e-6f && std::abs(H[0][2]) < 1e-6f &&
+        std::abs(H[1][0]) < 1e-6f && std::abs(H[1][1] - 1.0f) < 1e-6f && std::abs(H[1][2]) < 1e-6f &&
+        std::abs(H[2][2] - 1.0f) < 1e-6f;
+
+    if (is_pure_translation) {
+        const f32 tx = H[2][0];
+        const f32 ty = H[2][1];
+        
+        const bool is_integer_translation = 
+            std::abs(tx - std::round(tx)) < 1e-4f &&
+            std::abs(ty - std::round(ty)) < 1e-4f;
+
+        if (is_integer_translation) {
+            const i32 itx = static_cast<i32>(std::round(tx));
+            const i32 ity = static_cast<i32>(std::round(ty));
+            
+            const Color* src_data = input->data();
+            const i32 src_w = input->width();
+            
+            auto process_translation_rows = [&](i32 row_begin, i32 row_end) {
+                for (i32 y = row_begin; y < row_end; ++y) {
+                    const i32 iy = y - ity;
+                    if (iy >= static_cast<i32>(y_min_src) && iy < static_cast<i32>(y_max_src)) {
+                        Color* dst_row = result->pixels_row(y - result->origin_y());
+                        const i32 dx0 = std::max(x0, static_cast<i32>(x_min_src) + itx);
+                        const i32 dx1 = std::min(x1, static_cast<i32>(x_max_src) + itx);
+                        
+                        if (dx0 < dx1) {
+                            if (opacity >= 0.999f) {
+                                std::memcpy(
+                                    dst_row + (dx0 - result->origin_x()),
+                                    src_data + (iy * src_w + (dx0 - itx)),
+                                    (dx1 - dx0) * sizeof(Color)
+                                );
+                            } else {
+                                Color* dst_ptr = dst_row + (dx0 - result->origin_x());
+                                const Color* src_ptr = src_data + (iy * src_w + (dx0 - itx));
+                                const int count = dx1 - dx0;
+                                for (int i = 0; i < count; ++i) {
+                                    Color src = src_ptr[i];
+                                    if (src.a > 0.001f) {
+                                        src.r *= opacity; src.g *= opacity; src.b *= opacity; src.a *= opacity;
+                                        dst_ptr[i] = src;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            };
+
+            if (y1 - y0 >= 24) {
+                tbb::parallel_for(
+                    tbb::blocked_range<i32>(y0, y1),
+                    [&](const tbb::blocked_range<i32>& range) {
+                        process_translation_rows(range.begin(), range.end());
+                    }
+                );
+            } else {
+                process_translation_rows(y0, y1);
+            }
+
+            return result;
+        }
+    }
+
     const bool is_affine = std::abs(H[2][0]) < 1e-9f && std::abs(H[2][1]) < 1e-9f;
+
+    // Roadmap 3: Fast-path for pure translation
+    if (is_affine && std::abs(H[0][1]) < 1e-6f && std::abs(H[1][0]) < 1e-6f &&
+        std::abs(H[0][0] - 1.0f) < 1e-6f && std::abs(H[1][1] - 1.0f) < 1e-6f) {
+        
+        const float tx = H[2][0];
+        const float ty = H[2][1];
+        
+        if (std::abs(tx - std::round(tx)) < 1e-4f && std::abs(ty - std::round(ty)) < 1e-4f) {
+            const i32 itx = static_cast<i32>(std::round(tx));
+            const i32 ity = static_cast<i32>(std::round(ty));
+            
+            CHRONON_ZONE_C("transform_fast_translate", trace_category::kRasterize);
+            
+            const i32 row_pixels = (x1 - x0);
+            const size_t row_bytes = row_pixels * sizeof(Color);
+            
+            for (i32 y = y0; y < y1; ++y) {
+                const i32 src_y = y - ity;
+                const i32 src_x = x0 - itx;
+                
+                if (src_y >= 0 && src_y < input->height()) {
+                    const Color* src_ptr = input->pixels_row(src_y) + src_x;
+                    Color* dst_ptr = result->pixels_row(y - result->origin_y()) + (x0 - result->origin_x());
+                    
+                    if (std::abs(opacity - 1.0f) < 1e-6f) {
+                        std::memcpy(dst_ptr, src_ptr, row_bytes);
+                    } else {
+                        // Scalar opacity path (could be SIMD-ified)
+                        for (i32 x = 0; x < row_pixels; ++x) {
+                            Color c = src_ptr[x];
+                            c.r *= opacity; c.g *= opacity; c.b *= opacity; c.a *= opacity;
+                            dst_ptr[x] = c;
+                        }
+                    }
+                }
+            }
+            return result;
+        }
+    }
 
     const Vec3 h_col_start = inv_pixel_model_3x3 * Vec3(static_cast<f32>(x0) + 0.5f, static_cast<f32>(y0) + 0.5f, 1.0f);
     const Vec3 h_step_x = inv_pixel_model_3x3[0];
@@ -179,46 +286,154 @@ std::shared_ptr<Framebuffer> TransformNode::execute(
     const auto process_rows = [&](i32 row_begin, i32 row_end) {
         if (is_affine) {
             const f32 inv_z = 1.0f / h_col_start.z;
-            for (i32 y = row_begin; y < row_end; ++y) {
-                Color* dst_row = result->pixels_row(y - result->origin_y());
-                Vec3 h_row = h_col_start + h_step_y * static_cast<f32>(y - y0);
-                for (i32 x = x0; x < x1; ++x) {
-                    const f32 sx = h_row.x * inv_z;
-                    const f32 sy = h_row.y * inv_z;
-                    if (sx >= x_min_src && sx < x_max_src && sy >= y_min_src && sy < y_max_src) {
-                        Color src = input->sample(sx, sy, m_mode);
-                        if (src.a > 0.001f) {
-                            src.r *= opacity; src.g *= opacity; src.b *= opacity; src.a *= opacity;
-                            dst_row[x - result->origin_x()] = src;
-                        }
-                    }
-                    h_row += h_step_x;
-                }
-            }
-        } else {
-            for (i32 y = row_begin; y < row_end; ++y) {
-                Color* dst_row = result->pixels_row(y - result->origin_y());
-                Vec3 h_row = h_col_start + h_step_y * static_cast<f32>(y - y0);
-                for (i32 x = x0; x < x1; ++x) {
-                    if (std::abs(h_row.z) > 1e-9f) {
-                        const f32 inv_z = 1.0f / h_row.z;
-                        const f32 sx = h_row.x * inv_z;
-                        const f32 sy = h_row.y * inv_z;
+            const f32 dsx = h_step_x.x * inv_z;
+            const f32 dsy = h_step_x.y * inv_z;
+
+            const Color* src_data = input->data();
+            const i32 src_w = input->width();
+            const i32 src_h = input->height();
+
+            if (m_mode == SamplingMode::Nearest) {
+                for (i32 y = row_begin; y < row_end; ++y) {
+                    Color* dst_row = result->pixels_row(y - result->origin_y());
+                    const Vec3 h_row = h_col_start + h_step_y * static_cast<f32>(y - y0);
+                    f32 sx = h_row.x * inv_z;
+                    f32 sy = h_row.y * inv_z;
+                    for (i32 x = x0; x < x1; ++x) {
                         if (sx >= x_min_src && sx < x_max_src && sy >= y_min_src && sy < y_max_src) {
-                            Color src = input->sample(sx, sy, m_mode);
+                            const i32 ix = static_cast<i32>(sx);
+                            const i32 iy = static_cast<i32>(sy);
+                            Color src = src_data[iy * src_w + ix];
                             if (src.a > 0.001f) {
-                                src.r *= opacity; src.g *= opacity; src.b *= opacity; src.a *= opacity;
+                                if (opacity < 0.999f) {
+                                    src.r *= opacity; src.g *= opacity; src.b *= opacity; src.a *= opacity;
+                                }
                                 dst_row[x - result->origin_x()] = src;
                             }
                         }
+                        sx += dsx;
+                        sy += dsy;
                     }
-                    h_row += h_step_x;
+                }
+            } else {
+                // Bilinear mode
+                for (i32 y = row_begin; y < row_end; ++y) {
+                    Color* dst_row = result->pixels_row(y - result->origin_y());
+                    const Vec3 h_row = h_col_start + h_step_y * static_cast<f32>(y - y0);
+                    f32 sx = h_row.x * inv_z;
+                    f32 sy = h_row.y * inv_z;
+                    for (i32 x = x0; x < x1; ++x) {
+                        if (sx >= x_min_src && sx < x_max_src && sy >= y_min_src && sy < y_max_src) {
+                            const f32 u = sx - 0.5f;
+                            const f32 v = sy - 0.5f;
+                            const i32 x0_f = static_cast<i32>(u >= 0.0f ? u : std::floor(u));
+                            const i32 y0_f = static_cast<i32>(v >= 0.0f ? v : std::floor(v));
+                            const i32 x1_f = x0_f + 1;
+                            const i32 y1_f = y0_f + 1;
+
+                            const f32 tx = u - static_cast<f32>(x0_f);
+                            const f32 ty = v - static_cast<f32>(y0_f);
+
+                            auto get_px = [&](i32 px, i32 py) -> Color {
+                                if (px < 0 || px >= src_w || py < 0 || py >= src_h) return Color::transparent();
+                                return src_data[py * src_w + px];
+                            };
+
+                            const Color c00 = get_px(x0_f, y0_f);
+                            const Color c10 = get_px(x1_f, y0_f);
+                            const Color c01 = get_px(x0_f, y1_f);
+                            const Color c11 = get_px(x1_f, y1_f);
+
+                            Color src = lerp(lerp(c00, c10, tx), lerp(c01, c11, tx), ty);
+                            if (src.a > 0.001f) {
+                                if (opacity < 0.999f) {
+                                    src.r *= opacity; src.g *= opacity; src.b *= opacity; src.a *= opacity;
+                                }
+                                dst_row[x - result->origin_x()] = src;
+                            }
+                        }
+                        sx += dsx;
+                        sy += dsy;
+                    }
+                }
+            }
+        } else {
+            const Color* src_data = input->data();
+            const i32 src_w = input->width();
+            const i32 src_h = input->height();
+
+            if (m_mode == SamplingMode::Nearest) {
+                for (i32 y = row_begin; y < row_end; ++y) {
+                    Color* dst_row = result->pixels_row(y - result->origin_y());
+                    Vec3 h_row = h_col_start + h_step_y * static_cast<f32>(y - y0);
+                    for (i32 x = x0; x < x1; ++x) {
+                        if (std::abs(h_row.z) > 1e-9f) {
+                            const f32 inv_z = 1.0f / h_row.z;
+                            const f32 sx = h_row.x * inv_z;
+                            const f32 sy = h_row.y * inv_z;
+                            if (sx >= x_min_src && sx < x_max_src && sy >= y_min_src && sy < y_max_src) {
+                                const i32 ix = static_cast<i32>(sx);
+                                const i32 iy = static_cast<i32>(sy);
+                                Color src = src_data[iy * src_w + ix];
+                                if (src.a > 0.001f) {
+                                    if (opacity < 0.999f) {
+                                        src.r *= opacity; src.g *= opacity; src.b *= opacity; src.a *= opacity;
+                                    }
+                                    dst_row[x - result->origin_x()] = src;
+                                }
+                            }
+                        }
+                        h_row += h_step_x;
+                    }
+                }
+            } else {
+                // Bilinear mode
+                for (i32 y = row_begin; y < row_end; ++y) {
+                    Color* dst_row = result->pixels_row(y - result->origin_y());
+                    Vec3 h_row = h_col_start + h_step_y * static_cast<f32>(y - y0);
+                    for (i32 x = x0; x < x1; ++x) {
+                        if (std::abs(h_row.z) > 1e-9f) {
+                            const f32 inv_z = 1.0f / h_row.z;
+                            const f32 sx = h_row.x * inv_z;
+                            const f32 sy = h_row.y * inv_z;
+                            if (sx >= x_min_src && sx < x_max_src && sy >= y_min_src && sy < y_max_src) {
+                                const f32 u = sx - 0.5f;
+                                const f32 v = sy - 0.5f;
+                                const i32 x0_f = static_cast<i32>(u >= 0.0f ? u : std::floor(u));
+                                const i32 y0_f = static_cast<i32>(v >= 0.0f ? v : std::floor(v));
+                                const i32 x1_f = x0_f + 1;
+                                const i32 y1_f = y0_f + 1;
+
+                                const f32 tx = u - static_cast<f32>(x0_f);
+                                const f32 ty = v - static_cast<f32>(y0_f);
+
+                                auto get_px = [&](i32 px, i32 py) -> Color {
+                                    if (px < 0 || px >= src_w || py < 0 || py >= src_h) return Color::transparent();
+                                    return src_data[py * src_w + px];
+                                };
+
+                                const Color c00 = get_px(x0_f, y0_f);
+                                const Color c10 = get_px(x1_f, y0_f);
+                                const Color c01 = get_px(x0_f, y1_f);
+                                const Color c11 = get_px(x1_f, y1_f);
+
+                                Color src = lerp(lerp(c00, c10, tx), lerp(c01, c11, tx), ty);
+                                if (src.a > 0.001f) {
+                                    if (opacity < 0.999f) {
+                                        src.r *= opacity; src.g *= opacity; src.b *= opacity; src.a *= opacity;
+                                    }
+                                    dst_row[x - result->origin_x()] = src;
+                                }
+                            }
+                        }
+                        h_row += h_step_x;
+                    }
                 }
             }
         }
     };
 
-    if (y1 - y0 >= 24) {
+    if (y1 - y0 >= 64 && area >= 128 * 128) {
         tbb::parallel_for(
             tbb::blocked_range<i32>(y0, y1),
             [&](const tbb::blocked_range<i32>& range) {

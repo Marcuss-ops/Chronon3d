@@ -42,7 +42,14 @@ namespace chronon3d {
     X(dirty_pixels) \
     X(dirty_union_area_pixels) \
     X(dirty_full_fallbacks) \
-    X(bypass_not_cacheable_count)
+    X(bypass_not_cacheable_count) \
+    X(framebuffer_acquire_ms) \
+    X(framebuffer_clear_ms) \
+    X(framebuffer_enqueue_ms) \
+    X(framebuffer_pool_miss_count_size_mismatch) \
+    X(framebuffer_pool_miss_count_empty) \
+    X(framebuffer_buffer_returned_to_pool_count) \
+    X(frame_conversion_copy_ms)
 
 struct RenderCounters {
 #define X(name) std::atomic<uint64_t> name{0};

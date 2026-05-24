@@ -27,7 +27,7 @@ public:
         const Mat4 canvas_center = math::translate(Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
 
         Mat4 matrix;
-        if (m_centered) {
+        if (m_is_3d || m_centered) {
             matrix = canvas_center * ssaa_scale * m_matrix_override.value_or(m_node.world_transform.to_mat4());
         } else {
             matrix = ssaa_scale * m_matrix_override.value_or(m_node.world_transform.to_mat4());
@@ -86,6 +86,16 @@ public:
         }
         if (m_opacity_override) {
             key.params_hash = hash_combine(key.params_hash, hash_bytes(&(*m_opacity_override), sizeof(f32)));
+        }
+        if (m_is_3d && ctx.has_camera_2_5d) {
+            const auto& cam = ctx.camera_2_5d;
+            key.params_hash = hash_combine(key.params_hash, hash_bytes(&cam.position, sizeof(Vec3)));
+            key.params_hash = hash_combine(key.params_hash, hash_bytes(&cam.rotation, sizeof(Vec3)));
+            key.params_hash = hash_combine(key.params_hash, hash_bytes(&cam.zoom, sizeof(f32)));
+            key.params_hash = hash_combine(key.params_hash, hash_bytes(&cam.fov_deg, sizeof(f32)));
+            if (cam.point_of_interest_enabled) {
+                key.params_hash = hash_combine(key.params_hash, hash_bytes(&cam.point_of_interest, sizeof(Vec3)));
+            }
         }
         return key; 
     }
@@ -246,7 +256,7 @@ public:
         for (const auto& item : m_items) {
             if (!item.node) continue;
             Mat4 matrix;
-            if (m_centered) {
+            if (m_is_3d || m_centered) {
                 matrix = canvas_center * ssaa_scale * item.matrix;
             } else {
                 matrix = ssaa_scale * item.matrix;

@@ -49,6 +49,12 @@ reauthenticate_drive.py
 # AI context
 .claude/
 
+# Trace/log files
+*.trace
+render_debug_trace*.log
+render_trace*.log
+trace*.json
+
 # Engine Output
 output/
 

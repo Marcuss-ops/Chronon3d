@@ -1,5 +1,6 @@
 #include "render_job_detail.hpp"
 
+#include <chronon3d/core/framebuffer.hpp>
 #include <chronon3d/core/render_telemetry.hpp>
 #include <chronon3d/core/profiling.hpp>
 #include <chronon3d/runtime/renderer_warmup.hpp>
@@ -25,6 +26,9 @@ namespace chronon3d::cli {
 namespace chronon3d::cli {
 
 bool execute_render_job(const CompositionRegistry& registry, const RenderJobPlan& plan) {
+    profiling::g_live_framebuffer_bytes.store(0, std::memory_order_relaxed);
+    profiling::g_peak_live_framebuffer_bytes.store(0, std::memory_order_relaxed);
+
     const auto job_started_iso = telemetry::TelemetryManager::get_current_iso_time();
     const auto wall_t0 = std::chrono::steady_clock::now();
 
@@ -143,8 +147,8 @@ bool execute_render_job(const CompositionRegistry& registry, const RenderJobPlan
     run.layers_visible = counters->layers_visible.load(std::memory_order_relaxed);
     run.framebuffer_allocations = counters->framebuffer_allocations.load(std::memory_order_relaxed);
     run.framebuffer_reuses = counters->framebuffer_reuses.load(std::memory_order_relaxed);
-    run.framebuffer_bytes_allocated = counters->framebuffer_bytes_allocated.load(std::memory_order_relaxed);
-    run.framebuffer_bytes_peak = counters->framebuffer_bytes_peak.load(std::memory_order_relaxed);
+    run.framebuffer_bytes_allocated = profiling::g_live_framebuffer_bytes.load(std::memory_order_relaxed);
+    run.framebuffer_bytes_peak = profiling::g_peak_live_framebuffer_bytes.load(std::memory_order_relaxed);
     run.dirty_rect_count = counters->dirty_rect_count.load(std::memory_order_relaxed);
     run.dirty_pixels = counters->dirty_pixels.load(std::memory_order_relaxed);
     run.dirty_union_area_pixels = counters->dirty_union_area_pixels.load(std::memory_order_relaxed);

@@ -10,6 +10,7 @@
 // ---------------------------------------------------------------------------
 
 #include <chronon3d/render_graph/render_pipeline.hpp>
+#include <chronon3d/render_graph/render_graph_hashing.hpp>
 #include <chronon3d/core/render_telemetry.hpp>
 #include <chronon3d/core/counters.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
@@ -25,93 +26,17 @@ namespace chronon3d::graph {
 // Used by the dirty-rect fast path to skip full re-renders when nothing changed.
 [[nodiscard]] inline uint64_t compute_scene_fingerprint(const Scene& scene, Frame frame) {
     uint64_t h = 0;
-    auto combine = [](uint64_t& s, uint64_t v) {
-        s ^= v + 0x9e3779b97f4a7c15ULL + (s << 6) + (s >> 2);
-    };
-    auto combine_f = [&](float v, float scale = 1000.0f) {
-        combine(h, std::hash<int64_t>{}(static_cast<int64_t>(std::llround(v * scale))));
-    };
-
-    combine(h, std::hash<int64_t>{}(static_cast<int64_t>(frame)));
+    
+    // We only include frame if there are animated properties that aren't 
+    // captured by the layer transforms or node params.
+    // Most animations in Chronon are captured via these fields.
+    // combine(h, std::hash<int64_t>{}(static_cast<int64_t>(frame)));
 
     for (const auto& layer : scene.layers()) {
         if (!layer.active_at(frame)) continue;
 
-        combine(h, std::hash<std::string_view>{}(layer.name));
-        combine(h, std::hash<std::string_view>{}(layer.parent_name));
-        combine(h, std::hash<int>{}(static_cast<int>(layer.kind)));
-        combine(h, std::hash<int64_t>{}(static_cast<int64_t>(layer.from)));
-        combine(h, std::hash<int64_t>{}(static_cast<int64_t>(layer.duration)));
-        combine(h, std::hash<int64_t>{}(static_cast<int64_t>(layer.time_offset)));
-        combine(h, std::hash<bool>{}(layer.visible));
-        combine(h, std::hash<bool>{}(layer.is_3d));
-        combine(h, std::hash<bool>{}(layer.cache_static));
-        combine(h, std::hash<int>{}(static_cast<int>(layer.blend_mode)));
-
-        combine_f(layer.transform.position.x);
-        combine_f(layer.transform.position.y);
-        combine_f(layer.transform.position.z);
-        combine_f(layer.transform.rotation.x);
-        combine_f(layer.transform.rotation.y);
-        combine_f(layer.transform.rotation.z);
-        combine_f(layer.transform.rotation.w);
-        combine_f(layer.transform.scale.x);
-        combine_f(layer.transform.scale.y);
-        combine_f(layer.transform.scale.z);
-        combine_f(layer.transform.anchor.x);
-        combine_f(layer.transform.anchor.y);
-        combine_f(layer.transform.anchor.z);
-        combine_f(layer.transform.opacity, 10000.0f);
-
-        combine(h, std::hash<int>{}(static_cast<int>(layer.mask.type)));
-        combine_f(layer.mask.pos.x);
-        combine_f(layer.mask.pos.y);
-        combine_f(layer.mask.pos.z);
-        combine_f(layer.mask.size.x);
-        combine_f(layer.mask.size.y);
-        combine_f(layer.mask.radius);
-        combine(h, std::hash<bool>{}(layer.mask.inverted));
-
-        combine(h, std::hash<size_t>{}(layer.effects.size()));
-        for (const auto& effect : layer.effects) {
-            combine(h, std::hash<std::string_view>{}(effect.descriptor.id));
-            combine(h, std::hash<bool>{}(effect.enabled));
-        }
-
-        combine(h, std::hash<size_t>{}(layer.nodes.size()));
-        for (const auto& node : layer.nodes) {
-            combine(h, std::hash<std::string_view>{}(node.name));
-            combine_f(node.world_transform.position.x);
-            combine_f(node.world_transform.position.y);
-            combine_f(node.world_transform.position.z);
-            combine_f(node.world_transform.rotation.x);
-            combine_f(node.world_transform.rotation.y);
-            combine_f(node.world_transform.rotation.z);
-            combine_f(node.world_transform.rotation.w);
-            combine_f(node.world_transform.scale.x);
-            combine_f(node.world_transform.scale.y);
-            combine_f(node.world_transform.scale.z);
-            combine_f(node.world_transform.anchor.x);
-            combine_f(node.world_transform.anchor.y);
-            combine_f(node.world_transform.anchor.z);
-            combine_f(node.world_transform.opacity, 10000.0f);
-            combine_f(node.color.r, 10000.0f);
-            combine_f(node.color.g, 10000.0f);
-            combine_f(node.color.b, 10000.0f);
-            combine_f(node.color.a, 10000.0f);
-            combine(h, std::hash<int>{}(static_cast<int>(node.fill.type)));
-            combine(h, std::hash<int>{}(static_cast<int>(node.shape.type)));
-            combine(h, std::hash<bool>{}(node.visible));
-            combine(h, std::hash<bool>{}(node.shadow.enabled));
-            combine(h, std::hash<bool>{}(node.glow.enabled));
-        }
-
-        if (layer.kind == LayerKind::Precomp) {
-            combine(h, std::hash<std::string_view>{}(layer.precomp_composition_name));
-        }
-
-        combine(h, std::hash<int>{}(static_cast<int>(layer.depth_role)));
-        combine(h, std::hash<float>{}(layer.depth_offset));
+        h = hash_combine(h, layer.get_static_hash());
+        h = hash_combine(h, hash_transform(layer.transform));
     }
     return h;
 }
@@ -171,6 +96,13 @@ namespace chronon3d::graph {
         row.dirty_full_fallback_effect_bounds_unknown =
             counters->dirty_full_fallback_reasons[static_cast<std::size_t>(DirtyFallbackReason::EffectBoundsUnknown)]
                 .load(std::memory_order_relaxed);
+        row.framebuffer_acquire_ms = counters->framebuffer_acquire_ms.load(std::memory_order_relaxed);
+        row.framebuffer_clear_ms = counters->framebuffer_clear_ms.load(std::memory_order_relaxed);
+        row.framebuffer_enqueue_ms = counters->framebuffer_enqueue_ms.load(std::memory_order_relaxed);
+        row.framebuffer_pool_miss_count_size_mismatch = counters->framebuffer_pool_miss_count_size_mismatch.load(std::memory_order_relaxed);
+        row.framebuffer_pool_miss_count_empty = counters->framebuffer_pool_miss_count_empty.load(std::memory_order_relaxed);
+        row.framebuffer_buffer_returned_to_pool_count = counters->framebuffer_buffer_returned_to_pool_count.load(std::memory_order_relaxed);
+        row.frame_conversion_copy_ms = counters->frame_conversion_copy_ms.load(std::memory_order_relaxed);
     }
     return row;
 }
