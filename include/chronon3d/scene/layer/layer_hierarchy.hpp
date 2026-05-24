@@ -11,6 +11,9 @@
 #include <string>
 #include <string_view>
 #include <functional>
+#include <algorithm>
+#include <tbb/parallel_for.h>
+#include <tbb/blocked_range.h>
 
 namespace chronon3d {
 
@@ -52,11 +55,64 @@ public:
     }
 
     [[nodiscard]] std::pmr::vector<ResolvedLayer> resolve_layers(Frame frame) {
+        if (m_layers.empty()) return m_resolved;
+
+        // 1. Compute depths for all layers
+        std::vector<int> depths(m_layers.size(), -1);
+        std::vector<bool> visiting(m_layers.size(), false);
+        
+        auto get_depth = [&](auto& self, usize index) -> int {
+            if (depths[index] != -1) return depths[index];
+            if (visiting[index]) return 0; // fallback for cycles
+            
+            visiting[index] = true;
+            const auto& layer = m_layers[index];
+            int d = 0;
+            if (!layer.parent_name.empty()) {
+                auto it = m_name_to_index.find(std::string_view(layer.parent_name));
+                if (it != m_name_to_index.end() && it->second != index) {
+                    d = self(self, it->second) + 1;
+                }
+            }
+            visiting[index] = false;
+            depths[index] = d;
+            return d;
+        };
+
         for (usize i = 0; i < m_layers.size(); ++i) {
-            if (m_layers[i].active_at(frame)) {
-                resolve_one(i);
+            get_depth(get_depth, i);
+        }
+
+        // 2. Group layers by depth
+        int max_d = 0;
+        for (int d : depths) {
+            max_d = std::max(max_d, d);
+        }
+
+        std::vector<std::vector<usize>> layers_by_depth(max_d + 1);
+        for (usize i = 0; i < m_layers.size(); ++i) {
+            if (depths[i] >= 0) {
+                layers_by_depth[depths[i]].push_back(i);
             }
         }
+
+        // 3. Resolve layers level-by-level in parallel
+        for (int d = 0; d <= max_d; ++d) {
+            const auto& level_layers = layers_by_depth[d];
+            if (level_layers.empty()) continue;
+
+            tbb::parallel_for(tbb::blocked_range<usize>(0, level_layers.size()),
+                [&](const tbb::blocked_range<usize>& range) {
+                    for (usize i = range.begin(); i < range.end(); ++i) {
+                        const usize index = level_layers[i];
+                        if (m_layers[index].active_at(frame)) {
+                            resolve_one(index);
+                        }
+                    }
+                }
+            );
+        }
+
         return m_resolved;
     }
 

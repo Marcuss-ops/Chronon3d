@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/core/counters.hpp>
+#include <chronon3d/core/framebuffer.hpp>
 #include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
 
 #include <string>
@@ -38,8 +39,8 @@ inline std::vector<chronon3d::telemetry::CounterTelemetryRecord> capture_counter
         {"layers_visible", counters.layers_visible.load(std::memory_order_relaxed)},
         {"framebuffer_allocations", counters.framebuffer_allocations.load(std::memory_order_relaxed)},
         {"framebuffer_reuses", counters.framebuffer_reuses.load(std::memory_order_relaxed)},
-        {"framebuffer_bytes_allocated", counters.framebuffer_bytes_allocated.load(std::memory_order_relaxed)},
-        {"framebuffer_bytes_peak", counters.framebuffer_bytes_peak.load(std::memory_order_relaxed)},
+        {"framebuffer_bytes_allocated", profiling::g_live_framebuffer_bytes.load(std::memory_order_relaxed)},
+        {"framebuffer_bytes_peak", profiling::g_peak_live_framebuffer_bytes.load(std::memory_order_relaxed)},
         {"dirty_rect_count", counters.dirty_rect_count.load(std::memory_order_relaxed)},
         {"dirty_pixels", counters.dirty_pixels.load(std::memory_order_relaxed)},
         {"dirty_full_fallbacks", counters.dirty_full_fallbacks.load(std::memory_order_relaxed)},
@@ -165,8 +166,8 @@ inline void record_output_run(const std::string& composition_id,
         run.layers_visible = counters_src->layers_visible.load(std::memory_order_relaxed);
         run.framebuffer_allocations = counters_src->framebuffer_allocations.load(std::memory_order_relaxed);
         run.framebuffer_reuses = counters_src->framebuffer_reuses.load(std::memory_order_relaxed);
-        run.framebuffer_bytes_allocated = counters_src->framebuffer_bytes_allocated.load(std::memory_order_relaxed);
-        run.framebuffer_bytes_peak = counters_src->framebuffer_bytes_peak.load(std::memory_order_relaxed);
+        run.framebuffer_bytes_allocated = profiling::g_live_framebuffer_bytes.load(std::memory_order_relaxed);
+        run.framebuffer_bytes_peak = profiling::g_peak_live_framebuffer_bytes.load(std::memory_order_relaxed);
         run.dirty_rect_count = counters_src->dirty_rect_count.load(std::memory_order_relaxed);
         run.dirty_pixels = counters_src->dirty_pixels.load(std::memory_order_relaxed);
         run.dirty_full_fallbacks = counters_src->dirty_full_fallbacks.load(std::memory_order_relaxed);

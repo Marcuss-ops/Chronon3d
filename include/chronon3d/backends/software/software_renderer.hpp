@@ -21,11 +21,16 @@
 #include <chronon3d/scene/camera/camera.hpp>
 #include <chronon3d/core/trace.hpp>
 #include <chronon3d/core/counters.hpp>
+#include <chronon3d/render_graph/scene_hasher.hpp>
 
 #include <memory>
 #include <optional>
 #include <unordered_map>
 #include <chronon3d/render_graph/render_backend.hpp>
+
+namespace chronon3d::graph {
+    class GraphExecutor;
+}
 
 namespace chronon3d {
 
@@ -119,6 +124,8 @@ public:
     [[nodiscard]] const cache::FramebufferPool& software_framebuffer_pool() const { return *m_framebuffer_pool; }
     [[nodiscard]] RenderCounters* counters() override { return &m_counters; }
     [[nodiscard]] const RenderCounters* counters() const { return &m_counters; }
+    [[nodiscard]] graph::GraphExecutor* executor();
+    [[nodiscard]] const graph::GraphExecutor* executor() const;
 
     SoftwareRenderer();
     ~SoftwareRenderer() override;
@@ -143,6 +150,7 @@ public:
     Camera2_5D m_prev_camera;
     bool m_prev_camera_valid{false};
     uint64_t m_prev_scene_fingerprint{0};
+    graph::SceneHasher m_scene_hasher;
 
     [[nodiscard]] int last_layer_count() const { return m_last_layer_count; }
 
@@ -160,6 +168,7 @@ private:
 
     RenderTrace       m_trace;
     RenderCounters    m_counters;
+    std::unique_ptr<graph::GraphExecutor> m_executor;
 };
 
 } // namespace chronon3d

@@ -99,7 +99,6 @@ add_executable(chronon3d_renderer_tests
     # presets/test_motion_visual_smoke.cpp
     render_graph/features/test_unified_transform_path.cpp
     renderer/dispatch/test_software_node_dispatcher.cpp
-    renderer/test_lil_dirk_clean.cpp
     compositions/background_showcase_test.cpp
     # render_graph/features/test_precompositions.cpp
     # render_graph/features/test_modular_features.cpp

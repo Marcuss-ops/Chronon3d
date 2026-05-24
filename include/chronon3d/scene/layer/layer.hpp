@@ -60,6 +60,12 @@ struct Layer {
     // Video source parameters (isolated from FFmpeg/Backend headers)
     std::unique_ptr<video::VideoSource> video_source;
 
+    // Cache for incremental scene fingerprinting
+    mutable uint64_t m_static_hash{0};
+    mutable bool m_static_hash_computed{false};
+
+    [[nodiscard]] uint64_t get_static_hash() const;
+
     explicit Layer(std::pmr::memory_resource* res = std::pmr::get_default_resource());
     ~Layer();
     

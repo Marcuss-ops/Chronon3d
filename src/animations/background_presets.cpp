@@ -37,11 +37,14 @@ const BackgroundCatalog& builtin_background_catalog_storage() {
     return catalog;
 }
 
-void render_grid_clean(SceneBuilder& s, const FrameContext&, const BackgroundOptions& opt) {
+void render_grid_clean(SceneBuilder& s, const FrameContext& ctx, const BackgroundOptions& opt) {
+    const float offset_x = ctx.effective_frame() * 2.0f;
+    
+    // Set camera for P2 Scroll optimization to pick up the integer shift
     s.camera().set({
         .enabled = true,
-        .position = {0.0f, 0.0f, -1000.0f},
-        .point_of_interest = {0.0f, 0.0f, 0.0f},
+        .position = {offset_x, 0.0f, -1000.0f},
+        .point_of_interest = {offset_x, 0.0f, 0.0f},
         .point_of_interest_enabled = true,
         .zoom = 1000.0f,
     });
@@ -51,31 +54,14 @@ void render_grid_clean(SceneBuilder& s, const FrameContext&, const BackgroundOpt
         l.fullscreen_rect("bg", opt.background);
     });
 
+    // P1: Use a single tiled image node for the grid lines.
+    // This is infinitely efficient as it replaces hundreds of nodes with one.
+    // The tiling logic in the renderer handles the infinite grid look.
     s.layer("grid_clean_lines", [opt](LayerBuilder& l) {
-        l.cache_static();
-
-        // 1920x1080 grid spanning the entire screen.
-        // We draw vertical lines every 140 pixels.
-        for (int i = -7; i <= 7; ++i) {
-            const float x = static_cast<float>(i) * 140.0f;
-            l.line("grid_v_" + std::to_string(i), LineParams{
-                .from = {x, -540.0f, 0.0f},
-                .to = {x, 540.0f, 0.0f},
-                .thickness = 1.0f,
-                .color = opt.accent
-            });
-        }
-
-        // Horizontal lines every 140 pixels.
-        for (int i = -4; i <= 4; ++i) {
-            const float y = static_cast<float>(i) * 140.0f;
-            l.line("grid_h_" + std::to_string(i), LineParams{
-                .from = {-960.0f, y, 0.0f},
-                .to = {960.0f, y, 0.0f},
-                .thickness = 1.0f,
-                .color = opt.accent
-            });
-        }
+        l.tiled_image("grid", ImageParams{
+            .path = "assets/images/grid_tile.png",
+            .size = {140.0f, 140.0f}
+        });
     });
 }
 

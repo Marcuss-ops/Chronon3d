@@ -37,7 +37,7 @@ TEST_CASE("draw_motion_object creates glow text layers") {
     auto ctx = make_ctx(15);
     SceneBuilder s(ctx);
 
-    auto obj = MotionObject::text("title", "LIL DIRK")
+    auto obj = MotionObject::text("title", "TEST TITLE")
         .font_size(96.0f)
         .glow(true)
         .time(0, 30);

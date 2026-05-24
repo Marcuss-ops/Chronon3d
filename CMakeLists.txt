@@ -243,8 +243,9 @@ set(CHRONON3D_BACKEND_SOFTWARE_SOURCES
     src/backends/software/processors/path_processor.cpp
     src/backends/software/processors/software_effect_processors.cpp
     src/backends/software/processors/software_image_processor.cpp
-    src/backends/software/processors/software_line_processor.cpp
+    src/backends/software/processors/software_tiled_image_processor.cpp
     src/backends/software/processors/software_mesh_processor.cpp
+    src/backends/software/processors/software_line_processor.cpp
     src/backends/software/processors/software_shape_processor.cpp
     src/backends/software/processors/software_text_processor.cpp
     src/backends/software/processors/software_text_processor_hash.cpp
@@ -272,6 +273,7 @@ set(CHRONON3D_BACKEND_SOFTWARE_SOURCES
     src/backends/software/utils/blend2d_bridge/bl2d_sampling.cpp
     src/backends/software/utils/blend2d_bridge/bl2d_compositing.cpp
     src/backends/software/utils/blend2d_bridge/bl2d_blimage_transformed.cpp
+    src/backends/software/utils/blend2d_bridge/bl2d_blimage_tiled.cpp
     src/backends/software/utils/blend2d_bridge/bl2d_framebuffer_transformed.cpp
     src/backends/software/utils/effects/effect_blur.cpp
     src/backends/software/utils/effects/effect_color.cpp

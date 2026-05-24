@@ -6,6 +6,10 @@
 #include <unordered_map>
 #include <vector>
 
+namespace chronon3d {
+    class FramebufferArena;
+}
+
 namespace chronon3d::cache {
 
 // ---------------------------------------------------------------------------
@@ -52,8 +56,11 @@ struct FramebufferPoolStats {
 // ---------------------------------------------------------------------------
 class FramebufferPool : public std::enable_shared_from_this<FramebufferPool> {
 public:
-    // Default to 1 GB so 1080p float framebuffers and intermediates can stay hot in the pool.
-    explicit FramebufferPool(size_t max_bytes = 1024ULL * 1024ULL * 1024ULL);
+    // Default to 8 GB so 1080p float framebuffers and intermediates can stay hot in the pool.
+    explicit FramebufferPool(size_t max_bytes = 8192ULL * 1024ULL * 1024ULL);
+
+    /// Set a static arena to be used for new allocations.
+    void set_arena(std::shared_ptr<chronon3d::FramebufferArena> arena);
 
     /// Acquire a framebuffer of the requested size.
     /// Clearing is optional and only happens when requested by the caller.
@@ -78,11 +85,12 @@ public:
     [[nodiscard]] FramebufferPoolStats stats() const;
 
 private:
-    std::unique_ptr<Framebuffer> acquire_unique(int width, int height, bool clear = true);
+    std::unique_ptr<Framebuffer> acquire_unique(int width, int height);
 
     mutable std::mutex m_mutex;
     size_t m_max_bytes;
     size_t m_current_bytes{0};
+    std::shared_ptr<chronon3d::FramebufferArena> m_arena;
 
     std::unordered_map<
         FramebufferPoolKey,
