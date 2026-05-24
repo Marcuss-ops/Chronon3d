@@ -279,6 +279,9 @@ std::string TelemetryManager::get_current_iso_time() {
 }
 
 std::string TelemetryManager::generate_uuid() {
+    if (const char* env = std::getenv("CHRONON3D_RUN_ID")) {
+        return env;
+    }
     static std::random_device rd;
     static std::mt19937 gen(rd());
     static std::uniform_int_distribution<uint32_t> dis(0, 0xFFFFFFFF);

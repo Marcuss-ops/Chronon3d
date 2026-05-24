@@ -5,11 +5,11 @@ using namespace chronon3d;
 using namespace chronon3d::presets::motion;
 
 TEST_CASE("MotionObject creates text objects with expected defaults") {
-    auto obj = MotionObject::text("title", "LIL DIRK");
+    auto obj = MotionObject::text("title", "TEST TITLE");
 
     CHECK(obj.id == "title");
     CHECK(obj.type == MotionObjectType::Text);
-    CHECK(obj.text_value == "LIL DIRK");
+    CHECK(obj.text_value == "TEST TITLE");
     CHECK(obj.size_value.x == doctest::Approx(900.0f));
     CHECK(obj.size_value.y == doctest::Approx(160.0f));
     CHECK(obj.text_style.font_size == doctest::Approx(72.0f));

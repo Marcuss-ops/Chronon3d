@@ -1,6 +1,7 @@
 #include "utils/render_effects_processor.hpp"
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/render_graph/render_pipeline.hpp>
+#include <chronon3d/render_graph/graph_executor.hpp>
 #include <chronon3d/backends/software/software_compositor.hpp>
 #include <chronon3d/backends/software/software_effect_runner.hpp>
 #include <chronon3d/backends/software/software_node_dispatcher.hpp>
@@ -14,6 +15,7 @@
 #include "rasterizers/shape_rasterizer.hpp"
 #include <algorithm>
 #include <cmath>
+#include <iostream>
 
 namespace chronon3d {
     struct RenderNode;
@@ -118,7 +120,8 @@ void draw_layout_preview(Framebuffer& fb, const RenderNode& node, const RenderSt
 
 SoftwareRenderer::SoftwareRenderer()
     : m_software_registry(std::make_unique<renderer::SoftwareRegistry>())
-    , m_framebuffer_pool(std::make_shared<cache::FramebufferPool>()) {
+    , m_framebuffer_pool(std::make_shared<cache::FramebufferPool>())
+    , m_executor(std::make_unique<graph::GraphExecutor>()) {
     renderer::register_builtin_processors(*m_software_registry);
 }
 
@@ -126,6 +129,14 @@ SoftwareRenderer::~SoftwareRenderer() {
     if (profiling::g_current_trace == &m_trace) {
         profiling::g_current_trace = nullptr;
     }
+}
+
+graph::GraphExecutor* SoftwareRenderer::executor() {
+    return m_executor.get();
+}
+
+const graph::GraphExecutor* SoftwareRenderer::executor() const {
+    return m_executor.get();
 }
 
 std::shared_ptr<Framebuffer> SoftwareRenderer::render_frame(const Composition& comp,

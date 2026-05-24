@@ -45,6 +45,13 @@ struct RenderTelemetryRow {
     uint64_t dirty_full_fallback_composite_missing_input_bounds{0};
     uint64_t dirty_full_fallback_transform_bounds_unknown{0};
     uint64_t dirty_full_fallback_effect_bounds_unknown{0};
+    uint64_t framebuffer_acquire_ms{0};
+    uint64_t framebuffer_clear_ms{0};
+    uint64_t framebuffer_enqueue_ms{0};
+    uint64_t framebuffer_pool_miss_count_size_mismatch{0};
+    uint64_t framebuffer_pool_miss_count_empty{0};
+    uint64_t framebuffer_buffer_returned_to_pool_count{0};
+    uint64_t frame_conversion_copy_ms{0};
 };
 
 } // namespace chronon3d::telemetry
@@ -207,6 +214,80 @@ inline std::vector<TileTelemetryRecord> collect_tile_telemetry() {
     return result;
 }
 
-void flush_telemetry();
+inline void flush_telemetry() {
+    auto& buffer = detail::thread_local_buffer();
+    if (buffer.empty()) return;
+
+    const auto ts = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count();
+    const std::size_t run_id = detail::current_run_id();
+    const std::filesystem::path csv_path = detail::telemetry_csv_path();
+
+    if (csv_path.has_parent_path()) {
+        std::error_code ec;
+        std::filesystem::create_directories(csv_path.parent_path(), ec);
+    }
+
+    std::scoped_lock lock(detail::telemetry_mutex());
+    detail::migrate_legacy_csv(csv_path);
+
+    auto& global = detail::global_rows();
+    std::ofstream csv(csv_path, std::ios::app);
+    if (csv) {
+        detail::ensure_csv_header(csv, csv_path);
+    }
+
+    for (const auto& row : buffer) {
+        if (csv) {
+            csv << ts << ','
+                << run_id << ','
+                << detail::csv_escape(row.event) << ','
+                << row.frame << ','
+                << row.width << ','
+                << row.height << ','
+                << row.total_ms << ','
+                << row.setup_ms << ','
+                << row.composite_ms << ','
+                << row.blur_ms << ','
+                << row.encode_ms << ','
+                << row.ram_mb << ','
+                << row.cache_hit << ','
+                << row.layer_count << ','
+                << row.cache_hits << ','
+                << row.cache_misses << ','
+                << row.nodes_executed << ','
+                << row.clear_calls << ','
+                << row.clear_pixels << ','
+                << row.composite_calls << ','
+                << row.composite_pixels << ','
+                << row.transform_calls << ','
+                << row.transform_pixels << ','
+                << row.effect_stack_calls << ','
+                << row.effect_pixels << ','
+                << row.text_glyphs_rasterized << ','
+                << row.framebuffer_allocations << ','
+                << row.framebuffer_reuses << ','
+                << row.dirty_full_fallbacks << ','
+                << row.dirty_full_fallback_predicted_bounds_missing << ','
+                << row.dirty_full_fallback_composite_missing_input_bounds << ','
+                << row.dirty_full_fallback_transform_bounds_unknown << ','
+                << row.dirty_full_fallback_effect_bounds_unknown << ','
+                << row.framebuffer_acquire_ms << ','
+                << row.framebuffer_clear_ms << ','
+                << row.framebuffer_enqueue_ms << ','
+                << row.framebuffer_pool_miss_count_size_mismatch << ','
+                << row.framebuffer_pool_miss_count_empty << ','
+                << row.framebuffer_buffer_returned_to_pool_count << ','
+                << row.frame_conversion_copy_ms << '\n';
+        }
+        global.push_back(row);
+        if (global.size() > 1000) {
+            global.erase(global.begin());
+        }
+    }
+
+    buffer.clear();
+    detail::write_summary_file(global);
+}
 
 } // namespace chronon3d::telemetry

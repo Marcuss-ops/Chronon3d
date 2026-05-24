@@ -55,10 +55,7 @@ private:
     FILE* pipe_{nullptr};
     FfmpegPipeOptions options_{};
     std::vector<uint8_t> rgba_buffer_;
-    std::vector<uint8_t> y_plane_;
-    std::vector<uint8_t> u_plane_;
-    std::vector<uint8_t> v_plane_;
-    std::vector<uint8_t> nv12_uv_plane_;
+    std::vector<uint8_t> yuv_buffer_;
     uint64_t frames_written_{0};
     uint64_t bytes_written_{0};
     double total_write_blocked_ms_{0.0};
