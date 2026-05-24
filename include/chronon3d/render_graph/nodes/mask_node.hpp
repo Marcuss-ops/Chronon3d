@@ -59,7 +59,11 @@ public:
             Color* dst_row = result->pixels_row(y);
             const Color* mask_row = m_alpha_cache->pixels_row(y);
             for (i32 x = 0; x < W; ++x) {
-                dst_row[x].a *= mask_row[x].a;
+                const f32 m = mask_row[x].a;
+                dst_row[x].r *= m;
+                dst_row[x].g *= m;
+                dst_row[x].b *= m;
+                dst_row[x].a *= m;
             }
         }
         return result;

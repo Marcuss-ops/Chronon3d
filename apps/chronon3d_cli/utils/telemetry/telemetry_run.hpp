@@ -164,6 +164,8 @@ inline void record_output_run(const std::string& composition_id,
     for (const auto& phase : phases) {
         if (phase.phase_name == "chronon_render_only_ms") {
             run.chronon_render_only_ms = phase.duration_ms;
+        } else if (phase.phase_name == "chronon_conversion_copy_ms") {
+            run.chronon_conversion_copy_ms = phase.duration_ms;
         } else if (phase.phase_name == "chronon_queue_wait_ms") {
             run.chronon_queue_wait_ms = phase.duration_ms;
         } else if (phase.phase_name == "ffmpeg_flush_close_ms") {

@@ -112,20 +112,13 @@ TEST_CASE("simd::composite_normal_premul large buffer is deterministic") {
         float a = 0.5f + t * 0.5f;
         src[i] = Color{t * 0.3f * a, t * 0.7f * a, (1.0f - t) * a, a};
         
-        // Apply threshold early-out logic to match SIMD kernel
-        if (a <= 0.001f) {
-            ref[i] = dst[i];
-        } else if (a >= 0.999f) {
-            ref[i] = src[i];
-        } else {
-            const float inv_a = 1.0f - a;
-            ref[i] = Color{
-                src[i].r + dst[i].r * inv_a,
-                src[i].g + dst[i].g * inv_a,
-                src[i].b + dst[i].b * inv_a,
-                src[i].a + dst[i].a * inv_a
-            };
-        }
+        const float inv_a = 1.0f - a;
+        ref[i] = Color{
+            src[i].r + dst[i].r * inv_a,
+            src[i].g + dst[i].g * inv_a,
+            src[i].b + dst[i].b * inv_a,
+            src[i].a + dst[i].a * inv_a
+        };
     }
 
     // Run twice — should produce identical results
@@ -155,22 +148,16 @@ TEST_CASE("simd::composite_normal_premul matches scalar reference") {
         src[i] = Color{t * 0.4f * a, t * 0.6f * a, (1.0f - t * 0.7f) * a, a};
     }
 
-    // Scalar reference (with early-outs matching SIMD)
+    // Scalar reference
     for (int i = 0; i < N; ++i) {
         const float alpha = src[i].a;
-        if (alpha <= 0.001f) {
-            scalar_ref[i] = dst[i];
-        } else if (alpha >= 0.999f) {
-            scalar_ref[i] = src[i];
-        } else {
-            const float inv_a = 1.0f - alpha;
-            scalar_ref[i] = Color{
-                src[i].r + dst[i].r * inv_a,
-                src[i].g + dst[i].g * inv_a,
-                src[i].b + dst[i].b * inv_a,
-                src[i].a + dst[i].a * inv_a
-            };
-        }
+        const float inv_a = 1.0f - alpha;
+        scalar_ref[i] = Color{
+            src[i].r + dst[i].r * inv_a,
+            src[i].g + dst[i].g * inv_a,
+            src[i].b + dst[i].b * inv_a,
+            src[i].a + dst[i].a * inv_a
+        };
     }
 
     simd::composite_normal_premul(dst.data(), src.data(), N);

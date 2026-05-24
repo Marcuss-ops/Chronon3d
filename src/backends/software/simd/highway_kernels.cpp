@@ -159,6 +159,7 @@ HWY_ATTR void convert_f32_rgba_to_yuv420p_simd_rows_impl(
     uint8_t* HWY_RESTRICT v_ptr,
     const float* HWY_RESTRICT src_ptr,
     int width, int height,
+    int src_stride,
     int y_start, int y_end,
     bool apply_gamma) {
 
@@ -190,7 +191,7 @@ HWY_ATTR void convert_f32_rgba_to_yuv420p_simd_rows_impl(
 
     for (int y = y_start; y < y_end; ++y) {
         uint8_t* dst_y = y_ptr + static_cast<size_t>(y) * width;
-        const float* src_row = src_ptr + static_cast<size_t>(y) * width * 4;
+        const float* src_row = src_ptr + static_cast<size_t>(y) * src_stride * 4;
 
         // 1. Luma (Y)
         for (int x = 0; x < vectorized_pixels_per_row; x += lanes * 4) {
@@ -247,8 +248,8 @@ HWY_ATTR void convert_f32_rgba_to_yuv420p_simd_rows_impl(
         const int uv_width = width / 2;
 
         for (int y = uv_row_begin; y < uv_row_end; y += 2) {
-            const float* row0 = src_ptr + static_cast<size_t>(y) * width * 4;
-            const float* row1 = row0 + static_cast<size_t>(width) * 4;
+            const float* row0 = src_ptr + static_cast<size_t>(y) * src_stride * 4;
+            const float* row1 = row0 + static_cast<size_t>(src_stride) * 4;
             uint8_t* dst_u = u_ptr + (static_cast<size_t>(y) / 2) * uv_width;
             uint8_t* dst_v = v_ptr + (static_cast<size_t>(y) / 2) * uv_width;
 
@@ -296,11 +297,12 @@ HWY_ATTR void convert_f32_rgba_to_nv12_simd_rows_impl(
     uint8_t* HWY_RESTRICT uv_ptr,
     const float* HWY_RESTRICT src_ptr,
     int width, int height,
+    int src_stride,
     int y_start, int y_end,
     bool apply_gamma) {
 
     // Reuse Luma Y logic
-    convert_f32_rgba_to_yuv420p_simd_rows_impl(y_ptr, nullptr, nullptr, src_ptr, width, height, y_start, y_end, apply_gamma);
+    convert_f32_rgba_to_yuv420p_simd_rows_impl(y_ptr, nullptr, nullptr, src_ptr, width, height, src_stride, y_start, y_end, apply_gamma);
     
     // UV Interleaved
     const int uv_row_begin = std::max((y_start + 1) & ~1, 0);
@@ -308,8 +310,8 @@ HWY_ATTR void convert_f32_rgba_to_nv12_simd_rows_impl(
     const int uv_width = width / 2;
 
     for (int y = uv_row_begin; y < uv_row_end; y += 2) {
-        const float* row0 = src_ptr + static_cast<size_t>(y) * width * 4;
-        const float* row1 = row0 + static_cast<size_t>(width) * 4;
+        const float* row0 = src_ptr + static_cast<size_t>(y) * src_stride * 4;
+        const float* row1 = row0 + static_cast<size_t>(src_stride) * 4;
         uint8_t* dst_uv = uv_ptr + (static_cast<size_t>(y) / 2) * uv_width * 2;
 
         for (int bx = 0; bx < uv_width; ++bx) {
@@ -381,12 +383,12 @@ void convert_f32_rgba_to_u8_rgba(uint8_t* __restrict__ dst, const Color* __restr
     HWY_DYNAMIC_DISPATCH(convert_f32_rgba_to_u8_rgba_impl)(dst, reinterpret_cast<const float*>(src), pixel_count);
 }
 
-void convert_f32_rgba_to_yuv420p_simd_rows(uint8_t* __restrict__ y_ptr, uint8_t* __restrict__ u_ptr, uint8_t* __restrict__ v_ptr, const Color* __restrict__ src, int width, int height, int y_start, int y_end, bool apply_gamma) {
-    HWY_DYNAMIC_DISPATCH(convert_f32_rgba_to_yuv420p_simd_rows_impl)(y_ptr, u_ptr, v_ptr, reinterpret_cast<const float*>(src), width, height, y_start, y_end, apply_gamma);
+void convert_f32_rgba_to_yuv420p_simd_rows(uint8_t* __restrict__ y_ptr, uint8_t* __restrict__ u_ptr, uint8_t* __restrict__ v_ptr, const Color* __restrict__ src, int width, int height, int src_stride, int y_start, int y_end, bool apply_gamma) {
+    HWY_DYNAMIC_DISPATCH(convert_f32_rgba_to_yuv420p_simd_rows_impl)(y_ptr, u_ptr, v_ptr, reinterpret_cast<const float*>(src), width, height, src_stride, y_start, y_end, apply_gamma);
 }
 
-void convert_f32_rgba_to_nv12_simd_rows(uint8_t* __restrict__ y_ptr, uint8_t* __restrict__ uv_ptr, const Color* __restrict__ src, int width, int height, int y_start, int y_end, bool apply_gamma) {
-    HWY_DYNAMIC_DISPATCH(convert_f32_rgba_to_nv12_simd_rows_impl)(y_ptr, uv_ptr, reinterpret_cast<const float*>(src), width, height, y_start, y_end, apply_gamma);
+void convert_f32_rgba_to_nv12_simd_rows(uint8_t* __restrict__ y_ptr, uint8_t* __restrict__ uv_ptr, const Color* __restrict__ src, int width, int height, int src_stride, int y_start, int y_end, bool apply_gamma) {
+    HWY_DYNAMIC_DISPATCH(convert_f32_rgba_to_nv12_simd_rows_impl)(y_ptr, uv_ptr, reinterpret_cast<const float*>(src), width, height, src_stride, y_start, y_end, apply_gamma);
 }
 
 void clear_framebuffer(Color* data, int pixel_count, const Color& color) {

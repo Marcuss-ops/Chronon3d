@@ -554,6 +554,55 @@ def _insert_batch(cursor, rows, columns, table):
     cursor.executemany(sql, rows)
 
 
+def _hydrate_video_metrics(cursor):
+    """Promote phase-event timings into render_runs for dashboard consumers.
+
+    Some CLI builds write the detailed timings only into render_phase_events
+    while leaving the denormalized render_runs columns at zero. The dashboard
+    expects those top-level fields to be populated, so we fill them from the
+    phase table when the cached merged DB is built.
+    """
+
+    phase_to_column = {
+        'chronon_render_only_ms': 'chronon_render_only_ms',
+        'chronon_conversion_copy_ms': 'chronon_conversion_copy_ms',
+        'chronon_queue_wait_ms': 'chronon_queue_wait_ms',
+        'ffmpeg_encode_total_ms': 'ffmpeg_encode_total_ms',
+        'ffmpeg_flush_close_ms': 'ffmpeg_flush_close_ms',
+        'e2e_wall_ms': 'e2e_wall_ms',
+    }
+
+    for phase_name, column_name in phase_to_column.items():
+        cursor.execute(
+            f"""
+            UPDATE render_runs
+               SET {column_name} = COALESCE(
+                   NULLIF({column_name}, 0),
+                   (
+                       SELECT duration_ms
+                         FROM render_phase_events
+                        WHERE render_phase_events.run_id = render_runs.run_id
+                          AND phase_name = ?
+                        LIMIT 1
+                   ),
+                   {column_name}
+               )
+             WHERE {column_name} IS NULL OR {column_name} = 0
+            """,
+            (phase_name,),
+        )
+
+    cursor.execute(
+        """
+        UPDATE render_runs
+           SET chronon_render_throughput_ms =
+               COALESCE(chronon_render_only_ms, 0) +
+               COALESCE(chronon_conversion_copy_ms, 0) +
+               COALESCE(chronon_queue_wait_ms, 0)
+        """
+    )
+
+
 # ── Global cache: one shared in-memory master DB, rebuilt only on file change ────
 _cached_master = None
 _last_db_mtime = 0
@@ -599,6 +648,7 @@ def create_merged_connection():
                     _, columns, table = _BUILDERS[rtype]
                     _insert_batch(cursor, rows, columns, table)
 
+            _hydrate_video_metrics(cursor)
             master.commit()
 
             if _cached_master:
