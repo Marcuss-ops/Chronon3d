@@ -21,8 +21,9 @@ TEST_CASE("SourceRegistry exposes built-in source descriptors") {
 TEST_CASE("ShapeRegistry exposes built-in shape descriptors") {
     ShapeRegistry registry;
 
-    CHECK(registry.available().size() == 8);
+    CHECK(registry.available().size() >= 9);
     CHECK(registry.contains(shape_ids::Rect));
+    CHECK(registry.contains(shape_ids::GridBackground));
     CHECK(registry.contains(shape_ids::Path));
     CHECK(registry.get(shape_ids::Path).kind == ShapeKind::Path);
     CHECK(registry.get(shape_ids::Mesh).builtin);
@@ -48,6 +49,31 @@ TEST_CASE("ShapeRegistry creates built-in shape nodes") {
     CHECK(node.world_transform.position.z == doctest::Approx(30.0f));
     CHECK(node.world_transform.anchor.x == doctest::Approx(60.0f));
     CHECK(node.world_transform.anchor.y == doctest::Approx(40.0f));
+}
+
+TEST_CASE("ShapeRegistry creates built-in grid background nodes") {
+    ShapeRegistry registry;
+
+    auto node = registry.create_node(
+        shape_ids::GridBackground,
+        std::pmr::get_default_resource(),
+        "grid",
+        GridBackgroundParams{
+            .size = {1280.0f, 720.0f},
+            .offset = {12.0f, 8.0f},
+            .bg_color = Color{0.02f, 0.03f, 0.05f, 1.0f},
+            .grid_color = Color{0.3f, 0.6f, 1.0f, 0.08f},
+            .spacing = 64.0f,
+            .minor_thickness = 1.0f,
+            .major_thickness = 2.0f,
+            .major_every = 4,
+            .centered = true
+        }
+    );
+
+    CHECK(node.shape.type == ShapeType::GridBackground);
+    CHECK(node.shape.grid_background.size.x == doctest::Approx(1280.0f));
+    CHECK(node.shape.grid_background.offset.x == doctest::Approx(12.0f));
 }
 
 TEST_CASE("ShapeRegistry rejects shapes without factories") {

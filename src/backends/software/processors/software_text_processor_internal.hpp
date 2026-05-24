@@ -27,6 +27,8 @@ extern std::mutex g_text_glow_cache_mutex;
 
 ShadowCache& get_shadow_cache();
 ShadowCache& get_glow_cache();
+extern std::mutex g_text_glow_cache_mutex;
+extern std::mutex g_text_shadow_cache_mutex;
 
 void draw_text_shadow(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNode& node, const RenderState& state, const TextRasterization& raster, const TextShadow& shadow, size_t index);
 void draw_text_glow(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNode& node, const RenderState& state, const TextRasterization& raster);

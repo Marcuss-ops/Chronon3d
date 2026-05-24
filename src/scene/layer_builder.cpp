@@ -173,6 +173,10 @@ LayerBuilder& LayerBuilder::tiled_image(std::string name, ImageParams p) {
     return shape(registry::shape_ids::TiledImage, std::move(name), std::move(p));
 }
 
+LayerBuilder& LayerBuilder::grid_background(std::string name, GridBackgroundParams p) {
+    return shape(registry::shape_ids::GridBackground, std::move(name), std::move(p));
+}
+
 LayerBuilder& LayerBuilder::text(std::string name, TextParams p) {
     return shape(registry::shape_ids::Text, std::move(name), std::move(p));
 }

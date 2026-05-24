@@ -54,6 +54,7 @@ namespace chronon3d {
         SceneBuilder &line(std::string name, LineParams p);
         SceneBuilder &path(std::string name, PathParams p);
         SceneBuilder &image(std::string name, ImageParams p);
+        SceneBuilder &grid_background(std::string name, GridBackgroundParams p);
         SceneBuilder &shape(std::string_view id, std::string name, registry::ShapeParams params);
 
         // text() removed — text engine deprecated

@@ -22,7 +22,7 @@ void register_video_commands(CLI::App& app, CliContext& ctx) {
     cmd->add_option("--fps", args.fps, "Output frame rate")->default_val(30);
     cmd->add_option("--crf", args.crf, "x264 CRF (0-51, lower=better)")->default_val(18);
     cmd->add_option("--codec", args.codec, "Video encoder (auto, libx264, mpeg4)")->default_val("auto");
-    cmd->add_option("--encode-preset,--preset", args.encode_preset, "x264 preset")->default_val("medium");
+    cmd->add_option("--encode-preset,--preset", args.encode_preset, "x264 preset")->default_val("veryfast");
     cmd->add_option("--hardware", args.hardware_encoder, "Hardware encoder: none, auto, nvenc, qsv, videotoolbox, amf")->default_val("none");
     cmd->add_flag("--keep-frames", args.keep_frames, "Keep temporary PNG frames");
     cmd->add_flag("--graph,!--no-graph", args.pipeline.use_modular_graph, "Use modular RenderGraph path");
@@ -35,12 +35,12 @@ void register_video_commands(CLI::App& app, CliContext& ctx) {
     cmd->add_option("--ssaa", args.pipeline.quality.ssaa, "Super Sampling factor")->default_val(1.0f);
     cmd->add_option("--chunks", args.chunks, "Render frame range in N parallel chunks before encoding")->default_val(1);
     cmd->add_option("--ffmpeg-mode", args.ffmpeg_mode, "Fallback FFmpeg mode: png, pipe")
-        ->default_val("png")
+        ->default_val("pipe")
         ->check(CLI::IsMember({"png", "pipe"}));
     cmd->add_flag("--ffmpeg-verbose", args.ffmpeg_verbose, "Show FFmpeg logs in pipe mode");
-    cmd->add_option("--pipe-pixfmt", args.pipe_pixfmt, "Pixel format for raw pipe input: rgba, yuv420p, nv12")
-        ->default_val("yuv420p")
-        ->check(CLI::IsMember({"rgba", "yuv420p", "nv12"}));
+    cmd->add_option("--pipe-pixfmt", args.pipe_pixfmt, "Legacy raw pipe input format (RGBA is the stable path)")
+        ->default_val("rgba")
+        ->check(CLI::IsMember({"rgba", "yuv420p", "nv12", "yuv444p"}));
     cmd->add_option("--color-output", args.color_output, "Output color space: srgb, rec709, linearsrgb")
         ->default_val("srgb")
         ->check(CLI::IsMember({"srgb", "rec709", "linearsrgb"}));

@@ -22,6 +22,7 @@ public:
         std::span<const std::optional<raster::BBox>> = {}
     ) const override;
 
+
     [[nodiscard]] CacheFramePolicy cache_frame_policy() const override {
         return CacheFramePolicy::FrameInvariant;
     }
@@ -50,6 +51,7 @@ public:
     ) override;
 
     [[nodiscard]] bool can_seed_full_frame(const RenderGraphContext& ctx) const override;
+
 
 private:
     std::string m_name;

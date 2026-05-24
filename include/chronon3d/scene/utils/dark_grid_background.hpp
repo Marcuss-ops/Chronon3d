@@ -56,7 +56,7 @@ inline std::filesystem::path cache_path(f32 W, f32 H, const DarkGridBgParams& p)
     seed = mix_hash(seed, static_cast<u64>(p.centered));
 
     std::ostringstream oss;
-    oss << std::hex << seed << ".exr";
+    oss << std::hex << seed << ".png";
     return cache_dir() / oss.str();
 }
 
@@ -118,12 +118,7 @@ inline std::filesystem::path ensure_dark_grid_background_image(
     Framebuffer fb(width, height);
     rasterize_dark_grid_background(fb, p);
     
-    ImageWriteOptions opts;
-    opts.format = ImageFormat::Exr;
-    opts.exr_half_float = true; // DWAA works with half float
-    opts.exr_tiled = true;
-    opts.exr_dwaa = true;
-    save_exr(fb, path.string(), opts);
+    save_png(fb, path.string());
     
     return path;
 }
@@ -135,18 +130,18 @@ inline void dark_grid_background(SceneBuilder& s,
                                 const DarkGridBgParams& p = {}) {
     const f32 W = static_cast<f32>(ctx.width > 0 ? ctx.width : 1280);
     const f32 H = static_cast<f32>(ctx.height > 0 ? ctx.height : 720);
-    const auto grid_path = detail::ensure_dark_grid_background_image(static_cast<i32>(W), static_cast<i32>(H), p);
 
-    s.layer("nbg_bg", [grid_path, W, H](LayerBuilder& l) {
+    GridBackgroundParams grid{};
+    grid.size = {W, H};
+    grid.bg_color = p.bg_color;
+    grid.grid_color = p.grid_color;
+    grid.spacing = p.spacing;
+    grid.offset = {0.0f, 0.0f};
+    grid.centered = p.centered;
+
+    s.layer("nbg_bg", [grid](LayerBuilder& l) {
         l.cache_static();
-        l.image("grid_bg", {
-            .path = grid_path.string(),
-            .size = {W, H},
-            // Full-frame background starts from the layer origin; the source node handles centering
-            // only when the modular graph path is active.
-            .pos = {0.0f, 0.0f, 0.0f},
-            .opacity = 1.0f
-        });
+        l.grid_background("grid_bg", grid);
     });
 }
 
