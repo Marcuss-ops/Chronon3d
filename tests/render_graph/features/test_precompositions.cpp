@@ -2,7 +2,7 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
-#include <chronon3d/core/composition_registry.hpp>
+#include <chronon3d/core/composition/composition_registry.hpp>
 
 using namespace chronon3d;
 

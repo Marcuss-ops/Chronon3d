@@ -1,7 +1,7 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb_image_write.h>
 #include <chronon3d/backends/image/image_writer.hpp>
-#include <chronon3d/core/profiling.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
 
 #include <OpenEXR/ImfOutputFile.h>
 #include <OpenEXR/ImfTiledOutputFile.h>

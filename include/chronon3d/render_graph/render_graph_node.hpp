@@ -2,7 +2,7 @@
 
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/render_graph/cache_policy.hpp>
-#include <chronon3d/core/framebuffer.hpp>
+#include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/cache/framebuffer_pool.hpp>
 #include <chronon3d/runtime/telemetry/render_telemetry_record.hpp>
 #include <chronon3d/scene/camera/camera.hpp>

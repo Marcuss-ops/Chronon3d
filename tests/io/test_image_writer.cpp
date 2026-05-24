@@ -1,5 +1,5 @@
 #include <doctest/doctest.h>
-#include <chronon3d/core/framebuffer.hpp>
+#include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <filesystem>
 #include <fstream>

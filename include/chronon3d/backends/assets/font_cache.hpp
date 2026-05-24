@@ -1,6 +1,6 @@
 #pragma once
 
-#include <chronon3d/core/types.hpp>
+#include <chronon3d/core/types/types.hpp>
 #include <chronon3d/backends/text/font_backend.hpp>
 #include <string>
 #include <unordered_map>

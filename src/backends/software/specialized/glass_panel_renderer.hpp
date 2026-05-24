@@ -1,6 +1,6 @@
 #pragma once
 
-#include <chronon3d/core/framebuffer.hpp>
+#include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/scene/shape.hpp>
 #include <chronon3d/math/mat4.hpp>
 #include <chronon3d/scene/layer/render_node.hpp>

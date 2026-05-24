@@ -1,6 +1,6 @@
 #pragma once
 
-#include <chronon3d/core/frame.hpp>
+#include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/math/vec3.hpp>
 
 #include <algorithm>

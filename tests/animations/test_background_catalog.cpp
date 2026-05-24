@@ -1,5 +1,5 @@
 #include <chronon3d/api/backgrounds.hpp>
-#include <chronon3d/core/composition_registry.hpp>
+#include <chronon3d/core/composition/composition_registry.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/image/stb_image_backend.hpp>
 

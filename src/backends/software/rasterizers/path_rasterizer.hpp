@@ -1,6 +1,6 @@
 #pragma once
 
-#include <chronon3d/core/framebuffer.hpp>
+#include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/math/mat4.hpp>
 #include <chronon3d/scene/shape.hpp>
 #include <chronon3d/scene/fill.hpp>
@@ -8,13 +8,14 @@
 #include <chronon3d/math/raster_utils.hpp>
 #include <vector>
 
+#include "path_cache.hpp"
+#include "path_fill.hpp"
+#include "path_stroke.hpp"
+#include "path_utils.hpp"
+#include "pip.hpp"
+
 namespace chronon3d {
 namespace renderer {
-
-struct PathContour {
-    std::vector<Vec2> points;
-    bool closed{false};
-};
 
 [[nodiscard]] std::vector<PathContour> flatten_path(const PathShape& path);
 [[nodiscard]] raster::BBox compute_path_bbox(const PathShape& path, const Mat4& model, f32 spread = 0.0f);

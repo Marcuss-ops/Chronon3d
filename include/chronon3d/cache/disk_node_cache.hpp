@@ -1,7 +1,7 @@
 #pragma once
 
 #include <chronon3d/cache/node_cache.hpp>
-#include <chronon3d/core/framebuffer.hpp>
+#include <chronon3d/core/memory/framebuffer.hpp>
 #include <memory>
 #include <filesystem>
 

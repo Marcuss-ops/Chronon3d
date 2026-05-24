@@ -1,5 +1,5 @@
 #include <chronon3d/animations/camera_motion.hpp>
-#include <chronon3d/core/composition_registration.hpp>
+#include <chronon3d/core/composition/composition_registration.hpp>
 #include <chronon3d/presets/camera_motion_clip.hpp>
 #include <chronon3d/scene/utils/dark_grid_background.hpp>
 

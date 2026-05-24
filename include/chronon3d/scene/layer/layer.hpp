@@ -1,7 +1,7 @@
 #pragma once
 
-#include <chronon3d/core/types.hpp>
-#include <chronon3d/core/frame.hpp>
+#include <chronon3d/core/types/types.hpp>
+#include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/math/transform.hpp>
 #include <chronon3d/animation/animated_transform.hpp>
 #include <chronon3d/scene/layer/render_node.hpp>

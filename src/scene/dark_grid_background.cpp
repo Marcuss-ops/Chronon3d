@@ -1,4 +1,4 @@
-#include <chronon3d/core/composition_registration.hpp>
+#include <chronon3d/core/composition/composition_registration.hpp>
 #include <chronon3d/scene/utils/dark_grid_background.hpp>
 
 namespace chronon3d {

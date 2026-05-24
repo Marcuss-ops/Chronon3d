@@ -5,7 +5,7 @@
 
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/math/vec2.hpp>
-#include <chronon3d/core/types.hpp>
+#include <chronon3d/core/types/types.hpp>
 #include <chronon3d/effects/effect_instance.hpp>
 #include <variant>
 #include <vector>

@@ -1,4 +1,4 @@
-#include <chronon3d/core/structured_telemetry.hpp>
+#include <chronon3d/core/telemetry/structured_telemetry.hpp>
 #include <sqlite3.h>
 #include <spdlog/spdlog.h>
 #include <fmt/format.h>

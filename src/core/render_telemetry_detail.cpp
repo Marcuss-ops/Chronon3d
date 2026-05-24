@@ -1,9 +1,9 @@
-#pragma once
+#include <chronon3d/core/telemetry/render_telemetry_detail.hpp>
 
-#include <chronon3d/core/render_telemetry.hpp>
+// Full type definitions needed by the implementation
+#include <chronon3d/core/telemetry/render_telemetry.hpp>
 
 #include <algorithm>
-#include <chrono>
 #include <cmath>
 #include <cstdlib>
 #include <filesystem>
@@ -18,123 +18,120 @@
 
 namespace chronon3d::telemetry::detail {
 
-inline std::mutex& telemetry_mutex() {
+// -----------------------------------------------------------------------
+// Mutex getters
+// -----------------------------------------------------------------------
+
+std::mutex& telemetry_mutex() {
     static std::mutex mutex;
     return mutex;
 }
 
-inline std::vector<RenderTelemetryRow>& global_rows() {
+std::mutex& node_telemetry_mutex() {
+    static std::mutex mutex;
+    return mutex;
+}
+
+std::mutex& layer_telemetry_mutex() {
+    static std::mutex mutex;
+    return mutex;
+}
+
+std::mutex& cache_telemetry_mutex() {
+    static std::mutex mutex;
+    return mutex;
+}
+
+std::mutex& culling_telemetry_mutex() {
+    static std::mutex mutex;
+    return mutex;
+}
+
+std::mutex& text_telemetry_mutex() {
+    static std::mutex mutex;
+    return mutex;
+}
+
+std::mutex& image_telemetry_mutex() {
+    static std::mutex mutex;
+    return mutex;
+}
+
+std::mutex& tile_telemetry_mutex() {
+    static std::mutex mutex;
+    return mutex;
+}
+
+// -----------------------------------------------------------------------
+// Global / thread-local stores
+// -----------------------------------------------------------------------
+
+std::vector<RenderTelemetryRow>& global_rows() {
     static std::vector<RenderTelemetryRow> rows;
     return rows;
 }
 
-inline std::vector<RenderTelemetryRow>& thread_local_buffer() {
+std::vector<RenderTelemetryRow>& thread_local_buffer() {
     static thread_local std::vector<RenderTelemetryRow> buffer;
     return buffer;
 }
 
-inline std::mutex& node_telemetry_mutex() {
-    static std::mutex mutex;
-    return mutex;
-}
-
-inline std::mutex& layer_telemetry_mutex() {
-    static std::mutex mutex;
-    return mutex;
-}
-
-inline std::mutex& cache_telemetry_mutex() {
-    static std::mutex mutex;
-    return mutex;
-}
-
-inline std::mutex& culling_telemetry_mutex() {
-    static std::mutex mutex;
-    return mutex;
-}
-
-inline std::mutex& text_telemetry_mutex() {
-    static std::mutex mutex;
-    return mutex;
-}
-
-inline std::mutex& image_telemetry_mutex() {
-    static std::mutex mutex;
-    return mutex;
-}
-
-inline std::mutex& tile_telemetry_mutex() {
-    static std::mutex mutex;
-    return mutex;
-}
-
-inline std::vector<NodeTelemetryRecord>& node_telemetry_store() {
+std::vector<NodeTelemetryRecord>& node_telemetry_store() {
     static std::vector<NodeTelemetryRecord> store;
     return store;
 }
 
-inline std::vector<LayerTelemetryRecord>& layer_telemetry_store() {
+std::vector<LayerTelemetryRecord>& layer_telemetry_store() {
     static std::vector<LayerTelemetryRecord> store;
     return store;
 }
 
-inline std::vector<CacheTelemetryRecord>& cache_telemetry_store() {
+std::vector<CacheTelemetryRecord>& cache_telemetry_store() {
     static std::vector<CacheTelemetryRecord> store;
     return store;
 }
 
-inline std::vector<CullingTelemetryRecord>& culling_telemetry_store() {
+std::vector<CullingTelemetryRecord>& culling_telemetry_store() {
     static std::vector<CullingTelemetryRecord> store;
     return store;
 }
 
-inline std::vector<TextTelemetryRecord>& text_telemetry_store() {
+std::vector<TextTelemetryRecord>& text_telemetry_store() {
     static std::vector<TextTelemetryRecord> store;
     return store;
 }
 
-inline std::vector<ImageTelemetryRecord>& image_telemetry_store() {
+std::vector<ImageTelemetryRecord>& image_telemetry_store() {
     static std::vector<ImageTelemetryRecord> store;
     return store;
 }
 
-inline std::vector<TileTelemetryRecord>& tile_telemetry_store() {
+std::vector<TileTelemetryRecord>& tile_telemetry_store() {
     static std::vector<TileTelemetryRecord> store;
     return store;
 }
 
-inline std::filesystem::path telemetry_csv_path() {
+// -----------------------------------------------------------------------
+// CSV path helpers
+// -----------------------------------------------------------------------
+
+std::filesystem::path telemetry_csv_path() {
     if (const char* env = std::getenv("CHRONON_RENDER_LOG"); env && *env) {
         return std::filesystem::path(env);
     }
     return std::filesystem::path("output") / "render_telemetry.csv";
 }
 
-inline std::filesystem::path telemetry_summary_path() {
+std::filesystem::path telemetry_summary_path() {
     auto path = telemetry_csv_path();
     return path.replace_filename("render_summary.txt");
 }
 
-inline std::string csv_escape(std::string_view value) {
-    const bool needs_quotes = value.find_first_of(",\"\n\r") != std::string_view::npos;
-    if (!needs_quotes) {
-        return std::string(value);
-    }
+// -----------------------------------------------------------------------
+// CSV I/O
+// -----------------------------------------------------------------------
 
-    std::string out;
-    out.reserve(value.size() + 2);
-    out.push_back('"');
-    for (char c : value) {
-        if (c == '"') {
-            out.push_back('"');
-        }
-        out.push_back(c);
-    }
-    out.push_back('"');
-    return out;
-}
-
-inline void ensure_csv_header(std::ofstream& out, const std::filesystem::path& path) {
+void ensure_csv_header(std::ofstream& out, const std::filesystem::path& path) {
     if (!std::filesystem::exists(path) || std::filesystem::file_size(path) == 0) {
         out << "ts,run_id,event,frame,w,h,total_ms,setup_ms,composite_ms,blur_ms,encode_ms,ram_mb,cache_hit,layer_count,"
                "cache_hits,cache_misses,nodes_executed,clear_calls,clear_pixels,composite_calls,composite_pixels,"
@@ -145,7 +142,7 @@ inline void ensure_csv_header(std::ofstream& out, const std::filesystem::path& p
     }
 }
 
-inline bool csv_header_matches(const std::filesystem::path& path) {
+bool csv_header_matches(const std::filesystem::path& path) {
     if (!std::filesystem::exists(path) || std::filesystem::file_size(path) == 0) {
         return true;
     }
@@ -158,7 +155,7 @@ inline bool csv_header_matches(const std::filesystem::path& path) {
     return header == "ts,run_id,event,frame,w,h,total_ms,setup_ms,composite_ms,blur_ms,encode_ms,ram_mb,cache_hit,layer_count,cache_hits,cache_misses,nodes_executed,clear_calls,clear_pixels,composite_calls,composite_pixels,transform_calls,transform_pixels,effect_stack_calls,effect_pixels,text_glyphs_rasterized,framebuffer_allocations,framebuffer_reuses,dirty_full_fallbacks,dirty_full_fallback_predicted_bounds_missing,dirty_full_fallback_composite_missing_input_bounds,dirty_full_fallback_transform_bounds_unknown,dirty_full_fallback_effect_bounds_unknown";
 }
 
-inline void migrate_legacy_csv(const std::filesystem::path& path) {
+void migrate_legacy_csv(const std::filesystem::path& path) {
     if (!std::filesystem::exists(path)) {
         return;
     }
@@ -177,7 +174,7 @@ inline void migrate_legacy_csv(const std::filesystem::path& path) {
     }
 }
 
-inline std::size_t read_last_run_id(const std::filesystem::path& path) {
+std::size_t read_last_run_id(const std::filesystem::path& path) {
     std::ifstream in(path);
     if (!in) {
         return 0;
@@ -204,7 +201,7 @@ inline std::size_t read_last_run_id(const std::filesystem::path& path) {
     return max_id;
 }
 
-inline std::size_t current_run_id() {
+std::size_t current_run_id() {
     static const std::size_t run_id = [] {
         const auto path = telemetry_csv_path();
         return read_last_run_id(path) + 1;
@@ -212,29 +209,11 @@ inline std::size_t current_run_id() {
     return run_id;
 }
 
-inline double percentile(std::vector<double> values, double p) {
-    if (values.empty()) {
-        return 0.0;
-    }
-    p = std::clamp(p, 0.0, 1.0);
-    const size_t index = static_cast<size_t>(std::floor(p * static_cast<double>(values.size() - 1)));
-    std::nth_element(values.begin(), values.begin() + static_cast<std::ptrdiff_t>(index), values.end());
-    return values[index];
-}
+// -----------------------------------------------------------------------
+// Summary file
+// -----------------------------------------------------------------------
 
-inline std::string format_ms(double value) {
-    std::ostringstream oss;
-    oss << std::fixed << std::setprecision(2) << value;
-    return oss.str();
-}
-
-inline std::string format_count(double value) {
-    std::ostringstream oss;
-    oss << static_cast<uint64_t>(std::llround(value));
-    return oss.str();
-}
-
-inline void write_summary_file(const std::vector<RenderTelemetryRow>& rows) {
+void write_summary_file(const std::vector<RenderTelemetryRow>& rows) {
     const auto path = telemetry_summary_path();
     if (path.has_parent_path()) {
         std::error_code ec;

@@ -1,5 +1,5 @@
 #include <doctest/doctest.h>
-#include <chronon3d/core/trace.hpp>
+#include <chronon3d/core/profiling/trace.hpp>
 #include <nlohmann/json.hpp>
 #include <thread>
 #include <set>

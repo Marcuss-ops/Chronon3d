@@ -1,5 +1,5 @@
 #include <chronon3d/render_graph/graph_builder.hpp>
-#include <chronon3d/core/profiling.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
 
 #include "builder/graph_builder_internal.hpp"
 #include "builder/graph_builder_pipeline.hpp"

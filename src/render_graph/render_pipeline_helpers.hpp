@@ -11,8 +11,8 @@
 
 #include <chronon3d/render_graph/render_pipeline.hpp>
 #include <chronon3d/render_graph/render_graph_hashing.hpp>
-#include <chronon3d/core/render_telemetry.hpp>
-#include <chronon3d/core/counters.hpp>
+#include <chronon3d/core/telemetry/render_telemetry.hpp>
+#include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <algorithm>
 #include <cmath>

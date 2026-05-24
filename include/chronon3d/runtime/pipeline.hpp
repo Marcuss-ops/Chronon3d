@@ -2,8 +2,8 @@
 
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/backends/software/renderer.hpp>
-#include <chronon3d/core/arena.hpp>
-#include <chronon3d/core/framebuffer.hpp>
+#include <chronon3d/core/memory/arena.hpp>
+#include <chronon3d/core/memory/framebuffer.hpp>
 #include <functional>
 #include <memory>
 #include <vector>

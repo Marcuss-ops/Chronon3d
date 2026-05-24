@@ -2,7 +2,7 @@
 #include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
 #include <chronon3d/runtime/telemetry/jsonl_telemetry_store.hpp>
 #include <chronon3d/runtime/telemetry/sqlite_telemetry_store.hpp>
-#include <chronon3d/core/render_telemetry.hpp>
+#include <chronon3d/core/telemetry/render_telemetry.hpp>
 #include <nlohmann/json.hpp>
 #include <filesystem>
 #include <fstream>

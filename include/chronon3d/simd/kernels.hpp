@@ -13,7 +13,7 @@
 //   Scalar impl  →  src/backends/software/simd/scalar_kernels.cpp
 // ---------------------------------------------------------------------------
 
-#include <chronon3d/core/types.hpp>
+#include <chronon3d/core/types/types.hpp>
 #include <chronon3d/math/color.hpp>
 
 namespace chronon3d {

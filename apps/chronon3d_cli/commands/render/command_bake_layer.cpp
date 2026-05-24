@@ -5,7 +5,7 @@
 #include <chronon3d/render_graph/graph_builder.hpp>
 #include <chronon3d/render_graph/graph_executor.hpp>
 #include <chronon3d/render_graph/graph_filter.hpp>
-#include <chronon3d/core/composition_registry.hpp>
+#include <chronon3d/core/composition/composition_registry.hpp>
 #include <spdlog/spdlog.h>
 
 namespace chronon3d::cli {

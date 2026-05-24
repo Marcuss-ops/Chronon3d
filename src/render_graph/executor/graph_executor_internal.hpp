@@ -3,9 +3,9 @@
 #include <chronon3d/render_graph/render_graph.hpp>
 #include <chronon3d/render_graph/graph_profiler.hpp>
 #include <chronon3d/render_graph/render_graph_hashing.hpp>
-#include <chronon3d/core/profiling.hpp>
-#include <chronon3d/core/counters.hpp>
-#include <chronon3d/core/render_telemetry.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/core/profiling/counters.hpp>
+#include <chronon3d/core/telemetry/render_telemetry.hpp>
 #include <vector>
 #include <memory>
 #include <optional>

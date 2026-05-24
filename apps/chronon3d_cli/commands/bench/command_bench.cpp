@@ -2,9 +2,9 @@
 #include "../../utils/job/cli_render_utils.hpp"
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/runtime/renderer_warmup.hpp>
-#include <chronon3d/core/trace.hpp>
-#include <chronon3d/core/counters.hpp>
-#include <chronon3d/core/benchmark_report.hpp>
+#include <chronon3d/core/profiling/trace.hpp>
+#include <chronon3d/core/profiling/counters.hpp>
+#include <chronon3d/core/profiling/benchmark_report.hpp>
 #include <spdlog/spdlog.h>
 #include <fmt/format.h>
 #include <nlohmann/json.hpp>

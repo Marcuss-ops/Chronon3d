@@ -1,15 +1,19 @@
 #pragma once
 
 #include <chronon3d/core/dirty_fallback_reason.hpp>
-#include <chronon3d/core/types.hpp>
-#include <chronon3d/core/frame.hpp>
+#include <chronon3d/core/types/types.hpp>
+#include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/runtime/telemetry/render_telemetry_record.hpp>
-#include <chronon3d/core/trace.hpp>
+#include <chronon3d/core/profiling/trace.hpp>
 
+#include <chrono>
 #include <cstdint>
-#include <string>
-#include <vector>
+#include <filesystem>
+#include <fstream>
 #include <mutex>
+#include <string>
+#include <system_error>
+#include <vector>
 
 namespace chronon3d::telemetry {
 
@@ -56,61 +60,9 @@ struct RenderTelemetryRow {
 
 } // namespace chronon3d::telemetry
 
-#include <chronon3d/core/render_telemetry_detail.hpp>
+#include <chronon3d/core/telemetry/render_telemetry_detail.hpp>
 
-inline std::vector<RenderTelemetryRow>& global_rows() {
-    static std::vector<RenderTelemetryRow> rows;
-    return rows;
-}
-
-inline std::vector<RenderTelemetryRow>& thread_local_buffer() {
-    static thread_local std::vector<RenderTelemetryRow> buffer;
-    return buffer;
-}
-
-inline std::filesystem::path telemetry_csv_path() {
-    if (const char* env = std::getenv("CHRONON_RENDER_LOG"); env && *env) {
-        return std::filesystem::path(env);
-    }
-    return std::filesystem::path("output") / "render_telemetry.csv";
-}
-
-inline std::filesystem::path telemetry_summary_path() {
-    auto path = telemetry_csv_path();
-    return path.replace_filename("render_summary.txt");
-}
-
-inline std::string csv_escape(std::string_view value) {
-    const bool needs_quotes = value.find_first_of(",\"\n\r") != std::string_view::npos;
-    if (!needs_quotes) {
-        return std::string(value);
-    }
-
-    std::string out;
-    out.reserve(value.size() + 2);
-    out.push_back('"');
-    for (char c : value) {
-        if (c == '"') {
-            out.push_back('"');
-        }
-        out.push_back(c);
-    }
-    out.push_back('"');
-    return out;
-}
-
-void ensure_csv_header(std::ofstream& out, const std::filesystem::path& path);
-
-bool csv_header_matches(const std::filesystem::path& path);
-
-void migrate_legacy_csv(const std::filesystem::path& path);
-
-std::size_t read_last_run_id(const std::filesystem::path& path);
-
-std::size_t current_run_id();
-
-void write_summary_file(const std::vector<RenderTelemetryRow>& rows);
-} // namespace detail
+namespace chronon3d::telemetry {
 
 inline void record_render_telemetry(const RenderTelemetryRow& row) {
     detail::thread_local_buffer().push_back(row);
