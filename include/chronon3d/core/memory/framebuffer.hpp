@@ -28,19 +28,40 @@ enum class SamplingMode {
     Bilinear
 };
 
+// Cache-line alignment: ensures rows don't share cache lines between threads.
+// 64 bytes for x86_64, also safe for ARM (Apple Silicon uses 128 but 64 is
+// still a divisor, so no false sharing across 64-byte boundaries).
+constexpr size_t k_cache_line_bytes = 64;
+constexpr size_t k_color_size = sizeof(Color);  // 16 bytes (4 × float)
+static_assert(k_cache_line_bytes % k_color_size == 0,
+              "Cache line size must be a multiple of Color size");
+constexpr size_t k_colors_per_cache_line = k_cache_line_bytes / k_color_size;  // 4
+
+// Round up stride to cache-line boundary for SIMD-friendly access.
+[[nodiscard]] inline i32 align_stride_to_cache_line(i32 width) {
+    if (width <= 0) return 0;
+    const i32 remainder = width % static_cast<i32>(k_colors_per_cache_line);
+    if (remainder == 0) return width;
+    return width + static_cast<i32>(k_colors_per_cache_line) - remainder;
+}
+
 class Framebuffer {
 public:
     Framebuffer(i32 width, i32 height)
-        : m_width(width), m_height(height), m_allocated_width(width), m_allocated_height(height), m_owns_pixels(true) {
+        : m_width(width), m_height(height),
+          m_allocated_width(align_stride_to_cache_line(width)),
+          m_allocated_height(height), m_owns_pixels(true) {
         if (width <= 0 || height <= 0) {
             throw std::invalid_argument("Framebuffer dimensions must be positive");
         }
-        m_pixels.resize(static_cast<size_t>(width) * height, Color::transparent());
-        increment_allocations(width * height * sizeof(Color));
+        m_pixels.resize(static_cast<size_t>(m_allocated_width) * height, Color::transparent());
+        increment_allocations(static_cast<size_t>(m_allocated_width) * height * sizeof(Color));
     }
 
     Framebuffer(i32 width, i32 height, Color* external_pixels)
-        : m_width(width), m_height(height), m_allocated_width(width), m_allocated_height(height), m_owns_pixels(false), m_external_pixels(external_pixels) {
+        : m_width(width), m_height(height),
+          m_allocated_width(align_stride_to_cache_line(width)),
+          m_allocated_height(height), m_owns_pixels(false), m_external_pixels(external_pixels) {
         if (width <= 0 || height <= 0) {
             throw std::invalid_argument("Framebuffer dimensions must be positive");
         }

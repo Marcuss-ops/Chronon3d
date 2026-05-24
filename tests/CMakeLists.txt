@@ -18,6 +18,7 @@ add_executable(chronon3d_core_tests
     cache/test_lru_weight.cpp
     cache/test_framebuffer_pool.cpp
     cache/test_video_frame_cache.cpp
+    cache/test_persistent_bake_cache.cpp
     core/math/test_camera_pose.cpp
     core/math/test_camera_2_5d_projection.cpp
     core/math/test_projector_2_5d.cpp
@@ -100,6 +101,7 @@ add_executable(chronon3d_renderer_tests
     render_graph/pipeline/test_grid_math.cpp
     render_graph/pipeline/test_render_backend.cpp
     render_graph/pipeline/test_dirty_rects.cpp
+    render_graph/optimizer/test_graph_optimizer.cpp
     scene/camera/camera_25d_tests.cpp
     effects/effect_graph_tests.cpp
     scene/shapes/mask_tests.cpp
@@ -157,6 +159,24 @@ target_include_directories(chronon3d_cli_tests PRIVATE ${CMAKE_SOURCE_DIR})
 chronon3d_enable_test_pch(chronon3d_cli_tests)
 add_test(NAME chronon3d_cli_tests COMMAND chronon3d_cli_tests WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
+# ── Optimizer Tests
+add_executable(chronon3d_optimizer_tests
+    ${TEST_MAIN}
+    render_graph/optimizer/test_graph_optimizer.cpp
+)
+target_link_libraries(chronon3d_optimizer_tests PRIVATE chronon3d_pipeline doctest::doctest)
+target_include_directories(chronon3d_optimizer_tests PRIVATE ${CMAKE_SOURCE_DIR})
+add_test(NAME chronon3d_optimizer_tests COMMAND chronon3d_optimizer_tests WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+# ── Cache Tests
+add_executable(chronon3d_cache_tests
+    ${TEST_MAIN}
+    cache/test_persistent_bake_cache.cpp
+)
+target_link_libraries(chronon3d_cache_tests PRIVATE chronon3d_pipeline doctest::doctest)
+target_include_directories(chronon3d_cache_tests PRIVATE ${CMAKE_SOURCE_DIR})
+add_test(NAME chronon3d_cache_tests COMMAND chronon3d_cache_tests WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
 # Aggregate target: build all test executables with a single cmake --build ... --target chronon3d_tests
 add_custom_target(chronon3d_tests
     DEPENDS
@@ -166,6 +186,8 @@ add_custom_target(chronon3d_tests
         chronon3d_renderer_tests
         chronon3d_io_tests
         chronon3d_cli_tests
+        chronon3d_optimizer_tests
+        chronon3d_cache_tests
 )
 
 # Video Tests (Isolated)

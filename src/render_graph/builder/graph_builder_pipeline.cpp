@@ -10,6 +10,7 @@
 #include <span>
 #include <unordered_set>
 #include <limits>
+#include <queue>
 #include <chronon3d/render_graph/nodes/basic_nodes.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/scene/layer/layer.hpp>
@@ -214,6 +215,87 @@ RenderGraph build_graph(const Scene& scene, RenderGraphContext& ctx,
 
     flush_3d_bin();
     graph.set_output(current);
+
+    // ── Early-exit analysis: mark nodes covered by full-frame opaque layers ──
+    ctx.early_exit_skip.assign(graph.size(), false);
+    {
+        // Walk the composite chain from output downwards.
+        // When a composite node's layer_input is full-frame and opaque,
+        // all nodes in its background_input subtree are marked for skip.
+        std::vector<GraphNodeId> stack;
+        if (graph.has_output()) {
+            stack.push_back(graph.output());
+        }
+
+        while (!stack.empty()) {
+            GraphNodeId id = stack.back();
+            stack.pop_back();
+
+            if (id >= static_cast<GraphNodeId>(graph.size())) continue;
+            if (ctx.early_exit_skip[id]) continue; // already marked as skip
+
+            const auto& node = graph.node(id);
+            if (node.kind() == RenderGraphNodeKind::Composite) {
+                const auto& inputs = graph.inputs(id);
+                if (inputs.size() == 2) {
+                    GraphNodeId bg_id   = inputs[0];
+                    GraphNodeId layer_id = inputs[1];
+
+                    // Check if the layer covers the full frame with opacity
+                    bool layer_fully_covers = false;
+                    const auto& layer_node = graph.node(layer_id);
+                    auto bbox = layer_node.predicted_bbox(ctx);
+
+                    if (bbox) {
+                        bool full_frame = bbox->x0 <= 0 && bbox->y0 <= 0 &&
+                                          bbox->x1 >= ctx.width && bbox->y1 >= ctx.height;
+                        if (full_frame) {
+                            // Check opacity: non-effect, non-mask, frame-invariant nodes
+                            auto policy = layer_node.cache_policy();
+                            bool likely_opaque =
+                                layer_node.kind() != RenderGraphNodeKind::Effect &&
+                                layer_node.kind() != RenderGraphNodeKind::Mask &&
+                                !layer_node.frame_dependent();
+
+                            if (likely_opaque) {
+                                layer_fully_covers = true;
+                            }
+                        }
+                    }
+
+                    if (layer_fully_covers) {
+                        // Mark the entire background subtree for skip
+                        std::queue<GraphNodeId> bg_queue;
+                        std::unordered_set<GraphNodeId> visited;
+                        bg_queue.push(bg_id);
+                        while (!bg_queue.empty()) {
+                            GraphNodeId bg = bg_queue.front();
+                            bg_queue.pop();
+                            if (visited.count(bg)) continue;
+                            if (bg >= static_cast<GraphNodeId>(graph.size())) continue;
+                            visited.insert(bg);
+                            ctx.early_exit_skip[bg] = true;
+                            for (GraphNodeId bg_in : graph.inputs(bg)) {
+                                bg_queue.push(bg_in);
+                            }
+                        }
+                    } else {
+                        // Continue walking both branches
+                        for (GraphNodeId in : graph.inputs(id)) {
+                            stack.push_back(in);
+                        }
+                    }
+                }
+            }
+            // For non-composite nodes, walk inputs
+            else {
+                for (GraphNodeId in : graph.inputs(id)) {
+                    stack.push_back(in);
+                }
+            }
+        }
+    }
+
     return graph;
 }
 

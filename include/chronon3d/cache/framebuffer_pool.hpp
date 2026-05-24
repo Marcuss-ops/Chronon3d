@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/core/memory/framebuffer.hpp>
+#include <atomic>
 #include <memory>
 #include <mutex>
 #include <unordered_map>
@@ -43,12 +44,29 @@ struct FramebufferPoolPreallocOptions {
 };
 
 // ---------------------------------------------------------------------------
+// FramebufferAcquireHint — guides the pool on lifecycle intent
+// ---------------------------------------------------------------------------
+enum class FramebufferAcquireHint {
+    Default,          // Standard acquire: may clear, may reuse
+    ReuseNoClear,     // Caller will overwrite every pixel — skip clear
+    ReusePartial,     // Caller writes only a subregion — clear only the unwritten area
+    Temporary,        // Short-lived intermediate — return to pool immediately after use
+    LongLived,        // Will be held across frames — don't reuse eagerly
+};
+
+// ---------------------------------------------------------------------------
 // FramebufferPoolStats
 // ---------------------------------------------------------------------------
 struct FramebufferPoolStats {
     size_t current_bytes{0};
     size_t available_count{0};
     size_t max_bytes{0};
+    size_t total_allocations{0};        // lifetime OS allocations
+    size_t total_reuses{0};             // lifetime pool reuses
+    size_t total_returns{0};            // lifetime returns to pool
+    size_t total_clears{0};             // lifetime clear operations
+    size_t arena_bytes{0};              // bytes allocated via arena
+    double hit_rate{0.0};               // reuse / (alloc + reuse)
 };
 
 // ---------------------------------------------------------------------------
@@ -64,12 +82,23 @@ public:
 
     /// Acquire a framebuffer of the requested size.
     /// Clearing is optional and only happens when requested by the caller.
+    /// Use acquire_hinted() for finer lifecycle control.
     std::shared_ptr<Framebuffer> acquire(int width, int height, bool clear = true);
+
+    /// Acquire with a lifecycle hint for better pool predictability.
+    std::shared_ptr<Framebuffer> acquire_hinted(
+        int width, int height,
+        FramebufferAcquireHint hint = FramebufferAcquireHint::Default);
 
     /// Acquire a framebuffer that automatically releases itself back to the pool upon destruction.
     std::shared_ptr<Framebuffer> acquire_pooled(int width, int height, std::shared_ptr<FramebufferPool> pool, bool clear = true);
 
     void release(Framebuffer* fb);
+
+    /// Pre-warm the pool with framebuffers matching a predicted usage pattern.
+    /// Useful before starting a render to ensure the first frames don't stall on allocation.
+    /// Returns total framebuffers pre-allocated.
+    size_t warm_up(const std::vector<FramebufferPoolPreallocOptions>& predictions);
 
     /// Release all pooled framebuffers.
     void clear();
@@ -82,7 +111,11 @@ public:
     [[nodiscard]] size_t current_bytes() const;
     [[nodiscard]] size_t available_count() const;
     [[nodiscard]] size_t max_bytes() const;
+    /// Get detailed pool statistics (thread-safe).
     [[nodiscard]] FramebufferPoolStats stats() const;
+
+    /// Reset lifetime counters (allocations, reuses, returns, clears).
+    void reset_counters();
 
 private:
     std::unique_ptr<Framebuffer> acquire_unique(int width, int height);
@@ -91,6 +124,12 @@ private:
     size_t m_max_bytes;
     size_t m_current_bytes{0};
     std::shared_ptr<chronon3d::FramebufferArena> m_arena;
+
+    // Lifetime counters (reset via reset_counters)
+    std::atomic<size_t> m_total_allocations{0};
+    std::atomic<size_t> m_total_reuses{0};
+    std::atomic<size_t> m_total_returns{0};
+    std::atomic<size_t> m_total_clears{0};
 
     std::unordered_map<
         FramebufferPoolKey,
