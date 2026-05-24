@@ -239,8 +239,6 @@ add_library(chronon3d_backend_assets STATIC src/backends/assets/image_cache.cpp 
 target_link_libraries(chronon3d_backend_assets PUBLIC chronon3d chronon3d_backend_image)
 target_include_directories(chronon3d_backend_assets PRIVATE ${Stb_INCLUDE_DIR})
 
-add_library(chronon3d_backend_video STATIC src/backends/video/video_source.cpp)
-target_link_libraries(chronon3d_backend_video PUBLIC chronon3d)
 
 # Software Renderer Backend
 set(CHRONON3D_BACKEND_SOFTWARE_SOURCES
