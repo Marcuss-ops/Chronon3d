@@ -9,6 +9,7 @@
 #include <tbb/blocked_range.h>
 #include <algorithm>
 #include <cmath>
+#include <iostream>
 
 namespace chronon3d::blend2d_bridge {
 
@@ -25,11 +26,17 @@ void composite_bl_image_tiled(Framebuffer& fb, const BLImage& img, const Mat4& m
         ensure_mask_alpha_cache(*state, fb.width(), fb.height());
     }
 
-    // Tiled image always covers the entire clip/framebuffer
-    const int x0 = 0;
-    const int y0 = 0;
-    const int x1 = fb.width();
-    const int y1 = fb.height();
+    // Tiled image respects the clip if provided, otherwise covers the entire framebuffer
+    int x0 = 0, y0 = 0;
+    int x1 = fb.width(), y1 = fb.height();
+    if (state && state->clip_rect) {
+        x0 = std::max(0, state->clip_rect->x0);
+        y0 = std::max(0, state->clip_rect->y0);
+        x1 = std::min(fb.width(), state->clip_rect->x1);
+        y1 = std::min(fb.height(), state->clip_rect->y1);
+    }
+
+    if (x1 <= x0 || y1 <= y0) return;
 
     glm::mat3 H;
     H[0][0] = model[0][0]; H[0][1] = model[0][1]; H[0][2] = model[0][3];
@@ -56,6 +63,12 @@ void composite_bl_image_tiled(Framebuffer& fb, const BLImage& img, const Mat4& m
 
                 float sr, sg, sb, sa;
                 sample_bilinear_prgb32(src_pixels, stride, sw, sh, lx, ly, sr, sg, sb, sa);
+                if (x == 960 && y == 540) {
+                    std::cout << "composite_bl_image_tiled: x=" << x << " y=" << y 
+                              << " lx=" << lx << " ly=" << ly 
+                              << " sr=" << sr << " sg=" << sg << " sb=" << sb << " sa=" << sa 
+                              << " opacity=" << opacity << " final_sa=" << (sa * opacity) << std::endl;
+                }
                 sa *= opacity;
                 if (sa <= 0.001f) continue;
                 sr *= opacity;

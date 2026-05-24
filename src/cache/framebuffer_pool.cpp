@@ -66,7 +66,15 @@ std::shared_ptr<Framebuffer> FramebufferPool::acquire(int width, int height, boo
         }
     }
     auto weak_pool = weak_from_this();
-    return std::shared_ptr<Framebuffer>(fb.release(), [weak_pool](Framebuffer* ptr) {
+    RenderCounters* counters = profiling::g_current_counters;
+    return std::shared_ptr<Framebuffer>(fb.release(), [weak_pool, counters](Framebuffer* ptr) {
+        if (counters) {
+            counters->framebuffer_buffer_returned_to_pool_count.fetch_add(1, std::memory_order_relaxed);
+        } else {
+            // Fallback to a global counter if the captured one is null (shouldn't happen)
+            static std::atomic<uint64_t> global_returns{0};
+            global_returns.fetch_add(1, std::memory_order_relaxed);
+        }
         if (auto pool = weak_pool.lock()) {
             pool->release(ptr);
         } else {
@@ -110,11 +118,15 @@ std::unique_ptr<Framebuffer> FramebufferPool::acquire_unique(int width, int heig
         if (ptr) {
             auto fb = std::make_unique<Framebuffer>(rounded_w, rounded_h, static_cast<Color*>(ptr));
             fb->resize_logical(width, height);
+            // Note: Arena wrappers are cheap and don't count as OS allocations.
             return fb;
         }
     }
 
     auto fb = std::make_unique<Framebuffer>(rounded_w, rounded_h);
+    if (profiling::g_current_counters) {
+        profiling::g_current_counters->framebuffer_allocations.fetch_add(1, std::memory_order_relaxed);
+    }
     fb->resize_logical(width, height);
     return fb;
 }
@@ -147,6 +159,11 @@ void FramebufferPool::release(Framebuffer* fb) {
 
     std::unique_ptr<Framebuffer> owned(fb);
     
+    if (owned->is_arena_allocated()) {
+        // Arena buffers are just wrappers.
+        return;
+    }
+
     // Restore full allocated size so the Framebuffer is perfectly standardized in the pool
     const int alloc_w = owned->allocated_width();
     const int alloc_h = owned->allocated_height();
@@ -161,10 +178,6 @@ void FramebufferPool::release(Framebuffer* fb) {
     FramebufferPoolKey key{alloc_w, alloc_h};
     m_current_bytes += weight;
     m_free[key].push_back(std::move(owned));
-
-    if (profiling::g_current_counters) {
-        profiling::g_current_counters->framebuffer_buffer_returned_to_pool_count.fetch_add(1, std::memory_order_relaxed);
-    }
 }
 
 void FramebufferPool::clear() {

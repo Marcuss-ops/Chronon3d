@@ -249,6 +249,7 @@ public:
     void set_opaque(bool opaque) { m_opaque = opaque; }
     [[nodiscard]] u64 key_digest() const { return m_key_digest; }
     void set_key_digest(u64 digest) { m_key_digest = digest; }
+    [[nodiscard]] bool is_arena_allocated() const { return !m_owns_pixels && m_external_pixels != nullptr; }
 
     /**
      * @brief Shifts the content of the framebuffer by (dx, dy) pixels.
