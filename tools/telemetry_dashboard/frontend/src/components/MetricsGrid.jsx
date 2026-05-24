@@ -44,6 +44,36 @@ export default function MetricsGrid({ runDetail }) {
   const fbMissEmpty = getCounter('framebuffer_pool_miss_count_empty');
   const fbMissTotal = fbMissSize + fbMissEmpty;
 
+  // Benchmark separation counters (per-run totals)
+  const videoGraphEvalMs = getCounter('video_graph_eval_ms');
+  const videoConversionMs = getCounter('video_conversion_ms');
+  const videoPipeWriteMs = getCounter('video_pipe_write_ms');
+  const videoFfmpegLatencyMs = getCounter('video_ffmpeg_latency_ms');
+
+  // Nuove metriche benchmark separation
+  const chrononRenderOnlyMs = Number(r.chronon_render_only_ms || 0);
+  const chrononConvCopyMs = Number(r.chronon_conversion_copy_ms || 0);
+  const chrononQueueWaitMs = Number(r.chronon_queue_wait_ms || 0);
+  const chrononPipelineTotalMs = chrononRenderOnlyMs + chrononConvCopyMs + chrononQueueWaitMs;
+  const renderPct = chrononPipelineTotalMs > 0
+    ? (chrononRenderOnlyMs / chrononPipelineTotalMs * 100).toFixed(1)
+    : '—';
+  const ffmpegEncodeTotalMs = Number(r.ffmpeg_encode_total_ms || 0);
+  const ffmpegFlushCloseMs = Number(r.ffmpeg_flush_close_ms || 0);
+  const e2eWallMs = Number(r.e2e_wall_ms || 0);
+  const encodeToWallPct = e2eWallMs > 0
+    ? (ffmpegEncodeTotalMs / e2eWallMs * 100).toFixed(1)
+    : '—';
+  const renderToEncodeRatio = ffmpegEncodeTotalMs > 0 && chrononPipelineTotalMs > 0
+    ? (ffmpegEncodeTotalMs / chrononPipelineTotalMs).toFixed(2)
+    : '—';
+
+  const getDurationColor = (ms, warnThreshold, dangerThreshold) => {
+    if (ms > dangerThreshold) return 'var(--color-danger)';
+    if (ms > warnThreshold) return 'var(--color-warning)';
+    return 'var(--color-success)';
+  };
+
   return (
     <>
       <section className="metrics-grid">
@@ -235,6 +265,216 @@ export default function MetricsGrid({ runDetail }) {
           </div>
           <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
             FB rimessi in pool vs distrutti ({framebufferReuses.toLocaleString()} riutilizzi totali)
+          </div>
+        </div>
+      </section>
+
+      {/* ── Chronon Render Throughput Benchmark ── */}
+      <h3 className="section-subtitle" style={{ marginTop: '24px', marginBottom: '12px', fontSize: '1rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+        ⏱️ Chronon Render Throughput
+      </h3>
+      <section className="metrics-grid">
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-info)' }}>
+          <div className="metric-label">
+            Render Only (puro)
+            {renderInfoIcon('chronon_render_only_ms')}
+          </div>
+          <div className="metric-value" style={{ color: getDurationColor(chrononRenderOnlyMs, 50, 200) }}>
+            {chrononRenderOnlyMs.toFixed(2)}
+            <span className="metric-unit">ms</span>
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            solo grafo + cache + rasterizzazione (no encoder)
+          </div>
+        </div>
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-info)' }}>
+          <div className="metric-label">
+            Conversion & Copy
+            {renderInfoIcon('chronon_conversion_copy_ms')}
+          </div>
+          <div className="metric-value" style={{ color: getDurationColor(chrononConvCopyMs, 10, 50) }}>
+            {chrononConvCopyMs.toFixed(2)}
+            <span className="metric-unit">ms</span>
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            RGBA→YUV + copy queue prima dell'encoder
+          </div>
+        </div>
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-info)' }}>
+          <div className="metric-label">
+            Queue Wait (backpressure)
+            {renderInfoIcon('chronon_queue_wait_ms')}
+          </div>
+          <div className="metric-value" style={{ color: getDurationColor(chrononQueueWaitMs, 5, 30) }}>
+            {chrononQueueWaitMs.toFixed(2)}
+            <span className="metric-unit">ms</span>
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            attesa coda quando encoder è in affanno
+          </div>
+        </div>
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-info)' }}>
+          <div className="metric-label">
+            Pipeline Total
+            {renderInfoIcon('chronon_render_throughput_ms')}
+          </div>
+          <div className="metric-value" style={{ color: getDurationColor(chrononPipelineTotalMs, 100, 400) }}>
+            {chrononPipelineTotalMs.toFixed(2)}
+            <span className="metric-unit">ms</span>
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            render + conversion + queue = throughput Chronon puro
+          </div>
+        </div>
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-info)' }}>
+          <div className="metric-label">
+            Render % of Pipeline
+          </div>
+          <div className="metric-value" style={{ color: renderPct !== '—' && parseFloat(renderPct) < 50 ? 'var(--color-warning)' : 'var(--color-success)' }}>
+            {renderPct === '—' ? '—' : `${renderPct}%`}
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            % del pipeline spesa in rendering puro (vs overhead)
+          </div>
+        </div>
+      </section>
+
+      {/* ── Benchmark Breakdown (Per-Run Counters) ── */}
+      <h3 className="section-subtitle" style={{ marginTop: '24px', marginBottom: '12px', fontSize: '1rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+        📊 Benchmark Breakdown (Per-Run)
+      </h3>
+      <section className="metrics-grid">
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-accent)' }}>
+          <div className="metric-label">
+            Graph Eval
+            {renderInfoIcon('video_graph_eval_ms')}
+          </div>
+          <div className="metric-value" style={{ color: getDurationColor(videoGraphEvalMs, 100, 500) }}>
+            {videoGraphEvalMs.toFixed(2)}
+            <span className="metric-unit">ms</span>
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            tempo per decidere cosa renderizzare (grafo + scene eval)
+          </div>
+        </div>
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-accent)' }}>
+          <div className="metric-label">
+            Conversion (SIMD)
+            {renderInfoIcon('video_conversion_ms')}
+          </div>
+          <div className="metric-value" style={{ color: getDurationColor(videoConversionMs, 20, 100) }}>
+            {videoConversionMs.toFixed(2)}
+            <span className="metric-unit">ms</span>
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            kernel SIMD RGBA→YUV
+          </div>
+        </div>
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-accent)' }}>
+          <div className="metric-label">
+            Pipe Write
+            {renderInfoIcon('video_pipe_write_ms')}
+          </div>
+          <div className="metric-value" style={{ color: getDurationColor(videoPipeWriteMs, 50, 200) }}>
+            {videoPipeWriteMs.toFixed(2)}
+            <span className="metric-unit">ms</span>
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            trasferimento dati alla pipe FFmpeg (fwrite)
+          </div>
+        </div>
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-accent)' }}>
+          <div className="metric-label">
+            FFmpeg Latency
+            {renderInfoIcon('video_ffmpeg_latency_ms')}
+          </div>
+          <div className="metric-value" style={{ color: getDurationColor(videoFfmpegLatencyMs, 20, 100) }}>
+            {videoFfmpegLatencyMs.toFixed(2)}
+            <span className="metric-unit">ms</span>
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            backpressure: FFmpeg non ha ancora svuotato il buffer
+          </div>
+        </div>
+      </section>
+
+      {/* ── End-to-End Export Benchmark ── */}
+      <h3 className="section-subtitle" style={{ marginTop: '24px', marginBottom: '12px', fontSize: '1rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+        📦 End-to-End Export Benchmark
+      </h3>
+      <section className="metrics-grid">
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-warning)' }}>
+          <div className="metric-label">
+            FFmpeg Encode Total
+            {renderInfoIcon('ffmpeg_encode_total_ms')}
+          </div>
+          <div className="metric-value" style={{ color: getDurationColor(ffmpegEncodeTotalMs, 500, 2000) }}>
+            {ffmpegEncodeTotalMs.toFixed(2)}
+            <span className="metric-unit">ms</span>
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            tempo totale dentro FFmpeg (codec + muxing)
+          </div>
+        </div>
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-warning)' }}>
+          <div className="metric-label">
+            FFmpeg Flush/Close
+            {renderInfoIcon('ffmpeg_flush_close_ms')}
+          </div>
+          <div className="metric-value" style={{ color: getDurationColor(ffmpegFlushCloseMs, 100, 500) }}>
+            {ffmpegFlushCloseMs.toFixed(2)}
+            <span className="metric-unit">ms</span>
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            flush finale + chiusura container
+          </div>
+        </div>
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-warning)' }}>
+          <div className="metric-label">
+            Encode Duration (legacy)
+            {renderInfoIcon('encode_ms')}
+          </div>
+          <div className="metric-value">
+            {encodeSeconds.toFixed(2)}
+            <span className="metric-unit">s</span>
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            metrica legacy per confronto
+          </div>
+        </div>
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-warning)' }}>
+          <div className="metric-label">
+            E2E Wall Time
+            {renderInfoIcon('e2e_wall_ms')}
+          </div>
+          <div className="metric-value" style={{ color: getDurationColor(e2eWallMs, 1000, 5000) }}>
+            {e2eWallMs > 0 ? (e2eWallMs / 1000).toFixed(2) : wallSeconds.toFixed(2)}
+            <span className="metric-unit">s</span>
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            wall clock totale dall'inizio alla fine
+          </div>
+        </div>
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-warning)' }}>
+          <div className="metric-label">
+            Encode % of E2E
+          </div>
+          <div className="metric-value" style={{ color: encodeToWallPct !== '—' && parseFloat(encodeToWallPct) > 70 ? 'var(--color-danger)' : 'var(--color-warning)' }}>
+            {encodeToWallPct === '—' ? '—' : `${encodeToWallPct}%`}
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            % del wall time dominata da FFmpeg
+          </div>
+        </div>
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-warning)' }}>
+          <div className="metric-label">
+            Render : Encode Ratio
+          </div>
+          <div className="metric-value" style={{ color: renderToEncodeRatio !== '—' && parseFloat(renderToEncodeRatio) > 2 ? 'var(--color-danger)' : 'var(--color-success)' }}>
+            {renderToEncodeRatio === '—' ? '—' : `1 : ${renderToEncodeRatio}`}
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            bilanciamento: chronon pipeline vs encode (alto = FFmpeg domina)
           </div>
         </div>
       </section>

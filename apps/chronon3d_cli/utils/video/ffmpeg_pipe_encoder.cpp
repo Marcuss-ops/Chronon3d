@@ -169,8 +169,11 @@ bool FfmpegPipeEncoder::write_frame(const Framebuffer& fb) {
     }
     const auto t_conv1 = std::chrono::high_resolution_clock::now();
     if (profiling::g_current_counters) {
-        profiling::g_current_counters->frame_conversion_copy_ms.fetch_add(
-            static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t_conv1 - t_conv0).count()),
+        const auto conv_ms = static_cast<uint64_t>(
+            std::chrono::duration<double, std::milli>(t_conv1 - t_conv0).count());
+        profiling::g_current_counters->frame_conversion_copy_ms.fetch_add(conv_ms,
+            std::memory_order_relaxed);
+        profiling::g_current_counters->video_conversion_ms.fetch_add(conv_ms,
             std::memory_order_relaxed);
     }
 
@@ -201,7 +204,6 @@ bool FfmpegPipeEncoder::write_frame(const Framebuffer& fb) {
 
     ++frames_written_;
     return true;
-}
 }
 
 bool FfmpegPipeEncoder::close() {

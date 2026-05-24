@@ -68,6 +68,15 @@ nlohmann::json serialize_run(const RenderTelemetryRecord& run) {
     j["framebuffer_buffer_returned_to_pool_count"] = run.framebuffer_buffer_returned_to_pool_count;
     j["frame_conversion_copy_ms"] = run.frame_conversion_copy_ms;
 
+    // Benchmark times
+    j["chronon_render_only_ms"] = run.chronon_render_only_ms;
+    j["chronon_conversion_copy_ms"] = run.chronon_conversion_copy_ms;
+    j["chronon_queue_wait_ms"] = run.chronon_queue_wait_ms;
+    j["chronon_render_throughput_ms"] = run.chronon_render_throughput_ms;
+    j["ffmpeg_encode_total_ms"] = run.ffmpeg_encode_total_ms;
+    j["ffmpeg_flush_close_ms"] = run.ffmpeg_flush_close_ms;
+    j["e2e_wall_ms"] = run.e2e_wall_ms;
+
     // Host & Environment specs
     j["started_at_iso"] = run.started_at_iso;
     j["finished_at_iso"] = run.finished_at_iso;

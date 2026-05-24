@@ -17,6 +17,7 @@ add_executable(chronon3d_core_tests
     simd/test_simd_kernels.cpp
     cache/test_lru_weight.cpp
     cache/test_framebuffer_pool.cpp
+    cache/test_video_frame_cache.cpp
     core/math/test_camera_pose.cpp
     core/math/test_camera_2_5d_projection.cpp
     core/math/test_projector_2_5d.cpp
@@ -143,6 +144,7 @@ add_executable(chronon3d_cli_tests
     ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/common/cli_utils.cpp
     ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/job/render_job_plan.cpp
     ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/video/ffmpeg_pipe_encoder.cpp
+    ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/video/ffmpeg_pipe_encoder_uring.cpp
     ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/video/ffmpeg_pipe_command.cpp
     ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/video/ffmpeg_pipe_yuv.cpp
 )

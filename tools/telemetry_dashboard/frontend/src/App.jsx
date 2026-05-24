@@ -49,7 +49,6 @@ function App() {
     runsRef.current = runs;
   }, [runs]);
 
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
 
   const [selectedFrame, setSelectedFrame] = useState(null);
@@ -473,24 +472,16 @@ function App() {
   }
 
   return (
-    <div className={`dashboard-container ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+    <div className="dashboard-container">
       <Sidebar
         runs={runs}
         selectedRunId={selectedRunId}
         onSelectRun={setSelectedRunId}
         comparisonRunId={comparisonRunId}
         onSelectComparisonRun={setComparisonRunId}
-        collapsed={sidebarCollapsed}
-        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
       />
 
       <main className="main-content">
-        {sidebarCollapsed && (
-          <button className="expand-sidebar-btn" onClick={() => setSidebarCollapsed(false)} title="Expand sidebar">
-            ☰ Menu
-          </button>
-        )}
-
         {error && <div className="glass-panel error-banner">{error}</div>}
 
         {loading && !runDetail && (

@@ -2,12 +2,15 @@
 #include <chronon3d/backends/text/text_layout_engine.hpp>
 #include <chronon3d/cache/lru_cache.hpp>
 #include <chronon3d/render_graph/render_graph_hashing.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/core/profiling/counters.hpp>
 #include "../software/utils/blend2d_resources.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <mutex>
 #include <cstdlib>
+#include <chrono>
 
 namespace chronon3d {
 
@@ -136,11 +139,17 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
         auto cached = get_text_cache().get(key);
         if (cached) {
             if (cache_hit) *cache_hit = true;
+            if (profiling::g_current_counters) {
+                profiling::g_current_counters->text_cache_hits.fetch_add(1, std::memory_order_relaxed);
+            }
             return *(*cached);
         }
     }
 
     if (cache_hit) *cache_hit = false;
+    if (profiling::g_current_counters) {
+        profiling::g_current_counters->text_cache_misses.fetch_add(1, std::memory_order_relaxed);
+    }
 
     BLFontFace face = blend2d_utils::Blend2DResources::instance().get_face(font_path);
     if (face.empty()) return std::nullopt;
@@ -173,7 +182,13 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     layout_in.box = layout_box;
     layout_in.char_width = cw;
 
+    auto start_layout = std::chrono::steady_clock::now();
     auto layout_res = TextLayoutEngine::layout(layout_in);
+    auto end_layout = std::chrono::steady_clock::now();
+    if (profiling::g_current_counters) {
+        auto dur = std::chrono::duration_cast<std::chrono::milliseconds>(end_layout - start_layout).count();
+        profiling::g_current_counters->text_layout_ms.fetch_add(static_cast<uint64_t>(dur), std::memory_order_relaxed);
+    }
 
     int tw = 0;
     int th = 0;
@@ -250,6 +265,8 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     ctx.setCompOp(BL_COMP_OP_SRC_COPY);
     ctx.setFillStyle(BLRgba32(0, 0, 0, 0));
     ctx.fillAll();
+
+    auto start_raster = std::chrono::steady_clock::now();
 
     if (use_geometric_transform) {
         // Apply affine transform to BLContext so text is rendered already oriented
@@ -344,6 +361,12 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     }
 
     ctx.end();
+
+    auto end_raster = std::chrono::steady_clock::now();
+    if (profiling::g_current_counters) {
+        auto dur = std::chrono::duration_cast<std::chrono::milliseconds>(end_raster - start_raster).count();
+        profiling::g_current_counters->text_rasterization_ms.fetch_add(static_cast<uint64_t>(dur), std::memory_order_relaxed);
+    }
 
     BLGlyphBuffer gb;
     gb.setUtf8Text(t.text.c_str(), t.text.size());
