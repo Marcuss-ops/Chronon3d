@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <cstring>
+#include <spdlog/spdlog.h>
 
 #ifdef __linux__
 #include <sys/mman.h>
@@ -127,6 +128,8 @@ void FfmpegPipeEncoder::reap_completed_uring(bool wait) {
                 if (res == -EINTR) {
                     res = 0;
                 } else {
+                    spdlog::error("[video_uring] Asynchronous write failed with error code: {}", res);
+                    pipe_failed_ = true;
                     ring_buffer_pending_[buf_idx] = false;
                     head++;
                     continue;

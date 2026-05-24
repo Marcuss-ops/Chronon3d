@@ -75,17 +75,10 @@ std::shared_ptr<Framebuffer> SourceNode::execute(
     std::span<const std::optional<raster::BBox>>
 ) {
     CHRONON_ZONE_C("source_render", trace_category::kRasterize);
-    bool clear = true;
-    if (m_node.shape.type == ShapeType::Image && !m_matrix_override.has_value() && !m_centered) {
-        const auto& t = m_node.world_transform;
-        const auto& img = m_node.shape.image;
-        if (t.position == Vec3(0.0f) && t.rotation == Quat(1.0f, 0.0f, 0.0f, 0.0f) && t.scale == Vec3(1.0f) &&
-            t.opacity >= 0.999f && img.opacity >= 0.999f &&
-            std::abs(img.size.x - static_cast<f32>(ctx.width)) < 1e-3f &&
-            std::abs(img.size.y - static_cast<f32>(ctx.height)) < 1e-3f) {
-            clear = false;
-        }
-    }
+    // If this source can seed the entire frame with an opaque image, skip the
+    // initial clear and let the image write every pixel directly.
+    const bool full_frame_seed = can_seed_full_frame(ctx);
+    bool clear = !full_frame_seed;
 
     auto fb = ctx.acquire_framebuffer(ctx.width, ctx.height, clear);
     if (ctx.backend) {
@@ -112,7 +105,7 @@ std::shared_ptr<Framebuffer> SourceNode::execute(
         }
 
         ctx.backend->draw_node(*fb, m_node, state, ctx.camera, ctx.width, ctx.height);
-        fb->set_opaque(can_seed_full_frame(ctx));
+        fb->set_opaque(full_frame_seed);
 
         if (ctx.diagnostics_enabled) {
             int nonzero_pixels = 0;

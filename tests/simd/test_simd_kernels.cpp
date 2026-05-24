@@ -206,3 +206,29 @@ TEST_CASE("simd::clear_framebuffer zero pixels is safe") {
     simd::clear_framebuffer(buf, 0, Color{0.0f, 0.0f, 0.0f, 1.0f});
     CHECK_EQ(buf[0].r, doctest::Approx(1.0f)); // unchanged
 }
+
+TEST_CASE("simd::convert_f32_rgba_to_yuv420p_simd_rows works correctly") {
+    constexpr int w = 4;
+    constexpr int h = 4;
+    std::vector<Color> fb(w * h, Color{1.0f, 0.0f, 0.0f, 1.0f}); // solid red
+    std::vector<uint8_t> y_plane(w * h, 0);
+    std::vector<uint8_t> u_plane((w / 2) * (h / 2), 0);
+    std::vector<uint8_t> v_plane((w / 2) * (h / 2), 0);
+
+    simd::convert_f32_rgba_to_yuv420p_simd_rows(
+        y_plane.data(), u_plane.data(), v_plane.data(),
+        fb.data(), w, h, w, 0, h, true
+    );
+
+    for (int i = 0; i < w * h; ++i) {
+        printf("Y[%d] = %d\n", i, y_plane[i]);
+    }
+    for (int i = 0; i < (w / 2) * (h / 2); ++i) {
+        printf("U[%d] = %d, V[%d] = %d\n", i, u_plane[i], v_plane[i]);
+    }
+    
+    // Assert Y, U, V are non-zero to verify they are written
+    CHECK(y_plane[0] > 0);
+    CHECK(u_plane[0] > 0);
+    CHECK(v_plane[0] > 0);
+}

@@ -80,6 +80,7 @@ add_executable(chronon3d_renderer_tests
     renderer/camera/test_camera_motion.cpp
     renderer/camera/test_dof.cpp
     renderer/effects/test_adjustment_layer.cpp
+    renderer/effects/test_advanced_effects.cpp
     renderer/effects/test_effect_stack.cpp
     renderer/media/test_video_card.cpp
     renderer/perf/test_render_perf.cpp
@@ -113,9 +114,6 @@ target_link_libraries(chronon3d_renderer_tests
         doctest::doctest
 )
 target_compile_definitions(chronon3d_renderer_tests PRIVATE CHRONON3D_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
-if(CHRONON3D_ENABLE_VIDEO)
-    target_link_libraries(chronon3d_renderer_tests PRIVATE chronon3d_backend_ffmpeg)
-endif()
 target_include_directories(chronon3d_renderer_tests PRIVATE ${CMAKE_SOURCE_DIR})
 target_include_directories(chronon3d_renderer_tests PRIVATE ${Stb_INCLUDE_DIR})
 chronon3d_enable_test_pch(chronon3d_renderer_tests)
