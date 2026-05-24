@@ -45,6 +45,13 @@ struct RenderTelemetryRow {
     uint64_t dirty_full_fallback_composite_missing_input_bounds{0};
     uint64_t dirty_full_fallback_transform_bounds_unknown{0};
     uint64_t dirty_full_fallback_effect_bounds_unknown{0};
+    uint64_t framebuffer_acquire_ms{0};
+    uint64_t framebuffer_clear_ms{0};
+    uint64_t framebuffer_enqueue_ms{0};
+    uint64_t framebuffer_pool_miss_count_size_mismatch{0};
+    uint64_t framebuffer_pool_miss_count_empty{0};
+    uint64_t framebuffer_buffer_returned_to_pool_count{0};
+    uint64_t frame_conversion_copy_ms{0};
 };
 
 } // namespace chronon3d::telemetry
@@ -212,7 +219,14 @@ inline void flush_telemetry() {
                 << row.dirty_full_fallback_predicted_bounds_missing << ','
                 << row.dirty_full_fallback_composite_missing_input_bounds << ','
                 << row.dirty_full_fallback_transform_bounds_unknown << ','
-                << row.dirty_full_fallback_effect_bounds_unknown << '\n';
+                << row.dirty_full_fallback_effect_bounds_unknown << ','
+                << row.framebuffer_acquire_ms << ','
+                << row.framebuffer_clear_ms << ','
+                << row.framebuffer_enqueue_ms << ','
+                << row.framebuffer_pool_miss_count_size_mismatch << ','
+                << row.framebuffer_pool_miss_count_empty << ','
+                << row.framebuffer_buffer_returned_to_pool_count << ','
+                << row.frame_conversion_copy_ms << '\n';
         }
         global.push_back(row);
         if (global.size() > 1000) {

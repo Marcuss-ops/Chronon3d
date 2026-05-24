@@ -95,6 +95,7 @@ int render_and_encode_ffmpeg_pipe(
     double queue_wait_ms_total = 0.0;
 
     auto writer_thread_fn = [&]() {
+        profiling::g_current_counters = renderer->counters();
         for (;;) {
             RenderFramePackage package;
             {
