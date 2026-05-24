@@ -12,7 +12,7 @@ namespace chronon3d::telemetry {
 namespace {
 
 // Canonical column count for render_runs (from telemetry_schema.sql)
-constexpr int CANONICAL_RUN_COLUMNS = 88;
+constexpr int CANONICAL_RUN_COLUMNS = 89;
 
 // Ordered column names for render_runs matching telemetry_schema.sql
 constexpr const char* RUN_COLUMN_NAMES[] = {
@@ -41,7 +41,7 @@ constexpr const char* RUN_COLUMN_NAMES[] = {
     "video_graph_eval_ms", "video_conversion_ms",
     "video_pipe_write_ms", "video_ffmpeg_latency_ms",
     "io_queue_push_blocked_ms", "io_queue_pop_wait_ms",
-    "io_queue_peak_depth", "ffmpeg_pipe_write_blocked_ms", "ffmpeg_flush_ms",
+    "io_queue_peak_depth", "ffmpeg_pipe_write_blocked_ms", "converted_frame_cache_hits", "ffmpeg_flush_ms",
     "chronon_render_only_ms", "chronon_conversion_copy_ms", "chronon_queue_wait_ms",
     "chronon_render_throughput_ms", "ffmpeg_encode_total_ms", "ffmpeg_flush_close_ms",
     "e2e_wall_ms",

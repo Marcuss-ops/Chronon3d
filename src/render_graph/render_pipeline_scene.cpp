@@ -192,10 +192,13 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     {
         CHRONON_ZONE_C("optimize_graph", trace_category::kGraph);
         auto opt_result = optimizer::optimize_graph(graph, ctx);
-        if (ctx.diagnostics_enabled && (opt_result.nodes_fused > 0 || opt_result.nodes_pruned > 0)) {
-            spdlog::info("[graph-opt] frame={} before={} after={} fused={} pruned={} baked={}",
+        if (ctx.diagnostics_enabled && (opt_result.nodes_fused > 0 || opt_result.nodes_pruned > 0 ||
+                                        opt_result.effects_fused > 0 || opt_result.dead_nodes_removed > 0)) {
+            spdlog::info("[graph-opt] frame={} before={} after={} fused={} pruned={} effects_fused={} dead_removed={} baked={}",
                 static_cast<int>(frame), opt_result.nodes_before, opt_result.nodes_after,
-                opt_result.nodes_fused, opt_result.nodes_pruned, opt_result.static_bakes);
+                opt_result.nodes_fused, opt_result.nodes_pruned,
+                opt_result.effects_fused, opt_result.dead_nodes_removed,
+                opt_result.static_bakes);
         }
     }
     const auto t_build2 = std::chrono::steady_clock::now();

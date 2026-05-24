@@ -48,6 +48,16 @@ public:
         return result;
     }
 
+    // ── Accessors / mutators for graph optimization ────────────────────
+    [[nodiscard]] const EffectStack& effects() const { return m_effects; }
+    [[nodiscard]] EffectStack& effects() { return m_effects; }
+
+    /// Prepend `prefix` effects before this node's own effects.
+    /// Used by the optimizer to merge an upstream effect-like node into this one.
+    void prepend_effects(const EffectStack& prefix) {
+        m_effects.insert(m_effects.begin(), prefix.begin(), prefix.end());
+    }
+
 private:
     EffectStack m_effects;
 };

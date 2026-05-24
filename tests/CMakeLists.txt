@@ -152,6 +152,8 @@ add_executable(chronon3d_cli_tests
     ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/video/ffmpeg_pipe_encoder_uring.cpp
     ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/video/ffmpeg_pipe_command.cpp
     ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/video/ffmpeg_pipe_yuv.cpp
+    ${CMAKE_SOURCE_DIR}/src/video/frame_converter.cpp
+    ${CMAKE_SOURCE_DIR}/src/video/converted_frame_cache.cpp
 )
 
 target_link_libraries(chronon3d_cli_tests
@@ -196,3 +198,16 @@ add_custom_target(chronon3d_tests
 )
 
 # Video Tests (Isolated)
+add_executable(chronon3d_video_tests
+    ${TEST_MAIN}
+    video/test_frame_converter.cpp
+    ${CMAKE_SOURCE_DIR}/src/video/frame_converter.cpp
+    ${CMAKE_SOURCE_DIR}/src/video/converted_frame_cache.cpp
+)
+target_link_libraries(chronon3d_video_tests
+    PRIVATE
+        chronon3d_pipeline
+        doctest::doctest
+)
+target_include_directories(chronon3d_video_tests PRIVATE ${CMAKE_SOURCE_DIR})
+add_test(NAME chronon3d_video_tests COMMAND chronon3d_video_tests WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})

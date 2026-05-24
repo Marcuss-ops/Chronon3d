@@ -49,7 +49,7 @@ static const std::vector<std::string> QUEUE_FIELDS = {
 };
 
 static const std::vector<std::string> FFMPEG_PIPE_FIELDS = {
-    "ffmpeg_pipe_write_blocked_ms", "ffmpeg_flush_ms", "video_ffmpeg_latency_ms"
+    "ffmpeg_pipe_write_blocked_ms", "converted_frame_cache_hits", "ffmpeg_flush_ms", "video_ffmpeg_latency_ms"
 };
 
 TEST_CASE("Telemetry Report: All section fields exist in CHRONON_RENDER_COUNTERS") {
@@ -105,6 +105,7 @@ TEST_CASE("Telemetry Report: All section fields exist in RenderTelemetryRecord")
 
     // FFmpeg pipe section
     r.ffmpeg_pipe_write_blocked_ms = 50;
+    r.converted_frame_cache_hits = 7;
     r.ffmpeg_flush_ms = 51;
     r.video_ffmpeg_latency_ms = 52;
 
@@ -128,6 +129,7 @@ TEST_CASE("Telemetry Report: All section fields exist in RenderTelemetryRecord")
     CHECK(r.io_queue_pop_wait_ms == 41);
     CHECK(r.io_queue_peak_depth == 42);
     CHECK(r.ffmpeg_pipe_write_blocked_ms == 50);
+    CHECK(r.converted_frame_cache_hits == 7);
     CHECK(r.ffmpeg_flush_ms == 51);
     CHECK(r.video_ffmpeg_latency_ms == 52);
 }
@@ -167,11 +169,13 @@ TEST_CASE("Telemetry Report: RenderTelemetryRow has all CSV fields") {
     row.io_queue_pop_wait_ms = 13;
     row.io_queue_peak_depth = 14;
     row.ffmpeg_pipe_write_blocked_ms = 15;
-    row.ffmpeg_flush_ms = 16;
+    row.converted_frame_cache_hits = 16;
+    row.ffmpeg_flush_ms = 17;
 
     CHECK(row.framebuffer_acquire_ms == 1);
     CHECK(row.framebuffer_clear_ms == 2);
     CHECK(row.clearnode_ms == 3);
     CHECK(row.framebuffer_pool_clear_ms == 4);
-    CHECK(row.ffmpeg_flush_ms == 16);
+    CHECK(row.converted_frame_cache_hits == 16);
+    CHECK(row.ffmpeg_flush_ms == 17);
 }
