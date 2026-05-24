@@ -59,8 +59,5 @@ TEST_CASE("Analytical verification of GridCleanBackground render") {
     // Verify grid line presence at (960, 540), which is the center intersection point.
     // It should have some blended blue accent color (accent = Color{0.25f, 0.52f, 1.0f, 0.05f}).
     Color grid_pixel = fb->get_pixel(960, 540);
-    std::cout << "bg_pixel: r=" << bg_pixel.r << " g=" << bg_pixel.g << " b=" << bg_pixel.b << " a=" << bg_pixel.a << std::endl;
-    std::cout << "expected_bg: r=" << expected_bg.r << " g=" << expected_bg.g << " b=" << expected_bg.b << " a=" << expected_bg.a << std::endl;
-    std::cout << "grid_pixel: r=" << grid_pixel.r << " g=" << grid_pixel.g << " b=" << grid_pixel.b << " a=" << grid_pixel.a << std::endl;
     CHECK(grid_pixel.b > expected_bg.b);
 }

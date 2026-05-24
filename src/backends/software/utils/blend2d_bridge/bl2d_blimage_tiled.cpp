@@ -9,9 +9,24 @@
 #include <tbb/blocked_range.h>
 #include <algorithm>
 #include <cmath>
-#include <iostream>
 
 namespace chronon3d::blend2d_bridge {
+
+namespace {
+
+[[nodiscard]] inline float wrap_repeat(float value, float period) {
+    if (period <= 0.0f) {
+        return 0.0f;
+    }
+
+    value -= period * std::floor(value / period);
+    if (value < 0.0f) {
+        value += period;
+    }
+    return value;
+}
+
+} // namespace
 
 void composite_bl_image_tiled(Framebuffer& fb, const BLImage& img, const Mat4& model, float opacity, BlendMode mode, const RenderState* state) {
     BLImageData data;
@@ -26,9 +41,10 @@ void composite_bl_image_tiled(Framebuffer& fb, const BLImage& img, const Mat4& m
         ensure_mask_alpha_cache(*state, fb.width(), fb.height());
     }
 
-    // Tiled image respects the clip if provided, otherwise covers the entire framebuffer
-    int x0 = 0, y0 = 0;
-    int x1 = fb.width(), y1 = fb.height();
+    int x0 = 0;
+    int y0 = 0;
+    int x1 = fb.width();
+    int y1 = fb.height();
     if (state && state->clip_rect) {
         x0 = std::max(0, state->clip_rect->x0);
         y0 = std::max(0, state->clip_rect->y0);
@@ -38,12 +54,37 @@ void composite_bl_image_tiled(Framebuffer& fb, const BLImage& img, const Mat4& m
 
     if (x1 <= x0 || y1 <= y0) return;
 
-    glm::mat3 H;
-    H[0][0] = model[0][0]; H[0][1] = model[0][1]; H[0][2] = model[0][3];
-    H[1][0] = model[1][0]; H[1][1] = model[1][1]; H[1][2] = model[1][3];
-    H[2][0] = model[3][0]; H[2][1] = model[3][1]; H[2][2] = model[3][3];
+    const bool is_simple_translation =
+        std::abs(model[0][0] - 1.0f) < 1e-5f &&
+        std::abs(model[0][1]) < 1e-5f &&
+        std::abs(model[0][3]) < 1e-5f &&
+        std::abs(model[1][0]) < 1e-5f &&
+        std::abs(model[1][1] - 1.0f) < 1e-5f &&
+        std::abs(model[1][3]) < 1e-5f &&
+        std::abs(model[3][3] - 1.0f) < 1e-5f;
 
-    glm::mat3 invH = glm::inverse(H);
+    const float sx = model[0][0];
+    const float sy = model[1][1];
+    const float tx = model[3][0];
+    const float ty = model[3][1];
+
+    const bool is_scale_translation =
+        std::abs(sx) > 1e-5f &&
+        std::abs(sy) > 1e-5f &&
+        std::abs(model[0][1]) < 1e-5f &&
+        std::abs(model[0][3]) < 1e-5f &&
+        std::abs(model[1][0]) < 1e-5f &&
+        std::abs(model[1][3]) < 1e-5f &&
+        std::abs(model[3][3] - 1.0f) < 1e-5f;
+
+    glm::mat3 invH{};
+    if (!is_simple_translation && !is_scale_translation) {
+        glm::mat3 H;
+        H[0][0] = model[0][0]; H[0][1] = model[0][1]; H[0][2] = model[0][3];
+        H[1][0] = model[1][0]; H[1][1] = model[1][1]; H[1][2] = model[1][3];
+        H[2][0] = model[3][0]; H[2][1] = model[3][1]; H[2][2] = model[3][3];
+        invH = glm::inverse(H);
+    }
 
     auto process_rows = [&](int row_begin, int row_end) {
         for (int y = row_begin; y < row_end; ++y) {
@@ -51,24 +92,29 @@ void composite_bl_image_tiled(Framebuffer& fb, const BLImage& img, const Mat4& m
             for (int x = x0; x < x1; ++x) {
                 if (state && !pixel_passes_mask(*state, x, y)) continue;
 
-                Vec3 local_h = invH * Vec3(static_cast<float>(x) + 0.5f, static_cast<float>(y) + 0.5f, 1.0f);
-                if (std::abs(local_h.z) < 1e-7f) continue;
+                float lx = 0.0f;
+                float ly = 0.0f;
 
-                // Tiling logic using fmod
-                float lx = local_h.x / local_h.z;
-                float ly = local_h.y / local_h.z;
-                
-                lx = std::fmod(std::fmod(lx, static_cast<float>(sw)) + static_cast<float>(sw), static_cast<float>(sw));
-                ly = std::fmod(std::fmod(ly, static_cast<float>(sh)) + static_cast<float>(sh), static_cast<float>(sh));
+                if (is_simple_translation) {
+                    lx = static_cast<float>(x) + 0.5f - tx;
+                    ly = static_cast<float>(y) + 0.5f - ty;
+                } else if (is_scale_translation) {
+                    const float inv_sx = 1.0f / sx;
+                    const float inv_sy = 1.0f / sy;
+                    lx = (static_cast<float>(x) + 0.5f - tx) * inv_sx;
+                    ly = (static_cast<float>(y) + 0.5f - ty) * inv_sy;
+                } else {
+                    const Vec3 local_h = invH * Vec3(static_cast<float>(x) + 0.5f, static_cast<float>(y) + 0.5f, 1.0f);
+                    if (std::abs(local_h.z) < 1e-7f) continue;
+                    lx = local_h.x / local_h.z;
+                    ly = local_h.y / local_h.z;
+                }
+
+                lx = wrap_repeat(lx, static_cast<float>(sw));
+                ly = wrap_repeat(ly, static_cast<float>(sh));
 
                 float sr, sg, sb, sa;
                 sample_bilinear_prgb32(src_pixels, stride, sw, sh, lx, ly, sr, sg, sb, sa);
-                if (x == 960 && y == 540) {
-                    std::cout << "composite_bl_image_tiled: x=" << x << " y=" << y 
-                              << " lx=" << lx << " ly=" << ly 
-                              << " sr=" << sr << " sg=" << sg << " sb=" << sb << " sa=" << sa 
-                              << " opacity=" << opacity << " final_sa=" << (sa * opacity) << std::endl;
-                }
                 sa *= opacity;
                 if (sa <= 0.001f) continue;
                 sr *= opacity;

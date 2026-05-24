@@ -44,15 +44,10 @@ bool FfmpegPipeEncoder::open(const FfmpegPipeOptions& options) {
             rgba_buffer_.assign(w * h * 4u, 0);
             break;
         case PipePixelFormat::YUV420P:
-            y_plane_.assign(w * h, 0);
-            u_plane_.assign(w * h / 4u, 0);
-            v_plane_.assign(w * h / 4u, 0);
+            yuv_buffer_.assign(w * h * 3u / 2u, 0);
             break;
         case PipePixelFormat::NV12:
-            y_plane_.assign(w * h, 0);
-            u_plane_.assign(w * h / 4u, 0);
-            v_plane_.assign(w * h / 4u, 0);
-            nv12_uv_plane_.assign(w * h / 2u, 0);
+            yuv_buffer_.assign(w * h * 3u / 2u, 0);
             break;
     }
 
@@ -66,6 +61,9 @@ bool FfmpegPipeEncoder::open(const FfmpegPipeOptions& options) {
     pipe_ = _popen(cmd.c_str(), "wb");
 #else
     pipe_ = popen(cmd.c_str(), "w");
+    if (pipe_) {
+        setvbuf(pipe_, nullptr, _IOFBF, 1 << 20);
+    }
 #endif
 
 #ifdef __linux__
@@ -163,7 +161,7 @@ bool FfmpegPipeEncoder::write_frame(const Framebuffer& fb) {
         }
         case PipePixelFormat::YUV420P: {
             const auto t_conv0 = std::chrono::high_resolution_clock::now();
-            if (!convert_framebuffer_to_yuv420p(fb)) {
+            if (yuv_buffer_.empty() || !convert_framebuffer_to_yuv420p(fb, yuv_buffer_.data())) {
                 return false;
             }
             const auto t_conv1 = std::chrono::high_resolution_clock::now();
@@ -172,19 +170,16 @@ bool FfmpegPipeEncoder::write_frame(const Framebuffer& fb) {
                     static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t_conv1 - t_conv0).count()),
                     std::memory_order_relaxed);
             }
-            // Write planes: Y, U, V
-            size_t w1 = timed_fwrite(y_plane_.data(), 1, y_plane_.size(), pipe_);
-            size_t w2 = timed_fwrite(u_plane_.data(), 1, u_plane_.size(), pipe_);
-            size_t w3 = timed_fwrite(v_plane_.data(), 1, v_plane_.size(), pipe_);
-            if (w1 != y_plane_.size() || w2 != u_plane_.size() || w3 != v_plane_.size()) {
+            const size_t written = timed_fwrite(yuv_buffer_.data(), 1, yuv_buffer_.size(), pipe_);
+            if (written != yuv_buffer_.size()) {
                 return false;
             }
-            bytes_written_ += w1 + w2 + w3;
+            bytes_written_ += written;
             break;
         }
         case PipePixelFormat::NV12: {
             const auto t_conv0 = std::chrono::high_resolution_clock::now();
-            if (!convert_framebuffer_to_nv12(fb)) {
+            if (yuv_buffer_.empty() || !convert_framebuffer_to_nv12(fb, yuv_buffer_.data())) {
                 return false;
             }
             const auto t_conv1 = std::chrono::high_resolution_clock::now();
@@ -193,13 +188,11 @@ bool FfmpegPipeEncoder::write_frame(const Framebuffer& fb) {
                     static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t_conv1 - t_conv0).count()),
                     std::memory_order_relaxed);
             }
-            // Write planes: Y, interleaved UV
-            size_t w1 = timed_fwrite(y_plane_.data(), 1, y_plane_.size(), pipe_);
-            size_t w2 = timed_fwrite(nv12_uv_plane_.data(), 1, nv12_uv_plane_.size(), pipe_);
-            if (w1 != y_plane_.size() || w2 != nv12_uv_plane_.size()) {
+            const size_t written = timed_fwrite(yuv_buffer_.data(), 1, yuv_buffer_.size(), pipe_);
+            if (written != yuv_buffer_.size()) {
                 return false;
             }
-            bytes_written_ += w1 + w2;
+            bytes_written_ += written;
             break;
         }
     }
