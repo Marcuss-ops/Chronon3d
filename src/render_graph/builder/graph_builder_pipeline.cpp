@@ -23,7 +23,7 @@ namespace chronon3d::graph::detail {
 
 using namespace chronon3d::graph;
 
-RenderGraph build_graph(const Scene& scene, const RenderGraphContext& ctx,
+RenderGraph build_graph(const Scene& scene, RenderGraphContext& ctx,
                         const LayerResolutionResult& resolved) {
     RenderGraph graph;
     GraphNodeId current = graph.add_node(std::make_unique<ClearNode>());
@@ -218,8 +218,9 @@ RenderGraph build_graph(const Scene& scene, const RenderGraphContext& ctx,
 }
 
 RenderGraph build_render_graph_pipeline(const Scene& scene, const RenderGraphContext& ctx) {
-    const auto resolved = resolve_layers(scene, ctx);
-    return build_graph(scene, ctx, resolved);
+    auto mutable_ctx = ctx;
+    const auto resolved = resolve_layers(scene, mutable_ctx);
+    return build_graph(scene, mutable_ctx, resolved);
 }
 
 } // namespace chronon3d::graph::detail

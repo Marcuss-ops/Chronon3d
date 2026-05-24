@@ -134,11 +134,16 @@ std::filesystem::path telemetry_summary_path() {
 void ensure_csv_header(std::ofstream& out, const std::filesystem::path& path) {
     if (!std::filesystem::exists(path) || std::filesystem::file_size(path) == 0) {
         out << "ts,run_id,event,frame,w,h,total_ms,setup_ms,composite_ms,blur_ms,encode_ms,ram_mb,cache_hit,layer_count,"
-               "cache_hits,cache_misses,nodes_executed,clear_calls,clear_pixels,composite_calls,composite_pixels,"
+               "cache_hits,cache_misses,nodes_executed,clear_skipped_calls,clear_skipped_pixels,clear_calls,clear_pixels,composite_calls,composite_pixels,"
                "transform_calls,transform_pixels,effect_stack_calls,effect_pixels,text_glyphs_rasterized,"
                "framebuffer_allocations,framebuffer_reuses,dirty_full_fallbacks,"
                "dirty_full_fallback_predicted_bounds_missing,dirty_full_fallback_composite_missing_input_bounds,"
-               "dirty_full_fallback_transform_bounds_unknown,dirty_full_fallback_effect_bounds_unknown\n";
+               "dirty_full_fallback_transform_bounds_unknown,dirty_full_fallback_effect_bounds_unknown,"
+               "framebuffer_acquire_ms,framebuffer_clear_ms,clearnode_ms,framebuffer_pool_clear_ms,framebuffer_enqueue_ms,"
+               "framebuffer_pool_miss_count_size_mismatch,framebuffer_pool_miss_count_empty,framebuffer_pool_hits,"
+               "framebuffer_buffer_returned_to_pool_count,unaligned_memory_copies,frame_conversion_copy_ms,"
+               "video_graph_eval_ms,video_conversion_ms,video_pipe_write_ms,video_ffmpeg_latency_ms,"
+               "io_queue_push_blocked_ms,io_queue_pop_wait_ms,io_queue_peak_depth,ffmpeg_pipe_write_blocked_ms\n";
     }
 }
 
@@ -152,7 +157,7 @@ bool csv_header_matches(const std::filesystem::path& path) {
     if (!std::getline(in, header)) {
         return true;
     }
-    return header == "ts,run_id,event,frame,w,h,total_ms,setup_ms,composite_ms,blur_ms,encode_ms,ram_mb,cache_hit,layer_count,cache_hits,cache_misses,nodes_executed,clear_calls,clear_pixels,composite_calls,composite_pixels,transform_calls,transform_pixels,effect_stack_calls,effect_pixels,text_glyphs_rasterized,framebuffer_allocations,framebuffer_reuses,dirty_full_fallbacks,dirty_full_fallback_predicted_bounds_missing,dirty_full_fallback_composite_missing_input_bounds,dirty_full_fallback_transform_bounds_unknown,dirty_full_fallback_effect_bounds_unknown";
+    return header == "ts,run_id,event,frame,w,h,total_ms,setup_ms,composite_ms,blur_ms,encode_ms,ram_mb,cache_hit,layer_count,cache_hits,cache_misses,nodes_executed,clear_skipped_calls,clear_skipped_pixels,clear_calls,clear_pixels,composite_calls,composite_pixels,transform_calls,transform_pixels,effect_stack_calls,effect_pixels,text_glyphs_rasterized,framebuffer_allocations,framebuffer_reuses,dirty_full_fallbacks,dirty_full_fallback_predicted_bounds_missing,dirty_full_fallback_composite_missing_input_bounds,dirty_full_fallback_transform_bounds_unknown,dirty_full_fallback_effect_bounds_unknown,framebuffer_acquire_ms,framebuffer_clear_ms,clearnode_ms,framebuffer_pool_clear_ms,framebuffer_enqueue_ms,framebuffer_pool_miss_count_size_mismatch,framebuffer_pool_miss_count_empty,framebuffer_pool_hits,framebuffer_buffer_returned_to_pool_count,unaligned_memory_copies,frame_conversion_copy_ms,video_graph_eval_ms,video_conversion_ms,video_pipe_write_ms,video_ffmpeg_latency_ms,io_queue_push_blocked_ms,io_queue_pop_wait_ms,io_queue_peak_depth,ffmpeg_pipe_write_blocked_ms";
 }
 
 void migrate_legacy_csv(const std::filesystem::path& path) {
@@ -262,6 +267,8 @@ void write_summary_file(const std::vector<RenderTelemetryRow>& rows) {
         std::vector<double> cache_hits;
         std::vector<double> cache_misses;
         std::vector<double> nodes_executed;
+        std::vector<double> clear_skipped_calls;
+        std::vector<double> clear_skipped_pixels;
         std::vector<double> clear_calls;
         std::vector<double> clear_pixels;
         std::vector<double> composite_calls;
@@ -292,6 +299,8 @@ void write_summary_file(const std::vector<RenderTelemetryRow>& rows) {
         s.cache_hits.push_back(static_cast<double>(row.cache_hits));
         s.cache_misses.push_back(static_cast<double>(row.cache_misses));
         s.nodes_executed.push_back(static_cast<double>(row.nodes_executed));
+        s.clear_skipped_calls.push_back(static_cast<double>(row.clear_skipped_calls));
+        s.clear_skipped_pixels.push_back(static_cast<double>(row.clear_skipped_pixels));
         s.clear_calls.push_back(static_cast<double>(row.clear_calls));
         s.clear_pixels.push_back(static_cast<double>(row.clear_pixels));
         s.composite_calls.push_back(static_cast<double>(row.composite_calls));
@@ -326,6 +335,8 @@ void write_summary_file(const std::vector<RenderTelemetryRow>& rows) {
             << " cache_hits_p95=" << format_ms(percentile(s.cache_hits, 0.95))
             << " cache_misses_p95=" << format_ms(percentile(s.cache_misses, 0.95))
             << " nodes_executed_p95=" << format_ms(percentile(s.nodes_executed, 0.95))
+            << " clear_skipped_calls_p95=" << format_ms(percentile(s.clear_skipped_calls, 0.95))
+            << " clear_skipped_pixels_p95=" << format_ms(percentile(s.clear_skipped_pixels, 0.95))
             << " clear_calls_p95=" << format_ms(percentile(s.clear_calls, 0.95))
             << " clear_pixels_p95=" << format_ms(percentile(s.clear_pixels, 0.95))
             << " composite_calls_p95=" << format_ms(percentile(s.composite_calls, 0.95))

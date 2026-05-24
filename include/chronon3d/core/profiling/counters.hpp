@@ -3,8 +3,15 @@
 #include <atomic>
 #include <array>
 #include <cstdint>
+#include <new>
 
 namespace chronon3d {
+
+#ifdef __cpp_lib_hardware_interference_size
+    using std::hardware_destructive_interference_size;
+#else
+    constexpr std::size_t hardware_destructive_interference_size = 64;
+#endif
 
 #define CHRONON_RENDER_COUNTERS(X) \
     X(pixels_touched) \
@@ -29,6 +36,8 @@ namespace chronon3d {
     X(tiles_miss) \
     X(tiles_partial) \
     X(node_cache_hash_collisions) \
+    X(clear_skipped_calls) \
+    X(clear_skipped_pixels) \
     X(clear_calls) \
     X(clear_pixels) \
     X(clear_copy_pixels) \
@@ -53,19 +62,27 @@ namespace chronon3d {
     X(bypass_not_cacheable_count) \
     X(framebuffer_acquire_ms) \
     X(framebuffer_clear_ms) \
+    X(clearnode_ms) \
+    X(framebuffer_pool_clear_ms) \
     X(framebuffer_enqueue_ms) \
     X(framebuffer_pool_miss_count_size_mismatch) \
     X(framebuffer_pool_miss_count_empty) \
+    X(framebuffer_pool_hits) \
     X(framebuffer_buffer_returned_to_pool_count) \
+    X(unaligned_memory_copies) \
     X(frame_conversion_copy_ms) \
     X(video_graph_eval_ms) \
     X(video_conversion_ms) \
     X(video_pipe_write_ms) \
-    X(video_ffmpeg_latency_ms)
+    X(video_ffmpeg_latency_ms) \
+    X(io_queue_push_blocked_ms) \
+    X(io_queue_pop_wait_ms) \
+    X(io_queue_peak_depth) \
+    X(ffmpeg_pipe_write_blocked_ms)
 
 
 struct RenderCounters {
-#define X(name) std::atomic<uint64_t> name{0};
+#define X(name) alignas(hardware_destructive_interference_size) std::atomic<uint64_t> name{0};
     CHRONON_RENDER_COUNTERS(X)
 #undef X
 

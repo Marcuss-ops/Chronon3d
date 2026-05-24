@@ -194,6 +194,8 @@ inline void record_output_run(const std::string& composition_id,
         run.tiles_miss = counters_src->tiles_miss.load(std::memory_order_relaxed);
         run.tiles_partial = counters_src->tiles_partial.load(std::memory_order_relaxed);
         run.node_cache_hash_collisions = counters_src->node_cache_hash_collisions.load(std::memory_order_relaxed);
+        run.clear_skipped_calls = counters_src->clear_skipped_calls.load(std::memory_order_relaxed);
+        run.clear_skipped_pixels = counters_src->clear_skipped_pixels.load(std::memory_order_relaxed);
         run.clear_calls = counters_src->clear_calls.load(std::memory_order_relaxed);
         run.clear_pixels = counters_src->clear_pixels.load(std::memory_order_relaxed);
         run.composite_calls = counters_src->composite_calls.load(std::memory_order_relaxed);

@@ -26,6 +26,8 @@ CREATE TABLE IF NOT EXISTS render_runs (
     tiles_partial INTEGER,
     bytes_allocated_peak INTEGER,
     node_cache_hash_collisions INTEGER,
+    clear_skipped_calls INTEGER,
+    clear_skipped_pixels INTEGER,
     clear_calls INTEGER,
     clear_pixels INTEGER,
     composite_calls INTEGER,

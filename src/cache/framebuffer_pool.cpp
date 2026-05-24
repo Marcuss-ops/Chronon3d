@@ -53,16 +53,19 @@ std::shared_ptr<Framebuffer> FramebufferPool::acquire(int width, int height, boo
         profiling::g_current_counters->framebuffer_acquire_ms.fetch_add(
             static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t1 - t0).count()),
             std::memory_order_relaxed);
+        if (fb) {
+            profiling::g_current_counters->framebuffer_pool_hits.fetch_add(1, std::memory_order_relaxed);
+        }
     }
 
-    if (clear) {
+    if (clear && fb) {
         const auto tc0 = std::chrono::high_resolution_clock::now();
         fb->clear(Color::transparent());
         const auto tc1 = std::chrono::high_resolution_clock::now();
         if (profiling::g_current_counters) {
-            profiling::g_current_counters->framebuffer_clear_ms.fetch_add(
-                static_cast<uint64_t>(std::chrono::duration<double, std::milli>(tc1 - tc0).count()),
-                std::memory_order_relaxed);
+            const auto elapsed = static_cast<uint64_t>(std::chrono::duration<double, std::milli>(tc1 - tc0).count());
+            profiling::g_current_counters->framebuffer_clear_ms.fetch_add(elapsed, std::memory_order_relaxed);
+            profiling::g_current_counters->framebuffer_pool_clear_ms.fetch_add(elapsed, std::memory_order_relaxed);
         }
     }
     auto weak_pool = weak_from_this();

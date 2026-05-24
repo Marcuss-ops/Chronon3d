@@ -106,6 +106,8 @@ void generate_telemetry_report(std::stringstream& out, sqlite3* db, const std::s
     out << "| tiles miss | " << run.tiles_miss << " |\n";
     out << "| tiles partial | " << run.tiles_partial << " |\n";
     out << "| node cache hash collisions | " << run.node_cache_hash_collisions << " |\n";
+    out << "| clear skipped calls | " << run.clear_skipped_calls << " |\n";
+    out << "| clear skipped pixels | " << run.clear_skipped_pixels << " |\n";
     out << "| clear calls | " << run.clear_calls << " |\n";
     out << "| clear pixels | " << run.clear_pixels << " |\n";
     out << "| composite calls | " << run.composite_calls << " |\n";

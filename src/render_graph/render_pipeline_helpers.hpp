@@ -98,11 +98,23 @@ namespace chronon3d::graph {
                 .load(std::memory_order_relaxed);
         row.framebuffer_acquire_ms = counters->framebuffer_acquire_ms.load(std::memory_order_relaxed);
         row.framebuffer_clear_ms = counters->framebuffer_clear_ms.load(std::memory_order_relaxed);
+        row.clearnode_ms = counters->clearnode_ms.load(std::memory_order_relaxed);
+        row.framebuffer_pool_clear_ms = counters->framebuffer_pool_clear_ms.load(std::memory_order_relaxed);
         row.framebuffer_enqueue_ms = counters->framebuffer_enqueue_ms.load(std::memory_order_relaxed);
         row.framebuffer_pool_miss_count_size_mismatch = counters->framebuffer_pool_miss_count_size_mismatch.load(std::memory_order_relaxed);
         row.framebuffer_pool_miss_count_empty = counters->framebuffer_pool_miss_count_empty.load(std::memory_order_relaxed);
+        row.framebuffer_pool_hits = counters->framebuffer_pool_hits.load(std::memory_order_relaxed);
         row.framebuffer_buffer_returned_to_pool_count = counters->framebuffer_buffer_returned_to_pool_count.load(std::memory_order_relaxed);
+        row.unaligned_memory_copies = counters->unaligned_memory_copies.load(std::memory_order_relaxed);
         row.frame_conversion_copy_ms = counters->frame_conversion_copy_ms.load(std::memory_order_relaxed);
+        row.video_graph_eval_ms = counters->video_graph_eval_ms.load(std::memory_order_relaxed);
+        row.video_conversion_ms = counters->video_conversion_ms.load(std::memory_order_relaxed);
+        row.video_pipe_write_ms = counters->video_pipe_write_ms.load(std::memory_order_relaxed);
+        row.video_ffmpeg_latency_ms = counters->video_ffmpeg_latency_ms.load(std::memory_order_relaxed);
+        row.io_queue_push_blocked_ms = counters->io_queue_push_blocked_ms.load(std::memory_order_relaxed);
+        row.io_queue_pop_wait_ms = counters->io_queue_pop_wait_ms.load(std::memory_order_relaxed);
+        row.io_queue_peak_depth = counters->io_queue_peak_depth.load(std::memory_order_relaxed);
+        row.ffmpeg_pipe_write_blocked_ms = counters->ffmpeg_pipe_write_blocked_ms.load(std::memory_order_relaxed);
     }
     return row;
 }

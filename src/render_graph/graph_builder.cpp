@@ -8,8 +8,9 @@ namespace chronon3d::graph {
 
 RenderGraph GraphBuilder::build(const Scene& scene, const RenderGraphContext& ctx) {
     CHRONON_ZONE_C("build_render_graph", trace_category::kGraph);
-    const auto resolved = detail::resolve_layers(scene, ctx);
-    return detail::build_graph(scene, ctx, resolved);
+    auto mutable_ctx = ctx;
+    const auto resolved = detail::resolve_layers(scene, mutable_ctx);
+    return detail::build_graph(scene, mutable_ctx, resolved);
 }
 
 } // namespace chronon3d::graph
