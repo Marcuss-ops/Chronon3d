@@ -276,6 +276,8 @@ void FfmpegPipeEncoder::reap_completed_uring(bool wait) {
 
     unsigned head = *cq_head_;
     unsigned tail = *cq_tail_;
+    std::array<size_t, kRingEntries> retry_bufs{};
+    size_t retry_count = 0;
 
     if (wait && head == tail) {
         syscall(__NR_io_uring_enter, ring_fd_, 0, 1, IORING_ENTER_GETEVENTS, nullptr);
@@ -294,17 +296,22 @@ void FfmpegPipeEncoder::reap_completed_uring(bool wait) {
 
         if (buf_idx < kRingEntries) {
             if (res < 0) {
-                if (res == -EINTR) {
-                    res = 0;
+                if (res == -EINTR || res == -EAGAIN || res == -EWOULDBLOCK) {
+                    if (retry_count < retry_bufs.size()) {
+                        retry_bufs[retry_count++] = static_cast<size_t>(buf_idx);
+                    }
                 } else {
                     ring_buffer_pending_[buf_idx] = false;
+                    pipe_failed_ = true;
                     head++;
                     continue;
                 }
             }
 
             if (res == 0) {
-                ring_buffer_pending_[buf_idx] = false;
+                if (retry_count < retry_bufs.size()) {
+                    retry_bufs[retry_count++] = static_cast<size_t>(buf_idx);
+                }
                 head++;
                 continue;
             }
@@ -313,7 +320,9 @@ void FfmpegPipeEncoder::reap_completed_uring(bool wait) {
             ring_buffer_bytes_written_[buf_idx] += written;
 
             if (ring_buffer_bytes_written_[buf_idx] < ring_buffer_size_) {
-                write_uring(buf_idx, ring_buffer_size_);
+                if (retry_count < retry_bufs.size()) {
+                    retry_bufs[retry_count++] = static_cast<size_t>(buf_idx);
+                }
             } else {
                 ring_buffer_pending_[buf_idx] = false;
             }
@@ -323,11 +332,34 @@ void FfmpegPipeEncoder::reap_completed_uring(bool wait) {
 
     std::atomic_thread_fence(std::memory_order_release);
     *cq_head_ = head;
+
+    for (size_t i = 0; i < retry_count && !pipe_failed_; ++i) {
+        const size_t buf_idx = retry_bufs[i];
+        if (buf_idx < kRingEntries && ring_buffer_pending_[buf_idx]) {
+            if (!write_uring(buf_idx, ring_buffer_size_)) {
+                break;
+            }
+        }
+    }
 }
 
 bool FfmpegPipeEncoder::write_uring(size_t buf_idx, size_t size) {
+    if (pipe_failed_ || ring_fd_ < 0) {
+        return false;
+    }
+
     size_t offset = ring_buffer_bytes_written_[buf_idx];
     size_t remaining = size - offset;
+    if (remaining == 0) {
+        return true;
+    }
+
+    while ((static_cast<size_t>(*sq_tail_ - *sq_head_) >= static_cast<size_t>(*sq_ring_entries_))) {
+        reap_completed_uring(true);
+        if (pipe_failed_) {
+            return false;
+        }
+    }
 
     unsigned sq_tail = *sq_tail_;
     unsigned index = sq_tail & sq_mask_;
@@ -343,14 +375,20 @@ bool FfmpegPipeEncoder::write_uring(size_t buf_idx, size_t size) {
 
     sq_array_[index] = index;
     *sq_tail_ = sq_tail + 1;
-    pending_writes_count_++;
 
     std::atomic_thread_fence(std::memory_order_release);
 
     int submitted = syscall(__NR_io_uring_enter, ring_fd_, 1, 0, 0, nullptr);
     if (submitted < 0) {
+        if (submitted == -EAGAIN || submitted == -EBUSY || submitted == -EINTR) {
+            std::this_thread::yield();
+            return false;
+        }
+        pipe_failed_ = true;
         return false;
     }
+
+    pending_writes_count_++;
 
     bytes_written_ += remaining;
     return true;
