@@ -22,6 +22,7 @@ enum class ShapeType {
     Text,
     Image,
     TiledImage,
+    GridBackground,
     Mesh,
     FakeBox3D,
     GridPlane,
@@ -146,6 +147,18 @@ struct GridPlaneShape {
     f32       fade_min_alpha{0.0f};
 };
 
+struct GridBackgroundShape {
+    Vec2 size{1920.0f, 1080.0f};
+    Vec2 offset{0.0f, 0.0f};
+    Color bg_color{0.008f, 0.010f, 0.022f, 1.0f};
+    Color grid_color{0.25f, 0.52f, 1.0f, 0.05f};
+    f32 spacing{140.0f};
+    f32 minor_thickness{1.25f};
+    f32 major_thickness{2.75f};
+    i32 major_every{4};
+    bool centered{true};
+};
+
 struct FakeExtrudedTextShape {
     std::string text;
     std::string font_path{"assets/fonts/Inter-Bold.ttf"};
@@ -177,6 +190,7 @@ struct Shape {
     PathShape path;
     TextShape text;
     ImageShape image;
+    GridBackgroundShape grid_background;
     FakeBox3DShape fake_box3d;
     GridPlaneShape grid_plane;
     FakeExtrudedTextShape fake_extruded_text;

@@ -206,27 +206,48 @@ HWY_ATTR void convert_f32_rgba_to_yuv420p_simd_rows_impl(
         }
     }
 
-    // 2. Chroma (UV) - Subsampled 2x2
-    // Process only if y_start is even and process rows in pairs
+    // 2. Chroma (UV) - Subsampled 2x2.
+    // UV rows must be written only for even source rows, otherwise parallel
+    // row ranges can alias and overwrite the same chroma line twice.
     if (u_ptr && v_ptr) {
-        for (int y = y_start; y < y_end; y += 2) {
-            if (y + 1 >= height) break;
-            for (int bx = 0; bx < width / 2; ++bx) {
-                float r_sum = 0, g_sum = 0, b_sum = 0;
-                for (int dy = 0; dy < 2; ++dy) {
-                    for (int dx = 0; dx < 2; ++dx) {
-                        const float* p = src_ptr + ((static_cast<size_t>(y) + dy) * width + (bx * 2 + dx)) * 4;
-                        r_sum += std::clamp(p[0], 0.0f, 1.0f);
-                        g_sum += std::clamp(p[1], 0.0f, 1.0f);
-                        b_sum += std::clamp(p[2], 0.0f, 1.0f);
-                    }
-                }
-                float r = r_sum * 0.25f, g = g_sum * 0.25f, b = b_sum * 0.25f;
-                float u = -0.1146f * r - 0.3854f * g + 0.5000f * b;
-                float v =  0.5000f * r - 0.4542f * g - 0.0458f * b;
-                const size_t uv_idx = (static_cast<size_t>(y) / 2) * (width / 2) + bx;
-                u_ptr[uv_idx] = static_cast<uint8_t>(std::clamp(u, -0.5f, 0.5f) * 224.0f + 128.5f);
-                v_ptr[uv_idx] = static_cast<uint8_t>(std::clamp(v, -0.5f, 0.5f) * 224.0f + 128.5f);
+        const int uv_row_begin = std::max((y_start + 1) & ~1, 0);
+        const int uv_row_end = std::min(y_end, height - 1) & ~1;
+        const int uv_width = width / 2;
+
+        for (int y = uv_row_begin; y < uv_row_end; y += 2) {
+            const float* row0 = src_ptr + static_cast<size_t>(y) * width * 4;
+            const float* row1 = row0 + static_cast<size_t>(width) * 4;
+            uint8_t* dst_u = u_ptr + (static_cast<size_t>(y) / 2) * uv_width;
+            uint8_t* dst_v = v_ptr + (static_cast<size_t>(y) / 2) * uv_width;
+
+            for (int bx = 0; bx < uv_width; ++bx) {
+                const int x = bx * 2;
+                const float* p00 = row0 + static_cast<size_t>(x) * 4;
+                const float* p01 = p00 + 4;
+                const float* p10 = row1 + static_cast<size_t>(x) * 4;
+                const float* p11 = p10 + 4;
+
+                const float r = 0.25f * (
+                    std::clamp(p00[0], 0.0f, 1.0f) +
+                    std::clamp(p01[0], 0.0f, 1.0f) +
+                    std::clamp(p10[0], 0.0f, 1.0f) +
+                    std::clamp(p11[0], 0.0f, 1.0f));
+                const float g = 0.25f * (
+                    std::clamp(p00[1], 0.0f, 1.0f) +
+                    std::clamp(p01[1], 0.0f, 1.0f) +
+                    std::clamp(p10[1], 0.0f, 1.0f) +
+                    std::clamp(p11[1], 0.0f, 1.0f));
+                const float b = 0.25f * (
+                    std::clamp(p00[2], 0.0f, 1.0f) +
+                    std::clamp(p01[2], 0.0f, 1.0f) +
+                    std::clamp(p10[2], 0.0f, 1.0f) +
+                    std::clamp(p11[2], 0.0f, 1.0f));
+
+                const float u = -0.1146f * r - 0.3854f * g + 0.5000f * b;
+                const float v =  0.5000f * r - 0.4542f * g - 0.0458f * b;
+
+                dst_u[bx] = static_cast<uint8_t>(std::clamp(u, -0.5f, 0.5f) * 224.0f + 128.5f);
+                dst_v[bx] = static_cast<uint8_t>(std::clamp(v, -0.5f, 0.5f) * 224.0f + 128.5f);
             }
         }
     }
@@ -243,24 +264,44 @@ HWY_ATTR void convert_f32_rgba_to_nv12_simd_rows_impl(
     convert_f32_rgba_to_yuv420p_simd_rows_impl(y_ptr, nullptr, nullptr, src_ptr, width, height, y_start, y_end);
     
     // UV Interleaved
-    for (int y = y_start; y < y_end; y += 2) {
-        if (y + 1 >= height) break;
-        for (int bx = 0; bx < width / 2; ++bx) {
-            float r_sum = 0, g_sum = 0, b_sum = 0;
-            for (int dy = 0; dy < 2; ++dy) {
-                for (int dx = 0; dx < 2; ++dx) {
-                    const float* p = src_ptr + ((static_cast<size_t>(y) + dy) * width + (bx * 2 + dx)) * 4;
-                    r_sum += std::clamp(p[0], 0.0f, 1.0f);
-                    g_sum += std::clamp(p[1], 0.0f, 1.0f);
-                    b_sum += std::clamp(p[2], 0.0f, 1.0f);
-                }
-            }
-            float r = r_sum * 0.25f, g = g_sum * 0.25f, b = b_sum * 0.25f;
-            float u = -0.1146f * r - 0.3854f * g + 0.5000f * b;
-            float v =  0.5000f * r - 0.4542f * g - 0.0458f * b;
-            const size_t uv_idx = ((static_cast<size_t>(y) / 2) * (width / 2) + bx) * 2;
-            uv_ptr[uv_idx + 0] = static_cast<uint8_t>(std::clamp(u, -0.5f, 0.5f) * 224.0f + 128.5f);
-            uv_ptr[uv_idx + 1] = static_cast<uint8_t>(std::clamp(v, -0.5f, 0.5f) * 224.0f + 128.5f);
+    const int uv_row_begin = std::max((y_start + 1) & ~1, 0);
+    const int uv_row_end = std::min(y_end, height - 1) & ~1;
+    const int uv_width = width / 2;
+
+    for (int y = uv_row_begin; y < uv_row_end; y += 2) {
+        const float* row0 = src_ptr + static_cast<size_t>(y) * width * 4;
+        const float* row1 = row0 + static_cast<size_t>(width) * 4;
+        uint8_t* dst_uv = uv_ptr + (static_cast<size_t>(y) / 2) * uv_width * 2;
+
+        for (int bx = 0; bx < uv_width; ++bx) {
+            const int x = bx * 2;
+            const float* p00 = row0 + static_cast<size_t>(x) * 4;
+            const float* p01 = p00 + 4;
+            const float* p10 = row1 + static_cast<size_t>(x) * 4;
+            const float* p11 = p10 + 4;
+
+            const float r = 0.25f * (
+                std::clamp(p00[0], 0.0f, 1.0f) +
+                std::clamp(p01[0], 0.0f, 1.0f) +
+                std::clamp(p10[0], 0.0f, 1.0f) +
+                std::clamp(p11[0], 0.0f, 1.0f));
+            const float g = 0.25f * (
+                std::clamp(p00[1], 0.0f, 1.0f) +
+                std::clamp(p01[1], 0.0f, 1.0f) +
+                std::clamp(p10[1], 0.0f, 1.0f) +
+                std::clamp(p11[1], 0.0f, 1.0f));
+            const float b = 0.25f * (
+                std::clamp(p00[2], 0.0f, 1.0f) +
+                std::clamp(p01[2], 0.0f, 1.0f) +
+                std::clamp(p10[2], 0.0f, 1.0f) +
+                std::clamp(p11[2], 0.0f, 1.0f));
+
+            const float u = -0.1146f * r - 0.3854f * g + 0.5000f * b;
+            const float v =  0.5000f * r - 0.4542f * g - 0.0458f * b;
+
+            const size_t uv_idx = static_cast<size_t>(bx) * 2;
+            dst_uv[uv_idx + 0] = static_cast<uint8_t>(std::clamp(u, -0.5f, 0.5f) * 224.0f + 128.5f);
+            dst_uv[uv_idx + 1] = static_cast<uint8_t>(std::clamp(v, -0.5f, 0.5f) * 224.0f + 128.5f);
         }
     }
 }

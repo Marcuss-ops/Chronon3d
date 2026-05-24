@@ -95,6 +95,16 @@ void register_builtin_shapes(ShapeRegistry& registry) {
         }),
     });
     registry.register_shape(ShapeDescriptor{
+        .id = std::string{shape_ids::GridBackground},
+        .display_name = "Grid Background",
+        .kind = ShapeKind::Primitive,
+        .description = "Native procedural full-screen grid background",
+        .builtin = true,
+        .factory = make_factory<GridBackgroundParams>([](auto* res, std::string name, const GridBackgroundParams& p) {
+            return RenderNodeFactory::grid_background(res, std::move(name), p);
+        }),
+    });
+    registry.register_shape(ShapeDescriptor{
         .id = std::string{shape_ids::Text},
         .display_name = "Text",
         .kind = ShapeKind::Primitive,

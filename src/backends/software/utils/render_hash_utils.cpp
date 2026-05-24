@@ -76,6 +76,17 @@ u64 hash_shape(const Shape& shape) {
             seed = hash_combine(seed, hash_vec2(shape.image.size));
             seed = hash_combine(seed, hash_value_local(shape.image.opacity));
             break;
+        case ShapeType::GridBackground:
+            seed = hash_combine(seed, hash_vec2(shape.grid_background.size));
+            seed = hash_combine(seed, hash_vec2(shape.grid_background.offset));
+            seed = hash_combine(seed, hash_color(shape.grid_background.bg_color));
+            seed = hash_combine(seed, hash_color(shape.grid_background.grid_color));
+            seed = hash_combine(seed, hash_value_local(shape.grid_background.spacing));
+            seed = hash_combine(seed, hash_value_local(shape.grid_background.minor_thickness));
+            seed = hash_combine(seed, hash_value_local(shape.grid_background.major_thickness));
+            seed = hash_combine(seed, hash_value_local(shape.grid_background.major_every));
+            seed = hash_combine(seed, hash_value_local(shape.grid_background.centered));
+            break;
         case ShapeType::Text:
             seed = hash_combine(seed, hash_string(shape.text.text));
             seed = hash_combine(seed, hash_string(shape.text.style.font_path));

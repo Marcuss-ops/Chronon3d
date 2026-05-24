@@ -18,6 +18,14 @@
 
 namespace chronon3d::cli {
 
+namespace {
+
+constexpr size_t align_up(size_t value, size_t alignment) {
+    return (value + alignment - 1) & ~(alignment - 1);
+}
+
+}
+
 struct RenderFramePackage {
     std::shared_ptr<Framebuffer> framebuffer;
     std::shared_ptr<FramebufferArena> arena;
@@ -46,7 +54,8 @@ int render_and_encode_ffmpeg_pipe(
         spdlog::warn("[video] --chunks is ignored with --ffmpeg-mode pipe in V1");
     }
 
-    const std::string codec = resolve_cli_ffmpeg_codec(opts.codec, opts.hardware_encoder);
+    const bool codec_auto = opts.codec == "auto";
+    const std::string codec = codec_auto ? "libx264rgb" : resolve_cli_ffmpeg_codec(opts.codec, opts.hardware_encoder);
 
     FfmpegPipeEncoder pipe;
     FfmpegPipeOptions pipe_options{
@@ -64,6 +73,7 @@ int render_and_encode_ffmpeg_pipe(
         },
         .pipe_writer = opts.pipe_writer,
     };
+    pipe_options.output_pix_fmt = (codec == "libx264rgb") ? "rgb24" : "yuv420p";
 
     std::error_code ec;
     const auto output_parent = std::filesystem::path(opts.output).parent_path();
@@ -83,13 +93,14 @@ int render_and_encode_ffmpeg_pipe(
     auto renderer = create_renderer(registry, settings);
     SoftwareRenderer* sw_renderer = dynamic_cast<SoftwareRenderer*>(renderer.get());
     
-    // Node cache for RenderGraph
-    graph::NodeCache node_cache;
-    std::shared_ptr<VideoDecoderFactory> video_decoder = nullptr;
+    cache::NodeCache node_cache;
+    video::VideoFrameDecoder* video_decoder = nullptr;
 
-    // P1: Initialize Triple Buffering Arena (increased to 20 for extreme decoupling)
-    const size_t arena_size = 3584ULL * 1024ULL * 1024ULL; // 3.5 GB
-    TripleBufferArena triple_arena(20, arena_size);
+    // Keep the arena proportional to the actual frame size instead of pinning
+    // a large fixed slab for every export.
+    const size_t frame_bytes = static_cast<size_t>(comp.width()) * static_cast<size_t>(comp.height()) * sizeof(Color);
+    const size_t arena_size = align_up(std::max<size_t>(32ULL * 1024ULL * 1024ULL, frame_bytes * 2ULL), 2ULL * 1024ULL * 1024ULL);
+    TripleBufferArena triple_arena(8, arena_size);
 
     // Moodycamel lock-free queue for high-throughput frame passing
     moodycamel::ConcurrentQueue<RenderFramePackage> queue;
@@ -116,18 +127,13 @@ int render_and_encode_ffmpeg_pipe(
 
             if (package.framebuffer) {
                 if (!arena_notified) {
-                    spdlog::info(\"[video] Exporting via Arena-backed SIMD pipeline\");
+                    spdlog::info("[video] Exporting via Arena-backed SIMD pipeline");
                     arena_notified = true;
                 }
-                const auto t_conv0 = std::chrono::high_resolution_clock::now();
                 if (!pipe.write_frame(*package.framebuffer)) {
                     writer_failed.store(true);
                     return;
                 }
-                const auto t_conv1 = std::chrono::high_resolution_clock::now();
-                renderer->counters()->frame_conversion_copy_ms.fetch_add(
-                    static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t_conv1 - t_conv0).count()),
-                    std::memory_order_relaxed);
             }
             
             triple_arena.release(package.arena);
@@ -167,13 +173,13 @@ int render_and_encode_ffmpeg_pipe(
 
             auto current_arena = triple_arena.acquire();
             if (sw_renderer) {
-                sw_renderer->framebuffer_pool()->set_arena(current_arena.get());
+                sw_renderer->framebuffer_pool()->set_arena(current_arena);
             }
 
             const auto frame_t0 = std::chrono::steady_clock::now();
             
             auto fb = render_composition_frame(
-                *renderer, node_cache, comp, current_frame, render_opts, registry, video_decoder);
+                *renderer, node_cache, render_opts, &registry, video_decoder, comp, current_frame);
             
             const auto frame_t1 = std::chrono::steady_clock::now();
             const double dirty_ratio = sw_renderer ? sw_renderer->last_dirty_area_ratio() : 1.0;
@@ -190,7 +196,7 @@ int render_and_encode_ffmpeg_pipe(
                 if (writer_failed.load()) break;
                 std::this_thread::yield();
             }
-            queue.enqueue({std::move(fb), std::move(current_arena)});
+            queue.enqueue(RenderFramePackage{std::move(fb), std::move(current_arena)});
             const auto wait_t1 = std::chrono::steady_clock::now();
             queue_wait_ms_total += std::chrono::duration<double, std::milli>(wait_t1 - wait_t0).count();
 

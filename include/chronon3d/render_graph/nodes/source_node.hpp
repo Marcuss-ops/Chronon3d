@@ -25,9 +25,10 @@ public:
     ) const override {
         const Mat4 ssaa_scale = math::scale(Vec3(ctx.ssaa_factor, ctx.ssaa_factor, 1.0f));
         const Mat4 canvas_center = math::translate(Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
+        const bool centered = m_centered && m_node.shape.type != ShapeType::GridBackground;
 
         Mat4 matrix;
-        if (m_is_3d || m_centered) {
+        if (m_is_3d || centered) {
             matrix = canvas_center * ssaa_scale * m_matrix_override.value_or(m_node.world_transform.to_mat4());
         } else {
             matrix = ssaa_scale * m_matrix_override.value_or(m_node.world_transform.to_mat4());
@@ -109,11 +110,20 @@ public:
         bool clear = true;
         if (m_node.shape.type == ShapeType::Image && !m_matrix_override.has_value() && !m_centered) {
             const auto& t = m_node.world_transform;
-            const auto& img = m_node.shape.image;
             if (t.position == Vec3(0.0f) && t.rotation == Quat(1.0f, 0.0f, 0.0f, 0.0f) && t.scale == Vec3(1.0f) &&
-                t.opacity >= 0.999f && img.opacity >= 0.999f &&
-                std::abs(img.size.x - static_cast<f32>(ctx.width)) < 1e-3f &&
-                std::abs(img.size.y - static_cast<f32>(ctx.height)) < 1e-3f) {
+                t.opacity >= 0.999f) {
+                const auto& img = m_node.shape.image;
+                if (img.opacity >= 0.999f &&
+                    std::abs(img.size.x - static_cast<f32>(ctx.width)) < 1e-3f &&
+                    std::abs(img.size.y - static_cast<f32>(ctx.height)) < 1e-3f) {
+                    clear = false;
+                }
+            }
+        } else if (m_node.shape.type == ShapeType::GridBackground && !m_matrix_override.has_value()) {
+            const auto& bg = m_node.shape.grid_background;
+            if (bg.bg_color.a >= 0.999f &&
+                std::abs(bg.size.x - static_cast<f32>(ctx.width)) < 1e-3f &&
+                std::abs(bg.size.y - static_cast<f32>(ctx.height)) < 1e-3f) {
                 clear = false;
             }
         }
@@ -123,11 +133,12 @@ public:
             RenderState state;
             const Mat4 ssaa_scale = math::scale(Vec3(ctx.ssaa_factor, ctx.ssaa_factor, 1.0f));
             const Mat4 canvas_center = math::translate(Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
+            const bool centered = m_centered && m_node.shape.type != ShapeType::GridBackground;
 
             if (m_is_3d) {
                 state.matrix = canvas_center * ssaa_scale * m_matrix_override.value_or(m_node.world_transform.to_mat4());
             } else {
-                if (m_centered) {
+                if (centered) {
                     state.matrix = canvas_center * ssaa_scale * m_matrix_override.value_or(m_node.world_transform.to_mat4());
                 } else {
                     state.matrix = ssaa_scale * m_matrix_override.value_or(m_node.world_transform.to_mat4());
@@ -185,11 +196,10 @@ public:
             return false;
         }
 
-        if (m_node.shape.type != ShapeType::Image) {
+        if (m_node.shape.type != ShapeType::Image && m_node.shape.type != ShapeType::GridBackground) {
             return false;
         }
 
-        const auto& img = m_node.shape.image;
         const auto& tr = m_node.world_transform;
         constexpr f32 eps = 1e-3f;
 
@@ -201,14 +211,24 @@ public:
             }
         }
 
-        const bool full_size = std::abs(img.size.x - static_cast<f32>(ctx.width)) < eps &&
-                               std::abs(img.size.y - static_cast<f32>(ctx.height)) < eps;
-        const bool opaque = img.opacity >= 0.999f && tr.opacity >= 0.999f;
         const bool identity = tr.position == Vec3(0.0f) &&
                               tr.rotation == Quat(1.0f, 0.0f, 0.0f, 0.0f) &&
                               tr.scale == Vec3(1.0f);
+        if (!identity || tr.opacity < 0.999f) {
+            return false;
+        }
 
-        return full_size && opaque && identity;
+        if (m_node.shape.type == ShapeType::Image) {
+            const auto& img = m_node.shape.image;
+            return std::abs(img.size.x - static_cast<f32>(ctx.width)) < eps &&
+                   std::abs(img.size.y - static_cast<f32>(ctx.height)) < eps &&
+                   img.opacity >= 0.999f;
+        }
+
+        const auto& bg = m_node.shape.grid_background;
+        return std::abs(bg.size.x - static_cast<f32>(ctx.width)) < eps &&
+               std::abs(bg.size.y - static_cast<f32>(ctx.height)) < eps &&
+               bg.bg_color.a >= 0.999f;
     }
 
 private:
