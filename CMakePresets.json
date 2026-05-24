@@ -25,6 +25,14 @@
       }
     },
     {
+      "name": "base-win",
+      "hidden": true,
+      "inherits": "base",
+      "cacheVariables": {
+        "VCPKG_TARGET_TRIPLET": "x64-windows"
+      }
+    },
+    {
       "name": "linux-release",
       "inherits": "base-linux",
       "condition": {
@@ -78,6 +86,31 @@
         "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=address",
         "CMAKE_SHARED_LINKER_FLAGS": "-fsanitize=address"
       }
+    },
+    {
+      "name": "win-release",
+      "inherits": "base-win",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "win-debug",
+      "inherits": "base-win",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CHRONON3D_UNITY_BUILD": "OFF"
+      }
     }
   ],
   "buildPresets": [
@@ -106,12 +139,37 @@
         "chronon3d_cli"
       ],
       "jobs": 16
+    },
+    {
+      "name": "win",
+      "configurePreset": "win-release",
+      "targets": [
+        "chronon3d_cli",
+        "chronon3d_tests"
+      ],
+      "jobs": 16
+    },
+    {
+      "name": "win-debug",
+      "configurePreset": "win-debug",
+      "targets": [
+        "chronon3d_cli",
+        "chronon3d_tests"
+      ],
+      "jobs": 16
     }
   ],
   "testPresets": [
     {
       "name": "linux-test",
       "configurePreset": "linux-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "win-test",
+      "configurePreset": "win-release",
       "output": {
         "outputOnFailure": true
       }

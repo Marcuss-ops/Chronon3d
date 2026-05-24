@@ -8,6 +8,7 @@
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/camera/camera_2_5d.hpp>
+#include <chronon3d/scene/utils/dark_grid_background.hpp>
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
@@ -118,20 +119,31 @@ std::filesystem::path ensure_grid_clean_background_image(i32 width, i32 height, 
 void render_grid_clean(SceneBuilder& s, const FrameContext& ctx, const BackgroundOptions& opt) {
     const f32 W = static_cast<f32>(ctx.width);
     const f32 H = static_cast<f32>(ctx.height);
-    const f32 shift_x = (opt.animated ? std::max(0.0f, ctx.effective_frame()) : 0.0f) * 0.06f * std::max(opt.speed, 0.0f);
 
-    s.screen_layer("grid_clean_lines", [W, H, opt, shift_x](LayerBuilder& l) {
-        l.grid_background("grid", {
-            .size = {W, H},
-            .offset = {shift_x, 0.0f},
-            .bg_color = opt.background,
-            .grid_color = Color{1.0f, 1.0f, 1.0f, 0.15f}, // simple elegant white grid
-            .spacing = 160.0f,
-            .minor_thickness = 1.5f,
-            .major_thickness = 3.5f,
-            .major_every = 4,
-            .centered = true
-        });
+    // GridCleanBackground is static, so bake it once to a cached PNG and let the
+    // graph treat it as a full-frame image source. That avoids the procedural
+    // grid rasterization and usually skips the expensive clear/composite work.
+    chronon3d::DarkGridBgParams baked{
+        .bg_color = opt.background,
+        .grid_color = Color{1.0f, 1.0f, 1.0f, 0.90f},
+        .spacing = 160.0f,
+        .extent = 4000.0f,
+        .centered = true
+    };
+    const auto baked_path = chronon3d::scene::utils::detail::ensure_dark_grid_background_image(
+        ctx.width,
+        ctx.height,
+        baked
+    );
+
+    s.screen_layer("grid_clean_baked", [W, H, baked_path](LayerBuilder& l) {
+        l.cache_static();
+        ImageParams image{};
+        image.path = baked_path.string();
+        image.size = {W, H};
+        image.pos = {0.0f, 0.0f, 0.0f};
+        image.opacity = 1.0f;
+        l.image("grid_clean_image", image);
     });
 }
 
@@ -196,8 +208,8 @@ Composition grid_clean_background() {
     }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         api::BackgroundOptions opt;
-        opt.background = Color{0.006f, 0.008f, 0.014f, 1.0f};
-        opt.accent = Color{0.95f, 0.98f, 1.0f, 0.84f};
+        opt.background = Color{0.0f, 0.0f, 0.0f, 1.0f};
+        opt.accent = Color{1.0f, 1.0f, 1.0f, 1.0f};
         opt.glow = Color{0.0f, 0.0f, 0.0f, 0.0f};
         api::render_builtin_background(s, ctx, "grid_clean", opt);
         return s.build();

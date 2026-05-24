@@ -96,17 +96,15 @@ bool FfmpegPipeEncoder::convert_framebuffer_to_yuv420p(const Framebuffer& fb, ui
     uint8_t* y_ptr = dst;
     uint8_t* u_ptr = dst + y_size;
     uint8_t* v_ptr = dst + y_size + uv_size;
-
     const bool apply_gamma = options_.color_transform.apply_gamma;
 
-    tbb::parallel_for(tbb::blocked_range<int>(0, h, 16), [&](const tbb::blocked_range<int>& r) {
-        int y_start = r.begin() & ~1;
-        int y_end = (r.end() + 1) & ~1;
-        if (y_end > h) y_end = h;
-        if (y_start < y_end) {
-            chronon3d::simd::convert_f32_rgba_to_yuv420p_simd_rows(
-                y_ptr, u_ptr, v_ptr, fb.data(), w, h, fb.allocated_width(), y_start, y_end, apply_gamma);
-        }
+    // Use a coarser grain size so each task amortizes the SIMD setup cost.
+    // The previous 2-row granularity created too many tiny tasks for 1080p exports.
+    tbb::parallel_for(tbb::blocked_range<int>(0, h / 2, 8), [&](const tbb::blocked_range<int>& range) {
+        const int y_start = range.begin() * 2;
+        const int y_end = range.end() * 2;
+        chronon3d::simd::convert_f32_rgba_to_yuv420p_simd_rows(
+            y_ptr, u_ptr, v_ptr, fb.data(), w, h, fb.allocated_width(), y_start, y_end, apply_gamma);
     });
 
     return true;
@@ -140,14 +138,12 @@ bool FfmpegPipeEncoder::convert_framebuffer_to_nv12(const Framebuffer& fb, uint8
 
     const bool apply_gamma = options_.color_transform.apply_gamma;
 
-    tbb::parallel_for(tbb::blocked_range<int>(0, h, 16), [&](const tbb::blocked_range<int>& r) {
-        int y_start = r.begin() & ~1;
-        int y_end = (r.end() + 1) & ~1;
-        if (y_end > h) y_end = h;
-        if (y_start < y_end) {
-            chronon3d::simd::convert_f32_rgba_to_nv12_simd_rows(
-                y_ptr, uv_ptr, fb.data(), w, h, fb.allocated_width(), y_start, y_end, apply_gamma);
-        }
+    // Same coarse-grain scheduling as YUV420P to cut down task overhead.
+    tbb::parallel_for(tbb::blocked_range<int>(0, h / 2, 8), [&](const tbb::blocked_range<int>& range) {
+        const int y_start = range.begin() * 2;
+        const int y_end = range.end() * 2;
+        chronon3d::simd::convert_f32_rgba_to_nv12_simd_rows(
+            y_ptr, uv_ptr, fb.data(), w, h, fb.allocated_width(), y_start, y_end, apply_gamma);
     });
 
     return true;

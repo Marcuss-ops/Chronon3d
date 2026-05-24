@@ -115,9 +115,13 @@ bash tools/chronon-linux.sh
 
 ### 2. Build (Windows)
 
+Chronon3d is built and tested primarily on Linux, but Windows is supported through standard CMake + vcpkg.
+
 ```powershell
 git clone https://github.com/microsoft/vcpkg C:\vcpkg
 & "C:\vcpkg\bootstrap-vcpkg.bat" -disableMetrics
+$env:VCPKG_ROOT="C:\vcpkg"
+
 cmake --preset win-release
 cmake --build --preset win
 ```
@@ -213,11 +217,11 @@ chronon3d_cli video <Comp> --end N -o output.mp4 [options]
 | `--keep-frames` | off | Keep temporary PNG frames |
 | `--frames-dir` | auto | Override temp frames directory |
 | `--chunks` | 1 | Render PNG frame range in N parallel chunks before final FFmpeg encode |
-| `--ffmpeg-mode` | png | Fallback FFmpeg mode: `png` writes temporary frames, `pipe` streams raw RGBA frames to FFmpeg stdin |
+| `--ffmpeg-mode` | pipe | Modes: `pipe` streams raw YUV/RGBA frames to FFmpeg stdin, `png` writes temporary frames |
 
-`--chunks` applies to the PNG-sequence/system-ffmpeg fallback path. The FFmpeg SDK path encodes directly through the video backend.
+**Note on Video Export:** Video encoding is handled exclusively via the CLI application invoking an external `ffmpeg` process. There is no native FFmpeg SDK linked into the engine.
 
-`--ffmpeg-mode pipe` avoids temporary PNG frame files by streaming raw RGBA frames directly to an external `ffmpeg` process. In V1, pipe mode renders frames serially and ignores `--chunks` (with a warning if chunks is set greater than 1).
+`--ffmpeg-mode pipe` (the default) avoids temporary PNG frame files by streaming raw frames directly to an external `ffmpeg` process. The `png` mode is a fallback that writes a sequence of images to disk first.
 
 **Requires `ffmpeg` in PATH.** The engine itself has no FFmpeg dependency.
 
