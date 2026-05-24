@@ -995,6 +995,70 @@ registry.register_shape(ShapeType::Path, create_path_processor());     // vince 
 
 ---
 
+### N15. Framebuffer Pool Adaptive Preallocation (dati telemetry)
+
+**Problema:** Ora che abbiamo `framebuffer_acquire_ms`, `framebuffer_clear_ms`, `framebuffer_enqueue_ms`, e i miss reason counters, possiamo vedere quanto tempo si perde nel pool, ma il pool non si adatta dinamicamente.
+
+**Soluzione:** Usare i nuovi contatori telemetry per adattare automaticamente il pool:
+- Se `framebuffer_acquire_ms` > 5ms → preallocare più framebuffer al prossimo frame
+- Se `pool_miss_count_empty` > 0 dopo 3 frame consecutivi → aumentare pool_size del 50%
+- Se `buffer_returned_to_pool_count` ≈ `framebuffer_allocations` → ownership funziona, pool sta funzionando
+- Se `buffer_returned_to_pool_count` ≈ 0 → ownership bug, loggare warning
+
+**Dove:** `src/cache/framebuffer_pool.cpp` — `acquire()`, `release()`, nuovo `adapt_pool()` chiamato a inizio frame.
+
+**Guadagno stimato:** Pool self-tuning — niente più pool vuoti in produzione, zero configurazione manuale.
+
+**Prossimi passi:**
+- [ ] Leggere i nuovi counter telemetry a inizio frame
+- [ ] Implementare `FramebufferPool::adapt_pool(const RenderCounters&)` che decide se preallocare
+- [ ] Aggiungere soglia minima per evitare oscillazioni (isteresi)
+- [ ] Loggare decisioni di resize via spdlog
+
+---
+
+### N16. Zero-Copy Frame Delivery all'Encoder
+
+**Problema:** `frame_conversion_copy_ms` ci mostra quanto tempo si perde in conversioni/copie prima di mandare il frame a FFmpeg. Con `framebuffer_acquire_ms` e `framebuffer_returned_to_pool_count` possiamo tracciare se i buffer vengono riutilizzati o distrutti.
+
+**Soluzione:** Eliminare copie intermedie:
+- Invece di copiare il framebuffer renderizzato in un buffer YUV separato, fornire direttamente i pixel RGBA via mmap o pointer sharing
+- Usare `av_frame_get_buffer()` con buffer registrato (registered buffers in io_uring) per scrivere direttamente nella memoria dell'encoder
+- Se il framebuffer è già in pool e non modificato, passare il puntatore raw senza copia
+
+**Dove:** `apps/chronon3d_cli/utils/ffmpeg_pipe_encoder.cpp` + `include/chronon3d/core/framebuffer.hpp`.
+
+**Guadagno stimato:** -30-50% di `frame_conversion_copy_ms`, risparmio di banda memoria.
+
+**Prossimi passi:**
+- [ ] Misurare baseline con `frame_conversion_copy_ms` in telemetry
+- [ ] Implementare `av_frame_from_framebuffer()` che crea un AVFrame senza copiare i dati
+- [ ] Integrare con io_uring registered buffers per scrivere direttamente
+- [ ] Benchmark: confrontare frame_conversion_copy_ms prima/dopo
+
+---
+
+### N17. Pool Miss Reason Dashboard
+
+**Problema:** `framebuffer_pool_miss_count_size_mismatch` e `framebuffer_pool_miss_count_empty` esistono nei counter ma non c'è una dashboard che mostra la distribuzione dei miss reason, né un alert automatico quando un tipo domina.
+
+**Soluzione:** Aggiungere al frontend React:
+- Grafico a torta o bar chart della distribuzione miss reason
+- Line chart temporale dei miss reason nel tempo (per frame)
+- Badge di alert rosso se `pool_miss_count_empty` > 50% dei miss totali
+
+**Dove:** `tools/telemetry_dashboard/frontend/src/components/MetricsGrid.jsx` + `PerformanceCharts.jsx`.
+
+**Guadagno stimato:** Visibilità immediata sul collo di bottiglia del pool — size mismatch vs pool vuoto richiedono soluzioni diverse.
+
+**Prossimi passi:**
+- [ ] Leggere entrambi i miss counter dal run detail
+- [ ] Calcolare ratio: size_mismatch / (size_mismatch + empty)
+- [ ] Aggiungere bar chart nella sezione Framebuffer Pipeline Diagnostics
+- [ ] Alert automatico quando empty domina
+
+---
+
 ## 📋 RIEPILOGO MATRICE
 
 | ID | Improvement | Quando | Complessità | Impatto | Stato |
@@ -1052,6 +1116,9 @@ registry.register_shape(ShapeType::Path, create_path_processor());     // vince 
 | N12 | Path flatten cache | Questa settimana | 🟡 Media | 🟡 Medio | Da fare |
 | N13 | Layout solver esteso | Questo mese | 🟡 Media | 🟢 Basso | Da fare |
 | N14 | Benchmark hot-path mancanti | Questa settimana | 🟢 Bassa | 🟡 Medio | Da fare |
+| N15 | FB pool adaptive preallocation | Questa settimana | 🟡 Media | 🟡 Medio | 🟡 Counters live |
+| N16 | Zero-copy frame delivery encoder | Questa settimana | 🟡 Media | 🟡 Medio | 🟡 Counters live |
+| N17 | Pool miss reason dashboard | Oggi | 🟢 Bassa | 🟢 Basso | 🟡 Counters live |
 
 ---
 
@@ -1092,6 +1159,11 @@ registry.register_shape(ShapeType::Path, create_path_processor());     // vince 
 | **DiskNodeCache** | `disk_node_cache.hpp/.cpp` — cache su disco con mmap + atomic rename |
 | **SIMD Rect Rasterizer** | `highway_kernels.cpp` — `rasterize_rect_simd()` via Highway |
 | **X-macro RenderCounters** | `counters.hpp` — `CHRONON_RENDER_COUNTERS(X)` riduce boilerplate |
+| **Framebuffer Pipeline Diagnostics (7 counters)** | `counters.hpp` — acquire_ms, clear_ms, enqueue_ms, pool_miss_size, pool_miss_empty, buffer_returned_count, conversion_copy_ms. Full pipeline C++ → DB → React frontend |
+| **React Telemetry Dashboard — FB Pipeline Cards** | `MetricsGrid.jsx` — 6 nuove metric cards nella sezione "Framebuffer Pipeline Diagnostics" con codifica colore e tooltip descrittivi |
+| **ffmpeg pipe writer cleanup** | `video_export_pipe.cpp` — queue con flag atomici, error handling uniforme, notify_one invece di notify_all |
+| **Root directory cleanup** | `ARCHITECTURE.md`, `BUILDING.md`, `IMPROVEMENTS.md`, `ORIENTATION.md`, `AGENTS.md` → `docs/`. Script → `tools/`. Log/trace/mp4 eliminati. .gitignore aggiornato |
+| **LilDirkClean removal** | Test file eliminato, riferimenti rimossi da docs e test preset |
 
 ---
 
@@ -1126,29 +1198,672 @@ registry.register_shape(ShapeType::Path, create_path_processor());     // vince 
 
 **La più divertente a lungo termine:** **M1 (Graph Compiler)** — è come passare da una ricetta letta ogni volta a un robot che sa già tutti i movimenti a memoria.
 
-✅ **Già completati in questa iterazione:**
-- S1 (io_uring pipe), S4 (OpenEXR DWAA bake).
-- I1 (Bake EXR mmap per background).
-- I2 (Huge Pages per FramebufferPool).
-- I3 (Dirty Rect Bitmask per Compositing).
-- I5 (Usa FrameArena nel Render Pipeline).
-- I6 (PersistentDisk cache per nodi statici).
-- I7 (Unificazione hash_string).
-- I8 (Riduzione boilerplate RenderCounters).
-- S10 (SIMD Alpha Premultiplication in ImageCache).
-- M6 (ImageCache LRU con Memory Budget).
-- A1 (Ottimizzazione Umbrella Headers).
-- A2 (Decoupling RenderNode shape state).
-- C1 (SIMD Rect Rasterizer).
-- E1 (Unificazione Effect System std::any).
+**Quick win di oggi / domani:** **N17 (Pool Miss Reason Dashboard)** — ~30 minuti, dà visibilità immediata. Poi **N11 (Fix double registration Path)** — 5 minuti.
+**Sezione diagnostica: usa i nuovi counter per ottimizzare:** ora che abbiamo `framebuffer_acquire_ms`, `framebuffer_clear_ms`, `framebuffer_enqueue_ms`, `frame_conversion_copy_ms`, e i miss reason counters, smettiamo di tirare a indovinare: vediamo esattamente dove si perde tempo nel framebuffer pipeline.
 
-**Nuove scoperte in questa analisi (da implementare):**
-- **N1** (Motion blur parallel + SIMD) — 4-8× speedup
-- **N2** (Box blur parallel) — 4-8× speedup
-- **N3** (Downsample SSAA parallel) — 2-4× speedup
-- **N4-N10** (Miglioramenti codice: enum dispatch, hash, blend, shadow fused, temp FB, trace, RAII guard)
-- **N11** (Bug fix: double registration Path)
-- **N12** (Path flatten cache)
-- **N13** (Layout solver esteso)
-- **N14** (Benchmark hot-path mancanti)
-- **I6** (Disk cache wire-up completo — vedi sezione IMMEDIATE)
+**Nuove opportunità dalla diagnostica framebuffer pipeline (maggio 2026) — telemetry counters C++ → DB → React già live:**
+- **N15** (FB pool adaptive preallocation) — usa `framebuffer_acquire_ms`/`pool_miss_count_empty` per self-tuning del pool. Contatori live ✅, logica adaptive `adapt_pool()` da implementare.
+- **N16** (Zero-copy frame delivery encoder) — usa `frame_conversion_copy_ms` come baseline. Contatore live ✅, zero-copy `av_frame_from_framebuffer()` da implementare.
+- **N17** (Pool miss reason dashboard) — counter distribuzione miss reason live nel frontend React ✅, grafico a barre/alert automatico da aggiungere a `PerformanceCharts.jsx`.
+
+---
+
+## 🚀 V3 — BLUEPRINT: DA FRAME-BASED A TILE-BASED (MASSIMO THROUGHPUT)
+
+> Questa sezione descrive la trasformazione architetturale V3: un motore tile-first, con nodi procedurali specializzati, cache persistente per regione, e pipeline di output separata.
+> 
+> **TL;DR:** Il motore attuale è frame-based. Ogni nodo opera su framebuffer full-frame. Con V3, ogni nodo produce lavoro per tile/regione, non per canvas intero. Il compositing diventa merge di tile attivi. I pattern procedurali diventano kernel dedicati. La cache è per-tile, non per-nodo.
+> 
+> **Per Chronon3D nello specifico:** `GridCleanBackground` non dovrebbe più passare da `bl2d_blimage_tiled.cpp` (tiled image bridge generico). Dovrebbe essere un nodo procedurale "grid background" con fase/offset camera, update solo strip cambiate, precompute della griglia per tile, e compositing quasi nullo.
+
+---
+
+### Pillar 1 — Tile-First Architecture (non Node-First)
+
+**Problema:** L'esecutore (`GraphExecutor::execute()` in `graph_executor_phases.cpp`) opera per livelli del DAG. Ogni nodo produce/consuma `shared_ptr<Framebuffer>` full-frame. Anche se il dirty rect limita il clipping a una regione, il framebuffer è sempre allocato per l'intera canvas — e ogni nodo intermediario scrive pixel ovunque.
+
+**Soluzione:** Il motore deve ragionare per tile dall'inizio. Ogni `RenderGraphNode::execute()` riceve non un singolo framebuffer, ma una griglia di tile. Ogni tile è un framebuffer piccolo (es. 256×256) che vive nel pool.
+
+**Dove:**
+- `include/chronon3d/render_graph/render_graph_node.hpp` — Aggiungere overload `execute()` che accetta `TileGrid&`. Tenere la vecchia signature `execute()` per retrocompatibilità durante la migrazione.
+- `src/render_graph/executor/graph_executor_phases.cpp` — `execute_single_node()` con tile scheduler
+- `include/chronon3d/render_graph/render_graph.hpp` — Nuovo `TileGrid` runtime struct (vedi sotto)
+
+**Strategia di migrazione graduale:**
+- Non riscrivere tutti i 12+ tipi di nodo in una volta
+- Aggiungere `LegacyNodeAdapter`: un wrapper che estrae un singolo `shared_ptr<Framebuffer>` da `TileGrid` per il tile specifico e lo passa al vecchio `execute()`. Questo permette di avere nodi tile-aware e nodi legacy che coesistono nello stesso grafo
+- Ogni nodo viene migrato individualmente: `SourceNode` primo (semplice), poi `CompositeNode`, poi `EffectNode`, ecc.
+- `LegacyNodeAdapter` viene rimosso quando tutti i nodi sono tile-aware
+
+**Struttura:**
+```cpp
+struct TileId { int tx, ty; };
+
+struct TileGrid {
+    int tiles_x, tiles_y;
+    int tile_w, tile_h;        // 256×256 default
+    std::unordered_map<TileId, std::shared_ptr<Framebuffer>> tiles;
+    
+    // Accesso lazy: alloca il tile solo se serve
+    std::shared_ptr<Framebuffer> acquire_tile(TileId id, cache::FramebufferPool& pool);
+    
+    // Merge nel framebuffer full-frame finale
+    void merge_to(Framebuffer& dst, const std::optional<raster::BBox>& clip);
+};
+```
+
+**Guadagno stimato:** 
+- Memoria: framebuffer intermedi 256×256 invece di 1920×1080 → -98% bandwidth per tile non toccati
+- Parallelismo: worker pool può processare tile indipendenti in parallelo
+- Cache: tile statici non vengono mai ri-renderizzati
+
+**Prossimi passi:**
+- [ ] Definire `TileGrid` struct in `render_graph.hpp`
+- [ ] Modificare `RenderGraphNode::execute()` per operare su `TileGrid&` invece di `shared_ptr<Framebuffer>`
+- [ ] Aggiornare il `GraphExecutor` per schedulare tile per livello
+- [ ] Aggiungere `TilePool` — pool di framebuffer tile-size con bump allocator
+- [ ] Benchmark: throughput con tile 64×64, 128×128, 256×256
+
+---
+
+### Pillar 2 — Display List Compilation (Scene Compile-Time / Runtime Split)
+
+**Problema:** La scena viene riconvertita ogni frame da `Scene → RenderGraphContext → RenderGraph` via `GraphBuilder::build()` e `detail::resolve_layers()`. Per 100 layer con 5 effetti ciascuno, questo produce 500+ chiamate a `add_node()` e `connect()` ogni frame — overhead misurabile di allocazione vettori, hash, e costruzione `std::unique_ptr<RenderGraphNode>`.
+
+**Soluzione:** La scena viene compilata UNA VOLTA in una `CompiledDisplayList` — una rappresentazione runtime compatta e immutabile per composizione/frame-class. L'`Evaluator` produce solo parametri aggiornati (posizioni, opacità, frame time), non la struttura del grafo.
+
+**Dove:**
+- `include/chronon3d/render_graph/display_list.hpp` (nuovo) — `CompiledDisplayList` con IR immutabile
+- `src/render_graph/display_list_compiler.cpp` (nuovo) — Compila `Scene` → `CompiledDisplayList`
+- `src/render_graph/executor/graph_executor_phases.cpp` — Nuovo path: se `CompiledDisplayList` esiste, usa quello invece di build
+- `src/runtime/scene_to_render_graph.cpp` — Punto di integrazione
+
+**IR immutabile:**
+```cpp
+struct CompiledDisplayList {
+    // Layout di memoria contiguo, nessuna allocazione dinamica a runtime
+    std::span<const CompiledNode> nodes;
+    std::span<const CompiledEdge> edges;
+    std::span<const u32> levels;       // execution levels flattened
+    std::span<const TileAffinity> tile_affinity;  // quali tile tocca ogni nodo
+    
+    // Metadata
+    int width, height;
+    int tile_size;
+    std::span<const std::string_view> node_names;  // interned
+};
+```
+
+**Come funziona:**
+1. Al primo frame o quando la struttura della scena cambia: `Compiler::compile(scene) → CompiledDisplayList`
+2. Ai frame successivi: `Executor::execute(compiled_list, params_delta)` — solo evaluate parametri cambiati
+3. Se un layer viene aggiunto/rimosso: ricompila (raro — una volta ogni N frame)
+
+**Guadagno stimato:**
+- Build del grafo: da 0.5-2ms a ~0ms (solo evaluate delta params)
+- Cache: i nodi invariati non vengono mai re-hashati
+- Prevedibilità: il piano di esecuzione è noto staticamente
+
+**Prossimi passi:**
+- [ ] Definire `CompiledDisplayList` e `CompiledNode` / `CompiledEdge` struct
+- [ ] Implementare `DisplayListCompiler` che analizza `Scene` e genera flat array
+- [ ] In `GraphExecutor`, aggiungere `std::optional<CompiledDisplayList> m_compiled`
+- [ ] Aggiungere `invalidate_compiled()` quando la scena cambia struttura
+- [ ] Benchmark: misurare build_ms prima/dopo
+
+---
+
+### Pillar 3 — Tile Mask Invalidation (non dirty rect)
+
+**Problema:** Il dirty rect (`render_pipeline_scene.cpp`, `DirtyRectMask` in `dirty_rect_mask.hpp`) è una bounding box unica per tutto il frame. Se un piccolo elemento si muove in basso a destra e un altro in alto a sinistra, l'unione copre quasi tutto il frame — anche se solo 2 tile sono effettivamente cambiati.
+
+**Nota:** `DirtyRectMask` esiste già in `dirty_rect_mask.hpp` con tile 64×64 e `std::bitset<1024>`. Ma `k_max_tiles = 1024` supporta solo 2048×2048 massimo — insufficiente per 4K (che richiede ~2040 tile a 64×64). Inoltre non ha metodi di propagazione tra nodi. Quindi l'evoluzione naturale è estendere `DirtyRectMask` in `TileMask` piuttosto che sostituirla.
+
+**Soluzione:** Evolvere `DirtyRectMask` in una `TileMask` che propaga l'impatto dei nodi lungo il grafo. Ogni nodo produce una `TileMask` in output (quali tile ha modificato). Il nodo successivo usa quella mask per decidere quali tile processare.
+
+**Dove:**
+- `include/chronon3d/core/dirty_rect_mask.hpp` — **Estendere** `DirtyRectMask` con `k_max_tiles` dinamico, metodi `propagate()`, `dilate()`, `intersect_with()`. Rinominare in `TileMask` con alias `DirtyRectMask` per retrocompatibilità.
+- `src/render_graph/executor/graph_executor_dirty.cpp` — Aggiungere `propagate_tile_mask()` accanto a `compute_dirty_clip()` (non sostituire, coesistenza graduale)
+- `src/render_graph/render_pipeline_scene.cpp` — `dirty_rect` → `tile_mask` nel `RenderGraphContext`
+
+**Estensione:**
+```cpp
+// dirty_rect_mask.hpp — evoluto in TileMask
+class TileMask {
+    static constexpr int k_tile_size = 64;
+    
+    int m_tiles_x, m_tiles_y;
+    std::vector<bool> m_mask;  // resizeabile dinamicamente (invece di bitset<1024>)
+    
+    void mark_tile(int tx, int ty);
+    void mark_bbox(const BBox& bbox);
+    
+    // Propagazione tra nodi del grafo
+    void propagate_from_inputs(std::span<const TileMask> input_masks);
+    TileMask dilated(int radius_in_tiles) const;  // blur dilata la mask
+    TileMask intersect_with(const BBox& predicted) const;
+    
+    bool is_tile_affected(int tx, int ty) const;
+    bool is_empty() const;
+    
+    // Retrocompatibilità col BBox
+    std::optional<BBox> to_bbox() const;  // unione di tile → BBox approssimato
+};
+
+// Nel RenderGraphContext
+struct RenderGraphContext {
+    // ... esistente ...
+    TileMask tile_mask;         // affianca std::optional<raster::BBox> dirty_rect
+    std::optional<TileMask> output_tile_mask;
+};
+```
+
+**Propagazione per livello:**
+1. Ogni nodo calcola la `output_tile_mask = propagate_from_inputs(input_masks)`
+2. `render_pipeline_scene.cpp` produce una tile_mask globale dalla differenza layer bbox tra frame N e N-1
+3. Compositing unisce mask degli input
+4. Blur/Bloom: `mask.dilated(radius_in_tiles)` — l'effetto si propaga ai tile vicini
+5. Skip completo del nodo se `tile_mask.is_empty()`
+
+**Guadagno stimato:**
+- Invece di renderizzare il 60% del frame come unione dirty rect, renderizza solo i tile effettivamente cambiati (es. 5-10%)
+- Skip completo di nodi interi se la loro tile_mask è vuota
+- Propagazione precisa degli effetti (blur/bloom dilata la mask correttamente)
+
+**Prossimi passi:**
+- [ ] Parametrizzare `k_max_tiles` in `DirtyRectMask` per supportare 4K (cambio `bitset<N>` → `vector<bool>`)
+- [ ] Aggiungere `propagate_from_inputs()`, `dilated()`, `intersect_with()` — estendere classe esistente
+- [ ] Integrare in `RenderGraphContext` — affiancare `dirty_rect` con `tile_mask`
+- [ ] In `graph_executor_dirty.cpp`, implementare `propagate_tile_mask()`
+- [ ] In ogni nodo: calcolare la `output_tile_mask` come funzione della `input_tile_mask` e `predicted_bbox`
+- [ ] Nel `GraphExecutor`, skip dei nodi con mask vuota
+
+---
+
+### Pillar 4 — Static/Dynamic Separation Reale
+
+**Problema:** La cache (`NodeCache` in `node_cache.cpp`) è per-nodo, non per-tile. Un nodo statico (es. background grid) viene ricacheggiato interamente anche se solo un piccolo tile è cambiato. Inoltre, `disk_cacheable` non è mai abilitato per nessun nodo.
+
+**Soluzione:** Tutto ciò che è statico va pre-renderizzato o memorizzato per tile. Il runtime deve occuparsi quasi solo del delta:
+- **Static tile cache:** Ogni tile ha un flag `is_static`. Se un tile non cambia, non viene mai ritoccato.
+- **Pre-render:** I nodi con `frame_invariant=true` vengono renderizzati una volta e mai più.
+- **Disk cache per tile:** I tile statici vengono salvati su disco via `DiskNodeCache` (già implementata in `disk_node_cache.hpp`).
+
+**Dove:**
+- `src/cache/disk_node_cache.cpp` — Già implementata, va estesa per tile-level caching (non solo node-level)
+- `src/render_graph/executor/graph_executor_cache.cpp` — Integrare `evaluate_cache()` con tile-level cache
+- `include/chronon3d/render_graph/cache_policy.hpp` — Aggiungere `TileCachePolicy` struct
+
+**Struttura:**
+```cpp
+struct TileCachePolicy {
+    bool tile_cacheable{false};         // può essere cacheato per tile?
+    CacheLifetime tile_lifetime{CacheLifetime::PerComposition};
+    bool disk_tile_cacheable{false};    // può essere salvato su disco?
+    int tile_static_threshold{3};       // dopo N frame invariato → mark as static
+};
+
+// Nel RenderNodeCachePolicy
+struct RenderNodeCachePolicy {
+    // ... esistente ...
+    TileCachePolicy tile_policy;
+};
+```
+
+**Classificazione statico/dinamico automatica:**
+1. Ogni tile tiene un `frame_last_modified`
+2. Se un tile non è stato modificato per 3 frame consecutivi → `is_static = true`
+3. Se la camera si muove, tutti i tile diventano `is_static = false` (scroll ottimizzato separatamente)
+4. I tile statici vengono salvati su disco con `DiskNodeCache::put_tile()`
+
+**Guadagno stimato:**
+- Per scene con background statico e UI animata: solo i tile dell'UI vengono renderizzati
+- Cache su disco: i tile statici sopravvivono tra sessioni
+- `GridCleanBackground` → 0 cost a runtime dopo il primo frame
+
+**Prossimi passi:**
+- [ ] Aggiungere `TileCachePolicy` a `cache_policy.hpp`
+- [ ] In `graph_executor_dirty.cpp`, aggiungere logica di static classification per tile
+- [ ] Estendere `DiskNodeCache` con `get_tile()` / `put_tile()`
+- [ ] Integrare in `GraphExecutor::execute()` — skip dei tile statici
+
+---
+
+### Pillar 5 — Nodi Analitici / Procedural Kernels
+
+**Problema:** `GridCleanBackground` (e pattern procedurali simili) vengono renderizzati attraverso il bridge generico `bl2d_blimage_tiled.cpp` — che fa sampling bilineare di un'immagine blend2D, con trasformazione prospettica, per OGNI pixel. Per un pattern semplice come una griglia, questo è drammaticamente sovradimensionato: invece di calcolare 4 linee con 4 moltiplicazioni, si fa sampling di texture con interpolazione bilineare per ogni pixel dell'area.
+
+**Soluzione:** Ogni pattern semplice (griglia, gradiente, pattern ripetuto, barra, background procedurale) diventa un nodo dedicato con kernel C++/SIMD ottimizzato, zero dipendenza da blend2D o image sampling.
+
+**Dove:**
+- Nuova directory: `src/backends/software/procedural/` — kernel specializzati
+- `src/backends/software/procedural/grid_background.cpp` — `render_grid_tile()` kernel SIMD
+- `src/backends/software/procedural/gradient.cpp` — gradiente lineare/radiale
+- `src/backends/software/procedural/pattern.cpp` — pattern ripetuti (dots, stripes, checkerboard)
+- `include/chronon3d/render_graph/nodes/procedural_source_node.hpp` — nuovo tipo di nodo
+
+**Kernel griglia esempio:**
+```cpp
+// Invece di sampling bilineare su BLImage:
+// Calcola direttamente i pixel della griglia con SIMD
+
+void render_grid_tile(Color* __restrict__ dst, int tile_x, int tile_y, int tile_w, int tile_h,
+                       const GridParams& p, const CameraPhase& phase) {
+    const float cell_w = p.cell_width;
+    const float cell_h = p.cell_height;
+    const float offset_x = phase.offset_x;
+    const float offset_y = phase.offset_y;
+    
+    // Linea orizzontale e verticale: 4 FMA per pixel
+    // Invece di sampling bilineare con 10+ operazioni float
+    for (int y = 0; y < tile_h; ++y) {
+        for (int x = 0; x < tile_w; ++x) {
+            float gx = (tile_x * tile_w + x + offset_x) / cell_w;
+            float gy = (tile_y * tile_h + y + offset_y) / cell_h;
+            float gx_frac = gx - floorf(gx);
+            float gy_frac = gy - floorf(gy);
+            // Kernel condensa in ~8 istruzioni SIMD vs 40+ del sampling
+            bool is_line = (gx_frac < p.line_thickness || gy_frac < p.line_thickness);
+            dst[y * tile_w + x] = is_line ? p.line_color : p.bg_color;
+        }
+    }
+}
+```
+
+**Guadagno stimato:**
+- Griglia semplice: da ~500μs (sampling bilineare su tutta l'area) a ~20μs (kernel dedicato 4 FMA/pixel) — **25× speedup**
+- Gradiente: da blend2D bridge a ~10μs per tile 256×256
+- Pattern ripetuti: da image sampling a loop SIMD lineare
+- **Zero dipendenza da BLImage**: elimina il bridge blend2D per pattern procedurali
+
+**Prossimi passi:**
+- [ ] Creare `src/backends/software/procedural/grid_background.cpp` — kernel `render_grid_tile()`
+- [ ] Creare `ProceduralSourceNode` — `RenderGraphNode` che accetta `ProceduralParams` e produce tile
+- [ ] Registrare nel `ShapeRegistry` come nuovo shape type `ShapeType::ProceduralGrid`
+- [ ] Integrare in `GraphBuilder::build()` — se il layer ha shape type Procedural, usa `ProceduralSourceNode` invece di `bl2d_blimage_tiled`
+- [ ] Aggiungere benchmark: confronto sampling bilineare vs kernel dedicato
+
+---
+
+### Pillar 6 — Compositing Solo Dove Serve
+
+**Problema:** Il compositing (`software_compositor.cpp`) attualmente fa full-frame o clip su dirty rect. Ma con tile-first, ogni tile ha il suo compositing: se un tile non cambia, non serve compositing. Inoltre, il `SoftwareCompositor::composite_layer()` ha un loop pixel-per-pixel con bounds check per ogni accesso.
+
+**Soluzione:** Il compositing diventa un'operazione di merge su tile attivi:
+- Ogni tile composita solo se `tile_mask.is_tile_affected()`
+- Merge batch: invece di `composite_layer()` chiamato N volte (una per layer), accumula tutti i layer che toccano un tile in un unico passaggio
+- Skip completo del compositing per tile che non hanno cambiato
+
+**Dove:**
+- `src/backends/software/software_compositor.cpp` — Nuova funzione `composite_tile()` che processa solo tile specifici
+- `src/render_graph/executor/graph_executor_phases.cpp` — Nel loop di esecuzione, usare `TileMask` per decidere quali tile compositare
+
+**Struttura:**
+```cpp
+// Compositing per tile — niente full-frame
+void composite_tile(
+    Framebuffer& dst_tile,      // tile 256×256
+    std::span<const Framebuffer*> src_tiles,  // tile dallo stesso rect dei layer
+    std::span<const BlendMode> modes,
+    const TileMask& active_mask
+);
+
+// Se active_mask è vuota per questo tile → zero lavoro
+if (!active_mask.is_tile_affected(tx, ty)) {
+    continue;  // nessuna operazione
+}
+```
+
+**Guadagno stimato:**
+- Compositing: da O(width × height × layers) a O(tile_size² × active_tiles)
+- Per scena con UI piccola su background statico: ~1-5% dei pixel invece del 100%
+- Merge batch: elimina overhead di chiamata per layer per tile
+
+**Prossimi passi:**
+- [ ] Implementare `composite_tile()` in `software_compositor.cpp`
+- [ ] Integrare con `TileMask` nel `GraphExecutor`
+- [ ] Aggiungere `tile_composite_count` counter in telemetry
+
+---
+
+### Pillar 7 — Buffer Persistenti e Tile Surfaces
+
+**Problema:** Il `FramebufferPool` (in `framebuffer_pool.cpp`) alloca e dealloca framebuffer dinamicamente. Con tile-first, ogni tile dovrebbe avere una superficie persistente che vive per l'intera durata della composizione, senza essere rilasciata nel pool.
+
+**Soluzione:** Le superfici tile devono vivere a lungo, essere riusate per tile/level, e clearate solo dove serve davvero. Invece di un pool generico, avere un `TileSurfaceCache` che tiene N tile surfaces allocate permanentemente.
+
+**⚠️ Attenzione al budget memoria:** 4096 tile a 256×256 × 16 bytes = 4 GB per UNA superficie tile. Una composizione con 5 strati intermedi (background, layer1, layer2, effetti, output) richiederebbe 20 GB con superfici separate. **Soluzione: superfici tile condivise.** Un tile statico è write-once-read-many — tutti i layer che leggono lo stesso tile condividono la stessa superficie fisica tramite reference counting. Solo i tile attivamente scritti (dirty) hanno superfici dedicate.
+
+**Dove:**
+- `include/chronon3d/cache/tile_surface_cache.hpp` (nuovo) — `TileSurfaceCache` classe
+- `src/cache/tile_surface_cache.cpp` (nuovo) — Implementazione
+- `src/cache/framebuffer_pool.cpp` — Il pool esiste ancora, ma per le superfici temporanee (effetti, blur, ecc.)
+
+**Struttura:**
+```cpp
+class TileSurfaceCache {
+    static constexpr int MAX_TILE_SURFACES = 4096;  // 64×36 tile per 4K
+    
+    struct TileSurface {
+        std::shared_ptr<Framebuffer> fb;  // shared_ptr per condivisione read-only
+        TileId id;
+        bool dirty;                 // se true, va ricompositat
+        bool is_static;             // non cambia più
+        int ref_count;              // quanti layer leggono questo tile
+    };
+    
+    std::unordered_map<TileId, TileSurface> m_surfaces;
+    
+    // Ottiene superficie per scrittura (dedicata, copy-on-write se condivisa)
+    Framebuffer& acquire_writable(TileId id, int tile_w, int tile_h);
+    
+    // Ottiene superficie per lettura (condivisa tra layer)
+    std::shared_ptr<Framebuffer> acquire_readable(TileId id);
+    
+    // Cleara SOLO i tile marcati come dirty
+    void clear_dirty_tiles(const TileMask& mask);
+    
+    // Stats
+    size_t total_surfaces() const;
+    size_t shared_surfaces() const;  // tile con ref_count > 1
+};
+```
+
+**Vantaggi:**
+- **Zero allocazioni a runtime:** tutte le superfici sono preallocate
+- **Condivisione read-only:** tile statici condivisi tra layer — memoria reale << memoria virtuale
+- **Copy-on-write:** se un tile viene scritto, viene prima clonato (solo se condiviso)
+- **Persistenza:** un tile che non cambia mantiene il suo contenuto per tutta la durata
+- **Clear selettivo:** solo i tile marcati dirty vengono clearati
+- **Budget realistico:** con condivisione, 4 GB bastano per composizioni complesse
+
+**Guadagno stimato:**
+- Zero framebuffer_acquire_ms per tile surfaces (sono preallocate)
+- Zero framebuffer_clear_ms per tile non dirty
+- Cache L1/L2 calda: le stesse superfici vengono riusate frame dopo frame
+
+**Prossimi passi:**
+- [ ] Definire `TileSurfaceCache` in `include/chronon3d/cache/tile_surface_cache.hpp`
+- [ ] Implementare `acquire_writable()`, `acquire_readable()`, `clear_dirty_tiles()`
+- [ ] Implementare copy-on-write: se un tile è condiviso, clonare prima di scrivere
+- [ ] Integrare in `RenderGraphContext` — affiancare `framebuffer_pool` per le superfici tile
+- [ ] Aggiungere telemetry: `tile_surface_reuses`, `tile_surface_creations`, `tile_surface_shared_ratio`
+
+---
+
+### Pillar 8 — Encoder Pipeline Separata (Output Path)
+
+**Problema:** La conversione del framebuffer in YUV420P/NV12 (`ffmpeg_pipe_yuv.cpp`) è stata ottimizzata con SIMD (N16 completato), ma è ancora nel path di rendering: il render thread aspetta che la conversione finisca prima di passare al frame successivo.
+
+**Soluzione:** L'output path deve essere una pipeline distinta e ottimizzata per stream, non un passaggio che contamina il core renderer. Con tile-first, la conversione YUV può avvenire per-tile mentre il renderer lavora sul frame successivo.
+
+**Dove:**
+- `apps/chronon3d_cli/utils/video/ffmpeg_pipe_encoder.cpp` — Riscrivere come pipeline asincrona
+- `include/chronon3d/cli/video/output_pipeline.hpp` (nuovo) — `OutputPipeline` classe
+- `apps/chronon3d_cli/utils/video/output_pipeline.cpp` (nuovo) — Pipeline disaccoppiata
+
+**Struttura:**
+```cpp
+class OutputPipeline {
+    // Tile encoder queue — converte tile in YUV mentre il renderer lavora
+    moodycamel::ConcurrentQueue<TileEncodeJob> m_tile_queue;
+    
+    // Tile-to-frame assembler — riceve tile YUV e li assembla nel frame finale
+    struct TileEncodeJob {
+        TileId id;
+        std::shared_ptr<Framebuffer> tile_fb;
+        int frame_number;
+    };
+    
+    void enqueue_tile(TileEncodeJob&& job);       // chiamato dal render thread
+    void process_tiles();                          // chiamato dal encoder thread
+    void flush_frame(int frame_number);            // assemble e invia a FFmpeg
+};
+```
+
+**Guadagno stimato:**
+- **Zero attesa:** il render thread non aspetta mai la conversione YUV
+- **Pipeline parallela:** conversione tile YUV in parallelo con rendering del frame successivo
+- **Tile reuse:** i tile statici vengono convertiti YUV una volta e cacheati
+- Bandwidth: da frame_conversion_copy_ms a ~0 nel hot path
+
+**Prossimi passi:**
+- [ ] Creare `OutputPipeline` con coda tile lock-free
+- [ ] Separare conversione YUV dal rendering — spostare in `OutputPipeline`
+- [ ] Integrare con moodycamel::ConcurrentQueue (già presente in `video_export_pipe.cpp`)
+- [ ] Aggiungere `output_pipeline_ms` counter in telemetry
+
+---
+
+### Pillar 9 — Tile Scheduler (Work Distribution Engine)
+
+**Problema:** L'esecutore attuale (`GraphExecutor::execute()` in `graph_executor_phases.cpp`) parallelizza per livello del DAG: tutti i nodi di un livello vengono eseguiti in parallelo via `tbb::parallel_for`. Ma non c'è scheduling per tile — un nodo che produce 64 tile processa tutto in sequenza.
+
+**Soluzione:** Un `TileScheduler` che distribuisce il lavoro dei tile attraverso i worker thread. Ogni nodo non produce più un framebuffer, ma una coda di job tile che vengono schedulati sui worker.
+
+**Dove:**
+- `include/chronon3d/runtime/tile_scheduler.hpp` (nuovo) — `TileScheduler` con worker pool
+- `src/runtime/tile_scheduler.cpp` (nuovo) — Implementazione
+- `src/render_graph/executor/graph_executor_phases.cpp` — Integrare il tile scheduler
+
+**Approccio pragmatico (TBB-first):**
+Prima di implementare uno scheduler custom, misurare se `tbb::parallel_for` sui tile è già sufficiente. TBB ha work-stealing integrato e `tbb::blocked_range` gestisce bene carichi a granularità fine. Solo se il profiling mostra overhead di TBB > 5% a granularità tile (improbabile per tile 256×256), allora implementare scheduler custom.
+
+```cpp
+// Approccio V1: TBB parallelo su tile
+for (auto& level : plan.levels) {
+    // Per ogni nodo, lancia tile in parallelo su TBB
+    tbb::parallel_for(
+        tbb::blocked_range<int>(0, level.size()),
+        [&](auto& range) {
+            for (int i = range.begin(); i < range.end(); ++i) {
+                auto& node = graph.node(level[i]);
+                auto tile_fn = node.get_tile_executor(ctx);
+                
+                // Parallelizza per tile all'interno del nodo
+                tbb::parallel_for(
+                    tbb::blocked_range<int>(0, active_tiles.size()),
+                    [&](auto& tr) {
+                        for (int ti = tr.begin(); ti < tr.end(); ++ti) {
+                            tile_fn(active_tiles[ti]);
+                        }
+                    }
+                );
+            }
+        }
+    );
+}
+
+// Approccio V2 (solo se profiling mostra bottleneck TBB):
+// TileScheduler custom con moodycamel::ConcurrentQueue
+```
+
+**Vantaggi dell'approccio TBB-first:**
+- **Zero nuovo codice di scheduling** — si riusa l'esistente `tbb::parallel_for`
+- **Work-stealing già built-in** — TBB bilancia automaticamente i carichi
+- **Nesting supportato** — TBB gestisce correttamente nested parallelism
+- **Meno rischi** — niente bug di race condition in scheduler custom
+
+**Guadagno stimato:**
+- Da parallelismo per-livello (10-20 nodi) a parallelismo per-tile (64-4096 job)
+- Utilizzo 100% dei core
+- Load balancing automatico via TBB work-stealing (senza scrivere una riga di scheduler)
+
+**Prossimi passi:**
+- [ ] Misurare overhead TBB a granularità tile (256×256) con `perf stat`
+- [ ] Se overhead < 5%: usare `tbb::parallel_for` nidificato (nessuno scheduler custom)
+- [ ] Se overhead > 5%: implementare `TileScheduler` custom
+- [ ] Aggiungere `tile_parallel_efficiency` counter
+
+---
+
+### Pillar 10 — Per-Tile Cache (Tile-Level Hashing and Caching)
+
+**Problema:** La cache attuale (`NodeCache` in `node_cache.cpp`) è per-nodo: hasha l'intero nodo e cachea l'intero framebuffer output. Con tile-first, la cache deve essere per-tile: un nodo può avere 36 tile, di cui 30 statici e 6 cambiati. La cache per-nodo invalida tutto quando uno qualsiasi dei 36 tile cambia.
+
+**Soluzione:** Sostituire la cache per-nodo con una cache per-tile. Ogni tile ha una `TileCacheKey` che include l'hash del nodo + tile_id + params_hash. Tile statici rimangono in cache per tutta la durata della composizione.
+
+**Dove:**
+- `include/chronon3d/cache/tile_cache.hpp` (nuovo) — `TileCache` classe
+- `src/cache/tile_cache.cpp` (nuovo) — Implementazione
+- `src/render_graph/executor/graph_executor_cache.cpp` — `evaluate_cache()` per tile
+
+**Struttura:**
+```cpp
+struct TileCacheKey {
+    u64 node_digest;         // hash del nodo (parametri + tipo)
+    TileId tile_id;          // (tx, ty)
+    u64 input_hash;          // hash degli input per questo tile
+    u64 params_hash;         // hash dei parametri correnti
+    Frame frame;             // per frame-dependent tiles
+    
+    u64 digest() const;     // XXH3 dell'intera key
+};
+
+class TileCache {
+    using Cache = LruCache<TileCacheKey, std::shared_ptr<Framebuffer>>;
+    Cache m_cache;
+    
+    std::shared_ptr<Framebuffer> get_tile(const TileCacheKey& key);
+    void put_tile(const TileCacheKey& key, std::shared_ptr<Framebuffer> tile);
+    
+    // Invalida per nodo (quando i parametri cambiano)
+    void invalidate_node(u64 node_digest);
+    
+    // Stats
+    struct TileCacheStats {
+        uint64_t tile_hits, tile_misses;
+        uint64_t static_tile_hits;   // tile che non sono mai cambiati
+        uint64_t tiles_cached;
+    };
+};
+```
+
+**Vantaggi:**
+- **Invalidazione granulare:** se 1 tile su 36 cambia, gli altri 35 restano in cache
+- **Tile statici:** non vengono mai ricalcolati dopo il primo frame
+- **Disk cache per tile:** abilitabile per tile statici
+- **Cache size efficiente:** tile 256×256 = 256KB (vs 33MB per full-frame 4K)
+
+**Guadagno stimato:**
+- Hit rate: da ~60% (node-level) a ~95% (tile-level) per scene con parti statiche
+- Memoria: tile in cache occupano 256KB l'uno, possono stare in L2/L3
+- Skip tile: un tile invariato viene copiato dalla cache in ~5μs vs 500μs per renderizzarlo
+
+**Prossimi passi:**
+- [ ] Definire `TileCacheKey` e `TileCache` in `include/chronon3d/cache/tile_cache.hpp`
+- [ ] Implementare `get_tile()`, `put_tile()`, `invalidate_node()`
+- [ ] Integrare in `GraphExecutor::execute()` — sostituire `NodeCache::get()` per tile
+- [ ] Aggiungere telemetry: `tile_cache_hits`, `tile_cache_misses`, `tile_static_ratio`
+
+---
+
+### V3 — La Visione Unificata: Architettura
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         COMPILATION LAYER                        │
+│  Scene (dinamica, orientata agli oggetti)                        │
+│       │                                                          │
+│       ▼                                                          │
+│  DisplayListCompiler                                             │
+│       │  Una volta per cambio struttura                           │
+│       ▼                                                          │
+│  CompiledDisplayList (immutabile, flat array, cacheable su disk) │
+└──────────────────────────────────────────────────────────────────┘
+       │
+       │ params delta (positions, opacity, time) ogni frame
+       ▼
+┌──────────────────────────────────────────────────────────────────┐
+│                         TILE EXECUTION LAYER                      │
+│                                                                   │
+│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐           │
+│  │ TileScheduler│───▶│ TileCache   │◀───│ TileMask    │           │
+│  │ (worker pool)│    │ (hit/miss)  │    │ (invalidation)│          │
+│  └──────┬──────┘    └─────────────┘    └─────────────┘           │
+│         │                                                         │
+│         ▼                                                         │
+│  ┌──────────────────────────────────────────────────────┐        │
+│  │  TileGrid (matrice di tile 256×256)                   │        │
+│  │  ┌────┬────┬────┬────┬────┬────┬────┬────┐           │        │
+│  │  │ T00│ T01│ T02│ T03│ T04│ T05│ T06│ T07│  ...     │        │
+│  │  ├────┼────┼────┼────┼────┼────┼────┼────┤           │        │
+│  │  │ T10│ T11│ T12│    │    │    │    │    │  ...     │        │
+│  │  └────┴────┴────┴────┴────┴────┴────┴────┘           │        │
+│  └──────────────────────────────────────────────────────┘        │
+│         │                                                         │
+│         ▼ (merge tile attivi)                                     │
+│  ┌──────────────────┐    ┌─────────────────────────────────┐     │
+│  │ TileCompositor   │    │ TileSurfaceCache (persistent)   │     │
+│  │ (merge per tile) │───▶│ (tile surfaces preallocate)     │     │
+│  └──────────────────┘    └─────────────────────────────────┘     │
+└──────────────────────────────────────────────────────────────────┘
+       │
+       ▼ (full frame ricomposto)
+┌──────────────────────────────────────────────────────────────────┐
+│                         OUTPUT LAYER                              │
+│  OutputPipeline (tile YUV queue + encoder thread separato)       │
+│       │                                                          │
+│       ▼                                                          │
+│  FFmpeg pipe / PNG / EXR                                         │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### V3 — Priorità di Implementazione
+
+| Fase | Pillar | Cosa | Impatto | Effort |
+|------|--------|------|---------|--------|
+| **1** | P5 | Nodi procedurali (grid kernel) | 🔴 Alto | 🟢 Bassa (1-2gg) |
+| **2** | P3 | TileMask invalidation | 🔴 Alto | 🟡 Media (3-5gg) |
+| **3** | P1 | TileGrid + esecuzione tile-aware | 🔴 Alto | 🔴 Alta (1-2 sett) |
+| **4** | P2 | Display list compilation | 🔴 Alto | 🔴 Alta (1-2 sett) |
+| **5** | P10 | Per-tile cache | 🟡 Medio | 🟡 Media (3-5gg) |
+| **6** | P7 | Tile surface cache (persistent) | 🟡 Medio | 🟡 Media (3-5gg) |
+| **7** | P9 | Tile scheduler (worker pool) | 🟡 Medio | 🔴 Alta (1-2 sett) |
+| **8** | P6 | Tile compositing (merge) | 🟡 Medio | 🟡 Media (3-5gg) |
+| **9** | P8 | Output pipeline separata | 🟡 Medio | 🟡 Media (3-5gg) |
+| **10** | P4 | Static/dynamic classification automatica | 🟢 Basso | 🟢 Bassa (1-2gg) |
+
+---
+
+### V3 — Cosa Cambia per File Esistenti
+
+| File Attuale | Cambiamento V3 |
+|---|---|
+| `render_graph_node.hpp` — `execute()` signature | Da `vector<shared_ptr<FB>>` a `TileGrid&` + `TileMask` |
+| `graph_executor_phases.cpp` — `execute()` loop | Da `tbb::parallel_for` su livello a `TileScheduler` su tile |
+| `graph_executor_cache.cpp` — `evaluate_cache()` | Da node-level a tile-level key |
+| `graph_executor_dirty.cpp` — `compute_dirty_clip()` | Da BBox union a `TileMask::propagate_from_inputs()` |
+| `render_pipeline_scene.cpp` — `render_scene_via_graph()` | Da `RenderGraph` a `CompiledDisplayList` path |
+| `render_graph.cpp` — `RenderGraph` class | Rimane per graph build, ma non per esecuzione diretta |
+| `software_compositor.cpp` — `composite_layer()` | Da full-frame a `composite_tile()` su tile attivi |
+| `node_cache.cpp` — `NodeCache` | Rimane per cache cross-frame, ma `TileCache` lo affianca |
+| `framebuffer_pool.cpp` — `FramebufferPool` | Rimane per temporanei, ma `TileSurfaceCache` lo affianca per tile |
+| `bl2d_blimage_tiled.cpp` — `composite_bl_image_tiled()` | Sostituito da `ProceduralSourceNode` per pattern |
+| `ffmpeg_pipe_yuv.cpp` — `convert_framebuffer_to_yuv420p()` | Spostato in `OutputPipeline` come task asincrono |
+| `disk_node_cache.cpp` — `DiskNodeCache` | Esteso con `get_tile()` / `put_tile()` |
+| `cache_policy.hpp` — `RenderNodeCachePolicy` | Aggiunto `TileCachePolicy` |
+| `dirty_rect_mask.hpp` — `DirtyRectMask` | Sostituito da `TileMask` (più ricco e integrato) |
+
+---
+
+### V3 — Riepilogo Guadagni Stimati
+
+| Metrica | Oggi (V1/V2) | V3 Target | Guadagno |
+|---------|-------------|-----------|----------|
+| Bandwidth memoria per frame | ~100% canvas (1080p = 33MB) | ~5-10% canvas (solo tile attivi) | **10-20×** |
+| Cache hit rate | ~60% (node-level) | ~95% (tile-level) | **+35%** |
+| Allocazioni framebuffer | 10-30 per frame | 0 (tile surfaces preallocate) | **∞** |
+| Compositing pixel processati | 100% canvas | solo tile attivi | **10-20×** |
+| Grid background raster | ~500μs (bilinear sampling) | ~20μs (kernel SIMD) | **25×** |
+| Build graph overhead | 0.5-2ms per frame | ~0ms (compiled once) | **∞** |
+| Output conversion blocco | frame_conversion_copy_ms | ~0ms (pipeline parallela) | **-100%** |
+| Frame throughput (4K 30fps) | ~30fps software | ~60-120fps software | **2-4×** |
+
+---
+
+**Conclusione:** La V3 non è "ottimizzare di più il DAG attuale". La V3 è **cambiare il modello da frame-based a tile-based**, con nodi procedurali specializzati, cache persistente per regione, e pipeline output disaccoppiata. Per il caso d'uso Chronon3D (composizioni 2.5D con animazioni, motion graphics, video export), questo vale più di qualunque micro-ottimizzazione locale.
+
+**Primo passo concreto:** Implementare il **Pillar 5 (Procedural Grid Kernel)** — è il più facile (1-2 giorni), dà il guadagno più immediato (25× sulla grid background), e non richiede modifiche architetturali al resto del motore. Dal vivo, si vede subito.

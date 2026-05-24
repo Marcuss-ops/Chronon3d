@@ -5,6 +5,7 @@
 #include "../software/utils/blend2d_bridge.hpp"
 #include <algorithm>
 #include <cmath>
+#include <iostream>
 
 namespace chronon3d {
 
@@ -30,18 +31,30 @@ bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state
 }
 
 bool ImageRenderer::draw_image_tiled(const ImageShape& image, const RenderState& state, Framebuffer& fb) {
+    std::cout << "ImageRenderer::draw_image_tiled: path=" << image.path 
+              << " size=(" << image.size.x << ", " << image.size.y << ")"
+              << " opacity=" << image.opacity << " state_opacity=" << state.opacity << std::endl;
     if (image.path.empty() || image.size.x <= 0 || image.size.y <= 0) {
         return false;
     }
     const CachedImage* cached = ImageCache::instance().get_or_load(image.path);
-    if (!cached || cached->bl_img.empty()) return false;
+    if (!cached) {
+        std::cout << "ImageRenderer::draw_image_tiled: cached is null!" << std::endl;
+        return false;
+    }
+    if (cached->bl_img.empty()) {
+        std::cout << "ImageRenderer::draw_image_tiled: cached->bl_img is empty!" << std::endl;
+        return false;
+    }
 
     const f32 final_opacity = image.opacity * state.opacity;
+    std::cout << "ImageRenderer::draw_image_tiled: final_opacity=" << final_opacity << std::endl;
     if (final_opacity <= 0.001f) return true;
 
     const float sx = image.size.x / static_cast<float>(cached->width);
     const float sy = image.size.y / static_cast<float>(cached->height);
     Mat4 scaled_model = state.matrix * glm::scale(Mat4(1.0f), Vec3(sx, sy, 1.0f));
+    std::cout << "ImageRenderer::draw_image_tiled: sx=" << sx << " sy=" << sy << std::endl;
 
     blend2d_bridge::composite_bl_image_tiled(fb, cached->bl_img, scaled_model, final_opacity, BlendMode::Normal, &state);
 

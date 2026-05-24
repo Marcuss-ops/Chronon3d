@@ -31,8 +31,7 @@ std::shared_ptr<Framebuffer> render_composition_frame(
     const int rh = static_cast<int>(h * ssaa);
     SoftwareRenderer* sw_renderer = dynamic_cast<SoftwareRenderer*>(&backend);
 
-    std::shared_ptr<Framebuffer> render_fb;
-    render_fb = backend.framebuffer_pool()->acquire(rw, rh, true);
+    std::shared_ptr<Framebuffer> render_fb = nullptr;
 
     double evaluate_ms = 0.0;
     double scene_ms = 0.0;
@@ -94,8 +93,8 @@ std::shared_ptr<Framebuffer> render_composition_frame(
         motion_blur_ms = std::chrono::duration<double, std::milli>(
             std::chrono::steady_clock::now() - t_mb0).count();
 
-        // render_fb is already acquired and cleared at the beginning of the function.
-        // We just need to fill it with the accumulated values.
+        // render_fb is acquired and filled with the accumulated values.
+        render_fb = backend.framebuffer_pool()->acquire(rw, rh, true);
         for (int y = 0; y < rh; ++y) {
             for (int x = 0; x < rw; ++x) {
                 const size_t idx = static_cast<size_t>((y * rw + x) * 4);
