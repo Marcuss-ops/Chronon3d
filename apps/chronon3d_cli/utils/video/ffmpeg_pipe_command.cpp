@@ -18,6 +18,12 @@ std::string quote_path(const std::string& path) {
 }
 
 std::string pix_fmt_to_ffmpeg_str(PipePixelFormat fmt) {
+    if (fmt == PipePixelFormat::YUV420P) {
+        return "yuv420p";
+    }
+    if (fmt == PipePixelFormat::NV12) {
+        return "nv12";
+    }
     return "rgba";
 }
 
@@ -29,10 +35,11 @@ std::string build_ffmpeg_raw_pipe_command(const FfmpegPipeOptions& options) {
         : "-hide_banner -loglevel error ";
 
     const bool rgb_output = options.codec == "libx264rgb";
-    const std::string output_pix_fmt = rgb_output ? "rgb24" : "yuv420p";
+    const std::string output_pix_fmt = rgb_output ? "rgb24" : (options.output_pix_fmt.empty() ? "yuv420p" : options.output_pix_fmt);
     const std::string colorspace_flags = rgb_output
         ? ""
         : "-colorspace bt709 -color_primaries bt709 -color_trc bt709 -color_range tv ";
+
 
     return fmt::format(
         "ffmpeg -y "

@@ -34,7 +34,11 @@ bool FfmpegPipeEncoder::open(const FfmpegPipeOptions& options) {
     }
 
     options_ = options;
-    options_.input_format = PipePixelFormat::RGBA;
+    if ((options_.input_format == PipePixelFormat::YUV420P || options_.input_format == PipePixelFormat::NV12) &&
+        (options_.width % 2 != 0 || options_.height % 2 != 0)) {
+        return false;
+    }
+
     frames_written_ = 0;
     bytes_written_ = 0;
     pipe_failed_ = false;
@@ -42,11 +46,19 @@ bool FfmpegPipeEncoder::open(const FfmpegPipeOptions& options) {
     const size_t w = static_cast<size_t>(options_.width);
     const size_t h = static_cast<size_t>(options_.height);
 
-    rgba_buffer_.assign(w * h * 4u, 0);
-
+    if (options_.input_format == PipePixelFormat::YUV420P || options_.input_format == PipePixelFormat::NV12) {
+        const size_t size = w * h + (w * h) / 2u;
+        yuv_buffer_.assign(size, 0);
+        rgba_buffer_.assign(w * h * 4u, 0); // Pre-allocate RGBA buffer for gamma translation
 #ifdef __linux__
-    ring_buffer_size_ = w * h * 4;
+        ring_buffer_size_ = size;
 #endif
+    } else {
+        rgba_buffer_.assign(w * h * 4u, 0);
+#ifdef __linux__
+        ring_buffer_size_ = w * h * 4;
+#endif
+    }
 
     const std::string cmd = build_ffmpeg_raw_pipe_command(options_);
 
@@ -91,7 +103,14 @@ bool FfmpegPipeEncoder::write_frame(const Framebuffer& fb) {
 
         uint8_t* dst = ring_buffers_[buf_idx].data();
         const auto t_conv0 = std::chrono::high_resolution_clock::now();
-        const bool ok = convert_framebuffer_to_rgba(fb, dst);
+        bool ok = false;
+        if (options_.input_format == PipePixelFormat::YUV420P) {
+            ok = convert_framebuffer_to_yuv420p(fb, dst);
+        } else if (options_.input_format == PipePixelFormat::NV12) {
+            ok = convert_framebuffer_to_nv12(fb, dst);
+        } else {
+            ok = convert_framebuffer_to_rgba(fb, dst);
+        }
         const auto t_conv1 = std::chrono::high_resolution_clock::now();
         if (profiling::g_current_counters) {
             profiling::g_current_counters->frame_conversion_copy_ms.fetch_add(
@@ -126,8 +145,45 @@ bool FfmpegPipeEncoder::write_frame(const Framebuffer& fb) {
     };
 
     switch (options_.input_format) {
+        case PipePixelFormat::YUV420P: {
+            const auto t_conv0 = std::chrono::high_resolution_clock::now();
+            if (!convert_framebuffer_to_yuv420p(fb)) {
+                return false;
+            }
+            const auto t_conv1 = std::chrono::high_resolution_clock::now();
+            if (profiling::g_current_counters) {
+                profiling::g_current_counters->frame_conversion_copy_ms.fetch_add(
+                    static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t_conv1 - t_conv0).count()),
+                    std::memory_order_relaxed);
+            }
+            const size_t written = timed_fwrite(
+                yuv_buffer_.data(), 1, yuv_buffer_.size(), pipe_);
+            if (written != yuv_buffer_.size()) {
+                return false;
+            }
+            bytes_written_ += written;
+            break;
+        }
+        case PipePixelFormat::NV12: {
+            const auto t_conv0 = std::chrono::high_resolution_clock::now();
+            if (!convert_framebuffer_to_nv12(fb)) {
+                return false;
+            }
+            const auto t_conv1 = std::chrono::high_resolution_clock::now();
+            if (profiling::g_current_counters) {
+                profiling::g_current_counters->frame_conversion_copy_ms.fetch_add(
+                    static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t_conv1 - t_conv0).count()),
+                    std::memory_order_relaxed);
+            }
+            const size_t written = timed_fwrite(
+                yuv_buffer_.data(), 1, yuv_buffer_.size(), pipe_);
+            if (written != yuv_buffer_.size()) {
+                return false;
+            }
+            bytes_written_ += written;
+            break;
+        }
         default:
-            [[fallthrough]];
         case PipePixelFormat::RGBA: {
             const auto t_conv0 = std::chrono::high_resolution_clock::now();
             if (!convert_framebuffer_to_rgba(fb)) {

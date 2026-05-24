@@ -58,12 +58,8 @@ TEST_CASE("YUV420P conversion fails for odd dimensions") {
         .output_path = "/tmp/test_out.mp4",
         .input_format = PipePixelFormat::YUV420P,
     };
-    REQUIRE(enc.open(opts));
-
-    // YUV420P requires even dimensions
-    CHECK_FALSE(enc.convert_framebuffer_to_yuv420p(fb));
-
-    enc.close();
+    // Opening with odd dimensions under YUV420P must fail early
+    REQUIRE_FALSE(enc.open(opts));
 }
 
 TEST_CASE("build_ffmpeg_raw_pipe_command contains rawvideo input settings") {
@@ -123,10 +119,10 @@ TEST_CASE("ffmpeg raw pipe command includes configured pixel formats") {
     CHECK(cmd.find("-r 30") != std::string::npos);
     CHECK(cmd.find("-c:v libx264") != std::string::npos);
     CHECK(cmd.find("-preset ultrafast") != std::string::npos);
-    CHECK(cmd.find("-pix_fmt yuv420p") != std::string::npos);
+    CHECK(cmd.find("-pix_fmt rgb24") != std::string::npos);
 }
 
-TEST_CASE("ffmpeg raw pipe command ignores legacy raw input formats") {
+TEST_CASE("ffmpeg raw pipe command respects raw input formats") {
     FfmpegPipeOptions opt;
     opt.width = 1280;
     opt.height = 720;
@@ -138,6 +134,7 @@ TEST_CASE("ffmpeg raw pipe command ignores legacy raw input formats") {
 
     const auto cmd = build_ffmpeg_raw_pipe_command(opt);
 
-    CHECK(cmd.find("-pix_fmt rgba") != std::string::npos);
+    // It should configure both the input format and output format to yuv420p
     CHECK(cmd.find("-pix_fmt yuv420p") != std::string::npos);
+    CHECK(cmd.find("-pix_fmt rgba") == std::string::npos);
 }
