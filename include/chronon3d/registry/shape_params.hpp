@@ -12,6 +12,7 @@ using ShapeParams = std::variant<
     LineParams,
     PathParams,
     ImageParams,
+    GridBackgroundParams,
     TextParams
 >;
 

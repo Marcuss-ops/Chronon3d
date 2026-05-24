@@ -66,6 +66,7 @@ const char* shape_type_name(ShapeType type) {
     case ShapeType::Text: return "Text";
     case ShapeType::Image: return "Image";
     case ShapeType::Mesh: return "Mesh";
+    case ShapeType::GridBackground: return "GridBackground";
     case ShapeType::FakeBox3D: return "FakeBox3D";
     case ShapeType::GridPlane: return "GridPlane";
     case ShapeType::FakeExtrudedText: return "FakeExtrudedText";

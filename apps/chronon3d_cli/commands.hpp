@@ -48,14 +48,14 @@ struct VideoArgs {
     int fps{30};
     int crf{18};
     std::string codec{"auto"};
-    std::string encode_preset{"medium"};
+    std::string encode_preset{"veryfast"};
     bool keep_frames{false};
     RenderPipelineArgs pipeline{};
     std::string frames_dir;
     std::string hardware_encoder{"none"};
     int chunks{1};
 
-    std::string ffmpeg_mode{"png"};
+    std::string ffmpeg_mode{"pipe"};
     bool ffmpeg_verbose{false};
     std::string pipe_pixfmt{"rgba"};
     std::string color_output{"srgb"};

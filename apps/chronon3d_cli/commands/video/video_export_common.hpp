@@ -31,7 +31,7 @@ struct FfmpegExportOptions {
     int chunks;
     std::string ffmpeg_mode{"png"};
     bool ffmpeg_verbose{false};
-    std::string pipe_pixfmt{"yuv420p"};
+    std::string pipe_pixfmt{"rgba"};
     std::string color_output{"srgb"};
     std::string pipe_writer{"classic"};
 
