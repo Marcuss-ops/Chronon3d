@@ -249,6 +249,7 @@ set(CHRONON3D_BACKEND_VIDEO_SOURCES
 add_library(chronon3d_backend_video STATIC ${CHRONON3D_BACKEND_VIDEO_SOURCES})
 target_link_libraries(chronon3d_backend_video PUBLIC chronon3d chronon3d_cache spdlog::spdlog_header_only fmt::fmt TBB::tbb hwy::hwy)
 target_include_directories(chronon3d_backend_video PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(chronon3d_graph PUBLIC chronon3d_backend_video)
 
 # Software Renderer Backend
 set(CHRONON3D_BACKEND_SOFTWARE_SOURCES
@@ -360,12 +361,12 @@ target_precompile_headers(chronon3d_scene PRIVATE <glm/glm.hpp> <glm/gtc/matrix_
 # --- Aggregati Architetturali finali ---
 add_library(chronon3d_core INTERFACE)
 target_link_libraries(chronon3d_core INTERFACE
-    chronon3d_assets chronon3d_registry chronon3d_scene chronon3d_runtime chronon3d_graph chronon3d_cache $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_animations> chronon3d_core_impl
+    chronon3d_assets chronon3d_registry chronon3d_scene chronon3d_runtime chronon3d_graph chronon3d_cache $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_animations> chronon3d_core_impl $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_backend_video>
 )
 
 add_library(chronon3d_software INTERFACE)
 target_link_libraries(chronon3d_software INTERFACE
-    $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_backend_software> chronon3d_backend_assets chronon3d_backend_image chronon3d_backend_video
+    $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_backend_software> $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_backend_video> chronon3d_backend_assets chronon3d_backend_image
 )
 
 add_library(chronon3d_pipeline INTERFACE)
