@@ -1,0 +1,146 @@
+#include <doctest/doctest.h>
+#include <chronon3d/video/frame_converter.hpp>
+#include <chronon3d/video/converted_frame_cache.hpp>
+#include <chronon3d/core/memory/framebuffer.hpp>
+#include <chronon3d/math/color.hpp>
+#include <vector>
+#include <cmath>
+#include <xxhash.h>
+
+using namespace chronon3d;
+using namespace chronon3d::video;
+
+TEST_CASE("Near-static frames: small color variations produce mostly cache hits") {
+    constexpr int w = 64, h = 64;
+    constexpr int kFrames = 50;
+    constexpr int kChangeInterval = 10;
+
+    ConvertedFrameCache cache(16);
+    const size_t y_sz = static_cast<size_t>(w) * h;
+    const size_t uv_sz = static_cast<size_t>(w / 2) * (h / 2);
+
+    int cache_hits = 0;
+    int cache_misses = 0;
+
+    for (int i = 0; i < kFrames; ++i) {
+        auto fb = std::make_shared<Framebuffer>(w, h);
+
+        if (i % kChangeInterval == 0) {
+            float shade = 0.5f + 0.5f * (static_cast<float>(i) / kFrames);
+            fb->clear(Color{shade, shade * 0.5f, shade * 0.3f, 1.0f});
+        } else {
+            fb->clear(Color{1.0f, 0.0f, 0.0f, 1.0f});
+        }
+
+        uint64_t digest = XXH64(fb->pixels_row(0), fb->size_bytes(), 0);
+
+        ConvertedFrameCacheKey key{
+            .framebuffer_digest = digest,
+            .width = w,
+            .height = h,
+            .format = EncoderPixelFormat::YUV420P,
+            .color_matrix = 0,
+            .apply_gamma = true,
+        };
+
+        auto* entry = cache.lookup(key);
+        if (entry) {
+            ++cache_hits;
+        } else {
+            ++cache_misses;
+            std::vector<uint8_t> y(y_sz), u(uv_sz), v(uv_sz);
+            auto res = convert_frame_tight(*fb, y.data(), u.data(), v.data(), nullptr,
+                                           w, h, EncoderPixelFormat::YUV420P, true);
+            REQUIRE(res.success);
+            cache.insert(key, y.data(), y_sz + uv_sz * 2);
+        }
+    }
+
+    MESSAGE("Near-static: hits=" << cache_hits << " misses=" << cache_misses
+            << " (expect ~5-6 misses for 5 unique frames + LRU eviction)");
+    CHECK(cache_hits > cache_misses);
+    CHECK(cache_misses >= kFrames / kChangeInterval);
+    CHECK(cache_misses <= kFrames / kChangeInterval + 2);
+}
+
+TEST_CASE("Near-static frames: single repeated frame hits cache 100%") {
+    constexpr int w = 32, h = 32;
+    constexpr int kFrames = 100;
+
+    ConvertedFrameCache cache(4);
+    const size_t y_sz = static_cast<size_t>(w) * h;
+    const size_t uv_sz = static_cast<size_t>(w / 2) * (h / 2);
+
+    auto fb = std::make_shared<Framebuffer>(w, h);
+    fb->clear(Color{0.5f, 0.3f, 0.7f, 1.0f});
+
+    uint64_t digest = XXH64(fb->pixels_row(0), fb->size_bytes(), 0);
+    ConvertedFrameCacheKey key{
+        .framebuffer_digest = digest,
+        .width = w,
+        .height = h,
+        .format = EncoderPixelFormat::YUV420P,
+        .color_matrix = 0,
+        .apply_gamma = true,
+    };
+
+    int hits = 0, misses = 0;
+    for (int i = 0; i < kFrames; ++i) {
+        auto* entry = cache.lookup(key);
+        if (entry) {
+            ++hits;
+        } else {
+            ++misses;
+            std::vector<uint8_t> y(y_sz), u(uv_sz), v(uv_sz);
+            auto res = convert_frame_tight(*fb, y.data(), u.data(), v.data(), nullptr,
+                                           w, h, EncoderPixelFormat::YUV420P, true);
+            REQUIRE(res.success);
+            cache.insert(key, y.data(), y_sz + uv_sz * 2);
+        }
+    }
+
+    CHECK(misses == 1);
+    CHECK(hits == kFrames - 1);
+    CHECK(cache.hits() == kFrames - 1);
+}
+
+TEST_CASE("Near-static frames: format change between YUV420P and NV12 causes miss") {
+    constexpr int w = 16, h = 16;
+    ConvertedFrameCache cache(4);
+    const size_t y_sz = static_cast<size_t>(w) * h;
+    const size_t uv_sz_yuv = static_cast<size_t>(w / 2) * (h / 2);
+    const size_t uv_sz_nv = y_sz / 2;
+
+    auto fb = std::make_shared<Framebuffer>(w, h);
+    fb->clear(Color{0.5f, 0.5f, 0.5f, 1.0f});
+
+    uint64_t digest = XXH64(fb->pixels_row(0), fb->size_bytes(), 0);
+
+    ConvertedFrameCacheKey key_yuv{
+        .framebuffer_digest = digest,
+        .width = w, .height = h,
+        .format = EncoderPixelFormat::YUV420P,
+        .color_matrix = 0, .apply_gamma = true,
+    };
+    ConvertedFrameCacheKey key_nv{
+        .framebuffer_digest = digest,
+        .width = w, .height = h,
+        .format = EncoderPixelFormat::NV12,
+        .color_matrix = 0, .apply_gamma = true,
+    };
+
+    std::vector<uint8_t> y_yuv(y_sz), u(uv_sz_yuv), v(uv_sz_yuv);
+    auto r1 = convert_frame_tight(*fb, y_yuv.data(), u.data(), v.data(), nullptr,
+                                  w, h, EncoderPixelFormat::YUV420P, true);
+    REQUIRE(r1.success);
+    cache.insert(key_yuv, y_yuv.data(), y_sz + uv_sz_yuv * 2);
+
+    std::vector<uint8_t> y_nv(y_sz), uv(uv_sz_nv);
+    auto r2 = convert_frame_tight(*fb, y_nv.data(), nullptr, nullptr, uv.data(),
+                                  w, h, EncoderPixelFormat::NV12, true);
+    REQUIRE(r2.success);
+    cache.insert(key_nv, y_nv.data(), y_sz + uv_sz_nv);
+
+    CHECK(cache.lookup(key_yuv) != nullptr);
+    CHECK(cache.lookup(key_nv) != nullptr);
+}

@@ -9,7 +9,6 @@
 #include <algorithm>
 #include <cmath>
 #include <array>
-#include <tuple>
 
 HWY_BEFORE_NAMESPACE();
 namespace chronon3d::simd {
@@ -32,10 +31,7 @@ inline const float* get_linear_to_srgb_lut_f32() {
     return lut.data();
 }
 
-#if 0
-template <typename D>
 HWY_ATTR void convert_uv_pair_rows_vectorized_impl(
-    D d_half,
     uint8_t* dst_u,
     uint8_t* dst_v,
     uint8_t* dst_uv,
@@ -47,190 +43,161 @@ HWY_ATTR void convert_uv_pair_rows_vectorized_impl(
     int y_end,
     bool apply_gamma,
     bool planar_output) {
-    constexpr int kHalfLanes = static_cast<int>(HWY_LANES(float) / 2);
-    if constexpr (kHalfLanes == 0) {
-        (void)d_half;
-        (void)dst_u;
-        (void)dst_v;
-        (void)dst_uv;
-        (void)src_ptr;
-        (void)width;
-        (void)height;
-        (void)src_stride;
-        (void)y_start;
-        (void)y_end;
-        (void)apply_gamma;
-        (void)planar_output;
-        return;
-    } else {
-        const auto zero = hn::Set(d_half, 0.0f);
-        const auto one = hn::Set(d_half, 1.0f);
-        const auto scale_4095 = hn::Set(d_half, 4095.0f);
-        const float* lut_f32_ptr = get_linear_to_srgb_lut_f32();
-        const hn::CappedTag<int32_t, kHalfLanes> di_half;
-        const hn::CappedTag<uint8_t, kHalfLanes> du_half;
-        const hn::CappedTag<float, (kHalfLanes > 1 ? (kHalfLanes / 2) : 1)> d_quarter;
 
-        auto apply_srgb_gamma = [&](auto v) {
-            auto idx = hn::ConvertTo(di_half, hn::Round(hn::Mul(hn::Clamp(v, zero, one), scale_4095)));
-            return hn::GatherIndex(d_half, lut_f32_ptr, idx);
-        };
+    // Hybrid approach:
+    //   1. 2x2 pixel averaging in scalar (avoids TableLookupLanes / SetTableIndices
+    //      which were unstable with GCC 14.2)
+    //   2. Gamma correction via LUT GatherIndex (proven stable in luma path)
+    //   3. U/V matrix multiply in SIMD
+    //   4. Final float→u8 clamping in scalar (avoids complex DemoteTo chains)
 
-        const auto kRY = hn::Set(d_half, 0.2126f);
-        const auto kGY = hn::Set(d_half, 0.7152f);
-        const auto kBY = hn::Set(d_half, 0.0722f);
-        const auto y_scale = hn::Set(d_half, 219.0f);
-        const auto y_offset = hn::Set(d_half, 16.5f);
+    const hn::ScalableTag<float> df;
+    const hn::ScalableTag<int32_t> di32;
 
-        std::array<int, kHalfLanes> even_indices{};
-        std::array<int, kHalfLanes> odd_indices{};
-        for (int i = 0; i < kHalfLanes; ++i) {
-            even_indices[i] = i * 2;
-            odd_indices[i] = i * 2 + 1;
-        }
-        const auto even_idx = hn::SetTableIndices(d_half, even_indices.data());
-        const auto odd_idx = hn::SetTableIndices(d_half, odd_indices.data());
+    const auto zero   = hn::Set(df, 0.0f);
+    const auto one    = hn::Set(df, 1.0f);
+    const auto s4095  = hn::Set(df, 4095.0f);
+    const auto uvscl  = hn::Set(df, 224.0f);
+    const auto uvoff  = hn::Set(df, 128.5f);
+    const float* lut  = get_linear_to_srgb_lut_f32();
 
-        auto average_adjacent_pairs = [&](const auto& channel) {
-            auto even = hn::TableLookupLanes(channel, even_idx);
-            auto odd  = hn::TableLookupLanes(channel, odd_idx);
-            return hn::LowerHalf(hn::Mul(hn::Add(even, odd), hn::Set(d_half, 0.5f)));
-        };
+    const auto kU_R = hn::Set(df, -0.1146f);
+    const auto kU_G = hn::Set(df, -0.3854f);
+    const auto kU_B = hn::Set(df,  0.5000f);
+    const auto kV_R = hn::Set(df,  0.5000f);
+    const auto kV_G = hn::Set(df, -0.4542f);
+    const auto kV_B = hn::Set(df, -0.0458f);
 
-        const int uv_width = width / 2;
-        const int vector_block_count = kHalfLanes;
-        const int vectorized_blocks = (uv_width / vector_block_count) * vector_block_count;
+    auto srgb = [&](auto v) {
+        auto idx = hn::ConvertTo(di32, hn::Round(hn::Mul(hn::Clamp(v, zero, one), s4095)));
+        return hn::GatherIndex(df, lut, idx);
+    };
 
-        for (int y = std::max((y_start + 1) & ~1, 0); y < (std::min(y_end, height) & ~1); y += 2) {
-            const float* row0 = src_ptr + static_cast<size_t>(y) * src_stride * 4;
-            const float* row1 = row0 + static_cast<size_t>(src_stride) * 4;
+    const int uv_width   = width / 2;
+    const int lanes      = hn::Lanes(df);
+    const int vec_blocks = (uv_width / lanes) * lanes;
 
-            uint8_t* out_u = planar_output ? (dst_u + (static_cast<size_t>(y) / 2) * uv_width) : nullptr;
-            uint8_t* out_v = planar_output ? (dst_v + (static_cast<size_t>(y) / 2) * uv_width) : nullptr;
-            uint8_t* out_uv = planar_output ? nullptr : (dst_uv + (static_cast<size_t>(y) / 2) * uv_width * 2);
+    const int uv_row_begin = std::max((y_start + 1) & ~1, 0);
+    const int uv_row_end   = std::min(y_end, height) & ~1;
 
-            int bx = 0;
-            for (; bx < vectorized_blocks; bx += vector_block_count) {
-                const int pixel_x = bx * 2;
+    alignas(64) float r_buf[16];
+    alignas(64) float g_buf[16];
+    alignas(64) float b_buf[16];
+    alignas(64) float u_buf[16];
+    alignas(64) float v_buf[16];
 
-                auto load_row_pairs = [&](const float* row) {
-                    auto a_r = hn::Vec<D>{};
-                    auto a_g = hn::Vec<D>{};
-                    auto a_b = hn::Vec<D>{};
-                    auto a_a = hn::Vec<D>{};
-                    auto b_r = hn::Vec<D>{};
-                    auto b_g = hn::Vec<D>{};
-                    auto b_b = hn::Vec<D>{};
-                    auto b_a = hn::Vec<D>{};
+    for (int y = uv_row_begin; y < uv_row_end; y += 2) {
+        const float* row0 = src_ptr + static_cast<size_t>(y) * src_stride * 4;
+        const float* row1 = row0    + static_cast<size_t>(src_stride) * 4;
 
-                    hn::LoadInterleaved4(d_half, row + static_cast<size_t>(pixel_x) * 4, a_r, a_g, a_b, a_a);
-                    hn::LoadInterleaved4(d_half, row + static_cast<size_t>(pixel_x + vector_block_count) * 4, b_r, b_g, b_b, b_a);
+        uint8_t* out_u  = planar_output ? (dst_u  + (static_cast<size_t>(y) / 2) * uv_width) : nullptr;
+        uint8_t* out_v  = planar_output ? (dst_v  + (static_cast<size_t>(y) / 2) * uv_width) : nullptr;
+        uint8_t* out_uv = planar_output ? nullptr : (dst_uv + (static_cast<size_t>(y) / 2) * uv_width * 2);
 
-                    if (apply_gamma) {
-                        a_r = apply_srgb_gamma(a_r);
-                        a_g = apply_srgb_gamma(a_g);
-                        a_b = apply_srgb_gamma(a_b);
-                        b_r = apply_srgb_gamma(b_r);
-                        b_g = apply_srgb_gamma(b_g);
-                        b_b = apply_srgb_gamma(b_b);
-                    } else {
-                        a_r = hn::Clamp(a_r, zero, one);
-                        a_g = hn::Clamp(a_g, zero, one);
-                        a_b = hn::Clamp(a_b, zero, one);
-                        b_r = hn::Clamp(b_r, zero, one);
-                        b_g = hn::Clamp(b_g, zero, one);
-                        b_b = hn::Clamp(b_b, zero, one);
-                    }
+        int bx = 0;
 
-                    auto row_a_r = average_adjacent_pairs(a_r);
-                    auto row_a_g = average_adjacent_pairs(a_g);
-                    auto row_a_b = average_adjacent_pairs(a_b);
-                    auto row_b_r = average_adjacent_pairs(b_r);
-                    auto row_b_g = average_adjacent_pairs(b_g);
-                    auto row_b_b = average_adjacent_pairs(b_b);
-
-                    return std::tuple{
-                        hn::Combine(d_half, hn::UpperHalf(d_quarter, row_b_r), hn::LowerHalf(d_quarter, row_a_r)),
-                        hn::Combine(d_half, hn::UpperHalf(d_quarter, row_b_g), hn::LowerHalf(d_quarter, row_a_g)),
-                        hn::Combine(d_half, hn::UpperHalf(d_quarter, row_b_b), hn::LowerHalf(d_quarter, row_a_b))
-                    };
-                };
-
-                const auto [r0, g0, b0] = load_row_pairs(row0);
-                const auto [r1, g1, b1] = load_row_pairs(row1);
-
-                auto r = hn::Mul(hn::Add(r0, r1), hn::Set(d_half, 0.5f));
-                auto g = hn::Mul(hn::Add(g0, g1), hn::Set(d_half, 0.5f));
-                auto b = hn::Mul(hn::Add(b0, b1), hn::Set(d_half, 0.5f));
-
-                auto u = hn::MulAdd(r, hn::Set(d_half, -0.1146f),
-                                    hn::MulAdd(g, hn::Set(d_half, -0.3854f), hn::Mul(b, hn::Set(d_half, 0.5000f))));
-                auto v = hn::MulAdd(r, hn::Set(d_half, 0.5000f),
-                                    hn::MulAdd(g, hn::Set(d_half, -0.4542f), hn::Mul(b, hn::Set(d_half, -0.0458f))));
-
-                auto u8 = hn::ConvertTo(du_half, hn::Round(hn::Mul(u, hn::Set(d_half, 224.0f)) + hn::Set(d_half, 128.5f)));
-                auto v8 = hn::ConvertTo(du_half, hn::Round(hn::Mul(v, hn::Set(d_half, 224.0f)) + hn::Set(d_half, 128.5f)));
-
-                if (planar_output) {
-                    hn::StoreU(u8, du_half, out_u + bx);
-                    hn::StoreU(v8, du_half, out_v + bx);
-                } else {
-                    // NV12 expects interleaved UV bytes.
-                    std::array<uint8_t, kHalfLanes> u_tmp{};
-                    std::array<uint8_t, kHalfLanes> v_tmp{};
-                    hn::StoreU(u8, du_half, u_tmp.data());
-                    hn::StoreU(v8, du_half, v_tmp.data());
-                    for (int i = 0; i < vector_block_count; ++i) {
-                        out_uv[(bx + i) * 2 + 0] = u_tmp[static_cast<size_t>(i)];
-                        out_uv[(bx + i) * 2 + 1] = v_tmp[static_cast<size_t>(i)];
-                    }
-                }
-            }
-
-            for (; bx < uv_width; ++bx) {
-                const int x = bx * 2;
-                const float* p00 = row0 + static_cast<size_t>(x) * 4;
+        // ── SIMD-accelerated main loop ──────────────────────────────────
+        for (; bx < vec_blocks; bx += lanes) {
+            for (int i = 0; i < lanes; ++i) {
+                const int px = (bx + i) * 2;
+                const float* p00 = row0 + static_cast<size_t>(px) * 4;
                 const float* p01 = p00 + 4;
-                const float* p10 = row1 + static_cast<size_t>(x) * 4;
+                const float* p10 = row1 + static_cast<size_t>(px) * 4;
                 const float* p11 = p10 + 4;
 
-                float r = 0.25f * (
+                r_buf[i] = 0.25f * (
                     std::clamp(p00[0], 0.0f, 1.0f) +
                     std::clamp(p01[0], 0.0f, 1.0f) +
                     std::clamp(p10[0], 0.0f, 1.0f) +
                     std::clamp(p11[0], 0.0f, 1.0f));
-                float g = 0.25f * (
+                g_buf[i] = 0.25f * (
                     std::clamp(p00[1], 0.0f, 1.0f) +
                     std::clamp(p01[1], 0.0f, 1.0f) +
                     std::clamp(p10[1], 0.0f, 1.0f) +
                     std::clamp(p11[1], 0.0f, 1.0f));
-                float b = 0.25f * (
+                b_buf[i] = 0.25f * (
                     std::clamp(p00[2], 0.0f, 1.0f) +
                     std::clamp(p01[2], 0.0f, 1.0f) +
                     std::clamp(p10[2], 0.0f, 1.0f) +
                     std::clamp(p11[2], 0.0f, 1.0f));
+            }
 
-                if (apply_gamma) {
-                    r = (r <= 0.0031308f) ? (r * 12.92f) : (1.055f * std::pow(r, 1.0f / 2.4f) - 0.055f);
-                    g = (g <= 0.0031308f) ? (g * 12.92f) : (1.055f * std::pow(g, 1.0f / 2.4f) - 0.055f);
-                    b = (b <= 0.0031308f) ? (b * 12.92f) : (1.055f * std::pow(b, 1.0f / 2.4f) - 0.055f);
-                }
+            // SIMD: gamma, UV matrix, scale+offset
+            auto rv = hn::LoadU(df, r_buf);
+            auto gv = hn::LoadU(df, g_buf);
+            auto bv = hn::LoadU(df, b_buf);
 
-                const float u = -0.1146f * r - 0.3854f * g + 0.5000f * b;
-                const float v =  0.5000f * r - 0.4542f * g - 0.0458f * b;
+            if (apply_gamma) {
+                rv = srgb(rv);
+                gv = srgb(gv);
+                bv = srgb(bv);
+            }
 
+            auto uv = hn::MulAdd(rv, kU_R, hn::MulAdd(gv, kU_G, hn::Mul(bv, kU_B)));
+            auto vv = hn::MulAdd(rv, kV_R, hn::MulAdd(gv, kV_G, hn::Mul(bv, kV_B)));
+
+            uv = hn::MulAdd(uv, uvscl, uvoff);
+            vv = hn::MulAdd(vv, uvscl, uvoff);
+
+            // Scalar: round + clamp → uint8 (avoids complex DemoteTo chain)
+            hn::StoreU(uv, df, u_buf);
+            hn::StoreU(vv, df, v_buf);
+            for (int i = 0; i < lanes; ++i) {
+                int u_byte = static_cast<int>(std::round(u_buf[i]));
+                int v_byte = static_cast<int>(std::round(v_buf[i]));
                 if (planar_output) {
-                    out_u[bx] = static_cast<uint8_t>(std::clamp(std::round(u * 224.0f + 128.5f), 0.0f, 255.0f));
-                    out_v[bx] = static_cast<uint8_t>(std::clamp(std::round(v * 224.0f + 128.5f), 0.0f, 255.0f));
+                    out_u[bx + i] = static_cast<uint8_t>(std::clamp(u_byte, 0, 255));
+                    out_v[bx + i] = static_cast<uint8_t>(std::clamp(v_byte, 0, 255));
                 } else {
-                    out_uv[bx * 2 + 0] = static_cast<uint8_t>(std::clamp(std::round(u * 224.0f + 128.5f), 0.0f, 255.0f));
-                    out_uv[bx * 2 + 1] = static_cast<uint8_t>(std::clamp(std::round(v * 224.0f + 128.5f), 0.0f, 255.0f));
+                    out_uv[(bx + i) * 2 + 0] = static_cast<uint8_t>(std::clamp(u_byte, 0, 255));
+                    out_uv[(bx + i) * 2 + 1] = static_cast<uint8_t>(std::clamp(v_byte, 0, 255));
                 }
+            }
+        }
+
+        // ── Scalar tail ─────────────────────────────────────────────────
+        for (; bx < uv_width; ++bx) {
+            const int x = bx * 2;
+            const float* p00 = row0 + static_cast<size_t>(x) * 4;
+            const float* p01 = p00 + 4;
+            const float* p10 = row1 + static_cast<size_t>(x) * 4;
+            const float* p11 = p10 + 4;
+
+            float r = 0.25f * (
+                std::clamp(p00[0], 0.0f, 1.0f) +
+                std::clamp(p01[0], 0.0f, 1.0f) +
+                std::clamp(p10[0], 0.0f, 1.0f) +
+                std::clamp(p11[0], 0.0f, 1.0f));
+            float g = 0.25f * (
+                std::clamp(p00[1], 0.0f, 1.0f) +
+                std::clamp(p01[1], 0.0f, 1.0f) +
+                std::clamp(p10[1], 0.0f, 1.0f) +
+                std::clamp(p11[1], 0.0f, 1.0f));
+            float b = 0.25f * (
+                std::clamp(p00[2], 0.0f, 1.0f) +
+                std::clamp(p01[2], 0.0f, 1.0f) +
+                std::clamp(p10[2], 0.0f, 1.0f) +
+                std::clamp(p11[2], 0.0f, 1.0f));
+
+            if (apply_gamma) {
+                r = (r <= 0.0031308f) ? (r * 12.92f) : (1.055f * std::pow(r, 1.0f / 2.4f) - 0.055f);
+                g = (g <= 0.0031308f) ? (g * 12.92f) : (1.055f * std::pow(g, 1.0f / 2.4f) - 0.055f);
+                b = (b <= 0.0031308f) ? (b * 12.92f) : (1.055f * std::pow(b, 1.0f / 2.4f) - 0.055f);
+            }
+
+            float u = -0.1146f * r - 0.3854f * g + 0.5000f * b;
+            float v =  0.5000f * r - 0.4542f * g - 0.0458f * b;
+
+            if (planar_output) {
+                out_u[bx] = static_cast<uint8_t>(std::clamp(std::round(u * 224.0f + 128.5f), 0.0f, 255.0f));
+                out_v[bx] = static_cast<uint8_t>(std::clamp(std::round(v * 224.0f + 128.5f), 0.0f, 255.0f));
+            } else {
+                out_uv[bx * 2 + 0] = static_cast<uint8_t>(std::clamp(std::round(u * 224.0f + 128.5f), 0.0f, 255.0f));
+                out_uv[bx * 2 + 1] = static_cast<uint8_t>(std::clamp(std::round(v * 224.0f + 128.5f), 0.0f, 255.0f));
             }
         }
     }
 }
-#endif
 
 HWY_ATTR void convert_uv_pair_rows_scalar_impl(
     uint8_t* dst_u,
@@ -510,7 +477,7 @@ HWY_ATTR void convert_f32_rgba_to_yuv420p_simd_rows_impl(
     }
 
     if (u_ptr && v_ptr) {
-        convert_uv_pair_rows_scalar_impl(
+        convert_uv_pair_rows_vectorized_impl(
             u_ptr, v_ptr, nullptr,
             src_ptr,
             width, height, src_stride,
@@ -532,7 +499,7 @@ HWY_ATTR void convert_f32_rgba_to_nv12_simd_rows_impl(
     // Reuse Luma Y logic
     convert_f32_rgba_to_yuv420p_simd_rows_impl(y_ptr, nullptr, nullptr, src_ptr, width, height, src_stride, y_start, y_end, apply_gamma);
     
-    convert_uv_pair_rows_scalar_impl(
+    convert_uv_pair_rows_vectorized_impl(
         nullptr, nullptr, uv_ptr,
         src_ptr,
         width, height, src_stride,
