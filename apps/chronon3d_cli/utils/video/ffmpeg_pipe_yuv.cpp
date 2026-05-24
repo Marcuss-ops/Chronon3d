@@ -63,9 +63,16 @@ bool FfmpegPipeEncoder::convert_framebuffer_to_yuv420p(const Framebuffer& fb, ui
     const size_t y_size  = static_cast<size_t>(w) * static_cast<size_t>(h);
     const size_t uv_size = y_size / 4u;
 
-    uint8_t* y_ptr = dst ? dst : y_plane_.data();
-    uint8_t* u_ptr = dst ? (dst + y_size) : u_plane_.data();
-    uint8_t* v_ptr = dst ? (dst + y_size + uv_size) : v_plane_.data();
+    if (!dst) {
+        if (yuv_buffer_.size() != y_size + uv_size + uv_size) {
+            return false;
+        }
+        dst = yuv_buffer_.data();
+    }
+
+    uint8_t* y_ptr = dst;
+    uint8_t* u_ptr = dst + y_size;
+    uint8_t* v_ptr = dst + y_size + uv_size;
 
     // Parallel SIMD by row strips
     tbb::parallel_for(tbb::blocked_range<int>(0, h, 32), [&](const tbb::blocked_range<int>& r) {
@@ -87,9 +94,18 @@ bool FfmpegPipeEncoder::convert_framebuffer_to_nv12(const Framebuffer& fb, uint8
         return false;
     }
 
-    const size_t y_size = static_cast<size_t>(w) * h;
-    uint8_t* y_ptr = dst ? dst : y_plane_.data();
-    uint8_t* uv_ptr = dst ? (dst + y_size) : nv12_uv_plane_.data();
+    const size_t y_size = static_cast<size_t>(w) * static_cast<size_t>(h);
+    const size_t uv_size = y_size / 2u;
+
+    if (!dst) {
+        if (yuv_buffer_.size() != y_size + uv_size) {
+            return false;
+        }
+        dst = yuv_buffer_.data();
+    }
+
+    uint8_t* y_ptr = dst;
+    uint8_t* uv_ptr = dst + y_size;
 
     // Parallel SIMD by row strips
     tbb::parallel_for(tbb::blocked_range<int>(0, h, 32), [&](const tbb::blocked_range<int>& r) {
