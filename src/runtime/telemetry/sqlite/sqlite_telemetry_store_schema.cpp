@@ -12,7 +12,7 @@ namespace chronon3d::telemetry {
 namespace {
 
 // Canonical column count for render_runs (from telemetry_schema.sql)
-constexpr int CANONICAL_RUN_COLUMNS = 66;
+constexpr int CANONICAL_RUN_COLUMNS = 68;
 
 // Ordered column names for render_runs matching telemetry_schema.sql
 constexpr const char* RUN_COLUMN_NAMES[] = {
@@ -22,7 +22,7 @@ constexpr const char* RUN_COLUMN_NAMES[] = {
     "layers_rendered", "text_glyphs_rasterized", "images_sampled", "blur_pixels",
     "simd_lerp_calls", "tiles_total", "tiles_hit", "tiles_miss", "tiles_partial",
     "bytes_allocated_peak", "node_cache_hash_collisions",
-    "clear_calls", "clear_pixels", "composite_calls", "composite_pixels",
+    "clear_skipped_calls", "clear_skipped_pixels", "clear_calls", "clear_pixels", "composite_calls", "composite_pixels",
     "transform_calls", "transform_pixels", "effect_stack_calls", "effect_pixels",
     "layer_culling_tests", "layers_culled", "layers_visible",
     "framebuffer_allocations", "framebuffer_reuses", "framebuffer_bytes_allocated",

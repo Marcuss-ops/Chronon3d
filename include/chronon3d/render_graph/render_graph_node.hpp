@@ -101,7 +101,8 @@ struct RenderGraphContext {
         int w,
         int h,
         bool clear = true,
-        std::optional<raster::BBox> bounds = std::nullopt
+        std::optional<raster::BBox> bounds = std::nullopt,
+        std::atomic<uint64_t>* specific_clear_ms = nullptr
     ) const {
         auto resolve_clear_clip = [&](Framebuffer& fb) -> std::optional<raster::BBox> {
             if (!clear) {
@@ -135,9 +136,12 @@ struct RenderGraphContext {
                 fb->clear(Color::transparent(), local_clip);
                 const auto t_clr1 = std::chrono::high_resolution_clock::now();
                 if (counters) {
-                    counters->framebuffer_clear_ms.fetch_add(
-                        static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t_clr1 - t_clr0).count()),
-                        std::memory_order_relaxed);
+                    const auto elapsed = static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t_clr1 - t_clr0).count());
+                    counters->framebuffer_clear_ms.fetch_add(elapsed, std::memory_order_relaxed);
+                    if (specific_clear_ms) {
+                        specific_clear_ms->fetch_add(elapsed, std::memory_order_relaxed);
+                    }
+                    
                     counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
                     const uint64_t pixels = local_clip
                         ? static_cast<uint64_t>(std::max(0, local_clip->x1 - local_clip->x0)) *
@@ -200,6 +204,7 @@ struct RenderGraphContext {
     bool optimize_compositing{true};
     bool dirty_rects_enabled{false};
     bool reuse_prev_framebuffer{false};
+    bool skip_initial_clear{false};
 
     // ── Per-node / per-layer telemetry collectors ────────────────────────────
     // Populated during graph execution; flushed via TelemetryManager after frame.

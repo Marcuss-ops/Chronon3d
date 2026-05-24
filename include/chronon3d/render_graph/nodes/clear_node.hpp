@@ -43,6 +43,11 @@ public:
     ) override {
         auto* sw_renderer = dynamic_cast<SoftwareRenderer*>(ctx.backend);
         bool use_dirty_rects = sw_renderer && ctx.reuse_prev_framebuffer && sw_renderer->m_prev_framebuffer;
+        const bool skip_clear = ctx.skip_initial_clear && !use_dirty_rects;
+        const uint64_t clear_pixels = ctx.clip_rect
+            ? static_cast<uint64_t>(std::max(0, ctx.clip_rect->x1 - ctx.clip_rect->x0)) *
+              static_cast<uint64_t>(std::max(0, ctx.clip_rect->y1 - ctx.clip_rect->y0))
+            : static_cast<uint64_t>(ctx.width) * static_cast<uint64_t>(ctx.height);
 
         if (sw_renderer && ctx.diagnostics_enabled) {
             spdlog::info(
@@ -62,17 +67,31 @@ public:
         if (use_dirty_rects) {
             auto fb = std::move(sw_renderer->m_prev_framebuffer);
             if (ctx.counters) {
+                if (skip_clear) {
+                    ctx.counters->clear_skipped_calls.fetch_add(1, std::memory_order_relaxed);
+                    ctx.counters->clear_skipped_pixels.fetch_add(clear_pixels, std::memory_order_relaxed);
+                }
                 ctx.counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
-                const uint64_t area = ctx.clip_rect
-                    ? static_cast<uint64_t>(std::max(0, ctx.clip_rect->x1 - ctx.clip_rect->x0)) *
-                      static_cast<uint64_t>(std::max(0, ctx.clip_rect->y1 - ctx.clip_rect->y0))
-                    : static_cast<uint64_t>(ctx.width) * static_cast<uint64_t>(ctx.height);
-                ctx.counters->clear_pixels.fetch_add(area, std::memory_order_relaxed);
+                ctx.counters->clear_pixels.fetch_add(clear_pixels, std::memory_order_relaxed);
             }
+            const auto t0 = std::chrono::high_resolution_clock::now();
             fb->clear(Color::transparent(), ctx.clip_rect);
+            const auto t1 = std::chrono::high_resolution_clock::now();
+            if (ctx.counters) {
+                const auto elapsed = static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t1 - t0).count());
+                ctx.counters->clearnode_ms.fetch_add(elapsed, std::memory_order_relaxed);
+                ctx.counters->framebuffer_clear_ms.fetch_add(elapsed, std::memory_order_relaxed);
+            }
             return fb;
         } else {
-            auto fb = ctx.acquire_framebuffer(ctx.width, ctx.height, true);
+            auto fb = ctx.acquire_framebuffer(ctx.width, ctx.height, !skip_clear, std::nullopt, ctx.counters ? &ctx.counters->clearnode_ms : nullptr);
+            if (skip_clear) {
+                if (ctx.counters) {
+                    ctx.counters->clear_skipped_calls.fetch_add(1, std::memory_order_relaxed);
+                    ctx.counters->clear_skipped_pixels.fetch_add(clear_pixels, std::memory_order_relaxed);
+                }
+                fb->set_opaque(false);
+            }
             return fb;
         }
     }

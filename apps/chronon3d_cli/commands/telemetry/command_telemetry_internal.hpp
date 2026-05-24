@@ -41,6 +41,8 @@ struct RunSummary {
     uint64_t tiles_partial{0};
     uint64_t bytes_allocated_peak{0};
     uint64_t node_cache_hash_collisions{0};
+    uint64_t clear_skipped_calls{0};
+    uint64_t clear_skipped_pixels{0};
     uint64_t clear_calls{0};
     uint64_t clear_pixels{0};
     uint64_t composite_calls{0};

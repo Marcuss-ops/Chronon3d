@@ -80,92 +80,126 @@ bool FfmpegPipeEncoder::write_frame(const Framebuffer& fb) {
     uint8_t* target_buffer = nullptr;
     size_t bytes_to_write = 0;
     bool ok = false;
+    const u64 frame_digest = fb.key_digest();
+    const bool can_cache_frame = options_.pipe_writer != "io_uring" && frame_digest != 0;
+    const bool cache_hit = can_cache_frame &&
+        cached_frame_valid_ &&
+        cached_frame_digest_ == frame_digest &&
+        cached_frame_format_ == options_.input_format &&
+        cached_frame_size_ > 0;
 
     const auto t_conv0 = std::chrono::high_resolution_clock::now();
-    switch (options_.input_format) {
-        case PipePixelFormat::YUV420P: {
+    if (cache_hit) {
+        target_buffer = cached_frame_bytes_.data();
+        bytes_to_write = cached_frame_size_;
+        ok = true;
+    } else {
+        switch (options_.input_format) {
+            case PipePixelFormat::YUV420P: {
 #ifdef __linux__
-            if (use_uring_) {
-                while (pending_writes_count_ >= kRingEntries) {
-                    reap_completed_uring(true);
-                }
-                size_t buf_idx = ring_buffer_index_;
-                while (ring_buffer_pending_[buf_idx]) {
-                    reap_completed_uring(true);
-                    buf_idx = ring_buffer_index_;
-                }
-                target_buffer = ring_buffers_[buf_idx].data();
-                ok = convert_framebuffer_to_yuv420p(fb, target_buffer);
-                if (ok) {
-                    ring_buffer_pending_[buf_idx] = true;
-                    ring_buffer_bytes_written_[buf_idx] = 0;
-                    ring_buffer_index_ = (buf_idx + 1) % kRingEntries;
-                }
-            } else
+                if (use_uring_) {
+                    while (pending_writes_count_ >= kRingEntries) {
+                        reap_completed_uring(true);
+                    }
+                    size_t buf_idx = ring_buffer_index_;
+                    while (ring_buffer_pending_[buf_idx]) {
+                        reap_completed_uring(true);
+                        buf_idx = ring_buffer_index_;
+                    }
+                    target_buffer = ring_buffers_[buf_idx].data();
+                    ok = convert_framebuffer_to_yuv420p(fb, target_buffer);
+                    if (ok) {
+                        ring_buffer_pending_[buf_idx] = true;
+                        ring_buffer_bytes_written_[buf_idx] = 0;
+                        ring_buffer_index_ = (buf_idx + 1) % kRingEntries;
+                    }
+                } else
 #endif
-            {
-                ok = convert_framebuffer_to_yuv420p(fb, nullptr);
-                target_buffer = yuv_buffer_.data();
-                bytes_to_write = yuv_buffer_.size();
+                {
+                    const size_t req_size = static_cast<size_t>(options_.width) * static_cast<size_t>(options_.height) * 3u / 2u;
+                    cached_frame_bytes_.resize(req_size);
+                    ok = convert_framebuffer_to_yuv420p(fb, cached_frame_bytes_.data());
+                    if (ok) {
+                        cached_frame_size_ = req_size;
+                        target_buffer = cached_frame_bytes_.data();
+                        bytes_to_write = cached_frame_size_;
+                    }
+                }
+                break;
             }
-            break;
-        }
-        case PipePixelFormat::NV12: {
+            case PipePixelFormat::NV12: {
 #ifdef __linux__
-            if (use_uring_) {
-                while (pending_writes_count_ >= kRingEntries) {
-                    reap_completed_uring(true);
-                }
-                size_t buf_idx = ring_buffer_index_;
-                while (ring_buffer_pending_[buf_idx]) {
-                    reap_completed_uring(true);
-                    buf_idx = ring_buffer_index_;
-                }
-                target_buffer = ring_buffers_[buf_idx].data();
-                ok = convert_framebuffer_to_nv12(fb, target_buffer);
-                if (ok) {
-                    ring_buffer_pending_[buf_idx] = true;
-                    ring_buffer_bytes_written_[buf_idx] = 0;
-                    ring_buffer_index_ = (buf_idx + 1) % kRingEntries;
-                }
-            } else
+                if (use_uring_) {
+                    while (pending_writes_count_ >= kRingEntries) {
+                        reap_completed_uring(true);
+                    }
+                    size_t buf_idx = ring_buffer_index_;
+                    while (ring_buffer_pending_[buf_idx]) {
+                        reap_completed_uring(true);
+                        buf_idx = ring_buffer_index_;
+                    }
+                    target_buffer = ring_buffers_[buf_idx].data();
+                    ok = convert_framebuffer_to_nv12(fb, target_buffer);
+                    if (ok) {
+                        ring_buffer_pending_[buf_idx] = true;
+                        ring_buffer_bytes_written_[buf_idx] = 0;
+                        ring_buffer_index_ = (buf_idx + 1) % kRingEntries;
+                    }
+                } else
 #endif
-            {
-                ok = convert_framebuffer_to_nv12(fb, nullptr);
-                target_buffer = yuv_buffer_.data();
-                bytes_to_write = yuv_buffer_.size();
+                {
+                    const size_t req_size = static_cast<size_t>(options_.width) * static_cast<size_t>(options_.height) * 3u / 2u;
+                    cached_frame_bytes_.resize(req_size);
+                    ok = convert_framebuffer_to_nv12(fb, cached_frame_bytes_.data());
+                    if (ok) {
+                        cached_frame_size_ = req_size;
+                        target_buffer = cached_frame_bytes_.data();
+                        bytes_to_write = cached_frame_size_;
+                    }
+                }
+                break;
             }
-            break;
-        }
-        case PipePixelFormat::RGBA: {
+            case PipePixelFormat::RGBA: {
 #ifdef __linux__
-            if (use_uring_) {
-                while (pending_writes_count_ >= kRingEntries) {
-                    reap_completed_uring(true);
-                }
-                size_t buf_idx = ring_buffer_index_;
-                while (ring_buffer_pending_[buf_idx]) {
-                    reap_completed_uring(true);
-                    buf_idx = ring_buffer_index_;
-                }
-                target_buffer = ring_buffers_[buf_idx].data();
-                ok = convert_framebuffer_to_rgba(fb, target_buffer);
-                if (ok) {
-                    ring_buffer_pending_[buf_idx] = true;
-                    ring_buffer_bytes_written_[buf_idx] = 0;
-                    ring_buffer_index_ = (buf_idx + 1) % kRingEntries;
-                }
-            } else
+                if (use_uring_) {
+                    while (pending_writes_count_ >= kRingEntries) {
+                        reap_completed_uring(true);
+                    }
+                    size_t buf_idx = ring_buffer_index_;
+                    while (ring_buffer_pending_[buf_idx]) {
+                        reap_completed_uring(true);
+                        buf_idx = ring_buffer_index_;
+                    }
+                    target_buffer = ring_buffers_[buf_idx].data();
+                    ok = convert_framebuffer_to_rgba(fb, target_buffer);
+                    if (ok) {
+                        ring_buffer_pending_[buf_idx] = true;
+                        ring_buffer_bytes_written_[buf_idx] = 0;
+                        ring_buffer_index_ = (buf_idx + 1) % kRingEntries;
+                    }
+                } else
 #endif
-            {
-                ok = convert_framebuffer_to_rgba(fb, nullptr);
-                target_buffer = rgba_buffer_.data();
-                bytes_to_write = rgba_buffer_.size();
+                {
+                    const size_t req_size = static_cast<size_t>(options_.width) * static_cast<size_t>(options_.height) * 4u;
+                    cached_frame_bytes_.resize(req_size);
+                    ok = convert_framebuffer_to_rgba(fb, cached_frame_bytes_.data());
+                    if (ok) {
+                        cached_frame_size_ = req_size;
+                        target_buffer = cached_frame_bytes_.data();
+                        bytes_to_write = cached_frame_size_;
+                    }
+                }
+                break;
             }
-            break;
+            default:
+                return false;
         }
-        default:
-            return false;
+
+        if (ok && !use_uring_) {
+            cached_frame_digest_ = frame_digest;
+            cached_frame_format_ = options_.input_format;
+            cached_frame_valid_ = true;
+        }
     }
     const auto t_conv1 = std::chrono::high_resolution_clock::now();
     if (profiling::g_current_counters) {

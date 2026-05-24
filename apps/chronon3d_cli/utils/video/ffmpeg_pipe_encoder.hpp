@@ -56,6 +56,11 @@ private:
     FfmpegPipeOptions options_{};
     std::vector<uint8_t> rgba_buffer_;
     std::vector<uint8_t> yuv_buffer_;
+    std::vector<uint8_t> cached_frame_bytes_;
+    u64 cached_frame_digest_{0};
+    size_t cached_frame_size_{0};
+    PipePixelFormat cached_frame_format_{PipePixelFormat::RGBA};
+    bool cached_frame_valid_{false};
     uint64_t frames_written_{0};
     uint64_t bytes_written_{0};
     double total_write_blocked_ms_{0.0};
