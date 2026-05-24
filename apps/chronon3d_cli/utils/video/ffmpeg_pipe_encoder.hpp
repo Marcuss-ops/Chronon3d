@@ -87,13 +87,14 @@ private:
     unsigned sq_mask_{0};
     unsigned cq_mask_{0};
 
-    static constexpr size_t kRingEntries = 8;
+    static constexpr size_t kRingEntries = 16;
     std::vector<std::vector<uint8_t>> ring_buffers_;
     std::vector<bool> ring_buffer_pending_;
     std::vector<size_t> ring_buffer_bytes_written_;
     size_t ring_buffer_index_{0};
     size_t ring_buffer_size_{0};
     uint64_t pending_writes_count_{0};
+    bool buffers_registered_{false};
 
     bool init_uring();
     void cleanup_uring();
