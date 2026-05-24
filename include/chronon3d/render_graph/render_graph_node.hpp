@@ -131,8 +131,13 @@ struct RenderGraphContext {
             }
             if (clear) {
                 const auto local_clip = resolve_clear_clip(*fb);
+                const auto t_clr0 = std::chrono::high_resolution_clock::now();
                 fb->clear(Color::transparent(), local_clip);
+                const auto t_clr1 = std::chrono::high_resolution_clock::now();
                 if (counters) {
+                    counters->framebuffer_clear_ms.fetch_add(
+                        static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t_clr1 - t_clr0).count()),
+                        std::memory_order_relaxed);
                     counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
                     const uint64_t pixels = local_clip
                         ? static_cast<uint64_t>(std::max(0, local_clip->x1 - local_clip->x0)) *

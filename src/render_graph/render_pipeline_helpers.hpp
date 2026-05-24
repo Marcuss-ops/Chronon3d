@@ -96,6 +96,13 @@ namespace chronon3d::graph {
         row.dirty_full_fallback_effect_bounds_unknown =
             counters->dirty_full_fallback_reasons[static_cast<std::size_t>(DirtyFallbackReason::EffectBoundsUnknown)]
                 .load(std::memory_order_relaxed);
+        row.framebuffer_acquire_ms = counters->framebuffer_acquire_ms.load(std::memory_order_relaxed);
+        row.framebuffer_clear_ms = counters->framebuffer_clear_ms.load(std::memory_order_relaxed);
+        row.framebuffer_enqueue_ms = counters->framebuffer_enqueue_ms.load(std::memory_order_relaxed);
+        row.framebuffer_pool_miss_count_size_mismatch = counters->framebuffer_pool_miss_count_size_mismatch.load(std::memory_order_relaxed);
+        row.framebuffer_pool_miss_count_empty = counters->framebuffer_pool_miss_count_empty.load(std::memory_order_relaxed);
+        row.framebuffer_buffer_returned_to_pool_count = counters->framebuffer_buffer_returned_to_pool_count.load(std::memory_order_relaxed);
+        row.frame_conversion_copy_ms = counters->frame_conversion_copy_ms.load(std::memory_order_relaxed);
     }
     return row;
 }

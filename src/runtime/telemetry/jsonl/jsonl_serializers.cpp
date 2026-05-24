@@ -60,6 +60,14 @@ nlohmann::json serialize_run(const RenderTelemetryRecord& run) {
     j["dirty_full_fallback_transform_bounds_unknown"] = run.dirty_full_fallback_transform_bounds_unknown;
     j["dirty_full_fallback_effect_bounds_unknown"] = run.dirty_full_fallback_effect_bounds_unknown;
 
+    j["framebuffer_acquire_ms"] = run.framebuffer_acquire_ms;
+    j["framebuffer_clear_ms"] = run.framebuffer_clear_ms;
+    j["framebuffer_enqueue_ms"] = run.framebuffer_enqueue_ms;
+    j["framebuffer_pool_miss_count_size_mismatch"] = run.framebuffer_pool_miss_count_size_mismatch;
+    j["framebuffer_pool_miss_count_empty"] = run.framebuffer_pool_miss_count_empty;
+    j["framebuffer_buffer_returned_to_pool_count"] = run.framebuffer_buffer_returned_to_pool_count;
+    j["frame_conversion_copy_ms"] = run.frame_conversion_copy_ms;
+
     // Host & Environment specs
     j["started_at_iso"] = run.started_at_iso;
     j["finished_at_iso"] = run.finished_at_iso;

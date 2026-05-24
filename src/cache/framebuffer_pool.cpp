@@ -45,10 +45,25 @@ void FramebufferPool::set_arena(std::shared_ptr<FramebufferArena> arena) {
 }
 
 std::shared_ptr<Framebuffer> FramebufferPool::acquire(int width, int height, bool clear) {
-    CHRONON_ZONE_C("framebuffer_acquire", trace_category::kPipeline);
+    const auto t0 = std::chrono::high_resolution_clock::now();
     auto fb = acquire_unique(width, height);
+    const auto t1 = std::chrono::high_resolution_clock::now();
+
+    if (profiling::g_current_counters) {
+        profiling::g_current_counters->framebuffer_acquire_ms.fetch_add(
+            static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t1 - t0).count()),
+            std::memory_order_relaxed);
+    }
+
     if (clear) {
+        const auto tc0 = std::chrono::high_resolution_clock::now();
         fb->clear(Color::transparent());
+        const auto tc1 = std::chrono::high_resolution_clock::now();
+        if (profiling::g_current_counters) {
+            profiling::g_current_counters->framebuffer_clear_ms.fetch_add(
+                static_cast<uint64_t>(std::chrono::duration<double, std::milli>(tc1 - tc0).count()),
+                std::memory_order_relaxed);
+        }
     }
     auto weak_pool = weak_from_this();
     return std::shared_ptr<Framebuffer>(fb.release(), [weak_pool](Framebuffer* ptr) {
@@ -79,10 +94,17 @@ std::unique_ptr<Framebuffer> FramebufferPool::acquire_unique(int width, int heig
             }
             fb->resize_logical(width, height);
             return fb;
+        } else {
+            if (profiling::g_current_counters) {
+                if (it == m_free.end()) {
+                    profiling::g_current_counters->framebuffer_pool_miss_count_size_mismatch.fetch_add(1, std::memory_order_relaxed);
+                } else {
+                    profiling::g_current_counters->framebuffer_pool_miss_count_empty.fetch_add(1, std::memory_order_relaxed);
+                }
+            }
         }
     }
 
-    /*
     if (m_arena) {
         void* ptr = m_arena->allocate(static_cast<size_t>(rounded_w) * rounded_h * sizeof(Color));
         if (ptr) {
@@ -91,7 +113,6 @@ std::unique_ptr<Framebuffer> FramebufferPool::acquire_unique(int width, int heig
             return fb;
         }
     }
-    */
 
     auto fb = std::make_unique<Framebuffer>(rounded_w, rounded_h);
     fb->resize_logical(width, height);
@@ -140,6 +161,10 @@ void FramebufferPool::release(Framebuffer* fb) {
     FramebufferPoolKey key{alloc_w, alloc_h};
     m_current_bytes += weight;
     m_free[key].push_back(std::move(owned));
+
+    if (profiling::g_current_counters) {
+        profiling::g_current_counters->framebuffer_buffer_returned_to_pool_count.fetch_add(1, std::memory_order_relaxed);
+    }
 }
 
 void FramebufferPool::clear() {

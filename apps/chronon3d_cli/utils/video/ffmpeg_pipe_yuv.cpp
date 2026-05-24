@@ -1,7 +1,9 @@
 #include "ffmpeg_pipe_encoder.hpp"
 #include <chronon3d/math/color.hpp>
+#include <chronon3d/simd/kernels.hpp>
 #include <algorithm>
 #include <array>
+#include <tbb/parallel_for.h>
 
 namespace chronon3d::cli {
 
@@ -21,18 +23,27 @@ bool FfmpegPipeEncoder::convert_framebuffer_to_rgba(const Framebuffer& fb, uint8
     const Color* src = fb.data();
     uint8_t* dst_ptr = dst ? dst : rgba_buffer_.data();
 
-    for (size_t i = 0; i < count; ++i) {
-        const auto rgb = color::linear_to_output_rgb8(src[i], options_.color_transform);
-        dst_ptr[i * 4 + 0] = rgb.r;
-        dst_ptr[i * 4 + 1] = rgb.g;
-        dst_ptr[i * 4 + 2] = rgb.b;
-        // Alpha is not gamma-encoded — store as-is
-        dst_ptr[i * 4 + 3] = Color::linear_to_srgb8(src[i].a);
+    const auto& transform = options_.color_transform;
+
+    if (transform.apply_gamma && transform.output == color::ColorSpace::SRGB) {
+        // Use SIMD kernel for fast linear-to-sRGB-ish conversion
+        simd::convert_f32_rgba_to_u8_rgba(dst_ptr, src, static_cast<int>(count));
+    } else {
+        tbb::parallel_for(tbb::blocked_range<size_t>(0, count, 4096),
+            [&](const tbb::blocked_range<size_t>& r) {
+                for (size_t i = r.begin(); i < r.end(); ++i) {
+                    const auto rgb = color::linear_to_output_rgb8(src[i], transform);
+                    dst_ptr[i * 4 + 0] = rgb.r;
+                    dst_ptr[i * 4 + 1] = rgb.g;
+                    dst_ptr[i * 4 + 2] = rgb.b;
+                    // Alpha is not gamma-encoded — store as-is
+                    dst_ptr[i * 4 + 3] = Color::linear_to_srgb8(src[i].a);
+                }
+            });
     }
 
     return true;
 }
-
 // BT.709 coefficients for HD content
 // Y =  0.2126 R + 0.7152 G + 0.0722 B
 // U = -0.1146 R - 0.3854 G + 0.5000 B + 128
@@ -61,62 +72,69 @@ bool FfmpegPipeEncoder::convert_framebuffer_to_yuv420p(const Framebuffer& fb, ui
     uint8_t* v_ptr = dst ? (dst + y_size + uv_size) : v_plane_.data();
 
     const Color* src = fb.data();
+    const auto& transform = options_.color_transform;
 
     // Float-level transform avoids uint8 round-trip, preserving precision
     auto srgb_float = [&](const Color& c) -> std::array<float, 3> {
-        return color::linear_to_output_rgb_float(c, options_.color_transform);
+        return color::linear_to_output_rgb_float(c, transform);
     };
 
     // Luma plane (full resolution)
-    for (int y = 0; y < h; ++y) {
-        for (int x = 0; x < w; ++x) {
-            const Color& c = src[static_cast<size_t>(y) * static_cast<size_t>(w) + static_cast<size_t>(x)];
-            const auto srgb = srgb_float(c);
-            const float r = srgb[0];
-            const float g = srgb[1];
-            const float b = srgb[2];
-
-            float yy = 0.2126f * r + 0.7152f * g + 0.0722f * b;
-            yy = std::clamp(yy, 0.0f, 1.0f);
-
-            y_ptr[static_cast<size_t>(y) * static_cast<size_t>(w) + static_cast<size_t>(x)] =
-                static_cast<uint8_t>(yy * 219.0f + 16.0f + 0.5f);
-        }
-    }
-
-    // Chroma planes (2x2 subsampled)
-    for (int y = 0; y < h / 2; ++y) {
-        for (int x = 0; x < w / 2; ++x) {
-            // Average 2x2 block
-            const int base_x = x * 2;
-            const int base_y = y * 2;
-
-            float r_sum = 0.0f, g_sum = 0.0f, b_sum = 0.0f;
-            for (int dy = 0; dy < 2; ++dy) {
-                for (int dx = 0; dx < 2; ++dx) {
-                    const Color& c = src[static_cast<size_t>(base_y + dy) * static_cast<size_t>(w) + static_cast<size_t>(base_x + dx)];
+    tbb::parallel_for(tbb::blocked_range<int>(0, h),
+        [&](const tbb::blocked_range<int>& r) {
+            for (int y = r.begin(); y < r.end(); ++y) {
+                for (int x = 0; x < w; ++x) {
+                    const Color& c = src[static_cast<size_t>(y) * static_cast<size_t>(w) + static_cast<size_t>(x)];
                     const auto srgb = srgb_float(c);
-                    r_sum += srgb[0];
-                    g_sum += srgb[1];
-                    b_sum += srgb[2];
+                    const float r = srgb[0];
+                    const float g = srgb[1];
+                    const float b = srgb[2];
+
+                    float yy = 0.2126f * r + 0.7152f * g + 0.0722f * b;
+                    yy = std::clamp(yy, 0.0f, 1.0f);
+
+                    y_ptr[static_cast<size_t>(y) * static_cast<size_t>(w) + static_cast<size_t>(x)] =
+                        static_cast<uint8_t>(yy * 219.0f + 16.0f + 0.5f);
                 }
             }
+        });
 
-            const float r = r_sum / 4.0f;
-            const float g = g_sum / 4.0f;
-            const float b = b_sum / 4.0f;
+    // Chroma planes (2x2 subsampled)
+    tbb::parallel_for(tbb::blocked_range<int>(0, h / 2),
+        [&](const tbb::blocked_range<int>& r) {
+            for (int y = r.begin(); y < r.end(); ++y) {
+                for (int x = 0; x < w / 2; ++x) {
+                    // Average 2x2 block
+                    const int base_x = x * 2;
+                    const int base_y = y * 2;
 
-            float uu = -0.1146f * r - 0.3854f * g + 0.5000f * b;
-            uu = std::clamp(uu, -0.5f, 0.5f);
-            u_ptr[static_cast<size_t>(y) * static_cast<size_t>(w / 2) + static_cast<size_t>(x)] =
-                static_cast<uint8_t>(uu * 224.0f + 128.0f + 0.5f);
+                    float r_sum = 0.0f, g_sum = 0.0f, b_sum = 0.0f;
+                    for (int dy = 0; dy < 2; ++dy) {
+                        for (int dx = 0; dx < 2; ++dx) {
+                            const Color& c = src[static_cast<size_t>(base_y + dy) * static_cast<size_t>(w) + static_cast<size_t>(base_x + dx)];
+                            const auto srgb = srgb_float(c);
+                            r_sum += srgb[0];
+                            g_sum += srgb[1];
+                            b_sum += srgb[2];
+                        }
+                    }
 
-            float vv = 0.5000f * r - 0.4542f * g - 0.0458f * b;
-            vv = std::clamp(vv, -0.5f, 0.5f);
-            v_ptr[static_cast<size_t>(y) * static_cast<size_t>(w / 2) + static_cast<size_t>(x)] =
-                static_cast<uint8_t>(vv * 224.0f + 128.0f + 0.5f);
-        }
-    }
+                    const float r = r_sum / 4.0f;
+                    const float g = g_sum / 4.0f;
+                    const float b = b_sum / 4.0f;
+
+                    float uu = -0.1146f * r - 0.3854f * g + 0.5000f * b;
+                    uu = std::clamp(uu, -0.5f, 0.5f);
+                    u_ptr[static_cast<size_t>(y) * static_cast<size_t>(w / 2) + static_cast<size_t>(x)] =
+                        static_cast<uint8_t>(uu * 224.0f + 128.0f + 0.5f);
+
+                    float vv = 0.5000f * r - 0.4542f * g - 0.0458f * b;
+                    vv = std::clamp(vv, -0.5f, 0.5f);
+                    v_ptr[static_cast<size_t>(y) * static_cast<size_t>(w / 2) + static_cast<size_t>(x)] =
+                        static_cast<uint8_t>(vv * 224.0f + 128.0f + 0.5f);
+                }
+            }
+        });
 
     return true;
 }
