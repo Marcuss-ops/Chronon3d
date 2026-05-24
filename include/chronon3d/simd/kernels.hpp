@@ -67,7 +67,8 @@ void convert_f32_rgba_to_yuv420p_simd_rows(
     uint8_t* __restrict__ v_ptr,
     const Color* __restrict__ src,
     int width, int height,
-    int y_start, int y_end);
+    int y_start, int y_end,
+    bool apply_gamma);
 
 /**
  * @brief SIMD conversion from F32 RGBA to NV12 (Bi-planar), row-range aware.
@@ -77,7 +78,8 @@ void convert_f32_rgba_to_nv12_simd_rows(
     uint8_t* __restrict__ uv_ptr,
     const Color* __restrict__ src,
     int width, int height,
-    int y_start, int y_end);
+    int y_start, int y_end,
+    bool apply_gamma);
 
 } // namespace simd
 } // namespace chronon3d
