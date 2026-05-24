@@ -64,11 +64,24 @@ nlohmann::json serialize_run(const RenderTelemetryRecord& run) {
 
     j["framebuffer_acquire_ms"] = run.framebuffer_acquire_ms;
     j["framebuffer_clear_ms"] = run.framebuffer_clear_ms;
+    j["clearnode_ms"] = run.clearnode_ms;
+    j["framebuffer_pool_clear_ms"] = run.framebuffer_pool_clear_ms;
     j["framebuffer_enqueue_ms"] = run.framebuffer_enqueue_ms;
     j["framebuffer_pool_miss_count_size_mismatch"] = run.framebuffer_pool_miss_count_size_mismatch;
     j["framebuffer_pool_miss_count_empty"] = run.framebuffer_pool_miss_count_empty;
+    j["framebuffer_pool_hits"] = run.framebuffer_pool_hits;
     j["framebuffer_buffer_returned_to_pool_count"] = run.framebuffer_buffer_returned_to_pool_count;
+    j["unaligned_memory_copies"] = run.unaligned_memory_copies;
     j["frame_conversion_copy_ms"] = run.frame_conversion_copy_ms;
+    j["video_graph_eval_ms"] = run.video_graph_eval_ms;
+    j["video_conversion_ms"] = run.video_conversion_ms;
+    j["video_pipe_write_ms"] = run.video_pipe_write_ms;
+    j["video_ffmpeg_latency_ms"] = run.video_ffmpeg_latency_ms;
+    j["io_queue_push_blocked_ms"] = run.io_queue_push_blocked_ms;
+    j["io_queue_pop_wait_ms"] = run.io_queue_pop_wait_ms;
+    j["io_queue_peak_depth"] = run.io_queue_peak_depth;
+    j["ffmpeg_pipe_write_blocked_ms"] = run.ffmpeg_pipe_write_blocked_ms;
+    j["ffmpeg_flush_ms"] = run.ffmpeg_flush_ms;
 
     // Benchmark times
     j["chronon_render_only_ms"] = run.chronon_render_only_ms;

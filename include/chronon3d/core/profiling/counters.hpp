@@ -78,7 +78,8 @@ namespace chronon3d {
     X(io_queue_push_blocked_ms) \
     X(io_queue_pop_wait_ms) \
     X(io_queue_peak_depth) \
-    X(ffmpeg_pipe_write_blocked_ms)
+    X(ffmpeg_pipe_write_blocked_ms) \
+    X(ffmpeg_flush_ms)
 
 
 struct RenderCounters {
