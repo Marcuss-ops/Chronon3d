@@ -7,7 +7,7 @@
 #include <chronon3d/math/vec3.hpp>
 #include <chronon3d/math/mat4.hpp>
 #include <chronon3d/rendering/projected_card.hpp>
-#include <chronon3d/core/types.hpp>
+#include <chronon3d/core/types/types.hpp>
 #include <cmath>
 
 namespace chronon3d::renderer {

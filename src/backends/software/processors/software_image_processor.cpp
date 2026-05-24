@@ -1,7 +1,7 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/software/shape_processor.hpp>
-#include <chronon3d/core/counters.hpp>
-#include <chronon3d/core/profiling.hpp>
+#include <chronon3d/core/profiling/counters.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
 #include "../utils/render_effects_processor.hpp"
 
 namespace chronon3d::renderer {

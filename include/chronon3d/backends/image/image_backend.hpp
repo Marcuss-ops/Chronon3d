@@ -1,6 +1,6 @@
 #pragma once
 
-#include <chronon3d/core/types.hpp>
+#include <chronon3d/core/types/types.hpp>
 #include <string>
 #include <memory>
 #include <vector>

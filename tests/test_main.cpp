@@ -1,7 +1,7 @@
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest/doctest.h>
 #include <chronon3d/assets/asset_registry.hpp>
-#include <chronon3d/core/profiling.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <spdlog/spdlog.h>
 
 int main(int argc, char** argv) {

@@ -9,7 +9,7 @@
 #include <chronon3d/backends/software/builtin_processors.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <optional>
-#include <chronon3d/core/profiling.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <spdlog/spdlog.h>
 #include "rasterizers/line_rasterizer.hpp"
 #include "rasterizers/shape_rasterizer.hpp"

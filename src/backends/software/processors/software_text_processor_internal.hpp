@@ -3,7 +3,7 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/software/shape_processor.hpp>
 #include <chronon3d/backends/text/text_rasterizer_utils.hpp>
-#include <chronon3d/core/counters.hpp>
+#include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/render_graph/render_graph_hashing.hpp>
 #include <chronon3d/cache/lru_cache.hpp>
 #include <blend2d.h>
@@ -22,6 +22,9 @@ CacheKey hash_glow_params(const RenderNode& node, float effective_size);
 CacheKey hash_shadow_params(const RenderNode& node, float effective_size, size_t index);
 
 size_t resolve_cache_max_mb(const char* env_name, size_t default_mb);
+extern std::mutex g_text_shadow_cache_mutex;
+extern std::mutex g_text_glow_cache_mutex;
+
 ShadowCache& get_shadow_cache();
 ShadowCache& get_glow_cache();
 

@@ -8,8 +8,8 @@
 // NOT for inclusion outside the effects implementation files.
 // ---------------------------------------------------------------------------
 
-#include <chronon3d/core/framebuffer.hpp>
-#include <chronon3d/core/profiling.hpp>
+#include <chronon3d/core/memory/framebuffer.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/cache/framebuffer_pool.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/scene/effects/layer_effect.hpp>

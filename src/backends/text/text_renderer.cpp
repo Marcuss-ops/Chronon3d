@@ -3,7 +3,7 @@
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/math/transform.hpp>
-#include <chronon3d/core/framebuffer.hpp>
+#include <chronon3d/core/memory/framebuffer.hpp>
 #include <spdlog/spdlog.h>
 #include "../software/utils/blend2d_bridge.hpp"
 

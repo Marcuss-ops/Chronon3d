@@ -1,9 +1,9 @@
 #pragma once
 
 #include <chronon3d/cache/lru_cache.hpp>
-#include <chronon3d/core/frame.hpp>
-#include <chronon3d/core/types.hpp>
-#include <chronon3d/core/framebuffer.hpp>
+#include <chronon3d/core/types/frame.hpp>
+#include <chronon3d/core/types/types.hpp>
+#include <chronon3d/core/memory/framebuffer.hpp>
 #include <memory>
 #include <string>
 

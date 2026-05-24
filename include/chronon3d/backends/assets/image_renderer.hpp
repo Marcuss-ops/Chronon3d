@@ -1,7 +1,7 @@
 #pragma once
 
 #include <chronon3d/scene/shape.hpp>
-#include <chronon3d/core/framebuffer.hpp>
+#include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/math/transform.hpp>
 #include <chronon3d/backends/assets/image_cache.hpp>
 

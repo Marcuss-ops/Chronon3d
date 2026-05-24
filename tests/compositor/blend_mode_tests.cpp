@@ -1,8 +1,8 @@
 #include <doctest/doctest.h>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/backends/software/software_compositor.hpp>
-#include <chronon3d/core/framebuffer.hpp>
-#include <chronon3d/core/trace.hpp>
+#include <chronon3d/core/memory/framebuffer.hpp>
+#include <chronon3d/core/profiling/trace.hpp>
 
 using namespace chronon3d;
 using namespace chronon3d::compositor;

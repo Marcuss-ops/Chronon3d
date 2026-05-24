@@ -3,7 +3,7 @@
 #include <chronon3d/render_graph/nodes/basic_nodes.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
-#include <chronon3d/core/composition_registry.hpp>
+#include <chronon3d/core/composition/composition_registry.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/render_graph/nodes/transform_node.hpp>
 #include <chronon3d/scene/layer/render_node.hpp>

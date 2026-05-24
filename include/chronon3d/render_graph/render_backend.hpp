@@ -1,6 +1,6 @@
 #pragma once
 
-#include <chronon3d/core/framebuffer.hpp>
+#include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/scene/camera/camera.hpp>
 #include <chronon3d/scene/effects/effect_stack.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>

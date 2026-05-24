@@ -1,6 +1,6 @@
 // include/chronon3d/rendering/shadow_settings.hpp
 #pragma once
-#include <chronon3d/core/types.hpp>
+#include <chronon3d/core/types/types.hpp>
 
 namespace chronon3d::rendering {
 

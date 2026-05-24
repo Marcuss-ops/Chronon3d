@@ -1,10 +1,11 @@
 #pragma once
 
-#include <chronon3d/core/frame.hpp>
-#include <chronon3d/core/frame_context.hpp>
+#include <chronon3d/core/types/frame.hpp>
+#include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/math/transform.hpp>
 #include <chronon3d/scene/builders/builder_params.hpp>
+#include <chronon3d/scene/builders/camera_api.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/registry/shape_registry.hpp>
 #include <chronon3d/scene/camera/camera_2_5d.hpp>
@@ -22,95 +23,6 @@ namespace chronon3d {
 
     class SceneBuilder {
       public:
-        class CameraApi {
-          public:
-            explicit CameraApi(SceneBuilder& owner)
-                : owner_(&owner) {}
-
-            CameraApi& set(Camera2_5D camera) {
-                owner_->set_camera(std::move(camera));
-                return *this;
-            }
-
-            CameraApi& enable(bool enabled = true) {
-                owner_->edit_camera([&](Camera2_5D& cam) { cam.enabled = enabled; });
-                return *this;
-            }
-
-            CameraApi& position(Vec3 p) {
-                owner_->edit_camera([&](Camera2_5D& cam) { cam.position = p; });
-                return *this;
-            }
-
-            CameraApi& zoom(f32 value) {
-                owner_->edit_camera([&](Camera2_5D& cam) { cam.zoom = value; });
-                return *this;
-            }
-
-            CameraApi& fov(f32 fov_deg) {
-                owner_->edit_camera([&](Camera2_5D& cam) {
-                    cam.fov_deg = fov_deg;
-                    cam.projection_mode = Camera2_5DProjectionMode::Fov;
-                });
-                return *this;
-            }
-
-            CameraApi& dof(DepthOfFieldSettings value) {
-                owner_->edit_camera([&](Camera2_5D& cam) { cam.dof = value; });
-                return *this;
-            }
-
-            CameraApi& parent(std::string name) {
-                owner_->edit_camera([&](Camera2_5D& cam) {
-                    cam.parent_name = std::pmr::string{name, owner_->scene_.resource()};
-                });
-                return *this;
-            }
-
-            CameraApi& rotation(Vec3 euler_deg) {
-                owner_->edit_camera([&](Camera2_5D& cam) { cam.rotation = euler_deg; });
-                return *this;
-            }
-
-            CameraApi& tilt(f32 degrees) {
-                owner_->edit_camera([&](Camera2_5D& cam) { cam.set_tilt(degrees); });
-                return *this;
-            }
-
-            CameraApi& pan(f32 degrees) {
-                owner_->edit_camera([&](Camera2_5D& cam) { cam.set_pan(degrees); });
-                return *this;
-            }
-
-            CameraApi& roll(f32 degrees) {
-                owner_->edit_camera([&](Camera2_5D& cam) { cam.set_roll(degrees); });
-                return *this;
-            }
-
-            CameraApi& point_of_interest(Vec3 poi) {
-                owner_->edit_camera([&](Camera2_5D& cam) {
-                    cam.point_of_interest = poi;
-                    cam.point_of_interest_enabled = true;
-                });
-                return *this;
-            }
-
-            CameraApi& look_at(Vec3 poi) {
-                return point_of_interest(poi);
-            }
-
-            CameraApi& target(std::string name) {
-                owner_->edit_camera([&](Camera2_5D& cam) {
-                    cam.target_name = std::pmr::string{name, owner_->scene_.resource()};
-                    cam.point_of_interest_enabled = true;
-                });
-                return *this;
-            }
-
-          private:
-            SceneBuilder* owner_;
-        };
-
         explicit SceneBuilder(std::pmr::memory_resource *res = std::pmr::get_default_resource())
             : scene_(res), current_frame_(0) {
             m_ctx.resource = res;
@@ -131,24 +43,10 @@ namespace chronon3d {
 
         [[nodiscard]] CameraApi camera() { return CameraApi(*this); }
 
-        SceneBuilder& ambient_light(Color color = Color{1, 1, 1, 1}, f32 intensity = 0.2f) {
-            scene_.light_context().enabled = true;
-            scene_.light_context().ambient_enabled = true;
-            scene_.light_context().ambient_color = color;
-            scene_.light_context().ambient = intensity;
-            return *this;
-        }
+        SceneBuilder &ambient_light(Color color = Color{1, 1, 1, 1}, f32 intensity = 0.2f);
 
-        SceneBuilder& directional_light(Vec3 direction, Color color = Color{1, 1, 1, 1},
-                                        f32 intensity = 1.0f) {
-            scene_.light_context().enabled = true;
-            scene_.light_context().directional_enabled = true;
-            scene_.light_context().direction =
-                glm::length(direction) > 1e-6f ? glm::normalize(direction) : Vec3{0, 0, -1};
-            scene_.light_context().directional_color = color;
-            scene_.light_context().diffuse = intensity;
-            return *this;
-        }
+        SceneBuilder &directional_light(Vec3 direction, Color color = Color{1, 1, 1, 1},
+                                        f32 intensity = 1.0f);
 
         SceneBuilder &rect(std::string name, RectParams p);
         SceneBuilder &rounded_rect(std::string name, RoundedRectParams p);
@@ -166,7 +64,7 @@ namespace chronon3d {
         };
 
         template <typename Fn>
-        SceneBuilder& sequence(const std::string& /*name*/, SequenceSpec spec, Fn&& fn) {
+        SceneBuilder &sequence(const std::string & /*name*/, SequenceSpec spec, Fn &&fn) {
             bool active = current_frame_ >= spec.from && current_frame_ < spec.from + spec.duration;
             if (!active) {
                 return *this;
@@ -182,7 +80,7 @@ namespace chronon3d {
 
             Scene sub_scene = sub_builder.build();
 
-            for (auto& layer : sub_scene.layers()) {
+            for (auto &layer : sub_scene.layers()) {
                 if (layer.duration >= 0) {
                     layer.from += spec.from;
                 } else {
@@ -192,7 +90,7 @@ namespace chronon3d {
                 scene_.add_layer(std::move(layer));
             }
 
-            for (auto& node : sub_scene.nodes()) {
+            for (auto &node : sub_scene.nodes()) {
                 scene_.add_node(std::move(node));
             }
 
@@ -200,7 +98,8 @@ namespace chronon3d {
         }
 
         // Standard Layers
-        template <typename Fn> SceneBuilder &layer(std::string name, Fn &&fn) {
+        template <typename Fn>
+        SceneBuilder &layer(std::string name, Fn &&fn) {
             LayerBuilder builder(std::move(name), current_frame_, scene_.resource());
             std::forward<Fn>(fn)(builder);
 
@@ -211,7 +110,8 @@ namespace chronon3d {
             return *this;
         }
 
-        template <typename Fn> SceneBuilder &screen_layer(std::string name, Fn &&fn) {
+        template <typename Fn>
+        SceneBuilder &screen_layer(std::string name, Fn &&fn) {
             LayerBuilder builder(std::move(name), current_frame_, scene_.resource());
             builder.screen_dimensions(static_cast<f32>(m_width), static_cast<f32>(m_height));
             std::forward<Fn>(fn)(builder);
@@ -225,7 +125,8 @@ namespace chronon3d {
 
         // Adjustment layer: applies its effect stack to everything rendered before it.
         // The lambda receives a LayerBuilder but any visuals added are ignored.
-        template <typename Fn> SceneBuilder &adjustment_layer(std::string name, Fn &&fn) {
+        template <typename Fn>
+        SceneBuilder &adjustment_layer(std::string name, Fn &&fn) {
             LayerBuilder builder(std::move(name), current_frame_, scene_.resource());
             std::forward<Fn>(fn)(builder);
 
@@ -272,7 +173,8 @@ namespace chronon3d {
             return video_layer(std::move(name), std::move(source), std::forward<Fn>(fn));
         }
 
-        template <typename Fn> SceneBuilder &null_layer(std::string name, Fn &&fn) {
+        template <typename Fn>
+        SceneBuilder &null_layer(std::string name, Fn &&fn) {
             LayerBuilder builder(std::move(name), current_frame_, scene_.resource());
             std::forward<Fn>(fn)(builder);
 
@@ -285,49 +187,16 @@ namespace chronon3d {
         }
 
         // Fluent API for transformations (root level)
-        SceneBuilder &at(Vec3 pos) {
-            scene_.last_node().world_transform.position = pos;
-            return *this;
-        }
+        SceneBuilder &at(Vec3 pos);
+        SceneBuilder &rotate(Vec3 euler_deg);
+        SceneBuilder &scale(Vec3 s);
+        SceneBuilder &anchor(Vec3 a);
+        SceneBuilder &opacity(f32 a);
+        SceneBuilder &with_shadow(DropShadow shadow);
+        SceneBuilder &with_glow(Glow glow);
 
-        SceneBuilder &rotate(Vec3 euler_deg) {
-            scene_.last_node().world_transform.rotation = math::from_euler(euler_deg);
-            return *this;
-        }
-
-        SceneBuilder &scale(Vec3 s) {
-            scene_.last_node().world_transform.scale = s;
-            return *this;
-        }
-
-        SceneBuilder &anchor(Vec3 a) {
-            scene_.last_node().world_transform.anchor = a;
-            return *this;
-        }
-
-        SceneBuilder &opacity(f32 a) {
-            scene_.last_node().world_transform.opacity = a;
-            return *this;
-        }
-
-        SceneBuilder &with_shadow(DropShadow shadow) {
-            scene_.last_node().shadow = shadow;
-            return *this;
-        }
-
-        SceneBuilder &with_glow(Glow glow) {
-            scene_.last_node().glow = glow;
-            return *this;
-        }
-
-        [[nodiscard]] Scene build() {
-            scene_.resolve_hierarchy(current_frame_);
-            return std::move(scene_);
-        }
-
-        [[nodiscard]] const Camera2_5D& camera_2_5d() const {
-            return scene_.camera_2_5d();
-        }
+        [[nodiscard]] Scene build();
+        [[nodiscard]] const Camera2_5D &camera_2_5d() const;
 
         [[nodiscard]] std::pmr::memory_resource *resource() const {
             return scene_.resource();
@@ -336,13 +205,15 @@ namespace chronon3d {
             return current_frame_;
         }
 
+        friend class CameraApi;
+
       private:
         void set_camera(Camera2_5D camera) {
             scene_.set_camera_2_5d(std::move(camera));
         }
 
         template <typename Fn>
-        void edit_camera(Fn&& fn) {
+        void edit_camera(Fn &&fn) {
             auto cam = scene_.camera_2_5d();
             std::forward<Fn>(fn)(cam);
             scene_.set_camera_2_5d(cam);

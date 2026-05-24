@@ -1,7 +1,7 @@
 #pragma once
 
-#include <chronon3d/core/composition_registry.hpp>
-#include <chronon3d/core/frame.hpp>
+#include <chronon3d/core/composition/composition_registry.hpp>
+#include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/backends/software/render_settings.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <memory>

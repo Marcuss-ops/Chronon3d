@@ -3,8 +3,8 @@
 #include <chronon3d/render_graph/render_graph_node.hpp>
 #include <chronon3d/render_graph/render_graph_hashing.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
-#include <chronon3d/core/profiling.hpp>
-#include <chronon3d/core/counters.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/math/transform.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <glm/glm.hpp>

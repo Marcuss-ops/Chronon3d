@@ -1,7 +1,7 @@
 #pragma once
 
-#include <chronon3d/core/counters.hpp>
-#include <chronon3d/core/framebuffer.hpp>
+#include <chronon3d/core/profiling/counters.hpp>
+#include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
 
 #include <string>

@@ -2,9 +2,9 @@
 
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/math/raster_utils.hpp>
-#include <chronon3d/core/trace.hpp>
-#include <chronon3d/core/counters.hpp>
-#include <chronon3d/core/memory_utils.hpp>
+#include <chronon3d/core/profiling/trace.hpp>
+#include <chronon3d/core/profiling/counters.hpp>
+#include <chronon3d/core/memory/memory_utils.hpp>
 #include <vector>
 #include <string>
 #include <fstream>

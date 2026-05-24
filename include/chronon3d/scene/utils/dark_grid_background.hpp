@@ -11,10 +11,10 @@
 #include <utility>
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/math/vec2.hpp>
-#include <chronon3d/core/frame_context.hpp>
+#include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/backends/image/image_writer.hpp>
-#include <chronon3d/core/framebuffer.hpp>
+#include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/scene/builders/builder_params.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/camera/camera_2_5d.hpp>

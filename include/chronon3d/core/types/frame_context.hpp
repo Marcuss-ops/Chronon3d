@@ -1,6 +1,6 @@
 #pragma once
 
-#include <chronon3d/core/time.hpp>
+#include <chronon3d/core/types/time.hpp>
 #include <memory_resource>
 
 namespace chronon3d {

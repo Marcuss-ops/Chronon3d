@@ -1,6 +1,6 @@
 #pragma once
 
-#include <chronon3d/core/types.hpp>
+#include <chronon3d/core/types/types.hpp>
 #include <chronon3d/backends/image/image_backend.hpp>
 #include <chronon3d/cache/lru_cache.hpp>
 #include <string>

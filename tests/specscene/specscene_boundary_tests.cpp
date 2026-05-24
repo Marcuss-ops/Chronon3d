@@ -4,7 +4,7 @@
 #include <chronon3d/api/composition.hpp>
 #include <chronon3d/api/scene.hpp>
 #include <chronon3d/api/renderer.hpp>
-#include <chronon3d/core/frame_context.hpp>
+#include <chronon3d/core/types/frame_context.hpp>
 #include <filesystem>
 #include <fstream>
 

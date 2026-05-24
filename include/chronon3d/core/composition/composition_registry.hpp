@@ -1,6 +1,6 @@
 #pragma once
 
-#include <chronon3d/core/composition_registration.hpp>
+#include <chronon3d/core/composition/composition_registration.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <functional>
 #include <string>

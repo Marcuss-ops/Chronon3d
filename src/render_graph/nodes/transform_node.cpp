@@ -1,12 +1,15 @@
 #include <chronon3d/render_graph/nodes/transform_node.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
-#include <chronon3d/core/profiling.hpp>
-#include <chronon3d/core/counters.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/core/profiling/counters.hpp>
 #include <spdlog/spdlog.h>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
 #include <span>
+
+// Internal helpers extracted into separate compilation units
+#include "transform_internal.hpp"
 
 namespace chronon3d::graph {
 
@@ -21,8 +24,7 @@ std::shared_ptr<Framebuffer> TransformNode::execute(
     }
 
     if (inputs.empty() || !inputs[0]) {
-        auto fb = ctx.acquire_framebuffer(ctx.width, ctx.height);
-        return fb;
+        return ctx.acquire_framebuffer(ctx.width, ctx.height);
     }
 
     auto input = inputs[0];
@@ -34,8 +36,7 @@ std::shared_ptr<Framebuffer> TransformNode::execute(
     const Mat4 model = m_use_matrix ? m_matrix : m_transform.to_mat4();
     const f32 opacity = m_use_matrix ? m_opacity : m_transform.opacity;
 
-    // Fast-path: check if we are doing a no-op identity transform with opacity 1.0f
-    // and input bounds match output bounds exactly.
+    // ── Identity fast-path ──────────────────────────────────────────────
     bool is_identity = true;
     for (int i = 0; i < 4; ++i) {
         for (int j = 0; j < 4; ++j) {
@@ -51,7 +52,6 @@ std::shared_ptr<Framebuffer> TransformNode::execute(
     if (is_identity && std::abs(opacity - 1.0f) < 1e-6f &&
         input->width() == out_w && input->height() == out_h &&
         input->origin_x() == out_bounds.x0 && input->origin_y() == out_bounds.y0) {
-        
         const uint64_t area = static_cast<uint64_t>(out_w) * out_h;
         if (ctx.backend) {
             ctx.backend->counters()->pixels_touched.fetch_add(area, std::memory_order_relaxed);
@@ -59,7 +59,6 @@ std::shared_ptr<Framebuffer> TransformNode::execute(
         if (ctx.counters) {
             ctx.counters->transform_pixels.fetch_add(area, std::memory_order_relaxed);
         }
-
         if (input.use_count() == 1) {
             return input;
         } else {
@@ -72,11 +71,9 @@ std::shared_ptr<Framebuffer> TransformNode::execute(
 
     auto result = ctx.acquire_framebuffer(out_w, out_h, true, out_bounds);
 
-    // Centering logic: both source and destination framebuffers are centered at (0,0) in scene space.
+    // ── Centering & homography ──────────────────────────────────────────
     const Mat4 dst_canvas_offset = math::translate(Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
     const Mat4 src_canvas_offset = math::translate(Vec3(input->width() * 0.5f, input->height() * 0.5f, 0.0f));
-    
-    // Final pixel matrix: DstPixel <- DstScene <- SrcScene <- SrcPixel
     const Mat4 pixel_model = dst_canvas_offset * model * glm::inverse(src_canvas_offset);
 
     f32 x_min_src = 0.0f;
@@ -97,7 +94,7 @@ std::shared_ptr<Framebuffer> TransformNode::execute(
     const f32 w_src = x_max_src - x_min_src;
     const f32 h_src = y_max_src - y_min_src;
 
-    // Extract 3x3 homography for local_z = 0 plane
+    // Extract 3×3 homography for local_z = 0 plane
     glm::mat3 H;
     H[0][0] = pixel_model[0][0]; H[0][1] = pixel_model[0][1]; H[0][2] = pixel_model[0][3];
     H[1][0] = pixel_model[1][0]; H[1][1] = pixel_model[1][1]; H[1][2] = pixel_model[1][3];
@@ -127,7 +124,7 @@ std::shared_ptr<Framebuffer> TransformNode::execute(
         }
     }
 
-    // Bounding box for optimization in destination pixels
+    // ── Projected quad → destination bounding box ───────────────────────
     Vec4 corners[4] = {
         pixel_model * Vec4(x_min_src, y_min_src, 0, 1),
         pixel_model * Vec4(x_max_src, y_min_src, 0, 1),
@@ -170,7 +167,10 @@ std::shared_ptr<Framebuffer> TransformNode::execute(
         ctx.counters->transform_pixels.fetch_add(area, std::memory_order_relaxed);
     }
 
-    const bool is_pure_translation = 
+    // ── Dispatch: choose the right transform path ───────────────────────
+
+    // Fast-path 1: pure translation (identity 2×2 + no perspective)
+    const bool is_pure_translation =
         std::abs(H[0][0] - 1.0f) < 1e-6f && std::abs(H[0][1]) < 1e-6f && std::abs(H[0][2]) < 1e-6f &&
         std::abs(H[1][0]) < 1e-6f && std::abs(H[1][1] - 1.0f) < 1e-6f && std::abs(H[1][2]) < 1e-6f &&
         std::abs(H[2][2] - 1.0f) < 1e-6f;
@@ -178,270 +178,83 @@ std::shared_ptr<Framebuffer> TransformNode::execute(
     if (is_pure_translation) {
         const f32 tx = H[2][0];
         const f32 ty = H[2][1];
-        
-        const bool is_integer_translation = 
+        const bool is_integer_translation =
             std::abs(tx - std::round(tx)) < 1e-4f &&
             std::abs(ty - std::round(ty)) < 1e-4f;
 
         if (is_integer_translation) {
             const i32 itx = static_cast<i32>(std::round(tx));
             const i32 ity = static_cast<i32>(std::round(ty));
-            
-            const Color* src_data = input->data();
-            const i32 src_w = input->width();
-            
-            auto process_translation_rows = [&](i32 row_begin, i32 row_end) {
-                for (i32 y = row_begin; y < row_end; ++y) {
-                    const i32 iy = y - ity;
-                    if (iy >= static_cast<i32>(y_min_src) && iy < static_cast<i32>(y_max_src)) {
-                        Color* dst_row = result->pixels_row(y - result->origin_y());
-                        const i32 dx0 = std::max(x0, static_cast<i32>(x_min_src) + itx);
-                        const i32 dx1 = std::min(x1, static_cast<i32>(x_max_src) + itx);
-                        
-                        if (dx0 < dx1) {
-                            if (opacity >= 0.999f) {
-                                std::memcpy(
-                                    dst_row + (dx0 - result->origin_x()),
-                                    src_data + (iy * src_w + (dx0 - itx)),
-                                    (dx1 - dx0) * sizeof(Color)
-                                );
-                            } else {
-                                Color* dst_ptr = dst_row + (dx0 - result->origin_x());
-                                const Color* src_ptr = src_data + (iy * src_w + (dx0 - itx));
-                                const int count = dx1 - dx0;
-                                for (int i = 0; i < count; ++i) {
-                                    Color src = src_ptr[i];
-                                    if (src.a > 0.001f) {
-                                        src.r *= opacity; src.g *= opacity; src.b *= opacity; src.a *= opacity;
-                                        dst_ptr[i] = src;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            };
-
-            if (y1 - y0 >= 24) {
-                tbb::parallel_for(
-                    tbb::blocked_range<i32>(y0, y1),
-                    [&](const tbb::blocked_range<i32>& range) {
-                        process_translation_rows(range.begin(), range.end());
-                    }
-                );
-            } else {
-                process_translation_rows(y0, y1);
-            }
-
+            detail::execute_translate_clamped(
+                result.get(), input.get(),
+                x0, x1, y0, y1,
+                x_min_src, x_max_src, y_min_src, y_max_src,
+                itx, ity, opacity);
             return result;
         }
     }
 
+    // Fast-path 2: affine + no scale/shear (effectively translation)
     const bool is_affine = std::abs(H[2][0]) < 1e-9f && std::abs(H[2][1]) < 1e-9f;
 
-    // Roadmap 3: Fast-path for pure translation
     if (is_affine && std::abs(H[0][1]) < 1e-6f && std::abs(H[1][0]) < 1e-6f &&
         std::abs(H[0][0] - 1.0f) < 1e-6f && std::abs(H[1][1] - 1.0f) < 1e-6f) {
-        
         const float tx = H[2][0];
         const float ty = H[2][1];
-        
         if (std::abs(tx - std::round(tx)) < 1e-4f && std::abs(ty - std::round(ty)) < 1e-4f) {
             const i32 itx = static_cast<i32>(std::round(tx));
             const i32 ity = static_cast<i32>(std::round(ty));
-            
-            CHRONON_ZONE_C("transform_fast_translate", trace_category::kRasterize);
-            
-            const i32 row_pixels = (x1 - x0);
-            const size_t row_bytes = row_pixels * sizeof(Color);
-            
-            for (i32 y = y0; y < y1; ++y) {
-                const i32 src_y = y - ity;
-                const i32 src_x = x0 - itx;
-                
-                if (src_y >= 0 && src_y < input->height()) {
-                    const Color* src_ptr = input->pixels_row(src_y) + src_x;
-                    Color* dst_ptr = result->pixels_row(y - result->origin_y()) + (x0 - result->origin_x());
-                    
-                    if (std::abs(opacity - 1.0f) < 1e-6f) {
-                        std::memcpy(dst_ptr, src_ptr, row_bytes);
-                    } else {
-                        // Scalar opacity path (could be SIMD-ified)
-                        for (i32 x = 0; x < row_pixels; ++x) {
-                            Color c = src_ptr[x];
-                            c.r *= opacity; c.g *= opacity; c.b *= opacity; c.a *= opacity;
-                            dst_ptr[x] = c;
-                        }
-                    }
-                }
-            }
+            detail::execute_translate_memcpy(
+                result.get(), input.get(),
+                x0, x1, y0, y1,
+                itx, ity, opacity);
             return result;
         }
     }
 
+    // General path: affine or projective, row-based
     const Vec3 h_col_start = inv_pixel_model_3x3 * Vec3(static_cast<f32>(x0) + 0.5f, static_cast<f32>(y0) + 0.5f, 1.0f);
     const Vec3 h_step_x = inv_pixel_model_3x3[0];
     const Vec3 h_step_y = inv_pixel_model_3x3[1];
 
-    const auto process_rows = [&](i32 row_begin, i32 row_end) {
-        if (is_affine) {
-            const f32 inv_z = 1.0f / h_col_start.z;
-            const f32 dsx = h_step_x.x * inv_z;
-            const f32 dsy = h_step_x.y * inv_z;
+    if (is_affine) {
+        const f32 inv_z = 1.0f / h_col_start.z;
+        const f32 dsx = h_step_x.x * inv_z;
+        const f32 dsy = h_step_x.y * inv_z;
 
-            const Color* src_data = input->data();
-            const i32 src_w = input->width();
-            const i32 src_h = input->height();
-
-            if (m_mode == SamplingMode::Nearest) {
-                for (i32 y = row_begin; y < row_end; ++y) {
-                    Color* dst_row = result->pixels_row(y - result->origin_y());
-                    const Vec3 h_row = h_col_start + h_step_y * static_cast<f32>(y - y0);
-                    f32 sx = h_row.x * inv_z;
-                    f32 sy = h_row.y * inv_z;
-                    for (i32 x = x0; x < x1; ++x) {
-                        if (sx >= x_min_src && sx < x_max_src && sy >= y_min_src && sy < y_max_src) {
-                            const i32 ix = static_cast<i32>(sx);
-                            const i32 iy = static_cast<i32>(sy);
-                            Color src = src_data[iy * src_w + ix];
-                            if (src.a > 0.001f) {
-                                if (opacity < 0.999f) {
-                                    src.r *= opacity; src.g *= opacity; src.b *= opacity; src.a *= opacity;
-                                }
-                                dst_row[x - result->origin_x()] = src;
-                            }
-                        }
-                        sx += dsx;
-                        sy += dsy;
-                    }
-                }
-            } else {
-                // Bilinear mode
-                for (i32 y = row_begin; y < row_end; ++y) {
-                    Color* dst_row = result->pixels_row(y - result->origin_y());
-                    const Vec3 h_row = h_col_start + h_step_y * static_cast<f32>(y - y0);
-                    f32 sx = h_row.x * inv_z;
-                    f32 sy = h_row.y * inv_z;
-                    for (i32 x = x0; x < x1; ++x) {
-                        if (sx >= x_min_src && sx < x_max_src && sy >= y_min_src && sy < y_max_src) {
-                            const f32 u = sx - 0.5f;
-                            const f32 v = sy - 0.5f;
-                            const i32 x0_f = static_cast<i32>(u >= 0.0f ? u : std::floor(u));
-                            const i32 y0_f = static_cast<i32>(v >= 0.0f ? v : std::floor(v));
-                            const i32 x1_f = x0_f + 1;
-                            const i32 y1_f = y0_f + 1;
-
-                            const f32 tx = u - static_cast<f32>(x0_f);
-                            const f32 ty = v - static_cast<f32>(y0_f);
-
-                            auto get_px = [&](i32 px, i32 py) -> Color {
-                                if (px < 0 || px >= src_w || py < 0 || py >= src_h) return Color::transparent();
-                                return src_data[py * src_w + px];
-                            };
-
-                            const Color c00 = get_px(x0_f, y0_f);
-                            const Color c10 = get_px(x1_f, y0_f);
-                            const Color c01 = get_px(x0_f, y1_f);
-                            const Color c11 = get_px(x1_f, y1_f);
-
-                            Color src = lerp(lerp(c00, c10, tx), lerp(c01, c11, tx), ty);
-                            if (src.a > 0.001f) {
-                                if (opacity < 0.999f) {
-                                    src.r *= opacity; src.g *= opacity; src.b *= opacity; src.a *= opacity;
-                                }
-                                dst_row[x - result->origin_x()] = src;
-                            }
-                        }
-                        sx += dsx;
-                        sy += dsy;
-                    }
-                }
-            }
+        auto worker = [&](i32 row_begin, i32 row_end) {
+            detail::execute_affine_rows(
+                result.get(), input.get(),
+                x0, x1, y0,
+                x_min_src, x_max_src, y_min_src, y_max_src,
+                opacity, m_mode,
+                h_col_start, h_step_y, inv_z, dsx, dsy,
+                row_begin, row_end);
+        };
+        if (y1 - y0 >= 64 && area >= 128 * 128) {
+            tbb::parallel_for(
+                tbb::blocked_range<i32>(y0, y1),
+                [&](const tbb::blocked_range<i32>& range) { worker(range.begin(), range.end()); });
         } else {
-            const Color* src_data = input->data();
-            const i32 src_w = input->width();
-            const i32 src_h = input->height();
-
-            if (m_mode == SamplingMode::Nearest) {
-                for (i32 y = row_begin; y < row_end; ++y) {
-                    Color* dst_row = result->pixels_row(y - result->origin_y());
-                    Vec3 h_row = h_col_start + h_step_y * static_cast<f32>(y - y0);
-                    for (i32 x = x0; x < x1; ++x) {
-                        if (std::abs(h_row.z) > 1e-9f) {
-                            const f32 inv_z = 1.0f / h_row.z;
-                            const f32 sx = h_row.x * inv_z;
-                            const f32 sy = h_row.y * inv_z;
-                            if (sx >= x_min_src && sx < x_max_src && sy >= y_min_src && sy < y_max_src) {
-                                const i32 ix = static_cast<i32>(sx);
-                                const i32 iy = static_cast<i32>(sy);
-                                Color src = src_data[iy * src_w + ix];
-                                if (src.a > 0.001f) {
-                                    if (opacity < 0.999f) {
-                                        src.r *= opacity; src.g *= opacity; src.b *= opacity; src.a *= opacity;
-                                    }
-                                    dst_row[x - result->origin_x()] = src;
-                                }
-                            }
-                        }
-                        h_row += h_step_x;
-                    }
-                }
-            } else {
-                // Bilinear mode
-                for (i32 y = row_begin; y < row_end; ++y) {
-                    Color* dst_row = result->pixels_row(y - result->origin_y());
-                    Vec3 h_row = h_col_start + h_step_y * static_cast<f32>(y - y0);
-                    for (i32 x = x0; x < x1; ++x) {
-                        if (std::abs(h_row.z) > 1e-9f) {
-                            const f32 inv_z = 1.0f / h_row.z;
-                            const f32 sx = h_row.x * inv_z;
-                            const f32 sy = h_row.y * inv_z;
-                            if (sx >= x_min_src && sx < x_max_src && sy >= y_min_src && sy < y_max_src) {
-                                const f32 u = sx - 0.5f;
-                                const f32 v = sy - 0.5f;
-                                const i32 x0_f = static_cast<i32>(u >= 0.0f ? u : std::floor(u));
-                                const i32 y0_f = static_cast<i32>(v >= 0.0f ? v : std::floor(v));
-                                const i32 x1_f = x0_f + 1;
-                                const i32 y1_f = y0_f + 1;
-
-                                const f32 tx = u - static_cast<f32>(x0_f);
-                                const f32 ty = v - static_cast<f32>(y0_f);
-
-                                auto get_px = [&](i32 px, i32 py) -> Color {
-                                    if (px < 0 || px >= src_w || py < 0 || py >= src_h) return Color::transparent();
-                                    return src_data[py * src_w + px];
-                                };
-
-                                const Color c00 = get_px(x0_f, y0_f);
-                                const Color c10 = get_px(x1_f, y0_f);
-                                const Color c01 = get_px(x0_f, y1_f);
-                                const Color c11 = get_px(x1_f, y1_f);
-
-                                Color src = lerp(lerp(c00, c10, tx), lerp(c01, c11, tx), ty);
-                                if (src.a > 0.001f) {
-                                    if (opacity < 0.999f) {
-                                        src.r *= opacity; src.g *= opacity; src.b *= opacity; src.a *= opacity;
-                                    }
-                                    dst_row[x - result->origin_x()] = src;
-                                }
-                            }
-                        }
-                        h_row += h_step_x;
-                    }
-                }
-            }
+            worker(y0, y1);
         }
-    };
-
-    if (y1 - y0 >= 64 && area >= 128 * 128) {
-        tbb::parallel_for(
-            tbb::blocked_range<i32>(y0, y1),
-            [&](const tbb::blocked_range<i32>& range) {
-                process_rows(range.begin(), range.end());
-            }
-        );
     } else {
-        process_rows(y0, y1);
+        auto worker = [&](i32 row_begin, i32 row_end) {
+            detail::execute_projective_rows(
+                result.get(), input.get(),
+                x0, x1, y0,
+                x_min_src, x_max_src, y_min_src, y_max_src,
+                opacity, m_mode,
+                h_col_start, h_step_x, h_step_y,
+                row_begin, row_end);
+        };
+        if (y1 - y0 >= 64 && area >= 128 * 128) {
+            tbb::parallel_for(
+                tbb::blocked_range<i32>(y0, y1),
+                [&](const tbb::blocked_range<i32>& range) { worker(range.begin(), range.end()); });
+        } else {
+            worker(y0, y1);
+        }
     }
 
     return result;
@@ -453,7 +266,7 @@ std::optional<raster::BBox> TransformNode::predicted_bbox(
 ) const {
     const Mat4 model = m_use_matrix ? m_matrix : m_transform.to_mat4();
     const Mat4 dst_canvas_offset = math::translate(Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
-    
+
     f32 x_min_src = 0.0f;
     f32 y_min_src = 0.0f;
     f32 x_max_src = static_cast<f32>(ctx.width);
@@ -464,9 +277,6 @@ std::optional<raster::BBox> TransformNode::predicted_bbox(
         y_min_src = static_cast<f32>(std::clamp(in_box.y0, 0, ctx.height));
         x_max_src = static_cast<f32>(std::clamp(in_box.x1, 0, ctx.width));
         y_max_src = static_cast<f32>(std::clamp(in_box.y1, 0, ctx.height));
-        // Input bbox is empty (zero area) but valid.
-        // Return a valid empty bbox (not nullopt) so the dirty-rect system
-        // skips this node rather than triggering a full-frame fallback.
         if (x_min_src >= x_max_src || y_min_src >= y_max_src) {
             const i32 empty_x = static_cast<i32>(std::floor(x_min_src));
             const i32 empty_y = static_cast<i32>(std::floor(y_min_src));
@@ -475,7 +285,6 @@ std::optional<raster::BBox> TransformNode::predicted_bbox(
     }
 
     const Mat4 src_canvas_offset = math::translate(Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
-    
     const Mat4 pixel_model = dst_canvas_offset * model * glm::inverse(src_canvas_offset);
 
     Vec4 corners[4] = {

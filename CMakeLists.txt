@@ -102,7 +102,7 @@ endif()
 # ==============================================================================
 
 # 1. Core Impl (Spostato in alto per evitare anomalie di risoluzione del target)
-add_library(chronon3d_core_impl STATIC src/core/trace.cpp src/core/benchmark_report.cpp)
+add_library(chronon3d_core_impl STATIC src/core/trace.cpp src/core/benchmark_report.cpp src/core/render_telemetry_detail.cpp)
 target_include_directories(chronon3d_core_impl PUBLIC include deps/include)
 target_link_libraries(chronon3d_core_impl PUBLIC nlohmann_json::nlohmann_json fmt::fmt spdlog::spdlog_header_only)
 
@@ -155,10 +155,16 @@ set(CHRONON3D_GRAPH_SOURCES
     src/render_graph/graph_profiler.cpp
     src/render_graph/render_graph.cpp
     src/render_graph/render_pipeline_scene.cpp
+    src/render_graph/render_pipeline_scene_dirty.cpp
     src/render_graph/render_pipeline_debug.cpp
     src/render_graph/render_pipeline_composition.cpp
     src/render_graph/graph_filter.cpp
+    src/render_graph/nodes/source_node.cpp
+    src/render_graph/nodes/multi_source_node.cpp
     src/render_graph/nodes/transform_node.cpp
+    src/render_graph/nodes/transform_translate.cpp
+    src/render_graph/nodes/transform_affine.cpp
+    src/render_graph/nodes/transform_projective.cpp
     src/render_graph/nodes/transition_node.cpp
     src/render_graph/nodes/transition/transition_node_math.cpp
 )
@@ -255,7 +261,11 @@ set(CHRONON3D_BACKEND_SOFTWARE_SOURCES
     src/backends/software/processors/software_utility_processors.cpp
     src/backends/text/text_rasterizer_utils.cpp
     src/backends/software/rasterizers/line_rasterizer.cpp
+    src/backends/software/rasterizers/path_cache.cpp
+    src/backends/software/rasterizers/path_fill.cpp
     src/backends/software/rasterizers/path_rasterizer.cpp
+    src/backends/software/rasterizers/path_stroke.cpp
+    src/backends/software/rasterizers/pip.cpp
     src/backends/software/rasterizers/projected_card_rasterizer.cpp
     src/backends/software/rasterizers/scanline_rasterizer.cpp
     src/backends/software/rasterizers/shape_rasterizer.cpp
@@ -313,9 +323,11 @@ set(CHRONON3D_SCENE_SOURCES
     src/scene/layer.cpp
     src/scene/layer_builder.cpp
     src/scene/layer_builder_delegates.cpp
+    src/scene/layer_builder_effects.cpp
     src/scene/layer_builder_internal.cpp
     src/scene/render_node_factory.cpp
     src/scene/scene.cpp
+    src/scene/camera_api.cpp
     src/scene/scene_builder.cpp
     src/animations/camera/camera_tilt_clips.cpp
     src/animations/camera_motion_applier.cpp
@@ -324,7 +336,9 @@ set(CHRONON3D_SCENE_SOURCES
     src/presets/camera_motion_clip.cpp
     src/presets/motion_renderer.cpp
     src/presets/motion_resolver.cpp
+    src/presets/phrase_presets.cpp
     src/specscene/specscene.cpp
+    src/specscene/specscene_parsers.cpp
 )
 add_library(chronon3d_scene STATIC ${CHRONON3D_SCENE_SOURCES})
 target_include_directories(chronon3d_scene PRIVATE ${CMAKE_SOURCE_DIR})

@@ -1,11 +1,11 @@
 #pragma once
 
-#include <chronon3d/core/trace.hpp>
-#include <chronon3d/core/counters.hpp>
-#include <chronon3d/core/types.hpp>
-#include <chronon3d/core/time.hpp>
-#include <chronon3d/core/arena.hpp>
-#include <chronon3d/core/frame_context.hpp>
-#include <chronon3d/core/composition_registry.hpp>
-#include <chronon3d/core/composition_registration.hpp>
+#include <chronon3d/core/profiling/trace.hpp>
+#include <chronon3d/core/profiling/counters.hpp>
+#include <chronon3d/core/types/types.hpp>
+#include <chronon3d/core/types/time.hpp>
+#include <chronon3d/core/memory/arena.hpp>
+#include <chronon3d/core/types/frame_context.hpp>
+#include <chronon3d/core/composition/composition_registry.hpp>
+#include <chronon3d/core/composition/composition_registration.hpp>
 #include <chronon3d/assets/asset_registry.hpp>

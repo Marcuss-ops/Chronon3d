@@ -1,7 +1,7 @@
 #include <chronon3d/cache/framebuffer_pool.hpp>
 #include <chronon3d/core/framebuffer_arena.hpp>
-#include <chronon3d/core/profiling.hpp>
-#include <chronon3d/core/counters.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/core/profiling/counters.hpp>
 #include <cstdlib>
 #include <limits>
 #include <string>

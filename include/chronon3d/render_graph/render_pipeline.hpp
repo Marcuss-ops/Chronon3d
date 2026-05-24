@@ -1,13 +1,13 @@
 #pragma once
 
-#include <chronon3d/core/frame.hpp>
+#include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/render_graph/render_graph.hpp>
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/scene/scene.hpp>
 #include <chronon3d/scene/camera/camera.hpp>
 #include <chronon3d/backends/software/render_settings.hpp>
-#include <chronon3d/core/composition_registry.hpp>
+#include <chronon3d/core/composition/composition_registry.hpp>
 #include <chronon3d/backends/video/video_frame_decoder.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <memory>
