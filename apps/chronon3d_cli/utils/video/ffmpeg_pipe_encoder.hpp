@@ -22,7 +22,7 @@ struct FfmpegPipeOptions {
     std::string codec{"libx264"};
     std::string output_path;
     PipePixelFormat input_format{PipePixelFormat::RGBA};
-    std::string output_pix_fmt{"rgb24"};
+    std::string output_pix_fmt{"yuv420p"};
     bool verbose{false};
     color::OutputTransformOptions color_transform{};
     std::string pipe_writer{"classic"};

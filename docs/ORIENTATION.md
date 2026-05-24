@@ -26,7 +26,7 @@ cmake --build build/chronon/linux-release -j$(nproc)
 ./build/chronon/linux-release/apps/chronon3d_cli/chronon3d_cli video MyComp --start 0 --end 90 --fps 30 -o output/video.mp4
 ```
 
-Build presets: `linux-release`, `linux-debug`, `linux-debug-render`, `win-release`, `win-debug`.
+Build presets: `linux-release`, `linux-debug`, `linux-debug-render`.
 
 ---
 
