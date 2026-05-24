@@ -20,7 +20,7 @@ struct RendererWarmupOptions {
     int width{1920};
     int height{1080};
 
-    size_t framebuffer_count{16};
+    size_t framebuffer_count{8};
     bool preallocate_framebuffers{true};
     bool touch_memory{true};
 

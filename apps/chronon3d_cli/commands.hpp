@@ -25,7 +25,7 @@ struct RenderPipelineArgs {
 
     // Renderer warmup (preallocation + optional dummy frame)
     bool   warmup_renderer{false};
-    size_t warmup_framebuffers{16};
+    size_t warmup_framebuffers{8};
     bool   warmup_dummy_frame{false};
 };
 
@@ -99,7 +99,7 @@ struct BenchArgs {
 
     // Renderer warmup (preallocation + optional dummy frame)
     bool   warmup_renderer{false};
-    size_t warmup_framebuffers{16};
+    size_t warmup_framebuffers{8};
     bool   warmup_dummy_frame{false};
 };
 

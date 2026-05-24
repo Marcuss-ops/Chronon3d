@@ -72,6 +72,23 @@ struct RenderTelemetryRow {
     uint64_t ffmpeg_pipe_write_blocked_ms{0};
     uint64_t converted_frame_cache_hits{0};
     uint64_t ffmpeg_flush_ms{0};
+    uint64_t io_queue_peak_bytes{0};
+
+    // ── Setup Deep Dive ──
+    uint64_t setup_graph_parsing_ms{0};
+    uint64_t setup_asset_io_load_ms{0};
+    uint64_t setup_pool_preallocation_ms{0};
+    uint64_t image_decode_ms{0};
+
+    // ── OS & Process Diagnostics ──
+    uint64_t process_context_switches_voluntary{0};
+    uint64_t process_context_switches_involuntary{0};
+    uint64_t os_page_faults_major{0};
+    uint64_t os_page_faults_minor{0};
+    uint64_t ffmpeg_cpu_user_pct{0};
+    uint64_t ffmpeg_cpu_sys_pct{0};
+    uint64_t llc_references{0};
+    uint64_t llc_misses{0};
 };
 
 } // namespace chronon3d::telemetry
@@ -265,7 +282,20 @@ inline void flush_telemetry() {
                 << row.io_queue_peak_depth << ','
                 << row.ffmpeg_pipe_write_blocked_ms << ','
                 << row.converted_frame_cache_hits << ','
-                << row.ffmpeg_flush_ms << '\n';
+                << row.ffmpeg_flush_ms << ','
+                << row.io_queue_peak_bytes << ','
+                << row.setup_graph_parsing_ms << ','
+                << row.setup_asset_io_load_ms << ','
+                << row.setup_pool_preallocation_ms << ','
+                << row.image_decode_ms << ','
+                << row.process_context_switches_voluntary << ','
+                << row.process_context_switches_involuntary << ','
+                << row.os_page_faults_major << ','
+                << row.os_page_faults_minor << ','
+                << row.ffmpeg_cpu_user_pct << ','
+                << row.ffmpeg_cpu_sys_pct << ','
+                << row.llc_references << ','
+                << row.llc_misses << '\n';
         }
     }
 

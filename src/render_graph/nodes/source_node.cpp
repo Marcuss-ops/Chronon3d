@@ -4,8 +4,81 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <spdlog/spdlog.h>
 #include <glm/gtc/matrix_transform.hpp>
+#include <array>
+#include <limits>
 
 namespace chronon3d::graph {
+
+namespace {
+
+constexpr f32 kSeedFrameEpsilon = 1e-3f;
+
+[[nodiscard]] bool nearly_equal(f32 a, f32 b, f32 eps = kSeedFrameEpsilon) {
+    return std::abs(a - b) <= eps;
+}
+
+[[nodiscard]] bool covers_full_frame_as_rectangle(
+    const Mat4& matrix,
+    f32 width,
+    f32 height
+) {
+    const Vec4 corners[4] = {
+        matrix * Vec4(0.0f, 0.0f, 0.0f, 1.0f),
+        matrix * Vec4(width, 0.0f, 0.0f, 1.0f),
+        matrix * Vec4(width, height, 0.0f, 1.0f),
+        matrix * Vec4(0.0f, height, 0.0f, 1.0f)
+    };
+
+    std::array<f32, 4> xs{};
+    std::array<f32, 4> ys{};
+    f32 min_x = std::numeric_limits<f32>::max();
+    f32 min_y = std::numeric_limits<f32>::max();
+    f32 max_x = std::numeric_limits<f32>::lowest();
+    f32 max_y = std::numeric_limits<f32>::lowest();
+
+    for (std::size_t i = 0; i < 4; ++i) {
+        const auto& c = corners[i];
+        if (std::abs(c.w) < 1e-6f) {
+            return false;
+        }
+
+        xs[i] = c.x / c.w;
+        ys[i] = c.y / c.w;
+        min_x = std::min(min_x, xs[i]);
+        min_y = std::min(min_y, ys[i]);
+        max_x = std::max(max_x, xs[i]);
+        max_y = std::max(max_y, ys[i]);
+    }
+
+    auto distinct_count = [](const std::array<f32, 4>& values) {
+        std::array<f32, 4> unique{};
+        std::size_t count = 0;
+        for (f32 value : values) {
+            bool seen = false;
+            for (std::size_t i = 0; i < count; ++i) {
+                if (nearly_equal(value, unique[i])) {
+                    seen = true;
+                    break;
+                }
+            }
+            if (!seen) {
+                unique[count++] = value;
+            }
+        }
+        return count;
+    };
+
+    if (distinct_count(xs) != 2 || distinct_count(ys) != 2) {
+        return false;
+    }
+
+    return nearly_equal(min_x, 0.0f) &&
+           nearly_equal(min_y, 0.0f) &&
+           nearly_equal(max_x, width) &&
+           nearly_equal(max_y, height);
+}
+
+} // namespace
 
 std::optional<raster::BBox> SourceNode::predicted_bbox(
     const RenderGraphContext& ctx,
@@ -143,17 +216,13 @@ bool SourceNode::can_seed_full_frame(const RenderGraphContext& ctx) const {
         return false;
     }
 
-    if (m_matrix_override && *m_matrix_override != Mat4(1.0f)) {
-        return false;
-    }
-
     if (m_node.shape.type != ShapeType::Image) {
         return false;
     }
 
     const auto& img = m_node.shape.image;
     const auto& tr = m_node.world_transform;
-    constexpr f32 eps = 1e-3f;
+    const f32 opacity = m_opacity_override.value_or(tr.opacity);
 
     if (ctx.clip_rect) {
         const bool clip_is_full = ctx.clip_rect->x0 <= 0 && ctx.clip_rect->y0 <= 0 &&
@@ -163,14 +232,21 @@ bool SourceNode::can_seed_full_frame(const RenderGraphContext& ctx) const {
         }
     }
 
-    const bool full_size = std::abs(img.size.x - static_cast<f32>(ctx.width)) < eps &&
-                           std::abs(img.size.y - static_cast<f32>(ctx.height)) < eps;
-    const bool opaque = img.opacity >= 0.999f && tr.opacity >= 0.999f;
-    const bool identity = tr.position == Vec3(0.0f) &&
-                          tr.rotation == Quat(1.0f, 0.0f, 0.0f, 0.0f) &&
-                          tr.scale == Vec3(1.0f);
+    const bool full_size = std::abs(img.size.x - static_cast<f32>(ctx.width)) < kSeedFrameEpsilon &&
+                           std::abs(img.size.y - static_cast<f32>(ctx.height)) < kSeedFrameEpsilon;
+    const bool opaque = img.opacity >= 0.999f && opacity >= 0.999f;
+    if (!full_size || !opaque) {
+        return false;
+    }
 
-    return full_size && opaque && identity;
+    const Mat4 ssaa_scale = math::scale(Vec3(ctx.ssaa_factor, ctx.ssaa_factor, 1.0f));
+    const Mat4 canvas_center = math::translate(Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
+    const Mat4 local_matrix = m_matrix_override.value_or(tr.to_mat4());
+    const Mat4 effective_matrix = (m_is_3d || m_centered)
+        ? (canvas_center * ssaa_scale * local_matrix)
+        : (ssaa_scale * local_matrix);
+
+    return covers_full_frame_as_rectangle(effective_matrix, static_cast<f32>(ctx.width), static_cast<f32>(ctx.height));
 }
 
 } // namespace chronon3d::graph

@@ -74,12 +74,32 @@ constexpr std::size_t kHardwareDestructiveInterferenceSize = 64;
     X(io_queue_peak_depth) \
     X(ffmpeg_pipe_write_blocked_ms) \
     X(converted_frame_cache_hits) \
-    X(ffmpeg_flush_ms)
+    X(ffmpeg_flush_ms) \
+    X(io_queue_peak_bytes)
 
+#define CHRONON_RENDER_COUNTERS_SYSTEM(X) \
+    X(process_context_switches_voluntary) \
+    X(process_context_switches_involuntary) \
+    X(os_page_faults_major) \
+    X(os_page_faults_minor) \
+    X(ffmpeg_cpu_user_pct) \
+    X(ffmpeg_cpu_sys_pct) \
+    X(llc_references) \
+    X(llc_misses)
+
+#define CHRONON_RENDER_COUNTERS_SETUP(X) \
+    X(setup_graph_parsing_ms) \
+    X(setup_asset_io_load_ms) \
+    X(setup_pool_preallocation_ms) \
+    X(image_decode_ms)
 
 struct RenderCounters {
 #define X(name) alignas(kHardwareDestructiveInterferenceSize) std::atomic<uint64_t> name{0};
     CHRONON_RENDER_COUNTERS(X)
+#undef X
+#define X(name) std::atomic<uint64_t> name{0};
+    CHRONON_RENDER_COUNTERS_SYSTEM(X)
+    CHRONON_RENDER_COUNTERS_SETUP(X)
 #undef X
 
     std::array<std::atomic<uint64_t>, dirty_fallback_reason_count()> dirty_full_fallback_reasons{};
@@ -98,6 +118,10 @@ private:
                 std::memory_order_relaxed
             );
         }
+#define X(name) name.store(other.name.load(std::memory_order_relaxed), std::memory_order_relaxed);
+        CHRONON_RENDER_COUNTERS_SYSTEM(X)
+        CHRONON_RENDER_COUNTERS_SETUP(X)
+#undef X
     }
 
 public:
@@ -126,6 +150,10 @@ public:
     void reset() {
 #define X(name) name.store(0, std::memory_order_relaxed);
         CHRONON_RENDER_COUNTERS(X)
+#undef X
+#define X(name) name.store(0, std::memory_order_relaxed);
+        CHRONON_RENDER_COUNTERS_SYSTEM(X)
+        CHRONON_RENDER_COUNTERS_SETUP(X)
 #undef X
         for (auto& reason : dirty_full_fallback_reasons) {
             reason.store(0, std::memory_order_relaxed);

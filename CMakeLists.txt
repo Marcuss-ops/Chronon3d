@@ -202,32 +202,41 @@ set(CHRONON3D_RUNTIME_SOURCES
     src/runtime/timeline_evaluator.cpp
     src/runtime/telemetry/jsonl/jsonl_serializers.cpp
     src/runtime/telemetry/jsonl/jsonl_telemetry_store.cpp
-    src/runtime/telemetry/sqlite/sqlite_telemetry_store.cpp
-    src/runtime/telemetry/sqlite/sqlite_telemetry_store_schema.cpp
-    src/runtime/telemetry/sqlite/sqlite_telemetry_store_write.cpp
-    src/runtime/telemetry/sqlite/sqlite_telemetry_store_batch.cpp
-    src/runtime/telemetry/sqlite/sqlite_telemetry_store_events.cpp
-    src/runtime/telemetry/sqlite/sqlite_telemetry_store_media.cpp
-    src/runtime/telemetry/sqlite/sqlite_telemetry_store_stub.cpp
     src/runtime/telemetry/telemetry_manager.cpp
     src/runtime/renderer_warmup.cpp
 )
+if(CHRONON3D_ENABLE_SQLITE_TELEMETRY)
+    list(APPEND CHRONON3D_RUNTIME_SOURCES
+        src/runtime/telemetry/sqlite/sqlite_telemetry_store.cpp
+        src/runtime/telemetry/sqlite/sqlite_telemetry_store_schema.cpp
+        src/runtime/telemetry/sqlite/sqlite_telemetry_store_write.cpp
+        src/runtime/telemetry/sqlite/sqlite_telemetry_store_batch.cpp
+        src/runtime/telemetry/sqlite/sqlite_telemetry_store_events.cpp
+        src/runtime/telemetry/sqlite/sqlite_telemetry_store_media.cpp
+    )
+else()
+    list(APPEND CHRONON3D_RUNTIME_SOURCES
+        src/runtime/telemetry/sqlite/sqlite_telemetry_store_stub.cpp
+    )
+endif()
 add_library(chronon3d_runtime STATIC ${CHRONON3D_RUNTIME_SOURCES})
 target_link_libraries(chronon3d_runtime PUBLIC chronon3d chronon3d_graph chronon3d_effects chronon3d_cache Taskflow::Taskflow)
 target_precompile_headers(chronon3d_runtime PRIVATE <spdlog/spdlog.h> <fmt/core.h> <glm/glm.hpp>)
 
+# Generate telemetry schema header from canonical .sql file.
+# The schema translation unit includes this header even in non-SQLite builds,
+# so the generated file must always exist in the binary directory.
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/telemetry/sqlite/telemetry_schema.sql" TELEMETRY_SCHEMA_CONTENT)
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/telemetry/sqlite/telemetry_schema.hpp.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/telemetry_schema.hpp"
+    @ONLY
+)
+target_include_directories(chronon3d_runtime PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
+
 if(CHRONON3D_ENABLE_SQLITE_TELEMETRY)
     target_link_libraries(chronon3d_runtime PUBLIC unofficial::sqlite3::sqlite3)
     target_compile_definitions(chronon3d_runtime PRIVATE CHRONON3D_ENABLE_SQLITE_TELEMETRY)
-
-    # Generate telemetry schema header from canonical .sql file
-    file(READ "${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/telemetry/sqlite/telemetry_schema.sql" TELEMETRY_SCHEMA_CONTENT)
-    configure_file(
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/telemetry/sqlite/telemetry_schema.hpp.in"
-        "${CMAKE_CURRENT_BINARY_DIR}/telemetry_schema.hpp"
-        @ONLY
-    )
-    target_include_directories(chronon3d_runtime PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
 endif()
 
 # 8. Backends (Image, Assets, Video, Software)
@@ -377,6 +386,9 @@ target_link_libraries(chronon3d_software INTERFACE
 
 add_library(chronon3d_pipeline INTERFACE)
 target_link_libraries(chronon3d_pipeline INTERFACE chronon3d_core chronon3d_software Taskflow::Taskflow concurrentqueue::concurrentqueue)
+
+# 10. Content Generation
+add_subdirectory(content)
 
 # --- Profiling & Condizionali di Build ---
 if(CHRONON3D_ENABLE_PROFILING AND Tracy_FOUND)

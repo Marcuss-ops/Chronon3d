@@ -53,6 +53,7 @@ target_link_libraries(chronon3d_cli
     PRIVATE
         chronon3d_pipeline
         chronon3d_backend_image
+        $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_content>
         CLI11::CLI11
         spdlog::spdlog_header_only
         fmt::fmt

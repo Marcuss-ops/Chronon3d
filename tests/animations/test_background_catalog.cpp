@@ -60,4 +60,5 @@ TEST_CASE("Analytical verification of GridCleanBackground render") {
     // It should have some blended blue accent color (accent = Color{0.25f, 0.52f, 1.0f, 0.05f}).
     Color grid_pixel = fb->get_pixel(960, 540);
     CHECK(grid_pixel.b > expected_bg.b);
+    CHECK(renderer.counters()->clear_skipped_calls.load() > 0);
 }

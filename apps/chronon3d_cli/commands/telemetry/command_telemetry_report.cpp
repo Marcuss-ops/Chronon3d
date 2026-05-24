@@ -15,7 +15,8 @@ void generate_telemetry_report(std::stringstream& out, sqlite3* db, const std::s
     const double framebuffer_reuse_rate = (run.framebuffer_allocations + run.framebuffer_reuses) > 0
         ? static_cast<double>(run.framebuffer_reuses) / static_cast<double>(run.framebuffer_allocations + run.framebuffer_reuses)
         : 0.0;
-    const double dirty_to_touched = run.pixels_touched > 0
+    double average_dirty_area_ratio = 0.0;
+    const double dirty_pixels_share = run.pixels_touched > 0
         ? static_cast<double>(run.dirty_pixels) / static_cast<double>(run.pixels_touched)
         : 0.0;
 
@@ -63,7 +64,8 @@ void generate_telemetry_report(std::stringstream& out, sqlite3* db, const std::s
             out << "| Min Frame | " << format_ms(sql_double(stmt, 2)) << " |\n";
             out << "| Max Frame | " << format_ms(sql_double(stmt, 3)) << " |\n";
             out << "| Frame Cache Hit Rate | " << format_pct(sql_double(stmt, 4)) << " |\n";
-            out << "| Average Dirty Ratio | " << format_pct(sql_double(stmt, 5)) << " |\n";
+            average_dirty_area_ratio = sql_double(stmt, 5);
+            out << "| Average Dirty Area Ratio | " << format_pct(average_dirty_area_ratio) << " |\n";
         }
         sqlite3_finalize(stmt);
     }
@@ -172,7 +174,8 @@ void generate_telemetry_report(std::stringstream& out, sqlite3* db, const std::s
     out << "| --- | --- |\n";
     out << "| IO queue push blocked | " << format_ms(run.io_queue_push_blocked_ms) << " |\n";
     out << "| IO queue pop wait | " << format_ms(run.io_queue_pop_wait_ms) << " |\n";
-    out << "| IO queue peak depth | " << run.io_queue_peak_depth << " |\n\n";
+    out << "| IO queue peak depth | " << run.io_queue_peak_depth << " |\n";
+    out << "| IO queue peak bytes | " << format_bytes(run.io_queue_peak_bytes) << " |\n\n";
 
     // ── FFmpeg Pipe ───────────────────────────────────────────────────────────
     out << "## FFmpeg Pipe\n";
@@ -181,7 +184,9 @@ void generate_telemetry_report(std::stringstream& out, sqlite3* db, const std::s
     out << "| ffmpeg pipe write blocked | " << format_ms(run.ffmpeg_pipe_write_blocked_ms) << " |\n";
     out << "| converted frame cache hits | " << run.converted_frame_cache_hits << " |\n";
     out << "| ffmpeg flush | " << format_ms(run.ffmpeg_flush_ms) << " |\n";
-    out << "| video ffmpeg latency | " << format_ms(run.video_ffmpeg_latency_ms) << " |\n\n";
+    out << "| video ffmpeg latency | " << format_ms(run.video_ffmpeg_latency_ms) << " |\n";
+    out << "| FFmpeg CPU user | " << run.ffmpeg_cpu_user_pct << "% |\n";
+    out << "| FFmpeg CPU sys | " << run.ffmpeg_cpu_sys_pct << "% |\n\n";
 
     // ── Hot Nodes ─────────────────────────────────────────────────────────────
     out << "## Hot Nodes\n";
@@ -278,12 +283,44 @@ void generate_telemetry_report(std::stringstream& out, sqlite3* db, const std::s
     }
     out << "\n";
 
+    // ── Setup Deep Dive ───────────────────────────────────────────────────────
+    out << "## Setup Deep Dive\n";
+    out << "| Sub-Phase | Duration |\n";
+    out << "| --- | --- |\n";
+    out << "| Graph parsing | " << format_ms(run.setup_graph_parsing_ms) << " |\n";
+    out << "| Asset I/O load | " << format_ms(run.setup_asset_io_load_ms) << " |\n";
+    out << "| Pool preallocation | " << format_ms(run.setup_pool_preallocation_ms) << " |\n";
+    out << "| Image decode | " << format_ms(run.image_decode_ms) << " |\n\n";
+
+    // ── OS & Process Diagnostics ──────────────────────────────────────────────
+    out << "## OS & Process Diagnostics\n";
+    out << "| Metric | Value |\n";
+    out << "| --- | --- |\n";
+    out << "| Context switches (voluntary) | " << run.process_context_switches_voluntary << " |\n";
+    out << "| Context switches (involuntary) | " << run.process_context_switches_involuntary << " |\n";
+    out << "| Page faults (major) | " << run.os_page_faults_major << " |\n";
+    out << "| Page faults (minor) | " << run.os_page_faults_minor << " |\n";
+    out << "| LLC references | " << run.llc_references << " |\n";
+    out << "| LLC misses | " << run.llc_misses << " |\n";
+    if (run.llc_references > 0) {
+        const double llc_miss_rate = static_cast<double>(run.llc_misses) / static_cast<double>(run.llc_references) * 100.0;
+        out << "| LLC miss rate | " << format_pct(llc_miss_rate / 100.0) << " |\n";
+    }
+    out << "\n";
+
     // ── Things to Know ────────────────────────────────────────────────────────
     out << "## Things to Know\n";
     out << "- Cache hit rate: " << format_pct(cache_hit_rate) << ".\n";
-    out << "- Average dirty coverage: " << format_pct(dirty_to_touched) << " of touched pixels.\n";
+    out << "- Average dirty area ratio: " << format_pct(average_dirty_area_ratio) << " of the frame.\n";
+    out << "- Dirty pixels as share of touched pixels: " << format_pct(dirty_pixels_share) << ".\n";
     out << "- Dirty full fallbacks: " << run.dirty_full_fallbacks << ".\n";
     out << "- Framebuffer reuse rate: " << format_pct(framebuffer_reuse_rate) << ".\n";
+    if (run.os_page_faults_major > 0) {
+        out << "- **Warning:** Major page faults detected (" << run.os_page_faults_major << "). Setup is hitting disk I/O.\n";
+    }
+    if (run.process_context_switches_involuntary > run.process_context_switches_voluntary * 2) {
+        out << "- **Warning:** High involuntary context switches. CPU contention detected.\n";
+    }
     out << "- If render time stays high while cache hit rate is strong, the hot path is likely compositing, clear passes, or framebuffer churn rather than rasterization.\n";
     out << "- If text glyph rasterization is low, text is probably not the main bottleneck anymore; blur/glow and layer recomposition become the next suspects.\n";
     out << "\n";

@@ -79,14 +79,7 @@ std::shared_ptr<Framebuffer> FramebufferPool::acquire_hinted(
         }
     }
     auto weak_pool = weak_from_this();
-    RenderCounters* counters = profiling::g_current_counters;
-    return std::shared_ptr<Framebuffer>(fb.release(), [weak_pool, counters](Framebuffer* ptr) {
-        if (counters) {
-            counters->framebuffer_buffer_returned_to_pool_count.fetch_add(1, std::memory_order_relaxed);
-        } else {
-            static std::atomic<uint64_t> global_returns{0};
-            global_returns.fetch_add(1, std::memory_order_relaxed);
-        }
+    return std::shared_ptr<Framebuffer>(fb.release(), [weak_pool](Framebuffer* ptr) {
         if (auto pool = weak_pool.lock()) {
             pool->release(ptr);
         } else {
@@ -191,6 +184,9 @@ void FramebufferPool::release(Framebuffer* fb) {
     FramebufferPoolKey key{alloc_w, alloc_h};
     m_current_bytes += weight;
     m_free[key].push_back(std::move(owned));
+    if (profiling::g_current_counters) {
+        profiling::g_current_counters->framebuffer_buffer_returned_to_pool_count.fetch_add(1, std::memory_order_relaxed);
+    }
 }
 
 void FramebufferPool::clear() {

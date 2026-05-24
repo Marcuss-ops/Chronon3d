@@ -3,12 +3,16 @@
 #include <algorithm>
 #include <cstdio>
 #include <cstdint>
+#include <cstring>
 #include <vector>
 #include <chrono>
 #include <thread>
 
 #if defined(_WIN32)
     #include <io.h>
+#elif defined(__linux__)
+    #include <fcntl.h>
+    #include <unistd.h>
 #endif
 
 
@@ -72,6 +76,20 @@ bool FfmpegPipeEncoder::open(const FfmpegPipeOptions& options) {
     pipe_ = popen(cmd.c_str(), "w");
     if (pipe_) {
         setvbuf(pipe_, nullptr, _IOFBF, 1 << 20);
+#if defined(__linux__)
+        // ffmpeg reads from a kernel pipe; enlarge it when possible so the
+        // producer can absorb short bursts without blocking immediately.
+        const int fd = fileno(pipe_);
+        if (fd >= 0) {
+            const size_t frame_pixels = static_cast<size_t>(options_.width) *
+                                        static_cast<size_t>(options_.height);
+            const size_t frame_bytes = options_.input_format == PipePixelFormat::RGBA
+                ? frame_pixels * 4ULL
+                : frame_pixels * 3ULL / 2ULL;
+            const int desired = static_cast<int>(std::clamp<size_t>(frame_bytes * 2ULL, 1ULL * 1024ULL * 1024ULL, 16ULL * 1024ULL * 1024ULL));
+            (void)fcntl(fd, F_SETPIPE_SZ, desired);
+        }
+#endif
     }
 #endif
 
@@ -105,8 +123,7 @@ bool FfmpegPipeEncoder::write_frame(const Framebuffer& fb) {
         }
     }();
 
-    // io_uring path bypasses cache because ring buffers are recycled asynchronously.
-    const bool can_cache = (options_.pipe_writer != "io_uring") && (frame_digest != 0);
+    const bool can_cache = frame_digest != 0;
 
     const video::ConvertedFrameCacheKey cache_key{
         .framebuffer_digest = frame_digest,
@@ -123,14 +140,35 @@ bool FfmpegPipeEncoder::write_frame(const Framebuffer& fb) {
     if (can_cache) {
         const auto* hit = frame_cache_.lookup(cache_key);
         if (hit) {
-            target_buffer  = const_cast<uint8_t*>(hit->data.data());
-            bytes_to_write = hit->data_size;
             ok = true;
 
             // Cache hit: record hit count, NOT conversion time (no work done).
             if (profiling::g_current_counters) {
                 profiling::g_current_counters->converted_frame_cache_hits
                     .fetch_add(1, std::memory_order_relaxed);
+            }
+
+#ifdef __linux__
+            if (use_uring_) {
+                while (pending_writes_count_ >= kRingEntries) {
+                    reap_completed_uring(true);
+                }
+                size_t buf_idx = ring_buffer_index_;
+                while (ring_buffer_pending_[buf_idx]) {
+                    reap_completed_uring(true);
+                    buf_idx = ring_buffer_index_;
+                }
+                target_buffer = ring_buffers_[buf_idx].data();
+                bytes_to_write = hit->data_size;
+                std::memcpy(target_buffer, hit->data.data(), bytes_to_write);
+                ring_buffer_pending_[buf_idx] = true;
+                ring_buffer_bytes_written_[buf_idx] = 0;
+                ring_buffer_index_ = (buf_idx + 1) % kRingEntries;
+            } else
+#endif
+            {
+                target_buffer  = const_cast<uint8_t*>(hit->data.data());
+                bytes_to_write = hit->data_size;
             }
 
             goto do_pipe_write;
@@ -157,6 +195,7 @@ bool FfmpegPipeEncoder::write_frame(const Framebuffer& fb) {
                         ring_buffer_pending_[buf_idx]       = true;
                         ring_buffer_bytes_written_[buf_idx] = 0;
                         ring_buffer_index_ = (buf_idx + 1) % kRingEntries;
+                        bytes_to_write = ring_buffer_size_;
                     }
                 } else
 #endif
@@ -192,6 +231,7 @@ bool FfmpegPipeEncoder::write_frame(const Framebuffer& fb) {
                         ring_buffer_pending_[buf_idx]       = true;
                         ring_buffer_bytes_written_[buf_idx] = 0;
                         ring_buffer_index_ = (buf_idx + 1) % kRingEntries;
+                        bytes_to_write = ring_buffer_size_;
                     }
                 } else
 #endif
@@ -227,6 +267,7 @@ bool FfmpegPipeEncoder::write_frame(const Framebuffer& fb) {
                         ring_buffer_pending_[buf_idx]       = true;
                         ring_buffer_bytes_written_[buf_idx] = 0;
                         ring_buffer_index_ = (buf_idx + 1) % kRingEntries;
+                        bytes_to_write = ring_buffer_size_;
                     }
                 } else
 #endif
@@ -261,7 +302,7 @@ bool FfmpegPipeEncoder::write_frame(const Framebuffer& fb) {
         }
 
         // Store in LRU cache for future frames.
-        if (ok && can_cache && !use_uring_) {
+        if (ok && can_cache) {
             frame_cache_.insert(cache_key, target_buffer, bytes_to_write);
         }
     }
@@ -277,7 +318,7 @@ do_pipe_write:
     if (use_uring_) {
         size_t prev_idx = (ring_buffer_index_ + kRingEntries - 1) % kRingEntries;
         const auto t_write0 = std::chrono::high_resolution_clock::now();
-        bool written = write_uring(prev_idx, ring_buffer_size_);
+        bool written = write_uring(prev_idx, bytes_to_write);
         const auto t_write1 = std::chrono::high_resolution_clock::now();
         const auto write_ms = std::chrono::duration<double, std::milli>(t_write1 - t_write0).count();
         total_write_blocked_ms_ += write_ms;

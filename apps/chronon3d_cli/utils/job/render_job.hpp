@@ -25,7 +25,7 @@ struct RenderJobPlan {
 
     // Renderer warmup
     bool   warmup_renderer{false};
-    size_t warmup_framebuffers{16};
+    size_t warmup_framebuffers{8};
     bool   warmup_dummy_frame{false};
 };
 
