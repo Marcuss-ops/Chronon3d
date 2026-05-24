@@ -244,6 +244,7 @@ set(CHRONON3D_BACKEND_SOFTWARE_SOURCES
     src/backends/software/processors/software_effect_processors.cpp
     src/backends/software/processors/software_image_processor.cpp
     src/backends/software/processors/software_tiled_image_processor.cpp
+    src/backends/software/processors/software_grid_background_processor.cpp
     src/backends/software/processors/software_mesh_processor.cpp
     src/backends/software/processors/software_line_processor.cpp
     src/backends/software/processors/software_shape_processor.cpp

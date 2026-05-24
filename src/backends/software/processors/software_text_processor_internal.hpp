@@ -24,6 +24,8 @@ CacheKey hash_shadow_params(const RenderNode& node, float effective_size, size_t
 size_t resolve_cache_max_mb(const char* env_name, size_t default_mb);
 ShadowCache& get_shadow_cache();
 ShadowCache& get_glow_cache();
+extern std::mutex g_text_glow_cache_mutex;
+extern std::mutex g_text_shadow_cache_mutex;
 
 void draw_text_shadow(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNode& node, const RenderState& state, const TextRasterization& raster, const TextShadow& shadow, size_t index);
 void draw_text_glow(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNode& node, const RenderState& state, const TextRasterization& raster);

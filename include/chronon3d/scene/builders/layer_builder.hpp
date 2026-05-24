@@ -82,6 +82,7 @@ public:
     LayerBuilder& path(std::string name, PathParams p);
     LayerBuilder& image(std::string name, ImageParams p);
     LayerBuilder& tiled_image(std::string name, ImageParams p);
+    LayerBuilder& grid_background(std::string name, GridBackgroundParams p);
     LayerBuilder& text(std::string name, TextParams p);
     LayerBuilder& shape(std::string_view id, std::string name, registry::ShapeParams params);
 

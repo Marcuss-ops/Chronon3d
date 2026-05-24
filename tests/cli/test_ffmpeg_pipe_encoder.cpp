@@ -114,7 +114,7 @@ TEST_CASE("ffmpeg raw pipe command includes configured pixel formats") {
     opt.preset = "ultrafast";
     opt.output_path = "out.mp4";
     opt.input_format = PipePixelFormat::RGBA;
-    opt.output_pix_fmt = "yuv420p";
+    opt.output_pix_fmt = "rgb24";
 
     const auto cmd = build_ffmpeg_raw_pipe_command(opt);
 
@@ -123,4 +123,20 @@ TEST_CASE("ffmpeg raw pipe command includes configured pixel formats") {
     CHECK(cmd.find("-r 30") != std::string::npos);
     CHECK(cmd.find("-c:v libx264") != std::string::npos);
     CHECK(cmd.find("-preset ultrafast") != std::string::npos);
+}
+
+TEST_CASE("ffmpeg raw pipe command ignores legacy raw input formats") {
+    FfmpegPipeOptions opt;
+    opt.width = 1280;
+    opt.height = 720;
+    opt.fps = 60;
+    opt.codec = "libx264";
+    opt.preset = "veryfast";
+    opt.output_path = "out.mp4";
+    opt.input_format = PipePixelFormat::YUV420P;
+
+    const auto cmd = build_ffmpeg_raw_pipe_command(opt);
+
+    CHECK(cmd.find("-pix_fmt rgba") != std::string::npos);
+    CHECK(cmd.find("-pix_fmt rgb24") != std::string::npos);
 }

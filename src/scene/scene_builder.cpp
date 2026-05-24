@@ -36,4 +36,8 @@ SceneBuilder& SceneBuilder::path(std::string name, PathParams p) {
 SceneBuilder& SceneBuilder::image(std::string name, ImageParams p) {
     return shape(registry::shape_ids::Image, std::move(name), std::move(p));
 }
+
+SceneBuilder& SceneBuilder::grid_background(std::string name, GridBackgroundParams p) {
+    return shape(registry::shape_ids::GridBackground, std::move(name), std::move(p));
+}
 } // namespace chronon3d

@@ -25,22 +25,19 @@ bool FfmpegPipeEncoder::convert_framebuffer_to_rgba(const Framebuffer& fb, uint8
 
     const auto& transform = options_.color_transform;
 
-    if (transform.apply_gamma && transform.output == color::ColorSpace::SRGB) {
-        // Use SIMD kernel for fast linear-to-sRGB-ish conversion
-        simd::convert_f32_rgba_to_u8_rgba(dst_ptr, src, static_cast<int>(count));
-    } else {
-        tbb::parallel_for(tbb::blocked_range<size_t>(0, count, 4096),
-            [&](const tbb::blocked_range<size_t>& r) {
-                for (size_t i = r.begin(); i < r.end(); ++i) {
-                    const auto rgb = color::linear_to_output_rgb8(src[i], transform);
-                    dst_ptr[i * 4 + 0] = rgb.r;
-                    dst_ptr[i * 4 + 1] = rgb.g;
-                    dst_ptr[i * 4 + 2] = rgb.b;
-                    // Alpha is not gamma-encoded — store as-is
-                    dst_ptr[i * 4 + 3] = Color::linear_to_srgb8(src[i].a);
-                }
-            });
-    }
+    // Keep the conversion path deterministic and correct first.
+    // The SIMD branch was producing black frames in the raw pipe path.
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, count, 4096),
+        [&](const tbb::blocked_range<size_t>& r) {
+            for (size_t i = r.begin(); i < r.end(); ++i) {
+                const auto rgb = color::linear_to_output_rgb8(src[i], transform);
+                dst_ptr[i * 4 + 0] = rgb.r;
+                dst_ptr[i * 4 + 1] = rgb.g;
+                dst_ptr[i * 4 + 2] = rgb.b;
+                // Alpha is not gamma-encoded — store as-is
+                dst_ptr[i * 4 + 3] = Color::linear_to_srgb8(src[i].a);
+            }
+        });
 
     return true;
 }

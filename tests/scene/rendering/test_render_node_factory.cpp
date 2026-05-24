@@ -28,3 +28,29 @@ TEST_CASE("RenderNodeFactory creates rect nodes with centered anchors") {
     CHECK(node.world_transform.anchor.y == doctest::Approx(40.0f));
     CHECK(node.color.r == doctest::Approx(Color::red().r));
 }
+
+TEST_CASE("RenderNodeFactory creates grid background nodes") {
+    auto* res = std::pmr::get_default_resource();
+
+    auto node = RenderNodeFactory::grid_background(
+        res,
+        "grid",
+        GridBackgroundParams{
+            .size = {1920.0f, 1080.0f},
+            .offset = {24.0f, 8.0f},
+            .bg_color = Color{0.01f, 0.02f, 0.04f, 1.0f},
+            .grid_color = Color{0.3f, 0.5f, 0.9f, 0.08f},
+            .spacing = 96.0f,
+            .minor_thickness = 1.0f,
+            .major_thickness = 2.0f,
+            .major_every = 4,
+            .centered = true
+        }
+    );
+
+    CHECK(node.shape.type == ShapeType::GridBackground);
+    CHECK(node.shape.grid_background.size.x == doctest::Approx(1920.0f));
+    CHECK(node.shape.grid_background.offset.x == doctest::Approx(24.0f));
+    CHECK(node.world_transform.position.x == doctest::Approx(0.0f));
+    CHECK(node.world_transform.anchor.x == doctest::Approx(0.0f));
+}

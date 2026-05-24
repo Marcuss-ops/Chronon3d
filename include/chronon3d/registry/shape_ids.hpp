@@ -11,6 +11,7 @@ inline constexpr std::string_view Line = "shape.line";
 inline constexpr std::string_view Path = "shape.path";
 inline constexpr std::string_view Image = "shape.image";
 inline constexpr std::string_view TiledImage = "shape.tiled_image";
+inline constexpr std::string_view GridBackground = "shape.grid_background";
 inline constexpr std::string_view Mesh = "shape.mesh";
 inline constexpr std::string_view Text = "shape.text";
 
