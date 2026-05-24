@@ -50,6 +50,24 @@ export default function MetricsGrid({ runDetail }) {
   const videoPipeWriteMs = getCounter('video_pipe_write_ms');
   const videoFfmpegLatencyMs = getCounter('video_ffmpeg_latency_ms');
 
+  // OS & Process Diagnostics
+  const ctxSwitchesVoluntary = getCounter('process_context_switches_voluntary');
+  const ctxSwitchesInvoluntary = getCounter('process_context_switches_involuntary');
+  const pageFaultsMajor = getCounter('os_page_faults_major');
+  const pageFaultsMinor = getCounter('os_page_faults_minor');
+  const ffmpegCpuUserPct = getCounter('ffmpeg_cpu_user_pct');
+  const ffmpegCpuSysPct = getCounter('ffmpeg_cpu_sys_pct');
+  const llcReferences = getCounter('llc_references');
+  const llcMisses = getCounter('llc_misses');
+  const llcMissRate = llcReferences > 0 ? (llcMisses / llcReferences * 100).toFixed(2) : '—';
+
+  // Setup Deep Dive
+  const setupGraphParsingMs = getCounter('setup_graph_parsing_ms');
+  const setupAssetIoLoadMs = getCounter('setup_asset_io_load_ms');
+  const setupPoolPreallocMs = getCounter('setup_pool_preallocation_ms');
+  const imageDecodeMs = getCounter('image_decode_ms');
+  const ioQueuePeakBytes = getCounter('io_queue_peak_bytes');
+
   // Nuove metriche benchmark separation
   const chrononRenderOnlyMs = Number(r.chronon_render_only_ms || 0);
   const chrononConvCopyMs = Number(r.chronon_conversion_copy_ms || 0);
@@ -394,6 +412,174 @@ export default function MetricsGrid({ runDetail }) {
           </div>
           <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
             backpressure: FFmpeg non ha ancora svuotato il buffer
+          </div>
+        </div>
+      </section>
+
+      {/* ── Setup Deep Dive ── */}
+      <h3 className="section-subtitle" style={{ marginTop: '24px', marginBottom: '12px', fontSize: '1rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+        🔧 Setup Deep Dive (Cold Start)
+      </h3>
+      <section className="metrics-grid">
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-info)' }}>
+          <div className="metric-label">
+            Graph Parsing
+            {renderInfoIcon('setup_graph_parsing_ms')}
+          </div>
+          <div className="metric-value" style={{ color: getDurationColor(setupGraphParsingMs, 200, 1000) }}>
+            {setupGraphParsingMs.toFixed(2)}
+            <span className="metric-unit">ms</span>
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            tempo per validare/compilare l'albero dei nodi
+          </div>
+        </div>
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-info)' }}>
+          <div className="metric-label">
+            Asset I/O Load
+            {renderInfoIcon('setup_asset_io_load_ms')}
+          </div>
+          <div className="metric-value" style={{ color: pageFaultsMajor > 0 ? 'var(--color-danger)' : getDurationColor(setupAssetIoLoadMs, 200, 1000) }}>
+            {setupAssetIoLoadMs.toFixed(2)}
+            <span className="metric-unit">ms</span>
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            caricamento asset da disco (verificare page faults)
+          </div>
+        </div>
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-info)' }}>
+          <div className="metric-label">
+            Pool Preallocation
+            {renderInfoIcon('setup_pool_preallocation_ms')}
+          </div>
+          <div className="metric-value" style={{ color: getDurationColor(setupPoolPreallocMs, 100, 500) }}>
+            {setupPoolPreallocMs.toFixed(2)}
+            <span className="metric-unit">ms</span>
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            allocazione iniziale del pool di framebuffer
+          </div>
+        </div>
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-info)' }}>
+          <div className="metric-label">
+            Image Decode
+            {renderInfoIcon('image_decode_ms')}
+          </div>
+          <div className="metric-value" style={{ color: getDurationColor(imageDecodeMs, 50, 200) }}>
+            {imageDecodeMs.toFixed(2)}
+            <span className="metric-unit">ms</span>
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            decodifica PNG/JPEG (se applicabile)
+          </div>
+        </div>
+      </section>
+
+      {/* ── OS & Process Diagnostics ── */}
+      <h3 className="section-subtitle" style={{ marginTop: '24px', marginBottom: '12px', fontSize: '1rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+        🖥️ OS & Process Diagnostics
+      </h3>
+      <section className="metrics-grid">
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-warning)' }}>
+          <div className="metric-label">
+            Page Faults (Major)
+            {renderInfoIcon('os_page_faults_major')}
+          </div>
+          <div className="metric-value" style={{ color: pageFaultsMajor > 0 ? 'var(--color-danger)' : 'var(--color-success)' }}>
+            {pageFaultsMajor.toLocaleString()}
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            {pageFaultsMajor > 0 ? '⚠️ Disk I/O in corso!' : 'Nessun major fault'}
+          </div>
+        </div>
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-accent)' }}>
+          <div className="metric-label">
+            Page Faults (Minor)
+            {renderInfoIcon('os_page_faults_minor')}
+          </div>
+          <div className="metric-value">
+            {pageFaultsMinor.toLocaleString()}
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            mappatura memoria (normale in cold start)
+          </div>
+        </div>
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-accent)' }}>
+          <div className="metric-label">
+            Context Switches (Vol)
+            {renderInfoIcon('process_context_switches_voluntary')}
+          </div>
+          <div className="metric-value">
+            {ctxSwitchesVoluntary.toLocaleString()}
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            I/O wait (normale se basso)
+          </div>
+        </div>
+        <div className="glass-panel metric-card" style={{ borderLeft: ctxSwitchesInvoluntary > ctxSwitchesVoluntary ? 'var(--color-danger)' : 'var(--color-accent)' }}>
+          <div className="metric-label">
+            Context Switches (Invol)
+            {renderInfoIcon('process_context_switches_involuntary')}
+          </div>
+          <div className="metric-value" style={{ color: ctxSwitchesInvoluntary > ctxSwitchesVoluntary * 2 ? 'var(--color-warning)' : 'var(--color-accent)' }}>
+            {ctxSwitchesInvoluntary.toLocaleString()}
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            {ctxSwitchesInvoluntary > ctxSwitchesVoluntary * 2 ? '⚠️ CPU contention!' : 'Contenuto'}
+          </div>
+        </div>
+      </section>
+
+      <section className="metrics-grid" style={{ marginTop: '8px' }}>
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-info)' }}>
+          <div className="metric-label">
+            FFmpeg CPU (User)
+            {renderInfoIcon('ffmpeg_cpu_user_pct')}
+          </div>
+          <div className="metric-value" style={{ color: ffmpegCpuUserPct > 80 ? 'var(--color-success)' : ffmpegCpuUserPct > 50 ? 'var(--color-warning)' : 'var(--color-danger)' }}>
+            {ffmpegCpuUserPct}
+            <span className="metric-unit">%</span>
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            tempo in codice applicativo FFmpeg
+          </div>
+        </div>
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-info)' }}>
+          <div className="metric-label">
+            FFmpeg CPU (Sys)
+            {renderInfoIcon('ffmpeg_cpu_sys_pct')}
+          </div>
+          <div className="metric-value" style={{ color: ffmpegCpuSysPct > 20 ? 'var(--color-warning)' : 'var(--color-accent)' }}>
+            {ffmpegCpuSysPct}
+            <span className="metric-unit">%</span>
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            tempo in syscall/kernel (I/O pipe)
+          </div>
+        </div>
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-accent)' }}>
+          <div className="metric-label">
+            LLC References
+            {renderInfoIcon('llc_references')}
+          </div>
+          <div className="metric-value">
+            {llcReferences.toLocaleString()}
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            accessi cache L3 (ultimo livello)
+          </div>
+        </div>
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-accent)' }}>
+          <div className="metric-label">
+            LLC Miss Rate
+            {renderInfoIcon('llc_misses')}
+          </div>
+          <div className="metric-value" style={{ color: llcMissRate !== '—' && parseFloat(llcMissRate) > 20 ? 'var(--color-danger)' : 'var(--color-success)' }}>
+            {llcMissRate}
+            <span className="metric-unit">%</span>
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            se alto: memory subsystem in crisi
           </div>
         </div>
       </section>

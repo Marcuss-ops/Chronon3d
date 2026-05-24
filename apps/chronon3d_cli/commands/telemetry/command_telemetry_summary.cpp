@@ -22,6 +22,9 @@ RunSummary query_run_summary(sqlite3* db, const std::string& run_id) {
         "unaligned_memory_copies, frame_conversion_copy_ms, "
         "video_graph_eval_ms, video_conversion_ms, video_pipe_write_ms, video_ffmpeg_latency_ms, "
         "io_queue_push_blocked_ms, io_queue_pop_wait_ms, io_queue_peak_depth, ffmpeg_pipe_write_blocked_ms, converted_frame_cache_hits, ffmpeg_flush_ms, "
+        "io_queue_peak_bytes, setup_graph_parsing_ms, setup_asset_io_load_ms, setup_pool_preallocation_ms, image_decode_ms, "
+        "process_context_switches_voluntary, process_context_switches_involuntary, os_page_faults_major, os_page_faults_minor, "
+        "ffmpeg_cpu_user_pct, ffmpeg_cpu_sys_pct, llc_references, llc_misses, "
         "started_at_iso, finished_at_iso, git_commit_short, build_type, compiler_info, os, cpu_model, cores "
         "FROM render_runs WHERE run_id = ?;";
     sqlite3_stmt* stmt = nullptr;
@@ -88,17 +91,30 @@ RunSummary query_run_summary(sqlite3* db, const std::string& run_id) {
         run.io_queue_push_blocked_ms = static_cast<uint64_t>(sql_i64(stmt, 59));
         run.io_queue_pop_wait_ms = static_cast<uint64_t>(sql_i64(stmt, 60));
         run.io_queue_peak_depth = static_cast<uint64_t>(sql_i64(stmt, 61));
-        run.ffmpeg_pipe_write_blocked_ms = static_cast<uint64_t>(sql_i64(stmt, 62));
-        run.converted_frame_cache_hits = static_cast<uint64_t>(sql_i64(stmt, 63));
-        run.ffmpeg_flush_ms = static_cast<uint64_t>(sql_i64(stmt, 64));
-        run.started_at_iso = sql_text(stmt, 65);
-        run.finished_at_iso = sql_text(stmt, 66);
-        run.git_commit_short = sql_text(stmt, 67);
-        run.build_type = sql_text(stmt, 68);
-        run.compiler_info = sql_text(stmt, 69);
-        run.os = sql_text(stmt, 70);
-        run.cpu_model = sql_text(stmt, 71);
-        run.cores = static_cast<int>(sql_i64(stmt, 72));
+        run.io_queue_peak_bytes = static_cast<uint64_t>(sql_i64(stmt, 62));
+        run.setup_graph_parsing_ms = static_cast<uint64_t>(sql_i64(stmt, 63));
+        run.setup_asset_io_load_ms = static_cast<uint64_t>(sql_i64(stmt, 64));
+        run.setup_pool_preallocation_ms = static_cast<uint64_t>(sql_i64(stmt, 65));
+        run.image_decode_ms = static_cast<uint64_t>(sql_i64(stmt, 66));
+        run.process_context_switches_voluntary = static_cast<uint64_t>(sql_i64(stmt, 67));
+        run.process_context_switches_involuntary = static_cast<uint64_t>(sql_i64(stmt, 68));
+        run.os_page_faults_major = static_cast<uint64_t>(sql_i64(stmt, 69));
+        run.os_page_faults_minor = static_cast<uint64_t>(sql_i64(stmt, 70));
+        run.ffmpeg_cpu_user_pct = static_cast<uint64_t>(sql_i64(stmt, 71));
+        run.ffmpeg_cpu_sys_pct = static_cast<uint64_t>(sql_i64(stmt, 72));
+        run.llc_references = static_cast<uint64_t>(sql_i64(stmt, 73));
+        run.llc_misses = static_cast<uint64_t>(sql_i64(stmt, 74));
+        run.ffmpeg_pipe_write_blocked_ms = static_cast<uint64_t>(sql_i64(stmt, 59));
+        run.converted_frame_cache_hits = static_cast<uint64_t>(sql_i64(stmt, 60));
+        run.ffmpeg_flush_ms = static_cast<uint64_t>(sql_i64(stmt, 61));
+        run.started_at_iso = sql_text(stmt, 75);
+        run.finished_at_iso = sql_text(stmt, 76);
+        run.git_commit_short = sql_text(stmt, 77);
+        run.build_type = sql_text(stmt, 78);
+        run.compiler_info = sql_text(stmt, 79);
+        run.os = sql_text(stmt, 80);
+        run.cpu_model = sql_text(stmt, 81);
+        run.cores = static_cast<int>(sql_i64(stmt, 82));
     }
     sqlite3_finalize(stmt);
     return run;

@@ -113,7 +113,8 @@ TEST_CASE("framebuffer_pool_reuses_after_release") {
     {
         auto a = pool->acquire_pooled(1920, 1080, pool);
     }
-    // After release, no reuse yet
+    // After release, the buffer should be counted as returned to the pool
+    REQUIRE(counters.framebuffer_buffer_returned_to_pool_count.load() >= 1);
     REQUIRE(counters.framebuffer_reuses.load() == 0);
 
     {
@@ -121,6 +122,7 @@ TEST_CASE("framebuffer_pool_reuses_after_release") {
     }
     // Second acquire should have reused the released framebuffer
     REQUIRE(counters.framebuffer_reuses.load() >= 1);
+    REQUIRE(counters.framebuffer_buffer_returned_to_pool_count.load() >= 2);
 
     profiling::g_current_counters = nullptr;
 }

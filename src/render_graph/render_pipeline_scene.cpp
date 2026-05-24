@@ -185,7 +185,11 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     RenderGraph graph = [&]() {
         CHRONON_ZONE_C("build_graph", trace_category::kGraph);
         auto mutable_ctx = ctx;
-        return detail::build_graph(scene, mutable_ctx, resolved);
+        auto built_graph = detail::build_graph(scene, mutable_ctx, resolved);
+        // build_graph mutates optimization hints that the executor needs later.
+        ctx.skip_initial_clear = mutable_ctx.skip_initial_clear;
+        ctx.early_exit_skip = std::move(mutable_ctx.early_exit_skip);
+        return built_graph;
     }();
 
     // Apply graph-level optimizations (node fusion, branch pruning, static bake analysis)

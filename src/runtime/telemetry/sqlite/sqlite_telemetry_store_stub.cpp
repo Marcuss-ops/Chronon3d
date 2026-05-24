@@ -11,6 +11,8 @@ SqliteTelemetryStore::SqliteTelemetryStore()
 SqliteTelemetryStore::~SqliteTelemetryStore() = default;
 
 bool SqliteTelemetryStore::initialize(const std::string&) { return false; }
+void SqliteTelemetryStore::begin_transaction() {}
+void SqliteTelemetryStore::end_transaction(bool) {}
 bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord&) { return false; }
 bool SqliteTelemetryStore::write_frames(const std::string&, const std::vector<FrameTelemetryRecord>&) { return false; }
 bool SqliteTelemetryStore::write_phases(const std::string&, const std::vector<PhaseTelemetryRecord>&) { return false; }
