@@ -20,6 +20,8 @@ void composite_framebuffer(Framebuffer& dst_fb, const Framebuffer& src_fb, int x
 
 void composite_bl_image_transformed(Framebuffer& fb, const BLImage& img, const Mat4& model, float opacity, BlendMode mode, const RenderState* state = nullptr);
 
+void composite_bl_image_tiled(Framebuffer& fb, const BLImage& img, const Mat4& model, float opacity, BlendMode mode, const RenderState* state = nullptr);
+
 void composite_framebuffer_transformed(Framebuffer& dst_fb, const Framebuffer& src_fb, const Mat4& model, float opacity, BlendMode mode, const RenderState* state = nullptr);
 
 } // namespace chronon3d::blend2d_bridge

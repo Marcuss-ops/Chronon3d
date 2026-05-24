@@ -43,7 +43,7 @@ TEST_CASE("resolve_motion_state keeps base transform for None preset") {
 }
 
 TEST_CASE("PushIn3D changes z and rotation") {
-    auto obj = MotionObject::text("title", "LIL DIRK")
+    auto obj = MotionObject::text("title", "TEST TITLE")
         .enable_3d(-100.0f)
         .preset(MotionPreset::PushIn3D)
         .time(0, 100);

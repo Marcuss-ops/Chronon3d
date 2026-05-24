@@ -21,6 +21,7 @@ enum class ShapeType {
     Path,
     Text,
     Image,
+    TiledImage,
     Mesh,
     FakeBox3D,
     GridPlane,

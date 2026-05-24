@@ -1,4 +1,6 @@
 #include "video_export_common.hpp"
+#include <chronon3d/core/framebuffer.hpp>
+#include <chronon3d/core/profiling.hpp>
 #include <spdlog/spdlog.h>
 #include <chrono>
 #include <filesystem>
@@ -20,6 +22,9 @@ int render_and_encode_ffmpeg_chunked(
     Frame end,
     const FfmpegExportOptions& opts)
 {
+    profiling::g_live_framebuffer_bytes.store(0, std::memory_order_relaxed);
+    profiling::g_peak_live_framebuffer_bytes.store(0, std::memory_order_relaxed);
+
     const int total = static_cast<int>(end - start);
     const std::filesystem::path frames_dir = std::filesystem::temp_directory_path() / opts.frames_dir_name;
     std::error_code ec;

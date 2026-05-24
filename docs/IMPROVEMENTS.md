@@ -15,7 +15,7 @@
 **Guadagno stimato:** 100-200ms risparmiati al primo frame.
 **Comandi esistenti da sfruttare:**
 ```bash
-./chronon3d_cli bake-layer --comp LilDirkClean --layer grid_bg --output /tmp/grid_bg.exr
+./chronon3d_cli bake-layer --comp GridTitleMotion --layer bg --output /tmp/bg.exr
 ```
 ✅ **STATO: COMPLETATO** — `exr_mmap.cpp` con `load_exr_mmap()`, `DarkGridBackground` usa EXR con DWAA compression e half-float, `command_bake_layer` supporta `--exr-bake` flag.
 **Prossimi passi per miglioramenti futuri:**
@@ -355,8 +355,8 @@ static PathCache g_path_cache(64 * 1024 * 1024, 16);  // 64MB, 16 shard
 6. Caricare la `.dll` con `dlopen` / `LoadLibrary` e callare il punto d'ingresso
 
 ```cpp
-// Output del compiler — un esempio per LilDirkClean:
-extern “C” void render_LilDirkClean_Frame(
+// Output del compiler — un esempio:
+extern “C” void render_ExampleComp_Frame(
     float* pool_ptr,    // arena allocata dal pool
     int frame_idx,
     float time_seconds,
@@ -375,7 +375,7 @@ extern “C” void render_LilDirkClean_Frame(
 **Prossimi passi:**
 - [ ] Definire l'IR del compiler (Instruction base + nodi concreti)
 - [ ] Implementare `LifetimeAnalysis` — calcola quando ogni FB viene allocato/deallocato
-- [ ] Generare codice C++ da una composition (es. LilDirkClean → `render_lildirk.cpp`)
+- [ ] Generare codice C++ da una composition (es. GridTitleMotion → `render_gridtitle.cpp`)
 - [ ] Integrare `system()` call per compilare all'avvio se il file non esiste
 - [ ] LoadLibrary + function pointer call nel render loop
 
@@ -616,7 +616,7 @@ Pass* add_pass(“blur_vertical”,   read: {tmp_fb}, write: {dst_fb});
 **Protocollo:
 ```json
 // Client → Daemon
-{ “cmd”: “render”, “comp”: “LilDirkClean”, “frames”: [0, 900], “output”: “/tmp/out.mp4” }
+{ “cmd”: “render”, “comp”: “GridTitleMotion”, “frames”: [0, 900], “output”: “/tmp/out.mp4” }
 
 // Daemon → Client
 { “status”: “rendering”, “progress”: 0.45, “fps”: 12.3 }

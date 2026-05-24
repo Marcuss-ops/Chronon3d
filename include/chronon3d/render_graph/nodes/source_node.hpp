@@ -87,6 +87,16 @@ public:
         if (m_opacity_override) {
             key.params_hash = hash_combine(key.params_hash, hash_bytes(&(*m_opacity_override), sizeof(f32)));
         }
+        if (m_is_3d && ctx.has_camera_2_5d) {
+            const auto& cam = ctx.camera_2_5d;
+            key.params_hash = hash_combine(key.params_hash, hash_bytes(&cam.position, sizeof(Vec3)));
+            key.params_hash = hash_combine(key.params_hash, hash_bytes(&cam.rotation, sizeof(Vec3)));
+            key.params_hash = hash_combine(key.params_hash, hash_bytes(&cam.zoom, sizeof(f32)));
+            key.params_hash = hash_combine(key.params_hash, hash_bytes(&cam.fov_deg, sizeof(f32)));
+            if (cam.point_of_interest_enabled) {
+                key.params_hash = hash_combine(key.params_hash, hash_bytes(&cam.point_of_interest, sizeof(Vec3)));
+            }
+        }
         return key; 
     }
 
