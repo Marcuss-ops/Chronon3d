@@ -82,10 +82,14 @@ std::shared_ptr<Framebuffer> TransformNode::execute(
     f32 y_max_src = static_cast<f32>(input->height());
     if (!input_bboxes.empty() && input_bboxes[0].has_value()) {
         const auto& in_box = *input_bboxes[0];
-        x_min_src = static_cast<f32>(std::clamp(in_box.x0, 0, input->width()));
-        y_min_src = static_cast<f32>(std::clamp(in_box.y0, 0, input->height()));
-        x_max_src = static_cast<f32>(std::clamp(in_box.x1, 0, input->width()));
-        y_max_src = static_cast<f32>(std::clamp(in_box.y1, 0, input->height()));
+        const i32 local_x0 = in_box.x0 - input->origin_x();
+        const i32 local_y0 = in_box.y0 - input->origin_y();
+        const i32 local_x1 = in_box.x1 - input->origin_x();
+        const i32 local_y1 = in_box.y1 - input->origin_y();
+        x_min_src = static_cast<f32>(std::clamp(local_x0, 0, input->width()));
+        y_min_src = static_cast<f32>(std::clamp(local_y0, 0, input->height()));
+        x_max_src = static_cast<f32>(std::clamp(local_x1, 0, input->width()));
+        y_max_src = static_cast<f32>(std::clamp(local_y1, 0, input->height()));
         if (x_min_src >= x_max_src || y_min_src >= y_max_src) {
             return result;
         }

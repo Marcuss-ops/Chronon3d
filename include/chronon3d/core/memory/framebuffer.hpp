@@ -170,12 +170,12 @@ public:
 
     void set_pixel(i32 x, i32 y, const Color& color) {
         if (x < 0 || x >= m_width || y < 0 || y >= m_height) return;
-        data()[static_cast<usize>(y) * m_width + x] = color;
+        data()[static_cast<usize>(y) * m_allocated_width + x] = color;
     }
 
     [[nodiscard]] Color get_pixel(i32 x, i32 y) const {
         if (x < 0 || x >= m_width || y < 0 || y >= m_height) return Color::transparent();
-        return data()[static_cast<usize>(y) * m_width + x];
+        return data()[static_cast<usize>(y) * m_allocated_width + x];
     }
 
     [[nodiscard]] Color sample(f32 x, f32 y, SamplingMode mode = SamplingMode::Nearest) const {
@@ -207,12 +207,13 @@ public:
         std::ofstream ofs(path, std::ios::binary);
         if (!ofs) return false;
         ofs << "P6\n" << m_width << " " << m_height << "\n255\n";
-        const Color* p = data();
-        const size_t n = pixel_count();
-        for (size_t i = 0; i < n; ++i) {
-            ofs.put(Color::linear_to_srgb8(p[i].r));
-            ofs.put(Color::linear_to_srgb8(p[i].g));
-            ofs.put(Color::linear_to_srgb8(p[i].b));
+        for (i32 y = 0; y < m_height; ++y) {
+            const Color* row = pixels_row(y);
+            for (i32 x = 0; x < m_width; ++x) {
+                ofs.put(Color::linear_to_srgb8(row[x].r));
+                ofs.put(Color::linear_to_srgb8(row[x].g));
+                ofs.put(Color::linear_to_srgb8(row[x].b));
+            }
         }
         return true;
     }

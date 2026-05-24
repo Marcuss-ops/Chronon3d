@@ -1,7 +1,9 @@
 #include <chronon3d/api/backgrounds.hpp>
 
+#include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/core/composition/composition_registration.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
+#include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/math/constants.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
@@ -11,6 +13,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <filesystem>
 
 namespace chronon3d::api {
 
@@ -36,21 +39,99 @@ const BackgroundCatalog& builtin_background_catalog_storage() {
     return catalog;
 }
 
-void render_grid_clean(SceneBuilder& s, const FrameContext& ctx, const BackgroundOptions& opt) {
-    GridBackgroundParams grid_params{};
-    grid_params.size = {1920.0f, 1080.0f};
-    grid_params.offset = {0.0f, 0.0f}; // static and perfectly symmetric
-    grid_params.bg_color = opt.background;
-    grid_params.grid_color = opt.accent.with_alpha(std::max(0.15f, opt.accent.a * opt.intensity));
-    grid_params.spacing = 240.0f; // fewer lines (less dense)
-    grid_params.minor_thickness = 1.25f;
-    grid_params.major_thickness = 2.75f;
-    grid_params.major_every = 4;
-    grid_params.centered = true;
+inline f32 distance_to_grid_line(f32 value, f32 step) {
+    if (step <= 1e-6f) return 0.0f;
+    return std::abs(value - std::round(value / step) * step);
+}
 
-    s.layer("grid_clean_lines", [grid_params](LayerBuilder& l) {
-        l.cache_static();
-        l.grid_background("grid", grid_params);
+std::filesystem::path grid_clean_cache_path(i32 width, i32 height) {
+    std::filesystem::path dir = std::filesystem::path("output") / "cache" / "grid_clean_background";
+    std::filesystem::create_directories(dir);
+    return dir / (std::to_string(width) + "x" + std::to_string(height) + ".png");
+}
+
+void rasterize_grid_clean_background(Framebuffer& fb, const BackgroundOptions& opt) {
+    const i32 W = fb.width();
+    const i32 H = fb.height();
+    const f32 half_w = static_cast<f32>(W) * 0.5f;
+    const f32 half_h = static_cast<f32>(H) * 0.5f;
+
+    const Color bg = opt.background.to_linear();
+    const Color glow = opt.glow.with_alpha(std::clamp(opt.intensity * 0.10f, 0.0f, 0.18f)).to_linear();
+    const Color line = opt.accent.with_alpha(std::clamp(opt.accent.a * opt.intensity, 0.72f, 0.95f)).to_linear();
+    const Color major = Color{line.r, line.g, line.b, 1.0f};
+
+    const f32 spacing = 160.0f;
+    const f32 major_step = spacing * 4.0f;
+    const f32 glow_thickness = 8.0f;
+    const f32 minor_thickness = 2.5f;
+    const f32 major_thickness = 5.5f;
+
+    fb.clear(bg);
+
+    for (i32 y = 0; y < H; ++y) {
+        const f32 gy = static_cast<f32>(y) - half_h;
+        const f32 minor_dy = distance_to_grid_line(gy, spacing);
+        const f32 major_dy = distance_to_grid_line(gy, major_step);
+
+        for (i32 x = 0; x < W; ++x) {
+            const f32 gx = static_cast<f32>(x) - half_w;
+            const f32 minor_dx = distance_to_grid_line(gx, spacing);
+            const f32 major_dx = distance_to_grid_line(gx, major_step);
+
+            const bool on_major = (minor_dx <= major_thickness * 0.5f) || (minor_dy <= major_thickness * 0.5f) ||
+                                  (major_dx <= major_thickness * 0.5f) || (major_dy <= major_thickness * 0.5f);
+            const bool on_minor = (minor_dx <= minor_thickness * 0.5f) || (minor_dy <= minor_thickness * 0.5f);
+            const bool on_glow = (minor_dx <= glow_thickness * 0.5f) || (minor_dy <= glow_thickness * 0.5f);
+
+            if (on_glow) {
+                Color c = bg;
+                c = raster::blend_normal(glow, c);
+                fb.set_pixel(x, y, c);
+            }
+            if (on_minor) {
+                Color c = fb.get_pixel(x, y);
+                c = raster::blend_normal(line, c);
+                fb.set_pixel(x, y, c);
+            }
+            if (on_major) {
+                Color c = fb.get_pixel(x, y);
+                c = raster::blend_normal(major, c);
+                fb.set_pixel(x, y, c);
+            }
+        }
+    }
+}
+
+std::filesystem::path ensure_grid_clean_background_image(i32 width, i32 height, const BackgroundOptions& opt) {
+    const auto path = grid_clean_cache_path(width, height);
+    if (std::filesystem::exists(path)) {
+        return path;
+    }
+
+    Framebuffer fb(width, height);
+    rasterize_grid_clean_background(fb, opt);
+    save_png(fb, path.string());
+    return path;
+}
+
+void render_grid_clean(SceneBuilder& s, const FrameContext& ctx, const BackgroundOptions& opt) {
+    const f32 W = static_cast<f32>(ctx.width);
+    const f32 H = static_cast<f32>(ctx.height);
+    const f32 shift_x = (opt.animated ? std::max(0.0f, ctx.effective_frame()) : 0.0f) * 0.06f * std::max(opt.speed, 0.0f);
+
+    s.screen_layer("grid_clean_lines", [W, H, opt, shift_x](LayerBuilder& l) {
+        l.grid_background("grid", {
+            .size = {W, H},
+            .offset = {shift_x, 0.0f},
+            .bg_color = opt.background,
+            .grid_color = Color{1.0f, 1.0f, 1.0f, 0.15f}, // simple elegant white grid
+            .spacing = 160.0f,
+            .minor_thickness = 1.5f,
+            .major_thickness = 3.5f,
+            .major_every = 4,
+            .centered = true
+        });
     });
 }
 
@@ -115,8 +196,8 @@ Composition grid_clean_background() {
     }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         api::BackgroundOptions opt;
-        opt.background = Color{0.008f, 0.010f, 0.022f, 1.0f};
-        opt.accent = Color{1.0f, 1.0f, 1.0f, 0.08f}; // subtle white grid lines
+        opt.background = Color{0.006f, 0.008f, 0.014f, 1.0f};
+        opt.accent = Color{0.95f, 0.98f, 1.0f, 0.84f};
         opt.glow = Color{0.0f, 0.0f, 0.0f, 0.0f};
         api::render_builtin_background(s, ctx, "grid_clean", opt);
         return s.build();
