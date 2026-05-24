@@ -16,28 +16,54 @@ bool FfmpegPipeEncoder::convert_framebuffer_to_rgba(const Framebuffer& fb, uint8
         static_cast<size_t>(options_.width) *
         static_cast<size_t>(options_.height);
 
-    if (!dst && rgba_buffer_.size() != count * 4u) {
-        return false;
+    if (!dst) {
+        const size_t req_size = count * 4u;
+        if (rgba_buffer_.size() != req_size) {
+            rgba_buffer_.assign(req_size, 0);
+        }
     }
 
     const Color* src = fb.data();
     uint8_t* dst_ptr = dst ? dst : rgba_buffer_.data();
 
     const auto& transform = options_.color_transform;
+    const bool clamp = transform.clamp;
+    const bool apply_gamma = transform.apply_gamma;
+    const auto output_space = transform.output;
 
-    // Keep the conversion path deterministic and correct first.
-    // The SIMD branch was producing black frames in the raw pipe path.
-    tbb::parallel_for(tbb::blocked_range<size_t>(0, count, 4096),
-        [&](const tbb::blocked_range<size_t>& r) {
-            for (size_t i = r.begin(); i < r.end(); ++i) {
-                const auto rgb = color::linear_to_output_rgb8(src[i], transform);
-                dst_ptr[i * 4 + 0] = rgb.r;
-                dst_ptr[i * 4 + 1] = rgb.g;
-                dst_ptr[i * 4 + 2] = rgb.b;
-                // Alpha is not gamma-encoded — store as-is
-                dst_ptr[i * 4 + 3] = Color::linear_to_srgb8(src[i].a);
-            }
-        });
+    if (apply_gamma && (output_space == color::ColorSpace::SRGB || output_space == color::ColorSpace::Rec709)) {
+        const auto& lut = color_detail::linear_to_srgb8_lut();
+        const uint8_t* lut_ptr = lut.data();
+        const size_t lut_size_minus_1 = lut.size() - 1;
+
+        auto fast_srgb = [lut_ptr, lut_size_minus_1](float val) -> uint8_t {
+            const float clamped = (val < 0.0f) ? 0.0f : ((val > 1.0f) ? 1.0f : val);
+            const size_t idx = static_cast<size_t>(clamped * static_cast<float>(lut_size_minus_1) + 0.5f);
+            return lut_ptr[idx];
+        };
+
+        tbb::parallel_for(tbb::blocked_range<size_t>(0, count, 4096),
+            [&](const tbb::blocked_range<size_t>& r) {
+                for (size_t i = r.begin(); i < r.end(); ++i) {
+                    const Color& c = src[i];
+                    dst_ptr[i * 4 + 0] = fast_srgb(c.r);
+                    dst_ptr[i * 4 + 1] = fast_srgb(c.g);
+                    dst_ptr[i * 4 + 2] = fast_srgb(c.b);
+                    dst_ptr[i * 4 + 3] = fast_srgb(c.a);
+                }
+            });
+    } else {
+        tbb::parallel_for(tbb::blocked_range<size_t>(0, count, 4096),
+            [&](const tbb::blocked_range<size_t>& r) {
+                for (size_t i = r.begin(); i < r.end(); ++i) {
+                    const auto rgb = color::linear_to_output_rgb8(src[i], transform);
+                    dst_ptr[i * 4 + 0] = rgb.r;
+                    dst_ptr[i * 4 + 1] = rgb.g;
+                    dst_ptr[i * 4 + 2] = rgb.b;
+                    dst_ptr[i * 4 + 3] = Color::linear_to_srgb8(src[i].a);
+                }
+            });
+    }
 
     return true;
 }
@@ -61,8 +87,9 @@ bool FfmpegPipeEncoder::convert_framebuffer_to_yuv420p(const Framebuffer& fb, ui
     const size_t uv_size = y_size / 4u;
 
     if (!dst) {
-        if (yuv_buffer_.size() != y_size + uv_size + uv_size) {
-            return false;
+        const size_t req_size = y_size + uv_size + uv_size;
+        if (yuv_buffer_.size() != req_size) {
+            yuv_buffer_.assign(req_size, 0);
         }
         dst = yuv_buffer_.data();
     }
@@ -95,8 +122,9 @@ bool FfmpegPipeEncoder::convert_framebuffer_to_nv12(const Framebuffer& fb, uint8
     const size_t uv_size = y_size / 2u;
 
     if (!dst) {
-        if (yuv_buffer_.size() != y_size + uv_size) {
-            return false;
+        const size_t req_size = y_size + uv_size;
+        if (yuv_buffer_.size() != req_size) {
+            yuv_buffer_.assign(req_size, 0);
         }
         dst = yuv_buffer_.data();
     }
