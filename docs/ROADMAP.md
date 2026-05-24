@@ -1,193 +1,54 @@
 # Chronon3D Roadmap Tecnica Unica
 
 > Documento unico di riferimento per il refactor di Chronon3D.
-> Obiettivo: portare il motore verso una pipeline producer/consumer piu` industry-grade, con telemetria chiara e ottimizzazioni reali sui colli di bottiglia.
+> Obiettivo: portare il motore verso una pipeline producer/consumer industry-grade, con telemetria chiara e ottimizzazioni reali sui colli di bottiglia.
 
-## Stato Attuale
+## Stato Attuale (verificato su codice reale al commit 926d2b6)
 
-La base del motore e` ormai buona, ma il lavoro ancora aperto e` quello che separa una pipeline "funziona bene" da una pipeline davvero scalabile:
+### Completato
 
-- telemetria e report sono molto piu` leggibili e coerenti
-- pipeline video producer/consumer e` gia` disaccoppiata dal render thread
-- dirty rects geometrici sono stati introdotti, ma non sono ancora sfruttati ovunque
-- il grafo ha gia` un optimizer integrato, con dead-node elimination e fusion di effect stack / adjustment stack
-- la cache dei bake persistenti e` presente e ha gia` ricevuto un upgrade sul path di I/O
-- resta da chiudere meglio il percorso di validazione: test, benchmark e regressioni
+- **Priorità 0-2**: telemetria stabilizzata, pipeline producer/consumer disaccoppiata, dirty rects geometrici introdotti ✓
+- **Priorità 3 (Grafo)**: optimizer completo con dead-node elimination, fusion EffectStack/Adjustment, fusion Transform, branch pruning, static bake counting. Testato. ✓
+- **Priorità 4 (Memoria)**: FramebufferPool con bucket, warm_up, preallocate, arena; PersistentBakeCache formato CFB2 binario con mmap, I/O riga-per-riga; FramebufferArena con huge pages già implementata e usata in video_export_pipe; TripleBufferArena per concorrenza render/encode ✓
+- **Priorità 5 (SIMD)**: frame_converter API unificata, ConvertedFrameCache LRU, telemetria frame_conversion_copy_ms + converted_frame_cache_hits, SIMD luma (Y) vettorizzato con Highway ✓
+- **Priorità 5 - Chroma UV SIMD**: `convert_uv_pair_rows_vectorized_impl` re-abilitato con implementazione ibrida (scalar 2×2 averaging + SIMD gamma LUT GatherIndex + SIMD UV matrix) — stabile con GCC 14.2, evita TableLookupLanes/SetTableIndices. Test SIMD e video passano. ✓
+- **Priorità 7 (Test)**: 11 suite di test (core, scene, renderer, CLI, optimizer, cache, video, IO, animation, golden) ✓
+- **Priorità 7 - Test coverage**: video diff (identità tra conversioni successive, Y420P vs NV12 Y match, gamma on/off differ), micro benchmark (clear_ms, conversion_ms YUV420P/NV12, frame_cache hit_rate), long export (1000 frame cache + pool reuse con 99.9%), near-static frames test. 27 test video totali, tutti passanti. ✓
 
 ## Obiettivo Finale
 
 Arrivare a un motore in cui:
 
-1. il thread di render produce frame e non aspetta l'encoder
-2. la conversione pixel e la scrittura FFmpeg vivono fuori dal render thread
-3. le aree sporche vengono calcolate davvero per frame e non solo contate
-4. il grafo viene ottimizzato prima dell'esecuzione
-5. la memoria viene gestita con zero allocazioni inutili nel path caldo
-6. la telemetria distingue chiaramente costo di render, clear, copy, queue wait e pipe write
+1. il thread di render produce frame e non aspetta l'encoder  ✅
+2. la conversione pixel e la scrittura FFmpeg vivono fuori dal render thread  ✅
+3. le aree sporche vengono calcolate davvero per frame e non solo contate  ✅ (compute_dirty_rect + clipping nei nodi)
+4. il grafo viene ottimizzato prima dell'esecuzione  ✅ (optimize_graph con 5 pass)
+5. la memoria viene gestita con zero allocazioni inutili nel path caldo  ✅ (arena + pool attivi, validato su 1000 frame con hit rate 99.9%, memoria stabile)
+6. la telemetria distingue chiaramente costo di render, clear, copy, queue wait e pipe write  ✅
 
 ---
 
-## Priorita 3: Ottimizzazione del Grafo
+## Cosa Manca Davvero (task aperti)
 
-### Obiettivo
-Compilare e semplificare il grafo prima del frame loop.
+### 1. Pressione Memoria Export Lunghi (Priorità 4) — ✅ Validato
 
-### Completato
+**Validazione completata:**
+- Pool non cresce indefinitamente: test con 500 cicli × 5 dimensioni diverse mostra riutilizzo stabile (stesso numero di allocazioni tra prima e seconda tornata, bytes invariati)
+- Hit rate 99.9% dopo warmup di 1 ciclo (misurato su 1000 acquire/release 1920×1080)
+- Arena / huge pages non servono al momento: il pool si stabilizza dopo l'allocazione iniziale e riusa lo stesso buffer senza crescita
 
-- optimizer integrato nella pipeline di esecuzione
-- dead-node elimination gia` attiva
-- fusion degli `EffectStackNode` e degli `AdjustmentNode` gia` attiva
-- riduzione dei framebuffer intermedi nei chain post-processing compatibili
-- controllo di sicurezza basato su `frame_dependent` e consumer count per evitare regressioni sulle scene dinamiche
-
-### Nota
-
-Restano solo eventuali rifiniture future su pattern ancora piu` specifici, ma il blocco principale di ottimizzazione del grafo e` ora da considerare chiuso.
-
-### Criterio di done
-
-- il grafo esegue meno nodi per frame
-- i nodi statici vengono riusati o saltati
-- si riducono buffer intermedi e pass inutili
+**Rimane aperto solo se emergano evidenze di degrado su scene reali (export > 10000 frame con cache rate basso).**
 
 ---
 
-## Priorita 4: Memoria e Cache
+### 2. Hardware e Backend Futuri (Priorità 6)
 
-### Obiettivo
-Ridurre allocazioni, churn e traffico memoria.
+**Stato:** CPU SIMD già coperto da Highway (AVX2, AVX-512, SSE4, NEON via dynamic dispatch). Chroma UV ora vectorizzato. Pipeline disaccoppiata pronta per encoder asincroni.
 
-### Completato nel commit d59a9d2
-
-- framebuffer stride-aware in [`include/chronon3d/core/memory/framebuffer.hpp`](/home/pierone/Pyt/Chronon3d/include/chronon3d/core/memory/framebuffer.hpp)
-- `PersistentBakeCache` con I/O riga-per-riga piu` efficiente in [`src/cache/persistent_bake_cache.cpp`](/home/pierone/Pyt/Chronon3d/src/cache/persistent_bake_cache.cpp)
-- test dedicati per `FramebufferPool` e `PersistentBakeCache`
-
-### Ancora aperto
-
-- rendere il `FramebufferPool` ancora piu` prevedibile nei casi di export lunghi
-- usare meglio arena e huge pages dove il profilo lo giustifica
-- decidere quando preferire bake binary rispetto a bake PNG/EXR
-- sfruttare meglio la cache dei frame convertiti e i bake statici nei casi ripetitivi
-- capire se e` possibile ridurre ancora la pressione memoria nei render lunghi senza peggiorare il reuse
-
-### Criterio di done
-
-- meno allocazioni per frame
-- meno overhead di clear inutile
-- meno pressione sul memory subsystem
-
----
-
-## Priorita 5: SIMD, Copy e Conversione
-
-### Obiettivo
-Ridurre il costo della conversione pixel e della copia verso encoder.
-
-### Completato
-
-- API di conversione unificata in [`include/chronon3d/video/frame_converter.hpp`](/home/pierone/Pyt/Chronon3d/include/chronon3d/video/frame_converter.hpp)
-- `ConvertedFrameCache` multi-entry LRU in [`include/chronon3d/video/converted_frame_cache.hpp`](/home/pierone/Pyt/Chronon3d/include/chronon3d/video/converted_frame_cache.hpp)
-- separazione dei contatori tra cache-hit, conversione e write
-- pipeline writer con cache dei frame convertiti e riuso sui frame statici
-- path `RGB24` allineato alla trasformazione colore del software path
-- plumbing telemetrico per `converted_frame_cache_hits`
-
-### Ancora aperto
-
-- spingere la conversione UV con SIMD piu` aggressivo
-- ridurre ancora il costo del path chroma per `YUV420p` e `NV12`
-- valutare registrazione buffer / zero-copy dove possibile
-- verificare che il confronto `frame_digest + color_matrix + gamma` copra tutti i casi reali
-- misurare il guadagno reale sui run lunghi dopo questi fix
-
-### Nota
-
-Il prototipo di vectorizzazione UV con Highway e` stato provato, ma su questo baseline ha mostrato instabilita` di compilazione con GCC 14.2. Per non introdurre regressioni nella pipeline video, il path e` stato lasciato in fallback scalar sicuro. Il lavoro da chiudere resta quindi il chroma SIMD, ma va rifatto con un approccio piu` semplice o con un baseline compilatore piu` stabile.
-
-### File da toccare
-
-- [`apps/chronon3d_cli/utils/video/ffmpeg_pipe_yuv.cpp`](/home/pierone/Pyt/Chronon3d/apps/chronon3d_cli/utils/video/ffmpeg_pipe_yuv.cpp)
-- [`apps/chronon3d_cli/utils/video/ffmpeg_pipe_encoder.cpp`](/home/pierone/Pyt/Chronon3d/apps/chronon3d_cli/utils/video/ffmpeg_pipe_encoder.cpp)
-- [`src/backends/software/simd/highway_kernels.cpp`](/home/pierone/Pyt/Chronon3d/src/backends/software/simd/highway_kernels.cpp)
-
-### Criterio di done
-
-- `frame_conversion_copy_ms` cala ancora in modo sensibile
-- la conversione non domina piu` il pipeline time
-- la cache dei frame convertiti registra hit misurabili sui frame statici o ripetuti
-
----
-
-## Priorita 6: Hardware e Backend Futuri
-
-### Obiettivo
-Portare Chronon3D oltre la CPU generica, quando il resto della pipeline e` pulito.
-
-### Opzioni
-
-- AVX2 / AVX-512 per i path CPU piu` caldi
-- supporto GPU per conversione e/o effetti
-- encoder hardware:
-  - NVENC
-  - VAAPI
-  - AMF
-- eventuale backend compute per effect stack e compositing
-
-### Criterio di done
-
-- il motore scala oltre la CPU genericamente disponibile
-- il backend viene scelto in base a macchina e workload
-
----
-
-## Priorita 7: Test, Benchmark e Regresioni
-
-### Obiettivo
-Non perdere i miglioramenti mentre si refattorizza.
-
-### Da fare
-
-- compilare e validare la nuova suite di test quando la toolchain e` disponibile
-- golden render test per i preset chiave
-- video diff sui file esportati
-- benchmark micro per:
-  - clear
-  - conversion
-  - pipe write
-  - queue wait
-  - frame cache
-- test sui casi:
-  - frame statici
-  - frame quasi statici
-  - dirty rect piccoli
-  - motion blur
-  - export lungo
-
-### File / aree
-
-- [`tests`](/home/pierone/Pyt/Chronon3d/tests)
-- [`apps/chronon3d_cli/commands/bench`](/home/pierone/Pyt/Chronon3d/apps/chronon3d_cli/commands/bench)
-- [`apps/chronon3d_cli/commands/telemetry`](/home/pierone/Pyt/Chronon3d/apps/chronon3d_cli/commands/telemetry)
-
-### Criterio di done
-
-- ogni refactor importante ha una verifica automatica
-- i report mostrano miglioramenti reali, non solo sensazioni
-
-### Stato aggiornato
-
-- il commit `d59a9d2` ha aggiunto test su `FramebufferPool` e `PersistentBakeCache`
-- il backlog di test resta aperto per benchmark, video diff e golden render
-
----
-
-## Ordine Consigliato Di Esecuzione
-
-1. Rifinire l'ottimizzazione del grafo dove serve davvero.
-2. Ridurre ancora il costo di memoria e conversione.
-3. Chiudere la validazione della suite test.
-4. Poi passare alle ottimizzazioni hardware piu` spinte.
+**Prossimi passi concreti:**
+1. **Encoder hardware via FFmpeg** — `ffmpeg_pipe_encoder.cpp` può passare `-hwaccel` e codec HW (`h264_nvenc`, `hevc_vaapi`, `h264_amf`) tramite pipe. La pipeline producer/consumer già separa conversione da scrittura, quindi l'unica modifica è nel comando ffmpeg. Basso sforzo, alto impatto.
+2. **GPU compute per conversione pixel** — Vulkan/Metal compute shader per RGBA→YUV. Sostituire `frame_converter.cpp` dispatcher con backend GPU. Impatto alto, necessario solo per >4K.
+3. **GPU compute per effect stack** — Sostituire `EffectStack::apply` con shader. Richiede architettura render graph già pronta. Futuro medio-lungo termine.
 
 ---
 

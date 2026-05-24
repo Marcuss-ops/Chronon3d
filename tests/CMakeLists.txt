@@ -201,6 +201,10 @@ add_custom_target(chronon3d_tests
 add_executable(chronon3d_video_tests
     ${TEST_MAIN}
     video/test_frame_converter.cpp
+    video/test_video_diff.cpp
+    video/test_long_export.cpp
+    video/test_near_static_frames.cpp
+    bench/micro_benchmarks.cpp
     ${CMAKE_SOURCE_DIR}/src/video/frame_converter.cpp
     ${CMAKE_SOURCE_DIR}/src/video/converted_frame_cache.cpp
 )
