@@ -269,18 +269,6 @@ int render_and_encode_ffmpeg_pipe(
 
     const double write_blocked_ms = pipe.total_write_blocked_ms();
     const double conv_copy_ms = static_cast<double>(renderer->counters()->frame_conversion_copy_ms.load());
-    // Store per-run total counters for benchmark separation
-    if (renderer->counters()) {
-        renderer->counters()->video_pipe_write_ms.store(
-            static_cast<uint64_t>(write_blocked_ms),
-            std::memory_order_relaxed);
-        renderer->counters()->ffmpeg_pipe_write_blocked_ms.store(
-            static_cast<uint64_t>(write_blocked_ms),
-            std::memory_order_relaxed);
-        renderer->counters()->video_ffmpeg_latency_ms.store(
-            static_cast<uint64_t>(queue_wait_ms_total),
-            std::memory_order_relaxed);
-    }
     spdlog::info("[video] FFmpeg pipe write blocked duration: {:.2f} ms", write_blocked_ms);
     spdlog::info("[video_diag] conversion_and_copy_duration_ms: {} ms", conv_copy_ms);
     spdlog::info("[video] FFmpeg queue wait duration: {:.2f} ms", queue_wait_ms_total);
@@ -296,17 +284,40 @@ int render_and_encode_ffmpeg_pipe(
     const double wall_time_ms = std::chrono::duration<double, std::milli>(wall_t1 - wall_t0).count();
 
     // ── Benchmark breakdown calculations ──
-    // chronon_render_only_ms = render loop minus queue wait and conversion/copy
-    const double chronon_render_only_ms = render_ms - queue_wait_ms_total - conv_copy_ms;
+    // chronon_render_only_ms = render loop wall time minus queue backpressure.
+    // conv_copy_ms is measured in the writer thread and overlaps with rendering;
+    // it must NOT be subtracted from render thread time.
+    const double chronon_render_only_ms = render_ms - queue_wait_ms_total;
     const double chronon_queue_wait_ms = queue_wait_ms_total;
     const double chronon_conversion_copy_ms = conv_copy_ms;
     const double ffmpeg_encode_total_ms = write_blocked_ms;
     // ffmpeg_flush_close = time from render_t1 to wall_t1 (includes pipe.close())
     const double ffmpeg_flush_close_ms = std::chrono::duration<double, std::milli>(wall_t1 - render_t1).count();
 
+    // Store per-run total counters for benchmark separation
+    // (must be after all variables above are computed)
+    if (renderer->counters()) {
+        renderer->counters()->video_pipe_write_ms.store(
+            static_cast<uint64_t>(write_blocked_ms),
+            std::memory_order_relaxed);
+        renderer->counters()->ffmpeg_pipe_write_blocked_ms.store(
+            static_cast<uint64_t>(write_blocked_ms),
+            std::memory_order_relaxed);
+        renderer->counters()->ffmpeg_flush_ms.store(
+            static_cast<uint64_t>(ffmpeg_flush_close_ms),
+            std::memory_order_relaxed);
+        // video_ffmpeg_latency_ms represents the time FFmpeg takes to consume
+        // frames from the pipe (= write_blocked_ms), NOT render-side queue wait.
+        renderer->counters()->video_ffmpeg_latency_ms.store(
+            static_cast<uint64_t>(write_blocked_ms),
+            std::memory_order_relaxed);
+    }
+
+    // throughput = render thread wall time (render_only + queue_wait).
+    // conv_copy_ms is overlapping writer-thread work, reported separately.
     spdlog::info("[benchmark_chronon] render_only={:.2f}ms  conv_copy={:.2f}ms  queue_wait={:.2f}ms  throughput={:.2f}ms",
                  chronon_render_only_ms, chronon_conversion_copy_ms, chronon_queue_wait_ms,
-                 chronon_render_only_ms + chronon_conversion_copy_ms + chronon_queue_wait_ms);
+                 chronon_render_only_ms + chronon_queue_wait_ms);
     spdlog::info("[benchmark_e2e] ffmpeg_encode={:.2f}ms  ffmpeg_flush_close={:.2f}ms  wall={:.2f}ms",
                  ffmpeg_encode_total_ms, ffmpeg_flush_close_ms, wall_time_ms);
 

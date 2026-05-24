@@ -9,7 +9,7 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
     std::scoped_lock lock(m_impl->mutex);
     if (!m_impl->db) return false;
 
-    // Named-column INSERT: column order matches telemetry_schema.sql exactly (68 columns)
+    // Named-column INSERT: column order matches telemetry_schema.sql exactly (87 columns)
     const char* sql =
         "INSERT OR REPLACE INTO render_runs ("
         "run_id, composition_id, output_path, success, error_code, error_message, "
@@ -29,6 +29,13 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
         "dirty_full_fallback_composite_missing_input_bounds, "
         "dirty_full_fallback_transform_bounds_unknown, "
         "dirty_full_fallback_effect_bounds_unknown, "
+        "framebuffer_acquire_ms, framebuffer_clear_ms, clearnode_ms, "
+        "framebuffer_pool_clear_ms, framebuffer_enqueue_ms, "
+        "framebuffer_pool_miss_count_size_mismatch, framebuffer_pool_miss_count_empty, "
+        "framebuffer_pool_hits, framebuffer_buffer_returned_to_pool_count, "
+        "unaligned_memory_copies, frame_conversion_copy_ms, "
+        "video_graph_eval_ms, video_conversion_ms, video_pipe_write_ms, video_ffmpeg_latency_ms, "
+        "io_queue_push_blocked_ms, io_queue_pop_wait_ms, io_queue_peak_depth, ffmpeg_pipe_write_blocked_ms, ffmpeg_flush_ms, "
         "chronon_render_only_ms, chronon_conversion_copy_ms, chronon_queue_wait_ms, "
         "chronon_render_throughput_ms, ffmpeg_encode_total_ms, ffmpeg_flush_close_ms, "
         "e2e_wall_ms, "
@@ -41,7 +48,9 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
         "?31, ?32, ?33, ?34, ?35, ?36, ?37, ?38, ?39, ?40, "
         "?41, ?42, ?43, ?44, ?45, ?46, ?47, ?48, ?49, ?50, "
         "?51, ?52, ?53, ?54, ?55, ?56, ?57, ?58, ?59, ?60, "
-        "?61, ?62, ?63, ?64, ?65, ?66, ?67, ?68"
+        "?61, ?62, ?63, ?64, ?65, ?66, ?67, ?68, ?69, ?70, "
+        "?71, ?72, ?73, ?74, ?75, ?76, ?77, ?78, ?79, ?80, "
+        "?81, ?82, ?83, ?84, ?85, ?86, ?87, ?88"
         ");";
     sqlite3_stmt* stmt{nullptr};
     if (sqlite3_prepare_v2(m_impl->db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
@@ -104,22 +113,46 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
     sqlite3_bind_int64(stmt, 52, run.dirty_full_fallback_transform_bounds_unknown);
     sqlite3_bind_int64(stmt, 53, run.dirty_full_fallback_effect_bounds_unknown);
 
-    sqlite3_bind_double(stmt, 54, run.chronon_render_only_ms);
-    sqlite3_bind_double(stmt, 55, run.chronon_conversion_copy_ms);
-    sqlite3_bind_double(stmt, 56, run.chronon_queue_wait_ms);
-    sqlite3_bind_double(stmt, 57, run.chronon_render_throughput_ms);
-    sqlite3_bind_double(stmt, 58, run.ffmpeg_encode_total_ms);
-    sqlite3_bind_double(stmt, 59, run.ffmpeg_flush_close_ms);
-    sqlite3_bind_double(stmt, 60, run.e2e_wall_ms);
+    // Framebuffer / pipeline timing counters (19 new columns, ?54-?72)
+    sqlite3_bind_int64(stmt, 54, run.framebuffer_acquire_ms);
+    sqlite3_bind_int64(stmt, 55, run.framebuffer_clear_ms);
+    sqlite3_bind_int64(stmt, 56, run.clearnode_ms);
+    sqlite3_bind_int64(stmt, 57, run.framebuffer_pool_clear_ms);
+    sqlite3_bind_int64(stmt, 58, run.framebuffer_enqueue_ms);
+    sqlite3_bind_int64(stmt, 59, run.framebuffer_pool_miss_count_size_mismatch);
+    sqlite3_bind_int64(stmt, 60, run.framebuffer_pool_miss_count_empty);
+    sqlite3_bind_int64(stmt, 61, run.framebuffer_pool_hits);
+    sqlite3_bind_int64(stmt, 62, run.framebuffer_buffer_returned_to_pool_count);
+    sqlite3_bind_int64(stmt, 63, run.unaligned_memory_copies);
+    sqlite3_bind_int64(stmt, 64, run.frame_conversion_copy_ms);
+    sqlite3_bind_int64(stmt, 65, run.video_graph_eval_ms);
+    sqlite3_bind_int64(stmt, 66, run.video_conversion_ms);
+    sqlite3_bind_int64(stmt, 67, run.video_pipe_write_ms);
+    sqlite3_bind_int64(stmt, 68, run.video_ffmpeg_latency_ms);
+    sqlite3_bind_int64(stmt, 69, run.io_queue_push_blocked_ms);
+    sqlite3_bind_int64(stmt, 70, run.io_queue_pop_wait_ms);
+    sqlite3_bind_int64(stmt, 71, run.io_queue_peak_depth);
+    sqlite3_bind_int64(stmt, 72, run.ffmpeg_pipe_write_blocked_ms);
+    sqlite3_bind_int64(stmt, 73, run.ffmpeg_flush_ms);
 
-    sqlite3_bind_text(stmt, 61, run.started_at_iso.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 62, run.finished_at_iso.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 63, run.git_commit_short.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 64, run.build_type.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 65, run.compiler_info.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 66, run.os.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 67, run.cpu_model.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_int(stmt, 68, run.cores);
+    // Benchmark breakdown columns (shifted: were ?54-?60, now ?74-?80)
+    sqlite3_bind_double(stmt, 74, run.chronon_render_only_ms);
+    sqlite3_bind_double(stmt, 75, run.chronon_conversion_copy_ms);
+    sqlite3_bind_double(stmt, 76, run.chronon_queue_wait_ms);
+    sqlite3_bind_double(stmt, 77, run.chronon_render_throughput_ms);
+    sqlite3_bind_double(stmt, 78, run.ffmpeg_encode_total_ms);
+    sqlite3_bind_double(stmt, 79, run.ffmpeg_flush_close_ms);
+    sqlite3_bind_double(stmt, 80, run.e2e_wall_ms);
+
+    // Host & environment (shifted: were ?61-?68, now ?81-?88)
+    sqlite3_bind_text(stmt, 81, run.started_at_iso.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 82, run.finished_at_iso.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 83, run.git_commit_short.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 84, run.build_type.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 85, run.compiler_info.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 86, run.os.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 87, run.cpu_model.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int(stmt, 88, run.cores);
 
 
     int rc = sqlite3_step(stmt);

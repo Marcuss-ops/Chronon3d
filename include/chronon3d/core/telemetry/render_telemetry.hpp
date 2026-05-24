@@ -70,6 +70,7 @@ struct RenderTelemetryRow {
     uint64_t io_queue_pop_wait_ms{0};
     uint64_t io_queue_peak_depth{0};
     uint64_t ffmpeg_pipe_write_blocked_ms{0};
+    uint64_t ffmpeg_flush_ms{0};
 };
 
 } // namespace chronon3d::telemetry
@@ -261,7 +262,8 @@ inline void flush_telemetry() {
                 << row.io_queue_push_blocked_ms << ','
                 << row.io_queue_pop_wait_ms << ','
                 << row.io_queue_peak_depth << ','
-                << row.ffmpeg_pipe_write_blocked_ms << '\n';
+                << row.ffmpeg_pipe_write_blocked_ms << ','
+                << row.ffmpeg_flush_ms << '\n';
         }
     }
 

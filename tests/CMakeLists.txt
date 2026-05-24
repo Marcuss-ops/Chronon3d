@@ -102,12 +102,16 @@ add_executable(chronon3d_renderer_tests
     render_graph/pipeline/test_render_backend.cpp
     render_graph/pipeline/test_dirty_rects.cpp
     render_graph/optimizer/test_graph_optimizer.cpp
+    render_graph/pipeline/test_dirty_rects_v2.cpp
     scene/camera/camera_25d_tests.cpp
     effects/effect_graph_tests.cpp
     scene/shapes/mask_tests.cpp
     specscene/specscene_boundary_tests.cpp
     golden/golden_render_tests.cpp
     runtime/test_telemetry.cpp
+    runtime/test_telemetry_semantic.cpp
+    runtime/test_telemetry_coherence.cpp
+    runtime/test_telemetry_report.cpp
 )
 target_link_libraries(chronon3d_renderer_tests
     PRIVATE
@@ -140,6 +144,7 @@ add_executable(chronon3d_cli_tests
     cli/test_render_job_plan.cpp
     cli/test_frame_chunks.cpp
     cli/test_ffmpeg_pipe_encoder.cpp
+    cli/test_video_pipeline_producer_consumer.cpp
     cli/bench_json_tests.cpp
     ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/common/cli_utils.cpp
     ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/job/render_job_plan.cpp

@@ -128,6 +128,60 @@ void generate_telemetry_report(std::stringstream& out, sqlite3* db, const std::s
     out << "| dirty full fallbacks | " << run.dirty_full_fallbacks << " |\n";
     out << "| framebuffer reuse rate | " << format_pct(framebuffer_reuse_rate) << " |\n\n";
 
+    // ── Render ────────────────────────────────────────────────────────────────
+    out << "## Render\n";
+    out << "| Metric | Value |\n";
+    out << "| --- | --- |\n";
+    out << "| clearnode | " << format_ms(run.clearnode_ms) << " |\n";
+    out << "| video graph eval | " << format_ms(run.video_graph_eval_ms) << " |\n\n";
+
+    // ── Framebuffer ───────────────────────────────────────────────────────────
+    out << "## Framebuffer\n";
+    out << "| Metric | Value |\n";
+    out << "| --- | --- |\n";
+    out << "| framebuffer acquire | " << format_ms(run.framebuffer_acquire_ms) << " |\n";
+    out << "| framebuffer clear | " << format_ms(run.framebuffer_clear_ms) << " |\n";
+    out << "| framebuffer pool clear | " << format_ms(run.framebuffer_pool_clear_ms) << " |\n";
+    out << "| framebuffer enqueue | " << format_ms(run.framebuffer_enqueue_ms) << " |\n";
+    out << "| framebuffer pool hits | " << run.framebuffer_pool_hits << " |\n";
+    out << "| framebuffer pool miss (size) | " << run.framebuffer_pool_miss_count_size_mismatch << " |\n";
+    out << "| framebuffer pool miss (empty) | " << run.framebuffer_pool_miss_count_empty << " |\n";
+    out << "| framebuffer returned to pool | " << run.framebuffer_buffer_returned_to_pool_count << " |\n\n";
+
+    // ── Clear ─────────────────────────────────────────────────────────────────
+    out << "## Clear\n";
+    out << "| Metric | Value |\n";
+    out << "| --- | --- |\n";
+    out << "| clear calls (graph) | " << run.clear_calls << " |\n";
+    out << "| clear pixels (graph) | " << run.clear_pixels << " |\n";
+    out << "| clear skipped calls | " << run.clear_skipped_calls << " |\n";
+    out << "| clear skipped pixels | " << run.clear_skipped_pixels << " |\n\n";
+
+    // ── Conversion / Copy ─────────────────────────────────────────────────────
+    out << "## Conversion / Copy\n";
+    out << "| Metric | Value |\n";
+    out << "| --- | --- |\n";
+    out << "| frame conversion copy | " << format_ms(run.frame_conversion_copy_ms) << " |\n";
+    out << "| video conversion | " << format_ms(run.video_conversion_ms) << " |\n";
+    out << "| video pipe write | " << format_ms(run.video_pipe_write_ms) << " |\n";
+    out << "| unaligned memory copies | " << run.unaligned_memory_copies << " |\n\n";
+
+    // ── Queue ─────────────────────────────────────────────────────────────────
+    out << "## Queue\n";
+    out << "| Metric | Value |\n";
+    out << "| --- | --- |\n";
+    out << "| IO queue push blocked | " << format_ms(run.io_queue_push_blocked_ms) << " |\n";
+    out << "| IO queue pop wait | " << format_ms(run.io_queue_pop_wait_ms) << " |\n";
+    out << "| IO queue peak depth | " << run.io_queue_peak_depth << " |\n\n";
+
+    // ── FFmpeg Pipe ───────────────────────────────────────────────────────────
+    out << "## FFmpeg Pipe\n";
+    out << "| Metric | Value |\n";
+    out << "| --- | --- |\n";
+    out << "| ffmpeg pipe write blocked | " << format_ms(run.ffmpeg_pipe_write_blocked_ms) << " |\n";
+    out << "| ffmpeg flush | " << format_ms(run.ffmpeg_flush_ms) << " |\n";
+    out << "| video ffmpeg latency | " << format_ms(run.video_ffmpeg_latency_ms) << " |\n\n";
+
     // ── Hot Nodes ─────────────────────────────────────────────────────────────
     out << "## Hot Nodes\n";
     out << "| Node | Type | Calls | Total | Avg | Cache Hit Rate | Pixels Touched |\n";
