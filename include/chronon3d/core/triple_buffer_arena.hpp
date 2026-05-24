@@ -5,6 +5,8 @@
 #include <mutex>
 #include <atomic>
 #include <memory>
+#include <condition_variable>
+#include <thread>
 
 namespace chronon3d {
 
@@ -29,39 +31,42 @@ public:
      */
     std::shared_ptr<FramebufferArena> acquire() {
         std::unique_lock<std::mutex> lock(m_mutex);
-        for (;;) {
-            for (size_t i = 0; i < m_arenas.size(); ++i) {
-                if (!m_in_use[i]) {
-                    m_in_use[i] = true;
-                    m_arenas[i]->reset();
-                    return m_arenas[i];
-                }
+        m_cv.wait(lock, [this]() {
+            for (bool use : m_in_use) if (!use) return true;
+            return false;
+        });
+
+        for (size_t i = 0; i < m_arenas.size(); ++i) {
+            if (!m_in_use[i]) {
+                m_in_use[i] = true;
+                m_arenas[i]->reset();
+                return m_arenas[i];
             }
-            // All arenas in use, wait for one to be released
-            // (In a real implementation, we'd use a condition variable)
-            lock.unlock();
-            std::this_thread::yield();
-            lock.lock();
         }
+        return nullptr; // Should never happen
     }
 
     /**
      * @brief Releases an arena back to the pool.
      */
     void release(const std::shared_ptr<FramebufferArena>& arena) {
-        std::lock_guard<std::mutex> lock(m_mutex);
-        for (size_t i = 0; i < m_arenas.size(); ++i) {
-            if (m_arenas[i] == arena) {
-                m_in_use[i] = false;
-                return;
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            for (size_t i = 0; i < m_arenas.size(); ++i) {
+                if (m_arenas[i] == arena) {
+                    m_in_use[i] = false;
+                    break;
+                }
             }
         }
+        m_cv.notify_one();
     }
 
 private:
     std::vector<std::shared_ptr<FramebufferArena>> m_arenas;
     std::vector<bool> m_in_use;
     std::mutex m_mutex;
+    std::condition_variable m_cv;
 };
 
 } // namespace chronon3d
