@@ -40,7 +40,7 @@ void register_video_commands(CLI::App& app, CliContext& ctx) {
     cmd->add_flag("--ffmpeg-verbose", args.ffmpeg_verbose, "Show FFmpeg logs in pipe mode");
     cmd->add_option("--pipe-pixfmt", args.pipe_pixfmt, "Legacy raw pipe input format (RGBA is the stable path)")
         ->default_val("rgba")
-        ->check(CLI::IsMember({"rgba", "yuv420p", "nv12"}));
+        ->check(CLI::IsMember({"rgba", "yuv420p", "nv12", "yuv444p"}));
     cmd->add_option("--color-output", args.color_output, "Output color space: srgb, rec709, linearsrgb")
         ->default_val("srgb")
         ->check(CLI::IsMember({"srgb", "rec709", "linearsrgb"}));

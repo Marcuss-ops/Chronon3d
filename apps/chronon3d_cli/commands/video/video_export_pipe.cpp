@@ -55,7 +55,7 @@ int render_and_encode_ffmpeg_pipe(
     }
 
     const bool codec_auto = opts.codec == "auto";
-    const std::string codec = codec_auto ? "libx264rgb" : resolve_cli_ffmpeg_codec(opts.codec, opts.hardware_encoder);
+    const std::string codec = codec_auto ? "libx264" : resolve_cli_ffmpeg_codec(opts.codec, opts.hardware_encoder);
 
     FfmpegPipeEncoder pipe;
     FfmpegPipeOptions pipe_options{
@@ -73,7 +73,15 @@ int render_and_encode_ffmpeg_pipe(
         },
         .pipe_writer = opts.pipe_writer,
     };
-    pipe_options.output_pix_fmt = (codec == "libx264rgb") ? "rgb24" : "yuv420p";
+    if (codec == "libx264rgb") {
+        pipe_options.output_pix_fmt = "rgb24";
+    } else if (opts.pipe_pixfmt == "yuv444p") {
+        pipe_options.output_pix_fmt = "yuv444p";
+    } else if (opts.pipe_pixfmt == "nv12") {
+        pipe_options.output_pix_fmt = "nv12";
+    } else {
+        pipe_options.output_pix_fmt = "yuv420p";
+    }
 
     std::error_code ec;
     const auto output_parent = std::filesystem::path(opts.output).parent_path();
