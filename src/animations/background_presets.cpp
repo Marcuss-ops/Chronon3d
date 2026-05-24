@@ -39,10 +39,10 @@ const BackgroundCatalog& builtin_background_catalog_storage() {
 void render_grid_clean(SceneBuilder& s, const FrameContext& ctx, const BackgroundOptions& opt) {
     GridBackgroundParams grid_params{};
     grid_params.size = {1920.0f, 1080.0f};
-    grid_params.offset = {ctx.effective_frame() * 2.25f, 0.0f};
+    grid_params.offset = {0.0f, 0.0f}; // static and perfectly symmetric
     grid_params.bg_color = opt.background;
     grid_params.grid_color = opt.accent.with_alpha(std::max(0.15f, opt.accent.a * opt.intensity));
-    grid_params.spacing = 140.0f;
+    grid_params.spacing = 240.0f; // fewer lines (less dense)
     grid_params.minor_thickness = 1.25f;
     grid_params.major_thickness = 2.75f;
     grid_params.major_every = 4;
@@ -116,7 +116,7 @@ Composition grid_clean_background() {
         SceneBuilder s(ctx);
         api::BackgroundOptions opt;
         opt.background = Color{0.008f, 0.010f, 0.022f, 1.0f};
-        opt.accent = Color{0.25f, 0.52f, 1.0f, 0.05f}; // subtle blue grid lines
+        opt.accent = Color{1.0f, 1.0f, 1.0f, 0.08f}; // subtle white grid lines
         opt.glow = Color{0.0f, 0.0f, 0.0f, 0.0f};
         api::render_builtin_background(s, ctx, "grid_clean", opt);
         return s.build();
