@@ -45,6 +45,15 @@ void FramebufferPool::set_arena(std::shared_ptr<FramebufferArena> arena) {
 }
 
 std::shared_ptr<Framebuffer> FramebufferPool::acquire(int width, int height, bool clear) {
+    return acquire_hinted(width, height, clear ? FramebufferAcquireHint::Default : FramebufferAcquireHint::ReuseNoClear);
+}
+
+std::shared_ptr<Framebuffer> FramebufferPool::acquire_hinted(
+    int width, int height,
+    FramebufferAcquireHint hint)
+{
+    const bool clear = (hint == FramebufferAcquireHint::Default);
+
     const auto t0 = std::chrono::high_resolution_clock::now();
     auto fb = acquire_unique(width, height);
     const auto t1 = std::chrono::high_resolution_clock::now();
@@ -62,6 +71,7 @@ std::shared_ptr<Framebuffer> FramebufferPool::acquire(int width, int height, boo
         const auto tc0 = std::chrono::high_resolution_clock::now();
         fb->clear(Color::transparent());
         const auto tc1 = std::chrono::high_resolution_clock::now();
+        m_total_clears.fetch_add(1, std::memory_order_relaxed);
         if (profiling::g_current_counters) {
             const auto elapsed = static_cast<uint64_t>(std::chrono::duration<double, std::milli>(tc1 - tc0).count());
             profiling::g_current_counters->framebuffer_clear_ms.fetch_add(elapsed, std::memory_order_relaxed);
@@ -74,7 +84,6 @@ std::shared_ptr<Framebuffer> FramebufferPool::acquire(int width, int height, boo
         if (counters) {
             counters->framebuffer_buffer_returned_to_pool_count.fetch_add(1, std::memory_order_relaxed);
         } else {
-            // Fallback to a global counter if the captured one is null (shouldn't happen)
             static std::atomic<uint64_t> global_returns{0};
             global_returns.fetch_add(1, std::memory_order_relaxed);
         }
@@ -100,6 +109,7 @@ std::unique_ptr<Framebuffer> FramebufferPool::acquire_unique(int width, int heig
             auto fb = std::move(bucket.back());
             bucket.pop_back();
             m_current_bytes -= fb->size_bytes();
+            m_total_reuses.fetch_add(1, std::memory_order_relaxed);
             if (profiling::g_current_counters) {
                 profiling::g_current_counters->framebuffer_reuses.fetch_add(1, std::memory_order_relaxed);
             }
@@ -127,9 +137,7 @@ std::unique_ptr<Framebuffer> FramebufferPool::acquire_unique(int width, int heig
     }
 
     auto fb = std::make_unique<Framebuffer>(rounded_w, rounded_h);
-    if (profiling::g_current_counters) {
-        profiling::g_current_counters->framebuffer_allocations.fetch_add(1, std::memory_order_relaxed);
-    }
+    m_total_allocations.fetch_add(1, std::memory_order_relaxed);
     fb->resize_logical(width, height);
     return fb;
 }
@@ -157,6 +165,8 @@ std::shared_ptr<Framebuffer> FramebufferPool::acquire_pooled(int width, int heig
 void FramebufferPool::release(Framebuffer* fb) {
     CHRONON_ZONE_C("framebuffer_release", trace_category::kPipeline);
     if (!fb) return;
+
+    m_total_returns.fetch_add(1, std::memory_order_relaxed);
 
     std::lock_guard<std::mutex> lock(m_mutex);
 
@@ -250,6 +260,14 @@ size_t FramebufferPool::preallocate(const FramebufferPoolPreallocOptions& option
     return created;
 }
 
+size_t FramebufferPool::warm_up(const std::vector<FramebufferPoolPreallocOptions>& predictions) {
+    size_t total = 0;
+    for (const auto& opt : predictions) {
+        total += preallocate(opt);
+    }
+    return total;
+}
+
 size_t FramebufferPool::max_bytes() const {
     std::lock_guard<std::mutex> lock(m_mutex);
     return m_max_bytes;
@@ -263,11 +281,28 @@ FramebufferPoolStats FramebufferPool::stats() const {
         count += bucket.size();
     }
 
+    const size_t allocs = m_total_allocations.load(std::memory_order_relaxed);
+    const size_t reuses = m_total_reuses.load(std::memory_order_relaxed);
+    const size_t total = allocs + reuses;
+
     return FramebufferPoolStats{
         .current_bytes = m_current_bytes,
         .available_count = count,
-        .max_bytes = m_max_bytes
+        .max_bytes = m_max_bytes,
+        .total_allocations = allocs,
+        .total_reuses = reuses,
+        .total_returns = m_total_returns.load(std::memory_order_relaxed),
+        .total_clears = m_total_clears.load(std::memory_order_relaxed),
+        .arena_bytes = m_arena ? m_arena->total_bytes() : 0,
+        .hit_rate = total > 0 ? static_cast<double>(reuses) / static_cast<double>(total) : 0.0
     };
+}
+
+void FramebufferPool::reset_counters() {
+    m_total_allocations.store(0, std::memory_order_relaxed);
+    m_total_reuses.store(0, std::memory_order_relaxed);
+    m_total_returns.store(0, std::memory_order_relaxed);
+    m_total_clears.store(0, std::memory_order_relaxed);
 }
 
 } // namespace chronon3d::cache

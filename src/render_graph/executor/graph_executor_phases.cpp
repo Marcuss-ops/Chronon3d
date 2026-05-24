@@ -19,6 +19,26 @@ void execute_single_node(
     RenderCounters* parent_counters,
     cache::FramebufferPool* parent_pool
 ) {
+    // ── Early exit: nodes covered by full-frame opaque layers ───────
+    //     emit a tiny transparent framebuffer so downstream consumers
+    //     never see nullptr.  Mark frame-dependent = 0 and cache_hit = 0
+    //     (not a real cache hit) so composite nodes don't wrongly cache.
+    if (id < ctx.early_exit_skip.size() && ctx.early_exit_skip[id]) {
+        // Use 64×64 to match the framebuffer pool bucket granularity
+        // (round_up_bucket rounds to 64), avoiding waste from 4→64 round-up.
+        auto empty_fb = ctx.acquire_framebuffer(64, 64, false);
+        empty_fb->clear(Color::transparent());
+        state.temp[id] = empty_fb;
+        state.resolved_key_digest[id] = 0;
+        state.resolved_frame_dependent[id] = 0;
+        state.resolved_cache_hit[id] = 0;
+        state.resolved_bboxes[id] = raster::BBox{0, 0, 0, 0};
+        if (ctx.counters) {
+            ctx.counters->layers_culled.fetch_add(1, std::memory_order_relaxed);
+        }
+        return;
+    }
+
     profiling::g_current_trace = parent_trace;
     profiling::g_current_frame = parent_frame;
     profiling::g_current_counters = parent_counters;

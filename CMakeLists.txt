@@ -128,6 +128,7 @@ set(CHRONON3D_CACHE_SOURCES
     src/cache/node_cache.cpp
     src/cache/disk_node_cache.cpp
     src/cache/framebuffer_pool.cpp
+    src/cache/persistent_bake_cache.cpp
     src/cache/video_frame_cache.cpp
 )
 add_library(chronon3d_cache STATIC ${CHRONON3D_CACHE_SOURCES})
@@ -164,6 +165,7 @@ set(CHRONON3D_GRAPH_SOURCES
     src/render_graph/render_pipeline_debug.cpp
     src/render_graph/render_pipeline_composition.cpp
     src/render_graph/graph_filter.cpp
+    src/render_graph/optimizer/graph_optimizer.cpp
     src/render_graph/nodes/source_node.cpp
     src/render_graph/nodes/multi_source_node.cpp
     src/render_graph/nodes/transform_node.cpp

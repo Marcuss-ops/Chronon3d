@@ -68,6 +68,24 @@ public:
         std::span<const std::optional<raster::BBox>> input_bboxes
     ) override;
 
+    // ── Accessors for graph optimization ────────────────────────────
+    [[nodiscard]] Mat4 matrix()  const { return m_use_matrix ? m_matrix : m_transform.to_mat4(); }
+    [[nodiscard]] f32        opacity() const { return m_use_matrix ? m_opacity : m_transform.opacity; }
+    [[nodiscard]] bool       is_identity() const {
+        const Mat4& m = matrix();
+        for (int i = 0; i < 4; ++i) {
+            for (int j = 0; j < 4; ++j) {
+                const float expected = (i == j) ? 1.0f : 0.0f;
+                if (std::abs(m[i][j] - expected) > 1e-6f) return false;
+            }
+        }
+        return std::abs(opacity() - 1.0f) < 1e-6f;
+    }
+
+    // ── Mutators for graph optimization ─────────────────────────────
+    void set_matrix(const Mat4& m)  { m_matrix = m; m_use_matrix = true; }
+    void set_opacity(f32 o)         { m_opacity = o; m_use_matrix = true; }
+
 private:
     Transform m_transform;
     Mat4      m_matrix{1.0f};
