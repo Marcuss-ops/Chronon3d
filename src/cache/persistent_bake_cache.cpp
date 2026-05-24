@@ -80,8 +80,16 @@ std::shared_ptr<Framebuffer> PersistentBakeCache::load(const NodeCacheKey& key) 
         fb->set_opaque(true);
     }
 
+    // Row-by-row copy to handle stride differences (fast path when aligned)
     const auto* payload = static_cast<const uint8_t*>(mapped) + sizeof(BakedFrameHeader);
-    std::memcpy(fb->data(), payload, header->payload_size);
+    if (fb->allocated_width() == fb->width()) {
+        std::memcpy(fb->data(), payload, header->payload_size);
+    } else {
+        for (i32 y = 0; y < header->height; ++y) {
+            const auto* src_row = payload + static_cast<size_t>(y) * header->width * sizeof(Color);
+            std::memcpy(fb->pixels_row(y), src_row, static_cast<size_t>(header->width) * sizeof(Color));
+        }
+    }
 
     munmap(mapped, st.st_size);
     return fb;
@@ -97,7 +105,15 @@ std::shared_ptr<Framebuffer> PersistentBakeCache::load(const NodeCacheKey& key) 
     fb->set_origin(header.origin_x, header.origin_y);
     if (header.is_opaque) fb->set_opaque(true);
 
-    if (!file.read(reinterpret_cast<char*>(fb->data()), header.payload_size)) return nullptr;
+    // Row-by-row read to handle stride differences (fast path when aligned)
+    if (fb->allocated_width() == fb->width()) {
+        if (!file.read(reinterpret_cast<char*>(fb->data()), header.payload_size)) return nullptr;
+    } else {
+        for (i32 y = 0; y < header.height; ++y) {
+            if (!file.read(reinterpret_cast<char*>(fb->pixels_row(y)),
+                           static_cast<size_t>(header.width) * sizeof(Color))) return nullptr;
+        }
+    }
     return fb;
 #endif
 }
@@ -123,7 +139,15 @@ void PersistentBakeCache::store(const NodeCacheKey& key, const Framebuffer& fb) 
     if (!file) return;
 
     file.write(reinterpret_cast<const char*>(&header), sizeof(header));
-    file.write(reinterpret_cast<const char*>(fb.data()), header.payload_size);
+    // Write payload: fast path when stride == width, else row-by-row
+    if (fb.allocated_width() == fb.width()) {
+        file.write(reinterpret_cast<const char*>(fb.data()), header.payload_size);
+    } else {
+        for (i32 y = 0; y < fb.height(); ++y) {
+            file.write(reinterpret_cast<const char*>(fb.pixels_row(y)),
+                       static_cast<size_t>(fb.width()) * sizeof(Color));
+        }
+    }
     file.close();
 
     std::filesystem::rename(temp_path, path, ec);

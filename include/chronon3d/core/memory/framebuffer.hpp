@@ -150,12 +150,26 @@ public:
     }
 
     void clear(const Color& color) {
-        Color* p = data();
-        const size_t n = pixel_count();
-        if (color.r == 0.0f && color.g == 0.0f && color.b == 0.0f && color.a == 0.0f) {
-            std::memset(p, 0, n * sizeof(Color));
+        if (m_allocated_width == m_width) {
+            // Fast path: stride equals width, contiguous clear
+            Color* p = data();
+            const size_t n = pixel_count();
+            if (color.r == 0.0f && color.g == 0.0f && color.b == 0.0f && color.a == 0.0f) {
+                std::memset(p, 0, n * sizeof(Color));
+            } else {
+                std::fill(p, p + n, color);
+            }
         } else {
-            std::fill(p, p + n, color);
+            // Slow path: stride > width, clear row-by-row
+            if (color.r == 0.0f && color.g == 0.0f && color.b == 0.0f && color.a == 0.0f) {
+                for (i32 y = 0; y < m_height; ++y) {
+                    std::memset(pixels_row(y), 0, static_cast<size_t>(m_width) * sizeof(Color));
+                }
+            } else {
+                for (i32 y = 0; y < m_height; ++y) {
+                    std::fill(pixels_row(y), pixels_row(y) + m_width, color);
+                }
+            }
         }
         m_opaque = color.a >= 0.999f;
     }
@@ -309,20 +323,28 @@ public:
     void resize_logical(i32 width, i32 height) {
         if (width <= 0 || height <= 0) throw std::invalid_argument("Resize dimensions must be positive");
         if (!m_owns_pixels) {
-            if (width * height > m_allocated_width * m_allocated_height) {
+            if (width > m_allocated_width || height > m_allocated_height) {
                 throw std::runtime_error("Cannot resize external Framebuffer beyond its allocated size");
             }
             m_width = width;
             m_height = height;
             return;
         }
-        const size_t prev_bytes = size_bytes();
+
+        if (width > m_allocated_width || height > m_allocated_height) {
+            const size_t prev_bytes = size_bytes();
+
+            m_allocated_width = align_stride_to_cache_line(width);
+            m_allocated_height = height;
+            m_pixels.resize(static_cast<size_t>(m_allocated_width) * m_allocated_height, Color::transparent());
+
+            const size_t next_bytes = size_bytes();
+            if (next_bytes > prev_bytes) increment_allocations(next_bytes - prev_bytes);
+            else if (next_bytes < prev_bytes) decrement_allocations(prev_bytes - next_bytes);
+        }
+
         m_width = width;
         m_height = height;
-        m_pixels.resize(static_cast<size_t>(width) * height, Color::transparent());
-        const size_t next_bytes = size_bytes();
-        if (next_bytes > prev_bytes) increment_allocations(next_bytes - prev_bytes);
-        else if (next_bytes < prev_bytes) decrement_allocations(prev_bytes - next_bytes);
     }
 
 private:
