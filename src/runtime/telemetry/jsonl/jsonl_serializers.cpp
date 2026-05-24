@@ -35,6 +35,8 @@ nlohmann::json serialize_run(const RenderTelemetryRecord& run) {
     j["bytes_allocated_peak"] = run.bytes_allocated_peak;
     j["node_cache_hash_collisions"] = run.node_cache_hash_collisions;
 
+    j["clear_skipped_calls"] = run.clear_skipped_calls;
+    j["clear_skipped_pixels"] = run.clear_skipped_pixels;
     j["clear_calls"] = run.clear_calls;
     j["clear_pixels"] = run.clear_pixels;
     j["composite_calls"] = run.composite_calls;

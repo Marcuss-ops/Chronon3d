@@ -122,7 +122,8 @@ int render_and_encode_ffmpeg_pipe(
         bool arena_notified = false;
         for (;;) {
             RenderFramePackage package;
-            if (!queue.try_dequeue(package)) {
+            const auto pop_t0 = std::chrono::steady_clock::now();
+            while (!queue.try_dequeue(package)) {
                 if (writer_done.load()) {
                     if (!queue.try_dequeue(package)) break;
                 } else if (writer_failed.load()) {
@@ -131,6 +132,14 @@ int render_and_encode_ffmpeg_pipe(
                     std::this_thread::yield();
                     continue;
                 }
+            }
+            if (writer_failed.load() || (writer_done.load() && !package.framebuffer)) break;
+
+            const auto pop_t1 = std::chrono::steady_clock::now();
+            if (renderer->counters()) {
+                renderer->counters()->io_queue_pop_wait_ms.fetch_add(
+                    static_cast<uint64_t>(std::chrono::duration<double, std::milli>(pop_t1 - pop_t0).count()),
+                    std::memory_order_relaxed);
             }
 
             if (package.framebuffer) {
@@ -212,13 +221,25 @@ int render_and_encode_ffmpeg_pipe(
 
             // High-throughput enqueue
             const auto wait_t0 = std::chrono::steady_clock::now();
+            const auto q_size = queue.size_approx();
+            if (renderer->counters()) {
+                auto current_peak = renderer->counters()->io_queue_peak_depth.load(std::memory_order_relaxed);
+                while (q_size > current_peak && !renderer->counters()->io_queue_peak_depth.compare_exchange_weak(current_peak, q_size, std::memory_order_relaxed));
+            }
+
             while (queue.size_approx() > 16) {
                 if (writer_failed.load()) break;
                 std::this_thread::yield();
             }
             queue.enqueue(RenderFramePackage{std::move(fb), std::move(current_arena)});
             const auto wait_t1 = std::chrono::steady_clock::now();
-            queue_wait_ms_total += std::chrono::duration<double, std::milli>(wait_t1 - wait_t0).count();
+            const double wait_ms = std::chrono::duration<double, std::milli>(wait_t1 - wait_t0).count();
+            queue_wait_ms_total += wait_ms;
+            if (renderer->counters()) {
+                renderer->counters()->io_queue_push_blocked_ms.fetch_add(
+                    static_cast<uint64_t>(wait_ms),
+                    std::memory_order_relaxed);
+            }
 
             telemetry_frames.push_back({
                 .frame_number = static_cast<int>(current_frame),
@@ -236,6 +257,7 @@ int render_and_encode_ffmpeg_pipe(
     if (writer_thread.joinable()) {
         writer_thread.join();
     }
+    chronon3d::telemetry::flush_telemetry();
     const auto setup_t1 = render_t0;
     auto node_events = chronon3d::telemetry::collect_node_telemetry();
     auto layer_events = chronon3d::telemetry::collect_layer_telemetry();
@@ -250,6 +272,9 @@ int render_and_encode_ffmpeg_pipe(
     // Store per-run total counters for benchmark separation
     if (renderer->counters()) {
         renderer->counters()->video_pipe_write_ms.store(
+            static_cast<uint64_t>(write_blocked_ms),
+            std::memory_order_relaxed);
+        renderer->counters()->ffmpeg_pipe_write_blocked_ms.store(
             static_cast<uint64_t>(write_blocked_ms),
             std::memory_order_relaxed);
         renderer->counters()->video_ffmpeg_latency_ms.store(

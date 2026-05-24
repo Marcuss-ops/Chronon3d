@@ -10,11 +10,10 @@ namespace chronon3d {
 
 namespace chronon3d::graph::detail {
 
-RenderGraph build_graph(const Scene& scene, const RenderGraphContext& ctx,
+RenderGraph build_graph(const Scene& scene, RenderGraphContext& ctx,
                         const LayerResolutionResult& resolved);
 
 bool is_native_3d_layer(const Layer& layer);
 raster::BBox compute_layer_bbox(const LayerGraphItem& item, const RenderGraphContext& ctx, SoftwareRenderer* renderer);
 
 } // namespace chronon3d::graph::detail
-

@@ -20,8 +20,9 @@ namespace chronon3d::graph::detail {
 using namespace chronon3d::graph;
 
 GraphNodeId LayerPipelineBuilder::append_root_sources(RenderGraph& graph, const Scene& scene,
-                                                      const RenderGraphContext& ctx,
+                                                      RenderGraphContext& ctx,
                                                       GraphNodeId current) {
+    bool first_root_source = true;
     for (const auto& node : scene.nodes()) {
         cache::NodeCacheKey source_key{
             .scope = "root.source:" + std::string(node.name),
@@ -36,6 +37,14 @@ GraphNodeId LayerPipelineBuilder::append_root_sources(RenderGraph& graph, const 
             std::string(node.name), node, source_key,
             ctx.modular_coordinates
         ));
+
+        if (first_root_source) {
+            if (const auto* source_node = dynamic_cast<const SourceNode*>(&graph.node(source));
+                source_node && source_node->can_seed_full_frame(ctx)) {
+                ctx.skip_initial_clear = true;
+            }
+            first_root_source = false;
+        }
 
         auto composite = graph.add_node(std::make_unique<CompositeNode>(chronon3d::BlendMode::Normal));
         graph.connect(current, composite);
@@ -62,7 +71,7 @@ GraphNodeId LayerPipelineBuilder::build_matte_sub_pipeline(
 }
 
 void LayerPipelineBuilder::append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
-                                                 GraphNodeId& current, const RenderGraphContext& ctx,
+                                                 GraphNodeId& current, RenderGraphContext& ctx,
                                                  const Camera2_5DRuntime& cam25d,
                                                  std::span<const ShadowCasterInfo> casters) {
     std::string prev_layer = g_current_builder_layer_id;
@@ -70,8 +79,29 @@ void LayerPipelineBuilder::append_layer_pipeline(RenderGraph& graph, const Layer
 
     // 1. Source pass — render layer content
     GraphNodeId layer_output = append_source_pass(graph, item, ctx);
-
     const Layer& layer = *item.layer;
+
+    if (!ctx.skip_initial_clear && layer_output != k_invalid_node) {
+        const bool simple_opaque_full_frame_layer =
+            layer.kind == LayerKind::Normal &&
+            layer.nodes.size() == 1 &&
+            layer.mask.type == MaskType::None &&
+            layer.effects.empty() &&
+            layer.blend_mode == BlendMode::Normal &&
+            !layer.track_matte.active() &&
+            layer.transition_in.transition_id.empty() &&
+            layer.transition_out.transition_id.empty() &&
+            !layer.nodes[0].shadow.enabled &&
+            !layer.nodes[0].glow.enabled;
+
+        if (simple_opaque_full_frame_layer) {
+            if (const auto* source_node = dynamic_cast<const SourceNode*>(&graph.node(layer_output));
+                source_node && source_node->can_seed_full_frame(ctx)) {
+                ctx.skip_initial_clear = true;
+            }
+        }
+    }
+
     if (layer.kind == LayerKind::Adjustment) {
         // Apply effects directly on current node, no source or composite needed
         for (const auto& eff : layer.effects) {

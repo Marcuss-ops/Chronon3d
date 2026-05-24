@@ -28,9 +28,18 @@ void execute_translate_clamped(
 
                 if (dx0 < dx1) {
                     if (opacity >= 0.999f) {
+                        Color* dst_ptr = dst_row + (dx0 - result->origin_x());
+                        const Color* src_ptr = src_data + (iy * src_w + (dx0 - itx));
+
+                        if (profiling::g_current_counters) {
+                            if ((reinterpret_cast<uintptr_t>(dst_ptr) % 32 != 0) || (reinterpret_cast<uintptr_t>(src_ptr) % 32 != 0)) {
+                                profiling::g_current_counters->unaligned_memory_copies.fetch_add(1, std::memory_order_relaxed);
+                            }
+                        }
+
                         std::memcpy(
-                            dst_row + (dx0 - result->origin_x()),
-                            src_data + (iy * src_w + (dx0 - itx)),
+                            dst_ptr,
+                            src_ptr,
                             static_cast<size_t>(dx1 - dx0) * sizeof(Color)
                         );
                     } else {
@@ -84,6 +93,11 @@ void execute_translate_memcpy(
             Color* dst_ptr = result->pixels_row(y - result->origin_y()) + (x0 - result->origin_x());
 
             if (std::abs(opacity - 1.0f) < 1e-6f) {
+                if (profiling::g_current_counters) {
+                    if ((reinterpret_cast<uintptr_t>(dst_ptr) % 32 != 0) || (reinterpret_cast<uintptr_t>(src_ptr) % 32 != 0)) {
+                        profiling::g_current_counters->unaligned_memory_copies.fetch_add(1, std::memory_order_relaxed);
+                    }
+                }
                 std::memcpy(dst_ptr, src_ptr, row_bytes);
             } else {
                 for (i32 x = 0; x < row_pixels; ++x) {

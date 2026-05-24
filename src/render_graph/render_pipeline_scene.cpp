@@ -183,7 +183,8 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     // ── Build + execute render graph ────────────────────────────────────
     RenderGraph graph = [&]() {
         CHRONON_ZONE_C("build_graph", trace_category::kGraph);
-        return detail::build_graph(scene, ctx, resolved);
+        auto mutable_ctx = ctx;
+        return detail::build_graph(scene, mutable_ctx, resolved);
     }();
     const auto t_build2 = std::chrono::steady_clock::now();
 

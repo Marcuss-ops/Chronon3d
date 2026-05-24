@@ -9,10 +9,10 @@ namespace chronon3d::graph::detail {
 
 struct LayerPipelineBuilder {
     static GraphNodeId append_root_sources(RenderGraph& graph, const Scene& scene,
-                                           const RenderGraphContext& ctx, GraphNodeId current);
+                                           RenderGraphContext& ctx, GraphNodeId current);
 
     static void append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
-                                       GraphNodeId& current, const RenderGraphContext& ctx,
+                                       GraphNodeId& current, RenderGraphContext& ctx,
                                        const Camera2_5DRuntime& cam25d,
                                        std::span<const ShadowCasterInfo> casters = {});
 

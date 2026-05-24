@@ -29,6 +29,6 @@ GraphNodeId build_layer_source(RenderGraph& graph, const Layer& layer,
                                const RenderGraphContext& ctx);
 
 void append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item, GraphNodeId& current,
-                           const RenderGraphContext& ctx, const Camera2_5DRuntime& cam25d);
+                           RenderGraphContext& ctx, const Camera2_5DRuntime& cam25d);
 
 } // namespace chronon3d::graph::detail
