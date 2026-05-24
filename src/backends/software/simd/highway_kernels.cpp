@@ -8,12 +8,28 @@
 #include <chronon3d/simd/kernels.hpp>
 #include <algorithm>
 #include <cmath>
+#include <array>
 
 HWY_BEFORE_NAMESPACE();
 namespace chronon3d::simd {
 namespace HWY_NAMESPACE {
 
 namespace hn = hwy::HWY_NAMESPACE;
+
+inline const float* get_linear_to_srgb_lut_f32() {
+    static const auto lut = []() {
+        std::array<float, 4096> arr;
+        for (size_t i = 0; i < 4096; ++i) {
+            const float linear = static_cast<float>(i) / 4095.0f;
+            const float srgb = (linear <= 0.0031308f)
+                ? (linear * 12.92f)
+                : (1.055f * std::pow(linear, 1.0f / 2.4f) - 0.055f);
+            arr[i] = std::clamp(srgb, 0.0f, 1.0f);
+        }
+        return arr;
+    }();
+    return lut.data();
+}
 
 // ── Composite Normal Premultiplied (SRC_OVER) ───────────────────────────────
 
@@ -143,7 +159,8 @@ HWY_ATTR void convert_f32_rgba_to_yuv420p_simd_rows_impl(
     uint8_t* HWY_RESTRICT v_ptr,
     const float* HWY_RESTRICT src_ptr,
     int width, int height,
-    int y_start, int y_end) {
+    int y_start, int y_end,
+    bool apply_gamma) {
 
     const hn::ScalableTag<float> df;
     const hn::ScalableTag<int32_t> di32;
@@ -152,6 +169,13 @@ HWY_ATTR void convert_f32_rgba_to_yuv420p_simd_rows_impl(
 
     const auto zero = hn::Set(df, 0.0f);
     const auto one = hn::Set(df, 1.0f);
+    const auto scale_4095 = hn::Set(df, 4095.0f);
+    const float* lut_f32_ptr = get_linear_to_srgb_lut_f32();
+
+    auto apply_srgb_gamma = [&](auto v) {
+        auto idx = hn::ConvertTo(di32, hn::Round(hn::Mul(hn::Clamp(v, zero, one), scale_4095)));
+        return hn::GatherIndex(df, lut_f32_ptr, idx);
+    };
 
     // BT.709 coefficients
     const auto kRY = hn::Set(df, 0.2126f);
@@ -177,9 +201,12 @@ HWY_ATTR void convert_f32_rgba_to_yuv420p_simd_rows_impl(
             hn::LoadInterleaved4(df, src_row + (x + lanes * 3) * 4, r3, g3, b3, a3);
 
             auto compute_y = [&](auto r, auto g, auto b) {
-                auto yy = hn::MulAdd(hn::Clamp(r, zero, one), kRY, 
-                          hn::MulAdd(hn::Clamp(g, zero, one), kGY, 
-                          hn::Mul(hn::Clamp(b, zero, one), kBY)));
+                auto r_gamma = apply_gamma ? apply_srgb_gamma(r) : hn::Clamp(r, zero, one);
+                auto g_gamma = apply_gamma ? apply_srgb_gamma(g) : hn::Clamp(g, zero, one);
+                auto b_gamma = apply_gamma ? apply_srgb_gamma(b) : hn::Clamp(b, zero, one);
+                auto yy = hn::MulAdd(r_gamma, kRY, 
+                          hn::MulAdd(g_gamma, kGY, 
+                          hn::Mul(b_gamma, kBY)));
                 return hn::ConvertTo(di32, hn::Round(hn::MulAdd(yy, y_scale, y_offset)));
             };
 
@@ -201,8 +228,13 @@ HWY_ATTR void convert_f32_rgba_to_yuv420p_simd_rows_impl(
             float r = std::clamp(p[0], 0.0f, 1.0f);
             float g = std::clamp(p[1], 0.0f, 1.0f);
             float b = std::clamp(p[2], 0.0f, 1.0f);
+            if (apply_gamma) {
+                r = (r <= 0.0031308f) ? (r * 12.92f) : (1.055f * std::pow(r, 1.0f / 2.4f) - 0.055f);
+                g = (g <= 0.0031308f) ? (g * 12.92f) : (1.055f * std::pow(g, 1.0f / 2.4f) - 0.055f);
+                b = (b <= 0.0031308f) ? (b * 12.92f) : (1.055f * std::pow(b, 1.0f / 2.4f) - 0.055f);
+            }
             float yy = 0.2126f * r + 0.7152f * g + 0.0722f * b;
-            dst_y[x] = static_cast<uint8_t>(yy * 219.0f + 16.5f);
+            dst_y[x] = static_cast<uint8_t>(std::clamp(std::round(yy * 219.0f + 16.5f), 0.0f, 255.0f));
         }
     }
 
@@ -227,27 +259,33 @@ HWY_ATTR void convert_f32_rgba_to_yuv420p_simd_rows_impl(
                 const float* p10 = row1 + static_cast<size_t>(x) * 4;
                 const float* p11 = p10 + 4;
 
-                const float r = 0.25f * (
+                float r = 0.25f * (
                     std::clamp(p00[0], 0.0f, 1.0f) +
                     std::clamp(p01[0], 0.0f, 1.0f) +
                     std::clamp(p10[0], 0.0f, 1.0f) +
                     std::clamp(p11[0], 0.0f, 1.0f));
-                const float g = 0.25f * (
+                float g = 0.25f * (
                     std::clamp(p00[1], 0.0f, 1.0f) +
                     std::clamp(p01[1], 0.0f, 1.0f) +
                     std::clamp(p10[1], 0.0f, 1.0f) +
                     std::clamp(p11[1], 0.0f, 1.0f));
-                const float b = 0.25f * (
+                float b = 0.25f * (
                     std::clamp(p00[2], 0.0f, 1.0f) +
                     std::clamp(p01[2], 0.0f, 1.0f) +
                     std::clamp(p10[2], 0.0f, 1.0f) +
                     std::clamp(p11[2], 0.0f, 1.0f));
 
+                if (apply_gamma) {
+                    r = (r <= 0.0031308f) ? (r * 12.92f) : (1.055f * std::pow(r, 1.0f / 2.4f) - 0.055f);
+                    g = (g <= 0.0031308f) ? (g * 12.92f) : (1.055f * std::pow(g, 1.0f / 2.4f) - 0.055f);
+                    b = (b <= 0.0031308f) ? (b * 12.92f) : (1.055f * std::pow(b, 1.0f / 2.4f) - 0.055f);
+                }
+
                 const float u = -0.1146f * r - 0.3854f * g + 0.5000f * b;
                 const float v =  0.5000f * r - 0.4542f * g - 0.0458f * b;
 
-                dst_u[bx] = static_cast<uint8_t>(std::clamp(u, -0.5f, 0.5f) * 224.0f + 128.5f);
-                dst_v[bx] = static_cast<uint8_t>(std::clamp(v, -0.5f, 0.5f) * 224.0f + 128.5f);
+                dst_u[bx] = static_cast<uint8_t>(std::clamp(std::round(u * 224.0f + 128.5f), 0.0f, 255.0f));
+                dst_v[bx] = static_cast<uint8_t>(std::clamp(std::round(v * 224.0f + 128.5f), 0.0f, 255.0f));
             }
         }
     }
@@ -258,10 +296,11 @@ HWY_ATTR void convert_f32_rgba_to_nv12_simd_rows_impl(
     uint8_t* HWY_RESTRICT uv_ptr,
     const float* HWY_RESTRICT src_ptr,
     int width, int height,
-    int y_start, int y_end) {
+    int y_start, int y_end,
+    bool apply_gamma) {
 
     // Reuse Luma Y logic
-    convert_f32_rgba_to_yuv420p_simd_rows_impl(y_ptr, nullptr, nullptr, src_ptr, width, height, y_start, y_end);
+    convert_f32_rgba_to_yuv420p_simd_rows_impl(y_ptr, nullptr, nullptr, src_ptr, width, height, y_start, y_end, apply_gamma);
     
     // UV Interleaved
     const int uv_row_begin = std::max((y_start + 1) & ~1, 0);
@@ -280,28 +319,34 @@ HWY_ATTR void convert_f32_rgba_to_nv12_simd_rows_impl(
             const float* p10 = row1 + static_cast<size_t>(x) * 4;
             const float* p11 = p10 + 4;
 
-            const float r = 0.25f * (
+            float r = 0.25f * (
                 std::clamp(p00[0], 0.0f, 1.0f) +
                 std::clamp(p01[0], 0.0f, 1.0f) +
                 std::clamp(p10[0], 0.0f, 1.0f) +
                 std::clamp(p11[0], 0.0f, 1.0f));
-            const float g = 0.25f * (
+            float g = 0.25f * (
                 std::clamp(p00[1], 0.0f, 1.0f) +
                 std::clamp(p01[1], 0.0f, 1.0f) +
                 std::clamp(p10[1], 0.0f, 1.0f) +
                 std::clamp(p11[1], 0.0f, 1.0f));
-            const float b = 0.25f * (
+            float b = 0.25f * (
                 std::clamp(p00[2], 0.0f, 1.0f) +
                 std::clamp(p01[2], 0.0f, 1.0f) +
                 std::clamp(p10[2], 0.0f, 1.0f) +
                 std::clamp(p11[2], 0.0f, 1.0f));
 
+            if (apply_gamma) {
+                r = (r <= 0.0031308f) ? (r * 12.92f) : (1.055f * std::pow(r, 1.0f / 2.4f) - 0.055f);
+                g = (g <= 0.0031308f) ? (g * 12.92f) : (1.055f * std::pow(g, 1.0f / 2.4f) - 0.055f);
+                b = (b <= 0.0031308f) ? (b * 12.92f) : (1.055f * std::pow(b, 1.0f / 2.4f) - 0.055f);
+            }
+
             const float u = -0.1146f * r - 0.3854f * g + 0.5000f * b;
             const float v =  0.5000f * r - 0.4542f * g - 0.0458f * b;
 
             const size_t uv_idx = static_cast<size_t>(bx) * 2;
-            dst_uv[uv_idx + 0] = static_cast<uint8_t>(std::clamp(u, -0.5f, 0.5f) * 224.0f + 128.5f);
-            dst_uv[uv_idx + 1] = static_cast<uint8_t>(std::clamp(v, -0.5f, 0.5f) * 224.0f + 128.5f);
+            dst_uv[uv_idx + 0] = static_cast<uint8_t>(std::clamp(std::round(u * 224.0f + 128.5f), 0.0f, 255.0f));
+            dst_uv[uv_idx + 1] = static_cast<uint8_t>(std::clamp(std::round(v * 224.0f + 128.5f), 0.0f, 255.0f));
         }
     }
 }
@@ -336,12 +381,12 @@ void convert_f32_rgba_to_u8_rgba(uint8_t* __restrict__ dst, const Color* __restr
     HWY_DYNAMIC_DISPATCH(convert_f32_rgba_to_u8_rgba_impl)(dst, reinterpret_cast<const float*>(src), pixel_count);
 }
 
-void convert_f32_rgba_to_yuv420p_simd_rows(uint8_t* __restrict__ y_ptr, uint8_t* __restrict__ u_ptr, uint8_t* __restrict__ v_ptr, const Color* __restrict__ src, int width, int height, int y_start, int y_end) {
-    HWY_DYNAMIC_DISPATCH(convert_f32_rgba_to_yuv420p_simd_rows_impl)(y_ptr, u_ptr, v_ptr, reinterpret_cast<const float*>(src), width, height, y_start, y_end);
+void convert_f32_rgba_to_yuv420p_simd_rows(uint8_t* __restrict__ y_ptr, uint8_t* __restrict__ u_ptr, uint8_t* __restrict__ v_ptr, const Color* __restrict__ src, int width, int height, int y_start, int y_end, bool apply_gamma) {
+    HWY_DYNAMIC_DISPATCH(convert_f32_rgba_to_yuv420p_simd_rows_impl)(y_ptr, u_ptr, v_ptr, reinterpret_cast<const float*>(src), width, height, y_start, y_end, apply_gamma);
 }
 
-void convert_f32_rgba_to_nv12_simd_rows(uint8_t* __restrict__ y_ptr, uint8_t* __restrict__ uv_ptr, const Color* __restrict__ src, int width, int height, int y_start, int y_end) {
-    HWY_DYNAMIC_DISPATCH(convert_f32_rgba_to_nv12_simd_rows_impl)(y_ptr, uv_ptr, reinterpret_cast<const float*>(src), width, height, y_start, y_end);
+void convert_f32_rgba_to_nv12_simd_rows(uint8_t* __restrict__ y_ptr, uint8_t* __restrict__ uv_ptr, const Color* __restrict__ src, int width, int height, int y_start, int y_end, bool apply_gamma) {
+    HWY_DYNAMIC_DISPATCH(convert_f32_rgba_to_nv12_simd_rows_impl)(y_ptr, uv_ptr, reinterpret_cast<const float*>(src), width, height, y_start, y_end, apply_gamma);
 }
 
 void clear_framebuffer(Color* data, int pixel_count, const Color& color) {
