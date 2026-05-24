@@ -9,6 +9,7 @@
 #include <chronon3d/math/projector_2_5d.hpp>
 #include "builder/graph_builder_pipeline.hpp"
 #include "builder/graph_builder_internal.hpp"
+#include <chronon3d/render_graph/optimizer/graph_optimizer.hpp>
 #include "render_pipeline_helpers.hpp"
 #include "render_pipeline_scene_internal.hpp"
 #include <spdlog/spdlog.h>
@@ -180,12 +181,23 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         return sw_renderer->m_prev_framebuffer;
     }
 
-    // ── Build + execute render graph ────────────────────────────────────
+    // ── Build + optimize + execute render graph ────────────────────────
     RenderGraph graph = [&]() {
         CHRONON_ZONE_C("build_graph", trace_category::kGraph);
         auto mutable_ctx = ctx;
         return detail::build_graph(scene, mutable_ctx, resolved);
     }();
+
+    // Apply graph-level optimizations (node fusion, branch pruning, static bake analysis)
+    {
+        CHRONON_ZONE_C("optimize_graph", trace_category::kGraph);
+        auto opt_result = optimizer::optimize_graph(graph, ctx);
+        if (ctx.diagnostics_enabled && (opt_result.nodes_fused > 0 || opt_result.nodes_pruned > 0)) {
+            spdlog::info("[graph-opt] frame={} before={} after={} fused={} pruned={} baked={}",
+                static_cast<int>(frame), opt_result.nodes_before, opt_result.nodes_after,
+                opt_result.nodes_fused, opt_result.nodes_pruned, opt_result.static_bakes);
+        }
+    }
     const auto t_build2 = std::chrono::steady_clock::now();
 
     const auto t_exec0 = std::chrono::steady_clock::now();

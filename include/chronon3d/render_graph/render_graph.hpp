@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/render_graph/render_graph_node.hpp>
+#include <algorithm>
 #include <memory>
 #include <mutex>
 #include <stdexcept>
@@ -57,13 +58,53 @@ public:
         m_inputs[to].push_back(from);
     }
 
+    // ── Mutation support for graph optimization ─────────────────────
+    void disconnect(GraphNodeId from, GraphNodeId to) {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        auto& vec = m_inputs[to];
+        vec.erase(std::remove(vec.begin(), vec.end(), from), vec.end());
+    }
+
+    void remove_node(GraphNodeId id) {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        if (id >= m_nodes.size()) return;
+        // Remove this node from all consumers' input lists
+        for (auto& inputs : m_inputs) {
+            inputs.erase(std::remove(inputs.begin(), inputs.end(), id), inputs.end());
+        }
+        // Clear this node's inputs
+        m_inputs[id].clear();
+        // Null out the node (unique_ptr manages lifetime, we keep the slot for ID stability)
+        m_nodes[id].reset();
+    }
+
+    void replace_input(GraphNodeId node_id, GraphNodeId old_input, GraphNodeId new_input) {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        if (node_id >= m_inputs.size()) return;
+        auto& vec = m_inputs[node_id];
+        for (auto& in : vec) {
+            if (in == old_input) {
+                in = new_input;
+            }
+        }
+    }
+
     [[nodiscard]] const RenderGraphNode& node(GraphNodeId id) const {
-        // No lock needed for reads once graph is built and not being modified
+        if (id >= m_nodes.size() || !m_nodes[id]) {
+            throw std::out_of_range("RenderGraph: node " + std::to_string(id) + " not found or removed");
+        }
         return *m_nodes[id];
     }
 
     [[nodiscard]] RenderGraphNode& node(GraphNodeId id) {
+        if (id >= m_nodes.size() || !m_nodes[id]) {
+            throw std::out_of_range("RenderGraph: node " + std::to_string(id) + " not found or removed");
+        }
         return *m_nodes[id];
+    }
+
+    [[nodiscard]] bool has_node(GraphNodeId id) const {
+        return id < m_nodes.size() && m_nodes[id] != nullptr;
     }
 
     [[nodiscard]] const std::vector<GraphNodeId>& inputs(GraphNodeId id) const {
@@ -73,6 +114,16 @@ public:
     [[nodiscard]] size_t size() const {
         std::lock_guard<std::mutex> lock(m_mutex);
         return m_nodes.size();
+    }
+
+    /// Returns the number of non-null (live) nodes after removals.
+    [[nodiscard]] size_t live_count() const {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        size_t count = 0;
+        for (const auto& n : m_nodes) {
+            if (n) ++count;
+        }
+        return count;
     }
 
     void set_output(GraphNodeId id) { 

@@ -1,5 +1,6 @@
 #include "graph_executor_internal.hpp"
 #include <chronon3d/cache/disk_node_cache.hpp>
+#include <chronon3d/cache/persistent_bake_cache.hpp>
 #include <spdlog/spdlog.h>
 
 namespace chronon3d::graph {
@@ -83,7 +84,12 @@ CacheEvalResult evaluate_cache(
         cr.result = ctx.node_cache->get(cr.key);
         
         if (!cr.result && policy.disk_cacheable) {
-            cr.result = cache::DiskNodeCache::instance().get(cr.key);
+            // Try persistent bake cache first (faster raw binary format)
+            cr.result = cache::PersistentBakeCache::instance().load(cr.key);
+            if (!cr.result) {
+                // Fall back to legacy disk cache (CFB1 format)
+                cr.result = cache::DiskNodeCache::instance().get(cr.key);
+            }
             if (cr.result) {
                 // Warm up RAM cache
                 ctx.node_cache->store(cr.key, cr.result);

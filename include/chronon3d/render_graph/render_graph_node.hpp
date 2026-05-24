@@ -206,6 +206,11 @@ struct RenderGraphContext {
     bool reuse_prev_framebuffer{false};
     bool skip_initial_clear{false};
 
+    // ── Early-exit optimization: when a full-frame opaque layer is found
+    //     during graph building, the nodes it covers are flagged here.
+    //     The executor skips flagged nodes entirely.
+    std::vector<bool> early_exit_skip;
+
     // ── Per-node / per-layer telemetry collectors ────────────────────────────
     // Populated during graph execution; flushed via TelemetryManager after frame.
     std::vector<chronon3d::telemetry::NodeTelemetryRecord> node_telemetry;
