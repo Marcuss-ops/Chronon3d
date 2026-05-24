@@ -17,139 +17,11 @@
       }
     },
     {
-      "name": "base-win",
-      "hidden": true,
-      "inherits": "base",
-      "cacheVariables": {
-        "VCPKG_TARGET_TRIPLET": "x64-windows"
-      }
-    },
-    {
-      "name": "base-win-vs",
-      "hidden": true,
-      "inherits": "base-win",
-      "generator": "Visual Studio 17 2022",
-      "architecture": "x64"
-    },
-    {
       "name": "base-linux",
       "hidden": true,
       "inherits": "base",
       "cacheVariables": {
         "VCPKG_TARGET_TRIPLET": "x64-linux"
-      }
-    },
-    {
-      "name": "win-release",
-      "inherits": "base-win",
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Windows"
-      },
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release"
-      }
-    },
-    {
-      "name": "win-debug",
-      "inherits": "base-win",
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Windows"
-      },
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug"
-      }
-    },
-    {
-      "name": "win-debug-render",
-      "inherits": "base-win",
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Windows"
-      },
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "CHRONON3D_BUILD_TESTS": "OFF",
-        "CHRONON3D_ENABLE_SQLITE_TELEMETRY": "OFF"
-      }
-    },
-    {
-      "name": "win-release-video",
-      "inherits": "win-release",
-      "binaryDir": "${sourceDir}/build/chronon/vs/${presetName}",
-      "generator": "Visual Studio 17 2022",
-      "architecture": "x64",
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Windows"
-      },
-      "cacheVariables": {
-        "CHRONON3D_ENABLE_VIDEO": "ON",
-        "CHRONON3D_BUILD_TESTS": "OFF",
-        "CHRONON3D_ENABLE_SQLITE_TELEMETRY": "OFF",
-        "VCPKG_MANIFEST_FEATURES": "video"
-      }
-    },
-    {
-      "name": "win-debug-video",
-      "inherits": "win-debug",
-      "binaryDir": "${sourceDir}/build/chronon/vs/${presetName}",
-      "generator": "Visual Studio 17 2022",
-      "architecture": "x64",
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Windows"
-      },
-      "cacheVariables": {
-        "CHRONON3D_ENABLE_VIDEO": "ON",
-        "CHRONON3D_BUILD_TESTS": "OFF",
-        "CHRONON3D_ENABLE_SQLITE_TELEMETRY": "OFF",
-        "VCPKG_MANIFEST_FEATURES": "video"
-      }
-    },
-    {
-      "name": "win-relwithdebinfo",
-      "inherits": "base-win",
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Windows"
-      },
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
-      }
-    },
-    {
-      "name": "win-relwithdebinfo-video",
-      "inherits": "win-relwithdebinfo",
-      "binaryDir": "${sourceDir}/build/chronon/vs/${presetName}",
-      "generator": "Visual Studio 17 2022",
-      "architecture": "x64",
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Windows"
-      },
-      "cacheVariables": {
-        "CHRONON3D_ENABLE_VIDEO": "ON",
-        "CHRONON3D_BUILD_TESTS": "OFF",
-        "CHRONON3D_ENABLE_SQLITE_TELEMETRY": "OFF",
-        "VCPKG_MANIFEST_FEATURES": "video"
-      }
-    },
-    {
-      "name": "win-vs-novideo",
-      "inherits": "base-win-vs",
-      "binaryDir": "${sourceDir}/build/win-vs-novideo",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "CHRONON3D_ENABLE_VIDEO": "OFF"
       }
     },
     {
@@ -234,84 +106,12 @@
         "chronon3d_cli"
       ],
       "jobs": 16
-    },
-    {
-      "name": "win",
-      "configurePreset": "win-release",
-      "configuration": "Release",
-      "targets": [
-        "chronon3d_cli",
-        "chronon3d_tests"
-      ],
-      "jobs": 16
-    },
-    {
-      "name": "win-debug",
-      "configurePreset": "win-debug",
-      "configuration": "Debug",
-      "targets": [
-        "chronon3d_cli",
-        "chronon3d_tests"
-      ],
-      "jobs": 16
-    },
-    {
-      "name": "win-debug-render",
-      "configurePreset": "win-debug-render",
-      "configuration": "Debug",
-      "targets": [
-        "chronon3d_cli"
-      ],
-      "jobs": 16
-    },
-    {
-      "name": "win-video",
-      "configurePreset": "win-release-video",
-      "configuration": "Release",
-      "targets": [
-        "chronon3d_cli"
-      ],
-      "jobs": 16
-    },
-    {
-      "name": "win-debug-video",
-      "configurePreset": "win-debug-video",
-      "configuration": "Debug",
-      "targets": [
-        "chronon3d_cli"
-      ],
-      "jobs": 16
-    },
-    {
-      "name": "win-relwithdebinfo-video",
-      "configurePreset": "win-relwithdebinfo-video",
-      "configuration": "RelWithDebInfo",
-      "targets": [
-        "chronon3d_cli"
-      ],
-      "jobs": 16
-    },
-    {
-      "name": "win-vs-novideo",
-      "configurePreset": "win-vs-novideo",
-      "configuration": "Debug",
-      "targets": [
-        "chronon3d_tests"
-      ],
-      "jobs": 16
     }
   ],
   "testPresets": [
     {
       "name": "linux-test",
       "configurePreset": "linux-release",
-      "output": {
-        "outputOnFailure": true
-      }
-    },
-    {
-      "name": "win-test",
-      "configurePreset": "win-release",
       "output": {
         "outputOnFailure": true
       }

@@ -72,7 +72,7 @@ int command_video(const CompositionRegistry& registry, const VideoArgs& args) {
     opts.pipe_pixfmt = args.pipe_pixfmt;
     opts.color_output = args.color_output;
     opts.pipe_writer = args.pipe_writer;
-    opts.warmup_renderer = args.pipeline.warmup_renderer;
+    opts.warmup_renderer = args.pipeline.warmup_renderer || (args.ffmpeg_mode == "pipe");
     opts.warmup_framebuffers = args.pipeline.warmup_framebuffers;
     opts.warmup_dummy_frame = args.pipeline.warmup_dummy_frame;
 

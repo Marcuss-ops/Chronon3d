@@ -17,6 +17,7 @@ TEST_CASE("All builtin renderable shape types have software processors") {
     CHECK(registry.get_shape(ShapeType::Circle) != nullptr);
     CHECK(registry.get_shape(ShapeType::Line) != nullptr);
     CHECK(registry.get_shape(ShapeType::Image) != nullptr);
+    CHECK(registry.get_shape(ShapeType::GridBackground) != nullptr);
 
     CHECK(registry.get_shape(ShapeType::FakeBox3D) != nullptr);
     CHECK(registry.get_shape(ShapeType::GridPlane) != nullptr);

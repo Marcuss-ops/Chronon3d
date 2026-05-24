@@ -99,4 +99,7 @@ const Camera2_5D& SceneBuilder::camera_2_5d() const {
     return scene_.camera_2_5d();
 }
 
+SceneBuilder& SceneBuilder::grid_background(std::string name, GridBackgroundParams p) {
+    return shape(registry::shape_ids::GridBackground, std::move(name), std::move(p));
+}
 } // namespace chronon3d
