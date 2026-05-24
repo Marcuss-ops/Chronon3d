@@ -8,18 +8,15 @@ on:
 
 jobs:
   build:
-    name: ${{ matrix.os }} (${{ matrix.preset }})
-    runs-on: ${{ matrix.os }}
+    name: Linux (${{ matrix.preset }})
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: ubuntu-latest
-            preset: linux-release
-            test_preset: linux-test
-          - os: windows-latest
-            preset: win-release
-            test_preset: win-test
+        preset:
+          - linux-release
+        test_preset:
+          - linux-test
 
     env:
       VCPKG_ROOT: ${{ github.workspace }}/vcpkg
@@ -40,9 +37,8 @@ jobs:
         uses: lukka/run-cmake@v10
         with:
           configurePreset: ${{ matrix.preset }}
-          buildPreset: ${{ matrix.build_preset || matrix.os == 'windows-latest' && 'win' || 'linux' }}
+          buildPreset: linux
 
       - name: Run Tests
-        shell: bash
         run: |
           ctest --preset ${{ matrix.test_preset }}

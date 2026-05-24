@@ -15,10 +15,18 @@
 #ifdef __linux__
     #include <sys/mman.h>
     #include <sys/syscall.h>
+    #include <sys/uio.h>
     #include <unistd.h>
     #include <linux/io_uring.h>
     #include <atomic>
     #include <cstring>
+
+    #ifndef __NR_io_uring_register
+        #define __NR_io_uring_register 427
+    #endif
+    #ifndef IORING_OP_WRITE_FIXED
+        #define IORING_OP_WRITE_FIXED 2
+    #endif
 #endif
 
 namespace chronon3d::cli {
@@ -49,7 +57,6 @@ bool FfmpegPipeEncoder::open(const FfmpegPipeOptions& options) {
     if (options_.input_format == PipePixelFormat::YUV420P || options_.input_format == PipePixelFormat::NV12) {
         const size_t size = w * h + (w * h) / 2u;
         yuv_buffer_.assign(size, 0);
-        rgba_buffer_.assign(w * h * 4u, 0); // Pre-allocate RGBA buffer for gamma translation
 #ifdef __linux__
         ring_buffer_size_ = size;
 #endif
@@ -87,126 +94,131 @@ bool FfmpegPipeEncoder::write_frame(const Framebuffer& fb) {
         return false;
     }
 
-#ifdef __linux__
-    if (use_uring_) {
-        // Wait for slot to become free if all busy
-        while (pending_writes_count_ >= kRingEntries) {
-            reap_completed_uring(true);
-        }
+    uint8_t* target_buffer = nullptr;
+    size_t bytes_to_write = 0;
+    bool ok = false;
 
-        // Find the next free buffer in pool
-        size_t buf_idx = ring_buffer_index_;
-        while (ring_buffer_pending_[buf_idx]) {
-            reap_completed_uring(true);
-            buf_idx = ring_buffer_index_;
-        }
-
-        uint8_t* dst = ring_buffers_[buf_idx].data();
-        const auto t_conv0 = std::chrono::high_resolution_clock::now();
-        bool ok = false;
-        if (options_.input_format == PipePixelFormat::YUV420P) {
-            ok = convert_framebuffer_to_yuv420p(fb, dst);
-        } else if (options_.input_format == PipePixelFormat::NV12) {
-            ok = convert_framebuffer_to_nv12(fb, dst);
-        } else {
-            ok = convert_framebuffer_to_rgba(fb, dst);
-        }
-        const auto t_conv1 = std::chrono::high_resolution_clock::now();
-        if (profiling::g_current_counters) {
-            profiling::g_current_counters->frame_conversion_copy_ms.fetch_add(
-                static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t_conv1 - t_conv0).count()),
-                std::memory_order_relaxed);
-        }
-
-        if (!ok) return false;
-
-        ring_buffer_pending_[buf_idx] = true;
-        ring_buffer_bytes_written_[buf_idx] = 0;
-        ring_buffer_index_ = (buf_idx + 1) % kRingEntries;
-
-        const auto t0 = std::chrono::high_resolution_clock::now();
-        bool written = write_uring(buf_idx, ring_buffer_size_);
-        const auto t1 = std::chrono::high_resolution_clock::now();
-        total_write_blocked_ms_ += std::chrono::duration<double, std::milli>(t1 - t0).count();
-
-        if (!written) return false;
-
-        ++frames_written_;
-        return true;
-    }
-#endif
-
-    auto timed_fwrite = [&](const void* ptr, size_t size, size_t count, FILE* stream) -> size_t {
-        const auto t0 = std::chrono::high_resolution_clock::now();
-        size_t res = std::fwrite(ptr, size, count, stream);
-        const auto t1 = std::chrono::high_resolution_clock::now();
-        total_write_blocked_ms_ += std::chrono::duration<double, std::milli>(t1 - t0).count();
-        return res;
-    };
-
+    const auto t_conv0 = std::chrono::high_resolution_clock::now();
     switch (options_.input_format) {
         case PipePixelFormat::YUV420P: {
-            const auto t_conv0 = std::chrono::high_resolution_clock::now();
-            if (!convert_framebuffer_to_yuv420p(fb)) {
-                return false;
+#ifdef __linux__
+            if (use_uring_) {
+                while (pending_writes_count_ >= kRingEntries) {
+                    reap_completed_uring(true);
+                }
+                size_t buf_idx = ring_buffer_index_;
+                while (ring_buffer_pending_[buf_idx]) {
+                    reap_completed_uring(true);
+                    buf_idx = ring_buffer_index_;
+                }
+                target_buffer = ring_buffers_[buf_idx].data();
+                ok = convert_framebuffer_to_yuv420p(fb, target_buffer);
+                if (ok) {
+                    ring_buffer_pending_[buf_idx] = true;
+                    ring_buffer_bytes_written_[buf_idx] = 0;
+                    ring_buffer_index_ = (buf_idx + 1) % kRingEntries;
+                }
+            } else
+#endif
+            {
+                ok = convert_framebuffer_to_yuv420p(fb, nullptr);
+                target_buffer = yuv_buffer_.data();
+                bytes_to_write = yuv_buffer_.size();
             }
-            const auto t_conv1 = std::chrono::high_resolution_clock::now();
-            if (profiling::g_current_counters) {
-                profiling::g_current_counters->frame_conversion_copy_ms.fetch_add(
-                    static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t_conv1 - t_conv0).count()),
-                    std::memory_order_relaxed);
-            }
-            const size_t written = timed_fwrite(
-                yuv_buffer_.data(), 1, yuv_buffer_.size(), pipe_);
-            if (written != yuv_buffer_.size()) {
-                return false;
-            }
-            bytes_written_ += written;
             break;
         }
         case PipePixelFormat::NV12: {
-            const auto t_conv0 = std::chrono::high_resolution_clock::now();
-            if (!convert_framebuffer_to_nv12(fb)) {
-                return false;
+#ifdef __linux__
+            if (use_uring_) {
+                while (pending_writes_count_ >= kRingEntries) {
+                    reap_completed_uring(true);
+                }
+                size_t buf_idx = ring_buffer_index_;
+                while (ring_buffer_pending_[buf_idx]) {
+                    reap_completed_uring(true);
+                    buf_idx = ring_buffer_index_;
+                }
+                target_buffer = ring_buffers_[buf_idx].data();
+                ok = convert_framebuffer_to_nv12(fb, target_buffer);
+                if (ok) {
+                    ring_buffer_pending_[buf_idx] = true;
+                    ring_buffer_bytes_written_[buf_idx] = 0;
+                    ring_buffer_index_ = (buf_idx + 1) % kRingEntries;
+                }
+            } else
+#endif
+            {
+                ok = convert_framebuffer_to_nv12(fb, nullptr);
+                target_buffer = yuv_buffer_.data();
+                bytes_to_write = yuv_buffer_.size();
             }
-            const auto t_conv1 = std::chrono::high_resolution_clock::now();
-            if (profiling::g_current_counters) {
-                profiling::g_current_counters->frame_conversion_copy_ms.fetch_add(
-                    static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t_conv1 - t_conv0).count()),
-                    std::memory_order_relaxed);
+            break;
+        }
+        case PipePixelFormat::RGBA: {
+#ifdef __linux__
+            if (use_uring_) {
+                while (pending_writes_count_ >= kRingEntries) {
+                    reap_completed_uring(true);
+                }
+                size_t buf_idx = ring_buffer_index_;
+                while (ring_buffer_pending_[buf_idx]) {
+                    reap_completed_uring(true);
+                    buf_idx = ring_buffer_index_;
+                }
+                target_buffer = ring_buffers_[buf_idx].data();
+                ok = convert_framebuffer_to_rgba(fb, target_buffer);
+                if (ok) {
+                    ring_buffer_pending_[buf_idx] = true;
+                    ring_buffer_bytes_written_[buf_idx] = 0;
+                    ring_buffer_index_ = (buf_idx + 1) % kRingEntries;
+                }
+            } else
+#endif
+            {
+                ok = convert_framebuffer_to_rgba(fb, nullptr);
+                target_buffer = rgba_buffer_.data();
+                bytes_to_write = rgba_buffer_.size();
             }
-            const size_t written = timed_fwrite(
-                yuv_buffer_.data(), 1, yuv_buffer_.size(), pipe_);
-            if (written != yuv_buffer_.size()) {
-                return false;
-            }
-            bytes_written_ += written;
             break;
         }
         default:
-        case PipePixelFormat::RGBA: {
-            const auto t_conv0 = std::chrono::high_resolution_clock::now();
-            if (!convert_framebuffer_to_rgba(fb)) {
-                return false;
-            }
-            const auto t_conv1 = std::chrono::high_resolution_clock::now();
-            if (profiling::g_current_counters) {
-                profiling::g_current_counters->frame_conversion_copy_ms.fetch_add(
-                    static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t_conv1 - t_conv0).count()),
-                    std::memory_order_relaxed);
-            }
-            const size_t written = timed_fwrite(
-                rgba_buffer_.data(), 1, rgba_buffer_.size(), pipe_);
-            if (written != rgba_buffer_.size()) {
-                return false;
-            }
-            bytes_written_ += written;
-            break;
+            return false;
+    }
+    const auto t_conv1 = std::chrono::high_resolution_clock::now();
+    if (profiling::g_current_counters) {
+        profiling::g_current_counters->frame_conversion_copy_ms.fetch_add(
+            static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t_conv1 - t_conv0).count()),
+            std::memory_order_relaxed);
+    }
+
+    if (!ok) {
+        return false;
+    }
+
+#ifdef __linux__
+    if (use_uring_) {
+        size_t prev_idx = (ring_buffer_index_ + kRingEntries - 1) % kRingEntries;
+        const auto t_write0 = std::chrono::high_resolution_clock::now();
+        bool written = write_uring(prev_idx, ring_buffer_size_);
+        const auto t_write1 = std::chrono::high_resolution_clock::now();
+        total_write_blocked_ms_ += std::chrono::duration<double, std::milli>(t_write1 - t_write0).count();
+        if (!written) return false;
+    } else
+#endif
+    {
+        const auto t_write0 = std::chrono::high_resolution_clock::now();
+        size_t res = std::fwrite(target_buffer, 1, bytes_to_write, pipe_);
+        const auto t_write1 = std::chrono::high_resolution_clock::now();
+        total_write_blocked_ms_ += std::chrono::duration<double, std::milli>(t_write1 - t_write0).count();
+        if (res != bytes_to_write) {
+            return false;
         }
+        bytes_written_ += res;
     }
 
     ++frames_written_;
     return true;
+}
 }
 
 bool FfmpegPipeEncoder::close() {
@@ -294,13 +306,22 @@ bool FfmpegPipeEncoder::init_uring() {
 
     // Allocate ring buffers pool
     ring_buffers_.resize(kRingEntries);
+    std::vector<struct iovec> iov(kRingEntries);
     for (size_t i = 0; i < kRingEntries; ++i) {
         ring_buffers_[i].resize(ring_buffer_size_);
+        iov[i].iov_base = ring_buffers_[i].data();
+        iov[i].iov_len = ring_buffer_size_;
     }
     ring_buffer_pending_.assign(kRingEntries, false);
     ring_buffer_bytes_written_.assign(kRingEntries, 0);
     ring_buffer_index_ = 0;
     pending_writes_count_ = 0;
+    buffers_registered_ = false;
+
+    int reg_rc = syscall(__NR_io_uring_register, ring_fd_, 0 /* IORING_REGISTER_BUFFERS */, iov.data(), kRingEntries);
+    if (reg_rc >= 0) {
+        buffers_registered_ = true;
+    }
 
     return true;
 }
@@ -422,7 +443,12 @@ bool FfmpegPipeEncoder::write_uring(size_t buf_idx, size_t size) {
     struct io_uring_sqe* sqe = &static_cast<struct io_uring_sqe*>(sqes_)[index];
     std::memset(sqe, 0, sizeof(*sqe));
 
-    sqe->opcode = IORING_OP_WRITE;
+    if (buffers_registered_) {
+        sqe->opcode = IORING_OP_WRITE_FIXED;
+        sqe->buf_index = buf_idx;
+    } else {
+        sqe->opcode = IORING_OP_WRITE;
+    }
     sqe->fd = fileno(pipe_);
     sqe->addr = reinterpret_cast<uint64_t>(ring_buffers_[buf_idx].data() + offset);
     sqe->len = remaining;
