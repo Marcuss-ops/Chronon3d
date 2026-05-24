@@ -225,6 +225,51 @@ TEST_CASE("PersistentBakeCache - load returns nullptr for missing key") {
     CHECK(loaded == nullptr);
 }
 
+// ── Priorità 4 Test 5: PersistentBakeCache stride-safe ─────────────────
+
+TEST_CASE("PersistentBakeCache - stride-safe roundtrip with non-aligned dimensions") {
+    auto dir = make_temp_cache_dir();
+    PersistentBakeCache::instance().set_cache_dir(dir);
+    PersistentBakeCache::instance().clear();
+
+    // Use non-aligned dimensions (1277x719 — neither multiple of 64 nor cache-line)
+    Framebuffer fb(1277, 719);
+
+    // Verify stride is wider than logical width
+    CHECK(fb.allocated_width() >= 1277);
+
+    // Write a different pattern for each row
+    for (i32 y = 0; y < fb.height(); ++y) {
+        for (i32 x = 0; x < fb.width(); ++x) {
+            float v = static_cast<float>(y * fb.width() + x) / static_cast<float>(fb.width() * fb.height());
+            fb.set_pixel(x, y, Color{v, v * 0.5f, 1.0f - v, 1.0f});
+        }
+    }
+
+    auto key = make_test_key(0xCAFE1277);
+    PersistentBakeCache::instance().store(key, fb);
+    CHECK(PersistentBakeCache::instance().exists(key));
+
+    auto loaded = PersistentBakeCache::instance().load(key);
+    REQUIRE(loaded != nullptr);
+    CHECK(loaded->width() == 1277);
+    CHECK(loaded->height() == 719);
+
+    // Verify all pixels are identical (no row shifting, no padding corruption)
+    for (i32 y = 0; y < fb.height(); ++y) {
+        for (i32 x = 0; x < fb.width(); ++x) {
+            Color orig = fb.get_pixel(x, y);
+            Color loaded_px = loaded->get_pixel(x, y);
+            CHECK(orig.r == doctest::Approx(loaded_px.r).epsilon(0.001f));
+            CHECK(orig.g == doctest::Approx(loaded_px.g).epsilon(0.001f));
+            CHECK(orig.b == doctest::Approx(loaded_px.b).epsilon(0.001f));
+            CHECK(orig.a == doctest::Approx(loaded_px.a).epsilon(0.001f));
+        }
+    }
+
+    PersistentBakeCache::instance().clear();
+}
+
 TEST_CASE("PersistentBakeCache - batch store stores all entries") {
     auto dir = make_temp_cache_dir();
     PersistentBakeCache::instance().set_cache_dir(dir);
