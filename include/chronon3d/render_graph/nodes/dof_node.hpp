@@ -5,6 +5,7 @@
 #include <chronon3d/scene/camera/dof.hpp>
 #include <chronon3d/scene/camera/camera_2_5d.hpp>
 #include <chronon3d/scene/effects/effect_stack.hpp>
+#include <chronon3d/effects/effect_ids.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
 
 #include <cmath>
@@ -64,8 +65,12 @@ public:
     }
 
     std::shared_ptr<Framebuffer> execute(RenderGraphContext& ctx, std::span<const std::shared_ptr<Framebuffer>> inputs, std::span<const std::optional<raster::BBox>>) override {
-        if (inputs.empty()) return ctx.acquire_framebuffer(ctx.width, ctx.height);
-        
+        if (inputs.empty() || !inputs[0]) {
+            auto empty = ctx.acquire_framebuffer(ctx.width, ctx.height);
+            empty->clear(Color::transparent());
+            return empty;
+        }
+
         const float blur = compute_dof_blur_radius(m_camera.dof, m_layer_world_z);
         if (blur <= 0.5f) {
             if (inputs[0].use_count() == 1) {
@@ -77,7 +82,10 @@ public:
         auto result = ctx.acquire_framebuffer(*inputs[0]);
         if (ctx.backend) {
             EffectStack dof_stack;
-            dof_stack.push_back(EffectInstance{BlurParams{blur}});
+            dof_stack.push_back(EffectInstance{
+                effects::EffectDescriptor{.id = std::string{effects::ids::BlurGaussian}},
+                BlurParams{blur}
+            });
             ctx.backend->apply_effect_stack(*result, dof_stack, ctx.time_seconds, ctx.clip_rect);
             if (ctx.counters) {
                 ctx.counters->effect_stack_calls.fetch_add(1, std::memory_order_relaxed);
