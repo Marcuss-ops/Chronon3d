@@ -5,6 +5,7 @@
 #include <chronon3d/presets/motion_renderer.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
+#include <chronon3d/scene/camera/camera_motion_presets.hpp>
 #include "text_helpers.hpp"
 
 #include <algorithm>
@@ -245,14 +246,7 @@ void add_typewriter_motion_line(SceneBuilder& s, const TypewriterLine& line, con
         .glow(line.glow_enabled)
         .time(0, 180);
 
-    chronon3d::presets::motion::tilt_sweep_2_5d(
-        obj,
-        {0.0f, 0.0f, 260.0f},
-        {11.0f, 15.0f, 6.0f},
-        120.0f,
-        0.0f,
-        true
-    );
+    chronon3d::presets::motion::perspective_sweep_text_reveal(obj);
 
     chronon3d::presets::motion::draw_motion_object(s, frame_ctx, obj);
 }
@@ -266,8 +260,9 @@ Composition make_typewriter_composition(TypewriterSceneSpec spec) {
     }, [spec = std::move(spec)](const FrameContext& frame_ctx) {
         SceneBuilder s(frame_ctx);
         const f32 intro_opacity = clamp01(static_cast<f32>(frame_ctx.frame) / 12.0f);
+        const f32 p = clamp01(static_cast<f32>(frame_ctx.frame) / 180.0f);
 
-        s.camera().enable(true).position({0.0f, 0.0f, -1200.0f}).zoom(1200.0f).look_at({0.0f, 0.0f, 0.0f});
+        s.camera().set(chronon3d::camera_motion::dramatic_push(p, 1380.0f));
 
         add_typewriter_background(s, spec, intro_opacity);
 
@@ -361,23 +356,6 @@ TypewriterSceneSpec terminal_spec() {
                 .fade_in_frames = 18.0f,
                 .cursor = false,
                 .glow_enabled = true,
-                .sweep = {
-                    .enabled = true,
-                    .amplitude_x = 0.0f,
-                    .amplitude_y = 0.0f,
-                    .amplitude_z = 260.0f,
-                    .tilt_x_deg = 11.0f,
-                    .tilt_y_deg = 15.0f,
-                    .tilt_z_deg = 6.0f,
-                    .scale_amount = 0.0f,
-                    .period_frames = 120.0f,
-                    .phase_frames = 0.0f,
-                    .start_delay = 0.0f,
-                    .one_shot = true,
-                    .sweep_from = -1.0f,
-                    .sweep_to = 1.0f,
-                    .sweep_duration_frames = 120.0f,
-                },
             }
         }
     };

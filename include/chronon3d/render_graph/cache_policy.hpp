@@ -73,8 +73,8 @@ inline RenderNodeCachePolicy static_memory_cache(std::string reason = {}) {
         .cacheable = true,
         .frame_dependent = false,
         .frame_invariant = true,
-        .disk_cacheable = false,
-        .lifetime = CacheLifetime::PerComposition,
+        .disk_cacheable = true,
+        .lifetime = CacheLifetime::PersistentDisk,
         .invalidation = CacheInvalidation::WhenParamsChange,
         .debug_reason = reason.empty() ? "static_memory_cache" : std::move(reason)
     };

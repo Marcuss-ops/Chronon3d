@@ -198,6 +198,12 @@ int render_and_encode_ffmpeg_pipe(
     Frame current_frame = start;
     try {
         for (; current_frame < end; ++current_frame) {
+            // Check for graceful cancellation (SIGINT/SIGTERM)
+            if (opts.cancellation_token && opts.cancellation_token->is_cancelled()) {
+                spdlog::warn("[video] Render cancelled at frame {}", current_frame);
+                break;
+            }
+
             if (writer_failed.load()) {
                 spdlog::error("[video] FFmpeg writer failed before frame {}", current_frame);
                 break;

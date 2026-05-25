@@ -39,6 +39,9 @@ struct FfmpegExportOptions {
     bool   warmup_renderer{false};
     size_t warmup_framebuffers{8};
     bool   warmup_dummy_frame{false};
+
+    // Graceful cancellation (optional — set by command_video SIGINT handler)
+    class CancellationToken* cancellation_token{nullptr};
 };
 
 int render_and_encode_ffmpeg_pipe(

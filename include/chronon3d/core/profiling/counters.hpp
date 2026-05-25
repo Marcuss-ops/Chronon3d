@@ -93,6 +93,33 @@ constexpr std::size_t kHardwareDestructiveInterferenceSize = 64;
     X(setup_pool_preallocation_ms) \
     X(image_decode_ms)
 
+// ---------------------------------------------------------------------------
+// Raw (non-atomic) counters for thread-local accumulation
+// Same fields as RenderCounters but plain uint64_t — no atomic overhead.
+// Use for per-thread accumulation; merge into RenderCounters at frame end.
+// ---------------------------------------------------------------------------
+struct RenderCountersRaw {
+#define X(name) uint64_t name{0};
+    CHRONON_RENDER_COUNTERS(X)
+#undef X
+    std::array<uint64_t, dirty_fallback_reason_count()> dirty_full_fallback_reasons{};
+#define X(name) uint64_t name{0};
+    CHRONON_RENDER_COUNTERS_SYSTEM(X)
+    CHRONON_RENDER_COUNTERS_SETUP(X)
+#undef X
+
+    void reset() {
+#define X(name) name = 0;
+        CHRONON_RENDER_COUNTERS(X)
+#undef X
+        dirty_full_fallback_reasons.fill(0);
+#define X(name) name = 0;
+        CHRONON_RENDER_COUNTERS_SYSTEM(X)
+        CHRONON_RENDER_COUNTERS_SETUP(X)
+#undef X
+    }
+};
+
 struct RenderCounters {
 #define X(name) alignas(kHardwareDestructiveInterferenceSize) std::atomic<uint64_t> name{0};
     CHRONON_RENDER_COUNTERS(X)
@@ -165,6 +192,24 @@ public:
         if (index < dirty_fallback_reason_count()) {
             dirty_full_fallback_reasons[index].fetch_add(1, std::memory_order_relaxed);
         }
+    }
+
+    /// Merge thread-local (non-atomic) raw counters into this atomic instance.
+    /// Use at the end of each frame: threads accumulate into thread-local
+    /// RenderCountersRaw, then call this once to flush into the global atomics.
+    /// This replaces N atomic fetch_add calls per counter with a single pass.
+    void merge_tls(const RenderCountersRaw& tls) {
+#define X(name) name.fetch_add(tls.name, std::memory_order_relaxed);
+        CHRONON_RENDER_COUNTERS(X)
+#undef X
+        for (std::size_t i = 0; i < dirty_fallback_reason_count(); ++i) {
+            dirty_full_fallback_reasons[i].fetch_add(
+                tls.dirty_full_fallback_reasons[i], std::memory_order_relaxed);
+        }
+#define X(name) name.fetch_add(tls.name, std::memory_order_relaxed);
+        CHRONON_RENDER_COUNTERS_SYSTEM(X)
+        CHRONON_RENDER_COUNTERS_SETUP(X)
+#undef X
     }
 };
 
