@@ -6,6 +6,7 @@
 #include <chronon3d/runtime/renderer_warmup.hpp>
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
+#include <chronon3d/core/cancellation_token.hpp>
 #include <filesystem>
 
 namespace chronon3d::cli {
@@ -51,6 +52,53 @@ int command_video(const CompositionRegistry& registry, const VideoArgs& args) {
         return 1;
     }
 
+    // ── Dry-run: validate everything but don't render ──
+    if (args.dry_run) {
+        auto resolved = resolve_composition(registry, args.comp_id);
+        if (!resolved) return 1;
+        const auto& comp = *resolved.comp;
+
+        RenderSettings settings = settings_from_args(args, !resolved.from_specscene);
+        const Frame end = (args.end > args.start) ? args.end : comp.duration();
+        const int total = static_cast<int>(end - args.start);
+
+        spdlog::info("[dry-run] Composition: {}", args.comp_id);
+        spdlog::info("[dry-run]   Resolution: {}×{}", comp.width(), comp.height());
+        spdlog::info("[dry-run]   Frame range: {} – {} ({} frames)", args.start, end, total);
+        spdlog::info("[dry-run]   FPS: {}", args.fps);
+        spdlog::info("[dry-run]   Duration: {:.1f}s", static_cast<double>(total) / args.fps);
+        spdlog::info("[dry-run]   Output: {}", args.output.empty() ? "(none)" : args.output);
+        spdlog::info("[dry-run]   FFmpeg mode: {}", args.ffmpeg_mode);
+        spdlog::info("[dry-run]   SSAA: {}×", settings.ssaa);
+
+        // Try to build the render graph to detect errors early
+        try {
+            auto renderer = create_renderer(registry, settings);
+            auto* sw_renderer = dynamic_cast<SoftwareRenderer*>(renderer.get());
+            if (sw_renderer) {
+                spdlog::info("[dry-run]   Backend: SoftwareRenderer");
+            }
+            cache::NodeCache node_cache;
+            auto fb = render_composition_frame(
+                *renderer, node_cache, settings, &registry, nullptr, comp, args.start);
+            if (!fb) {
+                spdlog::warn("[dry-run]   First frame render returned null");
+            } else {
+                spdlog::info("[dry-run]   First frame render: OK ({}×{})", fb->width(), fb->height());
+            }
+        } catch (const std::exception& e) {
+            spdlog::error("[dry-run]   Render error: {}", e.what());
+            return 1;
+        }
+
+        spdlog::info("[dry-run] ✅ Composition is valid — no rendering performed.");
+        return 0;
+    }
+
+    // ── Graceful cancellation (SIGINT/SIGTERM) ──
+    CancellationToken cancel_token;
+    install_signal_cancellation(cancel_token);
+
     auto resolved = resolve_composition(registry, args.comp_id);
     if (!resolved) return 1;
     const auto& comp = *resolved.comp;
@@ -81,6 +129,9 @@ int command_video(const CompositionRegistry& registry, const VideoArgs& args) {
     opts.warmup_renderer = args.pipeline.warmup_renderer || (args.ffmpeg_mode == "pipe");
     opts.warmup_framebuffers = args.pipeline.warmup_framebuffers;
     opts.warmup_dummy_frame = args.pipeline.warmup_dummy_frame || (args.ffmpeg_mode == "pipe");
+
+    // Pass cancellation token for graceful SIGINT handling
+    opts.cancellation_token = &cancel_token;
 
     const Frame end = (args.end > args.start) ? args.end : comp.duration();
     

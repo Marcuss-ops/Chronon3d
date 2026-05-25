@@ -256,15 +256,16 @@ public:
     /// Rich cache policy descriptor.  Default implementation wraps the legacy
     /// cacheable() / cache_frame_policy() / frame_dependent() API.
     [[nodiscard]] virtual RenderNodeCachePolicy cache_policy() const {
+        const bool invariant = cache_frame_policy() == CacheFramePolicy::FrameInvariant;
         return RenderNodeCachePolicy{
             .cacheable = cacheable(),
             .frame_dependent = frame_dependent() || cache_frame_policy() == CacheFramePolicy::FrameDependent,
-            .frame_invariant = cache_frame_policy() == CacheFramePolicy::FrameInvariant,
-            .disk_cacheable = false,
-            .lifetime = cache_frame_policy() == CacheFramePolicy::FrameInvariant
-                ? CacheLifetime::PerComposition
+            .frame_invariant = invariant,
+            .disk_cacheable = invariant,
+            .lifetime = invariant
+                ? CacheLifetime::PersistentDisk
                 : CacheLifetime::PerFrame,
-            .invalidation = cache_frame_policy() == CacheFramePolicy::FrameInvariant
+            .invalidation = invariant
                 ? CacheInvalidation::WhenParamsChange
                 : CacheInvalidation::WhenInputsChange,
             .debug_reason = "legacy_policy"

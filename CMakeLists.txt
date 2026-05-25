@@ -106,7 +106,7 @@ endif()
 # ==============================================================================
 
 # 1. Core Impl (Spostato in alto per evitare anomalie di risoluzione del target)
-add_library(chronon3d_core_impl STATIC src/core/trace.cpp src/core/benchmark_report.cpp src/core/render_telemetry_detail.cpp src/core/system_metrics.cpp)
+add_library(chronon3d_core_impl STATIC src/core/trace.cpp src/core/benchmark_report.cpp src/core/render_telemetry_detail.cpp src/core/system_metrics.cpp src/core/cancellation_token.cpp)
 target_include_directories(chronon3d_core_impl PUBLIC include deps/include)
 target_link_libraries(chronon3d_core_impl PUBLIC nlohmann_json::nlohmann_json fmt::fmt spdlog::spdlog_header_only)
 

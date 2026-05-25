@@ -28,8 +28,7 @@ void register_builtin_processors(SoftwareRegistry& registry) {
     registry.register_shape(ShapeType::Rect, std::move(shape_proc));
     registry.register_shape(ShapeType::Circle, create_shape_processor());
     registry.register_shape(ShapeType::RoundedRect, create_shape_processor());
-    registry.register_shape(ShapeType::Path, create_shape_processor());
-    
+
     registry.register_shape(ShapeType::Line, create_line_processor());
     registry.register_shape(ShapeType::Path, create_path_processor());
     registry.register_shape(ShapeType::Image, create_image_processor());
