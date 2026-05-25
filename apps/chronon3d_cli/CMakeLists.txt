@@ -11,6 +11,7 @@ add_executable(chronon3d_cli
     utils/common/cli_utils.cpp
     utils/job/cli_render_utils.cpp
     utils/video/ffmpeg_pipe_encoder.cpp
+    utils/video/ffmpeg_pipe_write_frame.cpp
     utils/video/ffmpeg_pipe_encoder_uring.cpp
     utils/video/ffmpeg_pipe_command.cpp
     utils/video/ffmpeg_pipe_yuv.cpp

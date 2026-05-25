@@ -3,6 +3,7 @@
 #include <chronon3d/core/framebuffer_arena.hpp>
 #include <chronon3d/core/triple_buffer_arena.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/core/system_metrics.hpp>
 #include <chronon3d/render_graph/render_pipeline.hpp>
 #include <spdlog/spdlog.h>
 #include <chrono>
@@ -58,6 +59,7 @@ int render_and_encode_ffmpeg_pipe(
     const std::string codec = codec_auto ? "libx264" : resolve_cli_ffmpeg_codec(opts.codec, opts.hardware_encoder);
 
     FfmpegPipeEncoder pipe;
+    chronon3d::SystemMetricsCollector sys_metrics;
     FfmpegPipeOptions pipe_options{
         .width = comp.width(),
         .height = comp.height(),
@@ -96,6 +98,12 @@ int render_and_encode_ffmpeg_pipe(
     if (!pipe.open(pipe_options)) {
         spdlog::error("[video] Failed to open FFmpeg raw pipe");
         return 1;
+    }
+
+    // Track FFmpeg child process for CPU% monitoring
+    sys_metrics.track_ffmpeg_pid(pipe.ffmpeg_pid());
+    if (pipe.ffmpeg_pid() > 0) {
+        spdlog::info("[video] Tracking FFmpeg child PID {} for system metrics", pipe.ffmpeg_pid());
     }
 
     auto renderer = create_renderer(registry, settings);
@@ -337,6 +345,12 @@ int render_and_encode_ffmpeg_pipe(
     auto resolved_counters = telemetry::capture_counters(*renderer->counters());
     resolved_counters.push_back({"ffmpeg_pipe_write_blocked_duration_ms", static_cast<uint64_t>(std::llround(write_blocked_ms))});
     resolved_counters.push_back({"ffmpeg_queue_wait_duration_ms", static_cast<uint64_t>(std::llround(queue_wait_ms_total))});
+
+    // Collect system metrics (FFmpeg CPU%, page faults, context switches, LLC counters)
+    // and store them into the renderer's counters for telemetry.
+    if (renderer->counters()) {
+        sys_metrics.fill_system_counters(*renderer->counters());
+    }
 
     cli::telemetry::record_output_run(
         /*composition_id=*/composition_id,

@@ -1,128 +1,21 @@
 #include <chronon3d/backends/text/text_rasterizer_utils.hpp>
 #include <chronon3d/backends/text/text_layout_engine.hpp>
-#include <chronon3d/cache/lru_cache.hpp>
-#include <chronon3d/render_graph/render_graph_hashing.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include "../software/utils/blend2d_resources.hpp"
 
 #include <algorithm>
 #include <cmath>
-#include <mutex>
-#include <cstdlib>
 #include <chrono>
+#include <optional>
 
 namespace chronon3d {
 
-namespace {
-
 using CacheKey = u64;
-using TextCache = cache::LruCache<CacheKey, std::shared_ptr<TextRasterization>>;
 
-using chronon3d::graph::hash_combine;
-using chronon3d::graph::hash_value;
-using chronon3d::graph::hash_string;
-
-CacheKey hash_text_style(const TextShape& t, float effective_size, int padding, const Mat4* transform) {
-    CacheKey seed = 0;
-    seed = hash_combine(seed, hash_string(t.text));
-    seed = hash_combine(seed, hash_string(t.style.font_path));
-    seed = hash_combine(seed, hash_string(t.style.font_family));
-    seed = hash_combine(seed, hash_value(t.style.font_weight));
-    seed = hash_combine(seed, hash_string(t.style.font_style));
-    seed = hash_combine(seed, hash_value(effective_size));
-    seed = hash_combine(seed, hash_value(t.style.color.r));
-    seed = hash_combine(seed, hash_value(t.style.color.g));
-    seed = hash_combine(seed, hash_value(t.style.color.b));
-    seed = hash_combine(seed, hash_value(t.style.color.a));
-    seed = hash_combine(seed, hash_value(static_cast<int>(t.style.align)));
-    seed = hash_combine(seed, hash_value(t.style.line_height));
-    seed = hash_combine(seed, hash_value(t.style.tracking));
-    seed = hash_combine(seed, hash_value(t.style.max_lines));
-    seed = hash_combine(seed, hash_value(t.style.auto_scale));
-    seed = hash_combine(seed, hash_value(t.style.min_size));
-    seed = hash_combine(seed, hash_value(t.style.max_size));
-    seed = hash_combine(seed, hash_value(t.box.size.x));
-    seed = hash_combine(seed, hash_value(t.box.size.y));
-    seed = hash_combine(seed, hash_value(t.box.enabled));
-    seed = hash_combine(seed, hash_value(padding));
-
-    // V2 Paint
-    seed = hash_combine(seed, hash_value(t.style.paint.fill.r));
-    seed = hash_combine(seed, hash_value(t.style.paint.fill.g));
-    seed = hash_combine(seed, hash_value(t.style.paint.fill.b));
-    seed = hash_combine(seed, hash_value(t.style.paint.fill.a));
-    seed = hash_combine(seed, hash_value(t.style.paint.stroke_enabled));
-    seed = hash_combine(seed, hash_value(t.style.paint.stroke_color.r));
-    seed = hash_combine(seed, hash_value(t.style.paint.stroke_color.g));
-    seed = hash_combine(seed, hash_value(t.style.paint.stroke_color.b));
-    seed = hash_combine(seed, hash_value(t.style.paint.stroke_color.a));
-    seed = hash_combine(seed, hash_value(t.style.paint.stroke_width));
-
-    // V2 BoxStyle
-    seed = hash_combine(seed, hash_value(t.style.box_style.enabled));
-    seed = hash_combine(seed, hash_value(t.style.box_style.padding.x));
-    seed = hash_combine(seed, hash_value(t.style.box_style.padding.y));
-    seed = hash_combine(seed, hash_value(t.style.box_style.radius));
-    seed = hash_combine(seed, hash_value(t.style.box_style.background.r));
-    seed = hash_combine(seed, hash_value(t.style.box_style.background.g));
-    seed = hash_combine(seed, hash_value(t.style.box_style.background.b));
-    seed = hash_combine(seed, hash_value(t.style.box_style.background.a));
-    seed = hash_combine(seed, hash_value(t.style.box_style.border_enabled));
-    seed = hash_combine(seed, hash_value(t.style.box_style.border_color.r));
-    seed = hash_combine(seed, hash_value(t.style.box_style.border_color.g));
-    seed = hash_combine(seed, hash_value(t.style.box_style.border_color.b));
-    seed = hash_combine(seed, hash_value(t.style.box_style.border_color.a));
-    seed = hash_combine(seed, hash_value(t.style.box_style.border_width));
-
-    // V2 VerticalAlign
-    seed = hash_combine(seed, hash_value(static_cast<int>(t.style.vertical_align)));
-
-    // V2 Shadows
-    seed = hash_combine(seed, hash_value(t.style.shadows.size()));
-    for (const auto& shadow : t.style.shadows) {
-        seed = hash_combine(seed, hash_value(shadow.enabled));
-        seed = hash_combine(seed, hash_value(shadow.offset.x));
-        seed = hash_combine(seed, hash_value(shadow.offset.y));
-        seed = hash_combine(seed, hash_value(shadow.blur));
-        seed = hash_combine(seed, hash_value(shadow.opacity));
-        seed = hash_combine(seed, hash_value(shadow.color.r));
-        seed = hash_combine(seed, hash_value(shadow.color.g));
-        seed = hash_combine(seed, hash_value(shadow.color.b));
-        seed = hash_combine(seed, hash_value(shadow.color.a));
-    }
-
-    // Transform hash
-    if (transform) {
-        for (int i = 0; i < 4; ++i) {
-            for (int j = 0; j < 4; ++j) {
-                seed = hash_combine(seed, hash_value((*transform)[i][j]));
-            }
-        }
-    }
-
-    return seed;
-}
-
-size_t resolve_cache_max_mb(const char* env_name, size_t default_mb) {
-    const char* env = std::getenv(env_name);
-    if (!env || !*env) return default_mb * 1024ULL * 1024ULL;
-    try {
-        size_t mb = static_cast<size_t>(std::stoull(env));
-        return mb > 0 ? mb * 1024ULL * 1024ULL : default_mb * 1024ULL * 1024ULL;
-    } catch (...) {
-        return default_mb * 1024ULL * 1024ULL;
-    }
-}
-
-TextCache& get_text_cache() {
-    static TextCache cache(resolve_cache_max_mb("CHRONON_TEXT_CACHE_MAX_MB", 128), 8);
-    return cache;
-}
-
-// LruCache provides per-shard internal mutexes, so no outer mutex is needed.
-
-} // namespace
+CacheKey hash_text_style(const TextShape& t, float effective_size, int padding, const Mat4* transform);
+bool lookup_text_cache(const CacheKey& key, std::shared_ptr<TextRasterization>& out);
+void store_text_cache(const CacheKey& key, const std::shared_ptr<TextRasterization>& result);
 
 std::optional<TextRasterization> rasterize_text_to_bl_image(
     const TextShape& t,
@@ -136,13 +29,13 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
 
     const CacheKey key = hash_text_style(t, effective_size, padding, transform);
     {
-        auto cached = get_text_cache().get(key);
-        if (cached) {
+        std::shared_ptr<TextRasterization> cached;
+        if (lookup_text_cache(key, cached)) {
             if (cache_hit) *cache_hit = true;
             if (profiling::g_current_counters) {
                 profiling::g_current_counters->text_cache_hits.fetch_add(1, std::memory_order_relaxed);
             }
-            return *(*cached);
+            return *cached;
         }
     }
 
@@ -208,7 +101,6 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
 
     if (tw <= 0 || th <= 0) return std::nullopt;
 
-    // Check if transform is affine (suitable for Blend2D BLContext)
     bool use_geometric_transform = false;
     float bbox_min_x = 0.0f, bbox_min_y = 0.0f;
     int img_w = tw, img_h = th;
@@ -224,7 +116,6 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
             std::abs((*transform)[3][2]) < 1e-5f;
 
         if (is_affine) {
-            // Compute screen-space bbox of text content area under transform
             const float margin = 2.0f;
             float cx0 = static_cast<float>(padding) / 2.0f;
             float cy0 = static_cast<float>(padding) / 2.0f;
@@ -269,8 +160,6 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     auto start_raster = std::chrono::steady_clock::now();
 
     if (use_geometric_transform) {
-        // Apply affine transform to BLContext so text is rendered already oriented
-        // Maps text-local -> image-local: image_pos = model * text_pos - bbox_min
         BLMatrix2D bl_mat;
         bl_mat.reset(
             (*transform)[0][0], (*transform)[0][1],
@@ -281,7 +170,6 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
         ctx.setTransform(bl_mat);
     }
 
-    // Render TextBox background card if enabled
     if (t.style.box_style.enabled) {
         float rect_w = t.box.enabled ? t.box.size.x : (layout_res.size.x + 2.0f * t.style.box_style.padding.x);
         float rect_h = t.box.enabled ? t.box.size.y : (layout_res.size.y + 2.0f * t.style.box_style.padding.y);
@@ -405,17 +293,9 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     result->metrics = metrics;
     result->font = font;
 
-    {
-        size_t weight = static_cast<size_t>(result->image.width()) *
-                        static_cast<size_t>(result->image.height()) * 4;
-        get_text_cache().put(key, result, weight);
-    }
+    store_text_cache(key, result);
 
     return *result;
-}
-
-void clear_text_raster_cache() {
-    get_text_cache().clear();
 }
 
 } // namespace chronon3d

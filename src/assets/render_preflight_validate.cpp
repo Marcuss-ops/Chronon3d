@@ -1,78 +1,10 @@
 #include <chronon3d/assets/render_preflight.hpp>
 #include <chronon3d/assets/asset_registry.hpp>
+
 #include <filesystem>
 #include <fstream>
-#include <sstream>
-#include <nlohmann/json.hpp>
 
 namespace chronon3d {
-
-// ---------------------------------------------------------------------------
-// Tool existence check
-// ---------------------------------------------------------------------------
-
-bool tool_exists_in_path(const std::string& tool) {
-#if defined(_WIN32)
-    std::string cmd = "where " + tool + " >nul 2>nul";
-#else
-    std::string cmd = "command -v " + tool + " >/dev/null 2>&1";
-#endif
-    return std::system(cmd.c_str()) == 0;
-}
-
-// ---------------------------------------------------------------------------
-// Requirement registration
-// ---------------------------------------------------------------------------
-
-void RenderPreflight::require_image(const std::string& path) {
-    PreflightRequirement req;
-    req.type = PreflightAssetType::Image;
-    req.path = path;
-    m_requirements.push_back(req);
-}
-
-void RenderPreflight::require_video(const std::string& path) {
-    PreflightRequirement req;
-    req.type = PreflightAssetType::Video;
-    req.path = path;
-    m_requirements.push_back(req);
-}
-
-void RenderPreflight::require_font(const std::string& path) {
-    PreflightRequirement req;
-    req.type = PreflightAssetType::Font;
-    req.path = path;
-    m_requirements.push_back(req);
-}
-
-void RenderPreflight::require_audio(const std::string& path) {
-    PreflightRequirement req;
-    req.type = PreflightAssetType::Audio;
-    req.path = path;
-    m_requirements.push_back(req);
-}
-
-void RenderPreflight::require_output_path(const std::string& path) {
-    PreflightRequirement req;
-    req.type = PreflightAssetType::OutputPath;
-    req.path = path;
-    m_requirements.push_back(req);
-}
-
-void RenderPreflight::require_external_tool(const std::string& name) {
-    PreflightRequirement req;
-    req.type = PreflightAssetType::ExternalTool;
-    req.path = name;
-    m_requirements.push_back(req);
-}
-
-void RenderPreflight::add_requirements(const std::vector<PreflightRequirement>& reqs) {
-    m_requirements.insert(m_requirements.end(), reqs.begin(), reqs.end());
-}
-
-// ---------------------------------------------------------------------------
-// Validation helpers
-// ---------------------------------------------------------------------------
 
 namespace {
 
@@ -131,21 +63,15 @@ void validate_output_writable(const PreflightRequirement& req,
         parent = ".";
     }
 
-    // Check if parent directory exists
     if (!fs::exists(parent)) {
-        // Walk up to find the first existing ancestor to check writability
         fs::path check_parent = parent;
         while (!check_parent.empty() && !fs::exists(check_parent)) {
             check_parent = check_parent.parent_path();
         }
 
-        // If we found a writable ancestor, the directory could be created.
-        // If not, or if we walked all the way up, report a warning (not error —
-        // the render pipeline will attempt creation at render time).
         bool can_create = !check_parent.empty() && fs::exists(check_parent);
         bool ancestor_writable = false;
         if (can_create) {
-            // Check if the nearest existing ancestor is writable
             auto tmp = check_parent / ".chronon3d_preflight_test";
             std::ofstream test(tmp);
             if (test.is_open()) {
@@ -156,7 +82,6 @@ void validate_output_writable(const PreflightRequirement& req,
             }
         }
 
-        // Report a warning or error based on ancestor writability
         PreflightIssue issue;
         issue.type           = PreflightAssetType::OutputPath;
         issue.path           = req.path;
@@ -178,7 +103,6 @@ void validate_output_writable(const PreflightRequirement& req,
         return;
     }
 
-    // Directory exists — check writability
     auto tmp = parent / ".chronon3d_preflight_test";
     {
         std::ofstream test(tmp);
@@ -199,7 +123,6 @@ void validate_output_writable(const PreflightRequirement& req,
     std::error_code ec;
     fs::remove(tmp, ec);
 
-    // Warn if output file already exists
     if (fs::exists(output_path)) {
         PreflightIssue issue;
         issue.severity       = PreflightSeverity::Warning;
@@ -231,10 +154,6 @@ void validate_external_tool(const PreflightRequirement& req,
 
 } // anonymous namespace
 
-// ---------------------------------------------------------------------------
-// Main validation
-// ---------------------------------------------------------------------------
-
 std::vector<PreflightIssue> RenderPreflight::validate() const {
     std::vector<PreflightIssue> issues;
 
@@ -263,7 +182,6 @@ std::vector<PreflightIssue> RenderPreflight::validate() const {
         }
     }
 
-    // Auto-validate all assets registered in AssetRegistry
     for (const auto& asset : AssetRegistry::instance().assets()) {
         if (!std::filesystem::exists(asset.path)) {
             PreflightIssue issue;
@@ -302,91 +220,6 @@ bool RenderPreflight::ok() const {
         if (i.severity == PreflightSeverity::Error) return false;
     }
     return true;
-}
-
-void RenderPreflight::clear() {
-    m_requirements.clear();
-}
-
-// ---------------------------------------------------------------------------
-// Formatting helpers
-// ---------------------------------------------------------------------------
-
-std::string format_preflight_issues_text(const std::vector<PreflightIssue>& issues) {
-    if (issues.empty()) {
-        return "";
-    }
-
-    std::ostringstream ss;
-    ss << "\n================================================================================\n";
-    ss << "                     CHRONON3D PREFLIGHT FAILED\n";
-    ss << "================================================================================\n\n";
-
-    for (const auto& issue : issues) {
-        ss << "[" << severity_label(issue.severity) << "] " << issue.code << "\n";
-        if (!issue.path.empty()) {
-            ss << "  Path:       " << issue.path << "\n";
-        }
-        if (!issue.resolved_path.empty() && issue.resolved_path != issue.path) {
-            ss << "  Resolved:   " << issue.resolved_path << "\n";
-        }
-        if (!issue.composition_id.empty()) {
-            ss << "  Composition: " << issue.composition_id << "\n";
-        }
-        if (!issue.layer_id.empty()) {
-            ss << "  Layer:      " << issue.layer_id << "\n";
-        }
-        if (!issue.message.empty()) {
-            ss << "  Message:    " << issue.message << "\n";
-        }
-        if (!issue.recommendation.empty()) {
-            ss << "\n  Recommendation:\n    " << issue.recommendation << "\n";
-        }
-        ss << "\n";
-    }
-
-    ss << "================================================================================\n";
-    return ss.str();
-}
-
-nlohmann::json preflight_issues_to_json(const std::vector<PreflightIssue>& issues) {
-    nlohmann::json js;
-    js["schema"] = "chronon3d.preflight.v1";
-
-    int error_count   = 0;
-    int warning_count = 0;
-    int info_count    = 0;
-
-    for (const auto& i : issues) {
-        switch (i.severity) {
-            case PreflightSeverity::Error:   ++error_count;   break;
-            case PreflightSeverity::Warning: ++warning_count; break;
-            case PreflightSeverity::Info:    ++info_count;    break;
-        }
-    }
-
-    js["ok"]       = (error_count == 0);
-    js["errors"]   = error_count;
-    js["warnings"] = warning_count;
-    js["infos"]    = info_count;
-
-    nlohmann::json issues_arr = nlohmann::json::array();
-    for (const auto& issue : issues) {
-        nlohmann::json item;
-        item["severity"]  = severity_label(issue.severity);
-        item["code"]      = issue.code;
-        item["type"]      = asset_type_label(issue.type);
-        item["path"]      = issue.path;
-        item["resolved_path"] = issue.resolved_path;
-        item["composition_id"] = issue.composition_id;
-        item["layer_id"]  = issue.layer_id;
-        item["message"]   = issue.message;
-        item["recommendation"] = issue.recommendation;
-        issues_arr.push_back(item);
-    }
-    js["issues"] = issues_arr;
-
-    return js;
 }
 
 } // namespace chronon3d
