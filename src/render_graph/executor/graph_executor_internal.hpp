@@ -13,6 +13,8 @@
 
 namespace chronon3d::graph {
 
+[[nodiscard]] bool disk_node_cache_enabled_for_current_run();
+
 template <typename Container>
 [[nodiscard]] inline bool contains_index(const Container& values, GraphNodeId id) {
     return static_cast<size_t>(id) < values.size();
