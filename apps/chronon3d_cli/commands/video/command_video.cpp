@@ -8,6 +8,7 @@
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
 #include <chronon3d/core/cancellation_token.hpp>
+#include <chronon3d/render_graph/render_pipeline.hpp>
 #include <filesystem>
 
 namespace chronon3d::cli {

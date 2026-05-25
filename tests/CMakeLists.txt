@@ -51,8 +51,9 @@ add_executable(chronon3d_animation_tests
     ${TEST_MAIN}
     animations/test_animation_catalog.cpp
     animations/test_background_catalog.cpp
+    animations/test_text_perspective_sweep.cpp
 )
-target_link_libraries(chronon3d_animation_tests PRIVATE chronon3d_pipeline doctest::doctest)
+target_link_libraries(chronon3d_animation_tests PRIVATE chronon3d_pipeline $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_content> doctest::doctest)
 target_include_directories(chronon3d_animation_tests PRIVATE ${CMAKE_SOURCE_DIR})
 chronon3d_enable_test_pch(chronon3d_animation_tests)
 add_test(NAME chronon3d_animation_tests COMMAND chronon3d_animation_tests WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})

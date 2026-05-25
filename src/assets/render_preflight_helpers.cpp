@@ -1,10 +1,8 @@
-#include <chronon3d/assets/render_preflight.hpp>
+#include "render_preflight_helpers.hpp"
 
 #include <sstream>
 
 namespace chronon3d {
-
-namespace {
 
 const char* severity_label(PreflightSeverity s) {
     switch (s) {
@@ -28,8 +26,6 @@ const char* asset_type_label(PreflightAssetType t) {
     }
     return "unknown";
 }
-
-} // anonymous namespace
 
 std::string format_preflight_issues_text(const std::vector<PreflightIssue>& issues) {
     if (issues.empty()) {
