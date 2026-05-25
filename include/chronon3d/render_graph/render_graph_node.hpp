@@ -109,6 +109,10 @@ struct RenderGraphContext {
                 return std::nullopt;
             }
 
+            if (!dirty_rects_enabled) {
+                return std::nullopt;
+            }
+
             std::optional<raster::BBox> local_clip = clip_rect;
             if (local_clip) {
                 local_clip->x0 -= fb.origin_x();
@@ -116,9 +120,7 @@ struct RenderGraphContext {
                 local_clip->y0 -= fb.origin_y();
                 local_clip->y1 -= fb.origin_y();
                 local_clip->clip_to(w, h);
-                if (local_clip->is_empty()) {
-                    local_clip.reset();
-                }
+                // Keep it empty if it is empty; fb->clear will return early and avoid clearing anything.
             }
             return local_clip;
         };

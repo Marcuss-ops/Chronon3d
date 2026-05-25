@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chronon3d/presets/motion_object.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/animation/spring.hpp>
@@ -37,6 +38,23 @@ inline void progress_bar(
             .pos = { - (full_width * 0.5f) + (filled_width * 0.5f), static_cast<f32>(1080.0f * 0.5f - bar_height * 0.5f), 0.0f }
         });
     });
+}
+
+} // namespace chronon3d::presets::motion
+
+namespace chronon3d::presets::motion {
+
+inline MotionObject& tilt_sweep_2_5d(
+    MotionObject& obj,
+    Vec3 position_amplitude = {0.0f, 0.0f, 260.0f},
+    Vec3 rotation_amplitude = {11.0f, 15.0f, 6.0f},
+    f32 duration_frames = 120.0f,
+    f32 start_delay = 0.0f,
+    bool one_shot = true
+) {
+    return obj
+        .preset(MotionPreset::TiltSweep2_5D)
+        .sweep_2_5d(position_amplitude, rotation_amplitude, duration_frames, start_delay, one_shot);
 }
 
 } // namespace chronon3d::presets::motion

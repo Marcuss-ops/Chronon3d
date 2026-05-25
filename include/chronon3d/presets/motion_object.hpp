@@ -5,6 +5,7 @@
 #include <chronon3d/math/vec2.hpp>
 #include <chronon3d/math/vec3.hpp>
 #include <chronon3d/presets/motion_animation.hpp>
+#include <chronon3d/scene/shape.hpp>
 #include <algorithm>
 #include <string>
 #include <utility>
@@ -33,6 +34,7 @@ enum class MotionPreset {
     PushIn3D,
     ParallaxDrift,
     Orbit2_5D,
+    TiltSweep2_5D,
     ShakeImpact,
     TypewriterReveal,
     KineticBounce,
@@ -62,6 +64,20 @@ struct Motion3D {
     Vec3 rotation{0.0f, 0.0f, 0.0f};
     f32 parallax{1.0f};
     bool face_camera{false};
+
+    struct Sweep2_5D {
+        bool enabled{false};
+        Vec3 position_amplitude{0.0f, 0.0f, 260.0f};
+        Vec3 rotation_amplitude{11.0f, 15.0f, 6.0f};
+        f32 scale_amount{0.0f};
+        f32 period_frames{120.0f};
+        f32 phase_frames{0.0f};
+        f32 start_delay{0.0f};
+        bool one_shot{true};
+        f32 sweep_from{-1.0f};
+        f32 sweep_to{1.0f};
+        f32 sweep_duration_frames{120.0f};
+    } sweep_2_5d{};
 };
 
 // Text style for motion objects. Text objects are mapped to the text shape
@@ -76,6 +92,7 @@ struct TextStyleMotion {
     f32 font_size{72.0f};
     f32 tracking{0.0f};
     TextAlign align{TextAlign::Center};
+    VerticalAlign vertical_align{VerticalAlign::Top};
 };
 
 struct MotionObject {
@@ -240,6 +257,11 @@ struct MotionObject {
         return *this;
     }
 
+    MotionObject& vertical_align(VerticalAlign value) {
+        text_style.vertical_align = value;
+        return *this;
+    }
+
     MotionObject& enable_3d(f32 z = 0.0f) {
         motion3d.enabled = true;
         motion3d.z = z;
@@ -271,6 +293,32 @@ struct MotionObject {
 
     MotionObject& face_camera(bool enabled = true) {
         motion3d.face_camera = enabled;
+        return *this;
+    }
+
+    MotionObject& sweep_2_5d(Motion3D::Sweep2_5D value = {}) {
+        motion3d.enabled = true;
+        value.enabled = true;
+        motion3d.sweep_2_5d = std::move(value);
+        return *this;
+    }
+
+    MotionObject& sweep_2_5d(
+        Vec3 position_amplitude,
+        Vec3 rotation_amplitude,
+        f32 duration_frames = 120.0f,
+        f32 start_delay = 0.0f,
+        bool one_shot = true
+    ) {
+        Motion3D::Sweep2_5D sweep{};
+        sweep.enabled = true;
+        sweep.position_amplitude = position_amplitude;
+        sweep.rotation_amplitude = rotation_amplitude;
+        sweep.sweep_duration_frames = duration_frames;
+        sweep.start_delay = start_delay;
+        sweep.one_shot = one_shot;
+        motion3d.enabled = true;
+        motion3d.sweep_2_5d = sweep;
         return *this;
     }
 

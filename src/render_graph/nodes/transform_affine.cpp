@@ -17,6 +17,7 @@ void execute_affine_rows(
     const Color* src_data = input->data();
     const i32 src_w = input->width();
     const i32 src_h = input->height();
+    const i32 stride = input->stride();
     const i32 dst_origin_x = result->origin_x();
 
     if (mode == SamplingMode::Nearest) {
@@ -27,7 +28,7 @@ void execute_affine_rows(
             f32 sy = h_row.y * inv_z;
             for (i32 x = x0; x < x1; ++x) {
                 if (sx >= x_min_src && sx < x_max_src && sy >= y_min_src && sy < y_max_src) {
-                    Color src = sample_nearest(src_data, src_w, src_h, sx, sy);
+                    Color src = sample_nearest(src_data, src_w, src_h, stride, sx, sy);
                     if (src.a > 0.001f) {
                         dst_row[x - dst_origin_x] = apply_opacity(src, opacity);
                     }
@@ -45,7 +46,7 @@ void execute_affine_rows(
             f32 sy = h_row.y * inv_z;
             for (i32 x = x0; x < x1; ++x) {
                 if (sx >= x_min_src && sx < x_max_src && sy >= y_min_src && sy < y_max_src) {
-                    Color src = sample_bilinear(src_data, src_w, src_h, sx, sy);
+                    Color src = sample_bilinear(src_data, src_w, src_h, stride, sx, sy);
                     if (src.a > 0.001f) {
                         dst_row[x - dst_origin_x] = apply_opacity(src, opacity);
                     }

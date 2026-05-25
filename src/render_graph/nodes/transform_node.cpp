@@ -261,6 +261,60 @@ std::shared_ptr<Framebuffer> TransformNode::execute(
         }
     }
 
+    if (ctx.diagnostics_enabled) {
+        int nonzero = 0;
+        for (i32 y = 0; y < result->height(); ++y) {
+            const Color* row = result->pixels_row(y);
+            for (i32 x = 0; x < result->width(); ++x) {
+                if (row[x].a > 0.001f) {
+                    ++nonzero;
+                }
+            }
+        }
+
+        // Print ASCII grid
+        std::string ascii_grid = "";
+        int grid_size = 20;
+        int step_x = result->width() / grid_size;
+        int step_y = result->height() / grid_size;
+        if (step_x < 1) step_x = 1;
+        if (step_y < 1) step_y = 1;
+        for (int gy = 0; gy < grid_size; ++gy) {
+            std::string line = "";
+            for (int gx = 0; gx < grid_size; ++gx) {
+                int px = gx * step_x;
+                int py = gy * step_y;
+                if (px < result->width() && py < result->height()) {
+                    Color c = result->get_pixel(px, py);
+                    if (c.r > 0.5f) line += "R";
+                    else if (c.b > 0.5f) line += "B";
+                    else if (c.a > 0.1f) line += "A";
+                    else line += ".";
+                }
+            }
+            ascii_grid += "\n" + line;
+        }
+
+        Color center_color = Color::transparent();
+        i32 lx = 100 - result->origin_x();
+        i32 ly = 100 - result->origin_y();
+        if (lx >= 0 && lx < result->width() && ly >= 0 && ly < result->height()) {
+            center_color = result->get_pixel(lx, ly);
+        }
+        std::string clip_str = ctx.clip_rect ? (std::to_string(ctx.clip_rect->x0) + "," + std::to_string(ctx.clip_rect->y0) + "->" + std::to_string(ctx.clip_rect->x1) + "," + std::to_string(ctx.clip_rect->y1)) : "none";
+        spdlog::info("[transform-debug] node='{}' output nonzero_pixels={} center_color=[{:.3f},{:.3f},{:.3f},{:.3f}] origin=[{},{}] size=[{},{}] x0_x1=[{},{}] y0_y1=[{},{}] clip={} inv_M=[[{:.3f},{:.3f},{:.3f}],[{:.3f},{:.3f},{:.3f}],[{:.3f},{:.3f},{:.3f}]] start=[{:.3f},{:.3f},{:.3f}] step_x=[{:.3f},{:.3f},{:.3f}] step_y=[{:.3f},{:.3f},{:.3f}] grid:{}",
+                     name(), nonzero, center_color.r, center_color.g, center_color.b, center_color.a,
+                     result->origin_x(), result->origin_y(), result->width(), result->height(),
+                     x0, x1, y0, y1, clip_str,
+                     inv_pixel_model_3x3[0][0], inv_pixel_model_3x3[0][1], inv_pixel_model_3x3[0][2],
+                     inv_pixel_model_3x3[1][0], inv_pixel_model_3x3[1][1], inv_pixel_model_3x3[1][2],
+                     inv_pixel_model_3x3[2][0], inv_pixel_model_3x3[2][1], inv_pixel_model_3x3[2][2],
+                     h_col_start.x, h_col_start.y, h_col_start.z,
+                     h_step_x.x, h_step_x.y, h_step_x.z,
+                     h_step_y.x, h_step_y.y, h_step_y.z,
+                     ascii_grid);
+    }
+
     return result;
 }
 

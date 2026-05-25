@@ -14,6 +14,7 @@ void apply_text(LayerBuilder& l, const std::string& name, const TextDef& d,
         .font_size = d.size,
         .color = d.color,
         .align = d.align,
+        .vertical_align = d.vertical_align,
         .line_height = d.line_height,
         .tracking = d.tracking,
     });

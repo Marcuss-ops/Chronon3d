@@ -23,6 +23,44 @@ LayerResolutionResult resolve_layers(const Scene& scene, const RenderGraphContex
     });
     
     tg.wait();
+    
+    if (ctx.modular_coordinates) {
+        // Build a map from layer name to its ResolvedLayer
+        std::unordered_map<std::string_view, ResolvedLayer*> name_to_resolved;
+        name_to_resolved.reserve(result.layers.size());
+        for (auto& rl : result.layers) {
+            if (rl.layer) {
+                name_to_resolved[rl.layer->name] = &rl;
+            }
+        }
+
+        const f32 half_w = ctx.width * 0.5f;
+        const f32 half_h = ctx.height * 0.5f;
+
+        // Shift unpinned layers and propagate down the hierarchy
+        for (auto& rl : result.layers) {
+            if (rl.layer) {
+                // Find root ancestor
+                const ResolvedLayer* root = &rl;
+                while (root->layer && !root->layer->parent_name.empty()) {
+                    auto it = name_to_resolved.find(root->layer->parent_name);
+                    if (it != name_to_resolved.end()) {
+                        root = it->second;
+                    } else {
+                        break;
+                    }
+                }
+
+                // If root ancestor is 2D and unpinned, shift this layer to screen space
+                if (root->layer && !root->layer->is_3d && (!root->layer->layout.enabled || !root->layer->layout.pin.has_value())) {
+                    rl.world_transform.position.x += half_w;
+                    rl.world_transform.position.y += half_h;
+                    rl.world_matrix = rl.world_transform.to_mat4();
+                }
+            }
+        }
+    }
+
     return result;
 }
 

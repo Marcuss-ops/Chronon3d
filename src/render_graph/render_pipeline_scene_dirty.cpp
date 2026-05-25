@@ -73,6 +73,7 @@ static std::optional<raster::BBox> try_scroll_optimization(
 DirtyRectOutput compute_dirty_rect(
     const RenderGraphContext& ctx,
     const LayerResolutionResult& resolved,
+    const Scene& scene,
     const RenderSettings& settings,
     SoftwareRenderer* sw_renderer,
     Frame frame,
@@ -172,6 +173,34 @@ DirtyRectOutput compute_dirty_rect(
             }
         }
         out.layer_bboxes = std::move(merged);
+    }
+
+    // Include scene root nodes in dirty-rect tracking
+    for (const auto& node : scene.nodes()) {
+        if (!node.visible) continue;
+        const Mat4 ssaa_scale = math::scale(Vec3(ctx.ssaa_factor, ctx.ssaa_factor, 1.0f));
+        const Mat4 canvas_center = math::translate(Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
+        Mat4 matrix;
+        if (ctx.modular_coordinates) {
+            matrix = canvas_center * ssaa_scale * node.world_transform.to_mat4();
+        } else {
+            matrix = ssaa_scale * node.world_transform.to_mat4();
+        }
+        auto* processor = sw_renderer->software_registry().get_shape(node.shape.type);
+        if (!processor) continue;
+        f32 spread = 0.0f;
+        if (node.shadow.enabled) spread = std::max(spread, node.shadow.radius);
+        if (node.glow.enabled)   spread = std::max(spread, node.glow.radius);
+        raster::BBox bbox = processor->compute_world_bbox(node.shape, matrix, spread);
+
+        SoftwareRenderer::LayerBBoxState state;
+        state.bbox = bbox;
+        state.world_matrix = node.world_transform.to_mat4();
+        state.opacity = node.world_transform.opacity;
+        state.visible = node.visible;
+        state.cache_static = true;
+        state.is_3d = false;
+        out.layer_bboxes["root.node:" + std::string(node.name)] = state;
     }
 
     // ── Decide whether to use dirty rects ───────────────────────────────

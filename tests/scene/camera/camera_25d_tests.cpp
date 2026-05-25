@@ -209,6 +209,11 @@ TEST_CASE("Test 9.7 — Camera 2.5D: 3D layers are sorted by depth before render
     auto fb = renderer.render_frame(comp, 0);
     REQUIRE(fb != nullptr);
 
+    auto p_center = fb->get_pixel(100, 100);
+    auto p_corner = fb->get_pixel(145, 145);
+    spdlog::info("DEBUG TEST 9.7: center pixel R={:.2f} G={:.2f} B={:.2f} A={:.2f}", p_center.r, p_center.g, p_center.b, p_center.a);
+    spdlog::info("DEBUG TEST 9.7: corner pixel R={:.2f} G={:.2f} B={:.2f} A={:.2f}", p_corner.r, p_corner.g, p_corner.b, p_corner.a);
+
     // Center should be red (near) on top of blue (far)
     CHECK(fb->get_pixel(100, 100).r > 0.8f);
     CHECK(fb->get_pixel(100, 100).b < 0.2f);

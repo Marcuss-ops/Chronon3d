@@ -124,6 +124,7 @@ RenderNode RenderNodeFactory::text(std::pmr::memory_resource* res, std::string n
     node.shape.text.style.size = p.font_size;
     node.shape.text.style.color = p.color;
     node.shape.text.style.align = p.align;
+    node.shape.text.style.vertical_align = p.vertical_align;
     node.shape.text.style.line_height = p.line_height;
     node.shape.text.style.tracking = p.tracking;
     node.shape.text.box.enabled = true;

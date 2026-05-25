@@ -217,32 +217,32 @@ Composition text_grid_overlay() {
             l.grid_background("grid_bg", {
                 .size = {W, H},
                 .bg_color = {0, 0, 0, 0},
-                .grid_color = {0.25f, 0.52f, 1.0f, 1},
-                .spacing = 80.0f,
-                .major_every = 4,
+                .grid_color = {0.18f, 0.50f, 0.96f, 1},
+                .spacing = 84.0f,
+                .minor_thickness = 1.15f,
+                .major_thickness = 1.15f,
+                .major_every = 0,
+                .centered = true,
             });
         });
 
         s.layer("tech_title", [&](LayerBuilder& l) {
-            l.opacity(op).pin_to(Anchor::Center).position({0, -60, 0});
-            apply_text(l, "title", {
+            l.opacity(op).pin_to(Anchor::Center);
+            l.text("title", {
                 .text = "SYS::GRID_OVERLAY",
-                .size = 72.0f,
-                .color = {0.25f, 0.52f, 1.0f, 1},
+                .size = {W * 0.9f, 240.0f},
+                .pos = {0.0f, 0.0f, 0.0f},
+                .font_path = "assets/fonts/Inter-Bold.ttf",
+                .font_family = "Inter",
+                .font_weight = 800,
+                .font_style = "normal",
+                .font_size = 84.0f,
+                .color = {0.24f, 0.58f, 1.0f, 1},
                 .align = TextAlign::Center,
-                .tracking = 10.0f,
-            }, {W * 0.85f, 100.0f});
-        });
-
-        s.layer("tech_sub", [&](LayerBuilder& l) {
-            l.opacity(op * 0.6f).pin_to(Anchor::Center).position({0, 60, 0});
-            apply_text(l, "sub", {
-                .text = "> content_generation_pipeline  --grid  --tech-style",
-                .size = 22.0f,
-                .color = {0.5f, 0.8f, 0.5f, 1},
-                .align = TextAlign::Center,
-                .tracking = 1.0f,
-            }, {W * 0.7f, 30.0f});
+                .vertical_align = VerticalAlign::Middle,
+                .line_height = 1.0f,
+                .tracking = 6.0f,
+            });
         });
 
         return s.build();

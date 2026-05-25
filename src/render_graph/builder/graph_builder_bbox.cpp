@@ -56,16 +56,21 @@ raster::BBox compute_layer_bbox(const LayerGraphItem& item, const RenderGraphCon
     for (const auto& node : layer.nodes) {
         if (!node.visible) continue;
 
+        const Mat4 layer_inv = layer.transform.any() ? glm::inverse(layer.transform.to_mat4()) : Mat4(1.0f);
+        const Mat4 node_matrix = node.world_transform.to_mat4();
+        const Mat4 actual_world_matrix = layer.hierarchy_resolved
+            ? (item.world_matrix * node_matrix)
+            : (item.world_matrix * layer_inv * node_matrix);
+
         Mat4 matrix;
         if (use_local) {
-            Mat4 shape_matrix = layer.hierarchy_resolved ? node.world_transform.to_mat4() 
-                                                         : (glm::inverse(item.world_matrix) * node.world_transform.to_mat4());
+            Mat4 shape_matrix = glm::inverse(item.world_matrix) * actual_world_matrix;
             matrix = canvas_center * ssaa_scale * shape_matrix;
         } else {
             if (item.projected || centered) {
-                matrix = canvas_center * ssaa_scale * node.world_transform.to_mat4();
+                matrix = canvas_center * ssaa_scale * actual_world_matrix;
             } else {
-                matrix = ssaa_scale * node.world_transform.to_mat4();
+                matrix = ssaa_scale * actual_world_matrix;
             }
         }
 
@@ -127,7 +132,10 @@ raster::BBox compute_layer_bbox(const LayerGraphItem& item, const RenderGraphCon
         layer_bbox.x1 = static_cast<i32>(std::ceil(max_x));
         layer_bbox.y1 = static_cast<i32>(std::ceil(max_y));
     } else if (use_local) {
-        const Mat4 model = item.world_matrix;
+        Mat4 model = item.world_matrix;
+        if (should_use_centered_rendering(item, ctx)) {
+            model = math::translate(Vec3(-ctx.width * 0.5f, -ctx.height * 0.5f, 0.0f)) * model;
+        }
         const Mat4 dst_canvas_offset = math::translate(Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
         const Mat4 src_canvas_offset = math::translate(Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
         const Mat4 pixel_model = dst_canvas_offset * model * glm::inverse(src_canvas_offset);
