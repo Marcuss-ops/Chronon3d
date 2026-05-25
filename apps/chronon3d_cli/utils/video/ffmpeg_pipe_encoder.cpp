@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstring>
+#include <cstdlib>
 #include <vector>
 #include <chrono>
 #include <thread>
@@ -13,12 +14,64 @@
 #elif defined(__linux__)
     #include <fcntl.h>
     #include <unistd.h>
+    #include <dirent.h>
+    #include <ctype.h>
+#endif
+
+
+#if defined(__linux__)
+// Find the PID of a child process whose comm starts with "ffmpeg".
+// After popen(), the child is already forked and running. We scan /proc
+// for processes whose parent is our PID and whose comm starts with "ffmpeg".
+static int resolve_ffmpeg_child_pid() {
+    const pid_t my_pid = getpid();
+    DIR* proc_dir = opendir("/proc");
+    if (!proc_dir) return -1;
+
+    int found_pid = -1;
+    struct dirent* entry;
+    while ((entry = readdir(proc_dir)) != nullptr) {
+        if (!isdigit(entry->d_name[0])) continue;
+        pid_t child_pid = static_cast<pid_t>(atoi(entry->d_name));
+        if (child_pid == my_pid) continue;
+
+        char statpath[64];
+        snprintf(statpath, sizeof(statpath), "/proc/%d/stat", child_pid);
+        FILE* sf = fopen(statpath, "r");
+        if (!sf) continue;
+
+        char buf[512];
+        if (fgets(buf, sizeof(buf), sf)) {
+            const char* paren_open = strchr(buf, '(');
+            const char* paren_close = strrchr(buf, ')');
+            if (paren_open && paren_close && paren_close > paren_open) {
+                size_t comm_len = paren_close - paren_open - 1;
+                if (comm_len < sizeof(buf)) {
+                    char comm[256] = {0};
+                    strncpy(comm, paren_open + 1, comm_len);
+
+                    const char* after_paren = paren_close + 1;
+                    while (*after_paren == ' ') ++after_paren;
+                    pid_t ppid = static_cast<pid_t>(atoi(after_paren));
+
+                    if (ppid == my_pid && strncmp(comm, "ffmpeg", 6) == 0) {
+                        found_pid = child_pid;
+                    }
+                }
+            }
+        }
+        fclose(sf);
+        if (found_pid != -1) break;
+    }
+    closedir(proc_dir);
+    return found_pid;
+}
+#else
+static int resolve_ffmpeg_child_pid() { return -1; }
 #endif
 
 
 namespace chronon3d::cli {
-
-namespace {
 
 [[nodiscard]] int encode_color_matrix_id(const FfmpegPipeOptions& options) {
     switch (options.color_transform.output) {
@@ -29,8 +82,6 @@ namespace {
             return 0;
     }
 }
-
-} // namespace
 
 bool FfmpegPipeEncoder::open(const FfmpegPipeOptions& options) {
     if (pipe_) {
@@ -89,6 +140,8 @@ bool FfmpegPipeEncoder::open(const FfmpegPipeOptions& options) {
             const int desired = static_cast<int>(std::clamp<size_t>(frame_bytes * 2ULL, 1ULL * 1024ULL * 1024ULL, 16ULL * 1024ULL * 1024ULL));
             (void)fcntl(fd, F_SETPIPE_SZ, desired);
         }
+        // Resolve the FFmpeg child PID for CPU% monitoring
+        ffmpeg_pid_ = resolve_ffmpeg_child_pid();
 #endif
     }
 #endif
@@ -102,251 +155,6 @@ bool FfmpegPipeEncoder::open(const FfmpegPipeOptions& options) {
 #endif
 
     return pipe_ != nullptr;
-}
-
-bool FfmpegPipeEncoder::write_frame(const Framebuffer& fb) {
-    if (!pipe_ || pipe_failed_) {
-        return false;
-    }
-
-    uint8_t* target_buffer = nullptr;
-    size_t   bytes_to_write = 0;
-    bool     ok = false;
-
-    // ── Build cache key ────────────────────────────────────────────────────
-    const u64 frame_digest = fb.key_digest();
-    const video::EncoderPixelFormat enc_fmt = [&]() -> video::EncoderPixelFormat {
-        switch (options_.input_format) {
-            case PipePixelFormat::YUV420P: return video::EncoderPixelFormat::YUV420P;
-            case PipePixelFormat::NV12:    return video::EncoderPixelFormat::NV12;
-            default:                       return video::EncoderPixelFormat::RGB24;
-        }
-    }();
-
-    const bool can_cache = frame_digest != 0;
-
-    const video::ConvertedFrameCacheKey cache_key{
-        .framebuffer_digest = frame_digest,
-        .width              = options_.width,
-        .height             = options_.height,
-        .format             = enc_fmt,
-        .color_matrix       = encode_color_matrix_id(options_),
-        .apply_gamma        = options_.color_transform.apply_gamma,
-    };
-
-    // ── Cache lookup ────────────────────────────────────────────────────────
-    const auto t_conv0 = std::chrono::high_resolution_clock::now();
-
-    if (can_cache) {
-        const auto* hit = frame_cache_.lookup(cache_key);
-        if (hit) {
-            ok = true;
-
-            // Cache hit: record hit count, NOT conversion time (no work done).
-            if (profiling::g_current_counters) {
-                profiling::g_current_counters->converted_frame_cache_hits
-                    .fetch_add(1, std::memory_order_relaxed);
-            }
-
-#ifdef __linux__
-            if (use_uring_) {
-                while (pending_writes_count_ >= kRingEntries) {
-                    reap_completed_uring(true);
-                }
-                size_t buf_idx = ring_buffer_index_;
-                while (ring_buffer_pending_[buf_idx]) {
-                    reap_completed_uring(true);
-                    buf_idx = ring_buffer_index_;
-                }
-                target_buffer = ring_buffers_[buf_idx].data();
-                bytes_to_write = hit->data_size;
-                std::memcpy(target_buffer, hit->data.data(), bytes_to_write);
-                ring_buffer_pending_[buf_idx] = true;
-                ring_buffer_bytes_written_[buf_idx] = 0;
-                ring_buffer_index_ = (buf_idx + 1) % kRingEntries;
-            } else
-#endif
-            {
-                target_buffer  = const_cast<uint8_t*>(hit->data.data());
-                bytes_to_write = hit->data_size;
-            }
-
-            goto do_pipe_write;
-        }
-    }
-
-    // ── Cache miss: actual conversion ───────────────────────────────────────
-    {
-        switch (options_.input_format) {
-            case PipePixelFormat::YUV420P: {
-#ifdef __linux__
-                if (use_uring_) {
-                    while (pending_writes_count_ >= kRingEntries) {
-                        reap_completed_uring(true);
-                    }
-                    size_t buf_idx = ring_buffer_index_;
-                    while (ring_buffer_pending_[buf_idx]) {
-                        reap_completed_uring(true);
-                        buf_idx = ring_buffer_index_;
-                    }
-                    target_buffer = ring_buffers_[buf_idx].data();
-                    ok = convert_framebuffer_to_yuv420p(fb, target_buffer);
-                    if (ok) {
-                        ring_buffer_pending_[buf_idx]       = true;
-                        ring_buffer_bytes_written_[buf_idx] = 0;
-                        ring_buffer_index_ = (buf_idx + 1) % kRingEntries;
-                        bytes_to_write = ring_buffer_size_;
-                    }
-                } else
-#endif
-                {
-                    const size_t req_size =
-                        static_cast<size_t>(options_.width) *
-                        static_cast<size_t>(options_.height) * 3u / 2u;
-                    if (cached_frame_bytes_.size() < req_size)
-                        cached_frame_bytes_.resize(req_size);
-                    ok = convert_framebuffer_to_yuv420p(fb, cached_frame_bytes_.data());
-                    if (ok) {
-                        cached_frame_size_ = req_size;
-                        target_buffer  = cached_frame_bytes_.data();
-                        bytes_to_write = cached_frame_size_;
-                    }
-                }
-                break;
-            }
-            case PipePixelFormat::NV12: {
-#ifdef __linux__
-                if (use_uring_) {
-                    while (pending_writes_count_ >= kRingEntries) {
-                        reap_completed_uring(true);
-                    }
-                    size_t buf_idx = ring_buffer_index_;
-                    while (ring_buffer_pending_[buf_idx]) {
-                        reap_completed_uring(true);
-                        buf_idx = ring_buffer_index_;
-                    }
-                    target_buffer = ring_buffers_[buf_idx].data();
-                    ok = convert_framebuffer_to_nv12(fb, target_buffer);
-                    if (ok) {
-                        ring_buffer_pending_[buf_idx]       = true;
-                        ring_buffer_bytes_written_[buf_idx] = 0;
-                        ring_buffer_index_ = (buf_idx + 1) % kRingEntries;
-                        bytes_to_write = ring_buffer_size_;
-                    }
-                } else
-#endif
-                {
-                    const size_t req_size =
-                        static_cast<size_t>(options_.width) *
-                        static_cast<size_t>(options_.height) * 3u / 2u;
-                    if (cached_frame_bytes_.size() < req_size)
-                        cached_frame_bytes_.resize(req_size);
-                    ok = convert_framebuffer_to_nv12(fb, cached_frame_bytes_.data());
-                    if (ok) {
-                        cached_frame_size_ = req_size;
-                        target_buffer  = cached_frame_bytes_.data();
-                        bytes_to_write = cached_frame_size_;
-                    }
-                }
-                break;
-            }
-            case PipePixelFormat::RGBA: {
-#ifdef __linux__
-                if (use_uring_) {
-                    while (pending_writes_count_ >= kRingEntries) {
-                        reap_completed_uring(true);
-                    }
-                    size_t buf_idx = ring_buffer_index_;
-                    while (ring_buffer_pending_[buf_idx]) {
-                        reap_completed_uring(true);
-                        buf_idx = ring_buffer_index_;
-                    }
-                    target_buffer = ring_buffers_[buf_idx].data();
-                    ok = convert_framebuffer_to_rgba(fb, target_buffer);
-                    if (ok) {
-                        ring_buffer_pending_[buf_idx]       = true;
-                        ring_buffer_bytes_written_[buf_idx] = 0;
-                        ring_buffer_index_ = (buf_idx + 1) % kRingEntries;
-                        bytes_to_write = ring_buffer_size_;
-                    }
-                } else
-#endif
-                {
-                    const size_t req_size =
-                        static_cast<size_t>(options_.width) *
-                        static_cast<size_t>(options_.height) * 4u;
-                    if (cached_frame_bytes_.size() < req_size)
-                        cached_frame_bytes_.resize(req_size);
-                    ok = convert_framebuffer_to_rgba(fb, cached_frame_bytes_.data());
-                    if (ok) {
-                        cached_frame_size_ = req_size;
-                        target_buffer  = cached_frame_bytes_.data();
-                        bytes_to_write = cached_frame_size_;
-                    }
-                }
-                break;
-            }
-            default:
-                return false;
-        }
-
-        const auto t_conv1 = std::chrono::high_resolution_clock::now();
-        const auto conv_ms = static_cast<uint64_t>(
-            std::chrono::duration<double, std::milli>(t_conv1 - t_conv0).count());
-        if (profiling::g_current_counters) {
-            // video_conversion_ms = only real conversion work (cache misses).
-            profiling::g_current_counters->video_conversion_ms
-                .fetch_add(conv_ms, std::memory_order_relaxed);
-            profiling::g_current_counters->frame_conversion_copy_ms
-                .fetch_add(conv_ms, std::memory_order_relaxed);
-        }
-
-        // Store in LRU cache for future frames.
-        if (ok && can_cache) {
-            frame_cache_.insert(cache_key, target_buffer, bytes_to_write);
-        }
-    }
-
-do_pipe_write:
-    ++current_frame_;
-
-    if (!ok) {
-        return false;
-    }
-
-#ifdef __linux__
-    if (use_uring_) {
-        size_t prev_idx = (ring_buffer_index_ + kRingEntries - 1) % kRingEntries;
-        const auto t_write0 = std::chrono::high_resolution_clock::now();
-        bool written = write_uring(prev_idx, bytes_to_write);
-        const auto t_write1 = std::chrono::high_resolution_clock::now();
-        const auto write_ms = std::chrono::duration<double, std::milli>(t_write1 - t_write0).count();
-        total_write_blocked_ms_ += write_ms;
-        if (profiling::g_current_counters) {
-            profiling::g_current_counters->video_pipe_write_ms.fetch_add(
-                static_cast<uint64_t>(write_ms), std::memory_order_relaxed);
-        }
-        if (!written) return false;
-    } else
-#endif
-    {
-        const auto t_write0 = std::chrono::high_resolution_clock::now();
-        size_t res = std::fwrite(target_buffer, 1, bytes_to_write, pipe_);
-        const auto t_write1 = std::chrono::high_resolution_clock::now();
-        const auto write_ms = std::chrono::duration<double, std::milli>(t_write1 - t_write0).count();
-        total_write_blocked_ms_ += write_ms;
-        if (profiling::g_current_counters) {
-            profiling::g_current_counters->video_pipe_write_ms.fetch_add(
-                static_cast<uint64_t>(write_ms), std::memory_order_relaxed);
-        }
-        if (res != bytes_to_write) {
-            return false;
-        }
-        bytes_written_ += res;
-    }
-
-    ++frames_written_;
-    return true;
 }
 
 bool FfmpegPipeEncoder::close() {

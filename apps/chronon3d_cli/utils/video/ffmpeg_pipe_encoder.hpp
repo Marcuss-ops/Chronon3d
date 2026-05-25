@@ -31,6 +31,7 @@ struct FfmpegPipeOptions {
 };
 
 std::string build_ffmpeg_raw_pipe_command(const FfmpegPipeOptions& options);
+[[nodiscard]] int encode_color_matrix_id(const FfmpegPipeOptions& options);
 
 class FfmpegPipeEncoder {
 public:
@@ -48,6 +49,7 @@ public:
     [[nodiscard]] uint64_t bytes_written() const { return bytes_written_; }
     [[nodiscard]] bool is_open() const { return pipe_ != nullptr; }
     [[nodiscard]] double total_write_blocked_ms() const { return total_write_blocked_ms_; }
+    [[nodiscard]] int ffmpeg_pid() const { return ffmpeg_pid_; }
 
     bool convert_framebuffer_to_rgba(const Framebuffer& fb, uint8_t* dst = nullptr);
     bool convert_framebuffer_to_yuv420p(const Framebuffer& fb, uint8_t* dst = nullptr);
@@ -55,6 +57,7 @@ public:
 
 private:
     FILE* pipe_{nullptr};
+    int ffmpeg_pid_{-1}; // child process PID, resolved via /proc/self/fd after popen()
     FfmpegPipeOptions options_{};
     std::vector<uint8_t> rgba_buffer_;
     std::vector<uint8_t> yuv_buffer_;

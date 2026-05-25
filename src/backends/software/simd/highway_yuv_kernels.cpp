@@ -1,8 +1,6 @@
-// highway_kernels.cpp - SIMD kernels using Google Highway
-
 #undef HWY_TARGET_INCLUDE
-#define HWY_TARGET_INCLUDE "src/backends/software/simd/highway_kernels.cpp"
-#include <hwy/foreach_target.h>  // IWYU pragma: keep
+#define HWY_TARGET_INCLUDE "src/backends/software/simd/highway_yuv_kernels.cpp"
+#include <hwy/foreach_target.h>
 
 #include <hwy/highway.h>
 #include <chronon3d/simd/kernels.hpp>
@@ -43,13 +41,6 @@ HWY_ATTR void convert_uv_pair_rows_vectorized_impl(
     int y_end,
     bool apply_gamma,
     bool planar_output) {
-
-    // Hybrid approach:
-    //   1. 2x2 pixel averaging in scalar (avoids TableLookupLanes / SetTableIndices
-    //      which were unstable with GCC 14.2)
-    //   2. Gamma correction via LUT GatherIndex (proven stable in luma path)
-    //   3. U/V matrix multiply in SIMD
-    //   4. Final float→u8 clamping in scalar (avoids complex DemoteTo chains)
 
     const hn::ScalableTag<float> df;
     const hn::ScalableTag<int32_t> di32;
@@ -96,7 +87,6 @@ HWY_ATTR void convert_uv_pair_rows_vectorized_impl(
 
         int bx = 0;
 
-        // ── SIMD-accelerated main loop ──────────────────────────────────
         for (; bx < vec_blocks; bx += lanes) {
             for (int i = 0; i < lanes; ++i) {
                 const int px = (bx + i) * 2;
@@ -122,7 +112,6 @@ HWY_ATTR void convert_uv_pair_rows_vectorized_impl(
                     std::clamp(p11[2], 0.0f, 1.0f));
             }
 
-            // SIMD: gamma, UV matrix, scale+offset
             auto rv = hn::LoadU(df, r_buf);
             auto gv = hn::LoadU(df, g_buf);
             auto bv = hn::LoadU(df, b_buf);
@@ -139,7 +128,6 @@ HWY_ATTR void convert_uv_pair_rows_vectorized_impl(
             uv = hn::MulAdd(uv, uvscl, uvoff);
             vv = hn::MulAdd(vv, uvscl, uvoff);
 
-            // Scalar: round + clamp → uint8 (avoids complex DemoteTo chain)
             hn::StoreU(uv, df, u_buf);
             hn::StoreU(vv, df, v_buf);
             for (int i = 0; i < lanes; ++i) {
@@ -155,7 +143,6 @@ HWY_ATTR void convert_uv_pair_rows_vectorized_impl(
             }
         }
 
-        // ── Scalar tail ─────────────────────────────────────────────────
         for (; bx < uv_width; ++bx) {
             const int x = bx * 2;
             const float* p00 = row0 + static_cast<size_t>(x) * 4;
@@ -268,128 +255,6 @@ HWY_ATTR void convert_uv_pair_rows_scalar_impl(
     }
 }
 
-// ── Composite Normal Premultiplied (SRC_OVER) ───────────────────────────────
-
-HWY_ATTR void composite_normal_premul_impl(float* HWY_RESTRICT dst_ptr,
-                                           const float* HWY_RESTRICT src_ptr,
-                                           int pixel_count) {
-    for (int i = 0; i < pixel_count; ++i) {
-        float* d = dst_ptr + i * 4;
-        const float* s = src_ptr + i * 4;
-        float inv_sa = 1.0f - s[3];
-        d[0] = s[0] + d[0] * inv_sa;
-        d[1] = s[1] + d[1] * inv_sa;
-        d[2] = s[2] + d[2] * inv_sa;
-        d[3] = s[3] + d[3] * inv_sa;
-    }
-}
-
-// ── Rasterize Rectangle ─────────────────────────────────────────────────────
-
-HWY_ATTR void rasterize_rect_simd_impl(
-    float* HWY_RESTRICT row_ptr,
-    const float* HWY_RESTRICT lp_h_start,
-    const float* HWY_RESTRICT col0,
-    int pixel_count,
-    float rect_w, float rect_h,
-    float spread,
-    const float* HWY_RESTRICT color_ptr
-) {
-    const float r = color_ptr[0];
-    const float g = color_ptr[1];
-    const float b = color_ptr[2];
-    const float a = color_ptr[3];
-    const float inv_spread = 1.0f / std::max(0.001f, spread);
-
-    for (int x = 0; x < pixel_count; ++x) {
-        float px = lp_h_start[0] + col0[0] * x;
-        float py = lp_h_start[1] + col0[1] * x;
-        float pz = lp_h_start[2] + col0[2] * x;
-
-        if (std::abs(pz) < 1e-7f) continue;
-        float lx = px / pz;
-        float ly = py / pz;
-
-        float dx = std::max(0.0f, std::abs(lx - rect_w * 0.5f) - rect_w * 0.5f);
-        float dy = std::max(0.0f, std::abs(ly - rect_h * 0.5f) - rect_h * 0.5f);
-        float dist = std::sqrt(dx * dx + dy * dy);
-
-        float mask = std::clamp(1.0f - dist * inv_spread, 0.0f, 1.0f);
-        if (mask <= 0.001f) continue;
-
-        float sa = a * mask;
-        float inv_sa = 1.0f - sa;
-        float* d = row_ptr + x * 4;
-        d[0] = r * sa + d[0] * inv_sa;
-        d[1] = g * sa + d[1] * inv_sa;
-        d[2] = b * sa + d[2] * inv_sa;
-        d[3] = sa + d[3] * inv_sa;
-    }
-}
-
-// ── Premultiply Alpha RGBA8 ─────────────────────────────────────────────────
-
-HWY_ATTR void premultiply_alpha_rgba8_impl(uint32_t* HWY_RESTRICT dst,
-                                           const uint8_t* HWY_RESTRICT src,
-                                           int pixel_count) {
-    for (int i = 0; i < pixel_count; ++i) {
-        const uint8_t r = src[i * 4 + 0];
-        const uint8_t g = src[i * 4 + 1];
-        const uint8_t b = src[i * 4 + 2];
-        const uint8_t a = src[i * 4 + 3];
-        const uint32_t pr = (static_cast<uint32_t>(r) * a + 127) / 255;
-        const uint32_t pg = (static_cast<uint32_t>(g) * a + 127) / 255;
-        const uint32_t pb = (static_cast<uint32_t>(b) * a + 127) / 255;
-        dst[i] = (static_cast<uint32_t>(a) << 24) | (pr << 16) | (pg << 8) | pb;
-    }
-}
-
-// ── F32 RGBA to U8 RGBA Conversion ──────────────────────────────────────────
-
-HWY_ATTR void convert_f32_rgba_to_u8_rgba_impl(uint8_t* HWY_RESTRICT dst_ptr,
-                                               const float* HWY_RESTRICT src_ptr,
-                                               int pixel_count) {
-    const hn::ScalableTag<float> df;
-    const hn::ScalableTag<int32_t> di32;
-    const hn::ScalableTag<int16_t> di16;
-    const hn::ScalableTag<uint8_t> du8;
-
-    const auto zero = hn::Set(df, 0.0f);
-    const auto one = hn::Set(df, 1.0f);
-    const auto scale = hn::Set(df, 255.0f);
-
-    const int lanes = hn::Lanes(df);
-    const int total_floats = pixel_count * 4;
-    const int vectorized_floats = (total_floats / (lanes * 4)) * (lanes * 4);
-
-    for (int i = 0; i < vectorized_floats; i += lanes * 4) {
-        auto f0 = hn::LoadU(df, src_ptr + i + lanes * 0);
-        auto f1 = hn::LoadU(df, src_ptr + i + lanes * 1);
-        auto f2 = hn::LoadU(df, src_ptr + i + lanes * 2);
-        auto f3 = hn::LoadU(df, src_ptr + i + lanes * 3);
-
-        auto i0 = hn::ConvertTo(di32, hn::Round(hn::Mul(hn::Clamp(f0, zero, one), scale)));
-        auto i1 = hn::ConvertTo(di32, hn::Round(hn::Mul(hn::Clamp(f1, zero, one), scale)));
-        auto i2 = hn::ConvertTo(di32, hn::Round(hn::Mul(hn::Clamp(f2, zero, one), scale)));
-        auto i3 = hn::ConvertTo(di32, hn::Round(hn::Mul(hn::Clamp(f3, zero, one), scale)));
-
-        auto s01 = hn::OrderedDemote2To(di16, i0, i1);
-        auto s23 = hn::OrderedDemote2To(di16, i2, i3);
-        auto b0123 = hn::OrderedDemote2To(du8, s01, s23);
-
-        hn::StoreU(b0123, du8, dst_ptr + (i / 4));
-    }
-
-    for (int i = vectorized_floats / 4; i < pixel_count; ++i) {
-        for (int c = 0; c < 4; ++c) {
-            float v = std::clamp(src_ptr[i * 4 + c], 0.0f, 1.0f);
-            dst_ptr[i * 4 + c] = static_cast<uint8_t>(v * 255.0f + 0.5f);
-        }
-    }
-}
-
-// ── F32 RGBA to YUV Conversion (Row-aware) ──────────────────────────────────
-
 HWY_ATTR void convert_f32_rgba_to_yuv420p_simd_rows_impl(
     uint8_t* HWY_RESTRICT y_ptr,
     uint8_t* HWY_RESTRICT u_ptr,
@@ -415,7 +280,6 @@ HWY_ATTR void convert_f32_rgba_to_yuv420p_simd_rows_impl(
         return hn::GatherIndex(df, lut_f32_ptr, idx);
     };
 
-    // BT.709 coefficients
     const auto kRY = hn::Set(df, 0.2126f);
     const auto kGY = hn::Set(df, 0.7152f);
     const auto kBY = hn::Set(df, 0.0722f);
@@ -430,7 +294,6 @@ HWY_ATTR void convert_f32_rgba_to_yuv420p_simd_rows_impl(
         uint8_t* dst_y = y_ptr + static_cast<size_t>(y) * width;
         const float* src_row = src_ptr + static_cast<size_t>(y) * src_stride * 4;
 
-        // 1. Luma (Y)
         for (int x = 0; x < vectorized_pixels_per_row; x += lanes * 4) {
             hn::Vec<decltype(df)> r0, g0, b0, a0, r1, g1, b1, a1, r2, g2, b2, a2, r3, g3, b3, a3;
             hn::LoadInterleaved4(df, src_row + (x + lanes * 0) * 4, r0, g0, b0, a0);
@@ -460,7 +323,6 @@ HWY_ATTR void convert_f32_rgba_to_yuv420p_simd_rows_impl(
             hn::StoreU(b0123, du8, dst_y + x);
         }
 
-        // Tail Luma
         for (int x = vectorized_pixels_per_row; x < width; ++x) {
             const float* p = src_row + x * 4;
             float r = std::clamp(p[0], 0.0f, 1.0f);
@@ -496,7 +358,6 @@ HWY_ATTR void convert_f32_rgba_to_nv12_simd_rows_impl(
     int y_start, int y_end,
     bool apply_gamma) {
 
-    // Reuse Luma Y logic
     convert_f32_rgba_to_yuv420p_simd_rows_impl(y_ptr, nullptr, nullptr, src_ptr, width, height, src_stride, y_start, y_end, apply_gamma);
     
     convert_uv_pair_rows_vectorized_impl(
@@ -515,28 +376,8 @@ HWY_AFTER_NAMESPACE();
 #if HWY_ONCE
 namespace chronon3d::simd {
 
-HWY_EXPORT(composite_normal_premul_impl);
-HWY_EXPORT(rasterize_rect_simd_impl);
-HWY_EXPORT(premultiply_alpha_rgba8_impl);
-HWY_EXPORT(convert_f32_rgba_to_u8_rgba_impl);
 HWY_EXPORT(convert_f32_rgba_to_yuv420p_simd_rows_impl);
 HWY_EXPORT(convert_f32_rgba_to_nv12_simd_rows_impl);
-
-void composite_normal_premul(Color* __restrict__ dst, const Color* __restrict__ src, int pixel_count) {
-    HWY_DYNAMIC_DISPATCH(composite_normal_premul_impl)(reinterpret_cast<float*>(dst), reinterpret_cast<const float*>(src), pixel_count);
-}
-
-void rasterize_rect_simd(Color* __restrict__ row, const float* __restrict__ lp_h_start, const float* __restrict__ col0, int pixel_count, float rect_w, float rect_h, float spread, const Color& color) {
-    HWY_DYNAMIC_DISPATCH(rasterize_rect_simd_impl)(reinterpret_cast<float*>(row), lp_h_start, col0, pixel_count, rect_w, rect_h, spread, reinterpret_cast<const float*>(&color));
-}
-
-void premultiply_alpha_rgba8(uint32_t* __restrict__ dst, const uint8_t* __restrict__ src, int pixel_count) {
-    HWY_DYNAMIC_DISPATCH(premultiply_alpha_rgba8_impl)(dst, src, pixel_count);
-}
-
-void convert_f32_rgba_to_u8_rgba(uint8_t* __restrict__ dst, const Color* __restrict__ src, int pixel_count) {
-    HWY_DYNAMIC_DISPATCH(convert_f32_rgba_to_u8_rgba_impl)(dst, reinterpret_cast<const float*>(src), pixel_count);
-}
 
 void convert_f32_rgba_to_yuv420p_simd_rows(uint8_t* __restrict__ y_ptr, uint8_t* __restrict__ u_ptr, uint8_t* __restrict__ v_ptr, const Color* __restrict__ src, int width, int height, int src_stride, int y_start, int y_end, bool apply_gamma) {
     HWY_DYNAMIC_DISPATCH(convert_f32_rgba_to_yuv420p_simd_rows_impl)(y_ptr, u_ptr, v_ptr, reinterpret_cast<const float*>(src), width, height, src_stride, y_start, y_end, apply_gamma);
@@ -544,10 +385,6 @@ void convert_f32_rgba_to_yuv420p_simd_rows(uint8_t* __restrict__ y_ptr, uint8_t*
 
 void convert_f32_rgba_to_nv12_simd_rows(uint8_t* __restrict__ y_ptr, uint8_t* __restrict__ uv_ptr, const Color* __restrict__ src, int width, int height, int src_stride, int y_start, int y_end, bool apply_gamma) {
     HWY_DYNAMIC_DISPATCH(convert_f32_rgba_to_nv12_simd_rows_impl)(y_ptr, uv_ptr, reinterpret_cast<const float*>(src), width, height, src_stride, y_start, y_end, apply_gamma);
-}
-
-void clear_framebuffer(Color* data, int pixel_count, const Color& color) {
-    std::fill(data, data + pixel_count, color);
 }
 
 }  // namespace chronon3d::simd
