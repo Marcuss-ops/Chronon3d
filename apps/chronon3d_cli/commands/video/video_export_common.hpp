@@ -10,6 +10,7 @@
 #include <chronon3d/core/telemetry/render_telemetry.hpp>
 #include <chronon3d/core/cancellation_token.hpp>
 #include <chronon3d/presets/camera_motion_clip.hpp>
+#include <chronon3d/core/cancellation_token.hpp>
 #include <chronon3d/runtime/renderer_warmup.hpp>
 #include <string>
 

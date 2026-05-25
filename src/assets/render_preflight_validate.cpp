@@ -1,5 +1,6 @@
 #include <chronon3d/assets/render_preflight.hpp>
 #include <chronon3d/assets/asset_registry.hpp>
+#include "render_preflight_helpers.hpp"
 
 #include <filesystem>
 #include <fstream>
@@ -7,29 +8,6 @@
 namespace chronon3d {
 
 namespace {
-
-const char* asset_type_label(PreflightAssetType t) {
-    switch (t) {
-        case PreflightAssetType::Image:          return "image";
-        case PreflightAssetType::Video:          return "video";
-        case PreflightAssetType::Font:           return "font";
-        case PreflightAssetType::Audio:          return "audio";
-        case PreflightAssetType::OutputPath:     return "output_path";
-        case PreflightAssetType::Directory:      return "directory";
-        case PreflightAssetType::ExternalTool:   return "external_tool";
-        case PreflightAssetType::RegisteredAsset: return "registered_asset";
-    }
-    return "unknown";
-}
-
-const char* severity_label(PreflightSeverity s) {
-    switch (s) {
-        case PreflightSeverity::Info:    return "INFO";
-        case PreflightSeverity::Warning: return "WARNING";
-        case PreflightSeverity::Error:   return "ERROR";
-    }
-    return "UNKNOWN";
-}
 
 void validate_file_exists(const PreflightRequirement& req,
                           const std::string& code,

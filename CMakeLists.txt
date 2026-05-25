@@ -321,6 +321,7 @@ set(CHRONON3D_BACKEND_SOFTWARE_SOURCES
     src/backends/software/simd/highway_rasterize_kernels.cpp
 )
 add_library(chronon3d_backend_software STATIC ${CHRONON3D_BACKEND_SOFTWARE_SOURCES})
+set_target_properties(chronon3d_backend_software PROPERTIES UNITY_BUILD OFF)
 target_link_libraries(chronon3d_backend_software
     PUBLIC chronon3d chronon3d_graph chronon3d_cache chronon3d_effects chronon3d_backend_assets chronon3d_backend_image blend2d::blend2d
     PRIVATE spdlog::spdlog_header_only hwy::hwy fmt::fmt xxHash::xxhash tomlplusplus::tomlplusplus TBB::tbb
@@ -341,7 +342,7 @@ add_library(chronon3d_registry STATIC ${CHRONON3D_REGISTRY_SOURCES})
 target_link_libraries(chronon3d_registry PUBLIC chronon3d) # Rimossa dipendenza diretta circolare da chronon3d_scene
 target_precompile_headers(chronon3d_registry PRIVATE <glm/glm.hpp> <glm/gtc/matrix_transform.hpp> <spdlog/spdlog.h> <fmt/core.h>)
 
-set(CHRONON3D_ASSETS_SOURCES src/assets/render_preflight_req.cpp src/assets/render_preflight_validate.cpp src/assets/render_preflight_format.cpp src/assets/svg_path_loader.cpp)
+set(CHRONON3D_ASSETS_SOURCES src/assets/render_preflight_req.cpp src/assets/render_preflight_validate.cpp src/assets/render_preflight_helpers.cpp src/assets/svg_path_loader.cpp)
 add_library(chronon3d_assets STATIC ${CHRONON3D_ASSETS_SOURCES})
 target_link_libraries(chronon3d_assets PUBLIC chronon3d chronon3d_registry)
 
