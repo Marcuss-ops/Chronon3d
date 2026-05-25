@@ -32,7 +32,7 @@ double run_node(
     }
     if (use_cache && result) {
         ctx.node_cache->store(key, result);
-        if (node.cache_policy().disk_cacheable) {
+        if (node.cache_policy().disk_cacheable && disk_node_cache_enabled_for_current_run()) {
             cache::DiskNodeCache::instance().put(key, *result);
         }
     }

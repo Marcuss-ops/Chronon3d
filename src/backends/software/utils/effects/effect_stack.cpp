@@ -11,6 +11,31 @@
 namespace chronon3d {
 namespace renderer {
 
+namespace {
+
+std::optional<raster::BBox> expand_effect_clip(
+    const std::optional<raster::BBox>& clip,
+    int width,
+    int height,
+    float spread
+) {
+    if (!clip) {
+        return std::nullopt;
+    }
+
+    const int margin = static_cast<int>(std::ceil(std::max(0.0f, spread))) + 2;
+
+    raster::BBox out = *clip;
+    out.x0 -= margin;
+    out.y0 -= margin;
+    out.x1 += margin;
+    out.y1 += margin;
+    out.clip_to(width, height);
+    return out;
+}
+
+} // namespace
+
 void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
                         float time_seconds, const std::optional<raster::BBox>& clip) {
     for (const auto& inst : stack) {
@@ -18,7 +43,8 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
 
         if (auto* p = std::any_cast<BlurParams>(&inst.params)) {
         if (p->radius > 0.0f) {
-            apply_blur(fb, p->radius, clip);
+            auto effect_clip = expand_effect_clip(clip, fb.width(), fb.height(), p->radius);
+            apply_blur(fb, p->radius, effect_clip);
         }
 
         } else if (auto* p = std::any_cast<TintParams>(&inst.params)) {
@@ -37,13 +63,14 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
         } else if (auto* p = std::any_cast<GlowParams>(&inst.params)) {
             // Extract alpha-masked version, blur it with glow tint, composite in front
             const i32 w = fb.width(), h = fb.height();
+            auto effect_clip = expand_effect_clip(clip, w, h, p->radius);
             i32 x_min = 0, x_max = w;
             i32 y_min = 0, y_max = h;
-            if (clip) {
-                x_min = std::max(0, clip->x0);
-                x_max = std::min(w, clip->x1);
-                y_min = std::max(0, clip->y0);
-                y_max = std::min(h, clip->y1);
+            if (effect_clip) {
+                x_min = std::max(0, effect_clip->x0);
+                x_max = std::min(w, effect_clip->x1);
+                y_min = std::max(0, effect_clip->y0);
+                y_max = std::min(h, effect_clip->y1);
             }
             auto alpha_map_fb = acquire_temp_framebuffer(w, h);
             alpha_map_fb->clear(Color{0.0f, 0.0f, 0.0f, 0.0f});
@@ -59,7 +86,7 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
                         }
                     }
                 }
-                if (p->radius > 0.0f) apply_blur(alpha_map, p->radius, clip);
+                if (p->radius > 0.0f) apply_blur(alpha_map, p->radius, effect_clip);
                 for (i32 y = y_min; y < y_max; ++y) {
                     Color* dst_row = fb.pixels_row(y);
                     const Color* glow_row = alpha_map.pixels_row(y);
@@ -74,22 +101,25 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
         } else if (auto* p = std::any_cast<DropShadowParams>(&inst.params)) {
             // Offset + blur alpha mask, composite behind content
             const i32 w = fb.width(), h = fb.height();
+            const float spread =
+                std::max(std::abs(p->offset.x), std::abs(p->offset.y)) + p->radius;
+            auto effect_clip = expand_effect_clip(clip, w, h, spread);
             i32 x_min_src = 0, x_max_src = w;
             i32 y_min_src = 0, y_max_src = h;
             i32 x_min_dst = 0, x_max_dst = w;
             i32 y_min_dst = 0, y_max_dst = h;
             const i32 ox = static_cast<i32>(std::round(p->offset.x));
             const i32 oy = static_cast<i32>(std::round(p->offset.y));
-            if (clip) {
-                x_min_dst = std::max(0, clip->x0);
-                x_max_dst = std::min(w, clip->x1);
-                y_min_dst = std::max(0, clip->y0);
-                y_max_dst = std::min(h, clip->y1);
+            if (effect_clip) {
+                x_min_dst = std::max(0, effect_clip->x0);
+                x_max_dst = std::min(w, effect_clip->x1);
+                y_min_dst = std::max(0, effect_clip->y0);
+                y_max_dst = std::min(h, effect_clip->y1);
 
-                x_min_src = std::max(0, clip->x0 - ox);
-                x_max_src = std::min(w, clip->x1 - ox);
-                y_min_src = std::max(0, clip->y0 - oy);
-                y_max_src = std::min(h, clip->y1 - oy);
+                x_min_src = std::max(0, effect_clip->x0 - ox);
+                x_max_src = std::min(w, effect_clip->x1 - ox);
+                y_min_src = std::max(0, effect_clip->y0 - oy);
+                y_max_src = std::min(h, effect_clip->y1 - oy);
             }
             auto shadow_map_fb = acquire_temp_framebuffer(w, h);
             shadow_map_fb->clear(Color{0.0f, 0.0f, 0.0f, 0.0f});
@@ -109,7 +139,7 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
                         }
                     }
                 }
-                if (p->radius > 0.0f) apply_blur(shadow_map, p->radius, clip);
+                if (p->radius > 0.0f) apply_blur(shadow_map, p->radius, effect_clip);
                 
                 // Composite shadow BEHIND content in-place
                 for (i32 y = y_min_dst; y < y_max_dst; ++y) {
@@ -123,13 +153,14 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
 
         } else if (auto* p = std::any_cast<BloomParams>(&inst.params)) {
             const i32 w = fb.width(), h = fb.height();
+            auto effect_clip = expand_effect_clip(clip, w, h, p->radius);
             i32 x_min = 0, x_max = w;
             i32 y_min = 0, y_max = h;
-            if (clip) {
-                x_min = std::max(0, clip->x0);
-                x_max = std::min(w, clip->x1);
-                y_min = std::max(0, clip->y0);
-                y_max = std::min(h, clip->y1);
+            if (effect_clip) {
+                x_min = std::max(0, effect_clip->x0);
+                x_max = std::min(w, effect_clip->x1);
+                y_min = std::max(0, effect_clip->y0);
+                y_max = std::min(h, effect_clip->y1);
             }
             auto bright_fb = acquire_temp_framebuffer(w, h);
             bright_fb->clear(Color{0.0f, 0.0f, 0.0f, 0.0f});
@@ -147,7 +178,7 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
                         }
                     }
                 }
-                if (p->radius > 0.0f) apply_blur(bright, p->radius, clip);
+                if (p->radius > 0.0f) apply_blur(bright, p->radius, effect_clip);
                 for (i32 y = y_min; y < y_max; ++y) {
                     Color*       dst_row    = fb.pixels_row(y);
                     const Color* bright_row = bright.pixels_row(y);

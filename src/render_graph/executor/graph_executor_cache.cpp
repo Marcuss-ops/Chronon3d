@@ -1,9 +1,24 @@
 #include "graph_executor_internal.hpp"
 #include <chronon3d/cache/disk_node_cache.hpp>
 #include <chronon3d/cache/persistent_bake_cache.hpp>
+#include <cstdlib>
+#include <string_view>
 #include <spdlog/spdlog.h>
 
 namespace chronon3d::graph {
+
+bool disk_node_cache_enabled_for_current_run() {
+#ifdef CHRONON_BUILD_TESTS
+    return false;
+#else
+    const char* env = std::getenv("CHRONON_DISABLE_DISK_NODE_CACHE");
+    if (!env || !*env) {
+        return true;
+    }
+    const std::string_view value{env};
+    return value == "0" || value == "false" || value == "FALSE";
+#endif
+}
 
 PreResolvedNode resolve_inputs(
     const RenderGraph& graph,
@@ -83,7 +98,7 @@ CacheEvalResult evaluate_cache(
 
         cr.result = ctx.node_cache->get(cr.key);
         
-        if (!cr.result && policy.disk_cacheable) {
+        if (!cr.result && policy.disk_cacheable && disk_node_cache_enabled_for_current_run()) {
             // Try persistent bake cache first (faster raw binary format)
             cr.result = cache::PersistentBakeCache::instance().load(cr.key);
             if (!cr.result) {
