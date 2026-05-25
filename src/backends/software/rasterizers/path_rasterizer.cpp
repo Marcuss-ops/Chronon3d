@@ -20,7 +20,7 @@
 namespace chronon3d::renderer {
 
 raster::BBox compute_path_bbox(const PathShape& path, const Mat4& model, f32 spread) {
-    const auto contours = flatten_to_contours(path);
+    const auto contours = flatten_path_cached(path);
     if (contours.empty()) return {0, 0, 0, 0};
 
     f32 min_x = 1e10f;
@@ -51,7 +51,7 @@ raster::BBox compute_path_bbox(const PathShape& path, const Mat4& model, f32 spr
 
 void draw_path(Framebuffer& fb, const PathShape& path, const Mat4& model, const Color& stroke_color,
                const RenderState* state) {
-    const auto contours = flatten_to_contours(path);
+    const auto contours = flatten_path_cached(path);
     if (contours.empty()) return;
 
     std::vector<PathContour> screen_contours;

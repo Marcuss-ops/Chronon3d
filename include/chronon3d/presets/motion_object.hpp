@@ -35,6 +35,7 @@ enum class MotionPreset {
     ParallaxDrift,
     Orbit2_5D,
     TiltSweep2_5D,
+    PerspectiveSweepTextReveal,
     ShakeImpact,
     TypewriterReveal,
     KineticBounce,

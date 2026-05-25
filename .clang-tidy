@@ -1,0 +1,33 @@
+---
+Checks: >
+  -*,
+  performance-*,
+  modernize-*,
+  readability-*,
+  clang-analyzer-*,
+  bugprone-*,
+  -readability-identifier-length,
+  -readability-magic-numbers,
+  -readability-function-cognitive-complexity,
+  -readability-named-parameter,
+  -modernize-use-trailing-return-type,
+  -modernize-return-braced-init-list,
+  -modernize-concat-nested-namespaces,
+  -modernize-pass-by-value,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-implicit-widening-of-multiplication-result,
+  -bugprone-branch-clone,
+  -bugprone-narrowing-conversions,
+  -bugprone-chained-comparison,
+WarningsAsErrors: '*'
+HeaderFilterRegex: '.*'
+CheckOptions:
+  readability-identifier-naming.ClassCase: 'CamelCase'
+  readability-identifier-naming.StructCase: 'CamelCase'
+  readability-identifier-naming.EnumCase: 'CamelCase'
+  readability-identifier-naming.FunctionCase: 'aNy_CasE'
+  readability-identifier-naming.VariableCase: 'lower_case'
+  readability-identifier-naming.MemberCase: 'lower_case'
+  readability-identifier-naming.ConstantCase: 'UPPER_CASE'
+  readability-identifier-naming.MacroDefinitionCase: 'UPPER_CASE'
+  modernize-use-auto.MinTypeNameLength: '20'

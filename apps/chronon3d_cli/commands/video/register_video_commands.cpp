@@ -59,6 +59,8 @@ void register_video_commands(CLI::App& app, CliContext& ctx) {
                     "Number of framebuffers to preallocate (default 8)");
     cmd->add_flag("--warmup-dummy-frame", args.pipeline.warmup_dummy_frame,
                   "Render a dummy frame 0 to prime all caches");
+    cmd->add_flag("--dry-run", args.dry_run,
+                  "Validate composition and settings without rendering");
     cmd->callback([state, &ctx]() { ctx.exit_code = command_video(ctx.registry, *state->args); });
 }
 

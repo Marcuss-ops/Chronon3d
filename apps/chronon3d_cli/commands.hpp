@@ -60,6 +60,7 @@ struct VideoArgs {
     std::string pipe_pixfmt{"rgba"};
     std::string color_output{"srgb"};
     std::string pipe_writer{"classic"};
+    bool dry_run{false};
 };
 
 struct VideoCameraArgs {

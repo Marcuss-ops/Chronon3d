@@ -31,13 +31,38 @@ jobs:
       - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11
         with:
-          vcpkgGitCommitId: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4' # Matches vcpkg.json baseline
+          vcpkgGitCommitId: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4'
 
-      - name: Run CMake
+      - name: Build
         uses: lukka/run-cmake@v10
         with:
           configurePreset: ${{ matrix.preset }}
           buildPreset: linux
+
+      - name: Clang-Tidy (static analysis)
+        run: |
+          if command -v clang-tidy-18 &> /dev/null; then
+            TIDY=clang-tidy-18
+          elif command -v clang-tidy-17 &> /dev/null; then
+            TIDY=clang-tidy-17
+          elif command -v clang-tidy-16 &> /dev/null; then
+            TIDY=clang-tidy-16
+          elif command -v clang-tidy &> /dev/null; then
+            TIDY=clang-tidy
+          else
+            echo "clang-tidy not found; skipping static analysis"
+            exit 0
+          fi
+          if [ ! -f build/compile_commands.json ]; then
+            cmake --preset linux-release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          fi
+          find src include apps -name '*.cpp' -o -name '*.hpp' | \
+            xargs $TIDY --quiet --config-file=.clang-tidy -p build 2>&1 | \
+            tee clang-tidy-report.txt
+          if grep -q "error:" clang-tidy-report.txt; then
+            echo "clang-tidy found errors!"
+            exit 1
+          fi
 
       - name: Run Tests
         run: |
