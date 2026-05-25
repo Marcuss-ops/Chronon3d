@@ -8,6 +8,7 @@
 #include <chronon3d/scene/camera/camera_motion_presets.hpp>
 #include <chronon3d/math/color.hpp>
 
+#include <algorithm>
 #include <string>
 #include <cmath>
 
@@ -258,74 +259,33 @@ Composition text_perspective_sweep_demo() {
         .duration = 120,
     }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        const f32 p = ctx.progress();
-
-        s.camera().set(chronon3d::camera_motion::dramatic_push(p, 1200.0f));
 
         s.layer("bg", [](LayerBuilder& l) {
-            l.fill(Color{0.004f, 0.006f, 0.014f, 1.0f});
-        });
-
-        s.layer("grid", [p](LayerBuilder& l) {
-            l.opacity(0.12f);
-            l.grid_background("demo_grid", {
-                .size = {W * 1.5f, H * 1.5f},
-                .offset = {0.0f, p * 30.0f},
-                .bg_color = {0, 0, 0, 0},
-                .grid_color = {0.25f, 0.52f, 1.0f, 0.45f},
-                .spacing = 96.0f,
-                .major_every = 4,
-            });
-        });
-
-        s.layer("panel", [](LayerBuilder& l) {
-            l.opacity(0.78f).pin_to(Anchor::Center);
-            l.rounded_rect("panel_bg", {
-                .size = {W * 0.76f, 360.0f},
-                .radius = 28.0f,
-                .color = Color{0.05f, 0.07f, 0.13f, 0.84f},
-            });
+            l.fill(Color{0.0f, 0.0f, 0.0f, 1.0f});
         });
 
         auto title = chronon3d::presets::motion::MotionObject::text(
             "demo_title",
-            "PERSPECTIVE SWEEP"
+            "SWEEP"
         )
-            .at({0.0f, -42.0f, 2.0f})
-            .size({W * 0.72f, 120.0f})
+            .at({0.0f, 0.0f, 2.0f})
+            .size({W * 0.52f, 140.0f})
             .font_path("assets/fonts/Inter-Bold.ttf")
             .font_family("Inter")
             .font_weight(800)
-            .font_size(70.0f)
-            .tracking(10.0f)
+            .font_size(90.0f)
+            .tracking(8.0f)
             .align(chronon3d::presets::motion::TextAlign::Center)
             .vertical_align(VerticalAlign::Middle)
-            .color({0.92f, 0.96f, 1.0f, 1.0f})
+            .color({1.0f, 1.0f, 1.0f, 1.0f})
             .opacity(1.0f)
             .glow(true)
-            .time(0, 120);
-        chronon3d::presets::motion::perspective_sweep_text_reveal(title);
-
-        auto subtitle = chronon3d::presets::motion::MotionObject::text(
-            "demo_sub",
-            "shared preset demo"
-        )
-            .at({0.0f, 76.0f, 2.0f})
-            .size({W * 0.52f, 60.0f})
-            .font_path("assets/fonts/Inter-Regular.ttf")
-            .font_family("Inter")
-            .font_weight(500)
-            .font_size(28.0f)
-            .tracking(2.0f)
-            .align(chronon3d::presets::motion::TextAlign::Center)
-            .vertical_align(VerticalAlign::Middle)
-            .color({0.72f, 0.80f, 0.92f, 1.0f})
-            .opacity(0.92f)
-            .time(18, 120);
-        chronon3d::presets::motion::perspective_sweep_text_reveal(subtitle);
+            .time(0, 120)
+            .enable_3d()
+            .parallax(2.0f)
+            .preset(chronon3d::presets::motion::MotionPreset::ParallaxDrift);
 
         chronon3d::presets::motion::draw_motion_object(s, ctx, title);
-        chronon3d::presets::motion::draw_motion_object(s, ctx, subtitle);
 
         return s.build();
     });

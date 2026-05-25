@@ -8,6 +8,7 @@
 #include "../../utils/telemetry/telemetry_run.hpp"
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/core/telemetry/render_telemetry.hpp>
+#include <chronon3d/core/cancellation_token.hpp>
 #include <chronon3d/presets/camera_motion_clip.hpp>
 #include <chronon3d/runtime/renderer_warmup.hpp>
 #include <string>
@@ -41,7 +42,7 @@ struct FfmpegExportOptions {
     bool   warmup_dummy_frame{false};
 
     // Graceful cancellation (optional — set by command_video SIGINT handler)
-    class CancellationToken* cancellation_token{nullptr};
+    chronon3d::CancellationToken* cancellation_token{nullptr};
 };
 
 int render_and_encode_ffmpeg_pipe(

@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cmath>
 #include <array>
+#include <cstring>
 
 HWY_BEFORE_NAMESPACE();
 namespace chronon3d::simd {
@@ -43,14 +44,8 @@ HWY_ATTR void convert_uv_pair_rows_vectorized_impl(
     bool planar_output) {
 
     const hn::ScalableTag<float> df;
-    const hn::ScalableTag<int32_t> di32;
-
-    const auto zero   = hn::Set(df, 0.0f);
-    const auto one    = hn::Set(df, 1.0f);
-    const auto s4095  = hn::Set(df, 4095.0f);
     const auto uvscl  = hn::Set(df, 224.0f);
     const auto uvoff  = hn::Set(df, 128.5f);
-    const float* lut  = get_linear_to_srgb_lut_f32();
 
     const auto kU_R = hn::Set(df, -0.1146f);
     const auto kU_G = hn::Set(df, -0.3854f);
@@ -59,9 +54,9 @@ HWY_ATTR void convert_uv_pair_rows_vectorized_impl(
     const auto kV_G = hn::Set(df, -0.4542f);
     const auto kV_B = hn::Set(df, -0.0458f);
 
-    auto srgb = [&](auto v) {
-        auto idx = hn::ConvertTo(di32, hn::Round(hn::Mul(hn::Clamp(v, zero, one), s4095)));
-        return hn::GatherIndex(df, lut, idx);
+    auto srgb_scalar = [](float v) {
+        v = std::clamp(v, 0.0f, 1.0f);
+        return (v <= 0.0031308f) ? (v * 12.92f) : (1.055f * std::pow(v, 1.0f / 2.4f) - 0.055f);
     };
 
     const int uv_width   = width / 2;
@@ -112,15 +107,17 @@ HWY_ATTR void convert_uv_pair_rows_vectorized_impl(
                     std::clamp(p11[2], 0.0f, 1.0f));
             }
 
+            if (apply_gamma) {
+                for (int i = 0; i < lanes; ++i) {
+                    r_buf[i] = srgb_scalar(r_buf[i]);
+                    g_buf[i] = srgb_scalar(g_buf[i]);
+                    b_buf[i] = srgb_scalar(b_buf[i]);
+                }
+            }
+
             auto rv = hn::LoadU(df, r_buf);
             auto gv = hn::LoadU(df, g_buf);
             auto bv = hn::LoadU(df, b_buf);
-
-            if (apply_gamma) {
-                rv = srgb(rv);
-                gv = srgb(gv);
-                bv = srgb(bv);
-            }
 
             auto uv = hn::MulAdd(rv, kU_R, hn::MulAdd(gv, kU_G, hn::Mul(bv, kU_B)));
             auto vv = hn::MulAdd(rv, kV_R, hn::MulAdd(gv, kV_G, hn::Mul(bv, kV_B)));
@@ -266,29 +263,17 @@ HWY_ATTR void convert_f32_rgba_to_yuv420p_simd_rows_impl(
     bool apply_gamma) {
 
     const hn::ScalableTag<float> df;
-    const hn::ScalableTag<int32_t> di32;
-    const hn::ScalableTag<int16_t> di16;
-    const hn::ScalableTag<uint8_t> du8;
-
-    const auto zero = hn::Set(df, 0.0f);
-    const auto one = hn::Set(df, 1.0f);
-    const auto scale_4095 = hn::Set(df, 4095.0f);
-    const float* lut_f32_ptr = get_linear_to_srgb_lut_f32();
-
-    auto apply_srgb_gamma = [&](auto v) {
-        auto idx = hn::ConvertTo(di32, hn::Round(hn::Mul(hn::Clamp(v, zero, one), scale_4095)));
-        return hn::GatherIndex(df, lut_f32_ptr, idx);
-    };
-
     const auto kRY = hn::Set(df, 0.2126f);
     const auto kGY = hn::Set(df, 0.7152f);
     const auto kBY = hn::Set(df, 0.0722f);
 
-    const auto y_scale = hn::Set(df, 219.0f);
-    const auto y_offset = hn::Set(df, 16.5f);
-
     const int lanes = hn::Lanes(df);
     const int vectorized_pixels_per_row = (width / (lanes * 4)) * (lanes * 4);
+
+    auto srgb_scalar = [](float v) {
+        v = std::clamp(v, 0.0f, 1.0f);
+        return (v <= 0.0031308f) ? (v * 12.92f) : (1.055f * std::pow(v, 1.0f / 2.4f) - 0.055f);
+    };
 
     for (int y = y_start; y < y_end; ++y) {
         uint8_t* dst_y = y_ptr + static_cast<size_t>(y) * width;
@@ -301,26 +286,78 @@ HWY_ATTR void convert_f32_rgba_to_yuv420p_simd_rows_impl(
             hn::LoadInterleaved4(df, src_row + (x + lanes * 2) * 4, r2, g2, b2, a2);
             hn::LoadInterleaved4(df, src_row + (x + lanes * 3) * 4, r3, g3, b3, a3);
 
-            auto compute_y = [&](auto r, auto g, auto b) {
-                auto r_gamma = apply_gamma ? apply_srgb_gamma(r) : hn::Clamp(r, zero, one);
-                auto g_gamma = apply_gamma ? apply_srgb_gamma(g) : hn::Clamp(g, zero, one);
-                auto b_gamma = apply_gamma ? apply_srgb_gamma(b) : hn::Clamp(b, zero, one);
-                auto yy = hn::MulAdd(r_gamma, kRY, 
-                          hn::MulAdd(g_gamma, kGY, 
-                          hn::Mul(b_gamma, kBY)));
-                return hn::ConvertTo(di32, hn::Round(hn::MulAdd(yy, y_scale, y_offset)));
-            };
+            alignas(64) float r_buf[16];
+            alignas(64) float g_buf[16];
+            alignas(64) float b_buf[16];
+            alignas(64) uint8_t y_buf[16];
 
-            auto y0 = compute_y(r0, g0, b0);
-            auto y1 = compute_y(r1, g1, b1);
-            auto y2 = compute_y(r2, g2, b2);
-            auto y3 = compute_y(r3, g3, b3);
+            hn::StoreU(r0, df, r_buf);
+            hn::StoreU(g0, df, g_buf);
+            hn::StoreU(b0, df, b_buf);
+            for (int i = 0; i < lanes; ++i) {
+                float r = std::clamp(r_buf[i], 0.0f, 1.0f);
+                float g = std::clamp(g_buf[i], 0.0f, 1.0f);
+                float b = std::clamp(b_buf[i], 0.0f, 1.0f);
+                if (apply_gamma) {
+                    r = srgb_scalar(r);
+                    g = srgb_scalar(g);
+                    b = srgb_scalar(b);
+                }
+                const float yy = 0.2126f * r + 0.7152f * g + 0.0722f * b;
+                y_buf[i] = static_cast<uint8_t>(std::clamp(std::round(yy * 219.0f + 16.5f), 0.0f, 255.0f));
+            }
+            std::memcpy(dst_y + x, y_buf, static_cast<size_t>(lanes));
 
-            auto s01 = hn::OrderedDemote2To(di16, y0, y1);
-            auto s23 = hn::OrderedDemote2To(di16, y2, y3);
-            auto b0123 = hn::OrderedDemote2To(du8, s01, s23);
+            hn::StoreU(r1, df, r_buf);
+            hn::StoreU(g1, df, g_buf);
+            hn::StoreU(b1, df, b_buf);
+            for (int i = 0; i < lanes; ++i) {
+                float r = std::clamp(r_buf[i], 0.0f, 1.0f);
+                float g = std::clamp(g_buf[i], 0.0f, 1.0f);
+                float b = std::clamp(b_buf[i], 0.0f, 1.0f);
+                if (apply_gamma) {
+                    r = srgb_scalar(r);
+                    g = srgb_scalar(g);
+                    b = srgb_scalar(b);
+                }
+                const float yy = 0.2126f * r + 0.7152f * g + 0.0722f * b;
+                y_buf[i] = static_cast<uint8_t>(std::clamp(std::round(yy * 219.0f + 16.5f), 0.0f, 255.0f));
+            }
+            std::memcpy(dst_y + x + lanes, y_buf, static_cast<size_t>(lanes));
 
-            hn::StoreU(b0123, du8, dst_y + x);
+            hn::StoreU(r2, df, r_buf);
+            hn::StoreU(g2, df, g_buf);
+            hn::StoreU(b2, df, b_buf);
+            for (int i = 0; i < lanes; ++i) {
+                float r = std::clamp(r_buf[i], 0.0f, 1.0f);
+                float g = std::clamp(g_buf[i], 0.0f, 1.0f);
+                float b = std::clamp(b_buf[i], 0.0f, 1.0f);
+                if (apply_gamma) {
+                    r = srgb_scalar(r);
+                    g = srgb_scalar(g);
+                    b = srgb_scalar(b);
+                }
+                const float yy = 0.2126f * r + 0.7152f * g + 0.0722f * b;
+                y_buf[i] = static_cast<uint8_t>(std::clamp(std::round(yy * 219.0f + 16.5f), 0.0f, 255.0f));
+            }
+            std::memcpy(dst_y + x + lanes * 2, y_buf, static_cast<size_t>(lanes));
+
+            hn::StoreU(r3, df, r_buf);
+            hn::StoreU(g3, df, g_buf);
+            hn::StoreU(b3, df, b_buf);
+            for (int i = 0; i < lanes; ++i) {
+                float r = std::clamp(r_buf[i], 0.0f, 1.0f);
+                float g = std::clamp(g_buf[i], 0.0f, 1.0f);
+                float b = std::clamp(b_buf[i], 0.0f, 1.0f);
+                if (apply_gamma) {
+                    r = srgb_scalar(r);
+                    g = srgb_scalar(g);
+                    b = srgb_scalar(b);
+                }
+                const float yy = 0.2126f * r + 0.7152f * g + 0.0722f * b;
+                y_buf[i] = static_cast<uint8_t>(std::clamp(std::round(yy * 219.0f + 16.5f), 0.0f, 255.0f));
+            }
+            std::memcpy(dst_y + x + lanes * 3, y_buf, static_cast<size_t>(lanes));
         }
 
         for (int x = vectorized_pixels_per_row; x < width; ++x) {
