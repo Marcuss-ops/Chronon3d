@@ -31,7 +31,8 @@ export const logout = async () => {
 
 export const outputPathToArtifactUrl = (outputPath, cacheBuster = '') => {
   if (!outputPath) return '';
-  const url = new URL(`${API_BASE}/artifact`);
+  const base = API_BASE || window.location.origin;
+  const url = new URL(`${base}/artifact`);
   url.searchParams.set('path', outputPath);
   const token = localStorage.getItem('chronon_auth_token');
   if (token) {

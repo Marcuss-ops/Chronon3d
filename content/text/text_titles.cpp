@@ -1,8 +1,5 @@
 #include <chronon3d/core/composition/composition_registration.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
-#include <chronon3d/presets/motion_object.hpp>
-#include <chronon3d/presets/motion_presets.hpp>
-#include <chronon3d/presets/motion_renderer.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/camera/camera_motion_presets.hpp>
@@ -259,33 +256,48 @@ Composition text_perspective_sweep_demo() {
         .duration = 120,
     }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
+        const f32 p = ctx.progress();
+        Color accent{0.25f, 0.52f, 1.0f, 1};
+
+        // Camera orbit: ±15° Y-axis sweep — classic card reveal
+        s.camera().set(chronon3d::camera_motion::orbit_small(p, 800.0f));
 
         s.layer("bg", [](LayerBuilder& l) {
             l.fill(Color{0.0f, 0.0f, 0.0f, 1.0f});
         });
 
-        auto title = chronon3d::presets::motion::MotionObject::text(
-            "demo_title",
-            "SWEEP"
-        )
-            .at({0.0f, 0.0f, 2.0f})
-            .size({W * 0.52f, 140.0f})
-            .font_path("assets/fonts/Inter-Bold.ttf")
-            .font_family("Inter")
-            .font_weight(800)
-            .font_size(90.0f)
-            .tracking(8.0f)
-            .align(chronon3d::presets::motion::TextAlign::Center)
-            .vertical_align(VerticalAlign::Middle)
-            .color({1.0f, 1.0f, 1.0f, 1.0f})
-            .opacity(1.0f)
-            .glow(true)
-            .time(0, 120)
-            .enable_3d()
-            .parallax(2.0f)
-            .preset(chronon3d::presets::motion::MotionPreset::ParallaxDrift);
+        // Title: fades in with glow, camera handles the orbit
+        {
+            f32 op = interpolate(p, 0.05f, 0.28f, 0.0f, 1.0f, Easing::OutCubic);
+            s.layer("demo_title", [&](LayerBuilder& l) {
+                l.enable_3d().opacity(op).pin_to(Anchor::Center);
+                l.glow(16.0f, 0.5f, accent);
+                apply_text(l, "title_text", {
+                    .text = "PERSPECTIVE SWEEP",
+                    .size = 70.0f,
+                    .color = {0.92f, 0.96f, 1.0f, 1.0f},
+                    .align = TextAlign::Center,
+                    .vertical_align = VerticalAlign::Middle,
+                    .tracking = 10.0f,
+                }, {W * 0.72f, 120.0f}, {0, -42, 0});
+            });
+        }
 
-        chronon3d::presets::motion::draw_motion_object(s, ctx, title);
+        // Subtitle: delayed fade-in
+        {
+            f32 sub_op = interpolate(p, 0.18f, 0.42f, 0.0f, 0.92f, Easing::OutCubic);
+            s.layer("demo_sub", [&](LayerBuilder& l) {
+                l.enable_3d().opacity(sub_op).pin_to(Anchor::Center);
+                apply_text(l, "sub_text", {
+                    .text = "shared preset demo",
+                    .size = 28.0f,
+                    .color = {0.72f, 0.80f, 0.92f, 1.0f},
+                    .align = TextAlign::Center,
+                    .vertical_align = VerticalAlign::Middle,
+                    .tracking = 2.0f,
+                }, {W * 0.52f, 60.0f}, {0, 76, 0});
+            });
+        }
 
         return s.build();
     });
