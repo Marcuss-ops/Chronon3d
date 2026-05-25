@@ -177,7 +177,7 @@ void add_typewriter_background(SceneBuilder& s, const TypewriterSceneSpec& spec,
     }
 }
 
-void add_typewriter_line(SceneBuilder& s, const TypewriterSceneSpec& spec, const TypewriterLine& line,
+void add_typewriter_line(SceneBuilder& s, const TypewriterLine& line,
                          Frame frame, f32 scene_opacity, std::string layer_name) {
     const f32 opacity = scene_opacity * line_opacity(frame, line);
     if (opacity <= 0.0f) return;
@@ -272,7 +272,6 @@ Composition make_typewriter_composition(TypewriterSceneSpec spec) {
             } else {
                 add_typewriter_line(
                     s,
-                    spec,
                     spec.lines[i],
                     frame_ctx.frame,
                     intro_opacity,
@@ -342,7 +341,7 @@ TypewriterSceneSpec terminal_spec() {
         .use_motion_renderer = true,
         .lines = {
             {
-                .text = "TYPEWRITER / Z SWEEP",
+                .text = "TYPEWRITER / PERSPECTIVE SWEEP",
                 .pos = {0.0f, 0.0f, 0.0f},
                 .box = {W * 0.74f, 150.0f},
                 .font_size = 62.0f,

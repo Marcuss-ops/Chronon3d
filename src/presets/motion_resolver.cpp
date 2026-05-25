@@ -141,7 +141,6 @@ MotionState resolve_motion_state(const FrameContext& ctx, const MotionObject& ob
         // It starts off-screen, rotates on Y like a card, then settles into place.
         const f32 p = t;
         const f32 reveal = interpolate(p, 0.0f, 0.80f, 0.0f, 1.0f, Easing::OutCubic);
-        const f32 enter = 1.0f - reveal;
         const f32 settle = clamp01((reveal - 0.55f) / 0.45f);
 
         st.opacity *= interpolate(p, 0.0f, 0.18f, 0.0f, 1.0f, Easing::OutCubic);
@@ -168,7 +167,6 @@ MotionState resolve_motion_state(const FrameContext& ctx, const MotionObject& ob
             st.scale.y += 0.01f * std::sin(settle * 3.1415926535f) * settle;
         }
 
-        (void)enter;
         break;
     }
 
