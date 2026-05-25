@@ -2,6 +2,7 @@
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/framebuffer_arena.hpp>
 #include <chronon3d/core/triple_buffer_arena.hpp>
+#include <chronon3d/core/cancellation_token.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/system_metrics.hpp>
 #include <chronon3d/render_graph/render_pipeline.hpp>

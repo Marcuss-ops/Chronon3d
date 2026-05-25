@@ -4,6 +4,7 @@
 #include <chronon3d/scene/utils/dark_grid_background.hpp>
 #include <chronon3d/presets/camera_motion_clip.hpp>
 #include <chronon3d/runtime/renderer_warmup.hpp>
+#include <chronon3d/render_graph/render_pipeline.hpp>
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
 #include <chronon3d/core/cancellation_token.hpp>
@@ -69,7 +70,7 @@ int command_video(const CompositionRegistry& registry, const VideoArgs& args) {
         spdlog::info("[dry-run]   Duration: {:.1f}s", static_cast<double>(total) / args.fps);
         spdlog::info("[dry-run]   Output: {}", args.output.empty() ? "(none)" : args.output);
         spdlog::info("[dry-run]   FFmpeg mode: {}", args.ffmpeg_mode);
-        spdlog::info("[dry-run]   SSAA: {}×", settings.ssaa);
+        spdlog::info("[dry-run]   SSAA: {}×", settings.ssaa_factor);
 
         // Try to build the render graph to detect errors early
         try {
@@ -79,7 +80,7 @@ int command_video(const CompositionRegistry& registry, const VideoArgs& args) {
                 spdlog::info("[dry-run]   Backend: SoftwareRenderer");
             }
             cache::NodeCache node_cache;
-            auto fb = render_composition_frame(
+            auto fb = chronon3d::graph::render_composition_frame(
                 *renderer, node_cache, settings, &registry, nullptr, comp, args.start);
             if (!fb) {
                 spdlog::warn("[dry-run]   First frame render returned null");
@@ -96,7 +97,7 @@ int command_video(const CompositionRegistry& registry, const VideoArgs& args) {
     }
 
     // ── Graceful cancellation (SIGINT/SIGTERM) ──
-    CancellationToken cancel_token;
+    chronon3d::CancellationToken cancel_token;
     install_signal_cancellation(cancel_token);
 
     auto resolved = resolve_composition(registry, args.comp_id);

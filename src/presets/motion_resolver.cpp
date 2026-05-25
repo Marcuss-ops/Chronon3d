@@ -138,33 +138,38 @@ MotionState resolve_motion_state(const FrameContext& ctx, const MotionObject& ob
 
     case MotionPreset::PerspectiveSweepTextReveal: {
         // Shared reveal preset for text-heavy 3D / 2.5D compositions.
-        // It starts off-screen, rotates on Y like a card, then settles into place.
+        // Tuned for a card-flip style sweep: strong Y rotation, a small push,
+        // then a clean settle with just enough residual motion to feel alive.
         const f32 p = t;
-        const f32 reveal = interpolate(p, 0.0f, 0.80f, 0.0f, 1.0f, Easing::OutCubic);
-        const f32 settle = clamp01((reveal - 0.55f) / 0.45f);
+        const f32 reveal = interpolate(p, 0.0f, 0.86f, 0.0f, 1.0f, Easing::OutCubic);
+        const f32 settle = clamp01((reveal - 0.62f) / 0.38f);
 
-        st.opacity *= interpolate(p, 0.0f, 0.18f, 0.0f, 1.0f, Easing::OutCubic);
+        st.opacity *= interpolate(p, 0.0f, 0.14f, 0.0f, 1.0f, Easing::OutCubic);
         st.text_reveal = reveal;
 
-        st.position.x += interpolate(p, 0.0f, 0.32f, -88.0f, 0.0f, Easing::OutCubic);
-        st.position.y += interpolate(p, 0.0f, 0.32f, 18.0f, 0.0f, Easing::OutCubic);
-        st.position.z += interpolate(p, 0.0f, 0.32f, 320.0f, 0.0f, Easing::OutCubic);
+        st.position.x += interpolate(p, 0.0f, 0.30f, -120.0f, 0.0f, Easing::OutCubic);
+        st.position.y += interpolate(p, 0.0f, 0.30f, 6.0f, 0.0f, Easing::OutCubic);
+        st.position.z += interpolate(p, 0.0f, 0.30f, 140.0f, 0.0f, Easing::OutCubic);
 
-        st.rotation.x += interpolate(p, 0.0f, 0.32f, 10.0f, 0.0f, Easing::OutCubic);
-        st.rotation.y += interpolate(p, 0.0f, 0.32f, -82.0f, 0.0f, Easing::OutCubic);
-        st.rotation.z += interpolate(p, 0.0f, 0.32f, 6.0f, 0.0f, Easing::OutCubic);
+        st.rotation.x += interpolate(p, 0.0f, 0.30f, 3.0f, 0.0f, Easing::OutCubic);
+        st.rotation.y += interpolate(p, 0.0f, 0.30f, -34.0f, 0.0f, Easing::OutCubic);
+        st.rotation.z += interpolate(p, 0.0f, 0.30f, 1.5f, 0.0f, Easing::OutCubic);
 
-        const f32 sx = interpolate(p, 0.0f, 0.32f, 0.84f, 1.0f, Easing::OutCubic);
-        const f32 sy = interpolate(p, 0.0f, 0.32f, 0.92f, 1.0f, Easing::OutCubic);
+        const f32 sx = interpolate(p, 0.0f, 0.30f, 0.90f, 1.0f, Easing::OutCubic);
+        const f32 sy = interpolate(p, 0.0f, 0.30f, 0.96f, 1.0f, Easing::OutCubic);
         st.scale = {st.scale.x * sx, st.scale.y * sy, st.scale.z};
 
-        st.blur = interpolate(p, 0.0f, 0.26f, 18.0f, 0.0f, Easing::OutCubic);
+        st.blur = interpolate(p, 0.0f, 0.18f, 9.0f, 0.0f, Easing::OutCubic);
 
         if (settle > 0.0f) {
-            st.rotation.y *= (1.0f - 0.08f * settle);
-            st.position.z -= 28.0f * settle;
-            st.scale.x += 0.02f * std::sin(settle * 3.1415926535f) * settle;
-            st.scale.y += 0.01f * std::sin(settle * 3.1415926535f) * settle;
+            const f32 settle_wave = std::sin(settle * 3.1415926535f);
+            st.rotation.y *= (1.0f - 0.06f * settle);
+            st.rotation.x += 0.6f * settle_wave * settle;
+            st.rotation.z += 0.4f * settle_wave * settle;
+            st.position.z -= 8.0f * settle;
+            st.position.x += 18.0f * settle_wave * settle;
+            st.scale.x += 0.01f * settle_wave * settle;
+            st.scale.y += 0.005f * settle_wave * settle;
         }
 
         break;

@@ -176,9 +176,9 @@ void draw_motion_object_impl(
         if (obj.glow_enabled) {
             l.with_glow(Glow{
                 .enabled = true,
-                .radius = 12.0f,
-                .intensity = 0.65f,
-                .color = obj.color_value.with_alpha(1.0f),
+                .radius = 22.0f,
+                .intensity = 0.38f,
+                .color = Color{0.96f, 0.96f, 0.97f, 1.0f},
             });
         }
     });
