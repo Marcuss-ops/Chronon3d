@@ -34,7 +34,7 @@ struct TypewriterLine {
     f32 chars_per_frame{2.0f};
     f32 fade_in_frames{10.0f};
     bool cursor{true};
-    bool glow_enabled{false};
+    bool glow_enabled{true};
 
     struct SweepMotion {
         // Keep 2.5D off by default so flat typewriter scenes stay flat unless
@@ -200,7 +200,7 @@ void add_typewriter_line(SceneBuilder& s, const TypewriterLine& line,
             .opacity(opacity)
             .position(motion_pos)
             .rotate(motion_rot)
-            .glow(line.glow_enabled ? 18.0f : 0.0f, line.glow_enabled ? 0.28f : 0.0f, {1.0f, 1.0f, 1.0f, 1.0f});
+            .glow(line.glow_enabled ? 22.0f : 0.0f, line.glow_enabled ? 0.38f : 0.0f, {0.96f, 0.96f, 0.97f, 1.0f});
         l.text("text", {
             .text = rendered,
             .size = line.box,
@@ -295,6 +295,7 @@ TypewriterSceneSpec classic_spec() {
         .panel_pos = {0.0f, 0.0f, 0.0f},
         .panel_radius = 30.0f,
         .panel_opacity = 0.0f,
+        .use_motion_renderer = true,
         .lines = {
             {
                 .text = "THE ENGINE LEARNED TO SPEAK.",
@@ -370,6 +371,7 @@ TypewriterSceneSpec quote_spec() {
         .panel_size = {W * 0.74f, 300.0f},
         .panel_radius = 34.0f,
         .panel_opacity = 0.78f,
+        .use_motion_renderer = true,
         .lines = {
             {
                 .text = "WE WRITE THE WORDS",
@@ -408,6 +410,7 @@ TypewriterSceneSpec manifest_spec() {
         .panel_size = {W * 0.80f, 470.0f},
         .panel_radius = 28.0f,
         .panel_opacity = 0.80f,
+        .use_motion_renderer = true,
         .lines = {
             {
                 .text = "MANIFEST",
@@ -469,6 +472,7 @@ TypewriterSceneSpec chapter_spec() {
         .panel_size = {W * 0.76f, 360.0f},
         .panel_radius = 26.0f,
         .panel_opacity = 0.82f,
+        .use_motion_renderer = true,
         .lines = {
             {
                 .text = "CHAPTER 01",

@@ -18,6 +18,10 @@ struct TextDef {
     VerticalAlign vertical_align{VerticalAlign::Top};
     f32          tracking{0.0f};
     f32          line_height{1.2f};
+    std::string  font_path{"assets/fonts/Inter-Bold.ttf"};
+    std::string  font_family{"Inter"};
+    int          font_weight{800};
+    std::string  font_style{"normal"};
 };
 
 struct StyleLayer {
