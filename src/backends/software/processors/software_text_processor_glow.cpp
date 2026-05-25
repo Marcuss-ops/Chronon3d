@@ -78,10 +78,6 @@ void draw_text_glow(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNod
             int x = static_cast<int>(std::lround(raster.x_offset));
             int y = static_cast<int>(std::lround(raster.y_offset));
             blend2d_bridge::composite_bl_image(fb, *glow_cache, x, y, opacity * glow_intensity_opacity, BlendMode::Add);
-        } else if (state.projection.ready) {
-            const int x = static_cast<int>(std::lround(model[3][0] + raster.x_offset));
-            const int y = static_cast<int>(std::lround(model[3][1] + raster.y_offset));
-            blend2d_bridge::composite_bl_image(fb, *glow_cache, x, y, opacity * glow_intensity_opacity, BlendMode::Add);
         } else {
             Mat4 glow_model = model * glm::translate(Mat4(1.0f), Vec3(raster.x_offset, raster.y_offset, 0.0f));
             blend2d_bridge::composite_bl_image_transformed(fb, *glow_cache, glow_model, opacity * glow_intensity_opacity, BlendMode::Add);
@@ -114,10 +110,6 @@ void draw_text_glow(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNod
         if (use_geo_transform) {
             int x = static_cast<int>(std::lround(raster.x_offset));
             int y = static_cast<int>(std::lround(raster.y_offset));
-            blend2d_bridge::composite_framebuffer(fb, *glow_fb, x, y, opacity * glow_intensity_opacity, BlendMode::Add);
-        } else if (state.projection.ready) {
-            const int x = static_cast<int>(std::lround(model[3][0] + raster.x_offset));
-            const int y = static_cast<int>(std::lround(model[3][1] + raster.y_offset));
             blend2d_bridge::composite_framebuffer(fb, *glow_fb, x, y, opacity * glow_intensity_opacity, BlendMode::Add);
         } else {
             Mat4 glow_model = model * glm::translate(Mat4(1.0f), Vec3(raster.x_offset, raster.y_offset, 0.0f));

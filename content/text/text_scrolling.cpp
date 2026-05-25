@@ -74,53 +74,6 @@ Composition text_credit_roll() {
     });
 }
 
-Composition text_typewriter() {
-    return composition({
-        .name = "TextTypewriter",
-        .width = 1920, .height = 1080,
-        .duration = 150,
-    }, [](const FrameContext& ctx) {
-        SceneBuilder s(ctx);
-        const std::string full_text =
-            "In the beginning, the engine\n"
-            "rendered only silence.\n\n"
-            "Then came the text pipeline,\n"
-            "and with it, the word.";
-
-        f32 p = ctx.progress();
-        f32 chars_per_frame = 3.0f;
-        size_t visible = std::min(full_text.size(),
-            static_cast<size_t>(static_cast<f32>(ctx.frame) * chars_per_frame));
-        std::string shown = full_text.substr(0, visible);
-
-        s.layer("bg", [](LayerBuilder& l) {
-            l.fill(Color{0.01f, 0.012f, 0.022f, 1.0f});
-        });
-
-        f32 cursor_op = 0.5f + 0.5f * std::sin(p * 3.14159f * 8.0f);
-        std::string display = shown + (visible < full_text.size()
-            ? std::string(1, static_cast<char>(0xE2)) +
-              std::string(1, static_cast<char>(0x96)) +
-              std::string(1, static_cast<char>(0x88))
-            : "");
-
-        s.layer("typewriter", [&](LayerBuilder& l) {
-            l.opacity(std::min(1.0f, p * 4.0f))
-             .position({-W * 0.35f, 0, 0});
-            apply_text(l, "text", {
-                .text = display,
-                .size = 38.0f,
-                .color = {1, 1, 1, 1},
-                .align = TextAlign::Left,
-                .tracking = 1.0f,
-                .line_height = 1.5f,
-            }, {W * 0.7f, 300.0f}, {0, 0, 0});
-        });
-
-        return s.build();
-    });
-}
-
 Composition text_animated_sequence() {
     return composition({
         .name = "TextAnimatedSequence",

@@ -80,10 +80,6 @@ void draw_text_shadow(SoftwareRenderer& renderer, Framebuffer& fb, const RenderN
             int x = static_cast<int>(std::lround(raster.x_offset + shadow.offset.x));
             int y = static_cast<int>(std::lround(raster.y_offset + shadow.offset.y));
             blend2d_bridge::composite_bl_image(fb, *shadow_cache, x, y, opacity * shadow_opacity, BlendMode::Normal);
-        } else if (state.projection.ready) {
-            const int x = static_cast<int>(std::lround(model[3][0] + raster.x_offset + shadow.offset.x));
-            const int y = static_cast<int>(std::lround(model[3][1] + raster.y_offset + shadow.offset.y));
-            blend2d_bridge::composite_bl_image(fb, *shadow_cache, x, y, opacity * shadow_opacity, BlendMode::Normal);
         } else {
             Mat4 shadow_model = model * glm::translate(Mat4(1.0f), Vec3(raster.x_offset + shadow.offset.x, raster.y_offset + shadow.offset.y, 0.0f));
             blend2d_bridge::composite_bl_image_transformed(fb, *shadow_cache, shadow_model, opacity * shadow_opacity, BlendMode::Normal);
@@ -116,10 +112,6 @@ void draw_text_shadow(SoftwareRenderer& renderer, Framebuffer& fb, const RenderN
         if (use_geo_transform) {
             int x = static_cast<int>(std::lround(raster.x_offset + shadow.offset.x));
             int y = static_cast<int>(std::lround(raster.y_offset + shadow.offset.y));
-            blend2d_bridge::composite_framebuffer(fb, *shadow_fb, x, y, opacity * shadow_opacity, BlendMode::Normal);
-        } else if (state.projection.ready) {
-            const int x = static_cast<int>(std::lround(model[3][0] + raster.x_offset + shadow.offset.x));
-            const int y = static_cast<int>(std::lround(model[3][1] + raster.y_offset + shadow.offset.y));
             blend2d_bridge::composite_framebuffer(fb, *shadow_fb, x, y, opacity * shadow_opacity, BlendMode::Normal);
         } else {
             Mat4 shadow_model = model * glm::translate(Mat4(1.0f), Vec3(raster.x_offset + shadow.offset.x, raster.y_offset + shadow.offset.y, 0.0f));

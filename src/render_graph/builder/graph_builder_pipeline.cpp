@@ -73,6 +73,8 @@ RenderGraph build_graph(const Scene& scene, RenderGraphContext& ctx,
             }
         }
 
+        spdlog::info("DEBUG CULL: layer={} bbox=[{}, {}, {}, {}] is_culled={} reason={}", item.layer->name, bbox.x0, bbox.y0, bbox.x1, bbox.y1, is_culled, cull_reason);
+
         if (ctx.counters) {
             ctx.counters->layer_culling_tests.fetch_add(1, std::memory_order_relaxed);
             if (is_culled) {

@@ -55,6 +55,15 @@ public:
 
         const int W = result->width();
         const int H = result->height();
+        if (W >= 100 && H >= 100) {
+            Color p50_before = result->get_pixel(50, 50);
+            Color p30_before = result->get_pixel(30, 50);
+            Color m50 = m_alpha_cache->get_pixel(50, 50);
+            Color m30 = m_alpha_cache->get_pixel(30, 50);
+            spdlog::info("DEBUG MASK EXECUTE BEFORE: p50.a={} p30.a={} m50.a={} m30.a={} modular={}",
+                p50_before.a, p30_before.a, m50.a, m30.a, ctx.modular_coordinates);
+        }
+
         for (i32 y = 0; y < H; ++y) {
             Color* dst_row = result->pixels_row(y);
             const Color* mask_row = m_alpha_cache->pixels_row(y);
@@ -66,6 +75,14 @@ public:
                 dst_row[x].a *= m;
             }
         }
+
+        if (W >= 100 && H >= 100) {
+            Color p50_after = result->get_pixel(50, 50);
+            Color p30_after = result->get_pixel(30, 50);
+            spdlog::info("DEBUG MASK EXECUTE AFTER: p50.a={} p30.a={}",
+                p50_after.a, p30_after.a);
+        }
+
         return result;
     }
 
@@ -80,14 +97,18 @@ private:
 
         const f32 cx = static_cast<f32>(width) * 0.5f;
         const f32 cy = static_cast<f32>(height) * 0.5f;
+        int count = 0;
         for (i32 y = 0; y < height; ++y) {
             Color* row = fb->pixels_row(y);
             for (i32 x = 0; x < width; ++x) {
                 if (mask_contains_local_point(m_mask, Vec2{static_cast<f32>(x) - cx, static_cast<f32>(y) - cy})) {
                     row[x] = {1.0f, 1.0f, 1.0f, 1.0f};
+                    count++;
                 }
             }
         }
+        spdlog::info("DEBUG BUILD ALPHA CACHE: width={} height={} cx={} cy={} count={} mask_enabled={} mask_type={}",
+            width, height, cx, cy, count, m_mask.enabled(), static_cast<int>(m_mask.type));
         return fb;
     }
 

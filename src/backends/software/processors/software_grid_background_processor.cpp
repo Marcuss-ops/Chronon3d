@@ -64,7 +64,8 @@ public:
         fb.clear(bg, clip);
 
         const f32 minor_step = std::max(g.spacing, 1.0f);
-        const f32 major_step = minor_step * std::max(1, g.major_every);
+        const bool use_major = g.major_every > 1;
+        const f32 major_step = use_major ? minor_step * static_cast<f32>(g.major_every) : minor_step;
         const f32 half_w = static_cast<f32>(fb.width()) * 0.5f;
         const f32 half_h = static_cast<f32>(fb.height()) * 0.5f;
         const f32 origin_x = g.centered ? half_w : 0.0f;
@@ -91,9 +92,9 @@ public:
                 Color* row = fb.pixels_row(y);
                 const f32 gy = static_cast<f32>(y) - origin_y - offset_y;
                 const f32 minor_dy = cell_distance(gy, minor_step);
-                const f32 major_dy = cell_distance(gy, major_step);
+                const f32 major_dy = use_major ? cell_distance(gy, major_step) : 0.0f;
                 const f32 row_minor = line_weight(minor_dy, minor_thickness);
-                const f32 row_major = line_weight(major_dy, major_thickness);
+                const f32 row_major = use_major ? line_weight(major_dy, major_thickness) : 0.0f;
 
                 for (i32 x = clip.x0; x < clip.x1; ++x) {
                     if (mask_pixels) {
@@ -107,9 +108,9 @@ public:
 
                     const f32 gx = static_cast<f32>(x) - origin_x - offset_x;
                     const f32 minor_dx = cell_distance(gx, minor_step);
-                    const f32 major_dx = cell_distance(gx, major_step);
+                    const f32 major_dx = use_major ? cell_distance(gx, major_step) : 0.0f;
                     const f32 col_minor = line_weight(minor_dx, minor_thickness);
-                    const f32 col_major = line_weight(major_dx, major_thickness);
+                    const f32 col_major = use_major ? line_weight(major_dx, major_thickness) : 0.0f;
 
                     const f32 minor_alpha = std::max(row_minor, col_minor) * minor.a;
                     const f32 major_alpha = std::max(row_major, col_major) * major.a;

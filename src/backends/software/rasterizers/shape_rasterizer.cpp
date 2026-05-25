@@ -174,6 +174,12 @@ void draw_transformed_shape(Framebuffer& fb, const Shape& shape, const Mat4& mod
         ensure_mask_alpha_cache(*state, fb.width(), fb.height());
     }
 
+    if (shape.type == ShapeType::Rect) {
+        spdlog::info("DEBUG DRAW SHAPE: bbox=[{}, {}, {}, {}] model_trans=[{}, {}] size=[{}, {}] fb=[{}, {}]",
+                     bbox.x0, bbox.y0, bbox.x1, bbox.y1, model[3][0], model[3][1],
+                     shape.rect.size.x, shape.rect.size.y, fb.width(), fb.height());
+    }
+
     glm::mat3 H;
     H[0][0] = model[0][0]; H[0][1] = model[0][1]; H[0][2] = model[0][3];
     H[1][0] = model[1][0]; H[1][1] = model[1][1]; H[1][2] = model[1][3];

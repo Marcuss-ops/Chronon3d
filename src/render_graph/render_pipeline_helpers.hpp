@@ -38,6 +38,9 @@ namespace chronon3d::graph {
         h = hash_combine(h, layer.get_static_hash());
         h = hash_combine(h, hash_transform(layer.transform));
     }
+    for (const auto& node : scene.nodes()) {
+        h = hash_combine(h, hash_render_node(node));
+    }
     return h;
 }
 

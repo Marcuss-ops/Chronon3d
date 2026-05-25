@@ -15,6 +15,7 @@ struct TextDef {
     f32          size{72.0f};
     Color        color{1, 1, 1, 1};
     TextAlign    align{TextAlign::Center};
+    VerticalAlign vertical_align{VerticalAlign::Top};
     f32          tracking{0.0f};
     f32          line_height{1.2f};
 };

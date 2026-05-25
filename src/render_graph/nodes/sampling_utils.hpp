@@ -8,15 +8,15 @@
 namespace chronon3d::graph::detail {
 
 /// Clamped pixel fetch — returns transparent for out-of-bounds coords.
-inline Color get_clamped_pixel(const Color* src, int32_t src_w, int32_t src_h,
+inline Color get_clamped_pixel(const Color* src, int32_t src_w, int32_t src_h, int32_t stride,
                                int32_t px, int32_t py) {
     if (px < 0 || px >= src_w || py < 0 || py >= src_h) return Color::transparent();
-    return src[py * src_w + px];
+    return src[py * stride + px];
 }
 
 /// Bilinear sample at (sx, sy) in source pixel space.
 /// sx/sy are continuous source pixel coordinates.
-inline Color sample_bilinear(const Color* src, int32_t src_w, int32_t src_h,
+inline Color sample_bilinear(const Color* src, int32_t src_w, int32_t src_h, int32_t stride,
                              float sx, float sy) {
     const float u = sx - 0.5f;
     const float v = sy - 0.5f;
@@ -27,20 +27,20 @@ inline Color sample_bilinear(const Color* src, int32_t src_w, int32_t src_h,
     const float tx = u - static_cast<float>(x0);
     const float ty = v - static_cast<float>(y0);
 
-    const Color c00 = get_clamped_pixel(src, src_w, src_h, x0, y0);
-    const Color c10 = get_clamped_pixel(src, src_w, src_h, x1, y0);
-    const Color c01 = get_clamped_pixel(src, src_w, src_h, x0, y1);
-    const Color c11 = get_clamped_pixel(src, src_w, src_h, x1, y1);
+    const Color c00 = get_clamped_pixel(src, src_w, src_h, stride, x0, y0);
+    const Color c10 = get_clamped_pixel(src, src_w, src_h, stride, x1, y0);
+    const Color c01 = get_clamped_pixel(src, src_w, src_h, stride, x0, y1);
+    const Color c11 = get_clamped_pixel(src, src_w, src_h, stride, x1, y1);
 
     return lerp(lerp(c00, c10, tx), lerp(c01, c11, tx), ty);
 }
 
 /// Nearest-neighbour sample at (sx, sy).
-inline Color sample_nearest(const Color* src, int32_t src_w, int32_t src_h,
+inline Color sample_nearest(const Color* src, int32_t src_w, int32_t src_h, int32_t stride,
                             float sx, float sy) {
     const int32_t ix = static_cast<int32_t>(sx);
     const int32_t iy = static_cast<int32_t>(sy);
-    return get_clamped_pixel(src, src_w, src_h, ix, iy);
+    return get_clamped_pixel(src, src_w, src_h, stride, ix, iy);
 }
 
 /// Multiply every channel (including alpha) by opacity.

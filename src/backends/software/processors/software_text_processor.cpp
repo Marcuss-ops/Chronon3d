@@ -79,10 +79,6 @@ public:
             int x = static_cast<int>(std::lround(raster->x_offset));
             int y = static_cast<int>(std::lround(raster->y_offset));
             blend2d_bridge::composite_bl_image(fb, raster->image, x, y, opacity, BlendMode::Normal);
-        } else if (state.projection.ready) {
-            const int x = static_cast<int>(std::lround(model[3][0] + raster->x_offset));
-            const int y = static_cast<int>(std::lround(model[3][1] + raster->y_offset));
-            blend2d_bridge::composite_bl_image(fb, raster->image, x, y, opacity, BlendMode::Normal);
         } else {
             Mat4 text_model = model * glm::translate(Mat4(1.0f), Vec3(raster->x_offset, raster->y_offset, 0.0f));
             blend2d_bridge::composite_bl_image_transformed(fb, raster->image, text_model, opacity, BlendMode::Normal);

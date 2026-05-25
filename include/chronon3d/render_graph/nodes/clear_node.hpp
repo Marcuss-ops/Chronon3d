@@ -66,21 +66,26 @@ public:
         
         if (use_dirty_rects) {
             auto fb = std::move(sw_renderer->m_prev_framebuffer);
+            const bool is_empty_clip = ctx.clip_rect && ctx.clip_rect->is_empty();
             if (ctx.counters) {
-                if (skip_clear) {
+                if (skip_clear || is_empty_clip) {
                     ctx.counters->clear_skipped_calls.fetch_add(1, std::memory_order_relaxed);
                     ctx.counters->clear_skipped_pixels.fetch_add(clear_pixels, std::memory_order_relaxed);
                 }
-                ctx.counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
-                ctx.counters->clear_pixels.fetch_add(clear_pixels, std::memory_order_relaxed);
+                if (!is_empty_clip) {
+                    ctx.counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
+                    ctx.counters->clear_pixels.fetch_add(clear_pixels, std::memory_order_relaxed);
+                }
             }
-            const auto t0 = std::chrono::high_resolution_clock::now();
-            fb->clear(Color::transparent(), ctx.clip_rect);
-            const auto t1 = std::chrono::high_resolution_clock::now();
-            if (ctx.counters) {
-                const auto elapsed = static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t1 - t0).count());
-                ctx.counters->clearnode_ms.fetch_add(elapsed, std::memory_order_relaxed);
-                ctx.counters->framebuffer_clear_ms.fetch_add(elapsed, std::memory_order_relaxed);
+            if (!is_empty_clip) {
+                const auto t0 = std::chrono::high_resolution_clock::now();
+                fb->clear(Color::transparent(), ctx.clip_rect);
+                const auto t1 = std::chrono::high_resolution_clock::now();
+                if (ctx.counters) {
+                    const auto elapsed = static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t1 - t0).count());
+                    ctx.counters->clearnode_ms.fetch_add(elapsed, std::memory_order_relaxed);
+                    ctx.counters->framebuffer_clear_ms.fetch_add(elapsed, std::memory_order_relaxed);
+                }
             }
             return fb;
         } else {
