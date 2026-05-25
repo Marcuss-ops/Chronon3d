@@ -53,8 +53,12 @@ public:
     }
 
     std::shared_ptr<Framebuffer> execute(RenderGraphContext& ctx, std::span<const std::shared_ptr<Framebuffer>> inputs, std::span<const std::optional<raster::BBox>>) override {
-        if (inputs.empty()) return ctx.acquire_framebuffer(ctx.width, ctx.height);
-        
+        if (inputs.empty() || !inputs[0]) {
+            auto empty = ctx.acquire_framebuffer(ctx.width, ctx.height);
+            empty->clear(Color::transparent());
+            return empty;
+        }
+
         auto result = ctx.acquire_framebuffer(*inputs[0]);
         if (ctx.backend) {
             ctx.backend->apply_effect_stack(*result, m_effects, ctx.time_seconds, ctx.clip_rect);
