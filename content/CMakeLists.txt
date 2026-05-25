@@ -4,6 +4,7 @@ add_library(chronon3d_content STATIC
     text/text_effects.cpp
     text/text_layout.cpp
     text/text_scrolling.cpp
+    text/text_typewriter.cpp
     text/text_registrations.cpp
     anims/animation_compositions.cpp
     images/image_compositions.cpp

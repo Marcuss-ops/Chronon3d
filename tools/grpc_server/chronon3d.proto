@@ -1,0 +1,66 @@
+syntax = "proto3";
+
+package chronon3d;
+
+service ChrononService {
+  rpc ListCompositions (ListCompositionsRequest) returns (ListCompositionsResponse);
+  rpc RenderVideo (RenderVideoRequest) returns (stream RenderVideoProgress);
+  rpc RenderFrame (RenderFrameRequest) returns (RenderFrameResponse);
+  rpc GetSystemStatus (SystemStatusRequest) returns (SystemStatusResponse);
+}
+
+message ListCompositionsRequest {}
+
+message CompositionInfo {
+  string name = 1;
+  int32 width = 2;
+  int32 height = 3;
+  int32 duration_frames = 4;
+}
+
+message ListCompositionsResponse {
+  repeated CompositionInfo compositions = 1;
+}
+
+message RenderVideoRequest {
+  string composition_name = 1;
+  int32 start_frame = 2;
+  int32 end_frame = 3;
+  int32 width = 4;
+  int32 height = 5;
+  int32 fps = 6;
+  string output_path = 7;
+}
+
+message RenderVideoProgress {
+  int32 current_frame = 1;
+  int32 total_frames = 2;
+  float progress_percent = 3;
+  float fps = 4;
+  string status_message = 5;
+  bool is_finished = 6;
+  string output_file = 7;
+}
+
+message RenderFrameRequest {
+  string composition_name = 1;
+  int32 frame_number = 2;
+  int32 width = 3;
+  int32 height = 4;
+  string output_path = 5;
+}
+
+message RenderFrameResponse {
+  bool success = 1;
+  string error_message = 2;
+  string output_file = 3;
+  float render_time_ms = 4;
+}
+
+message SystemStatusRequest {}
+
+message SystemStatusResponse {
+  string engine_version = 1;
+  bool ffmpeg_found = 2;
+  int32 composition_count = 3;
+}

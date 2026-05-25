@@ -54,6 +54,10 @@ public:
             m_layer_hashes[lname] = layer_h;
         }
         
+        for (const auto& node : scene.nodes()) {
+            h = hash_combine(h, hash_render_node(node));
+        }
+        
         return h;
     }
 

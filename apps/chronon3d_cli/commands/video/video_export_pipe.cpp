@@ -203,6 +203,11 @@ int render_and_encode_ffmpeg_pipe(
                 break;
             }
 
+            int done_count = static_cast<int>(current_frame - start + 1);
+            if (done_count % std::max(1, total / 10) == 0 || done_count == total) {
+                spdlog::info("[video]   {}/{} frames", done_count, total);
+            }
+
             auto current_arena = triple_arena.acquire();
             if (sw_renderer) {
                 sw_renderer->framebuffer_pool()->set_arena(current_arena);

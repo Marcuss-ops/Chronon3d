@@ -84,6 +84,7 @@ struct TextParams {
     f32 font_size{72.0f};
     Color color{1.0f, 1.0f, 1.0f, 1.0f};
     TextAlign align{TextAlign::Center};
+    VerticalAlign vertical_align{VerticalAlign::Top};
     f32 line_height{1.2f};
     f32 tracking{0.0f};
 };

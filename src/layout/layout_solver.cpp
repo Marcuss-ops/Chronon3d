@@ -42,10 +42,10 @@ void LayoutSolver::solve(Scene& scene, i32 canvas_w, i32 canvas_h) const {
         if (layer.layout.pin.has_value()) {
             Vec3 pos = anchor_position(*layer.layout.pin, canvas_w, canvas_h,
                                        layer.layout.margin);
-            layer.transform.position.x = pos.x;
-            layer.transform.position.y = pos.y;
+            layer.transform.position.x += pos.x;
+            layer.transform.position.y += pos.y;
             if (layer.layout.pin->depth.has_value()) {
-                layer.transform.position.z = pos.z;
+                layer.transform.position.z += pos.z;
             }
         }
 
@@ -57,8 +57,6 @@ void LayoutSolver::solve(Scene& scene, i32 canvas_w, i32 canvas_h) const {
             layer.transform.position.y = std::clamp(
                 layer.transform.position.y, sa.top, H - sa.bottom);
         }
-
-
     }
 }
 

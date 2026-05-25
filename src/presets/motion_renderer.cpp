@@ -91,6 +91,7 @@ void draw_content(LayerBuilder& l, const MotionObject& obj, const MotionState& s
                 : obj.text_style.align == TextAlign::Right
                     ? chronon3d::TextAlign::Right
                     : chronon3d::TextAlign::Center,
+            .vertical_align = obj.text_style.vertical_align,
             .line_height = 1.2f,
             .tracking = obj.text_style.tracking,
         });

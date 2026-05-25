@@ -18,9 +18,12 @@ namespace chronon3d::graph::detail {
     const Camera2_5D* prev,
     bool prev_valid
 ) {
+    if (!current.enabled) {
+        if (!prev_valid || !prev->enabled) return false;
+        return true;
+    }
     if (!prev_valid) return true;
-    if (prev->enabled != current.enabled) return true;
-    if (!current.enabled) return false;
+    if (!prev->enabled) return true;
     return prev->position      != current.position  ||
            prev->zoom          != current.zoom      ||
            prev->fov_deg       != current.fov_deg   ||
@@ -62,6 +65,7 @@ struct DirtyRectOutput {
 DirtyRectOutput compute_dirty_rect(
     const RenderGraphContext& ctx,
     const LayerResolutionResult& resolved,
+    const Scene& scene,
     const RenderSettings& settings,
     SoftwareRenderer* sw_renderer,
     Frame frame,

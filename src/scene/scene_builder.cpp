@@ -1,5 +1,6 @@
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/registry/shape_ids.hpp>
+#include <chronon3d/layout/layout_solver.hpp>
 
 namespace chronon3d {
 
@@ -91,6 +92,7 @@ SceneBuilder& SceneBuilder::with_glow(Glow glow) {
 }
 
 Scene SceneBuilder::build() {
+    LayoutSolver().solve(scene_, m_width, m_height);
     scene_.resolve_hierarchy(current_frame_);
     return std::move(scene_);
 }

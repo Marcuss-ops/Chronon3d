@@ -231,15 +231,12 @@ size_t prune_branches(RenderGraph& graph, const RenderGraphContext& ctx) {
             auto* transform = dynamic_cast<const TransformNode*>(&node);
             if (transform && transform->is_identity()) {
                 size_t consumers = count_consumers(graph, id);
-                if (consumers == 1) {
+                if (consumers == 1 && graph.inputs(id).size() == 1) {
                     for (GraphNodeId n = 0; n < static_cast<GraphNodeId>(node_count); ++n) {
                         if (pruned[n] || !graph.has_node(n)) continue;
                         for (GraphNodeId in : graph.inputs(n)) {
                             if (in == id) {
-                                graph.disconnect(id, n);
-                                for (GraphNodeId our_in : graph.inputs(id)) {
-                                    graph.connect(our_in, n);
-                                }
+                                graph.replace_input(n, id, graph.inputs(id)[0]);
                                 pruned[id] = true;
                                 ++pruned_count;
                                 bypassed = true;
@@ -263,10 +260,7 @@ size_t prune_branches(RenderGraph& graph, const RenderGraphContext& ctx) {
                         if (pruned[n] || !graph.has_node(n)) continue;
                         for (GraphNodeId in : graph.inputs(n)) {
                             if (in == id) {
-                                graph.disconnect(id, n);
-                                if (bypass_src < node_count && !pruned[bypass_src]) {
-                                    graph.connect(bypass_src, n);
-                                }
+                                graph.replace_input(n, id, bypass_src);
                                 break;
                             }
                         }

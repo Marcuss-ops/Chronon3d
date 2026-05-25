@@ -91,6 +91,11 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
             sw_renderer->m_prev_camera_valid = cam.enabled;
             if (ctx.counters) {
                 ctx.counters->dirty_union_area_pixels.store(0, std::memory_order_relaxed);
+                ctx.counters->clear_skipped_calls.fetch_add(1, std::memory_order_relaxed);
+                ctx.counters->clear_skipped_pixels.fetch_add(
+                    static_cast<uint64_t>(width) * height,
+                    std::memory_order_relaxed
+                );
             }
             telemetry::record_render_telemetry(make_telemetry_row(
                 "scene_render", frame, width, height,
@@ -107,7 +112,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     const auto resolved = detail::resolve_layers(scene, ctx);
 
     auto dirty_out = detail::compute_dirty_rect(
-        ctx, resolved, settings, sw_renderer, frame, width, height);
+        ctx, resolved, scene, settings, sw_renderer, frame, width, height);
 
     // ── Dirty ratio / counters / diagnostics ────────────────────────────
     double dirty_ratio = 1.0;
@@ -191,6 +196,17 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         ctx.early_exit_skip = std::move(mutable_ctx.early_exit_skip);
         return built_graph;
     }();
+
+    if (ctx.diagnostics_enabled) {
+        for (size_t i = 0; i < graph.size(); ++i) {
+            if (!graph.has_node(i)) continue;
+            std::string inputs_str = "";
+            for (auto in : graph.inputs(i)) {
+                inputs_str += std::to_string(in) + " (" + graph.node(in).name() + "), ";
+            }
+            spdlog::info("[graph-structure] node_id={} name='{}' inputs=[{}]", i, graph.node(i).name(), inputs_str);
+        }
+    }
 
     // Apply graph-level optimizations (node fusion, branch pruning, static bake analysis)
     {

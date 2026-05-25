@@ -3,6 +3,7 @@
 #include <chronon3d/effects/effect_descriptor.hpp>
 #include <any>
 #include <utility>
+#include <type_traits>
 
 namespace chronon3d::effects {
 
@@ -19,7 +20,7 @@ struct EffectInstance {
         : descriptor(std::move(desc)), params(std::forward<Params>(value)) {}
 
     // Convenience constructor for legacy/inline effects
-    template <typename Params>
+    template <typename Params, typename = std::enable_if_t<!std::is_same_v<std::decay_t<Params>, EffectInstance>>>
     EffectInstance(Params&& value)
         : params(std::forward<Params>(value)) {}
 
