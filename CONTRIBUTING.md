@@ -4,9 +4,35 @@ Thanks for your interest! This is a code-first, headless, CPU-only motion graphi
 
 ## Getting Started
 
+### Prerequisites
+
+```bash
+# Install build tools
+sudo apt-get install -y build-essential cmake ninja-build
+
+# Install ccache for faster rebuilds (optional but recommended)
+sudo apt-get install -y ccache
+ccache --set-config=max_size=10G
+ccache --set-config=compression=true
+
+# ffmpeg for video export
+sudo apt-get install -y ffmpeg
+```
+
+### Build
+
 1. Fork and clone the repo.
-2. Install dependencies with vcpkg: `cmake --preset linux-release`
-3. Build: `cmake --build --preset linux`
+2. Set vcpkg root and fetch the baseline:
+   ```bash
+   export VCPKG_ROOT=$(pwd)/vcpkg_bootstrap2
+   cd vcpkg_bootstrap2 && git fetch --unshallow 2>/dev/null || git fetch origin && cd ..
+   ```
+   Tip: add `export VCPKG_ROOT=/path/to/Chronon3d/vcpkg_bootstrap2` to your `~/.bashrc`.
+3. Configure and build (ccache is auto-detected):
+   ```bash
+   cmake --preset linux-release
+   cmake --build build/chronon/linux-release -j$(nproc)
+   ```
 4. Run tests: `ctest --preset linux-test`
 
 ## Development Workflow

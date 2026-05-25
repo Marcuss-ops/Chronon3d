@@ -94,17 +94,39 @@ auto result_file = chronon3d::assets::load_svg_path_file("assets/my_icon.svg");
 
 ## Quick Start
 
+### Prerequisites (Linux)
+
+```bash
+# Install build tools
+sudo apt-get install -y build-essential cmake ninja-build
+
+# Install ccache for faster rebuilds (optional but recommended)
+sudo apt-get install -y ccache
+# Configure cache size to your liking (default: 5 GB)
+ccache --set-config=max_size=10G
+ccache --set-config=compression=true
+
+# ffmpeg for video export
+sudo apt-get install -y ffmpeg
+```
+
 ### 1. Build (Linux)
 
 ```bash
-# Install vcpkg once
-git clone https://github.com/microsoft/vcpkg ~/vcpkg
-~/vcpkg/bootstrap-vcpkg.sh -disableMetrics
-export VCPKG_ROOT=~/vcpkg
+# Set vcpkg root to the bundled vcpkg clone
+export VCPKG_ROOT=$(pwd)/vcpkg_bootstrap2
 
-# Configure (installs all C++ deps automatically) + build
+# Ensure vcpkg has the required baseline commit (one-time)
+cd vcpkg_bootstrap2 && git fetch --unshallow 2>/dev/null || git fetch origin && cd ..
+
+# Configure + build (ccache auto-detected if installed)
 cmake --preset linux-release
 cmake --build build/chronon/linux-release -j$(nproc)
+```
+
+To make `VCPKG_ROOT` permanent, add it to your shell profile:
+```bash
+echo 'export VCPKG_ROOT=/path/to/Chronon3d/vcpkg_bootstrap2' >> ~/.bashrc
 ```
 
 Or use the helper script which handles vcpkg bootstrap automatically:
