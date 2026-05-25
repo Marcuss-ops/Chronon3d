@@ -106,7 +106,7 @@ endif()
 # ==============================================================================
 
 # 1. Core Impl (Spostato in alto per evitare anomalie di risoluzione del target)
-add_library(chronon3d_core_impl STATIC src/core/trace.cpp src/core/benchmark_report.cpp src/core/render_telemetry_detail.cpp)
+add_library(chronon3d_core_impl STATIC src/core/trace.cpp src/core/benchmark_report.cpp src/core/render_telemetry_detail.cpp src/core/system_metrics.cpp)
 target_include_directories(chronon3d_core_impl PUBLIC include deps/include)
 target_link_libraries(chronon3d_core_impl PUBLIC nlohmann_json::nlohmann_json fmt::fmt spdlog::spdlog_header_only)
 
@@ -284,7 +284,8 @@ set(CHRONON3D_BACKEND_SOFTWARE_SOURCES
     src/backends/software/processors/software_text_processor_shadow.cpp
     src/backends/software/processors/software_text_processor_glow.cpp
     src/backends/software/processors/software_utility_processors.cpp
-    src/backends/text/text_rasterizer_utils.cpp
+    src/backends/text/text_rasterizer_cache.cpp
+    src/backends/text/text_rasterizer_render.cpp
     src/backends/software/rasterizers/line_rasterizer.cpp
     src/backends/software/rasterizers/path_cache.cpp
     src/backends/software/rasterizers/path_fill.cpp
@@ -315,7 +316,9 @@ set(CHRONON3D_BACKEND_SOFTWARE_SOURCES
     src/backends/software/utils/effects/effect_wave.cpp
     src/backends/software/utils/effects/effect_stack.cpp
     src/backends/software/utils/render_hash_utils.cpp
-    src/backends/software/simd/highway_kernels.cpp
+    src/backends/software/simd/highway_yuv_kernels.cpp
+    src/backends/software/simd/highway_color_kernels.cpp
+    src/backends/software/simd/highway_rasterize_kernels.cpp
 )
 add_library(chronon3d_backend_software STATIC ${CHRONON3D_BACKEND_SOFTWARE_SOURCES})
 target_link_libraries(chronon3d_backend_software
@@ -338,7 +341,7 @@ add_library(chronon3d_registry STATIC ${CHRONON3D_REGISTRY_SOURCES})
 target_link_libraries(chronon3d_registry PUBLIC chronon3d) # Rimossa dipendenza diretta circolare da chronon3d_scene
 target_precompile_headers(chronon3d_registry PRIVATE <glm/glm.hpp> <glm/gtc/matrix_transform.hpp> <spdlog/spdlog.h> <fmt/core.h>)
 
-set(CHRONON3D_ASSETS_SOURCES src/assets/render_preflight.cpp src/assets/svg_path_loader.cpp)
+set(CHRONON3D_ASSETS_SOURCES src/assets/render_preflight_req.cpp src/assets/render_preflight_validate.cpp src/assets/render_preflight_format.cpp src/assets/svg_path_loader.cpp)
 add_library(chronon3d_assets STATIC ${CHRONON3D_ASSETS_SOURCES})
 target_link_libraries(chronon3d_assets PUBLIC chronon3d chronon3d_registry)
 

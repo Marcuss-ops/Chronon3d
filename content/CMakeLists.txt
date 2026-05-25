@@ -1,5 +1,10 @@
 add_library(chronon3d_content STATIC
-    text/text_compositions.cpp
+    text/text_helpers.cpp
+    text/text_titles.cpp
+    text/text_effects.cpp
+    text/text_layout.cpp
+    text/text_scrolling.cpp
+    text/text_registrations.cpp
     anims/animation_compositions.cpp
     images/image_compositions.cpp
     2d5/two_point_five_d_compositions.cpp
