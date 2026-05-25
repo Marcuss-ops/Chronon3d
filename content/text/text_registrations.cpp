@@ -22,6 +22,7 @@ Composition text_typewriter_chapter();
 Composition text_animated_sequence();
 Composition text_countdown();
 Composition text_cinematic_intro();
+Composition text_perspective_sweep_demo();
 Composition text_glow_transition();
 Composition text_spring_reveal();
 Composition text_cyberpunk_glitch();
@@ -50,6 +51,7 @@ CHRONON_REGISTER_COMPOSITION("TextTypewriterChapter",   chronon3d::content::text
 CHRONON_REGISTER_COMPOSITION("TextAnimatedSequence",chronon3d::content::text::text_animated_sequence)
 CHRONON_REGISTER_COMPOSITION("TextCountdown",       chronon3d::content::text::text_countdown)
 CHRONON_REGISTER_COMPOSITION("TextCinematicIntro",  chronon3d::content::text::text_cinematic_intro)
+CHRONON_REGISTER_COMPOSITION("TextPerspectiveSweepDemo", chronon3d::content::text::text_perspective_sweep_demo)
 CHRONON_REGISTER_COMPOSITION("TextGlowTransition",  chronon3d::content::text::text_glow_transition)
 CHRONON_REGISTER_COMPOSITION("TextSpringReveal",    chronon3d::content::text::text_spring_reveal)
 CHRONON_REGISTER_COMPOSITION("TextCyberpunkGlitch", chronon3d::content::text::text_cyberpunk_glitch)

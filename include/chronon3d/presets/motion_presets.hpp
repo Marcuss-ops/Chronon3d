@@ -58,14 +58,11 @@ inline MotionObject& tilt_sweep_2_5d(
 }
 
 inline MotionObject& perspective_sweep_text_reveal(
-    MotionObject& obj,
-    Frame start = 0,
-    Frame end = 96
+    MotionObject& obj
 ) {
     return obj
         .preset(MotionPreset::PerspectiveSweepTextReveal)
-        .enable_3d()
-        .time(start, end);
+        .enable_3d();
 }
 
 } // namespace chronon3d::presets::motion
