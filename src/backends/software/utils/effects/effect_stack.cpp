@@ -17,7 +17,9 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
         if (!inst.enabled) continue;
 
         if (auto* p = std::any_cast<BlurParams>(&inst.params)) {
-            if (p->radius > 0.0f) apply_blur(fb, p->radius, clip);
+        if (p->radius > 0.0f) {
+            apply_blur(fb, p->radius, clip);
+        }
 
         } else if (auto* p = std::any_cast<TintParams>(&inst.params)) {
             LayerEffect e;
