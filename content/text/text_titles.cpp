@@ -1,7 +1,11 @@
 #include <chronon3d/core/composition/composition_registration.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
+#include <chronon3d/presets/motion_object.hpp>
+#include <chronon3d/presets/motion_presets.hpp>
+#include <chronon3d/presets/motion_renderer.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
+#include <chronon3d/scene/camera/camera_motion_presets.hpp>
 #include <chronon3d/math/color.hpp>
 
 #include <string>
@@ -191,8 +195,7 @@ Composition text_cinematic_intro() {
             });
         });
 
-        f32 cam_z = interpolate(ctx.frame, 0, 120, -1000.0f, -600.0f, Easing::OutCubic);
-        s.camera().enable(true).position({0, 0, cam_z}).zoom(800).look_at({0, 0, 0});
+        s.camera().set(chronon3d::camera_motion::dramatic_push(p, 800.0f));
 
         s.layer("bg_title", [p](LayerBuilder& l) {
             f32 op = interpolate(p, 0.0f, 0.5f, 0.0f, 0.15f, Easing::Linear);
@@ -243,6 +246,86 @@ Composition text_cinematic_intro() {
                 .tracking = 4.0f,
             }, {W * 0.8f, 60.0f});
         });
+
+        return s.build();
+    });
+}
+
+Composition text_perspective_sweep_demo() {
+    return composition({
+        .name = "TextPerspectiveSweepDemo",
+        .width = 1920, .height = 1080,
+        .duration = 120,
+    }, [](const FrameContext& ctx) {
+        SceneBuilder s(ctx);
+        const f32 p = ctx.progress();
+
+        s.camera().set(chronon3d::camera_motion::dramatic_push(p, 1200.0f));
+
+        s.layer("bg", [](LayerBuilder& l) {
+            l.fill(Color{0.004f, 0.006f, 0.014f, 1.0f});
+        });
+
+        s.layer("grid", [p](LayerBuilder& l) {
+            l.opacity(0.12f);
+            l.grid_background("demo_grid", {
+                .size = {W * 1.5f, H * 1.5f},
+                .offset = {0.0f, p * 30.0f},
+                .bg_color = {0, 0, 0, 0},
+                .grid_color = {0.25f, 0.52f, 1.0f, 0.45f},
+                .spacing = 96.0f,
+                .major_every = 4,
+            });
+        });
+
+        s.layer("panel", [](LayerBuilder& l) {
+            l.opacity(0.78f).pin_to(Anchor::Center);
+            l.rounded_rect("panel_bg", {
+                .size = {W * 0.76f, 360.0f},
+                .radius = 28.0f,
+                .color = Color{0.05f, 0.07f, 0.13f, 0.84f},
+            });
+        });
+
+        auto title = chronon3d::presets::motion::MotionObject::text(
+            "demo_title",
+            "PERSPECTIVE SWEEP"
+        )
+            .at({0.0f, -42.0f, 2.0f})
+            .size({W * 0.72f, 120.0f})
+            .font_path("assets/fonts/Inter-Bold.ttf")
+            .font_family("Inter")
+            .font_weight(800)
+            .font_size(70.0f)
+            .tracking(10.0f)
+            .align(chronon3d::presets::motion::TextAlign::Center)
+            .vertical_align(VerticalAlign::Middle)
+            .color({0.92f, 0.96f, 1.0f, 1.0f})
+            .opacity(1.0f)
+            .glow(true)
+            .time(0, 120);
+        chronon3d::presets::motion::perspective_sweep_text_reveal(title);
+
+        auto subtitle = chronon3d::presets::motion::MotionObject::text(
+            "demo_sub",
+            "shared preset demo"
+        )
+            .at({0.0f, 76.0f, 2.0f})
+            .size({W * 0.52f, 60.0f})
+            .font_path("assets/fonts/Inter-Regular.ttf")
+            .font_family("Inter")
+            .font_weight(500)
+            .font_size(28.0f)
+            .tracking(2.0f)
+            .align(chronon3d::presets::motion::TextAlign::Center)
+            .vertical_align(VerticalAlign::Middle)
+            .color({0.72f, 0.80f, 0.92f, 1.0f})
+            .opacity(0.92f)
+            .time(18, 120);
+        chronon3d::presets::motion::perspective_sweep_text_reveal(subtitle);
+
+        chronon3d::presets::motion::draw_motion_object(s, ctx, title);
+        chronon3d::presets::motion::draw_motion_object(s, ctx, subtitle);
 
         return s.build();
     });
@@ -467,10 +550,13 @@ Composition text_credits_3d() {
             });
         }
 
-        s.camera().enable(true)
-            .position({0.0f, 350.0f, -400.0f})
-            .zoom(700.0f)
-            .look_at({0.0f, -100.0f, 300.0f});
+        s.camera().set(chronon3d::camera_motion::dolly(p, {
+            .from_z = -400.0f,
+            .to_z = -220.0f,
+            .position_xy = {0.0f, 350.0f, 0.0f},
+            .target = {0.0f, -100.0f, 300.0f},
+            .zoom = 700.0f,
+        }));
 
         f32 scroll_z = interpolate(p, 0.0f, 1.0f, 1200.0f, -600.0f, Easing::Linear);
 

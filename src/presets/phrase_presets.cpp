@@ -1,4 +1,5 @@
 #include <chronon3d/presets/phrase/phrase_presets.hpp>
+#include <chronon3d/presets/motion_presets.hpp>
 
 namespace chronon3d::presets::phrase {
 
@@ -181,14 +182,16 @@ MotionObject make_phrase(PhrasePreset preset, PhraseParams p) {
             std::vector<MotionObject> children;
             children.reserve(3);
             children.push_back(detail::make_panel("bg", p, MotionPreset::FadeIn, p.box_size, p.corner_radius));
-            children.push_back(detail::make_title_text(
+            auto title = detail::make_title_text(
                 "title",
                 p,
-                MotionPreset::TypewriterReveal,
+                MotionPreset::None,
                 {0.0f, -10.0f, 2.0f},
                 p.title_size,
                 TextAlign::Center
-            ));
+            );
+            motion::perspective_sweep_text_reveal(title);
+            children.push_back(std::move(title));
             if (!p.subtitle.empty()) {
                 children.push_back(detail::make_subtitle_text(
                     "subtitle",
@@ -200,9 +203,9 @@ MotionObject make_phrase(PhrasePreset preset, PhraseParams p) {
                 ));
             }
             return MotionObject::group(std::move(p.id), std::move(children))
-                .at(p.position)
-                .preset(MotionPreset::TypewriterReveal)
-                .time(p.start, p.end);
+            .at(p.position)
+            .preset(MotionPreset::FadeIn)
+            .time(p.start, p.end);
         }
 
     case PhrasePreset::BounceTitle:

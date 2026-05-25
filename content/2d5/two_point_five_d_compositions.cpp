@@ -2,6 +2,7 @@
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
+#include <chronon3d/scene/camera/camera_motion_presets.hpp>
 #include <chronon3d/math/color.hpp>
 
 #include <cmath>
@@ -40,7 +41,12 @@ Composition parallax_simple() {
         f32 p = ctx.progress();
         f32 cam_x = -p * 400.0f;
 
-        s.camera().enable(true).position({0, 0, -800}).zoom(800).look_at({0, 0, 0});
+        s.camera().set(chronon3d::camera_motion::dolly(p, {
+            .from_z = -900.0f,
+            .to_z = -720.0f,
+            .target = {0.0f, 0.0f, 0.0f},
+            .zoom = 800.0f,
+        }));
 
         s.layer("far_bg", [&](LayerBuilder& l) {
             l.enable_3d().position({cam_x * 0.2f, 0, 300});
@@ -113,9 +119,15 @@ Composition depth_scene() {
     }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         f32 p = ctx.progress();
-        f32 cam_z = -800.0f + p * 300.0f;
+        f32 cam_z = chronon3d::camera_motion::lerp(-800.0f, -500.0f, chronon3d::camera_motion::smoothstep(p));
 
-        s.camera().enable(true).position({0, 0, cam_z}).zoom(800).look_at({0, 0, 0});
+        s.camera().set(chronon3d::camera_motion::push_in_tilt(p, {
+            .from_z = -800.0f,
+            .to_z = -500.0f,
+            .from_tilt = -4.0f,
+            .to_tilt = 4.0f,
+            .zoom = 800.0f,
+        }));
         s.ambient_light(Color{1, 1, 1, 1}, 0.2f);
         s.directional_light(Vec3{-0.5f, 1.0f, -0.5f}, Color{1, 1, 1, 1}, 0.8f);
 
@@ -200,7 +212,7 @@ Composition card_flip() {
         f32 scale_x = std::cos(angle_y * 0.0174533f);
         bool show_front = scale_x > 0.0f;
 
-        s.camera().enable(true).position({0, 0, -1000}).zoom(800).look_at({0, 0, 0});
+        s.camera().set(chronon3d::camera_motion::orbit_small(p, 800.0f));
 
         s.layer("bg", [](LayerBuilder& l) {
             l.fill(Color{0.008f, 0.012f, 0.025f, 1.0f});
@@ -259,7 +271,7 @@ Composition parallax_text() {
         f32 p = ctx.progress();
         f32 move = -p * 300.0f;
 
-        s.camera().enable(true).position({0, 0, -900}).zoom(800).look_at({0, 0, 0});
+        s.camera().set(chronon3d::camera_motion::parallax_sweep(p, 120.0f, -900.0f, 800.0f));
 
         for (int i = 0; i < 20; ++i) {
             s.layer("star_" + std::to_string(i), [&, i](LayerBuilder& l) {
