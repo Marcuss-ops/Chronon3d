@@ -144,7 +144,8 @@ raster::BBox compute_layer_bbox(const LayerGraphItem& item, const RenderGraphCon
         layer_bbox.y1 = static_cast<i32>(std::ceil(max_y));
     } else if (use_local) {
         Mat4 model = item.world_matrix;
-        if (should_use_centered_rendering(item, ctx)) {
+        bool centered_render = should_use_centered_rendering(item, ctx);
+        if (centered_render) {
             model = math::translate(Vec3(-ctx.width * 0.5f, -ctx.height * 0.5f, 0.0f)) * model;
         }
         const Mat4 dst_canvas_offset = math::translate(Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));

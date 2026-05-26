@@ -61,7 +61,7 @@ TEST_CASE("AdjustmentLayer: Null layer draws nothing") {
         SceneBuilder s(ctx);
         s.rect("bg", {.size={80,80}, .color=Color::white(), .pos={40,40,0}});
         s.null_layer("null-layer", [](LayerBuilder& l) {
-            l.position({40,40,0});
+            l.position({0,0,0});
         });
         return s.build();
     });

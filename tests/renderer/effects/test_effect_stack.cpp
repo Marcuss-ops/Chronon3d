@@ -124,7 +124,7 @@ TEST_CASE("EffectStack: tint applied via stack produces coloured output") {
     auto fb = render_stack_fn([](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         s.layer("l", [](LayerBuilder& l) {
-            l.position({40,40,0});
+            l.position({0,0,0});
             l.rect("r", {.size={60,60}, .color=Color::white()});
             l.tint(Color{1,0,0,1}, 1.0f);  // full red tint
         });
