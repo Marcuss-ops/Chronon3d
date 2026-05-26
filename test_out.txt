@@ -1,0 +1,2639 @@
+[doctest] doctest version is "2.5.0"
+[doctest] run with "--help" for options
+Sharded Cache (16 shards) duration: 17ms
+Single Shard Cache duration: 51ms
+[2026-05-25 20:08:53.598] [info] DEBUG DRAW SHAPE: bbox=[0, 0, 320, 180] model_trans=[0, 0] size=[320, 180] fb=[320, 180]
+[2026-05-25 20:08:53.601] [info] DEBUG DRAW SHAPE: bbox=[0, 0, 320, 180] model_trans=[0, 0] size=[320, 180] fb=[320, 180]
+[2026-05-25 20:08:53.605] [info] DEBUG CULL: layer=test_layer bbox=[28, 28, 72, 72] is_culled=false reason=
+[2026-05-25 20:08:53.606] [info] DEBUG DRAW SHAPE: bbox=[28, 28, 72, 72] model_trans=[30, 30] size=[40, 40] fb=[100, 100]
+[2026-05-25 20:08:53.606] [info] DEBUG CULL: layer=test_layer bbox=[28, 28, 72, 72] is_culled=false reason=
+[2026-05-25 20:08:53.606] [info] DEBUG DRAW SHAPE: bbox=[28, 28, 72, 72] model_trans=[30, 30] size=[40, 40] fb=[100, 100]
+[2026-05-25 20:08:53.608] [info] DEBUG CULL: layer=test_layer bbox=[28, 28, 72, 72] is_culled=false reason=
+[2026-05-25 20:08:53.608] [info] DEBUG DRAW SHAPE: bbox=[28, 28, 72, 72] model_trans=[30, 30] size=[40, 40] fb=[100, 100]
+[2026-05-25 20:08:53.609] [info] DEBUG CULL: layer=test_layer bbox=[28, 28, 72, 72] is_culled=false reason=
+[2026-05-25 20:08:53.609] [info] DEBUG DRAW SHAPE: bbox=[28, 28, 72, 72] model_trans=[30, 30] size=[40, 40] fb=[100, 100]
+[2026-05-25 20:08:53.609] [info] DEBUG CULL: layer=test_layer bbox=[28, 28, 72, 72] is_culled=false reason=
+[2026-05-25 20:08:53.609] [info] DEBUG DRAW SHAPE: bbox=[28, 28, 72, 72] model_trans=[30, 30] size=[40, 40] fb=[100, 100]
+[2026-05-25 20:08:53.610] [info] DEBUG CULL: layer=test_layer bbox=[28, 28, 72, 72] is_culled=false reason=
+[2026-05-25 20:08:53.610] [info] DEBUG DRAW SHAPE: bbox=[28, 28, 72, 72] model_trans=[30, 30] size=[40, 40] fb=[100, 100]
+[2026-05-25 20:08:53.611] [info] DEBUG CULL: layer=test_layer bbox=[28, 28, 72, 72] is_culled=false reason=
+[2026-05-25 20:08:53.611] [info] DEBUG DRAW SHAPE: bbox=[28, 28, 72, 72] model_trans=[30, 30] size=[40, 40] fb=[100, 100]
+[2026-05-25 20:08:53.612] [info] DEBUG CULL: layer=test_layer bbox=[28, 28, 72, 72] is_culled=false reason=
+[2026-05-25 20:08:53.613] [info] DEBUG DRAW SHAPE: bbox=[28, 28, 72, 72] model_trans=[30, 30] size=[40, 40] fb=[100, 100]
+[2026-05-25 20:08:53.613] [info] DEBUG CULL: layer=test_layer bbox=[28, 28, 72, 72] is_culled=false reason=
+[2026-05-25 20:08:53.614] [info] DEBUG WHITE RECT EXECUTE: name=white_rect centered=true canvas_center=[50, 50] override_trans=[-20, -20] state_matrix=[30, 30]
+[2026-05-25 20:08:53.614] [info] DEBUG DRAW SHAPE: bbox=[28, 28, 72, 72] model_trans=[30, 30] size=[40, 40] fb=[100, 100]
+[2026-05-25 20:08:53.614] [info] DEBUG CULL: layer=test_layer bbox=[28, 28, 72, 72] is_culled=false reason=
+[2026-05-25 20:08:53.614] [info] DEBUG CULL: layer=test_layer bbox=[28, 28, 72, 72] is_culled=false reason=
+[2026-05-25 20:08:53.615] [info] DEBUG DRAW SHAPE: bbox=[28, 28, 72, 72] model_trans=[30, 30] size=[40, 40] fb=[100, 100]
+[2026-05-25 20:08:53.615] [info] DEBUG CULL: layer=test_layer bbox=[28, 28, 72, 72] is_culled=false reason=
+[2026-05-25 20:08:53.615] [info] DEBUG DRAW SHAPE: bbox=[28, 28, 72, 72] model_trans=[30, 30] size=[40, 40] fb=[100, 100]
+[2026-05-25 20:08:53.616] [info] DEBUG DRAW SHAPE: bbox=[47, 47, 64, 64] model_trans=[49, 49] size=[30, 30] fb=[64, 64]
+[2026-05-25 20:08:53.618] [info] DEBUG DRAW SHAPE: bbox=[32, 15, 96, 49] model_trans=[34, 17] size=[60, 30] fb=[128, 64]
+[2026-05-25 20:08:53.619] [info] DEBUG DRAW SHAPE: bbox=[20, 20, 32, 32] model_trans=[22, 22] size=[20, 20] fb=[32, 32]
+[2026-05-25 20:08:53.620] [info] DEBUG CULL: layer=bg bbox=[-912, -492, 1012, 592] is_culled=false reason=
+[2026-05-25 20:08:53.621] [info] DEBUG CULL: layer=trans_layer bbox=[8, 8, 92, 92] is_culled=false reason=
+[2026-05-25 20:08:53.621] [info] DEBUG DRAW SHAPE: bbox=[8, 8, 92, 92] model_trans=[10, 10] size=[80, 80] fb=[100, 100]
+[2026-05-25 20:08:53.621] [info] DEBUG DRAW SHAPE: bbox=[0, 0, 100, 100] model_trans=[-910, -490] size=[1920, 1080] fb=[100, 100]
+[2026-05-25 20:08:53.621] [info] DEBUG CULL: layer=bg bbox=[-912, -492, 1012, 592] is_culled=false reason=
+[2026-05-25 20:08:53.621] [info] DEBUG CULL: layer=trans_layer bbox=[8, 8, 92, 92] is_culled=false reason=
+[2026-05-25 20:08:53.622] [info] DEBUG DRAW SHAPE: bbox=[8, 8, 92, 92] model_trans=[10, 10] size=[80, 80] fb=[100, 100]
+[2026-05-25 20:08:53.622] [info] DEBUG CULL: layer=bg bbox=[-912, -492, 1012, 592] is_culled=false reason=
+[2026-05-25 20:08:53.622] [info] DEBUG CULL: layer=trans_layer bbox=[8, 8, 92, 92] is_culled=false reason=
+[2026-05-25 20:08:53.622] [info] DEBUG DRAW SHAPE: bbox=[8, 8, 92, 92] model_trans=[10, 10] size=[80, 80] fb=[100, 100]
+[2026-05-25 20:08:53.623] [info] DEBUG CULL: layer=bg bbox=[-912, -492, 1012, 592] is_culled=false reason=
+[2026-05-25 20:08:53.623] [info] DEBUG CULL: layer=trans_layer bbox=[8, 8, 92, 92] is_culled=false reason=
+[2026-05-25 20:08:53.623] [info] DEBUG DRAW SHAPE: bbox=[0, 0, 100, 100] model_trans=[-910, -490] size=[1920, 1080] fb=[100, 100]
+[2026-05-25 20:08:53.623] [info] DEBUG DRAW SHAPE: bbox=[8, 8, 92, 92] model_trans=[10, 10] size=[80, 80] fb=[100, 100]
+[2026-05-25 20:08:53.624] [info] DEBUG CULL: layer=bg bbox=[-912, -492, 1012, 592] is_culled=false reason=
+[2026-05-25 20:08:53.624] [info] DEBUG CULL: layer=trans_layer bbox=[8, 8, 92, 92] is_culled=false reason=
+[2026-05-25 20:08:53.624] [info] DEBUG DRAW SHAPE: bbox=[8, 8, 92, 92] model_trans=[10, 10] size=[80, 80] fb=[100, 100]
+[2026-05-25 20:08:53.624] [info] DEBUG CULL: layer=bg bbox=[-912, -492, 1012, 592] is_culled=false reason=
+[2026-05-25 20:08:53.624] [info] DEBUG CULL: layer=trans_layer bbox=[8, 8, 92, 92] is_culled=false reason=
+[2026-05-25 20:08:53.625] [info] DEBUG DRAW SHAPE: bbox=[8, 8, 92, 92] model_trans=[10, 10] size=[80, 80] fb=[100, 100]
+[2026-05-25 20:08:53.625] [info] DEBUG CULL: layer=bg bbox=[-912, -492, 1012, 592] is_culled=false reason=
+[2026-05-25 20:08:53.625] [info] DEBUG CULL: layer=trans_layer bbox=[8, 8, 92, 92] is_culled=false reason=
+[2026-05-25 20:08:53.625] [info] DEBUG DRAW SHAPE: bbox=[8, 8, 92, 92] model_trans=[10, 10] size=[80, 80] fb=[100, 100]
+[2026-05-25 20:08:53.626] [info] DEBUG CULL: layer=bg bbox=[-912, -492, 1012, 592] is_culled=false reason=
+[2026-05-25 20:08:53.626] [info] DEBUG CULL: layer=trans_layer bbox=[8, 8, 92, 92] is_culled=false reason=
+[2026-05-25 20:08:53.626] [info] DEBUG DRAW SHAPE: bbox=[8, 8, 92, 92] model_trans=[10, 10] size=[80, 80] fb=[100, 100]
+[2026-05-25 20:08:53.626] [info] DEBUG CULL: layer=bg bbox=[-912, -492, 1012, 592] is_culled=false reason=
+[2026-05-25 20:08:53.626] [info] DEBUG CULL: layer=trans_layer bbox=[8, 8, 92, 92] is_culled=false reason=
+[2026-05-25 20:08:53.627] [info] DEBUG DRAW SHAPE: bbox=[8, 8, 92, 92] model_trans=[10, 10] size=[80, 80] fb=[100, 100]
+[2026-05-25 20:08:53.627] [info] DEBUG CULL: layer=bg bbox=[-912, -492, 1012, 592] is_culled=false reason=
+[2026-05-25 20:08:53.627] [info] DEBUG CULL: layer=trans_layer bbox=[8, 8, 92, 92] is_culled=false reason=
+[2026-05-25 20:08:53.628] [info] DEBUG DRAW SHAPE: bbox=[8, 8, 92, 92] model_trans=[10, 10] size=[80, 80] fb=[100, 100]
+[2026-05-25 20:08:53.628] [info] DEBUG CULL: layer=bg bbox=[-912, -492, 1012, 592] is_culled=false reason=
+[2026-05-25 20:08:53.628] [info] DEBUG CULL: layer=trans_layer bbox=[8, 8, 92, 92] is_culled=false reason=
+[2026-05-25 20:08:53.628] [info] DEBUG DRAW SHAPE: bbox=[8, 8, 92, 92] model_trans=[10, 10] size=[80, 80] fb=[100, 100]
+[2026-05-25 20:08:53.629] [info] DEBUG CULL: layer=bg bbox=[-912, -492, 1012, 592] is_culled=false reason=
+[2026-05-25 20:08:53.629] [info] DEBUG CULL: layer=trans_layer bbox=[8, 8, 92, 92] is_culled=false reason=
+[2026-05-25 20:08:53.629] [info] DEBUG DRAW SHAPE: bbox=[8, 8, 92, 92] model_trans=[10, 10] size=[80, 80] fb=[100, 100]
+[2026-05-25 20:08:53.630] [info] DEBUG CULL: layer=bg bbox=[-912, -492, 1012, 592] is_culled=false reason=
+[2026-05-25 20:08:53.630] [info] DEBUG CULL: layer=trans_layer bbox=[8, 8, 92, 92] is_culled=false reason=
+[2026-05-25 20:08:53.630] [info] DEBUG DRAW SHAPE: bbox=[8, 8, 92, 92] model_trans=[10, 10] size=[80, 80] fb=[100, 100]
+[2026-05-25 20:08:53.630] [info] DEBUG CULL: layer=bg bbox=[-912, -492, 1012, 592] is_culled=false reason=
+[2026-05-25 20:08:53.630] [info] DEBUG CULL: layer=trans_layer bbox=[8, 8, 92, 92] is_culled=false reason=
+[2026-05-25 20:08:53.630] [info] DEBUG DRAW SHAPE: bbox=[8, 8, 92, 92] model_trans=[10, 10] size=[80, 80] fb=[100, 100]
+[2026-05-25 20:08:53.631] [info] DEBUG CULL: layer=bg bbox=[-912, -492, 1012, 592] is_culled=false reason=
+[2026-05-25 20:08:53.631] [info] DEBUG CULL: layer=trans_layer bbox=[8, 8, 92, 92] is_culled=false reason=
+[2026-05-25 20:08:53.631] [info] DEBUG DRAW SHAPE: bbox=[8, 8, 92, 92] model_trans=[10, 10] size=[80, 80] fb=[100, 100]
+[2026-05-25 20:08:53.631] [info] DEBUG CULL: layer=bg bbox=[-912, -492, 1012, 592] is_culled=false reason=
+[2026-05-25 20:08:53.631] [info] DEBUG CULL: layer=trans_layer bbox=[8, 8, 92, 92] is_culled=false reason=
+[2026-05-25 20:08:53.631] [info] DEBUG DRAW SHAPE: bbox=[8, 8, 92, 92] model_trans=[10, 10] size=[80, 80] fb=[100, 100]
+[2026-05-25 20:08:53.632] [info] DEBUG CULL: layer=bg bbox=[-912, -492, 1012, 592] is_culled=false reason=
+[2026-05-25 20:08:53.632] [info] DEBUG CULL: layer=trans_layer bbox=[8, 8, 92, 92] is_culled=false reason=
+[2026-05-25 20:08:53.632] [info] DEBUG DRAW SHAPE: bbox=[8, 8, 92, 92] model_trans=[10, 10] size=[80, 80] fb=[100, 100]
+[2026-05-25 20:08:53.632] [info] DEBUG CULL: layer=bg bbox=[-912, -492, 1012, 592] is_culled=false reason=
+[2026-05-25 20:08:53.632] [info] DEBUG CULL: layer=trans_layer bbox=[8, 8, 92, 92] is_culled=false reason=
+[2026-05-25 20:08:53.632] [info] DEBUG DRAW SHAPE: bbox=[8, 8, 92, 92] model_trans=[10, 10] size=[80, 80] fb=[100, 100]
+[2026-05-25 20:08:53.632] [info] DEBUG CULL: layer=bg bbox=[-912, -492, 1012, 592] is_culled=false reason=
+[2026-05-25 20:08:53.632] [info] DEBUG CULL: layer=trans_layer bbox=[8, 8, 92, 92] is_culled=false reason=
+[2026-05-25 20:08:53.633] [info] DEBUG DRAW SHAPE: bbox=[8, 8, 92, 92] model_trans=[10, 10] size=[80, 80] fb=[100, 100]
+[2026-05-25 20:08:53.635] [info] DEBUG CULL: layer=bg bbox=[-912, -492, 1012, 592] is_culled=false reason=
+[2026-05-25 20:08:53.635] [info] DEBUG CULL: layer=trans_layer bbox=[8, 8, 92, 92] is_culled=false reason=
+[2026-05-25 20:08:53.635] [info] DEBUG DRAW SHAPE: bbox=[8, 8, 92, 92] model_trans=[10, 10] size=[80, 80] fb=[100, 100]
+[2026-05-25 20:08:53.638] [info] DEBUG CULL: layer=bg bbox=[-912, -492, 1012, 592] is_culled=false reason=
+[2026-05-25 20:08:53.638] [info] DEBUG CULL: layer=trans_layer bbox=[8, 8, 92, 92] is_culled=false reason=
+[2026-05-25 20:08:53.638] [info] DEBUG DRAW SHAPE: bbox=[8, 8, 92, 92] model_trans=[10, 10] size=[80, 80] fb=[100, 100]
+[2026-05-25 20:08:53.639] [info] DEBUG CULL: layer=bg bbox=[-912, -492, 1012, 592] is_culled=false reason=
+[2026-05-25 20:08:53.639] [info] DEBUG CULL: layer=trans_layer bbox=[8, 8, 92, 92] is_culled=false reason=
+[2026-05-25 20:08:53.639] [info] DEBUG DRAW SHAPE: bbox=[8, 8, 92, 92] model_trans=[10, 10] size=[80, 80] fb=[100, 100]
+[2026-05-25 20:08:53.644] [info] DEBUG CULL: layer=bg bbox=[-912, -492, 1012, 592] is_culled=false reason=
+[2026-05-25 20:08:53.644] [info] DEBUG CULL: layer=trans_layer bbox=[8, 8, 92, 92] is_culled=false reason=
+[2026-05-25 20:08:53.644] [info] DEBUG DRAW SHAPE: bbox=[8, 8, 92, 92] model_trans=[10, 10] size=[80, 80] fb=[100, 100]
+[2026-05-25 20:08:53.649] [info] DEBUG CULL: layer=bg bbox=[-912, -492, 1012, 592] is_culled=false reason=
+[2026-05-25 20:08:53.649] [info] DEBUG CULL: layer=trans_layer bbox=[8, 8, 92, 92] is_culled=false reason=
+[2026-05-25 20:08:53.649] [info] DEBUG DRAW SHAPE: bbox=[8, 8, 92, 92] model_trans=[10, 10] size=[80, 80] fb=[100, 100]
+[2026-05-25 20:08:53.650] [info] DEBUG CULL: layer=bg bbox=[-912, -492, 1012, 592] is_culled=false reason=
+[2026-05-25 20:08:53.650] [info] DEBUG CULL: layer=trans_layer bbox=[8, 8, 92, 92] is_culled=false reason=
+[2026-05-25 20:08:53.650] [info] DEBUG DRAW SHAPE: bbox=[8, 8, 92, 92] model_trans=[10, 10] size=[80, 80] fb=[100, 100]
+[2026-05-25 20:08:53.650] [info] DEBUG DRAW SHAPE: bbox=[0, 0, 100, 100] model_trans=[-910, -490] size=[1920, 1080] fb=[100, 100]
+[2026-05-25 20:08:53.653] [info] DEBUG CULL: layer=bg bbox=[-912, -492, 1012, 592] is_culled=false reason=
+[2026-05-25 20:08:53.653] [info] DEBUG CULL: layer=trans_layer bbox=[8, 8, 92, 92] is_culled=false reason=
+[2026-05-25 20:08:53.653] [info] DEBUG DRAW SHAPE: bbox=[8, 8, 92, 92] model_trans=[10, 10] size=[80, 80] fb=[100, 100]
+[2026-05-25 20:08:53.656] [info] DEBUG CULL: layer=bg bbox=[-912, -492, 1012, 592] is_culled=false reason=
+[2026-05-25 20:08:53.656] [info] DEBUG CULL: layer=trans_layer bbox=[8, 8, 92, 92] is_culled=false reason=
+[2026-05-25 20:08:53.656] [info] DEBUG DRAW SHAPE: bbox=[8, 8, 92, 92] model_trans=[10, 10] size=[80, 80] fb=[100, 100]
+[2026-05-25 20:08:53.656] [info] DEBUG CULL: layer=bg bbox=[-912, -492, 1012, 592] is_culled=false reason=
+[2026-05-25 20:08:53.657] [info] DEBUG CULL: layer=trans_layer bbox=[8, 8, 92, 92] is_culled=false reason=
+[2026-05-25 20:08:53.657] [info] DEBUG DRAW SHAPE: bbox=[8, 8, 92, 92] model_trans=[10, 10] size=[80, 80] fb=[100, 100]
+[2026-05-25 20:08:53.663] [info] DEBUG CULL: layer=bg bbox=[-912, -492, 1012, 592] is_culled=false reason=
+[2026-05-25 20:08:53.663] [info] DEBUG CULL: layer=trans_layer bbox=[8, 8, 92, 92] is_culled=false reason=
+[2026-05-25 20:08:53.663] [info] DEBUG DRAW SHAPE: bbox=[8, 8, 92, 92] model_trans=[10, 10] size=[80, 80] fb=[100, 100]
+[2026-05-25 20:08:53.668] [info] DEBUG CULL: layer=bg bbox=[-912, -492, 1012, 592] is_culled=false reason=
+[2026-05-25 20:08:53.668] [info] DEBUG CULL: layer=trans_layer bbox=[8, 8, 92, 92] is_culled=false reason=
+[2026-05-25 20:08:53.668] [info] DEBUG DRAW SHAPE: bbox=[8, 8, 92, 92] model_trans=[10, 10] size=[80, 80] fb=[100, 100]
+[2026-05-25 20:08:53.669] [info] DEBUG CULL: layer=content bbox=[238, 133, 402, 227] is_culled=false reason=
+[2026-05-25 20:08:53.678] [info] DEBUG DRAW SHAPE: bbox=[238, 133, 402, 227] model_trans=[240, 135] size=[160, 90] fb=[640, 360]
+[2026-05-25 20:08:53.700] [info] DEBUG CULL: layer=content bbox=[238, 133, 402, 227] is_culled=false reason=
+[2026-05-25 20:08:53.705] [info] ImageCache: loaded 'output/debug/render_graph_unified/white_asset.png' (64x64) in 0.060ms
+[2026-05-25 20:08:53.727] [info] DEBUG CULL: layer=content bbox=[338, 183, 503, 278] is_culled=false reason=
+[2026-05-25 20:08:53.730] [info] DEBUG DRAW SHAPE: bbox=[238, 133, 402, 227] model_trans=[240, 135] size=[160, 90] fb=[640, 360]
+[2026-05-25 20:08:53.752] [info] DEBUG CULL: layer=content bbox=[338, 183, 503, 278] is_culled=false reason=
+[2026-05-25 20:08:53.778] [info] DEBUG CULL: layer=content bbox=[156, 156, 484, 204] is_culled=false reason=
+[2026-05-25 20:08:53.782] [info] DEBUG DRAW SHAPE: bbox=[238, 133, 402, 227] model_trans=[240, 135] size=[160, 90] fb=[640, 360]
+[2026-05-25 20:08:53.803] [info] DEBUG CULL: layer=content bbox=[156, 156, 484, 204] is_culled=false reason=
+[2026-05-25 20:08:53.826] [info] DEBUG CULL: layer=content bbox=[228, 113, 412, 247] is_culled=false reason=
+[2026-05-25 20:08:53.828] [info] DEBUG DRAW SHAPE: bbox=[238, 133, 402, 227] model_trans=[240.00003, 135] size=[160, 90] fb=[640, 360]
+[2026-05-25 20:08:53.848] [info] DEBUG CULL: layer=content bbox=[228, 113, 412, 247] is_culled=false reason=
+[2026-05-25 20:08:53.872] [info] DEBUG SORT: Before sorting:
+[2026-05-25 20:08:53.872] [info] DEBUG SORT: name=content depth=800.00 insertion_index=0
+[2026-05-25 20:08:53.872] [info] DEBUG SORT: After sorting:
+[2026-05-25 20:08:53.872] [info] DEBUG SORT: name=content depth=800.00 insertion_index=0
+[2026-05-25 20:08:53.872] [info] DEBUG CULL: layer=content bbox=[235, 138, 405, 220] is_culled=false reason=
+[2026-05-25 20:08:53.874] [info] DEBUG DRAW SHAPE: bbox=[238, 133, 402, 227] model_trans=[240, 135] size=[160, 90] fb=[640, 360]
+[2026-05-25 20:08:53.894] [info] DEBUG SORT: Before sorting:
+[2026-05-25 20:08:53.894] [info] DEBUG SORT: name=content depth=800.00 insertion_index=0
+[2026-05-25 20:08:53.894] [info] DEBUG SORT: After sorting:
+[2026-05-25 20:08:53.894] [info] DEBUG SORT: name=content depth=800.00 insertion_index=0
+[2026-05-25 20:08:53.894] [info] DEBUG CULL: layer=content bbox=[235, 138, 405, 220] is_culled=false reason=
+[2026-05-25 20:08:53.918] [info] DEBUG SORT: Before sorting:
+[2026-05-25 20:08:53.918] [info] DEBUG SORT: name=blue_far depth=1050.00 insertion_index=0
+[2026-05-25 20:08:53.918] [info] DEBUG SORT: name=red_near depth=550.00 insertion_index=1
+[2026-05-25 20:08:53.918] [info] DEBUG SORT: After sorting:
+[2026-05-25 20:08:53.918] [info] DEBUG SORT: name=blue_far depth=1050.00 insertion_index=0
+[2026-05-25 20:08:53.918] [info] DEBUG SORT: name=red_near depth=550.00 insertion_index=1
+[2026-05-25 20:08:53.918] [info] DEBUG CULL: layer=blue_far bbox=[120, 56, 520, 304] is_culled=false reason=
+[2026-05-25 20:08:53.918] [info] DEBUG CULL: layer=red_near bbox=[11, -12, 629, 373] is_culled=false reason=
+[2026-05-25 20:08:53.921] [info] DEBUG DRAW SHAPE: bbox=[58, 18, 582, 342] model_trans=[60, 20] size=[520, 320] fb=[640, 360]
+[2026-05-25 20:08:53.921] [info] DEBUG DRAW SHAPE: bbox=[108, 48, 532, 312] model_trans=[110, 50] size=[420, 260] fb=[640, 360]
+[2026-05-25 20:08:53.927] [info] [sampling-debug-pre] x=100 y=100 h_row=[169.094,125.344,1.000] sx=169.094 sy=125.344 bounds=[100.000,540.000,40.000,320.000]
+[2026-05-25 20:08:53.927] [info] [sampling-debug] x=100 y=100 sx=169.094 sy=125.344 src_color=[1.000,0.000,0.000,1.000]
+[2026-05-25 20:08:53.970] [info] DEBUG SORT: Before sorting:
+[2026-05-25 20:08:53.970] [info] DEBUG SORT: name=ref_rect depth=800.00 insertion_index=0
+[2026-05-25 20:08:53.970] [info] DEBUG SORT: name=test_box depth=800.00 insertion_index=1
+[2026-05-25 20:08:53.970] [info] DEBUG SORT: After sorting:
+[2026-05-25 20:08:53.970] [info] DEBUG SORT: name=ref_rect depth=800.00 insertion_index=0
+[2026-05-25 20:08:53.970] [info] DEBUG SORT: name=test_box depth=800.00 insertion_index=1
+[2026-05-25 20:08:53.970] [info] DEBUG CULL: layer=ref_rect bbox=[78, 118, 202, 242] is_culled=false reason=
+[2026-05-25 20:08:53.970] [info] DEBUG CULL: layer=test_box bbox=[318, 178, 442, 302] is_culled=false reason=
+[2026-05-25 20:08:53.974] [info] DEBUG DRAW SHAPE: bbox=[78, 118, 202, 242] model_trans=[80, 120] size=[120, 120] fb=[640, 360]
+[2026-05-25 20:08:54.006] [info] DEBUG DRAW SHAPE: bbox=[78, 58, 160, 120] model_trans=[80, 60] size=[160, 120] fb=[160, 120]
+[2026-05-25 20:08:54.006] [info] DEBUG DRAW SHAPE: bbox=[78, 58, 160, 120] model_trans=[80, 60] size=[160, 120] fb=[160, 120]
+[2026-05-25 20:08:54.007] [info] DEBUG DRAW SHAPE: bbox=[94, 62, 192, 128] model_trans=[96, 64] size=[192, 128] fb=[192, 128]
+[2026-05-25 20:08:54.008] [info] DEBUG DRAW SHAPE: bbox=[94, 62, 192, 128] model_trans=[96, 64] size=[192, 128] fb=[192, 128]
+[2026-05-25 20:08:54.009] [info] DEBUG DRAW SHAPE: bbox=[109, 85, 136, 103] model_trans=[96, 64] size=[192, 128] fb=[192, 128]
+[2026-05-25 20:08:54.009] [info] DEBUG DRAW SHAPE: bbox=[109, 85, 136, 103] model_trans=[96, 64] size=[192, 128] fb=[192, 128]
+[2026-05-25 20:08:54.009] [info] DEBUG DRAW SHAPE: bbox=[110, 85, 136, 104] model_trans=[96, 64] size=[192, 128] fb=[192, 128]
+[2026-05-25 20:08:54.009] [info] DEBUG DRAW SHAPE: bbox=[110, 85, 136, 104] model_trans=[96, 64] size=[192, 128] fb=[192, 128]
+[2026-05-25 20:08:54.009] [info] DEBUG DRAW SHAPE: bbox=[110, 86, 137, 104] model_trans=[96, 64] size=[192, 128] fb=[192, 128]
+[2026-05-25 20:08:54.010] [info] DEBUG DRAW SHAPE: bbox=[110, 86, 137, 104] model_trans=[96, 64] size=[192, 128] fb=[192, 128]
+[2026-05-25 20:08:54.010] [info] DEBUG DRAW SHAPE: bbox=[111, 86, 137, 104] model_trans=[96, 64] size=[192, 128] fb=[192, 128]
+[2026-05-25 20:08:54.010] [info] DEBUG DRAW SHAPE: bbox=[111, 86, 137, 104] model_trans=[96, 64] size=[192, 128] fb=[192, 128]
+[2026-05-25 20:08:54.010] [info] DEBUG DRAW SHAPE: bbox=[111, 86, 138, 104] model_trans=[96, 64] size=[192, 128] fb=[192, 128]
+[2026-05-25 20:08:54.010] [info] DEBUG DRAW SHAPE: bbox=[111, 86, 138, 104] model_trans=[96, 64] size=[192, 128] fb=[192, 128]
+[2026-05-25 20:08:54.011] [info] DEBUG DRAW SHAPE: bbox=[112, 85, 138, 104] model_trans=[96, 64] size=[192, 128] fb=[192, 128]
+[2026-05-25 20:08:54.011] [info] DEBUG DRAW SHAPE: bbox=[112, 85, 138, 104] model_trans=[96, 64] size=[192, 128] fb=[192, 128]
+[2026-05-25 20:08:54.011] [info] DEBUG DRAW SHAPE: bbox=[112, 85, 139, 103] model_trans=[96, 64] size=[192, 128] fb=[192, 128]
+[2026-05-25 20:08:54.011] [info] DEBUG DRAW SHAPE: bbox=[112, 85, 139, 103] model_trans=[96, 64] size=[192, 128] fb=[192, 128]
+[2026-05-25 20:08:54.011] [info] DEBUG DRAW SHAPE: bbox=[113, 85, 139, 103] model_trans=[96, 64] size=[192, 128] fb=[192, 128]
+[2026-05-25 20:08:54.011] [info] DEBUG DRAW SHAPE: bbox=[113, 85, 139, 103] model_trans=[96, 64] size=[192, 128] fb=[192, 128]
+[2026-05-25 20:08:54.012] [info] DEBUG DRAW SHAPE: bbox=[113, 85, 140, 103] model_trans=[96, 64] size=[192, 128] fb=[192, 128]
+[2026-05-25 20:08:54.012] [info] DEBUG DRAW SHAPE: bbox=[113, 85, 140, 103] model_trans=[96, 64] size=[192, 128] fb=[192, 128]
+[2026-05-25 20:08:54.012] [info] DEBUG DRAW SHAPE: bbox=[114, 85, 140, 103] model_trans=[96, 64] size=[192, 128] fb=[192, 128]
+[2026-05-25 20:08:54.012] [info] DEBUG DRAW SHAPE: bbox=[114, 85, 140, 103] model_trans=[96, 64] size=[192, 128] fb=[192, 128]
+[2026-05-25 20:08:54.012] [info] DEBUG DRAW SHAPE: bbox=[114, 85, 141, 103] model_trans=[96, 64] size=[192, 128] fb=[192, 128]
+[2026-05-25 20:08:54.012] [info] DEBUG DRAW SHAPE: bbox=[114, 85, 141, 103] model_trans=[96, 64] size=[192, 128] fb=[192, 128]
+[2026-05-25 20:08:54.013] [info] DEBUG DRAW SHAPE: bbox=[108, 68, 152, 122] model_trans=[110, 70] size=[40, 50] fb=[200, 150]
+[2026-05-25 20:08:54.014] [info] DEBUG DRAW SHAPE: bbox=[108, 68, 152, 122] model_trans=[110, 70] size=[40, 50] fb=[200, 150]
+[2026-05-25 20:08:54.014] [info] DEBUG DRAW SHAPE: bbox=[108, 68, 152, 122] model_trans=[110, 70] size=[40, 50] fb=[200, 150]
+[2026-05-25 20:08:54.015] [info] DEBUG DRAW SHAPE: bbox=[123, 133, 157, 150] model_trans=[125, 135] size=[30, 30] fb=[200, 150]
+[2026-05-25 20:08:54.016] [info] DEBUG DRAW SHAPE: bbox=[123, 133, 157, 150] model_trans=[125, 135] size=[30, 30] fb=[200, 150]
+[2026-05-25 20:08:54.016] [info] DEBUG DRAW SHAPE: bbox=[163, 133, 197, 150] model_trans=[165, 135] size=[30, 30] fb=[200, 150]
+[2026-05-25 20:08:54.017] [info] DEBUG DRAW SHAPE: bbox=[163, 133, 197, 150] model_trans=[165, 135] size=[30, 30] fb=[200, 150]
+[2026-05-25 20:08:54.017] [info] DEBUG DRAW SHAPE: bbox=[123, 133, 157, 150] model_trans=[125, 135] size=[30, 30] fb=[200, 150]
+[2026-05-25 20:08:54.017] [info] DEBUG DRAW SHAPE: bbox=[163, 133, 197, 150] model_trans=[165, 135] size=[30, 30] fb=[200, 150]
+[2026-05-25 20:08:54.018] [info] DEBUG DRAW SHAPE: bbox=[98, 73, 200, 150] model_trans=[100, 75] size=[200, 150] fb=[200, 150]
+[2026-05-25 20:08:54.018] [info] DEBUG DRAW SHAPE: bbox=[148, 108, 200, 150] model_trans=[150, 110] size=[100, 80] fb=[200, 150]
+[2026-05-25 20:08:54.019] [info] DEBUG DRAW SHAPE: bbox=[98, 73, 200, 150] model_trans=[100, 75] size=[200, 150] fb=[200, 150]
+[2026-05-25 20:08:54.019] [info] DEBUG DRAW SHAPE: bbox=[98, 73, 200, 150] model_trans=[100, 75] size=[200, 150] fb=[200, 150]
+[2026-05-25 20:08:54.020] [info] DEBUG DRAW SHAPE: bbox=[98, 73, 200, 150] model_trans=[100, 75] size=[200, 150] fb=[200, 150]
+[2026-05-25 20:08:54.020] [info] DEBUG DRAW SHAPE: bbox=[120, 140, 145, 150] model_trans=[100, 75] size=[200, 150] fb=[200, 150]
+[2026-05-25 20:08:54.020] [info] DEBUG DRAW SHAPE: bbox=[98, 73, 200, 150] model_trans=[100, 75] size=[200, 150] fb=[200, 150]
+[2026-05-25 20:08:54.020] [info] DEBUG DRAW SHAPE: bbox=[125, 140, 150, 150] model_trans=[100, 75] size=[200, 150] fb=[200, 150]
+[2026-05-25 20:08:54.021] [info] DEBUG DRAW SHAPE: bbox=[98, 73, 200, 150] model_trans=[100, 75] size=[200, 150] fb=[200, 150]
+[2026-05-25 20:08:54.021] [info] DEBUG DRAW SHAPE: bbox=[130, 140, 155, 150] model_trans=[100, 75] size=[200, 150] fb=[200, 150]
+[2026-05-25 20:08:54.021] [info] DEBUG DRAW SHAPE: bbox=[98, 73, 200, 150] model_trans=[100, 75] size=[200, 150] fb=[200, 150]
+[2026-05-25 20:08:54.021] [info] DEBUG DRAW SHAPE: bbox=[135, 140, 160, 150] model_trans=[100, 75] size=[200, 150] fb=[200, 150]
+[2026-05-25 20:08:54.022] [info] DEBUG DRAW SHAPE: bbox=[98, 73, 200, 150] model_trans=[100, 75] size=[200, 150] fb=[200, 150]
+[2026-05-25 20:08:54.022] [info] DEBUG DRAW SHAPE: bbox=[140, 140, 165, 150] model_trans=[100, 75] size=[200, 150] fb=[200, 150]
+[2026-05-25 20:08:54.022] [info] DEBUG DRAW SHAPE: bbox=[98, 73, 200, 150] model_trans=[100, 75] size=[200, 150] fb=[200, 150]
+[2026-05-25 20:08:54.022] [info] DEBUG DRAW SHAPE: bbox=[145, 140, 170, 150] model_trans=[100, 75] size=[200, 150] fb=[200, 150]
+[2026-05-25 20:08:54.023] [info] DEBUG DRAW SHAPE: bbox=[98, 73, 200, 150] model_trans=[100, 75] size=[200, 150] fb=[200, 150]
+[2026-05-25 20:08:54.023] [info] DEBUG DRAW SHAPE: bbox=[150, 140, 175, 150] model_trans=[100, 75] size=[200, 150] fb=[200, 150]
+[2026-05-25 20:08:54.023] [info] DEBUG CULL: layer=blurred bbox=[133, 123, 187, 177] is_culled=false reason=
+[2026-05-25 20:08:54.024] [info] DEBUG DRAW SHAPE: bbox=[133, 123, 187, 150] model_trans=[135, 125] size=[50, 50] fb=[200, 150]
+[2026-05-25 20:08:54.024] [info] DEBUG CULL: layer=blurred bbox=[153, 123, 207, 177] is_culled=false reason=
+[2026-05-25 20:08:54.024] [info] DEBUG DRAW SHAPE: bbox=[153, 123, 200, 150] model_trans=[155, 125] size=[50, 50] fb=[200, 150]
+[2026-05-25 20:08:54.025] [info] DEBUG CULL: layer=blurred bbox=[153, 123, 207, 177] is_culled=false reason=
+[2026-05-25 20:08:54.025] [info] DEBUG DRAW SHAPE: bbox=[153, 123, 200, 150] model_trans=[155, 125] size=[50, 50] fb=[200, 150]
+===============================================================================
+/home/pierone/Pyt/Chronon3d/tests/render_graph/pipeline/test_dirty_rects_v2.cpp:363:
+TEST CASE:  Dirty Rects: Output correct with effects (blur)
+
+/home/pierone/Pyt/Chronon3d/tests/render_graph/pipeline/test_dirty_rects_v2.cpp:418: MESSAGE: Effect fallback counter: 0
+
+/home/pierone/Pyt/Chronon3d/tests/render_graph/pipeline/test_dirty_rects_v2.cpp:419: MESSAGE: Pixel mismatches: 0
+
+[2026-05-25 20:08:54.027] [info] DEBUG DRAW SHAPE: bbox=[78, 58, 160, 120] model_trans=[80, 60] size=[160, 120] fb=[160, 120]
+[2026-05-25 20:08:54.027] [info] DEBUG DRAW SHAPE: bbox=[78, 58, 160, 120] model_trans=[80, 60] size=[160, 120] fb=[160, 120]
+[2026-05-25 20:08:54.027] [info] DEBUG DRAW SHAPE: bbox=[86, 110, 114, 120] model_trans=[80, 60] size=[160, 120] fb=[160, 120]
+[2026-05-25 20:08:54.028] [info] DEBUG DRAW SHAPE: bbox=[78, 58, 160, 120] model_trans=[80, 60] size=[160, 120] fb=[160, 120]
+[2026-05-25 20:08:54.028] [info] DEBUG DRAW SHAPE: bbox=[78, 58, 160, 120] model_trans=[80, 60] size=[160, 120] fb=[160, 120]
+[2026-05-25 20:08:54.028] [info] DEBUG DRAW SHAPE: bbox=[78, 58, 160, 120] model_trans=[80, 60] size=[160, 120] fb=[160, 120]
+[2026-05-25 20:08:54.029] [info] DEBUG DRAW SHAPE: bbox=[118, 109, 146, 120] model_trans=[80, 60] size=[160, 120] fb=[160, 120]
+[2026-05-25 20:08:54.029] [info] DEBUG DRAW SHAPE: bbox=[78, 58, 160, 120] model_trans=[80, 60] size=[160, 120] fb=[160, 120]
+[2026-05-25 20:08:54.029] [info] DEBUG DRAW SHAPE: bbox=[118, 99, 154, 120] model_trans=[80, 60] size=[160, 120] fb=[160, 120]
+[2026-05-25 20:08:54.029] [info] DEBUG DRAW SHAPE: bbox=[78, 58, 160, 120] model_trans=[80, 60] size=[160, 120] fb=[160, 120]
+[2026-05-25 20:08:54.029] [info] DEBUG DRAW SHAPE: bbox=[126, 95, 160, 119] model_trans=[80, 60] size=[160, 120] fb=[160, 120]
+[2026-05-25 20:08:54.029] [info] DEBUG DRAW SHAPE: bbox=[78, 58, 160, 120] model_trans=[80, 60] size=[160, 120] fb=[160, 120]
+[2026-05-25 20:08:54.030] [info] DEBUG DRAW SHAPE: bbox=[134, 95, 160, 120] model_trans=[80, 60] size=[160, 120] fb=[160, 120]
+[2026-05-25 20:08:54.030] [info] DEBUG DRAW SHAPE: bbox=[78, 58, 160, 120] model_trans=[80, 60] size=[160, 120] fb=[160, 120]
+[2026-05-25 20:08:54.030] [info] DEBUG DRAW SHAPE: bbox=[142, 101, 160, 120] model_trans=[80, 60] size=[160, 120] fb=[160, 120]
+[2026-05-25 20:08:54.030] [info] DEBUG DRAW SHAPE: bbox=[78, 58, 160, 120] model_trans=[80, 60] size=[160, 120] fb=[160, 120]
+[2026-05-25 20:08:54.030] [info] DEBUG DRAW SHAPE: bbox=[150, 112, 160, 120] model_trans=[80, 60] size=[160, 120] fb=[160, 120]
+[2026-05-25 20:08:54.030] [info] DEBUG DRAW SHAPE: bbox=[78, 58, 160, 120] model_trans=[80, 60] size=[160, 120] fb=[160, 120]
+[2026-05-25 20:08:54.031] [info] DEBUG DRAW SHAPE: bbox=[78, 58, 160, 120] model_trans=[80, 60] size=[160, 120] fb=[160, 120]
+[2026-05-25 20:08:54.031] [info] DEBUG DRAW SHAPE: bbox=[78, 58, 160, 120] model_trans=[80, 60] size=[160, 120] fb=[160, 120]
+[2026-05-25 20:08:54.031] [info] DEBUG DRAW SHAPE: bbox=[78, 58, 160, 120] model_trans=[80, 60] size=[160, 120] fb=[160, 120]
+[2026-05-25 20:08:54.032] [info] DEBUG DRAW SHAPE: bbox=[78, 58, 160, 120] model_trans=[80, 60] size=[160, 120] fb=[160, 120]
+[2026-05-25 20:08:54.032] [info] DEBUG DRAW SHAPE: bbox=[78, 58, 160, 120] model_trans=[80, 60] size=[160, 120] fb=[160, 120]
+Pixel at (98, 94): r=0.149561, g=0.000000, b=0.000000, a=0.149561
+Pixel at (99, 94): r=0.238660, g=0.000000, b=0.000000, a=0.238660
+Pixel at (100, 94): r=0.250000, g=0.000000, b=0.000000, a=0.250000
+Pixel at (101, 94): r=0.250000, g=0.000000, b=0.000000, a=0.250000
+Pixel at (102, 94): r=0.250000, g=0.000000, b=0.000000, a=0.250000
+Pixel at (103, 94): r=0.250000, g=0.000000, b=0.000000, a=0.250000
+Pixel at (104, 94): r=0.250000, g=0.000000, b=0.000000, a=0.250000
+Pixel at (105, 94): r=0.250000, g=0.000000, b=0.000000, a=0.250000
+Pixel at (106, 94): r=0.250000, g=0.000000, b=0.000000, a=0.250000
+Pixel at (107, 94): r=0.250000, g=0.000000, b=0.000000, a=0.250000
+Pixel at (108, 94): r=0.250000, g=0.000000, b=0.000000, a=0.250000
+Pixel at (109, 94): r=0.250000, g=0.000000, b=0.000000, a=0.250000
+Pixel at (110, 94): r=0.250000, g=0.000000, b=0.000000, a=0.250000
+Pixel at (111, 94): r=0.250000, g=0.000000, b=0.000000, a=0.250000
+Pixel at (112, 94): r=0.250000, g=0.000000, b=0.000000, a=0.250000
+Pixel at (113, 94): r=0.250000, g=0.000000, b=0.000000, a=0.250000
+Pixel at (114, 94): r=0.250000, g=0.000000, b=0.000000, a=0.250000
+Pixel at (115, 94): r=0.250000, g=0.000000, b=0.000000, a=0.250000
+Pixel at (116, 94): r=0.250000, g=0.000000, b=0.000000, a=0.250000
+Pixel at (117, 94): r=0.250000, g=0.000000, b=0.000000, a=0.250000
+Total colored pixels: 2512
+[2026-05-25 20:08:54.034] [info] DEBUG CULL: layer=2d_layer bbox=[-52, -52, 52, 52] is_culled=false reason=
+[2026-05-25 20:08:54.034] [info] DEBUG DRAW SHAPE: bbox=[0, 0, 52, 52] model_trans=[-50, -50] size=[100, 100] fb=[200, 200]
+=== DEBUG pixels ===
+p00: r=1.000000, g=0.000000, b=0.000000, a=1.000000
+p49: r=1.000000, g=0.000000, b=0.000000, a=1.000000
+p50: r=0.000000, g=0.000000, b=0.000000, a=0.000000
+====================
+[2026-05-25 20:08:54.034] [info] DEBUG SORT: Before sorting:
+[2026-05-25 20:08:54.034] [info] DEBUG SORT: name=3d_layer depth=1000.00 insertion_index=0
+[2026-05-25 20:08:54.034] [info] DEBUG SORT: After sorting:
+[2026-05-25 20:08:54.034] [info] DEBUG SORT: name=3d_layer depth=1000.00 insertion_index=0
+[2026-05-25 20:08:54.034] [info] DEBUG CULL: layer=3d_layer bbox=[858, 438, 1062, 642] is_culled=false reason=
+[2026-05-25 20:08:54.076] [info] DEBUG DRAW SHAPE: bbox=[858, 438, 1062, 642] model_trans=[860, 440] size=[200, 200] fb=[1920, 1080]
+[2026-05-25 20:08:54.083] [info] DEBUG SORT: Before sorting:
+[2026-05-25 20:08:54.083] [info] DEBUG SORT: name=3d_layer_offset depth=1000.00 insertion_index=0
+[2026-05-25 20:08:54.083] [info] DEBUG SORT: After sorting:
+[2026-05-25 20:08:54.083] [info] DEBUG SORT: name=3d_layer_offset depth=1000.00 insertion_index=0
+[2026-05-25 20:08:54.083] [info] DEBUG CULL: layer=3d_layer_offset bbox=[1108, 588, 1212, 692] is_culled=false reason=
+[2026-05-25 20:08:54.121] [info] DEBUG DRAW SHAPE: bbox=[908, 488, 1012, 592] model_trans=[910, 490] size=[100, 100] fb=[1920, 1080]
+[2026-05-25 20:08:54.122] [info] DEBUG SORT: Before sorting:
+[2026-05-25 20:08:54.122] [info] DEBUG SORT: name=3d_border_layer depth=1000.00 insertion_index=0
+[2026-05-25 20:08:54.122] [info] DEBUG SORT: After sorting:
+[2026-05-25 20:08:54.122] [info] DEBUG SORT: name=3d_border_layer depth=1000.00 insertion_index=0
+[2026-05-25 20:08:54.122] [info] DEBUG CULL: layer=3d_border_layer bbox=[2728, 1468, 2832, 1572] is_culled=true reason=frustum_culled
+===============================================================================
+/home/pierone/Pyt/Chronon3d/tests/render_graph/pipeline/test_pipeline_robustness.cpp:153:
+TEST CASE:  Coordinate Centered vs Top Left - Layer near border should not disappear
+
+/home/pierone/Pyt/Chronon3d/tests/render_graph/pipeline/test_pipeline_robustness.cpp:175: ERROR: CHECK( p_visible.r > 0.9f ) is NOT correct!
+  values: CHECK( 0 >  0.9 )
+
+/home/pierone/Pyt/Chronon3d/tests/render_graph/pipeline/test_pipeline_robustness.cpp:176: ERROR: CHECK( p_visible.a > 0.9f ) is NOT correct!
+  values: CHECK( 0 >  0.9 )
+
+[2026-05-25 20:08:54.134] [info] DEBUG CULL: layer=2d_layer bbox=[-52, -52, 52, 52] is_culled=false reason=
+[2026-05-25 20:08:54.135] [info] DEBUG SORT: Before sorting:
+[2026-05-25 20:08:54.135] [info] DEBUG SORT: name=3d_layer depth=1000.00 insertion_index=1
+[2026-05-25 20:08:54.135] [info] DEBUG SORT: After sorting:
+[2026-05-25 20:08:54.135] [info] DEBUG SORT: name=3d_layer depth=1000.00 insertion_index=1
+[2026-05-25 20:08:54.135] [info] DEBUG CULL: layer=3d_layer bbox=[908, 488, 1012, 592] is_culled=false reason=
+[2026-05-25 20:08:54.150] [info] DEBUG DRAW SHAPE: bbox=[0, 0, 52, 52] model_trans=[-50, -50] size=[100, 100] fb=[1920, 1080]
+[2026-05-25 20:08:54.167] [info] DEBUG DRAW SHAPE: bbox=[908, 488, 1012, 592] model_trans=[910, 490] size=[100, 100] fb=[1920, 1080]
+[2026-05-25 20:08:54.200] [info] DEBUG CULL: layer=blur_layer bbox=[58, 58, 162, 162] is_culled=false reason=
+[2026-05-25 20:08:54.201] [info] DEBUG DRAW SHAPE: bbox=[48, 48, 152, 152] model_trans=[50, 50] size=[100, 100] fb=[200, 200]
+[2026-05-25 20:08:54.201] [info] DEBUG CULL: layer=white_rect_layer bbox=[23, 23, 77, 77] is_culled=false reason=
+[2026-05-25 20:08:54.202] [info] DEBUG WHITE RECT EXECUTE: name=white_rect centered=true canvas_center=[50, 50] override_trans=[-25, -25] state_matrix=[25, 25]
+[2026-05-25 20:08:54.202] [info] DEBUG DRAW SHAPE: bbox=[23, 23, 77, 77] model_trans=[25, 25] size=[50, 50] fb=[100, 100]
+[2026-05-25 20:08:54.202] [info] DEBUG CULL: layer=bg_layer bbox=[-2, -2, 202, 202] is_culled=false reason=
+[2026-05-25 20:08:54.202] [info] DEBUG CULL: layer=top_layer bbox=[-2, -2, 202, 202] is_culled=false reason=
+[2026-05-25 20:08:54.202] [info] DEBUG DRAW SHAPE: bbox=[0, 0, 200, 200] model_trans=[0, 0] size=[200, 200] fb=[200, 200]
+[2026-05-25 20:08:54.203] [info] DEBUG DRAW SHAPE: bbox=[0, 0, 200, 200] model_trans=[0, 0] size=[200, 200] fb=[200, 200]
+[2026-05-25 20:08:54.228] [info] DEBUG DRAW SHAPE: bbox=[0, 0, 52, 52] model_trans=[-50, -50] size=[100, 100] fb=[1920, 1080]
+[2026-05-25 20:08:54.244] [info] DEBUG DRAW SHAPE: bbox=[908, 488, 1012, 592] model_trans=[910, 490] size=[100, 100] fb=[1920, 1080]
+[2026-05-25 20:08:54.261] [info] DEBUG DRAW SHAPE: bbox=[908, 488, 1012, 592] model_trans=[910, 490] size=[100, 100] fb=[1920, 1080]
+[2026-05-25 20:08:54.277] [info] DEBUG DRAW SHAPE: bbox=[908, 488, 1012, 592] model_trans=[910, 490] size=[100, 100] fb=[1920, 1080]
+[2026-05-25 20:08:54.292] [info] DEBUG DRAW SHAPE: bbox=[1808, 988, 1912, 1080] model_trans=[1810, 990] size=[100, 100] fb=[1920, 1080]
+[2026-05-25 20:08:54.308] [info] DEBUG DRAW SHAPE: bbox=[908, 488, 1012, 592] model_trans=[910, 490] size=[100, 100] fb=[1920, 1080]
+[2026-05-25 20:08:54.309] [info] DEBUG DRAW SHAPE: bbox=[1108, 488, 1212, 592] model_trans=[1110, 490] size=[100, 100] fb=[1920, 1080]
+[2026-05-25 20:08:54.316] [info] DEBUG CULL: layer=effect_layer bbox=[0, 0, 64, 64] is_culled=false reason=
+[2026-05-25 20:08:54.317] [info] DEBUG DRAW SHAPE: bbox=[23, 23, 77, 77] model_trans=[25, 25] size=[50, 50] fb=[100, 100]
+[2026-05-25 20:08:54.317] [info] DEBUG DRAW SHAPE: bbox=[28, 28, 92, 92] model_trans=[30, 30] size=[60, 60] fb=[100, 100]
+[2026-05-25 20:08:54.317] [info] DEBUG DRAW SHAPE: bbox=[28, 28, 92, 92] model_trans=[30, 30] size=[60, 60] fb=[100, 100]
+[2026-05-25 20:08:54.318] [info] DEBUG DRAW SHAPE: bbox=[23, 23, 77, 77] model_trans=[25, 25] size=[50, 50] fb=[100, 100]
+[2026-05-25 20:08:54.318] [info] DEBUG DRAW SHAPE: bbox=[48, 48, 100, 100] model_trans=[50, 50] size=[50, 50] fb=[100, 100]
+[2026-05-25 20:08:54.318] [info] DEBUG DRAW SHAPE: bbox=[23, 23, 77, 77] model_trans=[25, 25] size=[50, 50] fb=[100, 100]
+[2026-05-25 20:08:54.318] [info] DEBUG DRAW SHAPE: bbox=[48, 48, 100, 100] model_trans=[50, 50] size=[50, 50] fb=[100, 100]
+[2026-05-25 20:08:54.319] [info] DEBUG SORT: Before sorting:
+[2026-05-25 20:08:54.319] [info] DEBUG SORT: name=card depth=1027.14 insertion_index=0
+[2026-05-25 20:08:54.319] [info] DEBUG SORT: After sorting:
+[2026-05-25 20:08:54.319] [info] DEBUG SORT: name=card depth=1027.14 insertion_index=0
+[2026-05-25 20:08:54.319] [info] DEBUG CULL: layer=card bbox=[1329, 459, 2412, 859] is_culled=false reason=
+[2026-05-25 20:08:54.352] [info] DEBUG DRAW SHAPE: bbox=[1390, 889, 1920, 1080] model_trans=[1392, 891] size=[1056, 378] fb=[1920, 1080]
+[2026-05-25 20:08:54.354] [info] DEBUG DRAW SHAPE: bbox=[1572, 873, 1730, 963] model_trans=[1574.4, 874.8] size=[153.59999, 86.4] fb=[1920, 1080]
+[2026-05-25 20:08:54.358] [info] DEBUG SORT: Before sorting:
+[2026-05-25 20:08:54.358] [info] DEBUG SORT: name=card depth=1079.97 insertion_index=0
+[2026-05-25 20:08:54.358] [info] DEBUG SORT: After sorting:
+[2026-05-25 20:08:54.358] [info] DEBUG SORT: name=card depth=1079.97 insertion_index=0
+[2026-05-25 20:08:54.358] [info] DEBUG CULL: layer=card bbox=[1390, 813, 2459, 1294] is_culled=false reason=
+[2026-05-25 20:08:54.583] [info] DEBUG SORT: Before sorting:
+[2026-05-25 20:08:54.583] [info] DEBUG SORT: name=card depth=1027.14 insertion_index=0
+[2026-05-25 20:08:54.583] [info] DEBUG SORT: After sorting:
+[2026-05-25 20:08:54.583] [info] DEBUG SORT: name=card depth=1027.14 insertion_index=0
+[2026-05-25 20:08:54.584] [info] DEBUG CULL: layer=card bbox=[1856, 858, 4297, 1953] is_culled=false reason=
+[2026-05-25 20:08:54.624] [info] DEBUG DRAW SHAPE: bbox=[1390, 889, 1920, 1080] model_trans=[1392, 891] size=[1056, 378] fb=[1920, 1080]
+[2026-05-25 20:08:54.625] [info] DEBUG DRAW SHAPE: bbox=[1572, 873, 1730, 963] model_trans=[1574.4, 874.8] size=[153.59999, 86.4] fb=[1920, 1080]
+[2026-05-25 20:08:54.626] [info] DEBUG SORT: Before sorting:
+[2026-05-25 20:08:54.626] [info] DEBUG SORT: name=card depth=1079.97 insertion_index=0
+[2026-05-25 20:08:54.626] [info] DEBUG SORT: After sorting:
+[2026-05-25 20:08:54.626] [info] DEBUG SORT: name=card depth=1079.97 insertion_index=0
+[2026-05-25 20:08:54.626] [info] DEBUG CULL: layer=card bbox=[1380, 801, 2426, 1279] is_culled=false reason=
+[2026-05-25 20:08:54.843] [info] DEBUG SORT: Before sorting:
+[2026-05-25 20:08:54.843] [info] DEBUG SORT: name=card depth=1080.00 insertion_index=0
+[2026-05-25 20:08:54.843] [info] DEBUG SORT: After sorting:
+[2026-05-25 20:08:54.843] [info] DEBUG SORT: name=card depth=1080.00 insertion_index=0
+[2026-05-25 20:08:54.843] [info] DEBUG CULL: layer=card bbox=[1139, 923, 2296, 1706] is_culled=false reason=
+[2026-05-25 20:08:54.871] [info] DEBUG DRAW SHAPE: bbox=[1390, 889, 1920, 1080] model_trans=[1392, 891] size=[1056, 378] fb=[1920, 1080]
+[2026-05-25 20:08:54.872] [info] DEBUG DRAW SHAPE: bbox=[1572, 873, 1730, 963] model_trans=[1574.4, 874.8] size=[153.59999, 86.4] fb=[1920, 1080]
+[2026-05-25 20:08:54.874] [info] DEBUG SORT: Before sorting:
+[2026-05-25 20:08:54.874] [info] DEBUG SORT: name=card depth=1080.00 insertion_index=0
+[2026-05-25 20:08:54.874] [info] DEBUG SORT: After sorting:
+[2026-05-25 20:08:54.874] [info] DEBUG SORT: name=card depth=1080.00 insertion_index=0
+[2026-05-25 20:08:54.874] [info] DEBUG CULL: layer=card bbox=[1392, 792, 2456, 1278] is_culled=false reason=
+[2026-05-25 20:08:55.089] [info] DEBUG SORT: Before sorting:
+[2026-05-25 20:08:55.089] [info] DEBUG SORT: name=near depth=600.00 insertion_index=0
+[2026-05-25 20:08:55.089] [info] DEBUG SORT: name=subject depth=1000.00 insertion_index=1
+[2026-05-25 20:08:55.089] [info] DEBUG SORT: After sorting:
+[2026-05-25 20:08:55.089] [info] DEBUG SORT: name=subject depth=1000.00 insertion_index=1
+[2026-05-25 20:08:55.089] [info] DEBUG SORT: name=near depth=600.00 insertion_index=0
+[2026-05-25 20:08:55.089] [info] DEBUG CULL: layer=subject bbox=[98, 98, 142, 142] is_culled=false reason=
+[2026-05-25 20:08:55.089] [info] DEBUG CULL: layer=near bbox=[123, 123, 197, 197] is_culled=true reason=frustum_culled
+[2026-05-25 20:08:55.089] [info] DEBUG DRAW SHAPE: bbox=[58, 58, 120, 120] model_trans=[60, 60] size=[120, 120] fb=[120, 120]
+[2026-05-25 20:08:55.090] [info] DEBUG CULL: layer=grade bbox=[0, 0, 80, 80] is_culled=false reason=
+[2026-05-25 20:08:55.090] [info] DEBUG DRAW SHAPE: bbox=[38, 38, 80, 80] model_trans=[40, 40] size=[80, 80] fb=[80, 80]
+[2026-05-25 20:08:55.090] [info] DEBUG CULL: layer=adj bbox=[0, 0, 80, 80] is_culled=false reason=
+[2026-05-25 20:08:55.090] [info] DEBUG DRAW SHAPE: bbox=[38, 38, 80, 80] model_trans=[40, 40] size=[80, 80] fb=[80, 80]
+[2026-05-25 20:08:55.091] [info] DEBUG DRAW SHAPE: bbox=[38, 38, 80, 80] model_trans=[40, 40] size=[80, 80] fb=[80, 80]
+[2026-05-25 20:08:55.091] [info] DEBUG CULL: layer=grade bbox=[0, 0, 80, 80] is_culled=false reason=
+[2026-05-25 20:08:55.091] [info] DEBUG DRAW SHAPE: bbox=[38, 38, 80, 80] model_trans=[40, 40] size=[80, 80] fb=[80, 80]
+[2026-05-25 20:08:55.091] [info] DEBUG CULL: layer=l bbox=[52, 52, 76, 76] is_culled=false reason=
+[2026-05-25 20:08:55.091] [info] DEBUG DRAW SHAPE: bbox=[20, 20, 44, 44] model_trans=[22, 22] size=[20, 20] fb=[64, 64]
+===============================================================================
+/home/pierone/Pyt/Chronon3d/tests/renderer/effects/test_advanced_effects.cpp:18:
+TEST CASE:  Advanced Effects: Layer Drop Shadow modifies pixels outside shape
+
+/home/pierone/Pyt/Chronon3d/tests/renderer/effects/test_advanced_effects.cpp:33: ERROR: CHECK( fb->get_pixel(32, 32).r == doctest::Approx(1.0f) ) is NOT correct!
+  values: CHECK( 0 == Approx( 1 ) )
+
+/home/pierone/Pyt/Chronon3d/tests/renderer/effects/test_advanced_effects.cpp:34: ERROR: CHECK( fb->get_pixel(32, 32).g == doctest::Approx(1.0f) ) is NOT correct!
+  values: CHECK( 0 == Approx( 1 ) )
+
+/home/pierone/Pyt/Chronon3d/tests/renderer/effects/test_advanced_effects.cpp:35: ERROR: CHECK( fb->get_pixel(32, 32).b == doctest::Approx(1.0f) ) is NOT correct!
+  values: CHECK( 0 == Approx( 1 ) )
+
+/home/pierone/Pyt/Chronon3d/tests/renderer/effects/test_advanced_effects.cpp:40: ERROR: CHECK( shadow_pixel.r > 0.5f ) is NOT correct!
+  values: CHECK( 0 >  0.5 )
+
+[2026-05-25 20:08:55.092] [info] DEBUG CULL: layer=l bbox=[52, 52, 76, 76] is_culled=false reason=
+[2026-05-25 20:08:55.092] [info] DEBUG DRAW SHAPE: bbox=[20, 20, 44, 44] model_trans=[22, 22] size=[20, 20] fb=[64, 64]
+===============================================================================
+/home/pierone/Pyt/Chronon3d/tests/renderer/effects/test_advanced_effects.cpp:45:
+TEST CASE:  Advanced Effects: Layer Glow modifies pixels outside shape
+
+/home/pierone/Pyt/Chronon3d/tests/renderer/effects/test_advanced_effects.cpp:60: ERROR: CHECK( glow_pixel.g > 0.01f ) is NOT correct!
+  values: CHECK( 0 >  0.01 )
+
+[2026-05-25 20:08:55.092] [info] DEBUG CULL: layer=l bbox=[52, 52, 76, 76] is_culled=false reason=
+[2026-05-25 20:08:55.092] [info] DEBUG DRAW SHAPE: bbox=[20, 20, 44, 44] model_trans=[22, 22] size=[20, 20] fb=[64, 64]
+===============================================================================
+/home/pierone/Pyt/Chronon3d/tests/renderer/effects/test_advanced_effects.cpp:65:
+TEST CASE:  Advanced Effects: Layer Bloom highlights bright pixels and spreads
+
+/home/pierone/Pyt/Chronon3d/tests/renderer/effects/test_advanced_effects.cpp:80: ERROR: CHECK( bloom_pixel.r > 0.01f ) is NOT correct!
+  values: CHECK( 0 >  0.01 )
+
+[2026-05-25 20:08:55.092] [info] DEBUG CULL: layer=l bbox=[30, 30, 98, 98] is_culled=false reason=
+[2026-05-25 20:08:55.093] [info] DEBUG DRAW SHAPE: bbox=[0, 0, 64, 64] model_trans=[0, 0] size=[64, 64] fb=[64, 64]
+===============================================================================
+/home/pierone/Pyt/Chronon3d/tests/renderer/effects/test_advanced_effects.cpp:85:
+TEST CASE:  Advanced Nodes: MaskNode restricts rendering to mask shape
+
+/home/pierone/Pyt/Chronon3d/tests/renderer/effects/test_advanced_effects.cpp:100: ERROR: CHECK( fb->get_pixel(32, 32).r == doctest::Approx(1.0f) ) is NOT correct!
+  values: CHECK( 0 == Approx( 1 ) )
+
+[2026-05-25 20:08:55.093] [info] DEBUG CULL: layer=l bbox=[48, 48, 112, 112] is_culled=false reason=
+[2026-05-25 20:08:55.093] [info] DEBUG DRAW SHAPE: bbox=[8, 8, 72, 72] model_trans=[10, 10] size=[60, 60] fb=[80, 80]
+===============================================================================
+/home/pierone/Pyt/Chronon3d/tests/renderer/effects/test_effect_stack.cpp:123:
+TEST CASE:  EffectStack: tint applied via stack produces coloured output
+
+/home/pierone/Pyt/Chronon3d/tests/renderer/effects/test_effect_stack.cpp:135: ERROR: CHECK( c.r > 0.9f ) is NOT correct!
+  values: CHECK( 0 >  0.9 )
+
+[2026-05-25 20:08:55.093] [info] [diagnostics-3d] Compiled projection matrix. Depth=1000.00, Det=1000000128.0000 (OK)
+[2026-05-25 20:08:55.093] [info] [diagnostics-3d] Compiled projection matrix. Depth=1000.00, Det=473577088.0000 (OK)
+[2026-05-25 20:08:55.093] [info] [dirty-debug] frame=0 use_dirty_rects=0 prev_fb=0 dirty_rect=[0,0 -> 640,360] prev_frame=-1
+[2026-05-25 20:08:55.093] [info] [diagnostics-3d] Compiled projection matrix. Depth=1000.00, Det=1000000128.0000 (OK)
+[2026-05-25 20:08:55.093] [info] [diagnostics-3d] Compiled projection matrix. Depth=1000.00, Det=473577088.0000 (OK)
+[2026-05-25 20:08:55.093] [info] DEBUG SORT: Before sorting:
+[2026-05-25 20:08:55.093] [info] DEBUG SORT: name=left depth=1000.00 insertion_index=0
+[2026-05-25 20:08:55.093] [info] DEBUG SORT: name=right depth=1000.00 insertion_index=1
+[2026-05-25 20:08:55.093] [info] DEBUG SORT: After sorting:
+[2026-05-25 20:08:55.093] [info] DEBUG SORT: name=left depth=1000.00 insertion_index=0
+[2026-05-25 20:08:55.093] [info] DEBUG SORT: name=right depth=1000.00 insertion_index=1
+[2026-05-25 20:08:55.093] [info] DEBUG CULL: layer=left bbox=[118, 118, 242, 242] is_culled=false reason=
+[2026-05-25 20:08:55.093] [info] DEBUG CULL: layer=right bbox=[432, 114, 492, 246] is_culled=false reason=
+[2026-05-25 20:08:55.093] [info] [graph-structure] node_id=0 name='Clear' inputs=[]
+[2026-05-25 20:08:55.093] [info] [graph-structure] node_id=1 name='fill' inputs=[]
+[2026-05-25 20:08:55.094] [info] [graph-structure] node_id=2 name='Transform' inputs=[1 (fill), ]
+[2026-05-25 20:08:55.094] [info] [graph-structure] node_id=3 name='Lighting' inputs=[2 (Transform), ]
+[2026-05-25 20:08:55.094] [info] [graph-structure] node_id=4 name='Composite' inputs=[0 (Clear), 3 (Lighting), ]
+[2026-05-25 20:08:55.094] [info] [graph-structure] node_id=5 name='fill' inputs=[]
+[2026-05-25 20:08:55.094] [info] [graph-structure] node_id=6 name='Transform' inputs=[5 (fill), ]
+[2026-05-25 20:08:55.094] [info] [graph-structure] node_id=7 name='Lighting' inputs=[6 (Transform), ]
+[2026-05-25 20:08:55.094] [info] [graph-structure] node_id=8 name='Composite' inputs=[4 (Composite), 7 (Lighting), ]
+[2026-05-25 20:08:55.094] [warning] [cache-bypass] frame=0 node='Clear' node_id=0 kind='Output' reason='not_cacheable'
+[2026-05-25 20:08:55.094] [info] [dirty-debug] frame=0 Clear reuse_prev=0 clip=[0:0 -> 640:360] prev_origin=[0,0] prev_opaque=0
+[2026-05-25 20:08:55.094] [info] DEBUG DRAW SHAPE: bbox=[258, 118, 382, 242] model_trans=[260, 120] size=[120, 120] fb=[640, 360]
+[2026-05-25 20:08:55.095] [info] [layout-preview] node='fill' type=Rect pos=(260.0,120.0,0.0) anchor=(60.0,60.0,0.0) bbox=[258,118,382,242] screen_anchor=(320.0,180.0)
+[2026-05-25 20:08:55.095] [info] [source-debug] node='fill' shape=1 nonzero_pixels=15384 opacity=1.000 matrix_tx=260.000 matrix_ty=120.000 det2d=1.000000 grid:
+....................
+....................
+....................
+....................
+....................
+....................
+....................
+.........RRR........
+.........RRR........
+.........RRR........
+.........RRR........
+.........RRR........
+.........RRR........
+.........RRR........
+....................
+....................
+....................
+....................
+....................
+....................
+[2026-05-25 20:08:55.095] [info] [graph-debug] frame=0 node='fill' kind='Source' cache_status='miss' dur=1.846ms
+[2026-05-25 20:08:55.097] [info] [graph-debug] frame=0 node='Clear' kind='Output' cache_status='bypass_not_cacheable' dur=3.398ms
+[2026-05-25 20:08:55.098] [info] DEBUG DRAW SHAPE: bbox=[258, 118, 382, 242] model_trans=[260, 120] size=[120, 120] fb=[640, 360]
+[2026-05-25 20:08:55.098] [info] [layout-preview] node='fill' type=Rect pos=(260.0,120.0,0.0) anchor=(60.0,60.0,0.0) bbox=[258,118,382,242] screen_anchor=(320.0,180.0)
+[2026-05-25 20:08:55.099] [info] [source-debug] node='fill' shape=1 nonzero_pixels=15384 opacity=1.000 matrix_tx=260.000 matrix_ty=120.000 det2d=1.000000 grid:
+....................
+....................
+....................
+....................
+....................
+....................
+....................
+.........RRR........
+.........RRR........
+.........RRR........
+.........RRR........
+.........RRR........
+.........RRR........
+.........RRR........
+....................
+....................
+....................
+....................
+....................
+....................
+[2026-05-25 20:08:55.099] [info] [graph-debug] frame=0 node='fill' kind='Source' cache_status='miss' dur=5.450ms
+[2026-05-25 20:08:55.099] [info] [transform-debug] node='Transform' det=473577088.000000 winding=ok H=[[41.318,-169.145,-0.940],[0.000,1000.000,0.000],[446778.125,54126.312,1300.702]]
+[2026-05-25 20:08:55.099] [info] [transform-debug] node='Transform' det=1000000128.000000 winding=ok H=[[1000.000,0.000,0.000],[0.000,1000.000,0.000],[-139999.969,0.016,1000.000]]
+[2026-05-25 20:08:55.099] [info] [transform-debug] node='Transform' output nonzero_pixels=7455 center_color=[0.000,0.000,0.000,0.000] origin=[428,105] size=[68,150] x0_x1=[428,496] y0_y1=[105,255] clip=428,105->496,255 inv_M=[[0.003,0.000,0.000],[-0.000,0.001,-0.000],[-0.943,-0.164,0.000]] start=[0.233,0.094,0.001] step_x=[0.003,0.000,0.000] step_y=[-0.000,0.001,-0.000] grid:
+....................
+....................
+....AAAAAA.ARRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..AAAABRRRRRRRRRRRRR
+[2026-05-25 20:08:55.099] [info] [transform-debug] node='Transform' output nonzero_pixels=15388 center_color=[0.000,0.000,0.000,0.000] origin=[110,110] size=[140,140] x0_x1=[110,250] y0_y1=[110,250] clip=110,110->250,250 inv_M=[[0.001,-0.000,0.000],[-0.000,0.001,-0.000],[0.140,-0.000,0.001]] start=[0.250,0.110,0.001] step_x=[0.001,-0.000,0.000] step_y=[-0.000,0.001,-0.000] grid:
+....................
+.BAAAAAAAAAAAAAAAAA.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+....................
+[2026-05-25 20:08:55.099] [info] [graph-debug] frame=0 node='Transform' kind='Transform' cache_status='miss' dur=0.385ms
+[2026-05-25 20:08:55.099] [info] [graph-debug] frame=0 node='Transform' kind='Transform' cache_status='miss' dur=0.389ms
+[2026-05-25 20:08:55.099] [debug] [cache-bypass] frame=0 node='Lighting' node_id=3 kind='Effect' reason='frame_dependent'
+[2026-05-25 20:08:55.099] [debug] [cache-bypass] frame=0 node='Lighting' node_id=7 kind='Effect' reason='frame_dependent'
+[2026-05-25 20:08:55.100] [info] [graph-debug] frame=0 node='Lighting' kind='Effect' cache_status='bypass_frame_dependent' dur=0.356ms
+[2026-05-25 20:08:55.100] [info] [graph-debug] frame=0 node='Lighting' kind='Effect' cache_status='bypass_frame_dependent' dur=0.358ms
+[2026-05-25 20:08:55.100] [debug] [cache-bypass] frame=0 node='Composite' node_id=4 kind='Composite' reason='frame_dependent'
+[2026-05-25 20:08:55.100] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=1 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 640:360]
+[2026-05-25 20:08:55.100] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='bypass_frame_dependent' dur=0.045ms
+[2026-05-25 20:08:55.100] [debug] [cache-bypass] frame=0 node='Composite' node_id=8 kind='Composite' reason='frame_dependent'
+[2026-05-25 20:08:55.100] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=1 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 640:360]
+[2026-05-25 20:08:55.100] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='bypass_frame_dependent' dur=0.024ms
+[2026-05-25 20:08:55.120] [info] [diagnostics-3d] Compiled projection matrix. Depth=1000.00, Det=1000000128.0000 (OK)
+[2026-05-25 20:08:55.120] [info] [diagnostics-3d] Compiled projection matrix. Depth=1000.00, Det=1000000128.0000 (OK)
+[2026-05-25 20:08:55.120] [info] [dirty-debug] frame=0 use_dirty_rects=0 prev_fb=0 dirty_rect=[0,0 -> 640,360] prev_frame=-1
+[2026-05-25 20:08:55.120] [info] [diagnostics-3d] Compiled projection matrix. Depth=1000.00, Det=1000000128.0000 (OK)
+[2026-05-25 20:08:55.120] [info] DEBUG SORT: Before sorting:
+[2026-05-25 20:08:55.120] [info] DEBUG SORT: name=card depth=1000.00 insertion_index=1
+[2026-05-25 20:08:55.120] [info] DEBUG SORT: After sorting:
+[2026-05-25 20:08:55.120] [info] DEBUG SORT: name=card depth=1000.00 insertion_index=1
+[2026-05-25 20:08:55.120] [info] DEBUG CULL: layer=card bbox=[258, 118, 382, 242] is_culled=false reason=
+[2026-05-25 20:08:55.120] [info] [graph-structure] node_id=0 name='Clear' inputs=[]
+[2026-05-25 20:08:55.120] [info] [graph-structure] node_id=1 name='fill' inputs=[]
+[2026-05-25 20:08:55.120] [info] [graph-structure] node_id=2 name='Transform' inputs=[1 (fill), ]
+[2026-05-25 20:08:55.120] [info] [graph-structure] node_id=3 name='Lighting' inputs=[2 (Transform), ]
+[2026-05-25 20:08:55.120] [info] [graph-structure] node_id=4 name='Composite' inputs=[0 (Clear), 3 (Lighting), ]
+[2026-05-25 20:08:55.120] [warning] [cache-bypass] frame=0 node='Clear' node_id=0 kind='Output' reason='not_cacheable'
+[2026-05-25 20:08:55.120] [info] [dirty-debug] frame=0 Clear reuse_prev=0 clip=[0:0 -> 640:360] prev_origin=[0,0] prev_opaque=0
+[2026-05-25 20:08:55.122] [info] [graph-debug] frame=0 node='Clear' kind='Output' cache_status='bypass_not_cacheable' dur=1.341ms
+[2026-05-25 20:08:55.123] [info] DEBUG DRAW SHAPE: bbox=[258, 118, 382, 242] model_trans=[260, 120] size=[120, 120] fb=[640, 360]
+[2026-05-25 20:08:55.123] [info] [layout-preview] node='fill' type=Rect pos=(260.0,120.0,0.0) anchor=(60.0,60.0,0.0) bbox=[258,118,382,242] screen_anchor=(320.0,180.0)
+[2026-05-25 20:08:55.123] [info] [source-debug] node='fill' shape=1 nonzero_pixels=15384 opacity=1.000 matrix_tx=260.000 matrix_ty=120.000 det2d=1.000000 grid:
+....................
+....................
+....................
+....................
+....................
+....................
+....................
+.........RRR........
+.........RRR........
+.........RRR........
+.........RRR........
+.........RRR........
+.........RRR........
+.........RRR........
+....................
+....................
+....................
+....................
+....................
+....................
+[2026-05-25 20:08:55.124] [info] [graph-debug] frame=0 node='fill' kind='Source' cache_status='miss' dur=3.197ms
+[2026-05-25 20:08:55.124] [info] [transform-debug] node='Transform' det=1000000128.000000 winding=ok H=[[1000.000,0.000,0.000],[0.000,1000.000,0.000],[0.031,0.016,1000.000]]
+[2026-05-25 20:08:55.124] [info] [transform-debug] node='Transform' output nonzero_pixels=15388 center_color=[0.000,0.000,0.000,0.000] origin=[250,110] size=[140,140] x0_x1=[250,390] y0_y1=[110,250] clip=250,110->390,250 inv_M=[[0.001,-0.000,0.000],[-0.000,0.001,-0.000],[-0.000,-0.000,0.001]] start=[0.250,0.110,0.001] step_x=[0.001,-0.000,0.000] step_y=[-0.000,0.001,-0.000] grid:
+....................
+.BAAAAAAAAAAAAAAAAA.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+....................
+[2026-05-25 20:08:55.124] [info] [graph-debug] frame=0 node='Transform' kind='Transform' cache_status='miss' dur=0.379ms
+[2026-05-25 20:08:55.124] [debug] [cache-bypass] frame=0 node='Lighting' node_id=3 kind='Effect' reason='frame_dependent'
+[2026-05-25 20:08:55.124] [info] [graph-debug] frame=0 node='Lighting' kind='Effect' cache_status='bypass_frame_dependent' dur=0.369ms
+[2026-05-25 20:08:55.124] [debug] [cache-bypass] frame=0 node='Composite' node_id=4 kind='Composite' reason='frame_dependent'
+[2026-05-25 20:08:55.124] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=1 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 640:360]
+[2026-05-25 20:08:55.124] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='bypass_frame_dependent' dur=0.047ms
+[2026-05-25 20:08:55.125] [info] [diagnostics-3d] Compiled projection matrix. Depth=1000.00, Det=342020128.0000 (OK)
+[2026-05-25 20:08:55.125] [info] [diagnostics-3d] Compiled projection matrix. Depth=1000.00, Det=342020128.0000 (OK)
+[2026-05-25 20:08:55.125] [info] [dirty-debug] frame=0 use_dirty_rects=0 prev_fb=0 dirty_rect=[0,0 -> 640,360] prev_frame=-1
+[2026-05-25 20:08:55.125] [info] [diagnostics-3d] Compiled projection matrix. Depth=1000.00, Det=342020128.0000 (OK)
+[2026-05-25 20:08:55.125] [info] DEBUG SORT: Before sorting:
+[2026-05-25 20:08:55.125] [info] DEBUG SORT: name=card depth=1000.00 insertion_index=1
+[2026-05-25 20:08:55.125] [info] DEBUG SORT: After sorting:
+[2026-05-25 20:08:55.125] [info] DEBUG SORT: name=card depth=1000.00 insertion_index=1
+[2026-05-25 20:08:55.125] [info] DEBUG CULL: layer=card bbox=[299, 114, 343, 246] is_culled=false reason=
+[2026-05-25 20:08:55.125] [info] [graph-structure] node_id=0 name='Clear' inputs=[]
+[2026-05-25 20:08:55.125] [info] [graph-structure] node_id=1 name='fill' inputs=[]
+[2026-05-25 20:08:55.125] [info] [graph-structure] node_id=2 name='Transform' inputs=[1 (fill), ]
+[2026-05-25 20:08:55.125] [info] [graph-structure] node_id=3 name='Lighting' inputs=[2 (Transform), ]
+[2026-05-25 20:08:55.125] [info] [graph-structure] node_id=4 name='Composite' inputs=[0 (Clear), 3 (Lighting), ]
+[2026-05-25 20:08:55.125] [warning] [cache-bypass] frame=0 node='Clear' node_id=0 kind='Output' reason='not_cacheable'
+[2026-05-25 20:08:55.125] [info] [dirty-debug] frame=0 Clear reuse_prev=0 clip=[0:0 -> 640:360] prev_origin=[0,0] prev_opaque=0
+[2026-05-25 20:08:55.126] [info] DEBUG DRAW SHAPE: bbox=[258, 118, 382, 242] model_trans=[260, 120] size=[120, 120] fb=[640, 360]
+[2026-05-25 20:08:55.126] [info] [layout-preview] node='fill' type=Rect pos=(260.0,120.0,0.0) anchor=(60.0,60.0,0.0) bbox=[258,118,382,242] screen_anchor=(320.0,180.0)
+[2026-05-25 20:08:55.127] [info] [source-debug] node='fill' shape=1 nonzero_pixels=15384 opacity=1.000 matrix_tx=260.000 matrix_ty=120.000 det2d=1.000000 grid:
+....................
+....................
+....................
+....................
+....................
+....................
+....................
+.........RRR........
+.........RRR........
+.........RRR........
+.........RRR........
+.........RRR........
+.........RRR........
+.........RRR........
+....................
+....................
+....................
+....................
+....................
+....................
+[2026-05-25 20:08:55.127] [info] [graph-debug] frame=0 node='fill' kind='Source' cache_status='miss' dur=1.789ms
+[2026-05-25 20:08:55.129] [info] [graph-debug] frame=0 node='Clear' kind='Output' cache_status='bypass_not_cacheable' dur=4.298ms
+[2026-05-25 20:08:55.129] [info] [transform-debug] node='Transform' det=342020096.000000 winding=ok H=[[41.318,-169.145,-0.940],[0.000,1000.000,0.000],[306778.125,54126.312,1300.702]]
+[2026-05-25 20:08:55.130] [info] [transform-debug] node='Transform' output nonzero_pixels=5439 center_color=[0.000,0.000,0.000,0.000] origin=[297,105] size=[49,150] x0_x1=[297,346] y0_y1=[105,255] clip=297,105->346,255 inv_M=[[0.004,0.000,0.000],[-0.000,0.001,-0.000],[-0.897,-0.158,0.000]] start=[0.234,0.094,0.001] step_x=[0.004,0.000,0.000] step_y=[-0.000,0.001,-0.000] grid:
+....................
+....................
+....AAAAAAA.ARRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..AAAABRRRRRRRRRRRRR
+[2026-05-25 20:08:55.130] [info] [graph-debug] frame=0 node='Transform' kind='Transform' cache_status='miss' dur=0.339ms
+[2026-05-25 20:08:55.130] [debug] [cache-bypass] frame=0 node='Lighting' node_id=3 kind='Effect' reason='frame_dependent'
+[2026-05-25 20:08:55.130] [info] [graph-debug] frame=0 node='Lighting' kind='Effect' cache_status='bypass_frame_dependent' dur=0.181ms
+[2026-05-25 20:08:55.130] [debug] [cache-bypass] frame=0 node='Composite' node_id=4 kind='Composite' reason='frame_dependent'
+[2026-05-25 20:08:55.130] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=1 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 640:360]
+[2026-05-25 20:08:55.130] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='bypass_frame_dependent' dur=0.060ms
+[2026-05-25 20:08:55.170] [info] [diagnostics-3d] Compiled projection matrix. Depth=1000.00, Det=1000000128.0000 (OK)
+[2026-05-25 20:08:55.170] [info] [diagnostics-3d] Compiled projection matrix. Depth=1000.00, Det=473577088.0000 (OK)
+[2026-05-25 20:08:55.170] [info] [dirty-debug] frame=0 use_dirty_rects=0 prev_fb=0 dirty_rect=[0,0 -> 640,360] prev_frame=-1
+[2026-05-25 20:08:55.170] [info] [diagnostics-3d] Compiled projection matrix. Depth=1000.00, Det=1000000128.0000 (OK)
+[2026-05-25 20:08:55.170] [info] [diagnostics-3d] Compiled projection matrix. Depth=1000.00, Det=473577088.0000 (OK)
+[2026-05-25 20:08:55.170] [info] DEBUG SORT: Before sorting:
+[2026-05-25 20:08:55.170] [info] DEBUG SORT: name=left depth=1000.00 insertion_index=0
+[2026-05-25 20:08:55.170] [info] DEBUG SORT: name=right depth=1000.00 insertion_index=1
+[2026-05-25 20:08:55.170] [info] DEBUG SORT: After sorting:
+[2026-05-25 20:08:55.170] [info] DEBUG SORT: name=left depth=1000.00 insertion_index=0
+[2026-05-25 20:08:55.170] [info] DEBUG SORT: name=right depth=1000.00 insertion_index=1
+[2026-05-25 20:08:55.170] [info] DEBUG CULL: layer=left bbox=[118, 118, 242, 242] is_culled=false reason=
+[2026-05-25 20:08:55.170] [info] DEBUG CULL: layer=right bbox=[432, 114, 492, 246] is_culled=false reason=
+[2026-05-25 20:08:55.170] [info] [graph-structure] node_id=0 name='Clear' inputs=[]
+[2026-05-25 20:08:55.170] [info] [graph-structure] node_id=1 name='fill' inputs=[]
+[2026-05-25 20:08:55.170] [info] [graph-structure] node_id=2 name='Transform' inputs=[1 (fill), ]
+[2026-05-25 20:08:55.170] [info] [graph-structure] node_id=3 name='Composite' inputs=[0 (Clear), 2 (Transform), ]
+[2026-05-25 20:08:55.170] [info] [graph-structure] node_id=4 name='fill' inputs=[]
+[2026-05-25 20:08:55.170] [info] [graph-structure] node_id=5 name='Transform' inputs=[4 (fill), ]
+[2026-05-25 20:08:55.170] [info] [graph-structure] node_id=6 name='Composite' inputs=[3 (Composite), 5 (Transform), ]
+[2026-05-25 20:08:55.170] [warning] [cache-bypass] frame=0 node='Clear' node_id=0 kind='Output' reason='not_cacheable'
+[2026-05-25 20:08:55.170] [info] [dirty-debug] frame=0 Clear reuse_prev=0 clip=[0:0 -> 640:360] prev_origin=[0,0] prev_opaque=0
+[2026-05-25 20:08:55.172] [info] [graph-debug] frame=0 node='Clear' kind='Output' cache_status='bypass_not_cacheable' dur=1.302ms
+[2026-05-25 20:08:55.172] [info] DEBUG DRAW SHAPE: bbox=[258, 118, 382, 242] model_trans=[260, 120] size=[120, 120] fb=[640, 360]
+[2026-05-25 20:08:55.172] [info] [layout-preview] node='fill' type=Rect pos=(260.0,120.0,0.0) anchor=(60.0,60.0,0.0) bbox=[258,118,382,242] screen_anchor=(320.0,180.0)
+[2026-05-25 20:08:55.173] [info] DEBUG DRAW SHAPE: bbox=[258, 118, 382, 242] model_trans=[260, 120] size=[120, 120] fb=[640, 360]
+[2026-05-25 20:08:55.173] [info] [source-debug] node='fill' shape=1 nonzero_pixels=15384 opacity=1.000 matrix_tx=260.000 matrix_ty=120.000 det2d=1.000000 grid:
+....................
+....................
+....................
+....................
+....................
+....................
+....................
+.........RRR........
+.........RRR........
+.........RRR........
+.........RRR........
+.........RRR........
+.........RRR........
+.........RRR........
+....................
+....................
+....................
+....................
+....................
+....................
+[2026-05-25 20:08:55.173] [info] [graph-debug] frame=0 node='fill' kind='Source' cache_status='miss' dur=2.553ms
+[2026-05-25 20:08:55.173] [info] [layout-preview] node='fill' type=Rect pos=(260.0,120.0,0.0) anchor=(60.0,60.0,0.0) bbox=[258,118,382,242] screen_anchor=(320.0,180.0)
+[2026-05-25 20:08:55.174] [info] [source-debug] node='fill' shape=1 nonzero_pixels=15384 opacity=1.000 matrix_tx=260.000 matrix_ty=120.000 det2d=1.000000 grid:
+....................
+....................
+....................
+....................
+....................
+....................
+....................
+.........RRR........
+.........RRR........
+.........RRR........
+.........RRR........
+.........RRR........
+.........RRR........
+.........RRR........
+....................
+....................
+....................
+....................
+....................
+....................
+[2026-05-25 20:08:55.174] [info] [graph-debug] frame=0 node='fill' kind='Source' cache_status='miss' dur=3.367ms
+[2026-05-25 20:08:55.174] [info] [transform-debug] node='Transform' det=473577088.000000 winding=ok H=[[41.318,-169.145,-0.940],[0.000,1000.000,0.000],[446778.125,54126.312,1300.702]]
+[2026-05-25 20:08:55.174] [info] [transform-debug] node='Transform' det=1000000128.000000 winding=ok H=[[1000.000,0.000,0.000],[0.000,1000.000,0.000],[-139999.969,0.016,1000.000]]
+[2026-05-25 20:08:55.174] [info] [transform-debug] node='Transform' output nonzero_pixels=7455 center_color=[0.000,0.000,0.000,0.000] origin=[428,105] size=[68,150] x0_x1=[428,496] y0_y1=[105,255] clip=428,105->496,255 inv_M=[[0.003,0.000,0.000],[-0.000,0.001,-0.000],[-0.943,-0.164,0.000]] start=[0.233,0.094,0.001] step_x=[0.003,0.000,0.000] step_y=[-0.000,0.001,-0.000] grid:
+....................
+....................
+....AAAAAA.ARRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..AAAABRRRRRRRRRRRRR
+[2026-05-25 20:08:55.174] [info] [graph-debug] frame=0 node='Transform' kind='Transform' cache_status='miss' dur=0.390ms
+[2026-05-25 20:08:55.174] [info] [transform-debug] node='Transform' output nonzero_pixels=15388 center_color=[0.000,0.000,0.000,0.000] origin=[110,110] size=[140,140] x0_x1=[110,250] y0_y1=[110,250] clip=110,110->250,250 inv_M=[[0.001,-0.000,0.000],[-0.000,0.001,-0.000],[0.140,-0.000,0.001]] start=[0.250,0.110,0.001] step_x=[0.001,-0.000,0.000] step_y=[-0.000,0.001,-0.000] grid:
+....................
+.BAAAAAAAAAAAAAAAAA.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+....................
+[2026-05-25 20:08:55.174] [info] [graph-debug] frame=0 node='Transform' kind='Transform' cache_status='miss' dur=0.452ms
+[2026-05-25 20:08:55.174] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=1 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 640:360]
+[2026-05-25 20:08:55.174] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=0.053ms
+[2026-05-25 20:08:55.174] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 640:360]
+[2026-05-25 20:08:55.176] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=1.658ms
+[2026-05-25 20:08:55.176] [info] [diagnostics-3d] Compiled projection matrix. Depth=1000.00, Det=473577088.0000 (OK)
+[2026-05-25 20:08:55.176] [info] [diagnostics-3d] Compiled projection matrix. Depth=1000.00, Det=1000000128.0000 (OK)
+[2026-05-25 20:08:55.177] [info] [dirty-debug] frame=0 use_dirty_rects=0 prev_fb=0 dirty_rect=[0,0 -> 640,360] prev_frame=-1
+[2026-05-25 20:08:55.177] [info] [diagnostics-3d] Compiled projection matrix. Depth=1000.00, Det=1000000128.0000 (OK)
+[2026-05-25 20:08:55.177] [info] [diagnostics-3d] Compiled projection matrix. Depth=1000.00, Det=473577088.0000 (OK)
+[2026-05-25 20:08:55.177] [info] DEBUG SORT: Before sorting:
+[2026-05-25 20:08:55.177] [info] DEBUG SORT: name=left depth=1000.00 insertion_index=0
+[2026-05-25 20:08:55.177] [info] DEBUG SORT: name=right depth=1000.00 insertion_index=1
+[2026-05-25 20:08:55.177] [info] DEBUG SORT: After sorting:
+[2026-05-25 20:08:55.177] [info] DEBUG SORT: name=left depth=1000.00 insertion_index=0
+[2026-05-25 20:08:55.177] [info] DEBUG SORT: name=right depth=1000.00 insertion_index=1
+[2026-05-25 20:08:55.177] [info] DEBUG CULL: layer=left bbox=[118, 118, 242, 242] is_culled=false reason=
+[2026-05-25 20:08:55.177] [info] DEBUG CULL: layer=right bbox=[432, 114, 492, 246] is_culled=false reason=
+[2026-05-25 20:08:55.177] [info] [graph-structure] node_id=0 name='Clear' inputs=[]
+[2026-05-25 20:08:55.177] [info] [graph-structure] node_id=1 name='fill' inputs=[]
+[2026-05-25 20:08:55.177] [info] [graph-structure] node_id=2 name='Transform' inputs=[1 (fill), ]
+[2026-05-25 20:08:55.177] [info] [graph-structure] node_id=3 name='Composite' inputs=[0 (Clear), 2 (Transform), ]
+[2026-05-25 20:08:55.177] [info] [graph-structure] node_id=4 name='fill' inputs=[]
+[2026-05-25 20:08:55.177] [info] [graph-structure] node_id=5 name='Transform' inputs=[4 (fill), ]
+[2026-05-25 20:08:55.177] [info] [graph-structure] node_id=6 name='Composite' inputs=[3 (Composite), 5 (Transform), ]
+[2026-05-25 20:08:55.177] [warning] [cache-bypass] frame=0 node='Clear' node_id=0 kind='Output' reason='not_cacheable'
+[2026-05-25 20:08:55.177] [info] [dirty-debug] frame=0 Clear reuse_prev=0 clip=[0:0 -> 640:360] prev_origin=[0,0] prev_opaque=0
+[2026-05-25 20:08:55.178] [info] [graph-debug] frame=0 node='Clear' kind='Output' cache_status='bypass_not_cacheable' dur=0.879ms
+[2026-05-25 20:08:55.178] [info] DEBUG DRAW SHAPE: bbox=[258, 118, 382, 242] model_trans=[260, 120] size=[120, 120] fb=[640, 360]
+[2026-05-25 20:08:55.178] [info] [layout-preview] node='fill' type=Rect pos=(260.0,120.0,0.0) anchor=(60.0,60.0,0.0) bbox=[258,118,382,242] screen_anchor=(320.0,180.0)
+[2026-05-25 20:08:55.179] [info] DEBUG DRAW SHAPE: bbox=[258, 118, 382, 242] model_trans=[260, 120] size=[120, 120] fb=[640, 360]
+[2026-05-25 20:08:55.179] [info] [source-debug] node='fill' shape=1 nonzero_pixels=15384 opacity=1.000 matrix_tx=260.000 matrix_ty=120.000 det2d=1.000000 grid:
+....................
+....................
+....................
+....................
+....................
+....................
+....................
+.........RRR........
+.........RRR........
+.........RRR........
+.........RRR........
+.........RRR........
+.........RRR........
+.........RRR........
+....................
+....................
+....................
+....................
+....................
+....................
+[2026-05-25 20:08:55.179] [info] [graph-debug] frame=0 node='fill' kind='Source' cache_status='miss' dur=2.591ms
+[2026-05-25 20:08:55.179] [info] [layout-preview] node='fill' type=Rect pos=(260.0,120.0,0.0) anchor=(60.0,60.0,0.0) bbox=[258,118,382,242] screen_anchor=(320.0,180.0)
+[2026-05-25 20:08:55.180] [info] [source-debug] node='fill' shape=1 nonzero_pixels=15384 opacity=1.000 matrix_tx=260.000 matrix_ty=120.000 det2d=1.000000 grid:
+....................
+....................
+....................
+....................
+....................
+....................
+....................
+.........RRR........
+.........RRR........
+.........RRR........
+.........RRR........
+.........RRR........
+.........RRR........
+.........RRR........
+....................
+....................
+....................
+....................
+....................
+....................
+[2026-05-25 20:08:55.180] [info] [graph-debug] frame=0 node='fill' kind='Source' cache_status='miss' dur=3.512ms
+[2026-05-25 20:08:55.180] [info] [transform-debug] node='Transform' det=473577088.000000 winding=ok H=[[41.318,-169.145,-0.940],[0.000,1000.000,0.000],[446778.125,54126.312,1300.702]]
+[2026-05-25 20:08:55.180] [info] [transform-debug] node='Transform' det=1000000128.000000 winding=ok H=[[1000.000,0.000,0.000],[0.000,1000.000,0.000],[-139999.969,0.016,1000.000]]
+[2026-05-25 20:08:55.181] [info] [transform-debug] node='Transform' output nonzero_pixels=15388 center_color=[0.000,0.000,0.000,0.000] origin=[110,110] size=[140,140] x0_x1=[110,250] y0_y1=[110,250] clip=110,110->250,250 inv_M=[[0.001,-0.000,0.000],[-0.000,0.001,-0.000],[0.140,-0.000,0.001]] start=[0.250,0.110,0.001] step_x=[0.001,-0.000,0.000] step_y=[-0.000,0.001,-0.000] grid:
+....................
+.BAAAAAAAAAAAAAAAAA.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+.ARRRRRRRRRRRRRRRRR.
+....................
+[2026-05-25 20:08:55.181] [info] [graph-debug] frame=0 node='Transform' kind='Transform' cache_status='miss' dur=0.420ms
+[2026-05-25 20:08:55.181] [info] [transform-debug] node='Transform' output nonzero_pixels=7455 center_color=[0.000,0.000,0.000,0.000] origin=[428,105] size=[68,150] x0_x1=[428,496] y0_y1=[105,255] clip=428,105->496,255 inv_M=[[0.003,0.000,0.000],[-0.000,0.001,-0.000],[-0.943,-0.164,0.000]] start=[0.233,0.094,0.001] step_x=[0.003,0.000,0.000] step_y=[-0.000,0.001,-0.000] grid:
+....................
+....................
+....AAAAAA.ARRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..RRRRRRRRRRRRRRRRRR
+..AAAABRRRRRRRRRRRRR
+[2026-05-25 20:08:55.181] [info] [graph-debug] frame=0 node='Transform' kind='Transform' cache_status='miss' dur=0.463ms
+[2026-05-25 20:08:55.181] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=1 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 640:360]
+[2026-05-25 20:08:55.181] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=0.053ms
+[2026-05-25 20:08:55.181] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=2 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 640:360]
+[2026-05-25 20:08:55.184] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='miss' dur=3.186ms
+[2026-05-25 20:08:55.225] [info] [diagnostics-3d] Compiled projection matrix. Depth=950.00, Det=608000128.0000 (OK)
+[2026-05-25 20:08:55.225] [info] [diagnostics-3d] Compiled projection matrix. Depth=800.00, Det=512000096.0000 (OK)
+[2026-05-25 20:08:55.225] [info] [dirty-debug] frame=0 use_dirty_rects=0 prev_fb=0 dirty_rect=[0,0 -> 320,240] prev_frame=-1
+[2026-05-25 20:08:55.225] [info] [diagnostics-3d] Compiled projection matrix. Depth=950.00, Det=608000128.0000 (OK)
+[2026-05-25 20:08:55.225] [info] [diagnostics-3d] Compiled projection matrix. Depth=800.00, Det=512000096.0000 (OK)
+[2026-05-25 20:08:55.225] [info] DEBUG SORT: Before sorting:
+[2026-05-25 20:08:55.225] [info] DEBUG SORT: name=floor depth=950.00 insertion_index=0
+[2026-05-25 20:08:55.225] [info] DEBUG SORT: name=card depth=800.00 insertion_index=1
+[2026-05-25 20:08:55.225] [info] DEBUG SORT: After sorting:
+[2026-05-25 20:08:55.225] [info] DEBUG SORT: name=floor depth=950.00 insertion_index=0
+[2026-05-25 20:08:55.225] [info] DEBUG SORT: name=card depth=800.00 insertion_index=1
+[2026-05-25 20:08:55.225] [info] DEBUG CULL: layer=floor bbox=[40, 126, 280, 215] is_culled=false reason=
+[2026-05-25 20:08:55.225] [info] DEBUG CULL: layer=card bbox=[118, 58, 202, 142] is_culled=false reason=
+[2026-05-25 20:08:55.225] [info] [graph-structure] node_id=0 name='Clear' inputs=[]
+[2026-05-25 20:08:55.225] [info] [graph-structure] node_id=1 name='fill' inputs=[]
+[2026-05-25 20:08:55.225] [info] [graph-structure] node_id=2 name='Transform' inputs=[1 (fill), ]
+[2026-05-25 20:08:55.225] [info] [graph-structure] node_id=3 name='Lighting' inputs=[2 (Transform), ]
+[2026-05-25 20:08:55.225] [info] [graph-structure] node_id=4 name='fill' inputs=[]
+[2026-05-25 20:08:55.225] [info] [graph-structure] node_id=5 name='Transform' inputs=[4 (fill), ]
+[2026-05-25 20:08:55.225] [info] [graph-structure] node_id=6 name='Shadow' inputs=[5 (Transform), ]
+[2026-05-25 20:08:55.225] [info] [graph-structure] node_id=7 name='Composite' inputs=[3 (Lighting), 6 (Shadow), ]
+[2026-05-25 20:08:55.225] [info] [graph-structure] node_id=8 name='Composite' inputs=[0 (Clear), 7 (Composite), ]
+[2026-05-25 20:08:55.225] [info] [graph-structure] node_id=9 name='fill' inputs=[]
+[2026-05-25 20:08:55.225] [info] [graph-structure] node_id=10 name='Transform' inputs=[9 (fill), ]
+[2026-05-25 20:08:55.225] [info] [graph-structure] node_id=11 name='Lighting' inputs=[10 (Transform), ]
+[2026-05-25 20:08:55.225] [info] [graph-structure] node_id=12 name='Composite' inputs=[8 (Composite), 11 (Lighting), ]
+[2026-05-25 20:08:55.225] [warning] [cache-bypass] frame=0 node='Clear' node_id=0 kind='Output' reason='not_cacheable'
+[2026-05-25 20:08:55.225] [debug] [cache-bypass] frame=0 node='fill' node_id=4 kind='Source' reason='frame_dependent'
+[2026-05-25 20:08:55.225] [info] [dirty-debug] frame=0 Clear reuse_prev=0 clip=[0:0 -> 320:240] prev_origin=[0,0] prev_opaque=0
+[2026-05-25 20:08:55.226] [info] DEBUG DRAW SHAPE: bbox=[118, 78, 202, 162] model_trans=[120, 80] size=[80, 80] fb=[320, 240]
+[2026-05-25 20:08:55.226] [info] [layout-preview] node='fill' type=Rect pos=(120.0,80.0,0.0) anchor=(40.0,40.0,0.0) bbox=[118,78,202,162] screen_anchor=(160.0,120.0)
+[2026-05-25 20:08:55.226] [info] [source-debug] node='fill' shape=1 nonzero_pixels=7064 opacity=1.000 matrix_tx=120.000 matrix_ty=80.000 det2d=1.000000 grid:
+....................
+....................
+....................
+....................
+....................
+....................
+....................
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+....................
+....................
+....................
+....................
+....................
+....................
+[2026-05-25 20:08:55.226] [info] [graph-debug] frame=0 node='fill' kind='Source' cache_status='miss' dur=0.639ms
+[2026-05-25 20:08:55.226] [info] DEBUG DRAW SHAPE: bbox=[18, 68, 302, 172] model_trans=[20, 70] size=[280, 100] fb=[320, 240]
+[2026-05-25 20:08:55.226] [info] DEBUG DRAW SHAPE: bbox=[118, 78, 202, 162] model_trans=[120, 80] size=[80, 80] fb=[320, 240]
+[2026-05-25 20:08:55.226] [info] [layout-preview] node='fill' type=Rect pos=(20.0,70.0,0.0) anchor=(140.0,50.0,0.0) bbox=[18,68,302,172] screen_anchor=(160.0,120.0)
+[2026-05-25 20:08:55.226] [info] [layout-preview] node='fill' type=Rect pos=(120.0,80.0,0.0) anchor=(40.0,40.0,0.0) bbox=[118,78,202,162] screen_anchor=(160.0,120.0)
+[2026-05-25 20:08:55.226] [info] [graph-debug] frame=0 node='Clear' kind='Output' cache_status='bypass_not_cacheable' dur=1.181ms
+[2026-05-25 20:08:55.227] [info] [source-debug] node='fill' shape=1 nonzero_pixels=29544 opacity=1.000 matrix_tx=20.000 matrix_ty=70.000 det2d=1.000000 grid:
+....................
+....................
+....................
+....................
+....................
+....................
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+....................
+....................
+....................
+....................
+....................
+[2026-05-25 20:08:55.227] [info] [graph-debug] frame=0 node='fill' kind='Source' cache_status='miss' dur=1.315ms
+[2026-05-25 20:08:55.227] [info] [source-debug] node='fill' shape=1 nonzero_pixels=7064 opacity=1.000 matrix_tx=120.000 matrix_ty=80.000 det2d=1.000000 grid:
+....................
+....................
+....................
+....................
+....................
+....................
+....................
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+....................
+....................
+....................
+....................
+....................
+....................
+[2026-05-25 20:08:55.227] [info] [graph-debug] frame=0 node='fill' kind='Source' cache_status='bypass_frame_dependent' dur=1.825ms
+[2026-05-25 20:08:55.227] [debug] [cache-bypass] frame=0 node='Transform' node_id=5 kind='Transform' reason='frame_dependent'
+[2026-05-25 20:08:55.227] [info] [transform-debug] node='Transform' det=608000128.000000 winding=ok H=[[800.000,0.000,0.000],[0.000,800.000,0.000],[24000.016,66000.016,950.000]]
+[2026-05-25 20:08:55.227] [info] [transform-debug] node='Transform' det=512000096.000000 winding=ok H=[[800.000,0.000,0.000],[0.000,800.000,0.000],[0.016,-15999.984,800.000]]
+[2026-05-25 20:08:55.227] [info] [transform-debug] node='Transform' output nonzero_pixels=21690 center_color=[0.000,0.000,0.000,0.000] origin=[33,120] size=[254,102] x0_x1=[33,287] y0_y1=[120,222] clip=33,120->287,222 inv_M=[[0.001,-0.000,0.000],[-0.000,0.001,-0.000],[-0.032,-0.087,0.001]] start=[0.010,0.064,0.001] step_x=[0.001,-0.000,0.000] step_y=[-0.000,0.001,-0.000] grid:
+....................
+....................
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+....................
+[2026-05-25 20:08:55.227] [info] [graph-debug] frame=0 node='Transform' kind='Transform' cache_status='miss' dur=0.316ms
+[2026-05-25 20:08:55.228] [info] [transform-debug] node='Transform' output nonzero_pixels=7064 center_color=[0.000,0.000,0.000,0.000] origin=[110,50] size=[100,100] x0_x1=[110,210] y0_y1=[50,150] clip=110,50->210,150 inv_M=[[0.001,-0.000,0.000],[-0.000,0.001,-0.000],[-0.000,0.025,0.001]] start=[0.138,0.088,0.001] step_x=[0.001,-0.000,0.000] step_y=[-0.000,0.001,-0.000] grid:
+....................
+....................
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..AAAAAAAAAAAAAAAAB.
+....................
+[2026-05-25 20:08:55.228] [info] [graph-debug] frame=0 node='Transform' kind='Transform' cache_status='miss' dur=0.372ms
+[2026-05-25 20:08:55.228] [info] [transform-debug] node='Transform' det=512000096.000000 winding=ok H=[[800.000,0.000,0.000],[0.000,800.000,0.000],[0.016,-15999.984,800.000]]
+[2026-05-25 20:08:55.228] [info] [transform-debug] node='Transform' output nonzero_pixels=7064 center_color=[0.000,0.000,0.000,0.000] origin=[110,50] size=[100,100] x0_x1=[110,210] y0_y1=[50,150] clip=110,50->210,150 inv_M=[[0.001,-0.000,0.000],[-0.000,0.001,-0.000],[-0.000,0.025,0.001]] start=[0.138,0.088,0.001] step_x=[0.001,-0.000,0.000] step_y=[-0.000,0.001,-0.000] grid:
+....................
+....................
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..AAAAAAAAAAAAAAAAB.
+....................
+[2026-05-25 20:08:55.228] [info] [graph-debug] frame=0 node='Transform' kind='Transform' cache_status='bypass_frame_dependent' dur=1.030ms
+[2026-05-25 20:08:55.228] [debug] [cache-bypass] frame=0 node='Lighting' node_id=3 kind='Effect' reason='frame_dependent'
+[2026-05-25 20:08:55.228] [debug] [cache-bypass] frame=0 node='Shadow' node_id=6 kind='Effect' reason='frame_dependent'
+[2026-05-25 20:08:55.228] [info] [shadow-node] caster='card' src_size=100x100 origin=(110,50) dx=-60 dy=90 projected_pixels=7064
+[2026-05-25 20:08:55.229] [info] [graph-debug] frame=0 node='Lighting' kind='Effect' cache_status='bypass_frame_dependent' dur=0.478ms
+[2026-05-25 20:08:55.229] [debug] [cache-bypass] frame=0 node='Lighting' node_id=11 kind='Effect' reason='frame_dependent'
+[2026-05-25 20:08:55.229] [info] [graph-debug] frame=0 node='Lighting' kind='Effect' cache_status='bypass_frame_dependent' dur=0.174ms
+[2026-05-25 20:08:55.229] [info] [graph-debug] frame=0 node='Shadow' kind='Effect' cache_status='bypass_frame_dependent' dur=0.773ms
+[2026-05-25 20:08:55.229] [warning] [cache-bypass] frame=0 node='Composite' node_id=7 kind='Composite' reason='not_cacheable'
+[2026-05-25 20:08:55.229] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=1 bottom_opaque=0 top_opaque=0 clip=[33:120 -> 287:240]
+[2026-05-25 20:08:55.229] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='bypass_not_cacheable' dur=0.201ms
+[2026-05-25 20:08:55.229] [debug] [cache-bypass] frame=0 node='Composite' node_id=8 kind='Composite' reason='frame_dependent'
+[2026-05-25 20:08:55.229] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=1 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 320:240]
+[2026-05-25 20:08:55.229] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='bypass_frame_dependent' dur=0.042ms
+[2026-05-25 20:08:55.229] [debug] [cache-bypass] frame=0 node='Composite' node_id=12 kind='Composite' reason='frame_dependent'
+[2026-05-25 20:08:55.229] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=1 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 320:240]
+[2026-05-25 20:08:55.229] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='bypass_frame_dependent' dur=0.027ms
+[2026-05-25 20:08:55.230] [info] [diagnostics-3d] Compiled projection matrix. Depth=950.00, Det=608000128.0000 (OK)
+[2026-05-25 20:08:55.230] [info] [diagnostics-3d] Compiled projection matrix. Depth=800.00, Det=512000096.0000 (OK)
+[2026-05-25 20:08:55.230] [info] [dirty-debug] frame=0 use_dirty_rects=0 prev_fb=0 dirty_rect=[0,0 -> 320,240] prev_frame=-1
+[2026-05-25 20:08:55.230] [info] [diagnostics-3d] Compiled projection matrix. Depth=950.00, Det=608000128.0000 (OK)
+[2026-05-25 20:08:55.230] [info] [diagnostics-3d] Compiled projection matrix. Depth=800.00, Det=512000096.0000 (OK)
+[2026-05-25 20:08:55.230] [info] DEBUG SORT: Before sorting:
+[2026-05-25 20:08:55.230] [info] DEBUG SORT: name=floor depth=950.00 insertion_index=0
+[2026-05-25 20:08:55.230] [info] DEBUG SORT: name=card depth=800.00 insertion_index=1
+[2026-05-25 20:08:55.230] [info] DEBUG SORT: After sorting:
+[2026-05-25 20:08:55.230] [info] DEBUG SORT: name=floor depth=950.00 insertion_index=0
+[2026-05-25 20:08:55.230] [info] DEBUG SORT: name=card depth=800.00 insertion_index=1
+[2026-05-25 20:08:55.230] [info] DEBUG CULL: layer=floor bbox=[40, 126, 280, 215] is_culled=false reason=
+[2026-05-25 20:08:55.230] [info] DEBUG CULL: layer=card bbox=[118, 58, 202, 142] is_culled=false reason=
+[2026-05-25 20:08:55.230] [info] [graph-structure] node_id=0 name='Clear' inputs=[]
+[2026-05-25 20:08:55.230] [info] [graph-structure] node_id=1 name='fill' inputs=[]
+[2026-05-25 20:08:55.230] [info] [graph-structure] node_id=2 name='Transform' inputs=[1 (fill), ]
+[2026-05-25 20:08:55.230] [info] [graph-structure] node_id=3 name='Lighting' inputs=[2 (Transform), ]
+[2026-05-25 20:08:55.230] [info] [graph-structure] node_id=4 name='Composite' inputs=[0 (Clear), 3 (Lighting), ]
+[2026-05-25 20:08:55.230] [info] [graph-structure] node_id=5 name='fill' inputs=[]
+[2026-05-25 20:08:55.230] [info] [graph-structure] node_id=6 name='Transform' inputs=[5 (fill), ]
+[2026-05-25 20:08:55.230] [info] [graph-structure] node_id=7 name='Lighting' inputs=[6 (Transform), ]
+[2026-05-25 20:08:55.230] [info] [graph-structure] node_id=8 name='Composite' inputs=[4 (Composite), 7 (Lighting), ]
+[2026-05-25 20:08:55.230] [warning] [cache-bypass] frame=0 node='Clear' node_id=0 kind='Output' reason='not_cacheable'
+[2026-05-25 20:08:55.230] [info] [dirty-debug] frame=0 Clear reuse_prev=0 clip=[0:0 -> 320:240] prev_origin=[0,0] prev_opaque=0
+[2026-05-25 20:08:55.230] [info] [graph-debug] frame=0 node='Clear' kind='Output' cache_status='bypass_not_cacheable' dur=0.427ms
+[2026-05-25 20:08:55.231] [info] DEBUG DRAW SHAPE: bbox=[18, 68, 302, 172] model_trans=[20, 70] size=[280, 100] fb=[320, 240]
+[2026-05-25 20:08:55.231] [info] DEBUG DRAW SHAPE: bbox=[118, 78, 202, 162] model_trans=[120, 80] size=[80, 80] fb=[320, 240]
+[2026-05-25 20:08:55.231] [info] [layout-preview] node='fill' type=Rect pos=(120.0,80.0,0.0) anchor=(40.0,40.0,0.0) bbox=[118,78,202,162] screen_anchor=(160.0,120.0)
+[2026-05-25 20:08:55.231] [info] [layout-preview] node='fill' type=Rect pos=(20.0,70.0,0.0) anchor=(140.0,50.0,0.0) bbox=[18,68,302,172] screen_anchor=(160.0,120.0)
+[2026-05-25 20:08:55.231] [info] [source-debug] node='fill' shape=1 nonzero_pixels=7064 opacity=1.000 matrix_tx=120.000 matrix_ty=80.000 det2d=1.000000 grid:
+....................
+....................
+....................
+....................
+....................
+....................
+....................
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+....................
+....................
+....................
+....................
+....................
+....................
+[2026-05-25 20:08:55.231] [info] [graph-debug] frame=0 node='fill' kind='Source' cache_status='miss' dur=1.199ms
+[2026-05-25 20:08:55.231] [info] [source-debug] node='fill' shape=1 nonzero_pixels=29544 opacity=1.000 matrix_tx=20.000 matrix_ty=70.000 det2d=1.000000 grid:
+....................
+....................
+....................
+....................
+....................
+....................
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+....................
+....................
+....................
+....................
+....................
+[2026-05-25 20:08:55.231] [info] [graph-debug] frame=0 node='fill' kind='Source' cache_status='miss' dur=1.217ms
+[2026-05-25 20:08:55.232] [info] [transform-debug] node='Transform' det=512000096.000000 winding=ok H=[[800.000,0.000,0.000],[0.000,800.000,0.000],[0.016,-15999.984,800.000]]
+[2026-05-25 20:08:55.232] [info] [transform-debug] node='Transform' det=608000128.000000 winding=ok H=[[800.000,0.000,0.000],[0.000,800.000,0.000],[24000.016,66000.016,950.000]]
+[2026-05-25 20:08:55.232] [info] [transform-debug] node='Transform' output nonzero_pixels=21690 center_color=[0.000,0.000,0.000,0.000] origin=[33,120] size=[254,102] x0_x1=[33,287] y0_y1=[120,222] clip=33,120->287,222 inv_M=[[0.001,-0.000,0.000],[-0.000,0.001,-0.000],[-0.032,-0.087,0.001]] start=[0.010,0.064,0.001] step_x=[0.001,-0.000,0.000] step_y=[-0.000,0.001,-0.000] grid:
+....................
+....................
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+....................
+[2026-05-25 20:08:55.232] [info] [graph-debug] frame=0 node='Transform' kind='Transform' cache_status='miss' dur=1.041ms
+[2026-05-25 20:08:55.232] [info] [transform-debug] node='Transform' output nonzero_pixels=7064 center_color=[0.000,0.000,0.000,0.000] origin=[110,50] size=[100,100] x0_x1=[110,210] y0_y1=[50,150] clip=110,50->210,150 inv_M=[[0.001,-0.000,0.000],[-0.000,0.001,-0.000],[-0.000,0.025,0.001]] start=[0.138,0.088,0.001] step_x=[0.001,-0.000,0.000] step_y=[-0.000,0.001,-0.000] grid:
+....................
+....................
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..AAAAAAAAAAAAAAAAB.
+....................
+[2026-05-25 20:08:55.232] [info] [graph-debug] frame=0 node='Transform' kind='Transform' cache_status='miss' dur=1.129ms
+[2026-05-25 20:08:55.232] [debug] [cache-bypass] frame=0 node='Lighting' node_id=3 kind='Effect' reason='frame_dependent'
+[2026-05-25 20:08:55.232] [debug] [cache-bypass] frame=0 node='Lighting' node_id=7 kind='Effect' reason='frame_dependent'
+[2026-05-25 20:08:55.233] [info] [graph-debug] frame=0 node='Lighting' kind='Effect' cache_status='bypass_frame_dependent' dur=0.280ms
+[2026-05-25 20:08:55.233] [info] [graph-debug] frame=0 node='Lighting' kind='Effect' cache_status='bypass_frame_dependent' dur=0.501ms
+[2026-05-25 20:08:55.233] [debug] [cache-bypass] frame=0 node='Composite' node_id=4 kind='Composite' reason='frame_dependent'
+[2026-05-25 20:08:55.233] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=1 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 320:240]
+[2026-05-25 20:08:55.233] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='bypass_frame_dependent' dur=0.053ms
+[2026-05-25 20:08:55.233] [debug] [cache-bypass] frame=0 node='Composite' node_id=8 kind='Composite' reason='frame_dependent'
+[2026-05-25 20:08:55.233] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=1 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 320:240]
+[2026-05-25 20:08:55.233] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='bypass_frame_dependent' dur=0.028ms
+[2026-05-25 20:08:55.254] [info] [diagnostics-3d] Compiled projection matrix. Depth=950.00, Det=608000128.0000 (OK)
+[2026-05-25 20:08:55.254] [info] [diagnostics-3d] Compiled projection matrix. Depth=800.00, Det=512000096.0000 (OK)
+[2026-05-25 20:08:55.254] [info] [dirty-debug] frame=0 use_dirty_rects=0 prev_fb=0 dirty_rect=[0,0 -> 320,240] prev_frame=-1
+[2026-05-25 20:08:55.254] [info] [diagnostics-3d] Compiled projection matrix. Depth=950.00, Det=608000128.0000 (OK)
+[2026-05-25 20:08:55.254] [info] [diagnostics-3d] Compiled projection matrix. Depth=800.00, Det=512000096.0000 (OK)
+[2026-05-25 20:08:55.254] [info] DEBUG SORT: Before sorting:
+[2026-05-25 20:08:55.254] [info] DEBUG SORT: name=floor depth=950.00 insertion_index=0
+[2026-05-25 20:08:55.254] [info] DEBUG SORT: name=card depth=800.00 insertion_index=1
+[2026-05-25 20:08:55.254] [info] DEBUG SORT: After sorting:
+[2026-05-25 20:08:55.254] [info] DEBUG SORT: name=floor depth=950.00 insertion_index=0
+[2026-05-25 20:08:55.254] [info] DEBUG SORT: name=card depth=800.00 insertion_index=1
+[2026-05-25 20:08:55.254] [info] DEBUG CULL: layer=floor bbox=[40, 126, 280, 215] is_culled=false reason=
+[2026-05-25 20:08:55.254] [info] DEBUG CULL: layer=card bbox=[118, 58, 202, 142] is_culled=false reason=
+[2026-05-25 20:08:55.254] [info] [graph-structure] node_id=0 name='Clear' inputs=[]
+[2026-05-25 20:08:55.254] [info] [graph-structure] node_id=1 name='fill' inputs=[]
+[2026-05-25 20:08:55.254] [info] [graph-structure] node_id=2 name='Transform' inputs=[1 (fill), ]
+[2026-05-25 20:08:55.254] [info] [graph-structure] node_id=3 name='Lighting' inputs=[2 (Transform), ]
+[2026-05-25 20:08:55.254] [info] [graph-structure] node_id=4 name='fill' inputs=[]
+[2026-05-25 20:08:55.254] [info] [graph-structure] node_id=5 name='Transform' inputs=[4 (fill), ]
+[2026-05-25 20:08:55.254] [info] [graph-structure] node_id=6 name='Shadow' inputs=[5 (Transform), ]
+[2026-05-25 20:08:55.254] [info] [graph-structure] node_id=7 name='Composite' inputs=[3 (Lighting), 6 (Shadow), ]
+[2026-05-25 20:08:55.254] [info] [graph-structure] node_id=8 name='Composite' inputs=[0 (Clear), 7 (Composite), ]
+[2026-05-25 20:08:55.254] [info] [graph-structure] node_id=9 name='fill' inputs=[]
+[2026-05-25 20:08:55.254] [info] [graph-structure] node_id=10 name='Transform' inputs=[9 (fill), ]
+[2026-05-25 20:08:55.254] [info] [graph-structure] node_id=11 name='Lighting' inputs=[10 (Transform), ]
+[2026-05-25 20:08:55.254] [info] [graph-structure] node_id=12 name='Composite' inputs=[8 (Composite), 11 (Lighting), ]
+[2026-05-25 20:08:55.254] [warning] [cache-bypass] frame=0 node='Clear' node_id=0 kind='Output' reason='not_cacheable'
+[2026-05-25 20:08:55.254] [info] [dirty-debug] frame=0 Clear reuse_prev=0 clip=[0:0 -> 320:240] prev_origin=[0,0] prev_opaque=0
+[2026-05-25 20:08:55.254] [debug] [cache-bypass] frame=0 node='fill' node_id=4 kind='Source' reason='frame_dependent'
+[2026-05-25 20:08:55.255] [info] [graph-debug] frame=0 node='Clear' kind='Output' cache_status='bypass_not_cacheable' dur=0.933ms
+[2026-05-25 20:08:55.255] [info] DEBUG DRAW SHAPE: bbox=[18, 68, 302, 172] model_trans=[20, 70] size=[280, 100] fb=[320, 240]
+[2026-05-25 20:08:55.256] [info] [layout-preview] node='fill' type=Rect pos=(20.0,70.0,0.0) anchor=(140.0,50.0,0.0) bbox=[18,68,302,172] screen_anchor=(160.0,120.0)
+[2026-05-25 20:08:55.256] [info] DEBUG DRAW SHAPE: bbox=[118, 78, 202, 162] model_trans=[120, 80] size=[80, 80] fb=[320, 240]
+[2026-05-25 20:08:55.256] [info] [layout-preview] node='fill' type=Rect pos=(120.0,80.0,0.0) anchor=(40.0,40.0,0.0) bbox=[118,78,202,162] screen_anchor=(160.0,120.0)
+[2026-05-25 20:08:55.256] [info] [source-debug] node='fill' shape=1 nonzero_pixels=29544 opacity=1.000 matrix_tx=20.000 matrix_ty=70.000 det2d=1.000000 grid:
+....................
+....................
+....................
+....................
+....................
+....................
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+....................
+....................
+....................
+....................
+....................
+[2026-05-25 20:08:55.256] [info] [graph-debug] frame=0 node='fill' kind='Source' cache_status='miss' dur=2.172ms
+[2026-05-25 20:08:55.256] [info] DEBUG DRAW SHAPE: bbox=[118, 78, 202, 162] model_trans=[120, 80] size=[80, 80] fb=[320, 240]
+[2026-05-25 20:08:55.256] [info] [source-debug] node='fill' shape=1 nonzero_pixels=7064 opacity=1.000 matrix_tx=120.000 matrix_ty=80.000 det2d=1.000000 grid:
+....................
+....................
+....................
+....................
+....................
+....................
+....................
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+....................
+....................
+....................
+....................
+....................
+....................
+[2026-05-25 20:08:55.256] [info] [graph-debug] frame=0 node='fill' kind='Source' cache_status='bypass_frame_dependent' dur=2.436ms
+[2026-05-25 20:08:55.256] [info] [layout-preview] node='fill' type=Rect pos=(120.0,80.0,0.0) anchor=(40.0,40.0,0.0) bbox=[118,78,202,162] screen_anchor=(160.0,120.0)
+[2026-05-25 20:08:55.257] [info] [source-debug] node='fill' shape=1 nonzero_pixels=7064 opacity=1.000 matrix_tx=120.000 matrix_ty=80.000 det2d=1.000000 grid:
+....................
+....................
+....................
+....................
+....................
+....................
+....................
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+....................
+....................
+....................
+....................
+....................
+....................
+[2026-05-25 20:08:55.257] [info] [graph-debug] frame=0 node='fill' kind='Source' cache_status='miss' dur=2.741ms
+[2026-05-25 20:08:55.257] [debug] [cache-bypass] frame=0 node='Transform' node_id=5 kind='Transform' reason='frame_dependent'
+[2026-05-25 20:08:55.257] [info] [transform-debug] node='Transform' det=512000096.000000 winding=ok H=[[800.000,0.000,0.000],[0.000,800.000,0.000],[0.016,-15999.984,800.000]]
+[2026-05-25 20:08:55.257] [info] [transform-debug] node='Transform' det=608000128.000000 winding=ok H=[[800.000,0.000,0.000],[0.000,800.000,0.000],[24000.016,66000.016,950.000]]
+[2026-05-25 20:08:55.257] [info] [transform-debug] node='Transform' det=512000096.000000 winding=ok H=[[800.000,0.000,0.000],[0.000,800.000,0.000],[0.016,-15999.984,800.000]]
+[2026-05-25 20:08:55.257] [info] [transform-debug] node='Transform' output nonzero_pixels=7064 center_color=[0.000,0.000,0.000,0.000] origin=[110,50] size=[100,100] x0_x1=[110,210] y0_y1=[50,150] clip=110,50->210,150 inv_M=[[0.001,-0.000,0.000],[-0.000,0.001,-0.000],[-0.000,0.025,0.001]] start=[0.138,0.088,0.001] step_x=[0.001,-0.000,0.000] step_y=[-0.000,0.001,-0.000] grid:
+....................
+....................
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..AAAAAAAAAAAAAAAAB.
+....................
+[2026-05-25 20:08:55.257] [info] [graph-debug] frame=0 node='Transform' kind='Transform' cache_status='miss' dur=0.402ms
+[2026-05-25 20:08:55.257] [info] [transform-debug] node='Transform' output nonzero_pixels=7064 center_color=[0.000,0.000,0.000,0.000] origin=[110,50] size=[100,100] x0_x1=[110,210] y0_y1=[50,150] clip=110,50->210,150 inv_M=[[0.001,-0.000,0.000],[-0.000,0.001,-0.000],[-0.000,0.025,0.001]] start=[0.138,0.088,0.001] step_x=[0.001,-0.000,0.000] step_y=[-0.000,0.001,-0.000] grid:
+....................
+....................
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..AAAAAAAAAAAAAAAAB.
+....................
+[2026-05-25 20:08:55.257] [info] [graph-debug] frame=0 node='Transform' kind='Transform' cache_status='bypass_frame_dependent' dur=0.541ms
+[2026-05-25 20:08:55.257] [info] [transform-debug] node='Transform' output nonzero_pixels=21690 center_color=[0.000,0.000,0.000,0.000] origin=[33,120] size=[254,102] x0_x1=[33,287] y0_y1=[120,222] clip=33,120->287,222 inv_M=[[0.001,-0.000,0.000],[-0.000,0.001,-0.000],[-0.032,-0.087,0.001]] start=[0.010,0.064,0.001] step_x=[0.001,-0.000,0.000] step_y=[-0.000,0.001,-0.000] grid:
+....................
+....................
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+....................
+[2026-05-25 20:08:55.258] [info] [graph-debug] frame=0 node='Transform' kind='Transform' cache_status='miss' dur=0.801ms
+[2026-05-25 20:08:55.258] [debug] [cache-bypass] frame=0 node='Lighting' node_id=3 kind='Effect' reason='frame_dependent'
+[2026-05-25 20:08:55.258] [debug] [cache-bypass] frame=0 node='Lighting' node_id=11 kind='Effect' reason='frame_dependent'
+[2026-05-25 20:08:55.258] [debug] [cache-bypass] frame=0 node='Shadow' node_id=6 kind='Effect' reason='frame_dependent'
+[2026-05-25 20:08:55.258] [info] [shadow-node] caster='card' src_size=100x100 origin=(110,50) dx=-60 dy=90 projected_pixels=7064
+[2026-05-25 20:08:55.258] [info] [graph-debug] frame=0 node='Lighting' kind='Effect' cache_status='bypass_frame_dependent' dur=0.541ms
+[2026-05-25 20:08:55.258] [info] [graph-debug] frame=0 node='Lighting' kind='Effect' cache_status='bypass_frame_dependent' dur=0.611ms
+[2026-05-25 20:08:55.259] [info] [graph-debug] frame=0 node='Shadow' kind='Effect' cache_status='bypass_frame_dependent' dur=1.210ms
+[2026-05-25 20:08:55.259] [warning] [cache-bypass] frame=0 node='Composite' node_id=7 kind='Composite' reason='not_cacheable'
+[2026-05-25 20:08:55.259] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=1 bottom_opaque=0 top_opaque=0 clip=[33:120 -> 287:240]
+[2026-05-25 20:08:55.260] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='bypass_not_cacheable' dur=0.672ms
+[2026-05-25 20:08:55.260] [debug] [cache-bypass] frame=0 node='Composite' node_id=8 kind='Composite' reason='frame_dependent'
+[2026-05-25 20:08:55.260] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=1 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 320:240]
+[2026-05-25 20:08:55.260] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='bypass_frame_dependent' dur=0.073ms
+[2026-05-25 20:08:55.260] [debug] [cache-bypass] frame=0 node='Composite' node_id=12 kind='Composite' reason='frame_dependent'
+[2026-05-25 20:08:55.260] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=1 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 320:240]
+[2026-05-25 20:08:55.260] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='bypass_frame_dependent' dur=0.030ms
+[2026-05-25 20:08:55.261] [info] [diagnostics-3d] Compiled projection matrix. Depth=950.00, Det=608000128.0000 (OK)
+[2026-05-25 20:08:55.261] [info] [diagnostics-3d] Compiled projection matrix. Depth=800.00, Det=512000096.0000 (OK)
+[2026-05-25 20:08:55.261] [info] [dirty-debug] frame=0 use_dirty_rects=0 prev_fb=0 dirty_rect=[0,0 -> 320,240] prev_frame=-1
+[2026-05-25 20:08:55.261] [info] [diagnostics-3d] Compiled projection matrix. Depth=950.00, Det=608000128.0000 (OK)
+[2026-05-25 20:08:55.261] [info] [diagnostics-3d] Compiled projection matrix. Depth=800.00, Det=512000096.0000 (OK)
+[2026-05-25 20:08:55.261] [info] DEBUG SORT: Before sorting:
+[2026-05-25 20:08:55.261] [info] DEBUG SORT: name=floor depth=950.00 insertion_index=0
+[2026-05-25 20:08:55.261] [info] DEBUG SORT: name=card depth=800.00 insertion_index=1
+[2026-05-25 20:08:55.261] [info] DEBUG SORT: After sorting:
+[2026-05-25 20:08:55.261] [info] DEBUG SORT: name=floor depth=950.00 insertion_index=0
+[2026-05-25 20:08:55.261] [info] DEBUG SORT: name=card depth=800.00 insertion_index=1
+[2026-05-25 20:08:55.261] [info] DEBUG CULL: layer=floor bbox=[40, 126, 280, 215] is_culled=false reason=
+[2026-05-25 20:08:55.261] [info] DEBUG CULL: layer=card bbox=[118, 58, 202, 142] is_culled=false reason=
+[2026-05-25 20:08:55.261] [info] [graph-structure] node_id=0 name='Clear' inputs=[]
+[2026-05-25 20:08:55.261] [info] [graph-structure] node_id=1 name='fill' inputs=[]
+[2026-05-25 20:08:55.261] [info] [graph-structure] node_id=2 name='Transform' inputs=[1 (fill), ]
+[2026-05-25 20:08:55.261] [info] [graph-structure] node_id=3 name='Lighting' inputs=[2 (Transform), ]
+[2026-05-25 20:08:55.261] [info] [graph-structure] node_id=4 name='Composite' inputs=[0 (Clear), 3 (Lighting), ]
+[2026-05-25 20:08:55.261] [info] [graph-structure] node_id=5 name='fill' inputs=[]
+[2026-05-25 20:08:55.261] [info] [graph-structure] node_id=6 name='Transform' inputs=[5 (fill), ]
+[2026-05-25 20:08:55.261] [info] [graph-structure] node_id=7 name='Lighting' inputs=[6 (Transform), ]
+[2026-05-25 20:08:55.261] [info] [graph-structure] node_id=8 name='Composite' inputs=[4 (Composite), 7 (Lighting), ]
+[2026-05-25 20:08:55.261] [warning] [cache-bypass] frame=0 node='Clear' node_id=0 kind='Output' reason='not_cacheable'
+[2026-05-25 20:08:55.261] [info] [dirty-debug] frame=0 Clear reuse_prev=0 clip=[0:0 -> 320:240] prev_origin=[0,0] prev_opaque=0
+[2026-05-25 20:08:55.261] [info] DEBUG DRAW SHAPE: bbox=[18, 68, 302, 172] model_trans=[20, 70] size=[280, 100] fb=[320, 240]
+[2026-05-25 20:08:55.261] [info] [graph-debug] frame=0 node='Clear' kind='Output' cache_status='bypass_not_cacheable' dur=0.521ms
+[2026-05-25 20:08:55.262] [info] DEBUG DRAW SHAPE: bbox=[118, 78, 202, 162] model_trans=[120, 80] size=[80, 80] fb=[320, 240]
+[2026-05-25 20:08:55.262] [info] [layout-preview] node='fill' type=Rect pos=(20.0,70.0,0.0) anchor=(140.0,50.0,0.0) bbox=[18,68,302,172] screen_anchor=(160.0,120.0)
+[2026-05-25 20:08:55.262] [info] [layout-preview] node='fill' type=Rect pos=(120.0,80.0,0.0) anchor=(40.0,40.0,0.0) bbox=[118,78,202,162] screen_anchor=(160.0,120.0)
+[2026-05-25 20:08:55.262] [info] [source-debug] node='fill' shape=1 nonzero_pixels=29544 opacity=1.000 matrix_tx=20.000 matrix_ty=70.000 det2d=1.000000 grid:
+....................
+....................
+....................
+....................
+....................
+....................
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+....................
+....................
+....................
+....................
+....................
+[2026-05-25 20:08:55.262] [info] [graph-debug] frame=0 node='fill' kind='Source' cache_status='miss' dur=1.130ms
+[2026-05-25 20:08:55.262] [info] [source-debug] node='fill' shape=1 nonzero_pixels=7064 opacity=1.000 matrix_tx=120.000 matrix_ty=80.000 det2d=1.000000 grid:
+....................
+....................
+....................
+....................
+....................
+....................
+....................
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+....................
+....................
+....................
+....................
+....................
+....................
+[2026-05-25 20:08:55.262] [info] [graph-debug] frame=0 node='fill' kind='Source' cache_status='miss' dur=1.185ms
+[2026-05-25 20:08:55.262] [info] [transform-debug] node='Transform' det=512000096.000000 winding=ok H=[[800.000,0.000,0.000],[0.000,800.000,0.000],[0.016,-15999.984,800.000]]
+[2026-05-25 20:08:55.262] [info] [transform-debug] node='Transform' det=608000128.000000 winding=ok H=[[800.000,0.000,0.000],[0.000,800.000,0.000],[24000.016,66000.016,950.000]]
+[2026-05-25 20:08:55.262] [info] [transform-debug] node='Transform' output nonzero_pixels=7064 center_color=[0.000,0.000,0.000,0.000] origin=[110,50] size=[100,100] x0_x1=[110,210] y0_y1=[50,150] clip=110,50->210,150 inv_M=[[0.001,-0.000,0.000],[-0.000,0.001,-0.000],[-0.000,0.025,0.001]] start=[0.138,0.088,0.001] step_x=[0.001,-0.000,0.000] step_y=[-0.000,0.001,-0.000] grid:
+....................
+....................
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..AAAAAAAAAAAAAAAAB.
+....................
+[2026-05-25 20:08:55.262] [info] [graph-debug] frame=0 node='Transform' kind='Transform' cache_status='miss' dur=0.382ms
+[2026-05-25 20:08:55.263] [info] [transform-debug] node='Transform' output nonzero_pixels=21690 center_color=[0.000,0.000,0.000,0.000] origin=[33,120] size=[254,102] x0_x1=[33,287] y0_y1=[120,222] clip=33,120->287,222 inv_M=[[0.001,-0.000,0.000],[-0.000,0.001,-0.000],[-0.032,-0.087,0.001]] start=[0.010,0.064,0.001] step_x=[0.001,-0.000,0.000] step_y=[-0.000,0.001,-0.000] grid:
+....................
+....................
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+....................
+[2026-05-25 20:08:55.263] [info] [graph-debug] frame=0 node='Transform' kind='Transform' cache_status='miss' dur=0.842ms
+[2026-05-25 20:08:55.263] [debug] [cache-bypass] frame=0 node='Lighting' node_id=3 kind='Effect' reason='frame_dependent'
+[2026-05-25 20:08:55.263] [debug] [cache-bypass] frame=0 node='Lighting' node_id=7 kind='Effect' reason='frame_dependent'
+[2026-05-25 20:08:55.263] [info] [graph-debug] frame=0 node='Lighting' kind='Effect' cache_status='bypass_frame_dependent' dur=0.301ms
+[2026-05-25 20:08:55.263] [info] [graph-debug] frame=0 node='Lighting' kind='Effect' cache_status='bypass_frame_dependent' dur=0.473ms
+[2026-05-25 20:08:55.263] [debug] [cache-bypass] frame=0 node='Composite' node_id=4 kind='Composite' reason='frame_dependent'
+[2026-05-25 20:08:55.263] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=1 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 320:240]
+[2026-05-25 20:08:55.263] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='bypass_frame_dependent' dur=0.056ms
+[2026-05-25 20:08:55.263] [debug] [cache-bypass] frame=0 node='Composite' node_id=8 kind='Composite' reason='frame_dependent'
+[2026-05-25 20:08:55.263] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=1 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 320:240]
+[2026-05-25 20:08:55.263] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='bypass_frame_dependent' dur=0.028ms
+[2026-05-25 20:08:55.277] [info] [diagnostics-3d] Compiled projection matrix. Depth=950.00, Det=608000128.0000 (OK)
+[2026-05-25 20:08:55.277] [info] [diagnostics-3d] Compiled projection matrix. Depth=800.00, Det=512000096.0000 (OK)
+[2026-05-25 20:08:55.277] [info] [dirty-debug] frame=0 use_dirty_rects=0 prev_fb=0 dirty_rect=[0,0 -> 320,240] prev_frame=-1
+[2026-05-25 20:08:55.277] [info] [diagnostics-3d] Compiled projection matrix. Depth=950.00, Det=608000128.0000 (OK)
+[2026-05-25 20:08:55.277] [info] [diagnostics-3d] Compiled projection matrix. Depth=800.00, Det=512000096.0000 (OK)
+[2026-05-25 20:08:55.277] [info] DEBUG SORT: Before sorting:
+[2026-05-25 20:08:55.277] [info] DEBUG SORT: name=floor depth=950.00 insertion_index=0
+[2026-05-25 20:08:55.277] [info] DEBUG SORT: name=card depth=800.00 insertion_index=1
+[2026-05-25 20:08:55.277] [info] DEBUG SORT: After sorting:
+[2026-05-25 20:08:55.277] [info] DEBUG SORT: name=floor depth=950.00 insertion_index=0
+[2026-05-25 20:08:55.277] [info] DEBUG SORT: name=card depth=800.00 insertion_index=1
+[2026-05-25 20:08:55.277] [info] DEBUG CULL: layer=floor bbox=[40, 126, 280, 215] is_culled=false reason=
+[2026-05-25 20:08:55.277] [info] DEBUG CULL: layer=card bbox=[118, 58, 202, 142] is_culled=false reason=
+[2026-05-25 20:08:55.277] [info] [graph-structure] node_id=0 name='Clear' inputs=[]
+[2026-05-25 20:08:55.277] [info] [graph-structure] node_id=1 name='fill' inputs=[]
+[2026-05-25 20:08:55.277] [info] [graph-structure] node_id=2 name='Transform' inputs=[1 (fill), ]
+[2026-05-25 20:08:55.277] [info] [graph-structure] node_id=3 name='Lighting' inputs=[2 (Transform), ]
+[2026-05-25 20:08:55.277] [info] [graph-structure] node_id=4 name='fill' inputs=[]
+[2026-05-25 20:08:55.277] [info] [graph-structure] node_id=5 name='Transform' inputs=[4 (fill), ]
+[2026-05-25 20:08:55.277] [info] [graph-structure] node_id=6 name='Shadow' inputs=[5 (Transform), ]
+[2026-05-25 20:08:55.277] [info] [graph-structure] node_id=7 name='Composite' inputs=[3 (Lighting), 6 (Shadow), ]
+[2026-05-25 20:08:55.277] [info] [graph-structure] node_id=8 name='Composite' inputs=[0 (Clear), 7 (Composite), ]
+[2026-05-25 20:08:55.277] [info] [graph-structure] node_id=9 name='fill' inputs=[]
+[2026-05-25 20:08:55.277] [info] [graph-structure] node_id=10 name='Transform' inputs=[9 (fill), ]
+[2026-05-25 20:08:55.277] [info] [graph-structure] node_id=11 name='Lighting' inputs=[10 (Transform), ]
+[2026-05-25 20:08:55.277] [info] [graph-structure] node_id=12 name='Composite' inputs=[8 (Composite), 11 (Lighting), ]
+[2026-05-25 20:08:55.277] [warning] [cache-bypass] frame=0 node='Clear' node_id=0 kind='Output' reason='not_cacheable'
+[2026-05-25 20:08:55.277] [debug] [cache-bypass] frame=0 node='fill' node_id=4 kind='Source' reason='frame_dependent'
+[2026-05-25 20:08:55.277] [info] [dirty-debug] frame=0 Clear reuse_prev=0 clip=[0:0 -> 320:240] prev_origin=[0,0] prev_opaque=0
+[2026-05-25 20:08:55.278] [info] DEBUG DRAW SHAPE: bbox=[118, 78, 202, 162] model_trans=[120, 80] size=[80, 80] fb=[320, 240]
+[2026-05-25 20:08:55.278] [info] [layout-preview] node='fill' type=Rect pos=(120.0,80.0,0.0) anchor=(40.0,40.0,0.0) bbox=[118,78,202,162] screen_anchor=(160.0,120.0)
+[2026-05-25 20:08:55.278] [info] DEBUG DRAW SHAPE: bbox=[118, 78, 202, 162] model_trans=[120, 80] size=[80, 80] fb=[320, 240]
+[2026-05-25 20:08:55.278] [info] [layout-preview] node='fill' type=Rect pos=(120.0,80.0,0.0) anchor=(40.0,40.0,0.0) bbox=[118,78,202,162] screen_anchor=(160.0,120.0)
+[2026-05-25 20:08:55.278] [info] [source-debug] node='fill' shape=1 nonzero_pixels=7064 opacity=1.000 matrix_tx=120.000 matrix_ty=80.000 det2d=1.000000 grid:
+....................
+....................
+....................
+....................
+....................
+....................
+....................
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+....................
+....................
+....................
+....................
+....................
+....................
+[2026-05-25 20:08:55.278] [info] [graph-debug] frame=0 node='fill' kind='Source' cache_status='miss' dur=0.952ms
+[2026-05-25 20:08:55.278] [info] [source-debug] node='fill' shape=1 nonzero_pixels=7064 opacity=1.000 matrix_tx=120.000 matrix_ty=80.000 det2d=1.000000 grid:
+....................
+....................
+....................
+....................
+....................
+....................
+....................
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+....................
+....................
+....................
+....................
+....................
+....................
+[2026-05-25 20:08:55.278] [info] [graph-debug] frame=0 node='fill' kind='Source' cache_status='bypass_frame_dependent' dur=1.025ms
+[2026-05-25 20:08:55.279] [info] DEBUG DRAW SHAPE: bbox=[18, 68, 302, 172] model_trans=[20, 70] size=[280, 100] fb=[320, 240]
+[2026-05-25 20:08:55.279] [info] [layout-preview] node='fill' type=Rect pos=(20.0,70.0,0.0) anchor=(140.0,50.0,0.0) bbox=[18,68,302,172] screen_anchor=(160.0,120.0)
+[2026-05-25 20:08:55.279] [info] [graph-debug] frame=0 node='Clear' kind='Output' cache_status='bypass_not_cacheable' dur=2.034ms
+[2026-05-25 20:08:55.279] [info] [source-debug] node='fill' shape=1 nonzero_pixels=29544 opacity=1.000 matrix_tx=20.000 matrix_ty=70.000 det2d=1.000000 grid:
+....................
+....................
+....................
+....................
+....................
+....................
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+....................
+....................
+....................
+....................
+....................
+[2026-05-25 20:08:55.280] [info] [graph-debug] frame=0 node='fill' kind='Source' cache_status='miss' dur=2.100ms
+[2026-05-25 20:08:55.280] [debug] [cache-bypass] frame=0 node='Transform' node_id=5 kind='Transform' reason='frame_dependent'
+[2026-05-25 20:08:55.280] [info] [transform-debug] node='Transform' det=608000128.000000 winding=ok H=[[800.000,0.000,0.000],[0.000,800.000,0.000],[24000.016,66000.016,950.000]]
+[2026-05-25 20:08:55.280] [info] [transform-debug] node='Transform' det=512000096.000000 winding=ok H=[[800.000,0.000,0.000],[0.000,800.000,0.000],[0.016,-15999.984,800.000]]
+[2026-05-25 20:08:55.280] [info] [transform-debug] node='Transform' output nonzero_pixels=21690 center_color=[0.000,0.000,0.000,0.000] origin=[33,120] size=[254,102] x0_x1=[33,287] y0_y1=[120,222] clip=33,120->287,222 inv_M=[[0.001,-0.000,0.000],[-0.000,0.001,-0.000],[-0.032,-0.087,0.001]] start=[0.010,0.064,0.001] step_x=[0.001,-0.000,0.000] step_y=[-0.000,0.001,-0.000] grid:
+....................
+....................
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+....................
+[2026-05-25 20:08:55.280] [info] [graph-debug] frame=0 node='Transform' kind='Transform' cache_status='miss' dur=0.553ms
+[2026-05-25 20:08:55.280] [info] [transform-debug] node='Transform' output nonzero_pixels=7064 center_color=[0.000,0.000,0.000,0.000] origin=[110,50] size=[100,100] x0_x1=[110,210] y0_y1=[50,150] clip=110,50->210,150 inv_M=[[0.001,-0.000,0.000],[-0.000,0.001,-0.000],[-0.000,0.025,0.001]] start=[0.138,0.088,0.001] step_x=[0.001,-0.000,0.000] step_y=[-0.000,0.001,-0.000] grid:
+....................
+....................
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..AAAAAAAAAAAAAAAAB.
+....................
+[2026-05-25 20:08:55.280] [info] [graph-debug] frame=0 node='Transform' kind='Transform' cache_status='miss' dur=0.639ms
+[2026-05-25 20:08:55.280] [info] [transform-debug] node='Transform' det=512000096.000000 winding=ok H=[[800.000,0.000,0.000],[0.000,800.000,0.000],[0.016,-15999.984,800.000]]
+[2026-05-25 20:08:55.281] [info] [transform-debug] node='Transform' output nonzero_pixels=7064 center_color=[0.000,0.000,0.000,0.000] origin=[110,50] size=[100,100] x0_x1=[110,210] y0_y1=[50,150] clip=110,50->210,150 inv_M=[[0.001,-0.000,0.000],[-0.000,0.001,-0.000],[-0.000,0.025,0.001]] start=[0.138,0.088,0.001] step_x=[0.001,-0.000,0.000] step_y=[-0.000,0.001,-0.000] grid:
+....................
+....................
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..AAAAAAAAAAAAAAAAB.
+....................
+[2026-05-25 20:08:55.281] [info] [graph-debug] frame=0 node='Transform' kind='Transform' cache_status='bypass_frame_dependent' dur=1.000ms
+[2026-05-25 20:08:55.281] [debug] [cache-bypass] frame=0 node='Lighting' node_id=3 kind='Effect' reason='frame_dependent'
+[2026-05-25 20:08:55.281] [debug] [cache-bypass] frame=0 node='Shadow' node_id=6 kind='Effect' reason='frame_dependent'
+[2026-05-25 20:08:55.281] [debug] [cache-bypass] frame=0 node='Lighting' node_id=11 kind='Effect' reason='frame_dependent'
+[2026-05-25 20:08:55.281] [info] [graph-debug] frame=0 node='Lighting' kind='Effect' cache_status='bypass_frame_dependent' dur=0.497ms
+[2026-05-25 20:08:55.281] [info] [shadow-node] caster='card' src_size=100x100 origin=(110,50) dx=-60 dy=90 projected_pixels=7064
+[2026-05-25 20:08:55.281] [info] [graph-debug] frame=0 node='Lighting' kind='Effect' cache_status='bypass_frame_dependent' dur=0.673ms
+[2026-05-25 20:08:55.282] [info] [graph-debug] frame=0 node='Shadow' kind='Effect' cache_status='bypass_frame_dependent' dur=1.308ms
+[2026-05-25 20:08:55.282] [warning] [cache-bypass] frame=0 node='Composite' node_id=7 kind='Composite' reason='not_cacheable'
+[2026-05-25 20:08:55.282] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=1 bottom_opaque=0 top_opaque=0 clip=[33:120 -> 287:240]
+[2026-05-25 20:08:55.282] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='bypass_not_cacheable' dur=0.195ms
+[2026-05-25 20:08:55.282] [debug] [cache-bypass] frame=0 node='Composite' node_id=8 kind='Composite' reason='frame_dependent'
+[2026-05-25 20:08:55.282] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=1 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 320:240]
+[2026-05-25 20:08:55.282] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='bypass_frame_dependent' dur=0.044ms
+[2026-05-25 20:08:55.282] [debug] [cache-bypass] frame=0 node='Composite' node_id=12 kind='Composite' reason='frame_dependent'
+[2026-05-25 20:08:55.282] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=1 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 320:240]
+[2026-05-25 20:08:55.282] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='bypass_frame_dependent' dur=0.051ms
+[2026-05-25 20:08:55.283] [info] [diagnostics-3d] Compiled projection matrix. Depth=950.00, Det=608000128.0000 (OK)
+[2026-05-25 20:08:55.283] [info] [diagnostics-3d] Compiled projection matrix. Depth=800.00, Det=512000096.0000 (OK)
+[2026-05-25 20:08:55.283] [info] [dirty-debug] frame=0 use_dirty_rects=0 prev_fb=0 dirty_rect=[0,0 -> 320,240] prev_frame=-1
+[2026-05-25 20:08:55.283] [info] [diagnostics-3d] Compiled projection matrix. Depth=950.00, Det=608000128.0000 (OK)
+[2026-05-25 20:08:55.283] [info] [diagnostics-3d] Compiled projection matrix. Depth=800.00, Det=512000096.0000 (OK)
+[2026-05-25 20:08:55.283] [info] DEBUG SORT: Before sorting:
+[2026-05-25 20:08:55.283] [info] DEBUG SORT: name=floor depth=950.00 insertion_index=0
+[2026-05-25 20:08:55.283] [info] DEBUG SORT: name=card depth=800.00 insertion_index=1
+[2026-05-25 20:08:55.283] [info] DEBUG SORT: After sorting:
+[2026-05-25 20:08:55.283] [info] DEBUG SORT: name=floor depth=950.00 insertion_index=0
+[2026-05-25 20:08:55.283] [info] DEBUG SORT: name=card depth=800.00 insertion_index=1
+[2026-05-25 20:08:55.283] [info] DEBUG CULL: layer=floor bbox=[40, 126, 280, 215] is_culled=false reason=
+[2026-05-25 20:08:55.283] [info] DEBUG CULL: layer=card bbox=[118, 58, 202, 142] is_culled=false reason=
+[2026-05-25 20:08:55.283] [info] [graph-structure] node_id=0 name='Clear' inputs=[]
+[2026-05-25 20:08:55.283] [info] [graph-structure] node_id=1 name='fill' inputs=[]
+[2026-05-25 20:08:55.283] [info] [graph-structure] node_id=2 name='Transform' inputs=[1 (fill), ]
+[2026-05-25 20:08:55.283] [info] [graph-structure] node_id=3 name='Lighting' inputs=[2 (Transform), ]
+[2026-05-25 20:08:55.283] [info] [graph-structure] node_id=4 name='Composite' inputs=[0 (Clear), 3 (Lighting), ]
+[2026-05-25 20:08:55.283] [info] [graph-structure] node_id=5 name='fill' inputs=[]
+[2026-05-25 20:08:55.283] [info] [graph-structure] node_id=6 name='Transform' inputs=[5 (fill), ]
+[2026-05-25 20:08:55.283] [info] [graph-structure] node_id=7 name='Lighting' inputs=[6 (Transform), ]
+[2026-05-25 20:08:55.283] [info] [graph-structure] node_id=8 name='Composite' inputs=[4 (Composite), 7 (Lighting), ]
+[2026-05-25 20:08:55.283] [warning] [cache-bypass] frame=0 node='Clear' node_id=0 kind='Output' reason='not_cacheable'
+[2026-05-25 20:08:55.283] [info] [dirty-debug] frame=0 Clear reuse_prev=0 clip=[0:0 -> 320:240] prev_origin=[0,0] prev_opaque=0
+[2026-05-25 20:08:55.283] [info] [graph-debug] frame=0 node='Clear' kind='Output' cache_status='bypass_not_cacheable' dur=0.214ms
+[2026-05-25 20:08:55.283] [info] DEBUG DRAW SHAPE: bbox=[18, 68, 302, 172] model_trans=[20, 70] size=[280, 100] fb=[320, 240]
+[2026-05-25 20:08:55.284] [info] DEBUG DRAW SHAPE: bbox=[118, 78, 202, 162] model_trans=[120, 80] size=[80, 80] fb=[320, 240]
+[2026-05-25 20:08:55.284] [info] [layout-preview] node='fill' type=Rect pos=(20.0,70.0,0.0) anchor=(140.0,50.0,0.0) bbox=[18,68,302,172] screen_anchor=(160.0,120.0)
+[2026-05-25 20:08:55.284] [info] [source-debug] node='fill' shape=1 nonzero_pixels=29544 opacity=1.000 matrix_tx=20.000 matrix_ty=70.000 det2d=1.000000 grid:
+....................
+....................
+....................
+....................
+....................
+....................
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+....................
+....................
+....................
+....................
+....................
+[2026-05-25 20:08:55.284] [info] [graph-debug] frame=0 node='fill' kind='Source' cache_status='miss' dur=0.854ms
+[2026-05-25 20:08:55.284] [info] [layout-preview] node='fill' type=Rect pos=(120.0,80.0,0.0) anchor=(40.0,40.0,0.0) bbox=[118,78,202,162] screen_anchor=(160.0,120.0)
+[2026-05-25 20:08:55.284] [info] [source-debug] node='fill' shape=1 nonzero_pixels=7064 opacity=1.000 matrix_tx=120.000 matrix_ty=80.000 det2d=1.000000 grid:
+....................
+....................
+....................
+....................
+....................
+....................
+....................
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+....................
+....................
+....................
+....................
+....................
+....................
+[2026-05-25 20:08:55.284] [info] [graph-debug] frame=0 node='fill' kind='Source' cache_status='miss' dur=1.177ms
+[2026-05-25 20:08:55.284] [info] [transform-debug] node='Transform' det=512000096.000000 winding=ok H=[[800.000,0.000,0.000],[0.000,800.000,0.000],[0.016,-15999.984,800.000]]
+[2026-05-25 20:08:55.285] [info] [transform-debug] node='Transform' det=608000128.000000 winding=ok H=[[800.000,0.000,0.000],[0.000,800.000,0.000],[24000.016,66000.016,950.000]]
+[2026-05-25 20:08:55.285] [info] [transform-debug] node='Transform' output nonzero_pixels=7064 center_color=[0.000,0.000,0.000,0.000] origin=[110,50] size=[100,100] x0_x1=[110,210] y0_y1=[50,150] clip=110,50->210,150 inv_M=[[0.001,-0.000,0.000],[-0.000,0.001,-0.000],[-0.000,0.025,0.001]] start=[0.138,0.088,0.001] step_x=[0.001,-0.000,0.000] step_y=[-0.000,0.001,-0.000] grid:
+....................
+....................
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..AAAAAAAAAAAAAAAAB.
+....................
+[2026-05-25 20:08:55.285] [info] [graph-debug] frame=0 node='Transform' kind='Transform' cache_status='miss' dur=0.398ms
+[2026-05-25 20:08:55.285] [info] [transform-debug] node='Transform' output nonzero_pixels=21690 center_color=[0.000,0.000,0.000,0.000] origin=[33,120] size=[254,102] x0_x1=[33,287] y0_y1=[120,222] clip=33,120->287,222 inv_M=[[0.001,-0.000,0.000],[-0.000,0.001,-0.000],[-0.032,-0.087,0.001]] start=[0.010,0.064,0.001] step_x=[0.001,-0.000,0.000] step_y=[-0.000,0.001,-0.000] grid:
+....................
+....................
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+....................
+[2026-05-25 20:08:55.285] [info] [graph-debug] frame=0 node='Transform' kind='Transform' cache_status='miss' dur=0.427ms
+[2026-05-25 20:08:55.285] [debug] [cache-bypass] frame=0 node='Lighting' node_id=3 kind='Effect' reason='frame_dependent'
+[2026-05-25 20:08:55.285] [debug] [cache-bypass] frame=0 node='Lighting' node_id=7 kind='Effect' reason='frame_dependent'
+[2026-05-25 20:08:55.285] [info] [graph-debug] frame=0 node='Lighting' kind='Effect' cache_status='bypass_frame_dependent' dur=0.446ms
+[2026-05-25 20:08:55.286] [info] [graph-debug] frame=0 node='Lighting' kind='Effect' cache_status='bypass_frame_dependent' dur=0.992ms
+[2026-05-25 20:08:55.286] [debug] [cache-bypass] frame=0 node='Composite' node_id=4 kind='Composite' reason='frame_dependent'
+[2026-05-25 20:08:55.286] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=1 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 320:240]
+[2026-05-25 20:08:55.286] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='bypass_frame_dependent' dur=0.203ms
+[2026-05-25 20:08:55.286] [debug] [cache-bypass] frame=0 node='Composite' node_id=8 kind='Composite' reason='frame_dependent'
+[2026-05-25 20:08:55.286] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=1 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 320:240]
+[2026-05-25 20:08:55.286] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='bypass_frame_dependent' dur=0.030ms
+[2026-05-25 20:08:55.294] [info] [diagnostics-3d] Compiled projection matrix. Depth=950.00, Det=608000128.0000 (OK)
+[2026-05-25 20:08:55.294] [info] [diagnostics-3d] Compiled projection matrix. Depth=800.00, Det=512000096.0000 (OK)
+[2026-05-25 20:08:55.294] [info] [dirty-debug] frame=0 use_dirty_rects=0 prev_fb=0 dirty_rect=[0,0 -> 320,240] prev_frame=-1
+[2026-05-25 20:08:55.294] [info] [diagnostics-3d] Compiled projection matrix. Depth=950.00, Det=608000128.0000 (OK)
+[2026-05-25 20:08:55.294] [info] [diagnostics-3d] Compiled projection matrix. Depth=800.00, Det=512000096.0000 (OK)
+[2026-05-25 20:08:55.294] [info] DEBUG SORT: Before sorting:
+[2026-05-25 20:08:55.294] [info] DEBUG SORT: name=floor depth=950.00 insertion_index=0
+[2026-05-25 20:08:55.294] [info] DEBUG SORT: name=card depth=800.00 insertion_index=1
+[2026-05-25 20:08:55.294] [info] DEBUG SORT: After sorting:
+[2026-05-25 20:08:55.294] [info] DEBUG SORT: name=floor depth=950.00 insertion_index=0
+[2026-05-25 20:08:55.294] [info] DEBUG SORT: name=card depth=800.00 insertion_index=1
+[2026-05-25 20:08:55.294] [info] DEBUG CULL: layer=floor bbox=[40, 126, 280, 215] is_culled=false reason=
+[2026-05-25 20:08:55.294] [info] DEBUG CULL: layer=card bbox=[118, 58, 202, 142] is_culled=false reason=
+[2026-05-25 20:08:55.294] [info] [graph-structure] node_id=0 name='Clear' inputs=[]
+[2026-05-25 20:08:55.294] [info] [graph-structure] node_id=1 name='fill' inputs=[]
+[2026-05-25 20:08:55.294] [info] [graph-structure] node_id=2 name='Transform' inputs=[1 (fill), ]
+[2026-05-25 20:08:55.294] [info] [graph-structure] node_id=3 name='Lighting' inputs=[2 (Transform), ]
+[2026-05-25 20:08:55.294] [info] [graph-structure] node_id=4 name='fill' inputs=[]
+[2026-05-25 20:08:55.294] [info] [graph-structure] node_id=5 name='Transform' inputs=[4 (fill), ]
+[2026-05-25 20:08:55.294] [info] [graph-structure] node_id=6 name='Shadow' inputs=[5 (Transform), ]
+[2026-05-25 20:08:55.294] [info] [graph-structure] node_id=7 name='Composite' inputs=[3 (Lighting), 6 (Shadow), ]
+[2026-05-25 20:08:55.294] [info] [graph-structure] node_id=8 name='Composite' inputs=[0 (Clear), 7 (Composite), ]
+[2026-05-25 20:08:55.294] [info] [graph-structure] node_id=9 name='fill' inputs=[]
+[2026-05-25 20:08:55.294] [info] [graph-structure] node_id=10 name='Transform' inputs=[9 (fill), ]
+[2026-05-25 20:08:55.294] [info] [graph-structure] node_id=11 name='Lighting' inputs=[10 (Transform), ]
+[2026-05-25 20:08:55.294] [info] [graph-structure] node_id=12 name='Composite' inputs=[8 (Composite), 11 (Lighting), ]
+[2026-05-25 20:08:55.294] [warning] [cache-bypass] frame=0 node='Clear' node_id=0 kind='Output' reason='not_cacheable'
+[2026-05-25 20:08:55.294] [info] [dirty-debug] frame=0 Clear reuse_prev=0 clip=[0:0 -> 320:240] prev_origin=[0,0] prev_opaque=0
+[2026-05-25 20:08:55.294] [debug] [cache-bypass] frame=0 node='fill' node_id=4 kind='Source' reason='frame_dependent'
+[2026-05-25 20:08:55.295] [info] [graph-debug] frame=0 node='Clear' kind='Output' cache_status='bypass_not_cacheable' dur=0.494ms
+[2026-05-25 20:08:55.295] [info] DEBUG DRAW SHAPE: bbox=[18, 68, 302, 172] model_trans=[20, 70] size=[280, 100] fb=[320, 240]
+[2026-05-25 20:08:55.295] [info] DEBUG DRAW SHAPE: bbox=[118, 78, 202, 162] model_trans=[120, 80] size=[80, 80] fb=[320, 240]
+[2026-05-25 20:08:55.295] [info] [layout-preview] node='fill' type=Rect pos=(120.0,80.0,0.0) anchor=(40.0,40.0,0.0) bbox=[118,78,202,162] screen_anchor=(160.0,120.0)
+[2026-05-25 20:08:55.295] [info] DEBUG DRAW SHAPE: bbox=[118, 78, 202, 162] model_trans=[120, 80] size=[80, 80] fb=[320, 240]
+[2026-05-25 20:08:55.295] [info] [layout-preview] node='fill' type=Rect pos=(120.0,80.0,0.0) anchor=(40.0,40.0,0.0) bbox=[118,78,202,162] screen_anchor=(160.0,120.0)
+[2026-05-25 20:08:55.295] [info] [layout-preview] node='fill' type=Rect pos=(20.0,70.0,0.0) anchor=(140.0,50.0,0.0) bbox=[18,68,302,172] screen_anchor=(160.0,120.0)
+[2026-05-25 20:08:55.296] [info] [source-debug] node='fill' shape=1 nonzero_pixels=7064 opacity=1.000 matrix_tx=120.000 matrix_ty=80.000 det2d=1.000000 grid:
+....................
+....................
+....................
+....................
+....................
+....................
+....................
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+....................
+....................
+....................
+....................
+....................
+....................
+[2026-05-25 20:08:55.296] [info] [graph-debug] frame=0 node='fill' kind='Source' cache_status='bypass_frame_dependent' dur=1.351ms
+[2026-05-25 20:08:55.295] [info] [source-debug] node='fill' shape=1 nonzero_pixels=7064 opacity=1.000 matrix_tx=120.000 matrix_ty=80.000 det2d=1.000000 grid:
+....................
+....................
+....................
+....................
+....................
+....................
+....................
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+....................
+....................
+....................
+....................
+....................
+....................
+[2026-05-25 20:08:55.296] [info] [graph-debug] frame=0 node='fill' kind='Source' cache_status='miss' dur=1.388ms
+[2026-05-25 20:08:55.296] [info] [source-debug] node='fill' shape=1 nonzero_pixels=29544 opacity=1.000 matrix_tx=20.000 matrix_ty=70.000 det2d=1.000000 grid:
+....................
+....................
+....................
+....................
+....................
+....................
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+....................
+....................
+....................
+....................
+....................
+[2026-05-25 20:08:55.296] [info] [graph-debug] frame=0 node='fill' kind='Source' cache_status='miss' dur=1.450ms
+[2026-05-25 20:08:55.296] [debug] [cache-bypass] frame=0 node='Transform' node_id=5 kind='Transform' reason='frame_dependent'
+[2026-05-25 20:08:55.296] [info] [transform-debug] node='Transform' det=512000096.000000 winding=ok H=[[800.000,0.000,0.000],[0.000,800.000,0.000],[0.016,-15999.984,800.000]]
+[2026-05-25 20:08:55.296] [info] [transform-debug] node='Transform' det=608000128.000000 winding=ok H=[[800.000,0.000,0.000],[0.000,800.000,0.000],[24000.016,66000.016,950.000]]
+[2026-05-25 20:08:55.296] [info] [transform-debug] node='Transform' output nonzero_pixels=7064 center_color=[0.000,0.000,0.000,0.000] origin=[110,50] size=[100,100] x0_x1=[110,210] y0_y1=[50,150] clip=110,50->210,150 inv_M=[[0.001,-0.000,0.000],[-0.000,0.001,-0.000],[-0.000,0.025,0.001]] start=[0.138,0.088,0.001] step_x=[0.001,-0.000,0.000] step_y=[-0.000,0.001,-0.000] grid:
+....................
+....................
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..AAAAAAAAAAAAAAAAB.
+....................
+[2026-05-25 20:08:55.296] [info] [transform-debug] node='Transform' det=512000096.000000 winding=ok H=[[800.000,0.000,0.000],[0.000,800.000,0.000],[0.016,-15999.984,800.000]]
+[2026-05-25 20:08:55.296] [info] [graph-debug] frame=0 node='Transform' kind='Transform' cache_status='miss' dur=0.242ms
+[2026-05-25 20:08:55.296] [info] [transform-debug] node='Transform' output nonzero_pixels=21690 center_color=[0.000,0.000,0.000,0.000] origin=[33,120] size=[254,102] x0_x1=[33,287] y0_y1=[120,222] clip=33,120->287,222 inv_M=[[0.001,-0.000,0.000],[-0.000,0.001,-0.000],[-0.032,-0.087,0.001]] start=[0.010,0.064,0.001] step_x=[0.001,-0.000,0.000] step_y=[-0.000,0.001,-0.000] grid:
+....................
+....................
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+....................
+[2026-05-25 20:08:55.296] [info] [graph-debug] frame=0 node='Transform' kind='Transform' cache_status='miss' dur=0.363ms
+[2026-05-25 20:08:55.296] [info] [transform-debug] node='Transform' output nonzero_pixels=7064 center_color=[0.000,0.000,0.000,0.000] origin=[110,50] size=[100,100] x0_x1=[110,210] y0_y1=[50,150] clip=110,50->210,150 inv_M=[[0.001,-0.000,0.000],[-0.000,0.001,-0.000],[-0.000,0.025,0.001]] start=[0.138,0.088,0.001] step_x=[0.001,-0.000,0.000] step_y=[-0.000,0.001,-0.000] grid:
+....................
+....................
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..AAAAAAAAAAAAAAAAB.
+....................
+[2026-05-25 20:08:55.296] [info] [graph-debug] frame=0 node='Transform' kind='Transform' cache_status='bypass_frame_dependent' dur=0.545ms
+[2026-05-25 20:08:55.296] [debug] [cache-bypass] frame=0 node='Lighting' node_id=3 kind='Effect' reason='frame_dependent'
+[2026-05-25 20:08:55.296] [debug] [cache-bypass] frame=0 node='Shadow' node_id=6 kind='Effect' reason='frame_dependent'
+[2026-05-25 20:08:55.296] [debug] [cache-bypass] frame=0 node='Lighting' node_id=11 kind='Effect' reason='frame_dependent'
+[2026-05-25 20:08:55.296] [info] [shadow-node] caster='card' src_size=100x100 origin=(110,50) dx=-120 dy=45 projected_pixels=6890
+[2026-05-25 20:08:55.297] [info] [graph-debug] frame=0 node='Lighting' kind='Effect' cache_status='bypass_frame_dependent' dur=0.376ms
+[2026-05-25 20:08:55.297] [info] [graph-debug] frame=0 node='Lighting' kind='Effect' cache_status='bypass_frame_dependent' dur=0.508ms
+[2026-05-25 20:08:55.297] [info] [graph-debug] frame=0 node='Shadow' kind='Effect' cache_status='bypass_frame_dependent' dur=0.945ms
+[2026-05-25 20:08:55.297] [warning] [cache-bypass] frame=0 node='Composite' node_id=7 kind='Composite' reason='not_cacheable'
+[2026-05-25 20:08:55.297] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=1 bottom_opaque=0 top_opaque=0 clip=[0:87 -> 287:222]
+[2026-05-25 20:08:55.298] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='bypass_not_cacheable' dur=1.207ms
+[2026-05-25 20:08:55.298] [debug] [cache-bypass] frame=0 node='Composite' node_id=8 kind='Composite' reason='frame_dependent'
+[2026-05-25 20:08:55.299] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=1 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 320:240]
+[2026-05-25 20:08:55.299] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='bypass_frame_dependent' dur=0.075ms
+[2026-05-25 20:08:55.299] [debug] [cache-bypass] frame=0 node='Composite' node_id=12 kind='Composite' reason='frame_dependent'
+[2026-05-25 20:08:55.299] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=1 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 320:240]
+[2026-05-25 20:08:55.299] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='bypass_frame_dependent' dur=0.026ms
+[2026-05-25 20:08:55.299] [info] [diagnostics-3d] Compiled projection matrix. Depth=950.00, Det=608000128.0000 (OK)
+[2026-05-25 20:08:55.299] [info] [diagnostics-3d] Compiled projection matrix. Depth=800.00, Det=512000096.0000 (OK)
+[2026-05-25 20:08:55.299] [info] [dirty-debug] frame=0 use_dirty_rects=0 prev_fb=0 dirty_rect=[0,0 -> 320,240] prev_frame=-1
+[2026-05-25 20:08:55.299] [info] [diagnostics-3d] Compiled projection matrix. Depth=950.00, Det=608000128.0000 (OK)
+[2026-05-25 20:08:55.299] [info] [diagnostics-3d] Compiled projection matrix. Depth=800.00, Det=512000096.0000 (OK)
+[2026-05-25 20:08:55.299] [info] DEBUG SORT: Before sorting:
+[2026-05-25 20:08:55.299] [info] DEBUG SORT: name=floor depth=950.00 insertion_index=0
+[2026-05-25 20:08:55.299] [info] DEBUG SORT: name=card depth=800.00 insertion_index=1
+[2026-05-25 20:08:55.299] [info] DEBUG SORT: After sorting:
+[2026-05-25 20:08:55.299] [info] DEBUG SORT: name=floor depth=950.00 insertion_index=0
+[2026-05-25 20:08:55.299] [info] DEBUG SORT: name=card depth=800.00 insertion_index=1
+[2026-05-25 20:08:55.299] [info] DEBUG CULL: layer=floor bbox=[40, 126, 280, 215] is_culled=false reason=
+[2026-05-25 20:08:55.299] [info] DEBUG CULL: layer=card bbox=[118, 58, 202, 142] is_culled=false reason=
+[2026-05-25 20:08:55.299] [info] [graph-structure] node_id=0 name='Clear' inputs=[]
+[2026-05-25 20:08:55.299] [info] [graph-structure] node_id=1 name='fill' inputs=[]
+[2026-05-25 20:08:55.299] [info] [graph-structure] node_id=2 name='Transform' inputs=[1 (fill), ]
+[2026-05-25 20:08:55.299] [info] [graph-structure] node_id=3 name='Lighting' inputs=[2 (Transform), ]
+[2026-05-25 20:08:55.299] [info] [graph-structure] node_id=4 name='fill' inputs=[]
+[2026-05-25 20:08:55.299] [info] [graph-structure] node_id=5 name='Transform' inputs=[4 (fill), ]
+[2026-05-25 20:08:55.299] [info] [graph-structure] node_id=6 name='Shadow' inputs=[5 (Transform), ]
+[2026-05-25 20:08:55.299] [info] [graph-structure] node_id=7 name='Composite' inputs=[3 (Lighting), 6 (Shadow), ]
+[2026-05-25 20:08:55.299] [info] [graph-structure] node_id=8 name='Composite' inputs=[0 (Clear), 7 (Composite), ]
+[2026-05-25 20:08:55.299] [info] [graph-structure] node_id=9 name='fill' inputs=[]
+[2026-05-25 20:08:55.299] [info] [graph-structure] node_id=10 name='Transform' inputs=[9 (fill), ]
+[2026-05-25 20:08:55.299] [info] [graph-structure] node_id=11 name='Lighting' inputs=[10 (Transform), ]
+[2026-05-25 20:08:55.299] [info] [graph-structure] node_id=12 name='Composite' inputs=[8 (Composite), 11 (Lighting), ]
+[2026-05-25 20:08:55.299] [warning] [cache-bypass] frame=0 node='Clear' node_id=0 kind='Output' reason='not_cacheable'
+[2026-05-25 20:08:55.299] [info] [dirty-debug] frame=0 Clear reuse_prev=0 clip=[0:0 -> 320:240] prev_origin=[0,0] prev_opaque=0
+[2026-05-25 20:08:55.299] [debug] [cache-bypass] frame=0 node='fill' node_id=4 kind='Source' reason='frame_dependent'
+[2026-05-25 20:08:55.299] [info] DEBUG DRAW SHAPE: bbox=[118, 78, 202, 162] model_trans=[120, 80] size=[80, 80] fb=[320, 240]
+[2026-05-25 20:08:55.300] [info] [layout-preview] node='fill' type=Rect pos=(120.0,80.0,0.0) anchor=(40.0,40.0,0.0) bbox=[118,78,202,162] screen_anchor=(160.0,120.0)
+[2026-05-25 20:08:55.300] [info] [graph-debug] frame=0 node='Clear' kind='Output' cache_status='bypass_not_cacheable' dur=0.682ms
+[2026-05-25 20:08:55.300] [info] DEBUG DRAW SHAPE: bbox=[18, 68, 302, 172] model_trans=[20, 70] size=[280, 100] fb=[320, 240]
+[2026-05-25 20:08:55.300] [info] [source-debug] node='fill' shape=1 nonzero_pixels=7064 opacity=1.000 matrix_tx=120.000 matrix_ty=80.000 det2d=1.000000 grid:
+....................
+....................
+....................
+....................
+....................
+....................
+....................
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+....................
+....................
+....................
+....................
+....................
+....................
+[2026-05-25 20:08:55.300] [info] DEBUG DRAW SHAPE: bbox=[118, 78, 202, 162] model_trans=[120, 80] size=[80, 80] fb=[320, 240]
+[2026-05-25 20:08:55.300] [info] [graph-debug] frame=0 node='fill' kind='Source' cache_status='miss' dur=1.123ms
+[2026-05-25 20:08:55.300] [info] [layout-preview] node='fill' type=Rect pos=(120.0,80.0,0.0) anchor=(40.0,40.0,0.0) bbox=[118,78,202,162] screen_anchor=(160.0,120.0)
+[2026-05-25 20:08:55.300] [info] [layout-preview] node='fill' type=Rect pos=(20.0,70.0,0.0) anchor=(140.0,50.0,0.0) bbox=[18,68,302,172] screen_anchor=(160.0,120.0)
+[2026-05-25 20:08:55.300] [info] [source-debug] node='fill' shape=1 nonzero_pixels=7064 opacity=1.000 matrix_tx=120.000 matrix_ty=80.000 det2d=1.000000 grid:
+....................
+....................
+....................
+....................
+....................
+....................
+....................
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+....................
+....................
+....................
+....................
+....................
+....................
+[2026-05-25 20:08:55.300] [info] [graph-debug] frame=0 node='fill' kind='Source' cache_status='bypass_frame_dependent' dur=1.357ms
+[2026-05-25 20:08:55.301] [info] [source-debug] node='fill' shape=1 nonzero_pixels=29544 opacity=1.000 matrix_tx=20.000 matrix_ty=70.000 det2d=1.000000 grid:
+....................
+....................
+....................
+....................
+....................
+....................
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+....................
+....................
+....................
+....................
+....................
+[2026-05-25 20:08:55.301] [info] [graph-debug] frame=0 node='fill' kind='Source' cache_status='miss' dur=1.500ms
+[2026-05-25 20:08:55.301] [debug] [cache-bypass] frame=0 node='Transform' node_id=5 kind='Transform' reason='frame_dependent'
+[2026-05-25 20:08:55.301] [info] [transform-debug] node='Transform' det=512000096.000000 winding=ok H=[[800.000,0.000,0.000],[0.000,800.000,0.000],[0.016,-15999.984,800.000]]
+[2026-05-25 20:08:55.301] [info] [transform-debug] node='Transform' det=512000096.000000 winding=ok H=[[800.000,0.000,0.000],[0.000,800.000,0.000],[0.016,-15999.984,800.000]]
+[2026-05-25 20:08:55.301] [info] [transform-debug] node='Transform' det=608000128.000000 winding=ok H=[[800.000,0.000,0.000],[0.000,800.000,0.000],[24000.016,66000.016,950.000]]
+[2026-05-25 20:08:55.301] [info] [transform-debug] node='Transform' output nonzero_pixels=7064 center_color=[0.000,0.000,0.000,0.000] origin=[110,50] size=[100,100] x0_x1=[110,210] y0_y1=[50,150] clip=110,50->210,150 inv_M=[[0.001,-0.000,0.000],[-0.000,0.001,-0.000],[-0.000,0.025,0.001]] start=[0.138,0.088,0.001] step_x=[0.001,-0.000,0.000] step_y=[-0.000,0.001,-0.000] grid:
+....................
+....................
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..AAAAAAAAAAAAAAAAB.
+....................
+[2026-05-25 20:08:55.301] [info] [graph-debug] frame=0 node='Transform' kind='Transform' cache_status='bypass_frame_dependent' dur=0.632ms
+[2026-05-25 20:08:55.301] [info] [transform-debug] node='Transform' output nonzero_pixels=21690 center_color=[0.000,0.000,0.000,0.000] origin=[33,120] size=[254,102] x0_x1=[33,287] y0_y1=[120,222] clip=33,120->287,222 inv_M=[[0.001,-0.000,0.000],[-0.000,0.001,-0.000],[-0.032,-0.087,0.001]] start=[0.010,0.064,0.001] step_x=[0.001,-0.000,0.000] step_y=[-0.000,0.001,-0.000] grid:
+....................
+....................
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+....................
+[2026-05-25 20:08:55.301] [info] [graph-debug] frame=0 node='Transform' kind='Transform' cache_status='miss' dur=0.760ms
+[2026-05-25 20:08:55.301] [info] [transform-debug] node='Transform' output nonzero_pixels=7064 center_color=[0.000,0.000,0.000,0.000] origin=[110,50] size=[100,100] x0_x1=[110,210] y0_y1=[50,150] clip=110,50->210,150 inv_M=[[0.001,-0.000,0.000],[-0.000,0.001,-0.000],[-0.000,0.025,0.001]] start=[0.138,0.088,0.001] step_x=[0.001,-0.000,0.000] step_y=[-0.000,0.001,-0.000] grid:
+....................
+....................
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..AAAAAAAAAAAAAAAAB.
+....................
+[2026-05-25 20:08:55.301] [info] [graph-debug] frame=0 node='Transform' kind='Transform' cache_status='miss' dur=0.851ms
+[2026-05-25 20:08:55.301] [debug] [cache-bypass] frame=0 node='Lighting' node_id=3 kind='Effect' reason='frame_dependent'
+[2026-05-25 20:08:55.302] [debug] [cache-bypass] frame=0 node='Lighting' node_id=11 kind='Effect' reason='frame_dependent'
+[2026-05-25 20:08:55.301] [debug] [cache-bypass] frame=0 node='Shadow' node_id=6 kind='Effect' reason='frame_dependent'
+[2026-05-25 20:08:55.302] [info] [shadow-node] caster='card' src_size=100x100 origin=(110,50) dx=120 dy=45 projected_pixels=6894
+[2026-05-25 20:08:55.302] [info] [graph-debug] frame=0 node='Lighting' kind='Effect' cache_status='bypass_frame_dependent' dur=0.363ms
+[2026-05-25 20:08:55.302] [info] [graph-debug] frame=0 node='Lighting' kind='Effect' cache_status='bypass_frame_dependent' dur=0.466ms
+[2026-05-25 20:08:55.302] [info] [graph-debug] frame=0 node='Shadow' kind='Effect' cache_status='bypass_frame_dependent' dur=0.780ms
+[2026-05-25 20:08:55.302] [warning] [cache-bypass] frame=0 node='Composite' node_id=7 kind='Composite' reason='not_cacheable'
+[2026-05-25 20:08:55.302] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=1 bottom_opaque=0 top_opaque=0 clip=[33:87 -> 320:222]
+[2026-05-25 20:08:55.302] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='bypass_not_cacheable' dur=0.147ms
+[2026-05-25 20:08:55.303] [debug] [cache-bypass] frame=0 node='Composite' node_id=8 kind='Composite' reason='frame_dependent'
+[2026-05-25 20:08:55.303] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=1 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 320:240]
+[2026-05-25 20:08:55.303] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='bypass_frame_dependent' dur=0.044ms
+[2026-05-25 20:08:55.303] [debug] [cache-bypass] frame=0 node='Composite' node_id=12 kind='Composite' reason='frame_dependent'
+[2026-05-25 20:08:55.303] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=1 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 320:240]
+[2026-05-25 20:08:55.303] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='bypass_frame_dependent' dur=0.029ms
+[2026-05-25 20:08:55.317] [info] [diagnostics-3d] Compiled projection matrix. Depth=950.00, Det=608000128.0000 (OK)
+[2026-05-25 20:08:55.317] [info] [diagnostics-3d] Compiled projection matrix. Depth=800.00, Det=512000096.0000 (OK)
+[2026-05-25 20:08:55.317] [info] [dirty-debug] frame=0 use_dirty_rects=0 prev_fb=0 dirty_rect=[0,0 -> 320,240] prev_frame=-1
+[2026-05-25 20:08:55.317] [info] [diagnostics-3d] Compiled projection matrix. Depth=950.00, Det=608000128.0000 (OK)
+[2026-05-25 20:08:55.317] [info] [diagnostics-3d] Compiled projection matrix. Depth=800.00, Det=512000096.0000 (OK)
+[2026-05-25 20:08:55.317] [info] DEBUG SORT: Before sorting:
+[2026-05-25 20:08:55.317] [info] DEBUG SORT: name=floor depth=950.00 insertion_index=0
+[2026-05-25 20:08:55.317] [info] DEBUG SORT: name=card depth=800.00 insertion_index=1
+[2026-05-25 20:08:55.317] [info] DEBUG SORT: After sorting:
+[2026-05-25 20:08:55.317] [info] DEBUG SORT: name=floor depth=950.00 insertion_index=0
+[2026-05-25 20:08:55.317] [info] DEBUG SORT: name=card depth=800.00 insertion_index=1
+[2026-05-25 20:08:55.317] [info] DEBUG CULL: layer=floor bbox=[40, 126, 280, 215] is_culled=false reason=
+[2026-05-25 20:08:55.317] [info] DEBUG CULL: layer=card bbox=[118, 58, 202, 142] is_culled=false reason=
+[2026-05-25 20:08:55.317] [info] [graph-structure] node_id=0 name='Clear' inputs=[]
+[2026-05-25 20:08:55.317] [info] [graph-structure] node_id=1 name='fill' inputs=[]
+[2026-05-25 20:08:55.317] [info] [graph-structure] node_id=2 name='Transform' inputs=[1 (fill), ]
+[2026-05-25 20:08:55.317] [info] [graph-structure] node_id=3 name='Lighting' inputs=[2 (Transform), ]
+[2026-05-25 20:08:55.317] [info] [graph-structure] node_id=4 name='fill' inputs=[]
+[2026-05-25 20:08:55.317] [info] [graph-structure] node_id=5 name='Transform' inputs=[4 (fill), ]
+[2026-05-25 20:08:55.317] [info] [graph-structure] node_id=6 name='Shadow' inputs=[5 (Transform), ]
+[2026-05-25 20:08:55.317] [info] [graph-structure] node_id=7 name='Composite' inputs=[3 (Lighting), 6 (Shadow), ]
+[2026-05-25 20:08:55.317] [info] [graph-structure] node_id=8 name='Composite' inputs=[0 (Clear), 7 (Composite), ]
+[2026-05-25 20:08:55.317] [info] [graph-structure] node_id=9 name='fill' inputs=[]
+[2026-05-25 20:08:55.317] [info] [graph-structure] node_id=10 name='Transform' inputs=[9 (fill), ]
+[2026-05-25 20:08:55.317] [info] [graph-structure] node_id=11 name='Lighting' inputs=[10 (Transform), ]
+[2026-05-25 20:08:55.317] [info] [graph-structure] node_id=12 name='Composite' inputs=[8 (Composite), 11 (Lighting), ]
+[2026-05-25 20:08:55.317] [warning] [cache-bypass] frame=0 node='Clear' node_id=0 kind='Output' reason='not_cacheable'
+[2026-05-25 20:08:55.317] [info] [dirty-debug] frame=0 Clear reuse_prev=0 clip=[0:0 -> 320:240] prev_origin=[0,0] prev_opaque=0
+[2026-05-25 20:08:55.317] [debug] [cache-bypass] frame=0 node='fill' node_id=4 kind='Source' reason='frame_dependent'
+[2026-05-25 20:08:55.318] [info] [graph-debug] frame=0 node='Clear' kind='Output' cache_status='bypass_not_cacheable' dur=0.361ms
+[2026-05-25 20:08:55.318] [info] DEBUG DRAW SHAPE: bbox=[18, 68, 302, 172] model_trans=[20, 70] size=[280, 100] fb=[320, 240]
+[2026-05-25 20:08:55.318] [info] DEBUG DRAW SHAPE: bbox=[118, 78, 202, 162] model_trans=[120, 80] size=[80, 80] fb=[320, 240]
+[2026-05-25 20:08:55.318] [info] [layout-preview] node='fill' type=Rect pos=(20.0,70.0,0.0) anchor=(140.0,50.0,0.0) bbox=[18,68,302,172] screen_anchor=(160.0,120.0)
+[2026-05-25 20:08:55.319] [info] [layout-preview] node='fill' type=Rect pos=(120.0,80.0,0.0) anchor=(40.0,40.0,0.0) bbox=[118,78,202,162] screen_anchor=(160.0,120.0)
+[2026-05-25 20:08:55.319] [info] [source-debug] node='fill' shape=1 nonzero_pixels=29544 opacity=1.000 matrix_tx=20.000 matrix_ty=70.000 det2d=1.000000 grid:
+....................
+....................
+....................
+....................
+....................
+....................
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+..RRRRRRRRRRRRRRRRR.
+....................
+....................
+....................
+....................
+....................
+[2026-05-25 20:08:55.319] [info] [graph-debug] frame=0 node='fill' kind='Source' cache_status='miss' dur=1.188ms
+[2026-05-25 20:08:55.319] [info] DEBUG DRAW SHAPE: bbox=[118, 78, 202, 162] model_trans=[120, 80] size=[80, 80] fb=[320, 240]
+[2026-05-25 20:08:55.319] [info] [source-debug] node='fill' shape=1 nonzero_pixels=7064 opacity=1.000 matrix_tx=120.000 matrix_ty=80.000 det2d=1.000000 grid:
+....................
+....................
+....................
+....................
+....................
+....................
+....................
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+....................
+....................
+....................
+....................
+....................
+....................
+[2026-05-25 20:08:55.319] [info] [graph-debug] frame=0 node='fill' kind='Source' cache_status='miss' dur=1.330ms
+[2026-05-25 20:08:55.319] [info] [layout-preview] node='fill' type=Rect pos=(120.0,80.0,0.0) anchor=(40.0,40.0,0.0) bbox=[118,78,202,162] screen_anchor=(160.0,120.0)
+[2026-05-25 20:08:55.319] [info] [source-debug] node='fill' shape=1 nonzero_pixels=7064 opacity=1.000 matrix_tx=120.000 matrix_ty=80.000 det2d=1.000000 grid:
+....................
+....................
+....................
+....................
+....................
+....................
+....................
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+........RRRRR.......
+....................
+....................
+....................
+....................
+....................
+....................
+[2026-05-25 20:08:55.319] [info] [graph-debug] frame=0 node='fill' kind='Source' cache_status='bypass_frame_dependent' dur=1.543ms
+[2026-05-25 20:08:55.319] [debug] [cache-bypass] frame=0 node='Transform' node_id=5 kind='Transform' reason='frame_dependent'
+[2026-05-25 20:08:55.319] [info] [transform-debug] node='Transform' det=608000128.000000 winding=ok H=[[800.000,0.000,0.000],[0.000,800.000,0.000],[24000.016,66000.016,950.000]]
+[2026-05-25 20:08:55.319] [info] [transform-debug] node='Transform' det=512000096.000000 winding=ok H=[[800.000,0.000,0.000],[0.000,800.000,0.000],[0.016,-15999.984,800.000]]
+[2026-05-25 20:08:55.320] [info] [transform-debug] node='Transform' det=512000096.000000 winding=ok H=[[800.000,0.000,0.000],[0.000,800.000,0.000],[0.016,-15999.984,800.000]]
+[2026-05-25 20:08:55.320] [info] [transform-debug] node='Transform' output nonzero_pixels=21690 center_color=[0.000,0.000,0.000,0.000] origin=[33,120] size=[254,102] x0_x1=[33,287] y0_y1=[120,222] clip=33,120->287,222 inv_M=[[0.001,-0.000,0.000],[-0.000,0.001,-0.000],[-0.032,-0.087,0.001]] start=[0.010,0.064,0.001] step_x=[0.001,-0.000,0.000] step_y=[-0.000,0.001,-0.000] grid:
+....................
+....................
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+.RRRRRRRRRRRRRRRRRRR
+....................
+[2026-05-25 20:08:55.320] [info] [graph-debug] frame=0 node='Transform' kind='Transform' cache_status='miss' dur=1.093ms
+[2026-05-25 20:08:55.320] [info] [transform-debug] node='Transform' output nonzero_pixels=7064 center_color=[0.000,0.000,0.000,0.000] origin=[110,50] size=[100,100] x0_x1=[110,210] y0_y1=[50,150] clip=110,50->210,150 inv_M=[[0.001,-0.000,0.000],[-0.000,0.001,-0.000],[-0.000,0.025,0.001]] start=[0.138,0.088,0.001] step_x=[0.001,-0.000,0.000] step_y=[-0.000,0.001,-0.000] grid:
+....................
+....................
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..AAAAAAAAAAAAAAAAB.
+....................
+[2026-05-25 20:08:55.320] [info] [graph-debug] frame=0 node='Transform' kind='Transform' cache_status='miss' dur=1.136ms
+[2026-05-25 20:08:55.320] [info] [transform-debug] node='Transform' output nonzero_pixels=7064 center_color=[0.000,0.000,0.000,0.000] origin=[110,50] size=[100,100] x0_x1=[110,210] y0_y1=[50,150] clip=110,50->210,150 inv_M=[[0.001,-0.000,0.000],[-0.000,0.001,-0.000],[-0.000,0.025,0.001]] start=[0.138,0.088,0.001] step_x=[0.001,-0.000,0.000] step_y=[-0.000,0.001,-0.000] grid:
+....................
+....................
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..RRRRRRRRRRRRRRRRA.
+..AAAAAAAAAAAAAAAAB.
+....................
+[2026-05-25 20:08:55.320] [info] [graph-debug] frame=0 node='Transform' kind='Transform' cache_status='bypass_frame_dependent' dur=0.440ms
+[2026-05-25 20:08:55.320] [debug] [cache-bypass] frame=0 node='Lighting' node_id=3 kind='Effect' reason='frame_dependent'
+[2026-05-25 20:08:55.320] [debug] [cache-bypass] frame=0 node='Shadow' node_id=6 kind='Effect' reason='frame_dependent'
+[2026-05-25 20:08:55.320] [debug] [cache-bypass] frame=0 node='Lighting' node_id=11 kind='Effect' reason='frame_dependent'
+[2026-05-25 20:08:55.320] [info] [shadow-node] caster='card' src_size=100x100 origin=(110,50) dx=300 dy=0 projected_pixels=0
+[2026-05-25 20:08:55.321] [info] [graph-debug] frame=0 node='Lighting' kind='Effect' cache_status='bypass_frame_dependent' dur=0.379ms
+[2026-05-25 20:08:55.321] [info] [graph-debug] frame=0 node='Lighting' kind='Effect' cache_status='bypass_frame_dependent' dur=0.479ms
+[2026-05-25 20:08:55.321] [info] [graph-debug] frame=0 node='Shadow' kind='Effect' cache_status='bypass_frame_dependent' dur=0.623ms
+[2026-05-25 20:08:55.321] [warning] [cache-bypass] frame=0 node='Composite' node_id=7 kind='Composite' reason='not_cacheable'
+[2026-05-25 20:08:55.321] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=1 bottom_opaque=0 top_opaque=0 clip=[33:42 -> 320:222]
+[2026-05-25 20:08:55.321] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='bypass_not_cacheable' dur=0.141ms
+[2026-05-25 20:08:55.321] [debug] [cache-bypass] frame=0 node='Composite' node_id=8 kind='Composite' reason='frame_dependent'
+[2026-05-25 20:08:55.321] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=1 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 320:240]
+[2026-05-25 20:08:55.321] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='bypass_frame_dependent' dur=0.048ms
+[2026-05-25 20:08:55.321] [debug] [cache-bypass] frame=0 node='Composite' node_id=12 kind='Composite' reason='frame_dependent'
+[2026-05-25 20:08:55.321] [info] [dirty-debug] frame=0 Composite mode=0 bottom_use_count=1 bottom_opaque=0 top_opaque=0 clip=[0:0 -> 320:240]
+[2026-05-25 20:08:55.321] [info] [graph-debug] frame=0 node='Composite' kind='Composite' cache_status='bypass_frame_dependent' dur=0.028ms
+[2026-05-25 20:08:55.329] [info] DEBUG SORT: Before sorting:
+[2026-05-25 20:08:55.329] [info] DEBUG SORT: name=video depth=800.00 insertion_index=0
+[2026-05-25 20:08:55.329] [info] DEBUG SORT: After sorting:
+[2026-05-25 20:08:55.329] [info] DEBUG SORT: name=video depth=800.00 insertion_index=0
+[2026-05-25 20:08:55.329] [info] DEBUG CULL: layer=video bbox=[0, 0, 640, 360] is_culled=false reason=
+[2026-05-25 20:08:55.351] [info] DEBUG SORT: Before sorting:
+[2026-05-25 20:08:55.351] [info] DEBUG SORT: name=video depth=800.00 insertion_index=0
+[2026-05-25 20:08:55.351] [info] DEBUG SORT: After sorting:
+[2026-05-25 20:08:55.351] [info] DEBUG SORT: name=video depth=800.00 insertion_index=0
+[2026-05-25 20:08:55.351] [info] DEBUG CULL: layer=video bbox=[0, 0, 640, 360] is_culled=false reason=
+[2026-05-25 20:08:55.353] [info] DEBUG SORT: Before sorting:
+[2026-05-25 20:08:55.353] [info] DEBUG SORT: name=video depth=800.00 insertion_index=0
+[2026-05-25 20:08:55.353] [info] DEBUG SORT: After sorting:
+[2026-05-25 20:08:55.353] [info] DEBUG SORT: name=video depth=800.00 insertion_index=0
+[2026-05-25 20:08:55.353] [info] DEBUG CULL: layer=video bbox=[0, 0, 640, 360] is_culled=false reason=
+[2026-05-25 20:08:55.354] [info] DEBUG SORT: Before sorting:
+[2026-05-25 20:08:55.354] [info] DEBUG SORT: name=video depth=800.00 insertion_index=0
+[2026-05-25 20:08:55.354] [info] DEBUG SORT: After sorting:
+[2026-05-25 20:08:55.354] [info] DEBUG SORT: name=video depth=800.00 insertion_index=0
+[2026-05-25 20:08:55.354] [info] DEBUG CULL: layer=video bbox=[0, 0, 640, 360] is_culled=false reason=
+[2026-05-25 20:08:55.397] [info] DEBUG DRAW SHAPE: bbox=[318, 203, 362, 247] model_trans=[320, 205] size=[40, 40] fb=[480, 270]
+[2026-05-25 20:08:55.401] [info] DEBUG DRAW SHAPE: bbox=[438, 203, 480, 247] model_trans=[440, 205] size=[40, 40] fb=[480, 270]
+[2026-05-25 20:08:55.402] [info] DEBUG DRAW SHAPE: bbox=[378, 203, 422, 247] model_trans=[380, 205] size=[40, 40] fb=[480, 270]
+[2026-05-25 20:08:55.404] [info] DEBUG DRAW SHAPE: bbox=[258, 203, 302, 247] model_trans=[260, 205] size=[40, 40] fb=[480, 270]
+[2026-05-25 20:08:55.405] [info] DEBUG DRAW SHAPE: bbox=[238, 133, 480, 270] model_trans=[240, 135] size=[480, 270] fb=[480, 270]
+===============================================================================
+/home/pierone/Pyt/Chronon3d/tests/renderer/perf/test_render_perf.cpp:38:
+TEST CASE:  perf: 3 frame 480x270 sotto 500ms
+
+/home/pierone/Pyt/Chronon3d/tests/renderer/perf/test_render_perf.cpp:44: MESSAGE: 480x270 x3 frames: 11ms
+
+[2026-05-25 20:08:55.409] [info] DEBUG DRAW SHAPE: bbox=[318, 203, 362, 247] model_trans=[320, 205] size=[40, 40] fb=[480, 270]
+[2026-05-25 20:08:55.412] [info] DEBUG DRAW SHAPE: bbox=[238, 133, 480, 270] model_trans=[240, 135] size=[480, 270] fb=[480, 270]
+[2026-05-25 20:08:55.416] [info] DEBUG DRAW SHAPE: bbox=[258, 203, 302, 247] model_trans=[260, 205] size=[40, 40] fb=[480, 270]
+[2026-05-25 20:08:55.419] [info] DEBUG DRAW SHAPE: bbox=[378, 203, 422, 247] model_trans=[380, 205] size=[40, 40] fb=[480, 270]
+[2026-05-25 20:08:55.420] [info] DEBUG DRAW SHAPE: bbox=[438, 203, 480, 247] model_trans=[440, 205] size=[40, 40] fb=[480, 270]
+===============================================================================
+/home/pierone/Pyt/Chronon3d/tests/renderer/perf/test_render_perf.cpp:48:
+TEST CASE:  perf: render frame singolo 480x270 sotto 200ms
+
+/home/pierone/Pyt/Chronon3d/tests/renderer/perf/test_render_perf.cpp:59: MESSAGE: Primo frame (cold cache) 480x270: 13ms
+
+[2026-05-25 20:08:55.423] [info] DEBUG DRAW SHAPE: bbox=[318, 203, 362, 247] model_trans=[320, 205] size=[40, 40] fb=[480, 270]
+[2026-05-25 20:08:55.424] [info] DEBUG DRAW SHAPE: bbox=[378, 203, 422, 247] model_trans=[380, 205] size=[40, 40] fb=[480, 270]
+[2026-05-25 20:08:55.425] [info] DEBUG DRAW SHAPE: bbox=[238, 133, 480, 270] model_trans=[240, 135] size=[480, 270] fb=[480, 270]
+[2026-05-25 20:08:55.428] [info] DEBUG DRAW SHAPE: bbox=[258, 203, 302, 247] model_trans=[260, 205] size=[40, 40] fb=[480, 270]
+[2026-05-25 20:08:55.429] [info] DEBUG DRAW SHAPE: bbox=[438, 203, 480, 247] model_trans=[440, 205] size=[40, 40] fb=[480, 270]
+[2026-05-25 20:08:55.432] [info] DEBUG DRAW SHAPE: bbox=[318, 203, 362, 247] model_trans=[320, 205] size=[40, 40] fb=[480, 270]
+[2026-05-25 20:08:55.432] [info] DEBUG DRAW SHAPE: bbox=[378, 203, 422, 247] model_trans=[380, 205] size=[40, 40] fb=[480, 270]
+[2026-05-25 20:08:55.432] [info] DEBUG DRAW SHAPE: bbox=[238, 133, 480, 270] model_trans=[240, 135] size=[480, 270] fb=[480, 270]
+[2026-05-25 20:08:55.432] [info] DEBUG DRAW SHAPE: bbox=[258, 203, 302, 247] model_trans=[260, 205] size=[40, 40] fb=[480, 270]
+[2026-05-25 20:08:55.434] [info] DEBUG DRAW SHAPE: bbox=[438, 203, 480, 247] model_trans=[440, 205] size=[40, 40] fb=[480, 270]
+===============================================================================
+/home/pierone/Pyt/Chronon3d/tests/renderer/perf/test_render_perf.cpp:63:
+TEST CASE:  perf: warm render e' piu' veloce del cold
+
+/home/pierone/Pyt/Chronon3d/tests/renderer/perf/test_render_perf.cpp:77: MESSAGE: Cold: 10ms  Warm avg: 0ms
+
+[2026-05-25 20:08:55.436] [info] DEBUG CULL: layer=test_layer bbox=[48, 48, 152, 152] is_culled=false reason=
+[2026-05-25 20:08:55.436] [info] DEBUG DRAW SHAPE: bbox=[48, 48, 152, 152] model_trans=[50, 50] size=[100, 100] fb=[200, 200]
+[2026-05-25 20:08:55.437] [info] DEBUG CULL: layer=test_layer bbox=[48, 48, 152, 152] is_culled=false reason=
+[2026-05-25 20:08:55.437] [info] DEBUG DRAW SHAPE: bbox=[48, 48, 152, 152] model_trans=[50, 50] size=[100, 100] fb=[200, 200]
+[2026-05-25 20:08:55.438] [info] DEBUG SORT: Before sorting:
+[2026-05-25 20:08:55.438] [info] DEBUG SORT: name=test_layer depth=1000.00 insertion_index=0
+[2026-05-25 20:08:55.438] [info] DEBUG SORT: After sorting:
+[2026-05-25 20:08:55.438] [info] DEBUG SORT: name=test_layer depth=1000.00 insertion_index=0
+[2026-05-25 20:08:55.438] [info] DEBUG CULL: layer=test_layer bbox=[48, 48, 152, 152] is_culled=false reason=
+[2026-05-25 20:08:55.438] [info] DEBUG DRAW SHAPE: bbox=[48, 48, 152, 152] model_trans=[50, 50] size=[100, 100] fb=[200, 200]
+[2026-05-25 20:08:55.439] [info] DEBUG SORT: Before sorting:
+[2026-05-25 20:08:55.439] [info] DEBUG SORT: name=test_layer depth=1000.00 insertion_index=0
+[2026-05-25 20:08:55.439] [info] DEBUG SORT: After sorting:
+[2026-05-25 20:08:55.439] [info] DEBUG SORT: name=test_layer depth=1000.00 insertion_index=0
+[2026-05-25 20:08:55.439] [info] DEBUG CULL: layer=test_layer bbox=[-52, 48, 52, 152] is_culled=false reason=
+[2026-05-25 20:08:55.439] [info] DEBUG DRAW SHAPE: bbox=[48, 48, 152, 152] model_trans=[50, 50] size=[100, 100] fb=[200, 200]
+[2026-05-25 20:08:55.439] [info] DEBUG SORT: Before sorting:
+[2026-05-25 20:08:55.439] [info] DEBUG SORT: name=test_layer depth=700.00 insertion_index=0
+[2026-05-25 20:08:55.439] [info] DEBUG SORT: After sorting:
+[2026-05-25 20:08:55.440] [info] DEBUG SORT: name=test_layer depth=700.00 insertion_index=0
+[2026-05-25 20:08:55.440] [info] DEBUG CULL: layer=test_layer bbox=[25, 25, 175, 175] is_culled=false reason=
+[2026-05-25 20:08:55.440] [info] DEBUG DRAW SHAPE: bbox=[48, 48, 152, 152] model_trans=[50, 50] size=[100, 100] fb=[200, 200]
+[2026-05-25 20:08:55.440] [info] [sampling-debug-pre] x=100 y=100 h_row=[100.350,100.350,1.000] sx=100.350 sy=100.350 bounds=[40.000,160.000,40.000,160.000]
+[2026-05-25 20:08:55.440] [info] [sampling-debug] x=100 y=100 sx=100.350 sy=100.350 src_color=[1.000,0.000,0.000,1.000]
+[2026-05-25 20:08:55.441] [info] DEBUG SORT: Before sorting:
+[2026-05-25 20:08:55.441] [info] DEBUG SORT: name=test_layer depth=1300.00 insertion_index=0
+[2026-05-25 20:08:55.441] [info] DEBUG SORT: After sorting:
+[2026-05-25 20:08:55.441] [info] DEBUG SORT: name=test_layer depth=1300.00 insertion_index=0
+[2026-05-25 20:08:55.441] [info] DEBUG CULL: layer=test_layer bbox=[59, 59, 140, 140] is_culled=false reason=
+[2026-05-25 20:08:55.441] [info] DEBUG DRAW SHAPE: bbox=[48, 48, 152, 152] model_trans=[50, 50] size=[100, 100] fb=[200, 200]
+[2026-05-25 20:08:55.441] [info] [sampling-debug-pre] x=100 y=100 h_row=[100.650,100.650,1.000] sx=100.650 sy=100.650 bounds=[40.000,160.000,40.000,160.000]
+[2026-05-25 20:08:55.441] [info] [sampling-debug] x=100 y=100 sx=100.650 sy=100.650 src_color=[1.000,0.000,0.000,1.000]
+[2026-05-25 20:08:55.442] [info] DEBUG SORT: Before sorting:
+[2026-05-25 20:08:55.442] [info] DEBUG SORT: name=test_layer depth=1000.00 insertion_index=0
+[2026-05-25 20:08:55.442] [info] DEBUG SORT: After sorting:
+[2026-05-25 20:08:55.442] [info] DEBUG SORT: name=test_layer depth=1000.00 insertion_index=0
+[2026-05-25 20:08:55.442] [info] DEBUG CULL: layer=test_layer bbox=[48, 48, 152, 152] is_culled=false reason=
+[2026-05-25 20:08:55.442] [info] DEBUG DRAW SHAPE: bbox=[48, 48, 152, 152] model_trans=[50, 50] size=[100, 100] fb=[200, 200]
+[2026-05-25 20:08:55.442] [info] DEBUG SORT: Before sorting:
+[2026-05-25 20:08:55.442] [info] DEBUG SORT: name=test_layer depth=1000.00 insertion_index=0
+[2026-05-25 20:08:55.442] [info] DEBUG SORT: After sorting:
+[2026-05-25 20:08:55.442] [info] DEBUG SORT: name=test_layer depth=1000.00 insertion_index=0
+[2026-05-25 20:08:55.442] [info] DEBUG CULL: layer=test_layer bbox=[45, 72, 155, 125] is_culled=false reason=
+[2026-05-25 20:08:55.443] [info] DEBUG DRAW SHAPE: bbox=[48, 48, 152, 152] model_trans=[50, 50] size=[100, 100] fb=[200, 200]
+[2026-05-25 20:08:55.443] [info] [sampling-debug-pre] x=100 y=100 h_row=[0.100,0.101,0.001] sx=100.500 sy=101.001 bounds=[40.000,160.000,40.000,160.000]
+[2026-05-25 20:08:55.443] [info] [sampling-debug] x=100 y=100 sx=100.500 sy=101.001 src_color=[1.000,0.000,0.000,1.000]
+[2026-05-25 20:08:55.443] [info] DEBUG SORT: Before sorting:
+[2026-05-25 20:08:55.443] [info] DEBUG SORT: name=test_layer depth=1000.00 insertion_index=0
+[2026-05-25 20:08:55.443] [info] DEBUG SORT: After sorting:
+[2026-05-25 20:08:55.443] [info] DEBUG SORT: name=test_layer depth=1000.00 insertion_index=0
+[2026-05-25 20:08:55.443] [info] DEBUG CULL: layer=test_layer bbox=[48, 48, 152, 152] is_culled=false reason=
+[2026-05-25 20:08:55.444] [info] DEBUG DRAW SHAPE: bbox=[48, 48, 152, 152] model_trans=[50, 50] size=[100, 100] fb=[200, 200]
+[2026-05-25 20:08:55.444] [info] DEBUG SORT: Before sorting:
+[2026-05-25 20:08:55.444] [info] DEBUG SORT: name=test_layer depth=1000.00 insertion_index=0
+[2026-05-25 20:08:55.444] [info] DEBUG SORT: After sorting:
+[2026-05-25 20:08:55.444] [info] DEBUG SORT: name=test_layer depth=1000.00 insertion_index=0
+[2026-05-25 20:08:55.444] [info] DEBUG CULL: layer=test_layer bbox=[75, 45, 128, 155] is_culled=false reason=
+[2026-05-25 20:08:55.444] [info] DEBUG DRAW SHAPE: bbox=[48, 48, 152, 152] model_trans=[50, 50] size=[100, 100] fb=[200, 200]
+[2026-05-25 20:08:55.444] [info] [sampling-debug-pre] x=100 y=100 h_row=[0.101,0.101,0.001] sx=100.999 sy=100.500 bounds=[40.000,160.000,40.000,160.000]
+[2026-05-25 20:08:55.444] [info] [sampling-debug] x=100 y=100 sx=100.999 sy=100.500 src_color=[1.000,0.000,0.000,1.000]
+[2026-05-25 20:08:55.445] [info] DEBUG SORT: Before sorting:
+[2026-05-25 20:08:55.445] [info] DEBUG SORT: name=test_layer depth=1000.00 insertion_index=0
+[2026-05-25 20:08:55.445] [info] DEBUG SORT: After sorting:
+[2026-05-25 20:08:55.445] [info] DEBUG SORT: name=test_layer depth=1000.00 insertion_index=0
+[2026-05-25 20:08:55.445] [info] DEBUG CULL: layer=test_layer bbox=[99, 45, 100, 155] is_culled=false reason=
+[2026-05-25 20:08:55.445] [info] DEBUG DRAW SHAPE: bbox=[48, 48, 152, 152] model_trans=[50.000004, 50] size=[100, 100] fb=[200, 200]
+[2026-05-25 20:08:55.445] [info] DEBUG SORT: Before sorting:
+[2026-05-25 20:08:55.445] [info] DEBUG SORT: name=far_blue depth=1500.00 insertion_index=0
+[2026-05-25 20:08:55.445] [info] DEBUG SORT: name=near_red depth=800.00 insertion_index=1
+[2026-05-25 20:08:55.445] [info] DEBUG SORT: After sorting:
+[2026-05-25 20:08:55.445] [info] DEBUG SORT: name=far_blue depth=1500.00 insertion_index=0
+[2026-05-25 20:08:55.445] [info] DEBUG SORT: name=near_red depth=800.00 insertion_index=1
+[2026-05-25 20:08:55.445] [info] DEBUG CULL: layer=far_blue bbox=[48, 48, 152, 152] is_culled=false reason=
+[2026-05-25 20:08:55.445] [info] DEBUG CULL: layer=near_red bbox=[60, 60, 140, 140] is_culled=false reason=
+[2026-05-25 20:08:55.446] [info] DEBUG DRAW SHAPE: bbox=[68, 68, 132, 132] model_trans=[70, 70] size=[60, 60] fb=[200, 200]
+[2026-05-25 20:08:55.446] [info] DEBUG DRAW SHAPE: bbox=[23, 23, 177, 177] model_trans=[25, 25] size=[150, 150] fb=[200, 200]
+[2026-05-25 20:08:55.446] [info] [sampling-debug-pre] x=100 y=100 h_row=[100.750,100.750,1.000] sx=100.750 sy=100.750 bounds=[15.000,185.000,15.000,185.000]
+[2026-05-25 20:08:55.447] [info] [sampling-debug] x=100 y=100 sx=100.750 sy=100.750 src_color=[0.000,0.000,1.000,1.000]
+[2026-05-25 20:08:55.447] [info] [sampling-debug-pre] x=100 y=100 h_row=[100.400,100.400,1.000] sx=100.400 sy=100.400 bounds=[60.000,140.000,60.000,140.000]
+[2026-05-25 20:08:55.447] [info] [sampling-debug] x=100 y=100 sx=100.400 sy=100.400 src_color=[1.000,0.000,0.000,1.000]
+[2026-05-25 20:08:55.447] [info] DEBUG TEST 9.7: center pixel R=1.00 G=0.00 B=0.00 A=1.00
+[2026-05-25 20:08:55.447] [info] DEBUG TEST 9.7: corner pixel R=0.00 G=0.00 B=1.00 A=1.00
+[2026-05-25 20:08:55.447] [info] DEBUG CULL: layer=test_layer bbox=[8, 8, 92, 92] is_culled=false reason=
+[2026-05-25 20:08:55.447] [info] DEBUG WHITE RECT EXECUTE: name=white_rect centered=true canvas_center=[50, 50] override_trans=[-40, -40] state_matrix=[10, 10]
+[2026-05-25 20:08:55.447] [info] DEBUG DRAW SHAPE: bbox=[8, 8, 92, 92] model_trans=[10, 10] size=[80, 80] fb=[100, 100]
+[2026-05-25 20:08:55.448] [info] DEBUG CULL: layer=test_layer bbox=[8, 8, 92, 92] is_culled=false reason=
+[2026-05-25 20:08:55.448] [info] DEBUG WHITE RECT EXECUTE: name=white_rect centered=true canvas_center=[50, 50] override_trans=[-40, -40] state_matrix=[10, 10]
+[2026-05-25 20:08:55.448] [info] DEBUG DRAW SHAPE: bbox=[8, 8, 92, 92] model_trans=[10, 10] size=[80, 80] fb=[100, 100]
+[2026-05-25 20:08:55.448] [info] DEBUG CULL: layer=test_layer bbox=[8, 8, 92, 92] is_culled=false reason=
+[2026-05-25 20:08:55.448] [info] DEBUG WHITE RECT EXECUTE: name=white_rect centered=true canvas_center=[50, 50] override_trans=[-40, -40] state_matrix=[10, 10]
+[2026-05-25 20:08:55.448] [info] DEBUG DRAW SHAPE: bbox=[8, 8, 92, 92] model_trans=[10, 10] size=[80, 80] fb=[100, 100]
+[2026-05-25 20:08:55.449] [info] DEBUG CULL: layer=test_layer bbox=[8, 8, 92, 92] is_culled=false reason=
+[2026-05-25 20:08:55.449] [info] DEBUG WHITE RECT EXECUTE: name=white_rect centered=true canvas_center=[50, 50] override_trans=[-40, -40] state_matrix=[10, 10]
+[2026-05-25 20:08:55.449] [info] DEBUG DRAW SHAPE: bbox=[8, 8, 92, 92] model_trans=[10, 10] size=[80, 80] fb=[100, 100]
+[2026-05-25 20:08:55.449] [info] DEBUG CULL: layer=test_layer bbox=[8, 8, 92, 92] is_culled=false reason=
+[2026-05-25 20:08:55.449] [info] DEBUG WHITE RECT EXECUTE: name=white_rect centered=true canvas_center=[50, 50] override_trans=[-40, -40] state_matrix=[10, 10]
+[2026-05-25 20:08:55.449] [info] DEBUG DRAW SHAPE: bbox=[8, 8, 92, 92] model_trans=[10, 10] size=[80, 80] fb=[100, 100]
+[2026-05-25 20:08:55.450] [info] DEBUG CULL: layer=red_rect bbox=[28, 28, 72, 72] is_culled=false reason=
+[2026-05-25 20:08:55.450] [info] DEBUG DRAW SHAPE: bbox=[28, 28, 72, 72] model_trans=[30, 30] size=[40, 40] fb=[100, 100]
+===============================================================================
+[doctest] test cases:  211 |  205 passed |  6 failed | 0 skipped
+[doctest] assertions: 3316 | 3306 passed | 10 failed |
+[doctest] Status: FAILURE!

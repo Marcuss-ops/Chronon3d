@@ -53,16 +53,20 @@ void draw_text_shadow(SoftwareRenderer& renderer, Framebuffer& fb, const RenderN
         auto cached_img = std::make_shared<BLImage>(shadow_img);
 
         if (shadow.blur > 0.0f) {
-            // Blur requires pixel-level operations, so we use the FB path via renderer
-            // This is the one case where double conversion is unavoidable
-            auto shadow_fb = std::make_shared<Framebuffer>(shadow_img.width(), shadow_img.height());
-            shadow_fb->clear(Color::transparent());
+            auto shadow_fb = renderer.framebuffer_pool()->acquire(shadow_img.width(), shadow_img.height(), true);
             blend2d_bridge::composite_bl_image(*shadow_fb, shadow_img, 0, 0, 1.0f, BlendMode::Normal);
             renderer.apply_blur(*shadow_fb, shadow.blur);
             
-            // For simplicity when blur is needed, just don't cache as BLImage
-            // The shadow/glow effect with blur will not be cached to avoid complexity
-            cached_img = nullptr; // Signal no caching for blurry shadows
+            const f32 shadow_opacity = shadow.opacity * shadow.color.a;
+            if (use_geo_transform) {
+                int x = static_cast<int>(std::lround(raster.x_offset + shadow.offset.x));
+                int y = static_cast<int>(std::lround(raster.y_offset + shadow.offset.y));
+                blend2d_bridge::composite_framebuffer(fb, *shadow_fb, x, y, opacity * shadow_opacity, BlendMode::Normal);
+            } else {
+                Mat4 shadow_model = model * glm::translate(Mat4(1.0f), Vec3(raster.x_offset + shadow.offset.x, raster.y_offset + shadow.offset.y, 0.0f));
+                blend2d_bridge::composite_framebuffer_transformed(fb, *shadow_fb, shadow_model, opacity * shadow_opacity, BlendMode::Normal);
+            }
+            return;
         }
 
         if (cached_img) {
@@ -83,39 +87,6 @@ void draw_text_shadow(SoftwareRenderer& renderer, Framebuffer& fb, const RenderN
         } else {
             Mat4 shadow_model = model * glm::translate(Mat4(1.0f), Vec3(raster.x_offset + shadow.offset.x, raster.y_offset + shadow.offset.y, 0.0f));
             blend2d_bridge::composite_bl_image_transformed(fb, *shadow_cache, shadow_model, opacity * shadow_opacity, BlendMode::Normal);
-        }
-    } else if (shadow.blur > 0.0f) {
-        // Fallback for blurry shadows: render directly without caching
-        BLImage shadow_img;
-        shadow_img.create(raster.image.width(), raster.image.height(), BL_FORMAT_PRGB32);
-        {
-            BLContext ctx(shadow_img);
-            ctx.setCompOp(BL_COMP_OP_SRC_COPY);
-            ctx.setFillStyle(BLRgba32(0, 0, 0, 0));
-            ctx.fillAll();
-            ctx.blitImage(BLPoint(0, 0), raster.image);
-            ctx.setCompOp(BL_COMP_OP_SRC_IN);
-            ctx.setFillStyle(BLRgba32(
-                static_cast<uint8_t>(std::clamp(shadow.color.r * 255.0f, 0.0f, 255.0f)),
-                static_cast<uint8_t>(std::clamp(shadow.color.g * 255.0f, 0.0f, 255.0f)),
-                static_cast<uint8_t>(std::clamp(shadow.color.b * 255.0f, 0.0f, 255.0f)),
-                255
-            ));
-            ctx.fillAll();
-        }
-        
-        auto shadow_fb = std::make_shared<Framebuffer>(shadow_img.width(), shadow_img.height());
-        shadow_fb->clear(Color::transparent());
-        blend2d_bridge::composite_bl_image(*shadow_fb, shadow_img, 0, 0, 1.0f, BlendMode::Normal);
-        renderer.apply_blur(*shadow_fb, shadow.blur);
-        
-        if (use_geo_transform) {
-            int x = static_cast<int>(std::lround(raster.x_offset + shadow.offset.x));
-            int y = static_cast<int>(std::lround(raster.y_offset + shadow.offset.y));
-            blend2d_bridge::composite_framebuffer(fb, *shadow_fb, x, y, opacity * shadow_opacity, BlendMode::Normal);
-        } else {
-            Mat4 shadow_model = model * glm::translate(Mat4(1.0f), Vec3(raster.x_offset + shadow.offset.x, raster.y_offset + shadow.offset.y, 0.0f));
-            blend2d_bridge::composite_framebuffer_transformed(fb, *shadow_fb, shadow_model, opacity * shadow_opacity, BlendMode::Normal);
         }
     }
 }

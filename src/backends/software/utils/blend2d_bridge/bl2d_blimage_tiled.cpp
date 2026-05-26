@@ -78,12 +78,27 @@ void composite_bl_image_tiled(Framebuffer& fb, const BLImage& img, const Mat4& m
         std::abs(model[3][3] - 1.0f) < 1e-5f;
 
     glm::mat3 invH{};
+    bool is_affine = false;
+    float a00 = 0.0f, a10 = 0.0f, a20 = 0.0f;
+    float a01 = 0.0f, a11 = 0.0f, a21 = 0.0f;
+
     if (!is_simple_translation && !is_scale_translation) {
         glm::mat3 H;
         H[0][0] = model[0][0]; H[0][1] = model[0][1]; H[0][2] = model[0][3];
         H[1][0] = model[1][0]; H[1][1] = model[1][1]; H[1][2] = model[1][3];
         H[2][0] = model[3][0]; H[2][1] = model[3][1]; H[2][2] = model[3][3];
         invH = glm::inverse(H);
+
+        is_affine = std::abs(invH[0][2]) < 1e-6f && std::abs(invH[1][2]) < 1e-6f;
+        if (is_affine) {
+            const float inv_z = 1.0f / invH[2][2];
+            a00 = invH[0][0] * inv_z;
+            a10 = invH[1][0] * inv_z;
+            a20 = invH[2][0] * inv_z;
+            a01 = invH[0][1] * inv_z;
+            a11 = invH[1][1] * inv_z;
+            a21 = invH[2][1] * inv_z;
+        }
     }
 
     auto process_rows = [&](int row_begin, int row_end) {
@@ -103,6 +118,11 @@ void composite_bl_image_tiled(Framebuffer& fb, const BLImage& img, const Mat4& m
                     const float inv_sy = 1.0f / sy;
                     lx = (static_cast<float>(x) + 0.5f - tx) * inv_sx;
                     ly = (static_cast<float>(y) + 0.5f - ty) * inv_sy;
+                } else if (is_affine) {
+                    const float px = static_cast<float>(x) + 0.5f;
+                    const float py = static_cast<float>(y) + 0.5f;
+                    lx = a00 * px + a10 * py + a20;
+                    ly = a01 * px + a11 * py + a21;
                 } else {
                     const Vec3 local_h = invH * Vec3(static_cast<float>(x) + 0.5f, static_cast<float>(y) + 0.5f, 1.0f);
                     if (std::abs(local_h.z) < 1e-7f) continue;

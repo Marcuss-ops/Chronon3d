@@ -11,7 +11,13 @@
 //   const float t = ctx.frame / float(ctx.duration - 1);
 //   s.camera().set(camera_motion::orbit(t, {.radius=220, .target={0,0,0}}));
 
+namespace chronon3d {
+    class SceneBuilder;
+    class LayerBuilder;
+}
+
 namespace chronon3d::camera_motion {
+
 
 // ── Easing helpers ────────────────────────────────────────────────────────────
 
@@ -92,5 +98,8 @@ Camera2_5D dramatic_push(float t, float zoom = 1000.0f);
 
 // Subtle roll: camera tilts 0° → 8° counterclockwise (cinematic handover).
 Camera2_5D roll_reveal(float t, float max_roll_deg = 8.0f, float zoom = 1000.0f);
+
+// Apply a dolly-pitch sweep animation to a layer and setup the camera
+void apply_dolly_pitch_sweep(SceneBuilder& s, LayerBuilder& l, int duration = 150);
 
 } // namespace chronon3d::camera_motion

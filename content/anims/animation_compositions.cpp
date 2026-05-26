@@ -20,7 +20,7 @@ Composition anim_fade_in_text() {
             l.opacity(op).pin_to(Anchor::Center);
             l.text("label", {
                 .text = "Fade In",
-                .pos = {0, 0, 0}, .size = {500, 80},
+                .size = {500, 80}, .pos = {0, 0, 0},
                 .font_size = 64, .color = {1,1,1,1},
                 .align = TextAlign::Center,
             });
@@ -45,7 +45,7 @@ Composition anim_slide_text() {
             l.opacity(op).pin_to(Anchor::Center).position({x, 0, 0});
             l.text("label", {
                 .text = "Slide In",
-                .pos = {0, 0, 0}, .size = {500, 80},
+                .size = {500, 80}, .pos = {0, 0, 0},
                 .font_size = 64, .color = {1,1,1,1},
                 .align = TextAlign::Center,
             });
@@ -70,7 +70,7 @@ Composition anim_scale_text() {
             l.opacity(op).pin_to(Anchor::Center).scale({sc, sc, 1});
             l.text("label", {
                 .text = "Scale Up",
-                .pos = {0, 0, 0}, .size = {500, 80},
+                .size = {500, 80}, .pos = {0, 0, 0},
                 .font_size = 64, .color = {1,1,1,1},
                 .align = TextAlign::Center,
             });
@@ -93,7 +93,7 @@ Composition anim_typewriter() {
             l.pin_to(Anchor::Center);
             l.text("label", {
                 .text = "Typewriter",
-                .pos = {0, 0, 0}, .size = {500, 80},
+                .size = {500, 80}, .pos = {0, 0, 0},
                 .font_size = 64, .color = {1,1,1,1},
                 .align = TextAlign::Center,
             });
@@ -118,7 +118,7 @@ Composition anim_rotate_text() {
             l.opacity(op).pin_to(Anchor::Center).rotate({0, 0, angle});
             l.text("label", {
                 .text = "Rotate",
-                .pos = {0, 0, 0}, .size = {500, 80},
+                .size = {500, 80}, .pos = {0, 0, 0},
                 .font_size = 64, .color = {1,1,1,1},
                 .align = TextAlign::Center,
             });
@@ -143,7 +143,7 @@ Composition anim_bounce_text() {
             l.pin_to(Anchor::Center).position({0, -100 + y, 0});
             l.text("label", {
                 .text = "Bounce",
-                .pos = {0, 0, 0}, .size = {500, 80},
+                .size = {500, 80}, .pos = {0, 0, 0},
                 .font_size = 64, .color = {1,1,1,1},
                 .align = TextAlign::Center,
             });

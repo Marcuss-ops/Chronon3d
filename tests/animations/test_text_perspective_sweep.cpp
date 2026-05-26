@@ -13,7 +13,7 @@ TEST_CASE("TextPerspectiveSweepDemo is registered") {
     REQUIRE(comp.name() == "TextPerspectiveSweepDemo");
     CHECK(comp.width() == 1920);
     CHECK(comp.height() == 1080);
-    CHECK(comp.duration() == 120);
+    CHECK(comp.duration() == 150);
 }
 
 TEST_CASE("TextPerspectiveSweepDemo renders frame 0 (start)") {
@@ -31,25 +31,25 @@ TEST_CASE("TextPerspectiveSweepDemo renders frame 0 (start)") {
     CHECK(c.a > 0.0f);
 }
 
-TEST_CASE("TextPerspectiveSweepDemo renders frame 60 (mid-animation)") {
+TEST_CASE("TextPerspectiveSweepDemo renders frame 75 (mid-animation)") {
     CompositionRegistry registry;
     auto comp = registry.create("TextPerspectiveSweepDemo");
 
-    auto fb = test::render_modular(comp, 60);
+    auto fb = test::render_modular(comp, 75);
     REQUIRE(fb != nullptr);
     CHECK(fb->width() == 1920);
     CHECK(fb->height() == 1080);
 
-    // At frame 60 (50%): text should be visible, center has content
+    // At frame 75 (50%): text should be visible, center has content
     Color c = fb->get_pixel(960, 540);
     CHECK(c.a > 0.0f);
 }
 
-TEST_CASE("TextPerspectiveSweepDemo renders frame 119 (end)") {
+TEST_CASE("TextPerspectiveSweepDemo renders frame 149 (end)") {
     CompositionRegistry registry;
     auto comp = registry.create("TextPerspectiveSweepDemo");
 
-    auto fb = test::render_modular(comp, 119);
+    auto fb = test::render_modular(comp, 149);
     REQUIRE(fb != nullptr);
     CHECK(fb->width() == 1920);
     CHECK(fb->height() == 1080);
