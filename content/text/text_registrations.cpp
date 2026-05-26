@@ -22,6 +22,7 @@ Composition text_typewriter_manifest();
 Composition text_typewriter_chapter();
 Composition text_animated_sequence();
 Composition text_countdown();
+Composition text_premium_motion_pack();
 // Composition text_cinematic_intro();
 Composition text_perspective_sweep_demo();
 // Composition text_glow_transition();
@@ -51,6 +52,7 @@ CHRONON_REGISTER_COMPOSITION("TextTypewriterManifest",  chronon3d::content::text
 CHRONON_REGISTER_COMPOSITION("TextTypewriterChapter",   chronon3d::content::text::text_typewriter_chapter)
 CHRONON_REGISTER_COMPOSITION("TextAnimatedSequence",chronon3d::content::text::text_animated_sequence)
 CHRONON_REGISTER_COMPOSITION("TextCountdown",       chronon3d::content::text::text_countdown)
+CHRONON_REGISTER_COMPOSITION("TextPremiumMotionPack", chronon3d::content::text::text_premium_motion_pack)
 // CHRONON_REGISTER_COMPOSITION("TextCinematicIntro",  chronon3d::content::text::text_cinematic_intro)
 CHRONON_REGISTER_COMPOSITION("TextPerspectiveSweepDemo", chronon3d::content::text::text_perspective_sweep_demo)
 // CHRONON_REGISTER_COMPOSITION("TextGlowTransition",  chronon3d::content::text::text_glow_transition)
