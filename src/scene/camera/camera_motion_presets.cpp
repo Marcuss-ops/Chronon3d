@@ -1,4 +1,6 @@
 #include <chronon3d/scene/camera/camera_motion_presets.hpp>
+#include <chronon3d/scene/builders/scene_builder.hpp>
+#include <chronon3d/scene/builders/layer_builder.hpp>
 #include <algorithm>
 #include <cmath>
 
@@ -109,6 +111,27 @@ Camera2_5D roll_reveal(float t, float max_roll_deg, float zoom) {
     cam.rotation = {0.0f, 0.0f, lerp(0.0f, max_roll_deg, t)};
     cam.point_of_interest_enabled = false;
     return cam;
+}
+
+void apply_dolly_pitch_sweep(SceneBuilder& s, LayerBuilder& l, int duration) {
+    // Configure static camera
+    s.camera().enable(true).position({0.0f, 0.0f, -1000.0f}).zoom(1000.0f);
+
+    // Configure layer animations
+    l.enable_3d();
+
+    l.opacity_anim()
+     .key(0, 0.0f)
+     .key(20, 1.0f, Easing::OutCubic)
+     .key(duration - 20, 1.0f)
+     .key(duration - 1, 0.0f, Easing::InCubic);
+
+    l.position_anim()
+     .key(0, Vec3{0.0f, 0.0f, 0.0f});
+
+    l.rotate_anim()
+     .key(0, Vec3{0.0f, -60.0f, 0.0f}, Easing::InOutCubic)
+     .key(duration - 1, Vec3{0.0f, 60.0f, 0.0f});
 }
 
 } // namespace chronon3d::camera_motion

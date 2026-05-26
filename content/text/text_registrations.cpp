@@ -3,9 +3,10 @@
 
 namespace chronon3d::content::text {
 
-Composition text_title_big();
-Composition text_subtitle();
-Composition text_lower_third();
+// Removed/cleaned up:
+// Composition text_title_big();
+// Composition text_subtitle();
+// Composition text_lower_third();
 Composition text_credit_roll();
 Composition text_split_screen();
 Composition text_glow();
@@ -21,20 +22,20 @@ Composition text_typewriter_manifest();
 Composition text_typewriter_chapter();
 Composition text_animated_sequence();
 Composition text_countdown();
-Composition text_cinematic_intro();
+// Composition text_cinematic_intro();
 Composition text_perspective_sweep_demo();
-Composition text_glow_transition();
-Composition text_spring_reveal();
-Composition text_cyberpunk_glitch();
-Composition text_credits_3d();
+// Composition text_glow_transition();
+// Composition text_spring_reveal();
+// Composition text_cyberpunk_glitch();
+// Composition text_credits_3d();
 
 void register_all() {}
 
 } // namespace chronon3d::content::text
 
-CHRONON_REGISTER_COMPOSITION("TextTitleBig",        chronon3d::content::text::text_title_big)
-CHRONON_REGISTER_COMPOSITION("TextSubtitle",        chronon3d::content::text::text_subtitle)
-CHRONON_REGISTER_COMPOSITION("TextLowerThird",      chronon3d::content::text::text_lower_third)
+// CHRONON_REGISTER_COMPOSITION("TextTitleBig",        chronon3d::content::text::text_title_big)
+// CHRONON_REGISTER_COMPOSITION("TextSubtitle",        chronon3d::content::text::text_subtitle)
+// CHRONON_REGISTER_COMPOSITION("TextLowerThird",      chronon3d::content::text::text_lower_third)
 CHRONON_REGISTER_COMPOSITION("TextCreditRoll",      chronon3d::content::text::text_credit_roll)
 CHRONON_REGISTER_COMPOSITION("TextSplitScreen",     chronon3d::content::text::text_split_screen)
 CHRONON_REGISTER_COMPOSITION("TextGlow",            chronon3d::content::text::text_glow)
@@ -50,9 +51,9 @@ CHRONON_REGISTER_COMPOSITION("TextTypewriterManifest",  chronon3d::content::text
 CHRONON_REGISTER_COMPOSITION("TextTypewriterChapter",   chronon3d::content::text::text_typewriter_chapter)
 CHRONON_REGISTER_COMPOSITION("TextAnimatedSequence",chronon3d::content::text::text_animated_sequence)
 CHRONON_REGISTER_COMPOSITION("TextCountdown",       chronon3d::content::text::text_countdown)
-CHRONON_REGISTER_COMPOSITION("TextCinematicIntro",  chronon3d::content::text::text_cinematic_intro)
+// CHRONON_REGISTER_COMPOSITION("TextCinematicIntro",  chronon3d::content::text::text_cinematic_intro)
 CHRONON_REGISTER_COMPOSITION("TextPerspectiveSweepDemo", chronon3d::content::text::text_perspective_sweep_demo)
-CHRONON_REGISTER_COMPOSITION("TextGlowTransition",  chronon3d::content::text::text_glow_transition)
-CHRONON_REGISTER_COMPOSITION("TextSpringReveal",    chronon3d::content::text::text_spring_reveal)
-CHRONON_REGISTER_COMPOSITION("TextCyberpunkGlitch", chronon3d::content::text::text_cyberpunk_glitch)
-CHRONON_REGISTER_COMPOSITION("TextCredits3D",       chronon3d::content::text::text_credits_3d)
+// CHRONON_REGISTER_COMPOSITION("TextGlowTransition",  chronon3d::content::text::text_glow_transition)
+// CHRONON_REGISTER_COMPOSITION("TextSpringReveal",    chronon3d::content::text::text_spring_reveal)
+// CHRONON_REGISTER_COMPOSITION("TextCyberpunkGlitch", chronon3d::content::text::text_cyberpunk_glitch)
+// CHRONON_REGISTER_COMPOSITION("TextCredits3D",       chronon3d::content::text::text_credits_3d)
