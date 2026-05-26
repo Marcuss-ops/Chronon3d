@@ -20,7 +20,7 @@ TEST_CASE("Advanced Effects: Layer Drop Shadow modifies pixels outside shape") {
         SceneBuilder s(ctx);
         s.layer("l", [](LayerBuilder& l) {
             // Box is 20x20 in the center
-            l.position({32, 32, 0});
+            l.position({0, 0, 0});
             l.rect("r", {.size={20, 20}, .color=Color::white()});
             // Large shadow offset 10 to the right and down
             l.drop_shadow({10, 10}, Color{1.0f, 0.0f, 0.0f, 1.0f}, 0.0f);
@@ -46,7 +46,7 @@ TEST_CASE("Advanced Effects: Layer Glow modifies pixels outside shape") {
     auto fb = render_advanced_effect_fn([](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         s.layer("l", [](LayerBuilder& l) {
-            l.position({32, 32, 0});
+            l.position({0, 0, 0});
             l.rect("r", {.size={20, 20}, .color=Color::white()});
             // Glow with 10px radius, green color
             l.glow(10.0f, 1.0f, Color::green());
@@ -66,7 +66,7 @@ TEST_CASE("Advanced Effects: Layer Bloom highlights bright pixels and spreads") 
     auto fb = render_advanced_effect_fn([](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         s.layer("l", [](LayerBuilder& l) {
-            l.position({32, 32, 0});
+            l.position({0, 0, 0});
             l.rect("r", {.size={20, 20}, .color=Color{2.0f, 0.0f, 0.0f, 1.0f}}); // Super bright red
             // Bloom threshold 1.0, so only >1.0 pixels bloom
             l.bloom(1.0f, 8.0f, 1.0f);
@@ -86,7 +86,7 @@ TEST_CASE("Advanced Nodes: MaskNode restricts rendering to mask shape") {
     auto fb = render_advanced_effect_fn([](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         s.layer("l", [](LayerBuilder& l) {
-            l.position({32, 32, 0});
+            l.position({0, 0, 0});
             // Large white box
             l.rect("r", {.size={64, 64}, .color=Color::white()});
             // Mask to a small 20x20 area

@@ -186,16 +186,25 @@ public:
             return;
         }
 
+        if (box.x0 == 0 && box.y0 == 0 && box.x1 == m_width && box.y1 == m_height) {
+            clear(color);
+            return;
+        }
+
+        const size_t stride = static_cast<size_t>(m_allocated_width);
         if (color.r == 0.0f && color.g == 0.0f && color.b == 0.0f && color.a == 0.0f) {
             const size_t row_bytes = static_cast<size_t>(box.x1 - box.x0) * sizeof(Color);
+            Color* row = pixels_row(box.y0) + box.x0;
             for (i32 y = box.y0; y < box.y1; ++y) {
-                Color* row = pixels_row(y);
-                std::memset(row + box.x0, 0, row_bytes);
+                std::memset(row, 0, row_bytes);
+                row += stride;
             }
         } else {
+            Color* row = pixels_row(box.y0) + box.x0;
+            const i32 w = box.x1 - box.x0;
             for (i32 y = box.y0; y < box.y1; ++y) {
-                Color* row = pixels_row(y);
-                std::fill(row + box.x0, row + box.x1, color);
+                std::fill(row, row + w, color);
+                row += stride;
             }
         }
         if (!m_opaque || color.a < 0.999f) {
