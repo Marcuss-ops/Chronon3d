@@ -200,7 +200,7 @@ TEST_CASE("Pipeline Producer/Consumer: Fast consumer, slow producer") {
         if (queue.try_dequeue(pkg)) {
             frames_consumed.fetch_add(1);
         } else {
-            std::this_thread::yield();
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
         }
         const auto pop_t1 = std::chrono::steady_clock::now();
         double pop_ms = std::chrono::duration<double, std::milli>(pop_t1 - pop_t0).count();

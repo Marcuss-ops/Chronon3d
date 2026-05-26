@@ -39,7 +39,8 @@ inline std::shared_ptr<Framebuffer> acquire_temp_framebuffer(int w, int h) {
     if (profiling::g_current_framebuffer_pool) {
         return profiling::g_current_framebuffer_pool->acquire_pooled(
             w, h,
-            std::shared_ptr<cache::FramebufferPool>(profiling::g_current_framebuffer_pool, [](auto*){})
+            profiling::g_current_framebuffer_pool->shared_from_this(),
+            true
         );
     }
     auto fb = std::make_shared<Framebuffer>(w, h);

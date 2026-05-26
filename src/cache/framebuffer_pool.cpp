@@ -41,7 +41,25 @@ FramebufferPool::FramebufferPool(size_t max_bytes)
 
 void FramebufferPool::set_arena(std::shared_ptr<FramebufferArena> arena) {
     std::lock_guard<std::mutex> lock(m_mutex);
-    m_arena = std::move(arena);
+    if (m_arena != arena) {
+        for (auto it = m_free.begin(); it != m_free.end(); ) {
+            auto& vec = it->second;
+            for (auto& fb : vec) {
+                if (fb->is_arena_allocated()) {
+                    m_current_bytes -= fb->size_bytes();
+                }
+            }
+            vec.erase(std::remove_if(vec.begin(), vec.end(), [](const auto& fb) {
+                return fb->is_arena_allocated();
+            }), vec.end());
+            if (vec.empty()) {
+                it = m_free.erase(it);
+            } else {
+                ++it;
+            }
+        }
+        m_arena = std::move(arena);
+    }
 }
 
 std::shared_ptr<Framebuffer> FramebufferPool::acquire(int width, int height, bool clear) {
@@ -164,11 +182,6 @@ void FramebufferPool::release(Framebuffer* fb) {
     std::lock_guard<std::mutex> lock(m_mutex);
 
     std::unique_ptr<Framebuffer> owned(fb);
-    
-    if (owned->is_arena_allocated()) {
-        // Arena buffers are just wrappers.
-        return;
-    }
 
     // Restore full allocated size so the Framebuffer is perfectly standardized in the pool
     const int alloc_w = owned->allocated_width();

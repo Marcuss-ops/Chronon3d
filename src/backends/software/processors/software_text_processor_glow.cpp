@@ -53,14 +53,20 @@ void draw_text_glow(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNod
         auto cached_img = std::make_shared<BLImage>(glow_img);
 
         if (node.glow.radius > 0.0f) {
-            // Blur requires pixel-level operations, so we use the FB path via renderer
-            auto glow_fb = std::make_shared<Framebuffer>(glow_img.width(), glow_img.height());
-            glow_fb->clear(Color::transparent());
+            auto glow_fb = renderer.framebuffer_pool()->acquire(glow_img.width(), glow_img.height(), true);
             blend2d_bridge::composite_bl_image(*glow_fb, glow_img, 0, 0, 1.0f, BlendMode::Normal);
             renderer.apply_blur(*glow_fb, node.glow.radius);
             
-            // For simplicity when blur is needed, just don't cache as BLImage
-            cached_img = nullptr; // Signal no caching for blurry glows
+            const f32 glow_intensity_opacity = node.glow.intensity * node.glow.color.a;
+            if (use_geo_transform) {
+                int x = static_cast<int>(std::lround(raster.x_offset));
+                int y = static_cast<int>(std::lround(raster.y_offset));
+                blend2d_bridge::composite_framebuffer(fb, *glow_fb, x, y, opacity * glow_intensity_opacity, BlendMode::Add);
+            } else {
+                Mat4 glow_model = model * glm::translate(Mat4(1.0f), Vec3(raster.x_offset, raster.y_offset, 0.0f));
+                blend2d_bridge::composite_framebuffer_transformed(fb, *glow_fb, glow_model, opacity * glow_intensity_opacity, BlendMode::Add);
+            }
+            return;
         }
 
         if (cached_img) {
@@ -81,39 +87,6 @@ void draw_text_glow(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNod
         } else {
             Mat4 glow_model = model * glm::translate(Mat4(1.0f), Vec3(raster.x_offset, raster.y_offset, 0.0f));
             blend2d_bridge::composite_bl_image_transformed(fb, *glow_cache, glow_model, opacity * glow_intensity_opacity, BlendMode::Add);
-        }
-    } else if (node.glow.radius > 0.0f) {
-        // Fallback for blurry glow: render directly without caching
-        BLImage glow_img;
-        glow_img.create(raster.image.width(), raster.image.height(), BL_FORMAT_PRGB32);
-        {
-            BLContext ctx(glow_img);
-            ctx.setCompOp(BL_COMP_OP_SRC_COPY);
-            ctx.setFillStyle(BLRgba32(0, 0, 0, 0));
-            ctx.fillAll();
-            ctx.blitImage(BLPoint(0, 0), raster.image);
-            ctx.setCompOp(BL_COMP_OP_SRC_IN);
-            ctx.setFillStyle(BLRgba32(
-                static_cast<uint8_t>(std::clamp(node.glow.color.r * 255.0f, 0.0f, 255.0f)),
-                static_cast<uint8_t>(std::clamp(node.glow.color.g * 255.0f, 0.0f, 255.0f)),
-                static_cast<uint8_t>(std::clamp(node.glow.color.b * 255.0f, 0.0f, 255.0f)),
-                255
-            ));
-            ctx.fillAll();
-        }
-        
-        auto glow_fb = std::make_shared<Framebuffer>(glow_img.width(), glow_img.height());
-        glow_fb->clear(Color::transparent());
-        blend2d_bridge::composite_bl_image(*glow_fb, glow_img, 0, 0, 1.0f, BlendMode::Normal);
-        renderer.apply_blur(*glow_fb, node.glow.radius);
-        
-        if (use_geo_transform) {
-            int x = static_cast<int>(std::lround(raster.x_offset));
-            int y = static_cast<int>(std::lround(raster.y_offset));
-            blend2d_bridge::composite_framebuffer(fb, *glow_fb, x, y, opacity * glow_intensity_opacity, BlendMode::Add);
-        } else {
-            Mat4 glow_model = model * glm::translate(Mat4(1.0f), Vec3(raster.x_offset, raster.y_offset, 0.0f));
-            blend2d_bridge::composite_framebuffer_transformed(fb, *glow_fb, glow_model, opacity * glow_intensity_opacity, BlendMode::Add);
         }
     }
 }

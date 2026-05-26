@@ -120,6 +120,19 @@ void composite_bl_image_transformed(Framebuffer& fb, const BLImage& img, const M
 
     glm::mat3 invH = glm::inverse(H);
 
+    const bool is_affine = std::abs(invH[0][2]) < 1e-6f && std::abs(invH[1][2]) < 1e-6f;
+    float a00 = 0.0f, a10 = 0.0f, a20 = 0.0f;
+    float a01 = 0.0f, a11 = 0.0f, a21 = 0.0f;
+    if (is_affine) {
+        const float inv_z = 1.0f / invH[2][2];
+        a00 = invH[0][0] * inv_z;
+        a10 = invH[1][0] * inv_z;
+        a20 = invH[2][0] * inv_z;
+        a01 = invH[0][1] * inv_z;
+        a11 = invH[1][1] * inv_z;
+        a21 = invH[2][1] * inv_z;
+    }
+
     auto project = [&](float lx, float ly) -> Vec2 {
         float w = model[0][3] * lx + model[1][3] * ly + model[3][3];
         if (std::abs(w) < 1e-7f) return Vec2(0);
@@ -155,11 +168,28 @@ void composite_bl_image_transformed(Framebuffer& fb, const BLImage& img, const M
             for (int x = x0; x < x1; ++x) {
                 if (state && !pixel_passes_mask(*state, x, y)) continue;
 
-                Vec3 local_h = invH * Vec3(static_cast<float>(x) + 0.5f, static_cast<float>(y) + 0.5f, 1.0f);
-                if (std::abs(local_h.z) < 1e-7f) continue;
+                float lx = 0.0f;
+                float ly = 0.0f;
+                if (is_affine) {
+                    const float px = static_cast<float>(x) + 0.5f;
+                    const float py = static_cast<float>(y) + 0.5f;
+                    lx = a00 * px + a10 * py + a20;
+                    ly = a01 * px + a11 * py + a21;
 
-                const float lx = local_h.x / local_h.z;
-                const float ly = local_h.y / local_h.z;
+                    // Debug check
+                    Vec3 debug_h = invH * Vec3(px, py, 1.0f);
+                    float dlx = debug_h.x / debug_h.z;
+                    float dly = debug_h.y / debug_h.z;
+                    if (std::abs(lx - dlx) > 1e-2f || std::abs(ly - dly) > 1e-2f) {
+                        std::printf("DEBUG DIFF: x=%d, y=%d, lx=%f, dlx=%f, ly=%f, dly=%f, is_affine=%d, invH[0][2]=%e, invH[1][2]=%e, invH[2][2]=%f\n",
+                                    x, y, lx, dlx, ly, dly, is_affine, invH[0][2], invH[1][2], invH[2][2]);
+                    }
+                } else {
+                    Vec3 local_h = invH * Vec3(static_cast<float>(x) + 0.5f, static_cast<float>(y) + 0.5f, 1.0f);
+                    if (std::abs(local_h.z) < 1e-7f) continue;
+                    lx = local_h.x / local_h.z;
+                    ly = local_h.y / local_h.z;
+                }
 
                 if (lx < 0.0f || ly < 0.0f || lx >= static_cast<float>(sw) || ly >= static_cast<float>(sh)) continue;
 

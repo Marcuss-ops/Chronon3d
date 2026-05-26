@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 
+
 namespace chronon3d::graph::detail {
 
 bool is_native_3d_layer(const Layer& layer) {
@@ -56,11 +57,21 @@ raster::BBox compute_layer_bbox(const LayerGraphItem& item, const RenderGraphCon
     for (const auto& node : layer.nodes) {
         if (!node.visible) continue;
 
-        const Mat4 layer_inv = layer.transform.any() ? glm::inverse(layer.transform.to_mat4()) : Mat4(1.0f);
         const Mat4 node_matrix = node.world_transform.to_mat4();
-        const Mat4 actual_world_matrix = layer.hierarchy_resolved
-            ? (item.world_matrix * node_matrix)
-            : (item.world_matrix * layer_inv * node_matrix);
+        Mat4 actual_world_matrix;
+        if (item.projected) {
+            // For projected layers, the source framebuffer is rendered with:
+            //   state.matrix = canvas_center * node.world_transform.to_mat4()
+            // (the layer's world position is applied in TransformNode via projection_matrix)
+            // So stage 1 must match what SourceNode writes into the source FB.
+            actual_world_matrix = node_matrix;
+        } else {
+            // Non-projected: account for layer-level world matrix with hierarchy support.
+            const Mat4 layer_inv = layer.transform.any() ? glm::inverse(layer.transform.to_mat4()) : Mat4(1.0f);
+            actual_world_matrix = layer.hierarchy_resolved
+                ? (item.world_matrix * node_matrix)
+                : (item.world_matrix * layer_inv * node_matrix);
+        }
 
         Mat4 matrix;
         if (use_local) {
