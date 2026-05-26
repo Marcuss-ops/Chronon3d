@@ -53,6 +53,25 @@ void apply_state(LayerBuilder& l, const MotionState& st, bool enable_3d) {
     }
 }
 
+void apply_mask_sweep(LayerBuilder& l, const MotionObject& obj, const MotionState& st) {
+    if (st.mask_reveal >= 0.999f) {
+        return;
+    }
+
+    const f32 width = std::max(1.0f, obj.size_value.x);
+    const f32 height = std::max(1.0f, obj.size_value.y);
+    const f32 pad_x = std::max(36.0f, width * 0.08f);
+    const f32 pad_y = std::max(10.0f, height * 0.12f);
+    const f32 sweep_width = interpolate(st.mask_reveal, 0.0f, 1.0f, pad_x, width + pad_x, Easing::OutCubic);
+    const f32 x = -width * 0.5f + sweep_width * 0.5f - pad_x * 0.5f;
+
+    l.mask_rect(RectMaskParams{
+        .size = {sweep_width, height + pad_y * 2.0f},
+        .pos = {x, 0.0f, 0.0f},
+        .inverted = false,
+    });
+}
+
 Vec3 face_camera_rotation(const SceneBuilder& s, const MotionState& st, bool face_camera) {
     if (!face_camera) {
         return {0.0f, 0.0f, 0.0f};
@@ -172,13 +191,20 @@ void draw_motion_object_impl(
             l.rotate(st.rotation + face_cam_rot);
         }
         l.opacity(st.opacity * obj.color_value.a);
+        if (obj.preset_value == MotionPreset::MaskSweep) {
+            apply_mask_sweep(l, obj, st);
+        }
         draw_content(l, obj, st, layer_name);
-        if (obj.glow_enabled) {
+        const bool focus_pull = obj.preset_value == MotionPreset::FocusPull;
+        if (obj.glow_enabled || focus_pull) {
+            const f32 focus_glow_mix = focus_pull ? std::clamp(1.0f - (st.blur / 8.0f), 0.0f, 1.0f) : 1.0f;
             l.with_glow(Glow{
                 .enabled = true,
-                .radius = 22.0f,
-                .intensity = 0.38f,
-                .color = Color{0.96f, 0.96f, 0.97f, 1.0f},
+                .radius = focus_pull ? 20.0f : 20.0f,
+                .intensity = focus_pull ? (0.10f + 0.18f * focus_glow_mix) : 0.30f,
+                .color = focus_pull
+                    ? Color{0.92f, 0.95f, 1.0f, 1.0f}
+                    : Color{0.96f, 0.96f, 0.97f, 1.0f},
             });
         }
     });

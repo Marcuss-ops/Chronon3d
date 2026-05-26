@@ -11,6 +11,7 @@ struct MotionState {
     f32 opacity{1.0f};
     f32 blur{0.0f};
     f32 text_reveal{1.0f};
+    f32 mask_reveal{1.0f};
     bool visible{true};
 };
 

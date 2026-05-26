@@ -89,14 +89,16 @@ void LayerPipelineBuilder::append_layer_pipeline(RenderGraph& graph, const Layer
             layer.effects.empty() &&
             layer.blend_mode == BlendMode::Normal &&
             !layer.track_matte.active() &&
-            layer.transition_in.transition_id.empty() &&
-            layer.transition_out.transition_id.empty() &&
+            (layer.transition_in.transition_id.empty() || layer.transition_in.transition_id == "none") &&
+            (layer.transition_out.transition_id.empty() || layer.transition_out.transition_id == "none") &&
             !layer.nodes[0].shadow.enabled &&
             !layer.nodes[0].glow.enabled;
 
+        const auto* source_node = dynamic_cast<const SourceNode*>(&graph.node(layer_output));
+        const bool can_seed = source_node && source_node->can_seed_full_frame(ctx);
+
         if (simple_opaque_full_frame_layer) {
-            if (const auto* source_node = dynamic_cast<const SourceNode*>(&graph.node(layer_output));
-                source_node && source_node->can_seed_full_frame(ctx)) {
+            if (can_seed) {
                 ctx.skip_initial_clear = true;
             }
         }

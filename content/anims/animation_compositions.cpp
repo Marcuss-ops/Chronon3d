@@ -3,158 +3,74 @@
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 
+#include <string>
+
 namespace chronon3d::content::anims {
+
 namespace {
 
-// ── AnimFadeInText ───────────────────────────────────────────────────────
+struct MotionElement {
+    std::string text;
+    f32 font_size{64.0f};
+
+    MotionElement(std::string t) : text(std::move(t)) {}
+
+    void draw(LayerBuilder& l) const {
+        l.pin_to(Anchor::Center);
+        l.text("label", {
+            .text = text, .size = {500, 80},
+            .font_size = font_size, .color = {1, 1, 1, 1},
+            .align = TextAlign::Center
+        });
+    }
+};
+
+} // namespace
+
 Composition anim_fade_in_text() {
-    return composition({
-        .name = "AnimFadeInText",
-        .width = 1920, .height = 1080,
-        .duration = 60,
-    }, [](const FrameContext& ctx) {
+    return composition({.name = "AnimFadeInText", .duration = 60}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        f32 op = std::min(1.0f, ctx.progress() * 4.0f);
-
-        s.layer("text", [&](LayerBuilder& l) {
-            l.opacity(op).pin_to(Anchor::Center);
-            l.text("label", {
-                .text = "Fade In",
-                .size = {500, 80}, .pos = {0, 0, 0},
-                .font_size = 64, .color = {1,1,1,1},
-                .align = TextAlign::Center,
-            });
+        s.layer("text", [&](auto& l) {
+            l.opacity(std::min(1.0f, ctx.progress() * 4.0f));
+            MotionElement("Fade In").draw(l);
         });
         return s.build();
     });
 }
 
-// ── AnimSlideText ────────────────────────────────────────────────────────
 Composition anim_slide_text() {
-    return composition({
-        .name = "AnimSlideText",
-        .width = 1920, .height = 1080,
-        .duration = 60,
-    }, [](const FrameContext& ctx) {
+    return composition({.name = "AnimSlideText", .duration = 60}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        f32 p = ctx.progress();
-        f32 x = -200.0f + p * 400.0f;
-        f32 op = std::min(1.0f, p * 3.0f);
-
-        s.layer("text", [&](LayerBuilder& l) {
-            l.opacity(op).pin_to(Anchor::Center).position({x, 0, 0});
-            l.text("label", {
-                .text = "Slide In",
-                .size = {500, 80}, .pos = {0, 0, 0},
-                .font_size = 64, .color = {1,1,1,1},
-                .align = TextAlign::Center,
-            });
+        const f32 p = ctx.progress();
+        s.layer("text", [&](auto& l) {
+            l.opacity(std::min(1.0f, p * 3.0f)).position({-200.0f + p * 400.0f, 0, 0});
+            MotionElement("Slide In").draw(l);
         });
         return s.build();
     });
 }
 
-// ── AnimScaleText ────────────────────────────────────────────────────────
 Composition anim_scale_text() {
-    return composition({
-        .name = "AnimScaleText",
-        .width = 1920, .height = 1080,
-        .duration = 60,
-    }, [](const FrameContext& ctx) {
+    return composition({.name = "AnimScaleText", .duration = 60}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        f32 p = ctx.progress();
-        f32 sc = 0.3f + 0.7f * std::min(1.0f, p * 3.0f);
-        f32 op = std::min(1.0f, p * 4.0f);
-
-        s.layer("text", [&](LayerBuilder& l) {
-            l.opacity(op).pin_to(Anchor::Center).scale({sc, sc, 1});
-            l.text("label", {
-                .text = "Scale Up",
-                .size = {500, 80}, .pos = {0, 0, 0},
-                .font_size = 64, .color = {1,1,1,1},
-                .align = TextAlign::Center,
-            });
+        const f32 p = ctx.progress();
+        s.layer("text", [&](auto& l) {
+            l.opacity(std::min(1.0f, p * 4.0f)).scale({0.3f + 0.7f * std::min(1.0f, p * 3.0f), 0.3f + 0.7f * std::min(1.0f, p * 3.0f), 1});
+            MotionElement("Scale Up").draw(l);
         });
         return s.build();
     });
 }
 
-// ── AnimTypewriter ───────────────────────────────────────────────────────
 Composition anim_typewriter() {
-    return composition({
-        .name = "AnimTypewriter",
-        .width = 1920, .height = 1080,
-        .duration = 60,
-    }, [](const FrameContext& ctx) {
+    return composition({.name = "AnimTypewriter", .duration = 60}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        f32 p = ctx.progress();
-
-        s.layer("text", [&](LayerBuilder& l) {
-            l.pin_to(Anchor::Center);
-            l.text("label", {
-                .text = "Typewriter",
-                .size = {500, 80}, .pos = {0, 0, 0},
-                .font_size = 64, .color = {1,1,1,1},
-                .align = TextAlign::Center,
-            });
+        s.layer("text", [&](auto& l) {
+            MotionElement("Typewriter").draw(l);
         });
         return s.build();
     });
 }
-
-// ── AnimRotateText ───────────────────────────────────────────────────────
-Composition anim_rotate_text() {
-    return composition({
-        .name = "AnimRotateText",
-        .width = 1920, .height = 1080,
-        .duration = 60,
-    }, [](const FrameContext& ctx) {
-        SceneBuilder s(ctx);
-        f32 p = ctx.progress();
-        f32 angle = p * 360.0f;
-        f32 op = std::min(1.0f, p * 3.0f);
-
-        s.layer("text", [&](LayerBuilder& l) {
-            l.opacity(op).pin_to(Anchor::Center).rotate({0, 0, angle});
-            l.text("label", {
-                .text = "Rotate",
-                .size = {500, 80}, .pos = {0, 0, 0},
-                .font_size = 64, .color = {1,1,1,1},
-                .align = TextAlign::Center,
-            });
-        });
-        return s.build();
-    });
-}
-
-// ── AnimBounceText ───────────────────────────────────────────────────────
-Composition anim_bounce_text() {
-    return composition({
-        .name = "AnimBounceText",
-        .width = 1920, .height = 1080,
-        .duration = 60,
-    }, [](const FrameContext& ctx) {
-        SceneBuilder s(ctx);
-        f32 p = ctx.progress() * 2.0f;
-        f32 t = p - std::floor(p);
-        f32 y = -200.0f * t * (1.0f - t) * 4.0f;
-
-        s.layer("text", [&](LayerBuilder& l) {
-            l.pin_to(Anchor::Center).position({0, -100 + y, 0});
-            l.text("label", {
-                .text = "Bounce",
-                .size = {500, 80}, .pos = {0, 0, 0},
-                .font_size = 64, .color = {1,1,1,1},
-                .align = TextAlign::Center,
-            });
-        });
-        return s.build();
-    });
-}
-
-} // anonymous namespace
-
-void register_all() {}
 
 } // namespace chronon3d::content::anims
 
@@ -162,5 +78,3 @@ CHRONON_REGISTER_COMPOSITION("AnimFadeInText",  chronon3d::content::anims::anim_
 CHRONON_REGISTER_COMPOSITION("AnimSlideText",   chronon3d::content::anims::anim_slide_text)
 CHRONON_REGISTER_COMPOSITION("AnimScaleText",   chronon3d::content::anims::anim_scale_text)
 CHRONON_REGISTER_COMPOSITION("AnimTypewriter",  chronon3d::content::anims::anim_typewriter)
-CHRONON_REGISTER_COMPOSITION("AnimRotateText",  chronon3d::content::anims::anim_rotate_text)
-CHRONON_REGISTER_COMPOSITION("AnimBounceText",  chronon3d::content::anims::anim_bounce_text)
