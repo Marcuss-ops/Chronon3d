@@ -111,11 +111,11 @@ extern "C" const char* chronon3d_background_catalog_json() {
 }
 
 namespace {
-Composition grid_clean_background() {
-    return composition({.name = "GridCleanBackground", .duration = 90}, [](const FrameContext& ctx) {
-        SceneBuilder s(ctx);
+chronon3d::Composition grid_clean_background() {
+    return chronon3d::composition({.name = "GridCleanBackground", .duration = 90}, [](const chronon3d::FrameContext& ctx) {
+        chronon3d::SceneBuilder s(ctx);
         chronon3d::api::BackgroundOptions opt;
-        opt.background = Color::black(); opt.accent = Color::white(); opt.glow = Color::black();
+        opt.background = chronon3d::Color::black(); opt.accent = chronon3d::Color::white(); opt.glow = chronon3d::Color::black();
         chronon3d::api::render_builtin_background(s, ctx, "grid_clean", opt);
         return s.build();
     });

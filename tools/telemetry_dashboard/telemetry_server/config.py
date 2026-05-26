@@ -3,9 +3,20 @@ from pathlib import Path
 
 # ── Paths ──────────────────────────────────────────────────────────────────────────
 TELEMETRY_DIR = Path(os.path.expanduser('~')) / '.chronon3d' / 'telemetry'
-PROJECT_DB = Path(__file__).resolve().parent.parent.parent.parent / 'output' / 'telemetry.db'
-DB_PATH = PROJECT_DB if PROJECT_DB.exists() else TELEMETRY_DIR / 'chronon3d_render_history.sqlite'
 JSONL_PATH = TELEMETRY_DIR / 'render_history.jsonl'
+
+
+def resolve_db_path() -> Path:
+    env_path = os.environ.get('CHRONON3D_TELEMETRY_PATH', '').strip()
+    if env_path:
+        base = Path(env_path)
+        if base.suffix in {'.db', '.sqlite'}:
+            return base
+        return base / 'chronon3d_render_history.sqlite'
+    return TELEMETRY_DIR / 'chronon3d_render_history.sqlite'
+
+
+DB_PATH = resolve_db_path()
 
 # Canonical schema file (single source of truth, shared with C++)
 SCHEMA_SQL_PATH = (

@@ -3,6 +3,7 @@
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/math/color.hpp>
+#include <chronon3d/presets/text_spec.hpp>
 
 #include <cmath>
 #include <string>
@@ -10,32 +11,12 @@
 
 namespace chronon3d::content::images {
 
+using presets::TextSpec;
+
 namespace {
 
 constexpr f32 W = 1920.0f;
 constexpr f32 H = 1080.0f;
-
-struct TextSpec {
-    std::string text;
-    f32 size{32.0f};
-    f32 tracking{0.0f};
-    Color color{1, 1, 1, 1};
-    TextAlign align{TextAlign::Center};
-
-    TextSpec(std::string t) : text(std::move(t)) {}
-    TextSpec& set_font(f32 s, f32 t = 0.0f) { size = s; tracking = t; return *this; }
-    TextSpec& set_color(Color c) { color = c; return *this; }
-    TextSpec& set_align(TextAlign a) { align = a; return *this; }
-
-    void draw(LayerBuilder& l, const std::string& id, Vec2 box = {W * 0.7f, 160.0f}, Vec3 pos = {0, 0, 0}) const {
-        l.text(id, {
-            .text = text, .size = box, .pos = pos,
-            .font_family = "Inter", .font_weight = 800,
-            .font_size = size, .color = color, .align = align,
-            .line_height = 1.2f, .tracking = tracking
-        });
-    }
-};
 
 } // namespace
 

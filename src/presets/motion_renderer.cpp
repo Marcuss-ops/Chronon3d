@@ -60,10 +60,10 @@ void apply_mask_sweep(LayerBuilder& l, const MotionObject& obj, const MotionStat
 
     const f32 width = std::max(1.0f, obj.size_value.x);
     const f32 height = std::max(1.0f, obj.size_value.y);
-    const f32 pad_x = std::max(36.0f, width * 0.08f);
-    const f32 pad_y = std::max(10.0f, height * 0.12f);
-    const f32 sweep_width = interpolate(st.mask_reveal, 0.0f, 1.0f, pad_x, width + pad_x, Easing::OutCubic);
-    const f32 x = -width * 0.5f + sweep_width * 0.5f - pad_x * 0.5f;
+    const f32 pad_x = std::max(96.0f, width * 0.14f);
+    const f32 pad_y = std::max(40.0f, height * 0.18f);
+    const f32 sweep_width = interpolate(st.mask_reveal, 0.0f, 1.0f, pad_x * 1.2f, width + pad_x * 1.2f, Easing::OutCubic);
+    const f32 x = -width * 0.5f + sweep_width * 0.5f - pad_x * 0.6f;
 
     l.mask_rect(RectMaskParams{
         .size = {sweep_width, height + pad_y * 2.0f},
@@ -195,15 +195,16 @@ void draw_motion_object_impl(
             apply_mask_sweep(l, obj, st);
         }
         draw_content(l, obj, st, layer_name);
-        const bool focus_pull = obj.preset_value == MotionPreset::FocusPull;
-        if (obj.glow_enabled || focus_pull) {
-            const f32 focus_glow_mix = focus_pull ? std::clamp(1.0f - (st.blur / 8.0f), 0.0f, 1.0f) : 1.0f;
+        const bool glow_bloom = obj.preset_value == MotionPreset::GlowBloom;
+        if (obj.glow_enabled || glow_bloom) {
+            const f32 bloom_mix = glow_bloom ? std::clamp(1.0f - (st.blur / 14.0f), 0.0f, 1.0f) : 0.0f;
             l.with_glow(Glow{
                 .enabled = true,
-                .radius = focus_pull ? 20.0f : 20.0f,
-                .intensity = focus_pull ? (0.10f + 0.18f * focus_glow_mix) : 0.30f,
-                .color = focus_pull
-                    ? Color{0.92f, 0.95f, 1.0f, 1.0f}
+                .radius = glow_bloom ? 28.0f : 20.0f,
+                .intensity = glow_bloom ? (0.14f + 0.20f * bloom_mix)
+                           : 0.30f,
+                .color = glow_bloom
+                    ? Color{0.96f, 0.97f, 1.0f, 1.0f}
                     : Color{0.96f, 0.96f, 0.97f, 1.0f},
             });
         }

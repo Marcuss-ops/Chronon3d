@@ -203,9 +203,10 @@ int render_and_encode_ffmpeg_chunked(
 
     const std::string pattern = (frames_dir / "frame_%06d.png").string();
     const std::string codec   = resolve_cli_ffmpeg_codec(opts.codec, opts.hardware_encoder);
+    const std::string pix_fmt = resolve_cli_ffmpeg_output_pix_fmt(codec);
     const std::string cmd     = fmt::format(
-        "ffmpeg -y -framerate {} -i \"{}\" -c:v {} -crf {} -preset {} -pix_fmt yuv420p -movflags +faststart \"{}\"",
-        opts.fps, pattern, codec, opts.crf, opts.encode_preset, opts.output);
+        "ffmpeg -y -framerate {} -i \"{}\" -c:v {} -crf {} -preset {} -pix_fmt {} -movflags +faststart \"{}\"",
+        opts.fps, pattern, codec, opts.crf, opts.encode_preset, pix_fmt, opts.output);
 
     spdlog::info("[video] {}", cmd);
     const auto encode_t0 = std::chrono::steady_clock::now();

@@ -63,8 +63,17 @@ inline MotionObject& fade_lift(MotionObject& obj) {
 
 inline MotionObject& soft_dolly_reveal(MotionObject& obj) {
     return obj
-        .preset(MotionPreset::SoftDollyReveal)
-        .enable_3d();
+        .preset(MotionPreset::SoftDollyReveal);
+}
+
+inline MotionObject& glow_bloom(MotionObject& obj) {
+    return obj
+        .preset(MotionPreset::GlowBloom)
+        .glow(true);
+}
+
+inline MotionObject& stagger_reveal(MotionObject& obj) {
+    return obj.preset(MotionPreset::StaggerReveal);
 }
 
 inline MotionObject& mask_sweep(MotionObject& obj) {
@@ -72,9 +81,7 @@ inline MotionObject& mask_sweep(MotionObject& obj) {
 }
 
 inline MotionObject& focus_pull(MotionObject& obj) {
-    return obj
-        .preset(MotionPreset::FocusPull)
-        .glow(true);
+    return obj.preset(MotionPreset::FocusPull);
 }
 
 inline MotionObject& perspective_sweep_text_reveal(

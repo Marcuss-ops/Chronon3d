@@ -2,6 +2,7 @@
 #include "../../utils/job/render_job.hpp"
 #include "../../utils/job/cli_render_utils.hpp"
 #include "../../utils/telemetry/telemetry_run.hpp"
+#include "../../utils/common/cli_utils.hpp"
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <fmt/format.h>
@@ -42,7 +43,10 @@ bool save_studio_output(const Framebuffer& fb, const std::string& out_path) {
 }
 
 std::string resolve_output_path(const std::string& requested, const std::string& fallback) {
-    return requested.empty() ? fallback : requested;
+    if (!requested.empty()) {
+        return requested;
+    }
+    return chronon3d::cli::chronon_artifact_path("previews", fallback).string();
 }
 
 } // namespace
