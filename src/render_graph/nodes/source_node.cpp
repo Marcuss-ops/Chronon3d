@@ -168,13 +168,6 @@ std::shared_ptr<Framebuffer> SourceNode::execute(
                 state.matrix = ssaa_scale * m_matrix_override.value_or(m_node.world_transform.to_mat4());
             }
         }
-
-        if (m_node.name == "white_rect") {
-            auto mat_over = m_matrix_override.value_or(m_node.world_transform.to_mat4());
-            spdlog::info("DEBUG WHITE RECT EXECUTE: name={} centered={} canvas_center=[{}, {}] override_trans=[{}, {}] state_matrix=[{}, {}]",
-                m_node.name, m_centered, canvas_center[3][0], canvas_center[3][1], mat_over[3][0], mat_over[3][1], state.matrix[3][0], state.matrix[3][1]);
-        }
-
         state.opacity = m_opacity_override.value_or(m_node.world_transform.opacity);
         state.world_matrix = m_matrix_override.value_or(m_node.world_transform.to_mat4());
         state.clip_rect = ctx.clip_rect;

@@ -44,25 +44,12 @@ void execute_projective_rows(
             Color* dst_row = result->pixels_row(y - result->origin_y());
             Vec3 h_row = h_col_start + h_step_y * static_cast<f32>(y - y0);
             for (i32 x = x0; x < x1; ++x) {
-                if (x == 100 && y == 100) {
-                    float sx = -999.0f, sy = -999.0f;
-                    if (std::abs(h_row.z) > 1e-9f) {
-                        sx = h_row.x / h_row.z;
-                        sy = h_row.y / h_row.z;
-                    }
-                    spdlog::info("[sampling-debug-pre] x=100 y=100 h_row=[{:.3f},{:.3f},{:.3f}] sx={:.3f} sy={:.3f} bounds=[{:.3f},{:.3f},{:.3f},{:.3f}]",
-                                 h_row.x, h_row.y, h_row.z, sx, sy, x_min_src, x_max_src, y_min_src, y_max_src);
-                }
                 if (std::abs(h_row.z) > 1e-9f) {
                     const f32 inv_z = 1.0f / h_row.z;
                     const f32 sx = h_row.x * inv_z;
                     const f32 sy = h_row.y * inv_z;
                     if (sx >= x_min_src && sx < x_max_src && sy >= y_min_src && sy < y_max_src) {
                         Color src = sample_bilinear(src_data, src_w, src_h, stride, sx, sy);
-                        if (x == 100 && y == 100) {
-                            spdlog::info("[sampling-debug] x=100 y=100 sx={:.3f} sy={:.3f} src_color=[{:.3f},{:.3f},{:.3f},{:.3f}]",
-                                         sx, sy, src.r, src.g, src.b, src.a);
-                        }
                         if (src.a > 0.001f) {
                             dst_row[x - dst_origin_x] = apply_opacity(src, opacity);
                         }

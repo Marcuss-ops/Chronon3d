@@ -106,17 +106,57 @@ Composition text_pulse() {
     });
 }
 
-Composition text_premium_motion_pack() {
-    return composition({.name = "TextPremiumMotionPack", .duration = 150}, [](const FrameContext& ctx) {
+Composition text_fade_lift_demo() {
+    return composition({.name = "TextFadeLiftDemo", .duration = 150}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         s.layer("bg", [](auto& l) { l.fill({0.02f, 0.02f, 0.04f, 1.0f}); });
 
         std::vector<MotionObject> objs;
-        objs.push_back(presets::motion::fade_lift(make_motion_text("f1", "FADE + LIFT", {0, 290, 0}, 84, 10, {0.98f, 0.98f, 0.97f, 1}).time(0, 110)));
-        objs.push_back(presets::motion::soft_dolly_reveal(make_motion_text("f2", "SOFT DOLLY REVEAL", {0, 80, 0}, 82, 8, {0.95f, 0.95f, 0.96f, 1}).time(12, 122)));
-        objs.push_back(presets::motion::mask_sweep(make_motion_text("f3", "MASK SWEEP", {0, -160, 0}, 88, 12, {0.72f, 0.84f, 1, 1}).time(24, 132)));
-        objs.push_back(presets::motion::focus_pull(make_motion_text("f4", "FOCUS PULL", {0, -400, 0}, 86, 10, {0.98f, 0.96f, 0.92f, 1}).time(36, 144)));
+        objs.push_back(presets::motion::fade_lift(
+            make_motion_text("fade_lift", "FADE + LIFT", {0, 0, 0}, 96, 10, {0.98f, 0.98f, 0.97f, 1}).time(0, 149)
+        ));
+        presets::motion::draw_motion_objects(s, ctx, objs);
+        return s.build();
+    });
+}
 
+Composition text_soft_dolly_reveal_demo() {
+    return composition({.name = "TextSoftDollyRevealDemo", .duration = 150}, [](const FrameContext& ctx) {
+        SceneBuilder s(ctx);
+        s.layer("bg", [](auto& l) { l.fill({0.02f, 0.02f, 0.04f, 1.0f}); });
+
+        std::vector<MotionObject> objs;
+        objs.push_back(presets::motion::soft_dolly_reveal(
+            make_motion_text("soft_dolly", "SOFT DOLLY REVEAL", {0, 0, 0}, 92, 8, {0.95f, 0.95f, 0.96f, 1}).time(0, 149)
+        ));
+        presets::motion::draw_motion_objects(s, ctx, objs);
+        return s.build();
+    });
+}
+
+Composition text_mask_sweep_demo() {
+    return composition({.name = "TextMaskSweepDemo", .duration = 150}, [](const FrameContext& ctx) {
+        SceneBuilder s(ctx);
+        s.layer("bg", [](auto& l) { l.fill({0.02f, 0.02f, 0.04f, 1.0f}); });
+
+        std::vector<MotionObject> objs;
+        objs.push_back(presets::motion::mask_sweep(
+            make_motion_text("mask_sweep", "MASK SWEEP", {0, 0, 0}, 98, 12, {0.72f, 0.84f, 1.0f, 1}).time(0, 149)
+        ));
+        presets::motion::draw_motion_objects(s, ctx, objs);
+        return s.build();
+    });
+}
+
+Composition text_focus_pull_demo() {
+    return composition({.name = "TextFocusPullDemo", .duration = 150}, [](const FrameContext& ctx) {
+        SceneBuilder s(ctx);
+        s.layer("bg", [](auto& l) { l.fill({0.02f, 0.02f, 0.04f, 1.0f}); });
+
+        std::vector<MotionObject> objs;
+        objs.push_back(presets::motion::focus_pull(
+            make_motion_text("focus_pull", "FOCUS PULL", {0, 0, 0}, 96, 10, {0.98f, 0.96f, 0.92f, 1}).time(0, 149)
+        ));
         presets::motion::draw_motion_objects(s, ctx, objs);
         return s.build();
     });
