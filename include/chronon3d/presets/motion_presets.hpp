@@ -57,6 +57,26 @@ inline MotionObject& tilt_sweep_2_5d(
         .sweep_2_5d(position_amplitude, rotation_amplitude, duration_frames, start_delay, one_shot);
 }
 
+inline MotionObject& fade_lift(MotionObject& obj) {
+    return obj.preset(MotionPreset::FadeLift);
+}
+
+inline MotionObject& soft_dolly_reveal(MotionObject& obj) {
+    return obj
+        .preset(MotionPreset::SoftDollyReveal)
+        .enable_3d();
+}
+
+inline MotionObject& mask_sweep(MotionObject& obj) {
+    return obj.preset(MotionPreset::MaskSweep);
+}
+
+inline MotionObject& focus_pull(MotionObject& obj) {
+    return obj
+        .preset(MotionPreset::FocusPull)
+        .glow(true);
+}
+
 inline MotionObject& perspective_sweep_text_reveal(
     MotionObject& obj
 ) {

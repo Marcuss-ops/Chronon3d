@@ -203,12 +203,36 @@ def watch_database():
                 # Check for the latest merged run, regardless of whether it landed in SQLite or JSONL.
                 conn = create_merged_connection()
                 cursor = conn.cursor()
-                cursor.execute("SELECT run_id FROM render_runs ORDER BY finished_at_iso DESC LIMIT 1")
+                cursor.execute("SELECT * FROM render_runs ORDER BY finished_at_iso DESC LIMIT 1")
                 row = cursor.fetchone()
                 conn.close()
 
                 if row:
                     current_run_id = row['run_id']
+                    
+                    # Automagic unique video preservation
+                    output_path = row['output_path'] or ''
+                    if output_path and (output_path.endswith('rendered_video.mp4') or output_path.endswith('rendered_video.webm') or output_path.endswith('rendered_video.mov')):
+                        src_path = Path(output_path)
+                        if src_path.exists() and src_path.is_file():
+                            dest_name = f"run_{current_run_id}{src_path.suffix}"
+                            dest_path = src_path.parent / dest_name
+                            if not dest_path.exists():
+                                import shutil
+                                shutil.copy2(src_path, dest_path)
+                                print(f"[telemetry_server] Auto-preserved generic video to unique path: {dest_path}")
+                                
+                                # Append updated run to JSONL so it persists permanently
+                                run_dict = dict(row)
+                                run_dict['type'] = 'run'
+                                run_dict['output_path'] = str(dest_path)
+                                with open(JSONL_PATH, 'a', encoding='utf-8') as f:
+                                    f.write(json.dumps(run_dict) + '\n')
+                                
+                                # Trigger local mtime update so it re-merges immediately
+                                if JSONL_PATH.exists():
+                                    last_mtime = os.path.getmtime(JSONL_PATH)
+
                     if current_run_id != last_run_id:
                         last_run_id = current_run_id
                         socketio.emit('new_run', {'run_id': current_run_id})

@@ -1,5 +1,4 @@
 #include <chronon3d/api/backgrounds.hpp>
-
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/core/composition/composition_registration.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
@@ -7,7 +6,6 @@
 #include <chronon3d/math/constants.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
-#include <chronon3d/scene/camera/camera_2_5d.hpp>
 #include <chronon3d/scene/utils/dark_grid_background.hpp>
 #include <nlohmann/json.hpp>
 
@@ -40,152 +38,69 @@ const BackgroundCatalog& builtin_background_catalog_storage() {
     return catalog;
 }
 
-inline f32 distance_to_grid_line(f32 value, f32 step) {
-    if (step <= 1e-6f) return 0.0f;
-    return std::abs(value - std::round(value / step) * step);
-}
+struct GridRenderer {
+    static inline f32 dist(f32 v, f32 s) { return s <= 1e-6f ? 0.0f : std::abs(v - std::round(v / s) * s); }
 
-std::filesystem::path grid_clean_cache_path(i32 width, i32 height) {
-    std::filesystem::path dir = std::filesystem::path("output") / "cache" / "grid_clean_background";
-    std::filesystem::create_directories(dir);
-    return dir / (std::to_string(width) + "x" + std::to_string(height) + ".png");
-}
+    static void rasterize(Framebuffer& fb, const BackgroundOptions& opt) {
+        const i32 W = fb.width(), H = fb.height();
+        const f32 hw = W * 0.5f, hh = H * 0.5f;
+        const Color bg = opt.background.to_linear();
+        const Color glow = opt.glow.with_alpha(std::clamp(opt.intensity * 0.10f, 0.0f, 0.18f)).to_linear();
+        const Color line = opt.accent.with_alpha(std::clamp(opt.accent.a * opt.intensity, 0.72f, 0.95f)).to_linear();
+        const Color major = Color{line.r, line.g, line.b, 1.0f};
 
-void rasterize_grid_clean_background(Framebuffer& fb, const BackgroundOptions& opt) {
-    const i32 W = fb.width();
-    const i32 H = fb.height();
-    const f32 half_w = static_cast<f32>(W) * 0.5f;
-    const f32 half_h = static_cast<f32>(H) * 0.5f;
-
-    const Color bg = opt.background.to_linear();
-    const Color glow = opt.glow.with_alpha(std::clamp(opt.intensity * 0.10f, 0.0f, 0.18f)).to_linear();
-    const Color line = opt.accent.with_alpha(std::clamp(opt.accent.a * opt.intensity, 0.72f, 0.95f)).to_linear();
-    const Color major = Color{line.r, line.g, line.b, 1.0f};
-
-    const f32 spacing = 160.0f;
-    const f32 major_step = spacing * 4.0f;
-    const f32 glow_thickness = 8.0f;
-    const f32 minor_thickness = 2.5f;
-    const f32 major_thickness = 5.5f;
-
-    fb.clear(bg);
-
-    for (i32 y = 0; y < H; ++y) {
-        const f32 gy = static_cast<f32>(y) - half_h;
-        const f32 minor_dy = distance_to_grid_line(gy, spacing);
-        const f32 major_dy = distance_to_grid_line(gy, major_step);
-
-        for (i32 x = 0; x < W; ++x) {
-            const f32 gx = static_cast<f32>(x) - half_w;
-            const f32 minor_dx = distance_to_grid_line(gx, spacing);
-            const f32 major_dx = distance_to_grid_line(gx, major_step);
-
-            const bool on_major = (minor_dx <= major_thickness * 0.5f) || (minor_dy <= major_thickness * 0.5f) ||
-                                  (major_dx <= major_thickness * 0.5f) || (major_dy <= major_thickness * 0.5f);
-            const bool on_minor = (minor_dx <= minor_thickness * 0.5f) || (minor_dy <= minor_thickness * 0.5f);
-            const bool on_glow = (minor_dx <= glow_thickness * 0.5f) || (minor_dy <= glow_thickness * 0.5f);
-
-            if (on_glow) {
-                Color c = bg;
-                c = raster::blend_normal(glow, c);
-                fb.set_pixel(x, y, c);
-            }
-            if (on_minor) {
-                Color c = fb.get_pixel(x, y);
-                c = raster::blend_normal(line, c);
-                fb.set_pixel(x, y, c);
-            }
-            if (on_major) {
-                Color c = fb.get_pixel(x, y);
-                c = raster::blend_normal(major, c);
-                fb.set_pixel(x, y, c);
+        fb.clear(bg);
+        for (i32 y = 0; y < H; ++y) {
+            f32 gy = y - hh;
+            f32 mdy = dist(gy, 160.0f), Mdy = dist(gy, 640.0f);
+            for (i32 x = 0; x < W; ++x) {
+                f32 gx = x - hw;
+                f32 mdx = dist(gx, 160.0f), Mdx = dist(gx, 640.0f);
+                if (mdx <= 8.0f || mdy <= 8.0f) fb.set_pixel(x, y, raster::blend_normal(glow, fb.get_pixel(x, y)));
+                if (mdx <= 2.5f || mdy <= 2.5f) fb.set_pixel(x, y, raster::blend_normal(line, fb.get_pixel(x, y)));
+                if (mdx <= 5.5f || mdy <= 5.5f || Mdx <= 5.5f || Mdy <= 5.5f) fb.set_pixel(x, y, raster::blend_normal(major, fb.get_pixel(x, y)));
             }
         }
     }
-}
+};
 
-std::filesystem::path ensure_grid_clean_background_image(i32 width, i32 height, const BackgroundOptions& opt) {
-    const auto path = grid_clean_cache_path(width, height);
-    if (std::filesystem::exists(path)) {
-        return path;
+std::filesystem::path ensure_cached_grid(i32 w, i32 h, const BackgroundOptions& opt) {
+    auto dir = std::filesystem::path("output") / "cache" / "grid_clean";
+    std::filesystem::create_directories(dir);
+    auto path = dir / (std::to_string(w) + "x" + std::to_string(h) + ".png");
+    if (!std::filesystem::exists(path)) {
+        Framebuffer fb(w, h);
+        GridRenderer::rasterize(fb, opt);
+        save_png(fb, path.string());
     }
-
-    Framebuffer fb(width, height);
-    rasterize_grid_clean_background(fb, opt);
-    save_png(fb, path.string());
     return path;
-}
-
-void render_grid_clean(SceneBuilder& s, const FrameContext& ctx, const BackgroundOptions& opt) {
-    const f32 W = static_cast<f32>(ctx.width);
-    const f32 H = static_cast<f32>(ctx.height);
-
-    // GridCleanBackground is static, so bake it once to a cached PNG and let the
-    // graph treat it as a full-frame image source. That avoids the procedural
-    // grid rasterization and usually skips the expensive clear/composite work.
-    chronon3d::DarkGridBgParams baked{
-        .bg_color = opt.background,
-        .grid_color = Color{1.0f, 1.0f, 1.0f, 0.90f},
-        .spacing = 160.0f,
-        .extent = 4000.0f,
-        .centered = true
-    };
-    const auto baked_path = chronon3d::scene::utils::detail::ensure_dark_grid_background_image(
-        ctx.width,
-        ctx.height,
-        baked
-    );
-
-    s.screen_layer("grid_clean_baked", [W, H, baked_path](LayerBuilder& l) {
-        l.cache_static();
-        ImageParams image{};
-        image.path = baked_path.string();
-        image.size = {W, H};
-        image.pos = {0.0f, 0.0f, 0.0f};
-        image.opacity = 1.0f;
-        l.image("grid_clean_image", image);
-    });
-}
-
-void render_builtin_background(
-    SceneBuilder& s,
-    const FrameContext& ctx,
-    std::string_view id,
-    const BackgroundOptions& opt)
-{
-    (void)id;
-    render_grid_clean(s, ctx, opt);
 }
 
 } // namespace
 
-const BackgroundCatalog& builtin_background_catalog() {
-    return builtin_background_catalog_storage();
-}
+const BackgroundCatalog& builtin_background_catalog() { return builtin_background_catalog_storage(); }
 
 const BackgroundPresetDescriptor* find_builtin_background(std::string_view id) {
-    const auto& presets = builtin_background_catalog().presets;
-    const auto it = std::find_if(presets.begin(), presets.end(), [id](const Preset& preset) {
-        return preset.id == id;
-    });
-    return it == presets.end() ? nullptr : &*it;
+    for (const auto& p : builtin_background_catalog().presets) if (p.id == id) return &p;
+    return nullptr;
 }
 
 std::string builtin_background_catalog_json() {
-    nlohmann::json root = nlohmann::json::array();
-    for (const auto& preset : builtin_background_catalog().presets) {
-        root.push_back({
-            {"id", preset.id},
-            {"name", preset.name},
-            {"family", preset.family},
-            {"description", preset.description},
-            {"duration_seconds", preset.duration_seconds},
-            {"fps", preset.fps},
-            {"loopable", preset.loopable},
-            {"realtime_safe", preset.realtime_safe},
+    nlohmann::json j = nlohmann::json::array();
+    for (const auto& p : builtin_background_catalog().presets)
+        j.push_back({{"id",p.id},{"name",p.name},{"family",p.family},{"description",p.description},{"duration_seconds",p.duration_seconds},{"fps",p.fps},{"loopable",p.loopable},{"realtime_safe",p.realtime_safe}});
+    return j.dump(2);
+}
+
+void render_builtin_background(SceneBuilder& s, const FrameContext& ctx, std::string_view id, const BackgroundOptions& opt) {
+    if (id == "grid_clean") {
+        auto path = scene::utils::detail::ensure_dark_grid_background_image(ctx.width, ctx.height, {
+            .bg_color = opt.background, .grid_color = {1,1,1,0.9f}, .spacing = 160, .extent = 4000, .centered = true
+        });
+        s.screen_layer("grid_clean", [path, w=ctx.width, h=ctx.height](auto& l) {
+            l.cache_static().image("img", {.path = path.string(), .size = {static_cast<f32>(w), static_cast<f32>(h)}});
         });
     }
-    return root.dump(2);
 }
 
 } // namespace chronon3d::api
@@ -196,26 +111,15 @@ extern "C" const char* chronon3d_background_catalog_json() {
 }
 
 namespace {
-
-using namespace chronon3d;
-
 Composition grid_clean_background() {
-    return composition({
-        .name = "GridCleanBackground",
-        .width = 1920,
-        .height = 1080,
-        .duration = 90
-    }, [](const FrameContext& ctx) {
+    return composition({.name = "GridCleanBackground", .duration = 90}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        api::BackgroundOptions opt;
-        opt.background = Color{0.0f, 0.0f, 0.0f, 1.0f};
-        opt.accent = Color{1.0f, 1.0f, 1.0f, 1.0f};
-        opt.glow = Color{0.0f, 0.0f, 0.0f, 0.0f};
-        api::render_builtin_background(s, ctx, "grid_clean", opt);
+        chronon3d::api::BackgroundOptions opt;
+        opt.background = Color::black(); opt.accent = Color::white(); opt.glow = Color::black();
+        chronon3d::api::render_builtin_background(s, ctx, "grid_clean", opt);
         return s.build();
     });
 }
-
-} // namespace
+}
 
 CHRONON_REGISTER_COMPOSITION("GridCleanBackground", grid_clean_background)

@@ -44,6 +44,7 @@ MotionState resolve_motion_state(const FrameContext& ctx, const MotionObject& ob
     st.opacity = obj.opacity_value;
     st.blur = 0.0f;
     st.text_reveal = 1.0f;
+    st.mask_reveal = 1.0f;
 
     if (obj.motion3d.sweep_2_5d.enabled) {
         const f32 wave = sweep_wave(ctx.frame, obj.time_value.start, obj.motion3d.sweep_2_5d);
@@ -70,49 +71,66 @@ MotionState resolve_motion_state(const FrameContext& ctx, const MotionObject& ob
         break;
 
     case MotionPreset::FadeIn:
-        st.opacity *= interpolate(t, 0.0f, 0.22f, 0.0f, 1.0f, Easing::OutCubic);
+        st.opacity *= interpolate(t, 0.0f, 0.30f, 0.0f, 1.0f, Easing::OutCubic);
+        break;
+
+    case MotionPreset::FadeLift:
+        st.opacity *= interpolate(t, 0.0f, 0.32f, 0.0f, 1.0f, Easing::OutCubic);
+        st.position.y += interpolate(t, 0.0f, 0.36f, 48.0f, 0.0f, Easing::OutCubic);
+        st.blur = interpolate(t, 0.0f, 0.26f, 8.0f, 0.0f, Easing::OutCubic);
         break;
 
     case MotionPreset::PopIn: {
-        st.opacity *= interpolate(t, 0.0f, 0.20f, 0.0f, 1.0f, Easing::OutCubic);
-        const f32 s = interpolate(t, 0.0f, 0.22f, 0.78f, 1.0f, Easing::OutBack);
+        st.opacity *= interpolate(t, 0.0f, 0.28f, 0.0f, 1.0f, Easing::OutCubic);
+        const f32 s = interpolate(t, 0.0f, 0.28f, 0.84f, 1.0f, Easing::OutCubic);
         st.scale = {obj.scale_value.x * s, obj.scale_value.y * s, obj.scale_value.z};
         break;
     }
 
     case MotionPreset::PopGlow: {
-        st.opacity *= interpolate(t, 0.0f, 0.18f, 0.0f, 1.0f, Easing::OutCubic);
-        const f32 s = interpolate(t, 0.0f, 0.22f, 0.82f, 1.0f, Easing::OutBack);
+        st.opacity *= interpolate(t, 0.0f, 0.26f, 0.0f, 1.0f, Easing::OutCubic);
+        const f32 s = interpolate(t, 0.0f, 0.28f, 0.86f, 1.0f, Easing::OutCubic);
         st.scale = {obj.scale_value.x * s, obj.scale_value.y * s, obj.scale_value.z};
-        st.blur = interpolate(t, 0.0f, 0.20f, 12.0f, 0.0f, Easing::OutCubic);
+        st.blur = interpolate(t, 0.0f, 0.24f, 10.0f, 0.0f, Easing::OutCubic);
         break;
     }
 
     case MotionPreset::SlideUp:
-        st.opacity *= interpolate(t, 0.0f, 0.25f, 0.0f, 1.0f, Easing::OutCubic);
-        st.position.y += interpolate(t, 0.0f, 0.25f, 64.0f, 0.0f, Easing::OutCubic);
+        st.opacity *= interpolate(t, 0.0f, 0.32f, 0.0f, 1.0f, Easing::OutCubic);
+        st.position.y += interpolate(t, 0.0f, 0.32f, 72.0f, 0.0f, Easing::OutCubic);
         break;
 
     case MotionPreset::SlideLeft:
-        st.opacity *= interpolate(t, 0.0f, 0.25f, 0.0f, 1.0f, Easing::OutCubic);
-        st.position.x += interpolate(t, 0.0f, 0.25f, 96.0f, 0.0f, Easing::OutCubic);
+        st.opacity *= interpolate(t, 0.0f, 0.32f, 0.0f, 1.0f, Easing::OutCubic);
+        st.position.x += interpolate(t, 0.0f, 0.32f, 108.0f, 0.0f, Easing::OutCubic);
         break;
 
     case MotionPreset::ZoomBlur: {
-        st.opacity *= interpolate(t, 0.0f, 0.25f, 0.0f, 1.0f, Easing::OutCubic);
-        const f32 s = interpolate(t, 0.0f, 0.25f, 1.22f, 1.0f, Easing::OutCubic);
+        st.opacity *= interpolate(t, 0.0f, 0.32f, 0.0f, 1.0f, Easing::OutCubic);
+        const f32 s = interpolate(t, 0.0f, 0.32f, 1.18f, 1.0f, Easing::OutCubic);
         st.scale = {obj.scale_value.x * s, obj.scale_value.y * s, obj.scale_value.z};
-        st.blur = interpolate(t, 0.0f, 0.25f, 18.0f, 0.0f, Easing::OutCubic);
+        st.blur = interpolate(t, 0.0f, 0.26f, 14.0f, 0.0f, Easing::OutCubic);
         break;
     }
 
     case MotionPreset::PushIn3D: {
-        st.opacity *= interpolate(t, 0.0f, 0.18f, 0.0f, 1.0f, Easing::OutCubic);
-        const f32 s = interpolate(t, 0.0f, 0.25f, 0.82f, 1.0f, Easing::OutBack);
+        st.opacity *= interpolate(t, 0.0f, 0.28f, 0.0f, 1.0f, Easing::OutCubic);
+        const f32 s = interpolate(t, 0.0f, 0.30f, 0.88f, 1.0f, Easing::OutCubic);
         st.scale = {obj.scale_value.x * s, obj.scale_value.y * s, obj.scale_value.z};
-        st.position.z += interpolate(t, 0.0f, 0.35f, 280.0f, 0.0f, Easing::OutCubic);
-        st.rotation.y += interpolate(t, 0.0f, 0.35f, -18.0f, 0.0f, Easing::OutCubic);
-        st.blur = interpolate(t, 0.0f, 0.22f, 18.0f, 0.0f, Easing::OutCubic);
+        st.position.z += interpolate(t, 0.0f, 0.40f, 260.0f, 0.0f, Easing::OutCubic);
+        st.rotation.y += interpolate(t, 0.0f, 0.40f, -14.0f, 0.0f, Easing::OutCubic);
+        st.blur = interpolate(t, 0.0f, 0.26f, 14.0f, 0.0f, Easing::OutCubic);
+        break;
+    }
+
+    case MotionPreset::SoftDollyReveal: {
+        st.opacity *= interpolate(t, 0.0f, 0.30f, 0.0f, 1.0f, Easing::OutCubic);
+        const f32 s = interpolate(t, 0.0f, 0.36f, 0.90f, 1.0f, Easing::OutCubic);
+        st.scale = {obj.scale_value.x * s, obj.scale_value.y * s, obj.scale_value.z};
+        st.position.z += interpolate(t, 0.0f, 0.40f, 220.0f, 0.0f, Easing::OutCubic);
+        st.rotation.x += interpolate(t, 0.0f, 0.34f, 2.0f, 0.0f, Easing::OutCubic);
+        st.rotation.y += interpolate(t, 0.0f, 0.34f, -16.0f, 0.0f, Easing::OutCubic);
+        st.blur = interpolate(t, 0.0f, 0.28f, 8.0f, 0.0f, Easing::OutCubic);
         break;
     }
 
@@ -172,6 +190,23 @@ MotionState resolve_motion_state(const FrameContext& ctx, const MotionObject& ob
             st.scale.y += 0.005f * settle_wave * settle;
         }
 
+        break;
+    }
+
+    case MotionPreset::MaskSweep: {
+        st.opacity *= interpolate(t, 0.0f, 0.28f, 0.0f, 1.0f, Easing::OutCubic);
+        st.mask_reveal = interpolate(t, 0.0f, 0.62f, 0.0f, 1.0f, Easing::OutCubic);
+        st.position.x += interpolate(t, 0.0f, 0.30f, -12.0f, 0.0f, Easing::OutCubic);
+        st.blur = interpolate(t, 0.0f, 0.22f, 5.0f, 0.0f, Easing::OutCubic);
+        break;
+    }
+
+    case MotionPreset::FocusPull: {
+        st.opacity *= interpolate(t, 0.0f, 0.28f, 0.0f, 1.0f, Easing::OutCubic);
+        const f32 s = interpolate(t, 0.0f, 0.34f, 1.05f, 1.0f, Easing::OutCubic);
+        st.scale = {obj.scale_value.x * s, obj.scale_value.y * s, obj.scale_value.z};
+        st.position.y += interpolate(t, 0.0f, 0.28f, 12.0f, 0.0f, Easing::OutCubic);
+        st.blur = interpolate(t, 0.0f, 0.24f, 8.0f, 0.0f, Easing::OutCubic);
         break;
     }
 
