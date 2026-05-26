@@ -64,7 +64,7 @@ public:
         return bbox;
     }
 
-    std::shared_ptr<Framebuffer> execute(RenderGraphContext& ctx, std::span<const std::shared_ptr<Framebuffer>> inputs, std::span<const std::optional<raster::BBox>>) override {
+    std::shared_ptr<Framebuffer> execute(RenderGraphContext& ctx, std::span<const std::shared_ptr<Framebuffer>> inputs, std::span<const std::optional<raster::BBox>> input_bboxes) override {
         if (inputs.empty() || !inputs[0]) {
             auto empty = ctx.acquire_framebuffer(ctx.width, ctx.height);
             empty->clear(Color::transparent());
@@ -86,12 +86,24 @@ public:
                 effects::EffectDescriptor{.id = std::string{effects::ids::BlurGaussian}},
                 BlurParams{blur}
             });
-            ctx.backend->apply_effect_stack(*result, dof_stack, ctx.time_seconds, ctx.clip_rect);
+            std::optional<raster::BBox> local_clip = ctx.clip_rect;
+            auto pred_bbox = predicted_bbox(ctx, input_bboxes);
+            if (pred_bbox) {
+                if (local_clip) {
+                    local_clip->x0 = std::max(local_clip->x0, pred_bbox->x0);
+                    local_clip->y0 = std::max(local_clip->y0, pred_bbox->y0);
+                    local_clip->x1 = std::min(local_clip->x1, pred_bbox->x1);
+                    local_clip->y1 = std::min(local_clip->y1, pred_bbox->y1);
+                } else {
+                    local_clip = pred_bbox;
+                }
+            }
+            ctx.backend->apply_effect_stack(*result, dof_stack, ctx.time_seconds, local_clip);
             if (ctx.counters) {
                 ctx.counters->effect_stack_calls.fetch_add(1, std::memory_order_relaxed);
                 uint64_t area = static_cast<uint64_t>(ctx.width * ctx.height);
-                if (ctx.clip_rect) {
-                    raster::BBox clipped = *ctx.clip_rect;
+                if (local_clip) {
+                    raster::BBox clipped = *local_clip;
                     clipped.clip_to(ctx.width, ctx.height);
                     if (!clipped.is_empty()) {
                         area = static_cast<uint64_t>(clipped.x1 - clipped.x0) * (clipped.y1 - clipped.y0);

@@ -30,8 +30,15 @@ size_t resolve_default_max_bytes(size_t fallback) {
     }
 }
 
-int round_up_bucket(int val, int bucket = 64) {
-    return ((val + bucket - 1) / bucket) * bucket;
+int round_up_bucket(int val, int /*bucket*/ = 64) {
+    if (val <= 0) return 0;
+    if (val <= 256) {
+        return ((val + 63) / 64) * 64;
+    } else if (val <= 1024) {
+        return ((val + 127) / 128) * 128;
+    } else {
+        return ((val + 255) / 256) * 256;
+    }
 }
 
 } // namespace
