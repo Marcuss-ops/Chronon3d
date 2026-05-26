@@ -20,6 +20,13 @@ Composition text_typewriter_terminal();
 Composition text_typewriter_quote();
 Composition text_typewriter_manifest();
 Composition text_typewriter_chapter();
+Composition text_typewriter_dolly();
+Composition text_typewriter_stagger();
+Composition text_typewriter_bounce();
+Composition text_typewriter_glitch();
+Composition text_typewriter_push();
+Composition text_typewriter_slide();
+Composition text_typewriter_reveal_sweep();
 Composition text_animated_sequence();
 Composition text_countdown();
 Composition text_fade_lift_demo();
@@ -34,6 +41,9 @@ Composition text_perspective_sweep_demo();
 // Composition text_spring_reveal();
 // Composition text_cyberpunk_glitch();
 // Composition text_credits_3d();
+Composition text_orbit_2_5d_demo();
+Composition text_tilt_sweep_2_5d_demo();
+Composition text_motion_trio_demo();
 
 void register_all() {}
 
@@ -55,6 +65,13 @@ CHRONON_REGISTER_COMPOSITION("TextTypewriterTerminal", chronon3d::content::text:
 CHRONON_REGISTER_COMPOSITION("TextTypewriterQuote",    chronon3d::content::text::text_typewriter_quote)
 CHRONON_REGISTER_COMPOSITION("TextTypewriterManifest",  chronon3d::content::text::text_typewriter_manifest)
 CHRONON_REGISTER_COMPOSITION("TextTypewriterChapter",   chronon3d::content::text::text_typewriter_chapter)
+CHRONON_REGISTER_COMPOSITION("TextTypewriterDolly",     chronon3d::content::text::text_typewriter_dolly)
+CHRONON_REGISTER_COMPOSITION("TextTypewriterStagger",   chronon3d::content::text::text_typewriter_stagger)
+CHRONON_REGISTER_COMPOSITION("TextTypewriterBounce",    chronon3d::content::text::text_typewriter_bounce)
+CHRONON_REGISTER_COMPOSITION("TextTypewriterGlitch",    chronon3d::content::text::text_typewriter_glitch)
+CHRONON_REGISTER_COMPOSITION("TextTypewriterPush",      chronon3d::content::text::text_typewriter_push)
+CHRONON_REGISTER_COMPOSITION("TextTypewriterSlide",     chronon3d::content::text::text_typewriter_slide)
+CHRONON_REGISTER_COMPOSITION("TextTypewriterRevealSweep", chronon3d::content::text::text_typewriter_reveal_sweep)
 CHRONON_REGISTER_COMPOSITION("TextAnimatedSequence",chronon3d::content::text::text_animated_sequence)
 CHRONON_REGISTER_COMPOSITION("TextCountdown",       chronon3d::content::text::text_countdown)
 CHRONON_REGISTER_COMPOSITION("TextFadeLiftDemo",     chronon3d::content::text::text_fade_lift_demo)
@@ -69,3 +86,6 @@ CHRONON_REGISTER_COMPOSITION("TextPerspectiveSweepDemo", chronon3d::content::tex
 // CHRONON_REGISTER_COMPOSITION("TextSpringReveal",    chronon3d::content::text::text_spring_reveal)
 // CHRONON_REGISTER_COMPOSITION("TextCyberpunkGlitch", chronon3d::content::text::text_cyberpunk_glitch)
 // CHRONON_REGISTER_COMPOSITION("TextCredits3D",       chronon3d::content::text::text_credits_3d)
+CHRONON_REGISTER_COMPOSITION("TextOrbit2_5DDemo",    chronon3d::content::text::text_orbit_2_5d_demo)
+CHRONON_REGISTER_COMPOSITION("TextTiltSweep2_5DDemo", chronon3d::content::text::text_tilt_sweep_2_5d_demo)
+CHRONON_REGISTER_COMPOSITION("TextMotionTrioDemo",   chronon3d::content::text::text_motion_trio_demo)
