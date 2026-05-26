@@ -32,4 +32,15 @@ std::string resolve_cli_ffmpeg_codec(const std::string& codec, const std::string
     return "libx264";
 }
 
+std::string resolve_cli_ffmpeg_output_pix_fmt(const std::string& codec) {
+    if (codec == "libx264rgb") {
+        return "rgb24";
+    }
+    if (codec == "libx264" || codec == "libx265") {
+        // Keep software encodes in 4:4:4 so dark gradients do not posterize.
+        return "yuv444p";
+    }
+    return "yuv420p";
+}
+
 } // namespace chronon3d::cli

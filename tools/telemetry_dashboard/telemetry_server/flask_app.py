@@ -188,6 +188,7 @@ def watch_database():
         last_mtime = max(last_mtime, os.path.getmtime(JSONL_PATH))
     
     last_run_id = None
+    preserve_generic_videos = os.environ.get("CHRONON3D_TELEMETRY_PRESERVE_VIDEOS", "").strip().lower() in {"1", "true", "yes", "on"}
 
     while True:
         try:
@@ -210,9 +211,9 @@ def watch_database():
                 if row:
                     current_run_id = row['run_id']
                     
-                    # Automagic unique video preservation
+                    # Optional unique video preservation, disabled by default.
                     output_path = row['output_path'] or ''
-                    if output_path and (output_path.endswith('rendered_video.mp4') or output_path.endswith('rendered_video.webm') or output_path.endswith('rendered_video.mov')):
+                    if preserve_generic_videos and output_path and (output_path.endswith('rendered_video.mp4') or output_path.endswith('rendered_video.webm') or output_path.endswith('rendered_video.mov')):
                         src_path = Path(output_path)
                         if src_path.exists() and src_path.is_file():
                             dest_name = f"run_{current_run_id}{src_path.suffix}"

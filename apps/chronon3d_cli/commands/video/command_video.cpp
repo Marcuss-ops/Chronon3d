@@ -5,6 +5,7 @@
 #include <chronon3d/presets/camera_motion_clip.hpp>
 #include <chronon3d/runtime/renderer_warmup.hpp>
 #include <chronon3d/render_graph/render_pipeline.hpp>
+#include "../../utils/common/cli_utils.hpp"
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
 #include <chronon3d/core/cancellation_token.hpp>
@@ -54,6 +55,10 @@ int command_video(const CompositionRegistry& registry, const VideoArgs& args) {
         return 1;
     }
 
+    const std::string video_output = args.output.empty()
+        ? chronon_artifact_path("videos", std::filesystem::path(args.comp_id).filename().string() + ".mp4").string()
+        : args.output;
+
     // ── Dry-run: validate everything but don't render ──
     if (args.dry_run) {
         auto resolved = resolve_composition(registry, args.comp_id);
@@ -69,7 +74,7 @@ int command_video(const CompositionRegistry& registry, const VideoArgs& args) {
         spdlog::info("[dry-run]   Frame range: {} – {} ({} frames)", args.start, end, total);
         spdlog::info("[dry-run]   FPS: {}", args.fps);
         spdlog::info("[dry-run]   Duration: {:.1f}s", static_cast<double>(total) / args.fps);
-        spdlog::info("[dry-run]   Output: {}", args.output.empty() ? "(none)" : args.output);
+        spdlog::info("[dry-run]   Output: {}", video_output);
         spdlog::info("[dry-run]   FFmpeg mode: {}", args.ffmpeg_mode);
         spdlog::info("[dry-run]   SSAA: {}×", settings.ssaa_factor);
 
@@ -108,8 +113,8 @@ int command_video(const CompositionRegistry& registry, const VideoArgs& args) {
     RenderSettings settings = settings_from_args(args, !resolved.from_specscene);
 
     FfmpegExportOptions opts;
-    opts.output = args.output;
-    opts.frames_dir_name = args.frames_dir.empty() ? ("chronon_" + args.comp_id) : args.frames_dir;
+    opts.output = video_output;
+    opts.frames_dir_name = args.frames_dir.empty() ? ("chronon_" + std::filesystem::path(args.comp_id).filename().string()) : args.frames_dir;
     opts.fps = args.fps;
     opts.crf = args.crf;
     opts.codec = args.codec;
@@ -147,8 +152,9 @@ int command_video_camera(const CompositionRegistry& registry, const VideoCameraA
         return 1;
     }
 
-    std::string output = args.output.empty() ? 
-        "output/camera_" + lower_copy(args.axis) + "_video.mp4" : args.output;
+    std::string output = args.output.empty()
+        ? chronon_artifact_path("videos", "camera_" + lower_copy(args.axis) + "_video.mp4").string()
+        : args.output;
 
     RenderSettings settings = settings_from_args(args);
 

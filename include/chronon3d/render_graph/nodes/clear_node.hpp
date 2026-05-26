@@ -66,7 +66,22 @@ public:
         
         if (use_dirty_rects) {
             auto fb = std::move(sw_renderer->m_prev_framebuffer);
+            // The previous framebuffer can also be referenced by node-cache entries.
+            // Clearing it in-place would corrupt cached sources, so detach first when shared.
+            if (fb.use_count() > 1) {
+                fb = std::make_shared<Framebuffer>(*fb);
+            }
             const bool is_empty_clip = ctx.clip_rect && ctx.clip_rect->is_empty();
+            std::optional<raster::BBox> local_clip = ctx.clip_rect;
+            if (local_clip) {
+                // Convert from canvas coordinates to framebuffer-local coordinates.
+                // Dirty reuse can keep a framebuffer with a non-zero origin.
+                local_clip->x0 -= fb->origin_x();
+                local_clip->x1 -= fb->origin_x();
+                local_clip->y0 -= fb->origin_y();
+                local_clip->y1 -= fb->origin_y();
+                local_clip->clip_to(fb->width(), fb->height());
+            }
             if (ctx.counters) {
                 if (skip_clear || is_empty_clip) {
                     ctx.counters->clear_skipped_calls.fetch_add(1, std::memory_order_relaxed);
@@ -79,7 +94,7 @@ public:
             }
             if (!is_empty_clip) {
                 const auto t0 = std::chrono::high_resolution_clock::now();
-                fb->clear(Color::transparent(), ctx.clip_rect);
+                fb->clear(Color::transparent(), local_clip);
                 const auto t1 = std::chrono::high_resolution_clock::now();
                 if (ctx.counters) {
                     const auto elapsed = static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t1 - t0).count());

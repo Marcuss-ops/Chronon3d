@@ -1,5 +1,6 @@
 #include "../../command_registry.hpp"
 #include "../../commands.hpp"
+#include "../../utils/common/cli_utils.hpp"
 #include <memory>
 
 namespace chronon3d::cli {
@@ -8,7 +9,7 @@ namespace {
 
 struct DevState {
     std::shared_ptr<std::string> watch_id{std::make_shared<std::string>()};
-    std::shared_ptr<std::string> output_dir{std::make_shared<std::string>("output/verify")};
+    std::shared_ptr<std::string> output_dir{std::make_shared<std::string>(chronon_artifact_path("verify", "").string())};
 };
 
 struct BatchState {
@@ -28,9 +29,9 @@ void register_watch(CLI::App& dev, CliContext& ctx) {
 }
 
 void register_render_all(CLI::App& dev, CliContext& ctx) {
-    auto output_dir = std::make_shared<std::string>("output/verify");
+    auto output_dir = std::make_shared<std::string>(chronon_artifact_path("verify", "").string());
     auto* render_all = dev.add_subcommand("render-all", "Render frame 0 of every registered composition");
-    render_all->add_option("-o,--output-dir", *output_dir, "Output directory")->default_val("output/verify");
+    render_all->add_option("-o,--output-dir", *output_dir, "Output directory")->default_val(chronon_artifact_path("verify", "").string());
     render_all->callback([output_dir, &ctx]() {
         ctx.exit_code = command_verify(ctx.registry, *output_dir);
     });
@@ -49,7 +50,7 @@ void register_proofs(CLI::App& dev, CliContext& ctx) {
     auto state = std::make_shared<ProofsState>();
     auto& args = *state->args;
     auto* cmd = dev.add_subcommand("proofs", "Render diagnostic proof compositions to PNG snapshots");
-    cmd->add_option("-o,--out", args.output_dir, "Output directory")->default_val("output/proofs");
+    cmd->add_option("-o,--out", args.output_dir, "Output directory")->default_val(chronon_artifact_path("proofs", "").string());
     cmd->add_option("--ssaa", args.ssaa, "Super sampling factor")->default_val(1.0f);
     cmd->callback([state, &ctx]() { ctx.exit_code = command_proofs(ctx.registry, *state->args); });
 }
@@ -62,7 +63,7 @@ void register_studio_tools(CLI::App& dev, CliContext& ctx) {
         auto* cmd = dev.add_subcommand("preview", "Render a single frame of a composition (default: middle frame)");
         cmd->add_option("input", args.comp_id, "Composition name or .specscene path")->required();
         cmd->add_option("--frame", args.frames, "Frame number to preview (default: middle frame)");
-        cmd->add_option("-o,--output", args.output, "Output image path")->default_val("preview.png");
+        cmd->add_option("-o,--output", args.output, "Output image path")->default_val(chronon_artifact_path("previews", "preview.png").string());
         cmd->add_flag("--diagnostic,--layout-preview", args.pipeline.diagnostic,
                       "Enable layout preview overlays (bbox, anchors, center guide)");
         cmd->add_flag("--graph,!--no-graph", args.pipeline.use_modular_graph, "Use modular RenderGraph path");
@@ -76,7 +77,7 @@ void register_studio_tools(CLI::App& dev, CliContext& ctx) {
         auto& args = *state->args;
         auto* cmd = dev.add_subcommand("contact-sheet", "Render 4 frames stitched horizontally into a contact sheet");
         cmd->add_option("input", args.comp_id, "Composition name or .specscene path")->required();
-        cmd->add_option("-o,--output", args.output, "Output image path")->default_val("contact_sheet.png");
+        cmd->add_option("-o,--output", args.output, "Output image path")->default_val(chronon_artifact_path("previews", "contact_sheet.png").string());
         cmd->add_flag("--diagnostic,--layout-preview", args.pipeline.diagnostic,
                       "Enable layout preview overlays (bbox, anchors, center guide)");
         cmd->add_flag("--graph,!--no-graph", args.pipeline.use_modular_graph, "Use modular RenderGraph path");
@@ -90,7 +91,7 @@ void register_studio_tools(CLI::App& dev, CliContext& ctx) {
         auto& args = *state->args;
         auto* cmd = dev.add_subcommand("storyboard", "Render 6 frames in a 2x3 grid with overlays");
         cmd->add_option("input", args.comp_id, "Composition name or .specscene path")->required();
-        cmd->add_option("-o,--output", args.output, "Output image path")->default_val("storyboard.png");
+        cmd->add_option("-o,--output", args.output, "Output image path")->default_val(chronon_artifact_path("previews", "storyboard.png").string());
         cmd->add_flag("--diagnostic,--layout-preview", args.pipeline.diagnostic,
                       "Enable layout preview overlays (bbox, anchors, center guide)");
         cmd->add_flag("--graph,!--no-graph", args.pipeline.use_modular_graph, "Use modular RenderGraph path");

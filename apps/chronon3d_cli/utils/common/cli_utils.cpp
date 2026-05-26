@@ -1,6 +1,7 @@
 #include "cli_utils.hpp"
 #include <fmt/format.h>
 #include <algorithm>
+#include <cstdlib>
 
 namespace chronon3d {
 namespace cli {
@@ -78,6 +79,24 @@ std::string format_path(const std::string& pattern, int64_t frame, bool is_range
         }
     }
     return s;
+}
+
+std::filesystem::path chronon_artifacts_root() {
+    if (const char* env = std::getenv("CHRONON3D_ARTIFACTS_DIR")) {
+        if (*env != '\0') {
+            return std::filesystem::path(env);
+        }
+    }
+    if (const char* home = std::getenv("HOME")) {
+        if (*home != '\0') {
+            return std::filesystem::path(home) / ".chronon3d" / "artifacts";
+        }
+    }
+    return std::filesystem::path(".chronon3d") / "artifacts";
+}
+
+std::filesystem::path chronon_artifact_path(std::string_view category, std::string_view filename) {
+    return chronon_artifacts_root() / category / filename;
 }
 
 } // namespace cli

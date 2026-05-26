@@ -76,15 +76,7 @@ int render_and_encode_ffmpeg_pipe(
         },
         .pipe_writer = opts.pipe_writer,
     };
-    if (codec == "libx264rgb") {
-        pipe_options.output_pix_fmt = "rgb24";
-    } else if (opts.pipe_pixfmt == "yuv444p") {
-        pipe_options.output_pix_fmt = "yuv444p";
-    } else if (opts.pipe_pixfmt == "nv12") {
-        pipe_options.output_pix_fmt = "nv12";
-    } else {
-        pipe_options.output_pix_fmt = "yuv420p";
-    }
+    pipe_options.output_pix_fmt = resolve_cli_ffmpeg_output_pix_fmt(codec);
 
     std::error_code ec;
     const auto output_parent = std::filesystem::path(opts.output).parent_path();
