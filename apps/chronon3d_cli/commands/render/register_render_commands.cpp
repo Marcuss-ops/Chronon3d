@@ -1,5 +1,6 @@
 #include "../../command_registry.hpp"
 #include "../../commands.hpp"
+#include "../../utils/common/cli_utils.hpp"
 #include <spdlog/spdlog.h>
 #include <memory>
 
@@ -38,7 +39,7 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
     cmd->allow_windows_style_options();
     cmd->callback([state, &ctx]() {
         if (state->args->output.empty()) {
-            state->args->output = "render_####.png";
+            state->args->output = chronon_artifact_path("renders", "render_####.png").string();
             spdlog::warn("No output path specified, defaulting to {}", state->args->output);
         }
         if (state->args->log_level == "trace") {

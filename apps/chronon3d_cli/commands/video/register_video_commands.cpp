@@ -16,7 +16,7 @@ void register_video_commands(CLI::App& app, CliContext& ctx) {
 
     auto* cmd = app.add_subcommand("video", "Render a composition to MP4 via ffmpeg");
     cmd->add_option("id", args.comp_id, "Composition name or .specscene path")->required();
-    cmd->add_option("-o,--output", args.output, "Output .mp4 path")->required();
+    cmd->add_option("-o,--output", args.output, "Output .mp4 path");
     cmd->add_option("--start", args.start, "Start frame (inclusive, default 0)");
     cmd->add_option("--end", args.end, "End frame exclusive (default: composition duration)");
     cmd->add_option("--fps", args.fps, "Output frame rate")->default_val(30);
@@ -35,7 +35,7 @@ void register_video_commands(CLI::App& app, CliContext& ctx) {
     cmd->add_option("--ssaa", args.pipeline.quality.ssaa, "Super Sampling factor")->default_val(1.0f);
     cmd->add_option("--chunks", args.chunks, "Render frame range in N parallel chunks before encoding")->default_val(1);
     cmd->add_option("--ffmpeg-mode", args.ffmpeg_mode, "Fallback FFmpeg mode: png, pipe")
-        ->default_val("pipe")
+        ->default_val("png")
         ->check(CLI::IsMember({"png", "pipe"}));
     cmd->add_flag("--ffmpeg-verbose", args.ffmpeg_verbose, "Show FFmpeg logs in pipe mode");
     cmd->add_option("--pipe-pixfmt", args.pipe_pixfmt, "Legacy raw pipe input format (RGBA is the stable path)")

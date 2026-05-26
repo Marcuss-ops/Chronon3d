@@ -1,59 +1,8 @@
 #include <chronon3d/presets/phrase/phrase_presets.hpp>
+#include <chronon3d/presets/phrase/phrase_group_builder.hpp>
 #include <chronon3d/presets/motion_presets.hpp>
 
 namespace chronon3d::presets::phrase {
-
-namespace {
-
-struct PhraseGroupBuilder {
-    const PhraseParams& p;
-    std::vector<MotionObject> children;
-
-    PhraseGroupBuilder(const PhraseParams& params) : p(params) {
-        children.reserve(4);
-    }
-
-    PhraseGroupBuilder& panel(const std::string& id, MotionPreset preset) {
-        children.push_back(detail::make_panel(id, p, preset, p.box_size, p.corner_radius));
-        return *this;
-    }
-
-    PhraseGroupBuilder& accent(const std::string& id, MotionPreset preset, Vec3 pos, Vec2 size) {
-        children.push_back(detail::make_accent_bar(id, p, preset, pos, size));
-        return *this;
-    }
-
-    PhraseGroupBuilder& title(const std::string& id, MotionPreset preset, Vec3 pos, Vec2 size, TextAlign align = TextAlign::Center) {
-        children.push_back(detail::make_title_text(id, p, preset, pos, size, align));
-        return *this;
-    }
-
-    PhraseGroupBuilder& subtitle(const std::string& id, MotionPreset preset, Vec3 pos, Vec2 size, TextAlign align = TextAlign::Center) {
-        if (!p.subtitle.empty()) {
-            children.push_back(detail::make_subtitle_text(id, p, preset, pos, size, align));
-        }
-        return *this;
-    }
-
-    PhraseGroupBuilder& quote(const std::string& id, MotionPreset preset, Vec3 pos) {
-        children.push_back(detail::make_quote_mark(id, p, preset, pos));
-        return *this;
-    }
-
-    PhraseGroupBuilder& add(MotionObject obj) {
-        children.push_back(std::move(obj));
-        return *this;
-    }
-
-    MotionObject build(MotionPreset group_preset) {
-        return MotionObject::group(p.id, std::move(children))
-            .at(p.position)
-            .preset(group_preset)
-            .time(p.start, p.end);
-    }
-};
-
-} // namespace
 
 MotionObject make_phrase(PhrasePreset preset, PhraseParams p) {
     PhraseGroupBuilder b(p);

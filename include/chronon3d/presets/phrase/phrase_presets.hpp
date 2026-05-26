@@ -4,6 +4,7 @@
 #include <chronon3d/presets/motion_object.hpp>
 #include <chronon3d/presets/motion_renderer.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
+#include <chronon3d/presets/style_kit.hpp>
 
 #include <string>
 #include <utility>
@@ -25,6 +26,54 @@ enum class PhrasePreset {
     TypewriterCaption,
     BounceTitle,
     GlitchBanner,
+};
+
+struct PhraseTheme {
+    Color panel{0.05f, 0.06f, 0.08f, 0.86f};
+    Color accent{0.98f, 0.54f, 0.16f, 1.0f};
+    Color title{1.0f, 1.0f, 1.0f, 1.0f};
+    Color subtitle{0.76f, 0.79f, 0.84f, 1.0f};
+    f32 radius{30.0f};
+    std::string font_family{"Inter"};
+
+    PhraseTheme() = default;
+
+    PhraseTheme(const StyleKit& kit) {
+        panel = kit.colors.background;
+        accent = kit.colors.accent;
+        title = kit.colors.primary;
+        subtitle = kit.colors.secondary;
+        radius = kit.corner_radius;
+        font_family = kit.typography.font_family;
+    }
+
+    static PhraseTheme documentary() {
+        return PhraseTheme(StyleKit::documentary());
+    }
+
+    static PhraseTheme tech() {
+        return PhraseTheme(StyleKit::tech());
+    }
+
+    static PhraseTheme luxury() {
+        return PhraseTheme(StyleKit::luxury());
+    }
+
+    static PhraseTheme warning() {
+        return PhraseTheme(StyleKit::warning());
+    }
+
+    static PhraseTheme sports() {
+        return PhraseTheme(StyleKit::sports());
+    }
+
+    static PhraseTheme gossip() {
+        return PhraseTheme(StyleKit::gossip());
+    }
+
+    static PhraseTheme breaking_news() {
+        return PhraseTheme(StyleKit::breaking_news());
+    }
 };
 
 struct PhraseParams {
@@ -49,6 +98,15 @@ struct PhraseParams {
     Color text_color{1.0f, 1.0f, 1.0f, 1.0f};
     Color subtitle_color{0.76f, 0.79f, 0.84f, 1.0f};
     f32 corner_radius{30.0f};
+
+    PhraseParams& apply_theme(const PhraseTheme& theme) {
+        panel_color = theme.panel;
+        accent_color = theme.accent;
+        text_color = theme.title;
+        subtitle_color = theme.subtitle;
+        corner_radius = theme.radius;
+        return *this;
+    }
 };
 
 namespace detail {

@@ -26,6 +26,8 @@ Composition text_fade_lift_demo();
 Composition text_soft_dolly_reveal_demo();
 Composition text_mask_sweep_demo();
 Composition text_focus_pull_demo();
+Composition text_glow_bloom_demo();
+Composition text_stagger_reveal_demo();
 // Composition text_cinematic_intro();
 Composition text_perspective_sweep_demo();
 // Composition text_glow_transition();
@@ -59,6 +61,8 @@ CHRONON_REGISTER_COMPOSITION("TextFadeLiftDemo",     chronon3d::content::text::t
 CHRONON_REGISTER_COMPOSITION("TextSoftDollyRevealDemo", chronon3d::content::text::text_soft_dolly_reveal_demo)
 CHRONON_REGISTER_COMPOSITION("TextMaskSweepDemo",    chronon3d::content::text::text_mask_sweep_demo)
 CHRONON_REGISTER_COMPOSITION("TextFocusPullDemo",     chronon3d::content::text::text_focus_pull_demo)
+CHRONON_REGISTER_COMPOSITION("TextGlowBloomDemo",     chronon3d::content::text::text_glow_bloom_demo)
+CHRONON_REGISTER_COMPOSITION("TextStaggerRevealDemo", chronon3d::content::text::text_stagger_reveal_demo)
 // CHRONON_REGISTER_COMPOSITION("TextCinematicIntro",  chronon3d::content::text::text_cinematic_intro)
 CHRONON_REGISTER_COMPOSITION("TextPerspectiveSweepDemo", chronon3d::content::text::text_perspective_sweep_demo)
 // CHRONON_REGISTER_COMPOSITION("TextGlowTransition",  chronon3d::content::text::text_glow_transition)

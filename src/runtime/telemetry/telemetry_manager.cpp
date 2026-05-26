@@ -44,21 +44,6 @@ std::string get_telemetry_directory() {
     return (home_path / ".chronon3d" / "telemetry").string();
 }
 
-std::filesystem::path find_workspace_root() {
-    std::filesystem::path current = std::filesystem::current_path();
-    while (!current.empty()) {
-        if (std::filesystem::exists(current / "CMakeLists.txt")) {
-            return current;
-        }
-        auto parent = current.parent_path();
-        if (parent == current) {
-            break;
-        }
-        current = parent;
-    }
-    return {};
-}
-
 } // namespace
 
 TelemetryManager& TelemetryManager::instance() {
@@ -123,11 +108,6 @@ std::filesystem::path TelemetryManager::resolve_sqlite_telemetry_path() {
         }
         return env_base / "chronon3d_render_history.sqlite";
     }
-
-    if (const auto workspace_root = find_workspace_root(); !workspace_root.empty()) {
-        return workspace_root / "output" / "telemetry.db";
-    }
-
     return std::filesystem::path(get_telemetry_directory()) / "chronon3d_render_history.sqlite";
 }
 

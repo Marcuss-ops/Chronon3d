@@ -20,6 +20,7 @@ bool ffmpeg_in_path();
 PipePixelFormat parse_pipe_pixfmt(const std::string& fmt);
 color::ColorSpace parse_color_output(const std::string& cs);
 std::string resolve_cli_ffmpeg_codec(const std::string& codec, const std::string& hw_encoder);
+std::string resolve_cli_ffmpeg_output_pix_fmt(const std::string& codec);
 
 struct FfmpegExportOptions {
     std::string output;

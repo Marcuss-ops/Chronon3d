@@ -1,5 +1,6 @@
 #include "../../command_registry.hpp"
 #include "../../commands.hpp"
+#include "../../utils/common/cli_utils.hpp"
 #include <memory>
 
 namespace chronon3d::cli {
@@ -7,7 +8,7 @@ namespace chronon3d::cli {
 namespace {
 
 struct InfoState { std::shared_ptr<std::string> id{std::make_shared<std::string>()}; };
-struct VerifyState { std::shared_ptr<std::string> output_dir{std::make_shared<std::string>("output/verify")}; };
+struct VerifyState { std::shared_ptr<std::string> output_dir{std::make_shared<std::string>(chronon_artifact_path("verify", "").string())}; };
 
 void register_list(CLI::App& app, CliContext& ctx) {
     auto* cmd = app.add_subcommand("list", "List all registered compositions");
@@ -29,7 +30,7 @@ void register_doctor(CLI::App& app, CliContext& ctx) {
 void register_verify(CLI::App& app, CliContext& ctx) {
     auto state = std::make_shared<VerifyState>();
     auto* cmd = app.add_subcommand("verify", "Run a quick render and video smoke test");
-    cmd->add_option("-o,--output-dir", *state->output_dir, "Output directory")->default_val("output/verify");
+    cmd->add_option("-o,--output-dir", *state->output_dir, "Output directory")->default_val(chronon_artifact_path("verify", "").string());
     cmd->callback([state, &ctx]() { ctx.exit_code = command_verify(ctx.registry, *state->output_dir); });
 }
 
