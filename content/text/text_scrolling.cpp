@@ -6,160 +6,115 @@
 
 #include <string>
 #include <cmath>
+#include <vector>
 
 #include "text_helpers.hpp"
 
 namespace chronon3d::content::text {
 
+namespace {
+
+struct CreditItem {
+    std::string role;
+    std::string name;
+
+    void draw(LayerBuilder& l, f32 y) const {
+        l.position({0, y, 0});
+        apply_text(l, "role", {.text = role, .size = 28, .color = {0.6f, 0.6f, 0.7f, 1}, .align = TextAlign::Center, .tracking = 4}, {W * 0.4f, 40}, {-200, 0, 0});
+        apply_text(l, "name", {.text = name, .size = 36, .color = {1, 1, 1, 1}, .align = TextAlign::Center, .tracking = 1}, {W * 0.4f, 40}, {200, 0, 0});
+    }
+};
+
+struct SequenceItem {
+    std::string text;
+    f32 start;
+    f32 duration;
+    f32 size{72.0f};
+
+    SequenceItem(std::string t) : text(std::move(t)) {}
+    SequenceItem& set_timing(f32 s, f32 d) { start = s; duration = d; return *this; }
+    SequenceItem& set_size(f32 s) { size = s; return *this; }
+
+    [[nodiscard]] f32 opacity(Frame frame) const {
+        f32 local = static_cast<f32>(frame) - start;
+        if (local < 0 || local >= duration) return 0.0f;
+        f32 fade = 10.0f;
+        if (local < fade) return local / fade;
+        if (local > duration - fade) return (duration - local) / fade;
+        return 1.0f;
+    }
+
+    void draw(LayerBuilder& l, Frame frame) const {
+        l.opacity(opacity(frame)).pin_to(Anchor::Center);
+        apply_text(l, "text", {
+            .text = text,
+            .size = size,
+            .color = {1, 1, 1, 1},
+            .align = TextAlign::Center,
+            .tracking = 6.0f,
+        }, {W * 0.8f, 140.0f});
+    }
+};
+
+} // namespace
+
 Composition text_credit_roll() {
-    return composition({
-        .name = "TextCreditRoll",
-        .width = 1920, .height = 1080,
-        .duration = 300,
-    }, [](const FrameContext& ctx) {
+    return composition({.name = "TextCreditRoll", .duration = 300}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        f32 p = ctx.progress();
-        f32 scroll_y = p * 1200.0f + H;
-
-        s.layer("bg", [](LayerBuilder& l) {
-            l.fill(Color{0.005f, 0.008f, 0.020f, 1.0f});
-        });
-
-        s.layer("credits_title", [&](LayerBuilder& l) {
+        f32 scroll_y = ctx.progress() * 1200.0f + H;
+        
+        s.layer("bg", [](auto& l) { l.fill({0.005f, 0.008f, 0.020f, 1.0f}); });
+        s.layer("credits_title", [&](auto& l) {
             l.position({0, scroll_y - 200, 0});
-            apply_text(l, "title", {
-                .text = "C R E D I T S",
-                .size = 56.0f,
-                .color = {0.25f, 0.52f, 1.0f, 1},
-                .align = TextAlign::Center,
-                .tracking = 14.0f,
-            }, {W * 0.6f, 80.0f}, {0, 0, 0});
+            apply_text(l, "title", {.text="C R E D I T S", .size=56, .color={0.25f, 0.52f, 1, 1}, .align=TextAlign::Center, .tracking=14}, {W*0.6f, 80});
         });
 
-        struct Credit { const char* role; const char* name; };
-        const Credit credits[] = {
-            {"Direction", "Pierone"},
-            {"Engine", "Chronon3D Team"},
-            {"Rendering", "Software Backend"},
-            {"Animation", "Motion Presets"},
-            {"Typography", "Inter Typeface"},
-            {"Pipeline", "Content Generator"},
-            {"Testing", "Automated Suite"},
-            {"Tools", "CLI Application"},
+        static const std::vector<CreditItem> credits = {
+            {"Direction", "Pierone"}, {"Engine", "Chronon3D Team"}, {"Rendering", "Software Backend"},
+            {"Animation", "Motion Presets"}, {"Typography", "Inter Typeface"}, {"Pipeline", "Content Generator"},
+            {"Testing", "Automated Suite"}, {"Tools", "CLI Application"}
         };
 
-        for (size_t i = 0; i < 8; ++i) {
-            f32 cy = scroll_y - 320.0f - static_cast<f32>(i) * 110.0f;
-            s.layer("role_" + std::to_string(i), [&, i, cy](LayerBuilder& l) {
-                l.position({0, cy, 0});
-                apply_text(l, "role_text", {
-                    .text = credits[i].role,
-                    .size = 28.0f,
-                    .color = {0.6f, 0.6f, 0.7f, 1},
-                    .align = TextAlign::Center,
-                    .tracking = 4.0f,
-                }, {W * 0.4f, 40.0f}, {-200, 0, 0});
-
-                apply_text(l, "name_text", {
-                    .text = credits[i].name,
-                    .size = 36.0f,
-                    .color = {1, 1, 1, 1},
-                    .align = TextAlign::Center,
-                    .tracking = 1.0f,
-                }, {W * 0.4f, 40.0f}, {200, 0, 0});
+        for (size_t i = 0; i < credits.size(); ++i) {
+            s.layer("item_" + std::to_string(i), [&](auto& l) {
+                credits[i].draw(l, scroll_y - 320.0f - static_cast<f32>(i) * 110.0f);
             });
         }
-
         return s.build();
     });
 }
 
 Composition text_animated_sequence() {
-    return composition({
-        .name = "TextAnimatedSequence",
-        .width = 1920, .height = 1080,
-        .duration = 180,
-    }, [](const FrameContext& ctx) {
+    return composition({.name = "TextAnimatedSequence", .duration = 180}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        f32 frame = static_cast<f32>(ctx.frame);
+        s.layer("bg", [](auto& l) { l.fill({0.008f, 0.012f, 0.025f, 1.0f}); });
 
-        struct SeqItem {
-            std::string text;
-            f32 start_frame;
-            f32 dur;
-            f32 size{72.0f};
+        static const std::vector<SequenceItem> items = {
+            SequenceItem("PART ONE").set_timing(0, 50).set_size(80),
+            SequenceItem("The Journey Begins").set_timing(55, 50).set_size(56),
+            SequenceItem("PART TWO").set_timing(110, 55).set_size(80),
+            SequenceItem("Resolution").set_timing(170, 10).set_size(56)
         };
-        const SeqItem items[] = {
-            {"PART ONE",          0.0f,  50.0f, 80.0f},
-            {"The Journey Begins", 55.0f, 50.0f, 56.0f},
-            {"PART TWO",          110.0f, 55.0f, 80.0f},
-            {"Resolution",        170.0f, 10.0f, 56.0f},
-        };
-
-        s.layer("bg", [](LayerBuilder& l) {
-            l.fill(Color{0.008f, 0.012f, 0.025f, 1.0f});
-        });
 
         for (const auto& item : items) {
-            f32 local = frame - item.start_frame;
-            f32 fade_in = 10.0f;
-            f32 fade_out = 10.0f;
-            f32 hold = item.dur - fade_in - fade_out;
-
-            f32 opacity = 0.0f;
-            if (local >= 0 && local < fade_in) {
-                opacity = local / fade_in;
-            } else if (local >= fade_in && local < fade_in + hold) {
-                opacity = 1.0f;
-            } else if (local >= fade_in + hold && local < item.dur) {
-                opacity = 1.0f - (local - fade_in - hold) / fade_out;
-            }
-
-            if (opacity > 0.0f) {
-                s.layer("seq_" + item.text, [&, opacity, item](LayerBuilder& l) {
-                    l.opacity(opacity).pin_to(Anchor::Center);
-                    apply_text(l, "text", {
-                        .text = item.text,
-                        .size = item.size,
-                        .color = {1, 1, 1, 1},
-                        .align = TextAlign::Center,
-                        .tracking = 6.0f,
-                    }, {W * 0.8f, 140.0f});
-                });
+            if (item.opacity(ctx.frame) > 0) {
+                s.layer("seq_" + item.text, [&](auto& l) { item.draw(l, ctx.frame); });
             }
         }
-
         return s.build();
     });
 }
 
 Composition text_countdown() {
-    return composition({
-        .name = "TextCountdown",
-        .width = 1920, .height = 1080,
-        .duration = 30,
-    }, [](const FrameContext& ctx) {
+    return composition({.name = "TextCountdown", .duration = 30}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        f32 frame = static_cast<f32>(ctx.frame);
-        f32 count = 3.0f - frame / 10.0f;
-        i32 num = std::max(1, static_cast<i32>(std::ceil(count)));
-        f32 flicker = 0.9f + 0.1f * std::sin(frame * 0.5f);
-
-        s.layer("bg", [](LayerBuilder& l) {
-            l.fill(Color{0.02f, 0.02f, 0.04f, 1.0f});
+        i32 num = std::max(1, static_cast<i32>(std::ceil(3.0f - static_cast<f32>(ctx.frame) / 10.0f)));
+        
+        s.layer("bg", [](auto& l) { l.fill({0.02f, 0.02f, 0.04f, 1.0f}); });
+        s.layer("count_num", [&](auto& l) {
+            l.opacity(0.9f + 0.1f * std::sin(static_cast<f32>(ctx.frame) * 0.5f)).pin_to(Anchor::Center);
+            apply_text(l, "num", {.text=std::to_string(num), .size=220, .align=TextAlign::Center}, {W*0.5f, 300});
         });
-
-        s.layer("count_num", [&](LayerBuilder& l) {
-            l.opacity(flicker).pin_to(Anchor::Center);
-            apply_text(l, "num", {
-                .text = std::to_string(num),
-                .size = 220.0f,
-                .color = {1, 1, 1, 1},
-                .align = TextAlign::Center,
-                .tracking = 0.0f,
-            }, {W * 0.5f, 300.0f});
-        });
-
         return s.build();
     });
 }
