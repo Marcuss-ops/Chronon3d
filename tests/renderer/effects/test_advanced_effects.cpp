@@ -103,3 +103,65 @@ TEST_CASE("Advanced Nodes: MaskNode restricts rendering to mask shape") {
     Color outside = fb->get_pixel(10, 10);
     CHECK(outside.a == doctest::Approx(0.0f));
 }
+
+TEST_CASE("Universal Glow: preserves original center color") {
+    auto fb = render_advanced_effect_fn([](const FrameContext& ctx) {
+        SceneBuilder s(ctx);
+        s.layer("l", [](LayerBuilder& l) {
+            l.position({0, 0, 0});
+            // Opaque Red rect of size 20x20
+            l.rect("r", {.size={20, 20}, .color=Color::red()});
+            // Large bright blue glow with high intensity
+            l.glow(10.0f, 1.0f, Color::blue());
+        });
+        return s.build();
+    });
+
+    REQUIRE(fb != nullptr);
+    // Center pixel (32, 32) must be purely red and unmodified
+    Color center = fb->get_pixel(32, 32);
+    CHECK(center.r == doctest::Approx(1.0f));
+    CHECK(center.g == doctest::Approx(0.0f));
+    CHECK(center.b == doctest::Approx(0.0f));
+    CHECK(center.a == doctest::Approx(1.0f));
+
+    // Outer pixel (45, 32) must be blue (since glow spreads there)
+    Color outer = fb->get_pixel(45, 32);
+    CHECK(outer.b > 0.01f);
+    CHECK(outer.r == doctest::Approx(0.0f));
+}
+
+TEST_CASE("Universal Glow: works on Text layers") {
+    auto fb = render_advanced_effect_fn([](const FrameContext& ctx) {
+        SceneBuilder s(ctx);
+        s.layer("l", [](LayerBuilder& l) {
+            l.position({0, 0, 0});
+            l.text("t", {
+                .text = "GLOW",
+                .size = {30, 20},
+                .font_size = 14.0f,
+                .color = Color::white(),
+                .align = TextAlign::Center
+            });
+            l.glow(8.0f, 1.0f, Color::green());
+        });
+        return s.build();
+    });
+
+    REQUIRE(fb != nullptr);
+    // There should be some green glow around the text
+    bool found_green_glow = false;
+    for (int y = 0; y < fb->height(); ++y) {
+        for (int x = 0; x < fb->width(); ++x) {
+            Color c = fb->get_pixel(x, y);
+            // Look for pixels with low or no red/blue but significant green and alpha
+            if (c.g > 0.1f && c.r < 0.1f && c.b < 0.1f) {
+                found_green_glow = true;
+                break;
+            }
+        }
+        if (found_green_glow) break;
+    }
+    CHECK(found_green_glow);
+}
+
