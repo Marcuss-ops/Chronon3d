@@ -61,8 +61,14 @@ struct TypewriterLine {
     }
 };
 
-Composition make_typewriter(std::string name, std::vector<TypewriterLine> lines, Color bg = {0.01f, 0.012f, 0.022f, 1.0f}) {
-    return composition({.name = name, .duration = 180}, [lines = std::move(lines), bg](const FrameContext& ctx) {
+Composition make_typewriter(
+    std::string name,
+    std::vector<TypewriterLine> lines,
+    presets::motion::MotionPreset preset = presets::motion::MotionPreset::PerspectiveSweepTextReveal,
+    bool glow = false,
+    Color bg = {0.01f, 0.012f, 0.022f, 1.0f}
+) {
+    return composition({.name = name, .duration = 180}, [lines = std::move(lines), preset, glow, bg](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         const f32 p = std::clamp(static_cast<f32>(ctx.frame) / 180.0f, 0.0f, 1.0f);
         s.camera().set(camera_motion::dramatic_push(p, 1380.0f));
@@ -84,10 +90,20 @@ Composition make_typewriter(std::string name, std::vector<TypewriterLine> lines,
                 .tracking(l.tracking)
                 .align(l.align_val)
                 .vertical_align(VerticalAlign::Middle)
-                .glow(true)
+                .glow(glow)
                 .time(0, 180);
             
-            presets::motion::perspective_sweep_text_reveal(obj);
+            if (preset == presets::motion::MotionPreset::PerspectiveSweepTextReveal) {
+                presets::motion::perspective_sweep_text_reveal(obj);
+            } else if (preset == presets::motion::MotionPreset::SoftDollyReveal) {
+                presets::motion::soft_dolly_reveal(obj);
+            } else if (preset == presets::motion::MotionPreset::StaggerReveal) {
+                presets::motion::stagger_reveal(obj);
+            } else if (preset == presets::motion::MotionPreset::FocusPull) {
+                presets::motion::focus_pull(obj);
+            } else {
+                obj.preset(preset);
+            }
             presets::motion::draw_motion_object(s, ctx, obj);
         }
         return s.build();
@@ -100,20 +116,20 @@ Composition text_typewriter() {
     return make_typewriter("TextTypewriter", {
         TypewriterLine("THE ENGINE LEARNED TO SPEAK.").set_pos({0, -34, 0}).set_font(64, 6).set_timing(0, 1.8f).set_color({0.25f, 0.58f, 1, 1}),
         TypewriterLine("Typed frame by frame, the story becomes motion.").set_pos({0, 54, 0}).set_font(28, 0.5f).set_timing(36, 2.8f).set_color({0.9f, 0.92f, 0.98f, 1})
-    });
+    }, presets::motion::MotionPreset::PerspectiveSweepTextReveal, true);
 }
 
 Composition text_typewriter_terminal() {
     return make_typewriter("TextTypewriterTerminal", {
         TypewriterLine("TYPEWRITER / PERSPECTIVE SWEEP").set_pos({0, 0, 0}).set_font(62, 6).set_timing(0, 2.0f).set_color({0.88f, 0.96f, 1, 1})
-    }, {0.006f, 0.01f, 0.016f, 1});
+    }, presets::motion::MotionPreset::PerspectiveSweepTextReveal, true, {0.006f, 0.01f, 0.016f, 1});
 }
 
 Composition text_typewriter_quote() {
     return make_typewriter("TextTypewriterQuote", {
         TypewriterLine("WE WRITE THE WORDS").set_pos({0, -56, 0}).set_font(60, 8).set_timing(0, 1.7f).set_color({0.25f, 0.58f, 1, 1}),
         TypewriterLine("THEN THE TEXT WRITES THE SCENE.").set_pos({0, 40, 0}).set_font(42, 3).set_timing(28, 2.4f).set_color({0.92f, 0.94f, 0.98f, 1})
-    }, {0.008f, 0.011f, 0.024f, 1});
+    }, presets::motion::MotionPreset::PerspectiveSweepTextReveal, true, {0.008f, 0.011f, 0.024f, 1});
 }
 
 Composition text_typewriter_manifest() {
@@ -122,7 +138,7 @@ Composition text_typewriter_manifest() {
         TypewriterLine("every frame can become a sentence,").set_pos({0, -38, 0}).set_font(42, 1).set_timing(0, 2.6f).set_color({0.95f, 0.96f, 1, 1}),
         TypewriterLine("and every sentence can be typed into motion.").set_pos({0, 60, 0}).set_font(30, 0.6f).set_timing(26, 2.9f).set_color({0.78f, 0.82f, 0.9f, 1}),
         TypewriterLine("typewriter / scalable / data-driven").set_pos({0, 156, 0}).set_font(24, 4).set_timing(54, 3.5f).set_color({0.35f, 1, 0.62f, 1})
-    }, {0.012f, 0.01f, 0.018f, 1});
+    }, presets::motion::MotionPreset::PerspectiveSweepTextReveal, true, {0.012f, 0.01f, 0.018f, 1});
 }
 
 Composition text_typewriter_chapter() {
@@ -130,7 +146,53 @@ Composition text_typewriter_chapter() {
         TypewriterLine("CHAPTER 01").set_pos({0, -98, 0}).set_font(34, 10).set_timing(0, 3.0f).set_color({0.35f, 1, 0.62f, 1}),
         TypewriterLine("THE FIRST WORD ARRIVES").set_pos({0, -12, 0}).set_font(54, 5).set_timing(0, 1.9f).set_color({0.92f, 0.96f, 1, 1}),
         TypewriterLine("typing makes timing visible.").set_pos({0, 88, 0}).set_font(26, 1.2f).set_timing(34, 3.0f).set_color({0.78f, 0.82f, 0.9f, 1})
-    }, {0.009f, 0.012f, 0.02f, 1});
+    }, presets::motion::MotionPreset::PerspectiveSweepTextReveal, true, {0.009f, 0.012f, 0.02f, 1});
+}
+
+Composition text_typewriter_dolly() {
+    return make_typewriter("TextTypewriterDolly", {
+        TypewriterLine("THE DOLLY TYPEWRITER EFFECT.").set_pos({0, 0, 0}).set_font(60, 6).set_timing(0, 1.8f).set_color({0.25f, 0.58f, 1, 1})
+    }, presets::motion::MotionPreset::SoftDollyReveal, false, {0.015f, 0.015f, 0.025f, 1.0f});
+}
+
+Composition text_typewriter_stagger() {
+    return make_typewriter("TextTypewriterStagger", {
+        TypewriterLine("STAGGERED TYPEWRITER.").set_pos({0, 0, 0}).set_font(60, 6).set_timing(0, 1.8f).set_color({1.0f, 0.65f, 0.2f, 1})
+    }, presets::motion::MotionPreset::StaggerReveal, false, {0.012f, 0.015f, 0.022f, 1.0f});
+}
+
+Composition text_typewriter_bounce() {
+    return make_typewriter("TextTypewriterBounce", {
+        TypewriterLine("BOUNCY TYPEWRITER.").set_pos({0, 0, 0}).set_font(60, 6).set_timing(0, 1.8f).set_color({0.3f, 0.9f, 0.4f, 1})
+    }, presets::motion::MotionPreset::KineticBounce, false, {0.01f, 0.012f, 0.016f, 1.0f});
+}
+
+Composition text_typewriter_glitch() {
+    return make_typewriter("TextTypewriterGlitch", {
+        TypewriterLine("GLITCH TYPEWRITER SYSTEM.").set_pos({0, 0, 0}).set_font(60, 6).set_timing(0, 1.8f).set_color({0.9f, 0.25f, 0.4f, 1})
+    }, presets::motion::MotionPreset::GlitchIn, false, {0.005f, 0.005f, 0.008f, 1.0f});
+}
+
+Composition text_typewriter_push() {
+    return make_typewriter("TextTypewriterPush", {
+        TypewriterLine("DEPTH TYPEWRITER.").set_pos({0, -40, 0}).set_font(68, 7).set_timing(0, 1.6f).set_color({0.95f, 0.9f, 1.0f, 1}),
+        TypewriterLine("words that push through space.").set_pos({0, 58, 0}).set_font(30, 1.2f).set_timing(32, 2.5f).set_color({0.65f, 0.72f, 0.88f, 1})
+    }, presets::motion::MotionPreset::PushIn3D, false, {0.006f, 0.008f, 0.018f, 1.0f});
+}
+
+Composition text_typewriter_slide() {
+    return make_typewriter("TextTypewriterSlide", {
+        TypewriterLine("SLIDE IN TYPEWRITER.").set_pos({0, -46, 0}).set_font(62, 6).set_timing(0, 1.9f).set_color({0.22f, 0.82f, 0.72f, 1}),
+        TypewriterLine("clean, rising, inevitable.").set_pos({0, 54, 0}).set_font(28, 1.0f).set_timing(30, 2.8f).set_color({0.85f, 0.9f, 0.95f, 1})
+    }, presets::motion::MotionPreset::SlideUp, false, {0.008f, 0.012f, 0.018f, 1.0f});
+}
+
+Composition text_typewriter_reveal_sweep() {
+    return make_typewriter("TextTypewriterRevealSweep", {
+        TypewriterLine("SWEEP").set_pos({0, -96, 0}).set_font(88, 18).set_timing(0, 2.2f).set_color({0.25f, 0.58f, 1, 1}).set_sweep(32.0f),
+        TypewriterLine("the text reveals itself").set_pos({0, 4, 0}).set_font(36, 1.8f).set_timing(20, 2.4f).set_color({0.9f, 0.93f, 1, 1}).set_sweep(16.0f),
+        TypewriterLine("frame by frame, word by word.").set_pos({0, 90, 0}).set_font(24, 0.8f).set_timing(46, 3.0f).set_color({0.72f, 0.78f, 0.92f, 1}).set_sweep(8.0f)
+    }, presets::motion::MotionPreset::TypewriterReveal, false, {0.007f, 0.009f, 0.016f, 1.0f});
 }
 
 } // namespace chronon3d::content::text

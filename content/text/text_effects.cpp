@@ -58,6 +58,9 @@ MotionObject make_motion_text(std::string id, std::string text, Vec3 pos, f32 si
 
 } // namespace
 
+using presets::motion::MotionObject;
+using presets::motion::MotionPreset;
+
 Composition text_glow() {
     return composition({.name = "TextGlow", .duration = 60}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
@@ -186,6 +189,145 @@ Composition text_stagger_reveal_demo() {
         objs.push_back(presets::motion::stagger_reveal(
             make_motion_text("stagger_reveal", "STAGGERED REVEAL", {0, 0, 0}, 90, 10, {0.96f, 0.96f, 0.98f, 1}).time(0, 179)
         ));
+        presets::motion::draw_motion_objects(s, ctx, objs);
+        return s.build();
+    });
+}
+
+Composition text_orbit_2_5d_demo() {
+    return composition({.name = "TextOrbit2_5DDemo", .duration = 180}, [](const FrameContext& ctx) {
+        SceneBuilder s(ctx);
+        s.camera().enable()
+                  .position({0.0f, 0.0f, -1000.0f})
+                  .zoom(1000.0f)
+                  .point_of_interest({0.0f, 0.0f, 0.0f});
+        s.layer("bg", [](auto& l) { l.fill({0.01f, 0.01f, 0.025f, 1.0f}); });
+
+        std::vector<MotionObject> objs;
+        auto obj = make_motion_text("orbit_text", "ORBIT", {0, 0, 0}, 108, 18, {0.50f, 0.78f, 1.0f, 1.0f})
+            .time(0, 179)
+            .preset(MotionPreset::Orbit2_5D)
+            .enable_3d()
+            .glow(true);
+        objs.push_back(std::move(obj));
+
+        auto sub = make_motion_text("orbit_sub", "2.5D ORBIT MOTION", {0, 130, 0}, 34, 8, {0.65f, 0.82f, 1.0f, 0.7f})
+            .time(0, 179)
+            .preset(MotionPreset::FadeLift)
+            .size({1500.0f, 80.0f});
+        objs.push_back(std::move(sub));
+
+        presets::motion::draw_motion_objects(s, ctx, objs);
+        return s.build();
+    });
+}
+
+Composition text_tilt_sweep_2_5d_demo() {
+    return composition({.name = "TextTiltSweep2_5DDemo", .duration = 180}, [](const FrameContext& ctx) {
+        SceneBuilder s(ctx);
+        s.camera().enable()
+                  .position({0.0f, 0.0f, -1000.0f})
+                  .zoom(1000.0f)
+                  .point_of_interest({0.0f, 0.0f, 0.0f});
+        s.layer("bg", [](auto& l) { l.fill({0.01f, 0.015f, 0.01f, 1.0f}); });
+
+        std::vector<MotionObject> objs;
+        auto obj = make_motion_text("tilt_text", "TILT SWEEP", {0, 0, 0}, 100, 16, {0.72f, 1.0f, 0.75f, 1.0f})
+            .time(0, 179)
+            .glow(true);
+        presets::motion::tilt_sweep_2_5d(
+            obj,
+            {0.0f, 0.0f, 240.0f},   // position amplitude (z push)
+            {10.0f, 18.0f, 5.0f},    // rotation amplitude (x, y, z tilt)
+            150.0f,                   // duration frames
+            0.0f,                     // start delay
+            true                      // one-shot
+        );
+        objs.push_back(std::move(obj));
+
+        auto sub = make_motion_text("tilt_sub", "2.5D TILT SWEEP", {0, 130, 0}, 34, 6, {0.72f, 1.0f, 0.75f, 0.65f})
+            .time(0, 179)
+            .preset(MotionPreset::FadeLift)
+            .size({1500.0f, 80.0f});
+        objs.push_back(std::move(sub));
+
+        presets::motion::draw_motion_objects(s, ctx, objs);
+        return s.build();
+    });
+}
+
+Composition text_motion_trio_demo() {
+    return composition({.name = "TextMotionTrioDemo", .duration = 480}, [](const FrameContext& ctx) {
+        SceneBuilder s(ctx);
+        s.camera().enable()
+                  .position({0.0f, 0.0f, -1000.0f})
+                  .zoom(1000.0f)
+                  .point_of_interest({0.0f, 0.0f, 0.0f});
+
+        // Gradient background that shifts across the three segments
+        const f32 p = ctx.progress();
+        const Color bg_a{0.01f, 0.01f, 0.025f, 1.0f};
+        const Color bg_b{0.01f, 0.015f, 0.01f, 1.0f};
+        const Color bg_c{0.018f, 0.008f, 0.025f, 1.0f};
+
+        auto lerp_c = [](Color a, Color b, f32 t) -> Color {
+            return {a.r + (b.r - a.r) * t, a.g + (b.g - a.g) * t, a.b + (b.b - a.b) * t, 1.0f};
+        };
+
+        Color bg = p < 0.33f ? lerp_c(bg_a, bg_b, p / 0.33f)
+                 : p < 0.66f ? lerp_c(bg_b, bg_c, (p - 0.33f) / 0.33f)
+                              : lerp_c(bg_c, bg_a, (p - 0.66f) / 0.34f);
+
+        s.layer("bg", [bg](auto& l) { l.fill(bg); });
+
+        std::vector<MotionObject> objs;
+
+        // ── Segment 1: Orbit2_5D (frames 0–159) ──────────────────────────────
+        if (ctx.frame < 160) {
+            auto title = make_motion_text("orbit_title", "ORBIT", {0, -40, 0}, 108, 18, {0.50f, 0.78f, 1.0f, 1.0f})
+                .time(0, 159)
+                .preset(MotionPreset::Orbit2_5D)
+                .enable_3d()
+                .glow(true);
+            objs.push_back(std::move(title));
+
+            auto label = make_motion_text("orbit_label", "Orbit2_5D", {0, 80, 0}, 32, 8, {0.50f, 0.78f, 1.0f, 0.6f})
+                .time(0, 159)
+                .preset(MotionPreset::FadeIn)
+                .size({1500.0f, 70.0f});
+            objs.push_back(std::move(label));
+        }
+
+        // ── Segment 2: TiltSweep2_5D (frames 160–319) ────────────────────────
+        if (ctx.frame >= 160 && ctx.frame < 320) {
+            auto title = make_motion_text("tilt_title", "TILT SWEEP", {0, -40, 0}, 100, 16, {0.72f, 1.0f, 0.75f, 1.0f})
+                .time(160, 319)
+                .glow(true);
+            presets::motion::tilt_sweep_2_5d(title, {0.0f, 0.0f, 240.0f}, {10.0f, 18.0f, 5.0f}, 140.0f, 0.0f, true);
+            objs.push_back(std::move(title));
+
+            auto label = make_motion_text("tilt_label", "TiltSweep2_5D", {0, 80, 0}, 32, 8, {0.72f, 1.0f, 0.75f, 0.6f})
+                .time(160, 319)
+                .preset(MotionPreset::FadeIn)
+                .size({1500.0f, 70.0f});
+            objs.push_back(std::move(label));
+        }
+
+        // ── Segment 3: PerspectiveSweepTextReveal (frames 320–479) ───────────
+        if (ctx.frame >= 320) {
+            auto title = make_motion_text("persp_title", "PERSPECTIVE", {0, -40, 0}, 104, 14, {0.96f, 0.80f, 1.0f, 1.0f})
+                .time(320, 479)
+                .glow(true);
+            presets::motion::perspective_sweep_text_reveal(title);
+            objs.push_back(std::move(title));
+
+            auto label = make_motion_text("persp_label", "PerspectiveSweepTextReveal", {0, 80, 0}, 28, 6, {0.96f, 0.80f, 1.0f, 0.6f})
+                .time(320, 479)
+                .preset(MotionPreset::FadeIn)
+                .size({1500.0f, 70.0f});
+            objs.push_back(std::move(label));
+        }
+
         presets::motion::draw_motion_objects(s, ctx, objs);
         return s.build();
     });

@@ -237,7 +237,17 @@ std::string SoftwareRenderer::debug_render_graph(const Scene& scene, const Camer
 }
 
 void SoftwareRenderer::apply_blur(Framebuffer& fb, f32 radius, const std::optional<raster::BBox>& clip) {
-    m_counters.blur_pixels.fetch_add(static_cast<uint64_t>(fb.width() * fb.height()), std::memory_order_relaxed);
+    uint64_t area = static_cast<uint64_t>(fb.width() * fb.height());
+    if (clip) {
+        raster::BBox clipped = *clip;
+        clipped.clip_to(fb.width(), fb.height());
+        if (!clipped.is_empty()) {
+            area = static_cast<uint64_t>(clipped.x1 - clipped.x0) * (clipped.y1 - clipped.y0);
+        } else {
+            area = 0;
+        }
+    }
+    m_counters.blur_pixels.fetch_add(area, std::memory_order_relaxed);
     CHRONON_ZONE_C("apply_blur", trace_category::kEffect);
     renderer::apply_blur(fb, radius, clip);
 }
@@ -246,9 +256,19 @@ void SoftwareRenderer::apply_effect_stack(Framebuffer& fb, const EffectStack& st
     CHRONON_ZONE_C("apply_effect_stack", trace_category::kEffect);
     
     // Count blur pixels if any blur effect is present in the stack
+    uint64_t area = static_cast<uint64_t>(fb.width() * fb.height());
+    if (clip) {
+        raster::BBox clipped = *clip;
+        clipped.clip_to(fb.width(), fb.height());
+        if (!clipped.is_empty()) {
+            area = static_cast<uint64_t>(clipped.x1 - clipped.x0) * (clipped.y1 - clipped.y0);
+        } else {
+            area = 0;
+        }
+    }
     for (const auto& effect : stack) {
         if (effect.enabled && effect.params.type() == typeid(BlurParams)) {
-            m_counters.blur_pixels.fetch_add(static_cast<uint64_t>(fb.width() * fb.height()), std::memory_order_relaxed);
+            m_counters.blur_pixels.fetch_add(area, std::memory_order_relaxed);
         }
     }
 
