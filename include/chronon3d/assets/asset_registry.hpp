@@ -24,11 +24,6 @@ inline AssetId asset_id_from_path(const std::filesystem::path& path) {
     return XXH3_64bits(s.data(), s.size());
 }
 
-// Legacy helper kept for backward compat.
-inline AssetId hash_asset_id(const std::string& name) {
-    return XXH3_64bits(name.data(), name.size());
-}
-
 // ---------------------------------------------------------------------------
 // AssetRegistry -- central store for asset paths and metadata.
 // No file I/O here: the renderer/loader resolves assets on first use.
@@ -119,23 +114,7 @@ public:
         return m_assets;
     }
 
-    // --- Legacy API (backward compat) ------------------------------------
-
-    void declare_image(const std::string& /*name*/, const std::string& path) {
-        import_image(path);
-    }
-
-    void declare_mesh(const std::string& /*name*/, const std::string& path) {
-        std::lock_guard<std::mutex> lock(m_mutex);
-        register_asset_unlocked(path, AssetType::Mesh, ColorSpace::LinearSRGB, AlphaMode::None);
-    }
-
-    void resolve_all() {}  // no-op: resolution is lazy in the renderer
-
     [[nodiscard]] bool is_loaded(AssetId id) const { return contains(id); }
-    [[nodiscard]] bool is_loaded(const std::string& name) const {
-        return contains(hash_asset_id(name));
-    }
 
     [[nodiscard]] std::string get_path(AssetId id) const {
         return metadata(id).path.string();

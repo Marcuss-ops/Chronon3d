@@ -36,35 +36,26 @@ namespace chronon3d {
 namespace {
 
 struct ProfilingScope {
-    ProfilingScope(RenderTrace* trace,
-                   RenderCounters* counters,
+    ProfilingScope(RenderCounters* counters,
                    cache::FramebufferPool* pool,
-                   std::string_view name,
-                   std::string_view tag,
                    int32_t frame)
-        : previous_trace(profiling::g_current_trace),
-          previous_frame(profiling::g_current_frame),
+        : previous_frame(profiling::g_current_frame),
           previous_counters(profiling::g_current_counters),
-          previous_pool(profiling::g_current_framebuffer_pool),
-          scope(trace, name, tag, frame) {
-        profiling::g_current_trace = trace;
+          previous_pool(profiling::g_current_framebuffer_pool) {
         profiling::g_current_frame = frame;
         profiling::g_current_counters = counters;
         profiling::g_current_framebuffer_pool = pool;
     }
 
     ~ProfilingScope() {
-        profiling::g_current_trace = previous_trace;
         profiling::g_current_frame = previous_frame;
         profiling::g_current_counters = previous_counters;
         profiling::g_current_framebuffer_pool = previous_pool;
     }
 
-    RenderTrace* previous_trace;
     int32_t previous_frame;
     RenderCounters* previous_counters;
     cache::FramebufferPool* previous_pool;
-    TraceScope scope;
 };
 
 std::optional<raster::BBox> to_local_clip(const Framebuffer& fb, std::optional<raster::BBox> clip) {
@@ -188,9 +179,6 @@ SoftwareRenderer::SoftwareRenderer()
 }
 
 SoftwareRenderer::~SoftwareRenderer() {
-    if (profiling::g_current_trace == &m_trace) {
-        profiling::g_current_trace = nullptr;
-    }
 }
 
 graph::GraphExecutor* SoftwareRenderer::executor() {
@@ -203,7 +191,7 @@ const graph::GraphExecutor* SoftwareRenderer::executor() const {
 
 std::shared_ptr<Framebuffer> SoftwareRenderer::render_frame(const Composition& comp,
                                                             Frame frame) {
-    ProfilingScope scope(&m_trace, &m_counters, m_framebuffer_pool.get(), "render_frame", "frame", static_cast<int32_t>(frame));
+    ProfilingScope scope(&m_counters, m_framebuffer_pool.get(), static_cast<int32_t>(frame));
 
     auto res = graph::render_composition_frame(
         *this, m_node_cache, m_settings, m_registry, m_video_decoder.get(), comp, frame
@@ -214,7 +202,7 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_frame(const Composition& c
 std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(const Scene& scene,
                                                             const Camera& camera, i32 width,
                                                             i32 height) {
-    ProfilingScope scope(&m_trace, &m_counters, m_framebuffer_pool.get(), "render_scene", "frame", 0);
+    ProfilingScope scope(&m_counters, m_framebuffer_pool.get(), 0);
 
     auto res = graph::render_scene_via_graph(
         *this,
@@ -234,7 +222,7 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(const Scene& scene,
 
 std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(
     const Scene& scene, const std::optional<Camera2_5D>& camera, i32 width, i32 height) {
-    ProfilingScope scope(&m_trace, &m_counters, m_framebuffer_pool.get(), "render_scene_2_5d", "frame", 0);
+    ProfilingScope scope(&m_counters, m_framebuffer_pool.get(), 0);
 
     Scene effective_scene = scene;
     if (camera.has_value()) {

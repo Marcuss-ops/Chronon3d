@@ -197,7 +197,7 @@ TEST_CASE("Registries throw on missing ID") {
     CHECK_FALSE(sampler_reg.contains("missing_id"));
     CHECK_FALSE(source_reg.contains("missing_id"));
 
-    CHECK_THROWS(shape_reg.get("missing_id"));
-    CHECK_THROWS(sampler_reg.get("missing_id"));
-    CHECK_THROWS(source_reg.get("missing_id"));
+    CHECK_THROWS(static_cast<void>(shape_reg.get("missing_id")));
+    CHECK_THROWS(static_cast<void>(sampler_reg.get("missing_id")));
+    CHECK_THROWS(static_cast<void>(source_reg.get("missing_id")));
 }

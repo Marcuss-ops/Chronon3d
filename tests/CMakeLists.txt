@@ -201,6 +201,7 @@ add_custom_target(chronon3d_tests
         chronon3d_renderer_tests
         chronon3d_io_tests
         chronon3d_cli_tests
+        chronon3d_benchmarks
         chronon3d_optimizer_tests
         chronon3d_cache_tests
 )
@@ -212,7 +213,6 @@ add_executable(chronon3d_video_tests
     video/test_video_diff.cpp
     video/test_long_export.cpp
     video/test_near_static_frames.cpp
-    bench/micro_benchmarks.cpp
     ${CMAKE_SOURCE_DIR}/src/video/frame_converter.cpp
     ${CMAKE_SOURCE_DIR}/src/video/converted_frame_cache.cpp
 )
@@ -223,3 +223,16 @@ target_link_libraries(chronon3d_video_tests
 )
 target_include_directories(chronon3d_video_tests PRIVATE ${CMAKE_SOURCE_DIR})
 add_test(NAME chronon3d_video_tests COMMAND chronon3d_video_tests WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+# Benchmarks
+add_executable(chronon3d_benchmarks
+    bench/micro_benchmarks.cpp
+    ${CMAKE_SOURCE_DIR}/src/video/frame_converter.cpp
+    ${CMAKE_SOURCE_DIR}/src/video/converted_frame_cache.cpp
+)
+target_link_libraries(chronon3d_benchmarks
+    PRIVATE
+        chronon3d_pipeline
+        benchmark::benchmark_main
+)
+target_include_directories(chronon3d_benchmarks PRIVATE ${CMAKE_SOURCE_DIR})

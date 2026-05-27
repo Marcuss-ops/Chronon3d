@@ -21,7 +21,7 @@ double run_node(
 
     const auto exec_t0 = std::chrono::steady_clock::now();
     {
-        TraceScope scope(node_ctx.trace, node.name(), "node_execute", node_ctx.frame);
+        CHRONON_ZONE_C("node_execute", trace_category::kGraph);
         result = node.execute(node_ctx, inputs, input_bboxes);
     }
     if (ctx.counters) {

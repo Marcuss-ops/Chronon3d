@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chronon3d/core/enum_utils.hpp>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -18,17 +19,8 @@ enum class SourceKind {
     Adjustment,
 };
 
-[[nodiscard]] constexpr std::string_view to_string(SourceKind kind) {
-    switch (kind) {
-    case SourceKind::Shape:      return "shape";
-    case SourceKind::Text:       return "text";
-    case SourceKind::Image:      return "image";
-    case SourceKind::Video:      return "video";
-    case SourceKind::Layer:      return "layer";
-    case SourceKind::Precomp:    return "precomp";
-    case SourceKind::Adjustment: return "adjustment";
-    }
-    return "layer";
+[[nodiscard]] inline std::string to_string(SourceKind kind) {
+    return enum_utils::enum_name_lower_snake(kind);
 }
 
 struct SourceDescriptor {

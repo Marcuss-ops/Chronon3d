@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chronon3d/core/enum_utils.hpp>
 #include <string>
 #include <vector>
 #include <stdexcept>
@@ -32,6 +33,14 @@ enum class PreflightAssetType {
     ExternalTool,
     RegisteredAsset
 };
+
+[[nodiscard]] inline std::string to_string(PreflightSeverity severity) {
+    return enum_utils::enum_name_upper_snake(severity);
+}
+
+[[nodiscard]] inline std::string to_string(PreflightAssetType type) {
+    return enum_utils::enum_name_lower_snake(type);
+}
 
 struct PreflightRequirement {
     PreflightAssetType type{PreflightAssetType::Image};

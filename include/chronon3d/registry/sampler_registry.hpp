@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chronon3d/core/enum_utils.hpp>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -15,14 +16,8 @@ enum class SamplerKind {
     Lanczos,
 };
 
-[[nodiscard]] constexpr std::string_view to_string(SamplerKind kind) {
-    switch (kind) {
-    case SamplerKind::Nearest:  return "nearest";
-    case SamplerKind::Bilinear: return "bilinear";
-    case SamplerKind::Bicubic:  return "bicubic";
-    case SamplerKind::Lanczos:  return "lanczos";
-    }
-    return "nearest";
+[[nodiscard]] inline std::string to_string(SamplerKind kind) {
+    return enum_utils::enum_name_lower_snake(kind);
 }
 
 struct SamplerDescriptor {

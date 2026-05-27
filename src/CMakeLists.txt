@@ -23,7 +23,7 @@ target_compile_definitions(chronon3d INTERFACE
     CHRONON3D_GIT_COMMIT="${CHRONON3D_GIT_COMMIT}"
     $<$<BOOL:${MSVC}>:_DISABLE_STRING_VIEW_FIND_FIRST_NOT_OF_OPTIMIZATION>
 )
-target_link_libraries(chronon3d INTERFACE glm::glm meshoptimizer::meshoptimizer xxHash::xxhash chronon3d_core_impl)
+target_link_libraries(chronon3d INTERFACE glm::glm meshoptimizer::meshoptimizer xxHash::xxhash magic_enum::magic_enum chronon3d_core_impl)
 
 # 3. Cache
 set(CHRONON3D_CACHE_SOURCES
