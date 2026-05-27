@@ -58,6 +58,7 @@ target_link_libraries(chronon3d_cli
         CLI11::CLI11
         spdlog::spdlog_header_only
         fmt::fmt
+        benchmark::benchmark
 )
 
 target_include_directories(chronon3d_cli PRIVATE ${CMAKE_SOURCE_DIR})

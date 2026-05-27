@@ -1,6 +1,7 @@
 #include "render_preflight_helpers.hpp"
 
 #include <sstream>
+#include <string>
 
 namespace chronon3d {
 
@@ -13,18 +14,8 @@ const char* severity_label(PreflightSeverity s) {
     return "UNKNOWN";
 }
 
-const char* asset_type_label(PreflightAssetType t) {
-    switch (t) {
-        case PreflightAssetType::Image:          return "image";
-        case PreflightAssetType::Video:          return "video";
-        case PreflightAssetType::Font:           return "font";
-        case PreflightAssetType::Audio:          return "audio";
-        case PreflightAssetType::OutputPath:     return "output_path";
-        case PreflightAssetType::Directory:      return "directory";
-        case PreflightAssetType::ExternalTool:   return "external_tool";
-        case PreflightAssetType::RegisteredAsset: return "registered_asset";
-    }
-    return "unknown";
+std::string asset_type_label(PreflightAssetType t) {
+    return to_string(t);
 }
 
 std::string format_preflight_issues_text(const std::vector<PreflightIssue>& issues) {

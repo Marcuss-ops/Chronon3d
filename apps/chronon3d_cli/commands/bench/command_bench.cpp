@@ -1,21 +1,242 @@
 #include "../../commands.hpp"
 #include "../../utils/job/cli_render_utils.hpp"
+
+#include <benchmark/benchmark.h>
 #include <chronon3d/backends/software/software_renderer.hpp>
-#include <chronon3d/runtime/renderer_warmup.hpp>
-#include <chronon3d/core/profiling/trace.hpp>
-#include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/core/profiling/benchmark_report.hpp>
-#include <spdlog/spdlog.h>
+#include <chronon3d/runtime/renderer_warmup.hpp>
 #include <fmt/format.h>
 #include <nlohmann/json.hpp>
+#include <spdlog/spdlog.h>
+
 #include <algorithm>
+#include <atomic>
 #include <chrono>
+#include <filesystem>
 #include <fstream>
-#include <map>
+#include <memory>
+#include <optional>
+#include <string>
 #include <vector>
 
 namespace chronon3d {
 namespace cli {
+
+namespace {
+
+class NullBuffer final : public std::streambuf {
+protected:
+    int overflow(int c) override { return traits_type::not_eof(c); }
+};
+
+class NullStream final : public std::ostream {
+public:
+    NullStream() : std::ostream(&m_buffer) {}
+
+private:
+    NullBuffer m_buffer;
+};
+
+class ScopedSpdlogLevel final {
+public:
+    explicit ScopedSpdlogLevel(spdlog::level::level_enum level)
+        : m_previous(spdlog::get_level()) {
+        spdlog::set_level(level);
+    }
+
+    ~ScopedSpdlogLevel() {
+        spdlog::set_level(m_previous);
+    }
+
+private:
+    spdlog::level::level_enum m_previous;
+};
+
+struct BenchRuntimeContext {
+    std::optional<Composition> composition;
+    std::shared_ptr<SoftwareRenderer> renderer;
+    int frames{0};
+    int warmup{0};
+    bool dirty_rects{false};
+};
+
+thread_local BenchRuntimeContext* g_bench_context = nullptr;
+
+struct BenchmarkSummary {
+    std::string name;
+    double real_time_ms{0.0};
+    double cpu_time_ms{0.0};
+    int64_t iterations{0};
+};
+
+std::optional<std::filesystem::path> make_temp_json_path() {
+    try {
+        auto dir = std::filesystem::temp_directory_path();
+        auto stamp = std::to_string(
+            static_cast<long long>(std::chrono::steady_clock::now().time_since_epoch().count()));
+        return dir / ("chronon3d_bench_" + stamp + ".json");
+    } catch (const std::exception&) {
+        return std::nullopt;
+    }
+}
+
+std::vector<BenchmarkSummary> load_benchmark_summaries(const std::filesystem::path& path) {
+    std::ifstream in(path);
+    if (!in.is_open()) {
+        throw std::runtime_error("Failed to open benchmark JSON: " + path.string());
+    }
+
+    nlohmann::json js;
+    in >> js;
+
+    std::vector<BenchmarkSummary> summaries;
+    if (!js.contains("benchmarks") || !js["benchmarks"].is_array()) {
+        return summaries;
+    }
+
+    for (const auto& entry : js["benchmarks"]) {
+        if (!entry.is_object()) {
+            continue;
+        }
+        if (entry.value("run_type", "") != "iteration") {
+            continue;
+        }
+
+        BenchmarkSummary summary;
+        summary.name = entry.value("name", "");
+        summary.real_time_ms = entry.value("real_time", 0.0);
+        summary.cpu_time_ms = entry.value("cpu_time", 0.0);
+        summary.iterations = entry.value("iterations", int64_t{0});
+        summaries.push_back(std::move(summary));
+    }
+
+    return summaries;
+}
+
+std::vector<BenchmarkSummary> load_grouped_summaries(const std::filesystem::path& path) {
+    auto rows = load_benchmark_summaries(path);
+    std::vector<BenchmarkSummary> grouped;
+    if (rows.empty()) {
+        return grouped;
+    }
+
+    std::sort(rows.begin(), rows.end(), [](const auto& a, const auto& b) {
+        return a.name < b.name;
+    });
+
+    for (size_t i = 0; i < rows.size();) {
+        size_t j = i;
+        BenchmarkSummary summary;
+        summary.name = rows[i].name;
+        double real_total = 0.0;
+        double cpu_total = 0.0;
+        int64_t iterations_total = 0;
+        size_t count = 0;
+        while (j < rows.size() && rows[j].name == rows[i].name) {
+            real_total += rows[j].real_time_ms;
+            cpu_total += rows[j].cpu_time_ms;
+            iterations_total += rows[j].iterations;
+            ++count;
+            ++j;
+        }
+        summary.real_time_ms = real_total / static_cast<double>(count);
+        summary.cpu_time_ms = cpu_total / static_cast<double>(count);
+        summary.iterations = iterations_total;
+        grouped.push_back(std::move(summary));
+        i = j;
+    }
+
+    return grouped;
+}
+
+void run_render_benchmark(benchmark::State& state) {
+    auto& ctx = *g_bench_context;
+    const int width = ctx.composition->width();
+    const int height = ctx.composition->height();
+    auto* counters = ctx.renderer->counters();
+
+    for (auto _ : state) {
+        for (int i = 0; i < ctx.frames; ++i) {
+            const auto frame = static_cast<Frame>(ctx.warmup + i);
+            auto scene = ctx.composition->evaluate(frame);
+            ctx.renderer->render_scene(scene, ctx.composition->camera, width, height);
+            benchmark::DoNotOptimize(scene);
+        }
+        benchmark::DoNotOptimize(counters);
+        benchmark::ClobberMemory();
+    }
+
+    const double iterations = static_cast<double>(state.iterations());
+    const double frames = iterations * static_cast<double>(ctx.frames);
+
+    state.SetItemsProcessed(static_cast<int64_t>(frames));
+    state.counters["cache_hits"] = static_cast<double>(counters->cache_hits.load(std::memory_order_relaxed));
+    state.counters["cache_misses"] = static_cast<double>(counters->cache_misses.load(std::memory_order_relaxed));
+    state.counters["nodes_executed"] = static_cast<double>(counters->nodes_executed.load(std::memory_order_relaxed));
+    state.counters["pixels_touched"] = static_cast<double>(counters->pixels_touched.load(std::memory_order_relaxed));
+    state.counters["blur_pixels"] = static_cast<double>(counters->blur_pixels.load(std::memory_order_relaxed));
+    state.counters["images_sampled"] = static_cast<double>(counters->images_sampled.load(std::memory_order_relaxed));
+    state.counters["text_glyphs_rasterized"] = static_cast<double>(counters->text_glyphs_rasterized.load(std::memory_order_relaxed));
+    state.counters["cache_hit_rate"] = (counters->cache_hits.load(std::memory_order_relaxed) + counters->cache_misses.load(std::memory_order_relaxed)) > 0
+        ? static_cast<double>(counters->cache_hits.load(std::memory_order_relaxed)) /
+              static_cast<double>(counters->cache_hits.load(std::memory_order_relaxed) + counters->cache_misses.load(std::memory_order_relaxed))
+        : 0.0;
+}
+
+std::vector<std::string> build_benchmark_argv(const BenchArgs& args, const std::filesystem::path& json_out_path) {
+    std::vector<std::string> argv;
+    argv.emplace_back("chronon3d_bench");
+    argv.emplace_back("--benchmark_min_time=0.1s");
+    argv.emplace_back("--benchmark_repetitions=1");
+    argv.emplace_back("--benchmark_report_aggregates_only=false");
+    argv.emplace_back("--benchmark_display_aggregates_only=false");
+    argv.emplace_back("--benchmark_out=" + json_out_path.string());
+    argv.emplace_back("--benchmark_out_format=json");
+
+    if (args.quiet) {
+        argv.emplace_back("--benchmark_color=false");
+    }
+
+    return argv;
+}
+
+void print_comparison(const std::vector<BenchmarkSummary>& current,
+                      const std::vector<BenchmarkSummary>& baseline,
+                      double fail_if_avg_slower_pct,
+                      bool quiet,
+                      int& exit_code) {
+    bool any_match = false;
+    for (const auto& cur : current) {
+        auto it = std::find_if(baseline.begin(), baseline.end(), [&](const auto& b) {
+            return b.name == cur.name;
+        });
+        if (it == baseline.end()) {
+            continue;
+        }
+
+        any_match = true;
+        const double baseline_ms = it->real_time_ms;
+        const double current_ms = cur.real_time_ms;
+        const double regression_pct = compute_regression_pct(baseline_ms, current_ms);
+
+        if (!quiet) {
+            fmt::print("  - {:32}: baseline={:10.3f} ms  current={:10.3f} ms  delta={:+7.2f}%\n",
+                       cur.name, baseline_ms, current_ms, regression_pct);
+        }
+
+        if (fail_if_avg_slower_pct > 0.0 && regression_pct > fail_if_avg_slower_pct) {
+            spdlog::error("Benchmark regression for {}: {:.2f}% (threshold: {:.2f}%)",
+                          cur.name, regression_pct, fail_if_avg_slower_pct);
+            exit_code = 2;
+        }
+    }
+
+    if (!any_match && !quiet) {
+        spdlog::warn("No benchmark names matched between current run and baseline");
+    }
+}
+
+} // namespace
 
 int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
     if (!registry.contains(args.comp_id)) {
@@ -31,21 +252,25 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
         return 1;
     }
 
-    auto comp = registry.create(args.comp_id);
+    auto composition = registry.create(args.comp_id);
     RenderSettings settings;
     settings.use_modular_graph = args.use_modular_graph;
     settings.dirty_rects = args.dirty_rects;
     auto renderer = create_renderer(registry, settings);
 
+    std::unique_ptr<ScopedSpdlogLevel> quiet_log_guard;
+    if (args.quiet) {
+        quiet_log_guard = std::make_unique<ScopedSpdlogLevel>(spdlog::level::off);
+    }
+
     if (!args.quiet) {
         spdlog::info("Benchmarking {} (warmup: {}, frames: {})", args.comp_id, args.warmup, args.frames);
     }
 
-    // 1a. Renderer warmup (framebuffer preallocation + optional dummy frame)
     if (args.warmup_renderer) {
-        auto warmup = runtime::warmup_renderer(*renderer, comp, runtime::RendererWarmupOptions{
-            .width = comp.width(),
-            .height = comp.height(),
+        auto warmup = runtime::warmup_renderer(*renderer, composition, runtime::RendererWarmupOptions{
+            .width = composition.width(),
+            .height = composition.height(),
             .framebuffer_count = args.warmup_framebuffers,
             .preallocate_framebuffers = true,
             .touch_memory = true,
@@ -59,250 +284,117 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
         }
     }
 
-    // 1b. Legacy warmup
     for (int i = 0; i < args.warmup; ++i) {
         const auto frame = static_cast<Frame>(i);
-        auto scene = comp.evaluate(frame);
-        renderer->render_scene(scene, comp.camera, comp.width(), comp.height());
+        auto scene = composition.evaluate(frame);
+        renderer->render_scene(scene, composition.camera, composition.width(), composition.height());
     }
 
-    // 2. Clear trace and counters before the timed runs
-    renderer->trace()->clear();
+    if (renderer->trace()) {
+        renderer->trace()->clear();
+    }
     renderer->counters()->reset();
 
-    // 3. Timed execution
-    const auto t0 = std::chrono::steady_clock::now();
-    double dirty_ratio_sum = 0.0;
-    for (int i = 0; i < args.frames; ++i) {
-        const auto frame = static_cast<Frame>(args.warmup + i);
-        auto scene = comp.evaluate(frame);
-        renderer->render_scene(scene, comp.camera, comp.width(), comp.height());
-        dirty_ratio_sum += renderer->last_dirty_area_ratio();
-    }
-    const auto t1 = std::chrono::steady_clock::now();
+    BenchRuntimeContext context;
+    context.composition = std::move(composition);
+    context.renderer = std::move(renderer);
+    context.frames = args.frames;
+    context.warmup = args.warmup;
+    context.dirty_rects = args.dirty_rects;
 
-    const auto elapsed_ms = std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(t1 - t0).count();
-    const double avg_ms = elapsed_ms / static_cast<double>(args.frames);
-    const double fps = 1000.0 / avg_ms;
-    const double avg_dirty_ratio = args.frames > 0 ? (dirty_ratio_sum / static_cast<double>(args.frames)) : 1.0;
+    g_bench_context = &context;
 
-    // 4. Trace event processing (Average, P95, Min, Max, Median, and Category Breakdown)
-    const auto& events = renderer->trace()->events();
-    std::vector<double> frame_times;
-    std::map<std::string, double> category_durations;
-    std::map<std::string, double> node_durations;
-    double total_category_time = 0.0;
+    benchmark::AddCustomContext("comp_id", args.comp_id);
+    benchmark::AddCustomContext("frames", std::to_string(args.frames));
+    benchmark::AddCustomContext("warmup", std::to_string(args.warmup));
+    benchmark::AddCustomContext("use_modular_graph", args.use_modular_graph ? "true" : "false");
+    benchmark::AddCustomContext("dirty_rects", args.dirty_rects ? "true" : "false");
+    benchmark::AddCustomContext("warmup_renderer", args.warmup_renderer ? "true" : "false");
 
-    for (const auto& ev : events) {
-        if (ev.name == "render_scene" || ev.name == "render_frame" || ev.name == "render_scene_2_5d") {
-            frame_times.push_back(ev.dur_us / 1000.0);
-        } else {
-            category_durations[ev.category] += ev.dur_us / 1000.0;
-            total_category_time += ev.dur_us / 1000.0;
-            if (ev.category == "node_execute") {
-                node_durations[ev.name] += ev.dur_us / 1000.0;
-            }
+    std::optional<std::filesystem::path> temp_json_path;
+    std::filesystem::path current_json_path = args.json_file.empty() ? std::filesystem::path{} : std::filesystem::path(args.json_file);
+    if (current_json_path.empty() || !args.compare_file.empty()) {
+        temp_json_path = make_temp_json_path();
+        if (!temp_json_path) {
+            spdlog::error("Failed to allocate temporary benchmark output path");
+            g_bench_context = nullptr;
+            return 1;
+        }
+        if (current_json_path.empty()) {
+            current_json_path = *temp_json_path;
         }
     }
 
-    // Sort frame times to compute P95, min, max, median
-    double p95_ms = avg_ms;
-    double min_frame_ms = avg_ms;
-    double max_frame_ms = avg_ms;
-    double median_frame_ms = avg_ms;
-
-    if (!frame_times.empty()) {
-        std::sort(frame_times.begin(), frame_times.end());
-        size_t idx = static_cast<size_t>(frame_times.size() * 0.95);
-        if (idx >= frame_times.size()) idx = frame_times.size() - 1;
-        p95_ms = frame_times[idx];
-        min_frame_ms = frame_times.front();
-        max_frame_ms = frame_times.back();
-        size_t mid = frame_times.size() / 2;
-        if (frame_times.size() % 2 == 0) {
-            median_frame_ms = (frame_times[mid - 1] + frame_times[mid]) / 2.0;
-        } else {
-            median_frame_ms = frame_times[mid];
-        }
+    auto benchmark_argv_storage = build_benchmark_argv(args, current_json_path);
+    std::vector<char*> benchmark_argv;
+    benchmark_argv.reserve(benchmark_argv_storage.size());
+    for (auto& arg : benchmark_argv_storage) {
+        benchmark_argv.push_back(arg.data());
     }
 
-    uint64_t hits = renderer->counters()->cache_hits.load(std::memory_order_relaxed);
-    uint64_t misses = renderer->counters()->cache_misses.load(std::memory_order_relaxed);
-    double hit_rate = (hits + misses) > 0 ? static_cast<double>(hits) / (hits + misses) : 0.0;
+    int benchmark_argc = static_cast<int>(benchmark_argv.size());
+    benchmark::Initialize(&benchmark_argc, benchmark_argv.data());
 
-    uint64_t nodes_exec = renderer->counters()->nodes_executed.load(std::memory_order_relaxed);
-    uint64_t pixels_touched = renderer->counters()->pixels_touched.load(std::memory_order_relaxed);
-    uint64_t blur_pixels = renderer->counters()->blur_pixels.load(std::memory_order_relaxed);
-    uint64_t images_sampled = renderer->counters()->images_sampled.load(std::memory_order_relaxed);
-    uint64_t glyphs = renderer->counters()->text_glyphs_rasterized.load(std::memory_order_relaxed);
-    uint64_t clear_copy_pixels = renderer->counters()->clear_copy_pixels.load(std::memory_order_relaxed);
-    uint64_t dirty_rect_count = renderer->counters()->dirty_rect_count.load(std::memory_order_relaxed);
-    uint64_t dirty_pixels = renderer->counters()->dirty_pixels.load(std::memory_order_relaxed);
-    uint64_t dirty_fallbacks = renderer->counters()->dirty_full_fallbacks.load(std::memory_order_relaxed);
-
-    // 5. Build structured report
-    BenchmarkReport report;
-    report.comp_id = args.comp_id;
-    report.timestamp_utc = current_utc_timestamp_iso();
-    report.build_type = detect_build_type();
-    report.compiler_info = detect_compiler();
-    report.os = detect_os();
-    report.width = comp.width();
-    report.height = comp.height();
-    report.frames = args.frames;
-    report.warmup = args.warmup;
-    report.modular_graph = args.use_modular_graph;
-    report.metrics.avg_frame_ms = avg_ms;
-    report.metrics.median_frame_ms = median_frame_ms;
-    report.metrics.min_frame_ms = min_frame_ms;
-    report.metrics.max_frame_ms = max_frame_ms;
-    report.metrics.p95_frame_ms = p95_ms;
-    report.metrics.fps = fps;
-    report.counters.cache_hits = hits;
-    report.counters.cache_misses = misses;
-    report.counters.cache_hit_rate = hit_rate;
-    report.counters.nodes_executed = nodes_exec;
-    report.counters.pixels_touched = pixels_touched;
-    report.counters.blur_pixels = blur_pixels;
-    report.counters.images_sampled = images_sampled;
-    report.counters.text_glyphs_rasterized = glyphs;
-    report.categories_ms = category_durations;
-    report.node_durations_ms = node_durations;
-    report.frame_times_ms = frame_times;
-
-    // 6. Print terminal report (unless --quiet)
-    if (!args.quiet) {
-        fmt::print("\n");
-        fmt::print("================================================================================\n");
-        fmt::print("                    CHRONON3D BENCHMARK REPORT: {}\n", args.comp_id);
-        fmt::print("================================================================================\n");
-        fmt::print("Frames:           {}\n", args.frames);
-        fmt::print("Warmup:           {}\n", args.warmup);
-        fmt::print("Average Frame:    {:.3f} ms\n", avg_ms);
-        fmt::print("Median Frame:     {:.3f} ms\n", median_frame_ms);
-        fmt::print("Min Frame:        {:.3f} ms\n", min_frame_ms);
-        fmt::print("Max Frame:        {:.3f} ms\n", max_frame_ms);
-        fmt::print("P95 Frame:        {:.3f} ms\n", p95_ms);
-        fmt::print("FPS:              {:.2f}\n", fps);
-        fmt::print("\n");
-        fmt::print("--- Cache Efficiency ---\n");
-        fmt::print("Cache Hits:       {}\n", hits);
-        fmt::print("Cache Misses:     {}\n", misses);
-        fmt::print("Cache Hit Rate:   {:.1f}%\n", hit_rate * 100.0);
-        fmt::print("\n");
-        fmt::print("--- Resource Metrics ---\n");
-        fmt::print("Nodes Executed:   {}\n", nodes_exec);
-        fmt::print("Pixels Touched:   {}\n", pixels_touched);
-        fmt::print("Blur Pixels:      {}\n", blur_pixels);
-        fmt::print("Images Sampled:   {}\n", images_sampled);
-        fmt::print("Glyphs Rasterized:{}\n", glyphs);
-        if (clear_copy_pixels > 0) {
-            fmt::print("Clear Copy Pixels:{}\n", clear_copy_pixels);
-        }
-        uint64_t fallback_predicted = renderer->counters()->dirty_full_fallback_reasons[static_cast<std::size_t>(DirtyFallbackReason::PredictedBoundsMissing)].load(std::memory_order_relaxed);
-        uint64_t fallback_composite = renderer->counters()->dirty_full_fallback_reasons[static_cast<std::size_t>(DirtyFallbackReason::CompositeMissingInputBounds)].load(std::memory_order_relaxed);
-        uint64_t fallback_transform = renderer->counters()->dirty_full_fallback_reasons[static_cast<std::size_t>(DirtyFallbackReason::TransformBoundsUnknown)].load(std::memory_order_relaxed);
-        uint64_t fallback_effect = renderer->counters()->dirty_full_fallback_reasons[static_cast<std::size_t>(DirtyFallbackReason::EffectBoundsUnknown)].load(std::memory_order_relaxed);
-        if (dirty_rect_count > 0 || dirty_pixels > 0 || dirty_fallbacks > 0) {
-            fmt::print("Dirty Rects Count:{}\n", dirty_rect_count);
-            fmt::print("Dirty Rect Pixels:{}\n", dirty_pixels);
-            fmt::print("Dirty Fallbacks:  {}\n", dirty_fallbacks);
-            if (fallback_predicted > 0 || fallback_composite > 0 || fallback_transform > 0 || fallback_effect > 0) {
-                fmt::print("  - PredictedBounds:   {}\n", fallback_predicted);
-                fmt::print("  - CompositeMissing:  {}\n", fallback_composite);
-                fmt::print("  - TransformUnknown:  {}\n", fallback_transform);
-                fmt::print("  - EffectUnknown:     {}\n", fallback_effect);
-            }
-        }
-        if (args.dirty_rects) {
-            fmt::print("Dirty Avg Ratio:  {:.1f}%\n", avg_dirty_ratio * 100.0);
-        }
-        fmt::print("\n");
-        fmt::print("--- Category Breakdown (Total Duration) ---\n");
-
-        std::vector<std::pair<std::string, double>> sorted_cats(category_durations.begin(), category_durations.end());
-        std::sort(sorted_cats.begin(), sorted_cats.end(), [](const auto& a, const auto& b) {
-            return a.second > b.second;
-        });
-
-        for (const auto& cat : sorted_cats) {
-            double pct = total_category_time > 0.0 ? (cat.second / total_category_time) * 100.0 : 0.0;
-            fmt::print("  - {:14}: {:10.3f} ms ({:5.1f}%)\n", cat.first, cat.second, pct);
-        }
-
-        if (!report.node_durations_ms.empty()) {
-            fmt::print("\n");
-            fmt::print("--- Node Bottlenecks ---\n");
-            std::vector<std::pair<std::string, double>> node_times(report.node_durations_ms.begin(), report.node_durations_ms.end());
-            std::sort(node_times.begin(), node_times.end(), [](const auto& a, const auto& b) {
-                return a.second > b.second;
-            });
-            const std::size_t limit = std::min<std::size_t>(node_times.size(), 8);
-            for (std::size_t i = 0; i < limit; ++i) {
-                const auto& [name, ms] = node_times[i];
-                fmt::print("  - {:24}: {:10.3f} ms\n", name, ms);
-            }
-        }
-        fmt::print("================================================================================\n");
-        fmt::print("\n");
-    } else {
-        fmt::print("{}  avg={:.2f}ms  p95={:.2f}ms  fps={:.1f}  cache={:.1f}%\n",
-                   args.comp_id, avg_ms, p95_ms, fps, hit_rate * 100.0);
+    benchmark::ConsoleReporter display_reporter(
+        args.quiet ? benchmark::ConsoleReporter::OO_None : benchmark::ConsoleReporter::OO_Defaults);
+    NullStream null_stream;
+    if (args.quiet) {
+        display_reporter.SetOutputStream(&null_stream);
+        display_reporter.SetErrorStream(&null_stream);
     }
 
-    // 7. Write JSON output if requested
+    std::ofstream json_out(current_json_path);
+    if (!json_out.is_open()) {
+        spdlog::error("Failed to open benchmark JSON output file: {}", current_json_path.string());
+        benchmark::Shutdown();
+        g_bench_context = nullptr;
+        return 1;
+    }
+    benchmark::JSONReporter file_reporter;
+    file_reporter.SetOutputStream(&json_out);
+
+    const std::string benchmark_name = "chronon3d/render/" + args.comp_id;
+    benchmark::RegisterBenchmark(benchmark_name.c_str(), run_render_benchmark)->Unit(benchmark::kMillisecond);
+
+    benchmark::RunSpecifiedBenchmarks(&display_reporter, &file_reporter);
+    benchmark::Shutdown();
+
+    json_out.close();
+
     int exit_code = 0;
-    if (!args.json_file.empty()) {
-        auto js = to_json(report, args.include_frame_times);
-        std::ofstream out(args.json_file);
-        if (out.is_open()) {
-            out << js.dump(2);
-            if (!args.quiet) {
-                spdlog::info("Benchmark telemetry saved to {}", args.json_file);
-            }
-        } else {
-            spdlog::error("Failed to open output json file: {}", args.json_file);
-            return 1;
-        }
+    if (!args.quiet) {
+        spdlog::info("Benchmark JSON written to {}", current_json_path.string());
     }
 
-    // 8. Compare against baseline if requested
+    std::vector<BenchmarkSummary> current_rows;
+    try {
+        current_rows = load_grouped_summaries(current_json_path);
+    } catch (const std::exception& e) {
+        spdlog::error("Failed to read benchmark JSON: {}", e.what());
+        g_bench_context = nullptr;
+        return 1;
+    }
+
     if (!args.compare_file.empty()) {
-        std::ifstream in(args.compare_file);
-        if (!in.is_open()) {
-            spdlog::error("Failed to open baseline file: {}", args.compare_file);
-            return 1;
-        }
-        nlohmann::json baseline_js;
         try {
-            in >> baseline_js;
+            const auto baseline_rows = load_grouped_summaries(args.compare_file);
+            if (!args.quiet) {
+                fmt::print("--- Baseline Comparison ---\n");
+            }
+            print_comparison(current_rows, baseline_rows, args.fail_if_avg_slower_pct, args.quiet, exit_code);
         } catch (const std::exception& e) {
-            spdlog::error("Failed to parse baseline JSON: {}", e.what());
+            spdlog::error("Failed to compare benchmark JSON: {}", e.what());
+            g_bench_context = nullptr;
             return 1;
-        }
-        auto baseline = benchmark_report_from_json(baseline_js);
-
-        double avg_regression = compute_regression_pct(baseline.metrics.avg_frame_ms, report.metrics.avg_frame_ms);
-        double p95_regression = compute_regression_pct(baseline.metrics.p95_frame_ms, report.metrics.p95_frame_ms);
-
-        if (!args.quiet) {
-            fmt::print("--- Baseline Comparison ---\n");
-            fmt::print("Baseline avg:     {:.3f} ms  |  Current avg:     {:.3f} ms  |  Regression: {:+.2f}%\n",
-                       baseline.metrics.avg_frame_ms, report.metrics.avg_frame_ms, avg_regression);
-            fmt::print("Baseline p95:     {:.3f} ms  |  Current p95:     {:.3f} ms  |  Regression: {:+.2f}%\n",
-                       baseline.metrics.p95_frame_ms, report.metrics.p95_frame_ms, p95_regression);
-        }
-
-        if (args.fail_if_avg_slower_pct > 0.0 && avg_regression > args.fail_if_avg_slower_pct) {
-            spdlog::error("Average frame regression: {:.2f}% (threshold: {:.2f}%)", avg_regression, args.fail_if_avg_slower_pct);
-            exit_code = 2;
-        }
-        if (args.fail_if_p95_slower_pct > 0.0 && p95_regression > args.fail_if_p95_slower_pct) {
-            spdlog::error("P95 frame regression: {:.2f}% (threshold: {:.2f}%)", p95_regression, args.fail_if_p95_slower_pct);
-            exit_code = 2;
         }
     }
 
+    if (temp_json_path && args.json_file.empty()) {
+        std::error_code ec;
+        std::filesystem::remove(*temp_json_path, ec);
+    }
+
+    g_bench_context = nullptr;
     return exit_code;
 }
 

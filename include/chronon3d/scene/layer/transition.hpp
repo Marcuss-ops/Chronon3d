@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chronon3d/core/enum_utils.hpp>
 #include <chronon3d/core/types/types.hpp>
 #include <chronon3d/animation/easing.hpp>
 #include <string>
@@ -17,15 +18,7 @@ enum class TransitionDirection {
 };
 
 [[nodiscard]] inline std::string transition_direction_to_string(TransitionDirection dir) {
-    switch (dir) {
-        case TransitionDirection::Left: return "left";
-        case TransitionDirection::Right: return "right";
-        case TransitionDirection::Up: return "up";
-        case TransitionDirection::Down: return "down";
-        case TransitionDirection::In: return "in";
-        case TransitionDirection::Out: return "out";
-        default: return "none";
-    }
+    return enum_utils::enum_name_lower_snake(dir);
 }
 
 [[nodiscard]] inline TransitionDirection string_to_transition_direction(const std::string& str) {

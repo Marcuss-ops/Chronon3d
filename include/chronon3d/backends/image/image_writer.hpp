@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chronon3d/core/enum_utils.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <string>
 
@@ -30,7 +31,9 @@ struct ImageWriteOptions {
 
 ImageFormat image_format_from_path(const std::string& path);
 
-const char* image_format_name(ImageFormat format);
+[[nodiscard]] inline std::string image_format_name(ImageFormat format) {
+    return enum_utils::enum_name_lower_snake(format);
+}
 
 /**
  * Saves a Framebuffer to a PNG file.

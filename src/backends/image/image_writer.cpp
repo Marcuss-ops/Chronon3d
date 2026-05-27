@@ -54,14 +54,6 @@ ImageFormat image_format_from_path(const std::string& path) {
     return ImageFormat::Unknown;
 }
 
-const char* image_format_name(ImageFormat format) {
-    switch (format) {
-        case ImageFormat::Png: return "png";
-        case ImageFormat::Exr: return "exr";
-        default: return "unknown";
-    }
-}
-
 bool save_png(const Framebuffer& framebuffer, const std::string& path) {
     CHRONON_ZONE_C("write_png", trace_category::kOutput);
     // Use lower compression (2 vs default 8) for ~3x faster encoding

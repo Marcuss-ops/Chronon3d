@@ -48,15 +48,6 @@ void rasterize_rect_simd(
 /// `src` is RGBA8, `dst` is PRGB32 (0xAARRGGBB).
 void premultiply_alpha_rgba8(uint32_t* __restrict__ dst, const uint8_t* __restrict__ src, int pixel_count);
 
-/**
- * @brief Converts Color (4x float) to RGBA8 (4x uint8_t).
- * 
- * roadmap: This kernel handles linear-to-sRGB conversion using a fast SIMD approximation.
- */
-/**
- * @brief SIMD conversion from F32 RGBA to U8 RGBA (Single-pass).
- */
-void convert_f32_rgba_to_u8_rgba(uint8_t* __restrict__ dst, const Color* __restrict__ src, int pixel_count);
-
 } // namespace simd
 } // namespace chronon3d
+

@@ -1,5 +1,4 @@
 #include <chronon3d/video/frame_converter.hpp>
-#include <chronon3d/simd/kernels.hpp>
 #include <algorithm>
 #include <chrono>
 #include <cstring>
@@ -122,27 +121,21 @@ static ConvertFrameResult convert_rgba_to_rgb24(const ConvertFrameRequest& req) 
     }
 
     const uint64_t t0 = now_ns();
-    const Color* src  = req.src.data();
 
-    color::OutputTransformOptions out_opts;
-    out_opts.apply_gamma = req.apply_gamma;
-    out_opts.output = color::ColorSpace::SRGB;
+    std::vector<uint8_t> rgba8 = convert_fb_to_rgba8(req.src, req.width, req.height, req.apply_gamma);
 
-    tbb::parallel_for(0, req.height, [&](int y) {
-        const Color* row     = src + static_cast<size_t>(y) * req.src.allocated_width();
-        uint8_t*     dst_row = req.dst_y + static_cast<size_t>(y) * req.width * 3;
-        for (int x = 0; x < req.width; ++x) {
-            const Color& c = row[x];
-            const auto rgb = color::linear_to_output_rgb8(c, out_opts);
-            dst_row[x * 3 + 0] = rgb.r;
-            dst_row[x * 3 + 1] = rgb.g;
-            dst_row[x * 3 + 2] = rgb.b;
-        }
-    });
+    int ret = libyuv::ABGRToRAW(
+        rgba8.data(),
+        req.width * 4,
+        req.dst_y,
+        req.dst_stride_y ? req.dst_stride_y : req.width * 3,
+        req.width,
+        req.height
+    );
 
     return ConvertFrameResult{
-        .success       = true,
-        .used_simd     = false,  // scalar
+        .success       = (ret == 0),
+        .used_simd     = true,
         .conversion_ns = now_ns() - t0,
     };
 }
@@ -171,7 +164,7 @@ ConvertFrameResult convert_frame_tight(
         .dst_u          = dst_u,
         .dst_v          = dst_v,
         .dst_uv         = dst_uv,
-        .dst_stride_y   = width,
+        .dst_stride_y   = (format == EncoderPixelFormat::RGB24) ? (width * 3) : width,
         .dst_stride_uv  = width,          // NV12: interleaved pairs → full width
         .dst_stride_u   = width / 2,
         .dst_stride_v   = width / 2,

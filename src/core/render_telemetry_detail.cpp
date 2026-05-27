@@ -4,6 +4,7 @@
 #include <chronon3d/core/telemetry/render_telemetry.hpp>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdlib>
 #include <filesystem>
@@ -17,6 +18,101 @@
 #include <vector>
 
 namespace chronon3d::telemetry::detail {
+
+namespace {
+
+constexpr std::array<std::string_view, 69> kCsvColumns = {{
+    "ts",
+    "run_id",
+    "event",
+    "frame",
+    "w",
+    "h",
+    "total_ms",
+    "setup_ms",
+    "composite_ms",
+    "blur_ms",
+    "encode_ms",
+    "ram_mb",
+    "cache_hit",
+    "layer_count",
+    "cache_hits",
+    "cache_misses",
+    "nodes_executed",
+    "clear_skipped_calls",
+    "clear_skipped_pixels",
+    "clear_calls",
+    "clear_pixels",
+    "composite_calls",
+    "composite_pixels",
+    "transform_calls",
+    "transform_pixels",
+    "effect_stack_calls",
+    "effect_pixels",
+    "text_glyphs_rasterized",
+    "framebuffer_allocations",
+    "framebuffer_reuses",
+    "dirty_full_fallbacks",
+    "dirty_full_fallback_predicted_bounds_missing",
+    "dirty_full_fallback_composite_missing_input_bounds",
+    "dirty_full_fallback_transform_bounds_unknown",
+    "dirty_full_fallback_effect_bounds_unknown",
+    "framebuffer_acquire_ms",
+    "framebuffer_clear_ms",
+    "clearnode_ms",
+    "framebuffer_pool_clear_ms",
+    "framebuffer_enqueue_ms",
+    "framebuffer_pool_miss_count_size_mismatch",
+    "framebuffer_pool_miss_count_empty",
+    "framebuffer_pool_hits",
+    "framebuffer_buffer_returned_to_pool_count",
+    "unaligned_memory_copies",
+    "frame_conversion_copy_ms",
+    "video_graph_eval_ms",
+    "video_conversion_ms",
+    "video_pipe_write_ms",
+    "video_ffmpeg_latency_ms",
+    "io_queue_push_blocked_ms",
+    "io_queue_pop_wait_ms",
+    "io_queue_peak_depth",
+    "ffmpeg_pipe_write_blocked_ms",
+    "converted_frame_cache_hits",
+    "ffmpeg_flush_ms",
+    "io_queue_peak_bytes",
+    "setup_graph_parsing_ms",
+    "setup_asset_io_load_ms",
+    "setup_pool_preallocation_ms",
+    "image_decode_ms",
+    "process_context_switches_voluntary",
+    "process_context_switches_involuntary",
+    "os_page_faults_major",
+    "os_page_faults_minor",
+    "ffmpeg_cpu_user_pct",
+    "ffmpeg_cpu_sys_pct",
+    "llc_references",
+    "llc_misses",
+}};
+
+const std::string& csv_header_line() {
+    static const std::string header = [] {
+        std::string out;
+        for (std::size_t i = 0; i < kCsvColumns.size(); ++i) {
+            if (i > 0) {
+                out.push_back(',');
+            }
+            out.append(kCsvColumns[i]);
+        }
+        return out;
+    }();
+    return header;
+}
+
+template <typename T>
+void append_metric(std::vector<double>& values, T value) {
+    values.push_back(static_cast<double>(value));
+}
+
+} // namespace
 
 // -----------------------------------------------------------------------
 // Mutex getters
@@ -133,20 +229,7 @@ std::filesystem::path telemetry_summary_path() {
 
 void ensure_csv_header(std::ofstream& out, const std::filesystem::path& path) {
     if (!std::filesystem::exists(path) || std::filesystem::file_size(path) == 0) {
-        out << "ts,run_id,event,frame,w,h,total_ms,setup_ms,composite_ms,blur_ms,encode_ms,ram_mb,cache_hit,layer_count,"
-               "cache_hits,cache_misses,nodes_executed,clear_skipped_calls,clear_skipped_pixels,clear_calls,clear_pixels,composite_calls,composite_pixels,"
-               "transform_calls,transform_pixels,effect_stack_calls,effect_pixels,text_glyphs_rasterized,"
-               "framebuffer_allocations,framebuffer_reuses,dirty_full_fallbacks,"
-               "dirty_full_fallback_predicted_bounds_missing,dirty_full_fallback_composite_missing_input_bounds,"
-               "dirty_full_fallback_transform_bounds_unknown,dirty_full_fallback_effect_bounds_unknown,"
-               "framebuffer_acquire_ms,framebuffer_clear_ms,clearnode_ms,framebuffer_pool_clear_ms,framebuffer_enqueue_ms,"
-               "framebuffer_pool_miss_count_size_mismatch,framebuffer_pool_miss_count_empty,framebuffer_pool_hits,"
-               "framebuffer_buffer_returned_to_pool_count,unaligned_memory_copies,frame_conversion_copy_ms,"
-               "video_graph_eval_ms,video_conversion_ms,video_pipe_write_ms,video_ffmpeg_latency_ms,"
-               "io_queue_push_blocked_ms,io_queue_pop_wait_ms,io_queue_peak_depth,ffmpeg_pipe_write_blocked_ms,converted_frame_cache_hits,ffmpeg_flush_ms,"
-               "io_queue_peak_bytes,setup_graph_parsing_ms,setup_asset_io_load_ms,setup_pool_preallocation_ms,image_decode_ms,"
-               "process_context_switches_voluntary,process_context_switches_involuntary,os_page_faults_major,os_page_faults_minor,"
-               "ffmpeg_cpu_user_pct,ffmpeg_cpu_sys_pct,llc_references,llc_misses\n";
+        out << csv_header_line() << '\n';
     }
 }
 
@@ -160,7 +243,7 @@ bool csv_header_matches(const std::filesystem::path& path) {
     if (!std::getline(in, header)) {
         return true;
     }
-    return header == "ts,run_id,event,frame,w,h,total_ms,setup_ms,composite_ms,blur_ms,encode_ms,ram_mb,cache_hit,layer_count,cache_hits,cache_misses,nodes_executed,clear_skipped_calls,clear_skipped_pixels,clear_calls,clear_pixels,composite_calls,composite_pixels,transform_calls,transform_pixels,effect_stack_calls,effect_pixels,text_glyphs_rasterized,framebuffer_allocations,framebuffer_reuses,dirty_full_fallbacks,dirty_full_fallback_predicted_bounds_missing,dirty_full_fallback_composite_missing_input_bounds,dirty_full_fallback_transform_bounds_unknown,dirty_full_fallback_effect_bounds_unknown,framebuffer_acquire_ms,framebuffer_clear_ms,clearnode_ms,framebuffer_pool_clear_ms,framebuffer_enqueue_ms,framebuffer_pool_miss_count_size_mismatch,framebuffer_pool_miss_count_empty,framebuffer_pool_hits,framebuffer_buffer_returned_to_pool_count,unaligned_memory_copies,frame_conversion_copy_ms,video_graph_eval_ms,video_conversion_ms,video_pipe_write_ms,video_ffmpeg_latency_ms,io_queue_push_blocked_ms,io_queue_pop_wait_ms,io_queue_peak_depth,ffmpeg_pipe_write_blocked_ms,converted_frame_cache_hits,ffmpeg_flush_ms,io_queue_peak_bytes,setup_graph_parsing_ms,setup_asset_io_load_ms,setup_pool_preallocation_ms,image_decode_ms,process_context_switches_voluntary,process_context_switches_involuntary,os_page_faults_major,os_page_faults_minor,ffmpeg_cpu_user_pct,ffmpeg_cpu_sys_pct,llc_references,llc_misses";
+    return header == csv_header_line();
 }
 
 void migrate_legacy_csv(const std::filesystem::path& path) {
@@ -260,66 +343,82 @@ void write_summary_file(const std::vector<RenderTelemetryRow>& rows) {
         return sum / static_cast<double>(rows.size());
     }();
 
+    enum class Metric {
+        total,
+        setup,
+        composite,
+        blur,
+        encode,
+        ram,
+        cache_hits,
+        cache_misses,
+        nodes_executed,
+        clear_skipped_calls,
+        clear_skipped_pixels,
+        clear_calls,
+        clear_pixels,
+        composite_calls,
+        composite_pixels,
+        transform_calls,
+        transform_pixels,
+        effect_stack_calls,
+        effect_pixels,
+        text_glyphs_rasterized,
+        framebuffer_allocations,
+        framebuffer_reuses,
+        dirty_full_fallbacks,
+        dirty_full_fallback_predicted_bounds_missing,
+        dirty_full_fallback_composite_missing_input_bounds,
+        dirty_full_fallback_transform_bounds_unknown,
+        dirty_full_fallback_effect_bounds_unknown,
+        count
+    };
+
     struct Series {
-        std::vector<double> total;
-        std::vector<double> setup;
-        std::vector<double> composite;
-        std::vector<double> blur;
-        std::vector<double> encode;
-        std::vector<double> ram;
-        std::vector<double> cache_hits;
-        std::vector<double> cache_misses;
-        std::vector<double> nodes_executed;
-        std::vector<double> clear_skipped_calls;
-        std::vector<double> clear_skipped_pixels;
-        std::vector<double> clear_calls;
-        std::vector<double> clear_pixels;
-        std::vector<double> composite_calls;
-        std::vector<double> composite_pixels;
-        std::vector<double> transform_calls;
-        std::vector<double> transform_pixels;
-        std::vector<double> effect_stack_calls;
-        std::vector<double> effect_pixels;
-        std::vector<double> text_glyphs_rasterized;
-        std::vector<double> framebuffer_allocations;
-        std::vector<double> framebuffer_reuses;
-        std::vector<double> dirty_full_fallbacks;
-        std::vector<double> dirty_full_fallback_predicted_bounds_missing;
-        std::vector<double> dirty_full_fallback_composite_missing_input_bounds;
-        std::vector<double> dirty_full_fallback_transform_bounds_unknown;
-        std::vector<double> dirty_full_fallback_effect_bounds_unknown;
+        std::array<std::vector<double>, static_cast<std::size_t>(Metric::count)> values;
+
+        std::vector<double>& operator[](Metric metric) {
+            return values[static_cast<std::size_t>(metric)];
+        }
+
+        const std::vector<double>& operator[](Metric metric) const {
+            return values[static_cast<std::size_t>(metric)];
+        }
+
+        void add(const RenderTelemetryRow& row) {
+            append_metric((*this)[Metric::total], row.total_ms);
+            append_metric((*this)[Metric::setup], row.setup_ms);
+            append_metric((*this)[Metric::composite], row.composite_ms);
+            append_metric((*this)[Metric::blur], row.blur_ms);
+            append_metric((*this)[Metric::encode], row.encode_ms);
+            append_metric((*this)[Metric::ram], row.ram_mb);
+            append_metric((*this)[Metric::cache_hits], row.cache_hits);
+            append_metric((*this)[Metric::cache_misses], row.cache_misses);
+            append_metric((*this)[Metric::nodes_executed], row.nodes_executed);
+            append_metric((*this)[Metric::clear_skipped_calls], row.clear_skipped_calls);
+            append_metric((*this)[Metric::clear_skipped_pixels], row.clear_skipped_pixels);
+            append_metric((*this)[Metric::clear_calls], row.clear_calls);
+            append_metric((*this)[Metric::clear_pixels], row.clear_pixels);
+            append_metric((*this)[Metric::composite_calls], row.composite_calls);
+            append_metric((*this)[Metric::composite_pixels], row.composite_pixels);
+            append_metric((*this)[Metric::transform_calls], row.transform_calls);
+            append_metric((*this)[Metric::transform_pixels], row.transform_pixels);
+            append_metric((*this)[Metric::effect_stack_calls], row.effect_stack_calls);
+            append_metric((*this)[Metric::effect_pixels], row.effect_pixels);
+            append_metric((*this)[Metric::text_glyphs_rasterized], row.text_glyphs_rasterized);
+            append_metric((*this)[Metric::framebuffer_allocations], row.framebuffer_allocations);
+            append_metric((*this)[Metric::framebuffer_reuses], row.framebuffer_reuses);
+            append_metric((*this)[Metric::dirty_full_fallbacks], row.dirty_full_fallbacks);
+            append_metric((*this)[Metric::dirty_full_fallback_predicted_bounds_missing], row.dirty_full_fallback_predicted_bounds_missing);
+            append_metric((*this)[Metric::dirty_full_fallback_composite_missing_input_bounds], row.dirty_full_fallback_composite_missing_input_bounds);
+            append_metric((*this)[Metric::dirty_full_fallback_transform_bounds_unknown], row.dirty_full_fallback_transform_bounds_unknown);
+            append_metric((*this)[Metric::dirty_full_fallback_effect_bounds_unknown], row.dirty_full_fallback_effect_bounds_unknown);
+        }
     };
 
     std::map<std::string, Series> grouped;
     for (const auto& row : rows) {
-        auto& s = grouped[row.event];
-        s.total.push_back(row.total_ms);
-        s.setup.push_back(row.setup_ms);
-        s.composite.push_back(row.composite_ms);
-        s.blur.push_back(row.blur_ms);
-        s.encode.push_back(row.encode_ms);
-        s.ram.push_back(row.ram_mb);
-        s.cache_hits.push_back(static_cast<double>(row.cache_hits));
-        s.cache_misses.push_back(static_cast<double>(row.cache_misses));
-        s.nodes_executed.push_back(static_cast<double>(row.nodes_executed));
-        s.clear_skipped_calls.push_back(static_cast<double>(row.clear_skipped_calls));
-        s.clear_skipped_pixels.push_back(static_cast<double>(row.clear_skipped_pixels));
-        s.clear_calls.push_back(static_cast<double>(row.clear_calls));
-        s.clear_pixels.push_back(static_cast<double>(row.clear_pixels));
-        s.composite_calls.push_back(static_cast<double>(row.composite_calls));
-        s.composite_pixels.push_back(static_cast<double>(row.composite_pixels));
-        s.transform_calls.push_back(static_cast<double>(row.transform_calls));
-        s.transform_pixels.push_back(static_cast<double>(row.transform_pixels));
-        s.effect_stack_calls.push_back(static_cast<double>(row.effect_stack_calls));
-        s.effect_pixels.push_back(static_cast<double>(row.effect_pixels));
-        s.text_glyphs_rasterized.push_back(static_cast<double>(row.text_glyphs_rasterized));
-        s.framebuffer_allocations.push_back(static_cast<double>(row.framebuffer_allocations));
-        s.framebuffer_reuses.push_back(static_cast<double>(row.framebuffer_reuses));
-        s.dirty_full_fallbacks.push_back(static_cast<double>(row.dirty_full_fallbacks));
-        s.dirty_full_fallback_predicted_bounds_missing.push_back(static_cast<double>(row.dirty_full_fallback_predicted_bounds_missing));
-        s.dirty_full_fallback_composite_missing_input_bounds.push_back(static_cast<double>(row.dirty_full_fallback_composite_missing_input_bounds));
-        s.dirty_full_fallback_transform_bounds_unknown.push_back(static_cast<double>(row.dirty_full_fallback_transform_bounds_unknown));
-        s.dirty_full_fallback_effect_bounds_unknown.push_back(static_cast<double>(row.dirty_full_fallback_effect_bounds_unknown));
+        grouped[row.event].add(row);
     }
 
     auto max_value = [](const std::vector<double>& values) {
@@ -327,35 +426,63 @@ void write_summary_file(const std::vector<RenderTelemetryRow>& rows) {
     };
 
     for (const auto& [event, s] : grouped) {
-        out << "event=" << event << " count=" << s.total.size()
-            << " total_p50_ms=" << format_ms(percentile(s.total, 0.50))
-            << " total_p95_ms=" << format_ms(percentile(s.total, 0.95))
-            << " setup_p95_ms=" << format_ms(percentile(s.setup, 0.95))
-            << " composite_p95_ms=" << format_ms(percentile(s.composite, 0.95))
-            << " blur_p95_ms=" << format_ms(percentile(s.blur, 0.95))
-            << " encode_p95_ms=" << format_ms(percentile(s.encode, 0.95))
-            << " ram_p95_mb=" << format_ms(percentile(s.ram, 0.95))
-            << " cache_hits_p95=" << format_ms(percentile(s.cache_hits, 0.95))
-            << " cache_misses_p95=" << format_ms(percentile(s.cache_misses, 0.95))
-            << " nodes_executed_p95=" << format_ms(percentile(s.nodes_executed, 0.95))
-            << " clear_skipped_calls_p95=" << format_ms(percentile(s.clear_skipped_calls, 0.95))
-            << " clear_skipped_pixels_p95=" << format_ms(percentile(s.clear_skipped_pixels, 0.95))
-            << " clear_calls_p95=" << format_ms(percentile(s.clear_calls, 0.95))
-            << " clear_pixels_p95=" << format_ms(percentile(s.clear_pixels, 0.95))
-            << " composite_calls_p95=" << format_ms(percentile(s.composite_calls, 0.95))
-            << " composite_pixels_p95=" << format_ms(percentile(s.composite_pixels, 0.95))
-            << " transform_calls_p95=" << format_ms(percentile(s.transform_calls, 0.95))
-            << " transform_pixels_p95=" << format_ms(percentile(s.transform_pixels, 0.95))
-            << " effect_stack_calls_p95=" << format_ms(percentile(s.effect_stack_calls, 0.95))
-            << " effect_pixels_p95=" << format_ms(percentile(s.effect_pixels, 0.95))
-            << " text_glyphs_rasterized_p95=" << format_ms(percentile(s.text_glyphs_rasterized, 0.95))
-            << " framebuffer_allocations_p95=" << format_ms(percentile(s.framebuffer_allocations, 0.95))
-            << " framebuffer_reuses_p95=" << format_ms(percentile(s.framebuffer_reuses, 0.95))
-            << " dirty_full_fallbacks_total=" << format_count(max_value(s.dirty_full_fallbacks))
-            << " dirty_full_fallback_predicted_bounds_missing_total=" << format_count(max_value(s.dirty_full_fallback_predicted_bounds_missing))
-            << " dirty_full_fallback_composite_missing_input_bounds_total=" << format_count(max_value(s.dirty_full_fallback_composite_missing_input_bounds))
-            << " dirty_full_fallback_transform_bounds_unknown_total=" << format_count(max_value(s.dirty_full_fallback_transform_bounds_unknown))
-            << " dirty_full_fallback_effect_bounds_unknown_total=" << format_count(max_value(s.dirty_full_fallback_effect_bounds_unknown))
+        const auto& total = s[Metric::total];
+        const auto& setup = s[Metric::setup];
+        const auto& composite = s[Metric::composite];
+        const auto& blur = s[Metric::blur];
+        const auto& encode = s[Metric::encode];
+        const auto& ram = s[Metric::ram];
+        const auto& cache_hits = s[Metric::cache_hits];
+        const auto& cache_misses = s[Metric::cache_misses];
+        const auto& nodes_executed = s[Metric::nodes_executed];
+        const auto& clear_skipped_calls = s[Metric::clear_skipped_calls];
+        const auto& clear_skipped_pixels = s[Metric::clear_skipped_pixels];
+        const auto& clear_calls = s[Metric::clear_calls];
+        const auto& clear_pixels = s[Metric::clear_pixels];
+        const auto& composite_calls = s[Metric::composite_calls];
+        const auto& composite_pixels = s[Metric::composite_pixels];
+        const auto& transform_calls = s[Metric::transform_calls];
+        const auto& transform_pixels = s[Metric::transform_pixels];
+        const auto& effect_stack_calls = s[Metric::effect_stack_calls];
+        const auto& effect_pixels = s[Metric::effect_pixels];
+        const auto& text_glyphs_rasterized = s[Metric::text_glyphs_rasterized];
+        const auto& framebuffer_allocations = s[Metric::framebuffer_allocations];
+        const auto& framebuffer_reuses = s[Metric::framebuffer_reuses];
+        const auto& dirty_full_fallbacks = s[Metric::dirty_full_fallbacks];
+        const auto& dirty_full_fallback_predicted_bounds_missing = s[Metric::dirty_full_fallback_predicted_bounds_missing];
+        const auto& dirty_full_fallback_composite_missing_input_bounds = s[Metric::dirty_full_fallback_composite_missing_input_bounds];
+        const auto& dirty_full_fallback_transform_bounds_unknown = s[Metric::dirty_full_fallback_transform_bounds_unknown];
+        const auto& dirty_full_fallback_effect_bounds_unknown = s[Metric::dirty_full_fallback_effect_bounds_unknown];
+
+        out << "event=" << event << " count=" << total.size()
+            << " total_p50_ms=" << format_ms(percentile(total, 0.50))
+            << " total_p95_ms=" << format_ms(percentile(total, 0.95))
+            << " setup_p95_ms=" << format_ms(percentile(setup, 0.95))
+            << " composite_p95_ms=" << format_ms(percentile(composite, 0.95))
+            << " blur_p95_ms=" << format_ms(percentile(blur, 0.95))
+            << " encode_p95_ms=" << format_ms(percentile(encode, 0.95))
+            << " ram_p95_mb=" << format_ms(percentile(ram, 0.95))
+            << " cache_hits_p95=" << format_ms(percentile(cache_hits, 0.95))
+            << " cache_misses_p95=" << format_ms(percentile(cache_misses, 0.95))
+            << " nodes_executed_p95=" << format_ms(percentile(nodes_executed, 0.95))
+            << " clear_skipped_calls_p95=" << format_ms(percentile(clear_skipped_calls, 0.95))
+            << " clear_skipped_pixels_p95=" << format_ms(percentile(clear_skipped_pixels, 0.95))
+            << " clear_calls_p95=" << format_ms(percentile(clear_calls, 0.95))
+            << " clear_pixels_p95=" << format_ms(percentile(clear_pixels, 0.95))
+            << " composite_calls_p95=" << format_ms(percentile(composite_calls, 0.95))
+            << " composite_pixels_p95=" << format_ms(percentile(composite_pixels, 0.95))
+            << " transform_calls_p95=" << format_ms(percentile(transform_calls, 0.95))
+            << " transform_pixels_p95=" << format_ms(percentile(transform_pixels, 0.95))
+            << " effect_stack_calls_p95=" << format_ms(percentile(effect_stack_calls, 0.95))
+            << " effect_pixels_p95=" << format_ms(percentile(effect_pixels, 0.95))
+            << " text_glyphs_rasterized_p95=" << format_ms(percentile(text_glyphs_rasterized, 0.95))
+            << " framebuffer_allocations_p95=" << format_ms(percentile(framebuffer_allocations, 0.95))
+            << " framebuffer_reuses_p95=" << format_ms(percentile(framebuffer_reuses, 0.95))
+            << " dirty_full_fallbacks_total=" << format_count(max_value(dirty_full_fallbacks))
+            << " dirty_full_fallback_predicted_bounds_missing_total=" << format_count(max_value(dirty_full_fallback_predicted_bounds_missing))
+            << " dirty_full_fallback_composite_missing_input_bounds_total=" << format_count(max_value(dirty_full_fallback_composite_missing_input_bounds))
+            << " dirty_full_fallback_transform_bounds_unknown_total=" << format_count(max_value(dirty_full_fallback_transform_bounds_unknown))
+            << " dirty_full_fallback_effect_bounds_unknown_total=" << format_count(max_value(dirty_full_fallback_effect_bounds_unknown))
             << "\n";
     }
 
@@ -363,7 +490,7 @@ void write_summary_file(const std::vector<RenderTelemetryRow>& rows) {
         std::string best_event = "unknown";
         double best_ms = -1.0;
         for (const auto& [event, s] : grouped) {
-            const double total_p95 = percentile(s.total, 0.95);
+            const double total_p95 = percentile(s[Metric::total], 0.95);
             if (total_p95 > best_ms) {
                 best_ms = total_p95;
                 best_event = event;

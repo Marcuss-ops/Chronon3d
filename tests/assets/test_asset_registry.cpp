@@ -72,9 +72,9 @@ TEST_CASE("AssetRegistry: contains reflects registration") {
     CHECK_FALSE(reg.contains(id + 1));
 }
 
-TEST_CASE("AssetRegistry: legacy declare_image keeps compat") {
+TEST_CASE("AssetRegistry: import_image registers the asset") {
     AssetRegistry reg;
-    reg.declare_image("background", "assets/bg.png");
+    reg.import_image("assets/bg.png");
     const auto found = reg.find_by_path("assets/bg.png");
     REQUIRE(found.has_value());
     CHECK(reg.metadata(*found).type == AssetType::Image);
@@ -88,5 +88,5 @@ TEST_CASE("AssetRegistry: get_path returns original string") {
 
 TEST_CASE("AssetRegistry: metadata throws on unknown id") {
     AssetRegistry reg;
-    CHECK_THROWS_AS(reg.metadata(9999), std::out_of_range);
+    CHECK_THROWS_AS(static_cast<void>(reg.metadata(9999)), std::out_of_range);
 }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chronon3d/core/enum_utils.hpp>
 #include <array>
 #include <cstddef>
 #include <string_view>
@@ -18,15 +19,8 @@ enum class DirtyFallbackReason : std::size_t {
     return static_cast<std::size_t>(DirtyFallbackReason::Count);
 }
 
-[[nodiscard]] constexpr std::string_view to_string(DirtyFallbackReason reason) {
-    switch (reason) {
-        case DirtyFallbackReason::PredictedBoundsMissing: return "predicted_bounds_missing";
-        case DirtyFallbackReason::CompositeMissingInputBounds: return "composite_missing_input_bounds";
-        case DirtyFallbackReason::TransformBoundsUnknown: return "transform_bounds_unknown";
-        case DirtyFallbackReason::EffectBoundsUnknown: return "effect_bounds_unknown";
-        case DirtyFallbackReason::Count: break;
-    }
-    return "unknown";
+[[nodiscard]] inline std::string to_string(DirtyFallbackReason reason) {
+    return enum_utils::enum_name_lower_snake(reason);
 }
 
 [[nodiscard]] constexpr std::array<std::string_view, dirty_fallback_reason_count()> dirty_fallback_reason_names() {
