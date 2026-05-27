@@ -2,6 +2,7 @@
 
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/core/types/types.hpp>
+#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/easing.hpp>
 #include <cmath>
 #include <optional>

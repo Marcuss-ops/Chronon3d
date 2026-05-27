@@ -1,5 +1,5 @@
 #include <chronon3d/backends/software/software_compositor.hpp>
-#include <chronon3d/core/profiling/trace.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/simd/kernels.hpp>
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>

@@ -22,7 +22,6 @@
 
 namespace chronon3d {
     class CompositionRegistry;
-    class RenderTrace;
     struct RenderCounters;
 }
 
@@ -177,7 +176,6 @@ struct RenderGraphContext {
     const CompositionRegistry* registry{nullptr};
     video::VideoFrameDecoder* video_decoder{nullptr};
 
-    chronon3d::RenderTrace* trace{nullptr};
     chronon3d::RenderCounters* counters{nullptr};
 
     bool cache_enabled{true};

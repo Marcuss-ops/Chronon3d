@@ -290,9 +290,6 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
         renderer->render_scene(scene, composition.camera, composition.width(), composition.height());
     }
 
-    if (renderer->trace()) {
-        renderer->trace()->clear();
-    }
     renderer->counters()->reset();
 
     BenchRuntimeContext context;

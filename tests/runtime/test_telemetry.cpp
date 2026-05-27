@@ -1,6 +1,6 @@
 #include <doctest/doctest.h>
 #include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
-#include <chronon3d/runtime/telemetry/jsonl_telemetry_store.hpp>
+
 #include <chronon3d/runtime/telemetry/sqlite_telemetry_store.hpp>
 #include <chronon3d/core/telemetry/render_telemetry.hpp>
 #include <nlohmann/json.hpp>
@@ -95,83 +95,6 @@ TEST_CASE("Telemetry: TelemetryManager and MockStore Orchestration") {
     CHECK(mock->counters_written);
 }
 
-TEST_CASE("Telemetry: JsonlTelemetryStore serialization") {
-    auto temp_dir = std::filesystem::temp_directory_path() / "chronon3d_test_telemetry";
-    std::filesystem::create_directories(temp_dir);
-    auto jsonl_path = (temp_dir / "test_history.jsonl").string();
-
-    // Clean any prior file
-    std::filesystem::remove(jsonl_path);
-
-    auto store = std::make_shared<JsonlTelemetryStore>();
-    REQUIRE(store->initialize(jsonl_path));
-
-    RenderTelemetryRecord run;
-    run.run_id = "run_123";
-    run.composition_id = "comp_abc";
-    run.success = true;
-    run.frames_total = 5;
-    run.effective_fps = 60.0;
-    run.pixels_touched = 10000;
-    run.dirty_full_fallbacks = 7;
-    run.dirty_full_fallback_predicted_bounds_missing = 3;
-    run.dirty_full_fallback_composite_missing_input_bounds = 2;
-    run.dirty_full_fallback_transform_bounds_unknown = 1;
-    run.dirty_full_fallback_effect_bounds_unknown = 1;
-
-    REQUIRE(store->write_render_run(run));
-
-    std::vector<FrameTelemetryRecord> frames = {
-        {0, 15.0, true, 0.5},
-        {1, 18.0, false, 1.0}
-    };
-    REQUIRE(store->write_frames("run_123", frames));
-
-    // Verify written file content
-    std::ifstream file(jsonl_path);
-    REQUIRE(file.is_open());
-
-    std::string line;
-    int line_count = 0;
-    while (std::getline(file, line)) {
-        auto j = nlohmann::json::parse(line);
-        if (line_count == 0) {
-            CHECK(j["type"] == "run");
-            CHECK(j["run_id"] == "run_123");
-            CHECK(j["composition_id"] == "comp_abc");
-            CHECK(j["success"] == true);
-            CHECK(j["frames_total"] == 5);
-            CHECK(j["effective_fps"] == 60.0);
-            CHECK(j["pixels_touched"] == 10000);
-            CHECK(j["dirty_full_fallbacks"] == 7);
-            CHECK(j["dirty_full_fallback_predicted_bounds_missing"] == 3);
-            CHECK(j["dirty_full_fallback_composite_missing_input_bounds"] == 2);
-            CHECK(j["dirty_full_fallback_transform_bounds_unknown"] == 1);
-            CHECK(j["dirty_full_fallback_effect_bounds_unknown"] == 1);
-        } else if (line_count == 1) {
-            CHECK(j["type"] == "frame");
-            CHECK(j["run_id"] == "run_123");
-            CHECK(j["frame_number"] == 0);
-            CHECK(j["duration_ms"] == 15.0);
-            CHECK(j["cache_hit"] == true);
-            CHECK(j["dirty_area_ratio"] == 0.5);
-        } else if (line_count == 2) {
-            CHECK(j["type"] == "frame");
-            CHECK(j["run_id"] == "run_123");
-            CHECK(j["frame_number"] == 1);
-            CHECK(j["duration_ms"] == 18.0);
-            CHECK(j["cache_hit"] == false);
-            CHECK(j["dirty_area_ratio"] == 1.0);
-        }
-        line_count++;
-    }
-    CHECK(line_count == 3);
-
-    // Clean up
-    file.close();
-    std::filesystem::remove_all(temp_dir);
-}
-
 TEST_CASE("Telemetry: node accumulator collects and clears") {
     // Must clear any events from previous tests
     collect_node_telemetry();
@@ -258,83 +181,4 @@ TEST_CASE("Telemetry: MockStore node and layer events") {
     CHECK(mock->last_layer_events[0].area_pixels == 2073600);
 }
 
-TEST_CASE("Telemetry: Jsonl node/layer event serialization") {
-    auto temp_dir = std::filesystem::temp_directory_path() / "chronon3d_test_telemetry2";
-    std::filesystem::create_directories(temp_dir);
-    auto jsonl_path = (temp_dir / "test_node_layer.jsonl").string();
-    std::filesystem::remove(jsonl_path);
 
-    auto store = std::make_shared<JsonlTelemetryStore>();
-    REQUIRE(store->initialize(jsonl_path));
-
-    // Write node events
-    std::vector<NodeTelemetryRecord> node_events;
-    node_events.push_back({
-        .run_id = "",
-        .frame_number = 1,
-        .node_name = "my_node",
-        .node_type = "Transform",
-        .duration_ms = 20.0,
-        .cache_status = "miss",
-        .input_count = 1,
-        .output_width = 800,
-        .output_height = 600,
-        .output_bytes = 800 * 600 * 4,
-    });
-    REQUIRE(store->write_node_events("run_node_test", node_events));
-
-    // Write layer events
-    std::vector<LayerTelemetryRecord> layer_events;
-    layer_events.push_back({
-        .run_id = "",
-        .frame_number = 1,
-        .layer_id = "panel",
-        .layer_name = "Panel",
-        .layer_type = "RoundedRect",
-        .duration_ms = 100.5,
-        .visible = true,
-        .opacity = 0.8f,
-        .blend_mode = "Normal",
-        .bbox_w = 400, .bbox_h = 300,
-        .area_pixels = 120000,
-        .visible_pixels = 120000,
-        .effects = "blur,shadow",
-    });
-    REQUIRE(store->write_layer_events("run_layer_test", layer_events));
-
-    // Verify JSONL content
-    std::ifstream file(jsonl_path);
-    REQUIRE(file.is_open());
-
-    std::string line;
-    std::getline(file, line);
-    {
-        auto j = nlohmann::json::parse(line);
-        CHECK(j["type"] == "node_event");
-        CHECK(j["run_id"] == "run_node_test");
-        CHECK(j["frame_number"] == 1);
-        CHECK(j["node_name"] == "my_node");
-        CHECK(j["node_type"] == "Transform");
-        CHECK(j["cache_status"] == "miss");
-        CHECK(j["output_width"] == 800);
-        CHECK(j["output_height"] == 600);
-        CHECK(j["duration_ms"] == 20.0);
-    }
-
-    std::getline(file, line);
-    {
-        auto j = nlohmann::json::parse(line);
-        CHECK(j["type"] == "layer_event");
-        CHECK(j["run_id"] == "run_layer_test");
-        CHECK(j["layer_id"] == "panel");
-        CHECK(j["layer_name"] == "Panel");
-        CHECK(j["layer_type"] == "RoundedRect");
-        CHECK(j["duration_ms"] == 100.5);
-        CHECK(j["visible"] == true);
-        CHECK(j["opacity"].get<double>() == doctest::Approx(0.8));
-        CHECK(j["effects"] == "blur,shadow");
-    }
-
-    file.close();
-    std::filesystem::remove_all(temp_dir);
-}

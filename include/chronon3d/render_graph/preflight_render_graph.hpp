@@ -43,6 +43,9 @@ enum class VisibilityStatus {
 };
 
 [[nodiscard]] inline std::string to_string(VisibilityStatus s) {
+    if (s == VisibilityStatus::PartiallyClipped) {
+        return "PARTIAL_CLIP";
+    }
     return enum_utils::enum_name_upper_snake(s);
 }
 

@@ -1,5 +1,4 @@
 #include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
-#include <chronon3d/runtime/telemetry/jsonl_telemetry_store.hpp>
 #include <chronon3d/runtime/telemetry/sqlite_telemetry_store.hpp>
 #include <spdlog/spdlog.h>
 #include <filesystem>
@@ -67,24 +66,20 @@ void TelemetryManager::initialize_default_stores() {
     clear_stores();
 
     std::string base_dir = get_telemetry_directory();
+    spdlog::info("[telemetry] Initializing default stores in base directory: {}", base_dir);
     
     // Ensure base directory exists
     std::error_code ec;
     std::filesystem::create_directories(base_dir, ec);
 
-    // 1. JSONL Store (Always enabled)
-    auto jsonl_path = (std::filesystem::path(base_dir) / "render_history.jsonl").string();
-    auto jsonl_store = std::make_shared<JsonlTelemetryStore>();
-    if (jsonl_store->initialize(jsonl_path)) {
-        add_store(std::move(jsonl_store));
-    }
-
     // 2. SQLite Store (Uses fallback stub internally if disabled in compile options)
     // Preference: local output/telemetry.db if we are in a workspace
     const std::filesystem::path sqlite_path = resolve_sqlite_telemetry_path();
+    spdlog::info("[telemetry] Resolving SQLite path to: {}", sqlite_path.string());
     
     auto sqlite_store = std::make_shared<SqliteTelemetryStore>();
     if (sqlite_store->initialize(sqlite_path.string())) {
+        spdlog::info("[telemetry] Successfully initialized SQLite store at {}", sqlite_path.string());
         add_store(std::move(sqlite_store));
     } else {
         spdlog::warn("[telemetry] Failed to initialize workspace SQLite store at {}; falling back to user telemetry DB",
@@ -93,6 +88,7 @@ void TelemetryManager::initialize_default_stores() {
             std::filesystem::path(get_telemetry_directory()) / "chronon3d_render_history.sqlite";
         auto fallback_store = std::make_shared<SqliteTelemetryStore>();
         if (fallback_store->initialize(fallback_path.string())) {
+            spdlog::info("[telemetry] Successfully initialized fallback SQLite store at {}", fallback_path.string());
             add_store(std::move(fallback_store));
         } else {
             spdlog::warn("[telemetry] Failed to initialize fallback SQLite store at {}", fallback_path.string());
@@ -122,6 +118,7 @@ bool TelemetryManager::record_run(RenderTelemetryRecord& run,
                                   const std::vector<TextTelemetryRecord>& text_events,
                                   const std::vector<ImageTelemetryRecord>& image_events,
                                   const std::vector<TileTelemetryRecord>& tile_events) {
+    spdlog::info("[telemetry] record_run called with {} stores registered", m_stores.size());
     // Inject automatically gathered host attributes
     if (run.run_id.empty()) {
         run.run_id = generate_uuid();
@@ -152,37 +149,59 @@ bool TelemetryManager::record_run(RenderTelemetryRecord& run,
     for (auto& store : m_stores) {
         store->begin_transaction();
         bool ok = store->write_render_run(run);
+        spdlog::info("[telemetry] write_render_run returned: {}", ok);
         if (!frames.empty()) {
-            ok &= store->write_frames(run.run_id, frames);
+            bool f_ok = store->write_frames(run.run_id, frames);
+            spdlog::info("[telemetry] write_frames returned: {}", f_ok);
+            ok &= f_ok;
         }
         if (!phases.empty()) {
-            ok &= store->write_phases(run.run_id, phases);
+            bool p_ok = store->write_phases(run.run_id, phases);
+            spdlog::info("[telemetry] write_phases returned: {}", p_ok);
+            ok &= p_ok;
         }
         if (!counters.empty()) {
-            ok &= store->write_counters(run.run_id, counters);
+            bool c_ok = store->write_counters(run.run_id, counters);
+            spdlog::info("[telemetry] write_counters returned: {}", c_ok);
+            ok &= c_ok;
         }
         if (!node_events.empty()) {
-            ok &= store->write_node_events(run.run_id, node_events);
+            bool r = store->write_node_events(run.run_id, node_events);
+            spdlog::info("[telemetry] write_node_events returned: {}", r);
+            ok &= r;
         }
         if (!layer_events.empty()) {
-            ok &= store->write_layer_events(run.run_id, layer_events);
+            bool r = store->write_layer_events(run.run_id, layer_events);
+            spdlog::info("[telemetry] write_layer_events returned: {}", r);
+            ok &= r;
         }
         if (!cache_events.empty()) {
-            ok &= store->write_cache_events(run.run_id, cache_events);
+            bool r = store->write_cache_events(run.run_id, cache_events);
+            spdlog::info("[telemetry] write_cache_events returned: {}", r);
+            ok &= r;
         }
         if (!culling_events.empty()) {
-            ok &= store->write_culling_events(run.run_id, culling_events);
+            bool r = store->write_culling_events(run.run_id, culling_events);
+            spdlog::info("[telemetry] write_culling_events returned: {}", r);
+            ok &= r;
         }
         if (!text_events.empty()) {
-            ok &= store->write_text_events(run.run_id, text_events);
+            bool r = store->write_text_events(run.run_id, text_events);
+            spdlog::info("[telemetry] write_text_events returned: {}", r);
+            ok &= r;
         }
         if (!image_events.empty()) {
-            ok &= store->write_image_events(run.run_id, image_events);
+            bool r = store->write_image_events(run.run_id, image_events);
+            spdlog::info("[telemetry] write_image_events returned: {}", r);
+            ok &= r;
         }
         if (!tile_events.empty()) {
-            ok &= store->write_tile_events(run.run_id, tile_events);
+            bool r = store->write_tile_events(run.run_id, tile_events);
+            spdlog::info("[telemetry] write_tile_events returned: {}", r);
+            ok &= r;
         }
         store->end_transaction(ok);
+        spdlog::info("[telemetry] store transaction end with status: {}", ok);
         all_ok &= ok;
     }
     return all_ok;

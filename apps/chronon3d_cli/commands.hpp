@@ -35,7 +35,6 @@ struct RenderArgs {
     std::string comp_id;
     std::string frames{"0"}; // Supports "0", "0-90", "0-90x5"
     std::string output;      // No default
-    std::string trace_file;  // Path to Chrome tracing JSON file
     RenderPipelineArgs pipeline{};
     std::string log_level{"info"};
     bool benchmark_all{false};

@@ -44,85 +44,7 @@ namespace chronon3d::graph {
     return h;
 }
 
-// ── Telemetry row builder ────────────────────────────────────────────────────
-[[nodiscard]] inline telemetry::RenderTelemetryRow make_telemetry_row(
-    std::string event,
-    Frame frame,
-    int width,
-    int height,
-    double total_ms,
-    double setup_ms,
-    double composite_ms,
-    double blur_ms,
-    double encode_ms,
-    int cache_hit,
-    int layer_count,
-    const RenderCounters* counters
-) {
-    telemetry::RenderTelemetryRow row;
-    row.event = event;
-    row.frame = frame;
-    row.width = width;
-    row.height = height;
-    row.total_ms = total_ms;
-    row.setup_ms = setup_ms;
-    row.composite_ms = composite_ms;
-    row.blur_ms = blur_ms;
-    row.encode_ms = encode_ms;
-    row.cache_hit = cache_hit;
-    row.layer_count = layer_count;
-    if (counters) {
-        row.cache_hits = counters->cache_hits.load(std::memory_order_relaxed);
-        row.cache_misses = counters->cache_misses.load(std::memory_order_relaxed);
-        row.nodes_executed = counters->nodes_executed.load(std::memory_order_relaxed);
-        row.clear_calls = counters->clear_calls.load(std::memory_order_relaxed);
-        row.clear_pixels = counters->clear_pixels.load(std::memory_order_relaxed);
-        row.composite_calls = counters->composite_calls.load(std::memory_order_relaxed);
-        row.composite_pixels = counters->composite_pixels.load(std::memory_order_relaxed);
-        row.transform_calls = counters->transform_calls.load(std::memory_order_relaxed);
-        row.transform_pixels = counters->transform_pixels.load(std::memory_order_relaxed);
-        row.effect_stack_calls = counters->effect_stack_calls.load(std::memory_order_relaxed);
-        row.effect_pixels = counters->effect_pixels.load(std::memory_order_relaxed);
-        row.text_glyphs_rasterized = counters->text_glyphs_rasterized.load(std::memory_order_relaxed);
-        row.framebuffer_allocations = counters->framebuffer_allocations.load(std::memory_order_relaxed);
-        row.framebuffer_reuses = counters->framebuffer_reuses.load(std::memory_order_relaxed);
-        row.dirty_full_fallbacks = counters->dirty_full_fallbacks.load(std::memory_order_relaxed);
-        row.dirty_full_fallback_predicted_bounds_missing =
-            counters->dirty_full_fallback_reasons[static_cast<std::size_t>(DirtyFallbackReason::PredictedBoundsMissing)]
-                .load(std::memory_order_relaxed);
-        row.dirty_full_fallback_composite_missing_input_bounds =
-            counters->dirty_full_fallback_reasons[static_cast<std::size_t>(DirtyFallbackReason::CompositeMissingInputBounds)]
-                .load(std::memory_order_relaxed);
-        row.dirty_full_fallback_transform_bounds_unknown =
-            counters->dirty_full_fallback_reasons[static_cast<std::size_t>(DirtyFallbackReason::TransformBoundsUnknown)]
-                .load(std::memory_order_relaxed);
-        row.dirty_full_fallback_effect_bounds_unknown =
-            counters->dirty_full_fallback_reasons[static_cast<std::size_t>(DirtyFallbackReason::EffectBoundsUnknown)]
-                .load(std::memory_order_relaxed);
-        row.framebuffer_acquire_ms = counters->framebuffer_acquire_ms.load(std::memory_order_relaxed);
-        row.framebuffer_clear_ms = counters->framebuffer_clear_ms.load(std::memory_order_relaxed);
-        row.clearnode_ms = counters->clearnode_ms.load(std::memory_order_relaxed);
-        row.framebuffer_pool_clear_ms = counters->framebuffer_pool_clear_ms.load(std::memory_order_relaxed);
-        row.framebuffer_enqueue_ms = counters->framebuffer_enqueue_ms.load(std::memory_order_relaxed);
-        row.framebuffer_pool_miss_count_size_mismatch = counters->framebuffer_pool_miss_count_size_mismatch.load(std::memory_order_relaxed);
-        row.framebuffer_pool_miss_count_empty = counters->framebuffer_pool_miss_count_empty.load(std::memory_order_relaxed);
-        row.framebuffer_pool_hits = counters->framebuffer_pool_hits.load(std::memory_order_relaxed);
-        row.framebuffer_buffer_returned_to_pool_count = counters->framebuffer_buffer_returned_to_pool_count.load(std::memory_order_relaxed);
-        row.unaligned_memory_copies = counters->unaligned_memory_copies.load(std::memory_order_relaxed);
-        row.frame_conversion_copy_ms = counters->frame_conversion_copy_ms.load(std::memory_order_relaxed);
-        row.video_graph_eval_ms = counters->video_graph_eval_ms.load(std::memory_order_relaxed);
-        row.video_conversion_ms = counters->video_conversion_ms.load(std::memory_order_relaxed);
-        row.video_pipe_write_ms = counters->video_pipe_write_ms.load(std::memory_order_relaxed);
-        row.video_ffmpeg_latency_ms = counters->video_ffmpeg_latency_ms.load(std::memory_order_relaxed);
-        row.io_queue_push_blocked_ms = counters->io_queue_push_blocked_ms.load(std::memory_order_relaxed);
-        row.io_queue_pop_wait_ms = counters->io_queue_pop_wait_ms.load(std::memory_order_relaxed);
-        row.io_queue_peak_depth = counters->io_queue_peak_depth.load(std::memory_order_relaxed);
-        row.ffmpeg_pipe_write_blocked_ms = counters->ffmpeg_pipe_write_blocked_ms.load(std::memory_order_relaxed);
-        row.converted_frame_cache_hits = counters->converted_frame_cache_hits.load(std::memory_order_relaxed);
-        row.ffmpeg_flush_ms = counters->ffmpeg_flush_ms.load(std::memory_order_relaxed);
-    }
-    return row;
-}
+
 
 // ── Framebuffer downsampling ─────────────────────────────────────────────────
 //
@@ -183,7 +105,6 @@ namespace chronon3d::graph {
         .framebuffer_pool = backend.framebuffer_pool(),
         .registry = registry,
         .video_decoder = video_decoder,
-        .trace = backend.trace(),
         .counters = backend.counters(),
         .diagnostics_enabled = settings.diagnostic,
         .ssaa_factor = settings.ssaa_factor,

@@ -79,7 +79,6 @@ int render_and_encode_ffmpeg_chunked(
                         .dummy_frame = 0,
                         .quiet = false
                     });
-                    renderer->trace()->clear();
                     renderer->counters()->reset();
                 }
 
