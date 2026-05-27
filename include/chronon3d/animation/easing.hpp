@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/core/types/types.hpp>
 #include <glm/gtx/easing.hpp>
 #include <cmath>
