@@ -146,20 +146,16 @@ add_test(NAME chronon3d_io_tests COMMAND chronon3d_io_tests WORKING_DIRECTORY ${
 add_executable(chronon3d_cli_tests
     test_main.cpp
     cli/test_frame_range_parser.cpp
-    cli/test_render_job_plan.cpp
     cli/test_frame_chunks.cpp
     cli/test_ffmpeg_pipe_encoder.cpp
     cli/test_video_pipeline_producer_consumer.cpp
     cli/bench_json_tests.cpp
     ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/common/cli_utils.cpp
-    ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/job/render_job_plan.cpp
     ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/video/ffmpeg_pipe_encoder.cpp
     ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/video/ffmpeg_pipe_write_frame.cpp
     ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/video/ffmpeg_pipe_encoder_uring.cpp
     ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/video/ffmpeg_pipe_command.cpp
     ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/video/ffmpeg_pipe_yuv.cpp
-    ${CMAKE_SOURCE_DIR}/src/video/frame_converter.cpp
-    ${CMAKE_SOURCE_DIR}/src/video/converted_frame_cache.cpp
 )
 
 target_link_libraries(chronon3d_cli_tests
@@ -211,8 +207,6 @@ add_executable(chronon3d_video_tests
     video/test_video_diff.cpp
     video/test_long_export.cpp
     video/test_near_static_frames.cpp
-    ${CMAKE_SOURCE_DIR}/src/video/frame_converter.cpp
-    ${CMAKE_SOURCE_DIR}/src/video/converted_frame_cache.cpp
 )
 target_link_libraries(chronon3d_video_tests
     PRIVATE
@@ -225,8 +219,6 @@ add_test(NAME chronon3d_video_tests COMMAND chronon3d_video_tests WORKING_DIRECT
 # Benchmarks
 add_executable(chronon3d_benchmarks
     bench/micro_benchmarks.cpp
-    ${CMAKE_SOURCE_DIR}/src/video/frame_converter.cpp
-    ${CMAKE_SOURCE_DIR}/src/video/converted_frame_cache.cpp
 )
 target_link_libraries(chronon3d_benchmarks
     PRIVATE

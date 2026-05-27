@@ -3,6 +3,7 @@
 #include <chronon3d/video/converted_frame_cache.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/math/color.hpp>
+#include <memory>
 #include <vector>
 #include <cmath>
 #include <xxhash.h>
