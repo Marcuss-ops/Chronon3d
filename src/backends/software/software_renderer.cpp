@@ -237,9 +237,19 @@ std::string SoftwareRenderer::debug_render_graph(const Scene& scene, const Camer
 }
 
 void SoftwareRenderer::apply_blur(Framebuffer& fb, f32 radius, const std::optional<raster::BBox>& clip) {
-    uint64_t area = static_cast<uint64_t>(fb.width() * fb.height());
+    std::optional<raster::BBox> local_clip;
     if (clip) {
-        raster::BBox clipped = *clip;
+        raster::BBox c = *clip;
+        c.x0 -= fb.origin_x();
+        c.x1 -= fb.origin_x();
+        c.y0 -= fb.origin_y();
+        c.y1 -= fb.origin_y();
+        local_clip = c;
+    }
+
+    uint64_t area = static_cast<uint64_t>(fb.width() * fb.height());
+    if (local_clip) {
+        raster::BBox clipped = *local_clip;
         clipped.clip_to(fb.width(), fb.height());
         if (!clipped.is_empty()) {
             area = static_cast<uint64_t>(clipped.x1 - clipped.x0) * (clipped.y1 - clipped.y0);
@@ -249,16 +259,26 @@ void SoftwareRenderer::apply_blur(Framebuffer& fb, f32 radius, const std::option
     }
     m_counters.blur_pixels.fetch_add(area, std::memory_order_relaxed);
     CHRONON_ZONE_C("apply_blur", trace_category::kEffect);
-    renderer::apply_blur(fb, radius, clip);
+    renderer::apply_blur(fb, radius, local_clip);
 }
 
 void SoftwareRenderer::apply_effect_stack(Framebuffer& fb, const EffectStack& stack, float time_seconds, const std::optional<raster::BBox>& clip) {
     CHRONON_ZONE_C("apply_effect_stack", trace_category::kEffect);
     
+    std::optional<raster::BBox> local_clip;
+    if (clip) {
+        raster::BBox c = *clip;
+        c.x0 -= fb.origin_x();
+        c.x1 -= fb.origin_x();
+        c.y0 -= fb.origin_y();
+        c.y1 -= fb.origin_y();
+        local_clip = c;
+    }
+
     // Count blur pixels if any blur effect is present in the stack
     uint64_t area = static_cast<uint64_t>(fb.width() * fb.height());
-    if (clip) {
-        raster::BBox clipped = *clip;
+    if (local_clip) {
+        raster::BBox clipped = *local_clip;
         clipped.clip_to(fb.width(), fb.height());
         if (!clipped.is_empty()) {
             area = static_cast<uint64_t>(clipped.x1 - clipped.x0) * (clipped.y1 - clipped.y0);
@@ -272,7 +292,7 @@ void SoftwareRenderer::apply_effect_stack(Framebuffer& fb, const EffectStack& st
         }
     }
 
-    renderer::apply_effect_stack(fb, stack, time_seconds, clip);
+    renderer::apply_effect_stack(fb, stack, time_seconds, local_clip);
 }
 
 void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node,

@@ -25,10 +25,7 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
             return graph.add_node(std::make_unique<ClearNode>());
         }
 
-        const bool layer_needs_transform = item.projected
-            || layer.kind == LayerKind::Precomp
-            || layer.kind == LayerKind::Video
-            || item.transform.any();
+        const bool layer_needs_transform = layer_needs_render_transform(item, ctx);
         const bool use_local = ctx.modular_coordinates && layer_needs_transform && !item.native_3d;
 
         if (layer.nodes.size() == 1) {
@@ -62,7 +59,7 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
 
                 source = graph.add_node(std::make_unique<SourceNode>(
                     std::string(node.name), node, source_key,
-                    should_use_centered_rendering(item, ctx),
+                    ctx.modular_coordinates ? use_local : should_use_centered_rendering(item, ctx),
                     item.projected,
                     ctx.modular_coordinates ? std::optional<Mat4>(text_matrix) : std::nullopt,
                     ctx.modular_coordinates ? std::optional<f32>(text_opacity) : std::nullopt,
@@ -94,10 +91,17 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                 const f32 shape_opacity = use_local
                     ? (node.world_transform.opacity / std::max(layer.transform.opacity, 0.0001f))
                     : actual_node_opacity;
+                if (layer.name == "_bg") {
+                    spdlog::info("[source-debug] layer='_bg' item.world_matrix=[{}, {}] node_matrix=[{}, {}] actual_world_matrix=[{}, {}] shape_matrix=[{}, {}]",
+                                 item.world_matrix[3][0], item.world_matrix[3][1],
+                                 node_matrix[3][0], node_matrix[3][1],
+                                 actual_world_matrix[3][0], actual_world_matrix[3][1],
+                                 shape_matrix[3][0], shape_matrix[3][1]);
+                }
 
                 source = graph.add_node(std::make_unique<SourceNode>(
                     std::string(node.name), node, source_key,
-                    should_use_centered_rendering(item, ctx),
+                    ctx.modular_coordinates ? use_local : should_use_centered_rendering(item, ctx),
                     item.projected,
                     ctx.modular_coordinates ? std::optional<Mat4>(shape_matrix) : std::nullopt,
                     ctx.modular_coordinates ? std::optional<f32>(shape_opacity) : std::nullopt,

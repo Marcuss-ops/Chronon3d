@@ -311,6 +311,13 @@ DirtyRectOutput compute_dirty_rect(
         }
     }
 
+    if (out.use_dirty_rects && out.dirty_rect) {
+        if (out.dirty_rect->x0 <= 0 && out.dirty_rect->y0 <= 0 &&
+            out.dirty_rect->x1 >= width && out.dirty_rect->y1 >= height) {
+            out.use_dirty_rects = false;
+        }
+    }
+
     return out;
 }
 

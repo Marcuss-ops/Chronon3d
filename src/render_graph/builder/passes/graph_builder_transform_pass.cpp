@@ -13,10 +13,7 @@ void append_transform_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_outp
                                      const LayerGraphItem& item, const RenderGraphContext& ctx) {
     const Layer& layer = *item.layer;
 
-    const bool needs_transform = item.projected
-        || layer.kind == LayerKind::Precomp
-        || layer.kind == LayerKind::Video
-        || item.transform.any();
+    const bool needs_transform = layer_needs_render_transform(item, ctx);
 
     if (!needs_transform) return;
 
