@@ -56,11 +56,6 @@ set(CHRONON3D_GRAPH_SOURCES
     render_graph/builder/utils/graph_builder_camera25d_sorter.cpp
     render_graph/graph_builder.cpp
     render_graph/graph_executor.cpp
-    render_graph/executor/graph_executor_plan.cpp
-    render_graph/executor/graph_executor_cache.cpp
-    render_graph/executor/graph_executor_dirty.cpp
-    render_graph/executor/graph_executor_telemetry.cpp
-    render_graph/executor/graph_executor_phases.cpp
     render_graph/graph_profiler.cpp
     render_graph/render_graph.cpp
     render_graph/render_pipeline_scene.cpp
