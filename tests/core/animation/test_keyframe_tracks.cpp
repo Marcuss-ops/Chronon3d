@@ -1,8 +1,8 @@
 #include <doctest/doctest.h>
 #include <chronon3d/animation/keyframe.hpp>
 #include <chronon3d/core/types/types.hpp>
-#include <chronon3d/math/vec2.hpp>
-#include <chronon3d/math/vec3.hpp>
+#include <chronon3d/math/math_base.hpp>
+#include <chronon3d/math/math_base.hpp>
 #include <chronon3d/math/color.hpp>
 
 using namespace chronon3d;

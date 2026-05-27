@@ -1,6 +1,6 @@
 #pragma once
 
-#include <chronon3d/math/vec2.hpp>
+#include <chronon3d/math/math_base.hpp>
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/scene/fill.hpp>

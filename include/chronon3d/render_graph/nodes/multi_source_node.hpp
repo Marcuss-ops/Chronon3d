@@ -39,6 +39,9 @@ public:
 
     [[nodiscard]] bool can_seed_full_frame(const RenderGraphContext& ctx) const override { return false; }
 
+    const std::vector<MultiSourceItem>& items() const { return m_items; }
+    bool is_3d() const { return m_is_3d; }
+
 private:
     std::string m_name;
     std::vector<MultiSourceItem> m_items;

@@ -127,18 +127,17 @@ constexpr TableDef ALL_TABLES[] = {
 void migrate_add_missing_columns(sqlite3* db) {
     for (const auto& table_def : ALL_TABLES) {
         std::string pragma_sql = "PRAGMA table_info(" + std::string(table_def.name) + ");";
-        sqlite3_stmt* check_stmt{nullptr};
-        if (sqlite3_prepare_v2(db, pragma_sql.c_str(), -1, &check_stmt, nullptr) != SQLITE_OK) {
+        SqliteStatement check_stmt(db, pragma_sql.c_str());
+        if (!check_stmt) {
             continue;
         }
 
         // Collect existing column names for this table
         std::vector<std::string> existing;
-        while (sqlite3_step(check_stmt) == SQLITE_ROW) {
-            const char* col_name = reinterpret_cast<const char*>(sqlite3_column_text(check_stmt, 1));
+        while (check_stmt.step_row()) {
+            const char* col_name = reinterpret_cast<const char*>(sqlite3_column_text(check_stmt.get(), 1));
             if (col_name) existing.push_back(col_name);
         }
-        sqlite3_finalize(check_stmt);
 
         if (existing.empty()) continue; // Table doesn't exist yet, CREATE will handle it
 
@@ -154,7 +153,7 @@ void migrate_add_missing_columns(sqlite3* db) {
             if (!found) {
                 std::string alter_sql = "ALTER TABLE " + std::string(table_def.name)
                     + " ADD COLUMN " + std::string(table_def.columns[i]) + " INTEGER DEFAULT 0;";
-                sqlite3_exec(db, alter_sql.c_str(), nullptr, nullptr, nullptr);
+                exec_sql(db, alter_sql.c_str());
             }
         }
     }
@@ -181,8 +180,8 @@ bool SqliteTelemetryStore::initialize(const std::string& db_path) {
     sqlite3_busy_timeout(m_impl->db, 5000);
 
     // Set performance PRAGMAs
-    sqlite3_exec(m_impl->db, "PRAGMA journal_mode=WAL;", nullptr, nullptr, nullptr);
-    sqlite3_exec(m_impl->db, "PRAGMA synchronous=NORMAL;", nullptr, nullptr, nullptr);
+    exec_sql(m_impl->db, "PRAGMA journal_mode=WAL;");
+    exec_sql(m_impl->db, "PRAGMA synchronous=NORMAL;");
 
     // Non-destructive migration: add any missing columns to existing tables
     migrate_add_missing_columns(m_impl->db);

@@ -217,7 +217,6 @@ set(CHRONON3D_BACKEND_SOFTWARE_SOURCES
     backends/software/utils/effects/effect_wave.cpp
     backends/software/utils/effects/effect_stack.cpp
     backends/software/utils/render_hash_utils.cpp
-    backends/software/simd/highway_yuv_kernels.cpp
     backends/software/simd/highway_color_kernels.cpp
     backends/software/simd/highway_rasterize_kernels.cpp
 )
@@ -308,4 +307,4 @@ target_link_libraries(chronon3d_software INTERFACE
 )
 
 add_library(chronon3d_pipeline INTERFACE)
-target_link_libraries(chronon3d_pipeline INTERFACE chronon3d_core chronon3d_software Taskflow::Taskflow concurrentqueue::concurrentqueue)
+target_link_libraries(chronon3d_pipeline INTERFACE chronon3d_core chronon3d_software Taskflow::Taskflow concurrentqueue::concurrentqueue yuv)

@@ -16,7 +16,10 @@ public:
 
     bool cacheable() const override { return false; }
 
-    std::optional<raster::BBox> predicted_bbox(const RenderGraphContext& ctx) const override {
+    std::optional<raster::BBox> predicted_bbox(
+        const RenderGraphContext& ctx,
+        std::span<const std::optional<raster::BBox>> = {}
+    ) const override {
         if (ctx.clip_rect) {
             return *ctx.clip_rect;
         }

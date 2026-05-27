@@ -246,7 +246,7 @@ RenderGraph build_graph(const Scene& scene, RenderGraphContext& ctx,
                     // Check if the layer covers the full frame with opacity
                     bool layer_fully_covers = false;
                     const auto& layer_node = graph.node(layer_id);
-                    auto bbox = layer_node.predicted_bbox(ctx);
+                    auto bbox = layer_node.predicted_bbox(ctx, {});
 
                     if (bbox) {
                         bool full_frame = bbox->x0 <= 0 && bbox->y0 <= 0 &&

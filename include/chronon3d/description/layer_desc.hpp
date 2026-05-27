@@ -1,7 +1,7 @@
 #pragma once
 
 #include <chronon3d/animation/animated_value.hpp>
-#include <chronon3d/math/vec3.hpp>
+#include <chronon3d/math/math_base.hpp>
 #include <chronon3d/core/types/types.hpp>
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/scene/layer/depth_role.hpp>

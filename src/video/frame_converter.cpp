@@ -4,8 +4,10 @@
 #include <chrono>
 #include <cstring>
 #include <stdexcept>
+#include <vector>
 #include <tbb/parallel_for.h>
 #include <tbb/blocked_range.h>
+#include <libyuv.h>
 
 namespace chronon3d::video {
 
@@ -17,6 +19,33 @@ static inline uint64_t now_ns() {
             std::chrono::steady_clock::now().time_since_epoch()
         ).count()
     );
+}
+
+// Convert float Framebuffer to uint8_t RGBA8888 (in-memory: R, G, B, A; maps to libyuv::ABGR format on little-endian)
+static std::vector<uint8_t> convert_fb_to_rgba8(const Framebuffer& src, int width, int height, bool apply_gamma) {
+    std::vector<uint8_t> rgba8(static_cast<size_t>(width) * height * 4);
+    const Color* src_data = src.data();
+    int allocated_w = src.allocated_width();
+
+    tbb::parallel_for(0, height, [&](int y) {
+        const Color* src_row = src_data + static_cast<size_t>(y) * allocated_w;
+        uint8_t* dst_row = rgba8.data() + static_cast<size_t>(y) * width * 4;
+        for (int x = 0; x < width; ++x) {
+            const Color& c = src_row[x];
+            if (apply_gamma) {
+                dst_row[x * 4 + 0] = Color::linear_to_srgb8(c.r);
+                dst_row[x * 4 + 1] = Color::linear_to_srgb8(c.g);
+                dst_row[x * 4 + 2] = Color::linear_to_srgb8(c.b);
+            } else {
+                dst_row[x * 4 + 0] = static_cast<uint8_t>(std::clamp(c.r, 0.0f, 1.0f) * 255.0f + 0.5f);
+                dst_row[x * 4 + 1] = static_cast<uint8_t>(std::clamp(c.g, 0.0f, 1.0f) * 255.0f + 0.5f);
+                dst_row[x * 4 + 2] = static_cast<uint8_t>(std::clamp(c.b, 0.0f, 1.0f) * 255.0f + 0.5f);
+            }
+            dst_row[x * 4 + 3] = static_cast<uint8_t>(std::clamp(c.a, 0.0f, 1.0f) * 255.0f + 0.5f);
+        }
+    });
+
+    return rgba8;
 }
 
 // ── YUV420P ─────────────────────────────────────────────────────────────────
@@ -31,24 +60,23 @@ static ConvertFrameResult convert_rgba_to_yuv420p(const ConvertFrameRequest& req
 
     const uint64_t t0 = now_ns();
 
-    // The SIMD kernel handles luma + chroma in one pass over the row range.
-    // We keep the same TBB grain-size as the original encoder (8 row-pairs)
-    // to avoid spawning excessive tasks for 1080p.
-    tbb::parallel_for(
-        tbb::blocked_range<int>(0, req.height / 2, 8),
-        [&](const tbb::blocked_range<int>& range) {
-            const int y_start = range.begin() * 2;
-            const int y_end   = range.end()   * 2;
-            simd::convert_f32_rgba_to_yuv420p_simd_rows(
-                req.dst_y, req.dst_u, req.dst_v,
-                req.src.data(),
-                req.width, req.height, req.src.allocated_width(),
-                y_start, y_end,
-                req.apply_gamma);
-        });
+    std::vector<uint8_t> rgba8 = convert_fb_to_rgba8(req.src, req.width, req.height, req.apply_gamma);
+
+    int ret = libyuv::ABGRToI420(
+        rgba8.data(),
+        req.width * 4,
+        req.dst_y,
+        req.dst_stride_y,
+        req.dst_u,
+        req.dst_stride_u,
+        req.dst_v,
+        req.dst_stride_v,
+        req.width,
+        req.height
+    );
 
     return ConvertFrameResult{
-        .success        = true,
+        .success        = (ret == 0),
         .used_simd      = true,
         .conversion_ns  = now_ns() - t0,
     };
@@ -66,28 +94,27 @@ static ConvertFrameResult convert_rgba_to_nv12(const ConvertFrameRequest& req) {
 
     const uint64_t t0 = now_ns();
 
-    tbb::parallel_for(
-        tbb::blocked_range<int>(0, req.height / 2, 8),
-        [&](const tbb::blocked_range<int>& range) {
-            const int y_start = range.begin() * 2;
-            const int y_end   = range.end()   * 2;
-            simd::convert_f32_rgba_to_nv12_simd_rows(
-                req.dst_y, req.dst_uv,
-                req.src.data(),
-                req.width, req.height, req.src.allocated_width(),
-                y_start, y_end,
-                req.apply_gamma);
-        });
+    std::vector<uint8_t> rgba8 = convert_fb_to_rgba8(req.src, req.width, req.height, req.apply_gamma);
+
+    int ret = libyuv::ABGRToNV12(
+        rgba8.data(),
+        req.width * 4,
+        req.dst_y,
+        req.dst_stride_y,
+        req.dst_uv,
+        req.dst_stride_uv,
+        req.width,
+        req.height
+    );
 
     return ConvertFrameResult{
-        .success       = true,
+        .success       = (ret == 0),
         .used_simd     = true,
         .conversion_ns = now_ns() - t0,
     };
 }
 
 // ── RGB24 ────────────────────────────────────────────────────────────────────
-// Scalar — libx264rgb is a rare path and does not justify a SIMD kernel yet.
 
 static ConvertFrameResult convert_rgba_to_rgb24(const ConvertFrameRequest& req) {
     if (!req.dst_y) {

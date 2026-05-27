@@ -1,6 +1,7 @@
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/effects/effect_ids.hpp>
 #include "layer_builder_internal.hpp"
+#include <utility>
 
 namespace chronon3d {
 
@@ -29,8 +30,22 @@ LayerBuilder& LayerBuilder::drop_shadow(Vec2 offset, Color color, f32 radius) {
     return *this;
 }
 
-LayerBuilder& LayerBuilder::glow(f32 radius, f32 intensity, Color color) {
-    m_layer.effects.push_back(EffectInstance{effects::EffectDescriptor{.id = std::string{effects::ids::LightGlow}}, GlowParams{radius, intensity, color}});
+LayerBuilder& LayerBuilder::glow(f32 radius, f32 intensity, Color color, f32 threshold, f32 spread, f32 softness) {
+    return glow(GlowParams{
+        .radius = radius,
+        .intensity = intensity,
+        .color = color,
+        .threshold = threshold,
+        .spread = spread,
+        .softness = softness
+    });
+}
+
+LayerBuilder& LayerBuilder::glow(GlowParams params) {
+    m_layer.effects.push_back(EffectInstance{
+        effects::EffectDescriptor{.id = std::string{effects::ids::LightGlow}},
+        std::move(params)
+    });
     return *this;
 }
 

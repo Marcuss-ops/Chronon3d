@@ -52,6 +52,9 @@ public:
 
     [[nodiscard]] bool can_seed_full_frame(const RenderGraphContext& ctx) const override;
 
+    const ::chronon3d::RenderNode& render_node() const { return m_node; }
+    bool is_3d() const { return m_is_3d; }
+
 
 private:
     std::string m_name;

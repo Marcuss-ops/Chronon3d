@@ -159,7 +159,7 @@ private:
                 max_spread = std::max(max_spread,
                     std::max(std::abs(p->offset.x), std::abs(p->offset.y)) + p->radius);
             } else if (auto* p = std::any_cast<GlowParams>(&inst.params)) {
-                max_spread = std::max(max_spread, p->radius);
+                max_spread = std::max(max_spread, glow_effect_extent(*p));
             } else if (auto* p = std::any_cast<BloomParams>(&inst.params)) {
                 max_spread = std::max(max_spread, p->radius);
             } else if (auto* p = std::any_cast<Fake3DWaveParams>(&inst.params)) {

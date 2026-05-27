@@ -8,7 +8,7 @@
 #include <chronon3d/scene/material_2_5d.hpp>
 #include <chronon3d/layout/layout_rules.hpp>
 #include <chronon3d/backends/video/video_source.hpp>
-#include <chronon3d/math/mat4.hpp>
+#include <chronon3d/math/math_base.hpp>
 #include <chronon3d/animation/animated_value.hpp>
 #include <chronon3d/animation/animated_transform.hpp>
 #include <string>
@@ -63,7 +63,8 @@ public:
     LayerBuilder& brightness(f32 v);
     LayerBuilder& contrast(f32 v);
     LayerBuilder& drop_shadow(Vec2 offset, Color color = {0,0,0,0.35f}, f32 radius = 12.0f);
-    LayerBuilder& glow(f32 radius, f32 intensity = 0.8f, Color color = Color::white());
+    LayerBuilder& glow(f32 radius, f32 intensity = 0.8f, Color color = Color::white(), f32 threshold = 0.0f, f32 spread = 1.0f, f32 softness = 1.0f);
+    LayerBuilder& glow(GlowParams params);
     LayerBuilder& bloom(f32 threshold = 0.80f, f32 radius = 24.0f, f32 intensity = 0.60f);
     LayerBuilder& fake_3d_wave(Fake3DWaveParams params);
     LayerBuilder& blend(BlendMode mode);
