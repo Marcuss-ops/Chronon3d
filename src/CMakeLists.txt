@@ -49,35 +49,26 @@ target_precompile_headers(chronon3d_cache PRIVATE <xxhash.h>)
 # 4. Render Graph
 set(CHRONON3D_GRAPH_SOURCES
     render_graph/builder/graph_builder_internal.cpp
-    render_graph/builder/graph_builder_layer_pipeline.cpp
     render_graph/builder/graph_builder_pipeline.cpp
-    render_graph/builder/graph_builder_bbox.cpp
-    render_graph/builder/graph_builder_static.cpp
     scene/mask/mask_utils.cpp
     render_graph/builder/passes/graph_builder_layer_passes.cpp
     render_graph/builder/passes/graph_builder_lighting_passes.cpp
     render_graph/builder/passes/graph_builder_source_pass.cpp
-    render_graph/builder/utils/graph_builder_camera25d_sorter.cpp
-    render_graph/graph_builder.cpp
-    render_graph/graph_executor.cpp
-    render_graph/graph_executor_internal.cpp
+    render_graph/executor/executor.cpp
+    render_graph/executor/internal.cpp
     render_graph/graph_profiler.cpp
     render_graph/render_graph.cpp
-    render_graph/render_pipeline_scene.cpp
-    render_graph/render_pipeline_scene_dirty.cpp
-    render_graph/render_pipeline_debug.cpp
-    render_graph/render_pipeline_composition.cpp
-    render_graph/preflight_render_graph.cpp
-    render_graph/preflight_render_graph_analysis.cpp
-    render_graph/preflight_render_graph_format.cpp
-    render_graph/graph_filter.cpp
+    render_graph/pipeline/scene.cpp
+    render_graph/pipeline/scene_dirty.cpp
+    render_graph/pipeline/debug.cpp
+    render_graph/pipeline/composition.cpp
+    render_graph/preflight/preflight.cpp
+    render_graph/preflight/analysis.cpp
     render_graph/optimizer/graph_optimizer.cpp
     render_graph/nodes/source_node.cpp
     render_graph/nodes/multi_source_node.cpp
     render_graph/nodes/transform_node.cpp
-    render_graph/nodes/transform_translate.cpp
-    render_graph/nodes/transform_affine.cpp
-    render_graph/nodes/transform_projective.cpp
+    render_graph/nodes/transform_kernels.cpp
     render_graph/nodes/transition_node.cpp
     render_graph/nodes/transition/transition_node_math.cpp
 )
