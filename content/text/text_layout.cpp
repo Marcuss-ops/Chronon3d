@@ -33,7 +33,7 @@ struct LayoutText {
     LayoutText& set_box(Vec2 b) { box = b; return *this; }
 
     void draw(LayerBuilder& l, const std::string& name = "text") const {
-        apply_text(l, name, {
+        apply_text(l, name, TextDef{
             .text = text, .size = size, .color = color, .align = align,
             .tracking = tracking, .line_height = line_height
         }, box, pos);
@@ -130,7 +130,7 @@ Composition text_grid_overlay() {
 
         s.layer("tech_title", [&](auto& l) {
             l.opacity(op).pin_to(Anchor::Center);
-            l.text("title", {
+            l.text("title", TextParams{
                 .text = "SYS::GRID_OVERLAY", .size = {W * 0.9f, 240.0f},
                 .font_path = "assets/fonts/Inter-Bold.ttf", .font_family = "Inter", .font_weight = 800,
                 .font_size = 84.0f, .color = {0.24f, 0.58f, 1.0f, 1},

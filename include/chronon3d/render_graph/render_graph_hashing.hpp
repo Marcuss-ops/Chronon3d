@@ -254,31 +254,6 @@ template <typename T>
     }
 }
 
-[[nodiscard]] inline u64 hash_render_node(const RenderNode& n) {
-    static thread_local int depth = 0;
-    if (depth > 50) return 0; // Prevent stack overflow
-    depth++;
-    struct DepthGuard { ~DepthGuard() { depth--; } } guard;
-
-    u64 seed = hash_bytes(n.name.data(), n.name.size());
-    seed = hash_combine(seed, hash_transform(n.world_transform));
-    seed = hash_combine(seed, hash_shape(n.shape));
-    seed = hash_combine(seed, hash_color(n.color));
-    seed = hash_combine(seed, hash_fill(n.fill));
-    seed = hash_combine(seed, hash_value(n.visible));
-    if (n.shadow.enabled) {
-        seed = hash_combine(seed, hash_vec2(n.shadow.offset));
-        seed = hash_combine(seed, hash_color(n.shadow.color));
-        seed = hash_combine(seed, hash_bytes(&n.shadow.radius, sizeof(f32)));
-    }
-    if (n.glow.enabled) {
-        seed = hash_combine(seed, hash_bytes(&n.glow.radius, sizeof(f32)));
-        seed = hash_combine(seed, hash_bytes(&n.glow.intensity, sizeof(f32)));
-        seed = hash_combine(seed, hash_color(n.glow.color));
-    }
-    return seed;
-}
-
 [[nodiscard]] inline u64 hash_render_node_content_only(const RenderNode& n) {
     u64 seed = hash_bytes(n.name.data(), n.name.size());
     // Ignore world_transform for content-only hashing
@@ -297,6 +272,16 @@ template <typename T>
         seed = hash_combine(seed, hash_color(n.glow.color));
     }
     return seed;
+}
+
+[[nodiscard]] inline u64 hash_render_node(const RenderNode& n) {
+    static thread_local int depth = 0;
+    if (depth > 50) return 0; // Prevent stack overflow
+    depth++;
+    struct DepthGuard { ~DepthGuard() { depth--; } } guard;
+
+    u64 seed = hash_render_node_content_only(n);
+    return hash_combine(seed, hash_transform(n.world_transform));
 }
 
 } // namespace chronon3d::graph

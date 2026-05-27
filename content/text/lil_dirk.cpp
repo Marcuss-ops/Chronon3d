@@ -122,7 +122,7 @@ Composition lil_dirk() {
 
         // ── LIL DIRK title ────────────────────────────────────────────────
         s.layer("title", [](auto& l) {
-            l.text("t", {
+            l.text("t", TextParams{
                 .text       = "LIL DIRK",
                 .size       = {700.0f, 140.0f},
                 .pos        = {0.0f, -30.0f, 0.0f},

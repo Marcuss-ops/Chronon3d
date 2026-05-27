@@ -20,8 +20,8 @@ struct CreditItem {
 
     void draw(LayerBuilder& l, f32 y) const {
         l.position({0, y, 0});
-        apply_text(l, "role", {.text = role, .size = 28, .color = {0.6f, 0.6f, 0.7f, 1}, .align = TextAlign::Center, .tracking = 4}, {W * 0.4f, 40}, {-200, 0, 0});
-        apply_text(l, "name", {.text = name, .size = 36, .color = {1, 1, 1, 1}, .align = TextAlign::Center, .tracking = 1}, {W * 0.4f, 40}, {200, 0, 0});
+        apply_text(l, "role", TextDef{.text = role, .size = 28, .color = {0.6f, 0.6f, 0.7f, 1}, .align = TextAlign::Center, .tracking = 4}, {W * 0.4f, 40}, {-200, 0, 0});
+        apply_text(l, "name", TextDef{.text = name, .size = 36, .color = {1, 1, 1, 1}, .align = TextAlign::Center, .tracking = 1}, {W * 0.4f, 40}, {200, 0, 0});
     }
 };
 
@@ -46,7 +46,7 @@ struct SequenceItem {
 
     void draw(LayerBuilder& l, Frame frame) const {
         l.opacity(opacity(frame)).pin_to(Anchor::Center);
-        apply_text(l, "text", {
+        apply_text(l, "text", TextDef{
             .text = text,
             .size = size,
             .color = {1, 1, 1, 1},
@@ -66,7 +66,7 @@ Composition text_credit_roll() {
         s.layer("bg", [](auto& l) { l.fill({0.005f, 0.008f, 0.020f, 1.0f}); });
         s.layer("credits_title", [&](auto& l) {
             l.position({0, scroll_y - 200, 0});
-            apply_text(l, "title", {.text="C R E D I T S", .size=56, .color={0.25f, 0.52f, 1, 1}, .align=TextAlign::Center, .tracking=14}, {W*0.6f, 80});
+            apply_text(l, "title", TextDef{.text="C R E D I T S", .size=56, .color={0.25f, 0.52f, 1, 1}, .align=TextAlign::Center, .tracking=14}, {W*0.6f, 80});
         });
 
         static const std::vector<CreditItem> credits = {
@@ -113,7 +113,7 @@ Composition text_countdown() {
         s.layer("bg", [](auto& l) { l.fill({0.02f, 0.02f, 0.04f, 1.0f}); });
         s.layer("count_num", [&](auto& l) {
             l.opacity(0.9f + 0.1f * std::sin(static_cast<f32>(ctx.frame) * 0.5f)).pin_to(Anchor::Center);
-            apply_text(l, "num", {.text=std::to_string(num), .size=220, .align=TextAlign::Center}, {W*0.5f, 300});
+            apply_text(l, "num", TextDef{.text=std::to_string(num), .size=220, .align=TextAlign::Center}, {W*0.5f, 300});
         });
         return s.build();
     });
