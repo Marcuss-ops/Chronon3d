@@ -1,7 +1,7 @@
 #include <chronon3d/backends/software/shape_processor.hpp>
 #include <chronon3d/backends/software/rasterizers/path_rasterizer.hpp>
 #include <chronon3d/math/path_utils.hpp>
-#include <chronon3d/math/math_base.hpp>
+#include <chronon3d/math/glm_types.hpp>
 #include <algorithm>
 #include <cmath>
 

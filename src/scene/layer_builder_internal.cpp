@@ -32,7 +32,7 @@ void set_last_position(Layer& layer, Vec3 pos) {
 
 void set_last_rotation(Layer& layer, Vec3 euler_deg) {
     if (auto* node = last_node(layer)) {
-        node->world_transform.rotation = math::from_euler(euler_deg);
+        node->world_transform.rotation = glm::quat(glm::radians(euler_deg));
     }
 }
 

@@ -22,6 +22,7 @@
 
 #include <chronon3d/core/types/types.hpp>
 #include <chronon3d/math/color.hpp>
+#include <glm/gtc/color_space.hpp>
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -68,12 +69,11 @@ struct OutputTransformOptions {
 // ---------------------------------------------------------------------------
 
 /// Linear → sRGB gamma-encoded float [0,1] (IEEE 61966-2-1 OETF).
+/// Delegates to GLM's well-tested color space conversion.
 inline float linear_srgb_float(float v) {
     if (v <= 0.0f) return 0.0f;
     if (v >= 1.0f) return 1.0f;
-    return (v <= 0.0031308f)
-        ? (v * 12.92f)
-        : (1.055f * std::pow(v, 1.0f / 2.4f) - 0.055f);
+    return glm::convertLinearToSRGB(glm::vec3(v)).x;
 }
 
 /// Linear → output-space float [0,1] without uint8 quantization.

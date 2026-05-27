@@ -63,7 +63,7 @@ static RenderGraph make_chain_of_transforms(int count, bool identity = false) {
     GraphNodeId prev = graph.add_node(std::make_unique<TestNode>("root", false, false));
 
     for (int i = 0; i < count; ++i) {
-        Mat4 m = identity ? Mat4(1.0f) : math::translate(Vec3(static_cast<f32>(i), 0.0f, 0.0f));
+        Mat4 m = identity ? Mat4(1.0f) : glm::translate(Mat4(1.0f), Vec3(static_cast<f32>(i), 0.0f, 0.0f));
         GraphNodeId tid = graph.add_node(std::make_unique<TransformNode>(m, 1.0f));
         graph.connect(prev, tid);
         prev = tid;
@@ -115,7 +115,7 @@ TEST_CASE("Pruning - identity transform with single consumer is removed") {
 TEST_CASE("Pruning - non-identity transform is kept") {
     RenderGraph graph;
     GraphNodeId root = graph.add_node(std::make_unique<TestNode>("root", false, false));
-    GraphNodeId tx = graph.add_node(std::make_unique<TransformNode>(math::translate(Vec3(10.0f, 0.0f, 0.0f)), 1.0f));
+    GraphNodeId tx = graph.add_node(std::make_unique<TransformNode>(glm::translate(Mat4(1.0f), Vec3(10.0f, 0.0f, 0.0f)), 1.0f));
     graph.connect(root, tx);
     graph.set_output(tx);
 
@@ -130,8 +130,8 @@ TEST_CASE("Pruning - identity transform with multiple consumers is kept") {
     RenderGraph graph;
     GraphNodeId root = graph.add_node(std::make_unique<TestNode>("root", false, false));
     GraphNodeId id_tx = graph.add_node(std::make_unique<TransformNode>(Mat4(1.0f), 1.0f));
-    GraphNodeId tx_a = graph.add_node(std::make_unique<TransformNode>(math::translate(Vec3(5.0f, 0.0f, 0.0f)), 1.0f));
-    GraphNodeId tx_b = graph.add_node(std::make_unique<TransformNode>(math::translate(Vec3(0.0f, 5.0f, 0.0f)), 1.0f));
+    GraphNodeId tx_a = graph.add_node(std::make_unique<TransformNode>(glm::translate(Mat4(1.0f), Vec3(5.0f, 0.0f, 0.0f)), 1.0f));
+    GraphNodeId tx_b = graph.add_node(std::make_unique<TransformNode>(glm::translate(Mat4(1.0f), Vec3(0.0f, 5.0f, 0.0f)), 1.0f));
 
     graph.connect(root, id_tx);
     graph.connect(id_tx, tx_a);
@@ -202,9 +202,9 @@ TEST_CASE("Fusion - adjacent transform nodes are fused") {
 TEST_CASE("Fusion - no fusion when parent has multiple consumers") {
     RenderGraph graph;
     GraphNodeId root = graph.add_node(std::make_unique<TestNode>("root", false, false));
-    GraphNodeId parent = graph.add_node(std::make_unique<TransformNode>(math::translate(Vec3(1.0f, 0.0f, 0.0f)), 1.0f));
-    GraphNodeId child_a = graph.add_node(std::make_unique<TransformNode>(math::translate(Vec3(0.0f, 1.0f, 0.0f)), 1.0f));
-    GraphNodeId child_b = graph.add_node(std::make_unique<TransformNode>(math::translate(Vec3(0.0f, 2.0f, 0.0f)), 1.0f));
+    GraphNodeId parent = graph.add_node(std::make_unique<TransformNode>(glm::translate(Mat4(1.0f), Vec3(1.0f, 0.0f, 0.0f)), 1.0f));
+    GraphNodeId child_a = graph.add_node(std::make_unique<TransformNode>(glm::translate(Mat4(1.0f), Vec3(0.0f, 1.0f, 0.0f)), 1.0f));
+    GraphNodeId child_b = graph.add_node(std::make_unique<TransformNode>(glm::translate(Mat4(1.0f), Vec3(0.0f, 2.0f, 0.0f)), 1.0f));
 
     graph.connect(root, parent);
     graph.connect(parent, child_a);
@@ -289,7 +289,7 @@ TEST_CASE("Explain plan - optimize_graph respects config toggles") {
 TEST_CASE("No unsafe optimization - mixed node kinds are not fused") {
     RenderGraph graph;
     GraphNodeId root = graph.add_node(std::make_unique<TestNode>("root", false, false));
-    GraphNodeId tx = graph.add_node(std::make_unique<TransformNode>(math::translate(Vec3(5.0f, 0.0f, 0.0f)), 1.0f));
+    GraphNodeId tx = graph.add_node(std::make_unique<TransformNode>(glm::translate(Mat4(1.0f), Vec3(5.0f, 0.0f, 0.0f)), 1.0f));
     GraphNodeId other = graph.add_node(std::make_unique<TestNode>("other", false, false)); // Non-transform
     graph.connect(root, tx);
     graph.connect(tx, other);
@@ -304,8 +304,8 @@ TEST_CASE("No unsafe optimization - mixed node kinds are not fused") {
 TEST_CASE("No unsafe optimization - frame-dependent vs frame-invariant not fused") {
     RenderGraph graph;
     GraphNodeId root = graph.add_node(std::make_unique<TestNode>("root", false, false));
-    GraphNodeId tx_static = graph.add_node(std::make_unique<TransformNode>(math::translate(Vec3(1.0f, 0.0f, 0.0f)), 1.0f));
-    GraphNodeId tx_dynamic = graph.add_node(std::make_unique<TransformNode>(math::translate(Vec3(0.0f, 1.0f, 0.0f)), 1.0f));
+    GraphNodeId tx_static = graph.add_node(std::make_unique<TransformNode>(glm::translate(Mat4(1.0f), Vec3(1.0f, 0.0f, 0.0f)), 1.0f));
+    GraphNodeId tx_dynamic = graph.add_node(std::make_unique<TransformNode>(glm::translate(Mat4(1.0f), Vec3(0.0f, 1.0f, 0.0f)), 1.0f));
 
     graph.connect(root, tx_static);
     graph.connect(tx_static, tx_dynamic);

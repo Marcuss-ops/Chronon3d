@@ -10,7 +10,7 @@
 #include <string>
 #include <utility>
 #include <chronon3d/math/color.hpp>
-#include <chronon3d/math/math_base.hpp>
+#include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/backends/image/image_writer.hpp>

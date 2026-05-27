@@ -1,6 +1,6 @@
 #pragma once
 
-#include <chronon3d/math/math_base.hpp>
+#include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/scene/fill.hpp>
 #include <vector>
 

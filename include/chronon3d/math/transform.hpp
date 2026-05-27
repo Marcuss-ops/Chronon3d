@@ -1,8 +1,8 @@
 #pragma once
 
-#include <chronon3d/math/math_base.hpp>
-#include <chronon3d/math/math_base.hpp>
-#include <chronon3d/math/math_base.hpp>
+#include <chronon3d/math/glm_types.hpp>
+#include <chronon3d/math/glm_types.hpp>
+#include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/math/projection_context.hpp>
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/scene/mask/mask_utils.hpp>
@@ -30,7 +30,7 @@ struct Transform {
 
     [[nodiscard]] Mat4 to_mat4() const {
         // Matrix = Translate(position) * Rotate(rotation) * Scale(scale) * Translate(-anchor)
-        return math::translate(position) * math::rotate(rotation) * math::scale(scale) * math::translate(-anchor);
+        return glm::translate(Mat4(1.0f), position) * glm::toMat4(rotation) * glm::scale(Mat4(1.0f), scale) * glm::translate(Mat4(1.0f), -anchor);
     }
 
     [[nodiscard]] Mat4 to_matrix() const { return to_mat4(); }

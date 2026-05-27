@@ -1,5 +1,5 @@
 #include <doctest/doctest.h>
-#include <chronon3d/math/math_base.hpp>
+#include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/scene/camera/camera.hpp>
 
 using namespace chronon3d;
@@ -76,7 +76,7 @@ TEST_CASE("Vec3 operations") {
 
 TEST_CASE("Matrix operations") {
     SUBCASE("Translation") {
-        Mat4 m = math::translate(Vec3(10, 20, 30));
+        Mat4 m = glm::translate(Mat4(1.0f), Vec3(10, 20, 30));
         Vec4 p_h = m * Vec4(0, 0, 0, 1);
         Vec3 p = Vec3(p_h) / p_h.w;
         CHECK(p.x == 10.0f);
@@ -85,7 +85,7 @@ TEST_CASE("Matrix operations") {
     }
 
     SUBCASE("Scale") {
-        Mat4 m = math::scale(Vec3(2, 3, 4));
+        Mat4 m = glm::scale(Mat4(1.0f), Vec3(2, 3, 4));
         Vec4 p_h = m * Vec4(1, 1, 1, 1);
         Vec3 p = Vec3(p_h) / p_h.w;
         CHECK(p.x == 2.0f);

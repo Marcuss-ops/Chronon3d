@@ -6,7 +6,7 @@
 #include <chronon3d/scene/shape.hpp>
 #include <chronon3d/math/transform.hpp>
 #include <chronon3d/math/raster_utils.hpp>
-#include <chronon3d/math/math_base.hpp>
+#include <chronon3d/math/glm_types.hpp>
 
 namespace chronon3d {
     class SoftwareRenderer;

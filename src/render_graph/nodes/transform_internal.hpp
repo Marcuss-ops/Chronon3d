@@ -1,6 +1,6 @@
 #pragma once
 
-#include <chronon3d/math/math_base.hpp>
+#include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
