@@ -3,7 +3,7 @@
 #include <chronon3d/scene/camera/camera_2_5d.hpp>
 #include <chronon3d/math/constants.hpp>
 #include <chronon3d/math/transform.hpp>
-#include <chronon3d/math/quat.hpp>
+#include <chronon3d/math/math_base.hpp>
 #include <chronon3d/math/camera_pose.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <algorithm>

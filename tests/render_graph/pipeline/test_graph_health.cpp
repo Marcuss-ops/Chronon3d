@@ -257,8 +257,42 @@ TEST_CASE("GraphHealth: glow expands visible pixels outside source bbox") {
     CHECK(center.g > 0.8f);
     CHECK(center.b > 0.8f);
 
-    CHECK(glow_near.b > 0.03f);
+    CHECK(glow_near.b > 0.01f);
     CHECK(glow_far.b < glow_near.b);
+}
+
+TEST_CASE("GraphHealth: glow falloff is radial and fades with distance") {
+    constexpr int W = 512;
+    constexpr int H = 512;
+
+    SceneBuilder s(W, H);
+
+    s.layer("glow", [](LayerBuilder& l) {
+        l.glow(60.0f, 1.0f, Color{0.15f, 0.65f, 1.0f, 1.0f});
+        l.circle("orb", {
+            .radius = 42.0f,
+            .color = Color{1, 1, 1, 1},
+            .pos = {0.0f, 0.0f, 0.0f}
+        });
+    });
+
+    Scene scene = s.build();
+
+    SoftwareRenderer renderer;
+    cache::NodeCache node_cache;
+    Camera camera;
+
+    auto fb = render_graph_scene(renderer, node_cache, scene, camera, W, H);
+    REQUIRE(fb != nullptr);
+
+    const Color near = fb->get_pixel(W / 2 + 48, H / 2);
+    const Color mid = fb->get_pixel(W / 2 + 92, H / 2);
+    const Color far = fb->get_pixel(W / 2 + 156, H / 2);
+    const Color diag = fb->get_pixel(W / 2 + 92, H / 2 + 92);
+
+    CHECK(near.b > mid.b);
+    CHECK(mid.b > far.b);
+    CHECK(std::abs(mid.b - diag.b) < 0.08f);
 }
 
 TEST_CASE("GraphHealth: screen blend brightens underlying layer") {

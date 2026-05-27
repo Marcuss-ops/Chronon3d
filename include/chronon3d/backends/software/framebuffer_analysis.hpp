@@ -1,7 +1,7 @@
 #pragma once
 
 #include <chronon3d/core/memory/framebuffer.hpp>
-#include <chronon3d/math/vec2.hpp>
+#include <chronon3d/math/math_base.hpp>
 
 #include <optional>
 

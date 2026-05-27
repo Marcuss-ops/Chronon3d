@@ -92,6 +92,21 @@ TEST_CASE("EffectStack: drop_shadow and glow added to stack") {
     CHECK(holds_effect<GlowParams>(layer.effects[1]));
 }
 
+TEST_CASE("EffectStack: glow preset overload stores full GlowParams") {
+    LayerBuilder lb("test");
+    lb.glow(GlowPresets::neon_blue(55.0f));
+
+    auto layer = lb.build();
+    REQUIRE(layer.effects.size() == 1);
+    REQUIRE(holds_effect<GlowParams>(layer.effects[0]));
+
+    const auto& glow = get_effect<GlowParams>(layer.effects[0]);
+    CHECK(glow.radius == doctest::Approx(55.0f));
+    CHECK(glow.intensity == doctest::Approx(1.25f));
+    CHECK(glow.additive);
+    CHECK(glow.core_strength > glow.bloom_strength);
+}
+
 TEST_CASE("EffectStack: fake_3d_wave adds Fake3DWaveParams to stack") {
     LayerBuilder lb("test");
     lb.fake_3d_wave(Fake3DWaveParams{

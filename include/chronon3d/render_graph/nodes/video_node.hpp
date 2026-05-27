@@ -79,6 +79,8 @@ public:
         );
     }
 
+    const video::VideoSource& source() const { return m_source; }
+
 private:
     video::VideoSource m_source;
     video::VideoFrameDecoder* m_decoder{};

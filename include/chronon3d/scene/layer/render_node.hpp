@@ -2,7 +2,7 @@
 
 #include <chronon3d/math/transform.hpp>
 #include <chronon3d/math/color.hpp>
-#include <chronon3d/math/vec2.hpp>
+#include <chronon3d/math/math_base.hpp>
 #include <chronon3d/geometry/mesh.hpp>
 #include <chronon3d/scene/fill.hpp>
 #include <chronon3d/scene/shape.hpp>

@@ -9,7 +9,7 @@
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/render_graph/nodes/effect_stack_node.hpp>
 #include <chronon3d/render_graph/render_graph_hashing.hpp>
-#include <chronon3d/math/mat4.hpp>
+#include <chronon3d/math/math_base.hpp>
 #include <chronon3d/math/math_base.hpp>
 #include <xxhash.h>
 #include <cmath>
@@ -304,6 +304,37 @@ TEST_CASE("Invariants: cache_key_changes_when_glow_params_change") {
     CHECK(hash_base != hash_radius);
     CHECK(hash_base != hash_intensity);
     CHECK(hash_base != hash_color);
+}
+
+// 8b. cache_key_changes_when_glow_quality_params_change
+TEST_CASE("Invariants: cache_key_changes_when_glow_quality_params_change") {
+    using namespace chronon3d::graph;
+
+    LayerBuilder lb_base("l");
+    lb_base.glow(GlowPresets::neon_blue(40.0f));
+    u64 hash_base = hash_effect_stack(lb_base.build().effects);
+
+    LayerBuilder lb_falloff("l");
+    GlowParams falloff = GlowPresets::neon_blue(40.0f);
+    falloff.falloff = 1.20f;
+    lb_falloff.glow(falloff);
+    u64 hash_falloff = hash_effect_stack(lb_falloff.build().effects);
+
+    LayerBuilder lb_core("l");
+    GlowParams core = GlowPresets::neon_blue(40.0f);
+    core.core_strength = 0.95f;
+    lb_core.glow(core);
+    u64 hash_core = hash_effect_stack(lb_core.build().effects);
+
+    LayerBuilder lb_screen("l");
+    GlowParams screen = GlowPresets::neon_blue(40.0f);
+    screen.additive = false;
+    lb_screen.glow(screen);
+    u64 hash_screen = hash_effect_stack(lb_screen.build().effects);
+
+    CHECK(hash_base != hash_falloff);
+    CHECK(hash_base != hash_core);
+    CHECK(hash_base != hash_screen);
 }
 
 // 9. dirty_rect_contains_glow_spread

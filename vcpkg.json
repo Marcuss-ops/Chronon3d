@@ -20,7 +20,8 @@
     "blend2d",
     "nlohmann-json",
     "sqlite3",
-    "openexr"
+    "openexr",
+    "libyuv"
   ],
   "default-features": []
 }

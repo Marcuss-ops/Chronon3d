@@ -83,6 +83,11 @@ struct GraphPreflightNode {
 
     // Warning produced for this node (empty = clean)
     std::string warning;
+
+    // Advanced Diagnostics
+    size_t predicted_memory_bytes{0};    ///< Estimated VRAM/RAM framebuffer footprint in bytes
+    int complexity_score{0};              ///< Performance complexity weight score
+    std::vector<std::string> dirty_reasons; ///< Detailed reasons/chain explaining why node is dirty
 };
 
 // ── Aggregate report ───────────────────────────────────────────────────────
@@ -96,6 +101,12 @@ struct GraphPreflightReport {
 
     /// Flat list of all warnings (duplicates entries from node.warning)
     std::vector<std::string> warnings;
+
+    // Advanced Diagnostics aggregates
+    size_t peak_memory_bytes{0};          ///< Predicted peak memory usage during execution (bytes)
+    int total_complexity_score{0};        ///< Total complexity score of the graph
+    int cache_score{0};                    ///< Percentage of cached nodes in the graph [0..100]
+    size_t total_fill_rate_pixels{0};     ///< Total pixel fill-rate across all nodes
 
     // ── Lookups ──────────────────────────────────────────────────────────────
 

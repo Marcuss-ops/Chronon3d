@@ -6,6 +6,11 @@
 
 namespace chronon3d::graph::detail {
 
+// Forward declarations
+inline bool layer_needs_render_transform(const LayerGraphItem& item, const RenderGraphContext& ctx);
+inline bool has_custom_render_transform(const LayerGraphItem& item, const RenderGraphContext& ctx);
+inline bool is_implicit_2d_centering_only(const LayerGraphItem& item, const RenderGraphContext& ctx);
+
 inline Mat4 implicit_canvas_center_matrix(const RenderGraphContext& ctx) {
     return math::translate(Vec3(
         ctx.width * 0.5f,

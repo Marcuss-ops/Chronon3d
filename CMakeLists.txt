@@ -80,6 +80,8 @@ find_package(tomlplusplus CONFIG REQUIRED)
 find_package(blend2d CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(OpenEXR CONFIG REQUIRED)
+find_package(libyuv CONFIG REQUIRED)
+
 
 if(CHRONON3D_ENABLE_SQLITE_TELEMETRY)
     find_package(unofficial-sqlite3 CONFIG REQUIRED)

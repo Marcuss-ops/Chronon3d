@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <cmath>
 #include <iostream>
+#include <string_view>
 
 namespace chronon3d {
     struct RenderNode;
@@ -33,6 +34,66 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack, float time_se
 namespace chronon3d {
 
 namespace {
+
+struct ProfilingScope {
+    ProfilingScope(RenderTrace* trace,
+                   RenderCounters* counters,
+                   cache::FramebufferPool* pool,
+                   std::string_view name,
+                   std::string_view tag,
+                   int32_t frame)
+        : previous_trace(profiling::g_current_trace),
+          previous_frame(profiling::g_current_frame),
+          previous_counters(profiling::g_current_counters),
+          previous_pool(profiling::g_current_framebuffer_pool),
+          scope(trace, name, tag, frame) {
+        profiling::g_current_trace = trace;
+        profiling::g_current_frame = frame;
+        profiling::g_current_counters = counters;
+        profiling::g_current_framebuffer_pool = pool;
+    }
+
+    ~ProfilingScope() {
+        profiling::g_current_trace = previous_trace;
+        profiling::g_current_frame = previous_frame;
+        profiling::g_current_counters = previous_counters;
+        profiling::g_current_framebuffer_pool = previous_pool;
+    }
+
+    RenderTrace* previous_trace;
+    int32_t previous_frame;
+    RenderCounters* previous_counters;
+    cache::FramebufferPool* previous_pool;
+    TraceScope scope;
+};
+
+std::optional<raster::BBox> to_local_clip(const Framebuffer& fb, std::optional<raster::BBox> clip) {
+    if (!clip) {
+        return std::nullopt;
+    }
+
+    raster::BBox c = *clip;
+    c.x0 -= fb.origin_x();
+    c.x1 -= fb.origin_x();
+    c.y0 -= fb.origin_y();
+    c.y1 -= fb.origin_y();
+    return c;
+}
+
+uint64_t clipped_area(int32_t width, int32_t height, const std::optional<raster::BBox>& clip) {
+    uint64_t area = static_cast<uint64_t>(std::max(0, width)) * static_cast<uint64_t>(std::max(0, height));
+    if (!clip) {
+        return area;
+    }
+
+    raster::BBox local_clip = *clip;
+    local_clip.clip_to(width, height);
+    if (local_clip.is_empty()) {
+        return 0;
+    }
+    return static_cast<uint64_t>(std::max(0, local_clip.x1 - local_clip.x0)) *
+           static_cast<uint64_t>(std::max(0, local_clip.y1 - local_clip.y0));
+}
 
 void draw_crosshair(Framebuffer& fb, Vec2 center, f32 radius, const Color& color) {
     renderer::bline(fb, {center.x - radius, center.y}, {center.x + radius, center.y}, color);
@@ -142,29 +203,18 @@ const graph::GraphExecutor* SoftwareRenderer::executor() const {
 
 std::shared_ptr<Framebuffer> SoftwareRenderer::render_frame(const Composition& comp,
                                                             Frame frame) {
-    profiling::g_current_trace = &m_trace;
-    profiling::g_current_frame = static_cast<int32_t>(frame);
-    profiling::g_current_counters = &m_counters;
-    profiling::g_current_framebuffer_pool = m_framebuffer_pool.get();
-    TraceScope scope(&m_trace, "render_frame", "frame", static_cast<int32_t>(frame));
+    ProfilingScope scope(&m_trace, &m_counters, m_framebuffer_pool.get(), "render_frame", "frame", static_cast<int32_t>(frame));
 
     auto res = graph::render_composition_frame(
         *this, m_node_cache, m_settings, m_registry, m_video_decoder.get(), comp, frame
     );
-
-    profiling::g_current_counters = nullptr;
-    profiling::g_current_framebuffer_pool = nullptr;
     return res;
 }
 
 std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(const Scene& scene,
                                                             const Camera& camera, i32 width,
                                                             i32 height) {
-    profiling::g_current_trace = &m_trace;
-    profiling::g_current_frame = 0;
-    profiling::g_current_counters = &m_counters;
-    profiling::g_current_framebuffer_pool = m_framebuffer_pool.get();
-    TraceScope scope(&m_trace, "render_scene", "frame", 0);
+    ProfilingScope scope(&m_trace, &m_counters, m_framebuffer_pool.get(), "render_scene", "frame", 0);
 
     auto res = graph::render_scene_via_graph(
         *this,
@@ -179,19 +229,12 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(const Scene& scene,
         m_registry,
         m_video_decoder.get()
     );
-
-    profiling::g_current_counters = nullptr;
-    profiling::g_current_framebuffer_pool = nullptr;
     return res;
 }
 
 std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(
     const Scene& scene, const std::optional<Camera2_5D>& camera, i32 width, i32 height) {
-    profiling::g_current_trace = &m_trace;
-    profiling::g_current_frame = 0;
-    profiling::g_current_counters = &m_counters;
-    profiling::g_current_framebuffer_pool = m_framebuffer_pool.get();
-    TraceScope scope(&m_trace, "render_scene_2_5d", "frame", 0);
+    ProfilingScope scope(&m_trace, &m_counters, m_framebuffer_pool.get(), "render_scene_2_5d", "frame", 0);
 
     Scene effective_scene = scene;
     if (camera.has_value()) {
@@ -212,9 +255,6 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(
         m_registry,
         m_video_decoder.get()
     );
-
-    profiling::g_current_counters = nullptr;
-    profiling::g_current_framebuffer_pool = nullptr;
     return res;
 }
 
@@ -237,55 +277,17 @@ std::string SoftwareRenderer::debug_render_graph(const Scene& scene, const Camer
 }
 
 void SoftwareRenderer::apply_blur(Framebuffer& fb, f32 radius, const std::optional<raster::BBox>& clip) {
-    std::optional<raster::BBox> local_clip;
-    if (clip) {
-        raster::BBox c = *clip;
-        c.x0 -= fb.origin_x();
-        c.x1 -= fb.origin_x();
-        c.y0 -= fb.origin_y();
-        c.y1 -= fb.origin_y();
-        local_clip = c;
-    }
-
-    uint64_t area = static_cast<uint64_t>(fb.width() * fb.height());
-    if (local_clip) {
-        raster::BBox clipped = *local_clip;
-        clipped.clip_to(fb.width(), fb.height());
-        if (!clipped.is_empty()) {
-            area = static_cast<uint64_t>(clipped.x1 - clipped.x0) * (clipped.y1 - clipped.y0);
-        } else {
-            area = 0;
-        }
-    }
-    m_counters.blur_pixels.fetch_add(area, std::memory_order_relaxed);
+    const auto local_clip = to_local_clip(fb, clip);
+    m_counters.blur_pixels.fetch_add(clipped_area(fb.width(), fb.height(), local_clip), std::memory_order_relaxed);
     CHRONON_ZONE_C("apply_blur", trace_category::kEffect);
     renderer::apply_blur(fb, radius, local_clip);
 }
 
 void SoftwareRenderer::apply_effect_stack(Framebuffer& fb, const EffectStack& stack, float time_seconds, const std::optional<raster::BBox>& clip) {
     CHRONON_ZONE_C("apply_effect_stack", trace_category::kEffect);
-    
-    std::optional<raster::BBox> local_clip;
-    if (clip) {
-        raster::BBox c = *clip;
-        c.x0 -= fb.origin_x();
-        c.x1 -= fb.origin_x();
-        c.y0 -= fb.origin_y();
-        c.y1 -= fb.origin_y();
-        local_clip = c;
-    }
 
-    // Count blur pixels if any blur effect is present in the stack
-    uint64_t area = static_cast<uint64_t>(fb.width() * fb.height());
-    if (local_clip) {
-        raster::BBox clipped = *local_clip;
-        clipped.clip_to(fb.width(), fb.height());
-        if (!clipped.is_empty()) {
-            area = static_cast<uint64_t>(clipped.x1 - clipped.x0) * (clipped.y1 - clipped.y0);
-        } else {
-            area = 0;
-        }
-    }
+    const auto local_clip = to_local_clip(fb, clip);
+    const uint64_t area = clipped_area(fb.width(), fb.height(), local_clip);
     for (const auto& effect : stack) {
         if (effect.enabled && effect.params.type() == typeid(BlurParams)) {
             m_counters.blur_pixels.fetch_add(area, std::memory_order_relaxed);
@@ -299,20 +301,7 @@ void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node,
                                  const RenderState& state, const Camera& camera, i32 width,
                                  i32 height) {
     CHRONON_ZONE_C("draw_node", trace_category::kRasterize);
-    uint64_t touched = static_cast<uint64_t>(std::max(0, width)) * static_cast<uint64_t>(std::max(0, height));
-    if (state.clip_rect) {
-        raster::BBox local_clip = *state.clip_rect;
-        local_clip.x0 -= fb.origin_x();
-        local_clip.x1 -= fb.origin_x();
-        local_clip.y0 -= fb.origin_y();
-        local_clip.y1 -= fb.origin_y();
-        local_clip.clip_to(width, height);
-        touched = local_clip.is_empty()
-            ? 0
-            : static_cast<uint64_t>(std::max(0, local_clip.x1 - local_clip.x0)) *
-              static_cast<uint64_t>(std::max(0, local_clip.y1 - local_clip.y0));
-    }
-    m_counters.pixels_touched.fetch_add(touched, std::memory_order_relaxed);
+    m_counters.pixels_touched.fetch_add(clipped_area(width, height, to_local_clip(fb, state.clip_rect)), std::memory_order_relaxed);
     auto* processor = software_registry().get_shape(node.shape.type);
     if (!processor) {
         SoftwareNodeDispatcher::draw_node(*this, fb, node, state, camera, width, height, software_registry());
@@ -327,20 +316,7 @@ void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node,
 void SoftwareRenderer::composite_layer(Framebuffer& dst, const Framebuffer& src, BlendMode mode, const std::optional<raster::BBox>& clip) {
     m_counters.layers_rendered.fetch_add(1, std::memory_order_relaxed);
     CHRONON_ZONE_C("composite_layer", trace_category::kComposite);
-    uint64_t touched = static_cast<uint64_t>(dst.width()) * static_cast<uint64_t>(dst.height());
-    if (clip) {
-        raster::BBox local_clip = *clip;
-        local_clip.x0 -= dst.origin_x();
-        local_clip.x1 -= dst.origin_x();
-        local_clip.y0 -= dst.origin_y();
-        local_clip.y1 -= dst.origin_y();
-        local_clip.clip_to(dst.width(), dst.height());
-        touched = local_clip.is_empty()
-            ? 0
-            : static_cast<uint64_t>(std::max(0, local_clip.x1 - local_clip.x0)) *
-              static_cast<uint64_t>(std::max(0, local_clip.y1 - local_clip.y0));
-    }
-    m_counters.pixels_touched.fetch_add(touched, std::memory_order_relaxed);
+    m_counters.pixels_touched.fetch_add(clipped_area(dst.width(), dst.height(), to_local_clip(dst, clip)), std::memory_order_relaxed);
     SoftwareCompositor::composite_layer(dst, src, mode, clip);
 }
 

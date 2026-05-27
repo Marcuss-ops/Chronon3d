@@ -1,7 +1,7 @@
 #include <doctest/doctest.h>
 #include <chronon3d/animation/animated_value.hpp>
 #include <chronon3d/math/color.hpp>
-#include <chronon3d/math/vec3.hpp>
+#include <chronon3d/math/math_base.hpp>
 
 using namespace chronon3d;
 

@@ -3,8 +3,6 @@
 #include <chronon3d/core/types/types.hpp>
 
 // GLM Configuration
-// #define GLM_FORCE_INLINE
-// #define GLM_FORCE_DEFAULT_ALIGNED_GENTYPES
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #define GLM_ENABLE_EXPERIMENTAL
 
@@ -24,3 +22,5 @@ namespace chronon3d {
     using Mat4 = glm::mat4;
     using Quat = glm::quat;
 }
+
+#include <chronon3d/math/math_ops.hpp>
