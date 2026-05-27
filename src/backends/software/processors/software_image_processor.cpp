@@ -3,6 +3,7 @@
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include "../utils/render_effects_processor.hpp"
+#include <spdlog/spdlog.h>
 
 namespace chronon3d::renderer {
 
@@ -15,6 +16,29 @@ public:
         renderer.counters()->images_sampled.fetch_add(1, std::memory_order_relaxed);
 
         draw_shadow(fb, node, state);
+        if (node.glow.enabled) {
+            const int clip_x0 = state.clip_rect ? state.clip_rect->x0 : -1;
+            const int clip_y0 = state.clip_rect ? state.clip_rect->y0 : -1;
+            const int clip_x1 = state.clip_rect ? state.clip_rect->x1 : -1;
+            const int clip_y1 = state.clip_rect ? state.clip_rect->y1 : -1;
+            spdlog::info(
+                "[image-processor] node='{}' layer='{}' glow radius={:.2f} intensity={:.3f} color=({:.2f},{:.2f},{:.2f},{:.2f}) clip={} clip_rect=[{},{} -> {},{}]",
+                node.name,
+                state.layer_id,
+                node.glow.radius,
+                node.glow.intensity,
+                node.glow.color.r,
+                node.glow.color.g,
+                node.glow.color.b,
+                node.glow.color.a,
+                state.clip_rect ? 1 : 0,
+                clip_x0,
+                clip_y0,
+                clip_x1,
+                clip_y1
+            );
+            draw_glow(fb, node, state);
+        }
         renderer.image_renderer().draw_image(node.shape.image, state, fb);
     }
 

@@ -5,6 +5,7 @@
 #include <chronon3d/scene/layer/layer.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/effects/effect_category.hpp>
+#include <chronon3d/effects/effect_registry.hpp>
 #include "builder/graph_builder_internal.hpp"
 #include <unordered_map>
 #include <optional>
@@ -40,13 +41,21 @@ namespace chronon3d::graph::detail {
     if (motion_blur_enabled) return false;
     if (layer.blend_mode != BlendMode::Normal) return false;
     if (layer.mask.enabled()) return false;
+    
+    const auto& registry = effects::EffectRegistry::instance();
     for (const auto& eff : layer.effects) {
         if (!eff.enabled) continue;
+        
+        effects::EffectCategory category = eff.descriptor.category;
+        if (registry.contains(eff.descriptor.id)) {
+            category = registry.get(eff.descriptor.id).category;
+        }
+        
         // Blur, distort, and temporal effects expand the effective bbox
         // beyond the geometric bounds — dirty rects cannot track them.
-        if (eff.descriptor.category == effects::EffectCategory::Blur)     return false;
-        if (eff.descriptor.category == effects::EffectCategory::Distort)  return false;
-        if (eff.descriptor.category == effects::EffectCategory::Temporal)  return false;
+        if (category == effects::EffectCategory::Blur)     return false;
+        if (category == effects::EffectCategory::Distort)  return false;
+        if (category == effects::EffectCategory::Temporal) return false;
     }
     return true;
 }

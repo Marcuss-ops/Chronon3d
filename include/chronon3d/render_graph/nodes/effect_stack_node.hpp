@@ -3,6 +3,8 @@
 #include <chronon3d/render_graph/nodes/basic_nodes_common.hpp>
 #include <span>
 
+#include <spdlog/spdlog.h>
+
 namespace chronon3d::graph {
 
 class EffectStackNode final : public RenderGraphNode {
@@ -46,6 +48,20 @@ public:
         bbox.y0 = std::max(0, static_cast<i32>(std::floor(static_cast<f32>(bbox.y0) - spread)));
         bbox.x1 = std::min(ctx.width, static_cast<i32>(std::ceil(static_cast<f32>(bbox.x1) + spread)));
         bbox.y1 = std::min(ctx.height, static_cast<i32>(std::ceil(static_cast<f32>(bbox.y1) + spread)));
+        
+        spdlog::info(
+            "[EffectStackNode] input_bbox=({}, {})-({}, {}) spread={} output_bbox=({}, {})-({}, {})",
+            input_bboxes[0]->x0,
+            input_bboxes[0]->y0,
+            input_bboxes[0]->x1,
+            input_bboxes[0]->y1,
+            spread,
+            bbox.x0,
+            bbox.y0,
+            bbox.x1,
+            bbox.y1
+        );
+
         if (bbox.is_empty()) {
             return bbox;
         }
@@ -59,10 +75,39 @@ public:
             return empty;
         }
 
-        auto result = ctx.acquire_framebuffer(*inputs[0]);
+        std::shared_ptr<Framebuffer> result;
+        const f32 spread = compute_max_effect_spread();
+        auto pred_bbox = predicted_bbox(ctx, input_bboxes);
+
+        if (spread > 0.0f && pred_bbox) {
+            const raster::BBox out_bounds = *pred_bbox;
+            const i32 out_w = std::max(1, out_bounds.x1 - out_bounds.x0);
+            const i32 out_h = std::max(1, out_bounds.y1 - out_bounds.y0);
+            
+            result = ctx.acquire_framebuffer(out_w, out_h, true, out_bounds);
+            
+            const i32 intersect_x0 = std::max(inputs[0]->origin_x(), out_bounds.x0);
+            const i32 intersect_y0 = std::max(inputs[0]->origin_y(), out_bounds.y0);
+            const i32 intersect_x1 = std::min(inputs[0]->origin_x() + inputs[0]->width(), out_bounds.x1);
+            const i32 intersect_y1 = std::min(inputs[0]->origin_y() + inputs[0]->height(), out_bounds.y1);
+            
+            if (intersect_x1 > intersect_x0 && intersect_y1 > intersect_y0) {
+                const i32 w_copy = intersect_x1 - intersect_x0;
+                for (i32 y = intersect_y0; y < intersect_y1; ++y) {
+                    const Color* src = inputs[0]->pixels_row(y - inputs[0]->origin_y()) + (intersect_x0 - inputs[0]->origin_x());
+                    Color* dst = result->pixels_row(y - out_bounds.y0) + (intersect_x0 - out_bounds.x0);
+                    std::copy_n(src, w_copy, dst);
+                }
+            }
+            
+            result->set_opaque(inputs[0]->is_opaque());
+            result->set_key_digest(inputs[0]->key_digest());
+        } else {
+            result = ctx.acquire_framebuffer(*inputs[0]);
+        }
+
         if (ctx.backend) {
             std::optional<raster::BBox> local_clip = ctx.clip_rect;
-            auto pred_bbox = predicted_bbox(ctx, input_bboxes);
             if (pred_bbox) {
                 if (local_clip) {
                     local_clip->x0 = std::max(local_clip->x0, pred_bbox->x0);

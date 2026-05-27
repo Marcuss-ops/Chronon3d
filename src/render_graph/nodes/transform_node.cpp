@@ -63,7 +63,9 @@ std::shared_ptr<Framebuffer> TransformNode::execute(
             return input;
         } else {
             auto result = ctx.acquire_framebuffer(out_w, out_h, true, out_bounds);
-            std::copy(input->data(), input->data() + input->pixel_count(), result->data());
+            for (i32 y = 0; y < input->height(); ++y) {
+                std::copy_n(input->pixels_row(y), input->width(), result->pixels_row(y));
+            }
             result->set_opaque(input->is_opaque());
             return result;
         }
@@ -325,24 +327,19 @@ std::optional<raster::BBox> TransformNode::predicted_bbox(
     const Mat4 model = m_use_matrix ? m_matrix : m_transform.to_mat4();
     const Mat4 dst_canvas_offset = math::translate(Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
 
-    f32 x_min_src = 0.0f;
-    f32 y_min_src = 0.0f;
-    f32 x_max_src = static_cast<f32>(ctx.width);
-    f32 y_max_src = static_cast<f32>(ctx.height);
+    f32 input_w = static_cast<f32>(ctx.width);
+    f32 input_h = static_cast<f32>(ctx.height);
     if (!input_bboxes.empty() && input_bboxes[0].has_value()) {
-        const auto& in_box = *input_bboxes[0];
-        x_min_src = static_cast<f32>(std::clamp(in_box.x0, 0, ctx.width));
-        y_min_src = static_cast<f32>(std::clamp(in_box.y0, 0, ctx.height));
-        x_max_src = static_cast<f32>(std::clamp(in_box.x1, 0, ctx.width));
-        y_max_src = static_cast<f32>(std::clamp(in_box.y1, 0, ctx.height));
-        if (x_min_src >= x_max_src || y_min_src >= y_max_src) {
-            const i32 empty_x = static_cast<i32>(std::floor(x_min_src));
-            const i32 empty_y = static_cast<i32>(std::floor(y_min_src));
-            return raster::BBox{empty_x, empty_y, empty_x, empty_y};
-        }
+        input_w = static_cast<f32>(input_bboxes[0]->x1 - input_bboxes[0]->x0);
+        input_h = static_cast<f32>(input_bboxes[0]->y1 - input_bboxes[0]->y0);
     }
 
-    const Mat4 src_canvas_offset = math::translate(Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
+    const f32 x_min_src = 0.0f;
+    const f32 y_min_src = 0.0f;
+    const f32 x_max_src = input_w;
+    const f32 y_max_src = input_h;
+
+    const Mat4 src_canvas_offset = math::translate(Vec3(input_w * 0.5f, input_h * 0.5f, 0.0f));
     const Mat4 pixel_model = dst_canvas_offset * model * glm::inverse(src_canvas_offset);
 
     Vec4 corners[4] = {

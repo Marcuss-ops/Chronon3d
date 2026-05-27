@@ -16,31 +16,63 @@ namespace renderer {
 namespace {
 
 Color resolve_gradient_color(const Fill& fill, Vec2 lp, Vec2 sz, f32 opacity) {
+    if (fill.type == FillType::Solid) {
+        Color c = fill.solid.to_linear();
+        c.a *= opacity;
+        return c;
+    }
+
+    f32 t = 0.0f;
     if (fill.type == FillType::LinearGradient) {
         const Vec2 norm = { (lp.x / sz.x), (lp.y / sz.y) };
         const Vec2 dir = fill.gradient.to - fill.gradient.from;
         const f32 len_sq = dir.x * dir.x + dir.y * dir.y;
-        if (len_sq < 1e-6f) return fill.solid;
-        const Vec2 rel = norm - fill.gradient.from;
-        f32 t = (rel.x * dir.x + rel.y * dir.y) / len_sq;
-        t = std::clamp(t, 0.0f, 1.0f);
+        if (len_sq > 1e-6f) {
+            const Vec2 rel = norm - fill.gradient.from;
+            t = (rel.x * dir.x + rel.y * dir.y) / len_sq;
+        }
+    } else if (fill.type == FillType::RadialGradient) {
+        const Vec2 norm = { (lp.x / sz.x), (lp.y / sz.y) };
+        const Vec2 d = norm - fill.gradient.from;
+        const Vec2 rv = fill.gradient.to - fill.gradient.from;
+        const f32 r = glm::length(rv);
+        t = (r > 1e-6f) ? glm::length(d) / r : 0.0f;
+    } else {
+        Color c = fill.solid.to_linear();
+        c.a *= opacity;
+        return c;
+    }
 
-        Color c = fill.gradient.stops.empty() ? fill.solid : fill.gradient.stops[0].color;
+    t = std::clamp(t, 0.0f, 1.0f);
+
+    if (fill.gradient.stops.empty()) {
+        Color c = fill.solid.to_linear();
+        c.a *= opacity;
+        return c;
+    }
+
+    Color c;
+    if (t <= fill.gradient.stops.front().offset) {
+        c = fill.gradient.stops.front().color.to_linear();
+    } else if (t >= fill.gradient.stops.back().offset) {
+        c = fill.gradient.stops.back().color.to_linear();
+    } else {
         for (size_t i = 0; i < fill.gradient.stops.size() - 1; ++i) {
-            if (t >= fill.gradient.stops[i].offset && t <= fill.gradient.stops[i+1].offset) {
-                const f32 range = fill.gradient.stops[i+1].offset - fill.gradient.stops[i].offset;
-                const f32 local_t = (range < 1e-6f) ? 0.0f : (t - fill.gradient.stops[i].offset) / range;
-                c = lerp(fill.gradient.stops[i].color, fill.gradient.stops[i+1].color, local_t);
+            const auto& a = fill.gradient.stops[i];
+            const auto& b = fill.gradient.stops[i+1];
+            if (t >= a.offset && t <= b.offset) {
+                const f32 range = b.offset - a.offset;
+                const f32 local_t = (range < 1e-6f) ? 0.0f : (t - a.offset) / range;
+                Color c_a = a.color.to_linear();
+                Color c_b = b.color.to_linear();
+                c = c_a + (c_b - c_a) * local_t;
                 break;
             }
         }
-        if (!fill.gradient.stops.empty() && t >= fill.gradient.stops.back().offset) {
-            c = fill.gradient.stops.back().color;
-        }
-        c.a *= opacity;
-        return c.to_linear();
     }
-    return fill.solid;
+
+    c.a *= opacity;
+    return c;
 }
 
 Vec2 shape_size_for_fill(const Shape& shape) {
@@ -127,13 +159,32 @@ bool hit_test(const Shape& s, Vec2 p, f32 spread) {
         case ShapeType::RoundedRect: {
             const f32 w = s.rounded_rect.size.x;
             const f32 h = s.rounded_rect.size.y;
-            const f32 r = s.rounded_rect.radius + spread;
-            if (p.x < -spread || p.x > w + spread || p.y < -spread || p.y > h + spread) return false;
+            const f32 r = std::max(0.0f, std::min({s.rounded_rect.radius, w * 0.5f, h * 0.5f}));
             
-            // Simplified rounded rect hit test
-            const f32 dx = std::max({-p.x - spread, p.x - w - spread, 0.0f});
-            const f32 dy = std::max({-p.y - spread, p.y - h - spread, 0.0f});
-            return std::sqrt(dx*dx + dy*dy) <= r; // Not perfect but good for heuristic
+            if (p.x < -spread || p.x > w + spread || p.y < -spread || p.y > h + spread) return false;
+
+            const f32 r_spread = r + spread;
+            if (p.x < r && p.y < r) { // Top-left
+                const f32 dx = p.x - r;
+                const f32 dy = p.y - r;
+                return (dx * dx + dy * dy) <= r_spread * r_spread;
+            }
+            if (p.x > w - r && p.y < r) { // Top-right
+                const f32 dx = p.x - (w - r);
+                const f32 dy = p.y - r;
+                return (dx * dx + dy * dy) <= r_spread * r_spread;
+            }
+            if (p.x < r && p.y > h - r) { // Bottom-left
+                const f32 dx = p.x - r;
+                const f32 dy = p.y - (h - r);
+                return (dx * dx + dy * dy) <= r_spread * r_spread;
+            }
+            if (p.x > w - r && p.y > h - r) { // Bottom-right
+                const f32 dx = p.x - (w - r);
+                const f32 dy = p.y - (h - r);
+                return (dx * dx + dy * dy) <= r_spread * r_spread;
+            }
+            return true;
         }
 
         case ShapeType::Circle: {

@@ -10,7 +10,12 @@ add_library(chronon3d_content STATIC
     anims/animation_compositions.cpp
     images/image_compositions.cpp
     2d5/two_point_five_d_compositions.cpp
-    effects/glow_test_compositions.cpp
+    effects/glow_01_neon_sign.cpp
+    effects/glow_02_orb_galaxy.cpp
+    effects/glow_03_cinematic_text.cpp
+    effects/glow_04_ui_card.cpp
+    effects/glow_05_pulse_wave.cpp
+    effects/glow_06_video_layer.cpp
 )
 target_include_directories(chronon3d_content PRIVATE ${CMAKE_SOURCE_DIR})
 target_link_libraries(chronon3d_content

@@ -5,6 +5,8 @@
 #include <tbb/parallel_for.h>
 #include <cstring>
 
+#include <spdlog/spdlog.h>
+
 namespace chronon3d::graph::detail {
 
 // ─── Integer translation (per-pixel source clamping, TBB) ────────────────────
@@ -15,8 +17,9 @@ void execute_translate_clamped(
     f32 x_min_src, f32 x_max_src, f32 y_min_src, f32 y_max_src,
     i32 itx, i32 ity, f32 opacity)
 {
+
     const Color* src_data = input->data();
-    const i32 src_w = input->width();
+    const i32 src_w = input->stride(); // Use stride instead of width for correct indexing
 
     auto worker = [&](i32 row_begin, i32 row_end) {
         for (i32 y = row_begin; y < row_end; ++y) {

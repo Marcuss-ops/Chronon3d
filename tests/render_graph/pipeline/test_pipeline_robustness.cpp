@@ -134,13 +134,28 @@ TEST_CASE("Coordinate Centered vs Top Left - Transform matrix offset") {
     SoftwareRenderer renderer;
     RenderSettings settings = renderer.settings();
     settings.use_modular_graph = false;
-    settings.diagnostic = false;
+    settings.diagnostic = true;
     renderer.set_settings(settings);
 
     Camera camera;
 
     auto fb = renderer.render_scene(scene, camera, 1920, 1080);
     REQUIRE(fb != nullptr);
+
+    i32 min_red_x = 9999, max_red_x = -9999;
+    i32 min_red_y = 9999, max_red_y = -9999;
+    for (i32 y = 0; y < fb->height(); ++y) {
+        for (i32 x = 0; x < fb->width(); ++x) {
+            Color p = fb->get_pixel(x, y);
+            if (p.r > 0.5f) {
+                min_red_x = std::min(min_red_x, x);
+                max_red_x = std::max(max_red_x, x);
+                min_red_y = std::min(min_red_y, y);
+                max_red_y = std::max(max_red_y, y);
+            }
+        }
+    }
+    spdlog::info("RED PIXELS BBOX: [{}, {} -> {}, {}]", min_red_x, min_red_y, max_red_x, max_red_y);
 
     Color p_center = fb->get_pixel(1060, 590);
     Color p_old_center = fb->get_pixel(960, 540);
