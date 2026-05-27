@@ -72,8 +72,6 @@ inline f32 apply(Easing type, f32 t) {
 
 } // namespace easing
 
-using Ease = Easing;
-
 struct CubicBezier {
     f32 x1{0.25f};
     f32 y1{0.10f};

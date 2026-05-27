@@ -1,8 +1,6 @@
 #pragma once
 
 #include <chronon3d/math/glm_types.hpp>
-#include <chronon3d/math/glm_types.hpp>
-#include <chronon3d/math/glm_types.hpp>
 #include <cmath>
 #include <cstdlib>
 #include <string>

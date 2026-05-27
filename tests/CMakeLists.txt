@@ -187,6 +187,12 @@ target_include_directories(chronon3d_cache_tests PRIVATE ${CMAKE_SOURCE_DIR})
 add_test(NAME chronon3d_cache_tests COMMAND chronon3d_cache_tests WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 # Aggregate target: build all test executables with a single cmake --build ... --target chronon3d_tests
+# Note: benchmarks are conditional; included only when TARGET chronon3d_benchmarks exists
+if(TARGET chronon3d_benchmarks)
+    set(CHRONON3D_BENCHMARK_DEP chronon3d_benchmarks)
+else()
+    set(CHRONON3D_BENCHMARK_DEP "")
+endif()
 add_custom_target(chronon3d_tests
     DEPENDS
         chronon3d_animation_tests
@@ -195,9 +201,9 @@ add_custom_target(chronon3d_tests
         chronon3d_renderer_tests
         chronon3d_io_tests
         chronon3d_cli_tests
-        chronon3d_benchmarks
         chronon3d_optimizer_tests
         chronon3d_cache_tests
+        ${CHRONON3D_BENCHMARK_DEP}
 )
 
 # Video Tests (Isolated)
@@ -216,13 +222,15 @@ target_link_libraries(chronon3d_video_tests
 target_include_directories(chronon3d_video_tests PRIVATE ${CMAKE_SOURCE_DIR})
 add_test(NAME chronon3d_video_tests COMMAND chronon3d_video_tests WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
-# Benchmarks
-add_executable(chronon3d_benchmarks
-    bench/micro_benchmarks.cpp
-)
-target_link_libraries(chronon3d_benchmarks
-    PRIVATE
-        chronon3d_pipeline
-        benchmark::benchmark_main
-)
-target_include_directories(chronon3d_benchmarks PRIVATE ${CMAKE_SOURCE_DIR})
+# Benchmarks (only built if benchmark package is available)
+if(TARGET benchmark::benchmark_main)
+    add_executable(chronon3d_benchmarks
+        bench/micro_benchmarks.cpp
+    )
+    target_link_libraries(chronon3d_benchmarks
+        PRIVATE
+            chronon3d_pipeline
+            benchmark::benchmark_main
+    )
+    target_include_directories(chronon3d_benchmarks PRIVATE ${CMAKE_SOURCE_DIR})
+endif()
