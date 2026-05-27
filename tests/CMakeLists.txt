@@ -101,11 +101,13 @@ add_executable(chronon3d_renderer_tests
     render_graph/pipeline/test_render_pipeline.cpp
     render_graph/pipeline/test_line_grid.cpp
     render_graph/pipeline/test_pipeline_robustness.cpp
+    render_graph/pipeline/test_graph_health.cpp
     render_graph/pipeline/test_grid_math.cpp
     render_graph/pipeline/test_render_backend.cpp
     render_graph/pipeline/test_dirty_rects.cpp
     render_graph/optimizer/test_graph_optimizer.cpp
     render_graph/pipeline/test_dirty_rects_v2.cpp
+    render_graph/pipeline/test_graph_preflight_diagnostics.cpp
     scene/camera/camera_25d_tests.cpp
     effects/effect_graph_tests.cpp
     scene/shapes/mask_tests.cpp
@@ -121,6 +123,7 @@ target_link_libraries(chronon3d_renderer_tests
     PRIVATE
         chronon3d_pipeline
         chronon3d_scene
+        $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_content>
         doctest::doctest
 )
 target_compile_definitions(chronon3d_renderer_tests PRIVATE CHRONON3D_SOURCE_DIR="${CMAKE_SOURCE_DIR}")

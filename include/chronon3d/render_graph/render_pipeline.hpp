@@ -12,6 +12,7 @@
 #include <chronon3d/timeline/composition.hpp>
 #include <memory>
 #include <string>
+#include <string_view>
 
 namespace chronon3d::graph {
 
@@ -31,7 +32,8 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     const RenderSettings& settings,
     const CompositionRegistry* registry,
     video::VideoFrameDecoder* video_decoder,
-    float fps = 30.0f
+    float fps = 30.0f,
+    std::string_view diagnostic_label = "scene"
 );
 
 /**

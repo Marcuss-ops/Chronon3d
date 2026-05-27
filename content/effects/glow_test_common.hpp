@@ -1,10 +1,8 @@
 // content/effects/glow_test_common.hpp
 #pragma once
-#include <chronon3d/core/composition/composition_registration.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
-#include <cmath>
 #include <string>
 
 namespace chronon3d::content::effects {
@@ -19,7 +17,7 @@ inline void deep_bg(SceneBuilder& s, Color top, Color bot) {
         l.rect("bg", {
             .size  = {(f32)kW, (f32)kH},
             .color = top,
-            .pos   = {-kHW, -kHH, 0.f},
+            .pos   = {0.f, 0.f, 0.f},
             .fill  = Fill::linear({0,0},{0,1},{{0.f,top},{1.f,bot}})
         });
     });

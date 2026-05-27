@@ -132,7 +132,7 @@ TEST_CASE("Chronon3d Suite: Mandatory Visual Snapshots") {
         };
         s.rect("linear_box", {
             .size = {512, 128},
-            .pos = {0, 0, 0},
+            .pos = {-256, -64, 0},
             .fill = Fill::linear({0.0f, 0.5f}, {1.0f, 0.5f}, stops)
         });
         return s.build();
@@ -150,7 +150,7 @@ TEST_CASE("Chronon3d Suite: Mandatory Visual Snapshots") {
         };
         s.circle("radial_circle", {
             .radius = 200.0f,
-            .pos = {0, 0, 0},
+            .pos = {-200, -200, 0},
             .fill = Fill::radial({0.5f, 0.5f}, 0.5f, stops)
         });
         return s.build();
@@ -171,7 +171,7 @@ TEST_CASE("Chronon3d Suite: Mandatory Visual Snapshots") {
         };
         s.rect("multi_box", {
             .size = {512, 128},
-            .pos = {0, 0, 0},
+            .pos = {-256, -64, 0},
             .fill = Fill::linear({0.0f, 0.5f}, {1.0f, 0.5f}, stops)
         });
         return s.build();
@@ -260,7 +260,7 @@ TEST_CASE("Chronon3d Suite: Mandatory Visual Snapshots") {
         s.rect("square", {
             .size = {150, 150},
             .color = Color::white(),
-            .pos = {0, 0, 0}
+            .pos = {-75, -75, 0}
         });
         s.with_shadow({
             .enabled = true,
@@ -279,11 +279,11 @@ TEST_CASE("Chronon3d Suite: Mandatory Visual Snapshots") {
         SceneBuilder s(ctx);
         s.layer("l", [](LayerBuilder& l) {
             // Circle 1: Below threshold (0.5 brightness)
-            l.circle("c1", {.radius = 40.0f, .color = Color{0.5f, 0.5f, 0.5f, 1.0f}, .pos = {-128, 0, 0}});
+            l.circle("c1", {.radius = 40.0f, .color = Color{0.5f, 0.5f, 0.5f, 1.0f}, .pos = {-168, -40, 0}});
             // Circle 2: Near threshold (1.0 brightness)
-            l.circle("c2", {.radius = 40.0f, .color = Color{1.0f, 1.0f, 1.0f, 1.0f}, .pos = {0, 0, 0}});
+            l.circle("c2", {.radius = 40.0f, .color = Color{1.0f, 1.0f, 1.0f, 1.0f}, .pos = {-40, -40, 0}});
             // Circle 3: Far above threshold (4.0 brightness - HDR)
-            l.circle("c3", {.radius = 40.0f, .color = Color{4.0f, 4.0f, 4.0f, 1.0f}, .pos = {128, 0, 0}});
+            l.circle("c3", {.radius = 40.0f, .color = Color{4.0f, 4.0f, 4.0f, 1.0f}, .pos = {88, -40, 0}});
             
             // Bloom: Threshold 1.0, Blur 24, Intensity 1.5
             l.bloom(1.0f, 24.0f, 1.5f);
@@ -301,14 +301,14 @@ TEST_CASE("Chronon3d Suite: Mandatory Visual Snapshots") {
         s.rect("rect_srgb", {
             .size = {200, 180},
             .color = Color{0.214f, 0.0f, 0.214f, 1.0f}, // mix rosso/blu in sRGB gamma mapped to linear
-            .pos = {-116, 0, 0}
+            .pos = {-216, -90, 0}
         });
         
         // Rect B: mix in linear space (0.5 linear)
         s.rect("rect_linear", {
             .size = {200, 180},
             .color = Color{0.5f, 0.0f, 0.5f, 1.0f}, // mix rosso/blu in pure linear space
-            .pos = {116, 0, 0}
+            .pos = {16, -90, 0}
         });
         return s.build();
     });
@@ -330,7 +330,7 @@ TEST_CASE("Chronon3d Suite: Gradient Tests") {
             };
             s.rect("grad_rect", {
                 .size = {512, 128},
-                .pos = {0, 0, 0},
+                .pos = {-256, -64, 0},
                 .fill = Fill::linear({0.0f, 0.5f}, {1.0f, 0.5f}, stops)
             });
             return s.build();
@@ -371,7 +371,7 @@ TEST_CASE("Chronon3d Suite: Gradient Tests") {
             };
             s.rect("multi_rect", {
                 .size = {512, 128},
-                .pos = {0, 0, 0},
+                .pos = {-256, -64, 0},
                 .fill = Fill::linear({0.0f, 0.5f}, {1.0f, 0.5f}, stops)
             });
             return s.build();
@@ -413,7 +413,7 @@ TEST_CASE("Chronon3d Suite: Gradient Tests") {
             };
             s.circle("radial_circle", {
                 .radius = 200.0f,
-                .pos = {0, 0, 0},
+                .pos = {-200, -200, 0},
                 .fill = Fill::radial({0.5f, 0.5f}, 0.5f, stops)
             });
             return s.build();
@@ -494,7 +494,7 @@ TEST_CASE("Chronon3d Suite: Shadow System Tests") {
             s.rect("box", {
                 .size = {40, 40},
                 .color = Color::white(),
-                .pos = {0, 0, 0}
+                .pos = {-20, -20, 0}
             });
             s.with_shadow({
                 .enabled = true,
@@ -531,9 +531,9 @@ TEST_CASE("Chronon3d Suite: Cinematic Bloom Tests") {
         SceneBuilder s(ctx);
         s.layer("l", [](LayerBuilder& l) {
             // Dark gray box below threshold
-            l.rect("c1", {.size = {60, 60}, .color = Color{0.5f, 0.0f, 0.0f, 1.0f}, .pos = {-128, 0, 0}});
+            l.rect("c1", {.size = {60, 60}, .color = Color{0.5f, 0.0f, 0.0f, 1.0f}, .pos = {-158, -30, 0}});
             // Super bright red box (HDR) above threshold
-            l.rect("c2", {.size = {60, 60}, .color = Color{5.0f, 0.0f, 0.0f, 1.0f}, .pos = {128, 0, 0}});
+            l.rect("c2", {.size = {60, 60}, .color = Color{5.0f, 0.0f, 0.0f, 1.0f}, .pos = {98, -30, 0}});
             
             // Bloom: Threshold 1.0, radius 16, intensity 2.0
             l.bloom(1.0f, 16.0f, 2.0f);
@@ -673,7 +673,7 @@ TEST_CASE("Chronon3d Suite: Final Combined Stress Test") {
             l.rounded_rect("card", {
                 .size = {300, 300},
                 .radius = 16.0f,
-                .pos = {t * 20.0f, 0.0f, 0.0f},
+                .pos = {t * 20.0f - 150.0f, -150.0f, 0.0f},
                 .fill = Fill::radial({0.5f, 0.5f}, 0.5f, stops)
             });
             
@@ -701,7 +701,7 @@ TEST_CASE("Chronon3d Suite: Final Combined Stress Test") {
             l.circle("hdr_core", {
                 .radius = 25.0f,
                 .color = Color{6.0f, 1.5f, 0.5f, 1.0f}, // Warm HDR glow
-                .pos = {0, 0, 0}
+                .pos = {-25, -25, 0}
             });
             
             // Apply cumulative effects

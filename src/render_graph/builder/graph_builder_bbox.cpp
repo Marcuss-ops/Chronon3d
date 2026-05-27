@@ -52,6 +52,10 @@ raster::BBox compute_layer_bbox(const LayerGraphItem& item, const RenderGraphCon
         .y1 = std::numeric_limits<i32>::min()
     };
 
+    const Mat4 item_source_world = use_local
+        ? item.world_matrix
+        : source_space_world_matrix(item, ctx);
+
     for (const auto& node : layer.nodes) {
         if (!node.visible) continue;
 
@@ -67,17 +71,16 @@ raster::BBox compute_layer_bbox(const LayerGraphItem& item, const RenderGraphCon
             // Non-projected: account for layer-level world matrix with hierarchy support.
             const Mat4 layer_inv = layer.transform.any() ? glm::inverse(layer.transform.to_mat4()) : Mat4(1.0f);
             actual_world_matrix = layer.hierarchy_resolved
-                ? (item.world_matrix * node_matrix)
-                : (item.world_matrix * layer_inv * node_matrix);
+                ? (item_source_world * node_matrix)
+                : (item_source_world * layer_inv * node_matrix);
         }
 
         Mat4 matrix;
-        const bool is_centered = ctx.modular_coordinates ? use_local : centered;
         if (use_local) {
             Mat4 shape_matrix = glm::inverse(item.world_matrix) * actual_world_matrix;
             matrix = canvas_center * ssaa_scale * shape_matrix;
         } else {
-            if (item.projected || is_centered) {
+            if (item.projected || centered) {
                 matrix = canvas_center * ssaa_scale * actual_world_matrix;
             } else {
                 matrix = ssaa_scale * actual_world_matrix;

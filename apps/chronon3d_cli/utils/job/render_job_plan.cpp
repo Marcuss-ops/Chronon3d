@@ -34,6 +34,8 @@ RenderJobPlanResult plan_render_job(const RenderArgs& args, bool motion_blur_all
     
     // Fill RenderSettings
     res.value.settings.diagnostic = args.pipeline.diagnostic;
+    res.value.settings.diagnostic_plan = args.pipeline.diagnostic_plan;
+    res.value.settings.diagnostic_plan_output = args.pipeline.diagnostic_plan_output;
     res.value.settings.use_modular_graph = args.pipeline.use_modular_graph;
     res.value.settings.motion_blur.enabled = motion_blur_allowed && args.pipeline.quality.motion_blur;
     res.value.settings.motion_blur.samples = args.pipeline.quality.motion_blur_samples;

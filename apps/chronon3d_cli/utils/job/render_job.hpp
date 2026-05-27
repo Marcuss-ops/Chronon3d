@@ -22,6 +22,7 @@ struct RenderJobPlan {
     std::string log_level;
     bool benchmark_all{false};
     bool report{false};
+    bool diagnostic_plan{false};
 
     // Renderer warmup
     bool   warmup_renderer{false};

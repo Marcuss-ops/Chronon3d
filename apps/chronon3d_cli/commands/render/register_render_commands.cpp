@@ -21,6 +21,10 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
     cmd->add_option("--trace", args.trace_file, "Path to output Chrome performance trace JSON file");
     cmd->add_flag("--diagnostic,--layout-preview", args.pipeline.diagnostic,
                   "Enable layout preview overlays (bbox, anchors, center guide)");
+    cmd->add_flag("--diagnostic-plan", args.pipeline.diagnostic_plan,
+                  "Log graph preflight diagnostics before rendering each frame");
+    cmd->add_option("--diagnostic-plan-output", args.pipeline.diagnostic_plan_output,
+                    "Write graph preflight report to a file path pattern");
     cmd->add_flag("--graph,!--no-graph", args.pipeline.use_modular_graph, "Use modular RenderGraph path");
     cmd->add_flag("--dirty-rects", args.pipeline.dirty_rects, "Enable dirty rectangles invalidation");
     cmd->add_flag("--motion-blur", args.pipeline.quality.motion_blur, "Enable temporal motion blur");
