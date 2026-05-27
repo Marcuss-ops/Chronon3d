@@ -1,8 +1,6 @@
 #pragma once
 
 #include <chronon3d/math/glm_types.hpp>
-#include <chronon3d/math/glm_types.hpp>
-#include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/math/projection_context.hpp>
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/scene/mask/mask_utils.hpp>

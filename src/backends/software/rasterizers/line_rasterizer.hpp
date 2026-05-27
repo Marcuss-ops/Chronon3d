@@ -2,9 +2,7 @@
 
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/math/glm_types.hpp>
-#include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/math/color.hpp>
-#include <chronon3d/math/glm_types.hpp>
 
 namespace chronon3d {
 namespace renderer {
