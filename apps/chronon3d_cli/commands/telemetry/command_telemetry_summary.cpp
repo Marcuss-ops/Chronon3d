@@ -3,120 +3,162 @@
 #if defined(CHRONON3D_ENABLE_SQLITE_TELEMETRY)
 #include <sqlite3.h>
 #include <string>
+#include <unordered_map>
 
 namespace chronon3d::cli {
 
 RunSummary query_run_summary(sqlite3* db, const std::string& run_id) {
     RunSummary run;
-    const char* run_sql =
-        "SELECT composition_id, output_path, success, frames_total, frames_written, wall_time_ms, render_ms, encode_ms, effective_fps, "
-        "pixels_touched, cache_hits, cache_misses, nodes_executed, layers_rendered, text_glyphs_rasterized, images_sampled, blur_pixels, "
-        "simd_lerp_calls, tiles_total, tiles_hit, tiles_miss, tiles_partial, bytes_allocated_peak, node_cache_hash_collisions, "
-        "clear_skipped_calls, clear_skipped_pixels, clear_calls, clear_pixels, composite_calls, composite_pixels, transform_calls, transform_pixels, effect_stack_calls, effect_pixels, "
-        "layer_culling_tests, layers_culled, layers_visible, framebuffer_allocations, framebuffer_reuses, framebuffer_bytes_allocated, "
-        "framebuffer_bytes_peak, "
-        "dirty_rect_count, dirty_pixels, dirty_full_fallbacks, "
-        "framebuffer_acquire_ms, framebuffer_clear_ms, clearnode_ms, framebuffer_pool_clear_ms, "
-        "framebuffer_enqueue_ms, framebuffer_pool_miss_count_size_mismatch, framebuffer_pool_miss_count_empty, "
-        "framebuffer_pool_hits, framebuffer_buffer_returned_to_pool_count, "
-        "unaligned_memory_copies, frame_conversion_copy_ms, "
-        "video_graph_eval_ms, video_conversion_ms, video_pipe_write_ms, video_ffmpeg_latency_ms, "
-        "io_queue_push_blocked_ms, io_queue_pop_wait_ms, io_queue_peak_depth, ffmpeg_pipe_write_blocked_ms, converted_frame_cache_hits, ffmpeg_flush_ms, "
-        "io_queue_peak_bytes, setup_graph_parsing_ms, setup_asset_io_load_ms, setup_pool_preallocation_ms, image_decode_ms, "
-        "process_context_switches_voluntary, process_context_switches_involuntary, os_page_faults_major, os_page_faults_minor, "
-        "ffmpeg_cpu_user_pct, ffmpeg_cpu_sys_pct, llc_references, llc_misses, "
-        "started_at_iso, finished_at_iso, git_commit_short, build_type, compiler_info, os, cpu_model, cores "
-        "FROM render_runs WHERE run_id = ?;";
+    const char* run_sql = "SELECT * FROM render_runs WHERE run_id = ?;";
     sqlite3_stmt* stmt = nullptr;
     if (prepare_with_run_id(db, &stmt, run_sql, run_id) && sqlite3_step(stmt) == SQLITE_ROW) {
-        run.composition_id = sql_text(stmt, 0);
-        run.output_path = sql_text(stmt, 1);
-        run.success = sqlite3_column_int(stmt, 2) != 0;
-        run.frames_total = static_cast<int>(sql_i64(stmt, 3));
-        run.frames_written = static_cast<int>(sql_i64(stmt, 4));
-        run.wall_time_ms = sql_double(stmt, 5);
-        run.render_ms = sql_double(stmt, 6);
-        run.encode_ms = sql_double(stmt, 7);
-        run.effective_fps = sql_double(stmt, 8);
-        run.pixels_touched = static_cast<uint64_t>(sql_i64(stmt, 9));
-        run.cache_hits = static_cast<uint64_t>(sql_i64(stmt, 10));
-        run.cache_misses = static_cast<uint64_t>(sql_i64(stmt, 11));
-        run.nodes_executed = static_cast<uint64_t>(sql_i64(stmt, 12));
-        run.layers_rendered = static_cast<uint64_t>(sql_i64(stmt, 13));
-        run.text_glyphs_rasterized = static_cast<uint64_t>(sql_i64(stmt, 14));
-        run.images_sampled = static_cast<uint64_t>(sql_i64(stmt, 15));
-        run.blur_pixels = static_cast<uint64_t>(sql_i64(stmt, 16));
-        run.simd_lerp_calls = static_cast<uint64_t>(sql_i64(stmt, 17));
-        run.tiles_total = static_cast<uint64_t>(sql_i64(stmt, 18));
-        run.tiles_hit = static_cast<uint64_t>(sql_i64(stmt, 19));
-        run.tiles_miss = static_cast<uint64_t>(sql_i64(stmt, 20));
-        run.tiles_partial = static_cast<uint64_t>(sql_i64(stmt, 21));
-        run.bytes_allocated_peak = static_cast<uint64_t>(sql_i64(stmt, 22));
-        run.node_cache_hash_collisions = static_cast<uint64_t>(sql_i64(stmt, 23));
-        run.clear_skipped_calls = static_cast<uint64_t>(sql_i64(stmt, 24));
-        run.clear_skipped_pixels = static_cast<uint64_t>(sql_i64(stmt, 25));
-        run.clear_calls = static_cast<uint64_t>(sql_i64(stmt, 26));
-        run.clear_pixels = static_cast<uint64_t>(sql_i64(stmt, 27));
-        run.composite_calls = static_cast<uint64_t>(sql_i64(stmt, 28));
-        run.composite_pixels = static_cast<uint64_t>(sql_i64(stmt, 29));
-        run.transform_calls = static_cast<uint64_t>(sql_i64(stmt, 30));
-        run.transform_pixels = static_cast<uint64_t>(sql_i64(stmt, 31));
-        run.effect_stack_calls = static_cast<uint64_t>(sql_i64(stmt, 32));
-        run.effect_pixels = static_cast<uint64_t>(sql_i64(stmt, 33));
-        run.layer_culling_tests = static_cast<uint64_t>(sql_i64(stmt, 34));
-        run.layers_culled = static_cast<uint64_t>(sql_i64(stmt, 35));
-        run.layers_visible = static_cast<uint64_t>(sql_i64(stmt, 36));
-        run.framebuffer_allocations = static_cast<uint64_t>(sql_i64(stmt, 37));
-        run.framebuffer_reuses = static_cast<uint64_t>(sql_i64(stmt, 38));
-        run.framebuffer_bytes_allocated = static_cast<uint64_t>(sql_i64(stmt, 39));
-        run.framebuffer_bytes_peak = static_cast<uint64_t>(sql_i64(stmt, 40));
-        run.dirty_rect_count = static_cast<uint64_t>(sql_i64(stmt, 41));
-        run.dirty_pixels = static_cast<uint64_t>(sql_i64(stmt, 42));
-        run.dirty_full_fallbacks = static_cast<uint64_t>(sql_i64(stmt, 43));
-        run.framebuffer_acquire_ms = static_cast<uint64_t>(sql_i64(stmt, 44));
-        run.framebuffer_clear_ms = static_cast<uint64_t>(sql_i64(stmt, 45));
-        run.clearnode_ms = static_cast<uint64_t>(sql_i64(stmt, 46));
-        run.framebuffer_pool_clear_ms = static_cast<uint64_t>(sql_i64(stmt, 47));
-        run.framebuffer_enqueue_ms = static_cast<uint64_t>(sql_i64(stmt, 48));
-        run.framebuffer_pool_miss_count_size_mismatch = static_cast<uint64_t>(sql_i64(stmt, 49));
-        run.framebuffer_pool_miss_count_empty = static_cast<uint64_t>(sql_i64(stmt, 50));
-        run.framebuffer_pool_hits = static_cast<uint64_t>(sql_i64(stmt, 51));
-        run.framebuffer_buffer_returned_to_pool_count = static_cast<uint64_t>(sql_i64(stmt, 52));
-        run.unaligned_memory_copies = static_cast<uint64_t>(sql_i64(stmt, 53));
-        run.frame_conversion_copy_ms = static_cast<uint64_t>(sql_i64(stmt, 54));
-        run.video_graph_eval_ms = static_cast<uint64_t>(sql_i64(stmt, 55));
-        run.video_conversion_ms = static_cast<uint64_t>(sql_i64(stmt, 56));
-        run.video_pipe_write_ms = static_cast<uint64_t>(sql_i64(stmt, 57));
-        run.video_ffmpeg_latency_ms = static_cast<uint64_t>(sql_i64(stmt, 58));
-        run.io_queue_push_blocked_ms = static_cast<uint64_t>(sql_i64(stmt, 59));
-        run.io_queue_pop_wait_ms = static_cast<uint64_t>(sql_i64(stmt, 60));
-        run.io_queue_peak_depth = static_cast<uint64_t>(sql_i64(stmt, 61));
-        run.io_queue_peak_bytes = static_cast<uint64_t>(sql_i64(stmt, 62));
-        run.setup_graph_parsing_ms = static_cast<uint64_t>(sql_i64(stmt, 63));
-        run.setup_asset_io_load_ms = static_cast<uint64_t>(sql_i64(stmt, 64));
-        run.setup_pool_preallocation_ms = static_cast<uint64_t>(sql_i64(stmt, 65));
-        run.image_decode_ms = static_cast<uint64_t>(sql_i64(stmt, 66));
-        run.process_context_switches_voluntary = static_cast<uint64_t>(sql_i64(stmt, 67));
-        run.process_context_switches_involuntary = static_cast<uint64_t>(sql_i64(stmt, 68));
-        run.os_page_faults_major = static_cast<uint64_t>(sql_i64(stmt, 69));
-        run.os_page_faults_minor = static_cast<uint64_t>(sql_i64(stmt, 70));
-        run.ffmpeg_cpu_user_pct = static_cast<uint64_t>(sql_i64(stmt, 71));
-        run.ffmpeg_cpu_sys_pct = static_cast<uint64_t>(sql_i64(stmt, 72));
-        run.llc_references = static_cast<uint64_t>(sql_i64(stmt, 73));
-        run.llc_misses = static_cast<uint64_t>(sql_i64(stmt, 74));
-        run.ffmpeg_pipe_write_blocked_ms = static_cast<uint64_t>(sql_i64(stmt, 59));
-        run.converted_frame_cache_hits = static_cast<uint64_t>(sql_i64(stmt, 60));
-        run.ffmpeg_flush_ms = static_cast<uint64_t>(sql_i64(stmt, 61));
-        run.started_at_iso = sql_text(stmt, 75);
-        run.finished_at_iso = sql_text(stmt, 76);
-        run.git_commit_short = sql_text(stmt, 77);
-        run.build_type = sql_text(stmt, 78);
-        run.compiler_info = sql_text(stmt, 79);
-        run.os = sql_text(stmt, 80);
-        run.cpu_model = sql_text(stmt, 81);
-        run.cores = static_cast<int>(sql_i64(stmt, 82));
+        std::unordered_map<std::string, int> col_map;
+        int col_count = sqlite3_column_count(stmt);
+        for (int i = 0; i < col_count; ++i) {
+            const char* name = sqlite3_column_name(stmt, i);
+            if (name) {
+                col_map[name] = i;
+            }
+        }
+
+        auto get_str = [&](const std::string& name) -> std::string {
+            auto it = col_map.find(name);
+            return it != col_map.end() ? sql_text(stmt, it->second) : "";
+        };
+        auto get_i64 = [&](const std::string& name) -> uint64_t {
+            auto it = col_map.find(name);
+            return it != col_map.end() ? static_cast<uint64_t>(sql_i64(stmt, it->second)) : 0;
+        };
+        auto get_double = [&](const std::string& name) -> double {
+            auto it = col_map.find(name);
+            return it != col_map.end() ? sql_double(stmt, it->second) : 0.0;
+        };
+
+        run.run_id = run_id;
+        run.composition_id = get_str("composition_id");
+        run.output_path = get_str("output_path");
+        run.success = get_i64("success") != 0;
+        run.error_code = get_str("error_code");
+        run.error_message = get_str("error_message");
+        run.frames_total = static_cast<int>(get_i64("frames_total"));
+        run.frames_written = static_cast<int>(get_i64("frames_written"));
+        run.wall_time_ms = get_double("wall_time_ms");
+        run.render_ms = get_double("render_ms");
+        run.encode_ms = get_double("encode_ms");
+        run.effective_fps = get_double("effective_fps");
+
+        run.pixels_touched = get_i64("pixels_touched");
+        run.cache_hits = get_i64("cache_hits");
+        run.cache_misses = get_i64("cache_misses");
+        run.nodes_executed = get_i64("nodes_executed");
+        run.layers_rendered = get_i64("layers_rendered");
+        run.text_glyphs_rasterized = get_i64("text_glyphs_rasterized");
+        run.images_sampled = get_i64("images_sampled");
+        run.blur_pixels = get_i64("blur_pixels");
+        run.simd_lerp_calls = get_i64("simd_lerp_calls");
+
+        run.bytes_allocated_peak = get_i64("bytes_allocated_peak");
+        run.node_cache_hash_collisions = get_i64("node_cache_hash_collisions");
+        run.clear_skipped_calls = get_i64("clear_skipped_calls");
+        run.clear_skipped_pixels = get_i64("clear_skipped_pixels");
+        run.clear_calls = get_i64("clear_calls");
+        run.clear_pixels = get_i64("clear_pixels");
+        run.composite_calls = get_i64("composite_calls");
+        run.composite_pixels = get_i64("composite_pixels");
+        run.transform_calls = get_i64("transform_calls");
+        run.transform_pixels = get_i64("transform_pixels");
+        run.effect_stack_calls = get_i64("effect_stack_calls");
+        run.effect_pixels = get_i64("effect_pixels");
+        run.layer_culling_tests = get_i64("layer_culling_tests");
+        run.layers_culled = get_i64("layers_culled");
+        run.layers_visible = get_i64("layers_visible");
+
+        run.framebuffer_allocations = get_i64("framebuffer_allocations");
+        run.framebuffer_reuses = get_i64("framebuffer_reuses");
+        run.framebuffer_bytes_allocated = get_i64("framebuffer_bytes_allocated");
+        run.framebuffer_bytes_peak = get_i64("framebuffer_bytes_peak");
+        run.dirty_rect_count = get_i64("dirty_rect_count");
+        run.dirty_pixels = get_i64("dirty_pixels");
+        run.dirty_union_area_pixels = get_i64("dirty_union_area_pixels");
+        run.dirty_full_fallbacks = get_i64("dirty_full_fallbacks");
+        run.bypass_not_cacheable_count = get_i64("bypass_not_cacheable_count");
+
+        run.dirty_full_fallback_predicted_bounds_missing = get_i64("dirty_full_fallback_predicted_bounds_missing");
+        run.dirty_full_fallback_composite_missing_input_bounds = get_i64("dirty_full_fallback_composite_missing_input_bounds");
+        run.dirty_full_fallback_transform_bounds_unknown = get_i64("dirty_full_fallback_transform_bounds_unknown");
+        run.dirty_full_fallback_effect_bounds_unknown = get_i64("dirty_full_fallback_effect_bounds_unknown");
+
+        run.framebuffer_acquire_ms = get_i64("framebuffer_acquire_ms");
+        run.framebuffer_clear_ms = get_i64("framebuffer_clear_ms");
+        run.clearnode_ms = get_i64("clearnode_ms");
+        run.framebuffer_pool_clear_ms = get_i64("framebuffer_pool_clear_ms");
+        run.framebuffer_enqueue_ms = get_i64("framebuffer_enqueue_ms");
+        run.framebuffer_pool_miss_count_size_mismatch = get_i64("framebuffer_pool_miss_count_size_mismatch");
+        run.framebuffer_pool_miss_count_empty = get_i64("framebuffer_pool_miss_count_empty");
+        run.framebuffer_pool_hits = get_i64("framebuffer_pool_hits");
+        run.framebuffer_buffer_returned_to_pool_count = get_i64("framebuffer_buffer_returned_to_pool_count");
+        run.unaligned_memory_copies = get_i64("unaligned_memory_copies");
+        run.frame_conversion_copy_ms = get_i64("frame_conversion_copy_ms");
+        run.video_graph_eval_ms = get_i64("video_graph_eval_ms");
+        run.video_conversion_ms = get_i64("video_conversion_ms");
+        run.video_pipe_write_ms = get_i64("video_pipe_write_ms");
+        run.video_ffmpeg_latency_ms = get_i64("video_ffmpeg_latency_ms");
+
+        run.io_queue_push_blocked_ms = get_i64("io_queue_push_blocked_ms");
+        run.io_queue_pop_wait_ms = get_i64("io_queue_pop_wait_ms");
+        run.io_queue_peak_depth = get_i64("io_queue_peak_depth");
+        run.ffmpeg_pipe_write_blocked_ms = get_i64("ffmpeg_pipe_write_blocked_ms");
+        run.converted_frame_cache_hits = get_i64("converted_frame_cache_hits");
+        run.ffmpeg_flush_ms = get_i64("ffmpeg_flush_ms");
+        run.io_queue_peak_bytes = get_i64("io_queue_peak_bytes");
+
+        run.setup_graph_parsing_ms = get_i64("setup_graph_parsing_ms");
+        run.setup_asset_io_load_ms = get_i64("setup_asset_io_load_ms");
+        run.setup_pool_preallocation_ms = get_i64("setup_pool_preallocation_ms");
+        run.image_decode_ms = get_i64("image_decode_ms");
+
+        run.chronon_render_only_ms = get_double("chronon_render_only_ms");
+        run.chronon_conversion_copy_ms = get_double("chronon_conversion_copy_ms");
+        run.chronon_queue_wait_ms = get_double("chronon_queue_wait_ms");
+        run.chronon_render_throughput_ms = get_double("chronon_render_throughput_ms");
+        run.ffmpeg_encode_total_ms = get_double("ffmpeg_encode_total_ms");
+        run.ffmpeg_flush_close_ms = get_double("ffmpeg_flush_close_ms");
+        run.e2e_wall_ms = get_double("e2e_wall_ms");
+
+        run.started_at_iso = get_str("started_at_iso");
+        run.finished_at_iso = get_str("finished_at_iso");
+        run.git_commit_short = get_str("git_commit_short");
+        run.build_type = get_str("build_type");
+        run.compiler_info = get_str("compiler_info");
+        run.os = get_str("os");
+        run.cpu_model = get_str("cpu_model");
+        run.cores = static_cast<int>(get_i64("cores"));
     }
     sqlite3_finalize(stmt);
+
+    // Query generic / diagnostic counters from render_counters table
+    sqlite3_stmt* counter_stmt = nullptr;
+    const char* counter_sql = "SELECT counter_name, counter_value FROM render_counters WHERE run_id = ?;";
+    if (prepare_with_run_id(db, &counter_stmt, counter_sql, run_id)) {
+        while (sqlite3_step(counter_stmt) == SQLITE_ROW) {
+            std::string name = sql_text(counter_stmt, 0);
+            uint64_t val = static_cast<uint64_t>(sql_i64(counter_stmt, 1));
+            if (name == "tiles_total") run.tiles_total = val;
+            else if (name == "tiles_hit") run.tiles_hit = val;
+            else if (name == "tiles_miss") run.tiles_miss = val;
+            else if (name == "tiles_partial") run.tiles_partial = val;
+            else if (name == "process_context_switches_voluntary") run.process_context_switches_voluntary = val;
+            else if (name == "process_context_switches_involuntary") run.process_context_switches_involuntary = val;
+            else if (name == "os_page_faults_major") run.os_page_faults_major = val;
+            else if (name == "os_page_faults_minor") run.os_page_faults_minor = val;
+            else if (name == "ffmpeg_cpu_user_pct") run.ffmpeg_cpu_user_pct = val;
+            else if (name == "ffmpeg_cpu_sys_pct") run.ffmpeg_cpu_sys_pct = val;
+            else if (name == "llc_references") run.llc_references = val;
+            else if (name == "llc_misses") run.llc_misses = val;
+        }
+        sqlite3_finalize(counter_stmt);
+    }
+
     return run;
 }
 

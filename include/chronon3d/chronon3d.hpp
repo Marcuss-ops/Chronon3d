@@ -6,7 +6,7 @@
 #include <chronon3d/api/animations.hpp>
 #include <chronon3d/api/backgrounds.hpp>
 
-#include <chronon3d/core/profiling/trace.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/core/types/types.hpp>
 #include <chronon3d/core/types/time.hpp>

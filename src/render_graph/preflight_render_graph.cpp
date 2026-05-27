@@ -13,6 +13,7 @@
 // ---------------------------------------------------------------------------
 
 #include <chronon3d/render_graph/preflight_render_graph.hpp>
+#include "preflight_render_graph_format.hpp"
 #include <chronon3d/render_graph/render_pipeline.hpp>
 #include <chronon3d/render_graph/graph_builder.hpp>
 #include <chronon3d/render_graph/graph_executor.hpp>
@@ -33,21 +34,16 @@
 
 #include <algorithm>
 #include <cmath>
-#include <iomanip>
-#include <sstream>
-#include <string_view>
 
 namespace chronon3d::graph {
 
-// ── Helpers ────────────────────────────────────────────────────────────────
+// ── Main implementation ────────────────────────────────────────────────────
 
-/// Compute the area of a BBox (0 if degenerate).
 static int64_t bbox_area(const raster::BBox& b) {
     if (b.x1 <= b.x0 || b.y1 <= b.y0) return 0;
     return static_cast<int64_t>(b.x1 - b.x0) * static_cast<int64_t>(b.y1 - b.y0);
 }
 
-/// Intersect two BBoxes; returns {0,0,0,0} if disjoint.
 static raster::BBox bbox_intersect(const raster::BBox& a, const raster::BBox& b) {
     raster::BBox r;
     r.x0 = std::max(a.x0, b.x0);
@@ -59,192 +55,6 @@ static raster::BBox bbox_intersect(const raster::BBox& a, const raster::BBox& b)
     }
     return r;
 }
-
-/// Count how many nodes have `node_id` in their inputs list.
-static int count_output_edges(const RenderGraph& graph, GraphNodeId node_id) {
-    int count = 0;
-    for (GraphNodeId consumer = 0;
-         consumer < static_cast<GraphNodeId>(graph.size());
-         ++consumer) {
-        if (!graph.has_node(consumer)) continue;
-        for (GraphNodeId inp : graph.inputs(consumer)) {
-            if (inp == node_id) ++count;
-        }
-    }
-    return count;
-}
-
-/// Build the enriched DOT string: node labels include layer_id, bbox, dirty state.
-static std::string build_enriched_dot(
-    const RenderGraph&              graph,
-    const RenderGraphContext&       ctx,
-    const std::vector<GraphPreflightNode>& node_reports
-) {
-    std::ostringstream out;
-    out << "digraph RenderGraph {\n";
-    out << "  rankdir=LR;\n";
-    out << "  node [shape=box, style=filled, fontname=\"Arial\", fontsize=10];\n";
-
-    for (GraphNodeId i = 0; i < static_cast<GraphNodeId>(graph.size()); ++i) {
-        if (!graph.has_node(i)) continue;
-        const RenderGraphNode& node = graph.node(i);
-
-        std::string color = "white";
-        switch (node.kind()) {
-            case RenderGraphNodeKind::Source:    color = "#AED6F1"; break; // light blue
-            case RenderGraphNodeKind::Transform: color = "#D5D8DC"; break; // light grey
-            case RenderGraphNodeKind::Effect:    color = "#FCF3CF"; break; // light yellow
-            case RenderGraphNodeKind::Composite: color = "#ABEBC6"; break; // light green
-            case RenderGraphNodeKind::Output:    color = "#FAD7A0"; break; // orange
-            case RenderGraphNodeKind::Video:     color = "#D7BDE2"; break; // purple
-            case RenderGraphNodeKind::Mask:      color = "#FADBD8"; break; // pink
-            default: break;
-        }
-
-        const auto& rep = node_reports[i];
-
-        // Build label lines
-        std::ostringstream label;
-        label << node.name();
-        if (!rep.layer_id.empty()) {
-            label << "\\nlayer=" << rep.layer_id;
-        }
-        label << "\\nkind=" << rep.kind;
-
-        // bbox
-        const auto& bbox = rep.predicted_bbox;
-        label << "\\nbbox=[" << bbox.x0 << "," << bbox.y0
-              << "," << bbox.x1 << "," << bbox.y1 << "]";
-
-        // visibility
-        label << "\\nvisible_ratio=" << std::fixed << std::setprecision(2) << rep.visible_ratio;
-
-        // dirty / cached
-        label << "\\ndirty=" << (rep.dirty ? "Y" : "N")
-              << " cached=" << (rep.cached ? "Y" : "N");
-
-        if (!rep.warning.empty()) {
-            label << "\\n⚠ " << rep.warning;
-            color = "#F1948A"; // red tint for warnings
-        }
-
-        out << "  n" << i
-            << " [label=\"" << label.str() << "\""
-            << ", fillcolor=\"" << color << "\""
-            << "];\n";
-    }
-
-    // Edges
-    for (GraphNodeId i = 0; i < static_cast<GraphNodeId>(graph.size()); ++i) {
-        if (!graph.has_node(i)) continue;
-        for (GraphNodeId input : graph.inputs(i)) {
-            out << "  n" << input << " -> n" << i << ";\n";
-        }
-    }
-
-    out << "}\n";
-    return out.str();
-}
-
-// ── GraphPreflightReport methods ───────────────────────────────────────────
-
-const GraphPreflightNode* GraphPreflightReport::find_node(std::string_view name) const {
-    for (const auto& n : nodes) {
-        if (n.name.find(name) != std::string::npos) return &n;
-    }
-    return nullptr;
-}
-
-bool GraphPreflightReport::has_warning_containing(std::string_view text) const {
-    for (const auto& w : warnings) {
-        if (w.find(text) != std::string::npos) return true;
-    }
-    return false;
-}
-
-static std::string format_memory(size_t bytes) {
-    if (bytes >= 1024 * 1024) {
-        std::ostringstream s;
-        s << std::fixed << std::setprecision(2) << (static_cast<double>(bytes) / (1024.0 * 1024.0)) << " MB";
-        return s.str();
-    } else if (bytes >= 1024) {
-        std::ostringstream s;
-        s << std::fixed << std::setprecision(2) << (static_cast<double>(bytes) / 1024.0) << " KB";
-        return s.str();
-    } else {
-        return std::to_string(bytes) + " B";
-    }
-}
-
-std::string GraphPreflightReport::to_text() const {
-    std::ostringstream out;
-
-    out << "===== Graph Preflight Report =====\n";
-    out << "Nodes: " << nodes.size() << "\n";
-    out << "Warnings: " << warnings.size() << "\n";
-    out << "Peak Memory: " << format_memory(peak_memory_bytes) << "\n";
-    out << "Total Complexity: " << total_complexity_score << "\n";
-    out << "Cache Score: " << cache_score << "%\n";
-    out << "Total Fill Rate: " << total_fill_rate_pixels << " pixels\n\n";
-
-    // Table header
-    out << std::left
-        << std::setw(24) << "Node"
-        << std::setw(12) << "Kind"
-        << std::setw(24) << "predicted_bbox"
-        << std::setw(24) << "intersection"
-        << std::setw(10) << "vis_ratio"
-        << std::setw(16) << "visibility"
-        << std::setw(6)  << "dirty"
-        << std::setw(6)  << "cached"
-        << std::setw(14) << "Memory"
-        << std::setw(12) << "Complexity"
-        << "\n";
-    out << std::string(150, '-') << "\n";
-
-    for (const auto& n : nodes) {
-        auto fmt_bbox = [](const raster::BBox& b) -> std::string {
-            std::ostringstream s;
-            s << "[" << b.x0 << "," << b.y0 << "," << b.x1 << "," << b.y1 << "]";
-            return s.str();
-        };
-
-        out << std::left
-            << std::setw(24) << (n.name.size() > 22 ? n.name.substr(0, 21) + "…" : n.name)
-            << std::setw(12) << n.kind
-            << std::setw(24) << fmt_bbox(n.predicted_bbox)
-            << std::setw(24) << fmt_bbox(n.intersection_bbox)
-            << std::setw(10) << std::fixed << std::setprecision(2) << n.visible_ratio
-            << std::setw(16) << to_string(n.visibility)
-            << std::setw(6)  << (n.dirty  ? "YES" : "no")
-            << std::setw(6)  << (n.cached ? "YES" : "no")
-            << std::setw(14) << format_memory(n.predicted_memory_bytes)
-            << std::setw(12) << n.complexity_score
-            << "\n";
-
-        if (!n.warning.empty()) {
-            out << "  >>> " << n.warning << "\n";
-        }
-        if (!n.dirty_reasons.empty()) {
-            for (const auto& dr : n.dirty_reasons) {
-                out << "    * Dirty: " << dr << "\n";
-            }
-        }
-    }
-
-    if (!warnings.empty()) {
-        out << "\n--- WARNINGS ---\n";
-        for (const auto& w : warnings) {
-            out << "  [WARN] " << w << "\n";
-        }
-    } else {
-        out << "\n--- No warnings. Graph looks clean. ---\n";
-    }
-
-    return out.str();
-}
-
-// ── Main implementation ────────────────────────────────────────────────────
 
 static int get_shape_complexity(ShapeType type) {
     switch (type) {

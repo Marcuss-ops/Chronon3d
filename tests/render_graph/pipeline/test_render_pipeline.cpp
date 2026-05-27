@@ -4,7 +4,6 @@
 #include <chronon3d/backends/image/stb_image_backend.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/cache/node_cache.hpp>
-#include <chronon3d/core/profiling/trace.hpp>
 
 using namespace chronon3d;
 using namespace chronon3d::graph;

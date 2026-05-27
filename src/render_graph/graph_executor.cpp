@@ -403,8 +403,6 @@ static void execute_single_node(
     const std::pmr::vector<PreResolvedNode>& level_resolved,
     GraphNodeId id,
     size_t level_index,
-    RenderTrace* parent_trace,
-    int32_t parent_frame,
     RenderCounters* parent_counters,
     cache::FramebufferPool* parent_pool
 ) {
@@ -419,12 +417,15 @@ static void execute_single_node(
         state.resolved_bboxes[id] = raster::BBox{0, 0, 0, 0};
         if (ctx.counters) {
             ctx.counters->layers_culled.fetch_add(1, std::memory_order_relaxed);
+            if (graph.node(id).name() == "Clear") {
+                ctx.counters->clear_skipped_calls.fetch_add(1, std::memory_order_relaxed);
+                const uint64_t clear_pixels = static_cast<uint64_t>(ctx.width) * static_cast<uint64_t>(ctx.height);
+                ctx.counters->clear_skipped_pixels.fetch_add(clear_pixels, std::memory_order_relaxed);
+            }
         }
         return;
     }
 
-    profiling::g_current_trace = parent_trace;
-    profiling::g_current_frame = parent_frame;
     profiling::g_current_counters = parent_counters;
     profiling::g_current_framebuffer_pool = parent_pool;
 
@@ -483,7 +484,6 @@ static void execute_single_node(
     state.resolved_bboxes[id] = predicted_bbox;
 
     // Restore worker thread-local hygiene
-    profiling::g_current_trace = nullptr;
     profiling::g_current_counters = nullptr;
     profiling::g_current_framebuffer_pool = nullptr;
 }
@@ -598,8 +598,6 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
             consumer_remaining[i].store(plan.consumer_counts[i], std::memory_order_relaxed);
         }
 
-        auto* parent_trace = profiling::g_current_trace;
-        int32_t parent_frame = profiling::g_current_frame;
         auto* parent_counters = profiling::g_current_counters;
         auto* parent_pool = profiling::g_current_framebuffer_pool;
 
@@ -621,7 +619,7 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
                     for (size_t level_index = range.begin(); level_index != range.end(); ++level_index) {
                         execute_single_node(
                             state, graph, ctx, level_resolved, level[level_index], level_index,
-                            parent_trace, parent_frame, parent_counters, parent_pool
+                            parent_counters, parent_pool
                         );
                     }
                 }

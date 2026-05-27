@@ -149,33 +149,4 @@ TEST_CASE("Telemetry Report: Sections are mutually exclusive (no field in >1 sec
     CHECK(dup == all.end());  // No field appears in more than one section
 }
 
-TEST_CASE("Telemetry Report: RenderTelemetryRow has all CSV fields") {
-    // The RenderTelemetryRow struct drives the per-frame CSV output.
-    // Verify it has the pipeline timing fields needed for diagnostics.
-    RenderTelemetryRow row{};
 
-    row.framebuffer_acquire_ms = 1;
-    row.framebuffer_clear_ms = 2;
-    row.clearnode_ms = 3;
-    row.framebuffer_pool_clear_ms = 4;
-    row.framebuffer_enqueue_ms = 5;
-    row.framebuffer_pool_hits = 6;
-    row.frame_conversion_copy_ms = 7;
-    row.video_graph_eval_ms = 8;
-    row.video_conversion_ms = 9;
-    row.video_pipe_write_ms = 10;
-    row.video_ffmpeg_latency_ms = 11;
-    row.io_queue_push_blocked_ms = 12;
-    row.io_queue_pop_wait_ms = 13;
-    row.io_queue_peak_depth = 14;
-    row.ffmpeg_pipe_write_blocked_ms = 15;
-    row.converted_frame_cache_hits = 16;
-    row.ffmpeg_flush_ms = 17;
-
-    CHECK(row.framebuffer_acquire_ms == 1);
-    CHECK(row.framebuffer_clear_ms == 2);
-    CHECK(row.clearnode_ms == 3);
-    CHECK(row.framebuffer_pool_clear_ms == 4);
-    CHECK(row.converted_frame_cache_hits == 16);
-    CHECK(row.ffmpeg_flush_ms == 17);
-}

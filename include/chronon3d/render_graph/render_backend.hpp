@@ -11,7 +11,6 @@
 namespace chronon3d {
     struct RenderNode;
     struct RenderState;
-    class RenderTrace;
     struct RenderCounters;
 }
 
@@ -30,7 +29,6 @@ public:
     RenderBackend(RenderBackend&&) noexcept = default;
     RenderBackend& operator=(RenderBackend&&) noexcept = default;
 
-    virtual RenderTrace* trace() { return nullptr; }
     virtual RenderCounters* counters() { return nullptr; }
     virtual std::shared_ptr<cache::FramebufferPool> framebuffer_pool() { return nullptr; }
 

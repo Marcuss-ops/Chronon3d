@@ -103,8 +103,6 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         ctx.projection_ctx.ready = true;
     }
 
-    profiling::g_current_trace = ctx.trace;
-    profiling::g_current_frame = static_cast<int32_t>(frame);
     profiling::g_current_counters = ctx.counters;
 
     SoftwareRenderer* sw_renderer = dynamic_cast<SoftwareRenderer*>(&backend);
@@ -149,12 +147,6 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
                     std::memory_order_relaxed
                 );
             }
-            telemetry::record_render_telemetry(make_telemetry_row(
-                "scene_render", frame, width, height,
-                std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count(),
-                0.0, 0.0, 0.0, 0.0, 1,
-                static_cast<int>(scene.layers().size()), ctx.counters
-            ));
             profiling::g_current_counters = nullptr;
             return sw_renderer->m_prev_framebuffer;
         }
@@ -162,10 +154,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
 
     // ── Full path: resolve, dirty rect, graph, execute ──────────────────
     if (settings.diagnostic_plan) {
-        auto* prev_trace = profiling::g_current_trace;
-        auto prev_frame = profiling::g_current_frame;
         auto* prev_counters = profiling::g_current_counters;
-        profiling::g_current_trace = nullptr;
         profiling::g_current_counters = nullptr;
         auto report = debug_preflight_render_graph(
             backend,
@@ -189,8 +178,6 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
                 spdlog::info("[graph-preflight] report written to {}", report_path);
             }
         }
-        profiling::g_current_trace = prev_trace;
-        profiling::g_current_frame = prev_frame;
         profiling::g_current_counters = prev_counters;
     }
 
@@ -260,13 +247,6 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         sw_renderer->m_prev_scene_fingerprint = ensure_scene_fingerprint();
         sw_renderer->m_prev_camera = resolved.camera.camera;
         sw_renderer->m_prev_camera_valid = resolved.camera.camera.enabled;
-        telemetry::record_render_telemetry(make_telemetry_row(
-            "scene_render", frame, width, height,
-            std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count(),
-            std::chrono::duration<double, std::milli>(t_build1 - t_build0).count(),
-            0.0, 0.0, 0.0, 1,
-            static_cast<int>(scene.layers().size()), ctx.counters
-        ));
         profiling::g_current_counters = nullptr;
         return sw_renderer->m_prev_framebuffer;
     }
@@ -331,17 +311,6 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         sw_renderer->m_prev_camera_valid = resolved.camera.camera.enabled;
     }
     const auto hits_after = node_cache.stats().hits;
-
-    const auto t1 = std::chrono::steady_clock::now();
-    telemetry::record_render_telemetry(make_telemetry_row(
-        "scene_render", frame, width, height,
-        std::chrono::duration<double, std::milli>(t1 - t0).count(),
-        std::chrono::duration<double, std::milli>(t_build2 - t_build0).count(),
-        std::chrono::duration<double, std::milli>(t_exec1 - t_exec0).count(),
-        0.0, 0.0,
-        hits_after > hits_before ? 1 : 0,
-        static_cast<int>(scene.layers().size()), ctx.counters
-    ));
 
     profiling::g_current_counters = nullptr;
     return fb_shared;

@@ -19,7 +19,6 @@
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/scene/camera/camera.hpp>
-#include <chronon3d/core/profiling/trace.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/render_graph/scene_hasher.hpp>
 
@@ -117,8 +116,6 @@ public:
     [[nodiscard]] renderer::SoftwareRegistry& software_registry() { return *m_software_registry; }
     [[nodiscard]] const renderer::SoftwareRegistry& software_registry() const { return *m_software_registry; }
 
-    [[nodiscard]] RenderTrace* trace() override { return &m_trace; }
-    [[nodiscard]] const RenderTrace* trace() const { return &m_trace; }
     std::shared_ptr<cache::FramebufferPool> framebuffer_pool() override { return m_framebuffer_pool; }
     [[nodiscard]] cache::FramebufferPool& software_framebuffer_pool() { return *m_framebuffer_pool; }
     [[nodiscard]] const cache::FramebufferPool& software_framebuffer_pool() const { return *m_framebuffer_pool; }
@@ -166,7 +163,6 @@ private:
     RenderSettings    m_settings{};
     const CompositionRegistry* m_registry{nullptr};
 
-    RenderTrace       m_trace;
     RenderCounters    m_counters;
     std::unique_ptr<graph::GraphExecutor> m_executor;
 };

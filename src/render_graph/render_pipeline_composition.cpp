@@ -116,39 +116,9 @@ std::shared_ptr<Framebuffer> render_composition_frame(
             CHRONON_ZONE_C("downsample_ssaa", trace_category::kDownsample);
             out = downsample_fb(*render_fb, w, h);
         }
-        downsample_ms = std::chrono::duration<double, std::milli>(
-            std::chrono::steady_clock::now() - t_down0).count();
-        telemetry::record_render_telemetry(make_telemetry_row(
-            "frame_render",
-            frame,
-            w,
-            h,
-            std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count(),
-            evaluate_ms,
-            scene_ms,
-            motion_blur_ms,
-            downsample_ms,
-            node_cache.stats().hits > hits_before ? 1 : 0,
-            layer_count,
-            backend.counters()
-        ));
         return std::shared_ptr<Framebuffer>(out.release());
     }
 
-    telemetry::record_render_telemetry(make_telemetry_row(
-        "frame_render",
-        frame,
-        w,
-        h,
-        std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count(),
-        evaluate_ms,
-        scene_ms,
-        motion_blur_ms,
-        downsample_ms,
-        node_cache.stats().hits > hits_before ? 1 : 0,
-        layer_count,
-        backend.counters()
-    ));
     return render_fb;
 }
 

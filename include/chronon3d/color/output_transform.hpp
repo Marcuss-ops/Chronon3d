@@ -22,6 +22,7 @@
 
 #include <chronon3d/core/types/types.hpp>
 #include <chronon3d/math/color.hpp>
+#include <chronon3d/math/glm_types.hpp>
 #include <glm/gtc/color_space.hpp>
 #include <algorithm>
 #include <array>
