@@ -10,6 +10,7 @@
 #include "render_pipeline_helpers.hpp"
 #include <chrono>
 #include <vector>
+#include <spdlog/spdlog.h>
 
 namespace chronon3d::graph {
 
@@ -42,7 +43,8 @@ std::shared_ptr<Framebuffer> render_composition_frame(
     auto call_graph = [&](const Scene& scene, Frame fr, f32 t) {
         return render_scene_via_graph(
             backend, node_cache, scene, comp.camera, rw, rh, fr, t, settings, registry, video_decoder,
-            static_cast<float>(comp.frame_rate().fps())
+            static_cast<float>(comp.frame_rate().fps()),
+            comp.name()
         );
     };
 

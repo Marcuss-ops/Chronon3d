@@ -67,6 +67,7 @@ set(CHRONON3D_GRAPH_SOURCES
     render_graph/render_pipeline_scene_dirty.cpp
     render_graph/render_pipeline_debug.cpp
     render_graph/render_pipeline_composition.cpp
+    render_graph/preflight_render_graph.cpp
     render_graph/graph_filter.cpp
     render_graph/optimizer/graph_optimizer.cpp
     render_graph/nodes/source_node.cpp

@@ -6,6 +6,7 @@
 #include <chronon3d/render_graph/nodes/video_node.hpp>
 #include <chronon3d/render_graph/render_graph_hashing.hpp>
 #include <memory>
+#include <spdlog/spdlog.h>
 
 namespace chronon3d::graph::detail {
 
@@ -28,6 +29,23 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
         const bool layer_needs_transform = layer_needs_render_transform(item, ctx);
         const bool use_local = ctx.modular_coordinates && layer_needs_transform && !item.native_3d;
 
+        spdlog::info(
+            "[source-pass] layer='{}' kind={} item_transform_any={} implicit_center_only={} custom_transform={} use_local={} centered={} tx={} ty={}",
+            layer.name.c_str(),
+            static_cast<int>(layer.kind),
+            item.transform.any(),
+            is_implicit_2d_centering_only(item, ctx),
+            has_custom_render_transform(item, ctx),
+            use_local,
+            should_use_centered_rendering(item, ctx),
+            item.transform.position.x,
+            item.transform.position.y
+        );
+
+        const Mat4 item_source_world = use_local
+            ? item.world_matrix
+            : source_space_world_matrix(item, ctx);
+
         if (layer.nodes.size() == 1) {
             const auto& node = layer.nodes[0];
             GraphNodeId source;
@@ -44,8 +62,8 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                 const Mat4 layer_inv = layer.transform.any() ? glm::inverse(layer.transform.to_mat4()) : Mat4(1.0f);
                 const Mat4 node_matrix = node.world_transform.to_mat4();
                 const Mat4 actual_world_matrix = layer.hierarchy_resolved
-                    ? (item.world_matrix * node_matrix)
-                    : (item.world_matrix * layer_inv * node_matrix);
+                    ? (item_source_world * node_matrix)
+                    : (item_source_world * layer_inv * node_matrix);
                 const Mat4 text_matrix = use_local
                     ? (glm::inverse(item.world_matrix) * actual_world_matrix)
                     : actual_world_matrix;
@@ -59,7 +77,7 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
 
                 source = graph.add_node(std::make_unique<SourceNode>(
                     std::string(node.name), node, source_key,
-                    ctx.modular_coordinates ? use_local : should_use_centered_rendering(item, ctx),
+                    should_use_centered_rendering(item, ctx),
                     item.projected,
                     ctx.modular_coordinates ? std::optional<Mat4>(text_matrix) : std::nullopt,
                     ctx.modular_coordinates ? std::optional<f32>(text_opacity) : std::nullopt,
@@ -79,8 +97,8 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                 const Mat4 layer_inv = layer.transform.any() ? glm::inverse(layer.transform.to_mat4()) : Mat4(1.0f);
                 const Mat4 node_matrix = node.world_transform.to_mat4();
                 const Mat4 actual_world_matrix = layer.hierarchy_resolved
-                    ? (item.world_matrix * node_matrix)
-                    : (item.world_matrix * layer_inv * node_matrix);
+                    ? (item_source_world * node_matrix)
+                    : (item_source_world * layer_inv * node_matrix);
                 const Mat4 shape_matrix = use_local
                     ? (glm::inverse(item.world_matrix) * actual_world_matrix)
                     : actual_world_matrix;
@@ -91,17 +109,10 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                 const f32 shape_opacity = use_local
                     ? (node.world_transform.opacity / std::max(layer.transform.opacity, 0.0001f))
                     : actual_node_opacity;
-                if (layer.name == "_bg") {
-                    spdlog::info("[source-debug] layer='_bg' item.world_matrix=[{}, {}] node_matrix=[{}, {}] actual_world_matrix=[{}, {}] shape_matrix=[{}, {}]",
-                                 item.world_matrix[3][0], item.world_matrix[3][1],
-                                 node_matrix[3][0], node_matrix[3][1],
-                                 actual_world_matrix[3][0], actual_world_matrix[3][1],
-                                 shape_matrix[3][0], shape_matrix[3][1]);
-                }
 
                 source = graph.add_node(std::make_unique<SourceNode>(
                     std::string(node.name), node, source_key,
-                    ctx.modular_coordinates ? use_local : should_use_centered_rendering(item, ctx),
+                    should_use_centered_rendering(item, ctx),
                     item.projected,
                     ctx.modular_coordinates ? std::optional<Mat4>(shape_matrix) : std::nullopt,
                     ctx.modular_coordinates ? std::optional<f32>(shape_opacity) : std::nullopt,
@@ -135,8 +146,8 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
             const Mat4 layer_inv = layer.transform.any() ? glm::inverse(layer.transform.to_mat4()) : Mat4(1.0f);
             const Mat4 node_matrix = node.world_transform.to_mat4();
             const Mat4 actual_world_matrix = layer.hierarchy_resolved
-                ? (item.world_matrix * node_matrix)
-                : (item.world_matrix * layer_inv * node_matrix);
+                ? (item_source_world * node_matrix)
+                : (item_source_world * layer_inv * node_matrix);
             const Mat4 shape_matrix = use_local
                 ? (glm::inverse(item.world_matrix) * actual_world_matrix)
                 : actual_world_matrix;

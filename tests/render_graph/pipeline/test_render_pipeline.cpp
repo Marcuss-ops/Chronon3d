@@ -159,7 +159,7 @@ TEST_CASE("RenderGraph: unpinned fullscreen 2D layer is not clipped to top-left 
         l.rect("bg", {
             .size = {1536.0f, 1024.0f},
             .color = Color{1, 0, 0, 1},
-            .pos = {0.0f, 0.0f, 0}
+            .pos = {0.0f, 0.0f, 0.0f}
         });
     });
 
@@ -196,7 +196,7 @@ TEST_CASE("RenderGraph: custom translated layer still renders correctly") {
         l.rect("box", {
             .size = {80, 60},
             .color = Color{0, 1, 0, 1},
-            .pos = {-40, -30, 0}
+            .pos = {0.0f, 0.0f, 0.0f}
         });
     });
 
@@ -240,7 +240,7 @@ TEST_CASE("RenderGraph: glow on centered 2D layer is not clipped by local frameb
         l.rect("box", {
             .size = {180, 120},
             .color = Color{1, 1, 1, 1},
-            .pos = {0.0f, 0.0f, 0}
+            .pos = {0.0f, 0.0f, 0.0f}
         });
     });
 
@@ -269,3 +269,200 @@ TEST_CASE("RenderGraph: glow on centered 2D layer is not clipped by local frameb
     CHECK(far_edge.b < near_edge.b);
 }
 
+TEST_CASE("RenderGraph: unpinned fullscreen centered rect covers the whole frame") {
+    constexpr int W = 1536;
+    constexpr int H = 1024;
+
+    SceneBuilder s(W, H);
+
+    s.layer("_bg", [](LayerBuilder& l) {
+        l.rect("bg", {
+            .size = {1536.0f, 1024.0f},
+            .color = Color{1, 0, 0, 1},
+            .pos = {0.0f, 0.0f, 0.0f}
+        });
+    });
+
+    Scene scene = s.build();
+
+    SoftwareRenderer renderer;
+    cache::NodeCache node_cache;
+    Camera camera;
+
+    auto fb = render_scene_via_graph(
+        renderer,
+        node_cache,
+        scene,
+        camera,
+        W, H,
+        0,
+        0.0f,
+        renderer.render_settings(),
+        renderer.composition_registry(),
+        renderer.video_decoder()
+    );
+
+    REQUIRE(fb != nullptr);
+
+    CHECK(fb->get_pixel(10, 10).r > 0.8f);
+    CHECK(fb->get_pixel(W - 10, 10).r > 0.8f);
+    CHECK(fb->get_pixel(10, H - 10).r > 0.8f);
+    CHECK(fb->get_pixel(W - 10, H - 10).r > 0.8f);
+    CHECK(fb->get_pixel(W / 2, H / 2).r > 0.8f);
+}
+
+TEST_CASE("RenderGraph: fullscreen background and centered object render together") {
+    constexpr int W = 1536;
+    constexpr int H = 1024;
+
+    SceneBuilder s(W, H);
+
+    s.layer("_bg", [](LayerBuilder& l) {
+        l.rect("bg", {
+            .size = {1536.0f, 1024.0f},
+            .color = Color{0.05f, 0.08f, 0.15f, 1},
+            .pos = {0.0f, 0.0f, 0.0f}
+        });
+    });
+
+    s.layer("center_object", [](LayerBuilder& l) {
+        l.circle("orb", {
+            .radius = 90.0f,
+            .color = Color{1, 1, 1, 1},
+            .pos = {0.0f, 0.0f, 0.0f}
+        });
+    });
+
+    Scene scene = s.build();
+
+    SoftwareRenderer renderer;
+    cache::NodeCache node_cache;
+    Camera camera;
+
+    auto fb = render_scene_via_graph(
+        renderer,
+        node_cache,
+        scene,
+        camera,
+        W, H,
+        0,
+        0.0f,
+        renderer.render_settings(),
+        renderer.composition_registry(),
+        renderer.video_decoder()
+    );
+
+    REQUIRE(fb != nullptr);
+
+    Color top_right = fb->get_pixel(W - 10, 10);
+    Color bottom_right = fb->get_pixel(W - 10, H - 10);
+    Color center = fb->get_pixel(W / 2, H / 2);
+
+    CHECK(top_right.a > 0.9f);
+    CHECK(bottom_right.a > 0.9f);
+    CHECK(top_right.b > 0.01f);
+    CHECK(bottom_right.b > 0.01f);
+    CHECK(center.r > 0.8f);
+    CHECK(center.g > 0.8f);
+    CHECK(center.b > 0.8f);
+}
+
+TEST_CASE("RenderGraph: custom translated layer still applies transform") {
+    constexpr int W = 512;
+    constexpr int H = 512;
+
+    SceneBuilder s(W, H);
+
+    s.layer("translated", [](LayerBuilder& l) {
+        l.position({100, 50, 0});
+        l.rect("box", {
+            .size = {80, 80},
+            .color = Color{0, 1, 0, 1},
+            .pos = {0.0f, 0.0f, 0.0f}
+        });
+    });
+
+    Scene scene = s.build();
+
+    SoftwareRenderer renderer;
+    cache::NodeCache node_cache;
+    Camera camera;
+
+    auto fb = render_scene_via_graph(
+        renderer,
+        node_cache,
+        scene,
+        camera,
+        W, H,
+        0,
+        0.0f,
+        renderer.render_settings(),
+        renderer.composition_registry(),
+        renderer.video_decoder()
+    );
+
+    REQUIRE(fb != nullptr);
+
+    bool found_green = false;
+
+    for (int y = 0; y < H; ++y) {
+        for (int x = 0; x < W; ++x) {
+            Color c = fb->get_pixel(x, y);
+            if (c.g > 0.8f && c.r < 0.2f && c.b < 0.2f) {
+                found_green = true;
+                break;
+            }
+        }
+        if (found_green) break;
+    }
+
+    CHECK(found_green);
+}
+
+TEST_CASE("RenderGraph: glow on unpinned centered layer is not clipped") {
+    constexpr int W = 512;
+    constexpr int H = 512;
+
+    SceneBuilder s(W, H);
+
+    s.layer("glow_box", [](LayerBuilder& l) {
+        l.glow(50.0f, 1.0f, Color{0, 0.6f, 1, 1});
+        l.rect("box", {
+            .size = {120, 120},
+            .color = Color{1, 1, 1, 1},
+            .pos = {0.0f, 0.0f, 0.0f}
+        });
+    });
+
+    Scene scene = s.build();
+
+    SoftwareRenderer renderer;
+    cache::NodeCache node_cache;
+    Camera camera;
+
+    auto fb = render_scene_via_graph(
+        renderer,
+        node_cache,
+        scene,
+        camera,
+        W, H,
+        0,
+        0.0f,
+        renderer.render_settings(),
+        renderer.composition_registry(),
+        renderer.video_decoder()
+    );
+
+    REQUIRE(fb != nullptr);
+
+    Color center = fb->get_pixel(W / 2, H / 2);
+    Color near_edge = fb->get_pixel(W / 2 + 85, H / 2);
+    Color far_edge = fb->get_pixel(W / 2 + 180, H / 2);
+
+    CHECK(center.r > 0.8f);
+    CHECK(center.g > 0.8f);
+    CHECK(center.b > 0.8f);
+
+    CHECK(near_edge.b > 0.03f);
+    CHECK(far_edge.b < near_edge.b);
+}

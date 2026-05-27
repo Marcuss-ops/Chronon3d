@@ -48,3 +48,17 @@ TEST_CASE("render job handles modern frames args") {
     CHECK(result.value.range.start == 42);
     CHECK(result.value.range.end == 42);
 }
+
+TEST_CASE("render job propagates diagnostic plan flag") {
+    RenderArgs args;
+    args.comp_id = "Demo";
+    args.output = "out.png";
+    args.frames = "0";
+    args.pipeline.diagnostic_plan = true;
+    args.pipeline.diagnostic_plan_output = "output/preflight.txt";
+
+    auto result = plan_render_job(args, false);
+    CHECK(result.ok);
+    CHECK(result.value.settings.diagnostic_plan == true);
+    CHECK(result.value.settings.diagnostic_plan_output == "output/preflight.txt");
+}

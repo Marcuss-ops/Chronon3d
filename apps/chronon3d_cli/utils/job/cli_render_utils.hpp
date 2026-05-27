@@ -21,6 +21,8 @@ RenderSettings settings_from_args(const Args& args,
                                   bool diagnostic = false) {
     RenderSettings s;
     s.diagnostic               = diagnostic || args.pipeline.diagnostic;
+    s.diagnostic_plan          = args.pipeline.diagnostic_plan;
+    s.diagnostic_plan_output   = args.pipeline.diagnostic_plan_output;
     s.use_modular_graph        = args.pipeline.use_modular_graph;
     s.dirty_rects              = args.pipeline.dirty_rects;
     s.motion_blur.enabled      = motion_blur_allowed && args.pipeline.quality.motion_blur;

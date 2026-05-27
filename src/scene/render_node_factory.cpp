@@ -14,8 +14,8 @@ RenderNode RenderNodeFactory::rect(std::pmr::memory_resource* res, std::string n
     auto node = base(res, std::move(name));
     node.shape.type = ShapeType::Rect;
     node.shape.rect.size = p.size;
-    node.world_transform.position = p.pos;
     node.world_transform.anchor = {p.size.x * 0.5f, p.size.y * 0.5f, 0.0f};
+    node.world_transform.position = p.pos;
     node.color = p.color;
     node.fill = p.fill.value_or(Fill::solid_color(p.color));
     return node;
@@ -26,8 +26,8 @@ RenderNode RenderNodeFactory::rounded_rect(std::pmr::memory_resource* res, std::
     node.shape.type = ShapeType::RoundedRect;
     node.shape.rounded_rect.size = p.size;
     node.shape.rounded_rect.radius = p.radius;
-    node.world_transform.position = p.pos;
     node.world_transform.anchor = {p.size.x * 0.5f, p.size.y * 0.5f, 0.0f};
+    node.world_transform.position = p.pos;
     node.color = p.color;
     node.fill = p.fill.value_or(Fill::solid_color(p.color));
     return node;
@@ -37,8 +37,8 @@ RenderNode RenderNodeFactory::circle(std::pmr::memory_resource* res, std::string
     auto node = base(res, std::move(name));
     node.shape.type = ShapeType::Circle;
     node.shape.circle.radius = p.radius;
-    node.world_transform.position = p.pos;
     node.world_transform.anchor = {p.radius, p.radius, 0.0f};
+    node.world_transform.position = p.pos;
     node.color = p.color;
     node.fill = p.fill.value_or(Fill::solid_color(p.color));
     return node;
@@ -77,8 +77,8 @@ RenderNode RenderNodeFactory::image(std::pmr::memory_resource* res, std::string 
     node.shape.image.path = std::move(p.path);
     node.shape.image.size = p.size;
     node.shape.image.opacity = p.opacity;
-    node.world_transform.position = p.pos;
     node.world_transform.anchor = {p.size.x * 0.5f, p.size.y * 0.5f, 0.0f};
+    node.world_transform.position = p.pos;
     node.color = Color{1, 1, 1, p.opacity};
     return node;
 }
@@ -130,8 +130,8 @@ RenderNode RenderNodeFactory::text(std::pmr::memory_resource* res, std::string n
     node.shape.text.box.enabled = true;
     node.shape.text.box.size = p.size;
     node.shape.text.box.enabled = true;
-    node.world_transform.position = p.pos;
     node.world_transform.anchor = {p.size.x * 0.5f, p.size.y * 0.5f, 0.0f};
+    node.world_transform.position = p.pos;
     node.color = p.color;
     node.fill = Fill::solid_color(p.color);
     return node;

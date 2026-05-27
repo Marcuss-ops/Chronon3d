@@ -55,7 +55,9 @@ std::optional<raster::BBox> MultiSourceNode::predicted_bbox(
             bbox = renderer::compute_world_bbox(item.node->shape, matrix, spread);
         }
 
-        bbox.clip_to(ctx.width, ctx.height);
+        if (!ctx.diagnostics_enabled) {
+            bbox.clip_to(ctx.width, ctx.height);
+        }
         if (!bbox.is_empty()) {
             x0 = std::min(x0, bbox.x0);
             y0 = std::min(y0, bbox.y0);
