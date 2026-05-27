@@ -3,9 +3,9 @@
 // Minimal projection context struct — no camera/scene dependencies.
 // Factory functions are in projector_2_5d.hpp (requires camera headers).
 
-#include <chronon3d/math/vec2.hpp>
-#include <chronon3d/math/vec3.hpp>
-#include <chronon3d/math/mat4.hpp>
+#include <chronon3d/math/math_base.hpp>
+#include <chronon3d/math/math_base.hpp>
+#include <chronon3d/math/math_base.hpp>
 #include <chronon3d/rendering/projected_card.hpp>
 #include <chronon3d/core/types/types.hpp>
 #include <cmath>

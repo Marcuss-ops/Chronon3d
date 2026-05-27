@@ -1,7 +1,7 @@
 #pragma once
 
 #include <chronon3d/math/camera_pose.hpp>
-#include <chronon3d/math/mat4.hpp>
+#include <chronon3d/math/math_base.hpp>
 #include <chronon3d/math/transform.hpp>
 
 namespace chronon3d {

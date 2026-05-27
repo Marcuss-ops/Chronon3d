@@ -171,6 +171,14 @@ u64 hash_effect_stack(const EffectStack& stack) {
             seed = hash_combine(seed, hash_value_local(p->radius));
             seed = hash_combine(seed, hash_value_local(p->intensity));
             seed = hash_combine(seed, hash_color(p->color));
+            seed = hash_combine(seed, hash_value_local(p->threshold));
+            seed = hash_combine(seed, hash_value_local(p->spread));
+            seed = hash_combine(seed, hash_value_local(p->softness));
+            seed = hash_combine(seed, hash_value_local(p->falloff));
+            seed = hash_combine(seed, hash_value_local(p->core_strength));
+            seed = hash_combine(seed, hash_value_local(p->aura_strength));
+            seed = hash_combine(seed, hash_value_local(p->bloom_strength));
+            seed = hash_combine(seed, hash_value_local(p->additive));
         } else if (auto* p = std::any_cast<BloomParams>(&inst.params)) {
             seed = hash_combine(seed, hash_value_local(p->threshold));
             seed = hash_combine(seed, hash_value_local(p->radius));

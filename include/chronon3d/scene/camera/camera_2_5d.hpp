@@ -2,8 +2,8 @@
 
 #include <chronon3d/core/types/types.hpp>
 #include <chronon3d/math/camera_pose.hpp>
-#include <chronon3d/math/vec3.hpp>
-#include <chronon3d/math/quat.hpp>
+#include <chronon3d/math/math_base.hpp>
+#include <chronon3d/math/math_base.hpp>
 #include <string>
 #include <memory_resource>
 

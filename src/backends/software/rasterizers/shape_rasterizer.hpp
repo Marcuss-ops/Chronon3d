@@ -4,7 +4,7 @@
 #include <chronon3d/scene/shape.hpp>
 #include <chronon3d/scene/fill.hpp>
 #include <chronon3d/scene/layer/render_node.hpp>
-#include <chronon3d/math/mat4.hpp>
+#include <chronon3d/math/math_base.hpp>
 #include <chronon3d/math/raster_utils.hpp>
 
 namespace chronon3d {

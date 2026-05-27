@@ -13,6 +13,35 @@ namespace renderer {
 
 namespace {
 
+struct GlowLayerPass {
+    float radius_scale;
+    float intensity_scale;
+};
+
+[[nodiscard]] Color add_glow_color(const Color& dst, const Color& glow) {
+    const float r = std::clamp(glow.r, 0.0f, 1.0f);
+    const float g = std::clamp(glow.g, 0.0f, 1.0f);
+    const float b = std::clamp(glow.b, 0.0f, 1.0f);
+    return {
+        std::min(1.0f, dst.r + r),
+        std::min(1.0f, dst.g + g),
+        std::min(1.0f, dst.b + b),
+        std::max(dst.a, glow.a)
+    };
+}
+
+[[nodiscard]] Color screen_glow_color(const Color& dst, const Color& glow) {
+    const float r = std::clamp(glow.r, 0.0f, 1.0f);
+    const float g = std::clamp(glow.g, 0.0f, 1.0f);
+    const float b = std::clamp(glow.b, 0.0f, 1.0f);
+    return {
+        1.0f - (1.0f - dst.r) * (1.0f - r),
+        1.0f - (1.0f - dst.g) * (1.0f - g),
+        1.0f - (1.0f - dst.b) * (1.0f - b),
+        std::max(dst.a, glow.a)
+    };
+}
+
 std::optional<raster::BBox> expand_effect_clip(
     const std::optional<raster::BBox>& clip,
     int width,
@@ -63,29 +92,9 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
         } else if (auto* p = std::any_cast<GlowParams>(&inst.params)) {
             if (p->intensity > 0.0f) {
                 const i32 w = fb.width(), h = fb.height();
-                auto effect_clip = expand_effect_clip(clip, w, h, p->radius);
+                const float extent = glow_effect_extent(*p);
+                auto effect_clip = expand_effect_clip(clip, w, h, extent);
                 
-                spdlog::info(
-                    "[Glow] framebuffer={}x{} radius={} intensity={} color=({}, {}, {}, {}) clip={}",
-                    w, h,
-                    p->radius,
-                    p->intensity,
-                    p->color.r, p->color.g, p->color.b, p->color.a,
-                    effect_clip ? "yes" : "no"
-                );
-
-                if (effect_clip) {
-                    spdlog::info(
-                        "[Glow] effect_clip x0={} y0={} x1={} y1={} width={} height={}",
-                        effect_clip->x0,
-                        effect_clip->y0,
-                        effect_clip->x1,
-                        effect_clip->y1,
-                        effect_clip->x1 - effect_clip->x0,
-                        effect_clip->y1 - effect_clip->y0
-                    );
-                }
-
                 i32 x_min = 0, x_max = w;
                 i32 y_min = 0, y_max = h;
                 if (effect_clip) {
@@ -98,46 +107,103 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
                 const i32 roi_h = y_max - y_min;
                 if (roi_w > 0 && roi_h > 0) {
                     auto original_fb = acquire_temp_framebuffer(roi_w, roi_h);
-                    auto alpha_map_fb = acquire_temp_framebuffer(roi_w, roi_h);
-                    original_fb->clear(Color{0.0f, 0.0f, 0.0f, 0.0f});
-                    alpha_map_fb->clear(Color{0.0f, 0.0f, 0.0f, 0.0f});
+                    auto glow_acc_fb = acquire_temp_framebuffer(roi_w, roi_h);
+                    original_fb->clear({0,0,0,0});
+                    glow_acc_fb->clear({0,0,0,0});
 
-                    int source_alpha_pixels = 0;
+                    // 1. Extract source into a local ROI so blur sampling never sees
+                    // stale pixels outside the effect bounds.
                     for (i32 y = 0; y < roi_h; ++y) {
                         const Color* src_row = fb.pixels_row(y + y_min);
                         Color* orig_row = original_fb->pixels_row(y);
-                        Color* alpha_row = alpha_map_fb->pixels_row(y);
                         for (i32 x = 0; x < roi_w; ++x) {
-                            const Color c = src_row[x + x_min];
-                            orig_row[x] = c;
-                            if (c.a > 0.0f) {
-                                source_alpha_pixels++;
-                                alpha_row[x] = {
-                                    p->color.r,
-                                    p->color.g,
-                                    p->color.b,
-                                    std::min(1.0f, c.a * p->intensity * p->color.a)
-                                };
+                            orig_row[x] = src_row[x + x_min];
+                        }
+                    }
+
+                    const float base_radius = std::max(0.0f, p->radius) * std::max(0.0f, p->spread);
+                    const GlowLayerPass passes[] = {
+                        {0.35f, std::max(0.0f, p->core_strength)},
+                        {0.75f, std::max(0.0f, p->aura_strength)},
+                        {1.50f, std::max(0.0f, p->bloom_strength)},
+                    };
+
+                    for (const auto& pass : passes) {
+                        auto pass_fb = acquire_temp_framebuffer(roi_w, roi_h);
+                        pass_fb->clear({0,0,0,0});
+                        const float r = base_radius * pass.radius_scale;
+                        if (r < 0.5f) continue;
+
+                        // Build a glow mask from source alpha/luma, then tint it.
+                        for (i32 y = 0; y < roi_h; ++y) {
+                            const Color* orig_row = original_fb->pixels_row(y);
+                            Color* pass_row = pass_fb->pixels_row(y);
+                            for (i32 x = 0; x < roi_w; ++x) {
+                                const Color c = orig_row[x];
+                                if (c.a <= 0.0f) continue;
+
+                                float trigger = c.a;
+                                if (p->threshold > 0.0f) {
+                                    const float lum = 0.2126f * c.r + 0.7152f * c.g + 0.0722f * c.b;
+                                    trigger = std::max(0.0f, (lum - p->threshold) / (1.0f - p->threshold + 1e-4f));
+                                }
+
+                                if (trigger > 0.0f) {
+                                    trigger = std::clamp(trigger, 0.0f, 1.0f);
+                                    if (p->softness != 1.0f) {
+                                        trigger = std::pow(trigger, std::max(0.01f, p->softness));
+                                    }
+
+                                    const float amount = trigger * p->intensity * pass.intensity_scale;
+                                    pass_row[x] = {
+                                        p->color.r * amount,
+                                        p->color.g * amount,
+                                        p->color.b * amount,
+                                        p->color.a * amount
+                                    };
+                                }
+                            }
+                        }
+
+                        apply_blur(*pass_fb, r, std::nullopt);
+
+                        // Accumulate into glow_acc_fb
+                        for (i32 y = 0; y < roi_h; ++y) {
+                            Color* acc_row = glow_acc_fb->pixels_row(y);
+                            const Color* pass_row = pass_fb->pixels_row(y);
+                            for (i32 x = 0; x < roi_w; ++x) {
+                                Color g = pass_row[x];
+                                if (g.a <= 0.0f) continue;
+
+                                const float falloff = std::max(0.01f, p->falloff);
+                                const float shaped = std::pow(std::clamp(g.a, 0.0f, 1.0f), falloff);
+                                g.r *= shaped;
+                                g.g *= shaped;
+                                g.b *= shaped;
+                                g.a = shaped;
+
+                                Color& acc = acc_row[x];
+                                acc.r = std::min(1.0f, acc.r + g.r);
+                                acc.g = std::min(1.0f, acc.g + g.g);
+                                acc.b = std::min(1.0f, acc.b + g.b);
+                                acc.a = std::max(acc.a, g.a);
                             }
                         }
                     }
-                    spdlog::info("[Glow] source_alpha_pixels={}", source_alpha_pixels);
 
-                    if (p->radius > 0.0f) {
-                        apply_blur(*alpha_map_fb, p->radius, std::nullopt);
-                    }
-
+                    // 3. Composite the glow back into the original buffer.
                     for (i32 y = 0; y < roi_h; ++y) {
                         Color* dst_row = fb.pixels_row(y + y_min);
-                        const Color* orig_row = original_fb->pixels_row(y);
-                        const Color* glow_row = alpha_map_fb->pixels_row(y);
+                        const Color* glow_row = glow_acc_fb->pixels_row(y);
                         for (i32 x = 0; x < roi_w; ++x) {
-                            const Color orig_c = orig_row[x];
-                            const Color glow_c = glow_row[x];
-                            
-                            // Blend the glow additively with the original content.
-                            // This matches the formula: final = original + glow_color.
-                            dst_row[x + x_min] = compositor::blend(orig_c, glow_c, BlendMode::Add);
+                            if (glow_row[x].a <= 0.0f) continue;
+
+                            Color& dst = dst_row[x + x_min];
+                            if (p->additive) {
+                                dst = add_glow_color(dst, glow_row[x]);
+                            } else {
+                                dst = screen_glow_color(dst, glow_row[x]);
+                            }
                         }
                     }
                 }

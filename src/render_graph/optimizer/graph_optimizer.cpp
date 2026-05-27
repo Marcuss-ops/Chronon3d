@@ -33,6 +33,24 @@ static std::vector<size_t> build_consumer_counts(const RenderGraph& graph) {
     return consumers;
 }
 
+static void remove_marked_nodes(RenderGraph& graph, const std::vector<bool>& marked) {
+    if (marked.empty()) return;
+    for (GraphNodeId id = static_cast<GraphNodeId>(marked.size()) - 1; ; --id) {
+        if (marked[id]) {
+            graph.remove_node(id);
+        }
+        if (id == 0) break;
+    }
+}
+
+static void rewire_child_to_grandparents(RenderGraph& graph, GraphNodeId parent_id, GraphNodeId child_id) {
+    const auto grandparents = graph.inputs(parent_id);
+    graph.disconnect(parent_id, child_id);
+    for (GraphNodeId gp_id : grandparents) {
+        graph.connect(gp_id, child_id);
+    }
+}
+
 // ── Helper: check if two transform nodes can be fused ───────────────────
 static bool can_fuse_transforms(const RenderGraph& graph, GraphNodeId child_id) {
     if (!graph.has_node(child_id)) return false;
@@ -87,13 +105,14 @@ size_t eliminate_dead_nodes(RenderGraph& graph) {
     }
 
     size_t removed = 0;
-    for (GraphNodeId id = static_cast<GraphNodeId>(node_count) - 1; ; --id) {
+    std::vector<bool> remove(node_count, false);
+    for (GraphNodeId id = 0; id < static_cast<GraphNodeId>(node_count); ++id) {
         if (graph.has_node(id) && !reachable[id]) {
-            graph.remove_node(id);
+            remove[id] = true;
             ++removed;
         }
-        if (id == 0) break;
     }
+    remove_marked_nodes(graph, remove);
     return removed;
 }
 
@@ -143,20 +162,13 @@ size_t fuse_effect_stacks(RenderGraph& graph) {
         child_effect->insert(child_effect->begin(), parent_effect->begin(), parent_effect->end());
 
         // Rewire: child adopts parent's inputs
-        const auto grandparent_inputs = graph.inputs(parent_id); // copy — will be modified
-        graph.disconnect(parent_id, child_id);
-        for (GraphNodeId gp_id : grandparent_inputs) {
-            graph.connect(gp_id, child_id);
-        }
+        rewire_child_to_grandparents(graph, parent_id, child_id);
 
         absorbed[parent_id] = true;
         consumers[parent_id] = 0;
     }
 
-    for (GraphNodeId id = static_cast<GraphNodeId>(node_count) - 1; ; --id) {
-        if (absorbed[id]) graph.remove_node(id);
-        if (id == 0) break;
-    }
+    remove_marked_nodes(graph, absorbed);
 
     size_t fused = 0;
     for (bool a : absorbed) if (a) ++fused;
@@ -190,20 +202,13 @@ size_t fuse_nodes(RenderGraph& graph) {
         child_node->set_opacity(combined_opacity);
 
         // Rewire: child now takes parent's inputs instead of parent
-        const auto grandparent_inputs = graph.inputs(parent_id); // copy
-        graph.disconnect(parent_id, child_id);
-        for (GraphNodeId gp_id : grandparent_inputs) {
-            graph.connect(gp_id, child_id);
-        }
+        rewire_child_to_grandparents(graph, parent_id, child_id);
 
         absorbed[parent_id] = true;
         consumers[parent_id] = 0;
     }
 
-    for (GraphNodeId id = static_cast<GraphNodeId>(node_count) - 1; ; --id) {
-        if (absorbed[id]) graph.remove_node(id);
-        if (id == 0) break;
-    }
+    remove_marked_nodes(graph, absorbed);
 
     size_t fused_count = 0;
     for (bool a : absorbed) if (a) ++fused_count;
@@ -251,7 +256,7 @@ size_t prune_branches(RenderGraph& graph, const RenderGraphContext& ctx) {
 
         // Nodes with empty predicted bbox — bypass if single-input
         if (!bypassed) {
-            auto bbox = node.predicted_bbox(ctx);
+            auto bbox = node.predicted_bbox(ctx, {});
             if (bbox && bbox->is_empty()) {
                 const auto& our_inputs = graph.inputs(id);
                 if (our_inputs.size() == 1) {
@@ -272,10 +277,7 @@ size_t prune_branches(RenderGraph& graph, const RenderGraphContext& ctx) {
         }
     }
 
-    for (GraphNodeId id = static_cast<GraphNodeId>(node_count) - 1; ; --id) {
-        if (pruned[id]) graph.remove_node(id);
-        if (id == 0) break;
-    }
+    remove_marked_nodes(graph, pruned);
 
     return pruned_count;
 }

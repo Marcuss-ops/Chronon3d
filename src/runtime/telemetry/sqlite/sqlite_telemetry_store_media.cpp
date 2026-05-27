@@ -10,37 +10,32 @@ bool SqliteTelemetryStore::write_text_events(const std::string& run_id, const st
     if (!m_impl->db) return false;
 
     const char* sql = "INSERT INTO render_text_events VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);";
-    sqlite3_stmt* stmt{nullptr};
-    if (sqlite3_prepare_v2(m_impl->db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+    SqliteStatement stmt(m_impl->db, sql);
+    if (!stmt) {
         return false;
     }
 
-    bool success = true;
     for (const auto& ev : events) {
-        sqlite3_reset(stmt);
-        sqlite3_bind_text(stmt, 1, run_id.c_str(), -1, SQLITE_TRANSIENT);
-        sqlite3_bind_int(stmt, 2, ev.frame_number);
-        sqlite3_bind_text(stmt, 3, ev.layer_id.c_str(), -1, SQLITE_TRANSIENT);
-        sqlite3_bind_int(stmt, 4, ev.text_length);
-        sqlite3_bind_int(stmt, 5, ev.line_count);
-        sqlite3_bind_int(stmt, 6, ev.glyph_count);
-        sqlite3_bind_int(stmt, 7, ev.glyphs_rasterized);
-        sqlite3_bind_int(stmt, 8, ev.glyph_cache_hits);
-        sqlite3_bind_int(stmt, 9, ev.glyph_cache_misses);
-        sqlite3_bind_double(stmt, 10, ev.layout_ms);
-        sqlite3_bind_double(stmt, 11, ev.raster_ms);
-        sqlite3_bind_double(stmt, 12, ev.composite_ms);
-        sqlite3_bind_text(stmt, 13, ev.font_path.c_str(), -1, SQLITE_TRANSIENT);
-        sqlite3_bind_double(stmt, 14, ev.font_size);
-
-        if (sqlite3_step(stmt) != SQLITE_DONE) {
-            success = false;
-            break;
+        if (!stmt.reset() || !bind_all(stmt,
+                run_id,
+                ev.frame_number,
+                ev.layer_id,
+                ev.text_length,
+                ev.line_count,
+                ev.glyph_count,
+                ev.glyphs_rasterized,
+                ev.glyph_cache_hits,
+                ev.glyph_cache_misses,
+                ev.layout_ms,
+                ev.raster_ms,
+                ev.composite_ms,
+                ev.font_path,
+                ev.font_size) || !stmt.step_done()) {
+            return false;
         }
     }
 
-    sqlite3_finalize(stmt);
-    return success;
+    return true;
 }
 
 bool SqliteTelemetryStore::write_image_events(const std::string& run_id, const std::vector<ImageTelemetryRecord>& events) {
@@ -48,33 +43,28 @@ bool SqliteTelemetryStore::write_image_events(const std::string& run_id, const s
     if (!m_impl->db) return false;
 
     const char* sql = "INSERT INTO render_image_events VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);";
-    sqlite3_stmt* stmt{nullptr};
-    if (sqlite3_prepare_v2(m_impl->db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+    SqliteStatement stmt(m_impl->db, sql);
+    if (!stmt) {
         return false;
     }
 
-    bool success = true;
     for (const auto& ev : events) {
-        sqlite3_reset(stmt);
-        sqlite3_bind_text(stmt, 1, run_id.c_str(), -1, SQLITE_TRANSIENT);
-        sqlite3_bind_int(stmt, 2, ev.frame_number);
-        sqlite3_bind_text(stmt, 3, ev.layer_id.c_str(), -1, SQLITE_TRANSIENT);
-        sqlite3_bind_text(stmt, 4, ev.image_path.c_str(), -1, SQLITE_TRANSIENT);
-        sqlite3_bind_int(stmt, 5, ev.image_width);
-        sqlite3_bind_int(stmt, 6, ev.image_height);
-        sqlite3_bind_text(stmt, 7, ev.cache_status.c_str(), -1, SQLITE_TRANSIENT);
-        sqlite3_bind_double(stmt, 8, ev.decode_ms);
-        sqlite3_bind_double(stmt, 9, ev.sample_ms);
-        sqlite3_bind_int64(stmt, 10, ev.sampled_pixels);
-
-        if (sqlite3_step(stmt) != SQLITE_DONE) {
-            success = false;
-            break;
+        if (!stmt.reset() || !bind_all(stmt,
+                run_id,
+                ev.frame_number,
+                ev.layer_id,
+                ev.image_path,
+                ev.image_width,
+                ev.image_height,
+                ev.cache_status,
+                ev.decode_ms,
+                ev.sample_ms,
+                ev.sampled_pixels) || !stmt.step_done()) {
+            return false;
         }
     }
 
-    sqlite3_finalize(stmt);
-    return success;
+    return true;
 }
 
 } // namespace chronon3d::telemetry

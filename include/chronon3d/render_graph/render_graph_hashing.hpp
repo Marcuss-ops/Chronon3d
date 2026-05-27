@@ -2,8 +2,8 @@
 
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/math/transform.hpp>
-#include <chronon3d/math/vec2.hpp>
-#include <chronon3d/math/vec3.hpp>
+#include <chronon3d/math/math_base.hpp>
+#include <chronon3d/math/math_base.hpp>
 #include <chronon3d/scene/effects/effect_stack.hpp>
 #include <chronon3d/scene/fill.hpp>
 #include <chronon3d/scene/layer/render_node.hpp>
@@ -108,7 +108,15 @@ template <typename T>
 [[nodiscard]] inline u64 hash_glow_params(const GlowParams& p) {
     u64 seed = hash_value(p.radius);
     seed = hash_combine(seed, hash_value(p.intensity));
-    return hash_combine(seed, hash_color(p.color));
+    seed = hash_combine(seed, hash_color(p.color));
+    seed = hash_combine(seed, hash_value(p.threshold));
+    seed = hash_combine(seed, hash_value(p.spread));
+    seed = hash_combine(seed, hash_value(p.softness));
+    seed = hash_combine(seed, hash_value(p.falloff));
+    seed = hash_combine(seed, hash_value(p.core_strength));
+    seed = hash_combine(seed, hash_value(p.aura_strength));
+    seed = hash_combine(seed, hash_value(p.bloom_strength));
+    return hash_combine(seed, hash_value(p.additive));
 }
 
 [[nodiscard]] inline u64 hash_bloom_params(const BloomParams& p) {

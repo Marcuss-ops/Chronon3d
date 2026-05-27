@@ -57,128 +57,116 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
         "?90, ?91, ?92, ?93, ?94, ?95, ?96, ?97, ?98, ?99, "
         "?100, ?101, ?102, ?103"
         ");";
-    sqlite3_stmt* stmt{nullptr};
-    if (sqlite3_prepare_v2(m_impl->db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+
+    SqliteStatement stmt(m_impl->db, sql);
+    if (!stmt) {
         return false;
     }
 
-    sqlite3_bind_text(stmt, 1, run.run_id.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 2, run.composition_id.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 3, run.output_path.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_int(stmt, 4, run.success ? 1 : 0);
-    sqlite3_bind_text(stmt, 5, run.error_code.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 6, run.error_message.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_int(stmt, 7, run.frames_total);
-    sqlite3_bind_int(stmt, 8, run.frames_written);
-    sqlite3_bind_double(stmt, 9, run.wall_time_ms);
-    sqlite3_bind_double(stmt, 10, run.render_ms);
-    sqlite3_bind_double(stmt, 11, run.encode_ms);
-    sqlite3_bind_double(stmt, 12, run.effective_fps);
-    sqlite3_bind_int64(stmt, 13, run.pixels_touched);
-    sqlite3_bind_int64(stmt, 14, run.cache_hits);
-    sqlite3_bind_int64(stmt, 15, run.cache_misses);
-    sqlite3_bind_int64(stmt, 16, run.nodes_executed);
-    sqlite3_bind_int64(stmt, 17, run.layers_rendered);
-    sqlite3_bind_int64(stmt, 18, run.text_glyphs_rasterized);
-    sqlite3_bind_int64(stmt, 19, run.images_sampled);
-    sqlite3_bind_int64(stmt, 20, run.blur_pixels);
-    sqlite3_bind_int64(stmt, 21, run.simd_lerp_calls);
-    sqlite3_bind_int64(stmt, 22, run.tiles_total);
-    sqlite3_bind_int64(stmt, 23, run.tiles_hit);
-    sqlite3_bind_int64(stmt, 24, run.tiles_miss);
-    sqlite3_bind_int64(stmt, 25, run.tiles_partial);
-    sqlite3_bind_int64(stmt, 26, run.bytes_allocated_peak);
-    sqlite3_bind_int64(stmt, 27, run.node_cache_hash_collisions);
-
-    sqlite3_bind_int64(stmt, 28, run.clear_skipped_calls);
-    sqlite3_bind_int64(stmt, 29, run.clear_skipped_pixels);
-    sqlite3_bind_int64(stmt, 30, run.clear_calls);
-    sqlite3_bind_int64(stmt, 31, run.clear_pixels);
-    sqlite3_bind_int64(stmt, 32, run.composite_calls);
-    sqlite3_bind_int64(stmt, 33, run.composite_pixels);
-    sqlite3_bind_int64(stmt, 34, run.transform_calls);
-    sqlite3_bind_int64(stmt, 35, run.transform_pixels);
-    sqlite3_bind_int64(stmt, 36, run.effect_stack_calls);
-    sqlite3_bind_int64(stmt, 37, run.effect_pixels);
-    sqlite3_bind_int64(stmt, 38, run.layer_culling_tests);
-    sqlite3_bind_int64(stmt, 39, run.layers_culled);
-    sqlite3_bind_int64(stmt, 40, run.layers_visible);
-    sqlite3_bind_int64(stmt, 41, run.framebuffer_allocations);
-    sqlite3_bind_int64(stmt, 42, run.framebuffer_reuses);
-    sqlite3_bind_int64(stmt, 43, run.framebuffer_bytes_allocated);
-    sqlite3_bind_int64(stmt, 44, run.framebuffer_bytes_peak);
-    sqlite3_bind_int64(stmt, 45, run.dirty_rect_count);
-    sqlite3_bind_int64(stmt, 46, run.dirty_pixels);
-    sqlite3_bind_int64(stmt, 47, run.dirty_union_area_pixels);
-    sqlite3_bind_int64(stmt, 48, run.dirty_full_fallbacks);
-    sqlite3_bind_int64(stmt, 49, run.bypass_not_cacheable_count);
-
-    sqlite3_bind_int64(stmt, 50, run.dirty_full_fallback_predicted_bounds_missing);
-    sqlite3_bind_int64(stmt, 51, run.dirty_full_fallback_composite_missing_input_bounds);
-    sqlite3_bind_int64(stmt, 52, run.dirty_full_fallback_transform_bounds_unknown);
-    sqlite3_bind_int64(stmt, 53, run.dirty_full_fallback_effect_bounds_unknown);
-
-    // Framebuffer / pipeline timing counters (?54-?74)
-    sqlite3_bind_int64(stmt, 54, run.framebuffer_acquire_ms);
-    sqlite3_bind_int64(stmt, 55, run.framebuffer_clear_ms);
-    sqlite3_bind_int64(stmt, 56, run.clearnode_ms);
-    sqlite3_bind_int64(stmt, 57, run.framebuffer_pool_clear_ms);
-    sqlite3_bind_int64(stmt, 58, run.framebuffer_enqueue_ms);
-    sqlite3_bind_int64(stmt, 59, run.framebuffer_pool_miss_count_size_mismatch);
-    sqlite3_bind_int64(stmt, 60, run.framebuffer_pool_miss_count_empty);
-    sqlite3_bind_int64(stmt, 61, run.framebuffer_pool_hits);
-    sqlite3_bind_int64(stmt, 62, run.framebuffer_buffer_returned_to_pool_count);
-    sqlite3_bind_int64(stmt, 63, run.unaligned_memory_copies);
-    sqlite3_bind_int64(stmt, 64, run.frame_conversion_copy_ms);
-    sqlite3_bind_int64(stmt, 65, run.video_graph_eval_ms);
-    sqlite3_bind_int64(stmt, 66, run.video_conversion_ms);
-    sqlite3_bind_int64(stmt, 67, run.video_pipe_write_ms);
-    sqlite3_bind_int64(stmt, 68, run.video_ffmpeg_latency_ms);
-    sqlite3_bind_int64(stmt, 69, run.io_queue_push_blocked_ms);
-    sqlite3_bind_int64(stmt, 70, run.io_queue_pop_wait_ms);
-    sqlite3_bind_int64(stmt, 71, run.io_queue_peak_depth);
-    sqlite3_bind_int64(stmt, 72, run.ffmpeg_pipe_write_blocked_ms);
-    sqlite3_bind_int64(stmt, 73, run.converted_frame_cache_hits);
-    sqlite3_bind_int64(stmt, 74, run.ffmpeg_flush_ms);
-
-    // New diagnostics counters (after ffmpeg_flush_ms and before benchmark columns)
-    sqlite3_bind_int64(stmt, 75, run.io_queue_peak_bytes);
-    sqlite3_bind_int64(stmt, 76, run.setup_graph_parsing_ms);
-    sqlite3_bind_int64(stmt, 77, run.setup_asset_io_load_ms);
-    sqlite3_bind_int64(stmt, 78, run.setup_pool_preallocation_ms);
-    sqlite3_bind_int64(stmt, 79, run.image_decode_ms);
-    sqlite3_bind_int64(stmt, 80, run.process_context_switches_voluntary);
-    sqlite3_bind_int64(stmt, 81, run.process_context_switches_involuntary);
-    sqlite3_bind_int64(stmt, 82, run.os_page_faults_major);
-    sqlite3_bind_int64(stmt, 83, run.os_page_faults_minor);
-    sqlite3_bind_int64(stmt, 84, run.ffmpeg_cpu_user_pct);
-    sqlite3_bind_int64(stmt, 85, run.ffmpeg_cpu_sys_pct);
-    sqlite3_bind_int64(stmt, 86, run.llc_references);
-    sqlite3_bind_int64(stmt, 87, run.llc_misses);
-
-    // Benchmark breakdown columns
-    sqlite3_bind_double(stmt, 88, run.chronon_render_only_ms);
-    sqlite3_bind_double(stmt, 89, run.chronon_conversion_copy_ms);
-    sqlite3_bind_double(stmt, 90, run.chronon_queue_wait_ms);
-    sqlite3_bind_double(stmt, 91, run.chronon_render_throughput_ms);
-    sqlite3_bind_double(stmt, 92, run.ffmpeg_encode_total_ms);
-    sqlite3_bind_double(stmt, 93, run.ffmpeg_flush_close_ms);
-    sqlite3_bind_double(stmt, 94, run.e2e_wall_ms);
-
-    // Host & environment (shifted after the benchmark block)
-    sqlite3_bind_text(stmt, 95, run.started_at_iso.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 96, run.finished_at_iso.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 97, run.git_commit_short.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 98, run.build_type.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 99, run.compiler_info.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 100, run.os.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 101, run.cpu_model.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_int(stmt, 102, run.cores);
-
-
-    int rc = sqlite3_step(stmt);
-    sqlite3_finalize(stmt);
-    return rc == SQLITE_DONE;
+    return bind_all(stmt,
+        run.run_id,
+        run.composition_id,
+        run.output_path,
+        run.success,
+        run.error_code,
+        run.error_message,
+        run.frames_total,
+        run.frames_written,
+        run.wall_time_ms,
+        run.render_ms,
+        run.encode_ms,
+        run.effective_fps,
+        run.pixels_touched,
+        run.cache_hits,
+        run.cache_misses,
+        run.nodes_executed,
+        run.layers_rendered,
+        run.text_glyphs_rasterized,
+        run.images_sampled,
+        run.blur_pixels,
+        run.simd_lerp_calls,
+        run.tiles_total,
+        run.tiles_hit,
+        run.tiles_miss,
+        run.tiles_partial,
+        run.bytes_allocated_peak,
+        run.node_cache_hash_collisions,
+        run.clear_skipped_calls,
+        run.clear_skipped_pixels,
+        run.clear_calls,
+        run.clear_pixels,
+        run.composite_calls,
+        run.composite_pixels,
+        run.transform_calls,
+        run.transform_pixels,
+        run.effect_stack_calls,
+        run.effect_pixels,
+        run.layer_culling_tests,
+        run.layers_culled,
+        run.layers_visible,
+        run.framebuffer_allocations,
+        run.framebuffer_reuses,
+        run.framebuffer_bytes_allocated,
+        run.framebuffer_bytes_peak,
+        run.dirty_rect_count,
+        run.dirty_pixels,
+        run.dirty_union_area_pixels,
+        run.dirty_full_fallbacks,
+        run.bypass_not_cacheable_count,
+        run.dirty_full_fallback_predicted_bounds_missing,
+        run.dirty_full_fallback_composite_missing_input_bounds,
+        run.dirty_full_fallback_transform_bounds_unknown,
+        run.dirty_full_fallback_effect_bounds_unknown,
+        run.framebuffer_acquire_ms,
+        run.framebuffer_clear_ms,
+        run.clearnode_ms,
+        run.framebuffer_pool_clear_ms,
+        run.framebuffer_enqueue_ms,
+        run.framebuffer_pool_miss_count_size_mismatch,
+        run.framebuffer_pool_miss_count_empty,
+        run.framebuffer_pool_hits,
+        run.framebuffer_buffer_returned_to_pool_count,
+        run.unaligned_memory_copies,
+        run.frame_conversion_copy_ms,
+        run.video_graph_eval_ms,
+        run.video_conversion_ms,
+        run.video_pipe_write_ms,
+        run.video_ffmpeg_latency_ms,
+        run.io_queue_push_blocked_ms,
+        run.io_queue_pop_wait_ms,
+        run.io_queue_peak_depth,
+        run.ffmpeg_pipe_write_blocked_ms,
+        run.converted_frame_cache_hits,
+        run.ffmpeg_flush_ms,
+        run.io_queue_peak_bytes,
+        run.setup_graph_parsing_ms,
+        run.setup_asset_io_load_ms,
+        run.setup_pool_preallocation_ms,
+        run.image_decode_ms,
+        run.process_context_switches_voluntary,
+        run.process_context_switches_involuntary,
+        run.os_page_faults_major,
+        run.os_page_faults_minor,
+        run.ffmpeg_cpu_user_pct,
+        run.ffmpeg_cpu_sys_pct,
+        run.llc_references,
+        run.llc_misses,
+        run.chronon_render_only_ms,
+        run.chronon_conversion_copy_ms,
+        run.chronon_queue_wait_ms,
+        run.chronon_render_throughput_ms,
+        run.ffmpeg_encode_total_ms,
+        run.ffmpeg_flush_close_ms,
+        run.e2e_wall_ms,
+        run.started_at_iso,
+        run.finished_at_iso,
+        run.git_commit_short,
+        run.build_type,
+        run.compiler_info,
+        run.os,
+        run.cpu_model,
+        run.cores
+    ) && stmt.step_done();
 }
 
 } // namespace chronon3d::telemetry

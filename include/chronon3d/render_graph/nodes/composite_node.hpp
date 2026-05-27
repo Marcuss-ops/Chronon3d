@@ -85,8 +85,13 @@ public:
         // Optimization: In-place composition if we are the unique owner of the bottom buffer
         if (ctx.optimize_compositing && bottom.use_count() == 1 && bottom->width() == ctx.width && bottom->height() == ctx.height) {
             result = bottom;
-        } else {
+        } else if (bottom->width() == ctx.width && bottom->height() == ctx.height) {
             result = ctx.acquire_framebuffer(*bottom);
+        } else {
+            result = ctx.acquire_framebuffer(ctx.width, ctx.height, true);
+            if (ctx.backend) {
+                ctx.backend->composite_layer(*result, *bottom, BlendMode::Normal);
+            }
         }
 
         if (ctx.backend) {

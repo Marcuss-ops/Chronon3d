@@ -671,3 +671,67 @@ TEST_CASE("GlowRender: 06 VideoLayer title visible above video area") {
         }
     CHECK_MESSAGE(found, "VideoLayer title 'VIDEO LAYER GLOW' not visible at canvas_y≈142");
 }
+
+TEST_CASE("GraphPreflight: validates advanced diagnostics (memory, complexity, cache, dirty reasons, redundant transforms)") {
+    constexpr int W = 512;
+    constexpr int H = 512;
+
+    SceneBuilder s(W, H);
+
+    // Add a background layer
+    s.layer("bg", [](LayerBuilder& l) {
+        l.cache_static(true);
+        l.rect("bg_rect", {
+            .size  = {512, 512},
+            .color = Color{0.05f, 0.05f, 0.05f, 1},
+            .pos   = {0, 0, 0}
+        });
+    });
+
+    // Add an animated foreground layer
+    s.layer("fg", [](LayerBuilder& l) {
+        l.from(0).duration(30);
+        l.opacity_anim().add_keyframe(0, 1.0f);
+        l.opacity_anim().add_keyframe(30, 0.0f);
+        l.rect("fg_rect", {
+            .size  = {100, 100},
+            .color = Color{1, 0, 0, 1},
+            .pos   = {0, 0, 0}
+        });
+    });
+
+    Scene scene = s.build();
+
+    SoftwareRenderer renderer;
+    cache::NodeCache node_cache;
+    Camera camera;
+
+    auto report = run_preflight(renderer, node_cache, scene, camera, W, H, 5, 5.0f/30.0f);
+
+    // Validate memory metrics
+    CHECK(report.peak_memory_bytes > 0);
+    
+    // Validate complexity metrics
+    CHECK(report.total_complexity_score > 0);
+
+    // Validate cache score
+    CHECK(report.cache_score >= 0);
+    CHECK(report.cache_score <= 100);
+
+    // Validate fill rate
+    CHECK(report.total_fill_rate_pixels > 0);
+
+    // Verify presence of dirty reasons for animated node
+    const auto* fg_node = report.find_node("fg_rect");
+    REQUIRE(fg_node != nullptr);
+    CHECK(fg_node->dirty == true);
+    CHECK(!fg_node->dirty_reasons.empty());
+
+    // Verify format in text output
+    std::string text = report.to_text();
+    CHECK(text.find("Peak Memory:") != std::string::npos);
+    CHECK(text.find("Total Complexity:") != std::string::npos);
+    CHECK(text.find("Cache Score:") != std::string::npos);
+    CHECK(text.find("Total Fill Rate:") != std::string::npos);
+    CHECK(text.find("Dirty:") != std::string::npos);
+}

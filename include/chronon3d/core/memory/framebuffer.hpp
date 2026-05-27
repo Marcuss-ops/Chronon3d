@@ -48,99 +48,49 @@ constexpr size_t k_colors_per_cache_line = k_cache_line_bytes / k_color_size;  /
 class Framebuffer {
 public:
     Framebuffer(i32 width, i32 height)
-        : m_width(width), m_height(height),
-          m_allocated_width(align_stride_to_cache_line(width)),
+        : m_width(width), m_height(height), m_allocated_width(align_stride_to_cache_line(width)),
           m_allocated_height(height), m_owns_pixels(true) {
-        if (width <= 0 || height <= 0) {
-            throw std::invalid_argument("Framebuffer dimensions must be positive");
-        }
-        m_pixels.resize(static_cast<size_t>(m_allocated_width) * height, Color::transparent());
-        increment_allocations(static_cast<size_t>(m_allocated_width) * height * sizeof(Color));
+        validate_dimensions(width, height);
+        allocate_owned_pixels();
     }
 
     Framebuffer(i32 width, i32 height, Color* external_pixels)
         : m_width(width), m_height(height),
           m_allocated_width(align_stride_to_cache_line(width)),
           m_allocated_height(height), m_owns_pixels(false), m_external_pixels(external_pixels) {
-        if (width <= 0 || height <= 0) {
-            throw std::invalid_argument("Framebuffer dimensions must be positive");
-        }
+        validate_dimensions(width, height);
     }
 
     Framebuffer(const Framebuffer& other)
-        : m_width(other.m_width), m_height(other.m_height), m_allocated_width(other.m_allocated_width), m_allocated_height(other.m_allocated_height),
-          m_origin_x(other.m_origin_x), m_origin_y(other.m_origin_y), m_opaque(other.m_opaque), m_owns_pixels(other.m_owns_pixels) {
-        if (m_owns_pixels) {
-            m_pixels = other.m_pixels;
-            increment_allocations(size_bytes());
-        } else {
-            m_external_pixels = other.m_external_pixels;
-        }
+        : m_width(other.m_width), m_height(other.m_height), m_allocated_width(other.m_allocated_width),
+          m_allocated_height(other.m_allocated_height), m_origin_x(other.m_origin_x),
+          m_origin_y(other.m_origin_y), m_opaque(other.m_opaque), m_owns_pixels(other.m_owns_pixels),
+          m_key_digest(other.m_key_digest) {
+        copy_pixels_from(other);
     }
 
     Framebuffer(Framebuffer&& other) noexcept
-        : m_width(other.m_width), m_height(other.m_height), m_allocated_width(other.m_allocated_width), m_allocated_height(other.m_allocated_height),
-          m_origin_x(other.m_origin_x), m_origin_y(other.m_origin_y), m_opaque(other.m_opaque), m_owns_pixels(other.m_owns_pixels) {
-        if (m_owns_pixels) {
-            m_pixels = std::move(other.m_pixels);
-        } else {
-            m_external_pixels = other.m_external_pixels;
-        }
-        other.m_width = 0;
-        other.m_height = 0;
-        other.m_allocated_width = 0;
-        other.m_allocated_height = 0;
-        other.m_origin_x = 0;
-        other.m_origin_y = 0;
-        other.m_opaque = false;
-        other.m_owns_pixels = true;
+        : m_width(other.m_width), m_height(other.m_height), m_allocated_width(other.m_allocated_width),
+          m_allocated_height(other.m_allocated_height), m_origin_x(other.m_origin_x),
+          m_origin_y(other.m_origin_y), m_opaque(other.m_opaque), m_owns_pixels(other.m_owns_pixels),
+          m_key_digest(other.m_key_digest) {
+        move_pixels_from(std::move(other));
     }
 
     Framebuffer& operator=(const Framebuffer& other) {
         if (this != &other) {
-            if (m_owns_pixels) decrement_allocations(size_bytes());
-            m_width = other.m_width;
-            m_height = other.m_height;
-            m_allocated_width = other.m_allocated_width;
-            m_allocated_height = other.m_allocated_height;
-            m_origin_x = other.m_origin_x;
-            m_origin_y = other.m_origin_y;
-            m_opaque = other.m_opaque;
-            m_owns_pixels = other.m_owns_pixels;
-            if (m_owns_pixels) {
-                m_pixels = other.m_pixels;
-                increment_allocations(size_bytes());
-            } else {
-                m_external_pixels = other.m_external_pixels;
-            }
+            release_owned_pixels();
+            copy_metadata_from(other);
+            copy_pixels_from(other);
         }
         return *this;
     }
 
     Framebuffer& operator=(Framebuffer&& other) noexcept {
         if (this != &other) {
-            if (m_owns_pixels) decrement_allocations(size_bytes());
-            m_width = other.m_width;
-            m_height = other.m_height;
-            m_allocated_width = other.m_allocated_width;
-            m_allocated_height = other.m_allocated_height;
-            m_origin_x = other.m_origin_x;
-            m_origin_y = other.m_origin_y;
-            m_opaque = other.m_opaque;
-            m_owns_pixels = other.m_owns_pixels;
-            if (m_owns_pixels) {
-                m_pixels = std::move(other.m_pixels);
-            } else {
-                m_external_pixels = other.m_external_pixels;
-            }
-            other.m_width = 0;
-            other.m_height = 0;
-            other.m_allocated_width = 0;
-            other.m_allocated_height = 0;
-            other.m_origin_x = 0;
-            other.m_origin_y = 0;
-            other.m_opaque = false;
-            other.m_owns_pixels = true;
+            release_owned_pixels();
+            copy_metadata_from(other);
+            move_pixels_from(std::move(other));
         }
         return *this;
     }
@@ -151,25 +101,9 @@ public:
 
     void clear(const Color& color) {
         if (m_allocated_width == m_width) {
-            // Fast path: stride equals width, contiguous clear
-            Color* p = data();
-            const size_t n = pixel_count();
-            if (color.r == 0.0f && color.g == 0.0f && color.b == 0.0f && color.a == 0.0f) {
-                std::memset(p, 0, n * sizeof(Color));
-            } else {
-                std::fill(p, p + n, color);
-            }
+            clear_contiguous(color);
         } else {
-            // Slow path: stride > width, clear row-by-row
-            if (color.r == 0.0f && color.g == 0.0f && color.b == 0.0f && color.a == 0.0f) {
-                for (i32 y = 0; y < m_height; ++y) {
-                    std::memset(pixels_row(y), 0, static_cast<size_t>(m_width) * sizeof(Color));
-                }
-            } else {
-                for (i32 y = 0; y < m_height; ++y) {
-                    std::fill(pixels_row(y), pixels_row(y) + m_width, color);
-                }
-            }
+            clear_strided(color, 0, 0, m_width, m_height);
         }
         m_opaque = color.a >= 0.999f;
     }
@@ -191,22 +125,7 @@ public:
             return;
         }
 
-        const size_t stride = static_cast<size_t>(m_allocated_width);
-        if (color.r == 0.0f && color.g == 0.0f && color.b == 0.0f && color.a == 0.0f) {
-            const size_t row_bytes = static_cast<size_t>(box.x1 - box.x0) * sizeof(Color);
-            Color* row = pixels_row(box.y0) + box.x0;
-            for (i32 y = box.y0; y < box.y1; ++y) {
-                std::memset(row, 0, row_bytes);
-                row += stride;
-            }
-        } else {
-            Color* row = pixels_row(box.y0) + box.x0;
-            const i32 w = box.x1 - box.x0;
-            for (i32 y = box.y0; y < box.y1; ++y) {
-                std::fill(row, row + w, color);
-                row += stride;
-            }
-        }
+        clear_strided(color, box.x0, box.y0, box.x1 - box.x0, box.y1 - box.y0);
         if (!m_opaque || color.a < 0.999f) {
             m_opaque = false;
         }
@@ -358,6 +277,102 @@ public:
 
 private:
     u64 m_key_digest{0};
+    static void validate_dimensions(i32 width, i32 height) {
+        if (width <= 0 || height <= 0) {
+            throw std::invalid_argument("Framebuffer dimensions must be positive");
+        }
+    }
+
+    static bool is_clear_color(const Color& color) {
+        return color.r == 0.0f && color.g == 0.0f && color.b == 0.0f && color.a == 0.0f;
+    }
+
+    void allocate_owned_pixels() {
+        m_pixels.resize(static_cast<size_t>(m_allocated_width) * m_allocated_height, Color::transparent());
+        increment_allocations(size_bytes());
+    }
+
+    void release_owned_pixels() {
+        if (m_owns_pixels && !m_pixels.empty()) {
+            decrement_allocations(size_bytes());
+            m_pixels.clear();
+        }
+    }
+
+    void copy_metadata_from(const Framebuffer& other) {
+        m_width = other.m_width;
+        m_height = other.m_height;
+        m_allocated_width = other.m_allocated_width;
+        m_allocated_height = other.m_allocated_height;
+        m_origin_x = other.m_origin_x;
+        m_origin_y = other.m_origin_y;
+        m_opaque = other.m_opaque;
+        m_owns_pixels = other.m_owns_pixels;
+        m_key_digest = other.m_key_digest;
+    }
+
+    void copy_pixels_from(const Framebuffer& other) {
+        if (m_owns_pixels) {
+            m_pixels = other.m_pixels;
+            increment_allocations(size_bytes());
+            m_external_pixels = nullptr;
+        } else {
+            m_external_pixels = other.m_external_pixels;
+        }
+    }
+
+    void move_pixels_from(Framebuffer&& other) {
+        if (m_owns_pixels) {
+            m_pixels = std::move(other.m_pixels);
+            other.m_pixels.clear();
+            m_external_pixels = nullptr;
+        } else {
+            m_external_pixels = other.m_external_pixels;
+        }
+        other.reset_transient_state();
+    }
+
+    void reset_transient_state() {
+        m_width = 0;
+        m_height = 0;
+        m_allocated_width = 0;
+        m_allocated_height = 0;
+        m_origin_x = 0;
+        m_origin_y = 0;
+        m_opaque = false;
+        m_owns_pixels = true;
+        m_external_pixels = nullptr;
+        m_key_digest = 0;
+    }
+
+    void clear_contiguous(const Color& color) {
+        Color* p = data();
+        const size_t n = pixel_count();
+        if (is_clear_color(color)) {
+            std::memset(p, 0, n * sizeof(Color));
+        } else {
+            std::fill(p, p + n, color);
+        }
+    }
+
+    void clear_strided(const Color& color, i32 x, i32 y, i32 w, i32 h) {
+        if (w <= 0 || h <= 0) return;
+        if (is_clear_color(color)) {
+            const size_t row_bytes = static_cast<size_t>(w) * sizeof(Color);
+            Color* row = pixels_row(y) + x;
+            for (i32 yy = 0; yy < h; ++yy) {
+                std::memset(row, 0, row_bytes);
+                row += static_cast<size_t>(m_allocated_width);
+            }
+        } else {
+            Color* row = pixels_row(y) + x;
+            for (i32 yy = 0; yy < h; ++yy) {
+                std::fill(row, row + w, color);
+                row += static_cast<size_t>(m_allocated_width);
+            }
+        }
+    }
+
     void increment_allocations(size_t bytes) {
         uint64_t current = profiling::g_live_framebuffer_bytes.fetch_add(bytes, std::memory_order_relaxed) + bytes;
         uint64_t peak = profiling::g_peak_live_framebuffer_bytes.load(std::memory_order_relaxed);
