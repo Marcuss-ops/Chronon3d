@@ -6,11 +6,9 @@
 #ifdef CHRONON_PROFILING
 #include <tracy/Tracy.hpp>
 #define CHRONON_ZONE(name) \
-    ZoneScopedN(name); \
-    ::chronon3d::TraceScope _tscope(::chronon3d::profiling::g_current_trace, name, "default", ::chronon3d::profiling::g_current_frame)
+    ZoneScopedN(name)
 #define CHRONON_ZONE_C(name, cat) \
-    ZoneScopedN(name); \
-    ::chronon3d::TraceScope _tscope(::chronon3d::profiling::g_current_trace, name, cat, ::chronon3d::profiling::g_current_frame)
+    ZoneScopedN(name)
 #else
 #ifndef ZoneScoped
 #define ZoneScoped
@@ -19,7 +17,8 @@
 #define ZoneScopedN(name)
 #endif
 #define CHRONON_ZONE(name) \
-    ::chronon3d::TraceScope _tscope(::chronon3d::profiling::g_current_trace, name, "default", ::chronon3d::profiling::g_current_frame)
+    do { (void)sizeof(name); } while (false)
 #define CHRONON_ZONE_C(name, cat) \
-    ::chronon3d::TraceScope _tscope(::chronon3d::profiling::g_current_trace, name, cat, ::chronon3d::profiling::g_current_frame)
+    do { (void)sizeof(name); (void)sizeof(cat); } while (false)
 #endif
+

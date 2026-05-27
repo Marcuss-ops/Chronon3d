@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chronon3d/core/enum_utils.hpp>
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/render_graph/cache_policy.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
@@ -57,23 +58,7 @@ enum class RenderGraphNodeKind {
 };
 
 [[nodiscard]] inline std::string_view to_string(RenderGraphNodeKind kind) {
-    using enum RenderGraphNodeKind;
-    switch (kind) {
-        case Source:         return "Source";
-        case Mask:           return "Mask";
-        case Effect:         return "Effect";
-        case Transform:      return "Transform";
-        case Composite:      return "Composite";
-        case Precomp:        return "Precomp";
-        case Video:          return "Video";
-        case Adjustment:     return "Adjustment";
-        case MotionBlur:     return "MotionBlur";
-        case ColorConvert:   return "ColorConvert";
-        case TrackMatte:     return "TrackMatte";
-        case Output:         return "Output";
-        case Transition:     return "Transition";
-    }
-    return "Unknown";
+    return enum_utils::enum_name_exact(kind);
 }
 
 struct RenderGraphContext {

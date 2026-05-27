@@ -7,6 +7,6 @@ namespace chronon3d {
 // Internal helpers shared between render_preflight_helpers.cpp and
 // render_preflight_validate.cpp — not part of the public API.
 const char* severity_label(PreflightSeverity s);
-const char* asset_type_label(PreflightAssetType t);
+std::string asset_type_label(PreflightAssetType t);
 
 } // namespace chronon3d

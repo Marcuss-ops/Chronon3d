@@ -24,6 +24,7 @@
 //
 // ---------------------------------------------------------------------------
 
+#include <chronon3d/core/enum_utils.hpp>
 #include <chronon3d/render_graph/render_pipeline.hpp>
 #include <chronon3d/math/raster_utils.hpp>
 #include <string>
@@ -41,14 +42,8 @@ enum class VisibilityStatus {
     Unknown            ///< bbox could not be computed (e.g. full-canvas fallback)
 };
 
-[[nodiscard]] inline std::string_view to_string(VisibilityStatus s) {
-    switch (s) {
-        case VisibilityStatus::FullyVisible:     return "FULLY_VISIBLE";
-        case VisibilityStatus::PartiallyClipped: return "PARTIAL_CLIP";
-        case VisibilityStatus::OutsideCanvas:    return "OUTSIDE_CANVAS";
-        case VisibilityStatus::Unknown:          return "UNKNOWN";
-    }
-    return "UNKNOWN";
+[[nodiscard]] inline std::string to_string(VisibilityStatus s) {
+    return enum_utils::enum_name_upper_snake(s);
 }
 
 // ── Per-node diagnostic record ─────────────────────────────────────────────

@@ -35,7 +35,7 @@ static uint8_t expected_y(float r, float g, float b, bool gamma) {
     float R = gamma ? linear_to_srgb(r) : r;
     float G = gamma ? linear_to_srgb(g) : g;
     float B = gamma ? linear_to_srgb(b) : b;
-    float luma = 0.2126f*R + 0.7152f*G + 0.0722f*B;
+    float luma = 0.299f*R + 0.587f*G + 0.114f*B;
     return static_cast<uint8_t>(std::clamp(std::round(16.5f + luma * 219.0f), 0.0f, 255.0f));
 }
 

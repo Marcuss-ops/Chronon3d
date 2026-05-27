@@ -21,7 +21,9 @@
     "nlohmann-json",
     "sqlite3",
     "openexr",
-    "libyuv"
+    "libyuv",
+    "magic-enum",
+    "benchmark"
   ],
   "default-features": []
 }

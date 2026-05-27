@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chronon3d/core/enum_utils.hpp>
 #include <chronon3d/registry/shape_ids.hpp>
 #include <chronon3d/registry/shape_params.hpp>
 #include <chronon3d/scene/layer/render_node.hpp>
@@ -19,14 +20,8 @@ enum class ShapeKind {
     Mesh,
 };
 
-[[nodiscard]] constexpr std::string_view to_string(ShapeKind kind) {
-    switch (kind) {
-    case ShapeKind::Primitive: return "primitive";
-    case ShapeKind::Path:      return "path";
-    case ShapeKind::Image:     return "image";
-    case ShapeKind::Mesh:      return "mesh";
-    }
-    return "primitive";
+[[nodiscard]] inline std::string to_string(ShapeKind kind) {
+    return enum_utils::enum_name_lower_snake(kind);
 }
 
 struct ShapeDescriptor {
