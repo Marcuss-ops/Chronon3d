@@ -46,13 +46,9 @@ set(CHRONON3D_GRAPH_SOURCES
     render_graph/builder/graph_builder_bbox.cpp
     render_graph/builder/graph_builder_static.cpp
     scene/mask/mask_utils.cpp
-    render_graph/builder/passes/graph_builder_composite_pass.cpp
-    render_graph/builder/passes/graph_builder_effect_pass.cpp
-    render_graph/builder/passes/graph_builder_lighting_pass.cpp
-    render_graph/builder/passes/graph_builder_mask_pass.cpp
-    render_graph/builder/passes/graph_builder_shadow_pass.cpp
+    render_graph/builder/passes/graph_builder_layer_passes.cpp
+    render_graph/builder/passes/graph_builder_lighting_passes.cpp
     render_graph/builder/passes/graph_builder_source_pass.cpp
-    render_graph/builder/passes/graph_builder_transform_pass.cpp
     render_graph/builder/utils/graph_builder_camera25d_sorter.cpp
     render_graph/graph_builder.cpp
     render_graph/graph_executor.cpp
@@ -175,10 +171,7 @@ set(CHRONON3D_BACKEND_SOFTWARE_SOURCES
     backends/software/processors/software_line_processor.cpp
     backends/software/processors/software_shape_processor.cpp
     backends/software/processors/software_text_processor.cpp
-    backends/software/processors/software_text_processor_hash.cpp
-    backends/software/processors/software_text_processor_cache.cpp
-    backends/software/processors/software_text_processor_shadow.cpp
-    backends/software/processors/software_text_processor_glow.cpp
+
     backends/software/processors/software_utility_processors.cpp
     backends/text/text_rasterizer_cache.cpp
     backends/text/text_rasterizer_render.cpp
@@ -201,12 +194,8 @@ set(CHRONON3D_BACKEND_SOFTWARE_SOURCES
     backends/software/specialized/mesh_renderer.cpp
     backends/software/utils/framebuffer_analysis.cpp
     backends/software/utils/projection_utils.cpp
-    backends/software/utils/blend2d_bridge.cpp
-    backends/software/utils/blend2d_bridge/bl2d_sampling.cpp
-    backends/software/utils/blend2d_bridge/bl2d_compositing.cpp
-    backends/software/utils/blend2d_bridge/bl2d_blimage_transformed.cpp
-    backends/software/utils/blend2d_bridge/bl2d_blimage_tiled.cpp
-    backends/software/utils/blend2d_bridge/bl2d_framebuffer_transformed.cpp
+    backends/software/utils/blend2d_bridge_core.cpp
+    backends/software/utils/blend2d_bridge_transforms.cpp
     backends/software/utils/effects/effect_blur.cpp
     backends/software/utils/effects/effect_color.cpp
     backends/software/utils/effects/effect_wave.cpp
