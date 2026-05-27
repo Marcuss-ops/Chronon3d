@@ -86,7 +86,7 @@ std::unique_ptr<ImageBuffer> load_exr_mmap(const std::string& path) {
         buffer->width = width;
         buffer->height = height;
         buffer->channels = 4;
-        buffer->pixels = std::unique_ptr<u8[]>(new u8[width * height * 4]);
+        buffer->pixels = std::make_unique<u8[]>(width * height * 4);
 
         u8* out = buffer->pixels.get();
         for (int i = 0; i < width * height; ++i) {

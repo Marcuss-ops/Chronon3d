@@ -16,7 +16,6 @@ namespace chronon3d::content::text {
 
 namespace {
 
-using presets::motion::TextAlign;
 
 struct SweepMotion {
     bool enabled{false};

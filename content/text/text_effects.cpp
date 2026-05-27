@@ -30,7 +30,7 @@ struct EffectLine {
     EffectLine& set_pos(Vec3 p) { pos = p; return *this; }
 
     void draw(LayerBuilder& l, const std::string& name = "text") const {
-        apply_text(l, name, {
+        apply_text(l, name, TextDef{
             .text = text,
             .size = size,
             .color = color,
@@ -41,7 +41,6 @@ struct EffectLine {
 };
 
 using presets::motion::MotionObject;
-using presets::motion::TextAlign;
 
 MotionObject make_motion_text(std::string id, std::string text, Vec3 pos, f32 size, f32 tracking, Color color) {
     return MotionObject::text(std::move(id), std::move(text))

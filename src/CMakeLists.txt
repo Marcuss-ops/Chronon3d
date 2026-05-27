@@ -22,7 +22,16 @@ target_compile_definitions(chronon3d INTERFACE
     CHRONON3D_GIT_COMMIT="${CHRONON3D_GIT_COMMIT}"
     $<$<BOOL:${MSVC}>:_DISABLE_STRING_VIEW_FIND_FIRST_NOT_OF_OPTIMIZATION>
 )
-target_link_libraries(chronon3d INTERFACE glm::glm meshoptimizer::meshoptimizer xxHash::xxhash magic_enum::magic_enum chronon3d_core_impl)
+option(CHRONON3D_ENABLE_MESH "Enable mesh processing support" ON)
+
+# Only link meshoptimizer when mesh support is active
+set(CHRONON3D_MESHOPTIMIZER_LINK "")
+if(CHRONON3D_ENABLE_MESH)
+    set(CHRONON3D_MESHOPTIMIZER_LINK meshoptimizer::meshoptimizer)
+    target_compile_definitions(chronon3d INTERFACE CHRONON3D_ENABLE_MESH)
+endif()
+
+target_link_libraries(chronon3d INTERFACE glm::glm ${CHRONON3D_MESHOPTIMIZER_LINK} xxHash::xxhash magic_enum::magic_enum chronon3d_core_impl)
 
 # 3. Cache
 set(CHRONON3D_CACHE_SOURCES
@@ -80,7 +89,7 @@ target_precompile_headers(chronon3d_graph PRIVATE
 
 # 5. Effects
 add_library(chronon3d_effects STATIC effects/effect_registry.cpp)
-target_link_libraries(chronon3d_effects PUBLIC chronon3d meshoptimizer::meshoptimizer)
+target_link_libraries(chronon3d_effects PUBLIC chronon3d ${CHRONON3D_MESHOPTIMIZER_LINK})
 
 # 6. Animations catalog
 add_library(chronon3d_animations STATIC
