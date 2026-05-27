@@ -48,7 +48,7 @@ std::shared_ptr<Framebuffer> render_with_camera(
             l.rect("target_rect", {
                 .size = {rect_size, rect_size},
                 .color = Color::red(),
-                .pos = {-rect_size * 0.5f, -rect_size * 0.5f, 0}
+                .pos = {0, 0, 0}
             });
         });
 
@@ -194,13 +194,13 @@ TEST_CASE("Test 9.7 — Camera 2.5D: 3D layers are sorted by depth before render
         // Far layer: blue, placed at Z = 500
         s.layer("far_blue", [](LayerBuilder& l) {
             l.enable_3d().position({0, 0, 500});
-            l.rect("blue_rect", {.size = {150, 150}, .color = Color::blue(), .pos = {-75.0f, -75.0f, 0}});
+            l.rect("blue_rect", {.size = {150, 150}, .color = Color::blue(), .pos = {0, 0, 0}});
         });
 
         // Near layer: red, placed at Z = -200
         s.layer("near_red", [](LayerBuilder& l) {
             l.enable_3d().position({0, 0, -200});
-            l.rect("red_rect", {.size = {60, 60}, .color = Color::red(), .pos = {-30.0f, -30.0f, 0}});
+            l.rect("red_rect", {.size = {60, 60}, .color = Color::red(), .pos = {0, 0, 0}});
         });
 
         return s.build();
