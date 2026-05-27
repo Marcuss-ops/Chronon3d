@@ -15,7 +15,6 @@ namespace chronon3d::presets::phrase {
 using motion::MotionObject;
 using motion::MotionPreset;
 using motion::draw_motion_object;
-using motion::TextAlign;
 
 enum class PhrasePreset {
     TitlePop,

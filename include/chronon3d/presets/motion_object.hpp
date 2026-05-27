@@ -86,9 +86,10 @@ struct Motion3D {
     } sweep_2_5d{};
 };
 
+using chronon3d::TextAlign;
+
 // Text style for motion objects. Text objects are mapped to the text shape
 // pipeline so they can render with the same motion data model.
-enum class TextAlign { Left, Center, Right };
 
 struct TextStyleMotion {
     std::string font_path{"assets/fonts/Inter-Bold.ttf"};
