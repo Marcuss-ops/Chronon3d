@@ -23,6 +23,8 @@ namespace profiling {
     inline std::atomic<uint64_t> g_peak_live_framebuffer_bytes{0};
 }
 
+#include "detail/framebuffer_impl.hpp"
+
 // High-precision float framebuffer.
 enum class SamplingMode {
     Nearest,
@@ -33,7 +35,7 @@ enum class SamplingMode {
 // Uses C++17 std::hardware_destructive_interference_size where available;
 // hardcoded to 64 as a safe fallback for all major architectures.
 // (Apple Silicon uses 128B but 64B alignment still prevents false sharing).
-#if __cpp_lib_hardware_interference_size >= 201703L
+#if defined(__cpp_lib_hardware_interference_size) && __cpp_lib_hardware_interference_size >= 201703L
 constexpr size_t k_cache_line_bytes = std::hardware_destructive_interference_size;
 #else
 constexpr size_t k_cache_line_bytes = 64;
@@ -56,15 +58,16 @@ public:
     Framebuffer(i32 width, i32 height)
         : m_width(width), m_height(height), m_allocated_width(align_stride_to_cache_line(width)),
           m_allocated_height(height), m_owns_pixels(true) {
-        validate_dimensions(width, height);
-        allocate_owned_pixels();
+        framebuffer_validate_dimensions(width, height);
+        m_pixels.resize(static_cast<size_t>(m_allocated_width) * m_allocated_height, Color::transparent());
+        framebuffer_increment_allocations(size_bytes());
     }
 
     Framebuffer(i32 width, i32 height, Color* external_pixels)
         : m_width(width), m_height(height),
           m_allocated_width(align_stride_to_cache_line(width)),
           m_allocated_height(height), m_owns_pixels(false), m_external_pixels(external_pixels) {
-        validate_dimensions(width, height);
+        framebuffer_validate_dimensions(width, height);
     }
 
     Framebuffer(const Framebuffer& other)
@@ -102,14 +105,14 @@ public:
     }
 
     ~Framebuffer() {
-        if (m_owns_pixels) decrement_allocations(size_bytes());
+        if (m_owns_pixels) framebuffer_decrement_allocations(size_bytes());
     }
 
     void clear(const Color& color) {
         if (m_allocated_width == m_width) {
-            clear_contiguous(color);
+            framebuffer_clear_contiguous(data(), pixel_count(), color);
         } else {
-            clear_strided(color, 0, 0, m_width, m_height);
+            framebuffer_clear_strided(data(), m_allocated_width, 0, 0, m_width, m_height, color);
         }
         m_opaque = color.a >= 0.999f;
     }
@@ -131,7 +134,7 @@ public:
             return;
         }
 
-        clear_strided(color, box.x0, box.y0, box.x1 - box.x0, box.y1 - box.y0);
+        framebuffer_clear_strided(data(), m_allocated_width, box.x0, box.y0, box.x1 - box.x0, box.y1 - box.y0, color);
         if (!m_opaque || color.a < 0.999f) {
             m_opaque = false;
         }
@@ -273,8 +276,8 @@ public:
             m_pixels.resize(static_cast<size_t>(m_allocated_width) * m_allocated_height, Color::transparent());
 
             const size_t next_bytes = size_bytes();
-            if (next_bytes > prev_bytes) increment_allocations(next_bytes - prev_bytes);
-            else if (next_bytes < prev_bytes) decrement_allocations(prev_bytes - next_bytes);
+            if (next_bytes > prev_bytes) framebuffer_increment_allocations(next_bytes - prev_bytes);
+            else if (next_bytes < prev_bytes) framebuffer_decrement_allocations(prev_bytes - next_bytes);
         }
 
         m_width = width;
@@ -283,24 +286,10 @@ public:
 
 private:
     u64 m_key_digest{0};
-    static void validate_dimensions(i32 width, i32 height) {
-        if (width <= 0 || height <= 0) {
-            throw std::invalid_argument("Framebuffer dimensions must be positive");
-        }
-    }
-
-    static bool is_clear_color(const Color& color) {
-        return color.r == 0.0f && color.g == 0.0f && color.b == 0.0f && color.a == 0.0f;
-    }
-
-    void allocate_owned_pixels() {
-        m_pixels.resize(static_cast<size_t>(m_allocated_width) * m_allocated_height, Color::transparent());
-        increment_allocations(size_bytes());
-    }
 
     void release_owned_pixels() {
         if (m_owns_pixels && !m_pixels.empty()) {
-            decrement_allocations(size_bytes());
+            framebuffer_decrement_allocations(size_bytes());
             m_pixels.clear();
         }
     }
@@ -320,7 +309,7 @@ private:
     void copy_pixels_from(const Framebuffer& other) {
         if (m_owns_pixels) {
             m_pixels = other.m_pixels;
-            increment_allocations(size_bytes());
+            framebuffer_increment_allocations(size_bytes());
             m_external_pixels = nullptr;
         } else {
             m_external_pixels = other.m_external_pixels;
@@ -349,49 +338,6 @@ private:
         m_owns_pixels = true;
         m_external_pixels = nullptr;
         m_key_digest = 0;
-    }
-
-    void clear_contiguous(const Color& color) {
-        Color* p = data();
-        const size_t n = pixel_count();
-        if (is_clear_color(color)) {
-            std::memset(p, 0, n * sizeof(Color));
-        } else {
-            std::fill(p, p + n, color);
-        }
-    }
-
-    void clear_strided(const Color& color, i32 x, i32 y, i32 w, i32 h) {
-        if (w <= 0 || h <= 0) return;
-        if (is_clear_color(color)) {
-            const size_t row_bytes = static_cast<size_t>(w) * sizeof(Color);
-            Color* row = pixels_row(y) + x;
-            for (i32 yy = 0; yy < h; ++yy) {
-                std::memset(row, 0, row_bytes);
-                row += static_cast<size_t>(m_allocated_width);
-            }
-        } else {
-            Color* row = pixels_row(y) + x;
-            for (i32 yy = 0; yy < h; ++yy) {
-                std::fill(row, row + w, color);
-                row += static_cast<size_t>(m_allocated_width);
-            }
-        }
-    }
-
-    void increment_allocations(size_t bytes) {
-        uint64_t current = profiling::g_live_framebuffer_bytes.fetch_add(bytes, std::memory_order_relaxed) + bytes;
-        uint64_t peak = profiling::g_peak_live_framebuffer_bytes.load(std::memory_order_relaxed);
-        while (current > peak && !profiling::g_peak_live_framebuffer_bytes.compare_exchange_weak(peak, current, std::memory_order_relaxed)) {}
-        if (profiling::g_current_counters) profiling::g_current_counters->framebuffer_allocations.fetch_add(1, std::memory_order_relaxed);
-    }
-
-    void decrement_allocations(size_t bytes) {
-        uint64_t prev = profiling::g_live_framebuffer_bytes.load(std::memory_order_relaxed);
-        uint64_t next = (prev > bytes) ? (prev - bytes) : 0;
-        while (!profiling::g_live_framebuffer_bytes.compare_exchange_weak(prev, next, std::memory_order_relaxed)) {
-            next = (prev > bytes) ? (prev - bytes) : 0;
-        }
     }
 
     i32 m_width;

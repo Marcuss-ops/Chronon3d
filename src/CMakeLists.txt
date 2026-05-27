@@ -60,6 +60,7 @@ set(CHRONON3D_GRAPH_SOURCES
     render_graph/builder/utils/graph_builder_camera25d_sorter.cpp
     render_graph/graph_builder.cpp
     render_graph/graph_executor.cpp
+    render_graph/graph_executor_internal.cpp
     render_graph/graph_profiler.cpp
     render_graph/render_graph.cpp
     render_graph/render_pipeline_scene.cpp
@@ -67,6 +68,7 @@ set(CHRONON3D_GRAPH_SOURCES
     render_graph/render_pipeline_debug.cpp
     render_graph/render_pipeline_composition.cpp
     render_graph/preflight_render_graph.cpp
+    render_graph/preflight_render_graph_analysis.cpp
     render_graph/preflight_render_graph_format.cpp
     render_graph/graph_filter.cpp
     render_graph/optimizer/graph_optimizer.cpp
@@ -201,6 +203,7 @@ set(CHRONON3D_BACKEND_SOFTWARE_SOURCES
     backends/software/utils/projection_utils.cpp
     backends/software/utils/blend2d_bridge_core.cpp
     backends/software/utils/blend2d_bridge_transforms.cpp
+    backends/software/utils/blend2d_bridge_transforms_fb.cpp
     backends/software/utils/effects/effect_blur.cpp
     backends/software/utils/effects/effect_color.cpp
     backends/software/utils/effects/effect_wave.cpp
