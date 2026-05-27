@@ -1,6 +1,6 @@
 #include <doctest/doctest.h>
 #include <chronon3d/animation/animated_value.hpp>
-#include <chronon3d/math/math_base.hpp>
+#include <chronon3d/math/glm_types.hpp>
 
 using namespace chronon3d;
 

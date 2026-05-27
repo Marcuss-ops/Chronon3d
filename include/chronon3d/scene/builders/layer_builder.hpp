@@ -8,7 +8,7 @@
 #include <chronon3d/scene/material_2_5d.hpp>
 #include <chronon3d/layout/layout_rules.hpp>
 #include <chronon3d/backends/video/video_source.hpp>
-#include <chronon3d/math/math_base.hpp>
+#include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/animation/animated_value.hpp>
 #include <chronon3d/animation/animated_transform.hpp>
 #include <string>

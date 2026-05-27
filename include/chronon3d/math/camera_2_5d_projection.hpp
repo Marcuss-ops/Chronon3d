@@ -1,9 +1,9 @@
 #pragma once
 
 #include <chronon3d/scene/camera/camera_2_5d.hpp>
-#include <chronon3d/math/constants.hpp>
+#include <glm/gtc/constants.hpp>
 #include <chronon3d/math/transform.hpp>
-#include <chronon3d/math/math_base.hpp>
+#include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/math/camera_pose.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <algorithm>
@@ -34,7 +34,7 @@ inline ProjectedLayer2_5D project_layer_2_5d(
 // focal = (viewport_height / 2) / tan(fov_rad / 2)
 // At depth == focal_length, perspective_scale == 1.
 inline f32 focal_length_from_fov(f32 viewport_height, f32 fov_deg) {
-    const f32 fov_rad = fov_deg * (math::pi / 180.0f);
+    const f32 fov_rad = fov_deg * (glm::pi<float>() / 180.0f);
     return (viewport_height * 0.5f) / std::tan(fov_rad * 0.5f);
 }
 
@@ -63,7 +63,7 @@ inline bool project_world_point_2_5d(
         cam_pos.z = world.z - camera.position.z;
     }
 
-    // Now that math::look_at uses lookAtLH, all conventions produce positive Z for visible points.
+    // Now that glm::lookAt is used, all conventions produce positive Z for visible points.
     depth = cam_pos.z;
     if (depth <= 0.0f) {
         return false;
@@ -228,13 +228,13 @@ inline ProjectedLayer2_5D project_layer_2_5d(
             view = get_camera_view_matrix(camera);
         } else {
             // Matrix path forced by layer rotation, but camera is straight.
-            view = math::translate(Vec3(-camera.position.x, -camera.position.y, -camera.position.z));
+            view = glm::translate(Mat4(1.0f), Vec3(-camera.position.x, -camera.position.y, -camera.position.z));
         }
         Vec4 world_pos = layer_matrix * Vec4(0.0f, 0.0f, 0.0f, 1.0f);
         cam_pos = view * world_pos;
     } else {
         // Default mode: passive translation only.
-        view = math::translate(Vec3(-camera.position.x, -camera.position.y, -camera.position.z));
+        view = glm::translate(Mat4(1.0f), Vec3(-camera.position.x, -camera.position.y, -camera.position.z));
         Vec4 world_pos = layer_matrix * Vec4(0.0f, 0.0f, 0.0f, 1.0f);
         cam_pos.x = world_pos.x - camera.position.x;
         cam_pos.y = world_pos.y - camera.position.y;

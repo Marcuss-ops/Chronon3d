@@ -71,7 +71,7 @@ LayerBuilder& LayerBuilder::scale(Vec3 s) {
 }
 
 LayerBuilder& LayerBuilder::rotate(Vec3 euler_deg) {
-    m_layer.transform.rotation = math::from_euler(euler_deg);
+    m_layer.transform.rotation = glm::quat(glm::radians(euler_deg));
     return *this;
 }
 

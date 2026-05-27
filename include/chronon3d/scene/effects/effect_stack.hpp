@@ -4,7 +4,7 @@
 // Order is preserved: blur then tint != tint then blur.
 
 #include <chronon3d/math/color.hpp>
-#include <chronon3d/math/math_base.hpp>
+#include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/core/types/types.hpp>
 #include <chronon3d/effects/effect_instance.hpp>
 #include <algorithm>

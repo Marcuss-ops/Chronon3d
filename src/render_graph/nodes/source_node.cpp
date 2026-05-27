@@ -84,8 +84,8 @@ std::optional<raster::BBox> SourceNode::predicted_bbox(
     const RenderGraphContext& ctx,
     std::span<const std::optional<raster::BBox>>
 ) const {
-    const Mat4 ssaa_scale = math::scale(Vec3(ctx.ssaa_factor, ctx.ssaa_factor, 1.0f));
-    const Mat4 canvas_center = math::translate(Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
+    const Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(ctx.ssaa_factor, ctx.ssaa_factor, 1.0f));
+    const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
 
     Mat4 matrix;
     if (m_is_3d || m_centered) {
@@ -158,8 +158,8 @@ std::shared_ptr<Framebuffer> SourceNode::execute(
     auto fb = ctx.acquire_framebuffer(ctx.width, ctx.height, clear);
     if (ctx.backend) {
         RenderState state;
-        const Mat4 ssaa_scale = math::scale(Vec3(ctx.ssaa_factor, ctx.ssaa_factor, 1.0f));
-        const Mat4 canvas_center = math::translate(Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
+        const Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(ctx.ssaa_factor, ctx.ssaa_factor, 1.0f));
+        const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
 
         if (m_is_3d) {
             state.matrix = canvas_center * ssaa_scale * m_matrix_override.value_or(m_node.world_transform.to_mat4());
@@ -271,8 +271,8 @@ bool SourceNode::can_seed_full_frame(const RenderGraphContext& ctx) const {
         return false;
     }
 
-    const Mat4 ssaa_scale = math::scale(Vec3(ctx.ssaa_factor, ctx.ssaa_factor, 1.0f));
-    const Mat4 canvas_center = math::translate(Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
+    const Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(ctx.ssaa_factor, ctx.ssaa_factor, 1.0f));
+    const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
     const Mat4 local_matrix = m_matrix_override.value_or(tr.to_mat4());
     const Mat4 effective_matrix = (m_is_3d || m_centered)
         ? (canvas_center * ssaa_scale * local_matrix)

@@ -3,7 +3,7 @@
 #include <chronon3d/core/composition/composition_registration.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
-#include <chronon3d/math/constants.hpp>
+#include <glm/gtc/constants.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/utils/dark_grid_background.hpp>

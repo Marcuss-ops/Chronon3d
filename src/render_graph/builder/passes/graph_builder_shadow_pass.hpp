@@ -2,7 +2,7 @@
 
 #include <chronon3d/render_graph/graph_builder.hpp>
 #include <chronon3d/scene/layer/layer.hpp>
-#include <chronon3d/math/math_base.hpp>
+#include <chronon3d/math/glm_types.hpp>
 #include <span>
 
 namespace chronon3d::graph::detail {

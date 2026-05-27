@@ -178,8 +178,8 @@ DirtyRectOutput compute_dirty_rect(
     // Include scene root nodes in dirty-rect tracking
     for (const auto& node : scene.nodes()) {
         if (!node.visible) continue;
-        const Mat4 ssaa_scale = math::scale(Vec3(ctx.ssaa_factor, ctx.ssaa_factor, 1.0f));
-        const Mat4 canvas_center = math::translate(Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
+        const Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(ctx.ssaa_factor, ctx.ssaa_factor, 1.0f));
+        const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
         Mat4 matrix;
         if (ctx.modular_coordinates) {
             matrix = canvas_center * ssaa_scale * node.world_transform.to_mat4();

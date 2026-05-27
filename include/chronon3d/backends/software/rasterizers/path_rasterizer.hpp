@@ -3,7 +3,7 @@
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/scene/camera/camera.hpp>
 #include <chronon3d/scene/path.hpp>
-#include <chronon3d/math/math_base.hpp>
+#include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/scene/layer/render_node.hpp>
 
 namespace chronon3d::renderer {

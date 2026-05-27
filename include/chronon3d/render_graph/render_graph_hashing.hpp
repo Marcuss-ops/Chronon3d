@@ -2,8 +2,8 @@
 
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/math/transform.hpp>
-#include <chronon3d/math/math_base.hpp>
-#include <chronon3d/math/math_base.hpp>
+#include <chronon3d/math/glm_types.hpp>
+#include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/scene/effects/effect_stack.hpp>
 #include <chronon3d/scene/fill.hpp>
 #include <chronon3d/scene/layer/render_node.hpp>

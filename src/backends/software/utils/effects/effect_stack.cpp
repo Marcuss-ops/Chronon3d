@@ -323,7 +323,7 @@ void draw_shadow(Framebuffer& fb, const RenderNode& node, const RenderState& sta
 
     const Color base        = node.shadow.color.to_linear();
     const Mat4& base_model  = state.matrix;
-    Mat4 shadow_model = math::translate(Vec3(node.shadow.offset.x, node.shadow.offset.y, 0)) * base_model;
+    Mat4 shadow_model = glm::translate(Mat4(1.0f), Vec3(node.shadow.offset.x, node.shadow.offset.y, 0)) * base_model;
 
     constexpr int LAYERS = 6;
     for (int i = LAYERS; i >= 1; --i) {

@@ -38,8 +38,8 @@ raster::BBox compute_layer_bbox(const LayerGraphItem& item, const RenderGraphCon
         return raster::BBox{0, 0, ctx.width, ctx.height};
     }
 
-    const Mat4 ssaa_scale = math::scale(Vec3(ctx.ssaa_factor, ctx.ssaa_factor, 1.0f));
-    const Mat4 canvas_center = math::translate(Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
+    const Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(ctx.ssaa_factor, ctx.ssaa_factor, 1.0f));
+    const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
     const bool centered = should_use_centered_rendering(item, ctx);
 
     const bool layer_needs_transform = layer_needs_render_transform(item, ctx);
@@ -113,8 +113,8 @@ raster::BBox compute_layer_bbox(const LayerGraphItem& item, const RenderGraphCon
 
     if (item.projected) {
         const Mat4 model = item.projection_matrix;
-        const Mat4 dst_canvas_offset = math::translate(Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
-        const Mat4 src_canvas_offset = math::translate(Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
+        const Mat4 dst_canvas_offset = glm::translate(Mat4(1.0f), Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
+        const Mat4 src_canvas_offset = glm::translate(Mat4(1.0f), Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
         const Mat4 pixel_model = dst_canvas_offset * model * glm::inverse(src_canvas_offset);
 
         Vec4 corners[4] = {
@@ -148,10 +148,10 @@ raster::BBox compute_layer_bbox(const LayerGraphItem& item, const RenderGraphCon
         Mat4 model = item.world_matrix;
         bool centered_render = should_use_centered_rendering(item, ctx);
         if (centered_render) {
-            model = math::translate(Vec3(-ctx.width * 0.5f, -ctx.height * 0.5f, 0.0f)) * model;
+            model = glm::translate(Mat4(1.0f), Vec3(-ctx.width * 0.5f, -ctx.height * 0.5f, 0.0f)) * model;
         }
-        const Mat4 dst_canvas_offset = math::translate(Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
-        const Mat4 src_canvas_offset = math::translate(Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
+        const Mat4 dst_canvas_offset = glm::translate(Mat4(1.0f), Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
+        const Mat4 src_canvas_offset = glm::translate(Mat4(1.0f), Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
         const Mat4 pixel_model = dst_canvas_offset * model * glm::inverse(src_canvas_offset);
 
         Vec4 corners[4] = {

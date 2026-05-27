@@ -7,13 +7,13 @@ using namespace chronon3d;
 using namespace chronon3d::renderer;
 
 // ProjectionContext requires look_at convention (negative view_z = visible).
-// Camera2_5D with point_of_interest_enabled uses math::look_at → correct convention.
+// Camera2_5D with point_of_interest_enabled uses glm::lookAt → correct convention.
 static ProjectionContext make_ctx(float zoom = 1000.0f, int w = 1280, int h = 720) {
     Camera2_5D cam;
     cam.position = {0.0f, 0.0f, -1000.0f};
     cam.zoom = zoom;
     cam.point_of_interest = {0.0f, 0.0f, 0.0f};
-    cam.point_of_interest_enabled = true;  // forces math::look_at → view_z < 0 for visible
+    cam.point_of_interest_enabled = true;  // forces glm::lookAt → view_z < 0 for visible
     return make_projection_context(cam, w, h);
 }
 
@@ -121,7 +121,7 @@ TEST_CASE("ProjectionContext: project_card — Y rotation produces non-rectangul
     auto ctx = make_ctx(1000.0f);
     Transform tr;
     tr.position = {0.0f, 0.0f, 0.0f};
-    tr.rotation = math::from_euler({0.0f, 30.0f, 0.0f});  // 30° Y rotation
+    tr.rotation = glm::quat(glm::radians(Vec3{0.0f, 30.0f, 0.0f}));  // 30° Y rotation
     auto card = ctx.project_card(tr.to_mat4(), {200.0f, 100.0f});
     CHECK(card.visible);
     // Left edge (corners[0]→[3]) and right edge (corners[1]→[2]) should have different widths

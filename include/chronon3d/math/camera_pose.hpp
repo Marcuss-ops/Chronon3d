@@ -1,14 +1,12 @@
 #pragma once
 
-#include <chronon3d/math/math_base.hpp>
-#include <chronon3d/math/math_base.hpp>
-#include <chronon3d/math/math_base.hpp>
+#include <chronon3d/math/glm_types.hpp>
 #include <glm/gtx/quaternion.hpp>
 
 namespace chronon3d::math {
 
 inline Quat camera_rotation_quat(const Vec3& euler_degrees) {
-    return from_euler(euler_degrees);
+    return glm::quat(glm::radians(euler_degrees));
 }
 
 inline Vec3 camera_rotation_euler(const Quat& rotation) {
@@ -17,7 +15,7 @@ inline Vec3 camera_rotation_euler(const Quat& rotation) {
 }
 
 inline Mat4 camera_view_matrix(const Vec3& position, const Quat& rotation) {
-    return glm::inverse(translate(position) * rotate(rotation));
+    return glm::inverse(glm::translate(Mat4(1.0f), position) * glm::toMat4(rotation));
 }
 
 inline Mat4 camera_view_matrix(const Vec3& position, const Vec3& euler_degrees) {
@@ -27,7 +25,7 @@ inline Mat4 camera_view_matrix(const Vec3& position, const Vec3& euler_degrees) 
 inline Mat4 camera_view_matrix(const Vec3& position, const Quat& rotation,
                                const Vec3& point_of_interest) {
     if (glm::length(point_of_interest - position) > 0.001f) {
-        return math::look_at(position, point_of_interest, Vec3{0.0f, 1.0f, 0.0f});
+        return glm::lookAt(position, point_of_interest, Vec3{0.0f, 1.0f, 0.0f});
     }
     return camera_view_matrix(position, rotation);
 }

@@ -12,7 +12,7 @@ inline bool has_custom_render_transform(const LayerGraphItem& item, const Render
 inline bool is_implicit_2d_centering_only(const LayerGraphItem& item, const RenderGraphContext& ctx);
 
 inline Mat4 implicit_canvas_center_matrix(const RenderGraphContext& ctx) {
-    return math::translate(Vec3(
+    return glm::translate(Mat4(1.0f), Vec3(
         ctx.width * 0.5f,
         ctx.height * 0.5f,
         0.0f
