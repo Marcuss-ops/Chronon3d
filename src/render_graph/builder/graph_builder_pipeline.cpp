@@ -12,6 +12,7 @@
 #include <limits>
 #include <queue>
 #include <chronon3d/render_graph/nodes/basic_nodes.hpp>
+#include <chronon3d/render_graph/nodes/transform_node.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/scene/layer/layer.hpp>
 #include <chronon3d/scene/shape.hpp>
@@ -23,6 +24,44 @@
 namespace chronon3d::graph::detail {
 
 using namespace chronon3d::graph;
+
+static bool is_full_frame_opaque(
+    GraphNodeId id,
+    const RenderGraph& graph,
+    const RenderGraphContext& ctx,
+    std::unordered_map<GraphNodeId, bool>& memo
+) {
+    auto it = memo.find(id);
+    if (it != memo.end()) return it->second;
+
+    const auto& node = graph.node(id);
+    bool result = false;
+
+    if (node.kind() == RenderGraphNodeKind::Source) {
+        result = node.can_seed_full_frame(ctx);
+    } else if (node.kind() == RenderGraphNodeKind::Transform) {
+        const auto* transform = dynamic_cast<const TransformNode*>(&node);
+        if (transform) {
+            if (transform->is_identity() && transform->opacity() >= 0.999f) {
+                const auto& inputs = graph.inputs(id);
+                if (!inputs.empty()) {
+                    result = is_full_frame_opaque(inputs[0], graph, ctx, memo);
+                }
+            }
+        }
+    } else if (node.kind() == RenderGraphNodeKind::Composite) {
+        const auto* comp = dynamic_cast<const CompositeNode*>(&node);
+        if (comp && comp->blend_mode() == BlendMode::Normal) {
+            const auto& inputs = graph.inputs(id);
+            if (inputs.size() == 2) {
+                result = is_full_frame_opaque(inputs[1], graph, ctx, memo);
+            }
+        }
+    }
+
+    memo[id] = result;
+    return result;
+}
 
 RenderGraph build_graph(const Scene& scene, RenderGraphContext& ctx,
                         const LayerResolutionResult& resolved) {
@@ -221,6 +260,7 @@ RenderGraph build_graph(const Scene& scene, RenderGraphContext& ctx,
     // ── Early-exit analysis: mark nodes covered by full-frame opaque layers ──
     ctx.early_exit_skip.assign(graph.size(), false);
     {
+        std::unordered_map<GraphNodeId, bool> opaque_memo;
         // Walk the composite chain from output downwards.
         // When a composite node's layer_input is full-frame and opaque,
         // all nodes in its background_input subtree are marked for skip.
@@ -244,25 +284,10 @@ RenderGraph build_graph(const Scene& scene, RenderGraphContext& ctx,
                     GraphNodeId layer_id = inputs[1];
 
                     // Check if the layer covers the full frame with opacity
-                    bool layer_fully_covers = false;
-                    const auto& layer_node = graph.node(layer_id);
-                    auto bbox = layer_node.predicted_bbox(ctx, {});
-
-                    if (bbox) {
-                        bool full_frame = bbox->x0 <= 0 && bbox->y0 <= 0 &&
-                                          bbox->x1 >= ctx.width && bbox->y1 >= ctx.height;
-                        if (full_frame) {
-                            // Check opacity: non-effect, non-mask, frame-invariant nodes
-                            auto policy = layer_node.cache_policy();
-                            bool likely_opaque =
-                                layer_node.kind() != RenderGraphNodeKind::Effect &&
-                                layer_node.kind() != RenderGraphNodeKind::Mask &&
-                                !layer_node.frame_dependent();
-
-                            if (likely_opaque) {
-                                layer_fully_covers = true;
-                            }
-                        }
+                    bool layer_fully_covers = is_full_frame_opaque(layer_id, graph, ctx, opaque_memo);
+                    if (ctx.diagnostics_enabled) {
+                        spdlog::info("[early-exit-debug] composite_id={} layer_id={} layer_name='{}' kind={} layer_fully_covers={}",
+                                     id, layer_id, graph.node(layer_id).name(), to_string(graph.node(layer_id).kind()), layer_fully_covers ? 1 : 0);
                     }
 
                     if (layer_fully_covers) {
