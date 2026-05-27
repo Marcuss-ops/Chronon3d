@@ -1,6 +1,5 @@
 #include <doctest/doctest.h>
 #include <chronon3d/backends/software/software_renderer.hpp>
-#include <chronon3d/backends/image/stb_image_backend.hpp>
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/api/composition.hpp>
@@ -18,26 +17,6 @@ using namespace chronon3d;
 using namespace chronon3d::test;
 
 namespace {
-
-std::shared_ptr<Framebuffer> load_png_as_framebuffer(const std::string& path) {
-    image::StbImageBackend backend;
-    auto buf = backend.load_image(path);
-    if (!buf) return nullptr;
-    auto fb = std::make_shared<Framebuffer>(buf->width, buf->height);
-    for (int y = 0; y < buf->height; ++y) {
-        for (int x = 0; x < buf->width; ++x) {
-            int idx = (y * buf->width + x) * 4;
-            Color c{
-                static_cast<float>(buf->pixels[idx]) / 255.0f,
-                static_cast<float>(buf->pixels[idx+1]) / 255.0f,
-                static_cast<float>(buf->pixels[idx+2]) / 255.0f,
-                static_cast<float>(buf->pixels[idx+3]) / 255.0f
-            };
-            fb->set_pixel(x, y, c);
-        }
-    }
-    return fb;
-}
 
 struct ComparisonResult {
     bool success{true};

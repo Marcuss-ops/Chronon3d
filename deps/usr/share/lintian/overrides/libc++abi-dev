@@ -1,3 +1,0 @@
-# This is just a metapackage, forcing installation of the current libc++abi-X.Y-dev package
-libc++abi-dev: empty-binary-package
-libc++abi-dev: breaks-without-version libc++abi1-11

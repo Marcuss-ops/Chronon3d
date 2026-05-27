@@ -2,7 +2,7 @@
 
 #include <chronon3d/render_graph/graph_builder.hpp>
 #include "graph_builder_internal.hpp"
-#include "passes/graph_builder_shadow_pass.hpp"
+#include "passes/graph_builder_lighting_passes.hpp"
 #include <span>
 
 namespace chronon3d::graph::detail {

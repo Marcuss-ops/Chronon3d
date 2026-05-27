@@ -5,6 +5,7 @@
 #include <chronon3d/backends/image/stb_image_backend.hpp>
 #include <xxhash.h>
 #include <memory>
+#include <string>
 
 namespace chronon3d::test {
 
@@ -51,6 +52,26 @@ inline std::shared_ptr<Framebuffer> render_fn(
     SoftwareRenderer renderer;
     Composition comp = composition({.width = width, .height = height}, build_fn);
     return renderer.render_frame(comp, 0);
+}
+
+inline std::shared_ptr<Framebuffer> load_png_as_framebuffer(const std::string& path) {
+    image::StbImageBackend backend;
+    auto buf = backend.load_image(path);
+    if (!buf) return nullptr;
+    auto fb = std::make_shared<Framebuffer>(buf->width, buf->height);
+    for (int y = 0; y < buf->height; ++y) {
+        for (int x = 0; x < buf->width; ++x) {
+            int idx = (y * buf->width + x) * 4;
+            Color c{
+                static_cast<float>(buf->pixels[idx]) / 255.0f,
+                static_cast<float>(buf->pixels[idx+1]) / 255.0f,
+                static_cast<float>(buf->pixels[idx+2]) / 255.0f,
+                static_cast<float>(buf->pixels[idx+3]) / 255.0f
+            };
+            fb->set_pixel(x, y, c);
+        }
+    }
+    return fb;
 }
 
 } // namespace chronon3d::test

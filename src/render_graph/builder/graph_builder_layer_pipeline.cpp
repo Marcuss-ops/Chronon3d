@@ -1,12 +1,8 @@
 #include "graph_builder_layer_pipeline.hpp"
 
 #include "passes/graph_builder_source_pass.hpp"
-#include "passes/graph_builder_transform_pass.hpp"
-#include "passes/graph_builder_lighting_pass.hpp"
-#include "passes/graph_builder_shadow_pass.hpp"
-#include "passes/graph_builder_mask_pass.hpp"
-#include "passes/graph_builder_effect_pass.hpp"
-#include "passes/graph_builder_composite_pass.hpp"
+#include "passes/graph_builder_layer_passes.hpp"
+#include "passes/graph_builder_lighting_passes.hpp"
 
 #include <chronon3d/render_graph/nodes/basic_nodes.hpp>
 #include <chronon3d/render_graph/nodes/track_matte_node.hpp>
