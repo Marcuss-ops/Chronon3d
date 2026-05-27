@@ -1893,6 +1893,119 @@ class TileCache {
 
 ---
 
+## 🔥 RIVOLUZIONARIO — Idee per il Salto Quantico
+
+> Queste idee vanno OLTRE l'ottimizzazione tradizionale. Sono cambiamenti di paradigma che nessun motore 2.5D programmatico ha ancora implementato.
+
+---
+
+### R1. Compilazione JIT del Grafo in Kernel ISPC
+
+**Problema:** Oggi ogni nodo fa load→processa→store. Poi il prossimo nodo load→processa→store. Framebuffer intermedi sprecano bandwidth.
+
+**Idea:** Quando il grafo è stabile, **compila un kernel ISPC specializzato** per quella catena. Un unico load, tutta la pipeline in registri SIMD, un unico store.
+
+```
+INPUT: TextLayer + DropShadow + Glow + Opacity 0.7 + ScreenBlend
+       ↓
+COMPILA: kernel_text_drop_shadow_glow_screen.ispc
+       ↓
+RESULT: Una funzione che fa TUTTO in un colpo solo
+```
+
+**Come:** Generi file `.ispc` al volo, compili con `ispc` via pipe, carichi il `.so` con `dlopen`.
+
+**Dove:** `src/render_graph/jit_compiler.cpp` + integrazione in `GraphExecutor`.
+
+**Guadagno:** **3-5×** sul percorso caldo per catene di 5+ operazioni. ⭐⭐⭐⭐⭐
+
+---
+
+### R2. Framebuffer Virtuale Copy-on-Write (Tile COW)
+
+**Problema:** 10 layer = 10 framebuffer. Il 90% dei pixel è invariato tra layer consecutivi, ma vengono comunque copiati.
+
+**Idea:** Dividi il framebuffer in **tile 32×32**. Ogni tile ha un contatore di riferimenti. Se un nodo non modifica un tile → **punta allo stesso tile fisico** dell'input. Se modifica → **copia solo quel tile** (copy-on-write).
+
+**Catena esempio:** Layer 1 → Blur 3px → Composite. Con COW: blur modifica solo i bordi (~20% dei tile). L'80% dei pixel è condiviso. Zero copie.
+
+**Dove:** `Framebuffer` diventa un container di tile COW.
+
+**Guadagno:** **2-8×** su catene di effetti. ⭐⭐⭐⭐
+
+---
+
+### R3. Adaptive Precision Rendering
+
+**Problema:** Ogni pixel è `Color` = 4 × `float` = 16 byte. Anche per testo in bianco e nero.
+
+**Idea:** Tile eterogenei con precisione adattiva:
+
+| Contenuto | Formato | Risparmio |
+|:----------|:--------|:---------:|
+| Testo/maschere | **1-bit** (32 pixel per `uint32_t`) | **128×** |
+| Forme solide | **8-bit** RGBA | **4×** |
+| Gradienti | **half** RGBA | **2×** |
+| Foto/Video | **float** RGBA | 1× |
+
+`VariantFramebuffer` = `std::variant<Framebuffer8, Framebuffer16, Framebuffer32, Bitmask>`.
+
+**Dove:** `framebuffer.hpp` + tile format detection nel grafo.
+
+**Guadagno:** **3-4×** bandwidth reale su scene con testo dominante. ⭐⭐⭐⭐
+
+---
+
+### R4. Direct-to-Encoder Pixel Pipeline
+
+**Problema:** Export video oggi: render RGBA float → convert to YUV → write pipe FFmpeg. Due conversioni e una copia per frame.
+
+**Idea:** Integra l'encoder NEL grafo: `render_pixel_to_yuv_buffer()` invece di `render_pixel_to_framebuffer()`. I pixel vanno direttamente nei piani Y/U/V, saltando il formato intermedio RGBA.
+
+Più folle: **delta frame rendering** — se il frame N è identico al frame N-1 in una regione, non inviare quei dati all'encoder.
+
+**Dove:** `RenderNode::execute()` scrive direttamente in piani YUV se output è video.
+
+**Guadagno:** **1.5-2×** su export video — elimina frame_conversion_copy_ms. ⭐⭐⭐⭐⭐
+
+---
+
+### R5. Level-of-Detail (LOD) per Layer 2.5D
+
+**Problema:** I motori 3D usano LOD da 30 anni. I motori 2D/2.5D **mai** — ogni layer è sempre a risoluzione piena.
+
+**Idea:** Ogni layer ha 3 versioni (1×, 0.5×, 0.25×). In base a:
+- **Profondità Z** (più lontano = LOD più basso)
+- **Area occupata** (layer piccolo = LOD basso)
+- **Occlusione** (sotto layer opaco = LOD basso)
+- **Velocità camera** (durante motion, layer non focali = LOD basso)
+
+Layer al 25% schermo + LOD 0.25× = 1/16 pixel = **16× speedup**.
+
+**Dove:** `LODSelector` assegna scala a ogni nodo prima dell'esecuzione.
+
+**Guadagno:** **2-16×** su layer non focali. ⭐⭐⭐⭐⭐
+
+---
+
+### 🏆 Classifica
+
+| # | Idea | Difficoltà | Impatto | Originalità |
+|:-:|:-----|:----------:|:-------:|:-----------:|
+| 1 | **R5 — LOD 2.5D** | 🟢 Bassa | 2-16× | ⭐⭐⭐⭐⭐ |
+| 2 | **R2 — Tile COW** | 🟡 Media | 2-8× | ⭐⭐⭐⭐ |
+| 3 | **R3 — Adaptive precision** | 🟡 Media | 3-4× | ⭐⭐⭐⭐ |
+| 4 | **R1 — JIT kernel fusion** | 🔴 Alta | 3-5× | ⭐⭐⭐⭐⭐ |
+| 5 | **R4 — Direct-to-encoder** | 🔴 Alta | 1.5-2× | ⭐⭐⭐⭐⭐ |
+
+**Primo passo RIVOLUZIONARIO:** **R5 (LOD per layer)** — 1-2 giorni di prototipo, impatto 2-16×, e Chronon3D diventerebbe il **primo motore 2.5D con Level-of-Detail per layer**.
+
+---
+
 **Conclusione:** La V3 non è "ottimizzare di più il DAG attuale". La V3 è **cambiare il modello da frame-based a tile-based**, con nodi procedurali specializzati, cache persistente per regione, e pipeline output disaccoppiata. Per il caso d'uso Chronon3D (composizioni 2.5D con animazioni, motion graphics, video export), questo vale più di qualunque micro-ottimizzazione locale.
 
-**Primo passo concreto:** Implementare il **Pillar 5 (Procedural Grid Kernel)** — è il più facile (1-2 giorni), dà il guadagno più immediato (25× sulla grid background), e non richiede modifiche architetturali al resto del motore. Dal vivo, si vede subito.
+I 5 progetti rivoluzionari (R1-R5) rappresentano il passo SUCCESSIVO — ciò che viene DOPO V3. Non servono per arrivare a 60 FPS. Servono per arrivare a **200+ FPS** o per fare cose che oggi nessun motore 2.5D programmatico può fare.
+
+**Primo passo concreto (V3):** Implementare il **Pillar 5 (Procedural Grid Kernel)** — è il più facile (1-2 giorni), dà il guadagno più immediato (25× sulla grid background), e non richiede modifiche architetturali al resto del motore. Dal vivo, si vede subito.
+
+**Primo passo RIVOLUZIONARIO:** **R5 (LOD 2.5D)** — 1-2 giorni di prototipo, impatto potenziale 2-16×, e Chronon3D diventerebbe il primo motore 2.5D con Level-of-Detail per layer.

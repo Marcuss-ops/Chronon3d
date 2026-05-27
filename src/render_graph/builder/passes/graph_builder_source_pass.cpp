@@ -59,21 +59,12 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                     .source_hash = hash_bytes(node.name.data(), node.name.size())
                 };
 
-                const Mat4 layer_inv = layer.transform.any() ? glm::inverse(layer.transform.to_mat4()) : Mat4(1.0f);
-                const Mat4 node_matrix = node.world_transform.to_mat4();
-                const Mat4 actual_world_matrix = layer.hierarchy_resolved
-                    ? (item_source_world * node_matrix)
-                    : (item_source_world * layer_inv * node_matrix);
                 const Mat4 text_matrix = use_local
-                    ? (glm::inverse(item.world_matrix) * actual_world_matrix)
-                    : actual_world_matrix;
-
-                const f32 actual_node_opacity = layer.hierarchy_resolved
-                    ? node.world_transform.opacity
-                    : (item.transform.opacity * (node.world_transform.opacity / std::max(layer.transform.opacity, 0.0001f)));
+                    ? node.world_transform.to_mat4()
+                    : (item_source_world * node.world_transform.to_mat4());
                 const f32 text_opacity = use_local
-                    ? (node.world_transform.opacity / std::max(layer.transform.opacity, 0.0001f))
-                    : actual_node_opacity;
+                    ? node.world_transform.opacity
+                    : (item.transform.opacity * node.world_transform.opacity);
 
                 source = graph.add_node(std::make_unique<SourceNode>(
                     std::string(node.name), node, source_key,
@@ -94,21 +85,12 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                     .source_hash = hash_string(node.name)
                 };
 
-                const Mat4 layer_inv = layer.transform.any() ? glm::inverse(layer.transform.to_mat4()) : Mat4(1.0f);
-                const Mat4 node_matrix = node.world_transform.to_mat4();
-                const Mat4 actual_world_matrix = layer.hierarchy_resolved
-                    ? (item_source_world * node_matrix)
-                    : (item_source_world * layer_inv * node_matrix);
                 const Mat4 shape_matrix = use_local
-                    ? (glm::inverse(item.world_matrix) * actual_world_matrix)
-                    : actual_world_matrix;
-
-                const f32 actual_node_opacity = layer.hierarchy_resolved
-                    ? node.world_transform.opacity
-                    : (item.transform.opacity * (node.world_transform.opacity / std::max(layer.transform.opacity, 0.0001f)));
+                    ? node.world_transform.to_mat4()
+                    : (item_source_world * node.world_transform.to_mat4());
                 const f32 shape_opacity = use_local
-                    ? (node.world_transform.opacity / std::max(layer.transform.opacity, 0.0001f))
-                    : actual_node_opacity;
+                    ? node.world_transform.opacity
+                    : (item.transform.opacity * node.world_transform.opacity);
 
                 source = graph.add_node(std::make_unique<SourceNode>(
                     std::string(node.name), node, source_key,
@@ -143,21 +125,12 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
         items.reserve(layer.nodes.size());
 
         for (const auto& node : layer.nodes) {
-            const Mat4 layer_inv = layer.transform.any() ? glm::inverse(layer.transform.to_mat4()) : Mat4(1.0f);
-            const Mat4 node_matrix = node.world_transform.to_mat4();
-            const Mat4 actual_world_matrix = layer.hierarchy_resolved
-                ? (item_source_world * node_matrix)
-                : (item_source_world * layer_inv * node_matrix);
             const Mat4 shape_matrix = use_local
-                ? (glm::inverse(item.world_matrix) * actual_world_matrix)
-                : actual_world_matrix;
-
-            const f32 actual_node_opacity = layer.hierarchy_resolved
-                ? node.world_transform.opacity
-                : (item.transform.opacity * (node.world_transform.opacity / std::max(layer.transform.opacity, 0.0001f)));
+                ? node.world_transform.to_mat4()
+                : (item_source_world * node.world_transform.to_mat4());
             const f32 shape_opacity = use_local
-                ? (node.world_transform.opacity / std::max(layer.transform.opacity, 0.0001f))
-                : actual_node_opacity;
+                ? node.world_transform.opacity
+                : (item.transform.opacity * node.world_transform.opacity);
 
             items.push_back(MultiSourceItem{
                 .node = &node,

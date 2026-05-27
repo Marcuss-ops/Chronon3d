@@ -146,6 +146,8 @@ target_include_directories(chronon3d_backend_assets PRIVATE ${Stb_INCLUDE_DIR})
 set(CHRONON3D_BACKEND_VIDEO_SOURCES
     backends/video/video_export.cpp
     backends/video/video_source.cpp
+    video/frame_converter.cpp
+    video/converted_frame_cache.cpp
 )
 add_library(chronon3d_backend_video STATIC ${CHRONON3D_BACKEND_VIDEO_SOURCES})
 target_link_libraries(chronon3d_backend_video PUBLIC chronon3d chronon3d_cache spdlog::spdlog_header_only fmt::fmt TBB::tbb hwy::hwy)
