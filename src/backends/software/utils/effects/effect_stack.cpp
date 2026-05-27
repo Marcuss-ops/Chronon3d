@@ -61,58 +61,84 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
             apply_color_effects(fb, e, clip);
 
         } else if (auto* p = std::any_cast<GlowParams>(&inst.params)) {
-            const i32 w = fb.width(), h = fb.height();
-            auto effect_clip = expand_effect_clip(clip, w, h, p->radius);
-            i32 x_min = 0, x_max = w;
-            i32 y_min = 0, y_max = h;
-            if (effect_clip) {
-                x_min = std::max(0, effect_clip->x0);
-                x_max = std::min(w, effect_clip->x1);
-                y_min = std::max(0, effect_clip->y0);
-                y_max = std::min(h, effect_clip->y1);
-            }
-            const i32 roi_w = x_max - x_min;
-            const i32 roi_h = y_max - y_min;
-            if (roi_w > 0 && roi_h > 0) {
-                auto original_fb = acquire_temp_framebuffer(roi_w, roi_h);
-                auto alpha_map_fb = acquire_temp_framebuffer(roi_w, roi_h);
-                original_fb->clear(Color{0.0f, 0.0f, 0.0f, 0.0f});
-                alpha_map_fb->clear(Color{0.0f, 0.0f, 0.0f, 0.0f});
+            if (p->intensity > 0.0f) {
+                const i32 w = fb.width(), h = fb.height();
+                auto effect_clip = expand_effect_clip(clip, w, h, p->radius);
+                
+                spdlog::info(
+                    "[Glow] framebuffer={}x{} radius={} intensity={} color=({}, {}, {}, {}) clip={}",
+                    w, h,
+                    p->radius,
+                    p->intensity,
+                    p->color.r, p->color.g, p->color.b, p->color.a,
+                    effect_clip ? "yes" : "no"
+                );
 
-                for (i32 y = 0; y < roi_h; ++y) {
-                    const Color* src_row = fb.pixels_row(y + y_min);
-                    Color* orig_row = original_fb->pixels_row(y);
-                    Color* alpha_row = alpha_map_fb->pixels_row(y);
-                    for (i32 x = 0; x < roi_w; ++x) {
-                        const Color c = src_row[x + x_min];
-                        orig_row[x] = c;
-                        if (c.a > 0.0f) {
-                            alpha_row[x] = {
-                                p->color.r,
-                                p->color.g,
-                                p->color.b,
-                                std::min(1.0f, c.a * p->intensity * p->color.a)
-                            };
+                if (effect_clip) {
+                    spdlog::info(
+                        "[Glow] effect_clip x0={} y0={} x1={} y1={} width={} height={}",
+                        effect_clip->x0,
+                        effect_clip->y0,
+                        effect_clip->x1,
+                        effect_clip->y1,
+                        effect_clip->x1 - effect_clip->x0,
+                        effect_clip->y1 - effect_clip->y0
+                    );
+                }
+
+                i32 x_min = 0, x_max = w;
+                i32 y_min = 0, y_max = h;
+                if (effect_clip) {
+                    x_min = std::max(0, effect_clip->x0);
+                    x_max = std::min(w, effect_clip->x1);
+                    y_min = std::max(0, effect_clip->y0);
+                    y_max = std::min(h, effect_clip->y1);
+                }
+                const i32 roi_w = x_max - x_min;
+                const i32 roi_h = y_max - y_min;
+                if (roi_w > 0 && roi_h > 0) {
+                    auto original_fb = acquire_temp_framebuffer(roi_w, roi_h);
+                    auto alpha_map_fb = acquire_temp_framebuffer(roi_w, roi_h);
+                    original_fb->clear(Color{0.0f, 0.0f, 0.0f, 0.0f});
+                    alpha_map_fb->clear(Color{0.0f, 0.0f, 0.0f, 0.0f});
+
+                    int source_alpha_pixels = 0;
+                    for (i32 y = 0; y < roi_h; ++y) {
+                        const Color* src_row = fb.pixels_row(y + y_min);
+                        Color* orig_row = original_fb->pixels_row(y);
+                        Color* alpha_row = alpha_map_fb->pixels_row(y);
+                        for (i32 x = 0; x < roi_w; ++x) {
+                            const Color c = src_row[x + x_min];
+                            orig_row[x] = c;
+                            if (c.a > 0.0f) {
+                                source_alpha_pixels++;
+                                alpha_row[x] = {
+                                    p->color.r,
+                                    p->color.g,
+                                    p->color.b,
+                                    std::min(1.0f, c.a * p->intensity * p->color.a)
+                                };
+                            }
                         }
                     }
-                }
+                    spdlog::info("[Glow] source_alpha_pixels={}", source_alpha_pixels);
 
-                if (p->radius > 0.0f) {
-                    apply_blur(*alpha_map_fb, p->radius, std::nullopt);
-                }
+                    if (p->radius > 0.0f) {
+                        apply_blur(*alpha_map_fb, p->radius, std::nullopt);
+                    }
 
-                for (i32 y = 0; y < roi_h; ++y) {
-                    Color* dst_row = fb.pixels_row(y + y_min);
-                    const Color* orig_row = original_fb->pixels_row(y);
-                    const Color* glow_row = alpha_map_fb->pixels_row(y);
-                    for (i32 x = 0; x < roi_w; ++x) {
-                        const Color orig_c = orig_row[x];
-                        const Color glow_c = glow_row[x];
-                        
-                        // Normal blend the original content ON TOP of the blurred glow map.
-                        // This mathematically draws the glow behind the original content,
-                        // perfectly preserving original colors and keeping anti-aliased text sharp.
-                        dst_row[x + x_min] = compositor::blend(orig_c, glow_c, BlendMode::Normal);
+                    for (i32 y = 0; y < roi_h; ++y) {
+                        Color* dst_row = fb.pixels_row(y + y_min);
+                        const Color* orig_row = original_fb->pixels_row(y);
+                        const Color* glow_row = alpha_map_fb->pixels_row(y);
+                        for (i32 x = 0; x < roi_w; ++x) {
+                            const Color orig_c = orig_row[x];
+                            const Color glow_c = glow_row[x];
+                            
+                            // Blend the glow additively with the original content.
+                            // This matches the formula: final = original + glow_color.
+                            dst_row[x + x_min] = compositor::blend(orig_c, glow_c, BlendMode::Add);
+                        }
                     }
                 }
             }

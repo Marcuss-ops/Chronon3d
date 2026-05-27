@@ -1,4 +1,5 @@
 #include "graph_builder_bbox.hpp"
+#include "graph_builder_coordinates.hpp"
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/backends/software/shape_processor.hpp>
 #include <limits>
@@ -41,10 +42,7 @@ raster::BBox compute_layer_bbox(const LayerGraphItem& item, const RenderGraphCon
     const Mat4 canvas_center = math::translate(Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
     const bool centered = should_use_centered_rendering(item, ctx);
 
-    const bool layer_needs_transform = item.projected
-        || layer.kind == LayerKind::Precomp
-        || layer.kind == LayerKind::Video
-        || item.transform.any();
+    const bool layer_needs_transform = layer_needs_render_transform(item, ctx);
     const bool use_local = ctx.modular_coordinates && layer_needs_transform && !item.native_3d;
 
     raster::BBox layer_bbox{
@@ -74,11 +72,12 @@ raster::BBox compute_layer_bbox(const LayerGraphItem& item, const RenderGraphCon
         }
 
         Mat4 matrix;
+        const bool is_centered = ctx.modular_coordinates ? use_local : centered;
         if (use_local) {
             Mat4 shape_matrix = glm::inverse(item.world_matrix) * actual_world_matrix;
             matrix = canvas_center * ssaa_scale * shape_matrix;
         } else {
-            if (item.projected || centered) {
+            if (item.projected || is_centered) {
                 matrix = canvas_center * ssaa_scale * actual_world_matrix;
             } else {
                 matrix = ssaa_scale * actual_world_matrix;

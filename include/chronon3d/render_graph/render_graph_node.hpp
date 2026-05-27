@@ -180,7 +180,9 @@ struct RenderGraphContext {
             return fb;
         }
 
-        std::copy_n(other.data(), other.pixel_count(), fb->data());
+        for (i32 y = 0; y < other.height(); ++y) {
+            std::copy_n(other.pixels_row(y), other.width(), fb->pixels_row(y));
+        }
         fb->set_opaque(other.is_opaque());
         fb->set_key_digest(other.key_digest());
         return fb;

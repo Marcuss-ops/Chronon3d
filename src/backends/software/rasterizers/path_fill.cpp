@@ -35,7 +35,7 @@ Color resolve_fill_color(const Fill& fill, Vec2 p, const raster::BBox& bbox, f32
     }
 
     t = std::clamp(t, 0.0f, 1.0f);
-    Color c = sample_gradient(fill.gradient, t).to_linear();
+    Color c = sample_gradient(fill.gradient, t);
     c.a *= opacity;
     return c;
 }

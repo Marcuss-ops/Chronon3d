@@ -85,6 +85,7 @@ add_executable(chronon3d_renderer_tests
     renderer/effects/test_adjustment_layer.cpp
     renderer/effects/test_advanced_effects.cpp
     renderer/effects/test_effect_stack.cpp
+    renderer/effects/test_invariants.cpp
     renderer/media/test_video_card.cpp
     renderer/perf/test_render_perf.cpp
     renderer/lighting/test_light_context.cpp
@@ -110,6 +111,7 @@ add_executable(chronon3d_renderer_tests
     scene/shapes/mask_tests.cpp
     specscene/specscene_boundary_tests.cpp
     golden/golden_render_tests.cpp
+    golden/suite_chronon3d_tests.cpp
     runtime/test_telemetry.cpp
     runtime/test_telemetry_semantic.cpp
     runtime/test_telemetry_coherence.cpp

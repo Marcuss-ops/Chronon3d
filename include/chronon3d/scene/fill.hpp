@@ -51,11 +51,11 @@ struct Fill {
     }
 };
 
-// Sample gradient stops at normalised t [0..1].
+// Sample gradient stops at normalised t [0..1] in linear space.
 inline Color sample_gradient(const GradientFill& g, f32 t) {
     if (g.stops.empty()) return {1, 1, 1, 1};
-    if (t <= g.stops.front().offset) return g.stops.front().color;
-    if (t >= g.stops.back().offset)  return g.stops.back().color;
+    if (t <= g.stops.front().offset) return g.stops.front().color.to_linear();
+    if (t >= g.stops.back().offset)  return g.stops.back().color.to_linear();
 
     for (std::size_t i = 1; i < g.stops.size(); ++i) {
         const auto& a = g.stops[i - 1];
@@ -63,10 +63,12 @@ inline Color sample_gradient(const GradientFill& g, f32 t) {
         if (t >= a.offset && t <= b.offset) {
             const f32 range = b.offset - a.offset;
             const f32 local = (range > 1e-6f) ? (t - a.offset) / range : 0.0f;
-            return a.color + (b.color - a.color) * local;
+            Color c_a = a.color.to_linear();
+            Color c_b = b.color.to_linear();
+            return c_a + (c_b - c_a) * local;
         }
     }
-    return g.stops.back().color;
+    return g.stops.back().color.to_linear();
 }
 
 } // namespace chronon3d

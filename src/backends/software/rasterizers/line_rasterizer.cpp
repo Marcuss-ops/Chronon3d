@@ -10,32 +10,7 @@ void bline(Framebuffer& fb, Vec2 p0, Vec2 p1, const Color& color, f32 thickness,
     if (color.a <= 0.0f) return;
 
 
-    if (thickness <= 0.0f) {
-        i32 x0 = static_cast<i32>(std::round(p0.x));
-        i32 y0 = static_cast<i32>(std::round(p0.y));
-        i32 x1 = static_cast<i32>(std::round(p1.x));
-        i32 y1 = static_cast<i32>(std::round(p1.y));
-        const i32 dx = std::abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
-        const i32 dy = -std::abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
-        i32 err = dx + dy, e2;
-        while (true) {
-            if (x0 >= 0 && x0 < fb.width() && y0 >= 0 && y0 < fb.height()) {
-                bool in_clip = true;
-                if (clip) {
-                    in_clip = (x0 >= clip->x0 && x0 < clip->x1 && y0 >= clip->y0 && y0 < clip->y1);
-                }
-                if (in_clip) {
-                    Color* row = fb.pixels_row(y0);
-                    row[x0] = compositor::blend(color, row[x0], BlendMode::Normal);
-                }
-            }
-            if (x0 == x1 && y0 == y1) break;
-            e2 = 2 * err;
-            if (e2 >= dy) { err += dy; x0 += sx; }
-            if (e2 <= dx) { err += dx; y0 += sy; }
-        }
-        return;
-    }
+    if (thickness <= 0.0f) return;
 
     // Thick line rasterizer using anti-aliased capsule distance field
     const f32 radius = thickness * 0.5f;
