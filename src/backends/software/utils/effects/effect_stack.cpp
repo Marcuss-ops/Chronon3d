@@ -18,30 +18,6 @@ struct GlowLayerPass {
     float intensity_scale;
 };
 
-[[nodiscard]] Color add_glow_color(const Color& dst, const Color& glow) {
-    const float r = std::clamp(glow.r, 0.0f, 1.0f);
-    const float g = std::clamp(glow.g, 0.0f, 1.0f);
-    const float b = std::clamp(glow.b, 0.0f, 1.0f);
-    return {
-        std::min(1.0f, dst.r + r),
-        std::min(1.0f, dst.g + g),
-        std::min(1.0f, dst.b + b),
-        std::max(dst.a, glow.a)
-    };
-}
-
-[[nodiscard]] Color screen_glow_color(const Color& dst, const Color& glow) {
-    const float r = std::clamp(glow.r, 0.0f, 1.0f);
-    const float g = std::clamp(glow.g, 0.0f, 1.0f);
-    const float b = std::clamp(glow.b, 0.0f, 1.0f);
-    return {
-        1.0f - (1.0f - dst.r) * (1.0f - r),
-        1.0f - (1.0f - dst.g) * (1.0f - g),
-        1.0f - (1.0f - dst.b) * (1.0f - b),
-        std::max(dst.a, glow.a)
-    };
-}
-
 std::optional<raster::BBox> expand_effect_clip(
     const std::optional<raster::BBox>& clip,
     int width,

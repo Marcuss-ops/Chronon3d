@@ -122,7 +122,7 @@ public:
                     const f32 alpha = std::max(minor_alpha, major_alpha);
                     Color line = (major_alpha >= minor_alpha) ? major : minor;
                     line.a = alpha;
-                    row[x] = raster::blend_normal(line, row[x]);
+                    row[x] = compositor::blend_normal(line, row[x]);
                 }
             }
         });

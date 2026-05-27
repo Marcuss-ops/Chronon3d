@@ -17,6 +17,26 @@
 
 namespace chronon3d {
 
+namespace layer_builder_internal {
+
+[[nodiscard]] RenderNode* last_node(Layer& layer);
+
+void set_last_shadow(Layer& layer, DropShadow shadow);
+void set_last_glow(Layer& layer, Glow glow);
+void set_last_position(Layer& layer, Vec3 pos);
+void set_last_rotation(Layer& layer, Vec3 euler_deg);
+void set_last_scale(Layer& layer, Vec3 s);
+void set_last_anchor(Layer& layer, Vec3 a);
+void set_last_opacity(Layer& layer, f32 opacity);
+
+} // namespace layer_builder_internal
+
+class Layer3DDelegate {
+public:
+    static void add_fake_box3d(Layer& layer, std::string name, FakeBox3DParams p);
+    static void add_grid_plane(Layer& layer, std::string name, GridPlaneParams p);
+};
+
 class LayerBuilder {
 public:
     explicit LayerBuilder(std::string name,

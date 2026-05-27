@@ -63,20 +63,4 @@ inline f32 interpolate(
     );
 }
 
-struct AnimBuilder {
-    f32 val;
-    
-    explicit AnimBuilder(f32 v) : val(v) {}
-    
-    AnimBuilder& map(f32 in_min, f32 in_max, f32 out_min, f32 out_max, EasingCurve easing = EasingCurve{}, ClampMode clamp = ClampMode::Clamp) {
-        val = interpolate(val, in_min, in_max, out_min, out_max, easing, clamp);
-        return *this;
-    }
-    
-    operator f32() const { return val; }
-};
-
-inline AnimBuilder anim(f32 val) { return AnimBuilder(val); }
-inline AnimBuilder anim(Frame f) { return AnimBuilder(static_cast<f32>(f)); }
-
 } // namespace chronon3d

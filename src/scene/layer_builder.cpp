@@ -1,13 +1,99 @@
 #include <chronon3d/scene/builders/layer_builder.hpp>
-#include <chronon3d/scene/builders/layer_builder_delegates.hpp>
 #include <chronon3d/registry/shape_ids.hpp>
 #include <chronon3d/scene/layer/track_matte.hpp>
 #include <chronon3d/math/transform.hpp>
-#include "layer_builder_internal.hpp"
 
 #include <utility>
 
 namespace chronon3d {
+
+namespace layer_builder_internal {
+
+RenderNode* last_node(Layer& layer) {
+    if (layer.nodes.empty()) {
+        return nullptr;
+    }
+    return &layer.nodes.back();
+}
+
+void set_last_shadow(Layer& layer, DropShadow shadow) {
+    if (auto* node = last_node(layer)) {
+        node->shadow = shadow;
+    }
+}
+
+void set_last_glow(Layer& layer, Glow glow) {
+    if (auto* node = last_node(layer)) {
+        node->glow = glow;
+    }
+}
+
+void set_last_position(Layer& layer, Vec3 pos) {
+    if (auto* node = last_node(layer)) {
+        node->world_transform.position = pos;
+    }
+}
+
+void set_last_rotation(Layer& layer, Vec3 euler_deg) {
+    if (auto* node = last_node(layer)) {
+        node->world_transform.rotation = glm::quat(glm::radians(euler_deg));
+    }
+}
+
+void set_last_scale(Layer& layer, Vec3 s) {
+    if (auto* node = last_node(layer)) {
+        node->world_transform.scale = s;
+    }
+}
+
+void set_last_anchor(Layer& layer, Vec3 a) {
+    if (auto* node = last_node(layer)) {
+        node->world_transform.anchor = a;
+    }
+}
+
+void set_last_opacity(Layer& layer, f32 opacity) {
+    if (auto* node = last_node(layer)) {
+        node->world_transform.opacity = opacity;
+    }
+}
+
+} // namespace layer_builder_internal
+
+void Layer3DDelegate::add_fake_box3d(Layer& layer, std::string name, FakeBox3DParams p) {
+    auto* res = layer.nodes.get_allocator().resource();
+    RenderNode node(res);
+    node.name = std::pmr::string{name, res};
+    node.shape.type = ShapeType::FakeBox3D;
+    node.shape.fake_box3d.world_pos  = p.pos;
+    node.shape.fake_box3d.size       = p.size;
+    node.shape.fake_box3d.depth      = p.depth;
+    node.shape.fake_box3d.color      = p.color;
+    node.shape.fake_box3d.top_tint   = p.top_tint;
+    node.shape.fake_box3d.side_tint  = p.side_tint;
+    node.world_transform.position    = {0, 0, 0};
+    node.world_transform.anchor      = {0.0f, 0.0f, 0.0f};
+    node.color = p.color;
+    layer.nodes.push_back(std::move(node));
+}
+
+void Layer3DDelegate::add_grid_plane(Layer& layer, std::string name, GridPlaneParams p) {
+    auto* res = layer.nodes.get_allocator().resource();
+    RenderNode node(res);
+    node.name = std::pmr::string{name, res};
+    node.shape.type = ShapeType::GridPlane;
+    node.shape.grid_plane.world_pos      = p.pos;
+    node.shape.grid_plane.axis           = p.axis;
+    node.shape.grid_plane.extent         = p.extent;
+    node.shape.grid_plane.spacing        = p.spacing;
+    node.shape.grid_plane.color          = p.color;
+    node.shape.grid_plane.fade_distance  = p.fade_distance;
+    node.shape.grid_plane.fade_min_alpha = p.fade_min_alpha;
+    node.world_transform.position        = {0, 0, 0};
+    node.color = p.color;
+    layer.nodes.push_back(std::move(node));
+}
+
 
 LayerBuilder::LayerBuilder(std::string name, Frame current_frame, std::pmr::memory_resource* res)
     : m_layer(res), m_current_frame(current_frame) {

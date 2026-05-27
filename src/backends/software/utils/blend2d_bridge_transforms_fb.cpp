@@ -4,6 +4,7 @@
 // core helpers live in blend2d_bridge_core.cpp.
 
 #include "blend2d_bridge.hpp"
+#include "blend2d_bridge_detail.hpp"
 #include <chronon3d/scene/mask/mask_utils.hpp>
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
@@ -22,12 +23,7 @@ void composite_framebuffer_transformed(Framebuffer& dst_fb, const Framebuffer& s
     const int sw = src_fb.width();
     const int sh = src_fb.height();
 
-    const bool is_simple_translation =
-        std::abs(model[0][0] - 1.0f) < 1e-5f && std::abs(model[0][1]) < 1e-5f && std::abs(model[0][3]) < 1e-5f &&
-        std::abs(model[1][0]) < 1e-5f && std::abs(model[1][1] - 1.0f) < 1e-5f && std::abs(model[1][3]) < 1e-5f &&
-        std::abs(model[3][3] - 1.0f) < 1e-5f;
-
-    if (is_simple_translation) {
+    if (detail::is_simple_translation(model)) {
         int tx = static_cast<int>(std::round(model[3][0]));
         int ty = static_cast<int>(std::round(model[3][1]));
         composite_framebuffer(dst_fb, src_fb, tx, ty, opacity, mode, state);
@@ -36,17 +32,10 @@ void composite_framebuffer_transformed(Framebuffer& dst_fb, const Framebuffer& s
 
     const float sx = model[0][0];
     const float sy = model[1][1];
-
-    const bool is_scale_translation =
-        std::abs(sx) > 1e-5f && std::abs(sy) > 1e-5f &&
-        std::abs(model[0][1]) < 1e-5f && std::abs(model[0][3]) < 1e-5f &&
-        std::abs(model[1][0]) < 1e-5f && std::abs(model[1][3]) < 1e-5f &&
-        std::abs(model[3][3] - 1.0f) < 1e-5f;
-
     const float tx = model[3][0];
     const float ty = model[3][1];
 
-    if (is_scale_translation) {
+    if (detail::is_scale_translation(model)) {
         if (state && state->mask && state->mask->enabled()) {
             ensure_mask_alpha_cache(*state, dst_fb.width(), dst_fb.height());
         }
@@ -180,19 +169,7 @@ void composite_framebuffer_transformed(Framebuffer& dst_fb, const Framebuffer& s
                         src.r *= opacity; src.g *= opacity; src.b *= opacity; src.a *= opacity;
                         if (src.a <= 0.001f) continue;
 
-                        Color& dst = dst_row[x];
-                        if (mode == BlendMode::Add) {
-                            dst.r = std::min(dst.r + src.r, 1.0f);
-                            dst.g = std::min(dst.g + src.g, 1.0f);
-                            dst.b = std::min(dst.b + src.b, 1.0f);
-                            dst.a = std::min(dst.a + src.a, 1.0f);
-                        } else {
-                            const float inv_sa = 1.0f - src.a;
-                            dst.r = src.r + dst.r * inv_sa;
-                            dst.g = src.g + dst.g * inv_sa;
-                            dst.b = src.b + dst.b * inv_sa;
-                            dst.a = src.a + dst.a * inv_sa;
-                        }
+                        detail::blend_pixel(dst_row[x], src, mode);
                     }
                 }
             };
@@ -213,53 +190,10 @@ void composite_framebuffer_transformed(Framebuffer& dst_fb, const Framebuffer& s
         ensure_mask_alpha_cache(*state, dst_fb.width(), dst_fb.height());
     }
 
-    glm::mat3 H;
-    H[0][0] = model[0][0]; H[0][1] = model[0][1]; H[0][2] = model[0][3];
-    H[1][0] = model[1][0]; H[1][1] = model[1][1]; H[1][2] = model[1][3];
-    H[2][0] = model[3][0]; H[2][1] = model[3][1]; H[2][2] = model[3][3];
+    const detail::TransformInfo ti(model);
 
-    glm::mat3 invH = glm::inverse(H);
-
-    const bool is_affine = std::abs(invH[0][2]) < 1e-6f && std::abs(invH[1][2]) < 1e-6f;
-    float a00 = 0.0f, a10 = 0.0f, a20 = 0.0f;
-    float a01 = 0.0f, a11 = 0.0f, a21 = 0.0f;
-    if (is_affine) {
-        const float inv_z = 1.0f / invH[2][2];
-        a00 = invH[0][0] * inv_z;
-        a10 = invH[1][0] * inv_z;
-        a20 = invH[2][0] * inv_z;
-        a01 = invH[0][1] * inv_z;
-        a11 = invH[1][1] * inv_z;
-        a21 = invH[2][1] * inv_z;
-    }
-
-    auto project = [&](float lx, float ly) -> Vec2 {
-        float w = model[0][3] * lx + model[1][3] * ly + model[3][3];
-        if (std::abs(w) < 1e-7f) return Vec2(0);
-        float sx = (model[0][0] * lx + model[1][0] * ly + model[3][0]) / w;
-        float sy = (model[0][1] * lx + model[1][1] * ly + model[3][1]) / w;
-        return Vec2(sx, sy);
-    };
-
-    Vec2 corners[4] = {
-        project(0, 0),
-        project(static_cast<float>(sw), 0),
-        project(static_cast<float>(sw), static_cast<float>(sh)),
-        project(0, static_cast<float>(sh))
-    };
-
-    float min_x = corners[0].x, max_x = corners[0].x;
-    float min_y = corners[0].y, max_y = corners[0].y;
-    for (int i = 1; i < 4; ++i) {
-        min_x = std::min(min_x, corners[i].x); max_x = std::max(max_x, corners[i].x);
-        min_y = std::min(min_y, corners[i].y); max_y = std::max(max_y, corners[i].y);
-    }
-
-    const int x0 = std::max<int>(0, static_cast<int>(std::floor(min_x)));
-    const int y0 = std::max<int>(0, static_cast<int>(std::floor(min_y)));
-    const int x1 = std::min<int>(dst_fb.width(),  static_cast<int>(std::ceil(max_x)));
-    const int y1 = std::min<int>(dst_fb.height(), static_cast<int>(std::ceil(max_y)));
-
+    int x0, y0, x1, y1;
+    detail::get_projective_bounds(model, static_cast<float>(sw), static_cast<float>(sh), dst_fb.width(), dst_fb.height(), x0, y0, x1, y1);
     if (x0 >= x1 || y0 >= y1) return;
 
     const Color* src_base = src_fb.data();
@@ -272,17 +206,7 @@ void composite_framebuffer_transformed(Framebuffer& dst_fb, const Framebuffer& s
 
                 float lx = 0.0f;
                 float ly = 0.0f;
-                if (is_affine) {
-                    const float px = static_cast<float>(x) + 0.5f;
-                    const float py = static_cast<float>(y) + 0.5f;
-                    lx = a00 * px + a10 * py + a20;
-                    ly = a01 * px + a11 * py + a21;
-                } else {
-                    Vec3 local_h = invH * Vec3(static_cast<float>(x) + 0.5f, static_cast<float>(y) + 0.5f, 1.0f);
-                    if (std::abs(local_h.z) < 1e-7f) continue;
-                    lx = local_h.x / local_h.z;
-                    ly = local_h.y / local_h.z;
-                }
+                if (!ti.map(static_cast<float>(x) + 0.5f, static_cast<float>(y) + 0.5f, lx, ly)) continue;
 
                 if (lx < 0.0f || ly < 0.0f || lx >= static_cast<float>(sw) || ly >= static_cast<float>(sh)) continue;
 
@@ -291,19 +215,7 @@ void composite_framebuffer_transformed(Framebuffer& dst_fb, const Framebuffer& s
                 src.r *= opacity; src.g *= opacity; src.b *= opacity; src.a *= opacity;
                 if (src.a <= 0.001f) continue;
 
-                Color& dst = dst_row[x];
-                if (mode == BlendMode::Add) {
-                    dst.r = std::min(dst.r + src.r, 1.0f);
-                    dst.g = std::min(dst.g + src.g, 1.0f);
-                    dst.b = std::min(dst.b + src.b, 1.0f);
-                    dst.a = std::min(dst.a + src.a, 1.0f);
-                } else {
-                    const float inv_sa = 1.0f - src.a;
-                    dst.r = src.r + dst.r * inv_sa;
-                    dst.g = src.g + dst.g * inv_sa;
-                    dst.b = src.b + dst.b * inv_sa;
-                    dst.a = src.a + dst.a * inv_sa;
-                }
+                detail::blend_pixel(dst_row[x], src, mode);
             }
         }
     };

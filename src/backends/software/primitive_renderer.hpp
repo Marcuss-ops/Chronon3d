@@ -9,7 +9,6 @@
 #include "specialized/fake_box3d_renderer.hpp"
 #include "specialized/grid_plane_renderer.hpp"
 #include "specialized/mesh_renderer.hpp"
-#include "specialized/glass_panel_renderer.hpp"
 #include "utils/projection_utils.hpp"
 
 namespace chronon3d {
