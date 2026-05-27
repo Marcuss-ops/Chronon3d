@@ -8,11 +8,11 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/math/projector_2_5d.hpp>
-#include "builder/graph_builder_pipeline.hpp"
-#include "builder/graph_builder_internal.hpp"
+#include "../builder/graph_builder_pipeline.hpp"
+#include "../builder/graph_builder_internal.hpp"
 #include <chronon3d/render_graph/optimizer/graph_optimizer.hpp>
-#include "render_pipeline_helpers.hpp"
-#include "render_pipeline_scene_internal.hpp"
+#include "helpers.hpp"
+#include "scene_internal.hpp"
 #include <spdlog/spdlog.h>
 #include <fmt/format.h>
 #include <chrono>

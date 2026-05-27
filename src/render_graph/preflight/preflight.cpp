@@ -11,15 +11,15 @@
 // ---------------------------------------------------------------------------
 
 #include <chronon3d/render_graph/preflight_render_graph.hpp>
-#include "preflight_render_graph_format.hpp"
+#include "format.hpp"
 #include <chronon3d/render_graph/render_pipeline.hpp>
 #include <chronon3d/render_graph/graph_builder.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/math/projector_2_5d.hpp>
-#include "builder/graph_builder_pipeline.hpp"
-#include "builder/graph_builder_internal.hpp"
-#include "render_pipeline_helpers.hpp"
-#include "preflight_render_graph_analysis.hpp"
+#include "../builder/graph_builder_pipeline.hpp"
+#include "../builder/graph_builder_internal.hpp"
+#include "../pipeline/helpers.hpp"
+#include "analysis.hpp"
 
 namespace chronon3d::graph {
 

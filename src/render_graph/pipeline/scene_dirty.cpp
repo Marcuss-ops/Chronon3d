@@ -7,9 +7,9 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/core/dirty_fallback_reason.hpp>
-#include "builder/graph_builder_internal.hpp"
-#include "builder/graph_builder_pipeline.hpp"
-#include "render_pipeline_scene_internal.hpp"
+#include "../builder/graph_builder_internal.hpp"
+#include "../builder/graph_builder_pipeline.hpp"
+#include "scene_internal.hpp"
 #include <tbb/parallel_for.h>
 #include <tbb/blocked_range.h>
 #include <tbb/enumerable_thread_specific.h>

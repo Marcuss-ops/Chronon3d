@@ -5,7 +5,7 @@
 // live in graph_executor_internal.cpp.
 
 #include <chronon3d/render_graph/graph_executor.hpp>
-#include "graph_executor_internal.hpp"
+#include "internal.hpp"
 #include <chronon3d/render_graph/graph_profiler.hpp>
 #include <chronon3d/render_graph/render_graph_hashing.hpp>
 #include <chronon3d/core/memory/arena.hpp>
