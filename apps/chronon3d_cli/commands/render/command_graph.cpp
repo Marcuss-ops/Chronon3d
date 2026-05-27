@@ -8,7 +8,7 @@
 #include <spdlog/spdlog.h>
 #include <filesystem>
 #include <fstream>
-#include "src/render_graph/render_pipeline_helpers.hpp"
+#include "src/render_graph/pipeline/helpers.hpp"
 #include "src/render_graph/builder/graph_builder_internal.hpp"
 #include "src/render_graph/builder/graph_builder_coordinates.hpp"
 #include "src/render_graph/builder/graph_builder_bbox.hpp"

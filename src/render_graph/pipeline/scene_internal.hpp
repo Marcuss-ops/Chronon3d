@@ -6,7 +6,7 @@
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/effects/effect_category.hpp>
 #include <chronon3d/effects/effect_registry.hpp>
-#include "builder/graph_builder_internal.hpp"
+#include "../builder/graph_builder_internal.hpp"
 #include <unordered_map>
 #include <optional>
 

@@ -4,9 +4,9 @@
 #include <chronon3d/render_graph/graph_builder.hpp>
 #include <chronon3d/render_graph/graph_executor.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
-#include "builder/graph_builder_pipeline.hpp"
-#include "builder/graph_builder_internal.hpp"
-#include "render_pipeline_helpers.hpp"
+#include "../builder/graph_builder_pipeline.hpp"
+#include "../builder/graph_builder_internal.hpp"
+#include "helpers.hpp"
 #include <chrono>
 
 namespace chronon3d::graph {
