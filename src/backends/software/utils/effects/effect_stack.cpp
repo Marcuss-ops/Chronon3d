@@ -177,9 +177,12 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
 
                                 const float falloff = std::max(0.01f, p->falloff);
                                 const float shaped = std::pow(std::clamp(g.a, 0.0f, 1.0f), falloff);
-                                g.r *= shaped;
-                                g.g *= shaped;
-                                g.b *= shaped;
+                                if (g.a > 0.0f) {
+                                    const float ratio = shaped / g.a;
+                                    g.r *= ratio;
+                                    g.g *= ratio;
+                                    g.b *= ratio;
+                                }
                                 g.a = shaped;
 
                                 Color& acc = acc_row[x];
@@ -191,7 +194,7 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
                         }
                     }
 
-                    // 3. Composite the glow back into the original buffer.
+                    // 3. Composite the glow back into the original buffer (glow behind).
                     for (i32 y = 0; y < roi_h; ++y) {
                         Color* dst_row = fb.pixels_row(y + y_min);
                         const Color* glow_row = glow_acc_fb->pixels_row(y);
@@ -199,11 +202,7 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
                             if (glow_row[x].a <= 0.0f) continue;
 
                             Color& dst = dst_row[x + x_min];
-                            if (p->additive) {
-                                dst = add_glow_color(dst, glow_row[x]);
-                            } else {
-                                dst = screen_glow_color(dst, glow_row[x]);
-                            }
+                            dst = compositor::blend(dst, glow_row[x], BlendMode::Normal);
                         }
                     }
                 }
