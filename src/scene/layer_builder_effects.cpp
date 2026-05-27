@@ -1,6 +1,6 @@
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/effects/effect_ids.hpp>
-#include "layer_builder_internal.hpp"
+#include <chronon3d/scene/builders/layer_builder.hpp>
 #include <utility>
 
 namespace chronon3d {

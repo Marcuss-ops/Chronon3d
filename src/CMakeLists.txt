@@ -175,7 +175,6 @@ set(CHRONON3D_BACKEND_SOFTWARE_SOURCES
     backends/text/text_rasterizer_render.cpp
     backends/software/rasterizers/line_rasterizer.cpp
     backends/software/rasterizers/path_cache.cpp
-    backends/software/rasterizers/path_fill.cpp
     backends/software/rasterizers/path_rasterizer.cpp
     backends/software/rasterizers/path_stroke.cpp
     backends/software/rasterizers/pip.cpp
@@ -186,20 +185,18 @@ set(CHRONON3D_BACKEND_SOFTWARE_SOURCES
     backends/software/software_effect_runner.cpp
     backends/software/software_node_dispatcher.cpp
     backends/software/software_renderer.cpp
-    backends/software/specialized/fake_box3d_renderer.cpp
-    backends/software/specialized/glass_panel_renderer.cpp
-    backends/software/specialized/grid_plane_renderer.cpp
-    backends/software/specialized/mesh_renderer.cpp
     backends/software/utils/framebuffer_analysis.cpp
     backends/software/utils/projection_utils.cpp
     backends/software/utils/blend2d_bridge_core.cpp
     backends/software/utils/blend2d_bridge_transforms.cpp
     backends/software/utils/blend2d_bridge_transforms_fb.cpp
+    backends/software/specialized/fake_box3d_renderer.cpp
+    backends/software/specialized/grid_plane_renderer.cpp
+    backends/software/specialized/mesh_renderer.cpp
     backends/software/utils/effects/effect_blur.cpp
     backends/software/utils/effects/effect_color.cpp
     backends/software/utils/effects/effect_wave.cpp
     backends/software/utils/effects/effect_stack.cpp
-    backends/software/utils/render_hash_utils.cpp
     backends/software/simd/highway_color_kernels.cpp
     backends/software/simd/highway_rasterize_kernels.cpp
 )
@@ -239,11 +236,8 @@ set(CHRONON3D_SCENE_SOURCES
     scene/dark_grid_background.cpp
     scene/layer.cpp
     scene/layer_builder.cpp
-    scene/layer_builder_delegates.cpp
     scene/layer_builder_effects.cpp
-    scene/layer_builder_internal.cpp
     scene/render_node_factory.cpp
-    scene/scene.cpp
     scene/camera_api.cpp
     scene/scene_builder.cpp
     animations/camera/camera_tilt_clips.cpp

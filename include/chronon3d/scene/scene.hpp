@@ -3,6 +3,7 @@
 #include <chronon3d/scene/layer/render_node.hpp>
 #include <chronon3d/scene/layer/layer.hpp>
 #include <chronon3d/scene/camera/camera_2_5d.hpp>
+#include <chronon3d/scene/layer/layer_hierarchy.hpp>
 #include <chronon3d/rendering/light_context.hpp>
 #include <vector>
 #include <memory_resource>
@@ -35,7 +36,28 @@ public:
     [[nodiscard]] rendering::LightContext& light_context() { return m_lights; }
     [[nodiscard]] const rendering::LightContext& light_context() const { return m_lights; }
 
-    void resolve_hierarchy(Frame frame);
+    void resolve_hierarchy(Frame frame) {
+        if (m_hierarchy_baked) return;
+
+        detail::LayerHierarchyResolver resolver(m_layers, resource());
+        auto resolved_cam = resolver.resolve_camera(m_camera_2_5d);
+        auto resolved_layers = resolver.resolve_layers(frame);
+
+        for (usize i = 0; i < resolved_layers.size(); ++i) {
+            if (resolved_layers[i].layer) {
+                m_layers[i].transform = resolved_layers[i].world_transform;
+                m_layers[i].hierarchy_resolved = true;
+            }
+        }
+
+        if (m_camera_2_5d.enabled) {
+            m_camera_2_5d = resolved_cam.camera;
+            m_camera_2_5d.hierarchy_baked = true;
+        }
+
+        m_hierarchy_baked = true;
+    }
+
     [[nodiscard]] bool hierarchy_baked() const { return m_hierarchy_baked; }
     [[nodiscard]] bool hierarchy_resolved() const { return m_hierarchy_baked; }
 

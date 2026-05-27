@@ -56,9 +56,9 @@ struct GridRenderer {
             for (i32 x = 0; x < W; ++x) {
                 f32 gx = x - hw;
                 f32 mdx = dist(gx, 160.0f), Mdx = dist(gx, 640.0f);
-                if (mdx <= 8.0f || mdy <= 8.0f) fb.set_pixel(x, y, raster::blend_normal(glow, fb.get_pixel(x, y)));
-                if (mdx <= 2.5f || mdy <= 2.5f) fb.set_pixel(x, y, raster::blend_normal(line, fb.get_pixel(x, y)));
-                if (mdx <= 5.5f || mdy <= 5.5f || Mdx <= 5.5f || Mdy <= 5.5f) fb.set_pixel(x, y, raster::blend_normal(major, fb.get_pixel(x, y)));
+                if (mdx <= 8.0f || mdy <= 8.0f) fb.set_pixel(x, y, compositor::blend_normal(glow, fb.get_pixel(x, y)));
+                if (mdx <= 2.5f || mdy <= 2.5f) fb.set_pixel(x, y, compositor::blend_normal(line, fb.get_pixel(x, y)));
+                if (mdx <= 5.5f || mdy <= 5.5f || Mdx <= 5.5f || Mdy <= 5.5f) fb.set_pixel(x, y, compositor::blend_normal(major, fb.get_pixel(x, y)));
             }
         }
     }

@@ -9,8 +9,13 @@
 #include <vector>
 
 #include "path_cache.hpp"
-#include "path_fill.hpp"
 #include "path_stroke.hpp"
+
+namespace chronon3d::renderer {
+
+Color resolve_fill_color(const Fill& fill, Vec2 p, const raster::BBox& bbox, f32 opacity);
+
+} // namespace chronon3d::renderer
 #include "path_utils.hpp"
 #include "pip.hpp"
 

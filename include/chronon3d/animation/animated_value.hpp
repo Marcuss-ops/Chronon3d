@@ -22,18 +22,6 @@ enum class LoopMode {
     PingPong
 };
 
-struct Wiggle {
-    f32 freq{1.5f};
-    f32 amp{2.0f};
-    u32 seed{0};
-
-    [[nodiscard]] f32 eval(f32 t, f32 base = 0.0f) const {
-        const f32 n = std::sin(t * freq * 6.283f + static_cast<f32>(seed)) * 0.5f
-                    + std::sin(t * freq * 12.7f + static_cast<f32>(seed) * 1.3f) * 0.3f;
-        return base + n * amp;
-    }
-};
-
 struct AnimationEvalContext {
     f32 fps{30.0f};
     f32 time{0.0f};

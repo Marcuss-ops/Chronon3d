@@ -38,10 +38,5 @@ inline bool point_in_circle(f32 px, f32 py, f32 r) {
     return px * px + py * py <= r * r;
 }
 
-// Basic blending (Normal mode) — delegates to compositor::blend_normal
-inline Color blend_normal(const Color& src, const Color& dst) {
-    return compositor::blend_normal(src, dst);
-}
-
 } // namespace raster
 } // namespace chronon3d

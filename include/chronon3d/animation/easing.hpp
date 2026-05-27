@@ -35,8 +35,6 @@ enum class Easing {
     Hold
 };
 
-using Ease = Easing;
-
 namespace easing {
 
 // Delegates to GLM's well-tested easing functions (glm/gtx/easing.hpp).

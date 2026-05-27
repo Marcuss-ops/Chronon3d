@@ -1,7 +1,7 @@
 #include <chronon3d/effects/effect_registry.hpp>
 #include <chronon3d/effects/effect_instance.hpp>
 #include <chronon3d/effects/effect_ids.hpp>
-#include <chronon3d/render_graph/nodes/basic_nodes.hpp>
+#include <chronon3d/render_graph/nodes/basic_nodes_common.hpp>
 #include <stdexcept>
 #include <utility>
 

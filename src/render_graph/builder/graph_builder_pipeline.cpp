@@ -8,7 +8,6 @@
 #include <algorithm>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/render_graph/optimizer/graph_optimizer.hpp>
-#include <chronon3d/render_graph/nodes/basic_nodes.hpp>
 #include <chronon3d/render_graph/nodes/track_matte_node.hpp>
 #include <chronon3d/render_graph/nodes/transition_node.hpp>
 #include <chronon3d/render_graph/render_graph_hashing.hpp>
@@ -20,7 +19,7 @@
 #include <unordered_set>
 #include <limits>
 #include <queue>
-#include <chronon3d/render_graph/nodes/basic_nodes.hpp>
+#include <chronon3d/render_graph/nodes/basic_nodes_common.hpp>
 #include <chronon3d/render_graph/nodes/transform_node.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/scene/layer/layer.hpp>
