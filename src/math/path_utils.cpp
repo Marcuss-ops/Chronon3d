@@ -1,5 +1,7 @@
 #include <chronon3d/math/path_utils.hpp>
-#include <chronon3d/math.hpp>
+#include <chronon3d/math/glm_types.hpp>
+#include <chronon3d/math/transform.hpp>
+#include <chronon3d/math/color.hpp>
 #include <numeric>
 #include <algorithm>
 
