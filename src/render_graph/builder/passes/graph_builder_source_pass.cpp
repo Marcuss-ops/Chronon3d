@@ -1,7 +1,7 @@
 #include "graph_builder_source_pass.hpp"
 #include "../graph_builder_coordinates.hpp"
 
-#include <chronon3d/render_graph/nodes/basic_nodes.hpp>
+#include <chronon3d/render_graph/nodes/basic_nodes_common.hpp>
 #include <chronon3d/render_graph/nodes/precomp_node.hpp>
 #include <chronon3d/render_graph/nodes/video_node.hpp>
 #include <chronon3d/render_graph/render_graph_hashing.hpp>

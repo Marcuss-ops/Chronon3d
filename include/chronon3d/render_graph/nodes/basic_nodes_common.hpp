@@ -16,6 +16,15 @@
 #include <limits>
 #include <variant>
 
+#include "detail/bbox_projection.hpp"
+#include "clear_node.hpp"
+#include "source_node.hpp"
+#include "multi_source_node.hpp"
+#include "mask_node.hpp"
+#include "effect_stack_node.hpp"
+#include "adjustment_node.hpp"
+#include "composite_node.hpp"
+
 namespace chronon3d::renderer {
     chronon3d::raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 spread = 0.0f);
 }

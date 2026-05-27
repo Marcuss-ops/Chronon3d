@@ -1,5 +1,4 @@
 #include <chronon3d/render_graph/nodes/transition_node.hpp>
-#include <chronon3d/render_graph/nodes/transition_node_math.hpp>
 #include <cmath>
 #include <algorithm>
 #include <span>

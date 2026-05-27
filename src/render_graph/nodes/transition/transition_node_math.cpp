@@ -2,8 +2,6 @@
 #include <cmath>
 #include <algorithm>
 
-#include <chronon3d/render_graph/nodes/transition_node_math.hpp>
-
 namespace chronon3d::graph {
 
 namespace transition_math {

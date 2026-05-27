@@ -2,7 +2,7 @@
 #include "graph_builder_source_pass.hpp"
 #include "graph_builder_layer_passes.hpp"
 
-#include <chronon3d/render_graph/nodes/basic_nodes.hpp>
+#include <chronon3d/render_graph/nodes/basic_nodes_common.hpp>
 #include <chronon3d/render_graph/nodes/lighting_node.hpp>
 #include <chronon3d/render_graph/nodes/shadow_node.hpp>
 

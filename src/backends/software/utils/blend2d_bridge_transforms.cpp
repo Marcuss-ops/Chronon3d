@@ -4,15 +4,12 @@
 // Framebuffer → Framebuffer transforms live in blend2d_bridge_transforms_fb.cpp.
 
 #include "blend2d_bridge.hpp"
+#include "blend2d_bridge_detail.hpp"
 #include <chronon3d/scene/mask/mask_utils.hpp>
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
 #include <algorithm>
 #include <cmath>
-
-#if defined(__AVX2__)
-#include <immintrin.h>
-#endif
 
 namespace chronon3d::blend2d_bridge {
 
@@ -39,12 +36,7 @@ void composite_bl_image_transformed(Framebuffer& fb, const BLImage& img, const M
     const int stride = static_cast<int>(data.stride / sizeof(uint32_t));
 
     // Fast path: simple translation
-    const bool is_simple_translation =
-        std::abs(model[0][0] - 1.0f) < 1e-5f && std::abs(model[0][1]) < 1e-5f && std::abs(model[0][3]) < 1e-5f &&
-        std::abs(model[1][0]) < 1e-5f && std::abs(model[1][1] - 1.0f) < 1e-5f && std::abs(model[1][3]) < 1e-5f &&
-        std::abs(model[3][3] - 1.0f) < 1e-5f;
-
-    if (is_simple_translation) {
+    if (detail::is_simple_translation(model)) {
         int tx_val = static_cast<int>(std::round(model[3][0]));
         int ty_val = static_cast<int>(std::round(model[3][1]));
         composite_bl_image(fb, img, tx_val, ty_val, opacity, mode, state);
@@ -57,13 +49,7 @@ void composite_bl_image_transformed(Framebuffer& fb, const BLImage& img, const M
     const float ty = model[3][1];
 
     // Fast path: scale + translation
-    const bool is_scale_translation =
-        std::abs(sx) > 1e-5f && std::abs(sy) > 1e-5f &&
-        std::abs(model[0][1]) < 1e-5f && std::abs(model[0][3]) < 1e-5f &&
-        std::abs(model[1][0]) < 1e-5f && std::abs(model[1][3]) < 1e-5f &&
-        std::abs(model[3][3] - 1.0f) < 1e-5f;
-
-    if (is_scale_translation) {
+    if (detail::is_scale_translation(model)) {
         if (state && state->mask && state->mask->enabled()) {
             ensure_mask_alpha_cache(*state, fb.width(), fb.height());
         }
@@ -105,19 +91,7 @@ void composite_bl_image_transformed(Framebuffer& fb, const BLImage& img, const M
                         sg *= opacity;
                         sb *= opacity;
 
-                        Color& dst = dst_row[x];
-                        if (mode == BlendMode::Add) {
-                            dst.r = std::min(dst.r + sr, 1.0f);
-                            dst.g = std::min(dst.g + sg, 1.0f);
-                            dst.b = std::min(dst.b + sb, 1.0f);
-                            dst.a = std::min(dst.a + sa, 1.0f);
-                        } else {
-                            const float inv_sa = 1.0f - sa;
-                            dst.r = sr + dst.r * inv_sa;
-                            dst.g = sg + dst.g * inv_sa;
-                            dst.b = sb + dst.b * inv_sa;
-                            dst.a = sa + dst.a * inv_sa;
-                        }
+                        detail::blend_pixel(dst_row[x], Color{sr, sg, sb, sa}, mode);
                     }
                 }
             };
@@ -138,53 +112,10 @@ void composite_bl_image_transformed(Framebuffer& fb, const BLImage& img, const M
         ensure_mask_alpha_cache(*state, fb.width(), fb.height());
     }
 
-    glm::mat3 H;
-    H[0][0] = model[0][0]; H[0][1] = model[0][1]; H[0][2] = model[0][3];
-    H[1][0] = model[1][0]; H[1][1] = model[1][1]; H[1][2] = model[1][3];
-    H[2][0] = model[3][0]; H[2][1] = model[3][1]; H[2][2] = model[3][3];
+    const detail::TransformInfo ti(model);
 
-    glm::mat3 invH = glm::inverse(H);
-
-    const bool is_affine = std::abs(invH[0][2]) < 1e-6f && std::abs(invH[1][2]) < 1e-6f;
-    float a00 = 0.0f, a10 = 0.0f, a20 = 0.0f;
-    float a01 = 0.0f, a11 = 0.0f, a21 = 0.0f;
-    if (is_affine) {
-        const float inv_z = 1.0f / invH[2][2];
-        a00 = invH[0][0] * inv_z;
-        a10 = invH[1][0] * inv_z;
-        a20 = invH[2][0] * inv_z;
-        a01 = invH[0][1] * inv_z;
-        a11 = invH[1][1] * inv_z;
-        a21 = invH[2][1] * inv_z;
-    }
-
-    auto project = [&](float lx, float ly) -> Vec2 {
-        float w = model[0][3] * lx + model[1][3] * ly + model[3][3];
-        if (std::abs(w) < 1e-7f) return Vec2(0);
-        float sx = (model[0][0] * lx + model[1][0] * ly + model[3][0]) / w;
-        float sy = (model[0][1] * lx + model[1][1] * ly + model[3][1]) / w;
-        return Vec2(sx, sy);
-    };
-
-    Vec2 corners[4] = {
-        project(0, 0),
-        project(static_cast<float>(sw), 0),
-        project(static_cast<float>(sw), static_cast<float>(sh)),
-        project(0, static_cast<float>(sh))
-    };
-
-    float min_x = corners[0].x, max_x = corners[0].x;
-    float min_y = corners[0].y, max_y = corners[0].y;
-    for (int i = 1; i < 4; ++i) {
-        min_x = std::min(min_x, corners[i].x); max_x = std::max(max_x, corners[i].x);
-        min_y = std::min(min_y, corners[i].y); max_y = std::max(max_y, corners[i].y);
-    }
-
-    const int x0 = std::max<int>(0, static_cast<int>(std::floor(min_x)));
-    const int y0 = std::max<int>(0, static_cast<int>(std::floor(min_y)));
-    const int x1 = std::min<int>(fb.width(),  static_cast<int>(std::ceil(max_x)));
-    const int y1 = std::min<int>(fb.height(), static_cast<int>(std::ceil(max_y)));
-
+    int x0, y0, x1, y1;
+    detail::get_projective_bounds(model, static_cast<float>(sw), static_cast<float>(sh), fb.width(), fb.height(), x0, y0, x1, y1);
     if (x0 >= x1 || y0 >= y1) return;
 
     auto process_rows = [&](int row_begin, int row_end) {
@@ -195,17 +126,7 @@ void composite_bl_image_transformed(Framebuffer& fb, const BLImage& img, const M
 
                 float lx = 0.0f;
                 float ly = 0.0f;
-                if (is_affine) {
-                    const float px = static_cast<float>(x) + 0.5f;
-                    const float py = static_cast<float>(y) + 0.5f;
-                    lx = a00 * px + a10 * py + a20;
-                    ly = a01 * px + a11 * py + a21;
-                } else {
-                    Vec3 local_h = invH * Vec3(static_cast<float>(x) + 0.5f, static_cast<float>(y) + 0.5f, 1.0f);
-                    if (std::abs(local_h.z) < 1e-7f) continue;
-                    lx = local_h.x / local_h.z;
-                    ly = local_h.y / local_h.z;
-                }
+                if (!ti.map(static_cast<float>(x) + 0.5f, static_cast<float>(y) + 0.5f, lx, ly)) continue;
 
                 if (lx < 0.0f || ly < 0.0f || lx >= static_cast<float>(sw) || ly >= static_cast<float>(sh)) continue;
 
@@ -217,19 +138,7 @@ void composite_bl_image_transformed(Framebuffer& fb, const BLImage& img, const M
                 sg *= opacity;
                 sb *= opacity;
 
-                Color& dst = dst_row[x];
-                if (mode == BlendMode::Add) {
-                    dst.r = std::min(dst.r + sr, 1.0f);
-                    dst.g = std::min(dst.g + sg, 1.0f);
-                    dst.b = std::min(dst.b + sb, 1.0f);
-                    dst.a = std::min(dst.a + sa, 1.0f);
-                } else {
-                    const float inv_sa = 1.0f - sa;
-                    dst.r = sr + dst.r * inv_sa;
-                    dst.g = sg + dst.g * inv_sa;
-                    dst.b = sb + dst.b * inv_sa;
-                    dst.a = sa + dst.a * inv_sa;
-                }
+                detail::blend_pixel(dst_row[x], Color{sr, sg, sb, sa}, mode);
             }
         }
     };
@@ -271,45 +180,17 @@ void composite_bl_image_tiled(Framebuffer& fb, const BLImage& img, const Mat4& m
 
     if (x1 <= x0 || y1 <= y0) return;
 
-    // Fast path detection
-    const bool is_simple_translation =
-        std::abs(model[0][0] - 1.0f) < 1e-5f && std::abs(model[0][1]) < 1e-5f && std::abs(model[0][3]) < 1e-5f &&
-        std::abs(model[1][0]) < 1e-5f && std::abs(model[1][1] - 1.0f) < 1e-5f && std::abs(model[1][3]) < 1e-5f &&
-        std::abs(model[3][3] - 1.0f) < 1e-5f;
+    const bool simple_translation = detail::is_simple_translation(model);
+    const bool scale_translation = detail::is_scale_translation(model);
 
     const float sx = model[0][0];
     const float sy = model[1][1];
     const float tx = model[3][0];
     const float ty = model[3][1];
 
-    const bool is_scale_translation =
-        std::abs(sx) > 1e-5f && std::abs(sy) > 1e-5f &&
-        std::abs(model[0][1]) < 1e-5f && std::abs(model[0][3]) < 1e-5f &&
-        std::abs(model[1][0]) < 1e-5f && std::abs(model[1][3]) < 1e-5f &&
-        std::abs(model[3][3] - 1.0f) < 1e-5f;
-
-    glm::mat3 invH{};
-    bool is_affine = false;
-    float a00 = 0.0f, a10 = 0.0f, a20 = 0.0f;
-    float a01 = 0.0f, a11 = 0.0f, a21 = 0.0f;
-
-    if (!is_simple_translation && !is_scale_translation) {
-        glm::mat3 H;
-        H[0][0] = model[0][0]; H[0][1] = model[0][1]; H[0][2] = model[0][3];
-        H[1][0] = model[1][0]; H[1][1] = model[1][1]; H[1][2] = model[1][3];
-        H[2][0] = model[3][0]; H[2][1] = model[3][1]; H[2][2] = model[3][3];
-        invH = glm::inverse(H);
-
-        is_affine = std::abs(invH[0][2]) < 1e-6f && std::abs(invH[1][2]) < 1e-6f;
-        if (is_affine) {
-            const float inv_z = 1.0f / invH[2][2];
-            a00 = invH[0][0] * inv_z;
-            a10 = invH[1][0] * inv_z;
-            a20 = invH[2][0] * inv_z;
-            a01 = invH[0][1] * inv_z;
-            a11 = invH[1][1] * inv_z;
-            a21 = invH[2][1] * inv_z;
-        }
+    std::optional<detail::TransformInfo> ti;
+    if (!simple_translation && !scale_translation) {
+        ti.emplace(model);
     }
 
     auto process_rows = [&](int row_begin, int row_end) {
@@ -321,21 +202,21 @@ void composite_bl_image_tiled(Framebuffer& fb, const BLImage& img, const Mat4& m
                 float lx = 0.0f;
                 float ly = 0.0f;
 
-                if (is_simple_translation) {
+                if (simple_translation) {
                     lx = static_cast<float>(x) + 0.5f - tx;
                     ly = static_cast<float>(y) + 0.5f - ty;
-                } else if (is_scale_translation) {
+                } else if (scale_translation) {
                     const float inv_sx = 1.0f / sx;
                     const float inv_sy = 1.0f / sy;
                     lx = (static_cast<float>(x) + 0.5f - tx) * inv_sx;
                     ly = (static_cast<float>(y) + 0.5f - ty) * inv_sy;
-                } else if (is_affine) {
+                } else if (ti->is_affine) {
                     const float px = static_cast<float>(x) + 0.5f;
                     const float py = static_cast<float>(y) + 0.5f;
-                    lx = a00 * px + a10 * py + a20;
-                    ly = a01 * px + a11 * py + a21;
+                    lx = ti->a00 * px + ti->a10 * py + ti->a20;
+                    ly = ti->a01 * px + ti->a11 * py + ti->a21;
                 } else {
-                    const Vec3 local_h = invH * Vec3(static_cast<float>(x) + 0.5f, static_cast<float>(y) + 0.5f, 1.0f);
+                    const Vec3 local_h = ti->invH * Vec3(static_cast<float>(x) + 0.5f, static_cast<float>(y) + 0.5f, 1.0f);
                     if (std::abs(local_h.z) < 1e-7f) continue;
                     lx = local_h.x / local_h.z;
                     ly = local_h.y / local_h.z;
@@ -352,19 +233,7 @@ void composite_bl_image_tiled(Framebuffer& fb, const BLImage& img, const Mat4& m
                 sg *= opacity;
                 sb *= opacity;
 
-                Color& dst = dst_row[x];
-                if (mode == BlendMode::Add) {
-                    dst.r = std::min(dst.r + sr, 1.0f);
-                    dst.g = std::min(dst.g + sg, 1.0f);
-                    dst.b = std::min(dst.b + sb, 1.0f);
-                    dst.a = std::min(dst.a + sa, 1.0f);
-                } else {
-                    const float inv_sa = 1.0f - sa;
-                    dst.r = sr + dst.r * inv_sa;
-                    dst.g = sg + dst.g * inv_sa;
-                    dst.b = sb + dst.b * inv_sa;
-                    dst.a = sa + dst.a * inv_sa;
-                }
+                detail::blend_pixel(dst_row[x], Color{sr, sg, sb, sa}, mode);
             }
         }
     };
