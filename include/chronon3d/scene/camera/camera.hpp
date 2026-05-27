@@ -1,7 +1,7 @@
 #pragma once
 
 #include <chronon3d/math/camera_pose.hpp>
-#include <chronon3d/math/math_base.hpp>
+#include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/math/transform.hpp>
 
 namespace chronon3d {
@@ -18,7 +18,7 @@ public:
     Transform transform;
 
     [[nodiscard]] Mat4 projection_matrix(f32 aspect_ratio) const {
-        return math::perspective(glm::radians(fov_deg), aspect_ratio, near_plane, far_plane);
+        return glm::perspective(glm::radians(fov_deg), aspect_ratio, near_plane, far_plane);
     }
 
     [[nodiscard]] Mat4 view_matrix() const {

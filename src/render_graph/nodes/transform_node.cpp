@@ -74,8 +74,8 @@ std::shared_ptr<Framebuffer> TransformNode::execute(
     auto result = ctx.acquire_framebuffer(out_w, out_h, true, out_bounds);
 
     // ── Centering & homography ──────────────────────────────────────────
-    const Mat4 dst_canvas_offset = math::translate(Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
-    const Mat4 src_canvas_offset = math::translate(Vec3(input->width() * 0.5f, input->height() * 0.5f, 0.0f));
+    const Mat4 dst_canvas_offset = glm::translate(Mat4(1.0f), Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
+    const Mat4 src_canvas_offset = glm::translate(Mat4(1.0f), Vec3(input->width() * 0.5f, input->height() * 0.5f, 0.0f));
     const Mat4 pixel_model = dst_canvas_offset * model * glm::inverse(src_canvas_offset);
 
     f32 x_min_src = 0.0f;
@@ -325,7 +325,7 @@ std::optional<raster::BBox> TransformNode::predicted_bbox(
     std::span<const std::optional<raster::BBox>> input_bboxes
 ) const {
     const Mat4 model = m_use_matrix ? m_matrix : m_transform.to_mat4();
-    const Mat4 dst_canvas_offset = math::translate(Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
+    const Mat4 dst_canvas_offset = glm::translate(Mat4(1.0f), Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
 
     f32 input_w = static_cast<f32>(ctx.width);
     f32 input_h = static_cast<f32>(ctx.height);
@@ -339,7 +339,7 @@ std::optional<raster::BBox> TransformNode::predicted_bbox(
     const f32 x_max_src = input_w;
     const f32 y_max_src = input_h;
 
-    const Mat4 src_canvas_offset = math::translate(Vec3(input_w * 0.5f, input_h * 0.5f, 0.0f));
+    const Mat4 src_canvas_offset = glm::translate(Mat4(1.0f), Vec3(input_w * 0.5f, input_h * 0.5f, 0.0f));
     const Mat4 pixel_model = dst_canvas_offset * model * glm::inverse(src_canvas_offset);
 
     Vec4 corners[4] = {

@@ -62,7 +62,7 @@ SceneBuilder& SceneBuilder::at(Vec3 pos) {
 }
 
 SceneBuilder& SceneBuilder::rotate(Vec3 euler_deg) {
-    scene_.last_node().world_transform.rotation = math::from_euler(euler_deg);
+    scene_.last_node().world_transform.rotation = glm::quat(glm::radians(euler_deg));
     return *this;
 }
 

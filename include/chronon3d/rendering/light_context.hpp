@@ -1,7 +1,7 @@
 #pragma once
 
 #include <chronon3d/math/color.hpp>
-#include <chronon3d/math/math_base.hpp>
+#include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/rendering/shadow_settings.hpp>
 #include <chronon3d/scene/material_2_5d.hpp>
 #include <glm/glm.hpp>

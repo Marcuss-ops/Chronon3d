@@ -1,7 +1,7 @@
 #pragma once
 
 #include <chronon3d/scene/camera/camera_2_5d.hpp>
-#include <chronon3d/math/math_base.hpp>
+#include <chronon3d/math/glm_types.hpp>
 
 // Camera motion presets for 2.5D animation.
 // All preset functions take t ∈ [0,1] (normalised frame progress).

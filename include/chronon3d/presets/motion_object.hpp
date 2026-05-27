@@ -2,8 +2,8 @@
 
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/math/color.hpp>
-#include <chronon3d/math/math_base.hpp>
-#include <chronon3d/math/math_base.hpp>
+#include <chronon3d/math/glm_types.hpp>
+#include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/presets/motion_animation.hpp>
 #include <chronon3d/scene/shape.hpp>
 #include <algorithm>

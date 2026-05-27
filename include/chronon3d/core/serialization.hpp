@@ -2,7 +2,7 @@
 
 #include <chronon3d/core/types/types.hpp>
 #include <chronon3d/core/types/time.hpp>
-#include <chronon3d/math/math_base.hpp>
+#include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/animation/keyframe.hpp>
 #include <chronon3d/animation/animated_value.hpp>

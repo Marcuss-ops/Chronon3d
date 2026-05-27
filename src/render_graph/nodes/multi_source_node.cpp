@@ -16,8 +16,8 @@ std::optional<raster::BBox> MultiSourceNode::predicted_bbox(
     const RenderGraphContext& ctx,
     std::span<const std::optional<raster::BBox>>
 ) const {
-    const Mat4 ssaa_scale = math::scale(Vec3(ctx.ssaa_factor, ctx.ssaa_factor, 1.0f));
-    const Mat4 canvas_center = math::translate(Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
+    const Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(ctx.ssaa_factor, ctx.ssaa_factor, 1.0f));
+    const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
 
     i32 x0 = std::numeric_limits<i32>::max();
     i32 y0 = std::numeric_limits<i32>::max();
@@ -107,8 +107,8 @@ std::shared_ptr<Framebuffer> MultiSourceNode::execute(
     auto fb = ctx.acquire_framebuffer(ctx.width, ctx.height, /*clear=*/true);
 
     if (ctx.backend) {
-        const Mat4 ssaa_scale = math::scale(Vec3(ctx.ssaa_factor, ctx.ssaa_factor, 1.0f));
-        const Mat4 canvas_center = math::translate(Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
+        const Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(ctx.ssaa_factor, ctx.ssaa_factor, 1.0f));
+        const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
 
         for (const auto& item : m_items) {
             if (!item.node) continue;

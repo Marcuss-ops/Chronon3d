@@ -2,7 +2,7 @@
 
 #include <chronon3d/math/transform.hpp>
 #include <chronon3d/animation/animated_value.hpp>
-#include <chronon3d/math/math_base.hpp>
+#include <chronon3d/math/glm_types.hpp>
 
 namespace chronon3d {
 
@@ -16,7 +16,7 @@ struct AnimatedTransform {
     [[nodiscard]] Transform evaluate(Frame frame) const {
         Transform t;
         t.position = position.evaluate(frame);
-        t.rotation = math::from_euler(rotation_euler.evaluate(frame));
+        t.rotation = glm::quat(glm::radians(rotation_euler.evaluate(frame)));
         t.scale    = scale.evaluate(frame);
         t.anchor   = anchor.evaluate(frame);
         t.opacity  = opacity.evaluate(frame);

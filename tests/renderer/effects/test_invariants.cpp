@@ -9,8 +9,8 @@
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/render_graph/nodes/effect_stack_node.hpp>
 #include <chronon3d/render_graph/render_graph_hashing.hpp>
-#include <chronon3d/math/math_base.hpp>
-#include <chronon3d/math/math_base.hpp>
+#include <chronon3d/math/glm_types.hpp>
+#include <chronon3d/math/glm_types.hpp>
 #include <xxhash.h>
 #include <cmath>
 #include <iostream>
@@ -37,7 +37,7 @@ TEST_CASE("Invariants: transform_inverse_roundtrip") {
     CHECK(roundtrip1.w == doctest::Approx(p1.w));
 
     // Translation
-    Mat4 T = math::translate(Vec3(10.0f, -20.0f, 5.0f));
+    Mat4 T = glm::translate(Mat4(1.0f), Vec3(10.0f, -20.0f, 5.0f));
     Vec4 p2{1.0f, 2.0f, 3.0f, 1.0f};
     Vec4 roundtrip2 = glm::inverse(T) * (T * p2);
     CHECK(roundtrip2.x == doctest::Approx(p2.x));
@@ -46,7 +46,7 @@ TEST_CASE("Invariants: transform_inverse_roundtrip") {
     CHECK(roundtrip2.w == doctest::Approx(p2.w));
 
     // Scale
-    Mat4 S = math::scale(Vec3(2.5f, 0.5f, 4.0f));
+    Mat4 S = glm::scale(Mat4(1.0f), Vec3(2.5f, 0.5f, 4.0f));
     Vec4 p3{10.0f, 10.0f, 10.0f, 1.0f};
     Vec4 roundtrip3 = glm::inverse(S) * (S * p3);
     CHECK(roundtrip3.x == doctest::Approx(p3.x));
@@ -55,7 +55,7 @@ TEST_CASE("Invariants: transform_inverse_roundtrip") {
 
     // Rotation (90 degrees around Z axis, e.g. rotating (1,0) should result in (0,1))
     Quat q = glm::angleAxis(glm::radians(90.0f), Vec3(0.0f, 0.0f, 1.0f));
-    Mat4 R = math::rotate(q);
+    Mat4 R = glm::toMat4(q);
     Vec4 p4{1.0f, 0.0f, 0.0f, 1.0f};
     Vec4 rotated = R * p4;
     CHECK(rotated.x == doctest::Approx(0.0f));
