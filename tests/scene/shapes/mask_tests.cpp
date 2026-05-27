@@ -32,7 +32,7 @@ std::shared_ptr<Framebuffer> render_masked_layer(
             l.rect("white_rect", {
                 .size = {80, 80},
                 .color = Color::white(),
-                .pos = {0, 0, 0}
+                .pos = {-40.0f, -40.0f, 0}
             });
         });
 

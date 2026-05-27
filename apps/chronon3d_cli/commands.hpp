@@ -20,6 +20,8 @@ struct RenderQualityArgs {
 struct RenderPipelineArgs {
     bool   use_modular_graph{true};
     bool   diagnostic{false};
+    bool   diagnostic_plan{false};
+    std::string diagnostic_plan_output;
     bool   dirty_rects{false};
     RenderQualityArgs quality{};
 
@@ -109,6 +111,7 @@ struct GraphArgs {
     Frame frame{0};
     std::string output;   // optional .dot output path
     bool summary{false};  // print node/cache/timing diagnostics
+    bool plan{false};     // print layer/frame placement before execution
 };
 
 struct ProofsArgs {

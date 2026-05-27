@@ -8,6 +8,8 @@
 #include <chronon3d/render_graph/nodes/multi_source_node.hpp>
 #include <chronon3d/scene/render_node_factory.hpp>
 #include <cmath>
+#include "src/render_graph/builder/graph_builder_coordinates.hpp"
+#include "src/render_graph/builder/graph_builder_internal.hpp"
 
 using namespace chronon3d;
 using namespace chronon3d::graph;
@@ -51,6 +53,57 @@ TEST_CASE("Coordinate Centered vs Top Left - 2D standard top left layer") {
     CHECK(p49.a > 0.9f);
 
     CHECK(p50.a < 0.05f);
+}
+
+TEST_CASE("Coordinate Centered vs Top Left - Opacity only keeps implicit centering") {
+    SceneBuilder builder;
+    builder.layer("opacity_only", [](LayerBuilder& lb) {
+        lb.opacity(0.5f);
+        lb.rect("red_rect", {
+            .size={1536.0f, 1024.0f},
+            .color=Color::red(),
+            .pos={0.0f, 0.0f, 0.0f}
+        });
+    });
+    Scene scene = builder.build();
+
+    RenderGraphContext ctx;
+    ctx.width = 1536;
+    ctx.height = 1024;
+    ctx.frame = 0;
+    ctx.modular_coordinates = true;
+
+    auto resolved = chronon3d::graph::detail::resolve_layers(scene, ctx);
+    REQUIRE(!resolved.layers.empty());
+
+    const auto& rl = resolved.layers.front();
+    LayerGraphItem item{
+        .layer = rl.layer,
+        .transform = rl.world_transform,
+        .world_matrix = rl.world_matrix,
+        .projected = false,
+        .native_3d = false,
+    };
+
+    CHECK(chronon3d::graph::detail::is_implicit_2d_centering_only(item, ctx));
+    CHECK(!chronon3d::graph::detail::has_custom_render_transform(item, ctx));
+    CHECK(!chronon3d::graph::detail::layer_needs_render_transform(item, ctx));
+
+    SoftwareRenderer renderer;
+    RenderSettings settings = renderer.settings();
+    settings.use_modular_graph = true;
+    renderer.set_settings(settings);
+
+    Camera camera;
+    auto fb = renderer.render_scene(scene, camera, 1536, 1024);
+    REQUIRE(fb != nullptr);
+
+    CHECK(fb->get_pixel(10, 10).r > 0.4f);
+    CHECK(fb->get_pixel(10, 10).a > 0.4f);
+    CHECK(fb->get_pixel(1526, 10).r > 0.4f);
+    CHECK(fb->get_pixel(10, 1014).r > 0.4f);
+    CHECK(fb->get_pixel(1526, 1014).r > 0.4f);
+    CHECK(fb->get_pixel(768, 512).r > 0.4f);
 }
 
 TEST_CASE("Coordinate Centered vs Top Left - Centered exactly on canvas") {
@@ -560,4 +613,3 @@ TEST_CASE("MultiSourceNode predicted_bbox vs execute - Centering & Bounds check"
     CHECK(p_b.g > 0.9f);
     CHECK(p_b.r < 0.1f);
 }
-

@@ -20,6 +20,7 @@ void register_inspect_commands(CLI::App& app, CliContext& ctx) {
         cmd->add_option("--frame", args.frame, "Frame to inspect")->default_val(0);
         cmd->add_option("-o,--output", args.output, "Output .dot file path");
         cmd->add_flag("--summary", args.summary, "Print node counts, cache stats, and timing");
+        cmd->add_flag("--plan", args.plan, "Print planned layer and bbox placement before rendering");
         cmd->callback([state, &ctx]() {
             if (!state->args->summary && state->args->output.empty()) {
                 state->args->output = "output/graph.dot";

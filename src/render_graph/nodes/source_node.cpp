@@ -113,7 +113,9 @@ std::optional<raster::BBox> SourceNode::predicted_bbox(
     }
 
     auto bbox = renderer::compute_world_bbox(m_node.shape, matrix, spread);
-    bbox.clip_to(ctx.width, ctx.height);
+    if (!ctx.diagnostics_enabled) {
+        bbox.clip_to(ctx.width, ctx.height);
+    }
     if (bbox.is_empty()) {
         return raster::BBox{0, 0, 0, 0};
     }
@@ -168,6 +170,11 @@ std::shared_ptr<Framebuffer> SourceNode::execute(
                 state.matrix = ssaa_scale * m_matrix_override.value_or(m_node.world_transform.to_mat4());
             }
         }
+        const Mat4 local_mat = m_matrix_override.value_or(m_node.world_transform.to_mat4());
+        spdlog::info("[SourceNode::execute] name='{}' cc_tx={} cc_ty={} ssaa_tx={} ssaa_ty={} local_tx={} local_ty={}",
+                     m_name, canvas_center[3][0], canvas_center[3][1],
+                     ssaa_scale[3][0], ssaa_scale[3][1],
+                     local_mat[3][0], local_mat[3][1]);
         state.opacity = m_opacity_override.value_or(m_node.world_transform.opacity);
         state.world_matrix = m_matrix_override.value_or(m_node.world_transform.to_mat4());
         state.clip_rect = ctx.clip_rect;

@@ -31,6 +31,17 @@ struct RenderSettings {
     bool diagnostic{false};
 
     /**
+     * If true, logs a graph preflight report before rendering each frame.
+     */
+    bool diagnostic_plan{false};
+
+    /**
+     * Optional path pattern for the graph preflight report output.
+     * If no #### placeholder is present, a _0000 frame suffix is inserted.
+     */
+    std::string diagnostic_plan_output;
+
+    /**
      * Path to the font used for diagnostic overlays.
      */
     std::string diagnostic_font_path;

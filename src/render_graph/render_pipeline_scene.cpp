@@ -1,4 +1,5 @@
 #include <chronon3d/render_graph/render_pipeline.hpp>
+#include <chronon3d/render_graph/preflight_render_graph.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/telemetry/render_telemetry.hpp>
@@ -13,10 +14,60 @@
 #include "render_pipeline_helpers.hpp"
 #include "render_pipeline_scene_internal.hpp"
 #include <spdlog/spdlog.h>
+#include <fmt/format.h>
 #include <chrono>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
 
 namespace chronon3d::graph {
+
+namespace {
+
+std::string format_plan_output_path(std::string pattern, Frame frame) {
+    const std::string replacement = fmt::format("{:04d}", static_cast<int64_t>(frame));
+    const auto pos = pattern.find("####");
+    if (pos != std::string::npos) {
+        pattern.replace(pos, 4, replacement);
+        return pattern;
+    }
+
+    const auto dot_pos = pattern.find_last_of('.');
+    if (dot_pos != std::string::npos) {
+        pattern.insert(dot_pos, "_" + replacement);
+    } else {
+        pattern += "_" + replacement;
+    }
+    return pattern;
+}
+
+bool write_plan_output_file(const std::string& path, const std::string& contents) {
+    if (path.empty()) return true;
+
+    std::filesystem::path p(path);
+    if (p.has_parent_path()) {
+        std::error_code ec;
+        std::filesystem::create_directories(p.parent_path(), ec);
+        if (ec) {
+            spdlog::error("[graph-preflight] cannot create directory '{}': {}", p.parent_path().string(), ec.message());
+            return false;
+        }
+    }
+
+    std::ofstream out(path, std::ios::binary | std::ios::trunc);
+    if (!out) {
+        spdlog::error("[graph-preflight] cannot open '{}' for writing", path);
+        return false;
+    }
+    out << contents;
+    if (!out) {
+        spdlog::error("[graph-preflight] failed while writing '{}'", path);
+        return false;
+    }
+    return true;
+}
+
+} // namespace
 
 std::shared_ptr<Framebuffer> render_scene_via_graph(
     RenderBackend& backend,
@@ -30,7 +81,8 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     const RenderSettings& settings,
     const CompositionRegistry* registry,
     video::VideoFrameDecoder* video_decoder,
-    float fps
+    float fps,
+    std::string_view diagnostic_label
 ) {
     ZoneScoped;
     const auto t0 = std::chrono::steady_clock::now();
@@ -42,10 +94,6 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         settings, registry, video_decoder, fps
     );
 
-    profiling::g_current_trace = ctx.trace;
-    profiling::g_current_frame = static_cast<int32_t>(frame);
-    profiling::g_current_counters = ctx.counters;
-
     ctx.light_context = scene.light_context();
     if (scene.camera_2_5d().enabled) {
         ctx.camera_2_5d = scene.camera_2_5d();
@@ -54,6 +102,10 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
             ctx.camera_2_5d, ctx.width, ctx.height);
         ctx.projection_ctx.ready = true;
     }
+
+    profiling::g_current_trace = ctx.trace;
+    profiling::g_current_frame = static_cast<int32_t>(frame);
+    profiling::g_current_counters = ctx.counters;
 
     SoftwareRenderer* sw_renderer = dynamic_cast<SoftwareRenderer*>(&backend);
 
@@ -109,6 +161,39 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     }
 
     // ── Full path: resolve, dirty rect, graph, execute ──────────────────
+    if (settings.diagnostic_plan) {
+        auto* prev_trace = profiling::g_current_trace;
+        auto prev_frame = profiling::g_current_frame;
+        auto* prev_counters = profiling::g_current_counters;
+        profiling::g_current_trace = nullptr;
+        profiling::g_current_counters = nullptr;
+        auto report = debug_preflight_render_graph(
+            backend,
+            node_cache,
+            scene,
+            camera,
+            width,
+            height,
+            frame,
+            frame_time,
+            settings,
+            registry,
+            video_decoder,
+            fps
+        );
+        spdlog::info("[graph-preflight] label='{}' frame={} size={}x{}\n{}",
+                     diagnostic_label, static_cast<int>(frame), width, height, report.to_text());
+        if (!settings.diagnostic_plan_output.empty()) {
+            const auto report_path = format_plan_output_path(settings.diagnostic_plan_output, frame);
+            if (write_plan_output_file(report_path, report.to_text())) {
+                spdlog::info("[graph-preflight] report written to {}", report_path);
+            }
+        }
+        profiling::g_current_trace = prev_trace;
+        profiling::g_current_frame = prev_frame;
+        profiling::g_current_counters = prev_counters;
+    }
+
     const auto resolved = detail::resolve_layers(scene, ctx);
 
     auto dirty_out = detail::compute_dirty_rect(
