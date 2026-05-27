@@ -3,7 +3,6 @@
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/core/telemetry/render_telemetry.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
-#include <chronon3d/core/profiling/trace.hpp>
 
 #include <spdlog/spdlog.h>
 
@@ -54,9 +53,6 @@ bool write_render_frame(const Composition& comp,
         return false;
     }
 
-    // Set trace context so CHRONON_ZONE zones inside save_image work.
-    profiling::g_current_trace = renderer.trace();
-    profiling::g_current_frame = static_cast<int32_t>(frame);
     {
         CHRONON_ZONE_C("write_frame_to_disk", trace_category::kOutput);
         if (!save_image(*fb, path, write_options)) {
@@ -68,7 +64,6 @@ bool write_render_frame(const Composition& comp,
             return false;
         }
     }
-    profiling::g_current_trace = nullptr;
 
     const auto t_encode1 = std::chrono::steady_clock::now();
 
@@ -79,20 +74,6 @@ bool write_render_frame(const Composition& comp,
     frames_written++;
 
     const bool hit = (hits_after > hits_before);
-
-    // Record Legacy Telemetry CSV
-    telemetry::record_render_telemetry({
-        .event = "image_render",
-        .frame = frame,
-        .width = comp.width(),
-        .height = comp.height(),
-        .total_ms = std::chrono::duration<double, std::milli>(t_encode1 - t0).count(),
-        .setup_ms = render_ms,
-        .encode_ms = encode_ms,
-        .cache_hit = hit ? 1 : 0,
-        .layer_count = layer_count,
-    });
-
     // Record Unified Telemetry Frame Record
     telemetry_frames.push_back({
         .frame_number = static_cast<int>(frame),

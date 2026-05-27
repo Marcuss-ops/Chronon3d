@@ -77,6 +77,14 @@ inline std::vector<chronon3d::telemetry::CounterTelemetryRecord> capture_counter
         {"ffmpeg_pipe_write_blocked_ms", counters.ffmpeg_pipe_write_blocked_ms.load(std::memory_order_relaxed)},
         {"converted_frame_cache_hits",  counters.converted_frame_cache_hits.load(std::memory_order_relaxed)},
         {"ffmpeg_flush_ms", counters.ffmpeg_flush_ms.load(std::memory_order_relaxed)},
+        {"process_context_switches_voluntary", counters.process_context_switches_voluntary.load(std::memory_order_relaxed)},
+        {"process_context_switches_involuntary", counters.process_context_switches_involuntary.load(std::memory_order_relaxed)},
+        {"os_page_faults_major", counters.os_page_faults_major.load(std::memory_order_relaxed)},
+        {"os_page_faults_minor", counters.os_page_faults_minor.load(std::memory_order_relaxed)},
+        {"ffmpeg_cpu_user_pct", counters.ffmpeg_cpu_user_pct.load(std::memory_order_relaxed)},
+        {"ffmpeg_cpu_sys_pct", counters.ffmpeg_cpu_sys_pct.load(std::memory_order_relaxed)},
+        {"llc_references", counters.llc_references.load(std::memory_order_relaxed)},
+        {"llc_misses", counters.llc_misses.load(std::memory_order_relaxed)},
     };
 }
 
@@ -143,6 +151,91 @@ inline void add_counters(chronon3d::RenderCounters& dst, const chronon3d::Render
     }
 }
 
+inline void populate_run_metrics(chronon3d::telemetry::RenderTelemetryRecord& run, const chronon3d::RenderCounters& counters) {
+    run.pixels_touched = counters.pixels_touched.load(std::memory_order_relaxed);
+    run.cache_hits = counters.cache_hits.load(std::memory_order_relaxed);
+    run.cache_misses = counters.cache_misses.load(std::memory_order_relaxed);
+    run.nodes_executed = counters.nodes_executed.load(std::memory_order_relaxed);
+    run.layers_rendered = counters.layers_rendered.load(std::memory_order_relaxed);
+    run.text_glyphs_rasterized = counters.text_glyphs_rasterized.load(std::memory_order_relaxed);
+    run.images_sampled = counters.images_sampled.load(std::memory_order_relaxed);
+    run.blur_pixels = counters.blur_pixels.load(std::memory_order_relaxed);
+    run.simd_lerp_calls = counters.simd_lerp_calls.load(std::memory_order_relaxed);
+    run.node_cache_hash_collisions = counters.node_cache_hash_collisions.load(std::memory_order_relaxed);
+    run.clear_skipped_calls = counters.clear_skipped_calls.load(std::memory_order_relaxed);
+    run.clear_skipped_pixels = counters.clear_skipped_pixels.load(std::memory_order_relaxed);
+    run.clear_calls = counters.clear_calls.load(std::memory_order_relaxed);
+    run.clear_pixels = counters.clear_pixels.load(std::memory_order_relaxed);
+    run.composite_calls = counters.composite_calls.load(std::memory_order_relaxed);
+    run.composite_pixels = counters.composite_pixels.load(std::memory_order_relaxed);
+    run.transform_calls = counters.transform_calls.load(std::memory_order_relaxed);
+    run.transform_pixels = counters.transform_pixels.load(std::memory_order_relaxed);
+    run.effect_stack_calls = counters.effect_stack_calls.load(std::memory_order_relaxed);
+    run.effect_pixels = counters.effect_pixels.load(std::memory_order_relaxed);
+    run.layer_culling_tests = counters.layer_culling_tests.load(std::memory_order_relaxed);
+    run.layers_culled = counters.layers_culled.load(std::memory_order_relaxed);
+    run.layers_visible = counters.layers_visible.load(std::memory_order_relaxed);
+    run.framebuffer_allocations = counters.framebuffer_allocations.load(std::memory_order_relaxed);
+    run.framebuffer_reuses = counters.framebuffer_reuses.load(std::memory_order_relaxed);
+    run.framebuffer_bytes_allocated = profiling::g_live_framebuffer_bytes.load(std::memory_order_relaxed);
+    run.framebuffer_bytes_peak = profiling::g_peak_live_framebuffer_bytes.load(std::memory_order_relaxed);
+    run.dirty_rect_count = counters.dirty_rect_count.load(std::memory_order_relaxed);
+    run.dirty_pixels = counters.dirty_pixels.load(std::memory_order_relaxed);
+    run.dirty_union_area_pixels = counters.dirty_union_area_pixels.load(std::memory_order_relaxed);
+    run.dirty_full_fallbacks = counters.dirty_full_fallbacks.load(std::memory_order_relaxed);
+    run.dirty_full_fallback_predicted_bounds_missing =
+        counters.dirty_full_fallback_reasons[static_cast<std::size_t>(DirtyFallbackReason::PredictedBoundsMissing)]
+            .load(std::memory_order_relaxed);
+    run.dirty_full_fallback_composite_missing_input_bounds =
+        counters.dirty_full_fallback_reasons[static_cast<std::size_t>(DirtyFallbackReason::CompositeMissingInputBounds)]
+            .load(std::memory_order_relaxed);
+    run.dirty_full_fallback_transform_bounds_unknown =
+        counters.dirty_full_fallback_reasons[static_cast<std::size_t>(DirtyFallbackReason::TransformBoundsUnknown)]
+            .load(std::memory_order_relaxed);
+    run.dirty_full_fallback_effect_bounds_unknown =
+        counters.dirty_full_fallback_reasons[static_cast<std::size_t>(DirtyFallbackReason::EffectBoundsUnknown)]
+            .load(std::memory_order_relaxed);
+    run.framebuffer_acquire_ms = counters.framebuffer_acquire_ms.load(std::memory_order_relaxed);
+    run.framebuffer_clear_ms = counters.framebuffer_clear_ms.load(std::memory_order_relaxed);
+    run.clearnode_ms = counters.clearnode_ms.load(std::memory_order_relaxed);
+    run.framebuffer_pool_clear_ms = counters.framebuffer_pool_clear_ms.load(std::memory_order_relaxed);
+    run.framebuffer_enqueue_ms = counters.framebuffer_enqueue_ms.load(std::memory_order_relaxed);
+    run.framebuffer_pool_miss_count_size_mismatch = counters.framebuffer_pool_miss_count_size_mismatch.load(std::memory_order_relaxed);
+    run.framebuffer_pool_miss_count_empty = counters.framebuffer_pool_miss_count_empty.load(std::memory_order_relaxed);
+    run.framebuffer_pool_hits = counters.framebuffer_pool_hits.load(std::memory_order_relaxed);
+    run.framebuffer_buffer_returned_to_pool_count = counters.framebuffer_buffer_returned_to_pool_count.load(std::memory_order_relaxed);
+    run.unaligned_memory_copies = counters.unaligned_memory_copies.load(std::memory_order_relaxed);
+    run.frame_conversion_copy_ms = counters.frame_conversion_copy_ms.load(std::memory_order_relaxed);
+    run.video_graph_eval_ms = counters.video_graph_eval_ms.load(std::memory_order_relaxed);
+    run.video_conversion_ms = counters.video_conversion_ms.load(std::memory_order_relaxed);
+    run.video_pipe_write_ms = counters.video_pipe_write_ms.load(std::memory_order_relaxed);
+    run.video_ffmpeg_latency_ms = counters.video_ffmpeg_latency_ms.load(std::memory_order_relaxed);
+    run.io_queue_push_blocked_ms = counters.io_queue_push_blocked_ms.load(std::memory_order_relaxed);
+    run.io_queue_pop_wait_ms = counters.io_queue_pop_wait_ms.load(std::memory_order_relaxed);
+    run.io_queue_peak_depth = counters.io_queue_peak_depth.load(std::memory_order_relaxed);
+    run.ffmpeg_pipe_write_blocked_ms = counters.ffmpeg_pipe_write_blocked_ms.load(std::memory_order_relaxed);
+    run.converted_frame_cache_hits = counters.converted_frame_cache_hits.load(std::memory_order_relaxed);
+    run.ffmpeg_flush_ms = counters.ffmpeg_flush_ms.load(std::memory_order_relaxed);
+
+    run.chronon_conversion_copy_ms = counters.frame_conversion_copy_ms.load(std::memory_order_relaxed);
+
+    // Setup Deep Dive (cold start diagnostics)
+    run.setup_graph_parsing_ms = counters.setup_graph_parsing_ms.load(std::memory_order_relaxed);
+    run.setup_asset_io_load_ms = counters.setup_asset_io_load_ms.load(std::memory_order_relaxed);
+    run.setup_pool_preallocation_ms = counters.setup_pool_preallocation_ms.load(std::memory_order_relaxed);
+    run.image_decode_ms = counters.image_decode_ms.load(std::memory_order_relaxed);
+
+    // OS & Process Diagnostics
+    run.process_context_switches_voluntary = counters.process_context_switches_voluntary.load(std::memory_order_relaxed);
+    run.process_context_switches_involuntary = counters.process_context_switches_involuntary.load(std::memory_order_relaxed);
+    run.os_page_faults_major = counters.os_page_faults_major.load(std::memory_order_relaxed);
+    run.os_page_faults_minor = counters.os_page_faults_minor.load(std::memory_order_relaxed);
+    run.ffmpeg_cpu_user_pct = counters.ffmpeg_cpu_user_pct.load(std::memory_order_relaxed);
+    run.ffmpeg_cpu_sys_pct = counters.ffmpeg_cpu_sys_pct.load(std::memory_order_relaxed);
+    run.llc_references = counters.llc_references.load(std::memory_order_relaxed);
+    run.llc_misses = counters.llc_misses.load(std::memory_order_relaxed);
+}
+
 inline void record_output_run(const std::string& composition_id,
                               const std::string& output_path,
                               bool success,
@@ -200,75 +293,7 @@ inline void record_output_run(const std::string& composition_id,
     run.chronon_render_throughput_ms = run.chronon_render_only_ms + run.chronon_conversion_copy_ms + run.chronon_queue_wait_ms;
 
     if (counters_src) {
-        run.pixels_touched = counters_src->pixels_touched.load(std::memory_order_relaxed);
-        run.cache_hits = counters_src->cache_hits.load(std::memory_order_relaxed);
-        run.cache_misses = counters_src->cache_misses.load(std::memory_order_relaxed);
-        run.nodes_executed = counters_src->nodes_executed.load(std::memory_order_relaxed);
-        run.layers_rendered = counters_src->layers_rendered.load(std::memory_order_relaxed);
-        run.text_glyphs_rasterized = counters_src->text_glyphs_rasterized.load(std::memory_order_relaxed);
-        run.images_sampled = counters_src->images_sampled.load(std::memory_order_relaxed);
-        run.blur_pixels = counters_src->blur_pixels.load(std::memory_order_relaxed);
-        run.simd_lerp_calls = counters_src->simd_lerp_calls.load(std::memory_order_relaxed);
-        run.tiles_total = counters_src->tiles_total.load(std::memory_order_relaxed);
-        run.tiles_hit = counters_src->tiles_hit.load(std::memory_order_relaxed);
-        run.tiles_miss = counters_src->tiles_miss.load(std::memory_order_relaxed);
-        run.tiles_partial = counters_src->tiles_partial.load(std::memory_order_relaxed);
-        run.node_cache_hash_collisions = counters_src->node_cache_hash_collisions.load(std::memory_order_relaxed);
-        run.clear_skipped_calls = counters_src->clear_skipped_calls.load(std::memory_order_relaxed);
-        run.clear_skipped_pixels = counters_src->clear_skipped_pixels.load(std::memory_order_relaxed);
-        run.clear_calls = counters_src->clear_calls.load(std::memory_order_relaxed);
-        run.clear_pixels = counters_src->clear_pixels.load(std::memory_order_relaxed);
-        run.composite_calls = counters_src->composite_calls.load(std::memory_order_relaxed);
-        run.composite_pixels = counters_src->composite_pixels.load(std::memory_order_relaxed);
-        run.transform_calls = counters_src->transform_calls.load(std::memory_order_relaxed);
-        run.transform_pixels = counters_src->transform_pixels.load(std::memory_order_relaxed);
-        run.effect_stack_calls = counters_src->effect_stack_calls.load(std::memory_order_relaxed);
-        run.effect_pixels = counters_src->effect_pixels.load(std::memory_order_relaxed);
-        run.layer_culling_tests = counters_src->layer_culling_tests.load(std::memory_order_relaxed);
-        run.layers_culled = counters_src->layers_culled.load(std::memory_order_relaxed);
-        run.layers_visible = counters_src->layers_visible.load(std::memory_order_relaxed);
-        run.framebuffer_allocations = counters_src->framebuffer_allocations.load(std::memory_order_relaxed);
-        run.framebuffer_reuses = counters_src->framebuffer_reuses.load(std::memory_order_relaxed);
-        run.framebuffer_bytes_allocated = profiling::g_live_framebuffer_bytes.load(std::memory_order_relaxed);
-        run.framebuffer_bytes_peak = profiling::g_peak_live_framebuffer_bytes.load(std::memory_order_relaxed);
-        run.dirty_rect_count = counters_src->dirty_rect_count.load(std::memory_order_relaxed);
-        run.dirty_pixels = counters_src->dirty_pixels.load(std::memory_order_relaxed);
-        run.dirty_full_fallbacks = counters_src->dirty_full_fallbacks.load(std::memory_order_relaxed);
-        run.dirty_full_fallback_predicted_bounds_missing =
-            counters_src->dirty_full_fallback_reasons[static_cast<std::size_t>(DirtyFallbackReason::PredictedBoundsMissing)]
-                .load(std::memory_order_relaxed);
-        run.dirty_full_fallback_composite_missing_input_bounds =
-            counters_src->dirty_full_fallback_reasons[static_cast<std::size_t>(DirtyFallbackReason::CompositeMissingInputBounds)]
-                .load(std::memory_order_relaxed);
-        run.dirty_full_fallback_transform_bounds_unknown =
-            counters_src->dirty_full_fallback_reasons[static_cast<std::size_t>(DirtyFallbackReason::TransformBoundsUnknown)]
-                .load(std::memory_order_relaxed);
-        run.dirty_full_fallback_effect_bounds_unknown =
-            counters_src->dirty_full_fallback_reasons[static_cast<std::size_t>(DirtyFallbackReason::EffectBoundsUnknown)]
-                .load(std::memory_order_relaxed);
-        run.framebuffer_acquire_ms = counters_src->framebuffer_acquire_ms.load(std::memory_order_relaxed);
-        run.framebuffer_clear_ms = counters_src->framebuffer_clear_ms.load(std::memory_order_relaxed);
-        run.clearnode_ms = counters_src->clearnode_ms.load(std::memory_order_relaxed);
-        run.framebuffer_pool_clear_ms = counters_src->framebuffer_pool_clear_ms.load(std::memory_order_relaxed);
-        run.framebuffer_enqueue_ms = counters_src->framebuffer_enqueue_ms.load(std::memory_order_relaxed);
-        run.framebuffer_pool_miss_count_size_mismatch = counters_src->framebuffer_pool_miss_count_size_mismatch.load(std::memory_order_relaxed);
-        run.framebuffer_pool_miss_count_empty = counters_src->framebuffer_pool_miss_count_empty.load(std::memory_order_relaxed);
-        run.framebuffer_pool_hits = counters_src->framebuffer_pool_hits.load(std::memory_order_relaxed);
-        run.framebuffer_buffer_returned_to_pool_count = counters_src->framebuffer_buffer_returned_to_pool_count.load(std::memory_order_relaxed);
-        run.unaligned_memory_copies = counters_src->unaligned_memory_copies.load(std::memory_order_relaxed);
-        run.frame_conversion_copy_ms = counters_src->frame_conversion_copy_ms.load(std::memory_order_relaxed);
-        run.video_graph_eval_ms = counters_src->video_graph_eval_ms.load(std::memory_order_relaxed);
-        run.video_conversion_ms = counters_src->video_conversion_ms.load(std::memory_order_relaxed);
-        run.video_pipe_write_ms = counters_src->video_pipe_write_ms.load(std::memory_order_relaxed);
-        run.video_ffmpeg_latency_ms = counters_src->video_ffmpeg_latency_ms.load(std::memory_order_relaxed);
-        run.io_queue_push_blocked_ms = counters_src->io_queue_push_blocked_ms.load(std::memory_order_relaxed);
-        run.io_queue_pop_wait_ms = counters_src->io_queue_pop_wait_ms.load(std::memory_order_relaxed);
-        run.io_queue_peak_depth = counters_src->io_queue_peak_depth.load(std::memory_order_relaxed);
-        run.ffmpeg_pipe_write_blocked_ms = counters_src->ffmpeg_pipe_write_blocked_ms.load(std::memory_order_relaxed);
-        run.converted_frame_cache_hits = counters_src->converted_frame_cache_hits.load(std::memory_order_relaxed);
-        run.ffmpeg_flush_ms = counters_src->ffmpeg_flush_ms.load(std::memory_order_relaxed);
-
-        run.chronon_conversion_copy_ms = counters_src->frame_conversion_copy_ms.load(std::memory_order_relaxed);
+        populate_run_metrics(run, *counters_src);
     }
 
     const auto resolved_counters = counters.empty() && counters_src

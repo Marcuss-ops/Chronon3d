@@ -38,7 +38,6 @@ int command_bake_layer(const CompositionRegistry& registry, const BakeLayerArgs&
     graph_ctx.backend = renderer.get();
     graph_ctx.node_cache = &renderer->node_cache();
     graph_ctx.framebuffer_pool = renderer->framebuffer_pool();
-    graph_ctx.trace = renderer->trace();
     graph_ctx.counters = renderer->counters();
     graph_ctx.registry = &registry;
 

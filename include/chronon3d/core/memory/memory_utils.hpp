@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdlib>
+#include <iostream>
 
 #ifdef __linux__
 #include <sys/mman.h>
@@ -29,6 +30,12 @@ inline void* allocate_huge_pages(size_t size) {
     if (ptr != MAP_FAILED) {
         return ptr;
     }
+    // Fallback to standard page mmap under Linux (safe to munmap)
+    ptr = mmap(nullptr, size, PROT_READ | PROT_WRITE, 
+               MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (ptr != MAP_FAILED) {
+        return ptr;
+    }
 #endif
 
 #ifdef _WIN32
@@ -45,7 +52,8 @@ inline void* allocate_huge_pages(size_t size) {
 inline void free_huge_pages(void* ptr, size_t size) {
     if (!ptr) return;
 #ifdef __linux__
-    if (munmap(ptr, size) == 0) return;
+    (void)munmap(ptr, size);
+    return;
 #endif
 
 #ifdef _WIN32

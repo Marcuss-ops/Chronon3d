@@ -8,6 +8,7 @@
 #include <chronon3d/backends/software/shape_processor.hpp>
 #include <chronon3d/backends/software/builtin_processors.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
+#include <chronon3d/core/enum_utils.hpp>
 #include <optional>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <spdlog/spdlog.h>
@@ -38,22 +39,18 @@ namespace {
 struct ProfilingScope {
     ProfilingScope(RenderCounters* counters,
                    cache::FramebufferPool* pool,
-                   int32_t frame)
-        : previous_frame(profiling::g_current_frame),
-          previous_counters(profiling::g_current_counters),
+                   int32_t /*frame*/)
+        : previous_counters(profiling::g_current_counters),
           previous_pool(profiling::g_current_framebuffer_pool) {
-        profiling::g_current_frame = frame;
         profiling::g_current_counters = counters;
         profiling::g_current_framebuffer_pool = pool;
     }
 
     ~ProfilingScope() {
-        profiling::g_current_frame = previous_frame;
         profiling::g_current_counters = previous_counters;
         profiling::g_current_framebuffer_pool = previous_pool;
     }
 
-    int32_t previous_frame;
     RenderCounters* previous_counters;
     cache::FramebufferPool* previous_pool;
 };
@@ -108,22 +105,9 @@ void draw_bbox_overlay(Framebuffer& fb, const raster::BBox& bbox, const Color& c
 }
 
 const char* shape_type_name(ShapeType type) {
-    switch (type) {
-    case ShapeType::None: return "None";
-    case ShapeType::Rect: return "Rect";
-    case ShapeType::RoundedRect: return "RoundedRect";
-    case ShapeType::Circle: return "Circle";
-    case ShapeType::Line: return "Line";
-    case ShapeType::Path: return "Path";
-    case ShapeType::Text: return "Text";
-    case ShapeType::Image: return "Image";
-    case ShapeType::Mesh: return "Mesh";
-    case ShapeType::GridBackground: return "GridBackground";
-    case ShapeType::FakeBox3D: return "FakeBox3D";
-    case ShapeType::GridPlane: return "GridPlane";
-    case ShapeType::FakeExtrudedText: return "FakeExtrudedText";
-    }
-    return "Unknown";
+    static thread_local std::string name;
+    name = std::string(enum_utils::enum_name_exact(type));
+    return name.empty() ? "Unknown" : name.c_str();
 }
 
 void draw_layout_preview(Framebuffer& fb, const RenderNode& node, const RenderState& state,

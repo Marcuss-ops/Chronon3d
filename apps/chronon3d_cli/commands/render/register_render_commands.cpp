@@ -18,7 +18,6 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
     cmd->add_option("input", args.comp_id, "Composition name or .specscene path")->required();
     cmd->add_option("--frames", args.frames, "Frame range: 0 | 0-90 | 0-90x5");
     cmd->add_option("-o,--output", args.output, "Output path (use #### for frame number)");
-    cmd->add_option("--trace", args.trace_file, "Path to output Chrome performance trace JSON file");
     cmd->add_flag("--diagnostic,--layout-preview", args.pipeline.diagnostic,
                   "Enable layout preview overlays (bbox, anchors, center guide)");
     cmd->add_flag("--diagnostic-plan", args.pipeline.diagnostic_plan,

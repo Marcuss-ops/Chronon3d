@@ -1,17 +1,14 @@
 #include "render_preflight_helpers.hpp"
 
+#include <chronon3d/core/enum_utils.hpp>
+
 #include <sstream>
 #include <string>
 
 namespace chronon3d {
 
-const char* severity_label(PreflightSeverity s) {
-    switch (s) {
-        case PreflightSeverity::Info:    return "INFO";
-        case PreflightSeverity::Warning: return "WARNING";
-        case PreflightSeverity::Error:   return "ERROR";
-    }
-    return "UNKNOWN";
+std::string severity_label(PreflightSeverity s) {
+    return enum_utils::enum_name_upper_snake(s);
 }
 
 std::string asset_type_label(PreflightAssetType t) {

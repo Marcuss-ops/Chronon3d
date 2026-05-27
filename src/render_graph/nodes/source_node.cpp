@@ -20,13 +20,19 @@ constexpr f32 kSeedFrameEpsilon = 1e-3f;
 [[nodiscard]] bool covers_full_frame_as_rectangle(
     const Mat4& matrix,
     f32 width,
-    f32 height
+    f32 height,
+    bool centered = false
 ) {
+    const f32 x0 = centered ? -width * 0.5f : 0.0f;
+    const f32 x1 = centered ?  width * 0.5f : width;
+    const f32 y0 = centered ? -height * 0.5f : 0.0f;
+    const f32 y1 = centered ?  height * 0.5f : height;
+
     const Vec4 corners[4] = {
-        matrix * Vec4(0.0f, 0.0f, 0.0f, 1.0f),
-        matrix * Vec4(width, 0.0f, 0.0f, 1.0f),
-        matrix * Vec4(width, height, 0.0f, 1.0f),
-        matrix * Vec4(0.0f, height, 0.0f, 1.0f)
+        matrix * Vec4(x0, y0, 0.0f, 1.0f),
+        matrix * Vec4(x1, y0, 0.0f, 1.0f),
+        matrix * Vec4(x1, y1, 0.0f, 1.0f),
+        matrix * Vec4(x0, y1, 0.0f, 1.0f)
     };
 
     std::array<f32, 4> xs{};
@@ -278,7 +284,7 @@ bool SourceNode::can_seed_full_frame(const RenderGraphContext& ctx) const {
         ? (canvas_center * ssaa_scale * local_matrix)
         : (ssaa_scale * local_matrix);
 
-    return covers_full_frame_as_rectangle(effective_matrix, static_cast<f32>(ctx.width), static_cast<f32>(ctx.height));
+    return covers_full_frame_as_rectangle(effective_matrix, static_cast<f32>(ctx.width), static_cast<f32>(ctx.height), m_is_3d || m_centered);
 }
 
 } // namespace chronon3d::graph

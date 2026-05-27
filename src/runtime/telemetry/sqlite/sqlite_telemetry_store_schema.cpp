@@ -12,7 +12,7 @@ namespace chronon3d::telemetry {
 namespace {
 
 // Canonical column count for render_runs (from telemetry_schema.sql)
-constexpr int CANONICAL_RUN_COLUMNS = 103;
+constexpr int CANONICAL_RUN_COLUMNS = 90;
 
 // Ordered column names for render_runs matching telemetry_schema.sql
 constexpr const char* RUN_COLUMN_NAMES[] = {
@@ -20,7 +20,7 @@ constexpr const char* RUN_COLUMN_NAMES[] = {
     "frames_total", "frames_written", "wall_time_ms", "render_ms", "encode_ms",
     "effective_fps", "pixels_touched", "cache_hits", "cache_misses", "nodes_executed",
     "layers_rendered", "text_glyphs_rasterized", "images_sampled", "blur_pixels",
-    "simd_lerp_calls", "tiles_total", "tiles_hit", "tiles_miss", "tiles_partial",
+    "simd_lerp_calls",
     "bytes_allocated_peak", "node_cache_hash_collisions",
     "clear_skipped_calls", "clear_skipped_pixels", "clear_calls", "clear_pixels", "composite_calls", "composite_pixels",
     "transform_calls", "transform_pixels", "effect_stack_calls", "effect_pixels",
@@ -44,9 +44,6 @@ constexpr const char* RUN_COLUMN_NAMES[] = {
     "io_queue_peak_depth", "ffmpeg_pipe_write_blocked_ms", "converted_frame_cache_hits", "ffmpeg_flush_ms",
     "io_queue_peak_bytes", "setup_graph_parsing_ms", "setup_asset_io_load_ms",
     "setup_pool_preallocation_ms", "image_decode_ms",
-    "process_context_switches_voluntary", "process_context_switches_involuntary",
-    "os_page_faults_major", "os_page_faults_minor",
-    "ffmpeg_cpu_user_pct", "ffmpeg_cpu_sys_pct", "llc_references", "llc_misses",
     "chronon_render_only_ms", "chronon_conversion_copy_ms", "chronon_queue_wait_ms",
     "chronon_render_throughput_ms", "ffmpeg_encode_total_ms", "ffmpeg_flush_close_ms",
     "e2e_wall_ms",

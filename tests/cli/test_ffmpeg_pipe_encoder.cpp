@@ -2,8 +2,9 @@
 #include <apps/chronon3d_cli/utils/video/ffmpeg_pipe_encoder.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
-#include <chronon3d/core/profiling/trace.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/math/color.hpp>
+#include <iostream>
 
 using namespace chronon3d;
 using namespace chronon3d::cli;

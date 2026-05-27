@@ -44,9 +44,6 @@ void RenderPipeline::run(Frame start, Frame end, std::function<void(RenderedFram
         CHRONON_ZONE_C("write_output", trace_category::kOutput);
         output_callback(std::move(rf));
     }
-
-    // Flush telemetry recorded by the threads
-    telemetry::flush_telemetry();
 }
 
 } // namespace chronon3d

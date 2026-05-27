@@ -1,106 +1,76 @@
 #pragma once
-
-#include <chronon3d/core/dirty_fallback_reason.hpp>
-#include <chronon3d/core/types/types.hpp>
-#include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/runtime/telemetry/render_telemetry_record.hpp>
-#include <chronon3d/core/profiling/trace.hpp>
-
-#include <chrono>
-#include <cstdint>
-#include <filesystem>
-#include <fstream>
 #include <mutex>
-#include <string>
-#include <system_error>
 #include <vector>
 
 namespace chronon3d::telemetry {
 
-struct RenderTelemetryRow {
-    std::string event;
-    chronon3d::Frame frame{0};
-    int width{0};
-    int height{0};
-    double total_ms{0.0};
-    double setup_ms{0.0};
-    double composite_ms{0.0};
-    double blur_ms{0.0};
-    double encode_ms{0.0};
-    double ram_mb{0.0};
-    int cache_hit{0};
-    int layer_count{0};
-    uint64_t cache_hits{0};
-    uint64_t cache_misses{0};
-    uint64_t nodes_executed{0};
-    uint64_t clear_calls{0};
-    uint64_t clear_pixels{0};
-    uint64_t composite_calls{0};
-    uint64_t composite_pixels{0};
-    uint64_t transform_calls{0};
-    uint64_t transform_pixels{0};
-    uint64_t effect_stack_calls{0};
-    uint64_t effect_pixels{0};
-    uint64_t text_glyphs_rasterized{0};
-    uint64_t framebuffer_allocations{0};
-    uint64_t framebuffer_reuses{0};
-    uint64_t dirty_full_fallbacks{0};
-    uint64_t clear_skipped_calls{0};
-    uint64_t clear_skipped_pixels{0};
-    uint64_t dirty_full_fallback_predicted_bounds_missing{0};
-    uint64_t dirty_full_fallback_composite_missing_input_bounds{0};
-    uint64_t dirty_full_fallback_transform_bounds_unknown{0};
-    uint64_t dirty_full_fallback_effect_bounds_unknown{0};
-    uint64_t framebuffer_acquire_ms{0};
-    uint64_t framebuffer_clear_ms{0};
-    uint64_t clearnode_ms{0};
-    uint64_t framebuffer_pool_clear_ms{0};
-    uint64_t framebuffer_enqueue_ms{0};
-    uint64_t framebuffer_pool_miss_count_size_mismatch{0};
-    uint64_t framebuffer_pool_miss_count_empty{0};
-    uint64_t framebuffer_pool_hits{0};
-    uint64_t framebuffer_buffer_returned_to_pool_count{0};
-    uint64_t unaligned_memory_copies{0};
-    uint64_t frame_conversion_copy_ms{0};
-    uint64_t video_graph_eval_ms{0};
-    uint64_t video_conversion_ms{0};
-    uint64_t video_pipe_write_ms{0};
-    uint64_t video_ffmpeg_latency_ms{0};
-    uint64_t io_queue_push_blocked_ms{0};
-    uint64_t io_queue_pop_wait_ms{0};
-    uint64_t io_queue_peak_depth{0};
-    uint64_t ffmpeg_pipe_write_blocked_ms{0};
-    uint64_t converted_frame_cache_hits{0};
-    uint64_t ffmpeg_flush_ms{0};
-    uint64_t io_queue_peak_bytes{0};
+namespace detail {
 
-    // ── Setup Deep Dive ──
-    uint64_t setup_graph_parsing_ms{0};
-    uint64_t setup_asset_io_load_ms{0};
-    uint64_t setup_pool_preallocation_ms{0};
-    uint64_t image_decode_ms{0};
-
-    // ── OS & Process Diagnostics ──
-    uint64_t process_context_switches_voluntary{0};
-    uint64_t process_context_switches_involuntary{0};
-    uint64_t os_page_faults_major{0};
-    uint64_t os_page_faults_minor{0};
-    uint64_t ffmpeg_cpu_user_pct{0};
-    uint64_t ffmpeg_cpu_sys_pct{0};
-    uint64_t llc_references{0};
-    uint64_t llc_misses{0};
-};
-
-} // namespace chronon3d::telemetry
-
-#include <chronon3d/core/telemetry/render_telemetry_detail.hpp>
-
-namespace chronon3d::telemetry {
-
-inline void record_render_telemetry(const RenderTelemetryRow& row) {
-    std::lock_guard<std::mutex> lock(detail::telemetry_mutex());
-    detail::global_rows().push_back(row);
+inline std::mutex& node_telemetry_mutex() {
+    static std::mutex m;
+    return m;
 }
+inline std::vector<NodeTelemetryRecord>& node_telemetry_store() {
+    static std::vector<NodeTelemetryRecord> store;
+    return store;
+}
+
+inline std::mutex& layer_telemetry_mutex() {
+    static std::mutex m;
+    return m;
+}
+inline std::vector<LayerTelemetryRecord>& layer_telemetry_store() {
+    static std::vector<LayerTelemetryRecord> store;
+    return store;
+}
+
+inline std::mutex& cache_telemetry_mutex() {
+    static std::mutex m;
+    return m;
+}
+inline std::vector<CacheTelemetryRecord>& cache_telemetry_store() {
+    static std::vector<CacheTelemetryRecord> store;
+    return store;
+}
+
+inline std::mutex& culling_telemetry_mutex() {
+    static std::mutex m;
+    return m;
+}
+inline std::vector<CullingTelemetryRecord>& culling_telemetry_store() {
+    static std::vector<CullingTelemetryRecord> store;
+    return store;
+}
+
+inline std::mutex& text_telemetry_mutex() {
+    static std::mutex m;
+    return m;
+}
+inline std::vector<TextTelemetryRecord>& text_telemetry_store() {
+    static std::vector<TextTelemetryRecord> store;
+    return store;
+}
+
+inline std::mutex& image_telemetry_mutex() {
+    static std::mutex m;
+    return m;
+}
+inline std::vector<ImageTelemetryRecord>& image_telemetry_store() {
+    static std::vector<ImageTelemetryRecord> store;
+    return store;
+}
+
+inline std::mutex& tile_telemetry_mutex() {
+    static std::mutex m;
+    return m;
+}
+inline std::vector<TileTelemetryRecord>& tile_telemetry_store() {
+    static std::vector<TileTelemetryRecord> store;
+    return store;
+}
+
+} // namespace detail
 
 inline void record_node_telemetry(const NodeTelemetryRecord& rec) {
     std::lock_guard<std::mutex> lock(detail::node_telemetry_mutex());
@@ -198,109 +168,6 @@ inline std::vector<TileTelemetryRecord> collect_tile_telemetry() {
     std::vector<TileTelemetryRecord> result = std::move(buf);
     buf.clear();
     return result;
-}
-
-inline void flush_telemetry() {
-    std::scoped_lock lock(detail::telemetry_mutex());
-    auto& global = detail::global_rows();
-    if (global.empty()) return;
-
-    std::vector<RenderTelemetryRow> buffer = std::move(global);
-    global.clear();
-
-    const auto ts = std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::system_clock::now().time_since_epoch()).count();
-    const std::size_t run_id = detail::current_run_id();
-    const std::filesystem::path csv_path = detail::telemetry_csv_path();
-
-    if (csv_path.has_parent_path()) {
-        std::error_code ec;
-        std::filesystem::create_directories(csv_path.parent_path(), ec);
-    }
-
-    detail::migrate_legacy_csv(csv_path);
-
-    std::ofstream csv(csv_path, std::ios::app);
-    if (csv) {
-        detail::ensure_csv_header(csv, csv_path);
-    }
-
-    for (const auto& row : buffer) {
-        if (csv) {
-            csv << ts << ','
-                << run_id << ','
-                << detail::csv_escape(row.event) << ','
-                << row.frame << ','
-                << row.width << ','
-                << row.height << ','
-                << row.total_ms << ','
-                << row.setup_ms << ','
-                << row.composite_ms << ','
-                << row.blur_ms << ','
-                << row.encode_ms << ','
-                << row.ram_mb << ','
-                << row.cache_hit << ','
-                << row.layer_count << ','
-                << row.cache_hits << ','
-                << row.cache_misses << ','
-                << row.nodes_executed << ','
-                << row.clear_skipped_calls << ','
-                << row.clear_skipped_pixels << ','
-                << row.clear_calls << ','
-                << row.clear_pixels << ','
-                << row.composite_calls << ','
-                << row.composite_pixels << ','
-                << row.transform_calls << ','
-                << row.transform_pixels << ','
-                << row.effect_stack_calls << ','
-                << row.effect_pixels << ','
-                << row.text_glyphs_rasterized << ','
-                << row.framebuffer_allocations << ','
-                << row.framebuffer_reuses << ','
-                << row.dirty_full_fallbacks << ','
-                << row.dirty_full_fallback_predicted_bounds_missing << ','
-                << row.dirty_full_fallback_composite_missing_input_bounds << ','
-                << row.dirty_full_fallback_transform_bounds_unknown << ','
-                << row.dirty_full_fallback_effect_bounds_unknown << ','
-                << row.framebuffer_acquire_ms << ','
-                << row.framebuffer_clear_ms << ','
-                << row.clearnode_ms << ','
-                << row.framebuffer_pool_clear_ms << ','
-                << row.framebuffer_enqueue_ms << ','
-                << row.framebuffer_pool_miss_count_size_mismatch << ','
-                << row.framebuffer_pool_miss_count_empty << ','
-                << row.framebuffer_pool_hits << ','
-                << row.framebuffer_buffer_returned_to_pool_count << ','
-                << row.unaligned_memory_copies << ','
-                << row.frame_conversion_copy_ms << ','
-                << row.video_graph_eval_ms << ','
-                << row.video_conversion_ms << ','
-                << row.video_pipe_write_ms << ','
-                << row.video_ffmpeg_latency_ms << ','
-                << row.io_queue_push_blocked_ms << ','
-                << row.io_queue_pop_wait_ms << ','
-                << row.io_queue_peak_depth << ','
-                << row.ffmpeg_pipe_write_blocked_ms << ','
-                << row.converted_frame_cache_hits << ','
-                << row.ffmpeg_flush_ms << ','
-                << row.io_queue_peak_bytes << ','
-                << row.setup_graph_parsing_ms << ','
-                << row.setup_asset_io_load_ms << ','
-                << row.setup_pool_preallocation_ms << ','
-                << row.image_decode_ms << ','
-                << row.process_context_switches_voluntary << ','
-                << row.process_context_switches_involuntary << ','
-                << row.os_page_faults_major << ','
-                << row.os_page_faults_minor << ','
-                << row.ffmpeg_cpu_user_pct << ','
-                << row.ffmpeg_cpu_sys_pct << ','
-                << row.llc_references << ','
-                << row.llc_misses << '\n';
-        }
-    }
-
-    detail::write_summary_file(buffer);
-    global.clear();
 }
 
 } // namespace chronon3d::telemetry

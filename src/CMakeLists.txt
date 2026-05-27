@@ -4,9 +4,8 @@
 
 # 1. Core Impl
 add_library(chronon3d_core_impl STATIC
-    core/trace.cpp
+    core/profiling.cpp
     core/benchmark_report.cpp
-    core/render_telemetry_detail.cpp
     core/system_metrics.cpp
     core/cancellation_token.cpp
 )
@@ -59,6 +58,7 @@ set(CHRONON3D_GRAPH_SOURCES
     render_graph/render_pipeline_debug.cpp
     render_graph/render_pipeline_composition.cpp
     render_graph/preflight_render_graph.cpp
+    render_graph/preflight_render_graph_format.cpp
     render_graph/graph_filter.cpp
     render_graph/optimizer/graph_optimizer.cpp
     render_graph/nodes/source_node.cpp
@@ -95,8 +95,6 @@ set(CHRONON3D_RUNTIME_SOURCES
     runtime/pipeline.cpp
     runtime/scene_to_render_graph.cpp
     runtime/timeline_evaluator.cpp
-    runtime/telemetry/jsonl/jsonl_serializers.cpp
-    runtime/telemetry/jsonl/jsonl_telemetry_store.cpp
     runtime/telemetry/telemetry_manager.cpp
     runtime/renderer_warmup.cpp
 )
@@ -104,10 +102,6 @@ if(CHRONON3D_ENABLE_SQLITE_TELEMETRY)
     list(APPEND CHRONON3D_RUNTIME_SOURCES
         runtime/telemetry/sqlite/sqlite_telemetry_store.cpp
         runtime/telemetry/sqlite/sqlite_telemetry_store_schema.cpp
-        runtime/telemetry/sqlite/sqlite_telemetry_store_write.cpp
-        runtime/telemetry/sqlite/sqlite_telemetry_store_batch.cpp
-        runtime/telemetry/sqlite/sqlite_telemetry_store_events.cpp
-        runtime/telemetry/sqlite/sqlite_telemetry_store_media.cpp
     )
 else()
     list(APPEND CHRONON3D_RUNTIME_SOURCES
@@ -129,7 +123,7 @@ target_include_directories(chronon3d_runtime PRIVATE "${CMAKE_CURRENT_BINARY_DIR
 
 if(CHRONON3D_ENABLE_SQLITE_TELEMETRY)
     target_link_libraries(chronon3d_runtime PUBLIC unofficial::sqlite3::sqlite3)
-    target_compile_definitions(chronon3d_runtime PRIVATE CHRONON3D_ENABLE_SQLITE_TELEMETRY)
+    target_compile_definitions(chronon3d_runtime PUBLIC CHRONON3D_ENABLE_SQLITE_TELEMETRY)
 endif()
 
 # 8. Backends (Image, Assets, Video, Software)

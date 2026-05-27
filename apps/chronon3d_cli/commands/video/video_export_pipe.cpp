@@ -183,7 +183,6 @@ int render_and_encode_ffmpeg_pipe(
             .dummy_frame = 0,
             .quiet = false
         });
-        renderer->trace()->clear();
         renderer->counters()->reset();
     }
 
@@ -269,7 +268,6 @@ int render_and_encode_ffmpeg_pipe(
     if (writer_thread.joinable()) {
         writer_thread.join();
     }
-    chronon3d::telemetry::flush_telemetry();
     const auto setup_t1 = render_t0;
     auto node_events = chronon3d::telemetry::collect_node_telemetry();
     auto layer_events = chronon3d::telemetry::collect_layer_telemetry();

@@ -11,7 +11,6 @@ endfunction()
 add_executable(chronon3d_core_tests
     ${TEST_MAIN}
     core/test_frame_context.cpp
-    core/trace_test.cpp
     core/math/test_math.cpp
     core/math/test_output_transform.cpp
     simd/test_simd_kernels.cpp
@@ -116,7 +115,6 @@ add_executable(chronon3d_renderer_tests
     golden/suite_chronon3d_tests.cpp
     runtime/test_telemetry.cpp
     runtime/test_telemetry_semantic.cpp
-    runtime/test_telemetry_coherence.cpp
     runtime/test_telemetry_report.cpp
 )
 target_link_libraries(chronon3d_renderer_tests
