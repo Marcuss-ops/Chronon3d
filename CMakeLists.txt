@@ -81,7 +81,7 @@ find_package(blend2d CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(OpenEXR CONFIG REQUIRED)
 find_package(magic_enum CONFIG REQUIRED)
-find_package(benchmark CONFIG REQUIRED)
+find_package(benchmark CONFIG)
 find_package(libyuv CONFIG REQUIRED)
 
 

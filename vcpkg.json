@@ -25,5 +25,11 @@
     "magic-enum",
     "benchmark"
   ],
-  "default-features": []
+  "features": {
+    "benchmarks": {
+      "description": "Build benchmarks",
+      "dependencies": ["benchmark"]
+    }
+  },
+  "default-features": ["benchmarks"]
 }

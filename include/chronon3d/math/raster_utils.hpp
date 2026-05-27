@@ -38,17 +38,9 @@ inline bool point_in_circle(f32 px, f32 py, f32 r) {
     return px * px + py * py <= r * r;
 }
 
-// Basic blending (Normal mode)
+// Basic blending (Normal mode) — delegates to compositor::blend_normal
 inline Color blend_normal(const Color& src, const Color& dst) {
-    if (src.a >= 1.0f) return src;
-    if (src.a <= 0.0f) return dst;
-    
-    return Color{
-        src.r * src.a + dst.r * (1.0f - src.a),
-        src.g * src.a + dst.g * (1.0f - src.a),
-        src.b * src.a + dst.b * (1.0f - src.a),
-        src.a + dst.a * (1.0f - src.a)
-    };
+    return compositor::blend_normal(src, dst);
 }
 
 } // namespace raster
