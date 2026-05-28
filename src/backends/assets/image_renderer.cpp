@@ -51,7 +51,11 @@ bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state
         scaled_model[3][1]
     );
 
-    blend2d_bridge::composite_bl_image_transformed(fb, cached->bl_img, scaled_model, final_opacity, BlendMode::Normal, &state);
+    if (image.radius <= 0.0f && cached->fb_img) {
+        blend2d_bridge::composite_framebuffer_transformed(fb, *cached->fb_img, scaled_model, final_opacity, BlendMode::Normal, &state);
+    } else {
+        blend2d_bridge::composite_bl_image_transformed(fb, cached->bl_img, scaled_model, final_opacity, BlendMode::Normal, &state, image.radius);
+    }
 
     return true;
 }

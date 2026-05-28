@@ -13,10 +13,10 @@ namespace renderer {
 // fill=nullptr → uses solid color only.
 void draw_transformed_shape(Framebuffer& fb, const Shape& shape, const Mat4& model, const Color& color,
                              f32 spread = 0.0f, const RenderState* state = nullptr,
-                             const Fill* fill = nullptr);
+                             const Fill* fill = nullptr, f32 corner_radius = 0.0f);
 
 raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 spread = 0.0f);
-bool hit_test(const Shape& s, Vec2 p, f32 spread = 0.0f);
+bool hit_test(const Shape& s, Vec2 p, f32 spread = 0.0f, f32 corner_radius = 0.0f);
 bool pixel_passes_mask(const RenderState& state, i32 x, i32 y);
 
 } // namespace renderer

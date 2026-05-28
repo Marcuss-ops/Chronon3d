@@ -58,6 +58,7 @@ struct ImageParams {
     Vec2 size{100.0f, 100.0f};
     Vec3 pos{0.0f, 0.0f, 0.0f};
     f32 opacity{1.0f};
+    f32 radius{0.0f};
 };
 
 struct GridBackgroundParams {
@@ -86,6 +87,7 @@ struct TextParams {
     VerticalAlign vertical_align{VerticalAlign::Top};
     f32 line_height{1.2f};
     f32 tracking{0.0f};
+    TextBoxStyle box_style{};
 };
 
 struct ContactShadowParams {

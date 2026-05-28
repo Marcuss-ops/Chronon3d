@@ -150,11 +150,42 @@ raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 sprea
     };
 }
 
-bool hit_test(const Shape& s, Vec2 p, f32 spread) {
+bool hit_test(const Shape& s, Vec2 p, f32 spread, f32 corner_radius) {
     switch (s.type) {
-        case ShapeType::Rect:
+        case ShapeType::Rect: {
+            if (corner_radius > 0.0f) {
+                const f32 w = s.rect.size.x;
+                const f32 h = s.rect.size.y;
+                const f32 r = std::max(0.0f, std::min({corner_radius, w * 0.5f, h * 0.5f}));
+                
+                if (p.x < -spread || p.x > w + spread || p.y < -spread || p.y > h + spread) return false;
+
+                const f32 r_spread = r + spread;
+                if (p.x < r && p.y < r) { // Top-left
+                    const f32 dx = p.x - r;
+                    const f32 dy = p.y - r;
+                    return (dx * dx + dy * dy) <= r_spread * r_spread;
+                }
+                if (p.x > w - r && p.y < r) { // Top-right
+                    const f32 dx = p.x - (w - r);
+                    const f32 dy = p.y - r;
+                    return (dx * dx + dy * dy) <= r_spread * r_spread;
+                }
+                if (p.x < r && p.y > h - r) { // Bottom-left
+                    const f32 dx = p.x - r;
+                    const f32 dy = p.y - (h - r);
+                    return (dx * dx + dy * dy) <= r_spread * r_spread;
+                }
+                if (p.x > w - r && p.y > h - r) { // Bottom-right
+                    const f32 dx = p.x - (w - r);
+                    const f32 dy = p.y - (h - r);
+                    return (dx * dx + dy * dy) <= r_spread * r_spread;
+                }
+                return true;
+            }
             return p.x >= -spread && p.x < s.rect.size.x + spread &&
                    p.y >= -spread && p.y < s.rect.size.y + spread;
+        }
 
         case ShapeType::RoundedRect: {
             const f32 w = s.rounded_rect.size.x;
@@ -200,7 +231,7 @@ bool hit_test(const Shape& s, Vec2 p, f32 spread) {
 }
 
 void draw_transformed_shape(Framebuffer& fb, const Shape& shape, const Mat4& model, const Color& color,
-                             f32 spread, const RenderState* state, const Fill* fill) {
+                             f32 spread, const RenderState* state, const Fill* fill, f32 corner_radius) {
     if (color.a <= 0.0f) return;
 
     if (shape.type == ShapeType::Path) {
@@ -247,7 +278,7 @@ void draw_transformed_shape(Framebuffer& fb, const Shape& shape, const Mat4& mod
     const Vec3 col1 = invH[1];
     const Vec3 col2 = invH[2];
 
-    const bool can_use_simd = !use_gradient && (!state || !state->mask || !state->mask->enabled());
+    const bool can_use_simd = !use_gradient && (corner_radius <= 0.0f) && (!state || !state->mask || !state->mask->enabled());
 
     for (i32 y = bbox.y0; y < bbox.y1; ++y) {
         Color* row = fb.pixels_row(y);
@@ -279,7 +310,7 @@ void draw_transformed_shape(Framebuffer& fb, const Shape& shape, const Mat4& mod
                 const f32 inv_z = 1.0f / lp_h.z;
                 Vec2 lp(lp_h.x * inv_z, lp_h.y * inv_z);
 
-                if (hit_test(shape, lp, spread)) {
+                if (hit_test(shape, lp, spread, corner_radius)) {
                     const Color pixel_color = use_gradient
                         ? resolve_gradient_color(*fill, lp, sz, color.a)
                         : color;

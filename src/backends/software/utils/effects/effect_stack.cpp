@@ -306,10 +306,10 @@ void draw_shadow(Framebuffer& fb, const RenderNode& node, const RenderState& sta
         const f32 spread = node.shadow.radius * t;
         const f32 alpha  = base.a * (1.0f - t * t) * state.opacity;
         if (alpha > 0.0f)
-            draw_transformed_shape(fb, node.shape, shadow_model, {base.r, base.g, base.b, alpha}, spread, &state);
+            draw_transformed_shape(fb, node.shape, shadow_model, {base.r, base.g, base.b, alpha}, spread, &state, nullptr, node.corner_radius);
     }
     draw_transformed_shape(fb, node.shape, shadow_model,
-                           {base.r, base.g, base.b, base.a * 0.7f * state.opacity}, 0.0f, &state);
+                           {base.r, base.g, base.b, base.a * 0.7f * state.opacity}, 0.0f, &state, nullptr, node.corner_radius);
 }
 
 void draw_glow(Framebuffer& fb, const RenderNode& node, const RenderState& state) {
@@ -324,7 +324,7 @@ void draw_glow(Framebuffer& fb, const RenderNode& node, const RenderState& state
         const f32 expand = node.glow.radius * t;
         const f32 alpha  = base.a * node.glow.intensity * (1.0f - t) * state.opacity;
         if (alpha > 0.0f)
-            draw_transformed_shape(fb, node.shape, model, {base.r, base.g, base.b, alpha}, expand, &state);
+            draw_transformed_shape(fb, node.shape, model, {base.r, base.g, base.b, alpha}, expand, &state, nullptr, node.corner_radius);
     }
 }
 
