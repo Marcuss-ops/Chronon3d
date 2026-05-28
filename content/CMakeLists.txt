@@ -1,6 +1,5 @@
 add_library(chronon3d_content STATIC
     text/text_helpers.cpp
-    text/text_titles.cpp
     text/text_effects.cpp
     text/text_layout.cpp
     text/text_scrolling.cpp

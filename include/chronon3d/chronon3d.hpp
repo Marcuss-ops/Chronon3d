@@ -48,8 +48,6 @@
 #include <chronon3d/render_graph/graph_builder.hpp>
 #include <chronon3d/render_graph/graph_executor.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
-#include <chronon3d/presets/studio_presets.hpp>
-#include <chronon3d/presets/overlay_presets.hpp>
 #include <chronon3d/scene/camera/camera.hpp>
 #include <chronon3d/scene/camera/camera_2_5d.hpp>
 #include <chronon3d/scene/camera/dof.hpp>
@@ -60,7 +58,6 @@
 #include <chronon3d/scene/effects/layer_effect.hpp>
 #include <chronon3d/scene/layer/depth_role.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
-#include <chronon3d/animation/interpolate.hpp>
 #include <chronon3d/assets/asset_registry.hpp>
 #include <chronon3d/assets/render_preflight.hpp>
 #include <chronon3d/presets/motion_object.hpp>

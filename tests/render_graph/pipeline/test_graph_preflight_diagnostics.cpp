@@ -643,8 +643,8 @@ TEST_CASE("GlowRender: 05 PulseWave frames 0 and 15 differ (animation active)") 
     REQUIRE(fb15 != nullptr);
     check_corners_and_centre(*fb0,  0.90f);
     check_corners_and_centre(*fb15, 0.90f);
-    const auto c0  = fb0->get_pixel(768, 512);
-    const auto c15 = fb15->get_pixel(768, 512);
+    const auto c0  = fb0->get_pixel(768, 512 - 45);
+    const auto c15 = fb15->get_pixel(768, 512 - 45);
     const float d  = std::abs(c0.r-c15.r)+std::abs(c0.g-c15.g)+std::abs(c0.b-c15.b);
     CHECK_MESSAGE(d > 0.01f, "PulseWave frames 0 and 15 are identical — animation frozen");
 }

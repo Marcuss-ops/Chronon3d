@@ -17,7 +17,7 @@ Composition glow_05_pulse_wave() {
 
         // Outer ring — large soft cyan glow
         s.layer("ring_outer", [p](LayerBuilder& l) {
-            l.position({-kHW, -kHH, 0})
+            l.position({0, 0, 0})
              .glow(140.f + p*40.f, 0.40f + p*0.45f, Color{0.18f,0.78f,1.f,1.f});
             // Invisible circle just to anchor the glow
             l.circle("c", {.radius=190.f,.color=Color{0,0,0,0},.pos={0,0,0}});
@@ -25,21 +25,21 @@ Composition glow_05_pulse_wave() {
 
         // Mid ring — purple
         s.layer("ring_mid", [p2](LayerBuilder& l) {
-            l.position({-kHW, -kHH, 0})
+            l.position({0, 0, 0})
              .glow(80.f + p2*30.f, 0.70f + p2*0.50f, Color{0.65f,0.25f,1.f,1.f});
             l.circle("c", {.radius=110.f,.color=Color{0,0,0,0},.pos={0,0,0}});
         });
 
         // Inner ring — magenta
         s.layer("ring_inner", [p3](LayerBuilder& l) {
-            l.position({-kHW, -kHH, 0})
+            l.position({0, 0, 0})
              .glow(40.f + p3*20.f, 1.0f + p3*0.6f, Color{1.f,0.22f,0.72f,1.f});
             l.circle("c", {.radius=60.f,.color=Color{0,0,0,0},.pos={0,0,0}});
         });
 
         // Core bright orb
         s.layer("core", [p](LayerBuilder& l) {
-            l.position({-kHW, -kHH, 0})
+            l.position({0, 0, 0})
              .glow(30.f, 1.8f + p*0.5f, Color{0.90f,0.97f,1.f,1.f});
             l.circle("c", {.radius=32.f + p*8.f,.color=Color{1,1,1,0.95f},.pos={0,0,0}});
         });

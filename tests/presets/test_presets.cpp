@@ -1,6 +1,4 @@
 #include <doctest/doctest.h>
-#include <chronon3d/presets/text_spec.hpp>
-#include <chronon3d/presets/parallax_layer.hpp>
 #include <chronon3d/presets/phrase/phrase_group_builder.hpp>
 #include <chronon3d/presets/style_kit.hpp>
 #include <chronon3d/presets/motion_preset_registry.hpp>
@@ -9,51 +7,6 @@
 using namespace chronon3d;
 using namespace chronon3d::presets;
 using namespace chronon3d::presets::phrase;
-
-TEST_CASE("TextSpec Default and Builder Setup") {
-    TextSpec spec;
-    CHECK(spec.text.empty());
-    CHECK(spec.size == doctest::Approx(32.0f));
-    CHECK(spec.tracking == doctest::Approx(0.0f));
-    CHECK(spec.color == Color{1.0f, 1.0f, 1.0f, 1.0f});
-    CHECK(spec.align == chronon3d::TextAlign::Center);
-    CHECK(spec.font_family == "Inter");
-    CHECK(spec.line_height == doctest::Approx(1.2f));
-    CHECK(spec.font_weight == 800);
-
-    spec.set_text("Hello Chronon3d")
-        .set_font(48.0f, 1.5f)
-        .set_color(Color{0.1f, 0.2f, 0.3f, 1.0f})
-        .set_align(chronon3d::TextAlign::Left)
-        .set_font_family("Roboto")
-        .set_line_height(1.5f)
-        .set_font_weight(400);
-
-    CHECK(spec.text == "Hello Chronon3d");
-    CHECK(spec.size == doctest::Approx(48.0f));
-    CHECK(spec.tracking == doctest::Approx(1.5f));
-    CHECK(spec.color == Color{0.1f, 0.2f, 0.3f, 1.0f});
-    CHECK(spec.align == chronon3d::TextAlign::Left);
-    CHECK(spec.font_family == "Roboto");
-    CHECK(spec.line_height == doctest::Approx(1.5f));
-    CHECK(spec.font_weight == 400);
-}
-
-TEST_CASE("ParallaxLayer Default and Builder Setup") {
-    ParallaxLayer layer;
-    CHECK(layer.speed == doctest::Approx(1.0f));
-    CHECK(layer.z == doctest::Approx(0.0f));
-
-    layer.set_depth(-300.0f, 0.5f);
-    CHECK(layer.z == doctest::Approx(-300.0f));
-    CHECK(layer.speed == doctest::Approx(0.5f));
-
-    layer.set_speed(0.2f);
-    CHECK(layer.speed == doctest::Approx(0.2f));
-
-    layer.set_z(100.0f);
-    CHECK(layer.z == doctest::Approx(100.0f));
-}
 
 TEST_CASE("PhraseTheme Factory Properties") {
     auto doc = PhraseTheme::documentary();

@@ -461,7 +461,7 @@ TEST_CASE("Chronon3d Suite: Shadow System Tests") {
             s.rect("box", {
                 .size = {40, 40},
                 .color = Color::white(),
-                .pos = {-20, -20, 0}
+                .pos = {0, 0, 0}
             });
             s.with_shadow({
                 .enabled = true,
@@ -471,6 +471,10 @@ TEST_CASE("Chronon3d Suite: Shadow System Tests") {
             });
             return s.build();
         });
+        comp.camera.transform.position.x = 0.0f;
+        comp.camera.transform.position.y = 0.0f;
+        comp.camera.transform.position.z = -comp.camera.focal_length(128.0f);
+
         auto fb = renderer.render_frame(comp, 0);
         REQUIRE(fb != nullptr);
 

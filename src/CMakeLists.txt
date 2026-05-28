@@ -84,6 +84,15 @@ target_precompile_headers(chronon3d_graph PRIVATE
 add_library(chronon3d_effects STATIC effects/effect_registry.cpp)
 target_link_libraries(chronon3d_effects PUBLIC chronon3d ${CHRONON3D_MESHOPTIMIZER_LINK})
 
+# 5b. Text Backend
+set(CHRONON3D_BACKEND_TEXT_SOURCES
+    backends/text/text_rasterizer_cache.cpp
+    backends/text/text_rasterizer_render.cpp
+)
+add_library(chronon3d_backend_text STATIC ${CHRONON3D_BACKEND_TEXT_SOURCES})
+target_link_libraries(chronon3d_backend_text PUBLIC chronon3d chronon3d_cache spdlog::spdlog_header_only blend2d::blend2d)
+target_include_directories(chronon3d_backend_text PRIVATE ${CMAKE_SOURCE_DIR})
+
 # 6. Animations catalog
 add_library(chronon3d_animations STATIC
     animations/animation_catalog.cpp
@@ -171,8 +180,6 @@ set(CHRONON3D_BACKEND_SOFTWARE_SOURCES
     backends/software/processors/software_text_processor.cpp
 
     backends/software/processors/software_utility_processors.cpp
-    backends/text/text_rasterizer_cache.cpp
-    backends/text/text_rasterizer_render.cpp
     backends/software/rasterizers/line_rasterizer.cpp
     backends/software/rasterizers/path_cache.cpp
     backends/software/rasterizers/path_rasterizer.cpp
@@ -203,7 +210,7 @@ set(CHRONON3D_BACKEND_SOFTWARE_SOURCES
 add_library(chronon3d_backend_software STATIC ${CHRONON3D_BACKEND_SOFTWARE_SOURCES})
 set_target_properties(chronon3d_backend_software PROPERTIES UNITY_BUILD OFF)
 target_link_libraries(chronon3d_backend_software
-    PUBLIC chronon3d chronon3d_graph chronon3d_cache chronon3d_effects chronon3d_backend_assets chronon3d_backend_image blend2d::blend2d
+    PUBLIC chronon3d chronon3d_graph chronon3d_cache chronon3d_effects chronon3d_backend_assets chronon3d_backend_image chronon3d_backend_text blend2d::blend2d
     PRIVATE spdlog::spdlog_header_only hwy::hwy fmt::fmt xxHash::xxhash tomlplusplus::tomlplusplus TBB::tbb
 )
 target_include_directories(chronon3d_backend_software PRIVATE ${Stb_INCLUDE_DIR} ${CMAKE_SOURCE_DIR})

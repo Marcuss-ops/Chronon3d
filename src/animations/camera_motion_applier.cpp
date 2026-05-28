@@ -1,8 +1,11 @@
 #include <chronon3d/animations/camera_motion_applier.hpp>
 
 #include <cmath>
+#include <algorithm>
 
 namespace chronon3d::animation {
+
+
 
 Camera2_5D make_camera_from_pose(const CameraMotionPose& pose) {
     Camera2_5D cam;
@@ -20,7 +23,7 @@ void apply_camera_motion(SceneBuilder& s,
     Camera2_5D cam = make_camera_from_pose(p.pose);
 
     if (p.primary.enabled && p.primary.duration > 0) {
-        const f32 t = easing_value(p.primary.easing, normalized_time(local_frame, p.primary.duration));
+        const f32 t = chronon3d::easing::apply(p.primary.easing, normalized_time(local_frame, p.primary.duration));
         cam.position = lerp(p.primary.from.position, p.primary.to.position, t);
         cam.rotation = lerp(p.primary.from.rotation, p.primary.to.rotation, t);
         cam.zoom = lerp(p.primary.from.zoom, p.primary.to.zoom, t);
