@@ -1,15 +1,48 @@
+#include <spdlog/spdlog.h>
+#include <algorithm>
+#include <cmath>
+#include <chrono>
+#include <mutex>
+#include <unordered_map>
+#include <optional>
+
+#include <chronon3d/assets/asset_registry.hpp>
 #include <chronon3d/backends/text/text_rasterizer_utils.hpp>
 #include <chronon3d/backends/text/text_layout_engine.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
-#include "../software/utils/blend2d_resources.hpp"
-
-#include <algorithm>
-#include <cmath>
-#include <chrono>
-#include <optional>
 
 namespace chronon3d {
+
+namespace {
+
+struct Blend2DResources {
+    std::unordered_map<std::string, BLFontFace> faces;
+    std::mutex mutex;
+
+    BLFontFace get_face(const std::string& path) {
+        std::lock_guard<std::mutex> lock(mutex);
+        const std::string resolved_path = AssetRegistry::resolve(path);
+        auto it = faces.find(resolved_path);
+        if (it == faces.end()) {
+            BLFontFace face;
+            if (face.createFromFile(resolved_path.c_str()) != BL_SUCCESS) {
+                spdlog::error("Blend2D: failed to load font {} (resolved: {})", path, resolved_path);
+                return BLFontFace();
+            }
+            faces[resolved_path] = face;
+            return face;
+        }
+        return it->second;
+    }
+};
+
+Blend2DResources& blend2d_resources() {
+    static Blend2DResources resources;
+    return resources;
+}
+
+} // namespace
 
 using CacheKey = u64;
 
@@ -44,7 +77,7 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
         profiling::g_current_counters->text_cache_misses.fetch_add(1, std::memory_order_relaxed);
     }
 
-    BLFontFace face = blend2d_utils::Blend2DResources::instance().get_face(font_path);
+    BLFontFace face = blend2d_resources().get_face(font_path);
     if (face.empty()) return std::nullopt;
 
     BLFont font;

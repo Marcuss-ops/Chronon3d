@@ -58,6 +58,21 @@
       }
     },
     {
+      "name": "linux-ci",
+      "inherits": "base-linux",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CHRONON3D_UNITY_BUILD": "OFF",
+        "CHRONON3D_BUILD_TOOLS": "OFF",
+        "CHRONON3D_ENABLE_PROFILING": "OFF"
+      }
+    },
+    {
       "name": "linux-debug-render",
       "inherits": "base-linux",
       "condition": {
@@ -133,6 +148,15 @@
       "jobs": 16
     },
     {
+      "name": "linux-ci",
+      "configurePreset": "linux-ci",
+      "targets": [
+        "chronon3d_cli",
+        "chronon3d_tests"
+      ],
+      "jobs": 16
+    },
+    {
       "name": "linux-debug-render",
       "configurePreset": "linux-debug-render",
       "targets": [
@@ -163,6 +187,13 @@
     {
       "name": "linux-test",
       "configurePreset": "linux-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "linux-ci-test",
+      "configurePreset": "linux-ci",
       "output": {
         "outputOnFailure": true
       }

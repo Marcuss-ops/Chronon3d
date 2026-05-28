@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chronon3d/animation/easing.hpp>
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/math/glm_types.hpp>
 
@@ -9,12 +10,7 @@
 
 namespace chronon3d::animation {
 
-enum class Easing {
-    Linear,
-    Smoothstep,
-    EaseOutCubic,
-    EaseInOutCubic,
-};
+using Easing = chronon3d::Easing;
 
 enum class MotionAxis {
     Tilt,
@@ -85,11 +81,11 @@ inline f32 easing_value(Easing easing, f32 t) {
     switch (easing) {
     case Easing::Linear:
         return t;
-    case Easing::EaseOutCubic: {
+    case Easing::OutCubic: {
         const f32 u = 1.0f - t;
         return 1.0f - u * u * u;
     }
-    case Easing::EaseInOutCubic:
+    case Easing::InOutCubic:
         return (t < 0.5f)
             ? 4.0f * t * t * t
             : 1.0f - std::pow(-2.0f * t + 2.0f, 3.0f) / 2.0f;

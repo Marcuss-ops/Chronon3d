@@ -4,17 +4,7 @@
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/camera/camera_motion_presets.hpp>
 #include <chronon3d/math/color.hpp>
-#include <chronon3d/presets/parallax_layer.hpp>
-#include <chronon3d/presets/text_spec.hpp>
-
-#include <cmath>
-#include <string>
-#include <vector>
-
 namespace chronon3d::content::two_point_five_d {
-
-using presets::TextSpec;
-using presets::ParallaxLayer;
 
 namespace {
 
@@ -31,42 +21,49 @@ Composition parallax_simple() {
 
         s.camera().set(camera_motion::dolly(p, {.from_z = -900, .to_z = -720, .zoom = 800}));
 
-        ParallaxLayer far_l; far_l.set_depth(300, 0.2f);
-        ParallaxLayer mid_l; mid_l.set_depth(100, 0.5f);
-        ParallaxLayer fg_l;  fg_l.set_depth(-200, 1.0f);
-
         s.layer("far_bg", [&](auto& l) { 
-            far_l.apply(l, cam_x);
+            l.enable_3d().position({cam_x * 0.2f, 0.0f, 300.0f});
             l.rect("far", {.size = {W * 2, H}, .color = {0.02f, 0.03f, 0.08f, 1}});
         });
 
         s.layer("mid_bg", [&](auto& l) {
-            mid_l.apply(l, cam_x);
+            l.enable_3d().position({cam_x * 0.5f, 0.0f, 100.0f});
             l.rect("mid", {.size = {W * 1.5f, H}, .color = {0.04f, 0.06f, 0.12f, 1}});
         });
 
         for (int i = 0; i < 5; ++i) {
             s.layer("mid_elem_" + std::to_string(i), [&](auto& l) {
-                mid_l.apply(l, cam_x, {i * 500.0f - 1000.0f, static_cast<f32>(i % 3 - 1) * 200.0f, 0});
+                l.enable_3d().position({i * 500.0f - 1000.0f + cam_x * 0.5f, static_cast<f32>(i % 3 - 1) * 200.0f, 100.0f});
                 l.circle("c", {.radius = 20.0f + i * 10.0f, .color = {0.25f, 0.52f, 1, 0.15f}});
             });
         }
 
         s.layer("fg", [&](auto& l) {
-            fg_l.apply(l, cam_x);
+            l.enable_3d().position({cam_x * 1.0f, 0.0f, -200.0f});
             l.rect("fg_rect", {.size = {W, 300}, .color = {0.06f, 0.08f, 0.14f, 1}, .pos = {0, 400, 0}});
         });
 
         for (int i = 0; i < 3; ++i) {
             s.layer("fg_box_" + std::to_string(i), [&](auto& l) {
-                fg_l.apply(l, cam_x, {i * 600.0f - 600.0f, -50.0f - i * 80.0f, 0});
+                l.enable_3d().position({i * 600.0f - 600.0f + cam_x * 1.0f, -50.0f - i * 80.0f, -200.0f});
                 l.rounded_rect("box", {.size = {180, 140}, .radius = 12, .color = {0.25f, 0.52f, 1, 0.4f}});
             });
         }
 
         s.layer("label", [&](auto& l) {
             l.opacity(0.7f).pin_to(Anchor::BottomLeft, 40.0f);
-            TextSpec("Parallax Demo  |  Far(0.2x)  Mid(0.5x)  FG(1.0x)").set_font(22, 1.5f).set_color({0.6f, 0.7f, 0.9f, 1}).set_align(TextAlign::Left).draw(l, "txt", {W*0.5f, 30});
+            l.text("txt", {
+                .text = "Parallax Demo  |  Far(0.2x)  Mid(0.5x)  FG(1.0x)",
+                .size = {W*0.5f, 30},
+                .pos = {0.0f, 0.0f, 0.0f},
+                .font_family = "Inter",
+                .font_weight = 800,
+                .font_size = 22.0f,
+                .color = Color{0.6f, 0.7f, 0.9f, 1},
+                .align = TextAlign::Left,
+                .line_height = 1.2f,
+                .tracking = 1.5f
+            });
         });
 
         return s.build();
@@ -112,7 +109,18 @@ Composition depth_scene() {
 
         s.layer("info", [&](auto& l) {
             l.pin_to(Anchor::BottomRight, 40.0f);
-            TextSpec("Depth: " + std::to_string(static_cast<i32>(cam_z))).set_font(20).set_color({0.6f, 0.7f, 0.9f, 0.5f}).set_align(TextAlign::Right).draw(l, "txt", {200, 30});
+            l.text("txt", {
+                .text = "Depth: " + std::to_string(static_cast<i32>(cam_z)),
+                .size = {200, 30},
+                .pos = {0.0f, 0.0f, 0.0f},
+                .font_family = "Inter",
+                .font_weight = 800,
+                .font_size = 20.0f,
+                .color = Color{0.6f, 0.7f, 0.9f, 0.5f},
+                .align = TextAlign::Right,
+                .line_height = 1.2f,
+                .tracking = 0.0f
+            });
         });
 
         return s.build();
@@ -134,10 +142,32 @@ Composition card_flip() {
             if (scale_x > 0) {
                 l.rounded_rect("front", {.size = {400, 560}, .radius = 20, .color = {0.12f, 0.15f, 0.25f, 1}});
                 l.rect("header", {.size = {360, 80}, .color = {0.25f, 0.52f, 1, 0.3f}, .pos = {0, -200, 0.1f}});
-                TextSpec("FLIP").set_font(56, 8).draw(l, "label", {320, 80}, {0, 0, 0.2f});
+                l.text("label", {
+                    .text = "FLIP",
+                    .size = {320, 80},
+                    .pos = {0, 0, 0.2f},
+                    .font_family = "Inter",
+                    .font_weight = 800,
+                    .font_size = 56.0f,
+                    .color = Color{1.0f, 1.0f, 1.0f, 1.0f},
+                    .align = TextAlign::Center,
+                    .line_height = 1.2f,
+                    .tracking = 8.0f
+                });
             } else {
                 l.rounded_rect("back", {.size = {400, 560}, .radius = 20, .color = {0.08f, 0.10f, 0.18f, 1}});
-                TextSpec("2.5D").set_font(56, 8).set_color({0.4f, 0.6f, 0.9f, 1}).draw(l, "label", {320, 80}, {0, 0, 0.2f});
+                l.text("label", {
+                    .text = "2.5D",
+                    .size = {320, 80},
+                    .pos = {0, 0, 0.2f},
+                    .font_family = "Inter",
+                    .font_weight = 800,
+                    .font_size = 56.0f,
+                    .color = Color{0.4f, 0.6f, 0.9f, 1},
+                    .align = TextAlign::Center,
+                    .line_height = 1.2f,
+                    .tracking = 8.0f
+                });
             }
         });
 
@@ -175,12 +205,34 @@ Composition parallax_text() {
 
         s.layer("parallax_title", [&](auto& l) {
             l.opacity(std::min(1.0f, p * 3.0f)).pin_to(Anchor::Center);
-            TextSpec("2.5D PARALLAX").set_font(80, 10).draw(l, "title", {W * 0.85f, 120});
+            l.text("title", {
+                .text = "2.5D PARALLAX",
+                .size = {W * 0.85f, 120},
+                .pos = {0.0f, 0.0f, 0.0f},
+                .font_family = "Inter",
+                .font_weight = 800,
+                .font_size = 80.0f,
+                .color = Color{1.0f, 1.0f, 1.0f, 1.0f},
+                .align = TextAlign::Center,
+                .line_height = 1.2f,
+                .tracking = 10.0f
+            });
         });
 
         s.layer("parallax_sub", [&](auto& l) {
             l.opacity(std::min(1.0f, (p - 0.1f) * 4.0f)).pin_to(Anchor::Center).position({0, 90, 0});
-            TextSpec("Multi-layer depth with motion").set_font(30, 2).set_color({0.7f, 0.7f, 0.85f, 1}).draw(l, "sub", {W * 0.6f, 50});
+            l.text("sub", {
+                .text = "Multi-layer depth with motion",
+                .size = {W * 0.6f, 50},
+                .pos = {0.0f, 0.0f, 0.0f},
+                .font_family = "Inter",
+                .font_weight = 800,
+                .font_size = 30.0f,
+                .color = Color{0.7f, 0.7f, 0.85f, 1},
+                .align = TextAlign::Center,
+                .line_height = 1.2f,
+                .tracking = 2.0f
+            });
         });
 
         return s.build();

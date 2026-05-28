@@ -35,12 +35,6 @@ Composition text_mask_sweep_demo();
 Composition text_focus_pull_demo();
 Composition text_glow_bloom_demo();
 Composition text_stagger_reveal_demo();
-// Composition text_cinematic_intro();
-Composition text_perspective_sweep_demo();
-// Composition text_glow_transition();
-// Composition text_spring_reveal();
-// Composition text_cyberpunk_glitch();
-// Composition text_credits_3d();
 Composition text_orbit_2_5d_demo();
 Composition text_tilt_sweep_2_5d_demo();
 Composition text_motion_trio_demo();
@@ -80,12 +74,6 @@ CHRONON_REGISTER_COMPOSITION("TextMaskSweepDemo",    chronon3d::content::text::t
 CHRONON_REGISTER_COMPOSITION("TextFocusPullDemo",     chronon3d::content::text::text_focus_pull_demo)
 CHRONON_REGISTER_COMPOSITION("TextGlowBloomDemo",     chronon3d::content::text::text_glow_bloom_demo)
 CHRONON_REGISTER_COMPOSITION("TextStaggerRevealDemo", chronon3d::content::text::text_stagger_reveal_demo)
-// CHRONON_REGISTER_COMPOSITION("TextCinematicIntro",  chronon3d::content::text::text_cinematic_intro)
-CHRONON_REGISTER_COMPOSITION("TextPerspectiveSweepDemo", chronon3d::content::text::text_perspective_sweep_demo)
-// CHRONON_REGISTER_COMPOSITION("TextGlowTransition",  chronon3d::content::text::text_glow_transition)
-// CHRONON_REGISTER_COMPOSITION("TextSpringReveal",    chronon3d::content::text::text_spring_reveal)
-// CHRONON_REGISTER_COMPOSITION("TextCyberpunkGlitch", chronon3d::content::text::text_cyberpunk_glitch)
-// CHRONON_REGISTER_COMPOSITION("TextCredits3D",       chronon3d::content::text::text_credits_3d)
 CHRONON_REGISTER_COMPOSITION("TextOrbit2_5DDemo",    chronon3d::content::text::text_orbit_2_5d_demo)
 CHRONON_REGISTER_COMPOSITION("TextTiltSweep2_5DDemo", chronon3d::content::text::text_tilt_sweep_2_5d_demo)
 CHRONON_REGISTER_COMPOSITION("TextMotionTrioDemo",   chronon3d::content::text::text_motion_trio_demo)
