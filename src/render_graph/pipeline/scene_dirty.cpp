@@ -3,10 +3,13 @@
 #include <chronon3d/render_graph/render_pipeline.hpp>
 #include <chronon3d/render_graph/graph_builder.hpp>
 #include <chronon3d/render_graph/graph_executor.hpp>
+#include <chronon3d/render_graph/render_graph_hashing.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/core/dirty_fallback_reason.hpp>
+#include <chronon3d/core/tile_grid.hpp>
+#include <chronon3d/core/dirty_tile_mask.hpp>
 #include "../builder/graph_builder_internal.hpp"
 #include "../builder/graph_builder_pipeline.hpp"
 #include "scene_internal.hpp"
@@ -158,6 +161,7 @@ DirtyRectOutput compute_dirty_rect(
                     state.visible = rl.layer->visible;
                     state.cache_static = rl.layer->cache_static;
                     state.is_3d = rl.layer->is_3d;
+                    state.content_hash = rl.layer->get_static_hash();
                     local_map[std::string(rl.layer->name)] = state;
                 }
             }
@@ -200,6 +204,7 @@ DirtyRectOutput compute_dirty_rect(
         state.visible = node.visible;
         state.cache_static = true;
         state.is_3d = false;
+        state.content_hash = hash_render_node(node);
         out.layer_bboxes["root.node:" + std::string(node.name)] = state;
     }
 
@@ -213,6 +218,17 @@ DirtyRectOutput compute_dirty_rect(
     if (!out.use_dirty_rects) {
         out.dirty_rect = raster::BBox{0, 0, width, height};
         return out;
+    }
+
+    // ── Tile-based dirty tracking setup ─────────────────────────────────
+    // Only active when tile_size > 0 and the bitmask feature flag is on.
+    const int effective_tile_size = settings.tile_size > 0 ? settings.tile_size : 256;
+    const bool tiles_enabled = settings.tile_size > 0 && settings.enable_dirty_bitmask;
+    raster::TileGrid tile_grid;
+    raster::DirtyTileMask tile_mask;
+    if (tiles_enabled) {
+        tile_grid = raster::TileGrid(width, height, effective_tile_size);
+        tile_mask = raster::DirtyTileMask(tile_grid);
     }
 
     // ── Diff current vs. previous layer bboxes ──────────────────────────
@@ -237,6 +253,10 @@ DirtyRectOutput compute_dirty_rect(
                 union_dirty.y0 = std::min(union_dirty.y0, clipped.y0);
                 union_dirty.x1 = std::max(union_dirty.x1, clipped.x1);
                 union_dirty.y1 = std::max(union_dirty.y1, clipped.y1);
+            }
+            // Also mark tiles for the new tile-based dirty system
+            if (tiles_enabled) {
+                tile_mask.mark_bbox(tile_grid, clipped);
             }
         };
 
@@ -267,7 +287,8 @@ DirtyRectOutput compute_dirty_rect(
                 (curr.world_matrix != prev->world_matrix);
             const bool content_changed =
                 !curr.cache_static ||
-                curr.opacity != prev->opacity;
+                curr.opacity != prev->opacity ||
+                curr.content_hash != prev->content_hash;
 
             if (geometry_changed) {
                 if (same_bbox(curr.bbox, prev->bbox)) {
@@ -305,6 +326,10 @@ DirtyRectOutput compute_dirty_rect(
         auto scroll_rect = try_scroll_optimization(sw_renderer, cam25d, width, height);
         if (scroll_rect.has_value()) {
             out.dirty_rect = *scroll_rect;
+            // Also mark the scroll strip tiles
+            if (tiles_enabled) {
+                tile_mask.mark_bbox(tile_grid, *scroll_rect);
+            }
         } else {
             out.dirty_rect = has_dirty ? std::optional(union_dirty)
                                        : std::optional(raster::BBox{0, 0, 0, 0});
@@ -315,6 +340,19 @@ DirtyRectOutput compute_dirty_rect(
         if (out.dirty_rect->x0 <= 0 && out.dirty_rect->y0 <= 0 &&
             out.dirty_rect->x1 >= width && out.dirty_rect->y1 >= height) {
             out.use_dirty_rects = false;
+        }
+    }
+
+    // ── Populate tile-based dirty output ────────────────────────────────
+    if (tiles_enabled) {
+        out.tile_grid = std::move(tile_grid);
+        out.dirty_tiles = std::move(tile_mask);
+        out.use_dirty_tiles = out.use_dirty_rects && out.dirty_tiles->any();
+
+        // If there are no dirty tiles at all, fall back to full frame
+        if (!out.dirty_tiles->any()) {
+            out.use_dirty_tiles = false;
+            out.dirty_rect = raster::BBox{0, 0, 0, 0};
         }
     }
 

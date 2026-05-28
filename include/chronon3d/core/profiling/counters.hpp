@@ -29,6 +29,11 @@ constexpr std::size_t kHardwareDestructiveInterferenceSize = 64;
     X(tiles_hit) \
     X(tiles_miss) \
     X(tiles_partial) \
+    X(tile_dirty_count) \
+    X(tile_clean_count) \
+    X(tile_pixels_rendered) \
+    X(tile_pixels_skipped) \
+    X(tile_full_fallbacks) \
     X(node_cache_hash_collisions) \
     X(clear_skipped_calls) \
     X(clear_skipped_pixels) \
