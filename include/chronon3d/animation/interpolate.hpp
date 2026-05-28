@@ -7,8 +7,7 @@
 namespace chronon3d {
 
 enum class ClampMode {
-    Clamp,
-    Extrapolate
+    Clamp
 };
 
 inline f32 map(f32 value, f32 in_min, f32 in_max, f32 out_min, f32 out_max, ClampMode clamp = ClampMode::Clamp) {

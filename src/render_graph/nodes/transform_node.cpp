@@ -115,6 +115,7 @@ std::shared_ptr<Framebuffer> TransformNode::execute(
     }
 
     if (ctx.diagnostics_enabled) {
+#ifdef CHRONON_DEBUG_VERBOSE
         const f32 det = glm::determinant(H);
         spdlog::info(
             "[transform-debug] node='{}' det={:.6f} winding={} H=[[{:.3f},{:.3f},{:.3f}],[{:.3f},{:.3f},{:.3f}],[{:.3f},{:.3f},{:.3f}]]",
@@ -128,6 +129,7 @@ std::shared_ptr<Framebuffer> TransformNode::execute(
         if (flipped) {
             spdlog::warn("[transform-debug] node='{}' projected quad has negative winding", name());
         }
+#endif
     }
 
     // ── Projected quad → destination bounding box ───────────────────────

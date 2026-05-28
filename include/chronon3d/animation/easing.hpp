@@ -32,6 +32,7 @@ enum class Easing {
     InBounce,
     OutBounce,
     InOutBounce,
+    Smoothstep,
     Hold
 };
 
@@ -64,6 +65,7 @@ inline f32 apply(Easing type, f32 t) {
         case Easing::OutBounce:    return glm::bounceEaseOut(t);
         case Easing::InOutBounce:  return glm::bounceEaseInOut(t);
         case Easing::Hold:         return 0.0f;
+        case Easing::Smoothstep:   return t * t * (3.0f - 2.0f * t);
         default:                   return t;
     }
 }

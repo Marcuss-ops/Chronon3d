@@ -3,15 +3,7 @@
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/math/color.hpp>
-#include <chronon3d/presets/text_spec.hpp>
-
-#include <cmath>
-#include <string>
-#include <vector>
-
 namespace chronon3d::content::images {
-
-using presets::TextSpec;
 
 namespace {
 
@@ -72,7 +64,18 @@ Composition img_grid_test() {
         });
         s.layer("label", [](auto& l) {
             l.pin_to(Anchor::BottomCenter, 40);
-            TextSpec("GRID RESOLUTION TEST").set_font(24, 4).set_color({0.6f, 0.7f, 0.9f, 0.6f}).draw(l, "txt", {400, 40});
+            l.text("txt", {
+                .text = "GRID RESOLUTION TEST",
+                .size = {400, 40},
+                .pos = {0.0f, 0.0f, 0.0f},
+                .font_family = "Inter",
+                .font_weight = 800,
+                .font_size = 24.0f,
+                .color = Color{0.6f, 0.7f, 0.9f, 0.6f},
+                .align = TextAlign::Center,
+                .line_height = 1.2f,
+                .tracking = 4.0f
+            });
         });
         return s.build();
     });
