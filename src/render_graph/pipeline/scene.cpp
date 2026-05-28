@@ -311,7 +311,12 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
                                    sw_renderer->m_prev_framebuffer->width() == width &&
                                    sw_renderer->m_prev_framebuffer->height() == height;
             if (have_prev) {
-                fb_shared = std::make_shared<Framebuffer>(*sw_renderer->m_prev_framebuffer);
+                // Deep copy from previous framebuffer, allocating from the current
+                // arena pool.  The copy-constructor of arena-backed Framebuffers only
+                // copies the external pointer (shallow), causing all tile-execution
+                // frames to share the same arena memory.  When that arena is recycled
+                // the stale pointer produces visual glitches.
+                fb_shared = ctx.acquire_framebuffer(*sw_renderer->m_prev_framebuffer);
             } else {
                 fb_shared = ctx.acquire_framebuffer(width, height, true);
             }
