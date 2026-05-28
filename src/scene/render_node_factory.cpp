@@ -26,6 +26,7 @@ RenderNode RenderNodeFactory::rounded_rect(std::pmr::memory_resource* res, std::
     node.shape.type = ShapeType::RoundedRect;
     node.shape.rounded_rect.size = p.size;
     node.shape.rounded_rect.radius = p.radius;
+    node.corner_radius = p.radius;
     node.world_transform.anchor = {p.size.x * 0.5f, p.size.y * 0.5f, 0.0f};
     node.world_transform.position = p.pos;
     node.color = p.color;
@@ -77,6 +78,8 @@ RenderNode RenderNodeFactory::image(std::pmr::memory_resource* res, std::string 
     node.shape.image.path = std::move(p.path);
     node.shape.image.size = p.size;
     node.shape.image.opacity = p.opacity;
+    node.shape.image.radius = p.radius;
+    node.corner_radius = p.radius;
     node.world_transform.anchor = {p.size.x * 0.5f, p.size.y * 0.5f, 0.0f};
     node.world_transform.position = p.pos;
     node.color = Color{1, 1, 1, p.opacity};
@@ -127,6 +130,7 @@ RenderNode RenderNodeFactory::text(std::pmr::memory_resource* res, std::string n
     node.shape.text.style.vertical_align = p.vertical_align;
     node.shape.text.style.line_height = p.line_height;
     node.shape.text.style.tracking = p.tracking;
+    node.shape.text.style.box_style = p.box_style;
     node.shape.text.box.enabled = true;
     node.shape.text.box.size = p.size;
     node.shape.text.box.enabled = true;

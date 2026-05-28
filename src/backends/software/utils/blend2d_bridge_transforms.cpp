@@ -13,20 +13,9 @@
 
 namespace chronon3d::blend2d_bridge {
 
-namespace {
-
-[[nodiscard]] inline float wrap_repeat(float value, float period) {
-    if (period <= 0.0f) return 0.0f;
-    value -= period * std::floor(value / period);
-    if (value < 0.0f) value += period;
-    return value;
-}
-
-} // anonymous namespace
-
 // ── BLImage transformed ────────────────────────────────────────────
 
-void composite_bl_image_transformed(Framebuffer& fb, const BLImage& img, const Mat4& model, float opacity, BlendMode mode, const RenderState* state) {
+void composite_bl_image_transformed(Framebuffer& fb, const BLImage& img, const Mat4& model, float opacity, BlendMode mode, const RenderState* state, float radius) {
     BLImageData data;
     if (img.getData(&data) != BL_SUCCESS) return;
 
@@ -36,7 +25,7 @@ void composite_bl_image_transformed(Framebuffer& fb, const BLImage& img, const M
     const int stride = static_cast<int>(data.stride / sizeof(uint32_t));
 
     // Fast path: simple translation
-    if (detail::is_simple_translation(model)) {
+    if (radius <= 0.0f && detail::is_simple_translation(model)) {
         int tx_val = static_cast<int>(std::round(model[3][0]));
         int ty_val = static_cast<int>(std::round(model[3][1]));
         composite_bl_image(fb, img, tx_val, ty_val, opacity, mode, state);
@@ -47,67 +36,41 @@ void composite_bl_image_transformed(Framebuffer& fb, const BLImage& img, const M
     const float sy = model[1][1];
     const float tx = model[3][0];
     const float ty = model[3][1];
+    const bool downscale_x = std::abs(sx) < 0.999f;
+    const bool downscale_y = std::abs(sy) < 0.999f;
+    const float sample_ox = downscale_x ? 0.25f / std::max(std::abs(sx), 1e-6f) : 0.0f;
+    const float sample_oy = downscale_y ? 0.25f / std::max(std::abs(sy), 1e-6f) : 0.0f;
 
-    // Fast path: scale + translation
-    if (detail::is_scale_translation(model)) {
-        if (state && state->mask && state->mask->enabled()) {
-            ensure_mask_alpha_cache(*state, fb.width(), fb.height());
+    auto sample_source = [&](float lx, float ly, float& sr, float& sg, float& sb, float& sa) {
+        if (!downscale_x && !downscale_y) {
+            sample_bilinear_prgb32(src_pixels, stride, sw, sh, lx, ly, sr, sg, sb, sa);
+            return;
         }
 
-        float min_x = tx;
-        float max_x = static_cast<float>(sw) * sx + tx;
-        if (sx < 0.0f) std::swap(min_x, max_x);
+        const float sx0 = downscale_x ? (lx - sample_ox) : lx;
+        const float sx1 = downscale_x ? (lx + sample_ox) : lx;
+        const float sy0 = downscale_y ? (ly - sample_oy) : ly;
+        const float sy1 = downscale_y ? (ly + sample_oy) : ly;
 
-        float min_y = ty;
-        float max_y = static_cast<float>(sh) * sy + ty;
-        if (sy < 0.0f) std::swap(min_y, max_y);
+        float r0, g0, b0, a0;
+        float r1, g1, b1, a1;
+        float r2, g2, b2, a2;
+        float r3, g3, b3, a3;
+        sample_bilinear_prgb32(src_pixels, stride, sw, sh, sx0, sy0, r0, g0, b0, a0);
+        sample_bilinear_prgb32(src_pixels, stride, sw, sh, sx1, sy0, r1, g1, b1, a1);
+        sample_bilinear_prgb32(src_pixels, stride, sw, sh, sx0, sy1, r2, g2, b2, a2);
+        sample_bilinear_prgb32(src_pixels, stride, sw, sh, sx1, sy1, r3, g3, b3, a3);
 
-        const int x0_st = std::max<int>(0, static_cast<int>(std::floor(min_x)));
-        const int y0_st = std::max<int>(0, static_cast<int>(std::floor(min_y)));
-        const int x1_st = std::min<int>(fb.width(),  static_cast<int>(std::ceil(max_x)));
-        const int y1_st = std::min<int>(fb.height(), static_cast<int>(std::ceil(max_y)));
+        sr = (r0 + r1 + r2 + r3) * 0.25f;
+        sg = (g0 + g1 + g2 + g3) * 0.25f;
+        sb = (b0 + b1 + b2 + b3) * 0.25f;
+        sa = (a0 + a1 + a2 + a3) * 0.25f;
+    };
 
-        if (x0_st < x1_st && y0_st < y1_st) {
-            const float inv_sx = 1.0f / sx;
-            const float inv_sy = 1.0f / sy;
-
-            auto process_rows_st = [&](int row_begin, int row_end) {
-                for (int y = row_begin; y < row_end; ++y) {
-                    Color* dst_row = fb.pixels_row(y);
-                    const float ly = (static_cast<float>(y) + 0.5f - ty) * inv_sy;
-                    if (ly < 0.0f || ly >= static_cast<float>(sh)) continue;
-
-                    for (int x = x0_st; x < x1_st; ++x) {
-                        if (state && !pixel_passes_mask(*state, x, y)) continue;
-
-                        const float lx = (static_cast<float>(x) + 0.5f - tx) * inv_sx;
-                        if (lx < 0.0f || lx >= static_cast<float>(sw)) continue;
-
-                        float sr, sg, sb, sa;
-                        sample_bilinear_prgb32(src_pixels, stride, sw, sh, lx, ly, sr, sg, sb, sa);
-                        sa *= opacity;
-                        if (sa <= 0.001f) continue;
-                        sr *= opacity;
-                        sg *= opacity;
-                        sb *= opacity;
-
-                        detail::blend_pixel(dst_row[x], Color{sr, sg, sb, sa}, mode);
-                    }
-                }
-            };
-
-            if (y1_st - y0_st >= 16) {
-                tbb::parallel_for(tbb::blocked_range<int>(y0_st, y1_st), [&](const tbb::blocked_range<int>& range) {
-                    process_rows_st(range.begin(), range.end());
-                });
-            } else {
-                process_rows_st(y0_st, y1_st);
-            }
-        }
-        return;
-    }
-
-    // Full projective path
+    // Full projective / affine path.
+    // We keep the dedicated simple-translation fast path above, but all
+    // scaled image draws go through the same sampler to avoid path-specific
+    // artifacts.
     if (state && state->mask && state->mask->enabled()) {
         ensure_mask_alpha_cache(*state, fb.width(), fb.height());
     }
@@ -130,8 +93,27 @@ void composite_bl_image_transformed(Framebuffer& fb, const BLImage& img, const M
 
                 if (lx < 0.0f || ly < 0.0f || lx >= static_cast<float>(sw) || ly >= static_cast<float>(sh)) continue;
 
+                if (radius > 0.0f) {
+                    const float r = std::max(0.0f, std::min({radius, static_cast<float>(sw) * 0.5f, static_cast<float>(sh) * 0.5f}));
+                    if (r > 0.0f) {
+                        if (lx < r && ly < r) {
+                            const float dx = lx - r; const float dy = ly - r;
+                            if ((dx * dx + dy * dy) > r * r) continue;
+                        } else if (lx > sw - r && ly < r) {
+                            const float dx = lx - (sw - r); const float dy = ly - r;
+                            if ((dx * dx + dy * dy) > r * r) continue;
+                        } else if (lx < r && ly > sh - r) {
+                            const float dx = lx - r; const float dy = ly - (sh - r);
+                            if ((dx * dx + dy * dy) > r * r) continue;
+                        } else if (lx > sw - r && ly > sh - r) {
+                            const float dx = lx - (sw - r); const float dy = ly - (sh - r);
+                            if ((dx * dx + dy * dy) > r * r) continue;
+                        }
+                    }
+                }
+
                 float sr, sg, sb, sa;
-                sample_bilinear_prgb32(src_pixels, stride, sw, sh, lx, ly, sr, sg, sb, sa);
+                sample_source(lx, ly, sr, sg, sb, sa);
                 sa *= opacity;
                 if (sa <= 0.001f) continue;
                 sr *= opacity;
@@ -187,11 +169,41 @@ void composite_bl_image_tiled(Framebuffer& fb, const BLImage& img, const Mat4& m
     const float sy = model[1][1];
     const float tx = model[3][0];
     const float ty = model[3][1];
+    const bool downscale_x = std::abs(sx) < 0.999f;
+    const bool downscale_y = std::abs(sy) < 0.999f;
+    const float sample_ox = downscale_x ? 0.25f / std::max(std::abs(sx), 1e-6f) : 0.0f;
+    const float sample_oy = downscale_y ? 0.25f / std::max(std::abs(sy), 1e-6f) : 0.0f;
 
     std::optional<detail::TransformInfo> ti;
     if (!simple_translation && !scale_translation) {
         ti.emplace(model);
     }
+
+    auto sample_source = [&](float lx, float ly, float& sr, float& sg, float& sb, float& sa) {
+        if (!downscale_x && !downscale_y) {
+            sample_bilinear_prgb32(src_pixels, stride, sw, sh, lx, ly, sr, sg, sb, sa);
+            return;
+        }
+
+        const float sx0 = downscale_x ? (lx - sample_ox) : lx;
+        const float sx1 = downscale_x ? (lx + sample_ox) : lx;
+        const float sy0 = downscale_y ? (ly - sample_oy) : ly;
+        const float sy1 = downscale_y ? (ly + sample_oy) : ly;
+
+        float r0, g0, b0, a0;
+        float r1, g1, b1, a1;
+        float r2, g2, b2, a2;
+        float r3, g3, b3, a3;
+        sample_bilinear_prgb32(src_pixels, stride, sw, sh, sx0, sy0, r0, g0, b0, a0);
+        sample_bilinear_prgb32(src_pixels, stride, sw, sh, sx1, sy0, r1, g1, b1, a1);
+        sample_bilinear_prgb32(src_pixels, stride, sw, sh, sx0, sy1, r2, g2, b2, a2);
+        sample_bilinear_prgb32(src_pixels, stride, sw, sh, sx1, sy1, r3, g3, b3, a3);
+
+        sr = (r0 + r1 + r2 + r3) * 0.25f;
+        sg = (g0 + g1 + g2 + g3) * 0.25f;
+        sb = (b0 + b1 + b2 + b3) * 0.25f;
+        sa = (a0 + a1 + a2 + a3) * 0.25f;
+    };
 
     auto process_rows = [&](int row_begin, int row_end) {
         for (int y = row_begin; y < row_end; ++y) {
@@ -222,11 +234,8 @@ void composite_bl_image_tiled(Framebuffer& fb, const BLImage& img, const Mat4& m
                     ly = local_h.y / local_h.z;
                 }
 
-                lx = wrap_repeat(lx, static_cast<float>(sw));
-                ly = wrap_repeat(ly, static_cast<float>(sh));
-
                 float sr, sg, sb, sa;
-                sample_bilinear_prgb32(src_pixels, stride, sw, sh, lx, ly, sr, sg, sb, sa);
+                sample_source(lx, ly, sr, sg, sb, sa);
                 sa *= opacity;
                 if (sa <= 0.001f) continue;
                 sr *= opacity;

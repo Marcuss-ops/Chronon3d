@@ -163,13 +163,6 @@ int render_and_encode_ffmpeg_pipe(
 
     RenderSettings render_opts = settings;
     render_opts.use_modular_graph = true;
-    // Pipe mode streams frames across a worker/writer boundary, so we must
-    // avoid any frame-to-frame framebuffer reuse or dirty-rect partial updates.
-    // Otherwise later frames can mutate buffers that FFmpeg has not consumed yet.
-    render_opts.enable_dirty_rects = false;
-    render_opts.enable_dirty_bitmask = false;
-    render_opts.dirty_rects = false;
-    render_opts.optimize_compositing = false;
 
     // Warmup
     if (opts.warmup_renderer) {

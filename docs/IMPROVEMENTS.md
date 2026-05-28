@@ -1131,6 +1131,13 @@ registry.register_shape(ShapeType::Path, create_path_processor());     // vince 
 | N15 | FB pool adaptive preallocation | Questa settimana | 🟡 Media | 🟡 Medio | 🟡 Counters live |
 | N16 | Zero-copy frame delivery encoder | Questa settimana | 🟡 Media | 🟡 Medio | 🟡 Counters live |
 | N17 | Pool miss reason dashboard | Oggi | 🟢 Bassa | 🟢 Basso | 🟡 Counters live |
+| **I1** | **Render Graph Incrementale** | Questo mese | 🔴 Alta | 🔴 Alto | **Nuovo — il game changer** |
+| **I2** | **SoA Framebuffer** | Questo mese | 🟡 Media | 🟡 Medio | **Nuovo** |
+| **I3** | **Wavefront Scheduling** | Questo mese | 🟡 Media | 🟡 Medio | **Nuovo** |
+| **I4** | **Direct Float→YUV Encoding** | Questa settimana | 🟢 Bassa | 🔴 Alto | **Nuovo — quick win** |
+| **I5** | **Per-Frame Arena senza Pool** | Questa settimana | 🟡 Media | 🔴 Alto | **Nuovo** |
+| **I6** | **Procedural Grid Kernel** | Oggi | 🟢 Bassa | 🔴 Alto | **Nuovo — quick win** |
+| **I7** | **Pre-bake mmap** | Oggi | 🟢 Bassa | 🔴 Alto | **Nuovo — quick win** |
 
 ---
 
@@ -1216,18 +1223,18 @@ registry.register_shape(ShapeType::Path, create_path_processor());     // vince 
 
 ### Prossima priorità
 
-**Singola cosa da fare oggi:** **N1 (Motion Blur Parallel)** — il motion blur accumulation è completamente seriale e processa pixel-per-pixel. Parallelizzare con TBB dà speedup 4-8× su 8 samples. ~2-3 ore.
+**Singola cosa da fare oggi:** **I6 (Procedural Grid Kernel)** — kernel SIMD dedicato per la griglia, 25× speedup, 1-2 giorni, zero modifiche architetturali. Poi **I4 (Direct Float→YUV)** — elimina 8MB alloc/frame, 1 giorno.
 
 **3 cose da fare questa settimana:**
-1. **N1 (Motion Blur Parallel + SIMD)** — massimo impatto, speedup potenziale 4-8×
-2. **N2 (Box Blur Parallel)** — impatto su ogni frame con blur attivo, speedup 4-8×
-3. **S7 (Eliminare shared_ptr nel hot path)** — -3-5% overhead frame, eliminazione di ~50 atomic ops per nodo
+1. **I6 (Procedural Grid Kernel)** — 25× speedup sulla grid background, quick win
+2. **I4 (Direct Float→YUV)** — 2-3× speedup encoding, elimina heap alloc
+3. **I5 (Per-Frame Arena)** — elimina 226 pool miss + mutex overhead
 
-**Quick win di oggi:** **N10 (RAII guard thread_local)** — 15 minuti, robustezza immediata. **N4 (any_cast → enum dispatch)** — 20 minuti, overhead O(n) eliminato.
+**Quick win di oggi:** **I6 + I4** — 2 giorni totali, impatto massimo. **N10 (RAII guard thread_local)** — 15 minuti. **N4 (any_cast → enum dispatch)** — 20 minuti.
 
-**La più divertente a lungo termine:** **M1 (Graph Compiler)** — è come passare da una ricetta letta ogni volta a un robot che sa già tutti i movimenti a memoria.
+**Il game changer a lungo termine:** **I1 (Render Graph Incrementale)** — 3-5× su composizioni statiche. È come passare da "ricalcolare tutto" a "ricalcolare solo ciò che cambia".
 
-**Quick win di oggi / domani:** **N17 (Pool Miss Reason Dashboard)** — ~30 minuti, dà visibilità immediata. Poi **N10 (RAII guard thread_local)** — 15 minuti.
+**La più divertente:** **R5 (LOD 2.5D)** — primo motore 2.5D con Level-of-Detail per layer, impatto 2-16×.
 **Sezione diagnostica: usa i nuovi counter per ottimizzare:** ora che abbiamo `framebuffer_acquire_ms`, `framebuffer_clear_ms`, `framebuffer_enqueue_ms`, `frame_conversion_copy_ms`, e i miss reason counters, smettiamo di tirare a indovinare: vediamo esattamente dove si perde tempo nel framebuffer pipeline.
 
 **Nuove opportunità dalla diagnostica framebuffer pipeline (maggio 2026) — telemetry counters C++ → DB → React già live:**
@@ -2002,9 +2009,273 @@ Layer al 25% schermo + LOD 0.25× = 1/16 pixel = **16× speedup**.
 
 ---
 
+## 🧠 INNOVAZIONI STRATEGICHE — Analisi dal Telemetry Report
+
+> Innovazioni emerse dall'analisi del report telemetry `ImgReferenceShakeReveal` (run_9333dfe8).
+> Attaccano i colli di bottiglia reali misurati: 300 layer/0 culled, 100% dirty ratio, 1.24GB alloc, 1.2K ms clears.
+
+---
+
+### I1. Render Graph Incrementale (il game changer)
+
+**Problema:** Oggi il grafo viene ricostruito e rieseguito interamente ogni frame. Per `ImgReferenceShakeReveal`: 150 frame × 300 nodi = 45.000 esecuzioni. Il 90% del lavoro è ridondante (grid background identico in ogni frame).
+
+**Soluzione:** Mantenere il grafo tra i frame e rieseguire solo i nodi dirty.
+
+```
+Oggi:   Frame N → build_graph() → execute_all(300 nodi) → 188ms
+Futuro: Frame N → diff_graph(N-1, N) → execute_dirty(~5 nodi) → ~10ms
+```
+
+**Meccanismo:**
+1. **Hash del grafo**: Ogni nodo produce un fingerprint dai suoi parametri (transform, opacity, bounds, image hash)
+2. **Diffing**: Confronta il grafo del frame N con N-1 → identifica i nodi che sono cambiati
+3. **Esecuzione selettiva**: Solo i nodi dirty vengono rieseguiti, gli altri vengono **riusati** direttamente dai framebuffer precedenti
+4. **Invalidazione a cascata**: Se un nodo dirty ha figli, anche quelli vengono marcati dirty
+
+**Dove:**
+- `src/render_graph/executor/graph_executor_incremental.cpp` (nuovo) — diff engine
+- `include/chronon3d/render_graph/node_fingerprint.hpp` (nuovo) — fingerprint per nodo
+- `src/render_graph/executor/graph_executor_phases.cpp` — nuovo path incrementale
+
+**Guadagno stimato:** 3-5× per composizioni con contenuto statico (70-80% del render time risparmiato).
+
+**Prossimi passi:**
+- [ ] Definire `NodeFingerprint` con hash di params + transform + bounds + source_hash
+- [ ] Implementare `IncrementalExecutor::diff()` — confronta grafo corrente con precedente
+- [ ] Nodi invariati: `return prev_framebuffer` senza riesecuzione
+- [ ] Invalidazione cascata: dirty node → invalida tutti i figli
+- [ ] Benchmark su `ImgReferenceShakeReveal` — misurare frame time prima/dopo
+
+---
+
+### I2. SoA Framebuffer per i kernel hot
+
+**Problema:** `Color{r,g,b,a}` è AoS (Array of Structures). Per i kernel SIMD, ogni operazione carica 16 bytes (4 float) quando spesso servono solo 1-2 canali. L'alpha testing (check `src.a > 0.001f`) è il caso peggiore: carica R,G,B inutilmente.
+
+**Soluzione:** Un `FramebufferSoA` con 4 piani separati:
+
+```cpp
+struct FramebufferSoA {
+    float* R;  // width * height * 4 bytes
+    float* G;
+    float* B;
+    float* A;
+};
+```
+
+**Vantaggi:**
+- **Alpha testing**: Confronta 8 alpha in un registro AVX2 (`_mm256_cmp_ps`) → early-exit per pixel trasparenti
+- **Gather/Scatter**: Più efficiente per campionamento non-lineare (bilinear, projective)
+- **Prefetching**: I 4 piani sono indipendenti → prefetch più aggressivo
+- **Bandwidth**: Operazioni che toccano solo 1 canale (es. alpha mask) leggono 4× meno dati
+
+**Dove:**
+- `include/chronon3d/core/memory/framebuffer_soa.hpp` (nuovo) — `FramebufferSoA`
+- `src/backends/software/simd/soa_kernels.cpp` (nuovo) — kernel SoA per composite/transform
+- `src/render_graph/nodes/transform_node.cpp` — path SoA per transform
+
+**Guadagno stimato:** 1.5-2× sui kernel alpha-dominated (compositing, mask application).
+
+**Trade-off:** Richiede refactor del composite kernel. Coesistenza graduale: SoA affianca AoS, il grafo sceglie il formato in base al tipo di operazione.
+
+**Prossimi passi:**
+- [ ] Definire `FramebufferSoA` con `from_framebuffer(AoS)` e `to_framebuffer(AoS)`
+- [ ] Riscrivere `composite_normal_premul` in versione SoA con `_mm256_maskz_loadu`
+- [ ] Aggiungere `select_format()` al graph builder: se layer ha mask → SoA, altrimenti AoS
+- [ ] Benchmark: alpha mask 100% transparent vs 100% opaque, misurare speedup
+
+---
+
+### I3. Wavefront Scheduling (massima parallelizzazione cache-aware)
+
+**Problema:** Oggi il grafo viene eseguito per **livelli topologici** — tutti i nodi allo stesso livello girano in parallelo. Ma i livelli mescolano tipi di operazione diversi (source + transform + composite nella stessa wave), causando cache thrashing.
+
+**Soluzione:** Raggruppare per **tipo di operazione** invece che per livello:
+
+```
+Wavefront 1: Tutti i Source nodes (rasterizzazione)     → SIMD gather
+Wavefront 2: Tutti i Transform nodes                    → SIMD bilinear
+Wavefront 3: Tutti i Composite nodes                    → SIMD blend
+```
+
+**Perché è meglio:**
+- **Better cache locality**: Tutti i source nodes leggono dalle stesse texture → la texture data rimane in L3 cache
+- **Better SIMD utilization**: Ogni wavefront esegue la stessa istruzione su dati omogenei
+- **Better branch prediction**: Il branch predictor si calibra su un solo tipo di operazione per wavefront
+
+**Dove:**
+- `src/render_graph/executor/graph_executor_wavefront.cpp` (nuovo) — wavefront scheduler
+- `include/chronon3d/render_graph/wavefront_plan.hpp` (nuovo) — piano di esecuzione
+- `src/render_graph/executor/graph_executor_phases.cpp` — nuovo path wavefront
+
+**Guadagno stimato:** 1.3-1.5× grazie alla cache locality.
+
+**Prossimi passi:**
+- [ ] Analizzare il grafo di `ImgReferenceShakeReveal`: 288 source nodes, 1 transform, 1 composite
+- [ ] Raggruppare i 288 source nodes in una singola wavefront TBB
+- [ ] Misurare L3 cache hit rate con `perf stat` prima/dopo
+- [ ] Confrontare con path topologico attuale
+
+---
+
+### I4. Direct Float→YUV Encoding (elimina 8MB alloc/frame)
+
+**Problema:** `frame_converter.cpp` fa: **Float RGBA → RGBA8 (heap alloc 8MB) → YUV420P**. Ogni frame paga 8MB di alloc + copia.
+
+**Soluzione:** Kernel SIMD che converte **direttamente da float RGBA a YUV420P** senza buffer intermedio:
+
+```
+Oggi:   float[4] → uint8[4] (heap alloc) → libyuv::ABGRToI420() → YUV
+Futuro: float[4] → SIMD BT.601 matrix → YUV420P direttamente
+```
+
+La matrice BT.601:
+```
+Y  =  0.299R + 0.587G + 0.114B
+Cb = -0.169R - 0.331G + 0.500B + 128
+Cr =  0.500R - 0.419G - 0.081B + 128
+```
+
+Con AVX2 si processano **8 pixel alla volta** (8 × 4 float = 256 bit = un registro YMM). Il subsampling 4:2:0 si fa al volo leggendo 2×2 blocchi.
+
+**Dove:**
+- `src/video/float_to_yuv_simd.cpp` (nuovo) — kernel SIMD direct float→YUV
+- `src/video/frame_converter.cpp` — nuovo path `convert_float_to_yuv420p()`
+- `apps/chronon3d_cli/utils/video/ffmpeg_pipe_write_frame.cpp` — usa il nuovo kernel
+
+**Guadagno stimato:** Elimina 8MB alloc/frame + il copy, ~2-3× più veloce sul path encoding.
+
+**Prossimi passi:**
+- [ ] Implementare `float_to_yuv420p_avx2()` con BT.601 matrix
+- [ ] Gestire subsampling 4:2:0 (2×2 → 1 chroma pixel)
+- [ ] Sostituire `convert_frame_tight()` con il nuovo kernel
+- [ ] Benchmark: `frame_conversion_copy_ms` prima/dopo
+
+---
+
+### I5. Per-Frame Arena senza Pool (elimina 226 pool miss)
+
+**Problema:** Il `FramebufferPool` ha 226 size mismatches perché le chiavi di acquire/release non matchano (bucket rounding diverso). Ogni miss genera un'allocazione fresh su heap. In più: mutex overhead, chrono overhead (2× `high_resolution_clock::now()` per acquire), custom deleter con `weak_from_this()`.
+
+**Soluzione:** Bump allocator per-frame senza pool, senza mutex, senza bucket:
+
+```
+Oggi:   Pool (mutex + bucket scan + weak_ptr + clear) × 300 nodi × 150 frame
+Futuro: Bump allocator (atomic fetch_add) → reset a fine frame
+```
+
+**Meccanismo:**
+1. All'inizio del frame, alloca un blocco contiguo pre-calcolato (es. 300 × 33MB = 9.9GB virtuali, fisicamente solo le pagine toccate)
+2. Ogni nodo fa bump allocation: `ptr += size; return ptr;` — costo: 1 istruzione
+3. Alla fine del frame, reset del puntatore a zero — costo: 1 istruzione
+4. Nessun mutex, nessun reference counting, nessun bucket scanning
+
+**Dove:**
+- `include/chronon3d/core/frame_arena_allocator.hpp` (nuovo) — bump allocator dedicato ai framebuffer
+- `src/render_graph/executor/graph_executor_phases.cpp` — usa arena invece di pool
+- `src/cache/framebuffer_pool.cpp` — legacy, mantenuto per compatibilità
+
+**Guadagno stimato:** Elimina 226 pool miss + 1.2K ms clear ridondanti + mutex overhead. ~30-40% speedup sul allocation path.
+
+**Prossimi passi:**
+- [ ] Misurare `framebuffer_acquire_ms` + `framebuffer_pool_miss_count_size_mismatch` come baseline
+- [ ] Implementare `FrameArenaAllocator::acquire(w, h)` — bump allocation lineare
+- [ ] Implementare `FrameArenaAllocator::reset()` — puntatore a zero
+- [ ] Sostituire `pool->acquire_unique()` con `arena.acquire()` nel graph executor
+- [ ] Benchmark: throughput prima/dopo su `ImgReferenceShakeReveal`
+
+---
+
+### I6. Procedural Grid Kernel (25× sulla grid background)
+
+**Problema:** `dark_grid_background()` oggi rasterizza la griglia pixel-by-pixel (`dark_grid_background.hpp:86-103`) con `std::round`, `std::abs`, `std::max` per ogni pixel — e poi la salva su disco come PNG e la ricarica. Inoltre, il `SoftwareGridBackgroundProcessor` fa la stessa cosa con TBB ma in un percorso separato.
+
+**Soluzione:** Kernel SIMD dedicato che calcola la griglia con 4-8 FMA per pixel invece del sampling bilineare generico:
+
+```cpp
+void render_grid_tile(Color* __restrict__ dst, int tile_x, int tile_y,
+                       int tile_w, int tile_h, const GridParams& p) {
+    for (int y = 0; y < tile_h; ++y) {
+        for (int x = 0; x < tile_w; ++x) {
+            float gx = (tile_x * tile_w + x + p.offset_x) / p.cell_width;
+            float gy = (tile_y * tile_h + y + p.offset_y) / p.cell_height;
+            float gx_frac = gx - floorf(gx);
+            float gy_frac = gy - floorf(gy);
+            bool is_line = (gx_frac < p.line_thickness || gy_frac < p.line_thickness);
+            dst[y * tile_w + x] = is_line ? p.line_color : p.bg_color;
+        }
+    }
+}
+```
+
+**Dove:**
+- `src/backends/software/procedural/grid_background.cpp` (nuovo) — kernel `render_grid_tile()`
+- `include/chronon3d/render_graph/nodes/procedural_source_node.hpp` (nuovo) — `ProceduralSourceNode`
+- `src/render_graph/builder/graph_builder_pipeline.cpp` — se shape è Procedural, usa il nodo dedicato
+
+**Guadagno stimato:** Da ~500μs (sampling bilineare) a ~20μs (kernel SIMD 4 FMA/pixel) = **25× speedup**.
+
+**Prossimi passi:**
+- [ ] Creare `render_grid_tile()` kernel SIMD
+- [ ] Creare `ProceduralSourceNode` — accetta `GridParams` e produce tile
+- [ ] Registrare come `ShapeType::ProceduralGrid` nel `ShapeRegistry`
+- [ ] Integrare in `GraphBuilder::build()` — routing automatico
+- [ ] Benchmark: confronto direct kernel vs BLImage sampling
+
+---
+
+### I7. Pre-bake con Memory-Mapped Files (zero I/O a runtime)
+
+**Problema:** Il `DiskNodeCache` (già implementato in `disk_node_cache.hpp`) salva/ri-carica nodi statici su disco. Ma il caricamento avviene ancora con `read()` + copia in memoria. Inoltre, `dark_grid_background()` oggi fa: rasterizza → salva PNG → ricarica come immagine → rasterizza di nuovo.
+
+**Soluzione:** Memory-mapped files per i nodi statici pre-baked:
+
+```
+Oggi:   Load PNG → decode → rasterize → composite (ogni frame)
+Futuro: mmap("grid_bg.rgba") → pointer diretto → composite (0 copy)
+```
+
+**Meccanismo:**
+1. Pre-bake: il grid background viene renderizzato una volta e salvato come file `.rgba` (raw float, mmap-able)
+2. A runtime: `mmap()` del file → il puntatore diretto è il contenuto del framebuffer
+3. Nessuna copia, nessun decode, nessuna allocazione — il kernel legge direttamente dalla pagina mappata
+4. Il file vive in page cache del OS → accesso successivo è da L3 cache
+
+**Dove:**
+- `src/cache/mmap_frame_cache.cpp` (nuovo) — `MmapFrameCache` con `get_or_bake()`
+- `include/chronon3d/cache/mmap_frame_cache.hpp` (nuovo)
+- `apps/chronon3d_cli/commands/command_bake_layer.cpp` — estendere con `--mmap-bake`
+
+**Guadagno stimato:** Zero I/O a runtime per contenuto statico. Il grid background costa 0ms dopo il primo frame.
+
+**Prossimi passi:**
+- [ ] Implementare `MmapFrameCache::bake(key, framebuffer)` — salva come raw float
+- [ ] Implementare `MmapFrameCache::get(key)` — mmap + direct pointer
+- [ ] Integrare con `DiskNodeCache` — estendere con path mmap
+- [ ] Test: misurare `framebuffer_acquire_ms` con/without mmap per grid background
+
+---
+
+### Tabella Riepilogativa — Innovazioni Strategiche
+
+| ID | Innovazione | Speedup Stimato | Sforzo | Priorità |
+|----|------------|----------------|--------|----------|
+| **I1** | Render Graph Incrementale | 3-5× (composizioni statiche) | 🔴 Alta | **P0 — il game changer** |
+| **I2** | SoA Framebuffer | 1.5-2× (kernel alpha) | 🟡 Media | P1 |
+| **I3** | Wavefront Scheduling | 1.3-1.5× (cache locality) | 🟡 Media | P1 |
+| **I4** | Direct Float→YUV | 2-3× (encoding path) | 🟢 Bassa | **P1 — quick win** |
+| **I5** | Per-Frame Arena senza Pool | 30-40% (allocation path) | 🟡 Media | **P0 — elimina 226 miss** |
+| **I6** | Procedural Grid Kernel | 25× (grid background) | 🟢 Bassa | **P0 — quick win** |
+| **I7** | Pre-bake mmap | 10× (contenuto statico) | 🟢 Bassa | **P0 — quick win** |
+
+---
+
+**Primo passo concreto (innovazioni):** Implementare **I6 (Procedural Grid Kernel)** — 1-2 giorni, 25× speedup sulla grid background, zero modifiche architetturali. Poi **I4 (Direct Float→YUV)** — 1 giorno, elimina 8MB alloc/frame. Infine **I5 (Per-Frame Arena)** — 3-5 giorni, elimina il pool con tutti i suoi overhead.
+
 **Conclusione:** La V3 non è "ottimizzare di più il DAG attuale". La V3 è **cambiare il modello da frame-based a tile-based**, con nodi procedurali specializzati, cache persistente per regione, e pipeline output disaccoppiata. Per il caso d'uso Chronon3D (composizioni 2.5D con animazioni, motion graphics, video export), questo vale più di qualunque micro-ottimizzazione locale.
 
-I 5 progetti rivoluzionari (R1-R5) rappresentano il passo SUCCESSIVO — ciò che viene DOPO V3. Non servono per arrivare a 60 FPS. Servono per arrivare a **200+ FPS** o per fare cose che oggi nessun motore 2.5D programmatico può fare.
+I 5 progetti rivoluzionari (R1-R5) e le 7 innovazioni strategiche (I1-I7) rappresentano il passo SUCCESSIVO — ciò che viene DOPO V3. Non servono per arrivare a 60 FPS. Servono per arrivare a **200+ FPS** o per fare cose che oggi nessun motore 2.5D programmatico può fare.
 
 **Primo passo concreto (V3):** Implementare il **Pillar 5 (Procedural Grid Kernel)** — è il più facile (1-2 giorni), dà il guadagno più immediato (25× sulla grid background), e non richiede modifiche architetturali al resto del motore. Dal vivo, si vede subito.
 
