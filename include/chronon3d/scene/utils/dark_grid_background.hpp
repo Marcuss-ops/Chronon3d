@@ -133,6 +133,7 @@ inline void dark_grid_background(SceneBuilder& s,
 
     s.layer("nbg_bg", [W, H, p](LayerBuilder& l) {
         l.cache_static();
+        l.pin_to(Anchor::Center);
         const auto path = detail::ensure_dark_grid_background_image(
             static_cast<i32>(W),
             static_cast<i32>(H),
@@ -141,7 +142,7 @@ inline void dark_grid_background(SceneBuilder& s,
         l.image("grid_bg", {
             .path = path.string(),
             .size = {W, H},
-            .pos = {W * 0.5f, H * 0.5f, 0.0f},
+            .pos = {0.0f, 0.0f, 0.0f},
             .opacity = 1.0f,
             .radius = 0.0f
         });
