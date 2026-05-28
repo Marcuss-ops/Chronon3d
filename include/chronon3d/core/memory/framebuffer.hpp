@@ -32,14 +32,9 @@ enum class SamplingMode {
 };
 
 // Cache-line alignment: ensures rows don't share cache lines between threads.
-// Uses C++17 std::hardware_destructive_interference_size where available;
-// hardcoded to 64 as a safe fallback for all major architectures.
+// Hardcoded to 64 bytes as a safe portable value for all major architectures.
 // (Apple Silicon uses 128B but 64B alignment still prevents false sharing).
-#if defined(__cpp_lib_hardware_interference_size) && __cpp_lib_hardware_interference_size >= 201703L
-constexpr size_t k_cache_line_bytes = std::hardware_destructive_interference_size;
-#else
 constexpr size_t k_cache_line_bytes = 64;
-#endif
 constexpr size_t k_color_size = sizeof(Color);  // 16 bytes (4 × float)
 static_assert(k_cache_line_bytes % k_color_size == 0,
               "Cache line size must be a multiple of Color size");
