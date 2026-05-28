@@ -71,6 +71,7 @@ struct RenderTelemetryRecord {
     uint64_t framebuffer_enqueue_ms{0};
     uint64_t framebuffer_pool_miss_count_size_mismatch{0};
     uint64_t framebuffer_pool_miss_count_empty{0};
+    uint64_t framebuffer_pool_miss_count_best_fit{0};
     uint64_t framebuffer_pool_hits{0};
     uint64_t framebuffer_buffer_returned_to_pool_count{0};
     uint64_t unaligned_memory_copies{0};
@@ -81,6 +82,7 @@ struct RenderTelemetryRecord {
     uint64_t video_ffmpeg_latency_ms{0};
     uint64_t io_queue_push_blocked_ms{0};
     uint64_t io_queue_pop_wait_ms{0};
+    uint64_t io_writer_idle_wait_ms{0};
     uint64_t io_queue_peak_depth{0};
     uint64_t ffmpeg_pipe_write_blocked_ms{0};
     uint64_t converted_frame_cache_hits{0};
