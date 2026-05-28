@@ -408,11 +408,13 @@ void execute_single_node(
         pr.inputs_all_cache_hits
     );
 
-    spdlog::error("[DIAG-exec] frame={} node='{}' id={} kind='{}' cache='{}' frame_dep={} use_cache={} result_ptr={}",
-        static_cast<int>(ctx.frame), node.name(), id, to_string(node.kind()),
-        cache_eval.cache_status, cache_eval.node_frame_dependent ? 1 : 0,
-        cache_eval.use_cache ? 1 : 0,
-        cache_eval.result ? fmt::ptr(cache_eval.result.get()) : "null");
+    if (ctx.diagnostics_enabled) {
+        spdlog::debug("[DIAG-exec] frame={} node='{}' id={} kind='{}' cache='{}' frame_dep={} use_cache={} result_ptr={}",
+            static_cast<int>(ctx.frame), node.name(), id, to_string(node.kind()),
+            cache_eval.cache_status, cache_eval.node_frame_dependent ? 1 : 0,
+            cache_eval.use_cache ? 1 : 0,
+            cache_eval.result ? fmt::ptr(cache_eval.result.get()) : "null");
+    }
 
     // Predicted bbox
     auto predicted_bbox = node.predicted_bbox(ctx, pr.input_bboxes);

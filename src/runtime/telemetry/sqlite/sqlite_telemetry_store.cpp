@@ -55,10 +55,10 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
         "framebuffer_acquire_ms, framebuffer_clear_ms, clearnode_ms, "
         "framebuffer_pool_clear_ms, framebuffer_enqueue_ms, "
         "framebuffer_pool_miss_count_size_mismatch, framebuffer_pool_miss_count_empty, "
-        "framebuffer_pool_hits, framebuffer_buffer_returned_to_pool_count, "
+        "framebuffer_pool_miss_count_best_fit, framebuffer_pool_hits, framebuffer_buffer_returned_to_pool_count, "
         "unaligned_memory_copies, frame_conversion_copy_ms, "
         "video_graph_eval_ms, video_conversion_ms, video_pipe_write_ms, video_ffmpeg_latency_ms, "
-        "io_queue_push_blocked_ms, io_queue_pop_wait_ms, io_queue_peak_depth, ffmpeg_pipe_write_blocked_ms, converted_frame_cache_hits, ffmpeg_flush_ms, "
+        "io_queue_push_blocked_ms, io_queue_pop_wait_ms, io_writer_idle_wait_ms, io_queue_peak_depth, ffmpeg_pipe_write_blocked_ms, converted_frame_cache_hits, ffmpeg_flush_ms, "
         "io_queue_peak_bytes, setup_graph_parsing_ms, setup_asset_io_load_ms, setup_pool_preallocation_ms, image_decode_ms, "
         "chronon_render_only_ms, chronon_conversion_copy_ms, chronon_queue_wait_ms, "
         "chronon_render_throughput_ms, ffmpeg_encode_total_ms, ffmpeg_flush_close_ms, "
@@ -75,7 +75,7 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
         "?61, ?62, ?63, ?64, ?65, ?66, ?67, ?68, ?69, ?70, "
         "?71, ?72, ?73, ?74, ?75, ?76, ?77, ?78, ?79, ?80, "
         "?81, ?82, ?83, ?84, ?85, ?86, ?87, ?88, ?89, "
-        "?90"
+        "?90, ?91, ?92"
         ");";
 
     SqliteStatement stmt(m_impl->db, sql);
@@ -140,6 +140,7 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
         run.framebuffer_enqueue_ms,
         run.framebuffer_pool_miss_count_size_mismatch,
         run.framebuffer_pool_miss_count_empty,
+        run.framebuffer_pool_miss_count_best_fit,
         run.framebuffer_pool_hits,
         run.framebuffer_buffer_returned_to_pool_count,
         run.unaligned_memory_copies,
@@ -150,6 +151,7 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
         run.video_ffmpeg_latency_ms,
         run.io_queue_push_blocked_ms,
         run.io_queue_pop_wait_ms,
+        run.io_writer_idle_wait_ms,
         run.io_queue_peak_depth,
         run.ffmpeg_pipe_write_blocked_ms,
         run.converted_frame_cache_hits,

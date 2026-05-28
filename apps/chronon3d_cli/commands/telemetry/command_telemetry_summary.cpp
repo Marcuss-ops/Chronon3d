@@ -95,6 +95,7 @@ RunSummary query_run_summary(sqlite3* db, const std::string& run_id) {
         run.framebuffer_enqueue_ms = get_i64("framebuffer_enqueue_ms");
         run.framebuffer_pool_miss_count_size_mismatch = get_i64("framebuffer_pool_miss_count_size_mismatch");
         run.framebuffer_pool_miss_count_empty = get_i64("framebuffer_pool_miss_count_empty");
+        run.framebuffer_pool_miss_count_best_fit = get_i64("framebuffer_pool_miss_count_best_fit");
         run.framebuffer_pool_hits = get_i64("framebuffer_pool_hits");
         run.framebuffer_buffer_returned_to_pool_count = get_i64("framebuffer_buffer_returned_to_pool_count");
         run.unaligned_memory_copies = get_i64("unaligned_memory_copies");
@@ -106,6 +107,7 @@ RunSummary query_run_summary(sqlite3* db, const std::string& run_id) {
 
         run.io_queue_push_blocked_ms = get_i64("io_queue_push_blocked_ms");
         run.io_queue_pop_wait_ms = get_i64("io_queue_pop_wait_ms");
+        run.io_writer_idle_wait_ms = get_i64("io_writer_idle_wait_ms");
         run.io_queue_peak_depth = get_i64("io_queue_peak_depth");
         run.ffmpeg_pipe_write_blocked_ms = get_i64("ffmpeg_pipe_write_blocked_ms");
         run.converted_frame_cache_hits = get_i64("converted_frame_cache_hits");

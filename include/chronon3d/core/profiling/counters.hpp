@@ -66,6 +66,7 @@ constexpr std::size_t kHardwareDestructiveInterferenceSize = 64;
     X(framebuffer_enqueue_ms) \
     X(framebuffer_pool_miss_count_size_mismatch) \
     X(framebuffer_pool_miss_count_empty) \
+    X(framebuffer_pool_miss_count_best_fit) \
     X(framebuffer_pool_hits) \
     X(framebuffer_buffer_returned_to_pool_count) \
     X(unaligned_memory_copies) \
@@ -76,6 +77,7 @@ constexpr std::size_t kHardwareDestructiveInterferenceSize = 64;
     X(video_ffmpeg_latency_ms) \
     X(io_queue_push_blocked_ms) \
     X(io_queue_pop_wait_ms) \
+    X(io_writer_idle_wait_ms) \
     X(io_queue_peak_depth) \
     X(ffmpeg_pipe_write_blocked_ms) \
     X(converted_frame_cache_hits) \

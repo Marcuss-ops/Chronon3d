@@ -63,6 +63,7 @@ inline std::vector<chronon3d::telemetry::CounterTelemetryRecord> capture_counter
         {"framebuffer_enqueue_ms", counters.framebuffer_enqueue_ms.load(std::memory_order_relaxed)},
         {"framebuffer_pool_miss_count_size_mismatch", counters.framebuffer_pool_miss_count_size_mismatch.load(std::memory_order_relaxed)},
         {"framebuffer_pool_miss_count_empty", counters.framebuffer_pool_miss_count_empty.load(std::memory_order_relaxed)},
+        {"framebuffer_pool_miss_count_best_fit", counters.framebuffer_pool_miss_count_best_fit.load(std::memory_order_relaxed)},
         {"framebuffer_pool_hits", counters.framebuffer_pool_hits.load(std::memory_order_relaxed)},
         {"framebuffer_buffer_returned_to_pool_count", counters.framebuffer_buffer_returned_to_pool_count.load(std::memory_order_relaxed)},
         {"unaligned_memory_copies", counters.unaligned_memory_copies.load(std::memory_order_relaxed)},
@@ -73,6 +74,7 @@ inline std::vector<chronon3d::telemetry::CounterTelemetryRecord> capture_counter
         {"video_ffmpeg_latency_ms", counters.video_ffmpeg_latency_ms.load(std::memory_order_relaxed)},
         {"io_queue_push_blocked_ms", counters.io_queue_push_blocked_ms.load(std::memory_order_relaxed)},
         {"io_queue_pop_wait_ms", counters.io_queue_pop_wait_ms.load(std::memory_order_relaxed)},
+        {"io_writer_idle_wait_ms", counters.io_writer_idle_wait_ms.load(std::memory_order_relaxed)},
         {"io_queue_peak_depth", counters.io_queue_peak_depth.load(std::memory_order_relaxed)},
         {"ffmpeg_pipe_write_blocked_ms", counters.ffmpeg_pipe_write_blocked_ms.load(std::memory_order_relaxed)},
         {"converted_frame_cache_hits",  counters.converted_frame_cache_hits.load(std::memory_order_relaxed)},
@@ -124,6 +126,7 @@ inline void add_counters(chronon3d::RenderCounters& dst, const chronon3d::Render
     dst.framebuffer_enqueue_ms.fetch_add(src.framebuffer_enqueue_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.framebuffer_pool_miss_count_size_mismatch.fetch_add(src.framebuffer_pool_miss_count_size_mismatch.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.framebuffer_pool_miss_count_empty.fetch_add(src.framebuffer_pool_miss_count_empty.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.framebuffer_pool_miss_count_best_fit.fetch_add(src.framebuffer_pool_miss_count_best_fit.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.framebuffer_pool_hits.fetch_add(src.framebuffer_pool_hits.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.framebuffer_buffer_returned_to_pool_count.fetch_add(src.framebuffer_buffer_returned_to_pool_count.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.unaligned_memory_copies.fetch_add(src.unaligned_memory_copies.load(std::memory_order_relaxed), std::memory_order_relaxed);
@@ -134,6 +137,7 @@ inline void add_counters(chronon3d::RenderCounters& dst, const chronon3d::Render
     dst.video_ffmpeg_latency_ms.fetch_add(src.video_ffmpeg_latency_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.io_queue_push_blocked_ms.fetch_add(src.io_queue_push_blocked_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.io_queue_pop_wait_ms.fetch_add(src.io_queue_pop_wait_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.io_writer_idle_wait_ms.fetch_add(src.io_writer_idle_wait_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.io_queue_peak_depth.fetch_add(src.io_queue_peak_depth.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.ffmpeg_pipe_write_blocked_ms.fetch_add(src.ffmpeg_pipe_write_blocked_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.converted_frame_cache_hits.fetch_add(src.converted_frame_cache_hits.load(std::memory_order_relaxed), std::memory_order_relaxed);
@@ -202,6 +206,7 @@ inline void populate_run_metrics(chronon3d::telemetry::RenderTelemetryRecord& ru
     run.framebuffer_enqueue_ms = counters.framebuffer_enqueue_ms.load(std::memory_order_relaxed);
     run.framebuffer_pool_miss_count_size_mismatch = counters.framebuffer_pool_miss_count_size_mismatch.load(std::memory_order_relaxed);
     run.framebuffer_pool_miss_count_empty = counters.framebuffer_pool_miss_count_empty.load(std::memory_order_relaxed);
+    run.framebuffer_pool_miss_count_best_fit = counters.framebuffer_pool_miss_count_best_fit.load(std::memory_order_relaxed);
     run.framebuffer_pool_hits = counters.framebuffer_pool_hits.load(std::memory_order_relaxed);
     run.framebuffer_buffer_returned_to_pool_count = counters.framebuffer_buffer_returned_to_pool_count.load(std::memory_order_relaxed);
     run.unaligned_memory_copies = counters.unaligned_memory_copies.load(std::memory_order_relaxed);
@@ -212,6 +217,7 @@ inline void populate_run_metrics(chronon3d::telemetry::RenderTelemetryRecord& ru
     run.video_ffmpeg_latency_ms = counters.video_ffmpeg_latency_ms.load(std::memory_order_relaxed);
     run.io_queue_push_blocked_ms = counters.io_queue_push_blocked_ms.load(std::memory_order_relaxed);
     run.io_queue_pop_wait_ms = counters.io_queue_pop_wait_ms.load(std::memory_order_relaxed);
+    run.io_writer_idle_wait_ms = counters.io_writer_idle_wait_ms.load(std::memory_order_relaxed);
     run.io_queue_peak_depth = counters.io_queue_peak_depth.load(std::memory_order_relaxed);
     run.ffmpeg_pipe_write_blocked_ms = counters.ffmpeg_pipe_write_blocked_ms.load(std::memory_order_relaxed);
     run.converted_frame_cache_hits = counters.converted_frame_cache_hits.load(std::memory_order_relaxed);
