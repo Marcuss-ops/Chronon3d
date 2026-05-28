@@ -22,6 +22,7 @@ namespace chronon3d::blend2d_bridge {
 void composite_framebuffer_transformed(Framebuffer& dst_fb, const Framebuffer& src_fb, const Mat4& model, float opacity, BlendMode mode, const RenderState* state) {
     const int sw = src_fb.width();
     const int sh = src_fb.height();
+    const Color* src_base = src_fb.data();
 
     if (detail::is_simple_translation(model)) {
         int tx = static_cast<int>(std::round(model[3][0]));
@@ -34,6 +35,33 @@ void composite_framebuffer_transformed(Framebuffer& dst_fb, const Framebuffer& s
     const float sy = model[1][1];
     const float tx = model[3][0];
     const float ty = model[3][1];
+    const bool downscale_x = std::abs(sx) < 0.999f;
+    const bool downscale_y = std::abs(sy) < 0.999f;
+    const float sample_ox = downscale_x ? 0.25f / std::max(std::abs(sx), 1e-6f) : 0.0f;
+    const float sample_oy = downscale_y ? 0.25f / std::max(std::abs(sy), 1e-6f) : 0.0f;
+
+    auto sample_source = [&](float lx, float ly, Color& src) {
+        if (!downscale_x && !downscale_y) {
+            sample_bilinear_float(src_base, sw, sw, sh, lx, ly, src);
+            return;
+        }
+
+        const float sx0 = downscale_x ? (lx - sample_ox) : lx;
+        const float sx1 = downscale_x ? (lx + sample_ox) : lx;
+        const float sy0 = downscale_y ? (ly - sample_oy) : ly;
+        const float sy1 = downscale_y ? (ly + sample_oy) : ly;
+
+        Color c0, c1, c2, c3;
+        sample_bilinear_float(src_base, sw, sw, sh, sx0, sy0, c0);
+        sample_bilinear_float(src_base, sw, sw, sh, sx1, sy0, c1);
+        sample_bilinear_float(src_base, sw, sw, sh, sx0, sy1, c2);
+        sample_bilinear_float(src_base, sw, sw, sh, sx1, sy1, c3);
+
+        src.r = (c0.r + c1.r + c2.r + c3.r) * 0.25f;
+        src.g = (c0.g + c1.g + c2.g + c3.g) * 0.25f;
+        src.b = (c0.b + c1.b + c2.b + c3.b) * 0.25f;
+        src.a = (c0.a + c1.a + c2.a + c3.a) * 0.25f;
+    };
 
     if (detail::is_scale_translation(model)) {
         if (state && state->mask && state->mask->enabled()) {
@@ -56,7 +84,6 @@ void composite_framebuffer_transformed(Framebuffer& dst_fb, const Framebuffer& s
         if (x0_st < x1_st && y0_st < y1_st) {
             const float inv_sx = 1.0f / sx;
             const float inv_sy = 1.0f / sy;
-            const Color* src_base = src_fb.data();
 
             auto process_rows_st = [&](int row_begin, int row_end) {
                 for (int y = row_begin; y < row_end; ++y) {
@@ -77,7 +104,7 @@ void composite_framebuffer_transformed(Framebuffer& dst_fb, const Framebuffer& s
 
                     int x = x0_st;
 #if defined(__AVX2__)
-                    for (; x + 1 < x1_st; x += 2) {
+                    if (!downscale_x && !downscale_y) for (; x + 1 < x1_st; x += 2) {
                         const bool mask0 = !state || pixel_passes_mask(*state, x, y);
                         const bool mask1 = !state || pixel_passes_mask(*state, x + 1, y);
 
@@ -165,7 +192,7 @@ void composite_framebuffer_transformed(Framebuffer& dst_fb, const Framebuffer& s
                         if (lx < 0.0f || lx >= static_cast<float>(sw)) continue;
 
                         Color src;
-                        sample_bilinear_float(src_base, sw, sw, sh, lx, ly, src);
+                        sample_source(lx, ly, src);
                         src.r *= opacity; src.g *= opacity; src.b *= opacity; src.a *= opacity;
                         if (src.a <= 0.001f) continue;
 
@@ -196,8 +223,6 @@ void composite_framebuffer_transformed(Framebuffer& dst_fb, const Framebuffer& s
     detail::get_projective_bounds(model, static_cast<float>(sw), static_cast<float>(sh), dst_fb.width(), dst_fb.height(), x0, y0, x1, y1);
     if (x0 >= x1 || y0 >= y1) return;
 
-    const Color* src_base = src_fb.data();
-
     auto process_rows = [&](int row_begin, int row_end) {
         for (int y = row_begin; y < row_end; ++y) {
             Color* dst_row = dst_fb.pixels_row(y);
@@ -211,7 +236,7 @@ void composite_framebuffer_transformed(Framebuffer& dst_fb, const Framebuffer& s
                 if (lx < 0.0f || ly < 0.0f || lx >= static_cast<float>(sw) || ly >= static_cast<float>(sh)) continue;
 
                 Color src;
-                sample_bilinear_float(src_base, sw, sw, sh, lx, ly, src);
+                sample_source(lx, ly, src);
                 src.r *= opacity; src.g *= opacity; src.b *= opacity; src.a *= opacity;
                 if (src.a <= 0.001f) continue;
 

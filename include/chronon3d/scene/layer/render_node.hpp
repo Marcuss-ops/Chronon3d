@@ -39,6 +39,7 @@ struct RenderNode {
     DropShadow shadow;
     Glow glow;
     std::shared_ptr<Mesh> mesh;
+    f32 corner_radius{0.0f};
 
     // Runtime/shape-specific parameters to avoid hardcoding in RenderNode
     std::any params;

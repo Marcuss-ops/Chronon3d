@@ -85,6 +85,25 @@ std::shared_ptr<const CachedImage> ImageCache::get_or_load_shared(const std::str
         }
     }
 
+    // Keep a float framebuffer copy for the software raster path. This avoids
+    // re-sampling the BLImage path for scaled images, which is where we observed
+    // striping artifacts.
+    entry->fb_img = std::make_shared<Framebuffer>(entry->width, entry->height);
+    if (entry->fb_img) {
+        const uint8_t* src = buffer->pixels.get();
+        for (int y = 0; y < entry->height; ++y) {
+            Color* dst_row = entry->fb_img->pixels_row(y);
+            for (int x = 0; x < entry->width; ++x) {
+                const int idx = (y * entry->width + x) * 4;
+                const float r = src[idx + 0] / 255.0f;
+                const float g = src[idx + 1] / 255.0f;
+                const float b = src[idx + 2] / 255.0f;
+                const float a = src[idx + 3] / 255.0f;
+                dst_row[x] = Color{r * a, g * a, b * a, a};
+            }
+        }
+    }
+
     const auto t1 = std::chrono::steady_clock::now();
     const double load_dur_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
     spdlog::info("ImageCache: loaded '{}' ({}x{}) in {:.3f}ms", path, entry->width, entry->height, load_dur_ms);

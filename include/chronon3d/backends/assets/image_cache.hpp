@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/core/types/types.hpp>
+#include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/backends/image/image_backend.hpp>
 #include <chronon3d/cache/lru_cache.hpp>
 #include <string>
@@ -15,8 +16,9 @@ struct CachedImage {
     int width{0};
     int height{0};
     BLImage bl_img;
+    std::shared_ptr<Framebuffer> fb_img;
 
-    [[nodiscard]] bool valid() const { return !bl_img.empty() && width > 0 && height > 0; }
+    [[nodiscard]] bool valid() const { return !bl_img.empty() && fb_img && width > 0 && height > 0; }
 };
 
 class ImageCache {
@@ -65,4 +67,3 @@ private:
 };
 
 } // namespace chronon3d
-

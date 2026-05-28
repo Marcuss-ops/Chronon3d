@@ -20,6 +20,10 @@ CREATE TABLE IF NOT EXISTS render_runs (
     images_sampled INTEGER,
     blur_pixels INTEGER,
     simd_lerp_calls INTEGER,
+    tiles_total INTEGER,
+    tiles_hit INTEGER,
+    tiles_miss INTEGER,
+    tiles_partial INTEGER,
 
     bytes_allocated_peak INTEGER,
     node_cache_hash_collisions INTEGER,

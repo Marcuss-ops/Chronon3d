@@ -144,6 +144,38 @@ std::unique_ptr<Framebuffer> FramebufferPool::acquire_unique(int width, int heig
         }
     }
 
+    // Best-effort fallback: reuse a larger bucket when an exact bucket is not
+    // available. This reduces fragmentation when different logical sizes land
+    // in nearby rounded buckets, while still guaranteeing the buffer is at
+    // least as large as the request after logical resize.
+    auto best_fit = m_free.end();
+    size_t best_area = std::numeric_limits<size_t>::max();
+    for (auto it = m_free.begin(); it != m_free.end(); ++it) {
+        const auto& key = it->first;
+        if (key.width < rounded_w || key.height < rounded_h || it->second.empty()) {
+            continue;
+        }
+        const size_t area = static_cast<size_t>(key.width) * static_cast<size_t>(key.height);
+        if (area < best_area) {
+            best_area = area;
+            best_fit = it;
+        }
+    }
+
+    if (best_fit != m_free.end()) {
+        auto& bucket = best_fit->second;
+        auto fb = std::move(bucket.back());
+        bucket.pop_back();
+        m_current_bytes -= fb->size_bytes();
+        m_total_reuses.fetch_add(1, std::memory_order_relaxed);
+        if (profiling::g_current_counters) {
+            profiling::g_current_counters->framebuffer_reuses.fetch_add(1, std::memory_order_relaxed);
+            profiling::g_current_counters->framebuffer_pool_miss_count_size_mismatch.fetch_add(1, std::memory_order_relaxed);
+        }
+        fb->resize_logical(width, height);
+        return fb;
+    }
+
     if (m_arena) {
         void* ptr = m_arena->allocate(static_cast<size_t>(rounded_w) * rounded_h * sizeof(Color));
         if (ptr) {

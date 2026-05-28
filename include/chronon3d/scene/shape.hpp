@@ -124,6 +124,7 @@ struct ImageShape {
     std::string path;
     Vec2 size{100.0f, 100.0f};
     f32 opacity{1.0f};
+    f32 radius{0.0f};
 };
 
 struct FakeBox3DShape {

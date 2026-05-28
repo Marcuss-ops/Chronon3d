@@ -131,17 +131,20 @@ inline void dark_grid_background(SceneBuilder& s,
     const f32 W = static_cast<f32>(ctx.width > 0 ? ctx.width : 1280);
     const f32 H = static_cast<f32>(ctx.height > 0 ? ctx.height : 720);
 
-    GridBackgroundParams grid{};
-    grid.size = {W, H};
-    grid.bg_color = p.bg_color;
-    grid.grid_color = p.grid_color;
-    grid.spacing = p.spacing;
-    grid.offset = {0.0f, 0.0f};
-    grid.centered = p.centered;
-
-    s.layer("nbg_bg", [grid](LayerBuilder& l) {
+    s.layer("nbg_bg", [W, H, p](LayerBuilder& l) {
         l.cache_static();
-        l.grid_background("grid_bg", grid);
+        const auto path = detail::ensure_dark_grid_background_image(
+            static_cast<i32>(W),
+            static_cast<i32>(H),
+            p
+        );
+        l.image("grid_bg", {
+            .path = path.string(),
+            .size = {W, H},
+            .pos = {W * 0.5f, H * 0.5f, 0.0f},
+            .opacity = 1.0f,
+            .radius = 0.0f
+        });
     });
 }
 
