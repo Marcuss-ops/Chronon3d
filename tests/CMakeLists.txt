@@ -94,6 +94,7 @@ add_executable(chronon3d_renderer_tests
     render_graph/features/test_transition.cpp
     registry/test_registries.cpp
     cache/test_cache_sharding.cpp
+    cache/test_tile_cache.cpp
     effects/test_effect_registry.cpp
     deterministic/test_deterministic.cpp
     render_graph/pipeline/test_render_pipeline.cpp
@@ -105,6 +106,9 @@ add_executable(chronon3d_renderer_tests
     render_graph/pipeline/test_dirty_rects.cpp
     render_graph/optimizer/test_graph_optimizer.cpp
     render_graph/pipeline/test_dirty_rects_v2.cpp
+    render_graph/pipeline/test_tile_grid.cpp
+    render_graph/pipeline/test_dirty_tiles_output.cpp
+    render_graph/pipeline/test_tile_parallel.cpp
     render_graph/pipeline/test_graph_preflight_diagnostics.cpp
     scene/camera/camera_25d_tests.cpp
     effects/effect_graph_tests.cpp

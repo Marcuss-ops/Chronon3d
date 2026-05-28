@@ -136,6 +136,7 @@ public:
         bool visible{true};
         bool cache_static{false};
         bool is_3d{false};
+        uint64_t content_hash{0};
     };
 
     // Dirty rectangles tracking

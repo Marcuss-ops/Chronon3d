@@ -94,10 +94,7 @@ uint64_t Layer::get_static_hash() const {
         h = hash_combine(h, cache_static ? 1 : 0);
         h = hash_combine(h, static_cast<u64>(blend_mode));
         h = hash_combine(h, hash_mask(mask));
-        for (const auto& effect : effects) {
-            if (!effect.enabled) continue;
-            h = hash_combine(h, hash_string(effect.descriptor.id));
-        }
+        h = hash_combine(h, hash_effect_stack(effects));
         for (const auto& node : nodes) {
             h = hash_combine(h, hash_render_node(node));
         }

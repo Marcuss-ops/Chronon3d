@@ -185,6 +185,11 @@ struct RenderGraphContext {
     int tile_size{0};
     std::optional<raster::BBox> clip_rect;
 
+    // Tile-based execution mode (Branch 3+): when true, the executor should
+    // include tile coordinates in cache keys to prevent cross-tile staleness.
+    bool tile_execution_enabled{false};
+    std::optional<raster::BBox> active_tile_clip;
+
     // Optimization flags
     bool optimize_compositing{true};
     bool dirty_rects_enabled{false};

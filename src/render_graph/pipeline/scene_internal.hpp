@@ -6,6 +6,8 @@
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/effects/effect_category.hpp>
 #include <chronon3d/effects/effect_registry.hpp>
+#include <chronon3d/core/tile_grid.hpp>
+#include <chronon3d/core/dirty_tile_mask.hpp>
 #include "../builder/graph_builder_internal.hpp"
 #include <unordered_map>
 #include <optional>
@@ -69,6 +71,13 @@ struct DirtyRectOutput {
     std::unordered_map<std::string, SoftwareRenderer::LayerBBoxState> layer_bboxes;
     std::optional<raster::BBox> dirty_rect;
     bool use_dirty_rects{false};
+
+    // Tile-based dirty tracking (V2): populated when settings.tile_size > 0
+    // and settings.enable_dirty_bitmask are both active.
+    // Falls back to dirty_rect when tile-based tracking is not available.
+    std::optional<raster::TileGrid> tile_grid;
+    std::optional<raster::DirtyTileMask> dirty_tiles;
+    bool use_dirty_tiles{false};
 };
 
 DirtyRectOutput compute_dirty_rect(

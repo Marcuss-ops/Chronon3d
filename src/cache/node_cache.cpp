@@ -45,6 +45,10 @@ u64 NodeCacheKey::digest() const {
     seed = node_cache_detail::hash_combine(seed, params_hash);
     seed = node_cache_detail::hash_combine(seed, source_hash);
     seed = node_cache_detail::hash_combine(seed, input_hash);
+    seed = node_cache_detail::hash_combine(seed, node_cache_detail::hash_value(tile_x));
+    seed = node_cache_detail::hash_combine(seed, node_cache_detail::hash_value(tile_y));
+    seed = node_cache_detail::hash_combine(seed, node_cache_detail::hash_value(tile_size));
+    seed = node_cache_detail::hash_combine(seed, node_cache_detail::hash_value(tile_hash));
     return seed;
 }
 
