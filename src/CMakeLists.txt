@@ -151,9 +151,7 @@ target_precompile_headers(chronon3d_backend_image PRIVATE <spdlog/spdlog.h> <fmt
 
 add_library(chronon3d_backend_assets STATIC backends/assets/image_cache.cpp backends/assets/image_renderer.cpp)
 target_link_libraries(chronon3d_backend_assets PUBLIC chronon3d chronon3d_backend_image)
-target_include_directories(chronon3d_backend_assets PRIVATE ${Stb_INCLUDE_DIR})
-
-# Video Export Backend
+target_include_directories(chronon3d_backend_assets PRIVATE ${Stb_INCLUDE_DIR})# Video Export Backend
 set(CHRONON3D_BACKEND_VIDEO_SOURCES
     backends/video/video_export.cpp
     backends/video/video_source.cpp
@@ -163,6 +161,7 @@ set(CHRONON3D_BACKEND_VIDEO_SOURCES
 add_library(chronon3d_backend_video STATIC ${CHRONON3D_BACKEND_VIDEO_SOURCES})
 target_link_libraries(chronon3d_backend_video PUBLIC chronon3d chronon3d_cache spdlog::spdlog_header_only fmt::fmt TBB::tbb hwy::hwy)
 target_include_directories(chronon3d_backend_video PRIVATE ${CMAKE_SOURCE_DIR})
+
 target_link_libraries(chronon3d_graph PUBLIC chronon3d_backend_video)
 
 # Software Renderer Backend
@@ -291,4 +290,5 @@ target_link_libraries(chronon3d_software INTERFACE
 )
 
 add_library(chronon3d_pipeline INTERFACE)
-target_link_libraries(chronon3d_pipeline INTERFACE chronon3d_core chronon3d_software Taskflow::Taskflow concurrentqueue::concurrentqueue yuv)
+target_link_libraries(chronon3d_pipeline INTERFACE chronon3d_core chronon3d_software Taskflow::Taskflow concurrentqueue::concurrentqueue yuv
+    -lswscale -lavutil)

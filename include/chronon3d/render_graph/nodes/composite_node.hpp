@@ -82,10 +82,7 @@ public:
         }
         
         std::shared_ptr<Framebuffer> result;
-        // Optimization: In-place composition if we are the unique owner of the bottom buffer
-        if (ctx.optimize_compositing && bottom.use_count() == 1 && bottom->width() == ctx.width && bottom->height() == ctx.height) {
-            result = bottom;
-        } else if (bottom->width() == ctx.width && bottom->height() == ctx.height) {
+        if (bottom->width() == ctx.width && bottom->height() == ctx.height) {
             result = ctx.acquire_framebuffer(*bottom);
         } else {
             result = ctx.acquire_framebuffer(ctx.width, ctx.height, true);

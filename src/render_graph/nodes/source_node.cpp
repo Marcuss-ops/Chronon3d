@@ -156,12 +156,14 @@ std::shared_ptr<Framebuffer> SourceNode::execute(
     std::span<const std::optional<raster::BBox>>
 ) {
     CHRONON_ZONE_C("source_render", trace_category::kRasterize);
-    // If this source can seed the entire frame with an opaque image, skip the
-    // initial clear and let the image write every pixel directly.
+    // Always clear the framebuffer before rendering, even for full-frame
+    // opaque images.  The can_seed_full_frame check below is still used for
+    // set_opaque() and graph-builder optimizations, but not to skip the clear
+    // — floating-point rounding in the transform matrix may leave sub-pixel
+    // gaps that would otherwise show stale pixels from the previous frame.
     const bool full_frame_seed = can_seed_full_frame(ctx);
-    bool clear = !full_frame_seed;
 
-    auto fb = ctx.acquire_framebuffer(ctx.width, ctx.height, clear);
+    auto fb = ctx.acquire_framebuffer(ctx.width, ctx.height, true);
     if (ctx.backend) {
         RenderState state;
         const Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(ctx.ssaa_factor, ctx.ssaa_factor, 1.0f));
