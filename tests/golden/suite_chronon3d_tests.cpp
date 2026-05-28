@@ -309,15 +309,11 @@ TEST_CASE("Chronon3d Suite: Gradient Tests") {
             };
             s.rect("grad_rect", {
                 .size = {512, 128},
-                .pos = {-256, -64, 0},
+                .pos = {0, 0, 0},
                 .fill = Fill::linear({0.0f, 0.5f}, {1.0f, 0.5f}, stops)
             });
             return s.build();
         });
-        comp.camera.transform.position.x = 256.0f;
-        comp.camera.transform.position.y = 64.0f;
-        comp.camera.transform.position.z = -comp.camera.focal_length(512.0f);
-
         auto fb = renderer.render_frame(comp, 0);
         REQUIRE(fb != nullptr);
 
@@ -350,15 +346,11 @@ TEST_CASE("Chronon3d Suite: Gradient Tests") {
             };
             s.rect("multi_rect", {
                 .size = {512, 128},
-                .pos = {-256, -64, 0},
+                .pos = {0, 0, 0},
                 .fill = Fill::linear({0.0f, 0.5f}, {1.0f, 0.5f}, stops)
             });
             return s.build();
         });
-        comp.camera.transform.position.x = 256.0f;
-        comp.camera.transform.position.y = 64.0f;
-        comp.camera.transform.position.z = -comp.camera.focal_length(512.0f);
-
         auto fb = renderer.render_frame(comp, 0);
         REQUIRE(fb != nullptr);
 
@@ -392,15 +384,11 @@ TEST_CASE("Chronon3d Suite: Gradient Tests") {
             };
             s.circle("radial_circle", {
                 .radius = 200.0f,
-                .pos = {-200, -200, 0},
+                .pos = {0, 0, 0},
                 .fill = Fill::radial({0.5f, 0.5f}, 0.5f, stops)
             });
             return s.build();
         });
-        comp.camera.transform.position.x = 200.0f;
-        comp.camera.transform.position.y = 200.0f;
-        comp.camera.transform.position.z = -comp.camera.focal_length(400.0f);
-
         auto fb = renderer.render_frame(comp, 0);
         REQUIRE(fb != nullptr);
 
@@ -483,10 +471,6 @@ TEST_CASE("Chronon3d Suite: Shadow System Tests") {
             });
             return s.build();
         });
-        comp.camera.transform.position.x = 64.0f;
-        comp.camera.transform.position.y = 64.0f;
-        comp.camera.transform.position.z = -comp.camera.focal_length(128.0f);
-
         auto fb = renderer.render_frame(comp, 0);
         REQUIRE(fb != nullptr);
 
