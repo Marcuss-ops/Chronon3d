@@ -124,12 +124,14 @@ int render_and_encode_ffmpeg_pipe(
         for (;;) {
             RenderFramePackage package;
             const auto pop_t0 = std::chrono::steady_clock::now();
+            bool was_idle = false;
             while (!queue.try_dequeue(package)) {
                 if (writer_done.load()) {
                     if (!queue.try_dequeue(package)) break;
                 } else if (writer_failed.load()) {
                     break;
                 } else {
+                    was_idle = true;
                     std::this_thread::yield();
                     continue;
                 }
@@ -137,10 +139,13 @@ int render_and_encode_ffmpeg_pipe(
             if (writer_failed.load() || (writer_done.load() && !package.framebuffer)) break;
 
             const auto pop_t1 = std::chrono::steady_clock::now();
+            const uint64_t dequeue_ms = static_cast<uint64_t>(
+                std::chrono::duration<double, std::milli>(pop_t1 - pop_t0).count());
             if (renderer->counters()) {
-                renderer->counters()->io_queue_pop_wait_ms.fetch_add(
-                    static_cast<uint64_t>(std::chrono::duration<double, std::milli>(pop_t1 - pop_t0).count()),
-                    std::memory_order_relaxed);
+                renderer->counters()->io_queue_pop_wait_ms.fetch_add(dequeue_ms, std::memory_order_relaxed);
+                if (was_idle) {
+                    renderer->counters()->io_writer_idle_wait_ms.fetch_add(dequeue_ms, std::memory_order_relaxed);
+                }
             }
 
             if (package.framebuffer) {

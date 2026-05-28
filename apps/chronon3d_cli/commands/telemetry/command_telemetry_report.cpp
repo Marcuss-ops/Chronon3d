@@ -148,6 +148,7 @@ void generate_telemetry_report(std::stringstream& out, sqlite3* db, const std::s
     out << "| framebuffer pool hits | " << run.framebuffer_pool_hits << " |\n";
     out << "| framebuffer pool miss (size) | " << run.framebuffer_pool_miss_count_size_mismatch << " |\n";
     out << "| framebuffer pool miss (empty) | " << run.framebuffer_pool_miss_count_empty << " |\n";
+    out << "| framebuffer pool miss (best-fit) | " << run.framebuffer_pool_miss_count_best_fit << " |\n";
     out << "| framebuffer returned to pool | " << run.framebuffer_buffer_returned_to_pool_count << " |\n\n";
 
     // ── Clear ─────────────────────────────────────────────────────────────────
@@ -174,6 +175,7 @@ void generate_telemetry_report(std::stringstream& out, sqlite3* db, const std::s
     out << "| --- | --- |\n";
     out << "| IO queue push blocked | " << format_ms(run.io_queue_push_blocked_ms) << " |\n";
     out << "| IO queue pop wait | " << format_ms(run.io_queue_pop_wait_ms) << " |\n";
+    out << "| IO writer idle wait | " << format_ms(run.io_writer_idle_wait_ms) << " |\n";
     out << "| IO queue peak depth | " << run.io_queue_peak_depth << " |\n";
     out << "| IO queue peak bytes | " << format_bytes(run.io_queue_peak_bytes) << " |\n\n";
 

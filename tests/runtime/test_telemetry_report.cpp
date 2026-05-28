@@ -32,7 +32,7 @@ static const std::vector<std::string> FRAMEBUFFER_FIELDS = {
     "framebuffer_acquire_ms", "framebuffer_clear_ms", "framebuffer_pool_clear_ms",
     "framebuffer_enqueue_ms", "framebuffer_pool_hits",
     "framebuffer_pool_miss_count_size_mismatch", "framebuffer_pool_miss_count_empty",
-    "framebuffer_buffer_returned_to_pool_count"
+    "framebuffer_pool_miss_count_best_fit", "framebuffer_buffer_returned_to_pool_count"
 };
 
 static const std::vector<std::string> CLEAR_FIELDS = {
@@ -45,7 +45,7 @@ static const std::vector<std::string> CONVERSION_FIELDS = {
 };
 
 static const std::vector<std::string> QUEUE_FIELDS = {
-    "io_queue_push_blocked_ms", "io_queue_pop_wait_ms", "io_queue_peak_depth"
+    "io_queue_push_blocked_ms", "io_queue_pop_wait_ms", "io_writer_idle_wait_ms", "io_queue_peak_depth"
 };
 
 static const std::vector<std::string> FFMPEG_PIPE_FIELDS = {

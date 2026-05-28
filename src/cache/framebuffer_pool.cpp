@@ -49,22 +49,6 @@ FramebufferPool::FramebufferPool(size_t max_bytes)
 void FramebufferPool::set_arena(std::shared_ptr<FramebufferArena> arena) {
     std::lock_guard<std::mutex> lock(m_mutex);
     if (m_arena != arena) {
-        for (auto it = m_free.begin(); it != m_free.end(); ) {
-            auto& vec = it->second;
-            for (auto& fb : vec) {
-                if (fb->is_arena_allocated()) {
-                    m_current_bytes -= fb->size_bytes();
-                }
-            }
-            vec.erase(std::remove_if(vec.begin(), vec.end(), [](const auto& fb) {
-                return fb->is_arena_allocated();
-            }), vec.end());
-            if (vec.empty()) {
-                it = m_free.erase(it);
-            } else {
-                ++it;
-            }
-        }
         m_arena = std::move(arena);
     }
 }
@@ -170,7 +154,7 @@ std::unique_ptr<Framebuffer> FramebufferPool::acquire_unique(int width, int heig
         m_total_reuses.fetch_add(1, std::memory_order_relaxed);
         if (profiling::g_current_counters) {
             profiling::g_current_counters->framebuffer_reuses.fetch_add(1, std::memory_order_relaxed);
-            profiling::g_current_counters->framebuffer_pool_miss_count_size_mismatch.fetch_add(1, std::memory_order_relaxed);
+            profiling::g_current_counters->framebuffer_pool_miss_count_best_fit.fetch_add(1, std::memory_order_relaxed);
         }
         fb->resize_logical(width, height);
         return fb;
@@ -217,6 +201,13 @@ void FramebufferPool::release(Framebuffer* fb) {
     if (!fb) return;
 
     m_total_returns.fetch_add(1, std::memory_order_relaxed);
+
+    // Arena-backed framebuffers are non-owning wrappers around arena memory.
+    // They become stale when the arena is reset for the next frame, so they
+    // must NOT be returned to the free list — just drop them.
+    if (fb->is_arena_allocated()) {
+        return;
+    }
 
     std::lock_guard<std::mutex> lock(m_mutex);
 
