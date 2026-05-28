@@ -113,6 +113,14 @@ CacheEvalResult evaluate_cache(
         cr.key = node.cache_key(ctx);
         cr.key.input_hash = input_hash;
 
+        // ── Tile-aware cache key: when executing in tile mode, differentiate
+        //     cache entries by tile position so tiles don't share stale data.
+        if (ctx.tile_execution_enabled && ctx.active_tile_clip) {
+            cr.key.tile_x = ctx.active_tile_clip->x0;
+            cr.key.tile_y = ctx.active_tile_clip->y0;
+            cr.key.tile_size = ctx.tile_size > 0 ? ctx.tile_size : 0;
+        }
+
         cr.result = ctx.node_cache->get(cr.key);
         
         if (!cr.result && policy.disk_cacheable && disk_node_cache_enabled_for_current_run()) {
@@ -399,6 +407,12 @@ void execute_single_node(
         id,
         pr.inputs_all_cache_hits
     );
+
+    spdlog::error("[DIAG-exec] frame={} node='{}' id={} kind='{}' cache='{}' frame_dep={} use_cache={} result_ptr={}",
+        static_cast<int>(ctx.frame), node.name(), id, to_string(node.kind()),
+        cache_eval.cache_status, cache_eval.node_frame_dependent ? 1 : 0,
+        cache_eval.use_cache ? 1 : 0,
+        cache_eval.result ? fmt::ptr(cache_eval.result.get()) : "null");
 
     // Predicted bbox
     auto predicted_bbox = node.predicted_bbox(ctx, pr.input_bboxes);

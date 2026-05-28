@@ -176,11 +176,6 @@ std::shared_ptr<Framebuffer> SourceNode::execute(
                 state.matrix = ssaa_scale * m_matrix_override.value_or(m_node.world_transform.to_mat4());
             }
         }
-        const Mat4 local_mat = m_matrix_override.value_or(m_node.world_transform.to_mat4());
-        spdlog::info("[SourceNode::execute] name='{}' cc_tx={} cc_ty={} ssaa_tx={} ssaa_ty={} local_tx={} local_ty={}",
-                     m_name, canvas_center[3][0], canvas_center[3][1],
-                     ssaa_scale[3][0], ssaa_scale[3][1],
-                     local_mat[3][0], local_mat[3][1]);
         state.opacity = m_opacity_override.value_or(m_node.world_transform.opacity);
         state.world_matrix = m_matrix_override.value_or(m_node.world_transform.to_mat4());
         state.clip_rect = ctx.clip_rect;
@@ -191,8 +186,6 @@ std::shared_ptr<Framebuffer> SourceNode::execute(
 
         ctx.backend->draw_node(*fb, m_node, state, ctx.camera, ctx.width, ctx.height);
         fb->set_opaque(full_frame_seed);
-
-
 
         if (ctx.diagnostics_enabled) {
             int nonzero_pixels = 0;
@@ -206,31 +199,8 @@ std::shared_ptr<Framebuffer> SourceNode::execute(
                 }
             }
 
-            // Print ASCII grid
-            std::string ascii_grid = "";
-            int grid_size = 20;
-            int step_x = fb->width() / grid_size;
-            int step_y = fb->height() / grid_size;
-            if (step_x < 1) step_x = 1;
-            if (step_y < 1) step_y = 1;
-            for (int gy = 0; gy < grid_size; ++gy) {
-                std::string line = "";
-                for (int gx = 0; gx < grid_size; ++gx) {
-                    int px = gx * step_x;
-                    int py = gy * step_y;
-                    if (px < fb->width() && py < fb->height()) {
-                        Color c = fb->get_pixel(px, py);
-                        if (c.r > 0.5f) line += "R";
-                        else if (c.b > 0.5f) line += "B";
-                        else if (c.a > 0.1f) line += "A";
-                        else line += ".";
-                    }
-                }
-                ascii_grid += "\n" + line;
-            }
-
             spdlog::info(
-                "[source-debug] node='{}' shape={} nonzero_pixels={} opacity={:.3f} matrix_tx={:.3f} matrix_ty={:.3f} det2d={:.6f} grid:{}",
+                "[source-debug] node='{}' shape={} nonzero_pixels={} opacity={:.3f} matrix_tx={:.3f} matrix_ty={:.3f} det2d={:.6f}",
                 m_name,
                 static_cast<int>(m_node.shape.type),
                 nonzero_pixels,
@@ -241,8 +211,7 @@ std::shared_ptr<Framebuffer> SourceNode::execute(
                     state.matrix[0][0], state.matrix[0][1], state.matrix[0][3],
                     state.matrix[1][0], state.matrix[1][1], state.matrix[1][3],
                     state.matrix[3][0], state.matrix[3][1], state.matrix[3][3]
-                )),
-                ascii_grid
+                ))
             );
         }
     }

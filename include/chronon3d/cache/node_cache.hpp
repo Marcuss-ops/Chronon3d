@@ -18,6 +18,14 @@ struct NodeCacheKey {
     u64         source_hash{0};
     u64         input_hash{0};
 
+    // Tile-based cache differentiation (Branch 4).
+    // Defaults (-1, -1, 0, 0) produce the same digest as before,
+    // so non-tile cache keys are unaffected.
+    i32         tile_x{-1};
+    i32         tile_y{-1};
+    i32         tile_size{0};
+    u64         tile_hash{0};
+
     [[nodiscard]] u64 digest() const;
     bool operator==(const NodeCacheKey&) const = default;
 };

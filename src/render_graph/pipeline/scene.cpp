@@ -11,6 +11,8 @@
 #include "../builder/graph_builder_pipeline.hpp"
 #include "../builder/graph_builder_internal.hpp"
 #include <chronon3d/render_graph/optimizer/graph_optimizer.hpp>
+#include <chronon3d/core/tile_grid.hpp>
+#include <chronon3d/core/dirty_tile_mask.hpp>
 #include "helpers.hpp"
 #include "scene_internal.hpp"
 #include <spdlog/spdlog.h>
@@ -251,7 +253,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         return sw_renderer->m_prev_framebuffer;
     }
 
-    // ── Build + optimize + execute render graph ────────────────────────
+    // ── Build + optimize render graph (once, shared across tile loop) ──
     RenderGraph graph = [&]() {
         CHRONON_ZONE_C("build_graph", trace_category::kGraph);
         auto mutable_ctx = ctx;
@@ -288,15 +290,124 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     }
     const auto t_build2 = std::chrono::steady_clock::now();
 
+    // ── Execute: tile-based (V1) or traditional single-pass ─────────────
     const auto t_exec0 = std::chrono::steady_clock::now();
     std::shared_ptr<Framebuffer> fb_shared;
-    {
-        CHRONON_ZONE_C("graph_execute", trace_category::kGraph);
-        if (sw_renderer && sw_renderer->executor()) {
-            fb_shared = sw_renderer->executor()->execute(graph, graph.output(), ctx);
-        } else {
-            GraphExecutor local_executor;
-            fb_shared = local_executor.execute(graph, graph.output(), ctx);
+    const bool use_tile_execution = dirty_out.use_dirty_tiles &&
+                                    sw_renderer &&
+                                    sw_renderer->executor() &&
+                                    dirty_out.tile_grid &&
+                                    dirty_out.dirty_tiles &&
+                                    dirty_out.dirty_tiles->any();
+
+    if (use_tile_execution) {
+        const auto& tile_grid = *dirty_out.tile_grid;
+        const auto& dirty_tiles = *dirty_out.dirty_tiles;
+
+        // ── Allocate final framebuffer: copy previous frame for clean tiles ──
+        {
+            CHRONON_ZONE_C("tile_acquire", trace_category::kFrame);
+            const bool have_prev = sw_renderer->m_prev_framebuffer &&
+                                   sw_renderer->m_prev_framebuffer->width() == width &&
+                                   sw_renderer->m_prev_framebuffer->height() == height;
+            if (have_prev) {
+                fb_shared = std::make_shared<Framebuffer>(*sw_renderer->m_prev_framebuffer);
+            } else {
+                fb_shared = ctx.acquire_framebuffer(width, height, true);
+            }
+        }
+
+        // ── Tile execution loop (parallel) ───────────────────────────────
+        {
+            CHRONON_ZONE_C("tile_execute", trace_category::kGraph);
+            const int total_tiles = tile_grid.tile_count();
+
+            // Sequential tile loop.  Each tile renders the full graph
+            // independently with a tile-scoped clip_rect, then the tile
+            // region is copied into the final framebuffer.  The sequential
+            // outer loop avoids TBB nesting / thread-local state issues
+            // while the executor still parallelises internally per node level.
+            int dirty_count = 0;
+            uint64_t pixels_rendered = 0;
+
+            dirty_tiles.for_each_dirty_tile(tile_grid, [&](int tx, int ty) {
+                const raster::BBox tile_bbox = tile_grid.tile_bounds(tx, ty);
+                if (tile_bbox.is_empty()) return;
+
+                // Clone context with tile-level clipping.
+                // Disable prev-fb reuse so the ClearNode allocates a
+                // fresh framebuffer instead of stealing m_prev_framebuffer.
+                // Per-tile cache keys prevent stale cross-tile cache hits.
+                RenderGraphContext tile_ctx = ctx;
+                tile_ctx.clip_rect = tile_bbox;
+                tile_ctx.dirty_rect = tile_bbox;
+                tile_ctx.reuse_prev_framebuffer = false;
+                tile_ctx.tile_execution_enabled = true;
+                tile_ctx.active_tile_clip = tile_bbox;
+                tile_ctx.skip_initial_clear = false;
+                tile_ctx.early_exit_skip.clear();
+                // Reset optimisations that the graph builder may have
+                // applied for the full-frame path; tile execution needs
+                // ClearNode to zero each tile region and all nodes to
+                // execute normally per tile.
+
+                auto tile_fb = sw_renderer->executor()->execute(
+                    graph, graph.output(), tile_ctx);
+
+                // Direct row copy — the tile replaces old frame
+                // content in its region (no alpha blending, since
+                // fb_shared was seeded from prev_framebuffer).
+                if (tile_fb) {
+                    for (i32 y = tile_bbox.y0; y < tile_bbox.y1; ++y) {
+                        std::copy(
+                            tile_fb->pixels_row(y) + tile_bbox.x0,
+                            tile_fb->pixels_row(y) + tile_bbox.x1,
+                            fb_shared->pixels_row(y) + tile_bbox.x0);
+                    }
+                }
+
+                ++dirty_count;
+                pixels_rendered +=
+                    static_cast<uint64_t>(tile_bbox.x1 - tile_bbox.x0) *
+                    static_cast<uint64_t>(tile_bbox.y1 - tile_bbox.y0);
+            });
+
+            const int final_dirty = dirty_count;
+            const uint64_t final_px = pixels_rendered;
+
+            // ── Tile counters ───────────────────────────────────────────────
+            if (ctx.counters) {
+                ctx.counters->tile_dirty_count.fetch_add(final_dirty, std::memory_order_relaxed);
+                const int clean_count = std::max(0, total_tiles - final_dirty);
+                ctx.counters->tile_clean_count.fetch_add(clean_count, std::memory_order_relaxed);
+                ctx.counters->tile_pixels_rendered.fetch_add(final_px, std::memory_order_relaxed);
+                const uint64_t total_pixels =
+                    static_cast<uint64_t>(width) * static_cast<uint64_t>(height);
+                const uint64_t pixels_skipped = (total_pixels > final_px)
+                    ? total_pixels - final_px : 0;
+                ctx.counters->tile_pixels_skipped.fetch_add(pixels_skipped, std::memory_order_relaxed);
+            }
+
+            if (ctx.diagnostics_enabled) {
+                spdlog::info(
+                    "[tile-debug] frame={} tile_total={} tile_dirty={}",
+                    static_cast<int>(frame), total_tiles, final_dirty);
+            }
+        }
+    } else {
+        // ── Traditional single-pass execution ───────────────────────────────
+        {
+            CHRONON_ZONE_C("graph_execute", trace_category::kGraph);
+            if (sw_renderer && sw_renderer->executor()) {
+                fb_shared = sw_renderer->executor()->execute(graph, graph.output(), ctx);
+            } else {
+                GraphExecutor local_executor;
+                fb_shared = local_executor.execute(graph, graph.output(), ctx);
+            }
+        }
+        // Track tile fallbacks when tile system requested but couldn't execute
+        if (dirty_out.use_dirty_tiles && ctx.counters) {
+            ctx.counters->tile_full_fallbacks.fetch_add(1, std::memory_order_relaxed);
         }
     }
     const auto t_exec1 = std::chrono::steady_clock::now();
