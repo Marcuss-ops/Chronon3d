@@ -210,14 +210,20 @@ int render_and_encode_ffmpeg_pipe(
             }
 
             const auto frame_t0 = std::chrono::steady_clock::now();
+            fprintf(stderr, "[PERF] frame=%d t0=%.3f\n", (int)current_frame, 
+                std::chrono::duration<double>(frame_t0.time_since_epoch()).count());
+            fflush(stderr);
             
             auto fb = render_composition_frame(
                 *renderer, node_cache, render_opts, &registry, video_decoder, comp, current_frame);
             
             const auto frame_t1 = std::chrono::steady_clock::now();
+            const double frame_ms = std::chrono::duration<double, std::milli>(frame_t1 - frame_t0).count();
+            fprintf(stderr, "[PERF] frame=%d render_ms=%.2f\n", (int)current_frame, frame_ms);
+            fflush(stderr);
             if (renderer->counters()) {
                 renderer->counters()->video_graph_eval_ms.fetch_add(
-                    static_cast<uint64_t>(std::chrono::duration<double, std::milli>(frame_t1 - frame_t0).count()),
+                    static_cast<uint64_t>(frame_ms),
                     std::memory_order_relaxed);
             }
             const double dirty_ratio = sw_renderer ? sw_renderer->last_dirty_area_ratio() : 1.0;

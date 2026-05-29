@@ -1131,12 +1131,16 @@ registry.register_shape(ShapeType::Path, create_path_processor());     // vince 
 | N15 | FB pool adaptive preallocation | Questa settimana | 🟡 Media | 🟡 Medio | 🟡 Counters live |
 | N16 | Zero-copy frame delivery encoder | Questa settimana | 🟡 Media | 🟡 Medio | 🟡 Counters live |
 | N17 | Pool miss reason dashboard | Oggi | 🟢 Bassa | 🟢 Basso | 🟡 Counters live |
+| **P1** | **Static fingerprint fast-path** | Oggi | 🟡 Media | 🔴 Alto | ✅ Fatto — PR 3 |
+| **P2** | **Execution plan cache** | Oggi | 🟡 Media | 🔴 Alto | ✅ Fatto — PR 2 |
+| **P3** | **Skip-When-Opaque CompositeNode** | Oggi | 🟢 Bassa | 🟡 Medio | ✅ Fatto — PR 1 |
+| **P4** | **Graph structure hint (executor)** | Oggi | 🟢 Bassa | 🟡 Medio | ✅ Fatto — PR 4 |
 | **I1** | **Render Graph Incrementale** | Questo mese | 🔴 Alta | 🔴 Alto | **Nuovo — il game changer** |
 | **I2** | **SoA Framebuffer** | Questo mese | 🟡 Media | 🟡 Medio | **Nuovo** |
 | **I3** | **Wavefront Scheduling** | Questo mese | 🟡 Media | 🟡 Medio | **Nuovo** |
 | **I4** | **Direct Float→YUV Encoding** | Questa settimana | 🟢 Bassa | 🔴 Alto | **Nuovo — quick win** |
 | **I5** | **Per-Frame Arena senza Pool** | Questa settimana | 🟡 Media | 🔴 Alto | **Nuovo** |
-| **I6** | **Procedural Grid Kernel** | Oggi | 🟢 Bassa | 🔴 Alto | **Nuovo — quick win** |
+| **I6** | **Procedural Grid Kernel** | Oggi | 🟢 Bassa | 🔴 Alto | **PR 3 risolve** 🟡 Priorità ridotta |
 | **I7** | **Pre-bake mmap** | Oggi | 🟢 Bassa | 🔴 Alto | **Nuovo — quick win** |
 
 ---
@@ -1220,21 +1224,39 @@ registry.register_shape(ShapeType::Path, create_path_processor());     // vince 
 - **A2** — Decoupling RenderNode shape state
 - **C1** — SIMD Rect Rasterizer
 - **E1** — Unificazione Effect System std::any
+- **P3 (PR 1)** — Skip-When-Opaque CompositeNode (ImgGridTest cold-start 425ms → 303ms, -29%)
+- **P2 (PR 2)** — Execution plan cache (structure_signature, cache plan tra frame consecutivi)
+- **P1 (PR 3)** — Static fingerprint fast-path (ImgGridTest 311ms → 0.42ms, **740×**; DarkGridBackground 3.88ms → 0.34ms, **11×**)
+- **P4 (PR 4)** — Graph structure hint executor (salta compute_structure_signature() quando la scena è invariata)
 
-### Prossima priorità
+### Prossima priorità (aggiornata dopo PRs 1-4)
 
-**Singola cosa da fare oggi:** **I6 (Procedural Grid Kernel)** — kernel SIMD dedicato per la griglia, 25× speedup, 1-2 giorni, zero modifiche architetturali. Poi **I4 (Direct Float→YUV)** — elimina 8MB alloc/frame, 1 giorno.
+> **Novità:** PR 3 (Static Fingerprint Fast-Path) ha reso le composizioni statiche essenzialmente **gratis** (0 nodi, <0.5ms).
+> Il focus si sposta da "velocizzare le composizioni statiche" a "parallelizzare le composizioni dinamiche".
+
+**Singola cosa da fare oggi:** **N2 (Box Blur 3-Pass Parallel)** — 4-8× speedup su blur con raggio grande, 1 giorno, solo TBB wrapper attorno ai loop esistenti. Poi **L8 V1 (Parallel Tile con TBB)** — 2-4× su scene complesse.
 
 **3 cose da fare questa settimana:**
-1. **I6 (Procedural Grid Kernel)** — 25× speedup sulla grid background, quick win
-2. **I4 (Direct Float→YUV)** — 2-3× speedup encoding, elimina heap alloc
-3. **I5 (Per-Frame Arena)** — elimina 226 pool miss + mutex overhead
+1. **N2 (Box Blur Parallel)** — 4-8× su blur, quick win, 1 giorno
+2. **L8 V1 (Parallel Tile via TBB nested parallel_for)** — 2-4× su scene multi-layer, 2 giorni
+3. **I4 (Thread-to-Core Affinity)** — 5-10% su multi-socket, poche ore
 
-**Quick win di oggi:** **I6 + I4** — 2 giorni totali, impatto massimo. **N10 (RAII guard thread_local)** — 15 minuti. **N4 (any_cast → enum dispatch)** — 20 minuti.
+**Quick win di oggi:** **N2 + I4** — 1-2 giorni totali, impatto massimo. **N10 (RAII guard thread_local)** — 15 minuti. **N4 (any_cast → enum dispatch)** — 20 minuti.
 
-**Il game changer a lungo termine:** **I1 (Render Graph Incrementale)** — 3-5× su composizioni statiche. È come passare da "ricalcolare tutto" a "ricalcolare solo ciò che cambia".
+**Il nuovo game changer:** **L8 (Parallel Tile Execution)** — dopo PR 3 che risolve le scene statiche in 0.4ms, L8 parallelizza ciò che resta. Passaggio da single-core a multi-core per scene dinamiche.
 
 **La più divertente:** **R5 (LOD 2.5D)** — primo motore 2.5D con Level-of-Detail per layer, impatto 2-16×.
+
+**📊 Riepilogo risultati PRs 1-4:**
+| PR | Ottimizzazione | Bench | Prima | Dopo | Speedup |
+|----|----------------|-------|-------|------|---------|
+| PR 1 | Skip-When-Opaque | ImgGridTest cold-start | 425ms | 303ms | 1.4× |
+| PR 2 | Execution plan cache | TextGridOverlay (164 nodi) | N/A | skip hash O(164) | — |
+| PR 3 | Static fingerprint | ImgGridTest | 311ms | **0.42ms** | **740×** |
+| PR 3 | Static fingerprint | DarkGridBackground | 3.88ms | **0.34ms** | **11×** |
+| PR 4 | Graph structure hint | executor skip compute_structure_signature | O(n) per frame | ~0 quando invariato | — |
+
+**Tutti i 317 test passano** (133.126 assertion, 0 fallimenti).
 **Sezione diagnostica: usa i nuovi counter per ottimizzare:** ora che abbiamo `framebuffer_acquire_ms`, `framebuffer_clear_ms`, `framebuffer_enqueue_ms`, `frame_conversion_copy_ms`, e i miss reason counters, smettiamo di tirare a indovinare: vediamo esattamente dove si perde tempo nel framebuffer pipeline.
 
 **Nuove opportunità dalla diagnostica framebuffer pipeline (maggio 2026) — telemetry counters C++ → DB → React già live:**
