@@ -28,6 +28,25 @@ namespace chronon3d::graph {
 GraphExecutor::GraphExecutor()
     : m_arena(std::max(1u, std::thread::hardware_concurrency())) {}
 
+// ── compute_structure_signature ─────────────────────────────────────
+
+uint64_t GraphExecutor::compute_structure_signature(const RenderGraph& graph, GraphNodeId output) {
+    uint64_t sig = hash_value(graph.size());
+    for (GraphNodeId id = 0; id < graph.size(); ++id) {
+        if (!graph.has_node(id)) continue;
+        sig = hash_combine(sig, hash_value(static_cast<int>(graph.node(id).kind())));
+        const auto& inputs = graph.inputs(id);
+        sig = hash_combine(sig, hash_value(inputs.size()));
+        for (GraphNodeId input : inputs) {
+            sig = hash_combine(sig, hash_value(input));
+        }
+    }
+    sig = hash_combine(sig, hash_value(output));
+    return sig;
+}
+
+// ── build_execution_plan (uncached) ─────────────────────────────────
+
 GraphExecutor::ExecutionPlan GraphExecutor::build_execution_plan(RenderGraph& graph, GraphNodeId output) const {
     ExecutionPlan plan;
     const size_t node_count = graph.size();
@@ -106,7 +125,37 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
     GraphNodeId output,
     RenderGraphContext& ctx
 ) {
-    const auto plan = build_execution_plan(graph, output);
+    // ── Cached execution plan ───────────────────────────────────────
+    // Avoid the topological sort + reachability analysis every frame
+    // when the graph structure hasn't changed.
+    // When ctx.graph_structure_unchanged is true, the caller guarantees
+    // the graph topology is identical to the previous call, so we use
+    // the cached plan directly without recomputing the structure hash.
+    bool plan_cached = false;
+    if (ctx.graph_structure_unchanged && m_cached_plan.valid && m_cached_plan.output == output) {
+        plan_cached = true;
+        if (ctx.counters && ctx.diagnostics_enabled) {
+            ctx.counters->execution_plan_cache_hits.fetch_add(1, std::memory_order_relaxed);
+        }
+    } else {
+        const uint64_t sig = compute_structure_signature(graph, output);
+        if (m_cached_plan.valid &&
+            m_cached_plan.structure_hash == sig &&
+            m_cached_plan.output == output)
+        {
+            plan_cached = true;
+            if (ctx.counters && ctx.diagnostics_enabled) {
+                ctx.counters->execution_plan_cache_hits.fetch_add(1, std::memory_order_relaxed);
+            }
+        } else {
+            m_cached_plan.plan = build_execution_plan(graph, output);
+            m_cached_plan.structure_hash = sig;
+            m_cached_plan.output = output;
+            m_cached_plan.valid = true;
+        }
+    }
+
+    const auto& plan = m_cached_plan.plan;
     if (plan.levels.empty()) {
         return nullptr;
     }

@@ -80,7 +80,30 @@ public:
                 ctx.clip_rect ? ctx.clip_rect->y1 : ctx.height
             );
         }
-        
+
+        // ── Skip-opaque optimization ─────────────────────────────────
+        // When the top layer is fully opaque, covers the full frame,
+        // and uses Normal blend mode, the bottom is completely hidden.
+        // Skip the copy+blend and return top directly.
+        if (m_mode == BlendMode::Normal && top->is_opaque() &&
+            input_bboxes.size() >= 2 && input_bboxes[1].has_value())
+        {
+            const auto& tb = *input_bboxes[1];
+            if (tb.x0 <= 0 && tb.y0 <= 0 && tb.x1 >= ctx.width && tb.y1 >= ctx.height) {
+                if (!ctx.clip_rect ||
+                    (ctx.clip_rect->x0 <= 0 && ctx.clip_rect->y0 <= 0 &&
+                     ctx.clip_rect->x1 >= ctx.width && ctx.clip_rect->y1 >= ctx.height))
+                {
+                    if (ctx.counters) {
+                        ctx.counters->composite_calls.fetch_add(1, std::memory_order_relaxed);
+                        const uint64_t area = static_cast<uint64_t>(ctx.width) * static_cast<uint64_t>(ctx.height);
+                        ctx.counters->clear_copy_pixels.fetch_add(area, std::memory_order_relaxed);
+                    }
+                    return top;
+                }
+            }
+        }
+
         std::shared_ptr<Framebuffer> result;
         if (bottom->width() == ctx.width && bottom->height() == ctx.height) {
             result = ctx.acquire_framebuffer(*bottom);
