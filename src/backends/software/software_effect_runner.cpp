@@ -1,6 +1,5 @@
 #include <chronon3d/backends/software/software_effect_runner.hpp>
 #include <chronon3d/backends/software/builtin_processors.hpp>
-#include <optional>
 #include "utils/render_effects_processor.hpp"
 
 namespace chronon3d {
