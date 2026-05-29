@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/core/profiling/counters.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
 
@@ -10,7 +11,7 @@
 namespace chronon3d::cli::telemetry {
 
 inline std::vector<chronon3d::telemetry::CounterTelemetryRecord> capture_counters(const chronon3d::RenderCounters& counters) {
-    return {
+    std::vector<chronon3d::telemetry::CounterTelemetryRecord> result = {
         {"pixels_touched", counters.pixels_touched.load(std::memory_order_relaxed)},
         {"cache_hits", counters.cache_hits.load(std::memory_order_relaxed)},
         {"cache_misses", counters.cache_misses.load(std::memory_order_relaxed)},
@@ -88,7 +89,32 @@ inline std::vector<chronon3d::telemetry::CounterTelemetryRecord> capture_counter
         {"ffmpeg_cpu_sys_pct", counters.ffmpeg_cpu_sys_pct.load(std::memory_order_relaxed)},
         {"llc_references", counters.llc_references.load(std::memory_order_relaxed)},
         {"llc_misses", counters.llc_misses.load(std::memory_order_relaxed)},
+        {"framebuffer_pool_capacity", 0},
+        {"framebuffer_pool_available_count", 0},
+        {"framebuffer_pool_current_bytes", 0},
+        {"framebuffer_pool_total_allocations", 0},
+        {"framebuffer_pool_total_reuses", 0},
     };
+
+    // Enrich with live framebuffer pool stats if available
+    if (chronon3d::profiling::g_current_framebuffer_pool) {
+        auto pool_stats = chronon3d::profiling::g_current_framebuffer_pool->stats();
+        for (auto& counter : result) {
+            if (counter.counter_name == "framebuffer_pool_capacity") {
+                counter.counter_value = pool_stats.max_bytes;
+            } else if (counter.counter_name == "framebuffer_pool_available_count") {
+                counter.counter_value = pool_stats.available_count;
+            } else if (counter.counter_name == "framebuffer_pool_current_bytes") {
+                counter.counter_value = pool_stats.current_bytes;
+            } else if (counter.counter_name == "framebuffer_pool_total_allocations") {
+                counter.counter_value = pool_stats.total_allocations;
+            } else if (counter.counter_name == "framebuffer_pool_total_reuses") {
+                counter.counter_value = pool_stats.total_reuses;
+            }
+        }
+    }
+
+    return result;
 }
 
 inline void add_counters(chronon3d::RenderCounters& dst, const chronon3d::RenderCounters& src) {
