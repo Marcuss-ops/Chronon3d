@@ -79,12 +79,30 @@ bool NativeAvEncoder::write_frame(const Framebuffer& fb) {
     // 3. Set PTS (presentation timestamp) in frame number units
     frame_->pts = static_cast<int64_t>(frames_written_);
 
-    // 4. Send the frame to the encoder
+    // 4. Send the frame to the encoder (with EAGAIN back-pressure loop)
+    //    Measure ONLY avcodec_send_frame time, excluding drain_packets,
+    //    to avoid temporal double-counting with receive/mux counters.
     const auto t_send0 = Clock::now();
     int ret = avcodec_send_frame(codec_, frame_);
-    const double send_ms = elapsed_ms(t_send0);
-    native_send_frame_ms_ += send_ms;
+    double send_ms = elapsed_ms(t_send0);
 
+    int eagain_retries = 0;
+    constexpr int kMaxEagainRetries = 3;
+    while (ret == AVERROR(EAGAIN) && eagain_retries < kMaxEagainRetries) {
+        ++eagain_retries;
+        // Encoder buffer full — drain packets to make room, then retry.
+        if (!drain_packets()) {
+            return false;
+        }
+        const auto t_retry = Clock::now();
+        ret = avcodec_send_frame(codec_, frame_);
+        send_ms += elapsed_ms(t_retry);
+    }
+
+    if (ret == AVERROR(EAGAIN)) {
+        spdlog::error("[native_av] avcodec_send_frame still EAGAIN after {} retries", kMaxEagainRetries);
+        return false;
+    }
     if (ret < 0) {
         char err_buf[256];
         av_strerror(ret, err_buf, sizeof(err_buf));
@@ -92,34 +110,10 @@ bool NativeAvEncoder::write_frame(const Framebuffer& fb) {
         return false;
     }
 
+    native_send_frame_ms_ += send_ms;
     if (profiling::g_current_counters) {
         profiling::g_current_counters->native_av_send_frame_ms.fetch_add(
             static_cast<uint64_t>(send_ms), std::memory_order_relaxed);
-    }
-
-    // 5. Drain all packets produced from this frame
-    //    (timing for receive_packet and mux_write is tracked inside drain_packets)
-    if (!drain_packets()) {
-        return false;
-    }
-
-    // 6. Push mux/receive counters to global counters (delta only)
-    //     native_receive_packet_ms_ and native_mux_write_ms_ are totals
-    //     accumulated inside drain_packets() across all frames. We compute
-    //     the delta since the previous write_frame() call.
-    {
-        static thread_local double prev_recv = 0.0;
-        static thread_local double prev_mux  = 0.0;
-        const double delta_recv = native_receive_packet_ms_ - prev_recv;
-        const double delta_mux  = native_mux_write_ms_ - prev_mux;
-        prev_recv = native_receive_packet_ms_;
-        prev_mux  = native_mux_write_ms_;
-        if (profiling::g_current_counters) {
-            profiling::g_current_counters->native_av_receive_packet_ms.fetch_add(
-                static_cast<uint64_t>(delta_recv), std::memory_order_relaxed);
-            profiling::g_current_counters->native_av_mux_write_ms.fetch_add(
-                static_cast<uint64_t>(delta_mux), std::memory_order_relaxed);
-        }
     }
 
     ++frames_written_;
