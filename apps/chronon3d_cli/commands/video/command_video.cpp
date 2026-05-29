@@ -127,12 +127,7 @@ int command_video(const CompositionRegistry& registry, const VideoArgs& args) {
     opts.pipe_pixfmt = args.pipe_pixfmt;
     opts.color_output = args.color_output;
     opts.pipe_writer = args.pipe_writer;
-#ifdef __linux__
-    if (opts.pipe_writer == "io_uring") {
-        spdlog::warn("[video] io_uring pipe writer is currently disabled due to output stability issues; using classic");
-        opts.pipe_writer = "classic";
-    }
-#endif
+
     opts.warmup_renderer = args.pipeline.warmup_renderer || (args.ffmpeg_mode == "pipe");
     opts.warmup_framebuffers = args.pipeline.warmup_framebuffers;
     opts.warmup_dummy_frame = args.pipeline.warmup_dummy_frame || (args.ffmpeg_mode == "pipe");
