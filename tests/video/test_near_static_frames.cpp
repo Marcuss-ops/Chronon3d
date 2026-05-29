@@ -53,7 +53,12 @@ TEST_CASE("Near-static frames: small color variations produce mostly cache hits"
             auto res = convert_frame_tight(*fb, y.data(), u.data(), v.data(), nullptr,
                                            w, h, EncoderPixelFormat::YUV420P, true);
             REQUIRE(res.success);
-            cache.insert(key, y.data(), y_sz + uv_sz * 2);
+
+            std::vector<uint8_t> packed(y_sz + uv_sz * 2);
+            std::memcpy(packed.data(), y.data(), y_sz);
+            std::memcpy(packed.data() + y_sz, u.data(), uv_sz);
+            std::memcpy(packed.data() + y_sz + uv_sz, v.data(), uv_sz);
+            cache.insert(key, packed.data(), packed.size());
         }
     }
 
@@ -96,7 +101,12 @@ TEST_CASE("Near-static frames: single repeated frame hits cache 100%") {
             auto res = convert_frame_tight(*fb, y.data(), u.data(), v.data(), nullptr,
                                            w, h, EncoderPixelFormat::YUV420P, true);
             REQUIRE(res.success);
-            cache.insert(key, y.data(), y_sz + uv_sz * 2);
+
+            std::vector<uint8_t> packed(y_sz + uv_sz * 2);
+            std::memcpy(packed.data(), y.data(), y_sz);
+            std::memcpy(packed.data() + y_sz, u.data(), uv_sz);
+            std::memcpy(packed.data() + y_sz + uv_sz, v.data(), uv_sz);
+            cache.insert(key, packed.data(), packed.size());
         }
     }
 
@@ -134,13 +144,22 @@ TEST_CASE("Near-static frames: format change between YUV420P and NV12 causes mis
     auto r1 = convert_frame_tight(*fb, y_yuv.data(), u.data(), v.data(), nullptr,
                                   w, h, EncoderPixelFormat::YUV420P, true);
     REQUIRE(r1.success);
-    cache.insert(key_yuv, y_yuv.data(), y_sz + uv_sz_yuv * 2);
+
+    std::vector<uint8_t> packed_yuv(y_sz + uv_sz_yuv * 2);
+    std::memcpy(packed_yuv.data(), y_yuv.data(), y_sz);
+    std::memcpy(packed_yuv.data() + y_sz, u.data(), uv_sz_yuv);
+    std::memcpy(packed_yuv.data() + y_sz + uv_sz_yuv, v.data(), uv_sz_yuv);
+    cache.insert(key_yuv, packed_yuv.data(), packed_yuv.size());
 
     std::vector<uint8_t> y_nv(y_sz), uv(uv_sz_nv);
     auto r2 = convert_frame_tight(*fb, y_nv.data(), nullptr, nullptr, uv.data(),
                                   w, h, EncoderPixelFormat::NV12, true);
     REQUIRE(r2.success);
-    cache.insert(key_nv, y_nv.data(), y_sz + uv_sz_nv);
+
+    std::vector<uint8_t> packed_nv(y_sz + uv_sz_nv);
+    std::memcpy(packed_nv.data(), y_nv.data(), y_sz);
+    std::memcpy(packed_nv.data() + y_sz, uv.data(), uv_sz_nv);
+    cache.insert(key_nv, packed_nv.data(), packed_nv.size());
 
     CHECK(cache.lookup(key_yuv) != nullptr);
     CHECK(cache.lookup(key_nv) != nullptr);

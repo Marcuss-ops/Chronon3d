@@ -129,3 +129,246 @@ TEST_CASE("Test 17.3 — Pixel-level difference reporting on mismatch") {
     REQUIRE(save_png(diff, diff_path.string()));
     CHECK(std::filesystem::exists(diff_path));
 }
+
+TEST_CASE("Test 17.4 — Text layout alignment Center/Middle") {
+    auto renderer = make_renderer();
+    Composition comp({.width = 256, .height = 256}, [](const FrameContext& ctx) {
+        SceneBuilder s(ctx);
+        s.layer("text_layer", [](LayerBuilder& l) {
+            l.text("t1", {
+                .text = "Centered Middle",
+                .size = {240.0f, 100.0f},
+                .pos = {128.0f, 128.0f, 0.0f},
+                .font_path = "assets/fonts/Inter-Bold.ttf",
+                .font_family = "Inter",
+                .font_size = 24.0f,
+                .color = Color::white(),
+                .align = TextAlign::Center,
+                .vertical_align = VerticalAlign::Middle
+            });
+        });
+        return s.build();
+    });
+
+    auto rendered = renderer.render_frame(comp, 0);
+    REQUIRE(rendered != nullptr);
+
+    const std::filesystem::path golden_dir = "test_renders/golden";
+    std::filesystem::create_directories(golden_dir);
+    const std::filesystem::path golden_path = golden_dir / "text_align_golden.png";
+
+    if (!std::filesystem::exists(golden_path)) {
+        REQUIRE(save_png(*rendered, golden_path.string()));
+    }
+
+    auto golden = load_png_as_framebuffer(golden_path.string());
+    REQUIRE(golden != nullptr);
+    REQUIRE(golden->width() == rendered->width());
+    REQUIRE(golden->height() == rendered->height());
+
+    bool matched = true;
+    for (int y = 0; y < rendered->height(); ++y) {
+        for (int x = 0; x < rendered->width(); ++x) {
+            if (!colors_near(rendered->get_pixel(x, y).to_srgb(), golden->get_pixel(x, y))) {
+                matched = false;
+                break;
+            }
+        }
+    }
+    CHECK(matched);
+}
+
+TEST_CASE("Test 17.5 — Text auto-fit automatic sizing") {
+    auto renderer = make_renderer();
+    Composition comp({.width = 256, .height = 128}, [](const FrameContext& ctx) {
+        SceneBuilder s(ctx);
+        s.layer("text_layer", [](LayerBuilder& l) {
+            l.text("t2", {
+                .text = "This is a very long title that needs to fit inside a small box automatically without overflowing",
+                .size = {240.0f, 100.0f},
+                .pos = {128.0f, 64.0f, 0.0f},
+                .font_path = "assets/fonts/Inter-Bold.ttf",
+                .font_family = "Inter",
+                .font_size = 48.0f,
+                .color = Color::white(),
+                .align = TextAlign::Center,
+                .vertical_align = VerticalAlign::Middle,
+                .auto_fit = true,
+                .min_font_size = 8.0f,
+                .max_font_size = 48.0f
+            });
+        });
+        return s.build();
+    });
+
+    auto rendered = renderer.render_frame(comp, 0);
+    REQUIRE(rendered != nullptr);
+
+    const std::filesystem::path golden_dir = "test_renders/golden";
+    std::filesystem::create_directories(golden_dir);
+    const std::filesystem::path golden_path = golden_dir / "text_autofit_golden.png";
+
+    if (!std::filesystem::exists(golden_path)) {
+        REQUIRE(save_png(*rendered, golden_path.string()));
+    }
+
+    auto golden = load_png_as_framebuffer(golden_path.string());
+    REQUIRE(golden != nullptr);
+
+    bool matched = true;
+    for (int y = 0; y < rendered->height(); ++y) {
+        for (int x = 0; x < rendered->width(); ++x) {
+            if (!colors_near(rendered->get_pixel(x, y).to_srgb(), golden->get_pixel(x, y))) {
+                matched = false;
+                break;
+            }
+        }
+    }
+    CHECK(matched);
+}
+
+TEST_CASE("Test 17.6 — Text max-lines and ellipsis truncation") {
+    auto renderer = make_renderer();
+    Composition comp({.width = 256, .height = 128}, [](const FrameContext& ctx) {
+        SceneBuilder s(ctx);
+        s.layer("text_layer", [](LayerBuilder& l) {
+            l.text("t3", {
+                .text = "Line One Wordy\nLine Two Wordy\nLine Three Wordy\nLine Four Wordy",
+                .size = {240.0f, 100.0f},
+                .pos = {128.0f, 64.0f, 0.0f},
+                .font_path = "assets/fonts/Inter-Bold.ttf",
+                .font_family = "Inter",
+                .font_size = 20.0f,
+                .color = Color::white(),
+                .align = TextAlign::Center,
+                .vertical_align = VerticalAlign::Middle,
+                .max_lines = 2,
+                .ellipsis = true
+            });
+        });
+        return s.build();
+    });
+
+    auto rendered = renderer.render_frame(comp, 0);
+    REQUIRE(rendered != nullptr);
+
+    const std::filesystem::path golden_dir = "test_renders/golden";
+    std::filesystem::create_directories(golden_dir);
+    const std::filesystem::path golden_path = golden_dir / "text_ellipsis_golden.png";
+
+    if (!std::filesystem::exists(golden_path)) {
+        REQUIRE(save_png(*rendered, golden_path.string()));
+    }
+
+    auto golden = load_png_as_framebuffer(golden_path.string());
+    REQUIRE(golden != nullptr);
+
+    bool matched = true;
+    for (int y = 0; y < rendered->height(); ++y) {
+        for (int x = 0; x < rendered->width(); ++x) {
+            if (!colors_near(rendered->get_pixel(x, y).to_srgb(), golden->get_pixel(x, y))) {
+                matched = false;
+                break;
+            }
+        }
+    }
+    CHECK(matched);
+}
+
+TEST_CASE("Test 17.7 — Text style (Cyan neon-like coloring)") {
+    auto renderer = make_renderer();
+    Composition comp({.width = 256, .height = 128}, [](const FrameContext& ctx) {
+        SceneBuilder s(ctx);
+        s.layer("text_layer", [](LayerBuilder& l) {
+            l.text("t4", {
+                .text = "CYAN NEON",
+                .size = {240.0f, 100.0f},
+                .pos = {128.0f, 64.0f, 0.0f},
+                .font_path = "assets/fonts/Inter-Bold.ttf",
+                .font_family = "Inter",
+                .font_size = 28.0f,
+                .color = Color{0.0f, 1.0f, 0.8f, 1.0f}, // Cyan
+                .align = TextAlign::Center,
+                .vertical_align = VerticalAlign::Middle
+            });
+        });
+        return s.build();
+    });
+
+    auto rendered = renderer.render_frame(comp, 0);
+    REQUIRE(rendered != nullptr);
+
+    const std::filesystem::path golden_dir = "test_renders/golden";
+    std::filesystem::create_directories(golden_dir);
+    const std::filesystem::path golden_path = golden_dir / "text_cyan_neon_golden.png";
+
+    if (!std::filesystem::exists(golden_path)) {
+        REQUIRE(save_png(*rendered, golden_path.string()));
+    }
+
+    auto golden = load_png_as_framebuffer(golden_path.string());
+    REQUIRE(golden != nullptr);
+
+    bool matched = true;
+    for (int y = 0; y < rendered->height(); ++y) {
+        for (int x = 0; x < rendered->width(); ++x) {
+            if (!colors_near(rendered->get_pixel(x, y).to_srgb(), golden->get_pixel(x, y))) {
+                matched = false;
+                break;
+            }
+        }
+    }
+    CHECK(matched);
+}
+
+TEST_CASE("Test 17.8 — Subtitle backing box rendering") {
+    auto renderer = make_renderer();
+    Composition comp({.width = 256, .height = 128}, [](const FrameContext& ctx) {
+        SceneBuilder s(ctx);
+        s.layer("text_layer", [](LayerBuilder& l) {
+            l.text("t5", {
+                .text = "Subtitle Box",
+                .size = {240.0f, 80.0f},
+                .pos = {128.0f, 64.0f, 0.0f},
+                .font_path = "assets/fonts/Inter-Bold.ttf",
+                .font_family = "Inter",
+                .font_size = 22.0f,
+                .color = Color{0.9f, 0.9f, 0.9f, 1.0f},
+                .align = TextAlign::Center,
+                .vertical_align = VerticalAlign::Middle,
+                .box_style = {
+                    .enabled = true,
+                    .padding = {16.0f, 8.0f},
+                    .radius = 8.0f,
+                    .background = Color{0.0f, 0.0f, 0.0f, 0.65f}
+                }
+            });
+        });
+        return s.build();
+    });
+
+    auto rendered = renderer.render_frame(comp, 0);
+    REQUIRE(rendered != nullptr);
+
+    const std::filesystem::path golden_dir = "test_renders/golden";
+    std::filesystem::create_directories(golden_dir);
+    const std::filesystem::path golden_path = golden_dir / "text_box_golden.png";
+
+    if (!std::filesystem::exists(golden_path)) {
+        REQUIRE(save_png(*rendered, golden_path.string()));
+    }
+
+    auto golden = load_png_as_framebuffer(golden_path.string());
+    REQUIRE(golden != nullptr);
+
+    bool matched = true;
+    for (int y = 0; y < rendered->height(); ++y) {
+        for (int x = 0; x < rendered->width(); ++x) {
+            if (!colors_near(rendered->get_pixel(x, y).to_srgb(), golden->get_pixel(x, y))) {
+                matched = false;
+                break;
+            }
+        }
+    }
+    CHECK(matched);
+}

@@ -37,8 +37,8 @@ std::string resolve_cli_ffmpeg_output_pix_fmt(const std::string& codec) {
         return "rgb24";
     }
     if (codec == "libx264" || codec == "libx265") {
-        // Keep software encodes in 4:4:4 so dark gradients do not posterize.
-        return "yuv444p";
+        // Use yuv420p for maximum compatibility with web and native players.
+        return "yuv420p";
     }
     return "yuv420p";
 }

@@ -53,7 +53,12 @@ TEST_CASE("Long export: 1000 varying frames via frame converter + cache") {
             auto res = convert_frame_tight(*fb, y.data(), u.data(), v.data(), nullptr,
                                            w, h, EncoderPixelFormat::YUV420P, true);
             REQUIRE(res.success);
-            cache.insert(key, y.data(), y_sz + uv_sz * 2);
+
+            std::vector<uint8_t> packed(y_sz + uv_sz * 2);
+            std::memcpy(packed.data(), y.data(), y_sz);
+            std::memcpy(packed.data() + y_sz, u.data(), uv_sz);
+            std::memcpy(packed.data() + y_sz + uv_sz, v.data(), uv_sz);
+            cache.insert(key, packed.data(), packed.size());
         }
 
         prev_digest = digest;
@@ -170,7 +175,10 @@ TEST_CASE("Long export: near-duplicate frames hit converted frame cache") {
             auto res = convert_frame_tight(*fb, y.data(), nullptr, nullptr, uv.data(),
                                            w, h, EncoderPixelFormat::NV12, true);
             REQUIRE(res.success);
-            cache.insert(key, y.data(), y_sz + y_sz / 2);
+            std::vector<uint8_t> packed(y_sz + y_sz / 2);
+            std::memcpy(packed.data(), y.data(), y_sz);
+            std::memcpy(packed.data() + y_sz, uv.data(), y_sz / 2);
+            cache.insert(key, packed.data(), packed.size());
         }
     }
 

@@ -30,6 +30,19 @@ MotionState compose_state(const MotionState& parent, const MotionState& child) {
     out.rotation = parent.rotation + child.rotation;
     out.opacity = parent.opacity * child.opacity;
     out.blur = std::max(parent.blur, child.blur);
+
+    if (parent.effects.glow_enabled && !child.effects.glow_enabled) {
+        out.effects.glow_enabled = true;
+        out.effects.glow = parent.effects.glow;
+    }
+    if (parent.effects.shadow_enabled && !child.effects.shadow_enabled) {
+        out.effects.shadow_enabled = true;
+        out.effects.shadow = parent.effects.shadow;
+    }
+    if (parent.effects.bloom_enabled && !child.effects.bloom_enabled) {
+        out.effects.bloom_enabled = true;
+        out.effects.bloom = parent.effects.bloom;
+    }
     return out;
 }
 
@@ -123,6 +136,17 @@ void draw_content(LayerBuilder& l, const MotionObject& obj, const MotionState& s
             .opacity = 1.0f,
         });
         break;
+    case MotionObjectType::Video:
+        l.video(obj.video_source_value);
+        l.video_size(obj.size_value);
+        break;
+    case MotionObjectType::Stock:
+        l.rect(layer_name + "_stock_placeholder", {
+            .size = obj.size_value,
+            .color = obj.color_value.with_alpha(1.0f),
+            .pos = {0.0f, 0.0f, 0.0f},
+        });
+        break;
     case MotionObjectType::Rect:
         l.rect(layer_name + "_rect", {
             .size = obj.size_value,
@@ -195,18 +219,26 @@ void draw_motion_object_impl(
             apply_mask_sweep(l, obj, st);
         }
         draw_content(l, obj, st, layer_name);
-        const bool glow_bloom = obj.preset_value == MotionPreset::GlowBloom;
-        if (obj.glow_enabled || glow_bloom) {
-            const f32 bloom_mix = glow_bloom ? std::clamp(1.0f - (st.blur / 14.0f), 0.0f, 1.0f) : 0.0f;
-            l.with_glow(Glow{
-                .enabled = true,
-                .radius = glow_bloom ? 28.0f : 20.0f,
-                .intensity = glow_bloom ? (0.14f + 0.20f * bloom_mix)
-                           : 0.30f,
-                .color = glow_bloom
-                    ? Color{0.96f, 0.97f, 1.0f, 1.0f}
-                    : Color{0.96f, 0.96f, 0.97f, 1.0f},
-            });
+
+        l.blend(obj.style.blend);
+        l.cache_static(obj.style.cache_static);
+
+        if (st.effects.glow_enabled) {
+            l.glow(st.effects.glow);
+        }
+        if (st.effects.shadow_enabled) {
+            l.drop_shadow(
+                st.effects.shadow.offset,
+                st.effects.shadow.color,
+                st.effects.shadow.radius
+            );
+        }
+        if (st.effects.bloom_enabled) {
+            l.bloom(
+                st.effects.bloom.threshold,
+                st.effects.bloom.radius,
+                st.effects.bloom.intensity
+            );
         }
     });
 }

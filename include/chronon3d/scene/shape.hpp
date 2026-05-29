@@ -84,6 +84,17 @@ struct TextBoxStyle {
 
 enum class VerticalAlign { Top, Middle, Bottom };
 
+enum class TextOverflow {
+    Clip,
+    Ellipsis,
+};
+
+enum class TextWrap {
+    None,
+    Word,
+    Character,
+};
+
 struct TextStyle {
     std::string font_path;
     std::string font_family;
@@ -100,6 +111,11 @@ struct TextStyle {
     bool auto_scale{false};  // shrink font to fit TextBox
     f32  min_size{12.0f};
     f32  max_size{256.0f};
+
+    bool auto_fit{false};
+    bool ellipsis{false};
+    TextOverflow overflow{TextOverflow::Clip};
+    TextWrap wrap{TextWrap::Word};
 
     // V2 Typography
     TextPaint paint{};

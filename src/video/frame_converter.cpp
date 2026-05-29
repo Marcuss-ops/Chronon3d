@@ -65,8 +65,10 @@ static SwsContext* get_or_create_sws_context(const SwsParams& params) {
 
     // Full range (1 = limited→full disabled, i.e. keep full range).
     // The uint8 RGBA intermediate buffer is already full-range 0–255.
+    // For YUV formats (YUV420P, NV12) we output limited range (0).
+    const int dst_range = (params.dst_fmt == AV_PIX_FMT_RGB24) ? 1 : 0;
     sws_setColorspaceDetails(ctx, src_coeff, /*srcRange=*/1,
-                                   dst_coeff, /*dstRange=*/1,
+                                   dst_coeff, dst_range,
                                    /*brightness=*/0, /*contrast=*/1 << 16,
                                    /*saturation=*/1 << 16);
 

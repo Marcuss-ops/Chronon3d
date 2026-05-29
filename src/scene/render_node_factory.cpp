@@ -131,6 +131,16 @@ RenderNode RenderNodeFactory::text(std::pmr::memory_resource* res, std::string n
     node.shape.text.style.line_height = p.line_height;
     node.shape.text.style.tracking = p.tracking;
     node.shape.text.style.box_style = p.box_style;
+
+    node.shape.text.style.auto_fit = p.auto_fit;
+    node.shape.text.style.auto_scale = p.auto_fit;
+    node.shape.text.style.max_lines = p.max_lines;
+    node.shape.text.style.ellipsis = p.ellipsis;
+    node.shape.text.style.min_size = p.min_font_size;
+    node.shape.text.style.max_size = p.max_font_size;
+    node.shape.text.style.overflow = p.overflow;
+    node.shape.text.style.wrap = p.wrap;
+
     node.shape.text.box.enabled = true;
     node.shape.text.box.size = p.size;
     node.shape.text.box.enabled = true;
