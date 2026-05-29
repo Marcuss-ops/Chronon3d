@@ -36,7 +36,7 @@ struct FfmpegExportOptions {
     bool ffmpeg_verbose{false};
     std::string pipe_pixfmt{"rgba"};
     std::string color_output{"srgb"};
-    std::string pipe_writer{"classic"};
+    std::string pipe_writer{"io_uring"};
 
     // Renderer warmup
     bool   warmup_renderer{false};
