@@ -77,6 +77,9 @@ RenderNode RenderNodeFactory::image(std::pmr::memory_resource* res, std::string 
     node.shape.type = ShapeType::Image;
     node.shape.image.path = std::move(p.path);
     node.shape.image.size = p.size;
+    node.shape.image.fit = p.fit;
+    node.shape.image.focal_point = p.focal_point;
+    node.shape.image.crop = p.crop;
     node.shape.image.opacity = p.opacity;
     node.shape.image.radius = p.radius;
     node.corner_radius = p.radius;
@@ -131,6 +134,8 @@ RenderNode RenderNodeFactory::text(std::pmr::memory_resource* res, std::string n
     node.shape.text.style.line_height = p.line_height;
     node.shape.text.style.tracking = p.tracking;
     node.shape.text.style.box_style = p.box_style;
+    node.shape.text.style.paint = p.paint;
+    node.shape.text.style.shadows = std::move(p.shadows);
 
     node.shape.text.style.auto_fit = p.auto_fit;
     node.shape.text.style.auto_scale = p.auto_fit;
@@ -143,7 +148,6 @@ RenderNode RenderNodeFactory::text(std::pmr::memory_resource* res, std::string n
 
     node.shape.text.box.enabled = true;
     node.shape.text.box.size = p.size;
-    node.shape.text.box.enabled = true;
     node.world_transform.anchor = {p.size.x * 0.5f, p.size.y * 0.5f, 0.0f};
     node.world_transform.position = p.pos;
     node.color = p.color;

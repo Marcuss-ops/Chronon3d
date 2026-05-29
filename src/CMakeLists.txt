@@ -260,6 +260,8 @@ set(CHRONON3D_SCENE_SOURCES
     presets/phrase_group_builder.cpp
     specscene/specscene.cpp
     specscene/specscene_parsers.cpp
+    media/media_placement.cpp
+    vector/path_factories.cpp
 )
 add_library(chronon3d_scene STATIC ${CHRONON3D_SCENE_SOURCES})
 target_include_directories(chronon3d_scene PRIVATE ${CMAKE_SOURCE_DIR})

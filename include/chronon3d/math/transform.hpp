@@ -94,6 +94,11 @@ struct RenderState {
 
     std::string layer_id;
     std::optional<raster::BBox> clip_rect;
+
+    // SSAA (Super-Sampling Anti-Aliasing) factor.
+    // Used by shape processors (e.g. text) to render at higher resolution
+    // so that glyphs remain crisp after the frame-level downsample.
+    float ssaa_factor{1.0f};
 };
 
 inline void ensure_mask_alpha_cache(const RenderState& state, i32 width, i32 height) {
@@ -122,6 +127,7 @@ inline RenderState combine(const RenderState& parent, const Transform& child) {
         .mask_alpha_cache_key = parent.mask_alpha_cache_key,
         .layer_id         = parent.layer_id,
         .clip_rect        = parent.clip_rect,
+        .ssaa_factor      = parent.ssaa_factor,
     };
 }
 

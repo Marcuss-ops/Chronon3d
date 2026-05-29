@@ -7,6 +7,7 @@
 #include <chronon3d/scene/path.hpp>
 #include <string>
 #include <vector>
+#include <chronon3d/media/media_placement.hpp>
 
 namespace chronon3d {
 
@@ -136,9 +137,18 @@ struct TextShape {
     TextBox     box{};
 };
 
+struct ImageCrop {
+    bool enabled{false};
+    Vec2 origin{0.0f, 0.0f}; // normalized
+    Vec2 size{1.0f, 1.0f};   // normalized
+};
+
 struct ImageShape {
     std::string path;
     Vec2 size{100.0f, 100.0f};
+    FitMode fit{FitMode::Cover};
+    Vec2 focal_point{0.5f, 0.5f};
+    ImageCrop crop{};
     f32 opacity{1.0f};
     f32 radius{0.0f};
 };

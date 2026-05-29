@@ -38,6 +38,7 @@ Composition text_stagger_reveal_demo();
 Composition text_orbit_2_5d_demo();
 Composition text_tilt_sweep_2_5d_demo();
 Composition text_motion_trio_demo();
+Composition text_proofs();
 
 void register_all() {}
 
@@ -77,3 +78,4 @@ CHRONON_REGISTER_COMPOSITION("TextStaggerRevealDemo", chronon3d::content::text::
 CHRONON_REGISTER_COMPOSITION("TextOrbit2_5DDemo",    chronon3d::content::text::text_orbit_2_5d_demo)
 CHRONON_REGISTER_COMPOSITION("TextTiltSweep2_5DDemo", chronon3d::content::text::text_tilt_sweep_2_5d_demo)
 CHRONON_REGISTER_COMPOSITION("TextMotionTrioDemo",   chronon3d::content::text::text_motion_trio_demo)
+CHRONON_REGISTER_COMPOSITION("TextProofs",          chronon3d::content::text::text_proofs)

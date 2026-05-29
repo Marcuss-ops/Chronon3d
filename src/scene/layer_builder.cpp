@@ -251,6 +251,82 @@ LayerBuilder& LayerBuilder::path(std::string name, PathParams p) {
     return shape(registry::shape_ids::Path, std::move(name), std::move(p));
 }
 
+LayerBuilder& LayerBuilder::arrow(std::string name, ArrowParams p) {
+    return path(std::move(name), make_arrow(p));
+}
+
+LayerBuilder& LayerBuilder::star(std::string name, StarParams p) {
+    return path(std::move(name), make_star(p));
+}
+
+LayerBuilder& LayerBuilder::badge(std::string name, BadgeParams p) {
+    return path(std::move(name), make_badge(p));
+}
+
+LayerBuilder& LayerBuilder::speech_bubble(std::string name, SpeechBubbleParams p) {
+    return path(std::move(name), make_speech_bubble(p));
+}
+
+LayerBuilder& LayerBuilder::callout(std::string name, CalloutParams p) {
+    return path(std::move(name), make_callout(p));
+}
+
+LayerBuilder& LayerBuilder::progress_bar(std::string name, ProgressBarParams p) {
+    PathParams bg_path;
+    bg_path.commands = make_rounded_rect_commands({0.0f, 0.0f}, p.size, p.corner_radius);
+    bg_path.fill = p.background_style.fill;
+    bg_path.stroke = p.background_style.stroke;
+    bg_path.pos = p.pos;
+    bg_path.closed = true;
+    path(name + "_bg", bg_path);
+
+    if (p.progress > 0.0f) {
+        PathParams fg_path;
+        f32 fg_w = p.size.x * std::clamp(p.progress, 0.0f, 1.0f);
+        Vec2 fg_center{ -p.size.x * 0.5f + fg_w * 0.5f, 0.0f };
+        fg_path.commands = make_rounded_rect_commands(fg_center, {fg_w, p.size.y}, p.corner_radius);
+        fg_path.fill = p.fill_style.fill;
+        fg_path.stroke = p.fill_style.stroke;
+        fg_path.pos = p.pos;
+        fg_path.closed = true;
+        // Use color field if fill_style has solid white or custom color
+        if (p.color != Color{1,1,1,1}) {
+            fg_path.color = p.color;
+        }
+        path(name, fg_path);
+    }
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::timeline_bar(std::string name, TimelineBarParams p) {
+    PathParams bg_path;
+    bg_path.commands = make_rounded_rect_commands({0.0f, 0.0f}, p.size, p.corner_radius);
+    bg_path.fill = p.background_style.fill;
+    bg_path.stroke = p.background_style.stroke;
+    bg_path.pos = p.pos;
+    bg_path.closed = true;
+    path(name + "_bg", bg_path);
+
+    f32 s = std::clamp(p.start, 0.0f, 1.0f);
+    f32 e = std::clamp(p.end, 0.0f, 1.0f);
+    if (e > s) {
+        PathParams fg_path;
+        f32 fg_w = p.size.x * (e - s);
+        f32 start_pos = -p.size.x * 0.5f + s * p.size.x;
+        Vec2 fg_center{ start_pos + fg_w * 0.5f, 0.0f };
+        fg_path.commands = make_rounded_rect_commands(fg_center, {fg_w, p.size.y}, p.corner_radius);
+        fg_path.fill = p.fill_style.fill;
+        fg_path.stroke = p.fill_style.stroke;
+        fg_path.pos = p.pos;
+        fg_path.closed = true;
+        if (p.color != Color{1,1,1,1}) {
+            fg_path.color = p.color;
+        }
+        path(name, fg_path);
+    }
+    return *this;
+}
+
 LayerBuilder& LayerBuilder::image(std::string name, ImageParams p) {
     return shape(registry::shape_ids::Image, std::move(name), std::move(p));
 }
@@ -376,7 +452,10 @@ LayerBuilder& LayerBuilder::fullscreen_rect(std::string name, Color color) {
     return rect(std::move(name), {
         .size = { m_screen_width, m_screen_height },
         .color = color,
-        .pos = { 0.0f, 0.0f, 0.0f }
+        // Shape primitives are authored in local top-left coordinates, while the
+        // scene graph centers 2D content on the canvas. Offset the rect so its
+        // local origin lands on the canvas origin after centering.
+        .pos = { -m_screen_width * 0.5f, -m_screen_height * 0.5f, 0.0f }
     });
 }
 

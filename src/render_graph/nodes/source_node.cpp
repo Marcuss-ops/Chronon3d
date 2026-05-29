@@ -163,9 +163,9 @@ std::shared_ptr<Framebuffer> SourceNode::execute(
     // gaps that would otherwise show stale pixels from the previous frame.
     const bool full_frame_seed = can_seed_full_frame(ctx);
 
-    auto fb = ctx.acquire_framebuffer(ctx.width, ctx.height, true);
-    if (ctx.backend) {
+    auto fb = ctx.acquire_framebuffer(ctx.width, ctx.height, true);        if (ctx.backend) {
         RenderState state;
+        state.ssaa_factor = ctx.ssaa_factor;
         const Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(ctx.ssaa_factor, ctx.ssaa_factor, 1.0f));
         const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
 
