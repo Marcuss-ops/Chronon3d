@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <chrono>
+#include <thread>
 
 // Convenience: steady clock helpers
 namespace {
@@ -105,7 +106,7 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
     // Pixel format: always YUV420P for H.264 (the converter handles it)
     codec_->pix_fmt = AV_PIX_FMT_YUV420P;
 
-    // Set encoder options (preset, crf, tune for zerolatency)
+    // Set encoder options (preset, crf, tune)
     if (!options_.preset.empty()) {
         av_opt_set(codec_->priv_data, "preset", options_.preset.c_str(), 0);
     }
@@ -114,7 +115,9 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
         snprintf(crf_str, sizeof(crf_str), "%d", options_.crf);
         av_opt_set(codec_->priv_data, "crf", crf_str, 0);
     }
-    av_opt_set(codec_->priv_data, "tune", "zerolatency", 0);
+    // tune: default "zerolatency" for streaming, but allow override for batch export
+    const std::string tune = options_.tune.empty() ? "zerolatency" : options_.tune;
+    av_opt_set(codec_->priv_data, "tune", tune.c_str(), 0);
 
     // Global header if the container format requires it
     if (fmt_->oformat->flags & AVFMT_GLOBALHEADER) {
