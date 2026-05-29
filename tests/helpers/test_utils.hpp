@@ -18,6 +18,16 @@ inline SoftwareRenderer make_renderer() {
     return renderer;
 }
 
+inline SoftwareRenderer make_renderer_ssaa(float factor) {
+    SoftwareRenderer renderer;
+    RenderSettings settings;
+    settings.use_modular_graph = true;
+    settings.ssaa_factor = std::max(1.0f, factor);
+    renderer.set_settings(settings);
+    renderer.set_image_backend(std::make_shared<image::StbImageBackend>());
+    return renderer;
+}
+
 inline u64 framebuffer_hash(const Framebuffer& fb) {
     return XXH64(fb.pixels_row(0), fb.size_bytes(), 0);
 }

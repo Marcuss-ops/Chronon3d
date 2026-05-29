@@ -9,4 +9,6 @@ f32 segment_coverage(Vec2 p, Vec2 a, Vec2 b, f32 radius);
 
 std::vector<Vec2> trim_polyline_points(const std::vector<Vec2>& points, bool closed, f32 start_t, f32 end_t);
 
+std::vector<std::vector<Vec2>> dash_polyline_points(const std::vector<Vec2>& points, bool closed, const std::vector<f32>& dash_array, f32 dash_offset);
+
 } // namespace chronon3d::renderer

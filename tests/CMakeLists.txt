@@ -41,6 +41,7 @@ add_executable(chronon3d_core_tests
     core/math/test_expression.cpp
     text/test_text_layout.cpp
     text/test_text_cache_key.cpp
+    media/test_media_placement.cpp
 )
 target_link_libraries(chronon3d_core_tests PRIVATE chronon3d_pipeline doctest::doctest)
 target_include_directories(chronon3d_core_tests PRIVATE ${CMAKE_SOURCE_DIR})
@@ -227,8 +228,8 @@ target_link_libraries(chronon3d_video_tests
 target_include_directories(chronon3d_video_tests PRIVATE ${CMAKE_SOURCE_DIR})
 add_test(NAME chronon3d_video_tests COMMAND chronon3d_video_tests WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
-# Benchmarks (only built if benchmark package is available)
-if(TARGET benchmark::benchmark_main)
+# Benchmarks (only built when explicitly enabled and the package is available)
+if(CHRONON3D_BUILD_BENCHMARKS AND TARGET benchmark::benchmark_main)
     add_executable(chronon3d_benchmarks
         bench/micro_benchmarks.cpp
     )

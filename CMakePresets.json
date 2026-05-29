@@ -87,6 +87,24 @@
       }
     },
     {
+      "name": "linux-fast",
+      "inherits": "base-linux",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CHRONON3D_BUILD_TESTS": "OFF",
+        "CHRONON3D_BUILD_TOOLS": "OFF",
+        "CHRONON3D_BUILD_BENCHMARKS": "OFF",
+        "CHRONON3D_ENABLE_NATIVE_FFMPEG": "OFF",
+        "CHRONON3D_ENABLE_SQLITE_TELEMETRY": "OFF",
+        "CHRONON3D_ENABLE_PROFILING": "OFF"
+      }
+    },
+    {
       "name": "linux-asan",
       "inherits": "base-linux",
       "condition": {
@@ -158,6 +176,14 @@
     {
       "name": "linux-debug-render",
       "configurePreset": "linux-debug-render",
+      "targets": [
+        "chronon3d_cli"
+      ],
+      "jobs": 16
+    },
+    {
+      "name": "linux-fast",
+      "configurePreset": "linux-fast",
       "targets": [
         "chronon3d_cli"
       ],

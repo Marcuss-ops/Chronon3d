@@ -1,5 +1,5 @@
 #include "video_export_common.hpp"
-#include "../../utils/video/native_av_encoder.hpp"
+#include <spdlog/spdlog.h>
 #include <cstdlib>
 
 namespace chronon3d::cli {
@@ -7,9 +7,15 @@ namespace chronon3d::cli {
 // ── Factory: create the appropriate encoder based on backend setting ──────────
 
 std::unique_ptr<IVideoEncoder> create_video_encoder(const FfmpegExportOptions& opts) {
+#ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
     if (opts.encoder_backend == "native") {
         return std::make_unique<NativeAvEncoder>();
     }
+#else
+    if (opts.encoder_backend == "native") {
+        spdlog::warn("[video] Native FFmpeg support is disabled at build time; falling back to pipe encoder");
+    }
+#endif
     return std::make_unique<FfmpegPipeEncoder>();
 }
 

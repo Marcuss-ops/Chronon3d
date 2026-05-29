@@ -254,6 +254,77 @@ template <typename T>
     }
 }
 
+// ── Text hashing (canonical, used by all text caches) ─────────────
+
+[[nodiscard]] inline u64 hash_text_style_full(
+    const TextShape& t,
+    float effective_size,
+    int padding,
+    const Mat4* transform = nullptr
+) {
+    u64 seed = 0;
+    seed = hash_combine(seed, hash_string(t.text));
+    seed = hash_combine(seed, hash_string(t.style.font_path));
+    seed = hash_combine(seed, hash_string(t.style.font_family));
+    seed = hash_combine(seed, hash_value(t.style.font_weight));
+    seed = hash_combine(seed, hash_string(t.style.font_style));
+    seed = hash_combine(seed, hash_value(effective_size));
+    seed = hash_combine(seed, hash_color(t.style.color));
+    seed = hash_combine(seed, hash_bytes(&t.style.align, sizeof(TextAlign)));
+    seed = hash_combine(seed, hash_value(t.style.line_height));
+    seed = hash_combine(seed, hash_value(t.style.tracking));
+    seed = hash_combine(seed, hash_value(t.style.max_lines));
+    seed = hash_combine(seed, hash_value(t.style.auto_scale));
+    seed = hash_combine(seed, hash_value(t.style.min_size));
+    seed = hash_combine(seed, hash_value(t.style.max_size));
+    seed = hash_combine(seed, hash_value(t.style.auto_fit));
+    seed = hash_combine(seed, hash_value(t.style.ellipsis));
+    seed = hash_combine(seed, hash_bytes(&t.style.overflow, sizeof(TextOverflow)));
+    seed = hash_combine(seed, hash_bytes(&t.style.wrap, sizeof(TextWrap)));
+    seed = hash_combine(seed, hash_vec2(t.box.size));
+    seed = hash_combine(seed, hash_value(t.box.enabled));
+    seed = hash_combine(seed, hash_value(padding));
+
+    // Paint
+    seed = hash_combine(seed, hash_color(t.style.paint.fill));
+    seed = hash_combine(seed, hash_value(t.style.paint.stroke_enabled));
+    seed = hash_combine(seed, hash_color(t.style.paint.stroke_color));
+    seed = hash_combine(seed, hash_value(t.style.paint.stroke_width));
+
+    // Box style
+    seed = hash_combine(seed, hash_value(t.style.box_style.enabled));
+    seed = hash_combine(seed, hash_vec2(t.style.box_style.padding));
+    seed = hash_combine(seed, hash_value(t.style.box_style.radius));
+    seed = hash_combine(seed, hash_color(t.style.box_style.background));
+    seed = hash_combine(seed, hash_value(t.style.box_style.border_enabled));
+    seed = hash_combine(seed, hash_color(t.style.box_style.border_color));
+    seed = hash_combine(seed, hash_value(t.style.box_style.border_width));
+
+    // Vertical align
+    seed = hash_combine(seed, hash_bytes(&t.style.vertical_align, sizeof(VerticalAlign)));
+
+    // Shadows
+    seed = hash_combine(seed, hash_value(t.style.shadows.size()));
+    for (const auto& shadow : t.style.shadows) {
+        seed = hash_combine(seed, hash_value(shadow.enabled));
+        seed = hash_combine(seed, hash_vec2(shadow.offset));
+        seed = hash_combine(seed, hash_value(shadow.blur));
+        seed = hash_combine(seed, hash_value(shadow.opacity));
+        seed = hash_combine(seed, hash_color(shadow.color));
+    }
+
+    // Transform
+    if (transform) {
+        for (int i = 0; i < 4; ++i) {
+            for (int j = 0; j < 4; ++j) {
+                seed = hash_combine(seed, hash_value((*transform)[i][j]));
+            }
+        }
+    }
+
+    return seed;
+}
+
 [[nodiscard]] inline u64 hash_render_node_content_only(const RenderNode& n) {
     u64 seed = hash_bytes(n.name.data(), n.name.size());
     // Ignore world_transform for content-only hashing
