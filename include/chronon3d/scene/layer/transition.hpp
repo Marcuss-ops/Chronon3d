@@ -61,7 +61,7 @@ enum class TransitionDirection {
 struct LayerTransitionSpec {
     std::string transition_id{"none"};
     TransitionDirection direction{TransitionDirection::None};
-    double duration{0.4}; // in seconds
+    double duration{0.0}; // in seconds — 0 means no transition (static)
     double delay{0.0};
     Easing easing{Easing::Linear};
 };
