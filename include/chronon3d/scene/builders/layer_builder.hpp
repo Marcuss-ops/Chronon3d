@@ -3,6 +3,7 @@
 #include <chronon3d/scene/layer/layer.hpp>
 #include <chronon3d/scene/builders/builder_params.hpp>
 #include <chronon3d/registry/shape_registry.hpp>
+#include <chronon3d/vector/path_factories.hpp>
 #include <chronon3d/scene/mask/mask.hpp>
 #include <chronon3d/scene/effects/effect_stack.hpp>
 #include <chronon3d/scene/material_2_5d.hpp>
@@ -101,6 +102,13 @@ public:
     LayerBuilder& circle(std::string name, CircleParams p);
     LayerBuilder& line(std::string name, LineParams p);
     LayerBuilder& path(std::string name, PathParams p);
+    LayerBuilder& arrow(std::string name, ArrowParams p);
+    LayerBuilder& star(std::string name, StarParams p);
+    LayerBuilder& badge(std::string name, BadgeParams p);
+    LayerBuilder& speech_bubble(std::string name, SpeechBubbleParams p);
+    LayerBuilder& callout(std::string name, CalloutParams p);
+    LayerBuilder& progress_bar(std::string name, ProgressBarParams p);
+    LayerBuilder& timeline_bar(std::string name, TimelineBarParams p);
     LayerBuilder& image(std::string name, ImageParams p);
     LayerBuilder& tiled_image(std::string name, ImageParams p);
     LayerBuilder& grid_background(std::string name, GridBackgroundParams p);

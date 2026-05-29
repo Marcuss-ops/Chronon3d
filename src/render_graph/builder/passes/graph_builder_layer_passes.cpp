@@ -100,7 +100,13 @@ void append_transform_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_outp
     } else {
         Mat4 effective_matrix = item.world_matrix;
         if (should_use_centered_rendering(item, ctx)) {
-            effective_matrix = glm::translate(Mat4(1.0f), Vec3(-ctx.width * 0.5f, -ctx.height * 0.5f, 0.0f)) * effective_matrix;
+            Mat4 ssaa_world = item.world_matrix;
+            ssaa_world[3][0] *= ctx.ssaa_factor;
+            ssaa_world[3][1] *= ctx.ssaa_factor;
+            ssaa_world[3][2] *= ctx.ssaa_factor;
+            effective_matrix =
+                glm::translate(Mat4(1.0f), Vec3(-ctx.width * 0.5f, -ctx.height * 0.5f, 0.0f)) *
+                ssaa_world;
         }
         transform_node = std::make_unique<TransformNode>(effective_matrix,
                                                          item.transform.opacity,

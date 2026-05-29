@@ -50,9 +50,13 @@ enum class LineJoin {
 };
 
 struct PathStroke {
+    bool enabled{true};
+    Color color{1, 1, 1, 1};
     f32 width{1.0f};
     LineCap cap{LineCap::Butt};
     LineJoin join{LineJoin::Miter};
+    std::vector<f32> dash_array{};
+    f32 dash_offset{0.0f};
     f32 trim_start{0.0f};
     f32 trim_end{1.0f};
 };

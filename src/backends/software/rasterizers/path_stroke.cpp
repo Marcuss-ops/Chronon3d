@@ -91,4 +91,71 @@ std::vector<Vec2> trim_polyline_points(const std::vector<Vec2>& points, bool clo
     return out;
 }
 
+std::vector<std::vector<Vec2>> dash_polyline_points(const std::vector<Vec2>& points, bool closed, const std::vector<f32>& dash_array, f32 dash_offset) {
+    if (dash_array.empty() || points.size() < 2) {
+        return {points};
+    }
+
+    std::vector<std::pair<Vec2, Vec2>> segments;
+    segments.reserve(points.size());
+    for (usize i = 0; i + 1 < points.size(); ++i) {
+        segments.push_back({points[i], points[i + 1]});
+    }
+    if (closed && glm::length(points.front() - points.back()) > kPathEpsilon) {
+        segments.push_back({points.back(), points.front()});
+    }
+
+    std::vector<f32> lengths;
+    lengths.reserve(segments.size());
+    f32 total_length = 0.0f;
+    for (const auto& seg : segments) {
+        f32 len = glm::length(seg.second - seg.first);
+        lengths.push_back(len);
+        total_length += len;
+    }
+    if (total_length < kPathEpsilon) {
+        return {points};
+    }
+
+    std::vector<f32> pattern = dash_array;
+    if (pattern.size() % 2 != 0) {
+        pattern.insert(pattern.end(), dash_array.begin(), dash_array.end());
+    }
+    f32 pattern_len = 0.0f;
+    for (f32 len : pattern) {
+        pattern_len += len;
+    }
+    if (pattern_len < kPathEpsilon) {
+        return {points};
+    }
+
+    f32 offset = std::fmod(dash_offset, pattern_len);
+    if (offset < 0.0f) {
+        offset += pattern_len;
+    }
+
+    std::vector<std::vector<Vec2>> result;
+    f32 d = -offset;
+    usize pattern_idx = 0;
+    bool is_on = true;
+
+    while (d < total_length) {
+        f32 next_d = d + pattern[pattern_idx];
+        if (is_on) {
+            f32 t_start = std::max(0.0f, d);
+            f32 t_end = std::min(total_length, next_d);
+            if (t_end > t_start + kPathEpsilon) {
+                auto trimmed = trim_polyline_points(points, closed, t_start / total_length, t_end / total_length);
+                if (trimmed.size() >= 2) {
+                    result.push_back(std::move(trimmed));
+                }
+            }
+        }
+        d = next_d;
+        is_on = !is_on;
+        pattern_idx = (pattern_idx + 1) % pattern.size();
+    }
+    return result;
+}
+
 } // namespace chronon3d::renderer

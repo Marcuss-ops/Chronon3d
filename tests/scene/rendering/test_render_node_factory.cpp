@@ -54,3 +54,43 @@ TEST_CASE("RenderNodeFactory creates grid background nodes") {
     CHECK(node.world_transform.position.x == doctest::Approx(0.0f));
     CHECK(node.world_transform.anchor.x == doctest::Approx(0.0f));
 }
+
+TEST_CASE("RenderNodeFactory creates image nodes and maps advanced fields") {
+    auto* res = std::pmr::get_default_resource();
+
+    ImageParams p;
+    p.path = "assets/images/camera_reference.jpg";
+    p.size = {640.0f, 360.0f};
+    p.pos = {10.0f, 20.0f, 30.0f};
+    p.fit = FitMode::Cover;
+    p.focal_point = {0.5f, 0.2f};
+    p.crop.enabled = true;
+    p.crop.origin = {0.1f, 0.1f};
+    p.crop.size = {0.8f, 0.8f};
+    p.opacity = 0.5f;
+    p.radius = 24.0f;
+
+    auto node = RenderNodeFactory::image(res, "img", p);
+
+    CHECK(node.name == "img");
+    CHECK(node.shape.type == ShapeType::Image);
+    CHECK(node.shape.image.path == "assets/images/camera_reference.jpg");
+    CHECK(node.shape.image.size.x == doctest::Approx(640.0f));
+    CHECK(node.shape.image.opacity == doctest::Approx(0.5f));
+    CHECK(node.shape.image.radius == doctest::Approx(24.0f));
+    CHECK(node.shape.image.fit == FitMode::Cover);
+    CHECK(node.shape.image.focal_point.y == doctest::Approx(0.2f));
+    CHECK(node.shape.image.crop.enabled == true);
+    CHECK(node.shape.image.crop.origin.x == doctest::Approx(0.1f));
+    CHECK(node.shape.image.crop.size.x == doctest::Approx(0.8f));
+}
+
+TEST_CASE("Missing image returns placeholder/fallback instead of crashing") {
+    auto* res = std::pmr::get_default_resource();
+    ImageParams p;
+    p.path = "assets/images/does_not_exist.jpg";
+    p.size = {300.0f, 200.0f};
+
+    // Constructing must not crash
+    CHECK_NOTHROW(RenderNodeFactory::image(res, "missing", p));
+}
