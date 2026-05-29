@@ -9,7 +9,6 @@ add_library(chronon3d_cli_core STATIC
     commands/basic/command_list.cpp
     commands/basic/command_info.cpp
     commands/basic/command_watch.cpp
-    commands/basic/register_basic_commands.cpp
     utils/common/cli_utils.cpp
     utils/watch/watch_service.cpp
 )

@@ -6,7 +6,6 @@
 
 namespace chronon3d::cli {
 
-void register_basic_commands(CLI::App& app, CliContext& ctx);
 void register_render_commands(CLI::App& app, CliContext& ctx);
 void register_video_commands(CLI::App& app, CliContext& ctx);
 void register_dev_commands(CLI::App& app, CliContext& ctx);
@@ -16,7 +15,5 @@ void register_bench_commands(CLI::App& app, CliContext& ctx);
 #endif
 void register_telemetry_commands(CLI::App& app, CliContext& ctx);
 void register_bake_layer_commands(CLI::App& app, CliContext& ctx);
-
-void register_all_commands(CLI::App& app, CliContext& ctx);
 
 } // namespace chronon3d::cli
