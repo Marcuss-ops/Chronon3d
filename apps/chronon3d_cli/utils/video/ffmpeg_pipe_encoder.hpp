@@ -27,7 +27,7 @@ struct FfmpegPipeOptions {
     std::string output_pix_fmt{"yuv420p"};
     bool verbose{false};
     color::OutputTransformOptions color_transform{};
-    std::string pipe_writer{"classic"};
+    std::string pipe_writer{"io_uring"};
 };
 
 std::string build_ffmpeg_raw_pipe_command(const FfmpegPipeOptions& options);
