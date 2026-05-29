@@ -59,7 +59,7 @@ int render_and_encode_ffmpeg_pipe(
     const bool codec_auto = opts.codec == "auto";
     const std::string codec = codec_auto ? "libx264" : resolve_cli_ffmpeg_codec(opts.codec, opts.hardware_encoder);
 
-    FfmpegPipeEncoder pipe;
+    auto encoder = create_video_encoder(opts);
     chronon3d::SystemMetricsCollector sys_metrics;
     FfmpegPipeOptions pipe_options{
         .width = comp.width(),
@@ -88,15 +88,20 @@ int render_and_encode_ffmpeg_pipe(
         }
     }
 
-    if (!pipe.open(pipe_options)) {
-        spdlog::error("[video] Failed to open FFmpeg raw pipe");
+    if (!encoder->open(pipe_options)) {
+        spdlog::error("[video] Failed to open encoder");
         return 1;
     }
 
-    // Track FFmpeg child process for CPU% monitoring
-    sys_metrics.track_ffmpeg_pid(pipe.ffmpeg_pid());
-    if (pipe.ffmpeg_pid() > 0) {
-        spdlog::info("[video] Tracking FFmpeg child PID {} for system metrics", pipe.ffmpeg_pid());
+    // Track FFmpeg child process for CPU% monitoring (pipe mode only)
+    if (opts.encoder_backend != "native") {
+        auto* pipe_enc = dynamic_cast<FfmpegPipeEncoder*>(encoder.get());
+        if (pipe_enc) {
+            sys_metrics.track_ffmpeg_pid(pipe_enc->ffmpeg_pid());
+            if (pipe_enc->ffmpeg_pid() > 0) {
+                spdlog::info("[video] Tracking FFmpeg child PID {} for system metrics", pipe_enc->ffmpeg_pid());
+            }
+        }
     }
 
     auto renderer = create_renderer(registry, settings);
@@ -153,7 +158,7 @@ int render_and_encode_ffmpeg_pipe(
                     spdlog::info("[video] Exporting via Arena-backed SIMD pipeline");
                     arena_notified = true;
                 }
-                if (!pipe.write_frame(*package.framebuffer)) {
+                if (!encoder->write_frame(*package.framebuffer)) {
                     writer_failed.store(true);
                     return;
                 }
@@ -281,14 +286,18 @@ int render_and_encode_ffmpeg_pipe(
     auto image_events = chronon3d::telemetry::collect_image_telemetry();
     auto tile_events = chronon3d::telemetry::collect_tile_telemetry();
 
-    const double write_blocked_ms = pipe.total_write_blocked_ms();
+    const double write_blocked_ms = [&]() -> double {
+        auto* pipe_enc = dynamic_cast<FfmpegPipeEncoder*>(encoder.get());
+        if (pipe_enc) return pipe_enc->total_write_blocked_ms();
+        return 0.0;
+    }();
     const double conv_copy_ms = static_cast<double>(renderer->counters()->frame_conversion_copy_ms.load());
-    spdlog::info("[video] FFmpeg pipe write blocked duration: {:.2f} ms", write_blocked_ms);
+    spdlog::info("[video] Encoder write blocked duration: {:.2f} ms", write_blocked_ms);
     spdlog::info("[video_diag] conversion_and_copy_duration_ms: {} ms", conv_copy_ms);
     spdlog::info("[video] FFmpeg queue wait duration: {:.2f} ms", queue_wait_ms_total);
 
-    if (!pipe.close()) {
-        spdlog::error("[video] FFmpeg pipe encoder failed");
+    if (!encoder->close()) {
+        spdlog::error("[video] Encoder failed");
         return 1;
     }
 
@@ -305,7 +314,7 @@ int render_and_encode_ffmpeg_pipe(
     const double chronon_queue_wait_ms = queue_wait_ms_total;
     const double chronon_conversion_copy_ms = conv_copy_ms;
     const double ffmpeg_encode_total_ms = write_blocked_ms;
-    // ffmpeg_flush_close = time from render_t1 to wall_t1 (includes pipe.close())
+    // ffmpeg_flush_close = time from render_t1 to wall_t1 (includes encoder->close())
     const double ffmpeg_flush_close_ms = std::chrono::duration<double, std::milli>(wall_t1 - render_t1).count();
 
     // Store per-run total counters for benchmark separation
