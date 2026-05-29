@@ -115,6 +115,70 @@ namespace GlowPresets {
     };
 }
 
+[[nodiscard]] inline GlowParams soft_premium(f32 radius = 34.0f) {
+    return GlowParams{
+        .radius = radius,
+        .intensity = 0.72f,
+        .color = Color{0.46f, 0.82f, 1.0f, 1.0f},
+        .threshold = 0.03f,
+        .spread = 0.96f,
+        .softness = 1.18f,
+        .falloff = 1.08f,
+        .core_strength = 0.50f,
+        .aura_strength = 0.24f,
+        .bloom_strength = 0.08f,
+        .additive = false
+    };
+}
+
+[[nodiscard]] inline GlowParams cinematic_gold_premium(f32 radius = 58.0f) {
+    return GlowParams{
+        .radius = radius,
+        .intensity = 0.95f,
+        .color = Color{1.0f, 0.80f, 0.30f, 1.0f},
+        .threshold = 0.06f,
+        .spread = 1.00f,
+        .softness = 1.12f,
+        .falloff = 1.05f,
+        .core_strength = 0.56f,
+        .aura_strength = 0.30f,
+        .bloom_strength = 0.10f,
+        .additive = false
+    };
+}
+
+[[nodiscard]] inline GlowParams neon_sign(f32 radius = 44.0f) {
+    return GlowParams{
+        .radius = radius,
+        .intensity = 1.12f,
+        .color = Color{0.16f, 0.68f, 1.0f, 1.0f},
+        .threshold = 0.0f,
+        .spread = 1.05f,
+        .softness = 0.88f,
+        .falloff = 0.80f,
+        .core_strength = 0.80f,
+        .aura_strength = 0.32f,
+        .bloom_strength = 0.12f,
+        .additive = true
+    };
+}
+
+[[nodiscard]] inline GlowParams editorial_highlight(f32 radius = 28.0f) {
+    return GlowParams{
+        .radius = radius,
+        .intensity = 0.60f,
+        .color = Color{0.95f, 0.98f, 1.0f, 1.0f},
+        .threshold = 0.14f,
+        .spread = 0.90f,
+        .softness = 1.30f,
+        .falloff = 1.12f,
+        .core_strength = 0.38f,
+        .aura_strength = 0.18f,
+        .bloom_strength = 0.05f,
+        .additive = false
+    };
+}
+
 } // namespace GlowPresets
 
 } // namespace chronon3d
