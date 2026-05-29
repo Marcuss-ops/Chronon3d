@@ -2,10 +2,7 @@
 #include <chronon3d/video/frame_converter.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <spdlog/spdlog.h>
-#include <cstdlib>
-#include <cstring>
 #include <chrono>
-#include <thread>
 
 // Convenience: steady clock helpers
 namespace {
@@ -21,37 +18,11 @@ namespace chronon3d::cli {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// Map our options to an AVCodecID.
-static AVCodecID resolve_codec_id(const std::string& codec_name) {
-    if (codec_name == "libx264" || codec_name == "libx264rgb")
-        return AV_CODEC_ID_H264;
-    if (codec_name == "libx265")
-        return AV_CODEC_ID_H265;
-    if (codec_name == "mpeg4")
-        return AV_CODEC_ID_MPEG4;
-    // default: H.264
-    return AV_CODEC_ID_H264;
-}
-
 /// Map our options to the codec name that avcodec_find_encoder_by_name expects.
 static const char* resolve_encoder_name(const FfmpegPipeOptions& opt) {
     if (opt.codec == "libx264rgb")
         return "libx264rgb";
     return "libx264";
-}
-
-/// Map pipe pixel format to AV_PIX_FMT_*.
-static AVPixelFormat resolve_av_pix_fmt(const FfmpegPipeOptions& opt) {
-    switch (opt.input_format) {
-        case PipePixelFormat::YUV420P: return AV_PIX_FMT_YUV420P;
-        case PipePixelFormat::NV12:    return AV_PIX_FMT_NV12;
-        case PipePixelFormat::RGBA:
-        default:
-            // We always encode as YUV420P for H.264. RGBA is the pipe input
-            // format (what we write into the pipe). For native encoding we
-            // convert the framebuffer directly to YUV420P.
-            return AV_PIX_FMT_YUV420P;
-    }
 }
 
 // ---------------------------------------------------------------------------
