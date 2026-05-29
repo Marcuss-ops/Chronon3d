@@ -19,6 +19,7 @@ add_library(chronon3d_content STATIC
     shapes/shape_proofs.cpp
     shapes/shape_motion_proofs.cpp
     shapes/shape_registrations.cpp
+    grid/grid_showcase.cpp
 )
 set_target_properties(chronon3d_content PROPERTIES UNITY_BUILD OFF)
 target_include_directories(chronon3d_content PRIVATE ${CMAKE_SOURCE_DIR})

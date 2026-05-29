@@ -105,6 +105,7 @@ add_executable(chronon3d_renderer_tests
     render_graph/pipeline/test_pipeline_robustness.cpp
     render_graph/pipeline/test_graph_health.cpp
     render_graph/pipeline/test_grid_math.cpp
+    render_graph/pipeline/test_grid_background_kernel.cpp
     render_graph/pipeline/test_render_backend.cpp
     render_graph/pipeline/test_dirty_rects.cpp
     render_graph/optimizer/test_graph_optimizer.cpp
