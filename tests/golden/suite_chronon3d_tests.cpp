@@ -16,6 +16,16 @@
 using namespace chronon3d;
 using namespace chronon3d::test;
 
+namespace chronon3d::content::text {
+    Composition text_proofs();
+}
+namespace chronon3d::content::images {
+    Composition image_proofs();
+}
+namespace chronon3d::content::shapes {
+    Composition shape_proofs();
+}
+
 namespace {
 
 struct ComparisonResult {
@@ -615,6 +625,241 @@ TEST_CASE("Chronon3d Suite: Animation Tests") {
 
     CHECK(framebuffer_hash(*fb_run1) == framebuffer_hash(*fb_run2));
 }
+
+// ── 9. TEXTPROOFS GOLDEN REFERENCE ────────────────────────────────────────────
+TEST_CASE("Chronon3d Suite: TextProofs Golden Reference") {
+    // Access the TextProofs composition from content
+    Composition comp = chronon3d::content::text::text_proofs();
+
+    auto renderer = make_renderer();
+
+    // Render frame 60: fully faded in (opacity=1.0), pulse at ~36% visibility
+    auto fb = renderer.render_frame(comp, 60);
+    REQUIRE(fb != nullptr);
+    REQUIRE(fb->width() == 1920);
+    REQUIRE(fb->height() == 1080);
+
+    // Verify against golden reference, auto-creating if missing
+    verify_golden_or_create(*fb, "text_proofs_golden.png");
+
+    // Sanity: no NaN, safe sRGB values
+    for (int y = 0; y < fb->height(); y += 16) {
+        for (int x = 0; x < fb->width(); x += 16) {
+            Color c = fb->get_pixel(x, y).to_srgb();
+            CHECK_FALSE(std::isnan(c.r));
+            CHECK_FALSE(std::isnan(c.g));
+            CHECK_FALSE(std::isnan(c.b));
+            CHECK(c.r >= -0.01f);
+            CHECK(c.r <= 1.01f);
+            CHECK(c.g >= -0.01f);
+            CHECK(c.g <= 1.01f);
+            CHECK(c.b >= -0.01f);
+            CHECK(c.b <= 1.01f);
+        }
+    }
+}
+
+// ── 9b. IMAGEPROOFS GOLDEN REFERENCE ───────────────────────────────────────────
+TEST_CASE("Chronon3d Suite: ImageProofs Golden Reference") {
+    Composition comp = chronon3d::content::images::image_proofs();
+
+    auto renderer = make_renderer();
+
+    // Render frame 60: fully animated state
+    auto fb = renderer.render_frame(comp, 60);
+    REQUIRE(fb != nullptr);
+    REQUIRE(fb->width() == 1920);
+    REQUIRE(fb->height() == 1080);
+
+    verify_golden_or_create(*fb, "image_proofs_golden.png");
+
+    for (int y = 0; y < fb->height(); y += 16) {
+        for (int x = 0; x < fb->width(); x += 16) {
+            Color c = fb->get_pixel(x, y).to_srgb();
+            CHECK_FALSE(std::isnan(c.r));
+            CHECK_FALSE(std::isnan(c.g));
+            CHECK_FALSE(std::isnan(c.b));
+            CHECK(c.r >= -0.01f);
+            CHECK(c.r <= 1.01f);
+            CHECK(c.g >= -0.01f);
+            CHECK(c.g <= 1.01f);
+            CHECK(c.b >= -0.01f);
+            CHECK(c.b <= 1.01f);
+        }
+    }
+}
+
+// ── 9c. SHAPEPROOFS GOLDEN REFERENCE ───────────────────────────────────────────
+TEST_CASE("Chronon3d Suite: ShapeProofs Golden Reference") {
+    Composition comp = chronon3d::content::shapes::shape_proofs();
+
+    auto renderer = make_renderer();
+
+    // Render frame 60: fully animated state
+    auto fb = renderer.render_frame(comp, 60);
+    REQUIRE(fb != nullptr);
+    REQUIRE(fb->width() == 1920);
+    REQUIRE(fb->height() == 1080);
+
+    verify_golden_or_create(*fb, "shape_proofs_golden.png");
+
+    for (int y = 0; y < fb->height(); y += 16) {
+        for (int x = 0; x < fb->width(); x += 16) {
+            Color c = fb->get_pixel(x, y).to_srgb();
+            CHECK_FALSE(std::isnan(c.r));
+            CHECK_FALSE(std::isnan(c.g));
+            CHECK_FALSE(std::isnan(c.b));
+            CHECK(c.r >= -0.01f);
+            CHECK(c.r <= 1.01f);
+            CHECK(c.g >= -0.01f);
+            CHECK(c.g <= 1.01f);
+            CHECK(c.b >= -0.01f);
+            CHECK(c.b <= 1.01f);
+        }
+    }
+}
+
+// ── 10. SSAA 2× QUALITY VERIFICATION ───────────────────────────────────────────
+TEST_CASE("Chronon3d Suite: SSAA 2x Quality Verification") {
+    auto renderer = make_renderer_ssaa(2.0f);
+
+    // 10a. TextProofs at SSAA 2× (1920×1080, complex text scene)
+    SUBCASE("TextProofs SSAA 2x") {
+        Composition comp = chronon3d::content::text::text_proofs();
+        auto fb = renderer.render_frame(comp, 60);
+        REQUIRE(fb != nullptr);
+        REQUIRE(fb->width() == 1920);
+        REQUIRE(fb->height() == 1080);
+
+        verify_golden_or_create(*fb, "text_proofs_golden_ssaa2.png");
+
+        // Verify SSAA 2x produces soft edges: sample a text edge region
+        // The headline cell [0,0] is roughly at (480+pad, 0+pad) = (490, 26)
+        // At 2x the effective detail is higher, but we just verify no NaN/pipeline issues
+        for (int y = 0; y < fb->height(); y += 16) {
+            for (int x = 0; x < fb->width(); x += 16) {
+                Color c = fb->get_pixel(x, y).to_srgb();
+                CHECK_FALSE(std::isnan(c.r));
+                CHECK_FALSE(std::isnan(c.g));
+                CHECK_FALSE(std::isnan(c.b));
+                CHECK(c.r >= -0.01f);
+                CHECK(c.r <= 1.01f);
+                CHECK(c.g >= -0.01f);
+                CHECK(c.g <= 1.01f);
+                CHECK(c.b >= -0.01f);
+                CHECK(c.b <= 1.01f);
+            }
+        }
+    }
+
+    // 10b. Stroke dash/cap/join at SSAA 2× (edges benefit most from anti-aliasing)
+    SUBCASE("Stroke SSAA 2x") {
+        Composition comp(CompositionSpec{.width = 512, .height = 512}, [](const FrameContext& ctx) {
+            SceneBuilder s(ctx);
+            s.line("line_1px", {
+                .from = {50 - 256, 50 - 256, 0},
+                .to = {450 - 256, 50 - 256, 0},
+                .thickness = 1.0f,
+                .color = Color::white()
+            });
+            s.line("line_10px", {
+                .from = {50 - 256, 100 - 256, 0},
+                .to = {450 - 256, 100 - 256, 0},
+                .thickness = 10.0f,
+                .color = Color::red()
+            });
+            s.path("rect_stroke", {
+                .commands = {
+                    PathCommand::move_to({-100, -50}),
+                    PathCommand::line_to({100, -50}),
+                    PathCommand::line_to({100, 50}),
+                    PathCommand::line_to({-100, 50}),
+                },
+                .stroke = {.width = 20.0f, .join = LineJoin::Round},
+                .fill = Fill::solid_color(Color::transparent()),
+                .color = Color{0, 1, 0, 1},
+                .pos = {150 - 256, 220 - 256, 0},
+                .closed = true
+            });
+            s.path("trimmed_path", {
+                .commands = {
+                    PathCommand::move_to({50, 350}),
+                    PathCommand::line_to({250, 350})
+                },
+                .stroke = {.width = 8.0f, .cap = LineCap::Round, .trim_start = 0.1f, .trim_end = 0.9f},
+                .color = Color::blue(),
+                .pos = {-256, -256, 0}
+            });
+            s.path("cap_square", {
+                .commands = {
+                    PathCommand::move_to({50, 420}),
+                    PathCommand::line_to({200, 420}),
+                    PathCommand::line_to({200, 480})
+                },
+                .stroke = {.width = 12.0f, .cap = LineCap::Square, .join = LineJoin::Miter},
+                .color = Color::white(),
+                .pos = {-256, -256, 0}
+            });
+            s.path("join_bevel", {
+                .commands = {
+                    PathCommand::move_to({300, 420}),
+                    PathCommand::line_to({450, 420}),
+                    PathCommand::line_to({450, 480})
+                },
+                .stroke = {.width = 12.0f, .cap = LineCap::Butt, .join = LineJoin::Bevel},
+                .color = Color{1, 1, 0, 1},
+                .pos = {-256, -256, 0}
+            });
+            return s.build();
+        });
+        auto fb = renderer.render_frame(comp, 0);
+        REQUIRE(fb != nullptr);
+        verify_golden_or_create(*fb, "stroke-dash-cap-join_ssaa2.png");
+    }
+
+    // 10c. Drop shadow at SSAA 2× (shadow edges get anti-aliased)
+    SUBCASE("Shadow SSAA 2x") {
+        Composition comp(CompositionSpec{.width = 512, .height = 512}, [](const FrameContext& ctx) {
+            SceneBuilder s(ctx);
+            s.rect("square", {
+                .size = {150, 150},
+                .color = Color::white(),
+                .pos = {-75, -75, 0}
+            });
+            s.with_shadow({
+                .enabled = true,
+                .offset = {30.0f, 30.0f},
+                .color = Color{0.0f, 0.0f, 0.0f, 0.8f},
+                .radius = 20.0f
+            });
+            return s.build();
+        });
+        auto fb = renderer.render_frame(comp, 0);
+        REQUIRE(fb != nullptr);
+        verify_golden_or_create(*fb, "shadow-drop-inner-contact_ssaa2.png");
+    }
+
+    // 10d. Cinematic bloom at SSAA 2× (bloom quality at higher resolution)
+    SUBCASE("Bloom SSAA 2x") {
+        Composition comp(CompositionSpec{.width = 512, .height = 128}, [](const FrameContext& ctx) {
+            SceneBuilder s(ctx);
+            s.layer("l", [](LayerBuilder& l) {
+                l.rect("c1", {.size = {60, 60}, .color = Color{0.5f, 0.0f, 0.0f, 1.0f}, .pos = {-158, -30, 0}});
+                l.rect("c2", {.size = {60, 60}, .color = Color{5.0f, 0.0f, 0.0f, 1.0f}, .pos = {98, -30, 0}});
+                l.bloom(1.0f, 16.0f, 2.0f);
+            });
+            return s.build();
+        });
+        comp.camera.transform.position.x = 256.0f;
+        comp.camera.transform.position.y = 64.0f;
+        comp.camera.transform.position.z = -comp.camera.focal_length(512.0f);
+
+        auto fb = renderer.render_frame(comp, 0);
+        REQUIRE(fb != nullptr);
+        verify_golden_or_create(*fb, "bloom-threshold-knee_ssaa2.png");
+    }
+}
+
 
 // ── 8. COMBINED STRESS TEST ──────────────────────────────────────────────────
 TEST_CASE("Chronon3d Suite: Final Combined Stress Test") {

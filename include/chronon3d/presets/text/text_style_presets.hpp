@@ -19,6 +19,7 @@ inline TextStyle headline() {
     style.paint.stroke_color = Color{0.0f, 0.0f, 0.0f, 1.0f};
     
     TextShadow shadow;
+    shadow.enabled = true;
     shadow.offset = {0, 10};
     shadow.color = Color{0, 0, 0, 0.5f};
     shadow.blur = 16.0f;
@@ -89,6 +90,7 @@ inline TextStyle luxury_gold() {
     style.vertical_align = VerticalAlign::Middle;
     
     TextShadow shadow;
+    shadow.enabled = true;
     shadow.offset = {0, 6};
     shadow.color = Color{0, 0, 0, 0.4f};
     shadow.blur = 12.0f;

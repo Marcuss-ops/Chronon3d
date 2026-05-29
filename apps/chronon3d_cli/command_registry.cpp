@@ -7,7 +7,9 @@ void register_all_commands(CLI::App& app, CliContext& ctx) {
     register_render_commands(app, ctx);
     register_video_commands(app, ctx);
     register_inspect_commands(app, ctx);
+#ifdef CHRONON3D_BUILD_BENCHMARKS
     register_bench_commands(app, ctx);
+#endif
     register_dev_commands(app, ctx);
     register_telemetry_commands(app, ctx);
     register_bake_layer_commands(app, ctx);

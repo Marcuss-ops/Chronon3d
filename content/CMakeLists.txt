@@ -4,6 +4,7 @@ add_library(chronon3d_content STATIC
     text/text_layout.cpp
     text/text_scrolling.cpp
     text/text_typewriter.cpp
+    text/text_proofs.cpp
     text/text_registrations.cpp
     text/lil_dirk.cpp
     anims/animation_compositions.cpp
@@ -15,7 +16,11 @@ add_library(chronon3d_content STATIC
     effects/glow_04_ui_card.cpp
     effects/glow_05_pulse_wave.cpp
     effects/glow_06_video_layer.cpp
+    shapes/shape_proofs.cpp
+    shapes/shape_motion_proofs.cpp
+    shapes/shape_registrations.cpp
 )
+set_target_properties(chronon3d_content PROPERTIES UNITY_BUILD OFF)
 target_include_directories(chronon3d_content PRIVATE ${CMAKE_SOURCE_DIR})
 target_link_libraries(chronon3d_content
     PUBLIC chronon3d

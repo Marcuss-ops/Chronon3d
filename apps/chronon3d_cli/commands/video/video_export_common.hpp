@@ -5,6 +5,9 @@
 #include "../../utils/common/cli_mappers.hpp"
 #include "../../utils/video/frame_chunks.hpp"
 #include "../../utils/video/ffmpeg_pipe_encoder.hpp"
+#ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
+#include "../../utils/video/native_av_encoder.hpp"
+#endif
 #include "../../utils/telemetry/telemetry_run.hpp"
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/core/telemetry/render_telemetry.hpp>
