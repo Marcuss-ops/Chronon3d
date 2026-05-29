@@ -30,14 +30,25 @@ size_t resolve_default_max_bytes(size_t fallback) {
     }
 }
 
-int round_up_bucket(int val, int /*bucket*/ = 64) {
+// Round up to a fixed-size bucket with coarser granularity for larger sizes.
+// The goal is to ensure that similar size requests (e.g. 602 vs 652 pixels)
+// land in the SAME bucket, eliminating framebuffer pool size mismatches.
+//
+// Bucket scheme:
+//      1 –   64 → 64-wide  (tiny intermediates / early-exit buffers)
+//     65 –  256 → 128-wide (small effect inputs)
+//    257 – 1024 → 256-wide (medium intermediate renders)
+//   1025+        → 512-wide (full-frame buffers, stable at video resolution)
+int round_up_bucket(int val) {
     if (val <= 0) return 0;
-    if (val <= 256) {
+    if (val <= 64) {
         return ((val + 63) / 64) * 64;
-    } else if (val <= 1024) {
+    } else if (val <= 256) {
         return ((val + 127) / 128) * 128;
-    } else {
+    } else if (val <= 1024) {
         return ((val + 255) / 256) * 256;
+    } else {
+        return ((val + 511) / 512) * 512;
     }
 }
 
@@ -100,8 +111,8 @@ std::shared_ptr<Framebuffer> FramebufferPool::acquire_hinted(
 std::unique_ptr<Framebuffer> FramebufferPool::acquire_unique(int width, int height) {
     std::lock_guard<std::mutex> lock(m_mutex);
 
-    const int rounded_w = round_up_bucket(width, 64); 
-    const int rounded_h = round_up_bucket(height, 64);
+    const int rounded_w = round_up_bucket(width);
+    const int rounded_h = round_up_bucket(height);
 
     {
         FramebufferPoolKey key{rounded_w, rounded_h};
@@ -259,8 +270,8 @@ size_t FramebufferPool::preallocate(const FramebufferPoolPreallocOptions& option
 
     std::lock_guard<std::mutex> lock(m_mutex);
 
-    const int rounded_w = round_up_bucket(options.width, 64);
-    const int rounded_h = round_up_bucket(options.height, 64);
+    const int rounded_w = round_up_bucket(options.width);
+    const int rounded_h = round_up_bucket(options.height);
 
     FramebufferPoolKey key{rounded_w, rounded_h};
     auto& bucket = m_free[key];
