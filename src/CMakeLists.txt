@@ -273,6 +273,12 @@ target_link_libraries(chronon3d_scene
 target_precompile_headers(chronon3d_scene PRIVATE <glm/glm.hpp> <glm/gtc/matrix_transform.hpp> <spdlog/spdlog.h> <fmt/core.h>)
 
 # --- Aggregati Architetturali finali ---
+# WHOLE_ARCHIVE is needed for targets containing CHRONON_REGISTER_* macros.
+# These rely on static initialization which can be dead-code-eliminated if no
+# symbol is visibly referenced. Using WHOLE_ARCHIVE only on registration targets
+# (scene, animations, backend_video) avoids over-linking while ensuring
+# registration symbols survive linking.
+
 add_library(chronon3d_core INTERFACE)
 target_link_libraries(chronon3d_core INTERFACE
     chronon3d_assets

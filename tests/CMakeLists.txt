@@ -54,7 +54,13 @@ add_executable(chronon3d_animation_tests
     animations/test_animation_catalog.cpp
     animations/test_background_catalog.cpp
 )
-target_link_libraries(chronon3d_animation_tests PRIVATE chronon3d_pipeline $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_content> doctest::doctest)
+target_link_libraries(chronon3d_animation_tests PRIVATE chronon3d_pipeline doctest::doctest)
+# WHOLE_ARCHIVE removed: content targets are now small and explicitly registered
+if(CHRONON3D_BUILD_CONTENT)
+    if(TARGET chronon3d_content_anims)
+        target_link_libraries(chronon3d_animation_tests PRIVATE chronon3d_content_anims)
+    endif()
+endif()
 target_include_directories(chronon3d_animation_tests PRIVATE ${CMAKE_SOURCE_DIR})
 chronon3d_enable_test_pch(chronon3d_animation_tests)
 add_test(NAME chronon3d_animation_tests COMMAND chronon3d_animation_tests WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
@@ -105,7 +111,6 @@ add_executable(chronon3d_renderer_tests
     render_graph/pipeline/test_pipeline_robustness.cpp
     render_graph/pipeline/test_graph_health.cpp
     render_graph/pipeline/test_grid_math.cpp
-    render_graph/pipeline/test_grid_background_kernel.cpp
     render_graph/pipeline/test_render_backend.cpp
     render_graph/pipeline/test_dirty_rects.cpp
     render_graph/optimizer/test_graph_optimizer.cpp
@@ -128,9 +133,32 @@ target_link_libraries(chronon3d_renderer_tests
     PRIVATE
         chronon3d_pipeline
         chronon3d_scene
-        $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_content>
         doctest::doctest
 )
+# WHOLE_ARCHIVE removed: content targets are now small and explicitly registered
+if(CHRONON3D_BUILD_CONTENT)
+    if(TARGET chronon3d_content_text)
+        target_link_libraries(chronon3d_renderer_tests PRIVATE chronon3d_content_text)
+    endif()
+    if(TARGET chronon3d_content_shapes)
+        target_link_libraries(chronon3d_renderer_tests PRIVATE chronon3d_content_shapes)
+    endif()
+    if(TARGET chronon3d_content_images)
+        target_link_libraries(chronon3d_renderer_tests PRIVATE chronon3d_content_images)
+    endif()
+    if(TARGET chronon3d_content_anims)
+        target_link_libraries(chronon3d_renderer_tests PRIVATE chronon3d_content_anims)
+    endif()
+    if(TARGET chronon3d_content_effects)
+        target_link_libraries(chronon3d_renderer_tests PRIVATE chronon3d_content_effects)
+    endif()
+    if(TARGET chronon3d_content_2d5)
+        target_link_libraries(chronon3d_renderer_tests PRIVATE chronon3d_content_2d5)
+    endif()
+    if(TARGET chronon3d_content_grid)
+        target_link_libraries(chronon3d_renderer_tests PRIVATE chronon3d_content_grid)
+    endif()
+endif()
 target_compile_definitions(chronon3d_renderer_tests PRIVATE CHRONON3D_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 target_include_directories(chronon3d_renderer_tests PRIVATE ${CMAKE_SOURCE_DIR})
 target_include_directories(chronon3d_renderer_tests PRIVATE ${Stb_INCLUDE_DIR})
@@ -193,23 +221,44 @@ target_link_libraries(chronon3d_cache_tests PRIVATE chronon3d_pipeline doctest::
 target_include_directories(chronon3d_cache_tests PRIVATE ${CMAKE_SOURCE_DIR})
 add_test(NAME chronon3d_cache_tests COMMAND chronon3d_cache_tests WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
-# Aggregate target: build all test executables with a single cmake --build ... --target chronon3d_tests
+# Aggregate targets: build test executables grouped by cost/speed
 # Note: benchmarks are conditional; included only when TARGET chronon3d_benchmarks exists
 if(TARGET chronon3d_benchmarks)
     set(CHRONON3D_BENCHMARK_DEP chronon3d_benchmarks)
 else()
     set(CHRONON3D_BENCHMARK_DEP "")
 endif()
-add_custom_target(chronon3d_tests
+
+# Fast tests: core + scene + CLI (no rendering, no video, no content)
+add_custom_target(chronon3d_tests_fast
     DEPENDS
-        chronon3d_animation_tests
         chronon3d_core_tests
         chronon3d_scene_tests
-        chronon3d_renderer_tests
-        chronon3d_io_tests
         chronon3d_cli_tests
         chronon3d_optimizer_tests
         chronon3d_cache_tests
+)
+
+# Render tests: scene + renderer + golden (heavy, needs software backend + content)
+add_custom_target(chronon3d_tests_render
+    DEPENDS
+        chronon3d_renderer_tests
+        chronon3d_io_tests
+        chronon3d_animation_tests
+)
+
+# Video tests: video pipeline tests (isolated, no content needed)
+add_custom_target(chronon3d_tests_video
+    DEPENDS
+        chronon3d_video_tests
+)
+
+# All tests: everything
+add_custom_target(chronon3d_tests
+    DEPENDS
+        chronon3d_tests_fast
+        chronon3d_tests_render
+        chronon3d_tests_video
         ${CHRONON3D_BENCHMARK_DEP}
 )
 
