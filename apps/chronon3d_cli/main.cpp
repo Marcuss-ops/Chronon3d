@@ -3,7 +3,7 @@
 #include <CLI/Config.hpp>
 #include <CLI/Formatter.hpp>
 #include <spdlog/spdlog.h>
-#include "command_registry.hpp"
+#include "commands/cli_groups.hpp"
 
 using namespace chronon3d;
 using namespace chronon3d::cli;
@@ -27,7 +27,14 @@ int main(int argc, char** argv) {
     CompositionRegistry registry;
     int exit_code = 0;
     CliContext ctx{registry, exit_code};
-    register_all_commands(app, ctx);
+
+    // Explicit group registration — only linked groups get registered.
+    // Build profiles control which groups are compiled/linked:
+    //   fast:        core only (list, info, doctor, verify)
+    //   dev:         core + render + telemetry + dev
+    //   dev-video:   core + render + telemetry + video + dev
+    //   full:        all groups
+    register_all_groups(app, ctx);
 
     // Preprocess argv in place
     for (int i = 0; i < argc; ++i) {
