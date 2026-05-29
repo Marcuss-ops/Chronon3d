@@ -48,4 +48,37 @@ TEST_CASE("Shape model and SceneBuilder") {
         CHECK(nodes[0].shape.type == ShapeType::Line);
         CHECK(nodes[0].shape.line.to.x == 10.0f);
     }
+
+    SUBCASE("Text node has ShapeType::Text and maps TextParams fields") {
+        Composition comp(spec, [](const FrameContext& ctx) {
+            SceneBuilder s(ctx.resource);
+            s.layer("text-layer", [](LayerBuilder& l) {
+                l.text("test-text", {
+                    .text = "Hello",
+                    .auto_fit = true,
+                    .max_lines = 4,
+                    .ellipsis = true,
+                    .min_font_size = 14.0f,
+                    .max_font_size = 120.0f,
+                    .overflow = TextOverflow::Ellipsis,
+                    .wrap = TextWrap::Character
+                });
+            });
+            return s.build();
+        });
+        auto scene = comp.evaluate(0);
+        const auto& layers = scene.layers();
+        REQUIRE(layers.size() == 1);
+        const auto& nodes = layers[0].nodes;
+        REQUIRE(nodes.size() == 1);
+        CHECK(nodes[0].shape.type == ShapeType::Text);
+        CHECK(nodes[0].shape.text.style.auto_fit == true);
+        CHECK(nodes[0].shape.text.style.auto_scale == true);
+        CHECK(nodes[0].shape.text.style.max_lines == 4);
+        CHECK(nodes[0].shape.text.style.ellipsis == true);
+        CHECK(nodes[0].shape.text.style.min_size == doctest::Approx(14.0f));
+        CHECK(nodes[0].shape.text.style.max_size == doctest::Approx(120.0f));
+        CHECK(nodes[0].shape.text.style.overflow == TextOverflow::Ellipsis);
+        CHECK(nodes[0].shape.text.style.wrap == TextWrap::Character);
+    }
 }

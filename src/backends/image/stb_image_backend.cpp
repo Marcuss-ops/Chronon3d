@@ -19,7 +19,9 @@ std::unique_ptr<ImageBuffer> StbImageBackend::load_image(const std::string& path
     buffer->width = w;
     buffer->height = h;
     buffer->channels = 4;
-    buffer->pixels = std::unique_ptr<u8[]>(pixels);
+    buffer->pixels = std::make_unique<u8[]>(static_cast<size_t>(w) * h * 4);
+    std::memcpy(buffer->pixels.get(), pixels, static_cast<size_t>(w) * h * 4);
+    stbi_image_free(pixels);
 
     return buffer;
 }

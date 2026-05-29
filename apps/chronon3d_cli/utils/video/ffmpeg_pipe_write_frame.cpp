@@ -114,8 +114,8 @@ bool FfmpegPipeEncoder::write_frame(const Framebuffer& fb) {
                     const size_t req_size =
                         static_cast<size_t>(options_.width) *
                         static_cast<size_t>(options_.height) * 3u / 2u;
-                    if (cached_frame_bytes_.size() < req_size)
-                        cached_frame_bytes_.resize(req_size);
+                    if (cached_frame_bytes_.size() < req_size + 256)
+                        cached_frame_bytes_.resize(req_size + 256);
                     ok = convert_framebuffer_to_yuv420p(fb, cached_frame_bytes_.data());
                     if (ok) {
                         cached_frame_size_ = req_size;
@@ -150,8 +150,8 @@ bool FfmpegPipeEncoder::write_frame(const Framebuffer& fb) {
                     const size_t req_size =
                         static_cast<size_t>(options_.width) *
                         static_cast<size_t>(options_.height) * 3u / 2u;
-                    if (cached_frame_bytes_.size() < req_size)
-                        cached_frame_bytes_.resize(req_size);
+                    if (cached_frame_bytes_.size() < req_size + 256)
+                        cached_frame_bytes_.resize(req_size + 256);
                     ok = convert_framebuffer_to_nv12(fb, cached_frame_bytes_.data());
                     if (ok) {
                         cached_frame_size_ = req_size;
@@ -186,8 +186,8 @@ bool FfmpegPipeEncoder::write_frame(const Framebuffer& fb) {
                     const size_t req_size =
                         static_cast<size_t>(options_.width) *
                         static_cast<size_t>(options_.height) * 4u;
-                    if (cached_frame_bytes_.size() < req_size)
-                        cached_frame_bytes_.resize(req_size);
+                    if (cached_frame_bytes_.size() < req_size + 256)
+                        cached_frame_bytes_.resize(req_size + 256);
                     ok = convert_framebuffer_to_rgba(fb, cached_frame_bytes_.data());
                     if (ok) {
                         cached_frame_size_ = req_size;

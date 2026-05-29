@@ -39,6 +39,7 @@ add_executable(chronon3d_core_tests
     assets/test_asset_registry.cpp
     core/math/test_color_space.cpp
     core/math/test_expression.cpp
+    text/test_text_layout.cpp
 )
 target_link_libraries(chronon3d_core_tests PRIVATE chronon3d_pipeline doctest::doctest)
 target_include_directories(chronon3d_core_tests PRIVATE ${CMAKE_SOURCE_DIR})
