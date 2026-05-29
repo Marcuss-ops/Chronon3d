@@ -32,7 +32,7 @@ struct FfmpegExportOptions {
     std::string encode_preset;
     bool keep_frames;
     int chunks;
-    std::string ffmpeg_mode{"png"};
+    std::string ffmpeg_mode{"pipe"};
     bool ffmpeg_verbose{false};
     std::string pipe_pixfmt{"rgba"};
     std::string color_output{"srgb"};
