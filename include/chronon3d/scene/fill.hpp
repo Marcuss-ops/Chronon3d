@@ -24,12 +24,13 @@ struct GradientFill {
 };
 
 struct Fill {
+    bool        enabled{true};
     FillType    type{FillType::Solid};
     Color       solid{1, 1, 1, 1};
     GradientFill gradient;
 
     static Fill solid_color(Color c) {
-        return Fill{FillType::Solid, c, {}};
+        return Fill{true, FillType::Solid, c, {}};
     }
 
     static Fill linear(Vec2 from, Vec2 to, std::vector<GradientStop> stops) {

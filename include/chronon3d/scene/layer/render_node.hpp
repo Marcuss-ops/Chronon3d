@@ -34,7 +34,7 @@ struct RenderNode {
     std::pmr::string name;
     Transform world_transform;
     Color color{1, 1, 1, 1};
-    Fill fill{FillType::Solid, {1, 1, 1, 1}, {}};
+    Fill fill{true, FillType::Solid, {1, 1, 1, 1}, {}};
     Shape shape;
     DropShadow shadow;
     Glow glow;

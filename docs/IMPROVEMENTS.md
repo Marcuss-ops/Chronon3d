@@ -2305,492 +2305,299 @@ I 5 progetti rivoluzionari (R1-R5) e le 7 innovazioni strategiche (I1-I7) rappre
 
 ---
 
-## 🎬 NATIVE VIDEO ENCODER — Pipeline Video Nativa (PR 1-5)
+## 🚀 NEXT-GEN — Visione Rivoluzionaria: Da Renderer a Compilatore Video Headless
 
-> Questa sezione descrive il piano per eliminare completamente il processo FFmpeg esterno e la pipe, trasformando Chronon3D in una pipeline video nativa.
->
-> **TL;DR:** Oggi l'export video passa da `popen()` / `fwrite()` / `pclose()` verso un processo ffmpeg esterno. Il native encoder usa `libavcodec`/`libavformat` per scrivere direttamente i frame in un MP4 senza pipe, senza processo esterno, senza `fwrite()` bloccante.
->
-> **Commit già fatto (PR 1):** `d2e58fb` — `NativeAvEncoder` scheletro con `--encoder-backend native|pipe`.
+> Le idee seguenti rappresentano la visione a lungo termine per trasformare Chronon3D
+> da un "renderer più veloce" a un **compilatore video headless** — un sistema che
+> decide cosa non fare invece di ottimizzare cosa fare.
 
 ---
 
-### Situazione Attuale (dopo PR 1)
+### V1. Segment Encoder — Non Codificare 60 Frame Identici
 
-Il report benchmark su 60-frame DarkGridBackground mostra:
+**Problema:** Anche se la scena è statica, Chronon produce frame 0, 1, 2, ... 59 identici e li processa tutti.
 
-| Fase | Tempo |
-|------|-------|
-| render_only | ~0ms (cache 100%) |
-| ffmpeg_encode | ~500ms |
-| ffmpeg_flush_close | ~115ms |
-| **E2E wall** | **~1.18s** (default pipe) |
+**Soluzione:** Introdurre un `TimelineAnalyzer` che crea `VisualSegment` — blocchi di frame identici.
 
-**Native encoder (PR 1 scheletro):** 1.692s vs pipe 1.404s (+20%, atteso perché PR 1 non ha ottimizzazioni — nessuna telemetry separata, nessun write diretto in AVFrame).
-
-**Problemi del path pipe attuale (anche con io_uring):**
-- `fwrite()` bloccante → 500ms persi
-- `pclose()` opaco → 115ms per flush processo esterno
-- Buffer intermedio `cached_frame_bytes_` → copia extra
-- io_uring sopra una pipe è una toppa, non una soluzione architetturale
-- Frame reordering non deterministico su `IORING_OP_WRITE` (kernel bug)
-
----
-
-### Architettura Target
-
-```text
-PRIMA (pipe):
-  Framebuffer → RGBA8 staging → YUV tight buffer → fwrite() → pipe stdin → ffmpeg processo esterno → pclose()
-
-DOPO (nativa):
-  Framebuffer → AVFrame planes → avcodec_send_frame() → avcodec_receive_packet() → av_interleaved_write_frame() → av_write_trailer()
-```
-
----
-
-### PR 1 ✅ — NativeAvEncoder Scheletro (COMPLETATO, `d2e58fb`)
-
-**Cosa è stato fatto:**
-- `IVideoEncoder` interface in `ffmpeg_pipe_encoder.hpp`
-- `NativeAvEncoder` class con `open()` / `write_frame()` / `close()`
-- `FfmpegPipeEncoder` ereditato dall'interfaccia (0 behavioral change)
-- CLI flag `--encoder-backend native|pipe` (default `pipe`)
-- CMake: linkato `avcodec`, `avformat`, `avutil`, `swscale`
-- Factory `make_video_encoder()` in `video_export_pipe.cpp`
-
-**File nuovi:**
-| File | Scopo |
-|------|-------|
-| `native_av_encoder.hpp` | Header con AVFormatContext, AVCodecContext, AVFrame, AVPacket |
-| `native_av_encoder.cpp` | `open()` (setup codec+muxer) e `close()` (flush+trailer) |
-| `native_av_encoder_write.cpp` | `write_frame()` con `ConvertFrameRequest` + `drain_packets()` |
-
-**File modificati (8):**
-| File | Modifica |
-|------|----------|
-| `ffmpeg_pipe_encoder.hpp` | `IVideoEncoder` interface + `FfmpegPipeEncoder : IVideoEncoder` |
-| `video_export_common.hpp` | Rimossa definizione duplicata di `IVideoEncoder` |
-| `video_export_common.cpp` | `encoder_backend` in `options()` |
-| `video_export_pipe.cpp` | Usa `make_video_encoder()` + `IVideoEncoder*` |
-| `command_video.cpp` | Passa `encoder_backend` alle opzioni |
-| `register_video_commands.cpp` | Flag `--encoder-backend` |
-| `commands.hpp` | `encoder_backend` in `VideoExportArgs` |
-| `CMakeLists.txt` | Link `avcodec`, `avformat`, `avutil`, `swscale` |
-
-**Test:** 322/322 test passati ✅. Native encoder produce output valido e deterministico (stesso MD5 su run multiple).
-
----
-
-### PR 2 — Direct AVFrame Write (già in PR 1)
-
-**Problema:** Il converter attuale fa `ConvertFrameRequest → buffer tight → pipe`. Con native encoder non serve più il buffer tight.
-
-**Soluzione:** `ConvertFrameRequest` già supporta puntatori e stride custom (`dst_y`, `dst_u`, `dst_v`, `dst_uv`). In `NativeAvEncoder::write_frame()`, si passa direttamente `frame_->data[0..2]` e `frame_->linesize[0..2]`.
-
-**Guadagno:** `conversion_copy_ms` −30-40% (elimina buffer tight packing).
-
-**Stato:** ✅ Già implementato nella PR 1.
-
----
-
-### PR 3 — Native Encoder Telemetry Separata
-
-**Problema:** Oggi `ffmpeg_pipe_write_blocked_ms` e `ffmpeg_flush_ms` sono metriche uniche che misurano solo il path pipe. Con native encoder servono metriche separate per ogni fase.
-
-**Soluzione:** Aggiungere counter dedicati in `NativeAvEncoder` e telemetry phases separate per path native vs pipe.
-
-**Contatori da aggiungere (`counters.hpp` via X-macro):**
+**Struttura:**
 ```cpp
-X(native_av_convert_ms)
-X(native_av_send_frame_ms)
-X(native_av_receive_packet_ms)
-X(native_av_mux_write_ms)
-X(native_av_trailer_ms)
-X(native_av_frames_sent)
-X(native_av_packets_written)
+struct VisualSegment {
+    Frame start;
+    Frame end;
+    uint64_t visual_hash;
+    bool static_visual;
+};
 ```
 
-**Risultato atteso nel report:**
-```text
-video_native_convert_ms: 150ms
-video_native_send_frame_ms: 2ms
-video_native_receive_packet_ms: 5ms
-video_native_mux_write_ms: 300ms
-video_native_trailer_ms: 50ms
-ffmpeg_pipe_write_blocked_ms: 0
-ffmpeg_flush_ms: 0
-```
-
----
-
-### PR 4 — Direct Float → YUV420P/NV12 Converter
-
-**Problema:** Il converter attuale fa due passaggi: `Framebuffer float → RGBA8 staging → sws_scale → YUV`. Copia extra + sws_scale che processa pixel già convertiti.
-
-**Soluzione:** Nuovo converter diretto che va da float framebuffer a YUV420P/NV12 in un solo passaggio, eliminando RGBA8 staging e `sws_scale`.
-
-**File nuovi:**
-| File | Scopo |
-|------|-------|
-| `include/chronon3d/video/direct_yuv_converter.hpp` | API `convert_framebuffer_to_yuv_direct()` |
-| `src/video/direct_yuv_converter.cpp` | Dispatcher + fallback scalare |
-| `src/video/direct_yuv_converter_scalar.cpp` | Implementazione scalare di riferimento |
-| `src/video/direct_yuv_converter_hwy.cpp` | Implementazione Highway SIMD |
-
-**Formula BT.709 limited range:**
+Poi l'encoder nativo ha due metodi:
 ```cpp
-// 1. Linear → sRGB (via LUT)
-uint8_t r8 = linear_to_srgb8_lut(r);
-uint8_t g8 = linear_to_srgb8_lut(g);
-uint8_t b8 = linear_to_srgb8_lut(b);
-
-// 2. RGB → YUV BT.709 limited range
-Y  =  16 + (219 * (0.2126*R + 0.7152*G + 0.0722*B))
-Cb = 128 + (224 * (-0.114572*R - 0.385428*G + 0.5*B))
-Cr = 128 + (224 * (0.5*R - 0.454153*G - 0.045847*B))
+write_frame(const Framebuffer& fb);
+write_static_frame_duration(const Framebuffer& fb, int duration_frames);
 ```
 
-**Integrazione in `frame_converter.cpp`:**
+**Perché è potente:** Per video YouTube automatizzati, tantissime scene sono background statico, testo statico per alcuni secondi, immagine statica. Invece di 3000 frame, Chronon processa solo 80 stati visivi.
+
+**Dove:** Nuova fase `Timeline Analyzer` prima dell'export + estensione `NativeAvEncoder`.
+
+---
+
+### V2. Encoder-Owned Rendering — Renderizzare Direttamente in YUV
+
+**Problema:** Pipeline attuale: `Framebuffer float → AVFrame YUV420P → avcodec_send_frame`. C'è una conversione intermedia.
+
+**Soluzione:** Il target finale del render graph non è sempre un `Framebuffer` float RGBA. Può essere direttamente un target video YUV/NV12.
+
+**Struttura:**
 ```cpp
-ConvertFrameResult convert_frame(const ConvertFrameRequest& req) {
-    if (req.format == YUV420P || req.format == NV12) {
-        auto direct = convert_framebuffer_to_yuv_direct({...});
-        if (direct.success) return {.success = true};
-    }
-    // fallback: RGBA8 staging + sws_scale
-}
+enum class RenderTargetFormat {
+    FloatRGBA,
+    YUV420P,
+    NV12
+};
+
+struct RenderTargetView {
+    RenderTargetFormat format;
+    int width, height;
+    Color* rgba;        // se FloatRGBA
+    uint8_t* y, *u, *v; // se YUV
+    uint8_t* uv;        // se NV12
+    int stride_y, stride_u, stride_v, stride_uv;
+};
 ```
 
-**Test qualità (tolleranza 2-4 livelli per canale):**
-| Test | Input | Verifica |
-|------|-------|----------|
-| Nero | 64×64 nero | Y=16, Cb=128, Cr=128 |
-| Bianco | 64×64 bianco | Y=235, Cb=128, Cr=128 |
-| Primari | 64×64 R/G/B | YUV calcolati |
-| Gradiente | 128×128 | Match entro tolleranza |
-| Confronto swscale | Stesso input | Tolleranza 2-4 livelli |
-
-**Guadagno stimato:**
-- `conversion_copy_ms` −50-60% (elimina RGBA8 staging + sws_scale)
-- Zero staging buffer intermedio
-- Direct SIMD: 2-3× più veloce del path RGBA8 + sws_scale
+**Cosa cambia:** I processor dichiarano `supports_direct_yuv()`. Background, solid fill, image opaque, checkerboard, scanlines, noise scrivono direttamente in YUV. Blur, glow, alpha compositing restano in FloatRGBA. Il render graph diventa "format-aware".
 
 ---
 
-### PR 5 — Default a Native Encoder + Benchmark Finale
+### V3. Tile Cache Globale tra Frame, Video e Canali
 
-**Cosa cambia:** `--encoder-backend` default da `"pipe"` a `"native"` in `register_video_commands.cpp`.
+**Problema:** Per 200 canali con migliaia di video, stesse grafiche, stessi background, stessi template, stesse intro — ogni canale rifà tutto da capo.
 
-**Benchmark target (60-frame, CRF 23, superfast):**
+**Soluzione:** `PersistentTileCache` globale. Ogni frame diviso in tile 128×128 o 256×256. Ogni tile ha un `TileKey` con `content_hash`. Se già renderizzato e convertito in YUV, non lo rifai.
 
-| Fase | Pipe oggi | Target native | Δ |
-|------|-----------|---------------|---|
-| render_only | ~0ms | ~0ms | — |
-| conversion_copy | ~412ms | ~150ms | −63% |
-| pipe_write | ~773ms | 0 | −100% |
-| avcodec send/receive | — | ~15ms | Nuovo |
-| mux_write | — | ~300ms | Nuovo |
-| trailer | — | ~50ms | Nuovo |
-| pclose/flush | ~241ms | 0 | −100% |
-| **E2E wall** | **~1.9s** | **~0.8-1.0s** | **−50-58%** |
-
----
-
-### Matrice PR Native Encoder
-
-| PR | Nome | Quando | Complessità | Impatto | Stato |
-|----|------|--------|-------------|---------|-------|
-| PR 1 | NativeAvEncoder scheletro | Fatto | 🟡 Media | 🟡 Medio | ✅ Fatto (`d2e58fb`) |
-| PR 2 | Direct AVFrame write | Fatto (in PR 1) | 🟢 Bassa | 🟡 Medio | ✅ Incluso in PR 1 |
-| PR 3 | Telemetry separata | Questa settimana | 🟢 Bassa | 🟡 Medio | 📝 Da fare |
-| PR 4 | Direct float→YUV converter | Questa settimana | 🟡 Media | 🔴 Alto | 📝 Da fare |
-| PR 5 | Default native encoder | Dopo PR 4 | 🟢 Bassa | 🔴 Alto | 📝 Da fare |
-
----
-
-### Roadmap Completa Video Pipeline
-
-```text
-Oggi:
-  Native encoder funziona (--encoder-backend native) ma è +20% più lento di pipe
-  
-Dopo PR 3 (telemetry):
-  Sappiamo esattamente dove si perde tempo nel native encoder
-  Fasi separate: convert / send / receive / mux / trailer
-
-Dopo PR 4 (direct float→YUV):
-  Niente più RGBA8 staging + sws_scale
-  Direct SIMD float→YUV in un passaggio
-  conversion_copy_ms: 412ms → ~150ms
-
-Dopo PR 5 (default native):
-  Native è il default, pipe è il fallback
-  E2E wall: ~1.9s → ~0.8-1.0s
-  
-Futuro (V3 tile-based):
-  OutputPipeline separata: conversione YUV per tile in parallelo al rendering
-  Tile surface cache: frame convertito una volta, riusato per frame successivi
-  AVFrame pool: superfici YUV preallocate, zero allocazioni nel hot path
-```
-
----
-
-### Appendice: Note Implementative
-
-#### Open codec
+**Struttura:**
 ```cpp
-bool NativeAvEncoder::open_codec() {
-    const char* codec_name = (options_.codec.empty() || options_.codec == "auto")
-        ? "libx264" : options_.codec.c_str();
-    const AVCodec* encoder = avcodec_find_encoder_by_name(codec_name);
-    if (!encoder) return false;
-    codec_ = avcodec_alloc_context3(encoder);
-    if (!codec_) return false;
-    codec_->width = options_.width;
-    codec_->height = options_.height;
-    codec_->time_base = AVRational{1, options_.fps};
-    codec_->framerate = AVRational{options_.fps, 1};
-    codec_->pix_fmt = AV_PIX_FMT_YUV420P;
-    codec_->gop_size = options_.fps * 2;
-    codec_->max_b_frames = 0;  // zero-latency
-    av_opt_set(codec_->priv_data, "preset", options_.encode_preset.c_str(), 0);
-    av_opt_set(codec_->priv_data, "crf", std::to_string(options_.crf).c_str(), 0);
-    av_opt_set(codec_->priv_data, "tune", "zerolatency", 0);
-    if (fmt_ && fmt_->oformat && (fmt_->oformat->flags & AVFMT_GLOBALHEADER))
-        codec_->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
-    return avcodec_open2(codec_, encoder, nullptr) >= 0;
-}
+struct TileKey {
+    uint64_t content_hash;
+    int width, height;
+    PixelFormat format;
+};
 ```
 
-#### Open muxer
-```cpp
-bool NativeAvEncoder::open_muxer() {
-    stream_ = avformat_new_stream(fmt_, nullptr);
-    if (!stream_) return false;
-    stream_->time_base = codec_->time_base;
-    if (avcodec_parameters_from_context(stream_->codecpar, codec_) < 0) return false;
-    if (!(fmt_->oformat->flags & AVFMT_NOFILE))
-        if (avio_open(&fmt_->pb, options_.output_path.c_str(), AVIO_FLAG_WRITE) < 0) return false;
-    AVDictionary* mux_opts = nullptr;
-    // NON mettere +faststart nei benchmark
-    const int ret = avformat_write_header(fmt_, &mux_opts);
-    av_dict_free(&mux_opts);
-    return ret >= 0;
-}
-```
+Ogni frame diventa un Merkle tree: `FrameHash → TileHash 0, TileHash 1, ...`. La cache è persistente su disco: `output/cache/tiles/`.
 
-#### Close e flush
-```cpp
-bool NativeAvEncoder::close() {
-    if (!codec_) return true;
-    const auto t0 = std::chrono::steady_clock::now();
-    avcodec_send_frame(codec_, nullptr);  // flush encoder
-    drain_packets();
-    if (fmt_) av_write_trailer(fmt_);
-    const auto t1 = std::chrono::steady_clock::now();
-    trailer_ms_ += std::chrono::duration<double, std::milli>(t1 - t0).count();
-    cleanup();
-    return true;
-}
-```
-
-#### drain_packets()
-```cpp
-bool NativeAvEncoder::drain_packets() {
-    for (;;) {
-        const auto t_recv0 = std::chrono::steady_clock::now();
-        int ret = avcodec_receive_packet(codec_, packet_);
-        const auto t_recv1 = std::chrono::steady_clock::now();
-        receive_packet_ms_ += std::chrono::duration<double, std::milli>(t_recv1 - t_recv0).count();
-        if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) return true;
-        if (ret < 0) return false;
-        av_packet_rescale_ts(packet_, codec_->time_base, stream_->time_base);
-        packet_->stream_index = stream_->index;
-        const auto t_mux0 = std::chrono::steady_clock::now();
-        ret = av_interleaved_write_frame(fmt_, packet_);
-        const auto t_mux1 = std::chrono::steady_clock::now();
-        mux_write_ms_ += std::chrono::duration<double, std::milli>(t_mux1 - t_mux0).count();
-        av_packet_unref(packet_);
-        if (ret < 0) return false;
-    }
-}
-```
+**Perché è pazzesco:** Su scala 200 canali, template ripetuti, background, cornici, watermark, loghi, lower thirds — Chronon non deve "essere veloce ogni volta". Deve diventare: la prima volta calcolo, dalla seconda volta recupero.
 
 ---
 
-### Regole per Implementazione
+### V4. Scene-to-Kernel Compiler
 
-1. **Non cancellare subito il pipe encoder.** Tieni `pipe` come default fino a PR 5.
-2. **Non mettere `+faststart` nei benchmark.** Falsa il tempo di close/trailer.
-3. **Non fare PR 4 prima di PR 3.** Devi prima sapere dove si perde tempo.
-4. **Direct float→YUV: tolleranza 2-4 livelli nei test.** Non pixel-perfect con swscale.
-5. **Highway SIMD dopo scalare.** Primo: scalare funzionante. Poi: SIMD.
-6. **Il native encoder deve essere deterministico.** Stesso input → stesso MD5.
+**Problema:** Ogni nodo è una chiamata virtuale, switch su shape type, lookup nel registry, hash ripetuti.
 
----
+**Soluzione:** Compilare una composition in un kernel specializzato. Invece di graph generico, Chronon genera un piano specializzato.
 
-## 🧬 FUTURE INNOVATIONS — Oltre la Pipeline Video
-
-> Questa sezione raccoglie idee rivoluzionarie emerse come evoluzione naturale della pipeline video nativa.
-> Non sono ancora prioritarie rispetto ai PR 1-5 del Native Encoder, ma rappresentano il salto generazionale successivo.
-
----
-
-### F1. Zero-Mux Multi-Language Streaming (Bitstream Patching)
-
-**Il problema oggi:** Se devi esportare lo stesso video in 10 lingue con testi localizzati (es. "Sconto 50%" vs "50% Off"), devi codificare 10 file .mp4 completi — pagando 10 volte il costo di encoding H.264 del background (identico).
-
-**L'idea rivoluzionaria:** H.264 divide il video in NAL Units (pacchetti di bitstream). Chronon3D potrebbe renderizzare e codificare il background statico/animato **una sola volta** in un flusso "base". Per le diverse lingue, invece di ricodificare tutto, l'engine genera solo le NAL Units dei piccoli rettangoli (Tile) contenenti il testo localizzato e le **inietta direttamente nel bitstream esistente** (Bitstream Patching), sovrascrivendo i vecchi blocchi senza toccare il resto del video compressato.
-
-**Perché è devastante:** Generare 10 varianti internazionali dello stesso video non richiederebbe più 10 export, ma 1 export completo + 9 "patching" da pochi millisecondi l'uno.
-
-**Come funziona tecnicamente:**
-```text
-1. Render background (1 volta) → encode H.264 → bitstream base (.264 / .mp4)
-2. Per ogni lingua:
-   a. Render solo il tile del testo localizzato (es. 400×60 px)
-   b. Encode quel tile in una singola NAL Unit (IDR o slice isolata)
-   c. Analisi del bitstream base per localizzare i macroblocchi del testo originale
-   d. Sostituzione atomica delle NAL Units nel file .mp4
-   e. Aggiustamento PTS/DTS + SPS/PPS se necessario
-3. Output: 10 file .mp4, ognuno con background identico + testo diverso
-```
-
-**Componenti necessari:**
-- `BitstreamParser` — analizza stream H.264 e identifica posizioni NAL
-- `TileEncoder` — codifica una singola regione come NAL indipendente
-- `BitstreamPatcher` — sostituisce NAL Units nel file esistente
-- `MuxFixer` — riallinea PTS/DTS, aggiorna moov atom se necessario
-
-**Dove:** Nuova directory `apps/chronon3d_cli/utils/video/bitstream/`
-
-**Dipendenze:** Niente di nuovo — si basa su `libavcodec` già integrato via NativeAvEncoder.
-
-**Guadagno stimato rispetto allo stato dell'arte:**
-| Metrica | 10 export full (oggi) | 1 base + 9 patch | Δ |
-|---------|----------------------|-------------------|---|
-| Export wall time | ~10 × 1.7s = 17s | ~1.7s + 9 × 0.1s = 2.6s | **6.5×** |
-| Spazio disco encoding | ~10 × 5MB = 50MB | ~5MB + 9 × 0.1MB = 5.9MB | **8.5×** |
-| CPU encode | ~17s di encode H.264 | ~1.7s + trascurabile | **10×** |
-
-**Sfide tecniche:**
-- H.264 intra prediction può spillare oltre il boundary del tile → serve padding o re-encode locale
-- B-frames possono riferirsi a frame futuri → sostituzione più complessa
-- Moov atom in MP4 richiede ri-calcolo degli offset
-- Soluzione pragmatica: usare **All-Intra GOP** (IDR ogni frame) per semplificare — poi ottimizzare con P/B-frame
-
-**Prossimi passi:**
-- [ ] Ricercare se `libavcodec` supporta encoding di tile isolati (slice encoding)
-- [ ] Prototipo: estrarre NAL units di un tile da un file MP4 esistente
-- [ ] Implementare `BitstreamParser` per H.264
-- [ ] Implementare `BitstreamPatcher` per sostituzione atomica
-- [ ] Benchmark: confrontare export multi-lingua con/senza patching
-
----
-
-### F2. Font Distance Field Caching Globale (SaaS Typography)
-
-**Il problema oggi:** Il rendering del testo antialiased è l'unica cosa rimasta in FloatRGBA che ti costringe a uscire dal fast-path YUV. Generare i glifi dei font (specialmente se grandi o zoomati) richiede rasterizzazione analitica della curva di Bezier.
-
-**L'idea rivoluzionaria:** Chronon3D implementa internamente il **Multi-channel Signed Distance Field (MSDF)** per i testi. Invece di renderizzare i pixel del testo, ogni font viene pre-compilato in una texture di distanze. I glifi diventano **indipendenti dalla risoluzione** — possono essere renderizzati a 4K o 1080p con la stessa texture.
-
-**La svolta SaaS:** Questa MSDF Cache può essere salvata su disco in modo **globale e cross-processo**. Se un VPS sta renderizzando 50 video diversi per canali differenti che usano tutti il font Inter o Helvetica, l'engine non calcola mai più la geometria del testo. Carica la texture MSDF e la mappa direttamente sul target YUV usando una funzione SIMD matematica ultra-veloce.
-
-**Come funziona tecnicamente:**
-```text
-1. Pre-processing (una volta per font):
-   a. Carica font (.ttf/.otf) tramite stb_truetype (già esistente)
-   b. Per ogni glyfo: genera MSDF texture (3 canali: distanza al bordo)
-   c. Salva come file .msdf (formato custom compresso, o EXR per debug)
-   d. Path: ~/.chronon3d/msdf_cache/Inter-Regular.msdf
-
-2. Runtime (render frame):
-   a. Carica .msdf via mmap (zero copy, come EXR già implementato)
-   b. Per ogni glyfo nella stringa:
-      - Campiona la texture MSDF con interpolazione bilineare
-      - Ricostruisce alpha: smoothstep(mid, mid + spread, distance)
-      - Applica colore direttamente su YUV plane
-      - Nessun FloatRGBA intermedio
-
-3. Cross-process sharing:
-   a. Lock file su .msdf per evitrace corruption
-   b. mmap condiviso tra processi (MAP_SHARED)
-   c. Reference counting su disco (hard link o atomic file rename)
-```
-
-**Componenti necessari:**
-- `MsdfGenerator` — genera MSDF da glyfo TTF (basato su `msdfgen` o implementazione custom)
-- `MsdfCache` — cache su disco con mmap e locking cross-process
-- `MsdfRenderer` — shader di reconstruction MSDF → YUV
-- `SimpleMsdfAtlas` — packing di più glyfi su una singola texture
-
-**Dove:**
-- `src/backends/text/msdf_generator.cpp` — generazione MSDF
-- `src/backends/text/msdf_cache.cpp` — cache globale su disco
-- `src/backends/text/msdf_renderer.cpp` — reconstruction SIMD
-- `src/backends/text/msdf_atlas.cpp` — atlas packing
-
-**Vantaggi rispetto allo stato dell'arte:**
-
-| Metrica | stb_truetype (oggi) | MSDF | Δ |
-|---------|---------------------|------|---|
-| Rasterizzazione glyfo | 50-200μs per glyfo a 4K | **~0μs** (pre-compilato) | **∞** |
-| Qualità a scale grandi | Pixelation (deve re-rasterizzare) | **Perfetto** (vettoriale) | **Qualità** |
-| Rotazione/scala arbitraria | Re-rasterize o bilinear blur | **Gratis** (distance field) | **Performance** |
-| Memoria per font | ~2-4MB per atlas bitmap | **~0.5-1MB** per MSDF (compresso) | **2-4×** |
-| Cross-process sharing | Nessuno (ogni processo rasterizza) | **mmap condiviso** | **CPU** |
-
-**Direct YUV rendering:**
+**Versione 1 — Bytecode interno:**
 ```cpp
-void render_msdf_to_yuv(
-    uint8_t* y_plane, int y_stride,
-    uint8_t* u_plane, int u_stride,
-    uint8_t* v_plane, int v_stride,
-    const MsdfAtlas& atlas,
-    const TextRenderJob& job)
+enum class RenderOpCode {
+    ClearSolid, DrawGrid, DrawImage,
+    DrawTextCached, CompositeNormal,
+    ApplyBlur, ConvertToYuv,
+};
+
+struct RenderOp {
+    RenderOpCode op;
+    uint32_t dst, src, params_index;
+};
+```
+
+**Versione 2:** Generare C++ o LLVM per composizioni hot. Dentro `render_DarkGridBackground_compiled()` non ci sono più virtual call, varianti, allocazioni — solo comandi necessari.
+
+**Perché può battere gli altri:** Chronon non fa editing interattivo. Fa rendering batch/headless. Può spendere tempo prima per compilare la scena, poi renderizzare velocissimo. È come passare da "interpreto la ricetta ogni volta" a "ho una macchina costruita per quella ricetta".
+
+---
+
+### V5. Motion Reuse — Ri-usare il Frame Precedente
+
+**Problema:** Se la camera fa un pan di 2 pixel, un engine normale rifà tutto.
+
+**Soluzione:** Chronon prende il frame precedente, lo sposta di 2 pixel, renderizza solo la striscia nuova.
+
+**Versione 1 — Integer pan:**
+```cpp
+previous_frame.shift(-2, 0);
+render_exposed_strip({width-2, 0, width, height});
+```
+
+**Versione 2 — Subpixel pan:** Camera si muove di 0.5 px → resample bilineare + repair edges.
+
+**Versione 3 — Affine transform:** Zoom leggero → scale around center + render borders.
+
+**Versione 4 — 2.5D reproject:** Per scene 2.5D con depth/layer info → reproject + fill holes + rerender uncertain regions.
+
+**Struttura:**
+```cpp
+struct FrameReusePlan {
+    enum class Type {
+        None, ExactSame, IntegerScroll,
+        SubpixelScroll, AffineReproject, LayerReproject
+    };
+    Type type;
+    Mat3 previous_to_current;
+    raster::BBox repair_rect;
+    float confidence;
+};
+```
+
+Prima di renderizzare: `FrameReusePlan plan = analyze_temporal_reuse(prev_state, curr_state)`. Se confidence alta → reuse + repair. Se bassa → full render.
+
+---
+
+### V6. Coverage Certificates — Sapere Cosa è Nascosto
+
+**Problema:** Skip-When-Opaque esiste per il caso semplice, ma non c'è analisi generale di copertura.
+
+**Soluzione:** Ogni layer produce un `CoverageCertificate`:
+```cpp
+struct CoverageCertificate {
+    bool fully_opaque;
+    raster::BBox bounds;
+    TileMask opaque_tiles;
+    TileMask translucent_tiles;
+};
+```
+
+Il graph builder lavora dall'alto verso il basso: layer sopra copre questi tile → layer sotto visibile solo dove non coperto. Se una parte è completamente nascosta, non la renderizzi proprio.
+
+**Esempio:** 10 layer full-frame ma gli ultimi 3 coprono tutto → renderizzi solo quelli necessari.
+
+---
+
+### V7. Encoder-Aware Render Graph
+
+**Problema:** Renderer e encoder sono separati. L'encoder non sa cosa sta comprimendo.
+
+**Soluzione:** Il renderer produce frame + semantic map. Per ogni tile: testo, volto, background piatto, griglia, bordo, blur, logo.
+
+Poi l'encoder usa la semantic map per guidare la compressione:
+- Testo e loghi → QP migliore (qualità alta)
+- Sfondi piatti → QP più aggressivo
+- Griglia → attenzione aliasing
+
+Chronon conosce il contenuto semanticamente, FFmpeg no. Chronon può guidare l'encoder meglio di un encoder generico.
+
+---
+
+### V8. Perceptual Dirty Rendering
+
+**Problema:** Il dirty rect è binario: cambiato o non cambiato. Ma se la differenza è impercettibile?
+
+**Soluzione:** Invece di "il tile è cambiato?", chiedi "il tile è cambiato abbastanza da essere visto?".
+
+**API:**
+```cpp
+enum class TemporalQuality {
+    Exact,
+    VisuallyLossless,
+    FastPreview,
+    YouTubeOptimized
+};
+```
+
+Se `Exact` → tutto deterministico perfetto. Se `YouTubeOptimized` → Chronon può riusare tile quando la differenza è impercettibile.
+
+**Esempio:** Background animato con rumore leggerissimo: update ogni 3 frame. Blur glow: update ogni 2 frame. Testo: update ogni frame.
+
+---
+
+### V9. CPU Autotuner
+
+**Problema:** Ogni VPS/CPU è diverso. Parametri fissi non funzionano su hardware vario.
+
+**Soluzione:** Al primo avvio, Chronon fa benchmark automatici e salva `.chronon/perf_profile.json`.
+
+```json
 {
-    // Per ogni glyfo nella stringa:
-    for (auto& glyfo : job.glyphs) {
-        // Campiona MSDF texture
-        float d = sample_msdf(atlas, glyfo.uv_rect, glyfo.pixel_coords);
-        float alpha = msdf_reconstruct(d, glyfo.spread);
-        
-        // Se alpha è zero, skip (risparmio bandwidth)
-        if (alpha < 0.01f) continue;
-        
-        // Colore del testo (premoltiplicato per alpha)
-        float r = job.color.r * alpha;
-        float g = job.color.g * alpha;
-        float b = job.color.b * alpha;
-        
-        // RGB → YUV BT.709 limited range
-        // Scrittura diretta nei planes Y, U, V
-        write_yuv_pixel(y_plane, u_plane, v_plane, x, y, r, g, b);
-    }
+  "cpu": "8 cores generic",
+  "best_tile_size": 128,
+  "best_render_threads": 6,
+  "best_convert_threads": 2,
+  "best_encoder_threads": 2,
+  "best_yuv_path": "highway_avx2",
+  "recommended_x264_preset": "veryfast"
 }
 ```
 
-**Sfide tecniche:**
-- MSDF reconstruction richiede un edge shader: `smoothstep(0.5 - spread, 0.5 + spread, distance)`
-- Per testi piccoli (< 16px), MSDF può dare aliasing — serve fallback a rasterizzazione classica
-- Atlas padding tra glyfi per evitare bleed (almeno 2px per lato)
-- Colore testi con gradiente: si può ma complica la ricostruzione
-
-**Prossimi passi:**
-- [ ] Integrare `chlumsky/msdfgen` (header-only, MIT) o implementare custom
-- [ ] Creare `MsdfGenerator` che processa stb_truetype glyfi in MSDF
-- [ ] Implementare `MsdfCache` con mmap + lock file cross-process
-- [ ] Creare `MsdfRenderer::render_to_yuv()` con SIMD reconstruction
-- [ ] Benchmark: confronto YUV+MSDF vs FloatRGBA+stb_truetype su testo 4K
-- [ ] Integrare nel `TextRasterizer` esistente come fast-path opzionale
+Così Chronon si auto-configura per qualsiasi VPS, senza GPU, senza configurazione manuale.
 
 ---
 
-### Matrice Future Innovations
+### V10. Multi-Language Render Once
 
-| ID | Innovation | Complessità | Impatto | Dipendenze | Priorità |
-|----|------------|-------------|---------|------------|----------|
-| F1 | Zero-Mux Multi-Language Bitstream Patching | 🔴 Alta | 🔴 Alto (10× export multi-lingua) | NativeAvEncoder (PR 1) completo | Dopo PR 5 |
-| F2 | Font Distance Field Caching (MSDF Globale) | 🟡 Media | 🔴 Alto (rimuove FloatRGBA, cross-process) | NativeAvEncoder + YUV path | Dopo PR 4 |
+**Problema:** Per contenuti globali, devi renderizzare 20 volte lo stesso video in 20 lingue.
 
+**Soluzione:** Base video una volta, audio track multiple, subtitle track multiple, overlay localizzato solo se serve.
+
+**Pipeline:**
+```text
+BaseRender
+LocalizedOverlayRender
+MuxLanguageTracks
+```
+
+Se cambia solo lingua/audio/sottotitoli: non rerenderizzare background, non rerenderizzare animazioni, non ricodificare tutto.
+
+Questo si collega perfettamente alla missione: un solo prodotto, una sola piattaforma, tutte le lingue del mondo.
+
+---
+
+### Le 3 Idee Più Forti
+
+Se vuoi una scelta secca, queste tre sono le più differenzianti:
+
+1. **Segment Encoder** — Non processare 3000 frame se sono solo 80 stati visivi
+2. **Encoder-Owned Rendering / Direct AVFrame Target** — Salta la conversione FloatRGBA→YUV
+3. **Scene-to-Kernel Compiler** — Niente virtual call, niente switch, niente graph traversal a runtime
+
+La sequenza perfetta:
+```text
+NativeAvEncoder
+→ direct AVFrame write
+→ segment encoder static duration
+→ direct float-to-YUV
+→ scene compiler
+→ tile cache globale
+```
+
+---
+
+### Visione Finale
+
+Chronon3D non deve essere solo "un renderer più veloce".
+
+Deve diventare un **compilatore video headless**.
+
+Input:
+```text
+composition declarativa
+timeline
+template
+asset
+lingua
+```
+
+Output:
+```text
+video codificato nel modo più intelligente possibile
+```
+
+E internamente decide:
+```text
+questo frame non cambia → non renderizzare
+questo segmento è statico → non convertire 60 volte
+questo layer è coperto → non rasterizzare
+questo tile è già in cache → recuperalo
+questo background può andare diretto in YUV → niente framebuffer float
+questa composizione è ripetuta → usa kernel compilato
+```
+
+**Non competere facendo le stesse cose più velocemente. Competere evitando proprio di farle.**

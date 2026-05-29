@@ -23,13 +23,25 @@ namespace chronon3d::renderer {
 using CacheKey = u64;
 using ShadowCache = cache::LruCache<CacheKey, std::shared_ptr<BLImage>>;
 
+// ── helpers ───────────────────────────────────────────────────────
+
+inline BLRgba32 to_bl_rgba(const Color& c) {
+    return BLRgba32(
+        static_cast<uint8_t>(std::clamp(c.r * 255.0f, 0.0f, 255.0f)),
+        static_cast<uint8_t>(std::clamp(c.g * 255.0f, 0.0f, 255.0f)),
+        static_cast<uint8_t>(std::clamp(c.b * 255.0f, 0.0f, 255.0f)),
+        static_cast<uint8_t>(std::clamp(c.a * 255.0f, 0.0f, 255.0f))
+    );
+}
+
 // ── forward declarations ───────────────────────────────────────────
 
 static void draw_text_shadow(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNode& node,
                              const RenderState& state, const TextRasterization& raster,
-                             const TextShadow& shadow, size_t index);
+                             const TextShadow& shadow, size_t index, float effective_size);
 static void draw_text_glow(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNode& node,
-                           const RenderState& state, const TextRasterization& raster);
+                           const RenderState& state, const TextRasterization& raster,
+                           float effective_size);
 
 // ── transform utilities ────────────────────────────────────────────
 
@@ -83,30 +95,10 @@ static std::mutex g_text_shadow_cache_mutex;
 using chronon3d::graph::hash_combine;
 using chronon3d::graph::hash_value;
 using chronon3d::graph::hash_string;
+using chronon3d::graph::hash_text_style_full;
 
 static CacheKey hash_text_shape(const TextShape& text, float effective_size) {
-    CacheKey seed = 0;
-    seed = hash_combine(seed, hash_string(text.text));
-    seed = hash_combine(seed, hash_string(text.style.font_path));
-    seed = hash_combine(seed, hash_string(text.style.font_family));
-    seed = hash_combine(seed, hash_value(text.style.font_weight));
-    seed = hash_combine(seed, hash_string(text.style.font_style));
-    seed = hash_combine(seed, hash_value(effective_size));
-    seed = hash_combine(seed, hash_value(text.style.color.r));
-    seed = hash_combine(seed, hash_value(text.style.color.g));
-    seed = hash_combine(seed, hash_value(text.style.color.b));
-    seed = hash_combine(seed, hash_value(text.style.color.a));
-    seed = hash_combine(seed, hash_value(static_cast<int>(text.style.align)));
-    seed = hash_combine(seed, hash_value(text.style.line_height));
-    seed = hash_combine(seed, hash_value(text.style.tracking));
-    seed = hash_combine(seed, hash_value(text.style.max_lines));
-    seed = hash_combine(seed, hash_value(text.style.auto_scale));
-    seed = hash_combine(seed, hash_value(text.style.min_size));
-    seed = hash_combine(seed, hash_value(text.style.max_size));
-    seed = hash_combine(seed, hash_value(text.box.size.x));
-    seed = hash_combine(seed, hash_value(text.box.size.y));
-    seed = hash_combine(seed, hash_value(text.box.enabled));
-    return seed;
+    return hash_text_style_full(text, effective_size, 0);
 }
 
 static CacheKey hash_glow_params(const RenderNode& node, float effective_size) {
@@ -136,7 +128,8 @@ static CacheKey hash_shadow_params(const RenderNode& node, float effective_size,
 // ── glow ───────────────────────────────────────────────────────────
 
 static void draw_text_glow(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNode& node,
-                           const RenderState& state, const TextRasterization& raster) {
+                           const RenderState& state, const TextRasterization& raster,
+                           float effective_size) {
     CHRONON_ZONE_C("text_glow", trace_category::kText);
     const Mat4& model = state.matrix;
     const f32 opacity = state.opacity;
@@ -145,7 +138,7 @@ static void draw_text_glow(SoftwareRenderer& renderer, Framebuffer& fb, const Re
                                    is_affine_transform(model) &&
                                    has_non_translation(model);
 
-    const CacheKey key = hash_glow_params(node, node.shape.text.style.size);
+    const CacheKey key = hash_glow_params(node, effective_size);
     std::shared_ptr<BLImage> glow_cache;
     {
         std::lock_guard<std::mutex> lock(g_text_glow_cache_mutex);
@@ -171,12 +164,9 @@ static void draw_text_glow(SoftwareRenderer& renderer, Framebuffer& fb, const Re
             ctx.fillAll();
             ctx.blitImage(BLPoint(0, 0), raster.image);
             ctx.setCompOp(BL_COMP_OP_SRC_IN);
-            ctx.setFillStyle(BLRgba32(
-                static_cast<uint8_t>(std::clamp(node.glow.color.r * 255.0f, 0.0f, 255.0f)),
-                static_cast<uint8_t>(std::clamp(node.glow.color.g * 255.0f, 0.0f, 255.0f)),
-                static_cast<uint8_t>(std::clamp(node.glow.color.b * 255.0f, 0.0f, 255.0f)),
-                255
-            ));
+            Color glow_color = node.glow.color;
+            glow_color.a = 1.0f;
+            ctx.setFillStyle(to_bl_rgba(glow_color));
             ctx.fillAll();
         }
 
@@ -225,7 +215,7 @@ static void draw_text_glow(SoftwareRenderer& renderer, Framebuffer& fb, const Re
 
 static void draw_text_shadow(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNode& node,
                              const RenderState& state, const TextRasterization& raster,
-                             const TextShadow& shadow, size_t index) {
+                             const TextShadow& shadow, size_t index, float effective_size) {
     CHRONON_ZONE_C("text_shadow", trace_category::kText);
     const Mat4& model = state.matrix;
     const f32 opacity = state.opacity;
@@ -234,7 +224,7 @@ static void draw_text_shadow(SoftwareRenderer& renderer, Framebuffer& fb, const 
                                    is_affine_transform(model) &&
                                    has_non_translation(model);
 
-    const CacheKey key = hash_shadow_params(node, node.shape.text.style.size, index);
+    const CacheKey key = hash_shadow_params(node, effective_size, index);
     std::shared_ptr<BLImage> shadow_cache;
     {
         std::lock_guard<std::mutex> lock(g_text_shadow_cache_mutex);
@@ -260,12 +250,9 @@ static void draw_text_shadow(SoftwareRenderer& renderer, Framebuffer& fb, const 
             ctx.fillAll();
             ctx.blitImage(BLPoint(0, 0), raster.image);
             ctx.setCompOp(BL_COMP_OP_SRC_IN);
-            ctx.setFillStyle(BLRgba32(
-                static_cast<uint8_t>(std::clamp(shadow.color.r * 255.0f, 0.0f, 255.0f)),
-                static_cast<uint8_t>(std::clamp(shadow.color.g * 255.0f, 0.0f, 255.0f)),
-                static_cast<uint8_t>(std::clamp(shadow.color.b * 255.0f, 0.0f, 255.0f)),
-                255
-            ));
+            Color shadow_color_tint = shadow.color;
+            shadow_color_tint.a = 1.0f;
+            ctx.setFillStyle(to_bl_rgba(shadow_color_tint));
             ctx.fillAll();
         }
 
@@ -321,7 +308,7 @@ public:
         CHRONON_ZONE_C("text_render", trace_category::kText);
         const Mat4& model = state.matrix;
         const f32 opacity = state.opacity;
-        const float effective_size = node.shape.text.style.size;
+        const float effective_size = node.shape.text.style.size * state.ssaa_factor;
 
         const bool use_geo_transform = !state.projection.ready &&
                                        is_affine_transform(model) &&
@@ -353,13 +340,13 @@ public:
         for (size_t i = 0; i < node.shape.text.style.shadows.size(); ++i) {
             const auto& shadow = node.shape.text.style.shadows[i];
             if (shadow.enabled && shadow.opacity > 0.0f && shadow.color.a > 0.0f) {
-                draw_text_shadow(renderer, fb, node, state, *raster, shadow, i);
+                draw_text_shadow(renderer, fb, node, state, *raster, shadow, i, effective_size);
             }
         }
 
         // 2. Glow
         if (node.glow.enabled && node.glow.intensity > 0.0f && node.glow.color.a > 0.0f) {
-            draw_text_glow(renderer, fb, node, state, *raster);
+            draw_text_glow(renderer, fb, node, state, *raster, effective_size);
         }
 
         // 3. Text
@@ -380,6 +367,20 @@ public:
         if (txt.box.enabled && txt.box.size.x > 0.0f && txt.box.size.y > 0.0f) {
             w = txt.box.size.x;
             h = txt.box.size.y;
+        } else if (!txt.text.empty()) {
+            const float font_size = std::max(1.0f, txt.style.size);
+            const float approx_char_w = font_size * 0.6f;
+            const float line_height = font_size * std::max(1.0f, txt.style.line_height);
+            int line_count = 1;
+            for (char c : txt.text) {
+                if (c == '\n') line_count++;
+            }
+            w = static_cast<float>(txt.text.size()) * (approx_char_w + txt.style.tracking);
+            h = static_cast<float>(line_count) * line_height;
+            if (txt.style.box_style.enabled) {
+                w += 2.0f * txt.style.box_style.padding.x;
+                h += 2.0f * txt.style.box_style.padding.y;
+            }
         }
 
         Vec4 corners[4] = {

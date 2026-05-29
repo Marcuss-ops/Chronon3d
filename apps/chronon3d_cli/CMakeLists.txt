@@ -6,7 +6,6 @@ add_executable(chronon3d_cli
     commands/video/register_video_commands.cpp
     commands/dev/register_dev_commands.cpp
     commands/dev/register_inspect_commands.cpp
-    commands/bench/register_bench_commands.cpp
     commands/telemetry/register_telemetry_commands.cpp
     utils/common/cli_utils.cpp
     utils/job/cli_render_utils.cpp
@@ -15,8 +14,6 @@ add_executable(chronon3d_cli
     utils/video/ffmpeg_pipe_encoder_uring.cpp
     utils/video/ffmpeg_pipe_command.cpp
     utils/video/ffmpeg_pipe_yuv.cpp
-    utils/video/native_av_encoder.cpp
-    utils/video/native_av_encoder_write.cpp
     utils/job/render_job.cpp
     utils/job/render_job_write_frame.cpp
     utils/job/render_job_execute.cpp
@@ -35,7 +32,6 @@ add_executable(chronon3d_cli
     commands/video/video_export_pipe.cpp
     commands/video/video_export_chunked.cpp
     commands/dev/command_doctor_verify.cpp
-    commands/bench/command_bench.cpp
     commands/render/command_graph.cpp
     commands/render/command_preflight.cpp
     commands/render/command_proofs.cpp
@@ -58,9 +54,25 @@ target_link_libraries(chronon3d_cli
         CLI11::CLI11
         spdlog::spdlog_header_only
         fmt::fmt
-        benchmark::benchmark
-        -lavcodec -lavformat -lavutil -lswscale
 )
+
+if(CHRONON3D_BUILD_BENCHMARKS)
+    target_sources(chronon3d_cli PRIVATE
+        commands/bench/register_bench_commands.cpp
+        commands/bench/command_bench.cpp
+    )
+    target_link_libraries(chronon3d_cli PRIVATE benchmark::benchmark)
+    target_compile_definitions(chronon3d_cli PRIVATE CHRONON3D_BUILD_BENCHMARKS)
+endif()
+
+if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
+    target_sources(chronon3d_cli PRIVATE
+        utils/video/native_av_encoder.cpp
+        utils/video/native_av_encoder_write.cpp
+    )
+    target_link_libraries(chronon3d_cli PRIVATE -lavcodec -lavformat -lavutil -lswscale)
+    target_compile_definitions(chronon3d_cli PRIVATE CHRONON3D_ENABLE_NATIVE_FFMPEG)
+endif()
 
 target_include_directories(chronon3d_cli PRIVATE ${CMAKE_SOURCE_DIR})
 

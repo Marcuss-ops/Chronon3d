@@ -444,7 +444,13 @@ raster::BBox compute_layer_bbox(const LayerGraphItem& item, const RenderGraphCon
         Mat4 model = item.world_matrix;
         bool centered_render = should_use_centered_rendering(item, ctx);
         if (centered_render) {
-            model = glm::translate(Mat4(1.0f), Vec3(-ctx.width * 0.5f, -ctx.height * 0.5f, 0.0f)) * model;
+            Mat4 ssaa_world = item.world_matrix;
+            ssaa_world[3][0] *= ctx.ssaa_factor;
+            ssaa_world[3][1] *= ctx.ssaa_factor;
+            ssaa_world[3][2] *= ctx.ssaa_factor;
+            model =
+                glm::translate(Mat4(1.0f), Vec3(-ctx.width * 0.5f, -ctx.height * 0.5f, 0.0f)) *
+                ssaa_world;
         }
         const Mat4 dst_canvas_offset = glm::translate(Mat4(1.0f), Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
         const Mat4 src_canvas_offset = glm::translate(Mat4(1.0f), Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));

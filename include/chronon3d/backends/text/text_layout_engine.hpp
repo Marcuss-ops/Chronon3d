@@ -3,7 +3,6 @@
 #include <chronon3d/scene/shape.hpp>
 
 #include <algorithm>
-#include <functional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -14,7 +13,8 @@ struct TextLayoutInput {
     std::string text;
     TextStyle style{};
     TextBox box{};
-    std::function<float(char, float)> char_width;
+    const void* char_width_ctx{nullptr};
+    float (*char_width_fn)(const void* ctx, char c, float font_size){nullptr};
 };
 
 struct TextLayoutLine {
@@ -26,6 +26,7 @@ struct TextLayoutLine {
 struct TextLayoutResult {
     Vec2 size{0.0f, 0.0f};
     std::vector<TextLayoutLine> lines;
+    float font_size{0.0f};
 };
 
 class TextLayoutEngine {
@@ -33,14 +34,15 @@ private:
     [[nodiscard]] static TextLayoutResult layout_single_run(const TextLayoutInput& input) {
         TextLayoutResult result;
         const float font_size = std::max(1.0f, input.style.size);
+        result.font_size = font_size;
         const float line_height = std::max(1.0f, font_size * input.style.line_height);
         const float max_width = input.box.enabled && input.box.size.x > 0.0f
             ? input.box.size.x
             : 0.0f;
 
         auto measure_char = [&](char c) {
-            if (input.char_width) {
-                return std::max(0.0f, input.char_width(c, font_size));
+            if (input.char_width_fn) {
+                return std::max(0.0f, input.char_width_fn(input.char_width_ctx, c, font_size));
             }
             return font_size * 0.6f;
         };
@@ -213,6 +215,9 @@ public:
         if (auto_fit && input.box.enabled && input.box.size.x > 0.0f && input.box.size.y > 0.0f) {
             float low = std::max(1.0f, input.style.min_size);
             float high = std::max(low, input.style.size);
+            if (input.style.max_size > 0.0f) {
+                high = std::min(high, input.style.max_size);
+            }
             float best_size = low;
 
             for (int step = 0; step < 8; ++step) {

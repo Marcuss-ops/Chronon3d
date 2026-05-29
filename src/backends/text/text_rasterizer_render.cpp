@@ -16,6 +16,15 @@ namespace chronon3d {
 
 namespace {
 
+inline BLRgba32 to_bl_rgba(const Color& c) {
+    return BLRgba32(
+        static_cast<uint8_t>(std::clamp(c.r * 255.0f, 0.0f, 255.0f)),
+        static_cast<uint8_t>(std::clamp(c.g * 255.0f, 0.0f, 255.0f)),
+        static_cast<uint8_t>(std::clamp(c.b * 255.0f, 0.0f, 255.0f)),
+        static_cast<uint8_t>(std::clamp(c.a * 255.0f, 0.0f, 255.0f))
+    );
+}
+
 struct Blend2DResources {
     std::unordered_map<std::string, BLFontFace> faces;
     std::mutex mutex;
@@ -83,18 +92,6 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     BLFont font;
     font.createFromFace(face, effective_size);
 
-    auto cw = [&](char c, float sz) -> float {
-        BLFont measure_font;
-        measure_font.createFromFace(face, sz);
-        BLGlyphBuffer gb;
-        char buf[2] = {c, '\0'};
-        gb.setUtf8Text(buf, 1);
-        measure_font.shape(gb);
-        BLTextMetrics m;
-        measure_font.getTextMetrics(gb, m);
-        return static_cast<float>(m.advance.x);
-    };
-
     TextBox layout_box = t.box;
     if (t.style.box_style.enabled && t.box.enabled) {
         layout_box.size.x = std::max(0.0f, t.box.size.x - 2.0f * t.style.box_style.padding.x);
@@ -106,7 +103,18 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     layout_in.style = t.style;
     layout_in.style.size = effective_size;
     layout_in.box = layout_box;
-    layout_in.char_width = cw;
+    layout_in.char_width_ctx = &font;
+    layout_in.char_width_fn = [](const void* ctx, char c, float font_size) -> float {
+        auto& f = *static_cast<const BLFont*>(ctx);
+        BLGlyphBuffer gb;
+        char buf[2] = {c, '\0'};
+        gb.setUtf8Text(buf, 1);
+        f.shape(gb);
+        BLTextMetrics m;
+        f.getTextMetrics(gb, m);
+        float base_w = static_cast<float>(m.advance.x);
+        return base_w * (font_size / f.size());
+    };
 
     auto start_layout = std::chrono::steady_clock::now();
     auto layout_res = TextLayoutEngine::layout(layout_in);
@@ -115,6 +123,9 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
         auto dur = std::chrono::duration_cast<std::chrono::milliseconds>(end_layout - start_layout).count();
         profiling::g_current_counters->text_layout_ms.fetch_add(static_cast<uint64_t>(dur), std::memory_order_relaxed);
     }
+
+    // Recreate the font at the final resolved size from the layout engine
+    font.createFromFace(face, layout_res.font_size);
 
     int tw = 0;
     int th = 0;
@@ -208,22 +219,12 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
         float rect_h = t.box.enabled ? t.box.size.y : (layout_res.size.y + 2.0f * t.style.box_style.padding.y);
         BLRoundRect rect(padding / 2.0f, padding / 2.0f, rect_w, rect_h, t.style.box_style.radius, t.style.box_style.radius);
 
-        ctx.setFillStyle(BLRgba32(
-            static_cast<uint8_t>(std::clamp(t.style.box_style.background.r * 255.0f, 0.0f, 255.0f)),
-            static_cast<uint8_t>(std::clamp(t.style.box_style.background.g * 255.0f, 0.0f, 255.0f)),
-            static_cast<uint8_t>(std::clamp(t.style.box_style.background.b * 255.0f, 0.0f, 255.0f)),
-            static_cast<uint8_t>(std::clamp(t.style.box_style.background.a * 255.0f, 0.0f, 255.0f))
-        ));
+        ctx.setFillStyle(to_bl_rgba(t.style.box_style.background));
         ctx.fillRoundRect(rect);
 
         if (t.style.box_style.border_enabled && t.style.box_style.border_width > 0.0f) {
             ctx.setStrokeWidth(t.style.box_style.border_width);
-            ctx.setStrokeStyle(BLRgba32(
-                static_cast<uint8_t>(std::clamp(t.style.box_style.border_color.r * 255.0f, 0.0f, 255.0f)),
-                static_cast<uint8_t>(std::clamp(t.style.box_style.border_color.g * 255.0f, 0.0f, 255.0f)),
-                static_cast<uint8_t>(std::clamp(t.style.box_style.border_color.b * 255.0f, 0.0f, 255.0f)),
-                static_cast<uint8_t>(std::clamp(t.style.box_style.border_color.a * 255.0f, 0.0f, 255.0f))
-            ));
+            ctx.setStrokeStyle(to_bl_rgba(t.style.box_style.border_color));
             ctx.strokeRoundRect(rect);
         }
     }
@@ -263,21 +264,11 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
 
         if (t.style.paint.stroke_enabled && t.style.paint.stroke_width > 0.0f) {
             ctx.setStrokeWidth(t.style.paint.stroke_width);
-            ctx.setStrokeStyle(BLRgba32(
-                static_cast<uint8_t>(std::clamp(t.style.paint.stroke_color.r * 255.0f, 0.0f, 255.0f)),
-                static_cast<uint8_t>(std::clamp(t.style.paint.stroke_color.g * 255.0f, 0.0f, 255.0f)),
-                static_cast<uint8_t>(std::clamp(t.style.paint.stroke_color.b * 255.0f, 0.0f, 255.0f)),
-                static_cast<uint8_t>(std::clamp(t.style.paint.stroke_color.a * 255.0f, 0.0f, 255.0f))
-            ));
+            ctx.setStrokeStyle(to_bl_rgba(t.style.paint.stroke_color));
             ctx.strokeUtf8Text(BLPoint(lx, ly), font, line.text.c_str());
         }
 
-        ctx.setFillStyle(BLRgba32(
-            static_cast<uint8_t>(std::clamp(fill_color.r * 255.0f, 0.0f, 255.0f)),
-            static_cast<uint8_t>(std::clamp(fill_color.g * 255.0f, 0.0f, 255.0f)),
-            static_cast<uint8_t>(std::clamp(fill_color.b * 255.0f, 0.0f, 255.0f)),
-            static_cast<uint8_t>(std::clamp(fill_color.a * 255.0f, 0.0f, 255.0f))
-        ));
+        ctx.setFillStyle(to_bl_rgba(fill_color));
         ctx.fillUtf8Text(BLPoint(lx, ly), font, line.text.c_str());
     }
 
