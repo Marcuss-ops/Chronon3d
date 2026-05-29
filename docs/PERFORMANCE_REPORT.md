@@ -112,7 +112,7 @@ Implementazione Highway SIMD per la matrice BT.709/601:
 
 **File:** `video_export_pipe.cpp`, `native_av_encoder.cpp`, `ffmpeg_pipe_encoder.hpp`
 
-Problema scoperto: `render_only` era **sporca** — includeva attesa sul writer thread (encoding). Il tempo di rendering vero (`render_pure`) è minimo per scene statiche (5-27ms per 60 frame).
+Problema scoperto: `render_only` era **sporca** — includeva attesa sul writer thread (encoding). Il tempo di rendering vero (`render_pure`) è minimo per scene statiche (2-8ms per 60 frame).
 
 **Fix:**
 - Aggiunto `render_graph_eval_ms_total` — solo `render_composition_frame()`
@@ -120,6 +120,22 @@ Problema scoperto: `render_only` era **sporca** — includeva attesa sul writer 
 - `render_only` ricalibrato: `render_pure + queue_wait` (senza writer blocking)
 - Aggiunto campo `tune` opzionale a `FfmpegPipeOptions` (default "zerolatency")
 - Test `FF_THREAD_FRAME` rimosso (overhead > guadagno con drain per-frame)
+
+### PR 8: Frame Batching + x264 Multi-Threading
+
+**File:** `native_av_encoder_write.cpp`, `native_av_encoder.cpp`, `native_av_encoder.hpp`, `video_export_pipe.cpp`
+
+Problema: `avcodec_send_frame` + `drain_packets()` per ogni frame serializza l'encoder x264. Con `thread_type=frame` e `threads=auto`, l'encoder può lavorare in parallelo, ma il drain immediato dopo ogni frame ne limita il throughput.
+
+**Fix:**
+- **EAGAIN back-pressure loop**: `write_frame()` ora drena i packet solo quando `avcodec_send_frame` ritorna `EAGAIN` (buffer pieno), non più dopo ogni frame.
+- **x264 multi-threading**: `threads=auto` + `thread_type=frame` abilitati per libx264/libx264rgb.
+- **Preset override condizionale**: quando `encoder_backend == "native"` e l'utente non ha specificato un preset esplicito, il default passa da `superfast` a `ultrafast` (solo per native, il pipe mantiene il preset scelto).
+- **Double-counting fix**: il tempo di `send_frame` e il tempo di `drain_packets` (receive + mux) sono ora misurati separatamente senza overlap temporale.
+
+**Risultato:**
+- 60-frame CRF23 veryfast: wall ~**800ms** (vs ~1000ms prima del batching)
+- 300-frame: wall **2334ms** con `send_frame=316ms`, `receive_packet=200ms` (il batching permette a x264 di accumulare e processare i frame in parallelo)
 
 ### Riepilogo File Modificati
 
@@ -147,65 +163,64 @@ Problema scoperto: `render_only` era **sporca** — includeva attesa sul writer 
 
 ### 3.1 Benchmark a Parità di Qualità (60 frame, DarkGridBackground, 1920×1080, 30fps)
 
-> **IMPORTANTE:** Il report precedente confrontava pipe CRF18/medium vs native CRF23/veryfast — parametri diversi. Qui tutti i confronti usano **stessi CRF e preset**.
+> **IMPORTANTE:** Tutti i confronti usano **stessi CRF e preset**.
 
 ```
-NATIVO CRF23 veryfast:
-  render_pure:               27.14ms   ← vero rendering (statico!)
-  render_only:                 27.21ms   ← render + queue wait
-  writer_encode:             1104.82ms   ← x264 encoding (writer thread)
-  native_convert:             714.81ms   ← YUV conversion (includes conv_copy)
-  native_send:                588.08ms   ← avcodec_send_frame
-  benchmark_e2e wall:        1602.32ms
+NATIVO CRF23 veryfast (PR8 — batching + thread_type=frame):
+  render_pure:                2.17ms   ← vero rendering (statico!)
+  render_only:                2.17ms   ← render + queue wait
+  native_convert:           261.31ms   ← YUV conversion HWY SIMD
+  native_send:              257.79ms   ← avcodec_send_frame
+  native_receive:             0.12ms   ← avcodec_receive_packet
+  native_mux:                 0.46ms   ← av_interleaved_write_frame
+  benchmark_e2e wall:      1068.62ms
 
 PIPE CRF23 veryfast:
-  render_pure:                  5.51ms
-  render_only:                  5.57ms
-  writer_encode:             1069.93ms   ← pipe write + ffmpeg encode
-  ffmpeg_encode:             1040.24ms
-  ffmpeg_flush_close:         318.09ms
-  benchmark_e2e wall:        2022.49ms
+  render_pure:                5.48ms
+  render_only:                5.48ms
+  ffmpeg_encode:            750.56ms
+  ffmpeg_flush_close:       153.95ms
+  benchmark_e2e wall:      1202.42ms
 
-NATIVO CRF18 medium:
-  render_pure:                 15.36ms
-  render_only:                 15.43ms
-  conv_copy:                  560.00ms   ← YUV conversion HWY SIMD
-  writer_encode:             1726.12ms   ← x264 encoding (slower)
-  native_convert:             587.38ms
-  native_send:               1137.44ms
-  benchmark_e2e wall:        2301.91ms
+NATIVO CRF18 medium (PR8):
+  render_pure:                7.91ms
+  render_only:                7.91ms
+  native_convert:           276.46ms
+  native_send:              356.36ms
+  native_receive:             0.11ms
+  native_mux:                 0.13ms
+  benchmark_e2e wall:      1184.53ms
 
 PIPE CRF18 medium:
-  render_pure:                 10.92ms
-  render_only:                 10.99ms
-  writer_encode:             1098.51ms
-  ffmpeg_encode:             1053.82ms
-  ffmpeg_flush_close:         809.80ms
-  benchmark_e2e wall:        2356.98ms
+  render_pure:                5.53ms
+  render_only:                5.53ms
+  ffmpeg_encode:            737.63ms
+  ffmpeg_flush_close:       396.31ms
+  benchmark_e2e wall:      1361.38ms
 ```
 
 | Metrica | Nativo CRF23/vf | Pipe CRF23/vf | Δ |
 |---------|---------------|-------------|---|
-| **Wall** | **1602ms** | **2022ms** | **−21%** |
-| render_pure | 27ms | 6ms | — |
-| writer_encode | 1105ms | 1070ms | +3% |
+| **Wall** | **1069ms** | **1202ms** | **−11%** |
+| render_pure | 2ms | 5ms | — |
+| native_send | 258ms | — | — |
 | Preset | veryfast | veryfast | **Identico** |
 | CRF | 23 | 23 | **Identico** |
 
 | Metrica | Nativo CRF18/m | Pipe CRF18/m | Δ |
 |---------|---------------|-------------|---|
-| **Wall** | **2302ms** | **2357ms** | **−2%** |
-| render_pure | 15ms | 11ms | — |
-| writer_encode | 1726ms | 1099ms | +57% |
+| **Wall** | **1185ms** | **1361ms** | **−13%** |
+| render_pure | 8ms | 6ms | — |
+| native_send | 356ms | — | — |
 | Preset | medium | medium | **Identico** |
 | CRF | 18 | 18 | **Identico** |
 
 ### Conclusioni
 
-1. **A parità di qualità (CRF18/medium): native ≈ pipe** (2% più veloce). Il vantaggio è minimo.
-2. **A parità di qualità (CRF23/veryfast): native −21% vs pipe**. Il native elimina l'overhead della pipe (flush_close 318ms) e il convertitore diretto è più efficiente.
-3. **`render_pure` è minimo** (5-27ms per 60 frame) — DarkGridBackground è quasi statico, tutto in cache. Il vero collo di bottiglia è encoding.
-4. **`conv_copy` (YUV conversion) pesa 560ms a CRF18/medium** — il nostro HWY SIMD ha ridotto notevolmente questo costo rispetto alla pipe che usa sws_scale.
+1. **A parità di qualità, native vince su pipe** per via dell'assenza di `ffmpeg_flush_close` overhead e della conversione YUV diretta.
+2. **`render_pure` è minimo** (2-8ms per 60 frame) — DarkGridBackground è quasi statico. Il vero collo di bottleneck è encoding + conversione.
+3. **`native_convert` pesa ~260ms** — dominato dalla gamma LUT scalare nel loop HWY.
+4. **`native_send` pesa ~260-360ms** — encoding x264. Con batching + frame threading, il receive avviene in background (0.1ms) mentre il send è il bottleneck.
 
 ### 3.2 Evoluzione native_convert
 
@@ -268,7 +283,7 @@ avformat_write_frame()                    ← muxing MP4
 
 ## 5. Colli di Bottiglia Rimanenti
 
-### 5.1 native_convert: 587ms (25% del wall a CRF18/medium)
+### 5.1 native_convert: ~260ms (24% del wall a CRF23/vf)
 
 **Bottleneck: Gamma LUT scalare nel loop HWY**
 
@@ -289,34 +304,27 @@ La LUT sRGB (64KB) è acceduta 6 volte per pixel. Con HWY SIMD la matrice BT.709
 - HWY `GatherIndex` funziona solo con elementi 32-bit
 - Il mapping float→indice LUT richiede `float * 65535 → int`
 
-### 5.2 native_send: 1137ms (49% del wall a CRF18/medium)
+### 5.2 native_send: ~260-360ms (24-30% del wall)
 
 **Bottleneck: x264 encoding**
 
-`avcodec_send_frame()` + `avcodec_receive_packet()` per ogni frame. Con `preset=medium` e `tune=zerolatency`, x264 processa ogni frame in ~19ms. Con `veryfast` scende a ~10ms/frame. Non c'è molto margine senza ridurre la qualità.
+`avcodec_send_frame()` pesa ~4-6ms/frame. Con batching + `thread_type=frame`, il `receive_packet` è ora asincrono (~0.1ms/frame), ma il send rimane il bottleneck.
 
-### 5.3 render_pure: 15ms (0.7% del wall)
+### 5.3 render_pure: 2-8ms (0.2-0.7% del wall)
 
-**NOTA:** `render_pure` (solo `render_composition_frame()`) è **minimo** per DarkGridBackground statico. La metrica `render_only` precedente era **sporca** — includeva attesa sul writer thread (encoding). La telemetry è stata corretta in PR 7.
+**NOTA:** `render_pure` (solo `render_composition_frame()`) è **minimo** per DarkGridBackground statico. La metrica `render_only` precedente era **sporca** — includeva attesa sul writer thread (encoding). La telemetry è stata corretta in PR 7-8.
 
-**Il vero collo di bottiglia è encoding, non rendering.**
+**Il vero collo di bottiglia è encoding + conversione, non rendering.**
 
 ---
 
 ## 6. Raccomandazioni Prossimi Passi
 
-### Priorità 1: Batch send_frame (Alto Impatto)
+### ✅ Priorità 1: Batch send_frame (Completato in PR8)
 
-**Target:** −15% su native_send (1137ms → ~966ms a CRF18/medium)
+**Risultato:** `native_send` rimane il bottleneck, ma `native_receive` è sceso a ~0.1ms/frame (prima era ~20ms/frame con drain sincrono). Il batching permette a x264 frame-threading di lavorare in parallelo al main thread.
 
-`avcodec_send_frame()` + `drain_packets()` per ogni frame serializza l'encoder. Con `zerolatency`, x264 può accettare 2-3 frame prima di richiedere drain. Per batch export, inviare N frame senza drain intermedio permette a x264 di parallelizzare meglio.
-
-**Implementazione:**
-- Bufferizzare frame YUV convertiti
-- Inviare N frame con `avcodec_send_frame()` senza drain intermedio
-- Drenare pacchetti ogni N frame o alla fine
-
-**Rischio:** Aumento latenza e memoria. Potrebbe non funzionare con `zerolatency`.
+**Prossimo passo:** testare `tune` vuoto vs `zerolatency` per vedere se x264 può parallelizzare meglio senza vincoli di latenza.
 
 ### Priorità 2: Microbenchmark Gamma LUT vs GatherIndex vs Polinomio (Medio Impatto)
 

@@ -255,7 +255,8 @@ bool NativeAvEncoder::drain_packets() {
     for (;;) {
         const auto t_recv0 = Clock::now();
         int ret = avcodec_receive_packet(codec_, packet_);
-        native_receive_packet_ms_ += elapsed_ms(t_recv0);
+        const double recv_ms = elapsed_ms(t_recv0);
+        native_receive_packet_ms_ += recv_ms;
 
         if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
             // No more packets available right now (or stream fully drained)
@@ -272,13 +273,21 @@ bool NativeAvEncoder::drain_packets() {
 
         const auto t_mux0 = Clock::now();
         ret = av_interleaved_write_frame(fmt_, packet_);
-        native_mux_write_ms_ += elapsed_ms(t_mux0);
+        const double mux_ms = elapsed_ms(t_mux0);
+        native_mux_write_ms_ += mux_ms;
 
         av_packet_unref(packet_);
 
         if (ret < 0) {
             spdlog::error("[native_av] av_interleaved_write_frame error: {}", ret);
             return false;
+        }
+
+        if (profiling::g_current_counters) {
+            profiling::g_current_counters->native_av_receive_packet_ms.fetch_add(
+                static_cast<uint64_t>(recv_ms), std::memory_order_relaxed);
+            profiling::g_current_counters->native_av_mux_write_ms.fetch_add(
+                static_cast<uint64_t>(mux_ms), std::memory_order_relaxed);
         }
     }
 }
