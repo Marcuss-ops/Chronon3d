@@ -57,6 +57,7 @@ option(CHRONON3D_BUILD_TESTS "Build Chronon3d tests" ON)
 option(CHRONON3D_BUILD_CLI "Build Chronon3d CLI" ON)
 option(CHRONON3D_BUILD_TOOLS "Build development tools" OFF)
 option(CHRONON3D_BUILD_BENCHMARKS "Build Chronon3d benchmarks" OFF)
+option(CHRONON3D_BUILD_CONTENT "Build bundled content compositions (proofs, demos)" OFF)
 option(CHRONON3D_ENABLE_NATIVE_FFMPEG "Enable native FFmpeg/libav encoder support" OFF)
 option(CHRONON3D_ENABLE_PROFILING "Enable Tracy profiling" OFF)
 option(CHRONON3D_ENABLE_SQLITE_TELEMETRY "Enable SQLite telemetry store" ON)
@@ -88,7 +89,6 @@ if(CHRONON3D_BUILD_BENCHMARKS)
 endif()
 find_package(libyuv CONFIG REQUIRED)
 
-
 if(CHRONON3D_ENABLE_SQLITE_TELEMETRY)
     find_package(unofficial-sqlite3 CONFIG REQUIRED)
 endif()
@@ -114,8 +114,10 @@ endif()
 # ==============================================================================
 add_subdirectory(src)
 
-# 10. Content Generation
-add_subdirectory(content)
+# 10. Content Generation (optional — proofs/demos, not core engine)
+if(CHRONON3D_BUILD_CONTENT)
+    add_subdirectory(content)
+endif()
 
 # --- Profiling & Condizionali di Build ---
 if(CHRONON3D_ENABLE_PROFILING AND Tracy_FOUND)

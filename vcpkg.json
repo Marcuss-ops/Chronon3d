@@ -31,5 +31,5 @@
       "dependencies": ["benchmark"]
     }
   },
-  "default-features": ["benchmarks"]
+  "default-features": []
 }

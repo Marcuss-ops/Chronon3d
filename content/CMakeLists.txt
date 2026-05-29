@@ -1,4 +1,10 @@
-add_library(chronon3d_content STATIC
+# ==============================================================================
+# Content Sub-Targets
+# Each category can be built independently or as a whole via chronon3d_content
+# ==============================================================================
+
+# Text content
+add_library(chronon3d_content_text STATIC
     text/text_helpers.cpp
     text/text_effects.cpp
     text/text_layout.cpp
@@ -7,26 +13,125 @@ add_library(chronon3d_content STATIC
     text/text_proofs.cpp
     text/text_registrations.cpp
     text/lil_dirk.cpp
-    anims/animation_compositions.cpp
+)
+set_target_properties(chronon3d_content_text PROPERTIES UNITY_BUILD OFF)
+target_include_directories(chronon3d_content_text PRIVATE ${CMAKE_SOURCE_DIR})
+target_link_libraries(chronon3d_content_text
+    PUBLIC chronon3d
+    PRIVATE chronon3d_pipeline
+)
+target_precompile_headers(chronon3d_content_text PRIVATE
+    <glm/glm.hpp> <spdlog/spdlog.h> <fmt/core.h>
+)
+
+# Shapes content
+add_library(chronon3d_content_shapes STATIC
+    shapes/shape_proofs.cpp
+    shapes/shape_motion_proofs.cpp
+    shapes/shape_registrations.cpp
+)
+set_target_properties(chronon3d_content_shapes PROPERTIES UNITY_BUILD OFF)
+target_include_directories(chronon3d_content_shapes PRIVATE ${CMAKE_SOURCE_DIR})
+target_link_libraries(chronon3d_content_shapes
+    PUBLIC chronon3d
+    PRIVATE chronon3d_pipeline
+)
+target_precompile_headers(chronon3d_content_shapes PRIVATE
+    <glm/glm.hpp> <spdlog/spdlog.h> <fmt/core.h>
+)
+
+# Images content
+add_library(chronon3d_content_images STATIC
     images/image_compositions.cpp
-    2d5/two_point_five_d_compositions.cpp
+)
+set_target_properties(chronon3d_content_images PROPERTIES UNITY_BUILD OFF)
+target_include_directories(chronon3d_content_images PRIVATE ${CMAKE_SOURCE_DIR})
+target_link_libraries(chronon3d_content_images
+    PUBLIC chronon3d
+    PRIVATE chronon3d_pipeline
+)
+target_precompile_headers(chronon3d_content_images PRIVATE
+    <glm/glm.hpp> <spdlog/spdlog.h> <fmt/core.h>
+)
+
+# Animations content
+add_library(chronon3d_content_anims STATIC
+    anims/animation_compositions.cpp
+)
+set_target_properties(chronon3d_content_anims PROPERTIES UNITY_BUILD OFF)
+target_include_directories(chronon3d_content_anims PRIVATE ${CMAKE_SOURCE_DIR})
+target_link_libraries(chronon3d_content_anims
+    PUBLIC chronon3d
+    PRIVATE chronon3d_pipeline
+)
+target_precompile_headers(chronon3d_content_anims PRIVATE
+    <glm/glm.hpp> <spdlog/spdlog.h> <fmt/core.h>
+)
+
+# Effects content
+add_library(chronon3d_content_effects STATIC
     effects/glow_01_neon_sign.cpp
     effects/glow_02_orb_galaxy.cpp
     effects/glow_03_cinematic_text.cpp
     effects/glow_04_ui_card.cpp
     effects/glow_05_pulse_wave.cpp
     effects/glow_06_video_layer.cpp
-    shapes/shape_proofs.cpp
-    shapes/shape_motion_proofs.cpp
-    shapes/shape_registrations.cpp
-    grid/grid_showcase.cpp
 )
-set_target_properties(chronon3d_content PROPERTIES UNITY_BUILD OFF)
-target_include_directories(chronon3d_content PRIVATE ${CMAKE_SOURCE_DIR})
-target_link_libraries(chronon3d_content
+set_target_properties(chronon3d_content_effects PROPERTIES UNITY_BUILD OFF)
+target_include_directories(chronon3d_content_effects PRIVATE ${CMAKE_SOURCE_DIR})
+target_link_libraries(chronon3d_content_effects
     PUBLIC chronon3d
     PRIVATE chronon3d_pipeline
 )
-target_precompile_headers(chronon3d_content PRIVATE
+target_precompile_headers(chronon3d_content_effects PRIVATE
     <glm/glm.hpp> <spdlog/spdlog.h> <fmt/core.h>
 )
+
+# 2.5D content
+add_library(chronon3d_content_2d5 STATIC
+    2d5/two_point_five_d_compositions.cpp
+)
+set_target_properties(chronon3d_content_2d5 PROPERTIES UNITY_BUILD OFF)
+target_include_directories(chronon3d_content_2d5 PRIVATE ${CMAKE_SOURCE_DIR})
+target_link_libraries(chronon3d_content_2d5
+    PUBLIC chronon3d
+    PRIVATE chronon3d_pipeline
+)
+target_precompile_headers(chronon3d_content_2d5 PRIVATE
+    <glm/glm.hpp> <spdlog/spdlog.h> <fmt/core.h>
+)
+
+# Grid content
+add_library(chronon3d_content_grid STATIC
+    grid/grid_showcase.cpp
+)
+set_target_properties(chronon3d_content_grid PROPERTIES UNITY_BUILD OFF)
+target_include_directories(chronon3d_content_grid PRIVATE ${CMAKE_SOURCE_DIR})
+target_link_libraries(chronon3d_content_grid
+    PUBLIC chronon3d
+    PRIVATE chronon3d_pipeline
+)
+target_precompile_headers(chronon3d_content_grid PRIVATE
+    <glm/glm.hpp> <spdlog/spdlog.h> <fmt/core.h>
+)
+
+# Meta-target: all content (used for full builds)
+add_custom_target(chronon3d_content ALL
+    DEPENDS
+        chronon3d_content_text
+        chronon3d_content_shapes
+        chronon3d_content_images
+        chronon3d_content_anims
+        chronon3d_content_effects
+        chronon3d_content_2d5
+        chronon3d_content_grid
+)
+
+# Aliases for convenient linking (no WHOLE_ARCHIVE needed — each is a small target)
+add_library(chronon3d::content_text ALIAS chronon3d_content_text)
+add_library(chronon3d::content_shapes ALIAS chronon3d_content_shapes)
+add_library(chronon3d::content_images ALIAS chronon3d_content_images)
+add_library(chronon3d::content_anims ALIAS chronon3d_content_anims)
+add_library(chronon3d::content_effects ALIAS chronon3d_content_effects)
+add_library(chronon3d::content_2d5 ALIAS chronon3d_content_2d5)
+add_library(chronon3d::content_grid ALIAS chronon3d_content_grid)

@@ -50,11 +50,37 @@ target_link_libraries(chronon3d_cli
     PRIVATE
         chronon3d_pipeline
         chronon3d_backend_image
-        $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_content>
         CLI11::CLI11
         spdlog::spdlog_header_only
         fmt::fmt
 )
+
+# Optional: bundled content (proofs/demos) — only if explicitly built
+# WHOLE_ARCHIVE removed: content is now split into small per-category targets,
+# each with its own explicit registration macros. Direct linking is sufficient.
+if(CHRONON3D_BUILD_CONTENT)
+    if(TARGET chronon3d_content_text)
+        target_link_libraries(chronon3d_cli PRIVATE chronon3d_content_text)
+    endif()
+    if(TARGET chronon3d_content_shapes)
+        target_link_libraries(chronon3d_cli PRIVATE chronon3d_content_shapes)
+    endif()
+    if(TARGET chronon3d_content_images)
+        target_link_libraries(chronon3d_cli PRIVATE chronon3d_content_images)
+    endif()
+    if(TARGET chronon3d_content_anims)
+        target_link_libraries(chronon3d_cli PRIVATE chronon3d_content_anims)
+    endif()
+    if(TARGET chronon3d_content_effects)
+        target_link_libraries(chronon3d_cli PRIVATE chronon3d_content_effects)
+    endif()
+    if(TARGET chronon3d_content_2d5)
+        target_link_libraries(chronon3d_cli PRIVATE chronon3d_content_2d5)
+    endif()
+    if(TARGET chronon3d_content_grid)
+        target_link_libraries(chronon3d_cli PRIVATE chronon3d_content_grid)
+    endif()
+endif()
 
 if(CHRONON3D_BUILD_BENCHMARKS)
     target_sources(chronon3d_cli PRIVATE
