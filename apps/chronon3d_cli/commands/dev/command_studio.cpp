@@ -94,7 +94,7 @@ int command_preview(const CompositionRegistry& registry, const RenderArgs& args)
         const auto phases = std::vector<chronon3d::telemetry::PhaseTelemetryRecord>{
             {"setup_renderer", std::chrono::duration<double, std::milli>(setup_t1 - wall_t0).count()},
             {"rendering_loop", std::chrono::duration<double, std::milli>(render_t1 - render_t0).count()},
-            {"encoding", std::chrono::duration<double, std::milli>(encode_t1 - encode_t0).count()},
+            {"encoder_close_and_flush", std::chrono::duration<double, std::milli>(encode_t1 - encode_t0).count()},
         };
         cli::telemetry::record_output_run(
             plan->comp_id,
@@ -164,7 +164,7 @@ int command_contact_sheet(const CompositionRegistry& registry, const RenderArgs&
         const auto phases = std::vector<chronon3d::telemetry::PhaseTelemetryRecord>{
             {"setup_renderer", std::chrono::duration<double, std::milli>(setup_t1 - wall_t0).count()},
             {"rendering_loop", std::chrono::duration<double, std::milli>(render_t1 - render_t0).count()},
-            {"encoding", std::chrono::duration<double, std::milli>(encode_t1 - encode_t0).count()},
+            {"encoder_close_and_flush", std::chrono::duration<double, std::milli>(encode_t1 - encode_t0).count()},
         };
         cli::telemetry::record_output_run(
             plan->comp_id,
@@ -265,7 +265,7 @@ int command_storyboard(const CompositionRegistry& registry, const RenderArgs& ar
         const auto phases = std::vector<chronon3d::telemetry::PhaseTelemetryRecord>{
             {"setup_renderer", std::chrono::duration<double, std::milli>(setup_t1 - wall_t0).count()},
             {"rendering_loop", std::chrono::duration<double, std::milli>(render_t1 - render_t0).count()},
-            {"encoding", std::chrono::duration<double, std::milli>(encode_t1 - encode_t0).count()},
+            {"encoder_close_and_flush", std::chrono::duration<double, std::milli>(encode_t1 - encode_t0).count()},
         };
         cli::telemetry::record_output_run(
             plan->comp_id,

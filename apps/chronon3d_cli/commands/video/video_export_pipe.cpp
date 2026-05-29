@@ -233,6 +233,11 @@ int render_and_encode_ffmpeg_pipe(
             renderer->counters()->framebuffer_bytes_allocated.store(saved_fb_bytes, std::memory_order_relaxed);
             renderer->counters()->framebuffer_bytes_peak.store(saved_fb_peak, std::memory_order_relaxed);
         }
+
+        // Clear per-event telemetry stores after warmup, since atomic counters
+        // were reset above.  This keeps Hot Nodes events in sync with
+        // nodes_executed/composite_calls atomic counters.
+        chronon3d::telemetry::clear_telemetry_stores();
     }
 
     const auto render_t0 = std::chrono::steady_clock::now();
@@ -287,7 +292,10 @@ int render_and_encode_ffmpeg_pipe(
                 while (q_size > current_peak && !renderer->counters()->io_queue_peak_depth.compare_exchange_weak(current_peak, q_size, std::memory_order_relaxed));
             }
 
-            while (queue.size_approx() > 64) {
+            // Allow deeper queue before back-pressure kicks in.
+            // With kMaxEagainRetries=12 in the native encoder, the writer
+            // can drain more frames before blocking the render thread.
+            while (queue.size_approx() > 128) {
                 if (writer_failed.load()) break;
                 std::this_thread::yield();
             }
@@ -422,7 +430,7 @@ int render_and_encode_ffmpeg_pipe(
     std::vector<chronon3d::telemetry::PhaseTelemetryRecord> phases;
     phases.push_back({"setup_renderer", std::chrono::duration<double, std::milli>(setup_t1 - setup_t0).count()});
     phases.push_back({"rendering_loop", std::chrono::duration<double, std::milli>(render_t1 - render_t0).count()});
-    phases.push_back({"encoding", encode_ms});
+    phases.push_back({"encoder_close_and_flush", encode_ms});
     phases.push_back({"chronon_render_pure_ms", chronon_render_pure_ms});
     phases.push_back({"chronon_render_only_ms", chronon_render_only_ms});
     phases.push_back({"chronon_render_loop_ms", chronon_render_loop_ms});

@@ -170,4 +170,39 @@ inline std::vector<TileTelemetryRecord> collect_tile_telemetry() {
     return result;
 }
 
+/// Clear all in-memory telemetry event stores.
+/// Call this after warmup to prevent warmup events from appearing
+/// alongside render-loop events (which would contradict atomic counters
+/// that were reset after warmup).
+inline void clear_telemetry_stores() {
+    {
+        std::lock_guard<std::mutex> lock(detail::node_telemetry_mutex());
+        detail::node_telemetry_store().clear();
+    }
+    {
+        std::lock_guard<std::mutex> lock(detail::layer_telemetry_mutex());
+        detail::layer_telemetry_store().clear();
+    }
+    {
+        std::lock_guard<std::mutex> lock(detail::cache_telemetry_mutex());
+        detail::cache_telemetry_store().clear();
+    }
+    {
+        std::lock_guard<std::mutex> lock(detail::culling_telemetry_mutex());
+        detail::culling_telemetry_store().clear();
+    }
+    {
+        std::lock_guard<std::mutex> lock(detail::text_telemetry_mutex());
+        detail::text_telemetry_store().clear();
+    }
+    {
+        std::lock_guard<std::mutex> lock(detail::image_telemetry_mutex());
+        detail::image_telemetry_store().clear();
+    }
+    {
+        std::lock_guard<std::mutex> lock(detail::tile_telemetry_mutex());
+        detail::tile_telemetry_store().clear();
+    }
+}
+
 } // namespace chronon3d::telemetry
