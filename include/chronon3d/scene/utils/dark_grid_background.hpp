@@ -162,9 +162,31 @@ inline Composition dark_grid_background_scene(
         .duration = duration
     };
 
-    return Composition(spec, [p](const FrameContext& ctx) {
+    return Composition(spec, [p, width, height](const FrameContext& ctx) {
         SceneBuilder s(ctx.resource);
-        dark_grid_background(s, ctx, p);
+
+        const f32 W = static_cast<f32>(width);
+        const f32 H = static_cast<f32>(height);
+
+        s.layer("nbg_bg", [W, H, p](LayerBuilder& l) {
+            l.cache_static();
+            l.pin_to(Anchor::Center);
+            // PR 3: Use native grid_background shape instead of PNG/image.
+            // This uses the render pipeline's procedural grid kernel instead
+            // of loading a pre-rasterized PNG from disk.
+            l.grid_background("grid_bg", GridBackgroundParams{
+                .size = {W, H},
+                .offset = {0.0f, 0.0f},
+                .bg_color = p.bg_color,
+                .grid_color = p.grid_color,
+                .spacing = p.spacing,
+                .minor_thickness = 1.25f,
+                .major_thickness = 2.75f,
+                .major_every = 4,
+                .centered = p.centered
+            });
+        });
+
         return s.build();
     });
 }
