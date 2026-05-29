@@ -74,6 +74,24 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
     options_ = options;
     frames_written_ = 0;
 
+    // Reset conversion cache so a stale digest from a prior export won't
+    // produce a false hit if the same object is reopened.
+    last_converted_digest_       = 0;
+    last_converted_width_        = 0;
+    last_converted_height_       = 0;
+    last_converted_pix_fmt_      = -1;
+    last_converted_apply_gamma_  = false;
+    last_converted_color_matrix_ = -1;
+    cache_hits_   = 0;
+    cache_misses_ = 0;
+
+    // Reset telemetry accumulators
+    native_convert_ms_         = 0.0;
+    native_send_frame_ms_      = 0.0;
+    native_receive_packet_ms_  = 0.0;
+    native_mux_write_ms_       = 0.0;
+    native_trailer_ms_         = 0.0;
+
     // 1. Allocate format context (MP4 muxer)
     const std::string filename = options_.output_path;
     avformat_alloc_output_context2(&fmt_, nullptr, nullptr, filename.c_str());
@@ -216,7 +234,7 @@ bool NativeAvEncoder::close() {
 
     native_trailer_ms_ += elapsed_ms(t_trailer0);
 
-    // 4. Close the IO
+    // 5. Close the IO
     if (fmt_ && !(fmt_->oformat->flags & AVFMT_NOFILE)) {
         avio_closep(&fmt_->pb);
     }
@@ -233,7 +251,8 @@ bool NativeAvEncoder::close() {
     frame_  = nullptr;
     packet_ = nullptr;
 
-    spdlog::info("[native_av] Closed native encoder — {} frames written", frames_written_);
+    spdlog::info("[native_av] Closed native encoder — {} frames written, YUV cache: {} hits / {} misses",
+                 frames_written_, cache_hits_, cache_misses_);
     return true;
 }
 
