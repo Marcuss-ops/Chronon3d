@@ -157,6 +157,7 @@ set(CHRONON3D_BACKEND_VIDEO_SOURCES
     backends/video/video_source.cpp
     video/frame_converter.cpp
     video/direct_yuv_converter.cpp
+    video/direct_yuv_converter_hwy.cpp
     video/converted_frame_cache.cpp
 )
 add_library(chronon3d_backend_video STATIC ${CHRONON3D_BACKEND_VIDEO_SOURCES})
