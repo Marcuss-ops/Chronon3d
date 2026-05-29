@@ -61,6 +61,7 @@ int render_and_encode_ffmpeg_chunked(
     std::atomic<bool> failed{false};
     std::atomic<int> frames_done{0};
     std::vector<std::thread> workers;
+    workers.reserve(static_cast<size_t>(chunks));
 
     for (const auto& chunk : ranges) {
         workers.emplace_back([&, chunk]() {
