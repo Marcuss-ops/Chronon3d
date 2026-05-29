@@ -13,7 +13,6 @@
 #include <chronon3d/core/profiling/counters.hpp>
 #include <algorithm>
 #include <atomic>
-#include <optional>
 #include <stdexcept>
 #include <thread>
 #include <vector>
