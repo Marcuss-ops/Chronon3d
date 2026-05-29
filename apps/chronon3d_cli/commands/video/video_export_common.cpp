@@ -1,7 +1,17 @@
 #include "video_export_common.hpp"
+#include "../../utils/video/native_av_encoder.hpp"
 #include <cstdlib>
 
 namespace chronon3d::cli {
+
+// ── Factory: create the appropriate encoder based on backend setting ──────────
+
+std::unique_ptr<IVideoEncoder> create_video_encoder(const FfmpegExportOptions& opts) {
+    if (opts.encoder_backend == "native") {
+        return std::make_unique<NativeAvEncoder>();
+    }
+    return std::make_unique<FfmpegPipeEncoder>();
+}
 
 bool ffmpeg_in_path() {
 #ifdef _WIN32

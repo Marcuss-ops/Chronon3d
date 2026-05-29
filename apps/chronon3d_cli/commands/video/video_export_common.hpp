@@ -13,6 +13,7 @@
 #include <chronon3d/core/cancellation_token.hpp>
 #include <chronon3d/runtime/renderer_warmup.hpp>
 #include <string>
+#include <memory>
 
 namespace chronon3d::cli {
 
@@ -37,6 +38,7 @@ struct FfmpegExportOptions {
     std::string pipe_pixfmt{"rgba"};
     std::string color_output{"srgb"};
     std::string pipe_writer{"classic"};
+    std::string encoder_backend{"pipe"};
 
     // Renderer warmup
     bool   warmup_renderer{false};
@@ -55,6 +57,9 @@ int render_and_encode_ffmpeg_pipe(
     Frame start,
     Frame end,
     const FfmpegExportOptions& opts);
+
+// Factory: creates the appropriate encoder based on opts.encoder_backend
+std::unique_ptr<IVideoEncoder> create_video_encoder(const FfmpegExportOptions& opts);
 
 int render_and_encode_ffmpeg_chunked(
     const CompositionRegistry& registry,
