@@ -17,7 +17,7 @@ bool write_render_frame(const Composition& comp,
                         const FrameRange& range,
                         const std::string& output_pattern,
                         bool& ok,
-                        std::vector<telemetry::FrameTelemetryRecord>& telemetry_frames,
+                        std::vector<chronon3d::telemetry::FrameTelemetryRecord>& telemetry_frames,
                         double& total_render_ms,
                         double& total_encode_ms,
                         int& frames_written) {
