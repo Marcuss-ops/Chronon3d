@@ -17,7 +17,6 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdint>
-#include <cstring>
 
 #include <tbb/parallel_for.h>
 #include <tbb/blocked_range.h>
