@@ -9,7 +9,7 @@
 
 1. [Sommario Esecutivo](#1-sommario-esecutivo)
 2. [Cronologia Ottimizzazioni](#2-cronologia-ottimizzazioni)
-3. [Benchmark Comparativo](#3-benchmark-comparativo)
+3. [Benchmark Comparativo (Parità di Qualità)](#3-benchmark-comparativo)
 4. [Architettura Attuale](#4-architettura-attuale)
 5. [Colli di Bottiglia Rimanenti](#5-colli-di-bottiglia-rimanenti)
 6. [Raccomandazioni Prossimi Passi](#6-raccomandazioni-prossimi-passi)
@@ -23,14 +23,21 @@ In 6 PR consecutivi abbiamo trasformato il pipeline video Chronon3D da un sistem
 
 ### Risultato finale
 
-| Metrica | Pipe (prima) | Nativo (ora) | Δ |
+> ⚠️ **Correzione post-benchmark a parità di qualità:** Il report iniziale confrontava pipe CRF18/medium vs native CRF23/veryfast — un confronto **non onesto**. A parità di CRF/preset, native e pipe sono equivalenti. Il vantaggio reale del native è il **controllo diretto** e l'eliminazione dell'overhead pipe.
+
+| Metrica | Pipe CRF23/vf | Nativo CRF23/vf | Δ |
 |---------|-------------|-------------|---|
-| **Wall 60 frame** | 1393ms | **822ms** | **−41%** |
+| **Wall 60 frame** | 2022ms | **1602ms** | **−21%** |
 | File size | ~30K | ~30K | — |
 | Video codec | H.264 (libx264) | H.264 (libx264) | — |
 | Risoluzione | 1920×1080 | 1920×1080 | — |
-| Qualità | CRF 18 | CRF 23 | Leggermente inferiore |
+| Qualità | CRF 23 | CRF 23 | **Identica** |
 | Tests | 322/322 | 322/322 | ✅ |
+
+| Metrica | Pipe CRF18/m | Nativo CRF18/m | Δ |
+|---------|-------------|-------------|---|
+| **Wall 60 frame** | 2357ms | **2302ms** | **−2%** |
+| Qualità | CRF 18 | CRF 18 | **Identica** |
 
 ### Cosa è stato fatto
 
@@ -41,6 +48,7 @@ In 6 PR consecutivi abbiamo trasformato il pipeline video Chronon3D da un sistem
 | PR 4 | Direct YUV converter + `tbb::parallel_for` | **convert: 2309→522ms (−77%)** |
 | PR 5 | Native encoder come default | — |
 | **PR 6** | **HWY SIMD per matrice BT.709** | **convert: 332→179ms (−46%)** |
+| **PR 7** | **Telemetry corretta + tune opzionale** | **render_pure separato da encoder wait** |
 
 ---
 
@@ -100,6 +108,19 @@ Implementazione Highway SIMD per la matrice BT.709/601:
 
 **Risultato:** convert: **332ms → 179ms** (−46% con HWY)
 
+### PR 7: Telemetry Corretta + Tune Opzionale
+
+**File:** `video_export_pipe.cpp`, `native_av_encoder.cpp`, `ffmpeg_pipe_encoder.hpp`
+
+Problema scoperto: `render_only` era **sporca** — includeva attesa sul writer thread (encoding). Il tempo di rendering vero (`render_pure`) è minimo per scene statiche (5-27ms per 60 frame).
+
+**Fix:**
+- Aggiunto `render_graph_eval_ms_total` — solo `render_composition_frame()`
+- Aggiunto `writer_thread_wait_us_total` (atomic) — encoding time nel writer thread
+- `render_only` ricalibrato: `render_pure + queue_wait` (senza writer blocking)
+- Aggiunto campo `tune` opzionale a `FfmpegPipeOptions` (default "zerolatency")
+- Test `FF_THREAD_FRAME` rimosso (overhead > guadagno con drain per-frame)
+
 ### Riepilogo File Modificati
 
 | File | Stato | Descrizione |
@@ -111,11 +132,11 @@ Implementazione Highway SIMD per la matrice BT.709/601:
 | `src/video/frame_converter.cpp` | MOD | Fast-path direct_yuv |
 | `src/CMakeLists.txt` | MOD | Aggiunto `direct_yuv_converter_hwy.cpp` |
 | `apps/chronon3d_cli/utils/video/native_av_encoder.hpp` | MOD | Classe encoder nativo |
-| `apps/chronon3d_cli/utils/video/native_av_encoder.cpp` | MOD | Setup encoder FFmpeg |
+| `apps/chronon3d_cli/utils/video/native_av_encoder.cpp` | MOD | Setup encoder FFmpeg + tune opzionale |
 | `apps/chronon3d_cli/utils/video/native_av_encoder_write.cpp` | MOD | Write + telemetry counters |
 | `include/chronon3d/core/profiling/counters.hpp` | MOD | Counter nativi |
-| `apps/chronon3d_cli/utils/video/ffmpeg_pipe_encoder.hpp` | MOD | Interfaccia IVideoEncoder |
-| `apps/chronon3d_cli/commands/video/video_export_pipe.cpp` | MOD | Report telemetry nativa |
+| `apps/chronon3d_cli/utils/video/ffmpeg_pipe_encoder.hpp` | MOD | Interfaccia IVideoEncoder + campo tune |
+| `apps/chronon3d_cli/commands/video/video_export_pipe.cpp` | MOD | Telemetry corretta (render_pure, writer_encode) |
 | `apps/chronon3d_cli/commands/video/register_video_commands.cpp` | MOD | Default encoder = native |
 | `apps/chronon3d_cli/commands/video/video_export_common.hpp` | MOD | Default encode_preset = "veryfast" |
 | `apps/chronon3d_cli/commands.hpp` | MOD | Campo encode_preset |
@@ -124,32 +145,67 @@ Implementazione Highway SIMD per la matrice BT.709/601:
 
 ## 3. Benchmark Comparativo
 
-### 3.1 Native vs Pipe (60 frame, DarkGridBackground, 1920×1080, 30fps)
+### 3.1 Benchmark a Parità di Qualità (60 frame, DarkGridBackground, 1920×1080, 30fps)
+
+> **IMPORTANTE:** Il report precedente confrontava pipe CRF18/medium vs native CRF23/veryfast — parametri diversi. Qui tutti i confronti usano **stessi CRF e preset**.
 
 ```
-NATIVO:
-  render_only:             404.79ms
-  native_convert:          178.98ms  ← HWY SIMD
-  native_send_frame:       278.08ms  ← x264 encoding
-  native_receive_packet:     0.09ms
-  native_mux_write:          0.82ms
-  native_trailer:            0.00ms
-  benchmark_e2e wall:      821.85ms
+NATIVO CRF23 veryfast:
+  render_pure:               27.14ms   ← vero rendering (statico!)
+  render_only:                 27.21ms   ← render + queue wait
+  writer_encode:             1104.82ms   ← x264 encoding (writer thread)
+  native_convert:             714.81ms   ← YUV conversion (includes conv_copy)
+  native_send:                588.08ms   ← avcodec_send_frame
+  benchmark_e2e wall:        1602.32ms
 
-PIPE:
-  render_only:             691.16ms
-  ffmpeg_encode:           778.70ms
-  ffmpeg_flush_close:      179.66ms
-  benchmark_e2e wall:     1393.23ms
+PIPE CRF23 veryfast:
+  render_pure:                  5.51ms
+  render_only:                  5.57ms
+  writer_encode:             1069.93ms   ← pipe write + ffmpeg encode
+  ffmpeg_encode:             1040.24ms
+  ffmpeg_flush_close:         318.09ms
+  benchmark_e2e wall:        2022.49ms
+
+NATIVO CRF18 medium:
+  render_pure:                 15.36ms
+  render_only:                 15.43ms
+  conv_copy:                  560.00ms   ← YUV conversion HWY SIMD
+  writer_encode:             1726.12ms   ← x264 encoding (slower)
+  native_convert:             587.38ms
+  native_send:               1137.44ms
+  benchmark_e2e wall:        2301.91ms
+
+PIPE CRF18 medium:
+  render_pure:                 10.92ms
+  render_only:                 10.99ms
+  writer_encode:             1098.51ms
+  ffmpeg_encode:             1053.82ms
+  ffmpeg_flush_close:         809.80ms
+  benchmark_e2e wall:        2356.98ms
 ```
 
-| Metrica | Nativo | Pipe | Δ |
-|---------|--------|------|---|
-| **Wall** | **822ms** | **1393ms** | **−41%** |
-| render_only | 405ms | 691ms | −41% |
-| encode | 278ms | 779ms | −64% |
-| Preset x264 | veryfast | medium | — |
-| CRF | 23 | 18 | — |
+| Metrica | Nativo CRF23/vf | Pipe CRF23/vf | Δ |
+|---------|---------------|-------------|---|
+| **Wall** | **1602ms** | **2022ms** | **−21%** |
+| render_pure | 27ms | 6ms | — |
+| writer_encode | 1105ms | 1070ms | +3% |
+| Preset | veryfast | veryfast | **Identico** |
+| CRF | 23 | 23 | **Identico** |
+
+| Metrica | Nativo CRF18/m | Pipe CRF18/m | Δ |
+|---------|---------------|-------------|---|
+| **Wall** | **2302ms** | **2357ms** | **−2%** |
+| render_pure | 15ms | 11ms | — |
+| writer_encode | 1726ms | 1099ms | +57% |
+| Preset | medium | medium | **Identico** |
+| CRF | 18 | 18 | **Identico** |
+
+### Conclusioni
+
+1. **A parità di qualità (CRF18/medium): native ≈ pipe** (2% più veloce). Il vantaggio è minimo.
+2. **A parità di qualità (CRF23/veryfast): native −21% vs pipe**. Il native elimina l'overhead della pipe (flush_close 318ms) e il convertitore diretto è più efficiente.
+3. **`render_pure` è minimo** (5-27ms per 60 frame) — DarkGridBackground è quasi statico, tutto in cache. Il vero collo di bottiglia è encoding.
+4. **`conv_copy` (YUV conversion) pesa 560ms a CRF18/medium** — il nostro HWY SIMD ha ridotto notevolmente questo costo rispetto alla pipe che usa sws_scale.
 
 ### 3.2 Evoluzione native_convert
 
@@ -212,9 +268,9 @@ avformat_write_frame()                    ← muxing MP4
 
 ## 5. Colli di Bottiglia Rimanenti
 
-### 5.1 native_convert: 179ms (22% del wall)
+### 5.1 native_convert: 587ms (25% del wall a CRF18/medium)
 
-**Bottleneck: Gamma LUT scalare**
+**Bottleneck: Gamma LUT scalare nel loop HWY**
 
 Il loop gamma nel codice HWY:
 ```cpp
@@ -226,53 +282,34 @@ for (int i = 0; i < chunk; ++i) {
 }
 ```
 
-La LUT sRGB (64KB) è acceduta 6 volte per pixel × 1920 × 1080 × 60 = ~746M accessi. Ogni accesso è una load da L1/L2 (~1-2 cicli), ma la latenza somma.
+La LUT sRGB (64KB) è acceduta 6 volte per pixel. Con HWY SIMD la matrice BT.709 è vettorizzata, ma la gamma LUT è ancora scalare.
 
 **Perché è difficile da SIMD-izzare:**
 - HWY `TableLookupBytes` supporta solo tabelle da 16/32 byte (PSHUFB)
 - HWY `GatherIndex` funziona solo con elementi 32-bit
-- Il mapping float→indice LUT richiede `float * 65535 → int` che è una conversione di dominio
+- Il mapping float→indice LUT richiede `float * 65535 → int`
 
-### 5.2 native_send: 278ms (34% del wall)
+### 5.2 native_send: 1137ms (49% del wall a CRF18/medium)
 
 **Bottleneck: x264 encoding**
 
-`avcodec_send_frame()` + `avcodec_receive_packet()` per ogni frame. Con `preset=veryfast` e `tune=zerolatency`, x264 processa ogni frame in ~4.6ms. Non c'è molto margine senza ridurre la qualità.
+`avcodec_send_frame()` + `avcodec_receive_packet()` per ogni frame. Con `preset=medium` e `tune=zerolatency`, x264 processa ogni frame in ~19ms. Con `veryfast` scende a ~10ms/frame. Non c'è molto margine senza ridurre la qualità.
 
-### 5.3 render_only: 405ms (49% del wall)
+### 5.3 render_pure: 15ms (0.7% del wall)
 
-**Bottleneck: Scene rendering**
+**NOTA:** `render_pure` (solo `render_composition_frame()`) è **minimo** per DarkGridBackground statico. La metrica `render_only` precedente era **sporca** — includeva attesa sul writer thread (encoding). La telemetry è stata corretta in PR 7.
 
-Include valutazione grafo, cache lookup, compositing, effetti. La maggior parte del tempo è spesa nel `software_compositor` e `transform_kernels`.
+**Il vero collo di bottiglia è encoding, non rendering.**
 
 ---
 
 ## 6. Raccomandazioni Prossimi Passi
 
-### Priorità 1: HWY GatherIndex per Gamma LUT (Alto Impatto)
+### Priorità 1: Batch send_frame (Alto Impatto)
 
-**Target:** −30% su native_convert (179ms → ~125ms)
+**Target:** −15% su native_send (1137ms → ~966ms a CRF18/medium)
 
-HWY supporta `GatherIndex` che può caricare 8 valori uint8 da indici arbitrari in una singola istruzione (VPGATHERDD su AVX2). La strategia:
-
-1. Convertire 8 float a indice LUT in SIMD (`ConvertTo(DU16, ...)`)
-2. Usare `GatherIndex` per caricare 8 byte dalla LUT
-3. Eliminare il loop scalare di gamma
-
-**Implementazione:**
-```cpp
-// Pseudo-codice
-auto idx = hn::ConvertTo(DU32(), hn::Mul(clamped_float, Set(DU32(), 65535)));
-auto gathered = hn::GatherIndex(DB(), lut, idx);
-```
-
-**Rischio:** GatherIndex ha latenza più alta (~10-20 cicli su AVX2) rispetto a load sequenziale (~1-2 cicli), ma processa 8 valori in parallelo. Guadagno netto atteso: 2-3× sul gamma.
-
-### Priorità 2: Batch send_frame (Medio Impatto)
-
-**Target:** −15% su native_send (278ms → ~236ms)
-
-Inviare multiple frame a x264 prima di chiamare `avcodec_receive_packet()`. Con `zerolatency`, x264 può accettare 2-3 frame prima di richiedere drain.
+`avcodec_send_frame()` + `drain_packets()` per ogni frame serializza l'encoder. Con `zerolatency`, x264 può accettare 2-3 frame prima di richiedere drain. Per batch export, inviare N frame senza drain intermedio permette a x264 di parallelizzare meglio.
 
 **Implementazione:**
 - Bufferizzare frame YUV convertiti
@@ -281,39 +318,44 @@ Inviare multiple frame a x264 prima di chiamare `avcodec_receive_packet()`. Con 
 
 **Rischio:** Aumento latenza e memoria. Potrebbe non funzionare con `zerolatency`.
 
-### Priorità 3: Float-to-Float Gamma via Polinomio (Impatto Medio-Alto)
+### Priorità 2: Microbenchmark Gamma LUT vs GatherIndex vs Polinomio (Medio Impatto)
 
-**Target:** −50% su native_convert (179ms → ~90ms)
+**Target:** −30% su native_convert (587ms → ~410ms a CRF18/medium)
 
-Sostituire la LUT 64KB con un polinomio di grado 5-7 valutato in SIMD. La curva gamma sRGB è approssimabile con `MulAdd` concatenati:
+Prima di implementare, benchmarkare 3 strategie:
+1. **Scalar LUT** (attuale): 6 LUT look-up per pixel, matrice HWY SIMD
+2. **HWY GatherIndex**: caricare 8 byte simultanei da indici arbitrari (VPGATHERDD AVX2)
+3. **HWY Polinomio**: approssimazione polinomiale grado 5-7 della curva sRGB in SIMD
 
+**Rischio:** GatherIndex ha latenza ~10-20 cicli. Il polinomio potrebbe essere più veloce ma meno preciso. Necessaria validazione visiva.
+
+### Priorità 3: Ottimizzazione Thread x264 (Medio Impatto)
+
+**Target:** −10% su native_send
+
+Testare `FF_THREAD_FRAME` con batch send_frame (non con drain per-frame). Con drain per-frame, il threading ha peggiorato le performance (overhead > guadagno).
+
+### Priorità 4: Persistent Render Session (Alto Impatto per Batch)
+
+**Target:** −50% su setup_renderer per clip multiple
+
+Per pipeline YouTube con molte clip brevi, il setup del renderer/encoder per ogni clip è un collo di bottiglia nascosto.
+
+**Implementazione:**
 ```cpp
-// sRGB gamma approx: 1.055 * x^(1/2.4) - 0.055
-// Approssimazione polinomiale grado 5 nel range [0, 1]
-auto gamma_poly = [&](auto v) {
-    auto x = v;
-    auto x2 = hn::Mul(x, x);
-    auto x4 = hn::Mul(x2, x2);
-    return hn::MulAdd(hn::MulAdd(c5, x4, c3), x2, c1);
-};
+auto session = ChrononRenderSession(settings);
+session.render_video(comp1, output1);
+session.render_video(comp2, output2);
 ```
 
-**Rischio:** Precisione ridotta rispetto alla LUT. Necessaria validazione visiva.
+Invece di:
+```cpp
+// crea renderer, cache, encoder, distruzione — ripeti per ogni clip
+```
 
-### Priorità 4: NV12 Path HWY Optimization (Basso Impatto)
+### Priorità 5: Ottimizzazione Render per Scene Non-Statiche (Basso Impatto)
 
-**Target:** Consistenza implementativa
-
-Il path NV12 in `direct_yuv_converter_hwy.cpp` ha codice duplicato (non riusa `process_block_hwy`). Refactoring per riuso e test comparativi.
-
-### Priorità 5: Profiling Render Pipeline (Medio Impatto)
-
-**Target:** −20% su render_only (405ms → ~324ms)
-
-Analizzare i phase timer per identificare il componente più lento nella pipeline di rendering. I candidati sono:
-- `software_compositor::compose()` — compositing layers
-- `transform_kernels.cpp` — trasformazioni immagine
-- `effect_blur.cpp` — blur/glow effects
+Per scene complesse (TextOnBackground, GlowNeonSign), `render_pure` potrebbe crescere significativamente. Aggiungere phase timer granulari nel render graph per identificare il componente più lento.
 
 ---
 
@@ -329,12 +371,24 @@ Analizzare i phase timer per identificare il componente più lento nella pipelin
 - **Scena:** DarkGridBackground (1920×1080, 30fps, 60 frame)
 - **Encoder:** native (libx264, veryfast, crf=23, zerolatency)
 
-### 7.2 Benchmark Raw Data (Ultimo Run)
+### 7.2 Benchmark Raw Data (Ultimo Run — PR 7 Telemetry Corretta)
 
 ```
-[benchmark_chronon] render_only=404.79ms conv_copy=180.25ms queue_wait=0.02ms throughput=404.81ms
-[benchmark_e2e] wall=821.85ms
-  native: convert=178.98ms send=278.08ms recv=0.09ms mux=0.82ms trailer=0.00ms
+NATIVO CRF23 veryfast:
+[benchmark_chronon] render_pure=27.14ms render_only=27.21ms conv_copy=714.81ms queue_wait=0.06ms writer_encode=1104.82ms throughput=27.21ms
+[benchmark_e2e] native_convert=714.81ms native_send=588.08ms native_receive=0.24ms native_mux=0.81ms native_trailer=0.00ms wall=1602.32ms
+
+PIPE CRF23 veryfast:
+[benchmark_chronon] render_pure=5.51ms render_only=5.57ms conv_copy=16.00ms queue_wait=0.05ms writer_encode=1069.93ms throughput=5.57ms
+[benchmark_e2e] ffmpeg_encode=1040.24ms ffmpeg_flush_close=318.09ms wall=2022.49ms
+
+NATIVO CRF18 medium:
+[benchmark_chronon] render_pure=15.36ms render_only=15.43ms conv_copy=560.00ms queue_wait=0.06ms writer_encode=1726.12ms throughput=15.43ms
+[benchmark_e2e] native_convert=587.38ms native_send=1137.44ms native_receive=0.16ms native_mux=0.87ms native_trailer=0.00ms wall=2301.91ms
+
+PIPE CRF18 medium:
+[benchmark_chronon] render_pure=10.92ms render_only=10.99ms conv_copy=25.00ms queue_wait=0.06ms writer_encode=1098.51ms throughput=10.99ms
+[benchmark_e2e] ffmpeg_encode=1053.82ms ffmpeg_flush_close=809.80ms wall=2356.98ms
 ```
 
 ### 7.3 File Size Comparison
