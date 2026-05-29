@@ -62,6 +62,19 @@ private:
 
     /// Drain all pending packets from the encoder after avcodec_send_frame.
     bool drain_packets();
+
+    // ── Single-entry YUV conversion cache ──
+    // When consecutive frames have the same digest (static scenes), skip the
+    // expensive RGBA→YUV conversion entirely and reuse the AVFrame planes
+    // from the previous conversion.  No memcpy needed — the data is already there.
+    uint64_t last_converted_digest_{0};
+    int      last_converted_width_{0};
+    int      last_converted_height_{0};
+    int      last_converted_pix_fmt_{-1};
+    bool     last_converted_apply_gamma_{false};
+    int      last_converted_color_matrix_{-1};
+    uint64_t cache_hits_{0};
+    uint64_t cache_misses_{0};
 };
 
 } // namespace chronon3d::cli

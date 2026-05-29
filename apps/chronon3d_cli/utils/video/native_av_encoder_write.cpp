@@ -39,29 +39,71 @@ bool NativeAvEncoder::write_frame(const Framebuffer& fb) {
         return false;
     }
 
-    // 2. Convert the framebuffer directly into AVFrame data planes.
+    // ── Single-entry YUV conversion cache ────────────────────────────────
+    // For static/frozen frames (common in intros, backgrounds), skip
+    // the expensive RGBA→YUV conversion entirely when the same framebuffer
+    // digest arrives consecutively.  The AVFrame planes already contain
+    // the correct YUV data from the previous conversion — no memcpy needed.
+    // ----------------------------------------------------------------------
+    const uint64_t digest       = fb.key_digest();
+    const int      color_matrix = resolve_color_matrix(options_);
+
+    const bool same_as_last =
+        digest != 0 &&
+        digest == last_converted_digest_ &&
+        options_.width                           == last_converted_width_ &&
+        options_.height                          == last_converted_height_ &&
+        static_cast<int>(codec_->pix_fmt)        == last_converted_pix_fmt_ &&
+        options_.color_transform.apply_gamma     == last_converted_apply_gamma_ &&
+        color_matrix                             == last_converted_color_matrix_;
+
+    // 2. Convert the framebuffer to YUV (or skip for cache hit)
     const auto t_conv0 = Clock::now();
 
-    video::ConvertFrameRequest req{
-        .src           = fb,
-        .dst_y         = frame_->data[0],
-        .dst_u         = frame_->data[1],
-        .dst_v         = frame_->data[2],
-        .dst_uv        = nullptr,
-        .dst_stride_y  = frame_->linesize[0],
-        .dst_stride_u  = frame_->linesize[1],
-        .dst_stride_v  = frame_->linesize[2],
-        .color_matrix  = resolve_color_matrix(options_),
-        .width         = options_.width,
-        .height        = options_.height,
-        .format        = video::EncoderPixelFormat::YUV420P,
-        .apply_gamma   = options_.color_transform.apply_gamma,
-    };
+    if (same_as_last) {
+        // ── Cache HIT: AVFrame already has correct YUV data ──
+        ++cache_hits_;
+        if (profiling::g_current_counters) {
+            profiling::g_current_counters->native_av_converted_frame_cache_hits.fetch_add(
+                1, std::memory_order_relaxed);
+        }
+    } else {
+        // ── Cache MISS: perform the full RGBA→YUV conversion ──
+        ++cache_misses_;
+        if (profiling::g_current_counters) {
+            profiling::g_current_counters->native_av_converted_frame_cache_misses.fetch_add(
+                1, std::memory_order_relaxed);
+        }
 
-    auto conv_result = video::convert_frame(req);
-    if (!conv_result.success) {
-        spdlog::error("[native_av] convert_frame failed");
-        return false;
+        video::ConvertFrameRequest req{
+            .src           = fb,
+            .dst_y         = frame_->data[0],
+            .dst_u         = frame_->data[1],
+            .dst_v         = frame_->data[2],
+            .dst_uv        = nullptr,
+            .dst_stride_y  = frame_->linesize[0],
+            .dst_stride_u  = frame_->linesize[1],
+            .dst_stride_v  = frame_->linesize[2],
+            .color_matrix  = color_matrix,
+            .width         = options_.width,
+            .height        = options_.height,
+            .format        = video::EncoderPixelFormat::YUV420P,
+            .apply_gamma   = options_.color_transform.apply_gamma,
+        };
+
+        auto conv_result = video::convert_frame(req);
+        if (!conv_result.success) {
+            spdlog::error("[native_av] convert_frame failed");
+            return false;
+        }
+
+        // Update the single-entry cache state for the next frame.
+        last_converted_digest_      = digest;
+        last_converted_width_       = options_.width;
+        last_converted_height_      = options_.height;
+        last_converted_pix_fmt_     = static_cast<int>(codec_->pix_fmt);
+        last_converted_apply_gamma_ = options_.color_transform.apply_gamma;
+        last_converted_color_matrix_= color_matrix;
     }
 
     const double conv_ms = elapsed_ms(t_conv0);
@@ -72,8 +114,14 @@ bool NativeAvEncoder::write_frame(const Framebuffer& fb) {
             static_cast<uint64_t>(conv_ms), std::memory_order_relaxed);
         profiling::g_current_counters->frame_conversion_copy_ms.fetch_add(
             static_cast<uint64_t>(conv_ms), std::memory_order_relaxed);
-        profiling::g_current_counters->native_av_convert_ms.fetch_add(
-            static_cast<uint64_t>(conv_ms), std::memory_order_relaxed);
+        if (same_as_last) {
+            // Track how much time we saved by skipping conversion.
+            profiling::g_current_counters->native_av_convert_skipped_ms.fetch_add(
+                static_cast<uint64_t>(conv_ms), std::memory_order_relaxed);
+        } else {
+            profiling::g_current_counters->native_av_convert_ms.fetch_add(
+                static_cast<uint64_t>(conv_ms), std::memory_order_relaxed);
+        }
     }
 
     // 3. Set PTS (presentation timestamp) in frame number units
