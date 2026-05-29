@@ -106,7 +106,7 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
     // Pixel format: always YUV420P for H.264 (the converter handles it)
     codec_->pix_fmt = AV_PIX_FMT_YUV420P;
 
-    // Set encoder options (preset, crf, tune)
+    // Set encoder options (preset, crf, tune, threads)
     if (!options_.preset.empty()) {
         av_opt_set(codec_->priv_data, "preset", options_.preset.c_str(), 0);
     }
@@ -115,9 +115,17 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
         snprintf(crf_str, sizeof(crf_str), "%d", options_.crf);
         av_opt_set(codec_->priv_data, "crf", crf_str, 0);
     }
-    // tune: default "zerolatency" for streaming, but allow override for batch export
-    const std::string tune = options_.tune.empty() ? "zerolatency" : options_.tune;
-    av_opt_set(codec_->priv_data, "tune", tune.c_str(), 0);
+    // Enable x264 multi-threading for maximum throughput on multi-core machines.
+    const std::string codec_name = resolve_encoder_name(options_);
+    if (codec_name == "libx264" || codec_name == "libx264rgb") {
+        av_opt_set(codec_->priv_data, "threads", "auto", 0);
+        av_opt_set(codec_->priv_data, "thread_type", "frame", 0);
+    }
+    // tune: default empty for batch export (faster), use "zerolatency" only for streaming
+    const std::string tune = options_.tune.empty() ? "" : options_.tune;
+    if (!tune.empty()) {
+        av_opt_set(codec_->priv_data, "tune", tune.c_str(), 0);
+    }
 
     // Global header if the container format requires it
     if (fmt_->oformat->flags & AVFMT_GLOBALHEADER) {

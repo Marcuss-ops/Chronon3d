@@ -41,6 +41,10 @@ std::string build_ffmpeg_raw_pipe_command(const FfmpegPipeOptions& options) {
         : "-colorspace bt709 -color_primaries bt709 -color_trc bt709 -color_range tv ";
 
 
+    const std::string tune_flag = options.tune.empty()
+        ? ""
+        : fmt::format("-tune {} ", options.tune);
+
     return fmt::format(
         "ffmpeg -y "
         "{}"
@@ -53,6 +57,7 @@ std::string build_ffmpeg_raw_pipe_command(const FfmpegPipeOptions& options) {
         "-c:v {} "
         "-crf {} "
         "-preset {} "
+        "{}"
         "-pix_fmt {} "
         "{}"
         "-movflags +faststart "
@@ -65,6 +70,7 @@ std::string build_ffmpeg_raw_pipe_command(const FfmpegPipeOptions& options) {
         options.codec,
         options.crf,
         options.preset,
+        tune_flag,
         output_pix_fmt,
         colorspace_flags,
         quote_path(options.output_path)

@@ -51,7 +51,7 @@ int render_and_encode_ffmpeg_pipe(
     const auto setup_t0 = wall_t0;
     double render_ms = 0.0;
     double render_graph_eval_ms_total = 0.0;  // solo render_composition_frame(), escluso queue/encoder
-    std::atomic<uint64_t> writer_thread_wait_us_total{0}; // tempo nel writer thread = encoding (atomic, us)
+    std::atomic<uint64_t> writer_encode_us_total{0}; // tempo di encoding nel writer thread (atomic, us)
     std::vector<chronon3d::telemetry::FrameTelemetryRecord> telemetry_frames;
 
     if (opts.chunks != 1) {
@@ -63,12 +63,18 @@ int render_and_encode_ffmpeg_pipe(
 
     auto encoder = create_video_encoder(opts);
     chronon3d::SystemMetricsCollector sys_metrics;
+    // Native backend: default to 'ultrafast' for maximum throughput, but respect
+    // any explicit --encode-preset the user provided. Pipe backend keeps default.
+    const std::string effective_preset = (opts.encoder_backend == "native" && opts.encode_preset == "superfast")
+                                         ? "ultrafast"
+                                         : opts.encode_preset;
+
     FfmpegPipeOptions pipe_options{
         .width = comp.width(),
         .height = comp.height(),
         .fps = opts.fps,
         .crf = opts.crf,
-        .preset = opts.encode_preset,
+        .preset = effective_preset,
         .codec = codec,
         .output_path = opts.output,
         .input_format = parse_pipe_pixfmt(opts.pipe_pixfmt),
@@ -168,7 +174,7 @@ int render_and_encode_ffmpeg_pipe(
                 const auto enc_t1 = std::chrono::steady_clock::now();
                 const uint64_t enc_us = static_cast<uint64_t>(
                     std::chrono::duration<double, std::micro>(enc_t1 - enc_t0).count());
-                writer_thread_wait_us_total.fetch_add(enc_us, std::memory_order_relaxed);
+                writer_encode_us_total.fetch_add(enc_us, std::memory_order_relaxed);
             }
             
             triple_arena.release(package.arena);
@@ -222,17 +228,11 @@ int render_and_encode_ffmpeg_pipe(
             }
 
             const auto frame_t0 = std::chrono::steady_clock::now();
-            fprintf(stderr, "[PERF] frame=%d t0=%.3f\n", (int)current_frame, 
-                std::chrono::duration<double>(frame_t0.time_since_epoch()).count());
-            fflush(stderr);
-            
             auto fb = render_composition_frame(
                 *renderer, node_cache, render_opts, &registry, video_decoder, comp, current_frame);
-            
             const auto frame_t1 = std::chrono::steady_clock::now();
             const double frame_ms = std::chrono::duration<double, std::milli>(frame_t1 - frame_t0).count();
-            const double render_graph_ms = std::chrono::duration<double, std::milli>(frame_t1 - frame_t0).count();
-            render_graph_eval_ms_total += render_graph_ms;
+            render_graph_eval_ms_total += frame_ms;
             if (renderer->counters()) {
                 renderer->counters()->video_graph_eval_ms.fetch_add(
                     static_cast<uint64_t>(frame_ms),
@@ -333,11 +333,11 @@ int render_and_encode_ffmpeg_pipe(
     // render_graph_eval_ms_total = solo render_composition_frame() — il vero rendering
     // queue_wait_ms_total = tempo bloccati sulla coda piena (aspettando writer)
     // writer_encode_ms = tempo speso nel writer thread (encoding) — atomic, convertito da us
-    const double writer_encode_ms = static_cast<double>(writer_thread_wait_us_total.load(std::memory_order_relaxed)) / 1000.0;
+    const double writer_encode_ms = static_cast<double>(writer_encode_us_total.load(std::memory_order_relaxed)) / 1000.0;
     const double chronon_render_pure_ms = render_graph_eval_ms_total;
-    // render_only = tutto il tempo che il main thread ha speso (render puro + attesa coda)
-    // NON sottraiamo writer_encode perché include lavoro fatto dopo render_t1 (durante join)
-    const double chronon_render_only_ms = render_graph_eval_ms_total + queue_wait_ms_total;
+    // render_only = solo il vero rendering, come da PR 7 correzione
+    const double chronon_render_only_ms = render_graph_eval_ms_total;
+    const double chronon_render_loop_ms = render_ms; // tempo totale del loop (include queue wait + writer join)
     const double chronon_queue_wait_ms = queue_wait_ms_total;
     const double chronon_writer_encode_ms = writer_encode_ms;
     const double chronon_conversion_copy_ms = conv_copy_ms;
@@ -369,9 +369,9 @@ int render_and_encode_ffmpeg_pipe(
         }
     }
 
-    spdlog::info("[benchmark_chronon] render_pure={:.2f}ms  render_only={:.2f}ms  conv_copy={:.2f}ms  queue_wait={:.2f}ms  writer_encode={:.2f}ms  throughput={:.2f}ms",
-                 chronon_render_pure_ms, chronon_render_only_ms, chronon_conversion_copy_ms,
-                 chronon_queue_wait_ms, chronon_writer_encode_ms,
+    spdlog::info("[benchmark_chronon] render_pure={:.2f}ms  render_only={:.2f}ms  render_loop={:.2f}ms  conv_copy={:.2f}ms  queue_wait={:.2f}ms  writer_encode={:.2f}ms  throughput={:.2f}ms",
+                 chronon_render_pure_ms, chronon_render_only_ms, chronon_render_loop_ms,
+                 chronon_conversion_copy_ms, chronon_queue_wait_ms, chronon_writer_encode_ms,
                  chronon_render_pure_ms + chronon_queue_wait_ms);
 
     if (is_native) {
@@ -392,6 +392,7 @@ int render_and_encode_ffmpeg_pipe(
     phases.push_back({"encoding", encode_ms});
     phases.push_back({"chronon_render_pure_ms", chronon_render_pure_ms});
     phases.push_back({"chronon_render_only_ms", chronon_render_only_ms});
+    phases.push_back({"chronon_render_loop_ms", chronon_render_loop_ms});
     phases.push_back({"chronon_conversion_copy_ms", chronon_conversion_copy_ms});
     phases.push_back({"chronon_queue_wait_ms", chronon_queue_wait_ms});
     phases.push_back({"chronon_writer_encode_ms", chronon_writer_encode_ms});
