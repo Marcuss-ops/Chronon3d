@@ -118,6 +118,12 @@ void MotionPresetRegistry::register_builtins() {
             const f32 s = interpolate(t, 0.0f, 0.30f, 1.03f, 1.0f, Easing::OutCubic);
             st.scale = {obj.scale_value.x * s, obj.scale_value.y * s, obj.scale_value.z};
             st.blur = interpolate(t, 0.0f, 0.28f, 14.0f, 0.0f, Easing::OutCubic);
+            
+            st.effects.glow_enabled = true;
+            const f32 bloom_mix = std::clamp(1.0f - (st.blur / 14.0f), 0.0f, 1.0f);
+            st.effects.glow.radius = 28.0f;
+            st.effects.glow.intensity = 0.14f + 0.20f * bloom_mix;
+            st.effects.glow.color = Color{0.96f, 0.97f, 1.0f, 1.0f};
         }
     });
 
@@ -246,6 +252,60 @@ void MotionPresetRegistry::register_builtins() {
             st.position.y += std::cos(static_cast<f32>(ctx.frame) * 3.7f) * interpolate(t, 0.0f, 0.18f, 14.0f, 0.0f, Easing::OutCubic);
             st.rotation.z += std::sin(static_cast<f32>(ctx.frame) * 5.0f) * interpolate(t, 0.0f, 0.18f, 4.0f, 0.0f, Easing::OutCubic);
             st.blur = interpolate(t, 0.0f, 0.12f, 14.0f, 0.0f, Easing::OutCubic);
+        }
+    });
+
+    register_preset({
+        MotionPreset::CinematicPushIn, "CinematicPushIn", [](const FrameContext&, const MotionObject&, f32 t, MotionState& st) {
+            st.position.z += interpolate(t, 0.0f, 0.45f, 320.0f, 0.0f, Easing::OutCubic);
+            st.rotation.y += interpolate(t, 0.0f, 0.45f, -12.0f, 0.0f, Easing::OutCubic);
+            st.rotation.x += interpolate(t, 0.0f, 0.45f, 4.0f, 0.0f, Easing::OutCubic);
+            st.opacity *= interpolate(t, 0.0f, 0.22f, 0.0f, 1.0f, Easing::OutCubic);
+        }
+    });
+
+    register_preset({
+        MotionPreset::ParallaxFloat, "ParallaxFloat", [](const FrameContext& ctx, const MotionObject& obj, f32, MotionState& st) {
+            const f32 frame = static_cast<f32>(ctx.frame);
+            st.position.x += std::sin(frame * 0.018f) * 18.0f * obj.motion3d.parallax;
+            st.position.y += std::cos(frame * 0.014f) * 10.0f * obj.motion3d.parallax;
+            st.rotation.y += std::sin(frame * 0.012f) * 3.5f;
+        }
+    });
+
+    register_preset({
+        MotionPreset::OrbitCard, "OrbitCard", [](const FrameContext&, const MotionObject&, f32 t, MotionState& st) {
+            constexpr f32 pi = 3.1415926535f;
+            st.rotation.y += interpolate(t, 0.0f, 1.0f, -18.0f, 18.0f, Easing::InOutCubic);
+            st.position.z += std::cos(t * pi) * 60.0f;
+        }
+    });
+
+    register_preset({
+        MotionPreset::NewsImpact, "NewsImpact", [](const FrameContext& ctx, const MotionObject& obj, f32 t, MotionState& st) {
+            st.opacity *= interpolate(t, 0.0f, 0.15f, 0.0f, 1.0f, Easing::OutCubic);
+            const f32 s = interpolate(t, 0.0f, 0.25f, 1.6f, 1.0f, Easing::OutBack);
+            st.scale = {obj.scale_value.x * s, obj.scale_value.y * s, obj.scale_value.z};
+            const f32 shake_amp = interpolate(t, 0.0f, 0.35f, 24.0f, 0.0f, Easing::OutCubic);
+            const f32 frame = static_cast<f32>(ctx.frame);
+            st.position.x += std::sin(frame * 2.2f) * shake_amp;
+            st.position.y += std::cos(frame * 1.8f) * shake_amp;
+            st.effects.glow_enabled = true;
+            st.effects.glow.intensity = interpolate(t, 0.0f, 0.40f, 1.8f, 0.30f, Easing::OutCubic);
+            st.effects.glow.radius = interpolate(t, 0.0f, 0.40f, 60.0f, 20.0f, Easing::OutCubic);
+        }
+    });
+
+    register_preset({
+        MotionPreset::GlowReveal3D, "GlowReveal3D", [](const FrameContext&, const MotionObject& obj, f32 t, MotionState& st) {
+            st.opacity *= interpolate(t, 0.0f, 0.30f, 0.0f, 1.0f, Easing::OutCubic);
+            st.text_reveal = interpolate(t, 0.0f, 0.80f, 0.0f, 1.0f, Easing::OutCubic);
+            st.blur = interpolate(t, 0.0f, 0.25f, 16.0f, 0.0f, Easing::OutCubic);
+            st.position.z += interpolate(t, 0.0f, 0.40f, 180.0f, 0.0f, Easing::OutCubic);
+            st.rotation.x += interpolate(t, 0.0f, 0.40f, 15.0f, 0.0f, Easing::OutCubic);
+            st.effects.glow_enabled = true;
+            st.effects.glow.intensity = interpolate(t, 0.0f, 0.50f, 1.2f, 0.40f, Easing::OutCubic);
+            st.effects.glow.radius = interpolate(t, 0.0f, 0.50f, 50.0f, 15.0f, Easing::OutCubic);
         }
     });
 }

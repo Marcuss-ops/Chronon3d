@@ -47,6 +47,13 @@ MotionState resolve_motion_state(const FrameContext& ctx, const MotionObject& ob
     st.text_reveal = 1.0f;
     st.mask_reveal = 1.0f;
 
+    st.effects.glow_enabled = obj.style.glow_enabled;
+    st.effects.glow = obj.style.glow;
+    st.effects.shadow_enabled = obj.style.shadow_enabled;
+    st.effects.shadow = obj.style.shadow;
+    st.effects.bloom_enabled = obj.style.bloom_enabled;
+    st.effects.bloom = obj.style.bloom;
+
     if (obj.motion3d.sweep_2_5d.enabled) {
         const f32 wave = sweep_wave(ctx.frame, obj.time_value.start, obj.motion3d.sweep_2_5d);
         const auto& sweep = obj.motion3d.sweep_2_5d;

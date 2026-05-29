@@ -108,12 +108,12 @@ bool FfmpegPipeEncoder::open(const FfmpegPipeOptions& options) {
 
     if (options_.input_format == PipePixelFormat::YUV420P || options_.input_format == PipePixelFormat::NV12) {
         const size_t size = w * h + (w * h) / 2u;
-        yuv_buffer_.assign(size, 0);
+        yuv_buffer_.assign(size + 256, 0);
 #ifdef __linux__
         ring_buffer_size_ = size;
 #endif
     } else {
-        rgba_buffer_.assign(w * h * 4u, 0);
+        rgba_buffer_.assign(w * h * 4u + 256, 0);
 #ifdef __linux__
         ring_buffer_size_ = w * h * 4;
 #endif

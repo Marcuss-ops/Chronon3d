@@ -53,6 +53,10 @@ CacheKey hash_text_style(const TextShape& t, float effective_size, int padding, 
     seed = hash_combine(seed, hash_value(t.style.auto_scale));
     seed = hash_combine(seed, hash_value(t.style.min_size));
     seed = hash_combine(seed, hash_value(t.style.max_size));
+    seed = hash_combine(seed, hash_value(t.style.auto_fit));
+    seed = hash_combine(seed, hash_value(t.style.ellipsis));
+    seed = hash_combine(seed, hash_value(static_cast<int>(t.style.overflow)));
+    seed = hash_combine(seed, hash_value(static_cast<int>(t.style.wrap)));
     seed = hash_combine(seed, hash_value(t.box.size.x));
     seed = hash_combine(seed, hash_value(t.box.size.y));
     seed = hash_combine(seed, hash_value(t.box.enabled));

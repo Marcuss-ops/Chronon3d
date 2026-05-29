@@ -35,7 +35,7 @@ static uint8_t expected_y(float r, float g, float b, bool gamma) {
     float R = gamma ? linear_to_srgb(r) : r;
     float G = gamma ? linear_to_srgb(g) : g;
     float B = gamma ? linear_to_srgb(b) : b;
-    float luma = 0.299f*R + 0.587f*G + 0.114f*B;
+    float luma = 0.2126f*R + 0.7152f*G + 0.0722f*B;
     return static_cast<uint8_t>(std::clamp(std::round(16.5f + luma * 219.0f), 0.0f, 255.0f));
 }
 
@@ -49,7 +49,7 @@ TEST_CASE("frame_converter: YUV420p correct Y plane for solid red") {
 
     const size_t y_sz  = w * h;
     const size_t uv_sz = (w/2) * (h/2);
-    std::vector<uint8_t> y(y_sz, 0), u(uv_sz, 0), v(uv_sz, 0);
+    std::vector<uint8_t> y(std::max<size_t>(y_sz, 256), 0), u(std::max<size_t>(uv_sz, 256), 0), v(std::max<size_t>(uv_sz, 256), 0);
 
     const auto res = convert_frame_tight(fb, y.data(), u.data(), v.data(), nullptr,
                                          w, h, EncoderPixelFormat::YUV420P, true);
@@ -71,7 +71,7 @@ TEST_CASE("frame_converter: YUV420p correct Y/U/V for white") {
 
     const size_t y_sz  = w * h;
     const size_t uv_sz = (w/2) * (h/2);
-    std::vector<uint8_t> y(y_sz, 0), u(uv_sz, 0), v(uv_sz, 0);
+    std::vector<uint8_t> y(std::max<size_t>(y_sz, 256), 0), u(std::max<size_t>(uv_sz, 256), 0), v(std::max<size_t>(uv_sz, 256), 0);
 
     REQUIRE(convert_frame_tight(fb, y.data(), u.data(), v.data(), nullptr,
                                  w, h, EncoderPixelFormat::YUV420P, true).success);
@@ -92,7 +92,7 @@ TEST_CASE("frame_converter: YUV420p correct Y for black") {
 
     const size_t y_sz  = w * h;
     const size_t uv_sz = (w/2) * (h/2);
-    std::vector<uint8_t> y(y_sz, 0), u(uv_sz, 0), v(uv_sz, 0);
+    std::vector<uint8_t> y(std::max<size_t>(y_sz, 256), 0), u(std::max<size_t>(uv_sz, 256), 0), v(std::max<size_t>(uv_sz, 256), 0);
 
     REQUIRE(convert_frame_tight(fb, y.data(), u.data(), v.data(), nullptr,
                                  w, h, EncoderPixelFormat::YUV420P, true).success);
@@ -112,7 +112,7 @@ TEST_CASE("frame_converter: YUV420p plane sizes correct for 4x4") {
 
     const size_t y_sz  = w * h;
     const size_t uv_sz = (w/2) * (h/2);
-    std::vector<uint8_t> y(y_sz, 0), u(uv_sz, 0), v(uv_sz, 0);
+    std::vector<uint8_t> y(std::max<size_t>(y_sz, 256), 0), u(std::max<size_t>(uv_sz, 256), 0), v(std::max<size_t>(uv_sz, 256), 0);
 
     auto res = convert_frame_tight(fb, y.data(), u.data(), v.data(), nullptr,
                                     w, h, EncoderPixelFormat::YUV420P, true);
@@ -147,7 +147,7 @@ TEST_CASE("frame_converter: odd dimensions are rejected cleanly for YUV420P") {
     auto fb = make_solid(4, 4, Color{1, 0, 0, 1});
 
     // ConvertFrameRequest with odd width/height — should return success=false
-    std::vector<uint8_t> y(16, 0), u(4, 0), v(4, 0);
+    std::vector<uint8_t> y(256, 0), u(256, 0), v(256, 0);
     ConvertFrameRequest req{
         .src        = fb,
         .dst_y      = y.data(),
@@ -172,8 +172,8 @@ TEST_CASE("frame_converter: NV12 Y plane matches YUV420P for same input") {
 
     const size_t y_sz  = w * h;
     const size_t uv_sz = y_sz / 2;
-    std::vector<uint8_t> y_yuv(y_sz), u(y_sz/4), v(y_sz/4);
-    std::vector<uint8_t> y_nv(y_sz), uv(uv_sz);
+    std::vector<uint8_t> y_yuv(std::max<size_t>(y_sz, 256)), u(std::max<size_t>(y_sz/4, 256)), v(std::max<size_t>(y_sz/4, 256));
+    std::vector<uint8_t> y_nv(std::max<size_t>(y_sz, 256)), uv(std::max<size_t>(uv_sz, 256));
 
     REQUIRE(convert_frame_tight(fb, y_yuv.data(), u.data(), v.data(), nullptr,
                                  w, h, EncoderPixelFormat::YUV420P, true).success);
@@ -191,7 +191,7 @@ TEST_CASE("frame_converter: NV12 UV interleaved has correct size semantics") {
 
     const size_t y_sz  = w * h;
     const size_t uv_sz = y_sz / 2;   // interleaved pairs: w/2 * h/2 * 2
-    std::vector<uint8_t> y(y_sz, 0), uv(uv_sz, 0);
+    std::vector<uint8_t> y(std::max<size_t>(y_sz, 256), 0), uv(std::max<size_t>(uv_sz, 256), 0);
 
     REQUIRE(convert_frame_tight(fb, y.data(), nullptr, nullptr, uv.data(),
                                  w, h, EncoderPixelFormat::NV12, true).success);

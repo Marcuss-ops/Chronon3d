@@ -88,6 +88,14 @@ struct TextParams {
     f32 line_height{1.2f};
     f32 tracking{0.0f};
     TextBoxStyle box_style{};
+
+    bool auto_fit{false};
+    int max_lines{0};
+    bool ellipsis{false};
+    f32 min_font_size{12.0f};
+    f32 max_font_size{160.0f};
+    TextOverflow overflow{TextOverflow::Clip};
+    TextWrap wrap{TextWrap::Word};
 };
 
 struct ContactShadowParams {

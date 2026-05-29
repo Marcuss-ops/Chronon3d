@@ -156,3 +156,100 @@ TEST_CASE("MotionPresetRegistry Dynamic Registration and Evaluation") {
     });
 }
 
+TEST_CASE("MotionStyle and unified effects resolving") {
+    GlowParams glow_p{.radius = 45.0f, .intensity = 0.9f};
+    DropShadowParams shadow_p{.offset = {0, 18}, .radius = 24.0f};
+    BloomParams bloom_p{.threshold = 0.5f, .radius = 12.0f};
+
+    auto obj = motion::MotionObject::text("test_obj", "Testing Style")
+        .glow(glow_p)
+        .shadow(shadow_p)
+        .bloom(bloom_p)
+        .blend(BlendMode::Screen)
+        .cache_static(true);
+
+    CHECK(obj.style.glow_enabled == true);
+    CHECK(obj.style.glow.radius == doctest::Approx(45.0f));
+    CHECK(obj.style.shadow_enabled == true);
+    CHECK(obj.style.shadow.radius == doctest::Approx(24.0f));
+    CHECK(obj.style.bloom_enabled == true);
+    CHECK(obj.style.bloom.threshold == doctest::Approx(0.5f));
+    CHECK(obj.style.blend == BlendMode::Screen);
+    CHECK(obj.style.cache_static == true);
+
+    FrameContext ctx;
+    ctx.frame = 10;
+    ctx.frame_rate = {60, 1};
+    auto state = motion::resolve_motion_state(ctx, obj);
+
+    CHECK(state.effects.glow_enabled == true);
+    CHECK(state.effects.glow.radius == doctest::Approx(45.0f));
+    CHECK(state.effects.shadow_enabled == true);
+    CHECK(state.effects.shadow.radius == doctest::Approx(24.0f));
+    CHECK(state.effects.bloom_enabled == true);
+    CHECK(state.effects.bloom.threshold == doctest::Approx(0.5f));
+}
+
+TEST_CASE("Video and Stock MotionObject + 3D presets resolving") {
+    video::VideoSource source{.path = "test.mp4", .size = {1920.0f, 1080.0f}};
+    auto v_obj = motion::MotionObject::video("video_test", source)
+        .preset(motion::MotionPreset::CinematicPushIn);
+
+    CHECK(v_obj.type == motion::MotionObjectType::Video);
+    CHECK(v_obj.video_source_value.path == "test.mp4");
+    CHECK(v_obj.size_value.x == doctest::Approx(1920.0f));
+
+    auto s_obj = motion::MotionObject::stock("stock_test", "tag_name")
+        .preset(motion::MotionPreset::ParallaxFloat);
+
+    CHECK(s_obj.type == motion::MotionObjectType::Stock);
+    CHECK(s_obj.stock_tag_value == "tag_name");
+
+    FrameContext ctx;
+    ctx.frame = 15;
+    ctx.frame_rate = {60, 1};
+
+    auto state = motion::resolve_motion_state(ctx, v_obj);
+    CHECK(state.visible == true);
+    CHECK(state.position.z != doctest::Approx(0.0f));
+}
+
+#include <chronon3d/presets/text/text_style_presets.hpp>
+
+TEST_CASE("TextStyle presets return correctly configured styles") {
+    auto headline_style = presets::text::headline();
+    CHECK(headline_style.font_family == "Inter");
+    CHECK(headline_style.font_weight == 900);
+    CHECK(headline_style.paint.stroke_enabled == true);
+
+    auto subtitle_style = presets::text::subtitle();
+    CHECK(subtitle_style.box_style.enabled == true);
+    CHECK(subtitle_style.box_style.radius == doctest::Approx(8.0f));
+
+    auto neon_style = presets::text::neon();
+    CHECK(neon_style.shadows.size() == 3);
+}
+
+#include <chronon3d/presets/text/subtitle.hpp>
+
+TEST_CASE("Subtitle and Karaoke models specification") {
+    presets::text::SubtitleTrack track;
+    presets::text::SubtitleCue cue;
+    cue.start = 0;
+    cue.end = 60;
+    cue.text = "Hello World";
+    
+    presets::text::WordTiming w1{.word = "Hello", .start = 0, .end = 30};
+    presets::text::WordTiming w2{.word = "World", .start = 30, .end = 60};
+    cue.words.push_back(w1);
+    cue.words.push_back(w2);
+    
+    track.cues.push_back(cue);
+    
+    REQUIRE(track.cues.size() == 1);
+    CHECK(track.cues[0].text == "Hello World");
+    REQUIRE(track.cues[0].words.size() == 2);
+    CHECK(track.cues[0].words[1].word == "World");
+}
+
+

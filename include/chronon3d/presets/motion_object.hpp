@@ -5,6 +5,9 @@
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/presets/motion_animation.hpp>
 #include <chronon3d/scene/shape.hpp>
+#include <chronon3d/scene/effects/effect_stack.hpp>
+#include <chronon3d/compositor/blend_mode.hpp>
+#include <chronon3d/backends/video/video_source.hpp>
 #include <algorithm>
 #include <string>
 #include <utility>
@@ -15,6 +18,8 @@ namespace chronon3d::presets::motion {
 enum class MotionObjectType {
     Text,
     Image,
+    Video,
+    Stock,
     Rect,
     RoundedRect,
     Circle,
@@ -45,6 +50,11 @@ enum class MotionPreset {
     TypewriterReveal,
     KineticBounce,
     GlitchIn,
+    CinematicPushIn,
+    ParallaxFloat,
+    OrbitCard,
+    NewsImpact,
+    GlowReveal3D,
 };
 
 struct MotionTime {
@@ -87,9 +97,25 @@ struct Motion3D {
 };
 
 using chronon3d::TextAlign;
+using chronon3d::BlendMode;
+using chronon3d::GlowParams;
+using chronon3d::DropShadowParams;
+using chronon3d::BloomParams;
 
 // Text style for motion objects. Text objects are mapped to the text shape
 // pipeline so they can render with the same motion data model.
+
+struct MotionStyle {
+    bool glow_enabled{false};
+    GlowParams glow{};
+    bool shadow_enabled{false};
+    DropShadowParams shadow{};
+    bool bloom_enabled{false};
+    BloomParams bloom{};
+
+    BlendMode blend{BlendMode::Normal};
+    bool cache_static{false};
+};
 
 struct TextStyleMotion {
     std::string font_path{"assets/fonts/Inter-Bold.ttf"};
@@ -121,8 +147,12 @@ struct MotionObject {
 
     std::string text_value;
     std::string image_path_value;
+    video::VideoSource video_source_value;
+    std::string stock_tag_value;
     TextStyleMotion text_style{};
     bool glow_enabled{false};
+    MotionStyle style{};
+
 
     Vec3 line_from_value{0.0f, 0.0f, 0.0f};
     Vec3 line_to_value{100.0f, 0.0f, 0.0f};
@@ -144,6 +174,31 @@ struct MotionObject {
         o.id = std::move(id);
         o.type = MotionObjectType::Image;
         o.image_path_value = std::move(path);
+        return o;
+    }
+
+    static MotionObject video(std::string id, video::VideoSource source) {
+        MotionObject o;
+        o.id = std::move(id);
+        o.type = MotionObjectType::Video;
+        o.video_source_value = std::move(source);
+        o.size_value = o.video_source_value.size;
+        return o;
+    }
+
+    static MotionObject video(std::string id, std::string path) {
+        MotionObject o;
+        o.id = std::move(id);
+        o.type = MotionObjectType::Video;
+        o.video_source_value.path = std::move(path);
+        return o;
+    }
+
+    static MotionObject stock(std::string id, std::string tag) {
+        MotionObject o;
+        o.id = std::move(id);
+        o.type = MotionObjectType::Stock;
+        o.stock_tag_value = std::move(tag);
         return o;
     }
 
@@ -231,6 +286,36 @@ struct MotionObject {
 
     MotionObject& glow(bool enabled = true) {
         glow_enabled = enabled;
+        style.glow_enabled = enabled;
+        return *this;
+    }
+
+    MotionObject& glow(GlowParams params) {
+        glow_enabled = true;
+        style.glow_enabled = true;
+        style.glow = std::move(params);
+        return *this;
+    }
+
+    MotionObject& shadow(DropShadowParams params) {
+        style.shadow_enabled = true;
+        style.shadow = std::move(params);
+        return *this;
+    }
+
+    MotionObject& bloom(BloomParams params) {
+        style.bloom_enabled = true;
+        style.bloom = std::move(params);
+        return *this;
+    }
+
+    MotionObject& blend(BlendMode mode) {
+        style.blend = mode;
+        return *this;
+    }
+
+    MotionObject& cache_static(bool value = true) {
+        style.cache_static = value;
         return *this;
     }
 
