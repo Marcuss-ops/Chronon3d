@@ -5,9 +5,15 @@
 
 namespace chronon3d::cli {
 
+namespace {
+using Clock = std::chrono::steady_clock;
+inline double elapsed_ms(const Clock::time_point& start) {
+    return std::chrono::duration<double, std::milli>(Clock::now() - start).count();
+}
+} // anonymous namespace
+
 // Map FfmpegPipeOptions to the encoder pixel format.
 static video::EncoderPixelFormat resolve_encoder_pix_fmt(const FfmpegPipeOptions& opt) {
-    // The native encoder always converts to YUV420P for H.264 encoding.
     return video::EncoderPixelFormat::YUV420P;
 }
 
@@ -34,10 +40,7 @@ bool NativeAvEncoder::write_frame(const Framebuffer& fb) {
     }
 
     // 2. Convert the framebuffer directly into AVFrame data planes.
-    //    The ConvertFrameRequest writes directly to AVFrame.data[0/1/2]
-    //    and respects AVFrame.linesize for stride, which is aligned to 32
-    //    by av_frame_get_buffer().
-    const auto t0 = std::chrono::high_resolution_clock::now();
+    const auto t_conv0 = Clock::now();
 
     video::ConvertFrameRequest req{
         .src           = fb,
@@ -61,22 +64,27 @@ bool NativeAvEncoder::write_frame(const Framebuffer& fb) {
         return false;
     }
 
-    const auto t1 = std::chrono::high_resolution_clock::now();
-    const auto conv_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0).count();
+    const double conv_ms = elapsed_ms(t_conv0);
+    native_convert_ms_ += conv_ms;
+
     if (profiling::g_current_counters) {
         profiling::g_current_counters->video_conversion_ms.fetch_add(
-            static_cast<uint64_t>(conv_ns / 1000000), std::memory_order_relaxed);
+            static_cast<uint64_t>(conv_ms), std::memory_order_relaxed);
         profiling::g_current_counters->frame_conversion_copy_ms.fetch_add(
-            static_cast<uint64_t>(conv_ns / 1000000), std::memory_order_relaxed);
+            static_cast<uint64_t>(conv_ms), std::memory_order_relaxed);
+        profiling::g_current_counters->native_av_convert_ms.fetch_add(
+            static_cast<uint64_t>(conv_ms), std::memory_order_relaxed);
     }
 
     // 3. Set PTS (presentation timestamp) in frame number units
     frame_->pts = static_cast<int64_t>(frames_written_);
 
     // 4. Send the frame to the encoder
-    const auto t_send0 = std::chrono::high_resolution_clock::now();
+    const auto t_send0 = Clock::now();
     int ret = avcodec_send_frame(codec_, frame_);
-    const auto t_send1 = std::chrono::high_resolution_clock::now();
+    const double send_ms = elapsed_ms(t_send0);
+    native_send_frame_ms_ += send_ms;
+
     if (ret < 0) {
         char err_buf[256];
         av_strerror(ret, err_buf, sizeof(err_buf));
@@ -84,9 +92,34 @@ bool NativeAvEncoder::write_frame(const Framebuffer& fb) {
         return false;
     }
 
+    if (profiling::g_current_counters) {
+        profiling::g_current_counters->native_av_send_frame_ms.fetch_add(
+            static_cast<uint64_t>(send_ms), std::memory_order_relaxed);
+    }
+
     // 5. Drain all packets produced from this frame
+    //    (timing for receive_packet and mux_write is tracked inside drain_packets)
     if (!drain_packets()) {
         return false;
+    }
+
+    // 6. Push mux/receive counters to global counters (delta only)
+    //     native_receive_packet_ms_ and native_mux_write_ms_ are totals
+    //     accumulated inside drain_packets() across all frames. We compute
+    //     the delta since the previous write_frame() call.
+    {
+        static thread_local double prev_recv = 0.0;
+        static thread_local double prev_mux  = 0.0;
+        const double delta_recv = native_receive_packet_ms_ - prev_recv;
+        const double delta_mux  = native_mux_write_ms_ - prev_mux;
+        prev_recv = native_receive_packet_ms_;
+        prev_mux  = native_mux_write_ms_;
+        if (profiling::g_current_counters) {
+            profiling::g_current_counters->native_av_receive_packet_ms.fetch_add(
+                static_cast<uint64_t>(delta_recv), std::memory_order_relaxed);
+            profiling::g_current_counters->native_av_mux_write_ms.fetch_add(
+                static_cast<uint64_t>(delta_mux), std::memory_order_relaxed);
+        }
     }
 
     ++frames_written_;
