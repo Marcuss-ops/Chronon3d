@@ -6,7 +6,6 @@
 #include <cstring>
 #include <mutex>
 #include <stdexcept>
-#include <unordered_map>
 #include <vector>
 
 #include <tbb/parallel_for.h>
@@ -19,9 +18,12 @@ extern "C" {
 namespace chronon3d::video {
 
 // ============================================================================
-//  Thread-safe SwsContext cache — avoids recreating the context per frame.
-//  The context is keyed by (src_w, src_h, src_fmt, dst_w, dst_h, dst_fmt).
-//  The color_matrix parameter selects BT.601 / BT.709 / BT.2020 coefficients.
+//  SwsContext via sws_getCachedContext — adapts instantly when dimensions
+//  change without destroying and recreating the context from scratch.
+//
+//  sws_getCachedContext checks internally whether the existing context matches
+//  the requested parameters.  When they differ (even by 1 pixel), it re-adapts
+//  the internal filter coefficients in-place instead of freeing + allocating.
 // ============================================================================
 
 struct SwsParams {
@@ -32,54 +34,18 @@ struct SwsParams {
     int          color_matrix;   // 0 = BT.709, 1 = BT.601, 2 = BT.2020
 };
 
-static bool operator==(const SwsParams& a, const SwsParams& b) noexcept {
-    return a.src_w == b.src_w && a.src_h == b.src_h &&
-           a.src_fmt == b.src_fmt &&
-           a.dst_w == b.dst_w && a.dst_h == b.dst_h &&
-           a.dst_fmt == b.dst_fmt &&
-           a.color_matrix == b.color_matrix;
-}
-
-struct SwsParamsHash {
-    size_t operator()(const SwsParams& p) const noexcept {
-        // Simple xor-based hash — good enough for a small cache (≤ 6 entries).
-        return static_cast<size_t>(p.src_w) ^
-               (static_cast<size_t>(p.src_h) << 11) ^
-               (static_cast<size_t>(p.src_fmt) << 22) ^
-               (static_cast<size_t>(p.dst_w) << 33) ^
-               (static_cast<size_t>(p.dst_h) << 44) ^
-               (static_cast<size_t>(p.dst_fmt) << 5) ^
-               (static_cast<size_t>(p.color_matrix) << 17);
-    }
-};
-
 static std::mutex s_sws_mutex;
-static std::unordered_map<SwsParams, SwsContext*, SwsParamsHash> s_sws_cache;
 
-/// RAII cleanup: free all cached SwsContext instances on exit.
-struct SwsCacheCleanup {
-    ~SwsCacheCleanup() {
-        std::lock_guard<std::mutex> lock(s_sws_mutex);
-        for (auto& [_, ctx] : s_sws_cache) {
-            if (ctx)
-                sws_freeContext(ctx);
-        }
-    }
-};
-static SwsCacheCleanup s_sws_cleanup;
-
-/// Retrieve (or create) a SwsContext for the given parameters.
+/// Retrieve (or create-and-cache) a SwsContext via sws_getCachedContext.
 /// The context is configured with BT.601/BT.709/BT.2020 coefficients and
-/// full-range (0-255) input/output so that the float→uint8 path in
-/// convert_fb_to_rgba8() already has the correct gamma applied.
-static SwsContext* get_sws_context(const SwsParams& params) {
+/// full-range (0-255) input/output.
+static SwsContext* get_or_create_sws_context(const SwsParams& params) {
     std::lock_guard<std::mutex> lock(s_sws_mutex);
 
-    auto it = s_sws_cache.find(params);
-    if (it != s_sws_cache.end())
-        return it->second;
+    static SwsContext* ctx = nullptr;
 
-    SwsContext* ctx = sws_getContext(
+    ctx = sws_getCachedContext(
+        ctx,
         params.src_w, params.src_h, params.src_fmt,
         params.dst_w, params.dst_h, params.dst_fmt,
         SWS_BILINEAR, nullptr, nullptr, nullptr);
@@ -87,15 +53,12 @@ static SwsContext* get_sws_context(const SwsParams& params) {
         return nullptr;
 
     // Select color space coefficients.
-    int src_cs = SWS_CS_ITU709;
-    int dst_cs = SWS_CS_ITU709;
-    if (params.color_matrix == 1) {
-        src_cs = SWS_CS_DEFAULT;   // BT.601
-        dst_cs = SWS_CS_DEFAULT;
-    } else if (params.color_matrix == 2) {
-        src_cs = SWS_CS_BT2020;
-        dst_cs = SWS_CS_BT2020;
-    }
+    const int src_cs = (params.color_matrix == 1) ? SWS_CS_DEFAULT :
+                       (params.color_matrix == 2) ? SWS_CS_BT2020 :
+                       SWS_CS_ITU709;
+    const int dst_cs = (params.color_matrix == 1) ? SWS_CS_DEFAULT :
+                       (params.color_matrix == 2) ? SWS_CS_BT2020 :
+                       SWS_CS_ITU709;
 
     const int* src_coeff = sws_getCoefficients(src_cs);
     const int* dst_coeff = sws_getCoefficients(dst_cs);
@@ -107,7 +70,6 @@ static SwsContext* get_sws_context(const SwsParams& params) {
                                    /*brightness=*/0, /*contrast=*/1 << 16,
                                    /*saturation=*/1 << 16);
 
-    s_sws_cache[params] = ctx;
     return ctx;
 }
 
@@ -138,6 +100,9 @@ static inline uint64_t now_ns() {
 // Convert a float Framebuffer to uint8_t RGBA8888 (bytes R, G, B, A).
 // Writes into the caller-provided buffer (must be ≥ width * height * 4 bytes).
 // Uses tbb::parallel_for for parallelism, with an sRGB gamma LUT when requested.
+//
+// Input stride is read dynamically from src.allocated_width() so the
+// conversion respects the framebuffer's internal stride (cache-line aligned).
 static void convert_fb_to_rgba8(const Framebuffer& src, int width, int height,
                                  bool apply_gamma, uint8_t* rgba8 /* OUT */) noexcept {
     const Color* src_data = src.data();
@@ -180,6 +145,9 @@ static AVPixelFormat target_avfmt(EncoderPixelFormat fmt) noexcept {
 /// Shared implementation for all formats:
 ///   1. Convert float → uint8 RGBA (with sRGB gamma) into the staging buffer.
 ///   2. Run sws_scale to convert RGBA → target format into caller dst planes.
+///
+/// Source stride: the staging buffer is tightly packed (width × 4 bytes/row).
+/// Destination stride: fixed to the native video width per the encoder contract.
 static ConvertFrameResult convert_rgba_to_target(const ConvertFrameRequest& req,
                                                    AVPixelFormat dst_avfmt) {
     const uint64_t t0 = now_ns();
@@ -198,15 +166,15 @@ static ConvertFrameResult convert_rgba_to_target(const ConvertFrameRequest& req,
         .color_matrix = req.color_matrix,
     };
 
-    SwsContext* ctx = get_sws_context(params);
+    SwsContext* ctx = get_or_create_sws_context(params);
     if (!ctx)
         return ConvertFrameResult{.success = false};
 
+    // Staging buffer is tightly packed RGBA8 → stride = width × 4.
     uint8_t* src_data[4]  = { staging.data(), nullptr, nullptr, nullptr };
     int      src_stride[4] = { req.width * 4, 0, 0, 0 };
 
-    // Build destination plane pointers accounting for planar vs packed layouts.
-    // Members zeroed below are left as nullptrs / 0 which sws_scale tolerates.
+    // Build destination plane pointers with fixed native-video strides.
     uint8_t* dst_data[4]  = { nullptr, nullptr, nullptr, nullptr };
     int      dst_stride[4] = { 0, 0, 0, 0 };
 
@@ -217,9 +185,10 @@ static ConvertFrameResult convert_rgba_to_target(const ConvertFrameRequest& req,
             dst_data[0]  = req.dst_y;
             dst_data[1]  = req.dst_u;
             dst_data[2]  = req.dst_v;
-            dst_stride[0] = req.dst_stride_y;
-            dst_stride[1] = req.dst_stride_u;
-            dst_stride[2] = req.dst_stride_v;
+            // Output stride locked to native video width (tight planar)
+            dst_stride[0] = req.dst_stride_y ? req.dst_stride_y : req.width;
+            dst_stride[1] = req.dst_stride_u ? req.dst_stride_u : (req.width / 2);
+            dst_stride[2] = req.dst_stride_v ? req.dst_stride_v : (req.width / 2);
             break;
 
         case EncoderPixelFormat::NV12:
@@ -227,8 +196,8 @@ static ConvertFrameResult convert_rgba_to_target(const ConvertFrameRequest& req,
                 throw std::invalid_argument("convert_frame(NV12): dst_y/uv must not be null");
             dst_data[0]  = req.dst_y;
             dst_data[1]  = req.dst_uv;   // NV12 UV plane is passed as plane 1
-            dst_stride[0] = req.dst_stride_y;
-            dst_stride[1] = req.dst_stride_uv;
+            dst_stride[0] = req.dst_stride_y ? req.dst_stride_y : req.width;
+            dst_stride[1] = req.dst_stride_uv ? req.dst_stride_uv : req.width;
             break;
 
         case EncoderPixelFormat::RGB24:
