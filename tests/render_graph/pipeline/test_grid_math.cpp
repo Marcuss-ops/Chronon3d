@@ -13,11 +13,6 @@ struct TestLine {
     Vec3 to;
 };
 
-static float distance3(Vec3 a, Vec3 b) {
-    Vec3 d = b - a;
-    return std::sqrt(d.x*d.x + d.y*d.y + d.z*d.z);
-}
-
 static std::vector<float> generate_grid_coords(float extent, float spacing) {
     std::vector<float> coords;
 

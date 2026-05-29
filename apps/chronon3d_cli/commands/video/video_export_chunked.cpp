@@ -71,6 +71,7 @@ int render_and_encode_ffmpeg_chunked(
                 if (renderer->counters()) {
                     const auto setup_ms = static_cast<uint64_t>(
                         std::chrono::duration<double, std::milli>(renderer_t1 - renderer_t0).count());
+                    renderer->counters()->setup_graph_parsing_ms.fetch_add(setup_ms, std::memory_order_relaxed);
                     // Note: in chunked mode each worker creates its own renderer, so
                     // setup_graph_parsing_ms will be summed across all workers in the aggregate.
                 }
@@ -97,8 +98,9 @@ int render_and_encode_ffmpeg_chunked(
                     if (renderer->counters()) {
                         const auto warmup_ms = static_cast<uint64_t>(
                             std::chrono::duration<double, std::milli>(warmup_t1 - warmup_t0).count());
+                        renderer->counters()->setup_pool_preallocation_ms.fetch_add(warmup_ms, std::memory_order_relaxed);
                         // Note: in chunked mode each worker runs its own warmup, so
-                    // setup_pool_preallocation_ms will be summed across all workers in the aggregate.
+                        // setup_pool_preallocation_ms will be summed across all workers in the aggregate.
 
                         saved_fb_alloc = renderer->counters()->framebuffer_allocations.load(std::memory_order_relaxed);
                         saved_fb_reuses = renderer->counters()->framebuffer_reuses.load(std::memory_order_relaxed);

@@ -11,10 +11,8 @@
 #include <filesystem>
 #include <thread>
 #include <atomic>
-#include <condition_variable>
 #include <concurrentqueue/moodycamel/concurrentqueue.h>
 #include <memory>
-#include <mutex>
 #include <vector>
 #include <algorithm>
 

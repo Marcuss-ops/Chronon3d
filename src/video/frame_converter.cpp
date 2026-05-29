@@ -4,7 +4,6 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdint>
-#include <cstring>
 #include <mutex>
 #include <stdexcept>
 #include <vector>
@@ -129,16 +128,6 @@ static void convert_fb_to_rgba8(const Framebuffer& src, int width, int height,
             dst_row[x * 4 + 3] = static_cast<uint8_t>(std::clamp(c.a, 0.0f, 1.0f) * 255.0f + 0.5f);
         }
     });
-}
-
-// Map EncoderPixelFormat → AVPixelFormat for the target format.
-static AVPixelFormat target_avfmt(EncoderPixelFormat fmt) noexcept {
-    switch (fmt) {
-        case EncoderPixelFormat::YUV420P: return AV_PIX_FMT_YUV420P;
-        case EncoderPixelFormat::NV12:    return AV_PIX_FMT_NV12;
-        case EncoderPixelFormat::RGB24:   return AV_PIX_FMT_RGB24;
-    }
-    return AV_PIX_FMT_NONE;
 }
 
 // ============================================================================
