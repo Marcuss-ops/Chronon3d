@@ -1,4 +1,5 @@
 #include <chronon3d/video/direct_yuv_converter.hpp>
+#include <chronon3d/video/direct_yuv_lut.hpp>
 
 #include <algorithm>
 #include <chrono>
@@ -10,86 +11,31 @@
 
 namespace chronon3d::video {
 
-namespace {
-
 // ============================================================================
 //  sRGB gamma LUT — 8-bit linear→sRGB lookup table.
-//
-//  Precomputed for all 16-bit integer values [0..65535] that represent
-//  a float [0..1] scaled by 65535. This gives sub-0.01% accuracy vs
-//  true sRGB gamma, and avoids any pow() or branch in the hot loop.
+//  Defined at namespace scope (NOT anonymous) so the HWY SIMD variant in
+//  direct_yuv_converter_hwy.cpp can link against it via the extern
+//  declaration in direct_yuv_lut.hpp.
 // ============================================================================
 
-alignas(64) static uint8_t s_srgb_lut[65536];
+alignas(64) uint8_t g_srgb_lut[65536];
+bool g_srgb_lut_ready = false;
 
-static const bool s_lut_initialized = []() {
-    for (int i = 0; i < 65536; ++i) {
-        const float v = static_cast<float>(i) / 65535.0f;
-        s_srgb_lut[i] = Color::linear_to_srgb8(v);
+namespace {
+struct SrgbLutInit {
+    SrgbLutInit() {
+        for (int i = 0; i < 65536; ++i) {
+            const float v = static_cast<float>(i) / 65535.0f;
+            g_srgb_lut[i] = Color::linear_to_srgb8(v);
+        }
+        g_srgb_lut_ready = true;
     }
-    return true;
-}();
-
-inline uint8_t linear_to_srgb8_fast(float v) {
-    // Clamp and scale to [0..65535] range for LUT lookup.
-    int idx = static_cast<int>(v * 65535.0f + 0.5f);
-    if (idx < 0) idx = 0;
-    if (idx > 65535) idx = 65535;
-    return s_srgb_lut[idx];
-}
-
-// ============================================================================
-//  BT.709 limited-range conversion constants
-//
-//  Y  = round(16 + 219 * (0.2126 R + 0.7152 G + 0.0722 B))
-//  Cb = round(128 + 224 * (-0.114572 R - 0.385428 G + 0.5 B))
-//  Cr = round(128 + 224 * (0.5 R - 0.454153 G - 0.045847 B))
-//
-//  BT.601 limited-range:
-//  Y  = round(16 + 219 * (0.2990 R + 0.5870 G + 0.1140 B))
-//  Cb = round(128 + 224 * (-0.168736 R - 0.331264 G + 0.5 B))
-//  Cr = round(128 + 224 * (0.5 R - 0.418688 G - 0.081312 B))
-// ============================================================================
-
-struct YuvCoeffs {
-    float kr, kg, kb;     // luma coefficients
-    float cb_r, cb_g;     // Cb: R, G multipliers (B is implicit: 0.5 - cb_r - cb_g)
-    float cr_r, cr_g;     // Cr: R, G multipliers (B is implicit: 0.5 - cr_r - cr_g)
 };
+static SrgbLutInit s_lut_init;
+} // anonymous namespace
 
-static constexpr YuvCoeffs kCoeffsBT709 = {
-    .kr = 0.2126f, .kg = 0.7152f, .kb = 0.0722f,
-    .cb_r = -0.114572f, .cb_g = -0.385428f,
-    .cr_r = 0.5f, .cr_g = -0.454153f,
-};
-
-static constexpr YuvCoeffs kCoeffsBT601 = {
-    .kr = 0.2990f, .kg = 0.5870f, .kb = 0.1140f,
-    .cb_r = -0.168736f, .cb_g = -0.331264f,
-    .cr_r = 0.5f, .cr_g = -0.418688f,
-};
-
-inline const YuvCoeffs& get_coeffs(int color_matrix) {
-    return (color_matrix == 1) ? kCoeffsBT601 : kCoeffsBT709;
-}
-
-// Convert a gamma-encoded 8-bit R,G,B triple (0..255) to limited-range YUV.
-struct YuvPixel { uint8_t y, u, v; };
-
-inline YuvPixel rgb8_to_yuv(uint8_t r, uint8_t g, uint8_t b, const YuvCoeffs& c) {
-    const float rf = r / 255.0f;
-    const float gf = g / 255.0f;
-    const float bf = b / 255.0f;
-
-    YuvPixel p;
-    p.y = static_cast<uint8_t>(std::clamp(
-        16.0f + 219.0f * (c.kr * rf + c.kg * gf + c.kb * bf) + 0.5f, 0.0f, 255.0f));
-    p.u = static_cast<uint8_t>(std::clamp(
-        128.0f + 224.0f * (c.cb_r * rf + c.cb_g * gf + 0.5f * bf) + 0.5f, 0.0f, 255.0f));
-    p.v = static_cast<uint8_t>(std::clamp(
-        128.0f + 224.0f * (c.cr_r * rf + c.cr_g * gf) + 0.5f, 0.0f, 255.0f));
-    return p;
-}
+// Coefficients and helpers (YuvCoeffs, get_coeffs, YuvPixel, rgb8_to_yuv)
+// are defined in the shared header direct_yuv_lut.hpp.
 
 // ============================================================================
 //  YUV420P converter — parallel over 2-row blocks via tbb::parallel_for
@@ -264,10 +210,17 @@ static DirectYuvResult convert_to_nv12_parallel(const DirectYuvRequest& req) {
     };
 }
 
-} // anonymous namespace
+// ============================================================================
+//  Forward declarations for HWY SIMD variants (defined in
+//  direct_yuv_converter_hwy.cpp).  These are compiled as a separate
+//  translation unit with Highway's multi-target dispatch.
+// ============================================================================
+
+DirectYuvResult convert_to_yuv420p_hwy(const DirectYuvRequest& req);
+DirectYuvResult convert_to_nv12_hwy(const DirectYuvRequest& req);
 
 // ============================================================================
-//  Public API — dispatch
+//  Public API — dispatch: try HWY SIMD first, fall back to scalar TBB
 // ============================================================================
 
 DirectYuvResult convert_framebuffer_to_yuv_direct(const DirectYuvRequest& req) {
@@ -275,10 +228,16 @@ DirectYuvResult convert_framebuffer_to_yuv_direct(const DirectYuvRequest& req) {
     if (req.width % 2 != 0 || req.height % 2 != 0) return DirectYuvResult{};
 
     switch (req.format) {
-        case EncoderPixelFormat::YUV420P:
+        case EncoderPixelFormat::YUV420P: {
+            auto r = convert_to_yuv420p_hwy(req);
+            if (r.success) return r;
             return convert_to_yuv420p_parallel(req);
-        case EncoderPixelFormat::NV12:
+        }
+        case EncoderPixelFormat::NV12: {
+            auto r = convert_to_nv12_hwy(req);
+            if (r.success) return r;
             return convert_to_nv12_parallel(req);
+        }
         default:
             return DirectYuvResult{};
     }
