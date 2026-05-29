@@ -40,6 +40,7 @@ add_executable(chronon3d_core_tests
     core/math/test_color_space.cpp
     core/math/test_expression.cpp
     text/test_text_layout.cpp
+    text/test_text_cache_key.cpp
 )
 target_link_libraries(chronon3d_core_tests PRIVATE chronon3d_pipeline doctest::doctest)
 target_include_directories(chronon3d_core_tests PRIVATE ${CMAKE_SOURCE_DIR})
@@ -238,3 +239,5 @@ if(TARGET benchmark::benchmark_main)
     )
     target_include_directories(chronon3d_benchmarks PRIVATE ${CMAKE_SOURCE_DIR})
 endif()
+
+add_dependencies(chronon3d_tests chronon3d_video_tests)

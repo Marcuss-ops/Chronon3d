@@ -92,6 +92,22 @@ auto result_file = chronon3d::assets::load_svg_path_file("assets/my_icon.svg");
 
 ---
 
+## Text V1 & Presets
+
+Chronon3d has a fully-functional, cache-invalidation-safe Text V1 layout engine with layout presets, automatic fitting (`auto_fit`), wrapping, overflow control, and subtitle/karaoke model support.
+
+### Supported Features
+- **Wrapping & Overflow**: Word wrap, character wrap, max lines limit, and text ellipsis.
+- **Auto-Fit**: Bin-search algorithm to scale text down to fit a target box dynamically.
+- **Presets**: Predefined templates (`headline`, `subtitle`, `lower_third`, `quote`, `breaking_news`, `luxury_gold`, `neon`).
+- **Subtitles**: Standard cues, word timings, and highlight models.
+
+### Limitations
+> [!IMPORTANT]
+> **Unicode & Language Support**: Text V1 wrapping and layout engine measures strings byte-by-byte (`char`). It is friendly with Latin / simple UTF-8 languages (English, Italian, Spanish, Portuguese, etc.). Global Unicode layout, RTL languages (Arabic, Hebrew), complex ligatures (Hindi), CJK line-breaking, emoji, and HarfBuzz/ICU integration are planned for future versions.
+
+---
+
 ## Quick Start
 
 ### Prerequisites (Linux)

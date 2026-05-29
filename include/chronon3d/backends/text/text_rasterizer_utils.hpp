@@ -25,4 +25,11 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
 
 void clear_text_raster_cache();
 
+uint64_t hash_text_style(
+    const TextShape& t,
+    float effective_size,
+    int padding,
+    const Mat4* transform = nullptr
+);
+
 } // namespace chronon3d
