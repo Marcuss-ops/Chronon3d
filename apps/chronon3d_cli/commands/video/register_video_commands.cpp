@@ -34,8 +34,8 @@ void register_video_commands(CLI::App& app, CliContext& ctx) {
     cmd->add_option("--frames-dir", args.frames_dir, "Override temporary frames directory");
     cmd->add_option("--ssaa", args.pipeline.quality.ssaa, "Super Sampling factor")->default_val(1.0f);
     cmd->add_option("--chunks", args.chunks, "Render frame range in N parallel chunks before encoding")->default_val(1);
-    cmd->add_option("--ffmpeg-mode", args.ffmpeg_mode, "Fallback FFmpeg mode: png, pipe")
-        ->default_val("png")
+    cmd->add_option("--ffmpeg-mode", args.ffmpeg_mode, "FFmpeg mode: pipe, png")
+        ->default_val("pipe")
         ->check(CLI::IsMember({"png", "pipe"}));
     cmd->add_flag("--ffmpeg-verbose", args.ffmpeg_verbose, "Show FFmpeg logs in pipe mode");
     cmd->add_option("--pipe-pixfmt", args.pipe_pixfmt, "Legacy raw pipe input format (RGBA is the stable path)")
