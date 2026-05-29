@@ -40,7 +40,7 @@ inline std::vector<chronon3d::telemetry::CounterTelemetryRecord> capture_counter
         {"layers_visible", counters.layers_visible.load(std::memory_order_relaxed)},
         {"framebuffer_allocations", counters.framebuffer_allocations.load(std::memory_order_relaxed)},
         {"framebuffer_reuses", counters.framebuffer_reuses.load(std::memory_order_relaxed)},
-        {"framebuffer_bytes_allocated", profiling::g_live_framebuffer_bytes.load(std::memory_order_relaxed)},
+        {"framebuffer_bytes_allocated", counters.framebuffer_bytes_allocated.load(std::memory_order_relaxed)},
         {"framebuffer_bytes_peak", profiling::g_peak_live_framebuffer_bytes.load(std::memory_order_relaxed)},
         {"dirty_rect_count", counters.dirty_rect_count.load(std::memory_order_relaxed)},
         {"dirty_pixels", counters.dirty_pixels.load(std::memory_order_relaxed)},
@@ -209,7 +209,7 @@ inline void populate_run_metrics(chronon3d::telemetry::RenderTelemetryRecord& ru
     run.layers_visible = counters.layers_visible.load(std::memory_order_relaxed);
     run.framebuffer_allocations = counters.framebuffer_allocations.load(std::memory_order_relaxed);
     run.framebuffer_reuses = counters.framebuffer_reuses.load(std::memory_order_relaxed);
-    run.framebuffer_bytes_allocated = profiling::g_live_framebuffer_bytes.load(std::memory_order_relaxed);
+    run.framebuffer_bytes_allocated = counters.framebuffer_bytes_allocated.load(std::memory_order_relaxed);
     run.framebuffer_bytes_peak = profiling::g_peak_live_framebuffer_bytes.load(std::memory_order_relaxed);
     run.dirty_rect_count = counters.dirty_rect_count.load(std::memory_order_relaxed);
     run.dirty_pixels = counters.dirty_pixels.load(std::memory_order_relaxed);

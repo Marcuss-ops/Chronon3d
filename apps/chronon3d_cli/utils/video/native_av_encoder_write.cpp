@@ -135,7 +135,12 @@ bool NativeAvEncoder::write_frame(const Framebuffer& fb) {
     double send_ms = elapsed_ms(t_send0);
 
     int eagain_retries = 0;
-    constexpr int kMaxEagainRetries = 3;
+    // Allow enough retries to match x264's internal frame queue depth.
+    // With threads=auto + thread_type=frame on an 8-core machine, x264
+    // keeps ~10-12 frames in flight, so 3 retries often hit EAGAIN and
+    // trigger back-pressure on the render queue.  12 retries let the
+    // encoder drain smoothly without blocking the render thread.
+    constexpr int kMaxEagainRetries = 12;
     while (ret == AVERROR(EAGAIN) && eagain_retries < kMaxEagainRetries) {
         ++eagain_retries;
         // Encoder buffer full — drain packets to make room, then retry.

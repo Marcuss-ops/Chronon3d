@@ -42,7 +42,7 @@ void generate_telemetry_report(std::stringstream& out, sqlite3* db, const std::s
     out << "| Effective FPS | " << fmt::format("{:.2f} fps", run.effective_fps) << " |\n";
     out << "| Wall Duration | " << fmt::format("{:.2f} s", run.wall_time_ms / 1000.0) << " |\n";
     out << "| Render Duration | " << fmt::format("{:.2f} s", run.render_ms / 1000.0) << " |\n";
-    out << "| Encode + Flush Duration | " << fmt::format("{:.2f} s", run.encode_ms / 1000.0) << " |\n";
+    out << "| Encoder Close + Flush Duration | " << fmt::format("{:.2f} s", run.encode_ms / 1000.0) << " |\n";
     out << "| Peak Memory | " << format_bytes(run.bytes_allocated_peak) << " |\n";
     out << "| Node Cache Hit Rate | " << format_pct(cache_hit_rate) << " |\n";
     out << "| Frames Total | " << run.frames_total << " |\n";

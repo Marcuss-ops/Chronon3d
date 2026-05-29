@@ -4,6 +4,7 @@
 #include <benchmark/benchmark.h>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/core/profiling/benchmark_report.hpp>
+#include <chronon3d/core/telemetry/render_telemetry.hpp>
 #include <chronon3d/runtime/renderer_warmup.hpp>
 #include <fmt/format.h>
 #include <nlohmann/json.hpp>
@@ -311,6 +312,11 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
         renderer->counters()->framebuffer_bytes_allocated.store(saved_fb_bytes, std::memory_order_relaxed);
         renderer->counters()->framebuffer_bytes_peak.store(saved_fb_peak, std::memory_order_relaxed);
     }
+
+    // Clear per-event telemetry stores after warmup, since atomic counters
+    // were reset above.  This keeps per-node telemetry in sync with atomic
+    // counters like nodes_executed and composite_calls.
+    chronon3d::telemetry::clear_telemetry_stores();
 
     BenchRuntimeContext context;
     context.composition = std::move(composition);
