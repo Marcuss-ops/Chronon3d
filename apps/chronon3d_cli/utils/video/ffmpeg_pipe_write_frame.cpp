@@ -24,11 +24,12 @@ bool FfmpegPipeEncoder::write_frame(const Framebuffer& fb) {
     size_t   bytes_to_write = 0;
     bool     ok = false;
 
-    // The framebuffer digest alone is not stable enough for long video exports
-    // on every path, so blend in the frame index to avoid reusing a stale
-    // converted buffer across the whole video.
-    const u64 frame_digest = fb.key_digest() ^
-        (current_frame_ + 0x9e3779b97f4a7c15ULL + (fb.key_digest() << 6) + (fb.key_digest() >> 2));
+    // Use the framebuffer content digest directly as the cache key.
+    // The key_digest() uniquely identifies pixel content: identical frames
+    // (e.g. consecutive static frames from the fast-path) share the same
+    // digest and can reuse the already-converted encoder bytes without
+    // re-running the float→RGBA/YUV conversion pipeline.
+    const u64 frame_digest = fb.key_digest();
     const video::EncoderPixelFormat enc_fmt = [&]() -> video::EncoderPixelFormat {
         switch (options_.input_format) {
             case PipePixelFormat::YUV420P: return video::EncoderPixelFormat::YUV420P;
