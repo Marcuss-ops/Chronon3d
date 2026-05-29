@@ -109,17 +109,56 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
 
     SoftwareRenderer* sw_renderer = dynamic_cast<SoftwareRenderer*>(&backend);
 
-    std::optional<uint64_t> current_scene_fingerprint;
-    auto ensure_scene_fingerprint = [&]() -> uint64_t {
-        if (!current_scene_fingerprint.has_value()) {
-            if (sw_renderer) {
-                current_scene_fingerprint = sw_renderer->m_scene_hasher.compute_fingerprint(scene, frame);
-            } else {
-                current_scene_fingerprint = compute_scene_fingerprint(scene, frame);
+    // ── Resolved scene reuse: consecutive/same frame ─────────────────────
+    // If the already-evaluated scene produces identical visual output as the
+    // previous frame, skip resolve_layers(), dirty computation, graph build,
+    // graph execution and compositing entirely.
+    //
+    // CRITICAL: We require BOTH static_fp AND active_at_fp to match.
+    // - static_fp confirms layer structure is unchanged
+    // - active_at_fp confirms which layers are active at each frame is unchanged
+    //
+    // Using only static_fp would incorrectly reuse frame 0's output for DarkGridBackground
+    // frame 1 (active_at changes from true→false, but static_fp matches since structure
+    // is the same — yet frame 1's evaluated scene is empty, visually different).
+    //
+    // This block must come BEFORE resolve_layers() and compute_dirty_rect() so
+    // that identical consecutive frames avoid even entering the dirty system.
+    if (sw_renderer &&
+        sw_renderer->m_prev_framebuffer &&
+        sw_renderer->m_prev_framebuffer->width() == width &&
+        sw_renderer->m_prev_framebuffer->height() == height &&
+        (sw_renderer->m_prev_frame == frame - 1 || sw_renderer->m_prev_frame == frame))
+    {
+        CHRONON_ZONE_C("resolved_scene_reuse", trace_category::kFrame);
+        const Camera2_5D& cam = ctx.camera_2_5d;
+        const bool cam_changed = detail::camera_changed(
+            cam, &sw_renderer->m_prev_camera, sw_renderer->m_prev_camera_valid);
+        const uint64_t static_fp = sw_renderer->m_scene_hasher.compute_static_fingerprint(scene);
+        const uint64_t active_at_fp = sw_renderer->m_scene_hasher.compute_active_at_fingerprint(scene, frame);
+        const uint64_t combined_fp = static_fp ^ (active_at_fp * 0x9e3779b97f4a7c15ULL);
+
+        if (!cam_changed && sw_renderer->m_prev_scene_fingerprint == combined_fp) {
+            sw_renderer->m_last_dirty_area_ratio = 0.0;
+            sw_renderer->m_prev_frame = frame;
+            sw_renderer->m_prev_scene_fingerprint = combined_fp;
+            sw_renderer->m_prev_camera = cam;
+            sw_renderer->m_prev_camera_valid = cam.enabled;
+            if (ctx.counters) {
+                ctx.counters->dirty_union_area_pixels.store(0, std::memory_order_relaxed);
+                ctx.counters->clear_skipped_calls.fetch_add(1, std::memory_order_relaxed);
+                ctx.counters->clear_skipped_pixels.fetch_add(
+                    static_cast<uint64_t>(width) * height,
+                    std::memory_order_relaxed
+                );
             }
+            if (ctx.diagnostics_enabled) {
+                spdlog::info("[resolved-reuse] frame={} combined_fingerprint_match=1", static_cast<int>(frame));
+            }
+            profiling::g_current_counters = nullptr;
+            return sw_renderer->m_prev_framebuffer;
         }
-        return *current_scene_fingerprint;
-    };
+    }
 
     // ── Static fingerprint (pre-computed for fast-paths + executor hint) ──
     // Compute once and reuse: the static fast-path, dirty-rect fast-path, and
@@ -185,39 +224,6 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         }
         profiling::g_current_counters = nullptr;
         return sw_renderer->m_prev_framebuffer;
-    }
-
-    // ── Quick skip: consecutive frame with no changes ───────────────────
-    if (sw_renderer &&
-        settings.enable_dirty_rects &&
-        sw_renderer->m_prev_framebuffer &&
-        sw_renderer->m_prev_framebuffer->width() == width &&
-        sw_renderer->m_prev_framebuffer->height() == height &&
-        sw_renderer->m_prev_frame == frame - 1)
-    {
-        CHRONON_ZONE_C("dirty_fast_check", trace_category::kFrame);
-        const Camera2_5D& cam = ctx.camera_2_5d;
-        const bool cam_changed = detail::camera_changed(
-            cam, &sw_renderer->m_prev_camera, sw_renderer->m_prev_camera_valid);
-
-        const uint64_t fingerprint = ensure_scene_fingerprint();
-        if (!cam_changed && sw_renderer->m_prev_scene_fingerprint == fingerprint) {
-            sw_renderer->m_last_dirty_area_ratio = 0.0;
-            sw_renderer->m_prev_frame = frame;
-            sw_renderer->m_prev_scene_fingerprint = fingerprint;
-            sw_renderer->m_prev_camera = cam;
-            sw_renderer->m_prev_camera_valid = cam.enabled;
-            if (ctx.counters) {
-                ctx.counters->dirty_union_area_pixels.store(0, std::memory_order_relaxed);
-                ctx.counters->clear_skipped_calls.fetch_add(1, std::memory_order_relaxed);
-                ctx.counters->clear_skipped_pixels.fetch_add(
-                    static_cast<uint64_t>(width) * height,
-                    std::memory_order_relaxed
-                );
-            }
-            profiling::g_current_counters = nullptr;
-            return sw_renderer->m_prev_framebuffer;
-        }
     }
 
     // ── Full path: resolve, dirty rect, graph, execute ──────────────────
@@ -317,7 +323,13 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         sw_renderer->m_last_dirty_area_ratio = 0.0;
         sw_renderer->m_prev_layer_bboxes = std::move(dirty_out.layer_bboxes);
         sw_renderer->m_prev_frame = frame;
-        sw_renderer->m_prev_scene_fingerprint = ensure_scene_fingerprint();
+        // Use combined_fp for consistency with resolved-reuse block and full-path save
+        const uint64_t fp_static = sw_renderer->m_scene_hasher.compute_static_fingerprint(scene);
+        const uint64_t fp_active_at = sw_renderer->m_scene_hasher.compute_active_at_fingerprint(scene, frame);
+        const uint64_t fp_combined = fp_static ^ (fp_active_at * 0x9e3779b97f4a7c15ULL);
+        sw_renderer->m_prev_scene_fingerprint = fp_combined;
+        sw_renderer->m_prev_static_scene_fingerprint = fp_static;
+        sw_renderer->m_prev_active_at_fingerprint = fp_active_at;
         sw_renderer->m_prev_camera = resolved.camera.camera;
         sw_renderer->m_prev_camera_valid = resolved.camera.camera.enabled;
         profiling::g_current_counters = nullptr;
@@ -489,13 +501,19 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     const auto t_exec1 = std::chrono::steady_clock::now();
 
     // ── Save state for next frame ───────────────────────────────────────
+    // Use combined_fp = static_fp ^ (active_at_fp * C) to match the fingerprint
+    // stored in the resolved-reuse block above.  This ensures consistent fingerprint
+    // comparison across frames (both fast-path and full-path save the same format).
     if (sw_renderer) {
+        const uint64_t save_static_fp = sw_renderer->m_scene_hasher.compute_static_fingerprint(scene);
+        const uint64_t save_active_at_fp = sw_renderer->m_scene_hasher.compute_active_at_fingerprint(scene, frame);
+        const uint64_t save_combined_fp = save_static_fp ^ (save_active_at_fp * 0x9e3779b97f4a7c15ULL);
         sw_renderer->m_prev_framebuffer = fb_shared;
         sw_renderer->m_prev_layer_bboxes = std::move(dirty_out.layer_bboxes);
         sw_renderer->m_prev_frame = frame;
-        sw_renderer->m_prev_scene_fingerprint = ensure_scene_fingerprint();
-        sw_renderer->m_prev_static_scene_fingerprint = sw_renderer->m_scene_hasher.compute_static_fingerprint(scene);
-        sw_renderer->m_prev_active_at_fingerprint = sw_renderer->m_scene_hasher.compute_active_at_fingerprint(scene, frame);
+        sw_renderer->m_prev_scene_fingerprint = save_combined_fp;
+        sw_renderer->m_prev_static_scene_fingerprint = save_static_fp;
+        sw_renderer->m_prev_active_at_fingerprint = save_active_at_fp;
         sw_renderer->m_prev_camera = resolved.camera.camera;
         sw_renderer->m_prev_camera_valid = resolved.camera.camera.enabled;
     }
