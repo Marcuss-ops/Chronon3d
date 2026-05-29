@@ -34,8 +34,20 @@ bool execute_render_job(const CompositionRegistry& registry, const RenderJobPlan
 
     const auto setup_t0 = std::chrono::steady_clock::now();
     auto renderer = create_renderer(registry, plan.settings);
+    const auto renderer_t1 = std::chrono::steady_clock::now();
+    if (renderer->counters()) {
+        const auto setup_ms = static_cast<uint64_t>(
+            std::chrono::duration<double, std::milli>(renderer_t1 - setup_t0).count());
+        renderer->counters()->setup_graph_parsing_ms.fetch_add(setup_ms, std::memory_order_relaxed);
+    }
+
     // Renderer warmup (preallocate framebuffers + optional dummy frame)
+    uint64_t saved_fb_alloc = 0;
+    uint64_t saved_fb_reuses = 0;
+    uint64_t saved_fb_bytes = 0;
+    uint64_t saved_fb_peak = 0;
     if (plan.warmup_renderer) {
+        const auto warmup_t0 = std::chrono::steady_clock::now();
         runtime::warmup_renderer(*renderer, *plan.comp, runtime::RendererWarmupOptions{
             .width = plan.comp->width(),
             .height = plan.comp->height(),
@@ -46,8 +58,29 @@ bool execute_render_job(const CompositionRegistry& registry, const RenderJobPlan
             .dummy_frame = 0,
             .quiet = (plan.log_level != "trace" && plan.log_level != "debug")
         });
+        const auto warmup_t1 = std::chrono::steady_clock::now();
+
+        if (renderer->counters()) {
+            const auto warmup_ms = static_cast<uint64_t>(
+                std::chrono::duration<double, std::milli>(warmup_t1 - warmup_t0).count());
+            renderer->counters()->setup_pool_preallocation_ms.fetch_add(warmup_ms, std::memory_order_relaxed);
+
+            saved_fb_alloc = renderer->counters()->framebuffer_allocations.load(std::memory_order_relaxed);
+            saved_fb_reuses = renderer->counters()->framebuffer_reuses.load(std::memory_order_relaxed);
+            saved_fb_bytes = renderer->counters()->framebuffer_bytes_allocated.load(std::memory_order_relaxed);
+            saved_fb_peak = renderer->counters()->framebuffer_bytes_peak.load(std::memory_order_relaxed);
+        }
     }
+
     renderer->counters()->reset();
+
+    if (renderer->counters()) {
+        renderer->counters()->framebuffer_allocations.store(saved_fb_alloc, std::memory_order_relaxed);
+        renderer->counters()->framebuffer_reuses.store(saved_fb_reuses, std::memory_order_relaxed);
+        renderer->counters()->framebuffer_bytes_allocated.store(saved_fb_bytes, std::memory_order_relaxed);
+        renderer->counters()->framebuffer_bytes_peak.store(saved_fb_peak, std::memory_order_relaxed);
+    }
+
     const auto setup_t1 = std::chrono::steady_clock::now();
 
     if (plan.from_specscene && plan.settings.motion_blur.enabled) {

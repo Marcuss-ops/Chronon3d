@@ -65,10 +65,23 @@ int render_and_encode_ffmpeg_chunked(
     for (const auto& chunk : ranges) {
         workers.emplace_back([&, chunk]() {
             try {
+                const auto renderer_t0 = std::chrono::steady_clock::now();
                 auto renderer = create_renderer(registry, settings);
+                const auto renderer_t1 = std::chrono::steady_clock::now();
+                if (renderer->counters()) {
+                    const auto setup_ms = static_cast<uint64_t>(
+                        std::chrono::duration<double, std::milli>(renderer_t1 - renderer_t0).count());
+                    // Note: in chunked mode each worker creates its own renderer, so
+                    // setup_graph_parsing_ms will be summed across all workers in the aggregate.
+                }
 
                 // Warmup
+                uint64_t saved_fb_alloc = 0;
+                uint64_t saved_fb_reuses = 0;
+                uint64_t saved_fb_bytes = 0;
+                uint64_t saved_fb_peak = 0;
                 if (opts.warmup_renderer) {
+                    const auto warmup_t0 = std::chrono::steady_clock::now();
                     runtime::warmup_renderer(*renderer, comp, runtime::RendererWarmupOptions{
                         .width = comp.width(),
                         .height = comp.height(),
@@ -79,7 +92,28 @@ int render_and_encode_ffmpeg_chunked(
                         .dummy_frame = 0,
                         .quiet = false
                     });
+                    const auto warmup_t1 = std::chrono::steady_clock::now();
+
+                    if (renderer->counters()) {
+                        const auto warmup_ms = static_cast<uint64_t>(
+                            std::chrono::duration<double, std::milli>(warmup_t1 - warmup_t0).count());
+                        // Note: in chunked mode each worker runs its own warmup, so
+                    // setup_pool_preallocation_ms will be summed across all workers in the aggregate.
+
+                        saved_fb_alloc = renderer->counters()->framebuffer_allocations.load(std::memory_order_relaxed);
+                        saved_fb_reuses = renderer->counters()->framebuffer_reuses.load(std::memory_order_relaxed);
+                        saved_fb_bytes = renderer->counters()->framebuffer_bytes_allocated.load(std::memory_order_relaxed);
+                        saved_fb_peak = renderer->counters()->framebuffer_bytes_peak.load(std::memory_order_relaxed);
+                    }
+
                     renderer->counters()->reset();
+
+                    if (renderer->counters()) {
+                        renderer->counters()->framebuffer_allocations.store(saved_fb_alloc, std::memory_order_relaxed);
+                        renderer->counters()->framebuffer_reuses.store(saved_fb_reuses, std::memory_order_relaxed);
+                        renderer->counters()->framebuffer_bytes_allocated.store(saved_fb_bytes, std::memory_order_relaxed);
+                        renderer->counters()->framebuffer_bytes_peak.store(saved_fb_peak, std::memory_order_relaxed);
+                    }
                 }
 
                 std::vector<chronon3d::telemetry::FrameTelemetryRecord> local_frames;
