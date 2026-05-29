@@ -35,6 +35,13 @@ public:
 
     [[nodiscard]] uint64_t frames_written() const override { return frames_written_; }
 
+    // ── Native encoder telemetry accessors ──
+    [[nodiscard]] double native_convert_ms()          const override { return native_convert_ms_; }
+    [[nodiscard]] double native_send_frame_ms()       const override { return native_send_frame_ms_; }
+    [[nodiscard]] double native_receive_packet_ms()   const override { return native_receive_packet_ms_; }
+    [[nodiscard]] double native_mux_write_ms()        const override { return native_mux_write_ms_; }
+    [[nodiscard]] double native_trailer_ms()          const override { return native_trailer_ms_; }
+
 private:
     FfmpegPipeOptions options_{};
     uint64_t frames_written_{0};
@@ -45,6 +52,13 @@ private:
     AVStream*        stream_{nullptr};
     AVFrame*         frame_{nullptr};
     AVPacket*        packet_{nullptr};
+
+    // ── Telemetry accumulators (ms) ──
+    double native_convert_ms_{0.0};
+    double native_send_frame_ms_{0.0};
+    double native_receive_packet_ms_{0.0};
+    double native_mux_write_ms_{0.0};
+    double native_trailer_ms_{0.0};
 
     /// Drain all pending packets from the encoder after avcodec_send_frame.
     bool drain_packets();

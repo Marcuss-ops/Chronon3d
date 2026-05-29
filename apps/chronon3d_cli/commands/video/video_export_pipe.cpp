@@ -286,15 +286,30 @@ int render_and_encode_ffmpeg_pipe(
     auto image_events = chronon3d::telemetry::collect_image_telemetry();
     auto tile_events = chronon3d::telemetry::collect_tile_telemetry();
 
+    const bool is_native = (opts.encoder_backend == "native");
+
     const double write_blocked_ms = [&]() -> double {
+        if (is_native) return 0.0;
         auto* pipe_enc = dynamic_cast<FfmpegPipeEncoder*>(encoder.get());
         if (pipe_enc) return pipe_enc->total_write_blocked_ms();
         return 0.0;
     }();
+
+    // Native encoder telemetry
+    const double native_convert_ms     = encoder->native_convert_ms();
+    const double native_send_ms       = encoder->native_send_frame_ms();
+    const double native_receive_ms    = encoder->native_receive_packet_ms();
+    const double native_mux_ms        = encoder->native_mux_write_ms();
+    const double native_trailer_ms    = encoder->native_trailer_ms();
+
     const double conv_copy_ms = static_cast<double>(renderer->counters()->frame_conversion_copy_ms.load());
     spdlog::info("[video] Encoder write blocked duration: {:.2f} ms", write_blocked_ms);
     spdlog::info("[video_diag] conversion_and_copy_duration_ms: {} ms", conv_copy_ms);
     spdlog::info("[video] FFmpeg queue wait duration: {:.2f} ms", queue_wait_ms_total);
+    if (is_native) {
+        spdlog::info("[video_native] convert={:.2f}ms  send_frame={:.2f}ms  receive_packet={:.2f}ms  mux_write={:.2f}ms  trailer={:.2f}ms",
+                     native_convert_ms, native_send_ms, native_receive_ms, native_mux_ms, native_trailer_ms);
+    }
 
     if (!encoder->close()) {
         spdlog::error("[video] Encoder failed");
@@ -307,56 +322,71 @@ int render_and_encode_ffmpeg_pipe(
     const double wall_time_ms = std::chrono::duration<double, std::milli>(wall_t1 - wall_t0).count();
 
     // ── Benchmark breakdown calculations ──
-    // chronon_render_only_ms = render loop wall time minus queue backpressure.
-    // conv_copy_ms is measured in the writer thread and overlaps with rendering;
-    // it must NOT be subtracted from render thread time.
     const double chronon_render_only_ms = render_ms - queue_wait_ms_total;
     const double chronon_queue_wait_ms = queue_wait_ms_total;
     const double chronon_conversion_copy_ms = conv_copy_ms;
     const double ffmpeg_encode_total_ms = write_blocked_ms;
-    // ffmpeg_flush_close = time from render_t1 to wall_t1 (includes encoder->close())
     const double ffmpeg_flush_close_ms = std::chrono::duration<double, std::milli>(wall_t1 - render_t1).count();
 
     // Store per-run total counters for benchmark separation
-    // (must be after all variables above are computed)
     if (renderer->counters()) {
-        renderer->counters()->video_pipe_write_ms.store(
-            static_cast<uint64_t>(write_blocked_ms),
-            std::memory_order_relaxed);
-        renderer->counters()->ffmpeg_pipe_write_blocked_ms.store(
-            static_cast<uint64_t>(write_blocked_ms),
-            std::memory_order_relaxed);
-        renderer->counters()->ffmpeg_flush_ms.store(
-            static_cast<uint64_t>(ffmpeg_flush_close_ms),
-            std::memory_order_relaxed);
-        // video_ffmpeg_latency_ms represents the time FFmpeg takes to consume
-        // frames from the pipe (= write_blocked_ms), NOT render-side queue wait.
-        renderer->counters()->video_ffmpeg_latency_ms.store(
-            static_cast<uint64_t>(write_blocked_ms),
-            std::memory_order_relaxed);
+        if (is_native) {
+            renderer->counters()->native_av_convert_ms.store(
+                static_cast<uint64_t>(native_convert_ms), std::memory_order_relaxed);
+            renderer->counters()->native_av_send_frame_ms.store(
+                static_cast<uint64_t>(native_send_ms), std::memory_order_relaxed);
+            renderer->counters()->native_av_receive_packet_ms.store(
+                static_cast<uint64_t>(native_receive_ms), std::memory_order_relaxed);
+            renderer->counters()->native_av_mux_write_ms.store(
+                static_cast<uint64_t>(native_mux_ms), std::memory_order_relaxed);
+            renderer->counters()->native_av_trailer_ms.store(
+                static_cast<uint64_t>(native_trailer_ms), std::memory_order_relaxed);
+        } else {
+            renderer->counters()->video_pipe_write_ms.store(
+                static_cast<uint64_t>(write_blocked_ms), std::memory_order_relaxed);
+            renderer->counters()->ffmpeg_pipe_write_blocked_ms.store(
+                static_cast<uint64_t>(write_blocked_ms), std::memory_order_relaxed);
+            renderer->counters()->ffmpeg_flush_ms.store(
+                static_cast<uint64_t>(ffmpeg_flush_close_ms), std::memory_order_relaxed);
+            renderer->counters()->video_ffmpeg_latency_ms.store(
+                static_cast<uint64_t>(write_blocked_ms), std::memory_order_relaxed);
+        }
     }
 
-    // throughput = render thread wall time (render_only + queue_wait).
-    // conv_copy_ms is overlapping writer-thread work, reported separately.
     spdlog::info("[benchmark_chronon] render_only={:.2f}ms  conv_copy={:.2f}ms  queue_wait={:.2f}ms  throughput={:.2f}ms",
                  chronon_render_only_ms, chronon_conversion_copy_ms, chronon_queue_wait_ms,
                  chronon_render_only_ms + chronon_queue_wait_ms);
-    spdlog::info("[benchmark_e2e] ffmpeg_encode={:.2f}ms  ffmpeg_flush_close={:.2f}ms  wall={:.2f}ms",
-                 ffmpeg_encode_total_ms, ffmpeg_flush_close_ms, wall_time_ms);
+
+    if (is_native) {
+        spdlog::info("[benchmark_e2e] native_convert={:.2f}ms  native_send={:.2f}ms  native_receive={:.2f}ms  native_mux={:.2f}ms  native_trailer={:.2f}ms  wall={:.2f}ms",
+                     native_convert_ms, native_send_ms, native_receive_ms, native_mux_ms, native_trailer_ms, wall_time_ms);
+    } else {
+        spdlog::info("[benchmark_e2e] ffmpeg_encode={:.2f}ms  ffmpeg_flush_close={:.2f}ms  wall={:.2f}ms",
+                     ffmpeg_encode_total_ms, ffmpeg_flush_close_ms, wall_time_ms);
+    }
 
     std::sort(telemetry_frames.begin(), telemetry_frames.end(),
               [](const auto& a, const auto& b) { return a.frame_number < b.frame_number; });
-    const auto phases = std::vector<chronon3d::telemetry::PhaseTelemetryRecord>{
-        {"setup_renderer", std::chrono::duration<double, std::milli>(setup_t1 - setup_t0).count()},
-        {"rendering_loop", std::chrono::duration<double, std::milli>(render_t1 - render_t0).count()},
-        {"encoding", encode_ms},
-        {"chronon_render_only_ms", chronon_render_only_ms},
-        {"chronon_conversion_copy_ms", chronon_conversion_copy_ms},
-        {"chronon_queue_wait_ms", chronon_queue_wait_ms},
-        {"ffmpeg_encode_total_ms", ffmpeg_encode_total_ms},
-        {"ffmpeg_flush_close_ms", ffmpeg_flush_close_ms},
-        {"e2e_wall_ms", wall_time_ms},
-    };
+
+    // Build phase records — include native telemetry when applicable
+    std::vector<chronon3d::telemetry::PhaseTelemetryRecord> phases;
+    phases.push_back({"setup_renderer", std::chrono::duration<double, std::milli>(setup_t1 - setup_t0).count()});
+    phases.push_back({"rendering_loop", std::chrono::duration<double, std::milli>(render_t1 - render_t0).count()});
+    phases.push_back({"encoding", encode_ms});
+    phases.push_back({"chronon_render_only_ms", chronon_render_only_ms});
+    phases.push_back({"chronon_conversion_copy_ms", chronon_conversion_copy_ms});
+    phases.push_back({"chronon_queue_wait_ms", chronon_queue_wait_ms});
+    if (is_native) {
+        phases.push_back({"native_av_convert_ms", native_convert_ms});
+        phases.push_back({"native_av_send_frame_ms", native_send_ms});
+        phases.push_back({"native_av_receive_packet_ms", native_receive_ms});
+        phases.push_back({"native_av_mux_write_ms", native_mux_ms});
+        phases.push_back({"native_av_trailer_ms", native_trailer_ms});
+    } else {
+        phases.push_back({"ffmpeg_encode_total_ms", ffmpeg_encode_total_ms});
+        phases.push_back({"ffmpeg_flush_close_ms", ffmpeg_flush_close_ms});
+    }
+    phases.push_back({"e2e_wall_ms", wall_time_ms});
     auto resolved_counters = telemetry::capture_counters(*renderer->counters());
     resolved_counters.push_back({"ffmpeg_pipe_write_blocked_duration_ms", static_cast<uint64_t>(std::llround(write_blocked_ms))});
     resolved_counters.push_back({"ffmpeg_queue_wait_duration_ms", static_cast<uint64_t>(std::llround(queue_wait_ms_total))});

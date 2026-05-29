@@ -21,6 +21,14 @@ struct IVideoEncoder {
     virtual bool write_frame(const Framebuffer& fb) = 0;
     virtual bool close() = 0;
     [[nodiscard]] virtual uint64_t frames_written() const = 0;
+
+    // ── Native encoder telemetry accessors ──
+    // Return 0.0 for pipe backend (no native encoding phases).
+    [[nodiscard]] virtual double native_convert_ms()     const { return 0.0; }
+    [[nodiscard]] virtual double native_send_frame_ms()  const { return 0.0; }
+    [[nodiscard]] virtual double native_receive_packet_ms() const { return 0.0; }
+    [[nodiscard]] virtual double native_mux_write_ms()   const { return 0.0; }
+    [[nodiscard]] virtual double native_trailer_ms()     const { return 0.0; }
 };
 
 enum class PipePixelFormat {

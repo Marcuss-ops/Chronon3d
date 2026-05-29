@@ -6,6 +6,14 @@
 #include <cstring>
 #include <chrono>
 
+// Convenience: steady clock helpers
+namespace {
+using Clock = std::chrono::steady_clock;
+inline double elapsed_ms(const Clock::time_point& start) {
+    return std::chrono::duration<double, std::milli>(Clock::now() - start).count();
+}
+}
+
 namespace chronon3d::cli {
 
 // ---------------------------------------------------------------------------
@@ -182,16 +190,20 @@ bool NativeAvEncoder::close() {
         return true;
     }
 
+    const auto t_trailer0 = Clock::now();
+
     // 1. Drain encoder: send NULL to flush internal buffers
     avcodec_send_frame(codec_, nullptr);
 
-    // 2. Receive and write remaining packets
+    // 2. Receive and write remaining packets (timing tracked inside drain_packets)
     drain_packets();
 
     // 3. Write trailer (finalizes the MP4 file, writes moov atom, etc.)
     if (fmt_) {
         av_write_trailer(fmt_);
     }
+
+    native_trailer_ms_ += elapsed_ms(t_trailer0);
 
     // 4. Close the IO
     if (fmt_ && !(fmt_->oformat->flags & AVFMT_NOFILE)) {
@@ -230,7 +242,10 @@ bool NativeAvEncoder::drain_packets() {
     }
 
     for (;;) {
+        const auto t_recv0 = Clock::now();
         int ret = avcodec_receive_packet(codec_, packet_);
+        native_receive_packet_ms_ += elapsed_ms(t_recv0);
+
         if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
             // No more packets available right now (or stream fully drained)
             return true;
@@ -244,7 +259,10 @@ bool NativeAvEncoder::drain_packets() {
         av_packet_rescale_ts(packet_, codec_->time_base, stream_->time_base);
         packet_->stream_index = stream_->index;
 
+        const auto t_mux0 = Clock::now();
         ret = av_interleaved_write_frame(fmt_, packet_);
+        native_mux_write_ms_ += elapsed_ms(t_mux0);
+
         av_packet_unref(packet_);
 
         if (ret < 0) {
