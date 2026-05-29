@@ -76,6 +76,7 @@ add_library(chronon3d_content_effects STATIC
     effects/glow_04_ui_card.cpp
     effects/glow_05_pulse_wave.cpp
     effects/glow_06_video_layer.cpp
+    effects/glow_07_premium_suite.cpp
 )
 set_target_properties(chronon3d_content_effects PROPERTIES UNITY_BUILD OFF)
 target_include_directories(chronon3d_content_effects PRIVATE ${CMAKE_SOURCE_DIR})

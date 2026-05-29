@@ -39,6 +39,10 @@ std::optional<raster::BBox> expand_effect_clip(
     return out;
 }
 
+BlendMode glow_blend_mode(const GlowParams& params) {
+    return params.additive ? BlendMode::Add : BlendMode::Screen;
+}
+
 } // namespace
 
 void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
@@ -178,7 +182,7 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
                             if (glow_row[x].a <= 0.0f) continue;
 
                             Color& dst = dst_row[x + x_min];
-                            dst = compositor::blend(dst, glow_row[x], BlendMode::Normal);
+                            dst = compositor::blend(dst, glow_row[x], glow_blend_mode(*p));
                         }
                     }
                 }

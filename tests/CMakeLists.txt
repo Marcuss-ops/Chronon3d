@@ -124,6 +124,7 @@ add_executable(chronon3d_renderer_tests
     scene/shapes/mask_tests.cpp
     specscene/specscene_boundary_tests.cpp
     golden/golden_render_tests.cpp
+    golden/glow_golden_tests.cpp
     golden/suite_chronon3d_tests.cpp
     runtime/test_telemetry.cpp
     runtime/test_telemetry_semantic.cpp
