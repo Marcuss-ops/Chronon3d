@@ -148,16 +148,6 @@ bool FfmpegPipeEncoder::open(const FfmpegPipeOptions& options) {
 
 #ifdef __linux__
     if (pipe_ && options_.pipe_writer == "io_uring") {
-        // io_uring async writes require the fd in non-blocking mode so the
-        // kernel can return EAGAIN instead of parking a worker thread on a
-        // full pipe. The reap path retries EAGAIN completions transparently.
-        const int fd = fileno(pipe_);
-        if (fd >= 0) {
-            int flags = fcntl(fd, F_GETFL, 0);
-            if (flags >= 0) {
-                fcntl(fd, F_SETFL, flags | O_NONBLOCK);
-            }
-        }
         if (init_uring()) {
             use_uring_ = true;
         }
