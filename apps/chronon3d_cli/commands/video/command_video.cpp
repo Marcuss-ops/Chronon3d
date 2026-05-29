@@ -42,6 +42,11 @@ int render_and_encode_ffmpeg(
         return 1;
     }
 
+    if (opts.encoder_backend == "native" && opts.ffmpeg_mode != "pipe") {
+        spdlog::error("[video] --encoder-backend native requires --ffmpeg-mode pipe");
+        return 1;
+    }
+
     if (opts.ffmpeg_mode == "pipe") {
         return render_and_encode_ffmpeg_pipe(registry, comp, composition_id, settings, start, end, opts);
     } else {
@@ -127,6 +132,7 @@ int command_video(const CompositionRegistry& registry, const VideoArgs& args) {
     opts.pipe_pixfmt = args.pipe_pixfmt;
     opts.color_output = args.color_output;
     opts.pipe_writer = args.pipe_writer;
+    opts.encoder_backend = args.encoder_backend;
 #ifdef __linux__
     if (opts.pipe_writer == "io_uring") {
         spdlog::warn("[video] io_uring pipe writer is experimental — output may be corrupted on some kernels; use --pipe-writer classic for stable exports");

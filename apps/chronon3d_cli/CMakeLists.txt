@@ -15,6 +15,8 @@ add_executable(chronon3d_cli
     utils/video/ffmpeg_pipe_encoder_uring.cpp
     utils/video/ffmpeg_pipe_command.cpp
     utils/video/ffmpeg_pipe_yuv.cpp
+    utils/video/native_av_encoder.cpp
+    utils/video/native_av_encoder_write.cpp
     utils/job/render_job.cpp
     utils/job/render_job_write_frame.cpp
     utils/job/render_job_execute.cpp
@@ -57,6 +59,7 @@ target_link_libraries(chronon3d_cli
         spdlog::spdlog_header_only
         fmt::fmt
         benchmark::benchmark
+        -lavcodec -lavformat -lavutil -lswscale
 )
 
 target_include_directories(chronon3d_cli PRIVATE ${CMAKE_SOURCE_DIR})

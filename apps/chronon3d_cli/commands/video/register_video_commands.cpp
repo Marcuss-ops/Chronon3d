@@ -53,6 +53,9 @@ void register_video_commands(CLI::App& app, CliContext& ctx) {
         ->default_val("classic")
         ->check(CLI::IsMember({"classic", "io_uring"}));
 #endif
+    cmd->add_option("--encoder-backend", args.encoder_backend, "Encoder backend: pipe (external ffmpeg), native (in-process libavcodec)")
+        ->default_val("pipe")
+        ->check(CLI::IsMember({"pipe", "native"}));
     cmd->add_flag("--warmup,--warmup-renderer", args.pipeline.warmup_renderer,
                   "Preallocate framebuffers and prime caches before rendering");
     cmd->add_option("--warmup-framebuffers", args.pipeline.warmup_framebuffers,

@@ -6,8 +6,22 @@
 #include <chronon3d/video/converted_frame_cache.hpp>
 #include <string>
 #include <vector>
+#include <memory>
 
 namespace chronon3d::cli {
+
+struct FfmpegPipeOptions;
+
+// ── Abstract video encoder interface ────────────────────────────────────────
+// Implemented by both FfmpegPipeEncoder (external ffmpeg subprocess via pipe)
+// and NativeAvEncoder (in-process libavcodec/libavformat).
+struct IVideoEncoder {
+    virtual ~IVideoEncoder() = default;
+    virtual bool open(const FfmpegPipeOptions& options) = 0;
+    virtual bool write_frame(const Framebuffer& fb) = 0;
+    virtual bool close() = 0;
+    [[nodiscard]] virtual uint64_t frames_written() const = 0;
+};
 
 enum class PipePixelFormat {
     RGBA,
@@ -33,19 +47,19 @@ struct FfmpegPipeOptions {
 std::string build_ffmpeg_raw_pipe_command(const FfmpegPipeOptions& options);
 [[nodiscard]] int encode_color_matrix_id(const FfmpegPipeOptions& options);
 
-class FfmpegPipeEncoder {
+class FfmpegPipeEncoder : public IVideoEncoder {
 public:
     FfmpegPipeEncoder() = default;
-    ~FfmpegPipeEncoder();
+    ~FfmpegPipeEncoder() override;
 
     FfmpegPipeEncoder(const FfmpegPipeEncoder&) = delete;
     FfmpegPipeEncoder& operator=(const FfmpegPipeEncoder&) = delete;
 
-    bool open(const FfmpegPipeOptions& options);
-    bool write_frame(const Framebuffer& fb);
-    bool close();
+    bool open(const FfmpegPipeOptions& options) override;
+    bool write_frame(const Framebuffer& fb) override;
+    bool close() override;
 
-    [[nodiscard]] uint64_t frames_written() const { return frames_written_; }
+    [[nodiscard]] uint64_t frames_written() const override { return frames_written_; }
     [[nodiscard]] uint64_t bytes_written() const { return bytes_written_; }
     [[nodiscard]] bool is_open() const { return pipe_ != nullptr; }
     [[nodiscard]] double total_write_blocked_ms() const { return total_write_blocked_ms_; }
