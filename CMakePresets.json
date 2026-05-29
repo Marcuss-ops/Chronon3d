@@ -99,9 +99,71 @@
         "CHRONON3D_BUILD_TESTS": "OFF",
         "CHRONON3D_BUILD_TOOLS": "OFF",
         "CHRONON3D_BUILD_BENCHMARKS": "OFF",
+        "CHRONON3D_BUILD_CONTENT": "OFF",
         "CHRONON3D_ENABLE_NATIVE_FFMPEG": "OFF",
         "CHRONON3D_ENABLE_SQLITE_TELEMETRY": "OFF",
-        "CHRONON3D_ENABLE_PROFILING": "OFF"
+        "CHRONON3D_ENABLE_PROFILING": "OFF",
+        "CHRONON3D_UNITY_BUILD": "OFF"
+      }
+    },
+    {
+      "name": "linux-dev",
+      "inherits": "base-linux",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CHRONON3D_BUILD_TESTS": "ON",
+        "CHRONON3D_BUILD_TOOLS": "OFF",
+        "CHRONON3D_BUILD_BENCHMARKS": "OFF",
+        "CHRONON3D_BUILD_CONTENT": "ON",
+        "CHRONON3D_ENABLE_NATIVE_FFMPEG": "OFF",
+        "CHRONON3D_ENABLE_SQLITE_TELEMETRY": "ON",
+        "CHRONON3D_ENABLE_PROFILING": "OFF",
+        "CHRONON3D_UNITY_BUILD": "ON"
+      }
+    },
+    {
+      "name": "linux-dev-video",
+      "inherits": "base-linux",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CHRONON3D_BUILD_TESTS": "ON",
+        "CHRONON3D_BUILD_TOOLS": "OFF",
+        "CHRONON3D_BUILD_BENCHMARKS": "OFF",
+        "CHRONON3D_BUILD_CONTENT": "ON",
+        "CHRONON3D_ENABLE_NATIVE_FFMPEG": "ON",
+        "CHRONON3D_ENABLE_SQLITE_TELEMETRY": "ON",
+        "CHRONON3D_ENABLE_PROFILING": "OFF",
+        "CHRONON3D_UNITY_BUILD": "ON"
+      }
+    },
+    {
+      "name": "linux-release-full",
+      "inherits": "base-linux",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CHRONON3D_BUILD_TESTS": "ON",
+        "CHRONON3D_BUILD_TOOLS": "OFF",
+        "CHRONON3D_BUILD_BENCHMARKS": "ON",
+        "CHRONON3D_BUILD_CONTENT": "ON",
+        "CHRONON3D_ENABLE_NATIVE_FFMPEG": "ON",
+        "CHRONON3D_ENABLE_SQLITE_TELEMETRY": "ON",
+        "CHRONON3D_ENABLE_PROFILING": "OFF",
+        "CHRONON3D_UNITY_BUILD": "ON"
       }
     },
     {
@@ -190,6 +252,35 @@
       "jobs": 16
     },
     {
+      "name": "linux-dev",
+      "configurePreset": "linux-dev",
+      "targets": [
+        "chronon3d_cli",
+        "chronon3d_tests_fast",
+        "chronon3d_tests_video"
+      ],
+      "jobs": 16
+    },
+    {
+      "name": "linux-dev-video",
+      "configurePreset": "linux-dev-video",
+      "targets": [
+        "chronon3d_cli",
+        "chronon3d_tests_fast",
+        "chronon3d_tests_video"
+      ],
+      "jobs": 16
+    },
+    {
+      "name": "linux-release-full",
+      "configurePreset": "linux-release-full",
+      "targets": [
+        "chronon3d_cli",
+        "chronon3d_tests"
+      ],
+      "jobs": 16
+    },
+    {
       "name": "win",
       "configurePreset": "win-release",
       "targets": [
@@ -219,6 +310,27 @@
     {
       "name": "linux-ci-test",
       "configurePreset": "linux-ci",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "linux-dev-test",
+      "configurePreset": "linux-dev",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "linux-dev-video-test",
+      "configurePreset": "linux-dev-video",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "linux-release-full-test",
+      "configurePreset": "linux-release-full",
       "output": {
         "outputOnFailure": true
       }
