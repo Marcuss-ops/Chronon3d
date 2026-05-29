@@ -49,6 +49,7 @@ struct FfmpegPipeOptions {
     std::string output_pix_fmt{"yuv420p"};
     bool verbose{false};
     color::OutputTransformOptions color_transform{};
+    std::string tune;                          // x264 tune (empty = default "zerolatency")
     std::string pipe_writer{"classic"};
 };
 
