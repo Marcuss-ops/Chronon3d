@@ -282,6 +282,10 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
             spdlog::info("Renderer warmup: {} framebuffers, {} bytes, {:.2f} ms",
                          warmup.framebuffers_created, warmup.pool_bytes_after, warmup.elapsed_ms);
         }
+        if (renderer->counters()) {
+            renderer->counters()->setup_pool_preallocation_ms.fetch_add(
+                static_cast<uint64_t>(std::llround(warmup.elapsed_ms)), std::memory_order_relaxed);
+        }
     }
 
     for (int i = 0; i < args.warmup; ++i) {
@@ -290,7 +294,23 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
         renderer->render_scene(scene, composition.camera, composition.width(), composition.height());
     }
 
+    uint64_t saved_fb_alloc = 0;
+    uint64_t saved_fb_reuses = 0;
+    uint64_t saved_fb_bytes = 0;
+    uint64_t saved_fb_peak = 0;
+    if (renderer->counters()) {
+        saved_fb_alloc = renderer->counters()->framebuffer_allocations.load(std::memory_order_relaxed);
+        saved_fb_reuses = renderer->counters()->framebuffer_reuses.load(std::memory_order_relaxed);
+        saved_fb_bytes = renderer->counters()->framebuffer_bytes_allocated.load(std::memory_order_relaxed);
+        saved_fb_peak = renderer->counters()->framebuffer_bytes_peak.load(std::memory_order_relaxed);
+    }
     renderer->counters()->reset();
+    if (renderer->counters()) {
+        renderer->counters()->framebuffer_allocations.store(saved_fb_alloc, std::memory_order_relaxed);
+        renderer->counters()->framebuffer_reuses.store(saved_fb_reuses, std::memory_order_relaxed);
+        renderer->counters()->framebuffer_bytes_allocated.store(saved_fb_bytes, std::memory_order_relaxed);
+        renderer->counters()->framebuffer_bytes_peak.store(saved_fb_peak, std::memory_order_relaxed);
+    }
 
     BenchRuntimeContext context;
     context.composition = std::move(composition);

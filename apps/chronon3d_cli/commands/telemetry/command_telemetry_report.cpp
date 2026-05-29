@@ -42,9 +42,9 @@ void generate_telemetry_report(std::stringstream& out, sqlite3* db, const std::s
     out << "| Effective FPS | " << fmt::format("{:.2f} fps", run.effective_fps) << " |\n";
     out << "| Wall Duration | " << fmt::format("{:.2f} s", run.wall_time_ms / 1000.0) << " |\n";
     out << "| Render Duration | " << fmt::format("{:.2f} s", run.render_ms / 1000.0) << " |\n";
-    out << "| Encode Duration | " << fmt::format("{:.2f} s", run.encode_ms / 1000.0) << " |\n";
+    out << "| Encode + Flush Duration | " << fmt::format("{:.2f} s", run.encode_ms / 1000.0) << " |\n";
     out << "| Peak Memory | " << format_bytes(run.bytes_allocated_peak) << " |\n";
-    out << "| Cache Hit Rate | " << format_pct(cache_hit_rate) << " |\n";
+    out << "| Node Cache Hit Rate | " << format_pct(cache_hit_rate) << " |\n";
     out << "| Frames Total | " << run.frames_total << " |\n";
     out << "| Frames Written | " << run.frames_written << " |\n\n";
 
@@ -63,7 +63,7 @@ void generate_telemetry_report(std::stringstream& out, sqlite3* db, const std::s
             out << "| Average Frame | " << format_ms(sql_double(stmt, 1)) << " |\n";
             out << "| Min Frame | " << format_ms(sql_double(stmt, 2)) << " |\n";
             out << "| Max Frame | " << format_ms(sql_double(stmt, 3)) << " |\n";
-            out << "| Frame Cache Hit Rate | " << format_pct(sql_double(stmt, 4)) << " |\n";
+            out << "| Output Frame Cache Hit Rate | " << format_pct(sql_double(stmt, 4)) << " |\n";
             average_dirty_area_ratio = sql_double(stmt, 5);
             out << "| Average Dirty Area Ratio | " << format_pct(average_dirty_area_ratio) << " |\n";
         }
@@ -95,8 +95,8 @@ void generate_telemetry_report(std::stringstream& out, sqlite3* db, const std::s
     out << "| Counter | Value |\n";
     out << "| --- | --- |\n";
     out << "| pixels touched | " << run.pixels_touched << " |\n";
-    out << "| cache hits | " << run.cache_hits << " |\n";
-    out << "| cache misses | " << run.cache_misses << " |\n";
+    out << "| node cache hits | " << run.cache_hits << " |\n";
+    out << "| node cache misses | " << run.cache_misses << " |\n";
     out << "| nodes executed | " << run.nodes_executed << " |\n";
     out << "| layers rendered | " << run.layers_rendered << " |\n";
     out << "| text glyphs rasterized | " << run.text_glyphs_rasterized << " |\n";
@@ -151,6 +151,42 @@ void generate_telemetry_report(std::stringstream& out, sqlite3* db, const std::s
     out << "| framebuffer pool miss (best-fit) | " << run.framebuffer_pool_miss_count_best_fit << " |\n";
     out << "| framebuffer returned to pool | " << run.framebuffer_buffer_returned_to_pool_count << " |\n\n";
 
+    // ── Framebuffer Pool (runtime snapshot) ────────────────────────────────────
+    out << "## Framebuffer Pool (runtime snapshot)\n";
+    out << "| Metric | Value |\n";
+    out << "| --- | --- |\n";
+    {
+        const char* pool_sql =
+            "SELECT counter_name, counter_value FROM telemetry_counters WHERE run_id = ? "
+            "AND counter_name IN ("
+            "'framebuffer_pool_capacity', 'framebuffer_pool_available_count', "
+            "'framebuffer_pool_current_bytes', 'framebuffer_pool_total_allocations', "
+            "'framebuffer_pool_total_reuses', 'pool_current_bytes', 'pool_available_count') "
+            "ORDER BY CASE counter_name "
+            "WHEN 'framebuffer_pool_capacity' THEN 1 "
+            "WHEN 'framebuffer_pool_available_count' THEN 2 "
+            "WHEN 'framebuffer_pool_current_bytes' THEN 3 "
+            "WHEN 'framebuffer_pool_total_allocations' THEN 4 "
+            "WHEN 'framebuffer_pool_total_reuses' THEN 5 "
+            "WHEN 'pool_current_bytes' THEN 6 "
+            "WHEN 'pool_available_count' THEN 7 "
+            "ELSE 8 END;";
+        sqlite3_stmt* stmt = nullptr;
+        if (prepare_with_run_id(db, &stmt, pool_sql, run_id)) {
+            while (sqlite3_step(stmt) == SQLITE_ROW) {
+                const std::string name = sql_text(stmt, 0);
+                const uint64_t value = static_cast<uint64_t>(sql_i64(stmt, 1));
+                if (name.find("_bytes") != std::string::npos) {
+                    out << "| " << name << " | " << format_bytes(value) << " |\n";
+                } else {
+                    out << "| " << name << " | " << value << " |\n";
+                }
+            }
+        }
+        sqlite3_finalize(stmt);
+    }
+    out << "\n";
+
     // ── Clear ─────────────────────────────────────────────────────────────────
     out << "## Clear\n";
     out << "| Metric | Value |\n";
@@ -184,7 +220,7 @@ void generate_telemetry_report(std::stringstream& out, sqlite3* db, const std::s
     out << "| Metric | Value |\n";
     out << "| --- | --- |\n";
     out << "| ffmpeg pipe write blocked | " << format_ms(run.ffmpeg_pipe_write_blocked_ms) << " |\n";
-    out << "| converted frame cache hits | " << run.converted_frame_cache_hits << " |\n";
+    out << "| Converted Frame Cache Hits | " << run.converted_frame_cache_hits << " |\n";
     out << "| ffmpeg flush | " << format_ms(run.ffmpeg_flush_ms) << " |\n";
     out << "| video ffmpeg latency | " << format_ms(run.video_ffmpeg_latency_ms) << " |\n";
     out << "| FFmpeg CPU user | " << run.ffmpeg_cpu_user_pct << "% |\n";
@@ -287,6 +323,7 @@ void generate_telemetry_report(std::stringstream& out, sqlite3* db, const std::s
 
     // ── Setup Deep Dive ───────────────────────────────────────────────────────
     out << "## Setup Deep Dive\n";
+    out << "*Note: in chunked export mode, per-worker setup costs are summed in the aggregate.*\n\n";
     out << "| Sub-Phase | Duration |\n";
     out << "| --- | --- |\n";
     out << "| Graph parsing | " << format_ms(run.setup_graph_parsing_ms) << " |\n";
@@ -310,13 +347,42 @@ void generate_telemetry_report(std::stringstream& out, sqlite3* db, const std::s
     }
     out << "\n";
 
+    // ── Cache Architecture ────────────────────────────────────────────────────
+    out << "## Cache Architecture\n";
+    out << "Chronon uses three separate caching layers with distinct roles:\n\n";
+    out << "| Cache Layer | Measures | Reported As |\n";
+    out << "| --- | --- | --- |\n";
+    out << "| **Node Cache** | Per-render-node hit rate. Each render node (Clear, Composite, grid_bg, etc.) is checked against a content-addressable cache before execution. | `Node Cache Hit Rate`, `node cache hits/misses` |\n";
+    out << "| **Output Frame Cache** | Whether the entire rendered output frame was reused from a previous frame. High on static scenes, drops when content changes. | `Output Frame Cache Hit Rate`, Frame Samples `hit/miss` |\n";
+    out << "| **Converted Frame Cache** | YUV conversion cache for the video encoder. Avoids re-converting RGBA→YUV when the same frame is sent multiple times. | `converted frame cache hits` (FFmpeg Pipe section) |\n";
+    out << "\n";
+    out << "**Important:** A \"Node Cache Hit Rate\" of 0% with \"Output Frame Cache Hit Rate\" of 100% is **not a contradiction**.\n";
+    out << "The output frame cache operates at a higher level: if the entire scene is unchanged between frames, the output is reused\n";
+    out << "without executing individual render nodes at all. Conversely, per-node counters (composite_calls, nodes_executed, etc.)\n";
+    out << "may show 0 because the node telemetry count via `RenderCounters` atomics operates independently from per-node event logging.\n";
+    out << "The Hot Nodes and Layer Cost Breakdown sections below draw from per-event logs and give a more precise picture.\n\n";
+
     // ── Things to Know ────────────────────────────────────────────────────────
     out << "## Things to Know\n";
-    out << "- Cache hit rate: " << format_pct(cache_hit_rate) << ".\n";
+    out << "- Node Cache hit rate: " << format_pct(cache_hit_rate) << ". ";
+    if (cache_hit_rate == 0.0 && run.cache_hits == 0 && run.cache_misses == 0) {
+        out << "(No node cache operations recorded — nodes may have been served by the output frame cache or executed without cache tracking.)\n";
+    } else {
+        out << "\n";
+    }
     out << "- Average dirty area ratio: " << format_pct(average_dirty_area_ratio) << " of the frame.\n";
     out << "- Dirty pixels as share of touched pixels: " << format_pct(dirty_pixels_share) << ".\n";
     out << "- Dirty full fallbacks: " << run.dirty_full_fallbacks << ".\n";
-    out << "- Framebuffer reuse rate: " << format_pct(framebuffer_reuse_rate) << ".\n";
+    out << "- Framebuffer reuse rate: " << format_pct(framebuffer_reuse_rate) << ". ";
+    if (framebuffer_reuse_rate == 0.0 && run.framebuffer_bytes_peak > 0 && run.framebuffer_allocations == 0) {
+        out << "(Framebuffers were likely pre-allocated during warmup; the allocation counters are reset after warmup.)\n";
+    } else {
+        out << "\n";
+    }
+    if (run.nodes_executed == 0) {
+        out << "- **Note:** `nodes_executed` reads 0 but Hot Nodes may still show calls > 0. ";
+        out << "The per-node event log (Hot Nodes below) records execution independently from the `RenderCounters` atomic counter.\n";
+    }
     if (run.os_page_faults_major > 0) {
         out << "- **Warning:** Major page faults detected (" << run.os_page_faults_major << "). Setup is hitting disk I/O.\n";
     }
