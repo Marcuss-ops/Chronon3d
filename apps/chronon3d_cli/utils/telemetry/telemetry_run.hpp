@@ -78,6 +78,7 @@ inline std::vector<chronon3d::telemetry::CounterTelemetryRecord> capture_counter
         {"io_queue_peak_depth", counters.io_queue_peak_depth.load(std::memory_order_relaxed)},
         {"ffmpeg_pipe_write_blocked_ms", counters.ffmpeg_pipe_write_blocked_ms.load(std::memory_order_relaxed)},
         {"converted_frame_cache_hits",  counters.converted_frame_cache_hits.load(std::memory_order_relaxed)},
+        {"converted_frame_cache_misses", counters.converted_frame_cache_misses.load(std::memory_order_relaxed)},
         {"ffmpeg_flush_ms", counters.ffmpeg_flush_ms.load(std::memory_order_relaxed)},
         {"process_context_switches_voluntary", counters.process_context_switches_voluntary.load(std::memory_order_relaxed)},
         {"process_context_switches_involuntary", counters.process_context_switches_involuntary.load(std::memory_order_relaxed)},
@@ -141,6 +142,7 @@ inline void add_counters(chronon3d::RenderCounters& dst, const chronon3d::Render
     dst.io_queue_peak_depth.fetch_add(src.io_queue_peak_depth.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.ffmpeg_pipe_write_blocked_ms.fetch_add(src.ffmpeg_pipe_write_blocked_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.converted_frame_cache_hits.fetch_add(src.converted_frame_cache_hits.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.converted_frame_cache_misses.fetch_add(src.converted_frame_cache_misses.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.ffmpeg_flush_ms.fetch_add(src.ffmpeg_flush_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.framebuffer_bytes_allocated.fetch_add(src.framebuffer_bytes_allocated.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.framebuffer_bytes_peak.fetch_add(src.framebuffer_bytes_peak.load(std::memory_order_relaxed), std::memory_order_relaxed);
