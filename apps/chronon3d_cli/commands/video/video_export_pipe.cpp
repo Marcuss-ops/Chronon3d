@@ -112,7 +112,14 @@ int render_and_encode_ffmpeg_pipe(
         }
     }
 
+    const auto renderer_t0 = std::chrono::steady_clock::now();
     auto renderer = create_renderer(registry, settings);
+    const auto renderer_t1 = std::chrono::steady_clock::now();
+    if (renderer->counters()) {
+        const auto setup_ms = static_cast<uint64_t>(
+            std::chrono::duration<double, std::milli>(renderer_t1 - renderer_t0).count());
+        renderer->counters()->setup_graph_parsing_ms.fetch_add(setup_ms, std::memory_order_relaxed);
+    }
     SoftwareRenderer* sw_renderer = dynamic_cast<SoftwareRenderer*>(renderer.get());
     
     cache::NodeCache node_cache;
@@ -188,7 +195,12 @@ int render_and_encode_ffmpeg_pipe(
     render_opts.use_modular_graph = true;
 
     // Warmup
+    uint64_t saved_fb_alloc = 0;
+    uint64_t saved_fb_reuses = 0;
+    uint64_t saved_fb_bytes = 0;
+    uint64_t saved_fb_peak = 0;
     if (opts.warmup_renderer) {
+        const auto warmup_t0 = std::chrono::steady_clock::now();
         runtime::warmup_renderer(*renderer, comp, runtime::RendererWarmupOptions{
             .width = comp.width(),
             .height = comp.height(),
@@ -199,7 +211,30 @@ int render_and_encode_ffmpeg_pipe(
             .dummy_frame = 0,
             .quiet = false
         });
+        const auto warmup_t1 = std::chrono::steady_clock::now();
+
+        if (renderer->counters()) {
+            // Record warmup duration as pool preallocation setup cost
+            const auto warmup_ms = static_cast<uint64_t>(
+                std::chrono::duration<double, std::milli>(warmup_t1 - warmup_t0).count());
+            renderer->counters()->setup_pool_preallocation_ms.fetch_add(warmup_ms, std::memory_order_relaxed);
+
+            // Save framebuffer counters before reset so pre-allocated buffers are still counted
+            saved_fb_alloc = renderer->counters()->framebuffer_allocations.load(std::memory_order_relaxed);
+            saved_fb_reuses = renderer->counters()->framebuffer_reuses.load(std::memory_order_relaxed);
+            saved_fb_bytes = renderer->counters()->framebuffer_bytes_allocated.load(std::memory_order_relaxed);
+            saved_fb_peak = renderer->counters()->framebuffer_bytes_peak.load(std::memory_order_relaxed);
+        }
+
         renderer->counters()->reset();
+
+        // Restore framebuffer counters after reset
+        if (renderer->counters()) {
+            renderer->counters()->framebuffer_allocations.store(saved_fb_alloc, std::memory_order_relaxed);
+            renderer->counters()->framebuffer_reuses.store(saved_fb_reuses, std::memory_order_relaxed);
+            renderer->counters()->framebuffer_bytes_allocated.store(saved_fb_bytes, std::memory_order_relaxed);
+            renderer->counters()->framebuffer_bytes_peak.store(saved_fb_peak, std::memory_order_relaxed);
+        }
     }
 
     const auto render_t0 = std::chrono::steady_clock::now();
@@ -410,6 +445,16 @@ int render_and_encode_ffmpeg_pipe(
     auto resolved_counters = telemetry::capture_counters(*renderer->counters());
     resolved_counters.push_back({"ffmpeg_pipe_write_blocked_duration_ms", static_cast<uint64_t>(std::llround(write_blocked_ms))});
     resolved_counters.push_back({"ffmpeg_queue_wait_duration_ms", static_cast<uint64_t>(std::llround(queue_wait_ms_total))});
+
+    // Framebuffer pool stats (captured after warmup, before render loop consumed buffers)
+    if (sw_renderer && sw_renderer->framebuffer_pool()) {
+        auto pool_stats = sw_renderer->framebuffer_pool()->stats();
+        resolved_counters.push_back({"framebuffer_pool_capacity", pool_stats.max_bytes});
+        resolved_counters.push_back({"framebuffer_pool_available_count", pool_stats.available_count});
+        resolved_counters.push_back({"framebuffer_pool_current_bytes", pool_stats.current_bytes});
+        resolved_counters.push_back({"framebuffer_pool_total_allocations", pool_stats.total_allocations});
+        resolved_counters.push_back({"framebuffer_pool_total_reuses", pool_stats.total_reuses});
+    }
 
     // Collect system metrics (FFmpeg CPU%, page faults, context switches, LLC counters)
     // and store them into the renderer's counters for telemetry.
