@@ -149,6 +149,7 @@ public:
     bool m_prev_camera_valid{false};
     uint64_t m_prev_scene_fingerprint{0};
     uint64_t m_prev_static_scene_fingerprint{0};
+    uint64_t m_prev_active_at_fingerprint{0}; // tracks which layers are active at each frame
     graph::SceneHasher m_scene_hasher;
 
     [[nodiscard]] int last_layer_count() const { return m_last_layer_count; }

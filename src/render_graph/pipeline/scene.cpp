@@ -127,34 +127,44 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     // and camera are unchanged since the previous frame.
     bool scene_structure_unchanged = false;
     bool static_cam_changed = true;
+    bool scene_is_static = false;
+    uint64_t current_active_at_fp = 0;
     if (sw_renderer && sw_renderer->m_prev_static_scene_fingerprint != 0) {
         const uint64_t static_fp = sw_renderer->m_scene_hasher.compute_static_fingerprint(scene);
         scene_structure_unchanged = (static_fp == sw_renderer->m_prev_static_scene_fingerprint);
         const Camera2_5D& cam = ctx.camera_2_5d;
         static_cam_changed = detail::camera_changed(
             cam, &sw_renderer->m_prev_camera, sw_renderer->m_prev_camera_valid);
+        scene_is_static = sw_renderer->m_scene_hasher.is_static_scene(scene);
+        current_active_at_fp = sw_renderer->m_scene_hasher.compute_active_at_fingerprint(scene, frame);
     }
 
     // ── Static scene fast-path (no dirty rects required) ──────────────
     // When the scene is unchanged and the camera is the same, skip graph
     // building + execution entirely — return the previous framebuffer.
-    // This uses a frame-independent fingerprint so static compositions
-    // (e.g. ImgGridTest, DarkGridBackground) bypass the 300ms overhead
-    // even when dirty-rect tracking is disabled.
     //
-    // Note: checks m_prev_frame == frame (same frame number) rather than
-    // m_prev_frame == frame - 1 (consecutive frames).  This is because the
-    // static fingerprint is frame-independent and can't detect frame-
-    // dependent behavior like transition progress.  By requiring the same
-    // frame number, we safely handle both the benchmark (always frame=0)
-    // and production (frame 0,1,2... where the dirty-rect fast-path covers
-    // consecutive-frame reuse).
+    // For truly static scenes (no AnimatedTransform, no Video layers, no
+    // transitions, no time-dependent expressions), we also allow consecutive
+    // frame reuse (m_prev_frame == frame - 1).  This enables the fast-path
+    // to work in real video exports (frames 0,1,2,3...) not just benchmarks
+    // where frame is always 0.  For frame-dependent scenes (transitions,
+    // animations), we require exact frame match for safety.
+    //
+    // CRITICAL: The active_at_fingerprint check is required because
+    // compute_static_fingerprint() hashes ALL layers regardless of active_at(frame).
+    // Scenes where layers activate/deactivate across frames (e.g. DarkGridBackground
+    // with duration=1) would otherwise incorrectly match — returning stale output.
+    const bool frame_reuse = (sw_renderer->m_prev_frame == frame) ||
+        (scene_is_static && sw_renderer->m_prev_frame == frame - 1);
+    const bool active_at_unchanged = (current_active_at_fp != 0) &&
+        (current_active_at_fp == sw_renderer->m_prev_active_at_fingerprint);
+
     if (sw_renderer &&
         sw_renderer->m_prev_framebuffer &&
         sw_renderer->m_prev_framebuffer->width() == width &&
         sw_renderer->m_prev_framebuffer->height() == height &&
-        sw_renderer->m_prev_frame == frame &&
-        scene_structure_unchanged && !static_cam_changed)
+        frame_reuse &&
+        scene_structure_unchanged && !static_cam_changed && active_at_unchanged)
     {
         CHRONON_ZONE_C("static_scene_fast_check", trace_category::kFrame);
         sw_renderer->m_last_dirty_area_ratio = 0.0;
@@ -485,6 +495,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         sw_renderer->m_prev_frame = frame;
         sw_renderer->m_prev_scene_fingerprint = ensure_scene_fingerprint();
         sw_renderer->m_prev_static_scene_fingerprint = sw_renderer->m_scene_hasher.compute_static_fingerprint(scene);
+        sw_renderer->m_prev_active_at_fingerprint = sw_renderer->m_scene_hasher.compute_active_at_fingerprint(scene, frame);
         sw_renderer->m_prev_camera = resolved.camera.camera;
         sw_renderer->m_prev_camera_valid = resolved.camera.camera.enabled;
     }

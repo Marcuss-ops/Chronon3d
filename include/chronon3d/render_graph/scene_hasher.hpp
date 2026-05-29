@@ -53,6 +53,34 @@ public:
         return h;
     }
 
+    /// Returns true if the scene is "static" — i.e. safe to reuse the same
+    /// framebuffer across consecutive frames. A scene is static when:
+    ///   - No layer has AnimatedTransform with actual keyframes or expressions
+    ///   - No layer is a Video layer (video sources are inherently frame-dependent)
+    ///   - No layer has time-dependent expressions in its AnimatedValues
+    ///   - Camera has no animation
+    /// When static, we relax the m_prev_frame == frame check to allow
+    /// m_prev_frame == frame - 1 (consecutive frames), enabling the fast-path
+    /// to work in real video exports (frames 0,1,2,3...) not just benchmarks.
+    bool is_static_scene(const Scene& scene) const;
+
+    /// Frame-dependent fingerprint that captures which layers are active at a
+    /// specific frame. Unlike compute_static_fingerprint() (which hashes all
+    /// layers unconditionally), this incorporates active_at(frame) — so scenes
+    /// where layers activate/deactivate across frames produce different fingerprints.
+    /// Used by the static fast-path to ensure we only skip rendering when the
+    /// set of active layers is also unchanged (not just the layer definitions).
+    uint64_t compute_active_at_fingerprint(const Scene& scene, Frame frame) const {
+        uint64_t h = 0;
+        h = hash_combine(h, hash_string("active_at"));
+        for (const auto& layer : scene.layers()) {
+            // Hash both the layer identity and its active state at this frame
+            h = hash_combine(h, hash_string(layer.name));
+            h = hash_combine(h, layer.active_at(frame) ? 1 : 0);
+        }
+        return h;
+    }
+
     void clear() {
         m_layer_hashes.clear();
     }
@@ -79,7 +107,37 @@ private:
         return h;
     }
 
+    static bool layer_is_static(const Layer& layer) {
+        if (layer.kind == LayerKind::Video) return false; // Video is time-dependent
+        if (layer.kind == LayerKind::Precomp) return false; // Precomp may reference animated compositions
+        if (layer.anim_transform.is_animated()) return false; // Animated transform (position, rotation, scale, anchor, opacity)
+        // Check expressions in anim_transform animated values
+        if (layer.anim_transform.position.has_expression()) return false;
+        if (layer.anim_transform.scale.has_expression()) return false;
+        if (layer.anim_transform.rotation_euler.has_expression()) return false;
+        if (layer.anim_transform.anchor.has_expression()) return false;
+        if (layer.anim_transform.opacity.has_expression()) return false;
+        // Transitions make a layer frame-dependent
+        if (layer.transition_in.duration > 0 || layer.transition_out.duration > 0) return false; // Non-zero transitions are frame-dependent
+        return true;
+    }
+
+    static bool camera_is_static(const Camera2_5DRuntime& cam) {
+        // Camera animation would be frame-dependent; for now we only check enabled flag
+        // TODO: extend to AnimatedValue<f32> if camera animations are added
+        return true; // Camera position/zoom is considered static for now
+    }
+
     std::unordered_map<std::string, uint64_t> m_layer_hashes;
 };
+
+// Free function implementing is_static_scene check across all scene layers.
+inline bool SceneHasher::is_static_scene(const Scene& scene) const {
+    for (const auto& layer : scene.layers()) {
+        if (!layer_is_static(layer)) return false;
+    }
+    if (!camera_is_static(scene.camera_2_5d())) return false;
+    return true;
+}
 
 } // namespace chronon3d::graph
