@@ -235,38 +235,40 @@ static ConvertFrameResult convert_rgba_to_rgb24(const ConvertFrameRequest& req) 
 ConvertFrameResult convert_frame(const ConvertFrameRequest& req) {
     // ── Fast path: direct float framebuffer → YUV/NV12 ───────────────────
     // Bypasses the RGBA8 staging + sws_scale pipeline entirely.
-    // Currently scalar; Highway SIMD acceleration can be added later.
-    // TODO(HWY): re-enable once the U/V matrix bug is fixed — HWY path produces
-    // U=112/V=112 for white pixels instead of the correct BT.709 values (128/138).
-    // if (req.format == EncoderPixelFormat::YUV420P ||
-    //     req.format == EncoderPixelFormat::NV12) {
-    //     DirectYuvRequest dreq{
-    //         .src            = req.src,
-    //         .dst_y          = req.dst_y,
-    //         .dst_u          = req.dst_u,
-    //         .dst_v          = req.dst_v,
-    //         .dst_uv         = req.dst_uv,
-    //         .dst_stride_y   = req.dst_stride_y,
-    //         .dst_stride_u   = req.dst_stride_u,
-    //         .dst_stride_v   = req.dst_stride_v,
-    //         .dst_stride_uv  = req.dst_stride_uv,
-    //         .width          = req.width,
-    //         .height         = req.height,
-    //         .format         = req.format,
-    //         .apply_gamma    = req.apply_gamma,
-    //         .color_matrix   = req.color_matrix,
-    //     };
-    //     auto direct = convert_framebuffer_to_yuv_direct(dreq);
-    //     if (direct.success) {
-    //         return ConvertFrameResult{
-    //             .success       = true,
-    //             .used_simd     = direct.used_simd,
-    //             .conversion_ns = direct.conversion_ns,
-    //         };
-    //     }
-    //     // Fall through to the RGBA8 + sws_scale path if direct conversion
-    //     // fails (e.g., odd dimensions, null pointers).
-    // }
+    // Uses TBB parallel_for with inline gamma LUT and BT.709/601 matrix.
+    //
+    // TODO(HWY): add HWY SIMD acceleration once the U/V matrix bug is fixed.
+    // The dispatch in direct_yuv_converter.cpp currently skips HWY and uses
+    // the scalar TBB path which is pixel-identical with sws_scale.
+    if (req.format == EncoderPixelFormat::YUV420P ||
+        req.format == EncoderPixelFormat::NV12) {
+        DirectYuvRequest dreq{
+            .src            = req.src,
+            .dst_y          = req.dst_y,
+            .dst_u          = req.dst_u,
+            .dst_v          = req.dst_v,
+            .dst_uv         = req.dst_uv,
+            .dst_stride_y   = req.dst_stride_y,
+            .dst_stride_u   = req.dst_stride_u,
+            .dst_stride_v   = req.dst_stride_v,
+            .dst_stride_uv  = req.dst_stride_uv,
+            .width          = req.width,
+            .height         = req.height,
+            .format         = req.format,
+            .apply_gamma    = req.apply_gamma,
+            .color_matrix   = req.color_matrix,
+        };
+        auto direct = convert_framebuffer_to_yuv_direct(dreq);
+        if (direct.success) {
+            return ConvertFrameResult{
+                .success       = true,
+                .used_simd     = direct.used_simd,
+                .conversion_ns = direct.conversion_ns,
+            };
+        }
+        // Fall through to the RGBA8 + sws_scale path if direct conversion
+        // fails (e.g., odd dimensions, null pointers).
+    }
 
     switch (req.format) {
         case EncoderPixelFormat::YUV420P: return convert_rgba_to_yuv420p(req);

@@ -117,6 +117,11 @@ int render_and_encode_ffmpeg_chunked(
                         renderer->counters()->framebuffer_bytes_allocated.store(saved_fb_bytes, std::memory_order_relaxed);
                         renderer->counters()->framebuffer_bytes_peak.store(saved_fb_peak, std::memory_order_relaxed);
                     }
+
+                    // Clear per-event telemetry stores after warmup, since
+                    // atomic counters were reset above.  This keeps Hot Nodes
+                    // events in sync with atomic counters.
+                    chronon3d::telemetry::clear_telemetry_stores();
                 }
 
                 std::vector<chronon3d::telemetry::FrameTelemetryRecord> local_frames;
@@ -267,7 +272,7 @@ int render_and_encode_ffmpeg_chunked(
     const auto phases = std::vector<chronon3d::telemetry::PhaseTelemetryRecord>{
         {"setup_renderer", std::chrono::duration<double, std::milli>(setup_t1 - setup_t0).count()},
         {"rendering_loop", std::chrono::duration<double, std::milli>(render_t1 - render_t0).count()},
-        {"encoding", encode_ms},
+        {"encoder_close_and_flush", encode_ms},
     };
     cli::telemetry::record_output_run(
         /*composition_id=*/composition_id,

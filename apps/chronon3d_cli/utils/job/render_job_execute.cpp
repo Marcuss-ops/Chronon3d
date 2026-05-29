@@ -81,6 +81,11 @@ bool execute_render_job(const CompositionRegistry& registry, const RenderJobPlan
         renderer->counters()->framebuffer_bytes_peak.store(saved_fb_peak, std::memory_order_relaxed);
     }
 
+    // Clear per-event telemetry stores after warmup, since atomic counters
+    // were reset above.  This keeps Hot Nodes events in sync with
+    // nodes_executed/composite_calls atomic counters.
+    chronon3d::telemetry::clear_telemetry_stores();
+
     const auto setup_t1 = std::chrono::steady_clock::now();
 
     if (plan.from_specscene && plan.settings.motion_blur.enabled) {

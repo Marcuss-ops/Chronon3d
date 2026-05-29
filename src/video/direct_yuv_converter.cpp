@@ -226,6 +226,12 @@ DirectYuvResult convert_framebuffer_to_yuv_direct(const DirectYuvRequest& req) {
     if (req.width <= 0 || req.height <= 0) return DirectYuvResult{};
     if (req.width % 2 != 0 || req.height % 2 != 0) return DirectYuvResult{};
 
+    // Try HWY SIMD first; fall back to scalar TBB if HWY is unavailable.
+    // Both the HWY SIMD and scalar TBB paths were fixed to use the correct
+    // Cr B coefficient (cr_b = -(cr_r + cr_g)) instead of the wrong formula
+    // (0.5 - cr_r - cr_g) / omitting the B term entirely.  The old scalar
+    // rgb8_to_yuv() omitted cr_b*bf, and the old HWY path used (+0.454153)
+    // instead of (-0.045847).  Both now produce V=128 for white pixels.
     switch (req.format) {
         case EncoderPixelFormat::YUV420P: {
             auto r = convert_to_yuv420p_hwy(req);

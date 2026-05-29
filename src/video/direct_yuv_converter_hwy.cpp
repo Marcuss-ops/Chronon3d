@@ -66,15 +66,17 @@ static void process_block_hwy(const DirectYuvRequest& req,
     const int stride_v = req.dst_stride_v ? req.dst_stride_v : (w / 2);
 
     // ── Matrix coefficients ────────────────────────────────────────────
+    // All three Cb/Cr coefficients sum to 0 (neutral grey → 128/128).
+    // Coefficients are from YuvCoeffs in direct_yuv_lut.hpp.
     const float y_kr = coeffs.kr * 219.0f / 255.0f;
     const float y_kg = coeffs.kg * 219.0f / 255.0f;
     const float y_kb = coeffs.kb * 219.0f / 255.0f;
     const float u_cr = coeffs.cb_r * 224.0f / 255.0f;
     const float u_cg = coeffs.cb_g * 224.0f / 255.0f;
-    const float u_cb = 0.5f * 224.0f / 255.0f;
+    const float u_cb = coeffs.cb_b * 224.0f / 255.0f;
     const float v_cr = coeffs.cr_r * 224.0f / 255.0f;
     const float v_cg = coeffs.cr_g * 224.0f / 255.0f;
-    const float v_cb = (0.5f - coeffs.cr_r - coeffs.cr_g) * 224.0f / 255.0f;
+    const float v_cb = coeffs.cr_b * 224.0f / 255.0f;
 
     const auto v_y_kr  = hn::Set(df, y_kr);
     const auto v_y_kg  = hn::Set(df, y_kg);
@@ -246,10 +248,10 @@ HWY_ATTR DirectYuvResult convert_to_nv12_hwy_impl(const DirectYuvRequest& req) {
         const float y_kb = coeffs.kb * 219.0f / 255.0f;
         const float u_cr = coeffs.cb_r * 224.0f / 255.0f;
         const float u_cg = coeffs.cb_g * 224.0f / 255.0f;
-        const float u_cb = 0.5f * 224.0f / 255.0f;
+        const float u_cb = coeffs.cb_b * 224.0f / 255.0f;
         const float v_cr = coeffs.cr_r * 224.0f / 255.0f;
         const float v_cg = coeffs.cr_g * 224.0f / 255.0f;
-        const float v_cb = (0.5f - coeffs.cr_r - coeffs.cr_g) * 224.0f / 255.0f;
+        const float v_cb = coeffs.cr_b * 224.0f / 255.0f;
 
         const auto v_y_kr  = hn::Set(df, y_kr);
         const auto v_y_kg  = hn::Set(df, y_kg);
