@@ -201,6 +201,13 @@ struct RenderGraphContext {
     //     The executor skips flagged nodes entirely.
     std::vector<bool> early_exit_skip;
 
+    // ── Graph structure unchanged hint ──────────────────────────────────
+    // When the scene static fingerprint matches the previous frame and the
+    // camera hasn't changed, the resulting render graph is guaranteed to be
+    // topologically identical.  The executor can skip compute_structure_
+    // signature() and reuse the cached execution plan directly.
+    bool graph_structure_unchanged{false};
+
     // ── Per-node / per-layer telemetry collectors ────────────────────────────
     // Populated during graph execution; flushed via TelemetryManager after frame.
     std::vector<chronon3d::telemetry::NodeTelemetryRecord> node_telemetry;
