@@ -125,11 +125,8 @@ void FfmpegPipeEncoder::reap_completed_uring(bool wait) {
 
         if (buf_idx < kRingEntries) {
             if (res < 0) {
-                if (res == -EINTR || res == -EAGAIN) {
-                    // EINTR / EAGAIN are transient — resubmit the write
-                    write_uring(buf_idx, ring_buffer_size_);
-                    head++;
-                    continue;
+                if (res == -EINTR) {
+                    res = 0;
                 } else {
                     spdlog::error("[video_uring] Asynchronous write failed with error code: {}", res);
                     pipe_failed_ = true;

@@ -46,11 +46,11 @@ void register_video_commands(CLI::App& app, CliContext& ctx) {
         ->check(CLI::IsMember({"srgb", "rec709", "linearsrgb"}));
 #ifdef __linux__
     cmd->add_option("--pipe-writer", args.pipe_writer, "Pipe writer type: classic, io_uring")
-        ->default_val("io_uring")
+        ->default_val("classic")
         ->check(CLI::IsMember({"classic", "io_uring"}));
 #else
     cmd->add_option("--pipe-writer", args.pipe_writer, "Pipe writer type: classic, io_uring")
-        ->default_val("io_uring")
+        ->default_val("classic")
         ->check(CLI::IsMember({"classic", "io_uring"}));
 #endif
     cmd->add_flag("--warmup,--warmup-renderer", args.pipeline.warmup_renderer,
