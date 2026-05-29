@@ -113,6 +113,7 @@ std::shared_ptr<Framebuffer> MultiSourceNode::execute(
         for (const auto& item : m_items) {
             if (!item.node) continue;
             RenderState state;
+            state.ssaa_factor = ctx.ssaa_factor;
             if (m_is_3d) {
                 state.matrix = canvas_center * ssaa_scale * item.matrix;
             } else {

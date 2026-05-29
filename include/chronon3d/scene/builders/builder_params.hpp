@@ -4,6 +4,7 @@
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/scene/fill.hpp>
 #include <chronon3d/scene/shape.hpp>
+#include <chronon3d/media/media_placement.hpp>
 #include <optional>
 #include <string>
 
@@ -57,6 +58,9 @@ struct ImageParams {
     std::string path;
     Vec2 size{100.0f, 100.0f};
     Vec3 pos{0.0f, 0.0f, 0.0f};
+    FitMode fit{FitMode::Cover};
+    Vec2 focal_point{0.5f, 0.5f};
+    ImageCrop crop{};
     f32 opacity{1.0f};
     f32 radius{0.0f};
 };
@@ -88,6 +92,9 @@ struct TextParams {
     f32 line_height{1.2f};
     f32 tracking{0.0f};
     TextBoxStyle box_style{};
+
+    TextPaint paint{};
+    std::vector<TextShadow> shadows{};
 
     bool auto_fit{false};
     int max_lines{0};

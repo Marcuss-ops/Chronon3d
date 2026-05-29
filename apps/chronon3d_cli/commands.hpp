@@ -61,7 +61,11 @@ struct VideoArgs {
     std::string pipe_pixfmt{"rgba"};
     std::string color_output{"srgb"};
     std::string pipe_writer{"classic"};
+#ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
     std::string encoder_backend{"native"};
+#else
+    std::string encoder_backend{"pipe"};
+#endif
     bool dry_run{false};
 };
 

@@ -82,7 +82,7 @@ void draw_path(Framebuffer& fb, const PathShape& path, const Mat4& model, const 
 
     const f32 radius = std::max(0.0f, path.stroke.width * 0.5f);
     const f32 opacity = stroke_color.a;
-    const bool fill_enabled = true;
+    const bool fill_enabled = path.fill.enabled;
 
     for (i32 y = bbox.y0; y < bbox.y1; ++y) {
         Color* row = fb.pixels_row(y);
@@ -122,83 +122,105 @@ void draw_path(Framebuffer& fb, const PathShape& path, const Mat4& model, const 
                 }
             }
 
-            bool hit = false;
-            Color pixel_color = stroke_color;
-            for (const auto& contour : screen_contours) {
-                if (contour.points.size() < 2) continue;
+            if (path.stroke.enabled) {
+                bool hit = false;
+                Color pixel_color{
+                    stroke_color.r * path.stroke.color.r,
+                    stroke_color.g * path.stroke.color.g,
+                    stroke_color.b * path.stroke.color.b,
+                    stroke_color.a * path.stroke.color.a
+                };
+                for (const auto& contour : screen_contours) {
+                    if (contour.points.size() < 2) continue;
 
-                const auto trimmed = trim_polyline_points(
-                    contour.points,
-                    contour.closed,
-                    path.stroke.trim_start,
-                    path.stroke.trim_end);
-                const auto& pts = trimmed.empty() ? contour.points : trimmed;
-                if (pts.size() < 2) continue;
+                    const auto trimmed = trim_polyline_points(
+                        contour.points,
+                        contour.closed,
+                        path.stroke.trim_start,
+                        path.stroke.trim_end);
+                    const auto& pts = trimmed.empty() ? contour.points : trimmed;
+                    if (pts.size() < 2) continue;
 
-                const bool closed = contour.closed;
-                const bool open = !closed;
-                const bool repeated_start = closed && pts.size() > 2 &&
-                    glm::length(pts.front() - pts.back()) < 1e-4f;
-                const usize unique_count = repeated_start ? pts.size() - 1 : pts.size();
-
-                for (usize i = 0; i + 1 < pts.size(); ++i) {
-                    Vec2 a = pts[i];
-                    Vec2 b = pts[i + 1];
-                    if (path.stroke.cap == LineCap::Square && open && i == 0) {
-                        const Vec2 dir = glm::normalize(b - a);
-                        a -= dir * radius;
-                    }
-                    if (path.stroke.cap == LineCap::Square && open && i + 2 == pts.size()) {
-                        const Vec2 dir = glm::normalize(b - a);
-                        b += dir * radius;
+                    std::vector<std::vector<Vec2>> sub_polylines;
+                    if (path.stroke.dash_array.empty()) {
+                        sub_polylines.push_back(pts);
+                    } else {
+                        sub_polylines = dash_polyline_points(pts, false, path.stroke.dash_array, path.stroke.dash_offset);
                     }
 
-                    const f32 cov = segment_coverage(p, a, b, radius);
-                    if (cov > 0.0f) {
-                        hit = true;
-                        pixel_color.a *= cov * opacity;
-                        break;
-                    }
-                }
+                    for (const auto& pts_sub : sub_polylines) {
+                        if (pts_sub.size() < 2) continue;
 
-                if (!hit && path.stroke.cap == LineCap::Round && open) {
-                    const Vec2 first = pts.front();
-                    const Vec2 last = pts.back();
-                    const f32 d0 = glm::length(p - first);
-                    const f32 d1 = glm::length(p - last);
-                    const f32 aa = 1.0f;
-                    if (d0 <= radius + aa || d1 <= radius + aa) {
-                        const f32 dist = std::min(d0, d1);
-                        const f32 cov = (dist <= radius - aa) ? 1.0f : 1.0f - ((dist - (radius - aa)) / (2.0f * aa));
-                        if (cov > 0.0f) {
-                            hit = true;
-                            pixel_color.a *= cov * opacity;
-                        }
-                    }
-                }
+                        const bool closed = path.stroke.dash_array.empty() ? contour.closed : false;
+                        const bool open = !closed;
+                        const bool repeated_start = closed && pts_sub.size() > 2 &&
+                            glm::length(pts_sub.front() - pts_sub.back()) < 1e-4f;
+                        const usize unique_count = repeated_start ? pts_sub.size() - 1 : pts_sub.size();
 
-                if (!hit && (path.stroke.join == LineJoin::Round || path.stroke.join == LineJoin::Miter)) {
-                    const usize join_start = closed ? 0 : 1;
-                    const usize join_end = closed ? unique_count : (unique_count > 0 ? unique_count - 1 : 0);
-                    for (usize i = join_start; i < join_end; ++i) {
-                        const Vec2 v = pts[i];
-                        const f32 join_radius = radius;
-                        const f32 d = glm::length(p - v);
-                        const f32 aa = 1.0f;
-                        if (d <= join_radius + aa) {
-                            const f32 cov = (d <= join_radius - aa) ? 1.0f : 1.0f - ((d - (join_radius - aa)) / (2.0f * aa));
+                        for (usize i = 0; i + 1 < pts_sub.size(); ++i) {
+                            Vec2 a = pts_sub[i];
+                            Vec2 b = pts_sub[i + 1];
+                            if (path.stroke.cap == LineCap::Square && open && i == 0) {
+                                const Vec2 dir = glm::normalize(b - a);
+                                a -= dir * radius;
+                            }
+                            if (path.stroke.cap == LineCap::Square && open && i + 2 == pts_sub.size()) {
+                                const Vec2 dir = glm::normalize(b - a);
+                                b += dir * radius;
+                            }
+
+                            const f32 cov = segment_coverage(p, a, b, radius);
                             if (cov > 0.0f) {
                                 hit = true;
                                 pixel_color.a *= cov * opacity;
                                 break;
                             }
                         }
-                    }
-                }
 
-                if (hit) {
-                    row[x] = compositor::blend(pixel_color, row[x], BlendMode::Normal);
-                    break;
+                        if (!hit && path.stroke.cap == LineCap::Round && open) {
+                            const Vec2 first = pts_sub.front();
+                            const Vec2 last = pts_sub.back();
+                            const f32 d0 = glm::length(p - first);
+                            const f32 d1 = glm::length(p - last);
+                            const f32 aa = 1.0f;
+                            if (d0 <= radius + aa || d1 <= radius + aa) {
+                                const f32 dist = std::min(d0, d1);
+                                const f32 cov = (dist <= radius - aa) ? 1.0f : 1.0f - ((dist - (radius - aa)) / (2.0f * aa));
+                                if (cov > 0.0f) {
+                                    hit = true;
+                                    pixel_color.a *= cov * opacity;
+                                }
+                            }
+                        }
+
+                        if (!hit && (path.stroke.join == LineJoin::Round || path.stroke.join == LineJoin::Miter)) {
+                            const usize join_start = closed ? 0 : 1;
+                            const usize join_end = closed ? unique_count : (unique_count > 0 ? unique_count - 1 : 0);
+                            for (usize i = join_start; i < join_end; ++i) {
+                                const Vec2 v = pts_sub[i];
+                                const f32 join_radius = radius;
+                                const f32 d = glm::length(p - v);
+                                const f32 aa = 1.0f;
+                                if (d <= join_radius + aa) {
+                                    const f32 cov = (d <= join_radius - aa) ? 1.0f : 1.0f - ((d - (join_radius - aa)) / (2.0f * aa));
+                                    if (cov > 0.0f) {
+                                        hit = true;
+                                        pixel_color.a *= cov * opacity;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+
+                        if (hit) {
+                            break;
+                        }
+                    }
+
+                    if (hit) {
+                        row[x] = compositor::blend(pixel_color, row[x], BlendMode::Normal);
+                        break;
+                    }
                 }
             }
         }
@@ -210,7 +232,7 @@ void PathRasterizer::draw_path(Framebuffer& fb, const RenderNode& node, const Re
     (void)camera;
     (void)width;
     (void)height;
-    ::chronon3d::renderer::draw_path(fb, node.shape.path, node.world_transform.to_matrix(), node.color, &state);
+    ::chronon3d::renderer::draw_path(fb, node.shape.path, state.matrix, node.color, &state);
 }
 
 Color resolve_fill_color(const Fill& fill, Vec2 p, const raster::BBox& bbox, f32 opacity) {
