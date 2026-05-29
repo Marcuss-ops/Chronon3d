@@ -3,7 +3,6 @@
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/core/telemetry/render_telemetry.hpp>
 
-#include <sstream>
 #include <string>
 #include <vector>
 #include <algorithm>

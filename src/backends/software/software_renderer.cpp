@@ -16,7 +16,6 @@
 #include "rasterizers/shape_rasterizer.hpp"
 #include <algorithm>
 #include <cmath>
-#include <iostream>
 #include <string_view>
 
 namespace chronon3d {
