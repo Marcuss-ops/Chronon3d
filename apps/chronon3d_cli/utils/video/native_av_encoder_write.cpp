@@ -64,14 +64,14 @@ bool NativeAvEncoder::write_frame(const Framebuffer& fb) {
         // ── Cache HIT: AVFrame already has correct YUV data ──
         ++cache_hits_;
         if (profiling::g_current_counters) {
-            profiling::g_current_counters->native_av_converted_frame_cache_hits.fetch_add(
+            profiling::g_current_counters->converted_frame_cache_hits.fetch_add(
                 1, std::memory_order_relaxed);
         }
     } else {
         // ── Cache MISS: perform the full RGBA→YUV conversion ──
         ++cache_misses_;
         if (profiling::g_current_counters) {
-            profiling::g_current_counters->native_av_converted_frame_cache_misses.fetch_add(
+            profiling::g_current_counters->converted_frame_cache_misses.fetch_add(
                 1, std::memory_order_relaxed);
         }
 
