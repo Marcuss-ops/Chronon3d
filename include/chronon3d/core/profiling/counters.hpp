@@ -81,6 +81,11 @@ constexpr std::size_t kHardwareDestructiveInterferenceSize = 64;
     X(io_writer_idle_wait_ms) \
     X(io_queue_peak_depth) \
     X(ffmpeg_pipe_write_blocked_ms) \
+    X(native_av_convert_ms) \
+    X(native_av_send_frame_ms) \
+    X(native_av_receive_packet_ms) \
+    X(native_av_mux_write_ms) \
+    X(native_av_trailer_ms) \
     X(converted_frame_cache_hits) \
     X(ffmpeg_flush_ms) \
     X(io_queue_peak_bytes)
