@@ -6,7 +6,6 @@
 #include <chronon3d/video/converted_frame_cache.hpp>
 #include <string>
 #include <vector>
-#include <memory>
 
 namespace chronon3d::cli {
 

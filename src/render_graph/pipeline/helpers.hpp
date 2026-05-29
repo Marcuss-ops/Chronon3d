@@ -16,7 +16,6 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <algorithm>
 #include <cmath>
-#include <functional>
 
 namespace chronon3d::graph {
 

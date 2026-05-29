@@ -1,7 +1,6 @@
 #include <chronon3d/cache/video_frame_cache.hpp>
 
 #include <algorithm>
-#include <cstring>
 #include <utility>
 
 namespace chronon3d::cache {
