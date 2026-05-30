@@ -2,6 +2,7 @@
 
 #include <chronon3d/render_graph/nodes/basic_nodes_common.hpp>
 #include <span>
+#include <utility>
 
 namespace chronon3d::graph {
 
@@ -54,6 +55,26 @@ public:
 
     const ::chronon3d::RenderNode& render_node() const { return m_node; }
     bool is_3d() const { return m_is_3d; }
+
+    void refresh(
+        std::string name,
+        const ::chronon3d::RenderNode& node,
+        const cache::NodeCacheKey& key,
+        bool centered = false,
+        bool is_3d = false,
+        std::optional<Mat4> matrix_override = std::nullopt,
+        std::optional<f32> opacity_override = std::nullopt,
+        bool cache_static = false
+    ) {
+        m_name = std::move(name);
+        m_node = node;
+        m_key = key;
+        m_centered = centered;
+        m_is_3d = is_3d;
+        m_matrix_override = std::move(matrix_override);
+        m_opacity_override = std::move(opacity_override);
+        m_cache_static = cache_static;
+    }
 
 
 private:

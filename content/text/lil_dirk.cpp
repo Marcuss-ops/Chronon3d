@@ -2,6 +2,9 @@
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/timeline/composition.hpp>
+#include <chronon3d/presets/motion_object.hpp>
+#include <chronon3d/presets/motion_presets.hpp>
+#include <chronon3d/presets/motion_renderer.hpp>
 #include <string>
 
 namespace chronon3d::content::text {
@@ -18,6 +21,12 @@ Composition lil_dirk() {
         const f32 H = static_cast<f32>(ctx.height);
         const f32 half_w = W * 0.5f;
         const f32 half_h = H * 0.5f;
+
+        // Configure static 2.5D camera so 3D projections on layers work
+        s.camera().enable()
+                  .position({0.0f, 0.0f, -1000.0f})
+                  .zoom(1000.0f)
+                  .point_of_interest({0.0f, 0.0f, 0.0f});
 
         // ── Dark background ───────────────────────────────────────────────
         s.layer("bg", [W, H](auto& l) {
@@ -76,52 +85,20 @@ Composition lil_dirk() {
             }).blur(W * 0.14f);
         });
 
-        // ── Banner halo (glowing white rounded rect) ──────────────────────
-        s.layer("banner_halo", [](auto& l) {
-            l.rounded_rect("halo", {
-                .size   = {760.0f, 182.0f},
-                .radius = 14.0f,
-                .color  = Color{1.0f, 1.0f, 1.0f, 0.18f},
-                .pos    = {0.0f, 0.0f, 0.0f},
-            }).with_glow(Glow{
-                .enabled   = true,
-                .radius    = 14.0f,
-                .intensity = 0.22f,
-                .color     = Color{1.0f, 1.0f, 1.0f, 1.0f},
-            });
-        });
+        // ── LIL DIRK title (Animated) ─────────────────────────────────────
+        s.layer("title", [&ctx](auto& l) {
+            l.from(0).duration(180);
+            l.enable_3d();
+            std::printf("Rendertest - frame: %d\n", (int)ctx.frame);
 
-        // ── Top red bar ───────────────────────────────────────────────────
-        s.layer("top_bar", [](auto& l) {
-            l.rounded_rect("bar", {
-                .size   = {700.0f, 54.0f},
-                .radius = 4.0f,
-                .color  = Color{0.92f, 0.23f, 0.22f, 1.0f},
-                .pos    = {0.0f, -53.0f, 0.0f},
-            });
-        });
+            l.position_anim()
+             .key(0, Vec3{0.0f, 0.0f, 0.0f}, Easing::InOutCubic)
+             .key(179, Vec3{0.0f, 0.0f, 0.0f});
 
-        // ── Bottom red bar ────────────────────────────────────────────────
-        s.layer("bottom_bar", [](auto& l) {
-            l.rounded_rect("bar", {
-                .size   = {700.0f, 54.0f},
-                .radius = 4.0f,
-                .color  = Color{0.92f, 0.23f, 0.22f, 1.0f},
-                .pos    = {0.0f, 52.0f, 0.0f},
-            });
-        });
+            l.rotate_anim()
+             .key(0, Vec3{-22.0f, 48.0f, -7.0f}, Easing::InOutCubic)
+             .key(179, Vec3{22.0f, -48.0f, 7.0f});
 
-        // ── Dark center band ──────────────────────────────────────────────
-        s.layer("center_band", [](auto& l) {
-            l.rect("band", {
-                .size  = {560.0f, 36.0f},
-                .color = Color{0.10f, 0.10f, 0.10f, 0.58f},
-                .pos   = {0.0f, -18.0f, 0.0f},
-            });
-        });
-
-        // ── LIL DIRK title ────────────────────────────────────────────────
-        s.layer("title", [](auto& l) {
             l.text("t", TextParams{
                 .text       = "LIL DIRK",
                 .size       = {700.0f, 140.0f},

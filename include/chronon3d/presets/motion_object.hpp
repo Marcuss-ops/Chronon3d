@@ -38,6 +38,7 @@ enum class MotionPreset {
     ZoomBlur,
     PushIn3D,
     SoftDollyReveal,
+    DollyRotate2_5D,
     GlowBloom,
     StaggerReveal,
     ParallaxDrift,

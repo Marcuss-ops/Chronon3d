@@ -96,6 +96,9 @@ Camera2_5D orbit_small(float t, float zoom = 1000.0f);
 // Dramatic push-in with simultaneous tilt: -5° → +5°.
 Camera2_5D dramatic_push(float t, float zoom = 1000.0f);
 
+// Dolly forward while yawing/rolling slightly for a 2.5D turn.
+Camera2_5D dolly_rotate(float t, float zoom = 1000.0f);
+
 // Subtle roll: camera tilts 0° → 8° counterclockwise (cinematic handover).
 Camera2_5D roll_reveal(float t, float max_roll_deg = 8.0f, float zoom = 1000.0f);
 

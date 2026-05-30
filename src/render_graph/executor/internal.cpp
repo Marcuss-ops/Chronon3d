@@ -101,18 +101,17 @@ CacheEvalResult evaluate_cache(
     cr.use_cache = is_cacheable && ctx.node_cache && !cr.node_frame_dependent;
     cr.is_cacheable = is_cacheable;
 
+    // Always compute the key to ensure we have a valid key digest for telemetry,
+    // bypassed nodes, and the downstream video conversion frame cache.
+    cr.key = node.cache_key(ctx);
+    cr.key.input_hash = input_hash;
+    if (ctx.tile_execution_enabled && ctx.active_tile_clip) {
+        cr.key.tile_x = ctx.active_tile_clip->x0;
+        cr.key.tile_y = ctx.active_tile_clip->y0;
+        cr.key.tile_size = ctx.tile_size > 0 ? ctx.tile_size : 0;
+    }
+
     if (cr.use_cache) {
-        cr.key = node.cache_key(ctx);
-        cr.key.input_hash = input_hash;
-
-        // ── Tile-aware cache key: when executing in tile mode, differentiate
-        //     cache entries by tile position so tiles don't share stale data.
-        if (ctx.tile_execution_enabled && ctx.active_tile_clip) {
-            cr.key.tile_x = ctx.active_tile_clip->x0;
-            cr.key.tile_y = ctx.active_tile_clip->y0;
-            cr.key.tile_size = ctx.tile_size > 0 ? ctx.tile_size : 0;
-        }
-
         cr.result = ctx.node_cache->get(cr.key);
         
         if (!cr.result && policy.disk_cacheable && disk_node_cache_enabled_for_current_run()) {
