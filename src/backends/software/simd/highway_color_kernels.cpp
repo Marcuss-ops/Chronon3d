@@ -6,6 +6,8 @@
 #include <chronon3d/simd/kernels.hpp>
 #include <algorithm>
 
+// Prefetch: use compiler builtins which work across all SIMD contexts.
+
 HWY_BEFORE_NAMESPACE();
 namespace chronon3d::simd {
 namespace HWY_NAMESPACE {
@@ -16,6 +18,10 @@ HWY_ATTR void composite_normal_premul_impl(float* HWY_RESTRICT dst_ptr,
                                            const float* HWY_RESTRICT src_ptr,
                                            int pixel_count) {
     for (int i = 0; i < pixel_count; ++i) {
+        if ((i & 15) == 0 && (i + 16) < pixel_count) {
+            __builtin_prefetch(&src_ptr[(i + 16) * 4], 0, 1);
+            __builtin_prefetch(&dst_ptr[(i + 16) * 4], 1, 1);
+        }
         float* d = dst_ptr + i * 4;
         const float* s = src_ptr + i * 4;
         float inv_sa = 1.0f - s[3];

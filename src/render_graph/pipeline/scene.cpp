@@ -11,6 +11,7 @@
 #include "../builder/graph_builder_pipeline.hpp"
 #include "../builder/graph_builder_internal.hpp"
 #include <chronon3d/render_graph/optimizer/graph_optimizer.hpp>
+#include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
 #include <chronon3d/core/tile_grid.hpp>
 #include <chronon3d/core/dirty_tile_mask.hpp>
 #include "helpers.hpp"
@@ -340,33 +341,34 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     // Phase 1: when graph_structure_unchanged is true, the graph topology is
     // identical to the previous frame — reuse the cached graph instead of
     // rebuilding and re-optimizing from scratch.
-    const bool can_reuse_graph = ctx.graph_structure_unchanged &&
-                                 sw_renderer &&
-                                 sw_renderer->m_cached_graph != nullptr &&
-                                 sw_renderer->m_cached_graph_width == width &&
-                                 sw_renderer->m_cached_graph_height == height;
+    const bool can_reuse_compiled_graph = ctx.graph_structure_unchanged &&
+                                          sw_renderer &&
+                                          sw_renderer->m_cached_compiled_graph != nullptr &&
+                                          sw_renderer->m_cached_compiled_width == width &&
+                                          sw_renderer->m_cached_compiled_height == height;
 
-    RenderGraph graph; // default-constructed (no output yet — set in both branches)
+    CompiledFrameGraph compiled;
 
-    if (can_reuse_graph) {
-        // Reuse the cached graph from the previous frame
+    if (can_reuse_compiled_graph) {
+        // Reuse the cached compiled graph from the previous frame
         if (ctx.counters) {
             ctx.counters->graph_cache_hits.fetch_add(1, std::memory_order_relaxed);
         }
-        graph = std::move(*sw_renderer->m_cached_graph);
-        sw_renderer->m_cached_graph.reset();
-        // Restore optimization hints that build_graph normally sets
-        ctx.skip_initial_clear = sw_renderer->m_cached_skip_initial_clear;
-        ctx.early_exit_skip = sw_renderer->m_cached_early_exit_skip;
+        compiled = std::move(*sw_renderer->m_cached_compiled_graph);
+        sw_renderer->m_cached_compiled_graph.reset();
+        
+        ctx.skip_initial_clear = compiled.skip_initial_clear;
+        ctx.early_exit_skip = compiled.early_exit_skip;
 
         if (ctx.diagnostics_enabled) {
-            spdlog::info("[graph-cache] frame={} reusing cached graph ({} live nodes)",
-                         static_cast<int>(frame), graph.live_count());
+            spdlog::info("[graph-cache] frame={} reusing cached compiled graph ({} live nodes)",
+                         static_cast<int>(frame), compiled.graph.live_count());
         }
     } else {
         if (ctx.counters) {
             ctx.counters->graph_cache_misses.fetch_add(1, std::memory_order_relaxed);
         }
+        RenderGraph graph;
         // Full build path — construct the render graph
         {
             CHRONON_ZONE_C("build_graph", trace_category::kGraph);
@@ -388,19 +390,15 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
             }
         }
 
-        // Apply graph-level optimizations (node fusion, branch pruning, static bake analysis)
-        {
-            CHRONON_ZONE_C("optimize_graph", trace_category::kGraph);
-            auto opt_result = optimizer::optimize_graph(graph, ctx);
-            if (ctx.diagnostics_enabled && (opt_result.nodes_fused > 0 || opt_result.nodes_pruned > 0 ||
-                                            opt_result.effects_fused > 0 || opt_result.dead_nodes_removed > 0)) {
-                spdlog::info("[graph-opt] frame={} before={} after={} fused={} pruned={} effects_fused={} dead_removed={} baked={}",
-                    static_cast<int>(frame), opt_result.nodes_before, opt_result.nodes_after,
-                    opt_result.nodes_fused, opt_result.nodes_pruned,
-                    opt_result.effects_fused, opt_result.dead_nodes_removed,
-                    opt_result.static_bakes);
-            }
-        }
+        // Compile path (which includes optimization)
+        FrameGraphCompiler compiler;
+        FrameGraphCompileOptions compile_options;
+        compile_options.run_optimizer = true;
+        compile_options.compute_lifetimes = true;
+        compile_options.compute_bboxes = settings.diagnostic_plan;
+        compile_options.include_diagnostics = settings.diagnostic_plan;
+
+        compiled = compiler.compile(std::move(graph), ctx, compile_options);
     }
     const auto t_build2 = std::chrono::steady_clock::now();
 
@@ -471,7 +469,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
                 // execute normally per tile.
 
                 auto tile_fb = sw_renderer->executor()->execute(
-                    graph, graph.output(), tile_ctx);
+                    compiled, tile_ctx);
 
                 // Direct row copy — the tile replaces old frame
                 // content in its region (no alpha blending, since
@@ -518,10 +516,10 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         {
             CHRONON_ZONE_C("graph_execute", trace_category::kGraph);
             if (sw_renderer && sw_renderer->executor()) {
-                fb_shared = sw_renderer->executor()->execute(graph, graph.output(), ctx);
+                fb_shared = sw_renderer->executor()->execute(compiled, ctx);
             } else {
                 GraphExecutor local_executor;
-                fb_shared = local_executor.execute(graph, graph.output(), ctx);
+                fb_shared = local_executor.execute(compiled, ctx);
             }
         }
         // Track tile fallbacks when tile system requested but couldn't execute
@@ -537,11 +535,10 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     // comparison across frames (both fast-path and full-path save the same format).
     if (sw_renderer) {
         // Cache render graph for incremental reuse next frame
-        sw_renderer->m_cached_graph = std::make_unique<RenderGraph>(std::move(graph));
-        sw_renderer->m_cached_skip_initial_clear = ctx.skip_initial_clear;
-        sw_renderer->m_cached_early_exit_skip = ctx.early_exit_skip;
-        sw_renderer->m_cached_graph_width = width;
-        sw_renderer->m_cached_graph_height = height;
+        sw_renderer->m_cached_compiled_graph = std::make_unique<CompiledFrameGraph>(std::move(compiled));
+        sw_renderer->m_cached_compiled_width = width;
+        sw_renderer->m_cached_compiled_height = height;
+        sw_renderer->m_cached_compiled_structure_hash = sw_renderer->m_cached_compiled_graph->structure_hash;
 
         const uint64_t save_static_fp = sw_renderer->m_scene_hasher.compute_static_fingerprint(scene);
         const uint64_t save_active_at_fp = sw_renderer->m_scene_hasher.compute_active_at_fingerprint(scene, frame);

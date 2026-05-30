@@ -75,8 +75,8 @@ struct FramebufferPoolStats {
 // ---------------------------------------------------------------------------
 class FramebufferPool : public std::enable_shared_from_this<FramebufferPool> {
 public:
-    // Default to 8 GB so 1080p float framebuffers and intermediates can stay hot in the pool.
     explicit FramebufferPool(size_t max_bytes = 8192ULL * 1024ULL * 1024ULL);
+    ~FramebufferPool();
 
     /// Set a static arena to be used for new allocations.
     void set_arena(std::shared_ptr<chronon3d::FramebufferArena> arena);
@@ -146,6 +146,10 @@ private:
         std::vector<std::unique_ptr<Framebuffer>>,
         FramebufferPoolKeyHash
     > m_free;
+
+    std::shared_ptr<bool> m_alive;
+public:
+    [[nodiscard]] std::shared_ptr<bool> alive_token() const { return m_alive; }
 };
 
 } // namespace chronon3d::cache

@@ -889,9 +889,7 @@ RenderGraph GraphBuilder::build(const Scene& scene, const RenderGraphContext& ct
     CHRONON_ZONE_C("build_render_graph", trace_category::kGraph);
     auto mutable_ctx = ctx;
     const auto resolved = detail::resolve_layers(scene, mutable_ctx);
-    auto graph = detail::build_graph(scene, mutable_ctx, resolved);
-    [[maybe_unused]] const auto optimization_result = optimizer::optimize_graph(graph, mutable_ctx);
-    return graph;
+    return detail::build_graph(scene, mutable_ctx, resolved);
 }
 
 } // namespace chronon3d::graph
