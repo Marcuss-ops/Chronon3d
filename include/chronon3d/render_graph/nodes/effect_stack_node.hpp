@@ -49,18 +49,20 @@ public:
         bbox.x1 = std::min(ctx.width, static_cast<i32>(std::ceil(static_cast<f32>(bbox.x1) + spread)));
         bbox.y1 = std::min(ctx.height, static_cast<i32>(std::ceil(static_cast<f32>(bbox.y1) + spread)));
         
-        spdlog::info(
-            "[EffectStackNode] input_bbox=({}, {})-({}, {}) spread={} output_bbox=({}, {})-({}, {})",
-            input_bboxes[0]->x0,
-            input_bboxes[0]->y0,
-            input_bboxes[0]->x1,
-            input_bboxes[0]->y1,
-            spread,
-            bbox.x0,
-            bbox.y0,
-            bbox.x1,
-            bbox.y1
-        );
+        if (ctx.diagnostics_enabled) {
+            spdlog::info(
+                "[EffectStackNode] input_bbox=({}, {})-({}, {}) spread={} output_bbox=({}, {})-({}, {})",
+                input_bboxes[0]->x0,
+                input_bboxes[0]->y0,
+                input_bboxes[0]->x1,
+                input_bboxes[0]->y1,
+                spread,
+                bbox.x0,
+                bbox.y0,
+                bbox.x1,
+                bbox.y1
+            );
+        }
 
         if (bbox.is_empty()) {
             return bbox;

@@ -102,6 +102,18 @@ Camera2_5D dramatic_push(float t, float zoom) {
     return push_in_tilt(t, {.from_z = -1300.0f, .to_z = -760.0f, .from_tilt = -5.0f, .to_tilt = 5.0f, .zoom = zoom});
 }
 
+Camera2_5D dolly_rotate(float t, float zoom) {
+    t = smoothstep(t);
+    Camera2_5D cam;
+    cam.enabled = true;
+    cam.position = {0.0f, 0.0f, lerp(-1280.0f, -820.0f, t)};
+    cam.zoom = zoom;
+    cam.rotation = {lerp(-2.5f, 2.5f, t), lerp(-16.0f, 16.0f, t), lerp(-2.0f, 2.0f, t)};
+    cam.point_of_interest = {0.0f, 0.0f, 0.0f};
+    cam.point_of_interest_enabled = false;
+    return cam;
+}
+
 Camera2_5D roll_reveal(float t, float max_roll_deg, float zoom) {
     t = smoothstep(t);
     Camera2_5D cam;

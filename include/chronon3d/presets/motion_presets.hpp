@@ -66,6 +66,12 @@ inline MotionObject& soft_dolly_reveal(MotionObject& obj) {
         .preset(MotionPreset::SoftDollyReveal);
 }
 
+inline MotionObject& dolly_rotate_2_5d(MotionObject& obj) {
+    return obj
+        .preset(MotionPreset::DollyRotate2_5D)
+        .enable_3d();
+}
+
 inline MotionObject& glow_bloom(MotionObject& obj) {
     return obj
         .preset(MotionPreset::GlowBloom)

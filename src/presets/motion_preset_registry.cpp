@@ -113,6 +113,30 @@ void MotionPresetRegistry::register_builtins() {
     });
 
     register_preset({
+        MotionPreset::DollyRotate2_5D, "DollyRotate2_5D", [](const FrameContext&, const MotionObject& obj, f32 t, MotionState& st) {
+            const f32 reveal = interpolate(t, 0.0f, 0.40f, 0.0f, 1.0f, Easing::OutCubic);
+            const f32 settle = std::clamp((reveal - 0.70f) / 0.30f, 0.0f, 1.0f);
+
+            st.opacity *= reveal;
+            const f32 s = interpolate(t, 0.0f, 0.42f, 0.92f, 1.0f, Easing::OutCubic);
+            st.scale = {obj.scale_value.x * s, obj.scale_value.y * s, obj.scale_value.z};
+            st.position.z += interpolate(t, 0.0f, 0.46f, 220.0f, 0.0f, Easing::OutCubic);
+            st.rotation.y += interpolate(t, 0.0f, 0.40f, -18.0f, 0.0f, Easing::OutCubic);
+            st.rotation.z += interpolate(t, 0.0f, 0.32f, 6.0f, 0.0f, Easing::OutCubic);
+            st.rotation.x += interpolate(t, 0.0f, 0.28f, 2.5f, 0.0f, Easing::OutCubic);
+            st.blur = interpolate(t, 0.0f, 0.24f, 5.0f, 0.0f, Easing::OutCubic);
+
+            if (settle > 0.0f) {
+                const f32 settle_wave = std::sin(settle * 3.1415926535f);
+                st.rotation.y += settle_wave * 1.25f * settle;
+                st.rotation.z += settle_wave * 0.8f * settle;
+                st.position.x += settle_wave * 12.0f * settle;
+                st.position.z -= 8.0f * settle;
+            }
+        }
+    });
+
+    register_preset({
         MotionPreset::GlowBloom, "GlowBloom", [](const FrameContext&, const MotionObject& obj, f32 t, MotionState& st) {
             st.opacity *= interpolate(t, 0.0f, 0.34f, 0.0f, 1.0f, Easing::OutCubic);
             const f32 s = interpolate(t, 0.0f, 0.30f, 1.03f, 1.0f, Easing::OutCubic);

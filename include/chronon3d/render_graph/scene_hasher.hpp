@@ -53,6 +53,27 @@ public:
         return h;
     }
 
+    /// Frame-independent structure fingerprint used to decide whether a cached
+    /// compiled graph can be safely reused.  This intentionally ignores the
+    /// per-node render payload (for example changing text content) while still
+    /// tracking the layer topology and the graph-affecting layer settings.
+    uint64_t compute_structure_fingerprint(const Scene& scene) {
+        uint64_t h = 0;
+        h = hash_combine(h, hash_string("scene_root_structure"));
+        h = hash_combine(h, hash_value(scene.nodes().size()));
+        for (const auto& node : scene.nodes()) {
+            h = hash_combine(h, hash_string(node.name));
+        }
+
+        for (const auto& layer : scene.layers()) {
+            const auto layer_h = hash_layer_structure(layer);
+            h = hash_combine(h, layer_h);
+            h = hash_combine(h, hash_value(layer.nodes.size()));
+        }
+
+        return h;
+    }
+
     /// Returns true if the scene is "static" — i.e. safe to reuse the same
     /// framebuffer across consecutive frames. A scene is static when:
     ///   - No layer has AnimatedTransform with actual keyframes or expressions
@@ -103,6 +124,33 @@ private:
 
         if (layer.kind == LayerKind::Precomp) {
             h = hash_combine(h, hash_string(layer.precomp_composition_name));
+        }
+        if (layer.kind == LayerKind::Video && layer.video_source) {
+            h = hash_combine(h, hash_string(layer.video_source->path));
+            h = hash_combine(h, hash_vec2(layer.video_source->size));
+            h = hash_combine(h, hash_value(layer.video_source->source_fps));
+        }
+        return h;
+    }
+
+    static uint64_t hash_layer_structure(const Layer& layer) {
+        uint64_t h = 0;
+        h = hash_combine(h, hash_string(layer.name));
+        h = hash_combine(h, static_cast<u64>(layer.kind));
+        h = hash_combine(h, layer.visible ? 1 : 0);
+        h = hash_combine(h, layer.is_3d ? 1 : 0);
+        h = hash_combine(h, layer.cache_static ? 1 : 0);
+        h = hash_combine(h, static_cast<u64>(layer.blend_mode));
+        h = hash_combine(h, hash_transform(layer.transform));
+        h = hash_combine(h, hash_mask(layer.mask));
+
+        if (layer.kind == LayerKind::Precomp) {
+            h = hash_combine(h, hash_string(layer.precomp_composition_name));
+        }
+        if (layer.kind == LayerKind::Video && layer.video_source) {
+            h = hash_combine(h, hash_string(layer.video_source->path));
+            h = hash_combine(h, hash_vec2(layer.video_source->size));
+            h = hash_combine(h, hash_value(layer.video_source->source_fps));
         }
         return h;
     }

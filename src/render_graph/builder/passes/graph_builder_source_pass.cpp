@@ -29,18 +29,20 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
         const bool layer_needs_transform = layer_needs_render_transform(item, ctx);
         const bool use_local = ctx.modular_coordinates && layer_needs_transform && !item.native_3d;
 
-        spdlog::info(
-            "[source-pass] layer='{}' kind={} item_transform_any={} implicit_center_only={} custom_transform={} use_local={} centered={} tx={} ty={}",
-            layer.name.c_str(),
-            static_cast<int>(layer.kind),
-            item.transform.any(),
-            is_implicit_2d_centering_only(item, ctx),
-            has_custom_render_transform(item, ctx),
-            use_local,
-            should_use_centered_rendering(item, ctx),
-            item.transform.position.x,
-            item.transform.position.y
-        );
+        if (ctx.diagnostics_enabled) {
+            spdlog::info(
+                "[source-pass] layer='{}' kind={} item_transform_any={} implicit_center_only={} custom_transform={} use_local={} centered={} tx={} ty={}",
+                layer.name.c_str(),
+                static_cast<int>(layer.kind),
+                item.transform.any(),
+                is_implicit_2d_centering_only(item, ctx),
+                has_custom_render_transform(item, ctx),
+                use_local,
+                should_use_centered_rendering(item, ctx),
+                item.transform.position.x,
+                item.transform.position.y
+            );
+        }
 
         const Mat4 item_source_world = use_local
             ? item.world_matrix
