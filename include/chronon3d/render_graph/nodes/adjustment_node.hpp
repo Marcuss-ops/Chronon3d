@@ -34,10 +34,10 @@ public:
         return input_bboxes[0];
     }
 
-    std::shared_ptr<Framebuffer> execute(RenderGraphContext& ctx, std::span<const std::shared_ptr<Framebuffer>> inputs, std::span<const std::optional<raster::BBox>>) override {
-        if (inputs.empty()) return ctx.acquire_framebuffer(ctx.width, ctx.height);
+    OwnedFB execute(RenderGraphContext& ctx, std::span<const FramebufferRef> inputs, std::span<const std::optional<raster::BBox>>) override {
+        if (inputs.empty()) return ctx.acquire_owned_fb(ctx.width, ctx.height);
         
-        auto result = ctx.acquire_framebuffer(*inputs[0]);
+        auto result = ctx.acquire_owned_fb(*inputs[0]);
         if (ctx.backend) {
             ctx.backend->apply_effect_stack(*result, m_effects, ctx.time_seconds, ctx.clip_rect);
             if (ctx.counters) {

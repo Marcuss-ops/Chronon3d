@@ -64,22 +64,19 @@ public:
         return bbox;
     }
 
-    std::shared_ptr<Framebuffer> execute(RenderGraphContext& ctx, std::span<const std::shared_ptr<Framebuffer>> inputs, std::span<const std::optional<raster::BBox>> input_bboxes) override {
+    OwnedFB execute(RenderGraphContext& ctx, std::span<const FramebufferRef> inputs, std::span<const std::optional<raster::BBox>> input_bboxes) override {
         if (inputs.empty() || !inputs[0]) {
-            auto empty = ctx.acquire_framebuffer(ctx.width, ctx.height);
+            auto empty = ctx.acquire_owned_fb(ctx.width, ctx.height);
             empty->clear(Color::transparent());
             return empty;
         }
 
         const float blur = compute_dof_blur_radius(m_camera.dof, m_layer_world_z);
         if (blur <= 0.5f) {
-            if (inputs[0].use_count() == 1) {
-                return inputs[0];
-            }
-            return ctx.acquire_framebuffer(*inputs[0]);
+            return ctx.acquire_owned_fb(*inputs[0]);
         }
 
-        auto result = ctx.acquire_framebuffer(*inputs[0]);
+        auto result = ctx.acquire_owned_fb(*inputs[0]);
         if (ctx.backend) {
             EffectStack dof_stack;
             dof_stack.push_back(EffectInstance{

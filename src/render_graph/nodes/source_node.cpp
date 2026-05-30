@@ -150,9 +150,9 @@ cache::NodeCacheKey SourceNode::cache_key(const RenderGraphContext& ctx) const {
     return key;
 }
 
-std::shared_ptr<Framebuffer> SourceNode::execute(
+OwnedFB SourceNode::execute(
     RenderGraphContext& ctx,
-    std::span<const std::shared_ptr<Framebuffer>>,
+    std::span<const FramebufferRef>,
     std::span<const std::optional<raster::BBox>>
 ) {
     CHRONON_ZONE_C("source_render", trace_category::kRasterize);
@@ -163,7 +163,7 @@ std::shared_ptr<Framebuffer> SourceNode::execute(
     // gaps that would otherwise show stale pixels from the previous frame.
     const bool full_frame_seed = can_seed_full_frame(ctx);
 
-    auto fb = ctx.acquire_framebuffer(ctx.width, ctx.height, true);        if (ctx.backend) {
+    auto fb = ctx.acquire_owned_fb(ctx.width, ctx.height, true);        if (ctx.backend) {
         RenderState state;
         state.ssaa_factor = ctx.ssaa_factor;
         const Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(ctx.ssaa_factor, ctx.ssaa_factor, 1.0f));

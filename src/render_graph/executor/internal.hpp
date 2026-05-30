@@ -6,6 +6,7 @@
 #include <chronon3d/render_graph/render_graph.hpp>
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
+#include <chronon3d/core/memory/framebuffer_handle.hpp>
 #include <chronon3d/math/raster_utils.hpp>
 #include <memory>
 #include <optional>
@@ -29,7 +30,9 @@ template <typename Container>
 // ── Internal data structures ────────────────────────────────────────
 
 struct ExecutionState {
-    std::pmr::vector<std::shared_ptr<Framebuffer>> temp;
+    // temp holds CachedFB (shared_ptr) for uniform handling of both
+    // cache hits and pool-allocated framebuffers.
+    std::pmr::vector<CachedFB> temp;
     std::pmr::vector<u64> resolved_key_digest;
     std::pmr::vector<char> resolved_frame_dependent;
     std::pmr::vector<char> resolved_cache_hit;
@@ -41,7 +44,8 @@ struct ExecutionState {
 };
 
 struct PreResolvedNode {
-    std::pmr::vector<std::shared_ptr<Framebuffer>> inputs;
+    // Non-owning FramebufferRef views — no atomic refcounting overhead.
+    std::pmr::vector<FramebufferRef> inputs;
     std::pmr::vector<std::optional<raster::BBox>> input_bboxes;
     bool inputs_frame_dependent = false;
     bool has_cacheable_inputs = false;
@@ -53,7 +57,7 @@ struct PreResolvedNode {
 };
 
 struct CacheEvalResult {
-    std::shared_ptr<Framebuffer> result;
+    CachedFB result;             // non-null on cache hit
     cache::NodeCacheKey key;
     std::string cache_status;
     bool node_frame_dependent = false;
@@ -90,19 +94,20 @@ std::optional<raster::BBox> compute_dirty_clip(
 double run_node(
     RenderGraphNode& node,
     RenderGraphContext& node_ctx,
-    std::span<const std::shared_ptr<Framebuffer>> inputs,
+    std::span<const FramebufferRef> inputs,
     std::span<const std::optional<raster::BBox>> input_bboxes,
     bool use_cache,
     const cache::NodeCacheKey& key,
-    std::shared_ptr<Framebuffer>& result,
-    const RenderGraphContext& ctx
+    CachedFB& result,
+    const RenderGraphContext& ctx,
+    cache::FramebufferPool* parent_pool
 );
 
 void emit_node_records(
     const RenderGraphContext& ctx,
     const RenderGraphNode& node,
     const cache::NodeCacheKey& key,
-    const std::shared_ptr<Framebuffer>& result,
+    const CachedFB& result,
     const std::optional<raster::BBox>& clip_rect,
     const std::string& cache_status,
     bool is_cacheable,

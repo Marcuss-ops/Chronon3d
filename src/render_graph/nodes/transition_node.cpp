@@ -8,20 +8,20 @@ namespace chronon3d::graph {
 // Math helpers live in transition/transition_node_math.cpp
 
 
-std::shared_ptr<Framebuffer> TransitionNode::execute(
+OwnedFB TransitionNode::execute(
     RenderGraphContext& ctx,
-    std::span<const std::shared_ptr<Framebuffer>> inputs,
+    std::span<const FramebufferRef> inputs,
     std::span<const std::optional<raster::BBox>>
 ) {
     if (inputs.empty() || !inputs[0]) {
-        return ctx.acquire_framebuffer(ctx.width, ctx.height, true);
+        return ctx.acquire_owned_fb(ctx.width, ctx.height, true);
     }
 
-    const auto& src = inputs[0];
+    const FramebufferRef& src = inputs[0];
     const i32 w = src->width();
     const i32 h = src->height();
 
-    auto out_fb = ctx.acquire_framebuffer(w, h, false);
+    auto out_fb = ctx.acquire_owned_fb(w, h, false);
 
     if (m_spec.transition_id == "none" || m_spec.transition_id.empty()) {
         *out_fb = *src;

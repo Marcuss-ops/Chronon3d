@@ -98,13 +98,13 @@ cache::NodeCacheKey MultiSourceNode::cache_key(const RenderGraphContext& ctx) co
     return key;
 }
 
-std::shared_ptr<Framebuffer> MultiSourceNode::execute(
+OwnedFB MultiSourceNode::execute(
     RenderGraphContext& ctx,
-    std::span<const std::shared_ptr<Framebuffer>>,
+    std::span<const FramebufferRef>,
     std::span<const std::optional<raster::BBox>>
 ) {
     CHRONON_ZONE_C("multi_source_render", trace_category::kRasterize);
-    auto fb = ctx.acquire_framebuffer(ctx.width, ctx.height, /*clear=*/true);
+    auto fb = ctx.acquire_owned_fb(ctx.width, ctx.height, /*clear=*/true);
 
     if (ctx.backend) {
         const Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(ctx.ssaa_factor, ctx.ssaa_factor, 1.0f));

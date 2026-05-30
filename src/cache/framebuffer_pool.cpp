@@ -1,10 +1,24 @@
 #include <chronon3d/cache/framebuffer_pool.hpp>
 #include <chronon3d/core/framebuffer_arena.hpp>
+#include <chronon3d/core/memory/framebuffer_handle.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <cstdlib>
 #include <limits>
 #include <string>
+
+namespace chronon3d {
+
+void PoolFbDeleter::operator()(Framebuffer* fb) const noexcept {
+    if (!fb) return;
+    if (pool) {
+        pool->release(fb);
+    } else {
+        delete fb;
+    }
+}
+
+} // namespace chronon3d
 
 namespace chronon3d::cache {
 
@@ -205,6 +219,22 @@ std::shared_ptr<Framebuffer> FramebufferPool::acquire_pooled(int width, int heig
             delete ptr;
         }
     });
+}
+
+OwnedFB FramebufferPool::acquire_owned(int width, int height, bool clear) {
+    auto fb = acquire_unique(width, height);
+    if (clear && fb) {
+        fb->clear(Color::transparent());
+    }
+    return OwnedFB(fb.release(), PoolFbDeleter{this});
+}
+
+OwnedFB FramebufferPool::acquire_owned_raw(int width, int height, bool clear) {
+    auto fb = acquire_unique(width, height);
+    if (clear && fb) {
+        fb->clear(Color::transparent());
+    }
+    return OwnedFB(fb.release(), PoolFbDeleter{this});
 }
 
 void FramebufferPool::release(Framebuffer* fb) {

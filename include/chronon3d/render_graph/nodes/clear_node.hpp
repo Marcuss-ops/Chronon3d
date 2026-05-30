@@ -39,9 +39,9 @@ public:
         };
     }
 
-    std::shared_ptr<Framebuffer> execute(
+    OwnedFB execute(
         RenderGraphContext& ctx,
-        std::span<const std::shared_ptr<Framebuffer>>,
+        std::span<const FramebufferRef>,
         std::span<const std::optional<raster::BBox>>
     ) override {
         auto* sw_renderer = dynamic_cast<SoftwareRenderer*>(ctx.backend);
@@ -105,9 +105,10 @@ public:
                     ctx.counters->framebuffer_clear_ms.fetch_add(elapsed, std::memory_order_relaxed);
                 }
             }
-            return fb;
+            // Adopt the uniquely-owned shared_ptr's pixels without copying.
+            return ctx.acquire_owned_fb(std::move(fb));
         } else {
-            auto fb = ctx.acquire_framebuffer(ctx.width, ctx.height, !skip_clear, std::nullopt, ctx.counters ? &ctx.counters->clearnode_ms : nullptr);
+            auto fb = ctx.acquire_owned_fb(ctx.width, ctx.height, !skip_clear);
             if (skip_clear) {
                 if (ctx.counters) {
                     ctx.counters->clear_skipped_calls.fetch_add(1, std::memory_order_relaxed);

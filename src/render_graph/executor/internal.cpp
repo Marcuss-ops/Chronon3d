@@ -42,6 +42,7 @@ PreResolvedNode resolve_inputs(
     const std::pmr::vector<std::atomic_size_t>& consumer_remaining,
     std::pmr::memory_resource* res
 ) {
+    (void)consumer_remaining;
     const auto& input_ids = graph.inputs(id);
     PreResolvedNode pr(res);
     pr.inputs.resize(input_ids.size());
@@ -50,18 +51,9 @@ PreResolvedNode resolve_inputs(
 
     for (size_t j = 0; j < input_ids.size(); ++j) {
         const GraphNodeId input_id = input_ids[j];
-        if (contains_index(state.temp, input_id)) {
-            const bool is_last_consumer =
-                contains_index(consumer_remaining, input_id) &&
-                consumer_remaining[input_id].load(std::memory_order_relaxed) == 1;
-            const bool duplicated_input =
-                std::count(input_ids.begin(), input_ids.end(), input_id) > 1;
-
-            if (is_last_consumer && !duplicated_input && !state.resolved_cache_hit[input_id]) {
-                pr.inputs[j] = std::move(state.temp[input_id]);
-            } else {
-                pr.inputs[j] = state.temp[input_id];
-            }
+        if (contains_index(state.temp, input_id) && state.temp[input_id]) {
+            // Extract non-owning raw pointer — no atomic refcounting.
+            pr.inputs[j] = FramebufferRef(state.temp[input_id].get());
         }
         if (contains_index(state.resolved_bboxes, input_id)) {
             pr.input_bboxes[j] = state.resolved_bboxes[input_id];
@@ -238,32 +230,42 @@ std::optional<raster::BBox> compute_dirty_clip(
 double run_node(
     RenderGraphNode& node,
     RenderGraphContext& node_ctx,
-    std::span<const std::shared_ptr<Framebuffer>> inputs,
+    std::span<const FramebufferRef> inputs,
     std::span<const std::optional<raster::BBox>> input_bboxes,
     bool use_cache,
     const cache::NodeCacheKey& key,
-    std::shared_ptr<Framebuffer>& result,
-    const RenderGraphContext& ctx
+    CachedFB& result,
+    const RenderGraphContext& ctx,
+    cache::FramebufferPool* parent_pool
 ) {
     if (result) {
         return 0.001;
     }
 
     const auto exec_t0 = std::chrono::steady_clock::now();
+    OwnedFB owned;
     {
         CHRONON_ZONE_C("node_execute", trace_category::kGraph);
-        result = node.execute(node_ctx, inputs, input_bboxes);
+        owned = node.execute(node_ctx, inputs, input_bboxes);
     }
     if (ctx.counters) {
         ctx.counters->nodes_executed.fetch_add(1, std::memory_order_relaxed);
     }
-    if (result) {
-        result->set_key_digest(key.digest());
-    }
-    if (use_cache && result) {
-        ctx.node_cache->store(key, result);
-        if (node.cache_policy().disk_cacheable && disk_node_cache_enabled_for_current_run()) {
-            cache::DiskNodeCache::instance().put(key, *result);
+    if (owned) {
+        owned->set_key_digest(key.digest());
+
+        if (use_cache && ctx.node_cache) {
+            // Transfer ownership from OwnedFB to CachedFB for cache storage.
+            Framebuffer* raw = owned.release();
+            result = CachedFB(raw, PoolFbDeleter{parent_pool});
+            ctx.node_cache->store(key, result);
+            if (node.cache_policy().disk_cacheable && disk_node_cache_enabled_for_current_run()) {
+                cache::DiskNodeCache::instance().put(key, *result);
+            }
+        } else {
+            // Not cached — convert to shared_ptr for uniform temp storage.
+            Framebuffer* raw = owned.release();
+            result = CachedFB(raw, PoolFbDeleter{parent_pool});
         }
     }
     const auto exec_t1 = std::chrono::steady_clock::now();
@@ -276,7 +278,7 @@ void emit_node_records(
     const RenderGraphContext& ctx,
     const RenderGraphNode& node,
     const cache::NodeCacheKey& key,
-    const std::shared_ptr<Framebuffer>& result,
+    const CachedFB& result,
     const std::optional<raster::BBox>& clip_rect,
     const std::string& cache_status,
     bool is_cacheable,
@@ -373,9 +375,10 @@ void execute_single_node(
 ) {
     // ── Early exit: nodes covered by full-frame opaque layers
     if (id < ctx.early_exit_skip.size() && ctx.early_exit_skip[id]) {
-        auto empty_fb = ctx.acquire_framebuffer(64, 64, false);
-        empty_fb->clear(Color::transparent());
-        state.temp[id] = empty_fb;
+        auto owned_fb = ctx.acquire_owned_fb(64, 64, false);
+        owned_fb->clear(Color::transparent());
+        Framebuffer* raw = owned_fb.release();
+        state.temp[id] = CachedFB(raw, PoolFbDeleter{parent_pool});
         state.resolved_key_digest[id] = 0;
         state.resolved_frame_dependent[id] = 0;
         state.resolved_cache_hit[id] = 0;
@@ -434,7 +437,8 @@ void execute_single_node(
         cache_eval.use_cache,
         cache_eval.key,
         cache_eval.result,
-        ctx
+        ctx,
+        parent_pool
     );
 
     // Telemetry

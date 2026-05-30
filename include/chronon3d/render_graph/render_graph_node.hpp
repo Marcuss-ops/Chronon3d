@@ -4,6 +4,7 @@
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/render_graph/cache_policy.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
+#include <chronon3d/core/memory/framebuffer_handle.hpp>
 #include <chronon3d/cache/framebuffer_pool.hpp>
 #include <chronon3d/runtime/telemetry/render_telemetry_record.hpp>
 #include <chronon3d/scene/camera/camera.hpp>
@@ -79,6 +80,83 @@ struct RenderGraphContext {
     std::shared_ptr<cache::FramebufferPool> framebuffer_pool;
     std::optional<raster::BBox> dirty_rect;
 
+    /// Acquire a framebuffer as an OwnedFB (unique_ptr with pool deleter).
+    /// Zero atomic overhead — use in node execute() methods.
+    OwnedFB acquire_owned_fb(
+        int w,
+        int h,
+        bool clear = true,
+        std::optional<raster::BBox> bounds = std::nullopt,
+        std::atomic<uint64_t>* specific_clear_ms = nullptr
+    ) const {
+        OwnedFB fb;
+        if (framebuffer_pool) {
+            fb = framebuffer_pool->acquire_owned(w, h, clear);
+        } else {
+            fb = OwnedFB(new Framebuffer(w, h), PoolFbDeleter{nullptr});
+            if (clear) fb->clear(Color::transparent());
+        }
+        if (bounds) {
+            fb->set_origin(bounds->x0, bounds->y0);
+        } else {
+            fb->set_origin(0, 0);
+        }
+        if (counters) {
+            counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
+            const uint64_t pixels = static_cast<uint64_t>(w) * static_cast<uint64_t>(h);
+            counters->clear_pixels.fetch_add(pixels, std::memory_order_relaxed);
+        }
+        (void)specific_clear_ms;
+        return fb;
+    }
+
+    /// Copy an existing framebuffer into a new OwnedFB.
+    OwnedFB acquire_owned_fb(const Framebuffer& other) const {
+        OwnedFB fb = acquire_owned_fb(other.width(), other.height(), false);
+        fb->set_origin(other.origin_x(), other.origin_y());
+        if (fb.get() == &other) {
+            return fb;
+        }
+        for (i32 y = 0; y < other.height(); ++y) {
+            std::copy_n(other.pixels_row(y), other.width(), fb->pixels_row(y));
+        }
+        fb->set_opaque(other.is_opaque());
+        fb->set_key_digest(other.key_digest());
+        return fb;
+    }
+
+    /// Adopt a uniquely-owned shared_ptr<Framebuffer> into an OwnedFB without
+    /// copying pixel data.
+    ///
+    /// Allocates a framebuffer from the pool, then swaps pixel storage with the
+    /// source shared_ptr's Framebuffer.  The shared_ptr is reset and its now-empty
+    /// Framebuffer is returned to the pool when the shared_ptr dies.
+    ///
+    /// Falls back to a pixel copy when use_count != 1.
+    OwnedFB acquire_owned_fb(std::shared_ptr<Framebuffer>&& src) const {
+        if (!src) return nullptr;
+        if (src.use_count() != 1) return acquire_owned_fb(*src);
+
+        OwnedFB result = acquire_owned_fb(src->width(), src->height(), false);
+        if (!result) return acquire_owned_fb(*src);
+
+        // Swap pixel storage with the source — no pixel copy.
+        result->set_origin(src->origin_x(), src->origin_y());
+        result->set_opaque(src->is_opaque());
+        result->swap_contents(*src);
+        src.reset();
+        return result;
+    }
+
+    /// Convert an OwnedFB to a shared_ptr for cache storage.
+    /// Transfers ownership from the unique_ptr to the shared_ptr.
+    static CachedFB own_to_cache(OwnedFB& owned, cache::FramebufferPool* pool) {
+        if (!owned) return nullptr;
+        Framebuffer* raw = owned.release();
+        return CachedFB(raw, PoolFbDeleter{pool});
+    }
+
+    /// Legacy shared_ptr acquire — still needed for cache interaction.
     std::shared_ptr<Framebuffer> acquire_framebuffer(
         int w,
         int h,
@@ -272,9 +350,9 @@ public:
 
     [[nodiscard]] virtual cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const = 0;
 
-    virtual std::shared_ptr<Framebuffer> execute(
+    virtual OwnedFB execute(
         RenderGraphContext& ctx,
-        std::span<const std::shared_ptr<Framebuffer>> inputs,
+        std::span<const FramebufferRef> inputs,
         std::span<const std::optional<raster::BBox>> input_bboxes
     ) = 0;
 
