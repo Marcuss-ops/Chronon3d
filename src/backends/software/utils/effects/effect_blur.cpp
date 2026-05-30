@@ -25,9 +25,10 @@
 namespace chronon3d {
 namespace renderer {
 
-void apply_blur(Framebuffer& fb, f32 radius, const std::optional<raster::BBox>& clip) {
+void apply_blur(Framebuffer& fb, f32 radius, const std::optional<raster::BBox>& clip, int passes) {
     const i32 r = std::max(1, static_cast<i32>(std::round(radius)));
     const i32 w = fb.width(), h = fb.height();
+    const i32 blur_passes = std::max(1, passes);
 
     i32 x0 = 0, x1 = w;
     i32 y0 = 0, y1 = h;
@@ -48,7 +49,7 @@ void apply_blur(Framebuffer& fb, f32 radius, const std::optional<raster::BBox>& 
     auto tmp_fb = acquire_temp_framebuffer(w, h);
     Framebuffer& tmp = *tmp_fb;
 
-    for (int pass = 0; pass < 3; ++pass) {
+    for (int pass = 0; pass < blur_passes; ++pass) {
         // Both horizontal and vertical passes must run on the exact same expanded bounding box
         // [x0, x1) x [y0, y1) to prevent reading unblurred/stale boundary pixels between passes.
         tbb::parallel_for(tbb::blocked_range<i32>(y0, y1), [&](const tbb::blocked_range<i32>& range) {

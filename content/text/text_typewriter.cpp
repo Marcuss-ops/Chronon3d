@@ -118,36 +118,6 @@ Composition text_typewriter() {
     }, presets::motion::MotionPreset::PerspectiveSweepTextReveal, true);
 }
 
-Composition text_typewriter_terminal() {
-    return make_typewriter("TextTypewriterTerminal", {
-        TypewriterLine("TYPEWRITER / PERSPECTIVE SWEEP").set_pos({0, 0, 0}).set_font(62, 6).set_timing(0, 2.0f).set_color({0.88f, 0.96f, 1, 1})
-    }, presets::motion::MotionPreset::PerspectiveSweepTextReveal, true, {0.006f, 0.01f, 0.016f, 1});
-}
-
-Composition text_typewriter_quote() {
-    return make_typewriter("TextTypewriterQuote", {
-        TypewriterLine("WE WRITE THE WORDS").set_pos({0, -56, 0}).set_font(60, 8).set_timing(0, 1.7f).set_color({0.25f, 0.58f, 1, 1}),
-        TypewriterLine("THEN THE TEXT WRITES THE SCENE.").set_pos({0, 40, 0}).set_font(42, 3).set_timing(28, 2.4f).set_color({0.92f, 0.94f, 0.98f, 1})
-    }, presets::motion::MotionPreset::PerspectiveSweepTextReveal, true, {0.008f, 0.011f, 0.024f, 1});
-}
-
-Composition text_typewriter_manifest() {
-    return make_typewriter("TextTypewriterManifest", {
-        TypewriterLine("MANIFEST").set_pos({-W * 0.22f, -138, 0}).set_font(26, 5).set_timing(0, 4.0f).set_color({0.35f, 1, 0.62f, 1}).set_align(TextAlign::Left),
-        TypewriterLine("every frame can become a sentence,").set_pos({0, -38, 0}).set_font(42, 1).set_timing(0, 2.6f).set_color({0.95f, 0.96f, 1, 1}),
-        TypewriterLine("and every sentence can be typed into motion.").set_pos({0, 60, 0}).set_font(30, 0.6f).set_timing(26, 2.9f).set_color({0.78f, 0.82f, 0.9f, 1}),
-        TypewriterLine("typewriter / scalable / data-driven").set_pos({0, 156, 0}).set_font(24, 4).set_timing(54, 3.5f).set_color({0.35f, 1, 0.62f, 1})
-    }, presets::motion::MotionPreset::PerspectiveSweepTextReveal, true, {0.012f, 0.01f, 0.018f, 1});
-}
-
-Composition text_typewriter_chapter() {
-    return make_typewriter("TextTypewriterChapter", {
-        TypewriterLine("CHAPTER 01").set_pos({0, -98, 0}).set_font(34, 10).set_timing(0, 3.0f).set_color({0.35f, 1, 0.62f, 1}),
-        TypewriterLine("THE FIRST WORD ARRIVES").set_pos({0, -12, 0}).set_font(54, 5).set_timing(0, 1.9f).set_color({0.92f, 0.96f, 1, 1}),
-        TypewriterLine("typing makes timing visible.").set_pos({0, 88, 0}).set_font(26, 1.2f).set_timing(34, 3.0f).set_color({0.78f, 0.82f, 0.9f, 1})
-    }, presets::motion::MotionPreset::PerspectiveSweepTextReveal, true, {0.009f, 0.012f, 0.02f, 1});
-}
-
 Composition text_typewriter_dolly() {
     return make_typewriter("TextTypewriterDolly", {
         TypewriterLine("THE DOLLY TYPEWRITER EFFECT.").set_pos({0, 0, 0}).set_font(60, 6).set_timing(0, 1.8f).set_color({0.25f, 0.58f, 1, 1})

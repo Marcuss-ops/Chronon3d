@@ -85,6 +85,7 @@ public:
         m_cached_compiled_width = 0;
         m_cached_compiled_height = 0;
         m_cached_compiled_structure_hash = 0;
+        m_prev_graph_structure_fingerprint = 0;
         // Video cache clearing is now responsibility of the decoder implementation
     }
 
@@ -155,6 +156,7 @@ public:
     bool m_prev_camera_valid{false};
     uint64_t m_prev_scene_fingerprint{0};
     uint64_t m_prev_static_scene_fingerprint{0};
+    uint64_t m_prev_graph_structure_fingerprint{0};
     uint64_t m_prev_active_at_fingerprint{0}; // tracks which layers are active at each frame
     graph::SceneHasher m_scene_hasher;
 

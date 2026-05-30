@@ -10,6 +10,18 @@ add_library(chronon3d_content_text STATIC
     text/text_layout.cpp
     text/text_scrolling.cpp
     text/text_typewriter.cpp
+    text/typewriter/text_typewriter_terminal.cpp
+    text/typewriter/text_typewriter_terminal_preview.cpp
+    text/typewriter/text_typewriter_quote.cpp
+    text/typewriter/text_typewriter_quote_preview.cpp
+    text/typewriter/text_typewriter_manifest.cpp
+    text/typewriter/text_typewriter_manifest_preview.cpp
+    text/typewriter/text_typewriter_chapter.cpp
+    text/typewriter/text_typewriter_chapter_preview.cpp
+    text/typewriter/text_typewriter_dolly_rotate.cpp
+    text/typewriter/text_typewriter_animation_test.cpp
+    text/typewriter/text_typewriter_showcase.cpp
+    text/text_intro.cpp
     text/text_proofs.cpp
     text/text_registrations.cpp
     text/lil_dirk.cpp

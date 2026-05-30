@@ -26,9 +26,9 @@ namespace chronon3d {
 
 namespace chronon3d::renderer {
 
-void apply_blur(Framebuffer& fb, f32 radius, const std::optional<raster::BBox>& clip);
+void apply_blur(Framebuffer& fb, f32 radius, const std::optional<raster::BBox>& clip, int passes);
 void apply_color_effects(Framebuffer& fb, const LayerEffect& effect, const std::optional<raster::BBox>& clip);
-void apply_effect_stack(Framebuffer& fb, const EffectStack& stack, float time_seconds, const std::optional<raster::BBox>& clip);
+void apply_effect_stack(Framebuffer& fb, const EffectStack& stack, float time_seconds, const std::optional<raster::BBox>& clip, bool diagnostics_enabled);
 }
 
 namespace chronon3d {
@@ -232,7 +232,7 @@ void SoftwareRenderer::apply_blur(Framebuffer& fb, f32 radius, const std::option
     const auto local_clip = to_local_clip(fb, clip);
     m_counters.blur_pixels.fetch_add(clipped_area(fb.width(), fb.height(), local_clip), std::memory_order_relaxed);
     CHRONON_ZONE_C("apply_blur", trace_category::kEffect);
-    renderer::apply_blur(fb, radius, local_clip);
+    renderer::apply_blur(fb, radius, local_clip, 3);
 }
 
 void SoftwareRenderer::apply_effect_stack(Framebuffer& fb, const EffectStack& stack, float time_seconds, const std::optional<raster::BBox>& clip) {
@@ -246,7 +246,7 @@ void SoftwareRenderer::apply_effect_stack(Framebuffer& fb, const EffectStack& st
         }
     }
 
-    renderer::apply_effect_stack(fb, stack, time_seconds, local_clip);
+    renderer::apply_effect_stack(fb, stack, time_seconds, local_clip, m_settings.diagnostic);
 }
 
 void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node,

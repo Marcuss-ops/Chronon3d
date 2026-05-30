@@ -6,7 +6,10 @@
 #include "../../primitive_renderer.hpp"
 #include "effects_internal.hpp"
 #include <chronon3d/compositor/blend_mode.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <algorithm>
+#include <chrono>
+#include <spdlog/spdlog.h>
 
 namespace chronon3d {
 namespace renderer {
@@ -17,6 +20,10 @@ struct GlowLayerPass {
     float radius_scale;
     float intensity_scale;
 };
+
+[[nodiscard]] i32 blur_padding_for_radius(float radius) {
+    return std::max(1, static_cast<i32>(std::ceil(std::max(0.0f, radius))) + 2);
+}
 
 std::optional<raster::BBox> expand_effect_clip(
     const std::optional<raster::BBox>& clip,
@@ -46,8 +53,23 @@ BlendMode glow_blend_mode(const GlowParams& params) {
 } // namespace
 
 void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
-                        float time_seconds, const std::optional<raster::BBox>& clip) {
+                        float time_seconds, const std::optional<raster::BBox>& clip,
+                        bool diagnostics_enabled) {
     using enum effects::EffectType;
+    const auto stack_start = diagnostics_enabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
+    double blur_ms = 0.0;
+    double tint_ms = 0.0;
+    double brightness_ms = 0.0;
+    double contrast_ms = 0.0;
+    double glow_ms = 0.0;
+    double glow_extract_ms = 0.0;
+    double glow_mask_ms = 0.0;
+    double glow_blur_ms = 0.0;
+    double glow_accumulate_ms = 0.0;
+    double glow_composite_ms = 0.0;
+    double shadow_ms = 0.0;
+    double bloom_ms = 0.0;
+    double fake3d_ms = 0.0;
 
     for (const auto& inst : stack) {
         if (!inst.enabled) continue;
@@ -57,8 +79,12 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
         case Blur: {
             auto* p = std::any_cast<BlurParams>(&inst.params);
             if (p && p->radius > 0.0f) {
+                const auto t0 = diagnostics_enabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
                 auto effect_clip = expand_effect_clip(clip, fb.width(), fb.height(), p->radius);
                 apply_blur(fb, p->radius, effect_clip);
+                if (diagnostics_enabled) {
+                    blur_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+                }
             }
             break;
         }
@@ -66,9 +92,13 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
         case Tint: {
             auto* p = std::any_cast<TintParams>(&inst.params);
             if (p) {
+                const auto t0 = diagnostics_enabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
                 LayerEffect e;
                 e.tint = Color{p->color.r, p->color.g, p->color.b, p->color.a * p->amount};
                 apply_color_effects(fb, e, clip);
+                if (diagnostics_enabled) {
+                    tint_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+                }
             }
             break;
         }
@@ -76,8 +106,12 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
         case Brightness: {
             auto* p = std::any_cast<BrightnessParams>(&inst.params);
             if (p) {
+                const auto t0 = diagnostics_enabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
                 LayerEffect e; e.brightness = p->value;
                 apply_color_effects(fb, e, clip);
+                if (diagnostics_enabled) {
+                    brightness_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+                }
             }
             break;
         }
@@ -85,8 +119,12 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
         case Contrast: {
             auto* p = std::any_cast<ContrastParams>(&inst.params);
             if (p) {
+                const auto t0 = diagnostics_enabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
                 LayerEffect e; e.contrast = p->value;
                 apply_color_effects(fb, e, clip);
+                if (diagnostics_enabled) {
+                    contrast_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+                }
             }
             break;
         }
@@ -94,6 +132,7 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
         case Glow: {
             auto* p = std::any_cast<GlowParams>(&inst.params);
             if (p && p->intensity > 0.0f) {
+                const auto t0 = diagnostics_enabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
                 const i32 w = fb.width(), h = fb.height();
                 const float extent = glow_effect_extent(*p);
                 auto effect_clip = expand_effect_clip(clip, w, h, extent);
@@ -106,43 +145,41 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
                     y_min = std::max(0, effect_clip->y0);
                     y_max = std::min(h, effect_clip->y1);
                 }
-                const i32 roi_w = x_max - x_min;
-                const i32 roi_h = y_max - y_min;
+                const float base_radius = std::max(0.0f, p->radius) * std::max(0.0f, p->spread);
+                const i32 blur_pad = blur_padding_for_radius(base_radius);
+                const i32 x_min_pad = std::max(0, x_min - blur_pad);
+                const i32 x_max_pad = std::min(w, x_max + blur_pad);
+                const i32 y_min_pad = std::max(0, y_min - blur_pad);
+                const i32 y_max_pad = std::min(h, y_max + blur_pad);
+                const i32 roi_w = x_max_pad - x_min_pad;
+                const i32 roi_h = y_max_pad - y_min_pad;
                 if (roi_w > 0 && roi_h > 0) {
-                    auto original_fb = acquire_temp_framebuffer(roi_w, roi_h);
                     auto glow_acc_fb = acquire_temp_framebuffer(roi_w, roi_h);
-                    original_fb->clear({0,0,0,0});
                     glow_acc_fb->clear({0,0,0,0});
+                    auto pass_fb = acquire_temp_framebuffer(roi_w, roi_h);
+                    pass_fb->clear({0,0,0,0});
 
-                    // 1. Extract source into a local ROI so blur sampling never sees
-                    // stale pixels outside the effect bounds.
-                    for (i32 y = 0; y < roi_h; ++y) {
-                        const Color* src_row = fb.pixels_row(y + y_min);
-                        Color* orig_row = original_fb->pixels_row(y);
-                        for (i32 x = 0; x < roi_w; ++x) {
-                            orig_row[x] = src_row[x + x_min];
-                        }
-                    }
-
-                    const float base_radius = std::max(0.0f, p->radius) * std::max(0.0f, p->spread);
                     const GlowLayerPass passes[] = {
                         {0.35f, std::max(0.0f, p->core_strength)},
-                        {0.75f, std::max(0.0f, p->aura_strength)},
-                        {1.50f, std::max(0.0f, p->bloom_strength)},
+                        {0.95f, std::max(0.0f, p->aura_strength) + std::max(0.0f, p->bloom_strength)},
                     };
 
                     for (const auto& pass : passes) {
-                        auto pass_fb = acquire_temp_framebuffer(roi_w, roi_h);
                         pass_fb->clear({0,0,0,0});
                         const float r = base_radius * pass.radius_scale;
                         if (r < 0.5f) continue;
 
-                        // Build a glow mask from source alpha/luma, then tint it.
+                        const auto t_build0 = diagnostics_enabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
+                        // Build a glow mask directly from the source framebuffer.
                         for (i32 y = 0; y < roi_h; ++y) {
-                            const Color* orig_row = original_fb->pixels_row(y);
+                            const i32 sy = y + y_min_pad;
+                            if (sy < y_min || sy >= y_max) continue;
+                            const Color* src_row = fb.pixels_row(sy);
                             Color* pass_row = pass_fb->pixels_row(y);
                             for (i32 x = 0; x < roi_w; ++x) {
-                                const Color c = orig_row[x];
+                                const i32 sx = x + x_min_pad;
+                                if (sx < x_min || sx >= x_max) continue;
+                                const Color c = src_row[sx];
                                 if (c.a <= 0.0f) continue;
 
                                 float trigger = c.a;
@@ -167,9 +204,17 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
                                 }
                             }
                         }
+                        if (diagnostics_enabled) {
+                            glow_extract_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t_build0).count();
+                        }
 
-                        apply_blur(*pass_fb, r, std::nullopt);
+                        const auto t_blur0 = diagnostics_enabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
+                        apply_blur(*pass_fb, r, std::nullopt, 1);
+                        if (diagnostics_enabled) {
+                            glow_blur_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t_blur0).count();
+                        }
 
+                        const auto t_acc0 = diagnostics_enabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
                         // Accumulate into glow_acc_fb
                         for (i32 y = 0; y < roi_h; ++y) {
                             Color* acc_row = glow_acc_fb->pixels_row(y);
@@ -195,19 +240,32 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
                                 acc.a = std::max(acc.a, g.a);
                             }
                         }
+                        if (diagnostics_enabled) {
+                            glow_accumulate_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t_acc0).count();
+                        }
                     }
 
+                    const auto t_comp0 = diagnostics_enabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
                     // 3. Composite the glow back into the original buffer (glow behind).
                     for (i32 y = 0; y < roi_h; ++y) {
-                        Color* dst_row = fb.pixels_row(y + y_min);
+                        const i32 dy = y + y_min_pad;
+                        if (dy < 0 || dy >= h) continue;
+                        Color* dst_row = fb.pixels_row(dy);
                         const Color* glow_row = glow_acc_fb->pixels_row(y);
                         for (i32 x = 0; x < roi_w; ++x) {
-                            if (glow_row[x].a <= 0.0f) continue;
+                            const i32 dx = x + x_min_pad;
+                            if (dx < 0 || dx >= w || glow_row[x].a <= 0.0f) continue;
 
-                            Color& dst = dst_row[x + x_min];
+                            Color& dst = dst_row[dx];
                             dst = compositor::blend(dst, glow_row[x], glow_blend_mode(*p));
                         }
                     }
+                    if (diagnostics_enabled) {
+                        glow_composite_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t_comp0).count();
+                    }
+                }
+                if (diagnostics_enabled) {
+                    glow_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
                 }
             }
             break;
@@ -216,56 +274,71 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
         case DropShadow: {
             auto* p = std::any_cast<DropShadowParams>(&inst.params);
             if (p) {
-            const i32 w = fb.width(), h = fb.height();
-            const float spread =
-                std::max(std::abs(p->offset.x), std::abs(p->offset.y)) + p->radius;
-            auto effect_clip = expand_effect_clip(clip, w, h, spread);
-            i32 x_min_src = 0, x_max_src = w;
-            i32 y_min_src = 0, y_max_src = h;
-            i32 x_min_dst = 0, x_max_dst = w;
-            i32 y_min_dst = 0, y_max_dst = h;
-            const i32 ox = static_cast<i32>(std::round(p->offset.x));
-            const i32 oy = static_cast<i32>(std::round(p->offset.y));
-            if (effect_clip) {
-                x_min_dst = std::max(0, effect_clip->x0);
-                x_max_dst = std::min(w, effect_clip->x1);
-                y_min_dst = std::max(0, effect_clip->y0);
-                y_max_dst = std::min(h, effect_clip->y1);
+                const auto t0 = diagnostics_enabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
+                const i32 w = fb.width(), h = fb.height();
+                const float spread =
+                    std::max(std::abs(p->offset.x), std::abs(p->offset.y)) + p->radius;
+                auto effect_clip = expand_effect_clip(clip, w, h, spread);
+                i32 x_min_src = 0, x_max_src = w;
+                i32 y_min_src = 0, y_max_src = h;
+                i32 x_min_dst = 0, x_max_dst = w;
+                i32 y_min_dst = 0, y_max_dst = h;
+                const i32 ox = static_cast<i32>(std::round(p->offset.x));
+                const i32 oy = static_cast<i32>(std::round(p->offset.y));
+                if (effect_clip) {
+                    x_min_dst = std::max(0, effect_clip->x0);
+                    x_max_dst = std::min(w, effect_clip->x1);
+                    y_min_dst = std::max(0, effect_clip->y0);
+                    y_max_dst = std::min(h, effect_clip->y1);
 
-                x_min_src = std::max(0, effect_clip->x0 - ox);
-                x_max_src = std::min(w, effect_clip->x1 - ox);
-                y_min_src = std::max(0, effect_clip->y0 - oy);
-                y_max_src = std::min(h, effect_clip->y1 - oy);
-            }
-            auto shadow_map_fb = acquire_temp_framebuffer(w, h);
-            shadow_map_fb->clear(Color{0.0f, 0.0f, 0.0f, 0.0f});
-            auto& shadow_map = *shadow_map_fb;
-            if (x_min_dst < x_max_dst && y_min_dst < y_max_dst) {
-                for (i32 y = y_min_src; y < y_max_src; ++y) {
-                    const Color* src_row = fb.pixels_row(y);
-                    for (i32 x = x_min_src; x < x_max_src; ++x) {
-                        const Color c = src_row[x];
-                        if (c.a > 0.0f) {
-                            const i32 dx = x + ox;
-                            const i32 dy = y + oy;
-                            if (dx >= 0 && dx < w && dy >= 0 && dy < h) {
-                                Color* shadow_row = shadow_map.pixels_row(dy);
-                                shadow_row[dx] = {p->color.r, p->color.g, p->color.b, c.a * p->color.a};
+                    x_min_src = std::max(0, effect_clip->x0 - ox);
+                    x_max_src = std::min(w, effect_clip->x1 - ox);
+                    y_min_src = std::max(0, effect_clip->y0 - oy);
+                    y_max_src = std::min(h, effect_clip->y1 - oy);
+                }
+                const i32 blur_pad = blur_padding_for_radius(p->radius);
+                const i32 x_min_pad = std::max(0, x_min_dst - blur_pad);
+                const i32 x_max_pad = std::min(w, x_max_dst + blur_pad);
+                const i32 y_min_pad = std::max(0, y_min_dst - blur_pad);
+                const i32 y_max_pad = std::min(h, y_max_dst + blur_pad);
+                const i32 roi_w = x_max_pad - x_min_pad;
+                const i32 roi_h = y_max_pad - y_min_pad;
+                auto shadow_map_fb = acquire_temp_framebuffer(roi_w, roi_h);
+                shadow_map_fb->clear(Color{0.0f, 0.0f, 0.0f, 0.0f});
+                auto& shadow_map = *shadow_map_fb;
+                if (roi_w > 0 && roi_h > 0) {
+                    for (i32 y = y_min_src; y < y_max_src; ++y) {
+                        const Color* src_row = fb.pixels_row(y);
+                        for (i32 x = x_min_src; x < x_max_src; ++x) {
+                            const Color c = src_row[x];
+                            if (c.a > 0.0f) {
+                                const i32 dx = x + ox;
+                                const i32 dy = y + oy;
+                                if (dx >= x_min_pad && dx < x_max_pad && dy >= y_min_pad && dy < y_max_pad) {
+                                    Color* shadow_row = shadow_map.pixels_row(dy - y_min_pad);
+                                    shadow_row[dx - x_min_pad] = {p->color.r, p->color.g, p->color.b, c.a * p->color.a};
+                                }
                             }
                         }
                     }
-                }
-                if (p->radius > 0.0f) apply_blur(shadow_map, p->radius, effect_clip);
-                
-                // Composite shadow BEHIND content in-place
-                for (i32 y = y_min_dst; y < y_max_dst; ++y) {
-                    Color*       fb_row = fb.pixels_row(y);
-                    const Color* shadow_row = shadow_map.pixels_row(y);
-                    for (i32 x = x_min_dst; x < x_max_dst; ++x) {
-                        fb_row[x] = compositor::blend(fb_row[x], shadow_row[x], BlendMode::Normal);
+                    if (p->radius > 0.0f) apply_blur(shadow_map, p->radius, std::nullopt, 1);
+                    
+                    // Composite shadow BEHIND content in-place
+                    for (i32 y = 0; y < roi_h; ++y) {
+                        const i32 dy = y + y_min_pad;
+                        if (dy < 0 || dy >= h) continue;
+                        Color*       fb_row = fb.pixels_row(dy);
+                        const Color* shadow_row = shadow_map.pixels_row(y);
+                        for (i32 x = 0; x < roi_w; ++x) {
+                            const i32 dx = x + x_min_pad;
+                            if (dx < 0 || dx >= w || shadow_row[x].a <= 0.0f) continue;
+                            fb_row[dx] = compositor::blend(fb_row[dx], shadow_row[x], BlendMode::Normal);
+                        }
                     }
                 }
-            }
+                if (diagnostics_enabled) {
+                    shadow_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+                }
             }
             break;
         }
@@ -273,49 +346,68 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
         case Bloom: {
             auto* p = std::any_cast<BloomParams>(&inst.params);
             if (p) {
-            const i32 w = fb.width(), h = fb.height();
-            auto effect_clip = expand_effect_clip(clip, w, h, p->radius);
-            i32 x_min = 0, x_max = w;
-            i32 y_min = 0, y_max = h;
-            if (effect_clip) {
-                x_min = std::max(0, effect_clip->x0);
-                x_max = std::min(w, effect_clip->x1);
-                y_min = std::max(0, effect_clip->y0);
-                y_max = std::min(h, effect_clip->y1);
-            }
-            auto bright_fb = acquire_temp_framebuffer(w, h);
-            bright_fb->clear(Color{0.0f, 0.0f, 0.0f, 0.0f});
-            auto& bright = *bright_fb;
-            if (x_min < x_max && y_min < y_max) {
-                for (i32 y = y_min; y < y_max; ++y) {
-                    const Color* src_row   = fb.pixels_row(y);
-                    Color*       bright_row = bright.pixels_row(y);
-                    for (i32 x = x_min; x < x_max; ++x) {
-                        const Color c = src_row[x];
-                        const f32 lum = 0.2126f * c.r + 0.7152f * c.g + 0.0722f * c.b;
-                        if (lum > p->threshold && c.a > 0.0f) {
-                            const f32 excess = (lum - p->threshold) / (1.0f - p->threshold + 1e-4f);
-                            bright_row[x] = {c.r * excess, c.g * excess, c.b * excess, c.a};
+                const auto t0 = diagnostics_enabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
+                const i32 w = fb.width(), h = fb.height();
+                auto effect_clip = expand_effect_clip(clip, w, h, p->radius);
+                i32 x_min = 0, x_max = w;
+                i32 y_min = 0, y_max = h;
+                if (effect_clip) {
+                    x_min = std::max(0, effect_clip->x0);
+                    x_max = std::min(w, effect_clip->x1);
+                    y_min = std::max(0, effect_clip->y0);
+                    y_max = std::min(h, effect_clip->y1);
+                }
+                const i32 blur_pad = blur_padding_for_radius(p->radius);
+                const i32 x_min_pad = std::max(0, x_min - blur_pad);
+                const i32 x_max_pad = std::min(w, x_max + blur_pad);
+                const i32 y_min_pad = std::max(0, y_min - blur_pad);
+                const i32 y_max_pad = std::min(h, y_max + blur_pad);
+                const i32 roi_w = x_max_pad - x_min_pad;
+                const i32 roi_h = y_max_pad - y_min_pad;
+                auto bright_fb = acquire_temp_framebuffer(roi_w, roi_h);
+                bright_fb->clear(Color{0.0f, 0.0f, 0.0f, 0.0f});
+                auto& bright = *bright_fb;
+                if (roi_w > 0 && roi_h > 0) {
+                    for (i32 y = 0; y < roi_h; ++y) {
+                        const i32 sy = y + y_min_pad;
+                        if (sy < y_min || sy >= y_max) continue;
+                        const Color* src_row   = fb.pixels_row(sy);
+                        Color*       bright_row = bright.pixels_row(y);
+                        for (i32 x = 0; x < roi_w; ++x) {
+                            const i32 sx = x + x_min_pad;
+                            if (sx < x_min || sx >= x_max) continue;
+                            const Color c = src_row[sx];
+                            const f32 lum = 0.2126f * c.r + 0.7152f * c.g + 0.0722f * c.b;
+                            if (lum > p->threshold && c.a > 0.0f) {
+                                const f32 excess = (lum - p->threshold) / (1.0f - p->threshold + 1e-4f);
+                                bright_row[x] = {c.r * excess, c.g * excess, c.b * excess, c.a};
+                            }
+                        }
+                    }
+                    if (p->radius > 0.0f) apply_blur(bright, p->radius, std::nullopt, 1);
+                    for (i32 y = 0; y < roi_h; ++y) {
+                        const i32 dy = y + y_min_pad;
+                        if (dy < 0 || dy >= h) continue;
+                        Color*       dst_row    = fb.pixels_row(dy);
+                        const Color* bright_row = bright.pixels_row(y);
+                        for (i32 x = 0; x < roi_w; ++x) {
+                            const i32 dx = x + x_min_pad;
+                            if (dx < 0 || dx >= w) continue;
+                            const Color b = bright_row[x];
+                            if (b.a <= 0.0f) continue;
+                            const Color src = dst_row[dx];
+                            dst_row[dx] = {
+                                std::min(1.0f, src.r + b.r * p->intensity),
+                                std::min(1.0f, src.g + b.g * p->intensity),
+                                std::min(1.0f, src.b + b.b * p->intensity),
+                                src.a
+                            };
                         }
                     }
                 }
-                if (p->radius > 0.0f) apply_blur(bright, p->radius, effect_clip);
-                for (i32 y = y_min; y < y_max; ++y) {
-                    Color*       dst_row    = fb.pixels_row(y);
-                    const Color* bright_row = bright.pixels_row(y);
-                    for (i32 x = x_min; x < x_max; ++x) {
-                        const Color b = bright_row[x];
-                        if (b.a <= 0.0f) continue;
-                        const Color src = dst_row[x];
-                        dst_row[x] = {
-                            std::min(1.0f, src.r + b.r * p->intensity),
-                            std::min(1.0f, src.g + b.g * p->intensity),
-                            std::min(1.0f, src.b + b.b * p->intensity),
-                            src.a
-                        };
-                    }
+                if (diagnostics_enabled) {
+                    bloom_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
                 }
-            }
             }
             break;
         }
@@ -323,7 +415,11 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
         case Fake3DWave: {
             auto* p = std::any_cast<Fake3DWaveParams>(&inst.params);
             if (p) {
+                const auto t0 = diagnostics_enabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
                 apply_fake_3d_wave(fb, *p, time_seconds);
+                if (diagnostics_enabled) {
+                    fake3d_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+                }
             }
             break;
         }
@@ -331,6 +427,14 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
         case Unknown:
             break;
         }
+    }
+
+    if (diagnostics_enabled) {
+        const double total_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - stack_start).count();
+        spdlog::info(
+            "[EffectStack] total={:.2f}ms blur={:.2f} tint={:.2f} brightness={:.2f} contrast={:.2f} glow={:.2f} glow_extract={:.2f} glow_mask={:.2f} glow_blur={:.2f} glow_acc={:.2f} glow_comp={:.2f} shadow={:.2f} bloom={:.2f} fake3d={:.2f}",
+            total_ms, blur_ms, tint_ms, brightness_ms, contrast_ms, glow_ms, glow_extract_ms, glow_mask_ms, glow_blur_ms, glow_accumulate_ms, glow_composite_ms, shadow_ms, bloom_ms, fake3d_ms
+        );
     }
 }
 
@@ -352,9 +456,9 @@ void draw_shadow(Framebuffer& fb, const RenderNode& node, const RenderState& sta
         const f32 spread = node.shadow.radius * t;
         const f32 alpha  = base.a * (1.0f - t * t) * state.opacity;
         if (alpha > 0.0f)
-            draw_transformed_shape(fb, node.shape, shadow_model, {base.r, base.g, base.b, alpha}, spread, &state, nullptr, node.corner_radius);
+            renderer::draw_transformed_shape(fb, node.shape, shadow_model, {base.r, base.g, base.b, alpha}, spread, &state, nullptr, node.corner_radius);
     }
-    draw_transformed_shape(fb, node.shape, shadow_model,
+    renderer::draw_transformed_shape(fb, node.shape, shadow_model,
                            {base.r, base.g, base.b, base.a * 0.7f * state.opacity}, 0.0f, &state, nullptr, node.corner_radius);
 }
 
@@ -370,7 +474,7 @@ void draw_glow(Framebuffer& fb, const RenderNode& node, const RenderState& state
         const f32 expand = node.glow.radius * t;
         const f32 alpha  = base.a * node.glow.intensity * (1.0f - t) * state.opacity;
         if (alpha > 0.0f)
-            draw_transformed_shape(fb, node.shape, model, {base.r, base.g, base.b, alpha}, expand, &state, nullptr, node.corner_radius);
+            renderer::draw_transformed_shape(fb, node.shape, model, {base.r, base.g, base.b, alpha}, expand, &state, nullptr, node.corner_radius);
     }
 }
 

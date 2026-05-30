@@ -14,6 +14,7 @@
 #include <blend2d.h>
 #include <spdlog/spdlog.h>
 #include <glm/gtc/matrix_transform.hpp>
+#include <chrono>
 #include <mutex>
 #include <cstdlib>
 #include <memory>
@@ -306,6 +307,8 @@ public:
     void draw(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNode& node, const RenderState& state,
               const Camera& camera, i32 width, i32 height) override {
         CHRONON_ZONE_C("text_render", trace_category::kText);
+        const bool diagnostics_enabled = renderer.is_diagnostic_mode();
+        const auto draw_start = diagnostics_enabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
         const Mat4& model = state.matrix;
         const f32 opacity = state.opacity;
         const float effective_size = node.shape.text.style.size * state.ssaa_factor;
@@ -323,7 +326,12 @@ public:
         }
 
         bool raster_cache_hit = false;
+        double rasterize_ms = 0.0;
+        const auto raster_start = diagnostics_enabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
         auto raster = rasterize_text_to_bl_image(node.shape.text, effective_size, 4, &raster_cache_hit, raster_transform);
+        if (diagnostics_enabled) {
+            rasterize_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - raster_start).count();
+        }
         if (!raster) {
             spdlog::warn("Text rasterization failed for node '{}'", node.name);
             return;
@@ -336,20 +344,33 @@ public:
             );
         }
 
+        double shadow_ms = 0.0;
+        double glow_ms = 0.0;
+        double composite_ms = 0.0;
+
         // 1. Drop Shadows (behind)
         for (size_t i = 0; i < node.shape.text.style.shadows.size(); ++i) {
             const auto& shadow = node.shape.text.style.shadows[i];
             if (shadow.enabled && shadow.opacity > 0.0f && shadow.color.a > 0.0f) {
+                const auto shadow_start = diagnostics_enabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
                 draw_text_shadow(renderer, fb, node, state, *raster, shadow, i, effective_size);
+                if (diagnostics_enabled) {
+                    shadow_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - shadow_start).count();
+                }
             }
         }
 
         // 2. Glow
         if (node.glow.enabled && node.glow.intensity > 0.0f && node.glow.color.a > 0.0f) {
+            const auto glow_start = diagnostics_enabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
             draw_text_glow(renderer, fb, node, state, *raster, effective_size);
+            if (diagnostics_enabled) {
+                glow_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - glow_start).count();
+            }
         }
 
         // 3. Text
+        const auto composite_start = diagnostics_enabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
         if (use_geo_transform) {
             int x = static_cast<int>(std::lround(raster->x_offset));
             int y = static_cast<int>(std::lround(raster->y_offset));
@@ -357,6 +378,20 @@ public:
         } else {
             Mat4 text_model = model * glm::translate(Mat4(1.0f), Vec3(raster->x_offset, raster->y_offset, 0.0f));
             chronon3d::blend2d_bridge::composite_bl_image_transformed(fb, raster->image, text_model, opacity, BlendMode::Normal);
+        }
+        if (diagnostics_enabled) {
+            composite_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - composite_start).count();
+            const double total_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - draw_start).count();
+            spdlog::info(
+                "[TextRender] node='{}' cache_hit={} rasterize={:.2f}ms shadow={:.2f}ms glow={:.2f}ms composite={:.2f}ms total={:.2f}ms",
+                node.name,
+                raster_cache_hit,
+                rasterize_ms,
+                shadow_ms,
+                glow_ms,
+                composite_ms,
+                total_ms
+            );
         }
     }
 

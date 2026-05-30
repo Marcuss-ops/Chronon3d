@@ -9,9 +9,13 @@
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/math/projector_2_5d.hpp>
 #include "../builder/graph_builder_pipeline.hpp"
+#include "../builder/graph_builder_coordinates.hpp"
 #include "../builder/graph_builder_internal.hpp"
 #include <chronon3d/render_graph/optimizer/graph_optimizer.hpp>
 #include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
+#include <chronon3d/render_graph/nodes/source_node.hpp>
+#include <chronon3d/render_graph/nodes/multi_source_node.hpp>
+#include <chronon3d/render_graph/nodes/transform_node.hpp>
 #include <chronon3d/core/tile_grid.hpp>
 #include <chronon3d/core/dirty_tile_mask.hpp>
 #include "helpers.hpp"
@@ -68,6 +72,253 @@ bool write_plan_output_file(const std::string& path, const std::string& contents
         return false;
     }
     return true;
+}
+
+[[nodiscard]] LayerGraphItem make_layer_graph_item_for_refresh(
+    const ResolvedLayer& resolved_layer,
+    const RenderGraphContext& ctx
+) {
+    const Layer& layer = *resolved_layer.layer;
+
+    if (ctx.camera_2_5d.enabled && layer.is_3d) {
+        Transform effective_transform = resolved_layer.world_transform;
+        const Mat4 projection_world_matrix = effective_transform.to_mat4();
+        auto proj = project_layer_2_5d(
+            effective_transform,
+            projection_world_matrix,
+            ctx.camera_2_5d,
+            static_cast<f32>(ctx.width),
+            static_cast<f32>(ctx.height),
+            ctx.diagnostics_enabled
+        );
+        if (proj.visible) {
+            const Mat4 eff_proj = detail::is_native_3d_layer(layer)
+                ? Mat4(1.0f)
+                : proj.projection_matrix;
+            return LayerGraphItem{
+                .layer             = resolved_layer.layer,
+                .transform         = proj.transform,
+                .world_matrix      = resolved_layer.world_matrix,
+                .projection_matrix = eff_proj,
+                .depth             = proj.depth,
+                .world_z           = resolved_layer.world_transform.position.z,
+                .projected         = true,
+                .native_3d         = detail::is_native_3d_layer(layer),
+                .insertion_index   = resolved_layer.insertion_index,
+                .matte_node        = k_invalid_node,
+                .is_static         = layer.cache_static,
+            };
+        }
+    }
+
+    return LayerGraphItem{
+        .layer           = resolved_layer.layer,
+        .transform       = resolved_layer.world_transform,
+        .world_matrix    = resolved_layer.world_matrix,
+        .depth           = 0.0f,
+        .world_z         = resolved_layer.world_transform.position.z,
+        .projected       = false,
+        .native_3d       = detail::is_native_3d_layer(layer),
+        .insertion_index = resolved_layer.insertion_index,
+        .matte_node      = k_invalid_node,
+        .is_static       = layer.cache_static,
+    };
+}
+
+void refresh_compiled_graph_payloads(
+    CompiledFrameGraph& compiled,
+    const Scene& scene,
+    RenderGraphContext& ctx,
+    const detail::LayerResolutionResult& resolved
+) {
+    std::unordered_map<std::string, const ResolvedLayer*> resolved_by_name;
+    resolved_by_name.reserve(resolved.layers.size());
+    for (const auto& rl : resolved.layers) {
+        if (rl.layer) {
+            resolved_by_name.emplace(std::string(rl.layer->name), &rl);
+        }
+    }
+
+    std::unordered_map<std::string, const RenderNode*> root_nodes_by_name;
+    root_nodes_by_name.reserve(scene.nodes().size());
+    for (const auto& node : scene.nodes()) {
+        root_nodes_by_name.emplace(std::string(node.name), &node);
+    }
+
+    const auto refresh_source_node = [&](SourceNode& node) {
+        const std::string layer_id = node.layer_id();
+        if (layer_id.empty()) {
+            const auto it = root_nodes_by_name.find(node.name());
+            if (it == root_nodes_by_name.end()) return;
+            const RenderNode& src_node = *it->second;
+            cache::NodeCacheKey key{
+                .scope = "root.source:" + std::string(src_node.name),
+                .frame = ctx.frame,
+                .width = ctx.width,
+                .height = ctx.height,
+                .params_hash = hash_render_node(src_node),
+                .source_hash = hash_bytes(src_node.name.data(), src_node.name.size())
+            };
+            node.refresh(
+                std::string(src_node.name),
+                src_node,
+                key,
+                ctx.modular_coordinates
+            );
+            return;
+        }
+
+        const auto layer_it = resolved_by_name.find(layer_id);
+        if (layer_it == resolved_by_name.end() || !layer_it->second || !layer_it->second->layer) {
+            return;
+        }
+
+        const ResolvedLayer& rl = *layer_it->second;
+        const Layer& layer = *rl.layer;
+        if (layer.kind != LayerKind::Normal || layer.nodes.size() != 1) {
+            return;
+        }
+
+        const auto& src_node = layer.nodes[0];
+        const LayerGraphItem item = make_layer_graph_item_for_refresh(rl, ctx);
+        const bool use_local = ctx.modular_coordinates &&
+            detail::layer_needs_render_transform(item, ctx) &&
+            !item.native_3d;
+        const Mat4 item_source_world = use_local
+            ? item.world_matrix
+            : detail::source_space_world_matrix(item, ctx);
+        const Mat4 node_matrix = src_node.world_transform.to_mat4();
+        const Mat4 render_matrix = use_local
+            ? node_matrix
+            : (item_source_world * node_matrix);
+        const f32 render_opacity = use_local
+            ? src_node.world_transform.opacity
+            : (item.transform.opacity * src_node.world_transform.opacity);
+        cache::NodeCacheKey key{
+            .scope = "layer.source:" + std::string(layer.name) + ":" + std::string(src_node.name),
+            .frame = layer.cache_static ? Frame{0} : ctx.frame,
+            .width = ctx.width,
+            .height = ctx.height,
+            .params_hash = hash_render_node(src_node),
+            .source_hash = hash_bytes(src_node.name.data(), src_node.name.size())
+        };
+
+        node.refresh(
+            std::string(src_node.name),
+            src_node,
+            key,
+            detail::should_use_centered_rendering(item, ctx),
+            item.projected,
+            ctx.modular_coordinates ? std::optional<Mat4>(render_matrix) : std::nullopt,
+            ctx.modular_coordinates ? std::optional<f32>(render_opacity) : std::nullopt,
+            layer.cache_static
+        );
+    };
+
+    const auto refresh_multi_source_node = [&](MultiSourceNode& node) {
+        const std::string layer_id = node.layer_id();
+        const auto layer_it = resolved_by_name.find(layer_id);
+        if (layer_it == resolved_by_name.end() || !layer_it->second || !layer_it->second->layer) {
+            return;
+        }
+
+        const ResolvedLayer& rl = *layer_it->second;
+        const Layer& layer = *rl.layer;
+        if (layer.kind != LayerKind::Normal || layer.nodes.size() <= 1) {
+            return;
+        }
+
+        const LayerGraphItem item = make_layer_graph_item_for_refresh(rl, ctx);
+        const bool use_local = ctx.modular_coordinates &&
+            detail::layer_needs_render_transform(item, ctx) &&
+            !item.native_3d;
+        const Mat4 item_source_world = use_local
+            ? item.world_matrix
+            : detail::source_space_world_matrix(item, ctx);
+
+        std::vector<MultiSourceItem> items;
+        items.reserve(layer.nodes.size());
+        u64 aggregated_params_hash = 0;
+        for (const auto& src_node : layer.nodes) {
+            const Mat4 node_matrix = src_node.world_transform.to_mat4();
+            const Mat4 render_matrix = use_local
+                ? node_matrix
+                : (item_source_world * node_matrix);
+            const f32 render_opacity = use_local
+                ? src_node.world_transform.opacity
+                : (item.transform.opacity * src_node.world_transform.opacity);
+
+            items.push_back(MultiSourceItem{
+                .node = &src_node,
+                .matrix = render_matrix,
+                .opacity = render_opacity
+            });
+            aggregated_params_hash = hash_combine(aggregated_params_hash, hash_render_node(src_node));
+        }
+
+        cache::NodeCacheKey key{
+            .scope = "layer.multisource:" + std::string(layer.name),
+            .frame = layer.cache_static ? Frame{0} : ctx.frame,
+            .width = ctx.width,
+            .height = ctx.height,
+            .params_hash = aggregated_params_hash,
+            .source_hash = hash_string(std::string(layer.name) + "_multisource")
+        };
+
+        node.refresh(
+            std::string(layer.name) + "_multi",
+            std::move(items),
+            key,
+            detail::should_use_centered_rendering(item, ctx),
+            item.projected,
+            layer.cache_static
+        );
+    };
+
+    const auto refresh_transform_node = [&](TransformNode& node) {
+        const std::string layer_id = node.layer_id();
+        if (layer_id.empty()) {
+            return;
+        }
+
+        const auto layer_it = resolved_by_name.find(layer_id);
+        if (layer_it == resolved_by_name.end() || !layer_it->second || !layer_it->second->layer) {
+            return;
+        }
+
+        const ResolvedLayer& rl = *layer_it->second;
+        const LayerGraphItem item = make_layer_graph_item_for_refresh(rl, ctx);
+
+        if (item.projected) {
+            node.set_matrix(item.projection_matrix);
+            node.set_opacity(item.transform.opacity);
+        } else {
+            Mat4 effective_matrix = item.world_matrix;
+            if (ctx.ssaa_factor > 1.0f) {
+                Mat4 ssaa_world = item.world_matrix;
+                ssaa_world[3][0] *= ctx.ssaa_factor;
+                ssaa_world[3][1] *= ctx.ssaa_factor;
+                effective_matrix = ssaa_world;
+            }
+            node.set_matrix(effective_matrix);
+            node.set_opacity(item.transform.opacity);
+        }
+    };
+
+    for (size_t id = 0; id < compiled.graph.size(); ++id) {
+        if (!compiled.graph.has_node(static_cast<GraphNodeId>(id))) {
+            continue;
+        }
+
+        auto& graph_node = compiled.graph.node(static_cast<GraphNodeId>(id));
+        if (auto* source_node = dynamic_cast<SourceNode*>(&graph_node)) {
+            refresh_source_node(*source_node);
+        } else if (auto* multi_source_node = dynamic_cast<MultiSourceNode*>(&graph_node)) {
+            refresh_multi_source_node(*multi_source_node);
+        } else if (auto* transform_node = dynamic_cast<TransformNode*>(&graph_node)) {
+            refresh_transform_node(*transform_node);
+        }
+    }
 }
 
 } // namespace
@@ -162,17 +413,20 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         }
     }
 
-    // ── Static fingerprint (pre-computed for fast-paths + executor hint) ──
-    // Compute once and reuse: the static fast-path, dirty-rect fast-path, and
+    // ── Fingerprints (pre-computed for fast-paths + executor hint) ──
+    // Compute once and reuse: the content-sensitive static fast-path, the
+    // structure-only graph reuse path, the dirty-rect fast-path, and the
     // execution plan cache hint all need to know whether the scene structure
     // and camera are unchanged since the previous frame.
     bool scene_structure_unchanged = false;
     bool static_cam_changed = true;
     bool scene_is_static = false;
     uint64_t current_active_at_fp = 0;
+    uint64_t current_structure_fp = 0;
     if (sw_renderer && sw_renderer->m_prev_static_scene_fingerprint != 0) {
         const uint64_t static_fp = sw_renderer->m_scene_hasher.compute_static_fingerprint(scene);
-        scene_structure_unchanged = (static_fp == sw_renderer->m_prev_static_scene_fingerprint);
+        current_structure_fp = sw_renderer->m_scene_hasher.compute_structure_fingerprint(scene);
+        scene_structure_unchanged = (current_structure_fp == sw_renderer->m_prev_graph_structure_fingerprint);
         const Camera2_5D& cam = ctx.camera_2_5d;
         static_cam_changed = detail::camera_changed(
             cam, &sw_renderer->m_prev_camera, sw_renderer->m_prev_camera_valid);
@@ -261,10 +515,14 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         profiling::g_current_counters = prev_counters;
     }
 
+    const auto t_resolve0 = std::chrono::steady_clock::now();
     const auto resolved = detail::resolve_layers(scene, ctx);
+    const auto t_resolve1 = std::chrono::steady_clock::now();
 
+    const auto t_dirty0 = std::chrono::steady_clock::now();
     auto dirty_out = detail::compute_dirty_rect(
         ctx, resolved, scene, settings, sw_renderer, frame, width, height);
+    const auto t_dirty1 = std::chrono::steady_clock::now();
 
     // ── Dirty ratio / counters / diagnostics ────────────────────────────
     double dirty_ratio = 1.0;
@@ -348,6 +606,8 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
 
     CompiledFrameGraph compiled;
 
+    const auto t_graph0 = std::chrono::steady_clock::now();
+    bool graph_reused = false;
     if (can_reuse_compiled_graph) {
         // Reuse the cached compiled graph from the previous frame
         if (ctx.counters) {
@@ -355,7 +615,11 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         }
         compiled = std::move(*sw_renderer->m_cached_compiled_graph);
         sw_renderer->m_cached_compiled_graph.reset();
-        
+
+        refresh_compiled_graph_payloads(compiled, scene, ctx, resolved);
+        compiled.skip_initial_clear = false;
+        compiled.early_exit_skip.assign(compiled.graph.size(), false);
+
         ctx.skip_initial_clear = compiled.skip_initial_clear;
         ctx.early_exit_skip = compiled.early_exit_skip;
 
@@ -363,6 +627,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
             spdlog::info("[graph-cache] frame={} reusing cached compiled graph ({} live nodes)",
                          static_cast<int>(frame), compiled.graph.live_count());
         }
+        graph_reused = true;
     } else {
         if (ctx.counters) {
             ctx.counters->graph_cache_misses.fetch_add(1, std::memory_order_relaxed);
@@ -399,7 +664,22 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
 
         compiled = compiler.compile(std::move(graph), ctx, compile_options);
     }
+    const auto t_graph1 = std::chrono::steady_clock::now();
     const auto t_build2 = std::chrono::steady_clock::now();
+
+    if (ctx.diagnostics_enabled) {
+        const double resolve_ms = std::chrono::duration<double, std::milli>(t_resolve1 - t_resolve0).count();
+        const double dirty_ms = std::chrono::duration<double, std::milli>(t_dirty1 - t_dirty0).count();
+        const double graph_ms = std::chrono::duration<double, std::milli>(t_graph1 - t_graph0).count();
+        spdlog::info(
+            "[graph-timing] frame={} resolve_layers_ms={:.2f} dirty_rect_ms={:.2f} graph_phase_ms={:.2f} graph_reused={}",
+            static_cast<int>(frame),
+            resolve_ms,
+            dirty_ms,
+            graph_ms,
+            graph_reused ? 1 : 0
+        );
+    }
 
     // ── Execute: tile-based (V1) or traditional single-pass ─────────────
     const auto t_exec0 = std::chrono::steady_clock::now();
@@ -540,6 +820,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         sw_renderer->m_cached_compiled_structure_hash = sw_renderer->m_cached_compiled_graph->structure_hash;
 
         const uint64_t save_static_fp = sw_renderer->m_scene_hasher.compute_static_fingerprint(scene);
+        const uint64_t save_structure_fp = sw_renderer->m_scene_hasher.compute_structure_fingerprint(scene);
         const uint64_t save_active_at_fp = sw_renderer->m_scene_hasher.compute_active_at_fingerprint(scene, frame);
         const uint64_t save_combined_fp = save_static_fp ^ (save_active_at_fp * 0x9e3779b97f4a7c15ULL);
         sw_renderer->m_prev_framebuffer = fb_shared;
@@ -547,6 +828,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         sw_renderer->m_prev_frame = frame;
         sw_renderer->m_prev_scene_fingerprint = save_combined_fp;
         sw_renderer->m_prev_static_scene_fingerprint = save_static_fp;
+        sw_renderer->m_prev_graph_structure_fingerprint = save_structure_fp;
         sw_renderer->m_prev_active_at_fingerprint = save_active_at_fp;
         sw_renderer->m_prev_camera = resolved.camera.camera;
         sw_renderer->m_prev_camera_valid = resolved.camera.camera.enabled;

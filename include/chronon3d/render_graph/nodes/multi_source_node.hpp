@@ -3,6 +3,7 @@
 #include <chronon3d/render_graph/nodes/basic_nodes_common.hpp>
 #include <span>
 #include <vector>
+#include <utility>
 
 namespace chronon3d::graph {
 
@@ -41,6 +42,22 @@ public:
 
     const std::vector<MultiSourceItem>& items() const { return m_items; }
     bool is_3d() const { return m_is_3d; }
+
+    void refresh(
+        std::string name,
+        std::vector<MultiSourceItem> items,
+        const cache::NodeCacheKey& key,
+        bool centered = false,
+        bool is_3d = false,
+        bool cache_static = false
+    ) {
+        m_name = std::move(name);
+        m_items = std::move(items);
+        m_key = key;
+        m_centered = centered;
+        m_is_3d = is_3d;
+        m_cache_static = cache_static;
+    }
 
     /// Returns true if this node represents a single full-frame image source.
     /// Used by the graph builder for skip-when-opaque analysis.
