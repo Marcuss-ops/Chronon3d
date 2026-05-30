@@ -68,23 +68,23 @@ public:
         return bbox;
     }
 
-    std::shared_ptr<Framebuffer> execute(RenderGraphContext& ctx, std::span<const std::shared_ptr<Framebuffer>> inputs, std::span<const std::optional<raster::BBox>> input_bboxes) override {
+    OwnedFB execute(RenderGraphContext& ctx, std::span<const FramebufferRef> inputs, std::span<const std::optional<raster::BBox>> input_bboxes) override {
         if (inputs.empty() || !inputs[0]) {
-            auto empty = ctx.acquire_framebuffer(ctx.width, ctx.height);
+            auto empty = ctx.acquire_owned_fb(ctx.width, ctx.height);
             empty->clear(Color::transparent());
             return empty;
         }
 
-        std::shared_ptr<Framebuffer> result;
         const f32 spread = compute_max_effect_spread();
         auto pred_bbox = predicted_bbox(ctx, input_bboxes);
 
+        OwnedFB result;
         if (spread > 0.0f && pred_bbox) {
             const raster::BBox out_bounds = *pred_bbox;
             const i32 out_w = std::max(1, out_bounds.x1 - out_bounds.x0);
             const i32 out_h = std::max(1, out_bounds.y1 - out_bounds.y0);
             
-            result = ctx.acquire_framebuffer(out_w, out_h, true, out_bounds);
+            result = ctx.acquire_owned_fb(out_w, out_h, true, out_bounds);
             
             const i32 intersect_x0 = std::max(inputs[0]->origin_x(), out_bounds.x0);
             const i32 intersect_y0 = std::max(inputs[0]->origin_y(), out_bounds.y0);
@@ -103,7 +103,7 @@ public:
             result->set_opaque(inputs[0]->is_opaque());
             result->set_key_digest(inputs[0]->key_digest());
         } else {
-            result = ctx.acquire_framebuffer(*inputs[0]);
+            result = ctx.acquire_owned_fb(*inputs[0]);
         }
 
         if (ctx.backend) {

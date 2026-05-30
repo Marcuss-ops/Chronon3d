@@ -40,17 +40,22 @@ public:
 
     cache::NodeCacheKey cache_key(const RenderGraphContext&) const override { return m_key; }
 
-    std::shared_ptr<Framebuffer> execute(
+    OwnedFB execute(
         RenderGraphContext& ctx,
-        std::span<const std::shared_ptr<Framebuffer>> inputs,
+        std::span<const FramebufferRef> inputs,
         std::span<const std::optional<raster::BBox>>
     ) override {
-        if (inputs.size() < 2 || !inputs[0] || !inputs[1]) return inputs.empty() ? nullptr : inputs[0];
+        if (inputs.size() < 2 || !inputs[0] || !inputs[1]) {
+            if (inputs.empty() || !inputs[0]) {
+                return ctx.acquire_owned_fb(ctx.width, ctx.height);
+            }
+            return ctx.acquire_owned_fb(*inputs[0]);
+        }
 
         const Framebuffer& target = *inputs[0];
         const Framebuffer& matte  = *inputs[1];
 
-        auto out = ctx.acquire_framebuffer(target.width(), target.height());
+        auto out = ctx.acquire_owned_fb(target.width(), target.height());
 
         const int W = target.width();
         const int H = target.height();

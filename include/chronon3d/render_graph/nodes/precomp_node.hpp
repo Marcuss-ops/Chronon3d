@@ -38,18 +38,16 @@ public:
         return raster::BBox{0, 0, ctx.width, ctx.height};
     }
 
-    std::shared_ptr<Framebuffer> execute(RenderGraphContext& ctx, std::span<const std::shared_ptr<Framebuffer>>, std::span<const std::optional<raster::BBox>>) override {
+    OwnedFB execute(RenderGraphContext& ctx, std::span<const FramebufferRef>, std::span<const std::optional<raster::BBox>>) override {
         if (!ctx.registry || !ctx.registry->contains(m_comp_name)) {
-            auto fb = ctx.acquire_framebuffer(ctx.width, ctx.height);
-            return fb;
+            return ctx.acquire_owned_fb(ctx.width, ctx.height);
         }
 
         // 1. Calculate nested time
         Frame nested_frame = ctx.frame - m_start_frame;
         
         if (nested_frame < 0 || (m_duration > 0 && nested_frame >= m_duration)) {
-             auto fb = ctx.acquire_framebuffer(ctx.width, ctx.height);
-             return fb;
+             return ctx.acquire_owned_fb(ctx.width, ctx.height);
         }
 
         // 2. Fetch nested composition
@@ -68,11 +66,14 @@ public:
         // 4. Execute nested graph
         GraphExecutor executor;
         if (!nested_graph.has_output()) {
-            auto fb = ctx.acquire_framebuffer(ctx.width, ctx.height);
-            return fb;
+            return ctx.acquire_owned_fb(ctx.width, ctx.height);
         }
 
-        return executor.execute(nested_graph, nested_graph.output(), nested_ctx);
+        auto nested_result = executor.execute(nested_graph, nested_graph.output(), nested_ctx);
+        if (!nested_result) {
+            return ctx.acquire_owned_fb(ctx.width, ctx.height);
+        }
+        return ctx.acquire_owned_fb(*nested_result);
     }
 
 private:

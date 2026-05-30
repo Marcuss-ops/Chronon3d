@@ -43,9 +43,9 @@ public:
         return raster::BBox{0, 0, ctx.width, ctx.height};
     }
 
-    std::shared_ptr<Framebuffer> execute(
+    OwnedFB execute(
         RenderGraphContext& ctx,
-        std::span<const std::shared_ptr<Framebuffer>> inputs,
+        std::span<const FramebufferRef> inputs,
         std::span<const std::optional<raster::BBox>> input_bboxes
     ) override;
 
