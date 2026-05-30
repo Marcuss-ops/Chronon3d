@@ -141,6 +141,11 @@ public:
     [[nodiscard]] const EffectStack& effects() const { return m_effects; }
     [[nodiscard]] EffectStack& effects() { return m_effects; }
 
+    /// Returns true if the effect stack contains only color/tonal effects
+    /// (no blur, glow, shadow, bloom, or other spatially-expanding effects).
+    /// Used by the graph builder for skip-when-opaque analysis.
+    [[nodiscard]] bool is_color_only() const { return compute_max_effect_spread() <= 0.0f; }
+
     /// Prepend `prefix` effects before this node's own effects.
     /// Used by the optimizer to merge an upstream EffectStackNode into this one.
     void prepend_effects(const EffectStack& prefix) {

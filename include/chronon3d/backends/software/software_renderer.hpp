@@ -26,6 +26,7 @@
 #include <optional>
 #include <unordered_map>
 #include <chronon3d/render_graph/render_backend.hpp>
+#include <chronon3d/render_graph/render_graph.hpp>
 
 namespace chronon3d::graph {
     class GraphExecutor;
@@ -79,6 +80,10 @@ public:
         renderer::clear_text_shadow_cache();
         m_node_cache.clear();
         if (m_framebuffer_pool) m_framebuffer_pool->clear();
+        m_cached_graph.reset();
+        m_cached_early_exit_skip.clear();
+        m_cached_graph_width = 0;
+        m_cached_graph_height = 0;
         // Video cache clearing is now responsibility of the decoder implementation
     }
 
@@ -151,6 +156,15 @@ public:
     uint64_t m_prev_static_scene_fingerprint{0};
     uint64_t m_prev_active_at_fingerprint{0}; // tracks which layers are active at each frame
     graph::SceneHasher m_scene_hasher;
+
+    /// Cached render graph for incremental rebuild (Phase 1).
+    /// When graph_structure_unchanged is true, the previously built and
+    /// optimized graph is reused — skipping build_graph() and optimize_graph().
+    std::unique_ptr<graph::RenderGraph> m_cached_graph;
+    bool m_cached_skip_initial_clear{false};
+    std::vector<bool> m_cached_early_exit_skip;
+    int m_cached_graph_width{0};
+    int m_cached_graph_height{0};
 
     [[nodiscard]] int last_layer_count() const { return m_last_layer_count; }
 

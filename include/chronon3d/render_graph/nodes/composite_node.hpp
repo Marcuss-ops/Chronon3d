@@ -133,6 +133,21 @@ public:
                 }
             }
             ctx.backend->composite_layer(*result, *top, m_mode, clip);
+
+            // Propagate opacity: when the top layer is opaque and covers the full
+            // frame with Normal blend, the result inherits its opaque flag even
+            // if the bottom was transparent (the top fully occludes it).
+            if (m_mode == BlendMode::Normal && top->is_opaque() &&
+                input_bboxes.size() >= 2 && input_bboxes[1].has_value() &&
+                input_bboxes[1]->x0 <= 0 && input_bboxes[1]->y0 <= 0 &&
+                input_bboxes[1]->x1 >= ctx.width && input_bboxes[1]->y1 >= ctx.height &&
+                (!ctx.clip_rect ||
+                 (ctx.clip_rect->x0 <= 0 && ctx.clip_rect->y0 <= 0 &&
+                  ctx.clip_rect->x1 >= ctx.width && ctx.clip_rect->y1 >= ctx.height)))
+            {
+                result->set_opaque(true);
+            }
+
             if (ctx.counters) {
                 ctx.counters->composite_calls.fetch_add(1, std::memory_order_relaxed);
                 uint64_t area = clip ? (static_cast<uint64_t>(std::max(0, clip->x1 - clip->x0)) * std::max(0, clip->y1 - clip->y0))
