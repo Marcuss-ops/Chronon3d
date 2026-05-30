@@ -42,6 +42,10 @@ public:
     const std::vector<MultiSourceItem>& items() const { return m_items; }
     bool is_3d() const { return m_is_3d; }
 
+    /// Returns true if this node represents a single full-frame image source.
+    /// Used by the graph builder for skip-when-opaque analysis.
+    [[nodiscard]] bool is_single_full_frame_image() const { return m_items.size() == 1 && m_cache_static && !m_is_3d; }
+
 private:
     std::string m_name;
     std::vector<MultiSourceItem> m_items;
