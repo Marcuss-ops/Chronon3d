@@ -78,6 +78,7 @@ add_executable(chronon3d_scene_tests
     scene/rendering/test_depth_role.cpp
     scene/layout/test_layout_solver.cpp
     presets/test_presets.cpp
+    render_graph/pipeline/test_graph_cache.cpp
 )
 target_link_libraries(chronon3d_scene_tests PRIVATE chronon3d_pipeline chronon3d_scene chronon3d_backend_software doctest::doctest)
 target_include_directories(chronon3d_scene_tests PRIVATE ${CMAKE_SOURCE_DIR})

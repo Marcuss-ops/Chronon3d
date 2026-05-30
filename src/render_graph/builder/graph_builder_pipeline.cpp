@@ -20,6 +20,9 @@
 #include <queue>
 #include <chronon3d/render_graph/nodes/basic_nodes_common.hpp>
 #include <chronon3d/render_graph/nodes/transform_node.hpp>
+#include <chronon3d/render_graph/nodes/effect_stack_node.hpp>
+#include <chronon3d/render_graph/nodes/adjustment_node.hpp>
+#include <chronon3d/render_graph/nodes/multi_source_node.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/scene/layer/layer.hpp>
 #include <chronon3d/scene/shape.hpp>
@@ -567,7 +570,12 @@ static bool is_full_frame_opaque(
     bool result = false;
 
     if (node.kind() == RenderGraphNodeKind::Source) {
-        result = node.can_seed_full_frame(ctx);
+        const auto* multi = dynamic_cast<const MultiSourceNode*>(&node);
+        if (multi && multi->is_single_full_frame_image()) {
+            result = true;
+        } else {
+            result = node.can_seed_full_frame(ctx);
+        }
     } else if (node.kind() == RenderGraphNodeKind::Transform) {
         const auto* transform = dynamic_cast<const TransformNode*>(&node);
         if (transform) {
@@ -576,6 +584,22 @@ static bool is_full_frame_opaque(
                 if (!inputs.empty()) {
                     result = is_full_frame_opaque(inputs[0], graph, ctx, memo);
                 }
+            }
+        }
+    } else if (node.kind() == RenderGraphNodeKind::Effect) {
+        const auto* effect = dynamic_cast<const EffectStackNode*>(&node);
+        if (effect && effect->is_color_only()) {
+            const auto& inputs = graph.inputs(id);
+            if (!inputs.empty()) {
+                result = is_full_frame_opaque(inputs[0], graph, ctx, memo);
+            }
+        }
+    } else if (node.kind() == RenderGraphNodeKind::Adjustment) {
+        const auto* adj = dynamic_cast<const AdjustmentNode*>(&node);
+        if (adj && adj->is_color_only()) {
+            const auto& inputs = graph.inputs(id);
+            if (!inputs.empty()) {
+                result = is_full_frame_opaque(inputs[0], graph, ctx, memo);
             }
         }
     } else if (node.kind() == RenderGraphNodeKind::Composite) {
