@@ -115,6 +115,7 @@ add_executable(chronon3d_renderer_tests
     render_graph/pipeline/test_render_backend.cpp
     render_graph/pipeline/test_dirty_rects.cpp
     render_graph/optimizer/test_graph_optimizer.cpp
+    render_graph/compiler/test_frame_graph_compiler.cpp
     render_graph/pipeline/test_dirty_rects_v2.cpp
     render_graph/pipeline/test_tile_grid.cpp
     render_graph/pipeline/test_dirty_tiles_output.cpp
@@ -140,25 +141,25 @@ target_link_libraries(chronon3d_renderer_tests
 # WHOLE_ARCHIVE removed: content targets are now small and explicitly registered
 if(CHRONON3D_BUILD_CONTENT)
     if(TARGET chronon3d_content_text)
-        target_link_libraries(chronon3d_renderer_tests PRIVATE chronon3d_content_text)
+        target_link_libraries(chronon3d_renderer_tests PRIVATE $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_content_text>)
     endif()
     if(TARGET chronon3d_content_shapes)
-        target_link_libraries(chronon3d_renderer_tests PRIVATE chronon3d_content_shapes)
+        target_link_libraries(chronon3d_renderer_tests PRIVATE $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_content_shapes>)
     endif()
     if(TARGET chronon3d_content_images)
-        target_link_libraries(chronon3d_renderer_tests PRIVATE chronon3d_content_images)
+        target_link_libraries(chronon3d_renderer_tests PRIVATE $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_content_images>)
     endif()
     if(TARGET chronon3d_content_anims)
-        target_link_libraries(chronon3d_renderer_tests PRIVATE chronon3d_content_anims)
+        target_link_libraries(chronon3d_renderer_tests PRIVATE $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_content_anims>)
     endif()
     if(TARGET chronon3d_content_effects)
-        target_link_libraries(chronon3d_renderer_tests PRIVATE chronon3d_content_effects)
+        target_link_libraries(chronon3d_renderer_tests PRIVATE $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_content_effects>)
     endif()
     if(TARGET chronon3d_content_2d5)
-        target_link_libraries(chronon3d_renderer_tests PRIVATE chronon3d_content_2d5)
+        target_link_libraries(chronon3d_renderer_tests PRIVATE $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_content_2d5>)
     endif()
     if(TARGET chronon3d_content_grid)
-        target_link_libraries(chronon3d_renderer_tests PRIVATE chronon3d_content_grid)
+        target_link_libraries(chronon3d_renderer_tests PRIVATE $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_content_grid>)
     endif()
 endif()
 target_compile_definitions(chronon3d_renderer_tests PRIVATE CHRONON3D_SOURCE_DIR="${CMAKE_SOURCE_DIR}")

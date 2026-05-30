@@ -35,25 +35,6 @@ namespace chronon3d {
 
 namespace {
 
-struct ProfilingScope {
-    ProfilingScope(RenderCounters* counters,
-                   cache::FramebufferPool* pool,
-                   int32_t /*frame*/)
-        : previous_counters(profiling::g_current_counters),
-          previous_pool(profiling::g_current_framebuffer_pool) {
-        profiling::g_current_counters = counters;
-        profiling::g_current_framebuffer_pool = pool;
-    }
-
-    ~ProfilingScope() {
-        profiling::g_current_counters = previous_counters;
-        profiling::g_current_framebuffer_pool = previous_pool;
-    }
-
-    RenderCounters* previous_counters;
-    cache::FramebufferPool* previous_pool;
-};
-
 std::optional<raster::BBox> to_local_clip(const Framebuffer& fb, std::optional<raster::BBox> clip) {
     if (!clip) {
         return std::nullopt;
@@ -174,7 +155,7 @@ const graph::GraphExecutor* SoftwareRenderer::executor() const {
 
 std::shared_ptr<Framebuffer> SoftwareRenderer::render_frame(const Composition& comp,
                                                             Frame frame) {
-    ProfilingScope scope(&m_counters, m_framebuffer_pool.get(), static_cast<int32_t>(frame));
+    profiling::ProfilingGuard scope(&m_counters, m_framebuffer_pool.get());
 
     auto res = graph::render_composition_frame(
         *this, m_node_cache, m_settings, m_registry, m_video_decoder.get(), comp, frame
@@ -185,7 +166,7 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_frame(const Composition& c
 std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(const Scene& scene,
                                                             const Camera& camera, i32 width,
                                                             i32 height) {
-    ProfilingScope scope(&m_counters, m_framebuffer_pool.get(), 0);
+    profiling::ProfilingGuard scope(&m_counters, m_framebuffer_pool.get());
 
     auto res = graph::render_scene_via_graph(
         *this,
@@ -205,7 +186,7 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(const Scene& scene,
 
 std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(
     const Scene& scene, const std::optional<Camera2_5D>& camera, i32 width, i32 height) {
-    ProfilingScope scope(&m_counters, m_framebuffer_pool.get(), 0);
+    profiling::ProfilingGuard scope(&m_counters, m_framebuffer_pool.get());
 
     Scene effective_scene = scene;
     if (camera.has_value()) {
@@ -260,7 +241,7 @@ void SoftwareRenderer::apply_effect_stack(Framebuffer& fb, const EffectStack& st
     const auto local_clip = to_local_clip(fb, clip);
     const uint64_t area = clipped_area(fb.width(), fb.height(), local_clip);
     for (const auto& effect : stack) {
-        if (effect.enabled && effect.params.type() == typeid(BlurParams)) {
+        if (effect.enabled && effect.effect_type == effects::EffectType::Blur) {
             m_counters.blur_pixels.fetch_add(area, std::memory_order_relaxed);
         }
     }

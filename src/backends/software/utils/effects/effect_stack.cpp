@@ -47,30 +47,53 @@ BlendMode glow_blend_mode(const GlowParams& params) {
 
 void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
                         float time_seconds, const std::optional<raster::BBox>& clip) {
+    using enum effects::EffectType;
+
     for (const auto& inst : stack) {
         if (!inst.enabled) continue;
 
-        if (auto* p = std::any_cast<BlurParams>(&inst.params)) {
-        if (p->radius > 0.0f) {
-            auto effect_clip = expand_effect_clip(clip, fb.width(), fb.height(), p->radius);
-            apply_blur(fb, p->radius, effect_clip);
+        switch (inst.effect_type) {
+
+        case Blur: {
+            auto* p = std::any_cast<BlurParams>(&inst.params);
+            if (p && p->radius > 0.0f) {
+                auto effect_clip = expand_effect_clip(clip, fb.width(), fb.height(), p->radius);
+                apply_blur(fb, p->radius, effect_clip);
+            }
+            break;
         }
 
-        } else if (auto* p = std::any_cast<TintParams>(&inst.params)) {
-            LayerEffect e;
-            e.tint = Color{p->color.r, p->color.g, p->color.b, p->color.a * p->amount};
-            apply_color_effects(fb, e, clip);
+        case Tint: {
+            auto* p = std::any_cast<TintParams>(&inst.params);
+            if (p) {
+                LayerEffect e;
+                e.tint = Color{p->color.r, p->color.g, p->color.b, p->color.a * p->amount};
+                apply_color_effects(fb, e, clip);
+            }
+            break;
+        }
 
-        } else if (auto* p = std::any_cast<BrightnessParams>(&inst.params)) {
-            LayerEffect e; e.brightness = p->value;
-            apply_color_effects(fb, e, clip);
+        case Brightness: {
+            auto* p = std::any_cast<BrightnessParams>(&inst.params);
+            if (p) {
+                LayerEffect e; e.brightness = p->value;
+                apply_color_effects(fb, e, clip);
+            }
+            break;
+        }
 
-        } else if (auto* p = std::any_cast<ContrastParams>(&inst.params)) {
-            LayerEffect e; e.contrast = p->value;
-            apply_color_effects(fb, e, clip);
+        case Contrast: {
+            auto* p = std::any_cast<ContrastParams>(&inst.params);
+            if (p) {
+                LayerEffect e; e.contrast = p->value;
+                apply_color_effects(fb, e, clip);
+            }
+            break;
+        }
 
-        } else if (auto* p = std::any_cast<GlowParams>(&inst.params)) {
-            if (p->intensity > 0.0f) {
+        case Glow: {
+            auto* p = std::any_cast<GlowParams>(&inst.params);
+            if (p && p->intensity > 0.0f) {
                 const i32 w = fb.width(), h = fb.height();
                 const float extent = glow_effect_extent(*p);
                 auto effect_clip = expand_effect_clip(clip, w, h, extent);
@@ -187,9 +210,12 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
                     }
                 }
             }
+            break;
+        }
 
-        } else if (auto* p = std::any_cast<DropShadowParams>(&inst.params)) {
-            // Offset + blur alpha mask, composite behind content
+        case DropShadow: {
+            auto* p = std::any_cast<DropShadowParams>(&inst.params);
+            if (p) {
             const i32 w = fb.width(), h = fb.height();
             const float spread =
                 std::max(std::abs(p->offset.x), std::abs(p->offset.y)) + p->radius;
@@ -240,8 +266,13 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
                     }
                 }
             }
+            }
+            break;
+        }
 
-        } else if (auto* p = std::any_cast<BloomParams>(&inst.params)) {
+        case Bloom: {
+            auto* p = std::any_cast<BloomParams>(&inst.params);
+            if (p) {
             const i32 w = fb.width(), h = fb.height();
             auto effect_clip = expand_effect_clip(clip, w, h, p->radius);
             i32 x_min = 0, x_max = w;
@@ -285,9 +316,20 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
                     }
                 }
             }
+            }
+            break;
+        }
 
-        } else if (auto* p = std::any_cast<Fake3DWaveParams>(&inst.params)) {
-            apply_fake_3d_wave(fb, *p, time_seconds);
+        case Fake3DWave: {
+            auto* p = std::any_cast<Fake3DWaveParams>(&inst.params);
+            if (p) {
+                apply_fake_3d_wave(fb, *p, time_seconds);
+            }
+            break;
+        }
+
+        case Unknown:
+            break;
         }
     }
 }

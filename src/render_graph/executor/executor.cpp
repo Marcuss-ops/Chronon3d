@@ -18,14 +18,38 @@
 #include <vector>
 #include <tbb/tbb.h>
 
+#if defined(__linux__)
+#include <pthread.h>
+#include <sched.h>
+#elif defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif
+
 namespace chronon3d::graph {
+
+namespace {
+void pin_thread_to_core(int core_id) {
+#if defined(__linux__)
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(core_id, &cpuset);
+    pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
+#elif defined(_WIN32)
+    SetThreadAffinityMask(GetCurrentThread(), static_cast<DWORD_PTR>(1) << core_id);
+#endif
+}
+} // namespace
 
 // ──────────────────────────────────────────────────────────────────────
 // GraphExecutor public API
 // ──────────────────────────────────────────────────────────────────────
 
 GraphExecutor::GraphExecutor()
-    : m_arena(std::max(1u, std::thread::hardware_concurrency())) {}
+    : m_arena(std::max(1u, std::thread::hardware_concurrency())) {
+    // Pin calling thread (main thread) to core 0
+    pin_thread_to_core(0);
+}
 
 // ── compute_structure_signature ─────────────────────────────────────
 
@@ -183,6 +207,88 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
         auto* parent_pool = profiling::g_current_framebuffer_pool;
 
         for (const auto& level : plan.levels) {
+            CHRONON_ZONE_C("execute_level", trace_category::kGraph);
+
+            // Sequential pre-resolve phase — extract raw FramebufferRef (no atomics)
+            std::pmr::vector<PreResolvedNode> level_resolved(res);
+            level_resolved.reserve(level.size());
+            for (size_t i = 0; i < level.size(); ++i) {
+                level_resolved.emplace_back(res);
+                level_resolved[i] = resolve_inputs(graph, level[i], state, consumer_remaining, res);
+            }
+
+            // Parallel execution phase — nodes receive FramebufferRef (no shared_ptr copies)
+            tbb::parallel_for(
+                tbb::blocked_range<size_t>(0, level.size()),
+                [&](const tbb::blocked_range<size_t>& range) {
+                    for (size_t level_index = range.begin(); level_index != range.end(); ++level_index) {
+                        execute_single_node(
+                            state, graph, ctx, level_resolved, level[level_index], level_index,
+                            parent_counters, parent_pool
+                        );
+                    }
+                }
+            );
+
+            // Decrement consumer counts & release dead references
+            for (size_t i = 0; i < level.size(); ++i) {
+                const GraphNodeId id = level[i];
+                for (GraphNodeId input_id : graph.inputs(id)) {
+                    if (!contains_index(consumer_remaining, input_id)) {
+                        continue;
+                    }
+                    if (consumer_remaining[input_id].fetch_sub(1, std::memory_order_acq_rel) == 1) {
+                        state.temp[input_id].reset();
+                        state.resolved_key_digest[input_id] = 0;
+                        state.resolved_frame_dependent[input_id] = 0;
+                        state.resolved_cache_hit[input_id] = 0;
+                        state.resolved_bboxes[input_id].reset();
+                    }
+                }
+            }
+        }
+
+        return state.temp[output];
+    });
+}
+
+std::shared_ptr<Framebuffer> GraphExecutor::execute(
+    CompiledFrameGraph& compiled,
+    RenderGraphContext& ctx
+) {
+    auto& graph = compiled.graph;
+    const auto& levels = compiled.levels;
+    const auto& consumer_counts = compiled.consumer_counts;
+    const auto output = compiled.output;
+
+    if (compiled.empty()) {
+        return nullptr;
+    }
+
+    auto* res = m_frame_arena.resource();
+    struct ArenaGuard { 
+        FrameArena& arena;
+        ~ArenaGuard() { arena.reset(); }
+    } guard{m_frame_arena};
+
+    return m_arena.execute([&]() -> std::shared_ptr<Framebuffer> {
+        const size_t node_count = graph.size();
+        ExecutionState state(res);
+        state.temp.resize(node_count);
+        state.resolved_key_digest.assign(node_count, 0);
+        state.resolved_frame_dependent.assign(node_count, 0);
+        state.resolved_cache_hit.assign(node_count, 0);
+        state.resolved_bboxes.resize(node_count);
+
+        std::pmr::vector<std::atomic_size_t> consumer_remaining(node_count, res);
+        for (size_t i = 0; i < consumer_counts.size(); ++i) {
+            consumer_remaining[i].store(consumer_counts[i], std::memory_order_relaxed);
+        }
+
+        auto* parent_counters = profiling::g_current_counters;
+        auto* parent_pool = profiling::g_current_framebuffer_pool;
+
+        for (const auto& level : levels) {
             CHRONON_ZONE_C("execute_level", trace_category::kGraph);
 
             // Sequential pre-resolve phase — extract raw FramebufferRef (no atomics)

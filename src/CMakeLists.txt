@@ -65,6 +65,7 @@ set(CHRONON3D_GRAPH_SOURCES
     render_graph/preflight/preflight.cpp
     render_graph/preflight/analysis.cpp
     render_graph/optimizer/graph_optimizer.cpp
+    render_graph/compiler/frame_graph_compiler.cpp
     render_graph/nodes/source_node.cpp
     render_graph/nodes/multi_source_node.cpp
     render_graph/nodes/transform_node.cpp

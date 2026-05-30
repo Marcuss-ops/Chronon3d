@@ -257,7 +257,7 @@ double run_node(
         if (use_cache && ctx.node_cache) {
             // Transfer ownership from OwnedFB to CachedFB for cache storage.
             Framebuffer* raw = owned.release();
-            result = CachedFB(raw, PoolFbDeleter{parent_pool});
+            result = CachedFB(raw, PoolFbDeleter{parent_pool, parent_pool->alive_token()});
             ctx.node_cache->store(key, result);
             if (node.cache_policy().disk_cacheable && disk_node_cache_enabled_for_current_run()) {
                 cache::DiskNodeCache::instance().put(key, *result);
@@ -265,7 +265,7 @@ double run_node(
         } else {
             // Not cached — convert to shared_ptr for uniform temp storage.
             Framebuffer* raw = owned.release();
-            result = CachedFB(raw, PoolFbDeleter{parent_pool});
+            result = CachedFB(raw, PoolFbDeleter{parent_pool, parent_pool->alive_token()});
         }
     }
     const auto exec_t1 = std::chrono::steady_clock::now();
@@ -378,7 +378,7 @@ void execute_single_node(
         auto owned_fb = ctx.acquire_owned_fb(64, 64, false);
         owned_fb->clear(Color::transparent());
         Framebuffer* raw = owned_fb.release();
-        state.temp[id] = CachedFB(raw, PoolFbDeleter{parent_pool});
+        state.temp[id] = CachedFB(raw, PoolFbDeleter{parent_pool, parent_pool->alive_token()});
         state.resolved_key_digest[id] = 0;
         state.resolved_frame_dependent[id] = 0;
         state.resolved_cache_hit[id] = 0;

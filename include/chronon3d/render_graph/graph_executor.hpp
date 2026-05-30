@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/render_graph/render_graph.hpp>
+#include <chronon3d/render_graph/compiler/compiled_frame_graph.hpp>
 #include <chronon3d/core/memory/arena.hpp>
 #include <tbb/task_arena.h>
 #include <cstdint>
@@ -22,6 +23,11 @@ public:
     std::shared_ptr<Framebuffer> execute(RenderGraph& graph, RenderGraphContext& ctx) {
         return execute(graph, graph.output(), ctx);
     }
+
+    std::shared_ptr<Framebuffer> execute(
+        CompiledFrameGraph& compiled,
+        RenderGraphContext& ctx
+    );
 
     /// Invalidate the cached execution plan — call this after the graph topology
     /// changes (nodes added/removed/reconnected) between execute() calls.

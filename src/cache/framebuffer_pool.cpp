@@ -69,7 +69,14 @@ int round_up_bucket(int val) {
 } // namespace
 
 FramebufferPool::FramebufferPool(size_t max_bytes)
-    : m_max_bytes(resolve_default_max_bytes(max_bytes)) {}
+    : m_max_bytes(resolve_default_max_bytes(max_bytes)),
+      m_alive(std::make_shared<bool>(true)) {}
+
+FramebufferPool::~FramebufferPool() {
+    if (m_alive) {
+        *m_alive = false;
+    }
+}
 
 void FramebufferPool::set_arena(std::shared_ptr<FramebufferArena> arena) {
     std::lock_guard<std::mutex> lock(m_mutex);
@@ -226,7 +233,7 @@ OwnedFB FramebufferPool::acquire_owned(int width, int height, bool clear) {
     if (clear && fb) {
         fb->clear(Color::transparent());
     }
-    return OwnedFB(fb.release(), PoolFbDeleter{this});
+    return OwnedFB(fb.release(), PoolFbDeleter{this, m_alive});
 }
 
 OwnedFB FramebufferPool::acquire_owned_raw(int width, int height, bool clear) {
@@ -234,7 +241,7 @@ OwnedFB FramebufferPool::acquire_owned_raw(int width, int height, bool clear) {
     if (clear && fb) {
         fb->clear(Color::transparent());
     }
-    return OwnedFB(fb.release(), PoolFbDeleter{this});
+    return OwnedFB(fb.release(), PoolFbDeleter{this, m_alive});
 }
 
 void FramebufferPool::release(Framebuffer* fb) {
