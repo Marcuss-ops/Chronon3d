@@ -79,14 +79,9 @@ void apply_blur(Framebuffer& fb, f32 radius, const std::optional<raster::BBox>& 
         tbb::parallel_for(tbb::blocked_range<i32>(x0, x1), [&](const tbb::blocked_range<i32>& range) {
             for (i32 x = range.begin(); x < range.end(); ++x) {
                 Color sum{0, 0, 0, 0};
-                // Prefetch the temporary buffer column ahead to reduce cache misses
-                if ((x & 15) == 0 && x + 16 < x1) {
-                    // Prefetch a future row from tmp to warm the cache
-                    for (int prefetch_y = y0; prefetch_y < y1; prefetch_y += 4) {
-                        if (prefetch_y + 16 < y1) {
-                            C3D_PREFETCH_READ(&tmp.pixels_row(prefetch_y + 16)[x]);
-                        }
-                    }
+                // Prefetch next column in tmp to warm cache for the vertical sweep
+                if ((x & 15) == 0 && y0 + 16 < y1) {
+                    C3D_PREFETCH_READ(&tmp.pixels_row(y0 + 16)[x]);
                 }
                 for (i32 y = y0 - r; y <= y0 + r; ++y) {
                     const Color p = tmp.pixels_row(std::clamp(y, 0, h - 1))[x];

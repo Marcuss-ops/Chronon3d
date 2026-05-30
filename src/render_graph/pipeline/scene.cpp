@@ -106,7 +106,9 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         ctx.projection_ctx.ready = true;
     }
 
-    profiling::g_current_counters = ctx.counters;
+    // RAII guard: sets profiling thread-locals and restores on any exit path
+    // (including early returns and exceptions).
+    profiling::ProfilingGuard profiling_guard(ctx.counters, ctx.framebuffer_pool.get());
 
     SoftwareRenderer* sw_renderer = dynamic_cast<SoftwareRenderer*>(&backend);
 
@@ -156,7 +158,6 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
             if (ctx.diagnostics_enabled) {
                 spdlog::info("[resolved-reuse] frame={} combined_fingerprint_match=1", static_cast<int>(frame));
             }
-            profiling::g_current_counters = nullptr;
             return sw_renderer->m_prev_framebuffer;
         }
     }
@@ -223,7 +224,6 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
             spdlog::info("[static-fastpath] frame={} static_fingerprint_match=1",
                 static_cast<int>(frame));
         }
-        profiling::g_current_counters = nullptr;
         return sw_renderer->m_prev_framebuffer;
     }
 
@@ -333,7 +333,6 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         sw_renderer->m_prev_active_at_fingerprint = fp_active_at;
         sw_renderer->m_prev_camera = resolved.camera.camera;
         sw_renderer->m_prev_camera_valid = resolved.camera.camera.enabled;
-        profiling::g_current_counters = nullptr;
         return sw_renderer->m_prev_framebuffer;
     }
 
@@ -554,7 +553,6 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     }
     const auto hits_after = node_cache.stats().hits;
 
-    profiling::g_current_counters = nullptr;
     return fb_shared;
 }
 

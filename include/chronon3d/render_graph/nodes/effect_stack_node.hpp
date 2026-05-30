@@ -158,24 +158,44 @@ private:
         for (const auto& inst : m_effects) {
             if (!inst.enabled) continue;
 
-            if (auto* p = std::any_cast<BlurParams>(&inst.params)) {
-                max_spread = std::max(max_spread, p->radius);
-            } else if (auto* p = std::any_cast<DropShadowParams>(&inst.params)) {
-                max_spread = std::max(max_spread,
+            using enum effects::EffectType;
+            switch (inst.effect_type) {
+            case Blur: {
+                auto* p = std::any_cast<BlurParams>(&inst.params);
+                if (p) max_spread = std::max(max_spread, p->radius);
+                break;
+            }
+            case DropShadow: {
+                auto* p = std::any_cast<DropShadowParams>(&inst.params);
+                if (p) max_spread = std::max(max_spread,
                     std::max(std::abs(p->offset.x), std::abs(p->offset.y)) + p->radius);
-            } else if (auto* p = std::any_cast<GlowParams>(&inst.params)) {
-                max_spread = std::max(max_spread, glow_effect_extent(*p));
-            } else if (auto* p = std::any_cast<BloomParams>(&inst.params)) {
-                max_spread = std::max(max_spread, p->radius);
-            } else if (auto* p = std::any_cast<Fake3DWaveParams>(&inst.params)) {
-                f32 s = p->depth_px + p->amplitude_px;
-                if (p->shadow_enabled) {
-                    s += std::max(std::abs(p->shadow_offset.x),
-                                  std::abs(p->shadow_offset.y)) + p->shadow_blur;
+                break;
+            }
+            case Glow: {
+                auto* p = std::any_cast<GlowParams>(&inst.params);
+                if (p) max_spread = std::max(max_spread, glow_effect_extent(*p));
+                break;
+            }
+            case Bloom: {
+                auto* p = std::any_cast<BloomParams>(&inst.params);
+                if (p) max_spread = std::max(max_spread, p->radius);
+                break;
+            }
+            case Fake3DWave: {
+                auto* p = std::any_cast<Fake3DWaveParams>(&inst.params);
+                if (p) {
+                    f32 s = p->depth_px + p->amplitude_px;
+                    if (p->shadow_enabled) {
+                        s += std::max(std::abs(p->shadow_offset.x),
+                                      std::abs(p->shadow_offset.y)) + p->shadow_blur;
+                    }
+                    if (p->expand_bounds) {
+                        max_spread = std::max(max_spread, s);
+                    }
                 }
-                if (p->expand_bounds) {
-                    max_spread = std::max(max_spread, s);
-                }
+                break;
+            }
+            default: break;
             }
         }
         // Add 2px safety margin for anti-aliasing fringes
