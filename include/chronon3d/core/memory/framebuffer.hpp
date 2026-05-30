@@ -221,6 +221,28 @@ public:
     [[nodiscard]] bool is_arena_allocated() const { return !m_owns_pixels && m_external_pixels != nullptr; }
 
     /**
+     * @brief Swap the full contents (pixel data + metadata) with another framebuffer.
+     *
+     * No pixel data is copied — vectors and pointers are swapped. The total
+     * tracked live bytes remain unchanged. After the swap, @p other holds
+     * whatever this framebuffer held, and vice-versa.
+     */
+    void swap_contents(Framebuffer& other) noexcept {
+        using std::swap;
+        swap(m_width,            other.m_width);
+        swap(m_height,           other.m_height);
+        swap(m_allocated_width,  other.m_allocated_width);
+        swap(m_allocated_height, other.m_allocated_height);
+        swap(m_origin_x,         other.m_origin_x);
+        swap(m_origin_y,         other.m_origin_y);
+        swap(m_opaque,           other.m_opaque);
+        swap(m_key_digest,       other.m_key_digest);
+        swap(m_owns_pixels,      other.m_owns_pixels);
+        swap(m_pixels,           other.m_pixels);
+        swap(m_external_pixels,  other.m_external_pixels);
+    }
+
+    /**
      * @brief Shifts the content of the framebuffer by (dx, dy) pixels.
      * Uses memmove for efficiency. Empty areas are NOT cleared.
      */
@@ -283,6 +305,10 @@ public:
 private:
     u64 m_key_digest{0};
 
+    friend void swap(Framebuffer& a, Framebuffer& b) noexcept {
+        a.swap_contents(b);
+    }
+
     void release_owned_pixels() {
         if (m_owns_pixels && !m_pixels.empty()) {
             framebuffer_decrement_allocations(size_bytes());
@@ -336,8 +362,8 @@ private:
         m_key_digest = 0;
     }
 
-    i32 m_width;
-    i32 m_height;
+    i32 m_width{0};
+    i32 m_height{0};
     i32 m_allocated_width{0};
     i32 m_allocated_height{0};
     i32 m_origin_x{0};

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/core/memory/framebuffer.hpp>
+#include <chronon3d/core/memory/framebuffer_handle.hpp>
 #include <atomic>
 #include <memory>
 #include <mutex>
@@ -92,6 +93,15 @@ public:
 
     /// Acquire a framebuffer that automatically releases itself back to the pool upon destruction.
     std::shared_ptr<Framebuffer> acquire_pooled(int width, int height, std::shared_ptr<FramebufferPool> pool, bool clear = true);
+
+    /// Acquire a framebuffer as an OwnedFB (unique_ptr with pool deleter).
+    /// Zero atomic overhead vs shared_ptr — use in the hot execution path.
+    OwnedFB acquire_owned(int width, int height, bool clear = true);
+
+    /// Acquire an OwnedFB without attaching a deleter to a shared pool handle.
+    /// The framebuffer is immediately owned by the returned OwnedFB and will be
+    /// returned to this pool on destruction.
+    OwnedFB acquire_owned_raw(int width, int height, bool clear = true);
 
     void release(Framebuffer* fb);
 

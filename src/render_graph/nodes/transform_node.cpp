@@ -13,9 +13,9 @@
 
 namespace chronon3d::graph {
 
-std::shared_ptr<Framebuffer> TransformNode::execute(
+OwnedFB TransformNode::execute(
     RenderGraphContext& ctx,
-    std::span<const std::shared_ptr<Framebuffer>> inputs,
+    std::span<const FramebufferRef> inputs,
     std::span<const std::optional<raster::BBox>> input_bboxes
 ) {
     CHRONON_ZONE_C("transform_node", trace_category::kRasterize);
@@ -24,10 +24,10 @@ std::shared_ptr<Framebuffer> TransformNode::execute(
     }
 
     if (inputs.empty() || !inputs[0]) {
-        return ctx.acquire_framebuffer(ctx.width, ctx.height);
+        return ctx.acquire_owned_fb(ctx.width, ctx.height);
     }
 
-    auto input = inputs[0];
+    const FramebufferRef& input = inputs[0];
     const auto predicted = predicted_bbox(ctx, input_bboxes);
     const raster::BBox out_bounds = predicted.value_or(raster::BBox{0, 0, ctx.width, ctx.height});
     const i32 out_w = std::max(1, out_bounds.x1 - out_bounds.x0);
@@ -59,19 +59,18 @@ std::shared_ptr<Framebuffer> TransformNode::execute(
         if (ctx.counters) {
             ctx.counters->transform_pixels.fetch_add(area, std::memory_order_relaxed);
         }
-        if (input.use_count() == 1) {
-            return input;
-        } else {
-            auto result = ctx.acquire_framebuffer(out_w, out_h, true, out_bounds);
-            for (i32 y = 0; y < input->height(); ++y) {
-                std::copy_n(input->pixels_row(y), input->width(), result->pixels_row(y));
-            }
-            result->set_opaque(input->is_opaque());
-            return result;
-        }
+        // Swap pixel storage from the input framebuffer — zero-copy.
+        // Safe because in a render graph DAG each node output has exactly
+        // one consumer, so consuming the input's pixels won't affect other
+        // downstream nodes.  The pool-held Framebuffer shell left behind
+        // is returned to the pool on the shared_ptr's next release.
+        auto result = ctx.acquire_owned_fb(out_w, out_h, false, out_bounds);
+        result->set_opaque(input->is_opaque());
+        result->swap_contents(*input);
+        return result;
     }
 
-    auto result = ctx.acquire_framebuffer(out_w, out_h, true, out_bounds);
+    auto result = ctx.acquire_owned_fb(out_w, out_h, true, out_bounds);
 
     // ── Centering & homography ──────────────────────────────────────────
     const Mat4 dst_canvas_offset = glm::translate(Mat4(1.0f), Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));

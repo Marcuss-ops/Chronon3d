@@ -44,9 +44,9 @@ public:
 
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override;
 
-    std::shared_ptr<Framebuffer> execute(
+    OwnedFB execute(
         RenderGraphContext& ctx,
-        std::span<const std::shared_ptr<Framebuffer>>,
+        std::span<const FramebufferRef>,
         std::span<const std::optional<raster::BBox>>
     ) override;
 

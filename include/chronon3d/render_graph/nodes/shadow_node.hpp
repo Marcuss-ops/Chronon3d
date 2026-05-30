@@ -97,12 +97,12 @@ public:
         return bbox;
     }
 
-    std::shared_ptr<Framebuffer> execute(
+    OwnedFB execute(
         RenderGraphContext& ctx,
-        std::span<const std::shared_ptr<Framebuffer>> inputs,
+        std::span<const FramebufferRef> inputs,
         std::span<const std::optional<raster::BBox>>
     ) override {
-        auto result = ctx.acquire_framebuffer(ctx.width, ctx.height);
+        auto result = ctx.acquire_owned_fb(ctx.width, ctx.height);
 
         if (inputs.empty() || !inputs[0]) return result;
         const Framebuffer& src = *inputs[0];

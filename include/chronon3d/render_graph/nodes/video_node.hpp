@@ -48,35 +48,37 @@ public:
         };
     }
 
-    std::shared_ptr<Framebuffer> execute(
+    OwnedFB execute(
         RenderGraphContext& ctx,
-        std::span<const std::shared_ptr<Framebuffer>>,
+        std::span<const FramebufferRef>,
         std::span<const std::optional<raster::BBox>>
     ) override {
         if (!m_decoder) {
             const i32 render_w = m_source.size.x > 0.0f ? static_cast<i32>(m_source.size.x) : ctx.width;
             const i32 render_h = m_source.size.y > 0.0f ? static_cast<i32>(m_source.size.y) : ctx.height;
-            auto fb = ctx.acquire_framebuffer(render_w, render_h);
-            return fb;
+            return ctx.acquire_owned_fb(render_w, render_h);
         }
 
         const Frame local_frame = ctx.frame - m_layer_start;
         if (local_frame < 0) {
-            auto fb = ctx.acquire_framebuffer(ctx.width, ctx.height);
-            return fb;
+            return ctx.acquire_owned_fb(ctx.width, ctx.height);
         }
 
         const Frame source_frame = video::map_video_frame(local_frame, m_source);
 
         const i32 render_w = m_source.size.x > 0.0f ? static_cast<i32>(m_source.size.x) : ctx.width;
         const i32 render_h = m_source.size.y > 0.0f ? static_cast<i32>(m_source.size.y) : ctx.height;
-        return m_decoder->decode_frame(
+        auto decoded = m_decoder->decode_frame(
             m_source.path,
             source_frame,
             render_w,
             render_h,
             m_source.source_fps
         );
+        if (!decoded) {
+            return ctx.acquire_owned_fb(render_w, render_h);
+        }
+        return ctx.acquire_owned_fb(*decoded);
     }
 
     const video::VideoSource& source() const { return m_source; }

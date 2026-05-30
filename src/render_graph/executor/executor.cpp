@@ -185,7 +185,7 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
         for (const auto& level : plan.levels) {
             CHRONON_ZONE_C("execute_level", trace_category::kGraph);
 
-            // Sequential pre-resolve phase
+            // Sequential pre-resolve phase — extract raw FramebufferRef (no atomics)
             std::pmr::vector<PreResolvedNode> level_resolved(res);
             level_resolved.reserve(level.size());
             for (size_t i = 0; i < level.size(); ++i) {
@@ -193,7 +193,7 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
                 level_resolved[i] = resolve_inputs(graph, level[i], state, consumer_remaining, res);
             }
 
-            // Parallel execution phase
+            // Parallel execution phase — nodes receive FramebufferRef (no shared_ptr copies)
             tbb::parallel_for(
                 tbb::blocked_range<size_t>(0, level.size()),
                 [&](const tbb::blocked_range<size_t>& range) {

@@ -56,22 +56,23 @@ public:
         };
     }
 
-    std::shared_ptr<Framebuffer> execute(
+    OwnedFB execute(
         RenderGraphContext& ctx,
-        std::span<const std::shared_ptr<Framebuffer>> inputs,
+        std::span<const FramebufferRef> inputs,
         std::span<const std::optional<raster::BBox>> input_bboxes
     ) override {
-        if (inputs.size() < 2) return inputs.empty() ? ctx.acquire_framebuffer(ctx.width, ctx.height) : inputs[0];
+        if (inputs.size() < 2) {
+            return inputs.empty() ? ctx.acquire_owned_fb(ctx.width, ctx.height) : ctx.acquire_owned_fb(*inputs[0]);
+        }
         
-        const auto& bottom = inputs[0];
-        const auto& top = inputs[1];
+        const FramebufferRef& bottom = inputs[0];
+        const FramebufferRef& top = inputs[1];
 
         if (ctx.diagnostics_enabled) {
             spdlog::info(
-                "[dirty-debug] frame={} Composite mode={} bottom_use_count={} bottom_opaque={} top_opaque={} clip=[{}:{} -> {}:{}]",
+                "[dirty-debug] frame={} Composite mode={} bottom_opaque={} top_opaque={} clip=[{}:{} -> {}:{}]",
                 static_cast<int>(ctx.frame),
                 static_cast<int>(m_mode),
-                bottom.use_count(),
                 bottom ? (bottom->is_opaque() ? 1 : 0) : 0,
                 top ? (top->is_opaque() ? 1 : 0) : 0,
                 ctx.clip_rect ? ctx.clip_rect->x0 : 0,
@@ -84,7 +85,8 @@ public:
         // ── Skip-opaque optimization ─────────────────────────────────
         // When the top layer is fully opaque, covers the full frame,
         // and uses Normal blend mode, the bottom is completely hidden.
-        // Skip the copy+blend and return top directly.
+        // Swap pixel storage from the input framebuffer to avoid a
+        // full-frame pixel copy.
         if (m_mode == BlendMode::Normal && top->is_opaque() &&
             input_bboxes.size() >= 2 && input_bboxes[1].has_value())
         {
@@ -99,16 +101,20 @@ public:
                         const uint64_t area = static_cast<uint64_t>(ctx.width) * static_cast<uint64_t>(ctx.height);
                         ctx.counters->clear_copy_pixels.fetch_add(area, std::memory_order_relaxed);
                     }
-                    return top;
+                    auto result = ctx.acquire_owned_fb(top->width(), top->height(), false);
+                    result->set_origin(top->origin_x(), top->origin_y());
+                    result->set_opaque(true);
+                    result->swap_contents(*top);
+                    return result;
                 }
             }
         }
 
-        std::shared_ptr<Framebuffer> result;
+        OwnedFB result;
         if (bottom->width() == ctx.width && bottom->height() == ctx.height) {
-            result = ctx.acquire_framebuffer(*bottom);
+            result = ctx.acquire_owned_fb(*bottom);
         } else {
-            result = ctx.acquire_framebuffer(ctx.width, ctx.height, true);
+            result = ctx.acquire_owned_fb(ctx.width, ctx.height, true);
             if (ctx.backend) {
                 ctx.backend->composite_layer(*result, *bottom, BlendMode::Normal);
             }

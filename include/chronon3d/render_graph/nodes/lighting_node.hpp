@@ -46,23 +46,20 @@ public:
         return input_bboxes[0];
     }
 
-    std::shared_ptr<Framebuffer> execute(
+    OwnedFB execute(
         RenderGraphContext& ctx,
-        std::span<const std::shared_ptr<Framebuffer>> inputs,
+        std::span<const FramebufferRef> inputs,
         std::span<const std::optional<raster::BBox>>
     ) override {
         if (inputs.empty()) {
-            return ctx.acquire_framebuffer(ctx.width, ctx.height);
+            return ctx.acquire_owned_fb(ctx.width, ctx.height);
         }
 
         if (!ctx.light_context.enabled || !m_material.accepts_lights) {
-            if (inputs[0].use_count() == 1) {
-                return inputs[0];
-            }
-            return ctx.acquire_framebuffer(*inputs[0]);
+            return ctx.acquire_owned_fb(*inputs[0]);
         }
 
-        auto result = ctx.acquire_framebuffer(*inputs[0]);
+        auto result = ctx.acquire_owned_fb(*inputs[0]);
         const Vec3 normal_world = rendering::transform_normal(m_world_matrix, {0.0f, 0.0f, 1.0f});
 
         for (i32 y = 0; y < result->height(); ++y) {
