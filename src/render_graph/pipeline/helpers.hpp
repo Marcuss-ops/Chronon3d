@@ -14,6 +14,7 @@
 #include <chronon3d/core/telemetry/render_telemetry.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include <xxhash.h>
 #include <algorithm>
 #include <cmath>
 
@@ -24,23 +25,23 @@ namespace chronon3d::graph {
 // Hashes the visible scene state at a given frame into a 64-bit digest.
 // Used by the dirty-rect fast path to skip full re-renders when nothing changed.
 [[nodiscard]] inline uint64_t compute_scene_fingerprint(const Scene& scene, Frame frame) {
-    uint64_t h = 0;
-    
-    // We only include frame if there are animated properties that aren't 
-    // captured by the layer transforms or node params.
-    // Most animations in Chronon are captured via these fields.
-    // combine(h, std::hash<int64_t>{}(static_cast<int64_t>(frame)));
+    XXH3_state_t state;
+    XXH3_64bits_reset(&state);
 
     for (const auto& layer : scene.layers()) {
         if (!layer.active_at(frame)) continue;
 
-        h = hash_combine(h, layer.get_static_hash());
-        h = hash_combine(h, hash_transform(layer.transform));
+        const u64 static_hash = layer.get_static_hash();
+        XXH3_64bits_update(&state, &static_hash, sizeof(static_hash));
+        
+        const u64 transform_hash = hash_transform(layer.transform);
+        XXH3_64bits_update(&state, &transform_hash, sizeof(transform_hash));
     }
     for (const auto& node : scene.nodes()) {
-        h = hash_combine(h, hash_render_node(node));
+        const u64 node_hash = hash_render_node(node);
+        XXH3_64bits_update(&state, &node_hash, sizeof(node_hash));
     }
-    return h;
+    return XXH3_64bits_digest(&state);
 }
 
 

@@ -9,6 +9,19 @@
 #include <algorithm>
 #include <cmath>
 
+#if defined(__GNUC__) || defined(__clang__)
+// Use GCC/Clang built-in prefetch
+#define C3D_PREFETCH_READ(addr) __builtin_prefetch(reinterpret_cast<const void*>(addr), 0, 1)
+#define C3D_PREFETCH_WRITE(addr) __builtin_prefetch(reinterpret_cast<const void*>(addr), 1, 1)
+#elif defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
+#include <xmmintrin.h>
+#define C3D_PREFETCH_READ(addr)  _mm_prefetch(reinterpret_cast<const char*>(addr), _MM_HINT_T1)
+#define C3D_PREFETCH_WRITE(addr) _mm_prefetch(reinterpret_cast<const char*>(addr), _MM_HINT_T1)
+#else
+#define C3D_PREFETCH_READ(addr)  ((void)0)
+#define C3D_PREFETCH_WRITE(addr) ((void)0)
+#endif
+
 namespace chronon3d {
 namespace renderer {
 
@@ -42,6 +55,11 @@ void apply_blur(Framebuffer& fb, f32 radius, const std::optional<raster::BBox>& 
             for (i32 y = range.begin(); y < range.end(); ++y) {
                 const Color* src_row = fb.pixels_row(y);
                 Color* tmp_row = tmp.pixels_row(y);
+                // Prefetch source and destination rows ahead to reduce cache misses
+                if ((y & 15) == 0 && y + 16 < y1) {
+                    C3D_PREFETCH_READ(fb.pixels_row(y + 16));
+                    C3D_PREFETCH_WRITE(tmp.pixels_row(y + 16));
+                }
                 Color sum{0, 0, 0, 0};
                 for (i32 x = x0 - r; x <= x0 + r; ++x) {
                     const Color p = src_row[std::clamp(x, 0, w - 1)];
@@ -61,6 +79,15 @@ void apply_blur(Framebuffer& fb, f32 radius, const std::optional<raster::BBox>& 
         tbb::parallel_for(tbb::blocked_range<i32>(x0, x1), [&](const tbb::blocked_range<i32>& range) {
             for (i32 x = range.begin(); x < range.end(); ++x) {
                 Color sum{0, 0, 0, 0};
+                // Prefetch the temporary buffer column ahead to reduce cache misses
+                if ((x & 15) == 0 && x + 16 < x1) {
+                    // Prefetch a future row from tmp to warm the cache
+                    for (int prefetch_y = y0; prefetch_y < y1; prefetch_y += 4) {
+                        if (prefetch_y + 16 < y1) {
+                            C3D_PREFETCH_READ(&tmp.pixels_row(prefetch_y + 16)[x]);
+                        }
+                    }
+                }
                 for (i32 y = y0 - r; y <= y0 + r; ++y) {
                     const Color p = tmp.pixels_row(std::clamp(y, 0, h - 1))[x];
                     sum.r += p.r; sum.g += p.g; sum.b += p.b; sum.a += p.a;

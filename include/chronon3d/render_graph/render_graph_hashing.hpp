@@ -135,22 +135,50 @@ template <typename T>
             continue;
         }
         seed = hash_combine(seed, hash_string(e.descriptor.id));
-        if (auto* p = std::any_cast<BlurParams>(&e.params)) {
-            seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
-        } else if (auto* p = std::any_cast<TintParams>(&e.params)) {
-            seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
-        } else if (auto* p = std::any_cast<BrightnessParams>(&e.params)) {
-            seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
-        } else if (auto* p = std::any_cast<ContrastParams>(&e.params)) {
-            seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
-        } else if (auto* p = std::any_cast<DropShadowParams>(&e.params)) {
-            seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
-        } else if (auto* p = std::any_cast<GlowParams>(&e.params)) {
-            seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
-        } else if (auto* p = std::any_cast<BloomParams>(&e.params)) {
-            seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
-        } else if (auto* p = std::any_cast<Fake3DWaveParams>(&e.params)) {
-            seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
+        using enum effects::EffectType;
+        switch (e.effect_type) {
+        case Blur: {
+            auto* p = std::any_cast<BlurParams>(&e.params);
+            if (p) seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
+            break;
+        }
+        case Tint: {
+            auto* p = std::any_cast<TintParams>(&e.params);
+            if (p) seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
+            break;
+        }
+        case Brightness: {
+            auto* p = std::any_cast<BrightnessParams>(&e.params);
+            if (p) seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
+            break;
+        }
+        case Contrast: {
+            auto* p = std::any_cast<ContrastParams>(&e.params);
+            if (p) seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
+            break;
+        }
+        case DropShadow: {
+            auto* p = std::any_cast<DropShadowParams>(&e.params);
+            if (p) seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
+            break;
+        }
+        case Glow: {
+            auto* p = std::any_cast<GlowParams>(&e.params);
+            if (p) seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
+            break;
+        }
+        case Bloom: {
+            auto* p = std::any_cast<BloomParams>(&e.params);
+            if (p) seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
+            break;
+        }
+        case Fake3DWave: {
+            auto* p = std::any_cast<Fake3DWaveParams>(&e.params);
+            if (p) seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
+            break;
+        }
+        case Unknown:
+            break;
         }
     }
     return seed;

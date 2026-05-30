@@ -13,7 +13,34 @@ namespace cache {
 namespace profiling {
     extern thread_local RenderCounters* g_current_counters;
     extern thread_local cache::FramebufferPool* g_current_framebuffer_pool;
-}
+
+    /// RAII guard that sets profiling thread-locals for its lifetime and
+    /// restores the previous values on destruction (exception-safe).
+    class ProfilingGuard {
+    public:
+        ProfilingGuard(RenderCounters* counters,
+                       cache::FramebufferPool* pool)
+            : m_previous_counters(g_current_counters),
+              m_previous_pool(g_current_framebuffer_pool) {
+            g_current_counters = counters;
+            g_current_framebuffer_pool = pool;
+        }
+
+        ~ProfilingGuard() {
+            g_current_counters = m_previous_counters;
+            g_current_framebuffer_pool = m_previous_pool;
+        }
+
+        ProfilingGuard(const ProfilingGuard&) = delete;
+        ProfilingGuard& operator=(const ProfilingGuard&) = delete;
+        ProfilingGuard(ProfilingGuard&&) = delete;
+        ProfilingGuard& operator=(ProfilingGuard&&) = delete;
+
+    private:
+        RenderCounters*            m_previous_counters;
+        cache::FramebufferPool*    m_previous_pool;
+    };
+} // namespace profiling
 
 } // namespace chronon3d
 

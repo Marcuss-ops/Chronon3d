@@ -60,6 +60,41 @@ struct Fake3DWaveParams {
 using EffectInstance = effects::EffectInstance;
 using EffectStack = std::vector<EffectInstance>;
 
+// ── effect_type_for specializations ─────────────────────────────────────────
+// Each concrete param struct maps to its EffectType enum value.
+// These are found by the template constructors in EffectInstance via
+// dependent-name lookup at instantiation time.
+
+namespace effects {
+
+template <> struct effect_type_for<BlurParams>        { static constexpr EffectType value = EffectType::Blur; };
+template <> struct effect_type_for<TintParams>        { static constexpr EffectType value = EffectType::Tint; };
+template <> struct effect_type_for<BrightnessParams>  { static constexpr EffectType value = EffectType::Brightness; };
+template <> struct effect_type_for<ContrastParams>    { static constexpr EffectType value = EffectType::Contrast; };
+template <> struct effect_type_for<DropShadowParams>  { static constexpr EffectType value = EffectType::DropShadow; };
+template <> struct effect_type_for<GlowParams>        { static constexpr EffectType value = EffectType::Glow; };
+template <> struct effect_type_for<BloomParams>       { static constexpr EffectType value = EffectType::Bloom; };
+template <> struct effect_type_for<Fake3DWaveParams>  { static constexpr EffectType value = EffectType::Fake3DWave; };
+
+// ── Runtime detection fallback ──────────────────────────────────────────────
+// For cases where the concrete type is not known at compile time.
+
+[[nodiscard]] inline EffectType detect_effect_type(const std::any& params) {
+    if (!params.has_value()) return EffectType::Unknown;
+    const auto& ti = params.type();
+    if (ti == typeid(BlurParams))       return EffectType::Blur;
+    if (ti == typeid(TintParams))       return EffectType::Tint;
+    if (ti == typeid(BrightnessParams)) return EffectType::Brightness;
+    if (ti == typeid(ContrastParams))   return EffectType::Contrast;
+    if (ti == typeid(DropShadowParams)) return EffectType::DropShadow;
+    if (ti == typeid(GlowParams))       return EffectType::Glow;
+    if (ti == typeid(BloomParams))      return EffectType::Bloom;
+    if (ti == typeid(Fake3DWaveParams)) return EffectType::Fake3DWave;
+    return EffectType::Unknown;
+}
+
+} // namespace effects
+
 [[nodiscard]] inline f32 glow_effect_extent(const GlowParams& p) {
     const f32 radius = std::max(0.0f, p.radius) * std::max(0.0f, p.spread);
     return radius * 4.5f;

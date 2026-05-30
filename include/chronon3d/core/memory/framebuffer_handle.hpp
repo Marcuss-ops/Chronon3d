@@ -43,6 +43,7 @@ private:
 // ---------------------------------------------------------------------------
 struct PoolFbDeleter {
     cache::FramebufferPool* pool{nullptr};
+    std::weak_ptr<bool> pool_alive;
     void operator()(Framebuffer* fb) const noexcept;
 };
 
