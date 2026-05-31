@@ -1,6 +1,6 @@
 // content/effects/glow_04_ui_card.cpp
 // TEST 4 — UI Card: glassmorphism card with glowing border + icon + ambient orbs
-#include "glow_test_common.hpp"
+#include "../common/glow_test_common.hpp"
 
 namespace chronon3d::content::effects {
 

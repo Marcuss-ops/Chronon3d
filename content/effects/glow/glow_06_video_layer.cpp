@@ -1,6 +1,6 @@
 // content/effects/glow_06_video_layer.cpp
 // TEST 6 — Video Layer: city video content wrapped with glow + title
-#include "glow_test_common.hpp"
+#include "../common/glow_test_common.hpp"
 
 namespace chronon3d::content::effects {
 

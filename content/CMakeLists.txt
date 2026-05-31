@@ -5,11 +5,15 @@
 
 # Text content
 add_library(chronon3d_content_text STATIC
-    text/text_helpers.cpp
-    text/text_effects.cpp
+    text/helpers/text_helpers.cpp
+    text/effects/text_effects.cpp
+    text/intro/text_intro.cpp
     text/text_layout.cpp
     text/text_scrolling.cpp
-    text/text_typewriter.cpp
+    text/text_proofs.cpp
+    text/text_registrations.cpp
+    text/lil_dirk.cpp
+    text/typewriter/text_typewriter.cpp
     text/typewriter/text_typewriter_terminal.cpp
     text/typewriter/text_typewriter_terminal_preview.cpp
     text/typewriter/text_typewriter_quote.cpp
@@ -21,11 +25,11 @@ add_library(chronon3d_content_text STATIC
     text/typewriter/text_typewriter_dolly_rotate.cpp
     text/typewriter/text_typewriter_animation_test.cpp
     text/typewriter/text_typewriter_showcase.cpp
-    text/text_intro.cpp
-    text/text_proofs.cpp
-    text/text_registrations.cpp
-    text/lil_dirk.cpp
-    text/text_premium_hero.cpp
+    text/premium_hero/text_premium_hero.cpp
+    text/premium_hero/text_premium_hero_masterclass.cpp
+    text/premium_hero/text_premium_hero_buttery_smooth.cpp
+    text/premium_hero/text_premium_hero_saas_blue.cpp
+    text/premium_hero/text_premium_hero_explainer.cpp
 )
 set_target_properties(chronon3d_content_text PROPERTIES UNITY_BUILD OFF)
 target_include_directories(chronon3d_content_text PRIVATE ${CMAKE_SOURCE_DIR})
@@ -39,9 +43,9 @@ target_precompile_headers(chronon3d_content_text PRIVATE
 
 # Shapes content
 add_library(chronon3d_content_shapes STATIC
-    shapes/shape_proofs.cpp
-    shapes/shape_motion_proofs.cpp
-    shapes/shape_registrations.cpp
+    shapes/proofs/shape_proofs.cpp
+    shapes/motion/shape_motion_proofs.cpp
+    shapes/registration/shape_registrations.cpp
 )
 set_target_properties(chronon3d_content_shapes PROPERTIES UNITY_BUILD OFF)
 target_include_directories(chronon3d_content_shapes PRIVATE ${CMAKE_SOURCE_DIR})
@@ -55,7 +59,7 @@ target_precompile_headers(chronon3d_content_shapes PRIVATE
 
 # Images content
 add_library(chronon3d_content_images STATIC
-    images/image_compositions.cpp
+    images/compositions/image_compositions.cpp
 )
 set_target_properties(chronon3d_content_images PROPERTIES UNITY_BUILD OFF)
 target_include_directories(chronon3d_content_images PRIVATE ${CMAKE_SOURCE_DIR})
@@ -69,7 +73,7 @@ target_precompile_headers(chronon3d_content_images PRIVATE
 
 # Animations content
 add_library(chronon3d_content_anims STATIC
-    anims/animation_compositions.cpp
+    anims/compositions/animation_compositions.cpp
 )
 set_target_properties(chronon3d_content_anims PROPERTIES UNITY_BUILD OFF)
 target_include_directories(chronon3d_content_anims PRIVATE ${CMAKE_SOURCE_DIR})
@@ -83,14 +87,16 @@ target_precompile_headers(chronon3d_content_anims PRIVATE
 
 # Effects content
 add_library(chronon3d_content_effects STATIC
-    effects/glow_01_neon_sign.cpp
-    effects/glow_02_orb_galaxy.cpp
-    effects/glow_03_cinematic_text.cpp
-    effects/glow_04_ui_card.cpp
-    effects/glow_05_pulse_wave.cpp
-    effects/glow_06_video_layer.cpp
-    effects/glow_07_premium_suite.cpp
-    effects/premium_thumbnail_showcase.cpp
+    effects/common/glow_test_common.hpp
+    effects/glow/glow_01_neon_sign.cpp
+    effects/glow/glow_02_orb_galaxy.cpp
+    effects/glow/glow_03_cinematic_text.cpp
+    effects/glow/glow_04_ui_card.cpp
+    effects/glow/glow_05_pulse_wave.cpp
+    effects/glow/glow_06_video_layer.cpp
+    effects/glow/glow_07_premium_suite.cpp
+    effects/thumbnails/premium_thumbnail_showcase.cpp
+    effects/ref_2_5d/reference_2_5d_suite.cpp
 )
 set_target_properties(chronon3d_content_effects PROPERTIES UNITY_BUILD OFF)
 target_include_directories(chronon3d_content_effects PRIVATE ${CMAKE_SOURCE_DIR})
@@ -104,7 +110,7 @@ target_precompile_headers(chronon3d_content_effects PRIVATE
 
 # 2.5D content
 add_library(chronon3d_content_2d5 STATIC
-    2d5/two_point_five_d_compositions.cpp
+    2d5/compositions/two_point_five_d_compositions.cpp
 )
 set_target_properties(chronon3d_content_2d5 PROPERTIES UNITY_BUILD OFF)
 target_include_directories(chronon3d_content_2d5 PRIVATE ${CMAKE_SOURCE_DIR})
@@ -118,7 +124,7 @@ target_precompile_headers(chronon3d_content_2d5 PRIVATE
 
 # Grid content
 add_library(chronon3d_content_grid STATIC
-    grid/grid_showcase.cpp
+    grid/compositions/grid_showcase.cpp
 )
 set_target_properties(chronon3d_content_grid PROPERTIES UNITY_BUILD OFF)
 target_include_directories(chronon3d_content_grid PRIVATE ${CMAKE_SOURCE_DIR})
