@@ -7,7 +7,7 @@
 #include <string>
 #include <cmath>
 
-#include "text_helpers.hpp"
+#include "helpers/text_helpers.hpp"
 
 namespace chronon3d::content::text {
 

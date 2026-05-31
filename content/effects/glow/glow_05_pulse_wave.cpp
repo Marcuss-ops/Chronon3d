@@ -1,6 +1,6 @@
 // content/effects/glow_05_pulse_wave.cpp
 // TEST 5 — Pulse Wave: animated concentric rings + text pulsating in sync
-#include "glow_test_common.hpp"
+#include "../common/glow_test_common.hpp"
 
 namespace chronon3d::content::effects {
 

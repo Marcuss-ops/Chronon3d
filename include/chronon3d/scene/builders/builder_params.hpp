@@ -105,6 +105,30 @@ struct TextParams {
     TextWrap wrap{TextWrap::Word};
 };
 
+struct ShadowStyle {
+    TextShadow contact{
+        .enabled = true,
+        .offset = {0.0f, 6.0f},
+        .blur = 14.0f,
+        .opacity = 0.28f,
+        .color = {0.0f, 0.0f, 0.0f, 1.0f},
+    };
+    TextShadow ambient{
+        .enabled = true,
+        .offset = {0.0f, 40.0f},
+        .blur = 120.0f,
+        .opacity = 0.08f,
+        .color = {0.0f, 0.0f, 0.0f, 1.0f},
+    };
+};
+
+[[nodiscard]] inline std::vector<TextShadow> make_text_shadows(const ShadowStyle& style) {
+    return {
+        style.contact,
+        style.ambient,
+    };
+}
+
 struct ContactShadowParams {
     Vec3  pos{0, 0, 0};       // position on the floor
     Vec2  size{300, 80};       // shadow footprint (width, depth)

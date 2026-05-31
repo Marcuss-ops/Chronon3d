@@ -6,7 +6,7 @@
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/camera/camera_motion_presets.hpp>
-#include "text_helpers.hpp"
+#include "../helpers/text_helpers.hpp"
 
 #include <algorithm>
 #include <string>

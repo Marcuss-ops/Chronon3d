@@ -1,6 +1,6 @@
 // content/effects/glow_02_orb_galaxy.cpp
 // TEST 2 — Orb Galaxy: 7 colored orbs with different radii on starfield
-#include "glow_test_common.hpp"
+#include "../common/glow_test_common.hpp"
 
 namespace chronon3d::content::effects {
 

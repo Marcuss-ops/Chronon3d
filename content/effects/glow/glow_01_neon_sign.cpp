@@ -1,6 +1,6 @@
 // content/effects/glow_01_neon_sign.cpp
 // TEST 1 — Neon Sign: electric blue + magenta hero text on pure black
-#include "glow_test_common.hpp"
+#include "../common/glow_test_common.hpp"
 
 namespace chronon3d::content::effects {
 
