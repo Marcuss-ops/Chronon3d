@@ -9,8 +9,10 @@ namespace chronon3d::graph {
 
 class TransitionNode final : public RenderGraphNode {
 public:
-    TransitionNode(std::string layer_name, LayerTransitionSpec spec, bool is_out, float progress)
-        : m_layer_name(std::move(layer_name)), m_spec(std::move(spec)), m_is_out(is_out), m_progress(progress) {}
+    TransitionNode(std::string layer_name, LayerTransitionSpec spec, bool is_out,
+                   Frame layer_from, Frame layer_duration)
+        : m_layer_name(std::move(layer_name)), m_spec(std::move(spec)), m_is_out(is_out),
+          m_layer_from(layer_from), m_layer_duration(layer_duration) {}
 
     RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::Transition; }
     std::string name() const override { return "Transition (" + m_spec.transition_id + ")"; }
@@ -28,10 +30,11 @@ public:
         };
         key.params_hash = hash_string(m_spec.transition_id);
         key.params_hash = hash_combine(key.params_hash, static_cast<u64>(m_is_out));
-        key.params_hash = hash_combine(key.params_hash, hash_bytes(&m_progress, sizeof(f32)));
         key.params_hash = hash_combine(key.params_hash, static_cast<u64>(m_spec.direction));
         return key;
     }
+
+    [[nodiscard]] float compute_progress(const RenderGraphContext& ctx) const;
 
     std::optional<raster::BBox> predicted_bbox(
         const RenderGraphContext& ctx,
@@ -53,8 +56,10 @@ private:
     std::string m_layer_name;
     LayerTransitionSpec m_spec;
     bool m_is_out{false};
-    float m_progress{0.0f};
+    Frame m_layer_from{0};
+    Frame m_layer_duration{-1};
 };
+
 
 namespace transition_math {
 

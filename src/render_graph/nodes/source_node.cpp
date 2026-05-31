@@ -93,12 +93,11 @@ std::optional<raster::BBox> SourceNode::predicted_bbox(
     const Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(ctx.ssaa_factor, ctx.ssaa_factor, 1.0f));
     const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
 
-    Mat4 matrix;
-    if (m_uses_2_5d_projection || m_centered) {
-        matrix = canvas_center * ssaa_scale * m_matrix_override.value_or(m_node.world_transform.to_mat4());
-    } else {
-        matrix = ssaa_scale * m_matrix_override.value_or(m_node.world_transform.to_mat4());
-    }
+    Mat4 matrix;        if (m_uses_2_5d_projection || m_centered) {
+            matrix = canvas_center * ssaa_scale * m_matrix_override.value_or(m_node.world_transform.to_mat4());
+        } else {
+            matrix = ssaa_scale * m_matrix_override.value_or(m_node.world_transform.to_mat4());
+        }
 
     f32 spread = 0.0f;
     if (m_node.shadow.enabled) {
@@ -169,14 +168,10 @@ OwnedFB SourceNode::execute(
         const Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(ctx.ssaa_factor, ctx.ssaa_factor, 1.0f));
         const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
 
-        if (m_uses_2_5d_projection) {
+        if (m_uses_2_5d_projection || m_centered) {
             state.matrix = canvas_center * ssaa_scale * m_matrix_override.value_or(m_node.world_transform.to_mat4());
         } else {
-            if (m_centered) {
-                state.matrix = canvas_center * ssaa_scale * m_matrix_override.value_or(m_node.world_transform.to_mat4());
-            } else {
-                state.matrix = ssaa_scale * m_matrix_override.value_or(m_node.world_transform.to_mat4());
-            }
+            state.matrix = ssaa_scale * m_matrix_override.value_or(m_node.world_transform.to_mat4());
         }
         state.opacity = m_opacity_override.value_or(m_node.world_transform.opacity);
         state.world_matrix = m_matrix_override.value_or(m_node.world_transform.to_mat4());
@@ -251,7 +246,7 @@ bool SourceNode::can_seed_full_frame(const RenderGraphContext& ctx) const {
     const Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(ctx.ssaa_factor, ctx.ssaa_factor, 1.0f));
     const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
     const Mat4 local_matrix = m_matrix_override.value_or(tr.to_mat4());
-    const Mat4 effective_matrix = (m_uses_2_5d_projection || m_centered)
+    const Mat4 effective_matrix = m_uses_2_5d_projection || m_centered
         ? (canvas_center * ssaa_scale * local_matrix)
         : (ssaa_scale * local_matrix);
 

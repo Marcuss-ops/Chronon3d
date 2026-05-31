@@ -80,8 +80,9 @@ TEST_CASE("Test 9.2 — 3D layers are projected when camera is enabled") {
     REQUIRE(fb1 != nullptr);
     REQUIRE(fb2 != nullptr);
     // Center pixel should be red in fb1, but empty in fb2 (due to X shift)
-    CHECK(fb1->get_pixel(100, 100).r > 0.8f);
-    CHECK(fb2->get_pixel(100, 100).r == 0.0f);
+    // Use interior pixel (150,150) — the 100×100 rect at canvas center covers (100,100)-(200,200).
+    CHECK(fb1->get_pixel(150, 150).r > 0.8f);
+    CHECK(fb2->get_pixel(150, 150).r == 0.0f);
 }
 
 TEST_CASE("Test 9.3 — Z depth offset changes scale size under camera projection") {

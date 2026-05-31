@@ -176,7 +176,7 @@ void composite_framebuffer_transformed(Framebuffer& dst_fb, const Framebuffer& s
                         __m256 dst_v = _mm256_loadu_ps(&dst_row[x].r);
 
                         if (mode == BlendMode::Add) {
-                            dst_v = _mm256_min_ps(_mm256_add_ps(dst_v, src_v), _mm256_set1_ps(1.0f));
+                            dst_v = _mm256_add_ps(dst_v, src_v);
                         } else {
                             const __m256 sa = _mm256_shuffle_ps(src_v, src_v, 0xFF);
                             const __m256 inv_sa = _mm256_sub_ps(_mm256_set1_ps(1.0f), sa);

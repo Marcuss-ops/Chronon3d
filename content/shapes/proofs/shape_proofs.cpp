@@ -9,8 +9,8 @@ namespace chronon3d::content::shapes {
 
 namespace {
 
-constexpr f32 W = 2560.0f;
-constexpr f32 H = 1440.0f;
+constexpr f32 W = 1920.0f;
+constexpr f32 H = 1080.0f;
 
 inline std::vector<PathCommand> make_ellipse_commands(Vec2 center, Vec2 radii) {
     constexpr f32 kappa = 0.55228474983f;
@@ -48,7 +48,7 @@ inline std::vector<PathCommand> make_curved_arrow_commands(Vec2 from, Vec2 to, V
 } // namespace
 
 Composition shape_proofs() {
-    return composition({.name = "ShapeProofs", .width = 2560, .height = 1440, .duration = 120}, [](const FrameContext& ctx) {
+    return composition({.name = "ShapeProofs", .width = 1920, .height = 1080, .duration = 120}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
 
         // Dark premium background

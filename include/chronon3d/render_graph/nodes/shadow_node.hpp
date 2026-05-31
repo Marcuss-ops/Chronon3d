@@ -5,6 +5,7 @@
 #include <chronon3d/rendering/shadow_settings.hpp>
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
+#include <chronon3d/compositor/blend_mode.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -44,6 +45,10 @@ public:
         h = hash_combine(h, hash_value(m_settings.blur_radius));
         h = hash_combine(h, hash_value(m_settings.px_per_unit));
         h = hash_combine(h, hash_value(m_settings.max_offset));
+        h = hash_combine(h, hash_value(m_settings.contact_opacity));
+        h = hash_combine(h, hash_value(m_settings.contact_blur_radius));
+        h = hash_combine(h, hash_value(m_settings.ambient_opacity));
+        h = hash_combine(h, hash_value(m_settings.ambient_blur_radius));
         return cache::NodeCacheKey{
             .scope = "shadow:" + m_caster_name,
             .frame = frame_dependent() ? ctx.frame : Frame{0},
@@ -66,6 +71,8 @@ public:
         }
 
         const float dz = m_caster_world_z - m_receiver_world_z;
+        const float depth = std::abs(dz);
+        const float depth_blur_scale = 1.0f + depth * 0.0030f;
         const float eps = 1e-4f;
         const float safe_y = std::abs(m_light_dir.y) > eps
             ? m_light_dir.y
@@ -76,14 +83,16 @@ public:
         oy = std::clamp(oy, -m_settings.max_offset, m_settings.max_offset);
         const int dx = static_cast<int>(std::round(ox));
         const int dy = static_cast<int>(std::round(oy));
+        const float contact_blur = std::max(1.0f, std::max(m_settings.contact_blur_radius, m_settings.blur_radius * 0.45f) * depth_blur_scale);
+        const float ambient_blur = std::max(contact_blur + 4.0f, std::max(m_settings.ambient_blur_radius, m_settings.blur_radius * 2.0f) * depth_blur_scale);
+        const float blur = std::max(contact_blur, ambient_blur);
 
         bbox.x0 += dx;
         bbox.y0 += dy;
         bbox.x1 += dx;
         bbox.y1 += dy;
 
-        if (m_settings.blur_radius > 0.0f) {
-            const float blur = m_settings.blur_radius;
+        if (blur > 0.0f) {
             bbox.x0 = std::max(0, static_cast<i32>(std::floor(static_cast<f32>(bbox.x0) - blur)));
             bbox.y0 = std::max(0, static_cast<i32>(std::floor(static_cast<f32>(bbox.y0) - blur)));
             bbox.x1 = std::min(ctx.width, static_cast<i32>(std::ceil(static_cast<f32>(bbox.x1) + blur)));
@@ -103,12 +112,14 @@ public:
         std::span<const std::optional<raster::BBox>>
     ) override {
         auto result = ctx.acquire_owned_fb(ctx.width, ctx.height);
-
         if (inputs.empty() || !inputs[0]) return result;
         const Framebuffer& src = *inputs[0];
 
-        // Screen-space offset: dz = caster_z - receiver_z, then project along light XZ
+        // Screen-space offset: dz = caster_z - receiver_z, then project along light XZ.
         const float dz = m_caster_world_z - m_receiver_world_z;
+        const float depth = std::abs(dz);
+        const float depth_blur_scale = 1.0f + depth * 0.0030f;
+        const float depth_opacity_scale = 1.0f / (1.0f + depth * 0.0025f);
         const float eps = 1e-4f;
         const float safe_y = std::abs(m_light_dir.y) > eps
             ? m_light_dir.y
@@ -119,28 +130,64 @@ public:
         oy = std::clamp(oy, -m_settings.max_offset, m_settings.max_offset);
         const int dx = static_cast<int>(std::round(ox));
         const int dy = static_cast<int>(std::round(oy));
+        const float contact_blur = std::max(1.0f, std::max(m_settings.contact_blur_radius, m_settings.blur_radius * 0.45f) * depth_blur_scale);
+        const float ambient_blur = std::max(contact_blur + 4.0f, std::max(m_settings.ambient_blur_radius, m_settings.blur_radius * 2.0f) * depth_blur_scale);
 
-        // Translate caster alpha → opaque-black shadow pixels at (x + origin_x + dx, y + origin_y + dy)
-        int projected_pixels = 0;
-        for (int y = 0; y < src.height(); ++y) {
-            const Color* src_row = src.pixels_row(y);
-            const int dst_y = y + src.origin_y() + dy;
-            if (dst_y < 0 || dst_y >= result->height()) continue;
-            Color* dst_row = result->pixels_row(dst_y);
-            for (int x = 0; x < src.width(); ++x) {
-                if (src_row[x].a <= 0.0f) continue;
-                const int dst_x = x + src.origin_x() + dx;
-                if (dst_x < 0 || dst_x >= result->width()) continue;
-                const float alpha = std::min(1.0f, src_row[x].a * m_settings.opacity);
-                dst_row[dst_x].a = std::min(1.0f, dst_row[dst_x].a + alpha);
-                ++projected_pixels;
+        auto render_shadow_layer = [&](f32 opacity_scale, f32 blur_radius, f32 offset_scale, Color tint) {
+            const int layer_dx = static_cast<int>(std::round(static_cast<f32>(dx) * offset_scale));
+            const int layer_dy = static_cast<int>(std::round(static_cast<f32>(dy) * offset_scale));
+            auto shadow_fb = ctx.acquire_owned_fb(ctx.width, ctx.height);
+            shadow_fb->clear({0.0f, 0.0f, 0.0f, 0.0f});
+
+            int projected_pixels = 0;
+            for (int y = 0; y < src.height(); ++y) {
+                const Color* src_row = src.pixels_row(y);
+                const int dst_y = y + src.origin_y() + layer_dy;
+                if (dst_y < 0 || dst_y >= shadow_fb->height()) continue;
+                Color* dst_row = shadow_fb->pixels_row(dst_y);
+                for (int x = 0; x < src.width(); ++x) {
+                    if (src_row[x].a <= 0.0f) continue;
+                    const int dst_x = x + src.origin_x() + layer_dx;
+                    if (dst_x < 0 || dst_x >= shadow_fb->width()) continue;
+                    const float alpha = std::min(1.0f, src_row[x].a * m_settings.opacity * opacity_scale * depth_opacity_scale);
+                    Color& dst = dst_row[dst_x];
+                    dst.r = std::min(1.0f, dst.r + tint.r * alpha);
+                    dst.g = std::min(1.0f, dst.g + tint.g * alpha);
+                    dst.b = std::min(1.0f, dst.b + tint.b * alpha);
+                    dst.a = std::min(1.0f, dst.a + alpha);
+                    ++projected_pixels;
+                }
             }
-        }
-        spdlog::info("[shadow-node] caster='{}' src_size={}x{} origin=({},{}) dx={} dy={} projected_pixels={}",
-                     m_caster_name, src.width(), src.height(), src.origin_x(), src.origin_y(), dx, dy, projected_pixels);
 
-        if (m_settings.blur_radius > 0.0f && ctx.backend) {
-            ctx.backend->apply_blur(*result, m_settings.blur_radius, ctx.clip_rect);
+            if (blur_radius > 0.0f && ctx.backend) {
+                ctx.backend->apply_blur(*shadow_fb, blur_radius, ctx.clip_rect);
+            }
+
+            spdlog::info(
+                "[shadow-node] caster='{}' layer={} src_size={}x{} origin=({},{}) dx={} dy={} projected_pixels={}",
+                m_caster_name,
+                (offset_scale < 1.2f ? "contact" : "ambient"),
+                src.width(), src.height(), src.origin_x(), src.origin_y(),
+                layer_dx, layer_dy, projected_pixels
+            );
+
+            return shadow_fb;
+        };
+
+        const Color shadow_tint{0.03f, 0.04f, 0.08f, 1.0f};
+        auto contact = render_shadow_layer(m_settings.contact_opacity, contact_blur, 1.0f, shadow_tint);
+        auto ambient = render_shadow_layer(m_settings.ambient_opacity, ambient_blur, 1.75f, shadow_tint);
+
+        for (int y = 0; y < ctx.height; ++y) {
+            Color* dst_row = result->pixels_row(y);
+            const Color* contact_row = contact->pixels_row(y);
+            const Color* ambient_row = ambient->pixels_row(y);
+            for (int x = 0; x < ctx.width; ++x) {
+                const Color mixed = compositor::blend(contact_row[x], ambient_row[x], BlendMode::Normal);
+                if (mixed.a > 0.0f) {
+                    dst_row[x] = compositor::blend(dst_row[x], mixed, BlendMode::Normal);
+                }
+            }
         }
 
         return result;

@@ -422,10 +422,11 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     bool scene_structure_unchanged = false;
     bool static_cam_changed = true;
     bool scene_is_static = false;
+    uint64_t current_static_fp = 0;
     uint64_t current_active_at_fp = 0;
     uint64_t current_structure_fp = 0;
     if (sw_renderer && sw_renderer->m_prev_static_scene_fingerprint != 0) {
-        const uint64_t static_fp = sw_renderer->m_scene_hasher.compute_static_fingerprint(scene);
+        current_static_fp = sw_renderer->m_scene_hasher.compute_static_fingerprint(scene);
         current_structure_fp = sw_renderer->m_scene_hasher.compute_structure_fingerprint(scene);
         scene_structure_unchanged = (current_structure_fp == sw_renderer->m_prev_graph_structure_fingerprint);
         const Camera2_5D& cam = ctx.camera_2_5d;
@@ -460,7 +461,9 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         sw_renderer->m_prev_framebuffer->width() == width &&
         sw_renderer->m_prev_framebuffer->height() == height &&
         frame_reuse &&
-        scene_structure_unchanged && !static_cam_changed && active_at_unchanged)
+        scene_structure_unchanged && !static_cam_changed && active_at_unchanged &&
+        sw_renderer->m_prev_static_scene_fingerprint != 0 &&
+        current_static_fp == sw_renderer->m_prev_static_scene_fingerprint)
     {
         CHRONON_ZONE_C("static_scene_fast_check", trace_category::kFrame);
         sw_renderer->m_last_dirty_area_ratio = 0.0;
