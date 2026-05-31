@@ -80,7 +80,7 @@ bool write_plan_output_file(const std::string& path, const std::string& contents
 ) {
     const Layer& layer = *resolved_layer.layer;
 
-    if (ctx.camera_2_5d.enabled && layer.is_3d) {
+    if (ctx.camera_2_5d.enabled && layer.uses_2_5d_projection) {
         Transform effective_transform = resolved_layer.world_transform;
         const Mat4 projection_world_matrix = effective_transform.to_mat4();
         auto proj = project_layer_2_5d(
@@ -349,8 +349,9 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     );
 
     ctx.light_context = scene.light_context();
-    if (scene.camera_2_5d().enabled) {
-        ctx.camera_2_5d = scene.camera_2_5d();
+    const auto resolved_camera = resolve_scene_camera(scene);
+    if (resolved_camera.camera.enabled) {
+        ctx.camera_2_5d = resolved_camera.camera;
         ctx.has_camera_2_5d = true;
         ctx.projection_ctx = renderer::make_projection_context(
             ctx.camera_2_5d, ctx.width, ctx.height);

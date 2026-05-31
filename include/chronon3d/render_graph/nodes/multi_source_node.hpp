@@ -16,7 +16,7 @@ struct MultiSourceItem {
 class MultiSourceNode final : public RenderGraphNode {
 public:
     MultiSourceNode(std::string name, std::vector<MultiSourceItem> items, const cache::NodeCacheKey& key,
-                    bool centered = false, bool is_3d = false, bool cache_static = false);
+                    bool centered = false, bool uses_2_5d_projection = false, bool cache_static = false);
 
     bool cacheable() const override { return m_cache_static; }
     RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::Source; }
@@ -41,34 +41,34 @@ public:
     [[nodiscard]] bool can_seed_full_frame(const RenderGraphContext& ctx) const override { return false; }
 
     const std::vector<MultiSourceItem>& items() const { return m_items; }
-    bool is_3d() const { return m_is_3d; }
+    bool uses_2_5d_projection() const { return m_uses_2_5d_projection; }
 
     void refresh(
         std::string name,
         std::vector<MultiSourceItem> items,
         const cache::NodeCacheKey& key,
         bool centered = false,
-        bool is_3d = false,
+        bool uses_2_5d_projection = false,
         bool cache_static = false
     ) {
         m_name = std::move(name);
         m_items = std::move(items);
         m_key = key;
         m_centered = centered;
-        m_is_3d = is_3d;
+        m_uses_2_5d_projection = uses_2_5d_projection;
         m_cache_static = cache_static;
     }
 
     /// Returns true if this node represents a single full-frame image source.
     /// Used by the graph builder for skip-when-opaque analysis.
-    [[nodiscard]] bool is_single_full_frame_image() const { return m_items.size() == 1 && m_cache_static && !m_is_3d; }
+    [[nodiscard]] bool is_single_full_frame_image() const { return m_items.size() == 1 && m_cache_static && !m_uses_2_5d_projection; }
 
 private:
     std::string m_name;
     std::vector<MultiSourceItem> m_items;
     cache::NodeCacheKey m_key;
     bool m_centered{false};
-    bool m_is_3d{false};
+    bool m_uses_2_5d_projection{false};
     bool m_cache_static{false};
 };
 

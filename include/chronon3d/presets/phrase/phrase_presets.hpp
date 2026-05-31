@@ -73,6 +73,7 @@ struct PhraseTheme {
     static PhraseTheme breaking_news() {
         return PhraseTheme(StyleKit::breaking_news());
     }
+
 };
 
 struct PhraseParams {

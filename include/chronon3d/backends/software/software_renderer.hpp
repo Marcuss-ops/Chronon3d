@@ -142,7 +142,7 @@ public:
         f32 opacity{1.0f};
         bool visible{true};
         bool cache_static{false};
-        bool is_3d{false};
+        bool uses_2_5d_projection{false};
         uint64_t content_hash{0};
     };
 

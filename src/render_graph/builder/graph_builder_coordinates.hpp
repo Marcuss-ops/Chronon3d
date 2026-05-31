@@ -33,7 +33,7 @@ inline bool matrix_near(const Mat4& a, const Mat4& b, f32 eps = 1e-4f) {
 /// Determine if a layer should be rendered in centered mode.
 inline bool should_use_centered_rendering(const LayerGraphItem& item, const RenderGraphContext& ctx) {
     if (!ctx.modular_coordinates) {
-        return (item.layer && item.layer->is_3d);
+        return (item.layer && item.layer->uses_2_5d_projection);
     }
     if (!item.layer) return true;
     bool use_local = layer_needs_render_transform(item, ctx) && !item.native_3d;
@@ -47,7 +47,7 @@ inline bool is_implicit_2d_centering_only(const LayerGraphItem& item, const Rend
     if (!item.layer) return false;
     if (item.projected) return false;
     if (item.native_3d) return false;
-    if (item.layer->is_3d) return false;
+    if (item.layer->uses_2_5d_projection) return false;
     if (item.layer->kind != LayerKind::Normal) return false;
     if (!item.transform.any()) return false;
 

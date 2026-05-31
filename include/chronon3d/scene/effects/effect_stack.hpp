@@ -6,6 +6,7 @@
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/core/types/types.hpp>
+#include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/effects/effect_instance.hpp>
 #include <algorithm>
 #include <variant>
@@ -18,6 +19,18 @@ struct TintParams          { Color color{0,0,0,0}; f32 amount{1.0f}; };
 struct BrightnessParams    { f32   value{0.0f}; };
 struct ContrastParams      { f32   value{1.0f}; };
 struct DropShadowParams    { Vec2 offset{0,8}; Color color{0,0,0,0.35f}; f32 radius{12}; };
+
+struct GlowLayer {
+    f32 radius{0.0f};
+    f32 opacity{1.0f};
+    f32 scale{1.0f};
+};
+
+enum class GlowQuality {
+    Standard,
+    SkiaLike
+};
+
 struct GlowParams {
     f32 radius{15.0f};
     f32 intensity{0.8f};
@@ -29,8 +42,50 @@ struct GlowParams {
     f32 core_strength{0.70f};
     f32 aura_strength{0.35f};
     f32 bloom_strength{0.18f};
+    f32 outer_downscale{0.25f};
+    bool preserve_source{true};
     bool additive{true};
+
+    GlowQuality quality{GlowQuality::Standard};
+    std::vector<GlowLayer> layers;
+    BlendMode blend{BlendMode::Add};
 };
+
+struct GlowStyle {
+    Color color{1,1,1,1};
+    f32 inner_radius{6.0f};
+    f32 inner_opacity{0.75f};
+    f32 mid_radius{22.0f};
+    f32 mid_opacity{0.38f};
+    f32 outer_radius{72.0f};
+    f32 outer_opacity{0.16f};
+    f32 outer_downscale{0.25f};
+    BlendMode blend{BlendMode::Screen};
+    bool preserve_source{true};
+
+    operator GlowParams() const;
+};
+
+inline GlowStyle::operator GlowParams() const {
+    GlowParams p;
+    p.color = color;
+    p.quality = GlowQuality::SkiaLike;
+    p.preserve_source = preserve_source;
+    p.blend = blend;
+    p.additive = (blend == BlendMode::Add);
+    p.layers = {
+        {inner_radius, inner_opacity, 1.0f},
+        {mid_radius, mid_opacity, 1.0f},
+        {outer_radius, outer_opacity, outer_downscale}
+    };
+    p.radius = outer_radius;
+    p.intensity = 1.0f;
+    p.core_strength = inner_opacity;
+    p.aura_strength = mid_opacity;
+    p.bloom_strength = outer_opacity;
+    p.outer_downscale = outer_downscale;
+    return p;
+}
 struct BloomParams         { f32 threshold{0.80f}; f32 radius{24.0f}; f32 intensity{0.60f}; };
 
 enum class WaveAxis {
@@ -96,8 +151,16 @@ template <> struct effect_type_for<Fake3DWaveParams>  { static constexpr EffectT
 } // namespace effects
 
 [[nodiscard]] inline f32 glow_effect_extent(const GlowParams& p) {
-    const f32 radius = std::max(0.0f, p.radius) * std::max(0.0f, p.spread);
-    return radius * 4.5f;
+    f32 base_radius = std::max(0.0f, p.radius);
+    if (!p.layers.empty()) {
+        f32 max_layer_r = 0.0f;
+        for (const auto& l : p.layers) {
+            max_layer_r = std::max(max_layer_r, l.radius);
+        }
+        base_radius = max_layer_r;
+    }
+    const f32 radius = base_radius * std::max(0.0f, p.spread);
+    return radius + 4.0f;
 }
 
 namespace GlowPresets {
@@ -114,6 +177,8 @@ namespace GlowPresets {
         .core_strength = 0.85f,
         .aura_strength = 0.42f,
         .bloom_strength = 0.20f,
+        .outer_downscale = 0.25f,
+        .preserve_source = true,
         .additive = true
     };
 }
@@ -130,6 +195,8 @@ namespace GlowPresets {
         .core_strength = 0.70f,
         .aura_strength = 0.35f,
         .bloom_strength = 0.16f,
+        .outer_downscale = 0.25f,
+        .preserve_source = true,
         .additive = true
     };
 }
@@ -146,6 +213,8 @@ namespace GlowPresets {
         .core_strength = 0.60f,
         .aura_strength = 0.38f,
         .bloom_strength = 0.22f,
+        .outer_downscale = 0.25f,
+        .preserve_source = true,
         .additive = true
     };
 }
@@ -162,6 +231,8 @@ namespace GlowPresets {
         .core_strength = 0.50f,
         .aura_strength = 0.24f,
         .bloom_strength = 0.08f,
+        .outer_downscale = 0.25f,
+        .preserve_source = true,
         .additive = false
     };
 }
@@ -178,6 +249,8 @@ namespace GlowPresets {
         .core_strength = 0.56f,
         .aura_strength = 0.30f,
         .bloom_strength = 0.10f,
+        .outer_downscale = 0.25f,
+        .preserve_source = true,
         .additive = false
     };
 }
@@ -194,6 +267,8 @@ namespace GlowPresets {
         .core_strength = 0.80f,
         .aura_strength = 0.32f,
         .bloom_strength = 0.12f,
+        .outer_downscale = 0.25f,
+        .preserve_source = true,
         .additive = true
     };
 }
@@ -210,6 +285,8 @@ namespace GlowPresets {
         .core_strength = 0.38f,
         .aura_strength = 0.18f,
         .bloom_strength = 0.05f,
+        .outer_downscale = 0.25f,
+        .preserve_source = true,
         .additive = false
     };
 }

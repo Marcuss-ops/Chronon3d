@@ -124,6 +124,7 @@ struct StyleKit {
             .line_thickness = 3.0f
         };
     }
+
 };
 
 } // namespace chronon3d::presets

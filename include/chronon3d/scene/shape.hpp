@@ -5,6 +5,7 @@
 #include <chronon3d/core/types/types.hpp>
 #include <chronon3d/scene/fill.hpp>
 #include <chronon3d/scene/path.hpp>
+#include <optional>
 #include <string>
 #include <vector>
 #include <chronon3d/media/media_placement.hpp>
@@ -60,6 +61,7 @@ enum class TextAlign { Left, Center, Right };
 
 struct TextPaint {
     Color fill{1.0f, 1.0f, 1.0f, 1.0f};
+    std::optional<Fill> fill_style{};
     bool stroke_enabled{false};
     Color stroke_color{0.0f, 0.0f, 0.0f, 1.0f};
     f32 stroke_width{2.0f};

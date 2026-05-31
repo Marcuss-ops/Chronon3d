@@ -172,7 +172,7 @@ LayerBuilder& LayerBuilder::opacity(f32 value) {
 }
 
 LayerBuilder& LayerBuilder::enable_3d(bool value) {
-    m_layer.is_3d = value;
+    m_layer.uses_2_5d_projection = value;
     return *this;
 }
 
@@ -446,18 +446,17 @@ LayerBuilder& LayerBuilder::screen_dimensions(f32 w, f32 h) {
     m_screen_width = w;
     m_screen_height = h;
     return *this;
-}
-
-LayerBuilder& LayerBuilder::fullscreen_rect(std::string name, Color color) {
-    return rect(std::move(name), {
-        .size = { m_screen_width, m_screen_height },
-        .color = color,
-        // Shape primitives are authored in local top-left coordinates, while the
-        // scene graph centers 2D content on the canvas. Offset the rect so its
-        // local origin lands on the canvas origin after centering.
-        .pos = { -m_screen_width * 0.5f, -m_screen_height * 0.5f, 0.0f }
-    });
-}
+}    LayerBuilder& LayerBuilder::fullscreen_rect(std::string name, Color color) {
+        return rect(std::move(name), {
+            .size = { m_screen_width, m_screen_height },
+            .color = color,
+            // Anchor is set to half the size in RenderNodeFactory::rect, centering
+            // the rect on the layer's position. The scene graph shifts unpinned 2D
+            // layers by (+width/2, +height/2), so identity position here keeps the
+            // rect centered and covering the full frame after that shift.
+            .pos = { 0.0f, 0.0f, 0.0f }
+        });
+    }
 
 LayerBuilder& LayerBuilder::fill(Color color) {
     return fullscreen_rect("fill", color);

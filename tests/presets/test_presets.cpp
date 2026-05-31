@@ -32,6 +32,7 @@ TEST_CASE("PhraseTheme Factory Properties") {
 
     auto breaking_news_theme = PhraseTheme::breaking_news();
     CHECK(breaking_news_theme.radius == doctest::Approx(0.0f));
+
 }
 
 TEST_CASE("PhraseParams apply_theme") {
@@ -117,6 +118,7 @@ TEST_CASE("StyleKit Preset Factories and Defaults") {
     auto kit_lux = StyleKit::luxury();
     CHECK(kit_lux.corner_radius == doctest::Approx(0.0f));
     CHECK(kit_lux.typography.font_family == "Cinzel");
+
 }
 
 TEST_CASE("MotionPresetRegistry Dynamic Registration and Evaluation") {
@@ -228,6 +230,7 @@ TEST_CASE("TextStyle presets return correctly configured styles") {
 
     auto neon_style = presets::text::neon();
     CHECK(neon_style.shadows.size() == 3);
+
 }
 
 #include <chronon3d/presets/text/subtitle.hpp>
@@ -251,5 +254,3 @@ TEST_CASE("Subtitle and Karaoke models specification") {
     REQUIRE(track.cues[0].words.size() == 2);
     CHECK(track.cues[0].words[1].word == "World");
 }
-
-

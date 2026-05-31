@@ -5,6 +5,7 @@
 
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/software/shape_processor.hpp>
+#include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/backends/text/text_rasterizer_utils.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
@@ -328,13 +329,40 @@ public:
         bool raster_cache_hit = false;
         double rasterize_ms = 0.0;
         const auto raster_start = diagnostics_enabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
-        auto raster = rasterize_text_to_bl_image(node.shape.text, effective_size, 4, &raster_cache_hit, raster_transform);
+        auto raster = rasterize_text_to_bl_image(node.shape.text, effective_size, 32, &raster_cache_hit, raster_transform);
         if (diagnostics_enabled) {
             rasterize_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - raster_start).count();
         }
         if (!raster) {
             spdlog::warn("Text rasterization failed for node '{}'", node.name);
             return;
+        }
+
+        if (std::getenv("CHRONON_DEBUG_DUMP_TEXT_RASTER")) {
+            BLImageData debug_data;
+            if (raster->image.getData(&debug_data) == BL_SUCCESS) {
+                const int sw = debug_data.size.w;
+                const int sh = debug_data.size.h;
+                const int stride = static_cast<int>(debug_data.stride / sizeof(uint32_t));
+                Framebuffer debug_fb(sw, sh);
+                const uint32_t* src_pixels = reinterpret_cast<const uint32_t*>(debug_data.pixelData);
+                for (int y = 0; y < sh; ++y) {
+                    for (int x = 0; x < sw; ++x) {
+                        const uint32_t p = src_pixels[y * stride + x];
+                        debug_fb.set_pixel(
+                            x,
+                            y,
+                            Color{
+                                static_cast<float>((p >> 16) & 0xFF) / 255.0f,
+                                static_cast<float>((p >> 8) & 0xFF) / 255.0f,
+                                static_cast<float>(p & 0xFF) / 255.0f,
+                                static_cast<float>((p >> 24) & 0xFF) / 255.0f
+                            }
+                        );
+                    }
+                }
+                save_png(debug_fb, "output/debug_text_raster.png");
+            }
         }
 
         if (!raster_cache_hit) {
@@ -376,8 +404,9 @@ public:
             int y = static_cast<int>(std::lround(raster->y_offset));
             chronon3d::blend2d_bridge::composite_bl_image(fb, raster->image, x, y, opacity, BlendMode::Normal);
         } else {
-            Mat4 text_model = model * glm::translate(Mat4(1.0f), Vec3(raster->x_offset, raster->y_offset, 0.0f));
-            chronon3d::blend2d_bridge::composite_bl_image_transformed(fb, raster->image, text_model, opacity, BlendMode::Normal);
+            const int x = static_cast<int>(std::lround(model[3][0] + raster->x_offset));
+            const int y = static_cast<int>(std::lround(model[3][1] + raster->y_offset));
+            chronon3d::blend2d_bridge::composite_bl_image(fb, raster->image, x, y, opacity, BlendMode::Normal);
         }
         if (diagnostics_enabled) {
             composite_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - composite_start).count();

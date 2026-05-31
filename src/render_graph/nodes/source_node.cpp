@@ -94,7 +94,7 @@ std::optional<raster::BBox> SourceNode::predicted_bbox(
     const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
 
     Mat4 matrix;
-    if (m_is_3d || m_centered) {
+    if (m_uses_2_5d_projection || m_centered) {
         matrix = canvas_center * ssaa_scale * m_matrix_override.value_or(m_node.world_transform.to_mat4());
     } else {
         matrix = ssaa_scale * m_matrix_override.value_or(m_node.world_transform.to_mat4());
@@ -137,7 +137,7 @@ cache::NodeCacheKey SourceNode::cache_key(const RenderGraphContext& ctx) const {
     if (m_opacity_override) {
         key.params_hash = hash_combine(key.params_hash, hash_bytes(&(*m_opacity_override), sizeof(f32)));
     }
-    if (m_is_3d && ctx.has_camera_2_5d) {
+    if (m_uses_2_5d_projection && ctx.has_camera_2_5d) {
         const auto& cam = ctx.camera_2_5d;
         key.params_hash = hash_combine(key.params_hash, hash_bytes(&cam.position, sizeof(Vec3)));
         key.params_hash = hash_combine(key.params_hash, hash_bytes(&cam.rotation, sizeof(Vec3)));
@@ -169,7 +169,7 @@ OwnedFB SourceNode::execute(
         const Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(ctx.ssaa_factor, ctx.ssaa_factor, 1.0f));
         const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
 
-        if (m_is_3d) {
+        if (m_uses_2_5d_projection) {
             state.matrix = canvas_center * ssaa_scale * m_matrix_override.value_or(m_node.world_transform.to_mat4());
         } else {
             if (m_centered) {
@@ -221,7 +221,7 @@ OwnedFB SourceNode::execute(
 }
 
 bool SourceNode::can_seed_full_frame(const RenderGraphContext& ctx) const {
-    if (!m_cache_static || m_is_3d) {
+    if (!m_cache_static || m_uses_2_5d_projection) {
         return false;
     }
 
@@ -251,11 +251,11 @@ bool SourceNode::can_seed_full_frame(const RenderGraphContext& ctx) const {
     const Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(ctx.ssaa_factor, ctx.ssaa_factor, 1.0f));
     const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
     const Mat4 local_matrix = m_matrix_override.value_or(tr.to_mat4());
-    const Mat4 effective_matrix = (m_is_3d || m_centered)
+    const Mat4 effective_matrix = (m_uses_2_5d_projection || m_centered)
         ? (canvas_center * ssaa_scale * local_matrix)
         : (ssaa_scale * local_matrix);
 
-    return covers_full_frame_as_rectangle(effective_matrix, static_cast<f32>(ctx.width), static_cast<f32>(ctx.height), m_is_3d || m_centered);
+    return covers_full_frame_as_rectangle(effective_matrix, static_cast<f32>(ctx.width), static_cast<f32>(ctx.height), m_uses_2_5d_projection || m_centered);
 }
 
 } // namespace chronon3d::graph
