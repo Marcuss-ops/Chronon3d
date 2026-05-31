@@ -94,3 +94,26 @@ TEST_CASE("Missing image returns placeholder/fallback instead of crashing") {
     // Constructing must not crash
     CHECK_NOTHROW(RenderNodeFactory::image(res, "missing", p));
 }
+
+TEST_CASE("RenderNodeFactory preserves gradient text paint") {
+    auto* res = std::pmr::get_default_resource();
+
+    TextParams p;
+    p.text = "SaaS";
+    p.size = {640.0f, 240.0f};
+    p.paint.fill_style = Fill::linear(
+        {0.0f, 0.5f},
+        {1.0f, 0.5f},
+        {
+            {0.0f, Color{1.0f, 0.72f, 0.18f, 1.0f}},
+            {1.0f, Color{0.92f, 0.20f, 0.98f, 1.0f}},
+        }
+    );
+
+    auto node = RenderNodeFactory::text(res, "title", p);
+
+    REQUIRE(node.shape.type == ShapeType::Text);
+    REQUIRE(node.shape.text.style.paint.fill_style.has_value());
+    CHECK(node.shape.text.style.paint.fill_style->type == FillType::LinearGradient);
+    CHECK(node.shape.text.style.paint.fill_style->gradient.stops.size() == 2);
+}

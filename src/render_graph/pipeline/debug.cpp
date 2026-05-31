@@ -31,8 +31,9 @@ std::string debug_scene_graph(
     );
     
     ctx.light_context = scene.light_context();
-    if (scene.camera_2_5d().enabled) {
-        ctx.camera_2_5d = scene.camera_2_5d();
+    const auto resolved_camera = resolve_scene_camera(scene);
+    if (resolved_camera.camera.enabled) {
+        ctx.camera_2_5d = resolved_camera.camera;
         ctx.has_camera_2_5d = true;
         ctx.projection_ctx = renderer::make_projection_context(
             ctx.camera_2_5d,
@@ -67,8 +68,9 @@ SceneGraphStats analyze_scene_graph(
     auto ctx = make_graph_context(backend, node_cache, camera, width, height,
                                    frame, frame_time, settings, registry, video_decoder, fps);
     ctx.light_context = scene.light_context();
-    if (scene.camera_2_5d().enabled) {
-        ctx.camera_2_5d  = scene.camera_2_5d();
+    const auto resolved_camera = resolve_scene_camera(scene);
+    if (resolved_camera.camera.enabled) {
+        ctx.camera_2_5d  = resolved_camera.camera;
         ctx.has_camera_2_5d = true;
         ctx.projection_ctx = renderer::make_projection_context(ctx.camera_2_5d, ctx.width, ctx.height);
         ctx.projection_ctx.ready = true;

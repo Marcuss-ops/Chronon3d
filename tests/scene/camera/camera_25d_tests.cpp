@@ -238,5 +238,5 @@ TEST_CASE("Test 9.8 — Camera 2.5D: Native 3D shapes do not undergo double proj
     scene.add_layer(std::move(l));
 
     REQUIRE(scene.layers().size() == 1);
-    CHECK(scene.layers()[0].is_3d);
+    CHECK(scene.layers()[0].uses_2_5d_projection);
 }

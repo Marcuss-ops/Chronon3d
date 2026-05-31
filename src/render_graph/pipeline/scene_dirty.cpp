@@ -95,7 +95,7 @@ DirtyRectOutput compute_dirty_rect(
     // ── Helper: compute single-layer bbox ───────────────────────────────
     auto compute_bbox_for_resolved = [&](const ResolvedLayer& rl, const Camera2_5DRuntime& cam) -> raster::BBox {
         LayerGraphItem item;
-        if (cam.enabled && rl.layer->is_3d) {
+        if (cam.enabled && rl.layer->uses_2_5d_projection) {
             Transform effective_transform = rl.world_transform;
             auto proj = project_layer_2_5d(
                 effective_transform, effective_transform.to_mat4(), cam,
@@ -160,7 +160,7 @@ DirtyRectOutput compute_dirty_rect(
                     state.opacity = rl.world_transform.opacity;
                     state.visible = rl.layer->visible;
                     state.cache_static = rl.layer->cache_static;
-                    state.is_3d = rl.layer->is_3d;
+                    state.uses_2_5d_projection = rl.layer->uses_2_5d_projection;
                     state.content_hash = rl.layer->get_static_hash();
                     local_map[std::string(rl.layer->name)] = state;
                 }
@@ -203,7 +203,7 @@ DirtyRectOutput compute_dirty_rect(
         state.opacity = node.world_transform.opacity;
         state.visible = node.visible;
         state.cache_static = true;
-        state.is_3d = false;
+        state.uses_2_5d_projection = false;
         state.content_hash = hash_render_node(node);
         out.layer_bboxes["root.node:" + std::string(node.name)] = state;
     }
@@ -283,7 +283,7 @@ DirtyRectOutput compute_dirty_rect(
             if (!curr_visible) return;
 
             const bool geometry_changed =
-                (cam_changed && curr.is_3d) ||
+                (cam_changed && curr.uses_2_5d_projection) ||
                 (curr.world_matrix != prev->world_matrix);
             const bool content_changed =
                 !curr.cache_static ||

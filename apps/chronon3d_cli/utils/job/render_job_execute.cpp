@@ -103,8 +103,13 @@ bool execute_render_job(const CompositionRegistry& registry, const RenderJobPlan
                      ? fmt::format(" [SSAA {:.1f}x]", plan.settings.ssaa_factor)
                      : "");
 
-    // Initialize the default telemetry manager stores
-    chronon3d::telemetry::TelemetryManager::instance().initialize_default_stores();
+    const bool write_telemetry = plan.report;
+    if (write_telemetry) {
+        // Initialize the default telemetry manager stores only when we are
+        // actually generating an execution report. Normal renders should not
+        // depend on SQLite telemetry being available.
+        chronon3d::telemetry::TelemetryManager::instance().initialize_default_stores();
+    }
 
     std::vector<chronon3d::telemetry::FrameTelemetryRecord> telemetry_frames;
     double total_render_ms = 0.0;
@@ -176,11 +181,13 @@ bool execute_render_job(const CompositionRegistry& registry, const RenderJobPlan
     auto image_events = chronon3d::telemetry::collect_image_telemetry();
     auto tile_events = chronon3d::telemetry::collect_tile_telemetry();
 
-    chronon3d::telemetry::TelemetryManager::instance().record_run(run, telemetry_frames, phases, counters_list,
-                                                        node_events, layer_events,
-                                                        cache_events, culling_events,
-                                                        text_events, image_events,
-                                                        tile_events);
+    if (write_telemetry) {
+        chronon3d::telemetry::TelemetryManager::instance().record_run(run, telemetry_frames, phases, counters_list,
+                                                            node_events, layer_events,
+                                                            cache_events, culling_events,
+                                                            text_events, image_events,
+                                                            tile_events);
+    }
 
     if (plan.report) {
         auto now = std::chrono::system_clock::now();

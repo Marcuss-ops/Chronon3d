@@ -2,13 +2,16 @@
 #include <algorithm>
 #include <cmath>
 #include <chrono>
+#include <cctype>
 #include <mutex>
 #include <unordered_map>
 #include <optional>
+#include <vector>
 
 #include <chronon3d/assets/asset_registry.hpp>
 #include <chronon3d/backends/text/text_rasterizer_utils.hpp>
 #include <chronon3d/backends/text/text_layout_engine.hpp>
+#include <blend2d/gradient.h>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 
@@ -23,6 +26,71 @@ inline BLRgba32 to_bl_rgba(const Color& c) {
         static_cast<uint8_t>(std::clamp(c.b * 255.0f, 0.0f, 255.0f)),
         static_cast<uint8_t>(std::clamp(c.a * 255.0f, 0.0f, 255.0f))
     );
+}
+
+inline void apply_text_fill_style(
+    BLContext& ctx,
+    const TextStyle& style,
+    const Color& fallback_color,
+    float origin_x,
+    float origin_y,
+    float width,
+    float height
+) {
+    if (!style.paint.fill_style.has_value()) {
+        ctx.setFillStyle(to_bl_rgba(fallback_color));
+        return;
+    }
+
+    const Fill& fill = *style.paint.fill_style;
+    if (fill.type == FillType::Solid) {
+        ctx.setFillStyle(to_bl_rgba(fill.solid));
+        return;
+    }
+
+    std::vector<BLGradientStop> stops;
+    stops.reserve(fill.gradient.stops.size());
+    for (const auto& stop : fill.gradient.stops) {
+        stops.emplace_back(static_cast<double>(stop.offset), to_bl_rgba(stop.color));
+    }
+
+    if (stops.empty()) {
+        ctx.setFillStyle(to_bl_rgba(fallback_color));
+        return;
+    }
+
+    const float safe_w = std::max(1.0f, width);
+    const float safe_h = std::max(1.0f, height);
+
+    if (fill.type == FillType::LinearGradient) {
+        const BLLinearGradientValues values(
+            origin_x + fill.gradient.from.x * safe_w,
+            origin_y + fill.gradient.from.y * safe_h,
+            origin_x + fill.gradient.to.x * safe_w,
+            origin_y + fill.gradient.to.y * safe_h
+        );
+        BLGradient gradient(values, BL_EXTEND_MODE_PAD, stops.data(), stops.size());
+        ctx.setFillStyle(gradient);
+        return;
+    }
+
+    if (fill.type == FillType::RadialGradient) {
+        const float radius_norm = std::max(0.001f, fill.gradient.to.x - fill.gradient.from.x);
+        const float radius = std::max(safe_w, safe_h) * radius_norm;
+        const BLRadialGradientValues values(
+            origin_x + fill.gradient.from.x * safe_w,
+            origin_y + fill.gradient.from.y * safe_h,
+            origin_x + fill.gradient.from.x * safe_w,
+            origin_y + fill.gradient.from.y * safe_h,
+            0.0,
+            radius
+        );
+        BLGradient gradient(values, BL_EXTEND_MODE_PAD, stops.data(), stops.size());
+        ctx.setFillStyle(gradient);
+        return;
+    }
+
+    ctx.setFillStyle(to_bl_rgba(fallback_color));
 }
 
 struct Blend2DResources {
@@ -256,6 +324,9 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
         fill_color = t.style.color;
     }
 
+    const float text_block_w = std::max(1.0f, layout_res.size.x);
+    const float text_block_h = std::max(1.0f, layout_res.size.y);
+
     for (const auto& line : layout_res.lines) {
         if (line.text.empty()) continue;
 
@@ -268,11 +339,79 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
             ctx.strokeUtf8Text(BLPoint(lx, ly), font, line.text.c_str());
         }
 
-        ctx.setFillStyle(to_bl_rgba(fill_color));
+        apply_text_fill_style(
+            ctx,
+            t.style,
+            fill_color,
+            text_start_x,
+            text_start_y,
+            text_block_w,
+            text_block_h
+        );
         ctx.fillUtf8Text(BLPoint(lx, ly), font, line.text.c_str());
     }
 
     ctx.end();
+
+    // Trim trailing rows from the raster that contain only sparse / trace
+    // alpha residue.  This removes dark-band artefacts that would otherwise
+    // appear below the text when composited over a flat background (caused by
+    // font hinting, sub-pixel glow, or Blend2D bounding-box edge effects).
+    {
+        BLImageData trim_data;
+        if (img.getData(&trim_data) == BL_SUCCESS && trim_data.pixelData && trim_data.size.h > 0) {
+            const int sw = trim_data.size.w;
+            const int sh = trim_data.size.h;
+            const int stride = static_cast<int>(trim_data.stride / sizeof(uint32_t));
+            auto* pixels = reinterpret_cast<uint32_t*>(trim_data.pixelData);
+
+            // 1. Count non-zero-alpha pixels per row and find the maximum.
+            std::vector<int> row_counts(static_cast<size_t>(sh), 0);
+            int max_count = 0;
+            for (int y = 0; y < sh; ++y) {
+                int count = 0;
+                for (int x = 0; x < sw; ++x) {
+                    if (((pixels[y * stride + x] >> 24) & 0xFF) != 0) {
+                        ++count;
+                    }
+                }
+                row_counts[static_cast<size_t>(y)] = count;
+                max_count = std::max(max_count, count);
+            }
+
+            if (max_count > 0) {
+                // 2. Find the last row that has *meaningful* content (≥ 2 % of
+                //    the densest row).  Everything strictly below that is haze.
+                const int content_threshold = std::max(5,
+                    static_cast<int>(std::ceil(static_cast<float>(max_count) * 0.02f)));
+                int last_content_row = -1;
+                for (int y = 0; y < sh; ++y) {
+                    if (row_counts[static_cast<size_t>(y)] > content_threshold) {
+                        last_content_row = y;
+                    }
+                }
+
+                // 3. Clear everything below last_content_row (inclusive guard).
+                if (last_content_row >= 0 && last_content_row < sh - 1) {
+                    for (int y = last_content_row + 1; y < sh; ++y) {
+                        std::fill_n(pixels + y * stride, sw, uint32_t{0});
+                    }
+                }
+
+                // 4. Also clear any isolated haze rows at the very bottom
+                //    (below the first fully-empty gap from the bottom) that have
+                //    only trace coverage (< 0.5 % of max).
+                const int trace_threshold = std::max(2,
+                    static_cast<int>(std::ceil(static_cast<float>(max_count) * 0.005f)));
+                for (int y = sh - 1; y >= 0; --y) {
+                    const int count = row_counts[static_cast<size_t>(y)];
+                    if (count == 0) continue;               // already empty, keep going up
+                    if (count > trace_threshold) break;     // meaningful content → stop
+                    std::fill_n(pixels + y * stride, sw, uint32_t{0});
+                }
+            }
+        }
+    }
 
     auto end_raster = std::chrono::steady_clock::now();
     if (profiling::g_current_counters) {

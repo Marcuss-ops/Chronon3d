@@ -131,7 +131,7 @@ void print_plan(
             .transform = rl.world_transform,
             .world_matrix = rl.world_matrix,
             .projected = false,
-            .native_3d = rl.layer->is_3d,
+            .native_3d = rl.layer->uses_2_5d_projection,
             .insertion_index = rl.insertion_index,
         };
 

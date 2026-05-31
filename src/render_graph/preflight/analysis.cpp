@@ -462,9 +462,9 @@ void check_coordinate_mismatch(
     for (GraphNodeId u : topo_order) {
         const auto& node = graph.node(u);
         if (auto* src = dynamic_cast<const SourceNode*>(&node)) {
-            if (src->is_3d()) node_is_3d[u] = true;
+            if (src->uses_2_5d_projection()) node_is_3d[u] = true;
         } else if (auto* msrc = dynamic_cast<const MultiSourceNode*>(&node)) {
-            if (msrc->is_3d()) node_is_3d[u] = true;
+            if (msrc->uses_2_5d_projection()) node_is_3d[u] = true;
         } else {
             for (GraphNodeId v : graph.inputs(u)) {
                 if (graph.has_node(v) && node_is_3d[v]) {

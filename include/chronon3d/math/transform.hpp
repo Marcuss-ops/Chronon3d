@@ -79,11 +79,11 @@ struct RenderState {
     Mat4 matrix;
     f32  opacity{1.0f};
 
-    // 3D card rendering — set by SourceNode when layer.is_3d && camera_2_5d active.
+    // 3D card rendering — set by SourceNode when a layer uses 2.5D projection and camera_2_5d is active.
     // Processors use projection to build ProjectedCard; world_matrix is layer TRS without camera.
     renderer::ProjectionContext projection{};
     Mat4 world_matrix{1.0f};
-    bool is_3d_layer{false};
+    bool uses_2_5d_projection{false};
 
     // Set by the renderer when the layer has an active mask.
     // Both fields propagate from layer_state → node_state via combine().

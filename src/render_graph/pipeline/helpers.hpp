@@ -118,4 +118,8 @@ namespace chronon3d::graph {
     };
 }
 
+[[nodiscard]] inline ResolvedCamera resolve_scene_camera(const Scene& scene) {
+    return chronon3d::resolve_camera_hierarchy(scene.layers(), scene.resource(), scene.camera_2_5d());
+}
+
 } // namespace chronon3d::graph

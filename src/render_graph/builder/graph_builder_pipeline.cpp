@@ -513,7 +513,7 @@ LayerGraphItem make_item_for_matte_source(
     const std::unordered_map<std::string, bool>& is_static_cache)
 {
     const bool is_static_val = is_static_cache.at(std::string(rl.layer->name));
-    if (cam25d.enabled && rl.layer->is_3d) {
+    if (cam25d.enabled && rl.layer->uses_2_5d_projection) {
         Transform effective_transform = rl.world_transform;
         const Mat4 projection_world_matrix = effective_transform.to_mat4();
         auto proj = project_layer_2_5d(
@@ -763,7 +763,7 @@ RenderGraph build_graph(const Scene& scene, RenderGraphContext& ctx,
             continue;
         }
 
-        if (cam25d.enabled && layer.is_3d) {
+        if (cam25d.enabled && layer.uses_2_5d_projection) {
             Transform effective_transform = resolved_layer.world_transform;
             const Mat4 projection_world_matrix = effective_transform.to_mat4();
             auto proj = project_layer_2_5d(

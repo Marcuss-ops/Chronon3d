@@ -19,7 +19,7 @@ Layer::Layer(const Layer& other)
       duration(other.duration),
       time_offset(other.time_offset),
       visible(other.visible),
-      is_3d(other.is_3d),
+      uses_2_5d_projection(other.uses_2_5d_projection),
       hierarchy_resolved(other.hierarchy_resolved),
       mask(other.mask),
       effects(other.effects),
@@ -54,7 +54,7 @@ Layer& Layer::operator=(const Layer& other) {
     duration = other.duration;
     time_offset = other.time_offset;
     visible = other.visible;
-    is_3d = other.is_3d;
+    uses_2_5d_projection = other.uses_2_5d_projection;
     hierarchy_resolved = other.hierarchy_resolved;
     mask = other.mask;
     effects = other.effects;
@@ -90,7 +90,7 @@ uint64_t Layer::get_static_hash() const {
         h = hash_combine(h, hash_string(name));
         h = hash_combine(h, static_cast<u64>(kind));
         h = hash_combine(h, visible ? 1 : 0);
-        h = hash_combine(h, is_3d ? 1 : 0);
+        h = hash_combine(h, uses_2_5d_projection ? 1 : 0);
         h = hash_combine(h, cache_static ? 1 : 0);
         h = hash_combine(h, static_cast<u64>(blend_mode));
         h = hash_combine(h, hash_mask(mask));
