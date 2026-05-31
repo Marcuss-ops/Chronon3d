@@ -11,7 +11,11 @@ namespace chronon3d {
 
 void PoolFbDeleter::operator()(Framebuffer* fb) const noexcept {
     if (!fb) return;
-    if (pool) {
+    // Check that the pool is still alive before dereferencing.
+    // pool_alive is a weak_ptr created from the pool's m_alive shared_ptr.
+    // When the pool is destroyed, m_alive is set false and its shared_ptr is
+    // released, making pool_alive.lock() return null.
+    if (pool && pool_alive.lock()) {
         pool->release(fb);
     } else {
         delete fb;

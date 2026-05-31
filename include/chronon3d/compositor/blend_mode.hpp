@@ -25,10 +25,10 @@ inline Color blend(const Color& src, const Color& dst, BlendMode mode) {
         }
         case BlendMode::Add: {
             return {
-                std::min(src.r + dst.r, 1.0f),
-                std::min(src.g + dst.g, 1.0f),
-                std::min(src.b + dst.b, 1.0f),
-                std::min(src.a + dst.a, 1.0f)
+                src.r + dst.r,
+                src.g + dst.g,
+                src.b + dst.b,
+                src.a + dst.a
             };
         }
         case BlendMode::Multiply: {

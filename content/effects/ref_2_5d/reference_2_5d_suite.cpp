@@ -91,6 +91,25 @@ void apply_cinematic_lighting(SceneBuilder& s, Color ambient_color, f32 ambient_
     s.directional_light(dir, dir_color, diffuse);
 }
 
+Material2_5D make_depth_material(bool casts_shadows = true, bool accepts_shadows = true, f32 diffuse = 0.82f, f32 specular = 0.18f, f32 shininess = 48.0f, f32 ambient = 0.72f) {
+    return Material2_5D{
+        .accepts_lights = true,
+        .casts_shadows = casts_shadows,
+        .accepts_shadows = accepts_shadows,
+        .diffuse = diffuse,
+        .specular = specular,
+        .shininess = shininess,
+        .ambient_multiplier = ambient,
+    };
+}
+
+void apply_depth_material(LayerBuilder& l, bool casts_shadows = true, bool accepts_shadows = true, f32 diffuse = 0.82f, f32 specular = 0.18f, f32 shininess = 48.0f, f32 ambient = 0.72f) {
+    l.accepts_lights(true)
+     .casts_shadows(casts_shadows)
+     .accepts_shadows(accepts_shadows)
+     .material(make_depth_material(casts_shadows, accepts_shadows, diffuse, specular, shininess, ambient));
+}
+
 void add_floating_orb(SceneBuilder& s, const std::string& id, Vec3 pos, f32 radius, Color color, f32 glow_radius) {
     s.layer("orb_" + id, [=](LayerBuilder& l) {
         l.position(pos);
@@ -105,8 +124,11 @@ void add_floating_orb(SceneBuilder& s, const std::string& id, Vec3 pos, f32 radi
 
 void add_card(SceneBuilder& s, const std::string& id, Vec3 pos, Vec3 rot, Vec2 size, f32 radius, Color fill, Color glow, f32 blur = 18.0f) {
     s.layer("card_" + id, [=](LayerBuilder& l) {
-        l.enable_3d().position(pos).rotate(rot).casts_shadows(true).accepts_shadows(true);
-        l.glow(blur, 0.7f, glow);
+        l.enable_3d().position(pos).rotate(rot);
+        apply_depth_material(l, true, true, 0.80f, 0.20f, 56.0f, 0.68f);
+        l.drop_shadow({0.0f, 22.0f}, {fill.r * 0.05f, fill.g * 0.06f, fill.b * 0.10f, 0.28f}, 16.0f);
+        l.drop_shadow({0.0f, 58.0f}, {fill.r * 0.03f, fill.g * 0.04f, fill.b * 0.08f, 0.10f}, 92.0f);
+        l.glow(blur, 0.34f, glow, 0.08f, 0.88f, 0.64f);
         l.rounded_rect("bg", {
             .size = size,
             .radius = radius,
@@ -120,6 +142,12 @@ void add_card(SceneBuilder& s, const std::string& id, Vec3 pos, Vec3 rot, Vec2 s
                     {1.0f, {fill.r - 0.03f, fill.g - 0.02f, fill.b + 0.02f, fill.a}},
                 }
             )
+        });
+        l.rounded_rect("rim", {
+            .size = {size.x - 16.0f, 8.0f},
+            .radius = 4.0f,
+            .color = {1.0f, 1.0f, 1.0f, 0.12f},
+            .pos = {0.0f, -size.y * 0.5f + 16.0f, 0.0f},
         });
     });
 }
@@ -166,7 +194,8 @@ Composition floating_cards_test() {
         add_neon_floor(s, {0.30f, 0.55f, 1.0f, 0.10f}, 78.0f);
 
         s.layer("panel", [=](LayerBuilder& l) {
-            l.enable_3d().position({0.0f, 8.0f, 12.0f}).casts_shadows(true).accepts_shadows(true);
+            l.enable_3d().position({0.0f, 8.0f, 12.0f});
+            apply_depth_material(l, true, true, 0.80f, 0.16f, 44.0f, 0.64f);
             l.rounded_rect("bg", {
                 .size = {1180.0f, 560.0f},
                 .radius = 28.0f,
@@ -189,7 +218,8 @@ Composition floating_cards_test() {
         add_card(s, "users", {310.0f, 18.0f, 80.0f}, {0.0f, 10.0f, 0.0f}, {250.0f, 300.0f}, 22.0f, {0.10f, 0.10f, 0.22f, 0.94f}, {0.32f, 0.42f, 1.0f, 1.0f}, 18.0f);
 
         s.layer("analytics_content", [=](LayerBuilder& l) {
-            l.enable_3d().position({-320.0f, 30.0f, 80.0f});
+            l.enable_3d().position({-320.0f, 30.0f, 80.0f}).rotate({0.0f, -10.0f, 0.0f});
+            apply_depth_material(l, false, true, 0.88f, 0.16f, 42.0f, 0.84f);
             l.text("title", {
                 .text = "Analytics",
                 .size = {220.0f, 40.0f},
@@ -219,6 +249,7 @@ Composition floating_cards_test() {
 
         s.layer("performance_content", [=](LayerBuilder& l) {
             l.enable_3d().position({0.0f, 0.0f, 0.0f});
+            apply_depth_material(l, false, true, 0.90f, 0.18f, 48.0f, 0.82f);
             l.text("title", {
                 .text = "Performance",
                 .size = {260.0f, 44.0f},
@@ -285,7 +316,8 @@ Composition floating_cards_test() {
         });
 
         s.layer("users_content", [=](LayerBuilder& l) {
-            l.enable_3d().position({310.0f, 18.0f, 75.0f});
+            l.enable_3d().position({310.0f, 18.0f, 75.0f}).rotate({0.0f, 10.0f, 0.0f});
+            apply_depth_material(l, false, true, 0.86f, 0.16f, 40.0f, 0.82f);
             l.text("title", {
                 .text = "Users",
                 .size = {190.0f, 36.0f},
@@ -351,7 +383,8 @@ Composition orbit_camera_test() {
 
         s.layer("stage", [](LayerBuilder& l) {
             l.position({0.0f, 190.0f, 0.0f});
-            l.glow(48.0f, 1.0f, {0.60f, 0.26f, 1.0f, 1.0f});
+            l.drop_shadow({0.0f, 18.0f}, {0.04f, 0.02f, 0.16f, 0.50f}, 24.0f);
+            l.glow(24.0f, 0.56f, {0.60f, 0.26f, 1.0f, 1.0f});
             l.rounded_rect("base", {
                 .size = {480.0f, 62.0f},
                 .radius = 31.0f,
@@ -375,7 +408,8 @@ Composition orbit_camera_test() {
                 const f32 a = p * 6.28318f + i * 0.785398f;
                 const f32 x = std::cos(a) * 320.0f;
                 const f32 y = std::sin(a) * 110.0f;
-                l.enable_3d().position({x, y, 180.0f + std::sin(a * 1.5f) * 20.0f});
+                l.enable_3d().position({x, y, 180.0f + std::sin(a * 1.5f) * 20.0f}).rotate({0.0f, a * 10.0f, 0.0f});
+                apply_depth_material(l, false, true, 0.72f, 0.20f, 32.0f, 0.78f);
                 l.circle("orb_" + std::to_string(i), {
                     .radius = 20.0f + (i % 3) * 3.0f,
                     .color = {0.52f, 0.42f + 0.06f * i, 1.0f, 0.92f},
@@ -387,8 +421,10 @@ Composition orbit_camera_test() {
 
         s.layer("title", [=](LayerBuilder& l) {
             l.position({0.0f, -30.0f, 0.0f});
-            l.glow(56.0f, 1.3f, {0.78f, 0.62f, 1.0f, 1.0f});
-            l.drop_shadow({0.0f, 18.0f}, {0.10f, 0.00f, 0.35f, 0.80f}, 28.0f);
+            l.enable_3d().rotate({4.0f, 0.0f, 0.0f});
+            apply_depth_material(l, false, true, 0.92f, 0.20f, 58.0f, 0.72f);
+            l.glow(28.0f, 0.74f, {0.78f, 0.62f, 1.0f, 1.0f});
+            l.drop_shadow({0.0f, 20.0f}, {0.06f, 0.00f, 0.22f, 0.76f}, 22.0f);
             l.text("create", {
                 .text = "CREATE",
                 .size = {1080.0f, 140.0f},
@@ -397,10 +433,25 @@ Composition orbit_camera_test() {
                 .font_family = "Inter",
                 .font_weight = 900,
                 .font_size = 112.0f,
-                .color = {0.96f, 0.94f, 1.0f, 1.0f},
+                .color = {0.98f, 0.95f, 1.0f, 1.0f},
                 .align = TextAlign::Center,
                 .vertical_align = VerticalAlign::Middle,
                 .tracking = 1.0f,
+                .paint = {
+                    .fill = {0.98f, 0.95f, 1.0f, 1.0f},
+                    .fill_style = Fill::linear(
+                        {0.0f, 0.0f},
+                        {0.0f, 1.0f},
+                        {
+                            {0.0f, {1.0f, 1.0f, 1.0f, 1.0f}},
+                            {0.55f, {0.80f, 0.88f, 1.0f, 1.0f}},
+                            {1.0f, {0.56f, 0.70f, 1.0f, 1.0f}},
+                        }
+                    ),
+                    .stroke_enabled = true,
+                    .stroke_color = {0.10f, 0.22f, 0.50f, 0.72f},
+                    .stroke_width = 2.0f,
+                },
             });
             l.text("sub", {
                 .text = "WITHOUT LIMITS",
@@ -414,6 +465,12 @@ Composition orbit_camera_test() {
                 .align = TextAlign::Center,
                 .vertical_align = VerticalAlign::Middle,
                 .tracking = 8.0f,
+                .paint = {
+                    .fill = {0.76f, 0.74f, 0.98f, 0.92f},
+                    .stroke_enabled = true,
+                    .stroke_color = {0.10f, 0.10f, 0.22f, 0.28f},
+                    .stroke_width = 1.5f,
+                },
             });
         });
 
@@ -536,10 +593,12 @@ Composition z_stack_parallax_test() {
         add_header(s, "04", "Z-STACK PARALLAX TEST", "Più layer su profondità diverse.");
         add_neon_floor(s, {0.22f, 0.72f, 1.0f, 0.10f}, 76.0f);
 
-        auto card = [&](const std::string& id, Vec3 pos, Vec2 size, Color fill, Color glow, const std::string& label, const std::string& ztxt) {
+        auto card = [&](const std::string& id, Vec3 pos, Vec3 rot, Vec2 size, Color fill, Color glow, const std::string& label, const std::string& ztxt) {
             s.layer("card_" + id, [=](LayerBuilder& l) {
-                l.enable_3d().position(pos).casts_shadows(true).accepts_shadows(true);
-                l.glow(28.0f, 0.8f, glow);
+                l.enable_3d().position(pos).rotate(rot);
+                apply_depth_material(l, true, true, 0.80f, 0.16f, 46.0f, 0.72f);
+                l.drop_shadow({0.0f, 20.0f}, {0.03f, 0.03f, 0.08f, 0.28f}, 18.0f);
+                l.glow(16.0f, 0.34f, glow);
                 l.rounded_rect("bg", {
                     .size = size,
                     .radius = 18.0f,
@@ -581,9 +640,9 @@ Composition z_stack_parallax_test() {
             });
         };
 
-        card("back", {-340.0f, 8.0f, 150.0f}, {300.0f, 340.0f}, {0.05f, 0.10f, 0.26f, 0.90f}, {0.18f, 0.30f, 1.0f, 1.0f}, "BACK", "Z -400");
-        card("mid", {0.0f, -6.0f, 20.0f}, {340.0f, 380.0f}, {0.08f, 0.14f, 0.34f, 0.94f}, {0.42f, 0.64f, 1.0f, 1.0f}, "MID", "Z 0");
-        card("front", {340.0f, 12.0f, -160.0f}, {360.0f, 400.0f}, {0.04f, 0.26f, 0.34f, 0.94f}, {0.22f, 0.90f, 1.0f, 1.0f}, "FRONT", "Z 250");
+        card("back", {-340.0f, 8.0f, 150.0f}, {0.0f, -8.0f, 0.0f}, {300.0f, 340.0f}, {0.05f, 0.10f, 0.26f, 0.90f}, {0.18f, 0.30f, 1.0f, 1.0f}, "BACK", "Z -400");
+        card("mid", {0.0f, -6.0f, 20.0f}, {0.0f, 0.0f, 0.0f}, {340.0f, 380.0f}, {0.08f, 0.14f, 0.34f, 0.94f}, {0.42f, 0.64f, 1.0f, 1.0f}, "MID", "Z 0");
+        card("front", {340.0f, 12.0f, -160.0f}, {0.0f, 8.0f, 0.0f}, {360.0f, 400.0f}, {0.04f, 0.26f, 0.34f, 0.94f}, {0.22f, 0.90f, 1.0f, 1.0f}, "FRONT", "Z 250");
 
         return s.build();
     });
@@ -605,6 +664,7 @@ Composition shadow_glow_consistency_test() {
 
         s.layer("panel", [](LayerBuilder& l) {
             l.position({0.0f, 70.0f, 0.0f});
+            apply_depth_material(l, true, true, 0.80f, 0.18f, 44.0f, 0.64f);
             l.rounded_rect("bg", {
                 .size = {1060.0f, 420.0f},
                 .radius = 28.0f,
@@ -619,12 +679,13 @@ Composition shadow_glow_consistency_test() {
                     }
                 )
             });
-            l.drop_shadow({0.0f, 30.0f}, {0.0f, 0.0f, 0.0f, 0.58f}, 54.0f);
-            l.glow(26.0f, 0.88f, {0.82f, 0.20f, 1.0f, 1.0f});
+            l.drop_shadow({0.0f, 30.0f}, {0.0f, 0.0f, 0.0f, 0.40f}, 32.0f);
+            l.glow(14.0f, 0.28f, {0.82f, 0.20f, 1.0f, 1.0f});
         });
 
         s.layer("left_card", [](LayerBuilder& l) {
-            l.position({-330.0f, 60.0f, 40.0f});
+            l.position({-330.0f, 60.0f, 40.0f}).rotate({0.0f, -8.0f, 0.0f});
+            apply_depth_material(l, true, true, 0.78f, 0.14f, 40.0f, 0.70f);
             l.rounded_rect("bg", {
                 .size = {220.0f, 300.0f},
                 .radius = 18.0f,
@@ -639,7 +700,8 @@ Composition shadow_glow_consistency_test() {
                     }
                 )
             });
-            l.glow(18.0f, 0.78f, {0.82f, 0.20f, 1.0f, 1.0f});
+            l.drop_shadow({0.0f, 20.0f}, {0.04f, 0.02f, 0.08f, 0.40f}, 18.0f);
+            l.glow(10.0f, 0.20f, {0.82f, 0.20f, 1.0f, 1.0f});
             l.text("title", {
                 .text = "Automate\nWorkflows",
                 .size = {180.0f, 120.0f},
@@ -652,6 +714,12 @@ Composition shadow_glow_consistency_test() {
                 .align = TextAlign::Left,
                 .vertical_align = VerticalAlign::Middle,
                 .line_height = 1.0f,
+                .paint = {
+                    .fill = {1.0f, 0.96f, 1.0f, 1.0f},
+                    .stroke_enabled = true,
+                    .stroke_color = {0.10f, 0.02f, 0.20f, 0.35f},
+                    .stroke_width = 1.25f,
+                },
             });
             l.rounded_rect("btn", {
                 .size = {118.0f, 30.0f},
@@ -674,9 +742,11 @@ Composition shadow_glow_consistency_test() {
         });
 
         s.layer("hero_text", [](LayerBuilder& l) {
-            l.position({300.0f, -8.0f, -40.0f});
-            l.glow(58.0f, 1.5f, {0.82f, 0.42f, 1.0f, 1.0f});
-            l.drop_shadow({0.0f, 18.0f}, {0.12f, 0.02f, 0.32f, 0.74f}, 30.0f);
+            l.position({300.0f, -8.0f, -40.0f}).rotate({3.0f, -4.0f, 0.0f});
+            apply_depth_material(l, false, true, 0.88f, 0.22f, 52.0f, 0.78f);
+            l.glow(18.0f, 0.42f, {0.82f, 0.42f, 1.0f, 1.0f});
+            l.drop_shadow({0.0f, 20.0f}, {0.06f, 0.02f, 0.18f, 0.58f}, 18.0f);
+            l.accepts_lights(false);
             l.text("text", {
                 .text = "FASTER\nSMARTER\nBETTER",
                 .size = {520.0f, 360.0f},
@@ -685,11 +755,26 @@ Composition shadow_glow_consistency_test() {
                 .font_family = "Inter",
                 .font_weight = 900,
                 .font_size = 70.0f,
-                .color = {0.96f, 0.88f, 1.0f, 1.0f},
+                .color = {0.98f, 0.92f, 1.0f, 1.0f},
                 .align = TextAlign::Center,
                 .vertical_align = VerticalAlign::Middle,
                 .line_height = 0.92f,
                 .tracking = 0.5f,
+                .paint = {
+                    .fill = {0.98f, 0.92f, 1.0f, 1.0f},
+                    .fill_style = Fill::linear(
+                        {0.0f, 0.0f},
+                        {0.0f, 1.0f},
+                        {
+                            {0.0f, {1.0f, 0.98f, 1.0f, 1.0f}},
+                            {0.60f, {0.88f, 0.72f, 1.0f, 1.0f}},
+                            {1.0f, {0.72f, 0.40f, 1.0f, 1.0f}},
+                        }
+                    ),
+                    .stroke_enabled = true,
+                    .stroke_color = {0.22f, 0.02f, 0.34f, 0.62f},
+                    .stroke_width = 1.8f,
+                },
             });
         });
 
@@ -719,8 +804,9 @@ Composition extreme_perspective_test() {
 
         s.layer("title", [=](LayerBuilder& l) {
             l.enable_3d().position({-100.0f, 40.0f, -40.0f}).rotate({0.0f, -22.0f, 0.0f});
-            l.glow(36.0f, 1.0f, {0.42f, 0.76f, 1.0f, 1.0f});
-            l.drop_shadow({0.0f, 18.0f}, {0.02f, 0.10f, 0.25f, 0.80f}, 32.0f);
+            apply_depth_material(l, false, true, 0.92f, 0.22f, 56.0f, 0.78f);
+            l.glow(18.0f, 0.45f, {0.42f, 0.76f, 1.0f, 1.0f});
+            l.drop_shadow({0.0f, 20.0f}, {0.02f, 0.10f, 0.25f, 0.68f}, 24.0f);
             l.text("txt", {
                 .text = "MASTERCLASS",
                 .size = {1200.0f, 180.0f},
@@ -733,6 +819,21 @@ Composition extreme_perspective_test() {
                 .align = TextAlign::Center,
                 .vertical_align = VerticalAlign::Middle,
                 .tracking = -2.0f,
+                .paint = {
+                    .fill = {0.94f, 0.97f, 1.0f, 1.0f},
+                    .fill_style = Fill::linear(
+                        {0.0f, 0.0f},
+                        {0.0f, 1.0f},
+                        {
+                            {0.0f, {1.0f, 1.0f, 1.0f, 1.0f}},
+                            {0.55f, {0.82f, 0.90f, 1.0f, 1.0f}},
+                            {1.0f, {0.50f, 0.70f, 1.0f, 1.0f}},
+                        }
+                    ),
+                    .stroke_enabled = true,
+                    .stroke_color = {0.18f, 0.28f, 0.58f, 0.55f},
+                    .stroke_width = 2.0f,
+                },
             });
         });
 
@@ -756,6 +857,7 @@ Composition y_rotation_text_test() {
 
         s.layer("panel", [](LayerBuilder& l) {
             l.position({0.0f, 20.0f, 0.0f});
+            apply_depth_material(l, true, true, 0.78f, 0.18f, 42.0f, 0.68f);
             l.rounded_rect("bg", {
                 .size = {920.0f, 360.0f},
                 .radius = 28.0f,
@@ -766,9 +868,10 @@ Composition y_rotation_text_test() {
         });
 
         s.layer("hero", [=](LayerBuilder& l) {
-            l.enable_3d().position({-20.0f, -6.0f, -30.0f}).rotate({0.0f, 10.0f + std::sin(p * 6.28318f) * 8.0f, 0.0f});
-            l.glow(42.0f, 1.2f, {0.82f, 0.42f, 1.0f, 1.0f});
-            l.drop_shadow({0.0f, 18.0f}, {0.10f, 0.02f, 0.35f, 0.82f}, 26.0f);
+            l.enable_3d().position({-20.0f, -6.0f, -30.0f}).rotate({3.5f, 10.0f + std::sin(p * 6.28318f) * 8.0f, 0.0f});
+            apply_depth_material(l, false, true, 0.90f, 0.20f, 54.0f, 0.76f);
+            l.glow(20.0f, 0.55f, {0.82f, 0.42f, 1.0f, 1.0f});
+            l.drop_shadow({0.0f, 20.0f}, {0.08f, 0.02f, 0.24f, 0.74f}, 20.0f);
             l.text("buttery", {
                 .text = "BUTTERY",
                 .size = {700.0f, 120.0f},
@@ -777,10 +880,25 @@ Composition y_rotation_text_test() {
                 .font_family = "Inter",
                 .font_weight = 900,
                 .font_size = 92.0f,
-                .color = {0.96f, 0.70f, 1.0f, 1.0f},
+                .color = {0.98f, 0.76f, 1.0f, 1.0f},
                 .align = TextAlign::Center,
                 .vertical_align = VerticalAlign::Middle,
                 .tracking = -3.0f,
+                .paint = {
+                    .fill = {0.98f, 0.76f, 1.0f, 1.0f},
+                    .fill_style = Fill::linear(
+                        {0.0f, 0.0f},
+                        {0.0f, 1.0f},
+                        {
+                            {0.0f, {1.0f, 0.94f, 1.0f, 1.0f}},
+                            {0.55f, {0.94f, 0.58f, 1.0f, 1.0f}},
+                            {1.0f, {0.72f, 0.22f, 1.0f, 1.0f}},
+                        }
+                    ),
+                    .stroke_enabled = true,
+                    .stroke_color = {0.24f, 0.02f, 0.30f, 0.56f},
+                    .stroke_width = 1.8f,
+                },
             });
             l.rounded_rect("pill", {
                 .size = {300.0f, 56.0f},
@@ -870,8 +988,8 @@ Composition hero_text_front_test() {
 
         s.layer("hero", [=](LayerBuilder& l) {
             l.position({0.0f, -10.0f, 0.0f});
-            l.glow(64.0f, 1.45f, {0.18f, 0.76f, 1.0f, 1.0f});
-            l.drop_shadow({0.0f, 22.0f}, {0.0f, 0.10f, 0.38f, 0.78f}, 34.0f);
+            l.accepts_lights(false);
+            l.drop_shadow({0.0f, 14.0f}, {0.0f, 0.10f, 0.38f, 0.28f}, 10.0f);
             l.text("title", {
                 .text = "SaaS",
                 .size = {900.0f, 210.0f},
@@ -884,7 +1002,23 @@ Composition hero_text_front_test() {
                 .align = TextAlign::Center,
                 .vertical_align = VerticalAlign::Middle,
                 .tracking = 1.0f,
+                .paint = {
+                    .fill = {0.96f, 0.98f, 1.0f, 1.0f},
+                    .fill_style = Fill::linear(
+                        {0.0f, 0.0f},
+                        {0.0f, 1.0f},
+                        {
+                            {0.0f, {1.0f, 1.0f, 1.0f, 1.0f}},
+                            {0.55f, {0.82f, 0.91f, 1.0f, 1.0f}},
+                            {1.0f, {0.58f, 0.75f, 1.0f, 1.0f}},
+                        }
+                    ),
+                    .stroke_enabled = true,
+                    .stroke_color = {0.10f, 0.18f, 0.52f, 0.58f},
+                    .stroke_width = 2.0f,
+                },
             });
+            l.accepts_lights(false);
             l.text("subtitle", {
                 .text = "BUILD • LAUNCH • SCALE",
                 .size = {900.0f, 64.0f},
@@ -897,12 +1031,19 @@ Composition hero_text_front_test() {
                 .align = TextAlign::Center,
                 .vertical_align = VerticalAlign::Middle,
                 .tracking = 8.0f,
+                .paint = {
+                    .fill = {0.80f, 0.92f, 1.0f, 0.92f},
+                    .stroke_enabled = true,
+                    .stroke_color = {0.06f, 0.18f, 0.34f, 0.26f},
+                    .stroke_width = 1.2f,
+                },
             });
+            l.accepts_lights(false);
         });
 
         s.layer("horizon", [](LayerBuilder& l) {
             l.position({0.0f, 360.0f, 0.0f});
-            l.glow(28.0f, 1.0f, {0.18f, 0.78f, 1.0f, 1.0f});
+            l.glow(18.0f, 0.74f, {0.18f, 0.78f, 1.0f, 1.0f});
             l.rounded_rect("arc", {
                 .size = {1320.0f, 14.0f},
                 .radius = 7.0f,

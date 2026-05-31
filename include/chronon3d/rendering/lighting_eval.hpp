@@ -14,15 +14,6 @@ namespace chronon3d::rendering {
 
 using namespace chronon3d::graph;
 
-[[nodiscard]] inline Vec3 safe_normalize(Vec3 v, Vec3 fallback = {0.0f, 0.0f, 1.0f}) {
-    const f32 len2 = v.x * v.x + v.y * v.y + v.z * v.z;
-    if (len2 <= 1e-8f) {
-        return fallback;
-    }
-    const f32 inv = 1.0f / std::sqrt(len2);
-    return {v.x * inv, v.y * inv, v.z * inv};
-}
-
 [[nodiscard]] inline Vec3 transform_normal(const Mat4& matrix, Vec3 normal) {
     const Mat4 normal_matrix = glm::transpose(glm::inverse(matrix));
     Vec3 out{
@@ -43,8 +34,14 @@ using namespace chronon3d::graph;
         return base;
     }
 
-    normal_world = safe_normalize(normal_world);
-    const f32 ndotl = std::max(0.0f, glm::dot(normal_world, light.direction));
+    const Vec3 n = safe_normalize(normal_world);
+    const Vec3 l = safe_normalize(light.direction);
+    const Vec3 v = {0.0f, 0.0f, 1.0f};
+    const Vec3 h = safe_normalize(l + v, v);
+
+    const f32 ndotl = std::max(0.0f, glm::dot(n, l));
+    const f32 ndoth = std::max(0.0f, glm::dot(n, h));
+    const f32 rim = std::pow(1.0f - std::clamp(glm::dot(n, v), 0.0f, 1.0f), 2.2f);
 
     const f32 ambient = light.ambient_enabled
         ? std::max(0.0f, light.ambient * material.ambient_multiplier)
@@ -52,13 +49,29 @@ using namespace chronon3d::graph;
     const f32 diffuse = light.directional_enabled
         ? std::max(0.0f, light.diffuse * material.diffuse * ndotl)
         : 0.0f;
+    const f32 specular = light.directional_enabled && material.specular > 0.0f
+        ? std::max(0.0f, light.diffuse * material.specular * std::pow(ndoth, std::max(1.0f, material.shininess)))
+        : 0.0f;
+    const f32 rim_light = light.directional_enabled ? rim * material.specular * 0.18f : 0.0f;
 
-    const f32 r = std::clamp(ambient * light.ambient_color.r +
-                             diffuse * light.directional_color.r, 0.0f, 1.0f);
-    const f32 g = std::clamp(ambient * light.ambient_color.g +
-                             diffuse * light.directional_color.g, 0.0f, 1.0f);
-    const f32 b = std::clamp(ambient * light.ambient_color.b +
-                             diffuse * light.directional_color.b, 0.0f, 1.0f);
+    const f32 r = std::clamp(
+        ambient * light.ambient_color.r +
+        diffuse * light.directional_color.r +
+        specular * 0.98f +
+        rim_light * light.directional_color.r * 0.6f,
+        0.0f, 1.0f);
+    const f32 g = std::clamp(
+        ambient * light.ambient_color.g +
+        diffuse * light.directional_color.g +
+        specular * 0.98f +
+        rim_light * light.directional_color.g * 0.6f,
+        0.0f, 1.0f);
+    const f32 b = std::clamp(
+        ambient * light.ambient_color.b +
+        diffuse * light.directional_color.b +
+        specular * 0.98f +
+        rim_light * light.directional_color.b * 0.6f,
+        0.0f, 1.0f);
 
     return Color{base.r * r, base.g * g, base.b * b, base.a};
 }
@@ -68,6 +81,10 @@ using namespace chronon3d::graph;
     seed = hash_combine(seed, hash_value(s.blur_radius));
     seed = hash_combine(seed, hash_value(s.px_per_unit));
     seed = hash_combine(seed, hash_value(s.max_offset));
+    seed = hash_combine(seed, hash_value(s.contact_opacity));
+    seed = hash_combine(seed, hash_value(s.contact_blur_radius));
+    seed = hash_combine(seed, hash_value(s.ambient_opacity));
+    seed = hash_combine(seed, hash_value(s.ambient_blur_radius));
     return seed;
 }
 

@@ -22,7 +22,7 @@ using namespace chronon3d::test;
 
 namespace {
 
-struct ComparisonResult {
+struct GlowComparisonResult {
     bool success{true};
     float max_channel_diff{0.0f};
     float mean_error{0.0f};
@@ -30,8 +30,8 @@ struct ComparisonResult {
     std::string error_message;
 };
 
-ComparisonResult compare_images(const Framebuffer& rendered, const Framebuffer& golden) {
-    ComparisonResult res;
+GlowComparisonResult compare_glow_images(const Framebuffer& rendered, const Framebuffer& golden) {
+    GlowComparisonResult res;
     if (rendered.width() != golden.width() || rendered.height() != golden.height()) {
         res.success = false;
         res.error_message = "Dimension mismatch: rendered=" + std::to_string(rendered.width()) + "x" + std::to_string(rendered.height()) +
@@ -76,7 +76,7 @@ ComparisonResult compare_images(const Framebuffer& rendered, const Framebuffer& 
     return res;
 }
 
-void verify_golden_or_create(const Framebuffer& rendered, const std::string& filename) {
+void verify_glow_golden_or_create(const Framebuffer& rendered, const std::string& filename) {
     const std::filesystem::path golden_dir = "test_renders/golden/glow";
     std::filesystem::create_directories(golden_dir);
     const std::filesystem::path golden_path = golden_dir / filename;
@@ -88,10 +88,12 @@ void verify_golden_or_create(const Framebuffer& rendered, const std::string& fil
     auto golden = load_png_as_framebuffer(golden_path.string());
     REQUIRE(golden != nullptr);
 
-    const auto comp = compare_images(rendered, *golden);
+    const auto comp = compare_glow_images(rendered, *golden);
     INFO(comp.error_message);
     CHECK(comp.success);
 }
+
+#define verify_golden_or_create verify_glow_golden_or_create
 
 Composition make_neon_card() {
     return Composition({.width = 960, .height = 540, .duration = 1}, [](const FrameContext& ctx) {
@@ -322,34 +324,36 @@ Composition make_pulse_scene() {
     });
 }
 
+#undef verify_golden_or_create
+
 } // namespace
 
 TEST_CASE("GlowGolden: neon card radius ladder") {
     auto renderer = make_renderer();
     auto rendered = renderer.render_frame(make_neon_card(), 0);
     REQUIRE(rendered != nullptr);
-    verify_golden_or_create(*rendered, "neon_card_radius_ladder.png");
+    verify_glow_golden_or_create(*rendered, "neon_card_radius_ladder.png");
 }
 
 TEST_CASE("GlowGolden: text hero and caption") {
     auto renderer = make_renderer();
     auto rendered = renderer.render_frame(make_text_glow_scene(), 0);
     REQUIRE(rendered != nullptr);
-    verify_golden_or_create(*rendered, "text_hero_caption.png");
+    verify_glow_golden_or_create(*rendered, "text_hero_caption.png");
 }
 
 TEST_CASE("GlowGolden: image glow alpha coverage") {
     auto renderer = make_renderer();
     auto rendered = renderer.render_frame(make_image_glow_scene(), 0);
     REQUIRE(rendered != nullptr);
-    verify_golden_or_create(*rendered, "image_glow_alpha.png");
+    verify_glow_golden_or_create(*rendered, "image_glow_alpha.png");
 }
 
 TEST_CASE("GlowGolden: edge clip safety") {
     auto renderer = make_renderer();
     auto rendered = renderer.render_frame(make_edge_glow_scene(), 0);
     REQUIRE(rendered != nullptr);
-    verify_golden_or_create(*rendered, "edge_clip_safety.png");
+    verify_glow_golden_or_create(*rendered, "edge_clip_safety.png");
 }
 
 TEST_CASE("GlowGolden: pulse animation frame pair") {
@@ -361,8 +365,8 @@ TEST_CASE("GlowGolden: pulse animation frame pair") {
     REQUIRE(fb0 != nullptr);
     REQUIRE(fb15 != nullptr);
 
-    verify_golden_or_create(*fb0, "pulse_frame_000.png");
-    verify_golden_or_create(*fb15, "pulse_frame_015.png");
+    verify_glow_golden_or_create(*fb0, "pulse_frame_000.png");
+    verify_glow_golden_or_create(*fb15, "pulse_frame_015.png");
 
     CHECK(framebuffer_hash(*fb0) != framebuffer_hash(*fb15));
 }
