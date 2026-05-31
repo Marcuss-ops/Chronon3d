@@ -115,6 +115,8 @@ template <typename T>
     seed = hash_combine(seed, hash_value(p.core_strength));
     seed = hash_combine(seed, hash_value(p.aura_strength));
     seed = hash_combine(seed, hash_value(p.bloom_strength));
+    seed = hash_combine(seed, hash_value(p.outer_downscale));
+    seed = hash_combine(seed, hash_value(p.preserve_source));
     return hash_combine(seed, hash_value(p.additive));
 }
 

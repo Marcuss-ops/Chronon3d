@@ -46,8 +46,9 @@ GraphPreflightReport debug_preflight_render_graph(
     );
     ctx.diagnostics_enabled = true;
     ctx.light_context = scene.light_context();
-    if (scene.camera_2_5d().enabled) {
-        ctx.camera_2_5d      = scene.camera_2_5d();
+    const auto resolved_camera = resolve_scene_camera(scene);
+    if (resolved_camera.camera.enabled) {
+        ctx.camera_2_5d      = resolved_camera.camera;
         ctx.has_camera_2_5d  = true;
         ctx.projection_ctx   = renderer::make_projection_context(ctx.camera_2_5d, width, height);
         ctx.projection_ctx.ready = true;

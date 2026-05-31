@@ -41,7 +41,7 @@ struct Layer {
     Frame duration{-1};
     Frame time_offset{0};
     bool      visible{true};
-    bool      is_3d{false};
+    bool      uses_2_5d_projection{false};
     bool      hierarchy_resolved{false};
     bool      cache_static{false};
     Mask      mask{};

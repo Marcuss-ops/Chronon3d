@@ -112,7 +112,7 @@ private:
         h = hash_combine(h, hash_string(layer.name));
         h = hash_combine(h, static_cast<u64>(layer.kind));
         h = hash_combine(h, layer.visible ? 1 : 0);
-        h = hash_combine(h, layer.is_3d ? 1 : 0);
+        h = hash_combine(h, layer.uses_2_5d_projection ? 1 : 0);
         h = hash_combine(h, layer.cache_static ? 1 : 0);
         h = hash_combine(h, static_cast<u64>(layer.blend_mode));
         h = hash_combine(h, hash_transform(layer.transform));
@@ -138,7 +138,7 @@ private:
         h = hash_combine(h, hash_string(layer.name));
         h = hash_combine(h, static_cast<u64>(layer.kind));
         h = hash_combine(h, layer.visible ? 1 : 0);
-        h = hash_combine(h, layer.is_3d ? 1 : 0);
+        h = hash_combine(h, layer.uses_2_5d_projection ? 1 : 0);
         h = hash_combine(h, layer.cache_static ? 1 : 0);
         h = hash_combine(h, static_cast<u64>(layer.blend_mode));
         h = hash_combine(h, hash_transform(layer.transform));

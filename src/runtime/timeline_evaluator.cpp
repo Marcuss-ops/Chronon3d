@@ -1,6 +1,7 @@
 #include <chronon3d/runtime/timeline_evaluator.hpp>
 #include <chronon3d/math/camera_pose.hpp>
 #include <chronon3d/math/expression.hpp>
+#include <chronon3d/scene/layer/layer_hierarchy.hpp>
 #include <chronon3d/scene/layer/layer.hpp>
 #include <chronon3d/scene/layer/render_node.hpp>
 #include <chronon3d/scene/shape.hpp>
@@ -115,7 +116,7 @@ Scene TimelineEvaluator::evaluate(const SceneDescription& scene, Frame frame, st
 
         Layer layer(res);
         layer.name         = std::pmr::string{ld.name, res};
-        layer.is_3d        = ld.is_3d;
+        layer.uses_2_5d_projection = ld.is_3d;
         layer.depth_role   = ld.depth_role;
         layer.blend_mode   = ld.blend_mode;
         layer.effects      = resolve_effects(ld.effects);
@@ -165,7 +166,9 @@ Scene TimelineEvaluator::evaluate(const SceneDescription& scene, Frame frame, st
         } else {
             cam.zoom = scene.camera->zoom.value_at(frame);
         }
-        result.set_camera_2_5d(cam);
+
+        auto resolved_cam = resolve_camera_hierarchy(result.layers(), result.resource(), cam);
+        result.set_camera_2_5d(std::move(resolved_cam.camera));
     }
 
     return result;

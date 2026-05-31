@@ -93,6 +93,7 @@ add_executable(chronon3d_renderer_tests
     renderer/effects/test_adjustment_layer.cpp
     renderer/effects/test_advanced_effects.cpp
     renderer/effects/test_effect_stack.cpp
+    renderer/effects/test_glow_torture.cpp
     renderer/effects/test_invariants.cpp
     renderer/media/test_video_card.cpp
     renderer/perf/test_render_perf.cpp
