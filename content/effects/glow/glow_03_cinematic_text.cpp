@@ -1,6 +1,6 @@
 // content/effects/glow_03_cinematic_text.cpp
 // TEST 3 — Cinematic Text: golden hero phrase + cyan subtitle on dark gradient
-#include "glow_test_common.hpp"
+#include "../common/glow_test_common.hpp"
 
 namespace chronon3d::content::effects {
 
