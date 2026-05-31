@@ -256,7 +256,11 @@ double run_node(
         if (use_cache && ctx.node_cache) {
             // Transfer ownership from OwnedFB to CachedFB for cache storage.
             Framebuffer* raw = owned.release();
-            result = CachedFB(raw, PoolFbDeleter{parent_pool, parent_pool->alive_token()});
+            PoolFbDeleter deleter{nullptr};
+            if (parent_pool) {
+                deleter = PoolFbDeleter{parent_pool, parent_pool->alive_token()};
+            }
+            result = CachedFB(raw, std::move(deleter));
             ctx.node_cache->store(key, result);
             if (node.cache_policy().disk_cacheable && disk_node_cache_enabled_for_current_run()) {
                 cache::DiskNodeCache::instance().put(key, *result);
@@ -264,7 +268,11 @@ double run_node(
         } else {
             // Not cached — convert to shared_ptr for uniform temp storage.
             Framebuffer* raw = owned.release();
-            result = CachedFB(raw, PoolFbDeleter{parent_pool, parent_pool->alive_token()});
+            PoolFbDeleter deleter{nullptr};
+            if (parent_pool) {
+                deleter = PoolFbDeleter{parent_pool, parent_pool->alive_token()};
+            }
+            result = CachedFB(raw, std::move(deleter));
         }
     }
     const auto exec_t1 = std::chrono::steady_clock::now();
@@ -377,7 +385,11 @@ void execute_single_node(
         auto owned_fb = ctx.acquire_owned_fb(64, 64, false);
         owned_fb->clear(Color::transparent());
         Framebuffer* raw = owned_fb.release();
-        state.temp[id] = CachedFB(raw, PoolFbDeleter{parent_pool, parent_pool->alive_token()});
+        PoolFbDeleter deleter{nullptr};
+        if (parent_pool) {
+            deleter = PoolFbDeleter{parent_pool, parent_pool->alive_token()};
+        }
+        state.temp[id] = CachedFB(raw, std::move(deleter));
         state.resolved_key_digest[id] = 0;
         state.resolved_frame_dependent[id] = 0;
         state.resolved_cache_hit[id] = 0;
@@ -459,9 +471,11 @@ void execute_single_node(
     state.resolved_cache_hit[id] = (cache_eval.cache_status == "hit") ? 1 : 0;
     state.resolved_bboxes[id] = predicted_bbox;
 
-    // Restore worker thread-local hygiene
-    profiling::g_current_counters = nullptr;
-    profiling::g_current_framebuffer_pool = nullptr;
+    // Restore worker thread-local hygiene — restore previous values,
+    // don't blindly null them out (other code on this thread may need
+    // the pool reference after this node completes).
+    profiling::g_current_counters = parent_counters;
+    profiling::g_current_framebuffer_pool = parent_pool;
 }
 
 } // namespace chronon3d::graph

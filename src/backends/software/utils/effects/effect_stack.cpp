@@ -370,8 +370,10 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
             if (p) {
                 const auto t0 = diagnostics_enabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
                 const i32 w = fb.width(), h = fb.height();
+                const float contact_blur = std::max(1.0f, p->radius * 0.45f);
+                const float ambient_blur  = std::max(contact_blur + 4.0f, p->radius * 2.0f);
                 const float spread =
-                    std::max(std::abs(p->offset.x), std::abs(p->offset.y)) + p->radius;
+                    std::max(std::abs(p->offset.x), std::abs(p->offset.y)) + ambient_blur;
                 auto effect_clip = expand_effect_clip(clip, w, h, spread);
                 i32 x_min_src = 0, x_max_src = w;
                 i32 y_min_src = 0, y_max_src = h;
@@ -390,44 +392,64 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
                     y_min_src = std::max(0, effect_clip->y0 - oy);
                     y_max_src = std::min(h, effect_clip->y1 - oy);
                 }
-                const i32 blur_pad = blur_padding_for_radius(p->radius);
+                const i32 blur_pad = blur_padding_for_radius(std::max(contact_blur, ambient_blur));
                 const i32 x_min_pad = std::max(0, x_min_dst - blur_pad);
                 const i32 x_max_pad = std::min(w, x_max_dst + blur_pad);
                 const i32 y_min_pad = std::max(0, y_min_dst - blur_pad);
                 const i32 y_max_pad = std::min(h, y_max_dst + blur_pad);
                 const i32 roi_w = x_max_pad - x_min_pad;
                 const i32 roi_h = y_max_pad - y_min_pad;
-                auto shadow_map_fb = acquire_temp_framebuffer(roi_w, roi_h);
-                shadow_map_fb->clear(Color{0.0f, 0.0f, 0.0f, 0.0f});
-                auto& shadow_map = *shadow_map_fb;
-                if (roi_w > 0 && roi_h > 0) {
-                    for (i32 y = y_min_src; y < y_max_src; ++y) {
-                        const Color* src_row = fb.pixels_row(y);
-                        for (i32 x = x_min_src; x < x_max_src; ++x) {
-                            const Color c = src_row[x];
-                            if (c.a > 0.0f) {
-                                const i32 dx = x + ox;
-                                const i32 dy = y + oy;
+                auto build_shadow = [&](f32 opacity_scale, f32 blur_radius, f32 offset_scale) {
+                    auto shadow_map_fb = acquire_temp_framebuffer(roi_w, roi_h);
+                    shadow_map_fb->clear(Color{0.0f, 0.0f, 0.0f, 0.0f});
+                    auto& shadow_map = *shadow_map_fb;
+                    if (roi_w > 0 && roi_h > 0) {
+                        const int lox = static_cast<i32>(std::round(static_cast<float>(ox) * offset_scale));
+                        const int loy = static_cast<i32>(std::round(static_cast<float>(oy) * offset_scale));
+                        for (i32 y = y_min_src; y < y_max_src; ++y) {
+                            const Color* src_row = fb.pixels_row(y);
+                            for (i32 x = x_min_src; x < x_max_src; ++x) {
+                                const Color c = src_row[x];
+                                if (c.a <= 0.0f) {
+                                    continue;
+                                }
+                                const i32 dx = x + lox;
+                                const i32 dy = y + loy;
                                 if (dx >= x_min_pad && dx < x_max_pad && dy >= y_min_pad && dy < y_max_pad) {
                                     Color* shadow_row = shadow_map.pixels_row(dy - y_min_pad);
-                                    shadow_row[dx - x_min_pad] = {p->color.r, p->color.g, p->color.b, c.a * p->color.a};
+                                    const float alpha = std::min(1.0f, c.a * p->color.a * opacity_scale);
+                                    shadow_row[dx - x_min_pad] = {p->color.r, p->color.g, p->color.b, alpha};
                                 }
                             }
                         }
-                    }
-                    if (p->radius > 0.0f) apply_blur(shadow_map, p->radius, std::nullopt, 1);
-                    
-                    // Composite shadow BEHIND content in-place
-                    for (i32 y = 0; y < roi_h; ++y) {
-                        const i32 dy = y + y_min_pad;
-                        if (dy < 0 || dy >= h) continue;
-                        Color*       fb_row = fb.pixels_row(dy);
-                        const Color* shadow_row = shadow_map.pixels_row(y);
-                        for (i32 x = 0; x < roi_w; ++x) {
-                            const i32 dx = x + x_min_pad;
-                            if (dx < 0 || dx >= w || shadow_row[x].a <= 0.0f) continue;
-                            fb_row[dx] = compositor::blend(fb_row[dx], shadow_row[x], BlendMode::Normal);
+                        if (blur_radius > 0.0f) {
+                            apply_blur(shadow_map, blur_radius, std::nullopt, 1);
                         }
+                    }
+                    return shadow_map_fb;
+                };
+
+                auto contact_map = build_shadow(0.85f, contact_blur, 1.0f);
+                auto ambient_map = build_shadow(0.30f, ambient_blur, 1.65f);
+
+                // Composite shadow BEHIND content in-place
+                for (i32 y = 0; y < roi_h; ++y) {
+                    const i32 dy = y + y_min_pad;
+                    if (dy < 0 || dy >= h) continue;
+                    Color*       fb_row = fb.pixels_row(dy);
+                    const Color* contact_row = contact_map->pixels_row(y);
+                    const Color* ambient_row = ambient_map->pixels_row(y);
+                    for (i32 x = 0; x < roi_w; ++x) {
+                        const i32 dx = x + x_min_pad;
+                        if (dx < 0 || dx >= w) continue;
+                        Color shadow_px{
+                            std::max(contact_row[x].r, ambient_row[x].r),
+                            std::max(contact_row[x].g, ambient_row[x].g),
+                            std::max(contact_row[x].b, ambient_row[x].b),
+                            std::max(contact_row[x].a, ambient_row[x].a),
+                        };
+                        if (shadow_px.a <= 0.0f) continue;
+                        fb_row[dx] = compositor::blend(fb_row[dx], shadow_px, BlendMode::Normal);
                     }
                 }
                 if (diagnostics_enabled) {
@@ -473,7 +495,8 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
                             const Color c = src_row[sx];
                             const f32 lum = 0.2126f * c.r + 0.7152f * c.g + 0.0722f * c.b;
                             if (lum > p->threshold && c.a > 0.0f) {
-                                const f32 excess = (lum - p->threshold) / (1.0f - p->threshold + 1e-4f);
+                                const f32 denom = std::max(1.0f - p->threshold, 0.001f);
+                                const f32 excess = std::clamp((lum - p->threshold) / denom, 0.0f, 1.0f);
                                 bright_row[x] = {c.r * excess, c.g * excess, c.b * excess, c.a};
                             }
                         }
@@ -491,9 +514,9 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
                             if (b.a <= 0.0f) continue;
                             const Color src = dst_row[dx];
                             dst_row[dx] = {
-                                std::min(1.0f, src.r + b.r * p->intensity),
-                                std::min(1.0f, src.g + b.g * p->intensity),
-                                std::min(1.0f, src.b + b.b * p->intensity),
+                                src.r + b.r * p->intensity,
+                                src.g + b.g * p->intensity,
+                                src.b + b.b * p->intensity,
                                 src.a
                             };
                         }

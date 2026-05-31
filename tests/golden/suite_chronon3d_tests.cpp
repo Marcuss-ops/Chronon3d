@@ -28,7 +28,7 @@ namespace chronon3d::content::shapes {
 
 namespace {
 
-struct ComparisonResult {
+struct SuiteComparisonResult {
     bool success{true};
     float max_channel_diff{0.0f};
     float mean_error{0.0f};
@@ -37,8 +37,8 @@ struct ComparisonResult {
 };
 
 // Compare rendered (linear float Framebuffer converted to sRGB) with loaded golden (sRGB float)
-inline ComparisonResult compare_images(const Framebuffer& rendered, const Framebuffer& golden) {
-    ComparisonResult res;
+inline SuiteComparisonResult compare_suite_images(const Framebuffer& rendered, const Framebuffer& golden) {
+    SuiteComparisonResult res;
     if (rendered.width() != golden.width() || rendered.height() != golden.height()) {
         res.success = false;
         res.error_message = "Dimension mismatch: rendered=" + std::to_string(rendered.width()) + "x" + std::to_string(rendered.height()) +
@@ -52,8 +52,11 @@ inline ComparisonResult compare_images(const Framebuffer& rendered, const Frameb
     
     for (int y = 0; y < rendered.height(); ++y) {
         for (int x = 0; x < rendered.width(); ++x) {
-            Color c1 = rendered.get_pixel(x, y).to_srgb(); // Rendered is linear, convert to sRGB
-            Color c2 = golden.get_pixel(x, y); // Golden is already loaded as sRGB
+            // Both rendered and golden must be compared in valid sRGB [0,1] range.
+        // Rendered may contain HDR values > 1.0 (e.g. bloom on HDR content); clamp
+        // to [0,1] so the 8-bit PNG roundtrip comparison is fair.
+        Color c1 = rendered.get_pixel(x, y).to_srgb().clamped();
+        Color c2 = golden.get_pixel(x, y).clamped();
             
             float dr = std::abs(c1.r - c2.r);
             float dg = std::abs(c1.g - c2.g);
@@ -88,7 +91,7 @@ inline ComparisonResult compare_images(const Framebuffer& rendered, const Frameb
     return res;
 }
 
-void verify_golden_or_create(const Framebuffer& rendered, const std::string& filename) {
+void verify_suite_golden_or_create(const Framebuffer& rendered, const std::string& filename) {
     const std::filesystem::path golden_dir = "test_renders/golden";
     std::filesystem::create_directories(golden_dir);
     const std::filesystem::path golden_path = golden_dir / filename;
@@ -101,10 +104,12 @@ void verify_golden_or_create(const Framebuffer& rendered, const std::string& fil
     auto golden = load_png_as_framebuffer(golden_path.string());
     REQUIRE(golden != nullptr);
     
-    auto comp = compare_images(rendered, *golden);
+    auto comp = compare_suite_images(rendered, *golden);
     INFO(comp.error_message);
     CHECK(comp.success);
 }
+
+#define verify_golden_or_create verify_suite_golden_or_create
 
 } // namespace
 
@@ -948,3 +953,5 @@ TEST_CASE("Chronon3d Suite: Final Combined Stress Test") {
         }
     }
 }
+
+#undef verify_golden_or_create

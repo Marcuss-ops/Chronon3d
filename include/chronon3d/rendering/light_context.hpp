@@ -10,6 +10,15 @@
 
 namespace chronon3d::rendering {
 
+[[nodiscard]] inline Vec3 safe_normalize(Vec3 v, Vec3 fallback = {0.0f, 0.0f, 1.0f}) {
+    const f32 len2 = v.x * v.x + v.y * v.y + v.z * v.z;
+    if (len2 <= 1e-8f) {
+        return fallback;
+    }
+    const f32 inv = 1.0f / std::sqrt(len2);
+    return {v.x * inv, v.y * inv, v.z * inv};
+}
+
 // Simple directional light for 2.5D rendering.
 // Default matches the historical k_box_light / k_light_dir used in FakeBox3D
 // so existing visuals are unchanged.
@@ -30,17 +39,30 @@ struct LightContext {
 
     // Lambertian N·L shading. Result in [ambient, ambient+diffuse].
     [[nodiscard]] f32 shade_ndotl(const Vec3& world_normal) const {
-        return ambient + diffuse * std::max(0.0f, glm::dot(world_normal, direction));
+        return ambient + diffuse * std::max(0.0f, glm::dot(safe_normalize(world_normal), direction));
     }
 
     // Same shading gated by material: if accepts_lights=false returns 1 (full lit).
     [[nodiscard]] f32 shade(const Vec3& world_normal, const Material2_5D& mat) const {
         if (!enabled || !mat.accepts_lights) return 1.0f;
+        const Vec3 n = safe_normalize(world_normal);
+        const Vec3 l = safe_normalize(direction);
+        const Vec3 v = {0.0f, 0.0f, 1.0f};
+        const Vec3 h = safe_normalize(l + v, v);
+
+        const f32 ndotl = std::max(0.0f, glm::dot(n, l));
+        const f32 ndoth = std::max(0.0f, glm::dot(n, h));
+        const f32 rim = std::pow(1.0f - std::clamp(glm::dot(n, v), 0.0f, 1.0f), 2.25f);
+
         const f32 ambient_term = ambient_enabled ? ambient * mat.ambient_multiplier : 0.0f;
         const f32 diffuse_term = directional_enabled
-            ? diffuse * mat.diffuse * std::max(0.0f, glm::dot(world_normal, direction))
+            ? diffuse * mat.diffuse * ndotl
             : 0.0f;
-        return ambient_term + diffuse_term;
+        const f32 specular_term = directional_enabled && mat.specular > 0.0f
+            ? diffuse * mat.specular * std::pow(ndoth, std::max(1.0f, mat.shininess))
+            : 0.0f;
+        const f32 rim_term = directional_enabled ? rim * mat.specular * 0.18f : 0.0f;
+        return ambient_term + diffuse_term + specular_term + rim_term;
     }
 
     // Default scene light: upper-left-front, matching legacy renderer constants.

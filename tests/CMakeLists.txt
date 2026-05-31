@@ -21,6 +21,7 @@ add_executable(chronon3d_core_tests
     core/math/test_camera_pose.cpp
     core/math/test_camera_2_5d_projection.cpp
     core/math/test_projector_2_5d.cpp
+    core/math/test_2_5d_roadmap.cpp
     core/geometry/test_geometry.cpp
     core/animation/test_animation.cpp
     core/animation/test_interpolate.cpp
@@ -129,6 +130,7 @@ add_executable(chronon3d_renderer_tests
     golden/golden_render_tests.cpp
     golden/glow_golden_tests.cpp
     golden/suite_chronon3d_tests.cpp
+    golden/roadmap_2_5d_suite.cpp
     runtime/test_telemetry.cpp
     runtime/test_telemetry_semantic.cpp
     runtime/test_telemetry_report.cpp

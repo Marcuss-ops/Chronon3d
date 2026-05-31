@@ -12,9 +12,9 @@ using namespace chronon3d::graph;
 
 namespace {
 
-class TestNode final : public RenderGraphNode {
+class CompilerTestNode final : public RenderGraphNode {
 public:
-    explicit TestNode(std::string n, bool cache = true, bool frame_dep = false)
+    explicit CompilerTestNode(std::string n, bool cache = true, bool frame_dep = false)
         : m_name(std::move(n)), m_cacheable(cache) {
         set_frame_dependent(frame_dep);
     }
@@ -62,9 +62,9 @@ TEST_CASE("FrameGraphCompiler - handles empty graph") {
 TEST_CASE("FrameGraphCompiler - linear graph compilation") {
     RenderGraph graph;
     
-    GraphNodeId clear_id = graph.add_node(std::make_unique<TestNode>("Clear"));
-    GraphNodeId source_id = graph.add_node(std::make_unique<TestNode>("Source"));
-    GraphNodeId composite_id = graph.add_node(std::make_unique<TestNode>("Composite"));
+    GraphNodeId clear_id = graph.add_node(std::make_unique<CompilerTestNode>("Clear"));
+    GraphNodeId source_id = graph.add_node(std::make_unique<CompilerTestNode>("Source"));
+    GraphNodeId composite_id = graph.add_node(std::make_unique<CompilerTestNode>("Composite"));
 
     graph.connect(clear_id, source_id);
     graph.connect(source_id, composite_id);
@@ -91,10 +91,10 @@ TEST_CASE("FrameGraphCompiler - linear graph compilation") {
 TEST_CASE("FrameGraphCompiler - diamond graph scheduling") {
     RenderGraph graph;
 
-    GraphNodeId a = graph.add_node(std::make_unique<TestNode>("A"));
-    GraphNodeId b = graph.add_node(std::make_unique<TestNode>("B"));
-    GraphNodeId c = graph.add_node(std::make_unique<TestNode>("C"));
-    GraphNodeId d = graph.add_node(std::make_unique<TestNode>("D"));
+    GraphNodeId a = graph.add_node(std::make_unique<CompilerTestNode>("A"));
+    GraphNodeId b = graph.add_node(std::make_unique<CompilerTestNode>("B"));
+    GraphNodeId c = graph.add_node(std::make_unique<CompilerTestNode>("C"));
+    GraphNodeId d = graph.add_node(std::make_unique<CompilerTestNode>("D"));
 
     graph.connect(a, b);
     graph.connect(a, c);
@@ -119,8 +119,8 @@ TEST_CASE("FrameGraphCompiler - diamond graph scheduling") {
 TEST_CASE("FrameGraphCompiler - cycle detection throws") {
     RenderGraph graph;
 
-    GraphNodeId a = graph.add_node(std::make_unique<TestNode>("A"));
-    GraphNodeId b = graph.add_node(std::make_unique<TestNode>("B"));
+    GraphNodeId a = graph.add_node(std::make_unique<CompilerTestNode>("A"));
+    GraphNodeId b = graph.add_node(std::make_unique<CompilerTestNode>("B"));
 
     graph.connect(a, b);
     graph.connect(b, a);
@@ -137,9 +137,9 @@ TEST_CASE("FrameGraphCompiler - cycle detection throws") {
 TEST_CASE("FrameGraphCompiler - lifetimes computation") {
     RenderGraph graph;
 
-    GraphNodeId a = graph.add_node(std::make_unique<TestNode>("A"));
-    GraphNodeId b = graph.add_node(std::make_unique<TestNode>("B"));
-    GraphNodeId c = graph.add_node(std::make_unique<TestNode>("C"));
+    GraphNodeId a = graph.add_node(std::make_unique<CompilerTestNode>("A"));
+    GraphNodeId b = graph.add_node(std::make_unique<CompilerTestNode>("B"));
+    GraphNodeId c = graph.add_node(std::make_unique<CompilerTestNode>("C"));
 
     graph.connect(a, b);
     graph.connect(b, c);
@@ -164,14 +164,14 @@ TEST_CASE("FrameGraphCompiler - lifetimes computation") {
 
 TEST_CASE("FrameGraphCompiler - stable structure hash") {
     RenderGraph graph1;
-    GraphNodeId a1 = graph1.add_node(std::make_unique<TestNode>("A"));
-    GraphNodeId b1 = graph1.add_node(std::make_unique<TestNode>("B"));
+    GraphNodeId a1 = graph1.add_node(std::make_unique<CompilerTestNode>("A"));
+    GraphNodeId b1 = graph1.add_node(std::make_unique<CompilerTestNode>("B"));
     graph1.connect(a1, b1);
     graph1.set_output(b1);
 
     RenderGraph graph2;
-    GraphNodeId a2 = graph2.add_node(std::make_unique<TestNode>("A"));
-    GraphNodeId b2 = graph2.add_node(std::make_unique<TestNode>("B"));
+    GraphNodeId a2 = graph2.add_node(std::make_unique<CompilerTestNode>("A"));
+    GraphNodeId b2 = graph2.add_node(std::make_unique<CompilerTestNode>("B"));
     graph2.connect(a2, b2);
     graph2.set_output(b2);
 

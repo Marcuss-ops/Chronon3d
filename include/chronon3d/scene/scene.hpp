@@ -13,7 +13,7 @@ namespace chronon3d {
 class Scene {
 public:
     explicit Scene(std::pmr::memory_resource* res = std::pmr::get_default_resource())
-        : m_nodes(res), m_layers(res) {}
+        : m_nodes(res), m_layers(res), m_lights(rendering::LightContext::default_scene()) {}
 
     void add_node(RenderNode node) {
         m_nodes.push_back(std::move(node));

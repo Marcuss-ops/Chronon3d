@@ -1,4 +1,5 @@
 #include <chronon3d/backends/software/rasterizers/projected_card_rasterizer.hpp>
+#include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <algorithm>
 #include <cmath>
@@ -92,6 +93,27 @@ void composite_projected_framebuffer(Framebuffer& dst, const Framebuffer& src,
     const Vec2& BR = card.corners[2];
     const Vec2& BL = card.corners[3];
 
+    const Vec2 src_pts[4] = {
+        {0.0f, 0.0f},
+        {1.0f, 0.0f},
+        {1.0f, 1.0f},
+        {0.0f, 1.0f},
+    };
+    const Vec2 dst_pts[4] = {TL, TR, BR, BL};
+    glm::mat3 homography{};
+    if (!solve_homography_4pt(src_pts, dst_pts, homography)) {
+        return;
+    }
+
+    const float det = glm::determinant(homography);
+    if (std::abs(det) < 1e-8f) {
+        return;
+    }
+    const glm::mat3 inv_h = glm::inverse(homography);
+
+    const float swm1 = std::max(1.0f, sw - 1.0f);
+    const float shm1 = std::max(1.0f, sh - 1.0f);
+
     for (int y = y0; y <= y1; ++y) {
         Color* dst_row = dst.pixels_row(y);
         const float fy = static_cast<float>(y) + 0.5f;
@@ -99,44 +121,19 @@ void composite_projected_framebuffer(Framebuffer& dst, const Framebuffer& src,
         for (int x = x0; x <= x1; ++x) {
             const float fx = static_cast<float>(x) + 0.5f;
 
-            // Bilinear UV interpolation: find (u,v) from (fx,fy) inside the quad
-            // Using barycentric-style approach: solve for (s,t) such that
-            // P = lerp(lerp(TL,TR,s), lerp(BL,BR,s), t)
-            // This is an approximation valid when the quad is nearly rectangular.
-
-            // Horizontal interpolation parameter s: project onto average horizontal axis
-            const Vec2 top = {TR.x - TL.x, TR.y - TL.y};
-            const Vec2 bot = {BR.x - BL.x, BR.y - BL.y};
-            const float top_len2 = top.x*top.x + top.y*top.y;
-            const float bot_len2 = bot.x*bot.x + bot.y*bot.y;
-
-            // Estimate s from top edge projection
-            float s = 0.5f;
-            if (top_len2 > 0.1f) {
-                s = ((fx - TL.x) * top.x + (fy - TL.y) * top.y) / top_len2;
+            const Vec3 uvw = inv_h * Vec3{fx, fy, 1.0f};
+            if (std::abs(uvw.z) < 1e-8f) {
+                continue;
             }
-            s = std::clamp(s, 0.0f, 1.0f);
 
-            // Interpolate point on top and bottom edges at s
-            const Vec2 pt = {TL.x + top.x * s, TL.y + top.y * s};
-            const Vec2 pb = {BL.x + bot.x * s, BL.y + bot.y * s};
-
-            // t from vertical position between pt and pb
-            const Vec2 vert = {pb.x - pt.x, pb.y - pt.y};
-            const float vert_len2 = vert.x*vert.x + vert.y*vert.y;
-            float t = 0.5f;
-            if (vert_len2 > 0.1f) {
-                t = ((fx - pt.x) * vert.x + (fy - pt.y) * vert.y) / vert_len2;
+            const float u = uvw.x / uvw.z;
+            const float v = uvw.y / uvw.z;
+            if (u < 0.0f || u > 1.0f || v < 0.0f || v > 1.0f) {
+                continue;
             }
-            t = std::clamp(t, 0.0f, 1.0f);
 
-            // Skip pixels outside the quad
-            if (s < 0.0f || s > 1.0f || t < 0.0f || t > 1.0f) continue;
-
-            const float sx = s * sw;
-            const float sy = t * sh;
-
-            if (sx < 0 || sx >= sw || sy < 0 || sy >= sh) continue;
+            const float sx = (sw > 1) ? (u * swm1 + 0.5f) : 0.5f;
+            const float sy = (sh > 1) ? (v * shm1 + 0.5f) : 0.5f;
 
             const Color src_c = src.sample(sx, sy, SamplingMode::Bilinear);
             if (src_c.a <= 0.001f) continue;
@@ -145,10 +142,10 @@ void composite_projected_framebuffer(Framebuffer& dst, const Framebuffer& src,
             Color& d = dst_row[x];
 
             if (mode == BlendMode::Add) {
-                d.r = std::min(1.0f, d.r + src_c.r * opacity);
-                d.g = std::min(1.0f, d.g + src_c.g * opacity);
-                d.b = std::min(1.0f, d.b + src_c.b * opacity);
-                d.a = std::min(1.0f, d.a + final_a);
+                d.r += src_c.r * opacity;
+                d.g += src_c.g * opacity;
+                d.b += src_c.b * opacity;
+                d.a += final_a;
             } else {
                 const float inv_a = 1.0f - final_a;
                 d.r = src_c.r * opacity + d.r * inv_a;

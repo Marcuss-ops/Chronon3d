@@ -1,12 +1,52 @@
 #include <chronon3d/render_graph/nodes/transition_node.hpp>
+#include <chronon3d/animation/easing.hpp>
 #include <cmath>
 #include <algorithm>
 #include <span>
+#include <limits>
 
 namespace chronon3d::graph {
 
 // Math helpers live in transition/transition_node_math.cpp
 
+float TransitionNode::compute_progress(const RenderGraphContext& ctx) const {
+    if (ctx.fps <= 0.0f) return 0.0f;
+
+    const double fps = static_cast<double>(ctx.fps);
+    // ctx.time_seconds = frame + frame_time (frame number, not seconds)
+    // Convert to seconds
+    double global_time_s = static_cast<double>(ctx.time_seconds) / fps;
+    double layer_start_s = static_cast<double>(m_layer_from) / fps;
+    double layer_time_s = global_time_s - layer_start_s;
+
+    double duration_s = (m_layer_duration >= 0)
+        ? (static_cast<double>(m_layer_duration) / fps)
+        : std::numeric_limits<double>::infinity();
+
+    double raw_progress = 0.0;
+
+    if (!m_is_out) {
+        // Transition in
+        if (m_spec.duration > 0.0 && layer_time_s >= m_spec.delay) {
+            raw_progress = (layer_time_s - m_spec.delay) / m_spec.duration;
+        }
+    } else if (std::isfinite(duration_s)) {
+        // Transition out
+        double out_start_s = duration_s - m_spec.duration - m_spec.delay;
+        if (layer_time_s >= out_start_s) {
+            if (layer_time_s < duration_s - m_spec.delay) {
+                if (m_spec.duration > 0.0) {
+                    raw_progress = (layer_time_s - out_start_s) / m_spec.duration;
+                }
+            } else {
+                raw_progress = 1.0;
+            }
+        }
+    }
+
+    double clamped = std::clamp(raw_progress, 0.0, 1.0);
+    return easing::apply(m_spec.easing, static_cast<float>(clamped));
+}
 
 OwnedFB TransitionNode::execute(
     RenderGraphContext& ctx,
@@ -28,8 +68,10 @@ OwnedFB TransitionNode::execute(
         return out_fb;
     }
 
+    const float p = compute_progress(ctx);
+
     if (m_spec.transition_id == "crossfade") {
-        const float t = m_is_out ? (1.0f - m_progress) : m_progress;
+        const float t = m_is_out ? (1.0f - p) : p;
         for (i32 y = 0; y < h; ++y) {
             const Color* src_row = src->pixels_row(y);
             Color* dst_row = out_fb->pixels_row(y);
@@ -42,35 +84,32 @@ OwnedFB TransitionNode::execute(
         i32 dx_to = 0, dy_to = 0;
         
         if (m_spec.direction == TransitionDirection::Left) {
-            dx_from = -static_cast<i32>(std::round(w * m_progress));
-            dx_to = w - static_cast<i32>(std::round(w * m_progress));
+            dx_from = -static_cast<i32>(std::round(w * p));
+            dx_to = w - static_cast<i32>(std::round(w * p));
         } else if (m_spec.direction == TransitionDirection::Right) {
-            dx_from = static_cast<i32>(std::round(w * m_progress));
-            dx_to = -w + static_cast<i32>(std::round(w * m_progress));
+            dx_from = static_cast<i32>(std::round(w * p));
+            dx_to = -w + static_cast<i32>(std::round(w * p));
         } else if (m_spec.direction == TransitionDirection::Up) {
-            dy_from = -static_cast<i32>(std::round(h * m_progress));
-            dy_to = h - static_cast<i32>(std::round(h * m_progress));
+            dy_from = -static_cast<i32>(std::round(h * p));
+            dy_to = h - static_cast<i32>(std::round(h * p));
         } else if (m_spec.direction == TransitionDirection::Down) {
-            dy_from = static_cast<i32>(std::round(h * m_progress));
-            dy_to = -h + static_cast<i32>(std::round(h * m_progress));
+            dy_from = static_cast<i32>(std::round(h * p));
+            dy_to = -h + static_cast<i32>(std::round(h * p));
         } else {
-            // Default to sliding left
-            dx_from = -static_cast<i32>(std::round(w * m_progress));
-            dx_to = w - static_cast<i32>(std::round(w * m_progress));
+            dx_from = -static_cast<i32>(std::round(w * p));
+            dx_to = w - static_cast<i32>(std::round(w * p));
         }
 
         for (i32 y = 0; y < h; ++y) {
             Color* dst_row = out_fb->pixels_row(y);
             for (i32 x = 0; x < w; ++x) {
                 if (!m_is_out) {
-                    // transition_in: from is transparent, to is src
                     i32 src_x = x - dx_to;
                     i32 src_y = y - dy_to;
                     if (src_x >= 0 && src_x < w && src_y >= 0 && src_y < h) {
                         dst_row[x] = src->get_pixel(src_x, src_y);
                     }
                 } else {
-                    // transition_out: from is src, to is transparent
                     i32 src_x = x - dx_from;
                     i32 src_y = y - dy_from;
                     if (src_x >= 0 && src_x < w && src_y >= 0 && src_y < h) {
@@ -101,16 +140,16 @@ OwnedFB TransitionNode::execute(
                 
                 bool keep = false;
                 if (!m_is_out) {
-                    keep = (val <= m_progress);
+                    keep = (val <= p);
                 } else {
-                    keep = (val >= m_progress);
+                    keep = (val >= p);
                 }
                 dst_row[x] = keep ? src_row[x] : Color::transparent();
             }
         }
     } else if (m_spec.transition_id == "smooth_wipe") {
         const float w_feather = 0.1f;
-        const float sweep_progress = m_progress * (1.0f + w_feather);
+        const float sweep_progress = p * (1.0f + w_feather);
         for (i32 y = 0; y < h; ++y) {
             const Color* src_row = src->pixels_row(y);
             Color* dst_row = out_fb->pixels_row(y);
@@ -145,7 +184,7 @@ OwnedFB TransitionNode::execute(
         const float cy = h * 0.5f;
         const float max_r = std::sqrt(cx * cx + cy * cy);
         const float r_feather = std::max(1.0f, max_r * 0.1f);
-        const float sweep_r = m_progress * (max_r + r_feather);
+        const float sweep_r = p * (max_r + r_feather);
 
         for (i32 y = 0; y < h; ++y) {
             const Color* src_row = src->pixels_row(y);
@@ -172,20 +211,20 @@ OwnedFB TransitionNode::execute(
                 Color s = src_row[x];
                 Color out_color = Color::transparent();
                 if (!m_is_out) {
-                    if (m_progress < 0.5f) {
-                        const float t = m_progress / 0.5f;
+                    if (p < 0.5f) {
+                        const float t = p / 0.5f;
                         out_color = Color::white() * t;
                         out_color.a = s.a * t;
                     } else {
-                        const float t = (m_progress - 0.5f) / 0.5f;
+                        const float t = (p - 0.5f) / 0.5f;
                         out_color = lerp(Color::white().with_alpha(s.a), s, t);
                     }
                 } else {
-                    if (m_progress < 0.5f) {
-                        const float t = m_progress / 0.5f;
+                    if (p < 0.5f) {
+                        const float t = p / 0.5f;
                         out_color = lerp(s, Color::white().with_alpha(s.a), t);
                     } else {
-                        const float t = (m_progress - 0.5f) / 0.5f;
+                        const float t = (p - 0.5f) / 0.5f;
                         out_color = Color::white() * (1.0f - t);
                         out_color.a = s.a * (1.0f - t);
                     }
@@ -204,14 +243,14 @@ OwnedFB TransitionNode::execute(
                 
                 float t_alpha = 0.0f;
                 if (!m_is_out) {
-                    t_alpha = transition_math::smoothstep01(std::clamp((m_progress - 0.2f) / 0.6f, 0.0f, 1.0f));
+                    t_alpha = transition_math::smoothstep01(std::clamp((p - 0.2f) / 0.6f, 0.0f, 1.0f));
                 } else {
-                    t_alpha = 1.0f - transition_math::smoothstep01(std::clamp((m_progress - 0.2f) / 0.6f, 0.0f, 1.0f));
+                    t_alpha = 1.0f - transition_math::smoothstep01(std::clamp((p - 0.2f) / 0.6f, 0.0f, 1.0f));
                 }
                 
                 Color base = src_row[x] * t_alpha;
                 
-                float mask = transition_math::procedural_remotion_mask(u, v, m_progress, seed);
+                float mask = transition_math::procedural_remotion_mask(u, v, p, seed);
                 float intensity = mask * 5.0f;
                 
                 Color inner_color = {1.0f, 0.45f, 0.0f, 1.0f};
@@ -248,16 +287,16 @@ OwnedFB TransitionNode::execute(
                 
                 float t_alpha = 0.0f;
                 if (!m_is_out) {
-                    t_alpha = transition_math::smoothstep01(std::clamp((m_progress - 0.2f) / 0.6f, 0.0f, 1.0f));
+                    t_alpha = transition_math::smoothstep01(std::clamp((p - 0.2f) / 0.6f, 0.0f, 1.0f));
                 } else {
-                    t_alpha = 1.0f - transition_math::smoothstep01(std::clamp((m_progress - 0.2f) / 0.6f, 0.0f, 1.0f));
+                    t_alpha = 1.0f - transition_math::smoothstep01(std::clamp((p - 0.2f) / 0.6f, 0.0f, 1.0f));
                 }
                 
                 Color base = src_row[x] * t_alpha;
                 
-                float remotion_alpha = transition_math::remotion_mask(u, v, m_progress, speed, direction);
+                float remotion_alpha = transition_math::remotion_mask(u, v, p, speed, direction);
                 float remotion_r = 0.0f, remotion_g = 0.0f, remotion_b = 0.0f;
-                transition_math::evaluate_remotion_color(u, v, m_progress, speed, direction, angle, remotion_r, remotion_g, remotion_b);
+                transition_math::evaluate_remotion_color(u, v, p, speed, direction, angle, remotion_r, remotion_g, remotion_b);
                 
                 Color res;
                 res.r = std::clamp(base.r * (1.0f - remotion_alpha) + remotion_r * remotion_alpha, 0.0f, 1.0f);
@@ -269,7 +308,6 @@ OwnedFB TransitionNode::execute(
             }
         }
     } else {
-        // Fallback: copy source
         *out_fb = *src;
     }
 

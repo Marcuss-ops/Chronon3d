@@ -167,13 +167,13 @@ inline bool solve_homography_4pt(const Vec2 src[4], const Vec2 dst[4], glm::mat3
 
     out = glm::mat3(1.0f);
     out[0][0] = static_cast<f32>(h00);
-    out[0][1] = static_cast<f32>(h01);
-    out[0][2] = static_cast<f32>(h02);
-    out[1][0] = static_cast<f32>(h10);
+    out[0][1] = static_cast<f32>(h10);
+    out[0][2] = static_cast<f32>(h20);
+    out[1][0] = static_cast<f32>(h01);
     out[1][1] = static_cast<f32>(h11);
-    out[1][2] = static_cast<f32>(h12);
-    out[2][0] = static_cast<f32>(h20);
-    out[2][1] = static_cast<f32>(h21);
+    out[1][2] = static_cast<f32>(h21);
+    out[2][0] = static_cast<f32>(h02);
+    out[2][1] = static_cast<f32>(h12);
     out[2][2] = 1.0f;
     return true;
 }
