@@ -163,29 +163,28 @@ private:
             using enum effects::EffectType;
             switch (inst.effect_type) {
             case Blur: {
-                auto* p = std::any_cast<BlurParams>(&inst.params);
-                if (p) max_spread = std::max(max_spread, p->radius);
+                if (auto* p = std::get_if<BlurParams>(&inst.params))
+                    max_spread = std::max(max_spread, p->radius);
                 break;
             }
             case DropShadow: {
-                auto* p = std::any_cast<DropShadowParams>(&inst.params);
-                if (p) max_spread = std::max(max_spread,
-                    std::max(std::abs(p->offset.x), std::abs(p->offset.y)) + p->radius);
+                if (auto* p = std::get_if<DropShadowParams>(&inst.params))
+                    max_spread = std::max(max_spread,
+                        std::max(std::abs(p->offset.x), std::abs(p->offset.y)) + p->radius);
                 break;
             }
             case Glow: {
-                auto* p = std::any_cast<GlowParams>(&inst.params);
-                if (p) max_spread = std::max(max_spread, glow_effect_extent(*p));
+                if (auto* p = std::get_if<GlowParams>(&inst.params))
+                    max_spread = std::max(max_spread, glow_effect_extent(*p));
                 break;
             }
             case Bloom: {
-                auto* p = std::any_cast<BloomParams>(&inst.params);
-                if (p) max_spread = std::max(max_spread, p->radius);
+                if (auto* p = std::get_if<BloomParams>(&inst.params))
+                    max_spread = std::max(max_spread, p->radius);
                 break;
             }
             case Fake3DWave: {
-                auto* p = std::any_cast<Fake3DWaveParams>(&inst.params);
-                if (p) {
+                if (auto* p = std::get_if<Fake3DWaveParams>(&inst.params)) {
                     f32 s = p->depth_px + p->amplitude_px;
                     if (p->shadow_enabled) {
                         s += std::max(std::abs(p->shadow_offset.x),
