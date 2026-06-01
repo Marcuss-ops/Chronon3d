@@ -492,8 +492,11 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     ctx.graph_structure_unchanged = scene_structure_unchanged && !static_cam_changed && active_at_unchanged;
 
     if (settings.diagnostic_plan) {
-        auto* prev_counters = profiling::g_current_counters;
-        profiling::g_current_counters = nullptr;
+        // Temporarily disable counters during preflight (no need to
+        // accumulate profiling data for a dry-run analysis pass).
+        // RAII guard restores both g_current_counters and
+        // g_current_framebuffer_pool on any exit path.
+        profiling::ProfilingGuard diag_guard(nullptr, profiling::g_current_framebuffer_pool);
         auto report = debug_preflight_render_graph(
             backend,
             node_cache,
@@ -516,7 +519,6 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
                 spdlog::info("[graph-preflight] report written to {}", report_path);
             }
         }
-        profiling::g_current_counters = prev_counters;
     }
 
     const auto t_resolve0 = std::chrono::steady_clock::now();
@@ -688,7 +690,16 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     // ── Execute: tile-based (V1) or traditional single-pass ─────────────
     const auto t_exec0 = std::chrono::steady_clock::now();
     std::shared_ptr<Framebuffer> fb_shared;
-    const bool use_tile_execution = dirty_out.use_dirty_tiles &&
+
+    // Tile execution is incompatible with spatial effects (glow, bloom, drop shadow,
+    // blur, distort, temporal).  When tile execution re-executes the full graph per
+    // tile, the effect stack runs with a tile-scoped clip_rect.  The blur kernel in
+    // these effects reads pixels outside the tile boundary — those pixels are zero
+    // or garbage (from the fresh per-tile framebuffer), producing visible seams at
+    // tile edges.  Disable tile execution when ANY layer has spatial effects.
+    const bool tile_safe = !detail::has_layer_with_spatial_effects(resolved, frame);
+    const bool use_tile_execution = tile_safe &&
+                                    dirty_out.use_dirty_tiles &&
                                     sw_renderer &&
                                     sw_renderer->executor() &&
                                     dirty_out.tile_grid &&

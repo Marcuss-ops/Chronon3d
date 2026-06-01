@@ -9,8 +9,11 @@ void SoftwareEffectRunner::apply_effect_stack(Framebuffer& fb, const EffectStack
                                              float time_seconds) {
     for (const auto& effect : stack) {
         if (!effect.enabled) continue;
-        
-        if (auto* processor = registry.get_effect(effect.params.type())) {
+
+        // Use param_type_index() — a fast switch on effect_type — instead of
+        // std::any::type() which is no longer available now that params is a
+        // variant (std::get_if is O(1) with no type_info comparison).
+        if (auto* processor = registry.get_effect(effect.param_type_index())) {
             processor->apply(fb, effect.params, time_seconds);
             continue;
         }
