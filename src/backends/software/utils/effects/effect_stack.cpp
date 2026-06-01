@@ -7,6 +7,7 @@
 #include "effects_internal.hpp"
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/effects/effect_params.hpp>
 #include <algorithm>
 #include <chrono>
 #include <spdlog/spdlog.h>
@@ -100,9 +101,9 @@ void accumulate_glow_pass(Framebuffer& dst, const Framebuffer& src, const GlowPa
             g.a = shaped;
 
             Color& acc = dst_row[x];
-            acc.r = std::min(1.0f, acc.r + g.r);
-            acc.g = std::min(1.0f, acc.g + g.g);
-            acc.b = std::min(1.0f, acc.b + g.b);
+            acc.r += g.r;
+            acc.g += g.g;
+            acc.b += g.b;
             acc.a = std::max(acc.a, g.a);
         }
     }
@@ -128,9 +129,9 @@ void accumulate_scaled_glow_pass(Framebuffer& dst, const Framebuffer& src, const
             g.a = shaped;
 
             Color& acc = dst_row[x];
-            acc.r = std::min(1.0f, acc.r + g.r);
-            acc.g = std::min(1.0f, acc.g + g.g);
-            acc.b = std::min(1.0f, acc.b + g.b);
+            acc.r += g.r;
+            acc.g += g.g;
+            acc.b += g.b;
             acc.a = std::max(acc.a, g.a);
         }
     }
@@ -162,7 +163,7 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
         switch (inst.effect_type) {
 
         case Blur: {
-            auto* p = std::any_cast<BlurParams>(&inst.params);
+            auto* p = std::get_if<BlurParams>(&inst.params);
             if (p && p->radius > 0.0f) {
                 const auto t0 = diagnostics_enabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
                 auto effect_clip = expand_effect_clip(clip, fb.width(), fb.height(), p->radius);
@@ -175,7 +176,7 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
         }
 
         case Tint: {
-            auto* p = std::any_cast<TintParams>(&inst.params);
+            auto* p = std::get_if<TintParams>(&inst.params);
             if (p) {
                 const auto t0 = diagnostics_enabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
                 LayerEffect e;
@@ -189,7 +190,7 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
         }
 
         case Brightness: {
-            auto* p = std::any_cast<BrightnessParams>(&inst.params);
+            auto* p = std::get_if<BrightnessParams>(&inst.params);
             if (p) {
                 const auto t0 = diagnostics_enabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
                 LayerEffect e; e.brightness = p->value;
@@ -202,7 +203,7 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
         }
 
         case Contrast: {
-            auto* p = std::any_cast<ContrastParams>(&inst.params);
+            auto* p = std::get_if<ContrastParams>(&inst.params);
             if (p) {
                 const auto t0 = diagnostics_enabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
                 LayerEffect e; e.contrast = p->value;
@@ -215,7 +216,7 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
         }
 
         case Glow: {
-            auto* p = std::any_cast<GlowParams>(&inst.params);
+            auto* p = std::get_if<GlowParams>(&inst.params);
             if (p && p->intensity > 0.0f) {
                 const auto t0 = diagnostics_enabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
                 const i32 w = fb.width(), h = fb.height();
@@ -366,7 +367,7 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
         }
 
         case DropShadow: {
-            auto* p = std::any_cast<DropShadowParams>(&inst.params);
+            auto* p = std::get_if<DropShadowParams>(&inst.params);
             if (p) {
                 const auto t0 = diagnostics_enabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
                 const i32 w = fb.width(), h = fb.height();
@@ -460,7 +461,7 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
         }
 
         case Bloom: {
-            auto* p = std::any_cast<BloomParams>(&inst.params);
+            auto* p = std::get_if<BloomParams>(&inst.params);
             if (p) {
                 const auto t0 = diagnostics_enabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
                 const i32 w = fb.width(), h = fb.height();
@@ -539,7 +540,7 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
         }
 
         case Fake3DWave: {
-            auto* p = std::any_cast<Fake3DWaveParams>(&inst.params);
+            auto* p = std::get_if<Fake3DWaveParams>(&inst.params);
             if (p) {
                 const auto t0 = diagnostics_enabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
                 apply_fake_3d_wave(fb, *p, time_seconds);

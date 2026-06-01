@@ -56,7 +56,7 @@ TEST_CASE("EffectRegistry rejects duplicate ids") {
     );
 }
 
-TEST_CASE("EffectInstance stores descriptor and opaque params") {
+TEST_CASE("EffectInstance stores descriptor and params") {
     EffectDescriptor descriptor{
         .id = "stylize.demo",
         .display_name = "Demo",
@@ -64,13 +64,15 @@ TEST_CASE("EffectInstance stores descriptor and opaque params") {
         .stage = EffectStage::Composition,
     };
 
-    EffectInstance instance{descriptor, std::string{"payload"}};
+    EffectInstance instance{descriptor, BlurParams{5.0f}};
 
     CHECK(instance.enabled);
     CHECK(instance.descriptor.id == "stylize.demo");
     CHECK(instance.has_params());
-    CHECK(std::any_cast<std::string>(&instance.params) != nullptr);
-    CHECK(*std::any_cast<std::string>(&instance.params) == "payload");
+    // params is now a variant — extraction via std::get_if is O(1)
+    // with no type_info comparison.
+    CHECK(std::get_if<BlurParams>(&instance.params) != nullptr);
+    CHECK(std::get<BlurParams>(instance.params).radius == doctest::Approx(5.0f));
 }
 
 TEST_CASE("effect registry is data only") {

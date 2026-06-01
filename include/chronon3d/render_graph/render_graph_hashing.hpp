@@ -14,7 +14,7 @@
 #include <bit>
 #include <type_traits>
 #include <string_view>
-#include <variant>
+// <variant> is transitively included via effect_stack.hpp → effect_params.hpp
 
 namespace chronon3d::graph {
 
@@ -140,43 +140,43 @@ template <typename T>
         using enum effects::EffectType;
         switch (e.effect_type) {
         case Blur: {
-            auto* p = std::any_cast<BlurParams>(&e.params);
-            if (p) seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
+            if (auto* p = std::get_if<BlurParams>(&e.params))
+                seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
             break;
         }
         case Tint: {
-            auto* p = std::any_cast<TintParams>(&e.params);
-            if (p) seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
+            if (auto* p = std::get_if<TintParams>(&e.params))
+                seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
             break;
         }
         case Brightness: {
-            auto* p = std::any_cast<BrightnessParams>(&e.params);
-            if (p) seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
+            if (auto* p = std::get_if<BrightnessParams>(&e.params))
+                seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
             break;
         }
         case Contrast: {
-            auto* p = std::any_cast<ContrastParams>(&e.params);
-            if (p) seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
+            if (auto* p = std::get_if<ContrastParams>(&e.params))
+                seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
             break;
         }
         case DropShadow: {
-            auto* p = std::any_cast<DropShadowParams>(&e.params);
-            if (p) seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
+            if (auto* p = std::get_if<DropShadowParams>(&e.params))
+                seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
             break;
         }
         case Glow: {
-            auto* p = std::any_cast<GlowParams>(&e.params);
-            if (p) seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
+            if (auto* p = std::get_if<GlowParams>(&e.params))
+                seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
             break;
         }
         case Bloom: {
-            auto* p = std::any_cast<BloomParams>(&e.params);
-            if (p) seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
+            if (auto* p = std::get_if<BloomParams>(&e.params))
+                seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
             break;
         }
         case Fake3DWave: {
-            auto* p = std::any_cast<Fake3DWaveParams>(&e.params);
-            if (p) seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
+            if (auto* p = std::get_if<Fake3DWaveParams>(&e.params))
+                seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
             break;
         }
         case Unknown:

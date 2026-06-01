@@ -1,8 +1,9 @@
 #pragma once
 
 #include <chronon3d/effects/effect_descriptor.hpp>
-#include <any>
+#include <chronon3d/effects/effect_params.hpp>
 #include <cstdint>
+#include <typeindex>
 #include <utility>
 #include <type_traits>
 
@@ -26,10 +27,9 @@ enum class EffectType : uint8_t {
 
 // ── effect_type_for<T> trait ────────────────────────────────────────────────
 // Primary template returns Unknown.  Specializations for each concrete param
-// type are defined in effect_stack.hpp (which includes this header and defines
-// the param structs).  Because the constructors below use a dependent name
-// (effect_type_for<std::decay_t<Params>>), the specializations are found at
-// template instantiation time — no circular include needed.
+// type are defined in effect_params.hpp (included above).  Because the
+// constructors below use a dependent name (effect_type_for<std::decay_t<Params>>),
+// the specializations are found at template instantiation time.
 
 template <typename T>
 struct effect_type_for {
@@ -40,7 +40,7 @@ struct effect_type_for {
 
 struct EffectInstance {
     EffectDescriptor descriptor;
-    std::any         params;
+    EffectParams     params;
     EffectType       effect_type{EffectType::Unknown};
     bool             enabled{true};
 
@@ -59,14 +59,45 @@ struct EffectInstance {
         : params(std::forward<Params>(value))
         , effect_type(effect_type_for<std::decay_t<Params>>::value) {}
 
-    [[nodiscard]] bool has_params() const { return params.has_value(); }
+    [[nodiscard]] bool has_params() const {
+        return !std::holds_alternative<std::monostate>(params);
+    }
+
+    // Returns std::type_index for the active variant alternative, so the
+    // software registry — which indexes processors by type_index — can
+    // look up the correct EffectProcessor without relying on std::any.
+    [[nodiscard]] std::type_index param_type_index() const {
+        switch (effect_type) {
+            case EffectType::Blur:        return typeid(BlurParams);
+            case EffectType::Tint:        return typeid(TintParams);
+            case EffectType::Brightness:  return typeid(BrightnessParams);
+            case EffectType::Contrast:    return typeid(ContrastParams);
+            case EffectType::DropShadow:  return typeid(DropShadowParams);
+            case EffectType::Glow:        return typeid(GlowParams);
+            case EffectType::Bloom:       return typeid(BloomParams);
+            case EffectType::Fake3DWave:  return typeid(Fake3DWaveParams);
+            default:                      return typeid(void);
+        }
+    }
 };
 
 // ── Runtime detection fallback ──────────────────────────────────────────────
 // For cases where the concrete type is not known at compile time (e.g.
-// deserialization).  Declared here, defined in effect_stack.hpp where the
-// param structs are available.
+// deserialization).  Since EffectParams is now a variant, the "type" is
+// simply the active alternative, determined by effect_type.
 
-[[nodiscard]] EffectType detect_effect_type(const std::any& params);
+[[nodiscard]] inline EffectType detect_effect_type(const EffectParams& params) {
+    switch (params.index()) {
+        case 1:  return EffectType::Blur;
+        case 2:  return EffectType::Tint;
+        case 3:  return EffectType::Brightness;
+        case 4:  return EffectType::Contrast;
+        case 5:  return EffectType::DropShadow;
+        case 6:  return EffectType::Glow;
+        case 7:  return EffectType::Bloom;
+        case 8:  return EffectType::Fake3DWave;
+        default: return EffectType::Unknown;
+    }
+}
 
 } // namespace chronon3d::effects

@@ -58,13 +58,46 @@ namespace chronon3d::graph::detail {
             category = registry.get(eff.descriptor.id).category;
         }
         
-        // Blur, distort, and temporal effects expand the effective bbox
-        // beyond the geometric bounds — dirty rects cannot track them.
+        // Blur, distort, temporal, and light effects (glow/bloom/shadow)
+        // expand the effective bbox beyond the geometric bounds — dirty
+        // rects and tile execution cannot track them without causing seams
+        // at tile boundaries.
         if (category == effects::EffectCategory::Blur)     return false;
         if (category == effects::EffectCategory::Distort)  return false;
         if (category == effects::EffectCategory::Temporal) return false;
+        if (category == effects::EffectCategory::Light)    return false;
     }
     return true;
+}
+
+// ── Spatial effects detection (for tile execution safety) ────────────────────
+// Checks whether any layer has spatial effects that would cause visible seams
+// at tile boundaries during tile execution.  Unlike is_safe_for_dirty_rects,
+// this is an unconditional scan of ALL active layers (not just dirty ones)
+// because tile execution re-executes the full graph per tile, and even a
+// static glow/bloom/shadow layer would have its effect clipped to the tile
+// boundary — producing seams where the blur reads zero/garbage pixels from
+// outside the tile.
+[[nodiscard]] inline bool has_layer_with_spatial_effects(
+    const detail::LayerResolutionResult& resolved,
+    Frame frame
+) {
+    const auto& registry = effects::EffectRegistry::instance();
+    for (const auto& rl : resolved.layers) {
+        if (!rl.layer || !rl.layer->active_at(frame)) continue;
+        for (const auto& eff : rl.layer->effects) {
+            if (!eff.enabled) continue;
+            effects::EffectCategory category = eff.descriptor.category;
+            if (registry.contains(eff.descriptor.id)) {
+                category = registry.get(eff.descriptor.id).category;
+            }
+            if (category == effects::EffectCategory::Blur)     return true;
+            if (category == effects::EffectCategory::Distort)  return true;
+            if (category == effects::EffectCategory::Temporal) return true;
+            if (category == effects::EffectCategory::Light)    return true;
+        }
+    }
+    return false;
 }
 
 // ── Dirty rect computation ───────────────────────────────────────────────────

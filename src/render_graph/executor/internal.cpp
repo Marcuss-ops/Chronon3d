@@ -405,8 +405,9 @@ void execute_single_node(
         return;
     }
 
-    profiling::g_current_counters = parent_counters;
-    profiling::g_current_framebuffer_pool = parent_pool;
+    // RAII guard: sets profiling thread-locals for this node execution
+    // and restores on any exit path (including exceptions).
+    profiling::ProfilingGuard node_guard(parent_counters, parent_pool);
 
     auto& node = graph.node(id);
     const auto& input_ids = graph.inputs(id);
@@ -471,11 +472,7 @@ void execute_single_node(
     state.resolved_cache_hit[id] = (cache_eval.cache_status == "hit") ? 1 : 0;
     state.resolved_bboxes[id] = predicted_bbox;
 
-    // Restore worker thread-local hygiene — restore previous values,
-    // don't blindly null them out (other code on this thread may need
-    // the pool reference after this node completes).
-    profiling::g_current_counters = parent_counters;
-    profiling::g_current_framebuffer_pool = parent_pool;
+    // ProfilingGuard destructor restores thread-locals automatically.
 }
 
 } // namespace chronon3d::graph
