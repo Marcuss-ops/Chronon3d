@@ -34,6 +34,7 @@ add_executable(chronon3d_core_tests
     core/animation/test_cubic_bezier.cpp
     core/animation/test_stagger.cpp
     core/timeline/test_timeline.cpp
+    core/timeline/test_timeline_builder.cpp
     core/timeline/test_code_first_composition.cpp
     core/timeline/test_sequence.cpp
     assets/test_svg_path_loader.cpp

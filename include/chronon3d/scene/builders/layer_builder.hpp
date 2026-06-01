@@ -68,6 +68,7 @@ public:
     AnimatedValue<Vec3>& rotate_anim();
     AnimatedValue<Vec3>& anchor_anim();
     AnimatedValue<f32>&  opacity_anim();
+    AnimatedValue<f32>&  blur_anim();
 
     // ── Motion Presets (keyframe-based animation helpers) ─────────────────
     LayerBuilder& slide_in(Vec3 from, Frame duration, EasingCurve easing = EasingCurve{Easing::OutCubic});
