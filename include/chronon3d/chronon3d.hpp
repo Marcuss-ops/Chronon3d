@@ -42,6 +42,7 @@
 #include <chronon3d/effects/effect_stage.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/timeline/sequence.hpp>
+#include <chronon3d/timeline/timeline_builder.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/backends/software/renderer.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>

@@ -2,6 +2,7 @@
 #include <chronon3d/registry/shape_ids.hpp>
 #include <chronon3d/scene/layer/track_matte.hpp>
 #include <chronon3d/math/transform.hpp>
+#include <chronon3d/effects/effect_ids.hpp>
 
 #include <utility>
 
@@ -441,6 +442,7 @@ AnimatedValue<Vec3>& LayerBuilder::scale_anim()    { return m_layer.anim_transfo
 AnimatedValue<Vec3>& LayerBuilder::rotate_anim()   { return m_layer.anim_transform.rotation_euler; }
 AnimatedValue<Vec3>& LayerBuilder::anchor_anim()   { return m_layer.anim_transform.anchor; }
 AnimatedValue<f32>&  LayerBuilder::opacity_anim()  { return m_layer.anim_transform.opacity; }
+AnimatedValue<f32>&  LayerBuilder::blur_anim()    { return m_layer.anim_transform.blur; }
 
 LayerBuilder& LayerBuilder::slide_in(Vec3 from, Frame duration, EasingCurve easing) {
     auto& pos = position_anim();
@@ -577,6 +579,25 @@ Layer LayerBuilder::build() {
             m_layer.transform.anchor = baked.anchor;
         if (m_layer.anim_transform.opacity.is_animated())
             m_layer.transform.opacity = baked.opacity;
+    }
+    // Bake animated blur into the effect stack at the current frame.
+    if (m_layer.anim_transform.blur.is_animated()) {
+        const Frame local_frame = m_layer.local_frame(m_current_frame);
+        f32 blur_radius = m_layer.anim_transform.blur.evaluate(local_frame);
+        bool found = false;
+        for (auto& effect : m_layer.effects) {
+            if (auto* blur = std::get_if<BlurParams>(&effect.params)) {
+                blur->radius = blur_radius;
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            m_layer.effects.push_back(EffectInstance{
+                effects::EffectDescriptor{.id = std::string{effects::ids::BlurGaussian}},
+                BlurParams{blur_radius}
+            });
+        }
     }
     return std::move(m_layer);
 }

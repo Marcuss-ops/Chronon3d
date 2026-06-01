@@ -256,7 +256,10 @@ inline void TextAnimator::build(SceneBuilder& scene, std::string_view layer_name
             }
 
             if (m_config.animate_blur) {
-                lb.blur(m_config.blur_from);
+                auto& bl = lb.blur_anim();
+                bl.key(Frame{0},         m_config.blur_from, EasingCurve{Easing::Hold});
+                bl.key(start_frame,      m_config.blur_from, m_config.easing);
+                bl.key(end_frame,        0.0f,              EasingCurve{Easing::Linear});
             }
         });
 

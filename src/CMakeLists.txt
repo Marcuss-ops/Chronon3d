@@ -250,6 +250,7 @@ set(CHRONON3D_SCENE_SOURCES
     scene/render_node_factory.cpp
     scene/camera_api.cpp
     scene/scene_builder.cpp
+    timeline/timeline_builder.cpp
     animations/camera/camera_tilt_clips.cpp
     animations/camera_motion_applier.cpp
     layout/layout_solver.cpp
