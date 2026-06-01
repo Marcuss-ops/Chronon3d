@@ -133,6 +133,7 @@ add_executable(chronon3d_renderer_tests
     render_graph/pipeline/test_tile_parallel.cpp
     render_graph/pipeline/test_graph_preflight_diagnostics.cpp
     scene/camera/camera_25d_tests.cpp
+    renderer/2d5/test_card3d_material.cpp
     effects/effect_graph_tests.cpp
     scene/shapes/mask_tests.cpp
     specscene/specscene_boundary_tests.cpp
