@@ -4,6 +4,7 @@
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
 #include <algorithm>
+#include <cmath>
 #include <optional>
 
 namespace chronon3d {
@@ -55,6 +56,11 @@ void SoftwareCompositor::composite_layer(Framebuffer& dst, const Framebuffer& sr
             if (sx < 0 || sx >= src.width()) continue;
             Color s = s_row[sx];
             if (s.a <= 0.0f) continue;
+            // Guard: skip NaN/Inf source pixels to prevent framebuffer contamination.
+            if (std::isnan(s.r) || std::isnan(s.g) || std::isnan(s.b) || std::isnan(s.a) ||
+                std::isinf(s.r) || std::isinf(s.g) || std::isinf(s.b) || std::isinf(s.a)) {
+                continue;
+            }
             d_row[x] = compositor::blend(s, d_row[x], mode);
         }
     }

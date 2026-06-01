@@ -50,6 +50,8 @@
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/scene/camera/camera.hpp>
 #include <chronon3d/scene/camera/camera_2_5d.hpp>
+#include <chronon3d/scene/camera/animated_camera_2_5d.hpp>
+#include <chronon3d/scene/camera/camera_rig.hpp>
 #include <chronon3d/scene/camera/dof.hpp>
 #include <chronon3d/scene/mask/mask.hpp>
 #include <chronon3d/scene/mask/mask_utils.hpp>

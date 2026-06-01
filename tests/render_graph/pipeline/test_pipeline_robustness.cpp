@@ -107,6 +107,7 @@ TEST_CASE("Coordinate Centered vs Top Left - Opacity only keeps implicit centeri
 
 TEST_CASE("Coordinate Centered vs Top Left - Centered exactly on canvas") {
     SceneBuilder builder;
+    builder.ambient_light(Color{1.0f, 1.0f, 1.0f, 1.0f}, 1.0f);
     builder.camera().enable(true);
     builder.layer("3d_layer", [](LayerBuilder& lb) {
         lb.enable_3d(true)
@@ -175,6 +176,7 @@ TEST_CASE("Coordinate Centered vs Top Left - Reversible conversion logic") {
 
 TEST_CASE("Coordinate Centered vs Top Left - Transform matrix offset") {
     SceneBuilder builder;
+    builder.ambient_light(Color{1.0f, 1.0f, 1.0f, 1.0f}, 1.0f);
     builder.camera().enable(true);
     builder.layer("3d_layer_offset", [](LayerBuilder& lb) {
         lb.enable_3d(true)
@@ -219,6 +221,7 @@ TEST_CASE("Coordinate Centered vs Top Left - Transform matrix offset") {
 
 TEST_CASE("Coordinate Centered vs Top Left - Layer near border should not disappear") {
     SceneBuilder builder;
+    builder.ambient_light(Color{1.0f, 1.0f, 1.0f, 1.0f}, 1.0f);
     builder.camera().enable(true);
     builder.layer("3d_border_layer", [](LayerBuilder& lb) {
         lb.enable_3d(true)
@@ -245,6 +248,7 @@ TEST_CASE("Coordinate Centered vs Top Left - Layer near border should not disapp
 
 TEST_CASE("Coordinate Centered vs Top Left - Render graph mixed 2D and centered") {
     SceneBuilder builder;
+    builder.ambient_light(Color{1.0f, 1.0f, 1.0f, 1.0f}, 1.0f);
     builder.camera().enable(true);
     builder.layer("2d_layer", [](LayerBuilder& lb) {
         lb.rect("red_rect", {.size={100.0f, 100.0f}, .color=Color::red(), .pos={0.0f, 0.0f, 0.0f}});

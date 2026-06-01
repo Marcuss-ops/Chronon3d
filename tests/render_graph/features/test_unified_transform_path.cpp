@@ -207,6 +207,7 @@ TEST_CASE("Unified compositing: z order beats paint order") {
     }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
 
+        s.ambient_light(Color{1.0f, 1.0f, 1.0f, 1.0f}, 1.0f);
         s.camera().set({
             .enabled = true,
             .position = {0.0f, 0.0f, -800.0f},

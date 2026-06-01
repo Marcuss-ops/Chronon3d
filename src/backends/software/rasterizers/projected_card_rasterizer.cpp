@@ -40,6 +40,11 @@ static void fill_triangle(Framebuffer& fb, Vec2 v0, Vec2 v1, Vec2 v2, const Colo
         Color* row = fb.pixels_row(y);
         for (int x = x0; x <= x1; ++x) {
             Color& dst = row[x];
+            // Guard: skip NaN/Inf source color to prevent framebuffer contamination.
+            if (std::isnan(color.r) || std::isnan(color.g) || std::isnan(color.b) || std::isnan(color.a) ||
+                std::isinf(color.r) || std::isinf(color.g) || std::isinf(color.b) || std::isinf(color.a)) {
+                continue;
+            }
             const float inv_a = 1.0f - color.a;
             dst.r = color.r + dst.r * inv_a;
             dst.g = color.g + dst.g * inv_a;
@@ -142,10 +147,10 @@ void composite_projected_framebuffer(Framebuffer& dst, const Framebuffer& src,
             Color& d = dst_row[x];
 
             if (mode == BlendMode::Add) {
-                d.r += src_c.r * opacity;
-                d.g += src_c.g * opacity;
-                d.b += src_c.b * opacity;
-                d.a += final_a;
+                d.r = std::min(d.r + src_c.r * opacity, 1.0f);
+                d.g = std::min(d.g + src_c.g * opacity, 1.0f);
+                d.b = std::min(d.b + src_c.b * opacity, 1.0f);
+                d.a = std::min(d.a + final_a, 1.0f);
             } else {
                 const float inv_a = 1.0f - final_a;
                 d.r = src_c.r * opacity + d.r * inv_a;

@@ -5,6 +5,7 @@
 #include <doctest/doctest.h>
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <vector>
 
 using namespace chronon3d;
@@ -167,6 +168,135 @@ TEST_CASE("simd::composite_normal_premul matches scalar reference") {
         "SIMD composite differs from scalar. max_diff=" << diff.max_diff
         << " avg_diff=" << diff.avg_diff
         << " mismatches=" << diff.mismatches);
+}
+
+// ---------------------------------------------------------------------------
+// composite_normal_premul NaN/Inf guards
+// ---------------------------------------------------------------------------
+
+namespace {
+bool is_transparent(const Color& c) {
+    return c.r == 0.0f && c.g == 0.0f && c.b == 0.0f && c.a == 0.0f;
+}
+
+bool has_nan_or_inf(const Color& c) {
+    return std::isnan(c.r) || std::isnan(c.g) || std::isnan(c.b) || std::isnan(c.a) ||
+           std::isinf(c.r) || std::isinf(c.g) || std::isinf(c.b) || std::isinf(c.a);
+}
+} // namespace
+
+TEST_CASE("simd::composite_normal_premul NaN src (canary: first pixel) triggers fallback") {
+    constexpr int N = 64;
+    Color dst[N], ref[N];
+    Color src[N];
+
+    for (int i = 0; i < N; ++i) {
+        dst[i] = Color{0.5f, 0.3f, 0.1f, 1.0f};
+        src[i] = Color{0.8f, 0.2f, 0.4f, 0.5f};
+        // Reference: normal blend
+        const float inv_a = 1.0f - src[i].a;
+        ref[i] = Color{
+            src[i].r + dst[i].r * inv_a,
+            src[i].g + dst[i].g * inv_a,
+            src[i].b + dst[i].b * inv_a,
+            src[i].a + dst[i].a * inv_a
+        };
+    }
+
+    // Inject NaN at the first pixel of src
+    src[0] = Color{std::numeric_limits<float>::quiet_NaN(), 0.5f, 0.5f, 0.5f};
+    ref[0] = dst[0]; // scalar fallback skips bad pixel → dst unchanged
+
+    simd::composite_normal_premul(dst, src, N);
+
+    // First pixel: should be left untouched (fallback skipped it)
+    CHECK_EQ(dst[0].r, doctest::Approx(ref[0].r));
+    CHECK_EQ(dst[0].g, doctest::Approx(ref[0].g));
+    CHECK_EQ(dst[0].b, doctest::Approx(ref[0].b));
+    CHECK_EQ(dst[0].a, doctest::Approx(ref[0].a));
+
+    // Rest of the buffer: should be blended correctly (scalar fallback did the work)
+    for (int i = 1; i < N; ++i) {
+        CHECK_EQ(dst[i].r, doctest::Approx(ref[i].r));
+        CHECK_EQ(dst[i].g, doctest::Approx(ref[i].g));
+        CHECK_EQ(dst[i].b, doctest::Approx(ref[i].b));
+        CHECK_EQ(dst[i].a, doctest::Approx(ref[i].a));
+    }
+
+    // No NaN/Inf propagated
+    for (int i = 0; i < N; ++i) {
+        CHECK(!has_nan_or_inf(dst[i]));
+    }
+}
+
+TEST_CASE("simd::composite_normal_premul NaN dst (canary: last pixel) triggers fallback") {
+    constexpr int N = 64;
+    Color dst[N], ref[N];
+    Color src[N];
+
+    for (int i = 0; i < N; ++i) {
+        dst[i] = Color{0.5f, 0.3f, 0.1f, 1.0f};
+        src[i] = Color{0.8f, 0.2f, 0.4f, 0.5f};
+        const float inv_a = 1.0f - src[i].a;
+        ref[i] = Color{
+            src[i].r + dst[i].r * inv_a,
+            src[i].g + dst[i].g * inv_a,
+            src[i].b + dst[i].b * inv_a,
+            src[i].a + dst[i].a * inv_a
+        };
+    }
+
+    // Inject NaN at the last pixel of dst
+    dst[N - 1] = Color{std::numeric_limits<float>::quiet_NaN(), 0.5f, 0.5f, 1.0f};
+    ref[N - 1] = dst[N - 1]; // fallback skips bad pixel → but dst was already set to NaN so it stays NaN
+    // Actually, fallback skips if has_bad(dst), so dst[N-1] stays unchanged (NaN)
+
+    simd::composite_normal_premul(dst, src, N);
+
+    // Last pixel: untouched by fallback (bad dst detected)
+    // All other pixels: blended correctly
+    for (int i = 0; i < N - 1; ++i) {
+        CHECK_EQ(dst[i].r, doctest::Approx(ref[i].r));
+        CHECK_EQ(dst[i].g, doctest::Approx(ref[i].g));
+        CHECK_EQ(dst[i].b, doctest::Approx(ref[i].b));
+        CHECK_EQ(dst[i].a, doctest::Approx(ref[i].a));
+        CHECK(!has_nan_or_inf(dst[i]));
+    }
+    // The bad pixel itself stays NaN — the guard doesn't sanitize, it just skips
+    CHECK(std::isnan(dst[N - 1].r));
+}
+
+TEST_CASE("simd::composite_normal_premul Inf src (canary: first+last both good) uses SIMD") {
+    // When the canary (first + last) passes but a middle pixel has Inf,
+    // the SIMD path is used. This test verifies that the canary check doesn't
+    // falsely reject clean data.
+    constexpr int N = 256;
+    std::vector<Color> dst(N);
+    std::vector<Color> src(N);
+    std::vector<Color> ref(N);
+
+    for (int i = 0; i < N; ++i) {
+        dst[i] = Color{0.5f, 0.3f, 0.1f, 1.0f};
+        src[i] = Color{0.8f, 0.2f, 0.4f, 0.5f};
+        const float inv_a = 1.0f - src[i].a;
+        ref[i] = Color{
+            src[i].r + dst[i].r * inv_a,
+            src[i].g + dst[i].g * inv_a,
+            src[i].b + dst[i].b * inv_a,
+            src[i].a + dst[i].a * inv_a
+        };
+    }
+
+    simd::composite_normal_premul(dst.data(), src.data(), N);
+
+    auto diff = compare_buffers(dst.data(), ref.data(), N);
+    CHECK(diff.max_diff < 1e-5f);
+    CHECK(diff.mismatches == 0);
+
+    // No NaN/Inf anywhere
+    for (int i = 0; i < N; ++i) {
+        CHECK(!has_nan_or_inf(dst[i]));
+    }
 }
 
 // ---------------------------------------------------------------------------

@@ -2,6 +2,7 @@
 
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/compositor/alpha.hpp>
+#include <cmath>
 
 namespace chronon3d {
 
@@ -19,11 +20,22 @@ inline Color blend(const Color& src, const Color& dst, BlendMode mode) {
     if (src.a <= 0.0f) {
         return dst;
     }
+    // Guard: if either color carries NaN or Inf, return transparent
+    // to prevent contamination of the entire framebuffer.
+    if (std::isnan(src.r) || std::isnan(src.g) || std::isnan(src.b) || std::isnan(src.a) ||
+        std::isinf(src.r) || std::isinf(src.g) || std::isinf(src.b) || std::isinf(src.a) ||
+        std::isnan(dst.r) || std::isnan(dst.g) || std::isnan(dst.b) || std::isnan(dst.a) ||
+        std::isinf(dst.r) || std::isinf(dst.g) || std::isinf(dst.b) || std::isinf(dst.a)) {
+        return Color::transparent();
+    }
     switch (mode) {
         case BlendMode::Normal: {
             return blend_normal(src, dst);
         }
         case BlendMode::Add: {
+            // Pure additive blend — does NOT clamp to 1.0.
+            // HDR values (>1.0) are valid and expected for glow, bloom, etc.
+            // Clamping is handled at the framebuffer write boundary where needed.
             return {
                 src.r + dst.r,
                 src.g + dst.g,

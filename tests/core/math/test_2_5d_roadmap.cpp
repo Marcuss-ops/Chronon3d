@@ -8,6 +8,7 @@
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
+#include <chronon3d/math/projector_2_5d.hpp>
 #include <chronon3d/render_graph/nodes/shadow_node.hpp>
 #include <chronon3d/rendering/light_context.hpp>
 #include <chronon3d/rendering/lighting_eval.hpp>
