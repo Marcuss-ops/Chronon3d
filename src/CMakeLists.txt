@@ -189,6 +189,7 @@ set(CHRONON3D_BACKEND_SOFTWARE_SOURCES
     backends/software/rasterizers/path_stroke.cpp
     backends/software/rasterizers/pip.cpp
     backends/software/rasterizers/projected_card_rasterizer.cpp
+    backends/software/rasterizers/card3d_material_rasterizer.cpp
     backends/software/rasterizers/scanline_rasterizer.cpp
     backends/software/rasterizers/shape_rasterizer.cpp
     backends/software/software_compositor.cpp
