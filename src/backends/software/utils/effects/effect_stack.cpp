@@ -512,13 +512,22 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
                             if (dx < 0 || dx >= w) continue;
                             const Color b = bright_row[x];
                             if (b.a <= 0.0f) continue;
-                            const Color src = dst_row[dx];
-                            dst_row[dx] = {
-                                src.r + b.r * p->intensity,
-                                src.g + b.g * p->intensity,
-                                src.b + b.b * p->intensity,
-                                src.a
-                            };
+                            // NaN/Inf guard: skip contaminated bloom values to prevent
+                    // framebuffer corruption.  compositor::blend() is NOT used
+                    // because its Add mode early-exits when src.a <= 0 (and we
+                    // want pure additive RGB with alpha unchanged).
+                    if (std::isnan(b.r) || std::isnan(b.g) || std::isnan(b.b) ||
+                        std::isinf(b.r) || std::isinf(b.g) || std::isinf(b.b)) {
+                        continue;
+                    }
+                    const float bloom_r = b.r * p->intensity;
+                    const float bloom_g = b.g * p->intensity;
+                    const float bloom_b = b.b * p->intensity;
+                    dst_row[dx].r += bloom_r;
+                    dst_row[dx].g += bloom_g;
+                    dst_row[dx].b += bloom_b;
+                    // Alpha unchanged: additive RGB contribution does not
+                    // affect coverage (consistent with compositing convention).
                         }
                     }
                 }
