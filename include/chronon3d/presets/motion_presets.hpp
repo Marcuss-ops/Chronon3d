@@ -98,4 +98,36 @@ inline MotionObject& perspective_sweep_text_reveal(
         .enable_3d();
 }
 
+// ── New layer motion presets ────────────────────────────────────────────────
+
+inline MotionObject& slide_in(MotionObject& obj) {
+    return obj.preset(MotionPreset::SlideIn);
+}
+
+inline MotionObject& soft_pop(MotionObject& obj) {
+    return obj.preset(MotionPreset::SoftPop);
+}
+
+inline MotionObject& float_idle(MotionObject& obj, f32 parallax = 1.0f) {
+    return obj
+        .preset(MotionPreset::FloatIdle)
+        .parallax(parallax);
+}
+
+inline MotionObject& depth_reveal(MotionObject& obj) {
+    return obj
+        .preset(MotionPreset::DepthReveal)
+        .enable_3d();
+}
+
+inline MotionObject& card_flip_2_5d(MotionObject& obj) {
+    return obj
+        .preset(MotionPreset::CardFlip2_5D)
+        .enable_3d();
+}
+
+inline MotionObject& settle(MotionObject& obj) {
+    return obj.preset(MotionPreset::Settle);
+}
+
 } // namespace chronon3d::presets::motion

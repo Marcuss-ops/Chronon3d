@@ -28,6 +28,15 @@ struct AnimatedTransform {
                scale.is_animated()    || anchor.is_animated() ||
                opacity.is_animated();
     }
+
+    /// Shift every keyframe track by offset frames.
+    void shift(Frame offset) {
+        position.shift(offset);
+        rotation_euler.shift(offset);
+        scale.shift(offset);
+        anchor.shift(offset);
+        opacity.shift(offset);
+    }
 };
 
 } // namespace chronon3d

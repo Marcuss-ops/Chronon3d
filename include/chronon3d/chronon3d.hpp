@@ -26,6 +26,7 @@
 #include <chronon3d/animation/keyframe.hpp>
 #include <chronon3d/animation/animated_transform.hpp>
 #include <chronon3d/animation/spring.hpp>
+#include <chronon3d/animation/stagger.hpp>
 #include <chronon3d/registry/source_registry.hpp>
 #include <chronon3d/registry/shape_ids.hpp>
 #include <chronon3d/registry/shape_registry.hpp>
@@ -68,6 +69,8 @@
 #include <chronon3d/presets/motion_renderer.hpp>
 #include <chronon3d/presets/motion_presets.hpp>
 #include <chronon3d/presets/phrase/phrase_presets.hpp>
+#include <chronon3d/text/text_animator.hpp>
+#include <chronon3d/presets/scene_presets.hpp>
 
 namespace chronon3d {
     // Umbrella header for Chronon3d

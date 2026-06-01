@@ -69,6 +69,14 @@ public:
     AnimatedValue<Vec3>& anchor_anim();
     AnimatedValue<f32>&  opacity_anim();
 
+    // ── Motion Presets (keyframe-based animation helpers) ─────────────────
+    LayerBuilder& slide_in(Vec3 from, Frame duration, EasingCurve easing = EasingCurve{Easing::OutCubic});
+    LayerBuilder& soft_pop(Frame duration = Frame{30});
+    LayerBuilder& float_idle(f32 amplitude_y = 12.0f, Frame cycle = Frame{120});
+    LayerBuilder& depth_reveal(f32 depth_z = 260.0f, Frame duration = Frame{45});
+    LayerBuilder& card_flip_2_5d(Frame duration = Frame{60});
+    LayerBuilder& settle(f32 overshoot = 0.08f, Frame duration = Frame{20});
+
     // Depth
     LayerBuilder& depth_role(DepthRole role);
     LayerBuilder& depth_offset(f32 offset);
