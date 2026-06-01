@@ -34,6 +34,9 @@ std::shared_ptr<Framebuffer> render_with_camera(
     }, [=](const FrameContext& ctx) {
         SceneBuilder s(ctx);
 
+        // Full ambient light so 3D content is fully visible (tests are about projection, not lighting)
+        s.ambient_light(Color{1.0f, 1.0f, 1.0f, 1.0f}, 1.0f);
+
         s.camera().set({
             .enabled = cam_enabled,
             .position = cam_pos,
@@ -80,9 +83,9 @@ TEST_CASE("Test 9.2 — 3D layers are projected when camera is enabled") {
     REQUIRE(fb1 != nullptr);
     REQUIRE(fb2 != nullptr);
     // Center pixel should be red in fb1, but empty in fb2 (due to X shift)
-    // Use interior pixel (150,150) — the 100×100 rect at canvas center covers (100,100)-(200,200).
-    CHECK(fb1->get_pixel(150, 150).r > 0.8f);
-    CHECK(fb2->get_pixel(150, 150).r == 0.0f);
+    // The 100×100 rect at canvas center (100,100) spans from (50,50) to (150,150).
+    CHECK(fb1->get_pixel(100, 100).r > 0.8f); // center of rect
+    CHECK(fb2->get_pixel(100, 100).r == 0.0f); // rect shifted left, center is empty
 }
 
 TEST_CASE("Test 9.3 — Z depth offset changes scale size under camera projection") {
@@ -186,6 +189,10 @@ TEST_CASE("Test 9.7 — Camera 2.5D: 3D layers are sorted by depth before render
         .duration = 1
     }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
+
+        // Full ambient light — depth sorting test is about Z-ordering, not lighting
+        s.ambient_light(Color{1.0f, 1.0f, 1.0f, 1.0f}, 1.0f);
+
         s.camera().set({
             .enabled = true,
             .position = {0, 0, -1000},

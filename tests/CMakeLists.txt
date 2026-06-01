@@ -39,6 +39,7 @@ add_executable(chronon3d_core_tests
     assets/test_render_preflight.cpp
     assets/test_asset_registry.cpp
     core/math/test_color_space.cpp
+    core/math/test_nan_guard.cpp
     core/math/test_expression.cpp
     text/test_text_layout.cpp
     text/test_text_cache_key.cpp
@@ -90,6 +91,8 @@ add_test(NAME chronon3d_scene_tests COMMAND chronon3d_scene_tests WORKING_DIRECT
 add_executable(chronon3d_renderer_tests
     ${TEST_MAIN}
     renderer/camera/test_camera_motion.cpp
+    renderer/camera/test_animated_camera.cpp
+    renderer/test_blend_pixel_nan.cpp
     renderer/camera/test_dof.cpp
     renderer/effects/test_adjustment_layer.cpp
     renderer/effects/test_advanced_effects.cpp
