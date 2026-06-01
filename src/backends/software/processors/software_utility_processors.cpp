@@ -12,10 +12,8 @@ public:
     void draw(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNode& node, const RenderState& state,
               const Camera& camera, i32 width, i32 height) override {
         FakeBox3DRenderState s;
-        if (node.params.has_value()) {
-            if (auto* ptr = std::any_cast<FakeBox3DRenderState>(&node.params)) {
-                s = *ptr;
-            }
+        if (auto* ptr = std::get_if<FakeBox3DRenderState>(&node.params)) {
+            s = *ptr;
         }
         // Prefer the camera_2_5d-based projection context (populated from scene camera)
         if (!s.projection.ready && state.projection.ready) {
@@ -41,10 +39,8 @@ public:
     void draw(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNode& node, const RenderState& state,
               const Camera& camera, i32 width, i32 height) override {
         GridPlaneRenderState s;
-        if (node.params.has_value()) {
-            if (auto* ptr = std::any_cast<GridPlaneRenderState>(&node.params)) {
-                s = *ptr;
-            }
+        if (auto* ptr = std::get_if<GridPlaneRenderState>(&node.params)) {
+            s = *ptr;
         }
         if (!s.projection.ready && state.projection.ready) {
             s.projection = state.projection;

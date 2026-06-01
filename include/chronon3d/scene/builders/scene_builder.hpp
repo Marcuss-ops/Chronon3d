@@ -12,6 +12,7 @@
 #include <chronon3d/scene/camera/animated_camera_2_5d.hpp>
 #include <chronon3d/rendering/light_context.hpp>
 #include <chronon3d/scene/scene.hpp>
+#include <chronon3d/animation/stagger.hpp>
 #include <chronon3d/backends/video/video_source.hpp>
 #include <glm/glm.hpp>
 #include <functional>
@@ -206,6 +207,12 @@ namespace chronon3d {
 
         [[nodiscard]] Scene build();
         [[nodiscard]] const Camera2_5D &camera_2_5d() const;
+
+        /// Stagger all layers in the scene by their spatial order.
+        SceneBuilder& stagger(const StaggerConfig& config, StaggerOrder order = StaggerOrder::LeftToRight);
+
+        /// Stagger only the named layers.
+        SceneBuilder& stagger(const std::vector<std::string>& names, const StaggerConfig& config, StaggerOrder order = StaggerOrder::LeftToRight);
 
         [[nodiscard]] std::pmr::memory_resource *resource() const {
             return scene_.resource();

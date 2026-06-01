@@ -104,4 +104,15 @@ const Camera2_5D& SceneBuilder::camera_2_5d() const {
 SceneBuilder& SceneBuilder::grid_background(std::string name, GridBackgroundParams p) {
     return shape(registry::shape_ids::GridBackground, std::move(name), std::move(p));
 }
+
+SceneBuilder& SceneBuilder::stagger(const StaggerConfig& config, StaggerOrder order) {
+    chronon3d::stagger_layers(scene_.layers(), config, order);
+    return *this;
+}
+
+SceneBuilder& SceneBuilder::stagger(const std::vector<std::string>& names, const StaggerConfig& config, StaggerOrder order) {
+    chronon3d::stagger_named_layers(scene_.layers(), names, config, order);
+    return *this;
+}
+
 } // namespace chronon3d
