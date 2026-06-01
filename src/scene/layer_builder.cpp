@@ -442,6 +442,99 @@ AnimatedValue<Vec3>& LayerBuilder::rotate_anim()   { return m_layer.anim_transfo
 AnimatedValue<Vec3>& LayerBuilder::anchor_anim()   { return m_layer.anim_transform.anchor; }
 AnimatedValue<f32>&  LayerBuilder::opacity_anim()  { return m_layer.anim_transform.opacity; }
 
+LayerBuilder& LayerBuilder::slide_in(Vec3 from, Frame duration, EasingCurve easing) {
+    auto& pos = position_anim();
+    pos.key(Frame{0}, from, easing);
+    pos.key(duration, m_layer.transform.position);
+
+    auto& op = opacity_anim();
+    op.key(Frame{0}, 0.0f, easing);
+    op.key(duration, m_layer.transform.opacity);
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::soft_pop(Frame duration) {
+    auto& sc = scale_anim();
+    sc.key(Frame{0}, Vec3{0.90f, 0.90f, 1.0f}, EasingCurve{Easing::OutBack});
+    sc.key(duration, m_layer.transform.scale);
+
+    auto& op = opacity_anim();
+    op.key(Frame{0}, 0.0f, EasingCurve{Easing::OutCubic});
+    op.key(duration, m_layer.transform.opacity);
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::float_idle(f32 amplitude_y, Frame cycle) {
+    auto& pos = position_anim();
+    pos.loop_mode(LoopMode::Loop);
+    pos.key(Frame{0}, Vec3{0.0f, 0.0f, 0.0f});
+    pos.key(Frame{cycle / 2}, Vec3{0.0f, amplitude_y, 0.0f}, EasingCurve{Easing::InOutSine});
+    pos.key(cycle, Vec3{0.0f, 0.0f, 0.0f}, EasingCurve{Easing::InOutSine});
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::depth_reveal(f32 depth_z, Frame duration) {
+    m_layer.uses_2_5d_projection = true;
+
+    auto& pos = position_anim();
+    Vec3 start = m_layer.transform.position;
+    start.z += depth_z;
+    pos.key(Frame{0}, start, EasingCurve{Easing::OutCubic});
+    pos.key(duration, m_layer.transform.position);
+
+    auto& sc = scale_anim();
+    sc.key(Frame{0}, Vec3{0.94f, 0.94f, 1.0f}, EasingCurve{Easing::OutCubic});
+    sc.key(duration, m_layer.transform.scale);
+
+    auto& op = opacity_anim();
+    op.key(Frame{0}, 0.0f, EasingCurve{Easing::OutCubic});
+    op.key(duration, m_layer.transform.opacity);
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::card_flip_2_5d(Frame duration) {
+    m_layer.uses_2_5d_projection = true;
+
+    auto& rot = rotate_anim();
+    Vec3 current_euler = glm::degrees(glm::eulerAngles(m_layer.transform.rotation));
+    Vec3 start_euler = current_euler;
+    start_euler.y -= 90.0f;
+    rot.key(Frame{0}, start_euler, EasingCurve{Easing::OutCubic});
+    rot.key(duration, current_euler);
+
+    auto& pos = position_anim();
+    Vec3 start_pos = m_layer.transform.position;
+    start_pos.z += 240.0f;
+    pos.key(Frame{0}, start_pos, EasingCurve{Easing::OutCubic});
+    pos.key(duration, m_layer.transform.position);
+
+    auto& op = opacity_anim();
+    op.key(Frame{0}, 0.0f, EasingCurve{Easing::OutCubic});
+    op.key(Frame{static_cast<int>(duration * 0.6f)}, m_layer.transform.opacity, EasingCurve{Easing::OutCubic});
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::settle(f32 overshoot, Frame duration) {
+    auto& sc = scale_anim();
+    Vec3 start = m_layer.transform.scale * (1.0f + overshoot);
+    sc.key(Frame{0}, start, EasingCurve{Easing::OutBack});
+    sc.key(duration, m_layer.transform.scale);
+
+    auto& rot = rotate_anim();
+    Vec3 current_euler = glm::degrees(glm::eulerAngles(m_layer.transform.rotation));
+    Vec3 start_rot = current_euler;
+    start_rot.z += 2.0f;
+    rot.key(Frame{0}, start_rot, EasingCurve{Easing::OutBack});
+    rot.key(duration, current_euler);
+
+    auto& pos = position_anim();
+    Vec3 start_pos = m_layer.transform.position;
+    start_pos.y += 8.0f;
+    pos.key(Frame{0}, start_pos, EasingCurve{Easing::OutBack});
+    pos.key(duration, m_layer.transform.position);
+    return *this;
+}
+
 LayerBuilder& LayerBuilder::screen_dimensions(f32 w, f32 h) {
     m_screen_width = w;
     m_screen_height = h;

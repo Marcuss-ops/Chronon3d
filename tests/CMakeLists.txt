@@ -32,6 +32,7 @@ add_executable(chronon3d_core_tests
     core/animation/test_keyframe_tracks.cpp
     core/animation/test_animated_transform.cpp
     core/animation/test_cubic_bezier.cpp
+    core/animation/test_stagger.cpp
     core/timeline/test_timeline.cpp
     core/timeline/test_code_first_composition.cpp
     core/timeline/test_sequence.cpp
@@ -43,7 +44,9 @@ add_executable(chronon3d_core_tests
     core/math/test_expression.cpp
     text/test_text_layout.cpp
     text/test_text_cache_key.cpp
+    text/test_text_animator.cpp
     media/test_media_placement.cpp
+    scene_presets/test_scene_presets.cpp
 )
 target_link_libraries(chronon3d_core_tests PRIVATE chronon3d_pipeline doctest::doctest)
 target_include_directories(chronon3d_core_tests PRIVATE ${CMAKE_SOURCE_DIR})
@@ -80,6 +83,7 @@ add_executable(chronon3d_scene_tests
     scene/rendering/test_depth_role.cpp
     scene/layout/test_layout_solver.cpp
     presets/test_presets.cpp
+    presets/test_layer_motion_presets.cpp
     render_graph/pipeline/test_graph_cache.cpp
 )
 target_link_libraries(chronon3d_scene_tests PRIVATE chronon3d_pipeline chronon3d_scene chronon3d_backend_software doctest::doctest)
@@ -100,6 +104,7 @@ add_executable(chronon3d_renderer_tests
     renderer/effects/test_glow_torture.cpp
     renderer/effects/test_invariants.cpp
     renderer/media/test_video_card.cpp
+    stabilization/test_stabilization.cpp
     renderer/perf/test_render_perf.cpp
     renderer/lighting/test_light_context.cpp
     renderer/lighting/test_directional_lights.cpp

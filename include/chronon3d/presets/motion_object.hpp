@@ -56,6 +56,12 @@ enum class MotionPreset {
     OrbitCard,
     NewsImpact,
     GlowReveal3D,
+    SlideIn,
+    SoftPop,
+    FloatIdle,
+    DepthReveal,
+    CardFlip2_5D,
+    Settle,
 };
 
 struct MotionTime {
@@ -432,6 +438,16 @@ struct MotionObject {
 
     MotionObject& add_child(MotionObject child) {
         children.push_back(std::move(child));
+        return *this;
+    }
+
+    /// Shift all custom animations and time window by delay frames.
+    MotionObject& shift(Frame delay) {
+        for (auto& anim : m_animations) {
+            anim.shift(delay);
+        }
+        time_value.start += delay;
+        time_value.end   += delay;
         return *this;
     }
 

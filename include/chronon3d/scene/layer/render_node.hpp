@@ -6,11 +6,12 @@
 #include <chronon3d/geometry/mesh.hpp>
 #include <chronon3d/scene/fill.hpp>
 #include <chronon3d/scene/shape.hpp>
+#include <chronon3d/scene/render_runtime.hpp>
 #include <vector>
 #include <memory>
 #include <string>
 #include <memory_resource>
-#include <any>
+#include <variant>
 
 namespace chronon3d {
 
@@ -42,7 +43,9 @@ struct RenderNode {
     f32 corner_radius{0.0f};
 
     // Runtime/shape-specific parameters to avoid hardcoding in RenderNode
-    std::any params;
+    // Type-safe variant: stores FakeBox3DRenderState or GridPlaneRenderState
+    using RenderNodeParams = std::variant<std::monostate, FakeBox3DRenderState, GridPlaneRenderState>;
+    RenderNodeParams params;
 
     bool visible{true};
 

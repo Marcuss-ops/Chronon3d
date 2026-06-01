@@ -88,6 +88,11 @@ public:
     [[nodiscard]] Frame end() const { return m_end; }
     [[nodiscard]] EasingCurve easing() const { return m_easing; }
 
+    void shift(Frame offset) {
+        m_start += offset;
+        m_end   += offset;
+    }
+
 private:
     Frame m_start;
     Frame m_end;

@@ -332,6 +332,67 @@ void MotionPresetRegistry::register_builtins() {
             st.effects.glow.radius = interpolate(t, 0.0f, 0.50f, 50.0f, 15.0f, Easing::OutCubic);
         }
     });
+
+    // ── New layer motion presets ──────────────────────────────────────────────
+
+    register_preset({
+        MotionPreset::SlideIn, "SlideIn", [](const FrameContext&, const MotionObject& obj, f32 t, MotionState& st) {
+            st.opacity *= interpolate(t, 0.0f, 0.30f, 0.0f, 1.0f, Easing::OutCubic);
+            st.position.x += interpolate(t, 0.0f, 0.34f, 120.0f, 0.0f, Easing::OutCubic);
+            st.position.y += interpolate(t, 0.0f, 0.34f, 24.0f, 0.0f, Easing::OutCubic);
+            st.blur = interpolate(t, 0.0f, 0.24f, 6.0f, 0.0f, Easing::OutCubic);
+        }
+    });
+
+    register_preset({
+        MotionPreset::SoftPop, "SoftPop", [](const FrameContext&, const MotionObject& obj, f32 t, MotionState& st) {
+            st.opacity *= interpolate(t, 0.0f, 0.28f, 0.0f, 1.0f, Easing::OutCubic);
+            const f32 s = interpolate(t, 0.0f, 0.30f, 0.90f, 1.0f, Easing::OutBack);
+            st.scale = {obj.scale_value.x * s, obj.scale_value.y * s, obj.scale_value.z};
+            st.blur = interpolate(t, 0.0f, 0.22f, 4.0f, 0.0f, Easing::OutCubic);
+        }
+    });
+
+    register_preset({
+        MotionPreset::FloatIdle, "FloatIdle", [](const FrameContext& ctx, const MotionObject& obj, f32 t, MotionState& st) {
+            const f32 frame = static_cast<f32>(ctx.frame);
+            st.position.y += std::sin(frame * 0.025f) * 10.0f * obj.motion3d.parallax;
+            st.position.x += std::cos(frame * 0.018f) * 6.0f * obj.motion3d.parallax;
+            st.rotation.z += std::sin(frame * 0.012f) * 1.5f;
+        }
+    });
+
+    register_preset({
+        MotionPreset::DepthReveal, "DepthReveal", [](const FrameContext&, const MotionObject& obj, f32 t, MotionState& st) {
+            st.opacity *= interpolate(t, 0.0f, 0.32f, 0.0f, 1.0f, Easing::OutCubic);
+            const f32 s = interpolate(t, 0.0f, 0.38f, 0.94f, 1.0f, Easing::OutCubic);
+            st.scale = {obj.scale_value.x * s, obj.scale_value.y * s, obj.scale_value.z};
+            st.position.z += interpolate(t, 0.0f, 0.42f, 320.0f, 0.0f, Easing::OutCubic);
+            st.blur = interpolate(t, 0.0f, 0.26f, 5.0f, 0.0f, Easing::OutCubic);
+            st.rotation.y += interpolate(t, 0.0f, 0.40f, -8.0f, 0.0f, Easing::OutCubic);
+        }
+    });
+
+    register_preset({
+        MotionPreset::CardFlip2_5D, "CardFlip2_5D", [](const FrameContext&, const MotionObject& obj, f32 t, MotionState& st) {
+            st.opacity *= interpolate(t, 0.0f, 0.22f, 0.0f, 1.0f, Easing::OutCubic);
+            st.rotation.y += interpolate(t, 0.0f, 0.45f, -90.0f, 0.0f, Easing::OutCubic);
+            st.position.z += interpolate(t, 0.0f, 0.45f, 240.0f, 0.0f, Easing::OutCubic);
+            const f32 s = interpolate(t, 0.0f, 0.40f, 0.88f, 1.0f, Easing::OutCubic);
+            st.scale = {obj.scale_value.x * s, obj.scale_value.y * s, obj.scale_value.z};
+            st.blur = interpolate(t, 0.0f, 0.28f, 8.0f, 0.0f, Easing::OutCubic);
+        }
+    });
+
+    register_preset({
+        MotionPreset::Settle, "Settle", [](const FrameContext&, const MotionObject& obj, f32 t, MotionState& st) {
+            const f32 s = interpolate(t, 0.0f, 0.32f, 1.08f, 1.0f, Easing::OutBack);
+            st.scale = {obj.scale_value.x * s, obj.scale_value.y * s, obj.scale_value.z};
+            st.rotation.z += interpolate(t, 0.0f, 0.28f, 2.0f, 0.0f, Easing::OutBack);
+            st.position.y += interpolate(t, 0.0f, 0.28f, 8.0f, 0.0f, Easing::OutBack);
+            st.blur = interpolate(t, 0.0f, 0.20f, 3.0f, 0.0f, Easing::OutCubic);
+        }
+    });
 }
 
 } // namespace chronon3d::presets::motion

@@ -131,6 +131,14 @@ public:
 
     void clear() { m_keyframes.clear(); }
 
+    /// Shift every keyframe forward (or backward) by offset frames.
+    /// Keyframes are clamped at Frame{0} to prevent negative frame indices.
+    void shift(Frame offset) {
+        for (auto& kf : m_keyframes) {
+            kf.frame = std::max(Frame{0}, kf.frame + offset);
+        }
+    }
+
 private:
     [[nodiscard]] T evaluate_base(Frame frame) const {
         if (m_keyframes.empty()) {
