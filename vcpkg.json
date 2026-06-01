@@ -18,6 +18,8 @@
     "cli11",
     "tomlplusplus",
     "blend2d",
+    "freetype",
+    "harfbuzz",
     "nlohmann-json",
     "sqlite3",
     "openexr",

@@ -372,6 +372,11 @@ public:
             );
         }
 
+        // ── Apply TextMaterial (gradient, bevel, highlight, shade) ─────
+        if (node.shape.text.style.material.enabled) {
+            apply_text_material(raster->image, node.shape.text.style.material);
+        }
+
         double shadow_ms = 0.0;
         double glow_ms = 0.0;
         double composite_ms = 0.0;
