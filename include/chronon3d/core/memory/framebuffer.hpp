@@ -249,7 +249,8 @@ public:
     void shift(i32 dx, i32 dy) {
         if (dx == 0 && dy == 0) return;
         if (std::abs(dx) >= m_width || std::abs(dy) >= m_height) {
-            // Full shift, essentially empty
+            // Full shift out of bounds — clear everything.
+            clear(Color::transparent());
             return;
         }
 
@@ -265,12 +266,34 @@ public:
                 Color* dst_row = pixels_row(y + dy) + dst_x;
                 std::memmove(dst_row, src_row, row_bytes);
             }
+            // Clear vacated top rows (y < dy)
+            for (i32 y = 0; y < dy && y < m_height; ++y) {
+                simd::clear_framebuffer(pixels_row(y), m_allocated_width, Color::transparent());
+            }
         } else {
             // Shift up, process rows from top to bottom
+            const i32 abs_dy = -dy;
             for (i32 y = 0; y < rows_to_copy; ++y) {
-                const Color* src_row = pixels_row(y - dy) + src_x;
+                const Color* src_row = pixels_row(y + abs_dy) + src_x;
                 Color* dst_row = pixels_row(y) + dst_x;
                 std::memmove(dst_row, src_row, row_bytes);
+            }
+            // Clear vacated bottom rows (y >= m_height - abs_dy)
+            for (i32 y = std::max(0, m_height - abs_dy); y < m_height; ++y) {
+                simd::clear_framebuffer(pixels_row(y), m_allocated_width, Color::transparent());
+            }
+        }
+        // Clear vacated horizontal strips (columns that shifted out)
+        if (dx > 0) {
+            // Content shifted right, clear left columns
+            for (i32 y = 0; y < m_height; ++y) {
+                simd::clear_framebuffer(pixels_row(y), dx, Color::transparent());
+            }
+        } else if (dx < 0) {
+            // Content shifted left, clear right columns
+            const i32 abs_dx = -dx;
+            for (i32 y = 0; y < m_height; ++y) {
+                simd::clear_framebuffer(pixels_row(y) + m_width - abs_dx, abs_dx, Color::transparent());
             }
         }
     }

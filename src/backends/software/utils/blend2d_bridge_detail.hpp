@@ -77,11 +77,21 @@ inline void get_projective_bounds(const Mat4& model, float sw, float sh, int fb_
 }
 
 inline void blend_pixel(Color& dst, const Color& src, BlendMode mode) {
+    // Guard: NaN/Inf in either pixel would contaminate the entire framebuffer.
+    // Set dst to transparent so the artifact is visible (consistent with compositor::blend).
+    if (std::isnan(src.r) || std::isnan(src.g) || std::isnan(src.b) || std::isnan(src.a) ||
+        std::isinf(src.r) || std::isinf(src.g) || std::isinf(src.b) || std::isinf(src.a) ||
+        std::isnan(dst.r) || std::isnan(dst.g) || std::isnan(dst.b) || std::isnan(dst.a) ||
+        std::isinf(dst.r) || std::isinf(dst.g) || std::isinf(dst.b) || std::isinf(dst.a)) {
+        dst = Color::transparent();
+        return;
+    }
     if (mode == BlendMode::Add) {
-        dst.r += src.r;
-        dst.g += src.g;
-        dst.b += src.b;
-        dst.a += src.a;
+        // Clamp to prevent HDR overflow — consistent with composite_bl_image unmasked path.
+        dst.r = std::min(dst.r + src.r, 1.0f);
+        dst.g = std::min(dst.g + src.g, 1.0f);
+        dst.b = std::min(dst.b + src.b, 1.0f);
+        dst.a = std::min(dst.a + src.a, 1.0f);
     } else {
         const float inv_sa = 1.0f - src.a;
         dst.r = src.r + dst.r * inv_sa;

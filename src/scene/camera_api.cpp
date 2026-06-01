@@ -8,6 +8,10 @@ CameraApi& CameraApi::set(Camera2_5D camera) {
     return *this;
 }
 
+CameraApi& CameraApi::set_animated(const AnimatedCamera2_5D& cam) {
+    return set(cam.evaluate(owner_->frame()));
+}
+
 CameraApi& CameraApi::enable(bool enabled) {
     owner_->edit_camera([&](Camera2_5D& cam) { cam.enabled = enabled; });
     return *this;

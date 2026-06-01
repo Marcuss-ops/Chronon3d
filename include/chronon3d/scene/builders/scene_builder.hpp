@@ -9,6 +9,7 @@
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/registry/shape_registry.hpp>
 #include <chronon3d/scene/camera/camera_2_5d.hpp>
+#include <chronon3d/scene/camera/animated_camera_2_5d.hpp>
 #include <chronon3d/rendering/light_context.hpp>
 #include <chronon3d/scene/scene.hpp>
 #include <chronon3d/backends/video/video_source.hpp>
@@ -42,6 +43,12 @@ namespace chronon3d {
             : scene_(ctx.resource), current_frame_(ctx.frame), m_ctx(ctx), m_width(ctx.width), m_height(ctx.height) {}
 
         [[nodiscard]] CameraApi camera() { return CameraApi(*this); }
+
+        /// Set camera from an AnimatedCamera2_5D, evaluated at the current frame.
+        SceneBuilder& animated_camera(const AnimatedCamera2_5D& cam) {
+            set_camera(cam.evaluate(current_frame_));
+            return *this;
+        }
 
         SceneBuilder &ambient_light(Color color = Color{1, 1, 1, 1}, f32 intensity = 0.2f);
 

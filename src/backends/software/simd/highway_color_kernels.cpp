@@ -5,6 +5,7 @@
 #include <hwy/highway.h>
 #include <chronon3d/simd/kernels.hpp>
 #include <algorithm>
+#include <cmath>
 
 // Prefetch: use compiler builtins which work across all SIMD contexts.
 
@@ -58,6 +59,33 @@ HWY_EXPORT(composite_normal_premul_impl);
 HWY_EXPORT(premultiply_alpha_rgba8_impl);
 
 void composite_normal_premul(Color* __restrict__ dst, const Color* __restrict__ src, int pixel_count) {
+    if (pixel_count <= 0) return;
+
+    // Canary check: scan first + last pixel for NaN/Inf.
+    // NaN/Inf in the framebuffer indicates corrupted data — fall back to a
+    // scalar safe loop that skips bad pixels instead of propagating them.
+    auto has_bad = [](const Color& c) {
+        return std::isnan(c.r) || std::isnan(c.g) || std::isnan(c.b) || std::isnan(c.a) ||
+               std::isinf(c.r) || std::isinf(c.g) || std::isinf(c.b) || std::isinf(c.a);
+    };
+
+    if (has_bad(src[0]) || has_bad(dst[0]) ||
+        has_bad(src[pixel_count - 1]) || has_bad(dst[pixel_count - 1])) {
+        // Safe scalar fallback: skip NaN/Inf pixels to prevent contamination.
+        for (int i = 0; i < pixel_count; ++i) {
+            const Color& s = src[i];
+            Color& d = dst[i];
+            if (has_bad(s) || has_bad(d)) continue;
+            if (s.a <= 0.0f) continue;
+            const float inv_sa = 1.0f - s.a;
+            d.r = s.r + d.r * inv_sa;
+            d.g = s.g + d.g * inv_sa;
+            d.b = s.b + d.b * inv_sa;
+            d.a = s.a + d.a * inv_sa;
+        }
+        return;
+    }
+
     HWY_DYNAMIC_DISPATCH(composite_normal_premul_impl)(reinterpret_cast<float*>(dst), reinterpret_cast<const float*>(src), pixel_count);
 }
 

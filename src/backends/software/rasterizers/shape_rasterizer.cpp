@@ -315,7 +315,13 @@ void draw_transformed_shape(Framebuffer& fb, const Shape& shape, const Mat4& mod
                         ? resolve_gradient_color(*fill, lp, sz, color.a)
                         : color;
 
-                    row[x] = compositor::blend(pixel_color, row[x], BlendMode::Normal);
+                    // Guard: skip NaN/Inf pixels to prevent framebuffer contamination.
+                    if (!std::isnan(pixel_color.r) && !std::isnan(pixel_color.g) &&
+                        !std::isnan(pixel_color.b) && !std::isnan(pixel_color.a) &&
+                        !std::isinf(pixel_color.r) && !std::isinf(pixel_color.g) &&
+                        !std::isinf(pixel_color.b) && !std::isinf(pixel_color.a)) {
+                        row[x] = compositor::blend(pixel_color, row[x], BlendMode::Normal);
+                    }
                 }
             }
             

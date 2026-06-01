@@ -46,6 +46,7 @@ Composition make_video_card_comp(float rotate_y, Vec2 card_size = {320, 180}) {
         .name = "VideoCard", .width = 640, .height = 360, .duration = 1
     }, [rotate_y, card_size](const FrameContext& ctx) {
         SceneBuilder s(ctx);
+        s.ambient_light(Color{1.0f, 1.0f, 1.0f, 1.0f}, 1.0f);
         s.camera().enable(true).position({0, 0, -800}).zoom(800).look_at({0, 0, 0});
 
         s.layer("video", [rotate_y, card_size](LayerBuilder& l) {
