@@ -87,11 +87,10 @@ inline void blend_pixel(Color& dst, const Color& src, BlendMode mode) {
         return;
     }
     if (mode == BlendMode::Add) {
-        // Clamp to prevent HDR overflow — consistent with composite_bl_image unmasked path.
-        dst.r = std::min(dst.r + src.r, 1.0f);
-        dst.g = std::min(dst.g + src.g, 1.0f);
-        dst.b = std::min(dst.b + src.b, 1.0f);
-        dst.a = std::min(dst.a + src.a, 1.0f);
+        dst.r += src.r;
+        dst.g += src.g;
+        dst.b += src.b;
+        dst.a += src.a;
     } else {
         const float inv_sa = 1.0f - src.a;
         dst.r = src.r + dst.r * inv_sa;

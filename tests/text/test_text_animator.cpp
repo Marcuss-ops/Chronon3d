@@ -150,7 +150,58 @@ TEST_CASE("TextAnimator builds with all animation options enabled") {
     ta.build(sb, "all_effects");
 
     Scene result = sb.build();
-    CHECK(result.layers().size() == 3);
+    REQUIRE(result.layers().size() == 3);
+    CHECK(result.layers()[0].anim_transform.opacity.is_animated());
+    CHECK(result.layers()[0].anim_transform.blur.is_animated());
+}
+
+TEST_CASE("TextAnimator blur reveal keyframes") {
+    SceneBuilder sb;
+
+    TextAnimator ta;
+    ta.text("AB")
+        .font_size(64.0f)
+        .color(Color::white())
+        .config({
+            .mode = TextAnimMode::ByCharacter,
+            .duration = Frame{20},
+            .delay_per_unit = Frame{6},
+            .easing = EasingCurve{Easing::OutCubic},
+            .animate_blur = true,
+            .blur_from = 18.0f,
+        });
+
+    ta.build(sb, "blur_reveal");
+
+    Scene result = sb.build();
+    REQUIRE(result.layers().size() == 2);
+
+    // Layer 0 (A): blur starts at 18, ends at 0 over frames 0..20
+    const auto& layer0 = result.layers()[0];
+    CHECK(layer0.anim_transform.blur.is_animated());
+    // At frame 0 the baked blur radius should be 18 (hold before start)
+    // The effect stack should contain a blur effect with the baked radius
+    REQUIRE(!layer0.effects.empty());
+    bool has_blur = false;
+    for (const auto& e : layer0.effects) {
+        if (auto* bp = std::get_if<BlurParams>(&e.params)) {
+            has_blur = true;
+            CHECK(bp->radius == doctest::Approx(18.0f));
+        }
+    }
+    CHECK(has_blur);
+
+    // Layer 1 (B): delay=6, so at global frame 0 blur is still at hold value 18
+    const auto& layer1 = result.layers()[1];
+    CHECK(layer1.anim_transform.blur.is_animated());
+    bool has_blur1 = false;
+    for (const auto& e : layer1.effects) {
+        if (auto* bp = std::get_if<BlurParams>(&e.params)) {
+            has_blur1 = true;
+            CHECK(bp->radius == doctest::Approx(18.0f));
+        }
+    }
+    CHECK(has_blur1);
 }
 
 TEST_CASE("TextAnimator layered build staggered keyframes") {

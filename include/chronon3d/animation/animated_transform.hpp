@@ -12,6 +12,7 @@ struct AnimatedTransform {
     AnimatedValue<Vec3> scale{Vec3(1.0f)};
     AnimatedValue<Vec3> anchor{Vec3(0.0f)};
     AnimatedValue<f32>  opacity{1.0f};
+    AnimatedValue<f32>  blur{0.0f};  // gaussian blur radius in pixels
 
     [[nodiscard]] Transform evaluate(Frame frame) const {
         Transform t;
@@ -26,7 +27,7 @@ struct AnimatedTransform {
     [[nodiscard]] bool is_animated() const {
         return position.is_animated() || rotation_euler.is_animated() ||
                scale.is_animated()    || anchor.is_animated() ||
-               opacity.is_animated();
+               opacity.is_animated() || blur.is_animated();
     }
 
     /// Shift every keyframe track by offset frames.
@@ -36,6 +37,7 @@ struct AnimatedTransform {
         scale.shift(offset);
         anchor.shift(offset);
         opacity.shift(offset);
+        blur.shift(offset);
     }
 };
 

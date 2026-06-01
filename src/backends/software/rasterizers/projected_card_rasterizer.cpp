@@ -142,15 +142,19 @@ void composite_projected_framebuffer(Framebuffer& dst, const Framebuffer& src,
 
             const Color src_c = src.sample(sx, sy, SamplingMode::Bilinear);
             if (src_c.a <= 0.001f) continue;
+            if (std::isnan(src_c.r) || std::isnan(src_c.g) || std::isnan(src_c.b) || std::isnan(src_c.a) ||
+                std::isinf(src_c.r) || std::isinf(src_c.g) || std::isinf(src_c.b) || std::isinf(src_c.a)) {
+                continue;
+            }
 
             const float final_a = src_c.a * opacity;
             Color& d = dst_row[x];
 
             if (mode == BlendMode::Add) {
-                d.r = std::min(d.r + src_c.r * opacity, 1.0f);
-                d.g = std::min(d.g + src_c.g * opacity, 1.0f);
-                d.b = std::min(d.b + src_c.b * opacity, 1.0f);
-                d.a = std::min(d.a + final_a, 1.0f);
+                d.r += src_c.r * opacity;
+                d.g += src_c.g * opacity;
+                d.b += src_c.b * opacity;
+                d.a += final_a;
             } else {
                 const float inv_a = 1.0f - final_a;
                 d.r = src_c.r * opacity + d.r * inv_a;
