@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/scene/shape.hpp>
+#include <chronon3d/text/text_material.hpp>
 #include <chronon3d/math/glm_types.hpp>
 #include <blend2d.h>
 #include <optional>
@@ -31,5 +32,9 @@ uint64_t hash_text_style(
     int padding,
     const Mat4* transform = nullptr
 );
+
+/// Apply TextMaterial effects (gradient, bevel, highlight, shade, emissive)
+/// to a rasterized text BLImage in-place.
+void apply_text_material(BLImage& img, const TextMaterial& mat);
 
 } // namespace chronon3d
