@@ -91,19 +91,55 @@ void apply_text_material(BLImage& img, const TextMaterial& mat) {
     }
 
     // ── 1. Gradient fill + emissive ────────────────────────────
-    // For each pixel, recompute color from top/bottom lerp and
-    // multiply by emissive. Preserve the original alpha.
-    for (int y = 0; y < h; ++y) {
-        const float t = (h > 1) ? static_cast<float>(y) / static_cast<float>(h - 1) : 0.5f;
-        const Color grad_color = mat.top_color * (1.0f - t) + mat.bottom_color * t;
-        const float emissive = mat.emissive;
+    float p_min = 0.0f;
+    float p_max = 0.0f;
+    float p_range = 1.0f;
+    float cos_a = 0.0f;
+    float sin_a = 1.0f;
 
+    if (std::abs(mat.gradient_angle - 90.0f) < 1e-4f) {
+        // Vertical gradient top-to-bottom
+        p_min = 0.0f;
+        p_max = static_cast<float>(h - 1);
+        p_range = (h > 1) ? p_max : 1.0f;
+        cos_a = 0.0f;
+        sin_a = 1.0f;
+    } else if (std::abs(mat.gradient_angle - 0.0f) < 1e-4f) {
+        // Horizontal gradient left-to-right
+        p_min = 0.0f;
+        p_max = static_cast<float>(w - 1);
+        p_range = (w > 1) ? p_max : 1.0f;
+        cos_a = 1.0f;
+        sin_a = 0.0f;
+    } else {
+        const float rad = mat.gradient_angle * (3.14159265f / 180.0f);
+        cos_a = std::cos(rad);
+        sin_a = std::sin(rad);
+        p_min = 1e10f;
+        p_max = -1e10f;
+        for (float cy : {0.0f, static_cast<float>(h - 1)}) {
+            for (float cx : {0.0f, static_cast<float>(w - 1)}) {
+                float proj = cx * cos_a + cy * sin_a;
+                p_min = std::min(p_min, proj);
+                p_max = std::max(p_max, proj);
+            }
+        }
+        p_range = (p_max > p_min + 1e-5f) ? (p_max - p_min) : 1.0f;
+    }
+
+    const float emissive = mat.emissive;
+
+    for (int y = 0; y < h; ++y) {
         for (int x = 0; x < w; ++x) {
             const float a = alpha[y * w + x];
             if (a <= 0.0f) {
                 pixels[y * stride + x] = 0;
                 continue;
             }
+
+            float proj = static_cast<float>(x) * cos_a + static_cast<float>(y) * sin_a;
+            float t = std::clamp((proj - p_min) / p_range, 0.0f, 1.0f);
+            const Color grad_color = mat.top_color * (1.0f - t) + mat.bottom_color * t;
 
             // Apply gradient color using the original alpha as mask
             float r = grad_color.r * emissive;
@@ -275,6 +311,84 @@ void apply_text_material(BLImage& img, const TextMaterial& mat) {
                     Color{0.0f, 0.0f, 0.0f, 1.0f},
                     sh_a
                 );
+            }
+        }
+    }
+
+    // ── 5. Inner Shadow ────────────────────────────────────────
+    if (mat.inner_shadow_enabled) {
+        auto box_blur = [](const std::vector<float>& src, std::vector<float>& dst, int w, int h, float radius) {
+            int r = static_cast<int>(std::round(radius));
+            if (r <= 0) {
+                dst = src;
+                return;
+            }
+            std::vector<float> tmp(src.size());
+            // Horizontal pass
+            for (int y = 0; y < h; ++y) {
+                for (int x = 0; x < w; ++x) {
+                    float sum = 0.0f;
+                    int count = 0;
+                    for (int k = -r; k <= r; ++k) {
+                        int nx = x + k;
+                        if (nx >= 0 && nx < w) {
+                            sum += src[y * w + nx];
+                            count++;
+                        }
+                    }
+                    tmp[y * w + x] = sum / count;
+                }
+            }
+            // Vertical pass
+            for (int y = 0; y < h; ++y) {
+                for (int x = 0; x < w; ++x) {
+                    float sum = 0.0f;
+                    int count = 0;
+                    for (int k = -r; k <= r; ++k) {
+                        int ny = y + k;
+                        if (ny >= 0 && ny < h) {
+                            sum += tmp[ny * w + x];
+                            count++;
+                        }
+                    }
+                    dst[y * w + x] = sum / count;
+                }
+            }
+        };
+
+        auto sample_inverted_alpha = [](int x, int y, float dx, float dy, const std::vector<float>& alpha, int w, int h) {
+            int sx = static_cast<int>(std::round(x - dx));
+            int sy = static_cast<int>(std::round(y - dy));
+            if (sx >= 0 && sx < w && sy >= 0 && sy < h) {
+                return 1.0f - alpha[sy * w + sx];
+            }
+            return 1.0f;
+        };
+
+        std::vector<float> inner_shadow_src(w * h);
+        for (int y = 0; y < h; ++y) {
+            for (int x = 0; x < w; ++x) {
+                inner_shadow_src[y * w + x] = sample_inverted_alpha(x, y, mat.inner_shadow_offset.x, mat.inner_shadow_offset.y, alpha, w, h);
+            }
+        }
+
+        std::vector<float> inner_shadow_blurred(w * h);
+        box_blur(inner_shadow_src, inner_shadow_blurred, w, h, mat.inner_shadow_blur);
+
+        // Blend inner shadow color inside the glyph bounds
+        for (int y = 0; y < h; ++y) {
+            for (int x = 0; x < w; ++x) {
+                const float orig_a = alpha[y * w + x];
+                if (orig_a <= 0.0f) continue;
+
+                const float shadow_opacity = inner_shadow_blurred[y * w + x] * mat.inner_shadow_color.a * orig_a;
+                if (shadow_opacity > 0.0f) {
+                    pixels[y * stride + x] = blend_over(
+                        pixels[y * stride + x],
+                        mat.inner_shadow_color,
+                        shadow_opacity
+                    );
+                }
             }
         }
     }

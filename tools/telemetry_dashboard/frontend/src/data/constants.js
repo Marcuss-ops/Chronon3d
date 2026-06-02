@@ -1,7 +1,7 @@
 const dashboardHost = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
 
-export const API_BASE = import.meta.env.DEV ? `http://${dashboardHost}:8000` : '';
-export const WS_BASE = import.meta.env.DEV ? `http://${dashboardHost}:8000` : window.location.origin;
+export const API_BASE = import.meta.env.DEV ? `http://${dashboardHost}:5005` : '';
+export const WS_BASE = import.meta.env.DEV ? `http://${dashboardHost}:5005` : window.location.origin;
 
 
 export const INFO_DESCRIPTIONS = {

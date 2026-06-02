@@ -119,78 +119,195 @@ Composition premium_thumbnail_saas_blue() {
     return composition({.name = "PremiumThumbnailSaaSBlue", .width = kW, .height = kH, .duration = 1},
     [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        deep_bg(s, Color{0.015f, 0.050f, 0.160f, 1.0f}, Color{0.020f, 0.120f, 0.260f, 1.0f});
+        
+        // 1. Deep blue gradient background
+        deep_bg(s, Color{0.004f, 0.012f, 0.040f, 1.0f}, Color{0.008f, 0.028f, 0.090f, 1.0f});
 
-        s.layer("arc", [](LayerBuilder& l) {
-            l.position({0.0f, 250.0f, 0.0f});
-            l.glow(30.0f, 1.0f, Color{0.12f, 0.60f, 1.0f, 1.0f});
-            l.rounded_rect("curve", {
-                .size = {1100.0f, 220.0f},
-                .radius = 110.0f,
-                .color = Color{0.10f, 0.55f, 1.0f, 0.18f},
-                .pos = {0.0f, 0.0f, 0.0f},
-                .fill = Fill::linear(
-                    {0.0f, 0.0f},
-                    {1.0f, 0.0f},
-                    {
-                        {0.0f, Color{0.08f, 0.45f, 1.0f, 0.12f}},
-                        {1.0f, Color{0.20f, 0.95f, 1.0f, 0.24f}},
-                    }
-                )
+        // 2. Volumetric Triangle Light Beam from top center downward
+        s.layer("light_beam", [](LayerBuilder& l) {
+            l.position({0.0f, 0.0f, 0.0f});
+            l.opacity(0.88f);
+            
+            PathParams p;
+            p.commands = {
+                PathCommand::move_to({0.0f, -512.0f}), // Top center
+                PathCommand::line_to({-768.0f, 512.0f}), // Bottom left
+                PathCommand::line_to({768.0f, 512.0f}), // Bottom right
+                PathCommand::close()
+            };
+            p.fill = Fill::linear(
+                {0.5f, 0.0f},
+                {0.5f, 1.0f},
+                {
+                    {0.0f, Color{0.0f, 0.82f, 1.0f, 0.38f}}, // Volumetric Cyan transparent at the top
+                    {1.0f, Color{0.008f, 0.050f, 0.220f, 0.00f}} // Fades out completely at the bottom
+                }
+            );
+            l.path("beam", p);
+        });
+
+        // 3. Central Eye Vector Graphic at the top center of the light beam
+        s.layer("eye_graphic", [](LayerBuilder& l) {
+            l.position({0.0f, -320.0f, 0.0f});
+            l.glow(24.0f, 0.85f, Color{0.0f, 0.8f, 1.0f, 0.40f});
+            
+            // Outer white sclera (stylized eye shape)
+            PathParams eye_sclera;
+            eye_sclera.commands = {
+                PathCommand::move_to({-180.0f, 0.0f}),
+                PathCommand::cubic_to({-90.0f, -100.0f}, {90.0f, -100.0f}, {180.0f, 0.0f}),
+                PathCommand::cubic_to({90.0f, 100.0f}, {-90.0f, 100.0f}, {-180.0f, 0.0f}),
+                PathCommand::close()
+            };
+            eye_sclera.fill = Fill::solid_color(Color::white());
+            l.path("sclera", eye_sclera);
+            
+            // Inner pupil (black circle)
+            l.circle("pupil", {
+                .radius = 60.0f,
+                .color = Color::black(),
+                .pos = {0.0f, 0.0f, 0.0f}
+            });
+            
+            // Iris shine (white circle)
+            l.circle("shine", {
+                .radius = 14.0f,
+                .color = Color::white(),
+                .pos = {18.0f, -18.0f, 0.0f}
             });
         });
 
-        add_hero_text(
-            s,
-            "SaaS",
-            "FULL TUTORIAL",
-            Fill::linear(
-                {0.0f, 0.40f},
-                {1.0f, 0.60f},
-                {
-                    {0.0f, Color{0.98f, 0.99f, 1.0f, 1.0f}},
-                    {0.55f, Color{0.55f, 0.83f, 1.0f, 1.0f}},
-                    {1.0f, Color{0.20f, 0.45f, 0.95f, 1.0f}},
-                }
-            ),
-            Color{0.12f, 0.55f, 1.0f, 1.0f},
-            Color{0.0f, 0.12f, 0.32f, 0.70f}
-        );
-
+        // 4. Upgraded "Ae" Branding Badge (Top Left)
         s.layer("badge", [](LayerBuilder& l) {
-            l.position({-470.0f, -250.0f, 0.0f});
-            l.rounded_rect("ae", {
-                .size = {110.0f, 110.0f},
-                .radius = 24.0f,
-                .color = Color{0.94f, 0.97f, 1.0f, 0.96f},
-                .pos = {0.0f, 0.0f, 0.0f},
+            l.position({-530.0f, -340.0f, 0.0f});
+            l.glow(22.0f, 0.70f, Color{0.0f, 0.78f, 1.0f, 0.50f});
+            l.drop_shadow({0.0f, 12.0f}, Color{0.0f, 0.0f, 0.0f, 0.45f}, 16.0f);
+            
+            // Outer border card
+            l.rounded_rect("ae_card_border", {
+                .size = {146.0f, 146.0f},
+                .radius = 34.0f,
+                .color = Color{0.0f, 0.82f, 1.0f, 0.85f}
+            });
+
+            // Inner filled card
+            l.rounded_rect("ae_card", {
+                .size = {138.0f, 138.0f},
+                .radius = 30.0f,
+                .color = Color::white(),
                 .fill = Fill::linear(
                     {0.0f, 0.0f},
                     {0.0f, 1.0f},
                     {
-                        {0.0f, Color{0.95f, 0.98f, 1.0f, 0.98f}},
-                        {1.0f, Color{0.55f, 0.84f, 1.0f, 0.96f}},
+                        {0.0f, Color{0.08f, 0.12f, 0.32f, 1.0f}},
+                        {1.0f, Color{0.01f, 0.02f, 0.08f, 1.0f}},
                     }
                 )
             });
+            
             l.text("ae_text", {
                 .text = "Ae",
-                .size = {110.0f, 110.0f},
-                .pos = {0.0f, 0.0f, 0.0f},
+                .size = {140.0f, 140.0f},
                 .font_path = "assets/fonts/Inter-Bold.ttf",
                 .font_family = "Inter",
                 .font_weight = 800,
-                .font_style = "normal",
-                .font_size = 40.0f,
-                .color = Color{0.10f, 0.12f, 0.18f, 1.0f},
+                .font_size = 56.0f,
+                .color = Color{0.0f, 0.82f, 1.0f, 1.0f},
                 .align = TextAlign::Center,
-                .vertical_align = VerticalAlign::Middle,
-                .line_height = 1.2f,
-                .tracking = 0.0f
+                .vertical_align = VerticalAlign::Middle
             });
         });
 
-        add_sparkles(s, Color{0.55f, 0.83f, 1.0f, 1.0f});
+        // 5. Four-pointed Star Sparkles / Glints (matching After Effects shine template)
+        s.layer("sparkles", [](LayerBuilder& l) {
+            l.glow(18.0f, 0.95f, Color::white());
+            
+            l.star("star1", {
+                .center = {420.0f, -280.0f},
+                .points = 4,
+                .inner_radius = 9.0f,
+                .outer_radius = 45.0f,
+                .color = Color::white()
+            });
+            
+            l.star("star2", {
+                .center = {-360.0f, -180.0f},
+                .points = 4,
+                .inner_radius = 6.0f,
+                .outer_radius = 28.0f,
+                .color = Color::white()
+            });
+        });
+
+        // 6. Premium Center SaaS Title + Wide Subtitle
+        s.layer("hero_text", [](LayerBuilder& l) {
+            l.position({0.0f, 60.0f, 0.0f});
+            l.glow(45.0f, 1.35f, Color{0.12f, 0.60f, 1.0f, 1.0f});
+            l.drop_shadow({0.0f, 16.0f}, Color{0.0f, 0.05f, 0.20f, 0.85f}, 28.0f);
+            
+            l.text("hero", {
+                .text = "SaaS",
+                .size = {1500.0f, 300.0f},
+                .font_path = "assets/fonts/Inter-Bold.ttf",
+                .font_family = "Inter",
+                .font_weight = 900,
+                .font_size = 180.0f,
+                .color = Color::white(),
+                .align = TextAlign::Center,
+                .vertical_align = VerticalAlign::Middle,
+                .tracking = -1.0f,
+                .paint = {
+                    .fill_style = Fill::linear(
+                        {0.5f, 0.0f},
+                        {0.5f, 1.0f},
+                        {
+                            {0.0f, Color{1.0f, 1.0f, 1.0f, 1.0f}},
+                            {0.52f, Color{0.68f, 0.88f, 1.0f, 1.0f}},
+                            {1.0f, Color{0.25f, 0.52f, 0.95f, 1.0f}},
+                        }
+                    ),
+                    .stroke_enabled = true,
+                    .stroke_color = Color{0.0f, 0.05f, 0.18f, 0.85f},
+                    .stroke_width = 4.5f
+                },
+                .wrap = TextWrap::None
+            });
+            
+            l.text("sub", {
+                .text = "FULL TUTORIAL",
+                .size = {1240.0f, 60.0f},
+                .pos = {0.0f, 150.0f, 0.0f},
+                .font_path = "assets/fonts/Inter-Bold.ttf",
+                .font_family = "Inter",
+                .font_weight = 700,
+                .font_size = 38.0f,
+                .color = Color{0.88f, 0.94f, 1.0f, 1.0f},
+                .align = TextAlign::Center,
+                .vertical_align = VerticalAlign::Middle,
+                .tracking = 14.0f // Beautiful wide tracking
+            });
+        });
+
+        // 7. Bright Curved Neon Horizon Line (Bottom)
+        s.layer("arc", [](LayerBuilder& l) {
+            l.position({0.0f, 480.0f, 0.0f});
+            l.glow(40.0f, 1.5f, Color{0.0f, 0.80f, 1.0f, 1.0f});
+            l.rounded_rect("curve", {
+                .size = {1600.0f, 160.0f},
+                .radius = 80.0f,
+                .color = Color{0.0f, 0.80f, 1.0f, 0.35f},
+                .fill = Fill::linear(
+                    {0.0f, 0.0f},
+                    {1.0f, 0.0f},
+                    {
+                        {0.0f, Color{0.00f, 0.35f, 1.0f, 0.10f}},
+                        {0.5f, Color{0.00f, 0.90f, 1.0f, 0.65f}},
+                        {1.0f, Color{0.00f, 0.35f, 1.0f, 0.10f}},
+                    }
+                )
+            });
+        });
+
         bottom_label(s, "Premium thumbnail base: SaaS blue");
         return s.build();
     });
