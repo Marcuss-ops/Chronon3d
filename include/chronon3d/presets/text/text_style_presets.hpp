@@ -117,4 +117,143 @@ inline TextStyle neon() {
     return style;
 }
 
+inline TextStyle premium_hero_title() {
+    TextStyle style;
+    style.font_family = "Inter";
+    style.font_weight = 900;
+    style.size = 108.0f;
+    style.color = Color{1.0f, 1.0f, 1.0f, 1.0f};
+    style.align = TextAlign::Center;
+    style.vertical_align = VerticalAlign::Middle;
+    style.line_height = 0.95f;
+    style.tracking = -1.0f;
+    style.paint.fill = Color{1.0f, 1.0f, 1.0f, 1.0f};
+    style.paint.fill_style = Fill::linear(
+        {0.0f, 0.0f},
+        {0.0f, 1.0f},
+        {
+            {0.0f, Color{1.0f, 0.94f, 0.52f, 1.0f}},
+            {0.52f, Color{1.0f, 0.30f, 0.82f, 1.0f}},
+            {1.0f, Color{0.78f, 0.18f, 0.96f, 1.0f}},
+        }
+    );
+    style.paint.stroke_enabled = true;
+    style.paint.stroke_color = Color{0.0f, 0.02f, 0.12f, 0.92f};
+    style.paint.stroke_width = 3.0f;
+    style.material = TextMaterial::premium();
+    style.material.top_color = {1.0f, 0.96f, 0.76f, 1.0f};
+    style.material.bottom_color = {0.95f, 0.40f, 0.88f, 1.0f};
+    style.material.bevel_px = 2.2f;
+    style.material.bevel_highlight_opacity = 0.55f;
+    style.material.bevel_shadow_opacity = 0.34f;
+    style.material.top_highlight_opacity = 0.28f;
+    style.material.bottom_shade_opacity = 0.18f;
+    style.material.emissive = 1.10f;
+    style.material.use_material_glow = true;
+    style.material.glow_radius = 24.0f;
+    style.material.glow_intensity = 0.92f;
+    style.material.glow_color = {0.55f, 0.72f, 1.0f, 0.75f};
+    style.material.use_material_shadow = true;
+    style.material.shadow_offset = {0.0f, 10.0f};
+    style.material.shadow_blur = 18.0f;
+    style.material.shadow_opacity = 0.50f;
+    style.material.shadow_color = {0.0f, 0.0f, 0.0f, 1.0f};
+    style.shadows.push_back(TextShadow{
+        .enabled = true,
+        .offset = {0.0f, 12.0f},
+        .blur = 28.0f,
+        .opacity = 0.28f,
+        .color = {0.0f, 0.0f, 0.0f, 1.0f},
+    });
+    style.shadows.push_back(TextShadow{
+        .enabled = true,
+        .offset = {0.0f, 0.0f},
+        .blur = 20.0f,
+        .opacity = 0.55f,
+        .color = {0.40f, 0.20f, 1.0f, 1.0f},
+    });
+    return style;
+}
+
+inline TextStyle premium_subtitle() {
+    TextStyle style;
+    style.font_family = "Inter";
+    style.font_weight = 700;
+    style.size = 28.0f;
+    style.color = Color{0.92f, 0.95f, 1.0f, 1.0f};
+    style.align = TextAlign::Center;
+    style.vertical_align = VerticalAlign::Middle;
+    style.line_height = 1.0f;
+    style.tracking = 1.2f;
+    style.paint.fill = Color{0.92f, 0.95f, 1.0f, 1.0f};
+    style.paint.fill_style = Fill::linear(
+        {0.0f, 0.0f},
+        {1.0f, 0.0f},
+        {
+            {0.0f, Color{1.0f, 1.0f, 1.0f, 1.0f}},
+            {1.0f, Color{0.70f, 0.88f, 1.0f, 1.0f}},
+        }
+    );
+    style.paint.stroke_enabled = true;
+    style.paint.stroke_color = Color{0.0f, 0.05f, 0.16f, 0.55f};
+    style.paint.stroke_width = 1.2f;
+    style.material = TextMaterial::glass();
+    style.material.top_color = {1.0f, 1.0f, 1.0f, 0.90f};
+    style.material.bottom_color = {0.80f, 0.90f, 1.0f, 0.82f};
+    style.material.bevel_px = 0.8f;
+    style.material.top_highlight_opacity = 0.22f;
+    style.material.bottom_shade_opacity = 0.10f;
+    style.material.glow_radius = 10.0f;
+    style.material.glow_intensity = 0.45f;
+    style.material.glow_color = {0.62f, 0.82f, 1.0f, 0.45f};
+    style.shadows.push_back(TextShadow{
+        .enabled = true,
+        .offset = {0.0f, 4.0f},
+        .blur = 10.0f,
+        .opacity = 0.35f,
+        .color = {0.0f, 0.0f, 0.0f, 1.0f},
+    });
+    return style;
+}
+
+inline TextStyle premium_cta() {
+    TextStyle style;
+    style.font_family = "Inter";
+    style.font_weight = 900;
+    style.size = 40.0f;
+    style.color = Color{1.0f, 1.0f, 1.0f, 1.0f};
+    style.align = TextAlign::Center;
+    style.vertical_align = VerticalAlign::Middle;
+    style.line_height = 1.0f;
+    style.tracking = 4.0f;
+    style.paint.fill = Color{1.0f, 1.0f, 1.0f, 1.0f};
+    style.paint.fill_style = Fill::linear(
+        {0.0f, 0.0f},
+        {1.0f, 0.0f},
+        {
+            {0.0f, Color{1.0f, 0.98f, 0.90f, 1.0f}},
+            {1.0f, Color{1.0f, 1.0f, 1.0f, 1.0f}},
+        }
+    );
+    style.paint.stroke_enabled = true;
+    style.paint.stroke_color = Color{0.10f, 0.04f, 0.12f, 0.55f};
+    style.paint.stroke_width = 1.0f;
+    style.material = TextMaterial::glass();
+    style.material.top_color = {1.0f, 1.0f, 1.0f, 0.98f};
+    style.material.bottom_color = {0.95f, 0.97f, 1.0f, 0.90f};
+    style.material.bevel_px = 0.9f;
+    style.material.use_material_glow = true;
+    style.material.glow_radius = 8.0f;
+    style.material.glow_intensity = 0.38f;
+    style.material.glow_color = {1.0f, 0.58f, 0.18f, 0.35f};
+    style.shadows.push_back(TextShadow{
+        .enabled = true,
+        .offset = {0.0f, 2.0f},
+        .blur = 8.0f,
+        .opacity = 0.25f,
+        .color = {0.0f, 0.0f, 0.0f, 1.0f},
+    });
+    return style;
+}
+
 } // namespace chronon3d::presets::text

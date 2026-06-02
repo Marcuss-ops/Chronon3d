@@ -1,5 +1,6 @@
 #include <chronon3d/core/composition/composition_registration.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
+#include <chronon3d/layout/design_kit.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/timeline/composition.hpp>
 
@@ -246,46 +247,56 @@ Composition text_premium_hero_buttery_smooth() {
             l.glow(22.0f, 0.55f, {0.90f, 0.18f, 0.92f, 1.0f});
         });
 
-        // Buttery text (left) and Smooth text (right)
+        // Buttery / Smooth / star as a single inline rich-text line.
         s.layer("hero", [cfg](LayerBuilder& l) {
             l.position({0.0f, -24.0f, 0.0f});
-            auto buttery_shadow = premium::shadow_style(
-                {0.10f,0.02f,0.12f,1}, {0.36f,0.08f,0.34f,1},
-                {0,8}, 16.0f, 0.24f, {0,52}, 170.0f, 0.06f);
-            auto smooth_shadow = premium::shadow_style(
-                {0.08f,0.04f,0.14f,1}, {0.18f,0.20f,0.42f,1},
-                {0,8}, 14.0f, 0.22f, {0,48}, 150.0f, 0.05f);
+            l.drop_shadow({0.0f, 10.0f}, {0.0f, 0.0f, 0.0f, 0.26f}, 20.0f);
+            l.glow(18.0f, 0.32f, {0.90f, 0.18f, 0.92f, 1.0f});
 
-            l.text("buttery", premium::hero_text(
-                "Buttery", {640.0f,170.0f}, {-200.0f,-10.0f,0}, 120.0f,
-                "assets/fonts/Inter-Bold.ttf","Inter",
-                {1,1,1,1},
-                Fill::linear({0,0},{1,0},{
-                    {0,{1,0.30f,0.92f,1}},{0.55f,{0.98f,0.12f,0.86f,1}},{1,{0.94f,0.18f,0.98f,1}}
-                }),
-                {0.12f,0.04f,0.18f,1}, 1.2f, -3.0f,
-                VerticalAlign::Middle, buttery_shadow
-            ));
-            l.text("smooth", premium::hero_text(
-                "Smooth", {560.0f,170.0f}, {400.0f,-10.0f,0}, 120.0f,
-                "assets/fonts/Inter-Bold.ttf","Inter",
-                {1,1,1,1},
-                Fill::linear({0,0},{1,0},{
-                    {0,{1,1,1,1}},{0.55f,{0.95f,0.98f,1,1}},{1,{0.80f,0.86f,0.98f,1}}
-                }),
-                {0.88f,0.16f,0.82f,0}, 0.0f, -2.0f,
-                VerticalAlign::Middle, smooth_shadow
-            ));
-            // Asterisk
-            l.text("asterisk", {
-                .text="*", .size={120,120}, .pos={650.0f,-14.0f,0},
-                .font_path="assets/fonts/Inter-Bold.ttf", .font_family="Inter",
-                .font_weight=900, .font_style="normal", .font_size=92.0f,
-                .color={1,0.20f,0.92f,1},
-                .align=TextAlign::Center, .vertical_align=VerticalAlign::Middle,
-                .paint={.fill={1,0.20f,0.92f,1}, .stroke_enabled=true, .stroke_color={1,0.78f,0.98f,0.95f}, .stroke_width=1.6f},
-                .shadows={premium::shadow({0,0},16,0.55f,{1,0.20f,0.92f,1}), premium::shadow({0,0},30,0.24f,{1,0.20f,0.92f,1})},
-            });
+            RichTextLine line;
+            line.run("Buttery", {1,1,1,1}, 120.0f, "assets/fonts/Inter-Bold.ttf")
+                .size(120.0f)
+                .tracking(-3.0f)
+                .paint(TextPaint{
+                    .fill = {1,1,1,1},
+                    .fill_style = Fill::linear({0,0},{1,0},{
+                        {0,{1,0.30f,0.92f,1}},
+                        {0.55f,{0.98f,0.12f,0.86f,1}},
+                        {1,{0.94f,0.18f,0.98f,1}}
+                    }),
+                    .stroke_enabled = true,
+                    .stroke_color = {0.12f,0.04f,0.18f,1},
+                    .stroke_width = 1.2f,
+                });
+            line.space(24.0f);
+            line.run("Smooth", {1,1,1,1}, 120.0f, "assets/fonts/Inter-Bold.ttf")
+                .size(120.0f)
+                .tracking(-2.0f)
+                .paint(TextPaint{
+                    .fill = {1,1,1,1},
+                    .fill_style = Fill::linear({0,0},{1,0},{
+                        {0,{1,1,1,1}},
+                        {0.55f,{0.95f,0.98f,1,1}},
+                        {1,{0.80f,0.86f,0.98f,1}}
+                    }),
+                    .stroke_enabled = true,
+                    .stroke_color = {0.88f,0.16f,0.82f,0},
+                    .stroke_width = 0.0f,
+                });
+            line.space(28.0f);
+            line.star({1,0.20f,0.92f,1}, 42.0f, 12.0f, 8);
+
+            draw_rich_text(
+                l,
+                line,
+                {0.0f, 0.0f, 0.0f},
+                {
+                    .anchor = RichTextAnchor::Center,
+                    .vertical_anchor = RichTextVerticalAnchor::Middle,
+                    .glyph_padding = 4.0f,
+                    .snap_to_pixels = true,
+                }
+            );
         });
 
         return s.build();
