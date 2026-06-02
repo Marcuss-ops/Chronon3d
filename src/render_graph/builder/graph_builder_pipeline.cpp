@@ -91,7 +91,8 @@ GraphNodeId build_matte_sub_pipeline(
 void append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
                            GraphNodeId& current, RenderGraphContext& ctx,
                            const Camera2_5DRuntime& cam25d,
-                           std::span<const ShadowCasterInfo> casters) {
+                           std::span<const ShadowCasterInfo> casters,
+                           const rendering::DepthGrade& depth_grade) {
     std::string prev_layer = g_current_builder_layer_id;
     g_current_builder_layer_id = std::string(item.layer->name);
 
@@ -150,6 +151,10 @@ void append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
 
     append_lighting_pass_if_needed(graph, layer_output, item, ctx);
     append_shadow_passes_if_needed(graph, layer_output, item, casters, ctx);
+
+    // Depth grading: per-layer fog / desaturation / contrast based on world Z
+    append_depth_grade_pass_if_needed(graph, layer_output, item, ctx, depth_grade);
+
     append_effect_pass_if_needed(graph, layer_output, *item.layer, item, cam25d);
 
     if (layer.track_matte.active() && item.matte_node != k_invalid_node) {
@@ -683,7 +688,7 @@ RenderGraph build_graph(const Scene& scene, RenderGraphContext& ctx,
                 item.matte_node = build_matte_sub_pipeline(graph, matte_item, ctx);
             }
         }
-        append_layer_pipeline(graph, item, current, ctx, cam25d, casters);
+        append_layer_pipeline(graph, item, current, ctx, cam25d, casters, scene.depth_grade());
     };
 
     std::vector<LayerGraphItem> current_3d_bin;

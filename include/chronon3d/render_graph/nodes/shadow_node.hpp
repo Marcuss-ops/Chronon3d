@@ -49,6 +49,10 @@ public:
         h = hash_combine(h, hash_value(m_settings.contact_blur_radius));
         h = hash_combine(h, hash_value(m_settings.ambient_opacity));
         h = hash_combine(h, hash_value(m_settings.ambient_blur_radius));
+        h = hash_combine(h, hash_value(m_settings.depth_aware));
+        h = hash_combine(h, hash_value(m_settings.blur_per_z));
+        h = hash_combine(h, hash_value(m_settings.opacity_falloff));
+        h = hash_combine(h, hash_color(m_settings.tint));
         return cache::NodeCacheKey{
             .scope = "shadow:" + m_caster_name,
             .frame = frame_dependent() ? ctx.frame : Frame{0},
@@ -72,7 +76,8 @@ public:
 
         const float dz = m_caster_world_z - m_receiver_world_z;
         const float depth = std::abs(dz);
-        const float depth_blur_scale = 1.0f + depth * 0.0030f;
+        const float depth_blur_factor_b = m_settings.depth_aware ? m_settings.blur_per_z : 0.0030f;
+        const float depth_blur_scale = 1.0f + depth * depth_blur_factor_b;
         const float eps = 1e-4f;
         const float safe_y = std::abs(m_light_dir.y) > eps
             ? m_light_dir.y
@@ -118,8 +123,10 @@ public:
         // Screen-space offset: dz = caster_z - receiver_z, then project along light XZ.
         const float dz = m_caster_world_z - m_receiver_world_z;
         const float depth = std::abs(dz);
-        const float depth_blur_scale = 1.0f + depth * 0.0030f;
-        const float depth_opacity_scale = 1.0f / (1.0f + depth * 0.0025f);
+        const float depth_blur_factor = m_settings.depth_aware ? m_settings.blur_per_z : 0.0030f;
+        const float depth_falloff_factor = m_settings.depth_aware ? m_settings.opacity_falloff : 0.0025f;
+        const float depth_blur_scale = 1.0f + depth * depth_blur_factor;
+        const float depth_opacity_scale = 1.0f / (1.0f + depth * depth_falloff_factor);
         const float eps = 1e-4f;
         const float safe_y = std::abs(m_light_dir.y) > eps
             ? m_light_dir.y
@@ -174,7 +181,7 @@ public:
             return shadow_fb;
         };
 
-        const Color shadow_tint{0.03f, 0.04f, 0.08f, 1.0f};
+        const Color shadow_tint = m_settings.depth_aware ? m_settings.tint : Color{0.03f, 0.04f, 0.08f, 1.0f};
         auto contact = render_shadow_layer(m_settings.contact_opacity, contact_blur, 1.0f, shadow_tint);
         auto ambient = render_shadow_layer(m_settings.ambient_opacity, ambient_blur, 1.75f, shadow_tint);
 

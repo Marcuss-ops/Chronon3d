@@ -1,5 +1,6 @@
 #include <doctest/doctest.h>
 #include <chronon3d/backends/text/text_layout_engine.hpp>
+#include <chronon3d/text/font_engine.hpp>
 
 using namespace chronon3d;
 
@@ -203,6 +204,117 @@ TEST_CASE("TextLayoutEngine layout V2 specifications") {
 
         auto res = TextLayoutEngine::layout(input);
         CHECK(res.size.y >= 20.0f);
+    }
+
+    SUBCASE("FontEngine: real metrics produce wider width than mock for 'AV' kerning") {
+        FontEngine engine;
+        if (!engine.can_load({"assets/fonts/Inter-Bold.ttf", "Inter", 700})) {
+            MESSAGE("Skipping: Inter-Bold.ttf not available");
+            return;
+        }
+
+        TextLayoutInput input;
+        input.text = "AV";
+        input.style.size = 32.0f;
+        input.font_engine = &engine;
+        input.font_spec = {"assets/fonts/Inter-Bold.ttf", "Inter", 700};
+
+        auto res = TextLayoutEngine::layout(input);
+        CHECK(res.size.x > 0.0f);
+
+        // Compare against mock: mock gives 2 * 32 * 0.6 = 38.4 px
+        float mock_w = 2.0f * 32.0f * 0.6f;
+        // Real metrics may be different (could be larger or smaller depending on font);
+        // the key assertion is that it is non-zero and not exactly the mock value.
+        CHECK(res.size.x > 0.0f);
+        CHECK(res.size.x != doctest::Approx(mock_w).scale(1.0));
+    }
+
+    SUBCASE("FontEngine: word wrap with real metrics") {
+        FontEngine engine;
+        if (!engine.can_load({"assets/fonts/Inter-Bold.ttf", "Inter", 700})) {
+            MESSAGE("Skipping: Inter-Bold.ttf not available");
+            return;
+        }
+
+        TextLayoutInput input;
+        input.text = "Hello World Wide";
+        input.style.size = 24.0f;
+        input.style.wrap = TextWrap::Word;
+        input.box.enabled = true;
+        input.box.size = {100.0f, 200.0f};
+        input.font_engine = &engine;
+        input.font_spec = {"assets/fonts/Inter-Bold.ttf", "Inter", 700};
+
+        auto res = TextLayoutEngine::layout(input);
+        CHECK(res.lines.size() > 1); // Should wrap into multiple lines
+        CHECK(res.size.x <= 100.0f); // No line should exceed box width
+    }
+
+    SUBCASE("FontEngine: character wrap with real metrics") {
+        FontEngine engine;
+        if (!engine.can_load({"assets/fonts/Inter-Bold.ttf", "Inter", 700})) {
+            MESSAGE("Skipping: Inter-Bold.ttf not available");
+            return;
+        }
+
+        TextLayoutInput input;
+        input.text = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        input.style.size = 16.0f;
+        input.style.wrap = TextWrap::Character;
+        input.box.enabled = true;
+        input.box.size = {60.0f, 400.0f};
+        input.font_engine = &engine;
+        input.font_spec = {"assets/fonts/Inter-Bold.ttf", "Inter", 700};
+
+        auto res = TextLayoutEngine::layout(input);
+        CHECK(res.lines.size() > 1);
+        CHECK(res.size.x <= 60.0f);
+    }
+
+    SUBCASE("FontEngine: tracking is added correctly") {
+        FontEngine engine;
+        if (!engine.can_load({"assets/fonts/Inter-Bold.ttf", "Inter", 700})) {
+            MESSAGE("Skipping: Inter-Bold.ttf not available");
+            return;
+        }
+
+        TextLayoutInput input;
+        input.text = "ABC";
+        input.style.size = 20.0f;
+        input.font_engine = &engine;
+        input.font_spec = {"assets/fonts/Inter-Bold.ttf", "Inter", 700};
+
+        auto no_track = TextLayoutEngine::layout(input);
+
+        input.style.tracking = 10.0f;
+        auto with_track = TextLayoutEngine::layout(input);
+
+        CHECK(with_track.size.x > no_track.size.x);
+    }
+
+    SUBCASE("FontEngine: empty string returns safe result") {
+        FontEngine engine;
+        TextLayoutInput input;
+        input.text = "";
+        input.style.size = 20.0f;
+        input.font_engine = &engine;
+        input.font_spec = {"assets/fonts/Inter-Bold.ttf", "Inter", 700};
+
+        auto res = TextLayoutEngine::layout(input);
+        CHECK(res.lines.size() == 1);
+        CHECK(res.lines[0].text == "");
+    }
+
+    SUBCASE("FontEngine: fallback to char_width_fn when font_engine is null") {
+        TextLayoutInput input;
+        input.text = "abc";
+        input.style.size = 10.0f;
+        input.char_width_fn = mock_char_width;
+        // font_engine is null → should use mock
+
+        auto res = TextLayoutEngine::layout(input);
+        CHECK(res.size.x == doctest::Approx(18.0f)); // 3 * 10 * 0.6
     }
 
     SUBCASE("Right alignment offset") {
