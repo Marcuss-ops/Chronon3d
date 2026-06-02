@@ -354,11 +354,75 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     const float text_block_w = std::max(1.0f, layout_res.size.x);
     const float text_block_h = std::max(1.0f, layout_res.size.y);
 
+    auto resolve_fill_color = [](const TextStyle& style) {
+        Color resolved = style.paint.fill;
+        if (resolved == Color{1.0f, 1.0f, 1.0f, 1.0f} && !(style.color == Color{1.0f, 1.0f, 1.0f, 1.0f})) {
+            resolved = style.color;
+        }
+        return resolved;
+    };
+
+    auto resolve_font_face = [&](const TextStyle& style) {
+        const std::string path = style.font_path.empty() ? t.style.font_path : style.font_path;
+        return blend2d_resources().get_face(path);
+    };
+
+    auto render_run = [&](const TextLayoutLineRun& run, const TextLayoutLine& line) {
+        if (run.text.empty()) {
+            return;
+        }
+
+        TextStyle run_style = run.style;
+        if (run_style.font_path.empty()) run_style.font_path = t.style.font_path;
+        if (run_style.font_family.empty()) run_style.font_family = t.style.font_family;
+        if (run_style.font_style.empty()) run_style.font_style = t.style.font_style;
+        if (run_style.font_weight == 0) run_style.font_weight = t.style.font_weight;
+        if (run_style.size <= 0.0f) run_style.size = layout_res.font_size;
+        if (run_style.line_height <= 0.0f) run_style.line_height = t.style.line_height;
+
+        BLFontFace run_face = resolve_font_face(run_style);
+        if (run_face.empty()) {
+            return;
+        }
+
+        BLFont run_font;
+        run_font.createFromFace(run_face, std::max(1.0f, run_style.size));
+
+        const float baseline_y = text_start_y + line.position.y + line.baseline;
+        const float lx = text_start_x + run.position.x;
+        const Color run_fill = resolve_fill_color(run_style);
+
+        if (run_style.paint.stroke_enabled && run_style.paint.stroke_width > 0.0f) {
+            ctx.setStrokeWidth(run_style.paint.stroke_width);
+            ctx.setStrokeStyle(to_bl_rgba(run_style.paint.stroke_color));
+            ctx.strokeUtf8Text(BLPoint(lx, baseline_y), run_font, run.text.c_str());
+        }
+
+        apply_text_fill_style(
+            ctx,
+            run_style,
+            run_fill,
+            text_start_x,
+            text_start_y,
+            std::max(1.0f, run.width),
+            line.baseline + line.descent
+        );
+        ctx.fillUtf8Text(BLPoint(lx, baseline_y), run_font, run.text.c_str());
+    };
+
     for (const auto& line : layout_res.lines) {
         if (line.text.empty()) continue;
 
-        float lx = text_start_x + line.position.x;
-        float ly = text_start_y + line.position.y + font.metrics().ascent;
+        if (line.runs.size() > 1) {
+            for (const auto& run : line.runs) {
+                render_run(run, line);
+            }
+            continue;
+        }
+
+        const float lx = text_start_x + line.position.x;
+        const float ly = text_start_y + line.position.y + line.baseline;
+        const Color line_fill = resolve_fill_color(t.style);
 
         if (t.style.paint.stroke_enabled && t.style.paint.stroke_width > 0.0f) {
             ctx.setStrokeWidth(t.style.paint.stroke_width);
@@ -369,7 +433,7 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
         apply_text_fill_style(
             ctx,
             t.style,
-            fill_color,
+            line_fill,
             text_start_x,
             text_start_y,
             text_block_w,

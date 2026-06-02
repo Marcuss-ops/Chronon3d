@@ -47,6 +47,7 @@ add_executable(chronon3d_core_tests
     text/test_text_cache_key.cpp
     text/test_text_animator.cpp
     text/test_text_material.cpp
+    text/test_text_style_presets.cpp
     text/test_font_engine.cpp
     media/test_media_placement.cpp
     scene_presets/test_scene_presets.cpp
@@ -83,6 +84,7 @@ add_executable(chronon3d_scene_tests
     scene/camera/test_camera_hierarchy.cpp
     scene/layout/test_layer_builder_animated.cpp
     scene/rendering/test_render_node_factory.cpp
+    layout/test_design_kit.cpp
     scene/rendering/test_depth_role.cpp
     scene/layout/test_layout_solver.cpp
     presets/test_presets.cpp

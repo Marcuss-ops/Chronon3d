@@ -15,6 +15,7 @@ struct RectParams {
     Color color{1, 1, 1, 1};
     Vec3 pos{0, 0, 0};
     std::optional<Fill> fill{};
+    ShapeStroke stroke{};
 };
 
 struct RoundedRectParams {
@@ -23,6 +24,7 @@ struct RoundedRectParams {
     Color color{1, 1, 1, 1};
     Vec3 pos{0, 0, 0};
     std::optional<Fill> fill{};
+    ShapeStroke stroke{};
 };
 
 struct CircleParams {
@@ -30,11 +32,16 @@ struct CircleParams {
     Color color{1, 1, 1, 1};
     Vec3 pos{0, 0, 0};
     std::optional<Fill> fill{};
+    ShapeStroke stroke{};
 };
 
 struct StrokeParams {
     f32 trim_start{0.0f};  // normalised [0..1]
     f32 trim_end{1.0f};
+    bool enabled{true};
+    Color color{1.0f, 1.0f, 1.0f, 1.0f};
+    f32 width{1.0f};
+    StrokeAlignment alignment{StrokeAlignment::Center};
 };
 
 struct LineParams {

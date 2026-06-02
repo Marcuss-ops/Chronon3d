@@ -1,6 +1,7 @@
 #pragma once
 
 #include <optional>
+#include <chronon3d/layout/design_kit.hpp>
 #include "style_config.hpp"
 
 namespace chronon3d::content::text::style {
@@ -93,12 +94,12 @@ inline void add_corner_shapes(SceneBuilder& s, const StyleConfig& cfg) {
 
 // ── 4. Hero title ─────────────────────────────────────────────────────────────
 inline void add_hero_title(SceneBuilder& s, const StyleConfig& cfg,
-                           const std::string& text,
+                           const RichTextLine& line,
                            std::optional<Vec3> pos_override = std::nullopt,
                            std::optional<Vec2> box_override = std::nullopt)
 {
     const Vec3 pos = pos_override.value_or(cfg.typography.hero_pos);
-    const Vec2 box = box_override.value_or(cfg.typography.hero_box);
+    [[maybe_unused]] const Vec2 box = box_override.value_or(cfg.typography.hero_box);
 
     s.layer("hero", [&](LayerBuilder& l) {
         l.position({0.0f, -8.0f, 0.0f});
@@ -108,20 +109,42 @@ inline void add_hero_title(SceneBuilder& s, const StyleConfig& cfg,
             Color{0.0f, 0.0f, 0.0f, cfg.fx.shadow_strength * 0.7f},
             cfg.fx.hero_shadow_blur
         );
+        RichTextLine rich = line;
+        if (rich.runs().empty()) {
+            rich.run("", cfg.palette.text_main, cfg.typography.hero_size, "assets/fonts/Inter-Bold.ttf");
+        }
+        rich.size(cfg.typography.hero_size)
+            .tracking(cfg.typography.hero_tracking)
+            .paint(TextPaint{
+                .fill = cfg.palette.text_main,
+                .fill_style = cfg.hero_gradient(),
+                .stroke_enabled = true,
+                .stroke_color = cfg.stroke_color(),
+                .stroke_width = 1.5f,
+            });
 
-        auto tp = premium::hero_text(
-            text, box, pos, cfg.typography.hero_size,
-            "assets/fonts/Inter-Bold.ttf", "Inter",
-            cfg.palette.text_main,
-            cfg.hero_gradient(),
-            cfg.stroke_color(),
-            1.5f,
-            cfg.typography.hero_tracking,
-            VerticalAlign::Middle,
-            cfg.hero_shadow()
+        draw_rich_text(
+            l,
+            rich,
+            pos,
+            {
+                .anchor = RichTextAnchor::Center,
+                .vertical_anchor = RichTextVerticalAnchor::Middle,
+                .glyph_padding = 4.0f,
+                .snap_to_pixels = true,
+            }
         );
-        l.text("title", tp);
     });
+}
+
+inline void add_hero_title(SceneBuilder& s, const StyleConfig& cfg,
+                           const std::string& text,
+                           std::optional<Vec3> pos_override = std::nullopt,
+                           std::optional<Vec2> box_override = std::nullopt)
+{
+    RichTextLine line;
+    line.run(text, cfg.palette.text_main, cfg.typography.hero_size, "assets/fonts/Inter-Bold.ttf");
+    add_hero_title(s, cfg, line, pos_override, box_override);
 }
 
 // ── 5. Subtitle ───────────────────────────────────────────────────────────────
@@ -132,33 +155,56 @@ struct SubtitleParams {
 };
 
 inline void add_subtitle(SceneBuilder& s, const StyleConfig& cfg,
-                         const std::string& text,
+                         const RichTextLine& line,
                          std::optional<Vec3> pos_override = std::nullopt,
                          std::optional<Vec2> box_override = std::nullopt)
 {
     const Vec3 pos = pos_override.value_or(cfg.typography.subtitle_pos);
-    const Vec2 box = box_override.value_or(cfg.typography.subtitle_box);
+    [[maybe_unused]] const Vec2 box = box_override.value_or(cfg.typography.subtitle_box);
 
     s.layer("subtitle", [&](LayerBuilder& l) {
         l.position({0.0f, -8.0f, 0.0f});
-        auto tp = premium::subtitle_text(
-            text, box, pos,
-            cfg.typography.subtitle_size,
-            cfg.palette.text_sub,
-            cfg.typography.subtitle_tracking
+        RichTextLine rich = line;
+        if (rich.runs().empty()) {
+            rich.run("", cfg.palette.text_sub, cfg.typography.subtitle_size, "assets/fonts/Inter-Regular.ttf");
+        }
+        rich.size(cfg.typography.subtitle_size)
+            .tracking(cfg.typography.subtitle_tracking)
+            .paint(TextPaint{
+                .fill = cfg.palette.text_sub,
+            });
+        draw_rich_text(
+            l,
+            rich,
+            pos,
+            {
+                .anchor = RichTextAnchor::Center,
+                .vertical_anchor = RichTextVerticalAnchor::Middle,
+                .glyph_padding = 2.0f,
+                .snap_to_pixels = true,
+            }
         );
-        l.text("subtitle", tp);
     });
+}
+
+inline void add_subtitle(SceneBuilder& s, const StyleConfig& cfg,
+                         const std::string& text,
+                         std::optional<Vec3> pos_override = std::nullopt,
+                         std::optional<Vec2> box_override = std::nullopt)
+{
+    RichTextLine line;
+    line.run(text, cfg.palette.text_sub, cfg.typography.subtitle_size, "assets/fonts/Inter-Regular.ttf");
+    add_subtitle(s, cfg, line, pos_override, box_override);
 }
 
 // ── 6. Gradient CTA button ────────────────────────────────────────────────────
 inline void add_gradient_button(SceneBuilder& s, const StyleConfig& cfg,
-                                const std::string& text,
+                                const RichTextLine& line,
                                 std::optional<Vec3> pos_override = std::nullopt,
                                 std::optional<Vec2> box_override = std::nullopt)
 {
     const Vec3 pos  = pos_override.value_or(cfg.typography.button_pos);
-    const Vec2 box  = box_override.value_or(cfg.typography.button_box);
+    [[maybe_unused]] const Vec2 box  = box_override.value_or(cfg.typography.button_box);
 
     s.layer("cta", [&](LayerBuilder& l) {
         l.position(pos);
@@ -184,24 +230,37 @@ inline void add_gradient_button(SceneBuilder& s, const StyleConfig& cfg,
             .pos = {0.0f, 0.0f, 0.0f},
             .fill = cfg.button_gradient(),
         });
-        // Button text
-        l.text("label", {
-            .text = text,
-            .size = box,
-            .pos = {0.0f, 0.0f, 0.0f},
-            .font_path = "assets/fonts/Inter-Bold.ttf",
-            .font_family = "Inter",
-            .font_weight = 900,
-            .font_style = "normal",
-            .font_size = cfg.typography.button_size,
-            .color = {1.0f, 1.0f, 1.0f, 1.0f},
-            .align = TextAlign::Center,
-            .vertical_align = VerticalAlign::Middle,
-            .tracking = cfg.typography.button_tracking,
-            .paint = {.fill = {1.0f, 1.0f, 1.0f, 1.0f}},
-            .wrap = TextWrap::None,
-        });
+        RichTextLine rich = line;
+        if (rich.runs().empty()) {
+            rich.run("", {1.0f, 1.0f, 1.0f, 1.0f}, cfg.typography.button_size, "assets/fonts/Inter-Bold.ttf");
+        }
+        rich.size(cfg.typography.button_size)
+            .tracking(cfg.typography.button_tracking)
+            .paint(TextPaint{
+                .fill = {1.0f, 1.0f, 1.0f, 1.0f},
+            });
+        draw_rich_text(
+            l,
+            rich,
+            pos,
+            {
+                .anchor = RichTextAnchor::Center,
+                .vertical_anchor = RichTextVerticalAnchor::Middle,
+                .glyph_padding = 2.0f,
+                .snap_to_pixels = true,
+            }
+        );
     });
+}
+
+inline void add_gradient_button(SceneBuilder& s, const StyleConfig& cfg,
+                                const std::string& text,
+                                std::optional<Vec3> pos_override = std::nullopt,
+                                std::optional<Vec2> box_override = std::nullopt)
+{
+    RichTextLine line;
+    line.run(text, {1.0f, 1.0f, 1.0f, 1.0f}, cfg.typography.button_size, "assets/fonts/Inter-Bold.ttf");
+    add_gradient_button(s, cfg, line, pos_override, box_override);
 }
 
 // ── 7. App badge (Ae-style) ───────────────────────────────────────────────────

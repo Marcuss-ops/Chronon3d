@@ -20,15 +20,21 @@ public:
 
         Vec4 p0 = state.matrix * Vec4(local_start, 1);
         Vec4 p1 = state.matrix * Vec4(local_end,   1);
-        Color col = node.color.to_linear();
-        col.a *= state.opacity;
-        bline(fb, Vec2(p0.x, p0.y), Vec2(p1.x, p1.y), col, node.shape.line.thickness, state.clip_rect);
+        Color col = stroke.enabled ? stroke.color.to_linear() : node.color.to_linear();
+        if (stroke.enabled && stroke.color.a > 0.0f) {
+            col.a *= state.opacity;
+        } else {
+            col.a *= state.opacity;
+        }
+        const f32 thickness = stroke.enabled ? std::max(0.0f, stroke.width) : node.shape.line.thickness;
+        bline(fb, Vec2(p0.x, p0.y), Vec2(p1.x, p1.y), col, thickness, state.clip_rect);
     }
 
     raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 spread) override {
         Vec4 p0 = model * Vec4(0, 0, 0, 1);
         Vec4 p1 = model * Vec4(shape.line.to, 1);
-        const f32 pad = spread + std::max(kBBoxSafetyPadding, shape.line.thickness * 0.5f);
+        const f32 thickness = shape.line.stroke.enabled ? std::max(shape.line.stroke.width, shape.line.thickness) : shape.line.thickness;
+        const f32 pad = spread + std::max(kBBoxSafetyPadding, thickness * 0.5f);
         return {
             static_cast<i32>(std::floor(std::min(p0.x, p1.x) - pad)),
             static_cast<i32>(std::floor(std::min(p0.y, p1.y) - pad)),

@@ -103,6 +103,141 @@ Vec2 shape_size_for_fill(const Shape& shape) {
     }
 }
 
+f32 stroke_width_for_shape(const Shape& shape) {
+    switch (shape.type) {
+        case ShapeType::Rect:
+            return shape.rect.stroke.enabled ? std::max(0.0f, shape.rect.stroke.width) : 0.0f;
+        case ShapeType::RoundedRect:
+            return shape.rounded_rect.stroke.enabled ? std::max(0.0f, shape.rounded_rect.stroke.width) : 0.0f;
+        case ShapeType::Circle:
+            return shape.circle.stroke.enabled ? std::max(0.0f, shape.circle.stroke.width) : 0.0f;
+        default:
+            return 0.0f;
+    }
+}
+
+StrokeAlignment stroke_alignment_for_shape(const Shape& shape) {
+    switch (shape.type) {
+        case ShapeType::Rect:
+            return shape.rect.stroke.alignment;
+        case ShapeType::RoundedRect:
+            return shape.rounded_rect.stroke.alignment;
+        case ShapeType::Circle:
+            return shape.circle.stroke.alignment;
+        default:
+            return StrokeAlignment::Center;
+    }
+}
+
+Color stroke_color_for_shape(const Shape& shape) {
+    switch (shape.type) {
+        case ShapeType::Rect:
+            return shape.rect.stroke.color.to_linear();
+        case ShapeType::RoundedRect:
+            return shape.rounded_rect.stroke.color.to_linear();
+        case ShapeType::Circle:
+            return shape.circle.stroke.color.to_linear();
+        default:
+            return Color{0.0f, 0.0f, 0.0f, 1.0f};
+    }
+}
+
+bool hit_test_rect_like(const Vec2& p, Vec2 size, f32 corner_radius, f32 spread) {
+    if (corner_radius > 0.0f) {
+        const f32 w = size.x;
+        const f32 h = size.y;
+        const f32 r = std::max(0.0f, std::min({corner_radius, w * 0.5f, h * 0.5f}));
+
+        if (p.x < -spread || p.x > w + spread || p.y < -spread || p.y > h + spread) return false;
+
+        const f32 r_spread = r + spread;
+        if (p.x < r && p.y < r) {
+            const f32 dx = p.x - r;
+            const f32 dy = p.y - r;
+            return (dx * dx + dy * dy) <= r_spread * r_spread;
+        }
+        if (p.x > w - r && p.y < r) {
+            const f32 dx = p.x - (w - r);
+            const f32 dy = p.y - r;
+            return (dx * dx + dy * dy) <= r_spread * r_spread;
+        }
+        if (p.x < r && p.y > h - r) {
+            const f32 dx = p.x - r;
+            const f32 dy = p.y - (h - r);
+            return (dx * dx + dy * dy) <= r_spread * r_spread;
+        }
+        if (p.x > w - r && p.y > h - r) {
+            const f32 dx = p.x - (w - r);
+            const f32 dy = p.y - (h - r);
+            return (dx * dx + dy * dy) <= r_spread * r_spread;
+        }
+        return true;
+    }
+
+    return p.x >= -spread && p.x < size.x + spread &&
+           p.y >= -spread && p.y < size.y + spread;
+}
+
+bool hit_test_shape_fill(const Shape& shape, Vec2 p, f32 spread, f32 corner_radius) {
+    switch (shape.type) {
+        case ShapeType::Rect:
+            return hit_test_rect_like(p, shape.rect.size, corner_radius, spread);
+        case ShapeType::RoundedRect:
+            return hit_test_rect_like(p, shape.rounded_rect.size, shape.rounded_rect.radius, spread);
+        case ShapeType::Circle: {
+            const f32 r = shape.circle.radius + spread;
+            const f32 dx = p.x - shape.circle.radius;
+            const f32 dy = p.y - shape.circle.radius;
+            return (dx * dx + dy * dy) <= r * r;
+        }
+        default:
+            return hit_test(shape, p, spread, corner_radius);
+    }
+}
+
+bool hit_test_shape_stroke(const Shape& shape, Vec2 p, f32 spread, f32 corner_radius) {
+    const f32 stroke = stroke_width_for_shape(shape);
+    if (stroke <= 0.0f) {
+        return false;
+    }
+
+    const auto alignment = stroke_alignment_for_shape(shape);
+    const f32 half = stroke * 0.5f;
+    const f32 outer_spread = alignment == StrokeAlignment::Inside ? spread : spread + half;
+    const f32 inner_spread = alignment == StrokeAlignment::Outside ? spread : std::max(0.0f, spread - half);
+
+    switch (shape.type) {
+        case ShapeType::Rect: {
+            const Vec2 outer_size = alignment == StrokeAlignment::Inside ? shape.rect.size : shape.rect.size + Vec2{stroke, stroke};
+            const Vec2 inner_size = alignment == StrokeAlignment::Outside ? shape.rect.size : Vec2{std::max(0.0f, shape.rect.size.x - stroke), std::max(0.0f, shape.rect.size.y - stroke)};
+            const f32 outer_radius = alignment == StrokeAlignment::Inside ? corner_radius : std::max(0.0f, corner_radius + half);
+            const f32 inner_radius = alignment == StrokeAlignment::Outside ? corner_radius : std::max(0.0f, corner_radius - half);
+            return hit_test_rect_like(p, outer_size, outer_radius, outer_spread) &&
+                   !hit_test_rect_like(p, inner_size, inner_radius, inner_spread);
+        }
+        case ShapeType::RoundedRect: {
+            const Vec2 outer_size = alignment == StrokeAlignment::Inside ? shape.rounded_rect.size : shape.rounded_rect.size + Vec2{stroke, stroke};
+            const Vec2 inner_size = alignment == StrokeAlignment::Outside ? shape.rounded_rect.size : Vec2{std::max(0.0f, shape.rounded_rect.size.x - stroke), std::max(0.0f, shape.rounded_rect.size.y - stroke)};
+            const f32 outer_radius = alignment == StrokeAlignment::Inside ? shape.rounded_rect.radius : shape.rounded_rect.radius + half;
+            const f32 inner_radius = alignment == StrokeAlignment::Outside ? shape.rounded_rect.radius : std::max(0.0f, shape.rounded_rect.radius - half);
+            return hit_test_rect_like(p, outer_size, outer_radius, outer_spread) &&
+                   !hit_test_rect_like(p, inner_size, inner_radius, inner_spread);
+        }
+        case ShapeType::Circle: {
+            const f32 outer_radius = alignment == StrokeAlignment::Inside ? shape.circle.radius : shape.circle.radius + half;
+            const f32 inner_radius = alignment == StrokeAlignment::Outside ? shape.circle.radius : std::max(0.0f, shape.circle.radius - half);
+            const f32 outer_r = outer_radius + outer_spread;
+            const f32 inner_r = inner_radius + inner_spread;
+            const f32 dx = p.x - shape.circle.radius;
+            const f32 dy = p.y - shape.circle.radius;
+            const f32 dist2 = dx * dx + dy * dy;
+            return dist2 <= outer_r * outer_r && dist2 >= inner_r * inner_r;
+        }
+        default:
+            return false;
+    }
+}
+
 } // namespace
 
 bool pixel_passes_mask(const RenderState& state, i32 x, i32 y) {
@@ -139,7 +274,8 @@ raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 sprea
         default: break;
     }
 
-    const f32 pad = spread + kBBoxSafetyPadding;
+    const f32 stroke_pad = stroke_width_for_shape(shape);
+    const f32 pad = spread + kBBoxSafetyPadding + stroke_pad;
 
     const Mat4 effective_model = (shape.type == ShapeType::GridBackground) ? Mat4(1.0f) : model;
 
@@ -295,7 +431,8 @@ void draw_transformed_shape(Framebuffer& fb, const Shape& shape, const Mat4& mod
     const Vec3 col1 = invH[1];
     const Vec3 col2 = invH[2];
 
-    const bool can_use_simd = !use_gradient && (corner_radius <= 0.0f) && (!state || !state->mask || !state->mask->enabled());
+    const bool has_stroke = stroke_width_for_shape(shape) > 0.0f;
+    const bool can_use_simd = !use_gradient && (corner_radius <= 0.0f) && !has_stroke && (!state || !state->mask || !state->mask->enabled());
 
     for (i32 y = bbox.y0; y < bbox.y1; ++y) {
         Color* row = fb.pixels_row(y);
@@ -327,10 +464,12 @@ void draw_transformed_shape(Framebuffer& fb, const Shape& shape, const Mat4& mod
                 const f32 inv_z = 1.0f / lp_h.z;
                 Vec2 lp(lp_h.x * inv_z, lp_h.y * inv_z);
 
-                if (hit_test(shape, lp, spread, corner_radius)) {
-                    const Color pixel_color = use_gradient
-                        ? resolve_gradient_color(*fill, lp, sz, color.a)
-                        : color;
+                const bool fill_hit = hit_test_shape_fill(shape, lp, spread, corner_radius);
+                const bool stroke_hit = has_stroke && hit_test_shape_stroke(shape, lp, spread, corner_radius);
+                if (fill_hit || stroke_hit) {
+                    const Color pixel_color = fill_hit
+                        ? (use_gradient ? resolve_gradient_color(*fill, lp, sz, color.a) : color)
+                        : stroke_color_for_shape(shape);
 
                     // Guard: skip NaN/Inf pixels to prevent framebuffer contamination.
                     if (!std::isnan(pixel_color.r) && !std::isnan(pixel_color.g) &&

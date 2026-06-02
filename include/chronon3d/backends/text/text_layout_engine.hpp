@@ -6,12 +6,39 @@
 #include <algorithm>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace chronon3d {
 
+struct TextLayoutRun {
+    std::string text;
+    TextStyle style{};
+    bool is_line_break{false};
+    bool is_space{false};
+    bool is_decorative_star{false};
+    bool use_advance_override{false};
+    float advance_override{0.0f};
+    float star_inner_radius{0.0f};
+    float star_outer_radius{0.0f};
+    int star_points{8};
+};
+
+struct TextLayoutLineRun {
+    std::string text;
+    Vec2 position{0.0f, 0.0f};
+    float width{0.0f};
+    TextStyle style{};
+    bool is_space{false};
+    bool is_decorative_star{false};
+    float star_inner_radius{0.0f};
+    float star_outer_radius{0.0f};
+    int star_points{8};
+};
+
 struct TextLayoutInput {
     std::string text;
+    std::vector<TextLayoutRun> runs;
     TextStyle style{};
     TextBox box{};
     // Legacy per-char callback (used when font_engine is null)
@@ -26,6 +53,10 @@ struct TextLayoutLine {
     std::string text;
     Vec2 position{0.0f, 0.0f};
     float width{0.0f};
+    float ascent{0.0f};
+    float descent{0.0f};
+    float baseline{0.0f};
+    std::vector<TextLayoutLineRun> runs;
 };
 
 struct TextLayoutResult {
@@ -36,37 +67,88 @@ struct TextLayoutResult {
 
 class TextLayoutEngine {
 private:
-    [[nodiscard]] static TextLayoutResult layout_single_run(const TextLayoutInput& input) {
+    static float measure_char_legacy(const TextLayoutInput& input, char c, float font_size) {
+        if (input.char_width_fn) {
+            return std::max(0.0f, input.char_width_fn(input.char_width_ctx, c, font_size));
+        }
+        return font_size * 0.6f;
+    }
+
+    static float measure_string_legacy(const TextLayoutInput& input, std::string_view s, float font_size) {
+        float width = 0.0f;
+        for (char c : s) {
+            width += measure_char_legacy(input, c, font_size) + input.style.tracking;
+        }
+        return std::max(0.0f, width);
+    }
+
+    static float measure_string(const TextLayoutInput& input, const TextStyle& style, std::string_view s, float font_size) {
+        if (input.font_engine) {
+            const FontSpec spec = FontSpec{
+                .font_path = style.font_path.empty() ? input.font_spec.font_path : style.font_path,
+                .font_family = style.font_family.empty() ? input.font_spec.font_family : style.font_family,
+                .font_weight = style.font_weight ? style.font_weight : input.font_spec.font_weight,
+                .font_style = style.font_style.empty() ? input.font_spec.font_style : style.font_style,
+            };
+            float width = input.font_engine->measure_text(s, spec, font_size);
+            width += style.tracking * static_cast<float>(s.size());
+            return std::max(0.0f, width);
+        }
+        return measure_string_legacy(input, s, font_size);
+    }
+
+    static float measure_run_width(const TextLayoutInput& input, const TextLayoutRun& run, float font_size) {
+        if (run.use_advance_override) {
+            return std::max(0.0f, run.advance_override);
+        }
+        return measure_string(input, run.style, run.text, font_size);
+    }
+
+    static FontSpec resolve_font_spec(const TextLayoutInput& input, const TextStyle& style) {
+        FontSpec spec;
+        spec.font_path = style.font_path.empty() ? input.font_spec.font_path : style.font_path;
+        spec.font_family = style.font_family.empty() ? input.font_spec.font_family : style.font_family;
+        spec.font_weight = style.font_weight;
+        spec.font_style = style.font_style;
+        return spec;
+    }
+
+    static TextLayoutLineRun make_run(
+        const TextLayoutInput& input,
+        const TextLayoutRun& run,
+        float x,
+        float y
+    ) {
+        TextLayoutLineRun out;
+        out.text = run.text;
+        out.position = {x, y};
+        out.style = run.style;
+        out.is_space = run.is_space;
+        out.is_decorative_star = run.is_decorative_star;
+        out.star_inner_radius = run.star_inner_radius;
+        out.star_outer_radius = run.star_outer_radius;
+        out.star_points = run.star_points;
+        out.width = measure_run_width(input, run, std::max(1.0f, run.style.size));
+        return out;
+    }
+
+    static TextLayoutResult layout_single_run(const TextLayoutInput& input) {
         TextLayoutResult result;
         const float font_size = std::max(1.0f, input.style.size);
         result.font_size = font_size;
         const float line_height = std::max(1.0f, font_size * input.style.line_height);
-        const float max_width = input.box.enabled && input.box.size.x > 0.0f
-            ? input.box.size.x
-            : 0.0f;
+        const float max_width = input.box.enabled && input.box.size.x > 0.0f ? input.box.size.x : 0.0f;
 
         auto measure_char = [&](char c) -> float {
             if (input.font_engine) {
                 char buf[2] = {c, '\0'};
                 return input.font_engine->measure_text(buf, input.font_spec, font_size);
             }
-            if (input.char_width_fn) {
-                return std::max(0.0f, input.char_width_fn(input.char_width_ctx, c, font_size));
-            }
-            return font_size * 0.6f;
+            return measure_char_legacy(input, c, font_size);
         };
 
-        auto measure_string = [&](std::string_view s) -> float {
-            if (input.font_engine) {
-                float base = input.font_engine->measure_text(s, input.font_spec, font_size);
-                base += input.style.tracking * static_cast<float>(s.size());
-                return std::max(0.0f, base);
-            }
-            float w = 0.0f;
-            for (char c : s) {
-                w += measure_char(c) + input.style.tracking;
-            }
-            return w;
+        auto measure_string_input = [&](std::string_view s) -> float {
+            return measure_string(input, input.style, s, font_size);
         };
 
         std::vector<std::string> raw_lines;
@@ -79,8 +161,7 @@ private:
             current_width = 0.0f;
         };
 
-        // Tokenize text by words/whitespace
-        std::vector<std::pair<std::string, bool>> tokens; // {text, is_whitespace}
+        std::vector<std::pair<std::string, bool>> tokens;
         std::string current_token;
         bool in_space = false;
 
@@ -111,12 +192,11 @@ private:
             tokens.push_back({current_token, in_space});
         }
 
-        // Layout lines
         const bool wrapping_enabled = max_width > 0.0f && input.style.wrap != TextWrap::None;
 
         for (const auto& token_pair : tokens) {
             const std::string& token = token_pair.first;
-            bool is_space = token_pair.second;
+            const bool is_space = token_pair.second;
 
             if (token == "\n") {
                 push_current_line();
@@ -125,24 +205,21 @@ private:
 
             if (!wrapping_enabled) {
                 current_line += token;
-                current_width += measure_string(token);
+                current_width += measure_string_input(token);
                 continue;
             }
 
-            float token_w = measure_string(token);
+            const float token_w = measure_string_input(token);
 
             if (input.style.wrap == TextWrap::Word) {
-                // If it doesn't fit on current line
                 if (current_width + token_w > max_width) {
                     if (!current_line.empty()) {
                         push_current_line();
-                        // If it's a space at start of new line, skip it
                         if (is_space) continue;
                     }
-                    // If the single token itself is wider than max_width, character wrap it
                     if (token_w > max_width) {
                         for (char c : token) {
-                            float cw = measure_char(c) + input.style.tracking;
+                            const float cw = measure_char(c) + input.style.tracking;
                             if (current_width + cw > max_width && !current_line.empty()) {
                                 push_current_line();
                             }
@@ -159,7 +236,7 @@ private:
                 }
             } else if (input.style.wrap == TextWrap::Character) {
                 for (char c : token) {
-                    float cw = measure_char(c) + input.style.tracking;
+                    const float cw = measure_char(c) + input.style.tracking;
                     if (current_width + cw > max_width && !current_line.empty()) {
                         push_current_line();
                     }
@@ -173,7 +250,6 @@ private:
             raw_lines.push_back(std::move(current_line));
         }
 
-        // Handle max_lines and ellipsis
         const int max_allowed_lines = input.style.max_lines;
         const bool apply_ellipsis = input.style.ellipsis || input.style.overflow == TextOverflow::Ellipsis;
 
@@ -181,21 +257,18 @@ private:
             raw_lines.resize(max_allowed_lines);
             if (apply_ellipsis && !raw_lines.empty()) {
                 std::string& last_line = raw_lines.back();
-                const float ellipsis_w = measure_string("...");
-                
-                // Shrink line until ellipsis fits
-                while (!last_line.empty() && measure_string(last_line) + ellipsis_w > max_width) {
+                const float ellipsis_w = measure_string_input("...");
+                while (!last_line.empty() && measure_string_input(last_line) + ellipsis_w > max_width) {
                     last_line.pop_back();
                 }
                 last_line += "...";
             }
         }
 
-        // Final result assembly & alignment
         float max_seen_width = 0.0f;
         std::vector<float> line_widths;
         for (const auto& line_str : raw_lines) {
-            float w = measure_string(line_str);
+            const float w = measure_string_input(line_str);
             line_widths.push_back(w);
             max_seen_width = std::max(max_seen_width, w);
         }
@@ -205,8 +278,11 @@ private:
 
         for (size_t i = 0; i < raw_lines.size(); ++i) {
             TextLayoutLine line;
-            line.text = std::move(raw_lines[i]);
+            line.text = raw_lines[i];
             line.width = line_widths[i];
+            line.ascent = font_size * 0.78f;
+            line.descent = font_size * 0.22f;
+            line.baseline = line.ascent;
 
             float dx = 0.0f;
             if (input.style.align == TextAlign::Center) {
@@ -215,6 +291,303 @@ private:
                 dx = max_seen_width - line.width;
             }
             line.position = {dx, static_cast<float>(i) * line_height};
+
+            TextLayoutLineRun run;
+            run.text = line.text;
+            run.position = {line.position.x, 0.0f};
+            run.width = line.width;
+            run.style = input.style;
+            line.runs.push_back(std::move(run));
+
+            result.lines.push_back(std::move(line));
+        }
+
+        return result;
+    }
+
+    static TextLayoutResult layout_inline_runs(const TextLayoutInput& input) {
+        TextLayoutResult result;
+        const float font_size_hint = std::max(1.0f, input.style.size);
+        result.font_size = font_size_hint;
+
+        struct LineState {
+            std::vector<TextLayoutLineRun> runs;
+            float width{0.0f};
+            float ascent{0.0f};
+            float descent{0.0f};
+        };
+
+        std::vector<LineState> lines;
+        LineState current;
+        const float max_width_limit = input.box.enabled && input.box.size.x > 0.0f ? input.box.size.x : 0.0f;
+        const bool wrapping_enabled = max_width_limit > 0.0f && input.style.wrap != TextWrap::None;
+        const bool word_wrap = wrapping_enabled && input.style.wrap == TextWrap::Word;
+        const bool char_wrap = wrapping_enabled && input.style.wrap == TextWrap::Character;
+
+        auto push_current = [&]() {
+            lines.push_back(std::move(current));
+            current = LineState{};
+        };
+
+        auto append_piece = [&](const TextLayoutRun& source, std::string text_piece) {
+            if (text_piece.empty()) {
+                return;
+            }
+
+            TextLayoutRun piece = source;
+            piece.text = std::move(text_piece);
+            if (piece.is_decorative_star) {
+                piece.text.clear();
+            }
+            if (!piece.style.font_path.empty()) {
+                // keep explicit style
+            } else {
+                piece.style.font_path = input.style.font_path;
+            }
+            if (piece.style.font_family.empty()) {
+                piece.style.font_family = input.style.font_family;
+            }
+            if (piece.style.font_weight == 0) {
+                piece.style.font_weight = input.style.font_weight;
+            }
+            if (piece.style.font_style.empty()) {
+                piece.style.font_style = input.style.font_style;
+            }
+            if (piece.style.size <= 0.0f) {
+                piece.style.size = input.style.size;
+            }
+            if (piece.style.line_height <= 0.0f) {
+                piece.style.line_height = input.style.line_height;
+            }
+
+            const float run_size = std::max(1.0f, piece.style.size);
+            const float ascent = run_size * 0.78f;
+            const float descent = run_size * 0.22f;
+            const float width = measure_run_width(input, piece, run_size);
+
+            TextLayoutLineRun layout_run;
+            layout_run.text = piece.text;
+            layout_run.style = piece.style;
+            layout_run.width = width;
+            layout_run.is_space = piece.is_space;
+            layout_run.is_decorative_star = piece.is_decorative_star;
+            layout_run.star_inner_radius = piece.star_inner_radius;
+            layout_run.star_outer_radius = piece.star_outer_radius;
+            layout_run.star_points = piece.star_points;
+            layout_run.position = {current.width, 0.0f};
+
+            current.width += width;
+            current.ascent = std::max(current.ascent, ascent);
+            current.descent = std::max(current.descent, descent);
+            current.runs.push_back(std::move(layout_run));
+        };
+
+        auto append_split_text = [&](const TextLayoutRun& run, std::string_view text) {
+            if (text.empty()) {
+                return;
+            }
+
+            const float run_size = std::max(1.0f, run.style.size <= 0.0f ? input.style.size : run.style.size);
+
+            if (!wrapping_enabled) {
+                append_piece(run, std::string(text));
+                return;
+            }
+
+            if (char_wrap) {
+                for (char c : text) {
+                    if (c == '\r') continue;
+                    if (c == '\n') {
+                        if (!current.runs.empty()) {
+                            push_current();
+                        }
+                        continue;
+                    }
+
+                    const std::string glyph(1, c);
+                    const float cw = measure_string(input, run.style, glyph, run_size);
+                    if (current.width + cw > max_width_limit && !current.runs.empty()) {
+                        push_current();
+                    }
+                    if (c == ' ' || c == '\t') {
+                        if (current.runs.empty()) {
+                            continue;
+                        }
+                    }
+                    append_piece(run, glyph);
+                }
+                return;
+            }
+
+            // Word wrap
+            std::string token;
+            bool token_is_space = false;
+
+            auto flush_token = [&]() {
+                if (token.empty()) {
+                    return;
+                }
+
+                const float token_w = measure_string(input, run.style, token, run_size);
+
+                if (token_is_space) {
+                    if (current.runs.empty()) {
+                        token.clear();
+                        return;
+                    }
+                    if (current.width + token_w > max_width_limit && !current.runs.empty()) {
+                        push_current();
+                        token.clear();
+                        return;
+                    }
+                    append_piece(run, token);
+                    token.clear();
+                    return;
+                }
+
+                if (current.width > 0.0f && current.width + token_w > max_width_limit) {
+                    push_current();
+                }
+
+                if (token_w > max_width_limit && current.runs.empty()) {
+                    for (char c : token) {
+                        const std::string glyph(1, c);
+                        const float cw = measure_string(input, run.style, glyph, run_size);
+                        if (current.width + cw > max_width_limit && !current.runs.empty()) {
+                            push_current();
+                        }
+                        append_piece(run, glyph);
+                    }
+                } else {
+                    append_piece(run, token);
+                }
+
+                token.clear();
+            };
+
+            for (size_t i = 0; i < text.size(); ++i) {
+                const char c = text[i];
+                if (c == '\r') {
+                    continue;
+                }
+                if (c == '\n') {
+                    flush_token();
+                    if (!current.runs.empty()) {
+                        push_current();
+                    }
+                    continue;
+                }
+
+                const bool is_space = (c == ' ' || c == '\t');
+                if (token.empty()) {
+                    token_is_space = is_space;
+                    token.push_back(c);
+                    continue;
+                }
+                if (token_is_space != is_space) {
+                    flush_token();
+                    token_is_space = is_space;
+                }
+                token.push_back(c);
+            }
+            flush_token();
+        };
+
+        auto split_and_add = [&](const TextLayoutRun& run) {
+            if (run.is_line_break) {
+                if (!current.runs.empty()) {
+                    push_current();
+                }
+                return;
+            }
+
+            const std::string& text = run.text;
+            size_t start = 0;
+            for (size_t i = 0; i <= text.size(); ++i) {
+                if (i == text.size() || text[i] == '\n') {
+                    append_split_text(run, text.substr(start, i - start));
+                    if (i < text.size() && text[i] == '\n') {
+                        if (!current.runs.empty()) {
+                            push_current();
+                        }
+                    }
+                    start = i + 1;
+                }
+            }
+        };
+
+        if (input.runs.empty()) {
+            TextLayoutRun single;
+            single.text = input.text;
+            single.style = input.style;
+            split_and_add(single);
+        } else {
+            for (const auto& run : input.runs) {
+                split_and_add(run);
+            }
+        }
+
+        if (!current.runs.empty() || lines.empty()) {
+            lines.push_back(std::move(current));
+        }
+
+        const float line_height = std::max(1.0f, input.style.size * input.style.line_height);
+        float max_width = 0.0f;
+        for (const auto& line : lines) {
+            max_width = std::max(max_width, line.width);
+        }
+
+        const bool apply_ellipsis = input.style.ellipsis || input.style.overflow == TextOverflow::Ellipsis;
+
+        if (apply_ellipsis) {
+            for (auto& line : lines) {
+                if (line.width <= max_width_limit || line.runs.empty()) continue;
+                if (line.runs.size() == 1) {
+                    auto& run = line.runs.front();
+                    while (!run.text.empty() && line.width > max_width_limit) {
+                        run.text.pop_back();
+                        run.width = measure_string(input, run.style, run.text, std::max(1.0f, run.style.size));
+                        line.width = run.width;
+                    }
+                    run.text += "...";
+                    run.width = measure_string(input, run.style, run.text, std::max(1.0f, run.style.size));
+                    line.width = run.width;
+                }
+            }
+        }
+
+        result.size.x = max_width;
+        result.size.y = static_cast<float>(lines.size()) * line_height;
+
+        for (size_t i = 0; i < lines.size(); ++i) {
+            auto& line_state = lines[i];
+            TextLayoutLine line;
+            line.width = line_state.width;
+            line.ascent = std::max(line_state.ascent, font_size_hint * 0.78f);
+            line.descent = std::max(line_state.descent, font_size_hint * 0.22f);
+            line.baseline = line.ascent;
+            line.position.y = static_cast<float>(i) * line_height;
+            line.text.clear();
+            for (const auto& run : line_state.runs) {
+                line.text += run.text;
+            }
+
+            float dx = 0.0f;
+            if (input.style.align == TextAlign::Center) {
+                dx = (max_width - line.width) * 0.5f;
+            } else if (input.style.align == TextAlign::Right) {
+                dx = max_width - line.width;
+            }
+            line.position.x = dx;
+
+            float cursor_x = dx;
+            for (auto run : line_state.runs) {
+                run.position.x = cursor_x;
+                run.position.y = line.position.y;
+                cursor_x += run.width;
+                line.runs.push_back(std::move(run));
+            }
+
             result.lines.push_back(std::move(line));
         }
 
@@ -226,6 +599,12 @@ public:
         TextLayoutInput current_input = input;
         const bool auto_fit = input.style.auto_fit || input.style.auto_scale;
 
+        const auto measure_with_size = [&](float size) {
+            TextLayoutInput test_input = current_input;
+            test_input.style.size = size;
+            return test_input.runs.empty() ? layout_single_run(test_input) : layout_inline_runs(test_input);
+        };
+
         if (auto_fit && input.box.enabled && input.box.size.x > 0.0f && input.box.size.y > 0.0f) {
             float low = std::max(1.0f, input.style.min_size);
             float high = std::max(low, input.style.size);
@@ -235,9 +614,8 @@ public:
             float best_size = low;
 
             for (int step = 0; step < 8; ++step) {
-                float mid = (low + high) * 0.5f;
-                current_input.style.size = mid;
-                TextLayoutResult temp = layout_single_run(current_input);
+                const float mid = (low + high) * 0.5f;
+                TextLayoutResult temp = measure_with_size(mid);
                 if (temp.size.x <= input.box.size.x && temp.size.y <= input.box.size.y) {
                     best_size = mid;
                     low = mid + 0.1f;
@@ -246,10 +624,13 @@ public:
                 }
                 if (high < low) break;
             }
+
             current_input.style.size = best_size;
         }
 
-        return layout_single_run(current_input);
+        return current_input.runs.empty()
+            ? layout_single_run(current_input)
+            : layout_inline_runs(current_input);
     }
 };
 
