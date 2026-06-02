@@ -136,6 +136,7 @@ RenderNode RenderNodeFactory::text(std::pmr::memory_resource* res, std::string n
     node.shape.text.style.box_style = p.box_style;
     node.shape.text.style.paint = p.paint;
     node.shape.text.style.shadows = std::move(p.shadows);
+    node.shape.text.style.material = std::move(p.material);
 
     node.shape.text.style.auto_fit = p.auto_fit;
     node.shape.text.style.auto_scale = p.auto_fit;

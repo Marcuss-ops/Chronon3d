@@ -95,6 +95,7 @@ struct TextParams {
 
     TextPaint paint{};
     std::vector<TextShadow> shadows{};
+    TextMaterial material{};
 
     bool auto_fit{false};
     int max_lines{0};
