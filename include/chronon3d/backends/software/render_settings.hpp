@@ -52,6 +52,13 @@ struct RenderSettings {
     int tile_size{0};
 
     /**
+     * If true, dirty tiles are processed in parallel via tbb::parallel_for.
+     * When false, tiles are processed sequentially in a single-threaded for loop.
+     * Only has effect when tile-based execution is active (use_tile_execution).
+     */
+    bool enable_parallel_tiles{true};
+
+    /**
      * If true, enables in-place composition to avoid costly framebuffer copies.
      */
     bool optimize_compositing{true};

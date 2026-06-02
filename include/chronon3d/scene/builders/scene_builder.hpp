@@ -11,6 +11,7 @@
 #include <chronon3d/scene/camera/camera_2_5d.hpp>
 #include <chronon3d/scene/camera/animated_camera_2_5d.hpp>
 #include <chronon3d/rendering/light_context.hpp>
+#include <chronon3d/rendering/lighting_rig.hpp>
 #include <chronon3d/scene/scene.hpp>
 #include <chronon3d/animation/stagger.hpp>
 #include <chronon3d/backends/video/video_source.hpp>
@@ -55,6 +56,16 @@ namespace chronon3d {
 
         SceneBuilder &directional_light(Vec3 direction, Color color = Color{1, 1, 1, 1},
                                         f32 intensity = 1.0f);
+
+        /// Apply a DepthGrade configuration to the scene.
+        SceneBuilder& apply_depth_grade(const rendering::DepthGrade& grade) {
+            scene_.set_depth_grade(grade);
+            return *this;
+        }
+
+        /// Apply a LightingRig preset, configuring the scene's light context,
+        /// rim light, and shadow settings in one call.
+        SceneBuilder &apply_lighting_rig(const rendering::LightingRig& rig);
 
         SceneBuilder &rect(std::string name, RectParams p);
         SceneBuilder &rounded_rect(std::string name, RoundedRectParams p);

@@ -11,6 +11,11 @@
 
 | Area | Cosa | Commit |
 |------|------|--------|
+| **FontEngine + HarfBuzz** | `FontEngine` con FreeType+HarfBuzz shape_text(), glyph bbox cache con LruCache | `HEAD` |
+| **FontEngine Pipeline Wiring** | FontEngine* da LayerBuilder → Layer → RenderNode → rasterizer. `shared_font_engine()` singleton | `HEAD` |
+| **Per-Glyph Text Animation** | `TextAnimMode::ByGlyph`, `split_glyphs()` con cluster substring extraction | `HEAD` |
+| **Card3DMaterial** | 3D card material rasterizer con homography projection | `HEAD` |
+| **DepthGrade** | Depth-aware grading node | `HEAD` |
 | **NaN/Inf guards** | Blend pipeline: alpha.hpp, blend_mode.hpp, shape_rasterizer, projected_card, highway kernels, software_compositor, blend2d_bridge | `3fb8a2c` |
 | **Framebuffer shift** | `shift()` ora clear delle aree vacate (top, bottom, left, right strips) | `3fb8a2c` |
 | **HDR Add blend** | Rimosso `std::min` da `compositor::blend()` Add mode — HDR puro | `3fb8a2c` |
@@ -410,7 +415,7 @@ Vedi Fase 3 sopra — parallelizzare i sample + SIMD-izzare l'accumulazione con 
 | **🟢 P2** | Stagger System (2b) | 2 giorni | alto | 🟡 media |
 | **🟢 P2** | Timeline/Sequencer (2a) | 3-5 giorni | alto | 🔴 alta |
 | **🔵 P3** | Motion Blur reale (Fase 3) | 5-7 giorni | alto | 🔴 alta |
-| **🔵 P3** | Text Animator (2d) | 3-5 giorni | alto | 🔴 alta |
+| **✅ ✅** | **Text Animator (2d)** | **3-5 giorni** | **alto** | **🔴 alta** | **✅ Fatto — per-glyph con FontEngine** |
 | **⚫ P4** | Scene Presets (Fase 4) | 5-10 giorni | alto | 🟡 media |
 
 ---
@@ -435,7 +440,7 @@ Vedi Fase 3 sopra — parallelizzare i sample + SIMD-izzare l'accumulazione con 
 
 ### Prossimo mese
 
-- [ ] Text Animator per-character
+- [x] **Text Animator per-glyph** — ✅ Fatto con FontEngine + ByGlyph mode
 - [ ] Motion Blur multi-sample con accumulazione parallela + SIMD
 - [ ] Scene Presets (hero_title_reveal, saas_card_float, ecc.)
 

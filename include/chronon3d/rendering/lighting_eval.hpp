@@ -4,6 +4,7 @@
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/render_graph/render_graph_hashing.hpp>
 #include <chronon3d/rendering/light_context.hpp>
+#include <chronon3d/rendering/lighting_rig.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -28,7 +29,8 @@ using namespace chronon3d::graph;
     Color base,
     Vec3 normal_world,
     const LightContext& light,
-    const Material2_5D& material
+    const Material2_5D& material,
+    const RimLight* rim_override = nullptr
 ) {
     if (!light.enabled || !material.accepts_lights) {
         return base;
@@ -41,7 +43,12 @@ using namespace chronon3d::graph;
 
     const f32 ndotl = std::max(0.0f, glm::dot(n, l));
     const f32 ndoth = std::max(0.0f, glm::dot(n, h));
-    const f32 rim = std::pow(1.0f - std::clamp(glm::dot(n, v), 0.0f, 1.0f), 2.2f);
+    const f32 rim_ndotv = std::clamp(glm::dot(n, v), 0.0f, 1.0f);
+
+    // Legacy rim derived from specular (kept for backwards compatibility)
+    const f32 rim_spec = light.directional_enabled
+        ? std::pow(1.0f - rim_ndotv, 2.2f) * material.specular * 0.18f
+        : 0.0f;
 
     const f32 ambient = light.ambient_enabled
         ? std::max(0.0f, light.ambient * material.ambient_multiplier)
@@ -52,25 +59,37 @@ using namespace chronon3d::graph;
     const f32 specular = light.directional_enabled && material.specular > 0.0f
         ? std::max(0.0f, light.diffuse * material.specular * std::pow(ndoth, std::max(1.0f, material.shininess)))
         : 0.0f;
-    const f32 rim_light = light.directional_enabled ? rim * material.specular * 0.18f : 0.0f;
+
+    // Independent rim light (RimLight struct overrides the specular-derived rim)
+    const f32 rim_power = (rim_override && rim_override->enabled)
+        ? rim_override->power
+        : 2.2f;
+    const f32 rim_intensity = (rim_override && rim_override->enabled)
+        ? rim_override->intensity
+        : rim_spec;
+    const Color rim_color = (rim_override && rim_override->enabled)
+        ? rim_override->color
+        : light.directional_color;
+    const f32 rim_factor = std::pow(1.0f - rim_ndotv, rim_power);
+    const f32 rim_total = rim_factor * rim_intensity;
 
     const f32 r = std::clamp(
         ambient * light.ambient_color.r +
         diffuse * light.directional_color.r +
         specular * 0.98f +
-        rim_light * light.directional_color.r * 0.6f,
+        rim_total * rim_color.r * 0.6f,
         0.0f, 1.0f);
     const f32 g = std::clamp(
         ambient * light.ambient_color.g +
         diffuse * light.directional_color.g +
         specular * 0.98f +
-        rim_light * light.directional_color.g * 0.6f,
+        rim_total * rim_color.g * 0.6f,
         0.0f, 1.0f);
     const f32 b = std::clamp(
         ambient * light.ambient_color.b +
         diffuse * light.directional_color.b +
         specular * 0.98f +
-        rim_light * light.directional_color.b * 0.6f,
+        rim_total * rim_color.b * 0.6f,
         0.0f, 1.0f);
 
     return Color{base.r * r, base.g * g, base.b * b, base.a};
@@ -85,6 +104,10 @@ using namespace chronon3d::graph;
     seed = hash_combine(seed, hash_value(s.contact_blur_radius));
     seed = hash_combine(seed, hash_value(s.ambient_opacity));
     seed = hash_combine(seed, hash_value(s.ambient_blur_radius));
+    seed = hash_combine(seed, hash_value(s.depth_aware));
+    seed = hash_combine(seed, hash_value(s.blur_per_z));
+    seed = hash_combine(seed, hash_value(s.opacity_falloff));
+    seed = hash_combine(seed, hash_color(s.tint));
     return seed;
 }
 

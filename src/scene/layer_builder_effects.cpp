@@ -89,4 +89,9 @@ LayerBuilder& LayerBuilder::material(Material2_5D value) {
     return *this;
 }
 
+LayerBuilder& LayerBuilder::card3d_material(Card3DMaterial value) {
+    m_layer.card3d_material = value;
+    return *this;
+}
+
 } // namespace chronon3d

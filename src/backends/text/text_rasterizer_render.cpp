@@ -11,6 +11,7 @@
 #include <chronon3d/assets/asset_registry.hpp>
 #include <chronon3d/backends/text/text_rasterizer_utils.hpp>
 #include <chronon3d/backends/text/text_layout_engine.hpp>
+#include <chronon3d/text/font_engine.hpp>
 #include <blend2d/gradient.h>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
@@ -132,7 +133,8 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     float effective_size,
     int padding,
     bool* cache_hit,
-    const Mat4* transform
+    const Mat4* transform,
+    FontEngine* font_engine
 ) {
     std::string font_path = t.style.font_path;
     if (t.text.empty() || font_path.empty()) return std::nullopt;
@@ -166,23 +168,25 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
         layout_box.size.y = std::max(0.0f, t.box.size.y - 2.0f * t.style.box_style.padding.y);
     }
 
+    // Reuse the caller-provided FontEngine if available; otherwise fall back
+    // to a local instance (preserves backward compatibility for tests &
+    // direct API callers).
+    FontEngine local_engine;
+    FontEngine* engine = font_engine ? font_engine : &local_engine;
+
+    FontSpec font_spec;
+    font_spec.font_path     = t.style.font_path;
+    font_spec.font_family   = t.style.font_family;
+    font_spec.font_weight   = t.style.font_weight;
+    font_spec.font_style    = t.style.font_style;
+
     TextLayoutInput layout_in;
     layout_in.text = t.text;
     layout_in.style = t.style;
     layout_in.style.size = effective_size;
     layout_in.box = layout_box;
-    layout_in.char_width_ctx = &font;
-    layout_in.char_width_fn = [](const void* ctx, char c, float font_size) -> float {
-        auto& f = *static_cast<const BLFont*>(ctx);
-        BLGlyphBuffer gb;
-        char buf[2] = {c, '\0'};
-        gb.setUtf8Text(buf, 1);
-        f.shape(gb);
-        BLTextMetrics m;
-        f.getTextMetrics(gb, m);
-        float base_w = static_cast<float>(m.advance.x);
-        return base_w * (font_size / f.size());
-    };
+    layout_in.font_engine = engine;
+    layout_in.font_spec   = font_spec;
 
     auto start_layout = std::chrono::steady_clock::now();
     auto layout_res = TextLayoutEngine::layout(layout_in);

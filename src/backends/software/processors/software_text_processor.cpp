@@ -7,6 +7,7 @@
 #include <chronon3d/backends/software/shape_processor.hpp>
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/backends/text/text_rasterizer_utils.hpp>
+#include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/render_graph/render_graph_hashing.hpp>
@@ -329,7 +330,8 @@ public:
         bool raster_cache_hit = false;
         double rasterize_ms = 0.0;
         const auto raster_start = diagnostics_enabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
-        auto raster = rasterize_text_to_bl_image(node.shape.text, effective_size, 32, &raster_cache_hit, raster_transform);
+        FontEngine* engine = node.font_engine ? node.font_engine : &shared_font_engine();
+        auto raster = rasterize_text_to_bl_image(node.shape.text, effective_size, 32, &raster_cache_hit, raster_transform, engine);
         if (diagnostics_enabled) {
             rasterize_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - raster_start).count();
         }
@@ -370,6 +372,11 @@ public:
                 static_cast<uint64_t>(node.shape.text.text.length()),
                 std::memory_order_relaxed
             );
+        }
+
+        // ── Apply TextMaterial (gradient, bevel, highlight, shade) ─────
+        if (node.shape.text.style.material.enabled) {
+            apply_text_material(raster->image, node.shape.text.style.material);
         }
 
         double shadow_ms = 0.0;
@@ -433,13 +440,38 @@ public:
             h = txt.box.size.y;
         } else if (!txt.text.empty()) {
             const float font_size = std::max(1.0f, txt.style.size);
-            const float approx_char_w = font_size * 0.6f;
             const float line_height = font_size * std::max(1.0f, txt.style.line_height);
+
+            // Use the shared FontEngine singleton for accurate per-line
+            // measurement (compute_world_bbox does not have access to the
+            // RenderNode, so it uses the process-wide shared instance).
+            FontEngine& engine = shared_font_engine();
+            FontSpec spec;
+            spec.font_path   = txt.style.font_path;
+            spec.font_family = txt.style.font_family;
+            spec.font_weight = txt.style.font_weight;
+            spec.font_style  = txt.style.font_style;
+
             int line_count = 1;
-            for (char c : txt.text) {
-                if (c == '\n') line_count++;
+            float max_line_w = 0.0f;
+            std::string_view sv = txt.text;
+            size_t start = 0;
+            for (size_t i = 0; i <= sv.size(); ++i) {
+                if (i == sv.size() || sv[i] == '\n') {
+                    const size_t line_len = i - start;
+                    float line_w = engine.measure_text(sv.substr(start, line_len), spec, font_size);
+                    if (line_w <= 0.0f) {
+                        // FontEngine failed to load the face; fall back to legacy approximation
+                        line_w = static_cast<float>(line_len) * font_size * 0.6f;
+                    }
+                    line_w += txt.style.tracking * static_cast<float>(line_len);
+                    max_line_w = std::max(max_line_w, line_w);
+                    start = i + 1;
+                    if (i < sv.size()) ++line_count;
+                }
             }
-            w = static_cast<float>(txt.text.size()) * (approx_char_w + txt.style.tracking);
+
+            w = max_line_w;
             h = static_cast<float>(line_count) * line_height;
             if (txt.style.box_style.enabled) {
                 w += 2.0f * txt.style.box_style.padding.x;

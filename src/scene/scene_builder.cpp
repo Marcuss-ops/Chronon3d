@@ -12,6 +12,11 @@ SceneBuilder& SceneBuilder::ambient_light(Color color, f32 intensity) {
     return *this;
 }
 
+SceneBuilder& SceneBuilder::apply_lighting_rig(const rendering::LightingRig& rig) {
+    rig.apply_to(scene_.light_context(), &scene_.rim_light());
+    return *this;
+}
+
 SceneBuilder& SceneBuilder::directional_light(Vec3 direction, Color color, f32 intensity) {
     scene_.light_context().enabled = true;
     scene_.light_context().directional_enabled = true;

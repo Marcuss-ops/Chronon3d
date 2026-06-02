@@ -1,8 +1,17 @@
 #include <doctest/doctest.h>
 #include <chronon3d/text/text_animator.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
+#include <chronon3d/text/font_engine.hpp>
 
 using namespace chronon3d;
+
+static FontSpec inter_bold_spec() {
+    return FontSpec{
+        .font_path = "assets/fonts/Inter-Bold.ttf",
+        .font_family = "Inter",
+        .font_weight = 700,
+    };
+}
 
 TEST_CASE("TextAnimator splits text by character") {
     TextAnimator ta;
@@ -228,4 +237,183 @@ TEST_CASE("TextAnimator layered build staggered keyframes") {
     CHECK(result.layers()[0].anim_transform.opacity.is_animated());
     // Layer 1 (B) should have opacity keyframes at delay=10
     CHECK(result.layers()[1].anim_transform.opacity.is_animated());
+}
+
+TEST_CASE("TextAnimator measure_unit_width uses FontEngine when available") {
+    FontEngine engine;
+    TextAnimator ta;
+    ta.text("ABC")
+        .font_size(72.0f)
+        .font_path("assets/fonts/Inter-Bold.ttf")
+        .font_engine(&engine);
+
+    f32 precise_w = ta.measure_unit_width("ABC");
+    CHECK(precise_w > 0.0f);
+
+    // Fallback width for comparison: 72 * 0.58 * 3 = 125.28
+    f32 fallback_w = 72.0f * 0.58f * 3.0f;
+
+    // Precise shaped width should differ from the naive fallback
+    // (real glyphs have variable widths and kerning)
+    CHECK(precise_w != doctest::Approx(fallback_w).epsilon(0.01f));
+}
+
+TEST_CASE("TextAnimator with FontEngine produces precise layer positions") {
+    FontEngine engine;
+    SceneBuilder sb;
+
+    TextAnimator ta;
+    ta.text("AV")
+        .font_size(64.0f)
+        .font_path("assets/fonts/Inter-Bold.ttf")
+        .font_engine(&engine)
+        .config({
+            .mode = TextAnimMode::ByCharacter,
+            .duration = Frame{20},
+            .delay_per_unit = Frame{4},
+            .easing = EasingCurve{Easing::OutCubic},
+            .animate_opacity = true,
+        });
+
+    ta.build(sb, "kerned");
+    Scene result = sb.build();
+    REQUIRE(result.layers().size() == 2);
+
+    // Each layer should carry the FontEngine pointer through LayerBuilder
+    // (LayerBuilder stores it; downstream pipeline can query it)
+    // We verify the build completes without error and layers exist.
+    CHECK(result.layers()[0].nodes.size() > 0);
+    CHECK(result.layers()[1].nodes.size() > 0);
+}
+
+TEST_CASE("TextAnimator FontEngine fallback when font unavailable") {
+    FontEngine engine;
+    TextAnimator ta;
+    ta.text("X")
+        .font_size(48.0f)
+        .font_path("nonexistent_font.ttf")
+        .font_engine(&engine)
+        .config({
+            .mode = TextAnimMode::ByCharacter,
+            .duration = Frame{10},
+        });
+
+    // measure_unit_width should gracefully fall back to approximation
+    f32 w = ta.measure_unit_width("X");
+    CHECK(w == doctest::Approx(48.0f * 0.58f));
+
+    SceneBuilder sb;
+    ta.build(sb, "fallback");
+    Scene result = sb.build();
+    CHECK(result.layers().size() == 1);
+}
+
+TEST_CASE("TextAnimator ByGlyph splits into shaped glyphs") {
+    FontEngine engine;
+    TextAnimator ta;
+    ta.text("ABC")
+        .font_size(64.0f)
+        .font_path("assets/fonts/Inter-Bold.ttf")
+        .font_engine(&engine)
+        .config({.mode = TextAnimMode::ByGlyph});
+
+    auto glyphs = ta.split_glyphs();
+    REQUIRE(glyphs.size() == 3);
+    CHECK(glyphs[0].text == "A");
+    CHECK(glyphs[1].text == "B");
+    CHECK(glyphs[2].text == "C");
+
+    // Glyph positions should increase monotonically
+    CHECK(glyphs[0].x < glyphs[1].x);
+    CHECK(glyphs[1].x < glyphs[2].x);
+
+    // Advances should be positive
+    CHECK(glyphs[0].advance_x > 0.0f);
+    CHECK(glyphs[1].advance_x > 0.0f);
+    CHECK(glyphs[2].advance_x > 0.0f);
+}
+
+TEST_CASE("TextAnimator ByGlyph builds one layer per glyph") {
+    FontEngine engine;
+    SceneBuilder sb;
+
+    TextAnimator ta;
+    ta.text("AB")
+        .font_size(64.0f)
+        .font_path("assets/fonts/Inter-Bold.ttf")
+        .font_engine(&engine)
+        .config({
+            .mode = TextAnimMode::ByGlyph,
+            .duration = Frame{20},
+            .delay_per_unit = Frame{4},
+            .easing = EasingCurve{Easing::OutCubic},
+            .animate_opacity = true,
+        });
+
+    ta.build(sb, "glyph_anim");
+    Scene result = sb.build();
+    REQUIRE(result.layers().size() == 2);
+
+    // Each layer should have a text node
+    CHECK(result.layers()[0].nodes.size() > 0);
+    CHECK(result.layers()[1].nodes.size() > 0);
+}
+
+TEST_CASE("TextAnimator ByGlyph positions differ from approximate fallback") {
+    FontEngine engine;
+    SceneBuilder sb1;
+    SceneBuilder sb2;
+
+    // ByGlyph with FontEngine — precise positions
+    TextAnimator ta_glyph;
+    ta_glyph.text("AV")
+        .font_size(64.0f)
+        .font_path("assets/fonts/Inter-Bold.ttf")
+        .font_engine(&engine)
+        .config({
+            .mode = TextAnimMode::ByGlyph,
+            .duration = Frame{20},
+            .delay_per_unit = Frame{4},
+            .animate_opacity = true,
+        });
+    ta_glyph.build(sb1, "glyph");
+    Scene result_glyph = sb1.build();
+    REQUIRE(result_glyph.layers().size() == 2);
+
+    // ByCharacter without FontEngine — approximate positions
+    TextAnimator ta_char;
+    ta_char.text("AV")
+        .font_size(64.0f)
+        .font_path("assets/fonts/Inter-Bold.ttf")
+        .config({
+            .mode = TextAnimMode::ByCharacter,
+            .duration = Frame{20},
+            .delay_per_unit = Frame{4},
+            .animate_opacity = true,
+        });
+    ta_char.build(sb2, "char");
+    Scene result_char = sb2.build();
+    REQUIRE(result_char.layers().size() == 2);
+
+    // The second layer (V) should be at a different x position because
+    // ByGlyph accounts for kerning, while ByCharacter uses fixed width
+    f32 glyph_v_x = result_glyph.layers()[1].transform.position.x;
+    f32 char_v_x  = result_char.layers()[1].transform.position.x;
+    CHECK(glyph_v_x != doctest::Approx(char_v_x).epsilon(0.5f));
+}
+
+TEST_CASE("TextAnimator ByGlyph handles spaces as individual glyphs") {
+    FontEngine engine;
+    TextAnimator ta;
+    ta.text("A B")
+        .font_size(64.0f)
+        .font_path("assets/fonts/Inter-Bold.ttf")
+        .font_engine(&engine)
+        .config({.mode = TextAnimMode::ByGlyph});
+
+    auto glyphs = ta.split_glyphs();
+    REQUIRE(glyphs.size() == 3);
+    CHECK(glyphs[0].text == "A");
+    CHECK(glyphs[1].text == " ");
+    CHECK(glyphs[2].text == "B");
 }

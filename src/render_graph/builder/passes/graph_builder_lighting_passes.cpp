@@ -5,6 +5,7 @@
 #include <chronon3d/render_graph/nodes/basic_nodes_common.hpp>
 #include <chronon3d/render_graph/nodes/lighting_node.hpp>
 #include <chronon3d/render_graph/nodes/shadow_node.hpp>
+#include <chronon3d/render_graph/nodes/depth_grade_node.hpp>
 
 #include <cmath>
 #include <string>
@@ -37,6 +38,22 @@ void append_lighting_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_outpu
         LightingNode::create(std::string(layer.name), item.world_matrix, layer.material));
     graph.connect(layer_output, lighting_node);
     layer_output = lighting_node;
+}
+
+// ── depth grade pass ──────────────────────────────────────────────
+
+void append_depth_grade_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_output,
+                                       const LayerGraphItem& item,
+                                       const RenderGraphContext& ctx,
+                                       const rendering::DepthGrade& grade) {
+    if (!grade.enabled) return;
+    if (!item.projected) return;
+    if (!ctx.light_context.enabled) return;
+
+    auto grade_node = graph.add_node(
+        DepthGradeNode::create(grade, item.world_z, item.layer->material.accepts_lights));
+    graph.connect(layer_output, grade_node);
+    layer_output = grade_node;
 }
 
 // ── shadow pass ───────────────────────────────────────────────────
