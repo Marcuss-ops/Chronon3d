@@ -14,19 +14,31 @@ class GraphExecutor {
 public:
     GraphExecutor();
 
+    /// Execute a render graph.
+    /// @param arena_override  Optional external arena for temporary allocations.
+    ///        When provided, the executor uses this arena instead of its internal
+    ///        m_frame_arena, allowing multiple execute() calls to run concurrently
+    ///        on the same executor instance without data races on the shared arena.
+    ///        Each concurrent caller MUST provide its own arena.
     std::shared_ptr<Framebuffer> execute(
         RenderGraph& graph,
         GraphNodeId output,
-        RenderGraphContext& ctx
+        RenderGraphContext& ctx,
+        FrameArena* arena_override = nullptr
     );
 
-    std::shared_ptr<Framebuffer> execute(RenderGraph& graph, RenderGraphContext& ctx) {
-        return execute(graph, graph.output(), ctx);
+    std::shared_ptr<Framebuffer> execute(
+        RenderGraph& graph,
+        RenderGraphContext& ctx,
+        FrameArena* arena_override = nullptr
+    ) {
+        return execute(graph, graph.output(), ctx, arena_override);
     }
 
     std::shared_ptr<Framebuffer> execute(
         CompiledFrameGraph& compiled,
-        RenderGraphContext& ctx
+        RenderGraphContext& ctx,
+        FrameArena* arena_override = nullptr
     );
 
     /// Invalidate the cached execution plan — call this after the graph topology

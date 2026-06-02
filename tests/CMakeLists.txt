@@ -46,6 +46,8 @@ add_executable(chronon3d_core_tests
     text/test_text_layout.cpp
     text/test_text_cache_key.cpp
     text/test_text_animator.cpp
+    text/test_text_material.cpp
+    text/test_font_engine.cpp
     media/test_media_placement.cpp
     scene_presets/test_scene_presets.cpp
 )
@@ -110,6 +112,11 @@ add_executable(chronon3d_renderer_tests
     renderer/lighting/test_light_context.cpp
     renderer/lighting/test_directional_lights.cpp
     renderer/lighting/test_shadows.cpp
+    renderer/lighting/test_lighting_rig.cpp
+    renderer/lighting/test_depth_aware_shadows.cpp
+    renderer/2d5/test_card3d_material.cpp
+    renderer/2d5/test_card3d_rasterizer.cpp
+    renderer/2d5/test_depth_grade.cpp
     render_graph/features/test_unified_transform_path.cpp
     renderer/dispatch/test_software_node_dispatcher.cpp
     render_graph/features/test_transition.cpp
@@ -141,6 +148,7 @@ add_executable(chronon3d_renderer_tests
     golden/glow_golden_tests.cpp
     golden/suite_chronon3d_tests.cpp
     golden/roadmap_2_5d_suite.cpp
+    golden/saas_intro_premium_golden.cpp
     runtime/test_telemetry.cpp
     runtime/test_telemetry_semantic.cpp
     runtime/test_telemetry_report.cpp

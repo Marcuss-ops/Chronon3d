@@ -8,6 +8,7 @@
 #include <optional>
 #include <string>
 #include <vector>
+#include <chronon3d/text/text_material.hpp>
 #include <chronon3d/media/media_placement.hpp>
 
 namespace chronon3d {
@@ -125,6 +126,9 @@ struct TextStyle {
     std::vector<TextShadow> shadows{};
     TextBoxStyle box_style{};
     VerticalAlign vertical_align{VerticalAlign::Top};
+
+    // Premium TextMaterial (gradient, bevel, highlight, etc.)
+    TextMaterial material{};
 };
 
 // Optional bounding box for word-wrap and auto-scale.

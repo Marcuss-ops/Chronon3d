@@ -1,0 +1,283 @@
+#include <chronon3d/text/text_material.hpp>
+#include <algorithm>
+#include <cmath>
+#include <cstdint>
+#include <blend2d.h>
+
+namespace chronon3d {
+
+// ── helpers ──────────────────────────────────────────────────────────
+
+static inline uint8_t f32_to_u8(float v) {
+    return static_cast<uint8_t>(std::clamp(v * 255.0f, 0.0f, 255.0f));
+}
+
+static inline float u8_to_f32(uint8_t v) {
+    return static_cast<float>(v) / 255.0f;
+}
+
+static inline uint32_t rgba_pack(uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
+    return (static_cast<uint32_t>(a) << 24) |
+           (static_cast<uint32_t>(r) << 16) |
+           (static_cast<uint32_t>(g) <<  8) |
+           (static_cast<uint32_t>(b));
+}
+
+static inline void rgba_unpack(uint32_t p, uint8_t& r, uint8_t& g, uint8_t& b, uint8_t& a) {
+    a = static_cast<uint8_t>((p >> 24) & 0xFF);
+    r = static_cast<uint8_t>((p >> 16) & 0xFF);
+    g = static_cast<uint8_t>((p >>  8) & 0xFF);
+    b = static_cast<uint8_t>((p      ) & 0xFF);
+}
+
+// Premultiplied-alpha over composite on BL_FORMAT_PRGB32.
+// dst pixels are premultiplied; src_color is straight alpha.
+static inline uint32_t blend_over(uint32_t dst, const Color& src_color, float src_alpha) {
+    uint8_t dr, dg, db, da;
+    rgba_unpack(dst, dr, dg, db, da);
+
+    const float da_f = u8_to_f32(da);
+    const float sa = src_alpha;
+
+    // Premultiplied over operator:
+    //   out_a    = sa + da * (1 - sa)
+    //   out_rgb  = src_premul + dst_premul * (1 - sa)
+    // PRGB32 stores dr already premultiplied, so u8_to_f32(dr) = R_dst * da_f.
+    // No division by out_a → result stays premultiplied for PRGB32.
+    const float out_a = sa + da_f * (1.0f - sa);
+    if (out_a < 1e-7f) return 0;
+
+    const float out_r = src_color.r * sa + u8_to_f32(dr) * (1.0f - sa);
+    const float out_g = src_color.g * sa + u8_to_f32(dg) * (1.0f - sa);
+    const float out_b = src_color.b * sa + u8_to_f32(db) * (1.0f - sa);
+
+    return rgba_pack(
+        f32_to_u8(std::clamp(out_r, 0.0f, 1.0f)),
+        f32_to_u8(std::clamp(out_g, 0.0f, 1.0f)),
+        f32_to_u8(std::clamp(out_b, 0.0f, 1.0f)),
+        f32_to_u8(std::clamp(out_a, 0.0f, 1.0f))
+    );
+}
+
+// ── apply_text_material ──────────────────────────────────────────────
+//
+// Modifies a text BLImage in-place, applying gradient fill, bevel,
+// top highlight, bottom shade, and emissive boost from the TextMaterial.
+//
+// The input image should contain white (or colored) text on transparent
+// background. The function operates on premultiplied alpha content.
+
+void apply_text_material(BLImage& img, const TextMaterial& mat) {
+    if (!mat.enabled) return;
+
+    BLImageData data;
+    if (img.getData(&data) != BL_SUCCESS) return;
+    if (!data.pixelData || data.size.w <= 0 || data.size.h <= 0) return;
+
+    const int w = data.size.w;
+    const int h = data.size.h;
+    const int stride = static_cast<int>(data.stride / sizeof(uint32_t));
+    auto* pixels = static_cast<uint32_t*>(data.pixelData);
+
+    // ── Extract alpha channel for bevel / highlight processing ──
+    std::vector<float> alpha(static_cast<size_t>(w) * static_cast<size_t>(h));
+    for (int y = 0; y < h; ++y) {
+        for (int x = 0; x < w; ++x) {
+            uint8_t a;
+            uint8_t r, g, b;
+            rgba_unpack(pixels[y * stride + x], r, g, b, a);
+            alpha[static_cast<size_t>(y) * static_cast<size_t>(w) + static_cast<size_t>(x)] = u8_to_f32(a);
+        }
+    }
+
+    // ── 1. Gradient fill + emissive ────────────────────────────
+    // For each pixel, recompute color from top/bottom lerp and
+    // multiply by emissive. Preserve the original alpha.
+    for (int y = 0; y < h; ++y) {
+        const float t = (h > 1) ? static_cast<float>(y) / static_cast<float>(h - 1) : 0.5f;
+        const Color grad_color = mat.top_color * (1.0f - t) + mat.bottom_color * t;
+        const float emissive = mat.emissive;
+
+        for (int x = 0; x < w; ++x) {
+            const float a = alpha[y * w + x];
+            if (a <= 0.0f) {
+                pixels[y * stride + x] = 0;
+                continue;
+            }
+
+            // Apply gradient color using the original alpha as mask
+            float r = grad_color.r * emissive;
+            float g = grad_color.g * emissive;
+            float b = grad_color.b * emissive;
+
+            // Clamp
+            r = std::clamp(r, 0.0f, 1.0f);
+            g = std::clamp(g, 0.0f, 1.0f);
+            b = std::clamp(b, 0.0f, 1.0f);
+
+            pixels[y * stride + x] = rgba_pack(
+                f32_to_u8(r),
+                f32_to_u8(g),
+                f32_to_u8(b),
+                f32_to_u8(a)
+            );
+        }
+    }
+
+    // ── 2. Bevel (fake 3D edge) ────────────────────────────────
+    // Apply by offsetting the alpha mask and compositing highlight
+    // on top-left edges and shadow on bottom-right edges.
+    if (mat.bevel_px > 0.0f) {
+        const int bp = static_cast<int>(std::round(mat.bevel_px));
+        if (bp > 0) {
+            // Bevel highlight: offset alpha by (-bp, -bp), then keep only
+            // the "new" pixels that are in the offset but not in the original.
+            // Composite as highlight color over the text.
+            for (int y = 0; y < h; ++y) {
+                for (int x = 0; x < w; ++x) {
+                    const float orig_a = alpha[y * w + x];
+                    if (orig_a <= 0.0f) continue;
+
+                    // Check if this pixel is at a top or left edge:
+                    // the pixel at offset (x-bp, y) or (x, y-bp) has less alpha
+                    const int px_left = x - bp;
+                    const int px_top  = y - bp;
+                    float edge_strength = 0.0f;
+                    int edge_count = 0;
+
+                    // Check top edge: pixel above has less alpha
+                    if (px_top >= 0) {
+                        float above_alpha = 0.0f;
+                        for (int ox = std::max(0, px_left); ox <= std::min(w - 1, x + bp); ++ox) {
+                            above_alpha = std::max(above_alpha, alpha[px_top * w + ox]);
+                        }
+                        if (above_alpha < orig_a * 0.5f) {
+                            edge_strength = std::max(edge_strength, (orig_a - above_alpha) / orig_a);
+                            edge_count++;
+                        }
+                    } else {
+                        edge_strength = std::max(edge_strength, 1.0f);
+                        edge_count++;
+                    }
+
+                    // Check left edge: pixel to the left has less alpha
+                    if (px_left >= 0) {
+                        float left_a = 0.0f;
+                        for (int oy = std::max(0, px_top); oy <= std::min(h - 1, y + bp); ++oy) {
+                            left_a = std::max(left_a, alpha[oy * w + px_left]);
+                        }
+                        if (left_a < orig_a * 0.5f) {
+                            edge_strength = std::max(edge_strength, (orig_a - left_a) / orig_a);
+                            edge_count++;
+                        }
+                    } else {
+                        edge_strength = std::max(edge_strength, 1.0f);
+                        edge_count++;
+                    }
+
+                    if (edge_count > 0 && edge_strength > 0.1f) {
+                        const float hl_alpha = edge_strength * mat.bevel_highlight_opacity * orig_a;
+                        pixels[y * stride + x] = blend_over(
+                            pixels[y * stride + x],
+                            mat.bevel_highlight_color,
+                            hl_alpha
+                        );
+                    }
+                }
+            }
+
+            // Bevel shadow: check bottom and right edges (pixels BELOW or RIGHT have less alpha)
+            for (int y = 0; y < h; ++y) {
+                for (int x = 0; x < w; ++x) {
+                    const float orig_a = alpha[y * w + x];
+                    if (orig_a <= 0.0f) continue;
+
+                    const int px_right = x + bp;
+                    const int px_bottom = y + bp;
+                    float edge_strength = 0.0f;
+                    int edge_count = 0;
+
+                    // Check bottom edge: pixel below has less alpha
+                    if (px_bottom < h) {
+                        float below_a = 0.0f;
+                        for (int ox = std::max(0, x - bp); ox <= std::min(w - 1, px_right); ++ox) {
+                            below_a = std::max(below_a, alpha[px_bottom * w + ox]);
+                        }
+                        if (below_a < orig_a * 0.5f) {
+                            edge_strength = std::max(edge_strength, (orig_a - below_a) / orig_a);
+                            edge_count++;
+                        }
+                    } else {
+                        edge_strength = std::max(edge_strength, 1.0f);
+                        edge_count++;
+                    }
+
+                    // Check right edge: pixel to the right has less alpha
+                    if (px_right < w) {
+                        float right_a = 0.0f;
+                        for (int oy = std::max(0, y - bp); oy <= std::min(h - 1, px_bottom); ++oy) {
+                            right_a = std::max(right_a, alpha[oy * w + px_right]);
+                        }
+                        if (right_a < orig_a * 0.5f) {
+                            edge_strength = std::max(edge_strength, (orig_a - right_a) / orig_a);
+                            edge_count++;
+                        }
+                    } else {
+                        edge_strength = std::max(edge_strength, 1.0f);
+                        edge_count++;
+                    }
+
+                    if (edge_count > 0 && edge_strength > 0.1f) {
+                        const float sh_alpha = edge_strength * mat.bevel_shadow_opacity * orig_a;
+                        const Color shadow_tint{0.0f, 0.0f, 0.0f, 1.0f};
+                        pixels[y * stride + x] = blend_over(
+                            pixels[y * stride + x],
+                            shadow_tint,
+                            sh_alpha
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    // ── 3. Top highlight strip ─────────────────────────────────
+    if (mat.top_highlight_opacity > 0.0f && mat.top_highlight_fraction > 0.0f) {
+        const int hl_height = std::max(1, static_cast<int>(static_cast<float>(h) * mat.top_highlight_fraction));
+        for (int y = 0; y < hl_height && y < h; ++y) {
+            const float t = 1.0f - static_cast<float>(y) / static_cast<float>(hl_height);
+            const float fade = t * t; // quadratic fade
+            for (int x = 0; x < w; ++x) {
+                const float a = alpha[y * w + x];
+                if (a <= 0.0f) continue;
+                const float hl_a = fade * mat.top_highlight_opacity * a;
+                pixels[y * stride + x] = blend_over(
+                    pixels[y * stride + x],
+                    Color{1.0f, 1.0f, 1.0f, 1.0f},
+                    hl_a
+                );
+            }
+        }
+    }
+
+    // ── 4. Bottom shade strip ──────────────────────────────────
+    if (mat.bottom_shade_opacity > 0.0f && mat.bottom_shade_fraction > 0.0f) {
+        const int sh_height = std::max(1, static_cast<int>(static_cast<float>(h) * mat.bottom_shade_fraction));
+        for (int y = std::max(0, h - sh_height); y < h; ++y) {
+            const float t = static_cast<float>(y - (h - sh_height)) / static_cast<float>(sh_height);
+            const float fade = t * t; // quadratic fade
+            for (int x = 0; x < w; ++x) {
+                const float a = alpha[y * w + x];
+                if (a <= 0.0f) continue;
+                const float sh_a = fade * mat.bottom_shade_opacity * a;
+                pixels[y * stride + x] = blend_over(
+                    pixels[y * stride + x],
+                    Color{0.0f, 0.0f, 0.0f, 1.0f},
+                    sh_a
+                );
+            }
+        }
+    }
+}
+
+} // namespace chronon3d

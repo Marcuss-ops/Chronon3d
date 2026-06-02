@@ -6,6 +6,16 @@
 #include <chronon3d/video/converted_frame_cache.hpp>
 #include <chronon3d/video/frame_converter.hpp>
 
+// Include the real blur implementation for proper benchmarks
+#include "src/backends/software/utils/render_effects_processor.hpp"
+
+// Tile benchmark includes
+#include <chronon3d/api/composition.hpp>
+#include <chronon3d/api/scene.hpp>
+#include <chronon3d/api/renderer.hpp>
+#include <chronon3d/core/types/frame_context.hpp>
+#include <chronon3d/timeline/composition.hpp>
+
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -14,6 +24,7 @@
 
 using namespace chronon3d;
 using namespace chronon3d::video;
+using namespace chronon3d::renderer;
 
 namespace {
 
@@ -119,42 +130,153 @@ void BM_ConvertedFrameCacheHit(benchmark::State& state) {
     state.counters["hit_rate"] = 1.0;
 }
 
-void BM_BlurPerformance(benchmark::State& state) {
+// ---------------------------------------------------------------------------
+// Real blur benchmarks that call the actual apply_blur() from effect_blur.cpp
+// ---------------------------------------------------------------------------
+
+/// Benchmark the real box-filter blur with the default 3-pass mode
+void BM_Blur3Pass(benchmark::State& state) {
     const int radius = static_cast<int>(state.range(0));
     constexpr int w = 640;
     constexpr int h = 360;
-    Framebuffer src(w, h), dst(w, h);
-    src.clear(Color{0.4f, 0.6f, 0.8f, 1.0f});
+    Framebuffer fb(w, h);
+    fb.clear(Color{0.4f, 0.6f, 0.8f, 1.0f});
 
     for (auto _ : state) {
-        for (int y = 0; y < h; ++y) {
-            Color* src_row = src.pixels_row(y);
-            Color* dst_row = dst.pixels_row(y);
-            for (int x = 0; x < w; ++x) {
-                f32 r = 0.0f;
-                f32 g = 0.0f;
-                f32 b = 0.0f;
-                f32 a = 0.0f;
-                f32 weight = 0.0f;
-                const int x0 = std::max(0, x - radius);
-                const int x1 = std::min(w, x + radius + 1);
-                for (int kx = x0; kx < x1; ++kx) {
-                    const f32 k = 1.0f - std::abs(static_cast<f32>(kx - x)) / static_cast<f32>(radius + 1);
-                    r += src_row[kx].r * k;
-                    g += src_row[kx].g * k;
-                    b += src_row[kx].b * k;
-                    a += src_row[kx].a * k;
-                    weight += k;
-                }
-                if (weight > 0.0f) {
-                    dst_row[x] = {r / weight, g / weight, b / weight, a / weight};
-                }
-            }
-        }
-        benchmark::ClobberMemory();
+        apply_blur(fb, static_cast<f32>(radius), std::nullopt, 3);
+        benchmark::DoNotOptimize(fb.get_pixel(0, 0));
     }
 
     state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) * w * h);
+}
+
+/// Benchmark the box-filter blur with the optimized 2-pass mode
+/// (equivalent sigma, ~1.5× less work)
+void BM_Blur2Pass(benchmark::State& state) {
+    const int radius = static_cast<int>(state.range(0));
+    constexpr int w = 640;
+    constexpr int h = 360;
+    Framebuffer fb(w, h);
+    fb.clear(Color{0.4f, 0.6f, 0.8f, 1.0f});
+
+    for (auto _ : state) {
+        apply_blur(fb, static_cast<f32>(radius), std::nullopt, 2);
+        benchmark::DoNotOptimize(fb.get_pixel(0, 0));
+    }
+
+    state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) * w * h);
+}
+
+// ---------------------------------------------------------------------------
+// Tile execution benchmarks: sequential vs parallel vs no-tiles baseline
+// ---------------------------------------------------------------------------
+
+/// Scene with many moving objects to generate lots of dirty tiles per frame
+static Composition make_tile_bench_scene(int width, int height, int duration) {
+    return Composition(CompositionSpec{
+        .name = "TileBench", .width = width, .height = height, .duration = duration
+    }, [=](const FrameContext& ctx) {
+        SceneBuilder s(ctx.resource);
+        // Background fills the whole frame
+        s.rect("bg", {
+            .size = {static_cast<float>(width), static_cast<float>(height)},
+            .color = Color{0.05f, 0.1f, 0.15f, 1.0f},
+            .pos = {static_cast<float>(width) * 0.5f, static_cast<float>(height) * 0.5f, 0}
+        });
+        // 16 moving circles — each on a different trajectory, creating
+        // scattered dirty tiles across the frame every frame.
+        for (int i = 0; i < 16; ++i) {
+            float phase = static_cast<float>(i) * 0.4f;
+            float x = 30.0f + static_cast<float>(ctx.frame) * 2.5f
+                      + static_cast<float>(i % 4) * 80.0f;
+            float y = 30.0f
+                      + std::sin(phase + static_cast<float>(ctx.frame) * 0.1f) * 50.0f
+                      + static_cast<float>(i / 4) * 60.0f;
+            s.circle("ball" + std::to_string(i), {
+                .radius = 6.0f,
+                .color = Color{0.3f + 0.05f * static_cast<float>(i), 0.5f, 0.7f, 0.9f},
+                .pos = {x, y, 0}
+            });
+        }
+        return s.build();
+    });
+}
+
+/// Baseline: no tiles, full-frame render each frame
+void BM_TileRenderNoTiles(benchmark::State& state) {
+    constexpr int W = 640, H = 360;
+    constexpr int kFrames = 12;
+    Composition comp = make_tile_bench_scene(W, H, kFrames);
+
+    for (auto _ : state) {
+        SoftwareRenderer renderer;
+        RenderSettings s;
+        s.use_modular_graph = true;
+        s.enable_dirty_rects = false;
+        renderer.set_settings(s);
+
+        for (Frame f = 0; f < kFrames; ++f) {
+            auto fb = renderer.render_frame(comp, f);
+            benchmark::DoNotOptimize(fb);
+        }
+    }
+
+    state.SetItemsProcessed(
+        static_cast<int64_t>(state.iterations()) * kFrames * W * H);
+}
+
+/// Sequential tile processing: dirty tiles rendered one by one
+void BM_TileRenderSequential(benchmark::State& state) {
+    const int tile_size = static_cast<int>(state.range(0));
+    constexpr int W = 640, H = 360;
+    constexpr int kFrames = 12;
+    Composition comp = make_tile_bench_scene(W, H, kFrames);
+
+    for (auto _ : state) {
+        SoftwareRenderer renderer;
+        RenderSettings s;
+        s.use_modular_graph = true;
+        s.enable_dirty_rects = true;
+        s.enable_dirty_bitmask = true;
+        s.tile_size = tile_size;
+        s.enable_parallel_tiles = false;   // ← sequential
+        renderer.set_settings(s);
+
+        for (Frame f = 0; f < kFrames; ++f) {
+            auto fb = renderer.render_frame(comp, f);
+            benchmark::DoNotOptimize(fb);
+        }
+    }
+
+    state.SetItemsProcessed(
+        static_cast<int64_t>(state.iterations()) * kFrames * W * H);
+}
+
+/// Parallel tile processing (V1): dirty tiles rendered via tbb::parallel_for
+void BM_TileRenderParallel(benchmark::State& state) {
+    const int tile_size = static_cast<int>(state.range(0));
+    constexpr int W = 640, H = 360;
+    constexpr int kFrames = 12;
+    Composition comp = make_tile_bench_scene(W, H, kFrames);
+
+    for (auto _ : state) {
+        SoftwareRenderer renderer;
+        RenderSettings s;
+        s.use_modular_graph = true;
+        s.enable_dirty_rects = true;
+        s.enable_dirty_bitmask = true;
+        s.tile_size = tile_size;
+        s.enable_parallel_tiles = true;    // ← parallel (V1)
+        renderer.set_settings(s);
+
+        for (Frame f = 0; f < kFrames; ++f) {
+            auto fb = renderer.render_frame(comp, f);
+            benchmark::DoNotOptimize(fb);
+        }
+    }
+
+    state.SetItemsProcessed(
+        static_cast<int64_t>(state.iterations()) * kFrames * W * H);
 }
 
 void BM_CompositingBlendModes(benchmark::State& state) {
@@ -228,6 +350,10 @@ BENCHMARK(BM_FramebufferClear)->Unit(benchmark::kMillisecond);
 BENCHMARK(BM_FrameConversionYUV420P)->Unit(benchmark::kMillisecond);
 BENCHMARK(BM_FrameConversionNV12)->Unit(benchmark::kMillisecond);
 BENCHMARK(BM_ConvertedFrameCacheHit)->Unit(benchmark::kMillisecond);
-BENCHMARK(BM_BlurPerformance)->Arg(10)->Arg(50)->Arg(100)->Unit(benchmark::kMillisecond);
+BENCHMARK(BM_Blur3Pass)->Arg(10)->Arg(50)->Arg(100)->Unit(benchmark::kMillisecond);
+BENCHMARK(BM_Blur2Pass)->Arg(10)->Arg(50)->Arg(100)->Unit(benchmark::kMillisecond);
+BENCHMARK(BM_TileRenderNoTiles)->Unit(benchmark::kMillisecond);
+BENCHMARK(BM_TileRenderSequential)->Arg(32)->Arg(64)->Unit(benchmark::kMillisecond);
+BENCHMARK(BM_TileRenderParallel)->Arg(32)->Arg(64)->Unit(benchmark::kMillisecond);
 BENCHMARK(BM_CompositingBlendModes)->Unit(benchmark::kMillisecond);
 BENCHMARK(BM_MotionBlurAccumulation)->Arg(4)->Arg(8)->Arg(16)->Unit(benchmark::kMillisecond);

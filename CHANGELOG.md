@@ -13,6 +13,12 @@ All notable changes to this project will be documented in this file.
 - **Tests**: Aligned 2.5D test expectations with new coordinate convention.
 
 ### Added
+- **FontEngine**: Added `FontEngine` class with FreeType+HarfBuzz shape_text() for precise glyph metrics, glyph_bbox_cache with LruCache eviction, and shared_font_engine() singleton.
+- **FontEngine Pipeline Wiring**: `FontEngine*` propagated from `LayerBuilder` → `Layer` → `RenderNode` → text rasterizer. `LayerBuilder::font_engine()` setter, all text nodes share a single engine instance.
+- **Per-Glyph Text Animation**: Added `TextAnimMode::ByGlyph` to `TextAnimator`. `split_glyphs()` uses `FontEngine::shape_text()` for exact cluster substrings and GlyphRun positions — one LayerBuilder per glyph instead of per character/word.
+- **Glyph BBox Cache with LRU Eviction**: Replaced `std::unordered_map` clear-all cap with `cache::LruCache` (8192 capacity, 2 shards) in `FontEngine`. Hot glyphs preserved instead of full cache wipe.
+- **Card3DMaterial**: New 3D card material rasterizer with homography projection.
+- **DepthGrade**: Depth-aware grading node for per-pixel depth adjustments.
 - **License**: Added MIT LICENSE file.
 - **Contributing**: Added CONTRIBUTING.md with development guidelines.
 - **Static analysis**: Added .clang-tidy config and clang-tidy CI job.
