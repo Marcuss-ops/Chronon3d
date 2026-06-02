@@ -724,13 +724,28 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     // or garbage (from the fresh per-tile framebuffer), producing visible seams at
     // tile edges.  Disable tile execution when ANY layer has spatial effects.
     const bool tile_safe = !detail::has_layer_with_spatial_effects(resolved, frame);
+
+    // ── Dirty-ratio threshold for tile execution ────────────────────────
+    // When the dirty area covers >threshold of the screen, per-tile graph
+    // re-execution overhead dominates and single-pass is faster.  This threshold
+    // prevents pathological slowdowns on scenes with large dirty regions.
+    const bool dirty_ratio_below_threshold =
+        dirty_ratio <= settings.tile_dirty_ratio_threshold;
+
     const bool use_tile_execution = tile_safe &&
                                     dirty_out.use_dirty_tiles &&
+                                    dirty_ratio_below_threshold &&
                                     sw_renderer &&
                                     sw_renderer->executor() &&
                                     dirty_out.tile_grid &&
                                     dirty_out.dirty_tiles &&
                                     dirty_out.dirty_tiles->any();
+
+    if (ctx.diagnostics_enabled && !dirty_ratio_below_threshold) {
+        spdlog::info(
+            "[tile-debug] frame={} tile_execution_skipped dirty_ratio={:.3f} threshold={} reason=high_dirty_ratio",
+            static_cast<int>(frame), dirty_ratio, settings.tile_dirty_ratio_threshold);
+    }
 
     if (use_tile_execution) {
         const auto& tile_grid = *dirty_out.tile_grid;

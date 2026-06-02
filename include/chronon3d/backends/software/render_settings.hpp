@@ -59,6 +59,18 @@ struct RenderSettings {
     bool enable_parallel_tiles{true};
 
     /**
+     * Maximum dirty ratio (0.0–1.0) that still enables tile-based execution.
+     * When the fraction of dirty screen pixels exceeds this threshold, tile
+     * execution is skipped and single-pass rendering is used instead, because
+     * the overhead of per-tile graph re-execution outweighs the benefit of
+     * skipping clean tiles.
+     *
+     * Example: 0.30 means "skip tile execution when >30% of the screen is dirty".
+     * Set to 1.0 to always use tiles (no automatic throttle).
+     */
+    double tile_dirty_ratio_threshold{0.30};
+
+    /**
      * If true, enables in-place composition to avoid costly framebuffer copies.
      */
     bool optimize_compositing{true};
