@@ -86,6 +86,22 @@ struct Card3DMaterial {
         return m;
     }
 
+    /// Premium card — rich gradient with strong rim.
+    static Card3DMaterial premium_card() {
+        Card3DMaterial m;
+        m.thickness_px         = 14.0f;
+        m.front_top_color      = {0.10f, 0.10f, 0.20f, 0.92f};
+        m.front_bottom_color   = {0.06f, 0.06f, 0.12f, 0.92f};
+        m.side_color           = {0.04f, 0.04f, 0.08f, 0.88f};
+        m.edge_highlight_intensity = 0.40f;
+        m.edge_highlight_color = {0.50f, 0.65f, 1.0f, 1.0f};
+        m.rim_light_intensity      = 0.55f;
+        m.rim_light_power          = 2.2f;
+        m.rim_light_color          = {0.50f, 0.65f, 1.0f, 1.0f};
+        m.corner_radius        = 28.0f;
+        return m;
+    }
+
     /// Flat card — no thickness, just the shape (useful for non-3D layouts).
     static Card3DMaterial flat() {
         Card3DMaterial m;

@@ -87,10 +87,10 @@ inline void blend_pixel(Color& dst, const Color& src, BlendMode mode) {
         return;
     }
     if (mode == BlendMode::Add) {
-        dst.r += src.r;
-        dst.g += src.g;
-        dst.b += src.b;
-        dst.a += src.a;
+        dst.r = std::min(1.0f, dst.r + src.r);
+        dst.g = std::min(1.0f, dst.g + src.g);
+        dst.b = std::min(1.0f, dst.b + src.b);
+        dst.a = std::min(1.0f, dst.a + src.a);
     } else {
         const float inv_sa = 1.0f - src.a;
         dst.r = src.r + dst.r * inv_sa;

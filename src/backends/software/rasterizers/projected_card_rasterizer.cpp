@@ -151,10 +151,10 @@ void composite_projected_framebuffer(Framebuffer& dst, const Framebuffer& src,
             Color& d = dst_row[x];
 
             if (mode == BlendMode::Add) {
-                d.r += src_c.r * opacity;
-                d.g += src_c.g * opacity;
-                d.b += src_c.b * opacity;
-                d.a += final_a;
+                d.r = std::min(1.0f, d.r + src_c.r * opacity);
+                d.g = std::min(1.0f, d.g + src_c.g * opacity);
+                d.b = std::min(1.0f, d.b + src_c.b * opacity);
+                d.a = std::min(1.0f, d.a + final_a);
             } else {
                 const float inv_a = 1.0f - final_a;
                 d.r = src_c.r * opacity + d.r * inv_a;
