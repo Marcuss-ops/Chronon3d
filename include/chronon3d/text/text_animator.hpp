@@ -196,15 +196,58 @@ inline std::vector<TextAnimator::GlyphUnit> TextAnimator::split_glyphs() const {
     auto run = m_font_engine->shape_text(m_text, spec, m_font_size);
     if (!run) return units;
 
+    // RTL detection: if glyph clusters are decreasing (e.g. Arabic, Hebrew),
+    // fall back silently so callers get correct substring positions.
+    // We detect RTL by checking if the first glyph's cluster > last glyph's cluster
+    // (clusters are byte offsets into the source text, so for RTL they go
+    // from high to low).
+    if (!run->glyphs.empty() && run->glyphs.front().cluster > run->glyphs.back().cluster) {
+        // RTL text detected. For RTL, clusters DECREASE (high → low byte offsets)
+        // because HarfBuzz processes right-to-left. In the glyph array (visual order,
+        // left to right), glyph[0] has the highest cluster and glyph[N-1] the lowest.
+        //
+        // To extract correct substrings:
+        //   glyph[i].cluster   = end byte offset of this visual cluster
+        //   glyph[i+1].cluster = start byte offset of this visual cluster (lower)
+        //
+        // NOTE: Mixed-direction text (e.g. "Hello العربية") has non-monotonic clusters
+        // and is not handled by this simple RTL/LTR check. For mixed text, splitting
+        // is undefined — consider using ByCharacter mode for such cases.
+        for (size_t i = 0; i < run->glyphs.size(); ++i) {
+            const auto& gp = run->glyphs[i];
+            if (!gp.is_cluster_start) continue;
+
+            // Find the end of this cluster in the glyph array
+            size_t cluster_end = i + 1;
+            while (cluster_end < run->glyphs.size() && !run->glyphs[cluster_end].is_cluster_start) {
+                ++cluster_end;
+            }
+
+            // For RTL: the next glyph's cluster (lower offset) is the start,
+            // this glyph's cluster (higher offset) is the end.
+            size_t text_start = (cluster_end < run->glyphs.size())
+                ? static_cast<size_t>(run->glyphs[cluster_end].cluster)
+                : 0;
+            size_t text_end   = static_cast<size_t>(run->glyphs[i].cluster);
+
+            if (text_end <= text_start) continue; // safety guard
+
+            GlyphUnit gu;
+            gu.text = m_text.substr(text_start, text_end - text_start);
+            gu.x = gp.x;
+            gu.advance_x = gp.advance_x;
+            units.push_back(std::move(gu));
+        }
+        return units;
+    }
+
+    // LTR path: clusters increase monotonically
     units.reserve(run->glyphs.size());
     for (size_t i = 0; i < run->glyphs.size(); ++i) {
         const auto& gp = run->glyphs[i];
         size_t start_byte = gp.cluster;
         size_t end_byte = m_text.size();
 
-        // Find the next glyph whose cluster starts after this one.
-        // NOTE: this assumes LTR text with monotonically-increasing clusters.
-        // RTL text requires cluster-order reversal.
         for (size_t j = i + 1; j < run->glyphs.size(); ++j) {
             if (run->glyphs[j].cluster > start_byte) {
                 end_byte = run->glyphs[j].cluster;
