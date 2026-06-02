@@ -1,4 +1,5 @@
 #include "../common/glow_test_common.hpp"
+#include <chronon3d/layout/design_layout.hpp>
 
 namespace chronon3d::content::effects {
 
@@ -122,42 +123,19 @@ Composition premium_thumbnail_buttery_smooth() {
             });
         });
 
-        // 3. Side-by-side text layout: "Buttery Smooth" + glowing star asterisk
+        // 3. Side-by-side text layout using RichTextLine
         s.layer("text", [](LayerBuilder& l) {
             l.position({-120.0f, -110.0f, 0.0f});
             
-            // "Buttery" (Magenta/pink)
-            l.text("buttery", {
-                .text = "Buttery",
-                .size = {460.0f, 120.0f},
-                .pos = {-360.0f, 0.0f, 0.0f},
-                .font_path = "assets/fonts/Inter-Bold.ttf",
-                .font_family = "Inter",
-                .font_weight = 900,
-                .font_size = 72.0f,
-                .color = Color{1.0f, 0.0f, 0.78f, 1.0f},
-                .align = TextAlign::Left,
-                .vertical_align = VerticalAlign::Middle,
-                .wrap = TextWrap::None
-            });
+            RichTextLine rtl;
+            rtl.run("Buttery", Color{1.0f, 0.0f, 0.78f, 1.0f}, 72.0f)
+               .space(24.0f)
+               .run("Smooth", Color::white(), 72.0f);
 
-            // "Smooth" (White)
-            l.text("smooth", {
-                .text = "Smooth",
-                .size = {460.0f, 120.0f},
-                .pos = {25.0f, 0.0f, 0.0f},
-                .font_path = "assets/fonts/Inter-Bold.ttf",
-                .font_family = "Inter",
-                .font_weight = 900,
-                .font_size = 72.0f,
-                .color = Color::white(),
-                .align = TextAlign::Left,
-                .vertical_align = VerticalAlign::Middle,
-                .wrap = TextWrap::None
-            });
+            draw_rich_text(l, rtl, {-360.0f, 0.0f, 0.0f}, l.font_engine());
         });
 
-        // 4. Glowing 8-Point Asterisk Star at the right of Smooth text
+        // 4. Glowing 8-Point Asterisk Star at the right of Smooth text (measured position)
         s.layer("star_glow", [](LayerBuilder& l) {
             l.position({390.0f, -110.0f, 0.0f});
             l.glow(55.0f, 1.4f, Color{1.0f, 0.0f, 0.78f, 0.75f});
