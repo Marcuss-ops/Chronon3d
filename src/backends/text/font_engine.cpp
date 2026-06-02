@@ -347,4 +347,16 @@ FontEngine& shared_font_engine() {
     return engine;
 }
 
+void reset_shared_font_engine() {
+    // Destroy the current singleton by calling clear_cache (which flushes
+    // all FreeType faces, HarfBuzz fonts, and the glyph bbox cache),
+    // then replace the static with a fresh instance on next access.
+    //
+    // Technique: we directly clear the static's internal caches
+    // so that all open handles are released. The next call to
+    // shared_font_engine() reuses the same static but with empty caches.
+    auto& engine = shared_font_engine();
+    engine.clear_cache();
+}
+
 } // namespace chronon3d

@@ -146,7 +146,8 @@ GraphExecutor::ExecutionPlan GraphExecutor::build_execution_plan(RenderGraph& gr
 std::shared_ptr<Framebuffer> GraphExecutor::execute(
     RenderGraph& graph,
     GraphNodeId output,
-    RenderGraphContext& ctx
+    RenderGraphContext& ctx,
+    FrameArena* arena_override
 ) {
     // ── Cached execution plan ───────────────────────────────────────
     // Avoid the topological sort + reachability analysis every frame
@@ -183,11 +184,12 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
         return nullptr;
     }
 
-    auto* res = m_frame_arena.resource();
+    FrameArena& active_arena = arena_override ? *arena_override : m_frame_arena;
+    auto* res = active_arena.resource();
     struct ArenaGuard { 
         FrameArena& arena;
         ~ArenaGuard() { arena.reset(); }
-    } guard{m_frame_arena};
+    } guard{active_arena};
 
     return m_arena.execute([&]() -> std::shared_ptr<Framebuffer> {
         const size_t node_count = graph.size();
@@ -254,7 +256,8 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
 
 std::shared_ptr<Framebuffer> GraphExecutor::execute(
     CompiledFrameGraph& compiled,
-    RenderGraphContext& ctx
+    RenderGraphContext& ctx,
+    FrameArena* arena_override
 ) {
     auto& graph = compiled.graph;
     const auto& levels = compiled.levels;
@@ -265,11 +268,12 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
         return nullptr;
     }
 
-    auto* res = m_frame_arena.resource();
+    FrameArena& active_arena = arena_override ? *arena_override : m_frame_arena;
+    auto* res = active_arena.resource();
     struct ArenaGuard { 
         FrameArena& arena;
         ~ArenaGuard() { arena.reset(); }
-    } guard{m_frame_arena};
+    } guard{active_arena};
 
     return m_arena.execute([&]() -> std::shared_ptr<Framebuffer> {
         const size_t node_count = graph.size();

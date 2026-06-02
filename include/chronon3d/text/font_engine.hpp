@@ -163,4 +163,11 @@ private:
 /// but still want to amortise face-loading costs.
 [[nodiscard]] FontEngine& shared_font_engine();
 
+/// Reset the process-wide shared FontEngine singleton.
+/// Clears all cached font faces, glyph bounding boxes, and HarfBuzz
+/// font objects. Useful for font hot-reload: call this after updating
+/// font files on disk, then the next call to shared_font_engine() will
+/// lazily reload faces.
+void reset_shared_font_engine();
+
 } // namespace chronon3d
