@@ -8,6 +8,8 @@
 
 namespace chronon3d {
 
+class FontEngine;  // forward declaration
+
 struct TextRasterization {
     BLImage image;
     float x_offset;
@@ -21,7 +23,8 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     float effective_size,
     int padding = 4,
     bool* cache_hit = nullptr,
-    const Mat4* transform = nullptr
+    const Mat4* transform = nullptr,
+    FontEngine* font_engine = nullptr
 );
 
 void clear_text_raster_cache();

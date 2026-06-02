@@ -104,6 +104,10 @@ using namespace chronon3d::graph;
     seed = hash_combine(seed, hash_value(s.contact_blur_radius));
     seed = hash_combine(seed, hash_value(s.ambient_opacity));
     seed = hash_combine(seed, hash_value(s.ambient_blur_radius));
+    seed = hash_combine(seed, hash_value(s.depth_aware));
+    seed = hash_combine(seed, hash_value(s.blur_per_z));
+    seed = hash_combine(seed, hash_value(s.opacity_falloff));
+    seed = hash_combine(seed, hash_color(s.tint));
     return seed;
 }
 

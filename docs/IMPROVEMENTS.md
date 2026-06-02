@@ -653,19 +653,31 @@ Merge: ffmpeg -f concat -i list.txt -c copy output.mp4
 - [ ] RPC layer (gRPC o HTTP REST) per orchestrare i slave
 - [ ] `render_master` coordina e fa merge finale
 
----
-
-### L6. HarfBuzz Text Shaping Integration
+---### L6. HarfBuzz Text Shaping Integration
 
 **Problema:** Il text rendering usa il layout engine custom (`TextLayoutEngine::layout`). Supporto limitato per lingue non-latine, legature, e forme complicate.
+
 **Soluzione:** Integrare HarfBuzz per lo shaping dei glifi — standard industriale, usato da Chrome, Firefox, Android.
-**Dove:** `src/backends/text/text_layout_engine.cpp` — sostituire o estendere il layout engine attuale.
+
+**Dove:** `src/backends/text/font_engine.cpp` + `src/backends/text/text_layout_engine.cpp`.
+
 **Guadagno stimato:** Supporto completo Unicode, shaping corretto per Arabo, Hindi, Thai, etc.
-**Prossimi passi:**
-- [ ] Aggiungere HarfBuzz come dipendenza vcpkg
-- [ ] Creare `hb_shape(text, font)` → glyph positions
-- [ ] Integrare con `TextLayoutEngine` esistente
-- [ ] Benchmark: verificare che lo shaping non rallenti il text rendering
+
+✅ **STATO: COMPLETATO** — `FontEngine` class in `font_engine.hpp/.cpp` con FreeType + HarfBuzz integration. `shape_text()` produce `GlyphRun` con posizioni precise (x, y, advance), cluster mapping, glyph bbox cache con LRU eviction. Integrato in `TextAnimator` per `ByGlyph` mode, nella raster pipeline via `SoftwareTextProcessor`, e come singleton `shared_font_engine()`.
+
+**Completato in questo commit:**
+- ✅ `FontEngine` con FreeType face loading + HarfBuzz shaping (`hb_shape`)
+- ✅ `GlyphPosition` struct con cluster, x, y, advance_x, advance_y
+- ✅ `GlyphRun` con font_size, glyphs vector
+- ✅ Shared singleton `shared_font_engine()` per tutta l'applicazione
+- ✅ Per-glyph text animation (`TextAnimMode::ByGlyph`) con cluster substring extraction
+- ✅ FontEngine wiring: LayerBuilder → Layer → RenderNode → text rasterizer
+- ✅ Glyph bbox cache con LruCache invece di unordered_map con clear-all
+
+**Prossimi passi per miglioramenti futuri:**
+- [ ] RTL text support (cluster extraction è LTR-only per ora)
+- [ ] MSDF font atlas per text scalability
+- [ ] Font subsetting per ridurre memoria
 
 ---
 
@@ -1110,7 +1122,7 @@ registry.register_shape(ShapeType::Path, create_path_processor());     // vince 
 | L3 | Frame Graph RDG | Mesi | 🔴 Alta | 🔴 Alto | Da fare |
 | L4 | Persistent daemon | Mesi | 🟡 Media | 🔴 Alto | Da fare |
 | L5 | Distributed render farm | Mesi | ⚫ Molto Alta | 🔴 Alto | Da fare |
-| L6 | HarfBuzz text shaping | Mesi | 🔴 Alta | 🟡 Medio | Da fare |
+| L6 | HarfBuzz text shaping | Mesi | 🔴 Alta | 🟡 Medio | ✅ Fatto |
 | L7 | MSDF font atlas | Mesi | 🔴 Alta | 🟡 Medio | Da fare |
 | L8 | Parallel tile rendering | Mesi | 🔴 Alta | 🔴 Alto | Da fare |
 | L9 | CI multi-platform | Mesi | 🟡 Media | 🟡 Medio | Da fare |

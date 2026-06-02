@@ -3,6 +3,7 @@
 #include <chronon3d/scene/layer/track_matte.hpp>
 #include <chronon3d/math/transform.hpp>
 #include <chronon3d/effects/effect_ids.hpp>
+#include <chronon3d/text/font_engine.hpp>
 
 #include <utility>
 
@@ -61,7 +62,7 @@ void set_last_opacity(Layer& layer, f32 opacity) {
 
 } // namespace layer_builder_internal
 
-void Layer3DDelegate::add_fake_box3d(Layer& layer, std::string name, FakeBox3DParams p) {
+void Layer3DDelegate::add_fake_box3d(Layer& layer, std::string name, FakeBox3DParams p, FontEngine* font_engine) {
     auto* res = layer.nodes.get_allocator().resource();
     RenderNode node(res);
     node.name = std::pmr::string{name, res};
@@ -75,10 +76,11 @@ void Layer3DDelegate::add_fake_box3d(Layer& layer, std::string name, FakeBox3DPa
     node.world_transform.position    = {0, 0, 0};
     node.world_transform.anchor      = {0.0f, 0.0f, 0.0f};
     node.color = p.color;
+    node.font_engine = font_engine;
     layer.nodes.push_back(std::move(node));
 }
 
-void Layer3DDelegate::add_grid_plane(Layer& layer, std::string name, GridPlaneParams p) {
+void Layer3DDelegate::add_grid_plane(Layer& layer, std::string name, GridPlaneParams p, FontEngine* font_engine) {
     auto* res = layer.nodes.get_allocator().resource();
     RenderNode node(res);
     node.name = std::pmr::string{name, res};
@@ -92,6 +94,7 @@ void Layer3DDelegate::add_grid_plane(Layer& layer, std::string name, GridPlanePa
     node.shape.grid_plane.fade_min_alpha = p.fade_min_alpha;
     node.world_transform.position        = {0, 0, 0};
     node.color = p.color;
+    node.font_engine = font_engine;
     layer.nodes.push_back(std::move(node));
 }
 
@@ -351,16 +354,17 @@ LayerBuilder& LayerBuilder::shape(std::string_view id, std::string name, registr
         std::move(name),
         std::move(params)
     ));
+    m_layer.nodes.back().font_engine = m_font_engine;
     return *this;
 }
 
 LayerBuilder& LayerBuilder::fake_box3d(std::string name, FakeBox3DParams p) {
-    Layer3DDelegate::add_fake_box3d(m_layer, name, p);
+    Layer3DDelegate::add_fake_box3d(m_layer, name, p, m_font_engine);
     return *this;
 }
 
 LayerBuilder& LayerBuilder::grid_plane(std::string name, GridPlaneParams p) {
-    Layer3DDelegate::add_grid_plane(m_layer, name, p);
+    Layer3DDelegate::add_grid_plane(m_layer, name, p, m_font_engine);
     return *this;
 }
 
@@ -541,17 +545,28 @@ LayerBuilder& LayerBuilder::screen_dimensions(f32 w, f32 h) {
     m_screen_width = w;
     m_screen_height = h;
     return *this;
-}    LayerBuilder& LayerBuilder::fullscreen_rect(std::string name, Color color) {
-        return rect(std::move(name), {
-            .size = { m_screen_width, m_screen_height },
-            .color = color,
-            // Anchor is set to half the size in RenderNodeFactory::rect, centering
-            // the rect on the layer's position. The scene graph shifts unpinned 2D
-            // layers by (+width/2, +height/2), so identity position here keeps the
-            // rect centered and covering the full frame after that shift.
-            .pos = { 0.0f, 0.0f, 0.0f }
-        });
-    }
+}
+
+LayerBuilder& LayerBuilder::font_engine(FontEngine* engine) {
+    m_font_engine = engine;
+    return *this;
+}
+
+FontEngine* LayerBuilder::font_engine() const {
+    return m_font_engine;
+}
+
+LayerBuilder& LayerBuilder::fullscreen_rect(std::string name, Color color) {
+    return rect(std::move(name), {
+        .size = { m_screen_width, m_screen_height },
+        .color = color,
+        // Anchor is set to half the size in RenderNodeFactory::rect, centering
+        // the rect on the layer's position. The scene graph shifts unpinned 2D
+        // layers by (+width/2, +height/2), so identity position here keeps the
+        // rect centered and covering the full frame after that shift.
+        .pos = { 0.0f, 0.0f, 0.0f }
+    });
+}
 
 LayerBuilder& LayerBuilder::fill(Color color) {
     return fullscreen_rect("fill", color);
@@ -566,6 +581,7 @@ Layer LayerBuilder::build() {
         m_layer.transform.position.z =
             DepthRoleResolver::z_for(m_layer.depth_role) + m_layer.depth_offset;
     }
+    m_layer.font_engine = m_font_engine;
     if (m_layer.anim_transform.is_animated()) {
         const Frame local_frame = m_layer.local_frame(m_current_frame);
         Transform baked = m_layer.anim_transform.evaluate(local_frame);

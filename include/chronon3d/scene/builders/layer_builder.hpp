@@ -7,6 +7,7 @@
 #include <chronon3d/scene/mask/mask.hpp>
 #include <chronon3d/scene/effects/effect_stack.hpp>
 #include <chronon3d/scene/material_2_5d.hpp>
+#include <chronon3d/scene/card3d_material.hpp>
 #include <chronon3d/layout/layout_rules.hpp>
 #include <chronon3d/backends/video/video_source.hpp>
 #include <chronon3d/math/glm_types.hpp>
@@ -17,6 +18,8 @@
 #include <optional>
 
 namespace chronon3d {
+
+class FontEngine;  // forward declaration
 
 namespace layer_builder_internal {
 
@@ -34,8 +37,8 @@ void set_last_opacity(Layer& layer, f32 opacity);
 
 class Layer3DDelegate {
 public:
-    static void add_fake_box3d(Layer& layer, std::string name, FakeBox3DParams p);
-    static void add_grid_plane(Layer& layer, std::string name, GridPlaneParams p);
+    static void add_fake_box3d(Layer& layer, std::string name, FakeBox3DParams p, FontEngine* font_engine);
+    static void add_grid_plane(Layer& layer, std::string name, GridPlaneParams p, FontEngine* font_engine);
 };
 
 class LayerBuilder {
@@ -135,6 +138,7 @@ public:
     LayerBuilder& casts_shadows(bool value = true);
     LayerBuilder& accepts_shadows(bool value = true);
     LayerBuilder& material(Material2_5D value);
+    LayerBuilder& card3d_material(Card3DMaterial value);
 
     // Node Transform
     LayerBuilder& at(Vec3 pos);
@@ -174,6 +178,10 @@ public:
      */
     LayerBuilder& video_size(Vec2 size);
 
+    // ── FontEngine (for precise text shaping / glyph metrics) ───────────
+    LayerBuilder& font_engine(FontEngine* engine);
+    [[nodiscard]] FontEngine* font_engine() const;
+
     [[nodiscard]] std::pmr::memory_resource* resource() const { return m_layer.nodes.get_allocator().resource(); }
     [[nodiscard]] Layer build();
 
@@ -184,6 +192,7 @@ private:
     bool m_duration_explicit{false};
     f32 m_screen_width{1920.0f};
     f32 m_screen_height{1080.0f};
+    FontEngine* m_font_engine{nullptr};
 };
 
 } // namespace chronon3d

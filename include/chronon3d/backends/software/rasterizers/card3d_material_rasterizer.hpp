@@ -1,0 +1,35 @@
+#pragma once
+
+#include <chronon3d/core/memory/framebuffer.hpp>
+#include <chronon3d/math/color.hpp>
+#include <chronon3d/math/glm_types.hpp>
+#include <chronon3d/scene/card3d_material.hpp>
+#include <chronon3d/rendering/light_context.hpp>
+#include <optional>
+
+namespace chronon3d::renderer {
+
+struct Card3DRenderParams {
+    Vec2 position{0.0f, 0.0f};     // top-left of the front face (pixels)
+    Vec2 size{200.0f, 120.0f};     // width, height of the front face (pixels)
+};
+
+/// Render a Card3DMaterial onto a framebuffer.
+///
+/// Draws:
+///   1. Right side quad (extruded by thickness_px)
+///   2. Bottom side quad (extruded by thickness_px)
+///   3. Front face with gradient (front_top → front_bottom)
+///   4. Edge highlight along the extruded edges
+///   5. Rim light overlay if lit_context is provided
+///
+/// The card is rendered in local pixel coordinates; the caller is
+/// responsible for world transform / projection.
+void render_card3d_material(
+    Framebuffer& fb,
+    const Card3DMaterial& material,
+    const Card3DRenderParams& params,
+    const std::optional<rendering::LightContext>& lit_context = std::nullopt
+);
+
+} // namespace chronon3d::renderer
