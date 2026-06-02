@@ -17,6 +17,7 @@ struct TextMaterial {
     // based on the glyph's vertical position within the text block.
     Color top_color{1.0f, 1.0f, 1.0f, 1.0f};
     Color bottom_color{1.0f, 1.0f, 1.0f, 1.0f};
+    float gradient_angle{90.0f}; // 90 = vertical (top -> bottom), 0 = horizontal (left -> right)
 
     // ── Bevel (fake 3D bevel thickness) ───────────────────────
     // Creates a highlighted edge on top-left and a shadowed edge on
@@ -35,6 +36,13 @@ struct TextMaterial {
     // A subtle dark strip near glyph bottoms.
     float bottom_shade_opacity{0.0f};
     float bottom_shade_fraction{0.08f}; // fraction of glyph height
+
+    // ── Inner Shadow ──────────────────────────────────────────
+    // Creates a shadow cast inside the glyph boundaries.
+    bool inner_shadow_enabled{false};
+    Vec2 inner_shadow_offset{0.0f, 2.0f};
+    float inner_shadow_blur{4.0f};
+    Color inner_shadow_color{0.0f, 0.0f, 0.0f, 0.8f};
 
     // ── Emissive / brightness boost ───────────────────────────
     // 1.0 = normal, >1 = brighter, <1 = dimmer.
