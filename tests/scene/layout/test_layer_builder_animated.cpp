@@ -2,6 +2,7 @@
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
+#include <chronon3d/text/font_engine.hpp>
 
 using namespace chronon3d;
 
@@ -70,4 +71,13 @@ TEST_CASE("LayerBuilder: animations resolve in layer-local time") {
     REQUIRE(scene.layers().size() == 1);
     CHECK(scene.layers()[0].transform.position.x == doctest::Approx(120.0f));
     CHECK(scene.layers()[0].local_frame(90) == 70);
+}
+
+TEST_CASE("LayerBuilder: font_engine setter and getter") {
+    FontEngine engine;
+    LayerBuilder b("layer");
+    CHECK(b.font_engine() == nullptr);
+
+    b.font_engine(&engine);
+    CHECK(b.font_engine() == &engine);
 }

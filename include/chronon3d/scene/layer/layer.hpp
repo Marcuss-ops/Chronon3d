@@ -11,6 +11,7 @@
 #include <chronon3d/scene/layer/track_matte.hpp>
 #include <chronon3d/scene/layer/transition.hpp>
 #include <chronon3d/scene/material_2_5d.hpp>
+#include <chronon3d/scene/card3d_material.hpp>
 #include <chronon3d/layout/layout_rules.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <string>
@@ -52,13 +53,18 @@ struct Layer {
     LayoutRules layout{};
     TrackMatte  track_matte{};
     Material2_5D material{};
+    Card3DMaterial card3d_material{};
     LayerTransitionSpec transition_in{};
     LayerTransitionSpec transition_out{};
     std::pmr::vector<RenderNode> nodes;
     std::pmr::string precomp_composition_name; // for LayerKind::Precomp
-    
+
     // Video source parameters (isolated from FFmpeg/Backend headers)
     std::unique_ptr<video::VideoSource> video_source;
+
+    // FontEngine pointer for precise text shaping / glyph metrics.
+    // Inherited from LayerBuilder when the layer is built.
+    FontEngine* font_engine{nullptr};
 
     // Cache for incremental scene fingerprinting
     mutable uint64_t m_static_hash{0};

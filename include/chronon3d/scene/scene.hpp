@@ -6,6 +6,7 @@
 #include <chronon3d/scene/layer/layer_hierarchy.hpp>
 #include <chronon3d/rendering/light_context.hpp>
 #include <chronon3d/rendering/lighting_rig.hpp>
+#include <chronon3d/rendering/depth_grade.hpp>
 #include <vector>
 #include <memory_resource>
 
@@ -41,6 +42,10 @@ public:
     [[nodiscard]] const rendering::RimLight& rim_light() const { return m_rim; }
     void set_rim_light(const rendering::RimLight& rim) { m_rim = rim; }
 
+    [[nodiscard]] rendering::DepthGrade& depth_grade() { return m_depth_grade; }
+    [[nodiscard]] const rendering::DepthGrade& depth_grade() const { return m_depth_grade; }
+    void set_depth_grade(const rendering::DepthGrade& grade) { m_depth_grade = grade; }
+
     void resolve_hierarchy(Frame frame) {
         if (m_hierarchy_baked) return;
 
@@ -74,6 +79,7 @@ private:
     Camera2_5DRuntime m_camera_2_5d{};
     rendering::LightContext m_lights{};
     rendering::RimLight m_rim{};
+    rendering::DepthGrade m_depth_grade{};
     bool m_hierarchy_baked{false};
 };
 

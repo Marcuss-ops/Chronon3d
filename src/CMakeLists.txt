@@ -90,6 +90,7 @@ set(CHRONON3D_BACKEND_TEXT_SOURCES
     backends/text/text_rasterizer_cache.cpp
     backends/text/text_rasterizer_render.cpp
     backends/text/text_material.cpp
+    backends/text/font_engine.cpp
 )
 add_library(chronon3d_backend_text STATIC ${CHRONON3D_BACKEND_TEXT_SOURCES})
 target_link_libraries(chronon3d_backend_text PUBLIC chronon3d chronon3d_cache spdlog::spdlog_header_only blend2d::blend2d freetype harfbuzz::harfbuzz)
@@ -192,6 +193,7 @@ set(CHRONON3D_BACKEND_SOFTWARE_SOURCES
     backends/software/rasterizers/projected_card_rasterizer.cpp
     backends/software/rasterizers/scanline_rasterizer.cpp
     backends/software/rasterizers/shape_rasterizer.cpp
+    backends/software/rasterizers/card3d_material_rasterizer.cpp
     backends/software/software_compositor.cpp
     backends/software/software_effect_runner.cpp
     backends/software/software_node_dispatcher.cpp

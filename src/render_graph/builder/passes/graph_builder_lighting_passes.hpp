@@ -36,4 +36,12 @@ void append_shadow_passes_if_needed(
     std::span<const ShadowCasterInfo> casters,
     const RenderGraphContext& ctx);
 
+/// Append a depth-grade node for projected layers when a DepthGrade is active.
+void append_depth_grade_pass_if_needed(
+    RenderGraph& graph,
+    GraphNodeId& layer_output,
+    const LayerGraphItem& item,
+    const RenderGraphContext& ctx,
+    const rendering::DepthGrade& grade);
+
 } // namespace chronon3d::graph::detail
