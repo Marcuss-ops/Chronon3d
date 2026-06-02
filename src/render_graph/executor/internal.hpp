@@ -38,6 +38,17 @@ struct ExecutionState {
     std::pmr::vector<char> resolved_cache_hit;
     std::pmr::vector<std::optional<raster::BBox>> resolved_bboxes;
 
+    /// Lazily-allocated full-frame transparent framebuffer shared across
+    /// all tile-pruned nodes.  Allocated once per execute() call on first
+    /// prune, then reused for every subsequent pruned node in the same call.
+    /// Avoids N independent framebuffer allocations + clears for N pruned
+    /// nodes — a single full-frame allocation + clear suffices.
+    ///
+    /// The full-frame size ensures consumers (CompositeNode, TransformNode,
+    /// etc.) can safely read pixels at any coordinate within the tile without
+    /// out-of-bounds access.
+    CachedFB shared_transparent;
+
     explicit ExecutionState(std::pmr::memory_resource* res)
         : temp(res), resolved_key_digest(res), resolved_frame_dependent(res),
           resolved_cache_hit(res), resolved_bboxes(res) {}

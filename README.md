@@ -238,6 +238,12 @@ chronon3d_cli render <Comp> [--frame N] [--start N] [--end N] [-o path]
 - `--start / --end` — render frame range [start, end)
 - `-o path` — output path; use `####` for zero-padded frame number
 - `--diagnostic` — overlay debug info
+- `--report` — save execution report to telemetry database (appears in web dashboard)
+- `--warmup-renderer` — preallocate framebuffers and prime caches
+
+> **⚠️ `--report` è necessario per vedere il render nella web dashboard.**
+> Senza `--report` il render produce solo il file PNG/MP4 ma non viene registrato.
+> Vedi [Telemetry Dashboard](docs/ORIENTATION.md#telemetry-dashboard--web-gallery) per i dettagli.
 
 ### `video`
 ```

@@ -200,6 +200,20 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
         state.resolved_cache_hit.assign(node_count, 0);
         state.resolved_bboxes.resize(node_count);
 
+        // ── Pre-allocate shared transparent framebuffer for tile pruning ──
+        // Must happen BEFORE the parallel-for level loop to avoid data races
+        // when multiple pruned nodes in the same level try to access it.
+        if (ctx.tile_execution_enabled && ctx.active_tile_clip) {
+            auto owned_fb = ctx.acquire_owned_fb(ctx.width, ctx.height, false);
+            owned_fb->clear(Color::transparent());
+            Framebuffer* raw = owned_fb.release();
+            PoolFbDeleter deleter{nullptr};
+            if (ctx.framebuffer_pool) {
+                deleter = PoolFbDeleter{ctx.framebuffer_pool.get(), ctx.framebuffer_pool->alive_token()};
+            }
+            state.shared_transparent = CachedFB(raw, std::move(deleter));
+        }
+
         std::pmr::vector<std::atomic_size_t> consumer_remaining(node_count, res);
         for (size_t i = 0; i < plan.consumer_counts.size(); ++i) {
             consumer_remaining[i].store(plan.consumer_counts[i], std::memory_order_relaxed);
@@ -283,6 +297,20 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
         state.resolved_frame_dependent.assign(node_count, 0);
         state.resolved_cache_hit.assign(node_count, 0);
         state.resolved_bboxes.resize(node_count);
+
+        // ── Pre-allocate shared transparent framebuffer for tile pruning ──
+        // Must happen BEFORE the parallel-for level loop to avoid data races
+        // when multiple pruned nodes in the same level try to access it.
+        if (ctx.tile_execution_enabled && ctx.active_tile_clip) {
+            auto owned_fb = ctx.acquire_owned_fb(ctx.width, ctx.height, false);
+            owned_fb->clear(Color::transparent());
+            Framebuffer* raw = owned_fb.release();
+            PoolFbDeleter deleter{nullptr};
+            if (ctx.framebuffer_pool) {
+                deleter = PoolFbDeleter{ctx.framebuffer_pool.get(), ctx.framebuffer_pool->alive_token()};
+            }
+            state.shared_transparent = CachedFB(raw, std::move(deleter));
+        }
 
         std::pmr::vector<std::atomic_size_t> consumer_remaining(node_count, res);
         for (size_t i = 0; i < consumer_counts.size(); ++i) {
