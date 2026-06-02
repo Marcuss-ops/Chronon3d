@@ -91,6 +91,17 @@ inline void apply_text_fill_style(
         return;
     }
 
+    if (fill.type == FillType::ConicGradient) {
+        const double cx = origin_x + fill.gradient.from.x * safe_w;
+        const double cy = origin_y + fill.gradient.from.y * safe_h;
+        const Vec2 dir = fill.gradient.to - fill.gradient.from;
+        const double angle = std::atan2(dir.y, dir.x);
+        const BLConicGradientValues values(cx, cy, angle);
+        BLGradient gradient(values, BL_EXTEND_MODE_PAD, stops.data(), stops.size());
+        ctx.setFillStyle(gradient);
+        return;
+    }
+
     ctx.setFillStyle(to_bl_rgba(fallback_color));
 }
 

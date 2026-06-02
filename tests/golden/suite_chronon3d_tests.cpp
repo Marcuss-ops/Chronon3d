@@ -419,6 +419,38 @@ TEST_CASE("Chronon3d Suite: Gradient Tests") {
         CHECK(outer.g < 0.05f);
         CHECK(outer.b < 0.05f);
     }
+
+    SUBCASE("Conic Gradient Clamping") {
+        Composition comp(CompositionSpec{.width = 400, .height = 400}, [](const FrameContext& ctx) {
+            SceneBuilder s(ctx);
+            std::vector<GradientStop> stops = {
+                {0.0f, Color::red()},
+                {1.0f, Color::blue()}
+            };
+            s.circle("conic_circle", {
+                .radius = 200.0f,
+                .pos = {0, 0, 0},
+                .fill = Fill::conic({0.5f, 0.5f}, 0.0f, stops)
+            });
+            return s.build();
+        });
+        auto fb = renderer.render_frame(comp, 0);
+        REQUIRE(fb != nullptr);
+
+        // At angle 0 (right/east of center: e.g. x=300, y=200), t should be close to 0 (red)
+        Color right = fb->get_pixel(300, 200);
+        CHECK(right.r > 0.9f);
+        CHECK(right.b < 0.1f);
+
+        // At angle pi (left/west of center: e.g. x=100, y=200), t should be close to 0.5 (magenta/purple, mixed red/blue)
+        Color left = fb->get_pixel(100, 200);
+        CHECK(left.r > 0.4f);
+        CHECK(left.b > 0.4f);
+
+        // At angle 2*pi (approaching blue, e.g. y=190, x=300), t should be close to 1.0 (blue)
+        Color bottom = fb->get_pixel(300, 190);
+        CHECK(bottom.b > 0.4f);
+    }
 }
 
 // ── 3. ADVANCED STROKE TESTS ──────────────────────────────────────────────────

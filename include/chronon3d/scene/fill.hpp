@@ -10,6 +10,7 @@ enum class FillType {
     Solid,
     LinearGradient,
     RadialGradient,
+    ConicGradient,
 };
 
 struct GradientStop {
@@ -47,6 +48,15 @@ struct Fill {
         f.type = FillType::RadialGradient;
         f.gradient.from  = center;
         f.gradient.to    = {center.x + radius_norm, center.y};
+        f.gradient.stops = std::move(stops);
+        return f;
+    }
+
+    static Fill conic(Vec2 center, f32 angle_rad, std::vector<GradientStop> stops) {
+        Fill f;
+        f.type = FillType::ConicGradient;
+        f.gradient.from  = center;
+        f.gradient.to    = {center.x + std::cos(angle_rad), center.y + std::sin(angle_rad)};
         f.gradient.stops = std::move(stops);
         return f;
     }
