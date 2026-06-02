@@ -3,226 +3,197 @@
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/timeline/composition.hpp>
 
-#include "text_premium_hero_shared.hpp"
+#include "component_library.hpp"
 
 namespace chronon3d::content::text {
 
+// ── PastelMasterclass template ─────────────────────────────────────────────────
 Composition text_premium_hero() {
-    return composition({.name = "TextPremiumHero", .width = 1920, .height = 1080, .duration = 1}, [](const FrameContext& ctx) {
+    using namespace style;
+    using namespace style::component;
+
+    const auto cfg = pastel_masterclass();
+
+    return composition({.name = "TextPremiumHero", .width = 1920, .height = 1080, .duration = 1}, [cfg](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        const auto title_shadow = premium::shadow_style(
-            {0.80f, 0.55f, 0.85f, 1.0f},
-            {0.92f, 0.70f, 0.90f, 1.0f},
-            {0.0f, 10.0f},
-            24.0f,
-            0.18f,
-            {0.0f, 56.0f},
-            160.0f,
-            0.05f
-        );
-        const auto cta_shadow = premium::shadow_style(
-            {0.88f, 0.66f, 0.78f, 1.0f},
-            {0.96f, 0.82f, 0.92f, 1.0f},
-            {0.0f, 12.0f},
-            18.0f,
-            0.24f,
-            {0.0f, 36.0f},
-            96.0f,
-            0.08f
-        );
 
-        s.layer("bg", [](LayerBuilder& l) {
-            l.rect("paper", {
-                .size = {W, H},
-                .color = {0.995f, 0.993f, 0.998f, 1.0f},
-                .pos = {0.0f, 0.0f, 0.0f},
-                .fill = Fill::linear(
-                    {0.0f, 0.0f},
-                    {1.0f, 1.0f},
-                    {
-                        {0.0f, {1.0f, 1.0f, 1.0f, 1.0f}},
-                        {1.0f, {0.98f, 0.96f, 1.0f, 1.0f}},
-                    }
-                )
-            });
-        });
+        add_background(s, cfg);
+        add_corner_shapes(s, cfg);
+        add_app_badge(s, cfg, "Ae");
+        add_hero_title(s, cfg, "SaaS");
+        add_subtitle(s, cfg, "Masterclass");
+        add_gradient_button(s, cfg, "PART 1");
 
-        s.layer("corner_wedge_top_left", [](LayerBuilder& l) {
-            l.rotate({0.0f, 0.0f, -46.0f});
-            l.rect("wedge", {
-                .size = {880.0f, 150.0f},
-                .color = {0.92f, 0.82f, 1.0f, 0.55f},
-                .pos = {-720.0f, -490.0f, 0.0f},
-                .fill = Fill::linear(
-                    {0.0f, 0.0f},
-                    {1.0f, 0.0f},
-                    {
-                        {0.0f, {0.82f, 0.72f, 1.0f, 0.45f}},
-                        {1.0f, {1.0f, 0.64f, 0.88f, 0.40f}},
-                    }
-                )
-            });
-        });
-
-        s.layer("corner_wedge_bottom_left", [](LayerBuilder& l) {
-            l.rotate({0.0f, 0.0f, -26.0f});
-            l.rect("wedge", {
-                .size = {1080.0f, 180.0f},
-                .color = {0.88f, 0.78f, 1.0f, 0.50f},
-                .pos = {-700.0f, 470.0f, 0.0f},
-                .fill = Fill::linear(
-                    {0.0f, 0.0f},
-                    {1.0f, 0.0f},
-                    {
-                        {0.0f, {0.80f, 0.70f, 1.0f, 0.40f}},
-                        {1.0f, {0.74f, 0.56f, 1.0f, 0.34f}},
-                    }
-                )
-            });
-        });
-
-        s.layer("corner_circle", [](LayerBuilder& l) {
-            l.opacity(0.26f);
-            l.circle("big", {
-                .radius = 215.0f,
-                .color = {0.92f, 0.78f, 0.98f, 0.22f},
-                .pos = {780.0f, 380.0f, 0.0f},
-            });
-        });
-
-        s.layer("badge", [](LayerBuilder& l) {
-            l.position({0.0f, -370.0f, 0.0f});
-            l.rounded_rect("ae", {
-                .size = {88.0f, 88.0f},
-                .radius = 20.0f,
-                .color = {0.09f, 0.09f, 0.28f, 1.0f},
-                .pos = {0.0f, 0.0f, 0.0f},
-                .fill = Fill::linear(
-                    {0.0f, 0.0f},
-                    {0.0f, 1.0f},
-                    {
-                        {0.0f, {0.08f, 0.08f, 0.30f, 1.0f}},
-                        {1.0f, {0.05f, 0.05f, 0.16f, 1.0f}},
-                    }
-                )
-            });
-            l.text("ae_text", {
-                .text = "Ae",
-                .size = {88.0f, 88.0f},
-                .pos = {0.0f, 0.0f, 0.0f},
-                .font_path = "assets/fonts/Inter-Bold.ttf",
-                .font_family = "Inter",
-                .font_weight = 900,
-                .font_style = "normal",
-                .font_size = 40.0f,
-                .color = {0.74f, 0.72f, 1.0f, 1.0f},
-                .align = TextAlign::Center,
-                .vertical_align = VerticalAlign::Middle,
-                .shadows = {
-                    premium::shadow({0.0f, 0.0f}, 10.0f, 0.55f, {0.12f, 0.10f, 0.45f, 1.0f}),
-                },
-            });
-        });
-
+        // Decorative pink dot (specific to this variant)
         s.layer("dot", [](LayerBuilder& l) {
             l.position({740.0f, -340.0f, 0.0f});
-            l.circle("pink", {
-                .radius = 36.0f,
-                .color = {0.98f, 0.45f, 0.60f, 1.0f},
-                .pos = {0.0f, 0.0f, 0.0f},
-            });
-            l.circle("glow", {
-                .radius = 52.0f,
-                .color = {0.98f, 0.45f, 0.60f, 0.12f},
-                .pos = {0.0f, 0.0f, 0.0f},
-            });
+            l.circle("pink", {.radius = 36.0f, .color = {0.98f, 0.45f, 0.60f, 1.0f}, .pos = {0.0f, 0.0f, 0.0f}});
+            l.circle("halo", {.radius = 52.0f, .color = {0.98f, 0.45f, 0.60f, 0.12f}, .pos = {0.0f, 0.0f, 0.0f}});
         });
 
-        s.layer("hero", [=](LayerBuilder& l) {
-            l.position({0.0f, -8.0f, 0.0f});
-            l.text("title", premium::hero_text(
+        return s.build();
+    });
+}
+
+// ── DarkSaaSNeon template (SaaS Blue variant) ──────────────────────────────────
+Composition text_premium_hero_saas_blue() {
+    using namespace style;
+    using namespace style::component;
+
+    const auto cfg = dark_saas_neon();
+
+    return composition({.name = "TextPremiumHeroSaaSBlue", .width = 1920, .height = 1080, .duration = 1}, [cfg](const FrameContext& ctx) {
+        SceneBuilder s(ctx);
+
+        add_background(s, cfg);
+        add_ambient_lighting(s, cfg);
+        add_ambient_arc(s, cfg);
+        add_app_badge(s, cfg, "Ae");
+        add_hero_title(s, cfg, "SaaS",
+            Vec3{0.0f, -52.0f, 0.0f},  // override hero pos
+            Vec2{900.0f, 200.0f}       // override hero box
+        );
+        add_subtitle(s, cfg, "FULL TUTORIAL",
+            Vec3{0.0f, 130.0f, 0.0f},  // override subtitle pos
+            Vec2{800.0f, 60.0f}        // override subtitle box
+        );
+
+        // Hi-layer (subtle reflection)
+        s.layer("hero_hi", [cfg](LayerBuilder& l) {
+            l.opacity(0.17f);
+            l.text("title_hi", premium::hero_text(
                 "SaaS",
-                {1000.0f, 220.0f},
-                {0.0f, -58.0f, 0.0f},
-                144.0f,
-                "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-                "DejaVu Sans",
-                {1.0f, 1.0f, 1.0f, 1.0f},
-                Fill::linear(
-                    {0.0f, 0.0f},
-                    {1.0f, 0.0f},
-                    {
-                        {0.0f, {1.0f, 0.78f, 0.12f, 1.0f}},
-                        {0.32f, {1.0f, 0.60f, 0.28f, 1.0f}},
-                        {0.64f, {1.0f, 0.34f, 0.44f, 1.0f}},
-                        {1.0f, {0.96f, 0.18f, 0.78f, 1.0f}},
-                    }
-                ),
-                {1.0f, 1.0f, 1.0f, 0.08f},
-                1.0f,
-                -1.0f,
-                VerticalAlign::Middle,
-                title_shadow
-            ));
-            l.text("masterclass", premium::subtitle_text(
-                "Masterclass",
-                {800.0f, 110.0f},
-                {0.0f, 122.0f, 0.0f},
-                72.0f,
-                {0.44f, 0.44f, 0.48f, 0.90f},
+                {900.0f, 200.0f},
+                {0.0f, -72.0f, 0.0f},
+                128.0f,
+                "assets/fonts/Inter-Bold.ttf",
+                "Inter",
+                {1.0f, 1.0f, 1.0f, 0.95f},
+                Fill::linear({0.0f, 0.0f}, {0.0f, 1.0f}, {
+                    {0.0f, {1.0f, 1.0f, 1.0f, 0.95f}},
+                    {1.0f, {1.0f, 1.0f, 1.0f, 0.0f}},
+                }),
+                {0.0f, 0.0f, 0.0f, 0.0f},
                 0.0f,
-                {
-                    .contact = {
-                        .enabled = true,
-                        .offset = {0.0f, 6.0f},
-                        .blur = 14.0f,
-                        .opacity = 0.10f,
-                        .color = {0.55f, 0.55f, 0.58f, 1.0f},
-                    },
-                    .ambient = {
-                        .enabled = true,
-                        .offset = {0.0f, 24.0f},
-                        .blur = 64.0f,
-                        .opacity = 0.04f,
-                        .color = {0.72f, 0.70f, 0.78f, 1.0f},
-                    },
-                }
+                -2.0f,
+                VerticalAlign::Middle,
+                cfg.hero_shadow()
             ));
         });
 
-        s.layer("cta", [=](LayerBuilder& l) {
-            l.position({0.0f, 308.0f, 0.0f});
-            l.drop_shadow({0.0f, 18.0f}, {1.0f, 0.72f, 0.26f, 0.22f}, 34.0f);
-            l.rounded_rect("pill", {
-                .size = {520.0f, 124.0f},
-                .radius = 34.0f,
-                .color = {1.0f, 0.58f, 0.30f, 1.0f},
-                .pos = {0.0f, 0.0f, 0.0f},
-                .fill = Fill::linear(
-                    {0.0f, 0.0f},
-                    {1.0f, 0.0f},
-                    {
-                        {0.0f, {1.0f, 0.72f, 0.18f, 1.0f}},
-                        {0.48f, {1.0f, 0.48f, 0.40f, 1.0f}},
-                        {1.0f, {1.0f, 0.22f, 0.60f, 1.0f}},
-                    }
-                )
+        add_floor_arc(s, cfg);
+        add_sparkles(s, cfg, 16.0f, 720.0f);
+
+        return s.build();
+    });
+}
+
+// ── PinkExplainer template ─────────────────────────────────────────────────────
+Composition text_premium_hero_explainer() {
+    using namespace style;
+    using namespace style::component;
+
+    const auto cfg = pink_explainer();
+
+    return composition({.name = "TextPremiumHeroExplainer", .width = 1920, .height = 1080, .duration = 1}, [cfg](const FrameContext& ctx) {
+        SceneBuilder s(ctx);
+
+        add_background(s, cfg);
+
+        // Decorative background shapes (specific to explainer)
+        s.layer("top_left_wedge", [](LayerBuilder& l) {
+            l.rotate({0.0f, 0.0f, -43.0f});
+            l.rect("wedge", {
+                .size = {860.0f, 160.0f},
+                .color = {0.94f, 0.84f, 1.0f, 0.42f},
+                .pos = {-770.0f, -485.0f, 0.0f},
+                .fill = Fill::linear({0.0f, 0.0f}, {1.0f, 0.0f}, {
+                    {0.0f, {0.90f, 0.82f, 1.0f, 0.38f}},
+                    {1.0f, {0.98f, 0.72f, 0.96f, 0.32f}},
+                }),
             });
-            l.text("part", {
-                .text = "PART 1",
-                .size = {520.0f, 124.0f},
-                .pos = {0.0f, 0.0f, 0.0f},
-                .font_path = "assets/fonts/Inter-Bold.ttf",
-                .font_family = "Inter",
-                .font_weight = 900,
-                .font_style = "normal",
-                .font_size = 48.0f,
-                .color = {1.0f, 1.0f, 1.0f, 1.0f},
-                .align = TextAlign::Center,
-                .vertical_align = VerticalAlign::Middle,
-                .paint = {
-                    .fill = {1.0f, 1.0f, 1.0f, 1.0f},
-                },
+        });
+        s.layer("side_orb_left", [](LayerBuilder& l) {
+            l.opacity(0.20f);
+            l.circle("orb", {.radius = 180.0f, .color = {0.96f, 0.80f, 0.96f, 0.20f}, .pos = {-820.0f, -260.0f, 0.0f}});
+        });
+        s.layer("side_orb_right", [](LayerBuilder& l) {
+            l.opacity(0.18f);
+            l.circle("orb", {.radius = 160.0f, .color = {0.90f, 0.76f, 1.0f, 0.18f}, .pos = {820.0f, -250.0f, 0.0f}});
+        });
+
+        // Hero title with badge
+        s.layer("title", [cfg](LayerBuilder& l) {
+            l.position({0.0f, -336.0f, 0.0f});
+            l.text("main", premium::hero_text(
+                "SaaS Explainer",
+                {1200.0f, 140.0f},
+                {0.0f, 0.0f, 0.0f},
+                96.0f,
+                "assets/fonts/Inter-Bold.ttf",
+                "Inter",
+                {1.0f, 1.0f, 1.0f, 1.0f},
+                Fill::linear({0.0f, 0.0f}, {1.0f, 0.0f}, {
+                    {0.0f, {1.0f, 0.30f, 0.72f, 1.0f}},
+                    {0.50f, {1.0f, 0.54f, 0.78f, 1.0f}},
+                    {1.0f, {0.95f, 0.48f, 0.96f, 1.0f}},
+                }),
+                {1.0f, 1.0f, 1.0f, 0.05f},
+                1.2f,
+                -2.0f,
+                VerticalAlign::Middle,
+                cfg.hero_shadow()
+            ));
+
+        });
+
+        // "masterclass" tag badge (positioned relative to title layer at y=-336)
+        add_gradient_button(s, cfg, "masterclass", Vec3{520.0f, -288.0f, 0.0f}, Vec2{246.0f, 56.0f});
+
+        // UI cards deck
+        s.layer("deck", [](LayerBuilder& l) {
+            l.position({0.0f, 158.0f, 0.0f});
+            l.rounded_rect("back", {
+                .size = {1360.0f, 720.0f}, .radius = 36.0f,
+                .color = {0.96f, 0.95f, 0.99f, 0.82f}, .pos = {0.0f, 0.0f, 0.0f},
+                .fill = Fill::linear({0.0f, 0.0f}, {1.0f, 1.0f}, {
+                    {0.0f, {1.0f, 1.0f, 1.0f, 0.86f}},
+                    {1.0f, {0.95f, 0.95f, 1.0f, 0.78f}},
+                }),
+            });
+            l.drop_shadow({0.0f, 24.0f}, {0.0f, 0.0f, 0.0f, 0.10f}, 58.0f);
+        });
+
+        // Cards grid (3 columns)
+        s.layer("cards", [](LayerBuilder& l) {
+            l.position({0.0f, 190.0f, 0.0f});
+            l.rounded_rect("left",   {.size={300.0f,320.0f}, .radius=30.0f, .color={1,1,1,0.95f}, .pos={-380.0f,0,0}});
+            l.rounded_rect("center", {.size={460.0f,380.0f}, .radius=34.0f, .color={1,1,1,0.96f}, .pos={0,-10.0f,0}});
+            l.rounded_rect("right",  {.size={280.0f,310.0f}, .radius=28.0f, .color={1,1,1,0.93f}, .pos={390.0f,0,0}});
+        });
+
+        // Card labels
+        s.layer("card_titles", [cfg](LayerBuilder& l) {
+            l.position({0.0f, 80.0f, 0.0f});
+            l.text("quick", premium::subtitle_text("Quick Notes",  {330.0f,60.0f}, {-350.0f,-130.0f,0}, 36.0f, {0.96f,0.50f,0.80f,1}, 0.4f));
+            l.text("notes", premium::subtitle_text("documents", {330.0f,60.0f}, {390.0f,-130.0f,0}, 32.0f, {0.96f,0.50f,0.80f,0.90f}, 0.4f));
+        });
+
+        // Notes body text
+        s.layer("notes", [](LayerBuilder& l) {
+            l.position({0.0f, 202.0f, 0.0f});
+            l.rounded_rect("note", {
+                .size={410.0f,500.0f}, .radius=30.0f, .color={1,1,1,0.98f}, .pos={0,0,0},
+                .fill=Fill::linear({0,0},{1,1},{{0,{1,1,1,1}},{1,{0.97f,0.97f,1,0.96f}}}),
+            });
+            l.text("body", {
+                .text = "Every idea starts small. A place for creators, writers and thinkers to shape notes, scripts and systems into something publishable.",
+                .size = {332.0f, 360.0f}, .pos = {0.0f, 18.0f, 0.0f},
+                .font_path = "assets/fonts/Inter-Regular.ttf", .font_family = "Inter",
+                .font_weight = 400, .font_style = "normal", .font_size = 18.0f,
+                .color = {0.42f, 0.44f, 0.52f, 1.0f},
+                .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle,
+                .line_height = 1.12f, .tracking = 0.1f, .max_lines = 9, .wrap = TextWrap::Word,
             });
         });
 
@@ -230,6 +201,99 @@ Composition text_premium_hero() {
     });
 }
 
-} // namespace chronon3d::content::text
+// ── ButterySmooth (custom dark magenta) ────────────────────────────────────────
+Composition text_premium_hero_buttery_smooth() {
+    auto cfg = style::dark_saas_neon();
+    cfg.name = "ButterySmooth";
+    cfg.palette.bg          = {0.03f, 0.01f, 0.05f, 1.0f};
+    cfg.palette.bg_gradient = {0.02f, 0.01f, 0.04f, 1.0f};
+    cfg.palette.accent      = {0.90f, 0.18f, 0.92f, 1.0f};
+    cfg.palette.accent_glow = {0.90f, 0.18f, 0.92f, 1.0f};
+    cfg.palette.cta_start   = {1.0f, 0.30f, 0.92f, 1.0f};
+    cfg.palette.cta_end     = {0.94f, 0.18f, 0.98f, 1.0f};
+    cfg.palette.text_main   = {1.0f, 0.30f, 0.92f, 1.0f};
+    cfg.palette.text_sub    = {0.80f, 0.86f, 0.98f, 1.0f};
+    cfg.palette.cta_glow    = {0.90f, 0.18f, 0.92f, 0.10f};
+    cfg.fx.hero_glow_radius = 22.0f;
+    cfg.fx.hero_glow_intensity = 0.55f;
+    cfg.fx.use_background_shapes = false;
 
-CHRONON_REGISTER_COMPOSITION("TextPremiumHero", chronon3d::content::text::text_premium_hero)
+    using namespace style::component;
+
+    return composition({.name = "TextPremiumHeroButterySmooth", .width = 1920, .height = 1080, .duration = 1}, [cfg](const FrameContext& ctx) {
+        SceneBuilder s(ctx);
+
+        // Background
+        s.layer("bg", [cfg](LayerBuilder& l) {
+            l.fill(cfg.palette.bg);
+        });
+
+        // Ambient magenta blobs
+        premium::add_ambient_blob(s, "ambient_left",  {-420.0f, -30.0f, 0.0f}, 320.0f, {0.86f,0.14f,0.82f,0.14f}, 210.0f, 0.72f);
+        premium::add_ambient_blob(s, "ambient_right", {460.0f, 40.0f, 0.0f},  260.0f, {0.84f,0.14f,0.84f,0.12f}, 190.0f, 0.68f);
+        premium::add_premium_grid(s, {1.0f, 1.0f, 1.0f, 0.035f}, 72.0f);
+        premium::add_soft_orb(s, "violet_orb",  {-340.0f, 0.0f, 0.0f}, 260.0f, {0.92f,0.16f,0.88f,0.18f}, 140.0f);
+        premium::add_soft_orb(s, "magenta_orb", {420.0f, 20.0f, 0.0f}, 220.0f, {0.88f,0.12f,0.86f,0.16f}, 120.0f);
+
+        // Frame panel
+        s.layer("frame", [](LayerBuilder& l) {
+            l.position({0.0f, 0.0f, 0.0f});
+            l.rounded_rect("panel", {
+                .size={1480.0f,640.0f}, .radius=40.0f, .color={0.06f,0.02f,0.10f,0.40f}, .pos={0,0,0},
+                .fill=Fill::linear({0,0},{1,1},{{0,{0.10f,0.02f,0.16f,0.32f}},{1,{0.26f,0.04f,0.22f,0.34f}}}),
+            });
+            l.drop_shadow({0.0f, 26.0f}, {0.0f, 0.0f, 0.0f, 0.58f}, 52.0f);
+            l.glow(22.0f, 0.55f, {0.90f, 0.18f, 0.92f, 1.0f});
+        });
+
+        // Buttery text (left) and Smooth text (right)
+        s.layer("hero", [cfg](LayerBuilder& l) {
+            l.position({0.0f, -24.0f, 0.0f});
+            auto buttery_shadow = premium::shadow_style(
+                {0.10f,0.02f,0.12f,1}, {0.36f,0.08f,0.34f,1},
+                {0,8}, 16.0f, 0.24f, {0,52}, 170.0f, 0.06f);
+            auto smooth_shadow = premium::shadow_style(
+                {0.08f,0.04f,0.14f,1}, {0.18f,0.20f,0.42f,1},
+                {0,8}, 14.0f, 0.22f, {0,48}, 150.0f, 0.05f);
+
+            l.text("buttery", premium::hero_text(
+                "Buttery", {640.0f,170.0f}, {-200.0f,-10.0f,0}, 120.0f,
+                "assets/fonts/Inter-Bold.ttf","Inter",
+                {1,1,1,1},
+                Fill::linear({0,0},{1,0},{
+                    {0,{1,0.30f,0.92f,1}},{0.55f,{0.98f,0.12f,0.86f,1}},{1,{0.94f,0.18f,0.98f,1}}
+                }),
+                {0.12f,0.04f,0.18f,1}, 1.2f, -3.0f,
+                VerticalAlign::Middle, buttery_shadow
+            ));
+            l.text("smooth", premium::hero_text(
+                "Smooth", {560.0f,170.0f}, {400.0f,-10.0f,0}, 120.0f,
+                "assets/fonts/Inter-Bold.ttf","Inter",
+                {1,1,1,1},
+                Fill::linear({0,0},{1,0},{
+                    {0,{1,1,1,1}},{0.55f,{0.95f,0.98f,1,1}},{1,{0.80f,0.86f,0.98f,1}}
+                }),
+                {0.88f,0.16f,0.82f,0}, 0.0f, -2.0f,
+                VerticalAlign::Middle, smooth_shadow
+            ));
+            // Asterisk
+            l.text("asterisk", {
+                .text="*", .size={120,120}, .pos={650.0f,-14.0f,0},
+                .font_path="assets/fonts/Inter-Bold.ttf", .font_family="Inter",
+                .font_weight=900, .font_style="normal", .font_size=92.0f,
+                .color={1,0.20f,0.92f,1},
+                .align=TextAlign::Center, .vertical_align=VerticalAlign::Middle,
+                .paint={.fill={1,0.20f,0.92f,1}, .stroke_enabled=true, .stroke_color={1,0.78f,0.98f,0.95f}, .stroke_width=1.6f},
+                .shadows={premium::shadow({0,0},16,0.55f,{1,0.20f,0.92f,1}), premium::shadow({0,0},30,0.24f,{1,0.20f,0.92f,1})},
+            });
+        });
+
+        return s.build();
+    });
+}
+
+CHRONON_REGISTER_COMPOSITION("TextPremiumHero",               chronon3d::content::text::text_premium_hero)
+CHRONON_REGISTER_COMPOSITION("TextPremiumHeroSaaSBlue",      chronon3d::content::text::text_premium_hero_saas_blue)
+CHRONON_REGISTER_COMPOSITION("TextPremiumHeroExplainer",     chronon3d::content::text::text_premium_hero_explainer)
+CHRONON_REGISTER_COMPOSITION("TextPremiumHeroButterySmooth",  chronon3d::content::text::text_premium_hero_buttery_smooth)
+} // namespace chronon3d::content::text

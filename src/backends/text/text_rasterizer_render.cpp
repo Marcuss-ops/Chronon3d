@@ -199,6 +199,8 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     // Recreate the font at the final resolved size from the layout engine
     font.createFromFace(face, layout_res.font_size);
 
+
+
     int tw = 0;
     int th = 0;
     if (t.box.enabled) {
@@ -305,7 +307,10 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     float free_h = t.box.enabled ? (t.box.size.y - (t.style.box_style.enabled ? 2.0f * t.style.box_style.padding.y : 0.0f)) : 0.0f;
     float dx_align = 0.0f;
     float dy_align = 0.0f;
-    if (t.box.enabled && free_w > layout_res.size.x) {
+    // dx_align is computed below from the FontEngine measurement, but may be
+    // wrong if FreeType+HarfBuzz and Blend2D disagree on glyph widths.  We
+    // correct it AFTER rendering by scanning the actual pixel ink bounds.
+    if (t.box.enabled) {
         if (t.style.align == TextAlign::Center) {
             dx_align = (free_w - layout_res.size.x) * 0.5f;
         } else if (t.style.align == TextAlign::Right) {
@@ -321,6 +326,13 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     }
 
     float text_start_x = padding / 2.0f + (t.style.box_style.enabled ? t.style.box_style.padding.x : 0.0f) + dx_align;
+    // Guard: when FontEngine measurement is wildly wrong, dx_align can go
+    // negative, pushing text_start_x outside the image and clipping glyphs.
+    // Clamp to at least padding/2 so text is always within the image;
+    // the pixel-ink centering below will then correctly re-centre the ink.
+    if (t.box.enabled && text_start_x < padding / 2.0f) {
+        text_start_x = padding / 2.0f;
+    }
     float text_start_y = padding / 2.0f + (t.style.box_style.enabled ? t.style.box_style.padding.y : 0.0f) + dy_align;
 
     Color fill_color = t.style.paint.fill;
@@ -357,10 +369,10 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
 
     ctx.end();
 
-    // Trim trailing rows from the raster that contain only sparse / trace
-    // alpha residue.  This removes dark-band artefacts that would otherwise
-    // appear below the text when composited over a flat background (caused by
-    // font hinting, sub-pixel glow, or Blend2D bounding-box edge effects).
+    // ── Trim trailing rows AND compute ink-bounds for centering ───────
+    float ink_center_frac = -1.0f; // -1 = unknown / no ink
+    float ink_w = 0.0f;
+    int ink_left = 0, ink_right = 0, ink_top = 0, ink_bottom = 0;
     {
         BLImageData trim_data;
         if (img.getData(&trim_data) == BL_SUCCESS && trim_data.pixelData && trim_data.size.h > 0) {
@@ -370,22 +382,27 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
             auto* pixels = reinterpret_cast<uint32_t*>(trim_data.pixelData);
 
             // 1. Count non-zero-alpha pixels per row and find the maximum.
+            //    Also track the overall ink column bounds.
             std::vector<int> row_counts(static_cast<size_t>(sh), 0);
             int max_count = 0;
+            int local_ink_left = sw, local_ink_right = 0;
+            int local_ink_top = sh, local_ink_bottom = 0;
             for (int y = 0; y < sh; ++y) {
-                int count = 0;
                 for (int x = 0; x < sw; ++x) {
                     if (((pixels[y * stride + x] >> 24) & 0xFF) != 0) {
-                        ++count;
+                        ++row_counts[static_cast<size_t>(y)];
+                        if (x < local_ink_left)   local_ink_left  = x;
+                        if (x > local_ink_right)  local_ink_right = x;
+                        if (y < local_ink_top)    local_ink_top    = y;
+                        if (y > local_ink_bottom) local_ink_bottom = y;
                     }
                 }
-                row_counts[static_cast<size_t>(y)] = count;
-                max_count = std::max(max_count, count);
+                if (row_counts[static_cast<size_t>(y)] > max_count)
+                    max_count = row_counts[static_cast<size_t>(y)];
             }
 
             if (max_count > 0) {
-                // 2. Find the last row that has *meaningful* content (≥ 2 % of
-                //    the densest row).  Everything strictly below that is haze.
+                // 2. Find the last row that has *meaningful* content.
                 const int content_threshold = std::max(5,
                     static_cast<int>(std::ceil(static_cast<float>(max_count) * 0.02f)));
                 int last_content_row = -1;
@@ -395,26 +412,111 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
                     }
                 }
 
-                // 3. Clear everything below last_content_row (inclusive guard).
+                // 3. Clear everything below last_content_row.
                 if (last_content_row >= 0 && last_content_row < sh - 1) {
                     for (int y = last_content_row + 1; y < sh; ++y) {
                         std::fill_n(pixels + y * stride, sw, uint32_t{0});
                     }
                 }
 
-                // 4. Also clear any isolated haze rows at the very bottom
-                //    (below the first fully-empty gap from the bottom) that have
-                //    only trace coverage (< 0.5 % of max).
+                // 4. Also clear isolated haze rows at the very bottom.
                 const int trace_threshold = std::max(2,
                     static_cast<int>(std::ceil(static_cast<float>(max_count) * 0.005f)));
                 for (int y = sh - 1; y >= 0; --y) {
                     const int count = row_counts[static_cast<size_t>(y)];
-                    if (count == 0) continue;               // already empty, keep going up
-                    if (count > trace_threshold) break;     // meaningful content → stop
+                    if (count == 0) continue;
+                    if (count > trace_threshold) break;
                     std::fill_n(pixels + y * stride, sw, uint32_t{0});
                 }
+
+                // 5. Compute ink fractional center for text-alignment fix.
+                ink_left  = local_ink_left;
+                ink_right = local_ink_right;
+                ink_top   = local_ink_top;
+                ink_bottom = local_ink_bottom;
+                if (ink_left < ink_right) {
+                    const float ink_cx = 0.5f * static_cast<float>(ink_left + ink_right);
+                    ink_center_frac = ink_cx;
+                    ink_w = static_cast<float>(ink_right - ink_left);
+                }
+            }
+            
+            // Debug: log text bounds for box-enabled text (env-gated)
+            if (t.box.enabled && !t.text.empty() && std::getenv("CHRONON_DEBUG_TEXT_RASTER")) {
+                spdlog::info("[TextRaster] '{}' img={}x{} box={:.0f}x{:.0f} ink=[{},{},{},{}] ink_w={:.0f} ink_cx={:.1f}",
+                    t.text, sw, sh, t.box.size.x, t.box.size.y,
+                    ink_left, ink_right, ink_top, ink_bottom, ink_w, ink_center_frac);
             }
         }
+    }
+
+    // ── Debug: draw bounding box overlays (env-gated) ──────────────
+    if (std::getenv("CHRONON_DEBUG_TEXT_BBOX") && !t.text.empty()) {
+        BLContext dbg(img);
+        dbg.setCompOp(BL_COMP_OP_SRC_OVER);
+
+        const float pad_f = static_cast<float>(padding) * 0.5f;
+
+        // 1. Text box boundary (red) — only when box is enabled
+        if (t.box.enabled) {
+            dbg.setStrokeStyle(BLRgba32(255, 48, 48, 200));
+            dbg.setStrokeWidth(2.0f);
+            dbg.strokeRect(pad_f, pad_f, t.box.size.x, t.box.size.y);
+
+            // Box center crosshair (cyan)
+            const float cx = pad_f + t.box.size.x * 0.5f;
+            const float cy = pad_f + t.box.size.y * 0.5f;
+            dbg.setStrokeStyle(BLRgba32(0, 255, 255, 200));
+            dbg.setStrokeWidth(1.0f);
+            dbg.strokeLine(cx - 14.0f, cy, cx + 14.0f, cy);
+            dbg.strokeLine(cx, cy - 14.0f, cx, cy + 14.0f);
+        }
+
+        // 2. Ink bounding box (green)
+        if (ink_left < ink_right) {
+            const float ink_x = static_cast<float>(ink_left);
+            const float ink_y = static_cast<float>(ink_top);
+            const float ink_w = static_cast<float>(ink_right - ink_left);
+            const float ink_h = static_cast<float>(ink_bottom - ink_top);
+            dbg.setStrokeStyle(BLRgba32(48, 255, 48, 200));
+            dbg.setStrokeWidth(1.0f);
+            dbg.strokeRect(ink_x, ink_y, ink_w, ink_h);
+
+            // Ink center crosshair (yellow)
+            const float icx = static_cast<float>(ink_left + ink_right) * 0.5f;
+            const float icy = static_cast<float>(ink_top + ink_bottom) * 0.5f;
+            dbg.setStrokeStyle(BLRgba32(255, 255, 48, 200));
+            dbg.setStrokeWidth(1.0f);
+            dbg.strokeLine(icx - 8.0f, icy, icx + 8.0f, icy);
+            dbg.strokeLine(icx, icy - 8.0f, icx, icy + 8.0f);
+        }
+
+        // 3. Baseline (blue) — first line's expected baseline
+        if (!layout_res.lines.empty()) {
+            const float baseline_y = text_start_y + layout_res.lines[0].position.y + font.metrics().ascent;
+            dbg.setStrokeStyle(BLRgba32(48, 128, 255, 180));
+            dbg.setStrokeWidth(1.0f);
+            dbg.strokeLine(0.0f, baseline_y, static_cast<float>(img_w), baseline_y);
+        }
+
+        // 4. Text label in top-left corner with content info
+        if (!font.empty()) {
+            // Use a fixed-size font for the debug label (10% of effective_size, min 12)
+            BLFont dbg_label_font;
+            const float label_size = std::max(12.0f, effective_size * 0.1f);
+            dbg_label_font.createFromFace(face, label_size);
+            if (!dbg_label_font.empty()) {
+                char label_buf[128];
+                std::snprintf(label_buf, sizeof(label_buf), "[%.*s] %.0fx%.0f",
+                    std::min(24, static_cast<int>(t.text.size())), t.text.data(),
+                    t.box.enabled ? t.box.size.x : 0.0f,
+                    t.box.enabled ? t.box.size.y : 0.0f);
+                dbg.setFillStyle(BLRgba32(255, 255, 255, 220));
+                dbg.fillUtf8Text(BLPoint(4.0f, label_size + 2.0f), dbg_label_font, label_buf);
+            }
+        }
+
+        dbg.end();
     }
 
     auto end_raster = std::chrono::steady_clock::now();
@@ -436,11 +538,29 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     } else {
         if (t.box.enabled) {
             x_offset = -padding / 2.0f;
+            // Adjust x_offset so that the actual ink centre aligns with the
+            // centre of the text box, fixing cases where the layout engine's
+            // measurement (FreeType+HarfBuzz) disagrees with Blend2D rendering.
+            if (ink_center_frac >= 0.0f && t.style.align == TextAlign::Center) {
+                const float box_img_cx = static_cast<float>(img_w) * 0.5f;
+                const float shift = std::round(box_img_cx - ink_center_frac);
+                x_offset += shift;
+            }
+            // For Right-aligned text, shift image so box-right aligns with layer origin
+            else if (t.style.align == TextAlign::Right) {
+                x_offset -= t.box.size.x;
+            }
         } else {
             const float full_width = layout_res.size.x;
             if (t.style.align == TextAlign::Center) x_offset = -full_width * 0.5f;
             else if (t.style.align == TextAlign::Right) x_offset = -full_width;
             x_offset += metrics.boundingBox.x0 - (padding / 2.0f);
+            // Also apply pixel-ink centering for non-box text when centered
+            if (ink_center_frac >= 0.0f && t.style.align == TextAlign::Center) {
+                const float box_img_cx = static_cast<float>(img_w) * 0.5f;
+                const float shift = std::round(box_img_cx - ink_center_frac);
+                x_offset += shift;
+            }
         }
 
         if (t.box.enabled) {
@@ -451,6 +571,17 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
                 y_offset += (font.metrics().ascent - font.metrics().descent) * 0.5f;
             }
         }
+    }
+
+    // Debug: log final offsets for box text
+    if (t.box.enabled && !t.text.empty() && std::getenv("CHRONON_DEBUG_TEXT_RASTER")) {
+        spdlog::info("[TextFinal] '{}' box={:.0f}x{:.0f} img={}x{} ink_center={:.1f} shift={:.1f} x_offset_final={:.1f} y_offset_final={:.1f} model_x={:.0f} frame_ink_cx={:.0f}",
+            t.text, t.box.size.x, t.box.size.y, img_w, img_h,
+            ink_center_frac,
+            (t.style.align == TextAlign::Center && ink_center_frac >= 0.0f ? static_cast<float>(img_w) * 0.5f - ink_center_frac : 0.0f),
+            x_offset, y_offset,
+            (transform ? (*transform)[3][0] : 0.0f),
+            (transform ? (*transform)[3][0] + x_offset + (ink_center_frac >= 0.0f ? ink_center_frac : 0.0f) : 0.0f));
     }
 
     auto result = std::make_shared<TextRasterization>();

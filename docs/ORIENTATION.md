@@ -110,12 +110,83 @@ ctest --preset linux-test --output-on-failure
 
 ---
 
-## Telemetry Dashboard
+## Telemetry Dashboard & Web Gallery
+
+Il telemetry dashboard registra ogni render eseguito con `--report` e li mostra via web.
+
+### 1. Avviare il server
 
 ```bash
-python3 tools/telemetry_dashboard/server.py 5005      # API server
-cd tools/telemetry_dashboard/frontend && npm run dev   # React frontend (http://localhost:5173)
+# Porta 8000 di default
+python3 tools/telemetry_dashboard/server.py
 ```
+
+### 2. Renderizzare con --report
+
+```bash
+# Il flag --report salva il run nel database di telemetria
+./build/.../chronon3d_cli render MyComp --frame 0 -o output/test.png --report
+
+# Senza --report il render NON appare nella dashboard!
+```
+
+### 3. Visualizzare i risultati
+
+| URL | Cosa mostra |
+|---|---|
+| `http://localhost:8000/` | Dashboard telemetria (runs dal database SQLite) |
+| `http://localhost:8000/output` | Galleria di tutti i PNG renderizzati in `output/` |
+| `http://localhost:8000/output/nome.png` | Singolo file PNG |
+| `http://localhost:8000/artifact?path=output/nome.png` | Alternativa per scaricare un file |
+
+Nota: la galleria `/output` mostra solo i file PNG nella cartella `output/`, indipendentemente dal flag `--report`.
+
+### 4. Esempio completo
+
+```bash
+# 1. Avvia server (in un terminale separato)
+python3 tools/telemetry_dashboard/server.py
+
+# 2. Render con report
+./build/.../chronon3d_cli render GlowPremiumSuite -o output/glow.png --frames 0 --report
+
+# 3. Apri nel browser
+#    http://localhost:8000/        → dashboard
+#    http://localhost:8000/output   → galleria immagini
+```
+
+---
+
+## Text Rendering: Pixel-Ink Centering
+
+**File**: `src/backends/text/text_rasterizer_render.cpp`
+
+Il testo centrato (`TextAlign::Center`) viene allineato misurando l'inchiostro effettivamente renderizzato, non le metriche del font.
+
+### Problema originale
+
+`FontEngine::measure_text()` (FreeType + HarfBuzz) restituiva larghezze diverse da ciò che Blend2D effettivamente rasterizzava.
+Esempio: "CIAO MONDO" misurato ~886px ma renderizzato ~301px — il testo appariva spostato di ~289px.
+
+### Soluzione
+
+Dopo il rendering del testo, viene eseguita una scansione dei pixel per trovare i bound effettivi dell'inchiostro (`ink_left`/`ink_right`/`ink_top`/`ink_bottom`).
+La `x_offset` viene poi spostata in modo che il centro dell'inchiostro coincida con il centro del box/frame.
+
+```cpp
+// Pseudo-codice del fix:
+// 1. Scansiona i pixel renderizzati, trova ink_left e ink_right
+// 2. Calcola ink_center = (ink_left + ink_right) * 0.5f
+// 3. Calcola shift = box_center - ink_center
+// 4. x_offset += shift  // ora l'inchiostro è centrato
+```
+
+### Importante per futuri sviluppatori
+
+- Questo fix si applica **sia** al centraggio in box **sia** al centraggio senza box
+- I golden test delle immagini vanno rigenerati dopo modifiche a questo codice
+- Il fix è nel ramo `t.box.enabled == true` (centraggio box) e nel ramo `else` (centraggio senza box)
+- L'offset calcolato viene cacheato come parte del `TextRasterization`, quindi la scansione pixel viene eseguita una sola volta per combinazione stile+testo
 
 ---
 
