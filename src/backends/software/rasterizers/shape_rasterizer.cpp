@@ -37,6 +37,23 @@ Color resolve_gradient_color(const Fill& fill, Vec2 lp, Vec2 sz, f32 opacity) {
         const Vec2 rv = fill.gradient.to - fill.gradient.from;
         const f32 r = glm::length(rv);
         t = (r > 1e-6f) ? glm::length(d) / r : 0.0f;
+    } else if (fill.type == FillType::ConicGradient) {
+        const Vec2 norm = { (lp.x / sz.x), (lp.y / sz.y) };
+        const Vec2 d = norm - fill.gradient.from;
+        float angle = std::atan2(d.y, d.x);
+        if (angle < 0.0f) {
+            angle += 2.0f * 3.14159265f;
+        }
+        const Vec2 dir = fill.gradient.to - fill.gradient.from;
+        float start_angle = std::atan2(dir.y, dir.x);
+        if (start_angle < 0.0f) {
+            start_angle += 2.0f * 3.14159265f;
+        }
+        float relative_angle = angle - start_angle;
+        if (relative_angle < 0.0f) {
+            relative_angle += 2.0f * 3.14159265f;
+        }
+        t = relative_angle / (2.0f * 3.14159265f);
     } else {
         Color c = fill.solid.to_linear();
         c.a *= opacity;
