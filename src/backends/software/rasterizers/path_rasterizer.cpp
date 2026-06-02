@@ -257,6 +257,22 @@ Color resolve_fill_color(const Fill& fill, Vec2 p, const raster::BBox& bbox, f32
             const Vec2 d = local - fill.gradient.from;
             t = glm::dot(d, dir) / len2;
         }
+    } else if (fill.type == FillType::ConicGradient) {
+        const Vec2 d = local - fill.gradient.from;
+        float angle = std::atan2(d.y, d.x);
+        if (angle < 0.0f) {
+            angle += 2.0f * 3.14159265f;
+        }
+        const Vec2 dir = fill.gradient.to - fill.gradient.from;
+        float start_angle = std::atan2(dir.y, dir.x);
+        if (start_angle < 0.0f) {
+            start_angle += 2.0f * 3.14159265f;
+        }
+        float relative_angle = angle - start_angle;
+        if (relative_angle < 0.0f) {
+            relative_angle += 2.0f * 3.14159265f;
+        }
+        t = relative_angle / (2.0f * 3.14159265f);
     } else {
         const Vec2 d = local - fill.gradient.from;
         const Vec2 rv = fill.gradient.to - fill.gradient.from;
