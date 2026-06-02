@@ -436,13 +436,14 @@ void execute_single_node(
 
     // ── Tile pruning: skip nodes whose bbox doesn't intersect the active tile ──
     // When executing the full graph per tile, nodes whose output doesn't overlap
-    // the tile can be replaced with a transparent framebuffer of matching size.
-    // This avoids expensive node execution (allocation, cache eval, rendering)
-    // for nodes that don't contribute to the current tile's output.
+    // the tile can be replaced with a transparent framebuffer.  Instead of
+    // allocating one framebuffer per pruned node (potentially hundreds per
+    // tile), a single full-frame transparent framebuffer is shared across all
+    // pruned nodes within the same execute() call.
     //
-    // Safety: the transparent framebuffer has the same dimensions as the node's
-    // predicted bbox, so consumers (CompositeNode, TransformNode, etc.) read
-    // transparent pixels at valid coordinates.  This is correct because:
+    // Safety: the full-frame size ensures consumers (CompositeNode, TransformNode)
+    // can read pixels at any valid coordinate without out-of-bounds access.
+    // The semantics are correct because:
     //   - Compositing transparent over content leaves content unchanged
     //   - Compositing content over transparent shows content unchanged
     //   - Nodes with nullopt or empty bboxes are conservatively executed
@@ -455,17 +456,13 @@ void execute_single_node(
             bbox.x0 < tile.x1 && bbox.x1 > tile.x0 &&
             bbox.y0 < tile.y1 && bbox.y1 > tile.y0;
         if (!bbox_intersects_tile) {
-            // Node doesn't affect this tile → produce transparent framebuffer
-            const int pw = std::max(1, bbox.x1 - bbox.x0);
-            const int ph = std::max(1, bbox.y1 - bbox.y0);
-            auto owned_fb = ctx.acquire_owned_fb(pw, ph, false, bbox);
-            owned_fb->clear(Color::transparent());
-            Framebuffer* raw = owned_fb.release();
-            PoolFbDeleter deleter{nullptr};
-            if (parent_pool) {
-                deleter = PoolFbDeleter{parent_pool, parent_pool->alive_token()};
-            }
-            state.temp[id] = CachedFB(raw, std::move(deleter));
+            // Use the pre-allocated shared full-frame transparent framebuffer.
+            // It was created in execute() before the level loop to avoid
+            // data races when multiple pruned nodes run concurrently.
+            // Non-tile code paths never reach here (guarded by the outer
+            // tile_execution_enabled check), so shared_transparent is always
+            // valid when this block executes.
+            state.temp[id] = state.shared_transparent;
             state.resolved_key_digest[id] = 0;
             state.resolved_frame_dependent[id] = 0;
             state.resolved_cache_hit[id] = 0;

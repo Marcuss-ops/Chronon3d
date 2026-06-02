@@ -32,7 +32,8 @@ inline TextParams hero_text(
     f32 stroke_width,
     f32 tracking,
     VerticalAlign vertical_align = VerticalAlign::Middle,
-    ShadowStyle shadow_style = ShadowStyle{}
+    ShadowStyle shadow_style = ShadowStyle{},
+    TextWrap wrap = TextWrap::None
 ) {
     TextParams p;
     p.text = std::move(text);
@@ -48,6 +49,7 @@ inline TextParams hero_text(
     p.vertical_align = vertical_align;
     p.line_height = 0.95f;
     p.tracking = tracking;
+    p.wrap = wrap;
     p.paint.fill = fill;
     p.paint.fill_style = std::move(fill_style);
     p.paint.stroke_enabled = true;
@@ -64,7 +66,8 @@ inline TextParams subtitle_text(
     f32 font_size,
     Color color,
     f32 tracking = 1.2f,
-    ShadowStyle shadow_style = ShadowStyle{}
+    ShadowStyle shadow_style = ShadowStyle{},
+    TextWrap wrap = TextWrap::None
 ) {
     TextParams p;
     p.text = std::move(text);
@@ -80,6 +83,7 @@ inline TextParams subtitle_text(
     p.vertical_align = VerticalAlign::Middle;
     p.line_height = 1.1f;
     p.tracking = tracking;
+    p.wrap = wrap;
     p.shadows = make_text_shadows(shadow_style);
     return p;
 }

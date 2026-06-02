@@ -26,6 +26,7 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
                     "Write graph preflight report to a file path pattern");
     cmd->add_flag("--graph,!--no-graph", args.pipeline.use_modular_graph, "Use modular RenderGraph path");
     cmd->add_flag("--dirty-rects", args.pipeline.dirty_rects, "Enable dirty rectangles invalidation");
+    cmd->add_option("--tile-size", args.pipeline.tile_size, "Tile size for dirty-rect tile execution (e.g. 64)");
     cmd->add_flag("--motion-blur", args.pipeline.quality.motion_blur, "Enable temporal motion blur");
     cmd->add_option("--motion-blur-samples", args.pipeline.quality.motion_blur_samples, "Subframe samples (default 8)");
     cmd->add_option("--shutter-angle", args.pipeline.quality.shutter_angle, "Shutter angle in degrees (default 180)");

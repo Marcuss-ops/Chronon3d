@@ -202,6 +202,44 @@ static Composition make_tile_bench_scene(int width, int height, int duration) {
     });
 }
 
+/// Scene with parameterised element count for dirty-ratio sweep.
+/// Background + num_elements animated circles on scattered trajectories.
+/// Varying num_elements produces a predictable, monotonic increase in dirty ratio.
+static Composition make_dirty_ratio_sweep_scene(int width, int height, int duration, int num_elements) {
+    const int clamped = std::max(1, std::min(num_elements, 256));
+    return Composition(CompositionSpec{
+        .name = "DirtySweep", .width = width, .height = height, .duration = duration
+    }, [=](const FrameContext& ctx) {
+        SceneBuilder s(ctx.resource);
+        // Static background fills the whole frame
+        s.rect("bg", {
+            .size = {static_cast<float>(width), static_cast<float>(height)},
+            .color = Color{0.05f, 0.1f, 0.15f, 1.0f},
+            .pos = {static_cast<float>(width) * 0.5f, static_cast<float>(height) * 0.5f, 0}
+        });
+        const int cols = std::max(1, static_cast<int>(std::sqrt(static_cast<float>(clamped))));
+        const int rows = (clamped + cols - 1) / cols;
+        const float cell_w = static_cast<float>(width) / static_cast<float>(cols);
+        const float cell_h = static_cast<float>(height) / static_cast<float>(rows);
+        for (int i = 0; i < clamped; ++i) {
+            const int col = i % cols;
+            const int row = i / cols;
+            const float cx = cell_w * (static_cast<float>(col) + 0.5f);
+            const float cy = cell_h * (static_cast<float>(row) + 0.5f);
+            const float phase = static_cast<float>(i) * 0.7f;
+            const float t = static_cast<float>(ctx.frame) * 0.15f;
+            const float x = cx + std::sin(phase + t * 1.3f) * cell_w * 0.35f;
+            const float y = cy + std::cos(phase + t * 0.9f) * cell_h * 0.35f;
+            s.circle("dot" + std::to_string(i), {
+                .radius = 8.0f,
+                .color = Color{0.4f, 0.6f, 0.8f, 1.0f},
+                .pos = {x, y, 0}
+            });
+        }
+        return s.build();
+    });
+}
+
 /// Baseline: no tiles, full-frame render each frame
 void BM_TileRenderNoTiles(benchmark::State& state) {
     constexpr int W = 640, H = 360;
@@ -279,6 +317,69 @@ void BM_TileRenderParallel(benchmark::State& state) {
         static_cast<int64_t>(state.iterations()) * kFrames * W * H);
 }
 
+// ---------------------------------------------------------------------------
+// Dirty-ratio sweep: compare tile vs single-pass as dirty_ratio varies
+// ---------------------------------------------------------------------------
+
+/// Render a scene with `num_elements` animated objects and report both
+/// tile-mode execution time and single-pass execution time.
+/// Use BENCHMARK_CAPTURE to build separate tile/single curves:
+///   BM_TileDirtyRatioSweep/Single/4    → single-pass, 4 elements
+///   BM_TileDirtyRatioSweep/Tiled/4     → tiles (64), 4 elements
+///
+/// Custom counters:
+///   dirty_ratio  — the actual dirty area fraction from the last frame
+///   elements     — the Range() parameter (number of animated objects)
+///   tile_ms      — per-frame time when tiles are enabled (Tiled only)
+///   single_ms    — per-frame time when tiles are disabled (Single only)
+static void BM_TileDirtyRatioSweep(benchmark::State& state, bool use_tiles) {
+    const int num_elements = static_cast<int>(state.range(0));
+    constexpr int W = 640, H = 360;
+    constexpr int kFrames = 12;
+    constexpr int tile_size = 64;
+
+    Composition comp = make_dirty_ratio_sweep_scene(W, H, kFrames, num_elements);
+
+    // Track the actual dirty ratio and per-frame time
+    double last_dirty_ratio = 0.0;
+    double per_frame_ms = 0.0;
+
+    for (auto _ : state) {
+        SoftwareRenderer renderer;
+        RenderSettings s;
+        s.use_modular_graph = true;
+        s.enable_dirty_rects = true;
+        s.enable_dirty_bitmask = true;
+        s.tile_dirty_ratio_threshold = 1.0;  // never auto-bypass — we want raw tile cost
+        if (use_tiles) {
+            s.tile_size = tile_size;
+            s.enable_parallel_tiles = false;  // sequential for apples-to-apples comparison
+        } else {
+            s.tile_size = 0;                  // single-pass
+        }
+        renderer.set_settings(s);
+
+        auto t0 = std::chrono::steady_clock::now();
+        for (Frame f = 0; f < kFrames; ++f) {
+            auto fb = renderer.render_frame(comp, f);
+            benchmark::DoNotOptimize(fb);
+        }
+        auto t1 = std::chrono::steady_clock::now();
+
+        last_dirty_ratio = renderer.last_dirty_area_ratio();
+        per_frame_ms = std::chrono::duration<double, std::milli>(t1 - t0).count()
+                       / static_cast<double>(kFrames);
+    }
+
+    const std::string ratio_name = use_tiles ? "tile_ms" : "single_ms";
+    state.counters[ratio_name] = per_frame_ms;
+    state.counters["dirty_ratio"] = last_dirty_ratio;
+    state.counters["elements"] = static_cast<double>(num_elements);
+    state.SetItemsProcessed(
+        static_cast<int64_t>(state.iterations()) * kFrames * W * H);
+}
+
+
 void BM_CompositingBlendModes(benchmark::State& state) {
     constexpr int w = 640;
     constexpr int h = 360;
@@ -355,5 +456,11 @@ BENCHMARK(BM_Blur2Pass)->Arg(10)->Arg(50)->Arg(100)->Unit(benchmark::kMillisecon
 BENCHMARK(BM_TileRenderNoTiles)->Unit(benchmark::kMillisecond);
 BENCHMARK(BM_TileRenderSequential)->Arg(32)->Arg(64)->Unit(benchmark::kMillisecond);
 BENCHMARK(BM_TileRenderParallel)->Arg(32)->Arg(64)->Unit(benchmark::kMillisecond);
+
+// Dirty-ratio sweep: single-pass vs tile at 2,4,8,16,32,64 elements
+BENCHMARK_CAPTURE(BM_TileDirtyRatioSweep, Single, false)
+    ->RangeMultiplier(2)->Range(2, 64)->Unit(benchmark::kMillisecond);
+BENCHMARK_CAPTURE(BM_TileDirtyRatioSweep, Tiled, true)
+    ->RangeMultiplier(2)->Range(2, 64)->Unit(benchmark::kMillisecond);
 BENCHMARK(BM_CompositingBlendModes)->Unit(benchmark::kMillisecond);
 BENCHMARK(BM_MotionBlurAccumulation)->Arg(4)->Arg(8)->Arg(16)->Unit(benchmark::kMillisecond);

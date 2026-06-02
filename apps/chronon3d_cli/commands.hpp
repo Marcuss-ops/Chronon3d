@@ -23,6 +23,7 @@ struct RenderPipelineArgs {
     bool   diagnostic_plan{false};
     std::string diagnostic_plan_output;
     bool   dirty_rects{false};
+    int    tile_size{0};
     RenderQualityArgs quality{};
 
     // Renderer warmup (preallocation + optional dummy frame)

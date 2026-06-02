@@ -124,6 +124,100 @@ def get_artifact():
     content_type = ARTIFACT_MIME_TYPES.get(artifact_path.suffix.lower(), 'application/octet-stream')
     return send_file(artifact_path, mimetype=content_type)
 
+OUTPUT_DIR = PROJECT_ROOT / 'output'
+
+
+@app.route('/output')
+@require_auth
+def output_gallery():
+    """Gallery page showing all rendered output PNGs."""
+    if not OUTPUT_DIR.exists():
+        return "<h1>No output directory</h1>", 404
+
+    pngs = sorted(OUTPUT_DIR.glob('*.png'), key=os.path.getmtime, reverse=True)
+    if not pngs:
+        return "<h1>No rendered images yet</h1><p>Run a composition first: <code>./chronon3d_cli render YourComposition -o output/your.png</code></p>"
+
+    cards = ''
+    for p in pngs:
+        fname = p.name
+        size_kb = p.stat().st_size // 1024
+        cards += f'''
+        <div class="card">
+          <img src="/output/{fname}" loading="lazy" onclick="openModal(this.src)">
+          <div class="info">
+            <span class="name">{fname}</span>
+            <span class="size">{size_kb} KB</span>
+          </div>
+        </div>'''
+
+    html = f'''<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chronon3D — Render Outputs</title>
+<style>
+* {{ margin:0; padding:0; box-sizing:border-box; }}
+body {{ font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:#0d1117; color:#c9d1d9; padding:20px; }}
+h1 {{ color:#58a6ff; margin-bottom:6px; }}
+.subtitle {{ color:#8b949e; font-size:14px; margin-bottom:20px; }}
+.gallery {{ display:grid; grid-template-columns:repeat(auto-fill,minmax(400px,1fr)); gap:16px; }}
+.card {{ background:#161b22; border:1px solid #30363d; border-radius:8px; overflow:hidden; transition:border-color .2s; }}
+.card:hover {{ border-color:#58a6ff; }}
+.card img {{ width:100%; display:block; cursor:pointer; }}
+.card .info {{ padding:10px 14px; display:flex; justify-content:space-between; align-items:center; }}
+.card .name {{ font-size:13px; font-weight:600; }}
+.card .size {{ font-size:11px; color:#8b949e; }}
+
+/* Modal */
+.modal {{ display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,.9); z-index:1000; cursor:pointer; }}
+.modal img {{ max-width:95vw; max-height:95vh; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); }}
+.modal .close {{ position:absolute; top:16px; right:24px; font-size:36px; color:#fff; cursor:pointer; }}
+</style>
+</head>
+<body>
+<h1>🖼️ Chronon3D Render Outputs</h1>
+<p class="subtitle">{len(pngs)} file PNG</p>
+<div class="gallery">
+{cards}
+</div>
+
+<div class="modal" id="modal" onclick="closeModal()">
+  <span class="close">&times;</span>
+  <img id="modalImg">
+</div>
+
+<script>
+function openModal(src) {{
+  document.getElementById('modal').style.display = 'block';
+  document.getElementById('modalImg').src = src;
+}}
+function closeModal() {{
+  document.getElementById('modal').style.display = 'none';
+}}
+document.addEventListener('keydown', function(e) {{ if (e.key === 'Escape') closeModal(); }});
+</script>
+</body>
+</html>'''
+    return Response(html, mimetype='text/html')
+
+
+@app.route('/output/<path:filename>')
+@require_auth
+def serve_output(filename):
+    """Serve individual output file (PNG, MP4, etc.)."""
+    filepath = OUTPUT_DIR / filename
+    safe_path = filepath.resolve()
+    # Prevent directory traversal
+    if not str(safe_path).startswith(str(OUTPUT_DIR.resolve())):
+        return "Forbidden", 403
+    if not safe_path.exists() or not safe_path.is_file():
+        return "Not found", 404
+    content_type = ARTIFACT_MIME_TYPES.get(safe_path.suffix.lower(), 'application/octet-stream')
+    return send_file(safe_path, mimetype=content_type)
+
+
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve_static(path):

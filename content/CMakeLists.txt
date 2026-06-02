@@ -27,9 +27,6 @@ add_library(chronon3d_content_text STATIC
     text/typewriter/text_typewriter_showcase.cpp
     text/premium_hero/text_premium_hero.cpp
     text/premium_hero/text_premium_hero_masterclass.cpp
-    text/premium_hero/text_premium_hero_buttery_smooth.cpp
-    text/premium_hero/text_premium_hero_saas_blue.cpp
-    text/premium_hero/text_premium_hero_explainer.cpp
 )
 set_target_properties(chronon3d_content_text PROPERTIES UNITY_BUILD OFF)
 target_include_directories(chronon3d_content_text PRIVATE ${CMAKE_SOURCE_DIR})
