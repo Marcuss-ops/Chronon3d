@@ -10,6 +10,8 @@ namespace chronon3d {
 // Transforms a flat projected quad into a "3.5D" card with visible thickness,
 // top→bottom gradient, edge highlight, and rim light.
 struct Card3DMaterial {
+    bool  enabled{true};
+
     // ── Geometry ───────────────────────────────────────────────────────────
     f32 thickness_px{14.0f};       // side face depth in screen pixels
     f32 corner_radius{28.0f};      // corner rounding (applied via rounded rect, not mesh)
@@ -83,10 +85,16 @@ struct Card3DMaterial {
         m.edge_highlight_color     = {1.0f, 0.95f, 0.85f, 1.0f};
         return m;
     }
-};
 
-// Mapping between existing Material2_5D (lighting properties) and Card3DMaterial (visual material).
-// This allows layers to express both lighting behaviour and visual premium material.
-// Card3DMaterial objects are stored alongside ProjectedCard in the rendering pipeline.
+    /// Flat card — no thickness, just the shape (useful for non-3D layouts).
+    static Card3DMaterial flat() {
+        Card3DMaterial m;
+        m.thickness_px         = 0.0f;
+        m.edge_highlight_intensity = 0.0f;
+        m.rim_light_intensity      = 0.0f;
+        m.cast_shadow          = false;
+        return m;
+    }
+};
 
 } // namespace chronon3d

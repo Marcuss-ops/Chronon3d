@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/scene/shape.hpp>
+#include <chronon3d/text/font_engine.hpp>
 
 #include <algorithm>
 #include <string>
@@ -13,8 +14,12 @@ struct TextLayoutInput {
     std::string text;
     TextStyle style{};
     TextBox box{};
+    // Legacy per-char callback (used when font_engine is null)
     const void* char_width_ctx{nullptr};
     float (*char_width_fn)(const void* ctx, char c, float font_size){nullptr};
+    // New: FreeType/HarfBuzz-based measurement (preferred when set)
+    const FontEngine* font_engine{nullptr};
+    FontSpec font_spec{};
 };
 
 struct TextLayoutLine {
@@ -40,14 +45,23 @@ private:
             ? input.box.size.x
             : 0.0f;
 
-        auto measure_char = [&](char c) {
+        auto measure_char = [&](char c) -> float {
+            if (input.font_engine) {
+                char buf[2] = {c, '\0'};
+                return input.font_engine->measure_text(buf, input.font_spec, font_size);
+            }
             if (input.char_width_fn) {
                 return std::max(0.0f, input.char_width_fn(input.char_width_ctx, c, font_size));
             }
             return font_size * 0.6f;
         };
 
-        auto measure_string = [&](std::string_view s) {
+        auto measure_string = [&](std::string_view s) -> float {
+            if (input.font_engine) {
+                float base = input.font_engine->measure_text(s, input.font_spec, font_size);
+                base += input.style.tracking * static_cast<float>(s.size());
+                return std::max(0.0f, base);
+            }
             float w = 0.0f;
             for (char c : s) {
                 w += measure_char(c) + input.style.tracking;

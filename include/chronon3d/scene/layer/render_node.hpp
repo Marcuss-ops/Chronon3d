@@ -15,6 +15,8 @@
 
 namespace chronon3d {
 
+class FontEngine;  // forward declaration
+
 // Soft drop shadow drawn behind the shape.
 struct DropShadow {
     bool  enabled{false};
@@ -48,6 +50,10 @@ struct RenderNode {
     RenderNodeParams params;
 
     bool visible{true};
+
+    // FontEngine pointer for precise text shaping / glyph metrics.
+    // Set by LayerBuilder when the layer has a configured FontEngine.
+    FontEngine* font_engine{nullptr};
 
     explicit RenderNode(std::pmr::memory_resource* res = std::pmr::get_default_resource())
         : name(res) {}

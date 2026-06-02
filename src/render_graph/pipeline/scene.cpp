@@ -19,6 +19,9 @@
 #include <chronon3d/render_graph/nodes/effect_stack_node.hpp>
 #include <chronon3d/core/tile_grid.hpp>
 #include <chronon3d/core/dirty_tile_mask.hpp>
+#include <tbb/parallel_for.h>
+#include <tbb/blocked_range.h>
+#include <tbb/enumerable_thread_specific.h>
 #include "helpers.hpp"
 #include "scene_internal.hpp"
 #include <spdlog/spdlog.h>
@@ -756,58 +759,114 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
             CHRONON_ZONE_C("tile_execute", trace_category::kGraph);
             const int total_tiles = tile_grid.tile_count();
 
-            // Sequential tile loop.  Each tile renders the full graph
-            // independently with a tile-scoped clip_rect, then the tile
-            // region is copied into the final framebuffer.  The sequential
-            // outer loop avoids TBB nesting / thread-local state issues
-            // while the executor still parallelises internally per node level.
-            int dirty_count = 0;
-            uint64_t pixels_rendered = 0;
-
+            // Collect dirty tile coordinates into a vector so we can
+            // iterate them with tbb::parallel_for (for_each_dirty_tile
+            // uses bit-scanning which is not parallelisable).
+            struct DirtyTile { int tx; int ty; };
+            std::vector<DirtyTile> dirty_coords;
+            dirty_coords.reserve(static_cast<size_t>(dirty_tiles.dirty_count()));
             dirty_tiles.for_each_dirty_tile(tile_grid, [&](int tx, int ty) {
-                const raster::BBox tile_bbox = tile_grid.tile_bounds(tx, ty);
-                if (tile_bbox.is_empty()) return;
-
-                // Clone context with tile-level clipping.
-                // Disable prev-fb reuse so the ClearNode allocates a
-                // fresh framebuffer instead of stealing m_prev_framebuffer.
-                // Per-tile cache keys prevent stale cross-tile cache hits.
-                RenderGraphContext tile_ctx = ctx;
-                tile_ctx.clip_rect = tile_bbox;
-                tile_ctx.dirty_rect = tile_bbox;
-                tile_ctx.reuse_prev_framebuffer = false;
-                tile_ctx.tile_execution_enabled = true;
-                tile_ctx.active_tile_clip = tile_bbox;
-                tile_ctx.skip_initial_clear = false;
-                tile_ctx.early_exit_skip.clear();
-                // Reset optimisations that the graph builder may have
-                // applied for the full-frame path; tile execution needs
-                // ClearNode to zero each tile region and all nodes to
-                // execute normally per tile.
-
-                auto tile_fb = sw_renderer->executor()->execute(
-                    compiled, tile_ctx);
-
-                // Direct row copy — the tile replaces old frame
-                // content in its region (no alpha blending, since
-                // fb_shared was seeded from prev_framebuffer).
-                if (tile_fb) {
-                    for (i32 y = tile_bbox.y0; y < tile_bbox.y1; ++y) {
-                        std::copy(
-                            tile_fb->pixels_row(y) + tile_bbox.x0,
-                            tile_fb->pixels_row(y) + tile_bbox.x1,
-                            fb_shared->pixels_row(y) + tile_bbox.x0);
-                    }
-                }
-
-                ++dirty_count;
-                pixels_rendered +=
-                    static_cast<uint64_t>(tile_bbox.x1 - tile_bbox.x0) *
-                    static_cast<uint64_t>(tile_bbox.y1 - tile_bbox.y0);
+                dirty_coords.push_back({tx, ty});
             });
 
-            const int final_dirty = dirty_count;
-            const uint64_t final_px = pixels_rendered;
+            // Tile execution: parallel (tbb::parallel_for) or sequential.
+            // When parallel, counters use enumerable_thread_specific to
+            // avoid atomic contention in the per-tile hot path.  When
+            // sequential, a plain local accumulator is used instead.
+            const bool parallel_tiles = sw_renderer->settings().enable_parallel_tiles;
+
+            int final_dirty = 0;
+            uint64_t final_px = 0;
+
+            if (parallel_tiles) {
+                struct TileAccum {
+                    int dirty_count{0};
+                    uint64_t pixels_rendered{0};
+                };
+                tbb::enumerable_thread_specific<TileAccum> tile_accums;
+
+                tbb::parallel_for(
+                    tbb::blocked_range<size_t>(0, dirty_coords.size()),
+                    [&](const tbb::blocked_range<size_t>& range) {
+                        auto& local = tile_accums.local();
+                        for (size_t i = range.begin(); i < range.end(); ++i) {
+                            const int tx = dirty_coords[i].tx;
+                            const int ty = dirty_coords[i].ty;
+                            const raster::BBox tile_bbox = tile_grid.tile_bounds(tx, ty);
+                            if (tile_bbox.is_empty()) continue;
+
+                            RenderGraphContext tile_ctx = ctx;
+                            tile_ctx.clip_rect = tile_bbox;
+                            tile_ctx.dirty_rect = tile_bbox;
+                            tile_ctx.reuse_prev_framebuffer = false;
+                            tile_ctx.tile_execution_enabled = true;
+                            tile_ctx.active_tile_clip = tile_bbox;
+                            tile_ctx.skip_initial_clear = false;
+                            tile_ctx.early_exit_skip.clear();
+
+                            FrameArena tile_arena;
+                            auto tile_fb = sw_renderer->executor()->execute(
+                                compiled, tile_ctx, &tile_arena);
+
+                            if (tile_fb) {
+                                for (i32 y = tile_bbox.y0; y < tile_bbox.y1; ++y) {
+                                    std::copy(
+                                        tile_fb->pixels_row(y) + tile_bbox.x0,
+                                        tile_fb->pixels_row(y) + tile_bbox.x1,
+                                        fb_shared->pixels_row(y) + tile_bbox.x0);
+                                }
+                            }
+
+                            ++local.dirty_count;
+                            local.pixels_rendered +=
+                                static_cast<uint64_t>(tile_bbox.x1 - tile_bbox.x0) *
+                                static_cast<uint64_t>(tile_bbox.y1 - tile_bbox.y0);
+                        }
+                    }
+                );
+
+                // Merge TLS counters
+                for (const auto& acc : tile_accums) {
+                    final_dirty += acc.dirty_count;
+                    final_px += acc.pixels_rendered;
+                }
+            } else {
+                // Sequential tile execution — same loop body, no tbb
+                for (size_t i = 0; i < dirty_coords.size(); ++i) {
+                    const int tx = dirty_coords[i].tx;
+                    const int ty = dirty_coords[i].ty;
+                    const raster::BBox tile_bbox = tile_grid.tile_bounds(tx, ty);
+                    if (tile_bbox.is_empty()) continue;
+
+                    RenderGraphContext tile_ctx = ctx;
+                    tile_ctx.clip_rect = tile_bbox;
+                    tile_ctx.dirty_rect = tile_bbox;
+                    tile_ctx.reuse_prev_framebuffer = false;
+                    tile_ctx.tile_execution_enabled = true;
+                    tile_ctx.active_tile_clip = tile_bbox;
+                    tile_ctx.skip_initial_clear = false;
+                    tile_ctx.early_exit_skip.clear();
+
+                    // Sequential execution reuses a single arena (no races)
+                    FrameArena tile_arena;
+                    auto tile_fb = sw_renderer->executor()->execute(
+                        compiled, tile_ctx, &tile_arena);
+
+                    if (tile_fb) {
+                        for (i32 y = tile_bbox.y0; y < tile_bbox.y1; ++y) {
+                            std::copy(
+                                tile_fb->pixels_row(y) + tile_bbox.x0,
+                                tile_fb->pixels_row(y) + tile_bbox.x1,
+                                fb_shared->pixels_row(y) + tile_bbox.x0);
+                        }
+                    }
+
+                    ++final_dirty;
+                    final_px +=
+                        static_cast<uint64_t>(tile_bbox.x1 - tile_bbox.x0) *
+                        static_cast<uint64_t>(tile_bbox.y1 - tile_bbox.y0);
+                }
+            }
 
             // ── Tile counters ───────────────────────────────────────────────
             if (ctx.counters) {
