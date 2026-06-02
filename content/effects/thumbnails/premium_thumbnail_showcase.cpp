@@ -95,10 +95,10 @@ Composition premium_thumbnail_buttery_smooth() {
             l.grid_background("grid", {
                 .size = {(f32)kW, (f32)kH},
                 .bg_color = {0.0f, 0.0f, 0.0f, 0.0f},
-                .grid_color = Color{0.32f, 0.10f, 0.42f, 0.09f}, // Subtle dark purple grid lines
+                .grid_color = Color{0.32f, 0.10f, 0.42f, 0.045f}, // Subtle dark purple grid lines
                 .spacing = 36.0f,
-                .minor_thickness = 0.9f,
-                .major_thickness = 1.3f,
+                .minor_thickness = 0.5f,
+                .major_thickness = 0.8f,
                 .major_every = 4,
                 .centered = true
             });
@@ -106,76 +106,68 @@ Composition premium_thumbnail_buttery_smooth() {
 
         // 2. Transparent Capsule Outline
         s.layer("capsule", [](LayerBuilder& l) {
-            l.position({-30.0f, 0.0f, 0.0f});
-            l.glow(26.0f, 0.70f, Color{0.86f, 0.38f, 0.92f, 0.28f});
-            l.drop_shadow({0.0f, 14.0f}, Color{0.0f, 0.0f, 0.0f, 0.45f}, 24.0f);
+            l.position({-130.0f, -110.0f, 0.0f});
+            l.glow(16.0f, 0.25f, Color{0.95f, 0.12f, 0.58f, 0.30f});
 
-            // Outer border card
             l.rounded_rect("pill_border", {
-                .size = {1143.0f, 183.0f},
-                .radius = 91.5f,
-                .color = Color{0.82f, 0.58f, 0.90f, 0.45f}
+                .size = {930.0f, 120.0f},
+                .radius = 60.0f,
+                .color = Color{0.78f, 0.48f, 0.88f, 0.28f}
             });
 
-            // Inner filled card
             l.rounded_rect("pill_body", {
-                .size = {1140.0f, 180.0f},
-                .radius = 90.0f,
-                .color = Color{0.04f, 0.015f, 0.07f, 0.65f},
-                .fill = Fill::linear(
-                    {-0.5f, 0.0f}, {0.5f, 0.0f},
-                    {
-                        {0.0f, Color{0.03f, 0.01f, 0.05f, 0.75f}},
-                        {1.0f, Color{0.09f, 0.02f, 0.14f, 0.40f}}
-                    }
-                )
+                .size = {927.0f, 117.0f},
+                .radius = 58.5f,
+                .color = Color{0.03f, 0.01f, 0.05f, 0.14f}
             });
         });
 
         // 3. Side-by-side text layout: "Buttery Smooth" + glowing star asterisk
         s.layer("text", [](LayerBuilder& l) {
-            l.position({-50.0f, 0.0f, 0.0f});
+            l.position({-120.0f, -110.0f, 0.0f});
             
             // "Buttery" (Magenta/pink)
-            l.text("t1", {
+            l.text("buttery", {
                 .text = "Buttery",
-                .size = {500.0f, 160.0f},
-                .pos = {-240.0f, 0.0f, 0.0f},
+                .size = {460.0f, 120.0f},
+                .pos = {-360.0f, 0.0f, 0.0f},
                 .font_path = "assets/fonts/Inter-Bold.ttf",
                 .font_family = "Inter",
                 .font_weight = 900,
-                .font_size = 85.0f,
-                .color = Color{0.95f, 0.12f, 0.58f, 1.0f},
-                .align = TextAlign::Right,
-                .vertical_align = VerticalAlign::Middle
+                .font_size = 72.0f,
+                .color = Color{1.0f, 0.0f, 0.78f, 1.0f},
+                .align = TextAlign::Left,
+                .vertical_align = VerticalAlign::Middle,
+                .wrap = TextWrap::None
             });
 
             // "Smooth" (White)
-            l.text("t2", {
+            l.text("smooth", {
                 .text = "Smooth",
-                .size = {500.0f, 160.0f},
-                .pos = {280.0f, 0.0f, 0.0f},
+                .size = {460.0f, 120.0f},
+                .pos = {25.0f, 0.0f, 0.0f},
                 .font_path = "assets/fonts/Inter-Bold.ttf",
                 .font_family = "Inter",
                 .font_weight = 900,
-                .font_size = 85.0f,
+                .font_size = 72.0f,
                 .color = Color::white(),
                 .align = TextAlign::Left,
-                .vertical_align = VerticalAlign::Middle
+                .vertical_align = VerticalAlign::Middle,
+                .wrap = TextWrap::None
             });
         });
 
         // 4. Glowing 8-Point Asterisk Star at the right of Smooth text
         s.layer("star_glow", [](LayerBuilder& l) {
-            l.position({320.0f, 0.0f, 0.0f});
-            l.glow(40.0f, 1.80f, Color{0.95f, 0.12f, 0.58f, 0.85f});
+            l.position({390.0f, -110.0f, 0.0f});
+            l.glow(55.0f, 1.4f, Color{1.0f, 0.0f, 0.78f, 0.75f});
             
             l.star("star", {
                 .center = {0.0f, 0.0f},
                 .points = 8,
-                .inner_radius = 9.0f,
-                .outer_radius = 28.0f,
-                .color = Color{0.95f, 0.12f, 0.58f, 1.0f}
+                .inner_radius = 12.0f,
+                .outer_radius = 42.0f,
+                .color = Color{1.0f, 0.0f, 0.78f, 1.0f}
             });
         });
 
