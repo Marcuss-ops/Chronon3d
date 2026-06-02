@@ -14,6 +14,7 @@ RenderNode RenderNodeFactory::rect(std::pmr::memory_resource* res, std::string n
     auto node = base(res, std::move(name));
     node.shape.type = ShapeType::Rect;
     node.shape.rect.size = p.size;
+    node.shape.rect.stroke = p.stroke;
     node.world_transform.anchor = {p.size.x * 0.5f, p.size.y * 0.5f, 0.0f};
     node.world_transform.position = p.pos;
     node.color = p.color;
@@ -26,6 +27,7 @@ RenderNode RenderNodeFactory::rounded_rect(std::pmr::memory_resource* res, std::
     node.shape.type = ShapeType::RoundedRect;
     node.shape.rounded_rect.size = p.size;
     node.shape.rounded_rect.radius = p.radius;
+    node.shape.rounded_rect.stroke = p.stroke;
     node.corner_radius = p.radius;
     node.world_transform.anchor = {p.size.x * 0.5f, p.size.y * 0.5f, 0.0f};
     node.world_transform.position = p.pos;
@@ -38,6 +40,7 @@ RenderNode RenderNodeFactory::circle(std::pmr::memory_resource* res, std::string
     auto node = base(res, std::move(name));
     node.shape.type = ShapeType::Circle;
     node.shape.circle.radius = p.radius;
+    node.shape.circle.stroke = p.stroke;
     node.world_transform.anchor = {p.radius, p.radius, 0.0f};
     node.world_transform.position = p.pos;
     node.color = p.color;
@@ -52,6 +55,10 @@ RenderNode RenderNodeFactory::line(std::pmr::memory_resource* res, std::string n
     node.shape.line.thickness = p.thickness;
     node.shape.line.stroke.trim_start = p.stroke.trim_start;
     node.shape.line.stroke.trim_end = p.stroke.trim_end;
+    node.shape.line.stroke.enabled = p.stroke.enabled;
+    node.shape.line.stroke.color = p.stroke.color;
+    node.shape.line.stroke.width = p.stroke.width;
+    node.shape.line.stroke.alignment = p.stroke.alignment;
     node.world_transform.position = p.from;
     node.world_transform.anchor = {0, 0, 0};
     node.color = p.color;

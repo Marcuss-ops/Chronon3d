@@ -32,8 +32,22 @@ enum class ShapeType {
 
 enum class PlaneAxis { XZ, XY };
 
+enum class StrokeAlignment {
+    Center,
+    Inside,
+    Outside,
+};
+
+struct ShapeStroke {
+    bool enabled{false};
+    Color color{0.0f, 0.0f, 0.0f, 1.0f};
+    f32 width{1.0f};
+    StrokeAlignment alignment{StrokeAlignment::Center};
+};
+
 struct RectShape {
     Vec2 size{100.0f, 100.0f};
+    ShapeStroke stroke{};
 };
 
 // Rounded rectangle — corners follow a circular arc of the given radius.
@@ -41,15 +55,21 @@ struct RectShape {
 struct RoundedRectShape {
     Vec2 size{100.0f, 100.0f};
     f32 radius{8.0f};
+    ShapeStroke stroke{};
 };
 
 struct CircleShape {
     f32 radius{50.0f};
+    ShapeStroke stroke{};
 };
 
 struct LineStroke {
     f32 trim_start{0.0f};  // normalised [0..1]
     f32 trim_end{1.0f};
+    bool enabled{true};
+    Color color{1.0f, 1.0f, 1.0f, 1.0f};
+    f32 width{1.0f};
+    StrokeAlignment alignment{StrokeAlignment::Center};
 };
 
 struct LineShape {
