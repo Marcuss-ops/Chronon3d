@@ -62,6 +62,7 @@ constexpr std::size_t kHardwareDestructiveInterferenceSize = 64;
     X(graph_cache_misses) \
     X(execution_plan_cache_hits) \
     X(bypass_not_cacheable_count) \
+    X(nodes_skipped) \
     X(framebuffer_acquire_ms) \
     X(framebuffer_clear_ms) \
     X(clearnode_ms) \

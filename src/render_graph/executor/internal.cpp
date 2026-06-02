@@ -434,6 +434,50 @@ void execute_single_node(
     // Predicted bbox
     auto predicted_bbox = node.predicted_bbox(ctx, pr.input_bboxes);
 
+    // ── Tile pruning: skip nodes whose bbox doesn't intersect the active tile ──
+    // When executing the full graph per tile, nodes whose output doesn't overlap
+    // the tile can be replaced with a transparent framebuffer of matching size.
+    // This avoids expensive node execution (allocation, cache eval, rendering)
+    // for nodes that don't contribute to the current tile's output.
+    //
+    // Safety: the transparent framebuffer has the same dimensions as the node's
+    // predicted bbox, so consumers (CompositeNode, TransformNode, etc.) read
+    // transparent pixels at valid coordinates.  This is correct because:
+    //   - Compositing transparent over content leaves content unchanged
+    //   - Compositing content over transparent shows content unchanged
+    //   - Nodes with nullopt or empty bboxes are conservatively executed
+    if (ctx.tile_execution_enabled && ctx.active_tile_clip &&
+        predicted_bbox && !predicted_bbox->is_empty())
+    {
+        const auto& tile = *ctx.active_tile_clip;
+        const auto& bbox = *predicted_bbox;
+        const bool bbox_intersects_tile =
+            bbox.x0 < tile.x1 && bbox.x1 > tile.x0 &&
+            bbox.y0 < tile.y1 && bbox.y1 > tile.y0;
+        if (!bbox_intersects_tile) {
+            // Node doesn't affect this tile → produce transparent framebuffer
+            const int pw = std::max(1, bbox.x1 - bbox.x0);
+            const int ph = std::max(1, bbox.y1 - bbox.y0);
+            auto owned_fb = ctx.acquire_owned_fb(pw, ph, false, bbox);
+            owned_fb->clear(Color::transparent());
+            Framebuffer* raw = owned_fb.release();
+            PoolFbDeleter deleter{nullptr};
+            if (parent_pool) {
+                deleter = PoolFbDeleter{parent_pool, parent_pool->alive_token()};
+            }
+            state.temp[id] = CachedFB(raw, std::move(deleter));
+            state.resolved_key_digest[id] = 0;
+            state.resolved_frame_dependent[id] = 0;
+            state.resolved_cache_hit[id] = 0;
+            state.resolved_bboxes[id] = predicted_bbox;
+
+            if (ctx.counters) {
+                ctx.counters->nodes_skipped.fetch_add(1, std::memory_order_relaxed);
+            }
+            return;
+        }
+    }
+
     // Dirty-rect clipping
     RenderGraphContext node_ctx = ctx;
     if (ctx.dirty_rects_enabled) {
