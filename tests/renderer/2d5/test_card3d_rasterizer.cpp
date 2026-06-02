@@ -14,9 +14,9 @@ static Card3DMaterial default_material() {
     m.front_bottom_color = {0.75f, 0.78f, 0.85f, 1.0f};
     m.side_color = {0.55f, 0.58f, 0.65f, 1.0f};
     m.edge_highlight_color = {1.0f, 1.0f, 1.0f, 1.0f};
-    m.edge_highlight_opacity = 0.35f;
-    m.rim_intensity = 0.45f;
-    m.rim_power = 2.2f;
+    m.edge_highlight_intensity = 0.35f;
+    m.rim_light_intensity = 0.45f;
+    m.rim_light_power = 2.2f;
     m.edge_highlight_color = {0.8f, 0.9f, 1.0f, 1.0f};
 
     return m;
@@ -115,9 +115,9 @@ TEST_CASE("Card3DMaterial rasterizer: rim light adds edge glow") {
     fb2.clear(Color::transparent());
 
     Card3DMaterial m1 = default_material();
-    m1.rim_intensity = 0.0f; // no rim
+    m1.rim_light_intensity = 0.0f; // no rim
     Card3DMaterial m2 = default_material();
-    m2.rim_intensity = 0.8f; // strong rim
+    m2.rim_light_intensity = 0.8f; // strong rim
 
     Card3DRenderParams p{.position = {50.0f, 50.0f}, .size = {80.0f, 50.0f}};
     render_card3d_material(fb1, m1, p);
@@ -136,9 +136,9 @@ TEST_CASE("Card3DMaterial rasterizer: edge highlight adds pixels") {
     fb2.clear(Color::transparent());
 
     Card3DMaterial m1 = default_material();
-    m1.edge_highlight_opacity = 0.0f;
+    m1.edge_highlight_intensity = 0.0f;
     Card3DMaterial m2 = default_material();
-    m2.edge_highlight_opacity = 0.8f;
+    m2.edge_highlight_intensity = 0.8f;
 
     Card3DRenderParams p{.position = {50.0f, 50.0f}, .size = {80.0f, 50.0f}};
     render_card3d_material(fb1, m1, p);
