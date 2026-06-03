@@ -525,6 +525,233 @@ void add_camera_debug_overlay(
             }
         }
 
+        // Top-down orthographic preview (bird's-eye view from Y=50)
+        if (options.show_topdown_preview) {
+            float td_w = 280.0f;
+            float td_h = 220.0f;
+            float td_margin = 20.0f;
+            float panel_gap = 10.0f;
+            // Position diagonally opposite to the path panels anchor to avoid overlap
+            float td_x, td_y;
+            switch (options.anchor) {
+                case OverlayAnchor::BottomRight:
+                    td_x = td_margin;
+                    td_y = td_margin;
+                    break;
+                case OverlayAnchor::BottomLeft:
+                    td_x = viewport.width - td_w - td_margin;
+                    td_y = td_margin;
+                    break;
+                case OverlayAnchor::TopRight:
+                    td_x = td_margin;
+                    td_y = viewport.height - td_h - td_margin;
+                    break;
+                case OverlayAnchor::TopLeft:
+                default:
+                    td_x = viewport.width - td_w - td_margin;
+                    td_y = viewport.height - td_h - td_margin;
+                    break;
+            }
+            td_x += options.panel_offset_x;
+            td_y += options.panel_offset_y;
+
+            // Background
+            l.rect("topdown_bg", RectParams{
+                .size = {td_w, td_h},
+                .pos = {td_x, td_y, 0.0f},
+                .fill = Fill{ .enabled = true, .solid = Color{0.0f, 0.02f, 0.05f, 0.7f} },
+                .stroke = { .enabled = true, .color = Color{0.3f, 0.5f, 0.8f, 0.35f}, .width = 1.0f }
+            });
+
+            l.text("topdown_title", TextParams{
+                .text = "TOP-DOWN VIEW (XZ)",
+                .pos = {td_x + 10.0f, td_y + 16.0f, 0.0f},
+                .font_size = 10.0f,
+                .color = Color{0.8f, 0.85f, 1.0f, 0.8f}
+            });
+
+            // Compute bounds of all resolved positions to auto-fit
+            float world_min_x = 1e9f, world_max_x = -1e9f;
+            float world_min_z = 1e9f, world_max_z = -1e9f;
+            for (const auto& pair : resolved.resolved) {
+                Vec3 pos(pair.second.world_matrix[3]);
+                world_min_x = std::min(world_min_x, pos.x);
+                world_max_x = std::max(world_max_x, pos.x);
+                world_min_z = std::min(world_min_z, pos.z);
+                world_max_z = std::max(world_max_z, pos.z);
+            }
+            // Include camera position
+            world_min_x = std::min(world_min_x, camera.position.x);
+            world_max_x = std::max(world_max_x, camera.position.x);
+            world_min_z = std::min(world_min_z, camera.position.z);
+            world_max_z = std::max(world_max_z, camera.position.z);
+
+            // Fallback if degenerate
+            if (world_min_x >= world_max_x) { world_min_x -= 200.0f; world_max_x += 200.0f; }
+            if (world_min_z >= world_max_z) { world_min_z -= 200.0f; world_max_z += 200.0f; }
+
+            // Add padding
+            float range_x = world_max_x - world_min_x;
+            float range_z = world_max_z - world_min_z;
+            float max_range = std::max(range_x, range_z);
+            float pad = max_range * 0.15f;
+            world_min_x -= pad; world_max_x += pad;
+            world_min_z -= pad; world_max_z += pad;
+            range_x = world_max_x - world_min_x;
+            range_z = world_max_z - world_min_z;
+
+            float draw_margin = 22.0f;
+            float draw_w = td_w - 2.0f * draw_margin;
+            float draw_h = td_h - 36.0f;
+            float draw_y0 = td_y + 28.0f;
+            float sx = (range_x > 1e-3f) ? draw_w / range_x : 1.0f;
+            float sz = (range_z > 1e-3f) ? draw_h / range_z : 1.0f;
+            float s = std::min(sx, sz);
+
+            // Mapping: world X → screen X, world Z → screen Y (inverted: positive Z = top)
+            auto to_td = [&](float wx, float wz) -> Vec2 {
+                return {
+                    td_x + draw_margin + (wx - world_min_x) * s,
+                    draw_y0 + draw_h - (wz - world_min_z) * s  // Z inverted: positive Z = up
+                };
+            };
+
+            // Grid lines (subtle)
+            l.line("td_grid_h", LineParams{
+                .from = {td_x + draw_margin, draw_y0 + draw_h * 0.5f, 0.0f},
+                .to = {td_x + td_w - draw_margin, draw_y0 + draw_h * 0.5f, 0.0f},
+                .thickness = 0.5f, .color = Color{0.25f, 0.35f, 0.55f, 0.2f}
+            });
+            l.line("td_grid_v", LineParams{
+                .from = {td_x + draw_margin + draw_w * 0.5f, draw_y0, 0.0f},
+                .to = {td_x + draw_margin + draw_w * 0.5f, draw_y0 + draw_h, 0.0f},
+                .thickness = 0.5f, .color = Color{0.25f, 0.35f, 0.55f, 0.2f}
+            });
+
+            // Axis labels
+            l.text("td_axis_x", TextParams{ .text = "+X", .pos = {td_x + td_w - draw_margin - 14.0f, draw_y0 + draw_h + 2.0f, 0.0f}, .font_size = 7.0f, .color = Color{0.6f, 0.4f, 0.4f, 0.5f} });
+            l.text("td_axis_z", TextParams{ .text = "+Z", .pos = {td_x + draw_margin - 2.0f, draw_y0 - 6.0f, 0.0f}, .font_size = 7.0f, .color = Color{0.4f, 0.4f, 0.6f, 0.5f} });
+
+            // Draw resolved layers as colored rectangles at their XZ position
+            int td_idx = 0;
+            for (const auto& pair : resolved.resolved) {
+                Vec3 pos(pair.second.world_matrix[3]);
+                Vec2 screen = to_td(pos.x, pos.z);
+
+                // Skip if outside panel
+                if (screen.x < td_x + draw_margin || screen.x > td_x + td_w - draw_margin ||
+                    screen.y < draw_y0 || screen.y > draw_y0 + draw_h) {
+                    continue;
+                }
+
+                // Color based on Z depth (blue=far, green=center, red=near)
+                float z_norm = (range_z > 1e-3f) ? (pos.z - world_min_z) / range_z : 0.5f;
+                Color layer_color;
+                if (pos.z < 0.0f) {
+                    // Near (front of camera)
+                    layer_color = Color{0.2f + z_norm * 0.6f, 0.8f, 1.0f, 0.85f};
+                } else if (pos.z > 0.0f) {
+                    // Far (behind camera target)
+                    layer_color = Color{0.3f, 0.4f + z_norm * 0.3f, 0.9f - z_norm * 0.3f, 0.75f};
+                } else {
+                    layer_color = Color{0.2f, 0.9f, 0.2f, 0.85f}; // Center = green
+                }
+
+                // Check if this layer is in the report for pass/fail coloring
+                for (const auto& lr : report.layers) {
+                    if (lr.name == pair.first) {
+                        layer_color = lr.passed ? Color{0.2f, 0.9f, 0.2f, 0.85f} : Color{1.0f, 0.3f, 0.15f, 0.85f};
+                        break;
+                    }
+                }
+
+                // Check if it's a null/parent layer
+                bool is_null = pair.first.find("_null") != std::string::npos || pair.first.find("_parent") != std::string::npos;
+                if (is_null) {
+                    layer_color = Color{0.0f, 0.9f, 1.0f, 0.8f};
+                }
+
+                float dot_r = is_null ? 4.0f : 3.5f;
+                l.circle("td_layer_" + std::to_string(td_idx), CircleParams{
+                    .radius = dot_r,
+                    .color = layer_color,
+                    .pos = {screen.x, screen.y, 0.0f}
+                });
+
+                // Label (only for non-null, first 8 layers to avoid clutter)
+                if (!is_null && td_idx < 8) {
+                    l.text("td_lbl_" + std::to_string(td_idx), TextParams{
+                        .text = pair.first,
+                        .pos = {screen.x + 5.0f, screen.y - 4.0f, 0.0f},
+                        .font_size = 7.0f,
+                        .color = Color{0.7f, 0.75f, 0.9f, 0.55f}
+                    });
+                }
+                td_idx++;
+            }
+
+            // Draw camera position and direction
+            Vec2 cam_screen = to_td(camera.position.x, camera.position.z);
+            if (cam_screen.x >= td_x + draw_margin && cam_screen.x <= td_x + td_w - draw_margin &&
+                cam_screen.y >= draw_y0 && cam_screen.y <= draw_y0 + draw_h) {
+                // Camera position = white triangle
+                l.circle("td_cam_pos", CircleParams{
+                    .radius = 5.0f,
+                    .color = Color{1.0f, 1.0f, 1.0f, 0.95f},
+                    .pos = {cam_screen.x, cam_screen.y, 0.0f}
+                });
+
+                // Camera direction (project yaw to XZ)
+                float yaw_rad = glm::radians(camera.rotation.y);
+                float dir_x = std::sin(yaw_rad);
+                float dir_z = -std::cos(yaw_rad);
+                float dir_len = 40.0f;
+
+                l.line("td_cam_dir", LineParams{
+                    .from = {cam_screen.x, cam_screen.y, 0.0f},
+                    .to = {cam_screen.x + dir_x * dir_len, cam_screen.y - dir_z * dir_len, 0.0f},
+                    .thickness = 2.0f,
+                    .color = Color{1.0f, 1.0f, 1.0f, 0.8f}
+                });
+
+                // FOV cone (two side lines)
+                float fov_half = glm::radians(camera.fov_deg * 0.5f);
+                float cone_len = 30.0f;
+                float left_x = std::sin(yaw_rad - fov_half);
+                float left_z = -std::cos(yaw_rad - fov_half);
+                float right_x = std::sin(yaw_rad + fov_half);
+                float right_z = -std::cos(yaw_rad + fov_half);
+
+                l.line("td_fov_l", LineParams{
+                    .from = {cam_screen.x, cam_screen.y, 0.0f},
+                    .to = {cam_screen.x + left_x * cone_len, cam_screen.y - left_z * cone_len, 0.0f},
+                    .thickness = 1.0f,
+                    .color = Color{1.0f, 1.0f, 1.0f, 0.35f}
+                });
+                l.line("td_fov_r", LineParams{
+                    .from = {cam_screen.x, cam_screen.y, 0.0f},
+                    .to = {cam_screen.x + right_x * cone_len, cam_screen.y - right_z * cone_len, 0.0f},
+                    .thickness = 1.0f,
+                    .color = Color{1.0f, 1.0f, 1.0f, 0.35f}
+                });
+
+                l.text("td_cam_lbl", TextParams{
+                    .text = "CAM",
+                    .pos = {cam_screen.x + 7.0f, cam_screen.y - 8.0f, 0.0f},
+                    .font_size = 8.0f,
+                    .color = Color{1.0f, 1.0f, 1.0f, 0.8f}
+                });
+            }
+
+            // Legend at bottom of panel
+            l.circle("td_leg_near", CircleParams{ .radius = 3.0f, .color = Color{0.4f, 0.9f, 1.0f, 0.85f}, .pos = {td_x + 10.0f, td_y + td_h - 8.0f, 0.0f} });
+            l.text("td_leg_near_t", TextParams{ .text = "near", .pos = {td_x + 16.0f, td_y + td_h - 12.0f, 0.0f}, .font_size = 7.0f, .color = Color{0.6f, 0.6f, 0.7f, 0.5f} });
+            l.circle("td_leg_far", CircleParams{ .radius = 3.0f, .color = Color{0.3f, 0.5f, 0.9f, 0.75f}, .pos = {td_x + 52.0f, td_y + td_h - 8.0f, 0.0f} });
+            l.text("td_leg_far_t", TextParams{ .text = "far", .pos = {td_x + 58.0f, td_y + td_h - 12.0f, 0.0f}, .font_size = 7.0f, .color = Color{0.6f, 0.6f, 0.7f, 0.5f} });
+            l.circle("td_leg_cam", CircleParams{ .radius = 3.0f, .color = Color{1.0f, 1.0f, 1.0f, 0.9f}, .pos = {td_x + 88.0f, td_y + td_h - 8.0f, 0.0f} });
+            l.text("td_leg_cam_t", TextParams{ .text = "cam", .pos = {td_x + 94.0f, td_y + td_h - 12.0f, 0.0f}, .font_size = 7.0f, .color = Color{0.6f, 0.6f, 0.7f, 0.5f} });
+        }
+
         if (options.show_projected_bounds) {
             int idx = 0;
             for (const auto& lr : report.layers) {
