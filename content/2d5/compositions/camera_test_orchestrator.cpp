@@ -411,6 +411,30 @@ Scene camera_test_orchestrator(
             metrics["area_delta_percent"] = area_delta_pct;
             metrics["edge_jitter_score"] = max_jitter * 0.5f;
         }
+        else if (comp_name == "PerspectiveDepthShowcase") {
+            float fg_ratio = 0.0f, near_ratio = 0.0f, center_ratio = 0.0f, midfar_ratio = 0.0f, far_ratio = 0.0f;
+            float fg_area = 0.0f, near_area = 0.0f, center_area = 0.0f, midfar_area = 0.0f, far_area = 0.0f;
+            for (const auto& lr : report.layers) {
+                if (lr.name == "depth_foreground") { fg_ratio = lr.bounds.visible_ratio; fg_area = lr.projected_area; }
+                else if (lr.name == "depth_near") { near_ratio = lr.bounds.visible_ratio; near_area = lr.projected_area; }
+                else if (lr.name == "depth_center") { center_ratio = lr.bounds.visible_ratio; center_area = lr.projected_area; }
+                else if (lr.name == "depth_mid_far") { midfar_ratio = lr.bounds.visible_ratio; midfar_area = lr.projected_area; }
+                else if (lr.name == "depth_far") { far_ratio = lr.bounds.visible_ratio; far_area = lr.projected_area; }
+            }
+            metrics["foreground_visible_ratio"] = fg_ratio;
+            metrics["near_visible_ratio"] = near_ratio;
+            metrics["center_visible_ratio"] = center_ratio;
+            metrics["midfar_visible_ratio"] = midfar_ratio;
+            metrics["far_visible_ratio"] = far_ratio;
+            metrics["foreground_area"] = fg_area;
+            metrics["near_area"] = near_area;
+            metrics["center_area"] = center_area;
+            metrics["midfar_area"] = midfar_area;
+            metrics["far_area"] = far_area;
+            // Verify perspective: closer objects should have larger projected area
+            bool perspective_scaling_valid = (near_area > far_area) || (far_area < 1.0f);
+            metrics["perspective_scaling_valid"] = perspective_scaling_valid;
+        }
         else if (comp_name == "CameraMultiTargetBoundingBoxFitTest") {
             float min_x = 99999.0f, max_x = -99999.0f;
             float min_y = 99999.0f, max_y = -99999.0f;
