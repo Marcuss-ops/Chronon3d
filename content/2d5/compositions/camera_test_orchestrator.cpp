@@ -434,6 +434,73 @@ Scene camera_test_orchestrator(
             // Verify perspective: closer objects should have larger projected area
             bool perspective_scaling_valid = (near_area > far_area) || (far_area < 1.0f);
             metrics["perspective_scaling_valid"] = perspective_scaling_valid;
+
+            // Validate FOV-based perspective scaling: W = 2 * |Z| * tan(FOV/2)
+            // For two objects of same original size at Z1 and Z2, area ratio = (Z2/Z1)^2
+            float fov_rad = glm::radians(cam.fov_deg);
+            float tan_half_fov = std::tan(fov_rad * 0.5f);
+            metrics["fov_deg"] = static_cast<double>(cam.fov_deg);
+            metrics["tan_half_fov"] = static_cast<double>(tan_half_fov);
+            metrics["formula"] = "W = 2 * |Z| * tan(FOV/2)";
+
+            // Compute expected frustum width at each Z depth
+            auto frustum_width_at_z = [&](float dist_z) -> float {
+                return 2.0f * std::abs(dist_z) * tan_half_fov;
+            };
+
+            // Get forward-projected depth of each layer from camera (dot product with camera forward axis)
+            // This is the correct Z for W = 2*|Z|*tan(FOV/2) — not Euclidean distance
+            Vec3 cam_pos = cam.position;
+            Quat cam_rot = cam.rotation_quaternion();
+            Vec3 forward = cam_rot * Vec3{0.0f, 0.0f, -1.0f};
+            float z_near = 0.0f, z_far = 0.0f, z_center = 0.0f, z_fg = 0.0f, z_midfar = 0.0f;
+            for (const auto& pair : resolved.resolved) {
+                Vec3 pos(pair.second.world_matrix[3]);
+                float depth = std::abs(glm::dot(pos - cam_pos, forward));
+                if (pair.first == "depth_near") z_near = depth;
+                else if (pair.first == "depth_far") z_far = depth;
+                else if (pair.first == "depth_center") z_center = depth;
+                else if (pair.first == "depth_foreground") z_fg = depth;
+                else if (pair.first == "depth_mid_far") z_midfar = depth;
+            }
+
+            metrics["camera_z"] = static_cast<double>(cam_pos.z);
+            metrics["dist_near"] = static_cast<double>(z_near);
+            metrics["dist_far"] = static_cast<double>(z_far);
+            metrics["dist_center"] = static_cast<double>(z_center);
+            metrics["dist_foreground"] = static_cast<double>(z_fg);
+            metrics["dist_midfar"] = static_cast<double>(z_midfar);
+
+            float fw_near = frustum_width_at_z(z_near > 0.001f ? z_near : 1.0f);
+            float fw_far = frustum_width_at_z(z_far > 0.001f ? z_far : 1.0f);
+            metrics["frustum_width_near"] = static_cast<double>(fw_near);
+            metrics["frustum_width_far"] = static_cast<double>(fw_far);
+
+            // Expected area ratio accounting for different original layer sizes:
+            // area_projected ∝ (original_size / Z)², so:
+            // actual_ratio = (size_near/size_far) * (Z_far/Z_near)²
+            bool fov_consistent = true;
+            float orig_near = 0.0f, orig_far = 0.0f;
+            for (const auto& kv : shot.validator.layer_sizes()) {
+                if (kv.first == "depth_near") orig_near = kv.second.x * kv.second.y;
+                if (kv.first == "depth_far") orig_far = kv.second.x * kv.second.y;
+            }
+            if (z_near > 1.0f && z_far > 1.0f && near_area > 1.0f && far_area > 1.0f && orig_near > 0.0f && orig_far > 0.0f) {
+                float z_ratio_sq = (z_far / z_near) * (z_far / z_near);
+                // orig_near/orig_far are already areas (width*height), so no further squaring needed
+                float size_correction = orig_near / orig_far;
+                float expected_ratio = z_ratio_sq * size_correction;
+                float actual_ratio = near_area / far_area;
+                float ratio_error = std::abs(actual_ratio - expected_ratio) / std::max(expected_ratio, 0.001f);
+                metrics["expected_area_ratio_near_far"] = static_cast<double>(expected_ratio);
+                metrics["actual_area_ratio_near_far"] = static_cast<double>(actual_ratio);
+                metrics["z_ratio_squared"] = static_cast<double>(z_ratio_sq);
+                metrics["size_correction"] = static_cast<double>(size_correction);
+                metrics["area_ratio_error_percent"] = static_cast<double>(ratio_error * 100.0f);
+                // 30% tolerance: Z-only distance is approximate for orbit cameras
+                fov_consistent = ratio_error < 0.30f;
+            }
+            metrics["fov_scaling_consistent"] = fov_consistent;
         }
         else if (comp_name == "CameraMultiTargetBoundingBoxFitTest") {
             float min_x = 99999.0f, max_x = -99999.0f;
