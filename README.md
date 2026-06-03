@@ -216,6 +216,9 @@ chronon3d_cli verify -o output/verify
 # render a single frame
 chronon3d_cli render MyComp --frame 0 -o output/frame.png
 
+# render the premium presets with telemetry enabled
+bash tools/render_premium_artifacts.sh
+
 # render a frame range
 chronon3d_cli render MyComp --start 0 --end 90 -o output/frames/frame_####.png
 
