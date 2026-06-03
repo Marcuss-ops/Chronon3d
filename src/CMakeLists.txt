@@ -251,6 +251,9 @@ set(CHRONON3D_SCENE_SOURCES
     scene/camera/camera_rig_presets.cpp
     scene/camera/camera_projection.cpp
     scene/camera/camera_shot_validator.cpp
+    scene/camera/camera_framing.cpp
+    scene/camera/camera_path_sampler.cpp
+    scene/camera/camera_debug_overlay.cpp
     scene/dark_grid_background.cpp
     scene/layer.cpp
     scene/layer_builder.cpp
