@@ -60,7 +60,9 @@ export const getAggregatedLayers = (runDetail, selectedFrame) => {
 export const getAggregatedNodes = (runDetail, selectedFrame) => {
   if (!runDetail || !runDetail.node_events) return [];
   if (selectedFrame) {
-    return runDetail.node_events.filter(ne => ne.frame_number === selectedFrame.frame_number);
+    return runDetail.node_events
+      .filter(ne => ne.frame_number === selectedFrame.frame_number)
+      .sort((a, b) => b.duration_ms - a.duration_ms);
   }
 
   const groups = {};
@@ -124,5 +126,5 @@ export const getAggregatedNodes = (runDetail, selectedFrame) => {
       pixels_transformed: Math.round(g.pixels_transformed / g.total_count),
       pixels_blurred: Math.round(g.pixels_blurred / g.total_count)
     };
-  });
+  }).sort((a, b) => b.duration_ms - a.duration_ms);
 };
