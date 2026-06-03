@@ -35,6 +35,8 @@ struct CameraDebugOverlayOptions {
     bool show_camera_path{true};
     bool show_projected_path{true};
     OverlayAnchor anchor{OverlayAnchor::BottomRight};
+    float panel_offset_x{0.0f};
+    float panel_offset_y{0.0f};
 };
 
 void add_camera_debug_overlay(
