@@ -30,6 +30,37 @@ SMOKE_TEMPLATES = {
     },
 }
 
+CAMERA_TEMPLATES = {
+    "OrbitCameraTest": {
+        "required_words": ["orbit", "camera", "test", "create", "without", "limits"],
+        "same_line_words": [["orbit", "camera", "test"]],
+        "expected_phrases": ["orbit camera test", "camera che orbita"],
+        "max_edge_touch_px": 16,
+        "safe_margin_ratio": 0.08,
+    },
+    "ExtremePerspectiveTest": {
+        "required_words": ["extreme", "perspective", "test", "masterclass"],
+        "same_line_words": [["extreme", "perspective", "test"]],
+        "expected_phrases": ["extreme perspective test", "masterclass"],
+        "max_edge_touch_px": 16,
+        "safe_margin_ratio": 0.08,
+    },
+    "HeroTextFrontTest": {
+        "required_words": ["hero", "text", "front", "test", "saas", "build", "launch", "scale", "ae"],
+        "same_line_words": [["hero", "text", "front", "test"], ["build", "launch", "scale"]],
+        "expected_phrases": ["hero text front test", "build launch scale", "saas"],
+        "max_edge_touch_px": 16,
+        "safe_margin_ratio": 0.08,
+    },
+    "ZStackParallaxTest": {
+        "required_words": ["z", "stack", "parallax", "test", "back", "mid", "front"],
+        "same_line_words": [["z", "stack", "parallax", "test"], ["back"], ["mid"], ["front"]],
+        "expected_phrases": ["z stack parallax test", "back", "mid", "front"],
+        "max_edge_touch_px": 16,
+        "safe_margin_ratio": 0.08,
+    },
+}
+
 # =====================================================================
 # 1. PIXEL TESTS
 # =====================================================================
@@ -393,6 +424,188 @@ def _union_bbox(boxes):
     return [int(x0), int(y0), int(x1), int(y1)]
 
 
+def _normalize_text(value):
+    return " ".join(str(value).lower().replace("\n", " ").split())
+
+
+def _bbox_inside(inner, outer, margin=0):
+    if not inner or not outer:
+        return False
+    x0, y0, x1, y1 = inner
+    ox0, oy0, ox1, oy1 = outer
+    return x0 >= ox0 + margin and y0 >= oy0 + margin and x1 <= ox1 - margin and y1 <= oy1 - margin
+
+
+def _safe_area_rect(width, height, ratio):
+    margin_x = int(width * ratio)
+    margin_y = int(height * ratio)
+    return [margin_x, margin_y, width - margin_x, height - margin_y]
+
+
+def _foreground_bbox(img):
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    edges = cv2.Canny(cv2.GaussianBlur(gray, (5, 5), 0), 50, 150)
+    mask = cv2.dilate(edges, np.ones((3, 3), np.uint8), iterations=1)
+    num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(mask, connectivity=8)
+    boxes = []
+    for i in range(1, num_labels):
+        area = int(stats[i, cv2.CC_STAT_AREA])
+        if area < 80:
+            continue
+        left = int(stats[i, cv2.CC_STAT_LEFT])
+        top = int(stats[i, cv2.CC_STAT_TOP])
+        right = left + int(stats[i, cv2.CC_STAT_WIDTH])
+        bottom = top + int(stats[i, cv2.CC_STAT_HEIGHT])
+        boxes.append([left, top, right, bottom])
+    return _union_bbox([{"left": b[0], "top": b[1], "width": b[2] - b[0], "height": b[3] - b[1]} for b in boxes])
+
+
+def _draw_camera_overlay(img, validation, out_path):
+    canvas = img.copy()
+    h, w = canvas.shape[:2]
+    safe = validation.get("safe_area")
+    if safe:
+        x0, y0, x1, y1 = safe
+        cv2.rectangle(canvas, (x0, y0), (x1, y1), (90, 255, 90), 2)
+    content_bbox = validation.get("content_bbox")
+    if content_bbox:
+        x0, y0, x1, y1 = content_bbox
+        cv2.rectangle(canvas, (x0, y0), (x1, y1), (0, 220, 255), 2)
+    text_bbox = validation.get("text_bbox")
+    if text_bbox:
+        x0, y0, x1, y1 = text_bbox
+        cv2.rectangle(canvas, (x0, y0), (x1, y1), (255, 120, 0), 2)
+    target_box = validation.get("target_box")
+    if target_box:
+        x0, y0, x1, y1 = target_box
+        cv2.rectangle(canvas, (x0, y0), (x1, y1), (255, 80, 220), 2)
+    lines = [
+        f"{validation.get('template', '<unknown>')} | {'PASS' if validation.get('pass') else 'FAIL'}",
+        f"text_bbox={text_bbox}",
+        f"content_bbox={content_bbox}",
+        f"safe_area={safe}",
+    ]
+    y = 30
+    for line in lines:
+        cv2.putText(canvas, line, (18, y), cv2.FONT_HERSHEY_SIMPLEX, 0.58, (10, 10, 10), 4, cv2.LINE_AA)
+        cv2.putText(canvas, line, (18, y), cv2.FONT_HERSHEY_SIMPLEX, 0.58, (245, 245, 245), 1, cv2.LINE_AA)
+        y += 24
+    if validation.get("failures"):
+        y = h - 18 * (len(validation["failures"]) + 1)
+        for failure in validation["failures"]:
+            cv2.putText(canvas, failure, (18, max(24, y)), cv2.FONT_HERSHEY_SIMPLEX, 0.52, (20, 20, 20), 4, cv2.LINE_AA)
+            cv2.putText(canvas, failure, (18, max(24, y)), cv2.FONT_HERSHEY_SIMPLEX, 0.52, (70, 220, 255), 1, cv2.LINE_AA)
+            y += 18
+    if validation.get("warnings"):
+        y = 90
+        for warning in validation["warnings"]:
+            cv2.putText(canvas, warning, (18, max(24, y)), cv2.FONT_HERSHEY_SIMPLEX, 0.50, (20, 20, 20), 4, cv2.LINE_AA)
+            cv2.putText(canvas, warning, (18, max(24, y)), cv2.FONT_HERSHEY_SIMPLEX, 0.50, (255, 210, 60), 1, cv2.LINE_AA)
+            y += 18
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    cv2.imwrite(out_path, canvas)
+
+
+def validate_camera_template(image_path, template_name):
+    img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
+    if img is None:
+        return {
+            "template": template_name,
+            "pass": False,
+            "failures": ["render_missing"],
+        }
+
+    if img.ndim == 2:
+        img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+    elif img.shape[2] == 4:
+        img = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
+
+    rule = CAMERA_TEMPLATES.get(template_name, {})
+    words, lines = _ocr_words_and_lines(img, template_name)
+    word_texts = [w["text"] for w in words]
+    failures = []
+    warnings = []
+    h, w = img.shape[:2]
+    safe_area = _safe_area_rect(w, h, rule.get("safe_margin_ratio", 0.08))
+    text_bbox = _union_bbox(words)
+    content_bbox = _foreground_bbox(img)
+
+    if not words:
+        warnings.append("text_not_detected")
+    else:
+        if text_bbox:
+            margin = int(rule.get("max_edge_touch_px", 16))
+            x0, y0, x1, y1 = text_bbox
+            if x0 <= margin:
+                failures.append("title_clipped_left")
+            if y0 <= margin:
+                failures.append("title_clipped_top")
+            if x1 >= (w - margin):
+                failures.append("title_clipped_right")
+            if y1 >= (h - margin):
+                failures.append("title_clipped_bottom")
+            if not _bbox_inside(text_bbox, safe_area, margin=0):
+                failures.append("title_outside_safe_area")
+
+    required_words = rule.get("required_words", [])
+    missing = [w for w in required_words if w not in word_texts]
+    if missing:
+        warnings.append(f"missing_words:{','.join(missing)}")
+
+    for same_line in rule.get("same_line_words", []):
+        target = [w for w in same_line]
+        found = False
+        for line in lines:
+            line_words = [w["text"] for w in line]
+            if all(t in line_words for t in target):
+                found = True
+                break
+        if not found:
+            warnings.append(f"line_split:{'|'.join(target)}")
+
+    expected_phrases = rule.get("expected_phrases", [])
+    if expected_phrases:
+        joined_lines = [_normalize_text(" ".join(w["text"] for w in line)) for line in lines]
+        joined_words = _normalize_text(" ".join(word_texts))
+        for phrase in expected_phrases:
+            phrase_norm = _normalize_text(phrase)
+            if phrase_norm not in joined_words and not any(phrase_norm in line for line in joined_lines):
+                warnings.append(f"missing_phrase:{phrase_norm}")
+
+    if content_bbox:
+        margin = int(rule.get("max_edge_touch_px", 16))
+        x0, y0, x1, y1 = content_bbox
+        coverage = ((x1 - x0) * (y1 - y0)) / float(max(1, w * h))
+        if coverage < 0.92:
+            if x0 <= margin:
+                warnings.append("content_near_left_edge")
+            if y0 <= margin:
+                warnings.append("content_near_top_edge")
+            if x1 >= (w - margin):
+                warnings.append("content_near_right_edge")
+            if y1 >= (h - margin):
+                warnings.append("content_near_bottom_edge")
+            if not _bbox_inside(content_bbox, safe_area, margin=0):
+                warnings.append("content_outside_safe_area")
+
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    visible_ratio = float(np.mean(gray > 18))
+    if visible_ratio < 0.01:
+        failures.append("content_too_dark")
+
+    return {
+        "template": template_name,
+        "pass": len(failures) == 0,
+        "failures": failures,
+        "warnings": warnings,
+        "text_bbox": text_bbox,
+        "content_bbox": content_bbox,
+        "safe_area": safe_area,
+        "word_count": len(words),
+        "visible_ratio": visible_ratio,
+    }
+
+
 def _count_decorative_regions(img, text_bbox=None):
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
@@ -497,6 +710,14 @@ def render_template_smoke(executable, template_name, output_dir):
     subprocess.run(cmd, check=True)
     return output_path
 
+
+def render_template_camera(executable, template_name, output_dir):
+    os.makedirs(output_dir, exist_ok=True)
+    output_path = os.path.join(output_dir, f"{template_name}.png")
+    cmd = [executable, "render", template_name, "--frame", "0", "--report", "-o", output_path]
+    subprocess.run(cmd, check=True)
+    return output_path
+
 # =====================================================================
 # 9. DETERMINISM TEST
 # =====================================================================
@@ -566,8 +787,12 @@ def main():
     parser.add_argument("--render", help="Path to rendered output image")
     parser.add_argument("--executable", default="./build/chronon/linux-release/apps/chronon3d_cli/chronon3d_cli", help="Path to chronon3d_cli")
     parser.add_argument("--composition", default="PremiumThumbnailSaaSBlue", help="Composition name to test determinism / responsive")
+    parser.add_argument("--skip-pipeline", action="store_true", help="Skip deterministic render and responsive margin checks")
     parser.add_argument("--smoke-template", nargs="*", default=[], help="Render and validate one or more template compositions by name")
     parser.add_argument("--smoke-output-dir", default="output/visual_smoke", help="Directory for template smoke renders")
+    parser.add_argument("--camera-template", nargs="*", default=[], help="Render and validate one or more camera compositions by name")
+    parser.add_argument("--camera-output-dir", default="output/camera_smoke", help="Directory for camera renders")
+    parser.add_argument("--camera-overlay-dir", default="output/camera_smoke_overlay", help="Directory for camera diagnostic overlays")
     parser.add_argument("--json", action="store_true", help="Print result as json")
     
     args = parser.parse_args()
@@ -608,21 +833,22 @@ def main():
         })
         
     # 2. Functional Render & Pipeline Checks
-    if os.path.exists(args.executable):
-        det_ok = verify_determinism(args.executable, args.composition)
-        render_path_to_check = args.render if args.render else "output/premium_thumbnail_saas_blue.png"
-        resp_ok, resp_msg = verify_responsive_margins(render_path_to_check)
-        results["pipeline"] = {
-            "determinism_pass": det_ok,
-            "responsive_layout_pass": resp_ok,
-            "responsive_layout_message": resp_msg
-        }
-    else:
-        results["pipeline"] = {
-            "determinism_pass": False,
-            "responsive_layout_pass": False,
-            "responsive_layout_message": "Executable not found"
-        }
+    if not args.skip_pipeline:
+        if os.path.exists(args.executable):
+            det_ok = verify_determinism(args.executable, args.composition)
+            render_path_to_check = args.render if args.render else "output/premium_thumbnail_saas_blue.png"
+            resp_ok, resp_msg = verify_responsive_margins(render_path_to_check)
+            results["pipeline"] = {
+                "determinism_pass": det_ok,
+                "responsive_layout_pass": resp_ok,
+                "responsive_layout_message": resp_msg
+            }
+        else:
+            results["pipeline"] = {
+                "determinism_pass": False,
+                "responsive_layout_pass": False,
+                "responsive_layout_message": "Executable not found"
+            }
 
     # 3. Template smoke renders and semantic validation
     smoke_results = []
@@ -654,6 +880,43 @@ def main():
                     })
     if smoke_results:
         results["smoke"] = smoke_results
+
+    # 4. Camera-specific render + validation
+    camera_results = []
+    if args.camera_template:
+        if not os.path.exists(args.executable):
+            camera_results.append({
+                "template": None,
+                "pass": False,
+                "failures": ["executable_not_found"],
+            })
+        else:
+            for template_name in args.camera_template:
+                try:
+                    output_path = render_template_camera(args.executable, template_name, args.camera_output_dir)
+                    camera = validate_camera_template(output_path, template_name)
+                    camera["render_path"] = output_path
+                    overlay_name = f"{template_name}.png"
+                    overlay_path = os.path.join(args.camera_overlay_dir, overlay_name)
+                    overlay_img = cv2.imread(output_path, cv2.IMREAD_COLOR)
+                    if overlay_img is not None:
+                        _draw_camera_overlay(overlay_img, camera, overlay_path)
+                        camera["overlay_path"] = overlay_path
+                    camera_results.append(camera)
+                except subprocess.CalledProcessError as exc:
+                    camera_results.append({
+                        "template": template_name,
+                        "pass": False,
+                        "failures": [f"render_failed:{exc.returncode}"],
+                    })
+                except Exception as exc:
+                    camera_results.append({
+                        "template": template_name,
+                        "pass": False,
+                        "failures": [f"camera_error:{exc}"],
+                    })
+    if camera_results:
+        results["camera"] = camera_results
         
     # Print results
     if args.json:
@@ -687,14 +950,24 @@ def main():
             print(f"  Edge Overlap IoU:  {results['edge']['edge_overlap_iou']:.4f}")
             
         print("\n[Pipeline & Engine Verification]")
-        print(f"  Deterministic Render: {'PASS' if results['pipeline']['determinism_pass'] else 'FAIL'}")
-        print(f"  Responsive Layout:    {'PASS' if results['pipeline']['responsive_layout_pass'] else 'FAIL'} ({results['pipeline']['responsive_layout_message']})")
+        if "pipeline" in results:
+            print(f"  Deterministic Render: {'PASS' if results['pipeline']['determinism_pass'] else 'FAIL'}")
+            print(f"  Responsive Layout:    {'PASS' if results['pipeline']['responsive_layout_pass'] else 'FAIL'} ({results['pipeline']['responsive_layout_message']})")
         if smoke_results:
             print("\n[Template Smoke]")
             for smoke in smoke_results:
                 status = "PASS" if smoke["pass"] else "FAIL"
                 tmpl = smoke.get("template") or "<missing>"
                 print(f"  {tmpl:30s} {status}  {', '.join(smoke.get('failures', [])) if smoke.get('failures') else 'ok'}")
+        if camera_results:
+            print("\n[Camera Validation]")
+            for camera in camera_results:
+                status = "PASS" if camera["pass"] and not camera.get("warnings") else ("WARN" if camera["pass"] else "FAIL")
+                tmpl = camera.get("template") or "<missing>"
+                details = ", ".join(camera.get("failures", [])) if camera.get("failures") else "ok"
+                if camera.get("warnings"):
+                    details = f"{details}; warnings: {', '.join(camera.get('warnings', []))}"
+                print(f"  {tmpl:30s} {status}  {details}")
         print("="*50 + "\n")
 
 if __name__ == "__main__":

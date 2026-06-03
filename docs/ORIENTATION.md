@@ -175,7 +175,7 @@ Per i shot camera già registrati usa:
 bash tools/render_camera_artifacts.sh
 ```
 
-Lo script renderizza:
+Lo script renderizza e valida:
 
 ```bash
 OrbitCameraTest
@@ -184,7 +184,39 @@ HeroTextFrontTest
 ZStackParallaxTest
 ```
 
-anche qui con `--report`, quindi i run entrano nel DB e nella dashboard.
+e genera anche gli overlay diagnostici in:
+
+```bash
+output/camera_smoke_overlay/
+```
+
+I render finiscono in:
+
+```bash
+output/camera_smoke/
+```
+
+Il comando usa `--report`, quindi i run entrano nel DB e nella dashboard.
+
+### Validazione camera
+
+Per controllare clipping, safe area e integrità del testo:
+
+```bash
+python3 tools/visual_quality_suite.py \
+  --executable ./build/chronon/linux-release/apps/chronon3d_cli/chronon3d_cli \
+  --skip-pipeline \
+  --camera-template OrbitCameraTest ExtremePerspectiveTest HeroTextFrontTest ZStackParallaxTest \
+  --camera-output-dir output/camera_smoke \
+  --camera-overlay-dir output/camera_smoke_overlay
+```
+
+Il validator produce:
+
+- `text_bbox`
+- `content_bbox`
+- `safe_area`
+- lista `failures` con casi come `title_clipped_left`, `content_outside_safe_area`, `missing_words:*`
 
 ### 4. Esempio completo
 
