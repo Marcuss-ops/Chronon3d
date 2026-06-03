@@ -289,6 +289,53 @@ Scene camera_test_orchestrator(
             metrics["front_growth_ratio"] = front_growth;
             metrics["mid_growth_ratio"] = mid_growth;
             metrics["back_growth_ratio"] = back_growth;
+
+            // FOV-based perspective scaling validation: W = 2*|Z|*tan(FOV/2)
+            // At each report frame, verify that the area ratios between cards
+            // are consistent with the perspective projection formula
+            float f_area_now = 0.0f, m_area_now = 0.0f, b_area_now = 0.0f;
+            for (const auto& lr : report.layers) {
+                if (lr.name == "card_front") f_area_now = lr.projected_area;
+                else if (lr.name == "card_mid") m_area_now = lr.projected_area;
+                else if (lr.name == "card_back") b_area_now = lr.projected_area;
+            }
+
+            Vec3 cam_pos = cam.position;
+            Quat cam_rot = cam.rotation_quaternion();
+            Vec3 forward = cam_rot * Vec3{0.0f, 0.0f, -1.0f};
+            float depth_front = 0.0f, depth_mid = 0.0f, depth_back = 0.0f;
+            for (const auto& pair : resolved.resolved) {
+                Vec3 pos(pair.second.world_matrix[3]);
+                float d = std::abs(glm::dot(pos - cam_pos, forward));
+                if (pair.first == "card_front") depth_front = d;
+                else if (pair.first == "card_mid") depth_mid = d;
+                else if (pair.first == "card_back") depth_back = d;
+            }
+
+            float fov_rad = glm::radians(cam.fov_deg);
+            float tan_half_fov = std::tan(fov_rad * 0.5f);
+            metrics["fov_deg"] = static_cast<double>(cam.fov_deg);
+            metrics["dist_front"] = static_cast<double>(depth_front);
+            metrics["dist_mid"] = static_cast<double>(depth_mid);
+            metrics["dist_back"] = static_cast<double>(depth_back);
+            metrics["formula"] = "W = 2 * |Z| * tan(FOV/2)";
+
+            // Validate front/back area ratio: expected = (orig_front/orig_back) * (depth_back/depth_front)²
+            bool fov_consistent = true;
+            float orig_front = 300.0f * 190.0f;
+            float orig_back = 400.0f * 250.0f;
+            if (depth_front > 1.0f && depth_back > 1.0f && f_area_now > 1.0f && b_area_now > 1.0f) {
+                float z_ratio_sq = (depth_back / depth_front) * (depth_back / depth_front);
+                float size_correction = orig_front / orig_back;
+                float expected_ratio = z_ratio_sq * size_correction;
+                float actual_ratio = f_area_now / b_area_now;
+                float ratio_error = std::abs(actual_ratio - expected_ratio) / std::max(expected_ratio, 0.001f);
+                metrics["expected_area_ratio_front_back"] = static_cast<double>(expected_ratio);
+                metrics["actual_area_ratio_front_back"] = static_cast<double>(actual_ratio);
+                metrics["area_ratio_error_percent"] = static_cast<double>(ratio_error * 100.0f);
+                fov_consistent = ratio_error < 0.30f;
+            }
+            metrics["fov_scaling_consistent"] = fov_consistent;
         }
         else if (comp_name.find("CameraSafeFramingAspectRatioTest") != std::string::npos) {
             std::string aspect = "16:9";
