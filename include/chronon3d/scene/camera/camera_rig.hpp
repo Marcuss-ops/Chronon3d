@@ -3,9 +3,85 @@
 #include <chronon3d/scene/camera/animated_camera_2_5d.hpp>
 #include <chronon3d/animation/easing.hpp>
 #include <chronon3d/math/glm_types.hpp>
+#include <chronon3d/scene/builders/scene_builder.hpp>
 #include <cmath>
+#include <string>
+#include <utility>
 
 namespace chronon3d::camera_rig {
+
+enum class RigMode {
+    OneNode,
+    TwoNode
+};
+
+/// Thin cinematic rig wrapper.
+/// - A controller null carries the camera parent transform.
+/// - A target null defines the point of interest for two-node shots.
+/// - Anchor points are stored on the nulls, so the pivot is explicit.
+struct CameraRig {
+    RigMode mode{RigMode::TwoNode};
+    bool enabled{true};
+
+    std::string controller_name{"camera_rig"};
+    std::string target_name{"camera_target"};
+
+    AnimatedValue<Vec3> controller_position{Vec3{0.0f, 0.0f, 0.0f}};
+    AnimatedValue<Vec3> controller_rotation{Vec3{0.0f, 0.0f, 0.0f}};
+    AnimatedValue<Vec3> controller_anchor{Vec3{0.0f, 0.0f, 0.0f}};
+
+    AnimatedValue<Vec3> target_position{Vec3{0.0f, 0.0f, 0.0f}};
+    AnimatedValue<Vec3> target_rotation{Vec3{0.0f, 0.0f, 0.0f}};
+    AnimatedValue<Vec3> target_anchor{Vec3{0.0f, 0.0f, 0.0f}};
+
+    AnimatedValue<Vec3> camera_position{Vec3{0.0f, 0.0f, -1000.0f}};
+    AnimatedValue<Vec3> camera_rotation{Vec3{0.0f, 0.0f, 0.0f}};
+    AnimatedValue<f32> zoom{1000.0f};
+    AnimatedValue<f32> fov_deg{50.0f};
+
+    DepthOfFieldSettings dof{};
+    bool use_fov{false};
+
+    [[nodiscard]] Camera2_5D bake(Frame frame, std::pmr::memory_resource* res = std::pmr::get_default_resource()) const {
+        Camera2_5D cam;
+        cam.enabled = enabled;
+        cam.position = camera_position.evaluate(frame);
+        cam.rotation = camera_rotation.evaluate(frame);
+        cam.zoom = zoom.evaluate(frame);
+        cam.fov_deg = fov_deg.evaluate(frame);
+        cam.projection_mode = use_fov ? Camera2_5DProjectionMode::Fov : Camera2_5DProjectionMode::Zoom;
+        cam.dof = dof;
+        cam.parent_name = std::pmr::string{controller_name, res};
+        cam.point_of_interest_enabled = (mode == RigMode::TwoNode);
+        if (mode == RigMode::TwoNode) {
+            cam.target_name = std::pmr::string{target_name, res};
+        }
+        return cam;
+    }
+
+    template <typename Fn>
+    void apply(SceneBuilder& s, Frame frame, Fn&& add_target_content) const {
+        s.null_layer(controller_name, [&](LayerBuilder& l) {
+            l.position(controller_position.evaluate(frame))
+             .rotate(controller_rotation.evaluate(frame))
+             .anchor(controller_anchor.evaluate(frame));
+        });
+
+        s.null_layer(target_name, [&](LayerBuilder& l) {
+            l.position(target_position.evaluate(frame))
+             .rotate(target_rotation.evaluate(frame))
+             .anchor(target_anchor.evaluate(frame));
+        });
+
+        std::forward<Fn>(add_target_content)(s);
+
+        s.camera().set(bake(frame, s.resource()));
+    }
+
+    void apply(SceneBuilder& s, Frame frame) const {
+        apply(s, frame, [](SceneBuilder&) {});
+    }
+};
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // CameraRig — high-level cinematic camera motion presets.
