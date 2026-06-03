@@ -37,6 +37,8 @@ public:
 
     CameraShotValidator& register_layer_size(std::string name, Vec2 size);
 
+    [[nodiscard]] const std::unordered_map<std::string, Vec2>& layer_sizes() const { return m_layer_sizes; }
+
     CameraShotValidator& require_target_centered(
         std::string target_name,
         float max_error_px

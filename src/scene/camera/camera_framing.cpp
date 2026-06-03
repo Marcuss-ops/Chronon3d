@@ -22,6 +22,10 @@ Camera2_5D fit_camera_to_layers(
             if (!mat_opt) continue;
 
             Vec2 size{200.0f, 200.0f};
+            auto size_it = options.layer_sizes.find(name);
+            if (size_it != options.layer_sizes.end()) {
+                size = size_it->second;
+            }
             const Mat4& world_m = *mat_opt;
             std::array<Vec3, 4> corners = {
                 Vec3(world_m * Vec4(0.0f, 0.0f, 0.0f, 1.0f)),
