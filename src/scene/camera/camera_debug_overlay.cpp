@@ -120,6 +120,10 @@ void add_camera_debug_overlay(
                     trace_y = graph_y + graph_h + panel_gap;
                     break;
             }
+            graph_x += options.panel_offset_x;
+            graph_y += options.panel_offset_y;
+            trace_x += options.panel_offset_x;
+            trace_y += options.panel_offset_y;
 
             // Background panel
             l.rect("graph_bg", RectParams{
@@ -237,6 +241,8 @@ void add_camera_debug_overlay(
                     trace_y = panel_margin + graph_h + panel_gap;
                     break;
             }
+            trace_x += options.panel_offset_x;
+            trace_y += options.panel_offset_y;
 
             // Background panel
             l.rect("trace_bg", RectParams{
