@@ -485,123 +485,38 @@ Scene camera_test_orchestrator(
         }
     }
 
+    // Precompute camera path with jerk values for the overlay (used by kinematic tests)
+    CameraPathVisualization path_vis;
+    if (comp_name == "CameraKinematicJerkAndInterpolationTest") {
+        path_vis.current_frame = static_cast<int>(ctx.frame);
+        path_vis.total_frames = 90;
+        std::vector<Vec3> path_positions;
+        path_positions.reserve(91);
+        for (int f = 0; f <= 90; ++f) {
+            path_positions.push_back(shot.rig.evaluate(f, &resolved).position);
+        }
+        for (int f = 0; f <= 90; ++f) {
+            CameraPathJerkSample sample;
+            sample.position = path_positions[f];
+            if (f >= 3) {
+                Vec3 P0 = path_positions[f];
+                Vec3 P1 = path_positions[f - 1];
+                Vec3 P2 = path_positions[f - 2];
+                Vec3 P3 = path_positions[f - 3];
+                sample.jerk = glm::length(P0 - 3.0f * P1 + 3.0f * P2 - P3) * 0.0001f;
+            }
+            path_vis.samples.push_back(sample);
+        }
+    }
+
     // Append Overlay elements onto final output Scene nodes list
     SceneBuilder s_overlay(ctx);
-    add_camera_debug_overlay(s_overlay, report, cam, resolved, {static_cast<f32>(ctx.width), static_cast<f32>(ctx.height)});
-
-    // If kinematic jerk test, draw camera path visually on debug overlay
-    if (comp_name == "CameraKinematicJerkAndInterpolationTest") {
-        s_overlay.layer("camera_path_visualizer_hud", [&](LayerBuilder& l) {
-            // Draw a beautiful chart of camera path in top-left
-            float graph_x = 50.0f;
-            float graph_y = 50.0f;
-            float graph_w = 400.0f;
-            float graph_h = 150.0f;
-
-            // Background panel
-            l.rect("graph_bg", RectParams{
-                .size = {graph_w, graph_h},
-                .pos = {graph_x, graph_y, 0.0f},
-                .fill = Fill{ .enabled = true, .solid = Color{0.0f, 0.0f, 0.0f, 0.6f} },
-                .stroke = { .enabled = true, .color = Color{0.5f, 0.5f, 0.5f, 0.3f}, .width = 1.0f }
-            });
-
-            // Grid lines
-            for (int i = 1; i < 4; ++i) {
-                float ly = graph_y + (graph_h / 4.0f) * i;
-                l.line("graph_grid_" + std::to_string(i), LineParams{
-                    .from = {graph_x, ly, 0.0f},
-                    .to = {graph_x + graph_w, ly, 0.0f},
-                    .thickness = 0.5f,
-                    .color = Color{0.3f, 0.3f, 0.3f, 0.2f}
-                });
-            }
-
-            l.text("graph_title", TextParams{
-                .text = "CAMERA PATH KINEMATIC JERK (0-90 frames)",
-                .pos = {graph_x + 10.0f, graph_y + 20.0f, 0.0f},
-                .font_size = 11.0f,
-                .color = Color{0.9f, 0.9f, 0.9f, 0.8f}
-            });
-
-            // Evaluate sample positions over path
-            std::vector<Vec3> path_positions;
-            for (int f = 0; f <= 90; ++f) {
-                Camera2_5D c_sample = shot.rig.evaluate(f, &resolved);
-                path_positions.push_back(c_sample.position);
-            }
-
-            // Draw projected points of the path
-            for (size_t i = 0; i < path_positions.size(); ++i) {
-                float t = static_cast<float>(i) / 90.0f;
-                float px = graph_x + 20.0f + t * (graph_w - 40.0f);
-                
-                // Calculate simulated jerk for coloring
-                float step_jerk = 0.0f;
-                if (i >= 3) {
-                    Vec3 P0 = path_positions[i];
-                    Vec3 P1 = path_positions[i - 1];
-                    Vec3 P2 = path_positions[i - 2];
-                    Vec3 P3 = path_positions[i - 3];
-                    step_jerk = glm::length(P0 - 3.0f * P1 + 3.0f * P2 - P3) * 0.0001f;
-                }
-
-                Color point_color = Color{0.2f, 0.9f, 0.2f, 0.8f}; // green smooth
-                if (step_jerk > 0.04f) {
-                    point_color = Color{1.0f, 0.2f, 0.2f, 0.8f}; // red spike
-                } else if (step_jerk > 0.02f) {
-                    point_color = Color{1.0f, 0.8f, 0.0f, 0.8f}; // yellow warning
-                }
-
-                float val_norm = std::min(1.0f, step_jerk / 0.05f);
-                float py = graph_y + graph_h - 20.0f - val_norm * (graph_h - 50.0f);
-
-                l.circle("path_pt_" + std::to_string(i), CircleParams{
-                    .radius = 2.0f,
-                    .color = point_color,
-                    .pos = {px, py, 0.0f}
-                });
-
-                if (i > 0) {
-                    float prev_t = static_cast<float>(i - 1) / 90.0f;
-                    float prev_px = graph_x + 20.0f + prev_t * (graph_w - 40.0f);
-                    float prev_jerk = 0.0f;
-                    if (i - 1 >= 3) {
-                        Vec3 P0 = path_positions[i - 1];
-                        Vec3 P1 = path_positions[i - 2];
-                        Vec3 P2 = path_positions[i - 3];
-                        Vec3 P3 = path_positions[i - 4];
-                        prev_jerk = glm::length(P0 - 3.0f * P1 + 3.0f * P2 - P3) * 0.0001f;
-                    }
-                    float prev_val_norm = std::min(1.0f, prev_jerk / 0.05f);
-                    float prev_py = graph_y + graph_h - 20.0f - prev_val_norm * (graph_h - 50.0f);
-
-                    l.line("path_line_" + std::to_string(i), LineParams{
-                        .from = {prev_px, prev_py, 0.0f},
-                        .to = {px, py, 0.0f},
-                        .thickness = 1.2f,
-                        .color = point_color
-                    });
-                }
-
-                // Frame markers every 15 frames
-                if (i % 15 == 0) {
-                    l.line("marker_v_" + std::to_string(i), LineParams{
-                        .from = {px, graph_y + graph_h - 15.0f, 0.0f},
-                        .to = {px, graph_y + graph_h - 10.0f, 0.0f},
-                        .thickness = 1.0f,
-                        .color = Color{0.7f, 0.7f, 0.7f, 0.5f}
-                    });
-                    l.text("marker_txt_" + std::to_string(i), TextParams{
-                        .text = std::to_string(i),
-                        .pos = {px - 5.0f, graph_y + graph_h - 2.0f, 0.0f},
-                        .font_size = 8.0f,
-                        .color = Color{0.7f, 0.7f, 0.7f, 0.6f}
-                    });
-                }
-            }
-        });
-    }
+    add_camera_debug_overlay(
+        s_overlay, report, cam, resolved,
+        {static_cast<f32>(ctx.width), static_cast<f32>(ctx.height)},
+        {},
+        (path_vis.samples.empty() ? nullptr : &path_vis)
+    );
 
     Scene overlay_scene = s_overlay.build();
     for (auto& node : overlay_scene.nodes()) {
