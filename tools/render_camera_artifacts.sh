@@ -8,6 +8,7 @@ cd "$PROJECT_DIR"
 PRESET="${CHRONON_PRESET:-linux-release}"
 BUILD_DIR="build/chronon/$PRESET"
 BIN="$BUILD_DIR/apps/chronon3d_cli/chronon3d_cli"
+SUITE="tools/visual_quality_suite.py"
 
 if [[ ! -x "$BIN" ]]; then
   echo "Missing binary: $BIN"
@@ -15,19 +16,25 @@ if [[ ! -x "$BIN" ]]; then
   exit 1
 fi
 
-render() {
-  local comp="$1"
-  local output="$2"
-  echo "Rendering $comp -> $output"
-  "$BIN" render "$comp" --frame 0 --report -o "$output"
-}
-
-render "OrbitCameraTest" "output/camera_orbit_test.png"
-render "ExtremePerspectiveTest" "output/camera_extreme_perspective.png"
-render "HeroTextFrontTest" "output/camera_hero_text_front.png"
-render "ZStackParallaxTest" "output/camera_zstack_parallax.png"
+echo "Rendering and validating camera shots..."
+python3 "$SUITE" \
+  --executable "$BIN" \
+  --skip-pipeline \
+  --camera-template OrbitCameraTest ExtremePerspectiveTest HeroTextFrontTest ZStackParallaxTest \
+  --camera-output-dir output/camera_smoke \
+  --camera-overlay-dir output/camera_smoke_overlay
 
 echo "Done."
 echo "Telemetry DB: $HOME/.chronon3d/telemetry/chronon3d_render_history.sqlite"
+echo "Camera renders:"
+echo "  output/camera_smoke/OrbitCameraTest.png"
+echo "  output/camera_smoke/ExtremePerspectiveTest.png"
+echo "  output/camera_smoke/HeroTextFrontTest.png"
+echo "  output/camera_smoke/ZStackParallaxTest.png"
+echo "Camera overlays:"
+echo "  output/camera_smoke_overlay/OrbitCameraTest.png"
+echo "  output/camera_smoke_overlay/ExtremePerspectiveTest.png"
+echo "  output/camera_smoke_overlay/HeroTextFrontTest.png"
+echo "  output/camera_smoke_overlay/ZStackParallaxTest.png"
 echo "Open the dashboard after refresh:"
 echo "  http://51.91.11.36:5173/"
