@@ -330,7 +330,7 @@ private:
         };
 
         auto append_piece = [&](const TextLayoutRun& source, std::string text_piece) {
-            if (text_piece.empty()) {
+            if (text_piece.empty() && !source.is_space && !source.is_decorative_star && !source.use_advance_override) {
                 return;
             }
 
@@ -384,6 +384,9 @@ private:
 
         auto append_split_text = [&](const TextLayoutRun& run, std::string_view text) {
             if (text.empty()) {
+                if (run.is_space || run.is_decorative_star || run.use_advance_override) {
+                    append_piece(run, "");
+                }
                 return;
             }
 

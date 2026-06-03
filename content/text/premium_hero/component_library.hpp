@@ -132,6 +132,8 @@ inline void add_hero_title(SceneBuilder& s, const StyleConfig& cfg,
                 .vertical_anchor = RichTextVerticalAnchor::Middle,
                 .glyph_padding = 4.0f,
                 .snap_to_pixels = true,
+                .max_width = box.x,
+                .fit_to_width = true,
             }
         );
     });
@@ -182,6 +184,8 @@ inline void add_subtitle(SceneBuilder& s, const StyleConfig& cfg,
                 .vertical_anchor = RichTextVerticalAnchor::Middle,
                 .glyph_padding = 2.0f,
                 .snap_to_pixels = true,
+                .max_width = box.x,
+                .fit_to_width = true,
             }
         );
     });
@@ -248,6 +252,8 @@ inline void add_gradient_button(SceneBuilder& s, const StyleConfig& cfg,
                 .vertical_anchor = RichTextVerticalAnchor::Middle,
                 .glyph_padding = 2.0f,
                 .snap_to_pixels = true,
+                .max_width = box.x,
+                .fit_to_width = true,
             }
         );
     });

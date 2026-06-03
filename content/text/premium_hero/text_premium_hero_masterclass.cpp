@@ -295,6 +295,8 @@ Composition text_premium_hero_buttery_smooth() {
                     .vertical_anchor = RichTextVerticalAnchor::Middle,
                     .glyph_padding = 4.0f,
                     .snap_to_pixels = true,
+                    .max_width = 1280.0f,
+                    .fit_to_width = true,
                 }
             );
         });

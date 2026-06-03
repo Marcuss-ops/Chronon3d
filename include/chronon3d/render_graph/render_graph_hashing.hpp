@@ -206,20 +206,20 @@ template <typename T>
             seed = hash_combine(seed, hash_value(s.rect.stroke.enabled));
             seed = hash_combine(seed, hash_color(s.rect.stroke.color));
             seed = hash_combine(seed, hash_value(s.rect.stroke.width));
-            return hash_bytes(&s.rect.stroke.alignment, sizeof(StrokeAlignment));
+            return hash_combine(seed, hash_bytes(&s.rect.stroke.alignment, sizeof(StrokeAlignment)));
         case ShapeType::RoundedRect:
             seed = hash_combine(seed, hash_vec2(s.rounded_rect.size));
             seed = hash_combine(seed, hash_bytes(&s.rounded_rect.radius, sizeof(f32)));
             seed = hash_combine(seed, hash_value(s.rounded_rect.stroke.enabled));
             seed = hash_combine(seed, hash_color(s.rounded_rect.stroke.color));
             seed = hash_combine(seed, hash_value(s.rounded_rect.stroke.width));
-            return hash_bytes(&s.rounded_rect.stroke.alignment, sizeof(StrokeAlignment));
+            return hash_combine(seed, hash_bytes(&s.rounded_rect.stroke.alignment, sizeof(StrokeAlignment)));
         case ShapeType::Circle:
             seed = hash_combine(seed, hash_bytes(&s.circle.radius, sizeof(f32)));
             seed = hash_combine(seed, hash_value(s.circle.stroke.enabled));
             seed = hash_combine(seed, hash_color(s.circle.stroke.color));
             seed = hash_combine(seed, hash_value(s.circle.stroke.width));
-            return hash_bytes(&s.circle.stroke.alignment, sizeof(StrokeAlignment));
+            return hash_combine(seed, hash_bytes(&s.circle.stroke.alignment, sizeof(StrokeAlignment)));
         case ShapeType::Line:
             seed = hash_combine(seed, hash_vec3(s.line.to));
             seed = hash_combine(seed, hash_bytes(&s.line.thickness, sizeof(f32)));
@@ -228,7 +228,7 @@ template <typename T>
             seed = hash_combine(seed, hash_value(s.line.stroke.enabled));
             seed = hash_combine(seed, hash_color(s.line.stroke.color));
             seed = hash_combine(seed, hash_value(s.line.stroke.width));
-            return hash_bytes(&s.line.stroke.alignment, sizeof(StrokeAlignment));
+            return hash_combine(seed, hash_bytes(&s.line.stroke.alignment, sizeof(StrokeAlignment)));
         case ShapeType::Path:
             seed = hash_combine(seed, hash_value(s.path.commands.size()));
             for (const auto& cmd : s.path.commands) {
