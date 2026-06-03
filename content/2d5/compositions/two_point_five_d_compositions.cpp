@@ -3,7 +3,16 @@
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/camera/camera_motion_presets.hpp>
+#include <chronon3d/scene/camera/camera_projection.hpp>
+#include <chronon3d/scene/camera/camera_shot_validator.hpp>
+#include <chronon3d/scene/camera/camera_framing.hpp>
+#include <chronon3d/scene/camera/camera_path_sampler.hpp>
+#include <chronon3d/scene/camera/camera_debug_overlay.hpp>
+#include <chronon3d/scene/camera/camera_rig_presets.hpp>
+#include <chronon3d/scene/camera/camera_shot_profile.hpp>
 #include <chronon3d/math/color.hpp>
+#include <fstream>
+
 namespace chronon3d::content::two_point_five_d {
 
 namespace {
@@ -249,14 +258,6 @@ Composition camera_rig_orbit_reveal_test() {
             n.position({0.0f, 0.0f, 0.0f});
         });
 
-        s.camera_rig("main_camera", [&](CameraRigBuilder& cam) {
-            cam.two_node("camera_target")
-               .orbit_yaw(0, -18.0f, 90, 18.0f)
-               .orbit_radius(0, 1250.0f, 90, 850.0f)
-               .roll(0, -2.0f, 90, 0.0f)
-               .fov(50.0f);
-        });
-
         // Add 3 cards at different depths
         s.layer("card_back", [](LayerBuilder& l) {
             l.cache_static().enable_3d().position({0.0f, 0.0f, 200.0f});
@@ -342,7 +343,127 @@ Composition camera_rig_orbit_reveal_test() {
             });
         });
 
-        return s.build();
+        Scene scene = s.build();
+
+        // 1. Resolve hierarchy
+        scene.resolve_hierarchy(ctx.frame);
+
+        // 2. Build SceneTransformRegistry to resolve parent/target nulls
+        SceneTransformRegistry registry;
+        for (const auto& layer : scene.layers()) {
+            Transform3D t3d;
+            t3d.position = layer.transform.position;
+            t3d.rotation = glm::degrees(glm::eulerAngles(layer.transform.rotation));
+            t3d.scale = layer.transform.scale;
+            t3d.anchor = layer.transform.anchor;
+            t3d.parent_name = std::string(layer.parent_name);
+            t3d.inherits_position = true;
+            t3d.inherits_rotation = true;
+            t3d.inherits_scale = true;
+            registry.add_node(std::string(layer.name), t3d, layer.kind != LayerKind::Null);
+        }
+        auto resolved = registry.resolve_all();
+
+        // 3. Set up CameraShotProfile with orbit reveal preset
+        CameraShotProfile shot;
+        shot.rig = camera_rig_presets::orbit_reveal("camera_target");
+        shot.validator
+            .register_layer_size("card_front", {300.0f, 190.0f})
+            .register_layer_size("card_mid", {350.0f, 220.0f})
+            .register_layer_size("card_back", {400.0f, 250.0f})
+            .require_target_centered("camera_target", 3.0f)
+            .require_visible("card_front", 0.95f)
+            .require_visible("card_mid", 0.75f)
+            .require_visible("card_back", 0.50f)
+            .require_inside_safe_area("card_front", 0.08f)
+            .require_depth_order({"card_front", "card_mid", "card_back"});
+        shot.auto_fit = true;
+
+        // Evaluate baseline camera
+        Camera2_5D cam = shot.rig.evaluate(ctx.frame, &resolved);
+
+        if (shot.auto_fit) {
+            cam = fit_camera_to_layers(
+                cam,
+                {"card_front", "card_mid", "card_back"},
+                resolved,
+                {1920.0f, 1080.0f},
+                shot.framing
+            );
+        }
+
+        // Apply updated camera back to the scene
+        scene.set_camera_2_5d(cam);
+
+        // 4. Validate shot
+        auto report = shot.validator.validate(cam, resolved, {1920.0f, 1080.0f});
+        report.composition_name = "CameraRigOrbitRevealTest";
+        report.frame = static_cast<int>(ctx.frame);
+
+        // 5. Emit JSON reports at frame 90
+        if (ctx.frame == 90 && shot.emit_report) {
+            // Find layer ratios
+            float front_ratio = 0.0f;
+            float mid_ratio = 0.0f;
+            float back_ratio = 0.0f;
+            for (const auto& lr : report.layers) {
+                if (lr.name == "card_front") front_ratio = lr.bounds.visible_ratio;
+                else if (lr.name == "card_mid") mid_ratio = lr.bounds.visible_ratio;
+                else if (lr.name == "card_back") back_ratio = lr.bounds.visible_ratio;
+            }
+
+            bool depth_order_valid = true;
+            bool safe_area_valid = true;
+            for (const auto& f : report.failures) {
+                if (f.find("Depth order") != std::string::npos) depth_order_valid = false;
+                if (f.find("safe area") != std::string::npos || f.find("outside safe") != std::string::npos) safe_area_valid = false;
+            }
+
+            std::ofstream out_shot("camera_shot_report_0090.json");
+            if (out_shot) {
+                out_shot << "{\n"
+                         << "  \"composition\": \"" << report.composition_name << "\",\n"
+                         << "  \"frame\": " << report.frame << ",\n"
+                         << "  \"camera\": {\n"
+                         << "    \"mode\": \"TwoNode\",\n"
+                         << "    \"target\": \"camera_target\",\n"
+                         << "    \"orbit_radius\": " << shot.rig.orbit_radius.evaluate(ctx.frame) << ",\n"
+                         << "    \"fov_deg\": " << cam.fov_deg << "\n"
+                         << "  },\n"
+                         << "  \"validation\": {\n"
+                         << "    \"passed\": " << (report.passed ? "true" : "false") << ",\n"
+                         << "    \"target_center_error_px\": " << report.target_center_error_px << ",\n"
+                         << "    \"front_visible_ratio\": " << front_ratio << ",\n"
+                         << "    \"mid_visible_ratio\": " << mid_ratio << ",\n"
+                         << "    \"back_visible_ratio\": " << back_ratio << ",\n"
+                         << "    \"depth_order_valid\": " << (depth_order_valid ? "true" : "false") << ",\n"
+                         << "    \"safe_area_valid\": " << (safe_area_valid ? "true" : "false") << "\n"
+                         << "  }\n"
+                         << "}\n";
+            }
+
+            auto path_report = sample_camera_path(shot.rig, resolved, {1920.0f, 1080.0f}, 0, 90, 1);
+            std::ofstream out_path("camera_path_report.json");
+            if (out_path) {
+                out_path << "{\n"
+                         << "  \"samples_count\": " << path_report.samples.size() << ",\n"
+                         << "  \"max_target_center_error_px\": " << path_report.max_target_center_error_px << ",\n"
+                         << "  \"max_velocity_jump\": " << path_report.max_velocity_jump << ",\n"
+                         << "  \"max_acceleration_jump\": " << path_report.max_acceleration_jump << ",\n"
+                         << "  \"passed\": " << (path_report.passed ? "true" : "false") << "\n"
+                         << "}\n";
+            }
+        }
+
+        // 6. Draw debug overlay nodes onto the scene
+        SceneBuilder s_overlay(ctx);
+        add_camera_debug_overlay(s_overlay, report);
+        Scene overlay_scene = s_overlay.build();
+        for (auto& node : overlay_scene.nodes()) {
+            scene.add_node(std::move(node));
+        }
+
+        return scene;
     });
 }
 
