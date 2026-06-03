@@ -752,6 +752,216 @@ void add_camera_debug_overlay(
             l.text("td_leg_cam_t", TextParams{ .text = "cam", .pos = {td_x + 94.0f, td_y + td_h - 12.0f, 0.0f}, .font_size = 7.0f, .color = Color{0.6f, 0.6f, 0.7f, 0.5f} });
         }
 
+        // Side-view depth map (XZ lateral view: X=horizontal, Z=height)
+        if (options.show_depth_side_view) {
+            float sv_w = 280.0f;
+            float sv_h = 220.0f;
+            float sv_margin = 20.0f;
+
+            // Position next to the top-down panel (right of it for bottom-right anchor)
+            float sv_x, sv_y;
+            switch (options.anchor) {
+                case OverlayAnchor::BottomRight:
+                    sv_x = sv_margin + 280.0f + 10.0f;
+                    sv_y = sv_margin;
+                    break;
+                case OverlayAnchor::BottomLeft:
+                    sv_x = viewport.width - 2.0f * sv_w - 2.0f * sv_margin - 10.0f;
+                    sv_y = sv_margin;
+                    break;
+                case OverlayAnchor::TopRight:
+                    sv_x = sv_margin + 280.0f + 10.0f;
+                    sv_y = viewport.height - sv_h - sv_margin;
+                    break;
+                case OverlayAnchor::TopLeft:
+                default:
+                    sv_x = viewport.width - 2.0f * sv_w - 2.0f * sv_margin - 10.0f;
+                    sv_y = viewport.height - sv_h - sv_margin;
+                    break;
+            }
+            sv_x += options.panel_offset_x;
+            sv_y += options.panel_offset_y;
+
+            // Background
+            l.rect("sideview_bg", RectParams{
+                .size = {sv_w, sv_h},
+                .pos = {sv_x, sv_y, 0.0f},
+                .fill = Fill{ .enabled = true, .solid = Color{0.0f, 0.03f, 0.02f, 0.7f} },
+                .stroke = { .enabled = true, .color = Color{0.3f, 0.6f, 0.5f, 0.35f}, .width = 1.0f }
+            });
+
+            l.text("sv_title", TextParams{
+                .text = "DEPTH SIDE VIEW (X vs Z)",
+                .pos = {sv_x + 10.0f, sv_y + 16.0f, 0.0f},
+                .font_size = 10.0f,
+                .color = Color{0.8f, 1.0f, 0.85f, 0.8f}
+            });
+
+            // Compute bounds of all resolved positions to auto-fit
+            float w_min_x = 1e9f, w_max_x = -1e9f;
+            float w_min_z = 1e9f, w_max_z = -1e9f;
+            for (const auto& pair : resolved.resolved) {
+                Vec3 pos(pair.second.world_matrix[3]);
+                w_min_x = std::min(w_min_x, pos.x);
+                w_max_x = std::max(w_max_x, pos.x);
+                w_min_z = std::min(w_min_z, pos.z);
+                w_max_z = std::max(w_max_z, pos.z);
+            }
+            w_min_x = std::min(w_min_x, camera.position.x);
+            w_max_x = std::max(w_max_x, camera.position.x);
+            w_min_z = std::min(w_min_z, camera.position.z);
+            w_max_z = std::max(w_max_z, camera.position.z);
+
+            if (w_min_x >= w_max_x) { w_min_x -= 200.0f; w_max_x += 200.0f; }
+            if (w_min_z >= w_max_z) { w_min_z -= 200.0f; w_max_z += 200.0f; }
+
+            float range_x = w_max_x - w_min_x;
+            float range_z = w_max_z - w_min_z;
+            float pad_x = range_x * 0.15f;
+            float pad_z = range_z * 0.15f;
+            w_min_x -= pad_x; w_max_x += pad_x;
+            w_min_z -= pad_z; w_max_z += pad_z;
+            range_x = w_max_x - w_min_x;
+            range_z = w_max_z - w_min_z;
+
+            float d_margin = 22.0f;
+            float d_w = sv_w - 2.0f * d_margin;
+            float d_h = sv_h - 36.0f;
+            float d_y0 = sv_y + 28.0f;
+            float sx = (range_x > 1e-3f) ? d_w / range_x : 1.0f;
+            float sz = (range_z > 1e-3f) ? d_h / range_z : 1.0f;
+            float s = std::min(sx, sz);
+
+            // Map: world X → horizontal, world Z → vertical (positive Z = UP = further from camera)
+            auto to_sv = [&](float wx, float wz) -> Vec2 {
+                return {
+                    sv_x + d_margin + (wx - w_min_x) * s,
+                    d_y0 + d_h - (wz - w_min_z) * s  // Z inverted: positive Z = top
+                };
+            };
+
+            // Grid lines
+            l.line("sv_grid_h", LineParams{
+                .from = {sv_x + d_margin, d_y0 + d_h * 0.5f, 0.0f},
+                .to = {sv_x + sv_w - d_margin, d_y0 + d_h * 0.5f, 0.0f},
+                .thickness = 0.5f, .color = Color{0.25f, 0.45f, 0.35f, 0.2f}
+            });
+            l.line("sv_grid_v", LineParams{
+                .from = {sv_x + d_margin + d_w * 0.5f, d_y0, 0.0f},
+                .to = {sv_x + d_margin + d_w * 0.5f, d_y0 + d_h, 0.0f},
+                .thickness = 0.5f, .color = Color{0.25f, 0.45f, 0.35f, 0.2f}
+            });
+
+            // Z=0 horizontal line (reference plane)
+            if (w_min_z < 0.0f && w_max_z > 0.0f) {
+                float z0_y = d_y0 + d_h - (0.0f - w_min_z) * s;
+                l.line("sv_z0", LineParams{
+                    .from = {sv_x + d_margin, z0_y, 0.0f},
+                    .to = {sv_x + sv_w - d_margin, z0_y, 0.0f},
+                    .thickness = 1.0f, .color = Color{0.5f, 0.8f, 0.5f, 0.3f}
+                });
+                l.text("sv_z0_lbl", TextParams{ .text = "Z=0", .pos = {sv_x + sv_w - d_margin + 2.0f, z0_y - 4.0f, 0.0f}, .font_size = 7.0f, .color = Color{0.5f, 0.8f, 0.5f, 0.5f} });
+            }
+
+            // Axis labels
+            l.text("sv_axis_x", TextParams{ .text = "+X", .pos = {sv_x + sv_w - d_margin - 14.0f, d_y0 + d_h + 2.0f, 0.0f}, .font_size = 7.0f, .color = Color{0.6f, 0.5f, 0.4f, 0.5f} });
+            l.text("sv_axis_z", TextParams{ .text = "+Z", .pos = {sv_x + d_margin - 2.0f, d_y0 - 6.0f, 0.0f}, .font_size = 7.0f, .color = Color{0.4f, 0.6f, 0.4f, 0.5f} });
+
+            // Draw each resolved layer as a horizontal bar (width = layer extent, height = Z position)
+            int sv_idx = 0;
+            for (const auto& pair : resolved.resolved) {
+                Vec3 pos(pair.second.world_matrix[3]);
+                Vec2 screen = to_sv(pos.x, pos.z);
+
+                if (screen.x < sv_x + d_margin || screen.x > sv_x + sv_w - d_margin ||
+                    screen.y < d_y0 || screen.y > d_y0 + d_h) {
+                    continue;
+                }
+
+                // Check if in report
+                bool in_report = false;
+                bool passed = true;
+                for (const auto& lr : report.layers) {
+                    if (lr.name == pair.first) {
+                        in_report = true;
+                        passed = lr.passed;
+                        break;
+                    }
+                }
+
+                bool is_null = pair.first.find("_null") != std::string::npos || pair.first.find("_parent") != std::string::npos;
+
+                Color bar_color;
+                if (is_null) {
+                    bar_color = Color{0.0f, 0.9f, 1.0f, 0.7f};
+                } else if (in_report) {
+                    bar_color = passed ? Color{0.2f, 0.9f, 0.3f, 0.85f} : Color{1.0f, 0.3f, 0.15f, 0.85f};
+                } else {
+                    // Color by Z depth
+                    bar_color = pos.z < 0.0f ? Color{0.3f, 0.85f, 1.0f, 0.8f} : Color{0.3f, 0.5f, 0.9f, 0.7f};
+                }
+
+                // Draw as a short horizontal bar to show X extent + Z height
+                float bar_w = 16.0f;
+                float bar_h = 5.0f;
+                l.rect("sv_bar_" + std::to_string(sv_idx), RectParams{
+                    .size = {bar_w, bar_h},
+                    .pos = {screen.x - bar_w * 0.5f, screen.y - bar_h * 0.5f, 0.0f},
+                    .fill = Fill{ .enabled = true, .solid = bar_color },
+                    .stroke = { .enabled = true, .color = Color{bar_color.r, bar_color.g, bar_color.b, 0.5f}, .width = 0.5f }
+                });
+
+                // Vertical drop line from bar to Z=0 baseline (shows depth visually)
+                if (!is_null && w_min_z < 0.0f && w_max_z > 0.0f) {
+                    float z0_y = d_y0 + d_h - (0.0f - w_min_z) * s;
+                    if (std::abs(screen.y - z0_y) > 3.0f) {
+                        l.line("sv_drop_" + std::to_string(sv_idx), LineParams{
+                            .from = {screen.x, screen.y, 0.0f},
+                            .to = {screen.x, z0_y, 0.0f},
+                            .thickness = 0.5f,
+                            .color = Color{bar_color.r, bar_color.g, bar_color.b, 0.25f}
+                        });
+                    }
+                }
+
+                // Label (first 6 non-null layers)
+                if (!is_null && sv_idx < 6) {
+                    l.text("sv_lbl_" + std::to_string(sv_idx), TextParams{
+                        .text = pair.first,
+                        .pos = {screen.x + bar_w * 0.5f + 2.0f, screen.y - 3.0f, 0.0f},
+                        .font_size = 7.0f,
+                        .color = Color{0.7f, 0.9f, 0.8f, 0.55f}
+                    });
+                }
+                sv_idx++;
+            }
+
+            // Draw camera Z position as white marker
+            Vec2 cam_sv = to_sv(camera.position.x, camera.position.z);
+            if (cam_sv.x >= sv_x + d_margin && cam_sv.x <= sv_x + sv_w - d_margin &&
+                cam_sv.y >= d_y0 && cam_sv.y <= d_y0 + d_h) {
+                l.circle("sv_cam", CircleParams{
+                    .radius = 5.0f,
+                    .color = Color{1.0f, 1.0f, 1.0f, 0.9f},
+                    .pos = {cam_sv.x, cam_sv.y, 0.0f}
+                });
+                l.text("sv_cam_lbl", TextParams{
+                    .text = "CAM",
+                    .pos = {cam_sv.x + 7.0f, cam_sv.y - 4.0f, 0.0f},
+                    .font_size = 7.0f,
+                    .color = Color{1.0f, 1.0f, 1.0f, 0.8f}
+                });
+            }
+
+            // Legend
+            l.circle("sv_leg_pass", CircleParams{ .radius = 3.0f, .color = Color{0.2f, 0.9f, 0.3f, 0.85f}, .pos = {sv_x + 10.0f, sv_y + sv_h - 8.0f, 0.0f} });
+            l.text("sv_leg_pass_t", TextParams{ .text = "pass", .pos = {sv_x + 16.0f, sv_y + sv_h - 12.0f, 0.0f}, .font_size = 7.0f, .color = Color{0.6f, 0.7f, 0.65f, 0.5f} });
+            l.circle("sv_leg_fail", CircleParams{ .radius = 3.0f, .color = Color{1.0f, 0.3f, 0.15f, 0.85f}, .pos = {sv_x + 50.0f, sv_y + sv_h - 8.0f, 0.0f} });
+            l.text("sv_leg_fail_t", TextParams{ .text = "fail", .pos = {sv_x + 56.0f, sv_y + sv_h - 12.0f, 0.0f}, .font_size = 7.0f, .color = Color{0.7f, 0.6f, 0.6f, 0.5f} });
+            l.circle("sv_leg_cam", CircleParams{ .radius = 3.0f, .color = Color{1.0f, 1.0f, 1.0f, 0.9f}, .pos = {sv_x + 88.0f, sv_y + sv_h - 8.0f, 0.0f} });
+            l.text("sv_leg_cam_t", TextParams{ .text = "cam", .pos = {sv_x + 94.0f, sv_y + sv_h - 12.0f, 0.0f}, .font_size = 7.0f, .color = Color{0.6f, 0.7f, 0.65f, 0.5f} });
+        }
+
         if (options.show_projected_bounds) {
             int idx = 0;
             for (const auto& lr : report.layers) {
