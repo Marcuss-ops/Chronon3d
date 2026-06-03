@@ -108,6 +108,8 @@ target_precompile_headers(chronon3d_content_effects PRIVATE
 # 2.5D content
 add_library(chronon3d_content_2d5 STATIC
     2d5/compositions/two_point_five_d_compositions.cpp
+    2d5/compositions/camera_advanced_tests.cpp
+    2d5/compositions/camera_test_orchestrator.cpp
 )
 set_target_properties(chronon3d_content_2d5 PROPERTIES UNITY_BUILD OFF)
 target_include_directories(chronon3d_content_2d5 PRIVATE ${CMAKE_SOURCE_DIR})
