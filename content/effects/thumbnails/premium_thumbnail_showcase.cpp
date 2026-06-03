@@ -7,6 +7,15 @@ namespace chronon3d::content::effects {
 
 namespace {
 
+[[nodiscard]] RichTextLine make_single_run_line(std::string text,
+                                                Color color,
+                                                f32 size,
+                                                std::string font = "assets/fonts/Inter-Bold.ttf") {
+    RichTextLine line;
+    line.run(std::move(text), color, size, std::move(font));
+    return line;
+}
+
 void add_sparkles(SceneBuilder& s, Color c) {
     s.layer("sparkles", [=](LayerBuilder& l) {
         l.opacity(0.85f);
@@ -24,8 +33,6 @@ void add_hero_text(
     Color glow_color,
     Color shadow_color
 ) {
-    using chronon3d::content::text::make_text_params;
-
     s.layer("hero_text", [&](LayerBuilder& l) {
         l.position({0.0f, -14.0f, 0.0f});
         l.glow(42.0f, 1.25f, glow_color);
@@ -35,7 +42,23 @@ void add_hero_text(
         hero_style.paint.stroke_color = Color{0.0f, 0.0f, 0.0f, 0.20f};
         hero_style.material.top_color = {1.0f, 1.0f, 1.0f, 1.0f};
         hero_style.material.bottom_color = {0.92f, 0.70f, 1.0f, 1.0f};
-        l.text("hero", make_text_params(title, hero_style, {1240.0f, 190.0f}, {0.0f, 0.0f, 0.0f}));
+        RichTextLine hero = make_single_run_line(title, hero_style.color, hero_style.size);
+        hero.tracking(hero_style.tracking).paint(hero_style.paint).material(hero_style.material);
+        draw_rich_text(
+            l,
+            hero,
+            {0.0f, 0.0f, 0.0f},
+            {
+                .anchor = RichTextAnchor::Center,
+                .vertical_anchor = RichTextVerticalAnchor::Middle,
+                .glyph_padding = 4.0f,
+                .snap_to_pixels = true,
+                .max_width = 1240.0f,
+                .fit_to_width = true,
+            },
+            l.font_engine(),
+            "hero_title"
+        );
 
         auto subtitle_style = presets::text::premium_subtitle();
         subtitle_style.size = 28.0f;
@@ -45,7 +68,23 @@ void add_hero_text(
         subtitle_style.material = TextMaterial::glass();
         subtitle_style.material.top_color = {0.92f, 0.94f, 0.98f, 1.0f};
         subtitle_style.material.bottom_color = {0.80f, 0.86f, 0.95f, 1.0f};
-        l.text("sub", make_text_params(subtitle, subtitle_style, {920.0f, 54.0f}, {0.0f, 108.0f, 0.0f}));
+        RichTextLine sub = make_single_run_line(subtitle, subtitle_style.color, subtitle_style.size, "assets/fonts/Inter-Regular.ttf");
+        sub.tracking(subtitle_style.tracking).paint(subtitle_style.paint).material(subtitle_style.material);
+        draw_rich_text(
+            l,
+            sub,
+            {0.0f, 108.0f, 0.0f},
+            {
+                .anchor = RichTextAnchor::Center,
+                .vertical_anchor = RichTextVerticalAnchor::Middle,
+                .glyph_padding = 2.0f,
+                .snap_to_pixels = true,
+                .max_width = 920.0f,
+                .fit_to_width = true,
+            },
+            l.font_engine(),
+            "hero_sub"
+        );
     });
 }
 
@@ -104,7 +143,7 @@ Composition premium_thumbnail_buttery_smooth() {
 
         // 3. Side-by-side text layout using RichTextLine
         s.layer("text", [](LayerBuilder& l) {
-            l.position({-130.0f, -110.0f, 0.0f});
+            l.position({140.0f, -96.0f, 0.0f});
 
             RichTextLine rtl;
             rtl.run("Buttery", Color{1.0f, 0.0f, 0.78f, 1.0f}, 72.0f)
@@ -122,11 +161,25 @@ Composition premium_thumbnail_buttery_smooth() {
                     .anchor = RichTextAnchor::Center,
                     .vertical_anchor = RichTextVerticalAnchor::Middle,
                     .glyph_padding = 6.0f,
-                    .snap_to_pixels = true
+                    .snap_to_pixels = true,
+                    .max_width = 930.0f - 96.0f,
+                    .fit_to_width = true
                 },
                 l.font_engine(),
                 "hero_phrase"
             );
+            l.text("hero_phrase_accent", {
+                .text = "*",
+                .size = {60.0f, 60.0f},
+                .pos = {610.0f, -16.0f, 0.0f},
+                .font_path = "assets/fonts/Inter-Bold.ttf",
+                .font_family = "Inter",
+                .font_weight = 800,
+                .font_size = 52.0f,
+                .color = Color{1.0f, 0.0f, 0.78f, 1.0f},
+                .align = TextAlign::Center,
+                .vertical_align = VerticalAlign::Middle,
+            });
         });
 
         return s.build();
@@ -267,25 +320,18 @@ Composition premium_thumbnail_saas_blue() {
             mat.shadow_opacity          = 0.85f;
             mat.shadow_color            = {0.0f, 0.02f, 0.12f, 0.95f};
 
-            l.text("hero", {
-                .text = "SaaS",
-                .size = {1500.0f, 320.0f},
+            l.text("saas_title", {
+                .text = "SAAS",
+                .size = {960.0f, 260.0f},
+                .pos = {0.0f, 0.0f, 0.0f},
                 .font_path = "assets/fonts/Inter-Bold.ttf",
                 .font_family = "Inter",
-                .font_weight = 900,
-                .font_size = 250.0f, // Huge size!
-                .color = Color::white(),
+                .font_weight = 800,
+                .font_size = 110.0f,
+                .color = Color{0.98f, 1.0f, 1.0f, 1.0f},
                 .align = TextAlign::Center,
                 .vertical_align = VerticalAlign::Middle,
-                .tracking = -2.0f,
-                .paint = {
-                    .fill_style = std::nullopt, // Handled by TextMaterial instead
-                    .stroke_enabled = true,
-                    .stroke_color = Color{0.0f, 0.04f, 0.16f, 0.90f}, // stroke blu scuro
-                    .stroke_width = 4.0f
-                },
-                .material = mat, // Natively apply the TextMaterial
-                .wrap = TextWrap::None
+                .wrap = TextWrap::None,
             });
             
             auto sub_style = presets::text::premium_subtitle();
@@ -298,7 +344,23 @@ Composition premium_thumbnail_saas_blue() {
             sub_style.material = TextMaterial::glass();
             sub_style.material.top_color = {0.95f, 0.98f, 1.0f, 1.0f};
             sub_style.material.bottom_color = {0.75f, 0.88f, 1.0f, 1.0f};
-            l.text("sub", chronon3d::content::text::make_text_params("FULL TUTORIAL", sub_style, {1240.0f, 60.0f}, {0.0f, 160.0f, 0.0f}));
+            RichTextLine subtitle = make_single_run_line("FULL TUTORIAL", sub_style.color, sub_style.size);
+            subtitle.tracking(sub_style.tracking).paint(sub_style.paint).material(sub_style.material);
+            draw_rich_text(
+                l,
+                subtitle,
+                {0.0f, 160.0f, 0.0f},
+                {
+                    .anchor = RichTextAnchor::Center,
+                    .vertical_anchor = RichTextVerticalAnchor::Middle,
+                    .glyph_padding = 4.0f,
+                    .snap_to_pixels = true,
+                    .max_width = 1240.0f,
+                    .fit_to_width = true,
+                },
+                l.font_engine(),
+                "saas_sub"
+            );
         });
 
         // 6. Thin Glowing Curved Horizon Line (Bottom)

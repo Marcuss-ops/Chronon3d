@@ -15,6 +15,21 @@ try:
 except ImportError:
     pytesseract = None
 
+SMOKE_TEMPLATES = {
+    "PremiumThumbnailButterySmooth": {
+        "required_words": ["buttery", "smooth"],
+        "same_line_words": [["buttery", "smooth"]],
+        "expect_decorative_accent": True,
+        "max_edge_touch_px": 12,
+    },
+    "PremiumThumbnailSaaSBlue": {
+        "required_words": ["saas", "full", "tutorial"],
+        "same_line_words": [["full", "tutorial"]],
+        "expect_decorative_accent": True,
+        "max_edge_touch_px": 12,
+    },
+}
+
 # =====================================================================
 # 1. PIXEL TESTS
 # =====================================================================
@@ -285,6 +300,204 @@ def run_glow_tests(img):
     }
 
 # =====================================================================
+# 8B. TEMPLATE SMOKE VALIDATION
+# =====================================================================
+def _ocr_words_and_lines(img, template_name=None):
+    if not pytesseract:
+        return [], []
+
+    def variants(src):
+        gray = cv2.cvtColor(src, cv2.COLOR_BGR2GRAY)
+        up = cv2.resize(gray, None, fx=2.0, fy=2.0, interpolation=cv2.INTER_CUBIC)
+        blur = cv2.GaussianBlur(up, (3, 3), 0)
+        _, otsu = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        inv = cv2.bitwise_not(otsu)
+        adapt = cv2.adaptiveThreshold(blur, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                      cv2.THRESH_BINARY, 31, 11)
+        return [
+            (src, 1.0, 0),
+            (cv2.cvtColor(up, cv2.COLOR_GRAY2BGR), 0.5, 0),
+            (cv2.cvtColor(otsu, cv2.COLOR_GRAY2BGR), 0.5, 0),
+            (cv2.cvtColor(inv, cv2.COLOR_GRAY2BGR), 0.5, 0),
+            (cv2.cvtColor(adapt, cv2.COLOR_GRAY2BGR), 0.5, 0),
+        ]
+
+    def crop_variants(src, rects):
+        h, w = src.shape[:2]
+        out = []
+        for x0f, y0f, x1f, y1f in rects:
+            x0 = max(0, int(w * x0f))
+            y0 = max(0, int(h * y0f))
+            x1 = min(w, int(w * x1f))
+            y1 = min(h, int(h * y1f))
+            if x1 <= x0 or y1 <= y0:
+                continue
+            crop = src[y0:y1, x0:x1]
+            gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+            up = cv2.resize(gray, None, fx=2.0, fy=2.0, interpolation=cv2.INTER_CUBIC)
+            blur = cv2.GaussianBlur(up, (3, 3), 0)
+            _, otsu = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+            inv = cv2.bitwise_not(otsu)
+            out.extend([
+                (cv2.cvtColor(up, cv2.COLOR_GRAY2BGR), 0.5, y0),
+                (cv2.cvtColor(otsu, cv2.COLOR_GRAY2BGR), 0.5, y0),
+                (cv2.cvtColor(inv, cv2.COLOR_GRAY2BGR), 0.5, y0),
+            ])
+        return out
+
+    try:
+        words = []
+        lines = {}
+        seen = set()
+        variant_list = variants(img)
+        if template_name == "PremiumThumbnailButterySmooth":
+            variant_list += crop_variants(img, [(0.08, 0.28, 0.90, 0.58)])
+        elif template_name == "PremiumThumbnailSaaSBlue":
+            variant_list += crop_variants(img, [(0.12, 0.20, 0.92, 0.78)])
+        for variant, scale, y_offset in variant_list:
+            data = pytesseract.image_to_data(variant, config="--psm 6", output_type=pytesseract.Output.DICT)
+            for i, text in enumerate(data["text"]):
+                word = text.strip().lower()
+                if not word:
+                    continue
+                conf = float(data["conf"][i]) if data["conf"][i] != "-1" else -1.0
+                if conf < 12.0:
+                    continue
+                box = {
+                    "left": int(data["left"][i] * scale),
+                    "top": int(data["top"][i] * scale + y_offset),
+                    "width": int(data["width"][i] * scale),
+                    "height": int(data["height"][i] * scale),
+                    "text": word,
+                    "conf": conf,
+                }
+                key = (box["text"], box["left"], box["top"], box["width"], box["height"])
+                if key in seen:
+                    continue
+                seen.add(key)
+                line_id = (data["block_num"][i], data["par_num"][i], data["line_num"][i])
+                words.append(box)
+                lines.setdefault(line_id, []).append(box)
+        return words, list(lines.values())
+    except Exception:
+        return [], []
+
+
+def _union_bbox(boxes):
+    if not boxes:
+        return None
+    x0 = min(b["left"] for b in boxes)
+    y0 = min(b["top"] for b in boxes)
+    x1 = max(b["left"] + b["width"] for b in boxes)
+    y1 = max(b["top"] + b["height"] for b in boxes)
+    return [int(x0), int(y0), int(x1), int(y1)]
+
+
+def _count_decorative_regions(img, text_bbox=None):
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    bright = cv2.threshold(gray, 210, 255, cv2.THRESH_BINARY)[1]
+    sat = cv2.threshold(hsv[:, :, 1], 90, 255, cv2.THRESH_BINARY)[1]
+    mask = cv2.bitwise_or(bright, sat)
+
+    if text_bbox:
+        x0, y0, x1, y1 = text_bbox
+        pad = 10
+        mask[max(0, y0 - pad):min(mask.shape[0], y1 + pad), max(0, x0 - pad):min(mask.shape[1], x1 + pad)] = 0
+
+    num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(mask, connectivity=8)
+    regions = []
+    for i in range(1, num_labels):
+        area = int(stats[i, cv2.CC_STAT_AREA])
+        if area >= 18:
+            regions.append({
+                "area": area,
+                "bbox": [
+                    int(stats[i, cv2.CC_STAT_LEFT]),
+                    int(stats[i, cv2.CC_STAT_TOP]),
+                    int(stats[i, cv2.CC_STAT_LEFT] + stats[i, cv2.CC_STAT_WIDTH]),
+                    int(stats[i, cv2.CC_STAT_TOP] + stats[i, cv2.CC_STAT_HEIGHT]),
+                ],
+            })
+    return regions
+
+
+def validate_template_smoke(image_path, template_name):
+    img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
+    if img is None:
+        return {
+            "template": template_name,
+            "pass": False,
+            "failures": ["render_missing"],
+        }
+
+    if img.ndim == 2:
+        img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+    elif img.shape[2] == 4:
+        img = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
+
+    rule = SMOKE_TEMPLATES.get(template_name, {})
+    words, lines = _ocr_words_and_lines(img, template_name)
+    word_texts = [w["text"] for w in words]
+    failures = []
+
+    if words:
+        text_bbox = _union_bbox(words)
+        if text_bbox:
+            h, w = img.shape[:2]
+            margin = int(rule.get("max_edge_touch_px", 12))
+            x0, y0, x1, y1 = text_bbox
+            if x0 <= margin or y0 <= margin or x1 >= (w - margin) or y1 >= (h - margin):
+                failures.append("bbox_touches_canvas_edge")
+    else:
+        text_bbox = None
+        failures.append("text_not_detected")
+
+    required_words = rule.get("required_words", [])
+    missing = [w for w in required_words if w not in word_texts]
+    if missing:
+        failures.append(f"missing_words:{','.join(missing)}")
+
+    for same_line in rule.get("same_line_words", []):
+        target = [w for w in same_line]
+        found = False
+        for line in lines:
+            line_words = [w["text"] for w in line]
+            if all(t in line_words for t in target):
+                found = True
+                break
+        if not found:
+            failures.append(f"line_split:{'|'.join(target)}")
+
+    if rule.get("expect_decorative_accent", False):
+        regions = _count_decorative_regions(img, text_bbox)
+        if len(regions) == 0:
+            failures.append("decorative_accent_missing")
+        elif len(regions) == 1 and regions[0]["area"] > 5000:
+            failures.append("decorative_accent_not_distinct")
+
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    visible_ratio = float(np.mean(gray > 18))
+    if visible_ratio < 0.01:
+        failures.append("content_too_dark")
+
+    return {
+        "template": template_name,
+        "pass": len(failures) == 0,
+        "failures": failures,
+        "text_bbox": text_bbox,
+        "word_count": len(words),
+    }
+
+
+def render_template_smoke(executable, template_name, output_dir):
+    os.makedirs(output_dir, exist_ok=True)
+    output_path = os.path.join(output_dir, f"{template_name}.png")
+    cmd = [executable, "render", template_name, "--frame", "0", "-o", output_path]
+    subprocess.run(cmd, check=True)
+    return output_path
+
+# =====================================================================
 # 9. DETERMINISM TEST
 # =====================================================================
 def verify_determinism(executable, composition):
@@ -353,6 +566,8 @@ def main():
     parser.add_argument("--render", help="Path to rendered output image")
     parser.add_argument("--executable", default="./build/chronon/linux-release/apps/chronon3d_cli/chronon3d_cli", help="Path to chronon3d_cli")
     parser.add_argument("--composition", default="PremiumThumbnailSaaSBlue", help="Composition name to test determinism / responsive")
+    parser.add_argument("--smoke-template", nargs="*", default=[], help="Render and validate one or more template compositions by name")
+    parser.add_argument("--smoke-output-dir", default="output/visual_smoke", help="Directory for template smoke renders")
     parser.add_argument("--json", action="store_true", help="Print result as json")
     
     args = parser.parse_args()
@@ -408,6 +623,37 @@ def main():
             "responsive_layout_pass": False,
             "responsive_layout_message": "Executable not found"
         }
+
+    # 3. Template smoke renders and semantic validation
+    smoke_results = []
+    if args.smoke_template:
+        if not os.path.exists(args.executable):
+            smoke_results.append({
+                "template": None,
+                "pass": False,
+                "failures": ["executable_not_found"],
+            })
+        else:
+            for template_name in args.smoke_template:
+                try:
+                    output_path = render_template_smoke(args.executable, template_name, args.smoke_output_dir)
+                    smoke = validate_template_smoke(output_path, template_name)
+                    smoke["render_path"] = output_path
+                    smoke_results.append(smoke)
+                except subprocess.CalledProcessError as exc:
+                    smoke_results.append({
+                        "template": template_name,
+                        "pass": False,
+                        "failures": [f"render_failed:{exc.returncode}"],
+                    })
+                except Exception as exc:
+                    smoke_results.append({
+                        "template": template_name,
+                        "pass": False,
+                        "failures": [f"smoke_error:{exc}"],
+                    })
+    if smoke_results:
+        results["smoke"] = smoke_results
         
     # Print results
     if args.json:
@@ -443,6 +689,12 @@ def main():
         print("\n[Pipeline & Engine Verification]")
         print(f"  Deterministic Render: {'PASS' if results['pipeline']['determinism_pass'] else 'FAIL'}")
         print(f"  Responsive Layout:    {'PASS' if results['pipeline']['responsive_layout_pass'] else 'FAIL'} ({results['pipeline']['responsive_layout_message']})")
+        if smoke_results:
+            print("\n[Template Smoke]")
+            for smoke in smoke_results:
+                status = "PASS" if smoke["pass"] else "FAIL"
+                tmpl = smoke.get("template") or "<missing>"
+                print(f"  {tmpl:30s} {status}  {', '.join(smoke.get('failures', [])) if smoke.get('failures') else 'ok'}")
         print("="*50 + "\n")
 
 if __name__ == "__main__":

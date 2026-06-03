@@ -2,6 +2,7 @@
 
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/math/glm_types.hpp>
+#include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/scene/builders/builder_params.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/backends/text/text_layout_engine.hpp>
@@ -27,6 +28,7 @@ enum class RichTextAnchor {
 enum class RichTextVerticalAnchor {
     Top,
     Middle,
+    Baseline,
     Bottom,
 };
 
@@ -57,6 +59,8 @@ struct RichTextRunMetrics {
     f32 descent{0.0f};
     f32 width{0.0f};
     f32 height{0.0f};
+    bool has_ink_bounds{false};
+    Vec4 ink_bounds{0.0f, 0.0f, 0.0f, 0.0f}; // left, top, right, bottom in baseline space
 };
 
 struct RichTextLineMetrics {
@@ -64,6 +68,9 @@ struct RichTextLineMetrics {
     f32 ascent{0.0f};
     f32 descent{0.0f};
     f32 height{0.0f};
+    f32 baseline{0.0f};
+    bool has_ink_bounds{false};
+    Vec4 ink_bounds{0.0f, 0.0f, 0.0f, 0.0f}; // left, top, right, bottom in baseline space
 };
 
 struct RichTextLayoutOptions {
@@ -72,6 +79,8 @@ struct RichTextLayoutOptions {
     RichTextVerticalAnchor vertical_anchor{RichTextVerticalAnchor::Top};
     f32 glyph_padding{4.0f};
     bool snap_to_pixels{true};
+    f32 max_width{0.0f};
+    bool fit_to_width{false};
 };
 
 class RichTextLine {
@@ -154,9 +163,21 @@ public:
             metrics.width += run_metrics.advance;
             metrics.ascent = std::max(metrics.ascent, run_metrics.ascent);
             metrics.descent = std::max(metrics.descent, run_metrics.descent);
+            if (run_metrics.has_ink_bounds) {
+                if (!metrics.has_ink_bounds) {
+                    metrics.ink_bounds = run_metrics.ink_bounds;
+                    metrics.has_ink_bounds = true;
+                } else {
+                    metrics.ink_bounds.x = std::min(metrics.ink_bounds.x, run_metrics.ink_bounds.x);
+                    metrics.ink_bounds.y = std::max(metrics.ink_bounds.y, run_metrics.ink_bounds.y);
+                    metrics.ink_bounds.z = std::max(metrics.ink_bounds.z, run_metrics.ink_bounds.z);
+                    metrics.ink_bounds.w = std::min(metrics.ink_bounds.w, run_metrics.ink_bounds.w);
+                }
+            }
         }
 
         metrics.height = metrics.ascent + metrics.descent;
+        metrics.baseline = metrics.ascent;
         return metrics;
     }
 
@@ -173,6 +194,11 @@ public:
                 metrics.advance = std::max(0.0f, run.star_outer_radius * 2.0f);
                 metrics.ascent = std::max(0.0f, run.star_outer_radius);
                 metrics.descent = std::max(0.0f, run.star_outer_radius);
+                metrics.has_ink_bounds = true;
+                metrics.ink_bounds = Vec4{-run.star_outer_radius,
+                                           run.star_outer_radius,
+                                           run.star_outer_radius,
+                                           -run.star_outer_radius};
                 break;
 
             case RichTextRunKind::Text:
@@ -186,12 +212,39 @@ public:
                     metrics.ascent = std::max(0.0f, font_metrics.ascent);
                     metrics.descent = std::max(0.0f, font_metrics.descent);
                     metrics.height = std::max(0.0f, font_metrics.line_height);
+                    if (auto shaped = engine->shape_text(run.text, run.font, font_size)) {
+                        f32 min_x = 0.0f;
+                        f32 max_x = std::max(0.0f, shaped->width);
+                        f32 top = 0.0f;
+                        f32 bottom = 0.0f;
+                        bool first = true;
+                        for (const auto& glyph : shaped->glyphs) {
+                            const f32 gx0 = glyph.x + glyph.bbox_x0;
+                            const f32 gy_top = glyph.bbox_y0;
+                            const f32 gx1 = glyph.x + glyph.bbox_x1;
+                            const f32 gy_bottom = glyph.bbox_y1;
+                            min_x = std::min(min_x, std::min(gx0, gx1));
+                            max_x = std::max(max_x, std::max(gx0, gx1));
+                            if (first) {
+                                top = gy_top;
+                                bottom = gy_bottom;
+                                first = false;
+                            } else {
+                                top = std::max(top, gy_top);
+                                bottom = std::min(bottom, gy_bottom);
+                            }
+                        }
+                        metrics.has_ink_bounds = true;
+                        metrics.ink_bounds = Vec4{min_x, top, max_x, bottom};
+                    }
                 } else {
                     metrics.advance = std::max(0.0f, static_cast<float>(char_count) * font_size * 0.6f);
                     metrics.advance += run.tracking * static_cast<float>(char_count);
                     metrics.ascent = font_size * 0.78f;
                     metrics.descent = font_size * 0.22f;
                     metrics.height = metrics.ascent + metrics.descent;
+                    metrics.has_ink_bounds = true;
+                    metrics.ink_bounds = Vec4{0.0f, metrics.ascent, metrics.advance, -metrics.descent};
                 }
                 break;
             }
@@ -268,12 +321,37 @@ struct LayoutElement {
     return elements;
 }
 
+struct BoxPadding {
+    f32 left{0.0f};
+    f32 top{0.0f};
+    f32 right{0.0f};
+    f32 bottom{0.0f};
+};
+
+[[nodiscard]] inline Vec2 box_fit_content(Vec2 content_size,
+                                           BoxPadding padding = {},
+                                           Vec2 min_size = {0.0f, 0.0f},
+                                           std::optional<Vec2> max_size = std::nullopt) {
+    Vec2 size{
+        content_size.x + padding.left + padding.right,
+        content_size.y + padding.top + padding.bottom
+    };
+    size.x = std::max(size.x, min_size.x);
+    size.y = std::max(size.y, min_size.y);
+    if (max_size) {
+        size.x = std::min(size.x, max_size->x);
+        size.y = std::min(size.y, max_size->y);
+    }
+    return size;
+}
+
 struct PremiumPillStyle {
     Vec2 size{900.0f, 120.0f};
     f32 radius{60.0f};
     Color fill{0.03f, 0.01f, 0.05f, 0.14f};
     Color stroke{0.78f, 0.48f, 0.88f, 0.28f};
     f32 stroke_width{1.0f};
+    StrokeAlignment stroke_alignment{StrokeAlignment::Center};
 };
 
 inline void draw_stroked_rounded_rect(LayerBuilder& l,
@@ -282,7 +360,8 @@ inline void draw_stroked_rounded_rect(LayerBuilder& l,
                                       f32 radius,
                                       Color fill_color,
                                       Color stroke_color,
-                                      f32 stroke_width) {
+                                      f32 stroke_width,
+                                      StrokeAlignment stroke_alignment = StrokeAlignment::Center) {
     RoundedRectParams p;
     p.size = size;
     p.radius = radius;
@@ -291,7 +370,7 @@ inline void draw_stroked_rounded_rect(LayerBuilder& l,
     p.stroke.enabled = stroke_width > 0.0f;
     p.stroke.color = stroke_color;
     p.stroke.width = stroke_width;
-    p.stroke.alignment = StrokeAlignment::Center;
+    p.stroke.alignment = stroke_alignment;
     l.rounded_rect(std::move(name), p);
 }
 
@@ -320,7 +399,8 @@ inline void draw_premium_pill(LayerBuilder& l, std::string name, const PremiumPi
         style.radius,
         style.fill,
         style.stroke,
-        style.stroke_width
+        style.stroke_width,
+        style.stroke_alignment
     );
 }
 
@@ -331,6 +411,12 @@ inline RichTextLineMetrics draw_rich_text(LayerBuilder& l,
                                           FontEngine* engine = nullptr,
                                           std::string_view prefix = "rich") {
     FontEngine& font_engine = engine ? *engine : shared_font_engine();
+
+    RichTextLineMetrics base_metrics = line.measure(&font_engine);
+    f32 fit_scale = 1.0f;
+    if (options.fit_to_width && options.max_width > 0.0f && base_metrics.width > options.max_width) {
+        fit_scale = std::max(0.0f, options.max_width / std::max(1e-3f, base_metrics.width));
+    }
 
     TextLayoutInput layout_input;
     layout_input.style.size = 72.0f;
@@ -351,17 +437,19 @@ inline RichTextLineMetrics draw_rich_text(LayerBuilder& l,
         layout_run.style.font_family = run.font.font_family;
         layout_run.style.font_weight = run.font.font_weight;
         layout_run.style.font_style = run.font.font_style;
-        layout_run.style.size = run.font_size;
-        layout_run.style.tracking = run.tracking;
+        layout_run.style.size = run.font_size * fit_scale;
+        layout_run.style.tracking = run.tracking * fit_scale;
         layout_run.style.color = run.color;
         layout_run.style.paint = run.paint;
         layout_run.style.material = run.material;
         if (run.kind == RichTextRunKind::Space) {
             layout_run.use_advance_override = true;
-            layout_run.advance_override = run.advance;
+            layout_run.advance_override = run.advance * fit_scale;
         } else if (run.kind == RichTextRunKind::Star) {
             layout_run.use_advance_override = true;
-            layout_run.advance_override = std::max(0.0f, run.star_outer_radius * 2.0f);
+            layout_run.advance_override = std::max(0.0f, run.star_outer_radius * 2.0f * fit_scale);
+            layout_run.star_inner_radius = run.star_inner_radius * fit_scale;
+            layout_run.star_outer_radius = run.star_outer_radius * fit_scale;
         }
         layout_input.runs.push_back(std::move(layout_run));
     }
@@ -373,8 +461,16 @@ inline RichTextLineMetrics draw_rich_text(LayerBuilder& l,
         metrics.ascent = layout.lines.front().ascent;
         metrics.descent = layout.lines.front().descent;
         metrics.height = layout.size.y;
+        metrics.baseline = layout.lines.front().baseline;
     } else {
-        metrics = line.measure(&font_engine);
+        metrics = base_metrics;
+    }
+    if (!metrics.has_ink_bounds && base_metrics.has_ink_bounds) {
+        metrics.has_ink_bounds = true;
+        metrics.ink_bounds = base_metrics.ink_bounds;
+    }
+    if (metrics.baseline <= 0.0f) {
+        metrics.baseline = metrics.ascent;
     }
 
     const Vec3 base_origin = origin + options.origin;
@@ -390,6 +486,8 @@ inline RichTextLineMetrics draw_rich_text(LayerBuilder& l,
 
     if (options.vertical_anchor == RichTextVerticalAnchor::Middle) {
         top_left_y -= metrics.height * 0.5f;
+    } else if (options.vertical_anchor == RichTextVerticalAnchor::Baseline) {
+        top_left_y -= metrics.baseline;
     } else if (options.vertical_anchor == RichTextVerticalAnchor::Bottom) {
         top_left_y -= metrics.height;
     }
