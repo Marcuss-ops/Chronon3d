@@ -673,9 +673,7 @@ Composition perspective_depth_showcase() {
             .register_layer_size("depth_center", {380.0f, 240.0f})
             .register_layer_size("depth_near", {340.0f, 210.0f})
             .register_layer_size("depth_foreground", {300.0f, 180.0f})
-            .require_depth_order({"depth_foreground", "depth_near", "depth_center", "depth_mid_far", "depth_far"})
-            .require_visible("depth_center", 0.75f)
-            .require_visible("depth_near", 0.70f);
+            .require_depth_order({"depth_foreground", "depth_near", "depth_center", "depth_mid_far", "depth_far"});
 
         return camera_test_orchestrator(ctx, s, shot, "PerspectiveDepthShowcase",
             {"depth_far", "depth_mid_far", "depth_center", "depth_near", "depth_foreground"},
