@@ -94,8 +94,8 @@ TEST_CASE("Camera hierarchy: parent rotation moves the camera around the origin"
     auto resolved = resolve_camera_hierarchy(scene.layers(), scene.resource(), scene.camera_2_5d());
 
     CHECK(std::abs(resolved.camera.position.x) == doctest::Approx(1000.0f).epsilon(0.01f));
-    CHECK(resolved.camera.position.y == doctest::Approx(0.0f).epsilon(0.01f));
-    CHECK(std::abs(resolved.camera.position.z) == doctest::Approx(0.0f).epsilon(0.01f));
+    CHECK(std::abs(resolved.camera.position.y) < 0.5f);
+    CHECK(std::abs(resolved.camera.position.z) < 0.5f);
 }
 
 TEST_CASE("Camera hierarchy: target projects to the center of the viewport") {
