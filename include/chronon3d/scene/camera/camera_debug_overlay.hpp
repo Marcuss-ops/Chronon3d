@@ -18,6 +18,13 @@ struct CameraPathVisualization {
     int total_frames{90};
 };
 
+enum class OverlayAnchor {
+    TopLeft,
+    TopRight,
+    BottomLeft,
+    BottomRight
+};
+
 struct CameraDebugOverlayOptions {
     bool show_target{true};
     bool show_safe_area{true};
@@ -27,6 +34,7 @@ struct CameraDebugOverlayOptions {
     bool show_camera_to_target_line{true};
     bool show_camera_path{true};
     bool show_projected_path{true};
+    OverlayAnchor anchor{OverlayAnchor::BottomRight};
 };
 
 void add_camera_debug_overlay(

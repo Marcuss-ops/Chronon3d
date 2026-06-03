@@ -84,10 +84,42 @@ void add_camera_debug_overlay(
 
         // Draw camera path with jerk color coding
         if (options.show_camera_path && path && !path->samples.empty()) {
-            float graph_x = 50.0f;
-            float graph_y = 50.0f;
             float graph_w = 400.0f;
             float graph_h = 150.0f;
+            float trace_w = 400.0f;
+            float trace_h = 200.0f;
+            float panel_gap = 10.0f;
+            float panel_margin = 20.0f;
+            float total_h = trace_h + panel_gap + graph_h;
+
+            float graph_x, graph_y, trace_x, trace_y;
+            switch (options.anchor) {
+                case OverlayAnchor::BottomRight:
+                    graph_x = viewport.width - graph_w - panel_margin;
+                    graph_y = viewport.height - graph_h - panel_margin;
+                    trace_x = viewport.width - trace_w - panel_margin;
+                    trace_y = graph_y - panel_gap - trace_h;
+                    break;
+                case OverlayAnchor::BottomLeft:
+                    graph_x = panel_margin;
+                    graph_y = viewport.height - graph_h - panel_margin;
+                    trace_x = panel_margin;
+                    trace_y = graph_y - panel_gap - trace_h;
+                    break;
+                case OverlayAnchor::TopRight:
+                    trace_x = viewport.width - trace_w - panel_margin;
+                    trace_y = panel_margin;
+                    graph_x = viewport.width - graph_w - panel_margin;
+                    graph_y = trace_y + trace_h + panel_gap;
+                    break;
+                case OverlayAnchor::TopLeft:
+                default:
+                    graph_x = panel_margin;
+                    graph_y = panel_margin;
+                    trace_x = panel_margin;
+                    trace_y = graph_y + graph_h + panel_gap;
+                    break;
+            }
 
             // Background panel
             l.rect("graph_bg", RectParams{
@@ -179,10 +211,32 @@ void add_camera_debug_overlay(
 
         // Draw 3D projected camera path trace on screen
         if (options.show_projected_path && path && !path->samples.empty()) {
-            float trace_x = 50.0f;
-            float trace_y = 220.0f;
             float trace_w = 400.0f;
             float trace_h = 200.0f;
+            float panel_margin = 20.0f;
+            float panel_gap = 10.0f;
+            float graph_h = 150.0f;
+
+            float trace_x, trace_y;
+            switch (options.anchor) {
+                case OverlayAnchor::BottomRight:
+                    trace_x = viewport.width - trace_w - panel_margin;
+                    trace_y = viewport.height - graph_h - panel_margin - panel_gap - trace_h;
+                    break;
+                case OverlayAnchor::BottomLeft:
+                    trace_x = panel_margin;
+                    trace_y = viewport.height - graph_h - panel_margin - panel_gap - trace_h;
+                    break;
+                case OverlayAnchor::TopRight:
+                    trace_x = viewport.width - trace_w - panel_margin;
+                    trace_y = panel_margin;
+                    break;
+                case OverlayAnchor::TopLeft:
+                default:
+                    trace_x = panel_margin;
+                    trace_y = panel_margin + graph_h + panel_gap;
+                    break;
+            }
 
             // Background panel
             l.rect("trace_bg", RectParams{
@@ -200,10 +254,6 @@ void add_camera_debug_overlay(
             });
 
             // Project all camera positions through current frame's camera
-            float max_jerk_proj = 0.0f;
-            for (const auto& s : path->samples) max_jerk_proj = std::max(max_jerk_proj, s.jerk);
-            if (max_jerk_proj < 1e-6f) max_jerk_proj = 0.05f;
-
             const size_t n_proj = path->samples.size();
             struct ProjectedSample {
                 Vec2 screen_pos;
