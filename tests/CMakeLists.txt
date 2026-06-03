@@ -90,6 +90,9 @@ add_executable(chronon3d_scene_tests
     presets/test_presets.cpp
     presets/test_layer_motion_presets.cpp
     render_graph/pipeline/test_graph_cache.cpp
+    scene/transform_hierarchy_tests.cpp
+    scene/camera_rig_tests.cpp
+    scene/camera_shot_validator_tests.cpp
 )
 target_link_libraries(chronon3d_scene_tests PRIVATE chronon3d_pipeline chronon3d_scene chronon3d_backend_software doctest::doctest)
 target_include_directories(chronon3d_scene_tests PRIVATE ${CMAKE_SOURCE_DIR})

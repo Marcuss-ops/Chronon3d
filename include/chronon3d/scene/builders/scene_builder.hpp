@@ -10,12 +10,15 @@
 #include <chronon3d/registry/shape_registry.hpp>
 #include <chronon3d/scene/camera/camera_2_5d.hpp>
 #include <chronon3d/scene/camera/animated_camera_2_5d.hpp>
+#include <chronon3d/scene/camera/camera_rig_builder.hpp>
 #include <chronon3d/rendering/light_context.hpp>
 #include <chronon3d/rendering/lighting_rig.hpp>
 #include <chronon3d/scene/scene.hpp>
 #include <chronon3d/animation/stagger.hpp>
 #include <chronon3d/backends/video/video_source.hpp>
 #include <glm/glm.hpp>
+#include <chronon3d/scene/builders/null_builder.hpp>
+#include <type_traits>
 #include <functional>
 #include <string>
 #include <unordered_map>
@@ -196,15 +199,37 @@ namespace chronon3d {
 
         template <typename Fn>
         SceneBuilder &null_layer(std::string name, Fn &&fn) {
-            LayerBuilder builder(std::move(name), current_frame_, scene_.resource());
-            std::forward<Fn>(fn)(builder);
+            if constexpr (std::is_invocable_v<Fn, NullBuilder&>) {
+                NullParams params;
+                params.name = std::move(name);
+                NullBuilder builder(params);
+                std::forward<Fn>(fn)(builder);
 
-            Layer l = builder.build();
-            l.kind = LayerKind::Null;
-            if (l.active_at(current_frame_)) {
-                scene_.add_layer(std::move(l));
+                Layer l(scene_.resource());
+                l.name = std::pmr::string(params.name, scene_.resource());
+                l.kind = LayerKind::Null;
+                l.transform.position = params.transform.position;
+                l.transform.rotation = glm::quat(glm::radians(params.transform.rotation));
+                l.transform.scale = params.transform.scale;
+                l.transform.anchor = params.transform.anchor;
+                l.parent_name = std::pmr::string(params.transform.parent_name, scene_.resource());
+                l.visible = params.visible_in_diagnostics;
+
+                if (l.active_at(current_frame_)) {
+                    scene_.add_layer(std::move(l));
+                }
+                return *this;
+            } else {
+                LayerBuilder builder(std::move(name), current_frame_, scene_.resource());
+                std::forward<Fn>(fn)(builder);
+
+                Layer l = builder.build();
+                l.kind = LayerKind::Null;
+                if (l.active_at(current_frame_)) {
+                    scene_.add_layer(std::move(l));
+                }
+                return *this;
             }
-            return *this;
         }
 
         // Fluent API for transformations (root level)
@@ -218,6 +243,34 @@ namespace chronon3d {
 
         [[nodiscard]] Scene build();
         [[nodiscard]] const Camera2_5D &camera_2_5d() const;
+
+        template <typename Fn>
+        SceneBuilder &camera_rig(std::string name, Fn &&fn) {
+            CameraRig rig;
+            rig.name = std::move(name);
+            CameraRigBuilder builder(rig);
+            std::forward<Fn>(fn)(builder);
+            
+            // Build SceneTransformRegistry to resolve parent/target nulls
+            SceneTransformRegistry registry;
+            for (const auto& layer : scene_.layers()) {
+                Transform3D t3d;
+                t3d.position = layer.transform.position;
+                t3d.rotation = glm::degrees(glm::eulerAngles(layer.transform.rotation));
+                t3d.scale = layer.transform.scale;
+                t3d.anchor = layer.transform.anchor;
+                t3d.parent_name = std::string(layer.parent_name);
+                t3d.inherits_position = true;
+                t3d.inherits_rotation = true;
+                t3d.inherits_scale = true;
+                registry.add_node(std::string(layer.name), t3d, layer.kind != LayerKind::Null);
+            }
+            auto results = registry.resolve_all();
+            
+            Camera2_5D camera_baked = rig.evaluate(current_frame_, &results);
+            scene_.set_camera_2_5d(camera_baked);
+            return *this;
+        }
 
         /// Stagger all layers in the scene by their spatial order.
         SceneBuilder& stagger(const StaggerConfig& config, StaggerOrder order = StaggerOrder::LeftToRight);
