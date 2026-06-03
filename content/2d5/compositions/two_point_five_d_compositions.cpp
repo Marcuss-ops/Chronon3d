@@ -239,6 +239,113 @@ Composition parallax_text() {
     });
 }
 
+
+
+Composition camera_rig_orbit_reveal_test() {
+    return composition({.name = "CameraRigOrbitRevealTest", .duration = 90}, [](const FrameContext& ctx) {
+        SceneBuilder s(ctx);
+
+        s.null_layer("camera_target", [](NullBuilder& n) {
+            n.position({0.0f, 0.0f, 0.0f});
+        });
+
+        s.camera_rig("main_camera", [&](CameraRigBuilder& cam) {
+            cam.two_node("camera_target")
+               .orbit_yaw(0, -18.0f, 90, 18.0f)
+               .orbit_radius(0, 1250.0f, 90, 850.0f)
+               .roll(0, -2.0f, 90, 0.0f)
+               .fov(50.0f);
+        });
+
+        // Add 3 cards at different depths
+        s.layer("card_back", [](LayerBuilder& l) {
+            l.cache_static().enable_3d().position({0.0f, 0.0f, 200.0f});
+            l.rounded_rect("back_rect", {
+                .size = {400.0f, 250.0f},
+                .radius = 16.0f,
+                .color = Color{0.15f, 0.18f, 0.35f, 0.85f},
+                .stroke = { .enabled = true, .color = Color{0.0f, 0.9f, 1.0f, 0.25f}, .width = 1.0f }
+            });
+            l.text("back_label", {
+                .text = "BACK",
+                .pos = {20.0f, 30.0f, 0.0f},
+                .font_size = 14.0f,
+                .color = Color{1.0f, 1.0f, 1.0f, 0.40f}
+            });
+            l.drop_shadow(Vec2{0.0f, 4.0f}, Color{0.0f, 0.0f, 0.0f, 0.15f}, 8.0f);
+        });
+
+        s.layer("card_mid", [](LayerBuilder& l) {
+            l.cache_static().enable_3d().position({0.0f, 0.0f, 0.0f});
+            l.rounded_rect("mid_rect", {
+                .size = {350.0f, 220.0f},
+                .radius = 16.0f,
+                .color = Color{0.25f, 0.52f, 1.0f, 0.92f},
+                .stroke = { .enabled = true, .color = Color{0.0f, 0.9f, 1.0f, 0.35f}, .width = 1.25f }
+            });
+            l.text("mid_label", {
+                .text = "MID",
+                .pos = {20.0f, 30.0f, 0.0f},
+                .font_size = 14.0f,
+                .color = Color{1.0f, 1.0f, 1.0f, 0.60f}
+            });
+            l.drop_shadow(Vec2{0.0f, 8.0f}, Color{0.0f, 0.0f, 0.0f, 0.25f}, 12.0f);
+        });
+
+        s.layer("card_front", [](LayerBuilder& l) {
+            l.cache_static().enable_3d().position({0.0f, 0.0f, -200.0f});
+            l.rounded_rect("front_rect", {
+                .size = {300.0f, 190.0f},
+                .radius = 16.0f,
+                .color = Color{0.99f, 0.44f, 0.82f, 1.0f},
+                .stroke = { .enabled = true, .color = Color{0.0f, 0.9f, 1.0f, 0.5f}, .width = 1.5f }
+            });
+            l.text("front_label", {
+                .text = "FRONT",
+                .pos = {20.0f, 30.0f, 0.0f},
+                .font_size = 14.0f,
+                .color = Color{1.0f, 1.0f, 1.0f, 0.80f}
+            });
+            l.drop_shadow(Vec2{0.0f, 14.0f}, Color{0.0f, 0.0f, 0.0f, 0.4f}, 20.0f);
+            l.glow(15.0f, 0.4f, Color{0.0f, 0.9f, 1.0f, 0.5f});
+        });
+
+        // Debug background grid
+        s.layer("bg_grid", [](LayerBuilder& l) {
+            l.cache_static().enable_3d().position({0.0f, 0.0f, 500.0f});
+            l.grid_background("grid", GridBackgroundParams{
+                .size = {1920.0f, 1080.0f},
+                .bg_color = {0.02f, 0.02f, 0.05f, 1.0f},
+                .grid_color = {0.28f, 0.48f, 0.98f, 0.04f},
+                .spacing = 100.0f,
+                .minor_thickness = 1.0f,
+                .major_thickness = 2.0f,
+                .major_every = 4,
+                .centered = true
+            });
+        });
+
+        // Fullscreen vignette overlay
+        s.layer("vignette", [](LayerBuilder& l) {
+            l.rect("vignette_rect", {
+                .size = {1920.0f, 1080.0f},
+                .color = Color::white(),
+                .fill = Fill::radial(
+                    {0.5f, 0.5f},
+                    0.90f,
+                    {
+                        {0.0f, Color{0.0f, 0.0f, 0.0f, 0.0f}},
+                        {0.6f, Color{0.0f, 0.0f, 0.0f, 0.0f}},
+                        {1.0f, Color{0.0f, 0.0f, 0.0f, 0.55f}}
+                    }
+                )
+            });
+        });
+
+        return s.build();
+    });
+}
+
 void register_all() {}
 
 } // namespace chronon3d::content::two_point_five_d
@@ -247,3 +354,4 @@ CHRONON_REGISTER_COMPOSITION("ParallaxSimple", chronon3d::content::two_point_fiv
 CHRONON_REGISTER_COMPOSITION("DepthScene",     chronon3d::content::two_point_five_d::depth_scene)
 CHRONON_REGISTER_COMPOSITION("CardFlip",       chronon3d::content::two_point_five_d::card_flip)
 CHRONON_REGISTER_COMPOSITION("ParallaxText",   chronon3d::content::two_point_five_d::parallax_text)
+CHRONON_REGISTER_COMPOSITION("CameraRigOrbitRevealTest", chronon3d::content::two_point_five_d::camera_rig_orbit_reveal_test)

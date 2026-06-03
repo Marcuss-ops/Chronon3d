@@ -96,10 +96,16 @@ struct Camera2_5D {
     }
 
     [[nodiscard]] Mat4 view_matrix() const {
-        const Quat rot = rotation_quaternion();
         if (point_of_interest_enabled && glm::length(point_of_interest - position) > 0.001f) {
-            return glm::lookAtLH(position, point_of_interest, Vec3{0.0f, 1.0f, 0.0f});
+            Mat4 view = glm::lookAtLH(position, point_of_interest, Vec3{0.0f, 1.0f, 0.0f});
+            if (std::abs(rotation.z) > 0.0001f) {
+                const f32 r = glm::radians(rotation.z);
+                Mat4 roll_m = glm::rotate(Mat4{1.0f}, r, Vec3{0.0f, 0.0f, 1.0f});
+                view = roll_m * view;
+            }
+            return view;
         }
+        const Quat rot = rotation_quaternion();
         return math::camera_view_matrix(position, rot);
     }
 };

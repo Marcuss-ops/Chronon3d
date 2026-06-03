@@ -247,6 +247,10 @@ target_link_libraries(chronon3d_assets PUBLIC chronon3d chronon3d_registry)
 
 set(CHRONON3D_SCENE_SOURCES
     scene/camera/camera_motion_presets.cpp
+    scene/camera/camera_rig.cpp
+    scene/camera/camera_rig_presets.cpp
+    scene/camera/camera_projection.cpp
+    scene/camera/camera_shot_validator.cpp
     scene/dark_grid_background.cpp
     scene/layer.cpp
     scene/layer_builder.cpp
@@ -254,6 +258,7 @@ set(CHRONON3D_SCENE_SOURCES
     scene/render_node_factory.cpp
     scene/camera_api.cpp
     scene/scene_builder.cpp
+    scene/transform/transform_resolver.cpp
     timeline/timeline_builder.cpp
     animations/camera/camera_tilt_clips.cpp
     animations/camera_motion_applier.cpp

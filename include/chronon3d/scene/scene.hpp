@@ -7,6 +7,7 @@
 #include <chronon3d/rendering/light_context.hpp>
 #include <chronon3d/rendering/lighting_rig.hpp>
 #include <chronon3d/rendering/depth_grade.hpp>
+#include <chronon3d/scene/transform/transform_resolver.hpp>
 #include <vector>
 #include <memory_resource>
 
@@ -49,19 +50,76 @@ public:
     void resolve_hierarchy(Frame frame) {
         if (m_hierarchy_baked) return;
 
-        detail::LayerHierarchyResolver resolver(m_layers, resource());
-        auto resolved_cam = resolver.resolve_camera(m_camera_2_5d);
-        auto resolved_layers = resolver.resolve_layers(frame);
+        // 1. Build SceneTransformRegistry
+        SceneTransformRegistry registry;
+        
+        // Add all layers (both normal and null)
+        for (const auto& layer : m_layers) {
+            Transform3D t3d;
+            t3d.position = layer.transform.position;
+            t3d.rotation = glm::degrees(glm::eulerAngles(layer.transform.rotation));
+            t3d.scale = layer.transform.scale;
+            t3d.anchor = layer.transform.anchor;
+            t3d.parent_name = std::string(layer.parent_name);
+            t3d.inherits_position = true;
+            t3d.inherits_rotation = true;
+            t3d.inherits_scale = true;
 
-        for (usize i = 0; i < resolved_layers.size(); ++i) {
-            if (resolved_layers[i].layer) {
-                m_layers[i].transform = resolved_layers[i].world_transform;
-                m_layers[i].hierarchy_resolved = true;
+            bool renderable = (layer.kind != LayerKind::Null);
+            registry.add_node(std::string(layer.name), t3d, renderable);
+        }
+
+        // Resolve transforms
+        auto results = registry.resolve_all();
+
+        // 2. Update layers with resolved world transforms
+        for (size_t i = 0; i < m_layers.size(); ++i) {
+            auto& layer = m_layers[i];
+            auto world_mat_opt = results.world_matrix(std::string(layer.name));
+            if (world_mat_opt) {
+                f32 opacity = layer.transform.opacity;
+                std::string current_parent = std::string(layer.parent_name);
+                while (!current_parent.empty()) {
+                    bool found = false;
+                    for (const auto& p_layer : m_layers) {
+                        if (std::string_view(p_layer.name) == current_parent) {
+                            opacity *= p_layer.transform.opacity;
+                            current_parent = std::string(p_layer.parent_name);
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found) break;
+                }
+                
+                Vec3 original_anchor = layer.transform.anchor;
+                layer.transform = from_mat4(*world_mat_opt, opacity);
+                layer.transform.anchor = original_anchor;
+                layer.hierarchy_resolved = true;
             }
         }
 
+        // 3. Resolve camera
         if (m_camera_2_5d.enabled) {
-            m_camera_2_5d = resolved_cam.camera;
+            if (!m_camera_2_5d.parent_name.empty()) {
+                auto parent_world_opt = results.world_matrix(std::string(m_camera_2_5d.parent_name));
+                if (parent_world_opt) {
+                    Mat4 local_cam_mat = glm::translate(Mat4(1.0f), m_camera_2_5d.position) *
+                                         glm::toMat4(math::camera_rotation_quat(m_camera_2_5d.rotation));
+                    Mat4 world_cam_mat = (*parent_world_opt) * local_cam_mat;
+                    Transform world_cam_trans = from_mat4(world_cam_mat);
+                    m_camera_2_5d.position = world_cam_trans.position;
+                    m_camera_2_5d.rotation = math::camera_rotation_euler(world_cam_trans.rotation);
+                }
+            }
+
+            if (!m_camera_2_5d.target_name.empty()) {
+                auto target_world_opt = results.world_matrix(std::string(m_camera_2_5d.target_name));
+                if (target_world_opt) {
+                    m_camera_2_5d.point_of_interest = Vec3((*target_world_opt)[3]);
+                    m_camera_2_5d.point_of_interest_enabled = true;
+                }
+            }
             m_camera_2_5d.hierarchy_baked = true;
         }
 

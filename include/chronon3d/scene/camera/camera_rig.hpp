@@ -1,24 +1,75 @@
 #pragma once
 
+#include <chronon3d/animation/animated_value.hpp>
+#include <chronon3d/scene/camera/camera_2_5d.hpp>
 #include <chronon3d/scene/camera/animated_camera_2_5d.hpp>
-#include <chronon3d/animation/easing.hpp>
-#include <chronon3d/math/glm_types.hpp>
-#include <chronon3d/scene/builders/scene_builder.hpp>
-#include <cmath>
+#include <chronon3d/scene/transform/transform_resolver.hpp>
 #include <string>
 #include <utility>
+#include <functional>
 
-namespace chronon3d::camera_rig {
+namespace chronon3d {
+class SceneBuilder;
+
+enum class CameraRigMode {
+    OneNode,
+    TwoNode
+};
+
+struct CameraRigDOF {
+    bool enabled{false};
+    std::string focus_target_name;
+    AnimatedValue<f32> focus_z{0.0f};
+    AnimatedValue<f32> aperture{0.015f};
+    AnimatedValue<f32> max_blur{24.0f};
+    bool use_target_z{false};
+};
+
+struct CameraRigMotionBlur {
+    bool enabled{false};
+    int samples{8};
+    f32 shutter_angle{180.0f};
+};
+
+struct CameraRig {
+    std::string name{"MainCameraRig"};
+    CameraRigMode mode{CameraRigMode::TwoNode};
+    std::string parent_name;
+    std::string target_name;
+
+    AnimatedValue<Vec3> target{Vec3{0.0f, 0.0f, 0.0f}};
+    AnimatedValue<f32> orbit_yaw{0.0f};
+    AnimatedValue<f32> orbit_pitch{0.0f};
+    AnimatedValue<f32> orbit_radius{1000.0f};
+
+    AnimatedValue<Vec3> track{Vec3{0.0f, 0.0f, 0.0f}};
+    AnimatedValue<f32> dolly{0.0f};
+
+    AnimatedValue<f32> pan{0.0f};
+    AnimatedValue<f32> tilt{0.0f};
+    AnimatedValue<f32> roll{0.0f};
+
+    AnimatedValue<f32> zoom{1000.0f};
+    AnimatedValue<f32> fov_deg{50.0f};
+    Camera2_5DProjectionMode projection_mode{Camera2_5DProjectionMode::Zoom};
+
+    CameraRigDOF dof{};
+    CameraRigMotionBlur motion_blur{};
+
+    [[nodiscard]] Camera2_5D evaluate(
+        Frame frame,
+        const TransformResolverResult* resolved = nullptr
+    ) const;
+};
+
+// ── Keep old camera_rig namespace and animated presets for backward compatibility ──
+namespace camera_rig {
 
 enum class RigMode {
     OneNode,
     TwoNode
 };
 
-/// Thin cinematic rig wrapper.
-/// - A controller null carries the camera parent transform.
-/// - A target null defines the point of interest for two-node shots.
-/// - Anchor points are stored on the nulls, so the pivot is explicit.
 struct CameraRig {
     RigMode mode{RigMode::TwoNode};
     bool enabled{true};
@@ -59,44 +110,9 @@ struct CameraRig {
         return cam;
     }
 
-    template <typename Fn>
-    void apply(SceneBuilder& s, Frame frame, Fn&& add_target_content) const {
-        s.null_layer(controller_name, [&](LayerBuilder& l) {
-            l.position(controller_position.evaluate(frame))
-             .rotate(controller_rotation.evaluate(frame))
-             .anchor(controller_anchor.evaluate(frame));
-        });
-
-        s.null_layer(target_name, [&](LayerBuilder& l) {
-            l.position(target_position.evaluate(frame))
-             .rotate(target_rotation.evaluate(frame))
-             .anchor(target_anchor.evaluate(frame));
-        });
-
-        std::forward<Fn>(add_target_content)(s);
-
-        s.camera().set(bake(frame, s.resource()));
-    }
-
-    void apply(SceneBuilder& s, Frame frame) const {
-        apply(s, frame, [](SceneBuilder&) {});
-    }
+    void apply(SceneBuilder& s, Frame frame, std::function<void(SceneBuilder&)> add_target_content) const;
+    void apply(SceneBuilder& s, Frame frame) const;
 };
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// CameraRig — high-level cinematic camera motion presets.
-//
-// Each function returns a fully-configured AnimatedCamera2_5D with
-// professionally-tuned keyframes, easing, and timing.
-//
-// Usage:
-//   auto cam = camera_rig::hero_push_in();
-//   for (Frame f = 0; f < 90; ++f) {
-//       scene.set_camera_2_5d(cam.evaluate(f));
-//   }
-// ═══════════════════════════════════════════════════════════════════════════════
-
-// ── Parameter structs ─────────────────────────────────────────────────────────
 
 struct HeroPushInParams {
     Vec3  from_position{0.0f, 0.0f, -1200.0f};
@@ -183,36 +199,25 @@ struct SubtleFloatParams {
     Frame start_frame{0};
 };
 
-// ── Preset functions ──────────────────────────────────────────────────────────
-
-/// Dramatic push-in: camera dollies forward with slight tilt and yaw.
-/// Classic cinematic hero shot — the camera "enters" the space.
 inline AnimatedCamera2_5D hero_push_in(const HeroPushInParams& p = {}) {
     AnimatedCamera2_5D cam;
-
     cam.position
         .key(p.start_frame, p.from_position)
         .key(p.start_frame + p.duration, p.to_position, p.easing);
-
     cam.rotation
         .key(p.start_frame, Vec3{p.from_tilt, p.from_yaw, 0.0f})
         .key(p.start_frame + p.duration, Vec3{p.to_tilt, p.to_yaw, 0.0f}, p.easing);
-
     cam.zoom.set(p.zoom);
     cam.point_of_interest_enabled = false;
     return cam;
 }
 
-/// Yaw orbit: camera sweeps around a target on the Y axis.
-/// Creates a 3D reveal effect with parallax.
 inline AnimatedCamera2_5D orbit_yaw(const OrbitYawParams& p = {}) {
     AnimatedCamera2_5D cam;
-
     const f32 start_rad = glm::radians(p.start_angle_deg);
     const f32 end_rad   = glm::radians(p.end_angle_deg);
     const Frame end_frame = p.start_frame + p.duration;
 
-    // Key the orbit by computing position from angle at several keyframes
     constexpr int kSamples = 5;
     for (int i = 0; i <= kSamples; ++i) {
         const f32 t = static_cast<f32>(i) / static_cast<f32>(kSamples);
@@ -240,81 +245,59 @@ inline AnimatedCamera2_5D orbit_yaw(const OrbitYawParams& p = {}) {
     return cam;
 }
 
-/// Parallax pan: horizontal tracking shot with smooth ease.
-/// Foreground elements move faster than background — classic parallax.
 inline AnimatedCamera2_5D parallax_pan(const ParallaxPanParams& p = {}) {
     AnimatedCamera2_5D cam;
-
     cam.position
         .key(p.start_frame, p.from_position)
         .key(p.start_frame + p.duration, p.to_position, p.easing);
-
     cam.zoom.set(p.zoom);
     cam.point_of_interest.set(p.target);
     cam.point_of_interest_enabled = true;
     return cam;
 }
 
-/// Dolly zoom (Vertigo effect): camera moves in while zooming out.
-/// Subject stays the same size while background perspective changes dramatically.
 inline AnimatedCamera2_5D dolly_zoom(const DollyZoomParams& p = {}) {
     AnimatedCamera2_5D cam;
-
     cam.position
         .key(p.start_frame, p.from_position)
         .key(p.start_frame + p.duration, p.to_position, p.easing);
-
     cam.zoom
         .key(p.start_frame, p.from_zoom)
         .key(p.start_frame + p.duration, p.to_zoom, p.easing);
-
     cam.point_of_interest.set(p.target);
     cam.point_of_interest_enabled = true;
     return cam;
 }
 
-/// Focus pull (rack focus): shift depth of field from one z-plane to another.
-/// Blurs foreground/background transition for cinematic storytelling.
 inline AnimatedCamera2_5D focus_pull(const FocusPullParams& p = {}) {
     AnimatedCamera2_5D cam;
-
     cam.position.set(p.position);
     cam.zoom.set(p.zoom);
-
     cam.focus_z
         .key(p.start_frame, p.from_focus_z)
         .key(p.start_frame + p.duration, p.to_focus_z, p.easing);
-
     cam.aperture.set(p.aperture);
     cam.max_blur.set(p.max_blur);
     cam.point_of_interest_enabled = false;
     return cam;
 }
 
-/// Low-angle reveal: camera starts low and rises to eye level with upward tilt.
-/// Creates a dramatic "hero entrance" look.
 inline AnimatedCamera2_5D low_angle_reveal(const LowAngleRevealParams& p = {}) {
     AnimatedCamera2_5D cam;
-
     cam.position
         .key(p.start_frame, p.from_position)
         .key(p.start_frame + p.duration, p.to_position, p.easing);
-
     cam.rotation
         .key(p.start_frame, Vec3{p.from_tilt, 0.0f, 0.0f})
         .key(p.start_frame + p.duration, Vec3{p.to_tilt, 0.0f, 0.0f}, p.easing);
-
     cam.zoom.set(p.zoom);
     cam.point_of_interest.set(p.target);
     cam.point_of_interest_enabled = true;
     return cam;
 }
 
-/// Subtle float: a gentle idling camera motion using sinusoidal oscillation.
-/// Creates a living, breathing handheld feel over a long duration.
 inline AnimatedCamera2_5D subtle_float(const SubtleFloatParams& p = {}) {
     AnimatedCamera2_5D cam;
-
     const Frame end_frame = p.start_frame + p.duration;
     constexpr int kSamples = 12;
     const f32 frames_per_sample = static_cast<f32>(p.duration) / static_cast<f32>(kSamples);
@@ -330,10 +313,11 @@ inline AnimatedCamera2_5D subtle_float(const SubtleFloatParams& p = {}) {
         };
         cam.position.key(f, pos);
     }
-
     cam.zoom.set(p.zoom);
     cam.point_of_interest_enabled = false;
     return cam;
 }
 
-} // namespace chronon3d::camera_rig
+} // namespace camera_rig
+
+} // namespace chronon3d

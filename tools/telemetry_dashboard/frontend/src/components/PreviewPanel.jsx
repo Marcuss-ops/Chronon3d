@@ -74,6 +74,20 @@ export default function PreviewPanel({ run, selectedFrame, nodeEvents }) {
                 </svg>
                 Heatmap
               </button>
+              <a 
+                href={frameUrl} 
+                download={`render_${(selectedFrame?.frame_number || 0).toString().padStart(4, '0')}.png`}
+                className="preview-toggle-item"
+                style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', color: 'var(--text-primary)' }}
+                title="Scarica PNG del frame selezionato"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style={{ width: '14px', height: '14px', marginRight: '4px' }}>
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" strokeWidth="2" strokeLinecap="round"/>
+                  <polyline points="7 10 12 15 17 10" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <line x1="12" y1="15" x2="12" y2="3" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+                Download PNG
+              </a>
             </div>
           </div>
           <div className="preview-badge">
