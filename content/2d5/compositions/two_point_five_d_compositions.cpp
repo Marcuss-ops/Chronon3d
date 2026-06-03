@@ -271,4 +271,4 @@ CHRONON_REGISTER_COMPOSITION("CameraKinematicJerkAndInterpolationTest", chronon3
 CHRONON_REGISTER_COMPOSITION("CameraDepthSortingStressTest", chronon3d::content::two_point_five_d::camera_depth_sorting_stress_test)
 CHRONON_REGISTER_COMPOSITION("CameraSubpixelJitterValidationTest", chronon3d::content::two_point_five_d::camera_subpixel_jitter_validation_test)
 CHRONON_REGISTER_COMPOSITION("CameraMultiTargetBoundingBoxFitTest", chronon3d::content::two_point_five_d::camera_multi_target_bounding_box_fit_test)
-CHRONON_REGISTER_COMPOSITION("PerspectiveDepthShowcase", chronon3d::content::two_point_five_d::perspective_depth_showcase)
+CHRONON_REGISTER_COMPOSITION("CameraDepthPerspectiveScaleDiagnosticTest", chronon3d::content::two_point_five_d::camera_depth_perspective_scale_diagnostic_test)
