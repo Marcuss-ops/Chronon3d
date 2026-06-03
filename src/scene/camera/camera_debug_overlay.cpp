@@ -177,6 +177,220 @@ void add_camera_debug_overlay(
             }
         }
 
+        // Draw 3D projected camera path trace on screen
+        if (options.show_projected_path && path && !path->samples.empty()) {
+            float trace_x = 50.0f;
+            float trace_y = 220.0f;
+            float trace_w = 400.0f;
+            float trace_h = 200.0f;
+
+            // Background panel
+            l.rect("trace_bg", RectParams{
+                .size = {trace_w, trace_h},
+                .pos = {trace_x, trace_y, 0.0f},
+                .fill = Fill{ .enabled = true, .solid = Color{0.0f, 0.0f, 0.05f, 0.55f} },
+                .stroke = { .enabled = true, .color = Color{0.4f, 0.4f, 0.6f, 0.3f}, .width = 1.0f }
+            });
+
+            l.text("trace_title", TextParams{
+                .text = "CAMERA 3D PATH TRACE (" + std::to_string(path->current_frame) + "/" + std::to_string(path->total_frames) + ")",
+                .pos = {trace_x + 10.0f, trace_y + 18.0f, 0.0f},
+                .font_size = 11.0f,
+                .color = Color{0.9f, 0.9f, 0.9f, 0.8f}
+            });
+
+            // Project all camera positions through current frame's camera
+            float max_jerk_proj = 0.0f;
+            for (const auto& s : path->samples) max_jerk_proj = std::max(max_jerk_proj, s.jerk);
+            if (max_jerk_proj < 1e-6f) max_jerk_proj = 0.05f;
+
+            const size_t n_proj = path->samples.size();
+            struct ProjectedSample {
+                Vec2 screen_pos;
+                float jerk;
+                bool behind;
+                bool current;
+            };
+            std::vector<ProjectedSample> projected;
+            projected.reserve(n_proj);
+
+            for (size_t i = 0; i < n_proj; ++i) {
+                ScreenPoint psp = project_world_to_screen(path->samples[i].position, camera, viewport);
+                projected.push_back({
+                    psp.position,
+                    path->samples[i].jerk,
+                    psp.behind_camera,
+                    static_cast<int>(i) == path->current_frame
+                });
+            }
+
+            // Compute bounds of visible points to auto-fit inside the panel
+            float min_x = 1e9f, max_x = -1e9f, min_y = 1e9f, max_y = -1e9f;
+            for (const auto& ps : projected) {
+                if (!ps.behind) {
+                    min_x = std::min(min_x, ps.screen_pos.x);
+                    max_x = std::max(max_x, ps.screen_pos.x);
+                    min_y = std::min(min_y, ps.screen_pos.y);
+                    max_y = std::max(max_y, ps.screen_pos.y);
+                }
+            }
+
+            // Fallback if all behind or degenerate
+            if (min_x >= max_x || min_y >= max_y) {
+                min_x = viewport.width * 0.3f; max_x = viewport.width * 0.7f;
+                min_y = viewport.height * 0.3f; max_y = viewport.height * 0.7f;
+            }
+
+            float range_x = max_x - min_x;
+            float range_y = max_y - min_y;
+            float margin = 25.0f;
+            float draw_w = trace_w - 2.0f * margin;
+            float draw_h = trace_h - 35.0f; // below title
+            float draw_y0 = trace_y + 30.0f;
+            float scale_x = (range_x > 1e-3f) ? draw_w / range_x : 1.0f;
+            float scale_y = (range_y > 1e-3f) ? draw_h / range_y : 1.0f;
+            float scale = std::min(scale_x, scale_y);
+
+            // Center offset
+            float center_src_x = (min_x + max_x) * 0.5f;
+            float center_src_y = (min_y + max_y) * 0.5f;
+            float center_dst_x = trace_x + trace_w * 0.5f;
+            float center_dst_y = draw_y0 + draw_h * 0.5f;
+
+            auto to_panel = [&](const Vec2& sp) -> Vec2 {
+                return {
+                    center_dst_x + (sp.x - center_src_x) * scale,
+                    center_dst_y + (sp.y - center_src_y) * scale
+                };
+            };
+
+            // Draw axis crosshair (subtle)
+            l.line("trace_axis_h", LineParams{
+                .from = {trace_x + margin, center_dst_y, 0.0f},
+                .to = {trace_x + trace_w - margin, center_dst_y, 0.0f},
+                .thickness = 0.5f,
+                .color = Color{0.3f, 0.3f, 0.4f, 0.25f}
+            });
+            l.line("trace_axis_v", LineParams{
+                .from = {center_dst_x, draw_y0, 0.0f},
+                .to = {center_dst_x, draw_y0 + draw_h, 0.0f},
+                .thickness = 0.5f,
+                .color = Color{0.3f, 0.3f, 0.4f, 0.25f}
+            });
+
+            // Draw path segments (past = dimmer, future = brighter)
+            for (size_t i = 0; i < n_proj; ++i) {
+                if (projected[i].behind) continue;
+                Vec2 p = to_panel(projected[i].screen_pos);
+
+                // Clamp to panel bounds
+                p.x = std::max(trace_x + margin, std::min(trace_x + trace_w - margin, p.x));
+                p.y = std::max(draw_y0, std::min(draw_y0 + draw_h, p.y));
+
+                bool is_past = static_cast<int>(i) <= path->current_frame;
+
+                // Color by jerk
+                float sj = projected[i].jerk;
+                Color seg_color;
+                if (sj > 0.04f) {
+                    seg_color = is_past ? Color{1.0f, 0.15f, 0.15f, 0.9f} : Color{1.0f, 0.3f, 0.3f, 0.5f};
+                } else if (sj > 0.02f) {
+                    seg_color = is_past ? Color{1.0f, 0.8f, 0.0f, 0.9f} : Color{1.0f, 0.85f, 0.3f, 0.5f};
+                } else {
+                    seg_color = is_past ? Color{0.15f, 0.85f, 0.2f, 0.85f} : Color{0.25f, 0.7f, 0.3f, 0.45f};
+                }
+
+                // Draw point
+                l.circle("trc_pt_" + std::to_string(i), CircleParams{
+                    .radius = 2.0f,
+                    .color = seg_color,
+                    .pos = {p.x, p.y, 0.0f}
+                });
+
+                // Draw segment to previous
+                if (i > 0 && !projected[i - 1].behind) {
+                    Vec2 pp = to_panel(projected[i - 1].screen_pos);
+                    pp.x = std::max(trace_x + margin, std::min(trace_x + trace_w - margin, pp.x));
+                    pp.y = std::max(draw_y0, std::min(draw_y0 + draw_h, pp.y));
+
+                    l.line("trc_line_" + std::to_string(i), LineParams{
+                        .from = {pp.x, pp.y, 0.0f},
+                        .to = {p.x, p.y, 0.0f},
+                        .thickness = 1.5f,
+                        .color = seg_color
+                    });
+                }
+            }
+
+            // Draw start marker (cyan diamond)
+            if (!projected.empty() && !projected[0].behind) {
+                Vec2 sp_start = to_panel(projected[0].screen_pos);
+                sp_start.x = std::max(trace_x + margin, std::min(trace_x + trace_w - margin, sp_start.x));
+                sp_start.y = std::max(draw_y0, std::min(draw_y0 + draw_h, sp_start.y));
+                l.circle("trc_start", CircleParams{
+                    .radius = 5.0f,
+                    .color = Color{0.0f, 0.9f, 1.0f, 0.9f},
+                    .pos = {sp_start.x, sp_start.y, 0.0f}
+                });
+                l.text("trc_start_lbl", TextParams{
+                    .text = "START",
+                    .pos = {sp_start.x + 8.0f, sp_start.y - 4.0f, 0.0f},
+                    .font_size = 9.0f,
+                    .color = Color{0.0f, 0.9f, 1.0f, 0.8f}
+                });
+            }
+
+            // Draw current frame marker (bright white crosshair)
+            if (path->current_frame >= 0 && path->current_frame < static_cast<int>(n_proj)) {
+                const auto& cur = projected[path->current_frame];
+                if (!cur.behind) {
+                    Vec2 sp_cur = to_panel(cur.screen_pos);
+                    sp_cur.x = std::max(trace_x + margin, std::min(trace_x + trace_w - margin, sp_cur.x));
+                    sp_cur.y = std::max(draw_y0, std::min(draw_y0 + draw_h, sp_cur.y));
+                    l.circle("trc_current", CircleParams{
+                        .radius = 6.0f,
+                        .color = Color{1.0f, 1.0f, 1.0f, 0.95f},
+                        .pos = {sp_cur.x, sp_cur.y, 0.0f}
+                    });
+                    // Crosshair lines
+                    l.line("trc_cur_h", LineParams{
+                        .from = {sp_cur.x - 12.0f, sp_cur.y, 0.0f},
+                        .to = {sp_cur.x + 12.0f, sp_cur.y, 0.0f},
+                        .thickness = 1.0f,
+                        .color = Color{1.0f, 1.0f, 1.0f, 0.8f}
+                    });
+                    l.line("trc_cur_v", LineParams{
+                        .from = {sp_cur.x, sp_cur.y - 12.0f, 0.0f},
+                        .to = {sp_cur.x, sp_cur.y + 12.0f, 0.0f},
+                        .thickness = 1.0f,
+                        .color = Color{1.0f, 1.0f, 1.0f, 0.8f}
+                    });
+                }
+            }
+
+            // Frame markers every 15 samples
+            for (size_t i = 0; i < n_proj; i += 15) {
+                if (projected[i].behind) continue;
+                Vec2 mp = to_panel(projected[i].screen_pos);
+                mp.x = std::max(trace_x + margin, std::min(trace_x + trace_w - margin, mp.x));
+                mp.y = std::max(draw_y0, std::min(draw_y0 + draw_h, mp.y));
+                l.text("trc_frame_" + std::to_string(i), TextParams{
+                    .text = std::to_string(i),
+                    .pos = {mp.x - 4.0f, mp.y - 14.0f, 0.0f},
+                    .font_size = 8.0f,
+                    .color = Color{0.6f, 0.6f, 0.7f, 0.5f}
+                });
+            }
+
+            // Legend
+            l.circle("leg_green", CircleParams{ .radius = 3.0f, .color = Color{0.15f, 0.85f, 0.2f, 0.85f}, .pos = {trace_x + trace_w - 130.0f, trace_y + 18.0f, 0.0f} });
+            l.text("leg_green_t", TextParams{ .text = "smooth", .pos = {trace_x + trace_w - 122.0f, trace_y + 15.0f, 0.0f}, .font_size = 9.0f, .color = Color{0.7f, 0.7f, 0.7f, 0.6f} });
+            l.circle("leg_yellow", CircleParams{ .radius = 3.0f, .color = Color{1.0f, 0.8f, 0.0f, 0.85f}, .pos = {trace_x + trace_w - 80.0f, trace_y + 18.0f, 0.0f} });
+            l.text("leg_yellow_t", TextParams{ .text = "warn", .pos = {trace_x + trace_w - 72.0f, trace_y + 15.0f, 0.0f}, .font_size = 9.0f, .color = Color{0.7f, 0.7f, 0.7f, 0.6f} });
+            l.circle("leg_red", CircleParams{ .radius = 3.0f, .color = Color{1.0f, 0.15f, 0.15f, 0.9f}, .pos = {trace_x + trace_w - 38.0f, trace_y + 18.0f, 0.0f} });
+            l.text("leg_red_t", TextParams{ .text = "spike", .pos = {trace_x + trace_w - 30.0f, trace_y + 15.0f, 0.0f}, .font_size = 9.0f, .color = Color{0.7f, 0.7f, 0.7f, 0.6f} });
+        }
+
         if (options.show_camera_to_target_line && has_target && !sp.behind_camera) {
             l.line("camera_to_target_line", LineParams{
                 .from = {viewport.width * 0.5f, viewport.height * 0.5f, 0.0f},

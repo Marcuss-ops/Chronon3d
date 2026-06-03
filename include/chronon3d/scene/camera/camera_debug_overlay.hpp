@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/scene/builders/scene_builder.hpp>
+#include <chronon3d/scene/camera/camera_projection.hpp>
 #include <chronon3d/scene/camera/camera_shot_validator.hpp>
 #include <vector>
 
@@ -25,6 +26,7 @@ struct CameraDebugOverlayOptions {
     bool show_depth_order{true};
     bool show_camera_to_target_line{true};
     bool show_camera_path{true};
+    bool show_projected_path{true};
 };
 
 void add_camera_debug_overlay(
