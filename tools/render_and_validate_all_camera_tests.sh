@@ -1,7 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BIN="./build/chronon/linux-release/apps/chronon3d_cli/chronon3d_cli"
+BIN="${CHRONON3D_CLI:-./build/chronon/linux-release/apps/chronon3d_cli/chronon3d_cli}"
+
+echo "Using binary: $BIN"
+if [[ ! -x "$BIN" ]]; then
+    echo "Error: chronon3d_cli not found at $BIN" >&2
+    echo "Set CHRONON3D_CLI env var or build the project first." >&2
+    exit 1
+fi
 
 echo "Cleaning up state files..."
 rm -f *_state.bin

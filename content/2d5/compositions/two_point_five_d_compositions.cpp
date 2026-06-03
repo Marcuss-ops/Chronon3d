@@ -3,16 +3,7 @@
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/camera/camera_motion_presets.hpp>
-#include <chronon3d/scene/camera/camera_projection.hpp>
-#include <chronon3d/scene/camera/camera_shot_validator.hpp>
-#include <chronon3d/scene/camera/camera_framing.hpp>
-#include <chronon3d/scene/camera/camera_path_sampler.hpp>
-#include <chronon3d/scene/camera/camera_debug_overlay.hpp>
-#include <chronon3d/scene/camera/camera_rig_presets.hpp>
-#include <chronon3d/scene/camera/camera_shot_profile.hpp>
 #include <chronon3d/math/color.hpp>
-#include <fstream>
-#include <nlohmann/json.hpp>
 #include "camera_test_orchestrator.hpp"
 #include "camera_advanced_tests.hpp"
 
@@ -22,16 +13,6 @@ namespace {
 
 constexpr f32 W = 1920.0f;
 constexpr f32 H = 1080.0f;
-
-struct DollyAreaState {
-    float front_area_0{0.0f};
-    float mid_area_0{0.0f};
-    float back_area_0{0.0f};
-    float front_area_45{0.0f};
-    float mid_area_45{0.0f};
-    float back_area_45{0.0f};
-};
-DollyAreaState g_dolly_state;
 
 } // namespace
 
