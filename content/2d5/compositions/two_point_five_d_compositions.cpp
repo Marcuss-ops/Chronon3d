@@ -12,6 +12,9 @@
 #include <chronon3d/scene/camera/camera_shot_profile.hpp>
 #include <chronon3d/math/color.hpp>
 #include <fstream>
+#include <nlohmann/json.hpp>
+#include "camera_test_orchestrator.hpp"
+#include "camera_advanced_tests.hpp"
 
 namespace chronon3d::content::two_point_five_d {
 
@@ -19,6 +22,16 @@ namespace {
 
 constexpr f32 W = 1920.0f;
 constexpr f32 H = 1080.0f;
+
+struct DollyAreaState {
+    float front_area_0{0.0f};
+    float mid_area_0{0.0f};
+    float back_area_0{0.0f};
+    float front_area_45{0.0f};
+    float mid_area_45{0.0f};
+    float back_area_45{0.0f};
+};
+DollyAreaState g_dolly_state;
 
 } // namespace
 
@@ -252,368 +265,9 @@ Composition parallax_text() {
 // CAMERA VALIDATION & REGRESSION TESTING SUITE
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Helper function to generate and append validation debug overlay and write reports
-Scene camera_test_orchestrator(
-    const FrameContext& ctx, 
-    SceneBuilder& s, 
-    const CameraShotProfile& shot, 
-    const std::string& comp_name,
-    const std::vector<std::string>& fit_layers,
-    const std::vector<int>& report_frames = {0, 30, 45, 60, 90}
-) {
-    Scene scene = s.build();
-    scene.resolve_hierarchy(ctx.frame);
-
-    // Build transform registry for validation/framing
-    SceneTransformRegistry registry;
-    for (const auto& layer : scene.layers()) {
-        Transform3D t3d;
-        t3d.position = layer.transform.position;
-        t3d.rotation = glm::degrees(glm::eulerAngles(layer.transform.rotation));
-        t3d.scale = layer.transform.scale;
-        t3d.anchor = layer.transform.anchor;
-        t3d.parent_name = std::string(layer.parent_name);
-        t3d.inherits_position = true;
-        t3d.inherits_rotation = true;
-        t3d.inherits_scale = true;
-        registry.add_node(std::string(layer.name), t3d, layer.kind != LayerKind::Null);
-    }
-    auto resolved = registry.resolve_all();
-
-    // Evaluate camera rig from profile
-    Camera2_5D cam = shot.rig.evaluate(ctx.frame, &resolved);
-
-    // Apply auto fit if requested
-    if (shot.auto_fit && !fit_layers.empty()) {
-        cam = fit_camera_to_layers(
-            cam,
-            fit_layers,
-            resolved,
-            {static_cast<f32>(ctx.width), static_cast<f32>(ctx.height)},
-            shot.framing
-        );
-    }
-    scene.set_camera_2_5d(cam);
-
-    // Perform validation
-    auto report = shot.validator.validate(cam, resolved, {static_cast<f32>(ctx.width), static_cast<f32>(ctx.height)});
-    report.composition_name = comp_name;
-    report.frame = static_cast<int>(ctx.frame);
-
-    // Determine if we should emit report for current frame
-    bool should_report = false;
-    for (int rf : report_frames) {
-        if (static_cast<int>(ctx.frame) == rf) {
-            should_report = true;
-            break;
-        }
-    }
-
-    if (should_report && shot.emit_report) {
-        // Collect metrics
-        float front_ratio = 0.0f;
-        float mid_ratio = 0.0f;
-        float back_ratio = 0.0f;
-        for (const auto& lr : report.layers) {
-            if (lr.name == "card_front" || lr.name == "card_a") front_ratio = lr.bounds.visible_ratio;
-            else if (lr.name == "card_mid") mid_ratio = lr.bounds.visible_ratio;
-            else if (lr.name == "card_back" || lr.name == "card_b") back_ratio = lr.bounds.visible_ratio;
-        }
-
-        bool depth_order_valid = true;
-        bool safe_area_valid = true;
-        for (const auto& f : report.failures) {
-            if (f.find("Depth order") != std::string::npos) depth_order_valid = false;
-            if (f.find("safe area") != std::string::npos || f.find("outside safe") != std::string::npos) safe_area_valid = false;
-        }
-
-        // Always write two files: a generic one for frame 90 or specific ones for progress frames
-        std::string path = comp_name + "_report.json";
-        if (ctx.frame != 90) {
-            // zero-pad output paths for progress matching
-            std::string frame_str = std::to_string(ctx.frame);
-            while (frame_str.length() < 4) frame_str = "0" + frame_str;
-            path = comp_name + "_report_" + frame_str + ".json";
-        }
-
-        std::ofstream out(path);
-        if (out) {
-            out << "{\n"
-                << "  \"passed\": " << (report.passed ? "true" : "false") << ",\n"
-                << "  \"target_center_error_px\": " << report.target_center_error_px << ",\n"
-                << "  \"front_visible_ratio\": " << front_ratio << ",\n"
-                << "  \"mid_visible_ratio\": " << mid_ratio << ",\n"
-                << "  \"back_visible_ratio\": " << back_ratio << ",\n"
-                << "  \"safe_area_valid\": " << (safe_area_valid ? "true" : "false") << ",\n"
-                << "  \"depth_order_valid\": " << (depth_order_valid ? "true" : "false") << "\n"
-                << "}\n";
-        }
-    }
-
-    // Append Overlay elements onto final output Scene nodes list
-    SceneBuilder s_overlay(ctx);
-    add_camera_debug_overlay(s_overlay, report);
-    Scene overlay_scene = s_overlay.build();
-    for (auto& node : overlay_scene.nodes()) {
-        scene.add_node(std::move(node));
-    }
-
-    return scene;
-}
-
-// 1. CameraOrbitTargetLockTest (Main camera rig orbiting from yaw -25 to 25 degrees)
-Composition camera_orbit_target_lock_test() {
-    return composition({.name = "CameraOrbitTargetLockTest", .duration = 90}, [](const FrameContext& ctx) {
-        SceneBuilder s(ctx);
-
-        s.null_layer("camera_target", [](NullBuilder& n) {
-            n.position({0.0f, 0.0f, 0.0f});
-        });
-
-        // Add 3 cards at different depths
-        s.layer("card_back", [](LayerBuilder& l) {
-            l.cache_static().enable_3d().position({0.0f, 0.0f, 200.0f});
-            l.rounded_rect("back_rect", {
-                .size = {400.0f, 250.0f},
-                .radius = 16.0f,
-                .color = Color{0.15f, 0.18f, 0.35f, 0.85f},
-                .stroke = { .enabled = true, .color = Color{0.0f, 0.9f, 1.0f, 0.25f}, .width = 1.0f }
-            });
-            l.text("back_label", {.text = "BACK", .pos = {20.0f, 30.0f, 0.0f}, .font_size = 14.0f, .color = Color{1.0f, 1.0f, 1.0f, 0.40f}});
-        });
-
-        s.layer("card_mid", [](LayerBuilder& l) {
-            l.cache_static().enable_3d().position({0.0f, 0.0f, 0.0f});
-            l.rounded_rect("mid_rect", {
-                .size = {350.0f, 220.0f},
-                .radius = 16.0f,
-                .color = Color{0.25f, 0.52f, 1.0f, 0.92f},
-                .stroke = { .enabled = true, .color = Color{0.0f, 0.9f, 1.0f, 0.35f}, .width = 1.25f }
-            });
-            l.text("mid_label", {.text = "MID", .pos = {20.0f, 30.0f, 0.0f}, .font_size = 14.0f, .color = Color{1.0f, 1.0f, 1.0f, 0.60f}});
-        });
-
-        s.layer("card_front", [](LayerBuilder& l) {
-            l.cache_static().enable_3d().position({0.0f, 0.0f, -200.0f});
-            l.rounded_rect("front_rect", {
-                .size = {300.0f, 190.0f},
-                .radius = 16.0f,
-                .color = Color{0.99f, 0.44f, 0.82f, 1.0f},
-                .stroke = { .enabled = true, .color = Color{0.0f, 0.9f, 1.0f, 0.5f}, .width = 1.5f }
-            });
-            l.text("front_label", {.text = "FRONT", .pos = {20.0f, 30.0f, 0.0f}, .font_size = 14.0f, .color = Color{1.0f, 1.0f, 1.0f, 0.80f}});
-        });
-
-        s.layer("bg_grid", [](LayerBuilder& l) {
-            l.cache_static().enable_3d().position({0.0f, 0.0f, 500.0f});
-            l.grid_background("grid", GridBackgroundParams{
-                .size = {1920.0f, 1080.0f},
-                .bg_color = {0.02f, 0.02f, 0.05f, 1.0f},
-                .grid_color = {0.28f, 0.48f, 0.98f, 0.04f},
-                .spacing = 100.0f,
-                .centered = true
-            });
-        });
-
-        CameraShotProfile shot;
-        shot.rig.mode = CameraRigMode::TwoNode;
-        shot.rig.target_name = "camera_target";
-        shot.rig.orbit_yaw.key(0, -25.0f).key(90, 25.0f, EasingCurve{Easing::InOutCubic});
-        shot.rig.orbit_pitch.key(0, -5.0f).key(90, 5.0f);
-        shot.rig.orbit_radius.set(1000.0f);
-        shot.rig.projection_mode = Camera2_5DProjectionMode::Fov;
-        shot.rig.fov_deg.set(50.0f);
-
-        shot.validator
-            .register_layer_size("card_front", {300.0f, 190.0f})
-            .register_layer_size("card_mid", {350.0f, 220.0f})
-            .register_layer_size("card_back", {400.0f, 250.0f})
-            .require_target_centered("camera_target", 3.0f)
-            .require_visible("card_front", 0.95f)
-            .require_visible("card_mid", 0.75f)
-            .require_visible("card_back", 0.50f)
-            .require_depth_order({"card_front", "card_mid", "card_back"});
-
-        return camera_test_orchestrator(ctx, s, shot, "CameraOrbitTargetLockTest", {"card_front", "card_mid", "card_back"}, {0, 45, 90});
-    });
-}
-
-// 2. CameraDollyPerspectiveScaleTest (Dolly close & far to check perspective areas ratio)
-Composition camera_dolly_perspective_scale_test() {
-    return composition({.name = "CameraDollyPerspectiveScaleTest", .duration = 90}, [](const FrameContext& ctx) {
-        SceneBuilder s(ctx);
-
-        s.null_layer("camera_target", [](NullBuilder& n) {
-            n.position({0.0f, 0.0f, 0.0f});
-        });
-
-        s.layer("card_back", [](LayerBuilder& l) {
-            l.cache_static().enable_3d().position({0.0f, 0.0f, 300.0f});
-            l.rounded_rect("back_rect", {.size = {400.0f, 250.0f}, .radius = 16.0f, .color = Color{0.15f, 0.18f, 0.35f, 0.85f}});
-        });
-
-        s.layer("card_mid", [](LayerBuilder& l) {
-            l.cache_static().enable_3d().position({0.0f, 0.0f, 0.0f});
-            l.rounded_rect("mid_rect", {.size = {350.0f, 220.0f}, .radius = 16.0f, .color = Color{0.25f, 0.52f, 1.0f, 0.92f}});
-        });
-
-        s.layer("card_front", [](LayerBuilder& l) {
-            l.cache_static().enable_3d().position({0.0f, 0.0f, -300.0f});
-            l.rounded_rect("front_rect", {.size = {300.0f, 190.0f}, .radius = 16.0f, .color = Color{0.99f, 0.44f, 0.82f, 1.0f}});
-        });
-
-        CameraShotProfile shot;
-        shot.rig.mode = CameraRigMode::TwoNode;
-        shot.rig.target_name = "camera_target";
-        shot.rig.orbit_radius.key(0, 1600.0f)
-                              .key(45, 800.0f, EasingCurve{Easing::InOutCubic})
-                              .key(90, 1600.0f, EasingCurve{Easing::InOutCubic});
-        shot.rig.projection_mode = Camera2_5DProjectionMode::Fov;
-        shot.rig.fov_deg.set(50.0f);
-
-        shot.validator
-            .register_layer_size("card_front", {300.0f, 190.0f})
-            .register_layer_size("card_mid", {350.0f, 220.0f})
-            .register_layer_size("card_back", {400.0f, 250.0f})
-            .require_depth_order({"card_front", "card_mid", "card_back"});
-
-        return camera_test_orchestrator(ctx, s, shot, "CameraDollyPerspectiveScaleTest", {}, {0, 45, 90});
-    });
-}
-
-// 3. CameraParentNullRigTest (Complex parenting null transformations resolving)
-Composition camera_parent_null_rig_test() {
-    return composition({.name = "CameraParentNullRigTest", .duration = 90}, [](const FrameContext& ctx) {
-        SceneBuilder s(ctx);
-
-        // Rotating null parent controller
-        s.null_layer("camera_rig_null", [ctx](NullBuilder& n) {
-            n.position({0.0f, 0.0f, 0.0f});
-            n.rotation({0.0f, ctx.progress() * 45.0f, 0.0f});
-        });
-
-        s.null_layer("card_null", [](NullBuilder& n) {
-            n.position({0.0f, 0.0f, -100.0f});
-            n.parent("camera_rig_null");
-        });
-
-        s.null_layer("camera_target", [](NullBuilder& n) {
-            n.position({0.0f, 0.0f, 0.0f});
-            n.parent("camera_rig_null");
-        });
-
-        // 2 Children layers parented to card_null
-        s.layer("card_a", [](LayerBuilder& l) {
-            l.enable_3d().position({150.0f, 0.0f, 0.0f}).parent("card_null");
-            l.rounded_rect("rect_a", {.size = {200.0f, 150.0f}, .radius = 8.0f, .color = Color{0.25f, 0.52f, 1.0f, 0.9f}});
-            l.text("lbl_a", {.text = "A", .pos = {20.0f, 30.0f, 0.0f}});
-        });
-
-        s.layer("card_b", [](LayerBuilder& l) {
-            l.enable_3d().position({-150.0f, 0.0f, 0.0f}).parent("card_null");
-            l.rounded_rect("rect_b", {.size = {200.0f, 150.0f}, .radius = 8.0f, .color = Color{0.99f, 0.44f, 0.82f, 0.9f}});
-            l.text("lbl_b", {.text = "B", .pos = {20.0f, 30.0f, 0.0f}});
-        });
-
-        CameraShotProfile shot;
-        shot.rig.mode = CameraRigMode::TwoNode;
-        shot.rig.target_name = "camera_target";
-        shot.rig.parent_name = "camera_rig_null";
-        shot.rig.orbit_radius.set(1000.0f);
-        shot.rig.projection_mode = Camera2_5DProjectionMode::Fov;
-        shot.rig.fov_deg.set(50.0f);
-
-        shot.validator
-            .register_layer_size("card_a", {200.0f, 150.0f})
-            .register_layer_size("card_b", {200.0f, 150.0f})
-            .require_target_centered("camera_target", 3.0f);
-
-        return camera_test_orchestrator(ctx, s, shot, "CameraParentNullRigTest", {}, {0, 45, 90});
-    });
-}
-
-// 4. CameraRollPanTiltGridTest (Roll, Pitch tilt, and Yaw pan separated rotations check)
-Composition camera_roll_pan_tilt_grid_test() {
-    return composition({.name = "CameraRollPanTiltGridTest", .duration = 90}, [](const FrameContext& ctx) {
-        SceneBuilder s(ctx);
-
-        s.null_layer("camera_target", [](NullBuilder& n) {
-            n.position({0.0f, 0.0f, 0.0f});
-        });
-
-        s.layer("bg_grid", [](LayerBuilder& l) {
-            l.cache_static().enable_3d().position({0.0f, 0.0f, 500.0f});
-            l.grid_background("grid", GridBackgroundParams{
-                .size = {1920.0f, 1080.0f},
-                .bg_color = {0.02f, 0.02f, 0.05f, 1.0f},
-                .grid_color = {0.28f, 0.48f, 0.98f, 0.06f},
-                .spacing = 100.0f,
-                .centered = true
-            });
-        });
-
-        CameraShotProfile shot;
-        shot.rig.mode = CameraRigMode::TwoNode;
-        shot.rig.target_name = "camera_target";
-        shot.rig.roll.key(0, 0.0f).key(30, 10.0f).key(90, 10.0f);
-        shot.rig.orbit_pitch.key(0, 0.0f).key(30, 0.0f).key(60, 15.0f).key(90, 15.0f);
-        shot.rig.orbit_yaw.key(0, 0.0f).key(60, 0.0f).key(90, 20.0f);
-        shot.rig.orbit_radius.set(1000.0f);
-        shot.rig.projection_mode = Camera2_5DProjectionMode::Fov;
-        shot.rig.fov_deg.set(50.0f);
-
-        shot.validator.require_target_centered("camera_target", 3.0f);
-
-        return camera_test_orchestrator(ctx, s, shot, "CameraRollPanTiltGridTest", {}, {0, 30, 60, 90});
-    });
-}
-
-// 5. Safe Framing Aspect Ratio implementations
-Scene camera_safe_framing_aspect_ratio_test_impl(const FrameContext& ctx, i32 width, i32 height, const std::string& comp_name) {
-    SceneBuilder s(ctx);
-
-    s.null_layer("camera_target", [](NullBuilder& n) {
-        n.position({0.0f, 0.0f, 0.0f});
-    });
-
-    s.layer("card_mid", [](LayerBuilder& l) {
-        l.cache_static().enable_3d().position({0.0f, 0.0f, 0.0f});
-        l.rounded_rect("mid_rect", {.size = {350.0f, 220.0f}, .radius = 16.0f, .color = Color{0.25f, 0.52f, 1.0f, 0.92f}});
-    });
-
-    CameraShotProfile shot;
-    shot.rig = camera_rig_presets::orbit_reveal("camera_target");
-    shot.validator
-        .register_layer_size("card_mid", {350.0f, 220.0f})
-        .require_inside_safe_area("card_mid", 0.08f);
-    shot.auto_fit = true;
-
-    return camera_test_orchestrator(ctx, s, shot, comp_name, {"card_mid"}, {0, 45, 90});
-}
-
-Composition camera_safe_framing_aspect_ratio_16_9() {
-    return composition({.name = "CameraSafeFramingAspectRatioTest_16_9", .width = 1920, .height = 1080, .duration = 90}, [](const FrameContext& ctx) {
-        return camera_safe_framing_aspect_ratio_test_impl(ctx, 1920, 1080, "CameraSafeFramingAspectRatioTest_16_9");
-    });
-}
-
-Composition camera_safe_framing_aspect_ratio_1_1() {
-    return composition({.name = "CameraSafeFramingAspectRatioTest_1_1", .width = 1080, .height = 1080, .duration = 90}, [](const FrameContext& ctx) {
-        return camera_safe_framing_aspect_ratio_test_impl(ctx, 1080, 1080, "CameraSafeFramingAspectRatioTest_1_1");
-    });
-}
-
-Composition camera_safe_framing_aspect_ratio_9_16() {
-    return composition({.name = "CameraSafeFramingAspectRatioTest_9_16", .width = 1080, .height = 1920, .duration = 90}, [](const FrameContext& ctx) {
-        return camera_safe_framing_aspect_ratio_test_impl(ctx, 1080, 1920, "CameraSafeFramingAspectRatioTest_9_16");
-    });
-}
-
-Composition camera_safe_framing_aspect_ratio_4_5() {
-    return composition({.name = "CameraSafeFramingAspectRatioTest_4_5", .width = 1080, .height = 1350, .duration = 90}, [](const FrameContext& ctx) {
-        return camera_safe_framing_aspect_ratio_test_impl(ctx, 1080, 1350, "CameraSafeFramingAspectRatioTest_4_5");
-    });
-}
+// ─────────────────────────────────────────────────────────────────────────────
+// CAMERA VALIDATION & REGRESSION TESTING SUITE (Moved to camera_test_orchestrator.cpp and camera_advanced_tests.cpp)
+// ─────────────────────────────────────────────────────────────────────────────
 
 void register_all() {}
 
@@ -631,3 +285,8 @@ CHRONON_REGISTER_COMPOSITION("CameraSafeFramingAspectRatioTest_16_9", chronon3d:
 CHRONON_REGISTER_COMPOSITION("CameraSafeFramingAspectRatioTest_1_1", chronon3d::content::two_point_five_d::camera_safe_framing_aspect_ratio_1_1)
 CHRONON_REGISTER_COMPOSITION("CameraSafeFramingAspectRatioTest_9_16", chronon3d::content::two_point_five_d::camera_safe_framing_aspect_ratio_9_16)
 CHRONON_REGISTER_COMPOSITION("CameraSafeFramingAspectRatioTest_4_5", chronon3d::content::two_point_five_d::camera_safe_framing_aspect_ratio_4_5)
+CHRONON_REGISTER_COMPOSITION("CameraFrustumCullingPrecisionTest", chronon3d::content::two_point_five_d::camera_frustum_culling_precision_test)
+CHRONON_REGISTER_COMPOSITION("CameraKinematicJerkAndInterpolationTest", chronon3d::content::two_point_five_d::camera_kinematic_jerk_interpolation_test)
+CHRONON_REGISTER_COMPOSITION("CameraDepthSortingStressTest", chronon3d::content::two_point_five_d::camera_depth_sorting_stress_test)
+CHRONON_REGISTER_COMPOSITION("CameraSubpixelJitterValidationTest", chronon3d::content::two_point_five_d::camera_subpixel_jitter_validation_test)
+CHRONON_REGISTER_COMPOSITION("CameraMultiTargetBoundingBoxFitTest", chronon3d::content::two_point_five_d::camera_multi_target_bounding_box_fit_test)
