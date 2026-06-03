@@ -467,6 +467,457 @@ Composition camera_rig_orbit_reveal_test() {
     });
 }
 
+Composition camera_rig_orbit_target_lock_test() {
+    return composition({.name = "CameraRigOrbitTargetLockTest", .duration = 90}, [](const FrameContext& ctx) {
+        SceneBuilder s(ctx);
+
+        s.null_layer("camera_target", [](NullBuilder& n) {
+            n.position({0.0f, 0.0f, 0.0f});
+        });
+
+        // Add 3 cards at different depths
+        s.layer("card_back", [](LayerBuilder& l) {
+            l.cache_static().enable_3d().position({0.0f, 0.0f, 200.0f});
+            l.rounded_rect("back_rect", {
+                .size = {400.0f, 250.0f},
+                .radius = 16.0f,
+                .color = Color{0.15f, 0.18f, 0.35f, 0.85f},
+                .stroke = { .enabled = true, .color = Color{0.0f, 0.9f, 1.0f, 0.25f}, .width = 1.0f }
+            });
+            l.text("back_label", {
+                .text = "BACK",
+                .pos = {20.0f, 30.0f, 0.0f},
+                .font_size = 14.0f,
+                .color = Color{1.0f, 1.0f, 1.0f, 0.40f}
+            });
+            l.drop_shadow(Vec2{0.0f, 4.0f}, Color{0.0f, 0.0f, 0.0f, 0.15f}, 8.0f);
+        });
+
+        s.layer("card_mid", [](LayerBuilder& l) {
+            l.cache_static().enable_3d().position({0.0f, 0.0f, 0.0f});
+            l.rounded_rect("mid_rect", {
+                .size = {350.0f, 220.0f},
+                .radius = 16.0f,
+                .color = Color{0.25f, 0.52f, 1.0f, 0.92f},
+                .stroke = { .enabled = true, .color = Color{0.0f, 0.9f, 1.0f, 0.35f}, .width = 1.25f }
+            });
+            l.text("mid_label", {
+                .text = "MID",
+                .pos = {20.0f, 30.0f, 0.0f},
+                .font_size = 14.0f,
+                .color = Color{1.0f, 1.0f, 1.0f, 0.60f}
+            });
+            l.drop_shadow(Vec2{0.0f, 8.0f}, Color{0.0f, 0.0f, 0.0f, 0.25f}, 12.0f);
+        });
+
+        s.layer("card_front", [](LayerBuilder& l) {
+            l.cache_static().enable_3d().position({0.0f, 0.0f, -200.0f});
+            l.rounded_rect("front_rect", {
+                .size = {300.0f, 190.0f},
+                .radius = 16.0f,
+                .color = Color{0.99f, 0.44f, 0.82f, 1.0f},
+                .stroke = { .enabled = true, .color = Color{0.0f, 0.9f, 1.0f, 0.5f}, .width = 1.5f }
+            });
+            l.text("front_label", {
+                .text = "FRONT",
+                .pos = {20.0f, 30.0f, 0.0f},
+                .font_size = 14.0f,
+                .color = Color{1.0f, 1.0f, 1.0f, 0.80f}
+            });
+            l.drop_shadow(Vec2{0.0f, 14.0f}, Color{0.0f, 0.0f, 0.0f, 0.4f}, 20.0f);
+            l.glow(15.0f, 0.4f, Color{0.0f, 0.9f, 1.0f, 0.5f});
+        });
+
+        s.layer("bg_grid", [](LayerBuilder& l) {
+            l.cache_static().enable_3d().position({0.0f, 0.0f, 500.0f});
+            l.grid_background("grid", GridBackgroundParams{
+                .size = {1920.0f, 1080.0f},
+                .bg_color = {0.02f, 0.02f, 0.05f, 1.0f},
+                .grid_color = {0.28f, 0.48f, 0.98f, 0.04f},
+                .spacing = 100.0f,
+                .minor_thickness = 1.0f,
+                .major_thickness = 2.0f,
+                .major_every = 4,
+                .centered = true
+            });
+        });
+
+        s.layer("vignette", [](LayerBuilder& l) {
+            l.rect("vignette_rect", {
+                .size = {1920.0f, 1080.0f},
+                .color = Color::white(),
+                .fill = Fill::radial(
+                    {0.5f, 0.5f},
+                    0.90f,
+                    {
+                        {0.0f, Color{0.0f, 0.0f, 0.0f, 0.0f}},
+                        {0.6f, Color{0.0f, 0.0f, 0.0f, 0.0f}},
+                        {1.0f, Color{0.0f, 0.0f, 0.0f, 0.55f}}
+                    }
+                )
+            });
+        });
+
+        Scene scene = s.build();
+        scene.resolve_hierarchy(ctx.frame);
+
+        SceneTransformRegistry registry;
+        for (const auto& layer : scene.layers()) {
+            Transform3D t3d;
+            t3d.position = layer.transform.position;
+            t3d.rotation = glm::degrees(glm::eulerAngles(layer.transform.rotation));
+            t3d.scale = layer.transform.scale;
+            t3d.anchor = layer.transform.anchor;
+            t3d.parent_name = std::string(layer.parent_name);
+            t3d.inherits_position = true;
+            t3d.inherits_rotation = true;
+            t3d.inherits_scale = true;
+            registry.add_node(std::string(layer.name), t3d, layer.kind != LayerKind::Null);
+        }
+        auto resolved = registry.resolve_all();
+
+        CameraShotProfile shot;
+        shot.rig = camera_rig_presets::orbit_reveal("camera_target");
+        shot.validator
+            .register_layer_size("card_front", {300.0f, 190.0f})
+            .register_layer_size("card_mid", {350.0f, 220.0f})
+            .register_layer_size("card_back", {400.0f, 250.0f})
+            .require_target_centered("camera_target", 3.0f)
+            .require_visible("card_front", 0.95f)
+            .require_visible("card_mid", 0.75f)
+            .require_visible("card_back", 0.50f)
+            .require_inside_safe_area("card_front", 0.08f)
+            .require_depth_order({"card_front", "card_mid", "card_back"});
+        shot.auto_fit = true;
+
+        Camera2_5D cam = shot.rig.evaluate(ctx.frame, &resolved);
+
+        if (shot.auto_fit) {
+            cam = fit_camera_to_layers(
+                cam,
+                {"card_front", "card_mid", "card_back"},
+                resolved,
+                {1920.0f, 1080.0f},
+                shot.framing
+            );
+        }
+        scene.set_camera_2_5d(cam);
+
+        auto report = shot.validator.validate(cam, resolved, {1920.0f, 1080.0f});
+        report.composition_name = "CameraRigOrbitTargetLockTest";
+        report.frame = static_cast<int>(ctx.frame);
+
+        if (ctx.frame == 90 || ctx.frame == 45 || ctx.frame == 0) {
+            std::string path = "CameraRigOrbitTargetLockTest_report.json";
+            if (ctx.frame != 90) {
+                path = "CameraRigOrbitTargetLockTest_report_00" + std::to_string(ctx.frame) + ".json";
+            }
+            std::ofstream out(path);
+            if (out) {
+                out << "{\n"
+                    << "  \"composition\": \"" << report.composition_name << "\",\n"
+                    << "  \"frame\": " << report.frame << ",\n"
+                    << "  \"passed\": " << (report.passed ? "true" : "false") << ",\n"
+                    << "  \"target_center_error_px\": " << report.target_center_error_px << "\n"
+                    << "}\n";
+            }
+        }
+
+        SceneBuilder s_overlay(ctx);
+        add_camera_debug_overlay(s_overlay, report);
+        Scene overlay_scene = s_overlay.build();
+        for (auto& node : overlay_scene.nodes()) {
+            scene.add_node(std::move(node));
+        }
+
+        return scene;
+    });
+}
+
+Composition camera_dolly_perspective_scale_test() {
+    return composition({.name = "CameraDollyPerspectiveScaleTest", .duration = 90}, [](const FrameContext& ctx) {
+        SceneBuilder s(ctx);
+
+        s.null_layer("camera_target", [](NullBuilder& n) {
+            n.position({0.0f, 0.0f, 0.0f});
+        });
+
+        s.layer("card_back", [](LayerBuilder& l) {
+            l.cache_static().enable_3d().position({0.0f, 0.0f, 200.0f});
+            l.rounded_rect("back_rect", {.size = {400.0f, 250.0f}, .radius = 16.0f, .color = Color{0.15f, 0.18f, 0.35f, 0.85f}});
+        });
+
+        s.layer("card_mid", [](LayerBuilder& l) {
+            l.cache_static().enable_3d().position({0.0f, 0.0f, 0.0f});
+            l.rounded_rect("mid_rect", {.size = {350.0f, 220.0f}, .radius = 16.0f, .color = Color{0.25f, 0.52f, 1.0f, 0.92f}});
+        });
+
+        s.layer("card_front", [](LayerBuilder& l) {
+            l.cache_static().enable_3d().position({0.0f, 0.0f, -200.0f});
+            l.rounded_rect("front_rect", {.size = {300.0f, 190.0f}, .radius = 16.0f, .color = Color{0.99f, 0.44f, 0.82f, 1.0f}});
+        });
+
+        Scene scene = s.build();
+        scene.resolve_hierarchy(ctx.frame);
+
+        SceneTransformRegistry registry;
+        for (const auto& layer : scene.layers()) {
+            Transform3D t3d;
+            t3d.position = layer.transform.position;
+            t3d.rotation = glm::degrees(glm::eulerAngles(layer.transform.rotation));
+            t3d.scale = layer.transform.scale;
+            t3d.anchor = layer.transform.anchor;
+            t3d.parent_name = std::string(layer.parent_name);
+            t3d.inherits_position = true;
+            t3d.inherits_rotation = true;
+            registry.add_node(std::string(layer.name), t3d, layer.kind != LayerKind::Null);
+        }
+        auto resolved = registry.resolve_all();
+
+        CameraShotProfile shot;
+        shot.rig.mode = CameraRigMode::TwoNode;
+        shot.rig.target_name = "camera_target";
+        shot.rig.orbit_radius.key(0, 1600.0f)
+                              .key(45, 800.0f, EasingCurve{Easing::InOutCubic})
+                              .key(90, 1600.0f, EasingCurve{Easing::InOutCubic});
+        shot.rig.projection_mode = Camera2_5DProjectionMode::Fov;
+        shot.rig.fov_deg.set(50.0f);
+
+        shot.validator
+            .register_layer_size("card_front", {300.0f, 190.0f})
+            .register_layer_size("card_mid", {350.0f, 220.0f})
+            .register_layer_size("card_back", {400.0f, 250.0f})
+            .require_depth_order({"card_front", "card_mid", "card_back"});
+
+        Camera2_5D cam = shot.rig.evaluate(ctx.frame, &resolved);
+        scene.set_camera_2_5d(cam);
+
+        auto report = shot.validator.validate(cam, resolved, {1920.0f, 1080.0f});
+        report.composition_name = "CameraDollyPerspectiveScaleTest";
+        report.frame = static_cast<int>(ctx.frame);
+
+        if (ctx.frame == 90 || ctx.frame == 45 || ctx.frame == 0) {
+            std::string path = "CameraDollyPerspectiveScaleTest_report.json";
+            if (ctx.frame != 90) {
+                path = "CameraDollyPerspectiveScaleTest_report_00" + std::to_string(ctx.frame) + ".json";
+            }
+            std::ofstream out(path);
+            if (out) {
+                out << "{\n"
+                    << "  \"composition\": \"" << report.composition_name << "\",\n"
+                    << "  \"frame\": " << report.frame << ",\n"
+                    << "  \"passed\": " << (report.passed ? "true" : "false") << ",\n"
+                    << "  \"front_area\": " << report.layers[0].projected_area << ",\n"
+                    << "  \"mid_area\": " << report.layers[1].projected_area << "\n"
+                    << "}\n";
+            }
+        }
+
+        SceneBuilder s_overlay(ctx);
+        add_camera_debug_overlay(s_overlay, report);
+        Scene overlay_scene = s_overlay.build();
+        for (auto& node : overlay_scene.nodes()) {
+            scene.add_node(std::move(node));
+        }
+
+        return scene;
+    });
+}
+
+Composition camera_parent_null_rig_test() {
+    return composition({.name = "CameraParentNullRigTest", .duration = 90}, [](const FrameContext& ctx) {
+        SceneBuilder s(ctx);
+
+        s.null_layer("camera_rig_null", [](NullBuilder& n) {
+            n.position({0.0f, 0.0f, 0.0f});
+            n.rotation({0.0f, 45.0f, 0.0f});
+        });
+
+        s.null_layer("camera_target", [](NullBuilder& n) {
+            n.position({0.0f, 0.0f, 0.0f});
+        });
+
+        s.layer("card_mid", [](LayerBuilder& l) {
+            l.cache_static().enable_3d().position({0.0f, 0.0f, 0.0f});
+            l.rounded_rect("mid_rect", {.size = {350.0f, 220.0f}, .radius = 16.0f, .color = Color{0.25f, 0.52f, 1.0f, 0.92f}});
+        });
+
+        Scene scene = s.build();
+        scene.resolve_hierarchy(ctx.frame);
+
+        SceneTransformRegistry registry;
+        for (const auto& layer : scene.layers()) {
+            Transform3D t3d;
+            t3d.position = layer.transform.position;
+            t3d.rotation = glm::degrees(glm::eulerAngles(layer.transform.rotation));
+            t3d.scale = layer.transform.scale;
+            t3d.anchor = layer.transform.anchor;
+            t3d.parent_name = std::string(layer.parent_name);
+            t3d.inherits_position = true;
+            t3d.inherits_rotation = true;
+            registry.add_node(std::string(layer.name), t3d, layer.kind != LayerKind::Null);
+        }
+        auto resolved = registry.resolve_all();
+
+        CameraShotProfile shot;
+        shot.rig.mode = CameraRigMode::TwoNode;
+        shot.rig.target_name = "camera_target";
+        shot.rig.parent_name = "camera_rig_null";
+        shot.rig.orbit_radius.set(1000.0f);
+        shot.rig.projection_mode = Camera2_5DProjectionMode::Fov;
+        shot.rig.fov_deg.set(50.0f);
+
+        Camera2_5D cam = shot.rig.evaluate(ctx.frame, &resolved);
+        scene.set_camera_2_5d(cam);
+
+        auto report = shot.validator.validate(cam, resolved, {1920.0f, 1080.0f});
+        report.composition_name = "CameraParentNullRigTest";
+        report.frame = static_cast<int>(ctx.frame);
+
+        if (ctx.frame == 90) {
+            std::ofstream out("CameraParentNullRigTest_report.json");
+            if (out) {
+                out << "{\n"
+                    << "  \"composition\": \"" << report.composition_name << "\",\n"
+                    << "  \"frame\": " << report.frame << ",\n"
+                    << "  \"passed\": " << (report.passed ? "true" : "false") << "\n"
+                    << "}\n";
+            }
+        }
+
+        return scene;
+    });
+}
+
+Composition camera_roll_pan_tilt_grid_test() {
+    return composition({.name = "CameraRollPanTiltGridTest", .duration = 90}, [](const FrameContext& ctx) {
+        SceneBuilder s(ctx);
+
+        s.null_layer("camera_target", [](NullBuilder& n) {
+            n.position({0.0f, 0.0f, 0.0f});
+        });
+
+        s.layer("bg_grid", [](LayerBuilder& l) {
+            l.cache_static().enable_3d().position({0.0f, 0.0f, 500.0f});
+            l.grid_background("grid", GridBackgroundParams{.size = {1920.0f, 1080.0f}});
+        });
+
+        Scene scene = s.build();
+        scene.resolve_hierarchy(ctx.frame);
+
+        SceneTransformRegistry registry;
+        for (const auto& layer : scene.layers()) {
+            Transform3D t3d;
+            t3d.position = layer.transform.position;
+            t3d.rotation = glm::degrees(glm::eulerAngles(layer.transform.rotation));
+            t3d.scale = layer.transform.scale;
+            t3d.anchor = layer.transform.anchor;
+            t3d.parent_name = std::string(layer.parent_name);
+            t3d.inherits_position = true;
+            t3d.inherits_rotation = true;
+            registry.add_node(std::string(layer.name), t3d, layer.kind != LayerKind::Null);
+        }
+        auto resolved = registry.resolve_all();
+
+        CameraShotProfile shot;
+        shot.rig.mode = CameraRigMode::TwoNode;
+        shot.rig.target_name = "camera_target";
+        shot.rig.orbit_yaw.key(0, 0.0f).key(60, 15.0f).key(90, 15.0f);
+        shot.rig.orbit_pitch.key(0, 0.0f).key(90, 10.0f);
+        shot.rig.roll.key(0, 0.0f).key(30, 10.0f).key(90, 10.0f);
+        shot.rig.orbit_radius.set(1000.0f);
+
+        Camera2_5D cam = shot.rig.evaluate(ctx.frame, &resolved);
+        scene.set_camera_2_5d(cam);
+
+        auto report = shot.validator.validate(cam, resolved, {1920.0f, 1080.0f});
+        report.composition_name = "CameraRollPanTiltGridTest";
+        report.frame = static_cast<int>(ctx.frame);
+
+        if (ctx.frame == 90) {
+            std::ofstream out("CameraRollPanTiltGridTest_report.json");
+            if (out) {
+                out << "{\n"
+                    << "  \"composition\": \"" << report.composition_name << "\",\n"
+                    << "  \"frame\": " << report.frame << ",\n"
+                    << "  \"passed\": " << (report.passed ? "true" : "false") << "\n"
+                    << "}\n";
+            }
+        }
+
+        return scene;
+    });
+}
+
+Composition camera_safe_framing_aspect_ratio_test() {
+    return composition({.name = "CameraSafeFramingAspectRatioTest", .duration = 90}, [](const FrameContext& ctx) {
+        SceneBuilder s(ctx);
+
+        s.null_layer("camera_target", [](NullBuilder& n) {
+            n.position({0.0f, 0.0f, 0.0f});
+        });
+
+        s.layer("card_mid", [](LayerBuilder& l) {
+            l.cache_static().enable_3d().position({0.0f, 0.0f, 0.0f});
+            l.rounded_rect("mid_rect", {.size = {350.0f, 220.0f}, .radius = 16.0f, .color = Color{0.25f, 0.52f, 1.0f, 0.92f}});
+        });
+
+        Scene scene = s.build();
+        scene.resolve_hierarchy(ctx.frame);
+
+        SceneTransformRegistry registry;
+        for (const auto& layer : scene.layers()) {
+            Transform3D t3d;
+            t3d.position = layer.transform.position;
+            t3d.rotation = glm::degrees(glm::eulerAngles(layer.transform.rotation));
+            t3d.scale = layer.transform.scale;
+            t3d.anchor = layer.transform.anchor;
+            t3d.parent_name = std::string(layer.parent_name);
+            t3d.inherits_position = true;
+            t3d.inherits_rotation = true;
+            registry.add_node(std::string(layer.name), t3d, layer.kind != LayerKind::Null);
+        }
+        auto resolved = registry.resolve_all();
+
+        CameraShotProfile shot;
+        shot.rig = camera_rig_presets::orbit_reveal("camera_target");
+        shot.validator
+            .register_layer_size("card_mid", {350.0f, 220.0f})
+            .require_inside_safe_area("card_mid", 0.08f);
+        shot.auto_fit = true;
+
+        Camera2_5D cam = shot.rig.evaluate(ctx.frame, &resolved);
+
+        if (shot.auto_fit) {
+            cam = fit_camera_to_layers(
+                cam,
+                {"card_mid"},
+                resolved,
+                {static_cast<f32>(ctx.width), static_cast<f32>(ctx.height)},
+                shot.framing
+            );
+        }
+        scene.set_camera_2_5d(cam);
+
+        auto report = shot.validator.validate(cam, resolved, {static_cast<f32>(ctx.width), static_cast<f32>(ctx.height)});
+        report.composition_name = "CameraSafeFramingAspectRatioTest";
+        report.frame = static_cast<int>(ctx.frame);
+
+        if (ctx.frame == 90) {
+            std::ofstream out("CameraSafeFramingAspectRatioTest_report.json");
+            if (out) {
+                out << "{\n"
+                    << "  \"composition\": \"" << report.composition_name << "\",\n"
+                    << "  \"frame\": " << report.frame << ",\n"
+                    << "  \"passed\": " << (report.passed ? "true" : "false") << "\n"
+                    << "}\n";
+            }
+        }
+
+        return scene;
+    });
+}
+
 void register_all() {}
 
 } // namespace chronon3d::content::two_point_five_d
@@ -476,3 +927,9 @@ CHRONON_REGISTER_COMPOSITION("DepthScene",     chronon3d::content::two_point_fiv
 CHRONON_REGISTER_COMPOSITION("CardFlip",       chronon3d::content::two_point_five_d::card_flip)
 CHRONON_REGISTER_COMPOSITION("ParallaxText",   chronon3d::content::two_point_five_d::parallax_text)
 CHRONON_REGISTER_COMPOSITION("CameraRigOrbitRevealTest", chronon3d::content::two_point_five_d::camera_rig_orbit_reveal_test)
+CHRONON_REGISTER_COMPOSITION("CameraRigOrbitTargetLockTest", chronon3d::content::two_point_five_d::camera_rig_orbit_target_lock_test)
+CHRONON_REGISTER_COMPOSITION("CameraDollyPerspectiveScaleTest", chronon3d::content::two_point_five_d::camera_dolly_perspective_scale_test)
+CHRONON_REGISTER_COMPOSITION("CameraParentNullRigTest", chronon3d::content::two_point_five_d::camera_parent_null_rig_test)
+CHRONON_REGISTER_COMPOSITION("CameraRollPanTiltGridTest", chronon3d::content::two_point_five_d::camera_roll_pan_tilt_grid_test)
+CHRONON_REGISTER_COMPOSITION("CameraSafeFramingAspectRatioTest", chronon3d::content::two_point_five_d::camera_safe_framing_aspect_ratio_test)
+
