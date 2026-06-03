@@ -2,8 +2,20 @@
 
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/camera/camera_shot_validator.hpp>
+#include <vector>
 
 namespace chronon3d {
+
+struct CameraPathJerkSample {
+    Vec3 position{0.0f, 0.0f, 0.0f};
+    float jerk{0.0f};
+};
+
+struct CameraPathVisualization {
+    std::vector<CameraPathJerkSample> samples;
+    int current_frame{0};
+    int total_frames{90};
+};
 
 struct CameraDebugOverlayOptions {
     bool show_target{true};
@@ -12,6 +24,7 @@ struct CameraDebugOverlayOptions {
     bool show_layer_names{true};
     bool show_depth_order{true};
     bool show_camera_to_target_line{true};
+    bool show_camera_path{true};
 };
 
 void add_camera_debug_overlay(
@@ -20,7 +33,8 @@ void add_camera_debug_overlay(
     const Camera2_5D& camera,
     const TransformResolverResult& resolved,
     Viewport viewport,
-    CameraDebugOverlayOptions options = {}
+    CameraDebugOverlayOptions options = {},
+    const CameraPathVisualization* path = nullptr
 );
 
 } // namespace chronon3d
