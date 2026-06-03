@@ -2613,3 +2613,152 @@ questa composizione è ripetuta → usa kernel compilato
 ```
 
 **Non competere facendo le stesse cose più velocemente. Competere evitando proprio di farle.**
+
+---
+
+## CAMERA SYSTEM — Analisi Dettagliata (Giugno 2026)
+
+> Focus: tutto ciò che riguarda la camera, il rig, la proiezione e il framing.
+> Non ci sara mai una GUI. Tutto e codice C++ — programmabile, testabile, deterministico.
+
+---
+
+### Camera2_5D — Stato Attuale
+
+**Struct:** `include/chronon3d/scene/camera/camera_2_5d.hpp`
+
+| Proprieta | Tipo | Default | Note |
+|-----------|------|---------|------|
+| position | Vec3 | (0, 0, -1000) | Posizione in world space |
+| rotation | Vec3 | (0, 0, 0) | Euler angles (tilt, pan, roll) in gradi |
+| zoom | f32 | 1000.0 | Lunghezza focale diretta (modalita Zoom) |
+| fov_deg | f32 | 50.0 | Campo visivo in gradi (modalita Fov) |
+| projection_mode | enum | Zoom | `Zoom` (focal length) o `Fov` (angolo) |
+| point_of_interest | Vec3 | (0,0,0) | Target per lookAt (TwoNode) |
+| point_of_interest_enabled | bool | false | Abilita lookAt verso POI |
+| parent_name | string | "" | Null controller parent |
+| target_name | string | "" | Layer target per POI |
+| dof | DepthOfFieldSettings | disabled | Profondita di campo |
+
+**Funzioni chiave:**
+- `view_matrix()` — usa `glm::lookAtLH` quando POI e attivo, altrimenti rotation quaternion
+- `rotation_quaternion()` — converte euler angles in quaternion via `math::camera_rotation_quat`
+- `set_tilt/pan/roll()` — setter comodi per singole componenti
+
+**Modalita di proiezione:**
+- **Zoom**: `focal_length = zoom` — diretto, semplice, per camera 2.5D classica
+- **Fov**: `focal_length = (viewport_height / 2) / tan(fov_deg / 2)` — proiezione prospettica standard, W = 2*|Z|*tan(FOV/2)
+
+### CameraRig — Il Sistema di Regia
+
+**Struct:** `include/chronon3d/scene/camera/camera_rig.hpp`
+
+**Modalita:**
+- **OneNode**: camera basata su position + rotation — orbit puro, nessun target
+- **TwoNode**: camera basata su position + target — orbit attorno a un punto di interesse
+
+**Proprieta animate (tutte con AnimatedValue):**
+| Proprieta | Tipo | Descrizione |
+|-----------|------|-------------|
+| orbit_yaw | f32 | Angolo orizzontale di orbit (gradi) |
+| orbit_pitch | f32 | Angolo verticale di orbit |
+| orbit_radius | f32 | Raggio di orbit dalla target |
+| track | Vec3 | Traslazione libera |
+| dolly | f32 | Avvicinamento/Allontanamento |
+| pan | f32 | Rotazione orizzontale |
+| tilt | f32 | Rotazione verticale |
+| roll | f32 | Rotazione Z (bank) |
+| zoom | f32 | Lunghezza focale |
+| fov_deg | f32 | Campo visivo |
+| target | Vec3 | Posizione target (TwoNode) |
+| focus_distance | f32 | Distanza di focus per DOF |
+| aperture | f32 | Apertura per DOF |
+
+**CameraRig Presets (6 cinematografici):**
+1. `orbit_reveal` — orbit + radius animato
+2. `premium_push_in` — push in con tilt + cubic bezier easing
+3. `parallax_stack` — parallax pan laterale
+4. `slow_dolly_focus` — dolly lento con focus pull
+5. `card_fan_sweep` — sweep ampio con roll
+6. `hero_title_push` — push frontale su titolo
+
+### Null Controller
+
+**Struct:** `include/chronon3d/scene/builders/null_builder.hpp`
+
+Nodo non renderizzato che partecipa alla gerarchia transform:
+- ha solo transform (position, rotation, scale, anchor)
+- non produce output visivo
+- puo essere parent di camera o layer
+- testato in `test_camera_hierarchy.cpp` e `test_layer_hierarchy.cpp`
+
+### FOV Scaling Validation — Formula W = 2*|Z|*tan(FOV/2)
+
+**Implementata in:** `content/2d5/compositions/camera_test_orchestrator.cpp`
+
+**Come funziona:**
+1. Calcola la depth di ogni layer in view-space: `depth = abs((view * world_pos).z)` — identico a `project_layer_2_5d`
+2. Per due oggetti a profondita Z1 e Z2 con dimensioni originali S1 e S2:
+   `expected_ratio = (Z2/Z1)^2 * (S1/S2)`
+3. Confronta con `actual_ratio = area1 / area2`
+4. Tolleranza: 20%
+
+**Risultati attuali:**
+- DollyTest: errore 0.00% a tutti i frame (0/45/90)
+- DiagnosticTest: errore 3.15%
+
+### Camera Test Suite — 14 test, tutti PASS
+
+| Test | Cosa valida |
+|------|-------------|
+| FrustumCullingPrecisionTest | 80 card, frustum culling preciso |
+| KinematicJerkAndInterpolationTest | Jerk cinematografico, continuity |
+| DepthSortingStressTest | 9 layer a micro-Z, depth order |
+| SubpixelJitterValidationTest | 120 frame, jitter < 1px |
+| MultiTargetBoundingBoxFitTest | Auto-fit su 3 card, safe area |
+| OrbitTargetLockTest | Target lock durante orbit |
+| DollyPerspectiveScaleTest | FOV scaling, dolly growth |
+| ParentNullRigTest | Parent-child matrix, null controller |
+| RollPanTiltGridTest | Roll/Pan/Tilt su griglia |
+| SafeFramingAspectRatioTest x4 | 16:9, 1:1, 4:5, 9:16 |
+| PerspectiveDepthScaleDiagnosticTest | 5 layer Z-depth, FOV validation, per-layer report |
+
+### Camera Debug Overlay
+
+4 pannelli configurabili (tutti programmatici, no GUI):
+1. **Jerk Graph** — grafico jerk nel tempo
+2. **3D Path Trace** — percorso camera con colori jerk
+3. **Top-Down View** — vista XZ dall'alto, camera + layer + FOV cone
+4. **Depth Side-View** — vista laterale XZ con barre profondita
+
+---
+
+### Cosa Manca per la Camera (prossimi passi)
+
+| Priorita | Cosa | Complessita | Impatto |
+|----------|------|-------------|---------|
+| 🔴 ALTA | Bezier keyframe interpolation | 🟡 Media | 🔴 Alto |
+| 🔴 ALTA | Motion Blur multi-sample reale | 🔴 Alta | 🔴 Alto |
+| 🟡 MEDIA | DOF reale (blur per distanza focus) | 🔴 Alta | 🟡 Medio |
+| 🟡 MEDIA | Camera path export (JSON) | 🟢 Bassa | 🟡 Medio |
+| 🟡 MEDIA | Roving keys | 🟢 Bassa | 🟡 Medio |
+| 🟢 BASSA | Auto-bezier (tangent automatica) | 🟢 Bassa | 🟢 Basso |
+| 🟢 BASSA | Spatial bezier path per target | 🟡 Media | 🟡 Medio |
+| 🟢 BASSA | Framing con target prioritario | 🟢 Bassa | 🟢 Basso |
+
+### Gap vs After Effects — Solo Camera
+
+| Feature | Chronon3D | After Effects | Gap |
+|---------|-----------|---------------|-----|
+| OneNode / TwoNode | ✅ Completato | ✅ | Nessuno |
+| Null controller + parenting | ✅ Completato | ✅ | Nessuno |
+| Orbit (yaw/pitch/radius) | ✅ Completato | ✅ | Nessuno |
+| FOV / Zoom dual mode | ✅ Completato | ✅ | Nessuno |
+| Keyframe easing | ✅ 12+ easing curves | ✅ Bezier + auto-bezier | 🟡 Manca Bezier |
+| DOF | ⬜ Settings esistono, rendering no | ✅ Camera Lens Blur | 🔴 Da implementare |
+| Motion blur da camera | ⬜ Settings esistono, rendering no | ✅ Full shutter | 🔴 Da implementare |
+| Camera path export | ⬜ | ✅ Motion sketch | 🟡 Da implementare |
+
+| 2.5D camera | ⬜ Solo 2.5D | ✅ Camera 3D | ⬜ By design, non un gap |
+
+---

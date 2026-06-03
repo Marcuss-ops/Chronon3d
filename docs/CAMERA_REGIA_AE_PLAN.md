@@ -1,281 +1,269 @@
-# Camera da Regia After Effects-like
+# Camera da Regia — Stato e Prossimi Passi
 
-Obiettivo: trasformare la camera di Chronon3d da camera tecnica a camera da regia, con comportamento più vicino ad After Effects:
+> **Principio fondamentale:** Chronon3D è un engine headless e deterministico.
+> Non ci sarà mai una GUI, un timeline editor, o un property panel.
+> Tutto è codice C++, testabile, esportabile, riproducibile.
 
-- camera parentabile a un null controller
-- target separato dalla camera
-- anchor point reale per transform e pivot
-- rig cinematografico con orbit, track, dolly, pan, tilt, roll, zoom
-- keyframe graph con easing e curve più espressive
-- DOF e motion blur guidati dalla camera
-- debug e validation per controllare il path
+**Aggiornato:** Giugno 2026
 
-Questo documento definisce il lavoro in ordine, con milestone piccole e verificabili.
+---
 
-## Stato attuale
+## ✅ Fase 1 — Transform Hierarchy (COMPLETATA)
 
-Già presente:
+**Cosa c'è:**
+- `Transform3D` con `position`, `rotation`, `scale`, `anchor`, `parent_name`
+- `TransformResolver` con risoluzione world matrix deterministica
+- Supporto `inherits_position`, `inherits_rotation`, `inherits_scale`
+- Anchor point per pivot di rotazione e scala
+- Parenting annidato con cycle detection
+- Test: `tests/scene/camera/test_camera_hierarchy.cpp`
 
-- `Camera2_5D` con `position`, `rotation`, `zoom`, `fov_deg`, `point_of_interest`, `parent_name`, `target_name`, `dof`
-- preset camera motion: `orbit`, `dolly`, `pan`, `tilt_roll`, `push_in_tilt`, `dolly_in`, `parallax_sweep`, `orbit_small`, `dramatic_push`, `dolly_rotate`, `roll_reveal`
-- `AnimatedCamera2_5D` per animare diversi parametri della camera
-- `Transform` base con `position`, `rotation`, `scale`, `anchor`, `opacity`
-
-Manca ancora:
-
-- gerarchia transform risolta davvero
-- null controller come nodo non renderizzato
-- API camera-rig più alta livello
-- distinzione chiara tra camera one-node e two-node
-- curve keyframe più cinematografiche
-- sampling subframe per motion blur
-- strumenti di debug per path e target
-
-## Obiettivo finale
-
-La scena deve poter essere scritta in modo simile a questo:
-
+**API:**
 ```cpp
-SceneBuilder s(ctx);
-
-s.null("cam_ctrl", [](NullBuilder& n) {
-    n.position({0.0f, 0.0f, 0.0f});
-    n.rotation({0.0f, 18.0f, 0.0f});
-});
-
-s.null("focus_target", [](NullBuilder& n) {
-    n.position({0.0f, 0.0f, 0.0f});
-});
-
-CameraRig rig;
-rig.mode = CameraRigMode::TwoNode;
-rig.parent_name = "cam_ctrl";
-rig.target_name = "focus_target";
-rig.orbit_yaw.key(0, -18.0f);
-rig.orbit_yaw.key(90, 18.0f);
-rig.orbit_radius.key(0, 1200.0f);
-rig.orbit_radius.key(90, 860.0f);
-rig.focus_distance.key(0, 900.0f);
-rig.focus_distance.key(90, 420.0f);
-rig.motion_blur.enabled = true;
-rig.motion_blur.samples = 8;
-
-s.camera_2_5d(rig.evaluate(ctx.frame));
-```
-
-## Principi di design
-
-- Il core deve rimanere headless e deterministico.
-- La camera deve essere valutabile per frame e anche a subframe.
-- Il null controller non deve essere renderizzato.
-- Gli anchor devono essere espliciti e testabili.
-- Il sistema deve funzionare bene sia in 16:9 sia in altri aspect ratio.
-- Il debug deve essere esportabile, non solo visibile in UI.
-
-## Fase 1. Transform hierarchy vera
-
-Scopo:
-
-- introdurre una transform strutturata per scene node, layer e camera
-- supportare parent-child reale con anchor point
-- risolvere world matrix in modo deterministico
-
-Da introdurre:
-
-- `include/chronon3d/scene/transform/transform_3d.hpp`
-- `include/chronon3d/scene/transform/transform_resolver.hpp`
-- `src/scene/transform/transform_resolver.cpp`
-- `tests/scene/transform_hierarchy_tests.cpp`
-
-API target:
-
-```cpp
-struct Transform3D {
-    Vec3 position{0, 0, 0};
-    Vec3 rotation{0, 0, 0};
-    Vec3 scale{1, 1, 1};
-    Vec3 anchor{0, 0, 0};
-    std::string parent_name;
-    bool inherits_position{true};
-    bool inherits_rotation{true};
-    bool inherits_scale{true};
-};
-```
-
-Regole:
-
-- `local_matrix = T * R * S * A`
-- `world_matrix = parent_world_matrix * local_matrix`
-- se il nodo non ha parent, il world coincide col local
-- i flag `inherits_*` permettono comportamenti AE-like più precisi
-
-Test da avere:
-
-- rotazione attorno all'anchor
-- scala attorno all'anchor
-- parenting semplice
-- parenting annidato
-- cycle detection
-- comportamento stabile con trasformazioni identity
-
-## Fase 2. Null controller
-
-Scopo:
-
-- creare nodi non renderizzati usati come controllori camera e target
-- permettere orbit e tracking senza animare direttamente la camera
-
-API target:
-
-```cpp
-s.null("cam_ctrl", [](NullBuilder& n) {
+s.null_layer("cam_ctrl", [](NullBuilder& n) {
     n.position({0, 0, 0});
-    n.rotation({0, 20, 0});
+    n.rotation({0, 18, 0});
+});
+s.layer("card", [](LayerBuilder& l) {
+    l.parent("cam_ctrl").position({80, 0, 0});
 });
 ```
 
-Comportamento:
+---
 
-- un null ha solo transform
-- non produce output visivo
-- partecipa alla gerarchia
-- può essere usato come parent di camera o layer
+## ✅ Fase 2 — Null Controller (COMPLETATA)
 
-## Fase 3. CameraRig
+**Cosa c'è:**
+- `NullBuilder` — nodo non renderizzato con transform completa
+- Partecipa alla gerarchia parent-child
+- Può essere parent di camera o layer
+- `visible_in_diagnostics` per debug overlay
+- Test: `tests/scene/layout/test_layer_hierarchy.cpp`, `test_scene_builder.cpp`
 
-Scopo:
-
-- offrire una camera di livello regia
-- combinare target, orbit, dolly, pan, tilt, roll, zoom e focus in un'unica astrazione
-
-Da introdurre:
-
-- `include/chronon3d/scene/camera/camera_rig.hpp`
-- `src/scene/camera/camera_rig.cpp`
-- `tests/scene/camera_rig_tests.cpp`
-
-Concetti:
-
-- `OneNode`: camera basata su position + rotation
-- `TwoNode`: camera basata su position + target
-- `parent_name`: per il null controller
-- `target_name`: per il punto di interesse
-
-Struttura target:
-
+**API:**
 ```cpp
-struct CameraRig {
-    bool enabled{true};
-    CameraRigMode mode{CameraRigMode::TwoNode};
-    std::string parent_name;
-    std::string target_name;
-    AnimatedValue<Vec3> target{Vec3{0, 0, 0}};
-    AnimatedValue<f32> orbit_yaw{0.0f};
-    AnimatedValue<f32> orbit_pitch{0.0f};
-    AnimatedValue<f32> orbit_radius{1000.0f};
-    AnimatedValue<Vec3> track{Vec3{0, 0, 0}};
-    AnimatedValue<f32> dolly{0.0f};
-    AnimatedValue<f32> pan{0.0f};
-    AnimatedValue<f32> tilt{0.0f};
-    AnimatedValue<f32> roll{0.0f};
-    AnimatedValue<f32> zoom{1000.0f};
-    AnimatedValue<f32> fov_deg{50.0f};
-    AnimatedValue<f32> focus_distance{1000.0f};
-    AnimatedValue<f32> aperture{0.015f};
-    MotionBlurSettings motion_blur{};
-};
+s.null_layer("camera_rig_null", [](NullBuilder& n) {
+    n.position({0, 0, 0});
+    n.rotation({0, ctx.progress() * 20.0f, 0.0f});
+});
+
+s.null_layer("camera_target", [](NullBuilder& n) {
+    n.position({0, 0, 0});
+    n.parent("camera_rig_null");
+});
 ```
 
-Uscita:
+---
 
-- `evaluate(Frame)` -> `Camera2_5D`
-- `evaluate_at(float)` per subframe / motion blur
+## ✅ Fase 3 — CameraRig (COMPLETATA)
 
-## Fase 4. Keyframe graph cinematico
+**Cosa c'è:**
+- `CameraRig` con modalità `OneNode` e `TwoNode`
+- Orbit: `orbit_yaw`, `orbit_pitch`, `orbit_radius` (tutti animabili)
+- Track: `track` (Vec3 animabile)
+- Dolly: `dolly` (float animabile)
+- Pan/Tilt/Roll: singole proprietà animabili
+- Zoom/FOV: dual mode `Zoom` (focal length diretta) e `Fov` (angolo di visione)
+- Focus: `focus_distance`, `aperture`, `max_blur`
+- Parent: `parent_name` per agganciare a null controller
+- Target: `target_name` per agganciare a null target
+- Motion Blur: `MotionBlurSettings` con `enabled`, `samples`, `shutter_angle`
+- DOF: `DepthOfFieldSettings` con `focus_z`, `aperture`, `max_blur`
+- `evaluate(Frame)` → `Camera2_5D` con world matrix risolta
 
-Scopo:
+**CameraRig Presets (6 preset cinematografici):**
+| Preset | Descrizione |
+|--------|-------------|
+| `orbit_reveal` | Orbit yaw + radius animato |
+| `premium_push_in` | Push in con tilt + easing cubic bezier |
+| `parallax_stack` | Parallax pan laterale |
+| `slow_dolly_focus` | Dolly lento con focus pull |
+| `card_fan_sweep` | Sweep ampio con roll |
+| `hero_title_push` | Push frontale su titolo |
 
-- passare da interpolazione base a curve registiche
-- supportare hold, linear, bezier e auto-bezier
+**CameraMotion Presets (legacy, backward compat):**
+`hero_push_in`, `orbit_yaw`, `parallax_pan`, `dolly_zoom`, `focus_pull`, `low_angle_reveal`, `subtle_float`, `dolly_in`, `dolly_out`, `orbit_small`, `dolly_rotate`, `roll_reveal`
 
-Da introdurre:
+**API CameraRig:**
+```cpp
+CameraShotProfile shot;
+shot.rig.mode = CameraRigMode::TwoNode;
+shot.rig.target_name = "camera_target";
+shot.rig.orbit_yaw.key(0, -15.0f).key(60, 15.0f, EasingCurve{Easing::InOutSine});
+shot.rig.orbit_radius.key(0, 1400.0f).key(45, 500.0f, EasingCurve{Easing::InOutCubic}).key(90, 1400.0f);
+shot.rig.fov_deg.set(54.4f);
+shot.rig.projection_mode = Camera2_5DProjectionMode::Fov;
+```
 
-- `include/chronon3d/animation/animation_curve.hpp`
-- `include/chronon3d/animation/spatial_bezier_path.hpp`
-- `src/animation/animation_curve.cpp`
-- `tests/animation/animation_curve_tests.cpp`
+---
 
-Requisiti:
+## ✅ Fase 3.5 — Camera Debug Overlay (COMPLETATA OGGI)
 
-- `evaluate_at(float frame)` oltre a `evaluate(Frame)`
-- easing per keyframe
-- handle temporali
-- path spaziali per position/target
-- sampling subframe per motion blur
+**Cosa c'è:**
+- **Jerk Graph** — grafico 2D del jerk cinematografico nel tempo
+- **3D Path Trace** — percorso camera proiettato su schermo con colori jerk
+- **Top-Down View** — vista dall'alto XZ con tutti i layer, camera, cono FOV, griglia, assi
+- **Depth Side-View** — vista laterale XZ dove Z=altezza, barre colorate per ogni layer
+- **Per-layer bbox outlines** nel rendering
+- **Camera target cross** (rosso + stroke ring)
+- **Screen center crosshair** (bianco)
+- **Safe area rect** (giallo 90%)
+- Opzioni: `show_jerk_graph`, `show_path_trace`, `show_topdown_preview`, `show_depth_side_view`
+- Posizionamento diagonale rispetto all'anchor per evitare sovrapposizioni
 
-## Fase 5. DOF e motion blur
+---
 
-Scopo:
+## ✅ Fase 3.6 — Camera Test Suite (COMPLETATA OGGI)
 
-- rendere il movimento camera più cinematografico
-- agganciare focus pull e blur alla camera rig
+**14 test camera, tutti PASS:**
 
-Da fare:
+| Test | Cosa valida |
+|------|-------------|
+| FrustumCullingPrecisionTest | 80 card, frustum culling preciso |
+| KinematicJerkAndInterpolationTest | Jerk cinematografico, continuity |
+| DepthSortingStressTest | 9 layer a micro-Z, depth order |
+| SubpixelJitterValidationTest | 120 frame, jitter < 1px |
+| MultiTargetBoundingBoxFitTest | Auto-fit su 3 card, safe area |
+| OrbitTargetLockTest | Target lock durante orbit |
+| DollyPerspectiveScaleTest | **FOV scaling W=2·|Z|·tan(FOV/2)**, dolly growth |
+| ParentNullRigTest | Parent-child matrix, null controller |
+| RollPanTiltGridTest | Roll/Pan/Tilt su griglia |
+| SafeFramingAspectRatioTest (×4) | 16:9, 1:1, 4:5, 9:16 |
+| PerspectiveDepthScaleDiagnosticTest | 5 layer Z-depth, drop lines, FOV validation |
 
-- integrare `MotionBlurSettings` nella camera finale
-- renderizzare subframe distribuiti sull’otturatore
-- calcolare blur da distanza di focus
-- supportare focus target nominale e focus distance esplicito
+**FOV Scaling Validation:**
+- Formula: `expected_ratio = (Z_far/Z_near)² × (orig_near/orig_far)`
+- Depth computation: view-space depth via `get_camera_view_matrix()` — identico a `project_layer_2_5d`
+- Tolleranza: 20%
+- DollyTest: errore 0.00% a tutti i frame (0/45/90), `fov_trend_all_consistent: True`
+- DiagnosticTest: errore 3.15%, `fov_scaling_consistent: True`
 
-## Fase 6. Safe transforms e aspect ratio
+---
 
-Scopo:
+## ⬜ Fase 4 — Keyframe Graph Cinematico (DA FARE)
 
-- evitare che il rig si rompa cambiando aspect ratio
-- mantenere target e composizione in safe area
+**Problema:** Oggi `AnimatedValue<T>` supporta linear + easing predefiniti. Manca:
+- **Bezier curves** con handle regolabili
+- **Roving keys** (velocità costante tra keyframe)
+- **Continuous velocity** tra keyframe adiacenti
+- **Auto-bezier** (tangent automatica)
+- **Path spaziali** per position/target (Bezier 3D)
 
-Da introdurre:
+**Soluzione:**
+```cpp
+// Nuova interpolation curve
+AnimationCurve curve;
+curve.add_key(0.0f, -15.0f, KeyInterp::Bezier{-0.5f, 1.2f});
+curve.add_key(45.0f, 15.0f, KeyInterp::AutoBezier);
+curve.add_key(90.0f, -15.0f, KeyInterp::Roving);
 
-- coordinate space esplicito
-- anchor normalizzato e anchor pixel
-- helper per safe area
-- debug overlay per misurare drift del target
+// Spatial bezier path per target
+SpatialBezierPath path;
+path.add_control({0, 0, 0}, {200, 100, 0}, {-200, 50, 0});
+path.evaluate(0.5f); // → Vec3 a metà path
+```
 
-## Fase 7. Debug e validazione
+**File:**
+- `include/chronon3d/animation/animation_curve.hpp` (nuovo)
+- `include/chronon3d/animation/spatial_bezier_path.hpp` (nuovo)
+- `src/animation/animation_curve.cpp` (nuovo)
 
-Scopo:
+---
 
-- verificare che il rig camera faccia davvero quello che deve
+## ⬜ Fase 5 — Motion Blur Multi-Sample Reale (DA FARE)
 
-Test e strumenti:
+**Problema:** `MotionBlurSettings` esiste nella camera ma non viene usato nel rendering. Il campo `samples` e `shutter_angle` vengono letti ma il rendering multi-sample non è implementato.
 
-- path sampling export JSON
-- overlay del motion path
-- frame-by-frame camera state dump
-- test di determinismo per camera rig
-- test di identità motion blur con 1 sample
-- test di coerenza focus target
+**Soluzione:**
+```cpp
+// In render_pipeline_composition.cpp:
+if (settings.motion_blur.enabled && settings.motion_blur.samples > 1) {
+    for (int s = 0; s < samples; ++s) {
+        float t_offset = shutter_angle / 360.0f * (s / float(samples) - 0.5f);
+        Scene sub = comp.evaluate(frame, t_offset);
+        auto sub_fb = render_scene(sub, ...);
+        accumulate(sub_fb, weight);
+    }
+    normalize(output_fb);
+}
+```
 
-## Ordine consigliato di implementazione
+**Ottimizzazione:** Parallelizzare samples con `tbb::parallel_for` + SIMD accumulation con Highway.
 
-1. Transform hierarchy + anchor
-2. Null controller
-3. CameraRig
-4. Keyframe graph cinematografico
-5. DOF e motion blur
-6. Safe transforms
-7. Debug/export
+**File:**
+- `src/render_graph/pipeline/render_pipeline_composition.cpp`
+- `src/backends/software/software_renderer.cpp`
 
-## Definizione di done
+---
 
-La parte camera è “pronta” quando:
+## ⬜ Fase 5.5 — DOF (Depth of Field) Reale (DA FARE)
 
-- una scena può avere camera + target + null controller separati
-- il rig si muove in modo coerente su frame diversi
-- il focus pull è stabile
-- il motion blur non rompe il rendering
-- i test confermano pivot, parenting e determinismo
+**Problema:** `DepthOfFieldSettings` ha `focus_z`, `aperture`, `max_blur` ma il blur dipendente dalla distanza di focus non è implementato nel rendering.
 
-## Primo passo già avviato
+**Soluzione:**
+- Calcolare distanza di ogni pixel dal piano di focus
+- Applicare blur proporzionale alla distanza
+- Filtro: `DOFNode` nel render graph che riceve `focus_distance` dalla camera
 
-Il lavoro parte dalla fase 1: gerarchia transform + anchor. Questo è il fondamento necessario per il resto.
+---
+
+## ⬜ Fase 6 — Camera Framing Auto (PARZIALE)
+
+**Cosa c'è:**
+- `fit_camera_to_layers()` — dolly automatico per fit in viewport
+- `CameraFramingOptions` con `max_iterations`, `dolly_step`
+- `require_inside_safe_area()` nel validator
+
+**Cosa manca:**
+- **Auto-fit con aspect ratio diversi** — testare con 9:16, 4:5
+- **Framing con target prioritario** — primo layer = target, gli altri = bounds
+- **Safe area configurabile** — oggi è hardcodato al 10%
+
+---
+
+## ⬜ Fase 7 — Camera Path Export (DA FARE)
+
+**Problema:** Nessun modo per exportare il percorso camera come dati strutturati (JSON, CSV).
+
+**Soluzione:**
+```bash
+# Export camera path come JSON
+chronon3d_cli camera-path --comp MyComp --frames 0-90 --format json --output path.json
+
+# Output:
+{
+  "frames": [
+    {"frame": 0, "position": [0, 0, -1400], "target": [80, 0, 0], "fov": 54.4, "depth": 1400.0},
+    {"frame": 1, "position": [-2.3, 0.1, -1399.8], "target": [79.8, 0.2, 0], "fov": 54.4, "depth": 1399.8},
+    ...
+  ]
+}
+```
+
+**File:** `apps/chronon3d_cli/commands/command_camera_path.cpp` (nuovo)
+
+---
+
+## 📊 Riepilogo Stato
+
+| Fase | Descrizione | Stato |
+|------|-------------|-------|
+| 1 | Transform Hierarchy | ✅ COMPLETATA |
+| 2 | Null Controller | ✅ COMPLETATA |
+| 3 | CameraRig | ✅ COMPLETATA |
+| 3.5 | Camera Debug Overlay | ✅ COMPLETATA |
+| 3.6 | Camera Test Suite (14 test) | ✅ COMPLETATA |
+| 4 | Keyframe Graph Cinematico | ⬜ DA FARE |
+| 5 | Motion Blur Multi-Sample | ⬜ DA FARE |
+| 5.5 | DOF Reale | ⬜ DA FARE |
+| 6 | Camera Framing Auto | 🟡 PARZIALE |
+| 7 | Camera Path Export | ⬜ DA FARE |
+
+---
+
+## 🎯 Priorità Prossimi Passi
+
+1. **Keyframe Graph Cinematico** (Fase 4) — Bezier curves, roving keys, spatial paths
+2. **Motion Blur Multi-Sample** (Fase 5) — rendere `MotionBlurSettings` funzionante
+3. **Camera Path Export** (Fase 7) — debug e validazione del percorso camera
+4. **DOF Reale** (Fase 5.5) — blur basato sulla distanza di focus
