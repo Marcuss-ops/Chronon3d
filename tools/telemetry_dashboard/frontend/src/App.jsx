@@ -19,7 +19,16 @@ import LayersTable from './components/LayersTable.jsx';
 import NodesTable from './components/NodesTable.jsx';
 import RenderGraph from './components/RenderGraph.jsx';
 import ComparisonMetrics from './components/ComparisonMetrics.jsx';
+import FeaturedArtifacts from './components/FeaturedArtifacts.jsx';
 import { getAggregatedLayers, getAggregatedNodes } from './utils/aggregate.js';
+
+const PREFERRED_COMPOSITIONS = [
+  'PremiumThumbnailSaaSBlue',
+  'TextPremiumHeroSaaSBlue',
+  'PremiumThumbnailButterySmooth',
+  'TextPremiumHero',
+];
+
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(true);
   const [password, setPassword] = useState('');
@@ -57,6 +66,15 @@ function App() {
   const [copiedMetrics, setCopiedMetrics] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
+  const pickPreferredRunId = useCallback((data) => {
+    if (!Array.isArray(data) || data.length === 0) return '';
+    for (const compositionId of PREFERRED_COMPOSITIONS) {
+      const match = data.find(r => r.composition_id === compositionId);
+      if (match) return match.run_id;
+    }
+    return data[0].run_id;
+  }, []);
+
   useEffect(() => {
     setSelectedFrame(null);
   }, [selectedRunId, comparisonRunId]);
@@ -71,7 +89,7 @@ function App() {
         if (prev && data.some(r => r.run_id === prev)) {
           return prev;
         }
-        return data.length > 0 ? data[0].run_id : '';
+        return pickPreferredRunId(data);
       });
       setError('');
     } catch (err) {
@@ -153,10 +171,10 @@ function App() {
         if (data.length > 0 && prevRuns.length > 0) {
           const isNewRun = !prevRuns.some(r => r.run_id === data[0].run_id);
           if (isNewRun) {
-            newSelectedId = data[0].run_id;
+            newSelectedId = pickPreferredRunId(data);
           }
         } else if (data.length > 0 && !selectedRunIdRef.current) {
-          newSelectedId = data[0].run_id;
+          newSelectedId = pickPreferredRunId(data);
         }
 
         setRuns(data);
@@ -490,6 +508,8 @@ function App() {
             <p>Loading telemetry details...</p>
           </div>
         )}
+
+        <FeaturedArtifacts />
 
         {runDetail && runDetail.run && (
           <>
