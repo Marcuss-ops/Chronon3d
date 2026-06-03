@@ -557,16 +557,20 @@ Composition camera_safe_framing_aspect_ratio_4_5() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 11. PerspectiveDepthShowcase — cinematic demo of objects at different Z depths
+// 11. CameraDepthPerspectiveScaleDiagnosticTest
+//     Cinematic demo of objects at 5 distinct Z depths with full debug overlays:
+//     • per-layer bbox outlines, target cross, screen center, safe area
+//     • vertical drop lines from each card to Z=0 grid plane with Z labels
+//     • camera target marker, perspective scale validation
+//     • JSON report with per-layer projected_area, visible_ratio, depth order
 // ─────────────────────────────────────────────────────────────────────────────
-Composition perspective_depth_showcase() {
-    return composition({.name = "PerspectiveDepthShowcase", .width = 1920, .height = 1080, .duration = 120}, [](const FrameContext& ctx) {
+Composition camera_depth_perspective_scale_diagnostic_test() {
+    return composition({.name = "CameraDepthPerspectiveScaleDiagnosticTest", .width = 1920, .height = 1080, .duration = 91}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         s.ambient_light({1.0f, 1.0f, 1.0f, 1.0f}, 0.4f);
         s.directional_light({0.0f, 0.0f, -1.0f}, {1.0f, 1.0f, 1.0f, 1.0f}, 0.7f);
 
-        // ── Objects at 5 distinct Z depths ──────────────────────────────────
-        // Far background (Z = 500)
+        // ── Background grid at far Z ────────────────────────────────────────
         s.layer("bg_grid", [](LayerBuilder& l) {
             l.cache_static().enable_3d().position({0.0f, 0.0f, 500.0f});
             l.grid_background("grid", GridBackgroundParams{
@@ -578,93 +582,159 @@ Composition perspective_depth_showcase() {
             });
         });
 
-        // Layer 1: Far (Z = 400) — dark blue, small on screen
+        // Layer 1: Far (Z = +400) — dark muted blue, small on screen, thin border
         s.layer("depth_far", [](LayerBuilder& l) {
             l.cache_static().enable_3d().position({0.0f, 0.0f, 400.0f});
-            l.rounded_rect("bg", {.size = {500.0f, 300.0f}, .radius = 20.0f, .color = Color{0.08f, 0.12f, 0.30f, 0.85f},
-                .stroke = {.enabled = true, .color = Color{0.15f, 0.30f, 0.70f, 0.4f}, .width = 2.0f}});
-            l.text("label", {.text = "Z = +400  (FAR)", .pos = {0.0f, -20.0f, 0.1f}, .font_size = 22.0f, .color = Color{0.5f, 0.7f, 1.0f, 0.9f}, .align = TextAlign::Center});
-            l.text("desc", {.text = "Background layer — scaled down by perspective", .pos = {0.0f, 18.0f, 0.1f}, .font_size = 13.0f, .color = Color{0.5f, 0.6f, 0.85f, 0.6f}, .align = TextAlign::Center});
+            l.rounded_rect("bg", {.size = {500.0f, 300.0f}, .radius = 20.0f, .color = Color{0.06f, 0.09f, 0.22f, 0.80f},
+                .stroke = {.enabled = true, .color = Color{0.12f, 0.22f, 0.55f, 0.35f}, .width = 1.5f}});
+            l.text("label", {.text = "Z = +400  (FAR)", .pos = {0.0f, -20.0f, 0.1f}, .font_size = 22.0f, .color = Color{0.40f, 0.55f, 0.85f, 0.85f}, .align = TextAlign::Center});
+            l.text("desc", {.text = "Background — scaled down by perspective", .pos = {0.0f, 18.0f, 0.1f}, .font_size = 13.0f, .color = Color{0.35f, 0.45f, 0.70f, 0.55f}, .align = TextAlign::Center});
         });
 
-        // Layer 2: Mid-far (Z = 200) — medium blue
+        // Layer 2: Mid-far (Z = +200) — medium blue, moderate border
         s.layer("depth_mid_far", [](LayerBuilder& l) {
             l.cache_static().enable_3d().position({-280.0f, -40.0f, 200.0f});
-            l.rounded_rect("bg", {.size = {420.0f, 260.0f}, .radius = 18.0f, .color = Color{0.12f, 0.18f, 0.45f, 0.88f},
-                .stroke = {.enabled = true, .color = Color{0.20f, 0.45f, 0.90f, 0.5f}, .width = 2.0f}});
-            l.text("label", {.text = "Z = +200  (MID-FAR)", .pos = {0.0f, -16.0f, 0.1f}, .font_size = 20.0f, .color = Color{0.6f, 0.75f, 1.0f, 0.9f}, .align = TextAlign::Center});
-            l.text("desc", {.text = "Slightly behind center", .pos = {0.0f, 14.0f, 0.1f}, .font_size = 12.0f, .color = Color{0.55f, 0.65f, 0.9f, 0.6f}, .align = TextAlign::Center});
+            l.rounded_rect("bg", {.size = {420.0f, 260.0f}, .radius = 18.0f, .color = Color{0.10f, 0.15f, 0.38f, 0.85f},
+                .stroke = {.enabled = true, .color = Color{0.18f, 0.38f, 0.82f, 0.45f}, .width = 2.0f}});
+            l.text("label", {.text = "Z = +200  (MID-FAR)", .pos = {0.0f, -16.0f, 0.1f}, .font_size = 20.0f, .color = Color{0.55f, 0.70f, 1.0f, 0.90f}, .align = TextAlign::Center});
+            l.text("desc", {.text = "Behind center", .pos = {0.0f, 14.0f, 0.1f}, .font_size = 12.0f, .color = Color{0.50f, 0.60f, 0.85f, 0.60f}, .align = TextAlign::Center});
         });
 
-        // Layer 3: Center (Z = 0) — bright blue, main subject
+        // Layer 3: Center (Z = 0) — neutral blue, main reference, strong border
         s.layer("depth_center", [](LayerBuilder& l) {
             l.cache_static().enable_3d().position({200.0f, 20.0f, 0.0f});
-            l.rounded_rect("bg", {.size = {380.0f, 240.0f}, .radius = 16.0f, .color = Color{0.20f, 0.35f, 0.80f, 0.92f},
-                .stroke = {.enabled = true, .color = Color{0.35f, 0.60f, 1.0f, 0.6f}, .width = 2.5f}});
-            l.text("label", {.text = "Z = 0  (CENTER)", .pos = {0.0f, -14.0f, 0.1f}, .font_size = 22.0f, .color = Color{0.85f, 0.92f, 1.0f, 1.0f}, .align = TextAlign::Center});
-            l.text("desc", {.text = "Reference plane", .pos = {0.0f, 16.0f, 0.1f}, .font_size = 13.0f, .color = Color{0.7f, 0.8f, 1.0f, 0.7f}, .align = TextAlign::Center});
+            l.rounded_rect("bg", {.size = {380.0f, 240.0f}, .radius = 16.0f, .color = Color{0.18f, 0.30f, 0.72f, 0.92f},
+                .stroke = {.enabled = true, .color = Color{0.30f, 0.55f, 1.0f, 0.65f}, .width = 2.5f}});
+            l.text("label", {.text = "Z = 0  (CENTER)", .pos = {0.0f, -14.0f, 0.1f}, .font_size = 22.0f, .color = Color{0.80f, 0.88f, 1.0f, 1.0f}, .align = TextAlign::Center});
+            l.text("desc", {.text = "Reference plane", .pos = {0.0f, 16.0f, 0.1f}, .font_size = 13.0f, .color = Color{0.65f, 0.75f, 1.0f, 0.70f}, .align = TextAlign::Center});
         });
 
-        // Layer 4: Near (Z = -200) — cyan, bigger on screen
+        // Layer 4: Near (Z = -200) — bright cyan, bigger on screen, strong border
         s.layer("depth_near", [](LayerBuilder& l) {
             l.cache_static().enable_3d().position({-180.0f, 60.0f, -200.0f});
-            l.rounded_rect("bg", {.size = {340.0f, 210.0f}, .radius = 14.0f, .color = Color{0.05f, 0.30f, 0.55f, 0.90f},
-                .stroke = {.enabled = true, .color = Color{0.10f, 0.70f, 0.95f, 0.6f}, .width = 2.5f}});
-            l.text("label", {.text = "Z = -200  (NEAR)", .pos = {0.0f, -12.0f, 0.1f}, .font_size = 22.0f, .color = Color{0.6f, 0.95f, 1.0f, 1.0f}, .align = TextAlign::Center});
-            l.text("desc", {.text = "In front of center — larger on screen", .pos = {0.0f, 16.0f, 0.1f}, .font_size = 13.0f, .color = Color{0.5f, 0.85f, 1.0f, 0.7f}, .align = TextAlign::Center});
+            l.rounded_rect("bg", {.size = {340.0f, 210.0f}, .radius = 14.0f, .color = Color{0.04f, 0.28f, 0.52f, 0.92f},
+                .stroke = {.enabled = true, .color = Color{0.08f, 0.65f, 0.92f, 0.70f}, .width = 2.5f}});
+            l.text("label", {.text = "Z = -200  (NEAR)", .pos = {0.0f, -12.0f, 0.1f}, .font_size = 22.0f, .color = Color{0.55f, 0.92f, 1.0f, 1.0f}, .align = TextAlign::Center});
+            l.text("desc", {.text = "In front of center — larger on screen", .pos = {0.0f, 16.0f, 0.1f}, .font_size = 13.0f, .color = Color{0.45f, 0.82f, 1.0f, 0.75f}, .align = TextAlign::Center});
         });
 
-        // Layer 5: Very near (Z = -400) — bright cyan, closest to camera
+        // Layer 5: Foreground (Z = -400) — brightest, strongest border, closest
         s.layer("depth_foreground", [](LayerBuilder& l) {
             l.cache_static().enable_3d().position({260.0f, -30.0f, -400.0f});
-            l.rounded_rect("bg", {.size = {300.0f, 180.0f}, .radius = 12.0f, .color = Color{0.02f, 0.40f, 0.70f, 0.95f},
-                .stroke = {.enabled = true, .color = Color{0.20f, 0.85f, 1.0f, 0.7f}, .width = 3.0f}});
-            l.text("label", {.text = "Z = -400  (FOREGROUND)", .pos = {0.0f, -10.0f, 0.1f}, .font_size = 20.0f, .color = Color{0.7f, 1.0f, 1.0f, 1.0f}, .align = TextAlign::Center});
-            l.text("desc", {.text = "Closest to camera — largest on screen", .pos = {0.0f, 14.0f, 0.1f}, .font_size = 12.0f, .color = Color{0.6f, 0.95f, 1.0f, 0.7f}, .align = TextAlign::Center});
+            l.rounded_rect("bg", {.size = {300.0f, 180.0f}, .radius = 12.0f, .color = Color{0.02f, 0.42f, 0.75f, 1.0f},
+                .stroke = {.enabled = true, .color = Color{0.25f, 0.90f, 1.0f, 0.90f}, .width = 3.5f}});
+            l.text("label", {.text = "Z = -400  (FOREGROUND)", .pos = {0.0f, -10.0f, 0.1f}, .font_size = 20.0f, .color = Color{0.75f, 1.0f, 1.0f, 1.0f}, .align = TextAlign::Center});
+            l.text("desc", {.text = "Closest to camera — largest on screen", .pos = {0.0f, 14.0f, 0.1f}, .font_size = 12.0f, .color = Color{0.65f, 0.95f, 1.0f, 0.80f}, .align = TextAlign::Center});
         });
 
-        // Vertical reference lines at each Z depth
-        for (int z : {400, 200, 0, -200, -400}) {
-            float norm = static_cast<float>(z) / 400.0f;
-            s.layer("ref_line_z" + std::to_string(z), [z, norm](LayerBuilder& l) {
-                l.enable_3d().position({0.0f, 250.0f, static_cast<float>(z)});
-                l.line("vline", LineParams{.from = {0.0f, -20.0f, 0.0f}, .to = {0.0f, 20.0f, 0.0f}, .thickness = 1.5f, .color = Color{0.3f + norm * 0.3f, 0.6f + norm * 0.2f, 1.0f, 0.35f}});
+        // ── Vertical drop lines from each card position to the Z=0 grid plane ──
+        // Each card gets a vertical white line from its XZ position down to the grid
+        // with a small dot marker at the base and a Z label
+        struct DepthCard { const char* name; float px; float py; float z; const char* z_label; };
+        DepthCard cards[] = {
+            {"depth_foreground",  260.0f, -30.0f, -400.0f, "Z=-400"},
+            {"depth_near",       -180.0f,  60.0f, -200.0f, "Z=-200"},
+            {"depth_center",      200.0f,  20.0f,    0.0f, "Z=0"},
+            {"depth_mid_far",    -280.0f, -40.0f,  200.0f, "Z=+200"},
+            {"depth_far",          0.0f,   0.0f,  400.0f, "Z=+400"},
+        };
+        for (const auto& c : cards) {
+            float alpha = 0.25f + 0.15f * (1.0f - std::abs(c.z) / 400.0f);
+            s.layer(std::string("drop_") + c.name, [c, alpha](LayerBuilder& l) {
+                // Vertical line from card center down to Z=0 grid plane (Y = 250 = grid Y)
+                l.enable_3d().position({c.px, c.py, c.z});
+                l.line("drop", LineParams{
+                    .from = {0.0f, 0.0f, 0.0f},
+                    .to = {0.0f, 250.0f - c.py, 0.0f},
+                    .thickness = 1.5f,
+                    .color = Color{0.6f, 0.8f, 1.0f, alpha}
+                });
+                // Small circle marker at the base (on the grid plane)
+                l.circle("base_dot", {
+                    .radius = 4.0f,
+                    .color = Color{0.6f, 0.8f, 1.0f, std::min(alpha * 1.5f, 1.0f)},
+                    .pos = {0.0f, 250.0f - c.py, 0.1f}
+                });
+                // Z depth label at the base marker
+                l.text("z_lbl", {
+                    .text = std::string(c.z_label),
+                    .pos = {12.0f, 250.0f - c.py - 6.0f, 0.15f},
+                    .font_size = 9.0f,
+                    .color = Color{0.55f, 0.75f, 1.0f, alpha * 1.2f},
+                    .align = TextAlign::Left
+                });
             });
         }
+
+        // ── Camera target cross (X shape at origin) ────────────────────────
+        s.layer("target_cross", [](LayerBuilder& l) {
+            l.enable_3d().position({0.0f, 0.0f, 0.0f});
+            l.line("cross_h", LineParams{.from = {-25.0f, 0.0f, 0.2f}, .to = {25.0f, 0.0f, 0.2f}, .thickness = 2.0f, .color = Color{1.0f, 0.3f, 0.3f, 0.9f}});
+            l.line("cross_v", LineParams{.from = {0.0f, -25.0f, 0.2f}, .to = {0.0f, 25.0f, 0.2f}, .thickness = 2.0f, .color = Color{1.0f, 0.3f, 0.3f, 0.9f}});
+            l.circle("target_ring", {
+                .radius = 15.0f,
+                .color = Color{1.0f, 0.3f, 0.3f, 0.0f},
+                .pos = {0.0f, 0.0f, 0.15f},
+                .stroke = {.enabled = true, .color = Color{1.0f, 0.3f, 0.3f, 0.45f}, .width = 1.5f}
+            });
+            l.text("lbl", {.text = "TARGET", .pos = {30.0f, -8.0f, 0.2f}, .font_size = 10.0f, .color = Color{1.0f, 0.4f, 0.4f, 0.8f}});
+        });
+
+        // ── Screen center crosshair (2D pin to center) ─────────────────────
+        s.layer("screen_center", [](LayerBuilder& l) {
+            l.pin_to(Anchor::Center);
+            l.line("ch_h", LineParams{.from = {-18.0f, 0.0f, 0.0f}, .to = {18.0f, 0.0f, 0.0f}, .thickness = 1.0f, .color = Color{1.0f, 1.0f, 1.0f, 0.35f}});
+            l.line("ch_v", LineParams{.from = {0.0f, -18.0f, 0.0f}, .to = {0.0f, 18.0f, 0.0f}, .thickness = 1.0f, .color = Color{1.0f, 1.0f, 1.0f, 0.35f}});
+            l.text("lbl", {.text = "CENTER", .pos = {22.0f, -6.0f, 0.0f}, .font_size = 8.0f, .color = Color{1.0f, 1.0f, 1.0f, 0.25f}});
+        });
+
+        // ── Safe area rectangle (10% inset, 2D pin) ───────────────────────
+        s.layer("safe_area_rect", [](LayerBuilder& l) {
+            l.pin_to(Anchor::Center);
+            l.rect("safe", {
+                .size = {1728.0f, 972.0f},
+                .color = Color{0.0f, 0.0f, 0.0f, 0.0f},
+                .pos = {0.0f, 0.0f, -0.1f},
+                .stroke = {.enabled = true, .color = Color{1.0f, 0.8f, 0.2f, 0.25f}, .width = 1.0f}
+            });
+            l.text("lbl", {
+                .text = "SAFE AREA (90%)", .pos = {0.0f, -490.0f, 0.0f},
+                .font_size = 10.0f, .color = Color{1.0f, 0.8f, 0.2f, 0.30f}, .align = TextAlign::Center
+            });
+        });
 
         // ── Camera: dolly from far to near, sweeping across the scene ───────
         CameraShotProfile shot;
         shot.rig.mode = CameraRigMode::TwoNode;
 
-        // Target sweeps slowly across scene center
+        // Target at scene origin
         shot.rig.target_name = "camera_target";
         s.null_layer("camera_target", [ctx](NullBuilder& n) {
             float t = ctx.progress();
-            float tx = std::sin(t * 3.14159f) * 80.0f;
-            float ty = std::cos(t * 3.14159f * 0.7f) * 30.0f;
+            float tx = std::sin(t * 3.14159f) * 60.0f;
+            float ty = std::cos(t * 3.14159f * 0.7f) * 25.0f;
             n.position({tx, ty, 0.0f});
         });
 
-        // Camera dollies through the Z range: starts far back, pushes in, then pulls back
-        // This shows perspective scaling: far objects shrink, near objects grow
+        // Camera dollies: far (1400) → close (500) → far (1400)
         shot.rig.orbit_radius
             .key(0, 1400.0f)
-            .key(30, 900.0f, EasingCurve{Easing::InOutCubic})
-            .key(60, 600.0f, EasingCurve{Easing::InOutCubic})
-            .key(90, 400.0f, EasingCurve{Easing::InOutCubic})
-            .key(120, 1400.0f, EasingCurve{Easing::InOutCubic});
+            .key(22, 900.0f, EasingCurve{Easing::InOutCubic})
+            .key(45, 500.0f, EasingCurve{Easing::InOutCubic})
+            .key(67, 900.0f, EasingCurve{Easing::InOutCubic})
+            .key(90, 1400.0f, EasingCurve{Easing::InOutCubic});
 
-        // Gentle orbit yaw to show depth parallax
+        // Gentle orbit yaw for parallax
         shot.rig.orbit_yaw
-            .key(0, -15.0f)
-            .key(60, 15.0f, EasingCurve{Easing::InOutSine})
-            .key(120, -15.0f, EasingCurve{Easing::InOutSine});
+            .key(0, -12.0f)
+            .key(45, 12.0f, EasingCurve{Easing::InOutSine})
+            .key(90, -12.0f, EasingCurve{Easing::InOutSine});
 
-        // Slight pitch to look down slightly at the scene
-        shot.rig.orbit_pitch.set(-8.0f);
+        // Slight pitch looking down
+        shot.rig.orbit_pitch.set(-6.0f);
 
         shot.rig.projection_mode = Camera2_5DProjectionMode::Fov;
-        shot.rig.fov_deg.set(54.4f); // Standard cinematic FOV
+        shot.rig.fov_deg.set(54.4f);
 
         // Validator
         shot.validator
@@ -675,9 +745,9 @@ Composition perspective_depth_showcase() {
             .register_layer_size("depth_foreground", {300.0f, 180.0f})
             .require_depth_order({"depth_foreground", "depth_near", "depth_center", "depth_mid_far", "depth_far"});
 
-        return camera_test_orchestrator(ctx, s, shot, "PerspectiveDepthShowcase",
+        return camera_test_orchestrator(ctx, s, shot, "CameraDepthPerspectiveScaleDiagnosticTest",
             {"depth_far", "depth_mid_far", "depth_center", "depth_near", "depth_foreground"},
-            {0, 30, 60, 90, 119});
+            {0, 45, 90});
     });
 }
 
