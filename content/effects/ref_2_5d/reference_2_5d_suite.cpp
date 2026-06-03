@@ -11,6 +11,8 @@ namespace {
 constexpr Color kWhite{1.0f, 1.0f, 1.0f, 1.0f};
 
 void add_header(SceneBuilder& s, const std::string& id, const std::string& title, const std::string& subtitle) {
+    const f32 title_font_size = title.size() > 24 ? 20.0f : (title.size() > 20 ? 22.0f : 24.0f);
+    const f32 subtitle_font_size = title.size() > 24 ? 13.0f : 14.0f;
     s.layer("header_" + id, [=](LayerBuilder& l) {
         l.position({-kHW + 42.0f, -kHH + 42.0f, 0.0f});
         l.rounded_rect("badge", {
@@ -42,26 +44,26 @@ void add_header(SceneBuilder& s, const std::string& id, const std::string& title
         });
         l.text("title", {
             .text = title,
-            .size = {1180.0f, 40.0f},
+            .size = {1060.0f, 36.0f},
             .pos = {84.0f, -2.0f, 0.0f},
             .font_path = "assets/fonts/Inter-Bold.ttf",
             .font_family = "Inter",
             .font_weight = 900,
             .font_style = "normal",
-            .font_size = 28.0f,
+            .font_size = title_font_size,
             .color = kWhite,
             .align = TextAlign::Left,
             .vertical_align = VerticalAlign::Middle,
         });
         l.text("subtitle", {
             .text = subtitle,
-            .size = {1180.0f, 26.0f},
+            .size = {1060.0f, 24.0f},
             .pos = {84.0f, 28.0f, 0.0f},
             .font_path = "assets/fonts/Inter-Regular.ttf",
             .font_family = "Inter",
             .font_weight = 400,
             .font_style = "normal",
-            .font_size = 16.0f,
+            .font_size = subtitle_font_size,
             .color = {0.78f, 0.82f, 0.92f, 1.0f},
             .align = TextAlign::Left,
             .vertical_align = VerticalAlign::Middle,
@@ -640,9 +642,9 @@ Composition z_stack_parallax_test() {
             });
         };
 
-        card("back", {-340.0f, 8.0f, 150.0f}, {0.0f, -8.0f, 0.0f}, {300.0f, 340.0f}, {0.05f, 0.10f, 0.26f, 0.90f}, {0.18f, 0.30f, 1.0f, 1.0f}, "BACK", "Z -400");
-        card("mid", {0.0f, -6.0f, 20.0f}, {0.0f, 0.0f, 0.0f}, {340.0f, 380.0f}, {0.08f, 0.14f, 0.34f, 0.94f}, {0.42f, 0.64f, 1.0f, 1.0f}, "MID", "Z 0");
-        card("front", {340.0f, 12.0f, -160.0f}, {0.0f, 8.0f, 0.0f}, {360.0f, 400.0f}, {0.04f, 0.26f, 0.34f, 0.94f}, {0.22f, 0.90f, 1.0f, 1.0f}, "FRONT", "Z 250");
+        card("back", {-300.0f, 8.0f, 150.0f}, {0.0f, -8.0f, 0.0f}, {280.0f, 320.0f}, {0.05f, 0.10f, 0.26f, 0.90f}, {0.18f, 0.30f, 1.0f, 1.0f}, "BACK", "Z -400");
+        card("mid", {0.0f, -6.0f, 20.0f}, {0.0f, 0.0f, 0.0f}, {320.0f, 360.0f}, {0.08f, 0.14f, 0.34f, 0.94f}, {0.42f, 0.64f, 1.0f, 1.0f}, "MID", "Z 0");
+        card("front", {300.0f, 12.0f, -160.0f}, {0.0f, 8.0f, 0.0f}, {340.0f, 380.0f}, {0.04f, 0.26f, 0.34f, 0.94f}, {0.22f, 0.90f, 1.0f, 1.0f}, "FRONT", "Z 250");
 
         return s.build();
     });
@@ -809,12 +811,12 @@ Composition extreme_perspective_test() {
             l.drop_shadow({0.0f, 20.0f}, {0.02f, 0.10f, 0.25f, 0.68f}, 24.0f);
             l.text("txt", {
                 .text = "MASTERCLASS",
-                .size = {1200.0f, 180.0f},
+                .size = {1080.0f, 160.0f},
                 .pos = {0.0f, 0.0f, 0.0f},
                 .font_path = "assets/fonts/Inter-Bold.ttf",
                 .font_family = "Inter",
                 .font_weight = 900,
-                .font_size = 118.0f,
+                .font_size = 104.0f,
                 .color = {0.94f, 0.97f, 1.0f, 1.0f},
                 .align = TextAlign::Center,
                 .vertical_align = VerticalAlign::Middle,
@@ -992,12 +994,12 @@ Composition hero_text_front_test() {
             l.drop_shadow({0.0f, 14.0f}, {0.0f, 0.10f, 0.38f, 0.28f}, 10.0f);
             l.text("title", {
                 .text = "SaaS",
-                .size = {900.0f, 210.0f},
-                .pos = {0.0f, -50.0f, 0.0f},
+                .size = {840.0f, 190.0f},
+                .pos = {0.0f, -36.0f, 0.0f},
                 .font_path = "assets/fonts/Inter-Bold.ttf",
                 .font_family = "Inter",
                 .font_weight = 900,
-                .font_size = 150.0f,
+                .font_size = 130.0f,
                 .color = {0.96f, 0.98f, 1.0f, 1.0f},
                 .align = TextAlign::Center,
                 .vertical_align = VerticalAlign::Middle,
