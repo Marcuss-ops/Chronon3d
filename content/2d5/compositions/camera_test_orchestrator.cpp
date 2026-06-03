@@ -358,9 +358,6 @@ Scene camera_test_orchestrator(
             }
 
             float max_jerk = state.max_jerk;
-            if (max_jerk == 0.0f) {
-                max_jerk = 0.024f;
-            }
             int discontinuities = (max_jerk > 0.05f) ? 1 : 0;
 
             float vel = 0.0f;

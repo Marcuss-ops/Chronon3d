@@ -504,7 +504,7 @@ Composition camera_roll_pan_tilt_grid_test() {
 // ─────────────────────────────────────────────────────────────────────────────
 // 10. SafeFramingAspectRatioTest implementations
 // ─────────────────────────────────────────────────────────────────────────────
-Scene camera_safe_framing_aspect_ratio_test_impl(const FrameContext& ctx, i32 width, i32 height, const std::string& comp_name) {
+Scene camera_safe_framing_aspect_ratio_test_impl(const FrameContext& ctx, i32 /*width*/, i32 /*height*/, const std::string& comp_name) {
     SceneBuilder s(ctx);
     s.ambient_light({1.0f, 1.0f, 1.0f, 1.0f}, 0.5f);
     s.directional_light({0.0f, 0.0f, -1.0f}, {1.0f, 1.0f, 1.0f, 1.0f}, 0.6f);

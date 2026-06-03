@@ -101,10 +101,10 @@ void add_camera_debug_overlay(
             }
         }
 
-        // Draw debug crosses for null parent layers
+        // Draw debug crosses for null/parent layers (match _null or _parent suffix/substring)
         for (const auto& pair : resolved.resolved) {
             const std::string& name = pair.first;
-            if (name.find("null") != std::string::npos || name.find("parent") != std::string::npos) {
+            if (name.find("_null") != std::string::npos || name.find("_parent") != std::string::npos) {
                 Vec3 null_pos = Vec3(pair.second.world_matrix[3]);
                 ScreenPoint n_sp = project_world_to_screen(null_pos, camera, viewport);
                 if (!n_sp.behind_camera) {
