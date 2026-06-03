@@ -167,6 +167,25 @@ Se vuoi fare un singolo render manuale, ricorda sempre:
 
 Senza `--report` il file PNG viene creato ma il run non entra nella telemetry SQLite.
 
+### Render camere, senza attrito
+
+Per i shot camera già registrati usa:
+
+```bash
+bash tools/render_camera_artifacts.sh
+```
+
+Lo script renderizza:
+
+```bash
+OrbitCameraTest
+ExtremePerspectiveTest
+HeroTextFrontTest
+ZStackParallaxTest
+```
+
+anche qui con `--report`, quindi i run entrano nel DB e nella dashboard.
+
 ### 4. Esempio completo
 
 ```bash
