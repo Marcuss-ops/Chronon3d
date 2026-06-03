@@ -20,6 +20,8 @@ struct DollyAreaState {
     float front_area_45{0.0f};
     float mid_area_45{0.0f};
     float back_area_45{0.0f};
+    float fov_error_0{0.0f};
+    float fov_error_45{0.0f};
 };
 
 Scene camera_test_orchestrator(
@@ -88,14 +90,38 @@ Scene camera_test_orchestrator(
             in_state.close();
         }
 
+        // Compute FOV error at this frame for trend tracking
+        auto compute_dolly_fov_error = [&](float f_a, float b_a) -> float {
+            Mat4 v = get_camera_view_matrix(cam);
+            float d_front = 0.0f, d_back = 0.0f;
+            for (const auto& pair : resolved.resolved) {
+                Vec3 wp(pair.second.world_matrix[3]);
+                Vec4 vp = v * Vec4(wp, 1.0f);
+                float d = std::abs(vp.z);
+                if (pair.first == "card_front") d_front = d;
+                else if (pair.first == "card_back") d_back = d;
+            }
+            if (d_front > 1.0f && d_back > 1.0f && f_a > 1.0f && b_a > 1.0f) {
+                float orig_front = 300.0f * 190.0f;
+                float orig_back = 400.0f * 250.0f;
+                float z_ratio_sq = (d_back / d_front) * (d_back / d_front);
+                float expected = z_ratio_sq * (orig_front / orig_back);
+                float actual = f_a / b_a;
+                return std::abs(actual - expected) / std::max(expected, 0.001f) * 100.0f;
+            }
+            return 0.0f;
+        };
+
         if (ctx.frame == 0) {
             state.front_area_0 = f_area;
             state.mid_area_0 = m_area;
             state.back_area_0 = b_area;
+            state.fov_error_0 = compute_dolly_fov_error(f_area, b_area);
         } else if (ctx.frame == 45) {
             state.front_area_45 = f_area;
             state.mid_area_45 = m_area;
             state.back_area_45 = b_area;
+            state.fov_error_45 = compute_dolly_fov_error(f_area, b_area);
         }
 
         std::ofstream out_state("CameraDollyPerspectiveScaleTest_state.bin", std::ios::binary);
@@ -320,7 +346,8 @@ Scene camera_test_orchestrator(
             metrics["formula"] = "W = 2 * |Z| * tan(FOV/2)";
 
             // Validate front/back area ratio: expected = (orig_front/orig_back) * (depth_back/depth_front)²
-            bool fov_consistent = true;
+            bool fov_consistent = false;
+            float ratio_error = 0.0f;
             float orig_front = 300.0f * 190.0f;
             float orig_back = 400.0f * 250.0f;
             if (depth_front > 1.0f && depth_back > 1.0f && f_area_now > 1.0f && b_area_now > 1.0f) {
@@ -336,6 +363,27 @@ Scene camera_test_orchestrator(
                 fov_consistent = ratio_error < 0.20f;
             }
             metrics["fov_scaling_consistent"] = fov_consistent;
+
+            // FOV error trend across frames for cross-frame validation
+            DollyAreaState dolly_state{};
+            {
+                std::ifstream dolly_in("CameraDollyPerspectiveScaleTest_state.bin", std::ios::binary);
+                if (dolly_in) { dolly_in.read(reinterpret_cast<char*>(&dolly_state), sizeof(DollyAreaState)); dolly_in.close(); }
+            }
+            // FOV error trend across frames for cross-frame validation
+            float fov_error_now = ratio_error * 100.0f;
+            nlohmann::json fov_trend = nlohmann::json::array();
+            nlohmann::json e0, e45, e90;
+            e0["frame"] = 0; e0["error_percent"] = static_cast<double>(dolly_state.fov_error_0); e0["consistent"] = dolly_state.fov_error_0 < 20.0f;
+            e45["frame"] = 45; e45["error_percent"] = static_cast<double>(dolly_state.fov_error_45); e45["consistent"] = dolly_state.fov_error_45 < 20.0f;
+            e90["frame"] = 90; e90["error_percent"] = static_cast<double>(fov_error_now); e90["consistent"] = fov_error_now < 20.0f;
+            fov_trend.push_back(e0);
+            fov_trend.push_back(e45);
+            fov_trend.push_back(e90);
+            metrics["fov_error_trend"] = fov_trend;
+            float max_err = std::max(dolly_state.fov_error_0, std::max(dolly_state.fov_error_45, fov_error_now));
+            metrics["fov_error_max_percent"] = static_cast<double>(max_err);
+            metrics["fov_trend_all_consistent"] = (dolly_state.fov_error_0 < 20.0f) && (dolly_state.fov_error_45 < 20.0f) && (fov_error_now < 20.0f);
         }
         else if (comp_name.find("CameraSafeFramingAspectRatioTest") != std::string::npos) {
             std::string aspect = "16:9";
