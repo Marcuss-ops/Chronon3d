@@ -300,13 +300,12 @@ Scene camera_test_orchestrator(
                 else if (lr.name == "card_back") b_area_now = lr.projected_area;
             }
 
-            Vec3 cam_pos = cam.position;
-            Quat cam_rot = cam.rotation_quaternion();
-            Vec3 forward = cam_rot * Vec3{0.0f, 0.0f, -1.0f};
+            Mat4 view = get_camera_view_matrix(cam);
             float depth_front = 0.0f, depth_mid = 0.0f, depth_back = 0.0f;
             for (const auto& pair : resolved.resolved) {
-                Vec3 pos(pair.second.world_matrix[3]);
-                float d = std::abs(glm::dot(pos - cam_pos, forward));
+                Vec3 world_pos(pair.second.world_matrix[3]);
+                Vec4 view_pos = view * Vec4(world_pos, 1.0f);
+                float d = std::abs(view_pos.z);
                 if (pair.first == "card_front") depth_front = d;
                 else if (pair.first == "card_mid") depth_mid = d;
                 else if (pair.first == "card_back") depth_back = d;
@@ -333,7 +332,8 @@ Scene camera_test_orchestrator(
                 metrics["expected_area_ratio_front_back"] = static_cast<double>(expected_ratio);
                 metrics["actual_area_ratio_front_back"] = static_cast<double>(actual_ratio);
                 metrics["area_ratio_error_percent"] = static_cast<double>(ratio_error * 100.0f);
-                fov_consistent = ratio_error < 0.30f;
+                // 20% tolerance: view-space depth matches exact projection axis
+                fov_consistent = ratio_error < 0.20f;
             }
             metrics["fov_scaling_consistent"] = fov_consistent;
         }
@@ -493,15 +493,15 @@ Scene camera_test_orchestrator(
                 return 2.0f * std::abs(dist_z) * tan_half_fov;
             };
 
-            // Get forward-projected depth of each layer from camera (dot product with camera forward axis)
-            // This is the correct Z for W = 2*|Z|*tan(FOV/2) — not Euclidean distance
-            Vec3 cam_pos = cam.position;
-            Quat cam_rot = cam.rotation_quaternion();
-            Vec3 forward = cam_rot * Vec3{0.0f, 0.0f, -1.0f};
+            // Get view-space depth of each layer using the actual camera view matrix
+            // This matches exactly what project_layer_2_5d uses: depth = (view * world_pos).z
+            // More accurate than dot-product with forward vector for orbit cameras
+            Mat4 view = get_camera_view_matrix(cam);
             float z_near = 0.0f, z_far = 0.0f, z_center = 0.0f, z_fg = 0.0f, z_midfar = 0.0f;
             for (const auto& pair : resolved.resolved) {
-                Vec3 pos(pair.second.world_matrix[3]);
-                float depth = std::abs(glm::dot(pos - cam_pos, forward));
+                Vec3 world_pos(pair.second.world_matrix[3]);
+                Vec4 view_pos = view * Vec4(world_pos, 1.0f);
+                float depth = std::abs(view_pos.z);
                 if (pair.first == "depth_near") z_near = depth;
                 else if (pair.first == "depth_far") z_far = depth;
                 else if (pair.first == "depth_center") z_center = depth;
@@ -509,7 +509,7 @@ Scene camera_test_orchestrator(
                 else if (pair.first == "depth_mid_far") z_midfar = depth;
             }
 
-            metrics["camera_z"] = static_cast<double>(cam_pos.z);
+            metrics["camera_z"] = static_cast<double>(cam.position.z);
             metrics["dist_near"] = static_cast<double>(z_near);
             metrics["dist_far"] = static_cast<double>(z_far);
             metrics["dist_center"] = static_cast<double>(z_center);
@@ -542,8 +542,8 @@ Scene camera_test_orchestrator(
                 metrics["z_ratio_squared"] = static_cast<double>(z_ratio_sq);
                 metrics["size_correction"] = static_cast<double>(size_correction);
                 metrics["area_ratio_error_percent"] = static_cast<double>(ratio_error * 100.0f);
-                // 30% tolerance: Z-only distance is approximate for orbit cameras
-                fov_consistent = ratio_error < 0.30f;
+                // 20% tolerance: view-space depth matches exact projection axis
+                fov_consistent = ratio_error < 0.20f;
             }
             metrics["fov_scaling_consistent"] = fov_consistent;
 
