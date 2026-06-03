@@ -19,4 +19,6 @@ Composition camera_safe_framing_aspect_ratio_1_1();
 Composition camera_safe_framing_aspect_ratio_9_16();
 Composition camera_safe_framing_aspect_ratio_4_5();
 
+Composition perspective_depth_showcase();
+
 } // namespace chronon3d::content::two_point_five_d

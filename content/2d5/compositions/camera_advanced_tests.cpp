@@ -556,4 +556,131 @@ Composition camera_safe_framing_aspect_ratio_4_5() {
     });
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 11. PerspectiveDepthShowcase — cinematic demo of objects at different Z depths
+// ─────────────────────────────────────────────────────────────────────────────
+Composition perspective_depth_showcase() {
+    return composition({.name = "PerspectiveDepthShowcase", .width = 1920, .height = 1080, .duration = 120}, [](const FrameContext& ctx) {
+        SceneBuilder s(ctx);
+        s.ambient_light({1.0f, 1.0f, 1.0f, 1.0f}, 0.4f);
+        s.directional_light({0.0f, 0.0f, -1.0f}, {1.0f, 1.0f, 1.0f, 1.0f}, 0.7f);
+
+        // ── Objects at 5 distinct Z depths ──────────────────────────────────
+        // Far background (Z = 500)
+        s.layer("bg_grid", [](LayerBuilder& l) {
+            l.cache_static().enable_3d().position({0.0f, 0.0f, 500.0f});
+            l.grid_background("grid", GridBackgroundParams{
+                .size = {2400.0f, 1400.0f},
+                .bg_color = {0.02f, 0.02f, 0.06f, 1.0f},
+                .grid_color = {0.20f, 0.35f, 0.80f, 0.06f},
+                .spacing = 120.0f,
+                .centered = true
+            });
+        });
+
+        // Layer 1: Far (Z = 400) — dark blue, small on screen
+        s.layer("depth_far", [](LayerBuilder& l) {
+            l.cache_static().enable_3d().position({0.0f, 0.0f, 400.0f});
+            l.rounded_rect("bg", {.size = {500.0f, 300.0f}, .radius = 20.0f, .color = Color{0.08f, 0.12f, 0.30f, 0.85f},
+                .stroke = {.enabled = true, .color = Color{0.15f, 0.30f, 0.70f, 0.4f}, .width = 2.0f}});
+            l.text("label", {.text = "Z = +400  (FAR)", .pos = {0.0f, -20.0f, 0.1f}, .font_size = 22.0f, .color = Color{0.5f, 0.7f, 1.0f, 0.9f}, .align = TextAlign::Center});
+            l.text("desc", {.text = "Background layer — scaled down by perspective", .pos = {0.0f, 18.0f, 0.1f}, .font_size = 13.0f, .color = Color{0.5f, 0.6f, 0.85f, 0.6f}, .align = TextAlign::Center});
+        });
+
+        // Layer 2: Mid-far (Z = 200) — medium blue
+        s.layer("depth_mid_far", [](LayerBuilder& l) {
+            l.cache_static().enable_3d().position({-280.0f, -40.0f, 200.0f});
+            l.rounded_rect("bg", {.size = {420.0f, 260.0f}, .radius = 18.0f, .color = Color{0.12f, 0.18f, 0.45f, 0.88f},
+                .stroke = {.enabled = true, .color = Color{0.20f, 0.45f, 0.90f, 0.5f}, .width = 2.0f}});
+            l.text("label", {.text = "Z = +200  (MID-FAR)", .pos = {0.0f, -16.0f, 0.1f}, .font_size = 20.0f, .color = Color{0.6f, 0.75f, 1.0f, 0.9f}, .align = TextAlign::Center});
+            l.text("desc", {.text = "Slightly behind center", .pos = {0.0f, 14.0f, 0.1f}, .font_size = 12.0f, .color = Color{0.55f, 0.65f, 0.9f, 0.6f}, .align = TextAlign::Center});
+        });
+
+        // Layer 3: Center (Z = 0) — bright blue, main subject
+        s.layer("depth_center", [](LayerBuilder& l) {
+            l.cache_static().enable_3d().position({200.0f, 20.0f, 0.0f});
+            l.rounded_rect("bg", {.size = {380.0f, 240.0f}, .radius = 16.0f, .color = Color{0.20f, 0.35f, 0.80f, 0.92f},
+                .stroke = {.enabled = true, .color = Color{0.35f, 0.60f, 1.0f, 0.6f}, .width = 2.5f}});
+            l.text("label", {.text = "Z = 0  (CENTER)", .pos = {0.0f, -14.0f, 0.1f}, .font_size = 22.0f, .color = Color{0.85f, 0.92f, 1.0f, 1.0f}, .align = TextAlign::Center});
+            l.text("desc", {.text = "Reference plane", .pos = {0.0f, 16.0f, 0.1f}, .font_size = 13.0f, .color = Color{0.7f, 0.8f, 1.0f, 0.7f}, .align = TextAlign::Center});
+        });
+
+        // Layer 4: Near (Z = -200) — cyan, bigger on screen
+        s.layer("depth_near", [](LayerBuilder& l) {
+            l.cache_static().enable_3d().position({-180.0f, 60.0f, -200.0f});
+            l.rounded_rect("bg", {.size = {340.0f, 210.0f}, .radius = 14.0f, .color = Color{0.05f, 0.30f, 0.55f, 0.90f},
+                .stroke = {.enabled = true, .color = Color{0.10f, 0.70f, 0.95f, 0.6f}, .width = 2.5f}});
+            l.text("label", {.text = "Z = -200  (NEAR)", .pos = {0.0f, -12.0f, 0.1f}, .font_size = 22.0f, .color = Color{0.6f, 0.95f, 1.0f, 1.0f}, .align = TextAlign::Center});
+            l.text("desc", {.text = "In front of center — larger on screen", .pos = {0.0f, 16.0f, 0.1f}, .font_size = 13.0f, .color = Color{0.5f, 0.85f, 1.0f, 0.7f}, .align = TextAlign::Center});
+        });
+
+        // Layer 5: Very near (Z = -400) — bright cyan, closest to camera
+        s.layer("depth_foreground", [](LayerBuilder& l) {
+            l.cache_static().enable_3d().position({260.0f, -30.0f, -400.0f});
+            l.rounded_rect("bg", {.size = {300.0f, 180.0f}, .radius = 12.0f, .color = Color{0.02f, 0.40f, 0.70f, 0.95f},
+                .stroke = {.enabled = true, .color = Color{0.20f, 0.85f, 1.0f, 0.7f}, .width = 3.0f}});
+            l.text("label", {.text = "Z = -400  (FOREGROUND)", .pos = {0.0f, -10.0f, 0.1f}, .font_size = 20.0f, .color = Color{0.7f, 1.0f, 1.0f, 1.0f}, .align = TextAlign::Center});
+            l.text("desc", {.text = "Closest to camera — largest on screen", .pos = {0.0f, 14.0f, 0.1f}, .font_size = 12.0f, .color = Color{0.6f, 0.95f, 1.0f, 0.7f}, .align = TextAlign::Center});
+        });
+
+        // Vertical reference lines at each Z depth
+        for (int z : {400, 200, 0, -200, -400}) {
+            float norm = static_cast<float>(z) / 400.0f;
+            s.layer("ref_line_z" + std::to_string(z), [z, norm](LayerBuilder& l) {
+                l.enable_3d().position({0.0f, 250.0f, static_cast<float>(z)});
+                l.line("vline", LineParams{.from = {0.0f, -20.0f, 0.0f}, .to = {0.0f, 20.0f, 0.0f}, .thickness = 1.5f, .color = Color{0.3f + norm * 0.3f, 0.6f + norm * 0.2f, 1.0f, 0.35f}});
+            });
+        }
+
+        // ── Camera: dolly from far to near, sweeping across the scene ───────
+        CameraShotProfile shot;
+        shot.rig.mode = CameraRigMode::TwoNode;
+
+        // Target sweeps slowly across scene center
+        shot.rig.target_name = "camera_target";
+        s.null_layer("camera_target", [ctx](NullBuilder& n) {
+            float t = ctx.progress();
+            float tx = std::sin(t * 3.14159f) * 80.0f;
+            float ty = std::cos(t * 3.14159f * 0.7f) * 30.0f;
+            n.position({tx, ty, 0.0f});
+        });
+
+        // Camera dollies through the Z range: starts far back, pushes in, then pulls back
+        // This shows perspective scaling: far objects shrink, near objects grow
+        shot.rig.orbit_radius
+            .key(0, 1400.0f)
+            .key(30, 900.0f, EasingCurve{Easing::InOutCubic})
+            .key(60, 600.0f, EasingCurve{Easing::InOutCubic})
+            .key(90, 400.0f, EasingCurve{Easing::InOutCubic})
+            .key(120, 1400.0f, EasingCurve{Easing::InOutCubic});
+
+        // Gentle orbit yaw to show depth parallax
+        shot.rig.orbit_yaw
+            .key(0, -15.0f)
+            .key(60, 15.0f, EasingCurve{Easing::InOutSine})
+            .key(120, -15.0f, EasingCurve{Easing::InOutSine});
+
+        // Slight pitch to look down slightly at the scene
+        shot.rig.orbit_pitch.set(-8.0f);
+
+        shot.rig.projection_mode = Camera2_5DProjectionMode::Fov;
+        shot.rig.fov_deg.set(54.4f); // Standard cinematic FOV
+
+        // Validator
+        shot.validator
+            .register_layer_size("depth_far", {500.0f, 300.0f})
+            .register_layer_size("depth_mid_far", {420.0f, 260.0f})
+            .register_layer_size("depth_center", {380.0f, 240.0f})
+            .register_layer_size("depth_near", {340.0f, 210.0f})
+            .register_layer_size("depth_foreground", {300.0f, 180.0f})
+            .require_depth_order({"depth_foreground", "depth_near", "depth_center", "depth_mid_far", "depth_far"})
+            .require_visible("depth_center", 0.75f)
+            .require_visible("depth_near", 0.70f);
+
+        return camera_test_orchestrator(ctx, s, shot, "PerspectiveDepthShowcase",
+            {"depth_far", "depth_mid_far", "depth_center", "depth_near", "depth_foreground"},
+            {0, 30, 60, 90, 119});
+    });
+}
+
 } // namespace chronon3d::content::two_point_five_d
