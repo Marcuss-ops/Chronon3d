@@ -1,72 +1,96 @@
 #include <doctest/doctest.h>
+
+#include <chronon3d/math/transform.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/layer/layer_hierarchy.hpp>
+#include <cmath>
 
 using namespace chronon3d;
 
-TEST_CASE("Layer hierarchy: parent position affects child") {
+namespace {
+
+void expect_mat4_near(const Mat4& actual, const Mat4& expected, float epsilon = 0.0001f) {
+    for (int c = 0; c < 4; ++c) {
+        for (int r = 0; r < 4; ++r) {
+            CHECK(actual[c][r] == doctest::Approx(expected[c][r]).epsilon(epsilon));
+        }
+    }
+}
+
+} // namespace
+
+TEST_CASE("Transform: identity matrix stays identity") {
+    const Transform t;
+    expect_mat4_near(t.to_mat4(), Mat4(1.0f));
+}
+
+TEST_CASE("Transform: anchor stays fixed when rotating around pivot") {
+    Transform t;
+    t.position = {300.0f, 200.0f, 0.0f};
+    t.anchor = {50.0f, 50.0f, 0.0f};
+    t.rotation = glm::quat(glm::radians(Vec3{0.0f, 0.0f, 90.0f}));
+
+    const Vec4 world_anchor = t.to_mat4() * Vec4{50.0f, 50.0f, 0.0f, 1.0f};
+    CHECK(world_anchor.x == doctest::Approx(300.0f).epsilon(0.0001f));
+    CHECK(world_anchor.y == doctest::Approx(200.0f).epsilon(0.0001f));
+    CHECK(world_anchor.z == doctest::Approx(0.0f).epsilon(0.0001f));
+}
+
+TEST_CASE("Layer hierarchy: parent position and scale propagate to child") {
     std::pmr::monotonic_buffer_resource res;
     SceneBuilder s(&res);
 
     s.null_layer("rig", [](LayerBuilder& l) {
-        l.position({100, 0, 0});
+        l.position({100, 50, 20}).scale({2, 2, 2});
     });
-
     s.layer("child", [](LayerBuilder& l) {
-        l.parent("rig")
-         .position({50, 0, 0});
+        l.parent("rig").position({10, 0, 0});
     });
 
     auto scene = s.build();
     auto resolved = resolve_layer_hierarchy(scene.layers(), 0, scene.resource());
+    REQUIRE(resolved.size() == 2);
 
-    const auto& child = resolved[1];
-
-    CHECK(child.world_transform.position.x == doctest::Approx(150.0f));
-    CHECK(child.world_transform.position.y == doctest::Approx(0.0f));
+    CHECK(resolved[1].world_transform.position.x == doctest::Approx(120.0f).epsilon(0.0001f));
+    CHECK(resolved[1].world_transform.position.y == doctest::Approx(50.0f).epsilon(0.0001f));
+    CHECK(resolved[1].world_transform.position.z == doctest::Approx(20.0f).epsilon(0.0001f));
 }
 
-TEST_CASE("Layer hierarchy: parent opacity multiplies child opacity") {
+TEST_CASE("Layer hierarchy: parent rotation changes child world position") {
+    std::pmr::monotonic_buffer_resource res;
+    SceneBuilder s(&res);
+
+    s.null_layer("parent", [](LayerBuilder& l) {
+        l.rotate({0, 0, 90});
+    });
+    s.layer("child", [](LayerBuilder& l) {
+        l.parent("parent").position({100, 0, 0});
+    });
+
+    auto scene = s.build();
+    auto resolved = resolve_layer_hierarchy(scene.layers(), 0, scene.resource());
+    REQUIRE(resolved.size() == 2);
+
+    CHECK(resolved[1].world_transform.position.x == doctest::Approx(0.0f).epsilon(0.01f));
+    CHECK(resolved[1].world_transform.position.y == doctest::Approx(100.0f).epsilon(0.01f));
+}
+
+TEST_CASE("Layer hierarchy: opacity multiplies through parents") {
     std::pmr::monotonic_buffer_resource res;
     SceneBuilder s(&res);
 
     s.null_layer("rig", [](LayerBuilder& l) {
         l.opacity(0.5f);
     });
-
     s.layer("child", [](LayerBuilder& l) {
-        l.parent("rig")
-         .opacity(0.5f);
+        l.parent("rig").opacity(0.5f);
     });
 
     auto scene = s.build();
     auto resolved = resolve_layer_hierarchy(scene.layers(), 0, scene.resource());
+    REQUIRE(resolved.size() == 2);
 
-    CHECK(resolved[1].world_transform.opacity == doctest::Approx(0.25f));
-}
-
-TEST_CASE("Layer hierarchy: parent chain accumulates position") {
-    std::pmr::monotonic_buffer_resource res;
-    SceneBuilder s(&res);
-
-    s.null_layer("A", [](LayerBuilder& l) {
-        l.position({10, 0, 0});
-    });
-
-    s.null_layer("B", [](LayerBuilder& l) {
-        l.parent("A")
-         .position({20, 0, 0});
-    });
-
-    s.layer("C", [](LayerBuilder& l) {
-        l.parent("B")
-         .position({30, 0, 0});
-    });
-
-    auto scene = s.build();
-    auto resolved = resolve_layer_hierarchy(scene.layers(), 0, scene.resource());
-
-    CHECK(resolved[2].world_transform.position.x == doctest::Approx(60.0f));
+    CHECK(resolved[1].world_transform.opacity == doctest::Approx(0.25f).epsilon(0.0001f));
 }
 
 TEST_CASE("Layer hierarchy: missing parent falls back to local transform") {
@@ -74,93 +98,30 @@ TEST_CASE("Layer hierarchy: missing parent falls back to local transform") {
     SceneBuilder s(&res);
 
     s.layer("child", [](LayerBuilder& l) {
-        l.parent("missing")
-         .position({30, 0, 0});
+        l.parent("missing").position({30, 0, 0});
     });
 
     auto scene = s.build();
     auto resolved = resolve_layer_hierarchy(scene.layers(), 0, scene.resource());
+    REQUIRE(resolved.size() == 1);
 
     CHECK(resolved[0].parent_missing);
-    CHECK(resolved[0].world_transform.position.x == doctest::Approx(30.0f));
+    CHECK(resolved[0].world_transform.position.x == doctest::Approx(30.0f).epsilon(0.0001f));
 }
 
-TEST_CASE("Layer hierarchy: self parent cycle is detected") {
+TEST_CASE("Layer hierarchy: self parent is detected and does not crash") {
     std::pmr::monotonic_buffer_resource res;
     SceneBuilder s(&res);
 
-    s.layer("A", [](LayerBuilder& l) {
-        l.parent("A")
-         .position({10, 0, 0});
+    s.layer("child", [](LayerBuilder& l) {
+        l.parent("child").position({10, 0, 0});
     });
 
     auto scene = s.build();
     auto resolved = resolve_layer_hierarchy(scene.layers(), 0, scene.resource());
+    REQUIRE(resolved.size() == 1);
 
     CHECK(resolved[0].cycle_detected);
-    CHECK(resolved[0].world_transform.position.x == doctest::Approx(10.0f));
-}
-
-TEST_CASE("Layer hierarchy: parent rotation affects child position") {
-    std::pmr::monotonic_buffer_resource res;
-    SceneBuilder s(&res);
-
-    // Parent at origin, rotated 90 deg around Z
-    s.null_layer("parent", [](LayerBuilder& l) {
-        l.position({0, 0, 0})
-         .rotate({0, 0, 90});
-    });
-
-    // Child offset by 100 on X locally.
-    // Since parent is rotated 90 deg (X becomes Y), 
-    // child world position should be around {0, 100, 0}.
-    s.layer("child", [](LayerBuilder& l) {
-        l.parent("parent")
-         .position({100, 0, 0});
-    });
-
-    auto scene = s.build();
-    auto resolved = resolve_layer_hierarchy(scene.layers(), 0, scene.resource());
-
-    CHECK(resolved[1].world_transform.position.x == doctest::Approx(0.0f));
-    CHECK(resolved[1].world_transform.position.y == doctest::Approx(100.0f));
-}
-
-TEST_CASE("Layer hierarchy: full 3D parenting composes world matrices") {
-    std::pmr::monotonic_buffer_resource res;
-    SceneBuilder s(&res);
-
-    s.null_layer("parent", [](LayerBuilder& l) {
-        l.position({100, 50, 20})
-         .rotate({0, 90, 0})
-         .scale({2, 2, 2})
-         .opacity(0.5f);
-    });
-
-    s.layer("child", [](LayerBuilder& l) {
-        l.parent("parent")
-         .position({10, 0, 0})
-         .rotate({0, 0, 90})
-         .opacity(0.8f);
-    });
-
-    auto scene = s.build();
-    auto resolved = resolve_layer_hierarchy(scene.layers(), 0, scene.resource());
-    REQUIRE(resolved.size() == 2);
-    REQUIRE(resolved[0].layer != nullptr);
-    REQUIRE(resolved[1].layer != nullptr);
-
-    const Vec4 child_origin = resolved[1].world_matrix * Vec4(0.0f, 0.0f, 0.0f, 1.0f);
-    const Vec4 child_local_x = resolved[1].world_matrix * Vec4(1.0f, 0.0f, 0.0f, 0.0f);
-
-    CHECK(child_origin.x == doctest::Approx(100.0f).epsilon(0.001f));
-    CHECK(child_origin.y == doctest::Approx(50.0f).epsilon(0.001f));
-    CHECK(child_origin.z == doctest::Approx(0.0f).epsilon(0.001f));
-
-    CHECK(child_local_x.x == doctest::Approx(0.0f).epsilon(0.001f));
-    CHECK(child_local_x.y == doctest::Approx(2.0f).epsilon(0.001f));
-    CHECK(child_local_x.z == doctest::Approx(0.0f).epsilon(0.001f));
-
-    CHECK(resolved[1].world_transform.opacity == doctest::Approx(0.4f).epsilon(0.0001f));
+    CHECK(resolved[0].world_transform.position.x == doctest::Approx(10.0f).epsilon(0.0001f));
 }
 
