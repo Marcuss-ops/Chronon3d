@@ -101,6 +101,7 @@ add_executable(chronon3d_renderer_tests
     ${TEST_MAIN}
     renderer/camera/test_camera_motion.cpp
     renderer/camera/test_animated_camera.cpp
+    renderer/camera/test_camera_rig.cpp
     renderer/test_blend_pixel_nan.cpp
     renderer/camera/test_dof.cpp
     renderer/effects/test_adjustment_layer.cpp

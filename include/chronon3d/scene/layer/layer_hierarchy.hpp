@@ -12,6 +12,7 @@
 #include <string_view>
 #include <functional>
 #include <algorithm>
+#include <cmath>
 #include <tbb/parallel_for.h>
 #include <tbb/blocked_range.h>
 
@@ -35,6 +36,14 @@ inline Transform combine_transforms_simple(const Transform& parent, const Transf
 }
 
 namespace detail {
+
+inline Vec3 world_anchor_point(const Transform& world_transform, const Mat4& world_matrix) {
+    const Vec4 anchor = world_matrix * Vec4(world_transform.anchor, 1.0f);
+    if (std::abs(anchor.w) > 1e-7f) {
+        return {anchor.x / anchor.w, anchor.y / anchor.w, anchor.z / anchor.w};
+    }
+    return world_transform.position;
+}
 
 class LayerHierarchyResolver {
 public:
@@ -147,7 +156,7 @@ public:
             auto it = m_name_to_index.find(std::string_view(input_camera.target_name));
             if (it != m_name_to_index.end()) {
                 Transform target_world = resolve_one(it->second);
-                out_camera.camera.point_of_interest = target_world.position;
+                out_camera.camera.point_of_interest = world_anchor_point(target_world, m_resolved[it->second].world_matrix);
                 out_camera.camera.point_of_interest_enabled = true;
             }
         }
