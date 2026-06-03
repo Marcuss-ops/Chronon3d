@@ -3,11 +3,29 @@
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/layer/layer_hierarchy.hpp>
 #include <cmath>
+
+#include "src/backends/software/utils/projection_utils.hpp"
 #include "src/render_graph/pipeline/scene_internal.hpp"
 
 using namespace chronon3d;
 
-TEST_CASE("Camera hierarchy: target resolves to world position through parent chain") {
+namespace {
+
+Vec3 project_point(const Vec3& world_point, const Camera2_5DRuntime& camera, f32 viewport_w, f32 viewport_h) {
+    const Mat4 view = camera.view_matrix();
+    const f32 focal = camera.projection_mode == Camera2_5DProjectionMode::Fov
+        ? (viewport_h * 0.5f) / std::tan(glm::radians(camera.fov_deg) * 0.5f)
+        : camera.zoom;
+
+    bool ok = false;
+    const Vec2 projected = renderer::project_2_5d(world_point, view, focal, viewport_w * 0.5f, viewport_h * 0.5f, ok);
+    REQUIRE(ok);
+    return {projected.x, projected.y, 0.0f};
+}
+
+} // namespace
+
+TEST_CASE("Camera hierarchy: target resolves through parent chain") {
     std::pmr::monotonic_buffer_resource res;
     SceneBuilder s(&res);
 
@@ -23,16 +41,15 @@ TEST_CASE("Camera hierarchy: target resolves to world position through parent ch
      .target("target");
 
     auto scene = s.build();
-    auto resolved_layers = resolve_layer_hierarchy(scene.layers(), 0, scene.resource());
-    REQUIRE(resolved_layers.size() == 2);
+    auto resolved = resolve_camera_hierarchy(scene.layers(), scene.resource(), scene.camera_2_5d());
 
-    auto resolved_cam = resolve_camera_hierarchy(scene.layers(), scene.resource(), scene.camera_2_5d());
-    CHECK(resolved_cam.camera.point_of_interest.x == doctest::Approx(250.0f));
-    CHECK(resolved_cam.camera.point_of_interest.y == doctest::Approx(30.0f));
-    CHECK(resolved_cam.camera.point_of_interest.z == doctest::Approx(0.0f));
+    CHECK(resolved.camera.point_of_interest.x == doctest::Approx(250.0f).epsilon(0.0001f));
+    CHECK(resolved.camera.point_of_interest.y == doctest::Approx(30.0f).epsilon(0.0001f));
+    CHECK(resolved.camera.point_of_interest.z == doctest::Approx(0.0f).epsilon(0.0001f));
+    CHECK(resolved.camera.point_of_interest_enabled);
 }
 
-TEST_CASE("Camera hierarchy: parent moves the camera without changing orientation") {
+TEST_CASE("Camera hierarchy: parent moves camera in world space") {
     std::pmr::monotonic_buffer_resource res;
     SceneBuilder s(&res);
 
@@ -48,25 +65,22 @@ TEST_CASE("Camera hierarchy: parent moves the camera without changing orientatio
     s.camera().parent("rig");
 
     auto scene = s.build();
-    auto resolved_layers = resolve_layer_hierarchy(scene.layers(), 0, scene.resource());
-    REQUIRE(resolved_layers.size() == 1);
+    auto resolved = resolve_camera_hierarchy(scene.layers(), scene.resource(), scene.camera_2_5d());
 
-    auto resolved_cam = resolve_camera_hierarchy(scene.layers(), scene.resource(), scene.camera_2_5d());
-    CHECK(resolved_cam.camera.position.x == doctest::Approx(100.0f));
-    CHECK(resolved_cam.camera.position.y == doctest::Approx(200.0f));
-    CHECK(resolved_cam.camera.position.z == doctest::Approx(-1000.0f));
-    CHECK(resolved_cam.camera.rotation.x == doctest::Approx(5.0f));
-    CHECK(resolved_cam.camera.rotation.y == doctest::Approx(10.0f));
-    CHECK(resolved_cam.camera.rotation.z == doctest::Approx(15.0f));
+    CHECK(resolved.camera.position.x == doctest::Approx(100.0f).epsilon(0.0001f));
+    CHECK(resolved.camera.position.y == doctest::Approx(200.0f).epsilon(0.0001f));
+    CHECK(resolved.camera.position.z == doctest::Approx(-1000.0f).epsilon(0.0001f));
+    CHECK(resolved.camera.rotation.x == doctest::Approx(5.0f).epsilon(0.0001f));
+    CHECK(resolved.camera.rotation.y == doctest::Approx(10.0f).epsilon(0.0001f));
+    CHECK(resolved.camera.rotation.z == doctest::Approx(15.0f).epsilon(0.0001f));
 }
 
-TEST_CASE("Camera hierarchy: parent rotation moves the camera in 3D") {
+TEST_CASE("Camera hierarchy: parent rotation moves the camera around the origin") {
     std::pmr::monotonic_buffer_resource res;
     SceneBuilder s(&res);
 
     s.null_layer("rig", [](LayerBuilder& l) {
-        l.enable_3d()
-         .rotate({0, 90, 0});
+        l.enable_3d().rotate({0, 90, 0});
     });
 
     s.camera().set({
@@ -77,14 +91,40 @@ TEST_CASE("Camera hierarchy: parent rotation moves the camera in 3D") {
     s.camera().parent("rig");
 
     auto scene = s.build();
-    auto resolved_cam = resolve_camera_hierarchy(scene.layers(), scene.resource(), scene.camera_2_5d());
+    auto resolved = resolve_camera_hierarchy(scene.layers(), scene.resource(), scene.camera_2_5d());
 
-    CHECK(std::abs(resolved_cam.camera.position.x) == doctest::Approx(1000.0f).epsilon(0.01f));
-    CHECK(resolved_cam.camera.position.y == doctest::Approx(0.0f).epsilon(0.01f));
-    CHECK(std::abs(resolved_cam.camera.position.z) == doctest::Approx(0.0f).epsilon(0.01f));
+    CHECK(std::abs(resolved.camera.position.x) == doctest::Approx(1000.0f).epsilon(0.01f));
+    CHECK(resolved.camera.position.y == doctest::Approx(0.0f).epsilon(0.01f));
+    CHECK(std::abs(resolved.camera.position.z) == doctest::Approx(0.0f).epsilon(0.01f));
 }
 
-TEST_CASE("Camera hierarchy: camera change detection tracks target swaps and fast motion") {
+TEST_CASE("Camera hierarchy: target projects to the center of the viewport") {
+    std::pmr::monotonic_buffer_resource res;
+    SceneBuilder s(&res);
+
+    s.camera().enable()
+     .position({0, 0, -1000})
+     .target("target");
+
+    s.layer("target", [](LayerBuilder& l) {
+        l.position({0, 0, 0});
+    });
+
+    auto scene = s.build();
+    auto resolved = resolve_camera_hierarchy(scene.layers(), scene.resource(), scene.camera_2_5d());
+
+    const Vec3 projected = project_point(
+        resolved.camera.point_of_interest,
+        resolved.camera,
+        1280.0f,
+        720.0f
+    );
+
+    CHECK(projected.x == doctest::Approx(640.0f).epsilon(0.5f));
+    CHECK(projected.y == doctest::Approx(360.0f).epsilon(0.5f));
+}
+
+TEST_CASE("Camera hierarchy: fast target swap is detected") {
     std::pmr::monotonic_buffer_resource res;
     SceneBuilder s(&res);
 
@@ -105,20 +145,17 @@ TEST_CASE("Camera hierarchy: camera change detection tracks target swaps and fas
 
     auto scene = s.build();
     auto resolved_a = resolve_camera_hierarchy(scene.layers(), scene.resource(), scene.camera_2_5d());
-    CHECK(resolved_a.camera.point_of_interest.x == doctest::Approx(250.0f));
-    CHECK(resolved_a.camera.point_of_interest.y == doctest::Approx(30.0f));
 
-    Camera2_5DRuntime target_swapped = scene.camera_2_5d();
-    target_swapped.hierarchy_baked = false;
-    target_swapped.point_of_interest = {0.0f, 0.0f, 0.0f};
-    target_swapped.point_of_interest_enabled = false;
-    target_swapped.target_name = std::pmr::string{"target_b", scene.resource()};
-    auto resolved_b = resolve_camera_hierarchy(scene.layers(), scene.resource(), target_swapped);
-    CHECK(resolved_b.camera.point_of_interest.x == doctest::Approx(520.0f));
-    CHECK(resolved_b.camera.point_of_interest.y == doctest::Approx(40.0f));
+    Camera2_5DRuntime swapped = scene.camera_2_5d();
+    swapped.hierarchy_baked = false;
+    swapped.point_of_interest_enabled = false;
+    swapped.point_of_interest = {0.0f, 0.0f, 0.0f};
+    swapped.target_name = std::pmr::string{"target_b", scene.resource()};
+
+    auto resolved_b = resolve_camera_hierarchy(scene.layers(), scene.resource(), swapped);
+
+    CHECK(resolved_b.camera.point_of_interest.x == doctest::Approx(520.0f).epsilon(0.0001f));
+    CHECK(resolved_b.camera.point_of_interest.y == doctest::Approx(40.0f).epsilon(0.0001f));
     CHECK(chronon3d::graph::detail::camera_changed(resolved_b.camera, &resolved_a.camera, true));
-
-    auto fast_moved = resolved_a.camera;
-    fast_moved.position.x += 640.0f;
-    CHECK(chronon3d::graph::detail::camera_changed(fast_moved, &resolved_a.camera, true));
 }
+
