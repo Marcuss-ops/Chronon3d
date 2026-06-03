@@ -22,6 +22,11 @@ TEST_CASE("RichTextLine measures a mixed inline line with text, spacing and symb
     CHECK(metrics.height >= 84.0f);
     CHECK(metrics.ascent >= 42.0f);
     CHECK(metrics.descent >= 42.0f);
+    CHECK(metrics.baseline == doctest::Approx(metrics.ascent));
+    CHECK(metrics.has_ink_bounds);
+    CHECK(metrics.ink_bounds.x <= 0.0f);
+    CHECK(metrics.ink_bounds.z > metrics.ink_bounds.x);
+    CHECK(metrics.ink_bounds.w < metrics.ink_bounds.y);
 }
 
 TEST_CASE("RenderNodeFactory preserves native stroke on rounded rect and circle") {
@@ -52,6 +57,18 @@ TEST_CASE("RenderNodeFactory preserves native stroke on rounded rect and circle"
     auto badge = RenderNodeFactory::circle(res, "badge", circle);
     CHECK(badge.shape.circle.stroke.enabled);
     CHECK(badge.shape.circle.stroke.alignment == StrokeAlignment::Outside);
+}
+
+TEST_CASE("Box model helpers fit content with padding and bounds") {
+    const Vec2 fitted = box_fit_content(
+        {120.0f, 40.0f},
+        BoxPadding{16.0f, 8.0f, 16.0f, 8.0f},
+        {200.0f, 80.0f},
+        Vec2{260.0f, 120.0f}
+    );
+
+    CHECK(fitted.x == doctest::Approx(200.0f));
+    CHECK(fitted.y == doctest::Approx(80.0f));
 }
 
 TEST_CASE("Shape hash changes when stroke changes") {
