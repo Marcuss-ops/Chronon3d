@@ -75,6 +75,13 @@ output/new_features/
 .history/
 /test_output_*.png
 
+# Camera test generated artifacts
+*_state.bin
+*_report*.json
+CameraTestReport.json
+camera_path_report.json
+camera_shot_report*.json
+
 # Local tool metadata and scratch
 .antigravitycli/
 scratch/
