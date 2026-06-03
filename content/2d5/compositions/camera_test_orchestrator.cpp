@@ -50,12 +50,17 @@ Scene camera_test_orchestrator(
 
     // Apply auto fit if requested
     if (shot.auto_fit && !fit_layers.empty()) {
+        CameraFramingOptions framing = shot.framing;
+        // Copy registered layer sizes from validator so fit_camera_to_layers uses real dimensions
+        for (const auto& kv : shot.validator.layer_sizes()) {
+            framing.layer_sizes[kv.first] = kv.second;
+        }
         cam = fit_camera_to_layers(
             cam,
             fit_layers,
             resolved,
             {static_cast<f32>(ctx.width), static_cast<f32>(ctx.height)},
-            shot.framing
+            framing
         );
     }
     scene.set_camera_2_5d(cam);

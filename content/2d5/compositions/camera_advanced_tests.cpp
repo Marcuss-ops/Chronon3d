@@ -526,6 +526,8 @@ Scene camera_safe_framing_aspect_ratio_test_impl(const FrameContext& ctx, i32 /*
         .require_inside_safe_area("card_mid", 0.08f)
         .require_visible("card_mid", 0.95f);
     shot.auto_fit = true;
+    shot.framing.max_iterations = 30;
+    shot.framing.dolly_step = 120.0f;
 
     return camera_test_orchestrator(ctx, s, shot, comp_name, {"card_mid"}, {0, 45, 90});
 }
