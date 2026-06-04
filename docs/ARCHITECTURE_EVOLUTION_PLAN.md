@@ -1,6 +1,6 @@
 # Chronon3d Architecture Evolution Plan
 
-Stato aggiornato dopo `a3adf08`.
+Stato aggiornato dopo `0db8337`.
 
 Questo documento ora contiene solo cio' che manca. Le fasi gia' completate sono state rimosse dal piano operativo:
 
@@ -13,7 +13,8 @@ Questo documento ora contiene solo cio' che manca. Le fasi gia' completate sono 
 - command separati per motion preset, transform, shape e layer properties;
 - `SceneValidator` / `SceneValidationRegistry`;
 - moduli content per Minimalist, Text e 2.5D;
-- registrazione content centralizzata.
+- registrazione content centralizzata;
+- **Scene/SpecScene Model Separation (Fase 6)** — `include/chronon3d/scene/model/`, `include/chronon3d/specscene/model/`, `include/chronon3d/specscene/parser/` con 30+ header spostati, 249 file con include aggiornati.
 
 Obiettivo residuo: completare la modularizzazione senza riaprire il mappazzone su graph, scene, layer ed executor.
 
@@ -33,9 +34,14 @@ src/render_graph/executor/*
 src/render_graph/compiler/*
 src/render_graph/builder/graph_builder_pipeline.cpp
 src/render_graph/render_pipeline*.cpp
-include/chronon3d/scene/*
+include/chronon3d/scene/model/*
+include/chronon3d/scene/builders/*
+include/chronon3d/scene/validation/*
+include/chronon3d/specscene/model/*
 src/scene/*
-src/specscene/*
+src/scene/model/*
+src/specscene/model/*
+src/specscene/parser/*
 ```
 
 Se serve toccarli, scrivere prima:
@@ -284,55 +290,32 @@ extern "C" chronon3d::ExtensionModule* chronon3d_create_extension();
 
 ---
 
-## 6. Mancanza: Scene/SpecScene Model Separation
+## 6. ✅ Completato: Scene/SpecScene Model Separation
 
-La validazione scena ora esiste. Resta da separare meglio:
+**Completato in `0db8337`**.
 
-```text
-scene model
-scene builder DSL
-scene validation
-scene compilation
-specscene parser/model/compiler
-```
+### Cosa e' stato fatto
 
-### Target Directory
+- Creata `include/chronon3d/scene/model/` con 30+ header spostati:
+  - `scene.hpp`, `shape.hpp`, `fill.hpp`, `path.hpp`, material/card3d, render
+  - `layer/*.hpp` → `model/layer*.hpp`
+  - `camera/` model headers → `model/` (camera, camera_2_5d, dof, camera_shake, camera_shot_profile, camera_rig)
+  - `effects/*.hpp` → `model/` (effect_stack, layer_effect)
+  - `mask/*.hpp` → `model/` (mask, mask_utils)
+  - `transform/*.hpp` → `model/` (transform_3d, transform_resolver)
+- Creata `include/chronon3d/specscene/model/` e `parser/`
+- Spostati src: `layer.cpp`, `render_node_factory.cpp`, `mask_utils.cpp`, `transform_resolver.cpp` → `src/scene/model/`
+- Spostati src specscene: `specscene.cpp` → `model/`, `specscene_parsers.cpp/hpp` → `parser/`
+- Aggiornati tutti gli include su 249 file con sed
+- Aggiornato `src/CMakeLists.txt`
+- **482 test girano**, 0 nuovi fallimenti
 
-```text
-include/chronon3d/scene/model/
-include/chronon3d/scene/builders/
-include/chronon3d/scene/validation/
-src/scene/model/
-src/scene/builders/
-src/scene/validation/
+### Note
 
-include/chronon3d/specscene/model/
-include/chronon3d/specscene/parser/
-include/chronon3d/specscene/compiler/
-include/chronon3d/specscene/validation/
-src/specscene/model/
-src/specscene/parser/
-src/specscene/compiler/
-src/specscene/validation/
-```
-
-### Obiettivo
-
-`SceneBuilder` e `LayerBuilder` devono essere facciate leggere. Le nuove operazioni devono vivere in command/registry, non come nuove funzioni monolitiche.
-
-### Creare Quando Serve
-
-```text
-include/chronon3d/scene/builders/scene_command.hpp
-include/chronon3d/scene/builders/scene_command_registry.hpp
-src/scene/builders/scene_command_registry.cpp
-src/scene/builders/commands/camera_commands.cpp
-src/scene/builders/commands/effect_commands.cpp
-src/scene/builders/commands/image_commands.cpp
-src/scene/builders/commands/text_commands.cpp
-```
-
-Nota: non creare questi file solo per simmetria. Crearli quando una nuova feature rischia di gonfiare `SceneBuilder` o `LayerBuilder`.
+- `SceneBuilder` e `LayerBuilder` restano in `builders/` come facciate leggere.
+- Nuovi command files (`scene_command.hpp`, ecc.) vanno creati solo quando serve, non per simmetria.
+- I file di validazione (`validation/`) esistono gia' e non sono stati spostati.
+- I file di camera utility (`camera_framing`, `camera_rig_builder`, ecc.) restano in `camera/`.
 
 ---
 
@@ -383,6 +366,9 @@ src/render_graph/executor/executor.cpp
 src/render_graph/executor/internal.cpp
 src/render_graph/executor/internal.hpp
 src/scene/layer_builder.cpp
+src/scene/model/layer.cpp
+include/chronon3d/scene/model/scene.hpp
+include/chronon3d/scene/model/layer.hpp
 include/chronon3d/scene/builders/layer_builder.hpp
 include/chronon3d/scene/builders/scene_builder.hpp
 apps/chronon3d_cli/commands/video/video_export_pipe.cpp
@@ -441,13 +427,18 @@ Prima di chiudere:
 Priorita' concreta:
 
 ```text
-1. Estrarre RenderGraphContext da render_graph_node.hpp
-2. Completare split executor e ridurre internal.cpp/internal.hpp
-3. Correggere export pipe success/failure telemetry
-4. Creare ExporterRegistry
-5. Aggiungere test contrattuali core
-6. Aggiungere ExtensionLoader per moduli dinamici
-7. Separare ulteriormente Scene/SpecScene solo quando serve
+1. Estrarre RenderGraphContext da render_graph_node.hpp ✅
+2. Completare split executor e ridurre internal.cpp/internal.hpp ✅
+3. Correggere export pipe success/failure telemetry ✅
+4. Creare ExporterRegistry ✅
+5. Aggiungere test contrattuali core ✅
+6. Aggiungere ExtensionLoader per moduli dinamici ✅
+7. Separare Scene/SpecScene Model (Fase 6) ✅
+
+**Prossime priorita':**
+8. Aggiornare CORE_OWNERSHIP.md con i nuovi path model/
+9. Completare forwarding headers per backward compatibility
+10. Verificare che SceneBuilder/LayerBuilder siano facciate leggere
 ```
 
 La metrica di successo resta:
