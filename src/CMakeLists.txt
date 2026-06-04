@@ -318,7 +318,7 @@ target_precompile_headers(chronon3d_scene PRIVATE <glm/glm.hpp> <glm/gtc/matrix_
 # registration symbols survive linking.
 
 # 9b. Extension System
-add_library(chronon3d_extension STATIC extension/extension_registry.cpp)
+add_library(chronon3d_extension STATIC extension/extension_registry.cpp extension/extension_loader.cpp)
 target_link_libraries(chronon3d_extension PUBLIC chronon3d chronon3d_graph chronon3d_registry chronon3d_effects)
 target_precompile_headers(chronon3d_extension PRIVATE <glm/glm.hpp> <spdlog/spdlog.h> <fmt/core.h>)
 
