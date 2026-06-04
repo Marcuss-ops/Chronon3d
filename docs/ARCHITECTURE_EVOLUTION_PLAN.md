@@ -198,6 +198,12 @@ content/
     minimalist_presets.cpp
     minimalist_assets.cpp
 
+  register_content_modules.hpp
+  register_content_modules.cpp
+  register_minimalist_content.cpp
+  register_text_content.cpp
+  register_2d5_content.cpp
+
 tests/
   architecture/
   render_graph/
@@ -671,20 +677,24 @@ tests/render_graph/executor/test_tile_pruning.cpp
 
 ### Fase 3: Introdurre `GraphBuildPass`
 
-Creare:
+✅ **Completata.**
+
+Creati:
 
 ```text
 include/chronon3d/render_graph/builder/graph_build_pass.hpp
 include/chronon3d/render_graph/builder/graph_build_context.hpp
 include/chronon3d/render_graph/builder/graph_build_pipeline.hpp
+include/chronon3d/render_graph/builder/graph_build_registry.hpp
 src/render_graph/builder/graph_build_pipeline.cpp
+src/render_graph/builder/graph_build_registry.cpp
 ```
 
-Primo obiettivo:
+`GraphBuildPass` interfaccia astratta con `name()`, `run()`, `phase()`.
+`GraphBuildPipeline::build()` orchestra i pass registrati.
+`GraphBuildRegistry` fornisce pass di default.
 
-- replicare comportamento attuale;
-- nessuna feature nuova;
-- test golden su scene -> graph.
+Aggiunto anche `GraphBuildPipeline::build_with_resolved()` per evitare doppia chiamata a `resolve_layers()` in `scene.cpp`.
 
 Test:
 
@@ -695,94 +705,169 @@ tests/render_graph/builder/test_graph_build_pass_order.cpp
 
 ### Fase 4: Estrarre Pass Dal Builder
 
-Estrarre progressivamente:
+✅ **Completata.**
+
+Estratti 6 pass dal monolitico `graph_builder_pipeline.cpp`:
 
 ```text
-src/render_graph/builder/passes/source_build_pass.cpp
-src/render_graph/builder/passes/layer_transform_pass.cpp
-src/render_graph/builder/passes/effect_build_pass.cpp
-src/render_graph/builder/passes/mask_build_pass.cpp
-src/render_graph/builder/passes/composite_build_pass.cpp
-src/render_graph/builder/passes/output_build_pass.cpp
+src/render_graph/builder/passes/graph_builder_resolve_pass.cpp
+src/render_graph/builder/passes/graph_builder_source_pass.cpp
+src/render_graph/builder/passes/graph_builder_root_sources_pass.cpp
+src/render_graph/builder/passes/graph_builder_layer_passes.cpp
+src/render_graph/builder/passes/graph_builder_layer_pipeline_pass.cpp
+src/render_graph/builder/passes/graph_builder_lighting_passes.cpp
+src/render_graph/builder/passes/graph_builder_output_pass.cpp
+src/render_graph/builder/passes/graph_builder_passes.hpp
 ```
 
-Ogni estrazione deve:
+Inoltre rimosso `build_graph()` (~300 righe dead code) da `graph_builder_pipeline.cpp`.
 
-- non cambiare output graph;
-- avere test snapshot o semantic test;
-- ridurre `graph_builder_pipeline.cpp`.
+Ogni estrazione non ha cambiato output graph.
 
 ### Fase 5: Registry Estensioni
 
-Creare:
+✅ **Completata.**
+
+Creati:
 
 ```text
 include/chronon3d/extension/extension_module.hpp
 include/chronon3d/extension/extension_registry.hpp
 src/extension/extension_registry.cpp
-```
-
-Creare registri domain-specific:
-
-```text
-include/chronon3d/render_graph/builder/graph_build_registry.hpp
-src/render_graph/builder/graph_build_registry.cpp
 include/chronon3d/render_graph/registry/graph_node_registry.hpp
 src/render_graph/registry/graph_node_registry.cpp
 ```
 
-### Fase 6: Moduli Feature
+`ExtensionModule` interfaccia astratta con `id()`, `register_with()`.
+`ExtensionRegistry` singleton con `add_module()` / `initialize_all()`.
+`GraphNodeRegistry` per registri domain-specific.
 
-Convertire contenuti e feature in moduli:
+### Fase 6: LayerCommand + Motion Presets
+
+✅ **Completata.**
+
+`layer_builder.cpp` ridotto da 815 → 569 righe (−30%).
+
+Creati:
 
 ```text
-content/Minimalist/minimalist_module.cpp
-content/effects/effects_module.cpp
-content/text/text_module.cpp
-content/2d5/two_point_five_d_module.cpp
+include/chronon3d/scene/builders/layer_command.hpp
+include/chronon3d/scene/builders/layer_command_registry.hpp
+include/chronon3d/scene/builders/commands/motion_preset_commands.hpp
+src/scene/builders/layer_command_registry.cpp
+src/scene/builders/commands/motion_preset_commands.cpp
+src/scene/builders/commands/motion_preset_methods.cpp
 ```
 
-Ogni modulo registra:
+`LayerCommand` interfaccia astratta con `const apply()`.
+`LayerCommandRegistry` singleton (auto-registra 15 comandi built-in nel costruttore).
+15 comandi parameterless per extension modules (slide_in, soft_pop, float_idle, ecc.).
 
-- composizioni;
-- preset;
-- asset;
-- eventuali pass o nodi custom.
+### Fase 7: Scene Validation
 
-### Fase 7: Stabilizzare Scene/SpecScene
+✅ **Completata.**
 
-Separare:
+Creati:
 
 ```text
-scene model
-scene builder DSL
-scene validation
-scene compilation
+include/chronon3d/scene/validation/scene_validator.hpp
+include/chronon3d/scene/validation/scene_validation_registry.hpp
+src/scene/validation/scene_validator.cpp
+src/scene/validation/scene_validation_registry.cpp
+src/render_graph/builder/passes/graph_builder_validation_pass.cpp
+src/render_graph/builder/passes/graph_builder_validation_pass.hpp
 ```
 
-Target:
+`SceneValidator` con 6 regole built-in:
+- `layer.duplicate_name` — nomi layer duplicati
+- `layer.missing_parent` — riferimenti a parent inesistenti
+- `layer.zero_duration` — layer con durata zero
+- `layer.track_matte_missing_source` — track matte senza source
+- `camera.missing_target` — camera target inesistente
+- `layer.circular_parent` — gerarchia parent circolare
+
+`SceneValidationRegistry` singleton per regole estensibili.
+`ValidationPass` wired nella fase `PreResolve` del pipeline (primo pass default).
+
+`build_graph()` (~300 righe dead code) rimosso definitivamente.
+`scene.cpp` ora usa `GraphBuildPipeline::build_with_resolved()`.
+
+### Fase 8: ExtensionModule Content Modules
+
+✅ **Completata.**
+
+Ogni package di content registra le proprie composizioni tramite `ExtensionModule`, eliminando i macro statici `CHRONON_REGISTER_COMPOSITION` distribuiti nei file content.
+
+Creati:
 
 ```text
-include/chronon3d/scene/model/*
-include/chronon3d/scene/builders/*
-include/chronon3d/scene/validation/*
-src/scene/model/*
-src/scene/builders/*
-src/scene/validation/*
+content/Minimalist/minimalist_module.cpp      # MinimalistModule — 30 composizioni
+content/text/text_module.cpp                  # TextModule — ~45 composizioni
+content/2d5/two_point_five_d_module.cpp       # TwoPointFiveDModule — 19 composizioni
+
+content/register_content_modules.hpp          # Dichiarazioni (per-module + umbrella)
+content/register_content_modules.cpp          # Umbrella: delega ai 3 per-module
+content/register_minimalist_content.cpp       # Solo create_minimalist_module()
+content/register_text_content.cpp             # Solo create_text_module()
+content/register_2d5_content.cpp              # Solo create_two_point_five_d_module()
 ```
 
-SpecScene:
+**Design per-module:** Ogni file di registrazione reference solo la factory della propria libreria content, evitando errori di linking quando un test target (es. `animation_tests`) linka solo `content_anims`.
 
 ```text
-src/specscene/model/*
-src/specscene/parser/*
-src/specscene/compiler/*
-src/specscene/validation/*
+register_minimalist_content()  →  richiede chronon3d_content_anims
+register_text_content()        →  richiede chronon3d_content_text
+register_two_point_five_d_content()  →  richiede chronon3d_content_2d5
+register_content_modules()     →  delega ai 3 sopra + initialize_all()
+```
+
+**Wiring negli entry point:** `register_content_modules()` viene chiamato PRIMA della costruzione di `CompositionRegistry`, così le composizioni moduli sono nel static vector `builtin_composition_entries()` quando `populate_registered_compositions()` copia.
+
+```text
+apps/chronon3d_cli/main.cpp                     →  register_content_modules()
+src/c_api/chronon3d_c_api.cpp                   →  register_content_modules()
+tests/test_main.cpp                              →  per-module (guardato da compile defs)
+```
+
+**Modifiche correlate:**
+- `extension_registry.hpp/.cpp` — aggiunto `register_composition()` e `has_module()` methods
+- Rimossi `CHRONON_REGISTER_COMPOSITION` da ~15 content files
+- `content/CMakeLists.txt` — `chronon3d_content_modules` library con tutti i file di registrazione
+- `CMakeLists.txt` — compilazione diretta in `chronon3d_shared` sotto `CHRONON3D_BUILD_CONTENT`
+- `tests/CMakeLists.txt` — per-module sources con compile defs granulari (`CHRONON3D_HAS_CONTENT_MINIMALIST`, `CHRONON3D_HAS_CONTENT_TEXT`, `CHRONON3D_HAS_CONTENT_2D5`)
+
+Test:
+
+```text
+tests/test_c_api       — verifica composizioni registrate via C API
+tests/animation_tests  — verifica MinimalistModule standalone
 ```
 
 ---
 
-## 9. Test Minimi Per Toccare Il Core
+## 9. Fasi Future (Preview)
+
+### Fase 9: Dynamic Module Loading
+
+Obiettivo: caricare moduli `ExtensionModule` da shared library esterne (.so/.dll) al runtime.
+
+```text
+include/chronon3d/extension/extension_loader.hpp
+src/extension/extension_loader.cpp
+```
+
+### Fase 10: Exporter Registry
+
+Separare la logica di export (PNG, EXR, FFmpeg) in un registry estensibile.
+
+```text
+apps/chronon3d_cli/commands/video/exporter_registry.hpp
+apps/chronon3d_cli/commands/video/exporter_registry.cpp
+```
+
+---
+
+## 10. Test Minimi Per Toccare Il Core
 
 Se una modifica tocca graph/scene/layer/executor, deve eseguire almeno:
 
@@ -820,7 +905,7 @@ Contratti da coprire:
 
 ---
 
-## 10. Checklist Per Nuova Feature
+## 11. Checklist Per Nuova Feature
 
 Prima di iniziare:
 
@@ -851,7 +936,7 @@ Prima di chiudere:
 
 ---
 
-## 11. Regola Di Ownership Per Agenti
+## 12. Regola Di Ownership Per Agenti
 
 Assegnare agenti per area:
 
@@ -880,7 +965,7 @@ Un agente non deve invadere l'area di un altro senza dichiararlo.
 
 ---
 
-## 12. File Da Monitorare
+## 13. File Da Monitorare
 
 Questi file sono storicamente caldi e vanno monitorati:
 
@@ -914,7 +999,7 @@ Se un file core continua a salire, estrarre un extension point.
 
 ---
 
-## 13. Direzione Finale
+## 14. Direzione Finale
 
 Chronon3d deve arrivare a questa forma:
 

@@ -71,6 +71,6 @@ Composition minimalist_hero_explainer() {
 
 } // namespace chronon3d::content::minimalist
 
-CHRONON_REGISTER_COMPOSITION("MinimalistHeroExplainer", chronon3d::content::minimalist::minimalist_hero_explainer)
+// Registration handled by MinimalistModule in minimalist_module.cpp
 
 

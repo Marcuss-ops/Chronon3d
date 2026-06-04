@@ -23,6 +23,9 @@ namespace chronon3d::graph {
 
 // contains_index helper is defined in execution_state.hpp
 
+// Shared helper for disk node cache feature-flag (used by multiple executor files).
+bool disk_node_cache_enabled_for_current_run();
+
 
 // ── Internal data structures ────────────────────────────────────────
 

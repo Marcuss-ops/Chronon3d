@@ -328,20 +328,5 @@ Composition minimalist_curtain_close() {
 
 } // namespace chronon3d::content::minimalist
 
-// Registrations
-CHRONON_REGISTER_COMPOSITION("MinimalistFadeIn", chronon3d::content::minimalist::minimalist_fade_in)
-CHRONON_REGISTER_COMPOSITION("MinimalistFadeShiftVertical", chronon3d::content::minimalist::minimalist_fade_shift_vertical)
-CHRONON_REGISTER_COMPOSITION("MinimalistFadeShiftHorizontal", chronon3d::content::minimalist::minimalist_fade_shift_horizontal)
-CHRONON_REGISTER_COMPOSITION("MinimalistFocusIn", chronon3d::content::minimalist::minimalist_focus_in)
-CHRONON_REGISTER_COMPOSITION("MinimalistRevealFromBottom", chronon3d::content::minimalist::minimalist_reveal_from_bottom)
-CHRONON_REGISTER_COMPOSITION("MinimalistCenterSplit", chronon3d::content::minimalist::minimalist_center_split)
-CHRONON_REGISTER_COMPOSITION("MinimalistUnderlineDraw", chronon3d::content::minimalist::minimalist_underline_draw)
-CHRONON_REGISTER_COMPOSITION("MinimalistHighlightBlock", chronon3d::content::minimalist::minimalist_highlight_block)
-CHRONON_REGISTER_COMPOSITION("MinimalistFramingBracket", chronon3d::content::minimalist::minimalist_framing_bracket)
-CHRONON_REGISTER_COMPOSITION("MinimalistWordStagger", chronon3d::content::minimalist::minimalist_word_stagger)
-CHRONON_REGISTER_COMPOSITION("MinimalistScaleDrop", chronon3d::content::minimalist::minimalist_scale_drop)
-CHRONON_REGISTER_COMPOSITION("MinimalistTrackingBreathing", chronon3d::content::minimalist::minimalist_tracking_breathing)
-CHRONON_REGISTER_COMPOSITION("MinimalistElegantExitVertical", chronon3d::content::minimalist::minimalist_elegant_exit_vertical)
-CHRONON_REGISTER_COMPOSITION("MinimalistElegantExitHorizontal", chronon3d::content::minimalist::minimalist_elegant_exit_horizontal)
-CHRONON_REGISTER_COMPOSITION("MinimalistCurtainClose", chronon3d::content::minimalist::minimalist_curtain_close)
+// Registrations are now handled by MinimalistModule in minimalist_module.cpp
 

@@ -10,19 +10,6 @@
 
 namespace chronon3d::graph {
 
-static bool disk_node_cache_enabled_for_current_run() {
-#ifdef CHRONON_BUILD_TESTS
-    return false;
-#else
-    const char* env = std::getenv("CHRONON_DISABLE_DISK_NODE_CACHE");
-    if (!env || !*env) {
-        return true;
-    }
-    const std::string_view value{env};
-    return value == "0" || value == "false" || value == "FALSE";
-#endif
-}
-
 double run_node(
     RenderGraphNode& node,
     RenderGraphContext& node_ctx,

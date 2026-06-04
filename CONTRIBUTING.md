@@ -74,6 +74,15 @@ content/             — Composition definitions
 - [ ] `docs/IMPROVEMENTS.md` updated if relevant
 - [ ] CHANGELOG note added (if user-facing change)
 
+## Architecture
+
+Before making changes to core engine files, read:
+
+- [`docs/ARCHITECTURE_EVOLUTION_PLAN.md`](docs/ARCHITECTURE_EVOLUTION_PLAN.md) — the roadmap for modularizing the engine
+- [`docs/CORE_OWNERSHIP.md`](docs/CORE_OWNERSHIP.md) — protected files, agent rules, minimum tests, and PR checklist
+
+Key rule: **work in Feature Zone by default** (`content/`, `effects/`, `nodes/`, `assets/`, `video/`, `CLI/`). Touch core files only with explicit justification.
+
 ## Questions?
 
 Open an issue or start a discussion. We're friendly.
