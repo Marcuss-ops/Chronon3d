@@ -48,8 +48,11 @@ include/chronon3d/render_graph/builder/graph_build_pipeline.hpp
 include/chronon3d/render_graph/builder/graph_build_registry.hpp
 src/render_graph/builder/graph_build_pipeline.cpp
 src/render_graph/builder/graph_build_registry.cpp
-src/render_graph/builder/graph_builder_pipeline.cpp          # helper functions
-src/render_graph/builder/graph_builder_layer_pipeline.cpp    # helper functions
+src/render_graph/builder/graph_builder_pipeline.cpp          # orchestratore minimo
+src/render_graph/builder/graph_builder_layer_pipeline.cpp    # layer pipeline helpers
+src/render_graph/builder/graph_builder_bbox.cpp              # bbox helpers
+src/render_graph/builder/graph_builder_matte.cpp             # track matte helpers
+src/render_graph/builder/graph_builder_static_analysis.cpp   # static layer analysis
 src/render_graph/builder/passes/graph_builder_passes.hpp
 src/render_graph/builder/passes/graph_builder_resolve_pass.cpp
 src/render_graph/builder/passes/graph_builder_source_pass.cpp
