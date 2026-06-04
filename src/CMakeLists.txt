@@ -50,6 +50,10 @@ target_precompile_headers(chronon3d_cache PRIVATE <xxhash.h>)
 set(CHRONON3D_GRAPH_SOURCES
     render_graph/builder/graph_builder_internal.cpp
     render_graph/builder/graph_builder_pipeline.cpp
+    render_graph/builder/graph_builder_static_analysis.cpp
+    render_graph/builder/graph_builder_bbox.cpp
+    render_graph/builder/graph_builder_matte.cpp
+    render_graph/builder/graph_builder_layer_pipeline.cpp
     render_graph/builder/graph_build_pipeline.cpp
     scene/model/mask_utils.cpp
     render_graph/builder/passes/graph_builder_layer_passes.cpp
@@ -350,5 +354,4 @@ target_link_libraries(chronon3d_software INTERFACE
 add_library(chronon3d_pipeline INTERFACE)
 target_link_libraries(chronon3d_pipeline INTERFACE chronon3d_core chronon3d_software Taskflow::Taskflow concurrentqueue::concurrentqueue yuv
     -lswscale -lavutil)
-
 
