@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <exception>
 #include <filesystem>
 #include <spdlog/spdlog.h>
 
@@ -18,6 +19,38 @@ constexpr size_t align_up(size_t value, size_t alignment) {
 }
 
 } // namespace
+
+bool should_log_pipe_progress(int done_count, int total) {
+    return done_count % std::max(1, total / 10) == 0 || done_count == total;
+}
+
+int pipe_encoded_frame_count(const PipeExportStatus& status) {
+    return status.success ? status.frames_written : 0;
+}
+
+void mark_pipe_cancelled(PipeExportStatus& status, Frame frame) {
+    spdlog::warn("[video] Render cancelled at frame {}", frame);
+    status.success = false;
+    status.cancelled = true;
+}
+
+void mark_pipe_writer_failed(PipeExportStatus& status, Frame frame) {
+    spdlog::error("[video] FFmpeg writer failed before frame {}", frame);
+    status.success = false;
+    status.writer_error = true;
+}
+
+void mark_pipe_render_failed(PipeExportStatus& status, Frame frame) {
+    spdlog::error("[video] Failed to render frame {}", frame);
+    status.success = false;
+    status.render_failed = true;
+}
+
+void mark_pipe_exception(PipeExportStatus& status, Frame frame, const std::exception& error) {
+    spdlog::error("[video] Exception during render loop (frame {}): {}", frame, error.what());
+    status.success = false;
+    status.exception_error = true;
+}
 
 size_t compute_pipe_arena_size(int width, int height) {
     const size_t frame_bytes = static_cast<size_t>(width) * static_cast<size_t>(height) * sizeof(Color);
@@ -147,18 +180,13 @@ double pipe_write_blocked_ms(bool is_native, IVideoEncoder& encoder) {
     return 0.0;
 }
 
-void log_pipe_export_failure(
-    bool cancelled,
-    bool render_failed,
-    bool writer_error,
-    bool exception_error)
-{
+void log_pipe_export_failure(const PipeExportStatus& status) {
     spdlog::error(
         "[video] Export incomplete: cancelled={} render_failed={} writer_error={} exception={}",
-        cancelled,
-        render_failed,
-        writer_error,
-        exception_error
+        status.cancelled,
+        status.render_failed,
+        status.writer_error,
+        status.exception_error
     );
 }
 

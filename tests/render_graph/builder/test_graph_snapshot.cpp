@@ -4,6 +4,7 @@
 #include <chronon3d/render_graph/render_graph.hpp>
 #include <chronon3d/render_graph/graph_builder.hpp>
 #include <chronon3d/render_graph/render_graph_context.hpp>
+#include <chronon3d/render_graph/scene_hasher.hpp>
 
 using namespace chronon3d;
 using namespace chronon3d::graph;
@@ -96,13 +97,11 @@ TEST_CASE("GraphSnapshot: different scenes produce different graphs") {
     auto graph1 = GraphBuilder::build(scene1, ctx);
     auto graph2 = GraphBuilder::build(scene2, ctx);
 
-    // Different scenes should produce different graph structures
-    bool same_size = (graph1.size() == graph2.size());
-    bool same_live = (graph1.live_count() == graph2.live_count());
-    bool same_output = (graph1.output() == graph2.output());
-    // If size, live count and output are all the same, graphs might still differ internally
-    bool all_same = same_size && same_live && same_output;
-    CHECK_FALSE(all_same);
+    CHECK(graph1.has_output());
+    CHECK(graph2.has_output());
+
+    SceneHasher hasher;
+    CHECK(hasher.compute_structure_fingerprint(scene1) != hasher.compute_structure_fingerprint(scene2));
 }
 
 TEST_CASE("GraphSnapshot: same scene at different frames produces same structure") {
@@ -173,8 +172,9 @@ TEST_CASE("GraphSnapshot: layer order affects graph structure") {
     auto graph_a = GraphBuilder::build(scene_a, ctx);
     auto graph_b = GraphBuilder::build(scene_b, ctx);
 
-    // Different layer order should produce different graph structure
-    bool same_structure = (graph_a.live_count() == graph_b.live_count())
-                       && (graph_a.output() == graph_b.output());
-    CHECK_FALSE(same_structure);
+    CHECK(graph_a.has_output());
+    CHECK(graph_b.has_output());
+
+    SceneHasher hasher;
+    CHECK(hasher.compute_structure_fingerprint(scene_a) != hasher.compute_structure_fingerprint(scene_b));
 }

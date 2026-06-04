@@ -4,11 +4,31 @@
 
 #include <chronon3d/core/system_metrics.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/core/types/frame.hpp>
 
+#include <exception>
 #include <memory>
 #include <string>
 
 namespace chronon3d::cli {
+
+struct PipeExportStatus {
+    bool success{true};
+    bool cancelled{false};
+    bool render_failed{false};
+    bool writer_error{false};
+    bool exception_error{false};
+    int frames_written{0};
+};
+
+[[nodiscard]] bool should_log_pipe_progress(int done_count, int total);
+
+[[nodiscard]] int pipe_encoded_frame_count(const PipeExportStatus& status);
+
+void mark_pipe_cancelled(PipeExportStatus& status, Frame frame);
+void mark_pipe_writer_failed(PipeExportStatus& status, Frame frame);
+void mark_pipe_render_failed(PipeExportStatus& status, Frame frame);
+void mark_pipe_exception(PipeExportStatus& status, Frame frame, const std::exception& error);
 
 [[nodiscard]] size_t compute_pipe_arena_size(int width, int height);
 
@@ -32,9 +52,6 @@ void warmup_pipe_renderer(
 [[nodiscard]] double pipe_write_blocked_ms(bool is_native, IVideoEncoder& encoder);
 
 void log_pipe_export_failure(
-    bool cancelled,
-    bool render_failed,
-    bool writer_error,
-    bool exception_error);
+    const PipeExportStatus& status);
 
 } // namespace chronon3d::cli
