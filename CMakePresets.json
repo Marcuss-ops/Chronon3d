@@ -21,7 +21,10 @@
       "hidden": true,
       "inherits": "base",
       "cacheVariables": {
-        "VCPKG_TARGET_TRIPLET": "x64-linux"
+        "VCPKG_TARGET_TRIPLET": "x64-linux",
+        "CMAKE_LINKER_TYPE": "MOLD",
+        "CMAKE_CXX_FLAGS": "-fdiagnostics-color=always",
+        "CMAKE_C_FLAGS": "-fdiagnostics-color=always"
       }
     },
     {
@@ -104,6 +107,26 @@
         "CHRONON3D_ENABLE_SQLITE_TELEMETRY": "OFF",
         "CHRONON3D_ENABLE_PROFILING": "OFF",
         "CHRONON3D_UNITY_BUILD": "OFF"
+      }
+    },
+    {
+      "name": "linux-fast-dev",
+      "inherits": "base-linux",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CHRONON3D_BUILD_TESTS": "ON",
+        "CHRONON3D_BUILD_TOOLS": "OFF",
+        "CHRONON3D_BUILD_BENCHMARKS": "OFF",
+        "CHRONON3D_BUILD_CONTENT": "ON",
+        "CHRONON3D_ENABLE_NATIVE_FFMPEG": "OFF",
+        "CHRONON3D_ENABLE_SQLITE_TELEMETRY": "OFF",
+        "CHRONON3D_ENABLE_PROFILING": "OFF",
+        "CHRONON3D_UNITY_BUILD": "ON"
       }
     },
     {
@@ -252,6 +275,15 @@
       "jobs": 16
     },
     {
+      "name": "linux-fast-dev",
+      "configurePreset": "linux-fast-dev",
+      "targets": [
+        "chronon3d_cli",
+        "chronon3d_tests_fast"
+      ],
+      "jobs": 16
+    },
+    {
       "name": "linux-dev",
       "configurePreset": "linux-dev",
       "targets": [
@@ -338,6 +370,13 @@
     {
       "name": "win-test",
       "configurePreset": "win-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "linux-fast-dev-test",
+      "configurePreset": "linux-fast-dev",
       "output": {
         "outputOnFailure": true
       }
