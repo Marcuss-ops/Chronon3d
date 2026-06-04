@@ -1,12 +1,12 @@
 #include "chronon3d/c_api/chronon3d.h"
 #include <chronon3d/chronon3d.hpp>
 #include <chronon3d/runtime/timeline_evaluator.hpp>
-#include <chronon3d/specscene/specscene.hpp>
+#include <chronon3d/specscene/model/specscene.hpp>
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <content/register_content_modules.hpp>
 #include <nlohmann/json.hpp>
 #include <toml++/toml.h>
-#include "../specscene/specscene_parsers.hpp"
+#include "../specscene/parser/specscene_parsers.hpp"
 
 #include <string>
 #include <exception>

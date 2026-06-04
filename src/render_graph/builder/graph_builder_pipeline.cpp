@@ -21,8 +21,8 @@
 #include <chronon3d/render_graph/nodes/adjustment_node.hpp>
 #include <chronon3d/render_graph/nodes/multi_source_node.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
-#include <chronon3d/scene/layer/layer.hpp>
-#include <chronon3d/scene/shape.hpp>
+#include <chronon3d/scene/model/layer.hpp>
+#include <chronon3d/scene/model/shape.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/software/shape_processor.hpp>
 #include "graph_builder_coordinates.hpp"

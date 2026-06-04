@@ -1,7 +1,7 @@
 #include "graph_builder_internal.hpp"
 
-#include <chronon3d/scene/layer/layer_hierarchy.hpp>
-#include <chronon3d/scene/scene.hpp>
+#include <chronon3d/scene/model/layer_hierarchy.hpp>
+#include <chronon3d/scene/model/scene.hpp>
 #include <tbb/task_group.h>
 
 namespace chronon3d::graph::detail {

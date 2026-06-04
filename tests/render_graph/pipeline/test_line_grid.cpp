@@ -2,7 +2,7 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/render_graph/render_pipeline.hpp>
-#include <chronon3d/scene/shape.hpp>
+#include <chronon3d/scene/model/shape.hpp>
 #include <cmath>
 
 using namespace chronon3d;

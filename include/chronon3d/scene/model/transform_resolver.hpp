@@ -1,6 +1,6 @@
 #pragma once
 
-#include <chronon3d/scene/transform/transform_3d.hpp>
+#include <chronon3d/scene/model/transform_3d.hpp>
 #include <vector>
 #include <string>
 #include <unordered_map>

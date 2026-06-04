@@ -1,6 +1,6 @@
 #pragma once
 
-#include <chronon3d/scene/camera/camera_rig.hpp>
+#include <chronon3d/scene/model/camera_rig.hpp>
 #include <string>
 
 namespace chronon3d::camera_rig_presets {

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <chronon3d/animation/wiggle.hpp>
-#include <chronon3d/scene/camera/camera_2_5d.hpp>
+#include <chronon3d/scene/model/camera_2_5d.hpp>
 #include <chronon3d/scene/camera/animated_camera_2_5d.hpp>
 #include <algorithm>
 #include <cmath>

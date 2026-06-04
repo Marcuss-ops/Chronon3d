@@ -1,9 +1,9 @@
 #pragma once
 
 #include <chronon3d/core/memory/framebuffer.hpp>
-#include <chronon3d/scene/camera/camera.hpp>
-#include <chronon3d/scene/layer/render_node.hpp>
-#include <chronon3d/scene/shape.hpp>
+#include <chronon3d/scene/model/camera.hpp>
+#include <chronon3d/scene/model/render_node.hpp>
+#include <chronon3d/scene/model/shape.hpp>
 #include <chronon3d/math/transform.hpp>
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/math/glm_types.hpp>

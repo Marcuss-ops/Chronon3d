@@ -2,9 +2,9 @@
 
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/math/glm_types.hpp>
-#include <chronon3d/scene/shape.hpp>
-#include <chronon3d/scene/fill.hpp>
-#include <chronon3d/scene/layer/render_node.hpp>
+#include <chronon3d/scene/model/shape.hpp>
+#include <chronon3d/scene/model/fill.hpp>
+#include <chronon3d/scene/model/render_node.hpp>
 #include <chronon3d/math/raster_utils.hpp>
 #include <vector>
 

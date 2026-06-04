@@ -1,7 +1,7 @@
 #pragma once
 
 #include <chronon3d/math/glm_types.hpp>
-#include <chronon3d/scene/mask/mask.hpp>
+#include <chronon3d/scene/model/mask.hpp>
 #include <cstdint>
 #include <memory>
 

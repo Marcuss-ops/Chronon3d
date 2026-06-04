@@ -1,6 +1,6 @@
 #pragma once
 
-#include <chronon3d/scene/shape.hpp>
+#include <chronon3d/scene/model/shape.hpp>
 #include <chronon3d/text/font_engine.hpp>
 
 #include <algorithm>

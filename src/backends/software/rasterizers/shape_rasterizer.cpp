@@ -1,8 +1,8 @@
 #include "shape_rasterizer.hpp"
 #include <chronon3d/backends/software/shape_processor.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
-#include <chronon3d/scene/mask/mask_utils.hpp>
-#include <chronon3d/scene/fill.hpp>
+#include <chronon3d/scene/model/mask_utils.hpp>
+#include <chronon3d/scene/model/fill.hpp>
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/simd/kernels.hpp>
 #include "path_rasterizer.hpp"

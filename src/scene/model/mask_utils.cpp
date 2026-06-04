@@ -1,4 +1,4 @@
-#include <chronon3d/scene/mask/mask_utils.hpp>
+#include <chronon3d/scene/model/mask_utils.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/math/glm_types.hpp>
 #include <glm/gtc/matrix_inverse.hpp>

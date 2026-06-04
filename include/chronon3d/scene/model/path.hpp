@@ -1,7 +1,7 @@
 #pragma once
 
 #include <chronon3d/math/glm_types.hpp>
-#include <chronon3d/scene/fill.hpp>
+#include <chronon3d/scene/model/fill.hpp>
 #include <vector>
 
 namespace chronon3d {

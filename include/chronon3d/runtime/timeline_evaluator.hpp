@@ -1,7 +1,7 @@
 #pragma once
 
 #include <chronon3d/description/scene_description.hpp>
-#include <chronon3d/scene/scene.hpp>
+#include <chronon3d/scene/model/scene.hpp>
 #include <memory_resource>
 
 namespace chronon3d {

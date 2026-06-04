@@ -1,8 +1,8 @@
 #include <doctest/doctest.h>
 #include <chronon3d/layout/layout_solver.hpp>
 #include <chronon3d/layout/layout_rules.hpp>
-#include <chronon3d/scene/scene.hpp>
-#include <chronon3d/scene/layer/layer.hpp>
+#include <chronon3d/scene/model/scene.hpp>
+#include <chronon3d/scene/model/layer.hpp>
 
 using namespace chronon3d;
 

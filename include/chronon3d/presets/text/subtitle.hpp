@@ -1,7 +1,7 @@
 #pragma once
 
 #include <chronon3d/core/types/frame.hpp>
-#include <chronon3d/scene/shape.hpp>
+#include <chronon3d/scene/model/shape.hpp>
 #include <string>
 #include <vector>
 

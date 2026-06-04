@@ -1,8 +1,8 @@
 #include <doctest/doctest.h>
-#include <chronon3d/scene/camera/camera_rig.hpp>
+#include <chronon3d/scene/model/camera_rig.hpp>
 #include <chronon3d/scene/camera/camera_rig_builder.hpp>
 #include <chronon3d/scene/camera/camera_rig_presets.hpp>
-#include <chronon3d/scene/transform/transform_resolver.hpp>
+#include <chronon3d/scene/model/transform_resolver.hpp>
 #include <glm/gtx/quaternion.hpp>
 #include <cmath>
 

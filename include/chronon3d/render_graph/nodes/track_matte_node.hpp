@@ -2,7 +2,7 @@
 
 #include <chronon3d/render_graph/render_graph_node.hpp>
 #include <chronon3d/render_graph/render_graph_hashing.hpp>
-#include <chronon3d/scene/layer/track_matte.hpp>
+#include <chronon3d/scene/model/track_matte.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <algorithm>
 #include <cmath>

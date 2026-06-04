@@ -1,6 +1,6 @@
 #include <doctest/doctest.h>
 
-#include <chronon3d/scene/render_node_factory.hpp>
+#include <chronon3d/scene/model/render_node_factory.hpp>
 #include <chronon3d/render_graph/render_graph_hashing.hpp>
 
 using namespace chronon3d;

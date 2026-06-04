@@ -1,6 +1,6 @@
 #pragma once
 
-#include <chronon3d/scene/camera/camera_2_5d.hpp>
+#include <chronon3d/scene/model/camera_2_5d.hpp>
 #include <string>
 #include <optional>
 #include <chronon3d/math/raster_utils.hpp>

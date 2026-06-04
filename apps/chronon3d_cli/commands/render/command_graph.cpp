@@ -2,7 +2,7 @@
 #include "../../utils/job/cli_render_utils.hpp"
 #include <chronon3d/render_graph/render_pipeline.hpp>
 #include <chronon3d/render_graph/graph_builder.hpp>
-#include <chronon3d/scene/layer/resolved_types.hpp>
+#include <chronon3d/scene/model/resolved_types.hpp>
 #include <chronon3d/math/projector_2_5d.hpp>
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>

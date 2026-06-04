@@ -5,7 +5,7 @@
 #include <chronon3d/render_graph/nodes/basic_nodes_common.hpp>
 #include <chronon3d/render_graph/nodes/dof_node.hpp>
 #include <chronon3d/render_graph/nodes/transform_node.hpp>
-#include <chronon3d/scene/layer/layer.hpp>
+#include <chronon3d/scene/model/layer.hpp>
 #include <memory>
 
 namespace chronon3d::graph::detail {

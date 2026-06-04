@@ -2,7 +2,7 @@
 
 #include <chronon3d/math/transform.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
-#include <chronon3d/scene/layer/layer_hierarchy.hpp>
+#include <chronon3d/scene/model/layer_hierarchy.hpp>
 #include <cmath>
 
 using namespace chronon3d;

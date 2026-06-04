@@ -1,6 +1,6 @@
 #include <doctest/doctest.h>
 #include <chronon3d/backends/software/rasterizers/card3d_material_rasterizer.hpp>
-#include <chronon3d/scene/card3d_material.hpp>
+#include <chronon3d/scene/model/card3d_material.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 
 using namespace chronon3d;
