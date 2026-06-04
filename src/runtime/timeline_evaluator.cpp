@@ -231,9 +231,9 @@ Scene TimelineEvaluator::evaluate(const SceneDescription& scene, Frame frame, st
         layer.transition_out = ld.transition_out;
         layer.visible      = true;
 
-        // Adjustment layers don't need their own visuals
-        if (ld.kind == LayerKind::Adjustment) {
-            layer.nodes.clear();
+        // Precomp layers: propagate composition name
+        if (ld.kind == LayerKind::Precomp) {
+            layer.precomp_composition_name = std::pmr::string{ld.precomp_composition_name, res};
         }
 
         double time = static_cast<double>(frame) / (static_cast<double>(scene.frame_rate.numerator) / scene.frame_rate.denominator);
@@ -275,8 +275,11 @@ Scene TimelineEvaluator::evaluate(const SceneDescription& scene, Frame frame, st
         layer.transform.scale    = scl;
         layer.transform.opacity  = opacity;
 
-        for (const auto& vd : ld.visuals) {
-            layer.nodes.push_back(make_render_node(vd, layer.transform, res));
+        // Only Normal/Video/Glass layers produce their own visual nodes
+        if (ld.kind == LayerKind::Normal || ld.kind == LayerKind::Video || ld.kind == LayerKind::Glass) {
+            for (const auto& vd : ld.visuals) {
+                layer.nodes.push_back(make_render_node(vd, layer.transform, res));
+            }
         }
 
         result.add_layer(std::move(layer));

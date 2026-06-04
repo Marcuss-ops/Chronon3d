@@ -6,8 +6,10 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/description/scene_description.hpp>
 #include <chronon3d/runtime/timeline_evaluator.hpp>
+#include <tests/helpers/pixel_assertions.hpp>
 
 using namespace chronon3d;
+using namespace chronon3d::test;
 
 static std::shared_ptr<Framebuffer> render_timemap(
     std::function<Scene(const FrameContext&)> fn, int w = 80, int h = 80, Frame frame = Frame{0})
@@ -155,7 +157,7 @@ TEST_CASE("AE-4: local_frame freeze_frame overrides speed") {
 // AE-4: LayerBuilder API
 // ═══════════════════════════════════════════════════════════════════════════
 
-TEST_CASE("AE-4: LayerBuilder speed()") {
+TEST_CASE("AE-4: LayerBuilder speed() renders without crash") {
     auto fb = render_timemap([](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         s.rect("bg", {.size={80,80}, .color=Color::white(), .pos={40,40,0}})
@@ -164,11 +166,12 @@ TEST_CASE("AE-4: LayerBuilder speed()") {
         });
         return s.build();
     });
-    // Should not crash
     CHECK(fb != nullptr);
+    // White bg should be visible
+    CHECK(any_pixel(*fb, Color::white()));
 }
 
-TEST_CASE("AE-4: LayerBuilder reverse()") {
+TEST_CASE("AE-4: LayerBuilder reverse() renders without crash") {
     auto fb = render_timemap([](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         s.rect("bg", {.size={80,80}, .color=Color::white(), .pos={40,40,0}})
@@ -178,36 +181,177 @@ TEST_CASE("AE-4: LayerBuilder reverse()") {
         return s.build();
     });
     CHECK(fb != nullptr);
+    CHECK(any_pixel(*fb, Color::white()));
 }
 
-TEST_CASE("AE-4: speed affects animated property evaluation") {
-    // A layer with position animation from (0,0) to (80,0) over 60 frames.
-    // With speed=0.5, at frame 30 the local frame is 15, so position should be at ~25%.
-    auto fb = render_timemap([](const FrameContext& ctx) {
+TEST_CASE("AE-4: speed 0.5 shifts animated position to half") {
+    // Positions are canvas-centered. On a 200×200 canvas, center=(100,100).
+    // Position animation from x=-60 to x=60 over 60 frames.
+    // Normal at frame 30: t=0.5 → pos=0 → pixel=100.
+    // Slow at frame 30: local_frame=15, t=0.25 → pos=-30 → pixel=70.
+    auto fb_normal = render_timemap([](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         s.layer("moving", [](LayerBuilder& l) {
-            l.position_anim().key(Frame{0}, Vec3{0, 40, 0}).key(Frame{60}, Vec3{80, 40, 0});
+            l.position_anim().key(Frame{0}, Vec3{-60, 0, 0}).key(Frame{60}, Vec3{60, 0, 0});
+            l.rect("dot", {.size={10,10}, .color=Color::red()});
+        });
+        return s.build();
+    }, 200, 200, Frame{30});
+
+    auto fb_slow = render_timemap([](const FrameContext& ctx) {
+        SceneBuilder s(ctx);
+        s.layer("moving", [](LayerBuilder& l) {
+            l.position_anim().key(Frame{0}, Vec3{-60, 0, 0}).key(Frame{60}, Vec3{60, 0, 0});
             l.speed(0.5f);
             l.rect("dot", {.size={10,10}, .color=Color::red()});
         });
         return s.build();
-    }, 80, 80, Frame{30});
+    }, 200, 200, Frame{30});
 
-    // At frame 30 with speed=0.5, local_frame=15, position should be interpolated
-    // between 0 and 80 at t=15/60=0.25, so x≈20
-    CHECK(fb != nullptr);
+    REQUIRE(fb_normal != nullptr);
+    REQUIRE(fb_slow != nullptr);
+
+    Color red = Color::red();
+    float cx_normal = centroid_x(*fb_normal, red);
+    float cx_slow   = centroid_x(*fb_slow, red);
+
+    CHECK(cx_normal > 0.0f);
+    CHECK(cx_slow   > 0.0f);
+    // Slow dot should be LEFT of normal (further back in animation)
+    CHECK(cx_slow < cx_normal);
+    // Normal at t=0.5: pos=0 → pixel=100
+    CHECK(cx_normal == doctest::Approx(100.0f).epsilon(0.1f));
+    // Slow at t=0.25: pos=-30 → pixel=70
+    CHECK(cx_slow == doctest::Approx(70.0f).epsilon(0.1f));
 }
 
-TEST_CASE("AE-4: LayerBuilder freeze_frame()") {
-    auto fb = render_timemap([](const FrameContext& ctx) {
+TEST_CASE("AE-4: speed 2.0 fast-forwards animated position") {
+    // Same animation. At frame 15:
+    // Normal: t=15/60=0.25 → pos=-30 → pixel=70.
+    // Fast: local_frame=30, t=0.5 → pos=0 → pixel=100.
+    auto fb_normal = render_timemap([](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        s.rect("bg", {.size={80,80}, .color=Color::white(), .pos={40,40,0}})
-         .layer("test", [](LayerBuilder& l) {
-            l.freeze_frame(Frame{30});
+        s.layer("moving", [](LayerBuilder& l) {
+            l.position_anim().key(Frame{0}, Vec3{-60, 0, 0}).key(Frame{60}, Vec3{60, 0, 0});
+            l.rect("dot", {.size={10,10}, .color=Color::red()});
         });
         return s.build();
-    });
-    CHECK(fb != nullptr);
+    }, 200, 200, Frame{15});
+
+    auto fb_fast = render_timemap([](const FrameContext& ctx) {
+        SceneBuilder s(ctx);
+        s.layer("moving", [](LayerBuilder& l) {
+            l.position_anim().key(Frame{0}, Vec3{-60, 0, 0}).key(Frame{60}, Vec3{60, 0, 0});
+            l.speed(2.0f);
+            l.rect("dot", {.size={10,10}, .color=Color::red()});
+        });
+        return s.build();
+    }, 200, 200, Frame{15});
+
+    REQUIRE(fb_normal != nullptr);
+    REQUIRE(fb_fast != nullptr);
+
+    Color red = Color::red();
+    float cx_normal = centroid_x(*fb_normal, red);
+    float cx_fast   = centroid_x(*fb_fast, red);
+
+    CHECK(cx_normal > 0.0f);
+    CHECK(cx_fast   > 0.0f);
+    // Fast dot should be RIGHT of normal
+    CHECK(cx_fast > cx_normal);
+    CHECK(cx_normal == doctest::Approx(70.0f).epsilon(0.1f));
+    CHECK(cx_fast   == doctest::Approx(100.0f).epsilon(0.1f));
+}
+
+TEST_CASE("AE-4: freeze_frame holds position across frames") {
+    // With freeze_frame=15, position is always at local_frame=15 → t=0.25
+    // pos = -30 → pixel = 70. Should be identical at frames 0, 30, 60.
+    auto make_frozen = [](const FrameContext& ctx) {
+        SceneBuilder s(ctx);
+        s.layer("moving", [](LayerBuilder& l) {
+            l.position_anim().key(Frame{0}, Vec3{-60, 0, 0}).key(Frame{60}, Vec3{60, 0, 0});
+            l.freeze_frame(Frame{15});
+            l.rect("dot", {.size={10,10}, .color=Color::red()});
+        });
+        return s.build();
+    };
+
+    auto fb_f0  = render_timemap(make_frozen, 200, 200, Frame{0});
+    auto fb_f30 = render_timemap(make_frozen, 200, 200, Frame{30});
+    auto fb_f60 = render_timemap(make_frozen, 200, 200, Frame{60});
+
+    REQUIRE(fb_f0  != nullptr);
+    REQUIRE(fb_f30 != nullptr);
+    REQUIRE(fb_f60 != nullptr);
+
+    Color red = Color::red();
+    float cx_0  = centroid_x(*fb_f0, red);
+    float cx_30 = centroid_x(*fb_f30, red);
+    float cx_60 = centroid_x(*fb_f60, red);
+
+    CHECK(cx_0  > 0.0f);
+    CHECK(cx_30 > 0.0f);
+    CHECK(cx_60 > 0.0f);
+    // All three frames should show the dot at the SAME x position
+    CHECK(cx_0  == doctest::Approx(cx_30).epsilon(0.02f));
+    CHECK(cx_30 == doctest::Approx(cx_60).epsilon(0.02f));
+    // Frozen at local_frame=15 → t=0.25 → pos=-30 → pixel=70
+    CHECK(cx_0 == doctest::Approx(70.0f).epsilon(0.1f));
+}
+
+TEST_CASE("AE-4: reverse speed mirrors position trajectory") {
+    // Normal: frame 0 → pos=-60 (pixel=40), frame 60 → pos=60 (pixel=160).
+    // Reverse (speed=-1, dur=60): frame 0 → source=60 → pos=60 (pixel=160),
+    //                              frame 60 → source=0 → pos=-60 (pixel=40).
+    auto make_normal = [](const FrameContext& ctx) {
+        SceneBuilder s(ctx);
+        s.layer("moving", [](LayerBuilder& l) {
+            l.position_anim().key(Frame{0}, Vec3{-60, 0, 0}).key(Frame{60}, Vec3{60, 0, 0});
+            l.duration(Frame{60});
+            l.rect("dot", {.size={10,10}, .color=Color::red()});
+        });
+        return s.build();
+    };
+
+    auto make_reverse = [](const FrameContext& ctx) {
+        SceneBuilder s(ctx);
+        s.layer("moving", [](LayerBuilder& l) {
+            l.position_anim().key(Frame{0}, Vec3{-60, 0, 0}).key(Frame{60}, Vec3{60, 0, 0});
+            l.reverse();
+            l.duration(Frame{60});
+            l.rect("dot", {.size={10,10}, .color=Color::red()});
+        });
+        return s.build();
+    };
+
+    auto fb_norm_start = render_timemap(make_normal,  200, 200, Frame{0});
+    auto fb_norm_end   = render_timemap(make_normal,  200, 200, Frame{59});
+    auto fb_rev_start  = render_timemap(make_reverse, 200, 200, Frame{0});
+    auto fb_rev_end    = render_timemap(make_reverse, 200, 200, Frame{59});
+
+    REQUIRE(fb_norm_start != nullptr);
+    REQUIRE(fb_norm_end   != nullptr);
+    REQUIRE(fb_rev_start  != nullptr);
+    REQUIRE(fb_rev_end    != nullptr);
+
+    Color red = Color::red();
+    float cx_norm_start = centroid_x(*fb_norm_start, red);
+    float cx_norm_end   = centroid_x(*fb_norm_end, red);
+    float cx_rev_start  = centroid_x(*fb_rev_start, red);
+    float cx_rev_end    = centroid_x(*fb_rev_end, red);
+
+    CHECK(cx_norm_start > 0.0f);
+    CHECK(cx_norm_end   > 0.0f);
+    CHECK(cx_rev_start  > 0.0f);
+    CHECK(cx_rev_end    > 0.0f);
+
+    // Normal: starts left (pos=-60 → pixel=40), ends right (pos≈60 → pixel≈158)
+    CHECK(cx_norm_start == doctest::Approx(40.0f).epsilon(0.1f));
+    CHECK(cx_norm_end   == doctest::Approx(158.0f).epsilon(0.1f));
+
+    // Reverse: starts RIGHT (source=60 → pixel≈158), ends LEFT (source=0 → pixel=40)
+    CHECK(cx_rev_start  == doctest::Approx(158.0f).epsilon(0.1f));
+    CHECK(cx_rev_end    == doctest::Approx(40.0f).epsilon(0.1f));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
