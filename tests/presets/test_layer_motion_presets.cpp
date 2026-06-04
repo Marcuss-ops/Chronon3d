@@ -1,4 +1,5 @@
 #include <doctest/doctest.h>
+#include <cmath>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 
@@ -53,11 +54,16 @@ TEST_CASE("LayerBuilder::float_idle creates looping position keyframes") {
     Layer l = builder.build();
     CHECK(l.anim_transform.position.is_animated());
 
-    // Halfway through cycle should be at peak amplitude
-    Transform t60 = l.anim_transform.evaluate(Frame{60});
-    CHECK(t60.position.y == doctest::Approx(12.0f).epsilon(0.1f));
+    // Quarter cycle should be at peak amplitude and snapped to an integer pixel.
+    Transform t30 = l.anim_transform.evaluate(Frame{30});
+    CHECK(t30.position.y == doctest::Approx(12.0f).epsilon(0.1f));
+    CHECK(t30.position.y == doctest::Approx(std::round(t30.position.y)));
 
-    // End of cycle should be back to origin
+    // Half cycle should be back to origin.
+    Transform t60 = l.anim_transform.evaluate(Frame{60});
+    CHECK(t60.position.y == doctest::Approx(0.0f).epsilon(0.1f));
+
+    // End of cycle should also be back to origin.
     Transform t120 = l.anim_transform.evaluate(Frame{120});
     CHECK(t120.position.y == doctest::Approx(0.0f).epsilon(0.1f));
 }

@@ -33,9 +33,29 @@ struct Glow {
     Color color{1.0f, 1.0f, 1.0f, 1.0f};
 };
 
+// What kind of surface the node naturally produces.
+// IntrinsicSize: content-driven layers such as text, shapes and images.
+// ViewportSize: full-canvas layers such as grid backgrounds.
+// EffectBounds: layers whose bounds are expanded by effects.
+enum class SurfacePolicy {
+    IntrinsicSize,
+    EffectBounds,
+    ViewportSize,
+};
+
+// How placement should be applied downstream.
+// MatrixOnly means transforms should not force a new raster surface size.
+// RasterizeAfter is reserved for future nodes that need a post-transform bake.
+enum class TransformPolicy {
+    MatrixOnly,
+    RasterizeAfter,
+};
+
 struct RenderNode {
     std::pmr::string name;
     Transform world_transform;
+    SurfacePolicy surface_policy{SurfacePolicy::IntrinsicSize};
+    TransformPolicy transform_policy{TransformPolicy::MatrixOnly};
     Color color{1, 1, 1, 1};
     Fill fill{true, FillType::Solid, {1, 1, 1, 1}, {}};
     Shape shape;

@@ -71,6 +71,13 @@ target_precompile_headers(chronon3d_content_images PRIVATE
 # Animations content
 add_library(chronon3d_content_anims STATIC
     anims/compositions/animation_compositions.cpp
+    Minimalist/minimalist_clean_quote.cpp
+    Minimalist/minimalist_focus_quote.cpp
+    Minimalist/minimalist_hero_explainer.cpp
+    Minimalist/minimalist_phrase_float.cpp
+    Minimalist/minimalist_presets_showcase.cpp
+    Minimalist/minimalist_scale_explainer.cpp
+    Minimalist/minimalist_image_presets.cpp
 )
 set_target_properties(chronon3d_content_anims PROPERTIES UNITY_BUILD OFF)
 target_include_directories(chronon3d_content_anims PRIVATE ${CMAKE_SOURCE_DIR})

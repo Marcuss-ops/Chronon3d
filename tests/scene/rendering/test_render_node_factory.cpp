@@ -1,6 +1,7 @@
 #include <doctest/doctest.h>
 
 #include <chronon3d/scene/render_node_factory.hpp>
+#include <chronon3d/render_graph/render_graph_hashing.hpp>
 
 using namespace chronon3d;
 
@@ -26,6 +27,8 @@ TEST_CASE("RenderNodeFactory creates rect nodes with centered anchors") {
     CHECK(node.world_transform.position.z == doctest::Approx(30.0f));
     CHECK(node.world_transform.anchor.x == doctest::Approx(60.0f));
     CHECK(node.world_transform.anchor.y == doctest::Approx(40.0f));
+    CHECK(node.surface_policy == SurfacePolicy::IntrinsicSize);
+    CHECK(node.transform_policy == TransformPolicy::MatrixOnly);
     CHECK(node.color.r == doctest::Approx(Color::red().r));
 }
 
@@ -53,6 +56,8 @@ TEST_CASE("RenderNodeFactory creates grid background nodes") {
     CHECK(node.shape.grid_background.offset.x == doctest::Approx(24.0f));
     CHECK(node.world_transform.position.x == doctest::Approx(0.0f));
     CHECK(node.world_transform.anchor.x == doctest::Approx(0.0f));
+    CHECK(node.surface_policy == SurfacePolicy::ViewportSize);
+    CHECK(node.transform_policy == TransformPolicy::RasterizeAfter);
 }
 
 TEST_CASE("RenderNodeFactory creates image nodes and maps advanced fields") {
@@ -83,6 +88,8 @@ TEST_CASE("RenderNodeFactory creates image nodes and maps advanced fields") {
     CHECK(node.shape.image.crop.enabled == true);
     CHECK(node.shape.image.crop.origin.x == doctest::Approx(0.1f));
     CHECK(node.shape.image.crop.size.x == doctest::Approx(0.8f));
+    CHECK(node.surface_policy == SurfacePolicy::IntrinsicSize);
+    CHECK(node.transform_policy == TransformPolicy::MatrixOnly);
 }
 
 TEST_CASE("Missing image returns placeholder/fallback instead of crashing") {
@@ -116,4 +123,32 @@ TEST_CASE("RenderNodeFactory preserves gradient text paint") {
     REQUIRE(node.shape.text.style.paint.fill_style.has_value());
     CHECK(node.shape.text.style.paint.fill_style->type == FillType::LinearGradient);
     CHECK(node.shape.text.style.paint.fill_style->gradient.stops.size() == 2);
+    CHECK(node.surface_policy == SurfacePolicy::IntrinsicSize);
+    CHECK(node.transform_policy == TransformPolicy::MatrixOnly);
+}
+
+TEST_CASE("RenderNode content hash ignores placement but honors policy") {
+    auto* res = std::pmr::get_default_resource();
+
+    auto node_a = RenderNodeFactory::text(
+        res,
+        "title",
+        TextParams{
+            .text = "This is a long line that should wrap cleanly",
+            .size = {640.0f, 180.0f},
+            .font_size = 72.0f
+        }
+    );
+    auto node_b = node_a;
+
+    const auto content_a = graph::hash_render_node_content_only(node_a);
+    const auto placement_a = graph::hash_render_node_placement_only(node_a);
+
+    node_b.world_transform.position.x += 240.0f;
+    node_b.world_transform.position.y += 120.0f;
+
+    CHECK(graph::hash_render_node_placement_only(node_b) != placement_a);
+
+    node_b.surface_policy = SurfacePolicy::ViewportSize;
+    CHECK(graph::hash_render_node_content_only(node_b) != content_a);
 }

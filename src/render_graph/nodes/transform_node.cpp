@@ -326,6 +326,39 @@ std::optional<raster::BBox> TransformNode::predicted_bbox(
     std::span<const std::optional<raster::BBox>> input_bboxes
 ) const {
     const Mat4 model = m_use_matrix ? m_matrix : m_transform.to_mat4();
+
+    auto is_pure_translation = [&]() {
+        return std::abs(model[0][0] - 1.0f) < 1e-6f &&
+               std::abs(model[1][1] - 1.0f) < 1e-6f &&
+               std::abs(model[2][2] - 1.0f) < 1e-6f &&
+               std::abs(model[3][3] - 1.0f) < 1e-6f &&
+               std::abs(model[0][1]) < 1e-6f &&
+               std::abs(model[0][2]) < 1e-6f &&
+               std::abs(model[0][3]) < 1e-6f &&
+               std::abs(model[1][0]) < 1e-6f &&
+               std::abs(model[1][2]) < 1e-6f &&
+               std::abs(model[1][3]) < 1e-6f &&
+               std::abs(model[2][0]) < 1e-6f &&
+               std::abs(model[2][1]) < 1e-6f &&
+               std::abs(model[2][3]) < 1e-6f &&
+               std::abs(model[3][2]) < 1e-6f;
+    };
+
+    if (is_pure_translation() && !input_bboxes.empty() && input_bboxes[0].has_value()) {
+        const auto& in_box = *input_bboxes[0];
+        const i32 src_w = std::max(1, in_box.x1 - in_box.x0);
+        const i32 src_h = std::max(1, in_box.y1 - in_box.y0);
+        const f32 tx = model[3][0];
+        const f32 ty = model[3][1];
+
+        const i32 x0 = std::clamp(static_cast<i32>(std::floor(static_cast<f32>(in_box.x0) + tx)) - 1, 0, ctx.width);
+        const i32 y0 = std::clamp(static_cast<i32>(std::floor(static_cast<f32>(in_box.y0) + ty)) - 1, 0, ctx.height);
+        const i32 x1 = std::clamp(x0 + src_w + 2, 0, ctx.width);
+        const i32 y1 = std::clamp(y0 + src_h + 2, 0, ctx.height);
+
+        return raster::BBox{x0, y0, x1, y1};
+    }
+
     const Mat4 dst_canvas_offset = glm::translate(Mat4(1.0f), Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
 
     f32 x_min_src = 0.0f;
