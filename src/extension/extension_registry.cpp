@@ -69,6 +69,12 @@ std::size_t ExtensionRegistry::module_count() const {
     return m_impl->modules.size();
 }
 
+void ExtensionRegistry::clear_modules() {
+    m_impl->modules.clear();
+    m_impl->initialized_ids.clear();
+    m_impl->initialized = false;
+}
+
 bool ExtensionRegistry::has_module(std::string_view id) const {
     return std::any_of(m_impl->modules.begin(), m_impl->modules.end(),
                        [id](const auto& m) { return m->id() == id; });

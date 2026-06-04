@@ -1,5 +1,6 @@
 #include <doctest/doctest.h>
 #include <chronon3d/specscene/model/specscene.hpp>
+#include <chronon3d/specscene/compiler/specscene_compiler.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/api/composition.hpp>
 #include <chronon3d/api/scene.hpp>

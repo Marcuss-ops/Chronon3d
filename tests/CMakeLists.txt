@@ -63,6 +63,28 @@ add_executable(chronon3d_core_tests
     render_graph/builder/test_graph_build_pass_order.cpp
 )
 target_link_libraries(chronon3d_core_tests PRIVATE chronon3d_pipeline chronon3d_extension doctest::doctest)
+
+# Build a real mini shared library for ExtensionLoader real plugin tests
+add_library(chronon3d_test_plugin MODULE
+    extension/test_plugin.cpp
+)
+target_include_directories(chronon3d_test_plugin PRIVATE ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/deps/include)
+target_link_libraries(chronon3d_test_plugin PRIVATE chronon3d_extension)
+# Disable PCH for the test plugin to avoid PCH path issues
+set_target_properties(chronon3d_test_plugin PROPERTIES
+    SKIP_PRECOMPILE_HEADERS ON
+)
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+    set_target_properties(chronon3d_test_plugin PROPERTIES
+        LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/plugins"
+        BUILD_RPATH ""
+    )
+endif()
+# Make CMAKE_CURRENT_BINARY_DIR available to the test executable for finding the .so
+target_compile_definitions(chronon3d_core_tests PRIVATE
+    CMAKE_CURRENT_BINARY_DIR="${CMAKE_CURRENT_BINARY_DIR}"
+)
+add_dependencies(chronon3d_core_tests chronon3d_test_plugin)
 target_include_directories(chronon3d_core_tests PRIVATE ${CMAKE_SOURCE_DIR})
 chronon3d_enable_test_pch(chronon3d_core_tests)
 add_test(NAME chronon3d_core_tests COMMAND chronon3d_core_tests WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})

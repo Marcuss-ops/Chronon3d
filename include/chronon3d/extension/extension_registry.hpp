@@ -52,6 +52,10 @@ public:
     /// Number of registered modules.
     [[nodiscard]] std::size_t module_count() const;
 
+    /// Remove all modules from the registry.
+    /// Used primarily in tests to reset state between test cases.
+    void clear_modules();
+
     /// Check if a module with the given id is registered.
     [[nodiscard]] bool has_module(std::string_view id) const;
 
