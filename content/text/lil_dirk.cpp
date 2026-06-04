@@ -121,4 +121,4 @@ Composition lil_dirk() {
 
 } // namespace chronon3d::content::text
 
-CHRONON_REGISTER_COMPOSITION("LilDirk", chronon3d::content::text::lil_dirk)
+// Registration handled by TextModule in text_module.cpp

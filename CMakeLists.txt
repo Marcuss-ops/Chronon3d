@@ -170,9 +170,19 @@ if(CHRONON3D_BUILD_CONTENT)
     if(TARGET chronon3d_content_grid)
         target_link_libraries(chronon3d_shared PRIVATE $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_content_grid>)
     endif()
+    if(TARGET chronon3d_content_modules)
+        target_sources(chronon3d_shared PRIVATE
+            content/register_content_modules.cpp
+            content/register_minimalist_content.cpp
+            content/register_text_content.cpp
+            content/register_2d5_content.cpp
+        )
+        target_include_directories(chronon3d_shared PRIVATE ${CMAKE_SOURCE_DIR}/content)
+    endif()
 endif()
 
 target_include_directories(chronon3d_shared PUBLIC ${CMAKE_SOURCE_DIR}/include)
+target_include_directories(chronon3d_shared PRIVATE ${CMAKE_SOURCE_DIR})
 set_target_properties(chronon3d_shared PROPERTIES
     OUTPUT_NAME "chronon3d"
     POSITION_INDEPENDENT_CODE ON

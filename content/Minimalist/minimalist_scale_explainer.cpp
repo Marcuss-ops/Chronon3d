@@ -64,4 +64,4 @@ Composition minimalist_scale_explainer() {
 
 } // namespace chronon3d::content::minimalist
 
-CHRONON_REGISTER_COMPOSITION("MinimalistScaleExplainer", chronon3d::content::minimalist::minimalist_scale_explainer)
+// Registration handled by MinimalistModule in minimalist_module.cpp

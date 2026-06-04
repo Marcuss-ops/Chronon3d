@@ -5,6 +5,7 @@
 
 # Text content
 add_library(chronon3d_content_text STATIC
+    text/text_module.cpp
     text/helpers/text_helpers.cpp
     text/effects/text_effects.cpp
     text/intro/text_intro.cpp
@@ -78,6 +79,7 @@ add_library(chronon3d_content_anims STATIC
     Minimalist/minimalist_presets_showcase.cpp
     Minimalist/minimalist_scale_explainer.cpp
     Minimalist/minimalist_image_presets.cpp
+    Minimalist/minimalist_module.cpp
 )
 set_target_properties(chronon3d_content_anims PROPERTIES UNITY_BUILD OFF)
 target_include_directories(chronon3d_content_anims PRIVATE ${CMAKE_SOURCE_DIR})
@@ -114,6 +116,7 @@ target_precompile_headers(chronon3d_content_effects PRIVATE
 
 # 2.5D content
 add_library(chronon3d_content_2d5 STATIC
+    2d5/two_point_five_d_module.cpp
     2d5/compositions/two_point_five_d_compositions.cpp
     2d5/compositions/camera_advanced_tests.cpp
     2d5/compositions/camera_test_orchestrator.cpp
@@ -142,6 +145,20 @@ target_precompile_headers(chronon3d_content_grid PRIVATE
     <glm/glm.hpp> <spdlog/spdlog.h> <fmt/core.h>
 )
 
+# Content module registration (links all content modules together)
+add_library(chronon3d_content_modules STATIC
+    register_content_modules.cpp
+    register_minimalist_content.cpp
+    register_text_content.cpp
+    register_2d5_content.cpp
+)
+target_include_directories(chronon3d_content_modules PRIVATE ${CMAKE_SOURCE_DIR})
+target_link_libraries(chronon3d_content_modules
+    PUBLIC chronon3d
+    PRIVATE chronon3d_content_anims chronon3d_content_text chronon3d_content_2d5 chronon3d_extension
+)
+add_library(chronon3d::content_modules ALIAS chronon3d_content_modules)
+
 # Meta-target: all content (used for full builds)
 add_custom_target(chronon3d_content ALL
     DEPENDS
@@ -152,6 +169,7 @@ add_custom_target(chronon3d_content ALL
         chronon3d_content_effects
         chronon3d_content_2d5
         chronon3d_content_grid
+        chronon3d_content_modules
 )
 
 # Aliases for convenient linking (no WHOLE_ARCHIVE needed — each is a small target)

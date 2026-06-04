@@ -64,4 +64,4 @@ Composition minimalist_focus_quote() {
 
 } // namespace chronon3d::content::minimalist
 
-CHRONON_REGISTER_COMPOSITION("MinimalistFocusQuote", chronon3d::content::minimalist::minimalist_focus_quote)
+// Registration handled by MinimalistModule in minimalist_module.cpp

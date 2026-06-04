@@ -152,6 +152,14 @@ if(CHRONON3D_BUILD_CONTENT)
     if(TARGET chronon3d_content_grid)
         target_link_libraries(chronon3d_cli PRIVATE $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_content_grid>)
     endif()
+    # Content modules registration — compile directly to avoid transitive link order issues
+    target_sources(chronon3d_cli PRIVATE
+        ${CMAKE_SOURCE_DIR}/content/register_content_modules.cpp
+        ${CMAKE_SOURCE_DIR}/content/register_minimalist_content.cpp
+        ${CMAKE_SOURCE_DIR}/content/register_text_content.cpp
+        ${CMAKE_SOURCE_DIR}/content/register_2d5_content.cpp
+    )
+    target_include_directories(chronon3d_cli PRIVATE ${CMAKE_SOURCE_DIR})
 endif()
 
 target_include_directories(chronon3d_cli PRIVATE ${CMAKE_SOURCE_DIR})

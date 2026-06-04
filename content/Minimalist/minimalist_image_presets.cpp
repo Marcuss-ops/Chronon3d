@@ -261,13 +261,4 @@ Composition minimalist_image_elastic_slide() {
 
 } // namespace chronon3d::content::minimalist
 
-CHRONON_REGISTER_COMPOSITION("MinimalistImageFadeIn", chronon3d::content::minimalist::minimalist_image_fade_in)
-CHRONON_REGISTER_COMPOSITION("MinimalistImageFocusIn", chronon3d::content::minimalist::minimalist_image_focus_in)
-CHRONON_REGISTER_COMPOSITION("MinimalistImageScaleDrop", chronon3d::content::minimalist::minimalist_image_scale_drop)
-CHRONON_REGISTER_COMPOSITION("MinimalistImageFadeShiftVertical", chronon3d::content::minimalist::minimalist_image_fade_shift_vertical)
-CHRONON_REGISTER_COMPOSITION("MinimalistImageCenterSplit", chronon3d::content::minimalist::minimalist_image_center_split)
-CHRONON_REGISTER_COMPOSITION("MinimalistImageRevealFromBottom", chronon3d::content::minimalist::minimalist_image_reveal_from_bottom)
-CHRONON_REGISTER_COMPOSITION("MinimalistImageFramingBracket", chronon3d::content::minimalist::minimalist_image_framing_bracket)
-CHRONON_REGISTER_COMPOSITION("MinimalistImageTrackingBreathing", chronon3d::content::minimalist::minimalist_image_tracking_breathing)
-CHRONON_REGISTER_COMPOSITION("MinimalistImageElegantExit", chronon3d::content::minimalist::minimalist_image_elegant_exit)
-CHRONON_REGISTER_COMPOSITION("MinimalistImageElasticSlide", chronon3d::content::minimalist::minimalist_image_elastic_slide)
+// Registrations are now handled by MinimalistModule in minimalist_module.cpp

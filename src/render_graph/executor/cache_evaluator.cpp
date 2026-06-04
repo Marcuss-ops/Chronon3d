@@ -8,7 +8,7 @@
 
 namespace chronon3d::graph {
 
-static bool disk_node_cache_enabled_for_current_run() {
+bool disk_node_cache_enabled_for_current_run() {
 #ifdef CHRONON_BUILD_TESTS
     return false;
 #else

@@ -11,6 +11,7 @@
 #include "../builder/graph_builder_pipeline.hpp"
 #include "../builder/graph_builder_coordinates.hpp"
 #include "../builder/graph_builder_internal.hpp"
+#include <chronon3d/render_graph/builder/graph_build_pipeline.hpp>
 #include <chronon3d/render_graph/optimizer/graph_optimizer.hpp>
 #include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
 #include <chronon3d/render_graph/nodes/source_node.hpp>
@@ -665,14 +666,20 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
             ctx.counters->graph_cache_misses.fetch_add(1, std::memory_order_relaxed);
         }
         RenderGraph graph;
-        // Full build path — construct the render graph
+        // Full build path — construct the render graph via GraphBuildPipeline.
+        // Uses build_with_resolved() to avoid a redundant resolve_layers() call
+        // since we already resolved above for dirty-rect computation.
         {
             CHRONON_ZONE_C("build_graph", trace_category::kGraph);
             auto mutable_ctx = ctx;
-            auto built_graph = detail::build_graph(scene, mutable_ctx, resolved);
+            GraphBuildPipeline pipeline;
+            pipeline.add_default_passes();
+            GraphBuildContext::ResolvedData pre_resolved;
+            pre_resolved.layers = resolved.layers;
+            pre_resolved.camera = resolved.camera;
+            graph = pipeline.build_with_resolved(scene, mutable_ctx, pre_resolved);
             ctx.skip_initial_clear = mutable_ctx.skip_initial_clear;
             ctx.early_exit_skip = std::move(mutable_ctx.early_exit_skip);
-            graph = std::move(built_graph);
         }
 
         if (ctx.diagnostics_enabled) {
