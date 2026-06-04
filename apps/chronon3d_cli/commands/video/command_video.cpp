@@ -1,4 +1,5 @@
 #include "video_export_common.hpp"
+#include "exporter_registry.hpp"
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/core/telemetry/render_telemetry.hpp>
 #include <chronon3d/scene/utils/dark_grid_background.hpp>
@@ -47,11 +48,28 @@ int render_and_encode_ffmpeg(
         return 1;
     }
 
-    if (opts.ffmpeg_mode == "pipe") {
-        return render_and_encode_ffmpeg_pipe(registry, comp, composition_id, settings, start, end, opts);
-    } else {
-        return render_and_encode_ffmpeg_chunked(registry, comp, composition_id, settings, start, end, opts);
+    static ExporterRegistry exporter_registry = []() {
+        ExporterRegistry reg;
+        register_builtin_exporters(reg);
+        return reg;
+    }();
+
+    auto* exporter = exporter_registry.find(opts.ffmpeg_mode);
+    if (!exporter) {
+        spdlog::error("[video] Unknown ffmpeg-mode '{}'. Expected one of: pipe, png", opts.ffmpeg_mode);
+        return 1;
     }
+
+    const VideoExportJob job{
+        .registry = registry,
+        .comp = comp,
+        .composition_id = composition_id,
+        .settings = settings,
+        .start = start,
+        .end = end,
+        .opts = opts,
+    };
+    return exporter->export_video(job);
 }
 
 int command_video(const CompositionRegistry& registry, const VideoArgs& args) {

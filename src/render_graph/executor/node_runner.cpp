@@ -1,5 +1,8 @@
 #include "execution_state.hpp"
-#include "internal.hpp"
+#include "cache_evaluator.hpp"
+#include "node_runner.hpp"
+#include "tile_pruning.hpp"
+#include "telemetry_emitter.hpp"
 #include <chronon3d/cache/disk_node_cache.hpp>
 #include <chronon3d/cache/persistent_bake_cache.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>

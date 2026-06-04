@@ -499,12 +499,15 @@ int render_and_encode_ffmpeg_pipe(
         sys_metrics.fill_system_counters(*renderer->counters());
     }
 
+    // On failure, report 0 written frames to avoid misleading telemetry
+    // where frames_written=total but the export was cancelled or failed.
+    const int encoded_frames = success ? frames_written : 0;
     cli::telemetry::record_output_run(
         /*composition_id=*/composition_id,
         /*output_path=*/opts.output,
         /*success=*/success,
         /*frames_total=*/total,
-        /*frames_written=*/frames_written,
+        /*frames_written=*/encoded_frames,
         /*wall_time_ms=*/wall_time_ms,
         /*render_ms=*/render_ms,
         /*encode_ms=*/encode_ms,
@@ -523,9 +526,7 @@ int render_and_encode_ffmpeg_pipe(
 
     if (!success) {
         spdlog::error(
-            "[video] Export incomplete: frames_written={}/{} cancelled={} render_failed={} writer_error={} exception={}",
-            frames_written,
-            total,
+            "[video] Export incomplete: cancelled={} render_failed={} writer_error={} exception={}",
             cancelled,
             render_failed,
             writer_error,

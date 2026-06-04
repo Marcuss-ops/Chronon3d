@@ -1,11 +1,18 @@
-// graph_executor.cpp
+// executor.cpp
 // Render graph DAG executor with level-scheduling, cache evaluation,
 // dirty-rect clipping, and parallel TBB execution.
-// Internal helpers (resolve_inputs, evaluate_cache, execute_single_node, etc.)
-// live in graph_executor_internal.cpp.
+// Internal helpers live in dedicated files under executor/:
+//   input_resolver.cpp   — resolve_inputs
+//   cache_evaluator.cpp  — evaluate_cache
+//   node_runner.cpp      — run_node / execute_single_node
+//   telemetry_emitter.cpp— emit_node_records
+//   tile_pruning.cpp     — compute_dirty_clip
+//   framebuffer_lifetime — init / release FB resources
 
 #include <chronon3d/render_graph/graph_executor.hpp>
-#include "internal.hpp"
+#include "input_resolver.hpp"
+#include "node_runner.hpp"
+#include "framebuffer_lifetime.hpp"
 #include <chronon3d/render_graph/graph_profiler.hpp>
 #include <chronon3d/render_graph/render_graph_hashing.hpp>
 #include <chronon3d/core/memory/arena.hpp>
@@ -201,23 +208,11 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
         state.resolved_bboxes.resize(node_count);
 
         // ── Pre-allocate shared transparent framebuffer for tile pruning ──
-        // Must happen BEFORE the parallel-for level loop to avoid data races
-        // when multiple pruned nodes in the same level try to access it.
-        if (ctx.tile_execution_enabled && ctx.active_tile_clip) {
-            auto owned_fb = ctx.acquire_owned_fb(ctx.width, ctx.height, false);
-            owned_fb->clear(Color::transparent());
-            Framebuffer* raw = owned_fb.release();
-            PoolFbDeleter deleter{nullptr};
-            if (ctx.framebuffer_pool) {
-                deleter = PoolFbDeleter{ctx.framebuffer_pool.get(), ctx.framebuffer_pool->alive_token()};
-            }
-            state.shared_transparent = CachedFB(raw, std::move(deleter));
-        }
+        init_shared_transparent_fb(state, ctx, res);
 
-        std::pmr::vector<std::atomic_size_t> consumer_remaining(node_count, res);
-        for (size_t i = 0; i < plan.consumer_counts.size(); ++i) {
-            consumer_remaining[i].store(plan.consumer_counts[i], std::memory_order_relaxed);
-        }
+        auto consumer_remaining = init_consumer_remaining(
+            node_count, plan.consumer_counts, res
+        );
 
         auto* parent_counters = profiling::g_current_counters;
         auto* parent_pool = profiling::g_current_framebuffer_pool;
@@ -246,22 +241,8 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
                 }
             );
 
-            // Decrement consumer counts & release dead references
-            for (size_t i = 0; i < level.size(); ++i) {
-                const GraphNodeId id = level[i];
-                for (GraphNodeId input_id : graph.inputs(id)) {
-                    if (!contains_index(consumer_remaining, input_id)) {
-                        continue;
-                    }
-                    if (consumer_remaining[input_id].fetch_sub(1, std::memory_order_acq_rel) == 1) {
-                        state.temp[input_id].reset();
-                        state.resolved_key_digest[input_id] = 0;
-                        state.resolved_frame_dependent[input_id] = 0;
-                        state.resolved_cache_hit[input_id] = 0;
-                        state.resolved_bboxes[input_id].reset();
-                    }
-                }
-            }
+            // Release framebuffers whose consumers have all finished
+            release_consumed_framebuffers(state, graph, level, consumer_remaining);
         }
 
         return state.temp[output];
@@ -299,23 +280,11 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
         state.resolved_bboxes.resize(node_count);
 
         // ── Pre-allocate shared transparent framebuffer for tile pruning ──
-        // Must happen BEFORE the parallel-for level loop to avoid data races
-        // when multiple pruned nodes in the same level try to access it.
-        if (ctx.tile_execution_enabled && ctx.active_tile_clip) {
-            auto owned_fb = ctx.acquire_owned_fb(ctx.width, ctx.height, false);
-            owned_fb->clear(Color::transparent());
-            Framebuffer* raw = owned_fb.release();
-            PoolFbDeleter deleter{nullptr};
-            if (ctx.framebuffer_pool) {
-                deleter = PoolFbDeleter{ctx.framebuffer_pool.get(), ctx.framebuffer_pool->alive_token()};
-            }
-            state.shared_transparent = CachedFB(raw, std::move(deleter));
-        }
+        init_shared_transparent_fb(state, ctx, res);
 
-        std::pmr::vector<std::atomic_size_t> consumer_remaining(node_count, res);
-        for (size_t i = 0; i < consumer_counts.size(); ++i) {
-            consumer_remaining[i].store(consumer_counts[i], std::memory_order_relaxed);
-        }
+        auto consumer_remaining = init_consumer_remaining(
+            node_count, consumer_counts, res
+        );
 
         auto* parent_counters = profiling::g_current_counters;
         auto* parent_pool = profiling::g_current_framebuffer_pool;
@@ -344,22 +313,8 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
                 }
             );
 
-            // Decrement consumer counts & release dead references
-            for (size_t i = 0; i < level.size(); ++i) {
-                const GraphNodeId id = level[i];
-                for (GraphNodeId input_id : graph.inputs(id)) {
-                    if (!contains_index(consumer_remaining, input_id)) {
-                        continue;
-                    }
-                    if (consumer_remaining[input_id].fetch_sub(1, std::memory_order_acq_rel) == 1) {
-                        state.temp[input_id].reset();
-                        state.resolved_key_digest[input_id] = 0;
-                        state.resolved_frame_dependent[input_id] = 0;
-                        state.resolved_cache_hit[input_id] = 0;
-                        state.resolved_bboxes[input_id].reset();
-                    }
-                }
-            }
+            // Release framebuffers whose consumers have all finished
+            release_consumed_framebuffers(state, graph, level, consumer_remaining);
         }
 
         return state.temp[output];

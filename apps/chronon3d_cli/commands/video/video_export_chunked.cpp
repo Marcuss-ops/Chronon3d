@@ -282,12 +282,15 @@ int render_and_encode_ffmpeg_chunked(
         {"rendering_loop", std::chrono::duration<double, std::milli>(render_t1 - render_t0).count()},
         {"encoder_close_and_flush", encode_ms},
     };
+    // On failure, report 0 written frames to avoid misleading telemetry
+    // where frames_written=total but the video encode (ffmpeg) failed.
+    const int encoded_frames = success ? frames_written : 0;
     cli::telemetry::record_output_run(
         /*composition_id=*/composition_id,
         /*output_path=*/opts.output,
         /*success=*/success,
         /*frames_total=*/total,
-        /*frames_written=*/frames_written,
+        /*frames_written=*/encoded_frames,
         /*wall_time_ms=*/wall_time_ms,
         /*render_ms=*/render_ms,
         /*encode_ms=*/encode_ms,
