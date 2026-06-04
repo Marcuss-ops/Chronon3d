@@ -299,6 +299,8 @@ set(CHRONON3D_SCENE_SOURCES
     presets/phrase_group_builder.cpp
     specscene/model/specscene.cpp
     specscene/parser/specscene_parsers.cpp
+    specscene/compiler/specscene_compiler.cpp
+    specscene/validation/specscene_validator.cpp
     media/media_placement.cpp
     vector/path_factories.cpp
 )
