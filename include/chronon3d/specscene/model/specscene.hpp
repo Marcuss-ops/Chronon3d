@@ -12,11 +12,9 @@ namespace chronon3d::specscene {
 
 // Chronon3d specscene format:
 // - TOML document
-// - top-level scene fields: name, width, height, fps_numerator, fps_denominator, duration
-// - optional [camera] table for the 2.5D scene camera
+// - top-level scene fields: name, width, height, fps, duration
 // - optional [render_camera] table for the 3D renderer camera
 // - one or more [[layer]] tables
-// - each layer may contain a visuals = [ { ... }, ... ] array of inline tables
 
 struct SpecSceneDocument {
     SceneDescription scene;
@@ -27,10 +25,6 @@ struct SpecSceneDocument {
 [[nodiscard]] bool is_specscene_file(const std::filesystem::path& path);
 
 [[nodiscard]] std::optional<SpecSceneDocument> load_file(
-    const std::filesystem::path& path,
-    std::vector<std::string>* diagnostics = nullptr);
-
-[[nodiscard]] std::optional<Composition> compile_file(
     const std::filesystem::path& path,
     std::vector<std::string>* diagnostics = nullptr);
 
