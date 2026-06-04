@@ -1,12 +1,10 @@
-#include <chronon3d/core/composition/composition_registration.hpp>
+// Forward declarations — factory functions defined in individual .cpp files.
+// Registrations are now handled by TextModule in text_module.cpp.
+
 #include <chronon3d/timeline/composition.hpp>
 
 namespace chronon3d::content::text {
 
-// Removed/cleaned up:
-// Composition text_title_big();
-// Composition text_subtitle();
-// Composition text_lower_third();
 Composition text_credit_roll();
 Composition text_split_screen();
 Composition text_glow();
@@ -56,52 +54,3 @@ Composition text_proofs();
 void register_all() {}
 
 } // namespace chronon3d::content::text
-
-// CHRONON_REGISTER_COMPOSITION("TextTitleBig",        chronon3d::content::text::text_title_big)
-// CHRONON_REGISTER_COMPOSITION("TextSubtitle",        chronon3d::content::text::text_subtitle)
-// CHRONON_REGISTER_COMPOSITION("TextLowerThird",      chronon3d::content::text::text_lower_third)
-CHRONON_REGISTER_COMPOSITION("TextCreditRoll",      chronon3d::content::text::text_credit_roll)
-CHRONON_REGISTER_COMPOSITION("TextSplitScreen",     chronon3d::content::text::text_split_screen)
-CHRONON_REGISTER_COMPOSITION("TextGlow",            chronon3d::content::text::text_glow)
-CHRONON_REGISTER_COMPOSITION("TextShadow",          chronon3d::content::text::text_shadow)
-CHRONON_REGISTER_COMPOSITION("TextPulse",           chronon3d::content::text::text_pulse)
-CHRONON_REGISTER_COMPOSITION("TextMultiStyle",      chronon3d::content::text::text_multi_style)
-CHRONON_REGISTER_COMPOSITION("TextOnBackground",    chronon3d::content::text::text_on_background)
-CHRONON_REGISTER_COMPOSITION("TextGridOverlay",     chronon3d::content::text::text_grid_overlay)
-CHRONON_REGISTER_COMPOSITION("TextTypewriter",      chronon3d::content::text::text_typewriter)
-CHRONON_REGISTER_COMPOSITION("TextTypewriterTerminal", chronon3d::content::text::text_typewriter_terminal)
-CHRONON_REGISTER_COMPOSITION("TextTypewriterTerminalPreview", chronon3d::content::text::text_typewriter_terminal_preview)
-CHRONON_REGISTER_COMPOSITION("TextTypewriterQuote",    chronon3d::content::text::text_typewriter_quote)
-CHRONON_REGISTER_COMPOSITION("TextTypewriterQuotePreview", chronon3d::content::text::text_typewriter_quote_preview)
-CHRONON_REGISTER_COMPOSITION("TextTypewriterManifest",  chronon3d::content::text::text_typewriter_manifest)
-CHRONON_REGISTER_COMPOSITION("TextTypewriterManifestPreview", chronon3d::content::text::text_typewriter_manifest_preview)
-CHRONON_REGISTER_COMPOSITION("TextTypewriterChapter",   chronon3d::content::text::text_typewriter_chapter)
-CHRONON_REGISTER_COMPOSITION("TextTypewriterChapterPreview", chronon3d::content::text::text_typewriter_chapter_preview)
-CHRONON_REGISTER_COMPOSITION("TextTypewriterShowcase", chronon3d::content::text::text_typewriter_showcase)
-CHRONON_REGISTER_COMPOSITION("TextTypewriterAnimationTest", chronon3d::content::text::text_typewriter_animation_test)
-CHRONON_REGISTER_COMPOSITION("TextTypewriterDolly",     chronon3d::content::text::text_typewriter_dolly)
-CHRONON_REGISTER_COMPOSITION("TextTypewriterDollyRotate", chronon3d::content::text::text_typewriter_dolly_rotate)
-CHRONON_REGISTER_COMPOSITION("TextTypewriterStagger",   chronon3d::content::text::text_typewriter_stagger)
-CHRONON_REGISTER_COMPOSITION("TextTypewriterBounce",    chronon3d::content::text::text_typewriter_bounce)
-CHRONON_REGISTER_COMPOSITION("TextTypewriterGlitch",    chronon3d::content::text::text_typewriter_glitch)
-CHRONON_REGISTER_COMPOSITION("TextTypewriterPush",      chronon3d::content::text::text_typewriter_push)
-CHRONON_REGISTER_COMPOSITION("TextTypewriterSlide",     chronon3d::content::text::text_typewriter_slide)
-CHRONON_REGISTER_COMPOSITION("TextTypewriterRevealSweep", chronon3d::content::text::text_typewriter_reveal_sweep)
-CHRONON_REGISTER_COMPOSITION("TextIntroCleanReveal",   chronon3d::content::text::text_intro_clean_reveal)
-CHRONON_REGISTER_COMPOSITION("TextIntroSweepReveal",   chronon3d::content::text::text_intro_sweep_reveal)
-CHRONON_REGISTER_COMPOSITION("TextIntroImpactPulse",    chronon3d::content::text::text_intro_impact_pulse)
-CHRONON_REGISTER_COMPOSITION("TextAnimatedSequence",chronon3d::content::text::text_animated_sequence)
-CHRONON_REGISTER_COMPOSITION("TextCountdown",       chronon3d::content::text::text_countdown)
-CHRONON_REGISTER_COMPOSITION("TextFadeLiftDemo",     chronon3d::content::text::text_fade_lift_demo)
-CHRONON_REGISTER_COMPOSITION("TextSoftDollyRevealDemo", chronon3d::content::text::text_soft_dolly_reveal_demo)
-CHRONON_REGISTER_COMPOSITION("TextMaskSweepDemo",    chronon3d::content::text::text_mask_sweep_demo)
-CHRONON_REGISTER_COMPOSITION("TextFocusPullDemo",     chronon3d::content::text::text_focus_pull_demo)
-CHRONON_REGISTER_COMPOSITION("TextGlowBloomDemo",     chronon3d::content::text::text_glow_bloom_demo)
-CHRONON_REGISTER_COMPOSITION("TextStaggerRevealDemo", chronon3d::content::text::text_stagger_reveal_demo)
-CHRONON_REGISTER_COMPOSITION("TextOrbit2_5DDemo",    chronon3d::content::text::text_orbit_2_5d_demo)
-CHRONON_REGISTER_COMPOSITION("TextTiltSweep2_5DDemo", chronon3d::content::text::text_tilt_sweep_2_5d_demo)
-CHRONON_REGISTER_COMPOSITION("TextMotionTrioDemo",   chronon3d::content::text::text_motion_trio_demo)
-CHRONON_REGISTER_COMPOSITION("HeroFresh",          chronon3d::content::text::text_hero_fresh)
-CHRONON_REGISTER_COMPOSITION("Empty",              chronon3d::content::text::text_empty)
-CHRONON_REGISTER_COMPOSITION("TextOnly",            chronon3d::content::text::text_only)
-CHRONON_REGISTER_COMPOSITION("TextProofs",          chronon3d::content::text::text_proofs)

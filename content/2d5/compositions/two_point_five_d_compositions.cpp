@@ -372,22 +372,4 @@ void register_all() {}
 
 } // namespace chronon3d::content::two_point_five_d
 
-CHRONON_REGISTER_COMPOSITION("ParallaxSimple", chronon3d::content::two_point_five_d::parallax_simple)
-CHRONON_REGISTER_COMPOSITION("DepthScene",     chronon3d::content::two_point_five_d::depth_scene)
-CHRONON_REGISTER_COMPOSITION("CardFlip",       chronon3d::content::two_point_five_d::card_flip)
-CHRONON_REGISTER_COMPOSITION("ParallaxText",   chronon3d::content::two_point_five_d::parallax_text)
-CHRONON_REGISTER_COMPOSITION("CameraOrbitTargetLockTest", chronon3d::content::two_point_five_d::camera_orbit_target_lock_test)
-CHRONON_REGISTER_COMPOSITION("CameraDollyPerspectiveScaleTest", chronon3d::content::two_point_five_d::camera_dolly_perspective_scale_test)
-CHRONON_REGISTER_COMPOSITION("CameraParentNullRigTest", chronon3d::content::two_point_five_d::camera_parent_null_rig_test)
-CHRONON_REGISTER_COMPOSITION("CameraRollPanTiltGridTest", chronon3d::content::two_point_five_d::camera_roll_pan_tilt_grid_test)
-CHRONON_REGISTER_COMPOSITION("CameraSafeFramingAspectRatioTest_16_9", chronon3d::content::two_point_five_d::camera_safe_framing_aspect_ratio_16_9)
-CHRONON_REGISTER_COMPOSITION("CameraSafeFramingAspectRatioTest_1_1", chronon3d::content::two_point_five_d::camera_safe_framing_aspect_ratio_1_1)
-CHRONON_REGISTER_COMPOSITION("CameraSafeFramingAspectRatioTest_9_16", chronon3d::content::two_point_five_d::camera_safe_framing_aspect_ratio_9_16)
-CHRONON_REGISTER_COMPOSITION("CameraSafeFramingAspectRatioTest_4_5", chronon3d::content::two_point_five_d::camera_safe_framing_aspect_ratio_4_5)
-CHRONON_REGISTER_COMPOSITION("CameraFrustumCullingPrecisionTest", chronon3d::content::two_point_five_d::camera_frustum_culling_precision_test)
-CHRONON_REGISTER_COMPOSITION("CameraKinematicJerkAndInterpolationTest", chronon3d::content::two_point_five_d::camera_kinematic_jerk_interpolation_test)
-CHRONON_REGISTER_COMPOSITION("CameraDepthSortingStressTest", chronon3d::content::two_point_five_d::camera_depth_sorting_stress_test)
-CHRONON_REGISTER_COMPOSITION("CameraSubpixelJitterValidationTest", chronon3d::content::two_point_five_d::camera_subpixel_jitter_validation_test)
-CHRONON_REGISTER_COMPOSITION("CameraMultiTargetBoundingBoxFitTest", chronon3d::content::two_point_five_d::camera_multi_target_bounding_box_fit_test)
-CHRONON_REGISTER_COMPOSITION("CameraDepthPerspectiveScaleDiagnosticTest", chronon3d::content::two_point_five_d::camera_depth_perspective_scale_diagnostic_test)
-CHRONON_REGISTER_COMPOSITION("DofShowcase", chronon3d::content::two_point_five_d::dof_showcase)
+// Registrations are now handled by TwoPointFiveDModule in two_point_five_d_module.cpp

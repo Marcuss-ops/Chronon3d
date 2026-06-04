@@ -305,8 +305,5 @@ Composition text_premium_hero_buttery_smooth() {
     });
 }
 
-CHRONON_REGISTER_COMPOSITION("TextPremiumHero",               chronon3d::content::text::text_premium_hero)
-CHRONON_REGISTER_COMPOSITION("TextPremiumHeroSaaSBlue",      chronon3d::content::text::text_premium_hero_saas_blue)
-CHRONON_REGISTER_COMPOSITION("TextPremiumHeroExplainer",     chronon3d::content::text::text_premium_hero_explainer)
-CHRONON_REGISTER_COMPOSITION("TextPremiumHeroButterySmooth",  chronon3d::content::text::text_premium_hero_buttery_smooth)
+// Registration handled by TextModule in text_module.cpp
 } // namespace chronon3d::content::text

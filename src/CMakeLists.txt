@@ -50,10 +50,18 @@ target_precompile_headers(chronon3d_cache PRIVATE <xxhash.h>)
 set(CHRONON3D_GRAPH_SOURCES
     render_graph/builder/graph_builder_internal.cpp
     render_graph/builder/graph_builder_pipeline.cpp
+    render_graph/builder/graph_build_pipeline.cpp
     scene/mask/mask_utils.cpp
     render_graph/builder/passes/graph_builder_layer_passes.cpp
     render_graph/builder/passes/graph_builder_lighting_passes.cpp
     render_graph/builder/passes/graph_builder_source_pass.cpp
+    render_graph/builder/passes/graph_builder_resolve_pass.cpp
+    render_graph/builder/passes/graph_builder_root_sources_pass.cpp
+    render_graph/builder/passes/graph_builder_layer_pipeline_pass.cpp
+    render_graph/builder/passes/graph_builder_output_pass.cpp
+    render_graph/builder/passes/graph_builder_validation_pass.cpp
+    render_graph/builder/graph_build_registry.cpp
+    render_graph/registry/graph_node_registry.cpp
     render_graph/executor/executor.cpp
     render_graph/executor/input_resolver.cpp
     render_graph/executor/cache_evaluator.cpp
@@ -266,6 +274,14 @@ set(CHRONON3D_SCENE_SOURCES
     scene/layer.cpp
     scene/layer_builder.cpp
     scene/layer_builder_effects.cpp
+    scene/builders/layer_command_registry.cpp
+    scene/builders/commands/motion_preset_methods.cpp
+    scene/builders/commands/motion_preset_commands.cpp
+    scene/builders/commands/shape_commands.cpp
+    scene/builders/commands/node_transform_commands.cpp
+    scene/builders/commands/layer_property_commands.cpp
+    scene/validation/scene_validator.cpp
+    scene/validation/scene_validation_registry.cpp
     scene/render_node_factory.cpp
     scene/camera_api.cpp
     scene/scene_builder.cpp
@@ -301,8 +317,15 @@ target_precompile_headers(chronon3d_scene PRIVATE <glm/glm.hpp> <glm/gtc/matrix_
 # (scene, animations, backend_video) avoids over-linking while ensuring
 # registration symbols survive linking.
 
+# 9b. Extension System
+add_library(chronon3d_extension STATIC extension/extension_registry.cpp)
+target_link_libraries(chronon3d_extension PUBLIC chronon3d chronon3d_graph chronon3d_registry chronon3d_effects)
+target_precompile_headers(chronon3d_extension PRIVATE <glm/glm.hpp> <spdlog/spdlog.h> <fmt/core.h>)
+
+# --- Aggregati Architetturali finali ---
 add_library(chronon3d_core INTERFACE)
 target_link_libraries(chronon3d_core INTERFACE
+    chronon3d_extension
     chronon3d_assets
     chronon3d_registry
     $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_scene>

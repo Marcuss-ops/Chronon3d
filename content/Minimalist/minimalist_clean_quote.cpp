@@ -73,6 +73,6 @@ Composition minimalist_clean_quote() {
 
 } // namespace chronon3d::content::minimalist
 
-CHRONON_REGISTER_COMPOSITION("MinimalistCleanQuote", chronon3d::content::minimalist::minimalist_clean_quote)
+// Registration handled by MinimalistModule in minimalist_module.cpp
 
 

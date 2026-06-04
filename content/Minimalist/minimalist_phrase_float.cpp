@@ -72,6 +72,6 @@ Composition minimalist_phrase_float() {
 
 } // namespace chronon3d::content::minimalist
 
-CHRONON_REGISTER_COMPOSITION("MinimalistPhraseFloat", chronon3d::content::minimalist::minimalist_phrase_float)
+// Registration handled by MinimalistModule in minimalist_module.cpp
 
 
