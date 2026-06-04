@@ -457,6 +457,12 @@ LayerBuilder& LayerBuilder::video(video::VideoSource source) {
     return *this;
 }
 
+LayerBuilder& LayerBuilder::precomp(std::string comp_name) {
+    m_layer.kind = LayerKind::Precomp;
+    m_layer.precomp_composition_name = std::pmr::string{std::move(comp_name), resource()};
+    return *this;
+}
+
 LayerBuilder& LayerBuilder::video(std::string path) {
     video::VideoSource source;
     source.path = std::move(path);

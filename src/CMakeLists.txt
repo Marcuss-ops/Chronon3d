@@ -109,6 +109,7 @@ set(CHRONON3D_RUNTIME_SOURCES
     runtime/pipeline.cpp
     runtime/scene_to_render_graph.cpp
     runtime/timeline_evaluator.cpp
+    runtime/sub_composition_registry.cpp
     runtime/telemetry/telemetry_manager.cpp
     runtime/renderer_warmup.cpp
 )

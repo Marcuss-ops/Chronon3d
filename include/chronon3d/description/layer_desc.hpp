@@ -55,6 +55,9 @@ struct LayerDesc {
     Frame time_remap_freeze_frame{-1};        // if >= 0, hold this source frame
     AnimatedValue<f32> time_remap_curve;      // animated comp-frame → source-frame
 
+    // ── Precomp (AE-6) ──
+    std::string precomp_composition_name;  // for LayerKind::Precomp: name of the nested composition
+
     std::vector<VisualDesc> visuals;
     std::vector<EffectDesc> effects;
 

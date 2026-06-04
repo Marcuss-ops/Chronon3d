@@ -195,6 +195,14 @@ public:
      */
     LayerBuilder& video(video::VideoSource source);
 
+    // ── Precomp (AE-6) ───────────────────────────────────────────────
+    /**
+     * Mark this layer as a precomp referencing a named composition.
+     * The composition must be registered in the CompositionRegistry
+     * or defined as a SubComposition in the SceneDescription.
+     */
+    LayerBuilder& precomp(std::string comp_name);
+
     /**
      * Convenience helper for video by path.
      */
