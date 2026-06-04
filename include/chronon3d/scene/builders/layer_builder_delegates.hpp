@@ -1,6 +1,6 @@
 #pragma once
 
-#include <chronon3d/scene/layer/layer.hpp>
+#include <chronon3d/scene/model/layer.hpp>
 #include <chronon3d/scene/builders/builder_params.hpp>
 
 namespace chronon3d {

@@ -11,8 +11,8 @@
 #include <doctest/doctest.h>
 
 #include <chronon3d/backends/software/utils/effects/per_pixel_dof.hpp>
-#include <chronon3d/scene/camera/camera_2_5d.hpp>
-#include <chronon3d/scene/camera/dof.hpp>
+#include <chronon3d/scene/model/camera_2_5d.hpp>
+#include <chronon3d/scene/model/dof.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/timeline/composition.hpp>

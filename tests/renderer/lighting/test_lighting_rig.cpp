@@ -2,7 +2,7 @@
 #include <chronon3d/rendering/lighting_rig.hpp>
 #include <chronon3d/rendering/light_context.hpp>
 #include <chronon3d/rendering/lighting_eval.hpp>
-#include <chronon3d/scene/material_2_5d.hpp>
+#include <chronon3d/scene/model/material_2_5d.hpp>
 #include <glm/glm.hpp>
 
 using namespace chronon3d;

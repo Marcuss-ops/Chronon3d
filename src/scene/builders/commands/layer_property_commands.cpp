@@ -3,7 +3,7 @@
 // Extracted from layer_builder.cpp to reduce file size.
 
 #include <chronon3d/scene/builders/layer_builder.hpp>
-#include <chronon3d/scene/layer/track_matte.hpp>
+#include <chronon3d/scene/model/track_matte.hpp>
 
 #include <memory_resource>
 #include <utility>

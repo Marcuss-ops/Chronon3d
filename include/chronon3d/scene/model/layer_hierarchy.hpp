@@ -1,11 +1,11 @@
 #pragma once
 
-#include <chronon3d/scene/layer/layer.hpp>
-#include <chronon3d/scene/camera/camera_2_5d.hpp>
+#include <chronon3d/scene/model/layer.hpp>
+#include <chronon3d/scene/model/camera_2_5d.hpp>
 #include <chronon3d/math/camera_pose.hpp>
 #include <chronon3d/math/transform.hpp>
 #include <chronon3d/math/glm_types.hpp>
-#include <chronon3d/scene/layer/resolved_types.hpp>
+#include <chronon3d/scene/model/resolved_types.hpp>
 #include <unordered_map>
 #include <vector>
 #include <string>

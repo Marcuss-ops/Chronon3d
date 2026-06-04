@@ -1,5 +1,5 @@
 #include <doctest/doctest.h>
-#include <chronon3d/scene/scene.hpp>
+#include <chronon3d/scene/model/scene.hpp>
 #include <chronon3d/scene/validation/scene_validator.hpp>
 
 using namespace chronon3d;

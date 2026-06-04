@@ -3,7 +3,7 @@
 #include <chronon3d/core/enum_utils.hpp>
 #include <chronon3d/registry/shape_ids.hpp>
 #include <chronon3d/registry/shape_params.hpp>
-#include <chronon3d/scene/layer/render_node.hpp>
+#include <chronon3d/scene/model/render_node.hpp>
 #include <string>
 #include <string_view>
 #include <vector>

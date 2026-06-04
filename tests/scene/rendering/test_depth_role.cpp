@@ -1,5 +1,5 @@
 #include <doctest/doctest.h>
-#include <chronon3d/scene/layer/depth_role.hpp>
+#include <chronon3d/scene/model/depth_role.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/timeline/composition.hpp>
 

@@ -1,6 +1,6 @@
 #include <doctest/doctest.h>
-#include <chronon3d/scene/scene.hpp>
-#include <chronon3d/scene/shape.hpp>
+#include <chronon3d/scene/model/scene.hpp>
+#include <chronon3d/scene/model/shape.hpp>
 #include <chronon3d/render_graph/render_graph.hpp>
 #include <chronon3d/render_graph/graph_builder.hpp>
 #include <chronon3d/render_graph/render_graph_context.hpp>

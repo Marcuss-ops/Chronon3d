@@ -1,6 +1,6 @@
 #include <doctest/doctest.h>
 #include <chronon3d/math/glm_types.hpp>
-#include <chronon3d/scene/camera/camera.hpp>
+#include <chronon3d/scene/model/camera.hpp>
 
 using namespace chronon3d;
 

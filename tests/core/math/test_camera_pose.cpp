@@ -1,7 +1,7 @@
 #include <doctest/doctest.h>
 
-#include <chronon3d/scene/camera/camera.hpp>
-#include <chronon3d/scene/camera/camera_2_5d.hpp>
+#include <chronon3d/scene/model/camera.hpp>
+#include <chronon3d/scene/model/camera_2_5d.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 
 using namespace chronon3d;

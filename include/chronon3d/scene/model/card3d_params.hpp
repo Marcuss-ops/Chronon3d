@@ -2,7 +2,7 @@
 
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/math/color.hpp>
-#include <chronon3d/scene/card3d_material.hpp>
+#include <chronon3d/scene/model/card3d_material.hpp>
 
 namespace chronon3d {
 

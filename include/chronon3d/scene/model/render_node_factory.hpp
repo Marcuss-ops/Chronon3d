@@ -1,7 +1,7 @@
 #pragma once
 
 #include <chronon3d/scene/builders/builder_params.hpp>
-#include <chronon3d/scene/layer/render_node.hpp>
+#include <chronon3d/scene/model/render_node.hpp>
 #include <memory_resource>
 #include <string>
 

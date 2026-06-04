@@ -3,11 +3,11 @@
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/math/transform.hpp>
 #include <chronon3d/math/glm_types.hpp>
-#include <chronon3d/scene/effects/effect_stack.hpp>
-#include <chronon3d/scene/fill.hpp>
-#include <chronon3d/scene/layer/render_node.hpp>
-#include <chronon3d/scene/mask/mask.hpp>
-#include <chronon3d/scene/shape.hpp>
+#include <chronon3d/scene/model/effect_stack.hpp>
+#include <chronon3d/scene/model/fill.hpp>
+#include <chronon3d/scene/model/render_node.hpp>
+#include <chronon3d/scene/model/mask.hpp>
+#include <chronon3d/scene/model/shape.hpp>
 #include <chronon3d/backends/video/video_source.hpp>
 #include <xxhash.h>
 

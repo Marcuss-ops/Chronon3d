@@ -7,7 +7,7 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/math/color.hpp>
-#include <chronon3d/scene/effects/effect_stack.hpp>
+#include <chronon3d/scene/model/effect_stack.hpp>
 #include <tests/helpers/test_utils.hpp>
 
 #include <algorithm>

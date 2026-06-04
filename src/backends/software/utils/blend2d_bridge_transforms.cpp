@@ -5,7 +5,7 @@
 
 #include "blend2d_bridge.hpp"
 #include "blend2d_bridge_detail.hpp"
-#include <chronon3d/scene/mask/mask_utils.hpp>
+#include <chronon3d/scene/model/mask_utils.hpp>
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
 #include <algorithm>

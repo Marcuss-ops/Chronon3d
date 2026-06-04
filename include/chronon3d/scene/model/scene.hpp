@@ -1,13 +1,13 @@
 #pragma once
 
-#include <chronon3d/scene/layer/render_node.hpp>
-#include <chronon3d/scene/layer/layer.hpp>
-#include <chronon3d/scene/camera/camera_2_5d.hpp>
-#include <chronon3d/scene/layer/layer_hierarchy.hpp>
+#include <chronon3d/scene/model/render_node.hpp>
+#include <chronon3d/scene/model/layer.hpp>
+#include <chronon3d/scene/model/camera_2_5d.hpp>
+#include <chronon3d/scene/model/layer_hierarchy.hpp>
 #include <chronon3d/rendering/light_context.hpp>
 #include <chronon3d/rendering/lighting_rig.hpp>
 #include <chronon3d/rendering/depth_grade.hpp>
-#include <chronon3d/scene/transform/transform_resolver.hpp>
+#include <chronon3d/scene/model/transform_resolver.hpp>
 #include <vector>
 #include <memory_resource>
 

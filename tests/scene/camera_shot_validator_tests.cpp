@@ -1,7 +1,7 @@
 #include <doctest/doctest.h>
 #include <chronon3d/scene/camera/camera_projection.hpp>
 #include <chronon3d/scene/camera/camera_shot_validator.hpp>
-#include <chronon3d/scene/transform/transform_resolver.hpp>
+#include <chronon3d/scene/model/transform_resolver.hpp>
 #include <cmath>
 
 using namespace chronon3d;

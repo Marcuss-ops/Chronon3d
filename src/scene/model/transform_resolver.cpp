@@ -1,4 +1,4 @@
-#include <chronon3d/scene/transform/transform_resolver.hpp>
+#include <chronon3d/scene/model/transform_resolver.hpp>
 #include <glm/gtx/matrix_decompose.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 

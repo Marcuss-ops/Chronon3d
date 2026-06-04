@@ -2,7 +2,7 @@
 #include "camera_test_orchestrator.hpp"
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/camera/camera_rig_presets.hpp>
-#include <chronon3d/scene/camera/camera_shot_profile.hpp>
+#include <chronon3d/scene/model/camera_shot_profile.hpp>
 #include <chronon3d/math/color.hpp>
 #include <cmath>
 

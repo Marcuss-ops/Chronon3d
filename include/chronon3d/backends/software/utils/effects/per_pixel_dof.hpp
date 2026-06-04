@@ -21,7 +21,7 @@
 
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/math/color.hpp>
-#include <chronon3d/scene/camera/dof.hpp>
+#include <chronon3d/scene/model/dof.hpp>
 #include <tbb/parallel_for.h>
 #include <tbb/blocked_range.h>
 #include <chronon3d/backends/software/utils/effects/dof_simd.hpp>

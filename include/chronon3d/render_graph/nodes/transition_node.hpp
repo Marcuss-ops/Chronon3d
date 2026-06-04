@@ -2,7 +2,7 @@
 
 #include <chronon3d/render_graph/render_graph_node.hpp>
 #include <chronon3d/render_graph/render_graph_hashing.hpp>
-#include <chronon3d/scene/layer/transition.hpp>
+#include <chronon3d/scene/model/transition.hpp>
 #include <span>
 
 namespace chronon3d::graph {

@@ -1,6 +1,6 @@
 #include <chronon3d/scene/validation/scene_validator.hpp>
 #include <chronon3d/scene/validation/scene_validation_registry.hpp>
-#include <chronon3d/scene/scene.hpp>
+#include <chronon3d/scene/model/scene.hpp>
 
 #include <algorithm>
 #include <sstream>

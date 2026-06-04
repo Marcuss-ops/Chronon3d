@@ -1,7 +1,7 @@
 #pragma once
 
-#include <chronon3d/scene/layer/layer.hpp>
-#include <chronon3d/scene/camera/camera_2_5d.hpp>
+#include <chronon3d/scene/model/layer.hpp>
+#include <chronon3d/scene/model/camera_2_5d.hpp>
 #include <chronon3d/math/transform.hpp>
 
 namespace chronon3d {

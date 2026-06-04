@@ -4,7 +4,7 @@
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <blend2d.h>
 
-#include <chronon3d/scene/layer/render_node.hpp>
+#include <chronon3d/scene/model/render_node.hpp>
 
 namespace chronon3d::blend2d_bridge {
 

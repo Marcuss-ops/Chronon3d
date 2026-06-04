@@ -1,8 +1,8 @@
 #include <doctest/doctest.h>
 #include <xxhash.h>
 
-#include <chronon3d/scene/camera/camera_2_5d.hpp>
-#include <chronon3d/scene/camera/dof.hpp>
+#include <chronon3d/scene/model/camera_2_5d.hpp>
+#include <chronon3d/scene/model/dof.hpp>
 #include <chronon3d/api/composition.hpp>
 #include <chronon3d/api/scene.hpp>
 #include <chronon3d/api/renderer.hpp>
