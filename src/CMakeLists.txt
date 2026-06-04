@@ -68,6 +68,7 @@ set(CHRONON3D_GRAPH_SOURCES
     render_graph/executor/tile_pruning.cpp
     render_graph/executor/telemetry_emitter.cpp
     render_graph/executor/node_runner.cpp
+    render_graph/executor/framebuffer_lifetime.cpp
     render_graph/graph_profiler.cpp
     render_graph/render_graph.cpp
     render_graph/render_graph_context.cpp
