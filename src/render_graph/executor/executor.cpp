@@ -240,7 +240,7 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
                     for (size_t level_index = range.begin(); level_index != range.end(); ++level_index) {
                         execute_single_node(
                             state, graph, ctx, level_resolved, level[level_index], level_index,
-                            parent_counters, parent_pool
+                            parent_counters, parent_pool, consumer_remaining
                         );
                     }
                 }
@@ -338,7 +338,7 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
                     for (size_t level_index = range.begin(); level_index != range.end(); ++level_index) {
                         execute_single_node(
                             state, graph, ctx, level_resolved, level[level_index], level_index,
-                            parent_counters, parent_pool
+                            parent_counters, parent_pool, consumer_remaining
                         );
                     }
                 }

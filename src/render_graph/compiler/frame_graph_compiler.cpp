@@ -12,7 +12,8 @@ CompiledFrameGraph FrameGraphCompiler::compile(
     const FrameGraphCompileOptions& options
 ) const {
     if (options.run_optimizer) {
-        optimizer::optimize_graph(graph, ctx);
+        [[maybe_unused]] const auto optimization_result =
+            optimizer::optimize_graph(graph, ctx);
     }
 
     CompiledFrameGraph compiled;

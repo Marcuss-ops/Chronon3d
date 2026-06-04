@@ -228,44 +228,52 @@ int render_and_encode_ffmpeg_chunked(
     const auto render_t1 = std::chrono::steady_clock::now();
     const auto setup_t1 = setup_done_at;
 
+    bool success = true;
     if (failed.load()) {
         spdlog::error("[video] Chunked render failed");
-        return 1;
+        success = false;
     }
 
-    const auto output_parent = std::filesystem::path(opts.output).parent_path();
-    if (!output_parent.empty()) {
-        std::filesystem::create_directories(output_parent, ec);
-        if (ec) {
-            spdlog::error("[video] Cannot create output directory {}: {}", output_parent.string(), ec.message());
-            return 1;
+    const int frames_written = frames_done.load();
+    double encode_ms = 0.0;
+
+    if (success) {
+        const auto output_parent = std::filesystem::path(opts.output).parent_path();
+        if (!output_parent.empty()) {
+            std::filesystem::create_directories(output_parent, ec);
+            if (ec) {
+                spdlog::error("[video] Cannot create output directory {}: {}", output_parent.string(), ec.message());
+                success = false;
+            }
+        }
+
+        if (success) {
+            const std::string pattern = (frames_dir / "frame_%06d.png").string();
+            const std::string codec   = resolve_cli_ffmpeg_codec(opts.codec, opts.hardware_encoder);
+            const std::string pix_fmt = resolve_cli_ffmpeg_output_pix_fmt(codec);
+            const std::string cmd     = fmt::format(
+                "ffmpeg -y -framerate {} -i \"{}\" -c:v {} -crf {} -preset {} -pix_fmt {} -movflags +faststart \"{}\"",
+                opts.fps, pattern, codec, opts.crf, opts.encode_preset, pix_fmt, opts.output);
+
+            spdlog::info("[video] {}", cmd);
+            const auto encode_t0 = std::chrono::steady_clock::now();
+            const int rc = std::system(cmd.c_str());
+            const auto encode_t1 = std::chrono::steady_clock::now();
+            encode_ms = std::chrono::duration<double, std::milli>(encode_t1 - encode_t0).count();
+
+            if (rc != 0) {
+                spdlog::error("[video] ffmpeg exited with code {}", rc);
+                success = false;
+            }
         }
     }
-
-    const std::string pattern = (frames_dir / "frame_%06d.png").string();
-    const std::string codec   = resolve_cli_ffmpeg_codec(opts.codec, opts.hardware_encoder);
-    const std::string pix_fmt = resolve_cli_ffmpeg_output_pix_fmt(codec);
-    const std::string cmd     = fmt::format(
-        "ffmpeg -y -framerate {} -i \"{}\" -c:v {} -crf {} -preset {} -pix_fmt {} -movflags +faststart \"{}\"",
-        opts.fps, pattern, codec, opts.crf, opts.encode_preset, pix_fmt, opts.output);
-
-    spdlog::info("[video] {}", cmd);
-    const auto encode_t0 = std::chrono::steady_clock::now();
-    const int rc = std::system(cmd.c_str());
-    const auto encode_t1 = std::chrono::steady_clock::now();
 
     if (!opts.keep_frames) {
         std::filesystem::remove_all(frames_dir, ec);
     }
 
-    if (rc != 0) {
-        spdlog::error("[video] ffmpeg exited with code {}", rc);
-        return 1;
-    }
-
     const auto wall_t1 = std::chrono::steady_clock::now();
     const double render_ms = std::chrono::duration<double, std::milli>(render_t1 - render_t0).count();
-    const double encode_ms = std::chrono::duration<double, std::milli>(encode_t1 - encode_t0).count();
     const double wall_time_ms = std::chrono::duration<double, std::milli>(wall_t1 - wall_t0).count();
     std::sort(telemetry_frames.begin(), telemetry_frames.end(),
               [](const auto& a, const auto& b) { return a.frame_number < b.frame_number; });
@@ -277,9 +285,9 @@ int render_and_encode_ffmpeg_chunked(
     cli::telemetry::record_output_run(
         /*composition_id=*/composition_id,
         /*output_path=*/opts.output,
-        /*success=*/true,
+        /*success=*/success,
         /*frames_total=*/total,
-        /*frames_written=*/total,
+        /*frames_written=*/frames_written,
         /*wall_time_ms=*/wall_time_ms,
         /*render_ms=*/render_ms,
         /*encode_ms=*/encode_ms,
@@ -295,6 +303,10 @@ int render_and_encode_ffmpeg_chunked(
         /*text_events=*/text_events,
         /*image_events=*/image_events,
         /*tile_events=*/tile_events);
+
+    if (!success) {
+        return 1;
+    }
 
     spdlog::info("[video] Done → {}", opts.output);
     return 0;

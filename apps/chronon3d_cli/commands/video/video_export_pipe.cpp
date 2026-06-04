@@ -126,7 +126,7 @@ int render_and_encode_ffmpeg_pipe(
     // Keep the arena proportional to the actual frame size instead of pinning
     // a large fixed slab for every export.
     const size_t frame_bytes = static_cast<size_t>(comp.width()) * static_cast<size_t>(comp.height()) * sizeof(Color);
-    const size_t arena_size = align_up(std::max<size_t>(32ULL * 1024ULL * 1024ULL, frame_bytes * 2ULL), 2ULL * 1024ULL * 1024ULL);
+    const size_t arena_size = align_up(std::max<size_t>(128ULL * 1024ULL * 1024ULL, frame_bytes * 8ULL), 2ULL * 1024ULL * 1024ULL);
     TripleBufferArena triple_arena(8, arena_size);
 
     // Moodycamel lock-free queue for high-throughput frame passing
@@ -240,6 +240,13 @@ int render_and_encode_ffmpeg_pipe(
         chronon3d::telemetry::clear_telemetry_stores();
     }
 
+    bool success = true;
+    bool cancelled = false;
+    bool render_failed = false;
+    bool writer_error = false;
+    bool exception_error = false;
+    int frames_written = 0;
+
     const auto render_t0 = std::chrono::steady_clock::now();
     Frame current_frame = start;
     try {
@@ -247,11 +254,15 @@ int render_and_encode_ffmpeg_pipe(
             // Check for graceful cancellation (SIGINT/SIGTERM)
             if (opts.cancellation_token && opts.cancellation_token->is_cancelled()) {
                 spdlog::warn("[video] Render cancelled at frame {}", current_frame);
+                success = false;
+                cancelled = true;
                 break;
             }
 
             if (writer_failed.load()) {
                 spdlog::error("[video] FFmpeg writer failed before frame {}", current_frame);
+                success = false;
+                writer_error = true;
                 break;
             }
 
@@ -281,6 +292,8 @@ int render_and_encode_ffmpeg_pipe(
             if (!fb) {
                 spdlog::error("[video] Failed to render frame {}", current_frame);
                 triple_arena.release(current_arena);
+                success = false;
+                render_failed = true;
                 break;
             }
 
@@ -296,9 +309,19 @@ int render_and_encode_ffmpeg_pipe(
             // With kMaxEagainRetries=12 in the native encoder, the writer
             // can drain more frames before blocking the render thread.
             while (queue.size_approx() > 128) {
-                if (writer_failed.load()) break;
+                if (writer_failed.load()) {
+                    success = false;
+                    writer_error = true;
+                    break;
+                }
                 std::this_thread::yield();
             }
+
+            if (writer_error) {
+                triple_arena.release(current_arena);
+                break;
+            }
+
             queue.enqueue(RenderFramePackage{std::move(fb), std::move(current_arena)});
             const auto wait_t1 = std::chrono::steady_clock::now();
             const double wait_ms = std::chrono::duration<double, std::milli>(wait_t1 - wait_t0).count();
@@ -308,22 +331,29 @@ int render_and_encode_ffmpeg_pipe(
                     static_cast<uint64_t>(wait_ms),
                     std::memory_order_relaxed);
             }
+            ++frames_written;
 
             telemetry_frames.push_back({
                 .frame_number = static_cast<int>(current_frame),
-                .duration_ms = std::chrono::duration<double, std::milli>(frame_t1 - frame_t0).count(),
+                .duration_ms = frame_ms,
                 .cache_hit = true,
                 .dirty_area_ratio = dirty_ratio
             });
         }
     } catch (const std::exception& e) {
         spdlog::error("[video] Exception during render loop (frame {}): {}", current_frame, e.what());
+        success = false;
+        exception_error = true;
     }
 
     const auto render_t1 = std::chrono::steady_clock::now();
     writer_done.store(true);
     if (writer_thread.joinable()) {
         writer_thread.join();
+    }
+    if (writer_failed.load()) {
+        success = false;
+        writer_error = true;
     }
     const auto setup_t1 = render_t0;
     auto node_events = chronon3d::telemetry::collect_node_telemetry();
@@ -359,9 +389,10 @@ int render_and_encode_ffmpeg_pipe(
                      native_convert_ms, native_send_ms, native_receive_ms, native_mux_ms, native_trailer_ms);
     }
 
-    if (!encoder->close()) {
+    bool encoder_closed = encoder->close();
+    if (!encoder_closed) {
         spdlog::error("[video] Encoder failed");
-        return 1;
+        success = false;
     }
 
     const auto wall_t1 = std::chrono::steady_clock::now();
@@ -471,9 +502,9 @@ int render_and_encode_ffmpeg_pipe(
     cli::telemetry::record_output_run(
         /*composition_id=*/composition_id,
         /*output_path=*/opts.output,
-        /*success=*/true,
+        /*success=*/success,
         /*frames_total=*/total,
-        /*frames_written=*/total,
+        /*frames_written=*/frames_written,
         /*wall_time_ms=*/wall_time_ms,
         /*render_ms=*/render_ms,
         /*encode_ms=*/encode_ms,
@@ -489,6 +520,19 @@ int render_and_encode_ffmpeg_pipe(
         /*text_events=*/text_events,
         /*image_events=*/image_events,
         /*tile_events=*/tile_events);
+
+    if (!success) {
+        spdlog::error(
+            "[video] Export incomplete: frames_written={}/{} cancelled={} render_failed={} writer_error={} exception={}",
+            frames_written,
+            total,
+            cancelled,
+            render_failed,
+            writer_error,
+            exception_error
+        );
+        return 1;
+    }
 
     spdlog::info("[video] Wrote {}", opts.output);
     return 0;

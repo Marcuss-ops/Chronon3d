@@ -41,7 +41,7 @@ TextParams common_text_params(std::string text) {
         .text = std::move(text),
         .size = {1450.0f, 340.0f},
         .pos = {0.0f, 0.0f, 0.0f},
-        .font_path = "assets/fonts/Inter-Bold.ttf",
+        .font_path = "assets/fonts/GoogleSans-Bold.ttf",
         .font_size = 58.0f,
         .color = {0.94f, 0.94f, 0.94f, 1.0f},
         .align = TextAlign::Left,
@@ -311,6 +311,21 @@ Composition minimalist_elegant_exit_horizontal() {
     });
 }
 
+// 15. Curtain Close
+Composition minimalist_curtain_close() {
+    return composition({.name = "MinimalistCurtainClose", .duration = 120}, [](const FrameContext& ctx) {
+        SceneBuilder s(ctx);
+        add_common_background(s);
+        s.layer("text_layer", [](auto& l) {
+            l.pin_to(Anchor::Center);
+            l.curtain_close(Frame{45});
+            add_text_backdrop(l);
+            l.text("text", common_text_params("The curtain closes down.\nThe presentation ends.\nSmooth vertical exit."));
+        });
+        return s.build();
+    });
+}
+
 } // namespace chronon3d::content::minimalist
 
 // Registrations
@@ -328,4 +343,5 @@ CHRONON_REGISTER_COMPOSITION("MinimalistScaleDrop", chronon3d::content::minimali
 CHRONON_REGISTER_COMPOSITION("MinimalistTrackingBreathing", chronon3d::content::minimalist::minimalist_tracking_breathing)
 CHRONON_REGISTER_COMPOSITION("MinimalistElegantExitVertical", chronon3d::content::minimalist::minimalist_elegant_exit_vertical)
 CHRONON_REGISTER_COMPOSITION("MinimalistElegantExitHorizontal", chronon3d::content::minimalist::minimalist_elegant_exit_horizontal)
+CHRONON_REGISTER_COMPOSITION("MinimalistCurtainClose", chronon3d::content::minimalist::minimalist_curtain_close)
 

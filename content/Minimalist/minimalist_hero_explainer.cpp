@@ -47,7 +47,7 @@ Composition minimalist_hero_explainer() {
                 .text = revealed_text,
                 .size = {1450.0f, 340.0f},
                 .pos = {0.0f, 0.0f, 0.0f},
-                .font_path = "assets/fonts/Inter-Bold.ttf",
+                .font_path = "assets/fonts/GoogleSans-Bold.ttf",
                 .font_size = 58.0f,
                 .color = {1.0f, 1.0f, 1.0f, 1.0f},
                 .align = TextAlign::Left,
