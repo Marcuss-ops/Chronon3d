@@ -12,7 +12,6 @@ add_library(chronon3d_content_text STATIC
     text/text_layout.cpp
     text/text_scrolling.cpp
     text/text_proofs.cpp
-    text/text_registrations.cpp
     text/lil_dirk.cpp
     text/typewriter/text_typewriter.cpp
     text/typewriter/text_typewriter_terminal.cpp
