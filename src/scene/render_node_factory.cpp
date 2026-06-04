@@ -7,6 +7,8 @@ namespace chronon3d {
 RenderNode RenderNodeFactory::base(std::pmr::memory_resource* res, std::string name) {
     RenderNode node(res);
     node.name = std::pmr::string{std::move(name), res};
+    node.surface_policy = SurfacePolicy::IntrinsicSize;
+    node.transform_policy = TransformPolicy::MatrixOnly;
     return node;
 }
 
@@ -111,6 +113,8 @@ RenderNode RenderNodeFactory::tiled_image(std::pmr::memory_resource* res, std::s
 RenderNode RenderNodeFactory::grid_background(std::pmr::memory_resource* res, std::string name, const GridBackgroundParams& p) {
     auto node = base(res, std::move(name));
     node.shape.type = ShapeType::GridBackground;
+    node.surface_policy = SurfacePolicy::ViewportSize;
+    node.transform_policy = TransformPolicy::RasterizeAfter;
     node.shape.grid_background.size = p.size;
     node.shape.grid_background.offset = p.offset;
     node.shape.grid_background.bg_color = p.bg_color;

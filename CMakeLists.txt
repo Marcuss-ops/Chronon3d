@@ -3,12 +3,13 @@ cmake_minimum_required(VERSION 3.24)
 project(Chronon3d
     VERSION 0.1.0
     DESCRIPTION "A modular C++20 3D engine/library"
-    LANGUAGES CXX
+    LANGUAGES C CXX
 )
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
 
 if(NOT DEFINED CMAKE_TOOLCHAIN_FILE AND NOT DEFINED VCPKG_CHAINLOAD_TOOLCHAIN_FILE)
@@ -140,3 +141,49 @@ endif()
 if(CHRONON3D_BUILD_TOOLS)
     # preview_new_features target removed - tools/preview_new_features.cpp does not exist
 endif()
+
+# ==============================================================================
+# C API SHARED LIBRARY & C TEST (Defined at the end to ensure all targets exist)
+# ==============================================================================
+add_library(chronon3d_shared SHARED src/c_api/chronon3d_c_api.cpp)
+target_link_libraries(chronon3d_shared PRIVATE chronon3d_pipeline)
+
+if(CHRONON3D_BUILD_CONTENT)
+    if(TARGET chronon3d_content_text)
+        target_link_libraries(chronon3d_shared PRIVATE $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_content_text>)
+    endif()
+    if(TARGET chronon3d_content_shapes)
+        target_link_libraries(chronon3d_shared PRIVATE $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_content_shapes>)
+    endif()
+    if(TARGET chronon3d_content_images)
+        target_link_libraries(chronon3d_shared PRIVATE $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_content_images>)
+    endif()
+    if(TARGET chronon3d_content_anims)
+        target_link_libraries(chronon3d_shared PRIVATE $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_content_anims>)
+    endif()
+    if(TARGET chronon3d_content_effects)
+        target_link_libraries(chronon3d_shared PRIVATE $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_content_effects>)
+    endif()
+    if(TARGET chronon3d_content_2d5)
+        target_link_libraries(chronon3d_shared PRIVATE $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_content_2d5>)
+    endif()
+    if(TARGET chronon3d_content_grid)
+        target_link_libraries(chronon3d_shared PRIVATE $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_content_grid>)
+    endif()
+endif()
+
+target_include_directories(chronon3d_shared PUBLIC ${CMAKE_SOURCE_DIR}/include)
+set_target_properties(chronon3d_shared PROPERTIES
+    OUTPUT_NAME "chronon3d"
+    POSITION_INDEPENDENT_CODE ON
+    UNITY_BUILD OFF
+)
+target_compile_definitions(chronon3d_shared PRIVATE CHRONON3D_BUILD_SHARED)
+
+if(CHRONON3D_BUILD_TESTS)
+    add_executable(test_c_api tests/test_c_api.c)
+    target_link_libraries(test_c_api PRIVATE chronon3d_shared)
+    target_include_directories(test_c_api PRIVATE ${CMAKE_SOURCE_DIR}/include)
+    add_test(NAME test_c_api COMMAND test_c_api WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+endif()
+
