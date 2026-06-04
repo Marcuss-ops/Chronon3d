@@ -8,6 +8,7 @@
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/memory/framebuffer_handle.hpp>
 #include <chronon3d/math/raster_utils.hpp>
+#include "execution_state.hpp"
 #include <memory>
 #include <optional>
 #include <span>
@@ -20,61 +21,11 @@ namespace chronon3d {
 
 namespace chronon3d::graph {
 
-// ── contains_index helper (used by both executor .cpp files) ────────
+// contains_index helper is defined in execution_state.hpp
 
-template <typename Container>
-[[nodiscard]] inline bool contains_index(const Container& values, GraphNodeId id) {
-    return static_cast<size_t>(id) < values.size();
-}
 
 // ── Internal data structures ────────────────────────────────────────
 
-struct ExecutionState {
-    // temp holds CachedFB (shared_ptr) for uniform handling of both
-    // cache hits and pool-allocated framebuffers.
-    std::pmr::vector<CachedFB> temp;
-    std::pmr::vector<u64> resolved_key_digest;
-    std::pmr::vector<char> resolved_frame_dependent;
-    std::pmr::vector<char> resolved_cache_hit;
-    std::pmr::vector<std::optional<raster::BBox>> resolved_bboxes;
-
-    /// Lazily-allocated full-frame transparent framebuffer shared across
-    /// all tile-pruned nodes.  Allocated once per execute() call on first
-    /// prune, then reused for every subsequent pruned node in the same call.
-    /// Avoids N independent framebuffer allocations + clears for N pruned
-    /// nodes — a single full-frame allocation + clear suffices.
-    ///
-    /// The full-frame size ensures consumers (CompositeNode, TransformNode,
-    /// etc.) can safely read pixels at any coordinate within the tile without
-    /// out-of-bounds access.
-    CachedFB shared_transparent;
-
-    explicit ExecutionState(std::pmr::memory_resource* res)
-        : temp(res), resolved_key_digest(res), resolved_frame_dependent(res),
-          resolved_cache_hit(res), resolved_bboxes(res) {}
-};
-
-struct PreResolvedNode {
-    // Non-owning FramebufferRef views — no atomic refcounting overhead.
-    std::pmr::vector<FramebufferRef> inputs;
-    std::pmr::vector<std::optional<raster::BBox>> input_bboxes;
-    bool inputs_frame_dependent = false;
-    bool has_cacheable_inputs = false;
-    bool inputs_all_cache_hits = false;
-    u64 input_hash = 0;
-
-    explicit PreResolvedNode(std::pmr::memory_resource* res)
-        : inputs(res), input_bboxes(res) {}
-};
-
-struct CacheEvalResult {
-    CachedFB result;             // non-null on cache hit
-    cache::NodeCacheKey key;
-    std::string cache_status;
-    bool node_frame_dependent = false;
-    bool use_cache = false;
-    bool is_cacheable = false;
-};
 
 // ── Node execution helpers ──────────────────────────────────────────
 
@@ -134,7 +85,8 @@ void execute_single_node(
     GraphNodeId id,
     size_t level_index,
     RenderCounters* parent_counters,
-    cache::FramebufferPool* parent_pool
+    cache::FramebufferPool* parent_pool,
+    std::pmr::vector<std::atomic_size_t>& consumer_remaining
 );
 
 } // namespace chronon3d::graph

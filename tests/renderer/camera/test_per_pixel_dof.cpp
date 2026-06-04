@@ -17,6 +17,8 @@
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/scene/builders/scene_builder.hpp>
+#include <chronon3d/scene/builders/layer_builder.hpp>
 
 #include <vector>
 #include <cmath>

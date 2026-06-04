@@ -55,9 +55,15 @@ set(CHRONON3D_GRAPH_SOURCES
     render_graph/builder/passes/graph_builder_lighting_passes.cpp
     render_graph/builder/passes/graph_builder_source_pass.cpp
     render_graph/executor/executor.cpp
-    render_graph/executor/internal.cpp
+    render_graph/executor/input_resolver.cpp
+    render_graph/executor/cache_evaluator.cpp
+    render_graph/executor/tile_pruning.cpp
+    render_graph/executor/telemetry_emitter.cpp
+    render_graph/executor/node_runner.cpp
     render_graph/graph_profiler.cpp
     render_graph/render_graph.cpp
+    render_graph/render_graph_context.cpp
+    render_graph/framebuffer_acquire.cpp
     render_graph/pipeline/scene.cpp
     render_graph/pipeline/scene_dirty.cpp
     render_graph/pipeline/debug.cpp
