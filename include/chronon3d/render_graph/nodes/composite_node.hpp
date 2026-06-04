@@ -9,7 +9,8 @@ class CompositeNode final : public RenderGraphNode {
 public:
     bool cacheable() const override { return m_cache_frame >= 0; }
 
-    CompositeNode(::chronon3d::BlendMode mode, Frame cache_frame = Frame{-1}) : m_mode(mode), m_cache_frame(cache_frame) {}
+    CompositeNode(::chronon3d::BlendMode mode, Frame cache_frame = Frame{-1}, float world_z = 0.0f)
+        : m_mode(mode), m_cache_frame(cache_frame), m_world_z(world_z) {}
 
     RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::Composite; }
     std::string name() const override { return "Composite"; }
@@ -140,6 +141,33 @@ public:
             }
             ctx.backend->composite_layer(*result, *top, m_mode, clip);
 
+            // ── Per-pixel DOF depth tracking ──────────────────────────
+            // When track_dof_depth is active, record the world_z of the
+            // composited layer for each pixel where the source has alpha > 0.
+            // Layers are composited back-to-front, so later (front) layers
+            // overwrite the depth of earlier (back) layers — exactly what
+            // we need for correct occlusion.
+            if (ctx.track_dof_depth && !ctx.dof_depth.empty()) {
+                const i32 w = ctx.width;
+                const float wz = m_world_z;
+                const i32 bx0 = clip ? clip->x0 : 0;
+                const i32 by0 = clip ? clip->y0 : 0;
+                const i32 bx1 = clip ? clip->x1 : ctx.width;
+                const i32 by1 = clip ? clip->y1 : ctx.height;
+                for (i32 y = by0; y < by1; ++y) {
+                    const i32 sy = y - top->origin_y();
+                    if (sy < 0 || sy >= top->height()) continue;
+                    const Color* src_row = top->pixels_row(sy);
+                    for (i32 x = bx0; x < bx1; ++x) {
+                        const i32 sx = x - top->origin_x();
+                        if (sx < 0 || sx >= top->width()) continue;
+                        if (src_row[sx].a > 0.01f) {
+                            ctx.dof_depth[static_cast<size_t>(y) * w + x] = wz;
+                        }
+                    }
+                }
+            }
+
             // Propagate opacity: when the top layer is opaque and covers the full
             // frame with Normal blend, the result inherits its opaque flag even
             // if the bottom was transparent (the top fully occludes it).
@@ -174,6 +202,7 @@ public:
 private:
     BlendMode m_mode;
     Frame m_cache_frame{-1};
+    float m_world_z{0.0f};
 };
 
 } // namespace chronon3d::graph

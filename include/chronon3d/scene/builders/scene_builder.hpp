@@ -152,6 +152,7 @@ namespace chronon3d {
         template <typename Fn>
         SceneBuilder &adjustment_layer(std::string name, Fn &&fn) {
             LayerBuilder builder(std::move(name), current_frame_, scene_.resource());
+            builder.screen_dimensions(static_cast<f32>(m_width), static_cast<f32>(m_height));
             std::forward<Fn>(fn)(builder);
 
             Layer l = builder.build();

@@ -13,4 +13,10 @@ inline constexpr std::string_view LightGlow = "light.glow";
 inline constexpr std::string_view LightBloom = "light.bloom";
 inline constexpr std::string_view DistortFake3DWave = "distort.fake_3d_wave";
 
+// ── Adjustment-layer color correction effects (AE-5) ──
+inline constexpr std::string_view ColorSaturation = "color.saturation";
+inline constexpr std::string_view ColorHueRotate   = "color.hue_rotate";
+inline constexpr std::string_view ColorInvert      = "color.invert";
+inline constexpr std::string_view ColorVignette    = "color.vignette";
+
 } // namespace chronon3d::effects::ids

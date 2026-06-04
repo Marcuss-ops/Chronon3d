@@ -1828,6 +1828,352 @@ class TileCache {
 
 ---
 
+---
+
+## 🎬 PER-PIXEL DOF — COMPLETATO (giugno 2026)
+
+### Implementazione completa del per-pixel Depth of Field
+
+**Problema:** Il DOF esistente (`DofEffectNode`) applicava un blur uniforme per layer basato sulla distanza dal fuoco. Non c'era blur differenziale per-pixel (pixel vicini al fuoco nitidi, pixel lontani sfocati).
+
+**Soluzione:** Implementazione completa del per-pixel DOF:
+
+**Nuovi file:**
+- `include/chronon3d/backends/software/utils/effects/per_pixel_dof.hpp` — Kernel blur separabile two-pass (horizontal + vertical) con smoothstep weighting. O(2r) per pixel vs O(r²) del disc kernel.
+- `include/chronon3d/render_graph/nodes/per_pixel_dof_node.hpp` — Nodo render graph che legge il depth buffer dal `RenderGraphContext` e applica il blur.
+- `include/chronon3d/backends/software/utils/effects/dof_simd.hpp` — Dichiarazioni per i kernel SIMD Highway.
+- `src/backends/software/simd/highway_dof_kernels.cpp` — Kernel SIMD multi-target con Highway dispatch (AVX2/AVX-512/NEON). Processa PPB = Lanes(df)/4 pixel per batch con weight broadcast alle 4 lane RGBA.
+- `tests/renderer/camera/test_per_pixel_dof.cpp` — 15 test completi (kernel correctness, depth-based blur, edge cases, integration).
+- `tests/bench/dof_benchmark.cpp` — Benchmark disc kernel vs separable a 4 aperture × 2 risoluzioni.
+- `content/2d5/compositions/two_point_five_d_compositions.cpp` — Composizione `DofShowcase` con 3 layer a profondità diverse.
+
+**File modificati:**
+- `include/chronon3d/render_graph/render_graph_node.hpp` — `track_dof_depth` + `dof_depth` buffer in `RenderGraphContext`.
+- `include/chronon3d/render_graph/nodes/composite_node.hpp` — `m_world_z` per tracciare la depth durante il compositing back-to-front.
+- `src/render_graph/builder/graph_builder_pipeline.cpp` — Inserisce `PerPixelDofNode` dopo tutti i layer compositati quando DOF è abilitato.
+- `src/render_graph/builder/passes/graph_builder_layer_passes.hpp/.cpp` — Salta il per-layer DOF quando il per-pixel DOF è attivo; passa `world_z` al CompositeNode.
+- `include/chronon3d/backends/software/utils/effects/per_pixel_dof.hpp` — Blur separabile two-pass con SIMD gather loops via `dof_h_gather_simd()` e `dof_v_gather_simd()`. Vertical pass con 2D tiling (32×64 tiles) per cache locality.
+- `src/CMakeLists.txt` — Aggiunto `highway_dof_kernels.cpp`.
+
+**Risultati benchmark (DEBUG build):**
+| Risoluzione | Apertura | Disc O(r²) | Separabile O(2r) | Speedup |
+|---|---|---|---|---|
+| 640×360 | 5 | 140ms | 49.8ms | **2.8×** |
+| 640×360 | 10 | 336ms | 63.2ms | **5.3×** |
+| 640×360 | 20 | 1,112ms | 84.8ms | **13.1×** |
+| 640×360 | 40 | 3,935ms | 114ms | **34.5×** |
+| 1920×1080 | 40 | 38,146ms | 1,072ms | **35.6×** |
+
+**Test:** 15/15 pass, 28/28 assertions. Code review: PASSED.
+
+---
+
+## 🔍 GAP ANALYSIS: Chronon3D vs After Effects Programmatico
+
+> Analisi di cosa manca per raggiungere la parità con After Effects come motore di compositing programmatico.
+> Basata sulle feature esistenti nel codebase (giugno 2026) vs le capability fondamentali di AE.
+
+### ✅ Già implementato (parità o quasi con AE)
+
+| Feature | Stato | Note |
+|---|---|---|
+| **Expressions engine** | ✅ | `expression.hpp` con parser, `wiggle()`, `AnimatedValue::expression()`. Supporta `time`, `width`, `height`, operazioni aritmetiche. |
+| **Track Mattes** | ✅ | Alpha, Alpha Inverted, Luma, Luma Inverted. `TrackMatteNode` nel render graph. |
+| **Pre-compositions** | ✅ | `PrecompNode`, `precomp_layer()` in SceneBuilder. Nesting supportato. |
+| **2.5D Camera System** | ✅ | Camera rig con orbit, dolly, pan, tilt. Perspective/Orthographic projection. |
+| **Per-pixel DOF** | ✅ | Blur basato sulla depth, focus_z, aperture, max_blur. SIMD + 2D tiling. |
+| **Keyframe Animation** | ✅ | `AnimatedTransform` con easing curves (linear, ease-in/out, bezier). |
+| **Effect Stack** | ✅ | Blur, Tint, Brightness, Contrast, Glow, DropShadow, Bloom, Fake3DWave. |
+| **Blend Modes** | ✅ | Normal + altri. SIMD `composite_normal_premul`. |
+| **Motion Blur** | ✅ | `shutter_angle` + multi-sample accumulation. |
+| **Text Rendering** | ✅ | FreeType + HarfBuzz shaping. Per-glyph animation. Font cache LRU. |
+| **SVG/Path Shapes** | ✅ | SVG path loader, bezier curves, path flatten cache. |
+| **Composition API** | ✅ | `CHRONON_REGISTER_COMPOSITION`, `SceneBuilder`, `LayerBuilder`, C++ programmatic. |
+| **Layout Solver** | ✅ | Pin-to-anchor, safe area, auto-layout basico. |
+| **Color Pipeline** | ✅ | sRGB↔Linear IEC 61966-2-1. Color space transforms. |
+| **Video Export** | ✅ | FFmpeg pipe, io_uring, YUV SIMD conversion, NV12/YUV420P. |
+| **Render Graph** | ✅ | DAG optimizer, dead-node elimination, effect fusion, static fingerprint. |
+| **Telemetry** | ✅ | 30+ counters, React dashboard, frame profiling. |
+| **Caching** | ✅ | Node cache, disk cache, image cache LRU, text cache, path cache. |
+
+### ❌ Mancante — Fondamentali per "After Effects Programmatico"
+
+#### AE-1. Expressions con riferimenti cross-layer (URGENTE)
+
+**Stato attuale:** Le expressions supportano solo variabili locali (`time`, `width`, `height`) e operazioni aritmetiche. Non possono riferirsi ad altri layer o proprietà.
+
+**Cosa serve (come AE):**
+```javascript
+// AE expression — riferimento ad un altro layer
+thisComp.layer("Background").transform.position[0] + 100
+
+// Chronon3D dovrebbe supportare:
+s.expression("layer('bg').position.x + 100")
+s.expression("layer('title').opacity * 0.5")
+s.expression("thisComp.layer('camera').zoom")
+```
+
+**Implementazione:**
+- Estendere `ExpressionParser` con `layer(name)`, `thisComp`, `index`
+- Aggiungere un `ExpressionContext` con riferimenti al Scene state
+- Risolvere le expressions dopo il layer resolve (dependency order)
+
+**Complessità:** Media (1-2 settimane). **Impatto:** Alto — è la feature che distingue un compositing engine "programmatico" da uno "parametrico".
+
+---
+
+#### AE-2. Motion Tracking / Stabilization
+
+**Stato attuale:** Nessun motion tracking o stabilization.
+
+**Cosa serve:**
+- Point tracker: seleziona un punto nell'immagine e traccia il suo movimento frame-by-frame
+- Stabilization: analizza il movimento della camera e compensa
+- Data output: posizione (x, y) per frame → collegabile via expressions
+
+**Implementazione:**
+- Integrare un tracker (Lucas-Kanade o template matching)
+- Output come `TrackData` — array di (frame, x, y, confidence)
+- Wire up con expressions: `expression("track('point1').x")`
+
+**Complessità:** Alta (2-4 settimane). **Impatto:** Alto — essenziale per motion graphics professionali.
+
+---
+
+#### AE-3. Advanced Masking (Bezier)
+
+**Stato attuale:** Mask support esiste (`MaskNode`) ma è basato su forme semplici (rettangoli, ellissi). SVG paths sono supportati per shapes ma non come mask per layer.
+
+**Cosa serve (come AE):**
+- Mask con bezier curves animabili
+- Mask expansion (shrink/grow)
+- Mask feathering (blur ai bordi)
+- Multiple mask per layer con Add/Subtract/Intersect modes
+- Animated mask paths (keyframe sulle posizioni dei punti)
+
+**Implementazione:**
+- `MaskNode` con `PathContour` (già esistente da SVG paths)
+- `mask_feather(radius)` → blur graduale ai bordi
+- `mask_mode` enum: Add, Subtract, Intersect, None
+- `AnimatedMaskPath` con keyframe sui control points
+
+**Complessità:** Media (2-3 settimane). **Impatto:** Alto — necessario per compositing non-triviale.
+
+---
+
+#### AE-4. Time Remapping
+
+**Stato attuale:** Il playback è lineare: frame N → time = N/fps. Non c'è modo di rallentare, accelerare, o fare reverse di un layer indipendentemente.
+
+**Cosa serve:**
+```cpp
+// AE: Time Remapping keyframes
+s.layer("video").time_remap({
+    {0, 0.0f},      // frame 0 → time 0
+    {30, 1.5f},      // frame 30 → time 1.5s (slow motion)
+    {60, 2.0f},      // frame 60 → time 2.0f (reverse)
+});
+```
+
+**Implementazione:**
+- `TimeRemap` struct con keyframes `frame → source_time`
+- Wire up in `TimelineEvaluator` per risolvere il source time per ogni layer
+- `VideoSource` già supporta seek, ma serve il remapping nel layer evaluation
+
+**Complessità:** Bassa (3-5 giorni). **Impatto:** Medio — importante per slow-motion e reverse.
+
+---
+
+#### AE-5. Adjustment Layers
+
+**Stato attuale:** `AdjustmentNode` esiste nel render graph ma non è esposto nel `SceneBuilder` API.
+
+**Cosa serve:**
+```cpp
+// AE: Adjustment layer applica effetti a tutti i layer sotto
+s.adjustment_layer("color_grade", [&](auto& l) {
+    l.enable_effects().brightness(0.1).contrast(1.2);
+});
+```
+
+**Implementazione:**
+- Esposire `adjustment_layer()` in `SceneBuilder` e `LayerBuilder`
+- Il compositing applica gli effetti dell'adjustment layer al framebuffer compositato fino a quel punto
+- Supportare `AdjustmentNode` come tipo di layer nel Layer system
+
+**Complessità:** Bassa (2-3 giorni). **Impatto:** Medio-Alto — molto usato in AE per color grading.
+
+---
+
+#### AE-6. Expressions per Effects (property linking)
+
+**Stato attuale:** Le expressions funzionano solo su transform properties (position, scale, rotation, opacity). Non possono linkare proprietà degli effetti.
+
+**Cosa serve:**
+```cpp
+// AE: Expression su un effetto
+s.layer("title").effect("Glow").radius =
+    s.expression("thisComp.layer('controller').effect('Slider Control').slider * 5");
+```
+
+**Implementazione:**
+- Estendere `AnimatedValue` a supportare expressions su qualsiasi proprietà (non solo transform)
+- Aggiungere `EffectProperty` con `AnimatedValue<T>` per ogni parametro dell'effetto
+- `Slider Control`, `Angle Control`, `Checkbox Control` come "controller effects"
+
+**Complessità:** Media (1-2 settimane). **Impatto:** Alto — la vera programmabilità di AE.
+
+---
+
+#### AE-7. Particle System
+
+**Stato attuale:** Nessun sistema di particelle. I "particles" menzionati nelle animazioni sono fatti a mano con shape layers.
+
+**Cosa serve:**
+- Emitter: posizione, rate, velocity, spread
+- Particles: lifetime, size, color, opacity over life
+- Forces: gravity, wind, turbulence
+- Rendering: point sprites o instanced shapes
+
+**Implementazione:**
+- `ParticleSystem` class con TBB-parallel update
+- `ParticleEmitterNode` nel render graph
+- `ParticleRenderer` che disegna sprite/shape instances
+
+**Complessità:** Alta (3-4 settimane). **Impatto:** Medio — essenziale per motion graphics (confetti, sparks, rain).
+
+---
+
+#### AE-8. Real-time Preview
+
+**Stato attuale:** Il rendering è batch (render all frames → output file). Non c'è anteprima in tempo reale.
+
+**Cosa serve:**
+- Window con playback a 30/60 fps
+- Scrubbing sulla timeline
+- RAM preview (pre-render di N frame e playback)
+
+**Implementazione:**
+- Usare SDL2 o GLFW per la finestra di preview
+- `PreviewRenderer` che renderizza frame in background e pusha su texture GPU
+- Input handling per scrubbing (frame seek)
+- Daemon mode (L4) già pianificato → può servire come backend
+
+**Complessità:** Alta (2-4 settimane). **Impatto:** Medio — importante per UX ma non per la programmabilità.
+
+---
+
+#### AE-9. Multi-pass Rendering
+
+**Stato attuale:** Il render graph produce un singolo framebuffer RGBA. Non c'è output multiplo (beauty, depth, motion vectors, mattes).
+
+**Cosa serve:**
+- Render pass separati: beauty, depth, normals, motion vectors, object ID
+- Output multiplo per compositing in strumenti esterni (Nuke, Fusion)
+- Utile anche per post-processing (depth-based effects, motion blur post)
+
+**Implementazione:**
+- `RenderPass` enum: Beauty, Depth, Normals, MotionVectors, ObjectID, Alpha
+- Il render graph può produrre `std::unordered_map<RenderPass, Framebuffer>`
+- Output multipli nel `video_export` → EXR multi-layer
+
+**Complessità:** Media (2-3 settimane). **Impatto:** Medio — importante per pipeline professionali.
+
+---
+
+#### AE-10. Expression Language completo
+
+**Stato attuale:** `ExpressionParser` supporta: numeri, variabili (`time`, `width`, `height`), operazioni aritmetiche, `wiggle()`. Non supporta: funzioni utente, loops, condizionali, array, stringhe.
+
+**Cosa serve per raggiungere "programmatico":**
+```javascript
+// Funzioni base AE che mancano:
+loopOut("cycle")          // loop dell'animazione
+linear(t, tMin, tMax, v1, v2)  // remap lineare
+ease(t, tMin, tMax, v1, v2)    // easing
+clamp(v, min, max)
+wiggle(freq, amp)          // ✅ già implementato
+posterize(time, fps)       // quantizzazione temporale
+seedRandom(offset)         // random seed deterministico
+value + [100, 0]           // array/vettori (per position)
+```
+
+**Implementazione:**
+- Estendere `ExpressionParser` con le funzioni AE standard
+- Aggiungere supporto per array `[x, y]` e vettori
+- Aggiungere `loopOut`, `linear`, `ease`, `clamp`, `posterize`, `seedRandom`
+- Test suite con expressions da progetti AE reali
+
+**Complessità:** Media (1-2 settimane). **Impatto:** Alto — fondamentale per la programmabilità.
+
+---
+
+#### AE-11. Render Queue / Batch Processing
+
+**Stato attuale:** `command_video` renderizza una composition alla volta. Non c'è modo di renderizzare multiple compositions in sequenza o parallelo.
+
+**Cosa serve:**
+```bash
+# AE: Render Queue
+chronon3d render-queue --jobs render_queue.json
+
+# render_queue.json:
+[
+  {"comp": "Intro", "frames": [0, 90], "output": "/tmp/intro.mp4"},
+  {"comp": "Main", "frames": [0, 300], "output": "/tmp/main.mp4"},
+  {"comp": "Outro", "frames": [0, 60], "output": "/tmp/outro.mp4"}
+]
+```
+
+**Implementazione:**
+- `command_render_queue` CLI command
+- JSON/YAML input con lista di jobs
+- Parallel rendering su più thread/processi
+- Progress reporting consolidato
+
+**Complessità:** Bassa (3-5 giorni). **Impatto:** Medio — importante per automazione.
+
+---
+
+#### AE-12. GPU Acceleration
+
+**Stato attuale:** Tutto è CPU (software renderer con Highway SIMD). Per risoluzioni 4K+ e effetti pesanti, la GPU è 10-20× più veloce.
+
+**Già pianificato:** L1 (Vulkan Compute) nel roadmap. Questo è il cambio architetturale più grosso.
+
+**Priorità relativa:** Dopo che il motore è stabile e completo come feature set. Prima le features, poi la velocità.
+
+---
+
+### 📊 Riepilogo Gap Analysis
+
+| # | Feature | Stato | Complessità | Impatto AE Parity |
+|---|---------|-------|-------------|-------------------|
+| AE-1 | Expressions cross-layer | ❌ | Media | 🔴 **CRITICO** |
+| AE-10 | Expression language completo | ❌ | Media | 🔴 **CRITICO** |
+| AE-6 | Expressions per effects | ❌ | Media | 🔴 **CRITICO** |
+| AE-3 | Advanced masking (bezier) | ❌ | Media | 🔴 Alto |
+| AE-2 | Motion tracking | ❌ | Alta | 🟡 Medio-Alto |
+| AE-4 | Time remapping | ❌ | Bassa | 🟡 Medio |
+| AE-5 | Adjustment layers | ❌ | Bassa | 🟡 Medio |
+| AE-7 | Particle system | ❌ | Alta | 🟡 Medio |
+| AE-9 | Multi-pass rendering | ❌ | Media | 🟡 Medio |
+| AE-8 | Real-time preview | ❌ | Alta | 🟡 Medio |
+| AE-11 | Render queue | ❌ | Bassa | 🟢 Basso |
+| AE-12 | GPU acceleration | ❌ (pianificato) | Molto Alta | 🟢 Basso (performance) |
+
+**Priorità raccomandata per "After Effects Programmatico":**
+1. **AE-1 + AE-10** — Expressions complete (cross-layer + funzioni standard) → 2-3 settimane
+2. **AE-6** — Expressions per effects + controller effects → 1-2 settimane
+3. **AE-3** — Advanced masking con bezier → 2-3 settimane
+4. **AE-5** — Adjustment layers (quasi pronto, serve wiring) → 3 giorni
+5. **AE-4** — Time remapping → 3-5 giorni
+6. **AE-2** — Motion tracking → 2-4 settimane
+7. **AE-7** — Particle system → 3-4 settimane
+
+**Tempo stimato per raggiungere parità AE "programmatico" (senza GUI):** ~8-12 settimane di lavoro concentrato.
+
+---
 ### V3 — La Visione Unificata: Architettura
 
 ```

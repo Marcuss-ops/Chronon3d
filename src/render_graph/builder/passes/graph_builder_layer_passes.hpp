@@ -12,12 +12,14 @@ namespace chronon3d::graph::detail {
 /// Blend the layer output into the current frame buffer using the layer's blend mode.
 void append_composite_pass(RenderGraph& graph, GraphNodeId& current,
                            GraphNodeId layer_output, const chronon3d::Layer& layer,
-                           bool is_static, const RenderGraphContext& ctx);
+                           bool is_static, const RenderGraphContext& ctx,
+                           float world_z = 0.0f);
 
 /// Append effect stack nodes for layer effects and optionally DOF blur.
 void append_effect_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_output,
                                   const chronon3d::Layer& layer, const LayerGraphItem& item,
-                                  const Camera2_5DRuntime& cam25d);
+                                  const Camera2_5DRuntime& cam25d,
+                                  const RenderGraphContext& ctx);
 
 /// Append a mask node if the layer has an active mask.
 void append_mask_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_output,

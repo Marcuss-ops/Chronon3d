@@ -11,6 +11,9 @@
 #include <chrono>
 #include <vector>
 #include <spdlog/spdlog.h>
+#include <tbb/parallel_for.h>
+#include <tbb/blocked_range.h>
+#include <hwy/highway.h>
 
 namespace chronon3d::graph {
 
@@ -80,29 +83,64 @@ std::shared_ptr<Framebuffer> render_composition_frame(
                 Scene sub = comp.evaluate(frame, t);
                 if (s == 0) layer_count = static_cast<int>(sub.layers().size());
                 const Framebuffer& sub_fb = *call_graph(sub, frame, t);
-                for (int y = 0; y < rh; ++y) {
-                    for (int x = 0; x < rw; ++x) {
-                        const Color c = sub_fb.get_pixel(x, y);
-                        const size_t idx = static_cast<size_t>((y * rw + x) * 4);
-                        accum[idx + 0] += c.r * weight;
-                        accum[idx + 1] += c.g * weight;
-                        accum[idx + 2] += c.b * weight;
-                        accum[idx + 3] += c.a * weight;
+
+                // Parallel accumulation with TBB + Highway SIMD
+                // Each row is independent — no race conditions.
+                tbb::parallel_for(tbb::blocked_range<int>(0, rh),
+                    [&](const tbb::blocked_range<int>& range) {
+                        using namespace hwy::HWY_NAMESPACE;
+                        const ScalableTag<float> df;
+                        const size_t lanes = Lanes(df);
+                        const auto v_weight = Set(df, weight);
+
+                        for (int y = range.begin(); y < range.end(); ++y) {
+                            const float* src = reinterpret_cast<const float*>(sub_fb.pixels_row(y));
+                            float* dst = accum.data() + static_cast<size_t>(y * rw * 4);
+                            const int total_floats = rw * 4;
+
+                            // SIMD path: process full lanes
+                            int x = 0;
+                            for (; x + static_cast<int>(lanes) <= total_floats; x += static_cast<int>(lanes)) {
+                                auto acc = Load(df, dst + x);
+                                auto vals = Load(df, src + x);
+                                acc = MulAdd(vals, v_weight, acc);
+                                Store(acc, df, dst + x);
+                            }
+                            // Scalar tail for remaining floats
+                            for (; x < total_floats; ++x) {
+                                dst[x] += src[x] * weight;
+                            }
+                        }
                     }
-                }
+                );
             }
         }
         motion_blur_ms = std::chrono::duration<double, std::milli>(
             std::chrono::steady_clock::now() - t_mb0).count();
 
-        // render_fb is acquired and filled with the accumulated values.
+        // Write accumulated float buffer to output framebuffer (parallel + SIMD)
         render_fb = backend.framebuffer_pool()->acquire(rw, rh, true);
-        for (int y = 0; y < rh; ++y) {
-            for (int x = 0; x < rw; ++x) {
-                const size_t idx = static_cast<size_t>((y * rw + x) * 4);
-                render_fb->set_pixel(x, y, Color{accum[idx], accum[idx+1], accum[idx+2], accum[idx+3]});
+        tbb::parallel_for(tbb::blocked_range<int>(0, rh),
+            [&](const tbb::blocked_range<int>& range) {
+                using namespace hwy::HWY_NAMESPACE;
+                const ScalableTag<float> df;
+                const size_t lanes = Lanes(df);
+
+                for (int y = range.begin(); y < range.end(); ++y) {
+                    const float* src = accum.data() + static_cast<size_t>(y * rw * 4);
+                    float* dst = reinterpret_cast<float*>(render_fb->pixels_row(y));
+                    const int total_floats = rw * 4;
+
+                    int x = 0;
+                    for (; x + static_cast<int>(lanes) <= total_floats; x += static_cast<int>(lanes)) {
+                        Store(Load(df, src + x), df, dst + x);
+                    }
+                    for (; x < total_floats; ++x) {
+                        dst[x] = src[x];
+                    }
+                }
             }
-        }
+        );
     }
 
     if (sw_renderer) {

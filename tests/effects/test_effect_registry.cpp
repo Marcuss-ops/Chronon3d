@@ -17,11 +17,15 @@ TEST_CASE("EffectRegistry registers built-in effects with stable ids") {
     EffectRegistry registry;
 
     const auto available_ids = registry.available();
-    REQUIRE(available_ids.size() == 8);
+    REQUIRE(available_ids.size() == 12);
     CHECK(registry.contains(effect_ids::BlurGaussian));
     CHECK(registry.contains(effect_ids::ColorBrightness));
     CHECK(registry.contains(effect_ids::ColorContrast));
     CHECK(registry.contains(effect_ids::ColorTint));
+    CHECK(registry.contains(effect_ids::ColorSaturation));
+    CHECK(registry.contains(effect_ids::ColorHueRotate));
+    CHECK(registry.contains(effect_ids::ColorInvert));
+    CHECK(registry.contains(effect_ids::ColorVignette));
     CHECK(registry.contains(effect_ids::DistortFake3DWave));
     CHECK(registry.contains(effect_ids::LightBloom));
     CHECK(registry.contains(effect_ids::LightDropShadow));
@@ -41,6 +45,27 @@ TEST_CASE("EffectRegistry registers built-in effects with stable ids") {
     CHECK(wave.category == EffectCategory::Distort);
     CHECK(wave.stage == EffectStage::LayerPostTransform);
     CHECK(wave.temporal);
+
+    // AE-5: new adjustment effects
+    const auto& sat = registry.get(effect_ids::ColorSaturation);
+    CHECK(sat.category == EffectCategory::Color);
+    CHECK(sat.stage == EffectStage::Adjustment);
+    CHECK(sat.builtin);
+
+    const auto& hue = registry.get(effect_ids::ColorHueRotate);
+    CHECK(hue.category == EffectCategory::Color);
+    CHECK(hue.stage == EffectStage::Adjustment);
+    CHECK(hue.builtin);
+
+    const auto& inv = registry.get(effect_ids::ColorInvert);
+    CHECK(inv.category == EffectCategory::Color);
+    CHECK(inv.stage == EffectStage::Adjustment);
+    CHECK(inv.builtin);
+
+    const auto& vig = registry.get(effect_ids::ColorVignette);
+    CHECK(vig.category == EffectCategory::Color);
+    CHECK(vig.stage == EffectStage::Adjustment);
+    CHECK(vig.builtin);
 }
 
 TEST_CASE("EffectRegistry rejects duplicate ids") {

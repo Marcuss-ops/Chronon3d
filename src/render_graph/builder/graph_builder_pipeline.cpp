@@ -19,6 +19,7 @@
 #include <limits>
 #include <queue>
 #include <chronon3d/render_graph/nodes/basic_nodes_common.hpp>
+#include <chronon3d/render_graph/nodes/per_pixel_dof_node.hpp>
 #include <chronon3d/render_graph/nodes/transform_node.hpp>
 #include <chronon3d/render_graph/nodes/effect_stack_node.hpp>
 #include <chronon3d/render_graph/nodes/adjustment_node.hpp>
@@ -155,7 +156,7 @@ void append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
     // Depth grading: per-layer fog / desaturation / contrast based on world Z
     append_depth_grade_pass_if_needed(graph, layer_output, item, ctx, depth_grade);
 
-    append_effect_pass_if_needed(graph, layer_output, *item.layer, item, cam25d);
+    append_effect_pass_if_needed(graph, layer_output, *item.layer, item, cam25d, ctx);
 
     if (layer.track_matte.active() && item.matte_node != k_invalid_node) {
         cache::NodeCacheKey matte_key{
@@ -208,7 +209,7 @@ void append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
         }
     }
 
-    append_composite_pass(graph, current, layer_output, *item.layer, (layer.cache_static || item.is_static), ctx);
+    append_composite_pass(graph, current, layer_output, *item.layer, (layer.cache_static || item.is_static), ctx, item.world_z);
     g_current_builder_layer_id = prev_layer;
 }
 
@@ -782,6 +783,23 @@ RenderGraph build_graph(const Scene& scene, RenderGraphContext& ctx,
     }
 
     flush_3d_bin();
+
+    // ── Per-pixel DOF post-composite pass ──────────────────────────────
+    // When the 2.5D camera has DOF enabled, insert a PerPixelDofNode after
+    // all layers are composited.  This applies variable-radius blur based
+    // on the per-pixel depth buffer that was populated during compositing.
+    if (cam25d.dof.enabled && cam25d.enabled) {
+        ctx.track_dof_depth = true;
+        ctx.dof_depth.assign(
+            static_cast<size_t>(ctx.width) * ctx.height,
+            1e18f  // sentinel: no layer contributed
+        );
+        auto dof_node = graph.add_node(PerPixelDofNode::create(cam25d));
+        graph.node(dof_node).set_frame_dependent(true);
+        graph.connect(current, dof_node);
+        current = dof_node;
+    }
+
     graph.set_output(current);
 
     // ── Early-exit analysis: mark nodes covered by full-frame opaque layers ──

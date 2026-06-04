@@ -146,6 +146,15 @@ struct BakeLayerArgs {
     bool exr_bake{false};
 };
 
+struct CameraPathArgs {
+    std::string comp_id;
+    Frame start{0};
+    Frame end{0};
+    int step{1};
+    std::string output;          // output file path (auto-detects json/csv from extension)
+    std::string format{"auto"}; // "json", "csv", or "auto" (detect from -o extension)
+};
+
 int command_list(const CompositionRegistry& registry);
 int command_info(const CompositionRegistry& registry, const std::string& id);
 int command_doctor(const CompositionRegistry& registry);
@@ -164,6 +173,7 @@ int command_proofs(const CompositionRegistry& registry, const ProofsArgs& args);
 int command_telemetry(const TelemetryArgs& args);
 int command_preflight(const CompositionRegistry& registry, const PreflightArgs& args);
 int command_bake_layer(const CompositionRegistry& registry, const BakeLayerArgs& args);
+int command_camera_path(const CompositionRegistry& registry, const CameraPathArgs& args);
 
 } // namespace cli
 } // namespace chronon3d

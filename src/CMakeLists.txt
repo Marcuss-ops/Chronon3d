@@ -213,6 +213,7 @@ set(CHRONON3D_BACKEND_SOFTWARE_SOURCES
     backends/software/utils/effects/effect_stack.cpp
     backends/software/simd/highway_color_kernels.cpp
     backends/software/simd/highway_rasterize_kernels.cpp
+    backends/software/simd/highway_dof_kernels.cpp
 )
 add_library(chronon3d_backend_software STATIC ${CHRONON3D_BACKEND_SOFTWARE_SOURCES})
 set_target_properties(chronon3d_backend_software PROPERTIES UNITY_BUILD OFF)

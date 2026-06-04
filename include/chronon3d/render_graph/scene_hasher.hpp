@@ -130,6 +130,11 @@ private:
             h = hash_combine(h, hash_vec2(layer.video_source->size));
             h = hash_combine(h, hash_value(layer.video_source->source_fps));
         }
+        // Time Remap (AE-4): include speed and freeze_frame in content hash
+        if (layer.time_remap.active()) {
+            h = hash_combine(h, hash_value(layer.time_remap.speed));
+            h = hash_combine(h, hash_value(static_cast<u64>(layer.time_remap.freeze_frame)));
+        }
         return h;
     }
 
@@ -152,6 +157,11 @@ private:
             h = hash_combine(h, hash_vec2(layer.video_source->size));
             h = hash_combine(h, hash_value(layer.video_source->source_fps));
         }
+        // Time Remap (AE-4): include in structure hash
+        if (layer.time_remap.active()) {
+            h = hash_combine(h, hash_value(layer.time_remap.speed));
+            h = hash_combine(h, hash_value(static_cast<u64>(layer.time_remap.freeze_frame)));
+        }
         return h;
     }
 
@@ -167,6 +177,8 @@ private:
         if (layer.anim_transform.opacity.has_expression()) return false;
         // Transitions make a layer frame-dependent
         if (layer.transition_in.duration > 0 || layer.transition_out.duration > 0) return false; // Non-zero transitions are frame-dependent
+        // Time Remap (AE-4): animated time_remap makes layer frame-dependent
+        if (layer.time_remap.time_remap.is_animated()) return false;
         return true;
     }
 

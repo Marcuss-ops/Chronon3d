@@ -1,6 +1,7 @@
 #include <chronon3d/runtime/timeline_evaluator.hpp>
 #include <chronon3d/math/camera_pose.hpp>
 #include <chronon3d/math/expression.hpp>
+#include <chronon3d/animation/wiggle.hpp>
 #include <chronon3d/scene/layer/layer_hierarchy.hpp>
 #include <chronon3d/scene/layer/layer.hpp>
 #include <chronon3d/scene/layer/render_node.hpp>
@@ -100,6 +101,18 @@ inline EffectStack resolve_effects(const std::vector<EffectDesc>& descs) {
                     stack.push_back(EffectInstance{BrightnessParams{e.brightness}});
                 if (e.contrast != 1.0f)
                     stack.push_back(EffectInstance{ContrastParams{e.contrast}});
+            } else if constexpr (std::is_same_v<T, SaturationEffectDesc>) {
+                stack.push_back(EffectInstance{SaturationParams{e.value}});
+            } else if constexpr (std::is_same_v<T, HueRotateEffectDesc>) {
+                stack.push_back(EffectInstance{HueRotateParams{e.degrees}});
+            } else if constexpr (std::is_same_v<T, InvertEffectDesc>) {
+                stack.push_back(EffectInstance{InvertParams{e.amount}});
+            } else if constexpr (std::is_same_v<T, VignetteEffectDesc>) {
+                stack.push_back(EffectInstance{VignetteParams{e.radius, e.softness, e.amount}});
+            } else if constexpr (std::is_same_v<T, DropShadowEffectDesc>) {
+                stack.push_back(EffectInstance{DropShadowParams{e.offset, e.color, e.radius}});
+            } else if constexpr (std::is_same_v<T, GlowEffectDesc>) {
+                stack.push_back(EffectInstance{GlowParams{.radius = e.radius, .intensity = e.intensity, .color = e.color}});
             }
         }, d);
     }
@@ -113,16 +126,103 @@ inline f32 eval_expr(const std::string& expr, double frame, double time, double 
     return static_cast<f32>(math::evaluate_expression(expr, vars, fallback));
 }
 
+// ── Build a cross-layer property resolver ────────────────────────────────
+// Returns a lambda that, given (layer_name, property_path, time), evaluates
+// the requested property of another layer in the same composition.
+
+using LayerResolver = math::ExpressionContext::LayerPropertyResolver;
+
+inline LayerResolver build_layer_resolver(const std::vector<LayerDesc>& all_layers) {
+    // Build a name -> index lookup
+    std::unordered_map<std::string, size_t> name_to_idx;
+    for (size_t i = 0; i < all_layers.size(); ++i) {
+        name_to_idx[all_layers[i].name] = i;
+    }
+
+    // Capture by value so the lambda is self-contained
+    return [layers = all_layers, name_to_idx](
+            const std::string& layer_name,
+            const std::string& prop_path,
+            double /*time*/) -> double {
+
+        auto it = name_to_idx.find(layer_name);
+        if (it == name_to_idx.end()) return std::numeric_limits<double>::quiet_NaN();
+
+        const LayerDesc& ld = layers[it->second];
+
+        // Resolve common property paths.
+        // For a full implementation we'd need to evaluate AnimatedValue at the
+        // given time.  For now, we evaluate at the current keyframed value.
+        // This covers the most common use cases: layer("bg").opacity, etc.
+        Frame eval_frame{0}; // Will be refined by context
+
+        if (prop_path == "transform.opacity" || prop_path == "opacity") {
+            return static_cast<double>(ld.opacity.value_at(Frame{0}));
+        }
+        if (prop_path == "transform.position" || prop_path == "position") {
+            return static_cast<double>(ld.position.value_at(Frame{0}).x);
+        }
+        if (prop_path == "transform.position.x" || prop_path == "position.x") {
+            return static_cast<double>(ld.position.value_at(Frame{0}).x);
+        }
+        if (prop_path == "transform.position.y" || prop_path == "position.y") {
+            return static_cast<double>(ld.position.value_at(Frame{0}).y);
+        }
+        if (prop_path == "transform.position.z" || prop_path == "position.z") {
+            return static_cast<double>(ld.position.value_at(Frame{0}).z);
+        }
+        if (prop_path == "transform.scale" || prop_path == "scale") {
+            return static_cast<double>(ld.scale.value_at(Frame{0}).x);
+        }
+        if (prop_path == "transform.scale.x" || prop_path == "scale.x") {
+            return static_cast<double>(ld.scale.value_at(Frame{0}).x);
+        }
+        if (prop_path == "transform.scale.y" || prop_path == "scale.y") {
+            return static_cast<double>(ld.scale.value_at(Frame{0}).y);
+        }
+        if (prop_path == "transform.scale.z" || prop_path == "scale.z") {
+            return static_cast<double>(ld.scale.value_at(Frame{0}).z);
+        }
+        if (prop_path == "transform.rotation" || prop_path == "rotation") {
+            return static_cast<double>(ld.rotation.value_at(Frame{0}).x);
+        }
+        if (prop_path == "transform.rotation.x" || prop_path == "rotation.x") {
+            return static_cast<double>(ld.rotation.value_at(Frame{0}).x);
+        }
+        if (prop_path == "transform.rotation.y" || prop_path == "rotation.y") {
+            return static_cast<double>(ld.rotation.value_at(Frame{0}).y);
+        }
+        if (prop_path == "transform.rotation.z" || prop_path == "rotation.z") {
+            return static_cast<double>(ld.rotation.value_at(Frame{0}).z);
+        }
+
+        // Unknown property
+        return std::numeric_limits<double>::quiet_NaN();
+    };
+}
+
 } // namespace
 
 Scene TimelineEvaluator::evaluate(const SceneDescription& scene, Frame frame, std::pmr::memory_resource* res) const {
     Scene result(res);
 
-    for (const auto& ld : scene.layers) {
+    // Build cross-layer resolver for AE-style layer("name").property expressions
+    LayerResolver layer_resolver = build_layer_resolver(scene.layers);
+
+    for (size_t layer_idx = 0; layer_idx < scene.layers.size(); ++layer_idx) {
+        const auto& ld = scene.layers[layer_idx];
         if (!ld.time_range.contains(frame)) continue;
 
         Layer layer(res);
         layer.name         = std::pmr::string{ld.name, res};
+        layer.kind         = ld.kind;
+
+        // Time Remap (AE-4)
+        layer.time_remap.speed = ld.time_remap_speed;
+        layer.time_remap.freeze_frame = ld.time_remap_freeze_frame;
+        if (ld.time_remap_curve.is_animated()) {
+            layer.time_remap.time_remap = ld.time_remap_curve;
+        }
         layer.uses_2_5d_projection = ld.is_3d;
         layer.depth_role   = ld.depth_role;
         layer.blend_mode   = ld.blend_mode;
@@ -131,18 +231,41 @@ Scene TimelineEvaluator::evaluate(const SceneDescription& scene, Frame frame, st
         layer.transition_out = ld.transition_out;
         layer.visible      = true;
 
+        // Adjustment layers don't need their own visuals
+        if (ld.kind == LayerKind::Adjustment) {
+            layer.nodes.clear();
+        }
+
         double time = static_cast<double>(frame) / (static_cast<double>(scene.frame_rate.numerator) / scene.frame_rate.denominator);
+
+        // Build ExpressionContext for this layer (enables cross-layer refs)
+        math::ExpressionContext ectx;
+        ectx.frame        = static_cast<double>(frame);
+        ectx.time         = time;
+        ectx.fps          = static_cast<double>(scene.frame_rate.numerator) / scene.frame_rate.denominator;
+        ectx.width        = static_cast<double>(scene.width);
+        ectx.height       = static_cast<double>(scene.height);
+        ectx.num_layers   = static_cast<double>(scene.layers.size());
+        ectx.index        = static_cast<double>(layer_idx + 1); // 1-based
+        ectx.layer_resolver = layer_resolver;
+
+        AnimationEvalContext actx;
+        actx.fps = static_cast<f32>(ectx.fps);
+        actx.time = static_cast<f32>(time);
+        actx.has_explicit_time = true;
+        actx.index = static_cast<int>(layer_idx + 1);
+        actx.expression_context = &ectx;
 
         f32 opacity = 1.0f;
         if (ld.opacity.has_expression()) {
-            opacity = eval_expr(ld.opacity.expression(), (double)frame, time, (double)scene.width, (double)scene.height, ld.opacity.value_at(frame));
+            opacity = ld.opacity.evaluate(frame, actx);
         } else {
             opacity = ld.opacity.value_at(frame);
         }
 
-        Vec3 pos = ld.position.value_at(frame);
-        Vec3 rot = ld.rotation.value_at(frame);
-        Vec3 scl = ld.scale.value_at(frame);
+        Vec3 pos = ld.position.evaluate(frame, actx);
+        Vec3 rot = ld.rotation.evaluate(frame, actx);
+        Vec3 scl = ld.scale.evaluate(frame, actx);
 
         f32 resolved_z = resolve_z(ld, pos);
         pos.z = resolved_z;
