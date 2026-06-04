@@ -33,6 +33,8 @@ add_executable(chronon3d_core_tests
     core/animation/test_animated_transform.cpp
     core/animation/test_cubic_bezier.cpp
     core/animation/test_stagger.cpp
+    core/animation/test_animation_curve.cpp
+    core/animation/test_wiggle.cpp
     core/timeline/test_timeline.cpp
     core/timeline/test_timeline_builder.cpp
     core/timeline/test_code_first_composition.cpp
@@ -43,6 +45,7 @@ add_executable(chronon3d_core_tests
     core/math/test_color_space.cpp
     core/math/test_nan_guard.cpp
     core/math/test_expression.cpp
+    core/math/test_expression_extended.cpp
     text/test_text_layout.cpp
     text/test_text_cache_key.cpp
     text/test_text_animator.cpp
@@ -96,6 +99,7 @@ add_executable(chronon3d_scene_tests
     scene/camera_projection_tests.cpp
     scene/camera_framing_tests.cpp
     scene/camera_path_sampler_tests.cpp
+    scene/camera/test_camera_motion_path.cpp
 )
 target_link_libraries(chronon3d_scene_tests PRIVATE chronon3d_pipeline chronon3d_scene chronon3d_backend_software doctest::doctest)
 target_include_directories(chronon3d_scene_tests PRIVATE ${CMAKE_SOURCE_DIR})
@@ -110,7 +114,10 @@ add_executable(chronon3d_renderer_tests
     renderer/camera/test_camera_rig.cpp
     renderer/test_blend_pixel_nan.cpp
     renderer/camera/test_dof.cpp
+    renderer/camera/test_per_pixel_dof.cpp
     renderer/effects/test_adjustment_layer.cpp
+    renderer/effects/test_adjustment_layer_ae5.cpp
+    renderer/effects/test_time_remap.cpp
     renderer/effects/test_advanced_effects.cpp
     renderer/effects/test_effect_stack.cpp
     renderer/effects/test_glow_torture.cpp
@@ -218,6 +225,7 @@ add_executable(chronon3d_cli_tests
     cli/test_ffmpeg_pipe_encoder.cpp
     cli/test_video_pipeline_producer_consumer.cpp
     cli/bench_json_tests.cpp
+    cli/test_camera_path_command.cpp
     ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/common/cli_utils.cpp
     ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/video/ffmpeg_pipe_encoder.cpp
     ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/video/ffmpeg_pipe_write_frame.cpp
@@ -229,8 +237,10 @@ add_executable(chronon3d_cli_tests
 target_link_libraries(chronon3d_cli_tests
     PRIVATE
         chronon3d_pipeline
+        chronon3d_scene
         CLI11::CLI11
         doctest::doctest
+        fmt::fmt
 )
 target_include_directories(chronon3d_cli_tests PRIVATE ${CMAKE_SOURCE_DIR})
 chronon3d_enable_test_pch(chronon3d_cli_tests)
@@ -315,6 +325,7 @@ add_test(NAME chronon3d_video_tests COMMAND chronon3d_video_tests WORKING_DIRECT
 if(CHRONON3D_BUILD_BENCHMARKS AND TARGET benchmark::benchmark_main)
     add_executable(chronon3d_benchmarks
         bench/micro_benchmarks.cpp
+        bench/dof_benchmark.cpp
     )
     target_link_libraries(chronon3d_benchmarks
         PRIVATE

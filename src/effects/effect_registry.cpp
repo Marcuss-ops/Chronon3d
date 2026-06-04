@@ -103,6 +103,51 @@ void register_builtin_effects(EffectRegistry& registry) {
         .temporal = true,
         .factory = generic_effect_factory
     });
+
+    // ── Adjustment-layer color correction effects (AE-5) ──
+    registry.register_effect(EffectDescriptor{
+        .id = std::string{ids::ColorSaturation},
+        .display_name = "Saturation",
+        .category = EffectCategory::Color,
+        .stage = EffectStage::Adjustment,
+        .description = "Adjust color saturation (1.0 = normal, 0 = greyscale)",
+        .builtin = true,
+        .temporal = false,
+        .factory = generic_effect_factory
+    });
+
+    registry.register_effect(EffectDescriptor{
+        .id = std::string{ids::ColorHueRotate},
+        .display_name = "Hue Rotate",
+        .category = EffectCategory::Color,
+        .stage = EffectStage::Adjustment,
+        .description = "Rotate hue by a given number of degrees",
+        .builtin = true,
+        .temporal = false,
+        .factory = generic_effect_factory
+    });
+
+    registry.register_effect(EffectDescriptor{
+        .id = std::string{ids::ColorInvert},
+        .display_name = "Invert",
+        .category = EffectCategory::Color,
+        .stage = EffectStage::Adjustment,
+        .description = "Invert all colors",
+        .builtin = true,
+        .temporal = false,
+        .factory = generic_effect_factory
+    });
+
+    registry.register_effect(EffectDescriptor{
+        .id = std::string{ids::ColorVignette},
+        .display_name = "Vignette",
+        .category = EffectCategory::Color,
+        .stage = EffectStage::Adjustment,
+        .description = "Darken edges of the frame",
+        .builtin = true,
+        .temporal = false,
+        .factory = generic_effect_factory
+    });
 }
 
 } // namespace

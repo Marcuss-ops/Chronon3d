@@ -52,6 +52,17 @@ struct GlowParams {
 
 struct BloomParams         { f32 threshold{0.80f}; f32 radius{24.0f}; f32 intensity{0.60f}; };
 
+// ── Adjustment-layer color correction params (AE-5) ─────────────────────
+struct SaturationParams    { f32 value{1.0f}; };  // 1.0 = unchanged, 0 = greyscale
+struct HueRotateParams     { f32 degrees{0.0f}; }; // 0 = unchanged, 180 = invert hue
+struct InvertParams        { f32 amount{1.0f}; };  // 1.0 = full invert, 0 = no-op
+struct VignetteParams      {
+    f32 radius{0.5f};      // 0..1, fraction of frame diagonal
+    f32 softness{0.5f};    // 0..1, edge softness
+    f32 amount{1.0f};      // 0..1, darkness amount
+    Color color{0,0,0,1};  // vignette color (usually black)
+};
+
 enum class WaveAxis {
     Horizontal,
     Vertical,
@@ -87,7 +98,11 @@ using EffectParams = std::variant<
     DropShadowParams,
     GlowParams,
     BloomParams,
-    Fake3DWaveParams
+    Fake3DWaveParams,
+    SaturationParams,
+    HueRotateParams,
+    InvertParams,
+    VignetteParams
 >;
 
 } // namespace chronon3d

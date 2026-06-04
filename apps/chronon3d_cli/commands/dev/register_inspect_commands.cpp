@@ -8,6 +8,7 @@ namespace chronon3d::cli {
 namespace {
 struct GraphState { std::shared_ptr<GraphArgs> args{std::make_shared<GraphArgs>()}; };
 struct PreflightState { std::shared_ptr<PreflightArgs> args{std::make_shared<PreflightArgs>()}; };
+struct CameraPathState { std::shared_ptr<CameraPathArgs> args{std::make_shared<CameraPathArgs>()}; };
 }
 
 void register_inspect_commands(CLI::App& app, CliContext& ctx) {
@@ -28,6 +29,20 @@ void register_inspect_commands(CLI::App& app, CliContext& ctx) {
             }
             ctx.exit_code = command_graph(ctx.registry, *state->args);
         });
+    }
+
+    // --- camera-path ---
+    {
+        auto state = std::make_shared<CameraPathState>();
+        auto& args = *state->args;
+        auto* cmd = app.add_subcommand("camera-path", "Export camera path as JSON/CSV for debug and validation");
+        cmd->add_option("id", args.comp_id, "Composition name or .specscene path")->required();
+        cmd->add_option("--start", args.start, "Start frame (inclusive)")->default_val(0);
+        cmd->add_option("--end", args.end, "End frame (inclusive, 0 = composition duration)")->default_val(0);
+        cmd->add_option("--step", args.step, "Sample every N frames")->default_val(1);
+        cmd->add_option("-o,--output", args.output, "Output file path (.json or .csv)");
+        cmd->add_option("--format", args.format, "Export format: json or csv (auto-detected from -o extension)")->default_val("json");
+        cmd->callback([state, &ctx]() { ctx.exit_code = command_camera_path(ctx.registry, *state->args); });
     }
 
     // --- preflight ---

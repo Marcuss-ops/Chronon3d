@@ -37,6 +37,10 @@ template <> struct effect_type_for<DropShadowParams>  { static constexpr EffectT
 template <> struct effect_type_for<GlowParams>        { static constexpr EffectType value = EffectType::Glow; };
 template <> struct effect_type_for<BloomParams>       { static constexpr EffectType value = EffectType::Bloom; };
 template <> struct effect_type_for<Fake3DWaveParams>  { static constexpr EffectType value = EffectType::Fake3DWave; };
+template <> struct effect_type_for<SaturationParams>  { static constexpr EffectType value = EffectType::Saturation; };
+template <> struct effect_type_for<HueRotateParams>   { static constexpr EffectType value = EffectType::HueRotate; };
+template <> struct effect_type_for<InvertParams>      { static constexpr EffectType value = EffectType::Invert; };
+template <> struct effect_type_for<VignetteParams>    { static constexpr EffectType value = EffectType::Vignette; };
 
 } // namespace effects
 

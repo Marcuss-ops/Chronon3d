@@ -16,7 +16,8 @@ using namespace chronon3d::graph;
 
 void append_composite_pass(RenderGraph& graph, GraphNodeId& current,
                            GraphNodeId layer_output, const Layer& layer,
-                           bool is_static, const RenderGraphContext& ctx) {
+                           bool is_static, const RenderGraphContext& ctx,
+                           float world_z) {
     if (layer_output == k_invalid_node || layer_output == current) return;
 
     if (!ctx.dirty_rects_enabled &&
@@ -31,7 +32,8 @@ void append_composite_pass(RenderGraph& graph, GraphNodeId& current,
 
     auto composite = graph.add_node(std::make_unique<CompositeNode>(
         layer.blend_mode,
-        is_static ? Frame{0} : Frame{-1}
+        is_static ? Frame{0} : Frame{-1},
+        world_z
     ));
     graph.node(composite).set_frame_dependent(!is_static);
     graph.connect(current, composite);
@@ -43,7 +45,8 @@ void append_composite_pass(RenderGraph& graph, GraphNodeId& current,
 
 void append_effect_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_output,
                                   const Layer& layer, const LayerGraphItem& item,
-                                  const Camera2_5DRuntime& cam25d) {
+                                  const Camera2_5DRuntime& cam25d,
+                                  const RenderGraphContext& ctx) {
     const bool is_static = layer.cache_static || item.is_static;
 
     // Layer effects - now modularly created via registry
@@ -57,11 +60,18 @@ void append_effect_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_output,
     }
 
     // DOF blur (only for projected 2.5D layers)
+    // Skip per-layer DOF when scene-level per-pixel DOF is active —
+    // the PerPixelDofNode handles all DOF after compositing.
     if (item.projected && cam25d.dof.enabled) {
-        auto dof_node = graph.add_node(DofEffectNode::create(cam25d, item.world_z));
-        graph.node(dof_node).set_frame_dependent(!is_static);
-        graph.connect(layer_output, dof_node);
-        layer_output = dof_node;
+        // Per-pixel DOF is signalled by track_dof_depth being set in the ctx.
+        // When active, the per-layer DofEffectNode is skipped to avoid
+        // double-blurring.
+        if (!ctx.track_dof_depth) {
+            auto dof_node = graph.add_node(DofEffectNode::create(cam25d, item.world_z));
+            graph.node(dof_node).set_frame_dependent(!is_static);
+            graph.connect(layer_output, dof_node);
+            layer_output = dof_node;
+        }
     }
 }
 
