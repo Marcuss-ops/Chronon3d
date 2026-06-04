@@ -110,7 +110,7 @@ bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state
     const int clip_y0 = state.clip_rect ? state.clip_rect->y0 : -1;
     const int clip_x1 = state.clip_rect ? state.clip_rect->x1 : -1;
     const int clip_y1 = state.clip_rect ? state.clip_rect->y1 : -1;
-    spdlog::info(
+    spdlog::debug(
         "[image-render] layer='{}' path='{}' cached={}x{} sub={}x{} requested={}x{} scale=({:.4f},{:.4f}) opacity={:.3f} mask={} clip={} clip_rect=[{},{} -> {},{}] tx={:.2f} ty={:.2f}",
         state.layer_id,
         image.path,
@@ -162,7 +162,7 @@ bool ImageRenderer::draw_image_tiled(const ImageShape& image, const RenderState&
     const int clip_y0 = state.clip_rect ? state.clip_rect->y0 : -1;
     const int clip_x1 = state.clip_rect ? state.clip_rect->x1 : -1;
     const int clip_y1 = state.clip_rect ? state.clip_rect->y1 : -1;
-    spdlog::info(
+    spdlog::debug(
         "[image-render-tiled] layer='{}' path='{}' cached={}x{} requested={}x{} scale=({:.4f},{:.4f}) opacity={:.3f} mask={} clip={} clip_rect=[{},{} -> {},{}] tx={:.2f} ty={:.2f}",
         state.layer_id,
         image.path,

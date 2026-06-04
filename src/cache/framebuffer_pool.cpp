@@ -57,16 +57,19 @@ size_t resolve_default_max_bytes(size_t fallback) {
 //     65 –  256 → 128-wide (small effect inputs)
 //    257 – 1024 → 256-wide (medium intermediate renders)
 //   1025+        → 512-wide (full-frame buffers, stable at video resolution)
+// Round up to a fixed-size bucket with finer granularity.
+// This prevents massive memory bloat (e.g., 1080p rounding to 2048x1536, wasting 50% memory)
+// while keeping similar sizes grouped together to maintain high cache hit rates.
 int round_up_bucket(int val) {
     if (val <= 0) return 0;
     if (val <= 64) {
-        return ((val + 63) / 64) * 64;
+        return ((val + 7) / 8) * 8; // 8-aligned for micro-buffers
     } else if (val <= 256) {
-        return ((val + 127) / 128) * 128;
+        return ((val + 15) / 16) * 16; // 16-aligned
     } else if (val <= 1024) {
-        return ((val + 255) / 256) * 256;
+        return ((val + 31) / 32) * 32; // 32-aligned
     } else {
-        return ((val + 511) / 512) * 512;
+        return ((val + 63) / 64) * 64; // 64-aligned (full-frame buffers round close to exact resolution)
     }
 }
 
@@ -254,16 +257,16 @@ void FramebufferPool::release(Framebuffer* fb) {
 
     m_total_returns.fetch_add(1, std::memory_order_relaxed);
 
+    std::unique_ptr<Framebuffer> owned(fb);
+
     // Arena-backed framebuffers are non-owning wrappers around arena memory.
     // They become stale when the arena is reset for the next frame, so they
     // must NOT be returned to the free list — just drop them.
-    if (fb->is_arena_allocated()) {
-        return;
+    if (owned->is_arena_allocated()) {
+        return; // wrapper destroyed by unique_ptr; pixels remain arena-owned
     }
 
     std::lock_guard<std::mutex> lock(m_mutex);
-
-    std::unique_ptr<Framebuffer> owned(fb);
 
     // Restore full allocated size so the Framebuffer is perfectly standardized in the pool
     const int alloc_w = owned->allocated_width();
