@@ -1,6 +1,6 @@
 # Chronon3d Architecture Evolution Plan
 
-Stato aggiornato dopo `0db8337`.
+Stato aggiornato dopo il refactor di `graph_builder_pipeline.cpp` e `video_export_pipe.cpp`.
 
 Questo documento ora contiene solo cio' che manca. Le fasi gia' completate sono state rimosse dal piano operativo:
 
@@ -15,6 +15,8 @@ Questo documento ora contiene solo cio' che manca. Le fasi gia' completate sono 
 - moduli content per Minimalist, Text e 2.5D;
 - registrazione content centralizzata;
 - **Scene/SpecScene Model Separation (Fase 6)** — `include/chronon3d/scene/model/`, `include/chronon3d/specscene/model/`, `include/chronon3d/specscene/parser/` con 30+ header spostati, 249 file con include aggiornati.
+- `graph_builder_pipeline.cpp` ridotto a orchestratore minimo; logica estratta in file dedicati per layer pipeline, bbox, matte e static analysis.
+- `video_export_pipe.cpp` alleggerito; helper pipe export estratti in `pipe_export_helpers.cpp/.hpp`.
 
 Obiettivo residuo: completare la modularizzazione senza riaprire il mappazzone su graph, scene, layer ed executor.
 
@@ -33,6 +35,7 @@ include/chronon3d/render_graph/graph_executor.hpp
 src/render_graph/executor/*
 src/render_graph/compiler/*
 src/render_graph/builder/graph_builder_pipeline.cpp
+src/render_graph/builder/graph_build_pipeline.cpp
 src/render_graph/render_pipeline*.cpp
 include/chronon3d/scene/model/*
 include/chronon3d/scene/builders/*
@@ -56,7 +59,35 @@ Test:
 
 ---
 
-## 2. Mancanza Prioritaria: Estrarre `RenderGraphContext`
+## 2. Completato: Split Graph Builder Pipeline
+
+`src/render_graph/builder/graph_builder_pipeline.cpp` non deve tornare a contenere logica applicativa.
+
+### Stato Attuale
+
+```text
+src/render_graph/builder/graph_builder_pipeline.cpp
+src/render_graph/builder/graph_builder_layer_pipeline.cpp
+src/render_graph/builder/graph_builder_bbox.cpp
+src/render_graph/builder/graph_builder_matte.cpp
+src/render_graph/builder/graph_builder_static_analysis.cpp
+```
+
+### Regola
+
+Nuova logica graph builder va in:
+
+```text
+src/render_graph/builder/passes/*
+src/render_graph/builder/graph_builder_<domain>.cpp
+include/chronon3d/render_graph/builder/*
+```
+
+Non aggiungere helper grossi in `graph_builder_pipeline.cpp`.
+
+---
+
+## 3. Mancanza Prioritaria: Estrarre `RenderGraphContext`
 
 `RenderGraphContext` contiene ancora troppa logica inline in:
 
@@ -119,7 +150,7 @@ ctest --test-dir build/chronon/linux-debug --output-on-failure -R "render_graph|
 
 ---
 
-## 3. Mancanza Prioritaria: Completare Split Executor
+## 4. Mancanza Prioritaria: Completare Split Executor
 
 L'executor e' stato parzialmente modularizzato, ma resta ancora troppo concentrato tra:
 
@@ -183,9 +214,9 @@ tests/render_graph/executor/test_framebuffer_lifetime.cpp
 
 ---
 
-## 4. Mancanza Prioritaria: Exporter Registry
+## 5. Mancanza Prioritaria: Rifinire Export Video CLI
 
-La logica video/export e' ancora troppo accoppiata al CLI.
+La logica video/export e' stata alleggerita, ma resta ancora troppo accoppiata al CLI.
 
 Area attuale:
 
@@ -195,7 +226,14 @@ apps/chronon3d_cli/utils/video/*
 src/video/*
 ```
 
-Serve separare il concetto di exporter dalla command CLI.
+`video_export_pipe.cpp` ha gia' estratto helper pipe in:
+
+```text
+apps/chronon3d_cli/commands/video/pipe_export_helpers.cpp
+apps/chronon3d_cli/commands/video/pipe_export_helpers.hpp
+```
+
+Il lavoro residuo e' separare il concetto di exporter dalla command CLI.
 
 ### Creare
 
@@ -249,18 +287,17 @@ apps/chronon3d_cli/commands/video/video_export_chunked.cpp
 
 ---
 
-## 5. Mancanza: Dynamic Module Loading
+## 6. Mancanza: Hardening Dynamic Module Loading
 
-`ExtensionModule` esiste, ma i moduli sono ancora linkati staticamente.
+`ExtensionModule` ed `ExtensionLoader` esistono. Il lavoro residuo e' hardening runtime e policy plugin.
 
-Serve caricare moduli esterni a runtime.
+Non duplicare loader o registry: estendere quelli esistenti.
 
 ### Creare
 
 ```text
-include/chronon3d/extension/extension_loader.hpp
-src/extension/extension_loader.cpp
-tests/extension/test_extension_loader.cpp
+tests/extension/test_extension_loader_failure_modes.cpp
+tests/extension/test_extension_loader_abi_contract.cpp
 ```
 
 ### API Target
@@ -286,11 +323,11 @@ extern "C" chronon3d::ExtensionModule* chronon3d_create_extension();
 - ownership chiara del modulo;
 - versione ABI;
 - unload opzionale solo se sicuro;
-- test con mini plugin fittizio.
+- test con mini plugin fittizio gia' presente o equivalente.
 
 ---
 
-## 6. ✅ Completato: Scene/SpecScene Model Separation
+## 7. Completato: Scene/SpecScene Model Separation
 
 **Completato in `0db8337`**.
 
@@ -319,7 +356,7 @@ extern "C" chronon3d::ExtensionModule* chronon3d_create_extension();
 
 ---
 
-## 7. Mancanza: Test Contrattuali Core
+## 8. Mancanza: Test Contrattuali Core
 
 Ora esistono test per `SceneValidator`, ma mancano test contrattuali per impedire regressioni sulle zone protette.
 
@@ -353,7 +390,7 @@ extension registry non registra duplicati silenziosamente
 
 ---
 
-## 8. Mancanza: Monitoraggio File Caldi
+## 9. Mancanza: Monitoraggio File Caldi
 
 Mantenere una lista di file caldi e intervenire quando tornano a crescere.
 
@@ -362,6 +399,7 @@ Mantenere una lista di file caldi e intervenire quando tornano a crescere.
 ```text
 include/chronon3d/render_graph/render_graph_node.hpp
 src/render_graph/builder/graph_builder_pipeline.cpp
+src/render_graph/builder/graph_build_pipeline.cpp
 src/render_graph/executor/executor.cpp
 src/render_graph/executor/internal.cpp
 src/render_graph/executor/internal.hpp
@@ -372,6 +410,7 @@ include/chronon3d/scene/model/layer.hpp
 include/chronon3d/scene/builders/layer_builder.hpp
 include/chronon3d/scene/builders/scene_builder.hpp
 apps/chronon3d_cli/commands/video/video_export_pipe.cpp
+apps/chronon3d_cli/commands/video/pipe_export_helpers.cpp
 apps/chronon3d_cli/commands/video/video_export_chunked.cpp
 src/cache/framebuffer_pool.cpp
 ```
@@ -391,7 +430,7 @@ Se un file core continua a salire, non aggiungere altra logica li'. Estrarre un 
 
 ---
 
-## 9. Checklist Per Nuove Modifiche
+## 10. Checklist Per Nuove Modifiche
 
 Prima di iniziare:
 
@@ -422,7 +461,7 @@ Prima di chiudere:
 
 ---
 
-## 10. Ordine Consigliato
+## 11. Ordine Consigliato
 
 Priorita' concreta:
 
@@ -436,9 +475,10 @@ Priorita' concreta:
 7. Separare Scene/SpecScene Model (Fase 6) ✅
 
 **Prossime priorita':**
-8. Aggiornare CORE_OWNERSHIP.md con i nuovi path model/
-9. Completare forwarding headers per backward compatibility
-10. Verificare che SceneBuilder/LayerBuilder siano facciate leggere
+8. Ridurre `graph_build_pipeline.cpp` senza cambiare il contratto pubblico
+9. Rifinire export video CLI: exporter boundary, progress, failure reporting
+10. Consolidare boundary Scene/SpecScene con test contrattuali
+11. Applicare `docs/AGENT_WORKFLOW.md` per evitare modifiche concorrenti su graph/spec/layer
 ```
 
 La metrica di successo resta:
