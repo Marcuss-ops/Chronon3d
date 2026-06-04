@@ -3,7 +3,7 @@
 #include <chronon3d/render_graph/render_graph_node.hpp>
 #include <chronon3d/render_graph/render_graph_hashing.hpp>
 #include <chronon3d/rendering/depth_grade.hpp>
-#include <chronon3d/scene/camera/camera_2_5d.hpp>
+#include <chronon3d/scene/model/camera_2_5d.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
 
 #include <cmath>

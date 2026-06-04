@@ -4,8 +4,8 @@
 // This file adds the factory functions that require Camera / Camera2_5D.
 
 #include <chronon3d/math/projection_context.hpp>
-#include <chronon3d/scene/camera/camera.hpp>
-#include <chronon3d/scene/camera/camera_2_5d.hpp>
+#include <chronon3d/scene/model/camera.hpp>
+#include <chronon3d/scene/model/camera_2_5d.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <glm/gtc/constants.hpp>
 

@@ -2,7 +2,7 @@
 
 #include <chronon3d/backends/software/shape_processor.hpp>
 #include <chronon3d/backends/software/effect_processor.hpp>
-#include <chronon3d/scene/shape.hpp>
+#include <chronon3d/scene/model/shape.hpp>
 #include <unordered_map>
 #include <memory>
 #include <typeindex>

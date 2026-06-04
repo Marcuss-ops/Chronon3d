@@ -1,7 +1,7 @@
 #include "graph_builder_validation_pass.hpp"
 #include <chronon3d/render_graph/builder/graph_build_context.hpp>
 #include <chronon3d/scene/validation/scene_validator.hpp>
-#include <chronon3d/scene/scene.hpp>
+#include <chronon3d/scene/model/scene.hpp>
 #include <spdlog/spdlog.h>
 
 namespace chronon3d::graph::detail {

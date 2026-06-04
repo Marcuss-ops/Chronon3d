@@ -4,7 +4,7 @@
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/scene/builders/builder_params.hpp>
 #include <chronon3d/math/color.hpp>
-#include <chronon3d/scene/fill.hpp>
+#include <chronon3d/scene/model/fill.hpp>
 
 #include "text_premium_hero_shared.hpp"
 

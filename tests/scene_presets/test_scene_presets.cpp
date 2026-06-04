@@ -1,7 +1,7 @@
 #include <doctest/doctest.h>
 #include <chronon3d/presets/scene_presets.hpp>
 #include <chronon3d/timeline/composition.hpp>
-#include <chronon3d/scene/scene.hpp>
+#include <chronon3d/scene/model/scene.hpp>
 
 using namespace chronon3d;
 

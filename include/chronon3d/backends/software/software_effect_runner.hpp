@@ -1,7 +1,7 @@
 #pragma once
 
 #include <chronon3d/core/memory/framebuffer.hpp>
-#include <chronon3d/scene/effects/effect_stack.hpp>
+#include <chronon3d/scene/model/effect_stack.hpp>
 #include <chronon3d/backends/software/software_registry.hpp>
 
 namespace chronon3d {

@@ -1,5 +1,5 @@
 #include "cli_render_utils.hpp"
-#include <chronon3d/specscene/specscene.hpp>
+#include <chronon3d/specscene/model/specscene.hpp>
 #include <chronon3d/backends/image/stb_image_backend.hpp>
 #include <chronon3d/backends/video/video_frame_decoder.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>

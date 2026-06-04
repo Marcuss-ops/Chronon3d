@@ -1,9 +1,9 @@
 #pragma once
 
 #include <chronon3d/math/glm_types.hpp>
-#include <chronon3d/scene/camera/camera_rig.hpp>
+#include <chronon3d/scene/model/camera_rig.hpp>
 #include <chronon3d/scene/camera/camera_projection.hpp>
-#include <chronon3d/scene/transform/transform_resolver.hpp>
+#include <chronon3d/scene/model/transform_resolver.hpp>
 #include <vector>
 #include <string>
 

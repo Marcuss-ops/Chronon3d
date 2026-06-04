@@ -1,5 +1,5 @@
 #include <doctest/doctest.h>
-#include <chronon3d/specscene/specscene.hpp>
+#include <chronon3d/specscene/model/specscene.hpp>
 #include <filesystem>
 #include <fstream>
 

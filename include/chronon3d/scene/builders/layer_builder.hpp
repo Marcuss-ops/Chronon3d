@@ -1,13 +1,13 @@
 #pragma once
 
-#include <chronon3d/scene/layer/layer.hpp>
+#include <chronon3d/scene/model/layer.hpp>
 #include <chronon3d/scene/builders/builder_params.hpp>
 #include <chronon3d/registry/shape_registry.hpp>
 #include <chronon3d/vector/path_factories.hpp>
-#include <chronon3d/scene/mask/mask.hpp>
-#include <chronon3d/scene/effects/effect_stack.hpp>
-#include <chronon3d/scene/material_2_5d.hpp>
-#include <chronon3d/scene/card3d_material.hpp>
+#include <chronon3d/scene/model/mask.hpp>
+#include <chronon3d/scene/model/effect_stack.hpp>
+#include <chronon3d/scene/model/material_2_5d.hpp>
+#include <chronon3d/scene/model/card3d_material.hpp>
 #include <chronon3d/layout/layout_rules.hpp>
 #include <chronon3d/backends/video/video_source.hpp>
 #include <chronon3d/math/glm_types.hpp>

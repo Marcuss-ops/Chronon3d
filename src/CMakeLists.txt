@@ -51,7 +51,7 @@ set(CHRONON3D_GRAPH_SOURCES
     render_graph/builder/graph_builder_internal.cpp
     render_graph/builder/graph_builder_pipeline.cpp
     render_graph/builder/graph_build_pipeline.cpp
-    scene/mask/mask_utils.cpp
+    scene/model/mask_utils.cpp
     render_graph/builder/passes/graph_builder_layer_passes.cpp
     render_graph/builder/passes/graph_builder_lighting_passes.cpp
     render_graph/builder/passes/graph_builder_source_pass.cpp
@@ -270,8 +270,10 @@ set(CHRONON3D_SCENE_SOURCES
     scene/camera/camera_framing.cpp
     scene/camera/camera_path_sampler.cpp
     scene/camera/camera_debug_overlay.cpp
+    scene/model/layer.cpp
+    scene/model/render_node_factory.cpp
+    scene/model/transform_resolver.cpp
     scene/dark_grid_background.cpp
-    scene/layer.cpp
     scene/layer_builder.cpp
     scene/layer_builder_effects.cpp
     scene/builders/layer_command_registry.cpp
@@ -282,10 +284,8 @@ set(CHRONON3D_SCENE_SOURCES
     scene/builders/commands/layer_property_commands.cpp
     scene/validation/scene_validator.cpp
     scene/validation/scene_validation_registry.cpp
-    scene/render_node_factory.cpp
     scene/camera_api.cpp
     scene/scene_builder.cpp
-    scene/transform/transform_resolver.cpp
     timeline/timeline_builder.cpp
     animations/camera/camera_tilt_clips.cpp
     animations/camera_motion_applier.cpp
@@ -297,8 +297,8 @@ set(CHRONON3D_SCENE_SOURCES
     presets/motion_preset_registry.cpp
     presets/phrase_presets.cpp
     presets/phrase_group_builder.cpp
-    specscene/specscene.cpp
-    specscene/specscene_parsers.cpp
+    specscene/model/specscene.cpp
+    specscene/parser/specscene_parsers.cpp
     media/media_placement.cpp
     vector/path_factories.cpp
 )

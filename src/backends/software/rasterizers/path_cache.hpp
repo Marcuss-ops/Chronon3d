@@ -2,7 +2,7 @@
 
 #include <chronon3d/cache/lru_cache.hpp>
 #include <chronon3d/math/glm_types.hpp>
-#include <chronon3d/scene/shape.hpp>
+#include <chronon3d/scene/model/shape.hpp>
 #include <cstdint>
 #include <memory>
 #include <vector>

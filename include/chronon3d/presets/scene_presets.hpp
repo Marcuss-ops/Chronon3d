@@ -4,7 +4,7 @@
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/scene/builders/builder_params.hpp>
-#include <chronon3d/scene/camera/camera_rig.hpp>
+#include <chronon3d/scene/model/camera_rig.hpp>
 #include <chronon3d/animation/stagger.hpp>
 #include <chronon3d/text/text_animator.hpp>
 #include <chronon3d/presets/motion_presets.hpp>

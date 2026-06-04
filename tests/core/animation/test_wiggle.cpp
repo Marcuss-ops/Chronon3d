@@ -1,6 +1,6 @@
 #include <doctest/doctest.h>
 #include <chronon3d/animation/wiggle.hpp>
-#include <chronon3d/scene/camera/camera_shake.hpp>
+#include <chronon3d/scene/model/camera_shake.hpp>
 #include <cmath>
 
 using namespace chronon3d;

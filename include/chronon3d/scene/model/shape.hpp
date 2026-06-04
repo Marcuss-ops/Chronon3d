@@ -3,8 +3,8 @@
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/core/types/types.hpp>
-#include <chronon3d/scene/fill.hpp>
-#include <chronon3d/scene/path.hpp>
+#include <chronon3d/scene/model/fill.hpp>
+#include <chronon3d/scene/model/path.hpp>
 #include <optional>
 #include <string>
 #include <vector>
