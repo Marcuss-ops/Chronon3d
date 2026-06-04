@@ -270,9 +270,12 @@ add_executable(chronon3d_cli_tests
     cli/test_frame_chunks.cpp
     cli/test_ffmpeg_pipe_encoder.cpp
     cli/test_video_pipeline_producer_consumer.cpp
+    cli/test_pipe_export_helpers.cpp
     cli/bench_json_tests.cpp
     cli/test_camera_path_command.cpp
     ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/common/cli_utils.cpp
+    ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/commands/video/video_export_common.cpp
+    ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/commands/video/pipe_export_helpers.cpp
     ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/video/ffmpeg_pipe_encoder.cpp
     ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/video/ffmpeg_pipe_write_frame.cpp
     ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/video/ffmpeg_pipe_encoder_uring.cpp
@@ -382,4 +385,3 @@ if(CHRONON3D_BUILD_BENCHMARKS AND TARGET benchmark::benchmark_main)
 endif()
 
 add_dependencies(chronon3d_tests chronon3d_video_tests)
-
