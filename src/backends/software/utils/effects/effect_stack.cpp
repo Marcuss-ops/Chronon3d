@@ -551,6 +551,30 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
             break;
         }
 
+        case Saturation: {
+            auto* p = std::get_if<SaturationParams>(&inst.params);
+            if (p) apply_saturation(fb, p->value, clip);
+            break;
+        }
+
+        case HueRotate: {
+            auto* p = std::get_if<HueRotateParams>(&inst.params);
+            if (p) apply_hue_rotate(fb, p->degrees, clip);
+            break;
+        }
+
+        case Invert: {
+            auto* p = std::get_if<InvertParams>(&inst.params);
+            if (p) apply_invert(fb, p->amount, clip);
+            break;
+        }
+
+        case Vignette: {
+            auto* p = std::get_if<VignetteParams>(&inst.params);
+            if (p) apply_vignette(fb, p->radius, p->softness, p->amount, p->color, clip);
+            break;
+        }
+
         case Unknown:
             break;
         }

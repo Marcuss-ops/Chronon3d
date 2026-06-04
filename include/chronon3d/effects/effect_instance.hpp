@@ -23,6 +23,10 @@ enum class EffectType : uint8_t {
     Glow,
     Bloom,
     Fake3DWave,
+    Saturation,
+    HueRotate,
+    Invert,
+    Vignette,
 };
 
 // ── effect_type_for<T> trait ────────────────────────────────────────────────
@@ -76,6 +80,10 @@ struct EffectInstance {
             case EffectType::Glow:        return typeid(GlowParams);
             case EffectType::Bloom:       return typeid(BloomParams);
             case EffectType::Fake3DWave:  return typeid(Fake3DWaveParams);
+            case EffectType::Saturation:  return typeid(SaturationParams);
+            case EffectType::HueRotate:   return typeid(HueRotateParams);
+            case EffectType::Invert:      return typeid(InvertParams);
+            case EffectType::Vignette:    return typeid(VignetteParams);
             default:                      return typeid(void);
         }
     }
@@ -96,6 +104,10 @@ struct EffectInstance {
         case 6:  return EffectType::Glow;
         case 7:  return EffectType::Bloom;
         case 8:  return EffectType::Fake3DWave;
+        case 9:  return EffectType::Saturation;
+        case 10: return EffectType::HueRotate;
+        case 11: return EffectType::Invert;
+        case 12: return EffectType::Vignette;
         default: return EffectType::Unknown;
     }
 }

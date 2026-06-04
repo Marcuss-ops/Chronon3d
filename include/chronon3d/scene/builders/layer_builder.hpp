@@ -54,6 +54,13 @@ public:
     LayerBuilder& duration(Frame frames);
     LayerBuilder& until(Frame frame);
     LayerBuilder& offset(Frame frames);
+
+    // ── Time Remap (AE-4): per-layer time control ──
+    LayerBuilder& speed(f32 multiplier);            // 0.5 = slow-mo, 2.0 = fast, -1.0 = reverse
+    LayerBuilder& reverse(bool value = true);        // convenience: sets speed = -1.0
+    LayerBuilder& freeze_frame(Frame source_frame);  // hold a specific source frame
+    LayerBuilder& time_remap(AnimatedValue<f32> curve); // animated comp-frame → source-frame
+    AnimatedValue<f32>& time_remap_anim();           // direct access to time_remap curve
     LayerBuilder& visible(bool value);
     LayerBuilder& kind(LayerKind value);
     LayerBuilder& cache_static(bool value = true);
@@ -112,6 +119,10 @@ public:
     LayerBuilder& tint(Color color, f32 amount = 1.0f);
     LayerBuilder& brightness(f32 v);
     LayerBuilder& contrast(f32 v);
+    LayerBuilder& saturation(f32 v);    // 1.0 = unchanged, 0 = greyscale
+    LayerBuilder& hue_rotate(f32 deg);  // degrees, 0 = unchanged
+    LayerBuilder& invert(f32 amount = 1.0f); // 1.0 = full invert, 0 = no-op
+    LayerBuilder& vignette(f32 radius = 0.5f, f32 softness = 0.5f, f32 amount = 1.0f);
     LayerBuilder& drop_shadow(Vec2 offset, Color color = {0,0,0,0.35f}, f32 radius = 12.0f);
     LayerBuilder& glow(f32 radius, f32 intensity = 0.8f, Color color = Color::white(), f32 threshold = 0.0f, f32 spread = 1.0f, f32 softness = 1.0f);
     LayerBuilder& glow(GlowParams params);

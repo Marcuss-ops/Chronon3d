@@ -5,6 +5,7 @@
 #include <chronon3d/core/types/types.hpp>
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/scene/layer/depth_role.hpp>
+#include <chronon3d/scene/layer/layer.hpp>  // for LayerKind
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/description/visual_desc.hpp>
 #include <chronon3d/description/effect_desc.hpp>
@@ -47,6 +48,12 @@ struct LayerDesc {
     DepthRole depth_role{DepthRole::None};
     f32       depth_offset{0.0f};
     BlendMode blend_mode{BlendMode::Normal};
+    LayerKind  kind{LayerKind::Normal};  // Normal, Adjustment, Null, etc.
+
+    // ── Time Remap (AE-4) ──
+    f32  time_remap_speed{1.0f};             // playback speed multiplier
+    Frame time_remap_freeze_frame{-1};        // if >= 0, hold this source frame
+    AnimatedValue<f32> time_remap_curve;      // animated comp-frame → source-frame
 
     std::vector<VisualDesc> visuals;
     std::vector<EffectDesc> effects;

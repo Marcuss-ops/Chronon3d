@@ -23,6 +23,21 @@ namespace chronon3d {
 
 namespace video { struct VideoSource; }
 
+// ── Time Remap (AE-4) ────────────────────────────────────────────────────────
+// Per-layer time control: speed, reverse, freeze frame, and animated time remap.
+// When active (speed != 1.0 || reverse || time_remap is animated || freeze_frame >= 0),
+// Layer::local_frame() remaps the composition frame to a source frame.
+
+struct TimeRemap {
+    f32  speed{1.0f};          // playback speed multiplier (0.5 = half-speed, 2.0 = double, -1.0 = reverse)
+    Frame freeze_frame{-1};    // if >= 0, hold this source frame forever
+    AnimatedValue<f32> time_remap;  // maps comp frame → source frame (in frames). When animated, overrides speed.
+
+    [[nodiscard]] bool active() const {
+        return speed != 1.0f || freeze_frame >= 0 || time_remap.is_animated();
+    }
+};
+
 enum class LayerKind {
     Normal,       // standard layer: draws its own content, then effects applied
     Adjustment,   // no own content: effects applied to everything rendered below it
@@ -41,6 +56,7 @@ struct Layer {
     Frame from{0};
     Frame duration{-1};
     Frame time_offset{0};
+    TimeRemap time_remap{};
     bool      visible{true};
     bool      uses_2_5d_projection{false};
     bool      hierarchy_resolved{false};
@@ -89,7 +105,39 @@ struct Layer {
     }
 
     [[nodiscard]] Frame local_frame(Frame global_frame) const {
-        return global_frame - from + time_offset;
+        const Frame raw = global_frame - from + time_offset;
+
+        if (!time_remap.active()) {
+            return raw;
+        }
+
+        // Freeze frame: always return the frozen source frame
+        if (time_remap.freeze_frame >= 0) {
+            return time_remap.freeze_frame;
+        }
+
+        // Animated time_remap curve: maps comp frame → source frame directly
+        if (time_remap.time_remap.is_animated()) {
+            return Frame{static_cast<i64>(time_remap.time_remap.evaluate(raw))};
+        }
+
+        // Speed control: scale the local frame by the speed multiplier.
+        //
+        // Positive speed: source = speed * raw   (slow-motion or fast-forward)
+        // Negative speed: source = duration + speed * raw  (reverse playback)
+        //   At raw=0 → source = duration (last frame),
+        //   at raw=duration → source = 0 (first frame).
+        //
+        // If duration is unknown (-1), negative speed falls back to
+        // raw * speed which produces negative frames — AnimatedValue in
+        // Hold mode clamps those to the first keyframe.
+        f32 scaled;
+        if (time_remap.speed < 0.0f && duration > 0) {
+            scaled = static_cast<f32>(duration) + time_remap.speed * static_cast<f32>(raw);
+        } else {
+            scaled = static_cast<f32>(raw) * time_remap.speed;
+        }
+        return Frame{static_cast<i64>(std::round(scaled))};
     }
 };
 

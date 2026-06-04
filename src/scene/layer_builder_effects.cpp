@@ -1,6 +1,5 @@
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/effects/effect_ids.hpp>
-#include <chronon3d/scene/builders/layer_builder.hpp>
 #include <utility>
 
 namespace chronon3d {
@@ -22,6 +21,26 @@ LayerBuilder& LayerBuilder::brightness(f32 v) {
 
 LayerBuilder& LayerBuilder::contrast(f32 v) {
     m_layer.effects.push_back(EffectInstance{effects::EffectDescriptor{.id = std::string{effects::ids::ColorContrast}}, ContrastParams{v}});
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::saturation(f32 v) {
+    m_layer.effects.push_back(EffectInstance{effects::EffectDescriptor{.id = std::string{effects::ids::ColorSaturation}}, SaturationParams{v}});
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::hue_rotate(f32 deg) {
+    m_layer.effects.push_back(EffectInstance{effects::EffectDescriptor{.id = std::string{effects::ids::ColorHueRotate}}, HueRotateParams{deg}});
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::invert(f32 amount) {
+    m_layer.effects.push_back(EffectInstance{effects::EffectDescriptor{.id = std::string{effects::ids::ColorInvert}}, InvertParams{amount}});
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::vignette(f32 radius, f32 softness, f32 amount) {
+    m_layer.effects.push_back(EffectInstance{effects::EffectDescriptor{.id = std::string{effects::ids::ColorVignette}}, VignetteParams{radius, softness, amount}});
     return *this;
 }
 

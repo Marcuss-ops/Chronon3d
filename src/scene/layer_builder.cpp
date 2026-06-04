@@ -136,6 +136,34 @@ LayerBuilder& LayerBuilder::offset(Frame frames) {
     return *this;
 }
 
+// ── Time Remap (AE-4) ─────────────────────────────────────────────────
+
+LayerBuilder& LayerBuilder::speed(f32 multiplier) {
+    m_layer.time_remap.speed = multiplier;
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::reverse(bool value) {
+    if (value) {
+        m_layer.time_remap.speed = -1.0f;
+    }
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::freeze_frame(Frame source_frame) {
+    m_layer.time_remap.freeze_frame = source_frame;
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::time_remap(AnimatedValue<f32> curve) {
+    m_layer.time_remap.time_remap = std::move(curve);
+    return *this;
+}
+
+AnimatedValue<f32>& LayerBuilder::time_remap_anim() {
+    return m_layer.time_remap.time_remap;
+}
+
 LayerBuilder& LayerBuilder::visible(bool value) {
     m_layer.visible = value;
     return *this;

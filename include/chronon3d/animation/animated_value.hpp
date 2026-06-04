@@ -27,6 +27,10 @@ struct AnimationEvalContext {
     f32 time{0.0f};
     bool has_explicit_time{false};
     int index{0};
+
+    // ── Extended context for AE-style expressions (AE-1 + AE-10) ──
+    // When set, expressions can use layer('name').property, thisComp.*, etc.
+    const math::ExpressionContext* expression_context{nullptr};
 };
 
 template <typename T>
@@ -41,15 +45,102 @@ public:
     }
 
     // Add a keyframe; keys are kept sorted by frame.
-    void add_keyframe(Frame frame, const T& value, EasingCurve easing = EasingCurve{Easing::Linear}) {
-        m_keyframes.emplace_back(frame, value, easing);
+    void add_keyframe(Frame frame, const T& value, EasingCurve easing = EasingCurve{Easing::Linear}, bool roving = false) {
+        m_keyframes.emplace_back(frame, value, easing, roving);
         std::sort(m_keyframes.begin(), m_keyframes.end());
+        if (roving) m_roving_dirty = true;
     }
 
     // Fluent alias for add_keyframe — enables chaining.
     AnimatedValue& key(Frame frame, const T& value, EasingCurve easing = EasingCurve{Easing::Linear}) {
         add_keyframe(frame, value, easing);
         return *this;
+    }
+
+    // Mark the last-added keyframe as roving (constant velocity).
+    AnimatedValue& roving() {
+        if (!m_keyframes.empty()) {
+            m_keyframes.back().roving = true;
+            m_roving_dirty = true;
+        }
+        return *this;
+    }
+
+    // Recompute roving keyframe timing for constant velocity.
+    // For each group of consecutive roving keyframes between two non-roving
+    // anchors, redistributes their frames so velocity is constant.
+    void compute_roving() {
+        if (!m_roving_dirty) return;
+        if (m_keyframes.size() < 3) { m_roving_dirty = false; return; }
+
+        std::sort(m_keyframes.begin(), m_keyframes.end());
+
+        size_t i = 0;
+        while (i < m_keyframes.size()) {
+            if (!m_keyframes[i].roving) { ++i; continue; }
+
+            // Find left anchor (closest non-roving to the left)
+            size_t left = (i > 0) ? (i - 1) : 0;
+            while (left > 0 && m_keyframes[left].roving) --left;
+            if (m_keyframes[left].roving) {
+                m_keyframes[i].roving = false;
+                ++i;
+                continue;
+            }
+
+            // Find right anchor (next non-roving to the right)
+            size_t right = i;
+            while (right < m_keyframes.size() && m_keyframes[right].roving) ++right;
+            if (right >= m_keyframes.size()) {
+                for (size_t j = i; j < m_keyframes.size(); ++j)
+                    m_keyframes[j].roving = false;
+                break;
+            }
+
+            // Constant velocity between left and right anchors
+            const f32 t_left = static_cast<f32>(m_keyframes[left].frame);
+            const f32 t_right = static_cast<f32>(m_keyframes[right].frame);
+            const f32 dt = t_right - t_left;
+
+            if constexpr (std::is_arithmetic_v<T>) {
+                const f32 v_left = static_cast<f32>(m_keyframes[left].value);
+                const f32 v_right = static_cast<f32>(m_keyframes[right].value);
+                const f32 dv = v_right - v_left;
+
+                if (std::abs(dv) < 1e-7f || dt <= 0.0f) {
+                    const size_t count = right - left - 1;
+                    for (size_t j = 0; j < count; ++j) {
+                        f32 frac = static_cast<f32>(j + 1) / static_cast<f32>(count + 1);
+                        m_keyframes[left + 1 + j].frame =
+                            Frame{static_cast<i32>(std::round(t_left + frac * dt))};
+                    }
+                } else {
+                    const f32 velocity = dv / dt;
+                    for (size_t j = left + 1; j < right; ++j) {
+                        const f32 val_dist = static_cast<f32>(m_keyframes[j].value) - v_left;
+                        const f32 target = t_left + val_dist / velocity;
+                        m_keyframes[j].frame = Frame{static_cast<i32>(
+                            std::round(std::clamp(target, t_left + 1.0f, t_right - 1.0f))
+                        )};
+                    }
+                }
+            } else {
+                // Non-arithmetic T (e.g. Vec3): distribute frames evenly
+                const size_t count = right - left - 1;
+                for (size_t j = 0; j < count; ++j) {
+                    f32 frac = static_cast<f32>(j + 1) / static_cast<f32>(count + 1);
+                    m_keyframes[left + 1 + j].frame =
+                        Frame{static_cast<i32>(std::round(t_left + frac * dt))};
+                }
+            }
+
+            i = right + 1;
+        }
+
+        m_roving_dirty = false;
+
+        // Re-sort after frame modifications to maintain sorted invariant
+        std::sort(m_keyframes.begin(), m_keyframes.end());
     }
 
     // Set a constant value (clears all keyframes).
@@ -92,6 +183,23 @@ public:
                 ? static_cast<double>(ctx.time)
                 : static_cast<double>(frame) / fps;
 
+            // If we have an extended expression context, use context-aware API
+            if (ctx.expression_context) {
+                math::ExpressionContext ectx = *ctx.expression_context;
+                // Fill in current property value and frame/time
+                ectx.value  = static_cast<double>(base);
+                ectx.value0 = static_cast<double>(base);
+                ectx.frame  = static_cast<double>(frame);
+                ectx.time   = time;
+                ectx.fps    = fps;
+                ectx.index  = static_cast<double>(ctx.index);
+
+                return static_cast<f32>(
+                    math::evaluate_expression(m_expression, ectx, {}, static_cast<double>(base))
+                );
+            }
+
+            // Legacy path — no cross-layer references
             const std::unordered_map<std::string, double> vars{
                 {"frame", static_cast<double>(frame)},
                 {"time", time},
@@ -129,7 +237,7 @@ public:
         return true; 
     }
 
-    void clear() { m_keyframes.clear(); }
+    void clear() { m_keyframes.clear(); m_roving_dirty = true; }
 
     /// Shift every keyframe forward (or backward) by offset frames.
     /// Keyframes are clamped at Frame{0} to prevent negative frame indices.
@@ -190,6 +298,7 @@ private:
     std::vector<Keyframe<T>> m_keyframes;
     LoopMode m_loop_mode{LoopMode::Hold};
     std::string m_expression;
+    bool m_roving_dirty{false};
 };
 
 } // namespace chronon3d

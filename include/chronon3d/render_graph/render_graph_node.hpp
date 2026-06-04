@@ -290,6 +290,14 @@ struct RenderGraphContext {
     // Populated during graph execution; flushed via TelemetryManager after frame.
     std::vector<chronon3d::telemetry::NodeTelemetryRecord> node_telemetry;
     std::vector<chronon3d::telemetry::LayerTelemetryRecord> layer_telemetry;
+
+    // ── Per-pixel DOF depth tracking ──────────────────────────────────────────
+    // When track_dof_depth is true, CompositeNode writes the world_z of each
+    // composited layer into dof_depth for pixels where the layer has alpha > 0.
+    // PerPixelDofNode reads this buffer after compositing to apply per-pixel
+    // depth-based blur.
+    bool                      track_dof_depth{false};
+    std::vector<float>        dof_depth;
 };
 
 class RenderGraphNode {

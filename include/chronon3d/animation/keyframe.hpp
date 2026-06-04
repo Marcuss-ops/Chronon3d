@@ -19,9 +19,10 @@ struct Keyframe {
     Frame        frame{0};
     T            value{};
     EasingCurve  easing{Easing::Linear};
+    bool         roving{false};  // roving keyframe: auto-timed for constant velocity
 
-    constexpr Keyframe(Frame f, T v, EasingCurve e = EasingCurve{Easing::Linear})
-        : frame(f), value(v), easing(e) {}
+    constexpr Keyframe(Frame f, T v, EasingCurve e = EasingCurve{Easing::Linear}, bool r = false)
+        : frame(f), value(v), easing(e), roving(r) {}
 
     // For std::sort / std::lower_bound
     bool operator<(const Keyframe& other) const { return frame < other.frame; }

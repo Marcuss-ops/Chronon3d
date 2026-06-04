@@ -250,6 +250,124 @@ Composition parallax_text() {
 // CAMERA VALIDATION & REGRESSION TESTING SUITE (Moved to camera_test_orchestrator.cpp and camera_advanced_tests.cpp)
 // ─────────────────────────────────────────────────────────────────────────────
 
+Composition dof_showcase() {
+    return composition({.name = "DofShowcase", .duration = 120}, [](const FrameContext& ctx) {
+        SceneBuilder s(ctx);
+        const f32 p = ctx.progress();
+
+        // Slow dolly towards the scene; focus stays on the mid layer at z=0
+        const f32 cam_z = -1000.0f + p * 200.0f;
+        s.camera().set({
+            .enabled = true,
+            .position = {0.0f, 0.0f, cam_z},
+            .zoom = 1000.0f,
+            .dof = DepthOfFieldSettings{
+                .enabled  = true,
+                .focus_z  = 0.0f,     // sharp focus at z=0 (mid layer)
+                .aperture = 0.015f,   // moderate blur per unit of z-distance
+                .max_blur  = 18.0f    // clamp for extreme depths
+            }
+        });
+
+        // ── Far background layer (z=400) — heavily blurred ──────────────
+        s.layer("far_bg", [&](auto& l) {
+            l.enable_3d().position({0, 0, 400});
+            l.rect("bg", {.size = {W * 1.5f, H * 1.2f}, .color = {0.03f, 0.04f, 0.10f, 1}});
+        });
+
+        // Far decorative circles — blurred bokeh-like shapes
+        for (int i = 0; i < 6; ++i) {
+            const f32 angle = i * 1.047f; // 60° apart
+            s.layer("far_dot_" + std::to_string(i), [&](auto& l) {
+                l.enable_3d().position({
+                    std::cos(angle) * 500.0f,
+                    std::sin(angle) * 300.0f,
+                    350.0f
+                });
+                const f32 r = 30.0f + static_cast<f32>(i) * 15.0f;
+                l.circle("dot", {.radius = r, .color = {0.20f, 0.35f, 0.80f, 0.25f}});
+            });
+        }
+
+        // ── Mid layer (z=0) — in focus, the subject ────────────────────
+        s.layer("subject_card", [&](auto& l) {
+            l.enable_3d().position({0, 0, 0});
+            l.rounded_rect("card", {.size = {500, 320}, .radius = 24,
+                .color = {0.12f, 0.15f, 0.25f, 1}});
+        });
+
+        s.layer("subject_title", [&](auto& l) {
+            l.enable_3d().position({0, 20, 1});
+            l.text("title", {
+                .text = "DEPTH OF FIELD",
+                .size = {440, 60},
+                .pos = {0.0f, 0.0f, 0.0f},
+                .font_family = "Inter",
+                .font_weight = 800,
+                .font_size = 44.0f,
+                .color = Color{1.0f, 1.0f, 1.0f, 1.0f},
+                .align = TextAlign::Center,
+                .line_height = 1.2f,
+                .tracking = 6.0f
+            });
+        });
+
+        s.layer("subject_sub", [&](auto& l) {
+            l.enable_3d().position({0, -40, 1});
+            l.text("sub", {
+                .text = "Subject sharp \u2022 Depth blur",
+                .size = {400, 40},
+                .pos = {0.0f, 0.0f, 0.0f},
+                .font_family = "Inter",
+                .font_weight = 600,
+                .font_size = 20.0f,
+                .color = Color{0.6f, 0.7f, 0.9f, 0.8f},
+                .align = TextAlign::Center,
+                .line_height = 1.2f,
+                .tracking = 1.0f
+            });
+        });
+
+        // ── Near foreground layer (z=-250) — slightly blurred ───────────
+        s.layer("near_fg", [&](auto& l) {
+            l.enable_3d().position({0, -200, -250});
+            l.rect("bar", {.size = {W * 1.5f, 120}, .color = {0.06f, 0.08f, 0.16f, 0.85f}});
+        });
+
+        // Foreground decorative elements — blurred because they're closer than focus
+        for (int i = 0; i < 3; ++i) {
+            s.layer("near_box_" + std::to_string(i), [&](auto& l) {
+                l.enable_3d().position({
+                    static_cast<f32>(i - 1) * 450.0f,
+                    -180.0f,
+                    -300.0f
+                });
+                l.rounded_rect("box", {.size = {140, 60}, .radius = 12,
+                    .color = {0.25f, 0.52f, 1.0f, 0.3f}});
+            });
+        }
+
+        // ── HUD label ──────────────────────────────────────────────────
+        s.layer("hud", [&](auto& l) {
+            l.opacity(0.6f).pin_to(Anchor::BottomLeft, 40.0f);
+            l.text("info", {
+                .text = "DOF Showcase  |  focus_z=0  aperture=0.015  max_blur=18",
+                .size = {W * 0.55f, 30},
+                .pos = {0.0f, 0.0f, 0.0f},
+                .font_family = "Inter",
+                .font_weight = 800,
+                .font_size = 18.0f,
+                .color = Color{0.5f, 0.6f, 0.85f, 1},
+                .align = TextAlign::Left,
+                .line_height = 1.2f,
+                .tracking = 1.5f
+            });
+        });
+
+        return s.build();
+    });
+}
+
 void register_all() {}
 
 } // namespace chronon3d::content::two_point_five_d
@@ -272,3 +390,4 @@ CHRONON_REGISTER_COMPOSITION("CameraDepthSortingStressTest", chronon3d::content:
 CHRONON_REGISTER_COMPOSITION("CameraSubpixelJitterValidationTest", chronon3d::content::two_point_five_d::camera_subpixel_jitter_validation_test)
 CHRONON_REGISTER_COMPOSITION("CameraMultiTargetBoundingBoxFitTest", chronon3d::content::two_point_five_d::camera_multi_target_bounding_box_fit_test)
 CHRONON_REGISTER_COMPOSITION("CameraDepthPerspectiveScaleDiagnosticTest", chronon3d::content::two_point_five_d::camera_depth_perspective_scale_diagnostic_test)
+CHRONON_REGISTER_COMPOSITION("DofShowcase", chronon3d::content::two_point_five_d::dof_showcase)

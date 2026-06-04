@@ -118,5 +118,119 @@ void apply_color_effects(Framebuffer& fb, const LayerEffect& effect,
     }
 }
 
+// ── Adjustment-layer color correction (AE-5) ────────────────────────────
+
+void apply_saturation(Framebuffer& fb, f32 sat, const std::optional<raster::BBox>& clip) {
+    if (sat == 1.0f) return;
+    const i32 w = fb.width(), h = fb.height();
+    i32 x0 = 0, x1 = w, y0 = 0, y1 = h;
+    if (clip) {
+        x0 = std::clamp(clip->x0, 0, w); x1 = std::clamp(clip->x1, 0, w);
+        y0 = std::clamp(clip->y0, 0, h); y1 = std::clamp(clip->y1, 0, h);
+    }
+    for (i32 y = y0; y < y1; ++y) {
+        Color* row = fb.pixels_row(y);
+        for (i32 x = x0; x < x1; ++x) {
+            Color c = row[x];
+            if (c.a <= 0.0f) continue;
+            const f32 lum = 0.2126f * c.r + 0.7152f * c.g + 0.0722f * c.b;
+            c.r = std::clamp(lum + sat * (c.r - lum), 0.0f, 1.0f);
+            c.g = std::clamp(lum + sat * (c.g - lum), 0.0f, 1.0f);
+            c.b = std::clamp(lum + sat * (c.b - lum), 0.0f, 1.0f);
+            row[x] = c;
+        }
+    }
+}
+
+void apply_hue_rotate(Framebuffer& fb, f32 degrees, const std::optional<raster::BBox>& clip) {
+    if (degrees == 0.0f) return;
+    const f32 rad = degrees * (3.14159265f / 180.0f);
+    const f32 cos_a = std::cos(rad);
+    const f32 sin_a = std::sin(rad);
+    const f32 s3 = 1.0f / std::sqrt(3.0f);
+    const f32 w00 = cos_a + (1.0f - cos_a) / 3.0f;
+    const f32 w01 = (1.0f - cos_a) / 3.0f - sin_a * s3;
+    const f32 w02 = (1.0f - cos_a) / 3.0f + sin_a * s3;
+    const f32 w10 = (1.0f - cos_a) / 3.0f + sin_a * s3;
+    const f32 w11 = cos_a + (1.0f - cos_a) / 3.0f;
+    const f32 w12 = (1.0f - cos_a) / 3.0f - sin_a * s3;
+    const f32 w20 = (1.0f - cos_a) / 3.0f - sin_a * s3;
+    const f32 w21 = (1.0f - cos_a) / 3.0f + sin_a * s3;
+    const f32 w22 = cos_a + (1.0f - cos_a) / 3.0f;
+    const i32 w = fb.width(), h = fb.height();
+    i32 x0 = 0, x1 = w, y0 = 0, y1 = h;
+    if (clip) {
+        x0 = std::clamp(clip->x0, 0, w); x1 = std::clamp(clip->x1, 0, w);
+        y0 = std::clamp(clip->y0, 0, h); y1 = std::clamp(clip->y1, 0, h);
+    }
+    for (i32 y = y0; y < y1; ++y) {
+        Color* row = fb.pixels_row(y);
+        for (i32 x = x0; x < x1; ++x) {
+            Color c = row[x];
+            if (c.a <= 0.0f) continue;
+            const f32 r = c.r, g = c.g, b = c.b;
+            c.r = std::clamp(w00 * r + w01 * g + w02 * b, 0.0f, 1.0f);
+            c.g = std::clamp(w10 * r + w11 * g + w12 * b, 0.0f, 1.0f);
+            c.b = std::clamp(w20 * r + w21 * g + w22 * b, 0.0f, 1.0f);
+            row[x] = c;
+        }
+    }
+}
+
+void apply_invert(Framebuffer& fb, f32 amount, const std::optional<raster::BBox>& clip) {
+    if (amount <= 0.0f) return;
+    const i32 w = fb.width(), h = fb.height();
+    i32 x0 = 0, x1 = w, y0 = 0, y1 = h;
+    if (clip) {
+        x0 = std::clamp(clip->x0, 0, w); x1 = std::clamp(clip->x1, 0, w);
+        y0 = std::clamp(clip->y0, 0, h); y1 = std::clamp(clip->y1, 0, h);
+    }
+    for (i32 y = y0; y < y1; ++y) {
+        Color* row = fb.pixels_row(y);
+        for (i32 x = x0; x < x1; ++x) {
+            Color c = row[x];
+            if (c.a <= 0.0f) continue;
+            c.r = c.r + amount * (1.0f - 2.0f * c.r);
+            c.g = c.g + amount * (1.0f - 2.0f * c.g);
+            c.b = c.b + amount * (1.0f - 2.0f * c.b);
+            row[x] = c;
+        }
+    }
+}
+
+void apply_vignette(Framebuffer& fb, f32 radius, f32 softness, f32 amount,
+                   Color color, const std::optional<raster::BBox>& clip) {
+    if (amount <= 0.0f) return;
+    const i32 w = fb.width(), h = fb.height();
+    const f32 diag = std::sqrt(static_cast<f32>(w * w + h * h));
+    const f32 cx = w * 0.5f;
+    const f32 cy = h * 0.5f;
+    const f32 inner_r = radius * diag * 0.5f;
+    const f32 outer_r = inner_r + softness * diag * 0.5f;
+    const f32 inv_range = 1.0f / std::max(1.0f, outer_r - inner_r);
+    i32 x0 = 0, x1 = w, y0 = 0, y1 = h;
+    if (clip) {
+        x0 = std::clamp(clip->x0, 0, w); x1 = std::clamp(clip->x1, 0, w);
+        y0 = std::clamp(clip->y0, 0, h); y1 = std::clamp(clip->y1, 0, h);
+    }
+    for (i32 y = y0; y < y1; ++y) {
+        Color* row = fb.pixels_row(y);
+        for (i32 x = x0; x < x1; ++x) {
+            Color c = row[x];
+            if (c.a <= 0.0f) continue;
+            const f32 dx = static_cast<f32>(x) - cx;
+            const f32 dy = static_cast<f32>(y) - cy;
+            const f32 dist = std::sqrt(dx * dx + dy * dy);
+            f32 vig = std::clamp((dist - inner_r) * inv_range, 0.0f, 1.0f);
+            vig = vig * vig * (3.0f - 2.0f * vig);
+            const f32 t = vig * amount;
+            c.r = c.r * (1.0f - t) + color.r * t;
+            c.g = c.g * (1.0f - t) + color.g * t;
+            c.b = c.b * (1.0f - t) + color.b * t;
+            row[x] = c;
+        }
+    }
+}
+
 } // namespace renderer
 } // namespace chronon3d
