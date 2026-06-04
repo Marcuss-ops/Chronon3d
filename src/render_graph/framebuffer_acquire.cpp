@@ -1,4 +1,4 @@
-#include <chronon3d/render_graph/framebuffer_acquire.hpp>
+#include <chronon3d/render_graph/render_graph_context.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/cache/framebuffer_pool.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
