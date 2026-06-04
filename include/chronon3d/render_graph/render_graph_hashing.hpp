@@ -57,6 +57,14 @@ template <typename T>
     return h;
 }
 
+[[nodiscard]] inline u64 hash_surface_policy(SurfacePolicy policy) {
+    return hash_bytes(&policy, sizeof(policy));
+}
+
+[[nodiscard]] inline u64 hash_transform_policy(TransformPolicy policy) {
+    return hash_bytes(&policy, sizeof(policy));
+}
+
 [[nodiscard]] inline u64 hash_video_source(const video::VideoSource& source) {
     u64 seed = hash_string(source.path);
     seed = hash_combine(seed, hash_bytes(&source.source_start, sizeof(source.source_start)));
@@ -378,6 +386,8 @@ template <typename T>
     seed = hash_combine(seed, hash_color(n.color));
     seed = hash_combine(seed, hash_fill(n.fill));
     seed = hash_combine(seed, hash_value(n.visible));
+    seed = hash_combine(seed, hash_surface_policy(n.surface_policy));
+    seed = hash_combine(seed, hash_transform_policy(n.transform_policy));
     if (n.shadow.enabled) {
         seed = hash_combine(seed, hash_vec2(n.shadow.offset));
         seed = hash_combine(seed, hash_color(n.shadow.color));
@@ -391,6 +401,10 @@ template <typename T>
     return seed;
 }
 
+[[nodiscard]] inline u64 hash_render_node_placement_only(const RenderNode& n) {
+    return hash_transform(n.world_transform);
+}
+
 [[nodiscard]] inline u64 hash_render_node(const RenderNode& n) {
     static thread_local int depth = 0;
     if (depth > 50) return 0; // Prevent stack overflow
@@ -398,7 +412,7 @@ template <typename T>
     struct DepthGuard { ~DepthGuard() { depth--; } } guard;
 
     u64 seed = hash_render_node_content_only(n);
-    return hash_combine(seed, hash_transform(n.world_transform));
+    return hash_combine(seed, hash_render_node_placement_only(n));
 }
 
 } // namespace chronon3d::graph

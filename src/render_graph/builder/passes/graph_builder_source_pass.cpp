@@ -50,6 +50,8 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
 
         if (layer.nodes.size() == 1) {
             const auto& node = layer.nodes[0];
+            const u64 content_hash = hash_render_node_content_only(node);
+            const u64 placement_hash = hash_render_node_placement_only(node);
             GraphNodeId source;
             if (node.shape.type == ShapeType::Text) {
                 cache::NodeCacheKey source_key{
@@ -57,8 +59,8 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                     .frame = is_static ? Frame{0} : ctx.frame,
                     .width = ctx.width,
                     .height = ctx.height,
-                    .params_hash = hash_render_node(node),
-                    .source_hash = hash_bytes(node.name.data(), node.name.size())
+                    .params_hash = content_hash,
+                    .source_hash = hash_combine(hash_string(node.name), placement_hash)
                 };
 
                 const Mat4 text_matrix = use_local
@@ -83,8 +85,8 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                     .frame = is_static ? Frame{0} : ctx.frame,
                     .width = ctx.width,
                     .height = ctx.height,
-                    .params_hash = hash_render_node(node),
-                    .source_hash = hash_string(node.name)
+                    .params_hash = content_hash,
+                    .source_hash = hash_combine(hash_string(node.name), placement_hash)
                 };
 
                 const Mat4 shape_matrix = use_local
@@ -111,7 +113,11 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
         u64 aggregated_params_hash = 0;
         u64 aggregated_source_hash = hash_string(std::string(layer.name) + "_multisource");
         for (const auto& node : layer.nodes) {
-            aggregated_params_hash = hash_combine(aggregated_params_hash, hash_render_node(node));
+            aggregated_params_hash = hash_combine(aggregated_params_hash, hash_render_node_content_only(node));
+            aggregated_source_hash = hash_combine(
+                aggregated_source_hash,
+                hash_combine(hash_string(node.name), hash_render_node_placement_only(node))
+            );
         }
 
         cache::NodeCacheKey source_key{

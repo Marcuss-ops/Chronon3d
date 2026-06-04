@@ -5,6 +5,7 @@
 #include <chronon3d/effects/effect_ids.hpp>
 #include <chronon3d/text/font_engine.hpp>
 
+#include <cmath>
 #include <utility>
 
 namespace chronon3d {
@@ -473,9 +474,18 @@ LayerBuilder& LayerBuilder::soft_pop(Frame duration) {
 LayerBuilder& LayerBuilder::float_idle(f32 amplitude_y, Frame cycle) {
     auto& pos = position_anim();
     pos.loop_mode(LoopMode::Loop);
-    pos.key(Frame{0}, Vec3{0.0f, 0.0f, 0.0f});
-    pos.key(Frame{cycle / 2}, Vec3{0.0f, amplitude_y, 0.0f}, EasingCurve{Easing::InOutSine});
-    pos.key(cycle, Vec3{0.0f, 0.0f, 0.0f}, EasingCurve{Easing::InOutSine});
+
+    // Sample the wave at frame granularity so the transform stays on whole
+    // pixels. This keeps translation-only layers on the integer fast path and
+    // avoids sub-pixel bbox churn that would otherwise force framebuffer
+    // bucket mismatches every frame.
+    const int period = std::max(1, static_cast<int>(cycle));
+    for (int f = 0; f <= period; ++f) {
+        const f32 phase = static_cast<f32>(f) / static_cast<f32>(period);
+        const f32 wave = std::sin(phase * 6.2831853071795864769f);
+        const f32 snapped_y = std::round(wave * amplitude_y);
+        pos.key(Frame{f}, Vec3{0.0f, snapped_y, 0.0f});
+    }
     return *this;
 }
 
@@ -541,7 +551,157 @@ LayerBuilder& LayerBuilder::settle(f32 overshoot, Frame duration) {
     return *this;
 }
 
+LayerBuilder& LayerBuilder::fade_in(Frame duration, EasingCurve easing) {
+    auto& op = opacity_anim();
+    op.key(Frame{0}, 0.0f, easing);
+    op.key(duration, m_layer.transform.opacity);
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::focus_in(f32 start_blur, Frame duration, EasingCurve easing) {
+    auto& bl = blur_anim();
+    bl.key(Frame{0}, start_blur, easing);
+    bl.key(duration, 0.0f);
+
+    auto& op = opacity_anim();
+    op.key(Frame{0}, 0.0f, easing);
+    op.key(duration, m_layer.transform.opacity);
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::scale_drop(f32 start_scale, Frame duration, EasingCurve easing) {
+    auto& sc = scale_anim();
+    sc.key(Frame{0}, Vec3{start_scale, start_scale, 1.0f}, easing);
+    sc.key(duration, m_layer.transform.scale);
+
+    auto& op = opacity_anim();
+    op.key(Frame{0}, 0.0f, easing);
+    op.key(duration, m_layer.transform.opacity);
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::fade_shift_vertical(Vec3 offset, Frame duration, EasingCurve easing) {
+    auto& pos = position_anim();
+    pos.key(Frame{0}, m_layer.transform.position + offset, easing);
+    pos.key(duration, m_layer.transform.position);
+
+    auto& op = opacity_anim();
+    op.key(Frame{0}, 0.0f, easing);
+    op.key(duration, m_layer.transform.opacity);
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::fade_shift_horizontal(Vec3 offset, Frame duration, EasingCurve easing) {
+    auto& pos = position_anim();
+    pos.key(Frame{0}, m_layer.transform.position + offset, easing);
+    pos.key(duration, m_layer.transform.position);
+
+    auto& op = opacity_anim();
+    op.key(Frame{0}, 0.0f, easing);
+    op.key(duration, m_layer.transform.opacity);
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::reveal_from_bottom(f32 distance, Frame duration, EasingCurve easing) {
+    auto& pos = position_anim();
+    Vec3 start = m_layer.transform.position;
+    start.y += distance;
+    pos.key(Frame{0}, start, easing);
+    pos.key(duration, m_layer.transform.position);
+
+    auto& op = opacity_anim();
+    op.key(Frame{0}, 0.0f, easing);
+    op.key(duration, m_layer.transform.opacity);
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::center_split(Frame duration, EasingCurve easing) {
+    auto& sc = scale_anim();
+    sc.key(Frame{0}, Vec3{1.0f, 0.0f, 1.0f}, easing);
+    sc.key(duration, m_layer.transform.scale);
+
+    auto& op = opacity_anim();
+    op.key(Frame{0}, 0.0f, easing);
+    op.key(duration, m_layer.transform.opacity);
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::underline_draw(Frame duration, EasingCurve easing) {
+    auto& sc = scale_anim();
+    sc.key(Frame{0}, Vec3{0.0f, 1.0f, 1.0f}, easing);
+    sc.key(duration, m_layer.transform.scale);
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::highlight_block(Frame duration, EasingCurve easing) {
+    auto& sc = scale_anim();
+    sc.key(Frame{0}, Vec3{0.0f, 1.0f, 1.0f}, easing);
+    sc.key(duration, m_layer.transform.scale);
+
+    auto& op = opacity_anim();
+    op.key(Frame{0}, 0.0f, easing);
+    op.key(duration, m_layer.transform.opacity);
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::framing_bracket(Frame duration, EasingCurve easing) {
+    auto& sc = scale_anim();
+    sc.key(Frame{0}, Vec3{1.0f, 0.0f, 1.0f}, easing);
+    sc.key(duration, m_layer.transform.scale);
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::word_stagger(Frame delay, Frame duration, EasingCurve easing) {
+    auto& op = opacity_anim();
+    op.key(Frame{0}, 0.0f, easing);
+    op.key(delay, 0.0f, easing);
+    op.key(delay + duration, m_layer.transform.opacity);
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::tracking_breathing(f32 scale_factor, Frame duration, EasingCurve easing) {
+    auto& sc = scale_anim();
+    sc.key(Frame{0}, m_layer.transform.scale * scale_factor, easing);
+    sc.key(duration, m_layer.transform.scale);
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::elegant_exit_vertical(Vec3 offset, Frame duration, EasingCurve easing) {
+    auto& pos = position_anim();
+    pos.key(Frame{0}, m_layer.transform.position, easing);
+    pos.key(duration, m_layer.transform.position + offset);
+
+    auto& op = opacity_anim();
+    op.key(Frame{0}, m_layer.transform.opacity, easing);
+    op.key(duration, 0.0f);
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::elegant_exit_horizontal(Vec3 offset, Frame duration, EasingCurve easing) {
+    auto& pos = position_anim();
+    pos.key(Frame{0}, m_layer.transform.position, easing);
+    pos.key(duration, m_layer.transform.position + offset);
+
+    auto& op = opacity_anim();
+    op.key(Frame{0}, m_layer.transform.opacity, easing);
+    op.key(duration, 0.0f);
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::curtain_close(Frame duration, EasingCurve easing) {
+    auto& sc = scale_anim();
+    sc.key(Frame{0}, m_layer.transform.scale, easing);
+    sc.key(duration, Vec3{m_layer.transform.scale.x, 0.0f, m_layer.transform.scale.z});
+
+    auto& op = opacity_anim();
+    op.key(Frame{0}, m_layer.transform.opacity, easing);
+    op.key(duration, 0.0f);
+    return *this;
+}
+
 LayerBuilder& LayerBuilder::screen_dimensions(f32 w, f32 h) {
+
+
     m_screen_width = w;
     m_screen_height = h;
     return *this;

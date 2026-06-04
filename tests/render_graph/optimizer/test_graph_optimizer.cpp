@@ -1,5 +1,7 @@
 #include <doctest/doctest.h>
 
+#include <array>
+
 #include <chronon3d/render_graph/optimizer/graph_optimizer.hpp>
 #include <chronon3d/render_graph/render_graph.hpp>
 #include <chronon3d/render_graph/render_graph_node.hpp>
@@ -124,6 +126,24 @@ TEST_CASE("Pruning - non-identity transform is kept") {
 
     CHECK(pruned == 0);
     CHECK(graph.live_count() == 2);
+}
+
+TEST_CASE("TransformNode pure translation keeps a stable bbox size across subpixel offsets") {
+    RenderGraphContext ctx = make_test_context(1920, 1080);
+    std::array<std::optional<raster::BBox>, 1> input_bboxes{
+        std::optional<raster::BBox>{raster::BBox{100, 200, 420, 360}}
+    };
+
+    TransformNode tx_a(glm::translate(Mat4(1.0f), Vec3(0.25f, 0.0f, 0.0f)), 1.0f);
+    TransformNode tx_b(glm::translate(Mat4(1.0f), Vec3(0.75f, 0.0f, 0.0f)), 1.0f);
+
+    auto bbox_a = tx_a.predicted_bbox(ctx, input_bboxes);
+    auto bbox_b = tx_b.predicted_bbox(ctx, input_bboxes);
+
+    REQUIRE(bbox_a.has_value());
+    REQUIRE(bbox_b.has_value());
+    CHECK((bbox_a->x1 - bbox_a->x0) == (bbox_b->x1 - bbox_b->x0));
+    CHECK((bbox_a->y1 - bbox_a->y0) == (bbox_b->y1 - bbox_b->y0));
 }
 
 TEST_CASE("Pruning - identity transform with multiple consumers is kept") {
