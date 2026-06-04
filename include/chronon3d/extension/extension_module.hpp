@@ -1,6 +1,29 @@
 #pragma once
 
+#include <cstdint>
 #include <string_view>
+
+// ── Plugin export macro ──────────────────────────────────────────────────────
+// Plugin shared libraries must export a descriptor struct using this macro.
+//
+// Example:
+//   CHRONON_MODULE_EXPORT {
+//       .api_version = CHRONON_MODULE_API_VERSION,
+//       .id         = "my_plugin",
+//       .create     = []() -> std::unique_ptr<ExtensionModule> {
+//           return std::make_unique<MyPluginModule>();
+//       },
+//   };
+//
+#ifdef _WIN32
+  #define CHRONON_MODULE_EXPORT extern "C" __declspec(dllexport)
+#else
+  #define CHRONON_MODULE_EXPORT extern "C" __attribute__((visibility("default")))
+#endif
+
+/// API version baked into plugin descriptors.  The loader rejects plugins
+/// compiled against a different major version.
+static constexpr std::uint32_t CHRONON_MODULE_API_VERSION = 1;
 
 namespace chronon3d {
 

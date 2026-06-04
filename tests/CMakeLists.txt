@@ -54,8 +54,9 @@ add_executable(chronon3d_core_tests
     text/test_font_engine.cpp
     media/test_media_placement.cpp
     scene_presets/test_scene_presets.cpp
+    extension/test_extension_loader.cpp
 )
-target_link_libraries(chronon3d_core_tests PRIVATE chronon3d_pipeline doctest::doctest)
+target_link_libraries(chronon3d_core_tests PRIVATE chronon3d_pipeline chronon3d_extension doctest::doctest)
 target_include_directories(chronon3d_core_tests PRIVATE ${CMAKE_SOURCE_DIR})
 chronon3d_enable_test_pch(chronon3d_core_tests)
 add_test(NAME chronon3d_core_tests COMMAND chronon3d_core_tests WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
