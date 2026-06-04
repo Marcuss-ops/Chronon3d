@@ -55,6 +55,12 @@ add_executable(chronon3d_core_tests
     media/test_media_placement.cpp
     scene_presets/test_scene_presets.cpp
     extension/test_extension_loader.cpp
+    extension/test_extension_registry.cpp
+    extension/test_graph_node_registry.cpp
+    architecture/test_protected_core_contracts.cpp
+    render_graph/executor/test_cache_key_contract.cpp
+    render_graph/executor/test_framebuffer_lifetime.cpp
+    render_graph/builder/test_graph_build_pass_order.cpp
 )
 target_link_libraries(chronon3d_core_tests PRIVATE chronon3d_pipeline chronon3d_extension doctest::doctest)
 target_include_directories(chronon3d_core_tests PRIVATE ${CMAKE_SOURCE_DIR})
@@ -106,6 +112,9 @@ add_executable(chronon3d_scene_tests
     scene/camera_path_sampler_tests.cpp
     scene/camera/test_camera_motion_path.cpp
     scene/test_scene_validator.cpp
+    scene/test_layer_order_contract.cpp
+    render_graph/builder/test_graph_snapshot.cpp
+    specscene/test_specscene_compile_contract.cpp
 )
 target_link_libraries(chronon3d_scene_tests PRIVATE chronon3d_pipeline chronon3d_scene chronon3d_backend_software doctest::doctest)
 target_include_directories(chronon3d_scene_tests PRIVATE ${CMAKE_SOURCE_DIR})
@@ -155,6 +164,7 @@ add_executable(chronon3d_renderer_tests
     render_graph/pipeline/test_grid_math.cpp
     render_graph/pipeline/test_render_backend.cpp
     render_graph/pipeline/test_dirty_rects.cpp
+    render_graph/pipeline/test_dirty_rect_contract.cpp
     render_graph/optimizer/test_graph_optimizer.cpp
     render_graph/compiler/test_frame_graph_compiler.cpp
     render_graph/pipeline/test_dirty_rects_v2.cpp

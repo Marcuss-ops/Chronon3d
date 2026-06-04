@@ -71,7 +71,6 @@ set(CHRONON3D_GRAPH_SOURCES
     render_graph/executor/framebuffer_lifetime.cpp
     render_graph/graph_profiler.cpp
     render_graph/render_graph.cpp
-    render_graph/render_graph_context.cpp
     render_graph/framebuffer_acquire.cpp
     render_graph/pipeline/scene.cpp
     render_graph/pipeline/scene_dirty.cpp
