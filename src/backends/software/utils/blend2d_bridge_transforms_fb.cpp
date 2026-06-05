@@ -22,6 +22,7 @@ namespace chronon3d::blend2d_bridge {
 void composite_framebuffer_transformed(Framebuffer& dst_fb, const Framebuffer& src_fb, const Mat4& model, float opacity, BlendMode mode, const RenderState* state) {
     const int sw = src_fb.width();
     const int sh = src_fb.height();
+    const int src_stride = src_fb.stride();
     const Color* src_base = src_fb.data();
 
     if (detail::is_simple_translation(model)) {
@@ -42,7 +43,7 @@ void composite_framebuffer_transformed(Framebuffer& dst_fb, const Framebuffer& s
 
     auto sample_source = [&](float lx, float ly, Color& src) {
         if (!downscale_x && !downscale_y) {
-            sample_bilinear_float(src_base, sw, sw, sh, lx, ly, src);
+            sample_bilinear_float(src_base, src_stride, sw, sh, lx, ly, src);
             return;
         }
 
@@ -52,10 +53,10 @@ void composite_framebuffer_transformed(Framebuffer& dst_fb, const Framebuffer& s
         const float sy1 = downscale_y ? (ly + sample_oy) : ly;
 
         Color c0, c1, c2, c3;
-        sample_bilinear_float(src_base, sw, sw, sh, sx0, sy0, c0);
-        sample_bilinear_float(src_base, sw, sw, sh, sx1, sy0, c1);
-        sample_bilinear_float(src_base, sw, sw, sh, sx0, sy1, c2);
-        sample_bilinear_float(src_base, sw, sw, sh, sx1, sy1, c3);
+        sample_bilinear_float(src_base, src_stride, sw, sh, sx0, sy0, c0);
+        sample_bilinear_float(src_base, src_stride, sw, sh, sx1, sy0, c1);
+        sample_bilinear_float(src_base, src_stride, sw, sh, sx0, sy1, c2);
+        sample_bilinear_float(src_base, src_stride, sw, sh, sx1, sy1, c3);
 
         src.r = (c0.r + c1.r + c2.r + c3.r) * 0.25f;
         src.g = (c0.g + c1.g + c2.g + c3.g) * 0.25f;
@@ -99,8 +100,8 @@ void composite_framebuffer_transformed(Framebuffer& dst_fb, const Framebuffer& s
                     sy1 = std::clamp(sy1, 0, sh - 1);
                     const float wyb = 1.0f - ty_factor;
                     const float wyt = ty_factor;
-                    const Color* src_row0 = src_base + sy0 * sw;
-                    const Color* src_row1 = src_base + sy1 * sw;
+                    const Color* src_row0 = src_base + sy0 * src_stride;
+                    const Color* src_row1 = src_base + sy1 * src_stride;
 
                     int x = x0_st;
 #if defined(__AVX2__)

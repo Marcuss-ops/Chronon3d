@@ -50,6 +50,7 @@ inline bool is_implicit_2d_centering_only(const LayerGraphItem& item, const Rend
     if (item.layer->uses_2_5d_projection) return false;
     if (item.layer->kind != LayerKind::Normal) return false;
     if (!item.transform.any()) return false;
+    if (item.transform.opacity != 1.0f) return false;
 
     return matrix_near(item.transform.to_mat4(), implicit_canvas_center_matrix(ctx));
 }

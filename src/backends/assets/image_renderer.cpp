@@ -7,8 +7,89 @@
 #include <spdlog/spdlog.h>
 #include <algorithm>
 #include <cmath>
+#include <sstream>
 
 namespace chronon3d {
+
+namespace {
+
+float rounded_rect_coverage(float x, float y, float w, float h, float radius) {
+    if (radius <= 0.0f) {
+        return 1.0f;
+    }
+
+    const float r = std::min({radius, w * 0.5f, h * 0.5f});
+    const float inner_x0 = r;
+    const float inner_y0 = r;
+    const float inner_x1 = w - r;
+    const float inner_y1 = h - r;
+    const float cx = std::clamp(x, inner_x0, inner_x1);
+    const float cy = std::clamp(y, inner_y0, inner_y1);
+    const float dx = x - cx;
+    const float dy = y - cy;
+    const float dist = std::sqrt(dx * dx + dy * dy);
+
+    return std::clamp(r + 0.5f - dist, 0.0f, 1.0f);
+}
+
+std::string rounded_cache_key(const std::string& path, int width, int height, float radius) {
+    const int quantized_radius = static_cast<int>(std::round(radius * 64.0f));
+    std::ostringstream key;
+    key << path << '#' << width << 'x' << height << "#r" << quantized_radius;
+    return key.str();
+}
+
+} // namespace
+
+std::shared_ptr<const Framebuffer> ImageRenderer::rounded_framebuffer(
+    const std::string& path,
+    const CachedImage& cached,
+    float radius
+) {
+    if (!cached.fb_img || radius <= 0.0f) {
+        return nullptr;
+    }
+
+    const std::string key = rounded_cache_key(path, cached.width, cached.height, radius);
+    {
+        std::lock_guard<std::mutex> lock(m_rounded_mutex);
+        auto it = m_rounded_framebuffers.find(key);
+        if (it != m_rounded_framebuffers.end()) {
+            return it->second;
+        }
+    }
+
+    auto rounded = std::make_shared<Framebuffer>(cached.width, cached.height);
+    rounded->set_opaque(false);
+
+    const float w = static_cast<float>(cached.width);
+    const float h = static_cast<float>(cached.height);
+    for (int y = 0; y < cached.height; ++y) {
+        const Color* src_row = cached.fb_img->pixels_row(y);
+        Color* dst_row = rounded->pixels_row(y);
+        for (int x = 0; x < cached.width; ++x) {
+            const float coverage = rounded_rect_coverage(
+                static_cast<float>(x) + 0.5f,
+                static_cast<float>(y) + 0.5f,
+                w,
+                h,
+                radius
+            );
+            Color c = src_row[x];
+            c.r *= coverage;
+            c.g *= coverage;
+            c.b *= coverage;
+            c.a *= coverage;
+            dst_row[x] = c;
+        }
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(m_rounded_mutex);
+        m_rounded_framebuffers[key] = rounded;
+    }
+    return rounded;
+}
 
 bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state, Framebuffer& fb) {
     if (image.path.empty() || image.size.x <= 0 || image.size.y <= 0) {
@@ -87,12 +168,6 @@ bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state
 
     if (src_w <= 0 || src_h <= 0) return true;
 
-    // Create a sub-image and blit the cropped region into it using Blend2D context
-    BLImage sub_img(src_w, src_h, BL_FORMAT_PRGB32);
-    BLContext ctx(sub_img);
-    ctx.blitImage(BLPointI(0, 0), render_img, BLRectI(src_x, src_y, src_w, src_h));
-    ctx.end();
-
     // Scale mapping from sub_img space [0,0 -> src_w,src_h] to destination dst_rect
     Vec2 scale = placement.dst_rect.size / Vec2(static_cast<float>(src_w), static_cast<float>(src_h));
     Mat4 scaled_model = state.matrix
@@ -133,10 +208,20 @@ bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state
         scaled_model[3][1]
     );
 
-    bool use_fast_fb = (image.radius <= 0.0f && !image.crop.enabled && image.fit == FitMode::Stretch && cached && cached->fb_img);
-    if (use_fast_fb) {
+    const bool full_source = src_x == 0 && src_y == 0 && src_w == img_w && src_h == img_h;
+    const bool use_cached_fb = full_source && !using_placeholder && image.fit == FitMode::Stretch && cached && cached->fb_img;
+    if (use_cached_fb && image.radius <= 0.0f) {
         blend2d_bridge::composite_framebuffer_transformed(fb, *cached->fb_img, scaled_model, final_opacity, BlendMode::Normal, &state);
+    } else if (use_cached_fb && image.radius > 0.0f) {
+        if (auto rounded = rounded_framebuffer(image.path, *cached, scaled_radius)) {
+            blend2d_bridge::composite_framebuffer_transformed(fb, *rounded, scaled_model, final_opacity, BlendMode::Normal, &state);
+        }
     } else {
+        // Crop/cover/focal placement still needs a materialized source image.
+        BLImage sub_img(src_w, src_h, BL_FORMAT_PRGB32);
+        BLContext ctx(sub_img);
+        ctx.blitImage(BLPointI(0, 0), render_img, BLRectI(src_x, src_y, src_w, src_h));
+        ctx.end();
         blend2d_bridge::composite_bl_image_transformed(fb, sub_img, scaled_model, final_opacity, BlendMode::Normal, &state, scaled_radius);
     }
 
