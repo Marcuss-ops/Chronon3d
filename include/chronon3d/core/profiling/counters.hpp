@@ -73,6 +73,10 @@ constexpr std::size_t kHardwareDestructiveInterferenceSize = 64;
     X(framebuffer_lifetime_ms) \
     X(node_schedule_ms) \
     X(node_dispatch_ms) \
+    X(node_execute_actual_ms) \
+    X(node_overhead_ms) \
+    X(level_parallel_count) \
+    X(level_sequential_count) \
     X(telemetry_emit_ms) \
     X(bypass_not_cacheable_count) \
     X(nodes_skipped) \

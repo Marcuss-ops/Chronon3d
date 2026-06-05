@@ -42,28 +42,66 @@ void execute_levels(
         std::vector<double> level_cache_ms(level.size(), 0.0);
         std::vector<double> level_dirty_ms(level.size(), 0.0);
         std::vector<double> level_telemetry_ms(level.size(), 0.0);
+        std::vector<double> level_execute_ms(level.size(), 0.0);
 
-        tbb::parallel_for(
-            tbb::blocked_range<size_t>(0, level.size()),
-            [&](const tbb::blocked_range<size_t>& range) {
-                for (size_t level_index = range.begin(); level_index != range.end(); ++level_index) {
-                    execute_single_node(
-                        state,
-                        graph,
-                        ctx,
-                        level_resolved,
-                        level[level_index],
-                        level_index,
-                        parent_counters,
-                        parent_pool,
-                        consumer_remaining,
-                        &level_cache_ms[level_index],
-                        &level_dirty_ms[level_index],
-                        &level_telemetry_ms[level_index]
-                    );
-                }
+        // TBB parallel_for has measurable overhead (~5-50µs per spawn).
+        // For small execution levels (≤4 nodes), run sequentially to avoid
+        // paying the parallel scheduling tax for no benefit.
+        // The overhead of spawning N threads for tiny workloads can exceed
+        // the actual work — this was the #1 gap between node_dispatch_ms
+        // and hot-node sums in the MinimalistImageTrackingBreathing preset.
+        const bool use_parallel = level.size() > 4;
+
+        if (parent_counters) {
+            if (use_parallel) {
+                parent_counters->level_parallel_count.fetch_add(1, std::memory_order_relaxed);
+            } else {
+                parent_counters->level_sequential_count.fetch_add(1, std::memory_order_relaxed);
             }
-        );
+        }
+
+        if (use_parallel) {
+            tbb::parallel_for(
+                tbb::blocked_range<size_t>(0, level.size()),
+                [&](const tbb::blocked_range<size_t>& range) {
+                    for (size_t level_index = range.begin(); level_index != range.end(); ++level_index) {
+                        execute_single_node(
+                            state,
+                            graph,
+                            ctx,
+                            level_resolved,
+                            level[level_index],
+                            level_index,
+                            parent_counters,
+                            parent_pool,
+                            consumer_remaining,
+                            &level_cache_ms[level_index],
+                            &level_dirty_ms[level_index],
+                            &level_telemetry_ms[level_index],
+                            &level_execute_ms[level_index]
+                        );
+                    }
+                }
+            );
+        } else {
+            for (size_t level_index = 0; level_index < level.size(); ++level_index) {
+                execute_single_node(
+                    state,
+                    graph,
+                    ctx,
+                    level_resolved,
+                    level[level_index],
+                    level_index,
+                    parent_counters,
+                    parent_pool,
+                    consumer_remaining,
+                    &level_cache_ms[level_index],
+                    &level_dirty_ms[level_index],
+                    &level_telemetry_ms[level_index],
+                    &level_execute_ms[level_index]
+                );
+            }
+        }
 
         const auto t_dispatch1 = std::chrono::steady_clock::now();
 
@@ -72,12 +110,18 @@ void execute_levels(
         const auto t_fb1 = std::chrono::steady_clock::now();
 
         if (parent_counters) {
-            double cache_sum = 0.0, dirty_sum = 0.0, telemetry_sum = 0.0;
+            double cache_sum = 0.0, dirty_sum = 0.0, telemetry_sum = 0.0, execute_sum = 0.0;
             for (size_t i = 0; i < level.size(); ++i) {
                 cache_sum += level_cache_ms[i];
                 dirty_sum += level_dirty_ms[i];
                 telemetry_sum += level_telemetry_ms[i];
+                execute_sum += level_execute_ms[i];
             }
+
+            const double dispatch_ms = std::chrono::duration<double, std::milli>(t_dispatch1 - t_schedule1).count();
+            double overhead_ms = dispatch_ms - execute_sum - cache_sum - dirty_sum - telemetry_sum;
+            if (overhead_ms < 0.0) overhead_ms = 0.0;
+
             parent_counters->input_resolve_ms.fetch_add(
                 static_cast<uint64_t>(std::llround(std::chrono::duration<double, std::milli>(t_input1 - t_input0).count())),
                 std::memory_order_relaxed);
@@ -85,7 +129,7 @@ void execute_levels(
                 static_cast<uint64_t>(std::llround(std::chrono::duration<double, std::milli>(t_schedule1 - t_schedule0).count())),
                 std::memory_order_relaxed);
             parent_counters->node_dispatch_ms.fetch_add(
-                static_cast<uint64_t>(std::llround(std::chrono::duration<double, std::milli>(t_dispatch1 - t_schedule1).count())),
+                static_cast<uint64_t>(std::llround(dispatch_ms)),
                 std::memory_order_relaxed);
             parent_counters->framebuffer_lifetime_ms.fetch_add(
                 static_cast<uint64_t>(std::llround(std::chrono::duration<double, std::milli>(t_fb1 - t_fb0).count())),
@@ -98,6 +142,12 @@ void execute_levels(
                 std::memory_order_relaxed);
             parent_counters->telemetry_emit_ms.fetch_add(
                 static_cast<uint64_t>(std::llround(telemetry_sum)),
+                std::memory_order_relaxed);
+            parent_counters->node_execute_actual_ms.fetch_add(
+                static_cast<uint64_t>(std::llround(execute_sum)),
+                std::memory_order_relaxed);
+            parent_counters->node_overhead_ms.fetch_add(
+                static_cast<uint64_t>(std::llround(overhead_ms)),
                 std::memory_order_relaxed);
         }
     }
