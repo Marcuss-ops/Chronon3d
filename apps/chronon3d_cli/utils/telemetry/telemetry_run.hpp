@@ -26,6 +26,11 @@ inline std::vector<chronon3d::telemetry::CounterTelemetryRecord> capture_counter
         {"tiles_miss", counters.tiles_miss.load(std::memory_order_relaxed)},
         {"tiles_partial", counters.tiles_partial.load(std::memory_order_relaxed)},
         {"node_cache_hash_collisions", counters.node_cache_hash_collisions.load(std::memory_order_relaxed)},
+        {"graph_resolve_layers_ms", counters.graph_resolve_layers_ms.load(std::memory_order_relaxed)},
+        {"graph_dirty_rect_ms", counters.graph_dirty_rect_ms.load(std::memory_order_relaxed)},
+        {"graph_build_ms", counters.graph_build_ms.load(std::memory_order_relaxed)},
+        {"graph_execute_ms", counters.graph_execute_ms.load(std::memory_order_relaxed)},
+        {"graph_total_ms", counters.graph_total_ms.load(std::memory_order_relaxed)},
         {"clear_calls", counters.clear_calls.load(std::memory_order_relaxed)},
         {"clear_pixels", counters.clear_pixels.load(std::memory_order_relaxed)},
         {"clear_copy_pixels", counters.clear_copy_pixels.load(std::memory_order_relaxed)},
@@ -132,6 +137,11 @@ inline void add_counters(chronon3d::RenderCounters& dst, const chronon3d::Render
     dst.tiles_miss.fetch_add(src.tiles_miss.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.tiles_partial.fetch_add(src.tiles_partial.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.node_cache_hash_collisions.fetch_add(src.node_cache_hash_collisions.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.graph_resolve_layers_ms.fetch_add(src.graph_resolve_layers_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.graph_dirty_rect_ms.fetch_add(src.graph_dirty_rect_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.graph_build_ms.fetch_add(src.graph_build_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.graph_execute_ms.fetch_add(src.graph_execute_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.graph_total_ms.fetch_add(src.graph_total_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.clear_calls.fetch_add(src.clear_calls.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.clear_pixels.fetch_add(src.clear_pixels.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.clear_copy_pixels.fetch_add(src.clear_copy_pixels.load(std::memory_order_relaxed), std::memory_order_relaxed);
@@ -268,6 +278,22 @@ inline void populate_run_metrics(chronon3d::telemetry::RenderTelemetryRecord& ru
     run.ffmpeg_cpu_sys_pct = counters.ffmpeg_cpu_sys_pct.load(std::memory_order_relaxed);
     run.llc_references = counters.llc_references.load(std::memory_order_relaxed);
     run.llc_misses = counters.llc_misses.load(std::memory_order_relaxed);
+}
+
+inline std::vector<chronon3d::telemetry::PhaseTelemetryRecord> capture_graph_phase_records(const chronon3d::RenderCounters& counters) {
+    std::vector<chronon3d::telemetry::PhaseTelemetryRecord> phases;
+    const auto add_phase = [&](const char* name, uint64_t value) {
+        if (value > 0) {
+            phases.push_back({name, static_cast<double>(value)});
+        }
+    };
+
+    add_phase("graph_resolve_layers_ms", counters.graph_resolve_layers_ms.load(std::memory_order_relaxed));
+    add_phase("graph_dirty_rect_ms", counters.graph_dirty_rect_ms.load(std::memory_order_relaxed));
+    add_phase("graph_build_ms", counters.graph_build_ms.load(std::memory_order_relaxed));
+    add_phase("graph_execute_ms", counters.graph_execute_ms.load(std::memory_order_relaxed));
+    add_phase("graph_total_ms", counters.graph_total_ms.load(std::memory_order_relaxed));
+    return phases;
 }
 
 inline void record_output_run(const std::string& composition_id,
