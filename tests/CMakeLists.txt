@@ -272,6 +272,7 @@ add_executable(chronon3d_cli_tests
     cli/test_video_pipeline_producer_consumer.cpp
     cli/test_pipe_export_helpers.cpp
     cli/test_pipe_export_session.cpp
+    cli/test_render_loop_integration.cpp
     cli/bench_json_tests.cpp
     cli/test_camera_path_command.cpp
     ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/common/cli_utils.cpp

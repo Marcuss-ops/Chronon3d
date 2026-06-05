@@ -13,7 +13,7 @@
 
 namespace chronon3d::cli {
 
-int render_and_encode_ffmpeg_chunked(
+ChunkedExportResult render_and_encode_ffmpeg_chunked(
     const CompositionRegistry& registry,
     const Composition& comp,
     const std::string& composition_id,
@@ -22,16 +22,19 @@ int render_and_encode_ffmpeg_chunked(
     Frame end,
     const FfmpegExportOptions& opts)
 {
+    ChunkedExportResult result;
+    result.frames_total = static_cast<int>(end - start);
+
     profiling::g_live_framebuffer_bytes.store(0, std::memory_order_relaxed);
     profiling::g_peak_live_framebuffer_bytes.store(0, std::memory_order_relaxed);
 
-    const int total = static_cast<int>(end - start);
+    const int total = result.frames_total;
     const std::filesystem::path frames_dir = std::filesystem::temp_directory_path() / opts.frames_dir_name;
     std::error_code ec;
     std::filesystem::create_directories(frames_dir, ec);
     if (ec) {
         spdlog::error("[video] Cannot create frames dir {}: {}", frames_dir.string(), ec.message());
-        return 1;
+        return result; // return_code=1, success=false (defaults)
     }
 
     int chunks = std::max(1, std::min(opts.chunks, total));
@@ -228,14 +231,13 @@ int render_and_encode_ffmpeg_chunked(
     const auto render_t1 = std::chrono::steady_clock::now();
     const auto setup_t1 = setup_done_at;
 
-    bool success = true;
-    if (failed.load()) {
+    result.chunk_failed = failed.load();
+    if (result.chunk_failed) {
         spdlog::error("[video] Chunked render failed");
-        success = false;
     }
 
-    const int frames_written = frames_done.load();
-    double encode_ms = 0.0;
+    result.frames_written = frames_done.load();
+    bool success = !result.chunk_failed;
 
     if (success) {
         const auto output_parent = std::filesystem::path(opts.output).parent_path();
@@ -244,6 +246,7 @@ int render_and_encode_ffmpeg_chunked(
             if (ec) {
                 spdlog::error("[video] Cannot create output directory {}: {}", output_parent.string(), ec.message());
                 success = false;
+                result.encode_failed = true;  // pre-encode setup failure
             }
         }
 
@@ -259,11 +262,12 @@ int render_and_encode_ffmpeg_chunked(
             const auto encode_t0 = std::chrono::steady_clock::now();
             const int rc = std::system(cmd.c_str());
             const auto encode_t1 = std::chrono::steady_clock::now();
-            encode_ms = std::chrono::duration<double, std::milli>(encode_t1 - encode_t0).count();
+            result.encode_ms = std::chrono::duration<double, std::milli>(encode_t1 - encode_t0).count();
 
             if (rc != 0) {
                 spdlog::error("[video] ffmpeg exited with code {}", rc);
                 success = false;
+                result.encode_failed = true;
             }
         }
     }
@@ -273,8 +277,16 @@ int render_and_encode_ffmpeg_chunked(
     }
 
     const auto wall_t1 = std::chrono::steady_clock::now();
-    const double render_ms = std::chrono::duration<double, std::milli>(render_t1 - render_t0).count();
-    const double wall_time_ms = std::chrono::duration<double, std::milli>(wall_t1 - wall_t0).count();
+    result.render_ms = std::chrono::duration<double, std::milli>(render_t1 - render_t0).count();
+    result.wall_time_ms = std::chrono::duration<double, std::milli>(wall_t1 - wall_t0).count();
+    result.success = success;
+    result.return_code = success ? 0 : 1;
+
+    const double render_ms = result.render_ms;
+    const double wall_time_ms = result.wall_time_ms;
+    const double encode_ms = result.encode_ms;
+    const int frames_written = result.frames_written;
+
     std::sort(telemetry_frames.begin(), telemetry_frames.end(),
               [](const auto& a, const auto& b) { return a.frame_number < b.frame_number; });
     const auto phases = std::vector<chronon3d::telemetry::PhaseTelemetryRecord>{
@@ -308,11 +320,11 @@ int render_and_encode_ffmpeg_chunked(
         /*tile_events=*/tile_events);
 
     if (!success) {
-        return 1;
+        return result;
     }
 
     spdlog::info("[video] Done → {}", opts.output);
-    return 0;
+    return result;
 }
 
 } // namespace chronon3d::cli
