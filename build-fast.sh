@@ -47,8 +47,14 @@ case "${TARGET}" in
         $BUILD_DIR/tests/chronon3d_core_tests -tc="$filter"
         ;;
     all|fast|"")
-        build_target "chronon3d_cli"
-        build_target "chronon3d_tests_fast"
+        echo "╔══════════════════════════════════════════╗"
+        echo "║  Building: cli + tests_fast (parallel)   ║"
+        echo "╚══════════════════════════════════════════╝"
+        cmake --build "$BUILD_DIR" --target chronon3d_cli -j8 &
+        cmake --build "$BUILD_DIR" --target chronon3d_tests_fast -j8 &
+        wait -n  # wait for first to finish
+        wait     # wait for remaining
+        echo "✅ Both targets built."
         ;;
     *)
         # Assume it's a CMake target name
