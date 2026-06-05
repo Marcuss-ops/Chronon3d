@@ -89,7 +89,6 @@ Composition lil_dirk() {
         s.layer("title", [&ctx](auto& l) {
             l.from(0).duration(180);
             l.enable_3d();
-            std::printf("Rendertest - frame: %d\n", (int)ctx.frame);
 
             l.position_anim()
              .key(0, Vec3{0.0f, 0.0f, 0.0f}, Easing::InOutCubic)
