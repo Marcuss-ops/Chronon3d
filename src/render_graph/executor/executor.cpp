@@ -18,6 +18,7 @@
 #include <chronon3d/core/profiling/counters.hpp>
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <thread>
 
 #if defined(__linux__)
@@ -111,11 +112,18 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
         state.resolved_bboxes.resize(node_count);
 
         // ── Pre-allocate shared transparent framebuffer for tile pruning ──
+        const auto t_fb0 = std::chrono::steady_clock::now();
         init_shared_transparent_fb(state, ctx, res);
 
         auto consumer_remaining = init_consumer_remaining(
             node_count, plan.consumer_counts, res
         );
+        const auto t_fb1 = std::chrono::steady_clock::now();
+        if (ctx.counters) {
+            ctx.counters->framebuffer_lifetime_ms.fetch_add(
+                static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t_fb1 - t_fb0).count()),
+                std::memory_order_relaxed);
+        }
 
         auto* parent_counters = profiling::g_current_counters;
         auto* parent_pool = profiling::g_current_framebuffer_pool;
@@ -157,11 +165,18 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
         state.resolved_bboxes.resize(node_count);
 
         // ── Pre-allocate shared transparent framebuffer for tile pruning ──
+        const auto t_fb0 = std::chrono::steady_clock::now();
         init_shared_transparent_fb(state, ctx, res);
 
         auto consumer_remaining = init_consumer_remaining(
             node_count, consumer_counts, res
         );
+        const auto t_fb1 = std::chrono::steady_clock::now();
+        if (ctx.counters) {
+            ctx.counters->framebuffer_lifetime_ms.fetch_add(
+                static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t_fb1 - t_fb0).count()),
+                std::memory_order_relaxed);
+        }
 
         auto* parent_counters = profiling::g_current_counters;
         auto* parent_pool = profiling::g_current_framebuffer_pool;

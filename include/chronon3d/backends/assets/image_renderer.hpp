@@ -18,7 +18,7 @@ public:
 
     void clear_cache() {
         ImageCache::instance().clear();
-        std::lock_guard<std::mutex> lock(m_rounded_mutex);
+        std::lock_guard<std::mutex> lock(*m_rounded_mutex);
         m_rounded_framebuffers.clear();
     }
 
@@ -29,7 +29,7 @@ private:
         float radius
     );
 
-    std::mutex m_rounded_mutex;
+    std::unique_ptr<std::mutex> m_rounded_mutex{std::make_unique<std::mutex>()};
     std::unordered_map<std::string, std::shared_ptr<const Framebuffer>> m_rounded_framebuffers;
 };
 

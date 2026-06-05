@@ -52,7 +52,7 @@ std::shared_ptr<const Framebuffer> ImageRenderer::rounded_framebuffer(
 
     const std::string key = rounded_cache_key(path, cached.width, cached.height, radius);
     {
-        std::lock_guard<std::mutex> lock(m_rounded_mutex);
+        std::lock_guard<std::mutex> lock(*m_rounded_mutex);
         auto it = m_rounded_framebuffers.find(key);
         if (it != m_rounded_framebuffers.end()) {
             return it->second;
@@ -85,7 +85,7 @@ std::shared_ptr<const Framebuffer> ImageRenderer::rounded_framebuffer(
     }
 
     {
-        std::lock_guard<std::mutex> lock(m_rounded_mutex);
+        std::lock_guard<std::mutex> lock(*m_rounded_mutex);
         m_rounded_framebuffers[key] = rounded;
     }
     return rounded;
