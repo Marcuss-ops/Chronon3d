@@ -28,6 +28,30 @@ export default function PreviewPanel({ run, selectedFrame, nodeEvents }) {
   const previewVersion = `${run.run_id}:${selectedFrame?.frame_number ?? 'base'}:${run.finished_at_iso || ''}`;
   const frameUrl = outputPathToArtifactUrl(resolvedFramePath, previewVersion);
   const videoUrl = outputPathToArtifactUrl(resolvedVideoPath, previewVersion);
+  const downloadName = `render_${(selectedFrame?.frame_number || 0).toString().padStart(4, '0')}.png`;
+
+  const downloadFrame = async () => {
+    setMediaError('');
+    try {
+      const response = await fetch(frameUrl);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = downloadName;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+      setMediaError(`Download unavailable: ${error.message}`);
+    }
+  };
 
   // Filter node events for spatial heatmap
   const currentFrameNodes = selectedFrame && nodeEvents
@@ -74,11 +98,11 @@ export default function PreviewPanel({ run, selectedFrame, nodeEvents }) {
                 </svg>
                 Heatmap
               </button>
-              <a 
-                href={frameUrl} 
-                download={`render_${(selectedFrame?.frame_number || 0).toString().padStart(4, '0')}.png`}
+              <button
+                type="button"
+                onClick={downloadFrame}
                 className="preview-toggle-item"
-                style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', color: 'var(--text-primary)' }}
+                style={{ display: 'inline-flex', alignItems: 'center', color: 'var(--text-primary)' }}
                 title="Scarica PNG del frame selezionato"
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style={{ width: '14px', height: '14px', marginRight: '4px' }}>
@@ -87,7 +111,7 @@ export default function PreviewPanel({ run, selectedFrame, nodeEvents }) {
                   <line x1="12" y1="15" x2="12" y2="3" strokeWidth="2" strokeLinecap="round"/>
                 </svg>
                 Download PNG
-              </a>
+              </button>
             </div>
           </div>
           <div className="preview-badge">

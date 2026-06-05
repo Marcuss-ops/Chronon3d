@@ -29,7 +29,6 @@ include/chronon3d/render_graph/compiler/frame_graph_compile_options.hpp
 include/chronon3d/render_graph/optimizer/graph_optimizer.hpp
 
 src/render_graph/render_graph.cpp
-src/render_graph/render_graph_context.cpp
 src/render_graph/framebuffer_acquire.cpp
 src/render_graph/graph_profiler.cpp
 src/render_graph/compiler/frame_graph_compiler.cpp
@@ -73,13 +72,20 @@ src/render_graph/builder/passes/graph_builder_validation_pass.hpp      # Fase 7
 ```
 src/render_graph/executor/executor.cpp
 src/render_graph/executor/internal.cpp
-src/render_graph/executor/internal.hpp
 src/render_graph/executor/execution_state.hpp
 src/render_graph/executor/cache_evaluator.cpp
+src/render_graph/executor/executor_levels.cpp
+src/render_graph/executor/executor_levels.hpp
+src/render_graph/executor/framebuffer_lifetime.cpp
+src/render_graph/executor/framebuffer_lifetime.hpp
 src/render_graph/executor/input_resolver.cpp
+src/render_graph/executor/input_resolver.hpp
 src/render_graph/executor/node_runner.cpp
+src/render_graph/executor/node_runner.hpp
 src/render_graph/executor/telemetry_emitter.cpp
+src/render_graph/executor/telemetry_emitter.hpp
 src/render_graph/executor/tile_pruning.cpp
+src/render_graph/executor/tile_pruning.hpp
 ```
 
 ### 1.4 Render Graph Pipeline

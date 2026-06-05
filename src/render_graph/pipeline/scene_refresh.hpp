@@ -140,6 +140,7 @@ inline void refresh_compiled_graph_payloads(
         const bool use_local = ctx.modular_coordinates &&
             layer_needs_render_transform(item, ctx) &&
             !item.native_3d;
+        const bool source_is_static = layer.cache_static || use_local;
         const Mat4 item_source_world = use_local
             ? item.world_matrix
             : source_space_world_matrix(item, ctx);
@@ -152,7 +153,7 @@ inline void refresh_compiled_graph_payloads(
             : (item.transform.opacity * src_node.world_transform.opacity);
         cache::NodeCacheKey key{
             .scope = "layer.source:" + std::string(layer.name) + ":" + std::string(src_node.name),
-            .frame = layer.cache_static ? Frame{0} : ctx.frame,
+            .frame = source_is_static ? Frame{0} : ctx.frame,
             .width = ctx.width,
             .height = ctx.height,
             .params_hash = hash_render_node(src_node),
@@ -167,7 +168,7 @@ inline void refresh_compiled_graph_payloads(
             item.projected,
             ctx.modular_coordinates ? std::optional<Mat4>(render_matrix) : std::nullopt,
             ctx.modular_coordinates ? std::optional<f32>(render_opacity) : std::nullopt,
-            layer.cache_static
+            source_is_static
         );
     };
 
@@ -188,6 +189,7 @@ inline void refresh_compiled_graph_payloads(
         const bool use_local = ctx.modular_coordinates &&
             layer_needs_render_transform(item, ctx) &&
             !item.native_3d;
+        const bool source_is_static = layer.cache_static || use_local;
         const Mat4 item_source_world = use_local
             ? item.world_matrix
             : source_space_world_matrix(item, ctx);
@@ -214,7 +216,7 @@ inline void refresh_compiled_graph_payloads(
 
         cache::NodeCacheKey key{
             .scope = "layer.multisource:" + std::string(layer.name),
-            .frame = layer.cache_static ? Frame{0} : ctx.frame,
+            .frame = source_is_static ? Frame{0} : ctx.frame,
             .width = ctx.width,
             .height = ctx.height,
             .params_hash = aggregated_params_hash,
@@ -227,7 +229,7 @@ inline void refresh_compiled_graph_payloads(
             key,
             should_use_centered_rendering(item, ctx),
             item.projected,
-            layer.cache_static
+            source_is_static
         );
     };
 

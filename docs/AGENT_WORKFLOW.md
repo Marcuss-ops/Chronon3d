@@ -41,7 +41,6 @@ apps/chronon3d_cli/commands/video/video_export_pipe.cpp
 apps/chronon3d_cli/commands/video/video_export.cpp
 src/render_graph/executor/executor.cpp
 src/render_graph/executor/internal.cpp
-src/render_graph/executor/internal.hpp
 ```
 
 Se serve aggiungere comportamento, creare un file dedicato:
@@ -87,7 +86,7 @@ Soglie operative:
 graph_builder_pipeline.cpp: massimo 80 righe
 video_export_pipe.cpp: massimo 500 righe fino a split exporter completo
 executor.cpp: target sotto 300 righe
-internal.cpp/internal.hpp: target svuotamento progressivo
+internal.cpp: target svuotamento progressivo
 ```
 
 ---
