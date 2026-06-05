@@ -82,6 +82,8 @@ set(CHRONON3D_GRAPH_SOURCES
     render_graph/pipeline/composition.cpp
     render_graph/preflight/preflight.cpp
     render_graph/preflight/analysis.cpp
+    render_graph/preflight/analysis_graph.cpp
+    render_graph/preflight/analysis_diagnostics.cpp
     render_graph/optimizer/graph_optimizer.cpp
     render_graph/compiler/frame_graph_compiler.cpp
     render_graph/nodes/source_node.cpp
@@ -92,6 +94,7 @@ set(CHRONON3D_GRAPH_SOURCES
     render_graph/nodes/transition/transition_node_math.cpp
 )
 add_library(chronon3d_graph STATIC ${CHRONON3D_GRAPH_SOURCES})
+set_target_properties(chronon3d_graph PROPERTIES UNITY_BUILD OFF)
 target_link_libraries(chronon3d_graph PUBLIC chronon3d chronon3d_cache fmt::fmt hwy::hwy tomlplusplus::tomlplusplus TBB::tbb)
 target_precompile_headers(chronon3d_graph PRIVATE
     <glm/glm.hpp>
@@ -229,6 +232,9 @@ set(CHRONON3D_BACKEND_SOFTWARE_SOURCES
     backends/software/utils/effects/effect_blur.cpp
     backends/software/utils/effects/effect_color.cpp
     backends/software/utils/effects/effect_wave.cpp
+    backends/software/utils/effects/effect_glow_impl.cpp
+    backends/software/utils/effects/effect_shadow_impl.cpp
+    backends/software/utils/effects/effect_bloom_impl.cpp
     backends/software/utils/effects/effect_stack.cpp
     backends/software/simd/highway_color_kernels.cpp
     backends/software/simd/highway_rasterize_kernels.cpp

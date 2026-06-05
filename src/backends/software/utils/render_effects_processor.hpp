@@ -15,6 +15,11 @@ void apply_color_effects(Framebuffer& fb, const LayerEffect& effect, const std::
 void apply_effect_stack(Framebuffer& fb, const EffectStack& stack, float time_seconds, const std::optional<raster::BBox>& clip = std::nullopt, bool diagnostics_enabled = false);
 void apply_fake_3d_wave(Framebuffer& fb, const Fake3DWaveParams& params, float time_seconds);
 
+// ── Individual effect implementations (extracted from effect_stack.cpp) ──
+void apply_glow_effect(Framebuffer& fb, const GlowParams& p, const std::optional<raster::BBox>& clip);
+void apply_shadow_effect(Framebuffer& fb, const DropShadowParams& p, const std::optional<raster::BBox>& clip, bool diagnostics_enabled = false);
+void apply_bloom_effect(Framebuffer& fb, const BloomParams& p, const std::optional<raster::BBox>& clip, bool diagnostics_enabled = false);
+
 // ── Adjustment-layer color correction (AE-5) ──
 void apply_saturation(Framebuffer& fb, f32 sat, const std::optional<raster::BBox>& clip = std::nullopt);
 void apply_hue_rotate(Framebuffer& fb, f32 degrees, const std::optional<raster::BBox>& clip = std::nullopt);
