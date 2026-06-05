@@ -23,6 +23,8 @@
       "cacheVariables": {
         "VCPKG_TARGET_TRIPLET": "x64-linux",
         "CMAKE_LINKER_TYPE": "MOLD",
+        "CMAKE_C_COMPILER_LAUNCHER": "ccache",
+        "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
         "CMAKE_CXX_FLAGS": "-fdiagnostics-color=always",
         "CMAKE_C_FLAGS": "-fdiagnostics-color=always"
       }
