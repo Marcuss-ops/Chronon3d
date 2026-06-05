@@ -1,17 +1,10 @@
 #include "specscene_parsers.hpp"
-
-#include <algorithm>
-#include <cctype>
+#include <chronon3d/core/string_utils.hpp>
 #include <fmt/format.h>
 
 namespace chronon3d::specscene {
 
-std::string lower_copy(std::string s) {
-    std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) {
-        return static_cast<char>(std::tolower(c));
-    });
-    return s;
-}
+using chronon3d::lower_copy;
 
 Vec2 read_vec2(const toml::table& tbl, const char* key, Vec2 fallback) {
     const auto node = tbl[key];
