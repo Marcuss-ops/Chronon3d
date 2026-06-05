@@ -49,7 +49,7 @@ struct FfmpegPipeOptions {
     bool verbose{false};
     color::OutputTransformOptions color_transform{};
     std::string tune;                          // x264 tune (empty = default "zerolatency")
-    std::string pipe_writer{"classic"};
+    std::string pipe_writer{"auto"};     // "auto" → try io_uring first, fall back to classic write
 };
 
 std::string build_ffmpeg_raw_pipe_command(const FfmpegPipeOptions& options);
