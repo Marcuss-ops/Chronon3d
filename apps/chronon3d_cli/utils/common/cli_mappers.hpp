@@ -1,18 +1,12 @@
 #pragma once
 
 #include <chronon3d/animations/camera_motion.hpp>
-#include <string>
-#include <algorithm>
+#include <chronon3d/core/string_utils.hpp>
 #include <optional>
 
 namespace chronon3d::cli {
 
-inline std::string lower_copy(std::string s) {
-    std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) {
-        return static_cast<char>(std::tolower(c));
-    });
-    return s;
-}
+using chronon3d::lower_copy;
 
 inline std::optional<animation::MotionAxis> parse_motion_axis(const std::string& axis) {
     std::string lower = lower_copy(axis);

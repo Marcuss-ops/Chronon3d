@@ -14,13 +14,6 @@ namespace chronon3d::cli {
 
 namespace {
 
-void copy_framebuffer_pixels(Framebuffer& dst, const Framebuffer& src, i32 start_x, i32 start_y) {
-    for (i32 y = 0; y < src.height(); ++y) {
-        for (i32 x = 0; x < src.width(); ++x) {
-            dst.set_pixel(start_x + x, start_y + y, src.get_pixel(x, y));
-        }
-    }
-}
 
 bool save_studio_output(const Framebuffer& fb, const std::string& out_path) {
     auto parent = std::filesystem::path(out_path).parent_path();
@@ -150,7 +143,7 @@ int command_contact_sheet(const CompositionRegistry& registry, const RenderArgs&
             spdlog::error("Failed to render sheet frame at {}", frames[i]);
             return 1;
         }
-        copy_framebuffer_pixels(sheet, *fb, i * w, 0);
+        sheet.blit(*fb, i * w, 0);
     }
     const auto render_t1 = std::chrono::steady_clock::now();
 
@@ -251,7 +244,7 @@ int command_storyboard(const CompositionRegistry& registry, const RenderArgs& ar
 
         i32 col = i % 3;
         i32 row = i / 3;
-        copy_framebuffer_pixels(storyboard, *panel_fb, col * w, row * h);
+        storyboard.blit(*panel_fb, col * w, row * h);
     }
     const auto render_t1 = std::chrono::steady_clock::now();
 
