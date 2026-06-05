@@ -77,12 +77,14 @@ public:
                 // make_shared<Framebuffer> (~1-5ms saved per frame).
                 auto owned = ctx.acquire_owned_fb(fb->width(), fb->height(), false);
                 owned->set_origin(fb->origin_x(), fb->origin_y());
-                const int copy_h = fb->height();
-                const int copy_w = fb->allocated_width();
-                for (int y = 0; y < copy_h; ++y) {
-                    std::memcpy(owned->pixels_row(y), fb->pixels_row(y),
-                                 static_cast<size_t>(copy_w) * sizeof(Color));
-                }
+                // Single contiguous memcpy for the entire pixel buffer.
+                // This is valid because both framebuffers have the same
+                // allocated_width (same logical width → same cache-line stride).
+                // Per-row memcpy would require h calls, each paying function
+                // call overhead + branch misprediction on the ERMSB fast path.
+                const size_t copy_bytes = static_cast<size_t>(fb->allocated_width()) *
+                                          static_cast<size_t>(fb->height()) * sizeof(Color);
+                std::memcpy(owned->data(), fb->data(), copy_bytes);
                 Framebuffer* raw = owned.release();
                 if (ctx.framebuffer_pool) {
                     fb = std::shared_ptr<Framebuffer>(raw,
