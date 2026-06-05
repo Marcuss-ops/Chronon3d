@@ -92,10 +92,17 @@ struct RenderTelemetryRecord {
     // ── Setup Deep Dive (cold start diagnostics) ──
     uint64_t setup_graph_parsing_ms{0};
     uint64_t setup_asset_io_load_ms{0};
-    uint64_t setup_pool_preallocation_ms{0};
-    uint64_t image_decode_ms{0};
+    uint64_t setup_pool_preallocation_ms{0};    uint64_t image_decode_ms{0};
 
-
+    // ── Graph Executor Phase Timings ──
+    uint64_t compiled_graph_refresh_ms{0};
+    uint64_t cache_eval_ms{0};
+    uint64_t dirty_eval_ms{0};
+    uint64_t input_resolve_ms{0};
+    uint64_t framebuffer_lifetime_ms{0};
+    uint64_t node_schedule_ms{0};
+    uint64_t node_dispatch_ms{0};
+    uint64_t telemetry_emit_ms{0};
 
     // ── Chronon Render Throughput Benchmark (pure Chronon pipeline) ──
     double chronon_render_only_ms{0.0};     // graph + cache + pixel ops (excl. conversion/copy/queue)
