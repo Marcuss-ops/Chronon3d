@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <cmath>
 #include <thread>
 
 #if defined(__linux__)
@@ -121,7 +122,7 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
         const auto t_fb1 = std::chrono::steady_clock::now();
         if (ctx.counters) {
             ctx.counters->framebuffer_lifetime_ms.fetch_add(
-                static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t_fb1 - t_fb0).count()),
+                static_cast<uint64_t>(std::llround(std::chrono::duration<double, std::milli>(t_fb1 - t_fb0).count())),
                 std::memory_order_relaxed);
         }
 
@@ -174,7 +175,7 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
         const auto t_fb1 = std::chrono::steady_clock::now();
         if (ctx.counters) {
             ctx.counters->framebuffer_lifetime_ms.fetch_add(
-                static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t_fb1 - t_fb0).count()),
+                static_cast<uint64_t>(std::llround(std::chrono::duration<double, std::milli>(t_fb1 - t_fb0).count())),
                 std::memory_order_relaxed);
         }
 
