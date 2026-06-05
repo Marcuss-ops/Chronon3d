@@ -30,6 +30,32 @@ void composite_normal_premul(Color* __restrict__ dst,
                               const Color* __restrict__ src,
                               int pixel_count);
 
+/// Add blend: dst[i] += src[i]  (per component).
+void composite_add_premul(Color* __restrict__ dst,
+                           const Color* __restrict__ src,
+                           int pixel_count);
+
+/// Multiply blend:
+///   dst[i].a = src[i].a + dst[i].a * (1 - src[i].a)
+///   dst[i].rgb *= src[i].rgb
+void composite_multiply_premul(Color* __restrict__ dst,
+                                const Color* __restrict__ src,
+                                int pixel_count);
+
+/// Screen blend:
+///   dst[i].a = src[i].a + dst[i].a * (1 - src[i].a)
+///   dst[i].rgb = src[i].rgb + dst[i].rgb - src[i].rgb * dst[i].rgb
+void composite_screen_premul(Color* __restrict__ dst,
+                              const Color* __restrict__ src,
+                              int pixel_count);
+
+/// Overlay blend:
+///   dst[i].a = src[i].a + dst[i].a * (1 - src[i].a)
+///   For each channel c: if dst.c < 0.5: 2*src.c*dst.c  else 1-2*(1-src.c)*(1-dst.c)
+void composite_overlay_premul(Color* __restrict__ dst,
+                               const Color* __restrict__ src,
+                               int pixel_count);
+
 /// Fill `pixel_count` contiguous Color elements with `color`.
 void clear_framebuffer(Color* data, int pixel_count, const Color& color);
 
