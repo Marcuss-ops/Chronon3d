@@ -10,6 +10,7 @@
 #include <chronon3d/math/color.hpp>
 #include <spdlog/spdlog.h>
 #include <chrono>
+#include <cmath>
 
 namespace chronon3d::graph {
 
@@ -117,7 +118,7 @@ void execute_single_node(
     const auto t_cache1 = std::chrono::steady_clock::now();
     if (ctx.counters) {
         ctx.counters->cache_eval_ms.fetch_add(
-            static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t_cache1 - t_cache0).count()),
+            static_cast<uint64_t>(std::llround(std::chrono::duration<double, std::milli>(t_cache1 - t_cache0).count())),
             std::memory_order_relaxed);
     }
 
@@ -163,7 +164,7 @@ void execute_single_node(
     const auto t_dirty1 = std::chrono::steady_clock::now();
     if (ctx.counters) {
         ctx.counters->dirty_eval_ms.fetch_add(
-            static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t_dirty1 - t_dirty0).count()),
+            static_cast<uint64_t>(std::llround(std::chrono::duration<double, std::milli>(t_dirty1 - t_dirty0).count())),
             std::memory_order_relaxed);
     }
 
@@ -202,7 +203,7 @@ void execute_single_node(
     const auto t_telemetry1 = std::chrono::steady_clock::now();
     if (ctx.counters) {
         ctx.counters->telemetry_emit_ms.fetch_add(
-            static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t_telemetry1 - t_telemetry0).count()),
+            static_cast<uint64_t>(std::llround(std::chrono::duration<double, std::milli>(t_telemetry1 - t_telemetry0).count())),
             std::memory_order_relaxed);
     }
 

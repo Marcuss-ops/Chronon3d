@@ -7,6 +7,7 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 
 #include <chrono>
+#include <cmath>
 #include <tbb/tbb.h>
 
 namespace chronon3d::graph {
@@ -65,16 +66,16 @@ void execute_levels(
 
         if (parent_counters) {
             parent_counters->input_resolve_ms.fetch_add(
-                static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t_input1 - t_input0).count()),
+                static_cast<uint64_t>(std::llround(std::chrono::duration<double, std::milli>(t_input1 - t_input0).count())),
                 std::memory_order_relaxed);
             parent_counters->node_schedule_ms.fetch_add(
-                static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t_schedule1 - t_schedule0).count()),
+                static_cast<uint64_t>(std::llround(std::chrono::duration<double, std::milli>(t_schedule1 - t_schedule0).count())),
                 std::memory_order_relaxed);
             parent_counters->node_dispatch_ms.fetch_add(
-                static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t_dispatch1 - t_schedule1).count()),
+                static_cast<uint64_t>(std::llround(std::chrono::duration<double, std::milli>(t_dispatch1 - t_schedule1).count())),
                 std::memory_order_relaxed);
             parent_counters->framebuffer_lifetime_ms.fetch_add(
-                static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t_fb1 - t_fb0).count()),
+                static_cast<uint64_t>(std::llround(std::chrono::duration<double, std::milli>(t_fb1 - t_fb0).count())),
                 std::memory_order_relaxed);
         }
     }
