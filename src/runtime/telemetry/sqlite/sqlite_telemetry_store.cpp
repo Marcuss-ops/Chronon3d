@@ -58,13 +58,15 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
         "framebuffer_pool_miss_count_best_fit, framebuffer_pool_hits, framebuffer_buffer_returned_to_pool_count, "
         "unaligned_memory_copies, frame_conversion_copy_ms, "
         "video_graph_eval_ms, video_conversion_ms, video_pipe_write_ms, video_ffmpeg_latency_ms, "
-        "io_queue_push_blocked_ms, io_queue_pop_wait_ms, io_writer_idle_wait_ms, io_queue_peak_depth, ffmpeg_pipe_write_blocked_ms, converted_frame_cache_hits, ffmpeg_flush_ms, "
-        "io_queue_peak_bytes, setup_graph_parsing_ms, setup_asset_io_load_ms, setup_pool_preallocation_ms, image_decode_ms, "
+        "io_queue_push_blocked_ms, io_queue_pop_wait_ms, io_writer_idle_wait_ms, io_queue_peak_depth, ffmpeg_pipe_write_blocked_ms, converted_frame_cache_hits, ffmpeg_flush_ms, "        "io_queue_peak_bytes, setup_graph_parsing_ms, setup_asset_io_load_ms, setup_pool_preallocation_ms, image_decode_ms, "
+        "compiled_graph_refresh_ms, cache_eval_ms, dirty_eval_ms, input_resolve_ms, "
+        "framebuffer_lifetime_ms, node_schedule_ms, node_dispatch_ms, telemetry_emit_ms, "
         "chronon_render_only_ms, chronon_conversion_copy_ms, chronon_queue_wait_ms, "
         "chronon_render_throughput_ms, ffmpeg_encode_total_ms, ffmpeg_flush_close_ms, "
         "e2e_wall_ms, "
         "started_at_iso, finished_at_iso, git_commit_short, build_type, "
         "compiler_info, os, cpu_model, cores"
+
         ") VALUES ("
         "?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, "
         "?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, "
@@ -75,7 +77,8 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
         "?61, ?62, ?63, ?64, ?65, ?66, ?67, ?68, ?69, ?70, "
         "?71, ?72, ?73, ?74, ?75, ?76, ?77, ?78, ?79, ?80, "
         "?81, ?82, ?83, ?84, ?85, ?86, ?87, ?88, ?89, "
-        "?90, ?91, ?92"
+        "?90, ?91, ?92, ?93, ?94, ?95, ?96, ?97, ?98, "
+        "?99, ?100"
         ");";
 
     SqliteStatement stmt(m_impl->db, sql);
@@ -161,6 +164,14 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
         run.setup_asset_io_load_ms,
         run.setup_pool_preallocation_ms,
         run.image_decode_ms,
+        run.compiled_graph_refresh_ms,
+        run.cache_eval_ms,
+        run.dirty_eval_ms,
+        run.input_resolve_ms,
+        run.framebuffer_lifetime_ms,
+        run.node_schedule_ms,
+        run.node_dispatch_ms,
+        run.telemetry_emit_ms,
         run.chronon_render_only_ms,
         run.chronon_conversion_copy_ms,
         run.chronon_queue_wait_ms,
