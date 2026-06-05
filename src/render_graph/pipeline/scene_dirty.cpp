@@ -1,77 +1,18 @@
-#include <chronon3d/math/projector_2_5d.hpp>
-#include <chronon3d/math/camera_2_5d_projection.hpp>
+// ---------------------------------------------------------------------------
+// scene_dirty.cpp — Dirty region tracking entry point
+//
+// Helper functions (scroll optimization, parallel layer bboxes, scene root
+// bboxes) have been extracted to scene_dirty_helpers.hpp.
+// ---------------------------------------------------------------------------
+
 #include <chronon3d/render_graph/render_pipeline.hpp>
-#include <chronon3d/render_graph/graph_builder.hpp>
-#include <chronon3d/render_graph/graph_executor.hpp>
-#include <chronon3d/render_graph/render_graph_hashing.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
-#include <chronon3d/core/profiling/profiling.hpp>
-#include <chronon3d/core/profiling/counters.hpp>
-#include <chronon3d/core/dirty_fallback_reason.hpp>
 #include <chronon3d/core/tile_grid.hpp>
 #include <chronon3d/core/dirty_tile_mask.hpp>
-#include "../builder/graph_builder_internal.hpp"
-#include "../builder/graph_builder_pipeline.hpp"
-#include "scene_internal.hpp"
-#include <tbb/parallel_for.h>
-#include <tbb/blocked_range.h>
-#include <tbb/enumerable_thread_specific.h>
+#include "scene_dirty_helpers.hpp"
 #include <algorithm>
 
 namespace chronon3d::graph::detail {
-
-// ── Scrolling shortcut ───────────────────────────────────────────────────────
-// When only the camera position has changed by an integer amount we can shift
-// the previous framebuffer and only re-render the newly exposed strip.
-static std::optional<raster::BBox> try_scroll_optimization(
-    SoftwareRenderer* sw_renderer,
-    const Camera2_5D& cam25d,
-    i32 width,
-    i32 height
-) {
-    if (!sw_renderer->m_prev_camera_valid || !sw_renderer->m_prev_camera.enabled || !cam25d.enabled) {
-        return std::nullopt;
-    }
-
-    const Vec3& cp = cam25d.position;
-    const Vec3& pp = sw_renderer->m_prev_camera.position;
-    Vec3 camera_delta = cp - pp;
-
-    const bool camera_params_compatible =
-        std::abs(sw_renderer->m_prev_camera.zoom - cam25d.zoom) < 1e-3f;
-
-    if (!camera_params_compatible || std::abs(camera_delta.z) >= 1e-3f) {
-        return std::nullopt;
-    }
-
-    const i32 dx = -static_cast<i32>(std::round(camera_delta.x));
-    const i32 dy = -static_cast<i32>(std::round(camera_delta.y));
-
-    const bool scroll_eligible =
-        std::abs(camera_delta.x - std::round(camera_delta.x)) < 0.1f &&
-        std::abs(camera_delta.y - std::round(camera_delta.y)) < 0.1f &&
-        (dx != 0 || dy != 0) &&
-        std::abs(dx) < width &&
-        std::abs(dy) < height;
-
-    if (!scroll_eligible) return std::nullopt;
-
-    CHRONON_ZONE_C("scroll_optimization", trace_category::kFrame);
-
-    if (sw_renderer->m_prev_framebuffer.use_count() > 1) {
-        sw_renderer->m_prev_framebuffer = std::make_shared<Framebuffer>(*sw_renderer->m_prev_framebuffer);
-    }
-    sw_renderer->m_prev_framebuffer->shift(dx, dy);
-
-    raster::BBox strip{0, 0, width, height};
-    if (dx > 0) strip.x1 = dx;
-    else if (dx < 0) strip.x0 = width + dx;
-    if (dy > 0) strip.y1 = dy;
-    else if (dy < 0) strip.y0 = height + dy;
-    return strip;
-}
-
-// ── Dirty rect main entry point ──────────────────────────────────────────────
 
 DirtyRectOutput compute_dirty_rect(
     const RenderGraphContext& ctx,
@@ -92,121 +33,12 @@ DirtyRectOutput compute_dirty_rect(
 
     const Camera2_5DRuntime& cam25d = resolved.camera.camera;
 
-    // ── Helper: compute single-layer bbox ───────────────────────────────
-    auto compute_bbox_for_resolved = [&](const ResolvedLayer& rl, const Camera2_5DRuntime& cam) -> raster::BBox {
-        LayerGraphItem item;
-        if (cam.enabled && rl.layer->uses_2_5d_projection) {
-            Transform effective_transform = rl.world_transform;
-            auto proj = project_layer_2_5d(
-                effective_transform, effective_transform.to_mat4(), cam,
-                static_cast<f32>(width), static_cast<f32>(height), ctx.diagnostics_enabled);
-            if (proj.visible) {
-                const Mat4 eff_proj = detail::is_native_3d_layer(*rl.layer) ? Mat4(1.0f) : proj.projection_matrix;
-                item = LayerGraphItem{
-                    .layer = rl.layer,
-                    .transform = proj.transform,
-                    .world_matrix = rl.world_matrix,
-                    .projection_matrix = eff_proj,
-                    .depth = proj.depth,
-                    .world_z = rl.world_transform.position.z,
-                    .projected = true,
-                    .native_3d = detail::is_native_3d_layer(*rl.layer),
-                    .insertion_index = rl.insertion_index
-                };
-            } else {
-                return raster::BBox{0, 0, 0, 0};
-            }
-        } else {
-            item = LayerGraphItem{
-                .layer = rl.layer,
-                .transform = rl.world_transform,
-                .world_matrix = rl.world_matrix,
-                .depth = 0.0f,
-                .world_z = rl.world_transform.position.z,
-                .projected = false,
-                .native_3d = detail::is_native_3d_layer(*rl.layer),
-                .insertion_index = rl.insertion_index
-            };
-        }
-        return detail::compute_layer_bbox(item, ctx, sw_renderer);
-    };
-
     // ── Parallel layer bbox computation ─────────────────────────────────
-    tbb::enumerable_thread_specific<std::unordered_map<std::string, SoftwareRenderer::LayerBBoxState>> tls_bboxes;
-
-    tbb::parallel_for(
-        tbb::blocked_range<size_t>(0, resolved.layers.size()),
-        [&](const tbb::blocked_range<size_t>& r) {
-            auto& local_map = tls_bboxes.local();
-            for (size_t i = r.begin(); i < r.end(); ++i) {
-                const auto& rl = resolved.layers[i];
-                if (rl.layer && rl.layer->active_at(frame)) {
-                    raster::BBox bbox = compute_bbox_for_resolved(rl, cam25d);
-
-                    // ── Check whether this layer is safe for dirty rects ─
-                    // Effects like blur, non-Normal blend modes, and active masks
-                    // bleed outside the geometric bbox — force full-frame for safety.
-                    if (!is_safe_for_dirty_rects(*rl.layer, settings.motion_blur.enabled)) {
-                        bbox = raster::BBox{0, 0, width, height};
-                        if (ctx.counters) {
-                            ctx.counters->increment_dirty_full_fallback_reason(
-                                DirtyFallbackReason::EffectBoundsUnknown);
-                        }
-                    }
-
-                    SoftwareRenderer::LayerBBoxState state;
-                    state.bbox = bbox;
-                    state.world_matrix = rl.world_matrix;
-                    state.opacity = rl.world_transform.opacity;
-                    state.visible = rl.layer->visible;
-                    state.cache_static = rl.layer->cache_static;
-                    state.uses_2_5d_projection = rl.layer->uses_2_5d_projection;
-                    state.content_hash = rl.layer->get_static_hash();
-                    local_map[std::string(rl.layer->name)] = state;
-                }
-            }
-        }
-    );
-
-    // Merge TLS results
-    {
-        std::unordered_map<std::string, SoftwareRenderer::LayerBBoxState> merged;
-        for (auto& local_map : tls_bboxes) {
-            for (auto&& [name, state] : local_map) {
-                merged[name] = std::move(state);
-            }
-        }
-        out.layer_bboxes = std::move(merged);
-    }
+    out.layer_bboxes = compute_layer_bboxes_parallel(
+        ctx, resolved, cam25d, sw_renderer, settings, width, height, frame);
 
     // Include scene root nodes in dirty-rect tracking
-    for (const auto& node : scene.nodes()) {
-        if (!node.visible) continue;
-        const Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(ctx.ssaa_factor, ctx.ssaa_factor, 1.0f));
-        const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
-        Mat4 matrix;
-        if (ctx.modular_coordinates) {
-            matrix = canvas_center * ssaa_scale * node.world_transform.to_mat4();
-        } else {
-            matrix = ssaa_scale * node.world_transform.to_mat4();
-        }
-        auto* processor = sw_renderer->software_registry().get_shape(node.shape.type);
-        if (!processor) continue;
-        f32 spread = 0.0f;
-        if (node.shadow.enabled) spread = std::max(spread, node.shadow.radius);
-        if (node.glow.enabled)   spread = std::max(spread, node.glow.radius);
-        raster::BBox bbox = processor->compute_world_bbox(node.shape, matrix, spread);
-
-        SoftwareRenderer::LayerBBoxState state;
-        state.bbox = bbox;
-        state.world_matrix = node.world_transform.to_mat4();
-        state.opacity = node.world_transform.opacity;
-        state.visible = node.visible;
-        state.cache_static = true;
-        state.uses_2_5d_projection = false;
-        state.content_hash = hash_render_node(node);
-        out.layer_bboxes["root.node:" + std::string(node.name)] = state;
-    }
+    compute_scene_root_bboxes(out.layer_bboxes, scene, ctx, sw_renderer);
 
     // ── Decide whether to use dirty rects ───────────────────────────────
     out.use_dirty_rects = settings.enable_dirty_rects &&
@@ -221,7 +53,6 @@ DirtyRectOutput compute_dirty_rect(
     }
 
     // ── Tile-based dirty tracking setup ─────────────────────────────────
-    // Only active when tile_size > 0 and the bitmask feature flag is on.
     const int effective_tile_size = settings.tile_size > 0 ? settings.tile_size : 256;
     const bool tiles_enabled = settings.tile_size > 0 && settings.enable_dirty_bitmask;
     raster::TileGrid tile_grid;
@@ -254,7 +85,6 @@ DirtyRectOutput compute_dirty_rect(
                 union_dirty.x1 = std::max(union_dirty.x1, clipped.x1);
                 union_dirty.y1 = std::max(union_dirty.y1, clipped.y1);
             }
-            // Also mark tiles for the new tile-based dirty system
             if (tiles_enabled) {
                 tile_mask.mark_bbox(tile_grid, clipped);
             }
@@ -326,7 +156,6 @@ DirtyRectOutput compute_dirty_rect(
         auto scroll_rect = try_scroll_optimization(sw_renderer, cam25d, width, height);
         if (scroll_rect.has_value()) {
             out.dirty_rect = *scroll_rect;
-            // Also mark the scroll strip tiles
             if (tiles_enabled) {
                 tile_mask.mark_bbox(tile_grid, *scroll_rect);
             }
@@ -349,7 +178,6 @@ DirtyRectOutput compute_dirty_rect(
         out.dirty_tiles = std::move(tile_mask);
         out.use_dirty_tiles = out.use_dirty_rects && out.dirty_tiles->any();
 
-        // If there are no dirty tiles at all, fall back to full frame
         if (!out.dirty_tiles->any()) {
             out.use_dirty_tiles = false;
             out.dirty_rect = raster::BBox{0, 0, 0, 0};
