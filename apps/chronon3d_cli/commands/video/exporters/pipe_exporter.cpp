@@ -1,4 +1,5 @@
 #include "../exporter_registry.hpp"
+#include "../pipe_export_session.hpp"
 
 namespace chronon3d::cli {
 namespace {
@@ -11,9 +12,10 @@ public:
     }
 
     int export_video(const VideoExportJob& job) override {
-        return render_and_encode_ffmpeg_pipe(
+        auto result = render_and_encode_ffmpeg_pipe(
             job.registry, job.comp, job.composition_id,
             job.settings, job.start, job.end, job.opts);
+        return result.return_code;
     }
 };
 

@@ -52,14 +52,8 @@ struct FfmpegExportOptions {
     chronon3d::CancellationToken* cancellation_token{nullptr};
 };
 
-int render_and_encode_ffmpeg_pipe(
-    const CompositionRegistry& registry,
-    const Composition& comp,
-    const std::string& composition_id,
-    const RenderSettings& settings,
-    Frame start,
-    Frame end,
-    const FfmpegExportOptions& opts);
+// render_and_encode_ffmpeg_pipe() is declared in pipe_export_session.hpp
+// and returns PipeExportResult (boundary model with all status/timing data).
 
 // Factory: creates the appropriate encoder based on opts.encoder_backend
 std::unique_ptr<IVideoEncoder> create_video_encoder(const FfmpegExportOptions& opts);
