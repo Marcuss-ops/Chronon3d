@@ -282,6 +282,9 @@ set(CHRONON3D_SCENE_SOURCES
     scene/camera/camera_framing.cpp
     scene/camera/camera_path_sampler.cpp
     scene/camera/camera_debug_overlay.cpp
+    scene/camera/overlay_hud_panels.cpp
+    scene/camera/overlay_kinematic_panels.cpp
+    scene/camera/overlay_spatial_panels.cpp
     scene/model/layer.cpp
     scene/model/render_node_factory.cpp
     scene/model/transform_resolver.cpp
