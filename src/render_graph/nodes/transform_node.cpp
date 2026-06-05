@@ -36,18 +36,8 @@ OwnedFB TransformNode::execute(
     const Mat4 model = m_use_matrix ? m_matrix : m_transform.to_mat4();
     const f32 opacity = m_use_matrix ? m_opacity : m_transform.opacity;
 
-    // ── Identity fast-path ──────────────────────────────────────────────
-    bool is_identity = true;
-    for (int i = 0; i < 4; ++i) {
-        for (int j = 0; j < 4; ++j) {
-            const float expected = (i == j) ? 1.0f : 0.0f;
-            if (std::abs(model[i][j] - expected) > 1e-6f) {
-                is_identity = false;
-                break;
-            }
-        }
-        if (!is_identity) break;
-    }
+    // ── Identity fast-path (uses cached analysis) ──────────────────────
+    const bool is_identity = get_transform_type() == TransformType::Identity;
 
     if (is_identity && std::abs(opacity - 1.0f) < 1e-6f &&
         input->width() == out_w && input->height() == out_h &&
@@ -327,24 +317,8 @@ std::optional<raster::BBox> TransformNode::predicted_bbox(
 ) const {
     const Mat4 model = m_use_matrix ? m_matrix : m_transform.to_mat4();
 
-    auto is_pure_translation = [&]() {
-        return std::abs(model[0][0] - 1.0f) < 1e-6f &&
-               std::abs(model[1][1] - 1.0f) < 1e-6f &&
-               std::abs(model[2][2] - 1.0f) < 1e-6f &&
-               std::abs(model[3][3] - 1.0f) < 1e-6f &&
-               std::abs(model[0][1]) < 1e-6f &&
-               std::abs(model[0][2]) < 1e-6f &&
-               std::abs(model[0][3]) < 1e-6f &&
-               std::abs(model[1][0]) < 1e-6f &&
-               std::abs(model[1][2]) < 1e-6f &&
-               std::abs(model[1][3]) < 1e-6f &&
-               std::abs(model[2][0]) < 1e-6f &&
-               std::abs(model[2][1]) < 1e-6f &&
-               std::abs(model[2][3]) < 1e-6f &&
-               std::abs(model[3][2]) < 1e-6f;
-    };
-
-    if (is_pure_translation() && !input_bboxes.empty() && input_bboxes[0].has_value()) {
+    if (get_transform_type() == TransformType::PureTranslation &&
+        !input_bboxes.empty() && input_bboxes[0].has_value()) {
         const auto& in_box = *input_bboxes[0];
         const i32 src_w = std::max(1, in_box.x1 - in_box.x0);
         const i32 src_h = std::max(1, in_box.y1 - in_box.y0);

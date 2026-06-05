@@ -72,21 +72,80 @@ public:
     [[nodiscard]] Mat4 matrix()  const { return m_use_matrix ? m_matrix : m_transform.to_mat4(); }
     [[nodiscard]] f32        opacity() const { return m_use_matrix ? m_opacity : m_transform.opacity; }
     [[nodiscard]] bool       is_identity() const {
-        const Mat4& m = matrix();
-        for (int i = 0; i < 4; ++i) {
-            for (int j = 0; j < 4; ++j) {
-                const float expected = (i == j) ? 1.0f : 0.0f;
-                if (std::abs(m[i][j] - expected) > 1e-6f) return false;
-            }
-        }
-        return std::abs(opacity() - 1.0f) < 1e-6f;
+        return get_transform_type() == TransformType::Identity;
     }
 
     // ── Mutators for graph optimization ─────────────────────────────
-    void set_matrix(const Mat4& m)  { m_matrix = m; m_use_matrix = true; }
-    void set_opacity(f32 o)         { m_opacity = o; m_use_matrix = true; }
+    void set_matrix(const Mat4& m)  { m_matrix = m; m_use_matrix = true; invalidate_cache(); }
+    void set_opacity(f32 o)         { m_opacity = o; m_use_matrix = true; invalidate_cache(); }
 
 private:
+    // ── Cached matrix analysis (avoids redundant 4×4 float comparisons ──
+    //     on every execute() call — saves ~16×4×44 compares per composition)
+    enum class TransformType : uint8_t {
+        Unknown,
+        Identity,
+        PureTranslation,
+        Affine,      // no perspective component
+        Projective
+    };
+
+    mutable TransformType cached_type_{TransformType::Unknown};
+    mutable i32            cached_tx_{0}, cached_ty_{0};  // cached integer translation (PureTranslation only)
+
+    void invalidate_cache() const {
+        cached_type_ = TransformType::Unknown;
+    }
+
+    TransformType analyze_matrix() const {
+        const Mat4& m = m_use_matrix ? m_matrix : m_transform.to_mat4();
+        
+        // Check identity first (most common)
+        bool id = true;
+        for (int i = 0; i < 4 && id; ++i) {
+            for (int j = 0; j < 4 && id; ++j) {
+                const float expected = (i == j) ? 1.0f : 0.0f;
+                if (std::abs(m[i][j] - expected) > 1e-6f) id = false;
+            }
+        }
+        if (id && std::abs(opacity() - 1.0f) < 1e-6f)
+            return TransformType::Identity;
+
+        // Extract 3×3 homography (local_z = 0 plane)
+        glm::mat3 H;
+        H[0][0] = m[0][0]; H[0][1] = m[0][1]; H[0][2] = m[0][3];
+        H[1][0] = m[1][0]; H[1][1] = m[1][1]; H[1][2] = m[1][3];
+        H[2][0] = m[3][0]; H[2][1] = m[3][1]; H[2][2] = m[3][3];
+
+        // Check pure translation (identity 2×2 + no perspective)
+        const bool pure_trans =
+            std::abs(H[0][0] - 1.0f) < 1e-6f && std::abs(H[0][1]) < 1e-6f && std::abs(H[0][2]) < 1e-6f &&
+            std::abs(H[1][0]) < 1e-6f && std::abs(H[1][1] - 1.0f) < 1e-6f && std::abs(H[1][2]) < 1e-6f &&
+            std::abs(H[2][2] - 1.0f) < 1e-6f;
+
+        if (pure_trans) {
+            const f32 tx = H[2][0];
+            const f32 ty = H[2][1];
+            if (std::abs(tx - std::round(tx)) < 1e-4f && std::abs(ty - std::round(ty)) < 1e-4f) {
+                cached_tx_ = static_cast<i32>(std::round(tx));
+                cached_ty_ = static_cast<i32>(std::round(ty));
+                return TransformType::PureTranslation;
+            }
+        }
+
+        // Check affine (no perspective)
+        if (std::abs(H[2][0]) < 1e-9f && std::abs(H[2][1]) < 1e-9f)
+            return TransformType::Affine;
+
+        return TransformType::Projective;
+    }
+
+    TransformType get_transform_type() const {
+        if (cached_type_ == TransformType::Unknown)
+            cached_type_ = analyze_matrix();
+        return cached_type_;
+    }
+
     Transform m_transform;
     Mat4      m_matrix{1.0f};
     f32       m_opacity{1.0f};
