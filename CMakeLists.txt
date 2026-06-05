@@ -65,7 +65,9 @@ option(CHRONON3D_ENABLE_SQLITE_TELEMETRY "Enable SQLite telemetry store" ON)
 
 if(CHRONON3D_UNITY_BUILD)
     set(CMAKE_UNITY_BUILD ON)
-    set(CMAKE_UNITY_BUILD_BATCH_SIZE 8)
+    if(NOT CMAKE_UNITY_BUILD_BATCH_SIZE)
+        set(CMAKE_UNITY_BUILD_BATCH_SIZE 8)
+    endif()
 endif()
 
 # --- Ricerca Dipendenze ---

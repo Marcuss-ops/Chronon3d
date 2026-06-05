@@ -169,4 +169,53 @@ std::shared_ptr<Framebuffer> RenderGraphContext::acquire_framebuffer(const Frame
     return fb;
 }
 
+RenderGraphContext RenderGraphContext::clone_for_node_execution() const {
+    RenderGraphContext copy;
+    // ── POD / pointer fields (cheap — memcpy-grade) ─────────────────────
+    copy.frame              = frame;
+    copy.time_seconds       = time_seconds;
+    copy.fps                = fps;
+    copy.width              = width;
+    copy.height             = height;
+    copy.camera             = camera;
+    copy.camera_2_5d        = camera_2_5d;
+    copy.has_camera_2_5d    = has_camera_2_5d;
+    copy.projection_ctx     = projection_ctx;
+    copy.light_context      = light_context;
+    copy.backend            = backend;
+    copy.node_cache         = node_cache;
+    copy.framebuffer_pool   = framebuffer_pool;   // shared_ptr — cheap refcount bump
+    copy.dirty_rect         = dirty_rect;
+    copy.profiler           = profiler;
+    copy.registry           = registry;
+    copy.video_decoder      = video_decoder;
+    copy.counters           = counters;
+    copy.cache_enabled      = cache_enabled;
+    copy.diagnostics_enabled = diagnostics_enabled;
+    copy.ssaa_factor        = ssaa_factor;
+    copy.modular_coordinates = modular_coordinates;
+    copy.tile_size          = tile_size;
+    copy.clip_rect          = clip_rect;
+    copy.tile_execution_enabled = tile_execution_enabled;
+    copy.active_tile_clip   = active_tile_clip;
+    copy.optimize_compositing = optimize_compositing;
+    copy.dirty_rects_enabled = dirty_rects_enabled;
+    copy.reuse_prev_framebuffer = reuse_prev_framebuffer;
+    copy.skip_initial_clear = skip_initial_clear;
+    copy.graph_structure_unchanged = graph_structure_unchanged;
+    copy.track_dof_depth    = track_dof_depth;
+
+    // ── Vectors — selectively copy only what node.execute() may read ────
+    // • early_exit_skip:  checked against the *parent* ctx before the copy
+    // • node_telemetry / layer_telemetry: written via global telemetry
+    //   paths, never read during node.execute()
+    // • dof_depth: only needed when DOF tracking is active (~8 MB @ 1080p)
+    if (track_dof_depth && !dof_depth.empty()) {
+        copy.dof_depth = dof_depth;
+    }
+    // reusable_inputs starts empty — populated per-node after the clone.
+
+    return copy;
+}
+
 } // namespace chronon3d::graph

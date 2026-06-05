@@ -39,6 +39,10 @@ void execute_levels(
 
         const auto t_schedule1 = std::chrono::steady_clock::now();
 
+        std::vector<double> level_cache_ms(level.size(), 0.0);
+        std::vector<double> level_dirty_ms(level.size(), 0.0);
+        std::vector<double> level_telemetry_ms(level.size(), 0.0);
+
         tbb::parallel_for(
             tbb::blocked_range<size_t>(0, level.size()),
             [&](const tbb::blocked_range<size_t>& range) {
@@ -52,7 +56,10 @@ void execute_levels(
                         level_index,
                         parent_counters,
                         parent_pool,
-                        consumer_remaining
+                        consumer_remaining,
+                        &level_cache_ms[level_index],
+                        &level_dirty_ms[level_index],
+                        &level_telemetry_ms[level_index]
                     );
                 }
             }
@@ -65,6 +72,12 @@ void execute_levels(
         const auto t_fb1 = std::chrono::steady_clock::now();
 
         if (parent_counters) {
+            double cache_sum = 0.0, dirty_sum = 0.0, telemetry_sum = 0.0;
+            for (size_t i = 0; i < level.size(); ++i) {
+                cache_sum += level_cache_ms[i];
+                dirty_sum += level_dirty_ms[i];
+                telemetry_sum += level_telemetry_ms[i];
+            }
             parent_counters->input_resolve_ms.fetch_add(
                 static_cast<uint64_t>(std::llround(std::chrono::duration<double, std::milli>(t_input1 - t_input0).count())),
                 std::memory_order_relaxed);
@@ -76,6 +89,15 @@ void execute_levels(
                 std::memory_order_relaxed);
             parent_counters->framebuffer_lifetime_ms.fetch_add(
                 static_cast<uint64_t>(std::llround(std::chrono::duration<double, std::milli>(t_fb1 - t_fb0).count())),
+                std::memory_order_relaxed);
+            parent_counters->cache_eval_ms.fetch_add(
+                static_cast<uint64_t>(std::llround(cache_sum)),
+                std::memory_order_relaxed);
+            parent_counters->dirty_eval_ms.fetch_add(
+                static_cast<uint64_t>(std::llround(dirty_sum)),
+                std::memory_order_relaxed);
+            parent_counters->telemetry_emit_ms.fetch_add(
+                static_cast<uint64_t>(std::llround(telemetry_sum)),
                 std::memory_order_relaxed);
         }
     }

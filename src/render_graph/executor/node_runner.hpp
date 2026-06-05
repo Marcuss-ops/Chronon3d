@@ -40,7 +40,10 @@ void execute_single_node(
     size_t level_index,
     RenderCounters* parent_counters,
     cache::FramebufferPool* parent_pool,
-    std::pmr::vector<std::atomic_size_t>& consumer_remaining
+    std::pmr::vector<std::atomic_size_t>& consumer_remaining,
+    double* out_cache_ms = nullptr,
+    double* out_dirty_ms = nullptr,
+    double* out_telemetry_ms = nullptr
 );
 
 } // namespace chronon3d::graph
