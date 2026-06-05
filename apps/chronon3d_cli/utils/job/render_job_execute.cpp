@@ -168,9 +168,13 @@ bool execute_render_job(const CompositionRegistry& registry, const RenderJobPlan
     counters_list.push_back({"pool_available_count", pool_available_count});
 
     std::vector<chronon3d::telemetry::PhaseTelemetryRecord> phases = {
-        {"setup_renderer", std::chrono::duration<double, std::milli>(setup_t1 - setup_t0).count()},
-        {"rendering_loop", std::chrono::duration<double, std::milli>(loop_t1 - loop_t0).count()}
+        {"setup_renderer", std::chrono::duration<double, std::milli>(setup_t1 - setup_t0).count()}
     };
+    if (renderer->counters()) {
+        auto graph_phases = cli::telemetry::capture_graph_phase_records(*renderer->counters());
+        phases.insert(phases.end(), graph_phases.begin(), graph_phases.end());
+    }
+    phases.push_back({"rendering_loop", std::chrono::duration<double, std::milli>(loop_t1 - loop_t0).count()});
 
     // Flush per-node telemetry collected during graph execution
     auto node_events = chronon3d::telemetry::collect_node_telemetry();

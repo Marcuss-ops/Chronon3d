@@ -4,6 +4,8 @@ Questo documento definisce come lavorano gli agenti sulla repo senza annullarsi 
 
 Obiettivo: evitare modifiche concorrenti e sovrapposte su graph, specscene, scene, layer, executor ed export.
 
+Riferimento operativo: [docs/DEFINITION_OF_DONE.md](./DEFINITION_OF_DONE.md) definisce i gate minimi prima di considerare una PR chiusa.
+
 ---
 
 ## 1. Regola Base

@@ -289,11 +289,13 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
 
     std::sort(telemetry_frames.begin(), telemetry_frames.end(),
               [](const auto& a, const auto& b) { return a.frame_number < b.frame_number; });
-    const auto phases = std::vector<chronon3d::telemetry::PhaseTelemetryRecord>{
+    auto phases = std::vector<chronon3d::telemetry::PhaseTelemetryRecord>{
         {"setup_renderer", std::chrono::duration<double, std::milli>(setup_t1 - setup_t0).count()},
         {"rendering_loop", std::chrono::duration<double, std::milli>(render_t1 - render_t0).count()},
         {"encoder_close_and_flush", encode_ms},
     };
+    auto graph_phases = cli::telemetry::capture_graph_phase_records(aggregate_counters);
+    phases.insert(phases.begin() + 1, graph_phases.begin(), graph_phases.end());
     // On failure, report 0 written frames to avoid misleading telemetry
     // where frames_written=total but the video encode (ffmpeg) failed.
     const int encoded_frames = success ? frames_written : 0;
