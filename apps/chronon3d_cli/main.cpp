@@ -4,7 +4,9 @@
 #include <CLI/Formatter.hpp>
 #include <spdlog/spdlog.h>
 #include "commands/cli_groups.hpp"
+#ifdef CHRONON3D_BUILD_CONTENT
 #include <content/register_content_modules.hpp>
+#endif
 
 using namespace chronon3d;
 using namespace chronon3d::cli;
@@ -28,7 +30,9 @@ int main(int argc, char** argv) {
     // Initialize content ExtensionModules (Minimalist, Text, 2D5, etc.)
     // MUST happen before CompositionRegistry construction so module compositions
     // are in the static builtin_composition_entries() when populate is called.
+#ifdef CHRONON3D_BUILD_CONTENT
     register_content_modules();
+#endif
 
     CompositionRegistry registry;
     int exit_code = 0;
