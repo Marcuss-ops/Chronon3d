@@ -35,7 +35,8 @@ AnimatedValue<T> read_animated_scalar(const toml::table& tbl, const char* key, T
 // Non-template parser declarations
 // -----------------------------------------------------------------------
 
-std::string lower_copy(std::string s);
+// lower_copy() — use chronon3d::lower_copy from <chronon3d/core/string_utils.hpp>
+// Kept here for backward-compat; callers should migrate to core/string_utils.hpp.
 
 Vec2 read_vec2(const toml::table& tbl, const char* key, Vec2 fallback);
 Vec3 read_vec3(const toml::table& tbl, const char* key, Vec3 fallback);

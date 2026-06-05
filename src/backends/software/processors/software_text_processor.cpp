@@ -1,7 +1,10 @@
-// software_text_processor.cpp
-// Text shape processor: orchestration, rasterization, material application,
-// compositing, and bbox computation. Text effects/cache live in
-// software_text_effects.cpp.
+// ---------------------------------------------------------------------------
+// software_text_processor.cpp — Text shape processor
+//
+// Helper functions (cache, hash, transform utils) → text_processor_helpers.hpp
+// Text glow effect → text_glow.cpp
+// Text shadow effect → text_shadow.cpp
+// ---------------------------------------------------------------------------
 
 #include "software_text_effects.hpp"
 #include <chronon3d/backends/software/software_renderer.hpp>
@@ -11,37 +14,17 @@
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
+#include "text_processor_helpers.hpp"
+#include "text_effects.hpp"
 #include "../utils/blend2d_bridge.hpp"
 #include <blend2d.h>
 #include <spdlog/spdlog.h>
 #include <glm/gtc/matrix_transform.hpp>
 #include <chrono>
+#include <cstdlib>
 #include <memory>
 
 namespace chronon3d::renderer {
-
-// ── transform utilities ────────────────────────────────────────────
-
-static bool is_affine_transform(const Mat4& m) {
-    return
-        std::abs(m[0][2]) < 1e-5f &&
-        std::abs(m[1][2]) < 1e-5f &&
-        std::abs(m[2][0]) < 1e-5f &&
-        std::abs(m[2][1]) < 1e-5f &&
-        std::abs(m[2][2] - 1.0f) < 1e-5f &&
-        std::abs(m[2][3]) < 1e-5f &&
-        std::abs(m[3][2]) < 1e-5f;
-}
-
-static bool has_non_translation(const Mat4& m) {
-    return
-        std::abs(m[0][0] - 1.0f) > 1e-5f ||
-        std::abs(m[0][1]) > 1e-5f ||
-        std::abs(m[1][0]) > 1e-5f ||
-        std::abs(m[1][1] - 1.0f) > 1e-5f;
-}
-
-// ── cache management ───────────────────────────────────────────────
 
 // ── SoftwareTextProcessor ──────────────────────────────────────────
 
@@ -185,9 +168,6 @@ public:
             const float font_size = std::max(1.0f, txt.style.size);
             const float line_height = font_size * std::max(1.0f, txt.style.line_height);
 
-            // Use the shared FontEngine singleton for accurate per-line
-            // measurement (compute_world_bbox does not have access to the
-            // RenderNode, so it uses the process-wide shared instance).
             FontEngine& engine = shared_font_engine();
             FontSpec spec;
             spec.font_path   = txt.style.font_path;
@@ -204,7 +184,6 @@ public:
                     const size_t line_len = i - start;
                     float line_w = engine.measure_text(sv.substr(start, line_len), spec, font_size);
                     if (line_w <= 0.0f) {
-                        // FontEngine failed to load the face; fall back to legacy approximation
                         line_w = static_cast<float>(line_len) * font_size * 0.6f;
                     }
                     line_w += txt.style.tracking * static_cast<float>(line_len);

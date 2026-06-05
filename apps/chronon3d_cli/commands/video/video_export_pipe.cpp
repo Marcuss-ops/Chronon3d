@@ -4,7 +4,7 @@
 #include <chronon3d/core/cancellation_token.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/render_graph/render_pipeline.hpp>
-#include <chronon3d/core/telemetry/render_telemetry.hpp>
+#include <chronon3d/core/telemetry/telemetry_bundle.hpp>
 #include <spdlog/spdlog.h>
 #include <chrono>
 #include <thread>
@@ -206,13 +206,7 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     std::sort(telemetry_frames.begin(), telemetry_frames.end(),
               [](const auto& a, const auto& b) { return a.frame_number < b.frame_number; });
 
-    auto node_events = chronon3d::telemetry::collect_node_telemetry();
-    auto layer_events = chronon3d::telemetry::collect_layer_telemetry();
-    auto cache_events = chronon3d::telemetry::collect_cache_telemetry();
-    auto culling_events = chronon3d::telemetry::collect_culling_telemetry();
-    auto text_events = chronon3d::telemetry::collect_text_telemetry();
-    auto image_events = chronon3d::telemetry::collect_image_telemetry();
-    auto tile_events = chronon3d::telemetry::collect_tile_telemetry();
+    auto telemetry = chronon3d::telemetry::collect_all_telemetry();
 
     std::vector<chronon3d::telemetry::PhaseTelemetryRecord> phases;
     phases.push_back({"setup_renderer", std::chrono::duration<double, std::milli>(setup_t1 - setup_t0).count()});
@@ -262,9 +256,9 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
         composition_id, opts.output, export_status.success,
         total, encoded_frames, wall_time_ms, render_ms, encode_ms,
         started_at_iso, phases, resolved_counters,
-        node_events, renderer->counters(), telemetry_frames,
-        layer_events, cache_events, culling_events,
-        text_events, image_events, tile_events);
+        telemetry.node_events, renderer->counters(), telemetry_frames,
+        telemetry.layer_events, telemetry.cache_events, telemetry.culling_events,
+        telemetry.text_events, telemetry.image_events, telemetry.tile_events);
 
     // Populate the result boundary model
     result.success = export_status.success;

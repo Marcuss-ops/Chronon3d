@@ -2,7 +2,7 @@
 #include "../telemetry/telemetry_run.hpp"
 
 #include <chronon3d/core/memory/framebuffer.hpp>
-#include <chronon3d/core/telemetry/render_telemetry.hpp>
+#include <chronon3d/core/telemetry/telemetry_bundle.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/system_metrics.hpp>
 #include <chronon3d/runtime/renderer_warmup.hpp>
@@ -177,20 +177,14 @@ bool execute_render_job(const CompositionRegistry& registry, const RenderJobPlan
     phases.push_back({"rendering_loop", std::chrono::duration<double, std::milli>(loop_t1 - loop_t0).count()});
 
     // Flush per-node telemetry collected during graph execution
-    auto node_events = chronon3d::telemetry::collect_node_telemetry();
-    auto layer_events = chronon3d::telemetry::collect_layer_telemetry();
-    auto cache_events = chronon3d::telemetry::collect_cache_telemetry();
-    auto culling_events = chronon3d::telemetry::collect_culling_telemetry();
-    auto text_events = chronon3d::telemetry::collect_text_telemetry();
-    auto image_events = chronon3d::telemetry::collect_image_telemetry();
-    auto tile_events = chronon3d::telemetry::collect_tile_telemetry();
+    auto telemetry = chronon3d::telemetry::collect_all_telemetry();
 
     if (write_telemetry) {
         chronon3d::telemetry::TelemetryManager::instance().record_run(run, telemetry_frames, phases, counters_list,
-                                                            node_events, layer_events,
-                                                            cache_events, culling_events,
-                                                            text_events, image_events,
-                                                            tile_events);
+                                                            telemetry.node_events, telemetry.layer_events,
+                                                            telemetry.cache_events, telemetry.culling_events,
+                                                            telemetry.text_events, telemetry.image_events,
+                                                            telemetry.tile_events);
     }
 
     if (plan.report) {
