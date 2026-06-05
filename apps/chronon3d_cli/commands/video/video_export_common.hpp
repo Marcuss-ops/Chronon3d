@@ -55,10 +55,23 @@ struct FfmpegExportOptions {
 // render_and_encode_ffmpeg_pipe() is declared in pipe_export_session.hpp
 // and returns PipeExportResult (boundary model with all status/timing data).
 
+/// Result boundary model for chunked export (PNG frames → ffmpeg encode).
+struct ChunkedExportResult {
+    int return_code{1};
+    bool success{false};
+    bool chunk_failed{false};
+    bool encode_failed{false};
+    int frames_written{0};
+    int frames_total{0};
+    double wall_time_ms{0.0};
+    double render_ms{0.0};
+    double encode_ms{0.0};
+};
+
 // Factory: creates the appropriate encoder based on opts.encoder_backend
 std::unique_ptr<IVideoEncoder> create_video_encoder(const FfmpegExportOptions& opts);
 
-int render_and_encode_ffmpeg_chunked(
+[[nodiscard]] ChunkedExportResult render_and_encode_ffmpeg_chunked(
     const CompositionRegistry& registry,
     const Composition& comp,
     const std::string& composition_id,
