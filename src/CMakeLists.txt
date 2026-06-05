@@ -208,6 +208,8 @@ set(CHRONON3D_BACKEND_SOFTWARE_SOURCES
     backends/software/processors/software_shape_processor.cpp
     backends/software/processors/software_text_effects.cpp
     backends/software/processors/software_text_processor.cpp
+    backends/software/processors/text_glow.cpp
+    backends/software/processors/text_shadow.cpp
     backends/software/processors/software_utility_processors.cpp
     backends/software/rasterizers/line_rasterizer.cpp
     backends/software/rasterizers/path_cache.cpp
@@ -282,6 +284,9 @@ set(CHRONON3D_SCENE_SOURCES
     scene/camera/camera_framing.cpp
     scene/camera/camera_path_sampler.cpp
     scene/camera/camera_debug_overlay.cpp
+    scene/camera/overlay_hud_panels.cpp
+    scene/camera/overlay_kinematic_panels.cpp
+    scene/camera/overlay_spatial_panels.cpp
     scene/model/layer.cpp
     scene/model/render_node_factory.cpp
     scene/model/transform_resolver.cpp

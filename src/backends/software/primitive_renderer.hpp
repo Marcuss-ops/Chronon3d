@@ -11,11 +11,4 @@
 #include "specialized/mesh_renderer.hpp"
 #include "utils/projection_utils.hpp"
 
-namespace chronon3d {
-namespace renderer {
-
-// Shared utility
-std::unique_ptr<Framebuffer> downsample_fb(const Framebuffer& src, i32 dst_w, i32 dst_h);
-
-} // namespace renderer
-} // namespace chronon3d
+// downsample_fb() removed — lives in render_graph/pipeline/helpers.hpp (graph namespace).
