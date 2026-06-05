@@ -164,51 +164,17 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
                 std::lock_guard<std::mutex> lock(aggregate_mutex);
                 cli::telemetry::add_counters(aggregate_counters, *renderer->counters());
                 
-                auto local_node_events = chronon3d::telemetry::collect_node_telemetry();
-                auto local_layer_events = chronon3d::telemetry::collect_layer_telemetry();
-                auto local_cache_events = chronon3d::telemetry::collect_cache_telemetry();
-                auto local_culling_events = chronon3d::telemetry::collect_culling_telemetry();
-                auto local_text_events = chronon3d::telemetry::collect_text_telemetry();
-                auto local_image_events = chronon3d::telemetry::collect_image_telemetry();
-                auto local_tile_events = chronon3d::telemetry::collect_tile_telemetry();
+                auto local_telemetry = chronon3d::telemetry::collect_all_telemetry();
 
                 {
                     std::lock_guard<std::mutex> tel_lock(telemetry_data_mutex);
-                    if (!local_node_events.empty()) {
-                        node_events.insert(node_events.end(),
-                                           std::make_move_iterator(local_node_events.begin()),
-                                           std::make_move_iterator(local_node_events.end()));
-                    }
-                    if (!local_layer_events.empty()) {
-                        layer_events.insert(layer_events.end(),
-                                           std::make_move_iterator(local_layer_events.begin()),
-                                           std::make_move_iterator(local_layer_events.end()));
-                    }
-                    if (!local_cache_events.empty()) {
-                        cache_events.insert(cache_events.end(),
-                                           std::make_move_iterator(local_cache_events.begin()),
-                                           std::make_move_iterator(local_cache_events.end()));
-                    }
-                    if (!local_culling_events.empty()) {
-                        culling_events.insert(culling_events.end(),
-                                           std::make_move_iterator(local_culling_events.begin()),
-                                           std::make_move_iterator(local_culling_events.end()));
-                    }
-                    if (!local_text_events.empty()) {
-                        text_events.insert(text_events.end(),
-                                           std::make_move_iterator(local_text_events.begin()),
-                                           std::make_move_iterator(local_text_events.end()));
-                    }
-                    if (!local_image_events.empty()) {
-                        image_events.insert(image_events.end(),
-                                           std::make_move_iterator(local_image_events.begin()),
-                                           std::make_move_iterator(local_image_events.end()));
-                    }
-                    if (!local_tile_events.empty()) {
-                        tile_events.insert(tile_events.end(),
-                                           std::make_move_iterator(local_tile_events.begin()),
-                                           std::make_move_iterator(local_tile_events.end()));
-                    }
+                    for (auto& ev : local_telemetry.node_events) node_events.push_back(std::move(ev));
+                    for (auto& ev : local_telemetry.layer_events) layer_events.push_back(std::move(ev));
+                    for (auto& ev : local_telemetry.cache_events) cache_events.push_back(std::move(ev));
+                    for (auto& ev : local_telemetry.culling_events) culling_events.push_back(std::move(ev));
+                    for (auto& ev : local_telemetry.text_events) text_events.push_back(std::move(ev));
+                    for (auto& ev : local_telemetry.image_events) image_events.push_back(std::move(ev));
+                    for (auto& ev : local_telemetry.tile_events) tile_events.push_back(std::move(ev));
                 }
                 {
                     std::lock_guard<std::mutex> frames_lock(frames_mutex);

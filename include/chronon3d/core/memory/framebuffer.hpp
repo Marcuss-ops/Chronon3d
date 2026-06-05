@@ -298,6 +298,26 @@ public:
         }
     }
 
+    /**
+     * @brief Copy pixels from @p src into this framebuffer at offset (dst_x, dst_y).
+     *
+     * Pixels outside this framebuffer's bounds are clipped. This is the
+     * canonical way to composite one framebuffer onto another and replaces
+     * ad-hoc copy_framebuffer_pixels() helpers.
+     */
+    void blit(const Framebuffer& src, i32 dst_x, i32 dst_y) {
+        for (i32 y = 0; y < src.height(); ++y) {
+            const i32 dy = dst_y + y;
+            if (dy < 0 || dy >= m_height) continue;
+            for (i32 x = 0; x < src.width(); ++x) {
+                const i32 dx = dst_x + x;
+                if (dx < 0 || dx >= m_width) continue;
+                data()[static_cast<usize>(dy) * m_allocated_width + dx] =
+                    src.data()[static_cast<usize>(y) * src.m_allocated_width + x];
+            }
+        }
+    }
+
     void resize_logical(i32 width, i32 height) {
         if (width <= 0 || height <= 0) throw std::invalid_argument("Resize dimensions must be positive");
         if (!m_owns_pixels) {

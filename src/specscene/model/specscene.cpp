@@ -2,11 +2,14 @@
 #include <chronon3d/scene/model/depth_role.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/math/transform.hpp>
+#include <chronon3d/core/string_utils.hpp>
 #include "../parser/specscene_parsers.hpp"
 #include <fmt/format.h>
 #include <filesystem>
 
 namespace chronon3d::specscene {
+
+using chronon3d::lower_copy;
 
 bool is_specscene_file(const std::filesystem::path& path) {
     auto ext = lower_copy(path.extension().string());
