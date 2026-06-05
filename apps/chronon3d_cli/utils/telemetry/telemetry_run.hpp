@@ -31,6 +31,14 @@ inline std::vector<chronon3d::telemetry::CounterTelemetryRecord> capture_counter
         {"graph_build_ms", counters.graph_build_ms.load(std::memory_order_relaxed)},
         {"graph_execute_ms", counters.graph_execute_ms.load(std::memory_order_relaxed)},
         {"graph_total_ms", counters.graph_total_ms.load(std::memory_order_relaxed)},
+        {"compiled_graph_refresh_ms", counters.compiled_graph_refresh_ms.load(std::memory_order_relaxed)},
+        {"cache_eval_ms", counters.cache_eval_ms.load(std::memory_order_relaxed)},
+        {"dirty_eval_ms", counters.dirty_eval_ms.load(std::memory_order_relaxed)},
+        {"input_resolve_ms", counters.input_resolve_ms.load(std::memory_order_relaxed)},
+        {"framebuffer_lifetime_ms", counters.framebuffer_lifetime_ms.load(std::memory_order_relaxed)},
+        {"node_schedule_ms", counters.node_schedule_ms.load(std::memory_order_relaxed)},
+        {"node_dispatch_ms", counters.node_dispatch_ms.load(std::memory_order_relaxed)},
+        {"telemetry_emit_ms", counters.telemetry_emit_ms.load(std::memory_order_relaxed)},
         {"clear_calls", counters.clear_calls.load(std::memory_order_relaxed)},
         {"clear_pixels", counters.clear_pixels.load(std::memory_order_relaxed)},
         {"clear_copy_pixels", counters.clear_copy_pixels.load(std::memory_order_relaxed)},
@@ -142,6 +150,14 @@ inline void add_counters(chronon3d::RenderCounters& dst, const chronon3d::Render
     dst.graph_build_ms.fetch_add(src.graph_build_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.graph_execute_ms.fetch_add(src.graph_execute_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.graph_total_ms.fetch_add(src.graph_total_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.compiled_graph_refresh_ms.fetch_add(src.compiled_graph_refresh_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.cache_eval_ms.fetch_add(src.cache_eval_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.dirty_eval_ms.fetch_add(src.dirty_eval_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.input_resolve_ms.fetch_add(src.input_resolve_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.framebuffer_lifetime_ms.fetch_add(src.framebuffer_lifetime_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.node_schedule_ms.fetch_add(src.node_schedule_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.node_dispatch_ms.fetch_add(src.node_dispatch_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.telemetry_emit_ms.fetch_add(src.telemetry_emit_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.clear_calls.fetch_add(src.clear_calls.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.clear_pixels.fetch_add(src.clear_pixels.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.clear_copy_pixels.fetch_add(src.clear_copy_pixels.load(std::memory_order_relaxed), std::memory_order_relaxed);
@@ -263,6 +279,16 @@ inline void populate_run_metrics(chronon3d::telemetry::RenderTelemetryRecord& ru
 
     run.chronon_conversion_copy_ms = counters.frame_conversion_copy_ms.load(std::memory_order_relaxed);
 
+    // Graph Executor Phase Timings
+    run.compiled_graph_refresh_ms = counters.compiled_graph_refresh_ms.load(std::memory_order_relaxed);
+    run.cache_eval_ms = counters.cache_eval_ms.load(std::memory_order_relaxed);
+    run.dirty_eval_ms = counters.dirty_eval_ms.load(std::memory_order_relaxed);
+    run.input_resolve_ms = counters.input_resolve_ms.load(std::memory_order_relaxed);
+    run.framebuffer_lifetime_ms = counters.framebuffer_lifetime_ms.load(std::memory_order_relaxed);
+    run.node_schedule_ms = counters.node_schedule_ms.load(std::memory_order_relaxed);
+    run.node_dispatch_ms = counters.node_dispatch_ms.load(std::memory_order_relaxed);
+    run.telemetry_emit_ms = counters.telemetry_emit_ms.load(std::memory_order_relaxed);
+
     // Setup Deep Dive (cold start diagnostics)
     run.setup_graph_parsing_ms = counters.setup_graph_parsing_ms.load(std::memory_order_relaxed);
     run.setup_asset_io_load_ms = counters.setup_asset_io_load_ms.load(std::memory_order_relaxed);
@@ -293,6 +319,14 @@ inline std::vector<chronon3d::telemetry::PhaseTelemetryRecord> capture_graph_pha
     add_phase("graph_build_ms", counters.graph_build_ms.load(std::memory_order_relaxed));
     add_phase("graph_execute_ms", counters.graph_execute_ms.load(std::memory_order_relaxed));
     add_phase("graph_total_ms", counters.graph_total_ms.load(std::memory_order_relaxed));
+    add_phase("compiled_graph_refresh_ms", counters.compiled_graph_refresh_ms.load(std::memory_order_relaxed));
+    add_phase("cache_eval_ms", counters.cache_eval_ms.load(std::memory_order_relaxed));
+    add_phase("dirty_eval_ms", counters.dirty_eval_ms.load(std::memory_order_relaxed));
+    add_phase("input_resolve_ms", counters.input_resolve_ms.load(std::memory_order_relaxed));
+    add_phase("framebuffer_lifetime_ms", counters.framebuffer_lifetime_ms.load(std::memory_order_relaxed));
+    add_phase("node_schedule_ms", counters.node_schedule_ms.load(std::memory_order_relaxed));
+    add_phase("node_dispatch_ms", counters.node_dispatch_ms.load(std::memory_order_relaxed));
+    add_phase("telemetry_emit_ms", counters.telemetry_emit_ms.load(std::memory_order_relaxed));
     return phases;
 }
 

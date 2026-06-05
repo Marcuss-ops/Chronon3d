@@ -381,7 +381,14 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         compiled = std::move(*sw_renderer->m_cached_compiled_graph);
         sw_renderer->m_cached_compiled_graph.reset();
 
+        const auto t_refresh0 = std::chrono::steady_clock::now();
         detail::refresh_compiled_graph_payloads(compiled, scene, ctx, resolved);
+        const auto t_refresh1 = std::chrono::steady_clock::now();
+        if (ctx.counters) {
+            ctx.counters->compiled_graph_refresh_ms.fetch_add(
+                to_ms_u64(std::chrono::duration<double, std::milli>(t_refresh1 - t_refresh0).count()),
+                std::memory_order_relaxed);
+        }
         compiled.skip_initial_clear = false;
         compiled.early_exit_skip.assign(compiled.graph.size(), false);
 
