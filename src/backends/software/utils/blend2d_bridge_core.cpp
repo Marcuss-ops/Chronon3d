@@ -206,6 +206,50 @@ void composite_framebuffer(Framebuffer& dst_fb, const Framebuffer& src_fb, int x
         ensure_mask_alpha_cache(*state, dst_fb.width(), dst_fb.height());
     }
 
+    const bool no_mask = !state || !state->mask || !state->mask->enabled();
+
+    // ── memcpy fast path: Normal blend, fully opaque source, opacity=1 ───
+    //     dst = src  (since src.a == 1.0f eliminates the dst*(1-src.a) term)
+    if (mode == BlendMode::Normal && opacity >= 0.999f && no_mask && src_fb.is_opaque()) {
+        auto process_rows = [&](int row_begin, int row_end) {
+            const int dst_w = dst_fb.width();
+            const int src_stride = src_fb.stride();
+            const int dst_stride = dst_fb.stride();
+            const Color* src_base = src_fb.data();
+            Color* dst_base = dst_fb.data();
+
+            for (int iy = row_begin; iy < row_end; ++iy) {
+                const int py = y + iy;
+                if (py < 0 || py >= dst_fb.height()) continue;
+
+                const Color* src_ptr = src_base + static_cast<size_t>(iy) * src_stride;
+                Color* dst_ptr = dst_base + static_cast<size_t>(py) * dst_stride;
+
+                // Clip x range to dst bounds
+                int copy_x = x;
+                int copy_w = sw;
+                if (copy_x < 0) { copy_w += copy_x; src_ptr -= copy_x; copy_x = 0; }
+                if (copy_x + copy_w > dst_w) copy_w = dst_w - copy_x;
+                if (copy_w <= 0) continue;
+
+                std::memcpy(dst_ptr + copy_x, src_ptr,
+                            static_cast<size_t>(copy_w) * sizeof(Color));
+            }
+        };
+
+        if (sh >= 16) {
+            tbb::parallel_for(tbb::blocked_range<int>(0, sh), [&](const tbb::blocked_range<int>& range) {
+                process_rows(range.begin(), range.end());
+            });
+        } else {
+            process_rows(0, sh);
+        }
+        return;
+    }
+
+    // ── AVX2 batch path: Normal blend with opacity scaling ───────────────
+    const bool add_mode = (mode == BlendMode::Add);
+
     auto process_rows = [&](int row_begin, int row_end) {
         for (int iy = row_begin; iy < row_end; ++iy) {
             const int py = y + iy;
@@ -214,7 +258,70 @@ void composite_framebuffer(Framebuffer& dst_fb, const Framebuffer& src_fb, int x
             const Color* src_row = src_fb.pixels_row(iy);
             Color* dst_row = dst_fb.pixels_row(py);
 
-            for (int ix = 0; ix < sw; ++ix) {
+            int ix = 0;
+#if defined(__AVX2__)
+            if (!add_mode && no_mask) {
+                const __m256 op8 = _mm256_set1_ps(opacity);
+                for (; ix + 4 <= sw; ix += 4) {
+                    const int px = x + ix;
+                    if (px < 0) continue;
+                    if (px + 4 > dst_fb.width()) break;
+
+                    const float* s = reinterpret_cast<const float*>(&src_row[ix]);
+                    __m256 src_lo = _mm256_loadu_ps(s);
+                    __m256 src_hi = _mm256_loadu_ps(s + 8);
+
+                    // Multiply by opacity
+                    src_lo = _mm256_mul_ps(src_lo, op8);
+                    src_hi = _mm256_mul_ps(src_hi, op8);
+
+                    // Early-out: skip batch if all alphas ≈ 0
+                    float a0 = _mm256_cvtss_f32(
+                        _mm256_permutevar8x32_ps(src_lo, _mm256_set1_epi32(3)));
+                    float a1 = _mm256_cvtss_f32(
+                        _mm256_permutevar8x32_ps(src_lo, _mm256_set1_epi32(7)));
+                    float a2 = _mm256_cvtss_f32(
+                        _mm256_permutevar8x32_ps(src_hi, _mm256_set1_epi32(3)));
+                    float a3 = _mm256_cvtss_f32(
+                        _mm256_permutevar8x32_ps(src_hi, _mm256_set1_epi32(7)));
+
+                    if (a0 <= 0.001f && a1 <= 0.001f && a2 <= 0.001f && a3 <= 0.001f) continue;
+
+                    float* d = reinterpret_cast<float*>(&dst_row[px]);
+                    __m256 dst_lo = _mm256_loadu_ps(d);
+                    __m256 dst_hi = _mm256_loadu_ps(d + 8);
+
+                    // Normal blend: dst = src + dst * (1 - src.a)
+                    // Extract lower 128 bits (pixels 0,1 rgba) and upper (pixels 1, 2)
+                    __m128 src_low128  = _mm256_castps256_ps128(src_lo);   // [p0.r, p0.g, p0.b, p0.a]
+                    __m128 src_high128 = _mm256_extractf128_ps(src_lo, 1); // [p1.r, p1.g, p1.b, p1.a]
+
+                    // Broadcast each pixel's alpha to all 4 lanes
+                    __m128 inv_a0 = _mm_sub_ps(_mm_set1_ps(1.0f),
+                        _mm_shuffle_ps(src_low128, src_low128, 0xFF));  // 1 - p0.a
+                    __m128 inv_a1 = _mm_sub_ps(_mm_set1_ps(1.0f),
+                        _mm_shuffle_ps(src_high128, src_high128, 0xFF)); // 1 - p1.a
+
+                    __m256 inv_sa_256 = _mm256_set_m128(inv_a1, inv_a0);
+                    dst_lo = _mm256_add_ps(src_lo, _mm256_mul_ps(dst_lo, inv_sa_256));
+
+                    src_low128  = _mm256_castps256_ps128(src_hi);   // [p2.r, p2.g, p2.b, p2.a]
+                    src_high128 = _mm256_extractf128_ps(src_hi, 1); // [p3.r, p3.g, p3.b, p3.a]
+
+                    __m128 inv_a2 = _mm_sub_ps(_mm_set1_ps(1.0f),
+                        _mm_shuffle_ps(src_low128, src_low128, 0xFF));
+                    __m128 inv_a3 = _mm_sub_ps(_mm_set1_ps(1.0f),
+                        _mm_shuffle_ps(src_high128, src_high128, 0xFF));
+
+                    inv_sa_256 = _mm256_set_m128(inv_a3, inv_a2);
+                    dst_hi = _mm256_add_ps(src_hi, _mm256_mul_ps(dst_hi, inv_sa_256));
+
+                    _mm256_storeu_ps(d, dst_lo);
+                    _mm256_storeu_ps(d + 8, dst_hi);
+                }
+            }
+#endif
+            for (; ix < sw; ++ix) {
                 const int px = x + ix;
                 if (px < 0 || px >= dst_fb.width()) continue;
                 if (state && !pixel_passes_mask(*state, px, py)) continue;
@@ -226,15 +333,15 @@ void composite_framebuffer(Framebuffer& dst_fb, const Framebuffer& src_fb, int x
                 src.a *= opacity;
                 if (src.a <= 0.001f) continue;
 
-                    Color& dst = dst_row[px];
-                    if (mode == BlendMode::Add) {
-                        dst.r += src.r;
-                        dst.g += src.g;
-                        dst.b += src.b;
-                        dst.a += src.a;
-                    } else {
-                        const float inv_sa = 1.0f - src.a;
-                        dst.r = src.r + dst.r * inv_sa;
+                Color& dst = dst_row[px];
+                if (add_mode) {
+                    dst.r += src.r;
+                    dst.g += src.g;
+                    dst.b += src.b;
+                    dst.a += src.a;
+                } else {
+                    const float inv_sa = 1.0f - src.a;
+                    dst.r = src.r + dst.r * inv_sa;
                     dst.g = src.g + dst.g * inv_sa;
                     dst.b = src.b + dst.b * inv_sa;
                     dst.a = src.a + dst.a * inv_sa;
