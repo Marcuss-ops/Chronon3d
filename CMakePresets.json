@@ -25,8 +25,8 @@
         "CMAKE_LINKER_TYPE": "MOLD",
         "CMAKE_C_COMPILER_LAUNCHER": "ccache",
         "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
-        "CMAKE_CXX_FLAGS": "-fdiagnostics-color=always",
-        "CMAKE_C_FLAGS": "-fdiagnostics-color=always"
+        "CMAKE_CXX_FLAGS": "-fdiagnostics-color=always -pipe",
+        "CMAKE_C_FLAGS": "-fdiagnostics-color=always -pipe"
       }
     },
     {
@@ -108,7 +108,29 @@
         "CHRONON3D_ENABLE_NATIVE_FFMPEG": "OFF",
         "CHRONON3D_ENABLE_SQLITE_TELEMETRY": "OFF",
         "CHRONON3D_ENABLE_PROFILING": "OFF",
-        "CHRONON3D_UNITY_BUILD": "OFF"
+        "CHRONON3D_UNITY_BUILD": "ON",
+        "CMAKE_UNITY_BUILD_BATCH_SIZE": "16"
+      }
+    },
+    {
+      "name": "linux-turbo",
+      "inherits": "base-linux",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CHRONON3D_BUILD_TESTS": "OFF",
+        "CHRONON3D_BUILD_TOOLS": "OFF",
+        "CHRONON3D_BUILD_BENCHMARKS": "OFF",
+        "CHRONON3D_BUILD_CONTENT": "OFF",
+        "CHRONON3D_ENABLE_NATIVE_FFMPEG": "OFF",
+        "CHRONON3D_ENABLE_SQLITE_TELEMETRY": "OFF",
+        "CHRONON3D_ENABLE_PROFILING": "OFF",
+        "CHRONON3D_UNITY_BUILD": "ON",
+        "CMAKE_UNITY_BUILD_BATCH_SIZE": "32"
       }
     },
     {
@@ -128,7 +150,8 @@
         "CHRONON3D_ENABLE_NATIVE_FFMPEG": "OFF",
         "CHRONON3D_ENABLE_SQLITE_TELEMETRY": "OFF",
         "CHRONON3D_ENABLE_PROFILING": "OFF",
-        "CHRONON3D_UNITY_BUILD": "ON"
+        "CHRONON3D_UNITY_BUILD": "ON",
+        "CMAKE_UNITY_BUILD_BATCH_SIZE": "16"
       }
     },
     {
@@ -263,6 +286,14 @@
     {
       "name": "linux-debug-render",
       "configurePreset": "linux-debug-render",
+      "targets": [
+        "chronon3d_cli"
+      ],
+      "jobs": 16
+    },
+    {
+      "name": "linux-turbo",
+      "configurePreset": "linux-turbo",
       "targets": [
         "chronon3d_cli"
       ],

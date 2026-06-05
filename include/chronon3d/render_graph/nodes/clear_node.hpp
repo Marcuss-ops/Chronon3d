@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/render_graph/nodes/basic_nodes_common.hpp>
+#include <cstring>
 #include <span>
 
 namespace chronon3d::graph {
@@ -72,7 +73,23 @@ public:
             // The previous framebuffer can also be referenced by node-cache entries.
             // Clearing it in-place would corrupt cached sources, so detach first when shared.
             if (fb.use_count() > 1) {
-                fb = std::make_shared<Framebuffer>(*fb);
+                // Pool-acquired copy avoids heap allocation overhead of
+                // make_shared<Framebuffer> (~1-5ms saved per frame).
+                auto owned = ctx.acquire_owned_fb(fb->width(), fb->height(), false);
+                owned->set_origin(fb->origin_x(), fb->origin_y());
+                const int copy_h = fb->height();
+                const int copy_w = fb->allocated_width();
+                for (int y = 0; y < copy_h; ++y) {
+                    std::memcpy(owned->pixels_row(y), fb->pixels_row(y),
+                                 static_cast<size_t>(copy_w) * sizeof(Color));
+                }
+                Framebuffer* raw = owned.release();
+                if (ctx.framebuffer_pool) {
+                    fb = std::shared_ptr<Framebuffer>(raw,
+                        PoolFbDeleter{ctx.framebuffer_pool.get(), ctx.framebuffer_pool->alive_token()});
+                } else {
+                    fb = std::shared_ptr<Framebuffer>(raw);
+                }
             }
             const bool is_empty_clip = ctx.clip_rect && ctx.clip_rect->is_empty();
             std::optional<raster::BBox> local_clip = ctx.clip_rect;

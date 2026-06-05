@@ -85,6 +85,12 @@ struct RenderGraphContext {
 
     std::shared_ptr<Framebuffer> acquire_framebuffer(const Framebuffer& other) const;
 
+    /// Lightweight copy for per-node execution.  Skips copying large vectors
+    /// (node_telemetry, layer_telemetry, dof_depth, early_exit_skip) that are
+    /// not read during node.execute(), reducing per-node copy overhead from
+    /// O(n) heap allocations to a handful of pointer/POD copies.
+    RenderGraphContext clone_for_node_execution() const;
+
     RenderProfiler* profiler{nullptr};
     const CompositionRegistry* registry{nullptr};
     video::VideoFrameDecoder* video_decoder{nullptr};

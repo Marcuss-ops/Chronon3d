@@ -165,6 +165,7 @@ if(CHRONON3D_BUILD_CONTENT)
         ${CMAKE_SOURCE_DIR}/content/register_2d5_content.cpp
     )
     target_include_directories(chronon3d_cli PRIVATE ${CMAKE_SOURCE_DIR})
+    target_compile_definitions(chronon3d_cli PRIVATE CHRONON3D_BUILD_CONTENT)
 endif()
 
 target_include_directories(chronon3d_cli PRIVATE ${CMAKE_SOURCE_DIR})

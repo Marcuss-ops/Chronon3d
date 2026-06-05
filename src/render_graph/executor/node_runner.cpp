@@ -74,7 +74,10 @@ void execute_single_node(
     size_t level_index,
     RenderCounters* parent_counters,
     cache::FramebufferPool* parent_pool,
-    std::pmr::vector<std::atomic_size_t>& consumer_remaining
+    std::pmr::vector<std::atomic_size_t>& consumer_remaining,
+    double* out_cache_ms,
+    double* out_dirty_ms,
+    double* out_telemetry_ms
 ) {
     if (id < ctx.early_exit_skip.size() && ctx.early_exit_skip[id]) {
         auto owned_fb = ctx.acquire_owned_fb(64, 64, false);
@@ -116,10 +119,8 @@ void execute_single_node(
         pr.inputs_all_cache_hits
     );
     const auto t_cache1 = std::chrono::steady_clock::now();
-    if (ctx.counters) {
-        ctx.counters->cache_eval_ms.fetch_add(
-            static_cast<uint64_t>(std::llround(std::chrono::duration<double, std::milli>(t_cache1 - t_cache0).count())),
-            std::memory_order_relaxed);
+    if (out_cache_ms) {
+        *out_cache_ms = std::chrono::duration<double, std::milli>(t_cache1 - t_cache0).count();
     }
 
     if (ctx.diagnostics_enabled) {
@@ -154,7 +155,11 @@ void execute_single_node(
         }
     }
 
-    RenderGraphContext node_ctx = ctx;
+    // Use lightweight clone that skips copying large vectors
+    // (node_telemetry, layer_telemetry, dof_depth, early_exit_skip).
+    // These are not read during node.execute() — the full copy was the
+    // #1 bottleneck (~20K ms overhead for 90 node executions).
+    auto node_ctx = ctx.clone_for_node_execution();
     const auto t_dirty0 = std::chrono::steady_clock::now();
     if (ctx.dirty_rects_enabled) {
         node_ctx.clip_rect = compute_dirty_clip(ctx, node, predicted_bbox);
@@ -162,10 +167,8 @@ void execute_single_node(
         node_ctx.clip_rect = predicted_bbox;
     }
     const auto t_dirty1 = std::chrono::steady_clock::now();
-    if (ctx.counters) {
-        ctx.counters->dirty_eval_ms.fetch_add(
-            static_cast<uint64_t>(std::llround(std::chrono::duration<double, std::milli>(t_dirty1 - t_dirty0).count())),
-            std::memory_order_relaxed);
+    if (out_dirty_ms) {
+        *out_dirty_ms = std::chrono::duration<double, std::milli>(t_dirty1 - t_dirty0).count();
     }
 
     node_ctx.reusable_inputs.clear();
@@ -201,10 +204,8 @@ void execute_single_node(
         duration_ms
     );
     const auto t_telemetry1 = std::chrono::steady_clock::now();
-    if (ctx.counters) {
-        ctx.counters->telemetry_emit_ms.fetch_add(
-            static_cast<uint64_t>(std::llround(std::chrono::duration<double, std::milli>(t_telemetry1 - t_telemetry0).count())),
-            std::memory_order_relaxed);
+    if (out_telemetry_ms) {
+        *out_telemetry_ms = std::chrono::duration<double, std::milli>(t_telemetry1 - t_telemetry0).count();
     }
 
     state.temp[id] = cache_eval.result;
