@@ -11,9 +11,10 @@ public:
     }
 
     int export_video(const VideoExportJob& job) override {
-        return render_and_encode_ffmpeg_chunked(
+        auto result = render_and_encode_ffmpeg_chunked(
             job.registry, job.comp, job.composition_id,
             job.settings, job.start, job.end, job.opts);
+        return result.return_code;
     }
 };
 
