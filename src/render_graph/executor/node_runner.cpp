@@ -105,6 +105,7 @@ void execute_single_node(
     const auto& input_ids = graph.inputs(id);
     const auto& pr = level_resolved[level_index];
 
+    const auto t_cache0 = std::chrono::steady_clock::now();
     auto cache_eval = evaluate_cache(
         node, ctx,
         pr.input_hash,
@@ -113,6 +114,12 @@ void execute_single_node(
         id,
         pr.inputs_all_cache_hits
     );
+    const auto t_cache1 = std::chrono::steady_clock::now();
+    if (ctx.counters) {
+        ctx.counters->cache_eval_ms.fetch_add(
+            static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t_cache1 - t_cache0).count()),
+            std::memory_order_relaxed);
+    }
 
     if (ctx.diagnostics_enabled) {
         spdlog::debug("[DIAG-exec] frame={} node='{}' id={} kind='{}' cache='{}' frame_dep={} use_cache={} result_ptr={}",
@@ -147,10 +154,17 @@ void execute_single_node(
     }
 
     RenderGraphContext node_ctx = ctx;
+    const auto t_dirty0 = std::chrono::steady_clock::now();
     if (ctx.dirty_rects_enabled) {
         node_ctx.clip_rect = compute_dirty_clip(ctx, node, predicted_bbox);
     } else {
         node_ctx.clip_rect = predicted_bbox;
+    }
+    const auto t_dirty1 = std::chrono::steady_clock::now();
+    if (ctx.counters) {
+        ctx.counters->dirty_eval_ms.fetch_add(
+            static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t_dirty1 - t_dirty0).count()),
+            std::memory_order_relaxed);
     }
 
     node_ctx.reusable_inputs.clear();
@@ -174,6 +188,7 @@ void execute_single_node(
         parent_pool
     );
 
+    const auto t_telemetry0 = std::chrono::steady_clock::now();
     emit_node_records(
         ctx, node,
         cache_eval.key,
@@ -184,6 +199,12 @@ void execute_single_node(
         static_cast<int>(input_ids.size()),
         duration_ms
     );
+    const auto t_telemetry1 = std::chrono::steady_clock::now();
+    if (ctx.counters) {
+        ctx.counters->telemetry_emit_ms.fetch_add(
+            static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t_telemetry1 - t_telemetry0).count()),
+            std::memory_order_relaxed);
+    }
 
     state.temp[id] = cache_eval.result;
     state.resolved_key_digest[id] = cache_eval.key.digest();

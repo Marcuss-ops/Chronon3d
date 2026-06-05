@@ -90,6 +90,20 @@ void generate_telemetry_report(std::stringstream& out, sqlite3* db, const std::s
     }
     out << "\n";
 
+    // ── Graph Executor Phase Timings ──────────────────────────────────────────
+    out << "## Graph Executor Phase Timings\n";
+    out << "| Phase | Duration |\n";
+    out << "| --- | --- |\n";
+    out << "| compiled graph refresh | " << format_ms(run.compiled_graph_refresh_ms) << " |\n";
+    out << "| cache eval | " << format_ms(run.cache_eval_ms) << " |\n";
+    out << "| dirty eval | " << format_ms(run.dirty_eval_ms) << " |\n";
+    out << "| input resolve | " << format_ms(run.input_resolve_ms) << " |\n";
+    out << "| framebuffer lifetime | " << format_ms(run.framebuffer_lifetime_ms) << " |\n";
+    out << "| node schedule | " << format_ms(run.node_schedule_ms) << " |\n";
+    out << "| node dispatch | " << format_ms(run.node_dispatch_ms) << " |\n";
+    out << "| telemetry emit | " << format_ms(run.telemetry_emit_ms) << " |\n";
+    out << "\n";
+
     // ── Telemetry Counters ────────────────────────────────────────────────────
     out << "## Telemetry Counters\n";
     out << "| Counter | Value |\n";
