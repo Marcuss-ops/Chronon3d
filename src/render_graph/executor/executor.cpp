@@ -125,8 +125,8 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
                 std::memory_order_relaxed);
         }
 
-        auto* parent_counters = profiling::g_current_counters;
-        auto* parent_pool = profiling::g_current_framebuffer_pool;
+        auto* parent_counters = ctx.counters;
+        auto* parent_pool = ctx.framebuffer_pool.get();
 
         execute_levels(graph, ctx, state, plan.levels, consumer_remaining, parent_counters, parent_pool, res);
 
@@ -178,8 +178,8 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
                 std::memory_order_relaxed);
         }
 
-        auto* parent_counters = profiling::g_current_counters;
-        auto* parent_pool = profiling::g_current_framebuffer_pool;
+        auto* parent_counters = ctx.counters;
+        auto* parent_pool = ctx.framebuffer_pool.get();
 
         execute_levels(graph, ctx, state, levels, consumer_remaining, parent_counters, parent_pool, res);
 

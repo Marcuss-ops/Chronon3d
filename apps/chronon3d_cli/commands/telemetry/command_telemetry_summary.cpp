@@ -119,6 +119,15 @@ RunSummary query_run_summary(sqlite3* db, const std::string& run_id) {
         run.setup_pool_preallocation_ms = get_i64("setup_pool_preallocation_ms");
         run.image_decode_ms = get_i64("image_decode_ms");
 
+        run.compiled_graph_refresh_ms = get_i64("compiled_graph_refresh_ms");
+        run.cache_eval_ms = get_i64("cache_eval_ms");
+        run.dirty_eval_ms = get_i64("dirty_eval_ms");
+        run.input_resolve_ms = get_i64("input_resolve_ms");
+        run.framebuffer_lifetime_ms = get_i64("framebuffer_lifetime_ms");
+        run.node_schedule_ms = get_i64("node_schedule_ms");
+        run.node_dispatch_ms = get_i64("node_dispatch_ms");
+        run.telemetry_emit_ms = get_i64("telemetry_emit_ms");
+
         run.chronon_render_only_ms = get_double("chronon_render_only_ms");
         run.chronon_conversion_copy_ms = get_double("chronon_conversion_copy_ms");
         run.chronon_queue_wait_ms = get_double("chronon_queue_wait_ms");
