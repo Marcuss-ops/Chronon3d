@@ -155,14 +155,27 @@ OwnedFB SourceNode::execute(
     std::span<const std::optional<raster::BBox>>
 ) {
     CHRONON_ZONE_C("source_render", trace_category::kRasterize);
-    // Always clear the framebuffer before rendering, even for full-frame
-    // opaque images.  The can_seed_full_frame check below is still used for
-    // set_opaque() and graph-builder optimizations, but not to skip the clear
-    // — floating-point rounding in the transform matrix may leave sub-pixel
-    // gaps that would otherwise show stale pixels from the previous frame.
     const bool full_frame_seed = can_seed_full_frame(ctx);
 
-    auto fb = ctx.acquire_owned_fb(ctx.width, ctx.height, true);        if (ctx.backend) {
+    // Skip clear when full-frame opaque with integer translation — no
+    // sub-pixel gaps are possible because the source covers every pixel
+    // and the composite path uses integer-rounded coordinates.
+    bool skip_clear = false;
+    if (full_frame_seed) {
+        const auto mat = m_matrix_override.value_or(m_node.world_transform.to_mat4());
+        // Identity scale + rotation (coefficients ~1 or ~0) and integer translation
+        const bool identity_scale_rot =
+            std::abs(mat[0][0] - 1.0f) < 1e-4f && std::abs(mat[0][1]) < 1e-4f &&
+            std::abs(mat[1][0]) < 1e-4f && std::abs(mat[1][1] - 1.0f) < 1e-4f;
+        if (identity_scale_rot) {
+            const float tx = mat[3][0];
+            const float ty = mat[3][1];
+            skip_clear = std::abs(tx - std::round(tx)) < 1e-4f &&
+                         std::abs(ty - std::round(ty)) < 1e-4f;
+        }
+    }
+
+    auto fb = ctx.acquire_owned_fb(ctx.width, ctx.height, !skip_clear);        if (ctx.backend) {
         RenderState state;
         state.ssaa_factor = ctx.ssaa_factor;
         const Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(ctx.ssaa_factor, ctx.ssaa_factor, 1.0f));
