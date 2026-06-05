@@ -216,6 +216,10 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
 
     std::vector<chronon3d::telemetry::PhaseTelemetryRecord> phases;
     phases.push_back({"setup_renderer", std::chrono::duration<double, std::milli>(setup_t1 - setup_t0).count()});
+    if (renderer->counters()) {
+        auto graph_phases = cli::telemetry::capture_graph_phase_records(*renderer->counters());
+        phases.insert(phases.end(), graph_phases.begin(), graph_phases.end());
+    }
     phases.push_back({"rendering_loop", render_ms});
     phases.push_back({"encoder_close_and_flush", encode_ms});
     phases.push_back({"chronon_render_pure_ms", chronon_render_pure_ms});

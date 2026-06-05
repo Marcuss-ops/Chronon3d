@@ -24,6 +24,7 @@
 #include <spdlog/spdlog.h>
 #include <fmt/format.h>
 #include <chrono>
+#include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -31,6 +32,10 @@
 namespace chronon3d::graph {
 
 namespace {
+
+inline uint64_t to_ms_u64(double ms) {
+    return static_cast<uint64_t>(std::llround(std::max(0.0, ms)));
+}
 
 std::string format_plan_output_path(std::string pattern, Frame frame) {
     const std::string replacement = fmt::format("{:04d}", static_cast<int64_t>(frame));
@@ -433,20 +438,6 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     const auto t_graph1 = std::chrono::steady_clock::now();
     const auto t_build2 = std::chrono::steady_clock::now();
 
-    if (ctx.diagnostics_enabled) {
-        const double resolve_ms = std::chrono::duration<double, std::milli>(t_resolve1 - t_resolve0).count();
-        const double dirty_ms = std::chrono::duration<double, std::milli>(t_dirty1 - t_dirty0).count();
-        const double graph_ms = std::chrono::duration<double, std::milli>(t_graph1 - t_graph0).count();
-        spdlog::info(
-            "[graph-timing] frame={} resolve_layers_ms={:.2f} dirty_rect_ms={:.2f} graph_phase_ms={:.2f} graph_reused={}",
-            static_cast<int>(frame),
-            resolve_ms,
-            dirty_ms,
-            graph_ms,
-            graph_reused ? 1 : 0
-        );
-    }
-
     // ── Execute: tile-based (V1) or traditional single-pass ─────────────
     const auto t_exec0 = std::chrono::steady_clock::now();
     std::shared_ptr<Framebuffer> fb_shared;
@@ -541,6 +532,33 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         }
     }
     const auto t_exec1 = std::chrono::steady_clock::now();
+
+    if (ctx.counters || ctx.diagnostics_enabled) {
+        const double resolve_ms = std::chrono::duration<double, std::milli>(t_resolve1 - t_resolve0).count();
+        const double dirty_ms = std::chrono::duration<double, std::milli>(t_dirty1 - t_dirty0).count();
+        const double graph_ms = std::chrono::duration<double, std::milli>(t_graph1 - t_graph0).count();
+        const double exec_ms = std::chrono::duration<double, std::milli>(t_exec1 - t_exec0).count();
+        const double total_graph_ms = resolve_ms + dirty_ms + graph_ms + exec_ms;
+        if (ctx.counters) {
+            ctx.counters->graph_resolve_layers_ms.fetch_add(to_ms_u64(resolve_ms), std::memory_order_relaxed);
+            ctx.counters->graph_dirty_rect_ms.fetch_add(to_ms_u64(dirty_ms), std::memory_order_relaxed);
+            ctx.counters->graph_build_ms.fetch_add(to_ms_u64(graph_ms), std::memory_order_relaxed);
+            ctx.counters->graph_execute_ms.fetch_add(to_ms_u64(exec_ms), std::memory_order_relaxed);
+            ctx.counters->graph_total_ms.fetch_add(to_ms_u64(total_graph_ms), std::memory_order_relaxed);
+        }
+        if (ctx.diagnostics_enabled) {
+            spdlog::info(
+                "[graph-timing] frame={} resolve_layers_ms={:.2f} dirty_rect_ms={:.2f} graph_phase_ms={:.2f} graph_exec_ms={:.2f} graph_total_ms={:.2f} graph_reused={}",
+                static_cast<int>(frame),
+                resolve_ms,
+                dirty_ms,
+                graph_ms,
+                exec_ms,
+                total_graph_ms,
+                graph_reused ? 1 : 0
+            );
+        }
+    }
 
     // ── Save state for next frame ───────────────────────────────────────
     // Use combined_fp = static_fp ^ (active_at_fp * C) to match the fingerprint
