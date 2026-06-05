@@ -43,31 +43,19 @@ Test:
 
 ## 2. Priorita' Residue
 
-### 2.1 Estrarre RenderGraphContext
+### 2.1 Completato: Estrarre RenderGraphContext
 
-`RenderGraphContext` contiene ancora troppa logica inline in `render_graph_node.hpp`.
+`RenderGraphContext` e' stato separato da `render_graph_node.hpp`.
 
-**Creare:**
+**Stato attuale:**
 
 ```text
 include/chronon3d/render_graph/render_graph_context.hpp
-src/render_graph/render_graph_context.cpp
 include/chronon3d/render_graph/framebuffer_acquire.hpp
 src/render_graph/framebuffer_acquire.cpp
 ```
 
-**Spostare fuori da `render_graph_node.hpp`:**
-
-```text
-RenderGraphContext
-acquire_owned_fb(...)
-acquire_framebuffer(...)
-own_to_cache(...)
-helper copy/adopt framebuffer
-contatori clear/copy
-```
-
-**Lasciare in `render_graph_node.hpp`:**
+`render_graph_node.hpp` deve restare limitato a:
 
 ```text
 RenderGraphNodeKind
@@ -77,41 +65,41 @@ metodi virtuali dei nodi
 metadata minimo del nodo
 ```
 
-**Test:**
+**Test da mantenere:**
 
 ```text
-tests/render_graph/test_render_graph_context.cpp
-tests/render_graph/test_framebuffer_acquire.cpp
+tests/architecture/test_protected_core_contracts.cpp
+tests/render_graph/executor/test_framebuffer_lifetime.cpp
 ```
 
 ---
 
-### 2.2 Completare Split Executor
+### 2.2 Completato: Split Executor
 
-L'executor e' stato parzialmente modularizzato, ma resta concentrato in:
+L'executor e' stato modularizzato in file per responsabilita'. `executor.cpp` mantiene API pubblica, piano di esecuzione e orchestration; la logica di dominio vive nei file dedicati.
 
 ```text
 src/render_graph/executor/executor.cpp
 src/render_graph/executor/internal.cpp
-src/render_graph/executor/internal.hpp
-```
-
-**Creare o completare:**
-
-```text
 src/render_graph/executor/execution_state.hpp
 src/render_graph/executor/input_resolver.cpp
 src/render_graph/executor/cache_evaluator.hpp
-src/render_graph/executor/node_runner.hpp
-src/render_graph/executor/telemetry_emitter.cpp
-src/render_graph/executor/telemetry_emitter.hpp
-src/render_graph/executor/tile_pruning.cpp
-src/render_graph/executor/tile_pruning.hpp
-src/render_graph/executor/framebuffer_lifetime.cpp
+src/render_graph/executor/cache_evaluator.cpp
+src/render_graph/executor/executor_levels.hpp
+src/render_graph/executor/executor_levels.cpp
 src/render_graph/executor/framebuffer_lifetime.hpp
+src/render_graph/executor/framebuffer_lifetime.cpp
+src/render_graph/executor/node_runner.hpp
+src/render_graph/executor/node_runner.cpp
+src/render_graph/executor/telemetry_emitter.hpp
+src/render_graph/executor/telemetry_emitter.cpp
+src/render_graph/executor/tile_pruning.hpp
+src/render_graph/executor/tile_pruning.cpp
 ```
 
-**Target `executor.cpp`:**
+Ogni nuova logica executor deve restare in un file dedicato, non in `executor.cpp`.
+
+`executor.cpp` deve fare solo:
 
 ```text
 1. ottenere o costruire execution plan
@@ -121,7 +109,9 @@ src/render_graph/executor/framebuffer_lifetime.hpp
 5. restituire output framebuffer
 ```
 
-**Test:**
+`internal.cpp` e' vuoto di fatto e deve restare senza nuova logica.
+
+**Test da aggiungere:**
 
 ```text
 tests/render_graph/executor/test_input_resolver.cpp
@@ -229,7 +219,6 @@ src/render_graph/builder/graph_builder_pipeline.cpp
 src/render_graph/builder/graph_build_pipeline.cpp
 src/render_graph/executor/executor.cpp
 src/render_graph/executor/internal.cpp
-src/render_graph/executor/internal.hpp
 src/scene/layer_builder.cpp
 src/scene/model/layer.cpp
 apps/chronon3d_cli/commands/video/video_export_pipe.cpp

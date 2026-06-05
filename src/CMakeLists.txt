@@ -72,7 +72,9 @@ set(CHRONON3D_GRAPH_SOURCES
     render_graph/executor/tile_pruning.cpp
     render_graph/executor/telemetry_emitter.cpp
     render_graph/executor/node_runner.cpp
+    render_graph/executor/executor_levels.cpp
     render_graph/executor/framebuffer_lifetime.cpp
+    render_graph/executor/executor_plan.cpp
     render_graph/graph_profiler.cpp
     render_graph/render_graph.cpp
     render_graph/framebuffer_acquire.cpp
@@ -204,8 +206,8 @@ set(CHRONON3D_BACKEND_SOFTWARE_SOURCES
     backends/software/processors/software_mesh_processor.cpp
     backends/software/processors/software_line_processor.cpp
     backends/software/processors/software_shape_processor.cpp
+    backends/software/processors/software_text_effects.cpp
     backends/software/processors/software_text_processor.cpp
-
     backends/software/processors/software_utility_processors.cpp
     backends/software/rasterizers/line_rasterizer.cpp
     backends/software/rasterizers/path_cache.cpp
@@ -360,4 +362,3 @@ target_link_libraries(chronon3d_software INTERFACE
 add_library(chronon3d_pipeline INTERFACE)
 target_link_libraries(chronon3d_pipeline INTERFACE chronon3d_core chronon3d_software Taskflow::Taskflow concurrentqueue::concurrentqueue yuv
     -lswscale -lavutil)
-
