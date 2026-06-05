@@ -205,6 +205,8 @@ set(CHRONON3D_BACKEND_SOFTWARE_SOURCES
     backends/software/processors/software_line_processor.cpp
     backends/software/processors/software_shape_processor.cpp
     backends/software/processors/software_text_processor.cpp
+    backends/software/processors/text_glow.cpp
+    backends/software/processors/text_shadow.cpp
 
     backends/software/processors/software_utility_processors.cpp
     backends/software/rasterizers/line_rasterizer.cpp
