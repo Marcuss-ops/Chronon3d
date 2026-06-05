@@ -15,16 +15,12 @@
 #include <chronon3d/render_graph/optimizer/graph_optimizer.hpp>
 #include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
 #include <chronon3d/render_graph/nodes/source_node.hpp>
-#include <chronon3d/render_graph/nodes/multi_source_node.hpp>
-#include <chronon3d/render_graph/nodes/transform_node.hpp>
-#include <chronon3d/render_graph/nodes/effect_stack_node.hpp>
 #include <chronon3d/core/tile_grid.hpp>
 #include <chronon3d/core/dirty_tile_mask.hpp>
-#include <tbb/parallel_for.h>
-#include <tbb/blocked_range.h>
-#include <tbb/enumerable_thread_specific.h>
 #include "helpers.hpp"
 #include "scene_internal.hpp"
+#include "scene_refresh.hpp"
+#include "scene_tile_execution.hpp"
 #include <spdlog/spdlog.h>
 #include <fmt/format.h>
 #include <chrono>
@@ -79,276 +75,7 @@ bool write_plan_output_file(const std::string& path, const std::string& contents
     return true;
 }
 
-[[nodiscard]] LayerGraphItem make_layer_graph_item_for_refresh(
-    const ResolvedLayer& resolved_layer,
-    const RenderGraphContext& ctx
-) {
-    const Layer& layer = *resolved_layer.layer;
-
-    if (ctx.camera_2_5d.enabled && layer.uses_2_5d_projection) {
-        Transform effective_transform = resolved_layer.world_transform;
-        const Mat4 projection_world_matrix = effective_transform.to_mat4();
-        auto proj = project_layer_2_5d(
-            effective_transform,
-            projection_world_matrix,
-            ctx.camera_2_5d,
-            static_cast<f32>(ctx.width),
-            static_cast<f32>(ctx.height),
-            ctx.diagnostics_enabled
-        );
-        if (proj.visible) {
-            const Mat4 eff_proj = detail::is_native_3d_layer(layer)
-                ? Mat4(1.0f)
-                : proj.projection_matrix;
-            return LayerGraphItem{
-                .layer             = resolved_layer.layer,
-                .transform         = proj.transform,
-                .world_matrix      = resolved_layer.world_matrix,
-                .projection_matrix = eff_proj,
-                .depth             = proj.depth,
-                .world_z           = resolved_layer.world_transform.position.z,
-                .projected         = true,
-                .native_3d         = detail::is_native_3d_layer(layer),
-                .insertion_index   = resolved_layer.insertion_index,
-                .matte_node        = k_invalid_node,
-                .is_static         = layer.cache_static,
-            };
-        }
-    }
-
-    return LayerGraphItem{
-        .layer           = resolved_layer.layer,
-        .transform       = resolved_layer.world_transform,
-        .world_matrix    = resolved_layer.world_matrix,
-        .depth           = 0.0f,
-        .world_z         = resolved_layer.world_transform.position.z,
-        .projected       = false,
-        .native_3d       = detail::is_native_3d_layer(layer),
-        .insertion_index = resolved_layer.insertion_index,
-        .matte_node      = k_invalid_node,
-        .is_static       = layer.cache_static,
-    };
-}
-
-void refresh_compiled_graph_payloads(
-    CompiledFrameGraph& compiled,
-    const Scene& scene,
-    RenderGraphContext& ctx,
-    const detail::LayerResolutionResult& resolved
-) {
-    std::unordered_map<std::string, const ResolvedLayer*> resolved_by_name;
-    resolved_by_name.reserve(resolved.layers.size());
-    for (const auto& rl : resolved.layers) {
-        if (rl.layer) {
-            resolved_by_name.emplace(std::string(rl.layer->name), &rl);
-        }
-    }
-
-    std::unordered_map<std::string, const RenderNode*> root_nodes_by_name;
-    root_nodes_by_name.reserve(scene.nodes().size());
-    for (const auto& node : scene.nodes()) {
-        root_nodes_by_name.emplace(std::string(node.name), &node);
-    }
-
-    const auto refresh_source_node = [&](SourceNode& node) {
-        const std::string layer_id = node.layer_id();
-        if (layer_id.empty()) {
-            const auto it = root_nodes_by_name.find(node.name());
-            if (it == root_nodes_by_name.end()) return;
-            const RenderNode& src_node = *it->second;
-            cache::NodeCacheKey key{
-                .scope = "root.source:" + std::string(src_node.name),
-                .frame = ctx.frame,
-                .width = ctx.width,
-                .height = ctx.height,
-                .params_hash = hash_render_node(src_node),
-                .source_hash = hash_bytes(src_node.name.data(), src_node.name.size())
-            };
-            node.refresh(
-                std::string(src_node.name),
-                src_node,
-                key,
-                ctx.modular_coordinates
-            );
-            return;
-        }
-
-        const auto layer_it = resolved_by_name.find(layer_id);
-        if (layer_it == resolved_by_name.end() || !layer_it->second || !layer_it->second->layer) {
-            return;
-        }
-
-        const ResolvedLayer& rl = *layer_it->second;
-        const Layer& layer = *rl.layer;
-        if (layer.kind != LayerKind::Normal || layer.nodes.size() != 1) {
-            return;
-        }
-
-        const auto& src_node = layer.nodes[0];
-        const LayerGraphItem item = make_layer_graph_item_for_refresh(rl, ctx);
-        const bool use_local = ctx.modular_coordinates &&
-            detail::layer_needs_render_transform(item, ctx) &&
-            !item.native_3d;
-        const Mat4 item_source_world = use_local
-            ? item.world_matrix
-            : detail::source_space_world_matrix(item, ctx);
-        const Mat4 node_matrix = src_node.world_transform.to_mat4();
-        const Mat4 render_matrix = use_local
-            ? node_matrix
-            : (item_source_world * node_matrix);
-        const f32 render_opacity = use_local
-            ? src_node.world_transform.opacity
-            : (item.transform.opacity * src_node.world_transform.opacity);
-        cache::NodeCacheKey key{
-            .scope = "layer.source:" + std::string(layer.name) + ":" + std::string(src_node.name),
-            .frame = layer.cache_static ? Frame{0} : ctx.frame,
-            .width = ctx.width,
-            .height = ctx.height,
-            .params_hash = hash_render_node(src_node),
-            .source_hash = hash_bytes(src_node.name.data(), src_node.name.size())
-        };
-
-        node.refresh(
-            std::string(src_node.name),
-            src_node,
-            key,
-            detail::should_use_centered_rendering(item, ctx),
-            item.projected,
-            ctx.modular_coordinates ? std::optional<Mat4>(render_matrix) : std::nullopt,
-            ctx.modular_coordinates ? std::optional<f32>(render_opacity) : std::nullopt,
-            layer.cache_static
-        );
-    };
-
-    const auto refresh_multi_source_node = [&](MultiSourceNode& node) {
-        const std::string layer_id = node.layer_id();
-        const auto layer_it = resolved_by_name.find(layer_id);
-        if (layer_it == resolved_by_name.end() || !layer_it->second || !layer_it->second->layer) {
-            return;
-        }
-
-        const ResolvedLayer& rl = *layer_it->second;
-        const Layer& layer = *rl.layer;
-        if (layer.kind != LayerKind::Normal || layer.nodes.size() <= 1) {
-            return;
-        }
-
-        const LayerGraphItem item = make_layer_graph_item_for_refresh(rl, ctx);
-        const bool use_local = ctx.modular_coordinates &&
-            detail::layer_needs_render_transform(item, ctx) &&
-            !item.native_3d;
-        const Mat4 item_source_world = use_local
-            ? item.world_matrix
-            : detail::source_space_world_matrix(item, ctx);
-
-        std::vector<MultiSourceItem> items;
-        items.reserve(layer.nodes.size());
-        u64 aggregated_params_hash = 0;
-        for (const auto& src_node : layer.nodes) {
-            const Mat4 node_matrix = src_node.world_transform.to_mat4();
-            const Mat4 render_matrix = use_local
-                ? node_matrix
-                : (item_source_world * node_matrix);
-            const f32 render_opacity = use_local
-                ? src_node.world_transform.opacity
-                : (item.transform.opacity * src_node.world_transform.opacity);
-
-            items.push_back(MultiSourceItem{
-                .node = &src_node,
-                .matrix = render_matrix,
-                .opacity = render_opacity
-            });
-            aggregated_params_hash = hash_combine(aggregated_params_hash, hash_render_node(src_node));
-        }
-
-        cache::NodeCacheKey key{
-            .scope = "layer.multisource:" + std::string(layer.name),
-            .frame = layer.cache_static ? Frame{0} : ctx.frame,
-            .width = ctx.width,
-            .height = ctx.height,
-            .params_hash = aggregated_params_hash,
-            .source_hash = hash_string(std::string(layer.name) + "_multisource")
-        };
-
-        node.refresh(
-            std::string(layer.name) + "_multi",
-            std::move(items),
-            key,
-            detail::should_use_centered_rendering(item, ctx),
-            item.projected,
-            layer.cache_static
-        );
-    };
-
-    const auto refresh_effect_stack_node = [&](EffectStackNode& node) {
-        const std::string layer_id = node.layer_id();
-        if (layer_id.empty()) return;
-        const auto layer_it = resolved_by_name.find(layer_id);
-        if (layer_it == resolved_by_name.end() || !layer_it->second || !layer_it->second->layer) {
-            return;
-        }
-        const Layer& layer = *layer_it->second->layer;
-        // Re-evaluate animated blur at the current frame and update BlurParams.
-        if (layer.anim_transform.blur.is_animated()) {
-            const Frame local_frame = layer.local_frame(ctx.frame);
-            const f32 blur_radius = layer.anim_transform.blur.evaluate(local_frame);
-            for (auto& effect : node.effects()) {
-                if (auto* blur = std::get_if<BlurParams>(&effect.params)) {
-                    blur->radius = blur_radius;
-                }
-            }
-        }
-    };
-
-    const auto refresh_transform_node = [&](TransformNode& node) {
-        const std::string layer_id = node.layer_id();
-        if (layer_id.empty()) {
-            return;
-        }
-
-        const auto layer_it = resolved_by_name.find(layer_id);
-        if (layer_it == resolved_by_name.end() || !layer_it->second || !layer_it->second->layer) {
-            return;
-        }
-
-        const ResolvedLayer& rl = *layer_it->second;
-        const LayerGraphItem item = make_layer_graph_item_for_refresh(rl, ctx);
-
-        if (item.projected) {
-            node.set_matrix(item.projection_matrix);
-            node.set_opacity(item.transform.opacity);
-        } else {
-            Mat4 effective_matrix = item.world_matrix;
-            if (ctx.ssaa_factor > 1.0f) {
-                Mat4 ssaa_world = item.world_matrix;
-                ssaa_world[3][0] *= ctx.ssaa_factor;
-                ssaa_world[3][1] *= ctx.ssaa_factor;
-                effective_matrix = ssaa_world;
-            }
-            node.set_matrix(effective_matrix);
-            node.set_opacity(item.transform.opacity);
-        }
-    };
-
-    for (size_t id = 0; id < compiled.graph.size(); ++id) {
-        if (!compiled.graph.has_node(static_cast<GraphNodeId>(id))) {
-            continue;
-        }
-
-        auto& graph_node = compiled.graph.node(static_cast<GraphNodeId>(id));
-        if (auto* source_node = dynamic_cast<SourceNode*>(&graph_node)) {
-            refresh_source_node(*source_node);
-        } else if (auto* multi_source_node = dynamic_cast<MultiSourceNode*>(&graph_node)) {
-            refresh_multi_source_node(*multi_source_node);
-        } else if (auto* effect_node = dynamic_cast<EffectStackNode*>(&graph_node)) {
-            refresh_effect_stack_node(*effect_node);
-        } else if (auto* transform_node = dynamic_cast<TransformNode*>(&graph_node)) {
-            refresh_transform_node(*transform_node);
-        }
-    }
-}
-
-} // namespace
+} // anonymous namespace
 
 std::shared_ptr<Framebuffer> render_scene_via_graph(
     RenderBackend& backend,
@@ -649,7 +376,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         compiled = std::move(*sw_renderer->m_cached_compiled_graph);
         sw_renderer->m_cached_compiled_graph.reset();
 
-        refresh_compiled_graph_payloads(compiled, scene, ctx, resolved);
+        detail::refresh_compiled_graph_payloads(compiled, scene, ctx, resolved);
         compiled.skip_initial_clear = false;
         compiled.early_exit_skip.assign(compiled.graph.size(), false);
 
@@ -755,9 +482,6 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     }
 
     if (use_tile_execution) {
-        const auto& tile_grid = *dirty_out.tile_grid;
-        const auto& dirty_tiles = *dirty_out.dirty_tiles;
-
         // ── Allocate final framebuffer: copy previous frame for clean tiles ──
         {
             CHRONON_ZONE_C("tile_acquire", trace_category::kFrame);
@@ -765,148 +489,39 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
                                    sw_renderer->m_prev_framebuffer->width() == width &&
                                    sw_renderer->m_prev_framebuffer->height() == height;
             if (have_prev) {
-                // Deep copy from previous framebuffer, allocating from the current
-                // arena pool.  The copy-constructor of arena-backed Framebuffers only
-                // copies the external pointer (shallow), causing all tile-execution
-                // frames to share the same arena memory.  When that arena is recycled
-                // the stale pointer produces visual glitches.
                 fb_shared = ctx.acquire_framebuffer(*sw_renderer->m_prev_framebuffer);
             } else {
                 fb_shared = ctx.acquire_framebuffer(width, height, true);
             }
         }
 
-        // ── Tile execution loop (parallel) ───────────────────────────────
+        // ── Tile execution (parallel or sequential) ─────────────────────────
         {
             CHRONON_ZONE_C("tile_execute", trace_category::kGraph);
-            const int total_tiles = tile_grid.tile_count();
-
-            // Collect dirty tile coordinates into a vector so we can
-            // iterate them with tbb::parallel_for (for_each_dirty_tile
-            // uses bit-scanning which is not parallelisable).
-            struct DirtyTile { int tx; int ty; };
-            std::vector<DirtyTile> dirty_coords;
-            dirty_coords.reserve(static_cast<size_t>(dirty_tiles.dirty_count()));
-            dirty_tiles.for_each_dirty_tile(tile_grid, [&](int tx, int ty) {
-                dirty_coords.push_back({tx, ty});
-            });
-
-            // Tile execution: parallel (tbb::parallel_for) or sequential.
-            // When parallel, counters use enumerable_thread_specific to
-            // avoid atomic contention in the per-tile hot path.  When
-            // sequential, a plain local accumulator is used instead.
+            const int total_tiles = dirty_out.tile_grid->tile_count();
             const bool parallel_tiles = sw_renderer->settings().enable_parallel_tiles;
 
-            int final_dirty = 0;
-            uint64_t final_px = 0;
-
-            if (parallel_tiles) {
-                struct TileAccum {
-                    int dirty_count{0};
-                    uint64_t pixels_rendered{0};
-                };
-                tbb::enumerable_thread_specific<TileAccum> tile_accums;
-
-                tbb::parallel_for(
-                    tbb::blocked_range<size_t>(0, dirty_coords.size()),
-                    [&](const tbb::blocked_range<size_t>& range) {
-                        auto& local = tile_accums.local();
-                        for (size_t i = range.begin(); i < range.end(); ++i) {
-                            const int tx = dirty_coords[i].tx;
-                            const int ty = dirty_coords[i].ty;
-                            const raster::BBox tile_bbox = tile_grid.tile_bounds(tx, ty);
-                            if (tile_bbox.is_empty()) continue;
-
-                            RenderGraphContext tile_ctx = ctx;
-                            tile_ctx.clip_rect = tile_bbox;
-                            tile_ctx.dirty_rect = tile_bbox;
-                            tile_ctx.reuse_prev_framebuffer = false;
-                            tile_ctx.tile_execution_enabled = true;
-                            tile_ctx.active_tile_clip = tile_bbox;
-                            tile_ctx.skip_initial_clear = false;
-                            tile_ctx.early_exit_skip.clear();
-
-                            FrameArena tile_arena;
-                            auto tile_fb = sw_renderer->executor()->execute(
-                                compiled, tile_ctx, &tile_arena);
-
-                            if (tile_fb) {
-                                for (i32 y = tile_bbox.y0; y < tile_bbox.y1; ++y) {
-                                    std::copy(
-                                        tile_fb->pixels_row(y) + tile_bbox.x0,
-                                        tile_fb->pixels_row(y) + tile_bbox.x1,
-                                        fb_shared->pixels_row(y) + tile_bbox.x0);
-                                }
-                            }
-
-                            ++local.dirty_count;
-                            local.pixels_rendered +=
-                                static_cast<uint64_t>(tile_bbox.x1 - tile_bbox.x0) *
-                                static_cast<uint64_t>(tile_bbox.y1 - tile_bbox.y0);
-                        }
-                    }
-                );
-
-                // Merge TLS counters
-                for (const auto& acc : tile_accums) {
-                    final_dirty += acc.dirty_count;
-                    final_px += acc.pixels_rendered;
-                }
-            } else {
-                // Sequential tile execution — same loop body, no tbb
-                for (size_t i = 0; i < dirty_coords.size(); ++i) {
-                    const int tx = dirty_coords[i].tx;
-                    const int ty = dirty_coords[i].ty;
-                    const raster::BBox tile_bbox = tile_grid.tile_bounds(tx, ty);
-                    if (tile_bbox.is_empty()) continue;
-
-                    RenderGraphContext tile_ctx = ctx;
-                    tile_ctx.clip_rect = tile_bbox;
-                    tile_ctx.dirty_rect = tile_bbox;
-                    tile_ctx.reuse_prev_framebuffer = false;
-                    tile_ctx.tile_execution_enabled = true;
-                    tile_ctx.active_tile_clip = tile_bbox;
-                    tile_ctx.skip_initial_clear = false;
-                    tile_ctx.early_exit_skip.clear();
-
-                    // Sequential execution reuses a single arena (no races)
-                    FrameArena tile_arena;
-                    auto tile_fb = sw_renderer->executor()->execute(
-                        compiled, tile_ctx, &tile_arena);
-
-                    if (tile_fb) {
-                        for (i32 y = tile_bbox.y0; y < tile_bbox.y1; ++y) {
-                            std::copy(
-                                tile_fb->pixels_row(y) + tile_bbox.x0,
-                                tile_fb->pixels_row(y) + tile_bbox.x1,
-                                fb_shared->pixels_row(y) + tile_bbox.x0);
-                        }
-                    }
-
-                    ++final_dirty;
-                    final_px +=
-                        static_cast<uint64_t>(tile_bbox.x1 - tile_bbox.x0) *
-                        static_cast<uint64_t>(tile_bbox.y1 - tile_bbox.y0);
-                }
-            }
+            auto tile_result = detail::execute_dirty_tiles(
+                compiled, ctx, sw_renderer, dirty_out,
+                *fb_shared, width, height, parallel_tiles);
 
             // ── Tile counters ───────────────────────────────────────────────
             if (ctx.counters) {
-                ctx.counters->tile_dirty_count.fetch_add(final_dirty, std::memory_order_relaxed);
-                const int clean_count = std::max(0, total_tiles - final_dirty);
+                ctx.counters->tile_dirty_count.fetch_add(tile_result.dirty_count, std::memory_order_relaxed);
+                const int clean_count = std::max(0, total_tiles - tile_result.dirty_count);
                 ctx.counters->tile_clean_count.fetch_add(clean_count, std::memory_order_relaxed);
-                ctx.counters->tile_pixels_rendered.fetch_add(final_px, std::memory_order_relaxed);
+                ctx.counters->tile_pixels_rendered.fetch_add(tile_result.pixels_rendered, std::memory_order_relaxed);
                 const uint64_t total_pixels =
                     static_cast<uint64_t>(width) * static_cast<uint64_t>(height);
-                const uint64_t pixels_skipped = (total_pixels > final_px)
-                    ? total_pixels - final_px : 0;
+                const uint64_t pixels_skipped = (total_pixels > tile_result.pixels_rendered)
+                    ? total_pixels - tile_result.pixels_rendered : 0;
                 ctx.counters->tile_pixels_skipped.fetch_add(pixels_skipped, std::memory_order_relaxed);
             }
 
             if (ctx.diagnostics_enabled) {
                 spdlog::info(
                     "[tile-debug] frame={} tile_total={} tile_dirty={}",
-                    static_cast<int>(frame), total_tiles, final_dirty);
+                    static_cast<int>(frame), total_tiles, tile_result.dirty_count);
             }
         }
     } else {
