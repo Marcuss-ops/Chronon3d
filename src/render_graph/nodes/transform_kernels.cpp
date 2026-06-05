@@ -83,30 +83,45 @@ void execute_translate_memcpy(
 
     const i32 row_pixels = (x1 - x0);
     const size_t row_bytes = static_cast<size_t>(row_pixels) * sizeof(Color);
+    const bool have_unaligned_tracking = profiling::g_current_counters != nullptr;
+    const bool full_opacity = std::abs(opacity - 1.0f) < 1e-6f;
 
-    for (i32 y = y0; y < y1; ++y) {
-        const i32 src_y = y - ity;
-        const i32 src_x = x0 - itx;
+    auto worker = [&](i32 row_begin, i32 row_end) {
+        for (i32 y = row_begin; y < row_end; ++y) {
+            const i32 src_y = y - ity;
+            const i32 src_x = x0 - itx;
 
-        if (src_y >= 0 && src_y < input->height()) {
-            const Color* src_ptr = input->pixels_row(src_y) + src_x;
-            Color* dst_ptr = result->pixels_row(y - result->origin_y()) + (x0 - result->origin_x());
+            if (src_y >= 0 && src_y < input->height()) {
+                const Color* src_ptr = input->pixels_row(src_y) + src_x;
+                Color* dst_ptr = result->pixels_row(y - result->origin_y()) + (x0 - result->origin_x());
 
-            if (std::abs(opacity - 1.0f) < 1e-6f) {
-                if (profiling::g_current_counters) {
-                    if ((reinterpret_cast<uintptr_t>(dst_ptr) % 32 != 0) || (reinterpret_cast<uintptr_t>(src_ptr) % 32 != 0)) {
-                        profiling::g_current_counters->unaligned_memory_copies.fetch_add(1, std::memory_order_relaxed);
+                if (full_opacity) {
+                    if (have_unaligned_tracking) {
+                        if ((reinterpret_cast<uintptr_t>(dst_ptr) % 32 != 0) || (reinterpret_cast<uintptr_t>(src_ptr) % 32 != 0)) {
+                            profiling::g_current_counters->unaligned_memory_copies.fetch_add(1, std::memory_order_relaxed);
+                        }
                     }
-                }
-                std::memcpy(dst_ptr, src_ptr, row_bytes);
-            } else {
-                for (i32 x = 0; x < row_pixels; ++x) {
-                    Color c = src_ptr[x];
-                    c.r *= opacity; c.g *= opacity; c.b *= opacity; c.a *= opacity;
-                    dst_ptr[x] = c;
+                    std::memcpy(dst_ptr, src_ptr, row_bytes);
+                } else {
+                    for (i32 x = 0; x < row_pixels; ++x) {
+                        Color c = src_ptr[x];
+                        c.r *= opacity; c.g *= opacity; c.b *= opacity; c.a *= opacity;
+                        dst_ptr[x] = c;
+                    }
                 }
             }
         }
+    };
+
+    if (y1 - y0 >= 24) {
+        tbb::parallel_for(
+            tbb::blocked_range<i32>(y0, y1),
+            [&](const tbb::blocked_range<i32>& range) {
+                worker(range.begin(), range.end());
+            }
+        );
+    } else {
+        worker(y0, y1);
     }
 }
 
