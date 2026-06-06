@@ -1,9 +1,11 @@
 #include <chronon3d/backends/software/software_compositor.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/simd/kernels.hpp>
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <optional>
 
@@ -21,6 +23,10 @@ void SoftwareCompositor::composite_layer(Framebuffer& dst, const Framebuffer& sr
 
     if (x0 >= x1 || y0 >= y1) return;
 
+    const auto t_setup0 = std::chrono::high_resolution_clock::now();
+
+    RenderCounters* cnt = profiling::g_current_counters;
+
     if (mode == BlendMode::Normal) {
         const i32 src_x0 = std::max(x0 + dst.origin_x(), src.origin_x());
         const i32 src_y0 = std::max(y0 + dst.origin_y(), src.origin_y());
@@ -28,6 +34,7 @@ void SoftwareCompositor::composite_layer(Framebuffer& dst, const Framebuffer& sr
         const i32 src_y1 = std::min(y1 + dst.origin_y(), src.origin_y() + src.height());
 
         if (src.is_opaque() && src_x0 < src_x1 && src_y0 < src_y1) {
+            const auto t_copy0 = std::chrono::high_resolution_clock::now();
             for (i32 y = src_y0; y < src_y1; ++y) {
                 const i32 sy = y - src.origin_y();
                 const i32 sx = src_x0 - src.origin_x();
@@ -35,11 +42,18 @@ void SoftwareCompositor::composite_layer(Framebuffer& dst, const Framebuffer& sr
                 Color* d_row = dst.pixels_row(y - dst.origin_y());
                 std::copy(s_row + sx, s_row + sx + (src_x1 - src_x0), d_row + (src_x0 - dst.origin_x()));
             }
+            if (cnt) {
+                const auto t_end = std::chrono::high_resolution_clock::now();
+                const auto setup_ms = static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t_copy0 - t_setup0).count());
+                const auto copy_ms = static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t_end - t_copy0).count());
+                cnt->compositenode_setup_ms.fetch_add(setup_ms, std::memory_order_relaxed);
+                cnt->compositenode_copy_ms.fetch_add(copy_ms, std::memory_order_relaxed);
+            }
             return;
         }
 
         if (src_x0 < src_x1 && src_y0 < src_y1 &&
-            composite_layer_normal_optimized(dst, src, src_x0, src_y0, src_x1, src_y1)) {
+            composite_layer_normal_optimized(dst, src, src_x0, src_y0, src_x1, src_y1, cnt, t_setup0)) {
             return;
         }
     }
@@ -52,7 +66,7 @@ void SoftwareCompositor::composite_layer(Framebuffer& dst, const Framebuffer& sr
         const i32 src_x1 = std::min(x1 + dst.origin_x(), src.origin_x() + src.width());
         const i32 src_y1 = std::min(y1 + dst.origin_y(), src.origin_y() + src.height());
         if (src_x0 < src_x1 && src_y0 < src_y1 &&
-            composite_layer_non_normal_optimized(dst, src, mode, src_x0, src_y0, src_x1, src_y1)) {
+            composite_layer_non_normal_optimized(dst, src, mode, src_x0, src_y0, src_x1, src_y1, cnt, t_setup0)) {
             return;
         }
     }
@@ -82,6 +96,11 @@ void SoftwareCompositor::composite_layer(Framebuffer& dst, const Framebuffer& sr
                 }
             }
         };
+        const auto t_blend0 = std::chrono::high_resolution_clock::now();
+        if (cnt) {
+            const auto setup_ms = static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t_blend0 - t_setup0).count());
+            cnt->compositenode_setup_ms.fetch_add(setup_ms, std::memory_order_relaxed);
+        }
         if (row_count >= 32) {
             tbb::parallel_for(
                 tbb::blocked_range<i32>(y0, y1),
@@ -92,26 +111,54 @@ void SoftwareCompositor::composite_layer(Framebuffer& dst, const Framebuffer& sr
         } else {
             process_rows(y0, y1);
         }
+        if (cnt) {
+            const auto t_end = std::chrono::high_resolution_clock::now();
+            const auto blend_ms = static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t_end - t_blend0).count());
+            cnt->compositenode_blend_ms.fetch_add(blend_ms, std::memory_order_relaxed);
+        }
     }
 }
 
-bool SoftwareCompositor::composite_layer_normal_optimized(Framebuffer& dst, const Framebuffer& src, i32 x0, i32 y0, i32 x1, i32 y1) {
+bool SoftwareCompositor::composite_layer_normal_optimized(
+    Framebuffer& dst, const Framebuffer& src, i32 x0, i32 y0, i32 x1, i32 y1,
+    RenderCounters* cnt, std::chrono::high_resolution_clock::time_point t_setup0) {
     if (profiling::g_current_counters) {
         profiling::g_current_counters->simd_lerp_calls.fetch_add(1, std::memory_order_relaxed);
     }
 
     const i32 width_to_process = x1 - x0;
     const i32 height_to_process = y1 - y0;
+    const i32 dst_ox = dst.origin_x();
+    const i32 src_ox = src.origin_x();
+
+    const auto t_blend0 = std::chrono::high_resolution_clock::now();
+    if (cnt) {
+        const auto setup_ms = static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t_blend0 - t_setup0).count());
+        cnt->compositenode_setup_ms.fetch_add(setup_ms, std::memory_order_relaxed);
+    }
+
+    // Row-setup timing is only valid in the sequential path (avoids race on TBB).
+    uint64_t row_setup_ns = 0;
+    const bool use_tbb = (height_to_process >= 32);
 
     auto process_rows = [&](i32 row_begin, i32 row_end) {
         for (i32 y = row_begin; y < row_end; ++y) {
-            Color* d_row = dst.pixels_row(y - dst.origin_y()) + (x0 - dst.origin_x());
-            const Color* s_row = src.pixels_row(y - src.origin_y()) + (x0 - src.origin_x());
-            simd::composite_normal_premul(d_row, s_row, width_to_process);
+            if (!use_tbb) {
+                const auto t_rs0 = std::chrono::high_resolution_clock::now();
+                Color* d_row = dst.pixels_row(y - dst_ox) + (x0 - dst_ox);
+                const Color* s_row = src.pixels_row(y - src_ox) + (x0 - src_ox);
+                const auto t_rs1 = std::chrono::high_resolution_clock::now();
+                row_setup_ns += static_cast<uint64_t>(std::chrono::duration<double, std::nano>(t_rs1 - t_rs0).count());
+                simd::composite_normal_premul(d_row, s_row, width_to_process);
+            } else {
+                Color* d_row = dst.pixels_row(y - dst_ox) + (x0 - dst_ox);
+                const Color* s_row = src.pixels_row(y - src_ox) + (x0 - src_ox);
+                simd::composite_normal_premul(d_row, s_row, width_to_process);
+            }
         }
     };
 
-    if (height_to_process >= 32) {
+    if (use_tbb) {
         tbb::parallel_for(
             tbb::blocked_range<i32>(y0, y1),
             [&](const tbb::blocked_range<i32>& range) {
@@ -122,19 +169,36 @@ bool SoftwareCompositor::composite_layer_normal_optimized(Framebuffer& dst, cons
         process_rows(y0, y1);
     }
 
+    if (cnt) {
+        const auto t_end = std::chrono::high_resolution_clock::now();
+        const auto blend_ms = static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t_end - t_blend0).count());
+        const auto row_ms = static_cast<uint64_t>(static_cast<double>(row_setup_ns) / 1e6);
+        cnt->compositenode_blend_ms.fetch_add(blend_ms, std::memory_order_relaxed);
+        cnt->compositenode_row_ms.fetch_add(row_ms, std::memory_order_relaxed);
+    }
+
     return true;
 }
 
 bool SoftwareCompositor::composite_layer_non_normal_optimized(
     Framebuffer& dst, const Framebuffer& src, BlendMode mode,
-    i32 x0, i32 y0, i32 x1, i32 y1) {
+    i32 x0, i32 y0, i32 x1, i32 y1,
+    RenderCounters* cnt, std::chrono::high_resolution_clock::time_point t_setup0) {
     const i32 width_to_process = x1 - x0;
     const i32 height_to_process = y1 - y0;
+    const i32 dst_ox = dst.origin_x();
+    const i32 src_ox = src.origin_x();
+
+    const auto t_blend0 = std::chrono::high_resolution_clock::now();
+    if (cnt) {
+        const auto setup_ms = static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t_blend0 - t_setup0).count());
+        cnt->compositenode_setup_ms.fetch_add(setup_ms, std::memory_order_relaxed);
+    }
 
     auto process_rows = [&](i32 row_begin, i32 row_end) {
         for (i32 y = row_begin; y < row_end; ++y) {
-            Color* d_row = dst.pixels_row(y - dst.origin_y()) + (x0 - dst.origin_x());
-            const Color* s_row = src.pixels_row(y - src.origin_y()) + (x0 - src.origin_x());
+            Color* d_row = dst.pixels_row(y - dst_ox) + (x0 - dst_ox);
+            const Color* s_row = src.pixels_row(y - src_ox) + (x0 - src_ox);
             switch (mode) {
                 case BlendMode::Add:
                     simd::composite_add_premul(d_row, s_row, width_to_process);
@@ -163,6 +227,12 @@ bool SoftwareCompositor::composite_layer_non_normal_optimized(
         );
     } else {
         process_rows(y0, y1);
+    }
+
+    if (cnt) {
+        const auto t_end = std::chrono::high_resolution_clock::now();
+        const auto blend_us = static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t_end - t_blend0).count());
+        cnt->compositenode_blend_ms.fetch_add(blend_us, std::memory_order_relaxed);
     }
 
     return true;
