@@ -322,8 +322,8 @@ void execute_affine_rows(
             }
         }
     } else {
-        // ── Bilinear: Highway SIMD path ──────────────────────────────
-#if HWY_TARGET == HWY_AVX2
+        // Bilinear: Highway SIMD 1-pixel path (2-pixel AVX2 disabled for debugging)
+#if 0 && HWY_TARGET == HWY_AVX2
         // 2-pixel AVX2 path — processes pairs with 8-lane SIMD.
         for (i32 y = row_begin; y < row_end; ++y) {
             Color* dst_row = result->pixels_row(y - result->origin_y());
