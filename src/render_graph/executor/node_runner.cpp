@@ -77,7 +77,8 @@ void execute_single_node(
     std::pmr::vector<std::atomic_size_t>& consumer_remaining,
     double* out_cache_ms,
     double* out_dirty_ms,
-    double* out_telemetry_ms
+    double* out_telemetry_ms,
+    double* out_execute_ms
 ) {
     if (id < ctx.early_exit_skip.size() && ctx.early_exit_skip[id]) {
         auto owned_fb = ctx.acquire_owned_fb(64, 64, false);
@@ -191,6 +192,9 @@ void execute_single_node(
         ctx,
         parent_pool
     );
+    if (out_execute_ms) {
+        *out_execute_ms = duration_ms;
+    }
 
     const auto t_telemetry0 = std::chrono::steady_clock::now();
     emit_node_records(

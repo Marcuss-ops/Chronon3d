@@ -43,7 +43,8 @@ void execute_single_node(
     std::pmr::vector<std::atomic_size_t>& consumer_remaining,
     double* out_cache_ms = nullptr,
     double* out_dirty_ms = nullptr,
-    double* out_telemetry_ms = nullptr
+    double* out_telemetry_ms = nullptr,
+    double* out_execute_ms = nullptr
 );
 
 } // namespace chronon3d::graph
