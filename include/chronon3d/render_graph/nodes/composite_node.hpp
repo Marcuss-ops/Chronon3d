@@ -112,13 +112,13 @@ public:
         }
 
         OwnedFB result;
-        // Always acquire a fresh FB from the pool and composite bottom on top.
-        // This avoids a 32MB memcpy of the bottom framebuffer.  For transparent
-        // bottoms (Clear output), the SIMD blend early-exits on α=0 — near-zero cost.
-        // For opaque bottoms, the opaque fast-path does a row-wise std::copy.
-        result = ctx.acquire_owned_fb(ctx.width, ctx.height, true);
-        if (ctx.backend) {
-            ctx.backend->composite_layer(*result, *bottom, BlendMode::Normal);
+        if (bottom->width() == ctx.width && bottom->height() == ctx.height) {
+            result = ctx.acquire_owned_fb(*bottom);
+        } else {
+            result = ctx.acquire_owned_fb(ctx.width, ctx.height, true);
+            if (ctx.backend) {
+                ctx.backend->composite_layer(*result, *bottom, BlendMode::Normal);
+            }
         }
 
         if (ctx.backend) {
