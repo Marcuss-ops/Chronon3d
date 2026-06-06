@@ -44,7 +44,10 @@ void execute_single_node(
     double* out_cache_ms = nullptr,
     double* out_dirty_ms = nullptr,
     double* out_telemetry_ms = nullptr,
-    double* out_execute_ms = nullptr
+    double* out_execute_ms = nullptr,
+    double* out_predicted_bbox_ms = nullptr,
+    double* out_clone_context_ms = nullptr,
+    double* out_state_assign_ms = nullptr
 );
 
 } // namespace chronon3d::graph

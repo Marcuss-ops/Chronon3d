@@ -78,7 +78,10 @@ void execute_single_node(
     double* out_cache_ms,
     double* out_dirty_ms,
     double* out_telemetry_ms,
-    double* out_execute_ms
+    double* out_execute_ms,
+    double* out_predicted_bbox_ms,
+    double* out_clone_context_ms,
+    double* out_state_assign_ms
 ) {
     if (id < ctx.early_exit_skip.size() && ctx.early_exit_skip[id]) {
         auto owned_fb = ctx.acquire_owned_fb(64, 64, false);
@@ -132,7 +135,12 @@ void execute_single_node(
             cache_eval.result ? fmt::ptr(cache_eval.result.get()) : "null");
     }
 
+    const auto t_bbox0 = std::chrono::steady_clock::now();
     auto predicted_bbox = node.predicted_bbox(ctx, pr.input_bboxes);
+    const auto t_bbox1 = std::chrono::steady_clock::now();
+    if (out_predicted_bbox_ms) {
+        *out_predicted_bbox_ms = std::chrono::duration<double, std::milli>(t_bbox1 - t_bbox0).count();
+    }
 
     if (ctx.tile_execution_enabled && ctx.active_tile_clip &&
         predicted_bbox && !predicted_bbox->is_empty())
@@ -160,7 +168,13 @@ void execute_single_node(
     // (node_telemetry, layer_telemetry, dof_depth, early_exit_skip).
     // These are not read during node.execute() — the full copy was the
     // #1 bottleneck (~20K ms overhead for 90 node executions).
+    const auto t_clone0 = std::chrono::steady_clock::now();
     auto node_ctx = ctx.clone_for_node_execution();
+    const auto t_clone1 = std::chrono::steady_clock::now();
+    if (out_clone_context_ms) {
+        *out_clone_context_ms = std::chrono::duration<double, std::milli>(t_clone1 - t_clone0).count();
+    }
+
     const auto t_dirty0 = std::chrono::steady_clock::now();
     if (ctx.dirty_rects_enabled) {
         node_ctx.clip_rect = compute_dirty_clip(ctx, node, predicted_bbox);
@@ -217,6 +231,11 @@ void execute_single_node(
     state.resolved_frame_dependent[id] = cache_eval.node_frame_dependent ? 1 : 0;
     state.resolved_cache_hit[id] = (cache_eval.cache_status == "hit") ? 1 : 0;
     state.resolved_bboxes[id] = predicted_bbox;
+
+    const auto t_state1 = std::chrono::steady_clock::now();
+    if (out_state_assign_ms) {
+        *out_state_assign_ms = std::chrono::duration<double, std::milli>(t_state1 - t_telemetry1).count();
+    }
 }
 
 } // namespace chronon3d::graph
