@@ -18,18 +18,64 @@ namespace hn = hwy::HWY_NAMESPACE;
 HWY_ATTR void composite_normal_premul_impl(float* HWY_RESTRICT dst_ptr,
                                            const float* HWY_RESTRICT src_ptr,
                                            int pixel_count) {
-    for (int i = 0; i < pixel_count; ++i) {
+    // FixedTag<float,4> = 128-bit = 1 pixel (r,g,b,a).
+    // Used for remainder on all targets, and as the sole path on
+    // SSE4/NEON where ScalableTag has only 4 lanes.
+    const hn::FixedTag<float, 4> d4;
+    const auto one = hn::Set(d4, 1.0f);
+
+    int i = 0;
+
+    // ── 2-pixel AVX2 path ─────────────────────────────────────────
+    // ScalableTag (8 lanes on AVX2) → Half = 4 lanes = 1 pixel.
+    // Restricted to AVX2 only: AVX-512 (16 lanes → Half = 8 lanes)
+    // would cause Broadcast<3> to alias the wrong alpha for pixel 1.
+#if HWY_TARGET == HWY_AVX2
+    if (pixel_count >= 2) {
+        const hn::ScalableTag<float> d;
+        const hn::Half<decltype(d)> dh;          // 4 lanes → 1 pixel
+        const auto ones = hn::Set(dh, 1.0f);      // same tag as half vectors
+
+        for (; i + 1 < pixel_count; i += 2) {
+            if ((i & 14) == 0 && (i + 16) < pixel_count) {
+                __builtin_prefetch(&src_ptr[(i + 16) * 4], 0, 1);
+                __builtin_prefetch(&dst_ptr[(i + 16) * 4], 1, 1);
+            }
+            const auto src_v = hn::LoadU(d, src_ptr + i * 4);  // 8 floats = 2 pixels
+            const auto dst_v = hn::LoadU(d, dst_ptr + i * 4);
+
+            // Split into per-pixel halves, broadcast alpha, blend, recombine
+            const auto s_lo = hn::LowerHalf(dh, src_v);
+            const auto s_hi = hn::UpperHalf(dh, src_v);
+            const auto d_lo = hn::LowerHalf(dh, dst_v);
+            const auto d_hi = hn::UpperHalf(dh, dst_v);
+
+            const auto a_lo = hn::Broadcast<3>(s_lo);        // {a0,a0,a0,a0}
+            const auto a_hi = hn::Broadcast<3>(s_hi);        // {a1,a1,a1,a1}
+            const auto i_lo = hn::Sub(ones, a_lo);           // 1-a0
+            const auto i_hi = hn::Sub(ones, a_hi);           // 1-a1
+
+            const auto r_lo = hn::MulAdd(d_lo, i_lo, s_lo);  // src + dst*(1-a)
+            const auto r_hi = hn::MulAdd(d_hi, i_hi, s_hi);
+
+            const auto result = hn::Combine(d, r_hi, r_lo);
+            hn::StoreU(result, d, dst_ptr + i * 4);
+        }
+    }
+#endif
+
+    // ── Remainder / SSE4/NEON fallback: 1 pixel × FixedTag ─────────
+    for (; i < pixel_count; ++i) {
         if ((i & 15) == 0 && (i + 16) < pixel_count) {
             __builtin_prefetch(&src_ptr[(i + 16) * 4], 0, 1);
             __builtin_prefetch(&dst_ptr[(i + 16) * 4], 1, 1);
         }
-        float* d = dst_ptr + i * 4;
-        const float* s = src_ptr + i * 4;
-        float inv_sa = 1.0f - s[3];
-        d[0] = s[0] + d[0] * inv_sa;
-        d[1] = s[1] + d[1] * inv_sa;
-        d[2] = s[2] + d[2] * inv_sa;
-        d[3] = s[3] + d[3] * inv_sa;
+        const auto src    = hn::LoadU(d4, src_ptr + i * 4);   // {r,g,b,a}
+        const auto dst    = hn::LoadU(d4, dst_ptr + i * 4);
+        const auto alpha  = hn::Broadcast<3>(src);            // {a,a,a,a}
+        const auto inv_sa = hn::Sub(one, alpha);              // 1-a
+        const auto result = hn::MulAdd(dst, inv_sa, src);     // src+dst*(1-a)
+        hn::StoreU(result, d4, dst_ptr + i * 4);
     }
 }
 
