@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/render_graph/nodes/basic_nodes_common.hpp>
+#include <chrono>
 #include <cstring>
 #include <span>
 
@@ -73,9 +74,11 @@ public:
             // The previous framebuffer can also be referenced by node-cache entries.
             // Clearing it in-place would corrupt cached sources, so detach first when shared.
             if (fb.use_count() > 1) {
+                const auto t_acquire0 = std::chrono::high_resolution_clock::now();
                 // Pool-acquired copy avoids heap allocation overhead of
                 // make_shared<Framebuffer> (~1-5ms saved per frame).
                 auto owned = ctx.acquire_owned_fb(fb->width(), fb->height(), false);
+                const auto t_acquire1 = std::chrono::high_resolution_clock::now();
                 owned->set_origin(fb->origin_x(), fb->origin_y());
                 // Single contiguous memcpy for the entire pixel buffer.
                 // This is valid because both framebuffers have the same
@@ -84,13 +87,21 @@ public:
                 // call overhead + branch misprediction on the ERMSB fast path.
                 const size_t copy_bytes = static_cast<size_t>(fb->allocated_width()) *
                                           static_cast<size_t>(fb->height()) * sizeof(Color);
+                const auto t_memcpy0 = std::chrono::high_resolution_clock::now();
                 std::memcpy(owned->data(), fb->data(), copy_bytes);
+                const auto t_memcpy1 = std::chrono::high_resolution_clock::now();
                 Framebuffer* raw = owned.release();
                 if (ctx.framebuffer_pool) {
                     fb = std::shared_ptr<Framebuffer>(raw,
                         PoolFbDeleter{ctx.framebuffer_pool.get(), ctx.framebuffer_pool->alive_token()});
                 } else {
                     fb = std::shared_ptr<Framebuffer>(raw);
+                }
+                if (ctx.counters) {
+                    const auto acq_ms = static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t_acquire1 - t_acquire0).count());
+                    const auto mem_ms = static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t_memcpy1 - t_memcpy0).count());
+                    ctx.counters->clearnode_acquire_ms.fetch_add(acq_ms, std::memory_order_relaxed);
+                    ctx.counters->clearnode_memcpy_ms.fetch_add(mem_ms, std::memory_order_relaxed);
                 }
             }
             const bool is_empty_clip = ctx.clip_rect && ctx.clip_rect->is_empty();
@@ -121,6 +132,7 @@ public:
                 if (ctx.counters) {
                     const auto elapsed = static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t1 - t0).count());
                     ctx.counters->clearnode_ms.fetch_add(elapsed, std::memory_order_relaxed);
+                    ctx.counters->clearnode_clear_ms.fetch_add(elapsed, std::memory_order_relaxed);
                     ctx.counters->framebuffer_clear_ms.fetch_add(elapsed, std::memory_order_relaxed);
                 }
             }
