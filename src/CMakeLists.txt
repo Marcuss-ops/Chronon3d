@@ -188,6 +188,7 @@ set(CHRONON3D_BACKEND_VIDEO_SOURCES
     video/converted_frame_cache.cpp
 )
 add_library(chronon3d_backend_video STATIC ${CHRONON3D_BACKEND_VIDEO_SOURCES})
+set_target_properties(chronon3d_backend_video PROPERTIES UNITY_BUILD OFF)
 target_link_libraries(chronon3d_backend_video PUBLIC chronon3d chronon3d_cache spdlog::spdlog_header_only fmt::fmt TBB::tbb hwy::hwy)
 target_include_directories(chronon3d_backend_video PRIVATE ${CMAKE_SOURCE_DIR})
 
