@@ -1,5 +1,6 @@
 #include "ffmpeg_pipe_encoder.hpp"
 #include <chronon3d/video/frame_converter.hpp>
+#include <chronon3d/video/direct_yuv_lut.hpp>
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/simd/kernels.hpp>
 #include <algorithm>
@@ -31,22 +32,18 @@ bool FfmpegPipeEncoder::convert_framebuffer_to_rgba(const Framebuffer& fb, uint8
     if (transform.apply_gamma &&
         (transform.output == color::ColorSpace::SRGB ||
          transform.output == color::ColorSpace::Rec709)) {
-        const auto& lut = color_detail::linear_to_srgb8_lut();
-        const uint8_t* lut_ptr = lut.data();
-        const size_t lut_sz_m1 = lut.size() - 1;
-        auto fast_srgb = [lut_ptr, lut_sz_m1](float v) -> uint8_t {
-            const float c = (v < 0.0f) ? 0.0f : (v > 1.0f ? 1.0f : v);
-            return lut_ptr[static_cast<size_t>(c * lut_sz_m1 + 0.5f)];
-        };
+        // Use the 64KB integer LUT (g_srgb_lut[65536]) shared with the
+        // direct YUV converter.  Saves ~2 float comparisons + 1 float
+        // multiply per channel vs the old float-based clamping+LUT path.
         tbb::parallel_for(0, options_.height, [&](int y) {
             const Color* src_row = fb.pixels_row(y);
             uint8_t* dr = dst_ptr + static_cast<size_t>(y) * options_.width * 4u;
             for (int x = 0; x < options_.width; ++x) {
                 const Color& c = src_row[x];
-                dr[x*4+0] = fast_srgb(c.r);
-                dr[x*4+1] = fast_srgb(c.g);
-                dr[x*4+2] = fast_srgb(c.b);
-                dr[x*4+3] = fast_srgb(c.a);
+                dr[x*4+0] = video::linear_to_srgb8_fast(c.r);
+                dr[x*4+1] = video::linear_to_srgb8_fast(c.g);
+                dr[x*4+2] = video::linear_to_srgb8_fast(c.b);
+                dr[x*4+3] = video::linear_to_srgb8_fast(c.a);
             }
         });
     } else {
