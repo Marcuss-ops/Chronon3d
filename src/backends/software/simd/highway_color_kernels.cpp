@@ -41,6 +41,8 @@ HWY_ATTR void composite_normal_premul_impl(float* HWY_RESTRICT dst_ptr,
                 __builtin_prefetch(&src_ptr[(i + 16) * 4], 0, 1);
                 __builtin_prefetch(&dst_ptr[(i + 16) * 4], 1, 1);
             }
+            // Early exit: skip fully-transparent pairs entirely
+            if (src_ptr[i * 4 + 3] <= 0.0f && src_ptr[(i + 1) * 4 + 3] <= 0.0f) continue;
             const auto src_v = hn::LoadU(d, src_ptr + i * 4);  // 8 floats = 2 pixels
             const auto dst_v = hn::LoadU(d, dst_ptr + i * 4);
 
@@ -70,6 +72,7 @@ HWY_ATTR void composite_normal_premul_impl(float* HWY_RESTRICT dst_ptr,
             __builtin_prefetch(&src_ptr[(i + 16) * 4], 0, 1);
             __builtin_prefetch(&dst_ptr[(i + 16) * 4], 1, 1);
         }
+        if (src_ptr[i * 4 + 3] <= 0.0f) continue;
         const auto src    = hn::LoadU(d4, src_ptr + i * 4);   // {r,g,b,a}
         const auto dst    = hn::LoadU(d4, dst_ptr + i * 4);
         const auto alpha  = hn::Broadcast<3>(src);            // {a,a,a,a}
