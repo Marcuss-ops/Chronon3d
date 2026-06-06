@@ -43,6 +43,9 @@ void execute_levels(
         std::vector<double> level_dirty_ms(level.size(), 0.0);
         std::vector<double> level_telemetry_ms(level.size(), 0.0);
         std::vector<double> level_execute_ms(level.size(), 0.0);
+        std::vector<double> level_pred_bbox_ms(level.size(), 0.0);
+        std::vector<double> level_clone_ctx_ms(level.size(), 0.0);
+        std::vector<double> level_state_ms(level.size(), 0.0);
 
         // TBB parallel_for has measurable overhead (~5-50µs per spawn).
         // For small execution levels (≤4 nodes), run sequentially to avoid
@@ -78,7 +81,10 @@ void execute_levels(
                             &level_cache_ms[level_index],
                             &level_dirty_ms[level_index],
                             &level_telemetry_ms[level_index],
-                            &level_execute_ms[level_index]
+                            &level_execute_ms[level_index],
+                            &level_pred_bbox_ms[level_index],
+                            &level_clone_ctx_ms[level_index],
+                            &level_state_ms[level_index]
                         );
                     }
                 }
@@ -98,7 +104,10 @@ void execute_levels(
                     &level_cache_ms[level_index],
                     &level_dirty_ms[level_index],
                     &level_telemetry_ms[level_index],
-                    &level_execute_ms[level_index]
+                    &level_execute_ms[level_index],
+                    &level_pred_bbox_ms[level_index],
+                    &level_clone_ctx_ms[level_index],
+                    &level_state_ms[level_index]
                 );
             }
         }
@@ -111,15 +120,20 @@ void execute_levels(
 
         if (parent_counters) {
             double cache_sum = 0.0, dirty_sum = 0.0, telemetry_sum = 0.0, execute_sum = 0.0;
+            double pred_bbox_sum = 0.0, clone_ctx_sum = 0.0, state_sum = 0.0;
             for (size_t i = 0; i < level.size(); ++i) {
                 cache_sum += level_cache_ms[i];
                 dirty_sum += level_dirty_ms[i];
                 telemetry_sum += level_telemetry_ms[i];
                 execute_sum += level_execute_ms[i];
+                pred_bbox_sum += level_pred_bbox_ms[i];
+                clone_ctx_sum += level_clone_ctx_ms[i];
+                state_sum += level_state_ms[i];
             }
 
             const double dispatch_ms = std::chrono::duration<double, std::milli>(t_dispatch1 - t_schedule1).count();
-            double overhead_ms = dispatch_ms - execute_sum - cache_sum - dirty_sum - telemetry_sum;
+            double overhead_ms = dispatch_ms - execute_sum - cache_sum - dirty_sum - telemetry_sum
+                                 - pred_bbox_sum - clone_ctx_sum - state_sum;
             if (overhead_ms < 0.0) overhead_ms = 0.0;
 
             parent_counters->input_resolve_ms.fetch_add(
@@ -145,6 +159,15 @@ void execute_levels(
                 std::memory_order_relaxed);
             parent_counters->node_execute_actual_ms.fetch_add(
                 static_cast<uint64_t>(std::llround(execute_sum)),
+                std::memory_order_relaxed);
+            parent_counters->predicted_bbox_ms.fetch_add(
+                static_cast<uint64_t>(std::llround(pred_bbox_sum)),
+                std::memory_order_relaxed);
+            parent_counters->clone_context_ms.fetch_add(
+                static_cast<uint64_t>(std::llround(clone_ctx_sum)),
+                std::memory_order_relaxed);
+            parent_counters->state_assign_ms.fetch_add(
+                static_cast<uint64_t>(std::llround(state_sum)),
                 std::memory_order_relaxed);
             parent_counters->node_overhead_ms.fetch_add(
                 static_cast<uint64_t>(std::llround(overhead_ms)),
