@@ -128,7 +128,11 @@ public:
     void reset_counters();
 
 private:
-    std::unique_ptr<Framebuffer> acquire_unique(int width, int height);
+    /// Acquire a framebuffer from the pool or allocate a new one.
+    /// Sets *out_fresh_alloc to true when the returned FB was freshly
+    /// constructed (zero-initialized by the Framebuffer constructor)
+    /// and therefore doesn't need explicit clearing.
+    std::unique_ptr<Framebuffer> acquire_unique(int width, int height, bool* out_fresh_alloc = nullptr);
 
     mutable std::mutex m_mutex;
     size_t m_max_bytes;
