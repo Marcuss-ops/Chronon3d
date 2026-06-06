@@ -25,6 +25,7 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cache_tests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/content_tests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/video_tests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/compositor_tests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/breathing_golden_tests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/benchmarks.cmake)
 
 # ── Aggregate targets: build test executables grouped by cost/speed ──
@@ -53,6 +54,7 @@ add_custom_target(chronon3d_tests_render
         chronon3d_io_tests
         chronon3d_animation_tests
         chronon3d_content_tests
+        chronon3d_breathing_golden_tests
 )
 
 # Video tests: video pipeline tests (isolated, no content needed)
