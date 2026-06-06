@@ -97,85 +97,207 @@ HWY_ATTR void premultiply_alpha_rgba8_impl(uint32_t* HWY_RESTRICT dst,
     }
 }
 
-HWY_ATTR void composite_add_premul_impl(float* HWY_RESTRICT dst,
-                                         const float* HWY_RESTRICT src,
+HWY_ATTR void composite_add_premul_impl(float* HWY_RESTRICT dst_ptr,
+                                         const float* HWY_RESTRICT src_ptr,
                                          int pixel_count) {
-    for (int i = 0; i < pixel_count; ++i) {
-        if ((i & 15) == 0 && (i + 16) < pixel_count) {
-            __builtin_prefetch(&src[(i + 16) * 4], 0, 1);
-            __builtin_prefetch(&dst[(i + 16) * 4], 1, 1);
+    const hn::FixedTag<float, 4> d4;
+    int i = 0;
+
+    // ── 2-pixel AVX2 path ─────────────────────────────────────────
+#if HWY_TARGET == HWY_AVX2
+    if (pixel_count >= 2) {
+        const hn::ScalableTag<float> d;
+        for (; i + 1 < pixel_count; i += 2) {
+            if ((i & 14) == 0 && (i + 16) < pixel_count) {
+                __builtin_prefetch(&src_ptr[(i + 16) * 4], 0, 1);
+                __builtin_prefetch(&dst_ptr[(i + 16) * 4], 1, 1);
+            }
+            if (src_ptr[i * 4 + 3] <= 0.0f && src_ptr[(i + 1) * 4 + 3] <= 0.0f) continue;
+            const auto src_v = hn::LoadU(d, src_ptr + i * 4);
+            const auto dst_v = hn::LoadU(d, dst_ptr + i * 4);
+            const auto result = hn::Add(dst_v, src_v);
+            hn::StoreU(result, d, dst_ptr + i * 4);
         }
-        float* d = dst + i * 4;
-        const float* s = src + i * 4;
-        d[0] += s[0];
-        d[1] += s[1];
-        d[2] += s[2];
-        d[3] += s[3];
+    }
+#endif
+
+    // ── 1-pixel remainder ─────────────────────────────────────────
+    for (; i < pixel_count; ++i) {
+        if ((i & 15) == 0 && (i + 16) < pixel_count) {
+            __builtin_prefetch(&src_ptr[(i + 16) * 4], 0, 1);
+            __builtin_prefetch(&dst_ptr[(i + 16) * 4], 1, 1);
+        }
+        if (src_ptr[i * 4 + 3] <= 0.0f) continue;
+        const auto s = hn::LoadU(d4, src_ptr + i * 4);
+        const auto d = hn::LoadU(d4, dst_ptr + i * 4);
+        const auto result = hn::Add(d, s);
+        hn::StoreU(result, d4, dst_ptr + i * 4);
     }
 }
 
-HWY_ATTR void composite_multiply_premul_impl(float* HWY_RESTRICT dst,
-                                              const float* HWY_RESTRICT src,
+HWY_ATTR void composite_multiply_premul_impl(float* HWY_RESTRICT dst_ptr,
+                                              const float* HWY_RESTRICT src_ptr,
                                               int pixel_count) {
-    for (int i = 0; i < pixel_count; ++i) {
-        if ((i & 15) == 0 && (i + 16) < pixel_count) {
-            __builtin_prefetch(&src[(i + 16) * 4], 0, 1);
-            __builtin_prefetch(&dst[(i + 16) * 4], 1, 1);
+    const hn::FixedTag<float, 4> d4;
+    int i = 0;
+
+    // ── 2-pixel AVX2 path ─────────────────────────────────────────
+#if HWY_TARGET == HWY_AVX2
+    if (pixel_count >= 2) {
+        const hn::ScalableTag<float> d;
+        for (; i + 1 < pixel_count; i += 2) {
+            if ((i & 14) == 0 && (i + 16) < pixel_count) {
+                __builtin_prefetch(&src_ptr[(i + 16) * 4], 0, 1);
+                __builtin_prefetch(&dst_ptr[(i + 16) * 4], 1, 1);
+            }
+            if (src_ptr[i * 4 + 3] <= 0.0f && src_ptr[(i + 1) * 4 + 3] <= 0.0f) continue;
+            // Save original alpha BEFORE the Mul store overwrites it.
+            const float da0 = dst_ptr[i * 4 + 3];
+            const float da1 = dst_ptr[(i + 1) * 4 + 3];
+            const auto src_v = hn::LoadU(d, src_ptr + i * 4);
+            const auto dst_v = hn::LoadU(d, dst_ptr + i * 4);
+            auto result = hn::Mul(src_v, dst_v);
+            hn::StoreU(result, d, dst_ptr + i * 4);
+            // Fix alpha for both pixels using saved original da.
+            for (int p = 0; p < 2; ++p) {
+                const float sa = src_ptr[(i + p) * 4 + 3];
+                const float da = (p == 0) ? da0 : da1;
+                float new_a = sa + da * (1.0f - sa);
+                dst_ptr[(i + p) * 4 + 3] = new_a;
+                if (new_a <= 0.0f) {
+                    dst_ptr[(i + p) * 4 + 0] = 0.0f;
+                    dst_ptr[(i + p) * 4 + 1] = 0.0f;
+                    dst_ptr[(i + p) * 4 + 2] = 0.0f;
+                }
+            }
         }
-        float* d = dst + i * 4;
-        const float* s = src + i * 4;
-        const float new_a = s[3] + d[3] * (1.0f - s[3]);
-        d[0] = s[0] * d[0];
-        d[1] = s[1] * d[1];
-        d[2] = s[2] * d[2];
-        d[3] = new_a;
+    }
+#endif
+
+    // ── 1-pixel remainder ─────────────────────────────────────────
+    for (; i < pixel_count; ++i) {
+        if ((i & 15) == 0 && (i + 16) < pixel_count) {
+            __builtin_prefetch(&src_ptr[(i + 16) * 4], 0, 1);
+            __builtin_prefetch(&dst_ptr[(i + 16) * 4], 1, 1);
+        }
+        if (src_ptr[i * 4 + 3] <= 0.0f) continue;
+        // Save original alpha BEFORE the Mul store overwrites it.
+        const float da_orig = dst_ptr[i * 4 + 3];
+        const auto s = hn::LoadU(d4, src_ptr + i * 4);
+        const auto d = hn::LoadU(d4, dst_ptr + i * 4);
+        auto result = hn::Mul(s, d);
+        hn::StoreU(result, d4, dst_ptr + i * 4);
+        const float sa = src_ptr[i * 4 + 3];
+        float new_a = sa + da_orig * (1.0f - sa);
+        dst_ptr[i * 4 + 3] = new_a;
         if (new_a <= 0.0f) {
-            d[0] = 0.0f; d[1] = 0.0f; d[2] = 0.0f;
+            dst_ptr[i * 4 + 0] = 0.0f;
+            dst_ptr[i * 4 + 1] = 0.0f;
+            dst_ptr[i * 4 + 2] = 0.0f;
         }
     }
 }
 
-HWY_ATTR void composite_screen_premul_impl(float* HWY_RESTRICT dst,
-                                            const float* HWY_RESTRICT src,
+HWY_ATTR void composite_screen_premul_impl(float* HWY_RESTRICT dst_ptr,
+                                            const float* HWY_RESTRICT src_ptr,
                                             int pixel_count) {
-    for (int i = 0; i < pixel_count; ++i) {
-        if ((i & 15) == 0 && (i + 16) < pixel_count) {
-            __builtin_prefetch(&src[(i + 16) * 4], 0, 1);
-            __builtin_prefetch(&dst[(i + 16) * 4], 1, 1);
+    // Screen: result = src + dst - src*dst  (all 4 channels).
+    // Alpha comes out correct: s.a + d.a - s.a*d.a = s.a + d.a*(1-s.a).
+    const hn::FixedTag<float, 4> d4;
+    int i = 0;
+
+    // ── 2-pixel AVX2 path ─────────────────────────────────────────
+#if HWY_TARGET == HWY_AVX2
+    if (pixel_count >= 2) {
+        const hn::ScalableTag<float> d;
+        for (; i + 1 < pixel_count; i += 2) {
+            if ((i & 14) == 0 && (i + 16) < pixel_count) {
+                __builtin_prefetch(&src_ptr[(i + 16) * 4], 0, 1);
+                __builtin_prefetch(&dst_ptr[(i + 16) * 4], 1, 1);
+            }
+            if (src_ptr[i * 4 + 3] <= 0.0f && src_ptr[(i + 1) * 4 + 3] <= 0.0f) continue;
+            const auto src_v = hn::LoadU(d, src_ptr + i * 4);
+            const auto dst_v = hn::LoadU(d, dst_ptr + i * 4);
+            const auto sum = hn::Add(src_v, dst_v);
+            const auto prod = hn::Mul(src_v, dst_v);
+            const auto result = hn::Sub(sum, prod);
+            hn::StoreU(result, d, dst_ptr + i * 4);
         }
-        float* d = dst + i * 4;
-        const float* s = src + i * 4;
-        const float new_a = s[3] + d[3] * (1.0f - s[3]);
-        d[0] = s[0] + d[0] - s[0] * d[0];
-        d[1] = s[1] + d[1] - s[1] * d[1];
-        d[2] = s[2] + d[2] - s[2] * d[2];
-        d[3] = new_a;
-        if (new_a <= 0.0f) {
-            d[0] = 0.0f; d[1] = 0.0f; d[2] = 0.0f;
+    }
+#endif
+
+    // ── 1-pixel remainder ─────────────────────────────────────────
+    for (; i < pixel_count; ++i) {
+        if ((i & 15) == 0 && (i + 16) < pixel_count) {
+            __builtin_prefetch(&src_ptr[(i + 16) * 4], 0, 1);
+            __builtin_prefetch(&dst_ptr[(i + 16) * 4], 1, 1);
+        }
+        if (src_ptr[i * 4 + 3] <= 0.0f) continue;
+        const auto s = hn::LoadU(d4, src_ptr + i * 4);
+        const auto d = hn::LoadU(d4, dst_ptr + i * 4);
+        const auto sum = hn::Add(s, d);
+        const auto prod = hn::Mul(s, d);
+        auto result = hn::Sub(sum, prod);
+        // Alpha from Screen formula = s.a + d.a*(1-s.a) — correct for premul over.
+        // But check new_a ≤ 0 → zero out RGB.
+        hn::StoreU(result, d4, dst_ptr + i * 4);
+        if (dst_ptr[i * 4 + 3] <= 0.0f) {
+            dst_ptr[i * 4 + 0] = 0.0f;
+            dst_ptr[i * 4 + 1] = 0.0f;
+            dst_ptr[i * 4 + 2] = 0.0f;
         }
     }
 }
 
-HWY_ATTR void composite_overlay_premul_impl(float* HWY_RESTRICT dst,
-                                             const float* HWY_RESTRICT src,
+HWY_ATTR void composite_overlay_premul_impl(float* HWY_RESTRICT dst_ptr,
+                                             const float* HWY_RESTRICT src_ptr,
                                              int pixel_count) {
+    // Overlay: if dst < 0.5 → 2*src*dst, else → 1 - 2*(1-src)*(1-dst).
+    // Alpha uses normal blend: new_a = s.a + d.a*(1-s.a).
+    // Per-channel conditional → 1-pixel FixedTag Highway path.
+    const hn::FixedTag<float, 4> d4;
+    const auto half  = hn::Set(d4, 0.5f);
+    const auto one   = hn::Set(d4, 1.0f);
+    const auto two   = hn::Set(d4, 2.0f);
+    const auto zero  = hn::Zero(d4);
+
     for (int i = 0; i < pixel_count; ++i) {
         if ((i & 15) == 0 && (i + 16) < pixel_count) {
-            __builtin_prefetch(&src[(i + 16) * 4], 0, 1);
-            __builtin_prefetch(&dst[(i + 16) * 4], 1, 1);
+            __builtin_prefetch(&src_ptr[(i + 16) * 4], 0, 1);
+            __builtin_prefetch(&dst_ptr[(i + 16) * 4], 1, 1);
         }
-        float* d = dst + i * 4;
-        const float* s = src + i * 4;
-        const float new_a = s[3] + d[3] * (1.0f - s[3]);
-        for (int c = 0; c < 3; ++c) {
-            const float sd = s[c] * d[c];
-            d[c] = d[c] < 0.5f
-                ? 2.0f * sd
-                : 1.0f - 2.0f * (1.0f - s[c]) * (1.0f - d[c]);
-        }
-        d[3] = new_a;
-        if (new_a <= 0.0f) {
-            d[0] = 0.0f; d[1] = 0.0f; d[2] = 0.0f;
+        if (src_ptr[i * 4 + 3] <= 0.0f) continue;
+        const auto s = hn::LoadU(d4, src_ptr + i * 4);
+        const auto d = hn::LoadU(d4, dst_ptr + i * 4);
+
+        // Branch 1 (dst < 0.5): 2 * src * dst
+        const auto branch1 = hn::Mul(hn::Mul(s, d), two);
+
+        // Branch 2 (dst ≥ 0.5): 1 - 2*(1-src)*(1-dst)
+        const auto om_s = hn::Sub(one, s);
+        const auto om_d = hn::Sub(one, d);
+        const auto branch2 = hn::Sub(one, hn::Mul(hn::Mul(om_s, om_d), two));
+
+        // Select per channel
+        const auto mask = hn::Lt(d, half);  // true where dst < 0.5
+        auto rgb_result = hn::IfThenElse(mask, branch1, branch2);
+
+        // Alpha: normal blend = s.a + d.a*(1-s.a)
+        const auto a_s = hn::Broadcast<3>(s);
+        const auto a_d = hn::Broadcast<3>(d);
+        const auto inv_a = hn::Sub(one, a_s);
+        const auto new_a = hn::MulAdd(a_d, inv_a, a_s);
+
+        // Combine: RGB from conditional blend, alpha from normal blend
+        // Use the same mask inverted on lane 3 to select alpha
+        // Reuse rgb_result for lanes 0-2, fix lane 3 with new_a
+        hn::StoreU(rgb_result, d4, dst_ptr + i * 4);
+        const float corrected_a = hn::GetLane(new_a);
+        dst_ptr[i * 4 + 3] = corrected_a > 0.0f ? corrected_a : 0.0f;
+        if (dst_ptr[i * 4 + 3] <= 0.0f) {
+            dst_ptr[i * 4 + 0] = 0.0f;
+            dst_ptr[i * 4 + 1] = 0.0f;
+            dst_ptr[i * 4 + 2] = 0.0f;
         }
     }
 }
