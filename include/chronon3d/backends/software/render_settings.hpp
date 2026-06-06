@@ -90,6 +90,12 @@ struct RenderSettings {
      * V1 uses node predicted_bbox as clip_rect.
      */
     bool dirty_rects{false};
+
+    /**
+     * Diagnostic: when true, composite_normal_premul uses the safe scalar fallback
+     * instead of the Highway SIMD path. Helps isolate SIMD-related rendering bugs.
+     */
+    bool force_scalar_normal_blend{false};
 };
 
 } // namespace chronon3d

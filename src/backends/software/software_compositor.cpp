@@ -1,17 +1,49 @@
 #include <chronon3d/backends/software/software_compositor.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
+#include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/simd/kernels.hpp>
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <cstdlib>
+#include <filesystem>
 #include <optional>
+#include <fmt/format.h>
+#include <spdlog/spdlog.h>
 
 namespace chronon3d {
 
 void SoftwareCompositor::composite_layer(Framebuffer& dst, const Framebuffer& src, BlendMode mode, const std::optional<raster::BBox>& clip) {
+    // DEBUG: CHRONON_DEBUG_VISUAL — logga clip rect
+    if (std::getenv("CHRONON_DEBUG_VISUAL")) {
+        std::string clip_str = clip
+            ? fmt::format("[{},{},{},{}]", clip->x0, clip->y0, clip->x1, clip->y1)
+            : "null";
+        spdlog::warn(
+            "[VDBG Composite] clip={} dst_origin=[{},{}] dst_size=[{},{}] src_origin=[{},{}] src_size=[{},{}] mode={}",
+            clip_str,
+            dst.origin_x(), dst.origin_y(), dst.width(), dst.height(),
+            src.origin_x(), src.origin_y(), src.width(), src.height(),
+            static_cast<int>(mode)
+        );
+    }
+
+    // DEBUG: CHRONON_DEBUG_DUMP_FB — salva dst BEFORE composite
+    if (std::getenv("CHRONON_DEBUG_DUMP_FB")) {
+        static int composite_counter = 0;
+        std::filesystem::create_directories("output/debug_fb");
+        const auto path_before = fmt::format("output/debug_fb/composite_{:04d}_dst_before.png", composite_counter);
+        const auto path_src = fmt::format("output/debug_fb/composite_{:04d}_src.png", composite_counter);
+        chronon3d::save_png(dst, path_before);
+        chronon3d::save_png(src, path_src);
+        spdlog::info("[VDBG dump] composite_{}: dst_before={} src={}",
+            composite_counter, path_before, path_src);
+        ++composite_counter;
+    }
+
     i32 x0 = 0, y0 = 0, x1 = dst.width(), y1 = dst.height();
     if (clip) {
         // clip is in canvas coordinates — convert to dst-local
@@ -129,7 +161,9 @@ bool SoftwareCompositor::composite_layer_normal_optimized(
     const i32 width_to_process = x1 - x0;
     const i32 height_to_process = y1 - y0;
     const i32 dst_ox = dst.origin_x();
+    const i32 dst_oy = dst.origin_y();
     const i32 src_ox = src.origin_x();
+    const i32 src_oy = src.origin_y();
 
     const auto t_blend0 = std::chrono::high_resolution_clock::now();
     if (cnt) {
@@ -145,14 +179,14 @@ bool SoftwareCompositor::composite_layer_normal_optimized(
         for (i32 y = row_begin; y < row_end; ++y) {
             if (!use_tbb) {
                 const auto t_rs0 = std::chrono::high_resolution_clock::now();
-                Color* d_row = dst.pixels_row(y - dst_ox) + (x0 - dst_ox);
-                const Color* s_row = src.pixels_row(y - src_ox) + (x0 - src_ox);
+                Color* d_row = dst.pixels_row(y - dst_oy) + (x0 - dst_ox);
+                const Color* s_row = src.pixels_row(y - src_oy) + (x0 - src_ox);
                 const auto t_rs1 = std::chrono::high_resolution_clock::now();
                 row_setup_ns += static_cast<uint64_t>(std::chrono::duration<double, std::nano>(t_rs1 - t_rs0).count());
                 simd::composite_normal_premul(d_row, s_row, width_to_process);
             } else {
-                Color* d_row = dst.pixels_row(y - dst_ox) + (x0 - dst_ox);
-                const Color* s_row = src.pixels_row(y - src_ox) + (x0 - src_ox);
+                Color* d_row = dst.pixels_row(y - dst_oy) + (x0 - dst_ox);
+                const Color* s_row = src.pixels_row(y - src_oy) + (x0 - src_ox);
                 simd::composite_normal_premul(d_row, s_row, width_to_process);
             }
         }
@@ -187,7 +221,9 @@ bool SoftwareCompositor::composite_layer_non_normal_optimized(
     const i32 width_to_process = x1 - x0;
     const i32 height_to_process = y1 - y0;
     const i32 dst_ox = dst.origin_x();
+    const i32 dst_oy = dst.origin_y();
     const i32 src_ox = src.origin_x();
+    const i32 src_oy = src.origin_y();
 
     const auto t_blend0 = std::chrono::high_resolution_clock::now();
     if (cnt) {
@@ -197,8 +233,8 @@ bool SoftwareCompositor::composite_layer_non_normal_optimized(
 
     auto process_rows = [&](i32 row_begin, i32 row_end) {
         for (i32 y = row_begin; y < row_end; ++y) {
-            Color* d_row = dst.pixels_row(y - dst_ox) + (x0 - dst_ox);
-            const Color* s_row = src.pixels_row(y - src_ox) + (x0 - src_ox);
+            Color* d_row = dst.pixels_row(y - dst_oy) + (x0 - dst_ox);
+            const Color* s_row = src.pixels_row(y - src_oy) + (x0 - src_ox);
             switch (mode) {
                 case BlendMode::Add:
                     simd::composite_add_premul(d_row, s_row, width_to_process);

@@ -15,6 +15,7 @@
 #include <chronon3d/backends/image/image_backend.hpp>
 #include <chronon3d/backends/software/software_registry.hpp>
 #include <chronon3d/backends/video/video_frame_decoder.hpp>
+#include <chronon3d/simd/kernels.hpp>
 #include <chronon3d/scene/model/scene.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/core/types/frame.hpp>
@@ -64,7 +65,10 @@ public:
                                                  f32 frame_time = 0.0f) const;
 
     // Render settings management
-    void set_settings(const RenderSettings& settings) { m_settings = settings; }
+    void set_settings(const RenderSettings& settings) {
+        m_settings = settings;
+        simd::g_force_scalar_normal_blend.store(settings.force_scalar_normal_blend, std::memory_order_relaxed);
+    }
     [[nodiscard]] const RenderSettings& settings() const { return m_settings; }
 
     // Legacy/Compatibility setters (redirect to m_settings)

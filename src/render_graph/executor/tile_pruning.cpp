@@ -11,6 +11,19 @@ std::optional<raster::BBox> compute_dirty_clip(
 ) {
     CHRONON_ZONE_C("dirty_rect_clip", trace_category::kPipeline);
 
+    // Source, Transform, Video and Precomp nodes must render their FULL content.
+    // The dirty-rect clip is only valid for Clear (which area to clear) and
+    // Composite (which area to blend).  Applying a dirty-rect clip to a source
+    // node causes the rendered image to be physically clipped to the dirty
+    // region — the image appears "cut off" or shows only a thin strip of
+    // content.  See https://github.com/orgs/community/discussions/regression-fix
+    if (node.kind() == RenderGraphNodeKind::Source ||
+        node.kind() == RenderGraphNodeKind::Transform ||
+        node.kind() == RenderGraphNodeKind::Video ||
+        node.kind() == RenderGraphNodeKind::Precomp) {
+        return predicted_bbox;
+    }
+
     std::optional<raster::BBox> clip = predicted_bbox;
     if (ctx.dirty_rect) {
         if (clip) {

@@ -289,6 +289,18 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         ctx, resolved, scene, settings, sw_renderer, frame, width, height);
     const auto t_dirty1 = std::chrono::steady_clock::now();
 
+    // ── DEBUG: CHRONON_DEBUG_DISABLE_DIRTY ────────────────────────────
+    // Override ambiente per disabilitare dirty rects e forzare full-frame render.
+    // Utile per isolare bug di clipping legati alla dirty rect.
+    if (std::getenv("CHRONON_DEBUG_DISABLE_DIRTY")) {
+        dirty_out.dirty_rect = std::nullopt;
+        dirty_out.use_dirty_rects = false;
+        dirty_out.use_dirty_tiles = false;
+        ctx.dirty_rect = std::nullopt;
+        ctx.reuse_prev_framebuffer = false;
+        spdlog::warn("[VDBG] CHRONON_DEBUG_DISABLE_DIRTY attivo — dirty rects disabilitati");
+    }
+
     // ── Dirty ratio / counters / diagnostics ────────────────────────────
     double dirty_ratio = 1.0;
     u64 dirty_union_area_pixels = 0;

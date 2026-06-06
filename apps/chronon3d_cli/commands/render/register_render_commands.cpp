@@ -35,6 +35,8 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
     cmd->add_option("-v,--log-level", args.log_level, "Log level: trace | debug | info | warn | error");
     cmd->add_flag("--benchmark_all", args.benchmark_all, "Write detailed phase durations for all graph nodes");
     cmd->add_flag("--report", args.report, "Generate an execution report log");
+    cmd->add_flag("--force-scalar-normal-blend", args.pipeline.force_scalar_normal_blend,
+                  "Force scalar (non-SIMD) Normal blend for diagnosing rendering regressions");
     cmd->add_flag("--warmup-renderer", args.pipeline.warmup_renderer,
                   "Preallocate framebuffers and prime caches before rendering");
     cmd->add_option("--warmup-framebuffers", args.pipeline.warmup_framebuffers,

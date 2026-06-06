@@ -309,6 +309,9 @@ HWY_AFTER_NAMESPACE();
 #if HWY_ONCE
 namespace chronon3d::simd {
 
+// Global flag: force scalar Normal blend for diagnostic purposes
+std::atomic<bool> g_force_scalar_normal_blend{false};
+
 HWY_EXPORT(composite_normal_premul_impl);
 HWY_EXPORT(composite_add_premul_impl);
 HWY_EXPORT(composite_multiply_premul_impl);
@@ -348,7 +351,7 @@ static void composite_normal_premul_safe(Color* dst, const Color* src, int pixel
 
 void composite_normal_premul(Color* __restrict__ dst, const Color* __restrict__ src, int pixel_count) {
     if (pixel_count <= 0) return;
-    if (!check_nan_canary(dst, src, pixel_count)) {
+    if (!check_nan_canary(dst, src, pixel_count) || g_force_scalar_normal_blend.load(std::memory_order_relaxed)) {
         composite_normal_premul_safe(dst, src, pixel_count);
         return;
     }

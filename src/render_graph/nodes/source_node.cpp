@@ -2,9 +2,12 @@
 #include <chronon3d/render_graph/nodes/detail/bbox_projection.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/backends/image/image_writer.hpp>
 #include <spdlog/spdlog.h>
 #include <glm/gtc/matrix_transform.hpp>
 #include <array>
+#include <cstdlib>
+#include <filesystem>
 #include <limits>
 
 namespace chronon3d::graph {
@@ -188,7 +191,35 @@ OwnedFB SourceNode::execute(
         }
         state.opacity = m_opacity_override.value_or(m_node.world_transform.opacity);
         state.world_matrix = m_matrix_override.value_or(m_node.world_transform.to_mat4());
-        state.clip_rect = ctx.clip_rect;
+
+        // DEBUG: CHRONON_DEBUG_SOURCE_NO_CLIP — disabilita clip_rect sui SourceNode
+        // per verificare se il clipping causa il taglio dell'immagine.
+        if (std::getenv("CHRONON_DEBUG_SOURCE_NO_CLIP")) {
+            state.clip_rect = std::nullopt;
+            spdlog::warn("[VDBG] CHRONON_DEBUG_SOURCE_NO_CLIP attivo — clip_rect forzato a nullopt per node='{}'", m_name);
+        } else {
+            state.clip_rect = ctx.clip_rect;
+        }
+
+        // DEBUG: CHRONON_DEBUG_VISUAL — logga clip e predicted bbox
+        if (std::getenv("CHRONON_DEBUG_VISUAL")) {
+            auto pb = predicted_bbox(ctx, {});
+            std::string clip_str = ctx.clip_rect
+                ? fmt::format("[{},{},{},{}]", ctx.clip_rect->x0, ctx.clip_rect->y0,
+                              ctx.clip_rect->x1, ctx.clip_rect->y1)
+                : "null";
+            std::string pb_str = pb
+                ? fmt::format("[{},{},{},{}]", pb->x0, pb->y0, pb->x1, pb->y1)
+                : "null";
+            spdlog::warn(
+                "[VDBG Source] frame={} node='{}' shape={} clip_rect={} predicted={} fb_size={}x{}",
+                static_cast<int>(ctx.frame),
+                m_name,
+                static_cast<int>(m_node.shape.type),
+                clip_str, pb_str,
+                ctx.width, ctx.height
+            );
+        }
 
         if (ctx.has_camera_2_5d) {
             state.projection  = ctx.projection_ctx;
@@ -196,6 +227,15 @@ OwnedFB SourceNode::execute(
 
         ctx.backend->draw_node(*fb, m_node, state, ctx.camera, ctx.width, ctx.height);
         fb->set_opaque(full_frame_seed);
+
+        // DEBUG: CHRONON_DEBUG_DUMP_FB — salva framebuffer intermedi
+        if (auto* env = std::getenv("CHRONON_DEBUG_DUMP_FB")) {
+            std::filesystem::create_directories("output/debug_fb");
+            const auto path = fmt::format("output/debug_fb/f{:04d}_source_{}.png",
+                static_cast<int>(ctx.frame), m_name);
+            chronon3d::save_png(*fb, path);
+            spdlog::info("[VDBG dump] salvato: {}", path);
+        }
 
         if (ctx.diagnostics_enabled) {
             int nonzero_pixels = 0;
