@@ -15,9 +15,14 @@
 
 #include <chronon3d/core/types/types.hpp>
 #include <chronon3d/math/color.hpp>
+#include <atomic>
 
 namespace chronon3d {
 namespace simd {
+
+/// Global flag: when true, composite_normal_premul falls back to the safe scalar
+/// path instead of using Highway SIMD. Set before rendering for diagnostic purposes.
+extern std::atomic<bool> g_force_scalar_normal_blend;
 
 /// Premultiplied alpha "over" composite (SRC_OVER).
 ///

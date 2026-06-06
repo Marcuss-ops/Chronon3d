@@ -30,6 +30,7 @@ RenderSettings settings_from_args(const Args& args,
     s.motion_blur.samples      = args.pipeline.quality.motion_blur_samples;
     s.motion_blur.shutter_angle = args.pipeline.quality.shutter_angle;
     s.ssaa_factor              = args.pipeline.quality.ssaa;
+    s.force_scalar_normal_blend = args.pipeline.force_scalar_normal_blend;
     return s;
 }
 
