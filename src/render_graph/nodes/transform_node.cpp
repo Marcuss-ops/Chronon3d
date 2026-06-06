@@ -2,13 +2,10 @@
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
-#include <chronon3d/backends/image/image_writer.hpp>
 #include <spdlog/spdlog.h>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
-#include <cstdlib>
-#include <filesystem>
 #include <span>
 
 // Internal helpers extracted into separate compilation units
@@ -32,27 +29,6 @@ OwnedFB TransformNode::execute(
 
     const FramebufferRef& input = inputs[0];
     const auto predicted = predicted_bbox(ctx, input_bboxes);
-
-    // DEBUG: CHRONON_DEBUG_VISUAL — logga bbox e clip del TransformNode
-    if (std::getenv("CHRONON_DEBUG_VISUAL")) {
-        std::string in_bbox = input_bboxes.empty() || !input_bboxes[0]
-            ? "none"
-            : fmt::format("[{},{},{},{}]", input_bboxes[0]->x0, input_bboxes[0]->y0,
-                          input_bboxes[0]->x1, input_bboxes[0]->y1);
-        std::string pb_str = predicted
-            ? fmt::format("[{},{},{},{}]", predicted->x0, predicted->y0, predicted->x1, predicted->y1)
-            : "null";
-        std::string clip_str = ctx.clip_rect
-            ? fmt::format("[{},{},{},{}]", ctx.clip_rect->x0, ctx.clip_rect->y0,
-                          ctx.clip_rect->x1, ctx.clip_rect->y1)
-            : "null";
-        spdlog::warn(
-            "[VDBG Transform] frame={} input_bbox={} predicted={} clip={}",
-            static_cast<int>(ctx.frame),
-            in_bbox, pb_str, clip_str
-        );
-    }
-
     const raster::BBox out_bounds = predicted.value_or(raster::BBox{0, 0, ctx.width, ctx.height});
     const i32 out_w = std::max(1, out_bounds.x1 - out_bounds.x0);
     const i32 out_h = std::max(1, out_bounds.y1 - out_bounds.y0);
@@ -275,15 +251,6 @@ OwnedFB TransformNode::execute(
                 [&](const tbb::blocked_range<i32>& range) { worker(range.begin(), range.end()); });
         } else {
             worker(y0, y1);
-        }
-
-        // DEBUG: CHRONON_DEBUG_DUMP_FB — salva framebuffer intermedi
-        if (std::getenv("CHRONON_DEBUG_DUMP_FB")) {
-            std::filesystem::create_directories("output/debug_fb");
-            const auto path = fmt::format("output/debug_fb/f{:04d}_transform_{}.png",
-                static_cast<int>(ctx.frame), name());
-            chronon3d::save_png(*result, path);
-            spdlog::info("[VDBG dump] salvato: {}", path);
         }
     }
 

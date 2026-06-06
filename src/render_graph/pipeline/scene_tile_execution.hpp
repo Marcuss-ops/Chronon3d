@@ -26,20 +26,76 @@ struct TileExecutionResult {
     uint64_t pixels_rendered{0};
 };
 
-/// Execute a single dirty tile: set up tile context, run graph, copy result to output.
-[[nodiscard]] static inline TileExecutionResult execute_single_dirty_tile(
+// ── Tile coalescing ───────────────────────────────────────────────────────
+//
+// Merges adjacent dirty tiles into larger bounding boxes to reduce the
+// number of graph re-executions.  A moving object that spans 2×3 tiles
+// (6 re-executions) is coalesced into 1 execution — a 6× reduction in
+// graph overhead (cache evaluation, context cloning, schedule overhead).
+//
+// Algorithm: greedy row-wise merge.  Each row's dirty tiles become a
+// horizontal strip; vertically adjacent strips with the same x-range
+// are merged into a single region.
+//
+// Note: rows with non-contiguous dirty tiles (e.g. cols 0-1 and 4-5 dirty
+// but 2-3 clean) are merged into one wide region spanning cols 0-5.  This
+// may render clean pixels in the gap, trading a larger region for fewer
+// graph re-executions.  For typical contiguous-dirty workloads this is a
+// net win.
+
+[[nodiscard]] inline std::vector<raster::BBox> coalesce_dirty_tiles(
+    const raster::TileGrid& grid,
+    const raster::DirtyTileMask& mask)
+{
+    std::vector<raster::BBox> regions;
+    const int cols = grid.cols();
+    const int rows = grid.rows();
+
+    for (int ty = 0; ty < rows; ++ty) {
+        // Find the horizontal span of dirty tiles in this row.
+        int tx_min = cols, tx_max = -1;
+        for (int tx = 0; tx < cols; ++tx) {
+            if (mask.is_dirty(tx, ty)) {
+                tx_min = std::min(tx_min, tx);
+                tx_max = std::max(tx_max, tx);
+            }
+        }
+        if (tx_min > tx_max) continue;  // no dirty tiles in this row
+
+        // Build the pixel-space bounding box for this row's dirty span.
+        raster::BBox row_region = grid.tile_bounds(tx_min, ty);
+        row_region.x1 = grid.tile_bounds(tx_max, ty).x1;
+
+        // Try to merge vertically with the previous region.
+        if (!regions.empty()) {
+            raster::BBox& prev = regions.back();
+            if (prev.y1 == row_region.y0 &&
+                prev.x0 == row_region.x0 &&
+                prev.x1 == row_region.x1) {
+                prev.y1 = row_region.y1;  // extend vertically
+                continue;
+            }
+        }
+        regions.push_back(row_region);
+    }
+
+    return regions;
+}
+
+/// Execute a single dirty region: set up clip context, run graph, copy to output.
+[[nodiscard]] static inline TileExecutionResult execute_single_dirty_region(
     CompiledFrameGraph& compiled,
     const RenderGraphContext& ctx,
     SoftwareRenderer* sw_renderer,
-    const raster::BBox& tile_bbox,
+    const raster::BBox& region_bbox,
     Framebuffer& output_fb
 ) {
     RenderGraphContext tile_ctx = ctx;
-    tile_ctx.clip_rect = tile_bbox;
-    tile_ctx.dirty_rect = tile_bbox;
+    tile_ctx.clip_rect = region_bbox;
+    tile_ctx.dirty_rect = region_bbox;
     tile_ctx.reuse_prev_framebuffer = false;
     tile_ctx.tile_execution_enabled = true;
-    tile_ctx.active_tile_clip = tile_bbox;
+    tile_ctx.active_tile_clip = region_bbox;
     tile_ctx.skip_initial_clear = false;
     tile_ctx.early_exit_skip.clear();
 
@@ -48,19 +104,19 @@ struct TileExecutionResult {
         compiled, tile_ctx, &tile_arena);
 
     if (tile_fb) {
-        for (i32 y = tile_bbox.y0; y < tile_bbox.y1; ++y) {
+        for (i32 y = region_bbox.y0; y < region_bbox.y1; ++y) {
             std::copy(
-                tile_fb->pixels_row(y) + tile_bbox.x0,
-                tile_fb->pixels_row(y) + tile_bbox.x1,
-                output_fb.pixels_row(y) + tile_bbox.x0);
+                tile_fb->pixels_row(y) + region_bbox.x0,
+                tile_fb->pixels_row(y) + region_bbox.x1,
+                output_fb.pixels_row(y) + region_bbox.x0);
         }
     }
 
     return TileExecutionResult{
         .dirty_count = 1,
         .pixels_rendered =
-            static_cast<uint64_t>(tile_bbox.x1 - tile_bbox.x0) *
-            static_cast<uint64_t>(tile_bbox.y1 - tile_bbox.y0)
+            static_cast<uint64_t>(region_bbox.x1 - region_bbox.x0) *
+            static_cast<uint64_t>(region_bbox.y1 - region_bbox.y0)
     };
 }
 
@@ -77,57 +133,51 @@ inline TileExecutionResult execute_dirty_tiles(
     const auto& tile_grid = *dirty_out.tile_grid;
     const auto& dirty_tiles = *dirty_out.dirty_tiles;
 
-    struct DirtyTile { int tx; int ty; };
-    std::vector<DirtyTile> dirty_coords;
-    dirty_coords.reserve(static_cast<size_t>(dirty_tiles.dirty_count()));
-    dirty_tiles.for_each_dirty_tile(tile_grid, [&](int tx, int ty) {
-        dirty_coords.push_back({tx, ty});
-    });
+    // ── Coalesce adjacent dirty tiles into larger regions ──────────────
+    // This reduces the number of full-graph re-executions.  For example,
+    // 6 adjacent dirty tiles become 1 region → 6× less graph overhead.
+    const auto regions = coalesce_dirty_tiles(tile_grid, dirty_tiles);
+
+    // Count original dirty tiles for accurate telemetry.
+    const int original_dirty = dirty_tiles.dirty_count();
+    const int coalesced_count = static_cast<int>(regions.size());
 
     TileExecutionResult result;
 
-    if (parallel) {
-        struct TileAccum {
-            int dirty_count{0};
+    if (parallel && coalesced_count > 1) {
+        struct RegionAccum {
             uint64_t pixels_rendered{0};
         };
-        tbb::enumerable_thread_specific<TileAccum> tile_accums;
+        tbb::enumerable_thread_specific<RegionAccum> accums;
 
         tbb::parallel_for(
-            tbb::blocked_range<size_t>(0, dirty_coords.size()),
+            tbb::blocked_range<size_t>(0, regions.size()),
             [&](const tbb::blocked_range<size_t>& range) {
-                auto& local = tile_accums.local();
+                auto& local = accums.local();
                 for (size_t i = range.begin(); i < range.end(); ++i) {
-                    const int tx = dirty_coords[i].tx;
-                    const int ty = dirty_coords[i].ty;
-                    const raster::BBox tile_bbox = tile_grid.tile_bounds(tx, ty);
-                    if (tile_bbox.is_empty()) continue;
-
-                    auto tile_result = execute_single_dirty_tile(
-                        compiled, ctx, sw_renderer, tile_bbox, output_fb);
-                    local.dirty_count += tile_result.dirty_count;
-                    local.pixels_rendered += tile_result.pixels_rendered;
+                    const auto& region = regions[i];
+                    if (region.is_empty()) continue;
+                    auto region_result = execute_single_dirty_region(
+                        compiled, ctx, sw_renderer, region, output_fb);
+                    local.pixels_rendered += region_result.pixels_rendered;
                 }
             }
         );
 
-        for (const auto& acc : tile_accums) {
-            result.dirty_count += acc.dirty_count;
+        for (const auto& acc : accums) {
             result.pixels_rendered += acc.pixels_rendered;
         }
     } else {
-        for (size_t i = 0; i < dirty_coords.size(); ++i) {
-            const int tx = dirty_coords[i].tx;
-            const int ty = dirty_coords[i].ty;
-            const raster::BBox tile_bbox = tile_grid.tile_bounds(tx, ty);
-            if (tile_bbox.is_empty()) continue;
-
-            auto tile_result = execute_single_dirty_tile(
-                compiled, ctx, sw_renderer, tile_bbox, output_fb);
-            result.dirty_count += tile_result.dirty_count;
-            result.pixels_rendered += tile_result.pixels_rendered;
+        for (const auto& region : regions) {
+            if (region.is_empty()) continue;
+            auto region_result = execute_single_dirty_region(
+                compiled, ctx, sw_renderer, region, output_fb);
+            result.pixels_rendered += region_result.pixels_rendered;
         }
     }
+
+    // Report original tile count for performance counters.
+    result.dirty_count = original_dirty;
 
     return result;
 }

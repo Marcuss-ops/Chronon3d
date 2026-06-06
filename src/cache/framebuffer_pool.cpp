@@ -103,7 +103,8 @@ std::shared_ptr<Framebuffer> FramebufferPool::acquire_hinted(
     const bool clear = (hint == FramebufferAcquireHint::Default);
 
     const auto t0 = std::chrono::high_resolution_clock::now();
-    auto fb = acquire_unique(width, height);
+    bool fresh_alloc = false;
+    auto fb = acquire_unique(width, height, &fresh_alloc);
     const auto t1 = std::chrono::high_resolution_clock::now();
 
     if (profiling::g_current_counters) {
@@ -115,7 +116,9 @@ std::shared_ptr<Framebuffer> FramebufferPool::acquire_hinted(
         }
     }
 
-    if (clear && fb) {
+    // Skip clear when the FB was freshly allocated: the Framebuffer
+    // constructor already zero-initializes via m_pixels.resize(..., transparent).
+    if (clear && fb && !fresh_alloc) {
         const auto tc0 = std::chrono::high_resolution_clock::now();
         fb->clear(Color::transparent());
         const auto tc1 = std::chrono::high_resolution_clock::now();
@@ -136,7 +139,9 @@ std::shared_ptr<Framebuffer> FramebufferPool::acquire_hinted(
     });
 }
 
-std::unique_ptr<Framebuffer> FramebufferPool::acquire_unique(int width, int height) {
+std::unique_ptr<Framebuffer> FramebufferPool::acquire_unique(int width, int height, bool* out_fresh_alloc) {
+    if (out_fresh_alloc) *out_fresh_alloc = false;
+
     std::lock_guard<std::mutex> lock(m_mutex);
 
     const int rounded_w = round_up_bucket(width);
@@ -155,6 +160,7 @@ std::unique_ptr<Framebuffer> FramebufferPool::acquire_unique(int width, int heig
                 profiling::g_current_counters->framebuffer_reuses.fetch_add(1, std::memory_order_relaxed);
             }
             fb->resize_logical(width, height);
+            // Pool FB: content is stale — caller must clear if needed.
             return fb;
         } else {
             if (profiling::g_current_counters) {
@@ -196,6 +202,7 @@ std::unique_ptr<Framebuffer> FramebufferPool::acquire_unique(int width, int heig
             profiling::g_current_counters->framebuffer_pool_miss_count_best_fit.fetch_add(1, std::memory_order_relaxed);
         }
         fb->resize_logical(width, height);
+        // Best-fit pool FB: content is stale — caller must clear if needed.
         return fb;
     }
 
@@ -204,7 +211,7 @@ std::unique_ptr<Framebuffer> FramebufferPool::acquire_unique(int width, int heig
         if (ptr) {
             auto fb = std::make_unique<Framebuffer>(rounded_w, rounded_h, static_cast<Color*>(ptr));
             fb->resize_logical(width, height);
-            // Note: Arena wrappers are cheap and don't count as OS allocations.
+            // Arena memory is NOT zero-initialized — caller must clear.
             return fb;
         }
     }
@@ -212,6 +219,9 @@ std::unique_ptr<Framebuffer> FramebufferPool::acquire_unique(int width, int heig
     auto fb = std::make_unique<Framebuffer>(rounded_w, rounded_h);
     m_total_allocations.fetch_add(1, std::memory_order_relaxed);
     fb->resize_logical(width, height);
+    // Fresh allocation: Framebuffer constructor zero-initializes via
+    // m_pixels.resize(..., Color::transparent()).  No clear needed.
+    if (out_fresh_alloc) *out_fresh_alloc = true;
     return fb;
 }
 
@@ -221,8 +231,10 @@ std::shared_ptr<Framebuffer> FramebufferPool::acquire_pooled(int width, int heig
         return acquire(width, height, clear);
     }
 
-    auto fb = pool->acquire_unique(width, height);
-    if (clear) {
+    bool fresh_alloc = false;
+    auto fb = pool->acquire_unique(width, height, &fresh_alloc);
+    // Skip clear for fresh allocations: Framebuffer constructor zero-initializes.
+    if (clear && !fresh_alloc) {
         fb->clear(Color::transparent());
     }
     std::weak_ptr<FramebufferPool> weak_pool = pool;
@@ -236,16 +248,20 @@ std::shared_ptr<Framebuffer> FramebufferPool::acquire_pooled(int width, int heig
 }
 
 OwnedFB FramebufferPool::acquire_owned(int width, int height, bool clear) {
-    auto fb = acquire_unique(width, height);
-    if (clear && fb) {
+    bool fresh_alloc = false;
+    auto fb = acquire_unique(width, height, &fresh_alloc);
+    // Skip clear for fresh allocations: Framebuffer constructor zero-initializes.
+    if (clear && fb && !fresh_alloc) {
         fb->clear(Color::transparent());
     }
     return OwnedFB(fb.release(), PoolFbDeleter{this, m_alive});
 }
 
 OwnedFB FramebufferPool::acquire_owned_raw(int width, int height, bool clear) {
-    auto fb = acquire_unique(width, height);
-    if (clear && fb) {
+    bool fresh_alloc = false;
+    auto fb = acquire_unique(width, height, &fresh_alloc);
+    // Skip clear for fresh allocations: Framebuffer constructor zero-initializes.
+    if (clear && fb && !fresh_alloc) {
         fb->clear(Color::transparent());
     }
     return OwnedFB(fb.release(), PoolFbDeleter{this, m_alive});
