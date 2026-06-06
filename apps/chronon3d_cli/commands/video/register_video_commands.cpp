@@ -62,6 +62,8 @@ void register_video_commands(CLI::App& app, CliContext& ctx) {
         ->default_val("pipe")
         ->check(CLI::IsMember({"pipe"}));
 #endif
+    cmd->add_flag("--force-scalar-normal-blend", args.pipeline.force_scalar_normal_blend,
+                  "Force scalar (non-SIMD) Normal blend for diagnosing rendering regressions");
     cmd->add_flag("--warmup,--warmup-renderer", args.pipeline.warmup_renderer,
                   "Preallocate framebuffers and prime caches before rendering");
     cmd->add_option("--warmup-framebuffers", args.pipeline.warmup_framebuffers,

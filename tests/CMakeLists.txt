@@ -24,6 +24,7 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/optimizer_tests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cache_tests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/content_tests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/video_tests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/compositor_tests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/benchmarks.cmake)
 
 # ── Aggregate targets: build test executables grouped by cost/speed ──
@@ -42,6 +43,7 @@ add_custom_target(chronon3d_tests_fast
         chronon3d_cli_tests
         chronon3d_optimizer_tests
         chronon3d_cache_tests
+        chronon3d_compositor_tests
 )
 
 # Render tests: scene + renderer + golden + content (heavy, needs software backend + content)
