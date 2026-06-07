@@ -71,6 +71,7 @@ target_precompile_headers(chronon3d_content_images PRIVATE
 # Animations content
 add_library(chronon3d_content_anims STATIC
     anims/compositions/animation_compositions.cpp
+    anims/compositions/cinematic_showcase.cpp
     Minimalist/minimalist_clean_quote.cpp
     Minimalist/minimalist_focus_quote.cpp
     Minimalist/minimalist_hero_explainer.cpp

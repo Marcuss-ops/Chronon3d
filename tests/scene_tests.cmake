@@ -22,6 +22,7 @@ add_executable(chronon3d_scene_tests
     scene/camera_framing_tests.cpp
     scene/camera_path_sampler_tests.cpp
     scene/camera/test_camera_motion_path.cpp
+    scene/camera/test_catmull_rom_path.cpp
     scene/test_scene_validator.cpp
     scene/test_layer_order_contract.cpp
     render_graph/builder/test_graph_snapshot.cpp

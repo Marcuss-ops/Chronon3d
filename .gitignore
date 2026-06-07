@@ -88,3 +88,7 @@ scratch/
 update
 self-update
 *.db
+
+# Local dev artifacts
+logs/
+test_buffy.txt
