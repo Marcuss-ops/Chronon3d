@@ -584,6 +584,190 @@ export default function MetricsGrid({ runDetail }) {
         </div>
       </section>
 
+      {/* ── System Resources & Utilization ── */}
+      <h3 className="section-subtitle" style={{ marginTop: '24px', marginBottom: '12px', fontSize: '1rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+        🖥️ System Resources & Utilization
+      </h3>
+      <section className="metrics-grid">
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-info)' }}>
+          <div className="metric-label">
+            Logical Cores
+          </div>
+          <div className="metric-value" style={{ color: 'var(--color-accent)' }}>
+            {getCounter('system_logical_cores') || r.cores || '—'}
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            CPU thread disponibili
+          </div>
+        </div>
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-info)' }}>
+          <div className="metric-label">
+            RAM Total
+          </div>
+          <div className="metric-value" style={{ color: 'var(--color-accent)' }}>
+            {getCounter('system_ram_total_mb') || '—'}
+            <span className="metric-unit">MB</span>
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            memoria fisica totale
+          </div>
+        </div>
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-info)' }}>
+          <div className="metric-label">
+            RAM Available (min)
+          </div>
+          <div className="metric-value" style={{ color: getCounter('system_ram_available_min_mb') < 1024 ? 'var(--color-danger)' : 'var(--color-success)' }}>
+            {getCounter('system_ram_available_min_mb') || '—'}
+            <span className="metric-unit">MB</span>
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            minimo disponibile durante il run
+          </div>
+        </div>
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-info)' }}>
+          <div className="metric-label">
+            Process RSS Peak
+          </div>
+          <div className="metric-value" style={{ color: 'var(--color-accent)' }}>
+            {getCounter('process_rss_peak_mb') || '—'}
+            <span className="metric-unit">MB</span>
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            resident set size di picco
+          </div>
+        </div>
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-info)' }}>
+          <div className="metric-label">
+            Process CPU User
+            {renderInfoIcon('process_cpu_user_ms')}
+          </div>
+          <div className="metric-value">
+            {getCounter('process_cpu_user_ms').toFixed(2)}
+            <span className="metric-unit">ms</span>
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            CPU utente (per-run delta)
+          </div>
+        </div>
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-info)' }}>
+          <div className="metric-label">
+            Process CPU Sys
+            {renderInfoIcon('process_cpu_sys_ms')}
+          </div>
+          <div className="metric-value">
+            {getCounter('process_cpu_sys_ms').toFixed(2)}
+            <span className="metric-unit">ms</span>
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            CPU kernel (per-run delta)
+          </div>
+        </div>
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-info)' }}>
+          <div className="metric-label">
+            CPU Utilization
+            {renderInfoIcon('process_cpu_user_ms')}
+          </div>
+          <div className="metric-value" style={(() => {
+            const cpuMs = getCounter('process_cpu_user_ms') + getCounter('process_cpu_sys_ms');
+            const wallMs = Number(r.wall_time_ms || 0);
+            const cores = getCounter('system_logical_cores') || 1;
+            if (cpuMs > 0 && wallMs > 0) {
+              const eff = cpuMs / wallMs;
+              const pct = (eff / cores * 100);
+              return { color: pct > 70 ? 'var(--color-success)' : pct > 30 ? 'var(--color-warning)' : 'var(--color-danger)' };
+            }
+            return {};
+          })()}>
+            {(() => {
+              const cpuMs = getCounter('process_cpu_user_ms') + getCounter('process_cpu_sys_ms');
+              const wallMs = Number(r.wall_time_ms || 0);
+              const cores = getCounter('system_logical_cores') || 1;
+              if (cpuMs > 0 && wallMs > 0) {
+                const eff = cpuMs / wallMs;
+                return (eff / cores * 100).toFixed(1);
+              }
+              return '—';
+            })()}
+            <span className="metric-unit">%</span>
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            {(() => {
+              const cpuMs = getCounter('process_cpu_user_ms') + getCounter('process_cpu_sys_ms');
+              const wallMs = Number(r.wall_time_ms || 0);
+              if (cpuMs > 0 && wallMs > 0) {
+                return `${(cpuMs / wallMs).toFixed(2)} core equivalenti`;
+              }
+              return 'N/D';
+            })()}
+          </div>
+        </div>
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-accent)' }}>
+          <div className="metric-label">
+            TBB Arena Max Concurrency
+            {renderInfoIcon('tbb_arena_max_concurrency')}
+          </div>
+          <div className="metric-value" style={{ color: 'var(--color-accent)' }}>
+            {getCounter('tbb_arena_max_concurrency') || '—'}
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            worker thread TBB configurabili
+          </div>
+        </div>
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-accent)' }}>
+          <div className="metric-label">
+            TBB Active Workers (Peak)
+            {renderInfoIcon('tbb_active_workers_peak')}
+          </div>
+          <div className="metric-value" style={{ color: getCounter('tbb_active_workers_peak') >= getCounter('system_logical_cores') ? 'var(--color-success)' : 'var(--color-warning)' }}>
+            {getCounter('tbb_active_workers_peak') || '—'}
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            massimo worker attivi simultaneamente
+          </div>
+        </div>
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-accent)' }}>
+          <div className="metric-label">
+            TBB Active Workers (Avg)
+            {renderInfoIcon('tbb_active_workers_avg_sum')}
+          </div>
+          <div className="metric-value" style={{ color: 'var(--color-accent)' }}>
+            {(() => {
+              const sum = getCounter('tbb_active_workers_avg_sum');
+              const cnt = getCounter('tbb_active_workers_avg_count');
+              if (cnt > 0) return (sum / cnt).toFixed(2);
+              return '—';
+            })()}
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            media worker attivi per entry parallel_for
+          </div>
+        </div>
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-accent)' }}>
+          <div className="metric-label">
+            Parallel Regions
+            {renderInfoIcon('parallel_regions_count')}
+          </div>
+          <div className="metric-value" style={{ color: 'var(--color-accent)' }}>
+            {getCounter('parallel_regions_count') || '—'}
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            livelli eseguiti in parallelo
+          </div>
+        </div>
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-accent)' }}>
+          <div className="metric-label">
+            Regions Skipped (≤1 node)
+            {renderInfoIcon('parallel_regions_skipped_small_level')}
+          </div>
+          <div className="metric-value" style={{ color: getCounter('parallel_regions_skipped_small_level') > getCounter('parallel_regions_count') * 5 ? 'var(--color-danger)' : 'var(--color-accent)' }}>
+            {getCounter('parallel_regions_skipped_small_level') || '—'}
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            livelli sequenziali (troppo piccoli per parallelizzare)
+          </div>
+        </div>
+      </section>
+
       {/* ── End-to-End Export Benchmark ── */}
       <h3 className="section-subtitle" style={{ marginTop: '24px', marginBottom: '12px', fontSize: '1rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
         📦 End-to-End Export Benchmark
