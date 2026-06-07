@@ -209,9 +209,11 @@ RenderGraphContext RenderGraphContext::clone_for_node_execution() const {
     // • early_exit_skip:  checked against the *parent* ctx before the copy
     // • node_telemetry / layer_telemetry: written via global telemetry
     //   paths, never read during node.execute()
-    // • dof_depth: only needed when DOF tracking is active (~8 MB @ 1080p)
+    // • dof_depth: only needed when DOF tracking is active (~8 MB @ 1080p).
+    //   To avoid copying the full vector for every node, share it via
+    //   shared_ptr.  Nodes never mutate dof_depth during execute().
     if (track_dof_depth && !dof_depth.empty()) {
-        copy.dof_depth = dof_depth;
+        copy.dof_depth = dof_depth;  // shallow copy (shared_ptr ref-bump)
     }
     // reusable_inputs starts empty — populated per-node after the clone.
 
