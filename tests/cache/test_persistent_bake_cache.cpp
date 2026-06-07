@@ -114,16 +114,18 @@ TEST_CASE("FramebufferPool acquire_hinted ReuseNoClear skips clear") {
 
 // ── Test 3: Clear policy ────────────────────────────────────────────────
 
-TEST_CASE("FramebufferPool Default hint performs clear") {
+TEST_CASE("FramebufferPool Default hint performs clear or skips when already cleared") {
     auto pool = std::make_shared<FramebufferPool>(1024 * 1024);
 
     auto stats_before = pool->stats();
     auto fb = pool->acquire_hinted(32, 32, FramebufferAcquireHint::Default);
     auto stats_after = pool->stats();
 
-    CHECK(stats_after.total_clears > stats_before.total_clears);
-    // Verify transparent after clear
+    // Fresh allocations are zero-initialized by the Framebuffer constructor,
+    // so content_cleared is true and the pool may skip the clear call.
+    // Either way the framebuffer must be transparent after acquire.
     CHECK(fb->get_pixel(0, 0).a == 0.0f);
+    CHECK(fb->is_content_cleared());
 }
 
 TEST_CASE("FramebufferPool Temporary hint reuses same buffer") {
