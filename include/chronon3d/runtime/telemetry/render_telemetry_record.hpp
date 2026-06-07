@@ -151,6 +151,16 @@ struct FrameTelemetryRecord {
     double duration_ms{0.0};
     bool cache_hit{false};
     double dirty_area_ratio{1.0};
+
+    // ── Per-frame dirty-rect state (populated by render loop) ──
+    bool dirty_rect_enabled{false};
+    int dirty_rect_x0{0};
+    int dirty_rect_y0{0};
+    int dirty_rect_x1{0};
+    int dirty_rect_y1{0};
+    bool tile_execution_used{false};
+    bool fast_path_reused{false};
+    bool graph_reused{false};
 };
 
 struct PhaseTelemetryRecord {
@@ -215,11 +225,20 @@ struct CacheTelemetryRecord {
     std::string node_name;
     bool cacheable{false};
     std::string cache_status; // "hit", "miss_non_cacheable", "miss_hash_mismatch", etc.
-    std::string key_digest;
-    std::string params_hash;
-    std::string source_hash;
-    std::string input_hash;
+    uint64_t key_digest{0};
+    uint64_t params_hash{0};
+    uint64_t source_hash{0};
+    uint64_t input_hash{0};
     uint64_t output_bytes{0};
+
+    // ── Individual NodeCacheKey components for diagnosing digest changes ──
+    int key_width{0};
+    int key_height{0};
+    int key_frame{0};          // NodeCacheKey.frame (may differ from animation frame)
+    int key_tile_x{0};
+    int key_tile_y{0};
+    int key_tile_size{0};
+    uint64_t key_tile_hash{0};
 };
 
 struct CullingTelemetryRecord {
