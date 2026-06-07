@@ -119,6 +119,10 @@ bool execute_render_job(const CompositionRegistry& registry, const RenderJobPlan
     const int64_t effective_end = (plan.range.start == plan.range.end) ? plan.range.start + 1 : plan.range.end;
     bool ok = true;
 
+    // Capture CPU baseline before the render loop — fill_system_counters()
+    // uses sample_cpu_delta() to compute per-run CPU time.
+    sys_metrics.sample_cpu_start();
+
     const auto loop_t0 = std::chrono::steady_clock::now();
     for (int64_t f = plan.range.start; f < effective_end; f += plan.range.step) {
         if (!write_render_frame(*plan.comp, *renderer, static_cast<Frame>(f), plan.range, plan.output, ok,
