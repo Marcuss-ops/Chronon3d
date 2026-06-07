@@ -73,9 +73,32 @@ void execute_levels(
         }
 
         if (use_parallel) {
+            // Tracks how many TBB workers are actively executing nodes
+            // at any given moment — used for tbb_active_workers counters.
+            std::atomic<int> active_parallel_workers{0};
+
             tbb::parallel_for(
                 tbb::blocked_range<size_t>(0, level.size()),
                 [&](const tbb::blocked_range<size_t>& range) {
+                    // ── Track active worker count ──────────────────────────
+                    const int prev = active_parallel_workers.fetch_add(1, std::memory_order_relaxed);
+                    const int current = prev + 1;
+
+                    if (parent_counters) {
+                        // Atomic max: update peak if current > stored peak
+                        uint64_t peak = parent_counters->tbb_active_workers_peak.load(std::memory_order_relaxed);
+                        const uint64_t current_u64 = static_cast<uint64_t>(current);
+                        while (peak < current_u64 &&
+                               !parent_counters->tbb_active_workers_peak.compare_exchange_weak(
+                                   peak, current_u64, std::memory_order_relaxed)) {}
+
+                        // Accumulate for average: sum active workers seen at entry
+                        parent_counters->tbb_active_workers_avg_sum.fetch_add(
+                            current_u64, std::memory_order_relaxed);
+                        parent_counters->tbb_active_workers_avg_count.fetch_add(
+                            1, std::memory_order_relaxed);
+                    }
+
                     for (size_t level_index = range.begin(); level_index != range.end(); ++level_index) {
                         execute_single_node(
                             state,
@@ -96,6 +119,9 @@ void execute_levels(
                             &level_state_ms[level_index]
                         );
                     }
+
+                    // Decrement when this range finishes
+                    active_parallel_workers.fetch_sub(1, std::memory_order_relaxed);
                 }
             );
         } else {
