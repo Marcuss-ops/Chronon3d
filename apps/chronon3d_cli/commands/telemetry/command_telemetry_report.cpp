@@ -361,6 +361,87 @@ void generate_telemetry_report(std::stringstream& out, sqlite3* db, const std::s
     out << "| Pool preallocation | " << format_ms(run.setup_pool_preallocation_ms) << " |\n";
     out << "| Image decode | " << format_ms(run.image_decode_ms) << " |\n\n";
 
+    // ── System Resources & Utilization ────────────────────────────────────────
+    out << "## System Resources & Utilization\n";
+    out << "| Metric | Value |\n";
+    out << "| --- | --- |\n";
+    {
+        // Fetch all system telemetry counters in one query
+        uint64_t logical_cores = 0, ram_total_mb = 0, ram_avail_min_mb = 0;
+        uint64_t rss_peak_mb = 0, cpu_user_ms = 0, cpu_sys_ms = 0;
+        uint64_t tbb_arena = 0, tbb_peak = 0, tbb_avg_sum = 0, tbb_avg_count = 0;
+        uint64_t parallel_count = 0, parallel_skipped = 0;
+
+        const char* sys_sql =
+            "SELECT counter_name, counter_value FROM render_counters WHERE run_id = ? "
+            "AND counter_name IN ("
+            "'system_logical_cores','system_ram_total_mb','system_ram_available_min_mb',"
+            "'process_cpu_user_ms','process_cpu_sys_ms','process_rss_peak_mb',"
+            "'tbb_arena_max_concurrency','tbb_active_workers_peak',"
+            "'tbb_active_workers_avg_sum','tbb_active_workers_avg_count',"
+            "'parallel_regions_count','parallel_regions_skipped_small_level')"
+            " ORDER BY counter_name;";
+        sqlite3_stmt* stmt = nullptr;
+        if (prepare_with_run_id(db, &stmt, sys_sql, run_id)) {
+            while (sqlite3_step(stmt) == SQLITE_ROW) {
+                const std::string name = sql_text(stmt, 0);
+                const uint64_t val = static_cast<uint64_t>(sql_i64(stmt, 1));
+                if (name == "system_logical_cores") logical_cores = val;
+                else if (name == "system_ram_total_mb") ram_total_mb = val;
+                else if (name == "system_ram_available_min_mb") ram_avail_min_mb = val;
+                else if (name == "process_cpu_user_ms") cpu_user_ms = val;
+                else if (name == "process_cpu_sys_ms") cpu_sys_ms = val;
+                else if (name == "process_rss_peak_mb") rss_peak_mb = val;
+                else if (name == "tbb_arena_max_concurrency") tbb_arena = val;
+                else if (name == "tbb_active_workers_peak") tbb_peak = val;
+                else if (name == "tbb_active_workers_avg_sum") tbb_avg_sum = val;
+                else if (name == "tbb_active_workers_avg_count") tbb_avg_count = val;
+                else if (name == "parallel_regions_count") parallel_count = val;
+                else if (name == "parallel_regions_skipped_small_level") parallel_skipped = val;
+            }
+        }
+        sqlite3_finalize(stmt);
+
+        // ── Hardware / Memory ───────────────────────────────────────────
+        if (logical_cores > 0)
+            out << "| Logical cores | " << logical_cores << " |\n";
+        if (ram_total_mb > 0)
+            out << "| RAM total | " << ram_total_mb << " MB |\n";
+        if (ram_avail_min_mb > 0)
+            out << "| RAM available (minimum during run) | " << ram_avail_min_mb << " MB |\n";
+        if (rss_peak_mb > 0)
+            out << "| Process RSS peak | " << rss_peak_mb << " MB |\n";
+
+        // ── CPU Utilization ─────────────────────────────────────────────
+        const uint64_t cpu_total_ms = cpu_user_ms + cpu_sys_ms;
+        const double wall_ms = run.wall_time_ms;
+        if (cpu_total_ms > 0 && wall_ms > 0 && logical_cores > 0) {
+            const double effective_cores = static_cast<double>(cpu_total_ms) / wall_ms;
+            const double cpu_util_pct = effective_cores / static_cast<double>(logical_cores) * 100.0;
+
+            out << "| Process CPU user | " << format_ms(cpu_user_ms) << " |\n";
+            out << "| Process CPU sys | " << format_ms(cpu_sys_ms) << " |\n";
+            out << "| Process CPU total | " << format_ms(cpu_total_ms) << " |\n";
+            out << "| Effective cores used | " << fmt::format("{:.2f}", effective_cores) << " / " << logical_cores << " |\n";
+            out << "| CPU utilization | " << fmt::format("{:.1f}%", cpu_util_pct) << " |\n";
+        }
+
+        // ── TBB Utilization ─────────────────────────────────────────────
+        if (tbb_arena > 0)
+            out << "| TBB arena max concurrency | " << tbb_arena << " |\n";
+        if (tbb_peak > 0)
+            out << "| TBB active workers peak | " << tbb_peak << " |\n";
+        if (tbb_avg_count > 0) {
+            const double tbb_avg = static_cast<double>(tbb_avg_sum) / static_cast<double>(tbb_avg_count);
+            out << "| TBB active workers avg | " << fmt::format("{:.2f}", tbb_avg) << " |\n";
+        }
+        if (parallel_count > 0 || parallel_skipped > 0) {
+            out << "| Parallel regions executed | " << parallel_count << " |\n";
+            out << "| Parallel regions skipped (≤1 node) | " << parallel_skipped << " |\n";
+        }
+    }
+    out << "\n";
+
     // ── OS & Process Diagnostics ──────────────────────────────────────────────
     out << "## OS & Process Diagnostics\n";
     out << "| Metric | Value |\n";
