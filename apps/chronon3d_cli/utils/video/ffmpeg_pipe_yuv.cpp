@@ -10,8 +10,9 @@
 namespace chronon3d::cli {
 
 // ── Per-format conversion methods ────────────────────────────────────────────
-// These are thin forwarding wrappers.  All kernel selection and parallelism
-// now lives inside chronon3d::video::frame_converter (frame_converter.cpp).
+// These are THIN FORWARDING WRAPPERS.  All conversion logic lives in
+// chronon3d::video (frame_converter.cpp + direct_yuv_converter*.cpp).
+// DO NOT add float→YUV logic here — use video::convert_frame_tight instead.
 // The encoder methods exist for backwards-compatibility with external callers
 // and the io_uring path which uses pre-allocated ring buffers.
 

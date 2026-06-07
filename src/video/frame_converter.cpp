@@ -235,11 +235,9 @@ static ConvertFrameResult convert_rgba_to_rgb24(const ConvertFrameRequest& req) 
 ConvertFrameResult convert_frame(const ConvertFrameRequest& req) {
     // ── Fast path: direct float framebuffer → YUV/NV12 ───────────────────
     // Bypasses the RGBA8 staging + sws_scale pipeline entirely.
-    // Uses TBB parallel_for with inline gamma LUT and BT.709/601 matrix.
-    //
-    // TODO(HWY): add HWY SIMD acceleration once the U/V matrix bug is fixed.
-    // The dispatch in direct_yuv_converter.cpp currently skips HWY and uses
-    // the scalar TBB path which is pixel-identical with sws_scale.
+    // Dispatches to direct_yuv_converter.cpp, which tries the Highway SIMD
+    // backend (direct_yuv_converter_hwy.cpp) first, then falls back to the
+    // scalar TBB path (pixel-identical reference) if HWY is unavailable.
     if (req.format == EncoderPixelFormat::YUV420P ||
         req.format == EncoderPixelFormat::NV12) {
         DirectYuvRequest dreq{
