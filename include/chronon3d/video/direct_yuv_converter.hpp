@@ -8,9 +8,14 @@
 // a gamma LUT, BT.709/601 matrix, and 4:2:0 chroma subsampling.
 //
 // Design:
-//  - Scalar baseline first (pixel-identical reference).
-//  - Highway SIMD fast-path can be added later as a drop-in replacement.
+//  - Tries Highway SIMD fast-path first (direct_yuv_converter_hwy.cpp).
+//  - Falls back to scalar TBB baseline (pixel-identical reference).
 //  - Callers must ensure width/height are even (4:2:0 requirement).
+//
+// NOTE: All float→YUV logic must live in src/video/direct_yuv_converter*.cpp
+// and include/chronon3d/video/direct_yuv_*.hpp.  Do not duplicate conversion
+// logic in the CLI layer (e.g., ffmpeg_pipe_yuv.cpp).  The CLI uses
+// video::convert_frame_tight as a thin forwarding wrapper.
 // ---------------------------------------------------------------------------
 
 #include <chronon3d/core/memory/framebuffer.hpp>

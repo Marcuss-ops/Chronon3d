@@ -1,9 +1,17 @@
 // ============================================================================
 // direct_yuv_converter_hwy.cpp — Highway SIMD-accelerated YUV converter.
 //
-// Each tbb parallel task processes 2-row blocks.  Within each block the
-// inner loop uses Highway SIMD for the BT.709/601 matrix (FMA).  The gamma
-// LUT + byte→int32 widening is scalar but amortised over SIMD FMA.
+// This is the active SIMD backend for direct float Framebuffer → YUV420P/NV12.
+// It is called by convert_framebuffer_to_yuv_direct() before the scalar TBB
+// fallback.  Each tbb parallel task processes 2-row blocks.  Within each
+// block the inner loop uses Highway SIMD for the BT.709/601 matrix (FMA).
+// The gamma LUT + byte→int32 widening is scalar but amortised over SIMD FMA.
+//
+// Call chain:
+//   CLI video export → FfmpegPipeEncoder → convert_frame_tight
+//     → convert_frame → convert_framebuffer_to_yuv_direct
+//       → convert_to_yuv420p_hwy / convert_to_nv12_hwy  (this file)
+//       → scalar TBB fallback (direct_yuv_converter.cpp)
 // ============================================================================
 
 #undef HWY_TARGET_INCLUDE
