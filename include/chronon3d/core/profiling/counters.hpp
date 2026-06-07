@@ -131,7 +131,19 @@ constexpr std::size_t kHardwareDestructiveInterferenceSize = 64;
     X(ffmpeg_cpu_user_pct) \
     X(ffmpeg_cpu_sys_pct) \
     X(llc_references) \
-    X(llc_misses)
+    X(llc_misses) \
+    X(system_logical_cores) \
+    X(system_ram_total_mb) \
+    X(system_ram_available_min_mb) \
+    X(process_cpu_user_ms) \
+    X(process_cpu_sys_ms) \
+    X(process_rss_peak_mb) \
+    X(tbb_arena_max_concurrency) \
+    X(tbb_active_workers_peak) \
+    X(tbb_active_workers_avg_sum) \
+    X(tbb_active_workers_avg_count) \
+    X(parallel_regions_count) \
+    X(parallel_regions_skipped_small_level)
 
 #define CHRONON_RENDER_COUNTERS_SETUP(X) \
     X(setup_graph_parsing_ms) \

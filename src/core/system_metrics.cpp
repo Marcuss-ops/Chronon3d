@@ -21,6 +21,10 @@ SystemMetricsCollector::~SystemMetricsCollector() = default;
 SystemMetricsCollector::CpuSplit SystemMetricsCollector::ffmpeg_cpu_split() const { return {}; }
 SystemMetricsCollector::ProcessMetrics SystemMetricsCollector::process_metrics() { return {}; }
 SystemMetricsCollector::CacheMetrics SystemMetricsCollector::cache_metrics() { return {}; }
+SystemMetricsCollector::ProcessCpuTime SystemMetricsCollector::process_cpu_time() { return {}; }
+uint64_t SystemMetricsCollector::process_rss_bytes() { return 0; }
+SystemMetricsCollector::SystemMemory SystemMetricsCollector::system_memory() { return {}; }
+long SystemMetricsCollector::clock_ticks_per_sec() { return 100; }
 void SystemMetricsCollector::track_ffmpeg_pid(int) {}
 void SystemMetricsCollector::clear_ffmpeg_pid() {}
 
@@ -30,11 +34,6 @@ namespace {
 
 long sys_perf_event_open(struct perf_event_attr* hw_event, pid_t pid, int cpu, int group_fd, unsigned long flags) {
     return syscall(__NR_perf_event_open, hw_event, pid, cpu, group_fd, flags);
-}
-
-long clock_ticks_per_sec() {
-    static const long ticks = static_cast<long>(sysconf(_SC_CLK_TCK));
-    return ticks > 0 ? ticks : 100;
 }
 
 /**
@@ -247,6 +246,62 @@ SystemMetricsCollector::CacheMetrics SystemMetricsCollector::cache_metrics() {
         }
     }
     return cm;
+}
+
+long SystemMetricsCollector::clock_ticks_per_sec() {
+    static const long ticks = static_cast<long>(sysconf(_SC_CLK_TCK));
+    return ticks > 0 ? ticks : 100;
+}
+
+// Track peak RSS across calls
+// Note: the anonymous namespace clock_ticks_per_sec() above is now unused
+// (the static member calls sysconf directly). It can be removed in a cleanup pass.
+static uint64_t s_peak_rss_bytes = 0;
+
+SystemMetricsCollector::ProcessCpuTime SystemMetricsCollector::process_cpu_time() {
+    ProcessCpuTime ct;
+    std::ifstream stat_file{"/proc/self/stat"};
+    if (stat_file) {
+        std::string buf;
+        std::getline(stat_file, buf);
+        if (!buf.empty()) {
+            uint64_t minor = 0, major = 0;
+            parse_proc_stat(buf.c_str(), ct.utime_jiffies, ct.stime_jiffies, minor, major);
+        }
+    }
+    return ct;
+}
+
+uint64_t SystemMetricsCollector::process_rss_bytes() {
+    std::ifstream statm{"/proc/self/statm"};
+    if (!statm) return 0;
+    uint64_t pages = 0, resident = 0;
+    statm >> pages >> resident;
+    const long page_size = sysconf(_SC_PAGESIZE);
+    const uint64_t rss = resident * static_cast<uint64_t>(page_size > 0 ? page_size : 4096);
+    if (rss > s_peak_rss_bytes) s_peak_rss_bytes = rss;
+    return s_peak_rss_bytes;
+}
+
+SystemMetricsCollector::SystemMemory SystemMetricsCollector::system_memory() {
+    SystemMemory mem;
+    std::ifstream meminfo("/proc/meminfo");
+    if (!meminfo) return mem;
+    std::string line;
+    while (std::getline(meminfo, line)) {
+        if (line.compare(0, 9, "MemTotal:") == 0) {
+            std::istringstream iss(line.substr(9));
+            uint64_t kb = 0;
+            iss >> kb;
+            mem.total_bytes = kb * 1024ULL;
+        } else if (line.compare(0, 12, "MemAvailable:") == 0) {
+            std::istringstream iss(line.substr(12));
+            uint64_t kb = 0;
+            iss >> kb;
+            mem.available_bytes = kb * 1024ULL;
+        }
+    }
+    return mem;
 }
 
 #endif // __linux__
