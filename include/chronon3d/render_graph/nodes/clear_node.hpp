@@ -90,9 +90,19 @@ public:
                 owned->set_origin(fb->origin_x(), fb->origin_y());
                 const int copy_h = fb->height();
                 const int copy_w = fb->allocated_width();
-                for (int y = 0; y < copy_h; ++y) {
-                    std::memcpy(owned->pixels_row(y), fb->pixels_row(y),
-                                 static_cast<size_t>(copy_w) * sizeof(Color));
+                // When both FBs have the same stride, use a single contiguous
+                // memcpy instead of a row-by-row loop.  The CPU's ERMSB
+                // (Enhanced REP MOVSB) microcode handles large contiguous
+                // copies at ~1 cycle per 16 bytes — significantly faster than
+                // 1080 individual memcpy calls with per-call overhead.
+                if (owned->allocated_width() == copy_w) {
+                    std::memcpy(owned->data(), fb->data(),
+                                 static_cast<size_t>(copy_h) * copy_w * sizeof(Color));
+                } else {
+                    for (int y = 0; y < copy_h; ++y) {
+                        std::memcpy(owned->pixels_row(y), fb->pixels_row(y),
+                                     static_cast<size_t>(copy_w) * sizeof(Color));
+                    }
                 }
                 Framebuffer* raw = owned.release();
                 if (ctx.framebuffer_pool) {
