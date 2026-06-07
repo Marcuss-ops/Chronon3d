@@ -58,6 +58,14 @@ void execute_levels(
 
         if (parent_counters) {
             if (use_parallel) {
+                parent_counters->parallel_regions_count.fetch_add(1, std::memory_order_relaxed);
+            } else {
+                parent_counters->parallel_regions_skipped_small_level.fetch_add(1, std::memory_order_relaxed);
+            }
+        }
+
+        if (parent_counters) {
+            if (use_parallel) {
                 parent_counters->level_parallel_count.fetch_add(1, std::memory_order_relaxed);
             } else {
                 parent_counters->level_sequential_count.fetch_add(1, std::memory_order_relaxed);

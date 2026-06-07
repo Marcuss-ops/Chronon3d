@@ -129,6 +129,13 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
         auto* parent_counters = ctx.counters;
         auto* parent_pool = ctx.framebuffer_pool.get();
 
+        // Populate TBB arena max concurrency once per graph execution
+        if (parent_counters) {
+            parent_counters->tbb_arena_max_concurrency.store(
+                static_cast<uint64_t>(std::thread::hardware_concurrency()),
+                std::memory_order_relaxed);
+        }
+
         execute_levels(graph, ctx, state, plan.levels, consumer_remaining, parent_counters, parent_pool, res);
 
         return state.temp[output];

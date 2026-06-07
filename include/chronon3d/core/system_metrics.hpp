@@ -3,6 +3,7 @@
 #include <atomic>
 #include <cstdint>
 #include <string>
+#include <thread>
 
 namespace chronon3d {
 
@@ -57,6 +58,23 @@ public:
     };
     [[nodiscard]] CacheMetrics cache_metrics();
 
+    // ── Process CPU time (from /proc/self/stat) ─────────────────────────
+    struct ProcessCpuTime {
+        uint64_t utime_jiffies{0};
+        uint64_t stime_jiffies{0};
+    };
+    [[nodiscard]] ProcessCpuTime process_cpu_time();
+
+    // ── Process RSS (from /proc/self/statm) ──────────────────────────────
+    [[nodiscard]] uint64_t process_rss_bytes();
+
+    // ── System RAM (from /proc/meminfo) ──────────────────────────────────
+    struct SystemMemory {
+        uint64_t total_bytes{0};
+        uint64_t available_bytes{0};
+    };
+    [[nodiscard]] SystemMemory system_memory();
+
     // Read all current values into a counters struct (expects same-layout atomic fields)
     template <typename Counters>
     void fill_system_counters(Counters& c) {
@@ -73,7 +91,26 @@ public:
         const auto cm = cache_metrics();
         c.llc_references.store(cm.references, std::memory_order_relaxed);
         c.llc_misses.store(cm.misses, std::memory_order_relaxed);
+
+        // Process CPU time
+        const auto ct = process_cpu_time();
+        c.process_cpu_user_ms.store(ct.utime_jiffies * 1000 / clock_ticks_per_sec(), std::memory_order_relaxed);
+        c.process_cpu_sys_ms.store(ct.stime_jiffies * 1000 / clock_ticks_per_sec(), std::memory_order_relaxed);
+
+        // Process RSS
+        const uint64_t rss_mb = process_rss_bytes() / (1024ULL * 1024ULL);
+        c.process_rss_peak_mb.store(rss_mb, std::memory_order_relaxed);
+
+        // System RAM
+        const auto mem = system_memory();
+        c.system_ram_total_mb.store(mem.total_bytes / (1024ULL * 1024ULL), std::memory_order_relaxed);
+        c.system_ram_available_min_mb.store(mem.available_bytes / (1024ULL * 1024ULL), std::memory_order_relaxed);
+
+        c.system_logical_cores.store(static_cast<uint64_t>(std::thread::hardware_concurrency()), std::memory_order_relaxed);
     }
+
+private:
+    static long clock_ticks_per_sec();
 
 private:
 #ifdef __linux__

@@ -117,6 +117,16 @@ inline std::vector<chronon3d::telemetry::CounterTelemetryRecord> capture_counter
         {"ffmpeg_cpu_sys_pct", counters.ffmpeg_cpu_sys_pct.load(std::memory_order_relaxed)},
         {"llc_references", counters.llc_references.load(std::memory_order_relaxed)},
         {"llc_misses", counters.llc_misses.load(std::memory_order_relaxed)},
+        {"system_logical_cores", counters.system_logical_cores.load(std::memory_order_relaxed)},
+        {"system_ram_total_mb", counters.system_ram_total_mb.load(std::memory_order_relaxed)},
+        {"system_ram_available_min_mb", counters.system_ram_available_min_mb.load(std::memory_order_relaxed)},
+        {"process_cpu_user_ms", counters.process_cpu_user_ms.load(std::memory_order_relaxed)},
+        {"process_cpu_sys_ms", counters.process_cpu_sys_ms.load(std::memory_order_relaxed)},
+        {"process_rss_peak_mb", counters.process_rss_peak_mb.load(std::memory_order_relaxed)},
+        {"tbb_arena_max_concurrency", counters.tbb_arena_max_concurrency.load(std::memory_order_relaxed)},
+        {"tbb_active_workers_peak", counters.tbb_active_workers_peak.load(std::memory_order_relaxed)},
+        {"parallel_regions_count", counters.parallel_regions_count.load(std::memory_order_relaxed)},
+        {"parallel_regions_skipped_small_level", counters.parallel_regions_skipped_small_level.load(std::memory_order_relaxed)},
         {"framebuffer_pool_capacity", 0},
         {"framebuffer_pool_available_count", 0},
         {"framebuffer_pool_current_bytes", 0},
@@ -214,6 +224,16 @@ inline void add_counters(chronon3d::RenderCounters& dst, const chronon3d::Render
     dst.ffmpeg_flush_ms.fetch_add(src.ffmpeg_flush_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.framebuffer_bytes_allocated.fetch_add(src.framebuffer_bytes_allocated.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.framebuffer_bytes_peak.fetch_add(src.framebuffer_bytes_peak.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.system_logical_cores.store(src.system_logical_cores.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.system_ram_total_mb.store(src.system_ram_total_mb.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.system_ram_available_min_mb.store(src.system_ram_available_min_mb.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.process_cpu_user_ms.fetch_add(src.process_cpu_user_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.process_cpu_sys_ms.fetch_add(src.process_cpu_sys_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.process_rss_peak_mb.store(src.process_rss_peak_mb.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.tbb_arena_max_concurrency.store(src.tbb_arena_max_concurrency.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.tbb_active_workers_peak.store(src.tbb_active_workers_peak.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.parallel_regions_count.fetch_add(src.parallel_regions_count.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.parallel_regions_skipped_small_level.fetch_add(src.parallel_regions_skipped_small_level.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.dirty_rect_count.fetch_add(src.dirty_rect_count.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.dirty_pixels.fetch_add(src.dirty_pixels.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.dirty_full_fallbacks.fetch_add(src.dirty_full_fallbacks.load(std::memory_order_relaxed), std::memory_order_relaxed);
