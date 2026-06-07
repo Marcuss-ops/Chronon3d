@@ -194,14 +194,26 @@ bool SqliteTelemetryStore::write_frames(const std::string& run_id, const std::ve
     std::scoped_lock lock(m_impl->mutex);
     if (!m_impl->db) return false;
 
-    const char* sql = "INSERT OR REPLACE INTO render_frames VALUES (?, ?, ?, ?, ?);";
+    const char* sql =
+        "INSERT OR REPLACE INTO render_frames ("
+        "run_id, frame_number, duration_ms, cache_hit, dirty_area_ratio, "
+        "dirty_rect_enabled, dirty_rect_x0, dirty_rect_y0, dirty_rect_x1, dirty_rect_y1, "
+        "tile_execution_used, fast_path_reused, graph_reused"
+        ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);";
     SqliteStatement stmt(m_impl->db, sql);
     if (!stmt) {
         return false;
     }
 
     for (const auto& frame : frames) {
-        if (!stmt.reset() || !bind_all(stmt, run_id, frame.frame_number, frame.duration_ms, frame.cache_hit, frame.dirty_area_ratio) || !stmt.step_done()) {
+        if (!stmt.reset() || !bind_all(stmt,
+                run_id, frame.frame_number, frame.duration_ms,
+                static_cast<int>(frame.cache_hit), frame.dirty_area_ratio,
+                static_cast<int>(frame.dirty_rect_enabled),
+                frame.dirty_rect_x0, frame.dirty_rect_y0, frame.dirty_rect_x1, frame.dirty_rect_y1,
+                static_cast<int>(frame.tile_execution_used),
+                static_cast<int>(frame.fast_path_reused),
+                static_cast<int>(frame.graph_reused)) || !stmt.step_done()) {
             return false;
         }
     }
@@ -360,7 +372,7 @@ bool SqliteTelemetryStore::write_cache_events(const std::string& run_id, const s
     std::scoped_lock lock(m_impl->mutex);
     if (!m_impl->db) return false;
 
-    const char* sql = "INSERT OR REPLACE INTO render_cache_events VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);";
+    const char* sql = "INSERT OR REPLACE INTO render_cache_events VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);";
     SqliteStatement stmt(m_impl->db, sql);
     if (!stmt) {
         return false;
@@ -377,7 +389,14 @@ bool SqliteTelemetryStore::write_cache_events(const std::string& run_id, const s
                 ev.params_hash,
                 ev.source_hash,
                 ev.input_hash,
-                ev.output_bytes) || !stmt.step_done()) {
+                ev.output_bytes,
+                ev.key_width,
+                ev.key_height,
+                ev.key_frame,
+                ev.key_tile_x,
+                ev.key_tile_y,
+                ev.key_tile_size,
+                ev.key_tile_hash) || !stmt.step_done()) {
             return false;
         }
     }

@@ -63,7 +63,11 @@ struct TableDef {
 #define COLUMNS_OF(arr) (arr), (sizeof(arr) / sizeof((arr)[0]))
 
 // Column definitions for all tables
-constexpr const char* FRAME_COL_NAMES[] = {"run_id", "frame_number", "duration_ms", "cache_hit", "dirty_area_ratio"};
+constexpr const char* FRAME_COL_NAMES[] = {
+    "run_id", "frame_number", "duration_ms", "cache_hit", "dirty_area_ratio",
+    "dirty_rect_enabled", "dirty_rect_x0", "dirty_rect_y0", "dirty_rect_x1", "dirty_rect_y1",
+    "tile_execution_used", "fast_path_reused", "graph_reused"
+};
 constexpr const char* PHASE_COL_NAMES[] = {"run_id", "phase_name", "duration_ms"};
 constexpr const char* COUNTER_COL_NAMES[] = {"run_id", "counter_name", "counter_value"};
 constexpr const char* NODE_EVENT_COL_NAMES[] = {
@@ -83,7 +87,9 @@ constexpr const char* LAYER_EVENT_COL_NAMES[] = {
 };
 constexpr const char* CACHE_EVENT_COL_NAMES[] = {
     "run_id", "frame_number", "node_name", "cacheable", "cache_status",
-    "key_digest", "params_hash", "source_hash", "input_hash", "output_bytes"
+    "key_digest", "params_hash", "source_hash", "input_hash", "output_bytes",
+    "key_width", "key_height", "key_frame", "key_tile_x", "key_tile_y",
+    "key_tile_size", "key_tile_hash"
 };
 constexpr const char* CULLING_EVENT_COL_NAMES[] = {
     "run_id", "frame_number", "layer_id", "visible", "reason",

@@ -6,6 +6,7 @@
 #include <spdlog/spdlog.h>
 
 #include <chrono>
+#include <optional>
 #include <thread>
 
 namespace chronon3d::cli {
@@ -121,6 +122,16 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
 
             const double dirty_ratio =
                 ctx.sw_renderer ? ctx.sw_renderer->last_dirty_area_ratio() : 1.0;
+            const bool dirty_rect_enabled =
+                ctx.sw_renderer ? ctx.sw_renderer->last_dirty_rect_enabled() : false;
+            const auto dirty_rect =
+                ctx.sw_renderer ? ctx.sw_renderer->last_dirty_rect() : std::nullopt;
+            const bool tile_execution_used =
+                ctx.sw_renderer ? ctx.sw_renderer->last_tile_execution_used() : false;
+            const bool fast_path_reused =
+                ctx.sw_renderer ? ctx.sw_renderer->last_fast_path_reused() : false;
+            const bool graph_reused =
+                ctx.sw_renderer ? ctx.sw_renderer->last_graph_reused() : false;
 
             if (!fb) {
                 ctx.triple_arena.release(current_arena);
@@ -174,7 +185,15 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
                 .frame_number = static_cast<int>(current_frame),
                 .duration_ms = frame_ms,
                 .cache_hit = true,
-                .dirty_area_ratio = dirty_ratio
+                .dirty_area_ratio = dirty_ratio,
+                .dirty_rect_enabled = dirty_rect_enabled,
+                .dirty_rect_x0 = dirty_rect ? dirty_rect->x0 : 0,
+                .dirty_rect_y0 = dirty_rect ? dirty_rect->y0 : 0,
+                .dirty_rect_x1 = dirty_rect ? dirty_rect->x1 : 0,
+                .dirty_rect_y1 = dirty_rect ? dirty_rect->y1 : 0,
+                .tile_execution_used = tile_execution_used,
+                .fast_path_reused = fast_path_reused,
+                .graph_reused = graph_reused
             });
         }
     } catch (const std::exception& e) {

@@ -94,6 +94,7 @@ inline std::vector<chronon3d::telemetry::CounterTelemetryRecord> capture_counter
         {"framebuffer_pool_miss_count_best_fit", counters.framebuffer_pool_miss_count_best_fit.load(std::memory_order_relaxed)},
         {"framebuffer_pool_hits", counters.framebuffer_pool_hits.load(std::memory_order_relaxed)},
         {"framebuffer_buffer_returned_to_pool_count", counters.framebuffer_buffer_returned_to_pool_count.load(std::memory_order_relaxed)},
+        {"framebuffer_prealloc_created", counters.framebuffer_prealloc_created.load(std::memory_order_relaxed)},
         {"unaligned_memory_copies", counters.unaligned_memory_copies.load(std::memory_order_relaxed)},
         {"frame_conversion_copy_ms", counters.frame_conversion_copy_ms.load(std::memory_order_relaxed)},
         {"video_graph_eval_ms", counters.video_graph_eval_ms.load(std::memory_order_relaxed)},
@@ -196,6 +197,7 @@ inline void add_counters(chronon3d::RenderCounters& dst, const chronon3d::Render
     dst.framebuffer_pool_miss_count_best_fit.fetch_add(src.framebuffer_pool_miss_count_best_fit.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.framebuffer_pool_hits.fetch_add(src.framebuffer_pool_hits.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.framebuffer_buffer_returned_to_pool_count.fetch_add(src.framebuffer_buffer_returned_to_pool_count.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.framebuffer_prealloc_created.fetch_add(src.framebuffer_prealloc_created.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.unaligned_memory_copies.fetch_add(src.unaligned_memory_copies.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.frame_conversion_copy_ms.fetch_add(src.frame_conversion_copy_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.video_graph_eval_ms.fetch_add(src.video_graph_eval_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);

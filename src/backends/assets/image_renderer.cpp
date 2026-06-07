@@ -3,9 +3,11 @@
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/scene/model/mask_utils.hpp>
 #include <chronon3d/media/media_placement.hpp>
+#include <chronon3d/core/telemetry/render_telemetry.hpp>
 #include "../software/utils/blend2d_bridge.hpp"
 #include <spdlog/spdlog.h>
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <sstream>
 
@@ -95,7 +97,11 @@ bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state
     if (image.path.empty() || image.size.x <= 0 || image.size.y <= 0) {
         return false;
     }
+
+    const auto t_decode0 = std::chrono::steady_clock::now();
     const CachedImage* cached = ImageCache::instance().get_or_load(image.path);
+    const auto t_decode1 = std::chrono::steady_clock::now();
+    const double decode_ms = std::chrono::duration<double, std::milli>(t_decode1 - t_decode0).count();
     
     BLImage render_img;
     int img_w = 0;
@@ -210,6 +216,7 @@ bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state
 
     const bool full_source = src_x == 0 && src_y == 0 && src_w == img_w && src_h == img_h;
     const bool use_cached_fb = full_source && !using_placeholder && image.fit == FitMode::Stretch && cached && cached->fb_img;
+    const auto t_sample0 = std::chrono::steady_clock::now();
     if (use_cached_fb && image.radius <= 0.0f) {
         blend2d_bridge::composite_framebuffer_transformed(fb, *cached->fb_img, scaled_model, final_opacity, BlendMode::Normal, &state);
     } else if (use_cached_fb && image.radius > 0.0f) {
@@ -224,6 +231,23 @@ bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state
         ctx.end();
         blend2d_bridge::composite_bl_image_transformed(fb, sub_img, scaled_model, final_opacity, BlendMode::Normal, &state, scaled_radius);
     }
+    const auto t_sample1 = std::chrono::steady_clock::now();
+    const double sample_ms = std::chrono::duration<double, std::milli>(t_sample1 - t_sample0).count();
+
+    // Compute sampled pixels from destination rectangle area
+    const uint64_t sampled_pixels = static_cast<uint64_t>(src_w) * static_cast<uint64_t>(src_h);
+
+    telemetry::ImageTelemetryRecord rec;
+    rec.frame_number = state.frame_number;
+    rec.layer_id = state.layer_id;
+    rec.image_path = image.path;
+    rec.image_width = img_w;
+    rec.image_height = img_h;
+    rec.cache_status = (cached && cached->valid() && !using_placeholder) ? "hit" : "miss_decode";
+    rec.decode_ms = decode_ms;
+    rec.sample_ms = sample_ms;
+    rec.sampled_pixels = sampled_pixels;
+    telemetry::record_image_telemetry(std::move(rec));
 
     return true;
 }
@@ -232,8 +256,22 @@ bool ImageRenderer::draw_image_tiled(const ImageShape& image, const RenderState&
     if (image.path.empty() || image.size.x <= 0 || image.size.y <= 0) {
         return false;
     }
+
+    const auto t_decode0 = std::chrono::steady_clock::now();
     const CachedImage* cached = ImageCache::instance().get_or_load(image.path);
-    if (!cached || cached->bl_img.empty()) return false;
+    const auto t_decode1 = std::chrono::steady_clock::now();
+    const double decode_ms = std::chrono::duration<double, std::milli>(t_decode1 - t_decode0).count();
+
+    if (!cached || cached->bl_img.empty()) {
+        telemetry::ImageTelemetryRecord rec;
+        rec.frame_number = state.frame_number;
+        rec.layer_id = state.layer_id;
+        rec.image_path = image.path;
+        rec.cache_status = "miss_decode";
+        rec.decode_ms = decode_ms;
+        telemetry::record_image_telemetry(std::move(rec));
+        return false;
+    }
 
     const f32 final_opacity = image.opacity * state.opacity;
     if (final_opacity <= 0.001f) return true;
@@ -268,7 +306,24 @@ bool ImageRenderer::draw_image_tiled(const ImageShape& image, const RenderState&
         scaled_model[3][1]
     );
 
+    const auto t_sample0 = std::chrono::steady_clock::now();
     blend2d_bridge::composite_bl_image_tiled(fb, cached->bl_img, scaled_model, final_opacity, BlendMode::Normal, &state);
+    const auto t_sample1 = std::chrono::steady_clock::now();
+    const double sample_ms = std::chrono::duration<double, std::milli>(t_sample1 - t_sample0).count();
+
+    const uint64_t sampled_pixels = static_cast<uint64_t>(cached->width) * static_cast<uint64_t>(cached->height);
+
+    telemetry::ImageTelemetryRecord rec;
+    rec.frame_number = state.frame_number;
+    rec.layer_id = state.layer_id;
+    rec.image_path = image.path;
+    rec.image_width = cached->width;
+    rec.image_height = cached->height;
+    rec.cache_status = "hit";
+    rec.decode_ms = decode_ms;
+    rec.sample_ms = sample_ms;
+    rec.sampled_pixels = sampled_pixels;
+    telemetry::record_image_telemetry(std::move(rec));
 
     return true;
 }
