@@ -53,7 +53,7 @@ class Framebuffer {
 public:
     Framebuffer(i32 width, i32 height)
         : m_width(width), m_height(height), m_allocated_width(align_stride_to_cache_line(width)),
-          m_allocated_height(height), m_owns_pixels(true) {
+          m_allocated_height(height), m_owns_pixels(true), m_content_cleared{true} {
         framebuffer_validate_dimensions(width, height);
         m_pixels.resize(static_cast<size_t>(m_allocated_width) * m_allocated_height, Color::transparent());
         framebuffer_increment_allocations(size_bytes());
@@ -62,7 +62,8 @@ public:
     Framebuffer(i32 width, i32 height, Color* external_pixels)
         : m_width(width), m_height(height),
           m_allocated_width(align_stride_to_cache_line(width)),
-          m_allocated_height(height), m_owns_pixels(false), m_external_pixels(external_pixels) {
+          m_allocated_height(height), m_owns_pixels(false), m_content_cleared{false},
+          m_external_pixels(external_pixels) {
         framebuffer_validate_dimensions(width, height);
     }
 
@@ -70,7 +71,7 @@ public:
         : m_width(other.m_width), m_height(other.m_height), m_allocated_width(other.m_allocated_width),
           m_allocated_height(other.m_allocated_height), m_origin_x(other.m_origin_x),
           m_origin_y(other.m_origin_y), m_opaque(other.m_opaque), m_owns_pixels(other.m_owns_pixels),
-          m_key_digest(other.m_key_digest) {
+          m_content_cleared(other.m_content_cleared.load(std::memory_order_relaxed)), m_key_digest(other.m_key_digest) {
         copy_pixels_from(other);
     }
 
@@ -78,7 +79,7 @@ public:
         : m_width(other.m_width), m_height(other.m_height), m_allocated_width(other.m_allocated_width),
           m_allocated_height(other.m_allocated_height), m_origin_x(other.m_origin_x),
           m_origin_y(other.m_origin_y), m_opaque(other.m_opaque), m_owns_pixels(other.m_owns_pixels),
-          m_key_digest(other.m_key_digest) {
+          m_content_cleared(other.m_content_cleared.load(std::memory_order_relaxed)), m_key_digest(other.m_key_digest) {
         move_pixels_from(std::move(other));
     }
 
@@ -105,12 +106,17 @@ public:
     }
 
     void clear(const Color& color) {
+        Color* ptr = m_owns_pixels ? m_pixels.data() : m_external_pixels;
         if (m_allocated_width == m_width) {
-            framebuffer_clear_contiguous(data(), pixel_count(), color);
+            framebuffer_clear_contiguous(ptr, pixel_count(), color);
         } else {
-            framebuffer_clear_strided(data(), m_allocated_width, 0, 0, m_width, m_height, color);
+            framebuffer_clear_strided(ptr, m_allocated_width, 0, 0, m_width, m_height, color);
         }
         m_opaque = color.a >= 0.999f;
+        // Only claim "content cleared" when the color is actually transparent.
+        m_content_cleared.store(
+            color.r == 0.0f && color.g == 0.0f && color.b == 0.0f && color.a == 0.0f,
+            std::memory_order_relaxed);
     }
 
     void clear(const Color& color, const std::optional<raster::BBox>& clip) {
@@ -130,10 +136,13 @@ public:
             return;
         }
 
-        framebuffer_clear_strided(data(), m_allocated_width, box.x0, box.y0, box.x1 - box.x0, box.y1 - box.y0, color);
+        Color* ptr = m_owns_pixels ? m_pixels.data() : m_external_pixels;
+        framebuffer_clear_strided(ptr, m_allocated_width, box.x0, box.y0, box.x1 - box.x0, box.y1 - box.y0, color);
         if (!m_opaque || color.a < 0.999f) {
             m_opaque = false;
         }
+        // Partial clear does not guarantee the entire framebuffer is transparent.
+        m_content_cleared.store(false, std::memory_order_relaxed);
     }
 
     void set_pixel(i32 x, i32 y, const Color& color) {
@@ -187,6 +196,7 @@ public:
     }
 
     [[nodiscard]] Color* pixels_row(i32 y) {
+        // data() already invalidates content_cleared; no need to do it twice.
         return data() + static_cast<usize>(y) * m_allocated_width;
     }
     [[nodiscard]] const Color* pixels_row(i32 y) const {
@@ -194,6 +204,7 @@ public:
     }
 
     [[nodiscard]] Color* data() {
+        m_content_cleared.store(false, std::memory_order_relaxed);
         return m_owns_pixels ? m_pixels.data() : m_external_pixels;
     }
 
@@ -216,6 +227,12 @@ public:
     [[nodiscard]] usize size_bytes() const { return static_cast<size_t>(m_allocated_width) * m_allocated_height * sizeof(Color); }
     [[nodiscard]] bool is_opaque() const { return m_opaque; }
     void set_opaque(bool opaque) { m_opaque = opaque; }
+    [[nodiscard]] bool is_content_cleared() const {
+        return m_content_cleared.load(std::memory_order_relaxed);
+    }
+    void set_content_cleared(bool cleared) {
+        m_content_cleared.store(cleared, std::memory_order_relaxed);
+    }
     [[nodiscard]] u64 key_digest() const { return m_key_digest; }
     void set_key_digest(u64 digest) { m_key_digest = digest; }
     [[nodiscard]] bool is_arena_allocated() const { return !m_owns_pixels && m_external_pixels != nullptr; }
@@ -236,6 +253,9 @@ public:
         swap(m_origin_x,         other.m_origin_x);
         swap(m_origin_y,         other.m_origin_y);
         swap(m_opaque,           other.m_opaque);
+        bool tmp_cleared = m_content_cleared.load(std::memory_order_relaxed);
+        m_content_cleared.store(other.m_content_cleared.load(std::memory_order_relaxed), std::memory_order_relaxed);
+        other.m_content_cleared.store(tmp_cleared, std::memory_order_relaxed);
         swap(m_key_digest,       other.m_key_digest);
         swap(m_owns_pixels,      other.m_owns_pixels);
         swap(m_pixels,           other.m_pixels);
@@ -368,6 +388,7 @@ private:
         m_origin_y = other.m_origin_y;
         m_opaque = other.m_opaque;
         m_owns_pixels = other.m_owns_pixels;
+        m_content_cleared.store(other.m_content_cleared.load(std::memory_order_relaxed), std::memory_order_relaxed);
         m_key_digest = other.m_key_digest;
     }
 
@@ -403,6 +424,7 @@ private:
         m_owns_pixels = true;
         m_external_pixels = nullptr;
         m_key_digest = 0;
+        m_content_cleared.store(false, std::memory_order_relaxed);
     }
 
     i32 m_width{0};
@@ -412,6 +434,7 @@ private:
     i32 m_origin_x{0};
     i32 m_origin_y{0};
     bool m_opaque{false};
+    std::atomic<bool> m_content_cleared{false};
     bool m_owns_pixels{true};
     std::vector<Color, memory::HugePageAllocator<Color>> m_pixels;
     Color* m_external_pixels{nullptr};

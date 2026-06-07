@@ -100,6 +100,7 @@ constexpr std::size_t kHardwareDestructiveInterferenceSize = 64;
     X(framebuffer_pool_miss_count_best_fit) \
     X(framebuffer_pool_hits) \
     X(framebuffer_buffer_returned_to_pool_count) \
+    X(framebuffer_prealloc_created) \
     X(unaligned_memory_copies) \
     X(frame_conversion_copy_ms) \
     X(video_graph_eval_ms) \

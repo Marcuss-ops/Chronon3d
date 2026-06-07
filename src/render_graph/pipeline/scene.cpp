@@ -28,6 +28,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <unordered_map>
 
 namespace chronon3d::graph {
 
@@ -78,6 +79,62 @@ bool write_plan_output_file(const std::string& path, const std::string& contents
         return false;
     }
     return true;
+}
+
+/// Predict framebuffer bucket sizes the compiled graph will need based on
+/// each node's predicted_bbox (or canvas size as fallback).
+/// Returns a deduplicated list of preallocation options with counts that
+/// reflect the max number of concurrent framebuffers needed per level.
+std::vector<cache::FramebufferPoolPreallocOptions> predict_pool_requirements(
+    const CompiledFrameGraph& compiled,
+    int canvas_width,
+    int canvas_height)
+{
+    if (compiled.empty() || compiled.levels.empty()) {
+        return {};
+    }
+
+    // Map bucket key -> max concurrent count (per-level peak)
+    std::unordered_map<cache::FramebufferPoolKey, size_t, cache::FramebufferPoolKeyHash> peak_counts;
+
+    for (const auto& level : compiled.levels) {
+        std::unordered_map<cache::FramebufferPoolKey, size_t, cache::FramebufferPoolKeyHash> level_counts;
+        for (GraphNodeId id : level) {
+            if (id >= compiled.nodes.size()) continue;
+            const auto& info = compiled.nodes[id];
+            if (!info.reachable) continue;
+
+            int w = canvas_width;
+            int h = canvas_height;
+            if (info.predicted_bbox && !info.predicted_bbox->is_empty()) {
+                w = std::max(0, info.predicted_bbox->x1 - info.predicted_bbox->x0);
+                h = std::max(0, info.predicted_bbox->y1 - info.predicted_bbox->y0);
+            }
+            const auto [bw, bh] = cache::FramebufferPool::round_to_bucket(w, h);
+            if (bw > 0 && bh > 0) {
+                ++level_counts[cache::FramebufferPoolKey{bw, bh}];
+            }
+        }
+        for (const auto& [bucket, cnt] : level_counts) {
+            auto& peak = peak_counts[bucket];
+            peak = std::max(peak, cnt);
+        }
+    }
+
+    constexpr size_t kMaxPreallocPerBucket = 3; // safe concurrent upper bound
+    std::vector<cache::FramebufferPoolPreallocOptions> predictions;
+    predictions.reserve(peak_counts.size());
+    for (const auto& [bucket, count] : peak_counts) {
+        const size_t capped_count = std::min(count, kMaxPreallocPerBucket);
+        predictions.push_back(cache::FramebufferPoolPreallocOptions{
+            .width = bucket.width,
+            .height = bucket.height,
+            .count = capped_count,
+            .clear = true,         // pre-clear before execution so first acquire is free
+            .touch_memory = false, // skip touch — prealloc is cheap, touch is slow
+        });
+    }
+    return predictions;
 }
 
 } // anonymous namespace
@@ -154,6 +211,11 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
 
         if (!cam_changed && sw_renderer->m_prev_scene_fingerprint == combined_fp) {
             sw_renderer->m_last_dirty_area_ratio = 0.0;
+            sw_renderer->m_last_dirty_rect_enabled = false;
+            sw_renderer->m_last_dirty_rect = std::nullopt;
+            sw_renderer->m_last_tile_execution_used = false;
+            sw_renderer->m_last_fast_path_reused = true;
+            sw_renderer->m_last_graph_reused = false;
             sw_renderer->m_prev_frame = frame;
             sw_renderer->m_prev_scene_fingerprint = combined_fp;
             sw_renderer->m_prev_camera = cam;
@@ -226,6 +288,11 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     {
         CHRONON_ZONE_C("static_scene_fast_check", trace_category::kFrame);
         sw_renderer->m_last_dirty_area_ratio = 0.0;
+        sw_renderer->m_last_dirty_rect_enabled = false;
+        sw_renderer->m_last_dirty_rect = std::nullopt;
+        sw_renderer->m_last_tile_execution_used = false;
+        sw_renderer->m_last_fast_path_reused = true;
+        sw_renderer->m_last_graph_reused = false;
         sw_renderer->m_prev_frame = frame;
         sw_renderer->m_prev_camera = ctx.camera_2_5d;
         sw_renderer->m_prev_camera_valid = ctx.camera_2_5d.enabled;
@@ -345,6 +412,11 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
             spdlog::info("[dirty-debug] frame={} fast_path_reuse=1", static_cast<int>(frame));
         }
         sw_renderer->m_last_dirty_area_ratio = 0.0;
+        sw_renderer->m_last_dirty_rect_enabled = true;
+        sw_renderer->m_last_dirty_rect = dirty_out.dirty_rect;
+        sw_renderer->m_last_tile_execution_used = false;
+        sw_renderer->m_last_fast_path_reused = true;
+        sw_renderer->m_last_graph_reused = false;
         sw_renderer->m_prev_layer_bboxes = std::move(dirty_out.layer_bboxes);
         sw_renderer->m_prev_frame = frame;
         // Use combined_fp for consistency with resolved-reuse block and full-path save
@@ -434,16 +506,39 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
 
         // Compile path (which includes optimization)
         FrameGraphCompiler compiler;
-        FrameGraphCompileOptions compile_options;
-        compile_options.run_optimizer = true;
-        compile_options.compute_lifetimes = true;
-        compile_options.compute_bboxes = settings.diagnostic_plan;
-        compile_options.include_diagnostics = settings.diagnostic_plan;
+    FrameGraphCompileOptions compile_options;
+    compile_options.run_optimizer = true;
+    compile_options.compute_lifetimes = true;
+    compile_options.compute_bboxes = true;  // always needed for pool preallocation sizing
+    compile_options.include_diagnostics = settings.diagnostic_plan;
 
         compiled = compiler.compile(std::move(graph), ctx, compile_options);
     }
     const auto t_graph1 = std::chrono::steady_clock::now();
     const auto t_build2 = std::chrono::steady_clock::now();
+
+    // ── Pre-frame pool preallocation: ensure the exact bucket sizes the
+    // upcoming frame will need are already in the pool, eliminating allocation
+    // stalls during graph execution. Skip when the graph is reused — the
+    // pool is already warm from the first build of this graph.
+    if (sw_renderer && sw_renderer->framebuffer_pool() && !graph_reused) {
+        const auto t_prealloc0 = std::chrono::steady_clock::now();
+        auto predictions = predict_pool_requirements(compiled, width, height);
+        auto pool = sw_renderer->framebuffer_pool();
+        size_t prealloc_total = 0;
+        for (const auto& pred : predictions) {
+            prealloc_total += pool->ensure_preallocated(pred);
+        }
+        const auto t_prealloc1 = std::chrono::steady_clock::now();
+        const double prealloc_ms = std::chrono::duration<double, std::milli>(t_prealloc1 - t_prealloc0).count();
+        if (ctx.counters) {
+            ctx.counters->framebuffer_prealloc_created.fetch_add(prealloc_total, std::memory_order_relaxed);
+        }
+        if (ctx.diagnostics_enabled) {
+            spdlog::info("[pool-prealloc] frame={} ensured={} predictions={} ms={:.2f}",
+                         static_cast<int>(frame), prealloc_total, predictions.size(), prealloc_ms);
+        }
+    }
 
     // ── Execute: tile-based (V1) or traditional single-pass ─────────────
     const auto t_exec0 = std::chrono::steady_clock::now();
@@ -565,6 +660,15 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
                 graph_reused ? 1 : 0
             );
         }
+    }
+
+    // ── Record per-frame dirty-rect telemetry on the renderer for the loop to read ──
+    if (sw_renderer) {
+        sw_renderer->m_last_dirty_rect_enabled = dirty_out.use_dirty_rects;
+        sw_renderer->m_last_dirty_rect = dirty_out.dirty_rect;
+        sw_renderer->m_last_tile_execution_used = use_tile_execution;
+        sw_renderer->m_last_fast_path_reused = false;
+        sw_renderer->m_last_graph_reused = graph_reused;
     }
 
     // ── Save state for next frame ───────────────────────────────────────

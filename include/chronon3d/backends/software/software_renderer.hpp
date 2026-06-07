@@ -117,6 +117,13 @@ public:
 
     [[nodiscard]] double last_dirty_area_ratio() const { return m_last_dirty_area_ratio; }
 
+    // ── Per-frame dirty-rect telemetry (populated by render_scene_via_graph) ──
+    [[nodiscard]] bool last_dirty_rect_enabled() const { return m_last_dirty_rect_enabled; }
+    [[nodiscard]] std::optional<raster::BBox> last_dirty_rect() const { return m_last_dirty_rect; }
+    [[nodiscard]] bool last_tile_execution_used() const { return m_last_tile_execution_used; }
+    [[nodiscard]] bool last_fast_path_reused() const { return m_last_fast_path_reused; }
+    [[nodiscard]] bool last_graph_reused() const { return m_last_graph_reused; }
+
     // Public for use by graph nodes via RenderGraphContext.
     void draw_node(Framebuffer& fb, const RenderNode& node, const RenderState& state,
                    const Camera& camera, i32 width, i32 height) override;
@@ -156,6 +163,11 @@ public:
     Frame m_prev_frame{-1};
     double m_last_dirty_area_ratio{1.0};
     int m_last_layer_count{0};
+    bool m_last_dirty_rect_enabled{false};
+    std::optional<raster::BBox> m_last_dirty_rect;
+    bool m_last_tile_execution_used{false};
+    bool m_last_fast_path_reused{false};
+    bool m_last_graph_reused{false};
     Camera2_5D m_prev_camera;
     bool m_prev_camera_valid{false};
     uint64_t m_prev_scene_fingerprint{0};
