@@ -22,6 +22,7 @@
 #include "../builder/graph_builder_bbox.hpp"
 #include "../builder/graph_builder_coordinates.hpp"
 #include "../builder/graph_builder_internal.hpp"
+#include "../builder/graph_builder_pipeline.hpp"
 #include <algorithm>
 #include <unordered_map>
 #include <string>
@@ -87,6 +88,13 @@ inline void refresh_compiled_graph_payloads(
     RenderGraphContext& ctx,
     const LayerResolutionResult& resolved
 ) {
+    // Compute recursive static analysis — must match the builder path
+    // (graph_builder_source_pass.cpp) which uses item.is_static from this
+    // cache.  Without this, source_is_static uses only layer.cache_static,
+    // missing parent/transition/animated propagation.
+    std::unordered_map<std::string, bool> is_static_cache;
+    compute_static_layers(resolved, is_static_cache);
+
     std::unordered_map<std::string, const ResolvedLayer*> resolved_by_name;
     resolved_by_name.reserve(resolved.layers.size());
     for (const auto& rl : resolved.layers) {
@@ -140,7 +148,10 @@ inline void refresh_compiled_graph_payloads(
         const bool use_local = ctx.modular_coordinates &&
             layer_needs_render_transform(item, ctx) &&
             !item.native_3d;
-        const bool source_is_static = layer.cache_static || use_local;
+        const std::string layer_name_str(layer.name);
+        const bool item_static = is_static_cache.count(layer_name_str)
+            ? is_static_cache.at(layer_name_str) : layer.cache_static;
+        const bool source_is_static = item_static || use_local;
         const Mat4 item_source_world = use_local
             ? item.world_matrix
             : source_space_world_matrix(item, ctx);
@@ -189,7 +200,10 @@ inline void refresh_compiled_graph_payloads(
         const bool use_local = ctx.modular_coordinates &&
             layer_needs_render_transform(item, ctx) &&
             !item.native_3d;
-        const bool source_is_static = layer.cache_static || use_local;
+        const std::string layer_name_str(layer.name);
+        const bool item_static = is_static_cache.count(layer_name_str)
+            ? is_static_cache.at(layer_name_str) : layer.cache_static;
+        const bool source_is_static = item_static || use_local;
         const Mat4 item_source_world = use_local
             ? item.world_matrix
             : source_space_world_matrix(item, ctx);
@@ -286,14 +300,25 @@ inline void refresh_compiled_graph_payloads(
         }
 
         auto& graph_node = compiled.graph.node(static_cast<GraphNodeId>(id));
-        if (auto* source_node = dynamic_cast<SourceNode*>(&graph_node)) {
-            refresh_source_node(*source_node);
-        } else if (auto* multi_source_node = dynamic_cast<MultiSourceNode*>(&graph_node)) {
-            refresh_multi_source_node(*multi_source_node);
-        } else if (auto* effect_node = dynamic_cast<EffectStackNode*>(&graph_node)) {
-            refresh_effect_stack_node(*effect_node);
-        } else if (auto* transform_node = dynamic_cast<TransformNode*>(&graph_node)) {
-            refresh_transform_node(*transform_node);
+        // Dispatch via kind() to avoid sequential dynamic_cast RTTI lookups.
+        // SourceNode and MultiSourceNode both report Source kind, so the
+        // Source case still needs a single dynamic_cast to disambiguate.
+        switch (graph_node.kind()) {
+            case RenderGraphNodeKind::Source:
+                if (auto* source_node = dynamic_cast<SourceNode*>(&graph_node)) {
+                    refresh_source_node(*source_node);
+                } else if (auto* multi = dynamic_cast<MultiSourceNode*>(&graph_node)) {
+                    refresh_multi_source_node(*multi);
+                }
+                break;
+            case RenderGraphNodeKind::Effect:
+                refresh_effect_stack_node(static_cast<EffectStackNode&>(graph_node));
+                break;
+            case RenderGraphNodeKind::Transform:
+                refresh_transform_node(static_cast<TransformNode&>(graph_node));
+                break;
+            default:
+                break;
         }
     }
 }
