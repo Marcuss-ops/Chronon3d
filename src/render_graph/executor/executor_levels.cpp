@@ -30,6 +30,8 @@ void execute_levels(
         std::pmr::vector<PreResolvedNode> level_resolved(res);
         level_resolved.reserve(level.size());
 
+        // Input resolution is sequential because resolve_inputs allocates
+        // from the shared PMR frame arena (bump allocator, not thread-safe).
         const auto t_input0 = std::chrono::steady_clock::now();
         for (size_t i = 0; i < level.size(); ++i) {
             level_resolved.emplace_back(res);
@@ -47,13 +49,12 @@ void execute_levels(
         std::vector<double> level_clone_ctx_ms(level.size(), 0.0);
         std::vector<double> level_state_ms(level.size(), 0.0);
 
-        // TBB parallel_for has measurable overhead (~5-50µs per spawn).
-        // For small execution levels (≤4 nodes), run sequentially to avoid
-        // paying the parallel scheduling tax for no benefit.
-        // The overhead of spawning N threads for tiny workloads can exceed
-        // the actual work — this was the #1 gap between node_dispatch_ms
-        // and hot-node sums in the MinimalistImageTrackingBreathing preset.
-        const bool use_parallel = level.size() > 4;
+        // Parallelize node execution for levels with multiple independent nodes.
+        // Nodes within the same level have no data dependencies — they only read
+        // from previously-completed levels (state.temp, state.resolved_*), so
+        // parallel execution is safe.  Each node writes to its own state.temp[id]
+        // slot, and shared data (counters, cache, pool) uses atomics/mutexes.
+        const bool use_parallel = level.size() > 1;
 
         if (parent_counters) {
             if (use_parallel) {
