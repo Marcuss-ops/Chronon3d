@@ -202,7 +202,42 @@ TEST_CASE("frame_converter: NV12 UV interleaved has correct size semantics") {
 }
 
 // ---------------------------------------------------------------------------
-// Test 4 — ConvertedFrameCache: hit/miss/LRU
+// Test 4 — Direct YUV path smoke tests (conversion succeeds + timed)
+// ---------------------------------------------------------------------------
+
+TEST_CASE("frame_converter: direct YUV path reports conversion time") {
+    constexpr int w = 8, h = 8;
+    auto fb = make_solid(w, h, Color{1, 1, 1, 1});
+
+    std::vector<uint8_t> y(w * h), u(w * h / 4), v(w * h / 4);
+
+    const auto res = convert_frame_tight(
+        fb, y.data(), u.data(), v.data(), nullptr,
+        w, h, EncoderPixelFormat::YUV420P, true);
+
+    REQUIRE(res.success);
+    CHECK(res.conversion_ns > 0);
+    // used_simd is true when the HWY SIMD backend is available;
+    // on targets without Highway it falls back to scalar TBB.
+    // We only check that the conversion succeeded and timed itself.
+}
+
+TEST_CASE("frame_converter: direct NV12 path reports conversion time") {
+    constexpr int w = 8, h = 8;
+    auto fb = make_solid(w, h, Color{0.5f, 0.5f, 0.5f, 1});
+
+    std::vector<uint8_t> y(w * h), uv(w * h / 2);
+
+    const auto res = convert_frame_tight(
+        fb, y.data(), nullptr, nullptr, uv.data(),
+        w, h, EncoderPixelFormat::NV12, true);
+
+    REQUIRE(res.success);
+    CHECK(res.conversion_ns > 0);
+}
+
+// ---------------------------------------------------------------------------
+// Test 5 — ConvertedFrameCache: hit/miss/LRU
 // ---------------------------------------------------------------------------
 
 TEST_CASE("ConvertedFrameCache: miss on first lookup") {
