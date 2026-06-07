@@ -27,6 +27,8 @@ SystemMetricsCollector::SystemMemory SystemMetricsCollector::system_memory() { r
 long SystemMetricsCollector::clock_ticks_per_sec() { return 100; }
 void SystemMetricsCollector::track_ffmpeg_pid(int) {}
 void SystemMetricsCollector::clear_ffmpeg_pid() {}
+void SystemMetricsCollector::sample_cpu_start() {}
+SystemMetricsCollector::ProcessCpuTime SystemMetricsCollector::sample_cpu_delta() { return {}; }
 
 #else
 
@@ -116,6 +118,9 @@ SystemMetricsCollector::SystemMetricsCollector() {
     prev_ffmpeg_clock_ticks_ = 0;
     fd_llc_ref_ = -1;
     fd_llc_miss_ = -1;
+    baseline_utime_ = 0;
+    baseline_stime_ = 0;
+    baseline_valid_ = false;
     open_llc_counters();
 }
 
@@ -252,10 +257,6 @@ long SystemMetricsCollector::clock_ticks_per_sec() {
     static const long ticks = static_cast<long>(sysconf(_SC_CLK_TCK));
     return ticks > 0 ? ticks : 100;
 }
-
-// Track peak RSS across calls
-// Note: the anonymous namespace clock_ticks_per_sec() above is now unused
-// (the static member calls sysconf directly). It can be removed in a cleanup pass.
 static uint64_t s_peak_rss_bytes = 0;
 
 SystemMetricsCollector::ProcessCpuTime SystemMetricsCollector::process_cpu_time() {
@@ -281,6 +282,27 @@ uint64_t SystemMetricsCollector::process_rss_bytes() {
     const uint64_t rss = resident * static_cast<uint64_t>(page_size > 0 ? page_size : 4096);
     if (rss > s_peak_rss_bytes) s_peak_rss_bytes = rss;
     return s_peak_rss_bytes;
+}
+
+void SystemMetricsCollector::sample_cpu_start() {
+    const auto ct = process_cpu_time();
+    baseline_utime_ = ct.utime_jiffies;
+    baseline_stime_ = ct.stime_jiffies;
+    baseline_valid_ = true;
+}
+
+SystemMetricsCollector::ProcessCpuTime SystemMetricsCollector::sample_cpu_delta() {
+    ProcessCpuTime delta;
+    if (!baseline_valid_) return delta;
+    const auto ct = process_cpu_time();
+    const uint64_t d_utime = (ct.utime_jiffies > baseline_utime_)
+        ? (ct.utime_jiffies - baseline_utime_) : 0;
+    const uint64_t d_stime = (ct.stime_jiffies > baseline_stime_)
+        ? (ct.stime_jiffies - baseline_stime_) : 0;
+    const long clk = clock_ticks_per_sec();
+    delta.utime_jiffies = d_utime;
+    delta.stime_jiffies = d_stime;
+    return delta;
 }
 
 SystemMetricsCollector::SystemMemory SystemMetricsCollector::system_memory() {
