@@ -62,6 +62,8 @@ add_executable(chronon3d_renderer_tests
     runtime/test_telemetry.cpp
     runtime/test_telemetry_semantic.cpp
     runtime/test_telemetry_report.cpp
+    render_graph/test_velocity_buffer_motion_blur.cpp
+    render_graph/test_post_processing_system.cpp
 )
 target_link_libraries(chronon3d_renderer_tests
     PRIVATE
