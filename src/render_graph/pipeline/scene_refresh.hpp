@@ -61,7 +61,8 @@ namespace chronon3d::graph::detail {
                 .native_3d         = is_native_3d_layer(layer),
                 .insertion_index   = resolved_layer.insertion_index,
                 .matte_node        = k_invalid_node,
-                .is_static         = layer.cache_static,
+                // NOTE: .is_static intentionally left at default — the refresh
+                // path uses is_static_cache (recursive analysis) instead.
             };
         }
     }
@@ -76,7 +77,7 @@ namespace chronon3d::graph::detail {
         .native_3d       = is_native_3d_layer(layer),
         .insertion_index = resolved_layer.insertion_index,
         .matte_node      = k_invalid_node,
-        .is_static       = layer.cache_static,
+        // NOTE: .is_static intentionally left at default — see above.
     };
 }
 
@@ -163,7 +164,7 @@ inline void refresh_compiled_graph_payloads(
             ? src_node.world_transform.opacity
             : (item.transform.opacity * src_node.world_transform.opacity);
         cache::NodeCacheKey key{
-            .scope = "layer.source:" + std::string(layer.name) + ":" + std::string(src_node.name),
+            .scope = "layer.source:" + layer_name_str + ":" + std::string(src_node.name),
             .frame = source_is_static ? Frame{0} : ctx.frame,
             .width = ctx.width,
             .height = ctx.height,
@@ -229,16 +230,16 @@ inline void refresh_compiled_graph_payloads(
         }
 
         cache::NodeCacheKey key{
-            .scope = "layer.multisource:" + std::string(layer.name),
+            .scope = "layer.multisource:" + layer_name_str,
             .frame = source_is_static ? Frame{0} : ctx.frame,
             .width = ctx.width,
             .height = ctx.height,
             .params_hash = aggregated_params_hash,
-            .source_hash = hash_string(std::string(layer.name) + "_multisource")
+            .source_hash = hash_string(layer_name_str + "_multisource")
         };
 
         node.refresh(
-            std::string(layer.name) + "_multi",
+            layer_name_str + "_multi",
             std::move(items),
             key,
             should_use_centered_rendering(item, ctx),
