@@ -192,6 +192,7 @@ OwnedFB SourceNode::execute(
         state.frame_number = static_cast<int>(ctx.frame);
 
         state.clip_rect = ctx.clip_rect;
+        state.diagnostics_enabled = ctx.diagnostics_enabled;
 
         if (ctx.has_camera_2_5d) {
             state.projection  = ctx.projection_ctx;

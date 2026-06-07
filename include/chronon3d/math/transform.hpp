@@ -102,6 +102,10 @@ struct RenderState {
 
     // Frame number for per-frame telemetry attribution (e.g. image decode/sample events).
     int frame_number{0};
+
+    // When true, renderers emit per-pixel telemetry (decode timing, sample timing,
+    // image records, etc.).  In production this must be false for zero overhead.
+    bool diagnostics_enabled{false};
 };
 
 inline void ensure_mask_alpha_cache(const RenderState& state, i32 width, i32 height) {
@@ -132,6 +136,7 @@ inline RenderState combine(const RenderState& parent, const Transform& child) {
         .clip_rect        = parent.clip_rect,
         .ssaa_factor      = parent.ssaa_factor,
         .frame_number     = parent.frame_number,
+        .diagnostics_enabled = parent.diagnostics_enabled,
     };
 }
 
