@@ -147,29 +147,52 @@ std::unique_ptr<Framebuffer> FramebufferPool::acquire_unique(int width, int heig
     const int rounded_w = round_up_bucket(width);
     const int rounded_h = round_up_bucket(height);
 
+    // Helper lambda to try reusing from a specific bucket key.
+    auto try_reuse = [&](const FramebufferPoolKey& key) -> std::unique_ptr<Framebuffer> {
+        auto it = m_free.find(key);
+        if (it == m_free.end() || it->second.empty()) {
+            return nullptr;
+        }
+        auto& bucket = it->second;
+        auto fb = std::move(bucket.back());
+        bucket.pop_back();
+        m_current_bytes -= fb->size_bytes();
+        m_total_reuses.fetch_add(1, std::memory_order_relaxed);
+        if (profiling::g_current_counters) {
+            profiling::g_current_counters->framebuffer_reuses.fetch_add(1, std::memory_order_relaxed);
+        }
+        fb->resize_logical(width, height);
+        // Pool FB: content is stale — caller must clear if needed.
+        return fb;
+    };
+
+    // 1. Try the bucket-normalized key first (matches pre-allocated framebuffers).
+    //    e.g. 1080p (1920x1080) rounds to {1920, 1088}, which is the key used
+    //    by warm_up() / preallocate().
     {
         FramebufferPoolKey key{rounded_w, rounded_h};
-        auto it = m_free.find(key);
-        if (it != m_free.end() && !it->second.empty()) {
-            auto& bucket = it->second;
-            auto fb = std::move(bucket.back());
-            bucket.pop_back();
-            m_current_bytes -= fb->size_bytes();
-            m_total_reuses.fetch_add(1, std::memory_order_relaxed);
-            if (profiling::g_current_counters) {
-                profiling::g_current_counters->framebuffer_reuses.fetch_add(1, std::memory_order_relaxed);
-            }
-            fb->resize_logical(width, height);
-            // Pool FB: content is stale — caller must clear if needed.
+        if (auto fb = try_reuse(key)) {
             return fb;
+        }
+    }
+
+    // 2. Fallback: try the exact dimensions key (matches dynamically-allocated
+    //    framebuffers that were released with their raw allocated size).
+    {
+        FramebufferPoolKey key{width, height};
+        if (auto fb = try_reuse(key)) {
+            return fb;
+        }
+    }
+
+    if (profiling::g_current_counters) {
+        // Distinguish "bucket exists but empty" vs "no matching bucket at all"
+        FramebufferPoolKey bucket_key{rounded_w, rounded_h};
+        auto it = m_free.find(bucket_key);
+        if (it != m_free.end()) {
+            profiling::g_current_counters->framebuffer_pool_miss_count_empty.fetch_add(1, std::memory_order_relaxed);
         } else {
-            if (profiling::g_current_counters) {
-                if (it == m_free.end()) {
-                    profiling::g_current_counters->framebuffer_pool_miss_count_size_mismatch.fetch_add(1, std::memory_order_relaxed);
-                } else {
-                    profiling::g_current_counters->framebuffer_pool_miss_count_empty.fetch_add(1, std::memory_order_relaxed);
-                }
-            }
+            profiling::g_current_counters->framebuffer_pool_miss_count_size_mismatch.fetch_add(1, std::memory_order_relaxed);
         }
     }
 
@@ -278,6 +301,9 @@ void FramebufferPool::release(Framebuffer* fb) {
     // Arena-backed framebuffers are non-owning wrappers around arena memory.
     // They become stale when the arena is reset for the next frame, so they
     // must NOT be returned to the free list — just drop them.
+    // NOTE: If the arena is still alive, we could theoretically return the
+    // underlying allocation to the arena itself, but arenas are per-frame.
+    // For now we drop arena FBs to avoid stale pixel data in the pool.
     if (owned->is_arena_allocated()) {
         return; // wrapper destroyed by unique_ptr; pixels remain arena-owned
     }
