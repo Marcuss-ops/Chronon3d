@@ -224,14 +224,31 @@ inline void add_counters(chronon3d::RenderCounters& dst, const chronon3d::Render
     dst.ffmpeg_flush_ms.fetch_add(src.ffmpeg_flush_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.framebuffer_bytes_allocated.fetch_add(src.framebuffer_bytes_allocated.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.framebuffer_bytes_peak.fetch_add(src.framebuffer_bytes_peak.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    // Hardware-constant snapshots: just store (not accumulate)
     dst.system_logical_cores.store(src.system_logical_cores.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.system_ram_total_mb.store(src.system_ram_total_mb.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.system_ram_available_min_mb.store(src.system_ram_available_min_mb.load(std::memory_order_relaxed), std::memory_order_relaxed);
-    dst.process_cpu_user_ms.fetch_add(src.process_cpu_user_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
-    dst.process_cpu_sys_ms.fetch_add(src.process_cpu_sys_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
-    dst.process_rss_peak_mb.store(src.process_rss_peak_mb.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.tbb_arena_max_concurrency.store(src.tbb_arena_max_concurrency.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.tbb_active_workers_peak.store(src.tbb_active_workers_peak.load(std::memory_order_relaxed), std::memory_order_relaxed);
+
+    // Per-run snapshots: use store() with max() for peak values
+    {
+        const auto v = src.process_cpu_user_ms.load(std::memory_order_relaxed);
+        if (v > dst.process_cpu_user_ms.load(std::memory_order_relaxed))
+            dst.process_cpu_user_ms.store(v, std::memory_order_relaxed);
+    }
+    {
+        const auto v = src.process_cpu_sys_ms.load(std::memory_order_relaxed);
+        if (v > dst.process_cpu_sys_ms.load(std::memory_order_relaxed))
+            dst.process_cpu_sys_ms.store(v, std::memory_order_relaxed);
+    }
+    {
+        const auto v = src.process_rss_peak_mb.load(std::memory_order_relaxed);
+        if (v > dst.process_rss_peak_mb.load(std::memory_order_relaxed))
+            dst.process_rss_peak_mb.store(v, std::memory_order_relaxed);
+    }
+
+    // Cumulative counters: use fetch_add (these are per-run deltas)
     dst.parallel_regions_count.fetch_add(src.parallel_regions_count.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.parallel_regions_skipped_small_level.fetch_add(src.parallel_regions_skipped_small_level.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.dirty_rect_count.fetch_add(src.dirty_rect_count.load(std::memory_order_relaxed), std::memory_order_relaxed);

@@ -98,6 +98,10 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
 
     warmup_pipe_renderer(*renderer, comp, opts);
 
+    // Capture CPU baseline before the render phase — fill_system_counters()
+    // uses sample_cpu_delta() to compute per-run CPU time.
+    sys_metrics.sample_cpu_start();
+
     const auto render_t0 = std::chrono::steady_clock::now();
 
     RenderLoopContext loop_ctx{

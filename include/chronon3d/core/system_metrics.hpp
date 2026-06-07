@@ -65,6 +65,16 @@ public:
     };
     [[nodiscard]] ProcessCpuTime process_cpu_time();
 
+    // Capture a baseline snapshot of process CPU time.
+    // Call before the render phase, then sample_cpu_delta() after to get
+    // per-run delta (not cumulative lifetime).
+    void sample_cpu_start();
+
+    // Return per-run CPU delta (user_ms, sys_ms) since the last
+    // sample_cpu_start() call.  Returns (0,0) if sample_cpu_start()
+    // was never called.
+    [[nodiscard]] ProcessCpuTime sample_cpu_delta();
+
     // ── Process RSS (from /proc/self/statm) ──────────────────────────────
     [[nodiscard]] uint64_t process_rss_bytes();
 
@@ -92,8 +102,8 @@ public:
         c.llc_references.store(cm.references, std::memory_order_relaxed);
         c.llc_misses.store(cm.misses, std::memory_order_relaxed);
 
-        // Process CPU time
-        const auto ct = process_cpu_time();
+        // Process CPU time (per-run delta via sample_cpu_delta, or 0 if start never called)
+        const auto ct = sample_cpu_delta();
         c.process_cpu_user_ms.store(ct.utime_jiffies * 1000 / clock_ticks_per_sec(), std::memory_order_relaxed);
         c.process_cpu_sys_ms.store(ct.stime_jiffies * 1000 / clock_ticks_per_sec(), std::memory_order_relaxed);
 
@@ -124,6 +134,11 @@ private:
     // perf_event_open fds for LLC counters
     int fd_llc_ref_{-1};
     int fd_llc_miss_{-1};
+
+    // Per-run CPU time baseline (captured at render start)
+    uint64_t baseline_utime_{0};
+    uint64_t baseline_stime_{0};
+    bool     baseline_valid_{false};
 
     bool open_llc_counters();
     void close_llc_counters();
