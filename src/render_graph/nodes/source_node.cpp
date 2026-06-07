@@ -177,6 +177,7 @@ OwnedFB SourceNode::execute(
 
     auto fb = ctx.acquire_owned_fb(ctx.width, ctx.height, !skip_clear);        if (ctx.backend) {
         RenderState state;
+        state.frame_number = static_cast<int>(ctx.frame);
         state.ssaa_factor = ctx.ssaa_factor;
         const Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(ctx.ssaa_factor, ctx.ssaa_factor, 1.0f));
         const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
@@ -188,6 +189,7 @@ OwnedFB SourceNode::execute(
         }
         state.opacity = m_opacity_override.value_or(m_node.world_transform.opacity);
         state.world_matrix = m_matrix_override.value_or(m_node.world_transform.to_mat4());
+        state.frame_number = static_cast<int>(ctx.frame);
 
         state.clip_rect = ctx.clip_rect;
 

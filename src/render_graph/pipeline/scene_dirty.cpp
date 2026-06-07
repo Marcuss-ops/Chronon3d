@@ -169,17 +169,6 @@ DirtyRectOutput compute_dirty_rect(
         if (out.dirty_rect->x0 <= 0 && out.dirty_rect->y0 <= 0 &&
             out.dirty_rect->x1 >= width && out.dirty_rect->y1 >= height) {
             out.use_dirty_rects = false;
-        } else {
-            // Coverage cutoff: if the dirty rect covers >75% of the frame,
-            // full-frame render is cheaper than partial clip bookkeeping.
-            const float dirty_area = static_cast<float>(
-                (out.dirty_rect->x1 - out.dirty_rect->x0) *
-                (out.dirty_rect->y1 - out.dirty_rect->y0));
-            const float frame_area = static_cast<float>(width) * static_cast<float>(height);
-            if (dirty_area / frame_area > 0.75f) {
-                out.use_dirty_rects = false;
-                out.dirty_rect = raster::BBox{0, 0, width, height};
-            }
         }
     }
 

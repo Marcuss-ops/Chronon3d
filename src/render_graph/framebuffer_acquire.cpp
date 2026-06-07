@@ -50,11 +50,14 @@ OwnedFB RenderGraphContext::acquire_owned_fb(const Framebuffer& other) const {
     if (fb.get() == &other) {
         return fb;
     }
+    const Color* src_base = other.data();
+    Color* dst_base = fb->data();
     for (i32 y = 0; y < other.height(); ++y) {
-        std::copy_n(other.pixels_row(y), other.width(), fb->pixels_row(y));
+        std::copy_n(src_base + y * other.stride(), other.width(), dst_base + y * fb->stride());
     }
     fb->set_opaque(other.is_opaque());
     fb->set_key_digest(other.key_digest());
+    fb->set_content_cleared(other.is_content_cleared());
     return fb;
 }
 
@@ -161,11 +164,14 @@ std::shared_ptr<Framebuffer> RenderGraphContext::acquire_framebuffer(const Frame
     if (fb.get() == &other) {
         return fb;
     }
+    const Color* src_base = other.data();
+    Color* dst_base = fb->data();
     for (i32 y = 0; y < other.height(); ++y) {
-        std::copy_n(other.pixels_row(y), other.width(), fb->pixels_row(y));
+        std::copy_n(src_base + y * other.stride(), other.width(), dst_base + y * fb->stride());
     }
     fb->set_opaque(other.is_opaque());
     fb->set_key_digest(other.key_digest());
+    fb->set_content_cleared(other.is_content_cleared());
     return fb;
 }
 
@@ -209,11 +215,9 @@ RenderGraphContext RenderGraphContext::clone_for_node_execution() const {
     // • early_exit_skip:  checked against the *parent* ctx before the copy
     // • node_telemetry / layer_telemetry: written via global telemetry
     //   paths, never read during node.execute()
-    // • dof_depth: only needed when DOF tracking is active (~8 MB @ 1080p).
-    //   To avoid copying the full vector for every node, share it via
-    //   shared_ptr.  Nodes never mutate dof_depth during execute().
+    // • dof_depth: only needed when DOF tracking is active (~8 MB @ 1080p)
     if (track_dof_depth && !dof_depth.empty()) {
-        copy.dof_depth = dof_depth;  // shallow copy (shared_ptr ref-bump)
+        copy.dof_depth = dof_depth;
     }
     // reusable_inputs starts empty — populated per-node after the clone.
 

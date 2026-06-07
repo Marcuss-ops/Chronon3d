@@ -118,6 +118,16 @@ public:
     /// requested if the pool size limit is reached).
     size_t preallocate(const FramebufferPoolPreallocOptions& options);
 
+    /// Ensure the pool has at least `count` framebuffers of the given bucket size.
+    /// Only creates new framebuffers if the existing free count for that bucket
+    /// is below the target.  This is safe to call every frame — it will not
+    /// grow the pool unboundedly.
+    size_t ensure_preallocated(const FramebufferPoolPreallocOptions& options);
+
+    /// Return the bucket-rounded dimensions for a given width/height.
+    /// This is the same rounding used internally for pool keys.
+    static std::pair<int, int> round_to_bucket(int width, int height);
+
     [[nodiscard]] size_t current_bytes() const;
     [[nodiscard]] size_t available_count() const;
     [[nodiscard]] size_t max_bytes() const;

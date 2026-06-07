@@ -116,9 +116,9 @@ std::shared_ptr<Framebuffer> FramebufferPool::acquire_hinted(
         }
     }
 
-    // Skip clear when the FB was freshly allocated: the Framebuffer
-    // constructor already zero-initializes via m_pixels.resize(..., transparent).
-    if (clear && fb && !fresh_alloc) {
+    // Skip clear when the FB was freshly allocated (constructor zero-initializes)
+    // OR when the framebuffer is already known to be fully cleared to transparent.
+    if (clear && fb && !fresh_alloc && !fb->is_content_cleared()) {
         const auto tc0 = std::chrono::high_resolution_clock::now();
         fb->clear(Color::transparent());
         const auto tc1 = std::chrono::high_resolution_clock::now();
@@ -147,52 +147,29 @@ std::unique_ptr<Framebuffer> FramebufferPool::acquire_unique(int width, int heig
     const int rounded_w = round_up_bucket(width);
     const int rounded_h = round_up_bucket(height);
 
-    // Helper lambda to try reusing from a specific bucket key.
-    auto try_reuse = [&](const FramebufferPoolKey& key) -> std::unique_ptr<Framebuffer> {
-        auto it = m_free.find(key);
-        if (it == m_free.end() || it->second.empty()) {
-            return nullptr;
-        }
-        auto& bucket = it->second;
-        auto fb = std::move(bucket.back());
-        bucket.pop_back();
-        m_current_bytes -= fb->size_bytes();
-        m_total_reuses.fetch_add(1, std::memory_order_relaxed);
-        if (profiling::g_current_counters) {
-            profiling::g_current_counters->framebuffer_reuses.fetch_add(1, std::memory_order_relaxed);
-        }
-        fb->resize_logical(width, height);
-        // Pool FB: content is stale — caller must clear if needed.
-        return fb;
-    };
-
-    // 1. Try the bucket-normalized key first (matches pre-allocated framebuffers).
-    //    e.g. 1080p (1920x1080) rounds to {1920, 1088}, which is the key used
-    //    by warm_up() / preallocate().
     {
         FramebufferPoolKey key{rounded_w, rounded_h};
-        if (auto fb = try_reuse(key)) {
+        auto it = m_free.find(key);
+        if (it != m_free.end() && !it->second.empty()) {
+            auto& bucket = it->second;
+            auto fb = std::move(bucket.back());
+            bucket.pop_back();
+            m_current_bytes -= fb->size_bytes();
+            m_total_reuses.fetch_add(1, std::memory_order_relaxed);
+            if (profiling::g_current_counters) {
+                profiling::g_current_counters->framebuffer_reuses.fetch_add(1, std::memory_order_relaxed);
+            }
+            fb->resize_logical(width, height);
+            // Pool FB: content is stale — caller must clear if needed.
             return fb;
-        }
-    }
-
-    // 2. Fallback: try the exact dimensions key (matches dynamically-allocated
-    //    framebuffers that were released with their raw allocated size).
-    {
-        FramebufferPoolKey key{width, height};
-        if (auto fb = try_reuse(key)) {
-            return fb;
-        }
-    }
-
-    if (profiling::g_current_counters) {
-        // Distinguish "bucket exists but empty" vs "no matching bucket at all"
-        FramebufferPoolKey bucket_key{rounded_w, rounded_h};
-        auto it = m_free.find(bucket_key);
-        if (it != m_free.end()) {
-            profiling::g_current_counters->framebuffer_pool_miss_count_empty.fetch_add(1, std::memory_order_relaxed);
         } else {
-            profiling::g_current_counters->framebuffer_pool_miss_count_size_mismatch.fetch_add(1, std::memory_order_relaxed);
+            if (profiling::g_current_counters) {
+                if (it == m_free.end()) {
+                    profiling::g_current_counters->framebuffer_pool_miss_count_size_mismatch.fetch_add(1, std::memory_order_relaxed);
+                } else {
+                    profiling::g_current_counters->framebuffer_pool_miss_count_empty.fetch_add(1, std::memory_order_relaxed);
+                }
+            }
         }
     }
 
@@ -256,8 +233,9 @@ std::shared_ptr<Framebuffer> FramebufferPool::acquire_pooled(int width, int heig
 
     bool fresh_alloc = false;
     auto fb = pool->acquire_unique(width, height, &fresh_alloc);
-    // Skip clear for fresh allocations: Framebuffer constructor zero-initializes.
-    if (clear && !fresh_alloc) {
+    // Skip clear for fresh allocations (constructor zero-initializes)
+    // or when the framebuffer is already fully cleared to transparent.
+    if (clear && !fresh_alloc && !fb->is_content_cleared()) {
         fb->clear(Color::transparent());
     }
     std::weak_ptr<FramebufferPool> weak_pool = pool;
@@ -273,8 +251,9 @@ std::shared_ptr<Framebuffer> FramebufferPool::acquire_pooled(int width, int heig
 OwnedFB FramebufferPool::acquire_owned(int width, int height, bool clear) {
     bool fresh_alloc = false;
     auto fb = acquire_unique(width, height, &fresh_alloc);
-    // Skip clear for fresh allocations: Framebuffer constructor zero-initializes.
-    if (clear && fb && !fresh_alloc) {
+    // Skip clear for fresh allocations (constructor zero-initializes)
+    // or when the framebuffer is already fully cleared to transparent.
+    if (clear && fb && !fresh_alloc && !fb->is_content_cleared()) {
         fb->clear(Color::transparent());
     }
     return OwnedFB(fb.release(), PoolFbDeleter{this, m_alive});
@@ -283,8 +262,9 @@ OwnedFB FramebufferPool::acquire_owned(int width, int height, bool clear) {
 OwnedFB FramebufferPool::acquire_owned_raw(int width, int height, bool clear) {
     bool fresh_alloc = false;
     auto fb = acquire_unique(width, height, &fresh_alloc);
-    // Skip clear for fresh allocations: Framebuffer constructor zero-initializes.
-    if (clear && fb && !fresh_alloc) {
+    // Skip clear for fresh allocations (constructor zero-initializes)
+    // or when the framebuffer is already fully cleared to transparent.
+    if (clear && fb && !fresh_alloc && !fb->is_content_cleared()) {
         fb->clear(Color::transparent());
     }
     return OwnedFB(fb.release(), PoolFbDeleter{this, m_alive});
@@ -301,9 +281,6 @@ void FramebufferPool::release(Framebuffer* fb) {
     // Arena-backed framebuffers are non-owning wrappers around arena memory.
     // They become stale when the arena is reset for the next frame, so they
     // must NOT be returned to the free list — just drop them.
-    // NOTE: If the arena is still alive, we could theoretically return the
-    // underlying allocation to the arena itself, but arenas are per-frame.
-    // For now we drop arena FBs to avoid stale pixel data in the pool.
     if (owned->is_arena_allocated()) {
         return; // wrapper destroyed by unique_ptr; pixels remain arena-owned
     }
@@ -349,6 +326,56 @@ size_t FramebufferPool::available_count() const {
     return count;
 }
 
+namespace {
+
+/// Shared allocation helper used by both preallocate() and ensure_preallocated().
+/// Must be called while holding the pool mutex.
+size_t do_preallocate_into_bucket(
+    std::unordered_map<
+        FramebufferPoolKey,
+        std::vector<std::unique_ptr<Framebuffer>>,
+        FramebufferPoolKeyHash
+    >& free_map,
+    size_t& current_bytes,
+    size_t max_bytes,
+    const FramebufferPoolPreallocOptions& options,
+    int rounded_w,
+    int rounded_h,
+    size_t count)
+{
+    FramebufferPoolKey key{rounded_w, rounded_h};
+    size_t created = 0;
+    for (size_t i = 0; i < count; ++i) {
+        auto fb = std::make_unique<Framebuffer>(rounded_w, rounded_h);
+
+        if (options.clear) {
+            fb->clear(Color::transparent());
+        } else if (options.touch_memory) {
+            Color* ptr = fb->data();
+            for (i32 y = 0; y < rounded_h; ++y) {
+                Color* row = ptr + static_cast<size_t>(y) * fb->stride();
+                for (i32 x = 0; x < rounded_w; ++x) {
+                    Color c = row[x];
+                    row[x] = c;
+                }
+            }
+            fb->set_content_cleared(true);
+        }
+
+        const size_t weight = fb->size_bytes();
+        if (current_bytes + weight > max_bytes) {
+            break;
+        }
+
+        current_bytes += weight;
+        free_map[key].push_back(std::move(fb));
+        ++created;
+    }
+    return created;
+}
+
+} // namespace
+
 size_t FramebufferPool::preallocate(const FramebufferPoolPreallocOptions& options) {
     if (options.width <= 0 || options.height <= 0 || options.count == 0) {
         return 0;
@@ -359,41 +386,37 @@ size_t FramebufferPool::preallocate(const FramebufferPoolPreallocOptions& option
     const int rounded_w = round_up_bucket(options.width);
     const int rounded_h = round_up_bucket(options.height);
 
-    FramebufferPoolKey key{rounded_w, rounded_h};
-    auto& bucket = m_free[key];
+    return do_preallocate_into_bucket(m_free, m_current_bytes, m_max_bytes,
+                                      options, rounded_w, rounded_h, options.count);
+}
 
-    size_t created = 0;
-
-    for (size_t i = 0; i < options.count; ++i) {
-        auto fb = std::make_unique<Framebuffer>(rounded_w, rounded_h);
-
-        if (options.clear) {
-            fb->clear(Color::transparent());
-        } else if (options.touch_memory) {
-            // Touch the pixel data to commit physical pages.
-            // We write-back the same values to avoid changing visual content.
-            for (i32 y = 0; y < rounded_h; ++y) {
-                Color* row = fb->pixels_row(y);
-                for (i32 x = 0; x < rounded_w; ++x) {
-                    // Read and write-back to force OS page commitment
-                    Color c = row[x];
-                    row[x] = c;
-                }
-            }
-        }
-
-        const size_t weight = fb->size_bytes();
-
-        if (m_current_bytes + weight > m_max_bytes) {
-            break;
-        }
-
-        m_current_bytes += weight;
-        bucket.push_back(std::move(fb));
-        ++created;
+size_t FramebufferPool::ensure_preallocated(const FramebufferPoolPreallocOptions& options) {
+    if (options.width <= 0 || options.height <= 0 || options.count == 0) {
+        return 0;
     }
 
-    return created;
+    std::lock_guard<std::mutex> lock(m_mutex);
+
+    const int rounded_w = round_up_bucket(options.width);
+    const int rounded_h = round_up_bucket(options.height);
+    FramebufferPoolKey key{rounded_w, rounded_h};
+
+    size_t existing = 0;
+    auto it = m_free.find(key);
+    if (it != m_free.end()) {
+        existing = it->second.size();
+    }
+    if (existing >= options.count) {
+        return 0;
+    }
+
+    const size_t needed = options.count - existing;
+    return do_preallocate_into_bucket(m_free, m_current_bytes, m_max_bytes,
+                                      options, rounded_w, rounded_h, needed);
+}
+
+std::pair<int, int> FramebufferPool::round_to_bucket(int width, int height) {
+    return {round_up_bucket(width), round_up_bucket(height)};
 }
 
 size_t FramebufferPool::warm_up(const std::vector<FramebufferPoolPreallocOptions>& predictions) {

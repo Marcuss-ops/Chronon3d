@@ -113,6 +113,14 @@ CREATE TABLE IF NOT EXISTS render_frames (
     duration_ms REAL,
     cache_hit INTEGER,
     dirty_area_ratio REAL,
+    dirty_rect_enabled INTEGER DEFAULT 0,
+    dirty_rect_x0 INTEGER DEFAULT 0,
+    dirty_rect_y0 INTEGER DEFAULT 0,
+    dirty_rect_x1 INTEGER DEFAULT 0,
+    dirty_rect_y1 INTEGER DEFAULT 0,
+    tile_execution_used INTEGER DEFAULT 0,
+    fast_path_reused INTEGER DEFAULT 0,
+    graph_reused INTEGER DEFAULT 0,
     PRIMARY KEY (run_id, frame_number)
 );
 
@@ -199,6 +207,13 @@ CREATE TABLE IF NOT EXISTS render_cache_events (
     source_hash TEXT,
     input_hash TEXT,
     output_bytes INTEGER,
+    key_width INTEGER DEFAULT 0,
+    key_height INTEGER DEFAULT 0,
+    key_frame TEXT DEFAULT '',
+    key_tile_x INTEGER DEFAULT 0,
+    key_tile_y INTEGER DEFAULT 0,
+    key_tile_size INTEGER DEFAULT 0,
+    key_tile_hash TEXT DEFAULT '',
     PRIMARY KEY (run_id, frame_number, node_name)
 );
 

@@ -99,6 +99,9 @@ struct RenderState {
     // Used by shape processors (e.g. text) to render at higher resolution
     // so that glyphs remain crisp after the frame-level downsample.
     float ssaa_factor{1.0f};
+
+    // Frame number for per-frame telemetry attribution (e.g. image decode/sample events).
+    int frame_number{0};
 };
 
 inline void ensure_mask_alpha_cache(const RenderState& state, i32 width, i32 height) {
@@ -128,6 +131,7 @@ inline RenderState combine(const RenderState& parent, const Transform& child) {
         .layer_id         = parent.layer_id,
         .clip_rect        = parent.clip_rect,
         .ssaa_factor      = parent.ssaa_factor,
+        .frame_number     = parent.frame_number,
     };
 }
 

@@ -113,6 +113,7 @@ OwnedFB MultiSourceNode::execute(
         for (const auto& item : m_items) {
             if (!item.node) continue;
             RenderState state;
+            state.frame_number = static_cast<int>(ctx.frame);
             state.ssaa_factor = ctx.ssaa_factor;
             if (m_uses_2_5d_projection) {
                 state.matrix = canvas_center * ssaa_scale * item.matrix;

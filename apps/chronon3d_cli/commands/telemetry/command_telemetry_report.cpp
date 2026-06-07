@@ -300,19 +300,35 @@ void generate_telemetry_report(std::stringstream& out, sqlite3* db, const std::s
 
     // ── Frame Samples ─────────────────────────────────────────────────────────
     out << "## Frame Samples\n";
-    out << "| Frame | Duration | Cache | Dirty Ratio |\n";
-    out << "| --- | --- | --- | --- |\n";
+    out << "| Frame | Duration | Cache | Dirty Ratio | Dirty Enabled | Dirty Rect | Tile | Fast Path | Graph Reused |\n";
+    out << "| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n";
     {
         const char* sample_sql =
-            "SELECT frame_number, duration_ms, cache_hit, dirty_area_ratio "
+            "SELECT frame_number, duration_ms, cache_hit, dirty_area_ratio, "
+            "dirty_rect_enabled, dirty_rect_x0, dirty_rect_y0, dirty_rect_x1, dirty_rect_y1, "
+            "tile_execution_used, fast_path_reused, graph_reused "
             "FROM render_frames WHERE run_id = ? ORDER BY frame_number ASC LIMIT 12;";
         sqlite3_stmt* stmt = nullptr;
         if (prepare_with_run_id(db, &stmt, sample_sql, run_id)) {
             while (sqlite3_step(stmt) == SQLITE_ROW) {
+                const bool dr_enabled = sqlite3_column_int(stmt, 4);
+                const int x0 = sqlite3_column_int(stmt, 5);
+                const int y0 = sqlite3_column_int(stmt, 6);
+                const int x1 = sqlite3_column_int(stmt, 7);
+                const int y1 = sqlite3_column_int(stmt, 8);
+                std::string rect_str = "-";
+                if (dr_enabled) {
+                    rect_str = fmt::format("[{},{}→{},{}]", x0, y0, x1, y1);
+                }
                 out << "| #" << sql_i64(stmt, 0) << " | "
                     << format_ms(sql_double(stmt, 1)) << " | "
                     << (sqlite3_column_int(stmt, 2) ? "hit" : "miss") << " | "
-                    << format_pct(sql_double(stmt, 3)) << " |\n";
+                    << format_pct(sql_double(stmt, 3)) << " | "
+                    << (dr_enabled ? "yes" : "no") << " | "
+                    << rect_str << " | "
+                    << (sqlite3_column_int(stmt, 9) ? "yes" : "no") << " | "
+                    << (sqlite3_column_int(stmt, 10) ? "yes" : "no") << " | "
+                    << (sqlite3_column_int(stmt, 11) ? "yes" : "no") << " |\n";
             }
         }
         sqlite3_finalize(stmt);
