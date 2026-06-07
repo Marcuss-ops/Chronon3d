@@ -128,6 +128,7 @@ OwnedFB MultiSourceNode::execute(
             state.opacity = item.opacity;
             state.world_matrix = item.matrix;
             state.clip_rect = ctx.clip_rect;
+            state.diagnostics_enabled = ctx.diagnostics_enabled;
 
             if (ctx.has_camera_2_5d) {
                 state.projection  = ctx.projection_ctx;
