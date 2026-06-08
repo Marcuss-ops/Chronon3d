@@ -57,31 +57,21 @@ void draw_text_glow(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNod
             ctx.fillAll();
         }
 
-        auto cached_img = std::make_shared<BLImage>(glow_img);
-
-        if (node.glow.radius > 0.0f) {
-            auto glow_fb = renderer.framebuffer_pool()->acquire(glow_img.width(), glow_img.height(), true);
-            chronon3d::blend2d_bridge::composite_bl_image(*glow_fb, glow_img, 0, 0, 1.0f, BlendMode::Normal);
-            renderer.apply_blur(*glow_fb, node.glow.radius);
-
-            const f32 glow_intensity_opacity = node.glow.intensity * node.glow.color.a;
-            if (use_geo_transform) {
-                int x = static_cast<int>(std::lround(raster.x_offset));
-                int y = static_cast<int>(std::lround(raster.y_offset));
-                chronon3d::blend2d_bridge::composite_framebuffer(fb, *glow_fb, x, y, opacity * glow_intensity_opacity, BlendMode::Add);
-            } else {
-                Mat4 glow_model = model * glm::translate(Mat4(1.0f), Vec3(raster.x_offset, raster.y_offset, 0.0f));
-                chronon3d::blend2d_bridge::composite_framebuffer_transformed(fb, *glow_fb, glow_model, opacity * glow_intensity_opacity, BlendMode::Add);
-            }
-            return;
+        // Blur applied directly on BLImage (avoids intermediate Framebuffer
+        // allocation + copy, eliminating 2 of the 3-4 pixel copies in the
+        // old BLImage→FB→blur→FB pipeline).
+        const f32 glow_radius = node.glow.radius;
+        if (glow_radius > 0.0f) {
+            blur_bl_image_inplace(glow_img, glow_radius);
         }
 
-        if (cached_img) {
+        auto cached_img = std::make_shared<BLImage>(glow_img);
+        {
             std::lock_guard<std::mutex> lock(text_glow_cache_mutex());
             size_t weight = cached_img->width() * cached_img->height() * 4;
             get_glow_cache().put(key, cached_img, weight);
-            glow_cache = cached_img;
         }
+        glow_cache = cached_img;
     }
 
     const f32 glow_intensity_opacity = node.glow.intensity * node.glow.color.a;

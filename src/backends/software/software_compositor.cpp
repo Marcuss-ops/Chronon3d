@@ -108,7 +108,7 @@ void SoftwareCompositor::composite_layer(Framebuffer& dst, const Framebuffer& sr
             const auto setup_ms = static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t_blend0 - t_setup0).count());
             cnt->compositenode_setup_ms.fetch_add(setup_ms, std::memory_order_relaxed);
         }
-        if (row_count >= 32) {
+        if (row_count >= 16) {
             if (cnt) cnt->used_parallel_composite.fetch_add(1, std::memory_order_relaxed);
             parallel_for_tracked(
                 tbb::blocked_range<i32>(y0, y1),
@@ -151,7 +151,7 @@ bool SoftwareCompositor::composite_layer_normal_optimized(
 
     // Row-setup timing is only valid in the sequential path (avoids race on TBB).
     uint64_t row_setup_ns = 0;
-    const bool use_tbb = (height_to_process >= 32);
+    const bool use_tbb = (height_to_process >= 16);
 
     auto process_rows = [&](i32 row_begin, i32 row_end) {
         // Precompute row pointers at row_begin to avoid per-row multiply-add.
@@ -239,7 +239,7 @@ bool SoftwareCompositor::composite_layer_non_normal_optimized(
             d_row += d_stride;
             s_row += s_stride;
         }
-    };        if (height_to_process >= 32) {
+    };        if (height_to_process >= 16) {
             if (cnt) cnt->used_parallel_composite.fetch_add(1, std::memory_order_relaxed);
             parallel_for_tracked(
                 tbb::blocked_range<i32>(y0, y1),

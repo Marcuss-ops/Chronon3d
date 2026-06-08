@@ -116,4 +116,108 @@ void clear_text_shadow_cache() {
     get_shadow_cache().clear();
 }
 
+// ── blur_bl_image_inplace ───────────────────────────────────────────
+// Separable box blur directly on BLImage PRGB32 pixels.
+// Uses sliding-window sum (O(w×h)) — same algorithm as Framebuffer blur
+// but operates on premultiplied-alpha uint32 data, avoiding the
+// intermediate Framebuffer allocation + copy in glow/shadow pipelines.
+
+void blur_bl_image_inplace(BLImage& img, float radius) {
+    const int r = std::max(1, static_cast<int>(std::round(radius)));
+
+    BLImageData data;
+    if (img.getData(&data) != BL_SUCCESS || !data.pixelData) return;
+
+    const int w = data.size.w;
+    const int h = data.size.h;
+    if (w <= 0 || h <= 0) return;
+    const int stride = static_cast<int>(data.stride / sizeof(uint32_t));
+    auto* pixels = static_cast<uint32_t*>(data.pixelData);
+
+    // Temporary buffer for horizontal pass result
+    std::vector<uint32_t> tmp(static_cast<size_t>(w) * static_cast<size_t>(h));
+
+    // Horizontal pass
+    for (int y = 0; y < h; ++y) {
+        uint64_t sum_r = 0, sum_g = 0, sum_b = 0, sum_a = 0;
+        const uint32_t* row = pixels + y * stride;
+
+        // Initialize sliding window
+        for (int x = 0; x <= r && x < w; ++x) {
+            const uint32_t p = row[x];
+            sum_a += (p >> 24) & 0xFF;
+            sum_r += (p >> 16) & 0xFF;
+            sum_g += (p >>  8) & 0xFF;
+            sum_b +=  p        & 0xFF;
+        }
+        const int win_size = 2 * r + 1;
+        for (int x = 0; x < w; ++x) {
+            const uint64_t n = static_cast<uint64_t>(std::min(win_size, std::min(x + r, w - 1) - std::max(x - r, 0) + 1));
+            const uint32_t avg_a = static_cast<uint32_t>(sum_a / n);
+            const uint32_t avg_r = static_cast<uint32_t>(sum_r / n);
+            const uint32_t avg_g = static_cast<uint32_t>(sum_g / n);
+            const uint32_t avg_b = static_cast<uint32_t>(sum_b / n);
+            tmp[y * w + x] = (avg_a << 24) | (avg_r << 16) | (avg_g << 8) | avg_b;
+
+            // Slide window: remove left, add right
+            const int left = x - r;
+            if (left >= 0) {
+                const uint32_t pl = row[left];
+                sum_a -= (pl >> 24) & 0xFF;
+                sum_r -= (pl >> 16) & 0xFF;
+                sum_g -= (pl >>  8) & 0xFF;
+                sum_b -=  pl        & 0xFF;
+            }
+            const int right = x + r + 1;
+            if (right < w) {
+                const uint32_t pr = row[right];
+                sum_a += (pr >> 24) & 0xFF;
+                sum_r += (pr >> 16) & 0xFF;
+                sum_g += (pr >>  8) & 0xFF;
+                sum_b +=  pr        & 0xFF;
+            }
+        }
+    }
+
+    // Vertical pass (read from tmp, write back to pixels)
+    const uint32_t* src = tmp.data();
+    for (int x = 0; x < w; ++x) {
+        uint64_t sum_r = 0, sum_g = 0, sum_b = 0, sum_a = 0;
+
+        for (int y = 0; y <= r && y < h; ++y) {
+            const uint32_t p = src[y * w + x];
+            sum_a += (p >> 24) & 0xFF;
+            sum_r += (p >> 16) & 0xFF;
+            sum_g += (p >>  8) & 0xFF;
+            sum_b +=  p        & 0xFF;
+        }
+        const int win_size = 2 * r + 1;
+        for (int y = 0; y < h; ++y) {
+            const uint32_t n32 = static_cast<uint32_t>(std::min(win_size, std::min(y + r, h - 1) - std::max(y - r, 0) + 1));
+            const uint32_t avg_a = static_cast<uint32_t>(sum_a / n32);
+            const uint32_t avg_r = static_cast<uint32_t>(sum_r / n32);
+            const uint32_t avg_g = static_cast<uint32_t>(sum_g / n32);
+            const uint32_t avg_b = static_cast<uint32_t>(sum_b / n32);
+            pixels[y * stride + x] = (avg_a << 24) | (avg_r << 16) | (avg_g << 8) | avg_b;
+
+            const int top = y - r;
+            if (top >= 0) {
+                const uint32_t pt = src[top * w + x];
+                sum_a -= (pt >> 24) & 0xFF;
+                sum_r -= (pt >> 16) & 0xFF;
+                sum_g -= (pt >>  8) & 0xFF;
+                sum_b -=  pt        & 0xFF;
+            }
+            const int bottom = y + r + 1;
+            if (bottom < h) {
+                const uint32_t pb = src[bottom * w + x];
+                sum_a += (pb >> 24) & 0xFF;
+                sum_r += (pb >> 16) & 0xFF;
+                sum_g += (pb >>  8) & 0xFF;
+                sum_b +=  pb        & 0xFF;
+            }
+        }
+    }
+}
+
 } // namespace chronon3d::renderer

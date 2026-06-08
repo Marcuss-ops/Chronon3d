@@ -4,9 +4,9 @@
 #include <chronon3d/text/font_engine.hpp>
 
 #include <algorithm>
+#include <array>
 #include <string>
 #include <string_view>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -45,9 +45,14 @@ struct TextLayoutInput {
     // Legacy per-char callback (used when font_engine is null)
     const void* char_width_ctx{nullptr};
     float (*char_width_fn)(const void* ctx, char c, float font_size){nullptr};
-    // New: FreeType/HarfBuzz-based measurement (preferred when set)
+    // FreeType/HarfBuzz-based measurement (used by TextAnimator for per-glyph bbox)
     const FontEngine* font_engine{nullptr};
     FontSpec font_spec{};
+    // Blend2D-based measurement (preferred for layout; eliminates FT+HB vs B2D
+    // discrepancy since the same engine measures and renders).  bl_font_ptr
+    // points to a BLFontFace; bl_measure_fn creates BLFont at requested size.
+    const void* bl_font_ptr{nullptr};
+    float (*bl_measure_fn)(const void* font_face, std::string_view text, float font_size){nullptr};
 };
 
 struct TextLayoutLine {
@@ -83,40 +88,45 @@ private:
         return std::max(0.0f, width);
     }
 
-    // OPT: small local cache for measure_string results during word-wrap.
-    // Keys on (font_path, font_weight, text, size) to avoid cross-style contamination.
-    struct MeasureCache {
-        struct Key {
-            std::string font_path;
-            int   font_weight{0};
-            std::string text;
-            float size{0.0f};
-            bool operator==(const Key& o) const noexcept {
-                return font_path == o.font_path && font_weight == o.font_weight &&
-                       text == o.text && size == o.size;
-            }
-        };
-        struct KeyHash {
-            size_t operator()(const Key& k) const noexcept {
-                size_t h = 0;
-                h ^= std::hash<std::string>{}(k.font_path)  + 0x9e3779b9 + (h << 6) + (h >> 2);
-                h ^= std::hash<int>{}(k.font_weight)        + 0x9e3779b9 + (h << 6) + (h >> 2);
-                h ^= std::hash<std::string>{}(k.text)        + 0x9e3779b9 + (h << 6) + (h >> 2);
-                h ^= std::hash<float>{}(k.size)              + 0x9e3779b9 + (h << 6) + (h >> 2);
-                return h;
-            }
-        };
-        std::unordered_map<Key, float, KeyHash> cache;
-        float get(const Key& k, auto&& measurer) {
-            auto it = cache.find(k);
-            if (it != cache.end()) return it->second;
-            float w = measurer();
-            cache[k] = w;
-            return w;
+    // Fast single-character width lookup using precomputed ASCII table.
+    // Prefers Blend2D when available (same engine as rasterization).
+    // Falls back to font_engine measurement for non-ASCII or font mismatch.
+    static float measure_single_char(char c, bool have_precomputed,
+                                      const std::array<float, 256>& char_widths,
+                                      const TextLayoutInput& input,
+                                      const TextStyle& style, float font_size) {
+        // Precomputed table check (works for both B2D and FT+HB paths)
+        if (have_precomputed && style.font_path.empty() && style.size <= 0.0f) {
+            const unsigned char uc = static_cast<unsigned char>(c);
+            if (char_widths[uc] > 0.0f) return char_widths[uc];
         }
-    };
+        // Blend2D fast path for single character
+        if (input.bl_measure_fn && input.bl_font_ptr && style.font_path.empty()) {
+            char buf[2] = {c, '\0'};
+            return input.bl_measure_fn(input.bl_font_ptr, std::string_view(buf, 1), font_size);
+        }
+        if (input.font_engine) {
+            const FontSpec spec = FontSpec{
+                .font_path = style.font_path.empty() ? input.font_spec.font_path : style.font_path,
+                .font_family = style.font_family.empty() ? input.font_spec.font_family : style.font_family,
+                .font_weight = style.font_weight ? style.font_weight : input.font_spec.font_weight,
+                .font_style = style.font_style.empty() ? input.font_spec.font_style : style.font_style,
+            };
+            char buf[2] = {c, '\0'};
+            return input.font_engine->measure_text(buf, spec, font_size);
+        }
+        return measure_char_legacy(input, c, font_size);
+    }
 
     static float measure_string(const TextLayoutInput& input, const TextStyle& style, std::string_view s, float font_size) {
+        // Blend2D path (preferred): uses same engine as rasterization,
+        // eliminating the FreeType+HarfBuzz vs Blend2D width discrepancy.
+        // Only used when the style inherits the input font (no per-run override).
+        if (input.bl_measure_fn && input.bl_font_ptr && style.font_path.empty()) {
+            float width = input.bl_measure_fn(input.bl_font_ptr, s, font_size);
+            width += style.tracking * static_cast<float>(s.size());
+            return std::max(0.0f, width);
+        }
         if (input.font_engine) {
             const FontSpec spec = FontSpec{
                 .font_path = style.font_path.empty() ? input.font_spec.font_path : style.font_path,
@@ -173,10 +183,35 @@ private:
         const float line_height = std::max(1.0f, font_size * input.style.line_height);
         const float max_width = input.box.enabled && input.box.size.x > 0.0f ? input.box.size.x : 0.0f;
 
-        // OPT: local measurement cache to avoid redundant FontEngine calls
-        MeasureCache ms_cache;
+        // Precompute ASCII character widths at this font size for O(1)
+        // lookup during wrapping.  Uses Blend2D when available (same engine
+        // as rasterization), falling back to FT+HarfBuzz otherwise.
+        std::array<float, 256> char_widths{};
+        const bool use_bl2d = input.bl_measure_fn != nullptr && input.bl_font_ptr != nullptr;
+        const bool have_precomputed = use_bl2d || input.font_engine != nullptr;
+        if (have_precomputed) {
+            for (int c = 32; c < 127; ++c) {
+                char buf[2] = {static_cast<char>(c), '\0'};
+                if (use_bl2d) {
+                    char_widths[c] = input.bl_measure_fn(
+                        input.bl_font_ptr, std::string_view(buf, 1), font_size);
+                } else {
+                    char_widths[c] = input.font_engine->measure_text(
+                        buf, input.font_spec, font_size);
+                }
+            }
+        }
 
         auto measure_char = [&](char c) -> float {
+            if (have_precomputed) {
+                const unsigned char uc = static_cast<unsigned char>(c);
+                if (char_widths[uc] > 0.0f) return char_widths[uc];
+            }
+            if (use_bl2d) {
+                char buf[2] = {c, '\0'};
+                return input.bl_measure_fn(
+                    input.bl_font_ptr, std::string_view(buf, 1), font_size);
+            }
             if (input.font_engine) {
                 char buf[2] = {c, '\0'};
                 return input.font_engine->measure_text(buf, input.font_spec, font_size);
@@ -185,13 +220,7 @@ private:
         };
 
         auto measure_string_input = [&](std::string_view s) -> float {
-            MeasureCache::Key k{
-                .font_path = input.style.font_path,
-                .font_weight = input.style.font_weight,
-                .text = std::string(s),
-                .size = font_size
-            };
-            return ms_cache.get(k, [&] { return measure_string(input, input.style, s, font_size); });
+            return measure_string(input, input.style, s, font_size);
         };
 
         std::vector<std::string> raw_lines;
@@ -353,23 +382,23 @@ private:
         const float font_size_hint = std::max(1.0f, input.style.size);
         result.font_size = font_size_hint;
 
-        // OPT: local measurement cache for inline runs
-        MeasureCache ms_cache;
-
-        auto cached_measure_string = [&](const TextStyle& style, const std::string& s, float size) -> float {
-            MeasureCache::Key k{
-                .font_path = style.font_path.empty() ? input.style.font_path : style.font_path,
-                .font_weight = style.font_weight ? style.font_weight : input.style.font_weight,
-                .text = s,
-                .size = size
-            };
-            return ms_cache.get(k, [&] { return measure_string(input, style, s, size); });
-        };
-
-        auto cached_measure_run_width = [&](const TextLayoutRun& run, float size) -> float {
-            if (run.use_advance_override) return std::max(0.0f, run.advance_override);
-            return cached_measure_string(run.style, run.text, size);
-        };
+        // Precompute ASCII character widths (same approach as layout_single_run).
+        // Uses Blend2D when available, falling back to FT+HarfBuzz.
+        std::array<float, 256> char_widths{};
+        const bool use_bl2d = input.bl_measure_fn != nullptr && input.bl_font_ptr != nullptr;
+        const bool have_precomputed = use_bl2d || input.font_engine != nullptr;
+        if (have_precomputed) {
+            for (int c = 32; c < 127; ++c) {
+                char buf[2] = {static_cast<char>(c), '\0'};
+                if (use_bl2d) {
+                    char_widths[c] = input.bl_measure_fn(
+                        input.bl_font_ptr, std::string_view(buf, 1), font_size_hint);
+                } else {
+                    char_widths[c] = input.font_engine->measure_text(
+                        buf, input.font_spec, font_size_hint);
+                }
+            }
+        }
 
         struct LineState {
             std::vector<TextLayoutLineRun> runs;
@@ -424,8 +453,7 @@ private:
             const float run_size = std::max(1.0f, piece.style.size);
             const float ascent = run_size * 0.78f;
             const float descent = run_size * 0.22f;
-            // OPT: cached measurement
-            const float width = cached_measure_run_width(piece, run_size);
+            const float width = measure_run_width(input, piece, run_size);
 
             TextLayoutLineRun layout_run;
             layout_run.text = piece.text;
@@ -469,9 +497,8 @@ private:
                         continue;
                     }
 
-                    const std::string glyph(1, c);
-                    // OPT: cached measurement
-                    const float cw = cached_measure_string(run.style, glyph, run_size);
+                    const float cw = measure_single_char(c, have_precomputed, char_widths,
+                        input, run.style, run_size);
                     if (current.width + cw > max_width_limit && !current.runs.empty()) {
                         push_current();
                     }
@@ -480,6 +507,7 @@ private:
                             continue;
                         }
                     }
+                    const std::string glyph(1, c);
                     append_piece(run, glyph);
                 }
                 return;
@@ -494,8 +522,7 @@ private:
                     return;
                 }
 
-                // OPT: cached measurement
-                const float token_w = cached_measure_string(run.style, token, run_size);
+                const float token_w = measure_string(input, run.style, token, run_size);
 
                 if (token_is_space) {
                     if (current.runs.empty()) {
@@ -518,12 +545,12 @@ private:
 
                 if (token_w > max_width_limit && current.runs.empty()) {
                     for (char c : token) {
-                        const std::string glyph(1, c);
-                        // OPT: cached measurement
-                        const float cw = cached_measure_string(run.style, glyph, run_size);
+                        const float cw = measure_single_char(c, have_precomputed, char_widths,
+                            input, run.style, run_size);
                         if (current.width + cw > max_width_limit && !current.runs.empty()) {
                             push_current();
                         }
+                        const std::string glyph(1, c);
                         append_piece(run, glyph);
                     }
                 } else {
@@ -614,13 +641,11 @@ private:
                     auto& run = line.runs.front();
                     while (!run.text.empty() && line.width > max_width_limit) {
                         run.text.pop_back();
-                        // OPT: cached measurement
-                        run.width = cached_measure_string(run.style, run.text, std::max(1.0f, run.style.size));
+                        run.width = measure_string(input, run.style, run.text, std::max(1.0f, run.style.size));
                         line.width = run.width;
                     }
                     run.text += "...";
-                    // OPT: cached measurement
-                    run.width = cached_measure_string(run.style, run.text, std::max(1.0f, run.style.size));
+                    run.width = measure_string(input, run.style, run.text, std::max(1.0f, run.style.size));
                     line.width = run.width;
                 }
             }

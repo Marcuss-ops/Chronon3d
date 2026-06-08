@@ -57,31 +57,20 @@ void draw_text_shadow(SoftwareRenderer& renderer, Framebuffer& fb, const RenderN
             ctx.fillAll();
         }
 
-        auto cached_img = std::make_shared<BLImage>(shadow_img);
-
-        if (shadow.blur > 0.0f) {
-            auto shadow_fb = renderer.framebuffer_pool()->acquire(shadow_img.width(), shadow_img.height(), true);
-            chronon3d::blend2d_bridge::composite_bl_image(*shadow_fb, shadow_img, 0, 0, 1.0f, BlendMode::Normal);
-            renderer.apply_blur(*shadow_fb, shadow.blur);
-
-            const f32 shadow_opacity = shadow.opacity * shadow.color.a;
-            if (use_geo_transform) {
-                int x = static_cast<int>(std::lround(raster.x_offset + shadow.offset.x));
-                int y = static_cast<int>(std::lround(raster.y_offset + shadow.offset.y));
-                chronon3d::blend2d_bridge::composite_framebuffer(fb, *shadow_fb, x, y, opacity * shadow_opacity, BlendMode::Normal);
-            } else {
-                Mat4 shadow_model = model * glm::translate(Mat4(1.0f), Vec3(raster.x_offset + shadow.offset.x, raster.y_offset + shadow.offset.y, 0.0f));
-                chronon3d::blend2d_bridge::composite_framebuffer_transformed(fb, *shadow_fb, shadow_model, opacity * shadow_opacity, BlendMode::Normal);
-            }
-            return;
+        // Blur applied directly on BLImage (avoids intermediate Framebuffer
+        // allocation + copy, same optimization as text_glow).
+        const f32 shadow_blur = shadow.blur;
+        if (shadow_blur > 0.0f) {
+            blur_bl_image_inplace(shadow_img, shadow_blur);
         }
 
-        if (cached_img) {
+        auto cached_img = std::make_shared<BLImage>(shadow_img);
+        {
             std::lock_guard<std::mutex> lock(text_shadow_cache_mutex());
             size_t weight = cached_img->width() * cached_img->height() * 4;
             get_shadow_cache().put(key, cached_img, weight);
-            shadow_cache = cached_img;
         }
+        shadow_cache = cached_img;
     }
 
     const f32 shadow_opacity = shadow.opacity * shadow.color.a;
