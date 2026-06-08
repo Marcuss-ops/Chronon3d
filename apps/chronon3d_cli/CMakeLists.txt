@@ -29,6 +29,7 @@ add_library(chronon3d_cli_render STATIC
     utils/job/render_job_execute.cpp
     utils/job/render_job_write_frame.cpp
     utils/job/cli_render_utils.cpp
+    utils/job/report/render_job_report.cpp
 )
 target_include_directories(chronon3d_cli_render PRIVATE ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli)
 target_link_libraries(chronon3d_cli_render PRIVATE chronon3d_cli_core chronon3d_pipeline chronon3d_backend_image CLI11::CLI11 spdlog::spdlog_header_only fmt::fmt)
