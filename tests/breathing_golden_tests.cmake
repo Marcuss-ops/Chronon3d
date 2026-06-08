@@ -37,3 +37,20 @@ set_target_properties(chronon3d_determinism_test PROPERTIES UNITY_BUILD OFF)
 chronon3d_enable_test_pch(chronon3d_determinism_test)
 add_test(NAME chronon3d_determinism_test COMMAND chronon3d_determinism_test WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
+# ── TBB Workers Parallelism Test: verify tbb_active_workers_peak > 1 ──
+add_executable(chronon3d_tbb_workers_test
+    golden/test_tbb_workers_parallelism.cpp
+)
+
+target_link_libraries(chronon3d_tbb_workers_test
+    PRIVATE
+        chronon3d_backend_software
+        chronon3d_scene
+)
+
+target_compile_definitions(chronon3d_tbb_workers_test PRIVATE CHRONON3D_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+target_include_directories(chronon3d_tbb_workers_test PRIVATE ${CMAKE_SOURCE_DIR})
+set_target_properties(chronon3d_tbb_workers_test PROPERTIES UNITY_BUILD OFF)
+chronon3d_enable_test_pch(chronon3d_tbb_workers_test)
+add_test(NAME chronon3d_tbb_workers_test COMMAND chronon3d_tbb_workers_test WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
