@@ -141,6 +141,7 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
                         failed.store(true);
                         return;
                     }
+                    const auto frame_render_t1 = std::chrono::steady_clock::now();
                     const auto png = (frames_dir / fmt::format("frame_{:06d}.png", f - start)).string();
                     if (!save_png(*fb, png)) {
                         spdlog::error("[video] PNG write failed: {}", png);
@@ -148,11 +149,15 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
                         return;
                     }
                     const auto frame_t1 = std::chrono::steady_clock::now();
+                    const double render_ms = std::chrono::duration<double, std::milli>(frame_render_t1 - frame_t0).count();
+                    const double encode_ms = std::chrono::duration<double, std::milli>(frame_t1 - frame_render_t1).count();
                     local_frames.push_back({
                         .frame_number = static_cast<int>(f),
                         .duration_ms = std::chrono::duration<double, std::milli>(frame_t1 - frame_t0).count(),
                         .cache_hit = (hits_after_render > hits_before),
-                        .dirty_area_ratio = dirty_ratio
+                        .dirty_area_ratio = dirty_ratio,
+                        .graph_eval_ms = render_ms,
+                        .encoder_ms = encode_ms,
                     });
                     
                     int done = ++frames_done;

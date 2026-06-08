@@ -352,7 +352,8 @@ TEST_CASE("PipeExportSession: writer thread detects encoder write failure") {
     // Enqueue one frame — encoder is not open, so write_frame will fail
     auto fb = std::make_shared<Framebuffer>(make_fb(32, 32));
     auto arena_buf = arena.acquire();
-    queue.enqueue(RenderFramePackage{fb, arena_buf});
+    std::vector<FrameEncoderTelemetryRecord> frame_encoder_telemetry;
+    queue.enqueue(RenderFramePackage{.frame_number = 0, .framebuffer = fb, .arena = arena_buf});
 
     WriterThreadContext ctx{
         .queue = queue,
@@ -362,6 +363,7 @@ TEST_CASE("PipeExportSession: writer thread detects encoder write failure") {
         .encoder = *encoder,
         .renderer = renderer,
         .writer_encode_us_total = encode_us,
+        .frame_encoder_telemetry = frame_encoder_telemetry,
     };
 
     // Signal done so the thread will exit after draining
@@ -398,6 +400,7 @@ TEST_CASE("PipeExportSession: writer thread exits cleanly on empty queue with do
 
     SoftwareRenderer renderer;
 
+    std::vector<FrameEncoderTelemetryRecord> frame_encoder_telemetry;
     WriterThreadContext ctx{
         .queue = queue,
         .writer_failed = writer_failed,
@@ -406,6 +409,7 @@ TEST_CASE("PipeExportSession: writer thread exits cleanly on empty queue with do
         .encoder = encoder,
         .renderer = renderer,
         .writer_encode_us_total = encode_us,
+        .frame_encoder_telemetry = frame_encoder_telemetry,
     };
 
     // Should exit immediately without blocking
@@ -425,7 +429,7 @@ TEST_CASE("PipeExportSession: queue backpressure triggers on full queue") {
     // Fill the queue beyond the backpressure threshold
     for (size_t i = 0; i < kMaxRenderQueueDepth + 2; ++i) {
         auto fb = std::make_shared<Framebuffer>(make_fb(4, 4));
-        queue.enqueue(RenderFramePackage{fb, nullptr});
+        queue.enqueue(RenderFramePackage{.frame_number = static_cast<Frame>(i), .framebuffer = fb, .arena = nullptr});
     }
 
     // The render loop should detect queue.size_approx() > 128

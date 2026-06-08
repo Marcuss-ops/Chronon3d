@@ -94,7 +94,13 @@ RUN_COLUMNS = [
     'compiler_info', 'os', 'cpu_model', 'cores',
 ]
 
-FRAME_COLUMNS = ['run_id', 'frame_number', 'duration_ms', 'cache_hit', 'dirty_area_ratio']
+FRAME_COLUMNS = [
+    'run_id', 'frame_number', 'duration_ms', 'cache_hit', 'dirty_area_ratio',
+    'graph_eval_ms', 'queue_wait_ms', 'conversion_copy_ms', 'encoder_ms', 'pipe_write_ms',
+    'native_convert_ms', 'native_send_ms', 'native_receive_ms', 'native_mux_ms',
+    'dirty_rect_enabled', 'dirty_rect_x0', 'dirty_rect_y0', 'dirty_rect_x1', 'dirty_rect_y1',
+    'tile_execution_used', 'fast_path_reused', 'graph_reused',
+]
 
 PHASE_COLUMNS = ['run_id', 'phase_name', 'duration_ms']
 

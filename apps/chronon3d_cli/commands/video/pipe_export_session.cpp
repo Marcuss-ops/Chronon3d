@@ -67,6 +67,16 @@ void run_writer_thread(const WriterThreadContext& ctx) {
             const uint64_t enc_us = static_cast<uint64_t>(
                 std::chrono::duration<double, std::micro>(enc_t1 - enc_t0).count());
             ctx.writer_encode_us_total.fetch_add(enc_us, std::memory_order_relaxed);
+            ctx.frame_encoder_telemetry.push_back({
+                .frame_number = package.frame_number,
+                .conversion_copy_ms = ctx.encoder.last_frame_telemetry().conversion_copy_ms,
+                .encoder_ms = ctx.encoder.last_frame_telemetry().encoder_ms,
+                .pipe_write_ms = ctx.encoder.last_frame_telemetry().pipe_write_ms,
+                .native_convert_ms = ctx.encoder.last_frame_telemetry().native_convert_ms,
+                .native_send_ms = ctx.encoder.last_frame_telemetry().native_send_ms,
+                .native_receive_ms = ctx.encoder.last_frame_telemetry().native_receive_ms,
+                .native_mux_ms = ctx.encoder.last_frame_telemetry().native_mux_ms,
+            });
         }
 
         ctx.triple_arena.release(package.arena);
@@ -167,7 +177,9 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
             }
 
             ctx.queue.enqueue(
-                RenderFramePackage{std::move(fb), std::move(current_arena)});
+                RenderFramePackage{.frame_number = current_frame,
+                                   .framebuffer = std::move(fb),
+                                   .arena = std::move(current_arena)});
 
             const auto wait_t1 = std::chrono::steady_clock::now();
             const double wait_ms =
@@ -181,11 +193,13 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
 
             ++status.frames_written;
 
-            result.telemetry_frames.push_back({
+            ctx.telemetry_frames.push_back({
                 .frame_number = static_cast<int>(current_frame),
-                .duration_ms = frame_ms,
+                .duration_ms = frame_ms + wait_ms,
                 .cache_hit = true,
                 .dirty_area_ratio = dirty_ratio,
+                .graph_eval_ms = frame_ms,
+                .queue_wait_ms = wait_ms,
                 .dirty_rect_enabled = dirty_rect_enabled,
                 .dirty_rect_x0 = dirty_rect ? dirty_rect->x0 : 0,
                 .dirty_rect_y0 = dirty_rect ? dirty_rect->y0 : 0,

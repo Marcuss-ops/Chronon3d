@@ -253,7 +253,10 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         const Camera2_5D& cam = ctx.camera_2_5d;
         static_cam_changed = detail::camera_changed(
             cam, &sw_renderer->m_prev_camera, sw_renderer->m_prev_camera_valid);
-        scene_is_static = sw_renderer->m_scene_hasher.is_static_scene(scene);
+        // Use frame-aware static check so that animations which have reached
+        // their terminal state (e.g. tracking_breathing at frame 120+) are
+        // treated as static, enabling consecutive-frame fast-path reuse.
+        scene_is_static = sw_renderer->m_scene_hasher.is_static_scene_at(scene, frame);
         current_active_at_fp = sw_renderer->m_scene_hasher.compute_active_at_fingerprint(scene, frame);
     }
 
@@ -519,9 +522,10 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
 
     // ── Pre-frame pool preallocation: ensure the exact bucket sizes the
     // upcoming frame will need are already in the pool, eliminating allocation
-    // stalls during graph execution. Skip when the graph is reused — the
-    // pool is already warm from the first build of this graph.
-    if (sw_renderer && sw_renderer->framebuffer_pool() && !graph_reused) {
+    // stalls during graph execution.  Always run (not just when !graph_reused)
+    // because even a warm pool can fragment or exhaust ready buffers after
+    // ~100 frames, causing the 4× slowdown observed at frame ~104 in exports.
+    if (sw_renderer && sw_renderer->framebuffer_pool()) {
         const auto t_prealloc0 = std::chrono::steady_clock::now();
         auto predictions = predict_pool_requirements(compiled, width, height);
         auto pool = sw_renderer->framebuffer_pool();

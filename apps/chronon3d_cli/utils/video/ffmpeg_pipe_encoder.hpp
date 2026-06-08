@@ -11,6 +11,16 @@ namespace chronon3d::cli {
 
 struct FfmpegPipeOptions;
 
+struct EncoderFrameTelemetry {
+    double conversion_copy_ms{0.0};
+    double encoder_ms{0.0};
+    double pipe_write_ms{0.0};
+    double native_convert_ms{0.0};
+    double native_send_ms{0.0};
+    double native_receive_ms{0.0};
+    double native_mux_ms{0.0};
+};
+
 // ── Abstract video encoder interface ────────────────────────────────────────
 // Implemented by both FfmpegPipeEncoder (external ffmpeg subprocess via pipe)
 // and NativeAvEncoder (in-process libavcodec/libavformat).
@@ -20,6 +30,7 @@ struct IVideoEncoder {
     virtual bool write_frame(const Framebuffer& fb) = 0;
     virtual bool close() = 0;
     [[nodiscard]] virtual uint64_t frames_written() const = 0;
+    [[nodiscard]] virtual EncoderFrameTelemetry last_frame_telemetry() const { return {}; }
 
     // ── Native encoder telemetry accessors ──
     // Return 0.0 for pipe backend (no native encoding phases).
@@ -68,6 +79,7 @@ public:
     bool close() override;
 
     [[nodiscard]] uint64_t frames_written() const override { return frames_written_; }
+    [[nodiscard]] EncoderFrameTelemetry last_frame_telemetry() const override { return last_frame_telemetry_; }
     [[nodiscard]] uint64_t bytes_written() const { return bytes_written_; }
     [[nodiscard]] bool is_open() const { return pipe_ != nullptr; }
     [[nodiscard]] double total_write_blocked_ms() const { return total_write_blocked_ms_; }
@@ -93,6 +105,7 @@ private:
     uint64_t frames_written_{0};
     uint64_t bytes_written_{0};
     double total_write_blocked_ms_{0.0};
+    EncoderFrameTelemetry last_frame_telemetry_{};
     bool pipe_failed_{false};
 
 #ifdef __linux__
