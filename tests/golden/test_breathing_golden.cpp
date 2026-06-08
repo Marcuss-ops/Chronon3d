@@ -107,7 +107,10 @@ CompareResult compare_framebuffers(const Framebuffer& rendered,
 
     for (int y = 0; y < rendered.height(); ++y) {
         for (int x = 0; x < rendered.width(); ++x) {
-            const Color a = rendered.get_pixel(x, y);
+            // Both rendered (linear) and golden (sRGB PNG loaded as [0,1]) must be
+        // compared in the same color space.  save_png() converts linear→sRGB
+        // before writing, so convert rendered to sRGB to match.
+        const Color a = rendered.get_pixel(x, y).to_srgb();
             const Color b = golden.get_pixel(x, y);
             const float dr = std::abs(a.r - b.r);
             const float dg = std::abs(a.g - b.g);

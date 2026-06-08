@@ -708,6 +708,7 @@ export default function MetricsGrid({ runDetail }) {
           </div>
           <div className="metric-value" style={{ color: 'var(--color-accent)' }}>
             {getCounter('tbb_arena_max_concurrency') || '—'}
+            <span className="metric-unit">workers</span>
           </div>
           <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
             worker thread TBB configurabili
@@ -720,6 +721,7 @@ export default function MetricsGrid({ runDetail }) {
           </div>
           <div className="metric-value" style={{ color: getCounter('tbb_active_workers_peak') >= getCounter('system_logical_cores') ? 'var(--color-success)' : 'var(--color-warning)' }}>
             {getCounter('tbb_active_workers_peak') || '—'}
+            <span className="metric-unit">workers</span>
           </div>
           <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
             massimo worker attivi simultaneamente
@@ -764,6 +766,139 @@ export default function MetricsGrid({ runDetail }) {
           </div>
           <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
             livelli sequenziali (troppo piccoli per parallelizzare)
+          </div>
+        </div>
+      </section>
+
+      {/* ── Parallelism Decisions ── */}
+      <h3 className="section-subtitle" style={{ marginTop: '24px', marginBottom: '12px', fontSize: '1rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+        ⚡ Parallelism Decisions
+      </h3>
+      <section className="metrics-grid">
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-accent)' }}>
+          <div className="metric-label">used_parallel_clear</div>
+          <div className="metric-value" style={{ color: getCounter('used_parallel_clear') > 0 ? 'var(--color-success)' : 'var(--color-warning)' }}>
+            {getCounter('used_parallel_clear') || 0}
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            clear parallele eseguite
+          </div>
+        </div>
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-accent)' }}>
+          <div className="metric-label">skipped_clear_small</div>
+          <div className="metric-value" style={{ color: getCounter('skipped_clear_small') > 0 ? 'var(--color-warning)' : 'var(--color-success)' }}>
+            {getCounter('skipped_clear_small') || 0}
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            clear saltate per area troppo piccola
+          </div>
+        </div>
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-accent)' }}>
+          <div className="metric-label">used_parallel_transform</div>
+          <div className="metric-value" style={{ color: getCounter('used_parallel_transform') > 0 ? 'var(--color-success)' : 'var(--color-warning)' }}>
+            {getCounter('used_parallel_transform') || 0}
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            transform parallele eseguite
+          </div>
+        </div>
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-accent)' }}>
+          <div className="metric-label">skipped_transform_small</div>
+          <div className="metric-value" style={{ color: getCounter('skipped_transform_small') > 0 ? 'var(--color-warning)' : 'var(--color-success)' }}>
+            {getCounter('skipped_transform_small') || 0}
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            transform saltate per area troppo piccola
+          </div>
+        </div>
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-accent)' }}>
+          <div className="metric-label">used_parallel_composite</div>
+          <div className="metric-value" style={{ color: getCounter('used_parallel_composite') > 0 ? 'var(--color-success)' : 'var(--color-warning)' }}>
+            {getCounter('used_parallel_composite') || 0}
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            composite parallele eseguite
+          </div>
+        </div>
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-accent)' }}>
+          <div className="metric-label">skipped_composite_small</div>
+          <div className="metric-value" style={{ color: getCounter('skipped_composite_small') > 0 ? 'var(--color-warning)' : 'var(--color-success)' }}>
+            {getCounter('skipped_composite_small') || 0}
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            composite saltate per row_count &lt; 32
+          </div>
+        </div>
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-accent)' }}>
+          <div className="metric-label">Level Parallel</div>
+          <div className="metric-value" style={{ color: getCounter('level_parallel_count') > 0 ? 'var(--color-success)' : 'var(--color-warning)' }}>
+            {getCounter('level_parallel_count') || 0}
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            livelli con >1 nodo eseguiti in parallelo
+          </div>
+        </div>
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-accent)' }}>
+          <div className="metric-label">Level Sequential</div>
+          <div className="metric-value" style={{ color: getCounter('level_sequential_count') > 0 ? 'var(--color-accent)' : 'var(--color-success)' }}>
+            {getCounter('level_sequential_count') || 0}
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            livelli con ≤1 nodo eseguiti in sequenziale
+          </div>
+        </div>
+      </section>
+
+      {/* ── Phase CPU Efficiency ── */}
+      <h3 className="section-subtitle" style={{ marginTop: '24px', marginBottom: '12px', fontSize: '1rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+        📊 Phase CPU Efficiency
+      </h3>
+      <section className="metrics-grid">
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-info)' }}>
+          <div className="metric-label">Sequential Level Exec</div>
+          <div className="metric-value">
+            {getCounter('sequential_level_execute_ms').toFixed(2)}
+            <span className="metric-unit">ms</span>
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            tempo livelli sequenziali
+          </div>
+        </div>
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-info)' }}>
+          <div className="metric-label">FB Copy Duration</div>
+          <div className="metric-value" style={{ color: getCounter('framebuffer_copy_ms') > 30 ? 'var(--color-danger)' : 'var(--color-accent)' }}>
+            {getCounter('framebuffer_copy_ms').toFixed(2)}
+            <span className="metric-unit">ms</span>
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            copia pixel framebuffer
+          </div>
+        </div>
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-info)' }}>
+          <div className="metric-label">FB Copy Parallel Calls</div>
+          <div className="metric-value" style={{ color: getCounter('framebuffer_copy_parallel_calls') > 0 ? 'var(--color-success)' : 'var(--color-accent)' }}>
+            {getCounter('framebuffer_copy_parallel_calls') || 0}
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            copie parallele di framebuffer
+          </div>
+        </div>
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-info)' }}>
+          <div className="metric-label">Idle Worker Entries</div>
+          <div className="metric-value">
+            {getCounter('parallel_idle_worker_entry_sum') || 0}
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            osservazioni worker idle
+          </div>
+        </div>
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-info)' }}>
+          <div className="metric-label">Idle Worker Samples</div>
+          <div className="metric-value">
+            {getCounter('parallel_idle_worker_samples') || 0}
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            campionamenti idle worker
           </div>
         </div>
       </section>

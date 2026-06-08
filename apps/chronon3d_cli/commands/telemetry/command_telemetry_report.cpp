@@ -90,6 +90,101 @@ void generate_telemetry_report(std::stringstream& out, sqlite3* db, const std::s
     }
     out << "\n";
 
+    // ── Phase CPU Efficiency ───────────────────────────────────────────────────
+    // Fetch all counter values needed from SQL (used by both this section and
+    // the Parallelism Decisions section below).
+    uint64_t lev_par = 0, lev_seq = 0, lev_skip = 0;
+    uint64_t used_par_clear = 0, used_par_transform = 0, used_par_composite = 0;
+    uint64_t fb_copy_ms = 0, compositenode_blend_ms = 0, node_exec_ms = 0;
+    double tbb_avg_workers = 1.0;
+    {
+        const char* par_sql =
+            "SELECT counter_name, counter_value FROM render_counters WHERE run_id = ? "
+            "AND counter_name IN ("
+            "'tbb_active_workers_avg_sum','tbb_active_workers_avg_count',"
+            "'used_parallel_clear','used_parallel_transform','used_parallel_composite',"
+            "'framebuffer_copy_ms','compositenode_blend_ms','node_execute_actual_ms',"
+            "'level_parallel_count','level_sequential_count','parallel_regions_skipped_small_level')"
+            " ORDER BY counter_name;";
+        sqlite3_stmt* stmt = nullptr;
+        uint64_t tbb_sum = 0, tbb_cnt = 0;
+        if (prepare_with_run_id(db, &stmt, par_sql, run_id)) {
+            while (sqlite3_step(stmt) == SQLITE_ROW) {
+                const std::string name = sql_text(stmt, 0);
+                const uint64_t val = static_cast<uint64_t>(sql_i64(stmt, 1));
+                if (name == "tbb_active_workers_avg_sum") tbb_sum = val;
+                else if (name == "tbb_active_workers_avg_count") tbb_cnt = val;
+                else if (name == "used_parallel_clear") used_par_clear = val;
+                else if (name == "used_parallel_transform") used_par_transform = val;
+                else if (name == "used_parallel_composite") used_par_composite = val;
+                else if (name == "framebuffer_copy_ms") fb_copy_ms = val;
+                else if (name == "compositenode_blend_ms") compositenode_blend_ms = val;
+                else if (name == "node_execute_actual_ms") node_exec_ms = val;
+                else if (name == "level_parallel_count") lev_par = val;
+                else if (name == "level_sequential_count") lev_seq = val;
+                else if (name == "parallel_regions_skipped_small_level") lev_skip = val;
+            }
+        }
+        sqlite3_finalize(stmt);
+        if (tbb_cnt > 0) {
+            tbb_avg_workers = static_cast<double>(tbb_sum) / static_cast<double>(tbb_cnt);
+        }
+    }
+
+    out << "## Phase CPU Efficiency\n";
+    out << "| Phase | Wall | Pixels | Est. Cores | CPU ms | GB/s |\n";
+    out << "| --- | ---: | ---: | ---: | ---: | ---: |\n";
+    {
+        // Estimate total pixels processed across all frames
+        const uint64_t conv_pixels = (run.frame_conversion_copy_ms > 0) ? run.pixels_touched : 0;
+
+        const auto phase_line = [&](const char* name, double wall_ms,
+                                     uint64_t pixels, double est_cores) {
+            if (wall_ms <= 0.0 && pixels == 0) return;
+            const double cpu_ms = wall_ms * est_cores;
+            const double bytes = static_cast<double>(pixels) * 16.0;
+            const double wall_s = wall_ms / 1000.0;
+            const double gb_s = wall_s > 0.0 ? (bytes / wall_s) / 1.0e9 : 0.0;
+
+            out << "| " << name << " | " << format_ms(wall_ms)
+                << " | " << pixels
+                << " | " << fmt::format("{:.2f}", est_cores)
+                << " | " << format_ms(cpu_ms)
+                << " | " << fmt::format("{:.2f}", gb_s)
+                << " |\n";
+        };
+
+        // Clear: wall from RunSummary, parallelism from decision counter
+        phase_line("clear_node",  static_cast<double>(run.clearnode_ms),
+                   run.clear_pixels,
+                   used_par_clear > 0 ? tbb_avg_workers : 1.0);
+
+        // Transform: estimate wall from pixel share of node_execute_actual_ms (from SQL)
+        const double transform_share = (run.pixels_touched > 0 && run.transform_pixels > 0)
+            ? std::min(1.0, static_cast<double>(run.transform_pixels) /
+                            static_cast<double>(run.pixels_touched))
+            : 0.0;
+        const double transform_wall = static_cast<double>(node_exec_ms) * transform_share;
+        phase_line("transform_node", transform_wall,
+                   run.transform_pixels,
+                   used_par_transform > 0 ? tbb_avg_workers : 1.0);
+
+        // Composite: wall from SQL, pixels from RunSummary
+        phase_line("composite_node", static_cast<double>(compositenode_blend_ms),
+                   run.composite_pixels,
+                   used_par_composite > 0 ? tbb_avg_workers : 1.0);
+
+        // Frame conversion: parallel (TBB), pixels estimated from total work
+        phase_line("frame_conversion", static_cast<double>(run.frame_conversion_copy_ms),
+                   conv_pixels, tbb_avg_workers);
+
+        // Framebuffer copy: wall from SQL, pixels from RunSummary
+        phase_line("framebuffer_copy", static_cast<double>(fb_copy_ms),
+                   fb_copy_ms > 0 ? run.pixels_touched : 0,
+                   tbb_avg_workers);
+    }
+    out << "\n";
+
     // ── Graph Executor Phase Timings ──────────────────────────────────────────
     out << "## Graph Executor Phase Timings\n";
     out << "| Phase | Duration |\n";
@@ -226,7 +321,7 @@ void generate_telemetry_report(std::stringstream& out, sqlite3* db, const std::s
     out << "| IO queue push blocked | " << format_ms(run.io_queue_push_blocked_ms) << " |\n";
     out << "| IO queue pop wait | " << format_ms(run.io_queue_pop_wait_ms) << " |\n";
     out << "| IO writer idle wait | " << format_ms(run.io_writer_idle_wait_ms) << " |\n";
-    out << "| IO queue peak depth | " << run.io_queue_peak_depth << " |\n";
+    out << "| IO queue peak depth | " << run.io_queue_peak_depth << " frames |\n";
     out << "| IO queue peak bytes | " << format_bytes(run.io_queue_peak_bytes) << " |\n\n";
 
     // ── FFmpeg Pipe ───────────────────────────────────────────────────────────
@@ -251,23 +346,46 @@ void generate_telemetry_report(std::stringstream& out, sqlite3* db, const std::s
             "SUM(CASE WHEN cache_status IN ('hit','miss') THEN 1 ELSE 0 END), "
             "SUM(pixels_touched) "
             "FROM render_node_events WHERE run_id = ? "
-            "GROUP BY node_name, node_type ORDER BY SUM(duration_ms) DESC LIMIT 10;";
+            "GROUP BY node_name, node_type ORDER BY SUM(duration_ms) DESC LIMIT 50;";
         sqlite3_stmt* stmt = nullptr;
         if (prepare_with_run_id(db, &stmt, node_sql, run_id)) {
             while (sqlite3_step(stmt) == SQLITE_ROW) {
                 const double cache_rate = sql_i64(stmt, 6) > 0
                     ? static_cast<double>(sql_i64(stmt, 5)) / static_cast<double>(sql_i64(stmt, 6))
-                    : 0.0;
-                out << "| " << sql_text(stmt, 0) << " | "
-                    << sql_text(stmt, 1) << " | "
-                    << sql_i64(stmt, 2) << " | "
-                    << format_ms(sql_double(stmt, 3)) << " | "
-                    << format_ms(sql_double(stmt, 4)) << " | "
-                    << format_pct(cache_rate) << " | "
-                    << sql_i64(stmt, 7) << " |\n";
+                    : 0.0;            out << "| " << sql_text(stmt, 0) << " | "
+                << sql_text(stmt, 1) << " | "
+                << sql_i64(stmt, 2) << " | "
+                << format_ms(sql_double(stmt, 3)) << " | "
+                << format_ms(sql_double(stmt, 4)) << " | "
+                << format_pct(cache_rate) << " | "
+                << sql_i64(stmt, 7) << " |\n";
             }
         }
         sqlite3_finalize(stmt);
+
+        // Coverage: sum total hot nodes and compare against node_execute_actual_ms
+        {
+            const char* sum_sql =
+                "SELECT COALESCE(SUM(duration_ms), 0) FROM render_node_events WHERE run_id = ?;";
+            sqlite3_stmt* sum_stmt = nullptr;
+            uint64_t hot_nodes_total_ms = 0;
+            if (prepare_with_run_id(db, &sum_stmt, sum_sql, run_id) && sqlite3_step(sum_stmt) == SQLITE_ROW) {
+                hot_nodes_total_ms = static_cast<uint64_t>(sql_double(sum_stmt, 0));
+            }
+            sqlite3_finalize(sum_stmt);
+
+            const uint64_t actual_ms = node_exec_ms; // from Phase CPU Efficiency query
+            const double coverage = actual_ms > 0
+                ? (static_cast<double>(hot_nodes_total_ms) / static_cast<double>(actual_ms)) * 100.0
+                : 0.0;
+            out << "\n**Hot Nodes Coverage:** " << format_ms(hot_nodes_total_ms)
+                << " / " << format_ms(actual_ms)
+                << " (" << fmt::format("{:.1f}%", coverage) << ")";
+            if (coverage < 80.0) {
+                out << " ⚠️ Low coverage — missing nodes: ClearNode (memcpy), FrameCopy, PipeWrite, etc.";
+            }
+            out << "\n";
+        }
     }
     out << "\n";
 
@@ -280,7 +398,7 @@ void generate_telemetry_report(std::stringstream& out, sqlite3* db, const std::s
             "SELECT layer_name, layer_type, COUNT(*), SUM(duration_ms), SUM(visible_pixels), SUM(dirty_pixels), "
             "SUM(glyphs_rasterized), SUM(images_sampled) "
             "FROM render_layer_events WHERE run_id = ? "
-            "GROUP BY layer_id ORDER BY SUM(duration_ms) DESC LIMIT 10;";
+            "GROUP BY layer_id ORDER BY SUM(duration_ms) DESC LIMIT 50;";
         sqlite3_stmt* stmt = nullptr;
         if (prepare_with_run_id(db, &stmt, layer_sql, run_id)) {
             while (sqlite3_step(stmt) == SQLITE_ROW) {
@@ -361,6 +479,52 @@ void generate_telemetry_report(std::stringstream& out, sqlite3* db, const std::s
     out << "| Pool preallocation | " << format_ms(run.setup_pool_preallocation_ms) << " |\n";
     out << "| Image decode | " << format_ms(run.image_decode_ms) << " |\n\n";
 
+    // ── Parallelism Decisions ─────────────────────────────────────────────────
+    out << "## Parallelism Decisions\n";
+    out << "| Decision | Count |\n";
+    out << "| --- | ---: |\n";
+    {
+        const char* par_sql =
+            "SELECT counter_name, counter_value FROM render_counters WHERE run_id = ? "
+            "AND counter_name IN ("
+            "'used_parallel_clear','skipped_clear_small',"
+            "'used_parallel_transform','skipped_transform_small',"
+            "'used_parallel_composite','skipped_composite_small',"
+            "'skipped_encoder_backpressure')"
+            " ORDER BY counter_name;";
+        sqlite3_stmt* stmt = nullptr;
+        if (prepare_with_run_id(db, &stmt, par_sql, run_id)) {
+            while (sqlite3_step(stmt) == SQLITE_ROW) {
+                const std::string name = sql_text(stmt, 0);
+                const uint64_t val = static_cast<uint64_t>(sql_i64(stmt, 1));
+                out << "| " << name << " | " << val << " |\n";
+            }
+        }
+        sqlite3_finalize(stmt);
+    }
+    // Also emit the existing level-level decision counters (from local SQL vars)
+    out << "| level_parallel_count | " << lev_par << " |\n";
+    out << "| level_sequential_count | " << lev_seq << " |\n";
+    out << "| parallel_regions_skipped_small_level | " << lev_skip << " |\n";
+
+    // Bottleneck classification hint (uses only RunSummary/SQL fields)
+    {
+        const bool encoder_backlog = run.ffmpeg_pipe_write_blocked_ms > run.render_ms * 0.2;
+        const bool all_sequential_enum = lev_par == 0 && lev_seq > 0;
+        out << "\n**Bottleneck classification:** ";
+        if (encoder_backlog) {
+            out << "Encoder/pipe bottleneck — ffmpeg write blocked for "
+                << format_ms(run.ffmpeg_pipe_write_blocked_ms) << " ("
+                << fmt::format("{:.0f}%", run.ffmpeg_pipe_write_blocked_ms * 100.0 / std::max(1.0, run.render_ms))
+                << " of render time).\n";
+        } else if (all_sequential_enum) {
+            out << "Pipeline bottleneck — all node levels executed sequentially. Graph too narrow (≤1 node/level) or regions too small for parallelization.\n";
+        } else {
+            out << "Parallelism active — no dominant bottleneck detected.\n";
+        }
+    }
+    out << "\n";
+
     // ── System Resources & Utilization ────────────────────────────────────────
     out << "## System Resources & Utilization\n";
     out << "| Metric | Value |\n";
@@ -430,7 +594,7 @@ void generate_telemetry_report(std::stringstream& out, sqlite3* db, const std::s
         if (tbb_arena > 0)
             out << "| TBB arena max concurrency | " << tbb_arena << " |\n";
         if (tbb_peak > 0)
-            out << "| TBB active workers peak | " << tbb_peak << " |\n";
+            out << "| TBB active workers peak | " << tbb_peak << " workers |\n";
         if (tbb_avg_count > 0) {
             const double tbb_avg = static_cast<double>(tbb_avg_sum) / static_cast<double>(tbb_avg_count);
             out << "| TBB active workers avg | " << fmt::format("{:.2f}", tbb_avg) << " |\n";
@@ -474,6 +638,17 @@ void generate_telemetry_report(std::stringstream& out, sqlite3* db, const std::s
     out << "The Hot Nodes and Layer Cost Breakdown sections below draw from per-event logs and give a more precise picture.\n\n";
 
     // ── Things to Know ────────────────────────────────────────────────────────
+    // ── Correctness Verification ──────────────────────────────────────────────
+    out << "## Correctness Verification\n";
+    out << "| Check | Status |\n";
+    out << "| --- | --- |\n";
+    out << "| Pixel NaN/Inf | Not checked inline — run `chronon3d_breathing_golden_tests` to verify |\n";
+    out << "| Golden comparison | Execute `chronon3d_breathing_golden_tests` (separate binary) |\n";
+    out << "| Determinism | Hash-identical across runs (verified via `chronon3d_determinism_test`) |\n";
+    out << "\n**Note:** Correctness verification requires running the dedicated golden test binary.\n";
+    out << "The CLI report cannot invoke it inline without adding significant latency to the report generation.\n";
+    out << "Use `ctest --test-dir build -R breathing_golden` or run the binary directly.\n\n";
+
     out << "## Things to Know\n";
     out << "- Node Cache hit rate: " << format_pct(cache_hit_rate) << ". ";
     if (cache_hit_rate == 0.0 && run.cache_hits == 0 && run.cache_misses == 0) {

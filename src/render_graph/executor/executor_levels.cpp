@@ -8,6 +8,7 @@
 
 #include <chrono>
 #include <cmath>
+#include <thread>
 #include <tbb/tbb.h>
 
 namespace chronon3d::graph {
@@ -76,6 +77,10 @@ void execute_levels(
             // Tracks how many TBB workers are actively executing nodes
             // at any given moment — used for tbb_active_workers counters.
             std::atomic<int> active_parallel_workers{0};
+            std::atomic<uint64_t> idle_worker_us{0};
+            std::atomic<int> idle_samples{0};
+
+            const int64_t max_workers = static_cast<int64_t>(std::thread::hardware_concurrency());
 
             tbb::parallel_for(
                 tbb::blocked_range<size_t>(0, level.size()),
@@ -97,6 +102,18 @@ void execute_levels(
                             current_u64, std::memory_order_relaxed);
                         parent_counters->tbb_active_workers_avg_count.fetch_add(
                             1, std::memory_order_relaxed);
+
+                        // Idle workers = max_workers - current
+                        // Accumulate idle-worker-microseconds for the level.
+                        // Each worker that joins but finds others already busy
+                        // represents underutilized capacity.
+                        const int idle_now = static_cast<int>(max_workers - current);
+                        if (idle_now > 0) {
+                            idle_worker_us.fetch_add(
+                                static_cast<uint64_t>(idle_now),
+                                std::memory_order_relaxed);
+                            idle_samples.fetch_add(1, std::memory_order_relaxed);
+                        }
                     }
 
                     for (size_t level_index = range.begin(); level_index != range.end(); ++level_index) {
@@ -124,7 +141,23 @@ void execute_levels(
                     active_parallel_workers.fetch_sub(1, std::memory_order_relaxed);
                 }
             );
+
+            // Flush idle worker metrics into parent counters
+            // parallel_idle_worker_entry_sum tracks the total number of
+            // idle-worker-observations: each time a TBB worker enters a
+            // parallel_for range, we count (max_concurrency - active_now)
+            // idle workers.  Larger values = more underutilized capacity.
+            if (parent_counters) {
+                const uint64_t idle_sum = idle_worker_us.load(std::memory_order_relaxed);
+                if (idle_sum > 0) {
+                    parent_counters->parallel_idle_worker_entry_sum.fetch_add(
+                        idle_sum, std::memory_order_relaxed);
+                    parent_counters->parallel_idle_worker_samples.fetch_add(
+                        idle_samples.load(std::memory_order_relaxed), std::memory_order_relaxed);
+                }
+            }
         } else {
+            const auto t_seq0 = std::chrono::steady_clock::now();
             for (size_t level_index = 0; level_index < level.size(); ++level_index) {
                 execute_single_node(
                     state,
@@ -144,6 +177,13 @@ void execute_levels(
                     &level_clone_ctx_ms[level_index],
                     &level_state_ms[level_index]
                 );
+            }
+            if (parent_counters) {
+                const auto seq_ms = std::chrono::duration<double, std::milli>(
+                    std::chrono::steady_clock::now() - t_seq0).count();
+                parent_counters->sequential_level_execute_ms.fetch_add(
+                    static_cast<uint64_t>(std::llround(seq_ms)),
+                    std::memory_order_relaxed);
             }
         }
 
