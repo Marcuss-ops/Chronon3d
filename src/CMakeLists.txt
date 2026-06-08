@@ -265,6 +265,7 @@ set(CHRONON3D_REGISTRY_SOURCES
     registry/source_registry.cpp
 )
 add_library(chronon3d_registry STATIC ${CHRONON3D_REGISTRY_SOURCES})
+set_target_properties(chronon3d_registry PROPERTIES UNITY_BUILD OFF)
 target_link_libraries(chronon3d_registry PUBLIC chronon3d)
 target_precompile_headers(chronon3d_registry PRIVATE <glm/glm.hpp> <glm/gtc/matrix_transform.hpp> <spdlog/spdlog.h> <fmt/core.h>)
 
