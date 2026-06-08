@@ -4,6 +4,7 @@
 #include <chronon3d/core/profiling/counters.hpp>
 #include <spdlog/spdlog.h>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
+#include <chronon3d/core/parallel_tracked.hpp>
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
 #include <span>
@@ -237,9 +238,11 @@ OwnedFB TransformNode::execute(
             }
         }
         if (use_par) {
-            tbb::parallel_for(
+            parallel_for_tracked(
                 tbb::blocked_range<i32>(y0, y1),
-                [&](const tbb::blocked_range<i32>& range) { worker(range.begin(), range.end()); });
+                [&](const tbb::blocked_range<i32>& range) { worker(range.begin(), range.end()); },
+                ctx.counters
+            );
         } else {
             worker(y0, y1);
         }
@@ -262,9 +265,11 @@ OwnedFB TransformNode::execute(
             }
         }
         if (use_par) {
-            tbb::parallel_for(
+            parallel_for_tracked(
                 tbb::blocked_range<i32>(y0, y1),
-                [&](const tbb::blocked_range<i32>& range) { worker(range.begin(), range.end()); });
+                [&](const tbb::blocked_range<i32>& range) { worker(range.begin(), range.end()); },
+                ctx.counters
+            );
         } else {
             worker(y0, y1);
         }

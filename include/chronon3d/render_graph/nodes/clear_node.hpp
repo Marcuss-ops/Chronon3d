@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chronon3d/core/parallel_tracked.hpp>
 #include <chronon3d/render_graph/nodes/basic_nodes_common.hpp>
 #include <chrono>
 #include <cstring>
@@ -71,7 +72,9 @@ public:
         
         if (use_dirty_rects) {
             // Read use_count BEFORE std::move — after move it's always 1.
-            const bool fb_is_shared = sw_renderer->m_prev_framebuffer.use_count() > 1;
+            const uint64_t prev_use_count = static_cast<uint64_t>(
+                sw_renderer->m_prev_framebuffer.use_count());
+            const bool fb_is_shared = prev_use_count > 1;
             auto fb = std::move(sw_renderer->m_prev_framebuffer);
             const bool is_empty_clip = ctx.clip_rect && ctx.clip_rect->is_empty();
             // When the clip covers the full canvas, the clear will erase every pixel —
@@ -81,27 +84,87 @@ public:
                 (ctx.clip_rect->x0 <= 0 && ctx.clip_rect->y0 <= 0 &&
                  ctx.clip_rect->x1 >= ctx.width && ctx.clip_rect->y1 >= ctx.height);
 
+            const uint64_t fb_size_bytes = fb->size_bytes();
+            if (ctx.counters) {
+                ctx.counters->prev_fb_use_count_sum.fetch_add(prev_use_count, std::memory_order_relaxed);
+                ctx.counters->prev_fb_use_count_samples.fetch_add(1, std::memory_order_relaxed);
+                {
+                    uint64_t prev_peak = ctx.counters->prev_fb_use_count_peak.load(std::memory_order_relaxed);
+                    while (prev_use_count > prev_peak &&
+                           !ctx.counters->prev_fb_use_count_peak.compare_exchange_weak(
+                               prev_peak, prev_use_count, std::memory_order_relaxed)) {}
+                }
+            }
             if (fb_is_shared && !is_full_clip) {
                 // The previous framebuffer is also referenced by node-cache entries.
                 // Clearing it in-place would corrupt cached sources, so detach first.
                 // Use pool-acquired copy to avoid heap allocation overhead.
+                if (ctx.counters) {
+                    ctx.counters->clearnode_detach_shared_count.fetch_add(1, std::memory_order_relaxed);
+                    ctx.counters->clearnode_copy_pixels.fetch_add(
+                        static_cast<uint64_t>(fb->pixel_count()), std::memory_order_relaxed);
+                    ctx.counters->clearnode_memcpy_calls.fetch_add(1, std::memory_order_relaxed);
+                    ctx.counters->clearnode_memcpy_bytes.fetch_add(fb_size_bytes, std::memory_order_relaxed);
+                    if (!is_full_clip && ctx.clip_rect &&
+                        !(ctx.clip_rect->x0 <= 0 && ctx.clip_rect->y0 <= 0 &&
+                          ctx.clip_rect->x1 >= ctx.width && ctx.clip_rect->y1 >= ctx.height)) {
+                        ctx.counters->clearnode_partial_clip_copy_count.fetch_add(1, std::memory_order_relaxed);
+                    }
+                }
                 const auto t_memcpy0 = std::chrono::high_resolution_clock::now();
                 auto owned = ctx.acquire_owned_fb(fb->width(), fb->height(), false);
                 owned->set_origin(fb->origin_x(), fb->origin_y());
                 const int copy_h = fb->height();
                 const int copy_w = fb->allocated_width();
-                // When both FBs have the same stride, use a single contiguous
-                // memcpy instead of a row-by-row loop.  The CPU's ERMSB
-                // (Enhanced REP MOVSB) microcode handles large contiguous
-                // copies at ~1 cycle per 16 bytes — significantly faster than
-                // 1080 individual memcpy calls with per-call overhead.
-                if (owned->allocated_width() == copy_w) {
-                    std::memcpy(owned->data(), fb->data(),
-                                 static_cast<size_t>(copy_h) * copy_w * sizeof(Color));
+                // Threshold for parallel copy: ~1M pixels (16MB @ 16 bytes/pixel).
+                // Below that, a single memcpy is faster due to ERMSB microcode;
+                // above it, splitting into row bands across cores wins.
+                const int64_t total_pixels = static_cast<int64_t>(copy_h) * copy_w;
+                const bool use_parallel_copy = total_pixels >= (int64_t{1} << 20) && copy_h >= 16;
+                if (use_parallel_copy) {
+                    if (ctx.counters) {
+                        ctx.counters->framebuffer_copy_parallel_calls.fetch_add(1, std::memory_order_relaxed);
+                    }
+                    if (owned->allocated_width() == copy_w) {
+                        // Same stride: each band copies a contiguous block.
+                        parallel_for_tracked(
+                            tbb::blocked_range<int>(0, copy_h, 16),
+                            [&](const tbb::blocked_range<int>& range) {
+                                std::memcpy(
+                                    owned->data() + static_cast<size_t>(range.begin()) * copy_w,
+                                    fb->data()   + static_cast<size_t>(range.begin()) * copy_w,
+                                    static_cast<size_t>(range.size()) * copy_w * sizeof(Color));
+                            },
+                            ctx.counters
+                        );
+                    } else {
+                        // Different stride: each band copies its own rows.
+                        parallel_for_tracked(
+                            tbb::blocked_range<int>(0, copy_h, 16),
+                            [&](const tbb::blocked_range<int>& range) {
+                                for (int y = range.begin(); y < range.end(); ++y) {
+                                    std::memcpy(owned->pixels_row(y), fb->pixels_row(y),
+                                                 static_cast<size_t>(copy_w) * sizeof(Color));
+                                }
+                            },
+                            ctx.counters
+                        );
+                    }
                 } else {
-                    for (int y = 0; y < copy_h; ++y) {
-                        std::memcpy(owned->pixels_row(y), fb->pixels_row(y),
-                                     static_cast<size_t>(copy_w) * sizeof(Color));
+                    // Sequential path for small framebuffers.
+                    // When both FBs have the same stride, use a single contiguous
+                    // memcpy instead of a row-by-row loop.  The CPU's ERMSB
+                    // (Enhanced REP MOVSB) microcode handles large contiguous
+                    // copies at ~1 cycle per 16 bytes — significantly faster than
+                    // 1080 individual memcpy calls with per-call overhead.
+                    if (owned->allocated_width() == copy_w) {
+                        std::memcpy(owned->data(), fb->data(),
+                                     static_cast<size_t>(copy_h) * copy_w * sizeof(Color));
+                    } else {
+                        for (int y = 0; y < copy_h; ++y) {
+                            std::memcpy(owned->pixels_row(y), fb->pixels_row(y),
+                                         static_cast<size_t>(copy_w) * sizeof(Color));
+                        }
                     }
                 }
                 Framebuffer* raw = owned.release();
@@ -115,6 +178,17 @@ public:
                     const auto t_memcpy1 = std::chrono::high_resolution_clock::now();
                     const auto elapsed = static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t_memcpy1 - t_memcpy0).count());
                     ctx.counters->clearnode_memcpy_ms.fetch_add(elapsed, std::memory_order_relaxed);
+                }
+            } else {
+                // COW: framebuffer is not shared OR full-clip clear will
+                // overwrite everything — no copy needed.  Track bytes avoided.
+                if (ctx.counters && fb_size_bytes > 0) {
+                    ctx.counters->clearnode_bytes_avoided.fetch_add(
+                        static_cast<uint64_t>(fb_size_bytes), std::memory_order_relaxed);
+                    // Track reason: was it skipped because the clip is full?
+                    if (fb_is_shared && is_full_clip) {
+                        ctx.counters->clearnode_full_clip_skip_count.fetch_add(1, std::memory_order_relaxed);
+                    }
                 }
             }
             // ── Clear dirty area (shared path preserves previous FB content) ──

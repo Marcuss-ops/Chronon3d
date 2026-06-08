@@ -1,6 +1,7 @@
 #include <chronon3d/render_graph/nodes/transform_node.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/core/parallel_tracked.hpp>
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
 #include <cstring>
@@ -63,7 +64,7 @@ void execute_translate_clamped(
     };
 
     if (y1 - y0 >= 24) {
-        tbb::parallel_for(
+        parallel_for_tracked(
             tbb::blocked_range<i32>(y0, y1),
             [&](const tbb::blocked_range<i32>& range) {
                 worker(range.begin(), range.end());
@@ -114,7 +115,7 @@ void execute_translate_memcpy(
     };
 
     if (y1 - y0 >= 24) {
-        tbb::parallel_for(
+        parallel_for_tracked(
             tbb::blocked_range<i32>(y0, y1),
             [&](const tbb::blocked_range<i32>& range) {
                 worker(range.begin(), range.end());

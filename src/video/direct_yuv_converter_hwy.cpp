@@ -26,7 +26,7 @@
 #include <chrono>
 #include <cstdint>
 
-#include <tbb/parallel_for.h>
+#include <chronon3d/core/parallel_tracked.hpp>
 #include <tbb/blocked_range.h>
 
 HWY_BEFORE_NAMESPACE();
@@ -221,7 +221,7 @@ HWY_ATTR DirectYuvResult convert_to_yuv420p_hwy_impl(const DirectYuvRequest& req
     const auto& coeffs = get_coeffs(req.color_matrix);
     const int nb = req.height / 2;
 
-    tbb::parallel_for(tbb::blocked_range<int>(0, nb), [&](auto& r) {
+    parallel_for_tracked(tbb::blocked_range<int>(0, nb), [&](auto& r) {
         for (int b = r.begin(); b < r.end(); ++b)
             process_block_hwy(req, b*2, req.width, coeffs);
     });
@@ -247,7 +247,7 @@ HWY_ATTR DirectYuvResult convert_to_nv12_hwy_impl(const DirectYuvRequest& req) {
     const int stride_uv = req.dst_stride_uv ? req.dst_stride_uv : req.width;
     const int nb = req.height / 2;
 
-    tbb::parallel_for(tbb::blocked_range<int>(0, nb), [&](auto& r) {
+    parallel_for_tracked(tbb::blocked_range<int>(0, nb), [&](auto& r) {
         const DF   df;
         const int  N = hn::Lanes(df);
 

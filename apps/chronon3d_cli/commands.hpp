@@ -92,6 +92,14 @@ struct VideoCameraArgs {
 };
 
 
+struct BenchConvertArgs {
+    std::string comp_id;
+    int frame{0};
+    int iterations{10};
+    std::string format{"yuv420p"};
+    bool apply_gamma{true};
+};
+
 struct BenchArgs {
     std::string comp_id;
     int frames{100};
@@ -168,6 +176,7 @@ int command_contact_sheet(const CompositionRegistry& registry, const RenderArgs&
 int command_storyboard(const CompositionRegistry& registry, const RenderArgs& args);
 int command_video(const CompositionRegistry& registry, const VideoArgs& args);
 int command_video_camera(const CompositionRegistry& registry, const VideoCameraArgs& args);
+int command_bench_convert(const CompositionRegistry& registry, const BenchConvertArgs& args);
 int command_bench(const CompositionRegistry& registry, const BenchArgs& args);
 int command_graph(const CompositionRegistry& registry, const GraphArgs& args);
 int command_batch(const CompositionRegistry& registry, const std::vector<std::string>& job_specs);

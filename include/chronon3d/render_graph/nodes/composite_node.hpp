@@ -100,7 +100,7 @@ public:
                     if (ctx.counters) {
                         ctx.counters->composite_calls.fetch_add(1, std::memory_order_relaxed);
                         const uint64_t area = static_cast<uint64_t>(ctx.width) * static_cast<uint64_t>(ctx.height);
-                        ctx.counters->clear_copy_pixels.fetch_add(area, std::memory_order_relaxed);
+                        ctx.counters->composite_copy_pixels.fetch_add(area, std::memory_order_relaxed);
                     }
                     auto result = ctx.acquire_owned_fb(top->width(), top->height(), false);
                     result->set_origin(top->origin_x(), top->origin_y());
@@ -187,7 +187,7 @@ public:
                 uint64_t area = clip ? (static_cast<uint64_t>(std::max(0, clip->x1 - clip->x0)) * std::max(0, clip->y1 - clip->y0))
                                      : static_cast<uint64_t>(ctx.width * ctx.height);
                 if (m_mode == BlendMode::Normal && top->is_opaque()) {
-                    ctx.counters->clear_copy_pixels.fetch_add(area, std::memory_order_relaxed);
+                    ctx.counters->composite_copy_pixels.fetch_add(area, std::memory_order_relaxed);
                 } else {
                     ctx.counters->composite_pixels.fetch_add(area, std::memory_order_relaxed);
                 }

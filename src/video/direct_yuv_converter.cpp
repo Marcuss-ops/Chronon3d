@@ -1,11 +1,12 @@
 #include <chronon3d/video/direct_yuv_converter.hpp>
 #include <chronon3d/video/direct_yuv_lut.hpp>
+#include "internal/yuv_conversion_internal.hpp"
 
 #include <algorithm>
 #include <chrono>
 #include <cstdint>
 
-#include <tbb/parallel_for.h>
+#include <chronon3d/core/parallel_tracked.hpp>
 #include <tbb/blocked_range.h>
 
 namespace chronon3d::video {
@@ -40,7 +41,7 @@ static SrgbLutInit s_lut_init;
 //  YUV420P converter — parallel over 2-row blocks via tbb::parallel_for
 // ============================================================================
 
-static DirectYuvResult convert_to_yuv420p_parallel(const DirectYuvRequest& req) {
+DirectYuvResult convert_to_yuv420p_parallel(const DirectYuvRequest& req) {
     const uint64_t t0 = std::chrono::steady_clock::now().time_since_epoch().count();
 
     const int w = req.width;
@@ -63,7 +64,7 @@ static DirectYuvResult convert_to_yuv420p_parallel(const DirectYuvRequest& req) 
     // Each iteration processes a 2-row block: [y_block*2 .. y_block*2+1]
     const int num_blocks = h / 2;
 
-    tbb::parallel_for(tbb::blocked_range<int>(0, num_blocks), [&](const tbb::blocked_range<int>& r) {
+    parallel_for_tracked(tbb::blocked_range<int>(0, num_blocks), [&](const tbb::blocked_range<int>& r) {
         for (int block = r.begin(); block < r.end(); ++block) {
             const int y = block * 2;
 
@@ -132,7 +133,7 @@ static DirectYuvResult convert_to_yuv420p_parallel(const DirectYuvRequest& req) 
 //  NV12 converter — parallel over 2-row blocks via tbb::parallel_for
 // ============================================================================
 
-static DirectYuvResult convert_to_nv12_parallel(const DirectYuvRequest& req) {
+DirectYuvResult convert_to_nv12_parallel(const DirectYuvRequest& req) {
     const uint64_t t0 = std::chrono::steady_clock::now().time_since_epoch().count();
 
     const int w = req.width;
@@ -153,7 +154,7 @@ static DirectYuvResult convert_to_nv12_parallel(const DirectYuvRequest& req) {
 
     const int num_blocks = h / 2;
 
-    tbb::parallel_for(tbb::blocked_range<int>(0, num_blocks), [&](const tbb::blocked_range<int>& r) {
+    parallel_for_tracked(tbb::blocked_range<int>(0, num_blocks), [&](const tbb::blocked_range<int>& r) {
         for (int block = r.begin(); block < r.end(); ++block) {
             const int y = block * 2;
 
@@ -208,15 +209,6 @@ static DirectYuvResult convert_to_nv12_parallel(const DirectYuvRequest& req) {
         .conversion_ns = t1 - t0,
     };
 }
-
-// ============================================================================
-//  Forward declarations for HWY SIMD variants (defined in
-//  direct_yuv_converter_hwy.cpp).  These are compiled as a separate
-//  translation unit with Highway's multi-target dispatch.
-// ============================================================================
-
-DirectYuvResult convert_to_yuv420p_hwy(const DirectYuvRequest& req);
-DirectYuvResult convert_to_nv12_hwy(const DirectYuvRequest& req);
 
 // ============================================================================
 //  Public API — dispatch: try HWY SIMD first, fall back to scalar TBB
