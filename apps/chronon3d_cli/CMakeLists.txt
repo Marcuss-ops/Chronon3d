@@ -87,6 +87,7 @@ add_library(chronon3d_cli_dev STATIC
     commands/dev/register_inspect_commands.cpp
     commands/dev/command_studio.cpp
     commands/dev/command_batch.cpp
+    commands/dev/command_bench_convert.cpp
     commands/dev/command_doctor_verify.cpp
     commands/dev/command_camera_path.cpp
     utils/batch/batch_job_spec.cpp

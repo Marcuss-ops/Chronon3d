@@ -101,6 +101,17 @@ void register_studio_tools(CLI::App& dev, CliContext& ctx) {
     }
 }
 
+void register_bench_convert(CLI::App& dev, CliContext& ctx) {
+    auto bc_args = std::make_shared<BenchConvertArgs>();
+    auto* cmd = dev.add_subcommand("bench-convert", "Benchmark YUV frame conversion paths (HWY, TBB, sws_scale)");
+    cmd->add_option("input", bc_args->comp_id, "Composition name or .specscene path")->required();
+    cmd->add_option("--frame", bc_args->frame, "Frame number to render")->default_val(0);
+    cmd->add_option("--iterations", bc_args->iterations, "Number of conversion iterations per path")->default_val(10);
+    cmd->add_option("--format", bc_args->format, "Output format: yuv420p or nv12")->default_val("yuv420p");
+    cmd->add_flag("--gamma,!--no-gamma", bc_args->apply_gamma, "Apply sRGB gamma (default: on)");
+    cmd->callback([bc_args, &ctx]() { ctx.exit_code = command_bench_convert(ctx.registry, *bc_args); });
+}
+
 void register_camera_video(CLI::App& dev, CliContext& ctx) {
     auto camera_args = std::make_shared<VideoCameraArgs>();
     auto* camera_cmd = dev.add_subcommand("camera-video", "Render the built-in camera reference clip");
@@ -131,6 +142,7 @@ void register_dev_commands(CLI::App& app, CliContext& ctx) {
     register_batch(*dev, ctx);
     register_proofs(*dev, ctx);
     register_studio_tools(*dev, ctx);
+    register_bench_convert(*dev, ctx);
     register_camera_video(*dev, ctx);
 }
 

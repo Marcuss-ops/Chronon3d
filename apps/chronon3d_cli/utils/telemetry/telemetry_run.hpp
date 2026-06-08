@@ -48,7 +48,17 @@ inline std::vector<chronon3d::telemetry::CounterTelemetryRecord> capture_counter
         {"state_assign_ms", counters.state_assign_ms.load(std::memory_order_relaxed)},
         {"clear_calls", counters.clear_calls.load(std::memory_order_relaxed)},
         {"clear_pixels", counters.clear_pixels.load(std::memory_order_relaxed)},
-        {"clear_copy_pixels", counters.clear_copy_pixels.load(std::memory_order_relaxed)},
+        {"clearnode_copy_pixels", counters.clearnode_copy_pixels.load(std::memory_order_relaxed)},
+        {"composite_copy_pixels", counters.composite_copy_pixels.load(std::memory_order_relaxed)},
+        {"clearnode_bytes_avoided", counters.clearnode_bytes_avoided.load(std::memory_order_relaxed)},
+        {"clearnode_memcpy_bytes", counters.clearnode_memcpy_bytes.load(std::memory_order_relaxed)},
+        {"clearnode_memcpy_calls", counters.clearnode_memcpy_calls.load(std::memory_order_relaxed)},
+        {"clearnode_detach_shared_count", counters.clearnode_detach_shared_count.load(std::memory_order_relaxed)},
+        {"clearnode_partial_clip_copy_count", counters.clearnode_partial_clip_copy_count.load(std::memory_order_relaxed)},
+        {"clearnode_full_clip_skip_count", counters.clearnode_full_clip_skip_count.load(std::memory_order_relaxed)},
+        {"prev_fb_use_count_sum", counters.prev_fb_use_count_sum.load(std::memory_order_relaxed)},
+        {"prev_fb_use_count_samples", counters.prev_fb_use_count_samples.load(std::memory_order_relaxed)},
+        {"prev_fb_use_count_peak", counters.prev_fb_use_count_peak.load(std::memory_order_relaxed)},
         {"composite_calls", counters.composite_calls.load(std::memory_order_relaxed)},
         {"composite_pixels", counters.composite_pixels.load(std::memory_order_relaxed)},
         {"transform_calls", counters.transform_calls.load(std::memory_order_relaxed)},
@@ -192,7 +202,23 @@ inline void add_counters(chronon3d::RenderCounters& dst, const chronon3d::Render
     dst.telemetry_emit_ms.fetch_add(src.telemetry_emit_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.clear_calls.fetch_add(src.clear_calls.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.clear_pixels.fetch_add(src.clear_pixels.load(std::memory_order_relaxed), std::memory_order_relaxed);
-    dst.clear_copy_pixels.fetch_add(src.clear_copy_pixels.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.clearnode_copy_pixels.fetch_add(src.clearnode_copy_pixels.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.composite_copy_pixels.fetch_add(src.composite_copy_pixels.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.clearnode_bytes_avoided.fetch_add(src.clearnode_bytes_avoided.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.clearnode_memcpy_bytes.fetch_add(src.clearnode_memcpy_bytes.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.clearnode_memcpy_calls.fetch_add(src.clearnode_memcpy_calls.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.clearnode_detach_shared_count.fetch_add(src.clearnode_detach_shared_count.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.clearnode_partial_clip_copy_count.fetch_add(src.clearnode_partial_clip_copy_count.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.clearnode_full_clip_skip_count.fetch_add(src.clearnode_full_clip_skip_count.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.prev_fb_use_count_sum.fetch_add(src.prev_fb_use_count_sum.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.prev_fb_use_count_samples.fetch_add(src.prev_fb_use_count_samples.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    {
+        const auto v = src.prev_fb_use_count_peak.load(std::memory_order_relaxed);
+        if (v > dst.prev_fb_use_count_peak.load(std::memory_order_relaxed))
+            dst.prev_fb_use_count_peak.store(v, std::memory_order_relaxed);
+    }
+    dst.clearnode_copy_pixels.fetch_add(src.clearnode_copy_pixels.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.composite_copy_pixels.fetch_add(src.composite_copy_pixels.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.composite_calls.fetch_add(src.composite_calls.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.composite_pixels.fetch_add(src.composite_pixels.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.transform_calls.fetch_add(src.transform_calls.load(std::memory_order_relaxed), std::memory_order_relaxed);
@@ -291,6 +317,17 @@ inline void populate_run_metrics(chronon3d::telemetry::RenderTelemetryRecord& ru
     run.clear_skipped_pixels = counters.clear_skipped_pixels.load(std::memory_order_relaxed);
     run.clear_calls = counters.clear_calls.load(std::memory_order_relaxed);
     run.clear_pixels = counters.clear_pixels.load(std::memory_order_relaxed);
+    run.clearnode_copy_pixels = counters.clearnode_copy_pixels.load(std::memory_order_relaxed);
+    run.composite_copy_pixels = counters.composite_copy_pixels.load(std::memory_order_relaxed);
+    run.clearnode_bytes_avoided = counters.clearnode_bytes_avoided.load(std::memory_order_relaxed);
+    run.clearnode_memcpy_bytes = counters.clearnode_memcpy_bytes.load(std::memory_order_relaxed);
+    run.clearnode_memcpy_calls = counters.clearnode_memcpy_calls.load(std::memory_order_relaxed);
+    run.clearnode_detach_shared_count = counters.clearnode_detach_shared_count.load(std::memory_order_relaxed);
+    run.clearnode_partial_clip_copy_count = counters.clearnode_partial_clip_copy_count.load(std::memory_order_relaxed);
+    run.clearnode_full_clip_skip_count = counters.clearnode_full_clip_skip_count.load(std::memory_order_relaxed);
+    run.prev_fb_use_count_sum = counters.prev_fb_use_count_sum.load(std::memory_order_relaxed);
+    run.prev_fb_use_count_samples = counters.prev_fb_use_count_samples.load(std::memory_order_relaxed);
+    run.prev_fb_use_count_peak = counters.prev_fb_use_count_peak.load(std::memory_order_relaxed);
     run.composite_calls = counters.composite_calls.load(std::memory_order_relaxed);
     run.composite_pixels = counters.composite_pixels.load(std::memory_order_relaxed);
     run.transform_calls = counters.transform_calls.load(std::memory_order_relaxed);

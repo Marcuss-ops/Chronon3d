@@ -27,7 +27,7 @@ FLASK_PID=$!
 
 # ── 2. Vite frontend (port 5173) ──────────────────────────────────────────────
 echo "[2/2] Starting Vite frontend on :5173..."
-setsid sh -c "cd '$DIR/tools/telemetry_dashboard/frontend' && exec node ./node_modules/.bin/vite --port 5173 --host 0.0.0.0" >/tmp/vite.log 2>&1 &
+setsid sh -c "cd '$DIR/tools/telemetry_dashboard/frontend' && VITE_BACKEND_PORT=5005 exec node ./node_modules/.bin/vite --port 5173 --host 0.0.0.0" >/tmp/vite.log 2>&1 &
 VITE_PID=$!
 
 # ── Wait for both to be ready ──────────────────────────────────────────────────

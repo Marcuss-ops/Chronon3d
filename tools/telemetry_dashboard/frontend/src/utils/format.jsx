@@ -23,7 +23,7 @@ export const formatIso = (isoStr) => {
 
 export const formatCounterValue = (name, val) => {
   if (typeof val !== 'number') return val;
-  if (name.includes('bytes') || name.includes('memory') || name.includes('peak')) {
+  if (name.includes('_bytes')) {
     return formatBytes(val);
   }
   if (val >= 1000000) {
