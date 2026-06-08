@@ -1,167 +1,461 @@
-#include <chronon3d/core/composition/composition_registration.hpp>
-#include <chronon3d/core/types/frame_context.hpp>
-#include <chronon3d/presets/motion_object.hpp>
-#include <chronon3d/presets/motion_presets.hpp>
-#include <chronon3d/presets/motion_renderer.hpp>
-#include <chronon3d/timeline/composition.hpp>
-#include <chronon3d/scene/builders/scene_builder.hpp>
-#include <chronon3d/scene/camera/camera_motion_presets.hpp>
-#include "../helpers/text_helpers.hpp"
-
-#include <algorithm>
-#include <string>
-#include <vector>
+#include "typewriter_common.hpp"
 
 namespace chronon3d::content::text {
 
+// ──────────────────────────────────────────────────────────────────────────────
+//  Helper — common grid background layer
+// ──────────────────────────────────────────────────────────────────────────────
+
 namespace {
 
-
-struct SweepMotion {
-    bool enabled{false};
-    f32 amp_z{28.0f};
-    f32 period{120.0f};
-
-    [[nodiscard]] Vec3 offset(Frame frame, f32 start) const {
-        if (!enabled) return {0, 0, 0};
-        const f32 t = static_cast<f32>(frame) - start;
-        if (t <= 0) return {0, 0, 0};
-        return {0, 0, amp_z * std::sin((t / std::max(period, 1.0f)) * 6.283185f)};
-    }
-};
-
-struct TypewriterLine {
-    std::string text;
-    Vec3 pos{0, 0, 0};
-    f32 font_size{56.0f};
-    f32 tracking{0.0f};
-    Color color_val{1, 1, 1, 1};
-    f32 start_frame{0.0f};
-    f32 chars_per_frame{2.0f};
-    TextAlign align_val{TextAlign::Center};
-    SweepMotion sweep_val{};
-
-    TypewriterLine(std::string t) : text(std::move(t)) {}
-
-    TypewriterLine& set_pos(Vec3 p) { pos = p; return *this; }
-    TypewriterLine& set_font(f32 s, f32 t = 0.0f) { font_size = s; tracking = t; return *this; }
-    TypewriterLine& set_timing(f32 s, f32 speed = 2.0f) { start_frame = s; chars_per_frame = speed; return *this; }
-    TypewriterLine& set_color(Color c) { color_val = c; return *this; }
-    TypewriterLine& set_align(TextAlign a) { align_val = a; return *this; }
-    TypewriterLine& set_sweep(f32 amp = 28.0f) { sweep_val.enabled = true; sweep_val.amp_z = amp; return *this; }
-
-    [[nodiscard]] std::string reveal(Frame frame) const {
-        const f32 t = static_cast<f32>(frame) - start_frame;
-        if (t <= 0) return "";
-        size_t visible = std::min(text.size(), static_cast<size_t>(t * std::max(chars_per_frame, 0.1f)));
-        std::string out = text.substr(0, visible);
-        if (visible < text.size() && (frame / 5) % 2 == 0) out += "|";
-        return out;
-    }
-};
-
-Composition make_typewriter(
-    std::string name,
-    std::vector<TypewriterLine> lines,
-    presets::motion::MotionPreset preset = presets::motion::MotionPreset::PerspectiveSweepTextReveal,
-    bool glow = false,
-    Color bg = {0.01f, 0.012f, 0.022f, 1.0f}
-) {
-    return composition({.name = name, .duration = 180}, [lines = std::move(lines), preset, glow, bg](const FrameContext& ctx) {
-        SceneBuilder s(ctx);
-        const f32 p = std::clamp(static_cast<f32>(ctx.frame) / 180.0f, 0.0f, 1.0f);
-        s.camera().set(camera_motion::dramatic_push(p, 1380.0f));
-        
-        s.layer("bg", [&](auto& l) { l.fill(bg); });
-        s.layer("grid", [&](auto& l) {
-            l.opacity(0.12f).grid_background("g", {.size={W,H}, .grid_color={0.18f, 0.5f, 0.96f, 1.0f}, .spacing=96.0f});
+void add_grid_background(SceneBuilder& s) {
+    s.layer("bg", [](auto& l) {
+        l.grid_background("g", {
+            .size = {1920.0f, 1080.0f},
+            .bg_color = {0.01f, 0.012f, 0.022f, 1.0f},
+            .grid_color = {0.18f, 0.5f, 0.96f, 0.12f},
+            .spacing = 96.0f,
+            .minor_thickness = 1.0f,
+            .major_thickness = 2.5f,
+            .major_every = 4,
+            .centered = true,
         });
-
-        for (size_t i = 0; i < lines.size(); ++i) {
-            const auto& l = lines[i];
-            std::string revealed = l.reveal(ctx.frame);
-            if (revealed.empty()) continue;
-
-            auto obj = presets::motion::MotionObject::text("l" + std::to_string(i), std::move(revealed))
-                .at(l.pos + l.sweep_val.offset(ctx.frame, l.start_frame))
-                .font_size(l.font_size)
-                .color(l.color_val)
-                .tracking(l.tracking)
-                .align(l.align_val)
-                .vertical_align(VerticalAlign::Middle)
-                .glow(glow)
-                .time(0, 180);
-            
-            if (preset == presets::motion::MotionPreset::PerspectiveSweepTextReveal) {
-                presets::motion::perspective_sweep_text_reveal(obj);
-            } else if (preset == presets::motion::MotionPreset::SoftDollyReveal) {
-                presets::motion::soft_dolly_reveal(obj);
-            } else if (preset == presets::motion::MotionPreset::StaggerReveal) {
-                presets::motion::stagger_reveal(obj);
-            } else if (preset == presets::motion::MotionPreset::FocusPull) {
-                presets::motion::focus_pull(obj);
-            } else {
-                obj.preset(preset);
-            }
-            presets::motion::draw_motion_object(s, ctx, obj);
-        }
-        return s.build();
     });
 }
 
 } // namespace
 
+// ──────────────────────────────────────────────────────────────────────────────
+//  TextGridBackground — clean grid on dark background
+// ──────────────────────────────────────────────────────────────────────────────
+
+Composition text_grid_background() {
+    return composition({.name = "TextGridBackground", .width = 1920, .height = 1080, .duration = 60}, [](const FrameContext& ctx) {
+        SceneBuilder s(ctx);
+        add_grid_background(s);
+        return s.build();
+    });
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+//  TextHello — simple text on grid background, clean fade-in
+// ──────────────────────────────────────────────────────────────────────────────
+
+Composition text_hello() {
+    return composition({.name = "TextHello", .width = 1920, .height = 1080, .duration = 90}, [](const FrameContext& ctx) {
+        SceneBuilder s(ctx);
+        add_grid_background(s);
+
+        s.layer("title", [&ctx](auto& l) {
+            f32 opacity = std::clamp((static_cast<f32>(ctx.frame) - 10.0f) / 20.0f, 0.0f, 1.0f);
+            l.pin_to(Anchor::Center)
+             .opacity(opacity)
+             .text("hello", {
+                 .text = "HELLO, CHRONON3D.",
+                 .size = {900.0f, 80.0f},
+                 .pos = {0.0f, 0.0f, 0.0f},
+                 .font_size = 64.0f,
+                 .color = {0.25f, 0.58f, 1.0f, 1.0f},
+                 .align = TextAlign::Center,
+                 .vertical_align = VerticalAlign::Middle,
+                 .tracking = 6.0f,
+             });
+        });
+
+        s.layer("subtitle", [&ctx](auto& l) {
+            f32 opacity = std::clamp((static_cast<f32>(ctx.frame) - 30.0f) / 20.0f, 0.0f, 1.0f);
+            l.pin_to(Anchor::Center)
+             .position({0.0f, 70.0f, 0.0f})
+             .opacity(opacity)
+             .text("sub", {
+                 .text = "grid + text = clean",
+                 .size = {600.0f, 40.0f},
+                 .pos = {0.0f, 0.0f, 0.0f},
+                 .font_size = 28.0f,
+                 .color = {0.78f, 0.82f, 0.9f, 1.0f},
+                 .align = TextAlign::Center,
+                 .vertical_align = VerticalAlign::Middle,
+                 .tracking = 1.0f,
+             });
+        });
+
+        return s.build();
+    });
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+//  ImageOnGrid — image with rounded border on grid background
+// ──────────────────────────────────────────────────────────────────────────────
+
+Composition text_image_on_grid() {
+    return composition({.name = "ImageOnGrid", .width = 1920, .height = 1080, .duration = 90}, [](const FrameContext& ctx) {
+        SceneBuilder s(ctx);
+        add_grid_background(s);
+
+        f32 opacity = std::clamp((static_cast<f32>(ctx.frame) - 10.0f) / 20.0f, 0.0f, 1.0f);
+
+        s.layer("image_card", [opacity](auto& l) {
+            l.pin_to(Anchor::Center)
+             .position({0.0f, -40.0f, 0.0f})
+             .opacity(opacity);
+
+            // Backdrop shadow
+            l.rounded_rect("shadow", {
+                .size = {824.0f, 474.0f},
+                .radius = 18.0f,
+                .color = {0.0f, 0.0f, 0.0f, 0.35f},
+                .pos = {0.0f, 6.0f, 0.0f},
+            });
+
+            // Border
+            l.rounded_rect("border", {
+                .size = {802.0f, 452.0f},
+                .radius = 14.0f,
+                .color = {0.25f, 0.27f, 0.31f, 0.7f},
+            });
+
+            // Image
+            l.image("img", {
+                .path = "assets/images/minimalist_landscape.png",
+                .size = {800.0f, 450.0f},
+                .radius = 12.0f,
+            });
+        });
+
+        f32 cap_op = std::clamp((static_cast<f32>(ctx.frame) - 30.0f) / 20.0f, 0.0f, 1.0f);
+        s.layer("caption", [cap_op](auto& l) {
+            l.pin_to(Anchor::Center)
+             .position({0.0f, 290.0f, 0.0f})
+             .opacity(cap_op)
+             .text("cap", {
+                 .text = "landscape — minimalist scene",
+                 .size = {500.0f, 30.0f},
+                 .font_size = 22.0f,
+                 .color = {0.6f, 0.65f, 0.8f, 1.0f},
+                 .align = TextAlign::Center,
+                 .tracking = 3.0f,
+             });
+        });
+
+        return s.build();
+    });
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+//  QuoteOnGrid — quote with attribution on grid background
+// ──────────────────────────────────────────────────────────────────────────────
+
+Composition text_quote_on_grid() {
+    return composition({.name = "QuoteOnGrid", .width = 1920, .height = 1080, .duration = 120}, [](const FrameContext& ctx) {
+        SceneBuilder s(ctx);
+        add_grid_background(s);
+
+        f32 quote_op = std::clamp((static_cast<f32>(ctx.frame) - 10.0f) / 25.0f, 0.0f, 1.0f);
+        f32 attr_op = std::clamp((static_cast<f32>(ctx.frame) - 45.0f) / 20.0f, 0.0f, 1.0f);
+
+        // Decorative opening quote mark
+        s.layer("quote_mark", [quote_op](auto& l) {
+            l.pin_to(Anchor::Center)
+             .position({-420.0f, -90.0f, 0.0f})
+             .opacity(quote_op * 0.25f)
+             .text("qm", {
+                 .text = "\"",
+                 .size = {120.0f, 180.0f},
+                 .font_size = 160.0f,
+                 .color = {0.25f, 0.58f, 1.0f, 1.0f},
+                 .align = TextAlign::Center,
+                 .vertical_align = VerticalAlign::Middle,
+             });
+        });
+
+        // Quote text
+        s.layer("quote_text", [quote_op](auto& l) {
+            l.pin_to(Anchor::Center)
+             .position({0.0f, -30.0f, 0.0f})
+             .opacity(quote_op)
+             .text("qt", {
+                 .text = "Design is not just\nwhat it looks like.\nDesign is how it works.",
+                 .size = {800.0f, 200.0f},
+                 .font_size = 42.0f,
+                 .color = {0.9f, 0.92f, 0.98f, 1.0f},
+                 .align = TextAlign::Center,
+                 .line_height = 1.3f,
+                 .tracking = 1.0f,
+             });
+        });
+
+        // Attribution
+        s.layer("attribution", [attr_op](auto& l) {
+            l.pin_to(Anchor::Center)
+             .position({0.0f, 160.0f, 0.0f})
+             .opacity(attr_op)
+             .text("attr", {
+                 .text = "— Steve Jobs",
+                 .size = {400.0f, 30.0f},
+                 .font_size = 22.0f,
+                 .color = {0.4f, 0.45f, 0.6f, 1.0f},
+                 .align = TextAlign::Center,
+                 .tracking = 2.0f,
+             });
+        });
+
+        // Decorative line above attribution
+        s.layer("divider", [attr_op](auto& l) {
+            f32 line_op = attr_op * 0.4f;
+            l.pin_to(Anchor::Center)
+             .position({0.0f, 120.0f, 0.0f})
+             .opacity(line_op)
+             .rect("div", {
+                 .size = {60.0f, 2.0f},
+                 .color = {0.25f, 0.58f, 1.0f, 1.0f},
+             });
+        });
+
+        return s.build();
+    });
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+//  ShapeOnGrid — shape badges with text inside on grid background
+// ──────────────────────────────────────────────────────────────────────────────
+
+Composition text_shape_on_grid() {
+    return composition({.name = "ShapeOnGrid", .width = 1920, .height = 1080, .duration = 90}, [](const FrameContext& ctx) {
+        SceneBuilder s(ctx);
+        add_grid_background(s);
+
+        f32 op = std::clamp((static_cast<f32>(ctx.frame) - 10.0f) / 20.0f, 0.0f, 1.0f);
+
+        // Title
+        s.layer("title", [op](auto& l) {
+            l.pin_to(Anchor::TopCenter, 50.0f)
+             .opacity(op)
+             .text("title", {
+                 .text = "SHAPES",
+                 .size = {500.0f, 60.0f},
+                 .font_size = 42.0f,
+                 .color = {0.7f, 0.75f, 0.9f, 1.0f},
+                 .align = TextAlign::Center,
+                 .vertical_align = VerticalAlign::Middle,
+                 .tracking = 10.0f,
+             });
+        });
+
+        // ── Row 1: Shape badges (text INSIDE colored shape) ──────────────
+
+        // RECT badge — blue rect with WHITE TEXT at 56pt (big!)
+        s.layer("rect_badge", [op](auto& l) {
+            l.pin_to(Anchor::Center)
+             .position({-500.0f, -100.0f, 0.0f})
+             .opacity(op);
+            l.rounded_rect("bg", {
+                .size = {300.0f, 130.0f},
+                .radius = 20.0f,
+                .color = {0.20f, 0.50f, 0.90f, 0.95f},
+            });
+            l.text("label", {
+                .text = "RECT",
+                .size = {300.0f, 130.0f},
+                .font_size = 56.0f,
+                .color = {1.0f, 1.0f, 1.0f, 1.0f},
+                .align = TextAlign::Center,
+                .vertical_align = VerticalAlign::Middle,
+                .tracking = 8.0f,
+            });
+        });
+
+        // CIRCLE badge — rose card with white text + decorative circle
+        s.layer("circle_badge", [op](auto& l) {
+            l.pin_to(Anchor::Center)
+             .position({0.0f, -100.0f, 0.0f})
+             .opacity(op);
+            l.rounded_rect("bg", {
+                .size = {300.0f, 130.0f},
+                .radius = 65.0f,
+                .color = {0.65f, 0.22f, 0.38f, 0.95f},
+            });
+            l.circle("dot", {
+                .radius = 24.0f,
+                .color = {1.0f, 1.0f, 1.0f, 0.18f},
+                .pos = {0.0f, -12.0f, 0.0f},
+            });
+            l.text("label", {
+                .text = "CIRCLE",
+                .size = {300.0f, 130.0f},
+                .font_size = 52.0f,
+                .color = {1.0f, 1.0f, 1.0f, 1.0f},
+                .align = TextAlign::Center,
+                .vertical_align = VerticalAlign::Middle,
+                .tracking = 8.0f,
+            });
+        });
+
+        // R-RECT badge — green pill with white text
+        s.layer("rrect_badge", [op](auto& l) {
+            l.pin_to(Anchor::Center)
+             .position({500.0f, -100.0f, 0.0f})
+             .opacity(op);
+            l.rounded_rect("bg", {
+                .size = {300.0f, 130.0f},
+                .radius = 32.0f,
+                .color = {0.20f, 0.72f, 0.44f, 0.95f},
+            });
+            l.text("label", {
+                .text = "R-RECT",
+                .size = {300.0f, 130.0f},
+                .font_size = 50.0f,
+                .color = {1.0f, 1.0f, 1.0f, 1.0f},
+                .align = TextAlign::Center,
+                .vertical_align = VerticalAlign::Middle,
+                .tracking = 8.0f,
+            });
+        });
+
+        // ── Row 2: More shape badges ─────────────────────────────────────
+
+        // LINE badge — dark card + blue line above text
+        s.layer("line_badge", [op](auto& l) {
+            l.pin_to(Anchor::Center)
+             .position({-500.0f, 120.0f, 0.0f})
+             .opacity(op);
+            l.rounded_rect("bg", {
+                .size = {300.0f, 110.0f},
+                .radius = 18.0f,
+                .color = {0.06f, 0.08f, 0.16f, 0.85f},
+            });
+            l.rect("line", {
+                .size = {220.0f, 4.0f},
+                .color = {0.25f, 0.58f, 1.0f, 0.8f},
+                .pos = {0.0f, -24.0f, 0.0f},
+            });
+            l.text("label", {
+                .text = "LINE",
+                .size = {300.0f, 110.0f},
+                .font_size = 44.0f,
+                .color = {1.0f, 1.0f, 1.0f, 1.0f},
+                .align = TextAlign::Center,
+                .vertical_align = VerticalAlign::Middle,
+                .tracking = 8.0f,
+            });
+        });
+
+        // TINTED badge — orange card
+        s.layer("tinted_badge", [op](auto& l) {
+            l.pin_to(Anchor::Center)
+             .position({0.0f, 120.0f, 0.0f})
+             .opacity(op);
+            l.rounded_rect("bg", {
+                .size = {300.0f, 110.0f},
+                .radius = 18.0f,
+                .color = {0.90f, 0.42f, 0.0f, 0.95f},
+            });
+            l.text("label", {
+                .text = "TINTED",
+                .size = {300.0f, 110.0f},
+                .font_size = 44.0f,
+                .color = {1.0f, 1.0f, 1.0f, 1.0f},
+                .align = TextAlign::Center,
+                .vertical_align = VerticalAlign::Middle,
+                .tracking = 8.0f,
+            });
+        });
+
+        // STROKE badge — dark blue card with circle deco
+        s.layer("stroke_badge", [op](auto& l) {
+            l.pin_to(Anchor::Center)
+             .position({500.0f, 120.0f, 0.0f})
+             .opacity(op);
+            l.rounded_rect("bg", {
+                .size = {300.0f, 110.0f},
+                .radius = 18.0f,
+                .color = {0.05f, 0.08f, 0.20f, 0.85f},
+            });
+            l.circle("deco", {
+                .radius = 28.0f,
+                .color = {0.25f, 0.58f, 1.0f, 0.40f},
+                .pos = {0.0f, 0.0f, 0.0f},
+            });
+            l.text("label", {
+                .text = "STROKE",
+                .size = {300.0f, 110.0f},
+                .font_size = 44.0f,
+                .color = {1.0f, 1.0f, 1.0f, 1.0f},
+                .align = TextAlign::Center,
+                .vertical_align = VerticalAlign::Middle,
+                .tracking = 8.0f,
+            });
+        });
+
+        return s.build();
+    });
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+//  TextBasic — minimal text on grid, clean and essential
+// ──────────────────────────────────────────────────────────────────────────────
+
+Composition text_basic() {
+    return composition({.name = "TextBasic", .width = 1920, .height = 1080, .duration = 90}, [](const FrameContext& ctx) {
+        SceneBuilder s(ctx);
+        add_grid_background(s);
+
+        f32 op = std::clamp((static_cast<f32>(ctx.frame) - 10.0f) / 20.0f, 0.0f, 1.0f);
+
+        s.layer("headline", [op](auto& l) {
+            l.pin_to(Anchor::Center)
+             .position({0.0f, -30.0f, 0.0f})
+             .opacity(op)
+             .text("hl", {
+                 .text = "CHRONON3D",
+                 .size = {1000.0f, 90.0f},
+                 .font_size = 72.0f,
+                 .color = {0.25f, 0.58f, 1.0f, 1.0f},
+                 .align = TextAlign::Center,
+                 .vertical_align = VerticalAlign::Middle,
+                 .tracking = 12.0f,
+             });
+        });
+
+        f32 sub_op = std::clamp((static_cast<f32>(ctx.frame) - 30.0f) / 20.0f, 0.0f, 1.0f);
+        s.layer("subtitle", [sub_op](auto& l) {
+            l.pin_to(Anchor::Center)
+             .position({0.0f, 55.0f, 0.0f})
+             .opacity(sub_op)
+             .text("sub", {
+                 .text = "motion graphics engine",
+                 .size = {700.0f, 36.0f},
+                 .font_size = 26.0f,
+                 .color = {0.7f, 0.75f, 0.88f, 1.0f},
+                 .align = TextAlign::Center,
+                 .vertical_align = VerticalAlign::Middle,
+                 .tracking = 6.0f,
+             });
+        });
+
+        return s.build();
+    });
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+//  TextTypewriter — classic typewriter on grid (clean, no glow, no 3D)
+// ──────────────────────────────────────────────────────────────────────────────
+
 Composition text_typewriter() {
+    using typewriter::TypewriterLine;
+    using typewriter::make_typewriter;
+
     return make_typewriter("TextTypewriter", {
-        TypewriterLine("THE ENGINE LEARNED TO SPEAK.").set_pos({0, -34, 0}).set_font(64, 6).set_timing(0, 1.8f).set_color({0.25f, 0.58f, 1, 1}),
-        TypewriterLine("Typed frame by frame, the story becomes motion.").set_pos({0, 54, 0}).set_font(28, 0.5f).set_timing(36, 2.8f).set_color({0.9f, 0.92f, 0.98f, 1})
-    }, presets::motion::MotionPreset::PerspectiveSweepTextReveal, true);
-}
-
-Composition text_typewriter_dolly() {
-    return make_typewriter("TextTypewriterDolly", {
-        TypewriterLine("THE DOLLY TYPEWRITER EFFECT.").set_pos({0, 0, 0}).set_font(60, 6).set_timing(0, 1.8f).set_color({0.25f, 0.58f, 1, 1})
-    }, presets::motion::MotionPreset::SoftDollyReveal, false, {0.015f, 0.015f, 0.025f, 1.0f});
-}
-
-Composition text_typewriter_stagger() {
-    return make_typewriter("TextTypewriterStagger", {
-        TypewriterLine("STAGGERED TYPEWRITER.").set_pos({0, 0, 0}).set_font(60, 6).set_timing(0, 1.8f).set_color({1.0f, 0.65f, 0.2f, 1})
-    }, presets::motion::MotionPreset::StaggerReveal, false, {0.012f, 0.015f, 0.022f, 1.0f});
-}
-
-Composition text_typewriter_bounce() {
-    return make_typewriter("TextTypewriterBounce", {
-        TypewriterLine("BOUNCY TYPEWRITER.").set_pos({0, 0, 0}).set_font(60, 6).set_timing(0, 1.8f).set_color({0.3f, 0.9f, 0.4f, 1})
-    }, presets::motion::MotionPreset::KineticBounce, false, {0.01f, 0.012f, 0.016f, 1.0f});
-}
-
-Composition text_typewriter_glitch() {
-    return make_typewriter("TextTypewriterGlitch", {
-        TypewriterLine("GLITCH TYPEWRITER SYSTEM.").set_pos({0, 0, 0}).set_font(60, 6).set_timing(0, 1.8f).set_color({0.9f, 0.25f, 0.4f, 1})
-    }, presets::motion::MotionPreset::GlitchIn, false, {0.005f, 0.005f, 0.008f, 1.0f});
-}
-
-Composition text_typewriter_push() {
-    return make_typewriter("TextTypewriterPush", {
-        TypewriterLine("DEPTH TYPEWRITER.").set_pos({0, -40, 0}).set_font(68, 7).set_timing(0, 1.6f).set_color({0.95f, 0.9f, 1.0f, 1}),
-        TypewriterLine("words that push through space.").set_pos({0, 58, 0}).set_font(30, 1.2f).set_timing(32, 2.5f).set_color({0.65f, 0.72f, 0.88f, 1})
-    }, presets::motion::MotionPreset::PushIn3D, false, {0.006f, 0.008f, 0.018f, 1.0f});
-}
-
-Composition text_typewriter_slide() {
-    return make_typewriter("TextTypewriterSlide", {
-        TypewriterLine("SLIDE IN TYPEWRITER.").set_pos({0, -46, 0}).set_font(62, 6).set_timing(0, 1.9f).set_color({0.22f, 0.82f, 0.72f, 1}),
-        TypewriterLine("clean, rising, inevitable.").set_pos({0, 54, 0}).set_font(28, 1.0f).set_timing(30, 2.8f).set_color({0.85f, 0.9f, 0.95f, 1})
-    }, presets::motion::MotionPreset::SlideUp, false, {0.008f, 0.012f, 0.018f, 1.0f});
-}
-
-Composition text_typewriter_reveal_sweep() {
-    return make_typewriter("TextTypewriterRevealSweep", {
-        TypewriterLine("SWEEP").set_pos({0, -96, 0}).set_font(88, 18).set_timing(0, 2.2f).set_color({0.25f, 0.58f, 1, 1}).set_sweep(32.0f),
-        TypewriterLine("the text reveals itself").set_pos({0, 4, 0}).set_font(36, 1.8f).set_timing(20, 2.4f).set_color({0.9f, 0.93f, 1, 1}).set_sweep(16.0f),
-        TypewriterLine("frame by frame, word by word.").set_pos({0, 90, 0}).set_font(24, 0.8f).set_timing(46, 3.0f).set_color({0.72f, 0.78f, 0.92f, 1}).set_sweep(8.0f)
-    }, presets::motion::MotionPreset::TypewriterReveal, false, {0.007f, 0.009f, 0.016f, 1.0f});
+        TypewriterLine("THE ENGINE LEARNED TO SPEAK.")
+            .set_pos({0, -34, 0})
+            .set_font(64, 6)
+            .set_timing(0, 1.8f)
+            .set_color({0.25f, 0.58f, 1, 1}),
+        TypewriterLine("typed frame by frame, the story becomes motion.")
+            .set_pos({0, 54, 0})
+            .set_font(28, 0.5f)
+            .set_timing(36, 2.8f)
+            .set_color({0.9f, 0.92f, 0.98f, 1})
+    }, presets::motion::MotionPreset::FadeIn, false, {0.01f, 0.012f, 0.022f, 1.0f}, 180, 1000.0f, 1920, 1080);
 }
 
 } // namespace chronon3d::content::text

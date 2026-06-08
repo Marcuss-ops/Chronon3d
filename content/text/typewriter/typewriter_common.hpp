@@ -79,12 +79,11 @@ inline Composition make_typewriter(
 ) {
     return composition({.name = std::move(name), .width = canvas_width, .height = canvas_height, .duration = duration_frames}, [lines = std::move(lines), preset, glow, bg, duration_frames, camera_zoom, canvas_width, canvas_height, camera_fn = std::move(camera_fn)](const FrameContext& ctx) {
         SceneBuilder s(ctx);
+        const f32 p = std::clamp(static_cast<f32>(ctx.frame) / static_cast<f32>(std::max<Frame>(duration_frames, 1)), 0.0f, 1.0f);
         if (camera_fn) {
-            const f32 total = std::max<Frame>(duration_frames, 1);
-            const f32 p = std::clamp(static_cast<f32>(ctx.frame) / static_cast<f32>(total), 0.0f, 1.0f);
             s.camera().set(camera_fn(p));
         } else {
-            s.camera().enable(true).position({0.0f, 0.0f, -1000.0f}).zoom(1000.0f);
+            s.camera().set(camera_motion::dolly_in(p, camera_zoom));
         }
 
         s.layer("bg", [&](auto& l) { l.fill(bg); });

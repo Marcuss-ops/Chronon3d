@@ -27,12 +27,39 @@ bool write_render_frame(const Composition& comp,
     const auto t1 = std::chrono::steady_clock::now();
     const auto hits_after = renderer.node_cache().stats().hits;
     const double dirty_ratio = renderer.last_dirty_area_ratio();
-    const auto layer_count = renderer.last_layer_count();
 
     if (!fb) {
         spdlog::error("Failed to render frame {}", frame);
         ok = false;
         return false;
+    }
+
+    const bool cache_hit = (hits_after > hits_before);
+    const double render_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+    total_render_ms += render_ms;
+
+    const double encode_ms = write_frame_to_disk(
+        fb, frame, range, output_pattern, cache_hit, dirty_ratio,
+        render_ms, ok, telemetry_frames, total_encode_ms, frames_written);
+
+    return encode_ms >= 0.0;
+}
+
+double write_frame_to_disk(std::shared_ptr<Framebuffer> fb,
+                           Frame frame,
+                           const FrameRange& range,
+                           const std::string& output_pattern,
+                           bool cache_hit,
+                           double dirty_ratio,
+                           double render_ms,
+                           bool& ok,
+                           std::vector<chronon3d::telemetry::FrameTelemetryRecord>& telemetry_frames,
+                           double& total_encode_ms,
+                           int& frames_written) {
+    if (!fb) {
+        spdlog::error("write_frame_to_disk: null framebuffer for frame {}", frame);
+        ok = false;
+        return -1.0;
     }
 
     const bool is_range = (range.start != range.end);
@@ -50,7 +77,7 @@ bool write_render_frame(const Composition& comp,
     if (write_options.format == ImageFormat::Unknown) {
         spdlog::error("Unsupported image output format for path: {}", path);
         ok = false;
-        return false;
+        return -1.0;
     }
 
     {
@@ -61,31 +88,27 @@ bool write_render_frame(const Composition& comp,
                           path,
                           image_format_name(write_options.format));
             ok = false;
-            return false;
+            return -1.0;
         }
     }
 
     const auto t_encode1 = std::chrono::steady_clock::now();
 
-    const double render_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
     const double encode_ms = std::chrono::duration<double, std::milli>(t_encode1 - t_encode0).count();
-    total_render_ms += render_ms;
     total_encode_ms += encode_ms;
     frames_written++;
 
-    const bool hit = (hits_after > hits_before);
-    // Record Unified Telemetry Frame Record
     telemetry_frames.push_back({
         .frame_number = static_cast<int>(frame),
         .duration_ms = render_ms + encode_ms,
-        .cache_hit = hit,
+        .cache_hit = cache_hit,
         .dirty_area_ratio = dirty_ratio,
         .graph_eval_ms = render_ms,
-        .encoder_ms = encode_ms,
+        .encoder_ms = encode_ms
     });
 
     spdlog::info("Frame {} saved to {}", frame, path);
-    return true;
+    return encode_ms;
 }
 
 } // namespace chronon3d::cli

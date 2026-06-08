@@ -139,6 +139,23 @@ CacheKey hash_text_style(const TextShape& t, float effective_size, int padding, 
 bool lookup_text_cache(const CacheKey& key, std::shared_ptr<TextRasterization>& out);
 void store_text_cache(const CacheKey& key, const std::shared_ptr<TextRasterization>& result);
 
+// Blend2D-based text measurement callback for the layout engine.
+// Uses the same engine as rasterization, eliminating the FT+HB vs B2D
+// width discrepancy that required pixel-ink centering corrections.
+namespace {
+float bl2d_measure_text(const void* font_face_ptr, std::string_view text, float font_size) {
+    auto* face = static_cast<const BLFontFace*>(font_face_ptr);
+    BLFont f;
+    f.createFromFace(*face, std::max(1.0f, font_size));
+    BLGlyphBuffer gb;
+    gb.setUtf8Text(text.data(), static_cast<int>(text.size()));
+    f.shape(gb);
+    BLTextMetrics m;
+    f.getTextMetrics(gb, m);
+    return m.boundingBox.x1 - m.boundingBox.x0;
+}
+} // namespace
+
 std::optional<TextRasterization> rasterize_text_to_bl_image(
     const TextShape& t,
     float effective_size,
@@ -198,6 +215,12 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     layout_in.box = layout_box;
     layout_in.font_engine = engine;
     layout_in.font_spec   = font_spec;
+
+    // Use Blend2D for text measurement — same engine as rasterization.
+    // This eliminates the FreeType+HarfBuzz vs Blend2D width discrepancy
+    // and makes the pixel-ink centering correction unnecessary.
+    layout_in.bl_font_ptr = &face;
+    layout_in.bl_measure_fn = bl2d_measure_text;
 
     auto start_layout = std::chrono::steady_clock::now();
     auto layout_res = TextLayoutEngine::layout(layout_in);
@@ -318,9 +341,9 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     float free_h = t.box.enabled ? (t.box.size.y - (t.style.box_style.enabled ? 2.0f * t.style.box_style.padding.y : 0.0f)) : 0.0f;
     float dx_align = 0.0f;
     float dy_align = 0.0f;
-    // dx_align is computed below from the FontEngine measurement, but may be
-    // wrong if FreeType+HarfBuzz and Blend2D disagree on glyph widths.  We
-    // correct it AFTER rendering by scanning the actual pixel ink bounds.
+    // With Blend2D measurement now used for layout (bl_measure_fn), the
+    // measurement engine matches the rendering engine, so dx_align should
+    // be accurate.  The pixel-ink centering below is kept as a safety net.
     if (t.box.enabled) {
         if (t.style.align == TextAlign::Center) {
             dx_align = (free_w - layout_res.size.x) * 0.5f;
@@ -337,10 +360,8 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     }
 
     float text_start_x = padding / 2.0f + (t.style.box_style.enabled ? t.style.box_style.padding.x : 0.0f) + dx_align;
-    // Guard: when FontEngine measurement is wildly wrong, dx_align can go
-    // negative, pushing text_start_x outside the image and clipping glyphs.
-    // Clamp to at least padding/2 so text is always within the image;
-    // the pixel-ink centering below will then correctly re-centre the ink.
+    // Guard: clamp text_start_x so text is always within the image.
+    // With Blend2D measurement, this should rarely trigger.
     if (t.box.enabled && text_start_x < padding / 2.0f) {
         text_start_x = padding / 2.0f;
     }
@@ -458,12 +479,16 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
 
             // 1. Count non-zero-alpha pixels per row and find the maximum.
             //    Also track the overall ink column bounds.
+            //    Sampled scan: stride 4 horizontally, stride 2 vertically
+            //    (8x fewer pixels vs full scan; bounds expanded to compensate).
+            constexpr int kSampleStrideX = 4;
+            constexpr int kSampleStrideY = 2;
             std::vector<int> row_counts(static_cast<size_t>(sh), 0);
             int max_count = 0;
             int local_ink_left = sw, local_ink_right = 0;
             int local_ink_top = sh, local_ink_bottom = 0;
-            for (int y = 0; y < sh; ++y) {
-                for (int x = 0; x < sw; ++x) {
+            for (int y = 0; y < sh; y += kSampleStrideY) {
+                for (int x = 0; x < sw; x += kSampleStrideX) {
                     if (((pixels[y * stride + x] >> 24) & 0xFF) != 0) {
                         ++row_counts[static_cast<size_t>(y)];
                         if (x < local_ink_left)   local_ink_left  = x;
@@ -474,6 +499,25 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
                 }
                 if (row_counts[static_cast<size_t>(y)] > max_count)
                     max_count = row_counts[static_cast<size_t>(y)];
+            }
+            // Expand sampled ink bounds to cover the stride gaps.
+            // A non-zero pixel at (x,y) means content could extend to
+            // (x - kSampleStrideX + 1) on the left and
+            // (x + kSampleStrideX - 1) on the right, similarly for y.
+            local_ink_left   = std::max(0, local_ink_left - (kSampleStrideX - 1));
+            local_ink_right  = std::min(sw - 1, local_ink_right + kSampleStrideX - 1);
+            local_ink_top    = std::max(0, local_ink_top - (kSampleStrideY - 1));
+            local_ink_bottom = std::min(sh - 1, local_ink_bottom + kSampleStrideY - 1);
+            // Propagate row counts to skipped rows so trimming works correctly.
+            // Only fill unsampled rows (y % kSampleStrideY != 0); sampled rows
+            // that legitimately have zero count must stay zero.
+            for (int y = 1; y < sh; ++y) {
+                if (row_counts[static_cast<size_t>(y)] == 0 &&
+                    y % kSampleStrideY != 0 &&
+                    row_counts[static_cast<size_t>(y - 1)] > 0) {
+                    row_counts[static_cast<size_t>(y)] =
+                        row_counts[static_cast<size_t>(y - 1)];
+                }
             }
 
             if (max_count > 0) {

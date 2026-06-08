@@ -229,7 +229,7 @@ OwnedFB TransformNode::execute(
                 h_col_start, h_step_y, inv_z, dsx, dsy,
                 row_begin, row_end);
         };
-        const bool use_par = (y1 - y0 >= 64 && area >= 128 * 128);
+        const bool use_par = (y1 - y0 >= 32 && area >= 64 * 32);
         if (ctx.counters) {
             if (use_par) {
                 ctx.counters->used_parallel_transform.fetch_add(1, std::memory_order_relaxed);
@@ -241,7 +241,8 @@ OwnedFB TransformNode::execute(
             parallel_for_tracked(
                 tbb::blocked_range<i32>(y0, y1),
                 [&](const tbb::blocked_range<i32>& range) { worker(range.begin(), range.end()); },
-                ctx.counters
+                ctx.counters,
+                tbb::simple_partitioner{}
             );
         } else {
             worker(y0, y1);
@@ -256,7 +257,7 @@ OwnedFB TransformNode::execute(
                 h_col_start, h_step_x, h_step_y,
                 row_begin, row_end);
         };
-        const bool use_par = (y1 - y0 >= 64 && area >= 128 * 128);
+        const bool use_par = (y1 - y0 >= 32 && area >= 64 * 32);
         if (ctx.counters) {
             if (use_par) {
                 ctx.counters->used_parallel_transform.fetch_add(1, std::memory_order_relaxed);
@@ -268,7 +269,8 @@ OwnedFB TransformNode::execute(
             parallel_for_tracked(
                 tbb::blocked_range<i32>(y0, y1),
                 [&](const tbb::blocked_range<i32>& range) { worker(range.begin(), range.end()); },
-                ctx.counters
+                ctx.counters,
+                tbb::simple_partitioner{}
             );
         } else {
             worker(y0, y1);

@@ -162,6 +162,23 @@ DirtyRectOutput compute_dirty_rect(
         } else {
             out.dirty_rect = has_dirty ? std::optional(union_dirty)
                                        : std::optional(raster::BBox{0, 0, 0, 0});
+
+            // ── Dirty rect overflow protection ─────────────────────
+            // When the dirty union exceeds 50% of the frame, reset to
+            // full-frame to avoid pathological expansion (105%+ overlap).
+            // Continuous animations cause progressive union growth;
+            // this threshold ensures we don't spend more time computing
+            // dirty rects than we save from rendering fewer pixels.
+            if (out.dirty_rect && !out.dirty_rect->is_empty()) {
+                const int dw = out.dirty_rect->x1 - out.dirty_rect->x0;
+                const int dh = out.dirty_rect->y1 - out.dirty_rect->y0;
+                const int64_t dirty_area = static_cast<int64_t>(dw) * dh;
+                const int64_t frame_area = static_cast<int64_t>(width) * height;
+                const int64_t half_frame = frame_area / 2;
+                if (dirty_area > half_frame) {
+                    out.dirty_rect = raster::BBox{0, 0, width, height};
+                }
+            }
         }
     }
 
