@@ -152,17 +152,62 @@ void warmup_pipe_renderer(
             std::chrono::duration<double, std::milli>(warmup_t1 - warmup_t0).count());
         renderer.counters()->setup_pool_preallocation_ms.fetch_add(warmup_ms, std::memory_order_relaxed);
 
+        // Save ALL counters before reset so we can restore non-framebuffer ones
         saved_fb_alloc = renderer.counters()->framebuffer_allocations.load(std::memory_order_relaxed);
         saved_fb_reuses = renderer.counters()->framebuffer_reuses.load(std::memory_order_relaxed);
         saved_fb_bytes = renderer.counters()->framebuffer_bytes_allocated.load(std::memory_order_relaxed);
         saved_fb_peak = renderer.counters()->framebuffer_bytes_peak.load(std::memory_order_relaxed);
 
+        // Save parallelism and system counters — reset() clears everything
+        const uint64_t saved_tbb_peak = renderer.counters()->tbb_active_workers_peak.load(std::memory_order_relaxed);
+        const uint64_t saved_tbb_avg_sum = renderer.counters()->tbb_active_workers_avg_sum.load(std::memory_order_relaxed);
+        const uint64_t saved_tbb_avg_cnt = renderer.counters()->tbb_active_workers_avg_count.load(std::memory_order_relaxed);
+        const uint64_t saved_tbb_arena = renderer.counters()->tbb_arena_max_concurrency.load(std::memory_order_relaxed);
+        const uint64_t saved_pcount = renderer.counters()->parallel_regions_count.load(std::memory_order_relaxed);
+        const uint64_t saved_pskip = renderer.counters()->parallel_regions_skipped_small_level.load(std::memory_order_relaxed);
+        const uint64_t saved_lpar = renderer.counters()->level_parallel_count.load(std::memory_order_relaxed);
+        const uint64_t saved_lseq = renderer.counters()->level_sequential_count.load(std::memory_order_relaxed);
+        const uint64_t saved_used_clear = renderer.counters()->used_parallel_clear.load(std::memory_order_relaxed);
+        const uint64_t saved_used_xform = renderer.counters()->used_parallel_transform.load(std::memory_order_relaxed);
+        const uint64_t saved_used_comp = renderer.counters()->used_parallel_composite.load(std::memory_order_relaxed);
+        const uint64_t saved_skip_clear = renderer.counters()->skipped_clear_small.load(std::memory_order_relaxed);
+        const uint64_t saved_skip_xform = renderer.counters()->skipped_transform_small.load(std::memory_order_relaxed);
+        const uint64_t saved_skip_comp = renderer.counters()->skipped_composite_small.load(std::memory_order_relaxed);
+        const uint64_t saved_node_exec = renderer.counters()->node_execute_actual_ms.load(std::memory_order_relaxed);
+        const uint64_t saved_sys_cores = renderer.counters()->system_logical_cores.load(std::memory_order_relaxed);
+        const uint64_t saved_cpu_user = renderer.counters()->process_cpu_user_ms.load(std::memory_order_relaxed);
+        const uint64_t saved_cpu_sys = renderer.counters()->process_cpu_sys_ms.load(std::memory_order_relaxed);
+        const uint64_t saved_rss = renderer.counters()->process_rss_peak_mb.load(std::memory_order_relaxed);
+
         renderer.counters()->reset();
 
+        // Restore framebuffer stats
         renderer.counters()->framebuffer_allocations.store(saved_fb_alloc, std::memory_order_relaxed);
         renderer.counters()->framebuffer_reuses.store(saved_fb_reuses, std::memory_order_relaxed);
         renderer.counters()->framebuffer_bytes_allocated.store(saved_fb_bytes, std::memory_order_relaxed);
         renderer.counters()->framebuffer_bytes_peak.store(saved_fb_peak, std::memory_order_relaxed);
+
+        // Restore parallelism and system counters from warmup
+        // These are accumulated across warmup + main render for accurate telemetry.
+        if (saved_tbb_peak > 0) renderer.counters()->tbb_active_workers_peak.store(saved_tbb_peak, std::memory_order_relaxed);
+        if (saved_tbb_avg_sum > 0) renderer.counters()->tbb_active_workers_avg_sum.store(saved_tbb_avg_sum, std::memory_order_relaxed);
+        if (saved_tbb_avg_cnt > 0) renderer.counters()->tbb_active_workers_avg_count.store(saved_tbb_avg_cnt, std::memory_order_relaxed);
+        if (saved_tbb_arena > 0) renderer.counters()->tbb_arena_max_concurrency.store(saved_tbb_arena, std::memory_order_relaxed);
+        if (saved_pcount > 0) renderer.counters()->parallel_regions_count.store(saved_pcount, std::memory_order_relaxed);
+        if (saved_pskip > 0) renderer.counters()->parallel_regions_skipped_small_level.store(saved_pskip, std::memory_order_relaxed);
+        if (saved_lpar > 0) renderer.counters()->level_parallel_count.store(saved_lpar, std::memory_order_relaxed);
+        if (saved_lseq > 0) renderer.counters()->level_sequential_count.store(saved_lseq, std::memory_order_relaxed);
+        if (saved_used_clear > 0) renderer.counters()->used_parallel_clear.store(saved_used_clear, std::memory_order_relaxed);
+        if (saved_used_xform > 0) renderer.counters()->used_parallel_transform.store(saved_used_xform, std::memory_order_relaxed);
+        if (saved_used_comp > 0) renderer.counters()->used_parallel_composite.store(saved_used_comp, std::memory_order_relaxed);
+        if (saved_skip_clear > 0) renderer.counters()->skipped_clear_small.store(saved_skip_clear, std::memory_order_relaxed);
+        if (saved_skip_xform > 0) renderer.counters()->skipped_transform_small.store(saved_skip_xform, std::memory_order_relaxed);
+        if (saved_skip_comp > 0) renderer.counters()->skipped_composite_small.store(saved_skip_comp, std::memory_order_relaxed);
+        if (saved_node_exec > 0) renderer.counters()->node_execute_actual_ms.store(saved_node_exec, std::memory_order_relaxed);
+        if (saved_sys_cores > 0) renderer.counters()->system_logical_cores.store(saved_sys_cores, std::memory_order_relaxed);
+        if (saved_cpu_user > 0) renderer.counters()->process_cpu_user_ms.store(saved_cpu_user, std::memory_order_relaxed);
+        if (saved_cpu_sys > 0) renderer.counters()->process_cpu_sys_ms.store(saved_cpu_sys, std::memory_order_relaxed);
+        if (saved_rss > 0) renderer.counters()->process_rss_peak_mb.store(saved_rss, std::memory_order_relaxed);
     }
 
     chronon3d::telemetry::clear_telemetry_stores();
