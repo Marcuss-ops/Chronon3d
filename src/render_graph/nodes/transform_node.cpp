@@ -228,7 +228,15 @@ OwnedFB TransformNode::execute(
                 h_col_start, h_step_y, inv_z, dsx, dsy,
                 row_begin, row_end);
         };
-        if (y1 - y0 >= 64 && area >= 128 * 128) {
+        const bool use_par = (y1 - y0 >= 64 && area >= 128 * 128);
+        if (ctx.counters) {
+            if (use_par) {
+                ctx.counters->used_parallel_transform.fetch_add(1, std::memory_order_relaxed);
+            } else {
+                ctx.counters->skipped_transform_small.fetch_add(1, std::memory_order_relaxed);
+            }
+        }
+        if (use_par) {
             tbb::parallel_for(
                 tbb::blocked_range<i32>(y0, y1),
                 [&](const tbb::blocked_range<i32>& range) { worker(range.begin(), range.end()); });
@@ -245,7 +253,15 @@ OwnedFB TransformNode::execute(
                 h_col_start, h_step_x, h_step_y,
                 row_begin, row_end);
         };
-        if (y1 - y0 >= 64 && area >= 128 * 128) {
+        const bool use_par = (y1 - y0 >= 64 && area >= 128 * 128);
+        if (ctx.counters) {
+            if (use_par) {
+                ctx.counters->used_parallel_transform.fetch_add(1, std::memory_order_relaxed);
+            } else {
+                ctx.counters->skipped_transform_small.fetch_add(1, std::memory_order_relaxed);
+            }
+        }
+        if (use_par) {
             tbb::parallel_for(
                 tbb::blocked_range<i32>(y0, y1),
                 [&](const tbb::blocked_range<i32>& range) { worker(range.begin(), range.end()); });

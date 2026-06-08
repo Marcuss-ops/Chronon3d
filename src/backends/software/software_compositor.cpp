@@ -108,6 +108,7 @@ void SoftwareCompositor::composite_layer(Framebuffer& dst, const Framebuffer& sr
             cnt->compositenode_setup_ms.fetch_add(setup_ms, std::memory_order_relaxed);
         }
         if (row_count >= 32) {
+            if (cnt) cnt->used_parallel_composite.fetch_add(1, std::memory_order_relaxed);
             tbb::parallel_for(
                 tbb::blocked_range<i32>(y0, y1),
                 [&](const tbb::blocked_range<i32>& range) {
@@ -115,6 +116,7 @@ void SoftwareCompositor::composite_layer(Framebuffer& dst, const Framebuffer& sr
                 }
             );
         } else {
+            if (cnt) cnt->skipped_composite_small.fetch_add(1, std::memory_order_relaxed);
             process_rows(y0, y1);
         }
         if (cnt) {
@@ -170,6 +172,7 @@ bool SoftwareCompositor::composite_layer_normal_optimized(
     };
 
     if (use_tbb) {
+        if (cnt) cnt->used_parallel_composite.fetch_add(1, std::memory_order_relaxed);
         tbb::parallel_for(
             tbb::blocked_range<i32>(y0, y1),
             [&](const tbb::blocked_range<i32>& range) {
@@ -177,6 +180,7 @@ bool SoftwareCompositor::composite_layer_normal_optimized(
             }
         );
     } else {
+        if (cnt) cnt->skipped_composite_small.fetch_add(1, std::memory_order_relaxed);
         process_rows(y0, y1);
     }
 
@@ -237,6 +241,7 @@ bool SoftwareCompositor::composite_layer_non_normal_optimized(
     };
 
     if (height_to_process >= 32) {
+        if (cnt) cnt->used_parallel_composite.fetch_add(1, std::memory_order_relaxed);
         tbb::parallel_for(
             tbb::blocked_range<i32>(y0, y1),
             [&](const tbb::blocked_range<i32>& range) {
@@ -244,6 +249,7 @@ bool SoftwareCompositor::composite_layer_non_normal_optimized(
             }
         );
     } else {
+        if (cnt) cnt->skipped_composite_small.fetch_add(1, std::memory_order_relaxed);
         process_rows(y0, y1);
     }
 

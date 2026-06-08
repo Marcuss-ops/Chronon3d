@@ -101,6 +101,8 @@ constexpr std::size_t kHardwareDestructiveInterferenceSize = 64;
     X(framebuffer_pool_hits) \
     X(framebuffer_buffer_returned_to_pool_count) \
     X(framebuffer_prealloc_created) \
+    X(framebuffer_copy_ms) \
+    X(framebuffer_copy_parallel_calls) \
     X(unaligned_memory_copies) \
     X(frame_conversion_copy_ms) \
     X(video_graph_eval_ms) \
@@ -143,7 +145,17 @@ constexpr std::size_t kHardwareDestructiveInterferenceSize = 64;
     X(tbb_active_workers_avg_sum) \
     X(tbb_active_workers_avg_count) \
     X(parallel_regions_count) \
-    X(parallel_regions_skipped_small_level)
+    X(parallel_regions_skipped_small_level) \
+    X(parallel_idle_worker_entry_sum) \
+    X(parallel_idle_worker_samples) \
+    X(sequential_level_execute_ms) \
+    X(used_parallel_clear) \
+    X(skipped_clear_small) \
+    X(used_parallel_transform) \
+    X(skipped_transform_small) \
+    X(used_parallel_composite) \
+    X(skipped_composite_small) \
+    X(skipped_encoder_backpressure)
 
 #define CHRONON_RENDER_COUNTERS_SETUP(X) \
     X(setup_graph_parsing_ms) \

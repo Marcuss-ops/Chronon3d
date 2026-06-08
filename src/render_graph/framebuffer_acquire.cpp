@@ -3,6 +3,8 @@
 #include <chronon3d/cache/framebuffer_pool.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/math/color.hpp>
+#include <tbb/blocked_range.h>
+#include <tbb/parallel_for.h>
 #include <chrono>
 
 namespace chronon3d::graph {
@@ -52,8 +54,19 @@ OwnedFB RenderGraphContext::acquire_owned_fb(const Framebuffer& other) const {
     }
     const Color* src_base = other.data();
     Color* dst_base = fb->data();
-    for (i32 y = 0; y < other.height(); ++y) {
-        std::copy_n(src_base + y * other.stride(), other.width(), dst_base + y * fb->stride());
+    {
+        const auto t0 = std::chrono::high_resolution_clock::now();
+        for (i32 y = 0; y < other.height(); ++y) {
+            std::copy_n(
+                src_base + y * other.stride(), other.width(),
+                dst_base + y * fb->stride());
+        }
+        if (counters) {
+            const auto elapsed = static_cast<uint64_t>(
+                std::chrono::duration<double, std::milli>(
+                    std::chrono::high_resolution_clock::now() - t0).count());
+            counters->framebuffer_copy_ms.fetch_add(elapsed, std::memory_order_relaxed);
+        }
     }
     fb->set_opaque(other.is_opaque());
     fb->set_key_digest(other.key_digest());
@@ -164,10 +177,21 @@ std::shared_ptr<Framebuffer> RenderGraphContext::acquire_framebuffer(const Frame
     if (fb.get() == &other) {
         return fb;
     }
-    const Color* src_base = other.data();
-    Color* dst_base = fb->data();
-    for (i32 y = 0; y < other.height(); ++y) {
-        std::copy_n(src_base + y * other.stride(), other.width(), dst_base + y * fb->stride());
+    {
+        const auto t0 = std::chrono::high_resolution_clock::now();
+        const Color* src_base = other.data();
+        Color* dst_base = fb->data();
+        for (i32 y = 0; y < other.height(); ++y) {
+            std::copy_n(
+                src_base + y * other.stride(), other.width(),
+                dst_base + y * fb->stride());
+        }
+        if (counters) {
+            const auto elapsed = static_cast<uint64_t>(
+                std::chrono::duration<double, std::milli>(
+                    std::chrono::high_resolution_clock::now() - t0).count());
+            counters->framebuffer_copy_ms.fetch_add(elapsed, std::memory_order_relaxed);
+        }
     }
     fb->set_opaque(other.is_opaque());
     fb->set_key_digest(other.key_digest());
