@@ -127,6 +127,13 @@ inline std::vector<chronon3d::telemetry::CounterTelemetryRecord> capture_counter
         {"tbb_active_workers_peak", counters.tbb_active_workers_peak.load(std::memory_order_relaxed)},
         {"parallel_regions_count", counters.parallel_regions_count.load(std::memory_order_relaxed)},
         {"parallel_regions_skipped_small_level", counters.parallel_regions_skipped_small_level.load(std::memory_order_relaxed)},
+        {"used_parallel_clear", counters.used_parallel_clear.load(std::memory_order_relaxed)},
+        {"skipped_clear_small", counters.skipped_clear_small.load(std::memory_order_relaxed)},
+        {"used_parallel_transform", counters.used_parallel_transform.load(std::memory_order_relaxed)},
+        {"skipped_transform_small", counters.skipped_transform_small.load(std::memory_order_relaxed)},
+        {"used_parallel_composite", counters.used_parallel_composite.load(std::memory_order_relaxed)},
+        {"skipped_composite_small", counters.skipped_composite_small.load(std::memory_order_relaxed)},
+        {"skipped_encoder_backpressure", counters.skipped_encoder_backpressure.load(std::memory_order_relaxed)},
         {"framebuffer_pool_capacity", 0},
         {"framebuffer_pool_available_count", 0},
         {"framebuffer_pool_current_bytes", 0},
@@ -251,6 +258,13 @@ inline void add_counters(chronon3d::RenderCounters& dst, const chronon3d::Render
     // Cumulative counters: use fetch_add (these are per-run deltas)
     dst.parallel_regions_count.fetch_add(src.parallel_regions_count.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.parallel_regions_skipped_small_level.fetch_add(src.parallel_regions_skipped_small_level.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.used_parallel_clear.fetch_add(src.used_parallel_clear.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.skipped_clear_small.fetch_add(src.skipped_clear_small.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.used_parallel_transform.fetch_add(src.used_parallel_transform.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.skipped_transform_small.fetch_add(src.skipped_transform_small.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.used_parallel_composite.fetch_add(src.used_parallel_composite.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.skipped_composite_small.fetch_add(src.skipped_composite_small.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.skipped_encoder_backpressure.fetch_add(src.skipped_encoder_backpressure.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.dirty_rect_count.fetch_add(src.dirty_rect_count.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.dirty_pixels.fetch_add(src.dirty_pixels.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.dirty_full_fallbacks.fetch_add(src.dirty_full_fallbacks.load(std::memory_order_relaxed), std::memory_order_relaxed);

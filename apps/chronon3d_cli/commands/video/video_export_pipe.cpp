@@ -238,6 +238,12 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     }
     phases.push_back({"e2e_wall_ms", wall_time_ms});
 
+    // Fill system counters BEFORE capturing — otherwise process_cpu, RSS, RAM, TBB
+    // counters won't make it into the SQLite render_counters table.
+    if (renderer->counters()) {
+        sys_metrics.fill_system_counters(*renderer->counters());
+    }
+
     auto resolved_counters = telemetry::capture_counters(*renderer->counters());
     resolved_counters.push_back({"ffmpeg_pipe_write_blocked_duration_ms", static_cast<uint64_t>(std::llround(write_blocked_ms))});
     resolved_counters.push_back({"ffmpeg_queue_wait_duration_ms", static_cast<uint64_t>(std::llround(loop_result.queue_wait_ms))});
@@ -249,10 +255,6 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
         resolved_counters.push_back({"framebuffer_pool_current_bytes", pool_stats.current_bytes});
         resolved_counters.push_back({"framebuffer_pool_total_allocations", pool_stats.total_allocations});
         resolved_counters.push_back({"framebuffer_pool_total_reuses", pool_stats.total_reuses});
-    }
-
-    if (renderer->counters()) {
-        sys_metrics.fill_system_counters(*renderer->counters());
     }
 
     const int encoded_frames = pipe_encoded_frame_count(export_status);

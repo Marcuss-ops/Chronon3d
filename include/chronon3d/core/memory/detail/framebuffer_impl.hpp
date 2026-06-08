@@ -59,3 +59,14 @@ inline void framebuffer_clear_strided(Color* data, i32 allocated_width, i32 x, i
         row += static_cast<size_t>(allocated_width);
     }
 }
+
+// ── Parallel clear helper (implemented in framebuffer_clear_parallel.cpp) ──
+// Forward declaration: Framebuffer is defined later in framebuffer.hpp.
+// This function uses TBB parallel_for to split large clears across all
+// cores — "tutti i pizzaioli puliscono la loro fetta di banco".
+// Declared here (without pulling TBB headers) so it's available everywhere
+// framebuffer.hpp is included.
+class Framebuffer;
+void framebuffer_clear_parallel(
+    Framebuffer& fb, const Color& color,
+    const std::optional<raster::BBox>& clip);
