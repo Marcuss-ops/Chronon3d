@@ -142,6 +142,60 @@ void execute_single_node(
         *out_predicted_bbox_ms = std::chrono::duration<double, std::milli>(t_bbox1 - t_bbox0).count();
     }
 
+    const bool cache_hit_fast_path =
+        cache_eval.result &&
+        cache_eval.cache_status == "hit" &&
+        !cache_eval.node_frame_dependent &&
+        !ctx.tile_execution_enabled;
+
+    if (cache_hit_fast_path) {
+        const auto t_fast0 = std::chrono::steady_clock::now();
+
+        state.temp[id] = cache_eval.result;
+        state.resolved_key_digest[id] = cache_eval.key.digest();
+        state.resolved_frame_dependent[id] = 0;
+        state.resolved_cache_hit[id] = 1;
+        state.resolved_bboxes[id] = predicted_bbox;
+
+        const auto t_fast1 = std::chrono::steady_clock::now();
+        const double fast_duration_ms = std::chrono::duration<double, std::milli>(t_fast1 - t_fast0).count();
+
+        const auto t_telemetry0 = std::chrono::steady_clock::now();
+        emit_node_records(
+            ctx, node,
+            cache_eval.key,
+            cache_eval.result,
+            predicted_bbox,
+            cache_eval.cache_status,
+            cache_eval.is_cacheable,
+            static_cast<int>(input_ids.size()),
+            fast_duration_ms
+        );
+        const auto t_telemetry1 = std::chrono::steady_clock::now();
+        if (ctx.counters) {
+            ctx.counters->nodes_executed.fetch_add(1, std::memory_order_relaxed);
+        }
+        if (out_telemetry_ms) {
+            *out_telemetry_ms = std::chrono::duration<double, std::milli>(t_telemetry1 - t_telemetry0).count();
+        }
+        if (out_cache_ms) {
+            *out_cache_ms = std::chrono::duration<double, std::milli>(t_cache1 - t_cache0).count();
+        }
+        if (out_dirty_ms) {
+            *out_dirty_ms = 0.0;
+        }
+        if (out_execute_ms) {
+            *out_execute_ms = 0.0;
+        }
+        if (out_clone_context_ms) {
+            *out_clone_context_ms = 0.0;
+        }
+        if (out_state_assign_ms) {
+            *out_state_assign_ms = 0.0;
+        }
+        return;
+    }
+
     if (ctx.tile_execution_enabled && ctx.active_tile_clip &&
         predicted_bbox && !predicted_bbox->is_empty())
     {

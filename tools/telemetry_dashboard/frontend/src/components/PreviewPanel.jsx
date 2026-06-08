@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { outputPathToArtifactUrl } from '../api/telemetryApi.js';
 
 export default function PreviewPanel({ run, selectedFrame, nodeEvents }) {
@@ -9,12 +9,36 @@ export default function PreviewPanel({ run, selectedFrame, nodeEvents }) {
 
   const [mode, setMode] = useState(isVideoRun ? 'video' : 'frame');
   const [mediaError, setMediaError] = useState('');
+  const userModeOverrideRef = useRef(false);
+  const videoRef = useRef(null);
+
+  const tryPlayVideo = useCallback(() => {
+    const el = videoRef.current;
+    if (el && mode === 'video') {
+      const p = el.play();
+      if (p && typeof p.catch === 'function') {
+        p.catch(() => {});
+      }
+    }
+  }, [mode]);
 
   useEffect(() => {
-    if (!selectedFrame) {
+    if (run.run_id) {
+      userModeOverrideRef.current = false;
+    }
+  }, [run.run_id]);
+
+  useEffect(() => {
+    if (!userModeOverrideRef.current) {
       setMode(isVideoRun ? 'video' : 'frame');
     }
   }, [run.run_id, isVideoRun, selectedFrame]);
+
+  useEffect(() => {
+    if (mode === 'video') {
+      tryPlayVideo();
+    }
+  }, [mode, tryPlayVideo]);
 
   const resolvedFramePath = outputPath.includes('####')
     ? outputPath.replace('####', (selectedFrame?.frame_number || 0).toString().padStart(4, '0'))
@@ -69,7 +93,10 @@ export default function PreviewPanel({ run, selectedFrame, nodeEvents }) {
             <div className="preview-toggle-group">
               <button 
                 className={`preview-toggle-item ${mode === 'video' ? 'active' : ''}`}
-                onClick={() => setMode('video')}
+                onClick={() => {
+                  userModeOverrideRef.current = true;
+                  setMode('video');
+                }}
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
                   <polygon points="5 3 19 12 5 21 5 3"></polygon>
@@ -78,7 +105,10 @@ export default function PreviewPanel({ run, selectedFrame, nodeEvents }) {
               </button>
               <button 
                 className={`preview-toggle-item ${mode === 'frame' ? 'active' : ''}`}
-                onClick={() => setMode('frame')}
+                onClick={() => {
+                  userModeOverrideRef.current = true;
+                  setMode('frame');
+                }}
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
                   <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
@@ -89,7 +119,10 @@ export default function PreviewPanel({ run, selectedFrame, nodeEvents }) {
               </button>
               <button 
                 className={`preview-toggle-item ${mode === 'heatmap' ? 'active' : ''}`}
-                onClick={() => setMode('heatmap')}
+                onClick={() => {
+                  userModeOverrideRef.current = true;
+                  setMode('heatmap');
+                }}
                 title="Visualizza aree ridisegnate (Dirty Rects)"
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -128,10 +161,16 @@ export default function PreviewPanel({ run, selectedFrame, nodeEvents }) {
               autoPlay
               loop
               muted
+              preload="auto"
               key={videoUrl}
               src={videoUrl}
+              ref={videoRef}
+              onCanPlay={tryPlayVideo}
+              onLoadedData={() => {
+                setMediaError('');
+                tryPlayVideo();
+              }}
               onError={() => setMediaError('Video preview unavailable')}
-              onLoadedData={() => setMediaError('')}
             />
           ) : (
             <>

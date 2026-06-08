@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -82,6 +83,39 @@ private:
         return std::max(0.0f, width);
     }
 
+    // OPT: small local cache for measure_string results during word-wrap.
+    // Keys on (font_path, font_weight, text, size) to avoid cross-style contamination.
+    struct MeasureCache {
+        struct Key {
+            std::string font_path;
+            int   font_weight{0};
+            std::string text;
+            float size{0.0f};
+            bool operator==(const Key& o) const noexcept {
+                return font_path == o.font_path && font_weight == o.font_weight &&
+                       text == o.text && size == o.size;
+            }
+        };
+        struct KeyHash {
+            size_t operator()(const Key& k) const noexcept {
+                size_t h = 0;
+                h ^= std::hash<std::string>{}(k.font_path)  + 0x9e3779b9 + (h << 6) + (h >> 2);
+                h ^= std::hash<int>{}(k.font_weight)        + 0x9e3779b9 + (h << 6) + (h >> 2);
+                h ^= std::hash<std::string>{}(k.text)        + 0x9e3779b9 + (h << 6) + (h >> 2);
+                h ^= std::hash<float>{}(k.size)              + 0x9e3779b9 + (h << 6) + (h >> 2);
+                return h;
+            }
+        };
+        std::unordered_map<Key, float, KeyHash> cache;
+        float get(const Key& k, auto&& measurer) {
+            auto it = cache.find(k);
+            if (it != cache.end()) return it->second;
+            float w = measurer();
+            cache[k] = w;
+            return w;
+        }
+    };
+
     static float measure_string(const TextLayoutInput& input, const TextStyle& style, std::string_view s, float font_size) {
         if (input.font_engine) {
             const FontSpec spec = FontSpec{
@@ -139,6 +173,9 @@ private:
         const float line_height = std::max(1.0f, font_size * input.style.line_height);
         const float max_width = input.box.enabled && input.box.size.x > 0.0f ? input.box.size.x : 0.0f;
 
+        // OPT: local measurement cache to avoid redundant FontEngine calls
+        MeasureCache ms_cache;
+
         auto measure_char = [&](char c) -> float {
             if (input.font_engine) {
                 char buf[2] = {c, '\0'};
@@ -148,7 +185,13 @@ private:
         };
 
         auto measure_string_input = [&](std::string_view s) -> float {
-            return measure_string(input, input.style, s, font_size);
+            MeasureCache::Key k{
+                .font_path = input.style.font_path,
+                .font_weight = input.style.font_weight,
+                .text = std::string(s),
+                .size = font_size
+            };
+            return ms_cache.get(k, [&] { return measure_string(input, input.style, s, font_size); });
         };
 
         std::vector<std::string> raw_lines;
@@ -310,6 +353,24 @@ private:
         const float font_size_hint = std::max(1.0f, input.style.size);
         result.font_size = font_size_hint;
 
+        // OPT: local measurement cache for inline runs
+        MeasureCache ms_cache;
+
+        auto cached_measure_string = [&](const TextStyle& style, const std::string& s, float size) -> float {
+            MeasureCache::Key k{
+                .font_path = style.font_path.empty() ? input.style.font_path : style.font_path,
+                .font_weight = style.font_weight ? style.font_weight : input.style.font_weight,
+                .text = s,
+                .size = size
+            };
+            return ms_cache.get(k, [&] { return measure_string(input, style, s, size); });
+        };
+
+        auto cached_measure_run_width = [&](const TextLayoutRun& run, float size) -> float {
+            if (run.use_advance_override) return std::max(0.0f, run.advance_override);
+            return cached_measure_string(run.style, run.text, size);
+        };
+
         struct LineState {
             std::vector<TextLayoutLineRun> runs;
             float width{0.0f};
@@ -363,7 +424,8 @@ private:
             const float run_size = std::max(1.0f, piece.style.size);
             const float ascent = run_size * 0.78f;
             const float descent = run_size * 0.22f;
-            const float width = measure_run_width(input, piece, run_size);
+            // OPT: cached measurement
+            const float width = cached_measure_run_width(piece, run_size);
 
             TextLayoutLineRun layout_run;
             layout_run.text = piece.text;
@@ -408,7 +470,8 @@ private:
                     }
 
                     const std::string glyph(1, c);
-                    const float cw = measure_string(input, run.style, glyph, run_size);
+                    // OPT: cached measurement
+                    const float cw = cached_measure_string(run.style, glyph, run_size);
                     if (current.width + cw > max_width_limit && !current.runs.empty()) {
                         push_current();
                     }
@@ -431,7 +494,8 @@ private:
                     return;
                 }
 
-                const float token_w = measure_string(input, run.style, token, run_size);
+                // OPT: cached measurement
+                const float token_w = cached_measure_string(run.style, token, run_size);
 
                 if (token_is_space) {
                     if (current.runs.empty()) {
@@ -455,7 +519,8 @@ private:
                 if (token_w > max_width_limit && current.runs.empty()) {
                     for (char c : token) {
                         const std::string glyph(1, c);
-                        const float cw = measure_string(input, run.style, glyph, run_size);
+                        // OPT: cached measurement
+                        const float cw = cached_measure_string(run.style, glyph, run_size);
                         if (current.width + cw > max_width_limit && !current.runs.empty()) {
                             push_current();
                         }
@@ -549,11 +614,13 @@ private:
                     auto& run = line.runs.front();
                     while (!run.text.empty() && line.width > max_width_limit) {
                         run.text.pop_back();
-                        run.width = measure_string(input, run.style, run.text, std::max(1.0f, run.style.size));
+                        // OPT: cached measurement
+                        run.width = cached_measure_string(run.style, run.text, std::max(1.0f, run.style.size));
                         line.width = run.width;
                     }
                     run.text += "...";
-                    run.width = measure_string(input, run.style, run.text, std::max(1.0f, run.style.size));
+                    // OPT: cached measurement
+                    run.width = cached_measure_string(run.style, run.text, std::max(1.0f, run.style.size));
                     line.width = run.width;
                 }
             }

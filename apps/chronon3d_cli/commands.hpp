@@ -54,6 +54,7 @@ struct VideoArgs {
     int crf{18};
     std::string codec{"auto"};
     std::string encode_preset{"veryfast"};
+    std::string tune;
     bool keep_frames{false};
     RenderPipelineArgs pipeline{};
     std::string frames_dir;
@@ -87,6 +88,7 @@ struct VideoCameraArgs {
     int crf{18};
     std::string codec{"auto"};
     std::string encode_preset{"medium"};
+    std::string tune;
     RenderPipelineArgs pipeline{};
     std::string hardware_encoder{"none"};
 };

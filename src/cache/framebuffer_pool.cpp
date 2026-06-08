@@ -67,9 +67,9 @@ int round_up_bucket(int val) {
     } else if (val <= 256) {
         return ((val + 15) / 16) * 16; // 16-aligned
     } else if (val <= 1024) {
-        return ((val + 31) / 32) * 32; // 32-aligned
+        return ((val + 127) / 128) * 128; // 128-aligned to collapse near-size buckets
     } else {
-        return ((val + 63) / 64) * 64; // 64-aligned (full-frame buffers round close to exact resolution)
+        return ((val + 127) / 128) * 128; // 128-aligned (full-frame buffers round close to exact resolution)
     }
 }
 

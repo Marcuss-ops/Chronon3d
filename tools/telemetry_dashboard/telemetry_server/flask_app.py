@@ -28,6 +28,47 @@ def require_auth(f):
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 
+
+def resolve_artifact_path(raw_path: str) -> Path | None:
+    """Resolve artifact paths recorded by the CLI.
+
+    Runs may store either absolute paths or relative paths such as
+    `output/foo.png`.  The relative path is often relative to the CLI cwd
+    (for example `build/chronon/linux-release`), not the repository root, so
+    we try a small set of plausible bases before failing.
+    """
+    path = Path(raw_path)
+    if path.is_absolute():
+        candidates = [path]
+    else:
+        candidates = [
+            Path.cwd() / path,
+            PROJECT_ROOT / path,
+            PROJECT_ROOT / 'build' / 'chronon' / 'linux-release' / path,
+            PROJECT_ROOT / 'build' / path,
+        ]
+
+    for candidate in candidates:
+        try:
+            resolved = candidate.resolve()
+        except Exception:
+            continue
+        if resolved.exists() and resolved.is_file():
+            return resolved
+
+    if not path.is_absolute():
+        for parent in [Path.cwd(), PROJECT_ROOT, PROJECT_ROOT / 'build']:
+            if not parent.exists():
+                continue
+            try:
+                match = next(parent.rglob(path.name))
+            except StopIteration:
+                continue
+            if match.exists() and match.is_file():
+                return match.resolve()
+
+    return None
+
 @app.route('/api/login', methods=['POST'])
 def login():
     data = request.get_json() or {}
@@ -110,16 +151,9 @@ def get_artifact():
     if not raw_path:
         return "Missing path", 400
 
-    artifact_path = Path(raw_path)
-    if not artifact_path.is_absolute():
-        artifact_path = PROJECT_ROOT / artifact_path
-    artifact_path = artifact_path.resolve()
-
-    if not artifact_path.exists() or artifact_path.is_dir():
-        # Try relative to project root if absolute failed or is outside
-        artifact_path = PROJECT_ROOT / Path(raw_path).name
-        if not artifact_path.exists():
-            return "Not found", 404
+    artifact_path = resolve_artifact_path(raw_path)
+    if artifact_path is None:
+        return "Not found", 404
 
     content_type = ARTIFACT_MIME_TYPES.get(artifact_path.suffix.lower(), 'application/octet-stream')
     return send_file(artifact_path, mimetype=content_type)

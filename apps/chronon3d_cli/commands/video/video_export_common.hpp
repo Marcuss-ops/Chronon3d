@@ -33,6 +33,7 @@ struct FfmpegExportOptions {
     std::string codec;
     std::string hardware_encoder;
     std::string encode_preset;
+    std::string tune;
     bool keep_frames;
     int chunks;
     std::string ffmpeg_mode{"pipe"};

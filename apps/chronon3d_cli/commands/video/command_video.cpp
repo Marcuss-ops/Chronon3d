@@ -143,6 +143,7 @@ int command_video(const CompositionRegistry& registry, const VideoArgs& args) {
     opts.codec = args.codec;
     opts.hardware_encoder = args.hardware_encoder;
     opts.encode_preset = args.encode_preset;
+    opts.tune = args.tune;
     opts.keep_frames = args.keep_frames;
     opts.chunks = args.chunks;
     opts.ffmpeg_mode = args.ffmpeg_mode;
@@ -151,6 +152,22 @@ int command_video(const CompositionRegistry& registry, const VideoArgs& args) {
     opts.color_output = args.color_output;
     opts.pipe_writer = args.pipe_writer;
     opts.encoder_backend = args.encoder_backend;
+    if (opts.tune.empty() && opts.codec == "libx264") {
+        opts.tune = "zerolatency";
+        spdlog::info("[video] Auto-selecting x264 tune=zerolatency for low-latency pipe export");
+    }
+#if defined(__linux__)
+    // If the user did not explicitly request a raw RGBA pipe, prefer YUV420P
+    // for even-sized compositions. It cuts pipe bandwidth by 62.5% and routes
+    // through the direct float→YUV path instead of the RGBA staging path.
+    if (args.pipe_pixfmt == "rgba" &&
+        comp.width() % 2 == 0 && comp.height() % 2 == 0 &&
+        args.codec != "libx264rgb")
+    {
+        opts.pipe_pixfmt = "yuv420p";
+        spdlog::info("[video] Auto-selecting yuv420p pipe pixel format for {}x{} output", comp.width(), comp.height());
+    }
+#endif
 #ifdef __linux__
     if (opts.pipe_writer == "io_uring") {
         spdlog::warn("[video] io_uring pipe writer is experimental — output may be corrupted on some kernels; use --pipe-writer classic for stable exports");
@@ -231,6 +248,7 @@ int command_video_camera(const CompositionRegistry& registry, const VideoCameraA
     opts.codec = args.codec;
     opts.hardware_encoder = args.hardware_encoder;
     opts.encode_preset = args.encode_preset;
+    opts.tune = args.tune;
     opts.keep_frames = false; // default for camera motion
     opts.chunks = 1; // can't easily chunk here without extending args, default 1
     opts.ffmpeg_mode = "png";
