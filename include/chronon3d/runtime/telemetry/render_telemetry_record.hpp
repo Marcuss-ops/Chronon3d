@@ -165,6 +165,15 @@ struct FrameTelemetryRecord {
     double duration_ms{0.0};
     bool cache_hit{false};
     double dirty_area_ratio{1.0};
+    double graph_eval_ms{0.0};
+    double queue_wait_ms{0.0};
+    double conversion_copy_ms{0.0};
+    double encoder_ms{0.0};
+    double pipe_write_ms{0.0};
+    double native_convert_ms{0.0};
+    double native_send_ms{0.0};
+    double native_receive_ms{0.0};
+    double native_mux_ms{0.0};
 
     // ── Per-frame dirty-rect state (populated by render loop) ──
     bool dirty_rect_enabled{false};
@@ -175,6 +184,17 @@ struct FrameTelemetryRecord {
     bool tile_execution_used{false};
     bool fast_path_reused{false};
     bool graph_reused{false};
+};
+
+struct FrameEncoderTelemetryRecord {
+    int frame_number{0};
+    double conversion_copy_ms{0.0};
+    double encoder_ms{0.0};
+    double pipe_write_ms{0.0};
+    double native_convert_ms{0.0};
+    double native_send_ms{0.0};
+    double native_receive_ms{0.0};
+    double native_mux_ms{0.0};
 };
 
 struct PhaseTelemetryRecord {

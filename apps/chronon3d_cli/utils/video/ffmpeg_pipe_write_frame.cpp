@@ -51,6 +51,8 @@ bool FfmpegPipeEncoder::write_frame(const Framebuffer& fb) {
 
     const auto t_conv0 = std::chrono::high_resolution_clock::now();
 
+    double frame_conv_ms = 0.0;
+    double frame_write_ms = 0.0;
     if (can_cache) {
         const auto* hit = frame_cache_.lookup(cache_key);
         if (hit) {
@@ -205,6 +207,7 @@ bool FfmpegPipeEncoder::write_frame(const Framebuffer& fb) {
         const auto t_conv1 = std::chrono::high_resolution_clock::now();
         const auto conv_ms = static_cast<uint64_t>(
             std::chrono::duration<double, std::milli>(t_conv1 - t_conv0).count());
+        frame_conv_ms = static_cast<double>(conv_ms);
         if (profiling::g_current_counters) {
             profiling::g_current_counters->video_conversion_ms
                 .fetch_add(conv_ms, std::memory_order_relaxed);
@@ -231,6 +234,7 @@ do_pipe_write:
         bool written = write_uring(prev_idx, bytes_to_write);
         const auto t_write1 = std::chrono::high_resolution_clock::now();
         const auto write_ms = std::chrono::duration<double, std::milli>(t_write1 - t_write0).count();
+        frame_write_ms = write_ms;
         total_write_blocked_ms_ += write_ms;
         if (profiling::g_current_counters) {
             profiling::g_current_counters->video_pipe_write_ms.fetch_add(
@@ -244,6 +248,7 @@ do_pipe_write:
         size_t res = std::fwrite(target_buffer, 1, bytes_to_write, pipe_);
         const auto t_write1 = std::chrono::high_resolution_clock::now();
         const auto write_ms = std::chrono::duration<double, std::milli>(t_write1 - t_write0).count();
+        frame_write_ms = write_ms;
         total_write_blocked_ms_ += write_ms;
         if (profiling::g_current_counters) {
             profiling::g_current_counters->video_pipe_write_ms.fetch_add(
@@ -255,6 +260,11 @@ do_pipe_write:
         bytes_written_ += res;
     }
 
+    last_frame_telemetry_ = {
+        .conversion_copy_ms = frame_conv_ms,
+        .encoder_ms = frame_write_ms,
+        .pipe_write_ms = frame_write_ms,
+    };
     ++frames_written_;
     return true;
 }

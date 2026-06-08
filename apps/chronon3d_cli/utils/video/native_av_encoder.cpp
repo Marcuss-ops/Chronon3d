@@ -89,7 +89,13 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
     codec_->height    = options_.height;
     codec_->time_base = AVRational{1, options_.fps};
     codec_->framerate = AVRational{options_.fps, 1};
-    codec_->gop_size  = options_.fps * 2;
+    // GOP size = 1 second (fps frames) for reliable decoder compatibility.
+    // With fps*2, the very subtle tracking_breathing animation (4% scale over
+    // 120 frames) produces P-frames with 99.7% skip on the "ultrafast" preset
+    // — some H.264 decoders can't decode those near-empty P-frames, resulting
+    // in visible frames only at keyframe intervals.  fps*2 worked for most
+    // content but broke for near-static scenes with tiny per-frame changes.
+    codec_->gop_size  = options_.fps;  // was fps * 2
     codec_->max_b_frames = 0;              // no B-frames for lowest latency
 
     // Pixel format: always YUV420P for H.264 (the converter handles it)

@@ -82,6 +82,8 @@ GROUP BY layer_id ORDER BY SUM(duration_ms) DESC LIMIT 50;
 /// Per-frame samples with dirty-rect and fast-path flags.
 inline constexpr const char* kFrameSamples = R"(
 SELECT frame_number, duration_ms, cache_hit, dirty_area_ratio,
+       graph_eval_ms, queue_wait_ms, conversion_copy_ms, encoder_ms, pipe_write_ms,
+       native_convert_ms, native_send_ms, native_receive_ms, native_mux_ms,
        dirty_rect_enabled, dirty_rect_x0, dirty_rect_y0, dirty_rect_x1, dirty_rect_y1,
        tile_execution_used, fast_path_reused, graph_reused
 FROM render_frames WHERE run_id = ? ORDER BY frame_number ASC LIMIT 12;

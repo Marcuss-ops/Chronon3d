@@ -107,7 +107,7 @@ export default function MetricsGrid({ runDetail }) {
         </div>
         <div className="glass-panel metric-card">
           <div className="metric-label">
-            Wall Duration
+            E2E Wall Time
             {renderInfoIcon('wall_time_ms')}
           </div>
           <div className="metric-value">
@@ -117,7 +117,7 @@ export default function MetricsGrid({ runDetail }) {
         </div>
         <div className="glass-panel metric-card">
           <div className="metric-label">
-            Render Duration
+            Chronon Render Time
             {renderInfoIcon('render_ms')}
           </div>
           <div className="metric-value">
@@ -127,7 +127,7 @@ export default function MetricsGrid({ runDetail }) {
         </div>
         <div className="glass-panel metric-card">
           <div className="metric-label">
-            Encode Duration
+            FFmpeg Encode Time
             {renderInfoIcon('encode_ms')}
           </div>
           <div className="metric-value">
@@ -146,7 +146,7 @@ export default function MetricsGrid({ runDetail }) {
         </div>
         <div className="glass-panel metric-card">
           <div className="metric-label">
-            Cache hit rate
+            Cache Hit Rate
             {renderInfoIcon('cache_hits')}
           </div>
           <div className="metric-value" style={{ color: getCacheHitColor(cacheRateNum) }}>
@@ -155,7 +155,7 @@ export default function MetricsGrid({ runDetail }) {
         </div>
         <div className="glass-panel metric-card">
           <div className="metric-label">
-            Dirty Ratio
+            Average Dirty Coverage
             {renderInfoIcon('dirty_pixels')}
           </div>
           <div className="metric-value">
@@ -164,7 +164,7 @@ export default function MetricsGrid({ runDetail }) {
         </div>
         <div className="glass-panel metric-card">
           <div className="metric-label">
-            Framebuffer Reuse
+            Framebuffer Reuse Rate
             {renderInfoIcon('framebuffer_reuses')}
           </div>
           <div className="metric-value">
@@ -173,7 +173,7 @@ export default function MetricsGrid({ runDetail }) {
         </div>
         <div className="glass-panel metric-card">
           <div className="metric-label">
-            FB Allocations (last frame)
+            Framebuffer Bytes Allocated (last frame)
             {renderInfoIcon('framebuffer_bytes_allocated')}
           </div>
           <div className="metric-value">
@@ -182,7 +182,7 @@ export default function MetricsGrid({ runDetail }) {
         </div>
         <div className="glass-panel metric-card">
           <div className="metric-label">
-            FB Peak (last frame)
+            Framebuffer Bytes Peak (last frame)
             {renderInfoIcon('framebuffer_bytes_peak')}
           </div>
           <div className="metric-value">
@@ -191,7 +191,7 @@ export default function MetricsGrid({ runDetail }) {
         </div>
         <div className="glass-panel metric-card">
           <div className="metric-label">
-            Frames
+            Frames Total
             {renderInfoIcon('frames_total')}
           </div>
           <div className="metric-value">
@@ -207,7 +207,7 @@ export default function MetricsGrid({ runDetail }) {
       <section className="metrics-grid">
         <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-accent)' }}>
           <div className="metric-label">
-            FB Acquire Duration
+            Framebuffer Acquire Duration
             {renderInfoIcon('framebuffer_acquire_ms')}
           </div>
           <div className="metric-value" style={{ color: fbAcquireMs > 50 ? 'var(--color-danger)' : 'var(--color-accent)' }}>
@@ -220,7 +220,7 @@ export default function MetricsGrid({ runDetail }) {
         </div>
         <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-accent)' }}>
           <div className="metric-label">
-            FB Clear Duration
+            Framebuffer Clear Duration
             {renderInfoIcon('framebuffer_clear_ms')}
           </div>
           <div className="metric-value" style={{ color: fbClearMs > 30 ? 'var(--color-danger)' : 'var(--color-accent)' }}>
@@ -233,7 +233,7 @@ export default function MetricsGrid({ runDetail }) {
         </div>
         <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-accent)' }}>
           <div className="metric-label">
-            Conversion & Copy
+            Frame Conversion & Copy
             {renderInfoIcon('frame_conversion_copy_ms')}
           </div>
           <div className="metric-value" style={{ color: frameConvCopyMs > 20 ? 'var(--color-danger)' : 'var(--color-accent)' }}>
@@ -246,7 +246,7 @@ export default function MetricsGrid({ runDetail }) {
         </div>
         <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-accent)' }}>
           <div className="metric-label">
-            FB Enqueue Duration
+            Framebuffer Enqueue Duration
             {renderInfoIcon('framebuffer_enqueue_ms')}
           </div>
           <div className="metric-value" style={{ color: fbEnqueueMs > 30 ? 'var(--color-danger)' : 'var(--color-accent)' }}>
@@ -259,7 +259,7 @@ export default function MetricsGrid({ runDetail }) {
         </div>
         <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-accent)' }}>
           <div className="metric-label">
-            Pool Miss (size / empty)
+            Framebuffer Pool Misses (size / empty)
             {renderInfoIcon('framebuffer_pool_miss_count_size_mismatch')}
           </div>
           <div className="metric-value" style={{ color: fbMissTotal > 0 ? 'var(--color-danger)' : 'var(--color-success)' }}>
@@ -272,7 +272,7 @@ export default function MetricsGrid({ runDetail }) {
         </div>
         <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-accent)', gridColumn: 'span 1' }}>
           <div className="metric-label">
-            Buffer Returned to Pool
+            Returned to Pool
             {renderInfoIcon('framebuffer_buffer_returned_to_pool_count')}
           </div>
           <div className="metric-value" style={{ color: fbReturnedPool === 0 && framebufferReuses > 0 ? 'var(--color-danger)' : 'var(--color-success)' }}>
@@ -294,7 +294,7 @@ export default function MetricsGrid({ runDetail }) {
       <section className="metrics-grid">
         <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-info)' }}>
           <div className="metric-label">
-            Render Only (puro)
+            Render Only
             {renderInfoIcon('chronon_render_only_ms')}
           </div>
           <div className="metric-value" style={{ color: getDurationColor(chrononRenderOnlyMs, 50, 200) }}>
@@ -320,7 +320,7 @@ export default function MetricsGrid({ runDetail }) {
         </div>
         <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-info)' }}>
           <div className="metric-label">
-            Queue Wait (backpressure)
+            Queue Wait
             {renderInfoIcon('chronon_queue_wait_ms')}
           </div>
           <div className="metric-value" style={{ color: getDurationColor(chrononQueueWaitMs, 5, 30) }}>
@@ -333,7 +333,7 @@ export default function MetricsGrid({ runDetail }) {
         </div>
         <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-info)' }}>
           <div className="metric-label">
-            Pipeline Total
+            Chronon Pipeline Total
             {renderInfoIcon('chronon_render_throughput_ms')}
           </div>
           <div className="metric-value" style={{ color: getDurationColor(chrononPipelineTotalMs, 100, 400) }}>
@@ -346,7 +346,7 @@ export default function MetricsGrid({ runDetail }) {
         </div>
         <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-info)' }}>
           <div className="metric-label">
-            Render % of Pipeline
+            Render Share of Pipeline
           </div>
           <div className="metric-value" style={{ color: renderPct !== '—' && parseFloat(renderPct) < 50 ? 'var(--color-warning)' : 'var(--color-success)' }}>
             {renderPct === '—' ? '—' : `${renderPct}%`}
@@ -403,7 +403,7 @@ export default function MetricsGrid({ runDetail }) {
         </div>
         <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-accent)' }}>
           <div className="metric-label">
-            FFmpeg Latency
+            FFmpeg Backpressure
             {renderInfoIcon('video_ffmpeg_latency_ms')}
           </div>
           <div className="metric-value" style={{ color: getDurationColor(videoFfmpegLatencyMs, 20, 100) }}>
@@ -835,7 +835,7 @@ export default function MetricsGrid({ runDetail }) {
             {getCounter('level_parallel_count') || 0}
           </div>
           <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-            livelli con >1 nodo eseguiti in parallelo
+            livelli con &gt;1 nodo eseguiti in parallelo
           </div>
         </div>
         <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-accent)' }}>
@@ -910,7 +910,7 @@ export default function MetricsGrid({ runDetail }) {
       <section className="metrics-grid">
         <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-warning)' }}>
           <div className="metric-label">
-            FFmpeg Encode Total
+            FFmpeg Encode Total (Accumulated)
             {renderInfoIcon('ffmpeg_encode_total_ms')}
           </div>
           <div className="metric-value" style={{ color: getDurationColor(ffmpegEncodeTotalMs, 500, 2000) }}>
@@ -936,7 +936,7 @@ export default function MetricsGrid({ runDetail }) {
         </div>
         <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-warning)' }}>
           <div className="metric-label">
-            Encode Duration (legacy)
+            Legacy Encode Duration
             {renderInfoIcon('encode_ms')}
           </div>
           <div className="metric-value">
@@ -944,7 +944,7 @@ export default function MetricsGrid({ runDetail }) {
             <span className="metric-unit">s</span>
           </div>
           <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-            metrica legacy per confronto
+            retained only for backwards-compatible comparison
           </div>
         </div>
         <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-warning)' }}>

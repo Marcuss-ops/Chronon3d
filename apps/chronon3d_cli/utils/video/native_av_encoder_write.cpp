@@ -60,6 +60,8 @@ bool NativeAvEncoder::write_frame(const Framebuffer& fb) {
     // 2. Convert the framebuffer to YUV (or skip for cache hit)
     const auto t_conv0 = Clock::now();
 
+    double frame_conv_ms = 0.0;
+    double frame_send_ms = 0.0;
     if (same_as_last) {
         // ── Cache HIT: AVFrame already has correct YUV data ──
         ++cache_hits_;
@@ -107,6 +109,7 @@ bool NativeAvEncoder::write_frame(const Framebuffer& fb) {
     }
 
     const double conv_ms = elapsed_ms(t_conv0);
+    frame_conv_ms = conv_ms;
     native_convert_ms_ += conv_ms;
 
     if (profiling::g_current_counters) {
@@ -163,6 +166,7 @@ bool NativeAvEncoder::write_frame(const Framebuffer& fb) {
         return false;
     }
 
+    frame_send_ms = send_ms;
     native_send_frame_ms_ += send_ms;
     if (profiling::g_current_counters) {
         profiling::g_current_counters->native_av_send_frame_ms.fetch_add(
@@ -170,6 +174,12 @@ bool NativeAvEncoder::write_frame(const Framebuffer& fb) {
     }
 
     ++frames_written_;
+    last_frame_telemetry_ = {
+        .conversion_copy_ms = frame_conv_ms,
+        .encoder_ms = frame_send_ms,
+        .native_convert_ms = frame_conv_ms,
+        .native_send_ms = frame_send_ms,
+    };
     return true;
 }
 

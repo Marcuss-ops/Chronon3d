@@ -11,8 +11,8 @@ export default function PerformanceCharts({ frames, phases }) {
   if (!frames || frames.length === 0) return null;
   if (!mounted) return null;
 
-  const frameData = frames.map(f => f.duration_ms.toFixed(2));
-  const dirtyData = frames.map(f => (Number(f.dirty_area_ratio || 0) * 100).toFixed(1));
+  const frameData = frames.map(f => Number(f.duration_ms || 0));
+  const dirtyData = frames.map(f => Number(f.dirty_area_ratio || 0) * 100);
   const cacheData = frames.map(f => (f.cache_hit ? 100 : 0));
   const categories = frames.map(f => f.frame_number);
 
@@ -113,7 +113,7 @@ export default function PerformanceCharts({ frames, phases }) {
             value: { color: '#8b949e' },
             total: {
               show: true,
-              label: 'Total',
+              label: 'Accumulated Work',
               color: '#f0f6fc',
               formatter: (w) => {
                 return w.globals.seriesTotals.reduce((a, b) => a + b, 0).toFixed(1) + 'ms';
@@ -143,7 +143,7 @@ export default function PerformanceCharts({ frames, phases }) {
           <h3 style={{ marginBottom: '12px', fontSize: '0.9rem', color: '#f0f6fc' }}>Dirty Area Ratio (%)</h3>
           <Chart
             options={dirtyOptions}
-            series={[{ name: 'Dirty Ratio', data: dirtyData }]}
+            series={[{ name: 'Dirty Coverage', data: dirtyData }]}
             type="area"
             height={250}
           />
@@ -161,7 +161,7 @@ export default function PerformanceCharts({ frames, phases }) {
       
       {phaseValues.length > 0 && (
         <div className="glass-panel" style={{ padding: '16px', marginTop: '16px' }}>
-          <h3 style={{ marginBottom: '12px', fontSize: '0.9rem', color: '#f0f6fc' }}>Core Phases Breakdown (Total Run)</h3>
+          <h3 style={{ marginBottom: '12px', fontSize: '0.9rem', color: '#f0f6fc' }}>Core Phases Breakdown (Accumulated Work)</h3>
           <div style={{ display: 'flex', justifyContent: 'center' }}>
             <Chart
               options={phaseOptions}

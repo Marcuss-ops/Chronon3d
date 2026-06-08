@@ -85,6 +85,16 @@ public:
     /// to work in real video exports (frames 0,1,2,3...) not just benchmarks.
     bool is_static_scene(const Scene& scene) const;
 
+    /// Frame-aware variant: returns true if the scene is static AT the given
+    /// frame (i.e., the scene output won't change between frame and frame+1).
+    /// Unlike is_static_scene() which rejects ANY layer with keyframes, this
+    /// accounts for animations that have reached their terminal state.
+    /// For example, tracking_breathing(1.04f, Frame{120}) on a 150-frame comp:
+    /// frames 120-149 are effectively static (scale has settled at 1.0).
+    bool is_static_scene_at(const Scene& scene, Frame frame) const {
+        return is_effectively_static_at(scene, frame);
+    }
+
     /// Frame-dependent fingerprint that captures which layers are active at a
     /// specific frame. Unlike compute_static_fingerprint() (which hashes all
     /// layers unconditionally), this incorporates active_at(frame) — so scenes
@@ -138,6 +148,11 @@ private:
         return h;
     }
 
+    /// Structure fingerprint: only topology-affecting properties.
+    /// Intentionally excludes animated transform values, mask parameters,
+    /// and per-node render payloads (text content, effect params, etc.)
+    /// so that scenes with animated transforms can reuse the compiled graph
+    /// across frames without a full rebuild.
     static uint64_t hash_layer_structure(const Layer& layer) {
         uint64_t h = 0;
         h = hash_combine(h, hash_string(layer.name));
@@ -146,8 +161,11 @@ private:
         h = hash_combine(h, layer.uses_2_5d_projection ? 1 : 0);
         h = hash_combine(h, layer.cache_static ? 1 : 0);
         h = hash_combine(h, static_cast<u64>(layer.blend_mode));
-        h = hash_combine(h, hash_transform(layer.transform));
-        h = hash_combine(h, hash_mask(layer.mask));
+        // NOTE: hash_transform and hash_mask are intentionally excluded.
+        // Transform values (position, scale, rotation, opacity) change every
+        // frame during animation, which would prevent graph reuse. The graph
+        // topology is unaffected by transform values — only the node payloads
+        // change, which is handled by refresh_compiled_graph_payloads().
 
         if (layer.kind == LayerKind::Precomp) {
             h = hash_combine(h, hash_string(layer.precomp_composition_name));
@@ -163,6 +181,33 @@ private:
             h = hash_combine(h, hash_value(static_cast<u64>(layer.time_remap.freeze_frame)));
         }
         return h;
+    }
+
+    /// Check if a layer's animation is effectively stable at the given frame.
+    /// Returns true when all animated values have reached their terminal state
+    /// (i.e., evaluating at frame and frame+1 would produce the same result).
+    /// For example, tracking_breathing(1.04f, Frame{120}) on frame 120+ returns
+    /// true because the scale has settled at 1.0 and won't change further.
+    /// NOTE: Loop/PingPong animations NEVER reach terminal state — they wrap
+    /// around and produce different values at frame vs frame+1 even when past
+    /// the last keyframe time. Those are correctly rejected here.
+    static bool layer_animation_done_at(const Layer& layer, Frame frame) {
+        // If not animated at all, it's always stable
+        if (!layer.anim_transform.is_animated()) return true;
+
+        // Helper: check if a single AnimatedValue is in Hold mode and past its last keyframe
+        auto is_done = [&](const auto& val) -> bool {
+            if (!val.is_animated()) return true;            // not animated → always stable
+            if (val.loop_mode() != LoopMode::Hold) return false; // looping → never done
+            return val.last_keyframe_time() <= frame;        // Hold + past last keyframe → stable
+        };
+
+        return is_done(layer.anim_transform.position) &&
+               is_done(layer.anim_transform.scale) &&
+               is_done(layer.anim_transform.rotation_euler) &&
+               is_done(layer.anim_transform.anchor) &&
+               is_done(layer.anim_transform.opacity) &&
+               is_done(layer.anim_transform.blur);
     }
 
     static bool layer_is_static(const Layer& layer) {
@@ -182,10 +227,39 @@ private:
         return true;
     }
 
+    /// Frame-aware version: returns true if the layer is effectively static at
+    /// the given frame — no active animation producing different values between
+    /// consecutive frames.
+    static bool layer_is_static_at(const Layer& layer, Frame frame) {
+        if (layer.kind == LayerKind::Video) return false;
+        if (layer.kind == LayerKind::Precomp) return false;
+        // If animation is done (all keyframes passed), layer is effectively static
+        if (layer.anim_transform.is_animated() && !layer_animation_done_at(layer, frame)) {
+            return false;
+        }
+        if (layer.anim_transform.position.has_expression()) return false;
+        if (layer.anim_transform.scale.has_expression()) return false;
+        if (layer.anim_transform.rotation_euler.has_expression()) return false;
+        if (layer.anim_transform.anchor.has_expression()) return false;
+        if (layer.anim_transform.opacity.has_expression()) return false;
+        if (layer.transition_in.duration > 0 || layer.transition_out.duration > 0) return false;
+        if (layer.time_remap.time_remap.is_animated()) return false;
+        return true;
+    }
+
     static bool camera_is_static(const Camera2_5DRuntime& cam) {
         // Camera animation would be frame-dependent; for now we only check enabled flag
         // TODO: extend to AnimatedValue<f32> if camera animations are added
         return true; // Camera position/zoom is considered static for now
+    }
+
+    /// Check if the entire scene is effectively static at the given frame.
+    bool is_effectively_static_at(const Scene& scene, Frame frame) const {
+        for (const auto& layer : scene.layers()) {
+            if (!layer_is_static_at(layer, frame)) return false;
+        }
+        if (!camera_is_static(scene.camera_2_5d())) return false;
+        return true;
     }
 
     std::unordered_map<std::string, uint64_t> m_layer_hashes;

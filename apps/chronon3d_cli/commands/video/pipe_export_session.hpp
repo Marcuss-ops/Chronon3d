@@ -20,8 +20,20 @@ inline constexpr size_t kMaxRenderQueueDepth = 128;
 // ── Shared frame package ────────────────────────────────────────────────────
 
 struct RenderFramePackage {
+    Frame frame_number{0};
     std::shared_ptr<Framebuffer> framebuffer;
     std::shared_ptr<FramebufferArena> arena;
+};
+
+struct FrameEncoderTelemetryRecord {
+    Frame frame_number{0};
+    double conversion_copy_ms{0.0};
+    double encoder_ms{0.0};
+    double pipe_write_ms{0.0};
+    double native_convert_ms{0.0};
+    double native_send_ms{0.0};
+    double native_receive_ms{0.0};
+    double native_mux_ms{0.0};
 };
 
 // ── Boundary models ─────────────────────────────────────────────────────────
@@ -64,6 +76,7 @@ struct WriterThreadContext {
     IVideoEncoder& encoder;
     SoftwareRenderer& renderer;
     std::atomic<uint64_t>& writer_encode_us_total;
+    std::vector<FrameEncoderTelemetryRecord>& frame_encoder_telemetry;
 };
 
 /// Drain the frame queue, encode each frame, release arena buffers.
@@ -87,13 +100,13 @@ struct RenderLoopContext {
     std::atomic<bool>& writer_failed;
     TripleBufferArena& triple_arena;
     RenderCounters* counters;
+    std::vector<chronon3d::telemetry::FrameTelemetryRecord>& telemetry_frames;
 };
 
 struct RenderLoopResult {
     PipeExportStatus status;
     double render_graph_eval_ms{0.0};
     double queue_wait_ms{0.0};
-    std::vector<chronon3d::telemetry::FrameTelemetryRecord> telemetry_frames;
 };
 
 /// Iterate over frames, render each one, and enqueue for the writer thread.
