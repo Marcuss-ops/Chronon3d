@@ -117,7 +117,9 @@ RunSummary query_run_summary(sqlite3* db, const std::string& run_id) {
         run.setup_graph_parsing_ms = get_i64("setup_graph_parsing_ms");
         run.setup_asset_io_load_ms = get_i64("setup_asset_io_load_ms");
         run.setup_pool_preallocation_ms = get_i64("setup_pool_preallocation_ms");
-        run.image_decode_ms = get_i64("image_decode_ms");
+        run.image_decode_ms = get_double("image_decode_ms");
+        run.image_sample_ms = get_double("image_sample_ms");
+        run.image_sampled_pixels = get_i64("image_sampled_pixels");
 
         run.compiled_graph_refresh_ms = get_i64("compiled_graph_refresh_ms");
         run.cache_eval_ms = get_i64("cache_eval_ms");

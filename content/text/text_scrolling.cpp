@@ -17,12 +17,6 @@ namespace {
 struct CreditItem {
     std::string role;
     std::string name;
-
-    void draw(LayerBuilder& l, f32 y) const {
-        l.position({0, y, 0});
-        apply_text(l, "role", TextDef{.text = role, .size = 28, .color = {0.6f, 0.6f, 0.7f, 1}, .align = TextAlign::Center, .tracking = 4}, {W * 0.4f, 40}, {-200, 0, 0});
-        apply_text(l, "name", TextDef{.text = name, .size = 36, .color = {1, 1, 1, 1}, .align = TextAlign::Center, .tracking = 1}, {W * 0.4f, 40}, {200, 0, 0});
-    }
 };
 
 struct SequenceItem {
@@ -61,23 +55,64 @@ struct SequenceItem {
 Composition text_credit_roll() {
     return composition({.name = "TextCreditRoll", .duration = 300}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        f32 scroll_y = ctx.progress() * 1200.0f + H;
-        
-        s.layer("bg", [](auto& l) { l.fill({0.005f, 0.008f, 0.020f, 1.0f}); });
+        const f32 progress = ctx.progress();
+
+        // Background: slightly lighter than pure black for depth
+        s.layer("bg", [](auto& l) { l.fill({0.018f, 0.024f, 0.045f, 1.0f}); });
+
+        // Fixed title pinned to top centre (does not scroll)
         s.layer("credits_title", [&](auto& l) {
-            l.position({0, scroll_y - 200, 0});
-            apply_text(l, "title", TextDef{.text="C R E D I T S", .size=56, .color={0.25f, 0.52f, 1, 1}, .align=TextAlign::Center, .tracking=14}, {W*0.6f, 80});
+            l.pin_to(Anchor::TopCenter, 50.0f);
+            apply_text(l, "title", TextDef{
+                .text = "C R E D I T S",
+                .size = 44,
+                .color = {0.35f, 0.65f, 1.0f, 1.0f},
+                .align = TextAlign::Center,
+                .tracking = 14
+            }, {W * 0.5f, 60});
         });
 
         static const std::vector<CreditItem> credits = {
-            {"Direction", "Pierone"}, {"Engine", "Chronon3D Team"}, {"Rendering", "Software Backend"},
-            {"Animation", "Motion Presets"}, {"Typography", "Inter Typeface"}, {"Pipeline", "Content Generator"},
-            {"Testing", "Automated Suite"}, {"Tools", "CLI Application"}
+            {"Direction",     "Pierone"},
+            {"Engine",        "Chronon3D Team"},
+            {"Rendering",     "Software Backend"},
+            {"Animation",     "Motion Presets"},
+            {"Typography",    "Inter Typeface"},
+            {"Pipeline",      "Content Generator"},
+            {"Testing",       "Automated Suite"},
+            {"Tools",         "CLI Application"}
         };
+
+        // Proper upward-scrolling credits: items enter from below, scroll up, exit above.
+        const f32 item_spacing = 135.0f;
+        const f32 total_list = static_cast<f32>(credits.size()) * item_spacing;
+        const f32 scroll_range = H + total_list + 300.0f;          // total travel
+        const f32 start_y     = H + 80.0f - progress * scroll_range;  // items enter the screen ~frame 10
 
         for (size_t i = 0; i < credits.size(); ++i) {
             s.layer("item_" + std::to_string(i), [&](auto& l) {
-                credits[i].draw(l, scroll_y - 320.0f - static_cast<f32>(i) * 110.0f);
+                const f32 y = start_y + static_cast<f32>(i) * item_spacing;
+                // Gentle fade near top/bottom edges
+                f32 fade = 1.0f;
+                if      (y < 100.0f)    fade = y / 100.0f;
+                else if (y > H - 80.0f) fade = (H - y) / 80.0f;
+                fade = std::max(0.0f, std::min(1.0f, fade));
+
+                l.opacity(fade).position({0.0f, y, 0.0f});
+                apply_text(l, "role", TextDef{
+                    .text = credits[i].role,
+                    .size = 32,
+                    .color = {0.72f, 0.74f, 0.82f, 1.0f},
+                    .align = TextAlign::Center,
+                    .tracking = 3
+                }, {W * 0.35f, 42}, {-210, 0, 0});
+                apply_text(l, "name", TextDef{
+                    .text = credits[i].name,
+                    .size = 40,
+                    .color = {1.0f, 1.0f, 1.0f, 1.0f},
+                    .align = TextAlign::Center,
+                    .tracking = 1
+                }, {W * 0.35f, 42}, {210, 0, 0});
             });
         }
         return s.build();

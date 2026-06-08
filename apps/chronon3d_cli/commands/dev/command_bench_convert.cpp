@@ -10,6 +10,7 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <cctype>
 #include <chrono>
 #include <cstring>
 #include <iomanip>
@@ -51,6 +52,20 @@ static uint64_t count_mismatched_bytes(const uint8_t* a, const uint8_t* b, uint6
         if (a[i] != b[i]) ++mismatches;
     }
     return mismatches;
+}
+
+static std::string normalize_output_format(std::string fmt) {
+    std::transform(fmt.begin(), fmt.end(), fmt.begin(), [](unsigned char c) {
+        return static_cast<char>(std::tolower(c));
+    });
+
+    if (fmt == "yuv" || fmt == "420p" || fmt == "yuv420" || fmt == "yuv420p8") {
+        return "yuv420p";
+    }
+    if (fmt == "nv12" || fmt == "nv-12") {
+        return "nv12";
+    }
+    return fmt;
 }
 
 static double max_abs_diff(const uint8_t* a, const uint8_t* b, uint64_t len) {
@@ -186,8 +201,12 @@ static BenchResult run_bench_path(
 // ==========================================================================
 
 int command_bench_convert(const CompositionRegistry& registry, const BenchConvertArgs& args) {
-    if (args.format != "yuv420p" && args.format != "nv12") {
-        spdlog::error("Unsupported format: {} — use yuv420p or nv12", args.format);
+    const std::string fmt = normalize_output_format(args.format);
+    if (fmt != "yuv420p" && fmt != "nv12") {
+        spdlog::error(
+            "Unsupported format: {} — use yuv420p or nv12. If you meant a video container, use the video command instead.",
+            args.format
+        );
         return 1;
     }
 
@@ -219,9 +238,9 @@ int command_bench_convert(const CompositionRegistry& registry, const BenchConver
         return 1;
     }
 
-    const uint64_t yuv_total = yuv_bytes(w, h, args.format);
+    const uint64_t yuv_total = yuv_bytes(w, h, fmt);
     spdlog::info("Frame: {}x{}  Format: {}  Bytes/frame: {}  Iterations: {}  Gamma: {}",
-                 w, h, args.format, yuv_total, args.iterations,
+                 w, h, fmt, yuv_total, args.iterations,
                  args.apply_gamma ? "sRGB" : "linear");
 
     // ── Pre-allocate output buffers ────────────────────────────────────
@@ -229,13 +248,13 @@ int command_bench_convert(const CompositionRegistry& registry, const BenchConver
     std::vector<uint8_t> work_buf(yuv_total);
 
     // ── Phase 1: HWY reference run (also warms caches) ─────────────────
-    BenchResult hwy = run_bench_path("direct_hwy_yuv", *fb, w, h, args.format,
+    BenchResult hwy = run_bench_path("direct_hwy_yuv", *fb, w, h, fmt,
                                      args.apply_gamma, 1, ref_buf, ref_buf);
     hwy.name = "direct_hwy_yuv";
 
     // Run remaining HWY iterations for timing (with warm cache)
     {
-        auto timing = run_bench_path("direct_hwy_yuv", *fb, w, h, args.format,
+        auto timing = run_bench_path("direct_hwy_yuv", *fb, w, h, fmt,
                                      args.apply_gamma, args.iterations,
                                      ref_buf, work_buf);
         hwy.mean_ns   = timing.mean_ns;
@@ -244,12 +263,12 @@ int command_bench_convert(const CompositionRegistry& registry, const BenchConver
     }
 
     // ── Phase 2: TBB scalar ────────────────────────────────────────────
-    auto tbb = run_bench_path("direct_tbb_yuv", *fb, w, h, args.format,
+    auto tbb = run_bench_path("direct_tbb_yuv", *fb, w, h, fmt,
                               args.apply_gamma, args.iterations,
                               ref_buf, work_buf);
 
     // ── Phase 3: sws_scale (RGBA8 staging) ─────────────────────────────
-    auto sws = run_bench_path("sws_scale", *fb, w, h, args.format,
+    auto sws = run_bench_path("sws_scale", *fb, w, h, fmt,
                               args.apply_gamma, args.iterations,
                               ref_buf, work_buf);
 
@@ -262,7 +281,7 @@ int command_bench_convert(const CompositionRegistry& registry, const BenchConver
     out << "\n"
         << "═══════════════════════════════════════════════════════════════════════\n"
         << "  FRAME CONVERSION BENCHMARK  —  " << w << "×" << h << "  "
-        << args.format << "  ×" << args.iterations << " iters\n"
+        << fmt << "  ×" << args.iterations << " iters\n"
         << "═══════════════════════════════════════════════════════════════════════\n\n"
         << std::left << col_name << "Path"
         << std::right << col_val << "ms/frame"

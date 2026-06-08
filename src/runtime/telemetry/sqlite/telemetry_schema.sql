@@ -104,7 +104,9 @@ CREATE TABLE IF NOT EXISTS render_runs (
     compiler_info TEXT,
     os TEXT,
     cpu_model TEXT,
-    cores INTEGER
+    cores INTEGER,
+    image_sample_ms REAL DEFAULT 0,
+    image_sampled_pixels INTEGER DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS render_frames (
