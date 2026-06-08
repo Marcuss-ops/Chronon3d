@@ -34,6 +34,7 @@ public:
     bool close() override;
 
     [[nodiscard]] uint64_t frames_written() const override { return frames_written_; }
+    [[nodiscard]] EncoderFrameTelemetry last_frame_telemetry() const override { return last_frame_telemetry_; }
 
     // ── Native encoder telemetry accessors ──
     [[nodiscard]] double native_convert_ms()          const override { return native_convert_ms_; }
@@ -59,6 +60,7 @@ private:
     double native_receive_packet_ms_{0.0};
     double native_mux_write_ms_{0.0};
     double native_trailer_ms_{0.0};
+    EncoderFrameTelemetry last_frame_telemetry_{};
 
     /// Drain all pending packets from the encoder after avcodec_send_frame.
     bool drain_packets();

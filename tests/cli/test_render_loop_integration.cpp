@@ -93,7 +93,8 @@ static RenderLoopContext make_loop_context(
     const FfmpegExportOptions& opts,
     moodycamel::ConcurrentQueue<RenderFramePackage>& queue,
     std::atomic<bool>& writer_failed,
-    TripleBufferArena& triple_arena)
+    TripleBufferArena& triple_arena,
+    std::vector<chronon3d::telemetry::FrameTelemetryRecord>& telemetry_frames)
 {
     return RenderLoopContext{
         .backend = renderer,
@@ -110,6 +111,7 @@ static RenderLoopContext make_loop_context(
         .writer_failed = writer_failed,
         .triple_arena = triple_arena,
         .counters = renderer.counters(),
+        .telemetry_frames = telemetry_frames,
     };
 }
 
@@ -136,9 +138,10 @@ TEST_CASE("RenderLoop Integration: multi-frame render produces all frames") {
         std::ref(queue), std::ref(triple_arena),
         std::ref(stop_consumer), std::ref(consumed));
 
+    std::vector<chronon3d::telemetry::FrameTelemetryRecord> telemetry_frames;
     auto loop_ctx = make_loop_context(
         *renderer, node_cache, registry, comp,
-        0, FRAMES, opts, queue, writer_failed, triple_arena);
+        0, FRAMES, opts, queue, writer_failed, triple_arena, telemetry_frames);
 
     auto result = run_render_loop(loop_ctx);
 
@@ -151,7 +154,7 @@ TEST_CASE("RenderLoop Integration: multi-frame render produces all frames") {
     CHECK_FALSE(result.status.writer_error);
     CHECK_FALSE(result.status.exception_error);
     CHECK(result.status.frames_written == FRAMES);
-    CHECK(result.telemetry_frames.size() == static_cast<size_t>(FRAMES));
+    CHECK(telemetry_frames.size() == static_cast<size_t>(FRAMES));
     CHECK(result.render_graph_eval_ms > 0.0);
     CHECK(consumed.load() == FRAMES);
 }
@@ -173,16 +176,17 @@ TEST_CASE("RenderLoop Integration: single frame renders correctly") {
     // 4 arenas for 1 frame — no consumer needed
     TripleBufferArena triple_arena(4, static_cast<size_t>(W) * H * sizeof(Color) * 8);
 
+    std::vector<chronon3d::telemetry::FrameTelemetryRecord> telemetry_frames;
     auto loop_ctx = make_loop_context(
         *renderer, node_cache, registry, comp,
-        0, 1, opts, queue, writer_failed, triple_arena);
+        0, 1, opts, queue, writer_failed, triple_arena, telemetry_frames);
 
     auto result = run_render_loop(loop_ctx);
 
     CHECK(result.status.success);
     CHECK(result.status.frames_written == 1);
-    CHECK(result.telemetry_frames.size() == 1);
-    CHECK(result.telemetry_frames[0].frame_number == 0);
+    CHECK(telemetry_frames.size() == 1);
+    CHECK(telemetry_frames[0].frame_number == 0);
 
     // Drain
     RenderFramePackage pkg;
@@ -215,16 +219,17 @@ TEST_CASE("RenderLoop Integration: cancellation stops render loop early") {
     std::atomic<bool> writer_failed{false};
     TripleBufferArena triple_arena(2, static_cast<size_t>(W) * H * sizeof(Color) * 8);
 
+    std::vector<chronon3d::telemetry::FrameTelemetryRecord> telemetry_frames;
     auto loop_ctx = make_loop_context(
         *renderer, node_cache, registry, comp,
-        0, FRAMES, opts, queue, writer_failed, triple_arena);
+        0, FRAMES, opts, queue, writer_failed, triple_arena, telemetry_frames);
 
     auto result = run_render_loop(loop_ctx);
 
     CHECK_FALSE(result.status.success);
     CHECK(result.status.cancelled);
     CHECK(result.status.frames_written == 0);
-    CHECK(result.telemetry_frames.empty());
+    CHECK(telemetry_frames.empty());
 
     RenderFramePackage pkg;
     CHECK_FALSE(queue.try_dequeue(pkg));
@@ -246,9 +251,10 @@ TEST_CASE("RenderLoop Integration: pre-set writer failure stops loop") {
     std::atomic<bool> writer_failed{true}; // Pre-set failure
     TripleBufferArena triple_arena(2, static_cast<size_t>(W) * H * sizeof(Color) * 8);
 
+    std::vector<chronon3d::telemetry::FrameTelemetryRecord> telemetry_frames;
     auto loop_ctx = make_loop_context(
         *renderer, node_cache, registry, comp,
-        0, FRAMES, opts, queue, writer_failed, triple_arena);
+        0, FRAMES, opts, queue, writer_failed, triple_arena, telemetry_frames);
 
     auto result = run_render_loop(loop_ctx);
 
@@ -282,9 +288,10 @@ TEST_CASE("RenderLoop Integration: telemetry frames are in display order") {
         std::ref(queue), std::ref(triple_arena),
         std::ref(stop_consumer), std::ref(consumed));
 
+    std::vector<chronon3d::telemetry::FrameTelemetryRecord> telemetry_frames;
     auto loop_ctx = make_loop_context(
         *renderer, node_cache, registry, comp,
-        0, FRAMES, opts, queue, writer_failed, triple_arena);
+        0, FRAMES, opts, queue, writer_failed, triple_arena, telemetry_frames);
 
     auto result = run_render_loop(loop_ctx);
 
@@ -292,11 +299,11 @@ TEST_CASE("RenderLoop Integration: telemetry frames are in display order") {
     consumer.join();
 
     CHECK(result.status.success);
-    CHECK(result.telemetry_frames.size() == static_cast<size_t>(FRAMES));
+    CHECK(telemetry_frames.size() == static_cast<size_t>(FRAMES));
 
     for (int i = 0; i < FRAMES; ++i) {
-        CHECK(result.telemetry_frames[i].frame_number == i);
-        CHECK(result.telemetry_frames[i].duration_ms > 0.0);
+        CHECK(telemetry_frames[i].frame_number == i);
+        CHECK(telemetry_frames[i].duration_ms > 0.0);
     }
     CHECK(consumed.load() == FRAMES);
 }
@@ -325,9 +332,10 @@ TEST_CASE("RenderLoop Integration: partial frame range [3, 7)") {
         std::ref(queue), std::ref(triple_arena),
         std::ref(stop_consumer), std::ref(consumed));
 
+    std::vector<chronon3d::telemetry::FrameTelemetryRecord> telemetry_frames;
     auto loop_ctx = make_loop_context(
         *renderer, node_cache, registry, comp,
-        START, END, opts, queue, writer_failed, triple_arena);
+        START, END, opts, queue, writer_failed, triple_arena, telemetry_frames);
 
     auto result = run_render_loop(loop_ctx);
 
@@ -336,10 +344,10 @@ TEST_CASE("RenderLoop Integration: partial frame range [3, 7)") {
 
     CHECK(result.status.success);
     CHECK(result.status.frames_written == static_cast<int>(END - START));
-    CHECK(result.telemetry_frames.size() == static_cast<size_t>(END - START));
+    CHECK(telemetry_frames.size() == static_cast<size_t>(END - START));
 
     for (int i = 0; i < static_cast<int>(END - START); ++i) {
-        CHECK(result.telemetry_frames[i].frame_number == static_cast<int>(START + i));
+        CHECK(telemetry_frames[i].frame_number == static_cast<int>(START + i));
     }
     CHECK(consumed.load() == static_cast<int>(END - START));
 }
@@ -396,9 +404,10 @@ TEST_CASE("RenderLoop Integration: writer failure during render stops loop") {
         }
     });
 
+    std::vector<chronon3d::telemetry::FrameTelemetryRecord> telemetry_frames;
     auto loop_ctx = make_loop_context(
         *renderer, node_cache, registry, comp,
-        0, FRAMES, opts, queue, writer_failed, triple_arena);
+        0, FRAMES, opts, queue, writer_failed, triple_arena, telemetry_frames);
 
     auto result = run_render_loop(loop_ctx);
 
@@ -427,15 +436,16 @@ TEST_CASE("RenderLoop Integration: empty frame range produces no frames") {
     std::atomic<bool> writer_failed{false};
     TripleBufferArena triple_arena(2, static_cast<size_t>(W) * H * sizeof(Color) * 8);
 
+    std::vector<chronon3d::telemetry::FrameTelemetryRecord> telemetry_frames;
     auto loop_ctx = make_loop_context(
         *renderer, node_cache, registry, comp,
-        5, 5, opts, queue, writer_failed, triple_arena);
+        5, 5, opts, queue, writer_failed, triple_arena, telemetry_frames);
 
     auto result = run_render_loop(loop_ctx);
 
     CHECK(result.status.success);
     CHECK(result.status.frames_written == 0);
-    CHECK(result.telemetry_frames.empty());
+    CHECK(telemetry_frames.empty());
 
     RenderFramePackage pkg;
     CHECK_FALSE(queue.try_dequeue(pkg));

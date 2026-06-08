@@ -199,9 +199,11 @@ bool SqliteTelemetryStore::write_frames(const std::string& run_id, const std::ve
     const char* sql =
         "INSERT OR REPLACE INTO render_frames ("
         "run_id, frame_number, duration_ms, cache_hit, dirty_area_ratio, "
+        "graph_eval_ms, queue_wait_ms, conversion_copy_ms, encoder_ms, pipe_write_ms, "
+        "native_convert_ms, native_send_ms, native_receive_ms, native_mux_ms, "
         "dirty_rect_enabled, dirty_rect_x0, dirty_rect_y0, dirty_rect_x1, dirty_rect_y1, "
         "tile_execution_used, fast_path_reused, graph_reused"
-        ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);";
+        ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);";
     SqliteStatement stmt(m_impl->db, sql);
     if (!stmt) {
         return false;
@@ -211,6 +213,9 @@ bool SqliteTelemetryStore::write_frames(const std::string& run_id, const std::ve
         if (!stmt.reset() || !bind_all(stmt,
                 run_id, frame.frame_number, frame.duration_ms,
                 static_cast<int>(frame.cache_hit), frame.dirty_area_ratio,
+                frame.graph_eval_ms, frame.queue_wait_ms, frame.conversion_copy_ms,
+                frame.encoder_ms, frame.pipe_write_ms,
+                frame.native_convert_ms, frame.native_send_ms, frame.native_receive_ms, frame.native_mux_ms,
                 static_cast<int>(frame.dirty_rect_enabled),
                 frame.dirty_rect_x0, frame.dirty_rect_y0, frame.dirty_rect_x1, frame.dirty_rect_y1,
                 static_cast<int>(frame.tile_execution_used),

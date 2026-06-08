@@ -284,11 +284,35 @@ inline void refresh_compiled_graph_payloads(
             node.set_opacity(item.transform.opacity);
         } else {
             Mat4 effective_matrix = item.world_matrix;
-            if (ctx.ssaa_factor > 1.0f) {
-                Mat4 ssaa_world = item.world_matrix;
-                ssaa_world[3][0] *= ctx.ssaa_factor;
-                ssaa_world[3][1] *= ctx.ssaa_factor;
-                effective_matrix = ssaa_world;
+            if (should_use_centered_rendering(item, ctx)) {
+                if (ctx.ssaa_factor > 1.0f) {
+                    Mat4 ssaa_world = item.world_matrix;
+                    ssaa_world[3][0] *= ctx.ssaa_factor;
+                    ssaa_world[3][1] *= ctx.ssaa_factor;
+                    ssaa_world[3][2] *= ctx.ssaa_factor;
+                    effective_matrix = ssaa_world;
+                }
+                effective_matrix =
+                    glm::translate(Mat4(1.0f), Vec3(-ctx.width * 0.5f, -ctx.height * 0.5f, 0.0f)) *
+                    effective_matrix;
+            } else if (!item.native_3d && item.layer && item.layer->kind == LayerKind::Normal) {
+                // Non-modular, non-projected 2D layer: the source node already
+                // applies item_source_world = item.world_matrix (no centering
+                // stripping), so the TransformNode should NOT re-apply the
+                // centering position.  Strip the canvas-center translation to
+                // match the observed build-path behavior.
+                const f32 cx = static_cast<f32>(ctx.width) * 0.5f;
+                const f32 cy = static_cast<f32>(ctx.height) * 0.5f;
+                if (std::abs(effective_matrix[3][0] - cx) < 2.0f &&
+                    std::abs(effective_matrix[3][1] - cy) < 2.0f) {
+                    effective_matrix[3][0] = 0.0f;
+                    effective_matrix[3][1] = 0.0f;
+                    effective_matrix[3][2] = 0.0f;
+                    if (ctx.diagnostics_enabled) {
+                        spdlog::info("[refresh-transform] stripped centering translation for layer='{}' frame={}",
+                            layer_id, static_cast<int>(ctx.frame));
+                    }
+                }
             }
             node.set_matrix(effective_matrix);
             node.set_opacity(item.transform.opacity);

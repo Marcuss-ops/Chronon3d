@@ -44,6 +44,10 @@ public:
         return *this;
     }
 
+    [[nodiscard]] LoopMode loop_mode() const {
+        return m_loop_mode;
+    }
+
     // Add a keyframe; keys are kept sorted by frame.
     void add_keyframe(Frame frame, const T& value, EasingCurve easing = EasingCurve{Easing::Linear}, bool roving = false) {
         m_keyframes.emplace_back(frame, value, easing, roving);
@@ -235,6 +239,13 @@ public:
         // but simple linear is definitely cheap.
         // In a real implementation, we'd check the easing of the active segment.
         return true; 
+    }
+
+    /// Returns the time (frame) of the last keyframe, or Frame{0} if empty.
+    /// Useful for determining when an animation has reached its terminal state.
+    [[nodiscard]] Frame last_keyframe_time() const {
+        if (m_keyframes.empty()) return Frame{0};
+        return m_keyframes.back().frame;
     }
 
     void clear() { m_keyframes.clear(); m_roving_dirty = true; }

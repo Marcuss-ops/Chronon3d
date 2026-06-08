@@ -34,6 +34,10 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     const auto wall_t0 = std::chrono::steady_clock::now();
     const auto setup_t0 = wall_t0;
     std::atomic<uint64_t> writer_encode_us_total{0};
+    std::vector<chronon3d::telemetry::FrameTelemetryRecord> telemetry_frames;
+    std::vector<FrameEncoderTelemetryRecord> frame_encoder_telemetry;
+    telemetry_frames.reserve(total > 0 ? static_cast<size_t>(total) : 0);
+    frame_encoder_telemetry.reserve(total > 0 ? static_cast<size_t>(total) : 0);
 
     if (opts.chunks != 1) {
         spdlog::warn("[video] --chunks is ignored with --ffmpeg-mode pipe in V1");
@@ -89,6 +93,7 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
         .encoder = *encoder,
         .renderer = *sw_renderer,
         .writer_encode_us_total = writer_encode_us_total,
+        .frame_encoder_telemetry = frame_encoder_telemetry,
     };
     std::thread writer_thread(run_writer_thread, std::ref(writer_ctx));
 
@@ -119,6 +124,7 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
         .writer_failed = writer_failed,
         .triple_arena = triple_arena,
         .counters = renderer->counters(),
+        .telemetry_frames = telemetry_frames,
     };
     auto loop_result = run_render_loop(loop_ctx);
 
@@ -206,7 +212,27 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     }
 
     // ── Telemetry ───────────────────────────────────────────────────────────
-    auto telemetry_frames = std::move(loop_result.telemetry_frames);
+    std::sort(frame_encoder_telemetry.begin(), frame_encoder_telemetry.end(),
+              [](const auto& a, const auto& b) { return a.frame_number < b.frame_number; });
+
+    auto encode_it = frame_encoder_telemetry.begin();
+    for (auto& frame : telemetry_frames) {
+        while (encode_it != frame_encoder_telemetry.end() && encode_it->frame_number < frame.frame_number) {
+            ++encode_it;
+        }
+        if (encode_it == frame_encoder_telemetry.end() || encode_it->frame_number != frame.frame_number) {
+            continue;
+        }
+
+        frame.conversion_copy_ms = encode_it->conversion_copy_ms;
+        frame.encoder_ms = encode_it->encoder_ms;
+        frame.pipe_write_ms = encode_it->pipe_write_ms;
+        frame.native_convert_ms = encode_it->native_convert_ms;
+        frame.native_send_ms = encode_it->native_send_ms;
+        frame.native_receive_ms = encode_it->native_receive_ms;
+        frame.native_mux_ms = encode_it->native_mux_ms;
+    }
+
     std::sort(telemetry_frames.begin(), telemetry_frames.end(),
               [](const auto& a, const auto& b) { return a.frame_number < b.frame_number; });
 

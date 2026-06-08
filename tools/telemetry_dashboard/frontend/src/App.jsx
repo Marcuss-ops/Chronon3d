@@ -15,6 +15,7 @@ import MetricsGrid from './components/MetricsGrid.jsx';
 import FrameChart from './components/FrameChart.jsx';
 import PerformanceCharts from './components/PerformanceCharts.jsx';
 import ProfilePanels from './components/ProfilePanels.jsx';
+import FrameBreakdownPanel from './components/FrameBreakdownPanel.jsx';
 import LayersTable from './components/LayersTable.jsx';
 import NodesTable from './components/NodesTable.jsx';
 import RenderGraph from './components/RenderGraph.jsx';
@@ -321,9 +322,10 @@ function App() {
         ['Metric', 'Value'],
         [
           ['Effective FPS', `${Number(r.effective_fps || 0).toFixed(2)} fps`],
-          ['Wall Duration', `${(Number(r.wall_time_ms || 0) / 1000).toFixed(2)} s`],
-          ['Render Duration', `${(Number(r.render_ms || 0) / 1000).toFixed(2)} s`],
-          ['Encode Duration', `${(Number(r.encode_ms || 0) / 1000).toFixed(2)} s`],            ['Peak Memory', formatBytes(r.bytes_allocated_peak)],
+          ['E2E Wall Time', `${(Number(r.wall_time_ms || 0) / 1000).toFixed(2)} s`],
+          ['Chronon Render Time', `${(Number(r.render_ms || 0) / 1000).toFixed(2)} s`],
+          ['FFmpeg Encode Time', `${(Number(r.encode_ms || 0) / 1000).toFixed(2)} s`],
+          ['Peak Memory', formatBytes(r.bytes_allocated_peak)],
             ['Framebuffer Bytes Allocated (last frame)', formatBytes(r.framebuffer_bytes_allocated)],
             ['Framebuffer Peak (last frame)', formatBytes(r.framebuffer_bytes_peak)],
             ['FB Acquire Duration', `${formatCounterValue('framebuffer_acquire_ms', counters.find(c=>c.counter_name==='framebuffer_acquire_ms')?.counter_value ?? 0)} ms`],
@@ -347,7 +349,7 @@ function App() {
           ['Min Frame', `${minFrame.toFixed(2)} ms`],
           ['Max Frame', `${maxFrame.toFixed(2)} ms`],
           ['Frame Cache Hit Rate', frameHitRate],
-          ['Average Dirty Ratio', avgDirtyRatio],
+          ['Average Dirty Coverage', avgDirtyRatio],
         ],
       ),
       '',
@@ -359,7 +361,7 @@ function App() {
       '',
       '## Hot Nodes',
       nodeRows.length > 0
-        ? mdTable(['Node', 'Type', 'Calls', 'Total', 'Hit Rate', 'Pixels Touched'], nodeRows.slice(0, 10))
+        ? mdTable(['Node', 'Type', 'Calls', 'Accumulated Time', 'Hit Rate', 'Pixels Touched'], nodeRows.slice(0, 10))
         : '- None. No node telemetry events recorded for this run.',
       '',
       '## Layer Cost Breakdown',
@@ -368,7 +370,7 @@ function App() {
         : '- None. No layer telemetry events recorded for this run.',
       '',
       '## Frame Samples',
-      mdTable(['Frame', 'Duration', 'Cache', 'Dirty Ratio'], sampleFrames),
+      mdTable(['Frame', 'Duration', 'Cache', 'Dirty Coverage'], sampleFrames),
       '',
       '## Cache Diagnostics',
       Object.keys(cacheEventCounts).length > 0
@@ -581,7 +583,7 @@ function App() {
                             "Front: 100% | Mid: 92% | Back: 85%")
                           ) : "All cards above thresholds"}
                         </div>
-                        <div style={{ fontSize: '0.75rem', color: '#8b949e', marginTop: '4px' }}>Min threshold: F > 95% | M > 75% | B > 50%</div>
+                        <div style={{ fontSize: '0.75rem', color: '#8b949e', marginTop: '4px' }}>Min threshold: F &gt; 95% | M &gt; 75% | B &gt; 50%</div>
                       </div>
 
                       <div style={{ background: '#161b22', padding: '12px', borderRadius: '8px', border: '1px solid #30363d' }}>
@@ -592,7 +594,7 @@ function App() {
                         <div style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#f0f6fc', marginTop: '6px' }}>
                           Valid Hierarchy
                         </div>
-                        <div style={{ fontSize: '0.75rem', color: '#8b949e', marginTop: '4px' }}>front_card > mid_card > back_card</div>
+                        <div style={{ fontSize: '0.75rem', color: '#8b949e', marginTop: '4px' }}>front_card &gt; mid_card &gt; back_card</div>
                       </div>
 
                       <div style={{ background: '#161b22', padding: '12px', borderRadius: '8px', border: '1px solid #30363d' }}>
@@ -623,7 +625,7 @@ function App() {
                       <span>Frame Timeline (Click bar to select frame)</span>
                       {(hoveredFrame || selectedFrame) && (
                         <span className="timeline-selection-info">
-                          {selectedFrame ? 'Selected' : 'Hovered'}: Frame #{(selectedFrame || hoveredFrame).frame_number} | Duration: {(selectedFrame || hoveredFrame).duration_ms.toFixed(1)}ms | Cache Hit: {(selectedFrame || hoveredFrame).cache_hit ? 'YES' : 'NO'} | Dirty Ratio: {((selectedFrame || hoveredFrame).dirty_area_ratio * 100).toFixed(1)}%
+                          {selectedFrame ? 'Selected' : 'Hovered'}: Frame #{(selectedFrame || hoveredFrame).frame_number} | Duration: {(selectedFrame || hoveredFrame).duration_ms.toFixed(1)}ms | Cache Hit: {(selectedFrame || hoveredFrame).cache_hit ? 'YES' : 'NO'} | Dirty Coverage: {((selectedFrame || hoveredFrame).dirty_area_ratio * 100).toFixed(1)}%
                         </span>
                       )}
                     </div>
@@ -636,6 +638,11 @@ function App() {
                     />
                   </section>
                 </div>
+
+                <FrameBreakdownPanel
+                  runDetail={runDetail}
+                  frame={selectedFrame || hoveredFrame}
+                />
 
                 {selectedFrame && (
                   <div className="filter-badge-row">

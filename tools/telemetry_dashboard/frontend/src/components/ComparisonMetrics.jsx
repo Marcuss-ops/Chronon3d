@@ -25,7 +25,7 @@ export default function ComparisonMetrics({ baseRun, compRun }) {
 
   const metrics = [
     {
-      label: 'Wall Duration',
+      label: 'E2E Wall Time',
       base: baseRun.wall_time_ms || 0,
       comp: compRun.wall_time_ms || 0,
       format: (v) => (v / 1000).toFixed(2) + ' s',
@@ -40,14 +40,14 @@ export default function ComparisonMetrics({ baseRun, compRun }) {
       inverse: false
     },
     {
-      label: 'Render Time',
+      label: 'Chronon Render Time',
       base: baseRun.render_ms || 0,
       comp: compRun.render_ms || 0,
       format: (v) => (v / 1000).toFixed(2) + ' s',
       inverse: true
     },
     {
-      label: 'Encode Time',
+      label: 'FFmpeg Encode Time',
       base: baseRun.encode_ms || 0,
       comp: compRun.encode_ms || 0,
       format: (v) => (v / 1000).toFixed(2) + ' s',
@@ -69,7 +69,7 @@ export default function ComparisonMetrics({ baseRun, compRun }) {
       inverse: false
     },
     {
-      label: 'Framebuffer Reuse',
+      label: 'Framebuffer Reuse Rate',
       base: ((baseRun.framebuffer_reuses || 0) / Math.max((baseRun.framebuffer_allocations || 0) + (baseRun.framebuffer_reuses || 0), 1)) * 100,
       comp: ((compRun.framebuffer_reuses || 0) / Math.max((compRun.framebuffer_allocations || 0) + (compRun.framebuffer_reuses || 0), 1)) * 100,
       format: (v) => v.toFixed(1) + '%',

@@ -79,7 +79,9 @@ bool write_render_frame(const Composition& comp,
         .frame_number = static_cast<int>(frame),
         .duration_ms = render_ms + encode_ms,
         .cache_hit = hit,
-        .dirty_area_ratio = dirty_ratio
+        .dirty_area_ratio = dirty_ratio,
+        .graph_eval_ms = render_ms,
+        .encoder_ms = encode_ms,
     });
 
     spdlog::info("Frame {} saved to {}", frame, path);
