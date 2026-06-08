@@ -9,6 +9,7 @@
 // we split the framebuffer into bands and clear each band in parallel.
 
 #include <chronon3d/core/memory/framebuffer.hpp>
+#include <chronon3d/core/parallel_tracked.hpp>
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
 #include <algorithm>
@@ -70,7 +71,7 @@ void framebuffer_clear_parallel(
 
         if (x0 == 0 && w == stride) {
             // Full-width case: each band clears a contiguous block.
-            tbb::parallel_for(
+            parallel_for_tracked(
                 tbb::blocked_range<i32>(0, h, band_size),
                 [&](const tbb::blocked_range<i32>& range) {
                     const usize offset = static_cast<usize>(y0 + range.begin()) * stride;
@@ -80,7 +81,7 @@ void framebuffer_clear_parallel(
             );
         } else {
             // Partial-width case: each band clears per-row segments.
-            tbb::parallel_for(
+            parallel_for_tracked(
                 tbb::blocked_range<i32>(0, h, band_size),
                 [&](const tbb::blocked_range<i32>& range) {
                     Color* row = base + static_cast<usize>(y0 + range.begin()) * stride + x0;

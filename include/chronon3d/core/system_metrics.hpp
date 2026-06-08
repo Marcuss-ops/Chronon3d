@@ -117,6 +117,7 @@ public:
         c.system_ram_available_min_mb.store(mem.available_bytes / (1024ULL * 1024ULL), std::memory_order_relaxed);
 
         c.system_logical_cores.store(static_cast<uint64_t>(std::thread::hardware_concurrency()), std::memory_order_relaxed);
+        c.tbb_arena_max_concurrency.store(static_cast<uint64_t>(std::thread::hardware_concurrency()), std::memory_order_relaxed);
     }
 
 private:

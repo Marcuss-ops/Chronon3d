@@ -41,6 +41,17 @@ struct RenderTelemetryRecord {
     uint64_t clear_skipped_pixels{0};
     uint64_t clear_calls{0};
     uint64_t clear_pixels{0};
+    uint64_t clearnode_copy_pixels{0};
+    uint64_t composite_copy_pixels{0};
+    uint64_t clearnode_bytes_avoided{0};
+    uint64_t clearnode_memcpy_bytes{0};
+    uint64_t clearnode_memcpy_calls{0};
+    uint64_t clearnode_detach_shared_count{0};
+    uint64_t clearnode_partial_clip_copy_count{0};
+    uint64_t clearnode_full_clip_skip_count{0};
+    uint64_t prev_fb_use_count_sum{0};
+    uint64_t prev_fb_use_count_samples{0};
+    uint64_t prev_fb_use_count_peak{0};
     uint64_t composite_calls{0};
     uint64_t composite_pixels{0};
     uint64_t transform_calls{0};

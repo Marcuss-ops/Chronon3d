@@ -1,5 +1,6 @@
 #include <chronon3d/video/frame_converter.hpp>
 #include <chronon3d/video/direct_yuv_converter.hpp>
+#include "internal/yuv_conversion_internal.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -8,6 +9,7 @@
 #include <stdexcept>
 #include <vector>
 
+#include <chronon3d/core/parallel_tracked.hpp>
 #include <tbb/parallel_for.h>
 
 extern "C" {
@@ -105,29 +107,35 @@ static inline uint64_t now_ns() {
 //
 // Input stride is read dynamically from src.allocated_width() so the
 // conversion respects the framebuffer's internal stride (cache-line aligned).
-static void convert_fb_to_rgba8(const Framebuffer& src, int width, int height,
+/// RGBA8 staging helper: convert float Framebuffer → uint8 RGBA8888.
+/// Used by the sws_scale path and exposed for benchmark comparison.
+void convert_fb_to_rgba8_public(const Framebuffer& src, int width, int height,
                                  bool apply_gamma, uint8_t* rgba8 /* OUT */) noexcept {
     const Color* src_data = src.data();
     const int   alloc_w   = src.allocated_width();
 
-    tbb::parallel_for(0, height, [&](int y) {
-        const Color* src_row = src_data + static_cast<size_t>(y) * alloc_w;
-        uint8_t*     dst_row = rgba8      + static_cast<size_t>(y) * width * 4;
-
-        for (int x = 0; x < width; ++x) {
-            const Color& c = src_row[x];
-            if (apply_gamma) {
-                dst_row[x * 4 + 0] = Color::linear_to_srgb8(c.r);
-                dst_row[x * 4 + 1] = Color::linear_to_srgb8(c.g);
-                dst_row[x * 4 + 2] = Color::linear_to_srgb8(c.b);
-            } else {
-                dst_row[x * 4 + 0] = static_cast<uint8_t>(std::clamp(c.r, 0.0f, 1.0f) * 255.0f + 0.5f);
-                dst_row[x * 4 + 1] = static_cast<uint8_t>(std::clamp(c.g, 0.0f, 1.0f) * 255.0f + 0.5f);
-                dst_row[x * 4 + 2] = static_cast<uint8_t>(std::clamp(c.b, 0.0f, 1.0f) * 255.0f + 0.5f);
+    parallel_for_tracked(
+        tbb::blocked_range<int>(0, height),
+        [&](const tbb::blocked_range<int>& range) {
+            for (int y = range.begin(); y < range.end(); ++y) {
+                const Color* src_row = src_data + static_cast<size_t>(y) * alloc_w;
+                uint8_t*     dst_row = rgba8      + static_cast<size_t>(y) * width * 4;
+                for (int x = 0; x < width; ++x) {
+                    const Color& c = src_row[x];
+                    if (apply_gamma) {
+                        dst_row[x * 4 + 0] = Color::linear_to_srgb8(c.r);
+                        dst_row[x * 4 + 1] = Color::linear_to_srgb8(c.g);
+                        dst_row[x * 4 + 2] = Color::linear_to_srgb8(c.b);
+                    } else {
+                        dst_row[x * 4 + 0] = static_cast<uint8_t>(std::clamp(c.r, 0.0f, 1.0f) * 255.0f + 0.5f);
+                        dst_row[x * 4 + 1] = static_cast<uint8_t>(std::clamp(c.g, 0.0f, 1.0f) * 255.0f + 0.5f);
+                        dst_row[x * 4 + 2] = static_cast<uint8_t>(std::clamp(c.b, 0.0f, 1.0f) * 255.0f + 0.5f);
+                    }
+                    dst_row[x * 4 + 3] = static_cast<uint8_t>(std::clamp(c.a, 0.0f, 1.0f) * 255.0f + 0.5f);
+                }
             }
-            dst_row[x * 4 + 3] = static_cast<uint8_t>(std::clamp(c.a, 0.0f, 1.0f) * 255.0f + 0.5f);
         }
-    });
+    );
 }
 
 // ============================================================================
@@ -147,7 +155,7 @@ static ConvertFrameResult convert_rgba_to_target(const ConvertFrameRequest& req,
     // 1. Float → uint8 RGBA into the pre-allocated staging buffer.
     const size_t rgba_bytes = static_cast<size_t>(req.width) * req.height * 4;
     auto&        staging    = rgba8_staging(rgba_bytes);
-    convert_fb_to_rgba8(req.src, req.width, req.height, req.apply_gamma, staging.data());
+    convert_fb_to_rgba8_public(req.src, req.width, req.height, req.apply_gamma, staging.data());
 
     // 2. sws_scale: uint8 RGBA → target format.
     const SwsParams params{
@@ -212,6 +220,24 @@ static ConvertFrameResult convert_rgba_to_target(const ConvertFrameRequest& req,
 
 // ── Format-specific entry points (thin wrappers) ────────────────────────────
 
+ConvertFrameResult convert_rgba_to_yuv420p_swscale(const ConvertFrameRequest& req) {
+    if (req.width % 2 != 0 || req.height % 2 != 0)
+        return ConvertFrameResult{.success = false};
+    return convert_rgba_to_target(req, AV_PIX_FMT_YUV420P);
+}
+
+ConvertFrameResult convert_rgba_to_nv12_swscale(const ConvertFrameRequest& req) {
+    if (req.width % 2 != 0 || req.height % 2 != 0)
+        return ConvertFrameResult{.success = false};
+    return convert_rgba_to_target(req, AV_PIX_FMT_NV12);
+}
+
+static ConvertFrameResult convert_rgba_to_rgb24(const ConvertFrameRequest& req) {
+    return convert_rgba_to_target(req, AV_PIX_FMT_RGB24);
+}
+
+// ── Internal wrappers: keep thin wrappers for public convert_frame() ──────
+
 static ConvertFrameResult convert_rgba_to_yuv420p(const ConvertFrameRequest& req) {
     if (req.width % 2 != 0 || req.height % 2 != 0)
         return ConvertFrameResult{.success = false};
@@ -222,10 +248,6 @@ static ConvertFrameResult convert_rgba_to_nv12(const ConvertFrameRequest& req) {
     if (req.width % 2 != 0 || req.height % 2 != 0)
         return ConvertFrameResult{.success = false};
     return convert_rgba_to_target(req, AV_PIX_FMT_NV12);
-}
-
-static ConvertFrameResult convert_rgba_to_rgb24(const ConvertFrameRequest& req) {
-    return convert_rgba_to_target(req, AV_PIX_FMT_RGB24);
 }
 
 // ============================================================================

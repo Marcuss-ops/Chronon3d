@@ -36,6 +36,7 @@ add_executable(chronon3d_core_tests
     assets/test_asset_registry.cpp
     core/math/test_color_space.cpp
     core/math/test_nan_guard.cpp
+    core/test_system_metrics_parse.cpp
     core/math/test_expression.cpp
     core/math/test_expression_extended.cpp
     text/test_text_layout.cpp

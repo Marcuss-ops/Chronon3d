@@ -39,7 +39,17 @@ constexpr std::size_t kHardwareDestructiveInterferenceSize = 64;
     X(clear_skipped_pixels) \
     X(clear_calls) \
     X(clear_pixels) \
-    X(clear_copy_pixels) \
+    X(clearnode_copy_pixels) \
+    X(composite_copy_pixels) \
+    X(clearnode_bytes_avoided) \
+    X(clearnode_memcpy_bytes) \
+    X(clearnode_memcpy_calls) \
+    X(clearnode_detach_shared_count) \
+    X(clearnode_partial_clip_copy_count) \
+    X(clearnode_full_clip_skip_count) \
+    X(prev_fb_use_count_sum) \
+    X(prev_fb_use_count_samples) \
+    X(prev_fb_use_count_peak) \
     X(composite_calls) \
     X(composite_pixels) \
     X(transform_calls) \

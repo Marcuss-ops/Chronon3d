@@ -1,4 +1,5 @@
 #include <chronon3d/backends/software/software_compositor.hpp>
+#include <chronon3d/core/parallel_tracked.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/simd/kernels.hpp>
@@ -109,11 +110,12 @@ void SoftwareCompositor::composite_layer(Framebuffer& dst, const Framebuffer& sr
         }
         if (row_count >= 32) {
             if (cnt) cnt->used_parallel_composite.fetch_add(1, std::memory_order_relaxed);
-            tbb::parallel_for(
+            parallel_for_tracked(
                 tbb::blocked_range<i32>(y0, y1),
                 [&](const tbb::blocked_range<i32>& range) {
                     process_rows(range.begin(), range.end());
-                }
+                },
+                cnt
             );
         } else {
             if (cnt) cnt->skipped_composite_small.fetch_add(1, std::memory_order_relaxed);
@@ -169,16 +171,15 @@ bool SoftwareCompositor::composite_layer_normal_optimized(
             d_row += d_stride;
             s_row += s_stride;
         }
-    };
-
-    if (use_tbb) {
-        if (cnt) cnt->used_parallel_composite.fetch_add(1, std::memory_order_relaxed);
-        tbb::parallel_for(
-            tbb::blocked_range<i32>(y0, y1),
-            [&](const tbb::blocked_range<i32>& range) {
-                process_rows(range.begin(), range.end());
-            }
-        );
+    };        if (use_tbb) {
+            if (cnt) cnt->used_parallel_composite.fetch_add(1, std::memory_order_relaxed);
+            parallel_for_tracked(
+                tbb::blocked_range<i32>(y0, y1),
+                [&](const tbb::blocked_range<i32>& range) {
+                    process_rows(range.begin(), range.end());
+                },
+                cnt
+            );
     } else {
         if (cnt) cnt->skipped_composite_small.fetch_add(1, std::memory_order_relaxed);
         process_rows(y0, y1);
@@ -238,16 +239,15 @@ bool SoftwareCompositor::composite_layer_non_normal_optimized(
             d_row += d_stride;
             s_row += s_stride;
         }
-    };
-
-    if (height_to_process >= 32) {
-        if (cnt) cnt->used_parallel_composite.fetch_add(1, std::memory_order_relaxed);
-        tbb::parallel_for(
-            tbb::blocked_range<i32>(y0, y1),
-            [&](const tbb::blocked_range<i32>& range) {
-                process_rows(range.begin(), range.end());
-            }
-        );
+    };        if (height_to_process >= 32) {
+            if (cnt) cnt->used_parallel_composite.fetch_add(1, std::memory_order_relaxed);
+            parallel_for_tracked(
+                tbb::blocked_range<i32>(y0, y1),
+                [&](const tbb::blocked_range<i32>& range) {
+                    process_rows(range.begin(), range.end());
+                },
+                cnt
+            );
     } else {
         if (cnt) cnt->skipped_composite_small.fetch_add(1, std::memory_order_relaxed);
         process_rows(y0, y1);

@@ -12,6 +12,8 @@
 #include <linux/perf_event.h>
 #endif
 
+#include "system_metrics_parse.hpp"
+
 namespace chronon3d {
 
 #ifndef __linux__
@@ -34,60 +36,10 @@ SystemMetricsCollector::ProcessCpuTime SystemMetricsCollector::sample_cpu_delta(
 
 namespace {
 
+using chronon3d::detail::parse_proc_stat;
+
 long sys_perf_event_open(struct perf_event_attr* hw_event, pid_t pid, int cpu, int group_fd, unsigned long flags) {
     return syscall(__NR_perf_event_open, hw_event, pid, cpu, group_fd, flags);
-}
-
-/**
- * Parse /proc/[pid]/stat — format:
- *   pid (comm) state ppid pgrp session tty_nr tpgid flags
- *   minflt cminflt majflt cmajflt utime stime cutime cstime ...
- *
- * comm may contain '(' ')' and spaces, so we find the LAST ')' to locate
- * the end of the comm field, then count space-separated fields from there.
- *
- * Fields we want (0-indexed after comm closing paren):
- *   7 = minflt, 9 = majflt, 11 = utime, 12 = stime
- */
-void parse_proc_stat(const char* buf,
-                     uint64_t& utime, uint64_t& stime,
-                     uint64_t& minor_faults, uint64_t& major_faults) {
-    utime = stime = minor_faults = major_faults = 0;
-
-    const char* last_paren = nullptr;
-    for (const char* p = buf; *p; ++p) {
-        if (*p == ')') last_paren = p;
-    }
-    if (!last_paren) return;
-
-    const char* p = last_paren + 1;
-    while (*p == ' ') ++p;
-
-    auto skip_field = [&]() {
-        while (*p && *p != ' ') ++p;
-        while (*p == ' ') ++p;
-    };
-
-    auto read_uint64 = [&](uint64_t& out) -> bool {
-        while (*p == ' ') ++p;
-        char* end = nullptr;
-        out = std::strtoull(p, &end, 10);
-        if (end == p) return false;
-        p = end;
-        while (*p == ' ') ++p;
-        return true;
-    };
-
-    // Skip state(0), ppid(1), pgrp(2), session(3), tty_nr(4), tpgid(5), flags(6), minflt(7)
-    for (int i = 0; i < 8; ++i) skip_field();
-    if (!*p) return;
-
-    if (!read_uint64(minor_faults)) return;  // minflt
-    skip_field();                             // cminflt
-    if (!read_uint64(major_faults)) return;  // majflt
-    skip_field();                             // cmajflt
-    if (!read_uint64(utime)) return;          // utime
-    if (!read_uint64(stime)) return;          // stime
 }
 
 /**
@@ -316,8 +268,8 @@ SystemMetricsCollector::SystemMemory SystemMetricsCollector::system_memory() {
             uint64_t kb = 0;
             iss >> kb;
             mem.total_bytes = kb * 1024ULL;
-        } else if (line.compare(0, 12, "MemAvailable:") == 0) {
-            std::istringstream iss(line.substr(12));
+        } else if (line.compare(0, 13, "MemAvailable:") == 0) {
+            std::istringstream iss(line.substr(13));
             uint64_t kb = 0;
             iss >> kb;
             mem.available_bytes = kb * 1024ULL;
