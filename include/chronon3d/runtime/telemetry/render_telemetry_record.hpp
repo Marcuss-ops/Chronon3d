@@ -103,7 +103,8 @@ struct RenderTelemetryRecord {
     // ── Setup Deep Dive (cold start diagnostics) ──
     uint64_t setup_graph_parsing_ms{0};
     uint64_t setup_asset_io_load_ms{0};
-    uint64_t setup_pool_preallocation_ms{0};    uint64_t image_decode_ms{0};
+    uint64_t setup_pool_preallocation_ms{0};
+    double image_decode_ms{0.0};
 
     // ── Graph Executor Phase Timings ──
     uint64_t compiled_graph_refresh_ms{0};
@@ -145,6 +146,8 @@ struct RenderTelemetryRecord {
     uint64_t ffmpeg_cpu_sys_pct{0};
     uint64_t llc_references{0};
     uint64_t llc_misses{0};
+    double image_sample_ms{0.0};
+    uint64_t image_sampled_pixels{0};
 
     // Host & environment specs
     std::string started_at_iso;

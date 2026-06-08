@@ -21,6 +21,20 @@ namespace chronon3d::cli {
 
 namespace chronon3d::cli {
 
+namespace {
+std::string resolve_output_path_for_telemetry(const std::string& output) {
+    if (output.empty()) {
+        return output;
+    }
+
+    std::filesystem::path resolved(output);
+    if (!resolved.is_absolute()) {
+        resolved = std::filesystem::absolute(resolved);
+    }
+    return resolved.lexically_normal().string();
+}
+}
+
 bool execute_render_job(const CompositionRegistry& registry, const RenderJobPlan& plan) {
     profiling::g_live_framebuffer_bytes.store(0, std::memory_order_relaxed);
     profiling::g_peak_live_framebuffer_bytes.store(0, std::memory_order_relaxed);
@@ -142,7 +156,7 @@ bool execute_render_job(const CompositionRegistry& registry, const RenderJobPlan
     chronon3d::telemetry::RenderTelemetryRecord run;
     run.run_id = chronon3d::telemetry::TelemetryManager::generate_uuid();
     run.composition_id = plan.comp_id;
-    run.output_path = plan.output;
+    run.output_path = resolve_output_path_for_telemetry(plan.output);
     run.success = ok;
     run.frames_total = static_cast<int>(telemetry_frames.size());
     run.frames_written = frames_written;

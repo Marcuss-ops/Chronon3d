@@ -63,7 +63,7 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
         "framebuffer_lifetime_ms, node_schedule_ms, node_dispatch_ms, telemetry_emit_ms, "
         "chronon_render_only_ms, chronon_conversion_copy_ms, chronon_queue_wait_ms, "
         "chronon_render_throughput_ms, ffmpeg_encode_total_ms, ffmpeg_flush_close_ms, "
-        "e2e_wall_ms, "
+        "e2e_wall_ms, image_sample_ms, image_sampled_pixels, "
         "started_at_iso, finished_at_iso, git_commit_short, build_type, "
         "compiler_info, os, cpu_model, cores"
 
@@ -78,7 +78,7 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
         "?71, ?72, ?73, ?74, ?75, ?76, ?77, ?78, ?79, ?80, "
         "?81, ?82, ?83, ?84, ?85, ?86, ?87, ?88, ?89, "
         "?90, ?91, ?92, ?93, ?94, ?95, ?96, ?97, ?98, "
-        "?99, ?100"
+        "?99, ?100, ?101, ?102"
         ");";
 
     SqliteStatement stmt(m_impl->db, sql);
@@ -179,6 +179,8 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
         run.ffmpeg_encode_total_ms,
         run.ffmpeg_flush_close_ms,
         run.e2e_wall_ms,
+        run.image_sample_ms,
+        run.image_sampled_pixels,
         run.started_at_iso,
         run.finished_at_iso,
         run.git_commit_short,

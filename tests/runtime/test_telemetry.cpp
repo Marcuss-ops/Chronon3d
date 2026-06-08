@@ -33,16 +33,20 @@ public:
     bool counters_written{false};
     bool node_events_written{false};
     bool layer_events_written{false};
+    bool image_events_written{false};
 
+    RenderTelemetryRecord last_run;
     std::vector<NodeTelemetryRecord> last_node_events;
     std::vector<LayerTelemetryRecord> last_layer_events;
+    std::vector<ImageTelemetryRecord> last_image_events;
 
     bool initialize(const std::string&) override {
         initialized = true;
         return true;
     }
-    bool write_render_run(const RenderTelemetryRecord&) override {
+    bool write_render_run(const RenderTelemetryRecord& run) override {
         run_written = true;
+        last_run = run;
         return true;
     }
     bool write_frames(const std::string&, const std::vector<FrameTelemetryRecord>&) override {
@@ -70,7 +74,11 @@ public:
     bool write_cache_events(const std::string&, const std::vector<CacheTelemetryRecord>&) override { return true; }
     bool write_culling_events(const std::string&, const std::vector<CullingTelemetryRecord>&) override { return true; }
     bool write_text_events(const std::string&, const std::vector<TextTelemetryRecord>&) override { return true; }
-    bool write_image_events(const std::string&, const std::vector<ImageTelemetryRecord>&) override { return true; }
+    bool write_image_events(const std::string&, const std::vector<ImageTelemetryRecord>& events) override {
+        image_events_written = true;
+        last_image_events = events;
+        return true;
+    }
     bool write_tile_events(const std::string&, const std::vector<TileTelemetryRecord>&) override { return true; }
 };
 
@@ -181,4 +189,55 @@ TEST_CASE("Telemetry: MockStore node and layer events") {
     CHECK(mock->last_layer_events[0].area_pixels == 2073600);
 }
 
+TEST_CASE("Telemetry: image events are forwarded to the store") {
+    auto mock = std::make_shared<MockTelemetryStore>();
+    TelemetryManager manager;
+    manager.add_store(mock);
 
+    RenderTelemetryRecord run;
+    run.composition_id = "test_image_events";
+    run.success = true;
+
+    std::vector<ImageTelemetryRecord> image_events;
+    image_events.push_back({
+        .run_id = "",
+        .frame_number = 7,
+        .layer_id = "image_layer",
+        .image_path = "assets/test.png",
+        .image_width = 800,
+        .image_height = 600,
+        .cache_status = "hit",
+        .decode_ms = 1.5,
+        .sample_ms = 3.25,
+        .sampled_pixels = 480000,
+    });
+
+    bool ok = manager.record_run(run, {}, {}, {}, {}, {}, {}, {}, {}, image_events);
+    CHECK(ok);
+    CHECK(mock->run_written);
+    CHECK(mock->image_events_written);
+    CHECK(mock->last_image_events.size() == 1);
+    CHECK(mock->last_image_events[0].cache_status == "hit");
+    CHECK(mock->last_image_events[0].sampled_pixels == 480000);
+}
+
+TEST_CASE("Telemetry: image sampling metrics survive run storage") {
+    auto mock = std::make_shared<MockTelemetryStore>();
+    TelemetryManager manager;
+    manager.add_store(mock);
+
+    RenderTelemetryRecord run;
+    run.composition_id = "test_image_metrics";
+    run.success = true;
+    run.image_decode_ms = 1.25;
+    run.image_sample_ms = 3.5;
+    run.image_sampled_pixels = 480000;
+
+    bool ok = manager.record_run(run);
+    CHECK(ok);
+    CHECK(mock->run_written);
+    CHECK(mock->last_run.composition_id == "test_image_metrics");
+    CHECK(mock->last_run.image_decode_ms == doctest::Approx(1.25));
+    CHECK(mock->last_run.image_sample_ms == doctest::Approx(3.5));
+    CHECK(mock->last_run.image_sampled_pixels == 480000);
+}

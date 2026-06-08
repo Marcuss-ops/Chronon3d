@@ -20,6 +20,8 @@
 #include <atomic>
 #include <chrono>
 #include <cmath>
+#include <cstdlib>
+#include <string_view>
 #include <thread>
 
 #if defined(__linux__)
@@ -43,6 +45,16 @@ void pin_thread_to_core(int core_id) {
     SetThreadAffinityMask(GetCurrentThread(), static_cast<DWORD_PTR>(1) << core_id);
 #endif
 }
+
+bool should_pin_executor_thread() {
+    const char* env = std::getenv("CHRONON3D_PIN_MAIN_THREAD");
+    if (!env || *env == '\0') {
+        return false;
+    }
+    return std::string_view(env) == "1" ||
+           std::string_view(env) == "true" ||
+           std::string_view(env) == "yes";
+}
 } // namespace
 
 // ──────────────────────────────────────────────────────────────────────
@@ -51,8 +63,13 @@ void pin_thread_to_core(int core_id) {
 
 GraphExecutor::GraphExecutor()
     : m_arena(std::max(1u, std::thread::hardware_concurrency())) {
-    // Pin calling thread (main thread) to core 0
-    pin_thread_to_core(0);
+    // Pinning the caller here would be inherited by worker threads on Linux
+    // when they are created later, effectively collapsing TBB back to one core.
+    // Keep it opt-in for the rare case where someone wants deterministic
+    // single-core benchmarking.
+    if (should_pin_executor_thread()) {
+        pin_thread_to_core(0);
+    }
 }
 
 std::shared_ptr<Framebuffer> GraphExecutor::execute(

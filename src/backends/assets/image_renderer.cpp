@@ -4,6 +4,8 @@
 #include <chronon3d/scene/model/mask_utils.hpp>
 #include <chronon3d/media/media_placement.hpp>
 #include <chronon3d/core/telemetry/render_telemetry.hpp>
+#include <chronon3d/core/profiling/counters.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
 #include "../software/utils/blend2d_bridge.hpp"
 #include <spdlog/spdlog.h>
 #include <algorithm>
@@ -39,6 +41,29 @@ std::string rounded_cache_key(const std::string& path, int width, int height, fl
     std::ostringstream key;
     key << path << '#' << width << 'x' << height << "#r" << quantized_radius;
     return key.str();
+}
+
+void record_image_telemetry(
+    const RenderState& state,
+    const std::string& image_path,
+    int image_width,
+    int image_height,
+    const char* cache_status,
+    double decode_ms,
+    double sample_ms,
+    uint64_t sampled_pixels
+) {
+    telemetry::ImageTelemetryRecord rec;
+    rec.frame_number = state.frame_number;
+    rec.layer_id = state.layer_id;
+    rec.image_path = image_path;
+    rec.image_width = image_width;
+    rec.image_height = image_height;
+    rec.cache_status = cache_status ? cache_status : "";
+    rec.decode_ms = decode_ms;
+    rec.sample_ms = sample_ms;
+    rec.sampled_pixels = sampled_pixels;
+    telemetry::record_image_telemetry(std::move(rec));
 }
 
 } // namespace
@@ -99,14 +124,15 @@ bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state
     }
 
     const CachedImage* cached = nullptr;
-    double decode_ms = 0.0;
-    if (state.diagnostics_enabled) {
-        const auto t0 = std::chrono::steady_clock::now();
-        cached = ImageCache::instance().get_or_load(image.path);
-        const auto t1 = std::chrono::steady_clock::now();
-        decode_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
-    } else {
-        cached = ImageCache::instance().get_or_load(image.path);
+    const auto t_decode0 = std::chrono::steady_clock::now();
+    cached = ImageCache::instance().get_or_load(image.path);
+    const auto t_decode1 = std::chrono::steady_clock::now();
+    const double decode_ms = std::chrono::duration<double, std::milli>(t_decode1 - t_decode0).count();
+    if (profiling::g_current_counters && decode_ms > 0.0) {
+        profiling::g_current_counters->image_decode_ms.fetch_add(
+            static_cast<uint64_t>(std::llround(decode_ms)),
+            std::memory_order_relaxed
+        );
     }
 
     BLImage render_img;
@@ -223,7 +249,7 @@ bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state
     const bool full_source = src_x == 0 && src_y == 0 && src_w == img_w && src_h == img_h;
     const bool use_cached_fb = full_source && !using_placeholder && image.fit == FitMode::Stretch && cached && cached->fb_img;
 
-    const auto composite_start = state.diagnostics_enabled ? std::chrono::steady_clock::now() : decltype(std::chrono::steady_clock::now()){};
+    const auto composite_start = std::chrono::steady_clock::now();
 
     if (use_cached_fb && image.radius <= 0.0f) {
         blend2d_bridge::composite_framebuffer_transformed(fb, *cached->fb_img, scaled_model, final_opacity, BlendMode::Normal, &state);
@@ -240,24 +266,19 @@ bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state
         blend2d_bridge::composite_bl_image_transformed(fb, sub_img, scaled_model, final_opacity, BlendMode::Normal, &state, scaled_radius);
     }
 
-    // Image telemetry: only when diagnostics are enabled (zero-cost in production).
-    if (state.diagnostics_enabled) {
-        const auto t_sample1 = std::chrono::steady_clock::now();
-        const double sample_ms = std::chrono::duration<double, std::milli>(t_sample1 - composite_start).count();
-        const uint64_t sampled_pixels = static_cast<uint64_t>(src_w) * static_cast<uint64_t>(src_h);
-
-        telemetry::ImageTelemetryRecord rec;
-        rec.frame_number = state.frame_number;
-        rec.layer_id = state.layer_id;
-        rec.image_path = image.path;
-        rec.image_width = img_w;
-        rec.image_height = img_h;
-        rec.cache_status = (cached && cached->valid() && !using_placeholder) ? "hit" : "miss_decode";
-        rec.decode_ms = decode_ms;
-        rec.sample_ms = sample_ms;
-        rec.sampled_pixels = sampled_pixels;
-        telemetry::record_image_telemetry(std::move(rec));
-    }
+    const auto t_sample1 = std::chrono::steady_clock::now();
+    const double sample_ms = std::chrono::duration<double, std::milli>(t_sample1 - composite_start).count();
+    const uint64_t sampled_pixels = static_cast<uint64_t>(src_w) * static_cast<uint64_t>(src_h);
+    record_image_telemetry(
+        state,
+        image.path,
+        img_w,
+        img_h,
+        (cached && cached->valid() && !using_placeholder) ? "hit" : "miss_decode",
+        decode_ms,
+        sample_ms,
+        sampled_pixels
+    );
 
     return true;
 }
@@ -268,26 +289,28 @@ bool ImageRenderer::draw_image_tiled(const ImageShape& image, const RenderState&
     }
 
     const CachedImage* cached = nullptr;
-    double decode_ms = 0.0;
-    if (state.diagnostics_enabled) {
-        const auto t0 = std::chrono::steady_clock::now();
-        cached = ImageCache::instance().get_or_load(image.path);
-        const auto t1 = std::chrono::steady_clock::now();
-        decode_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
-    } else {
-        cached = ImageCache::instance().get_or_load(image.path);
+    const auto t_decode0 = std::chrono::steady_clock::now();
+    cached = ImageCache::instance().get_or_load(image.path);
+    const auto t_decode1 = std::chrono::steady_clock::now();
+    const double decode_ms = std::chrono::duration<double, std::milli>(t_decode1 - t_decode0).count();
+    if (profiling::g_current_counters && decode_ms > 0.0) {
+        profiling::g_current_counters->image_decode_ms.fetch_add(
+            static_cast<uint64_t>(std::llround(decode_ms)),
+            std::memory_order_relaxed
+        );
     }
 
     if (!cached || cached->bl_img.empty()) {
-        if (state.diagnostics_enabled) {
-            telemetry::ImageTelemetryRecord rec;
-            rec.frame_number = state.frame_number;
-            rec.layer_id = state.layer_id;
-            rec.image_path = image.path;
-            rec.cache_status = "miss_decode";
-            rec.decode_ms = decode_ms;
-            telemetry::record_image_telemetry(std::move(rec));
-        }
+        record_image_telemetry(
+            state,
+            image.path,
+            cached ? cached->width : 0,
+            cached ? cached->height : 0,
+            "miss_decode",
+            decode_ms,
+            0.0,
+            0
+        );
         return false;
     }
 
@@ -324,27 +347,22 @@ bool ImageRenderer::draw_image_tiled(const ImageShape& image, const RenderState&
         scaled_model[3][1]
     );
 
-    const auto composite_start = state.diagnostics_enabled ? std::chrono::steady_clock::now() : decltype(std::chrono::steady_clock::now()){};
+    const auto composite_start = std::chrono::steady_clock::now();
 
     blend2d_bridge::composite_bl_image_tiled(fb, cached->bl_img, scaled_model, final_opacity, BlendMode::Normal, &state);
 
-    if (state.diagnostics_enabled) {
-        const auto t_sample1 = std::chrono::steady_clock::now();
-        const double sample_ms = std::chrono::duration<double, std::milli>(t_sample1 - composite_start).count();
-        const uint64_t sampled_pixels = static_cast<uint64_t>(cached->width) * static_cast<uint64_t>(cached->height);
-
-        telemetry::ImageTelemetryRecord rec;
-        rec.frame_number = state.frame_number;
-        rec.layer_id = state.layer_id;
-        rec.image_path = image.path;
-        rec.image_width = cached->width;
-        rec.image_height = cached->height;
-        rec.cache_status = "hit";
-        rec.decode_ms = decode_ms;
-        rec.sample_ms = sample_ms;
-        rec.sampled_pixels = sampled_pixels;
-        telemetry::record_image_telemetry(std::move(rec));
-    }
+    const auto t_sample1 = std::chrono::steady_clock::now();
+    const double sample_ms = std::chrono::duration<double, std::milli>(t_sample1 - composite_start).count();
+    record_image_telemetry(
+        state,
+        image.path,
+        cached->width,
+        cached->height,
+        "hit",
+        decode_ms,
+        sample_ms,
+        static_cast<uint64_t>(cached->width) * static_cast<uint64_t>(cached->height)
+    );
 
     return true;
 }

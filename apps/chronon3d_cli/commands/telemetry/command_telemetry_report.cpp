@@ -451,6 +451,12 @@ void generate_telemetry_report(std::stringstream& out, sqlite3* db, const std::s
 
     write_setup_deep_dive(out, run);
 
+    out << "## Image Sampling\n";
+    out << "| Metric | Value |\n";
+    out << "| --- | --- |\n";
+    out << "| Image sample | " << format_ms(run.image_sample_ms) << " |\n";
+    out << "| Image sampled pixels | " << run.image_sampled_pixels << " |\n\n";
+
     // ── Parallelism Decisions ─────────────────────────────────────────────────
     out << "## Parallelism Decisions\n";
     out << "| Decision | Count |\n";

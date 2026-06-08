@@ -8,6 +8,41 @@ from .config import DB_PATH, ARTIFACT_MIME_TYPES, STATIC_MIME_TYPES
 from .database import create_merged_connection
 
 
+def resolve_artifact_path(raw_path: str) -> Path | None:
+    path = Path(raw_path)
+    if path.is_absolute():
+        candidates = [path]
+    else:
+        project_root = Path(__file__).resolve().parent.parent.parent.parent
+        candidates = [
+            Path.cwd() / path,
+            project_root / path,
+            project_root / 'build' / 'chronon' / 'linux-release' / path,
+            project_root / 'build' / path,
+        ]
+
+    for candidate in candidates:
+        try:
+            resolved = candidate.resolve()
+        except Exception:
+            continue
+        if resolved.exists() and resolved.is_file():
+            return resolved
+
+    if not path.is_absolute():
+        for parent in [Path.cwd(), project_root, project_root / 'build']:
+            if not parent.exists():
+                continue
+            try:
+                match = next(parent.rglob(path.name))
+            except StopIteration:
+                continue
+            if match.exists() and match.is_file():
+                return match.resolve()
+
+    return None
+
+
 class TelemetryAPIHandler(BaseHTTPRequestHandler):
     """HTTP request handler for the Chronon3D telemetry dashboard API + static files."""
 
@@ -144,12 +179,8 @@ class TelemetryAPIHandler(BaseHTTPRequestHandler):
             self.end_headers()
             return
 
-        artifact_path = Path(raw_path)
-        if not artifact_path.is_absolute():
-            artifact_path = Path.cwd() / artifact_path
-        artifact_path = artifact_path.resolve()
-
-        if not artifact_path.exists() or artifact_path.is_dir():
+        artifact_path = resolve_artifact_path(raw_path)
+        if artifact_path is None:
             self.send_response(404)
             self.end_headers()
             return

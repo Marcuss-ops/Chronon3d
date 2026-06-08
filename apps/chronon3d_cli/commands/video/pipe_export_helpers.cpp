@@ -67,6 +67,10 @@ FfmpegPipeOptions make_pipe_options(
         (opts.encoder_backend == "native" && opts.encode_preset == "superfast")
             ? "ultrafast"
             : opts.encode_preset;
+    const std::string effective_tune =
+        (!opts.tune.empty())
+            ? opts.tune
+            : ((opts.codec == "libx264" && opts.encoder_backend != "native") ? "zerolatency" : "");
 
     FfmpegPipeOptions pipe_options{
         .width = comp.width(),
@@ -81,6 +85,7 @@ FfmpegPipeOptions make_pipe_options(
         .color_transform = {
             .output = parse_color_output(opts.color_output),
         },
+        .tune = effective_tune,
         .pipe_writer = opts.pipe_writer,
     };
     pipe_options.output_pix_fmt = resolve_cli_ffmpeg_output_pix_fmt(codec);
