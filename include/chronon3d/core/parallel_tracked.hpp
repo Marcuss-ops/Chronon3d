@@ -4,6 +4,7 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
+#include <tbb/partitioner.h>
 #include <atomic>
 #include <cstdint>
 #include <thread>
@@ -34,14 +35,15 @@ namespace chronon3d {
  * When counters is null, the call degrades to plain tbb::parallel_for
  * with zero overhead.
  */
-template <typename IndexType, typename Body>
+template <typename IndexType, typename Body, typename Partitioner = tbb::auto_partitioner>
 void parallel_for_tracked(
     const tbb::blocked_range<IndexType>& range,
     Body&& body,
-    RenderCounters* counters = profiling::g_current_counters)
+    RenderCounters* counters = profiling::g_current_counters,
+    Partitioner partitioner = Partitioner{})
 {
     if (!counters) {
-        tbb::parallel_for(range, std::forward<Body>(body));
+        tbb::parallel_for(range, std::forward<Body>(body), partitioner);
         return;
     }
 
@@ -86,7 +88,8 @@ void parallel_for_tracked(
             body(r);
 
             active_workers.fetch_sub(1, std::memory_order_relaxed);
-        }
+        },
+        partitioner
     );
 }
 

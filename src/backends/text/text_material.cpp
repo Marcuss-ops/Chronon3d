@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <deque>
 #include <blend2d.h>
 
 namespace chronon3d {
@@ -161,110 +162,111 @@ void apply_text_material(BLImage& img, const TextMaterial& mat) {
     }
 
     // ── 2. Bevel (fake 3D edge) ────────────────────────────────
-    // Apply by offsetting the alpha mask and compositing highlight
-    // on top-left edges and shadow on bottom-right edges.
+    // Uses separable sliding-window maximum (deque per row/column)
+    // for O(w×h) complexity instead of O(w×h×bp) naive scanning.
     if (mat.bevel_px > 0.0f) {
         const int bp = static_cast<int>(std::round(mat.bevel_px));
         if (bp > 0) {
-            // Bevel highlight: offset alpha by (-bp, -bp), then keep only
-            // the "new" pixels that are in the offset but not in the original.
-            // Composite as highlight color over the text.
+            const int window = bp * 2;
+            const size_t n = static_cast<size_t>(w) * static_cast<size_t>(h);
+
+            // Horizontal sliding-window maximum
+            std::vector<float> h_max(n);
             for (int y = 0; y < h; ++y) {
+                std::deque<int> dq;
+                const size_t row_base = static_cast<size_t>(y) * static_cast<size_t>(w);
                 for (int x = 0; x < w; ++x) {
-                    const float orig_a = alpha[y * w + x];
+                    while (!dq.empty() && dq.front() < x - window) dq.pop_front();
+                    const float val = alpha[row_base + static_cast<size_t>(x)];
+                    while (!dq.empty() && alpha[row_base + static_cast<size_t>(dq.back())] <= val) dq.pop_back();
+                    dq.push_back(x);
+                    h_max[row_base + static_cast<size_t>(x)] = alpha[row_base + static_cast<size_t>(dq.front())];
+                }
+            }
+
+            // Vertical sliding-window maximum
+            std::vector<float> v_max(n);
+            for (int x = 0; x < w; ++x) {
+                std::deque<int> dq;
+                const size_t col = static_cast<size_t>(x);
+                for (int y = 0; y < h; ++y) {
+                    while (!dq.empty() && dq.front() < y - window) dq.pop_front();
+                    const size_t idx = static_cast<size_t>(y) * static_cast<size_t>(w) + col;
+                    const float val = alpha[idx];
+                    while (!dq.empty() && alpha[static_cast<size_t>(dq.back()) * static_cast<size_t>(w) + col] <= val) dq.pop_back();
+                    dq.push_back(y);
+                    v_max[idx] = alpha[static_cast<size_t>(dq.front()) * static_cast<size_t>(w) + col];
+                }
+            }
+
+            // Single-pass edge detection using precomputed maxima
+            for (int y = 0; y < h; ++y) {
+                const size_t row_base = static_cast<size_t>(y) * static_cast<size_t>(w);
+                for (int x = 0; x < w; ++x) {
+                    const float orig_a = alpha[row_base + static_cast<size_t>(x)];
                     if (orig_a <= 0.0f) continue;
 
-                    // Check if this pixel is at a top or left edge:
-                    // the pixel at offset (x-bp, y) or (x, y-bp) has less alpha
+                    // ── Highlight edges (top + left) ──────────────
+                    const int py_top = y - bp;
                     const int px_left = x - bp;
-                    const int px_top  = y - bp;
-                    float edge_strength = 0.0f;
-                    int edge_count = 0;
+                    float hl_strength = 0.0f;
 
-                    // Check top edge: pixel above has less alpha
-                    if (px_top >= 0) {
-                        float above_alpha = 0.0f;
-                        for (int ox = std::max(0, px_left); ox <= std::min(w - 1, x + bp); ++ox) {
-                            above_alpha = std::max(above_alpha, alpha[px_top * w + ox]);
-                        }
-                        if (above_alpha < orig_a * 0.5f) {
-                            edge_strength = std::max(edge_strength, (orig_a - above_alpha) / orig_a);
-                            edge_count++;
+                    if (py_top >= 0) {
+                        const float above_max = h_max[static_cast<size_t>(py_top) * static_cast<size_t>(w) + static_cast<size_t>(x)];
+                        if (above_max < orig_a * 0.5f) {
+                            hl_strength = std::max(hl_strength,
+                                (orig_a - above_max) / orig_a);
                         }
                     } else {
-                        edge_strength = std::max(edge_strength, 1.0f);
-                        edge_count++;
+                        hl_strength = std::max(hl_strength, 1.0f);
                     }
 
-                    // Check left edge: pixel to the left has less alpha
                     if (px_left >= 0) {
-                        float left_a = 0.0f;
-                        for (int oy = std::max(0, px_top); oy <= std::min(h - 1, y + bp); ++oy) {
-                            left_a = std::max(left_a, alpha[oy * w + px_left]);
-                        }
-                        if (left_a < orig_a * 0.5f) {
-                            edge_strength = std::max(edge_strength, (orig_a - left_a) / orig_a);
-                            edge_count++;
+                        const float left_max = v_max[row_base + static_cast<size_t>(px_left)];
+                        if (left_max < orig_a * 0.5f) {
+                            hl_strength = std::max(hl_strength,
+                                (orig_a - left_max) / orig_a);
                         }
                     } else {
-                        edge_strength = std::max(edge_strength, 1.0f);
-                        edge_count++;
+                        hl_strength = std::max(hl_strength, 1.0f);
                     }
 
-                    if (edge_count > 0 && edge_strength > 0.1f) {
-                        const float hl_alpha = edge_strength * mat.bevel_highlight_opacity * orig_a;
+                    if (hl_strength > 0.1f) {
+                        const float hl_alpha = hl_strength * mat.bevel_highlight_opacity * orig_a;
                         pixels[y * stride + x] = blend_over(
                             pixels[y * stride + x],
                             mat.bevel_highlight_color,
                             hl_alpha
                         );
                     }
-                }
-            }
 
-            // Bevel shadow: check bottom and right edges (pixels BELOW or RIGHT have less alpha)
-            for (int y = 0; y < h; ++y) {
-                for (int x = 0; x < w; ++x) {
-                    const float orig_a = alpha[y * w + x];
-                    if (orig_a <= 0.0f) continue;
-
+                    // ── Shadow edges (bottom + right) ─────────────
+                    const int py_bottom = y + bp;
                     const int px_right = x + bp;
-                    const int px_bottom = y + bp;
-                    float edge_strength = 0.0f;
-                    int edge_count = 0;
+                    float sh_strength = 0.0f;
 
-                    // Check bottom edge: pixel below has less alpha
-                    if (px_bottom < h) {
-                        float below_a = 0.0f;
-                        for (int ox = std::max(0, x - bp); ox <= std::min(w - 1, px_right); ++ox) {
-                            below_a = std::max(below_a, alpha[px_bottom * w + ox]);
-                        }
-                        if (below_a < orig_a * 0.5f) {
-                            edge_strength = std::max(edge_strength, (orig_a - below_a) / orig_a);
-                            edge_count++;
+                    if (py_bottom < h) {
+                        const float below_max = h_max[static_cast<size_t>(py_bottom) * static_cast<size_t>(w) + static_cast<size_t>(x)];
+                        if (below_max < orig_a * 0.5f) {
+                            sh_strength = std::max(sh_strength,
+                                (orig_a - below_max) / orig_a);
                         }
                     } else {
-                        edge_strength = std::max(edge_strength, 1.0f);
-                        edge_count++;
+                        sh_strength = std::max(sh_strength, 1.0f);
                     }
 
-                    // Check right edge: pixel to the right has less alpha
                     if (px_right < w) {
-                        float right_a = 0.0f;
-                        for (int oy = std::max(0, y - bp); oy <= std::min(h - 1, px_bottom); ++oy) {
-                            right_a = std::max(right_a, alpha[oy * w + px_right]);
-                        }
-                        if (right_a < orig_a * 0.5f) {
-                            edge_strength = std::max(edge_strength, (orig_a - right_a) / orig_a);
-                            edge_count++;
+                        const float right_max = v_max[row_base + static_cast<size_t>(px_right)];
+                        if (right_max < orig_a * 0.5f) {
+                            sh_strength = std::max(sh_strength,
+                                (orig_a - right_max) / orig_a);
                         }
                     } else {
-                        edge_strength = std::max(edge_strength, 1.0f);
-                        edge_count++;
+                        sh_strength = std::max(sh_strength, 1.0f);
                     }
 
-                    if (edge_count > 0 && edge_strength > 0.1f) {
-                        const float sh_alpha = edge_strength * mat.bevel_shadow_opacity * orig_a;
+                    if (sh_strength > 0.1f) {
+                        const float sh_alpha = sh_strength * mat.bevel_shadow_opacity * orig_a;
                         const Color shadow_tint{0.0f, 0.0f, 0.0f, 1.0f};
                         pixels[y * stride + x] = blend_over(
                             pixels[y * stride + x],
