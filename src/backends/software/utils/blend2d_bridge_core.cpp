@@ -3,7 +3,7 @@
 // Transformed variants live in blend2d_bridge_transforms.cpp.
 
 #include "blend2d_bridge.hpp"
-#include <chronon3d/scene/model/mask_utils.hpp>
+#include <chronon3d/scene/model/core/mask_utils.hpp>
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
 #include <algorithm>

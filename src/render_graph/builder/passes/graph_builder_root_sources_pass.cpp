@@ -2,7 +2,7 @@
 #include "../graph_builder_pipeline.hpp"
 #include <chronon3d/render_graph/builder/graph_build_context.hpp>
 #include <chronon3d/render_graph/nodes/basic_nodes_common.hpp>
-#include <chronon3d/scene/model/scene.hpp>
+#include <chronon3d/scene/model/core/scene.hpp>
 
 namespace chronon3d::graph::detail {
 

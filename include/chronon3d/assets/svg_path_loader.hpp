@@ -1,6 +1,6 @@
 #pragma once
 
-#include <chronon3d/scene/model/path.hpp>
+#include <chronon3d/scene/model/shape/path.hpp>
 #include <string>
 #include <string_view>
 #include <optional>

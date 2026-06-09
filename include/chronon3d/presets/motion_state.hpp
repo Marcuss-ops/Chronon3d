@@ -1,7 +1,7 @@
 #pragma once
 
 #include <chronon3d/math/glm_types.hpp>
-#include <chronon3d/scene/model/effect_stack.hpp>
+#include <chronon3d/scene/model/core/effect_stack.hpp>
 
 namespace chronon3d::presets::motion {
 
