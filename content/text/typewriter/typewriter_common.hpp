@@ -38,6 +38,7 @@ struct SweepMotion {
 struct TypewriterLine {
     std::string text;
     Vec3 pos{0, 0, 0};
+    Vec2 size{1500.0f, 120.0f};
     f32 font_size{56.0f};
     f32 tracking{0.0f};
     Color color_val{1, 1, 1, 1};
@@ -49,6 +50,7 @@ struct TypewriterLine {
     TypewriterLine(std::string t) : text(std::move(t)) {}
 
     TypewriterLine& set_pos(Vec3 p) { pos = p; return *this; }
+    TypewriterLine& set_size(Vec2 s) { size = s; return *this; }
     TypewriterLine& set_font(f32 s, f32 t = 0.0f) { font_size = s; tracking = t; return *this; }
     TypewriterLine& set_timing(f32 s, f32 speed = 2.0f) { start_frame = s; chars_per_frame = speed; return *this; }
     TypewriterLine& set_color(Color c) { color_val = c; return *this; }
@@ -96,15 +98,16 @@ inline Composition make_typewriter(
             std::string revealed = l.reveal(ctx.frame);
             if (revealed.empty()) continue;
 
-            auto obj = MotionObject::text("l" + std::to_string(i), std::move(revealed))
-                .at(l.pos + l.sweep_val.offset(ctx.frame, l.start_frame))
-                .font_size(l.font_size)
-                .color(l.color_val)
-                .tracking(l.tracking)
-                .align(l.align_val)
-                .vertical_align(VerticalAlign::Middle)
-                .glow(glow)
-                .time(0, duration_frames);
+        auto obj = MotionObject::text("l" + std::to_string(i), std::move(revealed))
+            .at(l.pos + l.sweep_val.offset(ctx.frame, l.start_frame))
+            .size(l.size)
+            .font_size(l.font_size)
+            .color(l.color_val)
+            .tracking(l.tracking)
+            .align(l.align_val)
+            .vertical_align(VerticalAlign::Middle)
+            .glow(glow)
+            .time(0, duration_frames);
 
             if (preset == MotionPreset::PerspectiveSweepTextReveal) {
                 presets::motion::perspective_sweep_text_reveal(obj);

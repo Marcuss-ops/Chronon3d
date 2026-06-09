@@ -144,10 +144,21 @@ void MotionPresetRegistry::register_builtins() {
             st.blur = interpolate(t, 0.0f, 0.28f, 14.0f, 0.0f, Easing::OutCubic);
             
             st.effects.glow_enabled = true;
+            // Multi-layer glow: the new text_glow.cpp renders three concentric
+            // layers (inner/mid/outer) from the single radius/intensity, so
+            // we keep the radius moderate and the intensity high.
+            // The glow ramps in from a large soft bloom and settles to a
+            // tighter, more intense blue-cyan halo.
             const f32 bloom_mix = std::clamp(1.0f - (st.blur / 14.0f), 0.0f, 1.0f);
-            st.effects.glow.radius = 28.0f;
-            st.effects.glow.intensity = 0.14f + 0.20f * bloom_mix;
-            st.effects.glow.color = Color{0.96f, 0.97f, 1.0f, 1.0f};
+            st.effects.glow.radius = interpolate(t, 0.0f, 0.40f, 52.0f, 32.0f, Easing::OutCubic);
+            st.effects.glow.intensity = 0.70f + 0.30f * bloom_mix;
+            // Rich blue-cyan glow: deep blue bloom settling to a bright cyan-white core
+            st.effects.glow.color = Color{
+                0.40f + 0.55f * bloom_mix,
+                0.60f + 0.38f * bloom_mix,
+                1.0f,
+                0.65f + 0.35f * bloom_mix
+            };
         }
     });
 
