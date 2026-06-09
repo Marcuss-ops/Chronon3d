@@ -1,6 +1,6 @@
 #include <doctest/doctest.h>
 
-#include <apps/chronon3d_cli/commands/video/pipe_export_helpers.hpp>
+#include <apps/chronon3d_cli/commands/video/common/pipe_export_helpers.hpp>
 
 #include <stdexcept>
 

@@ -3,7 +3,7 @@
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/math/projection_context.hpp>
 #include <chronon3d/math/raster_utils.hpp>
-#include <chronon3d/scene/model/mask_utils.hpp>
+#include <chronon3d/scene/model/core/mask_utils.hpp>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -12,7 +12,7 @@
 namespace chronon3d {
 
 // Forward-declared to avoid a math/ -> scene/ include cycle.
-// Full definition is in <chronon3d/scene/model/mask.hpp>.
+// Full definition is in <chronon3d/scene/model/layer/mask.hpp>.
 struct Mask;
 
 struct Transform {

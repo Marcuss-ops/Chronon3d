@@ -1,5 +1,5 @@
 #include <chronon3d/specscene/model/specscene.hpp>
-#include <chronon3d/scene/model/depth_role.hpp>
+#include <chronon3d/scene/model/core/depth_role.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/math/transform.hpp>
 #include <chronon3d/core/string_utils.hpp>

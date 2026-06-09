@@ -9,11 +9,11 @@
 #include "shape_rasterizer_helpers.hpp"
 #include <chronon3d/backends/software/shape_processor.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
-#include <chronon3d/scene/model/mask_utils.hpp>
-#include <chronon3d/scene/model/fill.hpp>
+#include <chronon3d/scene/model/core/mask_utils.hpp>
+#include <chronon3d/scene/model/shape/fill.hpp>
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/simd/kernels.hpp>
-#include "path_rasterizer.hpp"
+#include "path/path_rasterizer.hpp"
 #include <glm/gtc/matrix_inverse.hpp>
 #include <algorithm>
 #include <cmath>

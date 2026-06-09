@@ -1,6 +1,6 @@
 #include <doctest/doctest.h>
 
-#include <chronon3d/scene/model/camera_rig.hpp>
+#include <chronon3d/scene/model/camera/camera_rig.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/image/image_writer.hpp>

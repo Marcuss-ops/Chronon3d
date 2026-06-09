@@ -12,7 +12,7 @@
 
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/math/color.hpp>
-#include <chronon3d/scene/model/dof.hpp>
+#include <chronon3d/scene/model/camera/dof.hpp>
 #include <chronon3d/backends/software/utils/effects/per_pixel_dof.hpp>
 
 #include <tbb/parallel_for.h>

@@ -4,12 +4,12 @@
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/core/types/types.hpp>
 #include <chronon3d/core/types/frame.hpp>
-#include <chronon3d/scene/model/depth_role.hpp>
-#include <chronon3d/scene/model/layer.hpp>  // for LayerKind
+#include <chronon3d/scene/model/core/depth_role.hpp>
+#include <chronon3d/scene/model/layer/layer.hpp>  // for LayerKind
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/description/visual_desc.hpp>
 #include <chronon3d/description/effect_desc.hpp>
-#include <chronon3d/scene/model/transition.hpp>
+#include <chronon3d/scene/model/core/transition.hpp>
 #include <optional>
 #include <string>
 #include <vector>
