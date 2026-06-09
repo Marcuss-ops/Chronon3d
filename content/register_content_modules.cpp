@@ -7,6 +7,7 @@ void register_content_modules() {
     register_minimalist_content();
     register_text_content();
     register_two_point_five_d_content();
+    register_images_content();
 }
 
 } // namespace chronon3d
