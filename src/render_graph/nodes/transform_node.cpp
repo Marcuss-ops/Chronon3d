@@ -61,7 +61,10 @@ OwnedFB TransformNode::execute(
         return result;
     }
 
-    auto result = ctx.acquire_owned_fb(out_w, out_h, true, out_bounds);
+    // ── Use transform scratch buffer when available — eliminates pool ───
+    //    bucket misses caused by frame-to-frame bbox size variations in
+    //    animated transforms (e.g. breathing scale animation).
+    auto result = ctx.acquire_scratch_fb(out_w, out_h, true, out_bounds);
 
     // ── Centering & homography ──────────────────────────────────────────
     const Mat4 dst_canvas_offset = glm::translate(Mat4(1.0f), Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));

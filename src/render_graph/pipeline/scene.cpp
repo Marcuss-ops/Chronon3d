@@ -121,9 +121,28 @@ std::vector<cache::FramebufferPoolPreallocOptions> predict_pool_requirements(
         }
     }
 
-    constexpr size_t kMaxPreallocPerBucket = 3; // safe concurrent upper bound
+    // With the async video pipeline (render thread + queue + writer thread),
+    // up to 4 buffers per bucket can be in flight simultaneously.
+    // kMaxPreallocPerBucket must cover: 1 current + 1 previous + 1 queued + 1 encoding.
+    // Setting to 5 ensures the pool never exhausts available buffers under
+    // maximum pipeline pressure, eliminating framebuffer_pool_miss_count_size_mismatch.
+    constexpr size_t kMaxPreallocPerBucket = 5;
     std::vector<cache::FramebufferPoolPreallocOptions> predictions;
-    predictions.reserve(peak_counts.size());
+    predictions.reserve(peak_counts.size() + 1);
+
+    // Always ensure the main canvas bucket has at least 4 warm buffers.
+    // This prevents cold-start pool misses on the first few frames.
+    {
+        const auto [bw, bh] = cache::FramebufferPool::round_to_bucket(canvas_width, canvas_height);
+        predictions.push_back(cache::FramebufferPoolPreallocOptions{
+            .width = bw,
+            .height = bh,
+            .count = 4,
+            .clear = true,
+            .touch_memory = false,
+        });
+    }
+
     for (const auto& [bucket, count] : peak_counts) {
         const size_t capped_count = std::min(count, kMaxPreallocPerBucket);
         predictions.push_back(cache::FramebufferPoolPreallocOptions{
@@ -434,6 +453,19 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         return sw_renderer->m_prev_framebuffer;
     }
 
+    // ── Wire up ping-pong framebuffers AND transform scratch ────────────
+    // Both must be set before graph build/reuse for ALL code paths.
+    // Ping-pong: ClearNode uses the exclusive write ping instead of COW.
+    // Transform scratch: TransformNode reuses a persistent buffer.
+    if (sw_renderer) {
+        sw_renderer->ensure_ping_framebuffers(width, height);
+        ctx.ping_write_fb = sw_renderer->m_ping_fb[sw_renderer->m_ping_write_idx];
+        ctx.ping_write_slot = sw_renderer->write_ping_slot();
+
+        ctx.transform_scratch = sw_renderer->ensure_transform_scratch(width, height);
+        ctx.transform_scratch_slot = sw_renderer->transform_scratch_slot();
+    }
+
     // ── Build (or reuse cached) render graph ─────────────────────────────
     // Phase 1: when graph_structure_unchanged is true, the graph topology is
     // identical to the previous frame — reuse the cached graph instead of
@@ -467,13 +499,13 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         compiled.skip_initial_clear = false;
         compiled.early_exit_skip.assign(compiled.graph.size(), false);
 
-        ctx.skip_initial_clear = compiled.skip_initial_clear;
-        ctx.early_exit_skip = compiled.early_exit_skip;
+    ctx.skip_initial_clear = compiled.skip_initial_clear;
+    ctx.early_exit_skip = compiled.early_exit_skip;
 
-        if (ctx.diagnostics_enabled) {
-            spdlog::info("[graph-cache] frame={} reusing cached compiled graph ({} live nodes)",
-                         static_cast<int>(frame), compiled.graph.live_count());
-        }
+    if (ctx.diagnostics_enabled) {
+        spdlog::info("[graph-cache] frame={} reusing cached compiled graph ({} live nodes)",
+                     static_cast<int>(frame), compiled.graph.live_count());
+    }
         graph_reused = true;
     } else {
         if (ctx.counters) {
@@ -690,7 +722,24 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         const uint64_t save_structure_fp = sw_renderer->m_scene_hasher.compute_structure_fingerprint(scene);
         const uint64_t save_active_at_fp = sw_renderer->m_scene_hasher.compute_active_at_fingerprint(scene, frame);
         const uint64_t save_combined_fp = save_static_fp ^ (save_active_at_fp * 0x9e3779b97f4a7c15ULL);
-        sw_renderer->m_prev_framebuffer = fb_shared;
+
+        // ── Update m_prev_framebuffer: swap ping-pong or assign directly ──
+        // When the graph rendered into a ping buffer (ClearNode's ping-pong path),
+        // swap indices so m_prev_framebuffer points to the completed frame.
+        // Otherwise (first frame, tile execution, or COW fallback), fb_shared is
+        // a pool FB and must be assigned directly.
+        if (fb_shared.get() == sw_renderer->m_ping_fb[0] ||
+            fb_shared.get() == sw_renderer->m_ping_fb[1]) {
+            // Rendered into a ping — swap indices to advance the ping cycle.
+            // swap_ping_indices() repoints m_prev_framebuffer to the new read ping
+            // (the frame we just finished writing), making it the "previous" frame
+            // for ClearNode's dirty-rect read in the next cycle.
+            sw_renderer->swap_ping_indices();
+        } else {
+            // Rendered into a pool FB — assign directly.
+            sw_renderer->m_prev_framebuffer = fb_shared;
+        }
+
         sw_renderer->m_prev_layer_bboxes = std::move(dirty_out.layer_bboxes);
         sw_renderer->m_prev_frame = frame;
         sw_renderer->m_prev_scene_fingerprint = save_combined_fp;
