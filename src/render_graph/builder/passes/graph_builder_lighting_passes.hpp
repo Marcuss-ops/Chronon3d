@@ -1,6 +1,6 @@
 #pragma once
 
-#include <chronon3d/render_graph/graph_builder.hpp>
+#include <chronon3d/render_graph/builder/graph_builder.hpp>
 #include <chronon3d/math/glm_types.hpp>
 #include <span>
 

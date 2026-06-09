@@ -9,8 +9,8 @@
 // All functions are in namespace chronon3d::graph — same as render_pipeline.cpp.
 // ---------------------------------------------------------------------------
 
-#include <chronon3d/render_graph/render_pipeline.hpp>
-#include <chronon3d/render_graph/render_graph_hashing.hpp>
+#include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
+#include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/core/telemetry/render_telemetry.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>

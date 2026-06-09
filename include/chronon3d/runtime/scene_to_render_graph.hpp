@@ -2,7 +2,7 @@
 
 #include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/render_graph/render_graph.hpp>
-#include <chronon3d/render_graph/graph_builder.hpp>
+#include <chronon3d/render_graph/builder/graph_builder.hpp>
 
 namespace chronon3d::runtime {
 

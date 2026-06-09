@@ -1,6 +1,6 @@
 #pragma once
 
-#include <chronon3d/render_graph/preflight_render_graph.hpp>
+#include <chronon3d/render_graph/preflight/preflight_render_graph.hpp>
 
 #include <string>
 

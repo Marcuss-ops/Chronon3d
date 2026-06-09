@@ -1,7 +1,7 @@
 #include <doctest/doctest.h>
 
 #include <chronon3d/scene/model/render/render_node_factory.hpp>
-#include <chronon3d/render_graph/render_graph_hashing.hpp>
+#include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 
 using namespace chronon3d;
 

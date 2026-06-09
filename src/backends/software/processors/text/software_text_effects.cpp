@@ -3,7 +3,7 @@
 #include <chronon3d/cache/lru_cache.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
-#include <chronon3d/render_graph/render_graph_hashing.hpp>
+#include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include "../../utils/blend2d_bridge.hpp"
 
 #include <blend2d.h>

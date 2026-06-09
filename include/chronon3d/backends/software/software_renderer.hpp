@@ -21,7 +21,7 @@
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/scene/model/camera/camera.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
-#include <chronon3d/render_graph/scene_hasher.hpp>
+#include <chronon3d/render_graph/core/scene_hasher.hpp>
 
 #include <memory>
 #include <optional>

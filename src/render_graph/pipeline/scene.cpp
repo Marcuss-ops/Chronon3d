@@ -1,10 +1,10 @@
-#include <chronon3d/render_graph/render_pipeline.hpp>
-#include <chronon3d/render_graph/preflight_render_graph.hpp>
+#include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
+#include <chronon3d/render_graph/preflight/preflight_render_graph.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/telemetry/render_telemetry.hpp>
-#include <chronon3d/render_graph/graph_builder.hpp>
-#include <chronon3d/render_graph/graph_executor.hpp>
+#include <chronon3d/render_graph/builder/graph_builder.hpp>
+#include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/math/projector_2_5d.hpp>

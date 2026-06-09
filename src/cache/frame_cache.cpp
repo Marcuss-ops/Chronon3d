@@ -1,5 +1,5 @@
 #include <chronon3d/cache/frame_cache.hpp>
-#include <chronon3d/render_graph/render_graph_hashing.hpp>
+#include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <string_view>
 #include <utility>
 

@@ -2,9 +2,9 @@
 #include "../../command_registry.hpp"
 #include "../../utils/job/cli_render_utils.hpp"
 #include <chronon3d/backends/image/image_writer.hpp>
-#include <chronon3d/render_graph/graph_builder.hpp>
-#include <chronon3d/render_graph/graph_executor.hpp>
-#include <chronon3d/render_graph/graph_filter.hpp>
+#include <chronon3d/render_graph/builder/graph_builder.hpp>
+#include <chronon3d/render_graph/executor/graph_executor.hpp>
+#include <chronon3d/render_graph/pipeline/graph_filter.hpp>
 #include <chronon3d/core/composition/composition_registry.hpp>
 #include <spdlog/spdlog.h>
 
