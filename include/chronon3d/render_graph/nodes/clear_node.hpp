@@ -71,6 +71,93 @@ public:
         }
         
         if (use_dirty_rects) {
+            // ── Ping-pong fast path: write ping is exclusive, no COW ──────────
+            if (ctx.ping_write_fb) {
+                Framebuffer* write_fb = ctx.ping_write_fb;
+                const Framebuffer* read_fb = sw_renderer->m_prev_framebuffer.get();
+                const int h = ctx.height;
+                const int logical_w = ctx.width;
+                const int stride = write_fb->allocated_width();
+                const auto& clip = ctx.clip_rect;
+                const bool is_empty = clip && clip->is_empty();
+
+                // Copy preserved (non-dirty) content from read ping to write ping.
+                // Rows entirely outside the dirty rect: full row memcpy.
+                // Rows intersecting the dirty rect: copy left + right segments,
+                // skipping the x-range that will be cleared and re-rendered.
+                if (!is_empty && clip) {
+                    const int clip_y0 = std::max(0, clip->y0);
+                    const int clip_y1 = std::min(h, clip->y1);
+                    const int clip_x0 = std::max(0, clip->x0);
+                    const int clip_x1 = std::min(logical_w, clip->x1);
+                    const Color* src_data = read_fb->data();
+                    Color* dst_data = write_fb->data();
+                    for (int y = 0; y < h; ++y) {
+                        const size_t row_off = static_cast<size_t>(y) * stride;
+                        if (y >= clip_y0 && y < clip_y1) {
+                            if (clip_x0 > 0)
+                                std::memcpy(dst_data + row_off, src_data + row_off,
+                                            static_cast<size_t>(clip_x0) * sizeof(Color));
+                            if (clip_x1 < logical_w)
+                                std::memcpy(dst_data + row_off + clip_x1, src_data + row_off + clip_x1,
+                                            static_cast<size_t>(logical_w - clip_x1) * sizeof(Color));
+                        } else {
+                            std::memcpy(dst_data + row_off, src_data + row_off,
+                                        static_cast<size_t>(logical_w) * sizeof(Color));
+                        }
+                    }
+                }
+
+                // Reset origin (ping FB has origin 0,0 by construction).
+                write_fb->set_origin(0, 0);
+
+                // Clear dirty area (or entire FB when no clip = full canvas) and record timing.
+                if (clip && !is_empty) {
+                    const auto t0 = std::chrono::high_resolution_clock::now();
+                    write_fb->clear(Color::transparent(), *clip);
+                    const auto t1 = std::chrono::high_resolution_clock::now();
+                    if (ctx.counters) {
+                        const auto elapsed = static_cast<uint64_t>(
+                            std::chrono::duration<double, std::milli>(t1 - t0).count());
+                        ctx.counters->clearnode_ms.fetch_add(elapsed, std::memory_order_relaxed);
+                        ctx.counters->clearnode_clear_ms.fetch_add(elapsed, std::memory_order_relaxed);
+                        ctx.counters->framebuffer_clear_ms.fetch_add(elapsed, std::memory_order_relaxed);
+                        ctx.counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
+                        ctx.counters->clear_pixels.fetch_add(clear_pixels, std::memory_order_relaxed);
+                    }
+                } else {
+                    // No clip (full canvas) or empty clip: clear entire FB.
+                    if (!is_empty) {
+                        const auto t0 = std::chrono::high_resolution_clock::now();
+                        write_fb->clear(Color::transparent());
+                        const auto t1 = std::chrono::high_resolution_clock::now();
+                        if (ctx.counters) {
+                            const auto elapsed = static_cast<uint64_t>(
+                                std::chrono::duration<double, std::milli>(t1 - t0).count());
+                            ctx.counters->framebuffer_clear_ms.fetch_add(elapsed, std::memory_order_relaxed);
+                            ctx.counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
+                            ctx.counters->clear_pixels.fetch_add(clear_pixels, std::memory_order_relaxed);
+                        }
+                    }
+                    if (ctx.counters) {
+                        ctx.counters->clear_skipped_calls.fetch_add(1, std::memory_order_relaxed);
+                        ctx.counters->clear_skipped_pixels.fetch_add(clear_pixels, std::memory_order_relaxed);
+                    }
+                }
+
+                // Return write ping with owned_by_renderer deleter — the
+                // renderer owns the ping buffer permanently via m_ping_fb[].
+                // The deleter is a true no-op: it does NOT clear, delete, or
+                // restore the FB.  This avoids the data race with the encoder
+                // thread (which holds the CachedFB ref) and keeps the content
+                // intact for the next frame's ClearNode read.
+                ctx.ping_write_fb = nullptr;
+                PoolFbDeleter deleter;
+                deleter.owned_by_renderer = true;
+                return OwnedFB(write_fb, std::move(deleter));
+            }
+
+            // ── Original COW path (fallback when ping-pong unavailable) ───────
             // Read use_count BEFORE std::move — after move it's always 1.
             const uint64_t prev_use_count = static_cast<uint64_t>(
                 sw_renderer->m_prev_framebuffer.use_count());

@@ -91,6 +91,7 @@ public:
         m_cached_compiled_structure_hash = 0;
         m_prev_graph_structure_fingerprint = 0;
         reset_transform_scratch();
+        reset_ping_framebuffers();
         // Video cache clearing is now responsibility of the decoder implementation
     }
 
@@ -185,6 +186,29 @@ public:
     int m_cached_compiled_height{0};
     uint64_t m_cached_compiled_structure_hash{0};
 
+    // ── Ping-pong framebuffers ───────────────────────────────────────────
+    // Two persistent framebuffers used alternately as the render output.
+    // The writer thread reads one (read_idx) while the ClearNode writes to
+    // the other (write_idx).  Because write_idx is always exclusive (not
+    // shared with the writer), ClearNode never needs the COW detach.
+    //
+    // Raw pointers owned by the renderer; the scratch_slot deleter restores
+    // them when the CachedFB pipeline releases them.  m_prev_framebuffer is
+    // a shared_ptr wrapping the read ping for early-exit path compatibility.
+    Framebuffer* m_ping_fb[2]{nullptr, nullptr};
+    int m_ping_read_idx{0};
+    int m_ping_write_idx{1};
+
+    /// Allocate/reallocate both ping buffers to match canvas.
+    void ensure_ping_framebuffers(int width, int height);
+
+    /// Swap read/write indices after a frame completes.
+    /// Also repoints m_prev_framebuffer to the new read ping.
+    void swap_ping_indices();
+
+    /// Address-of the write slot for the scratch deleter.
+    Framebuffer** write_ping_slot() { return &m_ping_fb[m_ping_write_idx]; }
+
     // ── Transform scratch buffer ────────────────────────────────────────
     // Persistent framebuffer reused by TransformNode across frames.
     // Eliminates pool bucket misses when transform output size varies
@@ -205,6 +229,9 @@ public:
 
     /// Reset the scratch (e.g. on resolution change).
     void reset_transform_scratch();
+
+    /// Deallocate both ping framebuffers (renderer destruction or cache clear).
+    void reset_ping_framebuffers();
 
     [[nodiscard]] int last_layer_count() const { return m_last_layer_count; }
 
