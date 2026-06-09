@@ -6,7 +6,7 @@
 #include <chronon3d/cache/lru_cache.hpp>
 #include <string>
 #include <memory>
-#include <mutex>
+#include <shared_mutex>
 
 #include <blend2d.h>
 
@@ -39,12 +39,14 @@ public:
     }
 
     void set_backend(std::shared_ptr<image::ImageBackend> backend) {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        // unique_lock because we mutate the backend pointer
+        std::unique_lock<std::shared_mutex> lock(m_backend_mutex);
         m_backend = std::move(backend);
     }
-    
+
     [[nodiscard]] std::shared_ptr<image::ImageBackend> get_backend() {
-        std::lock_guard<std::mutex> lock(m_mutex);
+        // shared_lock allows concurrent readers (the hot path)
+        std::shared_lock<std::shared_mutex> lock(m_backend_mutex);
         return m_backend;
     }
 
@@ -61,9 +63,18 @@ private:
     ImageCache(const ImageCache&) = delete;
     ImageCache& operator=(const ImageCache&) = delete;
 
+    // m_backend is set rarely (once at startup) and read on every cache lookup.
+    // shared_mutex lets concurrent get_or_load_shared() readers proceed in parallel
+    // while set_backend() takes an exclusive lock. The previous std::mutex
+    // serialized all backend reads with cache loads.
     std::shared_ptr<image::ImageBackend> m_backend;
+    mutable std::shared_mutex m_backend_mutex;
+
+    // The LruCache is already sharded internally (16 shards by default), so
+    // concurrent get_or_load_shared() lookups for different paths proceed in
+    // parallel. The loader is invoked while holding the per-shard lock, which
+    // serializes only concurrent loads of the same path (same shard).
     cache::LruCache<std::string, std::shared_ptr<CachedImage>> m_cache;
-    std::mutex m_mutex;
 };
 
 } // namespace chronon3d
