@@ -149,7 +149,8 @@ else()
 endif()
 add_library(chronon3d_runtime STATIC ${CHRONON3D_RUNTIME_SOURCES})
 target_link_libraries(chronon3d_runtime PUBLIC chronon3d chronon3d_graph chronon3d_effects chronon3d_cache Taskflow::Taskflow)
-target_precompile_headers(chronon3d_runtime PRIVATE <spdlog/spdlog.h> <fmt/core.h> <glm/glm.hpp>)
+target_include_directories(chronon3d_runtime PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_precompile_headers(chronon3d_runtime PRIVATE <chronon3d/detail/pch.hpp>)
 
 # Generate telemetry schema header from canonical .sql file.
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/runtime/telemetry/sqlite/telemetry_schema.sql" TELEMETRY_SCHEMA_CONTENT)
@@ -175,7 +176,8 @@ set(CHRONON3D_BACKEND_IMAGE_SOURCES
 add_library(chronon3d_backend_image STATIC ${CHRONON3D_BACKEND_IMAGE_SOURCES})
 target_link_libraries(chronon3d_backend_image PUBLIC chronon3d spdlog::spdlog_header_only fmt::fmt OpenEXR::OpenEXR)
 target_include_directories(chronon3d_backend_image PRIVATE ${Stb_INCLUDE_DIR})
-target_precompile_headers(chronon3d_backend_image PRIVATE <spdlog/spdlog.h> <fmt/core.h>)
+target_include_directories(chronon3d_backend_image PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_precompile_headers(chronon3d_backend_image PRIVATE <chronon3d/detail/pch.hpp>)
 
 add_library(chronon3d_backend_assets STATIC backends/assets/image_cache.cpp backends/assets/image_renderer.cpp)
 target_link_libraries(chronon3d_backend_assets PUBLIC chronon3d chronon3d_backend_image)
@@ -251,11 +253,11 @@ target_link_libraries(chronon3d_backend_software
     PRIVATE spdlog::spdlog_header_only hwy::hwy fmt::fmt xxHash::xxhash tomlplusplus::tomlplusplus TBB::tbb
 )
 target_include_directories(chronon3d_backend_software PRIVATE ${Stb_INCLUDE_DIR} ${CMAKE_SOURCE_DIR})
+target_include_directories(chronon3d_backend_software PRIVATE ${CMAKE_SOURCE_DIR}/include)
 target_precompile_headers(chronon3d_backend_software PRIVATE
-    <glm/glm.hpp> <glm/gtc/matrix_transform.hpp> <glm/gtc/type_ptr.hpp> <glm/gtc/quaternion.hpp>
-    <blend2d.h> <spdlog/spdlog.h> <fmt/core.h>
+    <chronon3d/detail/pch.hpp>
+    <blend2d.h>
 )
-
 # 9. Registry & Scene Assembly
 set(CHRONON3D_REGISTRY_SOURCES
     registry/sampler_registry.cpp
@@ -265,7 +267,8 @@ set(CHRONON3D_REGISTRY_SOURCES
 add_library(chronon3d_registry STATIC ${CHRONON3D_REGISTRY_SOURCES})
 set_target_properties(chronon3d_registry PROPERTIES UNITY_BUILD OFF)
 target_link_libraries(chronon3d_registry PUBLIC chronon3d)
-target_precompile_headers(chronon3d_registry PRIVATE <glm/glm.hpp> <glm/gtc/matrix_transform.hpp> <spdlog/spdlog.h> <fmt/core.h>)
+target_include_directories(chronon3d_registry PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_precompile_headers(chronon3d_registry PRIVATE <chronon3d/detail/pch.hpp>)
 
 set(CHRONON3D_ASSETS_SOURCES
     assets/render_preflight_req.cpp
@@ -328,7 +331,8 @@ target_link_libraries(chronon3d_scene
     PUBLIC chronon3d chronon3d_runtime chronon3d_graph chronon3d_registry chronon3d_cache chronon3d_effects chronon3d_backend_image
     PRIVATE spdlog::spdlog_header_only fmt::fmt tomlplusplus::tomlplusplus
 )
-target_precompile_headers(chronon3d_scene PRIVATE <glm/glm.hpp> <glm/gtc/matrix_transform.hpp> <spdlog/spdlog.h> <fmt/core.h>)
+target_include_directories(chronon3d_scene PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_precompile_headers(chronon3d_scene PRIVATE <chronon3d/detail/pch.hpp>)
 
 # --- Aggregati Architetturali finali ---
 # WHOLE_ARCHIVE is needed for targets containing CHRONON_REGISTER_* macros.
@@ -340,7 +344,8 @@ target_precompile_headers(chronon3d_scene PRIVATE <glm/glm.hpp> <glm/gtc/matrix_
 # 9b. Extension System
 add_library(chronon3d_extension STATIC extension/extension_registry.cpp extension/extension_loader.cpp)
 target_link_libraries(chronon3d_extension PUBLIC chronon3d chronon3d_graph chronon3d_registry chronon3d_effects)
-target_precompile_headers(chronon3d_extension PRIVATE <glm/glm.hpp> <spdlog/spdlog.h> <fmt/core.h>)
+target_include_directories(chronon3d_extension PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_precompile_headers(chronon3d_extension PRIVATE <chronon3d/detail/pch.hpp>)
 
 # --- Aggregati Architetturali finali ---
 add_library(chronon3d_core INTERFACE)
