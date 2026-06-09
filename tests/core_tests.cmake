@@ -53,6 +53,7 @@ add_executable(chronon3d_core_tests
     extension/test_extension_registry.cpp
     extension/test_graph_node_registry.cpp
     architecture/test_protected_core_contracts.cpp
+    core/test_scene_hasher_camera.cpp
     render_graph/executor/test_cache_key_contract.cpp
     render_graph/executor/test_framebuffer_lifetime.cpp
     render_graph/builder/test_graph_build_pass_order.cpp
