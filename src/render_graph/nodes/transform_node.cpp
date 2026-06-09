@@ -244,8 +244,7 @@ OwnedFB TransformNode::execute(
             parallel_for_tracked(
                 tbb::blocked_range<i32>(y0, y1),
                 [&](const tbb::blocked_range<i32>& range) { worker(range.begin(), range.end()); },
-                ctx.counters,
-                tbb::simple_partitioner{}
+                ctx.counters
             );
         } else {
             worker(y0, y1);
@@ -272,8 +271,7 @@ OwnedFB TransformNode::execute(
             parallel_for_tracked(
                 tbb::blocked_range<i32>(y0, y1),
                 [&](const tbb::blocked_range<i32>& range) { worker(range.begin(), range.end()); },
-                ctx.counters,
-                tbb::simple_partitioner{}
+                ctx.counters
             );
         } else {
             worker(y0, y1);

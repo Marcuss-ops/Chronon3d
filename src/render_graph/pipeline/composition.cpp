@@ -86,7 +86,7 @@ std::shared_ptr<Framebuffer> render_composition_frame(
 
                 // Parallel accumulation with TBB + Highway SIMD
                 // Each row is independent — no race conditions.
-                tbb::parallel_for(tbb::blocked_range<int>(0, rh),
+                tbb::parallel_for(tbb::blocked_range<int>(0, rh, 16),
                     [&](const tbb::blocked_range<int>& range) {
                         using namespace hwy::HWY_NAMESPACE;
                         const ScalableTag<float> df;
@@ -120,7 +120,7 @@ std::shared_ptr<Framebuffer> render_composition_frame(
 
         // Write accumulated float buffer to output framebuffer (parallel + SIMD)
         render_fb = backend.framebuffer_pool()->acquire(rw, rh, true);
-        tbb::parallel_for(tbb::blocked_range<int>(0, rh),
+        tbb::parallel_for(tbb::blocked_range<int>(0, rh, 16),
             [&](const tbb::blocked_range<int>& range) {
                 using namespace hwy::HWY_NAMESPACE;
                 const ScalableTag<float> df;
