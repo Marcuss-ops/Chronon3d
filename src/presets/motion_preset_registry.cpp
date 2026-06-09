@@ -163,10 +163,10 @@ void MotionPresetRegistry::register_builtins() {
             //   bloom: 1.00 × 18 = 18  px blur, 1.5% → wide atmospheric wash
             const f32 bloom_mix = std::clamp(1.0f - (st.blur / 14.0f), 0.0f, 1.0f);
             st.effects.glow.radius = interpolate(t, 0.0f, 0.40f, 34.0f, 18.0f, Easing::OutCubic);
-            st.effects.glow.intensity = 0.8f + 0.2f * bloom_mix;
-            st.effects.glow.core_strength = 0.45f;   // inner: tight character glow (visible)
-            st.effects.glow.aura_strength  = 0.20f;   // mid:   soft between-letters
-            st.effects.glow.bloom_strength = 0.08f;  // outer: wide atmospheric wash
+            st.effects.glow.intensity = 1.0f + 0.2f * bloom_mix;
+            st.effects.glow.core_strength = 0.6f;   // inner: tight character glow (visible)
+            st.effects.glow.aura_strength  = 0.3f;   // mid:   soft between-letters
+            st.effects.glow.bloom_strength = 0.12f;  // outer: wide atmospheric wash
             // Cool blue-cyan with a faint premium tint on the outer wash
             st.effects.glow.color = Color{
                 0.20f + 0.75f * bloom_mix,
