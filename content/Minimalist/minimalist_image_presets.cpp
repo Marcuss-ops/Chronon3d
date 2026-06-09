@@ -68,14 +68,18 @@ Composition minimalist_image_fade_in() {
     });
 }
 
-// 2. Image Focus-In
+// 2. Image Focus-In — ridotto blur da 24 a 12 + scale 1.04 per compensare visivamente
 Composition minimalist_image_focus_in() {
     return composition({.name = "MinimalistImageFocusIn", .duration = 120}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         add_common_background(s);
         s.layer("image_layer", [](auto& l) {
             l.pin_to(Anchor::Center);
-            l.focus_in(24.0f, Frame{45});
+            l.focus_in(12.0f, Frame{45});
+            // Subtle scale pop compensates for reduced blur — same visual impact
+            auto& sc = l.scale_anim();
+            sc.key(Frame{0}, Vec3{1.04f, 1.04f, 1.0f}, EasingCurve{Easing::OutCubic});
+            sc.key(Frame{45}, Vec3{1.0f, 1.0f, 1.0f});
             add_image_border(l, IMAGE_SIZE);
             l.image("img", {
                 .path = IMAGE_PATH,
