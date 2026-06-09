@@ -195,6 +195,57 @@ SoftwareRenderer::SoftwareRenderer()
 
 SoftwareRenderer::~SoftwareRenderer() {
     reset_transform_scratch();
+    reset_ping_framebuffers();
+}
+
+void SoftwareRenderer::ensure_ping_framebuffers(int width, int height) {
+    // ── Allocate/reallocate both ping framebuffers ───────────────────────
+    // Stored as raw pointers; the scratch_slot deleter restores them when
+    // the CachedFB pipeline releases them.  We must delete any existing
+    // ping before overwriting the pointer (resolution change).
+    auto allocate_ping = [&](int idx) {
+        if (m_ping_fb[idx] &&
+            m_ping_fb[idx]->allocated_width() >= width &&
+            m_ping_fb[idx]->allocated_height() >= height) {
+            return; // already large enough
+        }
+        // If m_prev_framebuffer points to this ping, reset before deleting
+        // to avoid dangling pointer on resolution change.
+        if (m_ping_fb[idx] && m_prev_framebuffer.get() == m_ping_fb[idx]) {
+            m_prev_framebuffer.reset();
+        }
+        delete m_ping_fb[idx];
+        auto [bw, bh] = cache::FramebufferPool::round_to_bucket(width, height);
+        m_ping_fb[idx] = new Framebuffer(bw, bh);
+        m_ping_fb[idx]->resize_logical(width, height);
+        m_ping_fb[idx]->set_origin(0, 0);
+        m_ping_fb[idx]->clear(Color::transparent());
+    };
+    allocate_ping(0);
+    allocate_ping(1);
+    // NOTE: we do NOT reset m_ping_read_idx / m_ping_write_idx here.
+    // The indices are initialized by the class constructor (read=0, write=1)
+    // and updated by swap_ping_indices() after each frame.  Resetting them
+    // here would break the alternating ping-pong cycle and cause ClearNode
+    // and the encoder thread to access the same buffer concurrently.
+    // CRITICAL: do NOT touch m_prev_framebuffer here.  It must continue to
+    // point to the actual previous frame's content (whether a pool FB or
+    // a ping buffer from the last completed frame).  Resetting it to a
+    // freshly-allocated (cleared) ping would cause the next frame's
+    // ClearNode to copy from transparent content, producing black frames.
+    // swap_ping_indices() (called after graph execution) is the only place
+    // that should re-point m_prev_framebuffer to the completed ping.
+}
+
+/// Called after each frame completes: set m_prev_framebuffer to point to
+/// the newly written ping (now the "previous" frame for the next cycle).
+void SoftwareRenderer::swap_ping_indices() {
+    std::swap(m_ping_read_idx, m_ping_write_idx);
+    // Re-point m_prev_framebuffer to the new read ping (ex-write, now
+    // the completed frame that the writer and early-exit paths see).
+    m_prev_framebuffer = std::shared_ptr<Framebuffer>(
+        m_ping_fb[m_ping_read_idx],
+        [](Framebuffer*) {});  // no-op deleter — renderer owns the memory
 }
 
 Framebuffer* SoftwareRenderer::ensure_transform_scratch(int width, int height) {
@@ -216,6 +267,14 @@ Framebuffer* SoftwareRenderer::ensure_transform_scratch(int width, int height) {
 void SoftwareRenderer::reset_transform_scratch() {
     delete m_transform_scratch;
     m_transform_scratch = nullptr;
+}
+
+void SoftwareRenderer::reset_ping_framebuffers() {
+    m_prev_framebuffer.reset();
+    delete m_ping_fb[0];
+    m_ping_fb[0] = nullptr;
+    delete m_ping_fb[1];
+    m_ping_fb[1] = nullptr;
 }
 
 graph::GraphExecutor* SoftwareRenderer::executor() {

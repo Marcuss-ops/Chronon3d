@@ -148,6 +148,19 @@ struct RenderGraphContext {
     mutable Framebuffer* transform_scratch{nullptr};
     mutable Framebuffer** transform_scratch_slot{nullptr};
 
+    // ── Ping-pong framebuffers ───────────────────────────────────────────
+    // Two persistent framebuffers alternated each frame so ClearNode
+    // always has an exclusive buffer to write into (no COW detach needed).
+    // ping_write_fb is the current frame's target (exclusive), while
+    // m_prev_framebuffer (on SoftwareRenderer) wraps the previous frame's
+    // output for preserved-content reads.  Set by scene.cpp before graph
+    // execution; the PoolFbDeleter's scratch_slot restores the buffer to
+    // ping_write_slot when released.
+    // Mutable for the same reason as transform_scratch — the const
+    // acquire methods need to mark the ping as "in use" (set to nullptr).
+    mutable Framebuffer* ping_write_fb{nullptr};
+    mutable Framebuffer** ping_write_slot{nullptr};
+
     // ── Per-node / per-layer telemetry collectors
     std::vector<chronon3d::telemetry::NodeTelemetryRecord> node_telemetry;
     std::vector<chronon3d::telemetry::LayerTelemetryRecord> layer_telemetry;
