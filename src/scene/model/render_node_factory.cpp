@@ -134,6 +134,12 @@ RenderNode RenderNodeFactory::text(std::pmr::memory_resource* res, std::string n
     auto node = base(res, std::move(name));
     node.shape.type = ShapeType::Text;
     node.shape.text.text = std::move(p.text);
+    // Fallback: if the caller left font_path empty, use the project default
+    // (Inter-Bold). Without this, rasterize_text_to_bl_image() returns
+    // std::nullopt and the text is silently dropped from the render.
+    if (p.font_path.empty()) {
+        p.font_path = "assets/fonts/Inter-Bold.ttf";
+    }
     node.shape.text.style.font_path = std::move(p.font_path);
     node.shape.text.style.font_family = std::move(p.font_family);
     node.shape.text.style.font_weight = p.font_weight;

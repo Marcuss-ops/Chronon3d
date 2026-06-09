@@ -13,6 +13,9 @@ Composition text_image_on_grid();
 Composition text_quote_on_grid();
 Composition text_shape_on_grid();
 Composition text_typewriter();
+Composition text_sweep_reveal();
+Composition text_stagger_reveal();
+Composition text_glow_reveal();
 
 } // namespace chronon3d::content::text
 
@@ -35,6 +38,9 @@ public:
 
         // Typewriter
         registry.register_composition("TextTypewriter", text_typewriter);
+        registry.register_composition("TextSweepReveal", text_sweep_reveal);
+        registry.register_composition("TextStaggerReveal", text_stagger_reveal);
+        registry.register_composition("TextGlowReveal", text_glow_reveal);
     }
 };
 

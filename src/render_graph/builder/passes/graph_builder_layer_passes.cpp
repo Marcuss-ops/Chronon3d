@@ -117,6 +117,12 @@ void append_transform_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_outp
             effective_matrix =
                 glm::translate(Mat4(1.0f), Vec3(-ctx.width * 0.5f, -ctx.height * 0.5f, 0.0f)) *
                 ssaa_world;
+        } else {
+            // Delegate to the shared helper so the build-path stays in sync
+            // with the refresh-path (scene_refresh.hpp) — both now strip the
+            // implicit canvas-center translation for non-3D Normal layers,
+            // preventing the double-centring bug.
+            effective_matrix = strip_implicit_canvas_centering(effective_matrix, item, ctx);
         }
         transform_node = std::make_unique<TransformNode>(effective_matrix,
                                                          item.transform.opacity,
