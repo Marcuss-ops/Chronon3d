@@ -3,7 +3,7 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/software/software_registry.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
-#include <chronon3d/scene/model/render_node.hpp>
+#include <chronon3d/scene/model/render/render_node.hpp>
 #include <chronon3d/math/transform.hpp>
 
 using namespace chronon3d;

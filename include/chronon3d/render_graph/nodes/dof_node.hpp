@@ -2,9 +2,9 @@
 
 #include <chronon3d/render_graph/render_graph_node.hpp>
 #include <chronon3d/render_graph/render_graph_hashing.hpp>
-#include <chronon3d/scene/model/dof.hpp>
-#include <chronon3d/scene/model/camera_2_5d.hpp>
-#include <chronon3d/scene/model/effect_stack.hpp>
+#include <chronon3d/scene/model/camera/dof.hpp>
+#include <chronon3d/scene/model/camera/camera_2_5d.hpp>
+#include <chronon3d/scene/model/core/effect_stack.hpp>
 #include <chronon3d/effects/effect_ids.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
 

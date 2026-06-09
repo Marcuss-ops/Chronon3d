@@ -3,7 +3,7 @@
 #include "graph_builder_coordinates.hpp"
 #include <chronon3d/backends/software/shape_processor.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
-#include <chronon3d/scene/model/layer.hpp>
+#include <chronon3d/scene/model/layer/layer.hpp>
 
 #include <algorithm>
 #include <cmath>

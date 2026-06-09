@@ -1,5 +1,5 @@
 #include <chronon3d/registry/shape_registry.hpp>
-#include <chronon3d/scene/model/render_node_factory.hpp>
+#include <chronon3d/scene/model/render/render_node_factory.hpp>
 
 #include <stdexcept>
 #include <utility>

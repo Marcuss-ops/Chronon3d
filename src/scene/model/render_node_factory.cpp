@@ -1,4 +1,4 @@
-#include <chronon3d/scene/model/render_node_factory.hpp>
+#include <chronon3d/scene/model/render/render_node_factory.hpp>
 
 #include <utility>
 

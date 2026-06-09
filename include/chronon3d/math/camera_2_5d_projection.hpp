@@ -1,6 +1,6 @@
 #pragma once
 
-#include <chronon3d/scene/model/camera_2_5d.hpp>
+#include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <glm/gtc/constants.hpp>
 #include <chronon3d/math/transform.hpp>
 #include <chronon3d/math/glm_types.hpp>

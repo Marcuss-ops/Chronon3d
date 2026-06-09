@@ -4,7 +4,7 @@
 #include <chronon3d/api/scene.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
-#include <chronon3d/scene/model/effect_stack.hpp>
+#include <chronon3d/scene/model/core/effect_stack.hpp>
 #include <tests/helpers/test_utils.hpp>
 
 #include <algorithm>
