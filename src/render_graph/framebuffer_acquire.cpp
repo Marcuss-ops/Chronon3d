@@ -37,6 +37,36 @@ OwnedFB RenderGraphContext::acquire_owned_fb(
     return fb;
 }
 
+OwnedFB RenderGraphContext::acquire_scratch_fb(
+    int w,
+    int h,
+    bool clear,
+    std::optional<raster::BBox> bounds
+) const {
+    // Use scratch buffer when available and large enough.
+    if (transform_scratch &&
+        transform_scratch->allocated_width() >= w &&
+        transform_scratch->allocated_height() >= h) {
+        auto* scratch = transform_scratch;
+        scratch->resize_logical(w, h);
+        if (bounds) {
+            scratch->set_origin(bounds->x0, bounds->y0);
+        } else {
+            scratch->set_origin(0, 0);
+        }
+        if (clear) {
+            scratch->clear(Color::transparent());
+        }
+        // Mark the scratch as in-use — deleter will restore it.
+        transform_scratch = nullptr;
+        PoolFbDeleter deleter;
+        deleter.scratch_slot = transform_scratch_slot;
+        return OwnedFB(scratch, std::move(deleter));
+    }
+    // Fall back to normal pool acquire.
+    return acquire_owned_fb(w, h, clear, bounds);
+}
+
 OwnedFB RenderGraphContext::acquire_owned_fb(const Framebuffer& other) const {
     auto it = std::find(reusable_inputs.begin(), reusable_inputs.end(), const_cast<Framebuffer*>(&other));
     if (it != reusable_inputs.end()) {
@@ -234,6 +264,8 @@ RenderGraphContext RenderGraphContext::clone_for_node_execution() const {
     copy.skip_initial_clear = skip_initial_clear;
     copy.graph_structure_unchanged = graph_structure_unchanged;
     copy.track_dof_depth    = track_dof_depth;
+    copy.transform_scratch      = transform_scratch;
+    copy.transform_scratch_slot = transform_scratch_slot;
 
     // ── Vectors — selectively copy only what node.execute() may read ────
     // • early_exit_skip:  checked against the *parent* ctx before the copy

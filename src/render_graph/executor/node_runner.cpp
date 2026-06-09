@@ -41,17 +41,20 @@ double run_node(
     if (owned) {
         owned->set_key_digest(key.digest());
 
-        if (use_cache && ctx.node_cache) {
+        // ── Transform scratch buffer: preserve the scratch_slot deleter ──
+        //    through the CachedFB so the buffer is restored to the scratch
+        //    slot (cleared) when all consumers finish, instead of being
+        //    released to the pool.  Also skip caching — caching the scratch
+        //    would allow stale content to survive past the frame boundary.
+        const bool is_scratch = owned.get_deleter().scratch_slot != nullptr;
+
+        if (is_scratch) {
+            // Preserve the scratch deleter with its scratch_slot pointer.
+            // This ensures the buffer is cleared and returned to the slot
+            // when the last shared_ptr reference is dropped (arena cleanup).
+            PoolFbDeleter scratch_deleter = std::move(owned.get_deleter());
             Framebuffer* raw = owned.release();
-            PoolFbDeleter deleter{nullptr};
-            if (parent_pool) {
-                deleter = PoolFbDeleter{parent_pool, parent_pool->alive_token()};
-            }
-            result = CachedFB(raw, std::move(deleter));
-            ctx.node_cache->store(key, result);
-            if (node.cache_policy().disk_cacheable && disk_node_cache_enabled_for_current_run()) {
-                cache::DiskNodeCache::instance().put(key, *result);
-            }
+            result = CachedFB(raw, std::move(scratch_deleter));
         } else {
             Framebuffer* raw = owned.release();
             PoolFbDeleter deleter{nullptr};
@@ -59,6 +62,13 @@ double run_node(
                 deleter = PoolFbDeleter{parent_pool, parent_pool->alive_token()};
             }
             result = CachedFB(raw, std::move(deleter));
+        }
+
+        if (use_cache && ctx.node_cache && !is_scratch) {
+            ctx.node_cache->store(key, result);
+            if (node.cache_policy().disk_cacheable && disk_node_cache_enabled_for_current_run()) {
+                cache::DiskNodeCache::instance().put(key, *result);
+            }
         }
     }
     const auto exec_t1 = std::chrono::steady_clock::now();

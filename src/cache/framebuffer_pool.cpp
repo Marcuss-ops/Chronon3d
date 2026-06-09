@@ -11,6 +11,14 @@ namespace chronon3d {
 
 void PoolFbDeleter::operator()(Framebuffer* fb) const noexcept {
     if (!fb) return;
+    // ── Scratch slot: return the FB to the slot (cleared) instead of pool ──
+    // This keeps a persistent buffer alive across frames without the
+    // acquire/release cycle that causes pool bucket misses.
+    if (scratch_slot) {
+        fb->clear(Color::transparent());
+        *scratch_slot = fb;
+        return;
+    }
     // Check that the pool is still alive before dereferencing.
     // pool_alive is a weak_ptr created from the pool's m_alive shared_ptr.
     // When the pool is destroyed, m_alive is set false and its shared_ptr is

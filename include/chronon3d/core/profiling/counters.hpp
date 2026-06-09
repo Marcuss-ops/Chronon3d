@@ -133,7 +133,11 @@ constexpr std::size_t kHardwareDestructiveInterferenceSize = 64;
     X(converted_frame_cache_hits) \
     X(converted_frame_cache_misses) \
     X(ffmpeg_flush_ms) \
-    X(io_queue_peak_bytes)
+    X(io_queue_peak_bytes) \
+    X(graph_executed_frames) \
+    X(graph_skipped_frames) \
+    X(graph_executed_ms_sum) \
+    X(graph_skipped_ms_sum)
 
 #define CHRONON_RENDER_COUNTERS_SYSTEM(X) \
     X(process_context_switches_voluntary) \
