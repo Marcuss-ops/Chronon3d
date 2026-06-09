@@ -67,6 +67,7 @@ void run_writer_thread(const WriterThreadContext& ctx) {
             const uint64_t enc_us = static_cast<uint64_t>(
                 std::chrono::duration<double, std::micro>(enc_t1 - enc_t0).count());
             ctx.writer_encode_us_total.fetch_add(enc_us, std::memory_order_relaxed);
+
             ctx.frame_encoder_telemetry.push_back({
                 .frame_number = package.frame_number,
                 .conversion_copy_ms = ctx.encoder.last_frame_telemetry().conversion_copy_ms,
@@ -80,7 +81,6 @@ void run_writer_thread(const WriterThreadContext& ctx) {
         }
 
         ctx.triple_arena.release(package.arena);
-        package.framebuffer.reset();
     }
 }
 
@@ -147,6 +147,25 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
                 ctx.triple_arena.release(current_arena);
                 mark_pipe_render_failed(status, current_frame);
                 break;
+            }
+
+            // ── Track active vs cached frame metrics ───────────────────
+            // fast_path_reused=true means the graph was entirely skipped
+            // (frame output reused from previous frame).  These are "free"
+            // frames.  fast_path_reused=false means the graph executed.
+            // We track both count and cumulative ms so the telemetry report
+            // can compute avg_frame_ms_active vs avg_frame_ms_cached
+            // without dilution from the large number of cached frames.
+            if (ctx.counters) {
+                if (fast_path_reused) {
+                    ctx.counters->graph_skipped_frames.fetch_add(1, std::memory_order_relaxed);
+                    ctx.counters->graph_skipped_ms_sum.fetch_add(
+                        static_cast<uint64_t>(frame_ms * 1000.0), std::memory_order_relaxed);
+                } else {
+                    ctx.counters->graph_executed_frames.fetch_add(1, std::memory_order_relaxed);
+                    ctx.counters->graph_executed_ms_sum.fetch_add(
+                        static_cast<uint64_t>(frame_ms * 1000.0), std::memory_order_relaxed);
+                }
             }
 
             // High-throughput enqueue

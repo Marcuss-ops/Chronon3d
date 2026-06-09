@@ -79,6 +79,18 @@ FROM render_layer_events WHERE run_id = ?
 GROUP BY layer_id ORDER BY SUM(duration_ms) DESC LIMIT 50;
 )";
 
+/// Active vs cached frame breakdown: averages and counts for frames
+/// where the graph was executed (fast_path_reused=0) vs skipped (fast_path_reused=1).
+/// Returns 4 columns: avg_active_ms, active_count, avg_cached_ms, cached_count.
+inline constexpr const char* kFrameActiveCachedBreakdown = R"(
+SELECT
+  COALESCE(AVG(CASE WHEN fast_path_reused = 0 THEN duration_ms END), 0.0),
+  COUNT(CASE WHEN fast_path_reused = 0 THEN 1 END),
+  COALESCE(AVG(CASE WHEN fast_path_reused = 1 THEN duration_ms END), 0.0),
+  COUNT(CASE WHEN fast_path_reused = 1 THEN 1 END)
+FROM render_frames WHERE run_id = ?;
+)";
+
 /// Per-frame samples with dirty-rect and fast-path flags.
 inline constexpr const char* kFrameSamples = R"(
 SELECT frame_number, duration_ms, cache_hit, dirty_area_ratio,

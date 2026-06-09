@@ -71,6 +71,18 @@ struct RenderGraphContext {
     /// Adopt a uniquely-owned shared_ptr<Framebuffer> into an OwnedFB without copying pixel data.
     OwnedFB acquire_owned_fb(std::shared_ptr<Framebuffer>&& src) const;
 
+    /// Acquire the transform scratch buffer as an OwnedFB.
+    /// If the scratch is available and large enough, returns it without
+    /// touching the pool.  The PoolFbDeleter's scratch_slot will restore
+    /// the buffer to transform_scratch_slot when released.
+    /// Falls back to normal pool acquire when scratch isn't available.
+    OwnedFB acquire_scratch_fb(
+        int w,
+        int h,
+        bool clear = true,
+        std::optional<raster::BBox> bounds = std::nullopt
+    ) const;
+
     /// Convert an OwnedFB to a shared_ptr for cache storage.
     static CachedFB own_to_cache(OwnedFB& owned, cache::FramebufferPool* pool);
 
@@ -122,6 +134,32 @@ struct RenderGraphContext {
 
     // ── Graph structure unchanged hint
     bool graph_structure_unchanged{false};
+
+    // ── Transform scratch buffer ────────────────────────────────────────
+    // Persistent buffer reused by TransformNode across frames.
+    // When set, TransformNode::execute() uses this buffer instead of
+    // acquire_owned_fb(), eliminating pool bucket misses caused by
+    // frame-to-frame size variation in animated transforms.
+    // The buffer is managed by SoftwareRenderer; the PoolFbDeleter's
+    // scratch_slot restores it to transform_scratch_slot when released.
+    // Mutable because acquire_owned_fb (and acquire_scratch_fb) are const
+    // but need to mark the scratch as "in use" (set to nullptr) while the
+    // OwnedFB is alive; the deleter restores the pointer when released.
+    mutable Framebuffer* transform_scratch{nullptr};
+    mutable Framebuffer** transform_scratch_slot{nullptr};
+
+    // ── Ping-pong framebuffers ───────────────────────────────────────────
+    // Two persistent framebuffers alternated each frame so ClearNode
+    // always has an exclusive buffer to write into (no COW detach needed).
+    // ping_write_fb is the current frame's target (exclusive), while
+    // m_prev_framebuffer (on SoftwareRenderer) wraps the previous frame's
+    // output for preserved-content reads.  Set by scene.cpp before graph
+    // execution; the PoolFbDeleter's scratch_slot restores the buffer to
+    // ping_write_slot when released.
+    // Mutable for the same reason as transform_scratch — the const
+    // acquire methods need to mark the ping as "in use" (set to nullptr).
+    mutable Framebuffer* ping_write_fb{nullptr};
+    mutable Framebuffer** ping_write_slot{nullptr};
 
     // ── Per-node / per-layer telemetry collectors
     std::vector<chronon3d::telemetry::NodeTelemetryRecord> node_telemetry;

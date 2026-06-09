@@ -44,6 +44,15 @@ private:
 struct PoolFbDeleter {
     cache::FramebufferPool* pool{nullptr};
     std::weak_ptr<bool> pool_alive;
+    /// When set, the FB is returned to this slot (cleared) instead of
+    /// released to the pool.  Used by the TransformNode scratch buffer
+    /// to keep a persistent buffer across frames without acquire/recycle.
+    Framebuffer** scratch_slot{nullptr};
+    /// When true, the FB is owned permanently by the renderer (e.g., a
+    /// ping-pong buffer).  The deleter does nothing — no pool release,
+    /// no scratch restore, no delete.  The renderer manages lifetime
+    /// explicitly via m_ping_fb[] / clear_caches().
+    bool owned_by_renderer{false};
     void operator()(Framebuffer* fb) const noexcept;
 };
 
