@@ -53,9 +53,14 @@ inline void write_graph_executor_phases(std::stringstream& out,
     out << "| cache eval | " << format_ms(run.cache_eval_ms) << " |\n";
     out << "| dirty eval | " << format_ms(run.dirty_eval_ms) << " |\n";
     out << "| input resolve | " << format_ms(run.input_resolve_ms) << " |\n";
+    out << "| predicted bbox | " << format_ms(run.predicted_bbox_ms) << " |\n";
+    out << "| clone context | " << format_ms(run.clone_context_ms) << " |\n";
+    out << "| state assign | " << format_ms(run.state_assign_ms) << " |\n";
     out << "| framebuffer lifetime | " << format_ms(run.framebuffer_lifetime_ms) << " |\n";
     out << "| node schedule | " << format_ms(run.node_schedule_ms) << " |\n";
     out << "| node dispatch | " << format_ms(run.node_dispatch_ms) << " |\n";
+    out << "| node execute actual | " << format_ms(run.node_execute_actual_ms) << " |\n";
+    out << "| node overhead | " << format_ms(run.node_overhead_ms) << " |\n";
     out << "| telemetry emit | " << format_ms(run.telemetry_emit_ms) << " |\n\n";
 }
 

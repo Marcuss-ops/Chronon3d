@@ -25,9 +25,11 @@
 #include <fmt/format.h>
 #include <chrono>
 #include <cmath>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <string_view>
 #include <unordered_map>
 
 namespace chronon3d::graph {
@@ -456,11 +458,21 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     // ── Wire up ping-pong framebuffers AND transform scratch ────────────
     // Both must be set before graph build/reuse for ALL code paths.
     // Ping-pong: ClearNode uses the exclusive write ping instead of COW.
+    // Disable with CHRONON_PINGPONG_FRAMEBUFFER=0 env var for benchmarking.
     // Transform scratch: TransformNode reuses a persistent buffer.
+    static const bool s_pingpong_enabled = []() -> bool {
+        const char* env = std::getenv("CHRONON_PINGPONG_FRAMEBUFFER");
+        if (env) {
+            return std::string_view(env) != "0";
+        }
+        return true; // enabled by default
+    }();
     if (sw_renderer) {
-        sw_renderer->ensure_ping_framebuffers(width, height);
-        ctx.ping_write_fb = sw_renderer->m_ping_fb[sw_renderer->m_ping_write_idx];
-        ctx.ping_write_slot = sw_renderer->write_ping_slot();
+        if (s_pingpong_enabled) {
+            sw_renderer->ensure_ping_framebuffers(width, height);
+            ctx.ping_write_fb = sw_renderer->m_ping_fb[sw_renderer->m_ping_write_idx];
+            ctx.ping_write_slot = sw_renderer->write_ping_slot();
+        }
 
         ctx.transform_scratch = sw_renderer->ensure_transform_scratch(width, height);
         ctx.transform_scratch_slot = sw_renderer->transform_scratch_slot();
