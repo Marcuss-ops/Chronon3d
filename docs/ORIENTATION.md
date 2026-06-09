@@ -1,8 +1,17 @@
-# ORIENTATION — Chronon3d
+# ORIENTATION — Chronon3d (IT)
 
 **Chronon3d** è un motore di motion graphics **code-first**, headless, CPU-only, scritto in C++20.
 
 Componi video scrivendo codice C++ — niente GUI, niente JSON, niente editor di keyframe.
+
+> **Language status / Stato lingua:** Questo documento è in italiano.
+> Una guida rapida in inglese per i contributor non-italofoni è in
+> `README.md` (root) e `CONTRIBUTING.md` (root).  Per la roadmap
+> tecnica, vedi `docs/IMPROVEMENTS.md` e `docs/improvements/00_INDEX.md`.
+>
+> Nuove sezioni in questa pagina vanno aggiunte in inglese per favorire
+> la collaborazione internazionale; le sezioni preesistenti restano
+> in italiano come changelog storico.
 
 ---
 
