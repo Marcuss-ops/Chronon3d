@@ -31,6 +31,15 @@ struct Glow {
     f32   radius{15.0f};
     f32   intensity{0.8f};
     Color color{1.0f, 1.0f, 1.0f, 1.0f};
+
+    // Per-layer strengths (0..1) for the multi-layer text glow pipeline.
+    // These mirror GlowParams.core_strength / aura_strength / bloom_strength
+    // so the text glow path can be tuned via the same fields as the layer
+    // effect pipeline.  Defaults preserve the legacy hardcoded values
+    // (0.25/0.12/0.05) from text_glow.cpp's previous kGlowLayers table.
+    f32   core_strength{0.25f};   // inner — tight character hug
+    f32   aura_strength{0.12f};   // mid   — soft between-letters
+    f32   bloom_strength{0.05f};  // outer — wide atmospheric wash
 };
 
 // What kind of surface the node naturally produces.

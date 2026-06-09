@@ -8,9 +8,6 @@ add_library(chronon3d_content_text STATIC
     text/text_module.cpp
     text/helpers/text_helpers.cpp
     text/typewriter/text_typewriter.cpp
-    text/typewriter/variants/tw_glow.cpp
-    text/typewriter/variants/tw_glow_warm.cpp
-    text/typewriter/variants/tw_glow_deep.cpp
 )
 set_target_properties(chronon3d_content_text PROPERTIES UNITY_BUILD OFF)
 target_include_directories(chronon3d_content_text PRIVATE ${CMAKE_SOURCE_DIR})

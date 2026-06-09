@@ -141,8 +141,17 @@ void MotionPresetRegistry::register_builtins() {
             st.opacity *= interpolate(t, 0.0f, 0.34f, 0.0f, 1.0f, Easing::OutCubic);
             const f32 s = interpolate(t, 0.0f, 0.30f, 1.03f, 1.0f, Easing::OutCubic);
             st.scale = {obj.scale_value.x * s, obj.scale_value.y * s, obj.scale_value.z};
-            st.blur = interpolate(t, 0.0f, 0.28f, 14.0f, 0.0f, Easing::OutCubic);
-            
+            // Limit the layer-level blur to the first 30 frames so the sharp
+            // text remains crisp during the rest of the reveal.  The glow
+            // itself still blooms independently (driven by the per-layer
+            // strengths below); we only avoid blurring the entire layer,
+            // which would also smear the text.
+            const f32 anim_dur = static_cast<f32>(obj.time_value.end - obj.time_value.start);
+            const f32 blur_t_max = (anim_dur > 0.0f)
+                ? std::min(1.0f, 30.0f / anim_dur)
+                : 0.5f;
+            st.blur = interpolate(t, 0.0f, blur_t_max, 14.0f, 0.0f, Easing::OutCubic);
+
             st.effects.glow_enabled = true;
             // Premium multi-layer glow — whisper-thin atmosphere, not a
             // coloured halo.  The sharp text renders on TOP, keeping it

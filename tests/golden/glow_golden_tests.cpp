@@ -7,9 +7,18 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/media/media_placement.hpp>
+#include <chronon3d/presets/motion_object.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/model/core/effect_stack.hpp>
 #include <tests/helpers/test_utils.hpp>
+
+// Typewriter pipeline header — exercises the motion_object → make_typewriter
+// → GlowBloom preset → text_glow.cpp path.  This is the production path
+// used by content::text::text_glow_reveal(), so regressions on the
+// typewriter pipeline (per-layer glow strengths, double-glow routing,
+// blur of the sharp text, etc.) are caught here rather than going
+// through LayerBuilder::glow() directly.
+#include <content/text/typewriter/typewriter_common.hpp>
 
 #include <algorithm>
 #include <array>
@@ -328,6 +337,34 @@ Composition make_pulse_scene() {
     });
 }
 
+// ── Motion-object / typewriter golden scenes ────────────────────────────────────
+//
+// These exercise the PRODUCTION path used by content::text::text_glow_reveal():
+//   make_typewriter() → MotionObject::text() → motion_renderer →
+//   GlowBloom preset → text_glow.cpp → draw_text_glow()
+//
+// They catch regressions that the LayerBuilder-direct tests above cannot:
+//   - hardcoded per-layer glow strengths (text_glow.cpp's kGlowLayers)
+//   - double-glow routing when both .glow(true) and GlowBloom are set
+//   - sharp-text blur from st.blur in the GlowBloom preset
+//   - cursor blink on cinematic glow scenes
+Composition make_text_glow_reveal_via_motion() {
+    using namespace chronon3d::content::text;
+    return typewriter::make_typewriter("TextGlowReveal", {
+        typewriter::TypewriterLine(
+            "A GLOWING TYPEWRITER LINE BLOOMS ON SCREEN with a soft halo effect that makes each character pulse gently as it appears — perfect for dramatic and atmospheric typography motion.")
+            .set_pos({0.0f, 0.0f, 0.0f})
+            .set_font(40.0f, 3.0f)
+            .set_timing(0.0f, 1.8f)
+            .set_color({0.90f, 0.92f, 1.0f, 1.0f})
+            .set_align(TextAlign::Left)
+            .set_size({1400.0f, 280.0f})
+        // glow=false: GlowBloom preset already enables st.effects.glow_enabled
+        // via the layer effect system — setting MotionObject.glow would double it.
+    }, presets::motion::MotionPreset::GlowBloom, false,
+       Color{0.01f, 0.012f, 0.022f, 1.0f}, 180, 1100.0f, 1920, 1080);
+}
+
 #undef verify_golden_or_create
 
 } // namespace
@@ -380,4 +417,34 @@ TEST_CASE("GlowGolden: pulse animation frame pair") {
     REQUIRE(fb4 != nullptr);
     REQUIRE(fb11 != nullptr);
     CHECK(framebuffer_hash(*fb4) != framebuffer_hash(*fb11));
+}
+
+// ── Motion-object / typewriter pipeline regression tests ──────────────────────
+//
+// These tests exercise the PRODUCTION path used by content::text::text_glow_reveal():
+//   make_typewriter() → MotionObject::text() → motion_renderer →
+//   GlowBloom preset → text_glow.cpp → draw_text_glow()
+//
+// Frame 90 is t=0.5 — past the reveal (text fully typed, opacity=1) and
+// past the 30-frame blur limit (sharp text).  Catches:
+//   - hardcoded per-layer glow strengths in text_glow.cpp
+//   - double-glow routing (glow=true vs GlowBloom preset)
+//   - sharp-text blur leaking past frame 30
+//   - cursor blink on cinematic glow scenes
+TEST_CASE("GlowGolden: TextGlowReveal via motion_object (typewriter pipeline, settled)") {
+    auto renderer = make_renderer();
+    const auto comp = make_text_glow_reveal_via_motion();
+    auto rendered = renderer.render_frame(comp, 90);
+    REQUIRE(rendered != nullptr);
+    verify_glow_golden_or_create(*rendered, "text_glow_reveal_motion_frame_090.png");
+}
+
+TEST_CASE("GlowGolden: TextGlowReveal via motion_object (typewriter pipeline, early reveal)") {
+    auto renderer = make_renderer();
+    const auto comp = make_text_glow_reveal_via_motion();
+    // Frame 30 = t=0.167 — exactly at the 30-frame blur cutoff.  Catches
+    // regressions where the blur doesn't fade by frame 30 (sharp text).
+    auto rendered = renderer.render_frame(comp, 30);
+    REQUIRE(rendered != nullptr);
+    verify_glow_golden_or_create(*rendered, "text_glow_reveal_motion_frame_030.png");
 }
