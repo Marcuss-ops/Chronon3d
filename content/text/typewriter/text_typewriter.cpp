@@ -460,19 +460,13 @@ Composition text_typewriter() {
             .set_color({0.62f, 0.88f, 1.0f, 1.0f})
             .set_align(TextAlign::Center)
             .set_size({1500.0f, 320.0f})
-            // Hide the blinking cursor for the centered reveal — keeps the
-            // text clean and lets the glow + sweep do the visual lifting.
+            // Hide the blinking cursor for the centered reveal.
             .set_cursor(false)
-            // Add a gentle Z-axis sweep so the text breathes in/out of
-            // depth across the 5s duration (period 120 frames).
-            .set_sweep(18.0f)
     },
-    // FadeIn preset: simple 0→1 alpha curve, no fade-out.  Earlier attempts
-    // (GlowBloom, SoftDollyReveal) both rendered the text but masked it
-    // with a padded alpha / bloom buffer that the regression-guard test
-    // later flagged.  FadeIn keeps the text fully opaque for the full
-    // duration; visual interest comes from the centered alignment, the
-    // 56pt bright-blue color, the typewriter reveal, and the Z-axis sweep.
+    // FadeIn preset: simple 0→1 alpha curve, no fade-out.  Earlier
+    // attempts (GlowBloom, SoftDollyReveal) both rendered the text but
+    // masked it with a padded alpha / bloom buffer.  FadeIn keeps the
+    // text fully opaque from reveal to end-of-clip.
     presets::motion::MotionPreset::FadeIn,
     false,                                 // no glow — text reads clean
     {0.01f, 0.012f, 0.022f, 1.0f},
