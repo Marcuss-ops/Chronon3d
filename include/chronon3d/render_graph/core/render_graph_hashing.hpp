@@ -187,6 +187,11 @@ template <typename T>
                 seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
             break;
         }
+        case FocusInLadder: {
+            if (auto* p = std::get_if<FocusInLadderParams>(&e.params))
+                seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
+            break;
+        }
         case Unknown:
             break;
         }
