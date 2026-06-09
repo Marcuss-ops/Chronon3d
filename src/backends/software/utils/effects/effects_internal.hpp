@@ -12,8 +12,8 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/cache/framebuffer_pool.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
-#include <chronon3d/scene/model/layer_effect.hpp>
-#include <chronon3d/scene/model/effect_stack.hpp>
+#include <chronon3d/scene/model/layer/layer_effect.hpp>
+#include <chronon3d/scene/model/core/effect_stack.hpp>
 #include <algorithm>
 #include <cmath>
 #include <memory>

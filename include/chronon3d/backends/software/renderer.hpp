@@ -1,8 +1,8 @@
 #pragma once
 
-#include <chronon3d/scene/model/scene.hpp>
-#include <chronon3d/scene/model/camera.hpp>
-#include <chronon3d/scene/model/camera_2_5d.hpp>
+#include <chronon3d/scene/model/core/scene.hpp>
+#include <chronon3d/scene/model/camera/camera.hpp>
+#include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/timeline/composition.hpp>
 

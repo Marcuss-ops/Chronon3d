@@ -3,7 +3,7 @@
 #include "passes/graph_builder_layer_passes.hpp"
 #include "passes/graph_builder_source_pass.hpp"
 #include <chronon3d/math/camera_2_5d_projection.hpp>
-#include <chronon3d/scene/model/layer.hpp>
+#include <chronon3d/scene/model/layer/layer.hpp>
 
 namespace chronon3d::graph::detail {
 

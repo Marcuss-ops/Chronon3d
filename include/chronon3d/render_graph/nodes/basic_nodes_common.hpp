@@ -4,8 +4,8 @@
 #include <chronon3d/render_graph/render_graph_hashing.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/math/projector_2_5d.hpp>
-#include <chronon3d/scene/model/layer.hpp>
-#include <chronon3d/scene/model/mask_utils.hpp>
+#include <chronon3d/scene/model/layer/layer.hpp>
+#include <chronon3d/scene/model/core/mask_utils.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <spdlog/spdlog.h>

@@ -2,8 +2,8 @@
 
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/core/memory/framebuffer_handle.hpp>
-#include <chronon3d/scene/model/camera.hpp>
-#include <chronon3d/scene/model/camera_2_5d.hpp>
+#include <chronon3d/scene/model/camera/camera.hpp>
+#include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/rendering/light_context.hpp>
 #include <chronon3d/math/projection_context.hpp>
 #include <chronon3d/math/raster_utils.hpp>

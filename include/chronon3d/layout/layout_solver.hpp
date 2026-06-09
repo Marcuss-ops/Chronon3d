@@ -1,7 +1,7 @@
 #pragma once
 
 #include <chronon3d/layout/layout_rules.hpp>
-#include <chronon3d/scene/model/scene.hpp>
+#include <chronon3d/scene/model/core/scene.hpp>
 
 namespace chronon3d {
 
