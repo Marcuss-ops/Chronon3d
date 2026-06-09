@@ -16,6 +16,7 @@
 #include "text_effects.hpp"
 #include "text_processor_helpers.hpp"
 #include "../../utils/blend2d_bridge.hpp"
+#include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/backends/text/text_rasterizer_utils.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
@@ -28,20 +29,25 @@ namespace chronon3d::renderer {
 namespace {
 
 // ── Multi-layer glow descriptor ──────────────────────────────────────
-// Each layer defines a blur-radius fraction and an intensity fraction.
-// Outer layers get a blue-cyan colour shift for optical depth.
+// Each layer defines a structural shape: blur-radius fraction and a colour
+// shift toward blue-cyan for optical depth.  Per-layer INTENSITY is NOT
+// baked in here: it comes from node.glow.core_strength / aura_strength /
+// bloom_strength (set by the MotionObject preset), so the preset's
+// per-layer tuning actually reaches the renderer.  Previously these
+// fields were ignored by the text glow path, and intensities were
+// hardcoded (0.25/0.12/0.05), which made the preset tuning dead code.
 struct GlowLayer {
     float radius_scale;    // fraction of the base radius
-    float intensity_scale; // fraction of the base intensity
     float color_shift;     // 0 = glow color, 1 = shifted toward blue-cyan
 };
 
-// Default layer configuration — inner tight & bright, mid medium, outer wide & soft.
-// Matches the recommended recipe: inner: r*3, a=0.45 | mid: r*10, a=0.22 | outer: r*28, a=0.10
+// Layer shape configuration — inner tight, mid medium, outer wide & soft.
+// The text sharp layer on top provides the core brightness; the glow
+// layers below should feel like atmospheric light, not a coloured halo.
 static constexpr std::array<GlowLayer, 3> kGlowLayers{{
-    {0.12f, 0.45f, 0.00f},  // inner — tight, colour-accurate
-    {0.38f, 0.22f, 0.35f},  // mid   — medium spread, slight blue shift
-    {1.00f, 0.10f, 0.65f},  // outer — wide falloff, distinctly blue-cyan
+    {0.10f, 0.00f},  // inner — tight (radius × 0.10)
+    {0.35f, 0.30f},  // mid   — medium spread
+    {1.00f, 0.60f},  // outer — wide falloff
 }};
 
 /// Apply a colour shift toward blue-cyan for outer glow layers.
@@ -95,6 +101,55 @@ struct PaddedMask {
     ctx.fillAll();
     ctx.end();
 
+    // ── Alpha threshold ──────────────────────────────────────────────
+    // Eliminate any sub-pixel alpha noise in the padding area outside
+    // the glyphs.  Text rasterisers sometimes leave a faint alpha glow
+    // (~1-3/255) around glyph bounding boxes, which the blur would
+    // amplify into a rectangular fog.  Clamping to zero below 16/255
+    // removes this without affecting legitimate anti-aliased edges
+    // (which are typically ≥ 32/255 at the glyph boundary).
+    {
+        BLImageData md;
+        if (mask.getData(&md) == BL_SUCCESS && md.pixelData) {
+            const int stride = static_cast<int>(md.stride / sizeof(uint32_t));
+            auto* px = static_cast<uint32_t*>(md.pixelData);
+            static constexpr uint32_t kAlphaMask = 0xFF000000u;
+            static constexpr uint32_t kRgbMask   = 0x00FFFFFFu;
+            for (int y = 0; y < ph; ++y) {
+                for (int x = 0; x < pw; ++x) {
+                    const uint32_t a = px[y * stride + x] >> 24;
+                    if (a > 0 && a < 16) {
+                        px[y * stride + x] = 0;  // zero out entire pixel
+                    }
+                }
+            }
+        }
+    }
+
+    // ── Debug save ───────────────────────────────────────────────────
+    // Set CHRONON_DEBUG_DUMP_ALPHA_MASK=1 to dump the alpha mask to disk
+    // for visual inspection of the padded text shape.
+    if (std::getenv("CHRONON_DEBUG_DUMP_ALPHA_MASK")) {
+        BLImageData md;
+        if (mask.getData(&md) == BL_SUCCESS && md.pixelData) {
+            const int stride = static_cast<int>(md.stride / sizeof(uint32_t));
+            Framebuffer debug_fb(pw, ph);
+            const auto* px = static_cast<const uint32_t*>(md.pixelData);
+            for (int y = 0; y < ph; ++y) {
+                for (int x = 0; x < pw; ++x) {
+                    const uint32_t p = px[y * stride + x];
+                    debug_fb.set_pixel(x, y, Color{
+                        static_cast<float>((p >> 16) & 0xFF) / 255.0f,
+                        static_cast<float>((p >>  8) & 0xFF) / 255.0f,
+                        static_cast<float>( p        & 0xFF) / 255.0f,
+                        static_cast<float>((p >> 24) & 0xFF) / 255.0f
+                    });
+                }
+            }
+            save_png(debug_fb, "output/debug_alpha_mask.png");
+        }
+    }
+
     return {std::move(mask), pad};
 }
 
@@ -112,12 +167,11 @@ static inline void build_and_accumulate_layer(
     BLImage& accum,
     const BLImage& alpha_mask,
     const GlowLayer& layer_desc,
+    float layer_intensity,            // per-layer 0..1 strength (from node.glow.*_strength)
     const Color& base_glow_color,
-    float base_radius,
-    float base_intensity
+    float base_radius
 ) {
     const float layer_radius = std::max(1.5f, base_radius * layer_desc.radius_scale);
-    const float layer_intensity = base_intensity * layer_desc.intensity_scale;
     if (layer_intensity <= 0.0f) return;
 
     // 1. Copy alpha mask into working buffer
@@ -223,11 +277,21 @@ void draw_text_glow(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNod
         }
 
         const Color& glow_color = node.glow.color;
-        const float glow_intensity = node.glow.intensity;
 
-        for (const auto& layer_desc : kGlowLayers) {
-            build_and_accumulate_layer(glow_accum, alpha_mask, layer_desc,
-                                       glow_color, base_radius, glow_intensity);
+        // Per-layer intensities come from node.glow.*_strength, which the
+        // MotionObject preset (e.g. GlowBloom) sets explicitly.  This
+        // matches the canonical pattern in effect_glow_impl.cpp and lets
+        // the preset's per-layer tuning actually drive the text glow.
+        const float layer_intensities[3] = {
+            std::max(0.0f, node.glow.core_strength),
+            std::max(0.0f, node.glow.aura_strength),
+            std::max(0.0f, node.glow.bloom_strength),
+        };
+
+        for (size_t i = 0; i < kGlowLayers.size(); ++i) {
+            build_and_accumulate_layer(glow_accum, alpha_mask, kGlowLayers[i],
+                                       layer_intensities[i],
+                                       glow_color, base_radius);
         }
 
         auto cached_img = std::make_shared<BLImage>(glow_accum);
@@ -248,11 +312,11 @@ void draw_text_glow(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNod
     const int padding = static_cast<int>(std::ceil(base_radius * 4.0f)) + 4;
 
     if (glow_cache) {
-        // NOTE: node.glow.intensity is ALREADY baked into each glow layer via
-        // SRC_IN during build_and_accumulate_layer (where layer_intensity =
-        // base_intensity * layer_desc.intensity_scale).  Do NOT multiply by
-        // it again here — that would square the intensity and make the glow
-        // ~30% dimmer than intended.
+        // NOTE: per-layer intensities (from node.glow.core_strength /
+        // aura_strength / bloom_strength) are ALREADY baked into each glow
+        // layer via SRC_IN during build_and_accumulate_layer.  Do NOT
+        // multiply by node.glow.intensity again here — that would square
+        // the intensities and make the glow ~30% dimmer than intended.
         const f32 glow_alpha = opacity * node.glow.color.a;
 
         if (use_geo_transform) {

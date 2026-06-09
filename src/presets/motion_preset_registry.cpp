@@ -141,23 +141,38 @@ void MotionPresetRegistry::register_builtins() {
             st.opacity *= interpolate(t, 0.0f, 0.34f, 0.0f, 1.0f, Easing::OutCubic);
             const f32 s = interpolate(t, 0.0f, 0.30f, 1.03f, 1.0f, Easing::OutCubic);
             st.scale = {obj.scale_value.x * s, obj.scale_value.y * s, obj.scale_value.z};
-            st.blur = interpolate(t, 0.0f, 0.28f, 14.0f, 0.0f, Easing::OutCubic);
-            
+            // Limit the layer-level blur to the first 30 frames so the sharp
+            // text remains crisp during the rest of the reveal.  The glow
+            // itself still blooms independently (driven by the per-layer
+            // strengths below); we only avoid blurring the entire layer,
+            // which would also smear the text.
+            const f32 anim_dur = static_cast<f32>(obj.time_value.end - obj.time_value.start);
+            const f32 blur_t_max = (anim_dur > 0.0f)
+                ? std::min(1.0f, 30.0f / anim_dur)
+                : 0.5f;
+            st.blur = interpolate(t, 0.0f, blur_t_max, 14.0f, 0.0f, Easing::OutCubic);
+
             st.effects.glow_enabled = true;
-            // Multi-layer glow: the new text_glow.cpp renders three concentric
-            // layers (inner/mid/outer) from the single radius/intensity, so
-            // we keep the radius moderate and the intensity high.
-            // The glow ramps in from a large soft bloom and settles to a
-            // tighter, more intense blue-cyan halo.
+            // Premium multi-layer glow — whisper-thin atmosphere, not a
+            // coloured halo.  The sharp text renders on TOP, keeping it
+            // crisp while the glow layers provide subtle depth.
+            //
+            // Layer breakdown (at settled radius ≈ 18px):
+            //   core: 0.10 × 18 = 1.8 px blur, 12%  → tight character hug
+            //   aura: 0.35 × 18 = 6.3 px blur,  5%  → soft between-letters
+            //   bloom: 1.00 × 18 = 18  px blur, 1.5% → wide atmospheric wash
             const f32 bloom_mix = std::clamp(1.0f - (st.blur / 14.0f), 0.0f, 1.0f);
-            st.effects.glow.radius = interpolate(t, 0.0f, 0.40f, 52.0f, 32.0f, Easing::OutCubic);
-            st.effects.glow.intensity = 0.70f + 0.30f * bloom_mix;
-            // Rich blue-cyan glow: deep blue bloom settling to a bright cyan-white core
+            st.effects.glow.radius = interpolate(t, 0.0f, 0.40f, 34.0f, 18.0f, Easing::OutCubic);
+            st.effects.glow.intensity = 0.35f + 0.15f * bloom_mix;
+            st.effects.glow.core_strength = 0.12f;   // inner: tight character glow
+            st.effects.glow.aura_strength  = 0.05f;   // mid:   -20% vs previous
+            st.effects.glow.bloom_strength = 0.015f;  // outer: -25% vs previous
+            // Cool blue-cyan with a faint premium tint on the outer wash
             st.effects.glow.color = Color{
+                0.20f + 0.75f * bloom_mix,
                 0.40f + 0.55f * bloom_mix,
-                0.60f + 0.38f * bloom_mix,
                 1.0f,
-                0.65f + 0.35f * bloom_mix
+                0.40f + 0.50f * bloom_mix
             };
         }
     });

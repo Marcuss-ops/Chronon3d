@@ -513,7 +513,9 @@ Composition text_glow_reveal() {
             .set_color({0.90f, 0.92f, 1.0f, 1})
             .set_align(TextAlign::Left)
             .set_size({1400.0f, 280.0f})
-    }, presets::motion::MotionPreset::GlowBloom, true, {0.01f, 0.012f, 0.022f, 1.0f}, 180, 1100.0f, 1920, 1080);
+    // glow=false: GlowBloom preset already enables st.effects.glow_enabled
+    // via the layer effect system — setting MotionObject.glow would double it.
+    }, presets::motion::MotionPreset::GlowBloom, false, {0.01f, 0.012f, 0.022f, 1.0f}, 180, 1100.0f, 1920, 1080);
 }
 
 } // namespace chronon3d::content::text
