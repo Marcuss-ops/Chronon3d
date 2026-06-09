@@ -1,9 +1,30 @@
+// =============================================================================
+// MotionPresetRegistry — thin dispatcher
+//
+// The actual preset definitions live in per-category source files:
+//   - motion_presets_reveal.cpp
+//   - motion_presets_3d.cpp
+//   - motion_presets_glow.cpp
+//   - motion_presets_idle.cpp
+//   - motion_presets_impact.cpp
+//
+// This file owns the registry lifecycle and the static `instance()` accessor
+// only.  Adding a new preset means: pick a category file (or create a new
+// one) and append one `r.register_preset({...})` call there — no need to
+// touch this dispatcher.
+// =============================================================================
+
 #include <chronon3d/presets/motion_preset_registry.hpp>
-#include <chronon3d/animation/easing/interpolate.hpp>
-#include <algorithm>
-#include <cmath>
 
 namespace chronon3d::presets::motion {
+
+// Forward declarations of per-category registrars.  Implemented in their
+// respective .cpp files; the linker pulls them in via the static library.
+void register_reveal_presets(MotionPresetRegistry& r);
+void register_3d_presets(MotionPresetRegistry& r);
+void register_glow_presets(MotionPresetRegistry& r);
+void register_idle_presets(MotionPresetRegistry& r);
+void register_impact_presets(MotionPresetRegistry& r);
 
 MotionPresetRegistry& MotionPresetRegistry::instance() {
     static MotionPresetRegistry inst;
@@ -27,398 +48,22 @@ const MotionPresetDescriptor& MotionPresetRegistry::get(MotionPreset preset) con
     if (it != m_presets.end()) {
         return it->second;
     }
+    // Defensive fallback: an unrecognised preset is treated as a no-op rather
+    // than crashing the frame.  This covers the case where a new enum value
+    // was added to MotionPreset but the matching registrar hasn't been wired
+    // into the static library yet.
     static const MotionPresetDescriptor fallback{
-        MotionPreset::None, "None", [](auto&, auto&, auto, auto&) {}
+        MotionPreset::None, "None", [](const FrameContext&, const MotionObject&, f32, MotionState&) {}
     };
     return fallback;
 }
 
 void MotionPresetRegistry::register_builtins() {
-    register_preset({
-        MotionPreset::None, "None", [](const FrameContext&, const MotionObject&, f32, MotionState&) {}
-    });
-
-    register_preset({
-        MotionPreset::FadeIn, "FadeIn", [](const FrameContext&, const MotionObject&, f32 t, MotionState& st) {
-            st.opacity *= interpolate(t, 0.0f, 0.30f, 0.0f, 1.0f, Easing::OutCubic);
-        }
-    });
-
-    register_preset({
-        MotionPreset::FadeLift, "FadeLift", [](const FrameContext&, const MotionObject&, f32 t, MotionState& st) {
-            st.opacity *= interpolate(t, 0.0f, 0.32f, 0.0f, 1.0f, Easing::OutCubic);
-            st.position.y += interpolate(t, 0.0f, 0.36f, 48.0f, 0.0f, Easing::OutCubic);
-            st.blur = interpolate(t, 0.0f, 0.26f, 8.0f, 0.0f, Easing::OutCubic);
-        }
-    });
-
-    register_preset({
-        MotionPreset::PopIn, "PopIn", [](const FrameContext&, const MotionObject& obj, f32 t, MotionState& st) {
-            st.opacity *= interpolate(t, 0.0f, 0.28f, 0.0f, 1.0f, Easing::OutCubic);
-            const f32 s = interpolate(t, 0.0f, 0.28f, 0.84f, 1.0f, Easing::OutCubic);
-            st.scale = {obj.scale_value.x * s, obj.scale_value.y * s, obj.scale_value.z};
-        }
-    });
-
-    register_preset({
-        MotionPreset::PopGlow, "PopGlow", [](const FrameContext&, const MotionObject& obj, f32 t, MotionState& st) {
-            st.opacity *= interpolate(t, 0.0f, 0.26f, 0.0f, 1.0f, Easing::OutCubic);
-            const f32 s = interpolate(t, 0.0f, 0.28f, 0.86f, 1.0f, Easing::OutCubic);
-            st.scale = {obj.scale_value.x * s, obj.scale_value.y * s, obj.scale_value.z};
-            st.blur = interpolate(t, 0.0f, 0.24f, 10.0f, 0.0f, Easing::OutCubic);
-        }
-    });
-
-    register_preset({
-        MotionPreset::SlideUp, "SlideUp", [](const FrameContext&, const MotionObject&, f32 t, MotionState& st) {
-            st.opacity *= interpolate(t, 0.0f, 0.32f, 0.0f, 1.0f, Easing::OutCubic);
-            st.position.y += interpolate(t, 0.0f, 0.32f, 72.0f, 0.0f, Easing::OutCubic);
-        }
-    });
-
-    register_preset({
-        MotionPreset::SlideLeft, "SlideLeft", [](const FrameContext&, const MotionObject&, f32 t, MotionState& st) {
-            st.opacity *= interpolate(t, 0.0f, 0.32f, 0.0f, 1.0f, Easing::OutCubic);
-            st.position.x += interpolate(t, 0.0f, 0.32f, 108.0f, 0.0f, Easing::OutCubic);
-        }
-    });
-
-    register_preset({
-        MotionPreset::ZoomBlur, "ZoomBlur", [](const FrameContext&, const MotionObject& obj, f32 t, MotionState& st) {
-            st.opacity *= interpolate(t, 0.0f, 0.32f, 0.0f, 1.0f, Easing::OutCubic);
-            const f32 s = interpolate(t, 0.0f, 0.32f, 1.18f, 1.0f, Easing::OutCubic);
-            st.scale = {obj.scale_value.x * s, obj.scale_value.y * s, obj.scale_value.z};
-            st.blur = interpolate(t, 0.0f, 0.26f, 14.0f, 0.0f, Easing::OutCubic);
-        }
-    });
-
-    register_preset({
-        MotionPreset::PushIn3D, "PushIn3D", [](const FrameContext&, const MotionObject& obj, f32 t, MotionState& st) {
-            st.opacity *= interpolate(t, 0.0f, 0.28f, 0.0f, 1.0f, Easing::OutCubic);
-            const f32 s = interpolate(t, 0.0f, 0.30f, 0.88f, 1.0f, Easing::OutCubic);
-            st.scale = {obj.scale_value.x * s, obj.scale_value.y * s, obj.scale_value.z};
-            st.position.z += interpolate(t, 0.0f, 0.40f, 260.0f, 0.0f, Easing::OutCubic);
-            st.rotation.y += interpolate(t, 0.0f, 0.40f, -14.0f, 0.0f, Easing::OutCubic);
-            st.blur = interpolate(t, 0.0f, 0.26f, 14.0f, 0.0f, Easing::OutCubic);
-        }
-    });
-
-    register_preset({
-        MotionPreset::SoftDollyReveal, "SoftDollyReveal", [](const FrameContext&, const MotionObject& obj, f32 t, MotionState& st) {
-            st.opacity *= interpolate(t, 0.0f, 0.38f, 0.0f, 1.0f, Easing::OutCubic);
-            const f32 s = interpolate(t, 0.0f, 0.42f, 0.94f, 1.0f, Easing::OutCubic);
-            st.scale = {obj.scale_value.x * s, obj.scale_value.y * s, obj.scale_value.z};
-            st.blur = interpolate(t, 0.0f, 0.30f, 4.0f, 0.0f, Easing::OutCubic);
-        }
-    });
-
-    register_preset({
-        MotionPreset::DollyRotate2_5D, "DollyRotate2_5D", [](const FrameContext&, const MotionObject& obj, f32 t, MotionState& st) {
-            const f32 reveal = interpolate(t, 0.0f, 0.40f, 0.0f, 1.0f, Easing::OutCubic);
-            const f32 settle = std::clamp((reveal - 0.70f) / 0.30f, 0.0f, 1.0f);
-
-            st.opacity *= reveal;
-            const f32 s = interpolate(t, 0.0f, 0.42f, 0.92f, 1.0f, Easing::OutCubic);
-            st.scale = {obj.scale_value.x * s, obj.scale_value.y * s, obj.scale_value.z};
-            st.position.z += interpolate(t, 0.0f, 0.46f, 220.0f, 0.0f, Easing::OutCubic);
-            st.rotation.y += interpolate(t, 0.0f, 0.40f, -18.0f, 0.0f, Easing::OutCubic);
-            st.rotation.z += interpolate(t, 0.0f, 0.32f, 6.0f, 0.0f, Easing::OutCubic);
-            st.rotation.x += interpolate(t, 0.0f, 0.28f, 2.5f, 0.0f, Easing::OutCubic);
-            st.blur = interpolate(t, 0.0f, 0.24f, 5.0f, 0.0f, Easing::OutCubic);
-
-            if (settle > 0.0f) {
-                const f32 settle_wave = std::sin(settle * 3.1415926535f);
-                st.rotation.y += settle_wave * 1.25f * settle;
-                st.rotation.z += settle_wave * 0.8f * settle;
-                st.position.x += settle_wave * 12.0f * settle;
-                st.position.z -= 8.0f * settle;
-            }
-        }
-    });
-
-    register_preset({
-        MotionPreset::GlowBloom, "GlowBloom", [](const FrameContext&, const MotionObject& obj, f32 t, MotionState& st) {
-            st.opacity *= interpolate(t, 0.0f, 0.34f, 0.0f, 1.0f, Easing::OutCubic);
-            const f32 s = interpolate(t, 0.0f, 0.30f, 1.03f, 1.0f, Easing::OutCubic);
-            st.scale = {obj.scale_value.x * s, obj.scale_value.y * s, obj.scale_value.z};
-            // Limit the layer-level blur to the first 30 frames so the sharp
-            // text remains crisp during the rest of the reveal.  The glow
-            // itself still blooms independently (driven by the per-layer
-            // strengths below); we only avoid blurring the entire layer,
-            // which would also smear the text.
-            const f32 anim_dur = static_cast<f32>(obj.time_value.end - obj.time_value.start);
-            const f32 blur_t_max = (anim_dur > 0.0f)
-                ? std::min(1.0f, 30.0f / anim_dur)
-                : 0.5f;
-            st.blur = interpolate(t, 0.0f, blur_t_max, 14.0f, 0.0f, Easing::OutCubic);
-
-            st.effects.glow_enabled = true;
-            // Premium multi-layer glow — whisper-thin atmosphere, not a
-            // coloured halo.  The sharp text renders on TOP, keeping it
-            // crisp while the glow layers provide subtle depth.
-            //
-            // Layer breakdown (at settled radius ≈ 18px):
-            //   core: 0.10 × 18 = 1.8 px blur, 12%  → tight character hug
-            //   aura: 0.35 × 18 = 6.3 px blur,  5%  → soft between-letters
-            //   bloom: 1.00 × 18 = 18  px blur, 1.5% → wide atmospheric wash
-            const f32 bloom_mix = std::clamp(1.0f - (st.blur / 14.0f), 0.0f, 1.0f);
-            st.effects.glow.radius = interpolate(t, 0.0f, 0.40f, 34.0f, 18.0f, Easing::OutCubic);
-            st.effects.glow.intensity = 1.0f + 0.2f * bloom_mix;
-            st.effects.glow.core_strength = 0.6f;   // inner: tight character glow (visible)
-            st.effects.glow.aura_strength  = 0.3f;   // mid:   soft between-letters
-            st.effects.glow.bloom_strength = 0.12f;  // outer: wide atmospheric wash
-            // Cool blue-cyan with a faint premium tint on the outer wash
-            st.effects.glow.color = Color{
-                0.20f + 0.75f * bloom_mix,
-                0.40f + 0.55f * bloom_mix,
-                1.0f,
-                0.40f + 0.50f * bloom_mix
-            };
-        }
-    });
-
-    register_preset({
-        MotionPreset::StaggerReveal, "StaggerReveal", [](const FrameContext&, const MotionObject& obj, f32 t, MotionState& st) {
-            st.opacity *= interpolate(t, 0.0f, 0.18f, 0.0f, 1.0f, Easing::OutCubic);
-            st.text_reveal = interpolate(t, 0.0f, 0.82f, 0.0f, 1.0f, Easing::OutCubic);
-            st.position.x += interpolate(t, 0.0f, 0.28f, -42.0f, 0.0f, Easing::OutCubic);
-            st.blur = interpolate(t, 0.0f, 0.20f, 10.0f, 0.0f, Easing::OutCubic);
-            const f32 s = interpolate(t, 0.0f, 0.24f, 0.98f, 1.0f, Easing::OutCubic);
-            st.scale = {obj.scale_value.x * s, obj.scale_value.y * s, obj.scale_value.z};
-        }
-    });
-
-    register_preset({
-        MotionPreset::ParallaxDrift, "ParallaxDrift", [](const FrameContext& ctx, const MotionObject& obj, f32, MotionState& st) {
-            st.position.x += std::sin(static_cast<f32>(ctx.frame) * 0.025f) * 20.0f * obj.motion3d.parallax;
-            st.position.y += std::cos(static_cast<f32>(ctx.frame) * 0.018f) * 12.0f * obj.motion3d.parallax;
-            st.rotation.y += std::sin(static_cast<f32>(ctx.frame) * 0.02f) * 4.0f;
-            st.rotation.x += std::cos(static_cast<f32>(ctx.frame) * 0.017f) * 2.5f;
-        }
-    });
-
-    register_preset({
-        MotionPreset::Orbit2_5D, "Orbit2_5D", [](const FrameContext&, const MotionObject&, f32 t, MotionState& st) {
-            constexpr f32 pi = 3.14159265358979323846f;
-            const f32 angle = interpolate(t, 0.0f, 1.0f, -12.0f, 12.0f, Easing::InOutCubic);
-            st.rotation.y += angle;
-            st.position.x += std::sin(t * pi * 2.0f) * 40.0f;
-            st.position.z += std::cos(t * pi * 2.0f) * 80.0f;
-        }
-    });
-
-    register_preset({
-        MotionPreset::TiltSweep2_5D, "TiltSweep2_5D", [](const FrameContext&, const MotionObject&, f32, MotionState&) {
-            // Handled natively by Sweep2_5D amplitude calculation
-        }
-    });
-
-    register_preset({
-        MotionPreset::PerspectiveSweepTextReveal, "PerspectiveSweepTextReveal", [](const FrameContext&, const MotionObject& obj, f32 t, MotionState& st) {
-            const f32 p = t;
-            const f32 reveal = interpolate(p, 0.0f, 0.86f, 0.0f, 1.0f, Easing::OutCubic);
-            const f32 settle = std::clamp((reveal - 0.62f) / 0.38f, 0.0f, 1.0f);
-
-            st.opacity *= interpolate(p, 0.0f, 0.14f, 0.0f, 1.0f, Easing::OutCubic);
-            st.text_reveal = reveal;
-
-            st.position.x += interpolate(p, 0.0f, 0.30f, -120.0f, 0.0f, Easing::OutCubic);
-            st.position.y += interpolate(p, 0.0f, 0.30f, 6.0f, 0.0f, Easing::OutCubic);
-            st.position.z += interpolate(p, 0.0f, 0.30f, 140.0f, 0.0f, Easing::OutCubic);
-
-            st.rotation.x += interpolate(p, 0.0f, 0.30f, 3.0f, 0.0f, Easing::OutCubic);
-            st.rotation.y += interpolate(p, 0.0f, 0.30f, -34.0f, 0.0f, Easing::OutCubic);
-            st.rotation.z += interpolate(p, 0.0f, 0.30f, 1.5f, 0.0f, Easing::OutCubic);
-
-            const f32 sx = interpolate(p, 0.0f, 0.30f, 0.90f, 1.0f, Easing::OutCubic);
-            const f32 sy = interpolate(p, 0.0f, 0.30f, 0.96f, 1.0f, Easing::OutCubic);
-            st.scale = {st.scale.x * sx, st.scale.y * sy, st.scale.z};
-
-            st.blur = interpolate(p, 0.0f, 0.18f, 9.0f, 0.0f, Easing::OutCubic);
-
-            if (settle > 0.0f) {
-                const f32 settle_wave = std::sin(settle * 3.1415926535f);
-                st.rotation.y *= (1.0f - 0.06f * settle);
-                st.rotation.x += 0.6f * settle_wave * settle;
-                st.rotation.z += 0.4f * settle_wave * settle;
-                st.position.z -= 8.0f * settle;
-                st.position.x += 18.0f * settle_wave * settle;
-                st.scale.x += 0.01f * settle_wave * settle;
-                st.scale.y += 0.005f * settle_wave * settle;
-            }
-        }
-    });
-
-    register_preset({
-        MotionPreset::MaskSweep, "MaskSweep", [](const FrameContext&, const MotionObject&, f32 t, MotionState& st) {
-            st.opacity *= interpolate(t, 0.0f, 0.34f, 0.0f, 1.0f, Easing::OutCubic);
-            st.mask_reveal = interpolate(t, 0.0f, 0.82f, 0.0f, 1.0f, Easing::OutCubic);
-            st.position.x += interpolate(t, 0.0f, 0.34f, -18.0f, 0.0f, Easing::OutCubic);
-            st.blur = interpolate(t, 0.0f, 0.24f, 4.0f, 0.0f, Easing::OutCubic);
-        }
-    });
-
-    register_preset({
-        MotionPreset::FocusPull, "FocusPull", [](const FrameContext&, const MotionObject& obj, f32 t, MotionState& st) {
-            st.opacity *= interpolate(t, 0.0f, 0.24f, 0.0f, 1.0f, Easing::OutCubic);
-            const f32 s = interpolate(t, 0.0f, 0.34f, 1.05f, 1.0f, Easing::OutCubic);
-            st.scale = {obj.scale_value.x * s, obj.scale_value.y * s, obj.scale_value.z};
-            st.position.y += interpolate(t, 0.0f, 0.28f, 12.0f, 0.0f, Easing::OutCubic);
-            st.blur = interpolate(t, 0.0f, 0.18f, 2.5f, 0.0f, Easing::OutCubic);
-        }
-    });
-
-    register_preset({
-        MotionPreset::ShakeImpact, "ShakeImpact", [](const FrameContext& ctx, const MotionObject&, f32 t, MotionState& st) {
-            const f32 amp = interpolate(t, 0.0f, 0.35f, 18.0f, 0.0f, Easing::OutCubic);
-            st.position.x += std::sin(static_cast<f32>(ctx.frame) * 1.7f) * amp;
-            st.position.y += std::cos(static_cast<f32>(ctx.frame) * 2.1f) * amp;
-        }
-    });
-
-    register_preset({
-        MotionPreset::TypewriterReveal, "TypewriterReveal", [](const FrameContext&, const MotionObject&, f32 t, MotionState& st) {
-            st.opacity *= interpolate(t, 0.0f, 0.14f, 0.0f, 1.0f, Easing::OutCubic);
-            st.text_reveal = interpolate(t, 0.0f, 0.80f, 0.0f, 1.0f, Easing::OutCubic);
-            st.position.x += interpolate(t, 0.0f, 0.20f, -24.0f, 0.0f, Easing::OutCubic);
-            st.blur = interpolate(t, 0.0f, 0.12f, 8.0f, 0.0f, Easing::OutCubic);
-        }
-    });
-
-    register_preset({
-        MotionPreset::KineticBounce, "KineticBounce", [](const FrameContext&, const MotionObject& obj, f32 t, MotionState& st) {
-            st.opacity *= interpolate(t, 0.0f, 0.18f, 0.0f, 1.0f, Easing::OutCubic);
-            const f32 s = interpolate(t, 0.0f, 0.35f, 0.78f, 1.0f, Easing::OutBack);
-            st.scale = {obj.scale_value.x * s, obj.scale_value.y * s, obj.scale_value.z};
-            st.position.y += interpolate(t, 0.0f, 0.24f, 42.0f, 0.0f, Easing::OutBounce);
-            st.rotation.z += interpolate(t, 0.0f, 0.24f, -3.0f, 0.0f, Easing::OutCubic);
-        }
-    });
-
-    register_preset({
-        MotionPreset::GlitchIn, "GlitchIn", [](const FrameContext& ctx, const MotionObject&, f32 t, MotionState& st) {
-            st.opacity *= interpolate(t, 0.0f, 0.08f, 0.0f, 1.0f, Easing::OutCubic);
-            st.position.x += std::sin(static_cast<f32>(ctx.frame) * 4.2f) * interpolate(t, 0.0f, 0.18f, 22.0f, 0.0f, Easing::OutCubic);
-            st.position.y += std::cos(static_cast<f32>(ctx.frame) * 3.7f) * interpolate(t, 0.0f, 0.18f, 14.0f, 0.0f, Easing::OutCubic);
-            st.rotation.z += std::sin(static_cast<f32>(ctx.frame) * 5.0f) * interpolate(t, 0.0f, 0.18f, 4.0f, 0.0f, Easing::OutCubic);
-            st.blur = interpolate(t, 0.0f, 0.12f, 14.0f, 0.0f, Easing::OutCubic);
-        }
-    });
-
-    register_preset({
-        MotionPreset::CinematicPushIn, "CinematicPushIn", [](const FrameContext&, const MotionObject&, f32 t, MotionState& st) {
-            st.position.z += interpolate(t, 0.0f, 0.45f, 320.0f, 0.0f, Easing::OutCubic);
-            st.rotation.y += interpolate(t, 0.0f, 0.45f, -12.0f, 0.0f, Easing::OutCubic);
-            st.rotation.x += interpolate(t, 0.0f, 0.45f, 4.0f, 0.0f, Easing::OutCubic);
-            st.opacity *= interpolate(t, 0.0f, 0.22f, 0.0f, 1.0f, Easing::OutCubic);
-        }
-    });
-
-    register_preset({
-        MotionPreset::ParallaxFloat, "ParallaxFloat", [](const FrameContext& ctx, const MotionObject& obj, f32, MotionState& st) {
-            const f32 frame = static_cast<f32>(ctx.frame);
-            st.position.x += std::sin(frame * 0.018f) * 18.0f * obj.motion3d.parallax;
-            st.position.y += std::cos(frame * 0.014f) * 10.0f * obj.motion3d.parallax;
-            st.rotation.y += std::sin(frame * 0.012f) * 3.5f;
-        }
-    });
-
-    register_preset({
-        MotionPreset::OrbitCard, "OrbitCard", [](const FrameContext&, const MotionObject&, f32 t, MotionState& st) {
-            constexpr f32 pi = 3.1415926535f;
-            st.rotation.y += interpolate(t, 0.0f, 1.0f, -18.0f, 18.0f, Easing::InOutCubic);
-            st.position.z += std::cos(t * pi) * 60.0f;
-        }
-    });
-
-    register_preset({
-        MotionPreset::NewsImpact, "NewsImpact", [](const FrameContext& ctx, const MotionObject& obj, f32 t, MotionState& st) {
-            st.opacity *= interpolate(t, 0.0f, 0.15f, 0.0f, 1.0f, Easing::OutCubic);
-            const f32 s = interpolate(t, 0.0f, 0.25f, 1.6f, 1.0f, Easing::OutBack);
-            st.scale = {obj.scale_value.x * s, obj.scale_value.y * s, obj.scale_value.z};
-            const f32 shake_amp = interpolate(t, 0.0f, 0.35f, 24.0f, 0.0f, Easing::OutCubic);
-            const f32 frame = static_cast<f32>(ctx.frame);
-            st.position.x += std::sin(frame * 2.2f) * shake_amp;
-            st.position.y += std::cos(frame * 1.8f) * shake_amp;
-            st.effects.glow_enabled = true;
-            st.effects.glow.intensity = interpolate(t, 0.0f, 0.40f, 1.8f, 0.30f, Easing::OutCubic);
-            st.effects.glow.radius = interpolate(t, 0.0f, 0.40f, 60.0f, 20.0f, Easing::OutCubic);
-        }
-    });
-
-    register_preset({
-        MotionPreset::GlowReveal3D, "GlowReveal3D", [](const FrameContext&, const MotionObject& obj, f32 t, MotionState& st) {
-            st.opacity *= interpolate(t, 0.0f, 0.30f, 0.0f, 1.0f, Easing::OutCubic);
-            st.text_reveal = interpolate(t, 0.0f, 0.80f, 0.0f, 1.0f, Easing::OutCubic);
-            st.blur = interpolate(t, 0.0f, 0.25f, 16.0f, 0.0f, Easing::OutCubic);
-            st.position.z += interpolate(t, 0.0f, 0.40f, 180.0f, 0.0f, Easing::OutCubic);
-            st.rotation.x += interpolate(t, 0.0f, 0.40f, 15.0f, 0.0f, Easing::OutCubic);
-            st.effects.glow_enabled = true;
-            st.effects.glow.intensity = interpolate(t, 0.0f, 0.50f, 1.2f, 0.40f, Easing::OutCubic);
-            st.effects.glow.radius = interpolate(t, 0.0f, 0.50f, 50.0f, 15.0f, Easing::OutCubic);
-        }
-    });
-
-    // ── New layer motion presets ──────────────────────────────────────────────
-
-    register_preset({
-        MotionPreset::SlideIn, "SlideIn", [](const FrameContext&, const MotionObject& obj, f32 t, MotionState& st) {
-            st.opacity *= interpolate(t, 0.0f, 0.30f, 0.0f, 1.0f, Easing::OutCubic);
-            st.position.x += interpolate(t, 0.0f, 0.34f, 120.0f, 0.0f, Easing::OutCubic);
-            st.position.y += interpolate(t, 0.0f, 0.34f, 24.0f, 0.0f, Easing::OutCubic);
-            st.blur = interpolate(t, 0.0f, 0.24f, 6.0f, 0.0f, Easing::OutCubic);
-        }
-    });
-
-    register_preset({
-        MotionPreset::SoftPop, "SoftPop", [](const FrameContext&, const MotionObject& obj, f32 t, MotionState& st) {
-            st.opacity *= interpolate(t, 0.0f, 0.28f, 0.0f, 1.0f, Easing::OutCubic);
-            const f32 s = interpolate(t, 0.0f, 0.30f, 0.90f, 1.0f, Easing::OutBack);
-            st.scale = {obj.scale_value.x * s, obj.scale_value.y * s, obj.scale_value.z};
-            st.blur = interpolate(t, 0.0f, 0.22f, 4.0f, 0.0f, Easing::OutCubic);
-        }
-    });
-
-    register_preset({
-        MotionPreset::FloatIdle, "FloatIdle", [](const FrameContext& ctx, const MotionObject& obj, f32 t, MotionState& st) {
-            const f32 frame = static_cast<f32>(ctx.frame);
-            st.position.y += std::sin(frame * 0.025f) * 10.0f * obj.motion3d.parallax;
-            st.position.x += std::cos(frame * 0.018f) * 6.0f * obj.motion3d.parallax;
-            st.rotation.z += std::sin(frame * 0.012f) * 1.5f;
-        }
-    });
-
-    register_preset({
-        MotionPreset::DepthReveal, "DepthReveal", [](const FrameContext&, const MotionObject& obj, f32 t, MotionState& st) {
-            st.opacity *= interpolate(t, 0.0f, 0.32f, 0.0f, 1.0f, Easing::OutCubic);
-            const f32 s = interpolate(t, 0.0f, 0.38f, 0.94f, 1.0f, Easing::OutCubic);
-            st.scale = {obj.scale_value.x * s, obj.scale_value.y * s, obj.scale_value.z};
-            st.position.z += interpolate(t, 0.0f, 0.42f, 320.0f, 0.0f, Easing::OutCubic);
-            st.blur = interpolate(t, 0.0f, 0.26f, 5.0f, 0.0f, Easing::OutCubic);
-            st.rotation.y += interpolate(t, 0.0f, 0.40f, -8.0f, 0.0f, Easing::OutCubic);
-        }
-    });
-
-    register_preset({
-        MotionPreset::CardFlip2_5D, "CardFlip2_5D", [](const FrameContext&, const MotionObject& obj, f32 t, MotionState& st) {
-            st.opacity *= interpolate(t, 0.0f, 0.22f, 0.0f, 1.0f, Easing::OutCubic);
-            st.rotation.y += interpolate(t, 0.0f, 0.45f, -90.0f, 0.0f, Easing::OutCubic);
-            st.position.z += interpolate(t, 0.0f, 0.45f, 240.0f, 0.0f, Easing::OutCubic);
-            const f32 s = interpolate(t, 0.0f, 0.40f, 0.88f, 1.0f, Easing::OutCubic);
-            st.scale = {obj.scale_value.x * s, obj.scale_value.y * s, obj.scale_value.z};
-            st.blur = interpolate(t, 0.0f, 0.28f, 8.0f, 0.0f, Easing::OutCubic);
-        }
-    });
-
-    register_preset({
-        MotionPreset::Settle, "Settle", [](const FrameContext&, const MotionObject& obj, f32 t, MotionState& st) {
-            const f32 s = interpolate(t, 0.0f, 0.32f, 1.08f, 1.0f, Easing::OutBack);
-            st.scale = {obj.scale_value.x * s, obj.scale_value.y * s, obj.scale_value.z};
-            st.rotation.z += interpolate(t, 0.0f, 0.28f, 2.0f, 0.0f, Easing::OutBack);
-            st.position.y += interpolate(t, 0.0f, 0.28f, 8.0f, 0.0f, Easing::OutBack);
-            st.blur = interpolate(t, 0.0f, 0.20f, 3.0f, 0.0f, Easing::OutCubic);
-        }
-    });
+    register_reveal_presets(*this);
+    register_3d_presets(*this);
+    register_glow_presets(*this);
+    register_idle_presets(*this);
+    register_impact_presets(*this);
 }
 
 } // namespace chronon3d::presets::motion

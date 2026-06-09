@@ -2,6 +2,16 @@
 # TARGETS DEFINITION (Ordinati per Grafo di Dipendenza Lineare)
 # ==============================================================================
 
+# ==============================================================================
+# CENTRALIZED EXTERNAL LINK FLAGS
+# These are bare linker flags that don't have a CMake imported target. Keep
+# all references to a given system library routed through these variables so
+# the dependency set lives in one place (and the README build instructions
+# stay in sync with the actual link command).
+# ==============================================================================
+set(CHRONON3D_FFMPEG_LIBS_LIGHT "-lswscale;-lavutil")      # swscale + pixel utils (frame_converter.cpp)
+set(CHRONON3D_FFMPEG_LIBS_FULL  "-lswscale;-lavcodec;-lavformat;-lavutil")  # full mux/pipe path (cli_video)
+
 # 1. Core Impl
 add_library(chronon3d_core_impl STATIC
     core/profiling.cpp
@@ -191,7 +201,7 @@ set(CHRONON3D_BACKEND_VIDEO_SOURCES
 )
 add_library(chronon3d_backend_video STATIC ${CHRONON3D_BACKEND_VIDEO_SOURCES})
 set_target_properties(chronon3d_backend_video PROPERTIES UNITY_BUILD OFF)
-target_link_libraries(chronon3d_backend_video PUBLIC chronon3d chronon3d_cache spdlog::spdlog_header_only fmt::fmt TBB::tbb hwy::hwy)
+target_link_libraries(chronon3d_backend_video PUBLIC chronon3d chronon3d_cache spdlog::spdlog_header_only fmt::fmt TBB::tbb hwy::hwy ${CHRONON3D_FFMPEG_LIBS_LIGHT})
 target_include_directories(chronon3d_backend_video PRIVATE ${CMAKE_SOURCE_DIR})
 
 target_link_libraries(chronon3d_graph PUBLIC chronon3d_backend_video)
@@ -316,6 +326,11 @@ set(CHRONON3D_SCENE_SOURCES
     presets/motion_renderer.cpp
     presets/motion_resolver.cpp
     presets/motion_preset_registry.cpp
+    presets/motion_presets_reveal.cpp
+    presets/motion_presets_3d.cpp
+    presets/motion_presets_glow.cpp
+    presets/motion_presets_idle.cpp
+    presets/motion_presets_impact.cpp
     presets/phrase_presets.cpp
     presets/phrase_group_builder.cpp
     specscene/model/specscene.cpp
@@ -372,4 +387,4 @@ target_link_libraries(chronon3d_software INTERFACE
 
 add_library(chronon3d_pipeline INTERFACE)
 target_link_libraries(chronon3d_pipeline INTERFACE chronon3d_core chronon3d_software Taskflow::Taskflow concurrentqueue::concurrentqueue yuv
-    -lswscale -lavutil)
+    ${CHRONON3D_FFMPEG_LIBS_LIGHT})
