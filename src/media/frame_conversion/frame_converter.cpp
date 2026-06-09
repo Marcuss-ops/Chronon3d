@@ -36,16 +36,27 @@ struct SwsParams {
     int          color_matrix;   // 0 = BT.709, 1 = BT.601, 2 = BT.2020
 };
 
-static std::mutex s_sws_mutex;
+struct SwsContextDeleter {
+    void operator()(SwsContext* ctx) const noexcept {
+        if (ctx) sws_freeContext(ctx);
+    }
+};
 
 /// Retrieve (or create-and-cache) a SwsContext via sws_getCachedContext.
 /// The context is configured with BT.601/BT.709/BT.2020 coefficients and
 /// full-range (0-255) input/output.
+///
+/// Thread-safety: each thread owns its own SwsContext via thread_local.
+/// FFmpeg's sws_getCachedContext() is designed to be called per-thread —
+/// SwsContext is not safe to share across threads (sws_scale mutates
+/// internal state). Previously this used a process-wide `s_sws_mutex` that
+/// serialized all frame conversions to YUV/NV12/RGB, which was the main
+/// bottleneck of the video export pipeline. With thread_local contexts,
+/// each worker thread can run sws_scale in parallel.
 static SwsContext* get_or_create_sws_context(const SwsParams& params) {
-    std::lock_guard<std::mutex> lock(s_sws_mutex);
+    thread_local std::unique_ptr<SwsContext, SwsContextDeleter> ctx_owner;
 
-    static SwsContext* ctx = nullptr;
-
+    SwsContext* ctx = ctx_owner.release();
     ctx = sws_getCachedContext(
         ctx,
         params.src_w, params.src_h, params.src_fmt,
@@ -53,6 +64,7 @@ static SwsContext* get_or_create_sws_context(const SwsParams& params) {
         SWS_BILINEAR, nullptr, nullptr, nullptr);
     if (!ctx)
         return nullptr;
+    ctx_owner.reset(ctx);  // takes ownership (frees old ctx if reallocated)
 
     // Select color space coefficients.
     const int src_cs = (params.color_matrix == 1) ? SWS_CS_DEFAULT :
