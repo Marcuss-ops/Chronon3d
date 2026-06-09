@@ -460,7 +460,21 @@ Composition text_typewriter() {
             .set_color({0.62f, 0.88f, 1.0f, 1.0f})
             .set_align(TextAlign::Center)
             .set_size({1500.0f, 320.0f})
-    }, presets::motion::MotionPreset::FadeIn, false, {0.01f, 0.012f, 0.022f, 1.0f}, 180, 1100.0f, 1920, 1080);
+            // Hide the blinking cursor for the centered reveal — keeps the
+            // text clean and lets the glow + sweep do the visual lifting.
+            .set_cursor(false)
+            // Add a gentle Z-axis sweep so the text breathes in/out of
+            // depth across the 5s duration (period 120 frames).
+            .set_sweep(18.0f)
+    },
+    // GlowBloom preset: enables both the layer effect glow and routes the
+    // per-layer strengths (core 0.6 / aura 0.3 / bloom 0.12) through the
+    // bridge that sets node.glow on the text processor.
+    presets::motion::MotionPreset::GlowBloom,
+    true,                                  // glow=true → node.glow set
+    {0.01f, 0.012f, 0.022f, 1.0f},
+    150,                                    // 150 frames @ 30fps = 5s
+    1100.0f, 1920, 1080);
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
