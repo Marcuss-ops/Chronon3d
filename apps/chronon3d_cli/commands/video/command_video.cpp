@@ -89,7 +89,8 @@ int command_video(const CompositionRegistry& registry, const VideoArgs& args) {
         const auto& comp = *resolved.comp;
 
         RenderSettings settings = settings_from_args(args, !resolved.from_specscene);
-        const Frame end = (args.end > args.start) ? args.end : comp.duration();
+        // Dry-run: CLI end is inclusive, convert to exclusive for internal use
+        const Frame end = (args.end > args.start) ? (args.end + 1) : comp.duration();
         const int total = static_cast<int>(end - args.start);
 
         spdlog::info("[dry-run] Composition: {}", args.comp_id);
@@ -181,7 +182,15 @@ int command_video(const CompositionRegistry& registry, const VideoArgs& args) {
     // Pass cancellation token for graceful SIGINT handling
     opts.cancellation_token = &cancel_token;
 
-    const Frame end = (args.end > args.start) ? args.end : comp.duration();
+    // ── CLI end is INCLUSIVE (user says --end 299 → renders frame 299) ────
+    // The internal render loop uses exclusive end (current_frame < end).
+    // Convert here so the user gets intuitive behavior.
+    // When --end is not provided, fall back to comp.duration() which is
+    // already the exclusive end (e.g. duration=300 means frames 0-299).
+    // Use > to distinguish '--end provided by user' from 'default (0)'.
+    // With >=, --start 0 without --end would render only 1 frame instead
+    // of the full composition because args.end defaults to 0.
+    const Frame end = (args.end > args.start) ? (args.end + 1) : comp.duration();
     
     return render_and_encode_ffmpeg(registry, comp, args.comp_id, settings, args.start, end, opts);
 }
@@ -205,7 +214,12 @@ int command_video_camera(const CompositionRegistry& registry, const VideoCameraA
         params.start_deg = args.roll_start_deg;
         params.end_deg = args.roll_end_deg;
     }
-    params.duration = args.end - args.start;
+    // CLI end is inclusive; convert to exclusive for internal use
+    // CLI end is inclusive; convert to exclusive for internal use.
+    // comp isn't defined yet (created below via camera_motion_clip),
+    // so use args.end as fallback for the no-`--end` case (same as original).
+    const Frame cam_end = (args.end > args.start) ? (args.end + 1) : args.end;
+    params.duration = cam_end - args.start;
     params.start_frame = args.start;
     params.width = args.width;
     params.height = args.height;
@@ -254,7 +268,7 @@ int command_video_camera(const CompositionRegistry& registry, const VideoCameraA
     opts.ffmpeg_mode = "png";
     opts.ffmpeg_verbose = false;
 
-    return render_and_encode_ffmpeg(registry, comp, comp.name(), settings, args.start, args.end, opts);
+    return render_and_encode_ffmpeg(registry, comp, comp.name(), settings, args.start, cam_end, opts);
 }
 
 } // namespace chronon3d::cli
