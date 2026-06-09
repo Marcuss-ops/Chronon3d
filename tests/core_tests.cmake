@@ -7,9 +7,11 @@ add_executable(chronon3d_core_tests
     core/math/test_output_transform.cpp
     simd/test_simd_kernels.cpp
     cache/test_lru_weight.cpp
+    cache/test_lru_cache.cpp
     cache/test_framebuffer_pool.cpp
     cache/test_video_frame_cache.cpp
     cache/test_persistent_bake_cache.cpp
+    core/test_sharded_telemetry_store.cpp
     core/math/test_camera_pose.cpp
     core/math/test_camera_2_5d_projection.cpp
     core/math/test_projector_2_5d.cpp
