@@ -97,14 +97,14 @@ struct ProjectionContext {
     [[nodiscard]] bool project_line_clipped(Vec3 w0, Vec3 w1, Vec2& p0, Vec2& p1) const {
         Vec4 c0 = view * Vec4(w0, 1.0f);
         Vec4 c1 = view * Vec4(w1, 1.0f);
-        constexpr f32 near = 0.5f;
-        if (c0.z <= near && c1.z <= near) return false;
-        if (c0.z <= near) {
-            const f32 t = (near - c1.z) / (c0.z - c1.z);
+        constexpr f32 near_z = 0.5f;
+        if (c0.z <= near_z && c1.z <= near_z) return false;
+        if (c0.z <= near_z) {
+            const f32 t = (near_z - c1.z) / (c0.z - c1.z);
             c0 = c1 + (c0 - c1) * t;
         }
-        if (c1.z <= near) {
-            const f32 t = (near - c0.z) / (c1.z - c0.z);
+        if (c1.z <= near_z) {
+            const f32 t = (near_z - c0.z) / (c1.z - c0.z);
             c1 = c0 + (c1 - c0) * t;
         }
         const f32 ps0 = focal / c0.z;
