@@ -16,7 +16,7 @@ Layer make_inert_layer(const char* name, Frame duration = 60) {
     Layer l;
     l.name = name;
     l.duration = duration;
-    l.kind = LayerKind::Shape;
+    l.kind = LayerKind::Normal;
     l.visible = true;
     return l;
 }

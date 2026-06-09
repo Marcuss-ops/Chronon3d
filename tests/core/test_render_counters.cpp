@@ -266,7 +266,7 @@ TEST_CASE("RenderCounters: thread_local is faster than atomic on N threads") {
 // ---------------------------------------------------------------------------
 TEST_CASE("RenderCounters: dirty_full_fallback_reasons array integrity") {
     if (dirty_fallback_reason_count() < 2) {
-        SUCCEED("Not enough reasons to test array integrity");
+        MESSAGE("Not enough reasons to test array integrity");
         return;
     }
 
