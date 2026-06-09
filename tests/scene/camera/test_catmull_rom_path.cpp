@@ -1,5 +1,5 @@
 #include <doctest/doctest.h>
-#include <chronon3d/animation/catmull_rom_path.hpp>
+#include <chronon3d/animation/path/catmull_rom_path.hpp>
 #include <cmath>
 
 using namespace chronon3d;

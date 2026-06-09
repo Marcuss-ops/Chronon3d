@@ -1,7 +1,7 @@
 #pragma once
 
-#include <chronon3d/animation/easing.hpp>
-#include <chronon3d/animation/interpolate.hpp>
+#include <chronon3d/animation/easing/easing.hpp>
+#include <chronon3d/animation/easing/interpolate.hpp>
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/core/types/types.hpp>
 

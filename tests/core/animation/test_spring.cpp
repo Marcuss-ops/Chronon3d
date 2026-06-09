@@ -1,5 +1,5 @@
 #include <doctest/doctest.h>
-#include <chronon3d/animation/spring.hpp>
+#include <chronon3d/animation/easing/spring.hpp>
 #include <cmath>
 
 using namespace chronon3d;

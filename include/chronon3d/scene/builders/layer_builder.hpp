@@ -11,8 +11,8 @@
 #include <chronon3d/layout/layout_rules.hpp>
 #include <chronon3d/backends/video/video_source.hpp>
 #include <chronon3d/math/glm_types.hpp>
-#include <chronon3d/animation/animated_value.hpp>
-#include <chronon3d/animation/animated_transform.hpp>
+#include <chronon3d/animation/core/animated_value.hpp>
+#include <chronon3d/animation/effects/animated_transform.hpp>
 #include <string>
 #include <memory_resource>
 #include <optional>

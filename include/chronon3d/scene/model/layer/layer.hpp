@@ -3,7 +3,7 @@
 #include <chronon3d/core/types/types.hpp>
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/math/transform.hpp>
-#include <chronon3d/animation/animated_transform.hpp>
+#include <chronon3d/animation/effects/animated_transform.hpp>
 #include <chronon3d/scene/model/render/render_node.hpp>
 #include <chronon3d/scene/model/layer/mask.hpp>
 #include <chronon3d/scene/model/core/effect_stack.hpp>

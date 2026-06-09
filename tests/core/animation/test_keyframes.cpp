@@ -1,5 +1,5 @@
 #include <doctest/doctest.h>
-#include <chronon3d/animation/keyframe.hpp>
+#include <chronon3d/animation/core/keyframe.hpp>
 
 using namespace chronon3d;
 

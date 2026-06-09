@@ -3,8 +3,8 @@
 #include <chronon3d/presets/motion_object.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
-#include <chronon3d/animation/spring.hpp>
-#include <chronon3d/animation/interpolate.hpp>
+#include <chronon3d/animation/easing/spring.hpp>
+#include <chronon3d/animation/easing/interpolate.hpp>
 
 namespace chronon3d::presets::motion {
 

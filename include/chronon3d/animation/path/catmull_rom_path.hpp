@@ -1,7 +1,7 @@
 #pragma once
 
-#include <chronon3d/animation/easing.hpp>
-#include <chronon3d/animation/spatial_bezier_path.hpp>  // for AutoOrientMode
+#include <chronon3d/animation/easing/easing.hpp>
+#include <chronon3d/animation/path/spatial_bezier_path.hpp>  // for AutoOrientMode
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/core/types/types.hpp>
 #include <chronon3d/core/types/frame.hpp>

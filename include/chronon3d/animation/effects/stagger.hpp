@@ -1,7 +1,7 @@
 #pragma once
 
-#include <chronon3d/animation/animated_transform.hpp>
-#include <chronon3d/animation/easing.hpp>
+#include <chronon3d/animation/effects/animated_transform.hpp>
+#include <chronon3d/animation/easing/easing.hpp>
 #include <chronon3d/scene/model/layer/layer.hpp>
 #include <chronon3d/presets/motion_object.hpp>
 #include <vector>

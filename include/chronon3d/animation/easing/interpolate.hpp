@@ -1,6 +1,6 @@
 #pragma once
 
-#include <chronon3d/animation/easing.hpp>
+#include <chronon3d/animation/easing/easing.hpp>
 #include <chronon3d/core/types/time.hpp>
 #include <algorithm>
 

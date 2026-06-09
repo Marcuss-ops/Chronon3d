@@ -1,5 +1,5 @@
 #include <chronon3d/render_graph/nodes/transition_node.hpp>
-#include <chronon3d/animation/easing.hpp>
+#include <chronon3d/animation/easing/easing.hpp>
 #include <cmath>
 #include <algorithm>
 #include <span>

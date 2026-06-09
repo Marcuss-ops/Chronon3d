@@ -1,7 +1,7 @@
 #include <doctest/doctest.h>
-#include <chronon3d/animation/easing.hpp>
-#include <chronon3d/animation/animated_value.hpp>
-#include <chronon3d/animation/interpolate.hpp>
+#include <chronon3d/animation/easing/easing.hpp>
+#include <chronon3d/animation/core/animated_value.hpp>
+#include <chronon3d/animation/easing/interpolate.hpp>
 
 using namespace chronon3d;
 

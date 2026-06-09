@@ -1,7 +1,7 @@
 #pragma once
 
 #include <chronon3d/math/transform.hpp>
-#include <chronon3d/animation/animated_value.hpp>
+#include <chronon3d/animation/core/animated_value.hpp>
 #include <chronon3d/math/glm_types.hpp>
 
 namespace chronon3d {
