@@ -454,12 +454,8 @@ Composition image_proofs() {
 
 } // namespace chronon3d::content::images
 
-CHRONON_REGISTER_COMPOSITION("ImgGradient",    chronon3d::content::images::img_gradient)
-CHRONON_REGISTER_COMPOSITION("ImgChecker",     chronon3d::content::images::img_checker)
-CHRONON_REGISTER_COMPOSITION("ImgGridTest",    chronon3d::content::images::img_grid_test)
-CHRONON_REGISTER_COMPOSITION("ImgTestPattern", chronon3d::content::images::img_test_pattern)
-CHRONON_REGISTER_COMPOSITION("ImgShakeZoom",   chronon3d::content::images::img_shake_zoom)
-CHRONON_REGISTER_COMPOSITION("ImgReferenceShakeReveal", chronon3d::content::images::img_reference_shake_reveal)
-CHRONON_REGISTER_COMPOSITION("ImgCornerSmoothing", chronon3d::content::images::img_corner_smoothing)
-CHRONON_REGISTER_COMPOSITION("ImageProofs",          chronon3d::content::images::image_proofs)
+// Compositions are now registered via ImagesModule in images_module.cpp
+// (ExtensionRegistry pattern).  Do NOT also CHRONON_REGISTER_COMPOSITION
+// here or we get duplicate-registration runtime errors from
+// `ExtensionRegistry::register_composition` ("Duplicate composition: ...").
 

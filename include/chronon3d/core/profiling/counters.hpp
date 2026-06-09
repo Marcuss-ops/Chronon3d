@@ -373,16 +373,14 @@ inline RenderCountersRaw& thread_local_counters() {
 
 /// Number of fields in RenderCounters / RenderCountersRaw.
 /// Used by tests / benchmarks to compute throughput.
+///
+/// Implementation: RenderCountersRaw is a POD struct whose only members are
+/// `uint64_t` (X-macro generated) plus the `dirty_full_fallback_reasons`
+/// array of `uint64_t`.  `sizeof(RenderCountersRaw) / sizeof(uint64_t)`
+/// therefore gives the exact total number of uint64_t fields including the
+/// array slots, which is what the tests / benchmarks want.
 constexpr std::size_t render_counters_field_count() {
-    return
-#define X(name) +1
-        0 CHRONON_RENDER_COUNTERS(X)
-#undef X
-#define X(name) +1
-        0 CHRONON_RENDER_COUNTERS_SYSTEM(X)
-        CHRONON_RENDER_COUNTERS_SETUP(X)
-#undef X
-        + dirty_fallback_reason_count();
+    return sizeof(RenderCountersRaw) / sizeof(uint64_t);
 }
 
 } // namespace chronon3d
