@@ -1,6 +1,6 @@
 #pragma once
 
-#include <chronon3d/animation/animated_value.hpp>
+#include <chronon3d/animation/core/animated_value.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/scene/camera/animated_camera_2_5d.hpp>
 #include <chronon3d/scene/model/core/transform_resolver.hpp>

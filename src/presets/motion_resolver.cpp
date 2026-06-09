@@ -1,6 +1,6 @@
 #include <chronon3d/presets/motion_resolver.hpp>
 #include <chronon3d/presets/motion_preset_registry.hpp>
-#include <chronon3d/animation/interpolate.hpp>
+#include <chronon3d/animation/easing/interpolate.hpp>
 
 #include <algorithm>
 #include <cmath>

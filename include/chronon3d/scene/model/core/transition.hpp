@@ -2,7 +2,7 @@
 
 #include <chronon3d/core/enum_utils.hpp>
 #include <chronon3d/core/types/types.hpp>
-#include <chronon3d/animation/easing.hpp>
+#include <chronon3d/animation/easing/easing.hpp>
 #include <string>
 
 namespace chronon3d {

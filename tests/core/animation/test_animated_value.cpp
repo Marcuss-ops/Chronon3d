@@ -1,5 +1,5 @@
 #include <doctest/doctest.h>
-#include <chronon3d/animation/animated_value.hpp>
+#include <chronon3d/animation/core/animated_value.hpp>
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/math/glm_types.hpp>
 

@@ -1,5 +1,5 @@
 #include <doctest/doctest.h>
-#include <chronon3d/animation/stagger.hpp>
+#include <chronon3d/animation/effects/stagger.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/presets/motion_object.hpp>
 

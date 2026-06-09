@@ -1,6 +1,6 @@
 #include <doctest/doctest.h>
-#include <chronon3d/animation/animation_curve.hpp>
-#include <chronon3d/animation/animated_value.hpp>
+#include <chronon3d/animation/core/animation_curve.hpp>
+#include <chronon3d/animation/core/animated_value.hpp>
 
 using namespace chronon3d;
 
