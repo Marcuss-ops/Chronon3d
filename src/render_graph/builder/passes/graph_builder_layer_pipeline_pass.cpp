@@ -3,8 +3,8 @@
 #include "../graph_builder_coordinates.hpp"
 #include "graph_builder_lighting_passes.hpp"
 #include <chronon3d/render_graph/builder/graph_build_context.hpp>
-#include <chronon3d/scene/model/scene.hpp>
-#include <chronon3d/scene/model/layer.hpp>
+#include <chronon3d/scene/model/core/scene.hpp>
+#include <chronon3d/scene/model/layer/layer.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/core/telemetry/render_telemetry.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>

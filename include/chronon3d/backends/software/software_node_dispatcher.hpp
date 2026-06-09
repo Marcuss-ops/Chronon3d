@@ -1,8 +1,8 @@
 #pragma once
 
 #include <chronon3d/core/memory/framebuffer.hpp>
-#include <chronon3d/scene/model/render_node.hpp>
-#include <chronon3d/scene/model/camera.hpp>
+#include <chronon3d/scene/model/render/render_node.hpp>
+#include <chronon3d/scene/model/camera/camera.hpp>
 #include <chronon3d/backends/software/software_registry.hpp>
 
 namespace chronon3d {

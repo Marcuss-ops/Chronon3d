@@ -2,7 +2,7 @@
 
 #include <chronon3d/animations/camera_motion_params.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
-#include <chronon3d/scene/model/camera_2_5d.hpp>
+#include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 
 namespace chronon3d::animation {
 

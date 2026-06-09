@@ -2,7 +2,7 @@
 
 #include <chronon3d/render_graph/render_pipeline.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
-#include <chronon3d/scene/model/layer.hpp>
+#include <chronon3d/scene/model/layer/layer.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/effects/effect_category.hpp>
 #include <chronon3d/effects/effect_registry.hpp>

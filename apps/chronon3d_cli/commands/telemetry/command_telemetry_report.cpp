@@ -252,6 +252,7 @@ void generate_telemetry_report(std::stringstream& out, sqlite3* db, const std::s
                     std::string label = name;
                     if (label == "clearnode_memcpy_ms") label = "ClearNode memcpy";
                     else if (label == "clearnode_clear_ms") label = "ClearNode clear";
+                    else if (label == "clearnode_restore_ms") label = "ClearNode restore";
                     else if (label == "framebuffer_copy_ms") label = "Framebuffer copy";
                     else if (label == "compositenode_blend_ms") label = "Composite blend";
                     else if (label == "compositenode_copy_ms") label = "Composite copy";
@@ -307,7 +308,7 @@ void generate_telemetry_report(std::stringstream& out, sqlite3* db, const std::s
     out << "| --- | ---: | ---: | ---: | ---: | ---: |\n";
     {
         // Query phase-cost counters not available in RunSummary
-        uint64_t clr_memcpy_ms = 0, clr_clear_ms = 0;
+        uint64_t clr_memcpy_ms = 0, clr_clear_ms = 0, clr_restore_ms = 0;
         uint64_t blend_ms = compositenode_blend_ms; // already from Phase CPU Efficiency query
         uint64_t conv_ms = run.frame_conversion_copy_ms;
         uint64_t pipe_ms = run.video_pipe_write_ms;
@@ -320,6 +321,7 @@ void generate_telemetry_report(std::stringstream& out, sqlite3* db, const std::s
                     const uint64_t val = static_cast<uint64_t>(sql_i64(astmt, 1));
                     if (name == "clearnode_memcpy_ms") clr_memcpy_ms = val;
                     else if (name == "clearnode_clear_ms") clr_clear_ms = val;
+                    else if (name == "clearnode_restore_ms") clr_restore_ms = val;
                     else if (name == "compositenode_blend_ms") blend_ms = val;
                     else if (name == "frame_conversion_copy_ms") conv_ms = val;
                     else if (name == "video_pipe_write_ms") pipe_ms = val;
@@ -366,6 +368,9 @@ void generate_telemetry_report(std::stringstream& out, sqlite3* db, const std::s
         work_line("ClearNode clear", clr_clear_ms,
                    run.clear_pixels,
                    used_par_clear > 0 ? tbb_avg_workers : 1.0);
+        work_line("ClearNode restore", clr_restore_ms,
+                   run.clearnode_copy_pixels,
+                   used_par_clear > 0 ? tbb_avg_workers : 1.0);
         work_line("Composite blend", blend_ms,
                    run.composite_pixels,
                    used_par_composite > 0 ? tbb_avg_workers : 1.0);
@@ -394,7 +399,7 @@ void generate_telemetry_report(std::stringstream& out, sqlite3* db, const std::s
 
         // Attribution coverage vs node_execute_actual_ms
         const uint64_t total_attributed =
-            clr_memcpy_ms + clr_clear_ms + blend_ms +
+            clr_memcpy_ms + clr_clear_ms + clr_restore_ms + blend_ms +
             transform_wall + conv_ms + pipe_ms;
         const double coverage_pct = node_exec_ms > 0
             ? (static_cast<double>(total_attributed) / static_cast<double>(node_exec_ms)) * 100.0
@@ -710,6 +715,7 @@ void generate_telemetry_report(std::stringstream& out, sqlite3* db, const std::s
                         const uint64_t v = static_cast<uint64_t>(sql_i64(cs, 1));
                         if (n == "clearnode_memcpy_ms") attr_clr_mem = v;
                         else if (n == "clearnode_clear_ms") attr_clr_clr = v;
+                        else if (n == "clearnode_restore_ms") attr_clr_clr += v;
                         else if (n == "compositenode_blend_ms") attr_blend = v;
                     }
                 }

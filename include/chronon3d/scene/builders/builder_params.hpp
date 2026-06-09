@@ -2,8 +2,8 @@
 
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/math/color.hpp>
-#include <chronon3d/scene/model/fill.hpp>
-#include <chronon3d/scene/model/shape.hpp>
+#include <chronon3d/scene/model/shape/fill.hpp>
+#include <chronon3d/scene/model/shape/shape.hpp>
 #include <chronon3d/media/media_placement.hpp>
 #include <optional>
 #include <string>

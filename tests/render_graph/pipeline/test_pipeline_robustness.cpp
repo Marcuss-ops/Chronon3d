@@ -5,7 +5,7 @@
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/render_graph/nodes/source_node.hpp>
 #include <chronon3d/render_graph/nodes/multi_source_node.hpp>
-#include <chronon3d/scene/model/render_node_factory.hpp>
+#include <chronon3d/scene/model/render/render_node_factory.hpp>
 #include <cmath>
 #include "src/render_graph/builder/graph_builder_coordinates.hpp"
 #include "src/render_graph/builder/graph_builder_internal.hpp"

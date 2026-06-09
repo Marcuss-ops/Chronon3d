@@ -91,6 +91,7 @@ inline std::vector<chronon3d::telemetry::CounterTelemetryRecord> capture_counter
         {"framebuffer_acquire_ms", counters.framebuffer_acquire_ms.load(std::memory_order_relaxed)},
         {"framebuffer_clear_ms", counters.framebuffer_clear_ms.load(std::memory_order_relaxed)},
         {"clearnode_ms", counters.clearnode_ms.load(std::memory_order_relaxed)},
+        {"clearnode_restore_ms", counters.clearnode_restore_ms.load(std::memory_order_relaxed)},
         {"clearnode_memcpy_ms", counters.clearnode_memcpy_ms.load(std::memory_order_relaxed)},
         {"clearnode_acquire_ms", counters.clearnode_acquire_ms.load(std::memory_order_relaxed)},
         {"clearnode_clear_ms", counters.clearnode_clear_ms.load(std::memory_order_relaxed)},

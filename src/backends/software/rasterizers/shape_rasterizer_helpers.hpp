@@ -9,8 +9,8 @@
 // and potentially other rasterizer files.
 // ---------------------------------------------------------------------------
 
-#include <chronon3d/scene/model/shape.hpp>
-#include <chronon3d/scene/model/fill.hpp>
+#include <chronon3d/scene/model/shape/shape.hpp>
+#include <chronon3d/scene/model/shape/fill.hpp>
 #include <chronon3d/math/raster_utils.hpp>
 #include <algorithm>
 #include <cmath>
