@@ -452,26 +452,29 @@ Composition text_typewriter() {
         TypewriterLine("THE ENGINE LEARNED TO SPEAK, typed frame by frame — a single line that wraps when it reaches the edge of the viewport so you can see the centered alignment in action on multiple rows.")
             .set_pos({0, 0, 0})
             .set_font(56, 4)
-            .set_timing(0, 2.5f)
+            // Static render: chars_per_frame=1000 reveals the full line in
+            // one tick (no typewriter animation) so the frame is identical
+            // across all 30 frames.
+            .set_timing(0, 1000.0f)
             // Brightened from {0.25, 0.58, 1} to {0.62, 0.88, 1.0} so the
-            // blue text reads clearly against the dark grid background
-            // (was 643 blue pixels at 48pt = 0.03% of canvas = invisible
-            // to the eye; brighter color and 56pt both lift coverage).
+            // blue text reads clearly against the dark grid background.
             .set_color({0.62f, 0.88f, 1.0f, 1.0f})
             .set_align(TextAlign::Center)
             .set_size({1500.0f, 320.0f})
             // Hide the blinking cursor for the centered reveal.
             .set_cursor(false)
     },
-    // FadeIn preset: simple 0→1 alpha curve, no fade-out.  Earlier
-    // attempts (GlowBloom, SoftDollyReveal) both rendered the text but
-    // masked it with a padded alpha / bloom buffer.  FadeIn keeps the
-    // text fully opaque from reveal to end-of-clip.
+    // FadeIn preset: simple 0→1 alpha curve, no fade-out.  Keeps the text
+    // fully opaque from reveal completion to end-of-clip.
     presets::motion::MotionPreset::FadeIn,
     false,                                 // no glow — text reads clean
     {0.01f, 0.012f, 0.022f, 1.0f},
-    150,                                    // 150 frames @ 30fps = 5s
-    1100.0f, 1920, 1080);
+    30,                                     // 30 frames @ 30fps = 1s
+    1100.0f, 1920, 1080,
+    // Static camera_fn overrides the default dolly_in.  The frame is now
+    // identical across all 30 frames: no camera motion, no reveal
+    // animation — just the centered text on the dark grid.
+    [](f32) { return Camera2_5D{}; });
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
