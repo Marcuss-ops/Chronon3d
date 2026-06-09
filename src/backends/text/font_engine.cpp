@@ -161,7 +161,8 @@ FontEngine& FontEngine::operator=(FontEngine&&) noexcept = default;
 std::optional<GlyphRun> FontEngine::shape_text(
     std::string_view text,
     const FontSpec& spec,
-    float font_size
+    float font_size,
+    const TextShaping& shaping
 ) const {
     if (!m_impl || !m_impl->ft_library || text.empty() || font_size <= 0.0f) {
         return std::nullopt;
@@ -196,9 +197,19 @@ std::optional<GlyphRun> FontEngine::shape_text(
     if (!buf) return std::nullopt;
     hb_buffer_add_utf8(buf, text.data(), static_cast<int>(text.size()), 0, static_cast<int>(text.size()));
     hb_buffer_set_direction(buf, HB_DIRECTION_LTR);
-    // TODO: expose script/language as parameters for non-Latin text support
-    hb_buffer_set_script(buf, HB_SCRIPT_LATIN);
-    hb_buffer_set_language(buf, hb_language_from_string("en", -1));
+    // Script/language are now configurable per call via TextShaping.
+    // Default TextShaping{} uses HB_SCRIPT_COMMON + "en", which HarfBuzz
+    // treats as auto-detect from the text content for script and
+    // English for the OpenType language tag.  Pass a TextShaping with
+    // e.g. HB_SCRIPT_ARABIC + "ar" for Arabic shaping.
+    hb_buffer_set_script(buf,
+        shaping.script != 0
+            ? static_cast<hb_script_t>(shaping.script)
+            : HB_SCRIPT_COMMON);
+    hb_buffer_set_language(buf,
+        hb_language_from_string(
+            shaping.language.empty() ? "en" : shaping.language.c_str(),
+            -1));
 
     hb_shape(entry->hb_font, buf, nullptr, 0);
 
@@ -267,8 +278,8 @@ std::optional<GlyphRun> FontEngine::shape_text(
     return run;
 }
 
-float FontEngine::measure_text(std::string_view text, const FontSpec& spec, float font_size) const {
-    auto run = shape_text(text, spec, font_size);
+float FontEngine::measure_text(std::string_view text, const FontSpec& spec, float font_size, const TextShaping& shaping) const {
+    auto run = shape_text(text, spec, font_size, shaping);
     if (!run) return 0.0f;
     return run->width;
 }
@@ -352,9 +363,9 @@ bool FontEngine::can_load(const FontSpec& spec) {
 
 // ── Global convenience ──────────────────────────────────────────────
 
-std::optional<GlyphRun> shape_text(std::string_view text, const FontSpec& spec, float font_size) {
+std::optional<GlyphRun> shape_text(std::string_view text, const FontSpec& spec, float font_size, const TextShaping& shaping) {
     static FontEngine engine;
-    return engine.shape_text(text, spec, font_size);
+    return engine.shape_text(text, spec, font_size, shaping);
 }
 
 FontEngine& shared_font_engine() {
