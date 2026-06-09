@@ -45,7 +45,8 @@ GROUP BY node_name, node_type ORDER BY SUM(duration_ms) DESC LIMIT 50;
 inline constexpr const char* kPhaseCostCounters = R"(
 SELECT counter_name, counter_value FROM render_counters WHERE run_id = ?
 AND counter_name IN (
-'clearnode_memcpy_ms','clearnode_clear_ms','framebuffer_copy_ms',
+'clearnode_memcpy_ms','clearnode_clear_ms','clearnode_restore_ms',
+'framebuffer_copy_ms',
 'compositenode_blend_ms','compositenode_copy_ms','compositenode_setup_ms',
 'frame_conversion_copy_ms','video_pipe_write_ms')
 ORDER BY counter_name;
@@ -60,7 +61,8 @@ SELECT COALESCE(SUM(duration_ms), 0) FROM render_node_events WHERE run_id = ?;
 inline constexpr const char* kHotWorkAttribution = R"(
 SELECT counter_name, counter_value FROM render_counters WHERE run_id = ?
 AND counter_name IN (
-'clearnode_memcpy_ms','clearnode_clear_ms','compositenode_blend_ms',
+'clearnode_memcpy_ms','clearnode_clear_ms','clearnode_restore_ms',
+'compositenode_blend_ms',
 'frame_conversion_copy_ms','video_pipe_write_ms')
 ORDER BY counter_name;
 )";
@@ -152,7 +154,8 @@ ELSE 8 END;
 inline constexpr const char* kBottleneckCoverage = R"(
 SELECT counter_name, counter_value FROM render_counters WHERE run_id = ?
 AND counter_name IN (
-'clearnode_memcpy_ms','clearnode_clear_ms','compositenode_blend_ms')
+'clearnode_memcpy_ms','clearnode_clear_ms','clearnode_restore_ms',
+'compositenode_blend_ms')
 ORDER BY counter_name;
 )";
 
