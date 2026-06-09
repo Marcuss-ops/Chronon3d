@@ -122,8 +122,11 @@ sudo apt-get install -y ccache
 ccache --set-config=max_size=10G
 ccache --set-config=compression=true
 
-# ffmpeg for video export
+# ffmpeg runtime (for video export)
 sudo apt-get install -y ffmpeg
+
+# ffmpeg development headers (required for building — libswscale, libavutil, libavcodec, libavformat)
+sudo apt-get install -y libswscale-dev libavutil-dev libavcodec-dev libavformat-dev zip unzip curl pkg-config
 ```
 
 ### 1. Build (Linux)
