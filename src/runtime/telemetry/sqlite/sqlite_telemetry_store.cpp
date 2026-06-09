@@ -53,6 +53,7 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
         "dirty_full_fallback_transform_bounds_unknown, "
         "dirty_full_fallback_effect_bounds_unknown, "
         "framebuffer_acquire_ms, framebuffer_clear_ms, clearnode_ms, "
+        "clearnode_restore_ms, "
         "framebuffer_pool_clear_ms, framebuffer_enqueue_ms, "
         "framebuffer_pool_miss_count_size_mismatch, framebuffer_pool_miss_count_empty, "
         "framebuffer_pool_miss_count_best_fit, framebuffer_pool_hits, framebuffer_buffer_returned_to_pool_count, "
@@ -80,7 +81,7 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
         "?71, ?72, ?73, ?74, ?75, ?76, ?77, ?78, ?79, ?80, "
         "?81, ?82, ?83, ?84, ?85, ?86, ?87, ?88, ?89, "
         "?90, ?91, ?92, ?93, ?94, ?95, ?96, ?97, ?98, "
-        "?99, ?100, ?101, ?102, ?103, ?104, ?105, ?106, ?107"
+        "?99, ?100, ?101, ?102, ?103, ?104, ?105, ?106, ?107, ?108"
         ");";
 
     SqliteStatement stmt(m_impl->db, sql);
@@ -141,6 +142,7 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
         run.framebuffer_acquire_ms,
         run.framebuffer_clear_ms,
         run.clearnode_ms,
+        run.clearnode_restore_ms,
         run.framebuffer_pool_clear_ms,
         run.framebuffer_enqueue_ms,
         run.framebuffer_pool_miss_count_size_mismatch,

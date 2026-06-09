@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS render_runs (
     framebuffer_acquire_ms INTEGER DEFAULT 0,
     framebuffer_clear_ms INTEGER DEFAULT 0,
     clearnode_ms INTEGER DEFAULT 0,
+    clearnode_restore_ms INTEGER DEFAULT 0,
     framebuffer_pool_clear_ms INTEGER DEFAULT 0,
     framebuffer_enqueue_ms INTEGER DEFAULT 0,
     framebuffer_pool_miss_count_size_mismatch INTEGER DEFAULT 0,

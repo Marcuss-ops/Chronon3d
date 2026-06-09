@@ -113,6 +113,7 @@ inline void write_render_metrics(std::stringstream& out,
     out << "| Metric | Value |\n";
     out << "| --- | --- |\n";
     out << "| clearnode | " << format_ms(run.clearnode_ms) << " |\n";
+    out << "| clearnode restore | " << format_ms(run.clearnode_restore_ms) << " |\n";
     out << "| video graph eval | " << format_ms(run.video_graph_eval_ms) << " |\n\n";
 }
 

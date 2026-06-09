@@ -97,6 +97,7 @@ constexpr std::size_t kHardwareDestructiveInterferenceSize = 64;
     X(framebuffer_clear_ms) \
     X(clearnode_ms) \
     X(clearnode_memcpy_ms) \
+    X(clearnode_restore_ms) \
     X(clearnode_acquire_ms) \
     X(clearnode_clear_ms) \
     X(compositenode_blend_ms) \

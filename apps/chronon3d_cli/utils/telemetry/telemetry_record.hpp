@@ -70,6 +70,7 @@ inline void populate_run_metrics(chronon3d::telemetry::RenderTelemetryRecord& ru
     run.framebuffer_acquire_ms = counters.framebuffer_acquire_ms.load(std::memory_order_relaxed);
     run.framebuffer_clear_ms = counters.framebuffer_clear_ms.load(std::memory_order_relaxed);
     run.clearnode_ms = counters.clearnode_ms.load(std::memory_order_relaxed);
+    run.clearnode_restore_ms = counters.clearnode_restore_ms.load(std::memory_order_relaxed);
     run.framebuffer_pool_clear_ms = counters.framebuffer_pool_clear_ms.load(std::memory_order_relaxed);
     run.framebuffer_enqueue_ms = counters.framebuffer_enqueue_ms.load(std::memory_order_relaxed);
     run.framebuffer_pool_miss_count_size_mismatch = counters.framebuffer_pool_miss_count_size_mismatch.load(std::memory_order_relaxed);
