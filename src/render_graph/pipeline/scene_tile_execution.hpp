@@ -8,7 +8,7 @@
 // focused on orchestration.
 // ---------------------------------------------------------------------------
 
-#include <chronon3d/render_graph/render_pipeline.hpp>
+#include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <algorithm>
 #include <chronon3d/core/tile_grid.hpp>

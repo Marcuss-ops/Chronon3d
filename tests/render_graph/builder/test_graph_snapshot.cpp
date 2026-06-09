@@ -13,9 +13,9 @@
 #include <doctest/doctest.h>
 
 #include <chronon3d/render_graph/render_graph.hpp>
-#include <chronon3d/render_graph/render_graph_node.hpp>
+#include <chronon3d/render_graph/nodes/render_graph_node.hpp>
 #include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
-#include <chronon3d/render_graph/render_pipeline.hpp>
+#include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>

@@ -4,7 +4,7 @@
 #include <chronon3d/cache/framebuffer_pool.hpp>
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
-#include <chronon3d/render_graph/render_graph_hashing.hpp>
+#include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <filesystem>
 
 using namespace chronon3d;

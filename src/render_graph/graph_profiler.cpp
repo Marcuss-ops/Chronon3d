@@ -1,4 +1,4 @@
-#include <chronon3d/render_graph/graph_profiler.hpp>
+#include <chronon3d/render_graph/core/graph_profiler.hpp>
 #include <sstream>
 #include <iomanip>
 #include <algorithm>

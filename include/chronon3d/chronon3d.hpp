@@ -47,8 +47,8 @@
 #include <chronon3d/backends/software/renderer.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/render_graph/render_graph.hpp>
-#include <chronon3d/render_graph/graph_builder.hpp>
-#include <chronon3d/render_graph/graph_executor.hpp>
+#include <chronon3d/render_graph/builder/graph_builder.hpp>
+#include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/scene/model/camera/camera.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>

@@ -3,7 +3,7 @@
 #include <chronon3d/core/triple_buffer_arena.hpp>
 #include <chronon3d/core/cancellation_token.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
-#include <chronon3d/render_graph/render_pipeline.hpp>
+#include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <chronon3d/core/telemetry/telemetry_bundle.hpp>
 #include <spdlog/spdlog.h>
 #include <chrono>

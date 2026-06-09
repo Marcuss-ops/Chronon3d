@@ -6,7 +6,7 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
-#include <chronon3d/render_graph/render_pipeline.hpp>
+#include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <cmath>
 
 using namespace chronon3d;

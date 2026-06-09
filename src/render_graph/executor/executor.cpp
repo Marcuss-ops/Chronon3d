@@ -9,10 +9,10 @@
 //   tile_pruning.cpp     — compute_dirty_clip
 //   framebuffer_lifetime — init / release FB resources
 
-#include <chronon3d/render_graph/graph_executor.hpp>
+#include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include "executor_levels.hpp"
 #include "framebuffer_lifetime.hpp"
-#include <chronon3d/render_graph/graph_profiler.hpp>
+#include <chronon3d/render_graph/core/graph_profiler.hpp>
 #include <chronon3d/core/memory/arena.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>

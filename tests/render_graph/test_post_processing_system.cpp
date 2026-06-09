@@ -1,5 +1,5 @@
 #include <doctest/doctest.h>
-#include <chronon3d/render_graph/post_processing_system.hpp>
+#include <chronon3d/render_graph/pipeline/post_processing_system.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <cmath>
 
