@@ -248,9 +248,16 @@ private:
     }
 
     static bool camera_is_static(const Camera2_5DRuntime& cam) {
-        // Camera animation would be frame-dependent; for now we only check enabled flag
-        // TODO: extend to AnimatedValue<f32> if camera animations are added
-        return true; // Camera position/zoom is considered static for now
+        // AnimatedCamera2_5D::evaluate() sets `is_animated = true` whenever
+        // any of the camera properties (position, rotation, zoom, fov, dof)
+        // is driven by keyframed or expression-based animation.  This flag
+        // is the source of truth for "is this camera time-dependent?" — it
+        // lets the static-scene fast-path (compute_fingerprint reuse, frame
+        // skipping) correctly reject scenes with moving cameras without
+        // having to inspect the underlying AnimatedValue<T> machinery.
+        // Disabled cameras (cam.enabled == false) are always static.
+        if (!cam.enabled) return true;
+        return !cam.is_animated;
     }
 
     /// Check if the entire scene is effectively static at the given frame.

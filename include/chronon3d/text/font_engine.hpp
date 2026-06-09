@@ -66,6 +66,25 @@ struct FontSpec {
     }
 };
 
+// ── TextShaping ───────────────────────────────────────────────────────
+// Optional per-call shaping parameters.  Forwarded to HarfBuzz so we get
+// correct shaping for non-Latin scripts (Arabic, Hebrew, Devanagari, CJK,
+// etc.) and to select a BCP-47 language tag for hyphenation / OpenType
+// language-specific features.
+//
+// Defaults match the historical Latin-only behaviour for full
+// backward-compatibility with existing call sites.
+struct TextShaping {
+    // HB_SCRIPT_* constant (e.g. HB_SCRIPT_LATIN, HB_SCRIPT_ARABIC,
+    // HB_SCRIPT_HEBREW, HB_SCRIPT_DEVANAGARI, HB_SCRIPT_HAN, ...).
+    // Default: 0 (which HarfBuzz treats as "auto-detect from text").
+    int  script{HB_SCRIPT_COMMON};
+
+    // BCP-47 language tag, e.g. "en", "ar", "he", "hi", "zh-Hans".
+    // Default: "en" (matches the previous hardcoded behaviour).
+    std::string language{"en"};
+};
+
 } // namespace chronon3d
 
 namespace std {
@@ -103,11 +122,14 @@ public:
     FontEngine& operator=(FontEngine&&) noexcept;
 
     /// Shape a string of text into a GlyphRun at the given font size.
+    /// Optional `shaping` selects the script and language forwarded to
+    /// HarfBuzz — leave it default for Latin text.
     /// Returns std::nullopt if the font cannot be loaded.
     [[nodiscard]] std::optional<GlyphRun> shape_text(
         std::string_view text,
         const FontSpec& spec,
-        float font_size
+        float font_size,
+        const TextShaping& shaping = TextShaping{}
     ) const;
 
     /// Measure a single line of text (no wrapping). Returns total width
@@ -115,7 +137,8 @@ public:
     [[nodiscard]] float measure_text(
         std::string_view text,
         const FontSpec& spec,
-        float font_size
+        float font_size,
+        const TextShaping& shaping = TextShaping{}
     ) const;
 
     /// Return font metrics (ascent, descent, line_height) in pixels for
@@ -155,7 +178,8 @@ private:
 [[nodiscard]] std::optional<GlyphRun> shape_text(
     std::string_view text,
     const FontSpec& spec,
-    float font_size
+    float font_size,
+    const TextShaping& shaping = TextShaping{}
 );
 
 /// Return a process-wide shared FontEngine singleton.
