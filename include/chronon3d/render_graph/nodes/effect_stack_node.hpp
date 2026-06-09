@@ -196,6 +196,19 @@ private:
                 }
                 break;
             }
+            case FocusInLadder: {
+                // FocusInLadder precomputes blur levels at param size.
+                // Use the largest level radius for spatial spread.
+                if (auto* p = std::get_if<FocusInLadderParams>(&inst.params)) {
+                    if (!p->levels.empty()) {
+                        f32 max_level = 0.0f;
+                        for (auto r : p->levels)
+                            max_level = std::max(max_level, r);
+                        max_spread = std::max(max_spread, max_level);
+                    }
+                }
+                break;
+            }
             default: break;
             }
         }
