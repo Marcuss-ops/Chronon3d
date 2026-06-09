@@ -385,6 +385,11 @@ target_link_libraries(chronon3d_software INTERFACE
     chronon3d_backend_image
 )
 
+set(FFMPEG_LIBS "")
+if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
+    set(FFMPEG_LIBS swscale avutil)
+endif()
+
 add_library(chronon3d_pipeline INTERFACE)
 target_link_libraries(chronon3d_pipeline INTERFACE chronon3d_core chronon3d_software Taskflow::Taskflow concurrentqueue::concurrentqueue yuv
     ${CHRONON3D_FFMPEG_LIBS_LIGHT})

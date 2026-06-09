@@ -63,6 +63,10 @@ option(CHRONON3D_ENABLE_NATIVE_FFMPEG "Enable native FFmpeg/libav encoder suppor
 option(CHRONON3D_ENABLE_PROFILING "Enable Tracy profiling" OFF)
 option(CHRONON3D_ENABLE_SQLITE_TELEMETRY "Enable SQLite telemetry store" ON)
 
+if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
+    add_compile_definitions(CHRONON_ENABLE_NATIVE_FFMPEG)
+endif()
+
 if(CHRONON3D_UNITY_BUILD)
     set(CMAKE_UNITY_BUILD ON)
     if(NOT CMAKE_UNITY_BUILD_BATCH_SIZE)
