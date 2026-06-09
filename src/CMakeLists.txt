@@ -182,10 +182,10 @@ target_link_libraries(chronon3d_backend_assets PUBLIC chronon3d chronon3d_backen
 target_include_directories(chronon3d_backend_assets PRIVATE ${Stb_INCLUDE_DIR})# Video Export Backend
 set(CHRONON3D_BACKEND_VIDEO_SOURCES
     backends/video/video_source.cpp
-    video/frame_converter.cpp
-    video/direct_yuv_converter.cpp
-    video/direct_yuv_converter_hwy.cpp
-    video/converted_frame_cache.cpp
+    media/frame_conversion/frame_converter.cpp
+    media/frame_conversion/direct_yuv_converter.cpp
+    media/frame_conversion/direct_yuv_converter_hwy.cpp
+    media/frame_conversion/converted_frame_cache.cpp
 )
 add_library(chronon3d_backend_video STATIC ${CHRONON3D_BACKEND_VIDEO_SOURCES})
 set_target_properties(chronon3d_backend_video PROPERTIES UNITY_BUILD OFF)

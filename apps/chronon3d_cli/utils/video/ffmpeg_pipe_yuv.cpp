@@ -1,6 +1,6 @@
 #include "ffmpeg_pipe_encoder.hpp"
-#include <chronon3d/video/frame_converter.hpp>
-#include <chronon3d/video/direct_yuv_lut.hpp>
+#include <chronon3d/media/frame_conversion/frame_converter.hpp>
+#include <chronon3d/media/frame_conversion/direct_yuv_lut.hpp>
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/simd/kernels.hpp>
 #include <algorithm>

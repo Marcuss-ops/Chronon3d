@@ -15,12 +15,12 @@
 // ============================================================================
 
 #undef HWY_TARGET_INCLUDE
-#define HWY_TARGET_INCLUDE "src/video/direct_yuv_converter_hwy.cpp"
+#define HWY_TARGET_INCLUDE "src/media/frame_conversion/direct_yuv_converter_hwy.cpp"
 #include <hwy/foreach_target.h>
 
 #include <hwy/highway.h>
-#include <chronon3d/video/direct_yuv_converter.hpp>
-#include <chronon3d/video/direct_yuv_lut.hpp>
+#include <chronon3d/media/frame_conversion/direct_yuv_converter.hpp>
+#include <chronon3d/media/frame_conversion/direct_yuv_lut.hpp>
 
 #include <algorithm>
 #include <chrono>

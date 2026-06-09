@@ -12,14 +12,14 @@
 //  - Falls back to scalar TBB baseline (pixel-identical reference).
 //  - Callers must ensure width/height are even (4:2:0 requirement).
 //
-// NOTE: All float→YUV logic must live in src/video/direct_yuv_converter*.cpp
-// and include/chronon3d/video/direct_yuv_*.hpp.  Do not duplicate conversion
+// NOTE: All float→YUV logic must live in src/media/frame_conversion/direct_yuv_converter*.cpp
+// and include/chronon3d/media/frame_conversion/direct_yuv_*.hpp.  Do not duplicate conversion
 // logic in the CLI layer (e.g., ffmpeg_pipe_yuv.cpp).  The CLI uses
 // video::convert_frame_tight as a thin forwarding wrapper.
 // ---------------------------------------------------------------------------
 
 #include <chronon3d/core/memory/framebuffer.hpp>
-#include <chronon3d/video/frame_converter.hpp>
+#include <chronon3d/media/frame_conversion/frame_converter.hpp>
 #include <cstdint>
 
 namespace chronon3d::video {

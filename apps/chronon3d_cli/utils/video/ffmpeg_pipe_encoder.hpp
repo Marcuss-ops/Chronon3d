@@ -2,8 +2,8 @@
 
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/color/output_transform.hpp>
-#include <chronon3d/video/frame_converter.hpp>
-#include <chronon3d/video/converted_frame_cache.hpp>
+#include <chronon3d/media/frame_conversion/frame_converter.hpp>
+#include <chronon3d/media/frame_conversion/converted_frame_cache.hpp>
 #include <string>
 #include <vector>
 
