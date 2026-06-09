@@ -68,18 +68,22 @@ Composition minimalist_image_fade_in() {
     });
 }
 
-// 2. Image Focus-In — ridotto blur da 24 a 12 + scale 1.04 per compensare visivamente
+// 2. Image Focus-In — precomputed blur ladder: 6 levels, crossfade during animation
+// Cost per frame after first frame: 0 blur ops, just crossfade between cached levels.
 Composition minimalist_image_focus_in() {
     return composition({.name = "MinimalistImageFocusIn", .duration = 120}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         add_common_background(s);
         s.layer("image_layer", [](auto& l) {
             l.pin_to(Anchor::Center);
-            l.focus_in(12.0f, Frame{45});
-            // Subtle scale pop compensates for reduced blur — same visual impact
-            auto& sc = l.scale_anim();
-            sc.key(Frame{0}, Vec3{1.04f, 1.04f, 1.0f}, EasingCurve{Easing::OutCubic});
-            sc.key(Frame{45}, Vec3{1.0f, 1.0f, 1.0f});
+            l.focus_in_preblurred({
+                .levels = {24.0f, 16.0f, 12.0f, 8.0f, 4.0f, 0.0f},
+                .duration = Frame{45},
+                .easing = EasingCurve{Easing::OutCubic},
+                .interpolate_between_levels = true,
+                .scale_start = 1.04f,
+                .scale_end = 1.0f
+            });
             add_image_border(l, IMAGE_SIZE);
             l.image("img", {
                 .path = IMAGE_PATH,
