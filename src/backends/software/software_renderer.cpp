@@ -194,6 +194,28 @@ SoftwareRenderer::SoftwareRenderer()
 }
 
 SoftwareRenderer::~SoftwareRenderer() {
+    reset_transform_scratch();
+}
+
+Framebuffer* SoftwareRenderer::ensure_transform_scratch(int width, int height) {
+    // If scratch already exists and is large enough, reuse it.
+    if (m_transform_scratch &&
+        m_transform_scratch->allocated_width() >= width &&
+        m_transform_scratch->allocated_height() >= height) {
+        return m_transform_scratch;
+    }
+    // Allocate or reallocate at the requested size (rounded to bucket).
+    const auto [bw, bh] = cache::FramebufferPool::round_to_bucket(width, height);
+    auto fb = std::make_unique<Framebuffer>(bw, bh);
+    fb->clear(Color::transparent());
+    delete m_transform_scratch;  // free old scratch before overwriting
+    m_transform_scratch = fb.release();
+    return m_transform_scratch;
+}
+
+void SoftwareRenderer::reset_transform_scratch() {
+    delete m_transform_scratch;
+    m_transform_scratch = nullptr;
 }
 
 graph::GraphExecutor* SoftwareRenderer::executor() {

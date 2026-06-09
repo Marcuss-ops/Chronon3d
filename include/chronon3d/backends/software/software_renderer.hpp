@@ -90,6 +90,7 @@ public:
         m_cached_compiled_height = 0;
         m_cached_compiled_structure_hash = 0;
         m_prev_graph_structure_fingerprint = 0;
+        reset_transform_scratch();
         // Video cache clearing is now responsibility of the decoder implementation
     }
 
@@ -183,6 +184,27 @@ public:
     int m_cached_compiled_width{0};
     int m_cached_compiled_height{0};
     uint64_t m_cached_compiled_structure_hash{0};
+
+    // ── Transform scratch buffer ────────────────────────────────────────
+    // Persistent framebuffer reused by TransformNode across frames.
+    // Eliminates pool bucket misses when transform output size varies
+    // by a few pixels per frame (animated transforms).
+    // Owned via raw pointer + PoolFbDeleter with scratch_slot; the deleter
+    // clears the buffer and stores it back into this slot.
+    Framebuffer* m_transform_scratch{nullptr};
+
+    /// Lazily ensure the scratch is allocated at given size.
+    /// Returns a pointer to the scratch (stable across frames once created).
+    /// The scratch is held by m_transform_scratch_slot pointer; when the
+    /// transformation work is done, the deleter clears it and restores it.
+    Framebuffer* ensure_transform_scratch(int width, int height);
+
+    /// Returns the address of the scratch slot pointer, so the deleter can
+    /// store the cleared FB back into it.
+    Framebuffer** transform_scratch_slot() { return &m_transform_scratch; }
+
+    /// Reset the scratch (e.g. on resolution change).
+    void reset_transform_scratch();
 
     [[nodiscard]] int last_layer_count() const { return m_last_layer_count; }
 

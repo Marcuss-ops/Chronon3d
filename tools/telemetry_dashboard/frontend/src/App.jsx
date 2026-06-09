@@ -246,6 +246,18 @@ function App() {
       ? `${((frames.reduce((sum, f) => sum + Number(f.dirty_area_ratio || 0), 0) / frameCount) * 100).toFixed(1)}%`
       : '0.0%';
 
+    // ── Active vs Cached breakdown (graph_executed vs graph_skipped) ──
+    const activeFrames = frames.filter(f => f.fast_path_reused === 0 || f.fast_path_reused === false);
+    const cachedFrames = frames.filter(f => f.fast_path_reused === 1 || f.fast_path_reused === true);
+    const avgActiveMs = activeFrames.length > 0
+      ? activeFrames.reduce((sum, f) => sum + Number(f.duration_ms || 0), 0) / activeFrames.length
+      : 0;
+    const avgCachedMs = cachedFrames.length > 0
+      ? cachedFrames.reduce((sum, f) => sum + Number(f.duration_ms || 0), 0) / cachedFrames.length
+      : 0;
+    const graphExecutedCount = activeFrames.length;
+    const graphSkippedCount = cachedFrames.length;
+
     const phaseRows = phases
       .slice()
       .sort((a, b) => b.duration_ms - a.duration_ms)
@@ -350,6 +362,10 @@ function App() {
           ['Max Frame', `${maxFrame.toFixed(2)} ms`],
           ['Frame Cache Hit Rate', frameHitRate],
           ['Average Dirty Coverage', avgDirtyRatio],
+          ['Avg Frame (active)', `${avgActiveMs.toFixed(2)} ms (${graphExecutedCount} frames)`],
+          ['Avg Frame (cached)', `${avgCachedMs.toFixed(2)} ms (${graphSkippedCount} frames)`],
+          ['Frames Graph Executed', String(graphExecutedCount)],
+          ['Frames Graph Skipped', String(graphSkippedCount)],
         ],
       ),
       '',
@@ -618,6 +634,71 @@ function App() {
 
                 <MetricsGrid runDetail={runDetail} />
                 <PerformanceCharts frames={runDetail.frames} phases={runDetail.phases} />
+
+                {(runDetail.frames || []).length > 0 && (() => {
+                  const allFrames = runDetail.frames;
+                  const activeFrames = allFrames.filter(fr => fr.fast_path_reused === 0 || fr.fast_path_reused === false);
+                  const cachedFrames = allFrames.filter(fr => fr.fast_path_reused === 1 || fr.fast_path_reused === true);
+                  const activeCount = activeFrames.length;
+                  const cachedCount = cachedFrames.length;
+                  const sumActive = activeFrames.reduce((s, fr) => s + Number(fr.duration_ms || 0), 0);
+                  const sumCached = cachedFrames.reduce((s, fr) => s + Number(fr.duration_ms || 0), 0);
+                  const avgActive = activeCount > 0 ? sumActive / activeCount : 0;
+                  const avgCached = cachedCount > 0 ? sumCached / cachedCount : 0;
+                  const hasData = activeCount + cachedCount > 0;
+                  return hasData ? (
+                    <section className="glass-panel details-panel animate-fade-in" style={{ marginTop: '16px' }}>
+                      <div className="panel-title">
+                        <span>🔬 Frame Execution Breakdown</span>
+                        <span className="timeline-selection-info">
+                          Graph Executed: {activeCount} · Graph Skipped: {cachedCount} · {cachedCount + activeCount} total
+                        </span>
+                      </div>
+                      <div className="metrics-grid" style={{ marginBottom: 0 }}>
+                        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-danger)' }}>
+                          <div className="metric-label">Avg Frame (active)</div>
+                          <div className="metric-value" style={{ color: 'var(--color-danger)' }}>
+                            {avgActive.toFixed(2)}
+                            <span className="metric-unit">ms</span>
+                          </div>
+                          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                            Graph executed — {activeCount} frames
+                          </div>
+                        </div>
+                        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-success)' }}>
+                          <div className="metric-label">Avg Frame (cached)</div>
+                          <div className="metric-value" style={{ color: 'var(--color-success)' }}>
+                            {avgCached.toFixed(2)}
+                            <span className="metric-unit">ms</span>
+                          </div>
+                          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                            Graph skipped — {cachedCount} frames
+                          </div>
+                        </div>
+                        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-warning)' }}>
+                          <div className="metric-label">Graph Executed</div>
+                          <div className="metric-value" style={{ color: 'var(--color-warning)' }}>
+                            {activeCount}
+                            <span className="metric-unit">frames</span>
+                          </div>
+                          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                            {activeCount + cachedCount > 0 ? `${(activeCount / (activeCount + cachedCount) * 100).toFixed(1)}% of total` : '—'}
+                          </div>
+                        </div>
+                        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-info)' }}>
+                          <div className="metric-label">Graph Skipped</div>
+                          <div className="metric-value" style={{ color: 'var(--color-info)' }}>
+                            {cachedCount}
+                            <span className="metric-unit">frames</span>
+                          </div>
+                          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                            {activeCount + cachedCount > 0 ? `${(cachedCount / (activeCount + cachedCount) * 100).toFixed(1)}% of total` : '—'}
+                          </div>
+                        </div>
+                      </div>
+                    </section>
+                  ) : null;
+                })()}
 
                 <div className="details-layout">
                   <section className="glass-panel details-panel">

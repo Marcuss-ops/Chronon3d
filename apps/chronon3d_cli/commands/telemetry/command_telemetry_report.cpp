@@ -45,6 +45,36 @@ void generate_telemetry_report(std::stringstream& out, sqlite3* db, const std::s
             out << "| Average Dirty Area Ratio | " << format_pct(average_dirty_area_ratio) << " |\n";
         }
         sqlite3_finalize(stmt);
+
+        // ── Active vs cached frame breakdown ────────────────────────────
+        // Separates frames where the graph actually executed from those
+        // that were entirely skipped (fast-path reuse).  Without this split,
+        // the overall average frame time is diluted by the large number of
+        // "free" cached frames in long exports, giving a false impression
+        // of the true animated render cost.
+        {
+            const char* ac_sql = telemetry_queries::kFrameActiveCachedBreakdown;
+            sqlite3_stmt* ac_stmt = nullptr;
+            if (prepare_with_run_id(db, &ac_stmt, ac_sql, run_id) && sqlite3_step(ac_stmt) == SQLITE_ROW) {
+                const double avg_active_ms = sql_double(ac_stmt, 0);
+                const int64_t active_count = sql_i64(ac_stmt, 1);
+                const double avg_cached_ms = sql_double(ac_stmt, 2);
+                const int64_t cached_count = sql_i64(ac_stmt, 3);
+                if (active_count > 0) {
+                    out << "| Avg Frame (active) | " << format_ms(avg_active_ms)
+                        << " (" << active_count << " frames) |\n";
+                }
+                if (cached_count > 0) {
+                    out << "| Avg Frame (cached) | " << format_ms(avg_cached_ms)
+                        << " (" << cached_count << " frames) |\n";
+                }
+                if (active_count > 0 || cached_count > 0) {
+                    out << "| Frames Graph Executed | " << active_count << " |\n";
+                    out << "| Frames Graph Skipped | " << cached_count << " |\n";
+                }
+            }
+            sqlite3_finalize(ac_stmt);
+        }
     }
     out << "\n";
 

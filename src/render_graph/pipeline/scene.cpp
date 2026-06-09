@@ -121,9 +121,28 @@ std::vector<cache::FramebufferPoolPreallocOptions> predict_pool_requirements(
         }
     }
 
-    constexpr size_t kMaxPreallocPerBucket = 3; // safe concurrent upper bound
+    // With the async video pipeline (render thread + queue + writer thread),
+    // up to 4 buffers per bucket can be in flight simultaneously.
+    // kMaxPreallocPerBucket must cover: 1 current + 1 previous + 1 queued + 1 encoding.
+    // Setting to 5 ensures the pool never exhausts available buffers under
+    // maximum pipeline pressure, eliminating framebuffer_pool_miss_count_size_mismatch.
+    constexpr size_t kMaxPreallocPerBucket = 5;
     std::vector<cache::FramebufferPoolPreallocOptions> predictions;
-    predictions.reserve(peak_counts.size());
+    predictions.reserve(peak_counts.size() + 1);
+
+    // Always ensure the main canvas bucket has at least 4 warm buffers.
+    // This prevents cold-start pool misses on the first few frames.
+    {
+        const auto [bw, bh] = cache::FramebufferPool::round_to_bucket(canvas_width, canvas_height);
+        predictions.push_back(cache::FramebufferPoolPreallocOptions{
+            .width = bw,
+            .height = bh,
+            .count = 4,
+            .clear = true,
+            .touch_memory = false,
+        });
+    }
+
     for (const auto& [bucket, count] : peak_counts) {
         const size_t capped_count = std::min(count, kMaxPreallocPerBucket);
         predictions.push_back(cache::FramebufferPoolPreallocOptions{
@@ -434,6 +453,15 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         return sw_renderer->m_prev_framebuffer;
     }
 
+    // ── Wire up transform scratch buffer BEFORE graph build/reuse ───────
+    // This must be set for ALL code paths (graph reuse AND full build).
+    // The scratch is a persistent FB reused by TransformNode across frames
+    // to avoid pool bucket misses from animated output size changes.
+    if (sw_renderer) {
+        ctx.transform_scratch = sw_renderer->ensure_transform_scratch(width, height);
+        ctx.transform_scratch_slot = sw_renderer->transform_scratch_slot();
+    }
+
     // ── Build (or reuse cached) render graph ─────────────────────────────
     // Phase 1: when graph_structure_unchanged is true, the graph topology is
     // identical to the previous frame — reuse the cached graph instead of
@@ -467,13 +495,13 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         compiled.skip_initial_clear = false;
         compiled.early_exit_skip.assign(compiled.graph.size(), false);
 
-        ctx.skip_initial_clear = compiled.skip_initial_clear;
-        ctx.early_exit_skip = compiled.early_exit_skip;
+    ctx.skip_initial_clear = compiled.skip_initial_clear;
+    ctx.early_exit_skip = compiled.early_exit_skip;
 
-        if (ctx.diagnostics_enabled) {
-            spdlog::info("[graph-cache] frame={} reusing cached compiled graph ({} live nodes)",
-                         static_cast<int>(frame), compiled.graph.live_count());
-        }
+    if (ctx.diagnostics_enabled) {
+        spdlog::info("[graph-cache] frame={} reusing cached compiled graph ({} live nodes)",
+                     static_cast<int>(frame), compiled.graph.live_count());
+    }
         graph_reused = true;
     } else {
         if (ctx.counters) {
