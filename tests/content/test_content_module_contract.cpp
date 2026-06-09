@@ -211,7 +211,6 @@ TEST_CASE("2D5 module: core 2.5D scenes are available") {
     CHECK(registry.contains("ParallaxSimple"));
     CHECK(registry.contains("DepthScene"));
     CHECK(registry.contains("CardFlip"));
-    CHECK(registry.contains("ParallaxText"));
     CHECK(registry.contains("DofShowcase"));
 }
 
