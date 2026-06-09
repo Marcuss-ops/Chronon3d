@@ -2,7 +2,7 @@
 
 #include <chronon3d/animation/animated_transform.hpp>
 #include <chronon3d/animation/easing.hpp>
-#include <chronon3d/scene/model/layer.hpp>
+#include <chronon3d/scene/model/layer/layer.hpp>
 #include <chronon3d/presets/motion_object.hpp>
 #include <vector>
 #include <numeric>

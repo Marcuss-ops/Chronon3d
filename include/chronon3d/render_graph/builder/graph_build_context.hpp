@@ -2,8 +2,8 @@
 
 #include <chronon3d/render_graph/render_graph.hpp>
 #include <chronon3d/render_graph/render_graph_context.hpp>
-#include <chronon3d/scene/model/camera_2_5d.hpp>
-#include <chronon3d/scene/model/resolved_types.hpp>
+#include <chronon3d/scene/model/camera/camera_2_5d.hpp>
+#include <chronon3d/scene/model/render/resolved_types.hpp>
 
 #include <memory_resource>
 #include <string>

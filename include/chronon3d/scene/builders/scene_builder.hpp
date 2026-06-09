@@ -8,12 +8,12 @@
 #include <chronon3d/scene/builders/camera_api.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/registry/shape_registry.hpp>
-#include <chronon3d/scene/model/camera_2_5d.hpp>
+#include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/scene/camera/animated_camera_2_5d.hpp>
 #include <chronon3d/scene/camera/camera_rig_builder.hpp>
 #include <chronon3d/rendering/light_context.hpp>
 #include <chronon3d/rendering/lighting_rig.hpp>
-#include <chronon3d/scene/model/scene.hpp>
+#include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/animation/stagger.hpp>
 #include <chronon3d/backends/video/video_source.hpp>
 #include <glm/glm.hpp>

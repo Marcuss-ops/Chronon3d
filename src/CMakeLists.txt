@@ -181,7 +181,6 @@ add_library(chronon3d_backend_assets STATIC backends/assets/image_cache.cpp back
 target_link_libraries(chronon3d_backend_assets PUBLIC chronon3d chronon3d_backend_image)
 target_include_directories(chronon3d_backend_assets PRIVATE ${Stb_INCLUDE_DIR})# Video Export Backend
 set(CHRONON3D_BACKEND_VIDEO_SOURCES
-    backends/video/video_export.cpp
     backends/video/video_source.cpp
     video/frame_converter.cpp
     video/direct_yuv_converter.cpp
@@ -197,32 +196,31 @@ target_link_libraries(chronon3d_graph PUBLIC chronon3d_backend_video)
 
 # Software Renderer Backend
 set(CHRONON3D_BACKEND_SOFTWARE_SOURCES
-    backends/software/primitive_renderer.cpp
     backends/software/processors/builtin_processors.cpp
     backends/software/processors/path_processor.cpp
     backends/software/processors/software_effect_processors.cpp
-    backends/software/processors/software_image_processor.cpp
-    backends/software/processors/software_tiled_image_processor.cpp
+    backends/software/processors/image/software_image_processor.cpp
+    backends/software/processors/image/software_tiled_image_processor.cpp
     backends/software/kernels/grid_background_kernel.cpp
     backends/software/processors/software_grid_background_processor.cpp
     backends/software/processors/software_mesh_processor.cpp
     backends/software/processors/software_line_processor.cpp
     backends/software/processors/software_shape_processor.cpp
-    backends/software/processors/software_text_effects.cpp
-    backends/software/processors/software_text_processor.cpp
-    backends/software/processors/text_glow.cpp
-    backends/software/processors/text_shadow.cpp
+    backends/software/processors/text/software_text_effects.cpp
+    backends/software/processors/text/software_text_processor.cpp
+    backends/software/processors/text/text_glow.cpp
+    backends/software/processors/text/text_shadow.cpp
     backends/software/processors/software_utility_processors.cpp
     backends/software/rasterizers/line_rasterizer.cpp
-    backends/software/rasterizers/path_cache.cpp
-    backends/software/rasterizers/path_rasterizer.cpp
-    backends/software/rasterizers/path_stroke.cpp
-    backends/software/rasterizers/pip.cpp
-    backends/software/rasterizers/projected_card_rasterizer.cpp
-    backends/software/rasterizers/card3d_material_rasterizer.cpp
+    backends/software/rasterizers/path/path_cache.cpp
+    backends/software/rasterizers/path/path_rasterizer.cpp
+    backends/software/rasterizers/path/path_stroke.cpp
+    backends/software/rasterizers/path/pip.cpp
+    backends/software/rasterizers/card/projected_card_rasterizer.cpp
+    backends/software/rasterizers/card/card3d_material_rasterizer.cpp
     backends/software/rasterizers/scanline_rasterizer.cpp
     backends/software/rasterizers/shape_rasterizer.cpp
-    backends/software/rasterizers/card3d_material_rasterizer.cpp
+    backends/software/rasterizers/card/card3d_material_rasterizer.cpp
     backends/software/software_compositor.cpp
     backends/software/software_effect_runner.cpp
     backends/software/software_node_dispatcher.cpp
