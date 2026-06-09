@@ -66,6 +66,15 @@ struct FontSpec {
     }
 };
 
+/// Shaping direction for non-Latin / complex-script text.
+/// When Auto, the shaping engine detects RTL from the first
+/// strongly-directional character (Arabic, Hebrew, etc.).
+enum class TextDirection {
+    Auto,
+    LTR,
+    RTL,
+};
+
 // ── TextShaping ───────────────────────────────────────────────────────
 // Optional per-call shaping parameters.  Forwarded to HarfBuzz so we get
 // correct shaping for non-Latin scripts (Arabic, Hebrew, Devanagari, CJK,
@@ -75,6 +84,9 @@ struct FontSpec {
 // Defaults match the historical Latin-only behaviour for full
 // backward-compatibility with existing call sites.
 struct TextShaping {
+    // Direction: Auto (auto-detect), LTR, or RTL.
+    TextDirection direction{TextDirection::Auto};
+
     // HarfBuzz script tag (HB_SCRIPT_*).  The 4-byte OpenType script tag
     // is passed through to hb_buffer_set_script().  We avoid pulling the
     // full <hb.h> into this public header; the implementation casts this
