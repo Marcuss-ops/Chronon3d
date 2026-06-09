@@ -8,10 +8,13 @@
 #include "../render_effects_processor.hpp"
 #include "effects_internal.hpp"
 #include "effect_helpers.hpp"
+#include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <algorithm>
 #include <chrono>
+#include <cstdlib>
+#include <string>
 #include <vector>
 
 namespace chronon3d {
@@ -134,7 +137,14 @@ void apply_glow_effect(
         y_max = std::min(h, effect_clip->y1);
     }
     const float base_radius = std::max(0.0f, p.radius) * std::max(0.0f, p.spread);
-    const i32 blur_pad = blur_padding_for_radius(base_radius);
+    // Generous padding = ceil(radius * 4) to avoid rectangular clipping of the
+    // glow blur at the framebuffer boundary. The old helper blur_padding_for_radius
+    // returns only ceil(radius)+2, which is insufficient for multi-layer glow and
+    // produces a visible rectangular cutoff (the #1 cause of the "fog box" look).
+    const i32 blur_pad = std::max(
+        blur_padding_for_radius(base_radius),
+        static_cast<i32>(std::ceil(base_radius * 4.0f)) + 4
+    );
     const i32 x_min_pad = std::max(0, x_min - blur_pad);
     const i32 x_max_pad = std::min(w, x_max + blur_pad);
     const i32 y_min_pad = std::max(0, y_min - blur_pad);
@@ -145,11 +155,30 @@ void apply_glow_effect(
 
     auto source_fb = acquire_temp_framebuffer(roi_w, roi_h);
     source_fb->clear({0,0,0,0});
+    // ── Source extraction with alpha threshold ──────────────────────────
+    // Copy source pixels into the temp buffer, applying an alpha floor:
+    // any pixel with 0 < alpha < 16/255 is zeroed out.  Text rasterisers
+    // can leave sub-pixel alpha (~1-3/255) in the padding area around
+    // glyph bounding boxes, which the blur would amplify into a visible
+    // rectangular fog.  This threshold eliminates that without affecting
+    // legitimate anti-aliased edges (≥ 32/255 at the glyph boundary).
+    static constexpr float kAlphaFloor = 16.0f / 255.0f;
     for (i32 y = 0; y < roi_h; ++y) {
         const i32 sy = y + y_min_pad;
         const Color* src_row = fb.pixels_row(sy);
         Color* source_row = source_fb->pixels_row(y);
-        std::copy(src_row + x_min_pad, src_row + x_min_pad + roi_w, source_row);
+        for (i32 x = 0; x < roi_w; ++x) {
+            Color c = src_row[x_min_pad + x];
+            if (c.a > 0.0f && c.a < kAlphaFloor) {
+                c = Color::transparent();
+            }
+            source_row[x] = c;
+        }
+    }
+
+    // ── Debug: save source framebuffer ─────────────────────────────────
+    if (std::getenv("CHRONON_DEBUG_GLOW")) {
+        save_png(*source_fb, "output/debug_glow_source.png");
     }
 
     auto glow_acc_fb = acquire_temp_framebuffer(roi_w, roi_h);
@@ -188,6 +217,12 @@ void apply_glow_effect(
 
             apply_blur(*pass_fb, r, std::nullopt, 1);
             accumulate_glow_pass(*glow_acc_fb, *pass_fb, p);
+
+            // Debug: save each glow pass before accumulation
+            if (std::getenv("CHRONON_DEBUG_GLOW")) {
+                static int pass_counter = 0;
+                save_png(*pass_fb, "output/debug_glow_pass_" + std::to_string(pass_counter++) + ".png");
+            }
         } else {
             const i32 small_w = std::max(1, static_cast<i32>(std::ceil(static_cast<float>(roi_w) * pass.buffer_scale)));
             const i32 small_h = std::max(1, static_cast<i32>(std::ceil(static_cast<float>(roi_h) * pass.buffer_scale)));
@@ -210,6 +245,11 @@ void apply_glow_effect(
             apply_blur(*small_fb, std::max(0.5f, r * pass.buffer_scale), std::nullopt, 1);
             accumulate_scaled_glow_pass(*glow_acc_fb, *small_fb, p, pass.buffer_scale);
         }
+    }
+
+    // ── Debug: save accumulated glow before compositing ────────────────
+    if (std::getenv("CHRONON_DEBUG_GLOW")) {
+        save_png(*glow_acc_fb, "output/debug_glow_accumulated.png");
     }
 
     for (i32 y = 0; y < roi_h; ++y) {
