@@ -16,22 +16,23 @@ void emit_node_records(
     int input_count,
     double duration_ms
 ) {
+    // Node name/kind/layer_id — always computed so that non-cacheable
+    // nodes without layer_id (e.g. ClearNode) appear named in Hot Nodes.
+    // Previously the "need_strings" optimization skipped calling
+    // node.name() entirely for such nodes, leaving an empty entry.
     const bool do_lazy_strings = is_cacheable && ctx.node_cache;
-    const bool has_layer = !node.layer_id().empty();
+    const std::string node_name = node.name();
+    const std::string node_kind_str = std::string(to_string(node.kind()));
+    const std::string node_layer_id = node.layer_id();
+    const bool has_layer = !node_layer_id.empty();
 
-    // Cache repeated string values to avoid redundant copies.
-    // node.name() and node.layer_id() are called up to 3× each.
-    // Only allocate when at least one consumer needs them.
-    const bool need_strings = do_lazy_strings || ctx.diagnostics_enabled || has_layer;
-    const std::string cached_name = need_strings ? node.name() : std::string{};
-    const std::string cached_layer_id = need_strings ? node.layer_id() : std::string{};
-    const std::string cached_kind_str = need_strings ? std::string(to_string(node.kind())) : std::string{};
-
-    // Cache telemetry record
+    // Cache telemetry record — uses node_name for identification; the
+    // do_lazy_strings guard only skips key-diagnostic fields (digest,
+    // hash components) to avoid computing them for non-cacheable nodes.
     {
         telemetry::CacheTelemetryRecord cache_rec;
         cache_rec.frame_number = static_cast<int>(ctx.frame);
-        cache_rec.node_name = cached_name;
+        cache_rec.node_name = node_name;
         cache_rec.cacheable = is_cacheable;
         cache_rec.cache_status = cache_status;
         if (do_lazy_strings) {
@@ -58,15 +59,15 @@ void emit_node_records(
     {
         telemetry::NodeTelemetryRecord rec;
         rec.frame_number = static_cast<int>(ctx.frame);
-        rec.node_name = cached_name;
-        rec.node_type = cached_kind_str;
+        rec.node_name = node_name;
+        rec.node_type = node_kind_str;
         rec.duration_ms = duration_ms;
         rec.cache_status = cache_status;
         if (do_lazy_strings) {
             rec.cache_key_digest = std::to_string(key.digest());
         }
         rec.input_count = input_count;
-        rec.layer_id = cached_layer_id;
+        rec.layer_id = node_layer_id;
         if (result) {
             rec.output_width = result->width();
             rec.output_height = result->height();
@@ -80,9 +81,9 @@ void emit_node_records(
     if (has_layer) {
         telemetry::LayerTelemetryRecord layer_rec;
         layer_rec.frame_number = static_cast<int>(ctx.frame);
-        layer_rec.layer_id = cached_layer_id;
-        layer_rec.layer_name = cached_name;
-        layer_rec.layer_type = cached_kind_str;
+        layer_rec.layer_id = node_layer_id;
+        layer_rec.layer_name = node_name;
+        layer_rec.layer_type = node_kind_str;
         layer_rec.duration_ms = duration_ms;
         layer_rec.visible = true;
         if (clip_rect) {
@@ -104,7 +105,7 @@ void emit_node_records(
     // Per-node log line
     if (ctx.diagnostics_enabled) {
         spdlog::info("[graph-debug] frame={} node='{}' kind='{}' cache_status='{}' dur={:.3f}ms",
-                     static_cast<int>(ctx.frame), cached_name, cached_kind_str, cache_status, duration_ms);
+                     static_cast<int>(ctx.frame), node_name, node_kind_str, cache_status, duration_ms);
     }
 }
 
