@@ -111,9 +111,14 @@ struct RenderTelemetryRecord {
     uint64_t cache_eval_ms{0};
     uint64_t dirty_eval_ms{0};
     uint64_t input_resolve_ms{0};
+    uint64_t predicted_bbox_ms{0};
+    uint64_t clone_context_ms{0};
+    uint64_t state_assign_ms{0};
     uint64_t framebuffer_lifetime_ms{0};
     uint64_t node_schedule_ms{0};
     uint64_t node_dispatch_ms{0};
+    uint64_t node_execute_actual_ms{0};
+    uint64_t node_overhead_ms{0};
     uint64_t telemetry_emit_ms{0};
 
     // ── Chronon Render Throughput Benchmark (pure Chronon pipeline) ──
