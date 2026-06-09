@@ -3,8 +3,8 @@
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/simd/kernels.hpp>
-#include <chronon3d/video/converted_frame_cache.hpp>
-#include <chronon3d/video/frame_converter.hpp>
+#include <chronon3d/media/frame_conversion/converted_frame_cache.hpp>
+#include <chronon3d/media/frame_conversion/frame_converter.hpp>
 
 // Include the real blur implementation for proper benchmarks
 #include "src/backends/software/utils/render_effects_processor.hpp"

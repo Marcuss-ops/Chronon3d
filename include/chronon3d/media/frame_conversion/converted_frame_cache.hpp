@@ -11,7 +11,7 @@
 // Eviction   = LRU (least-recently-used frame index)
 // ---------------------------------------------------------------------------
 
-#include <chronon3d/video/frame_converter.hpp>
+#include <chronon3d/media/frame_conversion/frame_converter.hpp>
 #include <cstddef>
 #include <cstdint>
 #include <vector>
