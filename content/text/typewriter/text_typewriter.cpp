@@ -467,11 +467,13 @@ Composition text_typewriter() {
             // depth across the 5s duration (period 120 frames).
             .set_sweep(18.0f)
     },
-    // GlowBloom preset: enables both the layer effect glow and routes the
-    // per-layer strengths (core 0.6 / aura 0.3 / bloom 0.12) through the
-    // bridge that sets node.glow on the text processor.
+    // GlowBloom preset: drives the glow through the layer effect system
+    // (st.effects.glow_enabled + per-layer strengths via the MotionState
+    // bridge in motion_renderer.cpp).  glow=false here because the preset
+    // itself enables glow — setting both produces a double-glow that
+    // crushes the text under the bloom buffer.
     presets::motion::MotionPreset::GlowBloom,
-    true,                                  // glow=true → node.glow set
+    false,                                 // preset handles glow
     {0.01f, 0.012f, 0.022f, 1.0f},
     150,                                    // 150 frames @ 30fps = 5s
     1100.0f, 1920, 1080);
