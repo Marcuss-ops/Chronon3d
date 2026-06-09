@@ -17,6 +17,11 @@ Composition text_sweep_reveal();
 Composition text_stagger_reveal();
 Composition text_glow_reveal();
 
+// ── Typewriter + glow variants ───────────────────────────────────────
+Composition tw_glow();
+Composition tw_glow_warm();
+Composition tw_glow_deep();
+
 } // namespace chronon3d::content::text
 
 namespace chronon3d {
@@ -41,6 +46,11 @@ public:
         registry.register_composition("TextSweepReveal", text_sweep_reveal);
         registry.register_composition("TextStaggerReveal", text_stagger_reveal);
         registry.register_composition("TextGlowReveal", text_glow_reveal);
+
+        // ── Typewriter + glow variants ───────────────────────────────
+        registry.register_composition("TwGlow", tw_glow);
+        registry.register_composition("TwGlowWarm", tw_glow_warm);
+        registry.register_composition("TwGlowDeep", tw_glow_deep);
     }
 };
 
