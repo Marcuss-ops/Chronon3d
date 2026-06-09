@@ -372,5 +372,12 @@ TEST_CASE("GlowGolden: pulse animation frame pair") {
     verify_glow_golden_or_create(*fb0, "pulse_frame_000.png");
     verify_glow_golden_or_create(*fb15, "pulse_frame_015.png");
 
-    CHECK(framebuffer_hash(*fb0) != framebuffer_hash(*fb15));
+    // At t=0 and t=0.5 the pulse = 0.5 + 0.5*sin(2pi*2*t) gives 0.5 at both
+    // frame 0 (t=0) and frame 15 (t=15/30=0.5 → sin(2pi)=0), so they are
+    // identical.  Compare frame 4 (t=4/30≈0.133 → peak) and frame 11 instead.
+    auto fb4 = renderer.render_frame(comp, 4);
+    auto fb11 = renderer.render_frame(comp, 11);
+    REQUIRE(fb4 != nullptr);
+    REQUIRE(fb11 != nullptr);
+    CHECK(framebuffer_hash(*fb4) != framebuffer_hash(*fb11));
 }

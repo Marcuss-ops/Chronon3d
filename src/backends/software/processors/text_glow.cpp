@@ -16,6 +16,7 @@
 #include "text_effects.hpp"
 #include "text_processor_helpers.hpp"
 #include "../utils/blend2d_bridge.hpp"
+#include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/backends/text/text_rasterizer_utils.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
@@ -36,12 +37,14 @@ struct GlowLayer {
     float color_shift;     // 0 = glow color, 1 = shifted toward blue-cyan
 };
 
-// Default layer configuration — inner tight & bright, mid medium, outer wide & soft.
-// Matches the recommended recipe: inner: r*3, a=0.45 | mid: r*10, a=0.22 | outer: r*28, a=0.10
+// Default layer configuration — inner tight & subtle, mid medium, outer wide & soft.
+// Intensities are deliberately LOW: a premium glow is a whisper, not a fog.
+// The text sharp layer on top provides the core brightness; the glow layers
+// below should feel like atmospheric light, not a coloured halo.
 static constexpr std::array<GlowLayer, 3> kGlowLayers{{
-    {0.12f, 0.45f, 0.00f},  // inner — tight, colour-accurate
-    {0.38f, 0.22f, 0.35f},  // mid   — medium spread, slight blue shift
-    {1.00f, 0.10f, 0.65f},  // outer — wide falloff, distinctly blue-cyan
+    {0.10f, 0.25f, 0.00f},  // inner — tight (radius × 0.10), subtle (25%)
+    {0.35f, 0.12f, 0.30f},  // mid   — medium spread, soft (12%)
+    {1.00f, 0.05f, 0.60f},  // outer — wide falloff, whisper (5%)
 }};
 
 /// Apply a colour shift toward blue-cyan for outer glow layers.
@@ -94,6 +97,55 @@ struct PaddedMask {
     ctx.setFillStyle(BLRgba32(255, 255, 255, 255));
     ctx.fillAll();
     ctx.end();
+
+    // ── Alpha threshold ──────────────────────────────────────────────
+    // Eliminate any sub-pixel alpha noise in the padding area outside
+    // the glyphs.  Text rasterisers sometimes leave a faint alpha glow
+    // (~1-3/255) around glyph bounding boxes, which the blur would
+    // amplify into a rectangular fog.  Clamping to zero below 16/255
+    // removes this without affecting legitimate anti-aliased edges
+    // (which are typically ≥ 32/255 at the glyph boundary).
+    {
+        BLImageData md;
+        if (mask.getData(&md) == BL_SUCCESS && md.pixelData) {
+            const int stride = static_cast<int>(md.stride / sizeof(uint32_t));
+            auto* px = static_cast<uint32_t*>(md.pixelData);
+            static constexpr uint32_t kAlphaMask = 0xFF000000u;
+            static constexpr uint32_t kRgbMask   = 0x00FFFFFFu;
+            for (int y = 0; y < ph; ++y) {
+                for (int x = 0; x < pw; ++x) {
+                    const uint32_t a = px[y * stride + x] >> 24;
+                    if (a > 0 && a < 16) {
+                        px[y * stride + x] = 0;  // zero out entire pixel
+                    }
+                }
+            }
+        }
+    }
+
+    // ── Debug save ───────────────────────────────────────────────────
+    // Set CHRONON_DEBUG_DUMP_ALPHA_MASK=1 to dump the alpha mask to disk
+    // for visual inspection of the padded text shape.
+    if (std::getenv("CHRONON_DEBUG_DUMP_ALPHA_MASK")) {
+        BLImageData md;
+        if (mask.getData(&md) == BL_SUCCESS && md.pixelData) {
+            const int stride = static_cast<int>(md.stride / sizeof(uint32_t));
+            Framebuffer debug_fb(pw, ph);
+            const auto* px = static_cast<const uint32_t*>(md.pixelData);
+            for (int y = 0; y < ph; ++y) {
+                for (int x = 0; x < pw; ++x) {
+                    const uint32_t p = px[y * stride + x];
+                    debug_fb.set_pixel(x, y, Color{
+                        static_cast<float>((p >> 16) & 0xFF) / 255.0f,
+                        static_cast<float>((p >>  8) & 0xFF) / 255.0f,
+                        static_cast<float>( p        & 0xFF) / 255.0f,
+                        static_cast<float>((p >> 24) & 0xFF) / 255.0f
+                    });
+                }
+            }
+            save_png(debug_fb, "output/debug_alpha_mask.png");
+        }
+    }
 
     return {std::move(mask), pad};
 }
