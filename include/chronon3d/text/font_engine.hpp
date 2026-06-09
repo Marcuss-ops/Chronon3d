@@ -75,10 +75,19 @@ struct FontSpec {
 // Defaults match the historical Latin-only behaviour for full
 // backward-compatibility with existing call sites.
 struct TextShaping {
-    // HB_SCRIPT_* constant (e.g. HB_SCRIPT_LATIN, HB_SCRIPT_ARABIC,
-    // HB_SCRIPT_HEBREW, HB_SCRIPT_DEVANAGARI, HB_SCRIPT_HAN, ...).
-    // Default: 0 (which HarfBuzz treats as "auto-detect from text").
-    int  script{HB_SCRIPT_COMMON};
+    // HarfBuzz script tag (HB_SCRIPT_*).  The 4-byte OpenType script tag
+    // is passed through to hb_buffer_set_script().  We avoid pulling the
+    // full <hb.h> into this public header; the implementation casts this
+    // int to hb_script_t.  Common values:
+    //   HB_SCRIPT_COMMON   = 0x5A797979  (0)  // auto-detect
+    //   HB_SCRIPT_LATIN    = 0x4C61746E
+    //   HB_SCRIPT_ARABIC   = 0x41726162
+    //   HB_SCRIPT_HEBREW   = 0x48656272
+    //   HB_SCRIPT_DEVANAGARI = 0x44657661
+    //   HB_SCRIPT_HAN      = 0x48616E20
+    // Default: 0 (HB_SCRIPT_COMMON) which HarfBuzz treats as
+    // "auto-detect from text".
+    int  script{0};
 
     // BCP-47 language tag, e.g. "en", "ar", "he", "hi", "zh-Hans".
     // Default: "en" (matches the previous hardcoded behaviour).
