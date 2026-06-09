@@ -6,6 +6,7 @@
 #include <chronon3d/vector/path_factories.hpp>
 #include <chronon3d/scene/model/layer/mask.hpp>
 #include <chronon3d/scene/model/core/effect_stack.hpp>
+#include <chronon3d/effects/effect_params.hpp>
 #include <chronon3d/scene/model/shape/material_2_5d.hpp>
 #include <chronon3d/scene/model/core/card3d_material.hpp>
 #include <chronon3d/layout/layout_rules.hpp>
@@ -89,6 +90,7 @@ public:
     LayerBuilder& settle(f32 overshoot = 0.08f, Frame duration = Frame{20});
     LayerBuilder& fade_in(Frame duration, EasingCurve easing = EasingCurve{Easing::OutCubic});
     LayerBuilder& focus_in(f32 start_blur, Frame duration, EasingCurve easing = EasingCurve{Easing::OutCubic});
+    LayerBuilder& focus_in_preblurred(FocusInLadderParams params = {});
     LayerBuilder& scale_drop(f32 start_scale, Frame duration, EasingCurve easing = EasingCurve{Easing::OutCubic});
     LayerBuilder& fade_shift_vertical(Vec3 offset, Frame duration, EasingCurve easing = EasingCurve{Easing::OutCubic});
     LayerBuilder& fade_shift_horizontal(Vec3 offset, Frame duration, EasingCurve easing = EasingCurve{Easing::OutCubic});
