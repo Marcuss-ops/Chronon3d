@@ -1,5 +1,5 @@
 #include "../exporter_registry.hpp"
-#include "../pipe_export_session.hpp"
+#include "../common/pipe_export_session.hpp"
 
 namespace chronon3d::cli {
 namespace {

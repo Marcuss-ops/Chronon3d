@@ -1,8 +1,8 @@
 #pragma once
 
 #include <chronon3d/core/memory/framebuffer.hpp>
-#include <chronon3d/scene/model/camera.hpp>
-#include <chronon3d/scene/model/effect_stack.hpp>
+#include <chronon3d/scene/model/camera/camera.hpp>
+#include <chronon3d/scene/model/core/effect_stack.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/math/raster_utils.hpp>
 #include <memory>

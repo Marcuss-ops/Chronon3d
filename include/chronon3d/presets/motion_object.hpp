@@ -4,8 +4,8 @@
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/presets/motion_animation.hpp>
-#include <chronon3d/scene/model/shape.hpp>
-#include <chronon3d/scene/model/effect_stack.hpp>
+#include <chronon3d/scene/model/shape/shape.hpp>
+#include <chronon3d/scene/model/core/effect_stack.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/backends/video/video_source.hpp>
 #include <algorithm>

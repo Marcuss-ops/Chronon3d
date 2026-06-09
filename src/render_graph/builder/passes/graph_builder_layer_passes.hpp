@@ -1,7 +1,7 @@
 #pragma once
 
 #include <chronon3d/render_graph/graph_builder.hpp>
-#include <chronon3d/scene/model/camera_2_5d.hpp>
+#include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 
 namespace chronon3d {
     struct Layer;

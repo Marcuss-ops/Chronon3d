@@ -2,10 +2,10 @@
 #include <chronon3d/math/camera_pose.hpp>
 #include <chronon3d/math/expression.hpp>
 #include <chronon3d/animation/wiggle.hpp>
-#include <chronon3d/scene/model/layer_hierarchy.hpp>
-#include <chronon3d/scene/model/layer.hpp>
-#include <chronon3d/scene/model/render_node.hpp>
-#include <chronon3d/scene/model/shape.hpp>
+#include <chronon3d/scene/model/layer/layer_hierarchy.hpp>
+#include <chronon3d/scene/model/layer/layer.hpp>
+#include <chronon3d/scene/model/render/render_node.hpp>
+#include <chronon3d/scene/model/shape/shape.hpp>
 #include <variant>
 #include <unordered_map>
 

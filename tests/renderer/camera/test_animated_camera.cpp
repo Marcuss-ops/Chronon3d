@@ -1,6 +1,6 @@
 #include <doctest/doctest.h>
 #include <chronon3d/scene/camera/animated_camera_2_5d.hpp>
-#include <chronon3d/scene/model/camera_rig.hpp>
+#include <chronon3d/scene/model/camera/camera_rig.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/animation/easing.hpp>
 #include <chronon3d/math/glm_types.hpp>

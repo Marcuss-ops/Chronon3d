@@ -1,6 +1,6 @@
 #include <doctest/doctest.h>
 #include <chronon3d/scene/camera/camera_framing.hpp>
-#include <chronon3d/scene/model/transform_resolver.hpp>
+#include <chronon3d/scene/model/core/transform_resolver.hpp>
 
 using namespace chronon3d;
 

@@ -3,7 +3,7 @@
 #include <chronon3d/rendering/projected_card.hpp>
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <tests/helpers/test_utils.hpp>
-#include <chronon3d/scene/model/card3d_material.hpp>
+#include <chronon3d/scene/model/core/card3d_material.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/math/color.hpp>
 #include <filesystem>

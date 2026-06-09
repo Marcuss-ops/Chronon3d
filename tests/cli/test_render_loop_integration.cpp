@@ -1,7 +1,7 @@
 #include <doctest/doctest.h>
 
-#include <apps/chronon3d_cli/commands/video/pipe_export_session.hpp>
-#include <apps/chronon3d_cli/commands/video/pipe_export_helpers.hpp>
+#include <apps/chronon3d_cli/commands/video/common/pipe_export_session.hpp>
+#include <apps/chronon3d_cli/commands/video/common/pipe_export_helpers.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/software/render_settings.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>

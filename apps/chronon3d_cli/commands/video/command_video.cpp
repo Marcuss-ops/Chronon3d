@@ -1,4 +1,4 @@
-#include "video_export_common.hpp"
+#include "common/video_export_common.hpp"
 #include "exporter_registry.hpp"
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/core/telemetry/render_telemetry.hpp>

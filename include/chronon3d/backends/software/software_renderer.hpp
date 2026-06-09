@@ -4,11 +4,11 @@
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/backends/assets/image_renderer.hpp>
 #include <chronon3d/math/transform.hpp>
-#include <chronon3d/scene/model/render_node.hpp>
-#include <chronon3d/scene/model/layer.hpp>
-#include <chronon3d/scene/model/layer_effect.hpp>
-#include <chronon3d/scene/model/effect_stack.hpp>
-#include <chronon3d/scene/model/camera_2_5d.hpp>
+#include <chronon3d/scene/model/render/render_node.hpp>
+#include <chronon3d/scene/model/layer/layer.hpp>
+#include <chronon3d/scene/model/layer/layer_effect.hpp>
+#include <chronon3d/scene/model/core/effect_stack.hpp>
+#include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/cache/framebuffer_pool.hpp>
 #include <chronon3d/backends/software/render_settings.hpp>
@@ -16,10 +16,10 @@
 #include <chronon3d/backends/software/software_registry.hpp>
 #include <chronon3d/backends/video/video_frame_decoder.hpp>
 #include <chronon3d/simd/kernels.hpp>
-#include <chronon3d/scene/model/scene.hpp>
+#include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/core/types/frame.hpp>
-#include <chronon3d/scene/model/camera.hpp>
+#include <chronon3d/scene/model/camera/camera.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/render_graph/scene_hasher.hpp>
 
