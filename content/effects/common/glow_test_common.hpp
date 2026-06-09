@@ -15,7 +15,7 @@ static constexpr f32 kHH = kH * 0.5f;  // 512
 
 inline void deep_bg(SceneBuilder& s, Color top, Color bot) {
     s.layer("_bg", [=](LayerBuilder& l) {
-        l.rect("bg", {
+        l.cache_static().rect("bg", {
             .size  = {(f32)kW, (f32)kH},
             .color = top,
             .pos   = {0.f, 0.f, 0.f},
