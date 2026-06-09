@@ -5,12 +5,81 @@
 
 #include <algorithm>
 #include <array>
+#include <cstddef>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
 
 namespace chronon3d {
+
+// ── UTF-8 code-point helpers ───────────────────────────────────────
+// Used to make wrapping / ellipsis / splitting grapheme-aware instead
+// of byte-aware, preventing broken UTF-8 sequences for non-Latin text.
+
+namespace detail {
+
+/// Return the byte length of the UTF-8 sequence starting at the given byte.
+/// Returns 1 for ASCII, 2–4 for multi-byte sequences, 1 for invalid.
+inline size_t utf8_seq_len(unsigned char lead) noexcept {
+    if (lead < 0x80) return 1;
+    if ((lead & 0xE0) == 0xC0) return 2;
+    if ((lead & 0xF0) == 0xE0) return 3;
+    if ((lead & 0xF8) == 0xF0) return 4;
+    return 1; // invalid continuation byte — skip one
+}
+
+/// Decode a single UTF-8 code point at the given position.
+/// Advances `pos` by the sequence length.  Returns U+FFFD on error.
+inline char32_t utf8_decode(const std::string& s, size_t& pos) {
+    if (pos >= s.size()) return 0;
+    const unsigned char c0 = static_cast<unsigned char>(s[pos]);
+    const size_t len = utf8_seq_len(c0);
+    if (pos + len > s.size()) { ++pos; return 0xFFFD; }
+    char32_t cp;
+    switch (len) {
+        case 1: cp = c0; break;
+        case 2: cp = ((c0 & 0x1F) << 6) | (static_cast<unsigned char>(s[pos+1]) & 0x3F); break;
+        case 3: cp = ((c0 & 0x0F) << 12) | ((static_cast<unsigned char>(s[pos+1]) & 0x3F) << 6) | (static_cast<unsigned char>(s[pos+2]) & 0x3F); break;
+        case 4: cp = ((c0 & 0x07) << 18) | ((static_cast<unsigned char>(s[pos+1]) & 0x3F) << 12) | ((static_cast<unsigned char>(s[pos+2]) & 0x3F) << 6) | (static_cast<unsigned char>(s[pos+3]) & 0x3F); break;
+        default: cp = 0xFFFD; break;
+    }
+    pos += len;
+    return cp;
+}
+
+/// Remove the last code point from a UTF-8 string (in-place).
+/// Safe for multi-byte sequences — scans backwards from end.
+inline void utf8_pop_back(std::string& s) {
+    if (s.empty()) return;
+    size_t pos = s.size() - 1;
+    // Skip continuation bytes (10xxxxxx)
+    while (pos > 0 && (static_cast<unsigned char>(s[pos]) & 0xC0) == 0x80)
+        --pos;
+    s.resize(pos);
+}
+
+/// Return the number of code points in a UTF-8 string (O(n)).
+inline size_t utf8_length(const std::string& s) {
+    size_t count = 0;
+    for (size_t i = 0; i < s.size();) {
+        i += utf8_seq_len(static_cast<unsigned char>(s[i]));
+        ++count;
+    }
+    return count;
+}
+
+/// Overload for std::string_view — avoids copying into std::string.
+inline size_t utf8_length(std::string_view sv) {
+    size_t count = 0;
+    for (size_t i = 0; i < sv.size();) {
+        i += utf8_seq_len(static_cast<unsigned char>(sv[i]));
+        ++count;
+    }
+    return count;
+}
+
+} // namespace detail
 
 struct TextLayoutRun {
     std::string text;
@@ -82,9 +151,13 @@ private:
 
     static float measure_string_legacy(const TextLayoutInput& input, std::string_view s, float font_size) {
         float width = 0.0f;
+        const size_t cp_count = detail::utf8_length(s);
+        // Legacy path uses per-char callback; iterate byte-by-byte for ASCII
+        // since legacy callbacks only support single-byte chars anyway
         for (char c : s) {
-            width += measure_char_legacy(input, c, font_size) + input.style.tracking;
+            width += measure_char_legacy(input, c, font_size);
         }
+        width += input.style.tracking * static_cast<float>(cp_count);
         return std::max(0.0f, width);
     }
 
@@ -124,7 +197,7 @@ private:
         // Only used when the style inherits the input font (no per-run override).
         if (input.bl_measure_fn && input.bl_font_ptr && style.font_path.empty()) {
             float width = input.bl_measure_fn(input.bl_font_ptr, s, font_size);
-            width += style.tracking * static_cast<float>(s.size());
+            width += style.tracking * static_cast<float>(detail::utf8_length(s));
             return std::max(0.0f, width);
         }
         if (input.font_engine) {
@@ -135,7 +208,7 @@ private:
                 .font_style = style.font_style.empty() ? input.font_spec.font_style : style.font_style,
             };
             float width = input.font_engine->measure_text(s, spec, font_size);
-            width += style.tracking * static_cast<float>(s.size());
+            width += style.tracking * static_cast<float>(detail::utf8_length(s));
             return std::max(0.0f, width);
         }
         return measure_string_legacy(input, s, font_size);
@@ -237,28 +310,38 @@ private:
         std::string current_token;
         bool in_space = false;
 
-        for (char c : input.text) {
-            if (c == '\n') {
-                if (!current_token.empty()) {
-                    tokens.push_back({current_token, in_space});
-                    current_token.clear();
+        // UTF-8 aware tokenization: iterate by code-point, not by byte
+        for (size_t i = 0; i < input.text.size();) {
+            size_t len = detail::utf8_seq_len(static_cast<unsigned char>(input.text[i]));
+            if (len == 1) {
+                const char c = input.text[i];
+                if (c == '\n') {
+                    if (!current_token.empty()) {
+                        tokens.push_back({current_token, in_space});
+                        current_token.clear();
+                    }
+                    tokens.push_back({"\n", false});
+                    i += 1;
+                    continue;
+                } else if (c == ' ' || c == '\t') {
+                    if (!current_token.empty() && !in_space) {
+                        tokens.push_back({current_token, false});
+                        current_token.clear();
+                    }
+                    in_space = true;
+                    current_token.push_back(c);
+                    i += 1;
+                    continue;
                 }
-                tokens.push_back({"\n", false});
-            } else if (c == ' ' || c == '\t') {
-                if (!current_token.empty() && !in_space) {
-                    tokens.push_back({current_token, false});
-                    current_token.clear();
-                }
-                in_space = true;
-                current_token.push_back(c);
-            } else {
-                if (!current_token.empty() && in_space) {
-                    tokens.push_back({current_token, true});
-                    current_token.clear();
-                }
-                in_space = false;
-                current_token.push_back(c);
             }
+            // Non-space, non-newline (multi-byte or regular char)
+            if (!current_token.empty() && in_space) {
+                tokens.push_back({current_token, true});
+                current_token.clear();
+            }
+            in_space = false;
+            current_token.append(input.text, i, len);
+            i += len;
         }
         if (!current_token.empty()) {
             tokens.push_back({current_token, in_space});
@@ -290,14 +373,20 @@ private:
                         if (is_space) continue;
                     }
                     if (token_w > max_width) {
-                        for (char c : token) {
-                            const float cw = measure_char(c) + input.style.tracking;
-                            if (current_width + cw > max_width && !current_line.empty()) {
-                                push_current_line();
-                            }
-                            current_line.push_back(c);
-                            current_width += cw;
+                    // UTF-8 aware character-level fallback for overlong tokens
+                    for (size_t ci = 0; ci < token.size();) {
+                        size_t clen = detail::utf8_seq_len(static_cast<unsigned char>(token[ci]));
+                        // Use per-char measurement for ASCII; average for multi-byte
+                        const float cw = (clen == 1)
+                            ? measure_char(token[ci]) + input.style.tracking
+                            : (token_w / static_cast<float>(detail::utf8_length(token))) + input.style.tracking;
+                        if (current_width + cw > max_width && !current_line.empty()) {
+                            push_current_line();
                         }
+                        current_line.append(token.data() + ci, clen);
+                        current_width += cw;
+                        ci += clen;
+                    }
                     } else {
                         current_line = token;
                         current_width = token_w;
@@ -307,13 +396,19 @@ private:
                     current_width += token_w;
                 }
             } else if (input.style.wrap == TextWrap::Character) {
-                for (char c : token) {
-                    const float cw = measure_char(c) + input.style.tracking;
+                // UTF-8 aware character wrap
+                for (size_t ci = 0; ci < token.size();) {
+                    size_t clen = detail::utf8_seq_len(static_cast<unsigned char>(token[ci]));
+                    // Use per-char measurement for ASCII; average for multi-byte
+                    const float cw = (clen == 1)
+                        ? measure_char(token[ci]) + input.style.tracking
+                        : (token_w / static_cast<float>(detail::utf8_length(token))) + input.style.tracking;
                     if (current_width + cw > max_width && !current_line.empty()) {
                         push_current_line();
                     }
-                    current_line.push_back(c);
+                    current_line.append(token.data() + ci, clen);
                     current_width += cw;
+                    ci += clen;
                 }
             }
         }
@@ -331,7 +426,7 @@ private:
                 std::string& last_line = raw_lines.back();
                 const float ellipsis_w = measure_string_input("...");
                 while (!last_line.empty() && measure_string_input(last_line) + ellipsis_w > max_width) {
-                    last_line.pop_back();
+                    detail::utf8_pop_back(last_line);
                 }
                 last_line += "...";
             }
@@ -488,27 +583,34 @@ private:
             }
 
             if (char_wrap) {
-                for (char c : text) {
-                    if (c == '\r') continue;
-                    if (c == '\n') {
+                // UTF-8 aware character wrap: iterate by code-point, not by byte
+                for (size_t ci = 0; ci < text.size();) {
+                    size_t clen = detail::utf8_seq_len(static_cast<unsigned char>(text[ci]));
+                    if (clen == 1 && text[ci] == '\r') { ci += 1; continue; }
+                    if (clen == 1 && text[ci] == '\n') {
                         if (!current.runs.empty()) {
                             push_current();
                         }
+                        ci += 1;
                         continue;
                     }
 
-                    const float cw = measure_single_char(c, have_precomputed, char_widths,
-                        input, run.style, run_size);
+                    const float cw = (clen == 1)
+                        ? measure_single_char(text[ci], have_precomputed, char_widths,
+                            input, run.style, run_size)
+                        : run_size * 0.6f + input.style.tracking;
                     if (current.width + cw > max_width_limit && !current.runs.empty()) {
                         push_current();
                     }
-                    if (c == ' ' || c == '\t') {
+                    if (clen == 1 && (text[ci] == ' ' || text[ci] == '\t')) {
                         if (current.runs.empty()) {
+                            ci += 1;
                             continue;
                         }
                     }
-                    const std::string glyph(1, c);
+                    std::string glyph(text, ci, clen);
                     append_piece(run, glyph);
+                    ci += clen;
                 }
                 return;
             }
@@ -544,14 +646,20 @@ private:
                 }
 
                 if (token_w > max_width_limit && current.runs.empty()) {
-                    for (char c : token) {
-                        const float cw = measure_single_char(c, have_precomputed, char_widths,
-                            input, run.style, run_size);
+                    // UTF-8 aware character-level fallback for overlong tokens
+                    const float avg_cw = token_w / static_cast<float>(detail::utf8_length(token));
+                    for (size_t ci = 0; ci < token.size();) {
+                        size_t clen = detail::utf8_seq_len(static_cast<unsigned char>(token[ci]));
+                        const float cw = (clen == 1)
+                            ? measure_single_char(token[ci], have_precomputed, char_widths,
+                                input, run.style, run_size)
+                            : avg_cw + input.style.tracking;
                         if (current.width + cw > max_width_limit && !current.runs.empty()) {
                             push_current();
                         }
-                        const std::string glyph(1, c);
+                        const std::string glyph(token, ci, clen);
                         append_piece(run, glyph);
+                        ci += clen;
                     }
                 } else {
                     append_piece(run, token);
@@ -560,30 +668,37 @@ private:
                 token.clear();
             };
 
-            for (size_t i = 0; i < text.size(); ++i) {
-                const char c = text[i];
-                if (c == '\r') {
+            // UTF-8 aware word-wrap tokenization
+            for (size_t ci = 0; ci < text.size();) {
+                size_t clen = detail::utf8_seq_len(static_cast<unsigned char>(text[ci]));
+                if (clen == 1 && text[ci] == '\r') {
+                    ci += 1;
                     continue;
                 }
-                if (c == '\n') {
+                if (clen == 1 && text[ci] == '\n') {
                     flush_token();
                     if (!current.runs.empty()) {
                         push_current();
                     }
+                    ci += 1;
                     continue;
                 }
 
-                const bool is_space = (c == ' ' || c == '\t');
+                const bool is_space = (clen == 1 && (text[ci] == ' ' || text[ci] == '\t'));
                 if (token.empty()) {
                     token_is_space = is_space;
-                    token.push_back(c);
+                    if (clen == 1) token.push_back(text[ci]);
+                    else token.append(text, ci, clen);
+                    ci += clen;
                     continue;
                 }
                 if (token_is_space != is_space) {
                     flush_token();
                     token_is_space = is_space;
                 }
-                token.push_back(c);
+                if (clen == 1) token.push_back(text[ci]);
+                else token.append(text, ci, clen);
+                ci += clen;
             }
             flush_token();
         };
@@ -640,7 +755,7 @@ private:
                 if (line.runs.size() == 1) {
                     auto& run = line.runs.front();
                     while (!run.text.empty() && line.width > max_width_limit) {
-                        run.text.pop_back();
+                        detail::utf8_pop_back(run.text);
                         run.width = measure_string(input, run.style, run.text, std::max(1.0f, run.style.size));
                         line.width = run.width;
                     }

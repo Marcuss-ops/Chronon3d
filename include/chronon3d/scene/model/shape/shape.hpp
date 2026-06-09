@@ -10,6 +10,7 @@
 #include <vector>
 #include <chronon3d/text/text_material.hpp>
 #include <chronon3d/media/media_placement.hpp>
+#include <chronon3d/text/font_engine.hpp>  // TextDirection, TextShaping
 
 namespace chronon3d {
 
@@ -119,6 +120,8 @@ enum class TextWrap {
     Character,
 };
 
+// TextDirection and TextShaping are defined in <chronon3d/text/font_engine.hpp>.
+
 struct TextStyle {
     std::string font_path;
     std::string font_family;
@@ -149,6 +152,10 @@ struct TextStyle {
 
     // Premium TextMaterial (gradient, bevel, highlight, etc.)
     TextMaterial material{};
+
+    // Shaping control (direction, script, language)
+    // Added in 2026 — empty defaults auto-detect from text content.
+    TextShaping shaping{};
 };
 
 // Optional bounding box for word-wrap and auto-scale.

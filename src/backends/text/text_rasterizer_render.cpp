@@ -238,8 +238,10 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     int tw = 0;
     int th = 0;
     if (t.box.enabled) {
-        tw = static_cast<int>(std::ceil(t.box.size.x)) + padding;
-        th = static_cast<int>(std::ceil(t.box.size.y)) + padding;
+        // Use the larger of box size and actual layout size so wrapped text
+        // is never clipped vertically (or horizontally).
+        tw = static_cast<int>(std::ceil(std::max(t.box.size.x, layout_res.size.x))) + padding;
+        th = static_cast<int>(std::ceil(std::max(t.box.size.y, layout_res.size.y))) + padding;
     } else {
         float box_w = layout_res.size.x;
         float box_h = layout_res.size.y;
@@ -531,21 +533,34 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
                     }
                 }
 
-                // 3. Clear everything below last_content_row.
-                if (last_content_row >= 0 && last_content_row < sh - 1) {
-                    for (int y = last_content_row + 1; y < sh; ++y) {
+                // 3. Clear empty rows below the last ink.
+                //    Use local_ink_bottom (absolute last row with any non-zero
+                //    pixel) + a font-size-based safety margin for descender
+                //    glyphs, instead of the 2%-threshold last_content_row which
+                //    clips descenders (p, q, y, g, j) whose few bottom pixels
+                //    fall below the threshold.
+                //    When a text box is enabled, the box itself is the natural
+                //    boundary — skip the trim entirely to be safe.
+                if (!t.box.enabled) {
+                    const int descender_margin = std::max(8,
+                        static_cast<int>(std::ceil(layout_res.font_size * 0.25f)));
+                    const int safe_bottom = std::max(last_content_row,
+                        local_ink_bottom + descender_margin);
+                    if (safe_bottom >= 0 && safe_bottom < sh - 1) {
+                        for (int y = safe_bottom + 1; y < sh; ++y) {
+                            std::fill_n(pixels + y * stride, sw, uint32_t{0});
+                        }
+                    }
+
+                    // 4. Also clear isolated haze rows at the very bottom.
+                    const int trace_threshold = std::max(2,
+                        static_cast<int>(std::ceil(static_cast<float>(max_count) * 0.005f)));
+                    for (int y = sh - 1; y >= 0; --y) {
+                        const int count = row_counts[static_cast<size_t>(y)];
+                        if (count == 0) continue;
+                        if (count > trace_threshold && y <= safe_bottom) break;
                         std::fill_n(pixels + y * stride, sw, uint32_t{0});
                     }
-                }
-
-                // 4. Also clear isolated haze rows at the very bottom.
-                const int trace_threshold = std::max(2,
-                    static_cast<int>(std::ceil(static_cast<float>(max_count) * 0.005f)));
-                for (int y = sh - 1; y >= 0; --y) {
-                    const int count = row_counts[static_cast<size_t>(y)];
-                    if (count == 0) continue;
-                    if (count > trace_threshold) break;
-                    std::fill_n(pixels + y * stride, sw, uint32_t{0});
                 }
 
                 // 5. Compute ink fractional center for text-alignment fix.
