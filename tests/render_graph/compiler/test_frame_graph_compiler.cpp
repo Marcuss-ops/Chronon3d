@@ -2,7 +2,7 @@
 
 #include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
 #include <chronon3d/render_graph/render_graph.hpp>
-#include <chronon3d/render_graph/render_graph_node.hpp>
+#include <chronon3d/render_graph/nodes/render_graph_node.hpp>
 #include <chronon3d/cache/node_cache.hpp>
 #include <memory>
 #include <stdexcept>

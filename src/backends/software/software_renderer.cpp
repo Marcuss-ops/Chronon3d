@@ -1,7 +1,7 @@
 #include "utils/render_effects_processor.hpp"
 #include <chronon3d/backends/software/software_renderer.hpp>
-#include <chronon3d/render_graph/render_pipeline.hpp>
-#include <chronon3d/render_graph/graph_executor.hpp>
+#include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
+#include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/backends/software/software_compositor.hpp>
 #include <chronon3d/backends/software/software_effect_runner.hpp>
 #include <chronon3d/backends/software/software_node_dispatcher.hpp>

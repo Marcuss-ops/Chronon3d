@@ -291,9 +291,9 @@ set(CHRONON3D_SCENE_SOURCES
     scene/model/layer.cpp
     scene/model/render_node_factory.cpp
     scene/model/transform_resolver.cpp
-    scene/dark_grid_background.cpp
-    scene/layer_builder.cpp
-    scene/layer_builder_effects.cpp
+    scene/utils/dark_grid_background.cpp
+    scene/builders/layer_builder.cpp
+    scene/builders/layer_builder_effects.cpp
     scene/builders/layer_command_registry.cpp
     scene/builders/commands/motion_preset_methods.cpp
     scene/builders/commands/motion_preset_commands.cpp
@@ -302,8 +302,8 @@ set(CHRONON3D_SCENE_SOURCES
     scene/builders/commands/layer_property_commands.cpp
     scene/validation/scene_validator.cpp
     scene/validation/scene_validation_registry.cpp
-    scene/camera_api.cpp
-    scene/scene_builder.cpp
+    scene/builders/camera_api.cpp
+    scene/builders/scene_builder.cpp
     timeline/timeline_builder.cpp
     animations/camera/camera_tilt_clips.cpp
     animations/camera_motion_applier.cpp

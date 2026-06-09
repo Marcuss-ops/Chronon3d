@@ -1,7 +1,7 @@
 #pragma once
 
-#include <chronon3d/render_graph/render_graph_node.hpp>
-#include <chronon3d/render_graph/render_graph_hashing.hpp>
+#include <chronon3d/render_graph/nodes/render_graph_node.hpp>
+#include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/backends/video/video_source.hpp>
 #include <chronon3d/backends/video/video_frame_decoder.hpp>
 #include <span>

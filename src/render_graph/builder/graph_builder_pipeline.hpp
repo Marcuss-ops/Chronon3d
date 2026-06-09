@@ -1,6 +1,6 @@
 #pragma once
 
-#include <chronon3d/render_graph/graph_builder.hpp>
+#include <chronon3d/render_graph/builder/graph_builder.hpp>
 #include "graph_builder_internal.hpp"
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/render_graph/render_graph_context.hpp>

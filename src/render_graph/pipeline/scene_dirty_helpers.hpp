@@ -9,9 +9,9 @@
 
 #include <chronon3d/math/projector_2_5d.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
-#include <chronon3d/render_graph/render_pipeline.hpp>
-#include <chronon3d/render_graph/graph_builder.hpp>
-#include <chronon3d/render_graph/render_graph_hashing.hpp>
+#include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
+#include <chronon3d/render_graph/builder/graph_builder.hpp>
+#include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>

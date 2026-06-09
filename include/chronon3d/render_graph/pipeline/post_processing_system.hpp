@@ -1,6 +1,6 @@
 #pragma once
 
-#include <chronon3d/render_graph/velocity_buffer_motion_blur.hpp>
+#include <chronon3d/render_graph/nodes/velocity_buffer_motion_blur.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/scene/model/camera/dof.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>

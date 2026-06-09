@@ -10,10 +10,10 @@
 //   4. Fill and return the GraphPreflightReport.
 // ---------------------------------------------------------------------------
 
-#include <chronon3d/render_graph/preflight_render_graph.hpp>
+#include <chronon3d/render_graph/preflight/preflight_render_graph.hpp>
 #include "format.hpp"
-#include <chronon3d/render_graph/render_pipeline.hpp>
-#include <chronon3d/render_graph/graph_builder.hpp>
+#include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
+#include <chronon3d/render_graph/builder/graph_builder.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/math/projector_2_5d.hpp>
 #include "../builder/graph_builder_pipeline.hpp"

@@ -7,7 +7,7 @@
 #include <chronon3d/render_graph/nodes/effect_stack_node.hpp>
 #include <chronon3d/render_graph/nodes/adjustment_node.hpp>
 #include <chronon3d/render_graph/nodes/multi_source_node.hpp>
-#include <chronon3d/render_graph/render_graph_node.hpp>
+#include <chronon3d/render_graph/nodes/render_graph_node.hpp>
 #include <spdlog/spdlog.h>
 #include <queue>
 #include <unordered_set>

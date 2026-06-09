@@ -1,6 +1,6 @@
 #pragma once
 
-#include <chronon3d/render_graph/render_graph_node.hpp>
+#include <chronon3d/render_graph/nodes/render_graph_node.hpp>
 #include <chrono>
 #include <map>
 #include <vector>

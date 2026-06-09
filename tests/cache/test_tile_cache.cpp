@@ -1,6 +1,6 @@
 #include <doctest/doctest.h>
 #include <chronon3d/cache/node_cache.hpp>
-#include <chronon3d/render_graph/render_graph_hashing.hpp>
+#include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/api/composition.hpp>
 #include <chronon3d/api/scene.hpp>
 #include <chronon3d/api/renderer.hpp>

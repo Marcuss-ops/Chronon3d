@@ -3,7 +3,7 @@
 #include <chronon3d/render_graph/compiler/compiled_frame_graph.hpp>
 #include <chronon3d/render_graph/compiler/frame_graph_compile_options.hpp>
 #include <chronon3d/render_graph/render_graph.hpp>
-#include <chronon3d/render_graph/render_graph_node.hpp>
+#include <chronon3d/render_graph/nodes/render_graph_node.hpp>
 
 namespace chronon3d::graph {
 

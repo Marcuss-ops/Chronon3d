@@ -1,8 +1,8 @@
 #include <doctest/doctest.h>
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/render_graph/render_graph.hpp>
-#include <chronon3d/render_graph/graph_executor.hpp>
-#include <chronon3d/render_graph/graph_builder.hpp>
+#include <chronon3d/render_graph/executor/graph_executor.hpp>
+#include <chronon3d/render_graph/builder/graph_builder.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/cache/node_cache.hpp>
 

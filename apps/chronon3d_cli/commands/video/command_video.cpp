@@ -5,12 +5,12 @@
 #include <chronon3d/scene/utils/dark_grid_background.hpp>
 #include <chronon3d/presets/camera_motion_clip.hpp>
 #include <chronon3d/runtime/renderer_warmup.hpp>
-#include <chronon3d/render_graph/render_pipeline.hpp>
+#include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include "../../utils/common/cli_utils.hpp"
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
 #include <chronon3d/core/cancellation_token.hpp>
-#include <chronon3d/render_graph/render_pipeline.hpp>
+#include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <filesystem>
 
 namespace chronon3d::cli {

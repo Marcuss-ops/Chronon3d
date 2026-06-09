@@ -1,4 +1,4 @@
-#include <chronon3d/render_graph/graph_builder.hpp>
+#include <chronon3d/render_graph/builder/graph_builder.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/vector/path_factories.hpp>
 #include <chronon3d/core/composition/composition_registration.hpp>

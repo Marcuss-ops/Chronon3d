@@ -5,7 +5,7 @@
 // bboxes) have been extracted to scene_dirty_helpers.hpp.
 // ---------------------------------------------------------------------------
 
-#include <chronon3d/render_graph/render_pipeline.hpp>
+#include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/core/tile_grid.hpp>
 #include <chronon3d/core/dirty_tile_mask.hpp>

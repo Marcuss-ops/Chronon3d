@@ -4,7 +4,7 @@
 
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/triple_buffer_arena.hpp>
-#include <chronon3d/render_graph/render_pipeline.hpp>
+#include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <concurrentqueue/moodycamel/concurrentqueue.h>
 

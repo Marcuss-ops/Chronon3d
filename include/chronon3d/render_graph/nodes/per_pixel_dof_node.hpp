@@ -11,8 +11,8 @@
 // different layers get different blur amounts based on their world_z.
 // ============================================================================
 
-#include <chronon3d/render_graph/render_graph_node.hpp>
-#include <chronon3d/render_graph/render_graph_hashing.hpp>
+#include <chronon3d/render_graph/nodes/render_graph_node.hpp>
+#include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/scene/model/camera/dof.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/backends/software/utils/effects/per_pixel_dof.hpp>

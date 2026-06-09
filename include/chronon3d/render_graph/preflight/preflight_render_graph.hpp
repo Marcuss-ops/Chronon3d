@@ -25,7 +25,7 @@
 // ---------------------------------------------------------------------------
 
 #include <chronon3d/core/enum_utils.hpp>
-#include <chronon3d/render_graph/render_pipeline.hpp>
+#include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <chronon3d/math/raster_utils.hpp>
 #include <string>
 #include <string_view>
