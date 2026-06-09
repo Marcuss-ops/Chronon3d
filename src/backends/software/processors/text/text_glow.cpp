@@ -258,9 +258,11 @@ void draw_text_glow(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNod
 
         const f32 base_radius = std::max(1.0f, node.glow.radius);
 
-        // Padding must be large enough for the widest blur pass (outer = radius * 1.0).
-        // Rule of thumb: padding = ceil(radius * 4) to avoid edge clipping.
-        const int padding = static_cast<int>(std::ceil(base_radius * 4.0f)) + 4;
+        // Padding kept tight to avoid a large rectangular glow buffer that
+        // visually swallows the sharp text.  The outer blur pass spans
+        // radius*1.0, so ceil(radius*1.5)+4 still avoids edge clipping while
+        // shrinking the surrounding rectangle by ~60%.
+        const int padding = static_cast<int>(std::ceil(base_radius * 1.5f)) + 4;
 
         // ── Step 1: Build padded white alpha mask ────────────────────
         auto [alpha_mask, actual_pad] = make_padded_alpha_mask(raster.image, padding);
@@ -309,7 +311,7 @@ void draw_text_glow(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNod
     // recover it from the difference between the cached image and the
     // raster (or re-derive it from the node params).
     const f32 base_radius = std::max(1.0f, node.glow.radius);
-    const int padding = static_cast<int>(std::ceil(base_radius * 4.0f)) + 4;
+    const int padding = static_cast<int>(std::ceil(base_radius * 1.5f)) + 4;
 
     if (glow_cache) {
         // NOTE: per-layer intensities (from node.glow.core_strength /
