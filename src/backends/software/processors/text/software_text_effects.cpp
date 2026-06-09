@@ -88,6 +88,13 @@ CacheKey hash_glow_params(const RenderNode& node, float effective_size) {
     seed = hash_combine(seed, hash_value(node.glow.color.g));
     seed = hash_combine(seed, hash_value(node.glow.color.b));
     seed = hash_combine(seed, hash_value(node.glow.color.a));
+    // Per-layer strengths: these change the inner/mid/outer layer
+    // intensity of the multi-layer text glow pipeline.  Without them in
+    // the cache key, a tuning change (e.g. GlowBloom preset going from
+    // 0.12/0.05/0.015 to 0.45/0.20/0.08) would return the stale buffer.
+    seed = hash_combine(seed, hash_value(node.glow.core_strength));
+    seed = hash_combine(seed, hash_value(node.glow.aura_strength));
+    seed = hash_combine(seed, hash_value(node.glow.bloom_strength));
     return seed;
 }
 

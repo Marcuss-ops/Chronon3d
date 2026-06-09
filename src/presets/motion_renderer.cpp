@@ -224,7 +224,23 @@ void draw_motion_object_impl(
         l.cache_static(obj.style.cache_static);
 
         if (st.effects.glow_enabled) {
-            l.glow(st.effects.glow);
+            // Bridge: convert GlowParams (preset/MotionState) to the RenderNode
+            // Glow struct so the text/image/shape processors receive the
+            // per-layer strengths (core/aura/bloom) set by the preset.
+            // We use with_glow() instead of glow() to avoid the double-glow
+            // routing — with_glow sets node->glow directly (which the
+            // text/image/shape processors check), while glow() would also
+            // push a LightGlow effect into the layer's effect stack
+            // (processed again by EffectStackNode).
+            Glow node_glow{};
+            node_glow.enabled       = true;
+            node_glow.radius        = st.effects.glow.radius;
+            node_glow.intensity     = st.effects.glow.intensity;
+            node_glow.color         = st.effects.glow.color;
+            node_glow.core_strength  = st.effects.glow.core_strength;
+            node_glow.aura_strength  = st.effects.glow.aura_strength;
+            node_glow.bloom_strength = st.effects.glow.bloom_strength;
+            l.with_glow(node_glow);
         }
         if (st.effects.shadow_enabled) {
             l.drop_shadow(
