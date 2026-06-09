@@ -1,7 +1,18 @@
 #pragma once
 
+#if defined(_WIN32)
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#endif
+
 #include <cstdint>
 #include <cstddef>
+
+#if defined(_WIN32)
+#undef min
+#undef max
+#endif
 
 namespace chronon3d {
 
@@ -24,5 +35,9 @@ using i64 = std::int64_t;
 // Size types
 using usize = std::size_t;
 using isize = std::ptrdiff_t;
+
+#if defined(_MSC_VER) && !defined(__restrict__)
+#define __restrict__ __restrict
+#endif
 
 } // namespace chronon3d
