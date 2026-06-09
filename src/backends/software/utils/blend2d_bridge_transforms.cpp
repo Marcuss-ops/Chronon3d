@@ -126,7 +126,7 @@ void composite_bl_image_transformed(Framebuffer& fb, const BLImage& img, const M
     };
 
     if (y1 - y0 >= 16) {
-        tbb::parallel_for(tbb::blocked_range<int>(y0, y1), [&](const tbb::blocked_range<int>& range) {
+        tbb::parallel_for(tbb::blocked_range<int>(y0, y1, 16), [&](const tbb::blocked_range<int>& range) {
             process_rows(range.begin(), range.end());
         });
     } else {
@@ -248,7 +248,7 @@ void composite_bl_image_tiled(Framebuffer& fb, const BLImage& img, const Mat4& m
     };
 
     if (y1 - y0 >= 16) {
-        tbb::parallel_for(tbb::blocked_range<int>(y0, y1), [&](const tbb::blocked_range<int>& range) {
+        tbb::parallel_for(tbb::blocked_range<int>(y0, y1, 16), [&](const tbb::blocked_range<int>& range) {
             process_rows(range.begin(), range.end());
         });
     } else {

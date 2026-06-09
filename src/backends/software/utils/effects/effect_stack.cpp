@@ -305,7 +305,7 @@ void apply_focus_in_ladder(Framebuffer& fb, const FocusInLadderParams& p,
         const auto stride_b = cache.levels[idx_b]->allocated_width();
         const float inv_blend = 1.0f - blend;
 
-        tbb::parallel_for(tbb::blocked_range<int>(0, h), [&](const tbb::blocked_range<int>& ry) {
+        tbb::parallel_for(tbb::blocked_range<int>(0, h, 16), [&](const tbb::blocked_range<int>& ry) {
             for (int y = ry.begin(); y < ry.end(); ++y) {
                 Color* dst = fb.pixels_row(y);
                 const Color* row_a = src_a + static_cast<size_t>(y) * stride_a;
