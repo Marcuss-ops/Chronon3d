@@ -460,7 +460,7 @@ Composition text_typewriter() {
             // blue text reads clearly against the dark grid background.
             .set_color({0.62f, 0.88f, 1.0f, 1.0f})
             .set_align(TextAlign::Center)
-            .set_size({1500.0f, 320.0f})
+            .set_size({1500.0f, 480.0f})
             // Hide the blinking cursor for the centered reveal.
             .set_cursor(false)
     },
