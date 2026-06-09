@@ -55,6 +55,14 @@ double run_node(
             PoolFbDeleter scratch_deleter = std::move(owned.get_deleter());
             Framebuffer* raw = owned.release();
             result = CachedFB(raw, std::move(scratch_deleter));
+        } else if (owned.get_deleter().owned_by_renderer) {
+            // Renderer-owned FB (e.g., ping-pong buffer): preserve the no-op
+            // deleter so the buffer is neither deleted nor returned to the pool.
+            // The renderer manages lifetime explicitly via m_ping_fb[].
+            PoolFbDeleter noop;
+            noop.owned_by_renderer = true;
+            Framebuffer* raw = owned.release();
+            result = CachedFB(raw, std::move(noop));
         } else {
             Framebuffer* raw = owned.release();
             PoolFbDeleter deleter{nullptr};

@@ -453,11 +453,15 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         return sw_renderer->m_prev_framebuffer;
     }
 
-    // ── Wire up transform scratch buffer BEFORE graph build/reuse ───────
-    // This must be set for ALL code paths (graph reuse AND full build).
-    // The scratch is a persistent FB reused by TransformNode across frames
-    // to avoid pool bucket misses from animated output size changes.
+    // ── Wire up ping-pong framebuffers AND transform scratch ────────────
+    // Both must be set before graph build/reuse for ALL code paths.
+    // Ping-pong: ClearNode uses the exclusive write ping instead of COW.
+    // Transform scratch: TransformNode reuses a persistent buffer.
     if (sw_renderer) {
+        sw_renderer->ensure_ping_framebuffers(width, height);
+        ctx.ping_write_fb = sw_renderer->m_ping_fb[sw_renderer->m_ping_write_idx];
+        ctx.ping_write_slot = sw_renderer->write_ping_slot();
+
         ctx.transform_scratch = sw_renderer->ensure_transform_scratch(width, height);
         ctx.transform_scratch_slot = sw_renderer->transform_scratch_slot();
     }
@@ -718,7 +722,24 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         const uint64_t save_structure_fp = sw_renderer->m_scene_hasher.compute_structure_fingerprint(scene);
         const uint64_t save_active_at_fp = sw_renderer->m_scene_hasher.compute_active_at_fingerprint(scene, frame);
         const uint64_t save_combined_fp = save_static_fp ^ (save_active_at_fp * 0x9e3779b97f4a7c15ULL);
-        sw_renderer->m_prev_framebuffer = fb_shared;
+
+        // ── Update m_prev_framebuffer: swap ping-pong or assign directly ──
+        // When the graph rendered into a ping buffer (ClearNode's ping-pong path),
+        // swap indices so m_prev_framebuffer points to the completed frame.
+        // Otherwise (first frame, tile execution, or COW fallback), fb_shared is
+        // a pool FB and must be assigned directly.
+        if (fb_shared.get() == sw_renderer->m_ping_fb[0] ||
+            fb_shared.get() == sw_renderer->m_ping_fb[1]) {
+            // Rendered into a ping — swap indices to advance the ping cycle.
+            // swap_ping_indices() repoints m_prev_framebuffer to the new read ping
+            // (the frame we just finished writing), making it the "previous" frame
+            // for ClearNode's dirty-rect read in the next cycle.
+            sw_renderer->swap_ping_indices();
+        } else {
+            // Rendered into a pool FB — assign directly.
+            sw_renderer->m_prev_framebuffer = fb_shared;
+        }
+
         sw_renderer->m_prev_layer_bboxes = std::move(dirty_out.layer_bboxes);
         sw_renderer->m_prev_frame = frame;
         sw_renderer->m_prev_scene_fingerprint = save_combined_fp;

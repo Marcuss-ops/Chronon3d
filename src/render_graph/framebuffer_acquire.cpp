@@ -266,6 +266,8 @@ RenderGraphContext RenderGraphContext::clone_for_node_execution() const {
     copy.track_dof_depth    = track_dof_depth;
     copy.transform_scratch      = transform_scratch;
     copy.transform_scratch_slot = transform_scratch_slot;
+    copy.ping_write_fb          = ping_write_fb;
+    copy.ping_write_slot        = ping_write_slot;
 
     // ── Vectors — selectively copy only what node.execute() may read ────
     // • early_exit_skip:  checked against the *parent* ctx before the copy
