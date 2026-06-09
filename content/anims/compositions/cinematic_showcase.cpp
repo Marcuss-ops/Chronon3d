@@ -18,8 +18,8 @@
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
-#include <chronon3d/animation/catmull_rom_path.hpp>
-#include <chronon3d/animation/easing.hpp>
+#include <chronon3d/animation/path/catmull_rom_path.hpp>
+#include <chronon3d/animation/easing/easing.hpp>
 
 #include <cmath>
 #include <string>

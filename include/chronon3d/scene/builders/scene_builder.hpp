@@ -14,7 +14,7 @@
 #include <chronon3d/rendering/light_context.hpp>
 #include <chronon3d/rendering/lighting_rig.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
-#include <chronon3d/animation/stagger.hpp>
+#include <chronon3d/animation/effects/stagger.hpp>
 #include <chronon3d/backends/video/video_source.hpp>
 #include <glm/glm.hpp>
 #include <chronon3d/scene/builders/null_builder.hpp>

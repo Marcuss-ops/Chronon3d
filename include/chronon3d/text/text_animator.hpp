@@ -3,8 +3,8 @@
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/scene/builders/builder_params.hpp>
-#include <chronon3d/animation/easing.hpp>
-#include <chronon3d/animation/animated_value.hpp>
+#include <chronon3d/animation/easing/easing.hpp>
+#include <chronon3d/animation/core/animated_value.hpp>
 #include <chronon3d/text/font_engine.hpp>
 #include <string>
 #include <vector>

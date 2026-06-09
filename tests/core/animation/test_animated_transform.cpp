@@ -1,5 +1,5 @@
 #include <doctest/doctest.h>
-#include <chronon3d/animation/animated_transform.hpp>
+#include <chronon3d/animation/effects/animated_transform.hpp>
 
 using namespace chronon3d;
 

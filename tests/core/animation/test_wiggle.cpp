@@ -1,5 +1,5 @@
 #include <doctest/doctest.h>
-#include <chronon3d/animation/wiggle.hpp>
+#include <chronon3d/animation/effects/wiggle.hpp>
 #include <chronon3d/scene/model/camera/camera_shake.hpp>
 #include <cmath>
 

@@ -3,7 +3,7 @@
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/scene/camera/animated_camera_2_5d.hpp>
-#include <chronon3d/animation/stagger.hpp>
+#include <chronon3d/animation/effects/stagger.hpp>
 #include <string>
 #include <vector>
 #include <functional>

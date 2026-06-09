@@ -1,6 +1,6 @@
 #pragma once
 
-#include <chronon3d/animation/keyframe.hpp>
+#include <chronon3d/animation/core/keyframe.hpp>
 #include <chronon3d/math/expression.hpp>
 #include <vector>
 #include <string>
