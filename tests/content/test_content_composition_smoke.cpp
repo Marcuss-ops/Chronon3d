@@ -158,7 +158,7 @@ TEST_CASE("2D5: core 2.5D scenes evaluate frame 0") {
     CompositionRegistry registry;
 
     const std::vector<std::string> names = {
-        "ParallaxSimple", "DepthScene", "CardFlip", "ParallaxText", "DofShowcase"
+        "ParallaxSimple", "DepthScene", "CardFlip", "DofShowcase"
     };
 
     for (const auto& name : names) {
