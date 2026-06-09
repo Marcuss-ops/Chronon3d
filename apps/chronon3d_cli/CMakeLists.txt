@@ -61,7 +61,7 @@ if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
         utils/video/native_av_encoder.cpp
         utils/video/native_av_encoder_write.cpp
     )
-    target_link_libraries(chronon3d_cli_video PRIVATE -lavcodec -lavformat -lavutil -lswscale)
+    target_link_libraries(chronon3d_cli_video PRIVATE ${CHRONON3D_FFMPEG_LIBS_FULL})
     target_compile_definitions(chronon3d_cli_video PRIVATE CHRONON3D_ENABLE_NATIVE_FFMPEG)
 endif()
 
