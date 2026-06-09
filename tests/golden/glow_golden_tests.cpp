@@ -365,6 +365,57 @@ Composition make_text_glow_reveal_via_motion() {
        Color{0.01f, 0.012f, 0.022f, 1.0f}, 180, 1100.0f, 1920, 1080);
 }
 
+// Re-implementation of content::text::text_typewriter() for the regression
+// guard: same typewriter pipeline path, no glow preset (FadeIn).  Mirrors
+// the production composition exactly so the comparison is apples-to-apples.
+Composition make_text_typewriter_via_motion() {
+    using namespace chronon3d::content::text;
+    return typewriter::make_typewriter("TextTypewriter", {
+        typewriter::TypewriterLine(
+            "THE ENGINE LEARNED TO SPEAK, typed frame by frame \u2014 a single line that wraps when it reaches the edge of the viewport so you can see the left-to-right alignment in action on multiple rows.")
+            .set_pos({0.0f, 0.0f, 0.0f})
+            .set_font(48.0f, 4.0f)
+            .set_timing(0.0f, 2.5f)
+            .set_color({0.25f, 0.58f, 1.0f, 1.0f})
+            .set_align(TextAlign::Left)
+            .set_size({1400.0f, 280.0f})
+    }, presets::motion::MotionPreset::FadeIn, false,
+       Color{0.01f, 0.012f, 0.022f, 1.0f}, 180, 1100.0f, 1920, 1080);
+}
+
+// Brightness sample of a framebuffer.  Two complementary metrics:
+//   - near_white_pixels: RGB > 0.59 (i.e. > 150/255).  Catches the white
+//     sharp text of TextGlowReveal specifically; should remain high even
+//     when the glow buffer partially covers the text.
+//   - bright_pixels: luma > 0.4.  Catches the blue text of TextTypewriter
+//     and the white text of TextGlowReveal alike, so the ratio between
+//     the two compositions is meaningful as a "glow vs no-glow" baseline.
+struct BrightnessStats {
+    int near_white_pixels{0};
+    int bright_pixels{0};
+    int total_sampled{0};
+};
+
+BrightnessStats sample_brightness(const Framebuffer& fb, int step = 2) {
+    BrightnessStats s;
+    const int w = fb.width();
+    const int h = fb.height();
+    for (int y = 0; y < h; y += step) {
+        for (int x = 0; x < w; x += step) {
+            const Color c = fb.get_pixel(x, y);
+            ++s.total_sampled;
+            if (c.r > 0.59f && c.g > 0.59f && c.b > 0.59f) {
+                ++s.near_white_pixels;
+            }
+            const float luma = 0.299f * c.r + 0.587f * c.g + 0.114f * c.b;
+            if (luma > 0.4f) {
+                ++s.bright_pixels;
+            }
+        }
+    }
+    return s;
+}
+
 #undef verify_golden_or_create
 
 } // namespace
@@ -447,4 +498,59 @@ TEST_CASE("GlowGolden: TextGlowReveal via motion_object (typewriter pipeline, ea
     auto rendered = renderer.render_frame(comp, 30);
     REQUIRE(rendered != nullptr);
     verify_glow_golden_or_create(*rendered, "text_glow_reveal_motion_frame_030.png");
+}
+
+// Regression guard: TextGlowReveal must never fully hide the sharp text
+// under the glow buffer.  Compares against the un-glowed TextTypewriter
+// (same typewriter pipeline, FadeIn preset, glow=false) at frame 90
+// (t=0.5 — text fully revealed, opacity=1, blur=0).
+//
+// Two assertions:
+//   1. Absolute floor: TextGlowReveal has >= 1000 near-white pixels
+//      (RGB > 0.59).  Catches the failure mode where the glow buffer
+//      fully covers the text (e.g. if the per-layer strengths are
+//      turned up past visibility, or the padding eats the sharp layer).
+//   2. Relative floor: TextGlowReveal keeps at least 60% of the bright
+//      (luma > 0.4) pixel count of TextTypewriter.  Catches the
+//      regression where the glow overpowers the text but does not
+//      fully hide it (e.g. weak sharp text, oversized glow buffer).
+//
+// The 60% threshold is generous on purpose: the glow legitimately
+// reduces local contrast on the text by tinting it, but the
+// character-coverage footprint should be comparable.
+TEST_CASE("GlowGolden: TextGlowReveal must not hide text (regression guard vs TextTypewriter)") {
+    auto renderer = make_renderer();
+    const auto comp_glow = make_text_glow_reveal_via_motion();
+    const auto comp_type = make_text_typewriter_via_motion();
+
+    auto fb_glow = renderer.render_frame(comp_glow, 90);
+    auto fb_type = renderer.render_frame(comp_type, 90);
+    REQUIRE(fb_glow != nullptr);
+    REQUIRE(fb_type != nullptr);
+
+    const auto stats_glow = sample_brightness(*fb_glow);
+    const auto stats_type = sample_brightness(*fb_type);
+
+    INFO("TextGlowReveal[frame=90]:  near_white=" << stats_glow.near_white_pixels
+         << ", bright=" << stats_glow.bright_pixels
+         << ", total=" << stats_glow.total_sampled);
+    INFO("TextTypewriter[frame=90]:  near_white=" << stats_type.near_white_pixels
+         << ", bright=" << stats_type.bright_pixels
+         << ", total=" << stats_type.total_sampled);
+
+    // Guard 1: absolute floor on near-white pixels (catches full-hide).
+    CHECK_MESSAGE(stats_glow.near_white_pixels >= 1000,
+        "TextGlowReveal has only " << stats_glow.near_white_pixels
+        << " near-white pixels at frame 90 — the glow is hiding the text");
+
+    // Guard 2: bright-pixel ratio vs TextTypewriter (catches over-glow).
+    if (stats_type.bright_pixels > 0) {
+        const float ratio = static_cast<float>(stats_glow.bright_pixels) /
+                            static_cast<float>(stats_type.bright_pixels);
+        CHECK_MESSAGE(ratio >= 0.6f,
+            "TextGlowReveal bright/text_bright ratio = " << ratio
+            << " (glow=" << stats_glow.bright_pixels
+            << ", text=" << stats_type.bright_pixels
+            << ") — glow overpowers the text");
+    }
 }
