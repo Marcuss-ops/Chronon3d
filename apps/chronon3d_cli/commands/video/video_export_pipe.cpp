@@ -103,6 +103,33 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
 
     warmup_pipe_renderer(*renderer, comp, opts);
 
+    // ── Pre-warm the framebuffer pool with canvas-sized buffers ────────
+    // The async pipeline (render thread + queue + writer thread) can hold
+    // up to 4-5 canvas buffers simultaneously.  Pre-allocating 6 ensures
+    // the ClearNode COW detach always finds a ready buffer instead of
+    // paying for a fresh allocation on every frame (which was causing
+    // 119 pool size-mismatch misses in the 300-frame benchmark).
+    //
+    // This directly targets the `framebuffer_pool_miss_count_size_mismatch`
+    // counter.  When the pool has warm buffers, acquire_owned_fb() returns
+    // immediately without the ~0.5ms allocation stall.
+    if (sw_renderer && sw_renderer->framebuffer_pool()) {
+        const auto [bw, bh] = cache::FramebufferPool::round_to_bucket(
+            comp.width(), comp.height());
+        const auto prealloced = sw_renderer->framebuffer_pool()->preallocate(
+            cache::FramebufferPoolPreallocOptions{
+                .width = bw,
+                .height = bh,
+                .count = 6,
+                .clear = true,
+                .touch_memory = false,
+            });
+        if (prealloced > 0) {
+            spdlog::info("[pool-warm] Pre-allocated {} canvas buffers ({}x{} bucket) at startup",
+                         prealloced, bw, bh);
+        }
+    }
+
     // Capture CPU baseline before the render phase — fill_system_counters()
     // uses sample_cpu_delta() to compute per-run CPU time.
     sys_metrics.sample_cpu_start();
