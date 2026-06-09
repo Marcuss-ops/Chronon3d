@@ -1,10 +1,10 @@
 #pragma once
 
 #include <chronon3d/core/memory/framebuffer.hpp>
-#include <chronon3d/scene/model/camera.hpp>
-#include <chronon3d/scene/model/path.hpp>
+#include <chronon3d/scene/model/camera/camera.hpp>
+#include <chronon3d/scene/model/shape/path.hpp>
 #include <chronon3d/math/glm_types.hpp>
-#include <chronon3d/scene/model/render_node.hpp>
+#include <chronon3d/scene/model/render/render_node.hpp>
 
 namespace chronon3d::renderer {
 

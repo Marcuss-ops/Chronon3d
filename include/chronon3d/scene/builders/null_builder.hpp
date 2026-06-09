@@ -1,6 +1,6 @@
 #pragma once
 
-#include <chronon3d/scene/model/transform_3d.hpp>
+#include <chronon3d/scene/model/shape/transform_3d.hpp>
 #include <string>
 
 namespace chronon3d {

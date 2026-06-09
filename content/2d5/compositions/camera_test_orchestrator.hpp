@@ -3,7 +3,7 @@
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
-#include <chronon3d/scene/model/camera_shot_profile.hpp>
+#include <chronon3d/scene/model/camera/camera_shot_profile.hpp>
 #include <vector>
 #include <string>
 

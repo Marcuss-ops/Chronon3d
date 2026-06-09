@@ -4,7 +4,7 @@
 #include <chronon3d/core/types/types.hpp>
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/math/raster_utils.hpp>
-#include <chronon3d/scene/model/shape.hpp>
+#include <chronon3d/scene/model/shape/shape.hpp>
 
 namespace chronon3d {
 struct RenderState;

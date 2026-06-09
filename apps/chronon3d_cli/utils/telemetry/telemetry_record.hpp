@@ -70,6 +70,7 @@ inline void populate_run_metrics(chronon3d::telemetry::RenderTelemetryRecord& ru
     run.framebuffer_acquire_ms = counters.framebuffer_acquire_ms.load(std::memory_order_relaxed);
     run.framebuffer_clear_ms = counters.framebuffer_clear_ms.load(std::memory_order_relaxed);
     run.clearnode_ms = counters.clearnode_ms.load(std::memory_order_relaxed);
+    run.clearnode_restore_ms = counters.clearnode_restore_ms.load(std::memory_order_relaxed);
     run.framebuffer_pool_clear_ms = counters.framebuffer_pool_clear_ms.load(std::memory_order_relaxed);
     run.framebuffer_enqueue_ms = counters.framebuffer_enqueue_ms.load(std::memory_order_relaxed);
     run.framebuffer_pool_miss_count_size_mismatch = counters.framebuffer_pool_miss_count_size_mismatch.load(std::memory_order_relaxed);
@@ -98,9 +99,14 @@ inline void populate_run_metrics(chronon3d::telemetry::RenderTelemetryRecord& ru
     run.cache_eval_ms = counters.cache_eval_ms.load(std::memory_order_relaxed);
     run.dirty_eval_ms = counters.dirty_eval_ms.load(std::memory_order_relaxed);
     run.input_resolve_ms = counters.input_resolve_ms.load(std::memory_order_relaxed);
+    run.predicted_bbox_ms = counters.predicted_bbox_ms.load(std::memory_order_relaxed);
+    run.clone_context_ms = counters.clone_context_ms.load(std::memory_order_relaxed);
+    run.state_assign_ms = counters.state_assign_ms.load(std::memory_order_relaxed);
     run.framebuffer_lifetime_ms = counters.framebuffer_lifetime_ms.load(std::memory_order_relaxed);
     run.node_schedule_ms = counters.node_schedule_ms.load(std::memory_order_relaxed);
     run.node_dispatch_ms = counters.node_dispatch_ms.load(std::memory_order_relaxed);
+    run.node_execute_actual_ms = counters.node_execute_actual_ms.load(std::memory_order_relaxed);
+    run.node_overhead_ms = counters.node_overhead_ms.load(std::memory_order_relaxed);
     run.telemetry_emit_ms = counters.telemetry_emit_ms.load(std::memory_order_relaxed);
 
     // Setup Deep Dive (cold start diagnostics)

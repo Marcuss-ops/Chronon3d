@@ -1,7 +1,7 @@
 #include <doctest/doctest.h>
 
-#include <chronon3d/scene/model/camera_rig.hpp>
-#include <chronon3d/scene/model/camera_2_5d.hpp>
+#include <chronon3d/scene/model/camera/camera_rig.hpp>
+#include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/backends/software/rasterizers/projected_card_rasterizer.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/math/projector_2_5d.hpp>
@@ -10,7 +10,7 @@
 #include <chronon3d/core/tile_grid.hpp>
 #include <chronon3d/core/dirty_tile_mask.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
-#include <chronon3d/scene/model/scene.hpp>
+#include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/rendering/projected_card.hpp>
 #include <tests/helpers/test_utils.hpp>
