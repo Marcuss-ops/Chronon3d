@@ -467,13 +467,14 @@ Composition text_typewriter() {
             // depth across the 5s duration (period 120 frames).
             .set_sweep(18.0f)
     },
-    // GlowBloom preset: drives the glow through the layer effect system
-    // (st.effects.glow_enabled + per-layer strengths via the MotionState
-    // bridge in motion_renderer.cpp).  glow=false here because the preset
-    // itself enables glow — setting both produces a double-glow that
-    // crushes the text under the bloom buffer.
-    presets::motion::MotionPreset::GlowBloom,
-    false,                                 // preset handles glow
+    // FadeIn preset: simple 0→1 alpha curve, no fade-out.  Earlier attempts
+    // (GlowBloom, SoftDollyReveal) both rendered the text but masked it
+    // with a padded alpha / bloom buffer that the regression-guard test
+    // later flagged.  FadeIn keeps the text fully opaque for the full
+    // duration; visual interest comes from the centered alignment, the
+    // 56pt bright-blue color, the typewriter reveal, and the Z-axis sweep.
+    presets::motion::MotionPreset::FadeIn,
+    false,                                 // no glow — text reads clean
     {0.01f, 0.012f, 0.022f, 1.0f},
     150,                                    // 150 frames @ 30fps = 5s
     1100.0f, 1920, 1080);
