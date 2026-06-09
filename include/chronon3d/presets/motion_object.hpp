@@ -173,6 +173,13 @@ struct MotionObject {
         o.type = MotionObjectType::Text;
         o.text_value = std::move(value);
         o.size_value = {900.0f, 160.0f};
+        // Explicit default font: ensures typewriter compositions never reach
+        // rasterize_text_to_bl_image() with an empty font_path (which would
+        // return std::nullopt and silently drop the text). The TextStyleMotion
+        // struct member already initialises font_path to the same value, but
+        // setting it here makes the intent explicit at the call site and
+        // protects against future refactors that might remove the default.
+        o.text_style.font_path = "assets/fonts/Inter-Bold.ttf";
         return o;
     }
 
