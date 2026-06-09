@@ -9,8 +9,8 @@
 // timing + output correctness.
 // ---------------------------------------------------------------------------
 
-#include <chronon3d/video/direct_yuv_converter.hpp>
-#include <chronon3d/video/frame_converter.hpp>
+#include <chronon3d/media/frame_conversion/direct_yuv_converter.hpp>
+#include <chronon3d/media/frame_conversion/frame_converter.hpp>
 #include <cstdint>
 
 namespace chronon3d::video {

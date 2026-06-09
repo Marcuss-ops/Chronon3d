@@ -1,5 +1,5 @@
-#include <chronon3d/video/direct_yuv_converter.hpp>
-#include <chronon3d/video/direct_yuv_lut.hpp>
+#include <chronon3d/media/frame_conversion/direct_yuv_converter.hpp>
+#include <chronon3d/media/frame_conversion/direct_yuv_lut.hpp>
 #include "internal/yuv_conversion_internal.hpp"
 
 #include <algorithm>

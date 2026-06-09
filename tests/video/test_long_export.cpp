@@ -1,6 +1,6 @@
 #include <doctest/doctest.h>
-#include <chronon3d/video/frame_converter.hpp>
-#include <chronon3d/video/converted_frame_cache.hpp>
+#include <chronon3d/media/frame_conversion/frame_converter.hpp>
+#include <chronon3d/media/frame_conversion/converted_frame_cache.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/cache/framebuffer_pool.hpp>

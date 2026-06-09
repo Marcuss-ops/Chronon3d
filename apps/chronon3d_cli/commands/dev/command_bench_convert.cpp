@@ -2,9 +2,9 @@
 #include "../../utils/job/render_job.hpp"
 #include "../../utils/job/cli_render_utils.hpp"
 
-#include <chronon3d/video/frame_converter.hpp>
-#include <chronon3d/video/direct_yuv_converter.hpp>
-#include "src/video/internal/yuv_conversion_internal.hpp"
+#include <chronon3d/media/frame_conversion/frame_converter.hpp>
+#include <chronon3d/media/frame_conversion/direct_yuv_converter.hpp>
+#include "src/media/frame_conversion/internal/yuv_conversion_internal.hpp"
 
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
