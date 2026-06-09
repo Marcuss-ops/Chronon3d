@@ -67,6 +67,7 @@ inline void add_counters(chronon3d::RenderCounters& dst, const chronon3d::Render
     dst.framebuffer_acquire_ms.fetch_add(src.framebuffer_acquire_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.framebuffer_clear_ms.fetch_add(src.framebuffer_clear_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.clearnode_ms.fetch_add(src.clearnode_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.clearnode_restore_ms.fetch_add(src.clearnode_restore_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.framebuffer_pool_clear_ms.fetch_add(src.framebuffer_pool_clear_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.framebuffer_enqueue_ms.fetch_add(src.framebuffer_enqueue_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.framebuffer_pool_miss_count_size_mismatch.fetch_add(src.framebuffer_pool_miss_count_size_mismatch.load(std::memory_order_relaxed), std::memory_order_relaxed);

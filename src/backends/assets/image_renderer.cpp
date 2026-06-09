@@ -1,7 +1,7 @@
 #include <chronon3d/backends/assets/image_renderer.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/math/raster_utils.hpp>
-#include <chronon3d/scene/model/mask_utils.hpp>
+#include <chronon3d/scene/model/core/mask_utils.hpp>
 #include <chronon3d/media/media_placement.hpp>
 #include <chronon3d/core/telemetry/render_telemetry.hpp>
 #include <chronon3d/core/profiling/counters.hpp>

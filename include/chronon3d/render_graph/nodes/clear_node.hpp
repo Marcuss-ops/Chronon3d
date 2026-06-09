@@ -85,7 +85,10 @@ public:
                 // Rows entirely outside the dirty rect: full row memcpy.
                 // Rows intersecting the dirty rect: copy left + right segments,
                 // skipping the x-range that will be cleared and re-rendered.
+                // Track the time spent in this restore separately via
+                // clearnode_restore_ms so ping-pong's new cost is visible.
                 if (!is_empty && clip) {
+                    const auto t_restore0 = std::chrono::high_resolution_clock::now();
                     const int clip_y0 = std::max(0, clip->y0);
                     const int clip_y1 = std::min(h, clip->y1);
                     const int clip_x0 = std::max(0, clip->x0);
@@ -105,6 +108,12 @@ public:
                             std::memcpy(dst_data + row_off, src_data + row_off,
                                         static_cast<size_t>(logical_w) * sizeof(Color));
                         }
+                    }
+                    if (ctx.counters) {
+                        const auto t_restore1 = std::chrono::high_resolution_clock::now();
+                        const auto elapsed = static_cast<uint64_t>(
+                            std::chrono::duration<double, std::milli>(t_restore1 - t_restore0).count());
+                        ctx.counters->clearnode_restore_ms.fetch_add(elapsed, std::memory_order_relaxed);
                     }
                 }
 

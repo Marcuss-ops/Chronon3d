@@ -1,6 +1,6 @@
 #pragma once
 
-#include "video_export_common.hpp"
+#include "common/video_export_common.hpp"
 #include <string>
 #include <memory>
 #include <string_view>

@@ -1,7 +1,7 @@
-#include <chronon3d/scene/model/camera_null_rig.hpp>
+#include <chronon3d/scene/model/camera/camera_null_rig.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/null_builder.hpp>
-#include <chronon3d/scene/model/transform_3d.hpp>
+#include <chronon3d/scene/model/shape/transform_3d.hpp>
 #include <chronon3d/math/camera_pose.hpp>
 #include <glm/gtx/matrix_decompose.hpp>
 #include <glm/gtx/quaternion.hpp>

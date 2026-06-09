@@ -1,6 +1,6 @@
 #include "graph_builder_pipeline.hpp"
 
-#include <chronon3d/scene/model/layer.hpp>
+#include <chronon3d/scene/model/layer/layer.hpp>
 
 #include <string>
 #include <unordered_map>

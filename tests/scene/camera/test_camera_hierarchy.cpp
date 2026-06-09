@@ -1,7 +1,7 @@
 #include <doctest/doctest.h>
 
 #include <chronon3d/scene/builders/scene_builder.hpp>
-#include <chronon3d/scene/model/layer_hierarchy.hpp>
+#include <chronon3d/scene/model/layer/layer_hierarchy.hpp>
 #include <cmath>
 
 #include "src/backends/software/utils/projection_utils.hpp"

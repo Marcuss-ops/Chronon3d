@@ -53,6 +53,7 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
         "dirty_full_fallback_transform_bounds_unknown, "
         "dirty_full_fallback_effect_bounds_unknown, "
         "framebuffer_acquire_ms, framebuffer_clear_ms, clearnode_ms, "
+        "clearnode_restore_ms, "
         "framebuffer_pool_clear_ms, framebuffer_enqueue_ms, "
         "framebuffer_pool_miss_count_size_mismatch, framebuffer_pool_miss_count_empty, "
         "framebuffer_pool_miss_count_best_fit, framebuffer_pool_hits, framebuffer_buffer_returned_to_pool_count, "
@@ -60,7 +61,9 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
         "video_graph_eval_ms, video_conversion_ms, video_pipe_write_ms, video_ffmpeg_latency_ms, "
         "io_queue_push_blocked_ms, io_queue_pop_wait_ms, io_writer_idle_wait_ms, io_queue_peak_depth, ffmpeg_pipe_write_blocked_ms, converted_frame_cache_hits, ffmpeg_flush_ms, "        "io_queue_peak_bytes, setup_graph_parsing_ms, setup_asset_io_load_ms, setup_pool_preallocation_ms, image_decode_ms, "
         "compiled_graph_refresh_ms, cache_eval_ms, dirty_eval_ms, input_resolve_ms, "
-        "framebuffer_lifetime_ms, node_schedule_ms, node_dispatch_ms, telemetry_emit_ms, "
+        "predicted_bbox_ms, clone_context_ms, state_assign_ms, "
+        "framebuffer_lifetime_ms, node_schedule_ms, node_dispatch_ms, "
+        "node_execute_actual_ms, node_overhead_ms, telemetry_emit_ms, "
         "chronon_render_only_ms, chronon_conversion_copy_ms, chronon_queue_wait_ms, "
         "chronon_render_throughput_ms, ffmpeg_encode_total_ms, ffmpeg_flush_close_ms, "
         "e2e_wall_ms, image_sample_ms, image_sampled_pixels, "
@@ -78,7 +81,7 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
         "?71, ?72, ?73, ?74, ?75, ?76, ?77, ?78, ?79, ?80, "
         "?81, ?82, ?83, ?84, ?85, ?86, ?87, ?88, ?89, "
         "?90, ?91, ?92, ?93, ?94, ?95, ?96, ?97, ?98, "
-        "?99, ?100, ?101, ?102"
+        "?99, ?100, ?101, ?102, ?103, ?104, ?105, ?106, ?107, ?108"
         ");";
 
     SqliteStatement stmt(m_impl->db, sql);
@@ -139,6 +142,7 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
         run.framebuffer_acquire_ms,
         run.framebuffer_clear_ms,
         run.clearnode_ms,
+        run.clearnode_restore_ms,
         run.framebuffer_pool_clear_ms,
         run.framebuffer_enqueue_ms,
         run.framebuffer_pool_miss_count_size_mismatch,
@@ -168,9 +172,14 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
         run.cache_eval_ms,
         run.dirty_eval_ms,
         run.input_resolve_ms,
+        run.predicted_bbox_ms,
+        run.clone_context_ms,
+        run.state_assign_ms,
         run.framebuffer_lifetime_ms,
         run.node_schedule_ms,
         run.node_dispatch_ms,
+        run.node_execute_actual_ms,
+        run.node_overhead_ms,
         run.telemetry_emit_ms,
         run.chronon_render_only_ms,
         run.chronon_conversion_copy_ms,
