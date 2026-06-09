@@ -1,13 +1,15 @@
 #pragma once
 
 #include <atomic>
+#include <cstdio>
 #include <list>
+#include <memory>
 #include <mutex>
 #include <optional>
+#include <type_traits>
 #include <unordered_map>
+#include <utility>
 #include <vector>
-#include <memory>
-#include <cstdio>
 #include <spdlog/spdlog.h>
 
 namespace chronon3d::cache {
@@ -58,6 +60,55 @@ public:
 
     void put(const Key& key, Value value, size_t weight = 1) {
         get_shard(key).put(key, std::move(value), weight, m_evictions);
+    }
+
+    /// Atomically compute a value on cache miss while holding the per-shard lock.
+    /// This avoids the classic double-checked-locking pattern and eliminates
+    /// the need for an external mutex in callers (e.g. ImageCache).
+    ///
+    /// Semantics:
+    ///   - If the key is present in the cache, the cached value is returned
+    ///     and the loader is NOT called. The entry is moved to the front of
+    ///     the LRU list.
+    ///   - If the key is absent, the loader is invoked WHILE HOLDING the
+    ///     shard's mutex. This guarantees that only one thread per shard
+    ///     computes a given key at a time (preventing duplicate loads).
+    ///     Other shards proceed in parallel.
+    ///   - The loader must return std::pair<Value, size_t> (value, weight).
+    ///   - If the returned weight exceeds the shard capacity, the value is
+    ///     returned but NOT cached (a warning is logged).
+    ///   - If the loader throws, no entry is inserted and the exception
+    ///     propagates to the caller.
+    template <typename Func>
+    Value compute_if_absent(const Key& key, Func&& loader) {
+        static_assert(
+            std::is_invocable_r_v<std::pair<Value, size_t>, Func&&>,
+            "LruCache::compute_if_absent loader must return std::pair<Value, size_t>"
+        );
+        auto& shard = get_shard(key);
+        std::lock_guard lock(shard.mutex);
+        auto it = shard.entries.find(key);
+        if (it != shard.entries.end()) {
+            shard.lru_list.splice(shard.lru_list.begin(), shard.lru_list, it->second.lru_iterator);
+            m_hits.fetch_add(1, std::memory_order_relaxed);
+            return it->second.value;
+        }
+        m_misses.fetch_add(1, std::memory_order_relaxed);
+
+        auto [loaded, weight] = loader();
+
+        if (weight > shard.capacity_weight) {
+            spdlog::warn("[LRU] Warning: item weight {} exceeds shard capacity {} - not cached",
+                         weight, shard.capacity_weight);
+            return loaded;
+        }
+
+        shard.evict_if_needed(weight, m_evictions);
+        shard.lru_list.push_front(key);
+        shard.entries[key] = Entry{std::move(loaded), weight, shard.lru_list.begin()};
+        shard.current_weight += weight;
+
+        return shard.entries[key].value;
     }
 
     bool contains(const Key& key) const {
