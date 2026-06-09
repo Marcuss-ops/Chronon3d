@@ -95,4 +95,16 @@ inline Color apply_opacity(Color c, float opacity) {
     return c;
 }
 
+// ── Interior bilinear sample (no bounds check) ────────────────────────
+// Faster alternative to sample_bilinear() when the caller already knows
+// that all 4 neighbour texels are within the source image bounds.
+// row0 / row1 are pre-computed base pointers for floor(sy-0.5) / that+1.
+HWY_INLINE Color sample_bilinear_interior(
+    const Color* HWY_RESTRICT row0, const Color* HWY_RESTRICT row1,
+    int32_t x0, float tx, float ty) {
+    return lerp_bilinear_simd(row0[x0], row0[x0 + 1],
+                               row1[x0], row1[x0 + 1],
+                               tx, ty);
+}
+
 } // namespace chronon3d::graph::detail
