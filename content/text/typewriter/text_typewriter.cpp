@@ -451,7 +451,7 @@ Composition text_typewriter() {
     return make_typewriter("TextTypewriter", {
         TypewriterLine("THE ENGINE LEARNED TO SPEAK, typed frame by frame — a single line that wraps when it reaches the edge of the viewport so you can see the centered alignment in action on multiple rows.")
             .set_pos({0, 0, 0})
-            .set_font(56, 4)
+            .set_font(52, 4)
             // Static render: chars_per_frame=1000 reveals the full line in
             // one tick (no typewriter animation) so the frame is identical
             // across all 30 frames.
@@ -460,7 +460,10 @@ Composition text_typewriter() {
             // blue text reads clearly against the dark grid background.
             .set_color({0.62f, 0.88f, 1.0f, 1.0f})
             .set_align(TextAlign::Center)
-            .set_size({1500.0f, 480.0f})
+            // 600px height gives ~80px of bottom headroom for descender
+            // glyphs (p, y, g, j, q) which extend ~25% below the baseline
+            // and were being clipped at 480px.
+            .set_size({1500.0f, 600.0f})
             // Hide the blinking cursor for the centered reveal.
             .set_cursor(false)
     },
