@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <cmath>
 #include <functional>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -45,6 +46,7 @@ struct TypewriterLine {
     f32 start_frame{0.0f};
     f32 chars_per_frame{2.0f};
     TextAlign align_val{TextAlign::Center};
+    bool show_cursor{true};
     SweepMotion sweep_val{};
 
     TypewriterLine(std::string t) : text(std::move(t)) {}
@@ -55,6 +57,7 @@ struct TypewriterLine {
     TypewriterLine& set_timing(f32 s, f32 speed = 2.0f) { start_frame = s; chars_per_frame = speed; return *this; }
     TypewriterLine& set_color(Color c) { color_val = c; return *this; }
     TypewriterLine& set_align(TextAlign a) { align_val = a; return *this; }
+    TypewriterLine& set_cursor(bool on) { show_cursor = on; return *this; }
     TypewriterLine& set_sweep(f32 amp = 28.0f) { sweep_val.enabled = true; sweep_val.amp_z = amp; return *this; }
 
     [[nodiscard]] std::string reveal(Frame frame) const {
@@ -62,7 +65,7 @@ struct TypewriterLine {
         if (t <= 0) return "";
         size_t visible = std::min(text.size(), static_cast<size_t>(t * std::max(chars_per_frame, 0.1f)));
         std::string out = text.substr(0, visible);
-        if (visible < text.size() && (frame / 5) % 2 == 0) out += "|";
+        if (show_cursor && visible < text.size() && (frame / 5) % 2 == 0) out += "|";
         return out;
     }
 };
