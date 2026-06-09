@@ -449,7 +449,7 @@ Composition text_typewriter() {
     using typewriter::make_typewriter;
 
     return make_typewriter("TextTypewriter", {
-        TypewriterLine("THE ENGINE LEARNED TO SPEAK, typed frame by frame — a single line that wraps when it reaches the edge of the viewport so you can see the left-to-right alignment in action on multiple rows.")
+        TypewriterLine("THE ENGINE LEARNED TO SPEAK, typed frame by frame — a single line that wraps when it reaches the edge of the viewport so you can see the centered alignment in action on multiple rows.")
             .set_pos({0, 0, 0})
             .set_font(56, 4)
             .set_timing(0, 2.5f)
@@ -458,8 +458,8 @@ Composition text_typewriter() {
             // (was 643 blue pixels at 48pt = 0.03% of canvas = invisible
             // to the eye; brighter color and 56pt both lift coverage).
             .set_color({0.62f, 0.88f, 1.0f, 1.0f})
-            .set_align(TextAlign::Left)
-            .set_size({1400.0f, 320.0f})
+            .set_align(TextAlign::Center)
+            .set_size({1500.0f, 320.0f})
     }, presets::motion::MotionPreset::FadeIn, false, {0.01f, 0.012f, 0.022f, 1.0f}, 180, 1100.0f, 1920, 1080);
 }
 
