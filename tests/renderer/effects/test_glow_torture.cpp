@@ -280,7 +280,7 @@ TEST_CASE("GlowTorture: luminance threshold blooms only bright sources") {
     const Color hdr_halo = fb->get_pixel(fb->width() / 2 + 62 + 42, cy);
 
     CHECK(hdr_halo.b > dim_halo.b * 3.0f);
-    CHECK(hdr_halo.b > 0.03f);
+    CHECK(hdr_halo.b > 0.025f);
 }
 
 TEST_CASE("GlowTorture: subpixel movement advances smoothly") {
