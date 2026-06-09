@@ -8,15 +8,31 @@ on:
 
 jobs:
   build:
-    name: Linux (${{ matrix.preset }})
-    runs-on: ubuntu-latest
+    name: ${{ matrix.os }} (${{ matrix.preset }})
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        preset:
-          - linux-release
-        test_preset:
-          - linux-test
+        include:
+          # Primary supported build
+          - os: ubuntu-latest
+            preset: linux-release
+            test_preset: linux-test
+            vcpkg_commit: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4'
+          # Windows build — marked continue-on-error while the CMakePresets
+          # are being generalised for non-Linux platforms.  Once a working
+          # windows-release preset exists, remove the continue-on-error flag.
+          - os: windows-latest
+            preset: linux-release
+            test_preset: linux-test
+            vcpkg_commit: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4'
+            continue_on_error: true
+          # macOS build — same situation as Windows.
+          - os: macos-latest
+            preset: linux-release
+            test_preset: linux-test
+            vcpkg_commit: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4'
+            continue_on_error: true
 
     env:
       VCPKG_ROOT: ${{ github.workspace }}/vcpkg
@@ -31,15 +47,17 @@ jobs:
       - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11
         with:
-          vcpkgGitCommitId: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4'
+          vcpkgGitCommitId: ${{ matrix.vcpkg_commit }}
 
       - name: Build
         uses: lukka/run-cmake@v10
         with:
           configurePreset: ${{ matrix.preset }}
           buildPreset: linux
+        continue-on-error: ${{ matrix.continue_on_error }}
 
       - name: Clang-Tidy (static analysis)
+        if: matrix.continue_on_error == false
         run: |
           if command -v clang-tidy-18 &> /dev/null; then
             TIDY=clang-tidy-18
@@ -67,3 +85,4 @@ jobs:
       - name: Run Tests
         run: |
           ctest --preset ${{ matrix.test_preset }}
+        continue-on-error: ${{ matrix.continue_on_error }}
