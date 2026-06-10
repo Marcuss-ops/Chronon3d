@@ -105,6 +105,8 @@ set(CHRONON3D_GRAPH_SOURCES
     render_graph/framebuffer_acquire.cpp
     render_graph/pipeline/scene.cpp
     render_graph/pipeline/scene_dirty.cpp
+    render_graph/pipeline/scene_tile_execution.cpp
+    render_graph/pipeline/tile_execution_policy.cpp
     render_graph/pipeline/debug.cpp
     render_graph/pipeline/composition.cpp
     render_graph/preflight/preflight.cpp
