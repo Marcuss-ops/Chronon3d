@@ -41,6 +41,7 @@ add_library(chronon3d_cli_video STATIC
     commands/group_video.cpp
     commands/video/register_video_commands.cpp
     commands/video/command_video.cpp
+    commands/video/command_video_camera.cpp
     commands/video/common/video_export_common.cpp
     commands/video/common/pipe_export_helpers.cpp
     commands/video/exporters/video_export_pipe.cpp
@@ -54,6 +55,10 @@ add_library(chronon3d_cli_video STATIC
     utils/video/ffmpeg_pipe_encoder_uring.cpp
     utils/video/ffmpeg_pipe_command.cpp
     utils/video/ffmpeg_pipe_yuv.cpp
+    utils/video/video_job_plan.cpp
+    utils/video/video_job_validate.cpp
+    utils/video/video_job_dry_run.cpp
+    utils/video/video_job_execute.cpp
 )
 target_include_directories(chronon3d_cli_video PRIVATE ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli)
 target_link_libraries(chronon3d_cli_video PRIVATE chronon3d_cli_core chronon3d_pipeline chronon3d_backend_image CLI11::CLI11 spdlog::spdlog_header_only fmt::fmt)

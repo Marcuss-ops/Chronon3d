@@ -40,9 +40,11 @@
 #include <chronon3d/geometry/mesh.hpp>
 
 // ── Backward-compat: re-export runtime & internal headers ──────────────
-
+// Skip when CHRONON3D_LEAN_UMBRELLA is defined (compile with -DCHRONON3D_LEAN_UMBRELLA)
+#ifndef CHRONON3D_LEAN_UMBRELLA
 #include <chronon3d/runtime.hpp>
 #include <chronon3d/internal.hpp>
+#endif
 
 namespace chronon3d {
     // Umbrella header for Chronon3d
