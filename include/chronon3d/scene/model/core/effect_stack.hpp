@@ -41,7 +41,6 @@ template <> struct effect_type_for<SaturationParams>  { static constexpr EffectT
 template <> struct effect_type_for<HueRotateParams>   { static constexpr EffectType value = EffectType::HueRotate; };
 template <> struct effect_type_for<InvertParams>      { static constexpr EffectType value = EffectType::Invert; };
 template <> struct effect_type_for<VignetteParams>    { static constexpr EffectType value = EffectType::Vignette; };
-template <> struct effect_type_for<FocusInLadderParams> { static constexpr EffectType value = EffectType::FocusInLadder; };
 
 } // namespace effects
 

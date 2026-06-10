@@ -132,7 +132,8 @@ struct TextStyleMotion {
     f32 font_size{72.0f};
     f32 tracking{0.0f};
     TextAlign align{TextAlign::Center};
-    VerticalAlign vertical_align{VerticalAlign::Top};
+    VerticalAlign vertical_align{VerticalAlign::Middle};
+    f32 line_height{1.10f};
 };
 
 struct MotionObject {
@@ -365,6 +366,11 @@ struct MotionObject {
 
     MotionObject& vertical_align(VerticalAlign value) {
         text_style.vertical_align = value;
+        return *this;
+    }
+
+    MotionObject& line_height(f32 value) {
+        text_style.line_height = value;
         return *this;
     }
 

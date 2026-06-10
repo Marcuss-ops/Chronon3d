@@ -220,7 +220,9 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         sw_renderer->m_prev_framebuffer &&
         sw_renderer->m_prev_framebuffer->width() == width &&
         sw_renderer->m_prev_framebuffer->height() == height &&
-        (sw_renderer->m_prev_frame == frame - 1 || sw_renderer->m_prev_frame == frame))
+        (sw_renderer->m_prev_frame == frame ||
+         (sw_renderer->m_prev_frame == frame - 1 &&
+          sw_renderer->m_scene_hasher.is_static_scene_at(scene, frame))))
     {
         CHRONON_ZONE_C("resolved_scene_reuse", trace_category::kFrame);
         const Camera2_5D& cam = ctx.camera_2_5d;

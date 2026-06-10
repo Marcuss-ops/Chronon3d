@@ -41,7 +41,7 @@ Composition minimalist_scale_explainer() {
                 .text = "A minimalist frame does not\nask for attention.\nIt protects what matters.",
                 .size = {1450.0f, 280.0f},
                 .pos = {0.0f, 0.0f, 0.0f},
-                .font_path = "assets/fonts/GoogleSans-Bold.ttf",
+                .font_path = "assets/fonts/Inter-Bold.ttf",
                 .font_size = 58.0f,
                 .color = {1.0f, 1.0f, 1.0f, 1.0f},
                 .align = TextAlign::Left,

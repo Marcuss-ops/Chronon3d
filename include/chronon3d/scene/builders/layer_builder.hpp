@@ -90,7 +90,6 @@ public:
     LayerBuilder& settle(f32 overshoot = 0.08f, Frame duration = Frame{20});
     LayerBuilder& fade_in(Frame duration, EasingCurve easing = EasingCurve{Easing::OutCubic});
     LayerBuilder& focus_in(f32 start_blur, Frame duration, EasingCurve easing = EasingCurve{Easing::OutCubic});
-    LayerBuilder& focus_in_preblurred(FocusInLadderParams params = {});
     LayerBuilder& scale_drop(f32 start_scale, Frame duration, EasingCurve easing = EasingCurve{Easing::OutCubic});
     LayerBuilder& fade_shift_vertical(Vec3 offset, Frame duration, EasingCurve easing = EasingCurve{Easing::OutCubic});
     LayerBuilder& fade_shift_horizontal(Vec3 offset, Frame duration, EasingCurve easing = EasingCurve{Easing::OutCubic});

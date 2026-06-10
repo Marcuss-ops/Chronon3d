@@ -24,6 +24,7 @@ Composition glow_03_cinematic_text() {
             l.text("t", {
                 .text="THIS CHANGES\nEVERYTHING",
                 .size={1200,380}, .pos={0,0,0},
+                .font_path="assets/fonts/Inter-Bold.ttf",
                 .font_size=130.f,
                 .color=Color{1.f,0.94f,0.80f,1.f},
                 .align=TextAlign::Center,
@@ -39,6 +40,7 @@ Composition glow_03_cinematic_text() {
             l.text("t", {
                 .text="Glow keeps text sharp and luminous",
                 .size={1000,60}, .pos={0,0,0},
+                .font_path="assets/fonts/Inter-Bold.ttf",
                 .font_size=28.f,
                 .color=Color{0.62f,0.94f,1.f,1.f},
                 .align=TextAlign::Center,

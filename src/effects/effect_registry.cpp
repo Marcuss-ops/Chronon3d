@@ -149,16 +149,6 @@ void register_builtin_effects(EffectRegistry& registry) {
         .factory = generic_effect_factory
     });
 
-    registry.register_effect(EffectDescriptor{
-        .id = std::string{ids::FocusInLadder},
-        .display_name = "Focus In Ladder",
-        .category = EffectCategory::Blur,
-        .stage = EffectStage::LayerPostTransform,
-        .description = "Precomputed blur ladder with crossfade for fast focus-in animation",
-        .builtin = true,
-        .temporal = true,
-        .factory = generic_effect_factory
-    });
 }
 
 } // namespace
