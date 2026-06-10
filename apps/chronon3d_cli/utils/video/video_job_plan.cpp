@@ -89,7 +89,6 @@ std::optional<VideoJobPlan> plan_video_job(
     opts.warmup_renderer     = args.pipeline.warmup_renderer || (args.ffmpeg_mode == "pipe");
     opts.warmup_framebuffers = args.pipeline.warmup_framebuffers;
     opts.warmup_dummy_frame  = args.pipeline.warmup_dummy_frame || (args.ffmpeg_mode == "pipe");
-    opts.warmup_focus_in_ladder = args.pipeline.warmup_focus_in_ladder;
 
     return VideoJobPlan{
         .registry       = &registry,

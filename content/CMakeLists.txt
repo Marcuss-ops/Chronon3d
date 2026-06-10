@@ -36,9 +36,6 @@ target_link_libraries(chronon3d_content_registry
     PRIVATE chronon3d_extension
 )
 add_library(chronon3d::content_registry ALIAS chronon3d_content_registry)
-# Legacy alias — keeps downstream references working
-add_library(chronon3d_content_modules ALIAS chronon3d_content_registry)
-add_library(chronon3d::content_modules ALIAS chronon3d_content_registry)
 
 # Meta-target: all content (used for full builds)
 add_custom_target(chronon3d_content ALL
