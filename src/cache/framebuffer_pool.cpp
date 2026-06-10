@@ -22,7 +22,7 @@ void PoolFbDeleter::operator()(Framebuffer* fb) const noexcept {
         return; // scratch_cleanup (and its captured Handle) destroyed after return
     }
     // ── Renderer-owned FB: no-op — renderer manages lifetime explicitly ──
-    // Used by ping-pong buffers owned by SoftwareRenderer via m_ping_fb[].
+    // Used by ping-pong buffers owned by SoftwareRenderer via RendererBufferRing.
     // No pool release, no scratch restore, no delete.  The renderer is
     // responsible for cleanup on resolution change or destruction.
     if (owned_by_renderer) {
@@ -136,9 +136,8 @@ std::shared_ptr<Framebuffer> FramebufferPool::acquire_hinted(
         profiling::g_current_counters->framebuffer_acquire_ms.fetch_add(
             static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t1 - t0).count()),
             std::memory_order_relaxed);
-        if (fb) {
-            profiling::g_current_counters->framebuffer_pool_hits.fetch_add(1, std::memory_order_relaxed);
-        }
+        // Note: pool counters are incremented inside acquire_unique()
+        // (exact_hit, best_fit_reuse, empty_alloc) — not here.
     }
 
     // Skip clear when the FB was freshly allocated (constructor zero-initializes)
@@ -183,19 +182,15 @@ std::unique_ptr<Framebuffer> FramebufferPool::acquire_unique(int width, int heig
             m_total_reuses.fetch_add(1, std::memory_order_relaxed);
             if (profiling::g_current_counters) {
                 profiling::g_current_counters->framebuffer_reuses.fetch_add(1, std::memory_order_relaxed);
+                profiling::g_current_counters->framebuffer_pool_exact_hit.fetch_add(1, std::memory_order_relaxed);
             }
             fb->resize_logical(width, height);
             // Pool FB: content is stale — caller must clear if needed.
             return fb;
-        } else {
-            if (profiling::g_current_counters) {
-                if (it == m_free.end()) {
-                    profiling::g_current_counters->framebuffer_pool_miss_count_size_mismatch.fetch_add(1, std::memory_order_relaxed);
-                } else {
-                    profiling::g_current_counters->framebuffer_pool_miss_count_empty.fetch_add(1, std::memory_order_relaxed);
-                }
-            }
         }
+        // No exact match — will try best-fit or allocate fresh.
+        // empty_alloc is incremented when a fresh allocation is made
+        // (after best-fit scan also fails).
     }
 
     // Best-effort fallback: reuse a larger bucket when an exact bucket is not
@@ -224,7 +219,7 @@ std::unique_ptr<Framebuffer> FramebufferPool::acquire_unique(int width, int heig
         m_total_reuses.fetch_add(1, std::memory_order_relaxed);
         if (profiling::g_current_counters) {
             profiling::g_current_counters->framebuffer_reuses.fetch_add(1, std::memory_order_relaxed);
-            profiling::g_current_counters->framebuffer_pool_miss_count_best_fit.fetch_add(1, std::memory_order_relaxed);
+            profiling::g_current_counters->framebuffer_pool_best_fit_reuse.fetch_add(1, std::memory_order_relaxed);
         }
         fb->resize_logical(width, height);
         // Best-fit pool FB: content is stale — caller must clear if needed.
@@ -243,6 +238,10 @@ std::unique_ptr<Framebuffer> FramebufferPool::acquire_unique(int width, int heig
 
     auto fb = std::make_unique<Framebuffer>(rounded_w, rounded_h);
     m_total_allocations.fetch_add(1, std::memory_order_relaxed);
+    if (profiling::g_current_counters) {
+        profiling::g_current_counters->framebuffer_pool_empty_alloc.fetch_add(1, std::memory_order_relaxed);
+        profiling::g_current_counters->framebuffer_allocations.fetch_add(1, std::memory_order_relaxed);
+    }
     fb->resize_logical(width, height);
     // Fresh allocation: Framebuffer constructor zero-initializes via
     // m_pixels.resize(..., Color::transparent()).  No clear needed.

@@ -35,8 +35,8 @@ double run_node(
         CHRONON_ZONE_C("node_execute", trace_category::kGraph);
         owned = node.execute(node_ctx, inputs, input_bboxes);
     }
-    if (ctx.counters) {
-        ctx.counters->nodes_executed.fetch_add(1, std::memory_order_relaxed);
+    if (ctx.telemetry.counters) {
+        ctx.telemetry.counters->nodes_executed.fetch_add(1, std::memory_order_relaxed);
     }
     if (owned) {
         owned->set_key_digest(key.digest());
@@ -58,7 +58,7 @@ double run_node(
         } else if (owned.get_deleter().owned_by_renderer) {
             // Renderer-owned FB (e.g., ping-pong buffer): preserve the no-op
             // deleter so the buffer is neither deleted nor returned to the pool.
-            // The renderer manages lifetime explicitly via m_ping_fb[].
+            // The renderer manages lifetime explicitly via RendererBufferRing.
             PoolFbDeleter noop;
             noop.owned_by_renderer = true;
             Framebuffer* raw = owned.release();
@@ -72,8 +72,8 @@ double run_node(
             result = CachedFB(raw, std::move(deleter));
         }
 
-        if (use_cache && ctx.node_cache && !is_scratch) {
-            ctx.node_cache->store(key, result);
+        if (use_cache && ctx.resources.node_cache && !is_scratch) {
+            ctx.resources.node_cache->store(key, result);
             if (node.cache_policy().disk_cacheable && disk_node_cache_enabled_for_current_run()) {
                 cache::DiskNodeCache::instance().put(key, *result);
             }
@@ -101,7 +101,7 @@ void execute_single_node(
     double* out_clone_context_ms,
     double* out_state_assign_ms
 ) {
-    if (id < ctx.early_exit_skip.size() && ctx.early_exit_skip[id]) {
+    if (id < ctx.tile.early_exit_skip.size() && ctx.tile.early_exit_skip[id]) {
         auto owned_fb = ctx.acquire_owned_fb(64, 64, false);
         owned_fb->clear(Color::transparent());
         Framebuffer* raw = owned_fb.release();
@@ -114,12 +114,12 @@ void execute_single_node(
         state.resolved_frame_dependent[id] = 0;
         state.resolved_cache_hit[id] = 0;
         state.resolved_bboxes[id] = raster::BBox{0, 0, 0, 0};
-        if (ctx.counters) {
-            ctx.counters->layers_culled.fetch_add(1, std::memory_order_relaxed);
+        if (ctx.telemetry.counters) {
+            ctx.telemetry.counters->layers_culled.fetch_add(1, std::memory_order_relaxed);
             if (graph.node(id).name() == "Clear") {
-                ctx.counters->clear_skipped_calls.fetch_add(1, std::memory_order_relaxed);
-                const uint64_t clear_pixels = static_cast<uint64_t>(ctx.width) * static_cast<uint64_t>(ctx.height);
-                ctx.counters->clear_skipped_pixels.fetch_add(clear_pixels, std::memory_order_relaxed);
+                ctx.telemetry.counters->clear_skipped_calls.fetch_add(1, std::memory_order_relaxed);
+                const uint64_t clear_pixels = static_cast<uint64_t>(ctx.frame.width) * static_cast<uint64_t>(ctx.frame.height);
+                ctx.telemetry.counters->clear_skipped_pixels.fetch_add(clear_pixels, std::memory_order_relaxed);
             }
         }
         return;
@@ -145,9 +145,9 @@ void execute_single_node(
         *out_cache_ms = std::chrono::duration<double, std::milli>(t_cache1 - t_cache0).count();
     }
 
-    if (ctx.diagnostics_enabled) {
+    if (ctx.options.diagnostics_enabled) {
         spdlog::debug("[DIAG-exec] frame={} node='{}' id={} kind='{}' cache='{}' frame_dep={} use_cache={} result_ptr={}",
-            static_cast<int>(ctx.frame), node.name(), id, to_string(node.kind()),
+            static_cast<int>(ctx.frame.frame), node.name(), id, to_string(node.kind()),
             cache_eval.cache_status, cache_eval.node_frame_dependent ? 1 : 0,
             cache_eval.use_cache ? 1 : 0,
             cache_eval.result ? fmt::ptr(cache_eval.result.get()) : "null");
@@ -164,7 +164,7 @@ void execute_single_node(
         cache_eval.result &&
         cache_eval.cache_status == "hit" &&
         !cache_eval.node_frame_dependent &&
-        !ctx.tile_execution_enabled;
+        !ctx.tile.tile_execution_enabled;
 
     if (cache_hit_fast_path) {
         const auto t_fast0 = std::chrono::steady_clock::now();
@@ -190,8 +190,8 @@ void execute_single_node(
             fast_duration_ms
         );
         const auto t_telemetry1 = std::chrono::steady_clock::now();
-        if (ctx.counters) {
-            ctx.counters->nodes_executed.fetch_add(1, std::memory_order_relaxed);
+        if (ctx.telemetry.counters) {
+            ctx.telemetry.counters->nodes_executed.fetch_add(1, std::memory_order_relaxed);
         }
         if (out_telemetry_ms) {
             *out_telemetry_ms = std::chrono::duration<double, std::milli>(t_telemetry1 - t_telemetry0).count();
@@ -214,10 +214,10 @@ void execute_single_node(
         return;
     }
 
-    if (ctx.tile_execution_enabled && ctx.active_tile_clip &&
+    if (ctx.tile.tile_execution_enabled && ctx.tile.active_tile_clip &&
         predicted_bbox && !predicted_bbox->is_empty())
     {
-        const auto& tile = *ctx.active_tile_clip;
+        const auto& tile = *ctx.tile.active_tile_clip;
         const auto& bbox = *predicted_bbox;
         const bool bbox_intersects_tile =
             bbox.x0 < tile.x1 && bbox.x1 > tile.x0 &&
@@ -229,8 +229,8 @@ void execute_single_node(
             state.resolved_cache_hit[id] = 0;
             state.resolved_bboxes[id] = predicted_bbox;
 
-            if (ctx.counters) {
-                ctx.counters->nodes_skipped.fetch_add(1, std::memory_order_relaxed);
+            if (ctx.telemetry.counters) {
+                ctx.telemetry.counters->nodes_skipped.fetch_add(1, std::memory_order_relaxed);
             }
             return;
         }
@@ -248,23 +248,23 @@ void execute_single_node(
     }
 
     const auto t_dirty0 = std::chrono::steady_clock::now();
-    if (ctx.dirty_rects_enabled) {
-        node_ctx.clip_rect = compute_dirty_clip(ctx, node, predicted_bbox);
+    if (ctx.options.dirty_rects_enabled) {
+        node_ctx.tile.clip_rect = compute_dirty_clip(ctx, node, predicted_bbox);
     } else {
-        node_ctx.clip_rect = predicted_bbox;
+        node_ctx.tile.clip_rect = predicted_bbox;
     }
     const auto t_dirty1 = std::chrono::steady_clock::now();
     if (out_dirty_ms) {
         *out_dirty_ms = std::chrono::duration<double, std::milli>(t_dirty1 - t_dirty0).count();
     }
 
-    node_ctx.reusable_inputs.clear();
+    node_ctx.scratch.reusable_inputs.clear();
     for (size_t j = 0; j < input_ids.size(); ++j) {
         const GraphNodeId input_id = input_ids[j];
         if (contains_index(state.temp, input_id) && state.temp[input_id]) {
             if (consumer_remaining[input_id].load(std::memory_order_relaxed) == 1 &&
                 state.temp[input_id].use_count() == 1) {
-                node_ctx.reusable_inputs.push_back(state.temp[input_id].get());
+                node_ctx.scratch.reusable_inputs.push_back(state.temp[input_id].get());
             }
         }
     }
@@ -287,7 +287,7 @@ void execute_single_node(
         ctx, node,
         cache_eval.key,
         cache_eval.result,
-        node_ctx.clip_rect,
+        node_ctx.tile.clip_rect,
         cache_eval.cache_status,
         cache_eval.is_cacheable,
         static_cast<int>(input_ids.size()),

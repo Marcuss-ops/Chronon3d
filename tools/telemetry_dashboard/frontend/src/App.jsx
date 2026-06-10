@@ -218,18 +218,22 @@ function App() {
       .slice()
       .sort((a, b) => b.duration_ms - a.duration_ms);
 
+    const c = (name) => Number((counters.find(ct => ct.counter_name === name) || {}).counter_value || 0);
+
     const cacheHits = Number(r.cache_hits || 0);
     const cacheMisses = Number(r.cache_misses || 0);
     const cacheRate = cacheHits + cacheMisses > 0
       ? `${((cacheHits / (cacheHits + cacheMisses)) * 100).toFixed(1)}%`
       : '0.0%';
-    const framebufferReuseRate = (Number(r.framebuffer_allocations || 0) + Number(r.framebuffer_reuses || 0)) > 0
-      ? `${((Number(r.framebuffer_reuses || 0) / (Number(r.framebuffer_allocations || 0) + Number(r.framebuffer_reuses || 0))) * 100).toFixed(1)}%`
+    const fbAlloc = Number(r.framebuffer_allocations || 0);
+    const fbReuse = Number(r.framebuffer_reuses || 0);
+    const fbTotal = fbAlloc + fbReuse;
+    const framebufferReuseRate = fbTotal > 0
+      ? `${((fbReuse / fbTotal) * 100).toFixed(1)}%`
       : '0.0%';
     const dirtyPixels = Number(r.dirty_pixels || 0);
-    const dirtyCoverage = Number(r.pixels_touched || 0) > 0
-      ? `${((dirtyPixels / Number(r.pixels_touched || 1)) * 100).toFixed(1)}%`
-      : '0.0%';
+    const pixelsTouched = Number(r.pixels_touched || 1);
+    const dirtyCoverage = `${((dirtyPixels / pixelsTouched) * 100).toFixed(1)}%`;
 
     const frameDurations = frames.map(f => Number(f.duration_ms || 0));
     const frameCount = frames.length;
@@ -246,7 +250,7 @@ function App() {
       ? `${((frames.reduce((sum, f) => sum + Number(f.dirty_area_ratio || 0), 0) / frameCount) * 100).toFixed(1)}%`
       : '0.0%';
 
-    // ── Active vs Cached breakdown (graph_executed vs graph_skipped) ──
+    // ── Active vs Cached breakdown ──
     const activeFrames = frames.filter(f => f.fast_path_reused === 0 || f.fast_path_reused === false);
     const cachedFrames = frames.filter(f => f.fast_path_reused === 1 || f.fast_path_reused === true);
     const avgActiveMs = activeFrames.length > 0
@@ -257,6 +261,47 @@ function App() {
       : 0;
     const graphExecutedCount = activeFrames.length;
     const graphSkippedCount = cachedFrames.length;
+
+    // ── Time Attribution Gap Analysis ──
+    const nodeDispatchMs = c('node_dispatch_ms');
+    const nodeExecuteMs = c('node_execute_actual_ms');
+    const hotNodeSum = nodeEvents.reduce((sum, n) => sum + n.duration_ms, 0);
+    const attributionGap = nodeDispatchMs - hotNodeSum;
+    const attributionGapPct = nodeDispatchMs > 0 ? ((attributionGap / nodeDispatchMs) * 100).toFixed(1) : '0.0';
+
+    // ── Pool Health ──
+    const poolEmptyAlloc = c('framebuffer_pool_empty_alloc');
+    const poolBestFitReuse = c('framebuffer_pool_best_fit_reuse');
+    const poolMissTotal = poolEmptyAlloc + poolBestFitReuse;
+    // Use fbReuse as pool "total reuses" since exact_hit only counts dimension-matched hits.
+    const poolExactHit = c('framebuffer_pool_exact_hit');
+    const poolMissRate = poolMissTotal + poolHits > 0
+      ? `${((poolMissTotal / (poolMissTotal + poolHits)) * 100).toFixed(1)}%`
+      : '0.0%';
+    const poolHitRate = poolMissTotal + poolHits > 0
+      ? `${((poolHits / (poolMissTotal + poolHits)) * 100).toFixed(1)}%`
+      : '0.0%';
+
+    // ── Dirty Rect Fallback Detail ──
+    const fallbackPredBounds = c('dirty_full_fallback_predicted_bounds_missing');
+    const fallbackCompInput = c('dirty_full_fallback_composite_missing_input_bounds');
+    const fallbackXform = c('dirty_full_fallback_transform_bounds_unknown');
+    const fallbackEffect = c('dirty_full_fallback_effect_bounds_unknown');
+
+    // ── IO Queue ──
+    const ioPushBlocked = c('io_queue_push_blocked_ms');
+    const ioPopWait = c('io_queue_pop_wait_ms');
+    const ioIdle = c('io_writer_idle_wait_ms');
+    const ioPeakDepth = c('io_queue_peak_depth');
+
+    // ── CPU Efficiency ──
+    const cpuUser = c('process_cpu_user_ms');
+    const cpuSys = c('process_cpu_sys_ms');
+    const pageFaultsMinor = c('os_page_faults_minor');
+    const wallMs = Number(r.wall_time_ms || 1);
+    const cores = c('system_logical_cores') || Number(r.cores || 8);
+    const cpuEff = cores > 0 ? ((cpuUser + cpuSys) / wallMs / cores * 100).toFixed(1) : '0.0';
+    const cpuEquiv = ((cpuUser + cpuSys) / wallMs).toFixed(2);
 
     const phaseRows = phases
       .slice()
@@ -291,11 +336,6 @@ function App() {
         ])
       : [];
 
-    const counterRows = counters
-      .slice()
-      .sort((a, b) => a.counter_name.localeCompare(b.counter_name))
-      .map(c => [c.counter_name.replace(/_/g, ' '), formatCounterValue(c.counter_name, c.counter_value)]);
-
     const sampleFrames = frames
       .slice(0, 12)
       .map(f => [
@@ -311,6 +351,18 @@ function App() {
       return acc;
     }, {});
 
+    // ── Frame distribution histogram ──
+    const buckets = [0, 10, 50, 100, 150, 200, 300, 500, 1000, Infinity];
+    const histDist = buckets.slice(0, -1).map((lo, i) => {
+      const hi = buckets[i + 1];
+      const count = frames.filter(f => {
+        const d = Number(f.duration_ms || 0);
+        return d >= lo && d < hi;
+      }).length;
+      return { range: hi === Infinity ? `>=${lo}ms` : `${lo}-${hi}ms`, count };
+    });
+    const histDistStr = histDist.filter(h => h.count > 0).map(h => `  ${h.range}: ${h.count} frames`).join('\n');
+
     const reportSections = [
       `# Chronon3D Telemetry Report - ${r.composition_id}`,
       '',
@@ -325,7 +377,7 @@ function App() {
           ['Output', r.output_path],
           ['Git Commit', r.git_commit_short],
           ['Build', `${r.build_type} (${r.compiler_info})`],
-          ['OS / CPU', `${r.os} / ${r.cpu_model} (${r.cores} cores)`],
+          ['OS / CPU', `${r.os} / ${r.cpu_model} (${cores} cores)`],
         ],
       ),
       '',
@@ -334,20 +386,22 @@ function App() {
         ['Metric', 'Value'],
         [
           ['Effective FPS', `${Number(r.effective_fps || 0).toFixed(2)} fps`],
-          ['E2E Wall Time', `${(Number(r.wall_time_ms || 0) / 1000).toFixed(2)} s`],
+          ['E2E Wall Time', `${(wallMs / 1000).toFixed(2)} s`],
           ['Chronon Render Time', `${(Number(r.render_ms || 0) / 1000).toFixed(2)} s`],
           ['FFmpeg Encode Time', `${(Number(r.encode_ms || 0) / 1000).toFixed(2)} s`],
           ['Peak Memory', formatBytes(r.bytes_allocated_peak)],
-            ['Framebuffer Bytes Allocated (last frame)', formatBytes(r.framebuffer_bytes_allocated)],
-            ['Framebuffer Peak (last frame)', formatBytes(r.framebuffer_bytes_peak)],
-            ['FB Acquire Duration', `${formatCounterValue('framebuffer_acquire_ms', counters.find(c=>c.counter_name==='framebuffer_acquire_ms')?.counter_value ?? 0)} ms`],
-            ['FB Clear Duration', `${formatCounterValue('framebuffer_clear_ms', counters.find(c=>c.counter_name==='framebuffer_clear_ms')?.counter_value ?? 0)} ms`],
-            ['Frame Conversion & Copy', `${formatCounterValue('frame_conversion_copy_ms', counters.find(c=>c.counter_name==='frame_conversion_copy_ms')?.counter_value ?? 0)} ms`],
-            ['FB Enqueue Duration', `${formatCounterValue('framebuffer_enqueue_ms', counters.find(c=>c.counter_name==='framebuffer_enqueue_ms')?.counter_value ?? 0)} ms`],
-            ['Pool Miss (size/empty)', `${(counters.find(c=>c.counter_name==='framebuffer_pool_miss_count_size_mismatch')?.counter_value ?? 0)} / ${(counters.find(c=>c.counter_name==='framebuffer_pool_miss_count_empty')?.counter_value ?? 0)}`],
-            ['Buffer Returned to Pool', String(counters.find(c=>c.counter_name==='framebuffer_buffer_returned_to_pool_count')?.counter_value ?? 0)],
-            ['Cache Hit Rate', cacheRate],
-            ['Frames Total', String(r.frames_total || 0)],
+          ['Framebuffer Bytes Allocated (last frame)', formatBytes(r.framebuffer_bytes_allocated)],
+          ['Framebuffer Peak (last frame)', formatBytes(r.framebuffer_bytes_peak)],
+          ['FB Acquire Duration', `${c('framebuffer_acquire_ms')} ms`],
+          ['FB Clear Duration', `${c('framebuffer_clear_ms')} ms`],
+          ['Frame Conversion & Copy', `${c('frame_conversion_copy_ms')} ms`],
+          ['FB Enqueue Duration', `${c('framebuffer_enqueue_ms')} ms`],
+          ['FB Pool Exact Hit', String(poolExactHit)],
+          ['FB Pool Empty Alloc', String(poolEmptyAlloc)],
+          ['FB Pool Best-Fit Reuse', String(poolBestFitReuse)],
+          ['Buffer Returned to Pool', String(c('framebuffer_buffer_returned_to_pool_count'))],
+          ['Cache Hit Rate', cacheRate],
+          ['Frames Total', String(r.frames_total || 0)],
           ['Frames Written', String(r.frames_written || 0)],
         ],
       ),
@@ -369,11 +423,85 @@ function App() {
         ],
       ),
       '',
+      `## Frame Distribution Histogram`,
+      '```',
+      histDistStr || '  (no frames)',
+      '```',
+      '',
       '## Core Render Phases',
       mdTable(['Phase', 'Duration'], phaseRows.filter(row => !row[0].startsWith('node:'))),
       '',
+      `## ⏱️ Time Attribution Gap Analysis`,
+      mdTable(
+        ['Metric', 'Value'],
+        [
+          ['node_dispatch_ms (total)', `${nodeDispatchMs.toFixed(2)} ms`],
+          ['node_execute_actual_ms', `${nodeExecuteMs.toFixed(2)} ms`],
+          ['Sum of Hot Nodes', `${hotNodeSum.toFixed(2)} ms`],
+          ['ATTRIBUTION GAP', `${attributionGap.toFixed(2)} ms (${attributionGapPct}%)`],
+          ['CPU User', `${cpuUser.toFixed(2)} ms`],
+          ['CPU Sys (kernel)', `${cpuSys.toFixed(2)} ms`],
+          ['CPU Efficiency', `${cpuEff}% (${cpuEquiv} core-equivalent)`],
+          ['Page Faults (minor)', `${pageFaultsMinor.toLocaleString()}`],
+        ],
+      ),
+      '',
+      attributionGap > nodeDispatchMs * 0.3
+        ? `⚠️ LARGE Attribution Gap: ${attributionGapPct}% of node_dispatch_ms is UNACCOUNTED. Hot Nodes only explain ${(100 - Number(attributionGapPct)).toFixed(1)}% of dispatch time. Check: framebuffer clear/composite/transform inside nodes may not be tracked in Hot Nodes.`
+        : `✅ Attribution Gap is reasonable at ${attributionGapPct}%. Hot nodes account for most of the dispatch time.`,
+      '',
+      `## 🏊 Pool Health`,
+      mdTable(
+        ['Metric', 'Value'],
+        [
+          ['FB Allocations', String(fbAlloc)],
+          ['FB Reuses', String(fbReuse)],
+          ['FB Reuse Rate', framebufferReuseRate],
+          ['Pool Miss Empty Alloc', String(poolEmptyAlloc)],
+          ['Pool Miss Best-Fit', String(poolBestFitReuse)],
+          ['Pool Miss Total', String(poolMissTotal)],
+          ['Pool Exact Hit', String(poolExactHit)],
+          ['Pool Miss Rate', poolMissRate],
+        ],
+      ),
+      '',
+      poolMissTotal > 0 && poolMissTotal > fbReuse * 0.3
+        ? `⚠️ HIGH Pool Miss Rate: ${poolMissRate}. Consider pre-warming more buffer sizes.`
+        : `✅ Pool miss rate is healthy at ${poolMissRate}.`,
+      '',
+      `## 🔍 Dirty Rect Fallback Detail`,
+      mdTable(
+        ['Reason', 'Count'],
+        [
+          ['Effect Bounds Unknown', String(fallbackEffect)],
+          ['Predicted Bounds Missing', String(fallbackPredBounds)],
+          ['Transform Bounds Unknown', String(fallbackXform)],
+          ['Composite Missing Input', String(fallbackCompInput)],
+          ['TOTAL fallbacks', String(fallbackEffect + fallbackPredBounds + fallbackXform + fallbackCompInput)],
+        ],
+      ),
+      '',
+      fallbackEffect > 0
+        ? `⚠️ EffectBoundsUnknown = ${fallbackEffect}. The dirty rect system cannot predict effect output size and falls back to full-frame.`
+        : '✅ No EffectBoundsUnknown fallbacks — the dirty rect system is using layer bounds correctly.',
+      '',
+      `## 📦 IO Queue`,
+      mdTable(
+        ['Metric', 'Value'],
+        [
+          ['Push Blocked', `${ioPushBlocked} ms`],
+          ['Pop Wait', `${ioPopWait} ms`],
+          ['Writer Idle', `${ioIdle} ms`],
+          ['Peak Depth', String(ioPeakDepth)],
+        ],
+      ),
+      '',
       '## Telemetry Counters',
-      mdTable(['Counter', 'Value'], counterRows),
+      mdTable(['Counter', 'Value'], counters
+        .slice()
+        .sort((a, b) => a.counter_name.localeCompare(b.counter_name))
+        .map(c => [c.counter_name.replace(/_/g, ' '), formatCounterValue(c.counter_name, c.counter_value)])
+      ),
       '',
       '## Hot Nodes',
       nodeRows.length > 0
@@ -395,11 +523,20 @@ function App() {
       '',
       '## Things to Know',
       `- Cache hit rate: ${cacheRate}.`,
-      `- Average dirty coverage: ${dirtyCoverage} of touched pixels.`,
-      `- Dirty full fallbacks: ${Number(r.dirty_full_fallbacks || 0)}.`,
-      `- Framebuffer reuse rate: ${framebufferReuseRate}.`,
+      `- Average dirty coverage: ${dirtyCoverage} of touched pixels (dirty_pixels=${dirtyPixels.toLocaleString()} / pixels_touched=${pixelsTouched.toLocaleString()}). Values >100% mean dirty pixels are double-counted across multiple render passes.`,
+      `- Dirty full fallbacks: ${Number(r.dirty_full_fallbacks || 0)} (EffectBoundsUnknown: ${fallbackEffect}, PredBoundsMissing: ${fallbackPredBounds}, XformUnknown: ${fallbackXform}, CompMissingInput: ${fallbackCompInput}).`,
+      `- Framebuffer reuse rate: ${framebufferReuseRate} (${fbAlloc} allocs + ${fbReuse} reuses = ${fbTotal} total).`,
+      `- Pool exact hit: ${poolExactHit}, empty alloc: ${poolEmptyAlloc}, best-fit reuse: ${poolBestFitReuse}. (Total miss: ${poolMissTotal}.)`,
+      `- Pool miss rate: ${poolMissRate}. Higher = more fresh allocs = more memory churn.`,
+      `- Pool exact hit rate: ${poolHitRate}. Higher = more no-op reuses.`,
+      `- CPU efficiency: ${cpuEff}% across ${cores} cores (${cpuEquiv} core-equivalent of ${cores} available).`,
+      `- Time attribution: ${attributionGapPct}% of node_dispatch_ms (${nodeDispatchMs.toFixed(0)}ms) is unaccounted by hot nodes (${hotNodeSum.toFixed(0)}ms).`,
+      graphSkippedCount > graphExecutedCount
+        ? `- Graph skip is working well: ${graphSkippedCount} frames skipped (${avgCachedMs.toFixed(2)}ms avg) vs ${graphExecutedCount} executed (${avgActiveMs.toFixed(2)}ms avg).`
+        : `- All ${graphExecutedCount} frames executed through the graph — no skip optimization in effect. Check if layers are cache_static.`,
       '- If render time stays high while cache hit rate is strong, the hot path is likely compositing, clear passes, or framebuffer churn rather than rasterization.',
       '- If text glyph rasterization is low, text is probably not the main bottleneck anymore; blur/glow and layer recomposition become the next suspects.',
+      '- To reduce active frame cost: (1) minimize dirty area, (2) precompute effects, (3) reduce pool misses, (4) increase TBB parallelism for large ops.',
     ];
 
     return reportSections.join('\n');

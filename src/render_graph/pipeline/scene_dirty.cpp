@@ -41,10 +41,10 @@ DirtyRectOutput compute_dirty_rect(
     compute_scene_root_bboxes(out.layer_bboxes, scene, ctx, sw_renderer);
 
     // ── Decide whether to use dirty rects ───────────────────────────────
-    out.use_dirty_rects = settings.enable_dirty_rects &&
-                          sw_renderer->m_prev_framebuffer &&
-                          sw_renderer->m_prev_framebuffer->width() == width &&
-                          sw_renderer->m_prev_framebuffer->height() == height &&
+    out.use_dirty_rects = settings.dirty.enabled &&
+                          sw_renderer->buffer_ring().prev_framebuffer() &&
+                          sw_renderer->buffer_ring().prev_framebuffer()->width() == width &&
+                          sw_renderer->buffer_ring().prev_framebuffer()->height() == height &&
                           sw_renderer->m_prev_frame == frame - 1;
 
     if (!out.use_dirty_rects) {
@@ -53,8 +53,8 @@ DirtyRectOutput compute_dirty_rect(
     }
 
     // ── Tile-based dirty tracking setup ─────────────────────────────────
-    const int effective_tile_size = settings.tile_size > 0 ? settings.tile_size : 256;
-    const bool tiles_enabled = settings.tile_size > 0 && settings.enable_dirty_bitmask;
+    const int effective_tile_size = settings.dirty.tile_size > 0 ? settings.dirty.tile_size : 256;
+    const bool tiles_enabled = settings.dirty.tiles_active();
     raster::TileGrid tile_grid;
     raster::DirtyTileMask tile_mask;
     if (tiles_enabled) {

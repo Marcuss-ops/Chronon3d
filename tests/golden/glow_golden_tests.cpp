@@ -293,7 +293,7 @@ Composition make_pulse_scene() {
             l.fill({0.01f, 0.02f, 0.04f, 1.0f});
         });
 
-        const float t = static_cast<float>(ctx.frame) / 30.0f;
+        const float t = static_cast<float>(ctx.frame.frame) / 30.0f;
         const float pulse = 0.5f + 0.5f * std::sin(t * 6.2831853f * 2.0f);
         const float aura = 0.5f + 0.5f * std::sin(t * 6.2831853f * 2.0f + 1.2f);
 

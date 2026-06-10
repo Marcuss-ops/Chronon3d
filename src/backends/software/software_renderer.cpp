@@ -70,76 +70,7 @@ SoftwareRenderer::SoftwareRenderer()
     renderer::register_builtin_processors(*m_software_registry);
 }
 
-SoftwareRenderer::~SoftwareRenderer() {
-    reset_transform_scratch();
-    reset_ping_framebuffers();
-}
-
-void SoftwareRenderer::ensure_ping_framebuffers(int width, int height) {
-    // If m_prev_framebuffer aliases a ping that is about to be reallocated,
-    // reset it first to avoid a dangling pointer on resolution change.
-    if (m_ping_fb[0] && m_prev_framebuffer.get() == m_ping_fb[0]) {
-        m_prev_framebuffer.reset();
-    }
-    if (m_ping_fb[1] && m_prev_framebuffer.get() == m_ping_fb[1]) {
-        m_prev_framebuffer.reset();
-    }
-
-    // Delegate allocation/ownership to the RendererBufferRing (no raw
-    // pointer + no-op deleter, no manual delete/new dance).
-    m_ping_ring.ensure_capacity(width, height);
-
-    // Sync compatibility shims used by external callers (scene.cpp,
-    // clear_node.hpp, etc.).
-    m_ping_fb[0] = m_ping_ring.ping(0);
-    m_ping_fb[1] = m_ping_ring.ping(1);
-    m_ping_read_idx = m_ping_ring.read_index();
-    m_ping_write_idx = m_ping_ring.write_index();
-
-    // CRITICAL: do NOT touch m_prev_framebuffer here.  It must continue to
-    // point to the actual previous frame's content.  swap_ping_indices()
-    // (called after graph execution) is the only place that should
-    // re-point m_prev_framebuffer to the completed ping.
-}
-
-/// Called after each frame completes: set m_prev_framebuffer to point to
-/// the newly written ping (now the "previous" frame for the next cycle).
-void SoftwareRenderer::swap_ping_indices() {
-    // Delegate the read/write swap to the RendererBufferRing.
-    m_ping_ring.commit_written_frame();
-
-    // Sync compatibility shims.
-    m_ping_read_idx = m_ping_ring.read_index();
-    m_ping_write_idx = m_ping_ring.write_index();
-    m_ping_fb[0] = m_ping_ring.ping(0);
-    m_ping_fb[1] = m_ping_ring.ping(1);
-
-    // Re-point m_prev_framebuffer to the new read ping (non-owning view).
-    m_prev_framebuffer = m_ping_ring.previous_frame();
-}
-
-Framebuffer* SoftwareRenderer::ensure_transform_scratch(int width, int height) {
-    // Delegate ownership and lazy allocation to the TransformScratchBuffer.
-    m_transform_scratch_buf.ensure_capacity(width, height);
-
-    // Sync compatibility shim used by external callers via the scratch_slot
-    // raw pointer in RenderGraphContext.
-    m_transform_scratch = m_transform_scratch_buf.acquire();
-
-    return m_transform_scratch;
-}
-
-void SoftwareRenderer::reset_transform_scratch() {
-    m_transform_scratch_buf.reset();
-    m_transform_scratch = nullptr;
-}
-
-void SoftwareRenderer::reset_ping_framebuffers() {
-    m_prev_framebuffer.reset();
-    m_ping_ring.reset();
-    m_ping_fb[0] = nullptr;
-    m_ping_fb[1] = nullptr;
-}
+SoftwareRenderer::~SoftwareRenderer() = default;
 
 graph::GraphExecutor* SoftwareRenderer::executor() {
     return m_executor.get();
@@ -203,8 +134,8 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(
         m_registry,
         m_video_decoder.get()
     );
-    if (res && m_settings.diagnostic) {
-        renderer::diagnostics::draw_null_overlay(*res, effective_scene, effective_scene.camera_2_5d());
+    if (res && m_settings.diagnostics.enabled) {
+        draw_diagnostic_nulls(*res, effective_scene, effective_scene.camera_2_5d());
     }
     return res;
 }
@@ -245,7 +176,7 @@ void SoftwareRenderer::apply_effect_stack(Framebuffer& fb, const EffectStack& st
         }
     }
 
-    renderer::apply_effect_stack(fb, stack, time_seconds, local_clip, m_settings.diagnostic);
+    renderer::apply_effect_stack(fb, stack, time_seconds, local_clip, m_settings.diagnostics.enabled);
 }
 
 void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node,
@@ -259,8 +190,8 @@ void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node,
         return;
     }
     processor->draw(*this, fb, node, state, camera, width, height);
-    if (m_settings.diagnostic) {
-        renderer::diagnostics::draw_layout_preview(fb, node, state, *processor);
+    if (m_settings.diagnostics.enabled) {
+        draw_layout_preview(fb, node, state, *processor);
     }
 }
 

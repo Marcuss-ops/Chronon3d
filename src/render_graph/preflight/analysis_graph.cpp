@@ -88,8 +88,8 @@ void populate_node_basics(
         } else if (bbox_opt.has_value() &&
                    rec.predicted_bbox.x0 <= 0 &&
                    rec.predicted_bbox.y0 <= 0 &&
-                   rec.predicted_bbox.x1 >= ctx.width &&
-                   rec.predicted_bbox.y1 >= ctx.height) {
+                   rec.predicted_bbox.x1 >= ctx.frame.width &&
+                   rec.predicted_bbox.y1 >= ctx.frame.height) {
             rec.outside_canvas    = false;
             rec.partially_clipped = false;
             rec.visibility        = VisibilityStatus::FullyVisible;
@@ -97,8 +97,8 @@ void populate_node_basics(
         } else if (bbox_opt.has_value() && (
                 rec.predicted_bbox.x0 < 0 ||
                 rec.predicted_bbox.y0 < 0 ||
-                rec.predicted_bbox.x1 > ctx.width ||
-                rec.predicted_bbox.y1 > ctx.height
+                rec.predicted_bbox.x1 > ctx.frame.width ||
+                rec.predicted_bbox.y1 > ctx.frame.height
         )) {
             rec.outside_canvas    = false;
             rec.partially_clipped = true;
@@ -136,7 +136,7 @@ void populate_node_basics(
         if (w > 0 && h > 0) {
             mem_bytes = static_cast<size_t>(w * h * 16);
         } else if (node.kind() == RenderGraphNodeKind::Output) {
-            mem_bytes = static_cast<size_t>(ctx.width * ctx.height * 16);
+            mem_bytes = static_cast<size_t>(ctx.frame.width * ctx.frame.height * 16);
         }
         rec.predicted_memory_bytes = mem_bytes;
 

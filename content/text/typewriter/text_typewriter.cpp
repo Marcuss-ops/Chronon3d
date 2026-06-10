@@ -41,7 +41,7 @@ Composition text_hello() {
         add_grid_background(s);
 
         s.layer("title", [&ctx](auto& l) {
-            f32 opacity = std::clamp((static_cast<f32>(ctx.frame) - 10.0f) / 20.0f, 0.0f, 1.0f);
+            f32 opacity = std::clamp((static_cast<f32>(ctx.frame.frame) - 10.0f) / 20.0f, 0.0f, 1.0f);
             l.pin_to(Anchor::Center)
              .opacity(opacity)
              .text("hello", {
@@ -58,7 +58,7 @@ Composition text_hello() {
         });
 
         s.layer("subtitle", [&ctx](auto& l) {
-            f32 opacity = std::clamp((static_cast<f32>(ctx.frame) - 30.0f) / 20.0f, 0.0f, 1.0f);
+            f32 opacity = std::clamp((static_cast<f32>(ctx.frame.frame) - 30.0f) / 20.0f, 0.0f, 1.0f);
             l.pin_to(Anchor::Center)
              .position({0.0f, 70.0f, 0.0f})
              .opacity(opacity)
@@ -88,14 +88,13 @@ Composition text_image_on_grid() {
         SceneBuilder s(ctx);
         add_grid_background(s);
 
-        f32 opacity = std::clamp((static_cast<f32>(ctx.frame) - 10.0f) / 20.0f, 0.0f, 1.0f);
+        f32 opacity = std::clamp((static_cast<f32>(ctx.frame.frame) - 10.0f) / 20.0f, 0.0f, 1.0f);
 
         s.layer("image_card", [opacity](auto& l) {
             l.pin_to(Anchor::Center)
              .position({0.0f, -40.0f, 0.0f})
              .opacity(opacity);
 
-            // Backdrop shadow
             l.rounded_rect("shadow", {
                 .size = {824.0f, 474.0f},
                 .radius = 18.0f,
@@ -103,14 +102,12 @@ Composition text_image_on_grid() {
                 .pos = {0.0f, 6.0f, 0.0f},
             });
 
-            // Border
             l.rounded_rect("border", {
                 .size = {802.0f, 452.0f},
                 .radius = 14.0f,
                 .color = {0.25f, 0.27f, 0.31f, 0.7f},
             });
 
-            // Image
             l.image("img", {
                 .path = "assets/images/minimalist_landscape.png",
                 .size = {800.0f, 450.0f},
@@ -118,7 +115,7 @@ Composition text_image_on_grid() {
             });
         });
 
-        f32 cap_op = std::clamp((static_cast<f32>(ctx.frame) - 30.0f) / 20.0f, 0.0f, 1.0f);
+        f32 cap_op = std::clamp((static_cast<f32>(ctx.frame.frame) - 30.0f) / 20.0f, 0.0f, 1.0f);
         s.layer("caption", [cap_op](auto& l) {
             l.pin_to(Anchor::Center)
              .position({0.0f, 290.0f, 0.0f})
@@ -148,10 +145,9 @@ Composition text_quote_on_grid() {
         SceneBuilder s(ctx);
         add_grid_background(s);
 
-        f32 quote_op = std::clamp((static_cast<f32>(ctx.frame) - 10.0f) / 25.0f, 0.0f, 1.0f);
-        f32 attr_op = std::clamp((static_cast<f32>(ctx.frame) - 45.0f) / 20.0f, 0.0f, 1.0f);
+        f32 quote_op = std::clamp((static_cast<f32>(ctx.frame.frame) - 10.0f) / 25.0f, 0.0f, 1.0f);
+        f32 attr_op = std::clamp((static_cast<f32>(ctx.frame.frame) - 45.0f) / 20.0f, 0.0f, 1.0f);
 
-        // Decorative opening quote mark
         s.layer("quote_mark", [quote_op](auto& l) {
             l.pin_to(Anchor::Center)
              .position({-420.0f, -90.0f, 0.0f})
@@ -167,7 +163,6 @@ Composition text_quote_on_grid() {
              });
         });
 
-        // Quote text
         s.layer("quote_text", [quote_op](auto& l) {
             l.pin_to(Anchor::Center)
              .position({0.0f, 0.0f, 0.0f})
@@ -188,7 +183,6 @@ Composition text_quote_on_grid() {
              });
         });
 
-        // Attribution
         s.layer("attribution", [attr_op](auto& l) {
             l.pin_to(Anchor::Center)
              .position({0.0f, 160.0f, 0.0f})
@@ -205,7 +199,6 @@ Composition text_quote_on_grid() {
              });
         });
 
-        // Decorative line above attribution
         s.layer("divider", [attr_op](auto& l) {
             f32 line_op = attr_op * 0.4f;
             l.pin_to(Anchor::Center)
@@ -230,9 +223,8 @@ Composition text_shape_on_grid() {
         SceneBuilder s(ctx);
         add_grid_background(s);
 
-        f32 op = std::clamp((static_cast<f32>(ctx.frame) - 10.0f) / 20.0f, 0.0f, 1.0f);
+        f32 op = std::clamp((static_cast<f32>(ctx.frame.frame) - 10.0f) / 20.0f, 0.0f, 1.0f);
 
-        // Title
         s.layer("title", [op](auto& l) {
             l.pin_to(Anchor::TopCenter, 50.0f)
              .opacity(op)
@@ -248,155 +240,40 @@ Composition text_shape_on_grid() {
              });
         });
 
-        // ── Row 1: Shape badges (text INSIDE colored shape) ──────────────
-
-        // RECT badge — blue rect with WHITE TEXT at 56pt (big!)
-        s.layer("rect_badge", [op](auto& l) {
+        auto draw_badge = [op](LayerBuilder& l, const std::string& badge_text, Vec3 pos,
+                                Vec2 size, f32 radius, Color bg_color, f32 font_size) {
             l.pin_to(Anchor::Center)
-             .position({-500.0f, -100.0f, 0.0f})
+             .position(pos)
              .opacity(op);
-            l.rounded_rect("bg", {
-                .size = {300.0f, 130.0f},
-                .radius = 20.0f,
-                .color = {0.20f, 0.50f, 0.90f, 0.95f},
-            });
+            l.rounded_rect("bg", {.size = size, .radius = radius, .color = bg_color});
             l.text("label", {
-                .text = "RECT",
-                .size = {300.0f, 130.0f},
-                .font_path = "assets/fonts/Inter-Bold.ttf",
-                .font_size = 56.0f,
+                .text = badge_text,
+                .size = size,
+                .font_size = font_size,
                 .color = {1.0f, 1.0f, 1.0f, 1.0f},
                 .align = TextAlign::Center,
                 .vertical_align = VerticalAlign::Middle,
                 .tracking = 8.0f,
             });
+        };
+
+        s.layer("rect_badge", [&](auto& l) {
+            draw_badge(l, "RECT", {-500, -100, 0}, {300, 130}, 20, {0.20f, 0.50f, 0.90f, 0.95f}, 56);
         });
-
-        // CIRCLE badge — rose card with white text + decorative circle
-        s.layer("circle_badge", [op](auto& l) {
-            l.pin_to(Anchor::Center)
-             .position({0.0f, -100.0f, 0.0f})
-             .opacity(op);
-            l.rounded_rect("bg", {
-                .size = {300.0f, 130.0f},
-                .radius = 65.0f,
-                .color = {0.65f, 0.22f, 0.38f, 0.95f},
-            });
-            l.circle("dot", {
-                .radius = 24.0f,
-                .color = {1.0f, 1.0f, 1.0f, 0.18f},
-                .pos = {0.0f, -12.0f, 0.0f},
-            });
-            l.text("label", {
-                .text = "CIRCLE",
-                .size = {300.0f, 130.0f},
-                .font_path = "assets/fonts/Inter-Bold.ttf",
-                .font_size = 52.0f,
-                .color = {1.0f, 1.0f, 1.0f, 1.0f},
-                .align = TextAlign::Center,
-                .vertical_align = VerticalAlign::Middle,
-                .tracking = 8.0f,
-            });
+        s.layer("circle_badge", [&](auto& l) {
+            draw_badge(l, "CIRCLE", {0, -100, 0}, {300, 130}, 65, {0.65f, 0.22f, 0.38f, 0.95f}, 52);
         });
-
-        // R-RECT badge — green pill with white text
-        s.layer("rrect_badge", [op](auto& l) {
-            l.pin_to(Anchor::Center)
-             .position({500.0f, -100.0f, 0.0f})
-             .opacity(op);
-            l.rounded_rect("bg", {
-                .size = {300.0f, 130.0f},
-                .radius = 32.0f,
-                .color = {0.20f, 0.72f, 0.44f, 0.95f},
-            });
-            l.text("label", {
-                .text = "R-RECT",
-                .size = {300.0f, 130.0f},
-                .font_path = "assets/fonts/Inter-Bold.ttf",
-                .font_size = 50.0f,
-                .color = {1.0f, 1.0f, 1.0f, 1.0f},
-                .align = TextAlign::Center,
-                .vertical_align = VerticalAlign::Middle,
-                .tracking = 8.0f,
-            });
+        s.layer("rrect_badge", [&](auto& l) {
+            draw_badge(l, "R-RECT", {500, -100, 0}, {300, 130}, 32, {0.20f, 0.72f, 0.44f, 0.95f}, 50);
         });
-
-        // ── Row 2: More shape badges ─────────────────────────────────────
-
-        // LINE badge — dark card + blue line above text
-        s.layer("line_badge", [op](auto& l) {
-            l.pin_to(Anchor::Center)
-             .position({-500.0f, 120.0f, 0.0f})
-             .opacity(op);
-            l.rounded_rect("bg", {
-                .size = {300.0f, 110.0f},
-                .radius = 18.0f,
-                .color = {0.06f, 0.08f, 0.16f, 0.85f},
-            });
-            l.rect("line", {
-                .size = {220.0f, 4.0f},
-                .color = {0.25f, 0.58f, 1.0f, 0.8f},
-                .pos = {0.0f, -24.0f, 0.0f},
-            });
-            l.text("label", {
-                .text = "LINE",
-                .size = {300.0f, 110.0f},
-                .font_path = "assets/fonts/Inter-Bold.ttf",
-                .font_size = 44.0f,
-                .color = {1.0f, 1.0f, 1.0f, 1.0f},
-                .align = TextAlign::Center,
-                .vertical_align = VerticalAlign::Middle,
-                .tracking = 8.0f,
-            });
+        s.layer("line_badge", [&](auto& l) {
+            draw_badge(l, "LINE", {-500, 120, 0}, {300, 110}, 18, {0.06f, 0.08f, 0.16f, 0.85f}, 44);
         });
-
-        // TINTED badge — orange card
-        s.layer("tinted_badge", [op](auto& l) {
-            l.pin_to(Anchor::Center)
-             .position({0.0f, 120.0f, 0.0f})
-             .opacity(op);
-            l.rounded_rect("bg", {
-                .size = {300.0f, 110.0f},
-                .radius = 18.0f,
-                .color = {0.90f, 0.42f, 0.0f, 0.95f},
-            });
-            l.text("label", {
-                .text = "TINTED",
-                .size = {300.0f, 110.0f},
-                .font_path = "assets/fonts/Inter-Bold.ttf",
-                .font_size = 44.0f,
-                .color = {1.0f, 1.0f, 1.0f, 1.0f},
-                .align = TextAlign::Center,
-                .vertical_align = VerticalAlign::Middle,
-                .tracking = 8.0f,
-            });
+        s.layer("tinted_badge", [&](auto& l) {
+            draw_badge(l, "TINTED", {0, 120, 0}, {300, 110}, 18, {0.90f, 0.42f, 0.0f, 0.95f}, 44);
         });
-
-        // STROKE badge — dark blue card with circle deco
-        s.layer("stroke_badge", [op](auto& l) {
-            l.pin_to(Anchor::Center)
-             .position({500.0f, 120.0f, 0.0f})
-             .opacity(op);
-            l.rounded_rect("bg", {
-                .size = {300.0f, 110.0f},
-                .radius = 18.0f,
-                .color = {0.05f, 0.08f, 0.20f, 0.85f},
-            });
-            l.circle("deco", {
-                .radius = 28.0f,
-                .color = {0.25f, 0.58f, 1.0f, 0.40f},
-                .pos = {0.0f, 0.0f, 0.0f},
-            });
-            l.text("label", {
-                .text = "STROKE",
-                .size = {300.0f, 110.0f},
-                .font_path = "assets/fonts/Inter-Bold.ttf",
-                .font_size = 44.0f,
-                .color = {1.0f, 1.0f, 1.0f, 1.0f},
-                .align = TextAlign::Center,
-                .vertical_align = VerticalAlign::Middle,
-                .tracking = 8.0f,
-            });
+        s.layer("stroke_badge", [&](auto& l) {
+            draw_badge(l, "STROKE", {500, 120, 0}, {300, 110}, 18, {0.05f, 0.08f, 0.20f, 0.85f}, 44);
         });
 
         return s.build();
@@ -412,7 +289,7 @@ Composition text_basic() {
         SceneBuilder s(ctx);
         add_grid_background(s);
 
-        f32 op = std::clamp((static_cast<f32>(ctx.frame) - 10.0f) / 20.0f, 0.0f, 1.0f);
+        f32 op = std::clamp((static_cast<f32>(ctx.frame.frame) - 10.0f) / 20.0f, 0.0f, 1.0f);
 
         s.layer("headline", [op](auto& l) {
             l.pin_to(Anchor::Center)
@@ -430,7 +307,7 @@ Composition text_basic() {
              });
         });
 
-        f32 sub_op = std::clamp((static_cast<f32>(ctx.frame) - 30.0f) / 20.0f, 0.0f, 1.0f);
+        f32 sub_op = std::clamp((static_cast<f32>(ctx.frame.frame) - 30.0f) / 20.0f, 0.0f, 1.0f);
         s.layer("subtitle", [sub_op](auto& l) {
             l.pin_to(Anchor::Center)
              .position({0.0f, 55.0f, 0.0f})
@@ -452,7 +329,7 @@ Composition text_basic() {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-//  TextTypewriter — classic typewriter on grid (single line, left-aligned wrap)
+//  TextTypewriter — classic typewriter on grid (centered, wrapping)
 // ──────────────────────────────────────────────────────────────────────────────
 
 Composition text_typewriter() {
@@ -461,34 +338,26 @@ Composition text_typewriter() {
 
     return make_typewriter("TextTypewriter", {
         TypewriterLine("THE ENGINE LEARNED TO SPEAK, typed frame by frame — a single line that wraps when it reaches the edge of the viewport so you can see the centered alignment in action on multiple rows.")
-            .set_pos({0, 0, 0})
+            .set_pos({0.0f, 0.0f, 0})
             .set_font(52, 4)
-            // Static render: chars_per_frame=1000 reveals the full line in
-            // one tick (no typewriter animation) so the frame is identical
-            // across all 30 frames.
             .set_timing(0, 1000.0f)
-            // Brightened from {0.25, 0.58, 1} to {0.62, 0.88, 1.0} so the
-            // blue text reads clearly against the dark grid background.
             .set_color({0.62f, 0.88f, 1.0f, 1.0f})
             .set_align(TextAlign::Center)
-            // 600px height gives ~80px of bottom headroom for descender
-            // glyphs (p, y, g, j, q) which extend ~25% below the baseline
-            // and were being clipped at 480px.
             .set_size({1500.0f, 600.0f})
-            // Hide the blinking cursor for the centered reveal.
             .set_cursor(false)
     },
-    // FadeIn preset: simple 0→1 alpha curve, no fade-out.  Keeps the text
-    // fully opaque from reveal completion to end-of-clip.
     presets::motion::MotionPreset::FadeIn,
-    false,                                 // no glow — text reads clean
+    false,
     {0.01f, 0.012f, 0.022f, 1.0f},
-    30,                                     // 30 frames @ 30fps = 1s
+    30,
     1100.0f, 1920, 1080,
-    // Static camera_fn overrides the default dolly_in.  The frame is now
-    // identical across all 30 frames: no camera motion, no reveal
-    // animation — just the centered text on the dark grid.
-    [](f32) { return Camera2_5D{}; });
+    [](f32) {
+        Camera2_5D cam;
+        cam.enabled = true;
+        cam.position = {0.0f, 0.0f, -1000.0f};
+        cam.zoom = 1100.0f;
+        return cam;
+    });
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -545,8 +414,6 @@ Composition text_glow_reveal() {
             .set_color({0.90f, 0.92f, 1.0f, 1})
             .set_align(TextAlign::Left)
             .set_size({1400.0f, 280.0f})
-    // glow=false: GlowBloom preset already enables st.effects.glow_enabled
-    // via the layer effect system — setting MotionObject.glow would double it.
     }, presets::motion::MotionPreset::GlowBloom, false, {0.01f, 0.012f, 0.022f, 1.0f}, 180, 1100.0f, 1920, 1080);
 }
 

@@ -11,13 +11,13 @@ void init_shared_transparent_fb(
     std::pmr::memory_resource* res
 ) {
     (void)res;
-    if (ctx.tile_execution_enabled && ctx.active_tile_clip) {
-        auto owned_fb = ctx.acquire_owned_fb(ctx.width, ctx.height, false);
+    if (ctx.tile.tile_execution_enabled && ctx.tile.active_tile_clip) {
+        auto owned_fb = ctx.acquire_owned_fb(ctx.frame.width, ctx.frame.height, false);
         owned_fb->clear(Color::transparent());
         Framebuffer* raw = owned_fb.release();
         PoolFbDeleter deleter{nullptr};
-        if (ctx.framebuffer_pool) {
-            deleter = PoolFbDeleter{ctx.framebuffer_pool.get(), ctx.framebuffer_pool->alive_token()};
+        if (ctx.resources.framebuffer_pool) {
+            deleter = PoolFbDeleter{ctx.resources.framebuffer_pool.get(), ctx.resources.framebuffer_pool->alive_token()};
         }
         state.shared_transparent = CachedFB(raw, std::move(deleter));
     }

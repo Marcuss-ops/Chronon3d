@@ -47,6 +47,7 @@ struct FfmpegExportOptions {
     bool   warmup_renderer{false};
     size_t warmup_framebuffers{2};
     bool   warmup_dummy_frame{false};
+    bool   warmup_focus_in_ladder{true};
 
     // Graceful cancellation (optional — set by command_video SIGINT handler)
     chronon3d::CancellationToken* cancellation_token{nullptr};

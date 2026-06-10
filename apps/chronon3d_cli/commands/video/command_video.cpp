@@ -178,6 +178,7 @@ int command_video(const CompositionRegistry& registry, const VideoArgs& args) {
     opts.warmup_renderer = args.pipeline.warmup_renderer || (args.ffmpeg_mode == "pipe");
     opts.warmup_framebuffers = args.pipeline.warmup_framebuffers;
     opts.warmup_dummy_frame = args.pipeline.warmup_dummy_frame || (args.ffmpeg_mode == "pipe");
+    opts.warmup_focus_in_ladder = args.pipeline.warmup_focus_in_ladder;
 
     // Pass cancellation token for graceful SIGINT handling
     opts.cancellation_token = &cancel_token;

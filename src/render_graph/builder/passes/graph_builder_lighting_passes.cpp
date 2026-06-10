@@ -24,7 +24,7 @@ void append_lighting_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_outpu
     if (!item.projected) {
         return;
     }
-    if (!ctx.light_context.enabled) {
+    if (!ctx.camera.light_context.enabled) {
         return;
     }
     if (item.native_3d) {
@@ -48,7 +48,7 @@ void append_depth_grade_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_ou
                                        const rendering::DepthGrade& grade) {
     if (!grade.enabled) return;
     if (!item.projected) return;
-    if (!ctx.light_context.enabled) return;
+    if (!ctx.camera.light_context.enabled) return;
 
     auto grade_node = graph.add_node(
         DepthGradeNode::create(grade, item.world_z, item.layer->material.accepts_lights));
@@ -66,7 +66,7 @@ void append_shadow_passes_if_needed(
     const RenderGraphContext& ctx)
 {
     if (!receiver_item.layer->material.accepts_shadows) return;
-    if (!ctx.light_context.enabled || !ctx.light_context.directional_enabled) return;
+    if (!ctx.camera.light_context.enabled || !ctx.camera.light_context.directional_enabled) return;
     if (!receiver_item.projected) return;
 
     for (const auto& caster : casters) {
@@ -93,8 +93,8 @@ void append_shadow_passes_if_needed(
             std::string(caster.layer->name),
             caster.world_z,
             receiver_item.world_z,
-            ctx.light_context.direction,
-            ctx.light_context.shadows
+            ctx.camera.light_context.direction,
+            ctx.camera.light_context.shadows
         ));
         graph.connect(caster_out, shadow_id);
 

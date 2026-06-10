@@ -112,11 +112,15 @@ bool FfmpegPipeEncoder::open(const FfmpegPipeOptions& options) {
 #ifdef __linux__
         ring_buffer_size_ = size;
 #endif
+        // Pre-size the cached-frame reuse buffer so write_frame() never
+        // needs to check-and-resize in the hot path.
+        cached_frame_bytes_.assign(size + 256, 0);
     } else {
         rgba_buffer_.assign(w * h * 4u + 256, 0);
 #ifdef __linux__
         ring_buffer_size_ = w * h * 4;
 #endif
+        cached_frame_bytes_.assign(w * h * 4u + 256, 0);
     }
 
     const std::string cmd = build_ffmpeg_raw_pipe_command(options_);

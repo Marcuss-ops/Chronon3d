@@ -28,6 +28,17 @@ struct RendererWarmupOptions {
     Frame dummy_frame{0};
 
     bool quiet{false};
+
+    /// When true, renders frames consecutively (step=1) during warmup to
+    /// prime the FocusInLadder blur-ladder cache.  Consecutive rendering
+    /// guarantees identical dirty-rect state and clip rects as the render
+    /// loop, so all 64-aligned dimension buckets are precomputed.
+    bool warmup_focus_in_ladder{true};
+    /// Maximum frame (inclusive) to warm up when warmup_focus_in_ladder
+    /// is true.  Frames 0..max_warmup_frame are rendered consecutively.
+    /// Default 60 covers most FocusInLadder animations (typical duration
+    /// 30-90 frames).  Set to 0 to use composition.duration().
+    Frame focus_in_ladder_max_warmup_frame{60};
 };
 
 // ---------------------------------------------------------------------------
@@ -38,6 +49,9 @@ struct RendererWarmupResult {
     size_t pool_available_after{0};
     size_t pool_bytes_after{0};
     double elapsed_ms{0.0};
+    /// FocusInLadder precompute wall-time captured during warmup (ms).
+    /// Zero if FocusInLadder was not triggered during warmup.
+    double focus_in_ladder_precompute_ms{0.0};
 };
 
 // ---------------------------------------------------------------------------
