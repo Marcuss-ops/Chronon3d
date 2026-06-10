@@ -24,7 +24,7 @@ void register_watch(CLI::App& dev, CliContext& ctx) {
     auto* watch = dev.add_subcommand("watch", "Watch for changes and re-render");
     watch->add_option("id", *watch_id, "Composition name")->required();
     watch->callback([watch_id, &ctx]() {
-        ctx.exit_code = command_watch(ctx.registry, *watch_id);
+        ctx.exit_code = command_watch(ctx.resources.registry, *watch_id);
     });
 }
 
@@ -33,7 +33,7 @@ void register_render_all(CLI::App& dev, CliContext& ctx) {
     auto* render_all = dev.add_subcommand("render-all", "Render frame 0 of every registered composition");
     render_all->add_option("-o,--output-dir", *output_dir, "Output directory")->default_val(chronon_artifact_path("verify", "").string());
     render_all->callback([output_dir, &ctx]() {
-        ctx.exit_code = command_verify(ctx.registry, *output_dir);
+        ctx.exit_code = command_verify(ctx.resources.registry, *output_dir);
     });
 }
 
@@ -42,7 +42,7 @@ void register_batch(CLI::App& dev, CliContext& ctx) {
     auto* cmd = dev.add_subcommand("batch", "Run multiple rendering jobs from explicit CLI job specs");
     cmd->add_option("--job", *jobs, "Job spec string: composition|frames|output|diagnostic|graph")->required();
     cmd->callback([jobs, &ctx]() {
-        ctx.exit_code = command_batch(ctx.registry, *jobs);
+        ctx.exit_code = command_batch(ctx.resources.registry, *jobs);
     });
 }
 
@@ -52,7 +52,7 @@ void register_proofs(CLI::App& dev, CliContext& ctx) {
     auto* cmd = dev.add_subcommand("proofs", "Render diagnostic proof compositions to PNG snapshots");
     cmd->add_option("-o,--out", args.output_dir, "Output directory")->default_val(chronon_artifact_path("proofs", "").string());
     cmd->add_option("--ssaa", args.ssaa, "Super sampling factor")->default_val(1.0f);
-    cmd->callback([state, &ctx]() { ctx.exit_code = command_proofs(ctx.registry, *state->args); });
+    cmd->callback([state, &ctx]() { ctx.exit_code = command_proofs(ctx.resources.registry, *state->args); });
 }
 
 void register_studio_tools(CLI::App& dev, CliContext& ctx) {
@@ -68,7 +68,7 @@ void register_studio_tools(CLI::App& dev, CliContext& ctx) {
                       "Enable layout preview overlays (bbox, anchors, center guide)");
         cmd->add_flag("--graph,!--no-graph", args.pipeline.use_modular_graph, "Use modular RenderGraph path");
         cmd->callback([state, &ctx]() {
-            ctx.exit_code = command_preview(ctx.registry, *state->args);
+            ctx.exit_code = command_preview(ctx.resources.registry, *state->args);
         });
     }
     // contact-sheet
@@ -82,7 +82,7 @@ void register_studio_tools(CLI::App& dev, CliContext& ctx) {
                       "Enable layout preview overlays (bbox, anchors, center guide)");
         cmd->add_flag("--graph,!--no-graph", args.pipeline.use_modular_graph, "Use modular RenderGraph path");
         cmd->callback([state, &ctx]() {
-            ctx.exit_code = command_contact_sheet(ctx.registry, *state->args);
+            ctx.exit_code = command_contact_sheet(ctx.resources.registry, *state->args);
         });
     }
     // storyboard
@@ -96,7 +96,7 @@ void register_studio_tools(CLI::App& dev, CliContext& ctx) {
                       "Enable layout preview overlays (bbox, anchors, center guide)");
         cmd->add_flag("--graph,!--no-graph", args.pipeline.use_modular_graph, "Use modular RenderGraph path");
         cmd->callback([state, &ctx]() {
-            ctx.exit_code = command_storyboard(ctx.registry, *state->args);
+            ctx.exit_code = command_storyboard(ctx.resources.registry, *state->args);
         });
     }
 }
@@ -109,7 +109,7 @@ void register_bench_convert(CLI::App& dev, CliContext& ctx) {
     cmd->add_option("--iterations", bc_args->iterations, "Number of conversion iterations per path")->default_val(10);
     cmd->add_option("--format", bc_args->format, "Output format: yuv420p or nv12")->default_val("yuv420p");
     cmd->add_flag("--gamma,!--no-gamma", bc_args->apply_gamma, "Apply sRGB gamma (default: on)");
-    cmd->callback([bc_args, &ctx]() { ctx.exit_code = command_bench_convert(ctx.registry, *bc_args); });
+    cmd->callback([bc_args, &ctx]() { ctx.exit_code = command_bench_convert(ctx.resources.registry, *bc_args); });
 }
 
 void register_camera_video(CLI::App& dev, CliContext& ctx) {
@@ -130,7 +130,7 @@ void register_camera_video(CLI::App& dev, CliContext& ctx) {
     camera_cmd->add_flag("--graph,!--no-graph", camera_args->pipeline.use_modular_graph, "Use modular RenderGraph path");
     camera_cmd->add_flag("--motion-blur", camera_args->pipeline.quality.motion_blur, "Enable temporal motion blur");
     camera_cmd->add_option("--ssaa", camera_args->pipeline.quality.ssaa, "Super Sampling factor");
-    camera_cmd->callback([camera_args, &ctx]() { ctx.exit_code = command_video_camera(ctx.registry, *camera_args); });
+    camera_cmd->callback([camera_args, &ctx]() { ctx.exit_code = command_video_camera(ctx.resources.registry, *camera_args); });
 }
 
 } // namespace

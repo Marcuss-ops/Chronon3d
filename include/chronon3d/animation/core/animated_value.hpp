@@ -182,7 +182,7 @@ public:
         }
 
         if constexpr (std::is_same_v<T, f32>) {
-            const double fps = ctx.fps > 0.0f ? static_cast<double>(ctx.fps) : 30.0;
+            const double fps = ctx.frame.fps > 0.0f ? static_cast<double>(ctx.frame.fps) : 30.0;
             const double time = ctx.has_explicit_time
                 ? static_cast<double>(ctx.time)
                 : static_cast<double>(frame) / fps;

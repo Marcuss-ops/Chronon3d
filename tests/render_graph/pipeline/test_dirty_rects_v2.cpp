@@ -45,7 +45,7 @@ std::shared_ptr<Framebuffer> render_with_dirty(const Composition& comp, Frame f,
     SoftwareRenderer renderer;
     RenderSettings settings;
     settings.use_modular_graph = true;
-    settings.enable_dirty_rects = dirty_on;
+    settings.dirty.enabled = dirty_on;
     renderer.set_settings(settings);
     return renderer.render_frame(comp, f);
 }
@@ -117,7 +117,7 @@ TEST_CASE("Dirty Rects: Bounding box correct for simple shapes") {
         SoftwareRenderer r;
         RenderSettings s;
         s.use_modular_graph = true;
-        s.enable_dirty_rects = true;
+        s.dirty.enabled = true;
         r.set_settings(s);
         r.render_frame(comp_rect, 0);  // Render frame 0 baseline
         r.counters()->reset();         // Reset counters for frame 1
@@ -144,7 +144,7 @@ TEST_CASE("Dirty Rects: Bounding box correct for simple shapes") {
         SoftwareRenderer r;
         RenderSettings s;
         s.use_modular_graph = true;
-        s.enable_dirty_rects = true;
+        s.dirty.enabled = true;
         r.set_settings(s);
         r.render_frame(comp_circle, 0); // Render frame 0 baseline
         r.counters()->reset();          // Reset counters for frame 1
@@ -168,7 +168,7 @@ TEST_CASE("Dirty Rects: Inter-frame diff includes old and new position") {
         .name = "DirtyRectDiffTest", .width = W, .height = H, .duration = 3
     }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx.resource);
-        float x = 40.0f + static_cast<float>(ctx.frame) * 40.0f;  // frame 0→40, 1→80
+        float x = 40.0f + static_cast<float>(ctx.frame.frame) * 40.0f;  // frame 0→40, 1→80
         s.rect("moving", {
             .size = {30, 30},
             .color = Color::blue(),
@@ -198,7 +198,7 @@ TEST_CASE("Dirty Rects: Inter-frame diff includes old and new position") {
         SoftwareRenderer r;
         RenderSettings s;
         s.use_modular_graph = true;
-        s.enable_dirty_rects = true;
+        s.dirty.enabled = true;
         r.set_settings(s);
         r.render_frame(comp, 0);
         r.counters()->reset();
@@ -250,7 +250,7 @@ TEST_CASE("Dirty Rects: Static scene skips redundant clears") {
     SoftwareRenderer renderer;
     RenderSettings settings;
     settings.use_modular_graph = true;
-    settings.enable_dirty_rects = true;
+    settings.dirty.enabled = true;
     renderer.set_settings(settings);
 
     // Render all frames
@@ -302,7 +302,7 @@ TEST_CASE("Dirty Rects: Near-static scene with small animated element") {
         });
 
         // Small animated dot
-        float x = 30.0f + static_cast<float>(ctx.frame) * 5.0f;
+        float x = 30.0f + static_cast<float>(ctx.frame.frame) * 5.0f;
         s.circle("dot", {
             .radius = 8,
             .color = Color::red(),
@@ -371,7 +371,7 @@ TEST_CASE("Dirty Rects: Output correct with effects (blur)") {
         SceneBuilder s(ctx.resource);
 
         // Moving rect with blur effect
-        float x = 60.0f + static_cast<float>(ctx.frame) * 20.0f;
+        float x = 60.0f + static_cast<float>(ctx.frame.frame) * 20.0f;
         s.layer("blurred", [&](LayerBuilder& l) {
             l.rect("r", {
                 .size = {50, 50},
@@ -388,7 +388,7 @@ TEST_CASE("Dirty Rects: Output correct with effects (blur)") {
     SoftwareRenderer renderer;
     RenderSettings settings;
     settings.use_modular_graph = true;
-    settings.enable_dirty_rects = true;
+    settings.dirty.enabled = true;
     renderer.set_settings(settings);
 
     auto fb0 = renderer.render_frame(comp, 0);
@@ -441,8 +441,8 @@ TEST_CASE("Dirty Rects: Long sequence equivalence with moving elements") {
         });
 
         // Moving element
-        float x = 20.0f + static_cast<float>(ctx.frame) * 8.0f;
-        float y = 60.0f + std::sin(static_cast<float>(ctx.frame) * 0.8f) * 15.0f;
+        float x = 20.0f + static_cast<float>(ctx.frame.frame) * 8.0f;
+        float y = 60.0f + std::sin(static_cast<float>(ctx.frame.frame) * 0.8f) * 15.0f;
         s.rounded_rect("moving", {
             .size = {24, 16},
             .radius = 4,
@@ -458,13 +458,13 @@ TEST_CASE("Dirty Rects: Long sequence equivalence with moving elements") {
     {
         RenderSettings s;
         s.use_modular_graph = true;
-        s.enable_dirty_rects = true;
+        s.dirty.enabled = true;
         r_dirty.set_settings(s);
     }
     {
         RenderSettings s;
         s.use_modular_graph = true;
-        s.enable_dirty_rects = false;
+        s.dirty.enabled = false;
         r_clean.set_settings(s);
     }
 

@@ -41,10 +41,10 @@ namespace chronon3d::graph::detail {
         auto proj = project_layer_2_5d(
             effective_transform,
             projection_world_matrix,
-            ctx.camera_2_5d,
-            static_cast<f32>(ctx.width),
-            static_cast<f32>(ctx.height),
-            ctx.diagnostics_enabled
+            ctx.camera.camera_2_5d,
+            static_cast<f32>(ctx.frame.width),
+            static_cast<f32>(ctx.frame.height),
+            ctx.options.diagnostics_enabled
         );
         if (proj.visible) {
             const Mat4 eff_proj = is_native_3d_layer(layer)
@@ -118,9 +118,9 @@ inline void refresh_compiled_graph_payloads(
             const RenderNode& src_node = *it->second;
             cache::NodeCacheKey key{
                 .scope = "root.source:" + std::string(src_node.name),
-                .frame = ctx.frame,
-                .width = ctx.width,
-                .height = ctx.height,
+                .frame = ctx.frame.frame,
+                .width = ctx.frame.width,
+                .height = ctx.frame.height,
                 .params_hash = hash_render_node(src_node),
                 .source_hash = hash_bytes(src_node.name.data(), src_node.name.size())
             };
@@ -128,7 +128,7 @@ inline void refresh_compiled_graph_payloads(
                 std::string(src_node.name),
                 src_node,
                 key,
-                ctx.modular_coordinates
+                ctx.options.modular_coordinates
             );
             return;
         }
@@ -146,7 +146,7 @@ inline void refresh_compiled_graph_payloads(
 
         const auto& src_node = layer.nodes[0];
         const LayerGraphItem item = make_layer_graph_item_for_refresh(rl, ctx);
-        const bool use_local = ctx.modular_coordinates &&
+        const bool use_local = ctx.options.modular_coordinates &&
             layer_needs_render_transform(item, ctx) &&
             !item.native_3d;
         const std::string layer_name_str(layer.name);
@@ -165,9 +165,9 @@ inline void refresh_compiled_graph_payloads(
             : (item.transform.opacity * src_node.world_transform.opacity);
         cache::NodeCacheKey key{
             .scope = "layer.source:" + layer_name_str + ":" + std::string(src_node.name),
-            .frame = source_is_static ? Frame{0} : ctx.frame,
-            .width = ctx.width,
-            .height = ctx.height,
+            .frame = source_is_static ? Frame{0} : ctx.frame.frame,
+            .width = ctx.frame.width,
+            .height = ctx.frame.height,
             .params_hash = hash_render_node(src_node),
             .source_hash = hash_bytes(src_node.name.data(), src_node.name.size())
         };
@@ -178,8 +178,8 @@ inline void refresh_compiled_graph_payloads(
             key,
             should_use_centered_rendering(item, ctx),
             item.projected,
-            ctx.modular_coordinates ? std::optional<Mat4>(render_matrix) : std::nullopt,
-            ctx.modular_coordinates ? std::optional<f32>(render_opacity) : std::nullopt,
+            ctx.options.modular_coordinates ? std::optional<Mat4>(render_matrix) : std::nullopt,
+            ctx.options.modular_coordinates ? std::optional<f32>(render_opacity) : std::nullopt,
             source_is_static
         );
     };
@@ -198,7 +198,7 @@ inline void refresh_compiled_graph_payloads(
         }
 
         const LayerGraphItem item = make_layer_graph_item_for_refresh(rl, ctx);
-        const bool use_local = ctx.modular_coordinates &&
+        const bool use_local = ctx.options.modular_coordinates &&
             layer_needs_render_transform(item, ctx) &&
             !item.native_3d;
         const std::string layer_name_str(layer.name);
@@ -231,9 +231,9 @@ inline void refresh_compiled_graph_payloads(
 
         cache::NodeCacheKey key{
             .scope = "layer.multisource:" + layer_name_str,
-            .frame = source_is_static ? Frame{0} : ctx.frame,
-            .width = ctx.width,
-            .height = ctx.height,
+            .frame = source_is_static ? Frame{0} : ctx.frame.frame,
+            .width = ctx.frame.width,
+            .height = ctx.frame.height,
             .params_hash = aggregated_params_hash,
             .source_hash = hash_string(layer_name_str + "_multisource")
         };
@@ -257,7 +257,7 @@ inline void refresh_compiled_graph_payloads(
         }
         const Layer& layer = *layer_it->second->layer;
         if (layer.anim_transform.blur.is_animated()) {
-            const Frame local_frame = layer.local_frame(ctx.frame);
+            const Frame local_frame = layer.local_frame(ctx.frame.frame);
             const f32 blur_radius = layer.anim_transform.blur.evaluate(local_frame);
             for (auto& effect : node.effects()) {
                 if (auto* blur = std::get_if<BlurParams>(&effect.params)) {
@@ -285,26 +285,26 @@ inline void refresh_compiled_graph_payloads(
         } else {
             Mat4 effective_matrix = item.world_matrix;
             if (should_use_centered_rendering(item, ctx)) {
-                if (ctx.ssaa_factor > 1.0f) {
+                if (ctx.options.ssaa_factor > 1.0f) {
                     Mat4 ssaa_world = item.world_matrix;
-                    ssaa_world[3][0] *= ctx.ssaa_factor;
-                    ssaa_world[3][1] *= ctx.ssaa_factor;
-                    ssaa_world[3][2] *= ctx.ssaa_factor;
+                    ssaa_world[3][0] *= ctx.options.ssaa_factor;
+                    ssaa_world[3][1] *= ctx.options.ssaa_factor;
+                    ssaa_world[3][2] *= ctx.options.ssaa_factor;
                     effective_matrix = ssaa_world;
                 }
                 effective_matrix =
-                    glm::translate(Mat4(1.0f), Vec3(-ctx.width * 0.5f, -ctx.height * 0.5f, 0.0f)) *
+                    glm::translate(Mat4(1.0f), Vec3(-ctx.frame.width * 0.5f, -ctx.frame.height * 0.5f, 0.0f)) *
                     effective_matrix;
             } else {
                 // Delegate to the shared helper so the refresh-path stays in
                 // sync with the build-path (graph_builder_layer_passes.cpp).
                 const Mat4 stripped = strip_implicit_canvas_centering(
                     effective_matrix, item, ctx);
-                if (ctx.diagnostics_enabled &&
+                if (ctx.options.diagnostics_enabled &&
                     (stripped[3][0] != effective_matrix[3][0] ||
                      stripped[3][1] != effective_matrix[3][1])) {
                     spdlog::info("[refresh-transform] stripped centering translation for layer='{}' frame={}",
-                        layer_id, static_cast<int>(ctx.frame));
+                        layer_id, static_cast<int>(ctx.frame.frame));
                 }
                 effective_matrix = stripped;
             }

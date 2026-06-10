@@ -20,17 +20,17 @@ OwnedFB TransformNode::execute(
     std::span<const std::optional<raster::BBox>> input_bboxes
 ) {
     CHRONON_ZONE_C("transform_node", trace_category::kRasterize);
-    if (ctx.counters) {
-        ctx.counters->transform_calls.fetch_add(1, std::memory_order_relaxed);
+    if (ctx.telemetry.counters) {
+        ctx.telemetry.counters->transform_calls.fetch_add(1, std::memory_order_relaxed);
     }
 
     if (inputs.empty() || !inputs[0]) {
-        return ctx.acquire_owned_fb(ctx.width, ctx.height);
+        return ctx.acquire_owned_fb(ctx.frame.width, ctx.frame.height);
     }
 
     const FramebufferRef& input = inputs[0];
     const auto predicted = predicted_bbox(ctx, input_bboxes);
-    const raster::BBox out_bounds = predicted.value_or(raster::BBox{0, 0, ctx.width, ctx.height});
+    const raster::BBox out_bounds = predicted.value_or(raster::BBox{0, 0, ctx.frame.width, ctx.frame.height});
     const i32 out_w = std::max(1, out_bounds.x1 - out_bounds.x0);
     const i32 out_h = std::max(1, out_bounds.y1 - out_bounds.y0);
 
@@ -44,11 +44,11 @@ OwnedFB TransformNode::execute(
         input->width() == out_w && input->height() == out_h &&
         input->origin_x() == out_bounds.x0 && input->origin_y() == out_bounds.y0) {
         const uint64_t area = static_cast<uint64_t>(out_w) * out_h;
-        if (ctx.backend) {
-            ctx.backend->counters()->pixels_touched.fetch_add(area, std::memory_order_relaxed);
+        if (ctx.resources.backend) {
+            ctx.resources.backend->counters()->pixels_touched.fetch_add(area, std::memory_order_relaxed);
         }
-        if (ctx.counters) {
-            ctx.counters->transform_pixels.fetch_add(area, std::memory_order_relaxed);
+        if (ctx.telemetry.counters) {
+            ctx.telemetry.counters->transform_pixels.fetch_add(area, std::memory_order_relaxed);
         }
         // Swap pixel storage from the input framebuffer — zero-copy.
         // Safe because in a render graph DAG each node output has exactly
@@ -67,7 +67,7 @@ OwnedFB TransformNode::execute(
     auto result = ctx.acquire_scratch_fb(out_w, out_h, true, out_bounds);
 
     // ── Centering & homography ──────────────────────────────────────────
-    const Mat4 dst_canvas_offset = glm::translate(Mat4(1.0f), Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
+    const Mat4 dst_canvas_offset = glm::translate(Mat4(1.0f), Vec3(ctx.frame.width * 0.5f, ctx.frame.height * 0.5f, 0.0f));
     const Mat4 src_canvas_offset = glm::translate(Mat4(1.0f), Vec3(input->width() * 0.5f, input->height() * 0.5f, 0.0f));
     const Mat4 pixel_model = dst_canvas_offset * model * glm::inverse(src_canvas_offset);
 
@@ -103,11 +103,11 @@ OwnedFB TransformNode::execute(
 
     const auto winding = projected_quad_signed_area(pixel_model, w_src, h_src);
     const bool flipped = winding.has_value() && *winding < 0.0f;
-    if (ctx.counters && flipped) {
-        ctx.counters->projected_winding_flips.fetch_add(1, std::memory_order_relaxed);
+    if (ctx.telemetry.counters && flipped) {
+        ctx.telemetry.counters->projected_winding_flips.fetch_add(1, std::memory_order_relaxed);
     }
 
-    if (ctx.diagnostics_enabled) {
+    if (ctx.options.diagnostics_enabled) {
 #ifdef CHRONON_DEBUG_VERBOSE
         const f32 det = glm::determinant(H);
         spdlog::info(
@@ -150,22 +150,22 @@ OwnedFB TransformNode::execute(
     i32 y0 = std::clamp(static_cast<i32>(std::floor(min_y)), result->origin_y(), result->origin_y() + result->height());
     i32 y1 = std::clamp(static_cast<i32>(std::ceil(max_y)), result->origin_y(), result->origin_y() + result->height());
 
-    if (ctx.clip_rect) {
-        x0 = std::max(x0, ctx.clip_rect->x0);
-        y0 = std::max(y0, ctx.clip_rect->y0);
-        x1 = std::min(x1, ctx.clip_rect->x1);
-        y1 = std::min(y1, ctx.clip_rect->y1);
+    if (ctx.tile.clip_rect) {
+        x0 = std::max(x0, ctx.tile.clip_rect->x0);
+        y0 = std::max(y0, ctx.tile.clip_rect->y0);
+        x1 = std::min(x1, ctx.tile.clip_rect->x1);
+        y1 = std::min(y1, ctx.tile.clip_rect->y1);
     }
 
     const uint64_t area = (x1 > x0 && y1 > y0)
         ? static_cast<uint64_t>(x1 - x0) * static_cast<uint64_t>(y1 - y0)
         : 0;
 
-    if (ctx.backend) {
-        ctx.backend->counters()->pixels_touched.fetch_add(area, std::memory_order_relaxed);
+    if (ctx.resources.backend) {
+        ctx.resources.backend->counters()->pixels_touched.fetch_add(area, std::memory_order_relaxed);
     }
-    if (ctx.counters) {
-        ctx.counters->transform_pixels.fetch_add(area, std::memory_order_relaxed);
+    if (ctx.telemetry.counters) {
+        ctx.telemetry.counters->transform_pixels.fetch_add(area, std::memory_order_relaxed);
     }
 
     // ── Dispatch: choose the right transform path ───────────────────────
@@ -233,18 +233,18 @@ OwnedFB TransformNode::execute(
                 row_begin, row_end);
         };
         const bool use_par = (y1 - y0 >= 32 && area >= 64 * 32);
-        if (ctx.counters) {
+        if (ctx.telemetry.counters) {
             if (use_par) {
-                ctx.counters->used_parallel_transform.fetch_add(1, std::memory_order_relaxed);
+                ctx.telemetry.counters->used_parallel_transform.fetch_add(1, std::memory_order_relaxed);
             } else {
-                ctx.counters->skipped_transform_small.fetch_add(1, std::memory_order_relaxed);
+                ctx.telemetry.counters->skipped_transform_small.fetch_add(1, std::memory_order_relaxed);
             }
         }
         if (use_par) {
             parallel_for_tracked(
                 tbb::blocked_range<i32>(y0, y1),
                 [&](const tbb::blocked_range<i32>& range) { worker(range.begin(), range.end()); },
-                ctx.counters
+                ctx.telemetry.counters
             );
         } else {
             worker(y0, y1);
@@ -260,25 +260,25 @@ OwnedFB TransformNode::execute(
                 row_begin, row_end);
         };
         const bool use_par = (y1 - y0 >= 32 && area >= 64 * 32);
-        if (ctx.counters) {
+        if (ctx.telemetry.counters) {
             if (use_par) {
-                ctx.counters->used_parallel_transform.fetch_add(1, std::memory_order_relaxed);
+                ctx.telemetry.counters->used_parallel_transform.fetch_add(1, std::memory_order_relaxed);
             } else {
-                ctx.counters->skipped_transform_small.fetch_add(1, std::memory_order_relaxed);
+                ctx.telemetry.counters->skipped_transform_small.fetch_add(1, std::memory_order_relaxed);
             }
         }
         if (use_par) {
             parallel_for_tracked(
                 tbb::blocked_range<i32>(y0, y1),
                 [&](const tbb::blocked_range<i32>& range) { worker(range.begin(), range.end()); },
-                ctx.counters
+                ctx.telemetry.counters
             );
         } else {
             worker(y0, y1);
         }
     }
 
-    if (ctx.diagnostics_enabled) {
+    if (ctx.options.diagnostics_enabled) {
         int nonzero = 0;
         for (i32 y = 0; y < result->height(); ++y) {
             const Color* row = result->pixels_row(y);
@@ -318,7 +318,7 @@ OwnedFB TransformNode::execute(
         if (lx >= 0 && lx < result->width() && ly >= 0 && ly < result->height()) {
             center_color = result->get_pixel(lx, ly);
         }
-        std::string clip_str = ctx.clip_rect ? (std::to_string(ctx.clip_rect->x0) + "," + std::to_string(ctx.clip_rect->y0) + "->" + std::to_string(ctx.clip_rect->x1) + "," + std::to_string(ctx.clip_rect->y1)) : "none";
+        std::string clip_str = ctx.tile.clip_rect ? (std::to_string(ctx.tile.clip_rect->x0) + "," + std::to_string(ctx.tile.clip_rect->y0) + "->" + std::to_string(ctx.tile.clip_rect->x1) + "," + std::to_string(ctx.tile.clip_rect->y1)) : "none";
         spdlog::info("[transform-debug] node='{}' output nonzero_pixels={} center_color=[{:.3f},{:.3f},{:.3f},{:.3f}] origin=[{},{}] size=[{},{}] x0_x1=[{},{}] y0_y1=[{},{}] clip={} inv_M=[[{:.3f},{:.3f},{:.3f}],[{:.3f},{:.3f},{:.3f}],[{:.3f},{:.3f},{:.3f}]] start=[{:.3f},{:.3f},{:.3f}] step_x=[{:.3f},{:.3f},{:.3f}] step_y=[{:.3f},{:.3f},{:.3f}] grid:{}",
                      name(), nonzero, center_color.r, center_color.g, center_color.b, center_color.a,
                      result->origin_x(), result->origin_y(), result->width(), result->height(),
@@ -349,20 +349,20 @@ std::optional<raster::BBox> TransformNode::predicted_bbox(
         const f32 tx = model[3][0];
         const f32 ty = model[3][1];
 
-        const i32 x0 = std::clamp(static_cast<i32>(std::floor(static_cast<f32>(in_box.x0) + tx)) - 1, 0, ctx.width);
-        const i32 y0 = std::clamp(static_cast<i32>(std::floor(static_cast<f32>(in_box.y0) + ty)) - 1, 0, ctx.height);
-        const i32 x1 = std::clamp(x0 + src_w + 2, 0, ctx.width);
-        const i32 y1 = std::clamp(y0 + src_h + 2, 0, ctx.height);
+        const i32 x0 = std::clamp(static_cast<i32>(std::floor(static_cast<f32>(in_box.x0) + tx)) - 1, 0, ctx.frame.width);
+        const i32 y0 = std::clamp(static_cast<i32>(std::floor(static_cast<f32>(in_box.y0) + ty)) - 1, 0, ctx.frame.height);
+        const i32 x1 = std::clamp(x0 + src_w + 2, 0, ctx.frame.width);
+        const i32 y1 = std::clamp(y0 + src_h + 2, 0, ctx.frame.height);
 
         return raster::BBox{x0, y0, x1, y1};
     }
 
-    const Mat4 dst_canvas_offset = glm::translate(Mat4(1.0f), Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
+    const Mat4 dst_canvas_offset = glm::translate(Mat4(1.0f), Vec3(ctx.frame.width * 0.5f, ctx.frame.height * 0.5f, 0.0f));
 
     f32 x_min_src = 0.0f;
     f32 y_min_src = 0.0f;
-    f32 x_max_src = static_cast<f32>(ctx.width);
-    f32 y_max_src = static_cast<f32>(ctx.height);
+    f32 x_max_src = static_cast<f32>(ctx.frame.width);
+    f32 y_max_src = static_cast<f32>(ctx.frame.height);
 
     if (!input_bboxes.empty() && input_bboxes[0].has_value()) {
         const auto& in_box = *input_bboxes[0];
@@ -372,7 +372,7 @@ std::optional<raster::BBox> TransformNode::predicted_bbox(
         y_max_src = static_cast<f32>(in_box.y1);
     }
 
-    const Mat4 src_canvas_offset = glm::translate(Mat4(1.0f), Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
+    const Mat4 src_canvas_offset = glm::translate(Mat4(1.0f), Vec3(ctx.frame.width * 0.5f, ctx.frame.height * 0.5f, 0.0f));
     const Mat4 pixel_model = dst_canvas_offset * model * glm::inverse(src_canvas_offset);
 
     Vec4 corners[4] = {
@@ -395,10 +395,10 @@ std::optional<raster::BBox> TransformNode::predicted_bbox(
     }
 
     return raster::BBox{
-        std::clamp(static_cast<i32>(std::floor(min_x)), 0, ctx.width),
-        std::clamp(static_cast<i32>(std::floor(min_y)), 0, ctx.height),
-        std::clamp(static_cast<i32>(std::ceil(max_x)), 0, ctx.width),
-        std::clamp(static_cast<i32>(std::ceil(max_y)), 0, ctx.height)
+        std::clamp(static_cast<i32>(std::floor(min_x)), 0, ctx.frame.width),
+        std::clamp(static_cast<i32>(std::floor(min_y)), 0, ctx.frame.height),
+        std::clamp(static_cast<i32>(std::ceil(max_x)), 0, ctx.frame.width),
+        std::clamp(static_cast<i32>(std::ceil(max_y)), 0, ctx.frame.height)
     };
 }
 

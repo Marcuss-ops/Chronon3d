@@ -118,15 +118,15 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
 
             const auto frame_t0 = std::chrono::steady_clock::now();
             auto fb = graph::render_composition_frame(
-                ctx.backend, ctx.node_cache, ctx.settings, &ctx.registry,
-                ctx.video_decoder, ctx.comp, current_frame);
+                ctx.resources.backend, ctx.resources.node_cache, ctx.settings, &ctx.resources.registry,
+                ctx.resources.video_decoder, ctx.comp, current_frame);
             const auto frame_t1 = std::chrono::steady_clock::now();
             const double frame_ms =
                 std::chrono::duration<double, std::milli>(frame_t1 - frame_t0).count();
             result.render_graph_eval_ms += frame_ms;
 
-            if (ctx.counters) {
-                ctx.counters->video_graph_eval_ms.fetch_add(
+            if (ctx.telemetry.counters) {
+                ctx.telemetry.counters->video_graph_eval_ms.fetch_add(
                     static_cast<uint64_t>(frame_ms), std::memory_order_relaxed);
             }
 
@@ -156,14 +156,14 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
             // We track both count and cumulative ms so the telemetry report
             // can compute avg_frame_ms_active vs avg_frame_ms_cached
             // without dilution from the large number of cached frames.
-            if (ctx.counters) {
+            if (ctx.telemetry.counters) {
                 if (fast_path_reused) {
-                    ctx.counters->graph_skipped_frames.fetch_add(1, std::memory_order_relaxed);
-                    ctx.counters->graph_skipped_ms_sum.fetch_add(
+                    ctx.telemetry.counters->graph_skipped_frames.fetch_add(1, std::memory_order_relaxed);
+                    ctx.telemetry.counters->graph_skipped_ms_sum.fetch_add(
                         static_cast<uint64_t>(frame_ms * 1000.0), std::memory_order_relaxed);
                 } else {
-                    ctx.counters->graph_executed_frames.fetch_add(1, std::memory_order_relaxed);
-                    ctx.counters->graph_executed_ms_sum.fetch_add(
+                    ctx.telemetry.counters->graph_executed_frames.fetch_add(1, std::memory_order_relaxed);
+                    ctx.telemetry.counters->graph_executed_ms_sum.fetch_add(
                         static_cast<uint64_t>(frame_ms * 1000.0), std::memory_order_relaxed);
                 }
             }
@@ -172,11 +172,11 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
             const auto wait_t0 = std::chrono::steady_clock::now();
             const auto q_size = ctx.queue.size_approx();
 
-            if (ctx.counters) {
+            if (ctx.telemetry.counters) {
                 auto current_peak =
-                    ctx.counters->io_queue_peak_depth.load(std::memory_order_relaxed);
+                    ctx.telemetry.counters->io_queue_peak_depth.load(std::memory_order_relaxed);
                 while (q_size > current_peak &&
-                       !ctx.counters->io_queue_peak_depth.compare_exchange_weak(
+                       !ctx.telemetry.counters->io_queue_peak_depth.compare_exchange_weak(
                            current_peak, q_size, std::memory_order_relaxed)) {
                 }
             }
@@ -205,8 +205,8 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
                 std::chrono::duration<double, std::milli>(wait_t1 - wait_t0).count();
             result.queue_wait_ms += wait_ms;
 
-            if (ctx.counters) {
-                ctx.counters->io_queue_push_blocked_ms.fetch_add(
+            if (ctx.telemetry.counters) {
+                ctx.telemetry.counters->io_queue_push_blocked_ms.fetch_add(
                     static_cast<uint64_t>(wait_ms), std::memory_order_relaxed);
             }
 

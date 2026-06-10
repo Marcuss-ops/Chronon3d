@@ -94,27 +94,39 @@ namespace chronon3d::graph {
     float fps
 ) {
     return RenderGraphContext{
-        .frame = frame,
-        .time_seconds = static_cast<float>(frame) + frame_time,
-        .fps = fps,
-        .width = width,
-        .height = height,
-        .camera = camera,
-        .backend = &backend,
-        .node_cache = &node_cache,
-        .framebuffer_pool = backend.framebuffer_pool(),
-        .registry = registry,
-        .video_decoder = video_decoder,
-        .counters = backend.counters(),
-        .diagnostics_enabled = settings.diagnostic,
-        .ssaa_factor = settings.ssaa_factor,
-        .modular_coordinates = settings.use_modular_graph,
-        .tile_size = settings.tile_size,
-        .optimize_compositing = settings.optimize_compositing,
-        // Keep node clipping in sync with framebuffer reuse.
-        // Without this, the Clear node can erase an entire reused buffer,
-        // which wipes cached full-frame backgrounds on the next frame.
-        .dirty_rects_enabled = settings.enable_dirty_rects || settings.dirty_rects || settings.enable_dirty_bitmask
+        .frame = RenderFrameInfo{
+            .frame = frame,
+            .time_seconds = static_cast<float>(frame) + frame_time,
+            .fps = fps,
+            .width = width,
+            .height = height,
+        },
+        .camera = RenderCameraContext{
+            .camera = camera,
+        },
+        .resources = RenderResourceContext{
+            .backend = &backend,
+            .node_cache = &node_cache,
+            .framebuffer_pool = backend.framebuffer_pool(),
+            .registry = registry,
+            .video_decoder = video_decoder,
+        },
+        .telemetry = RenderTelemetryContext{
+            .counters = backend.counters(),
+        },
+        .options = RenderOptimizationContext{
+            .diagnostics_enabled = settings.diagnostics.enabled,
+            .ssaa_factor = settings.ssaa_factor,
+            .modular_coordinates = settings.use_modular_graph,
+            .optimize_compositing = settings.compositing.optimize_compositing,
+            // Keep node clipping in sync with framebuffer reuse.
+            // Without this, the Clear node can erase an entire reused buffer,
+            // which wipes cached full-frame backgrounds on the next frame.
+            .dirty_rects_enabled = settings.dirty.is_active(),
+        },
+        .tile = RenderTileContext{
+            .tile_size = settings.dirty.tile_size,
+        },
     };
 }
 

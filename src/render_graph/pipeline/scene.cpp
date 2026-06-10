@@ -21,6 +21,7 @@
 #include "scene_internal.hpp"
 #include "scene_refresh.hpp"
 #include "scene_tile_execution.hpp"
+#include "tile_execution_policy.hpp"
 #include <spdlog/spdlog.h>
 #include <fmt/format.h>
 #include <chrono>
@@ -185,19 +186,19 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         settings, registry, video_decoder, fps
     );
 
-    ctx.light_context = scene.light_context();
+    ctx.camera.light_context = scene.light_context();
     const auto resolved_camera = resolve_scene_camera(scene);
     if (resolved_camera.camera.enabled) {
-        ctx.camera_2_5d = resolved_camera.camera;
-        ctx.has_camera_2_5d = true;
-        ctx.projection_ctx = renderer::make_projection_context(
-            ctx.camera_2_5d, ctx.width, ctx.height);
+        ctx.camera.camera_2_5d = resolved_camera.camera;
+        ctx.camera.has_camera_2_5d = true;
+        ctx.camera.projection_ctx = renderer::make_projection_context(
+            ctx.camera.camera_2_5d, ctx.frame.width, ctx.frame.height);
         ctx.projection_ctx.ready = true;
     }
 
     // RAII guard: sets profiling thread-locals and restores on any exit path
     // (including early returns and exceptions).
-    profiling::ProfilingGuard profiling_guard(ctx.counters, ctx.framebuffer_pool.get());
+    profiling::ProfilingGuard profiling_guard(ctx.telemetry.counters, ctx.framebuffer_pool.get());
 
     SoftwareRenderer* sw_renderer = dynamic_cast<SoftwareRenderer*>(&backend);
 
@@ -223,7 +224,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         (sw_renderer->m_prev_frame == frame - 1 || sw_renderer->m_prev_frame == frame))
     {
         CHRONON_ZONE_C("resolved_scene_reuse", trace_category::kFrame);
-        const Camera2_5D& cam = ctx.camera_2_5d;
+        const Camera2_5D& cam = ctx.camera.camera_2_5d;
         const bool cam_changed = detail::camera_changed(
             cam, &sw_renderer->m_prev_camera, sw_renderer->m_prev_camera_valid);
         const uint64_t static_fp = sw_renderer->m_scene_hasher.compute_static_fingerprint(scene);
@@ -241,15 +242,15 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
             sw_renderer->m_prev_scene_fingerprint = combined_fp;
             sw_renderer->m_prev_camera = cam;
             sw_renderer->m_prev_camera_valid = cam.enabled;
-            if (ctx.counters) {
-                ctx.counters->dirty_union_area_pixels.store(0, std::memory_order_relaxed);
-                ctx.counters->clear_skipped_calls.fetch_add(1, std::memory_order_relaxed);
-                ctx.counters->clear_skipped_pixels.fetch_add(
+            if (ctx.telemetry.counters) {
+                ctx.telemetry.counters->dirty_union_area_pixels.store(0, std::memory_order_relaxed);
+                ctx.telemetry.counters->clear_skipped_calls.fetch_add(1, std::memory_order_relaxed);
+                ctx.telemetry.counters->clear_skipped_pixels.fetch_add(
                     static_cast<uint64_t>(width) * height,
                     std::memory_order_relaxed
                 );
             }
-            if (ctx.diagnostics_enabled) {
+            if (ctx.options.diagnostics_enabled) {
                 spdlog::info("[resolved-reuse] frame={} combined_fingerprint_match=1", static_cast<int>(frame));
             }
             return sw_renderer->m_prev_framebuffer;
@@ -271,7 +272,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         current_static_fp = sw_renderer->m_scene_hasher.compute_static_fingerprint(scene);
         current_structure_fp = sw_renderer->m_scene_hasher.compute_structure_fingerprint(scene);
         scene_structure_unchanged = (current_structure_fp == sw_renderer->m_prev_graph_structure_fingerprint);
-        const Camera2_5D& cam = ctx.camera_2_5d;
+        const Camera2_5D& cam = ctx.camera.camera_2_5d;
         static_cam_changed = detail::camera_changed(
             cam, &sw_renderer->m_prev_camera, sw_renderer->m_prev_camera_valid);
         // Use frame-aware static check so that animations which have reached
@@ -318,17 +319,17 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         sw_renderer->m_last_fast_path_reused = true;
         sw_renderer->m_last_graph_reused = false;
         sw_renderer->m_prev_frame = frame;
-        sw_renderer->m_prev_camera = ctx.camera_2_5d;
+        sw_renderer->m_prev_camera = ctx.camera.camera_2_5d;
         sw_renderer->m_prev_camera_valid = ctx.camera_2_5d.enabled;
-        if (ctx.counters) {
-            ctx.counters->dirty_union_area_pixels.store(0, std::memory_order_relaxed);
-            ctx.counters->clear_skipped_calls.fetch_add(1, std::memory_order_relaxed);
-            ctx.counters->clear_skipped_pixels.fetch_add(
+        if (ctx.telemetry.counters) {
+            ctx.telemetry.counters->dirty_union_area_pixels.store(0, std::memory_order_relaxed);
+            ctx.telemetry.counters->clear_skipped_calls.fetch_add(1, std::memory_order_relaxed);
+            ctx.telemetry.counters->clear_skipped_pixels.fetch_add(
                 static_cast<uint64_t>(width) * height,
                 std::memory_order_relaxed
             );
         }
-        if (ctx.diagnostics_enabled) {
+        if (ctx.options.diagnostics_enabled) {
             spdlog::info("[static-fastpath] frame={} static_fingerprint_match=1",
                 static_cast<int>(frame));
         }
@@ -339,9 +340,9 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     // If the scene structure and camera are unchanged, inform the executor
     // so it can skip compute_structure_signature() and reuse the cached
     // execution plan (topological sort + consumer counts) directly.
-    ctx.graph_structure_unchanged = scene_structure_unchanged && !static_cam_changed && active_at_unchanged;
+    ctx.options.graph_structure_unchanged = scene_structure_unchanged && !static_cam_changed && active_at_unchanged;
 
-    if (settings.diagnostic_plan) {
+    if (settings.diagnostics.plan) {
         // Temporarily disable counters during preflight (no need to
         // accumulate profiling data for a dry-run analysis pass).
         // RAII guard restores both g_current_counters and
@@ -363,8 +364,8 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         );
         spdlog::info("[graph-preflight] label='{}' frame={} size={}x{}\n{}",
                      diagnostic_label, static_cast<int>(frame), width, height, report.to_text());
-        if (!settings.diagnostic_plan_output.empty()) {
-            const auto report_path = format_plan_output_path(settings.diagnostic_plan_output, frame);
+        if (!settings.diagnostics.plan_output.empty()) {
+            const auto report_path = format_plan_output_path(settings.diagnostics.plan_output, frame);
             if (write_plan_output_file(report_path, report.to_text())) {
                 spdlog::info("[graph-preflight] report written to {}", report_path);
             }
@@ -391,16 +392,16 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         if (total > 0) dirty_ratio = area / total;
         dirty_union_area_pixels = static_cast<u64>(area);
     }
-    if (ctx.counters) {
-        ctx.counters->dirty_union_area_pixels.store(dirty_union_area_pixels, std::memory_order_relaxed);
+    if (ctx.telemetry.counters) {
+        ctx.telemetry.counters->dirty_union_area_pixels.store(dirty_union_area_pixels, std::memory_order_relaxed);
     }
     if (sw_renderer) {
         sw_renderer->m_last_dirty_area_ratio = dirty_ratio;
     }
-    ctx.dirty_rect = dirty_out.dirty_rect;
-    ctx.reuse_prev_framebuffer = dirty_out.use_dirty_rects;
+    ctx.tile.dirty_rect = dirty_out.dirty_rect;
+    ctx.options.reuse_prev_framebuffer = dirty_out.use_dirty_rects;
 
-    if (sw_renderer && ctx.diagnostics_enabled) {
+    if (sw_renderer && ctx.options.diagnostics_enabled) {
         if (dirty_out.dirty_rect) {
             spdlog::info(
                 "[dirty-debug] frame={} use_dirty_rects={} prev_fb={} dirty_rect=[{},{} -> {},{}] prev_frame={}",
@@ -422,7 +423,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
 
     // ── Fast-path reuse: empty dirty rect ───────────────────────────────
     const bool fast_path_reuse = sw_renderer &&
-                                 settings.enable_dirty_rects &&
+                                 settings.dirty.enabled &&
                                  dirty_out.dirty_rect &&
                                  dirty_out.dirty_rect->is_empty() &&
                                  sw_renderer->m_prev_framebuffer &&
@@ -432,7 +433,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     const auto t_build1 = std::chrono::steady_clock::now();
 
     if (fast_path_reuse) {
-        if (ctx.diagnostics_enabled) {
+        if (ctx.options.diagnostics_enabled) {
             spdlog::info("[dirty-debug] frame={} fast_path_reuse=1", static_cast<int>(frame));
         }
         sw_renderer->m_last_dirty_area_ratio = 0.0;
@@ -470,19 +471,19 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     if (sw_renderer) {
         if (s_pingpong_enabled) {
             sw_renderer->ensure_ping_framebuffers(width, height);
-            ctx.ping_write_fb = sw_renderer->m_ping_fb[sw_renderer->m_ping_write_idx];
-            ctx.ping_write_slot = sw_renderer->write_ping_slot();
+            ctx.scratch.ping_write_fb = sw_renderer->m_ping_fb[sw_renderer->m_ping_write_idx];
+            ctx.scratch.ping_write_slot = sw_renderer->write_ping_slot();
         }
 
-        ctx.transform_scratch = sw_renderer->ensure_transform_scratch(width, height);
-        ctx.transform_scratch_slot = sw_renderer->transform_scratch_slot();
+        ctx.scratch.transform_scratch = sw_renderer->ensure_transform_scratch(width, height);
+        ctx.scratch.transform_scratch_slot = sw_renderer->transform_scratch_slot();
     }
 
     // ── Build (or reuse cached) render graph ─────────────────────────────
     // Phase 1: when graph_structure_unchanged is true, the graph topology is
     // identical to the previous frame — reuse the cached graph instead of
     // rebuilding and re-optimizing from scratch.
-    const bool can_reuse_compiled_graph = ctx.graph_structure_unchanged &&
+    const bool can_reuse_compiled_graph = ctx.options.graph_structure_unchanged &&
                                           sw_renderer &&
                                           sw_renderer->m_cached_compiled_graph != nullptr &&
                                           sw_renderer->m_cached_compiled_width == width &&
@@ -494,8 +495,8 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     bool graph_reused = false;
     if (can_reuse_compiled_graph) {
         // Reuse the cached compiled graph from the previous frame
-        if (ctx.counters) {
-            ctx.counters->graph_cache_hits.fetch_add(1, std::memory_order_relaxed);
+        if (ctx.telemetry.counters) {
+            ctx.telemetry.counters->graph_cache_hits.fetch_add(1, std::memory_order_relaxed);
         }
         compiled = std::move(*sw_renderer->m_cached_compiled_graph);
         sw_renderer->m_cached_compiled_graph.reset();
@@ -503,25 +504,25 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         const auto t_refresh0 = std::chrono::steady_clock::now();
         detail::refresh_compiled_graph_payloads(compiled, scene, ctx, resolved);
         const auto t_refresh1 = std::chrono::steady_clock::now();
-        if (ctx.counters) {
-            ctx.counters->compiled_graph_refresh_ms.fetch_add(
+        if (ctx.telemetry.counters) {
+            ctx.telemetry.counters->compiled_graph_refresh_ms.fetch_add(
                 to_ms_u64(std::chrono::duration<double, std::milli>(t_refresh1 - t_refresh0).count()),
                 std::memory_order_relaxed);
         }
         compiled.skip_initial_clear = false;
         compiled.early_exit_skip.assign(compiled.graph.size(), false);
 
-    ctx.skip_initial_clear = compiled.skip_initial_clear;
-    ctx.early_exit_skip = compiled.early_exit_skip;
+    ctx.options.skip_initial_clear = compiled.skip_initial_clear;
+    ctx.tile.early_exit_skip = compiled.early_exit_skip;
 
-    if (ctx.diagnostics_enabled) {
+    if (ctx.options.diagnostics_enabled) {
         spdlog::info("[graph-cache] frame={} reusing cached compiled graph ({} live nodes)",
                      static_cast<int>(frame), compiled.graph.live_count());
     }
         graph_reused = true;
     } else {
-        if (ctx.counters) {
-            ctx.counters->graph_cache_misses.fetch_add(1, std::memory_order_relaxed);
+        if (ctx.telemetry.counters) {
+            ctx.telemetry.counters->graph_cache_misses.fetch_add(1, std::memory_order_relaxed);
         }
         RenderGraph graph;
         // Full build path — construct the render graph via GraphBuildPipeline.
@@ -536,11 +537,11 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
             pre_resolved.layers = resolved.layers;
             pre_resolved.camera = resolved.camera;
             graph = pipeline.build_with_resolved(scene, mutable_ctx, pre_resolved);
-            ctx.skip_initial_clear = mutable_ctx.skip_initial_clear;
-            ctx.early_exit_skip = std::move(mutable_ctx.early_exit_skip);
+            ctx.options.skip_initial_clear = mutable_ctx.options.skip_initial_clear;
+            ctx.tile.early_exit_skip = std::move(mutable_ctx.tile.early_exit_skip);
         }
 
-        if (ctx.diagnostics_enabled) {
+        if (ctx.options.diagnostics_enabled) {
             for (size_t i = 0; i < graph.size(); ++i) {
                 if (!graph.has_node(i)) continue;
                 std::string inputs_str;
@@ -557,7 +558,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     compile_options.run_optimizer = true;
     compile_options.compute_lifetimes = true;
     compile_options.compute_bboxes = true;  // always needed for pool preallocation sizing
-    compile_options.include_diagnostics = settings.diagnostic_plan;
+    compile_options.include_diagnostics = settings.diagnostics.plan;
 
         compiled = compiler.compile(std::move(graph), ctx, compile_options);
     }
@@ -579,10 +580,10 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         }
         const auto t_prealloc1 = std::chrono::steady_clock::now();
         const double prealloc_ms = std::chrono::duration<double, std::milli>(t_prealloc1 - t_prealloc0).count();
-        if (ctx.counters) {
-            ctx.counters->framebuffer_prealloc_created.fetch_add(prealloc_total, std::memory_order_relaxed);
+        if (ctx.telemetry.counters) {
+            ctx.telemetry.counters->framebuffer_prealloc_created.fetch_add(prealloc_total, std::memory_order_relaxed);
         }
-        if (ctx.diagnostics_enabled) {
+        if (ctx.options.diagnostics_enabled) {
             spdlog::info("[pool-prealloc] frame={} ensured={} predictions={} ms={:.2f}",
                          static_cast<int>(frame), prealloc_total, predictions.size(), prealloc_ms);
         }
@@ -592,34 +593,19 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     const auto t_exec0 = std::chrono::steady_clock::now();
     std::shared_ptr<Framebuffer> fb_shared;
 
-    // Tile execution is incompatible with spatial effects (glow, bloom, drop shadow,
-    // blur, distort, temporal).  When tile execution re-executes the full graph per
-    // tile, the effect stack runs with a tile-scoped clip_rect.  The blur kernel in
-    // these effects reads pixels outside the tile boundary — those pixels are zero
-    // or garbage (from the fresh per-tile framebuffer), producing visible seams at
-    // tile edges.  Disable tile execution when ANY layer has spatial effects.
-    const bool tile_safe = !detail::has_layer_with_spatial_effects(resolved, frame);
+    // Delegate the "safe/unsafe" decision to TileExecutionPolicy.  This
+    // centralises the conditions under which tile execution is enabled or
+    // disabled, and produces a human-readable reason when disabled.
+    const TileDecision tile_decision = TileExecutionPolicy::decide(
+        resolved, settings, dirty_out, dirty_ratio, sw_renderer, frame);
 
-    // ── Dirty-ratio threshold for tile execution ────────────────────────
-    // When the dirty area covers >threshold of the screen, per-tile graph
-    // re-execution overhead dominates and single-pass is faster.  This threshold
-    // prevents pathological slowdowns on scenes with large dirty regions.
-    const bool dirty_ratio_below_threshold =
-        dirty_ratio <= settings.tile_dirty_ratio_threshold;
+    const bool use_tile_execution = tile_decision.enabled;
 
-    const bool use_tile_execution = tile_safe &&
-                                    dirty_out.use_dirty_tiles &&
-                                    dirty_ratio_below_threshold &&
-                                    sw_renderer &&
-                                    sw_renderer->executor() &&
-                                    dirty_out.tile_grid &&
-                                    dirty_out.dirty_tiles &&
-                                    dirty_out.dirty_tiles->any();
-
-    if (ctx.diagnostics_enabled && !dirty_ratio_below_threshold) {
+    if (ctx.options.diagnostics_enabled && !use_tile_execution) {
         spdlog::info(
-            "[tile-debug] frame={} tile_execution_skipped dirty_ratio={:.3f} threshold={} reason=high_dirty_ratio",
-            static_cast<int>(frame), dirty_ratio, settings.tile_dirty_ratio_threshold);
+            "[tile-debug] frame={} tile_execution_skipped dirty_ratio={:.3f} threshold={} reason={}",
+            static_cast<int>(frame), dirty_ratio,
+            settings.dirty.tile_dirty_ratio_threshold, tile_decision.reason_if_disabled);
     }
 
     if (use_tile_execution) {
@@ -640,26 +626,26 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         {
             CHRONON_ZONE_C("tile_execute", trace_category::kGraph);
             const int total_tiles = dirty_out.tile_grid->tile_count();
-            const bool parallel_tiles = sw_renderer->settings().enable_parallel_tiles;
+            const bool parallel_tiles = settings.dirty.parallel_tiles;
 
             auto tile_result = detail::execute_dirty_tiles(
                 compiled, ctx, sw_renderer, dirty_out,
                 *fb_shared, width, height, parallel_tiles);
 
             // ── Tile counters ───────────────────────────────────────────────
-            if (ctx.counters) {
-                ctx.counters->tile_dirty_count.fetch_add(tile_result.dirty_count, std::memory_order_relaxed);
+            if (ctx.telemetry.counters) {
+                ctx.telemetry.counters->tile_dirty_count.fetch_add(tile_result.dirty_count, std::memory_order_relaxed);
                 const int clean_count = std::max(0, total_tiles - tile_result.dirty_count);
-                ctx.counters->tile_clean_count.fetch_add(clean_count, std::memory_order_relaxed);
-                ctx.counters->tile_pixels_rendered.fetch_add(tile_result.pixels_rendered, std::memory_order_relaxed);
+                ctx.telemetry.counters->tile_clean_count.fetch_add(clean_count, std::memory_order_relaxed);
+                ctx.telemetry.counters->tile_pixels_rendered.fetch_add(tile_result.pixels_rendered, std::memory_order_relaxed);
                 const uint64_t total_pixels =
                     static_cast<uint64_t>(width) * static_cast<uint64_t>(height);
                 const uint64_t pixels_skipped = (total_pixels > tile_result.pixels_rendered)
                     ? total_pixels - tile_result.pixels_rendered : 0;
-                ctx.counters->tile_pixels_skipped.fetch_add(pixels_skipped, std::memory_order_relaxed);
+                ctx.telemetry.counters->tile_pixels_skipped.fetch_add(pixels_skipped, std::memory_order_relaxed);
             }
 
-            if (ctx.diagnostics_enabled) {
+            if (ctx.options.diagnostics_enabled) {
                 spdlog::info(
                     "[tile-debug] frame={} tile_total={} tile_dirty={}",
                     static_cast<int>(frame), total_tiles, tile_result.dirty_count);
@@ -677,26 +663,26 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
             }
         }
         // Track tile fallbacks when tile system requested but couldn't execute
-        if (dirty_out.use_dirty_tiles && ctx.counters) {
-            ctx.counters->tile_full_fallbacks.fetch_add(1, std::memory_order_relaxed);
+        if (dirty_out.use_dirty_tiles && ctx.telemetry.counters) {
+            ctx.telemetry.counters->tile_full_fallbacks.fetch_add(1, std::memory_order_relaxed);
         }
     }
     const auto t_exec1 = std::chrono::steady_clock::now();
 
-    if (ctx.counters || ctx.diagnostics_enabled) {
+    if (ctx.telemetry.counters || ctx.options.diagnostics_enabled) {
         const double resolve_ms = std::chrono::duration<double, std::milli>(t_resolve1 - t_resolve0).count();
         const double dirty_ms = std::chrono::duration<double, std::milli>(t_dirty1 - t_dirty0).count();
         const double graph_ms = std::chrono::duration<double, std::milli>(t_graph1 - t_graph0).count();
         const double exec_ms = std::chrono::duration<double, std::milli>(t_exec1 - t_exec0).count();
         const double total_graph_ms = resolve_ms + dirty_ms + graph_ms + exec_ms;
-        if (ctx.counters) {
-            ctx.counters->graph_resolve_layers_ms.fetch_add(to_ms_u64(resolve_ms), std::memory_order_relaxed);
-            ctx.counters->graph_dirty_rect_ms.fetch_add(to_ms_u64(dirty_ms), std::memory_order_relaxed);
-            ctx.counters->graph_build_ms.fetch_add(to_ms_u64(graph_ms), std::memory_order_relaxed);
-            ctx.counters->graph_execute_ms.fetch_add(to_ms_u64(exec_ms), std::memory_order_relaxed);
-            ctx.counters->graph_total_ms.fetch_add(to_ms_u64(total_graph_ms), std::memory_order_relaxed);
+        if (ctx.telemetry.counters) {
+            ctx.telemetry.counters->graph_resolve_layers_ms.fetch_add(to_ms_u64(resolve_ms), std::memory_order_relaxed);
+            ctx.telemetry.counters->graph_dirty_rect_ms.fetch_add(to_ms_u64(dirty_ms), std::memory_order_relaxed);
+            ctx.telemetry.counters->graph_build_ms.fetch_add(to_ms_u64(graph_ms), std::memory_order_relaxed);
+            ctx.telemetry.counters->graph_execute_ms.fetch_add(to_ms_u64(exec_ms), std::memory_order_relaxed);
+            ctx.telemetry.counters->graph_total_ms.fetch_add(to_ms_u64(total_graph_ms), std::memory_order_relaxed);
         }
-        if (ctx.diagnostics_enabled) {
+        if (ctx.options.diagnostics_enabled) {
             spdlog::info(
                 "[graph-timing] frame={} resolve_layers_ms={:.2f} dirty_rect_ms={:.2f} graph_phase_ms={:.2f} graph_exec_ms={:.2f} graph_total_ms={:.2f} graph_reused={}",
                 static_cast<int>(frame),

@@ -18,7 +18,7 @@ inline void progress_bar(
     const FrameContext& ctx
 ) {
     f32 bar_height = 8.0f;
-    f32 full_width = static_cast<f32>(ctx.width);
+    f32 full_width = static_cast<f32>(ctx.frame.width);
 
     s.screen_layer("progress_bar", [progress, bar_color, bar_height, full_width](LayerBuilder& l) {
         l.position({0.0f, 0.0f, 0.0f});

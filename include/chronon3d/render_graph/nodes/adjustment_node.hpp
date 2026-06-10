@@ -19,9 +19,9 @@ public:
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         return cache::NodeCacheKey{
             .scope = "adjustment",
-            .frame = frame_dependent() ? ctx.frame : Frame{0},
-            .width = ctx.width,
-            .height = ctx.height,
+            .frame = frame_dependent() ? ctx.frame.frame : Frame{0},
+            .width = ctx.frame.width,
+            .height = ctx.frame.height,
             .params_hash = hash_effect_stack(m_effects)
         };
     }
@@ -35,14 +35,14 @@ public:
     }
 
     OwnedFB execute(RenderGraphContext& ctx, std::span<const FramebufferRef> inputs, std::span<const std::optional<raster::BBox>>) override {
-        if (inputs.empty()) return ctx.acquire_owned_fb(ctx.width, ctx.height);
+        if (inputs.empty()) return ctx.acquire_owned_fb(ctx.frame.width, ctx.frame.height);
         
         auto result = ctx.acquire_owned_fb(*inputs[0]);
-        if (ctx.backend) {
-            ctx.backend->apply_effect_stack(*result, m_effects, ctx.time_seconds, ctx.clip_rect);
-            if (ctx.counters) {
-                ctx.counters->effect_stack_calls.fetch_add(1, std::memory_order_relaxed);
-                ctx.counters->effect_pixels.fetch_add(static_cast<uint64_t>(ctx.width * ctx.height), std::memory_order_relaxed);
+        if (ctx.resources.backend) {
+            ctx.resources.backend->apply_effect_stack(*result, m_effects, ctx.frame.time_seconds, ctx.tile.clip_rect);
+            if (ctx.telemetry.counters) {
+                ctx.telemetry.counters->effect_stack_calls.fetch_add(1, std::memory_order_relaxed);
+                ctx.telemetry.counters->effect_pixels.fetch_add(static_cast<uint64_t>(ctx.frame.width * ctx.frame.height), std::memory_order_relaxed);
             }
         }
         return result;

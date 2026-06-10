@@ -230,15 +230,15 @@ int command_video_camera(const CompositionRegistry& registry, const VideoCameraA
 
     auto comp = chronon3d::presets::camera_motion_clip("CameraTestPattern", params,
         [](SceneBuilder& s, const FrameContext& ctx, const animation::CameraMotionParams& p) {
-            const f32 inset_x = static_cast<f32>(ctx.width) * 0.06f;
-            const f32 inset_y = static_cast<f32>(ctx.height) * 0.06f;
+            const f32 inset_x = static_cast<f32>(ctx.frame.width) * 0.06f;
+            const f32 inset_y = static_cast<f32>(ctx.frame.height) * 0.06f;
             const Vec2 image_size{
-                static_cast<f32>(ctx.width) - inset_x * 2.0f,
-                static_cast<f32>(ctx.height) - inset_y * 2.0f,
+                static_cast<f32>(ctx.frame.width) - inset_x * 2.0f,
+                static_cast<f32>(ctx.frame.height) - inset_y * 2.0f,
             };
             const Vec3 image_pos{
-                static_cast<f32>(ctx.width) * 0.5f,
-                static_cast<f32>(ctx.height) * 0.5f,
+                static_cast<f32>(ctx.frame.width) * 0.5f,
+                static_cast<f32>(ctx.frame.height) * 0.5f,
                 0.0f,
             };
 

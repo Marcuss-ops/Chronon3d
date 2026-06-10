@@ -19,12 +19,12 @@ LayerResolutionResult resolve_layers(const Scene& scene, const RenderGraphContex
     });
     
     tg.run([&]() {
-        result.layers = resolver.resolve_layers(ctx.frame);
+        result.layers = resolver.resolve_layers(ctx.frame.frame);
     });
     
     tg.wait();
     
-    if (ctx.modular_coordinates) {
+    if (ctx.options.modular_coordinates) {
         // Build a map from layer name to its ResolvedLayer
         std::unordered_map<std::string_view, ResolvedLayer*> name_to_resolved;
         name_to_resolved.reserve(result.layers.size());
@@ -34,8 +34,8 @@ LayerResolutionResult resolve_layers(const Scene& scene, const RenderGraphContex
             }
         }
 
-        const f32 half_w = ctx.width * 0.5f;
-        const f32 half_h = ctx.height * 0.5f;
+        const f32 half_w = ctx.frame.width * 0.5f;
+        const f32 half_h = ctx.frame.height * 0.5f;
 
         // Shift unpinned layers and propagate down the hierarchy
         for (auto& rl : result.layers) {
