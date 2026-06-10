@@ -42,9 +42,9 @@ DirtyRectOutput compute_dirty_rect(
 
     // ── Decide whether to use dirty rects ───────────────────────────────
     out.use_dirty_rects = settings.dirty.enabled &&
-                          sw_renderer->m_prev_framebuffer &&
-                          sw_renderer->m_prev_framebuffer->width() == width &&
-                          sw_renderer->m_prev_framebuffer->height() == height &&
+                          sw_renderer->buffer_ring().prev_framebuffer() &&
+                          sw_renderer->buffer_ring().prev_framebuffer()->width() == width &&
+                          sw_renderer->buffer_ring().prev_framebuffer()->height() == height &&
                           sw_renderer->m_prev_frame == frame - 1;
 
     if (!out.use_dirty_rects) {

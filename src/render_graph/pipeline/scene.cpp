@@ -218,9 +218,9 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     // This block must come BEFORE resolve_layers() and compute_dirty_rect() so
     // that identical consecutive frames avoid even entering the dirty system.
     if (sw_renderer &&
-        sw_renderer->m_prev_framebuffer &&
-        sw_renderer->m_prev_framebuffer->width() == width &&
-        sw_renderer->m_prev_framebuffer->height() == height &&
+        sw_renderer->buffer_ring().prev_framebuffer() &&
+        sw_renderer->buffer_ring().prev_framebuffer()->width() == width &&
+        sw_renderer->buffer_ring().prev_framebuffer()->height() == height &&
         (sw_renderer->m_prev_frame == frame - 1 || sw_renderer->m_prev_frame == frame))
     {
         CHRONON_ZONE_C("resolved_scene_reuse", trace_category::kFrame);
@@ -253,7 +253,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
             if (ctx.options.diagnostics_enabled) {
                 spdlog::info("[resolved-reuse] frame={} combined_fingerprint_match=1", static_cast<int>(frame));
             }
-            return sw_renderer->m_prev_framebuffer;
+            return sw_renderer->buffer_ring().prev_framebuffer();
         }
     }
 
@@ -303,9 +303,9 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         (current_active_at_fp == sw_renderer->m_prev_active_at_fingerprint);
 
     if (sw_renderer &&
-        sw_renderer->m_prev_framebuffer &&
-        sw_renderer->m_prev_framebuffer->width() == width &&
-        sw_renderer->m_prev_framebuffer->height() == height &&
+        sw_renderer->buffer_ring().prev_framebuffer() &&
+        sw_renderer->buffer_ring().prev_framebuffer()->width() == width &&
+        sw_renderer->buffer_ring().prev_framebuffer()->height() == height &&
         frame_reuse &&
         scene_structure_unchanged && !static_cam_changed && active_at_unchanged &&
         sw_renderer->m_prev_static_scene_fingerprint != 0 &&
@@ -333,7 +333,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
             spdlog::info("[static-fastpath] frame={} static_fingerprint_match=1",
                 static_cast<int>(frame));
         }
-        return sw_renderer->m_prev_framebuffer;
+        return sw_renderer->buffer_ring().prev_framebuffer();
     }
 
     // ── Full path: resolve, dirty rect, graph, execute ──────────────────
@@ -407,7 +407,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
                 "[dirty-debug] frame={} use_dirty_rects={} prev_fb={} dirty_rect=[{},{} -> {},{}] prev_frame={}",
                 static_cast<int>(frame),
                 dirty_out.use_dirty_rects ? 1 : 0,
-                sw_renderer->m_prev_framebuffer ? 1 : 0,
+                sw_renderer->buffer_ring().prev_framebuffer() ? 1 : 0,
                 dirty_out.dirty_rect->x0, dirty_out.dirty_rect->y0,
                 dirty_out.dirty_rect->x1, dirty_out.dirty_rect->y1,
                 static_cast<int>(sw_renderer->m_prev_frame));
@@ -416,7 +416,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
                 "[dirty-debug] frame={} use_dirty_rects={} prev_fb={} dirty_rect=null prev_frame={}",
                 static_cast<int>(frame),
                 dirty_out.use_dirty_rects ? 1 : 0,
-                sw_renderer->m_prev_framebuffer ? 1 : 0,
+                sw_renderer->buffer_ring().prev_framebuffer() ? 1 : 0,
                 static_cast<int>(sw_renderer->m_prev_frame));
         }
     }
@@ -426,9 +426,9 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
                                  settings.dirty.enabled &&
                                  dirty_out.dirty_rect &&
                                  dirty_out.dirty_rect->is_empty() &&
-                                 sw_renderer->m_prev_framebuffer &&
-                                 sw_renderer->m_prev_framebuffer->width() == width &&
-                                 sw_renderer->m_prev_framebuffer->height() == height;
+                                 sw_renderer->buffer_ring().prev_framebuffer() &&
+                                 sw_renderer->buffer_ring().prev_framebuffer()->width() == width &&
+                                 sw_renderer->buffer_ring().prev_framebuffer()->height() == height;
 
     const auto t_build1 = std::chrono::steady_clock::now();
 
@@ -453,7 +453,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         sw_renderer->m_prev_active_at_fingerprint = fp_active_at;
         sw_renderer->m_prev_camera = resolved.camera.camera;
         sw_renderer->m_prev_camera_valid = resolved.camera.camera.enabled;
-        return sw_renderer->m_prev_framebuffer;
+        return sw_renderer->buffer_ring().prev_framebuffer();
     }
 
     // ── Wire up ping-pong framebuffers AND transform scratch ────────────
@@ -470,13 +470,13 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     }();
     if (sw_renderer) {
         if (s_pingpong_enabled) {
-            sw_renderer->ensure_ping_framebuffers(width, height);
-            ctx.scratch.ping_write_fb = sw_renderer->m_ping_fb[sw_renderer->m_ping_write_idx];
-            ctx.scratch.ping_write_slot = sw_renderer->write_ping_slot();
+            sw_renderer->buffer_ring().ensure_size(width, height);
+            ctx.scratch.ping_write_fb = sw_renderer->buffer_ring().write_fb();
+            ctx.scratch.ping_write_slot = sw_renderer->buffer_ring().write_slot();
         }
 
-        ctx.scratch.transform_scratch = sw_renderer->ensure_transform_scratch(width, height);
-        ctx.scratch.transform_scratch_slot = sw_renderer->transform_scratch_slot();
+        ctx.scratch.transform_scratch = sw_renderer->scratch_buffer().ensure_size(width, height);
+        ctx.scratch.transform_scratch_slot = sw_renderer->scratch_buffer().slot();
     }
 
     // ── Build (or reuse cached) render graph ─────────────────────────────
@@ -485,9 +485,9 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     // rebuilding and re-optimizing from scratch.
     const bool can_reuse_compiled_graph = ctx.options.graph_structure_unchanged &&
                                           sw_renderer &&
-                                          sw_renderer->m_cached_compiled_graph != nullptr &&
-                                          sw_renderer->m_cached_compiled_width == width &&
-                                          sw_renderer->m_cached_compiled_height == height;
+                                          sw_renderer->graph_cache().has(width, height) &&
+                                          true &&
+                                          true;
 
     CompiledFrameGraph compiled;
 
@@ -498,8 +498,10 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         if (ctx.telemetry.counters) {
             ctx.telemetry.counters->graph_cache_hits.fetch_add(1, std::memory_order_relaxed);
         }
-        compiled = std::move(*sw_renderer->m_cached_compiled_graph);
-        sw_renderer->m_cached_compiled_graph.reset();
+        auto maybe_compiled = sw_renderer->graph_cache().try_take(width, height);
+        if (maybe_compiled) {
+            compiled = std::move(*maybe_compiled);
+        }
 
         const auto t_refresh0 = std::chrono::steady_clock::now();
         detail::refresh_compiled_graph_payloads(compiled, scene, ctx, resolved);
@@ -612,11 +614,11 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         // ── Allocate final framebuffer: copy previous frame for clean tiles ──
         {
             CHRONON_ZONE_C("tile_acquire", trace_category::kFrame);
-            const bool have_prev = sw_renderer->m_prev_framebuffer &&
-                                   sw_renderer->m_prev_framebuffer->width() == width &&
-                                   sw_renderer->m_prev_framebuffer->height() == height;
+            const bool have_prev = sw_renderer->buffer_ring().prev_framebuffer() &&
+                                   sw_renderer->buffer_ring().prev_framebuffer()->width() == width &&
+                                   sw_renderer->buffer_ring().prev_framebuffer()->height() == height;
             if (have_prev) {
-                fb_shared = ctx.acquire_framebuffer(*sw_renderer->m_prev_framebuffer);
+                fb_shared = ctx.acquire_framebuffer(*sw_renderer->buffer_ring().prev_framebuffer());
             } else {
                 fb_shared = ctx.acquire_framebuffer(width, height, true);
             }
@@ -711,31 +713,28 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     // comparison across frames (both fast-path and full-path save the same format).
     if (sw_renderer) {
         // Cache render graph for incremental reuse next frame
-        sw_renderer->m_cached_compiled_graph = std::make_unique<CompiledFrameGraph>(std::move(compiled));
-        sw_renderer->m_cached_compiled_width = width;
-        sw_renderer->m_cached_compiled_height = height;
-        sw_renderer->m_cached_compiled_structure_hash = sw_renderer->m_cached_compiled_graph->structure_hash;
+        sw_renderer->graph_cache().store(std::move(compiled), width, height);
 
         const uint64_t save_static_fp = sw_renderer->m_scene_hasher.compute_static_fingerprint(scene);
         const uint64_t save_structure_fp = sw_renderer->m_scene_hasher.compute_structure_fingerprint(scene);
         const uint64_t save_active_at_fp = sw_renderer->m_scene_hasher.compute_active_at_fingerprint(scene, frame);
         const uint64_t save_combined_fp = save_static_fp ^ (save_active_at_fp * 0x9e3779b97f4a7c15ULL);
 
-        // ── Update m_prev_framebuffer: swap ping-pong or assign directly ──
+        // ── Update prev_framebuffer: swap ping-pong or assign directly ──
         // When the graph rendered into a ping buffer (ClearNode's ping-pong path),
-        // swap indices so m_prev_framebuffer points to the completed frame.
+        // swap indices so prev_framebuffer points to the completed frame.
         // Otherwise (first frame, tile execution, or COW fallback), fb_shared is
         // a pool FB and must be assigned directly.
-        if (fb_shared.get() == sw_renderer->m_ping_fb[0] ||
-            fb_shared.get() == sw_renderer->m_ping_fb[1]) {
+        if (fb_shared.get() == sw_renderer->buffer_ring().ping_fb(0) ||
+            fb_shared.get() == sw_renderer->buffer_ring().ping_fb(1)) {
             // Rendered into a ping — swap indices to advance the ping cycle.
-            // swap_ping_indices() repoints m_prev_framebuffer to the new read ping
+            // swap() repoints prev_framebuffer to the new read ping
             // (the frame we just finished writing), making it the "previous" frame
             // for ClearNode's dirty-rect read in the next cycle.
-            sw_renderer->swap_ping_indices();
+            sw_renderer->buffer_ring().swap();
         } else {
             // Rendered into a pool FB — assign directly.
-            sw_renderer->m_prev_framebuffer = fb_shared;
+            sw_renderer->buffer_ring().prev_framebuffer() = fb_shared;
         }
 
         sw_renderer->m_prev_layer_bboxes = std::move(dirty_out.layer_bboxes);

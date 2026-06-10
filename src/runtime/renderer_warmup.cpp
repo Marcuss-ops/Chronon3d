@@ -89,7 +89,7 @@ RendererWarmupResult warmup_renderer(
         // or fast-path triggers.  The render loop's frame 0 also
         // starts fresh (different frame from warmup frame 1 → no
         // fingerprint match → fresh graph build).
-        renderer.m_cached_compiled_graph.reset();
+        renderer.graph_cache().reset();
         renderer.m_prev_graph_structure_fingerprint = 0;
         renderer.m_prev_static_scene_fingerprint = 0;
         renderer.m_prev_scene_fingerprint = 0;
