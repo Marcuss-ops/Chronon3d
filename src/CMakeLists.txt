@@ -253,6 +253,9 @@ set(CHRONON3D_BACKEND_SOFTWARE_SOURCES
     backends/software/software_effect_runner.cpp
     backends/software/software_node_dispatcher.cpp
     backends/software/software_renderer.cpp
+    backends/software/buffer_ring.cpp
+    backends/software/scratch_buffer.cpp
+    backends/software/graph_cache.cpp
     backends/software/utils/framebuffer_analysis.cpp
     backends/software/utils/projection_utils.cpp
     backends/software/utils/blend2d_bridge_core.cpp

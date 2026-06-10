@@ -12,7 +12,7 @@ namespace chronon3d {
 void PoolFbDeleter::operator()(Framebuffer* fb) const noexcept {
     if (!fb) return;
     // ── Renderer-owned FB: no-op — renderer manages lifetime explicitly ──
-    // Used by ping-pong buffers owned by SoftwareRenderer via m_ping_fb[].
+    // Used by ping-pong buffers owned by SoftwareRenderer via RendererBufferRing.
     // No pool release, no scratch restore, no delete.  The renderer is
     // responsible for cleanup on resolution change or destruction.
     if (owned_by_renderer) {

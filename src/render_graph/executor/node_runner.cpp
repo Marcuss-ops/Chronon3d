@@ -58,7 +58,7 @@ double run_node(
         } else if (owned.get_deleter().owned_by_renderer) {
             // Renderer-owned FB (e.g., ping-pong buffer): preserve the no-op
             // deleter so the buffer is neither deleted nor returned to the pool.
-            // The renderer manages lifetime explicitly via m_ping_fb[].
+            // The renderer manages lifetime explicitly via RendererBufferRing.
             PoolFbDeleter noop;
             noop.owned_by_renderer = true;
             Framebuffer* raw = owned.release();
