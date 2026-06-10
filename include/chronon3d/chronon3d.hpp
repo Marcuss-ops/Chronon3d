@@ -1,77 +1,48 @@
 #pragma once
 
+// ═════════════════════════════════════════════════════════════════════════════
+// Chronon3d — Public API Umbrella Header
+//
+// Includes the public scene-building API types.  For backward compatibility
+// this header also re-exports the full runtime and internal headers, so
+// existing code that includes <chronon3d/chronon3d.hpp> continues to work.
+//
+// New projects should prefer including exactly what they need:
+//
+//   <chronon3d/chronon3d.hpp>    — scene-building API only
+//   <chronon3d/runtime.hpp>      — + renderer / export / cache / camera
+//   <chronon3d/internal.hpp>     — + graph / executor / effects / presets
+// ═════════════════════════════════════════════════════════════════════════════
+
+// ── Public scene-building API ──────────────────────────────────────────
+
 #include <chronon3d/api/composition.hpp>
 #include <chronon3d/api/scene.hpp>
-#include <chronon3d/api/renderer.hpp>
 #include <chronon3d/api/animations.hpp>
 #include <chronon3d/api/backgrounds.hpp>
-
-#include <chronon3d/core/profiling/profiling.hpp>
-#include <chronon3d/core/profiling/counters.hpp>
-#include <chronon3d/core/types/types.hpp>
-#include <chronon3d/core/types/time.hpp>
-#include <chronon3d/core/memory/arena.hpp>
-#include <chronon3d/core/types/frame_context.hpp>
-#include <chronon3d/core/composition/composition_registry.hpp>
-#include <chronon3d/core/composition/composition_registration.hpp>
+#include <chronon3d/math/color.hpp>
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/math/transform.hpp>
-#include <chronon3d/math/color.hpp>
-#include <chronon3d/geometry/vertex.hpp>
-#include <chronon3d/geometry/bounds.hpp>
-#include <chronon3d/geometry/ray.hpp>
-#include <chronon3d/geometry/mesh.hpp>
+#include <chronon3d/timeline/composition.hpp>
+#include <chronon3d/timeline/sequence.hpp>
+#include <chronon3d/timeline/timeline_builder.hpp>
+#include <chronon3d/core/types/types.hpp>
+#include <chronon3d/core/types/time.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
 #include <chronon3d/animation/easing/interpolate.hpp>
 #include <chronon3d/animation/core/keyframe.hpp>
 #include <chronon3d/animation/effects/animated_transform.hpp>
 #include <chronon3d/animation/easing/spring.hpp>
 #include <chronon3d/animation/effects/stagger.hpp>
-#include <chronon3d/registry/source_registry.hpp>
-#include <chronon3d/registry/shape_ids.hpp>
-#include <chronon3d/registry/shape_registry.hpp>
-#include <chronon3d/registry/sampler_registry.hpp>
-#include <chronon3d/cache/node_cache.hpp>
-#include <chronon3d/cache/frame_cache.hpp>
-#include <chronon3d/cache/video_frame_cache.hpp>
-#include <chronon3d/effects/effect_category.hpp>
-#include <chronon3d/effects/effect_descriptor.hpp>
-#include <chronon3d/effects/effect_instance.hpp>
-#include <chronon3d/effects/effect_ids.hpp>
-#include <chronon3d/effects/effect_registry.hpp>
-#include <chronon3d/effects/effect_stage.hpp>
-#include <chronon3d/timeline/composition.hpp>
-#include <chronon3d/timeline/sequence.hpp>
-#include <chronon3d/timeline/timeline_builder.hpp>
-#include <chronon3d/core/memory/framebuffer.hpp>
-#include <chronon3d/backends/software/renderer.hpp>
-#include <chronon3d/backends/software/software_renderer.hpp>
-#include <chronon3d/render_graph/render_graph.hpp>
-#include <chronon3d/render_graph/builder/graph_builder.hpp>
-#include <chronon3d/render_graph/executor/graph_executor.hpp>
-#include <chronon3d/compositor/blend_mode.hpp>
-#include <chronon3d/scene/model/camera/camera.hpp>
-#include <chronon3d/scene/model/camera/camera_2_5d.hpp>
-#include <chronon3d/scene/camera/animated_camera_2_5d.hpp>
-#include <chronon3d/scene/model/camera/camera_rig.hpp>
-#include <chronon3d/scene/model/camera/dof.hpp>
-#include <chronon3d/scene/model/layer/mask.hpp>
-#include <chronon3d/scene/model/core/mask_utils.hpp>
-#include <chronon3d/rendering/light_context.hpp>
-#include <chronon3d/rendering/lighting_eval.hpp>
-#include <chronon3d/scene/model/layer/layer_effect.hpp>
-#include <chronon3d/scene/model/core/depth_role.hpp>
-#include <chronon3d/math/camera_2_5d_projection.hpp>
-#include <chronon3d/assets/asset_registry.hpp>
-#include <chronon3d/assets/render_preflight.hpp>
-#include <chronon3d/presets/motion_object.hpp>
-#include <chronon3d/presets/motion_state.hpp>
-#include <chronon3d/presets/motion_resolver.hpp>
-#include <chronon3d/presets/motion_renderer.hpp>
-#include <chronon3d/presets/motion_presets.hpp>
-#include <chronon3d/presets/phrase/phrase_presets.hpp>
-#include <chronon3d/text/text_animator.hpp>
-#include <chronon3d/presets/scene_presets.hpp>
+#include <chronon3d/geometry/vertex.hpp>
+#include <chronon3d/geometry/bounds.hpp>
+#include <chronon3d/geometry/ray.hpp>
+#include <chronon3d/geometry/mesh.hpp>
+
+// ── Backward-compat: re-export runtime & internal headers ──────────────
+
+#include <chronon3d/runtime.hpp>
+#include <chronon3d/internal.hpp>
 
 namespace chronon3d {
     // Umbrella header for Chronon3d
