@@ -6,7 +6,6 @@
 # Text content
 add_library(chronon3d_content_text STATIC
     text/text_module.cpp
-    text/helpers/text_helpers.cpp
     text/typewriter/text_typewriter.cpp
 )
 set_target_properties(chronon3d_content_text PROPERTIES UNITY_BUILD OFF)

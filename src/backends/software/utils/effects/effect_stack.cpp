@@ -29,8 +29,6 @@ namespace chronon3d {
 namespace renderer {
 
 // ── Forward declarations ─────────────────────────────────────────────────────
-void apply_focus_in_ladder(Framebuffer& fb, const FocusInLadderParams& p,
-                            float time_seconds, const std::optional<raster::BBox>& clip);
 
 void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
                         float time_seconds, const std::optional<raster::BBox>& clip,
@@ -176,13 +174,7 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
             break;
         }
 
-        case FocusInLadder: {
-            auto* p = std::get_if<FocusInLadderParams>(&inst.params);
-            if (p && !p->levels.empty()) {
-                apply_focus_in_ladder(fb, *p, time_seconds, clip);
-            }
-            break;
-        }
+
 
         case Unknown:
             break;
@@ -216,112 +208,7 @@ void draw_glow(Framebuffer& fb, const RenderNode& node, const RenderState& state
     }
 }
 
-// ===========================================================================
-// Precomputed Blur Ladder (FocusInLadder)
-//
-// Pre-renders N blur levels on first frame and caches them in a
-// thread_local map.  Each subsequent frame performs only a lightweight
-// crossfade between two adjacent levels — zero blur operations.
-//
-// Cache key: address of the FocusInLadderParams (unique per layer instance)
-// + framebuffer dimensions (stale check).
-// ===========================================================================
-
-namespace {
-
-struct LadderCacheEntry {
-    std::vector<std::shared_ptr<Framebuffer>> levels;
-    int cached_width{0};
-    int cached_height{0};
-};
-
-thread_local std::unordered_map<const FocusInLadderParams*, LadderCacheEntry> t_ladder_cache;
-
-} // anonymous namespace
-
-void apply_focus_in_ladder(Framebuffer& fb, const FocusInLadderParams& p,
-                            float time_seconds, const std::optional<raster::BBox>& clip) {
-    const int num_levels = static_cast<int>(p.levels.size());
-    const int w = fb.width(), h = fb.height();
-
-    // ── Compute animation progress ──────────────────────────────────────
-    // time_seconds is the current frame number (float).
-    const float duration_f = static_cast<float>(static_cast<int>(p.duration));
-    const float raw_t = duration_f > 0.0f ? std::clamp(time_seconds / duration_f, 0.0f, 1.0f) : 1.0f;
-    const float eased = p.easing.apply(raw_t);
-
-    // Map eased [0..1] → level index.
-    //   t=0 (start) → highest blur level → index 0
-    //   t=1 (end)   → sharp (last level)
-    const float level_pos = eased * static_cast<float>(num_levels - 1);
-    const int idx_a = std::min(static_cast<int>(level_pos), num_levels - 1);
-    const int idx_b = std::min(idx_a + 1, num_levels - 1);
-    const float blend = (p.interpolate_between_levels && idx_a != idx_b)
-                            ? (level_pos - static_cast<float>(idx_a))
-                            : 0.0f;
-
-    // ── Pre-render all levels (first frame or size change) ──────────────
-    auto& cache = t_ladder_cache[&p];
-    if (cache.levels.empty() || cache.cached_width != w || cache.cached_height != h) {
-        cache.levels.clear();
-        cache.levels.reserve(num_levels);
-        cache.cached_width = w;
-        cache.cached_height = h;
-
-        // Snapshot the current framebuffer content (sharp source)
-        auto sharp = acquire_temp_framebuffer(w, h);
-        for (int y = 0; y < h; ++y)
-            std::memcpy(sharp->pixels_row(y), fb.pixels_row(y),
-                        static_cast<size_t>(w) * sizeof(Color));
-
-        for (int i = 0; i < num_levels; ++i) {
-            const float radius = p.levels[i];
-            auto level_fb = acquire_temp_framebuffer(w, h);
-            // Copy sharp source into this level
-            for (int y = 0; y < h; ++y)
-                std::memcpy(level_fb->pixels_row(y), sharp->pixels_row(y),
-                            static_cast<size_t>(w) * sizeof(Color));
-            // Blur at the requested radius
-            if (radius > 0.5f) {
-                apply_blur(*level_fb, radius, clip, 3);
-            }
-            cache.levels.push_back(std::move(level_fb));
-        }
-    }
-
-    // ── Crossfade between adjacent levels into fb ───────────────────────
-    if (blend < 0.001f || idx_a >= num_levels) {
-        // Single level — fast path: copy directly
-        const auto* src = cache.levels[idx_a]->data();
-        const auto stride = cache.levels[idx_a]->allocated_width();
-        for (int y = 0; y < h; ++y)
-            std::memcpy(fb.pixels_row(y), src + static_cast<size_t>(y) * stride,
-                        static_cast<size_t>(w) * sizeof(Color));
-    } else {
-        // Crossfade: blend between idx_a and idx_b
-        const auto* src_a = cache.levels[idx_a]->data();
-        const auto* src_b = cache.levels[idx_b]->data();
-        const auto stride_a = cache.levels[idx_a]->allocated_width();
-        const auto stride_b = cache.levels[idx_b]->allocated_width();
-        const float inv_blend = 1.0f - blend;
-
-        tbb::parallel_for(tbb::blocked_range<int>(0, h, 16), [&](const tbb::blocked_range<int>& ry) {
-            for (int y = ry.begin(); y < ry.end(); ++y) {
-                Color* dst = fb.pixels_row(y);
-                const Color* row_a = src_a + static_cast<size_t>(y) * stride_a;
-                const Color* row_b = src_b + static_cast<size_t>(y) * stride_b;
-                for (int x = 0; x < w; ++x) {
-                    dst[x] = Color{
-                        row_a[x].r * inv_blend + row_b[x].r * blend,
-                        row_a[x].g * inv_blend + row_b[x].g * blend,
-                        row_a[x].b * inv_blend + row_b[x].b * blend,
-                        std::max(row_a[x].a, row_b[x].a)
-                    };
-                }
-            }
-        });
-    }
-}
 
 } // namespace renderer
 } // namespace chronon3d
+

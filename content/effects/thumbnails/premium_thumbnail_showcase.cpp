@@ -1,7 +1,6 @@
 #include "../common/glow_test_common.hpp"
 #include <chronon3d/layout/design_kit.hpp>
 #include <chronon3d/presets/text/text_style_presets.hpp>
-#include "content/text/helpers/text_helpers.hpp"
 
 namespace chronon3d::content::effects {
 

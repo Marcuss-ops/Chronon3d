@@ -45,7 +45,7 @@ struct FfmpegExportOptions {
 
     // Renderer warmup
     bool   warmup_renderer{false};
-    size_t warmup_framebuffers{8};
+    size_t warmup_framebuffers{2};
     bool   warmup_dummy_frame{false};
 
     // Graceful cancellation (optional — set by command_video SIGINT handler)

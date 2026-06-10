@@ -12,6 +12,8 @@
 
 #include "../render_effects_processor.hpp"
 #include "effects_internal.hpp"
+#include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/core/profiling/counters.hpp>
 #include <tbb/parallel_for.h>
 #include <tbb/blocked_range.h>
 #include <algorithm>
@@ -225,6 +227,7 @@ static void apply_downsample_blur(Framebuffer& fb, f32 radius,
                                    int downsample_factor,
                                    const std::optional<raster::BBox>& clip,
                                    int passes) {
+
     const i32 w = fb.width(), h = fb.height();
     const i32 sw = std::max(1, (w + downsample_factor - 1) / downsample_factor);
     const i32 sh = std::max(1, (h + downsample_factor - 1) / downsample_factor);
