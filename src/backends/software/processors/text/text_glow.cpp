@@ -1,16 +1,34 @@
 // ---------------------------------------------------------------------------
 // text_glow.cpp — Text glow effect implementation
 //
-// Glow pipeline:
+// Relationship to the unified pipeline
+// -------------------------------------
+// The codebase now has a unified `GlowPipeline` (see effects/glow_pipeline.hpp)
+// that powers the Framebuffer-based `apply_glow_effect` and
+// `apply_bloom_effect` paths.  This file is the *complementary* fast path for
+// text: it uses Blend2D's BLImage buffers and SRC_IN colourisation because
+// text glow is glyph-bound (padding ≤ 1.2 × radius) and is rebuilt many
+// times per frame, so a pure-Framebuffer conversion would pay a per-call
+// allocation cost that the BLImage path amortises away.
+//
+// Conceptually the four steps below are the same as `run_layer_mode` in
+// glow_pipeline.cpp:
+//
 //   1. Extract white alpha mask from raster text into a PADDED buffer (so the
 //      blur does not clip at the bounding-box edge — the #1 cause of the
-//      “rectangular glow” look).
+//      “rectangular glow” look).  Same 16/255 alpha floor as the Framebuffer
+//      path; the same threshold rationale.
 //   2. Generate three concentric blur passes on the alpha mask only
 //      (inner / mid / outer) — using only the alpha channel avoids the muddy
 //      grey halo that results from blurring RGB+alpha together.
 //   3. Colorise each pass, shifting outer layers toward blue-cyan for a
 //      luminous depth effect.
 //   4. Accumulate additively and composite with BlendMode::Add.
+//
+// Counter aliases: this file bumps BOTH the legacy `text_glow_cache_hits/
+// misses` and the unified `glow_cache_hits/misses` so dashboards that want
+// "all glow cache activity" can read the unified name without losing the
+// fine-grained text-specific signal.
 // ---------------------------------------------------------------------------
 
 #include "text_effects.hpp"
@@ -247,6 +265,7 @@ void draw_text_glow(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNod
             glow_cache = *cached;
             if (profiling::g_current_counters) {
                 profiling::g_current_counters->text_glow_cache_hits.fetch_add(1, std::memory_order_relaxed);
+                profiling::g_current_counters->glow_cache_hits.fetch_add(1, std::memory_order_relaxed);
             }
         }
     }
@@ -254,6 +273,7 @@ void draw_text_glow(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNod
     if (!glow_cache) {
         if (profiling::g_current_counters) {
             profiling::g_current_counters->text_glow_cache_misses.fetch_add(1, std::memory_order_relaxed);
+            profiling::g_current_counters->glow_cache_misses.fetch_add(1, std::memory_order_relaxed);
         }
 
         const f32 base_radius = std::max(1.0f, node.glow.radius);

@@ -3,6 +3,8 @@
 #include <hwy/foreach_target.h>
 
 #include <hwy/highway.h>
+#include <chronon3d/core/memory_utils.hpp>
+
 #include <chronon3d/simd/kernels.hpp>
 #include <algorithm>
 #include <cmath>
@@ -38,8 +40,8 @@ HWY_ATTR void composite_normal_premul_impl(float* HWY_RESTRICT dst_ptr,
 
         for (; i + 1 < pixel_count; i += 2) {
             if ((i & 14) == 0 && (i + 16) < pixel_count) {
-                __builtin_prefetch(&src_ptr[(i + 16) * 4], 0, 1);
-                __builtin_prefetch(&dst_ptr[(i + 16) * 4], 1, 1);
+                chronon3d::prefetch(&src_ptr[(i + 16) * 4], false, 1);
+                chronon3d::prefetch(&dst_ptr[(i + 16) * 4], true, 1);
             }
             // Early exit: skip fully-transparent pairs entirely
             if (src_ptr[i * 4 + 3] <= 0.0f && src_ptr[(i + 1) * 4 + 3] <= 0.0f) continue;
@@ -69,8 +71,8 @@ HWY_ATTR void composite_normal_premul_impl(float* HWY_RESTRICT dst_ptr,
     // ── Remainder / SSE4/NEON fallback: 1 pixel × FixedTag ─────────
     for (; i < pixel_count; ++i) {
         if ((i & 15) == 0 && (i + 16) < pixel_count) {
-            __builtin_prefetch(&src_ptr[(i + 16) * 4], 0, 1);
-            __builtin_prefetch(&dst_ptr[(i + 16) * 4], 1, 1);
+            chronon3d::prefetch(&src_ptr[(i + 16) * 4], false, 1);
+            chronon3d::prefetch(&dst_ptr[(i + 16) * 4], true, 1);
         }
         if (src_ptr[i * 4 + 3] <= 0.0f) continue;
         const auto src    = hn::LoadU(d4, src_ptr + i * 4);   // {r,g,b,a}
@@ -109,8 +111,8 @@ HWY_ATTR void composite_add_premul_impl(float* HWY_RESTRICT dst_ptr,
         const hn::ScalableTag<float> d;
         for (; i + 1 < pixel_count; i += 2) {
             if ((i & 14) == 0 && (i + 16) < pixel_count) {
-                __builtin_prefetch(&src_ptr[(i + 16) * 4], 0, 1);
-                __builtin_prefetch(&dst_ptr[(i + 16) * 4], 1, 1);
+                chronon3d::prefetch(&src_ptr[(i + 16) * 4], false, 1);
+                chronon3d::prefetch(&dst_ptr[(i + 16) * 4], true, 1);
             }
             if (src_ptr[i * 4 + 3] <= 0.0f && src_ptr[(i + 1) * 4 + 3] <= 0.0f) continue;
             const auto src_v = hn::LoadU(d, src_ptr + i * 4);
@@ -124,8 +126,8 @@ HWY_ATTR void composite_add_premul_impl(float* HWY_RESTRICT dst_ptr,
     // ── 1-pixel remainder ─────────────────────────────────────────
     for (; i < pixel_count; ++i) {
         if ((i & 15) == 0 && (i + 16) < pixel_count) {
-            __builtin_prefetch(&src_ptr[(i + 16) * 4], 0, 1);
-            __builtin_prefetch(&dst_ptr[(i + 16) * 4], 1, 1);
+            chronon3d::prefetch(&src_ptr[(i + 16) * 4], false, 1);
+            chronon3d::prefetch(&dst_ptr[(i + 16) * 4], true, 1);
         }
         if (src_ptr[i * 4 + 3] <= 0.0f) continue;
         const auto s = hn::LoadU(d4, src_ptr + i * 4);
@@ -147,8 +149,8 @@ HWY_ATTR void composite_multiply_premul_impl(float* HWY_RESTRICT dst_ptr,
         const hn::ScalableTag<float> d;
         for (; i + 1 < pixel_count; i += 2) {
             if ((i & 14) == 0 && (i + 16) < pixel_count) {
-                __builtin_prefetch(&src_ptr[(i + 16) * 4], 0, 1);
-                __builtin_prefetch(&dst_ptr[(i + 16) * 4], 1, 1);
+                chronon3d::prefetch(&src_ptr[(i + 16) * 4], false, 1);
+                chronon3d::prefetch(&dst_ptr[(i + 16) * 4], true, 1);
             }
             if (src_ptr[i * 4 + 3] <= 0.0f && src_ptr[(i + 1) * 4 + 3] <= 0.0f) continue;
             // Save original alpha BEFORE the Mul store overwrites it.
@@ -177,8 +179,8 @@ HWY_ATTR void composite_multiply_premul_impl(float* HWY_RESTRICT dst_ptr,
     // ── 1-pixel remainder ─────────────────────────────────────────
     for (; i < pixel_count; ++i) {
         if ((i & 15) == 0 && (i + 16) < pixel_count) {
-            __builtin_prefetch(&src_ptr[(i + 16) * 4], 0, 1);
-            __builtin_prefetch(&dst_ptr[(i + 16) * 4], 1, 1);
+            chronon3d::prefetch(&src_ptr[(i + 16) * 4], false, 1);
+            chronon3d::prefetch(&dst_ptr[(i + 16) * 4], true, 1);
         }
         if (src_ptr[i * 4 + 3] <= 0.0f) continue;
         // Save original alpha BEFORE the Mul store overwrites it.
@@ -212,8 +214,8 @@ HWY_ATTR void composite_screen_premul_impl(float* HWY_RESTRICT dst_ptr,
         const hn::ScalableTag<float> d;
         for (; i + 1 < pixel_count; i += 2) {
             if ((i & 14) == 0 && (i + 16) < pixel_count) {
-                __builtin_prefetch(&src_ptr[(i + 16) * 4], 0, 1);
-                __builtin_prefetch(&dst_ptr[(i + 16) * 4], 1, 1);
+                chronon3d::prefetch(&src_ptr[(i + 16) * 4], false, 1);
+                chronon3d::prefetch(&dst_ptr[(i + 16) * 4], true, 1);
             }
             if (src_ptr[i * 4 + 3] <= 0.0f && src_ptr[(i + 1) * 4 + 3] <= 0.0f) continue;
             const auto src_v = hn::LoadU(d, src_ptr + i * 4);
@@ -229,8 +231,8 @@ HWY_ATTR void composite_screen_premul_impl(float* HWY_RESTRICT dst_ptr,
     // ── 1-pixel remainder ─────────────────────────────────────────
     for (; i < pixel_count; ++i) {
         if ((i & 15) == 0 && (i + 16) < pixel_count) {
-            __builtin_prefetch(&src_ptr[(i + 16) * 4], 0, 1);
-            __builtin_prefetch(&dst_ptr[(i + 16) * 4], 1, 1);
+            chronon3d::prefetch(&src_ptr[(i + 16) * 4], false, 1);
+            chronon3d::prefetch(&dst_ptr[(i + 16) * 4], true, 1);
         }
         if (src_ptr[i * 4 + 3] <= 0.0f) continue;
         const auto s = hn::LoadU(d4, src_ptr + i * 4);
@@ -263,8 +265,8 @@ HWY_ATTR void composite_overlay_premul_impl(float* HWY_RESTRICT dst_ptr,
 
     for (int i = 0; i < pixel_count; ++i) {
         if ((i & 15) == 0 && (i + 16) < pixel_count) {
-            __builtin_prefetch(&src_ptr[(i + 16) * 4], 0, 1);
-            __builtin_prefetch(&dst_ptr[(i + 16) * 4], 1, 1);
+            chronon3d::prefetch(&src_ptr[(i + 16) * 4], false, 1);
+            chronon3d::prefetch(&dst_ptr[(i + 16) * 4], true, 1);
         }
         if (src_ptr[i * 4 + 3] <= 0.0f) continue;
         const auto s = hn::LoadU(d4, src_ptr + i * 4);
