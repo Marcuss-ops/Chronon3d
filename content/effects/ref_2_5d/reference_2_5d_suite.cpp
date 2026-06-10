@@ -938,10 +938,3 @@ Composition y_rotation_text_test() {
 
 } // namespace chronon3d::content::effects
 
-CHRONON_REGISTER_COMPOSITION("FloatingCardsTest", chronon3d::content::effects::floating_cards_test)
-CHRONON_REGISTER_COMPOSITION("OrbitCameraTest", chronon3d::content::effects::orbit_camera_test)
-CHRONON_REGISTER_COMPOSITION("DepthFogTest", chronon3d::content::effects::depth_fog_test)
-CHRONON_REGISTER_COMPOSITION("ZStackParallaxTest", chronon3d::content::effects::z_stack_parallax_test)
-CHRONON_REGISTER_COMPOSITION("ShadowGlowConsistencyTest", chronon3d::content::effects::shadow_glow_consistency_test)
-CHRONON_REGISTER_COMPOSITION("ExtremePerspectiveTest", chronon3d::content::effects::extreme_perspective_test)
-CHRONON_REGISTER_COMPOSITION("YRotationTextTest", chronon3d::content::effects::y_rotation_text_test)

@@ -19,8 +19,20 @@ void register_two_point_five_d_content();
 /// ImgShakeZoom, ImgReferenceShakeReveal, ImgCornerSmoothing, ImageProofs.
 void register_images_content();
 
+/// Register the Shapes content module.
+void register_shapes_content();
+
+/// Register the Animation compositions module.
+void register_anims_content();
+
+/// Register the Grid content module.
+void register_grid_content();
+
+/// Register the Effects content module.
+void register_effects_content();
+
 /// Register all built-in content modules and initialize them.
-/// Calls all four per-module registration functions above.
+/// Calls all per-module registration functions above.
 /// Safe to call multiple times — modules are only initialized once.
 void register_content_modules();
 

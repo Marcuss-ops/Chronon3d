@@ -67,4 +67,3 @@ Composition glow_02_orb_galaxy() {
 
 } // namespace chronon3d::content::effects
 
-CHRONON_REGISTER_COMPOSITION("GlowOrbGalaxy", chronon3d::content::effects::glow_02_orb_galaxy)

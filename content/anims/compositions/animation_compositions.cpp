@@ -1,4 +1,3 @@
-#include <chronon3d/core/composition/composition_registration.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
@@ -98,8 +97,3 @@ Composition anim_typewriter() {
 }
 
 } // namespace chronon3d::content::anims
-
-CHRONON_REGISTER_COMPOSITION("AnimFadeInText",  chronon3d::content::anims::anim_fade_in_text)
-CHRONON_REGISTER_COMPOSITION("AnimSlideText",   chronon3d::content::anims::anim_slide_text)
-CHRONON_REGISTER_COMPOSITION("AnimScaleText",   chronon3d::content::anims::anim_scale_text)
-CHRONON_REGISTER_COMPOSITION("AnimTypewriter",  chronon3d::content::anims::anim_typewriter)

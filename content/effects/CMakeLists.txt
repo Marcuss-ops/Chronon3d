@@ -1,4 +1,5 @@
 add_library(chronon3d_content_effects STATIC
+    effects_module.cpp
     glow/glow_01_neon_sign.cpp
     glow/glow_02_orb_galaxy.cpp
     glow/glow_03_cinematic_text.cpp

@@ -9,6 +9,7 @@
 #include <concurrentqueue/moodycamel/concurrentqueue.h>
 
 #include <atomic>
+#include <chrono>
 #include <memory>
 #include <vector>
 
@@ -112,6 +113,102 @@ struct RenderLoopResult {
 /// Iterate over frames, render each one, and enqueue for the writer thread.
 /// Handles cancellation, back-pressure, and per-frame telemetry.
 [[nodiscard]] RenderLoopResult run_render_loop(const RenderLoopContext& ctx);
+
+// ── PipeExportSession: intermediate state for the pipeline ───────────────────
+
+struct PipeExportSession {
+    // Encoder
+    std::unique_ptr<IVideoEncoder> encoder;
+    std::unique_ptr<FfmpegPipeEncoder> pipe_encoder;  // non-null when !native
+
+    // Renderer
+    std::shared_ptr<SoftwareRenderer> renderer;
+    SoftwareRenderer* sw_renderer{nullptr};
+
+    // State
+    FfmpegExportOptions opts;
+    SystemMetricsCollector sys_metrics;
+    std::string started_at_iso;
+    int64_t total_frames{0};
+    Frame start_frame{0};
+    Frame end_frame{0};
+    int canvas_width{0};
+    int canvas_height{0};
+
+    // Queue + async writer
+    moodycamel::ConcurrentQueue<RenderFramePackage> queue;
+    std::atomic<bool> writer_failed{false};
+    std::atomic<bool> writer_done{false};
+    TripleBufferArena triple_arena;
+    WriterThreadContext writer_ctx;  // outlives the thread (stored in session)
+    std::thread writer_thread;
+    std::atomic<uint64_t> writer_encode_us_total{0};
+
+    // Telemetry
+    std::vector<FrameEncoderTelemetryRecord> frame_encoder_telemetry;
+};
+
+// ── Pipeline phases (each extracted into its own .cpp file) ─────────────────
+
+/// Phase 1: Create encoder, renderer, arena, queue, writer thread.
+[[nodiscard]] PipeExportSession setup_pipe_export_session(
+    const CompositionRegistry& registry,
+    const Composition& comp,
+    const RenderSettings& settings,
+    const FfmpegExportOptions& opts,
+    Frame start,
+    Frame end);
+
+/// Phase 5: Pre-warm the framebuffer pool (separate from warmup_pipe_renderer).
+void warmup_pipe_pool(PipeExportSession& session);
+
+/// Phase 7: Close encoder, gather encoder metrics, log benchmark.
+struct EncoderCloseResult {
+    double write_blocked_ms{0.0};
+    double native_convert_ms{0.0};
+    double native_send_ms{0.0};
+    double native_receive_ms{0.0};
+    double native_mux_ms{0.0};
+    double native_trailer_ms{0.0};
+    bool success{true};
+};
+[[nodiscard]] EncoderCloseResult close_pipe_encoder(PipeExportSession& session);
+
+/// Phase 8-9: Collect and record telemetry.
+void record_pipe_telemetry(
+    const std::string& composition_id,
+    const PipeExportSession& session,
+    const RenderLoopResult& loop_result,
+    const EncoderCloseResult& close_result,
+    const std::vector<chronon3d::telemetry::FrameTelemetryRecord>& telemetry_frames,
+    double wall_time_ms,
+    double render_ms,
+    double encode_ms);
+
+/// Phase 5: Run the render loop and join the writer thread.
+struct RenderLoopOutput {
+    RenderLoopResult loop_result;
+    std::vector<chronon3d::telemetry::FrameTelemetryRecord> telemetry_frames;
+    double render_ms{0.0};
+    std::chrono::steady_clock::time_point render_end;
+};
+[[nodiscard]] RenderLoopOutput run_pipe_export_loop(
+    PipeExportSession& session,
+    const CompositionRegistry& registry,
+    const Composition& comp,
+    const RenderSettings& settings,
+    Frame start,
+    Frame end,
+    const FfmpegExportOptions& opts);
+
+/// Phase 10: Populate the result boundary model.
+[[nodiscard]] PipeExportResult make_pipe_export_result(
+    const PipeExportSession& session,
+    const RenderLoopResult& loop_result,
+    const EncoderCloseResult& close_result,
+    double render_ms,
+    double encode_ms,
+    double wall_time_ms);
 
 // ── Main orchestrator ───────────────────────────────────────────────────────
 

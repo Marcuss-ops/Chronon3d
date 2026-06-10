@@ -1,6 +1,5 @@
 // content/grid/grid_showcase.cpp
 // GridColorShowcase — overlapping colorful grids with different spacing, offsets, and colors
-#include <chronon3d/core/composition/composition_registration.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
@@ -165,5 +164,3 @@ Composition grid_color_showcase() {
 }
 
 } // namespace chronon3d::content::grid
-
-CHRONON_REGISTER_COMPOSITION("GridColorShowcase", chronon3d::content::grid::grid_color_showcase)

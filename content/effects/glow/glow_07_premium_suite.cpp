@@ -111,4 +111,3 @@ Composition glow_07_premium_suite() {
 
 } // namespace chronon3d::content::effects
 
-CHRONON_REGISTER_COMPOSITION("GlowPremiumSuite", chronon3d::content::effects::glow_07_premium_suite)
