@@ -392,5 +392,3 @@ Composition premium_thumbnail_saas_blue() {
 
 } // namespace chronon3d::content::effects
 
-CHRONON_REGISTER_COMPOSITION("PremiumThumbnailButterySmooth", chronon3d::content::effects::premium_thumbnail_buttery_smooth)
-CHRONON_REGISTER_COMPOSITION("PremiumThumbnailSaaSBlue", chronon3d::content::effects::premium_thumbnail_saas_blue)

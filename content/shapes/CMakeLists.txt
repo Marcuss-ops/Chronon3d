@@ -1,8 +1,10 @@
 add_library(chronon3d_content_shapes STATIC
+    shapes_module.cpp
     proofs/shape_proofs.cpp
     motion/shape_motion_proofs.cpp
-    registration/shape_registrations.cpp
 )
+# shape_registrations.cpp was merged into shapes_module.cpp
+# (legacy file retained as comment placeholder)
 set_target_properties(chronon3d_content_shapes PROPERTIES UNITY_BUILD OFF)
 target_include_directories(chronon3d_content_shapes PRIVATE ${CMAKE_SOURCE_DIR})
 target_link_libraries(chronon3d_content_shapes

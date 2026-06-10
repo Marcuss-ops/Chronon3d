@@ -107,4 +107,3 @@ Composition glow_03_cinematic_text() {
 
 } // namespace chronon3d::content::effects
 
-CHRONON_REGISTER_COMPOSITION("GlowCinematicText", chronon3d::content::effects::glow_03_cinematic_text)

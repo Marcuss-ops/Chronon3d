@@ -1,4 +1,5 @@
 add_library(chronon3d_content_anims STATIC
+    anims_module.cpp
     compositions/animation_compositions.cpp
     compositions/cinematic_showcase.cpp
 )

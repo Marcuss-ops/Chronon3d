@@ -293,8 +293,3 @@ Composition glow_shadow_balance_test() {
 } // namespace chronon3d::content::effects
 
 // ── Registrations (V2 only — legacy V1 variants removed) ────────────────────
-CHRONON_REGISTER_COMPOSITION("GlowSharpnessTest",       chronon3d::content::effects::glow_sharpness_test)
-CHRONON_REGISTER_COMPOSITION("GlowParagraphTest",       chronon3d::content::effects::glow_paragraph_test)
-CHRONON_REGISTER_COMPOSITION("GlowRadiusCompareTest",   chronon3d::content::effects::glow_radius_compare_test)
-CHRONON_REGISTER_COMPOSITION("GlowTypewriterRevealTest", chronon3d::content::effects::glow_typewriter_reveal_test)
-CHRONON_REGISTER_COMPOSITION("GlowShadowBalanceTest",   chronon3d::content::effects::glow_shadow_balance_test)

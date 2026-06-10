@@ -92,4 +92,3 @@ Composition glow_04_ui_card() {
 
 } // namespace chronon3d::content::effects
 
-CHRONON_REGISTER_COMPOSITION("GlowUICard", chronon3d::content::effects::glow_04_ui_card)
