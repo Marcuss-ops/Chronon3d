@@ -33,9 +33,7 @@
 #include <chronon3d/render_graph/render_graph.hpp>
 #include <chronon3d/render_graph/compiler/compiled_frame_graph.hpp>
 
-namespace chronon3d::graph {
-    class GraphExecutor;
-}
+#include <chronon3d/render_graph/executor/graph_executor.hpp>
 
 namespace chronon3d {
 
