@@ -22,7 +22,7 @@ std::string debug_scene_graph(
     f32 frame_time,
     const RenderSettings& settings,
     const CompositionRegistry* registry,
-    video::VideoFrameDecoder* video_decoder,
+    media::MediaFrameProvider* video_decoder,
     float fps
 ) {
     auto ctx = make_graph_context(
@@ -55,7 +55,7 @@ SceneGraphStats analyze_scene_graph(
     Frame frame, f32 frame_time,
     const RenderSettings& settings,
     const CompositionRegistry* registry,
-    video::VideoFrameDecoder* video_decoder,
+    media::MediaFrameProvider* video_decoder,
     bool execute,
     bool include_dot,
     float fps

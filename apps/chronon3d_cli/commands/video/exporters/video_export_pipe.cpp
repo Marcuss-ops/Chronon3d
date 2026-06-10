@@ -74,7 +74,7 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     SoftwareRenderer* sw_renderer = dynamic_cast<SoftwareRenderer*>(renderer.get());
 
     cache::NodeCache node_cache;
-    video::VideoFrameDecoder* video_decoder = nullptr;
+    media::MediaFrameProvider* video_decoder = nullptr;
 
     const size_t arena_size = compute_pipe_arena_size(comp.width(), comp.height());
     TripleBufferArena triple_arena(8, arena_size);

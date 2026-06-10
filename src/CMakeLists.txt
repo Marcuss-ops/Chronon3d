@@ -209,18 +209,23 @@ add_library(chronon3d_backend_assets STATIC backends/assets/image_cache.cpp back
 target_link_libraries(chronon3d_backend_assets PUBLIC chronon3d chronon3d_backend_image)
 target_include_directories(chronon3d_backend_assets PRIVATE ${Stb_INCLUDE_DIR})# Video Export Backend
 set(CHRONON3D_BACKEND_VIDEO_SOURCES
-    backends/video/video_source.cpp
     media/frame_conversion/frame_converter.cpp
     media/frame_conversion/direct_yuv_converter.cpp
     media/frame_conversion/direct_yuv_converter_hwy.cpp
     media/frame_conversion/converted_frame_cache.cpp
 )
+# Item 19: media interface target (header-only — abstract provider contract)
+add_library(chronon3d_media_interface INTERFACE)
+target_include_directories(chronon3d_media_interface INTERFACE ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(chronon3d_media_interface INTERFACE chronon3d)
+
 add_library(chronon3d_backend_video STATIC ${CHRONON3D_BACKEND_VIDEO_SOURCES})
 set_target_properties(chronon3d_backend_video PROPERTIES UNITY_BUILD OFF)
-target_link_libraries(chronon3d_backend_video PUBLIC chronon3d chronon3d_cache spdlog::spdlog_header_only fmt::fmt TBB::tbb hwy::hwy ${CHRONON3D_FFMPEG_LIBS_LIGHT})
+target_link_libraries(chronon3d_backend_video PUBLIC chronon3d chronon3d_media_interface chronon3d_cache spdlog::spdlog_header_only fmt::fmt TBB::tbb hwy::hwy ${CHRONON3D_FFMPEG_LIBS_LIGHT})
 target_include_directories(chronon3d_backend_video PRIVATE ${CMAKE_SOURCE_DIR})
 
-target_link_libraries(chronon3d_graph PRIVATE chronon3d_backend_video)
+# Item 19: graph depends on abstract media interface, not concrete video backend
+target_link_libraries(chronon3d_graph PUBLIC chronon3d_media_interface)
 
 # Software Renderer Backend
 set(CHRONON3D_BACKEND_SOFTWARE_SOURCES
