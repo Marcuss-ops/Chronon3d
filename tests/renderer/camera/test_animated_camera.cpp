@@ -348,9 +348,9 @@ TEST_CASE("SceneBuilder: animated_camera() with FrameContext evaluates at ctx fr
         .key(50, Vec3{0.0f, 0.0f, -500.0f});
 
     FrameContext ctx;
-    ctx.frame.frame = 50;
-    ctx.frame.width = 960;
-    ctx.frame.height = 540;
+    ctx.frame.frame.frame = 50;
+    ctx.frame.frame.width = 960;
+    ctx.frame.frame.height = 540;
 
     SceneBuilder builder(ctx);
     builder.animated_camera(cam);

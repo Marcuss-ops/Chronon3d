@@ -12,15 +12,15 @@ using chronon3d::animation::MotionAxis;
 void build_reference_image_content(SceneBuilder& s, const FrameContext& ctx, const CameraMotionParams& p) {
     const std::string reference_image = p.reference_image;
 
-    const f32 inset_x = static_cast<f32>(ctx.frame.width) * 0.06f;
-    const f32 inset_y = static_cast<f32>(ctx.frame.height) * 0.06f;
+    const f32 inset_x = static_cast<f32>(ctx.frame.frame.width) * 0.06f;
+    const f32 inset_y = static_cast<f32>(ctx.frame.frame.height) * 0.06f;
     const Vec2 image_size{
-        static_cast<f32>(ctx.frame.width) - inset_x * 2.0f,
-        static_cast<f32>(ctx.frame.height) - inset_y * 2.0f,
+        static_cast<f32>(ctx.frame.frame.width) - inset_x * 2.0f,
+        static_cast<f32>(ctx.frame.frame.height) - inset_y * 2.0f,
     };
     const Vec3 image_pos{
-        static_cast<f32>(ctx.frame.width) * 0.5f,
-        static_cast<f32>(ctx.frame.height) * 0.5f,
+        static_cast<f32>(ctx.frame.frame.width) * 0.5f,
+        static_cast<f32>(ctx.frame.frame.height) * 0.5f,
         0.0f,
     };
 

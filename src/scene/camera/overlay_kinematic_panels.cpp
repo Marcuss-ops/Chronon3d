@@ -177,7 +177,7 @@ void draw_path_trace(const OverlayContext& ctx) {
     projected.reserve(n_proj);
 
     for (size_t i = 0; i < n_proj; ++i) {
-        ScreenPoint psp = project_world_to_screen(ctx.path->samples[i].position, ctx.camera.camera, ctx.viewport);
+        ScreenPoint psp = project_world_to_screen(ctx.path->samples[i].position, ctx.camera.camera.camera, ctx.viewport);
         projected.push_back({psp.position, ctx.path->samples[i].jerk, psp.behind_camera, static_cast<int>(i) == ctx.path->current_frame});
     }
 

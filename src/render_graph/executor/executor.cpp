@@ -144,7 +144,7 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
         }
 
         auto* parent_counters = ctx.telemetry.counters;
-        auto* parent_pool = ctx.framebuffer_pool.get();
+        auto* parent_pool = ctx.resources.framebuffer_pool.get();
 
         // Populate TBB arena max concurrency once per graph execution
         if (parent_counters) {
@@ -204,7 +204,7 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
         }
 
         auto* parent_counters = ctx.telemetry.counters;
-        auto* parent_pool = ctx.framebuffer_pool.get();
+        auto* parent_pool = ctx.resources.framebuffer_pool.get();
 
         // Populate TBB arena max concurrency once per graph execution
         if (parent_counters) {

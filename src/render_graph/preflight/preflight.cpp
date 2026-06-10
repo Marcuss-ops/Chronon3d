@@ -45,13 +45,13 @@ GraphPreflightReport debug_preflight_render_graph(
         frame, frame_time, settings, registry, video_decoder, fps
     );
     ctx.options.diagnostics_enabled = true;
-    ctx.camera.light_context = scene.light_context();
+    ctx.camera.camera.light_context = scene.light_context();
     const auto resolved_camera = resolve_scene_camera(scene);
     if (resolved_camera.camera.enabled) {
-        ctx.camera.camera_2_5d      = resolved_camera.camera;
-        ctx.camera.has_camera_2_5d  = true;
-        ctx.camera.projection_ctx   = renderer::make_projection_context(ctx.camera.camera_2_5d, width, height);
-        ctx.projection_ctx.ready = true;
+        ctx.camera.camera.camera_2_5d      = resolved_camera.camera;
+        ctx.camera.camera.has_camera_2_5d  = true;
+        ctx.camera.camera.projection_ctx   = renderer::make_projection_context(ctx.camera.camera.camera_2_5d, width, height);
+        ctx.camera.camera.projection_ctx.ready = true;
     }
 
     // ── 2. Build graph (no execution) ────────────────────────────────────

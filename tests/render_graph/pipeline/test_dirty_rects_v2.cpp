@@ -168,7 +168,7 @@ TEST_CASE("Dirty Rects: Inter-frame diff includes old and new position") {
         .name = "DirtyRectDiffTest", .width = W, .height = H, .duration = 3
     }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx.resource);
-        float x = 40.0f + static_cast<float>(ctx.frame.frame) * 40.0f;  // frame 0→40, 1→80
+        float x = 40.0f + static_cast<float>(ctx.frame.frame.frame) * 40.0f;  // frame 0→40, 1→80
         s.rect("moving", {
             .size = {30, 30},
             .color = Color::blue(),
@@ -302,7 +302,7 @@ TEST_CASE("Dirty Rects: Near-static scene with small animated element") {
         });
 
         // Small animated dot
-        float x = 30.0f + static_cast<float>(ctx.frame.frame) * 5.0f;
+        float x = 30.0f + static_cast<float>(ctx.frame.frame.frame) * 5.0f;
         s.circle("dot", {
             .radius = 8,
             .color = Color::red(),
@@ -371,7 +371,7 @@ TEST_CASE("Dirty Rects: Output correct with effects (blur)") {
         SceneBuilder s(ctx.resource);
 
         // Moving rect with blur effect
-        float x = 60.0f + static_cast<float>(ctx.frame.frame) * 20.0f;
+        float x = 60.0f + static_cast<float>(ctx.frame.frame.frame) * 20.0f;
         s.layer("blurred", [&](LayerBuilder& l) {
             l.rect("r", {
                 .size = {50, 50},
@@ -441,8 +441,8 @@ TEST_CASE("Dirty Rects: Long sequence equivalence with moving elements") {
         });
 
         // Moving element
-        float x = 20.0f + static_cast<float>(ctx.frame.frame) * 8.0f;
-        float y = 60.0f + std::sin(static_cast<float>(ctx.frame.frame) * 0.8f) * 15.0f;
+        float x = 20.0f + static_cast<float>(ctx.frame.frame.frame) * 8.0f;
+        float y = 60.0f + std::sin(static_cast<float>(ctx.frame.frame.frame) * 0.8f) * 15.0f;
         s.rounded_rect("moving", {
             .size = {24, 16},
             .radius = 4,

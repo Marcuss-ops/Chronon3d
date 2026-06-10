@@ -97,7 +97,7 @@ struct TileExecutionResult {
     tile_ctx.tile.tile_execution_enabled = true;
     tile_ctx.tile.active_tile_clip = region_bbox;
     tile_ctx.options.skip_initial_clear = false;
-    tile_ctx.early_exit_skip.clear();
+    tile_ctx.tile.early_exit_skip.clear();
 
     FrameArena tile_arena;
     auto tile_fb = sw_renderer->executor()->execute(

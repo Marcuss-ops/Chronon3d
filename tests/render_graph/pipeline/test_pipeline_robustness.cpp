@@ -67,9 +67,9 @@ TEST_CASE("Coordinate Centered vs Top Left - Opacity only keeps implicit centeri
     Scene scene = builder.build();
 
     RenderGraphContext ctx;
-    ctx.frame.width = 1536;
-    ctx.frame.height = 1024;
-    ctx.frame.frame = 0;
+    ctx.frame.frame.width = 1536;
+    ctx.frame.frame.height = 1024;
+    ctx.frame.frame.frame = 0;
     ctx.options.modular_coordinates = true;
 
     auto resolved = chronon3d::graph::detail::resolve_layers(scene, ctx);
@@ -394,8 +394,8 @@ TEST_CASE("SourceNode predicted_bbox vs execute - 2D standard top left layer") {
 
     SoftwareRenderer renderer;
     RenderGraphContext ctx;
-    ctx.frame.width = 1920;
-    ctx.frame.height = 1080;
+    ctx.frame.frame.width = 1920;
+    ctx.frame.frame.height = 1080;
     ctx.resources.backend = &renderer;
 
     cache::NodeCacheKey key{};
@@ -430,8 +430,8 @@ TEST_CASE("SourceNode predicted_bbox vs execute - 3D non-centered source") {
 
     SoftwareRenderer renderer;
     RenderGraphContext ctx;
-    ctx.frame.width = 1920;
-    ctx.frame.height = 1080;
+    ctx.frame.frame.width = 1920;
+    ctx.frame.frame.height = 1080;
     ctx.resources.backend = &renderer;
 
     cache::NodeCacheKey key{};
@@ -466,8 +466,8 @@ TEST_CASE("SourceNode predicted_bbox vs execute - Centered 2D source") {
 
     SoftwareRenderer renderer;
     RenderGraphContext ctx;
-    ctx.frame.width = 1920;
-    ctx.frame.height = 1080;
+    ctx.frame.frame.width = 1920;
+    ctx.frame.frame.height = 1080;
     ctx.resources.backend = &renderer;
 
     cache::NodeCacheKey key{};
@@ -502,8 +502,8 @@ TEST_CASE("SourceNode predicted_bbox vs execute - 3D centered source") {
 
     SoftwareRenderer renderer;
     RenderGraphContext ctx;
-    ctx.frame.width = 1920;
-    ctx.frame.height = 1080;
+    ctx.frame.frame.width = 1920;
+    ctx.frame.frame.height = 1080;
     ctx.resources.backend = &renderer;
 
     cache::NodeCacheKey key{};
@@ -538,8 +538,8 @@ TEST_CASE("SourceNode predicted_bbox vs execute - 3D source near border") {
 
     SoftwareRenderer renderer;
     RenderGraphContext ctx;
-    ctx.frame.width = 1920;
-    ctx.frame.height = 1080;
+    ctx.frame.frame.width = 1920;
+    ctx.frame.frame.height = 1080;
     ctx.resources.backend = &renderer;
 
     cache::NodeCacheKey key{};
@@ -583,8 +583,8 @@ TEST_CASE("MultiSourceNode predicted_bbox vs execute - Centering & Bounds check"
 
     SoftwareRenderer renderer;
     RenderGraphContext ctx;
-    ctx.frame.width = 1920;
-    ctx.frame.height = 1080;
+    ctx.frame.frame.width = 1920;
+    ctx.frame.frame.height = 1080;
     ctx.resources.backend = &renderer;
 
     cache::NodeCacheKey key{};

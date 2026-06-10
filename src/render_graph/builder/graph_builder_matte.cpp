@@ -36,8 +36,8 @@ LayerGraphItem make_item_for_matte_source(
             effective_transform,
             projection_world_matrix,
             cam25d,
-            static_cast<f32>(ctx.frame.width),
-            static_cast<f32>(ctx.frame.height),
+            static_cast<f32>(ctx.frame.frame.width),
+            static_cast<f32>(ctx.frame.frame.height),
             ctx.options.diagnostics_enabled
         );
         if (proj.visible) {

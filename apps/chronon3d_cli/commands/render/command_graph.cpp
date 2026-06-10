@@ -213,12 +213,12 @@ int command_graph(const CompositionRegistry& registry, const GraphArgs& args) {
             args.frame, 0.0f,
             settings, &registry, nullptr, 30.0f
         );
-        ctx.camera.light_context = scene.light_context();
+        ctx.camera.camera.light_context = scene.light_context();
         if (scene.camera_2_5d().enabled) {
-            ctx.camera.camera_2_5d = scene.camera_2_5d();
-            ctx.camera.has_camera_2_5d = true;
-            ctx.camera.projection_ctx = chronon3d::renderer::make_projection_context(ctx.camera.camera_2_5d, ctx.frame.width, ctx.frame.height);
-            ctx.projection_ctx.ready = true;
+            ctx.camera.camera.camera_2_5d = scene.camera_2_5d();
+            ctx.camera.camera.has_camera_2_5d = true;
+            ctx.camera.camera.projection_ctx = chronon3d::renderer::make_projection_context(ctx.camera.camera.camera_2_5d, ctx.frame.frame.width, ctx.frame.frame.height);
+            ctx.camera.camera.projection_ctx.ready = true;
         }
 
         auto resolved_layers = chronon3d::graph::detail::resolve_layers(scene, ctx);

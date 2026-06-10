@@ -237,7 +237,7 @@ TEST_CASE("TileCache: Integration — render with tiles shows cache activity") {
             .pos = {80.0f, 60.0f, 0}
         });
         // Small moving circle — changes each frame
-        float x = 20.0f + static_cast<float>(ctx.frame.frame) * 3.0f;
+        float x = 20.0f + static_cast<float>(ctx.frame.frame.frame) * 3.0f;
         s.circle("ball", {
             .radius = 8.0f,
             .color = Color::red(),
@@ -321,7 +321,7 @@ TEST_CASE("TileCache: Integration — pixel-perfect output with tile cache") {
             .color = Color{0.05f, 0.1f, 0.15f, 1.0f},
             .pos = {64.0f, 48.0f, 0}
         });
-        float x = 30.0f + static_cast<float>(ctx.frame.frame) * 5.0f;
+        float x = 30.0f + static_cast<float>(ctx.frame.frame.frame) * 5.0f;
         s.circle("dot", {
             .radius = 6.0f,
             .color = Color::yellow(),

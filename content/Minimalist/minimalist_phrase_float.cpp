@@ -25,7 +25,7 @@ Composition minimalist_phrase_float() {
             });
         });
 
-        s.layer("phrase_float_layer", [frame = ctx.frame.frame](auto& l) {
+        s.layer("phrase_float_layer", [frame = ctx.frame.frame.frame](auto& l) {
             l.pin_to(Anchor::Center);
             l.position({0.0f, 0.0f, 0.0f});
 
