@@ -129,7 +129,8 @@ using EffectParams = std::variant<
     SaturationParams,
     HueRotateParams,
     InvertParams,
-    VignetteParams
+    VignetteParams,
+    FocusInLadderParams
 >;
 
 } // namespace chronon3d
