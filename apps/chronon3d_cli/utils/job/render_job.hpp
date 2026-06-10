@@ -23,6 +23,8 @@ struct RenderJobPlan {
     bool report{false};
     bool diagnostic_plan{false};
 
+    std::string command_line; // reconstructed from argv (for telemetry)
+
     // Renderer warmup
     bool   warmup_renderer{false};
     size_t warmup_framebuffers{8};

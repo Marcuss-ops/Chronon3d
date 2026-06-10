@@ -238,6 +238,14 @@ public:
     /// store the cleared FB back into it.
     Framebuffer** transform_scratch_slot() { return &m_transform_scratch; }
 
+    /// Direct access to the TransformScratchBuffer RAII member.
+    /// Used by the render graph pipeline (scene_graph_phase.cpp) to wire
+    /// up the scratch buffer in the RenderGraphContext without the old
+    /// raw-pointer shim methods.
+    [[nodiscard]] TransformScratchBuffer& transform_scratch_buffer() {
+        return m_transform_scratch_buf;
+    }
+
     /// Reset the scratch (e.g. on resolution change).
     void reset_transform_scratch();
 

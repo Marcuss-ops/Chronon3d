@@ -130,8 +130,8 @@ void run_graph_build_phase(SceneRenderContext& sctx) {
             sctx.ctx.ping_write_slot  = sw_renderer->write_ping_slot();
         }
 
-        sctx.ctx.transform_scratch       = sw_renderer->ensure_transform_scratch(width, height);
-        sctx.ctx.transform_scratch_slot   = sw_renderer->transform_scratch_slot();
+        sw_renderer->transform_scratch_buffer().ensure_capacity(width, height);
+        sctx.ctx.transform_scratch_owner = &sw_renderer->transform_scratch_buffer();
     }
 
     // ── Build (or reuse cached) render graph ────────────────────────────

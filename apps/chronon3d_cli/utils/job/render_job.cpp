@@ -22,6 +22,7 @@ std::optional<RenderJobPlan> plan_render_job(const CompositionRegistry& registry
     plan.log_level = args.log_level;
     plan.benchmark_all = args.benchmark_all;
     plan.report = args.report;
+    plan.command_line = args.command_line;
     plan.diagnostic_plan = args.pipeline.diagnostic_plan;
     plan.settings.diagnostic_plan_output = args.pipeline.diagnostic_plan_output;
     plan.warmup_renderer = args.pipeline.warmup_renderer;

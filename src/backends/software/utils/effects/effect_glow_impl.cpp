@@ -13,5 +13,4 @@ void apply_glow_effect(Framebuffer& fb, const GlowParams& p,
     run_glow_pipeline(fb, GlowPipeline::from(p), clip);
 }
 
-} // namespace renderer
-} // namespace chronon3d
+} // namespace chronon3d::renderer
