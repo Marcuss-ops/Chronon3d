@@ -22,9 +22,6 @@ constexpr std::size_t kHardwareDestructiveInterferenceSize = 64;
     X(text_shadow_cache_misses) \
     X(text_glow_cache_hits) \
     X(text_glow_cache_misses) \
-    // Unified glow cache counters — the text glow path bumps these in
-    // addition to the text_glow_cache_* aliases. When a Framebuffer-based
-    // glow cache is added to the unified pipeline, it will bump these too.
     X(glow_cache_hits) \
     X(glow_cache_misses) \
     X(images_sampled) \

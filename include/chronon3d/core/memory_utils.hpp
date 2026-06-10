@@ -19,10 +19,23 @@ namespace chronon3d {
  */
 inline void prefetch(const void* addr, bool write = false, int locality = 3) {
 #if defined(__GNUC__) || defined(__clang__)
+    // __builtin_prefetch requires BOTH the second (read=0/write=1) and
+    // third (locality) arguments to be compile-time constants.  Route
+    // through nested switches so the compiler always sees constants.
     if (write) {
-        __builtin_prefetch(addr, 1, locality);
+        switch (locality) {
+            case 0: __builtin_prefetch(addr, 1, 0); break;
+            case 1: __builtin_prefetch(addr, 1, 1); break;
+            case 2: __builtin_prefetch(addr, 1, 2); break;
+            default: __builtin_prefetch(addr, 1, 3); break;
+        }
     } else {
-        __builtin_prefetch(addr, 0, locality);
+        switch (locality) {
+            case 0: __builtin_prefetch(addr, 0, 0); break;
+            case 1: __builtin_prefetch(addr, 0, 1); break;
+            case 2: __builtin_prefetch(addr, 0, 2); break;
+            default: __builtin_prefetch(addr, 0, 3); break;
+        }
     }
 #elif defined(_MSC_VER)
     #if defined(_M_X64) || defined(_M_IX86)

@@ -251,7 +251,6 @@ set(CHRONON3D_BACKEND_SOFTWARE_SOURCES
     backends/software/rasterizers/card/card3d_material_rasterizer.cpp
     backends/software/rasterizers/scanline_rasterizer.cpp
     backends/software/rasterizers/shape_rasterizer.cpp
-    backends/software/rasterizers/card/card3d_material_rasterizer.cpp
     backends/software/software_compositor.cpp
     backends/software/software_effect_runner.cpp
     backends/software/software_node_dispatcher.cpp

@@ -3,6 +3,7 @@
 #include "command_telemetry_internal.hpp"
 
 #include <chronon3d/runtime/telemetry/render_telemetry_record.hpp>
+#include <fmt/format.h>
 #include <cstdint>
 #include <sstream>
 #include <string>

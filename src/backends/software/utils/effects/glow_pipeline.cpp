@@ -360,7 +360,11 @@ void run_bloom_mode(Framebuffer& fb, const GlowPipeline& p,
 
 } // anonymous namespace
 
-// ── from() converters ─────────────────────────────────────────────────
+} // namespace chronon3d::renderer
+
+// ── from() converters (GlowPipeline lives in chronon3d, not renderer) ─
+
+namespace chronon3d {
 
 GlowPipeline GlowPipeline::from(const GlowParams& p) {
     GlowPipeline out;
@@ -407,7 +411,11 @@ GlowPipeline GlowPipeline::from(const DropShadowParams& p) {
     return out;
 }
 
-// ── run_glow_pipeline() — main entry point ────────────────────────────
+} // namespace chronon3d
+
+// ── run_glow_pipeline() — main entry point (lives in chronon3d::renderer)
+
+namespace chronon3d::renderer {
 
 void run_glow_pipeline(Framebuffer& fb, const GlowPipeline& p,
                        const std::optional<raster::BBox>& clip) {
@@ -425,5 +433,4 @@ void run_glow_pipeline(Framebuffer& fb, const GlowPipeline& p,
     }
 }
 
-} // namespace renderer
-} // namespace chronon3d
+} // namespace chronon3d::renderer

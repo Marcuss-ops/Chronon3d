@@ -4,7 +4,7 @@
 
 #include "nulls_overlay.hpp"
 #include "internal/helpers.hpp"
-#include "../../rasterizers/line_rasterizer.hpp"
+#include "../rasterizers/line_rasterizer.hpp"
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/scene/model/layer/layer.hpp>
 #include <cmath>

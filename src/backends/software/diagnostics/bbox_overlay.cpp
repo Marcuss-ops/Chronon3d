@@ -3,7 +3,7 @@
 // ---------------------------------------------------------------------------
 
 #include "bbox_overlay.hpp"
-#include "../../rasterizers/line_rasterizer.hpp"
+#include "../rasterizers/line_rasterizer.hpp"
 #include <algorithm>
 #include <cmath>
 
