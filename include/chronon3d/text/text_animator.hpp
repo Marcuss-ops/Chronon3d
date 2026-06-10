@@ -6,6 +6,7 @@
 #include <chronon3d/animation/easing/easing.hpp>
 #include <chronon3d/animation/core/animated_value.hpp>
 #include <chronon3d/text/font_engine.hpp>
+#include <chronon3d/backends/text/text_layout_engine.hpp>
 #include <string>
 #include <vector>
 #include <functional>
@@ -124,11 +125,11 @@ inline f32 TextAnimator::measure_unit_width(const std::string& unit) const {
             return run->width + m_tracking * static_cast<f32>(unit.size());
         }
     }
-    // Fallback to approximate character-width heuristic
+    // Fallback to approximate character-width heuristic (UTF-8 code-point count)
     f32 w = 0.0f;
-    for (char c : unit) {
-        w += m_font_size * kCharWidthRatio + m_tracking;
-    }
+    const size_t cp_count = detail::utf8_length(unit);
+    w += m_font_size * kCharWidthRatio * static_cast<f32>(cp_count);
+    w += m_tracking * static_cast<f32>(cp_count);
     return w;
 }
 
@@ -137,22 +138,28 @@ inline std::vector<std::string> TextAnimator::split_units() const {
 
     switch (m_config.mode) {
         case TextAnimMode::ByCharacter: {
-            for (char c : m_text) {
-                units.push_back(std::string(1, c));
+            // Use UTF-8 code-point iteration so multi-byte chars
+            // (emoji, accented, CJK) are not split into invalid bytes
+            for (size_t i = 0; i < m_text.size();) {
+                size_t len = detail::utf8_seq_len(static_cast<unsigned char>(m_text[i]));
+                units.push_back(m_text.substr(i, len));
+                i += len;
             }
             break;
         }
         case TextAnimMode::ByWord: {
             std::string current;
-            for (char c : m_text) {
-                if (c == ' ' || c == '\n') {
+            for (size_t i = 0; i < m_text.size();) {
+                size_t len = detail::utf8_seq_len(static_cast<unsigned char>(m_text[i]));
+                if (len == 1 && (m_text[i] == ' ' || m_text[i] == '\n')) {
                     if (!current.empty()) {
                         units.push_back(current);
                         current.clear();
                     }
                 } else {
-                    current.push_back(c);
+                    current.append(m_text, i, len);
                 }
+                i += len;
             }
             if (!current.empty()) {
                 units.push_back(current);
@@ -161,13 +168,15 @@ inline std::vector<std::string> TextAnimator::split_units() const {
         }
         case TextAnimMode::ByLine: {
             std::string current;
-            for (char c : m_text) {
-                if (c == '\n') {
+            for (size_t i = 0; i < m_text.size();) {
+                size_t len = detail::utf8_seq_len(static_cast<unsigned char>(m_text[i]));
+                if (len == 1 && m_text[i] == '\n') {
                     units.push_back(current);
                     current.clear();
                 } else {
-                    current.push_back(c);
+                    current.append(m_text, i, len);
                 }
+                i += len;
             }
             if (!current.empty()) {
                 units.push_back(current);

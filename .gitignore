@@ -92,3 +92,10 @@ self-update
 # Local dev artifacts
 logs/
 test_buffy.txt
+
+# ISO timestamp temp files (e.g. 2026-06-09T16:00) — accidentally created
+# by heredocs / SQL dumps / ad-hoc scripts.  Matches any filename starting
+# with YYYY-MM-DDT and a digit.
+[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9]*
+[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T[0-9][0-9][0-9][0-9][0-9][0-9]*
+

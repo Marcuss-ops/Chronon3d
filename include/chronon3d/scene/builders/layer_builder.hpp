@@ -6,6 +6,7 @@
 #include <chronon3d/vector/path_factories.hpp>
 #include <chronon3d/scene/model/layer/mask.hpp>
 #include <chronon3d/scene/model/core/effect_stack.hpp>
+#include <chronon3d/effects/effect_params.hpp>
 #include <chronon3d/scene/model/shape/material_2_5d.hpp>
 #include <chronon3d/scene/model/core/card3d_material.hpp>
 #include <chronon3d/layout/layout_rules.hpp>

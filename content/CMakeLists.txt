@@ -6,7 +6,6 @@
 # Text content
 add_library(chronon3d_content_text STATIC
     text/text_module.cpp
-    text/helpers/text_helpers.cpp
     text/typewriter/text_typewriter.cpp
 )
 set_target_properties(chronon3d_content_text PROPERTIES UNITY_BUILD OFF)
@@ -38,6 +37,7 @@ target_precompile_headers(chronon3d_content_shapes PRIVATE
 # Images content
 add_library(chronon3d_content_images STATIC
     images/compositions/image_compositions.cpp
+    images/images_module.cpp
 )
 set_target_properties(chronon3d_content_images PROPERTIES UNITY_BUILD OFF)
 target_include_directories(chronon3d_content_images PRIVATE ${CMAKE_SOURCE_DIR})
@@ -132,11 +132,12 @@ add_library(chronon3d_content_modules STATIC
     register_minimalist_content.cpp
     register_text_content.cpp
     register_2d5_content.cpp
+    register_images_content.cpp
 )
 target_include_directories(chronon3d_content_modules PRIVATE ${CMAKE_SOURCE_DIR})
 target_link_libraries(chronon3d_content_modules
     PUBLIC chronon3d
-    PRIVATE chronon3d_content_anims chronon3d_content_text chronon3d_content_2d5 chronon3d_extension
+    PRIVATE chronon3d_content_anims chronon3d_content_text chronon3d_content_2d5 chronon3d_content_images chronon3d_extension
 )
 add_library(chronon3d::content_modules ALIAS chronon3d_content_modules)
 

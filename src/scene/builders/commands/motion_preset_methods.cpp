@@ -1,4 +1,5 @@
 #include <chronon3d/scene/builders/layer_builder.hpp>
+#include <chronon3d/effects/effect_ids.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -126,6 +127,8 @@ LayerBuilder& LayerBuilder::focus_in(f32 start_blur, Frame duration, EasingCurve
     op.key(duration, m_layer.transform.opacity);
     return *this;
 }
+
+
 
 LayerBuilder& LayerBuilder::scale_drop(f32 start_scale, Frame duration, EasingCurve easing) {
     auto& sc = scale_anim();

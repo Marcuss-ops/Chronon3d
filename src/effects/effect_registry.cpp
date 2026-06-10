@@ -148,6 +148,7 @@ void register_builtin_effects(EffectRegistry& registry) {
         .temporal = false,
         .factory = generic_effect_factory
     });
+
 }
 
 } // namespace

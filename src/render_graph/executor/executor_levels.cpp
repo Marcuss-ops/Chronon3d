@@ -83,7 +83,7 @@ void execute_levels(
             const int64_t max_workers = static_cast<int64_t>(std::thread::hardware_concurrency());
 
             tbb::parallel_for(
-                tbb::blocked_range<size_t>(0, level.size()),
+                tbb::blocked_range<size_t>(0, level.size(), 1),
                 [&](const tbb::blocked_range<size_t>& range) {
                     // ── Track active worker count ──────────────────────────
                     const int prev = active_parallel_workers.fetch_add(1, std::memory_order_relaxed);

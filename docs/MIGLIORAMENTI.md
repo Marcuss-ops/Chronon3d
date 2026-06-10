@@ -1,7 +1,16 @@
-# Chronon3D — Miglioramenti e Strategia
+# Chronon3D — Miglioramenti e Strategia (IT)
 
-> Documento complementare a `IMPROVEMENTS.md` e `SUGGESTED_IMPROVEMENTS.txt`.
+> Documento complementare a `IMPROVEMENTS.md` e `docs/improvements/`.
 > Focus: **motion system**, **artefatti residui**, e **pipeline qualità produzione**.
+
+> **Language status / Stato lingua:** Questo documento è in italiano.
+> La versione canonica in inglese dei "completamenti" elencati qui vive in
+> `docs/IMPROVEMENTS.md` (vedi sezione "🔍 Cose Già Implementate").
+> Per la roadmap forward-looking, vedi `docs/improvements/00_INDEX.md`.
+>
+> Questa pagina resta come changelog storico del team di sviluppo italiano;
+> eventuali nuove entries vanno aggiunte in inglese a `IMPROVEMENTS.md`
+> e poi ri-mirrorate qui se rilevanti.
 
 ---
 
