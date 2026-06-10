@@ -23,7 +23,7 @@ inline SoftwareRenderer make_regression_renderer(bool diagnostics = false) {
     SoftwareRenderer renderer;
     RenderSettings settings;
     settings.use_modular_graph = true;
-    settings.diagnostic = diagnostics;
+    settings.diagnostics.enabled = diagnostics;
     renderer.set_settings(settings);
     return renderer;
 }

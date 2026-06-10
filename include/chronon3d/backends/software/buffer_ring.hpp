@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/core/memory/framebuffer.hpp>
+#include <chronon3d/core/memory/framebuffer_slot_view.hpp>
 #include <memory>
 
 namespace chronon3d {
@@ -36,6 +37,12 @@ public:
 
     /// Address-of the write slot for the PoolFbDeleter restore path.
     [[nodiscard]] Framebuffer** write_slot() noexcept { return &m_ping_fb[m_ping_write_idx]; }
+
+    /// Convenience: returns a FramebufferSlotView bundling both write ping
+    /// and its restore slot, for wiring into RenderScratchContext.
+    [[nodiscard]] graph::FramebufferSlotView write_slot_view() noexcept {
+        return {write_fb(), write_slot()};
+    }
 
     /// The read ping — the "previous" completed frame.
     [[nodiscard]] Framebuffer* read_fb() const noexcept { return m_ping_fb[m_ping_read_idx]; }

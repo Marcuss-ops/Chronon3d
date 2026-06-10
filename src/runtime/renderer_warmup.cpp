@@ -90,11 +90,11 @@ RendererWarmupResult warmup_renderer(
         // starts fresh (different frame from warmup frame 1 → no
         // fingerprint match → fresh graph build).
         renderer.graph_cache().reset();
-        renderer.m_prev_graph_structure_fingerprint = 0;
-        renderer.m_prev_static_scene_fingerprint = 0;
-        renderer.m_prev_scene_fingerprint = 0;
-        renderer.m_prev_active_at_fingerprint = 0;
-        renderer.m_prev_frame = std::numeric_limits<Frame>::max();
+        renderer.frame_history().prev_graph_structure_fingerprint = 0;
+        renderer.frame_history().prev_static_scene_fingerprint = 0;
+        renderer.frame_history().prev_scene_fingerprint = 0;
+        renderer.frame_history().prev_active_at_fingerprint = 0;
+        renderer.frame_history().prev_frame = std::numeric_limits<Frame>::max();
 
         // Render frames consecutively (step=1) up to max_warmup_frame
         // to guarantee identical dirty-rect state and clip rects as the

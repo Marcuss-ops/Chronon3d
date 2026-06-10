@@ -15,6 +15,7 @@
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/effects/glow_pipeline.hpp>
+#include <chronon3d/render_graph/render_graph_context.hpp>
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
@@ -138,7 +139,8 @@ struct GlowLayerPass {
 // ── run_layer_mode (moved from apply_glow_effect) ────────────────────
 
 void run_layer_mode(Framebuffer& fb, const GlowPipeline& p,
-                    const std::optional<raster::BBox>& clip) {
+                    const std::optional<raster::BBox>& clip,
+                    bool source_is_alpha_mask = false) {
     const i32 w = fb.width(), h = fb.height();
     const float extent = glow_effect_extent(p);
     auto effect_clip = expand_effect_clip(clip, w, h, extent);
@@ -223,7 +225,9 @@ void run_layer_mode(Framebuffer& fb, const GlowPipeline& p,
                 Color* pass_row = pass_fb->pixels_row(y);
                 const Color* source_row = source_fb->pixels_row(y);
                 for (i32 x = 0; x < roi_w; ++x) {
-                    const float trigger = glow_trigger_from_pixel(source_row[x], p);
+            const float trigger = source_is_alpha_mask
+                    ? source_row[x].a
+                    : glow_trigger_from_pixel(source_row[x], p);
                     if (trigger > 0.0f) {
                         pass_row[x] = glow_color_from_trigger(trigger, p, pass.intensity_scale);
                     }
@@ -250,7 +254,9 @@ void run_layer_mode(Framebuffer& fb, const GlowPipeline& p,
                 for (i32 x = 0; x < small_w; ++x) {
                     const float sx = (static_cast<float>(x) + 0.5f) / pass.buffer_scale;
                     const Color c = source_fb->sample(sx, sy, SamplingMode::Bilinear);
-                    const float trigger = glow_trigger_from_pixel(c, p);
+                    const float trigger = source_is_alpha_mask
+                            ? c.a
+                            : glow_trigger_from_pixel(c, p);
                     if (trigger > 0.0f) {
                         small_row[x] = glow_color_from_trigger(trigger, p, pass.intensity_scale);
                     }
@@ -413,15 +419,63 @@ GlowPipeline GlowPipeline::from(const DropShadowParams& p) {
 
 } // namespace chronon3d
 
+// ── GlowPipeline::render() — unified entry point (Item 17) ────────────
+
+namespace chronon3d {
+
+GlowPipelineOutput GlowPipeline::render(graph::RenderGraphContext& ctx,
+                                        const GlowPipelineInput& input) {
+    const i32 w = input.source->width();
+    const i32 h = input.source->height();
+
+    // Build internal pipeline config from GlowParams.
+    GlowPipeline p = GlowPipeline::from(input.params);
+
+    // Allocate a working framebuffer (raw new — will be adopted by OwnedFB).
+    auto* work_fb = new Framebuffer(w, h);
+    work_fb->clear(Color::transparent());
+
+    // Compute affected bounds from clip + glow extent.
+    const f32 extent = renderer::glow_effect_extent(p);
+    auto effect_clip = renderer::expand_effect_clip(input.clip, w, h, extent);
+    raster::BBox bbox = effect_clip.value_or(raster::BBox{0, 0, w, h});
+    // Clamp to source dimensions
+    bbox.x0 = std::max(0, bbox.x0);
+    bbox.y0 = std::max(0, bbox.y0);
+    bbox.x1 = std::min(w, bbox.x1);
+    bbox.y1 = std::min(h, bbox.y1);
+
+    // Copy source → work_fb
+    for (i32 y = 0; y < h; ++y) {
+        const Color* src_row = input.source->pixels_row(y);
+        Color* dst_row = work_fb->pixels_row(y);
+        std::copy_n(src_row, w, dst_row);
+    }
+
+    // Run the pipeline on the working copy.
+    renderer::run_glow_pipeline(*work_fb, p, input.clip, input.source_is_alpha_mask);
+
+    // Adopt the working framebuffer as an OwnedFB.
+    OwnedFB result(work_fb, PoolFbDeleter{nullptr});
+    if (ctx.resources.framebuffer_pool) {
+        result.get_deleter().pool = ctx.resources.framebuffer_pool.get();
+    }
+
+    return {std::move(result), bbox};
+}
+
+} // namespace chronon3d
+
 // ── run_glow_pipeline() — main entry point (lives in chronon3d::renderer)
 
 namespace chronon3d::renderer {
 
 void run_glow_pipeline(Framebuffer& fb, const GlowPipeline& p,
-                       const std::optional<raster::BBox>& clip) {
+                       const std::optional<raster::BBox>& clip,
+                       bool source_is_alpha_mask) {
     switch (p.mode) {
     case GlowPipeline::Mode::Layer:
-        run_layer_mode(fb, p, clip);
+        run_layer_mode(fb, p, clip, source_is_alpha_mask);
         break;
     case GlowPipeline::Mode::Bloom:
         run_bloom_mode(fb, p, clip);

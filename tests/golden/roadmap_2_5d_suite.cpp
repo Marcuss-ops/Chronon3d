@@ -123,7 +123,7 @@ void save_debug_frame(const Framebuffer& fb, const std::string& filename) {
 Composition make_hero_push_scene() {
     return Composition({.width = 960, .height = 540, .duration = 45}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        const float t = static_cast<float>(ctx.frame.frame) / 44.0f;
+        const float t = static_cast<float>(ctx.frame) / 44.0f;
         const float cam_z = -1200.0f + t * 350.0f;
         s.camera().enable(true).position({0.0f, 0.0f, cam_z}).zoom(1100.0f).look_at({0.0f, 0.0f, 0.0f});
         s.ambient_light(Color{1.0f, 1.0f, 1.0f, 1.0f}, 0.12f);

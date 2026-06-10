@@ -168,7 +168,7 @@ TEST_CASE("Dirty Rects: Inter-frame diff includes old and new position") {
         .name = "DirtyRectDiffTest", .width = W, .height = H, .duration = 3
     }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx.resource);
-        float x = 40.0f + static_cast<float>(ctx.frame.frame) * 40.0f;  // frame 0→40, 1→80
+        float x = 40.0f + static_cast<float>(ctx.frame) * 40.0f;  // frame 0→40, 1→80
         s.rect("moving", {
             .size = {30, 30},
             .color = Color::blue(),
@@ -302,7 +302,7 @@ TEST_CASE("Dirty Rects: Near-static scene with small animated element") {
         });
 
         // Small animated dot
-        float x = 30.0f + static_cast<float>(ctx.frame.frame) * 5.0f;
+        float x = 30.0f + static_cast<float>(ctx.frame) * 5.0f;
         s.circle("dot", {
             .radius = 8,
             .color = Color::red(),
@@ -316,14 +316,14 @@ TEST_CASE("Dirty Rects: Near-static scene with small animated element") {
     SoftwareRenderer ref_renderer;
     RenderSettings ref_settings;
     ref_settings.use_modular_graph = true;
-    ref_settings.enable_dirty_rects = false;
+    ref_settings.dirty.enabled = false;
     ref_renderer.set_settings(ref_settings);
 
     // Optimized: render all frames with dirty rects
     SoftwareRenderer opt_renderer;
     RenderSettings opt_settings;
     opt_settings.use_modular_graph = true;
-    opt_settings.enable_dirty_rects = true;
+    opt_settings.dirty.enabled = true;
     opt_renderer.set_settings(opt_settings);
 
     int total_mismatches = 0;
@@ -371,7 +371,7 @@ TEST_CASE("Dirty Rects: Output correct with effects (blur)") {
         SceneBuilder s(ctx.resource);
 
         // Moving rect with blur effect
-        float x = 60.0f + static_cast<float>(ctx.frame.frame) * 20.0f;
+        float x = 60.0f + static_cast<float>(ctx.frame) * 20.0f;
         s.layer("blurred", [&](LayerBuilder& l) {
             l.rect("r", {
                 .size = {50, 50},
@@ -441,8 +441,8 @@ TEST_CASE("Dirty Rects: Long sequence equivalence with moving elements") {
         });
 
         // Moving element
-        float x = 20.0f + static_cast<float>(ctx.frame.frame) * 8.0f;
-        float y = 60.0f + std::sin(static_cast<float>(ctx.frame.frame) * 0.8f) * 15.0f;
+        float x = 20.0f + static_cast<float>(ctx.frame) * 8.0f;
+        float y = 60.0f + std::sin(static_cast<float>(ctx.frame) * 0.8f) * 15.0f;
         s.rounded_rect("moving", {
             .size = {24, 16},
             .radius = 4,

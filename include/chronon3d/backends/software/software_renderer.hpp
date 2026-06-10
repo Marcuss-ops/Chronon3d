@@ -89,7 +89,7 @@ public:
         m_node_cache.clear();
         if (m_framebuffer_pool) m_framebuffer_pool->clear();
         m_graph_cache.reset();
-        m_prev_graph_structure_fingerprint = 0;
+        m_frame_history.prev_graph_structure_fingerprint = 0;
         m_buffer_ring.reset();
         m_scratch_buffer.reset();
         // Video cache clearing is now responsibility of the decoder implementation
@@ -117,14 +117,14 @@ public:
         return m_image_backend.get();
     }
 
-    [[nodiscard]] double last_dirty_area_ratio() const { return m_last_dirty_area_ratio; }
-
-    // ── Per-frame dirty-rect telemetry (populated by render_scene_via_graph) ──
-    [[nodiscard]] bool last_dirty_rect_enabled() const { return m_last_dirty_rect_enabled; }
-    [[nodiscard]] std::optional<raster::BBox> last_dirty_rect() const { return m_last_dirty_rect; }
-    [[nodiscard]] bool last_tile_execution_used() const { return m_last_tile_execution_used; }
-    [[nodiscard]] bool last_fast_path_reused() const { return m_last_fast_path_reused; }
-    [[nodiscard]] bool last_graph_reused() const { return m_last_graph_reused; }
+    // ── Dirty-rect telemetry (populated by render_scene_via_graph) ──────────
+    [[nodiscard]] double last_dirty_area_ratio() const { return m_dirty_telemetry.last_dirty_area_ratio; }
+    [[nodiscard]] bool last_dirty_rect_enabled() const { return m_dirty_telemetry.last_dirty_rect_enabled; }
+    [[nodiscard]] std::optional<raster::BBox> last_dirty_rect() const { return m_dirty_telemetry.last_dirty_rect; }
+    [[nodiscard]] bool last_tile_execution_used() const { return m_dirty_telemetry.last_tile_execution_used; }
+    [[nodiscard]] bool last_fast_path_reused() const { return m_dirty_telemetry.last_fast_path_reused; }
+    [[nodiscard]] bool last_graph_reused() const { return m_dirty_telemetry.last_graph_reused; }
+    [[nodiscard]] int last_layer_count() const { return m_dirty_telemetry.last_layer_count; }
 
     // Public for use by graph nodes via RenderGraphContext.
     void draw_node(Framebuffer& fb, const RenderNode& node, const RenderState& state,
@@ -167,23 +167,78 @@ public:
         uint64_t content_hash{0};
     };
 
-    // ── Per-frame dirty-rect / telemetry state (written by graph pipeline) ──
-    std::unordered_map<std::string, LayerBBoxState> m_prev_layer_bboxes;
-    Frame m_prev_frame{-1};
-    double m_last_dirty_area_ratio{1.0};
-    int m_last_layer_count{0};
-    bool m_last_dirty_rect_enabled{false};
-    std::optional<raster::BBox> m_last_dirty_rect;
-    bool m_last_tile_execution_used{false};
-    bool m_last_fast_path_reused{false};
-    bool m_last_graph_reused{false};
-    Camera2_5D m_prev_camera;
-    bool m_prev_camera_valid{false};
-    uint64_t m_prev_scene_fingerprint{0};
-    uint64_t m_prev_static_scene_fingerprint{0};
-    uint64_t m_prev_graph_structure_fingerprint{0};
-    uint64_t m_prev_active_at_fingerprint{0}; // tracks which layers are active at each frame
-    graph::SceneHasher m_scene_hasher;
+    // ── Encapsulated per-frame state structs ──────────────────────────────
+    struct RendererFrameHistory {
+        Frame prev_frame{-1};
+        Camera2_5D prev_camera;
+        bool prev_camera_valid{false};
+        uint64_t prev_scene_fingerprint{0};
+        uint64_t prev_static_scene_fingerprint{0};
+        uint64_t prev_graph_structure_fingerprint{0};
+        uint64_t prev_active_at_fingerprint{0};
+    };
+
+    struct RendererDirtyTelemetry {
+        double last_dirty_area_ratio{1.0};
+        int last_layer_count{0};
+        bool last_dirty_rect_enabled{false};
+        std::optional<raster::BBox> last_dirty_rect;
+        bool last_tile_execution_used{false};
+        bool last_fast_path_reused{false};
+        bool last_graph_reused{false};
+    };
+
+    struct RendererLayerHistory {
+        std::unordered_map<std::string, LayerBBoxState> prev_layer_bboxes;
+    };
+
+    // ── Accessor methods for encapsulated state ──────────────────────────
+    [[nodiscard]] RendererFrameHistory& frame_history() { return m_frame_history; }
+    [[nodiscard]] const RendererFrameHistory& frame_history() const { return m_frame_history; }
+    [[nodiscard]] RendererDirtyTelemetry& dirty_telemetry() { return m_dirty_telemetry; }
+    [[nodiscard]] const RendererDirtyTelemetry& dirty_telemetry() const { return m_dirty_telemetry; }
+    [[nodiscard]] RendererLayerHistory& layer_history() { return m_layer_history; }
+    [[nodiscard]] const RendererLayerHistory& layer_history() const { return m_layer_history; }
+    [[nodiscard]] graph::SceneHasher& scene_hasher() { return m_scene_hasher; }
+    [[nodiscard]] const graph::SceneHasher& scene_hasher() const { return m_scene_hasher; }
+
+    // ── Convenience methods for graph pipeline orchestration ────────────
+    void mark_fast_path_reused(Frame frame, const Camera2_5D& cam, uint64_t combined_fp) {
+        m_dirty_telemetry.last_dirty_area_ratio = 0.0;
+        m_dirty_telemetry.last_dirty_rect_enabled = false;
+        m_dirty_telemetry.last_dirty_rect = std::nullopt;
+        m_dirty_telemetry.last_tile_execution_used = false;
+        m_dirty_telemetry.last_fast_path_reused = true;
+        m_dirty_telemetry.last_graph_reused = false;
+        m_frame_history.prev_frame = frame;
+        m_frame_history.prev_scene_fingerprint = combined_fp;
+        m_frame_history.prev_camera = cam;
+        m_frame_history.prev_camera_valid = cam.enabled;
+    }
+
+    void commit_prev_frame_state(Frame frame, const Camera2_5D& cam,
+                                  uint64_t combined_fp, uint64_t static_fp,
+                                  uint64_t structure_fp, uint64_t active_at_fp,
+                                  std::unordered_map<std::string, LayerBBoxState>&& layer_bboxes) {
+        m_layer_history.prev_layer_bboxes = std::move(layer_bboxes);
+        m_frame_history.prev_frame = frame;
+        m_frame_history.prev_scene_fingerprint = combined_fp;
+        m_frame_history.prev_static_scene_fingerprint = static_fp;
+        m_frame_history.prev_graph_structure_fingerprint = structure_fp;
+        m_frame_history.prev_active_at_fingerprint = active_at_fp;
+        m_frame_history.prev_camera = cam;
+        m_frame_history.prev_camera_valid = cam.enabled;
+    }
+
+    void update_dirty_telemetry(bool rect_enabled, std::optional<raster::BBox> rect,
+                                 bool tile_execution_used, bool fast_path_reused,
+                                 bool graph_reused) {
+        m_dirty_telemetry.last_dirty_rect_enabled = rect_enabled;
+        m_dirty_telemetry.last_dirty_rect = rect;
+        m_dirty_telemetry.last_tile_execution_used = tile_execution_used;
+        m_dirty_telemetry.last_fast_path_reused = fast_path_reused;
+        m_dirty_telemetry.last_graph_reused = graph_reused;
+    }
 
     // ── RAII buffer management ──────────────────────────────────────────
     [[nodiscard]] RendererBufferRing& buffer_ring() { return m_buffer_ring; }
@@ -192,8 +247,6 @@ public:
     [[nodiscard]] const TransformScratchBuffer& scratch_buffer() const { return m_scratch_buffer; }
     [[nodiscard]] CompiledGraphCache& graph_cache() { return m_graph_cache; }
     [[nodiscard]] const CompiledGraphCache& graph_cache() const { return m_graph_cache; }
-
-    [[nodiscard]] int last_layer_count() const { return m_last_layer_count; }
 
 private:
     ImageRenderer     m_image_renderer;
@@ -213,6 +266,12 @@ private:
     RendererBufferRing    m_buffer_ring;
     TransformScratchBuffer m_scratch_buffer;
     CompiledGraphCache    m_graph_cache;
+
+    // ── Encapsulated per-frame state ─────────────────────────────────────
+    RendererFrameHistory     m_frame_history;
+    RendererDirtyTelemetry   m_dirty_telemetry;
+    RendererLayerHistory     m_layer_history;
+    graph::SceneHasher       m_scene_hasher;
 };
 
 } // namespace chronon3d
