@@ -8,6 +8,7 @@
 #include <chronon3d/simd/kernels.hpp>
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 
 // Prefetch: use compiler builtins which work across all SIMD contexts.
 
