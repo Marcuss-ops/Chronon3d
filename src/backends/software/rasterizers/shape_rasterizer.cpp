@@ -50,7 +50,17 @@ raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 sprea
         case ShapeType::Circle:      size = {shape.circle.radius * 2, shape.circle.radius * 2}; break;
         case ShapeType::Image:       size = shape.image.size; break;
         case ShapeType::GridBackground: size = shape.grid_background.size; break;
-        case ShapeType::Text:        size = shape.text.box.enabled ? shape.text.box.size : Vec2{1000, 1000}; break;
+        case ShapeType::Text:
+            size = shape.text.box.enabled ? shape.text.box.size : Vec2{1000, 1000};
+            // The text rasterizer pads the image by 32px on each side and may
+            // shift it by x_offset/y_offset (ink-centering alignment) which
+            // can be up to ~96px.  Expand the bbox by 32px + 96px = 128px
+            // so the tiling / dirty-rect system does not clip the rasterized
+            // text image (SourceNode::predicted_bbox uses this general
+            // function, not the text-specific processor's bbox).
+            size.x += kTextBBoxPadding;
+            size.y += kTextBBoxPadding;
+            break;
         case ShapeType::FakeBox3D:   size = shape.fake_box3d.size; break;
         default: break;
     }

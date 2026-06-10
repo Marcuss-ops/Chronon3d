@@ -14,8 +14,13 @@ void register_text_content();
 /// Register the 2.5D content module (requires chronon3d_content_2d5).
 void register_two_point_five_d_content();
 
+/// Register the Images content module (requires chronon3d_content_images).
+/// Exposes ImgGradient, ImgChecker, ImgGridTest, ImgTestPattern,
+/// ImgShakeZoom, ImgReferenceShakeReveal, ImgCornerSmoothing, ImageProofs.
+void register_images_content();
+
 /// Register all built-in content modules and initialize them.
-/// Calls all three per-module registration functions above.
+/// Calls all four per-module registration functions above.
 /// Safe to call multiple times — modules are only initialized once.
 void register_content_modules();
 

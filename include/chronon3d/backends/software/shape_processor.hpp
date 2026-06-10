@@ -18,6 +18,16 @@ namespace chronon3d::renderer {
 // transforms do not leave stale pixels behind when dirty-rect rendering is on.
 inline constexpr f32 kBBoxSafetyPadding = 1.5f;
 
+// Extra bbox padding for Text shapes in the general compute_world_bbox.
+// SourceNode::predicted_bbox uses this general function (not the
+// text-specific SoftwareTextProcessor), and the text rasterizer adds 32px
+// of internal padding with a y_offset of -16px, which shifts the image
+// 16px outside the nominal box bounds in local space.  The generous 128px
+// safety margin (~5 tile rows at default tile size) ensures the tiling /
+// dirty-rect system never clips the rasterized output due to rounding or
+// matrix discrepancies between predicted_bbox and execute.
+inline constexpr f32 kTextBBoxPadding = 128.0f;
+
 class ShapeProcessor {
 public:
     virtual ~ShapeProcessor() = default;

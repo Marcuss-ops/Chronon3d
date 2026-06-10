@@ -9,7 +9,6 @@ namespace chronon3d::content::two_point_five_d {
 Composition parallax_simple();
 Composition depth_scene();
 Composition card_flip();
-Composition parallax_text();
 Composition camera_orbit_target_lock_test();
 Composition camera_dolly_perspective_scale_test();
 Composition camera_parent_null_rig_test();
@@ -41,7 +40,6 @@ public:
         registry.register_composition("ParallaxSimple", parallax_simple);
         registry.register_composition("DepthScene", depth_scene);
         registry.register_composition("CardFlip", card_flip);
-        registry.register_composition("ParallaxText", parallax_text);
         registry.register_composition("DofShowcase", dof_showcase);
 
         // Camera tests

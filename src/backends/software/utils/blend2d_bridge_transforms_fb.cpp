@@ -203,7 +203,7 @@ void composite_framebuffer_transformed(Framebuffer& dst_fb, const Framebuffer& s
             };
 
             if (y1_st - y0_st >= 16) {
-                tbb::parallel_for(tbb::blocked_range<int>(y0_st, y1_st), [&](const tbb::blocked_range<int>& range) {
+                tbb::parallel_for(tbb::blocked_range<int>(y0_st, y1_st, 16), [&](const tbb::blocked_range<int>& range) {
                     process_rows_st(range.begin(), range.end());
                 });
             } else {
@@ -247,7 +247,7 @@ void composite_framebuffer_transformed(Framebuffer& dst_fb, const Framebuffer& s
     };
 
     if (y1 - y0 >= 16) {
-        tbb::parallel_for(tbb::blocked_range<int>(y0, y1), [&](const tbb::blocked_range<int>& range) {
+        tbb::parallel_for(tbb::blocked_range<int>(y0, y1, 16), [&](const tbb::blocked_range<int>& range) {
             process_rows(range.begin(), range.end());
         });
     } else {

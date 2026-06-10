@@ -161,7 +161,8 @@ FontEngine& FontEngine::operator=(FontEngine&&) noexcept = default;
 std::optional<GlyphRun> FontEngine::shape_text(
     std::string_view text,
     const FontSpec& spec,
-    float font_size
+    float font_size,
+    const TextShaping& shaping
 ) const {
     if (!m_impl || !m_impl->ft_library || text.empty() || font_size <= 0.0f) {
         return std::nullopt;
@@ -195,10 +196,52 @@ std::optional<GlyphRun> FontEngine::shape_text(
     hb_buffer_t* buf = hb_buffer_create();
     if (!buf) return std::nullopt;
     hb_buffer_add_utf8(buf, text.data(), static_cast<int>(text.size()), 0, static_cast<int>(text.size()));
-    hb_buffer_set_direction(buf, HB_DIRECTION_LTR);
-    // TODO: expose script/language as parameters for non-Latin text support
-    hb_buffer_set_script(buf, HB_SCRIPT_LATIN);
-    hb_buffer_set_language(buf, hb_language_from_string("en", -1));
+
+    // Direction: explicit from the TextShaping param, or auto-detect
+    // by scanning the first strongly-directional character.
+    if (shaping.direction == TextDirection::RTL) {
+        hb_buffer_set_direction(buf, HB_DIRECTION_RTL);
+    } else if (shaping.direction == TextDirection::LTR) {
+        hb_buffer_set_direction(buf, HB_DIRECTION_LTR);
+    } else {
+        // Auto-detect
+        hb_direction_t dir = HB_DIRECTION_LTR;
+        bool detected = false;
+        for (size_t i = 0; i < text.size() && !detected; ) {
+            const unsigned char c = static_cast<unsigned char>(text[i]);
+            hb_codepoint_t cp;
+            size_t len = 1;
+            if (c < 0x80) { cp = c; len = 1; }
+            else if ((c & 0xE0) == 0xC0 && i + 1 < text.size()) { cp = ((c & 0x1F) << 6) | (text[i+1] & 0x3F); len = 2; }
+            else if ((c & 0xF0) == 0xE0 && i + 2 < text.size()) { cp = ((c & 0x0F) << 12) | ((text[i+1] & 0x3F) << 6) | (text[i+2] & 0x3F); len = 3; }
+            else if ((c & 0xF8) == 0xF0 && i + 3 < text.size()) { cp = ((c & 0x07) << 18) | ((text[i+1] & 0x3F) << 12) | ((text[i+2] & 0x3F) << 6) | (text[i+3] & 0x3F); len = 4; }
+            else { cp = 0xFFFD; len = 1; }
+            if ((cp >= 0x0590 && cp <= 0x08FF) ||
+                (cp >= 0xFB1D && cp <= 0xFDFF) ||
+                (cp >= 0xFE70 && cp <= 0xFEFF)) {
+                dir = HB_DIRECTION_RTL;
+                detected = true;
+            } else if (cp > 0x04FF && cp < 0x0590) {
+                detected = true;
+            } else if (cp > 0x0600) {
+                detected = true;
+            }
+            i += len;
+        }
+        hb_buffer_set_direction(buf, dir);
+    }
+
+    // Script: explicit hb_script_t from shaping param, or COMMON (auto).
+    hb_buffer_set_script(buf,
+        shaping.script != 0
+            ? static_cast<hb_script_t>(shaping.script)
+            : HB_SCRIPT_COMMON);
+
+    // Language: explicit from shaping param, or "en" (auto-detect).
+    hb_buffer_set_language(buf,
+        hb_language_from_string(
+            shaping.language.empty() ? "en" : shaping.language.c_str(),
+            -1));
 
     hb_shape(entry->hb_font, buf, nullptr, 0);
 
@@ -267,8 +310,8 @@ std::optional<GlyphRun> FontEngine::shape_text(
     return run;
 }
 
-float FontEngine::measure_text(std::string_view text, const FontSpec& spec, float font_size) const {
-    auto run = shape_text(text, spec, font_size);
+float FontEngine::measure_text(std::string_view text, const FontSpec& spec, float font_size, const TextShaping& shaping) const {
+    auto run = shape_text(text, spec, font_size, shaping);
     if (!run) return 0.0f;
     return run->width;
 }
@@ -352,9 +395,9 @@ bool FontEngine::can_load(const FontSpec& spec) {
 
 // ── Global convenience ──────────────────────────────────────────────
 
-std::optional<GlyphRun> shape_text(std::string_view text, const FontSpec& spec, float font_size) {
+std::optional<GlyphRun> shape_text(std::string_view text, const FontSpec& spec, float font_size, const TextShaping& shaping) {
     static FontEngine engine;
-    return engine.shape_text(text, spec, font_size);
+    return engine.shape_text(text, spec, font_size, shaping);
 }
 
 FontEngine& shared_font_engine() {
@@ -363,13 +406,6 @@ FontEngine& shared_font_engine() {
 }
 
 void reset_shared_font_engine() {
-    // Destroy the current singleton by calling clear_cache (which flushes
-    // all FreeType faces, HarfBuzz fonts, and the glyph bbox cache),
-    // then replace the static with a fresh instance on next access.
-    //
-    // Technique: we directly clear the static's internal caches
-    // so that all open handles are released. The next call to
-    // shared_font_engine() reuses the same static but with empty caches.
     auto& engine = shared_font_engine();
     engine.clear_cache();
 }
