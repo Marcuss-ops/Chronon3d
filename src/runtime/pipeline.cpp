@@ -5,7 +5,7 @@
 
 namespace chronon3d {
 
-void RenderPipeline::run(Frame start, Frame end, std::function<void(RenderedFrame)> output_callback) {
+void LegacyRenderPipeline::run(Frame start, Frame end, std::function<void(RenderedFrame)> output_callback) {
     ZoneScoped;
     const i32 count = static_cast<i32>(end - start);
     if (count <= 0) return;

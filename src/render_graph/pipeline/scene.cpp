@@ -240,16 +240,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         const uint64_t combined_fp = static_fp ^ (active_at_fp * 0x9e3779b97f4a7c15ULL);
 
         if (!cam_changed && sw_renderer->frame_history().prev_scene_fingerprint == combined_fp) {
-            sw_renderer->dirty_telemetry().last_dirty_area_ratio = 0.0;
-            sw_renderer->dirty_telemetry().last_dirty_rect_enabled = false;
-            sw_renderer->dirty_telemetry().last_dirty_rect = std::nullopt;
-            sw_renderer->dirty_telemetry().last_tile_execution_used = false;
-            sw_renderer->dirty_telemetry().last_fast_path_reused = true;
-            sw_renderer->dirty_telemetry().last_graph_reused = false;
-            sw_renderer->frame_history().prev_frame = frame;
-            sw_renderer->frame_history().prev_scene_fingerprint = combined_fp;
-            sw_renderer->frame_history().prev_camera = cam;
-            sw_renderer->frame_history().prev_camera_valid = cam.enabled;
+            sw_renderer->mark_fast_path_reused(frame, cam, combined_fp);
             if (ctx.telemetry.counters) {
                 ctx.telemetry.counters->dirty_union_area_pixels.store(0, std::memory_order_relaxed);
                 ctx.telemetry.counters->clear_skipped_calls.fetch_add(1, std::memory_order_relaxed);
@@ -320,15 +311,8 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         current_static_fp == sw_renderer->frame_history().prev_static_scene_fingerprint)
     {
         CHRONON_ZONE_C("static_scene_fast_check", trace_category::kFrame);
-        sw_renderer->dirty_telemetry().last_dirty_area_ratio = 0.0;
-        sw_renderer->dirty_telemetry().last_dirty_rect_enabled = false;
-        sw_renderer->dirty_telemetry().last_dirty_rect = std::nullopt;
-        sw_renderer->dirty_telemetry().last_tile_execution_used = false;
-        sw_renderer->dirty_telemetry().last_fast_path_reused = true;
-        sw_renderer->dirty_telemetry().last_graph_reused = false;
-        sw_renderer->frame_history().prev_frame = frame;
-        sw_renderer->frame_history().prev_camera = ctx.camera.camera_2_5d;
-        sw_renderer->frame_history().prev_camera_valid = ctx.camera.camera_2_5d.enabled;
+        const uint64_t combined_fp = current_static_fp ^ (current_active_at_fp * 0x9e3779b97f4a7c15ULL);
+        sw_renderer->mark_fast_path_reused(frame, ctx.camera.camera_2_5d, combined_fp);
         if (ctx.telemetry.counters) {
             ctx.telemetry.counters->dirty_union_area_pixels.store(0, std::memory_order_relaxed);
             ctx.telemetry.counters->clear_skipped_calls.fetch_add(1, std::memory_order_relaxed);
@@ -434,22 +418,14 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
             spdlog::info("[dirty-debug] frame={} fast_path_reuse=1", static_cast<int>(frame));
         }
         sw_renderer->dirty_telemetry().last_dirty_area_ratio = 0.0;
-        sw_renderer->dirty_telemetry().last_dirty_rect_enabled = true;
-        sw_renderer->dirty_telemetry().last_dirty_rect = dirty_out.dirty_rect;
-        sw_renderer->dirty_telemetry().last_tile_execution_used = false;
-        sw_renderer->dirty_telemetry().last_fast_path_reused = true;
-        sw_renderer->dirty_telemetry().last_graph_reused = false;
-        sw_renderer->layer_history().prev_layer_bboxes = std::move(dirty_out.layer_bboxes);
-        sw_renderer->frame_history().prev_frame = frame;
-        // Use combined_fp for consistency with resolved-reuse block and full-path save
+        sw_renderer->update_dirty_telemetry(true, dirty_out.dirty_rect, false, true, false);
         const uint64_t fp_static = sw_renderer->scene_hasher().compute_static_fingerprint(scene);
         const uint64_t fp_active_at = sw_renderer->scene_hasher().compute_active_at_fingerprint(scene, frame);
         const uint64_t fp_combined = fp_static ^ (fp_active_at * 0x9e3779b97f4a7c15ULL);
-        sw_renderer->frame_history().prev_scene_fingerprint = fp_combined;
-        sw_renderer->frame_history().prev_static_scene_fingerprint = fp_static;
-        sw_renderer->frame_history().prev_active_at_fingerprint = fp_active_at;
-        sw_renderer->frame_history().prev_camera = resolved.camera.camera;
-        sw_renderer->frame_history().prev_camera_valid = resolved.camera.camera.enabled;
+        const uint64_t fp_structure = sw_renderer->scene_hasher().compute_structure_fingerprint(scene);
+        sw_renderer->commit_prev_frame_state(frame, resolved.camera.camera,
+                                             fp_combined, fp_static, fp_structure, fp_active_at,
+                                             std::move(dirty_out.layer_bboxes));
         return sw_renderer->buffer_ring().prev_framebuffer();
     }
 
@@ -695,11 +671,8 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
 
     // ── Record per-frame dirty-rect telemetry on the renderer for the loop to read ──
     if (sw_renderer) {
-        sw_renderer->dirty_telemetry().last_dirty_rect_enabled = dirty_out.use_dirty_rects;
-        sw_renderer->dirty_telemetry().last_dirty_rect = dirty_out.dirty_rect;
-        sw_renderer->dirty_telemetry().last_tile_execution_used = use_tile_execution;
-        sw_renderer->dirty_telemetry().last_fast_path_reused = false;
-        sw_renderer->dirty_telemetry().last_graph_reused = graph_reused;
+        sw_renderer->update_dirty_telemetry(dirty_out.use_dirty_rects, dirty_out.dirty_rect,
+                                             use_tile_execution, false, graph_reused);
     }
 
     // ── Save state for next frame ───────────────────────────────────────
@@ -732,14 +705,10 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
             sw_renderer->buffer_ring().prev_framebuffer() = fb_shared;
         }
 
-        sw_renderer->layer_history().prev_layer_bboxes = std::move(dirty_out.layer_bboxes);
-        sw_renderer->frame_history().prev_frame = frame;
-        sw_renderer->frame_history().prev_scene_fingerprint = save_combined_fp;
-        sw_renderer->frame_history().prev_static_scene_fingerprint = save_static_fp;
-        sw_renderer->frame_history().prev_graph_structure_fingerprint = save_structure_fp;
-        sw_renderer->frame_history().prev_active_at_fingerprint = save_active_at_fp;
-        sw_renderer->frame_history().prev_camera = resolved.camera.camera;
-        sw_renderer->frame_history().prev_camera_valid = resolved.camera.camera.enabled;
+        sw_renderer->commit_prev_frame_state(frame, resolved.camera.camera,
+                                             save_combined_fp, save_static_fp,
+                                             save_structure_fp, save_active_at_fp,
+                                             std::move(dirty_out.layer_bboxes));
     }
     const auto hits_after = node_cache.stats().hits;
     return fb_shared;
