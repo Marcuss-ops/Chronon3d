@@ -296,8 +296,8 @@ TEST_CASE("TEST MATH 07 - Shadow Distance Falloff") {
     using graph::ShadowNode;
 
     graph::RenderGraphContext ctx;
-    ctx.width = 640;
-    ctx.height = 360;
+    ctx.frame.width = 640;
+    ctx.frame.height = 360;
 
     rendering::ShadowSettings settings;
     settings.px_per_unit = 1.0f;

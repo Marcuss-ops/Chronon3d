@@ -49,7 +49,7 @@ Composition make_moving_circle_comp(int width, int height, int duration) {
             .pos = {100.0f, 75.0f, 0}
         });
         // Small animated circle
-        float x = 40.0f + static_cast<float>(ctx.frame) * 4.0f;
+        float x = 40.0f + static_cast<float>(ctx.frame.frame) * 4.0f;
         s.circle("ball", {
             .radius = 12.0f,
             .color = Color::red(),
@@ -71,9 +71,9 @@ TEST_CASE("Dirty Tiles: Smoke test — renders without crash with tile settings"
     SoftwareRenderer renderer;
     RenderSettings settings;
     settings.use_modular_graph = true;
-    settings.tile_size = 32;
-    settings.enable_dirty_bitmask = true;
-    settings.enable_dirty_rects = true;
+    settings.dirty.tile_size = 32;
+    settings.dirty.use_bitmask = true;
+    settings.dirty.enabled = true;
     renderer.set_settings(settings);
 
     // Render several frames — must not crash
@@ -98,7 +98,7 @@ TEST_CASE("Dirty Tiles: Pixel-perfect equivalence with moving element") {
     {
         RenderSettings s;
         s.use_modular_graph = true;
-        s.enable_dirty_rects = false;
+        s.dirty.enabled = false;
         baseline.set_settings(s);
     }
 
@@ -107,9 +107,9 @@ TEST_CASE("Dirty Tiles: Pixel-perfect equivalence with moving element") {
     {
         RenderSettings s;
         s.use_modular_graph = true;
-        s.enable_dirty_rects = true;
-        s.enable_dirty_bitmask = true;
-        s.tile_size = 32;
+        s.dirty.enabled = true;
+        s.dirty.use_bitmask = true;
+        s.dirty.tile_size = 32;
         opt.set_settings(s);
     }
 
@@ -137,9 +137,9 @@ TEST_CASE("Dirty Tiles: Dirty rect counters still active with tiles on") {
     SoftwareRenderer renderer;
     RenderSettings settings;
     settings.use_modular_graph = true;
-    settings.enable_dirty_rects = true;
-    settings.enable_dirty_bitmask = true;
-    settings.tile_size = 32;
+    settings.dirty.enabled = true;
+    settings.dirty.use_bitmask = true;
+    settings.dirty.tile_size = 32;
     renderer.set_settings(settings);
 
     renderer.render_frame(comp, 0);
@@ -167,9 +167,9 @@ TEST_CASE("Dirty Tiles: First frame renders full frame (no prev fb)") {
     SoftwareRenderer renderer;
     RenderSettings settings;
     settings.use_modular_graph = true;
-    settings.enable_dirty_rects = true;
-    settings.enable_dirty_bitmask = true;
-    settings.tile_size = 32;
+    settings.dirty.enabled = true;
+    settings.dirty.use_bitmask = true;
+    settings.dirty.tile_size = 32;
     renderer.set_settings(settings);
 
     // Frame 0 has no previous framebuffer → full render
@@ -199,7 +199,7 @@ TEST_CASE("Dirty Tiles: Correct output across different tile sizes") {
         {
             RenderSettings s;
             s.use_modular_graph = true;
-            s.enable_dirty_rects = false;
+            s.dirty.enabled = false;
             baseline.set_settings(s);
         }
 
@@ -208,9 +208,9 @@ TEST_CASE("Dirty Tiles: Correct output across different tile sizes") {
         {
             RenderSettings s;
             s.use_modular_graph = true;
-            s.enable_dirty_rects = true;
-            s.enable_dirty_bitmask = true;
-            s.tile_size = tsize;
+            s.dirty.enabled = true;
+            s.dirty.use_bitmask = true;
+            s.dirty.tile_size = tsize;
             opt.set_settings(s);
         }
 
@@ -247,7 +247,7 @@ TEST_CASE("Dirty Tiles: Two distant moving objects render correctly") {
         });
 
         // Object A: top-left
-        float ax = 25.0f + static_cast<float>(ctx.frame) * 3.0f;
+        float ax = 25.0f + static_cast<float>(ctx.frame.frame) * 3.0f;
         s.circle("objA", {
             .radius = 10.0f,
             .color = Color::red(),
@@ -255,7 +255,7 @@ TEST_CASE("Dirty Tiles: Two distant moving objects render correctly") {
         });
 
         // Object B: bottom-right
-        float bx = 175.0f - static_cast<float>(ctx.frame) * 3.0f;
+        float bx = 175.0f - static_cast<float>(ctx.frame.frame) * 3.0f;
         s.circle("objB", {
             .radius = 10.0f,
             .color = Color::green(),
@@ -270,7 +270,7 @@ TEST_CASE("Dirty Tiles: Two distant moving objects render correctly") {
     {
         RenderSettings s;
         s.use_modular_graph = true;
-        s.enable_dirty_rects = false;
+        s.dirty.enabled = false;
         baseline.set_settings(s);
     }
 
@@ -278,9 +278,9 @@ TEST_CASE("Dirty Tiles: Two distant moving objects render correctly") {
     {
         RenderSettings s;
         s.use_modular_graph = true;
-        s.enable_dirty_rects = true;
-        s.enable_dirty_bitmask = true;
-        s.tile_size = 32;
+        s.dirty.enabled = true;
+        s.dirty.use_bitmask = true;
+        s.dirty.tile_size = 32;
         opt.set_settings(s);
     }
 

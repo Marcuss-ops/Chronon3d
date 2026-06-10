@@ -43,21 +43,21 @@ CacheEvalResult evaluate_cache(
         cr.node_frame_dependent = false;
     }
 
-    cr.use_cache = is_cacheable && ctx.node_cache && !cr.node_frame_dependent;
+    cr.use_cache = is_cacheable && ctx.resources.node_cache && !cr.node_frame_dependent;
     cr.is_cacheable = is_cacheable;
 
     // Always compute the key to ensure we have a valid key digest for telemetry,
     // bypassed nodes, and the downstream video conversion frame cache.
     cr.key = node.cache_key(ctx);
     cr.key.input_hash = input_hash;
-    if (ctx.tile_execution_enabled && ctx.active_tile_clip) {
-        cr.key.tile_x = ctx.active_tile_clip->x0;
-        cr.key.tile_y = ctx.active_tile_clip->y0;
-        cr.key.tile_size = ctx.tile_size > 0 ? ctx.tile_size : 0;
+    if (ctx.tile.tile_execution_enabled && ctx.tile.active_tile_clip) {
+        cr.key.tile_x = ctx.tile.active_tile_clip->x0;
+        cr.key.tile_y = ctx.tile.active_tile_clip->y0;
+        cr.key.tile_size = ctx.tile.tile_size > 0 ? ctx.tile.tile_size : 0;
     }
 
     if (cr.use_cache) {
-        cr.result = ctx.node_cache->get(cr.key);
+        cr.result = ctx.resources.node_cache->get(cr.key);
         
         if (!cr.result && policy.disk_cacheable && disk_node_cache_enabled_for_current_run()) {
             cr.result = cache::PersistentBakeCache::instance().load(cr.key);
@@ -65,38 +65,38 @@ CacheEvalResult evaluate_cache(
                 cr.result = cache::DiskNodeCache::instance().get(cr.key);
             }
             if (cr.result) {
-                ctx.node_cache->store(cr.key, cr.result);
+                ctx.resources.node_cache->store(cr.key, cr.result);
             }
         }
 
-        if (ctx.counters) {
+        if (ctx.telemetry.counters) {
             if (cr.result) {
-                ctx.counters->cache_hits.fetch_add(1, std::memory_order_relaxed);
+                ctx.telemetry.counters->cache_hits.fetch_add(1, std::memory_order_relaxed);
                 cr.cache_status = "hit";
             } else {
-                ctx.counters->cache_misses.fetch_add(1, std::memory_order_relaxed);
+                ctx.telemetry.counters->cache_misses.fetch_add(1, std::memory_order_relaxed);
                 cr.cache_status = "miss";
             }
         } else {
             cr.cache_status = cr.result ? "hit" : "miss";
         }
     } else {
-        if (!ctx.node_cache) {
+        if (!ctx.resources.node_cache) {
             cr.cache_status = "bypass_no_cache";
         } else if (!is_cacheable) {
             cr.cache_status = "bypass_not_cacheable";
-            if (ctx.counters) {
-                ctx.counters->bypass_not_cacheable_count.fetch_add(1, std::memory_order_relaxed);
+            if (ctx.telemetry.counters) {
+                ctx.telemetry.counters->bypass_not_cacheable_count.fetch_add(1, std::memory_order_relaxed);
             }
-            if (ctx.diagnostics_enabled) {
+            if (ctx.options.diagnostics_enabled) {
                 spdlog::warn("[cache-bypass] frame={} node='{}' node_id={} kind='{}' reason='not_cacheable'",
-                             static_cast<int>(ctx.frame), node.name(), node_id, to_string(node.kind()));
+                             static_cast<int>(ctx.frame.frame), node.name(), node_id, to_string(node.kind()));
             }
         } else {
             cr.cache_status = "bypass_frame_dependent";
-            if (ctx.diagnostics_enabled) {
+            if (ctx.options.diagnostics_enabled) {
                 spdlog::debug("[cache-bypass] frame={} node='{}' node_id={} kind='{}' reason='frame_dependent'",
-                              static_cast<int>(ctx.frame), node.name(), node_id, to_string(node.kind()));
+                              static_cast<int>(ctx.frame.frame), node.name(), node_id, to_string(node.kind()));
             }
         }
     }

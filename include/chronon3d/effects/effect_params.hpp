@@ -12,6 +12,7 @@
 #include <chronon3d/animation/easing/easing.hpp>
 #include <variant>
 #include <vector>
+#include <cstddef>
 
 namespace chronon3d {
 
@@ -87,6 +88,30 @@ struct Fake3DWaveParams {
     f32 shadow_blur{0.0f};
     bool expand_bounds{true};
 };
+
+// ── Precomputed Blur Ladder (for focus_in_preblurred) ────────────────────
+// Instead of computing blur per-frame, precompute N blur levels and
+// crossfade between adjacent levels during animation.
+// Cost per frame: 0 blur ops, just 2 lookups + 1 composite.
+
+struct FocusInLadderParams {
+    std::vector<f32> levels;           // blur radii in descending order, e.g. {24, 16, 12, 8, 4, 0}
+    Frame duration{45};                // animation duration in frames
+    EasingCurve easing{Easing::OutCubic};
+    bool interpolate_between_levels{true};  // smooth crossfade vs discrete snap
+    f32 scale_start{1.04f};            // subtle scale pop to compensate
+    f32 scale_end{1.0f};
+};
+
+/// Prune the static FocusInLadder blur-ladder cache to keep total memory
+/// under `max_bytes`.  Entries with the largest pixel area are evicted first
+/// (larger dimensions = later animation frames, which are less likely to be
+/// needed immediately after warmup).  Always retains at least 2 entries.
+///
+/// Call after warmup to reclaim framebuffer memory before the render loop.
+namespace renderer {
+void prune_focus_in_ladder_cache(size_t max_bytes = 180ULL * 1024ULL * 1024ULL);
+}  // namespace renderer
 
 // Type-erased variant: stores exactly one effect parameter struct, indexed by
 // EffectType.  Extraction via std::get_if<T>() is O(1) with no type_info

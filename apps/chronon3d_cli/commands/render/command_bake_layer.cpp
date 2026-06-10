@@ -31,15 +31,15 @@ int command_bake_layer(const CompositionRegistry& registry, const BakeLayerArgs&
 
     // Build the full render graph for the scene
     graph::RenderGraphContext graph_ctx;
-    graph_ctx.frame = frame;
-    graph_ctx.width = comp.width();
-    graph_ctx.height = comp.height();
-    graph_ctx.camera = comp.camera;
-    graph_ctx.backend = renderer.get();
-    graph_ctx.node_cache = &renderer->node_cache();
-    graph_ctx.framebuffer_pool = renderer->framebuffer_pool();
-    graph_ctx.counters = renderer->counters();
-    graph_ctx.registry = &registry;
+    graph_ctx.frame.frame = frame;
+    graph_ctx.frame.width = comp.width();
+    graph_ctx.frame.height = comp.height();
+    graph_ctx.camera.camera = comp.camera;
+    graph_ctx.resources.backend = renderer.get();
+    graph_ctx.resources.node_cache = &renderer->node_cache();
+    graph_ctx.resources.framebuffer_pool = renderer->framebuffer_pool();
+    graph_ctx.telemetry.counters = renderer->counters();
+    graph_ctx.resources.registry = &registry;
 
     auto graph = graph::GraphBuilder::build(scene, graph_ctx);
 

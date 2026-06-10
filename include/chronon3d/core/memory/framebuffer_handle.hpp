@@ -53,7 +53,7 @@ struct PoolFbDeleter {
     /// When true, the FB is owned permanently by the renderer (e.g., a
     /// ping-pong buffer).  The deleter does nothing — no pool release,
     /// no scratch restore, no delete.  The renderer manages lifetime
-    /// explicitly via m_ping_fb[] / clear_caches().
+    /// explicitly via RendererBufferRing::reset().
     bool owned_by_renderer{false};
     /// When set, the FB is borrowed from a TransformScratchBuffer via its
     /// RAII Handle, captured inside this std::function as a lambda.

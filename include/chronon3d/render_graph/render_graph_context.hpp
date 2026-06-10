@@ -1,5 +1,34 @@
 #pragma once
 
+// ---------------------------------------------------------------------------
+// render_graph_context.hpp
+//
+// RenderGraphContext is the per-frame state passed to every graph node and
+// the executor.  It used to be a "God object" with 30+ flat fields, so it
+// has been split into 7 sub-structs by responsibility.  The top-level
+// RenderGraphContext is now a thin composition:
+//
+//   struct RenderGraphContext {
+//       RenderFrameInfo            frame;      // frame number, time, fps, width, height
+//       RenderCameraContext        camera;     // 2D + 2.5D camera, projection, lighting
+//       RenderResourceContext      resources;  // backend, caches, pool, registry, video
+//       RenderOptimizationContext  options;    // optimization + structure-unchanged flags
+//       RenderTelemetryContext     telemetry;  // counters, profiler, telemetry vectors
+//       RenderTileContext          tile;       // tile size, clip rect, early-exit, dirty_rect
+//       RenderScratchContext       scratch;    // transform/ping scratch + reusable inputs
+//   };
+//
+// Naming notes:
+//   - The sub-struct members use the same names as the top-level struct's old
+//     fields (frame, camera, tile, etc.) so that the resulting paths read
+//     naturally:  ctx.frame.frame  (= frame number)
+//                 ctx.camera.camera (= 2D Camera)
+//                 ctx.tile.tile_size
+//     The inner `frame` / `camera` repeats are intentional — they keep the
+//     inner-field names that were already in use everywhere in the codebase
+//     and avoid a second rename wave.
+// ---------------------------------------------------------------------------
+
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/core/memory/framebuffer_handle.hpp>
 #include <chronon3d/scene/model/camera/camera.hpp>
@@ -39,24 +68,109 @@ namespace chronon3d::graph {
 class RenderBackend;
 class RenderProfiler;
 
-struct RenderGraphContext {
+// ── Per-frame immutable-ish info: frame number, time, dimensions ───────────
+struct RenderFrameInfo {
     Frame frame{0};
     float time_seconds{0.0f};
     float fps{30.0f};
     int width{0};
     int height{0};
-    Camera camera{};
+};
 
-    // 2.5D camera — populated from scene.camera_2_5d() when active.
-    Camera2_5D camera_2_5d{};
+// ── Camera + projection + lighting (everything geometry-related) ──────────
+struct RenderCameraContext {
+    Camera camera{};                                  // 2D camera
+    Camera2_5D camera_2_5d{};                         // 2.5D camera
     bool has_camera_2_5d{false};
-    renderer::ProjectionContext projection_ctx{}; // pre-built from camera_2_5d
+    renderer::ProjectionContext projection_ctx{};      // pre-built from camera_2_5d
     rendering::LightContext light_context{};
+};
 
+// ── External resources (backend, caches, pools, registries) ───────────────
+struct RenderResourceContext {
     RenderBackend* backend{nullptr};
     cache::NodeCache* node_cache{nullptr};
     std::shared_ptr<cache::FramebufferPool> framebuffer_pool;
+    const CompositionRegistry* registry{nullptr};
+    video::VideoFrameDecoder* video_decoder{nullptr};
+};
+
+// ── Optimization flags + structure-unchanged hints ───────────────────────
+struct RenderOptimizationContext {
+    bool cache_enabled{true};
+    bool diagnostics_enabled{false};
+    float ssaa_factor{1.0f};
+    bool modular_coordinates{false};
+
+    // In-place composition / dirty-rect / framebuffer reuse / skip-clear
+    bool optimize_compositing{true};
+    bool dirty_rects_enabled{false};
+    bool reuse_prev_framebuffer{false};
+    bool skip_initial_clear{false};
+
+    // Graph topology / DOF tracking hints
+    bool graph_structure_unchanged{false};
+    bool track_dof_depth{false};
+};
+
+// ── Counters, profiler, telemetry record vectors, DOF depth map ───────────
+struct RenderTelemetryContext {
+    chronon3d::RenderCounters* counters{nullptr};
+    RenderProfiler* profiler{nullptr};
+
+    std::vector<chronon3d::telemetry::NodeTelemetryRecord>  node_telemetry;
+    std::vector<chronon3d::telemetry::LayerTelemetryRecord> layer_telemetry;
+
+    // Per-pixel DOF depth tracking (mirrors options.track_dof_depth)
+    std::vector<float> dof_depth;
+};
+
+// ── Tile size, clip rects, early-exit mask, dirty-rect ────────────────────
+struct RenderTileContext {
+    int tile_size{0};
+    std::optional<raster::BBox> clip_rect;
+
+    // Tile-based execution mode (Branch 3+): when true, the executor should
+    // include tile coordinates in cache keys to prevent cross-tile staleness.
+    bool tile_execution_enabled{false};
+    std::optional<raster::BBox> active_tile_clip;
+
+    // Per-node "skip" mask (set during build, consumed by executor)
+    std::vector<bool> early_exit_skip;
+
+    // Union of all dirty bboxes for this frame.
     std::optional<raster::BBox> dirty_rect;
+};
+
+// ── Transform scratch + ping-pong write slot + reusable-inputs cache ──────
+struct RenderScratchContext {
+    // ── Transform scratch buffer ────────────────────────────────────────
+    // Persistent buffer reused by TransformNode across frames.  See
+    // SoftwareRenderer for ownership details.  Mutable because the const
+    // acquire methods need to mark the scratch as "in use" while an
+    // OwnedFB is alive; the deleter restores it when released.
+    mutable Framebuffer*  transform_scratch{nullptr};
+    mutable Framebuffer** transform_scratch_slot{nullptr};
+
+    // ── Ping-pong framebuffers ───────────────────────────────────────────
+    // See SoftwareRenderer for the ping-pong protocol.  Same mutability
+    // rationale as transform_scratch.
+    mutable Framebuffer*  ping_write_fb{nullptr};
+    mutable Framebuffer** ping_write_slot{nullptr};
+
+    // Track reusable inputs to allow in-place swap optimization during node
+    // execution.  Mutable for the same reason as the scratch pointers.
+    mutable std::vector<Framebuffer*> reusable_inputs;
+};
+
+struct RenderGraphContext {
+    RenderFrameInfo            frame{};
+    RenderCameraContext        camera{};
+    RenderResourceContext      resources{};
+    RenderOptimizationContext  options{};
+    RenderTelemetryContext     telemetry{};
+    RenderTileContext          tile{};
+    RenderScratchContext       scratch{};
 
     /// Acquire a framebuffer as an OwnedFB (unique_ptr with pool deleter).
     OwnedFB acquire_owned_fb(
@@ -74,11 +188,6 @@ struct RenderGraphContext {
     OwnedFB acquire_owned_fb(std::shared_ptr<Framebuffer>&& src) const;
 
     /// Acquire the transform scratch buffer as an OwnedFB.
-    /// If the scratch is available and large enough, returns it without
-    /// touching the pool.  The PoolFbDeleter's scratch_cleanup callback
-    /// (capturing a TransformScratchBuffer::Handle) restores the buffer
-    /// to the owner on release.
-    /// Falls back to normal pool acquire when scratch isn't available.
     OwnedFB acquire_scratch_fb(
         int w,
         int h,
@@ -101,78 +210,11 @@ struct RenderGraphContext {
     std::shared_ptr<Framebuffer> acquire_framebuffer(const Framebuffer& other) const;
 
     /// Lightweight copy for per-node execution.  Skips copying large vectors
-    /// (node_telemetry, layer_telemetry, dof_depth, early_exit_skip) that are
-    /// not read during node.execute(), reducing per-node copy overhead from
-    /// O(n) heap allocations to a handful of pointer/POD copies.
+    /// (telemetry.node_telemetry, telemetry.layer_telemetry, telemetry.dof_depth,
+    /// tile.early_exit_skip) that are not read during node.execute(),
+    /// reducing per-node copy overhead from O(n) heap allocations to a
+    /// handful of pointer/POD copies.
     RenderGraphContext clone_for_node_execution() const;
-
-    RenderProfiler* profiler{nullptr};
-    const CompositionRegistry* registry{nullptr};
-    video::VideoFrameDecoder* video_decoder{nullptr};
-
-    chronon3d::RenderCounters* counters{nullptr};
-
-    bool cache_enabled{true};
-    bool diagnostics_enabled{false};
-    float ssaa_factor{1.0f};
-    bool modular_coordinates{false};
-
-    // Tiling and clipping
-    int tile_size{0};
-    std::optional<raster::BBox> clip_rect;
-
-    // Tile-based execution mode (Branch 3+): when true, the executor should
-    // include tile coordinates in cache keys to prevent cross-tile staleness.
-    bool tile_execution_enabled{false};
-    std::optional<raster::BBox> active_tile_clip;
-
-    // Optimization flags
-    bool optimize_compositing{true};
-    bool dirty_rects_enabled{false};
-    bool reuse_prev_framebuffer{false};
-    bool skip_initial_clear{false};
-
-    // ── Early-exit optimization
-    std::vector<bool> early_exit_skip;
-
-    // ── Graph structure unchanged hint
-    bool graph_structure_unchanged{false};
-
-    // ── Transform scratch buffer ────────────────────────────────────────
-    // Persistent buffer reused by TransformNode across frames.
-    // When set, TransformNode::execute() uses this buffer instead of
-    // acquire_owned_fb(), eliminating pool bucket misses caused by
-    // frame-to-frame size variation in animated transforms.
-    // The buffer is owned by a TransformScratchBuffer (on SoftwareRenderer);
-    // acquire_scratch_fb() borrows it via acquire_handle() and the
-    // PoolFbDeleter's scratch_cleanup callback restores it to the owner
-    // on release.  No raw-pointer slot dance needed.
-    // Mutable because acquire_scratch_fb() is const but needs to borrow.
-    mutable chronon3d::TransformScratchBuffer* transform_scratch_owner{nullptr};
-
-    // ── Ping-pong framebuffers ───────────────────────────────────────────
-    // Two persistent framebuffers alternated each frame so ClearNode
-    // always has an exclusive buffer to write into (no COW detach needed).
-    // ping_write_fb is the current frame's target (exclusive), while
-    // m_prev_framebuffer (on SoftwareRenderer) wraps the previous frame's
-    // output for preserved-content reads.  Set by scene.cpp before graph
-    // execution; the PoolFbDeleter's scratch_slot restores the buffer to
-    // ping_write_slot when released.
-    // Mutable for the same reason as transform_scratch — the const
-    // acquire methods need to mark the ping as "in use" (set to nullptr).
-    mutable Framebuffer* ping_write_fb{nullptr};
-    mutable Framebuffer** ping_write_slot{nullptr};
-
-    // ── Per-node / per-layer telemetry collectors
-    std::vector<chronon3d::telemetry::NodeTelemetryRecord> node_telemetry;
-    std::vector<chronon3d::telemetry::LayerTelemetryRecord> layer_telemetry;
-
-    // ── Per-pixel DOF depth tracking
-    bool                      track_dof_depth{false};
-    std::vector<float>        dof_depth;
-
-    // Track reusable inputs to allow in-place swap optimization during node execution
-    mutable std::vector<Framebuffer*> reusable_inputs;
 };
 
 } // namespace chronon3d::graph

@@ -51,6 +51,8 @@ add_executable(chronon3d_core_tests
     media/test_media_placement.cpp
     scene_presets/test_scene_presets.cpp
     extension/test_extension_loader.cpp
+    extension/test_extension_loader_failure_modes.cpp
+    extension/test_extension_loader_abi_contract.cpp
     extension/test_extension_registry.cpp
     extension/test_graph_node_registry.cpp
     architecture/test_protected_core_contracts.cpp
@@ -81,7 +83,58 @@ endif()
 target_compile_definitions(chronon3d_core_tests PRIVATE
     CMAKE_CURRENT_BINARY_DIR="${CMAKE_CURRENT_BINARY_DIR}"
 )
-add_dependencies(chronon3d_core_tests chronon3d_test_plugin)
+# Additional test plugins for failure mode / ABI tests
+add_library(chronon3d_test_plugin_mismatch MODULE
+    extension/test_plugin_mismatch.cpp
+)
+target_include_directories(chronon3d_test_plugin_mismatch PRIVATE ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/deps/include)
+target_link_libraries(chronon3d_test_plugin_mismatch PRIVATE chronon3d_extension)
+set_target_properties(chronon3d_test_plugin_mismatch PROPERTIES
+    SKIP_PRECOMPILE_HEADERS ON
+)
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+    set_target_properties(chronon3d_test_plugin_mismatch PROPERTIES
+        LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/plugins"
+        BUILD_RPATH ""
+    )
+endif()
+
+add_library(chronon3d_test_plugin_no_symbol MODULE
+    extension/test_plugin_no_symbol.cpp
+)
+target_include_directories(chronon3d_test_plugin_no_symbol PRIVATE ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/deps/include)
+target_link_libraries(chronon3d_test_plugin_no_symbol PRIVATE chronon3d_extension)
+set_target_properties(chronon3d_test_plugin_no_symbol PROPERTIES
+    SKIP_PRECOMPILE_HEADERS ON
+)
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+    set_target_properties(chronon3d_test_plugin_no_symbol PROPERTIES
+        LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/plugins"
+        BUILD_RPATH ""
+    )
+endif()
+
+add_library(chronon3d_test_plugin_throws MODULE
+    extension/test_plugin_throws.cpp
+)
+target_include_directories(chronon3d_test_plugin_throws PRIVATE ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/deps/include)
+target_link_libraries(chronon3d_test_plugin_throws PRIVATE chronon3d_extension)
+set_target_properties(chronon3d_test_plugin_throws PROPERTIES
+    SKIP_PRECOMPILE_HEADERS ON
+)
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+    set_target_properties(chronon3d_test_plugin_throws PROPERTIES
+        LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/plugins"
+        BUILD_RPATH ""
+    )
+endif()
+
+add_dependencies(chronon3d_core_tests
+    chronon3d_test_plugin
+    chronon3d_test_plugin_mismatch
+    chronon3d_test_plugin_no_symbol
+    chronon3d_test_plugin_throws
+)
 target_include_directories(chronon3d_core_tests PRIVATE ${CMAKE_SOURCE_DIR})
 chronon3d_enable_test_pch(chronon3d_core_tests)
 add_test(NAME chronon3d_core_tests COMMAND chronon3d_core_tests WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})

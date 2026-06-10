@@ -355,7 +355,7 @@ TEST_CASE("GraphHealth: dirty rects on and off render identically") {
             });
         });
 
-        const float x = 40.0f + static_cast<float>(ctx.frame) * 20.0f;
+        const float x = 40.0f + static_cast<float>(ctx.frame.frame) * 20.0f;
         s.layer("moving", [&](LayerBuilder& l) {
             l.position({x - 40.0f, 0.0f, 0.0f});
             l.circle("ball", {

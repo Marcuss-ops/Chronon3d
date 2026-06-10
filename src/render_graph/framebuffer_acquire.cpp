@@ -18,8 +18,8 @@ OwnedFB RenderGraphContext::acquire_owned_fb(
     std::atomic<uint64_t>* specific_clear_ms
 ) const {
     OwnedFB fb;
-    if (framebuffer_pool) {
-        fb = framebuffer_pool->acquire_owned(w, h, clear);
+    if (resources.framebuffer_pool) {
+        fb = resources.framebuffer_pool->acquire_owned(w, h, clear);
     } else {
         fb = OwnedFB(new Framebuffer(w, h), PoolFbDeleter{nullptr});
         if (clear) fb->clear(Color::transparent());
@@ -29,10 +29,10 @@ OwnedFB RenderGraphContext::acquire_owned_fb(
     } else {
         fb->set_origin(0, 0);
     }
-    if (clear && counters) {
-        counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
+    if (clear && telemetry.counters) {
+        telemetry.counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
         const uint64_t pixels = static_cast<uint64_t>(w) * static_cast<uint64_t>(h);
-        counters->clear_pixels.fetch_add(pixels, std::memory_order_relaxed);
+        telemetry.counters->clear_pixels.fetch_add(pixels, std::memory_order_relaxed);
     }
     (void)specific_clear_ms;
     return fb;
@@ -45,51 +45,33 @@ OwnedFB RenderGraphContext::acquire_scratch_fb(
     std::optional<raster::BBox> bounds
 ) const {
     // Use scratch buffer when available and large enough.
-    if (transform_scratch_owner &&
-        transform_scratch_owner->is_allocated()) {
-        // Through a raw pointer member in a const method, the pointed-to
-        // object is still non-const (C++ only const-qualifies the pointer
-        // value, not the pointed-to type).  No const_cast needed.
-        auto handle = transform_scratch_owner->acquire_handle();
-        auto* scratch = handle.get();
-        if (!scratch ||
-            scratch->allocated_width() < w ||
-            scratch->allocated_height() < h) {
-            // Handle goes out of scope here, restoring FB to scratch buffer.
-            return acquire_owned_fb(w, h, clear, bounds);
-        }
-        scratch->resize_logical(w, h);
+    if (scratch.transform_scratch &&
+        scratch.transform_scratch->allocated_width() >= w &&
+        scratch.transform_scratch->allocated_height() >= h) {
+        auto* sc = scratch.transform_scratch;
+        sc->resize_logical(w, h);
         if (bounds) {
-            scratch->set_origin(bounds->x0, bounds->y0);
+            sc->set_origin(bounds->x0, bounds->y0);
         } else {
-            scratch->set_origin(0, 0);
+            sc->set_origin(0, 0);
         }
         if (clear) {
-            scratch->clear(Color::transparent());
+            sc->clear(Color::transparent());
         }
-        // Borrow the scratch via RAII Handle.  Wrap in shared_ptr so the
-        // lambda is copyable (std::function requires copyable callables).
-        // When scratch_cleanup is called/cleared, the shared_ptr is reset
-        // and the Handle destructor restores the FB to the scratch buffer.
-        auto handle_shared = std::make_shared<TransformScratchBuffer::Handle>(
-            std::move(handle));
+        // Mark the scratch as in-use — deleter will restore it.
+        scratch.transform_scratch = nullptr;
         PoolFbDeleter deleter;
-        // Lambda captures the shared_ptr by copy (copyable for std::function).
-        // The Handle is released naturally when the lambda is destroyed
-        // (after PoolFbDeleter is destroyed in the OwnedFB deleter path).
-        deleter.scratch_cleanup = [handle_shared]() mutable {
-            (void)handle_shared; // keep alive until std::function is destroyed
-        };
-        return OwnedFB(scratch, std::move(deleter));
+        deleter.scratch_slot = scratch.transform_scratch_slot;
+        return OwnedFB(sc, std::move(deleter));
     }
     // Fall back to normal pool acquire.
     return acquire_owned_fb(w, h, clear, bounds);
 }
 
 OwnedFB RenderGraphContext::acquire_owned_fb(const Framebuffer& other) const {
-    auto it = std::find(reusable_inputs.begin(), reusable_inputs.end(), const_cast<Framebuffer*>(&other));
-    if (it != reusable_inputs.end()) {
-        reusable_inputs.erase(it);
+    auto it = std::find(scratch.reusable_inputs.begin(), scratch.reusable_inputs.end(), const_cast<Framebuffer*>(&other));
+    if (it != scratch.reusable_inputs.end()) {
+        scratch.reusable_inputs.erase(it);
         OwnedFB fb = acquire_owned_fb(other.width(), other.height(), false);
         fb->set_origin(other.origin_x(), other.origin_y());
         fb->swap_contents(*const_cast<Framebuffer*>(&other));
@@ -110,11 +92,11 @@ OwnedFB RenderGraphContext::acquire_owned_fb(const Framebuffer& other) const {
                 src_base + y * other.stride(), other.width(),
                 dst_base + y * fb->stride());
         }
-        if (counters) {
+        if (telemetry.counters) {
             const auto elapsed = static_cast<uint64_t>(
                 std::chrono::duration<double, std::milli>(
                     std::chrono::high_resolution_clock::now() - t0).count());
-            counters->framebuffer_copy_ms.fetch_add(elapsed, std::memory_order_relaxed);
+            telemetry.counters->framebuffer_copy_ms.fetch_add(elapsed, std::memory_order_relaxed);
         }
     }
     fb->set_opaque(other.is_opaque());
@@ -156,11 +138,11 @@ std::shared_ptr<Framebuffer> RenderGraphContext::acquire_framebuffer(
             return std::nullopt;
         }
 
-        if (!dirty_rects_enabled) {
+        if (!options.dirty_rects_enabled) {
             return std::nullopt;
         }
 
-        std::optional<raster::BBox> local_clip = clip_rect;
+        std::optional<raster::BBox> local_clip = tile.clip_rect;
         if (local_clip) {
             local_clip->x0 -= fb.origin_x();
             local_clip->x1 -= fb.origin_x();
@@ -172,8 +154,8 @@ std::shared_ptr<Framebuffer> RenderGraphContext::acquire_framebuffer(
         return local_clip;
     };
 
-    if (framebuffer_pool) {
-        auto fb = framebuffer_pool->acquire_pooled(w, h, framebuffer_pool, false);
+    if (resources.framebuffer_pool) {
+        auto fb = resources.framebuffer_pool->acquire_pooled(w, h, resources.framebuffer_pool, false);
         if (bounds) {
             fb->set_origin(bounds->x0, bounds->y0);
         } else {
@@ -184,19 +166,19 @@ std::shared_ptr<Framebuffer> RenderGraphContext::acquire_framebuffer(
             const auto t_clr0 = std::chrono::high_resolution_clock::now();
             fb->clear(Color::transparent(), local_clip);
             const auto t_clr1 = std::chrono::high_resolution_clock::now();
-            if (counters) {
+            if (telemetry.counters) {
                 const auto elapsed = static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t_clr1 - t_clr0).count());
-                counters->framebuffer_clear_ms.fetch_add(elapsed, std::memory_order_relaxed);
+                telemetry.counters->framebuffer_clear_ms.fetch_add(elapsed, std::memory_order_relaxed);
                 if (specific_clear_ms) {
                     specific_clear_ms->fetch_add(elapsed, std::memory_order_relaxed);
                 }
                 
-                counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
+                telemetry.counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
                 const uint64_t pixels = local_clip
                     ? static_cast<uint64_t>(std::max(0, local_clip->x1 - local_clip->x0)) *
                       static_cast<uint64_t>(std::max(0, local_clip->y1 - local_clip->y0))
                     : static_cast<uint64_t>(w) * static_cast<uint64_t>(h);
-                counters->clear_pixels.fetch_add(pixels, std::memory_order_relaxed);
+                telemetry.counters->clear_pixels.fetch_add(pixels, std::memory_order_relaxed);
             }
         }
         return fb;
@@ -208,13 +190,13 @@ std::shared_ptr<Framebuffer> RenderGraphContext::acquire_framebuffer(
     if (clear) {
         const auto local_clip = resolve_clear_clip(*fb);
         fb->clear(Color::transparent(), local_clip);
-        if (counters) {
-            counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
+        if (telemetry.counters) {
+            telemetry.counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
             const uint64_t pixels = local_clip
                 ? static_cast<uint64_t>(std::max(0, local_clip->x1 - local_clip->x0)) *
                   static_cast<uint64_t>(std::max(0, local_clip->y1 - local_clip->y0))
                 : static_cast<uint64_t>(w) * static_cast<uint64_t>(h);
-            counters->clear_pixels.fetch_add(pixels, std::memory_order_relaxed);
+            telemetry.counters->clear_pixels.fetch_add(pixels, std::memory_order_relaxed);
         }
     }
     return fb;
@@ -235,11 +217,11 @@ std::shared_ptr<Framebuffer> RenderGraphContext::acquire_framebuffer(const Frame
                 src_base + y * other.stride(), other.width(),
                 dst_base + y * fb->stride());
         }
-        if (counters) {
+        if (telemetry.counters) {
             const auto elapsed = static_cast<uint64_t>(
                 std::chrono::duration<double, std::milli>(
                     std::chrono::high_resolution_clock::now() - t0).count());
-            counters->framebuffer_copy_ms.fetch_add(elapsed, std::memory_order_relaxed);
+            telemetry.counters->framebuffer_copy_ms.fetch_add(elapsed, std::memory_order_relaxed);
         }
     }
     fb->set_opaque(other.is_opaque());
@@ -250,50 +232,30 @@ std::shared_ptr<Framebuffer> RenderGraphContext::acquire_framebuffer(const Frame
 
 RenderGraphContext RenderGraphContext::clone_for_node_execution() const {
     RenderGraphContext copy;
-    // ── POD / pointer fields (cheap — memcpy-grade) ─────────────────────
-    copy.frame              = frame;
-    copy.time_seconds       = time_seconds;
-    copy.fps                = fps;
-    copy.width              = width;
-    copy.height             = height;
-    copy.camera             = camera;
-    copy.camera_2_5d        = camera_2_5d;
-    copy.has_camera_2_5d    = has_camera_2_5d;
-    copy.projection_ctx     = projection_ctx;
-    copy.light_context      = light_context;
-    copy.backend            = backend;
-    copy.node_cache         = node_cache;
-    copy.framebuffer_pool   = framebuffer_pool;   // shared_ptr — cheap refcount bump
-    copy.dirty_rect         = dirty_rect;
-    copy.profiler           = profiler;
-    copy.registry           = registry;
-    copy.video_decoder      = video_decoder;
-    copy.counters           = counters;
-    copy.cache_enabled      = cache_enabled;
-    copy.diagnostics_enabled = diagnostics_enabled;
-    copy.ssaa_factor        = ssaa_factor;
-    copy.modular_coordinates = modular_coordinates;
-    copy.tile_size          = tile_size;
-    copy.clip_rect          = clip_rect;
-    copy.tile_execution_enabled = tile_execution_enabled;
-    copy.active_tile_clip   = active_tile_clip;
-    copy.optimize_compositing = optimize_compositing;
-    copy.dirty_rects_enabled = dirty_rects_enabled;
-    copy.reuse_prev_framebuffer = reuse_prev_framebuffer;
-    copy.skip_initial_clear = skip_initial_clear;
-    copy.graph_structure_unchanged = graph_structure_unchanged;
-    copy.track_dof_depth    = track_dof_depth;
-    copy.transform_scratch_owner = transform_scratch_owner;
-    copy.ping_write_fb          = ping_write_fb;
-    copy.ping_write_slot        = ping_write_slot;
+    // ── Sub-struct copies (cheap — POD + shared_ptr) ───────────────────
+    copy.frame                      = frame;
+    copy.camera                     = camera;
+    copy.resources                  = resources;
+    copy.options                    = options;
+    copy.telemetry.counters         = telemetry.counters;
+    copy.telemetry.profiler         = telemetry.profiler;
+    copy.tile.dirty_rect            = tile.dirty_rect;
+    copy.tile.clip_rect             = tile.clip_rect;
+    copy.tile.tile_size             = tile.tile_size;
+    copy.tile.tile_execution_enabled = tile.tile_execution_enabled;
+    copy.tile.active_tile_clip      = tile.active_tile_clip;
+    copy.scratch.transform_scratch      = scratch.transform_scratch;
+    copy.scratch.transform_scratch_slot = scratch.transform_scratch_slot;
+    copy.scratch.ping_write_fb          = scratch.ping_write_fb;
+    copy.scratch.ping_write_slot        = scratch.ping_write_slot;
 
     // ── Vectors — selectively copy only what node.execute() may read ────
     // • early_exit_skip:  checked against the *parent* ctx before the copy
     // • node_telemetry / layer_telemetry: written via global telemetry
     //   paths, never read during node.execute()
     // • dof_depth: only needed when DOF tracking is active (~8 MB @ 1080p)
-    if (track_dof_depth && !dof_depth.empty()) {
-        copy.dof_depth = dof_depth;
+    if (options.track_dof_depth && !telemetry.dof_depth.empty()) {
+        copy.telemetry.dof_depth = telemetry.dof_depth;
     }
     // reusable_inputs starts empty — populated per-node after the clone.
 

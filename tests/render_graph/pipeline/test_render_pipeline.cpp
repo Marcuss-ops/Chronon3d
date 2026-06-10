@@ -120,7 +120,7 @@ TEST_CASE("render_graph_uses_framebuffer_pool") {
     renderer.set_image_backend(std::make_shared<image::StbImageBackend>());
     
     RenderSettings settings = renderer.settings();
-    settings.enable_dirty_rects = false;
+    settings.dirty.enabled = false;
     renderer.set_settings(settings);
 
     Camera camera;
@@ -147,7 +147,7 @@ TEST_CASE("render_graph_uses_framebuffer_pool") {
     auto reuses_after_second = renderer.counters()->framebuffer_reuses.load();
 
     // With the static fast-path, second frame may skip graph execution
-    // entirely (returning m_prev_framebuffer). Either way the output is
+    // entirely (returning buffer_ring().prev_framebuffer()). Either way the output is
     // correct — the pool is used if the graph executes, otherwise the
     // static fast-path avoids the pool entirely (even better).
     // Accept either: pool reuse increased, or remains the same because

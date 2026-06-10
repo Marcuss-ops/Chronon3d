@@ -116,13 +116,17 @@ TEST_CASE("framebuffer_pool_reuses_after_release") {
     // After release, the buffer should be counted as returned to the pool
     REQUIRE(counters.framebuffer_buffer_returned_to_pool_count.load() >= 1);
     REQUIRE(counters.framebuffer_reuses.load() == 0);
+    // First acquire was a fresh allocation (pool empty) → empty_alloc, not exact_hit
+    REQUIRE(counters.framebuffer_pool_empty_alloc.load() >= 1);
+    REQUIRE(counters.framebuffer_pool_exact_hit.load() == 0);
 
     {
         auto b = pool->acquire_pooled(1920, 1080, pool);
     }
-    // Second acquire should have reused the released framebuffer
+    // Second acquire should have reused the released framebuffer (exact hit)
     REQUIRE(counters.framebuffer_reuses.load() >= 1);
     REQUIRE(counters.framebuffer_buffer_returned_to_pool_count.load() >= 2);
+    REQUIRE(counters.framebuffer_pool_exact_hit.load() >= 1);
 
     profiling::g_current_counters = nullptr;
 }
