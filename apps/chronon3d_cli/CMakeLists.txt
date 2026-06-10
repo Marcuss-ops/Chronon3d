@@ -145,38 +145,11 @@ if(CLI11_INCLUDE_DIRS)
     target_include_directories(chronon3d_cli PRIVATE ${CLI11_INCLUDE_DIRS})
 endif()
 
-# Optional content linking (proofs/demos)
+# Optional content linking (proofs/demos) — single registry target
 if(CHRONON3D_BUILD_CONTENT)
-    if(TARGET chronon3d_content_text)
-        target_link_libraries(chronon3d_cli PRIVATE $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_content_text>)
+    if(TARGET chronon3d_content_registry)
+        target_link_libraries(chronon3d_cli PRIVATE chronon3d_content_registry)
     endif()
-    if(TARGET chronon3d_content_shapes)
-        target_link_libraries(chronon3d_cli PRIVATE $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_content_shapes>)
-    endif()
-    if(TARGET chronon3d_content_images)
-        target_link_libraries(chronon3d_cli PRIVATE $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_content_images>)
-    endif()
-    if(TARGET chronon3d_content_anims)
-        target_link_libraries(chronon3d_cli PRIVATE $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_content_anims>)
-    endif()
-    if(TARGET chronon3d_content_effects)
-        target_link_libraries(chronon3d_cli PRIVATE $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_content_effects>)
-    endif()
-    if(TARGET chronon3d_content_2d5)
-        target_link_libraries(chronon3d_cli PRIVATE $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_content_2d5>)
-    endif()
-    if(TARGET chronon3d_content_grid)
-        target_link_libraries(chronon3d_cli PRIVATE $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_content_grid>)
-    endif()
-    # Content modules registration — compile directly to avoid transitive link order issues
-    target_sources(chronon3d_cli PRIVATE
-        ${CMAKE_SOURCE_DIR}/content/register_content_modules.cpp
-        ${CMAKE_SOURCE_DIR}/content/register_minimalist_content.cpp
-        ${CMAKE_SOURCE_DIR}/content/register_text_content.cpp
-        ${CMAKE_SOURCE_DIR}/content/register_2d5_content.cpp
-        ${CMAKE_SOURCE_DIR}/content/register_images_content.cpp
-    )
-    target_include_directories(chronon3d_cli PRIVATE ${CMAKE_SOURCE_DIR})
     target_compile_definitions(chronon3d_cli PRIVATE CHRONON3D_BUILD_CONTENT)
 endif()
 

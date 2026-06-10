@@ -45,7 +45,7 @@ DirtyRectOutput compute_dirty_rect(
                           sw_renderer->buffer_ring().prev_framebuffer() &&
                           sw_renderer->buffer_ring().prev_framebuffer()->width() == width &&
                           sw_renderer->buffer_ring().prev_framebuffer()->height() == height &&
-                          sw_renderer->m_prev_frame == frame - 1;
+                          sw_renderer->frame_history().prev_frame == frame - 1;
 
     if (!out.use_dirty_rects) {
         out.dirty_rect = raster::BBox{0, 0, width, height};
@@ -66,7 +66,7 @@ DirtyRectOutput compute_dirty_rect(
     {
         CHRONON_ZONE_C("dirty_rect_compute", trace_category::kFrame);
 
-        const bool cam_changed = camera_changed(cam25d, &sw_renderer->m_prev_camera, sw_renderer->m_prev_camera_valid);
+        const bool cam_changed = camera_changed(cam25d, &sw_renderer->frame_history().prev_camera, sw_renderer->frame_history().prev_camera_valid);
 
         raster::BBox union_dirty{0, 0, 0, 0};
         bool has_dirty = false;
@@ -138,15 +138,15 @@ DirtyRectOutput compute_dirty_rect(
         // Diff current against previous
         for (const auto& pair : out.layer_bboxes) {
             const auto& curr = pair.second;
-            auto prev_it = sw_renderer->m_prev_layer_bboxes.find(pair.first);
+            auto prev_it = sw_renderer->layer_history().prev_layer_bboxes.find(pair.first);
             add_layer_dirty(
                 curr,
-                prev_it == sw_renderer->m_prev_layer_bboxes.end() ? nullptr : &prev_it->second
+                prev_it == sw_renderer->layer_history().prev_layer_bboxes.end() ? nullptr : &prev_it->second
             );
         }
 
         // Layers removed since previous frame
-        for (const auto& pair : sw_renderer->m_prev_layer_bboxes) {
+        for (const auto& pair : sw_renderer->layer_history().prev_layer_bboxes) {
             if (out.layer_bboxes.find(pair.first) == out.layer_bboxes.end()) {
                 add_dirty_bbox(pair.second.bbox);
             }

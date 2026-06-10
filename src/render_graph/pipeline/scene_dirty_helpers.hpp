@@ -37,16 +37,16 @@ namespace chronon3d::graph::detail {
     i32 width,
     i32 height
 ) {
-    if (!sw_renderer->m_prev_camera_valid || !sw_renderer->m_prev_camera.enabled || !cam25d.enabled) {
+    if (!sw_renderer->frame_history().prev_camera_valid || !sw_renderer->frame_history().prev_camera.enabled || !cam25d.enabled) {
         return std::nullopt;
     }
 
     const Vec3& cp = cam25d.position;
-    const Vec3& pp = sw_renderer->m_prev_camera.position;
+    const Vec3& pp = sw_renderer->frame_history().prev_camera.position;
     Vec3 camera_delta = cp - pp;
 
     const bool camera_params_compatible =
-        std::abs(sw_renderer->m_prev_camera.zoom - cam25d.zoom) < 1e-3f;
+        std::abs(sw_renderer->frame_history().prev_camera.zoom - cam25d.zoom) < 1e-3f;
 
     if (!camera_params_compatible || std::abs(camera_delta.z) >= 1e-3f) {
         return std::nullopt;

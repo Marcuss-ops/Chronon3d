@@ -134,7 +134,7 @@ inline Composition make_typewriter(
     return composition({.name = std::move(name), .width = canvas_width, .height = canvas_height, .duration = duration_frames}, 
         [lines = std::move(lines), preset, glow, bg, duration_frames, camera_zoom, canvas_width, canvas_height, camera_fn = std::move(camera_fn), opacity_fn](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        const f32 p = std::clamp(static_cast<f32>(ctx.frame.frame) / static_cast<f32>(std::max<Frame>(duration_frames, 1)), 0.0f, 1.0f);
+        const f32 p = std::clamp(static_cast<f32>(ctx.frame) / static_cast<f32>(std::max<Frame>(duration_frames, 1)), 0.0f, 1.0f);
         // Camera disabled for 2D text-only compositions — using default ortho
         // (no camera setup means layers render at 1:1 pixel mapping)
         // if (camera_fn) {
@@ -158,12 +158,12 @@ inline Composition make_typewriter(
         // Text layers — direct l.text() instead of MotionObject pipeline
         for (size_t i = 0; i < lines.size(); ++i) {
             const auto& line = lines[i];
-            std::string revealed = line.reveal(ctx.frame.frame);
+            std::string revealed = line.reveal(ctx.frame);
             if (revealed.empty()) continue;
 
-            f32 opacity = opacity_fn(ctx.frame.frame, duration_frames);
+            f32 opacity = opacity_fn(ctx.frame, duration_frames);
 
-            s.layer("tw_" + std::to_string(i), [i, &line, revealed = std::move(revealed), opacity, frame = ctx.frame.frame, glow](auto& l) {
+            s.layer("tw_" + std::to_string(i), [i, &line, revealed = std::move(revealed), opacity, frame = ctx.frame, glow](auto& l) {
                 l.pin_to(Anchor::Center)
                  .position(line.pos + line.sweep_val.offset(frame, line.start_frame))
                  .opacity(opacity);
@@ -180,7 +180,7 @@ inline Composition make_typewriter(
                 });
 
                 if (glow) {
-                    l.glow(8.0f, 0.6f, Color{0.6f, 0.7f, 1.0f, 0.7f});
+                    l.glow(GlowParams{.radius = 8.0f, .intensity = 0.6f, .color = {0.6f, 0.7f, 1.0f, 0.7f}});
                 }
             });
         }

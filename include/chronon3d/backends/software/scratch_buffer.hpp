@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/core/memory/framebuffer.hpp>
+#include <chronon3d/core/memory/framebuffer_slot_view.hpp>
 
 namespace chronon3d {
 
@@ -31,6 +32,14 @@ public:
     /// Address-of the scratch slot pointer, so the deleter can store
     /// the cleared FB back into it.
     [[nodiscard]] Framebuffer** slot() noexcept { return &m_scratch; }
+
+    /// Convenience: ensure_size + return a FramebufferSlotView bundling
+    /// both the scratch FB and its restore slot, for wiring into
+    /// RenderScratchContext.
+    [[nodiscard]] graph::FramebufferSlotView slot_view(int width, int height) {
+        Framebuffer* fb_ptr = ensure_size(width, height);
+        return {fb_ptr, slot()};
+    }
 
     /// Deallocate the scratch.
     void reset();

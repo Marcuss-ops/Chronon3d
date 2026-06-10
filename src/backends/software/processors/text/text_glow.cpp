@@ -1,34 +1,20 @@
 // ---------------------------------------------------------------------------
 // text_glow.cpp — Text glow effect implementation
 //
-// Relationship to the unified pipeline
-// -------------------------------------
-// The codebase now has a unified `GlowPipeline` (see effects/glow_pipeline.hpp)
-// that powers the Framebuffer-based `apply_glow_effect` and
-// `apply_bloom_effect` paths.  This file is the *complementary* fast path for
-// text: it uses Blend2D's BLImage buffers and SRC_IN colourisation because
-// text glow is glyph-bound (padding ≤ 1.2 × radius) and is rebuilt many
-// times per frame, so a pure-Framebuffer conversion would pay a per-call
-// allocation cost that the BLImage path amortises away.
+// Unified glow pipeline (Item 17)
+// -------------------------------
+// Text glow now delegates to the shared `GlowPipeline::render()` entry point
+// (effects/glow_pipeline.hpp) instead of running its own BLImage-based
+// blur/colourise/accumulate loop.  The text-specific step — building a
+// padded white alpha mask from the rasterised glyphs — remains here.
 //
-// Conceptually the four steps below are the same as `run_layer_mode` in
-// glow_pipeline.cpp:
-//
-//   1. Extract white alpha mask from raster text into a PADDED buffer (so the
-//      blur does not clip at the bounding-box edge — the #1 cause of the
-//      “rectangular glow” look).  Same 16/255 alpha floor as the Framebuffer
-//      path; the same threshold rationale.
-//   2. Generate three concentric blur passes on the alpha mask only
-//      (inner / mid / outer) — using only the alpha channel avoids the muddy
-//      grey halo that results from blurring RGB+alpha together.
-//   3. Colorise each pass, shifting outer layers toward blue-cyan for a
-//      luminous depth effect.
-//   4. Accumulate additively and composite with BlendMode::Add.
-//
-// Counter aliases: this file bumps BOTH the legacy `text_glow_cache_hits/
-// misses` and the unified `glow_cache_hits/misses` so dashboards that want
-// "all glow cache activity" can read the unified name without losing the
-// fine-grained text-specific signal.
+// Pipeline:
+//   1. Build padded white alpha mask from text raster (BLImage)
+//   2. Convert alpha mask to a Framebuffer
+//   3. Call GlowPipeline::render() with source_is_alpha_mask = true
+//   4. Convert result back to BLImage for compositing (preserving the
+//      Blend2D-based composite path with affine transform support)
+//   5. Cache the result as BLImage (same cache as before)
 // ---------------------------------------------------------------------------
 
 #include "text_effects.hpp"
@@ -38,6 +24,8 @@
 #include <chronon3d/backends/text/text_rasterizer_utils.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
+#include <chronon3d/effects/glow_pipeline.hpp>
+#include <chronon3d/render_graph/render_graph_context.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <array>
 #include <cmath>
@@ -45,41 +33,6 @@
 namespace chronon3d::renderer {
 
 namespace {
-
-// ── Multi-layer glow descriptor ──────────────────────────────────────
-// Each layer defines a structural shape: blur-radius fraction and a colour
-// shift toward blue-cyan for optical depth.  Per-layer INTENSITY is NOT
-// baked in here: it comes from node.glow.core_strength / aura_strength /
-// bloom_strength (set by the MotionObject preset), so the preset's
-// per-layer tuning actually reaches the renderer.  Previously these
-// fields were ignored by the text glow path, and intensities were
-// hardcoded (0.25/0.12/0.05), which made the preset tuning dead code.
-struct GlowLayer {
-    float radius_scale;    // fraction of the base radius
-    float color_shift;     // 0 = glow color, 1 = shifted toward blue-cyan
-};
-
-// Layer shape configuration — inner tight, mid medium, outer wide & soft.
-// The text sharp layer on top provides the core brightness; the glow
-// layers below should feel like atmospheric light, not a coloured halo.
-static constexpr std::array<GlowLayer, 3> kGlowLayers{{
-    {0.10f, 0.00f},  // inner — tight (radius × 0.10)
-    {0.35f, 0.30f},  // mid   — medium spread
-    {1.00f, 0.60f},  // outer — wide falloff
-}};
-
-/// Apply a colour shift toward blue-cyan for outer glow layers.
-[[nodiscard]] static inline Color shift_glow_color(const Color& base, float shift) {
-    if (shift <= 0.0f) return base;
-    // Blend toward a cool blue-cyan: {0.20, 0.55, 1.0}
-    const Color cool_blue{0.20f, 0.55f, 1.0f, 1.0f};
-    return Color{
-        base.r + (cool_blue.r - base.r) * shift,
-        base.g + (cool_blue.g - base.g) * shift,
-        base.b + (cool_blue.b - base.b) * shift,
-        base.a
-    };
-}
 
 /// Build the padded white alpha mask from the rasterised text.
 /// Returns (mask_image, padding) — the mask is larger than the raster by
@@ -112,32 +65,25 @@ struct PaddedMask {
     ctx.blitImage(BLPoint(pad, pad), raster_img);
 
     // Convert to white-on-transparent via SRC_IN with white.
-    // This extracts only the alpha channel of the raster and sets RGB = (1,1,1),
-    // so the blur operates on a pure-alpha signal with no colour contamination.
+    // This extracts only the alpha channel of the raster and sets RGB = (1,1,1).
     ctx.setCompOp(BL_COMP_OP_SRC_IN);
     ctx.setFillStyle(BLRgba32(255, 255, 255, 255));
     ctx.fillAll();
     ctx.end();
 
     // ── Alpha threshold ──────────────────────────────────────────────
-    // Eliminate any sub-pixel alpha noise in the padding area outside
-    // the glyphs.  Text rasterisers sometimes leave a faint alpha glow
-    // (~1-3/255) around glyph bounding boxes, which the blur would
-    // amplify into a rectangular fog.  Clamping to zero below 16/255
-    // removes this without affecting legitimate anti-aliased edges
-    // (which are typically ≥ 32/255 at the glyph boundary).
+    // Eliminate sub-pixel alpha noise (< 16/255) around glyph bounding boxes
+    // which the blur would amplify into a rectangular fog.
     {
         BLImageData md;
         if (mask.getData(&md) == BL_SUCCESS && md.pixelData) {
             const int stride = static_cast<int>(md.stride / sizeof(uint32_t));
             auto* px = static_cast<uint32_t*>(md.pixelData);
-            static constexpr uint32_t kAlphaMask = 0xFF000000u;
-            static constexpr uint32_t kRgbMask   = 0x00FFFFFFu;
             for (int y = 0; y < ph; ++y) {
                 for (int x = 0; x < pw; ++x) {
                     const uint32_t a = px[y * stride + x] >> 24;
                     if (a > 0 && a < 16) {
-                        px[y * stride + x] = 0;  // zero out entire pixel
+                        px[y * stride + x] = 0;
                     }
                 }
             }
@@ -145,8 +91,6 @@ struct PaddedMask {
     }
 
     // ── Debug save ───────────────────────────────────────────────────
-    // Set CHRONON_DEBUG_DUMP_ALPHA_MASK=1 to dump the alpha mask to disk
-    // for visual inspection of the padded text shape.
     if (std::getenv("CHRONON_DEBUG_DUMP_ALPHA_MASK")) {
         BLImageData md;
         if (mask.getData(&md) == BL_SUCCESS && md.pixelData) {
@@ -171,74 +115,53 @@ struct PaddedMask {
     return {std::move(mask), pad};
 }
 
-/// Create a blurred glow layer, colourised and scaled by intensity.
-/// The result is written into `accum` with additive compositing (PLUS).
-///
-/// Pipeline per layer:
-///   1. Copy white alpha mask → layer_img
-///   2. Blur layer_img (operates on premultiplied white = (a, a, a, a))
-///   3. SRC_IN with (layer_color.rgb, layer_intensity)
-///      → result = layer_color * blurred_alpha, result.a = layer_intensity * blurred_alpha
-///      This cleanly colourises the glow without muddy RGB-from-alpha contamination.
-///   4. PLUS onto accum
-static inline void build_and_accumulate_layer(
-    BLImage& accum,
-    const BLImage& alpha_mask,
-    const GlowLayer& layer_desc,
-    float layer_intensity,            // per-layer 0..1 strength (from node.glow.*_strength)
-    const Color& base_glow_color,
-    float base_radius
-) {
-    const float layer_radius = std::max(1.5f, base_radius * layer_desc.radius_scale);
-    if (layer_intensity <= 0.0f) return;
-
-    // 1. Copy alpha mask into working buffer
-    const int w = alpha_mask.width();
-    const int h = alpha_mask.height();
-    BLImage layer_img;
-    layer_img.create(w, h, BL_FORMAT_PRGB32);
-    {
-        BLContext ctx(layer_img);
-        ctx.setCompOp(BL_COMP_OP_SRC_COPY);
-        ctx.blitImage(BLPoint(0, 0), alpha_mask);
-        ctx.end();
+/// Convert a BLImage (PRGB32 format) to a Framebuffer.
+[[nodiscard]] static inline std::shared_ptr<Framebuffer> bl_image_to_framebuffer(const BLImage& img) {
+    const int w = img.width();
+    const int h = img.height();
+    auto fb = std::make_shared<Framebuffer>(w, h);
+    BLImageData md;
+    if (img.getData(&md) == BL_SUCCESS && md.pixelData) {
+        const int stride = static_cast<int>(md.stride / sizeof(uint32_t));
+        const auto* px = static_cast<const uint32_t*>(md.pixelData);
+        for (int y = 0; y < h; ++y) {
+            for (int x = 0; x < w; ++x) {
+                const uint32_t p = px[y * stride + x];
+                fb->set_pixel(x, y, Color{
+                    static_cast<float>((p >> 16) & 0xFF) / 255.0f,
+                    static_cast<float>((p >>  8) & 0xFF) / 255.0f,
+                    static_cast<float>( p        & 0xFF) / 255.0f,
+                    static_cast<float>((p >> 24) & 0xFF) / 255.0f
+                });
+            }
+        }
     }
+    return fb;
+}
 
-    // 2. Blur — operates on all PRGB32 channels, but because the mask is
-    //    white-on-transparent, R=G=B=A holds true, so the blur effectively
-    //    diffuses the alpha shape without colour bleeding.
-    blur_bl_image_inplace(layer_img, layer_radius);
-
-    // 3. Colorise and scale intensity via SRC_IN.
-    //    BL_COMP_OP_SRC_IN with fill (R,G,B,A):
-    //      result.rgb = fill.rgb * dest.a   (pixel alpha of the blurred mask)
-    //      result.a   = fill.a   * dest.a
-    //    Since blurred mask has R=G=B=A (premultiplied white), this cleanly
-    //    applies the glow colour and intensity to the alpha shape.
-    const Color layer_color = shift_glow_color(base_glow_color, layer_desc.color_shift);
-    const uint8_t intensity_byte = static_cast<uint8_t>(
-        std::clamp(layer_intensity * 255.0f, 0.0f, 255.0f)
-    );
-    {
-        BLContext ctx(layer_img);
-        ctx.setCompOp(BL_COMP_OP_SRC_IN);
-        ctx.setFillStyle(BLRgba32(
-            static_cast<uint8_t>(std::clamp(layer_color.r * 255.0f, 0.0f, 255.0f)),
-            static_cast<uint8_t>(std::clamp(layer_color.g * 255.0f, 0.0f, 255.0f)),
-            static_cast<uint8_t>(std::clamp(layer_color.b * 255.0f, 0.0f, 255.0f)),
-            intensity_byte
-        ));
-        ctx.fillAll();
-        ctx.end();
+/// Convert a Framebuffer to a BLImage (PRGB32 format).
+[[nodiscard]] static inline BLImage framebuffer_to_bl_image(const Framebuffer& fb) {
+    const int w = fb.width();
+    const int h = fb.height();
+    BLImage img;
+    img.create(w, h, BL_FORMAT_PRGB32);
+    BLImageData md;
+    if (img.getData(&md) == BL_SUCCESS && md.pixelData) {
+        const int stride = static_cast<int>(md.stride / sizeof(uint32_t));
+        auto* px = static_cast<uint32_t*>(md.pixelData);
+        for (int y = 0; y < h; ++y) {
+            const Color* row = fb.pixels_row(y);
+            for (int x = 0; x < w; ++x) {
+                const Color& c = row[x];
+                px[y * stride + x] =
+                    (static_cast<uint32_t>(std::clamp(c.a * 255.0f, 0.0f, 255.0f)) << 24) |
+                    (static_cast<uint32_t>(std::clamp(c.r * 255.0f, 0.0f, 255.0f)) << 16) |
+                    (static_cast<uint32_t>(std::clamp(c.g * 255.0f, 0.0f, 255.0f)) <<  8) |
+                     static_cast<uint32_t>(std::clamp(c.b * 255.0f, 0.0f, 255.0f));
+            }
+        }
     }
-
-    // 4. Additive accumulate onto accum
-    {
-        BLContext ctx(accum);
-        ctx.setCompOp(BL_COMP_OP_PLUS);
-        ctx.blitImage(BLPoint(0, 0), layer_img);
-        ctx.end();
-    }
+    return img;
 }
 
 } // anonymous namespace
@@ -277,46 +200,45 @@ void draw_text_glow(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNod
         }
 
         const f32 base_radius = std::max(1.0f, node.glow.radius);
-
-        // Padding kept tight to avoid a large rectangular glow buffer that
-        // visually swallows the sharp text.  The outer blur pass spans
-        // radius*1.0, so ceil(radius*1.5)+4 still avoids edge clipping while
-        // shrinking the surrounding rectangle by ~60%.
         const int padding = static_cast<int>(std::ceil(base_radius * 1.2f)) + 4;
 
-        // ── Step 1: Build padded white alpha mask ────────────────────
+        // ── Step 1: Build padded white alpha mask (text-specific) ────
         auto [alpha_mask, actual_pad] = make_padded_alpha_mask(raster.image, padding);
 
-        // ── Step 2: Accumulate multiple glow layers ──────────────────
-        BLImage glow_accum;
-        glow_accum.create(alpha_mask.width(), alpha_mask.height(), BL_FORMAT_PRGB32);
-        {
-            BLContext ctx(glow_accum);
-            ctx.setCompOp(BL_COMP_OP_SRC_COPY);
-            ctx.setFillStyle(BLRgba32(0, 0, 0, 0));
-            ctx.fillAll();
-            ctx.end();
+        // ── Step 2: Run the unified GlowPipeline ─────────────────────
+        // Convert alpha mask to Framebuffer and feed it to the shared
+        // pipeline as source_is_alpha_mask so the trigger is taken
+        // directly from source alpha.
+        auto mask_fb = bl_image_to_framebuffer(alpha_mask);
+
+        GlowPipelineInput input;
+        input.source = mask_fb.get();
+        input.source_is_alpha_mask = true;
+        input.params.color = node.glow.color;
+        input.params.radius = base_radius;
+        input.params.intensity = node.glow.intensity;
+        input.params.core_strength = std::max(0.0f, node.glow.core_strength);
+        input.params.aura_strength = std::max(0.0f, node.glow.aura_strength);
+        input.params.bloom_strength = std::max(0.0f, node.glow.bloom_strength);
+        input.params.spread = 1.0f;
+        input.params.softness = 1.0f;
+        input.params.falloff = 0.85f;
+        input.params.outer_downscale = 0.25f;
+        input.params.preserve_source = true;
+        input.params.additive = true;
+        input.params.blend = BlendMode::Add;
+
+        // Minimal context — the counters/pool are optional.
+        graph::RenderGraphContext ctx{};
+        if (profiling::g_current_counters) {
+            ctx.telemetry.counters = profiling::g_current_counters;
         }
 
-        const Color& glow_color = node.glow.color;
+        auto output = GlowPipeline::render(ctx, input);
 
-        // Per-layer intensities come from node.glow.*_strength, which the
-        // MotionObject preset (e.g. GlowBloom) sets explicitly.  This
-        // matches the canonical pattern in effect_glow_impl.cpp and lets
-        // the preset's per-layer tuning actually drive the text glow.
-        const float layer_intensities[3] = {
-            std::max(0.0f, node.glow.core_strength),
-            std::max(0.0f, node.glow.aura_strength),
-            std::max(0.0f, node.glow.bloom_strength),
-        };
-
-        for (size_t i = 0; i < kGlowLayers.size(); ++i) {
-            build_and_accumulate_layer(glow_accum, alpha_mask, kGlowLayers[i],
-                                       layer_intensities[i],
-                                       glow_color, base_radius);
-        }
-
-        auto cached_img = std::make_shared<BLImage>(glow_accum);
+        // ── Step 3: Convert result to BLImage and cache ──────────────
+        BLImage glow_result = framebuffer_to_bl_image(*output.glow);
+        auto cached_img = std::make_shared<BLImage>(std::move(glow_result));
         {
             std::lock_guard<std::mutex> lock(text_glow_cache_mutex());
             size_t weight = cached_img->width() * cached_img->height() * 4;
@@ -326,19 +248,10 @@ void draw_text_glow(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNod
     }
 
     // ── Composite with additive blend ────────────────────────────────
-    // The glow buffer is padded, so we shift the compositing position
-    // by -padding.  The padding is derived from the base radius;
-    // recover it from the difference between the cached image and the
-    // raster (or re-derive it from the node params).
     const f32 base_radius = std::max(1.0f, node.glow.radius);
     const int padding = static_cast<int>(std::ceil(base_radius * 1.2f)) + 4;
 
     if (glow_cache) {
-        // NOTE: per-layer intensities (from node.glow.core_strength /
-        // aura_strength / bloom_strength) are ALREADY baked into each glow
-        // layer via SRC_IN during build_and_accumulate_layer.  Do NOT
-        // multiply by node.glow.intensity again here — that would square
-        // the intensities and make the glow ~30% dimmer than intended.
         const f32 glow_alpha = opacity * node.glow.color.a;
 
         if (use_geo_transform) {

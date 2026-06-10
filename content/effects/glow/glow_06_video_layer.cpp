@@ -10,7 +10,7 @@ Composition glow_video_source_asset() {
     return composition({.name="GlowVideoSourceAsset",.width=404,.height=244,.duration=120},
     [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        const float t    = static_cast<float>(ctx.frame.frame) / 120.f;
+        const float t    = static_cast<float>(ctx.frame) / 120.f;
         const float wave = 0.5f + 0.5f * std::sinf(t * 6.2831853f * 2.f);
 
         // Sky gradient

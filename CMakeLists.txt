@@ -155,35 +155,8 @@ add_library(chronon3d_shared SHARED src/c_api/chronon3d_c_api.cpp)
 target_link_libraries(chronon3d_shared PRIVATE chronon3d_pipeline)
 
 if(CHRONON3D_BUILD_CONTENT)
-    if(TARGET chronon3d_content_text)
-        target_link_libraries(chronon3d_shared PRIVATE $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_content_text>)
-    endif()
-    if(TARGET chronon3d_content_shapes)
-        target_link_libraries(chronon3d_shared PRIVATE $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_content_shapes>)
-    endif()
-    if(TARGET chronon3d_content_images)
-        target_link_libraries(chronon3d_shared PRIVATE $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_content_images>)
-    endif()
-    if(TARGET chronon3d_content_anims)
-        target_link_libraries(chronon3d_shared PRIVATE $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_content_anims>)
-    endif()
-    if(TARGET chronon3d_content_effects)
-        target_link_libraries(chronon3d_shared PRIVATE $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_content_effects>)
-    endif()
-    if(TARGET chronon3d_content_2d5)
-        target_link_libraries(chronon3d_shared PRIVATE $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_content_2d5>)
-    endif()
-    if(TARGET chronon3d_content_grid)
-        target_link_libraries(chronon3d_shared PRIVATE $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_content_grid>)
-    endif()
-    if(TARGET chronon3d_content_modules)
-        target_sources(chronon3d_shared PRIVATE
-            content/register_content_modules.cpp
-            content/register_minimalist_content.cpp
-            content/register_text_content.cpp
-            content/register_2d5_content.cpp
-        )
-        target_include_directories(chronon3d_shared PRIVATE ${CMAKE_SOURCE_DIR}/content)
+    if(TARGET chronon3d_content_registry)
+        target_link_libraries(chronon3d_shared PRIVATE chronon3d_content_registry)
     endif()
 endif()
 

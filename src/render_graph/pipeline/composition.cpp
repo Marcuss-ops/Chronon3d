@@ -144,7 +144,7 @@ std::shared_ptr<Framebuffer> render_composition_frame(
     }
 
     if (sw_renderer) {
-        sw_renderer->m_last_layer_count = layer_count;
+        sw_renderer->dirty_telemetry().last_layer_count = layer_count;
     }
 
     if (ssaa > 1.0f) {
