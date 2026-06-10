@@ -125,7 +125,6 @@ public:
     LayerBuilder& invert(f32 amount = 1.0f); // 1.0 = full invert, 0 = no-op
     LayerBuilder& vignette(f32 radius = 0.5f, f32 softness = 0.5f, f32 amount = 1.0f);
     LayerBuilder& drop_shadow(Vec2 offset, Color color = {0,0,0,0.35f}, f32 radius = 12.0f);
-    LayerBuilder& glow(f32 radius, f32 intensity = 0.8f, Color color = Color::white(), f32 threshold = 0.0f, f32 spread = 1.0f, f32 softness = 1.0f);
     LayerBuilder& glow(GlowParams params);
     LayerBuilder& bloom(f32 threshold = 0.80f, f32 radius = 24.0f, f32 intensity = 0.60f);
     LayerBuilder& fake_3d_wave(Fake3DWaveParams params);

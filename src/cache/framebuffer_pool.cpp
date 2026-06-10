@@ -11,6 +11,16 @@ namespace chronon3d {
 
 void PoolFbDeleter::operator()(Framebuffer* fb) const noexcept {
     if (!fb) return;
+    // ── Scratch cleanup: FB is borrowed from a TransformScratchBuffer ──
+    // The cleanup callback (a std::function capturing a Handle RAII) will
+    // be destroyed when the PoolFbDeleter itself goes out of scope (after
+    // this function returns).  The Handle destructor restores the FB to
+    // the owner's storage.  We do NOT delete the FB here — the
+    // TransformScratchBuffer still owns it.
+    // Takes precedence over all other modes.
+    if (scratch_cleanup) {
+        return; // scratch_cleanup (and its captured Handle) destroyed after return
+    }
     // ── Renderer-owned FB: no-op — renderer manages lifetime explicitly ──
     // Used by ping-pong buffers owned by SoftwareRenderer via m_ping_fb[].
     // No pool release, no scratch restore, no delete.  The renderer is

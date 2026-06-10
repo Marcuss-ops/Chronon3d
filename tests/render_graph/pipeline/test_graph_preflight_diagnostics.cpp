@@ -64,7 +64,7 @@ TEST_CASE("GraphPreflight: exports DOT topology with node kinds and edges") {
     });
 
     s.layer("glow_box", [](LayerBuilder& l) {
-        l.glow(40.0f, 1.0f, Color{0, 0.7f, 1, 1});
+        l.glow(GlowParams{.radius = 40.0f, .intensity = 1.0f, .color = Color{0, 0.7f, 1, 1}});
         l.rect("box", {
             .size  = {100, 100},
             .color = Color{1, 1, 1, 1},
@@ -255,7 +255,7 @@ TEST_CASE("GraphPreflight: glow expands predicted bbox beyond source bbox") {
     SceneBuilder s(W, H);
 
     s.layer("glow_layer", [](LayerBuilder& l) {
-        l.glow(50.0f, 1.0f, Color{0, 0.7f, 1, 1});
+        l.glow(GlowParams{.radius = 50.0f, .intensity = 1.0f, .color = Color{0, 0.7f, 1, 1}});
         l.rect("glow_source_rect", {
             .size  = {100, 100},
             .color = Color{1, 1, 1, 1},
@@ -296,7 +296,7 @@ TEST_CASE("GraphPreflight: effect layer topology is Source to Effect to Composit
     SceneBuilder s(W, H);
 
     s.layer("effect_layer", [](LayerBuilder& l) {
-        l.glow(32.0f, 0.8f, Color{0, 0.7f, 1, 1});
+        l.glow(GlowParams{.radius = 32.0f, .intensity = 0.8f, .color = Color{0, 0.7f, 1, 1}});
         l.rect("box", {
             .size  = {120, 120},
             .color = Color{1, 1, 1, 1},

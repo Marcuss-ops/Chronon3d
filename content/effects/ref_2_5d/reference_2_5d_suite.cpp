@@ -1,4 +1,5 @@
 #include "../common/glow_test_common.hpp"
+#include <chronon3d/effects/effect_params.hpp>
 
 #include <chronon3d/scene/camera/camera_motion_presets.hpp>
 
@@ -115,7 +116,7 @@ void apply_depth_material(LayerBuilder& l, bool casts_shadows = true, bool accep
 void add_floating_orb(SceneBuilder& s, const std::string& id, Vec3 pos, f32 radius, Color color, f32 glow_radius) {
     s.layer("orb_" + id, [=](LayerBuilder& l) {
         l.position(pos);
-        l.glow(glow_radius, 0.85f, color);
+        l.glow(GlowParams{.radius = glow_radius, .intensity = 0.85f, .color = color});
         l.circle("orb", {
             .radius = radius,
             .color = color,
@@ -130,7 +131,7 @@ void add_card(SceneBuilder& s, const std::string& id, Vec3 pos, Vec3 rot, Vec2 s
         apply_depth_material(l, true, true, 0.80f, 0.20f, 56.0f, 0.68f);
         l.drop_shadow({0.0f, 22.0f}, {fill.r * 0.05f, fill.g * 0.06f, fill.b * 0.10f, 0.28f}, 16.0f);
         l.drop_shadow({0.0f, 58.0f}, {fill.r * 0.03f, fill.g * 0.04f, fill.b * 0.08f, 0.10f}, 92.0f);
-        l.glow(blur, 0.34f, glow, 0.08f, 0.88f, 0.64f);
+        l.glow(GlowParams{.radius = blur, .intensity = 0.34f, .color = glow, .threshold = 0.08f, .spread = 0.88f, .softness = 0.64f});
         l.rounded_rect("bg", {
             .size = size,
             .radius = radius,
@@ -188,7 +189,7 @@ Composition floating_cards_test() {
         deep_bg(s, Color{0.015f, 0.020f, 0.060f, 1.0f}, Color{0.030f, 0.030f, 0.090f, 1.0f});
         s.layer("ambient", [](LayerBuilder& l) {
             l.position({0.0f, -180.0f, 0.0f});
-            l.glow(220.0f, 0.7f, {0.24f, 0.42f, 1.0f, 1.0f});
+            l.glow(GlowParams{.radius = 220.0f, .intensity = 0.7f, .color = {0.24f, 0.42f, 1.0f, 1.0f}});
             l.circle("c", {.radius = 220.0f, .color = {0.12f, 0.20f, 0.60f, 0.16f}, .pos = {-320.0f, 0.0f, 0.0f}});
             l.circle("c2", {.radius = 190.0f, .color = {0.82f, 0.22f, 1.0f, 0.12f}, .pos = {300.0f, 40.0f, 0.0f}});
         });
@@ -379,14 +380,14 @@ Composition orbit_camera_test() {
 
         s.layer("top_light", [](LayerBuilder& l) {
             l.position({0.0f, -220.0f, 0.0f});
-            l.glow(260.0f, 0.85f, {0.18f, 0.60f, 1.0f, 1.0f});
+            l.glow(GlowParams{.radius = 260.0f, .intensity = 0.85f, .color = {0.18f, 0.60f, 1.0f, 1.0f}});
             l.circle("c", {.radius = 220.0f, .color = {0.18f, 0.60f, 1.0f, 0.22f}, .pos = {0.0f, 0.0f, 0.0f}});
         });
 
         s.layer("stage", [](LayerBuilder& l) {
             l.position({0.0f, 190.0f, 0.0f});
             l.drop_shadow({0.0f, 18.0f}, {0.04f, 0.02f, 0.16f, 0.50f}, 24.0f);
-            l.glow(24.0f, 0.56f, {0.60f, 0.26f, 1.0f, 1.0f});
+            l.glow(GlowParams{.radius = 24.0f, .intensity = 0.56f, .color = {0.60f, 0.26f, 1.0f, 1.0f}});
             l.rounded_rect("base", {
                 .size = {480.0f, 62.0f},
                 .radius = 31.0f,
@@ -417,7 +418,7 @@ Composition orbit_camera_test() {
                     .color = {0.52f, 0.42f + 0.06f * i, 1.0f, 0.92f},
                     .pos = {0.0f, 0.0f, 0.0f},
                 });
-                l.glow(12.0f, 0.85f, {0.60f, 0.44f, 1.0f, 1.0f});
+                l.glow(GlowParams{.radius = 12.0f, .intensity = 0.85f, .color = {0.60f, 0.44f, 1.0f, 1.0f}});
             }
         });
 
@@ -425,7 +426,7 @@ Composition orbit_camera_test() {
             l.position({0.0f, -30.0f, 0.0f});
             l.enable_3d().rotate({4.0f, 0.0f, 0.0f});
             apply_depth_material(l, false, true, 0.92f, 0.20f, 58.0f, 0.72f);
-            l.glow(28.0f, 0.74f, {0.78f, 0.62f, 1.0f, 1.0f});
+            l.glow(GlowParams{.radius = 28.0f, .intensity = 0.74f, .color = {0.78f, 0.62f, 1.0f, 1.0f}});
             l.drop_shadow({0.0f, 20.0f}, {0.06f, 0.00f, 0.22f, 0.76f}, 22.0f);
             l.text("create", {
                 .text = "CREATE",
@@ -496,7 +497,7 @@ Composition depth_fog_test() {
         s.layer("fog", [](LayerBuilder& l) {
             l.position({0.0f, 160.0f, 0.0f});
             l.opacity(0.82f);
-            l.glow(90.0f, 0.9f, {0.26f, 0.62f, 1.0f, 1.0f});
+            l.glow(GlowParams{.radius = 90.0f, .intensity = 0.9f, .color = {0.26f, 0.62f, 1.0f, 1.0f}});
             l.circle("mist", {.radius = 280.0f, .color = {0.10f, 0.40f, 1.0f, 0.16f}, .pos = {0.0f, 0.0f, 0.0f}});
         });
 
@@ -514,7 +515,7 @@ Composition depth_fog_test() {
             l.rounded_rect("left", {.size = {500.0f, 300.0f}, .radius = 28.0f, .color = {0.05f, 0.11f, 0.24f, 1.0f}, .pos = {-520.0f, 55.0f, 0.0f}});
             l.rounded_rect("center", {.size = {760.0f, 430.0f}, .radius = 34.0f, .color = {0.08f, 0.14f, 0.30f, 1.0f}, .pos = {0.0f, -10.0f, 0.0f}});
             l.rounded_rect("right", {.size = {460.0f, 260.0f}, .radius = 24.0f, .color = {0.05f, 0.10f, 0.22f, 1.0f}, .pos = {520.0f, 70.0f, 0.0f}});
-            l.glow(44.0f, 0.75f, {0.14f, 0.42f, 1.0f, 1.0f});
+            l.glow(GlowParams{.radius = 44.0f, .intensity = 0.75f, .color = {0.14f, 0.42f, 1.0f, 1.0f}});
         });
 
         s.layer("ground", [](LayerBuilder& l) {
@@ -532,7 +533,7 @@ Composition depth_fog_test() {
                     }
                 )
             });
-            l.glow(36.0f, 0.8f, {0.10f, 0.46f, 1.0f, 1.0f});
+            l.glow(GlowParams{.radius = 36.0f, .intensity = 0.8f, .color = {0.10f, 0.46f, 1.0f, 1.0f}});
         });
 
         s.layer("title", [](LayerBuilder& l) {
@@ -549,7 +550,7 @@ Composition depth_fog_test() {
                 .align = TextAlign::Center,
                 .vertical_align = VerticalAlign::Middle,
             });
-            l.glow(40.0f, 1.2f, {0.22f, 0.72f, 1.0f, 1.0f});
+            l.glow(GlowParams{.radius = 40.0f, .intensity = 1.2f, .color = {0.22f, 0.72f, 1.0f, 1.0f}});
             l.text("innovate", {
                 .text = "INNOVATE",
                 .size = {780.0f, 96.0f},
@@ -600,7 +601,7 @@ Composition z_stack_parallax_test() {
                 l.enable_3d().position(pos).rotate(rot);
                 apply_depth_material(l, true, true, 0.80f, 0.16f, 46.0f, 0.72f);
                 l.drop_shadow({0.0f, 20.0f}, {0.03f, 0.03f, 0.08f, 0.28f}, 18.0f);
-                l.glow(16.0f, 0.34f, glow);
+                l.glow(GlowParams{.radius = 16.0f, .intensity = 0.34f, .color = glow});
                 l.rounded_rect("bg", {
                     .size = size,
                     .radius = 18.0f,
@@ -682,7 +683,7 @@ Composition shadow_glow_consistency_test() {
                 )
             });
             l.drop_shadow({0.0f, 30.0f}, {0.0f, 0.0f, 0.0f, 0.40f}, 32.0f);
-            l.glow(14.0f, 0.28f, {0.82f, 0.20f, 1.0f, 1.0f});
+            l.glow(GlowParams{.radius = 14.0f, .intensity = 0.28f, .color = {0.82f, 0.20f, 1.0f, 1.0f}});
         });
 
         s.layer("left_card", [](LayerBuilder& l) {
@@ -703,7 +704,7 @@ Composition shadow_glow_consistency_test() {
                 )
             });
             l.drop_shadow({0.0f, 20.0f}, {0.04f, 0.02f, 0.08f, 0.40f}, 18.0f);
-            l.glow(10.0f, 0.20f, {0.82f, 0.20f, 1.0f, 1.0f});
+            l.glow(GlowParams{.radius = 10.0f, .intensity = 0.20f, .color = {0.82f, 0.20f, 1.0f, 1.0f}});
             l.text("title", {
                 .text = "Automate\nWorkflows",
                 .size = {180.0f, 120.0f},
@@ -746,7 +747,7 @@ Composition shadow_glow_consistency_test() {
         s.layer("hero_text", [](LayerBuilder& l) {
             l.position({300.0f, -8.0f, -40.0f}).rotate({3.0f, -4.0f, 0.0f});
             apply_depth_material(l, false, true, 0.88f, 0.22f, 52.0f, 0.78f);
-            l.glow(18.0f, 0.42f, {0.82f, 0.42f, 1.0f, 1.0f});
+            l.glow(GlowParams{.radius = 18.0f, .intensity = 0.42f, .color = {0.82f, 0.42f, 1.0f, 1.0f}});
             l.drop_shadow({0.0f, 20.0f}, {0.06f, 0.02f, 0.18f, 0.58f}, 18.0f);
             l.accepts_lights(false);
             l.text("text", {
@@ -800,14 +801,14 @@ Composition extreme_perspective_test() {
 
         s.layer("spot", [](LayerBuilder& l) {
             l.position({0.0f, -250.0f, 0.0f});
-            l.glow(220.0f, 1.0f, {0.18f, 0.72f, 1.0f, 1.0f});
+            l.glow(GlowParams{.radius = 220.0f, .intensity = 1.0f, .color = {0.18f, 0.72f, 1.0f, 1.0f}});
             l.circle("c", {.radius = 180.0f, .color = {0.22f, 0.62f, 1.0f, 0.28f}, .pos = {0.0f, 0.0f, 0.0f}});
         });
 
         s.layer("title", [=](LayerBuilder& l) {
             l.enable_3d().position({-100.0f, 40.0f, -40.0f}).rotate({0.0f, -22.0f, 0.0f});
             apply_depth_material(l, false, true, 0.92f, 0.22f, 56.0f, 0.78f);
-            l.glow(18.0f, 0.45f, {0.42f, 0.76f, 1.0f, 1.0f});
+            l.glow(GlowParams{.radius = 18.0f, .intensity = 0.45f, .color = {0.42f, 0.76f, 1.0f, 1.0f}});
             l.drop_shadow({0.0f, 20.0f}, {0.02f, 0.10f, 0.25f, 0.68f}, 24.0f);
             l.text("txt", {
                 .text = "MASTERCLASS",
@@ -866,13 +867,13 @@ Composition y_rotation_text_test() {
                 .color = {0.16f, 0.08f, 0.26f, 0.74f},
                 .pos = {0.0f, 0.0f, 0.0f},
             });
-            l.glow(24.0f, 0.9f, {0.76f, 0.34f, 1.0f, 1.0f});
+            l.glow(GlowParams{.radius = 24.0f, .intensity = 0.9f, .color = {0.76f, 0.34f, 1.0f, 1.0f}});
         });
 
         s.layer("hero", [=](LayerBuilder& l) {
             l.enable_3d().position({-20.0f, -6.0f, -30.0f}).rotate({3.5f, 10.0f + std::sin(p * 6.28318f) * 8.0f, 0.0f});
             apply_depth_material(l, false, true, 0.90f, 0.20f, 54.0f, 0.76f);
-            l.glow(20.0f, 0.55f, {0.82f, 0.42f, 1.0f, 1.0f});
+            l.glow(GlowParams{.radius = 20.0f, .intensity = 0.55f, .color = {0.82f, 0.42f, 1.0f, 1.0f}});
             l.drop_shadow({0.0f, 20.0f}, {0.08f, 0.02f, 0.24f, 0.74f}, 20.0f);
             l.text("buttery", {
                 .text = "BUTTERY",

@@ -1,6 +1,8 @@
 #pragma once
 
 #include <chronon3d/core/memory/framebuffer.hpp>
+#include <functional>
+#include <optional>
 #include <memory>
 #include <cstddef>
 
@@ -53,6 +55,13 @@ struct PoolFbDeleter {
     /// no scratch restore, no delete.  The renderer manages lifetime
     /// explicitly via m_ping_fb[] / clear_caches().
     bool owned_by_renderer{false};
+    /// When set, the FB is borrowed from a TransformScratchBuffer via its
+    /// RAII Handle, captured inside this std::function as a lambda.
+    /// Calling scratch_cleanup() or replacing/clearing it destroys the
+    /// lambda (and with it the Handle), which restores the FB to the
+    /// owner's storage.  Takes precedence over pool / scratch_slot /
+    /// owned_by_renderer when set.
+    std::function<void()> scratch_cleanup{};
     void operator()(Framebuffer* fb) const noexcept;
 };
 

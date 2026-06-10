@@ -13,12 +13,12 @@ Composition glow_04_ui_card() {
         // Ambient background orbs (large soft glow)
         s.layer("amb_blue", [](LayerBuilder& l) {
             l.position({-420,-180,0})
-             .glow(220.f,0.50f,Color{0.18f,0.42f,1.f,1.f});
+             .glow(GlowParams{.radius = 220.f, .intensity = 0.50f, .color = Color{0.18f,0.42f,1.f,1.f}});
             l.circle("c", {.radius=90.f,.color=Color{0.1f,0.2f,0.6f,0.25f},.pos={0,0,0}});
         });
         s.layer("amb_purple", [](LayerBuilder& l) {
             l.position({420,200,0})
-             .glow(180.f,0.42f,Color{0.78f,0.20f,1.f,1.f});
+             .glow(GlowParams{.radius = 180.f, .intensity = 0.42f, .color = Color{0.78f,0.20f,1.f,1.f}});
             l.circle("c", {.radius=70.f,.color=Color{0.4f,0.1f,0.5f,0.25f},.pos={0,0,0}});
         });
 
@@ -34,7 +34,7 @@ Composition glow_04_ui_card() {
         // Card glow border (cyan, thin outline)
         s.layer("card_border", [](LayerBuilder& l) {
             l.position({0,0,0})
-             .glow(26.f,1.1f,Color{0.22f,0.62f,1.f,1.f});
+             .glow(GlowParams{.radius = 26.f, .intensity = 1.1f, .color = Color{0.22f,0.62f,1.f,1.f}});
             const float hw=360.f,hh=220.f,r=28.f,k=r*0.552f;
             l.path("border", {
                 .commands={
@@ -59,7 +59,7 @@ Composition glow_04_ui_card() {
         // Card icon — glowing cyan circle
         s.layer("icon", [](LayerBuilder& l) {
             l.position({0,-80,0})
-             .glow(32.f,1.3f,Color{0.22f,0.82f,1.f,1.f});
+             .glow(GlowParams{.radius = 32.f, .intensity = 1.3f, .color = Color{0.22f,0.82f,1.f,1.f}});
             l.circle("c", {.radius=44.f,.color=Color{0.22f,0.72f,1.f,0.88f},.pos={0,0,0}});
         });
 

@@ -23,6 +23,9 @@
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/render_graph/core/scene_hasher.hpp>
 
+#include <chronon3d/backends/software/renderer_buffer_ring.hpp>
+#include <chronon3d/backends/software/transform_scratch_buffer.hpp>
+
 #include <memory>
 #include <optional>
 #include <unordered_map>
@@ -146,6 +149,14 @@ public:
 
     SoftwareRenderer();
     ~SoftwareRenderer() override;
+
+    // Non-copyable.  Movable: the RAII member types (RendererBufferRing,
+    // TransformScratchBuffer) all support move semantics, and the rest
+    // of the members (shared_ptr, unique_ptr, plain data) are
+    // trivially movable.  Callers may move SoftwareRenderer as long as
+    // no outstanding Handle or dangling pointer references the old location.
+    SoftwareRenderer(const SoftwareRenderer&) = delete;
+    SoftwareRenderer& operator=(const SoftwareRenderer&) = delete;
     SoftwareRenderer(SoftwareRenderer&&) noexcept = default;
     SoftwareRenderer& operator=(SoftwareRenderer&&) noexcept = default;
 
@@ -249,6 +260,17 @@ private:
 
     RenderCounters    m_counters;
     std::unique_ptr<graph::GraphExecutor> m_executor;
+
+    // ── Ping-pong + transform scratch, now owned via dedicated RAII types ──
+    // RendererBufferRing owns the two ping buffers via std::unique_ptr (no
+    // raw pointer + no-op deleter).  TransformScratchBuffer owns the
+    // transform scratch via std::unique_ptr with a RAII Handle.  The legacy
+    // m_ping_fb[2] / m_ping_write_idx / m_transform_scratch members above
+    // are kept as compatibility shims for external callers (scene.cpp,
+    // clear_node.hpp, etc.) and are synced from the new classes after each
+    // ensure_capacity / commit / acquire call.
+    RendererBufferRing     m_ping_ring;
+    TransformScratchBuffer m_transform_scratch_buf;
 };
 
 } // namespace chronon3d

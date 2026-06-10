@@ -127,7 +127,7 @@ Composition make_neon_card() {
         for (int i = 0; i < 4; ++i) {
             s.layer("orb_" + std::to_string(i), [=](LayerBuilder& l) {
                 l.position({xs[i], -30.0f, 0.0f})
-                 .glow(radii[i] * 1.6f, 1.0f + 0.15f * i, colors[i]);
+                 .glow(GlowParams{.radius = radii[i] * 1.6f, .intensity = 1.0f + 0.15f * i, .color = colors[i]});
                 l.circle("c", {
                     .radius = radii[i],
                     .color = Color{1.0f, 1.0f, 1.0f, 0.95f},
@@ -299,7 +299,7 @@ Composition make_pulse_scene() {
 
         s.layer("core", [pulse](LayerBuilder& l) {
             l.position({0.0f, -20.0f, 0.0f})
-             .glow(30.0f + pulse * 12.0f, 1.5f + pulse * 0.5f, Color{0.95f, 0.98f, 1.0f, 1.0f});
+             .glow(GlowParams{.radius = 30.0f + pulse * 12.0f, .intensity = 1.5f + pulse * 0.5f, .color = Color{0.95f, 0.98f, 1.0f, 1.0f}});
             l.circle("core", {
                 .radius = 34.0f + pulse * 7.0f,
                 .color = Color{1.0f, 1.0f, 1.0f, 0.96f},
@@ -309,7 +309,7 @@ Composition make_pulse_scene() {
 
         s.layer("aura", [aura](LayerBuilder& l) {
             l.position({0.0f, -20.0f, 0.0f})
-             .glow(72.0f + aura * 18.0f, 0.95f + aura * 0.35f, Color{0.20f, 0.78f, 1.0f, 1.0f});
+             .glow(GlowParams{.radius = 72.0f + aura * 18.0f, .intensity = 0.95f + aura * 0.35f, .color = Color{0.20f, 0.78f, 1.0f, 1.0f}});
             l.circle("aura", {
                 .radius = 108.0f,
                 .color = Color{0.20f, 0.78f, 1.0f, 0.16f},

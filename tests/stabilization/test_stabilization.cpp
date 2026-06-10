@@ -576,7 +576,7 @@ TEST_CASE("Stabilization: tile_effect produces no NaN/Inf for complex scenes") {
                     .radius = 8.0f,
                     .color = {0.2f, 0.5f, 1.0f, 0.8f},
                 });
-                l.glow(12.0f, 0.5f, Color::white(), 0.0f);
+                l.glow(GlowParams{.radius = 12.0f, .intensity = 0.5f, .color = Color::white(), .threshold = 0.0f});
             });
         }
 

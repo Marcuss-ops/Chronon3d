@@ -18,6 +18,7 @@
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
+#include <chronon3d/effects/effect_params.hpp>
 #include <chronon3d/animation/path/catmull_rom_path.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
 
@@ -49,7 +50,7 @@ void waypoint_markers(SceneBuilder& s, std::initializer_list<Vec3> waypoints) {
     int i = 0;
     for (Vec3 p : waypoints) {
         s.layer("wp_" + std::to_string(i), [p](LayerBuilder& l) {
-            l.position(p).glow(24.0f, 0.8f, {1.0f, 0.85f, 0.30f, 1.0f});
+            l.position(p).glow(GlowParams{.radius = 24.0f, .intensity = 0.8f, .color = {1.0f, 0.85f, 0.30f, 1.0f}});
             l.circle("dot", { .radius = 14.0f, .color = {1.0f, 0.85f, 0.30f, 1.0f} });
         });
         ++i;
@@ -129,7 +130,7 @@ Composition catmull_rom_showcase() {
 
         // A center subject so we can see the camera moving around it.
         s.layer("subject", [](LayerBuilder& l) {
-            l.position({0.0f, 0.0f, 0.0f}).glow(40.0f, 0.9f, {0.4f, 0.8f, 1.0f, 1.0f});
+            l.position({0.0f, 0.0f, 0.0f}).glow(GlowParams{.radius = 40.0f, .intensity = 0.9f, .color = {0.4f, 0.8f, 1.0f, 1.0f}});
             l.circle("dot", { .radius = 28.0f, .color = {0.4f, 0.8f, 1.0f, 1.0f} });
         });
 
@@ -212,7 +213,7 @@ Composition dolly_zoom_showcase() {
         // Subject in the center, plus background grid to make the perspective
         // shift obvious.
         s.layer("subject", [](LayerBuilder& l) {
-            l.position({0.0f, 0.0f, 0.0f}).glow(60.0f, 0.9f, {1.0f, 0.5f, 0.7f, 1.0f});
+            l.position({0.0f, 0.0f, 0.0f}).glow(GlowParams{.radius = 60.0f, .intensity = 0.9f, .color = {1.0f, 0.5f, 0.7f, 1.0f}});
             l.circle("dot", { .radius = 36.0f, .color = {1.0f, 0.5f, 0.7f, 1.0f} });
         });
 
@@ -280,7 +281,7 @@ Composition camera_spline_comparison() {
                 s.layer("g_" + std::to_string(gx) + "_" + std::to_string(gy),
                         [gx, gy](LayerBuilder& l) {
                     l.position({gx * 120.0f, gy * 120.0f, 0.0f})
-                     .glow(18.0f, 0.7f, {0.5f, 0.85f, 1.0f, 1.0f});
+                     .glow(GlowParams{.radius = 18.0f, .intensity = 0.7f, .color = {0.5f, 0.85f, 1.0f, 1.0f}});
                     l.circle("dot", { .radius = 16.0f, .color = {0.5f, 0.85f, 1.0f, 1.0f} });
                 });
             }
