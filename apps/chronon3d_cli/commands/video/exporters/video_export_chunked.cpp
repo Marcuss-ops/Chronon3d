@@ -85,9 +85,10 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
                 uint64_t saved_fb_reuses = 0;
                 uint64_t saved_fb_bytes = 0;
                 uint64_t saved_fb_peak = 0;
+                uint64_t saved_focus_in_ladder_warmup = 0;
                 if (opts.warmup_renderer) {
                     const auto warmup_t0 = std::chrono::steady_clock::now();
-                    runtime::warmup_renderer(*renderer, comp, runtime::RendererWarmupOptions{
+                    auto warmup_result = runtime::warmup_renderer(*renderer, comp, runtime::RendererWarmupOptions{
                         .width = comp.width(),
                         .height = comp.height(),
                         .framebuffer_count = opts.warmup_framebuffers,
@@ -95,7 +96,8 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
                         .touch_memory = true,
                         .render_dummy_frame = opts.warmup_dummy_frame,
                         .dummy_frame = 0,
-                        .quiet = false
+                        .quiet = false,
+                        .warmup_focus_in_ladder = opts.warmup_focus_in_ladder
                     });
                     const auto warmup_t1 = std::chrono::steady_clock::now();
 
@@ -112,6 +114,14 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
                         saved_fb_peak = renderer->counters()->framebuffer_bytes_peak.load(std::memory_order_relaxed);
                     }
 
+                    // Capture FocusInLadder precompute time from warmup BEFORE
+                    // counter reset, so it survives into telemetry.  This
+                    // separates the one-time precompute cost from per-frame
+                    // render-loop counters (effect_focus_in_ladder_precompute_ms
+                    // will be zero during the actual render).
+                    saved_focus_in_ladder_warmup = static_cast<uint64_t>(
+                        std::llround(warmup_result.focus_in_ladder_precompute_ms));
+
                     renderer->counters()->reset();
 
                     if (renderer->counters()) {
@@ -119,6 +129,8 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
                         renderer->counters()->framebuffer_reuses.store(saved_fb_reuses, std::memory_order_relaxed);
                         renderer->counters()->framebuffer_bytes_allocated.store(saved_fb_bytes, std::memory_order_relaxed);
                         renderer->counters()->framebuffer_bytes_peak.store(saved_fb_peak, std::memory_order_relaxed);
+                        renderer->counters()->effect_focus_in_ladder_warmup_ms.store(
+                            saved_focus_in_ladder_warmup, std::memory_order_relaxed);
                     }
 
                     // Clear per-event telemetry stores after warmup, since

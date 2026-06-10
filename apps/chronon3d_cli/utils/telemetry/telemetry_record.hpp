@@ -73,10 +73,9 @@ inline void populate_run_metrics(chronon3d::telemetry::RenderTelemetryRecord& ru
     run.clearnode_restore_ms = counters.clearnode_restore_ms.load(std::memory_order_relaxed);
     run.framebuffer_pool_clear_ms = counters.framebuffer_pool_clear_ms.load(std::memory_order_relaxed);
     run.framebuffer_enqueue_ms = counters.framebuffer_enqueue_ms.load(std::memory_order_relaxed);
-    run.framebuffer_pool_miss_count_size_mismatch = counters.framebuffer_pool_miss_count_size_mismatch.load(std::memory_order_relaxed);
-    run.framebuffer_pool_miss_count_empty = counters.framebuffer_pool_miss_count_empty.load(std::memory_order_relaxed);
-    run.framebuffer_pool_miss_count_best_fit = counters.framebuffer_pool_miss_count_best_fit.load(std::memory_order_relaxed);
-    run.framebuffer_pool_hits = counters.framebuffer_pool_hits.load(std::memory_order_relaxed);
+    run.framebuffer_pool_empty_alloc = counters.framebuffer_pool_empty_alloc.load(std::memory_order_relaxed);
+    run.framebuffer_pool_best_fit_reuse = counters.framebuffer_pool_best_fit_reuse.load(std::memory_order_relaxed);
+    run.framebuffer_pool_exact_hit = counters.framebuffer_pool_exact_hit.load(std::memory_order_relaxed);
     run.framebuffer_buffer_returned_to_pool_count = counters.framebuffer_buffer_returned_to_pool_count.load(std::memory_order_relaxed);
     run.unaligned_memory_copies = counters.unaligned_memory_copies.load(std::memory_order_relaxed);
     run.frame_conversion_copy_ms = counters.frame_conversion_copy_ms.load(std::memory_order_relaxed);

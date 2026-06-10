@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <stdexcept>
 #include <cstring>
+#include <cmath>
 #include <algorithm>
 
 namespace chronon3d::image {
@@ -90,27 +91,27 @@ std::unique_ptr<ImageBuffer> load_exr_mmap(const std::string& path) {
 
         u8* out = buffer->pixels.get();
         for (int i = 0; i < width * height; ++i) {
-            // Un-premultiply alpha because stb_image returns straight alpha 
-            // and we premultiply it later. OpenEXR stores pre-multiplied alpha.
-            // Actually, chronon3d uses linear colors. StbImageBackend returns RGBA8 
-            // which are converted to float later. Wait, load_image returns u8[].
-            // We must return u8[] here too, mapping 0-1 to 0-255.
-            float r = pixels[i].r;
-            float g = pixels[i].g;
-            float b = pixels[i].b;
-            float a = pixels[i].a;
+            // Return straight-alpha RGBA8 (matching stb_image convention).
+            // ImageCache premultiplies alpha via simd::premultiply_alpha_rgba8,
+            // so we must NOT straighten/strip alpha here — the cache handles
+            // the premultiplication uniformly for both PNG (stb) and EXR paths.
+            // OpenEXR may store either premultiplied or straight alpha; passing
+            // pixels through as-is and letting the cache premultiply avoids
+            // the double-transformation bug (exr_mmap straighten → cache premul).
+            const float r = pixels[i].r;
+            const float g = pixels[i].g;
+            const float b = pixels[i].b;
+            const float a = std::clamp(static_cast<float>(pixels[i].a), 0.0f, 1.0f);
 
-            // Straighten alpha if needed (OpenEXR is premultiplied)
-            if (a > 0.0f && a < 1.0f) {
-                r /= a;
-                g /= a;
-                b /= a;
-            }
-
-            out[i * 4 + 0] = static_cast<u8>(std::clamp(r * 255.0f, 0.0f, 255.0f));
-            out[i * 4 + 1] = static_cast<u8>(std::clamp(g * 255.0f, 0.0f, 255.0f));
-            out[i * 4 + 2] = static_cast<u8>(std::clamp(b * 255.0f, 0.0f, 255.0f));
-            out[i * 4 + 3] = static_cast<u8>(std::clamp(a * 255.0f, 0.0f, 255.0f));
+            // NaN/Inf guard: clamp to valid range to prevent corrupt output
+            const auto clamp_valid = [](float v) -> u8 {
+                if (std::isnan(v) || std::isinf(v)) return 0;
+                return static_cast<u8>(std::clamp(v * 255.0f, 0.0f, 255.0f));
+            };
+            out[i * 4 + 0] = clamp_valid(r);
+            out[i * 4 + 1] = clamp_valid(g);
+            out[i * 4 + 2] = clamp_valid(b);
+            out[i * 4 + 3] = clamp_valid(a);
         }
 
         return buffer;

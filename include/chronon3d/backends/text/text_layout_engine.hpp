@@ -347,6 +347,15 @@ private:
             tokens.push_back({current_token, in_space});
         }
 
+        // ── Record line widths during push, not via post-hoc re-measurement ──
+        std::vector<float> line_widths;
+        auto push_line_with_width = [&]() {
+            raw_lines.push_back(std::move(current_line));
+            line_widths.push_back(current_width);
+            current_line.clear();
+            current_width = 0.0f;
+        };
+
         const bool wrapping_enabled = max_width > 0.0f && input.style.wrap != TextWrap::None;
 
         for (const auto& token_pair : tokens) {
@@ -354,7 +363,7 @@ private:
             const bool is_space = token_pair.second;
 
             if (token == "\n") {
-                push_current_line();
+                push_line_with_width();
                 continue;
             }
 
@@ -369,7 +378,7 @@ private:
             if (input.style.wrap == TextWrap::Word) {
                 if (current_width + token_w > max_width) {
                     if (!current_line.empty()) {
-                        push_current_line();
+                        push_line_with_width();
                         if (is_space) continue;
                     }
                     if (token_w > max_width) {
@@ -381,7 +390,7 @@ private:
                             ? measure_char(token[ci]) + input.style.tracking
                             : (token_w / static_cast<float>(detail::utf8_length(token))) + input.style.tracking;
                         if (current_width + cw > max_width && !current_line.empty()) {
-                            push_current_line();
+                            push_line_with_width();
                         }
                         current_line.append(token.data() + ci, clen);
                         current_width += cw;
@@ -404,7 +413,7 @@ private:
                         ? measure_char(token[ci]) + input.style.tracking
                         : (token_w / static_cast<float>(detail::utf8_length(token))) + input.style.tracking;
                     if (current_width + cw > max_width && !current_line.empty()) {
-                        push_current_line();
+                        push_line_with_width();
                     }
                     current_line.append(token.data() + ci, clen);
                     current_width += cw;
@@ -415,28 +424,48 @@ private:
 
         if (!current_line.empty() || raw_lines.empty()) {
             raw_lines.push_back(std::move(current_line));
+            line_widths.push_back(current_width);
         }
+
+        // Re-use raw_lines as the tokenizer variable is no longer needed
+        tokens.clear();
+        tokens.shrink_to_fit();
 
         const int max_allowed_lines = input.style.max_lines;
         const bool apply_ellipsis = input.style.ellipsis || input.style.overflow == TextOverflow::Ellipsis;
 
         if (max_allowed_lines > 0 && static_cast<int>(raw_lines.size()) > max_allowed_lines) {
             raw_lines.resize(max_allowed_lines);
+            line_widths.resize(max_allowed_lines);
             if (apply_ellipsis && !raw_lines.empty()) {
                 std::string& last_line = raw_lines.back();
+                float& last_line_w = line_widths.back();
                 const float ellipsis_w = measure_string_input("...");
-                while (!last_line.empty() && measure_string_input(last_line) + ellipsis_w > max_width) {
-                    detail::utf8_pop_back(last_line);
+                // O(n) trim: subtract per-character width instead of re-measuring the whole line
+                while (!last_line.empty() && last_line_w + ellipsis_w > max_width) {
+                    // Find the last code point's starting byte
+                    size_t end = last_line.size();
+                    size_t start = end - 1;
+                    while (start > 0 && (static_cast<unsigned char>(last_line[start]) & 0xC0) == 0x80)
+                        --start;
+                    const size_t clen = end - start;
+                    // Measure the removed width (single-byte fast path, average for multi-byte)
+                    float removed_w;
+                    if (clen == 1) {
+                        removed_w = measure_char(last_line[start]) + input.style.tracking;
+                    } else {
+                        removed_w = font_size * 0.6f + input.style.tracking;
+                    }
+                    last_line.resize(start);
+                    last_line_w -= removed_w;
                 }
                 last_line += "...";
+                last_line_w += ellipsis_w;
             }
         }
 
         float max_seen_width = 0.0f;
-        std::vector<float> line_widths;
-        for (const auto& line_str : raw_lines) {
-            const float w = measure_string_input(line_str);
-            line_widths.push_back(w);
+        for (const auto w : line_widths) {
             max_seen_width = std::max(max_seen_width, w);
         }
 
@@ -754,14 +783,30 @@ private:
                 if (line.width <= max_width_limit || line.runs.empty()) continue;
                 if (line.runs.size() == 1) {
                     auto& run = line.runs.front();
+                    const float run_size = std::max(1.0f, run.style.size <= 0.0f ? font_size_hint : run.style.size);
+                    // O(n) trim: subtract per-char width instead of re-measuring the whole run
                     while (!run.text.empty() && line.width > max_width_limit) {
-                        detail::utf8_pop_back(run.text);
-                        run.width = measure_string(input, run.style, run.text, std::max(1.0f, run.style.size));
-                        line.width = run.width;
+                        size_t end = run.text.size();
+                        size_t start = end - 1;
+                        while (start > 0 && (static_cast<unsigned char>(run.text[start]) & 0xC0) == 0x80)
+                            --start;
+                        const size_t clen = end - start;
+                        float removed_w;
+                        if (clen == 1) {
+                            removed_w = measure_single_char(run.text[start], have_precomputed,
+                                char_widths, input, run.style, run_size);
+                            removed_w += run.style.tracking;
+                        } else {
+                            removed_w = run_size * 0.6f + input.style.tracking;
+                        }
+                        run.text.resize(start);
+                        run.width -= removed_w;
+                        line.width -= removed_w;
                     }
+                    const float ellip_w = measure_string(input, run.style, "...", run_size);
                     run.text += "...";
-                    run.width = measure_string(input, run.style, run.text, std::max(1.0f, run.style.size));
-                    line.width = run.width;
+                    run.width += ellip_w;
+                    line.width += ellip_w;
                 }
             }
         }

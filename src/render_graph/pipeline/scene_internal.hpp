@@ -6,6 +6,7 @@
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/effects/effect_category.hpp>
 #include <chronon3d/effects/effect_registry.hpp>
+#include <chronon3d/effects/effect_ids.hpp>
 #include <chronon3d/core/tile_grid.hpp>
 #include <chronon3d/core/dirty_tile_mask.hpp>
 #include "../builder/graph_builder_internal.hpp"
@@ -58,6 +59,11 @@ namespace chronon3d::graph::detail {
             category = registry.get(eff.descriptor.id).category;
         }
         
+        // FocusInLadder precomputes blur levels inside the layer's clip rect
+        // and crossfades between them — the effect is geometrically bounded
+        // and safe for dirty-rect partial updates.
+        if (eff.descriptor.id == effects::ids::FocusInLadder) continue;
+
         // Blur, distort, temporal, and light effects (glow/bloom/shadow)
         // expand the effective bbox beyond the geometric bounds — dirty
         // rects and tile execution cannot track them without causing seams
