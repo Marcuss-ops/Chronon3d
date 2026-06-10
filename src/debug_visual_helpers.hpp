@@ -63,8 +63,8 @@ inline void apply_disable_dirty(DirtyOut& dirty_out, Ctx& ctx) {
     dirty_out.dirty_rect = std::nullopt;
     dirty_out.use_dirty_rects = false;
     dirty_out.use_dirty_tiles = false;
-    ctx.dirty_rect = std::nullopt;
-    ctx.reuse_prev_framebuffer = false;
+    ctx.tile.dirty_rect = std::nullopt;
+    ctx.options.reuse_prev_framebuffer = false;
     spdlog::warn("[VDBG] CHRONON_DEBUG_DISABLE_DIRTY active — dirty rects disabled");
 }
 

@@ -223,11 +223,11 @@ TEST_CASE("expression: constants") {
 
 TEST_CASE("expression: context variables") {
     ExpressionContext ctx;
-    ctx.frame = 30.0;
+    ctx.frame.frame = 30.0;
     ctx.time = 1.0;
-    ctx.fps = 30.0;
-    ctx.width = 1920.0;
-    ctx.height = 1080.0;
+    ctx.frame.fps = 30.0;
+    ctx.frame.width = 1920.0;
+    ctx.frame.height = 1080.0;
     ctx.index = 5.0;
     ctx.num_layers = 10.0;
     ctx.value = 42.0;
@@ -244,8 +244,8 @@ TEST_CASE("expression: context variables") {
 
 TEST_CASE("expression: thisComp.width / thisComp.height") {
     ExpressionContext ctx;
-    ctx.width = 1920.0;
-    ctx.height = 1080.0;
+    ctx.frame.width = 1920.0;
+    ctx.frame.height = 1080.0;
     ctx.num_layers = 5.0;
 
     CHECK(evaluate_expression("thisComp.width", ctx, {}, 0.0) == doctest::Approx(1920.0));
@@ -286,7 +286,7 @@ TEST_CASE("expression: thisProperty") {
 TEST_CASE("expression: cross-layer reference via layer resolver") {
     ExpressionContext ctx;
     ctx.time = 1.0;
-    ctx.frame = 30.0;
+    ctx.frame.frame = 30.0;
     ctx.value = 50.0;
 
     // Mock resolver: "bg" layer opacity = 0.8, position.x = 100
@@ -445,7 +445,7 @@ TEST_CASE("expression: backward compatibility — legacy API unchanged") {
 
 TEST_CASE("expression: context-aware API with empty layer resolver") {
     ExpressionContext ctx;
-    ctx.frame = 10.0;
+    ctx.frame.frame = 10.0;
     ctx.time = 0.5;
 
     // Should still work for basic expressions even with empty resolver

@@ -20,7 +20,7 @@ void append_composite_pass(RenderGraph& graph, GraphNodeId& current,
                            float world_z) {
     if (layer_output == k_invalid_node || layer_output == current) return;
 
-    if (!ctx.dirty_rects_enabled &&
+    if (!ctx.options.dirty_rects_enabled &&
         current < graph.size() &&
         graph.node(current).kind() == RenderGraphNodeKind::Output &&
         graph.node(current).name() == "Clear" &&
@@ -66,7 +66,7 @@ void append_effect_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_output,
         // Per-pixel DOF is signalled by track_dof_depth being set in the ctx.
         // When active, the per-layer DofEffectNode is skipped to avoid
         // double-blurring.
-        if (!ctx.track_dof_depth) {
+        if (!ctx.options.track_dof_depth) {
             auto dof_node = graph.add_node(DofEffectNode::create(cam25d, item.world_z));
             graph.node(dof_node).set_frame_dependent(!is_static);
             graph.connect(layer_output, dof_node);
@@ -111,11 +111,11 @@ void append_transform_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_outp
         Mat4 effective_matrix = item.world_matrix;
         if (should_use_centered_rendering(item, ctx)) {
             Mat4 ssaa_world = item.world_matrix;
-            ssaa_world[3][0] *= ctx.ssaa_factor;
-            ssaa_world[3][1] *= ctx.ssaa_factor;
-            ssaa_world[3][2] *= ctx.ssaa_factor;
+            ssaa_world[3][0] *= ctx.options.ssaa_factor;
+            ssaa_world[3][1] *= ctx.options.ssaa_factor;
+            ssaa_world[3][2] *= ctx.options.ssaa_factor;
             effective_matrix =
-                glm::translate(Mat4(1.0f), Vec3(-ctx.width * 0.5f, -ctx.height * 0.5f, 0.0f)) *
+                glm::translate(Mat4(1.0f), Vec3(-ctx.frame.width * 0.5f, -ctx.frame.height * 0.5f, 0.0f)) *
                 ssaa_world;
         } else {
             // Delegate to the shared helper so the build-path stays in sync

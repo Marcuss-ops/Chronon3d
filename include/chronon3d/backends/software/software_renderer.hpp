@@ -75,8 +75,8 @@ public:
     void set_motion_blur(MotionBlurSettings mb) { m_settings.motion_blur = mb; }
     [[nodiscard]] const MotionBlurSettings& motion_blur() const { return m_settings.motion_blur; }
 
-    void set_diagnostic_mode(bool enabled) { m_settings.diagnostic = enabled; }
-    [[nodiscard]] bool is_diagnostic_mode() const { return m_settings.diagnostic; }
+    void set_diagnostic_mode(bool enabled) { m_settings.diagnostics.enabled = enabled; }
+    [[nodiscard]] bool is_diagnostic_mode() const { return m_settings.diagnostics.enabled; }
 
     // Clear image and font caches (useful between unrelated render sessions)
     void clear_caches() {

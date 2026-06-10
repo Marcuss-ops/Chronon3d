@@ -339,7 +339,7 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(
         m_registry,
         m_video_decoder.get()
     );
-    if (res && m_settings.diagnostic) {
+    if (res && m_settings.diagnostics.enabled) {
         draw_diagnostic_nulls(*res, effective_scene, effective_scene.camera_2_5d());
     }
     return res;
@@ -381,7 +381,7 @@ void SoftwareRenderer::apply_effect_stack(Framebuffer& fb, const EffectStack& st
         }
     }
 
-    renderer::apply_effect_stack(fb, stack, time_seconds, local_clip, m_settings.diagnostic);
+    renderer::apply_effect_stack(fb, stack, time_seconds, local_clip, m_settings.diagnostics.enabled);
 }
 
 void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node,
@@ -395,7 +395,7 @@ void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node,
         return;
     }
     processor->draw(*this, fb, node, state, camera, width, height);
-    if (m_settings.diagnostic) {
+    if (m_settings.diagnostics.enabled) {
         draw_layout_preview(fb, node, state, *processor);
     }
 }

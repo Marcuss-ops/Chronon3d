@@ -20,16 +20,16 @@ RenderSettings settings_from_args(const Args& args,
                                   bool motion_blur_allowed = true,
                                   bool diagnostic = false) {
     RenderSettings s;
-    s.diagnostic               = diagnostic || args.pipeline.diagnostic;
-    s.diagnostic_plan          = args.pipeline.diagnostic_plan;
-    s.diagnostic_plan_output   = args.pipeline.diagnostic_plan_output;
-    s.use_modular_graph        = args.pipeline.use_modular_graph;
-    s.dirty_rects              = args.pipeline.dirty_rects;
-    s.tile_size                = args.pipeline.tile_size;
-    s.motion_blur.enabled      = motion_blur_allowed && args.pipeline.quality.motion_blur;
-    s.motion_blur.samples      = args.pipeline.quality.motion_blur_samples;
+    s.diagnostics.enabled       = diagnostic || args.pipeline.diagnostic;
+    s.diagnostics.plan          = args.pipeline.diagnostic_plan;
+    s.diagnostics.plan_output   = args.pipeline.diagnostic_plan_output;
+    s.use_modular_graph         = args.pipeline.use_modular_graph;
+    s.dirty.dirty_rects_v1      = args.pipeline.dirty_rects;
+    s.dirty.tile_size           = args.pipeline.tile_size;
+    s.motion_blur.enabled       = motion_blur_allowed && args.pipeline.quality.motion_blur;
+    s.motion_blur.samples       = args.pipeline.quality.motion_blur_samples;
     s.motion_blur.shutter_angle = args.pipeline.quality.shutter_angle;
-    s.ssaa_factor              = args.pipeline.quality.ssaa;
+    s.ssaa_factor               = args.pipeline.quality.ssaa;
     s.force_scalar_normal_blend = args.pipeline.force_scalar_normal_blend;
     return s;
 }

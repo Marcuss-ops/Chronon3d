@@ -118,8 +118,8 @@ void print_plan(
     fmt::print("  width:  {}\n", width);
     fmt::print("  height: {}\n", height);
     fmt::print("  layers: {}\n", resolved.layers.size());
-    fmt::print("  modular_coordinates: {}\n", ctx.modular_coordinates ? "true" : "false");
-    fmt::print("  ssaa_factor: {:.3f}\n", ctx.ssaa_factor);
+    fmt::print("  modular_coordinates: {}\n", ctx.options.modular_coordinates ? "true" : "false");
+    fmt::print("  ssaa_factor: {:.3f}\n", ctx.options.ssaa_factor);
     fmt::print("\nLayer placement:\n");
 
     for (std::size_t i = 0; i < resolved.layers.size(); ++i) {
@@ -139,7 +139,7 @@ void print_plan(
         const bool implicit_center_only = chronon3d::graph::detail::is_implicit_2d_centering_only(item, ctx);
         const bool custom_transform = chronon3d::graph::detail::has_custom_render_transform(item, ctx);
         const bool needs_transform = chronon3d::graph::detail::layer_needs_render_transform(item, ctx);
-        const bool use_local = ctx.modular_coordinates && needs_transform && !item.native_3d;
+        const bool use_local = ctx.options.modular_coordinates && needs_transform && !item.native_3d;
         const bool centered = chronon3d::graph::detail::should_use_centered_rendering(item, ctx);
         const auto source_world = chronon3d::graph::detail::source_space_world_matrix(item, ctx);
         const auto canvas_center = chronon3d::graph::detail::implicit_canvas_center_matrix(ctx);
@@ -203,7 +203,7 @@ int command_graph(const CompositionRegistry& registry, const GraphArgs& args) {
 
     RenderSettings settings;
     settings.use_modular_graph = true;
-    settings.diagnostic = args.plan;
+    settings.diagnostics.enabled = args.plan;
     auto renderer = create_renderer(registry, settings);
 
     if (args.plan) {
@@ -213,11 +213,11 @@ int command_graph(const CompositionRegistry& registry, const GraphArgs& args) {
             args.frame, 0.0f,
             settings, &registry, nullptr, 30.0f
         );
-        ctx.light_context = scene.light_context();
+        ctx.camera.light_context = scene.light_context();
         if (scene.camera_2_5d().enabled) {
-            ctx.camera_2_5d = scene.camera_2_5d();
-            ctx.has_camera_2_5d = true;
-            ctx.projection_ctx = chronon3d::renderer::make_projection_context(ctx.camera_2_5d, ctx.width, ctx.height);
+            ctx.camera.camera_2_5d = scene.camera_2_5d();
+            ctx.camera.has_camera_2_5d = true;
+            ctx.camera.projection_ctx = chronon3d::renderer::make_projection_context(ctx.camera.camera_2_5d, ctx.frame.width, ctx.frame.height);
             ctx.projection_ctx.ready = true;
         }
 

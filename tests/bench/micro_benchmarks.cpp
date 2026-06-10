@@ -187,10 +187,10 @@ static Composition make_tile_bench_scene(int width, int height, int duration) {
         // scattered dirty tiles across the frame every frame.
         for (int i = 0; i < 16; ++i) {
             float phase = static_cast<float>(i) * 0.4f;
-            float x = 30.0f + static_cast<float>(ctx.frame) * 2.5f
+            float x = 30.0f + static_cast<float>(ctx.frame.frame) * 2.5f
                       + static_cast<float>(i % 4) * 80.0f;
             float y = 30.0f
-                      + std::sin(phase + static_cast<float>(ctx.frame) * 0.1f) * 50.0f
+                      + std::sin(phase + static_cast<float>(ctx.frame.frame) * 0.1f) * 50.0f
                       + static_cast<float>(i / 4) * 60.0f;
             s.circle("ball" + std::to_string(i), {
                 .radius = 6.0f,
@@ -227,7 +227,7 @@ static Composition make_dirty_ratio_sweep_scene(int width, int height, int durat
             const float cx = cell_w * (static_cast<float>(col) + 0.5f);
             const float cy = cell_h * (static_cast<float>(row) + 0.5f);
             const float phase = static_cast<float>(i) * 0.7f;
-            const float t = static_cast<float>(ctx.frame) * 0.15f;
+            const float t = static_cast<float>(ctx.frame.frame) * 0.15f;
             const float x = cx + std::sin(phase + t * 1.3f) * cell_w * 0.35f;
             const float y = cy + std::cos(phase + t * 0.9f) * cell_h * 0.35f;
             s.circle("dot" + std::to_string(i), {
@@ -250,7 +250,7 @@ void BM_TileRenderNoTiles(benchmark::State& state) {
         SoftwareRenderer renderer;
         RenderSettings s;
         s.use_modular_graph = true;
-        s.enable_dirty_rects = false;
+        s.dirty.enabled = false;
         renderer.set_settings(s);
 
         for (Frame f = 0; f < kFrames; ++f) {
@@ -274,10 +274,10 @@ void BM_TileRenderSequential(benchmark::State& state) {
         SoftwareRenderer renderer;
         RenderSettings s;
         s.use_modular_graph = true;
-        s.enable_dirty_rects = true;
-        s.enable_dirty_bitmask = true;
-        s.tile_size = tile_size;
-        s.enable_parallel_tiles = false;   // ← sequential
+        s.dirty.enabled = true;
+        s.dirty.use_bitmask = true;
+        s.dirty.tile_size = tile_size;
+        s.dirty.parallel_tiles = false;   // ← sequential
         renderer.set_settings(s);
 
         for (Frame f = 0; f < kFrames; ++f) {
@@ -301,10 +301,10 @@ void BM_TileRenderParallel(benchmark::State& state) {
         SoftwareRenderer renderer;
         RenderSettings s;
         s.use_modular_graph = true;
-        s.enable_dirty_rects = true;
-        s.enable_dirty_bitmask = true;
-        s.tile_size = tile_size;
-        s.enable_parallel_tiles = true;    // ← parallel (V1)
+        s.dirty.enabled = true;
+        s.dirty.use_bitmask = true;
+        s.dirty.tile_size = tile_size;
+        s.dirty.parallel_tiles = true;    // ← parallel (V1)
         renderer.set_settings(s);
 
         for (Frame f = 0; f < kFrames; ++f) {
@@ -348,14 +348,14 @@ static void BM_TileDirtyRatioSweep(benchmark::State& state, bool use_tiles) {
         SoftwareRenderer renderer;
         RenderSettings s;
         s.use_modular_graph = true;
-        s.enable_dirty_rects = true;
-        s.enable_dirty_bitmask = true;
-        s.tile_dirty_ratio_threshold = 1.0;  // never auto-bypass — we want raw tile cost
+        s.dirty.enabled = true;
+        s.dirty.use_bitmask = true;
+        s.dirty.tile_dirty_ratio_threshold = 1.0;  // never auto-bypass — we want raw tile cost
         if (use_tiles) {
-            s.tile_size = tile_size;
-            s.enable_parallel_tiles = false;  // sequential for apples-to-apples comparison
+            s.dirty.tile_size = tile_size;
+            s.dirty.parallel_tiles = false;  // sequential for apples-to-apples comparison
         } else {
-            s.tile_size = 0;                  // single-pass
+            s.dirty.tile_size = 0;                  // single-pass
         }
         renderer.set_settings(s);
 

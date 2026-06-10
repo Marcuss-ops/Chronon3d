@@ -97,7 +97,7 @@ namespace chronon3d::graph::detail {
             Transform effective_transform = rl.world_transform;
             auto proj = project_layer_2_5d(
                 effective_transform, effective_transform.to_mat4(), cam25d,
-                static_cast<f32>(width), static_cast<f32>(height), ctx.diagnostics_enabled);
+                static_cast<f32>(width), static_cast<f32>(height), ctx.options.diagnostics_enabled);
             if (proj.visible) {
                 const Mat4 eff_proj = detail::is_native_3d_layer(*rl.layer) ? Mat4(1.0f) : proj.projection_matrix;
                 item = LayerGraphItem{
@@ -142,8 +142,8 @@ namespace chronon3d::graph::detail {
 
                     if (!is_safe_for_dirty_rects(*rl.layer, settings.motion_blur.enabled)) {
                         bbox = raster::BBox{0, 0, width, height};
-                        if (ctx.counters) {
-                            ctx.counters->increment_dirty_full_fallback_reason(
+                        if (ctx.telemetry.counters) {
+                            ctx.telemetry.counters->increment_dirty_full_fallback_reason(
                                 DirtyFallbackReason::EffectBoundsUnknown);
                         }
                     }
@@ -181,10 +181,10 @@ static inline void compute_scene_root_bboxes(
 ) {
     for (const auto& node : scene.nodes()) {
         if (!node.visible) continue;
-        const Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(ctx.ssaa_factor, ctx.ssaa_factor, 1.0f));
-        const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.width * 0.5f, ctx.height * 0.5f, 0.0f));
+        const Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(ctx.options.ssaa_factor, ctx.options.ssaa_factor, 1.0f));
+        const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.frame.width * 0.5f, ctx.frame.height * 0.5f, 0.0f));
         Mat4 matrix;
-        if (ctx.modular_coordinates) {
+        if (ctx.options.modular_coordinates) {
             matrix = canvas_center * ssaa_scale * node.world_transform.to_mat4();
         } else {
             matrix = ssaa_scale * node.world_transform.to_mat4();

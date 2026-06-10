@@ -478,5 +478,53 @@ void apply_focus_in_ladder(Framebuffer& fb, const FocusInLadderParams& p,
     }
 }
 
+void prune_focus_in_ladder_cache(size_t max_bytes) {
+    std::lock_guard<std::mutex> lock(s_ladder_cache_mutex);
+
+    if (s_ladder_cache.size() <= 2) return;
+
+    // Collect entries with their byte sizes and pixel areas.
+    struct EntryInfo {
+        LadderKey key;
+        size_t bytes{0};
+        int area{0};
+    };
+    std::vector<EntryInfo> entries;
+    entries.reserve(s_ladder_cache.size());
+
+    for (const auto& [key, entry] : s_ladder_cache) {
+        EntryInfo info;
+        info.key = key;
+        info.area = key.cache_w * key.cache_h;
+        for (const auto& fb : entry.levels) {
+            if (fb) info.bytes += fb->size_bytes();
+        }
+        entries.push_back(std::move(info));
+    }
+
+    // Sort by pixel area ascending: smallest entries correspond to earliest
+    // animation frames (focus-in starts small, grows toward full size).
+    // Keeping the smallest ensures the first render-loop frames hit the cache.
+    std::sort(entries.begin(), entries.end(),
+              [](const EntryInfo& a, const EntryInfo& b) {
+                  return a.area < b.area;
+              });
+
+    // Calculate current total.
+    size_t total_bytes = 0;
+    for (const auto& e : entries) total_bytes += e.bytes;
+
+    if (total_bytes <= max_bytes) return;
+
+    // Evict from the end (largest area → latest frames) until within budget.
+    // Always keep at least 2 entries (covers frames 0–1 of the render loop).
+    size_t current = total_bytes;
+    for (size_t i = entries.size(); i > 2; --i) {
+        if (current <= max_bytes) break;
+        current -= entries[i - 1].bytes;
+        s_ladder_cache.erase(entries[i - 1].key);
+    }
+}
+
 } // namespace renderer
 } // namespace chronon3d

@@ -51,8 +51,8 @@ public:
         return cache::NodeCacheKey{
             .scope = "composite",
             .frame = m_cache_frame >= 0 ? m_cache_frame : Frame{0},
-            .width = ctx.width,
-            .height = ctx.height,
+            .width = ctx.frame.width,
+            .height = ctx.frame.height,
             .params_hash = static_cast<u64>(m_mode)
         };
     }
@@ -63,23 +63,23 @@ public:
         std::span<const std::optional<raster::BBox>> input_bboxes
     ) override {
         if (inputs.size() < 2) {
-            return inputs.empty() ? ctx.acquire_owned_fb(ctx.width, ctx.height) : ctx.acquire_owned_fb(*inputs[0]);
+            return inputs.empty() ? ctx.acquire_owned_fb(ctx.frame.width, ctx.frame.height) : ctx.acquire_owned_fb(*inputs[0]);
         }
         
         const FramebufferRef& bottom = inputs[0];
         const FramebufferRef& top = inputs[1];
 
-        if (ctx.diagnostics_enabled) {
+        if (ctx.options.diagnostics_enabled) {
             spdlog::info(
                 "[dirty-debug] frame={} Composite mode={} bottom_opaque={} top_opaque={} clip=[{}:{} -> {}:{}]",
-                static_cast<int>(ctx.frame),
+                static_cast<int>(ctx.frame.frame),
                 static_cast<int>(m_mode),
                 bottom ? (bottom->is_opaque() ? 1 : 0) : 0,
                 top ? (top->is_opaque() ? 1 : 0) : 0,
-                ctx.clip_rect ? ctx.clip_rect->x0 : 0,
-                ctx.clip_rect ? ctx.clip_rect->y0 : 0,
-                ctx.clip_rect ? ctx.clip_rect->x1 : ctx.width,
-                ctx.clip_rect ? ctx.clip_rect->y1 : ctx.height
+                ctx.tile.clip_rect ? ctx.tile.clip_rect->x0 : 0,
+                ctx.tile.clip_rect ? ctx.tile.clip_rect->y0 : 0,
+                ctx.tile.clip_rect ? ctx.tile.clip_rect->x1 : ctx.frame.width,
+                ctx.tile.clip_rect ? ctx.tile.clip_rect->y1 : ctx.frame.height
             );
         }
 
@@ -92,15 +92,15 @@ public:
             input_bboxes.size() >= 2 && input_bboxes[1].has_value())
         {
             const auto& tb = *input_bboxes[1];
-            if (tb.x0 <= 0 && tb.y0 <= 0 && tb.x1 >= ctx.width && tb.y1 >= ctx.height) {
-                if (!ctx.clip_rect ||
-                    (ctx.clip_rect->x0 <= 0 && ctx.clip_rect->y0 <= 0 &&
-                     ctx.clip_rect->x1 >= ctx.width && ctx.clip_rect->y1 >= ctx.height))
+            if (tb.x0 <= 0 && tb.y0 <= 0 && tb.x1 >= ctx.frame.width && tb.y1 >= ctx.frame.height) {
+                if (!ctx.tile.clip_rect ||
+                    (ctx.tile.clip_rect->x0 <= 0 && ctx.tile.clip_rect->y0 <= 0 &&
+                     ctx.tile.clip_rect->x1 >= ctx.frame.width && ctx.tile.clip_rect->y1 >= ctx.frame.height))
                 {
-                    if (ctx.counters) {
-                        ctx.counters->composite_calls.fetch_add(1, std::memory_order_relaxed);
-                        const uint64_t area = static_cast<uint64_t>(ctx.width) * static_cast<uint64_t>(ctx.height);
-                        ctx.counters->composite_copy_pixels.fetch_add(area, std::memory_order_relaxed);
+                    if (ctx.telemetry.counters) {
+                        ctx.telemetry.counters->composite_calls.fetch_add(1, std::memory_order_relaxed);
+                        const uint64_t area = static_cast<uint64_t>(ctx.frame.width) * static_cast<uint64_t>(ctx.frame.height);
+                        ctx.telemetry.counters->composite_copy_pixels.fetch_add(area, std::memory_order_relaxed);
                     }
                     auto result = ctx.acquire_owned_fb(top->width(), top->height(), false);
                     result->set_origin(top->origin_x(), top->origin_y());
@@ -112,34 +112,34 @@ public:
         }
 
         OwnedFB result;
-        if (bottom->width() == ctx.width && bottom->height() == ctx.height) {
+        if (bottom->width() == ctx.frame.width && bottom->height() == ctx.frame.height) {
             result = ctx.acquire_owned_fb(*bottom);
         } else {
-            result = ctx.acquire_owned_fb(ctx.width, ctx.height, true);
-            if (ctx.backend) {
-                ctx.backend->composite_layer(*result, *bottom, BlendMode::Normal);
+            result = ctx.acquire_owned_fb(ctx.frame.width, ctx.frame.height, true);
+            if (ctx.resources.backend) {
+                ctx.resources.backend->composite_layer(*result, *bottom, BlendMode::Normal);
             }
         }
 
-        if (ctx.backend) {
+        if (ctx.resources.backend) {
             // Optimization: Only composite the area where the top node actually drew something
             std::optional<raster::BBox> clip = (input_bboxes.size() >= 2) ? input_bboxes[1] : std::nullopt;
-            if (ctx.clip_rect) {
+            if (ctx.tile.clip_rect) {
                 if (clip) {
                     clip = raster::BBox{
-                        .x0 = std::max(clip->x0, ctx.clip_rect->x0),
-                        .y0 = std::max(clip->y0, ctx.clip_rect->y0),
-                        .x1 = std::min(clip->x1, ctx.clip_rect->x1),
-                        .y1 = std::min(clip->y1, ctx.clip_rect->y1)
+                        .x0 = std::max(clip->x0, ctx.tile.clip_rect->x0),
+                        .y0 = std::max(clip->y0, ctx.tile.clip_rect->y0),
+                        .x1 = std::min(clip->x1, ctx.tile.clip_rect->x1),
+                        .y1 = std::min(clip->y1, ctx.tile.clip_rect->y1)
                     };
                     if (clip->x0 >= clip->x1 || clip->y0 >= clip->y1) {
                         clip = raster::BBox{0, 0, 0, 0};
                     }
                 } else {
-                    clip = ctx.clip_rect;
+                    clip = ctx.tile.clip_rect;
                 }
             }
-            ctx.backend->composite_layer(*result, *top, m_mode, clip);
+            ctx.resources.backend->composite_layer(*result, *top, m_mode, clip);
 
             // ── Per-pixel DOF depth tracking ──────────────────────────
             // When track_dof_depth is active, record the world_z of the
@@ -147,13 +147,13 @@ public:
             // Layers are composited back-to-front, so later (front) layers
             // overwrite the depth of earlier (back) layers — exactly what
             // we need for correct occlusion.
-            if (ctx.track_dof_depth && !ctx.dof_depth.empty()) {
-                const i32 w = ctx.width;
+            if (ctx.options.track_dof_depth && !ctx.dof_depth.empty()) {
+                const i32 w = ctx.frame.width;
                 const float wz = m_world_z;
                 const i32 bx0 = clip ? clip->x0 : 0;
                 const i32 by0 = clip ? clip->y0 : 0;
-                const i32 bx1 = clip ? clip->x1 : ctx.width;
-                const i32 by1 = clip ? clip->y1 : ctx.height;
+                const i32 bx1 = clip ? clip->x1 : ctx.frame.width;
+                const i32 by1 = clip ? clip->y1 : ctx.frame.height;
                 for (i32 y = by0; y < by1; ++y) {
                     const i32 sy = y - top->origin_y();
                     if (sy < 0 || sy >= top->height()) continue;
@@ -162,7 +162,7 @@ public:
                         const i32 sx = x - top->origin_x();
                         if (sx < 0 || sx >= top->width()) continue;
                         if (src_row[sx].a > 0.01f) {
-                            ctx.dof_depth[static_cast<size_t>(y) * w + x] = wz;
+                            ctx.telemetry.dof_depth[static_cast<size_t>(y) * w + x] = wz;
                         }
                     }
                 }
@@ -174,22 +174,22 @@ public:
             if (m_mode == BlendMode::Normal && top->is_opaque() &&
                 input_bboxes.size() >= 2 && input_bboxes[1].has_value() &&
                 input_bboxes[1]->x0 <= 0 && input_bboxes[1]->y0 <= 0 &&
-                input_bboxes[1]->x1 >= ctx.width && input_bboxes[1]->y1 >= ctx.height &&
-                (!ctx.clip_rect ||
-                 (ctx.clip_rect->x0 <= 0 && ctx.clip_rect->y0 <= 0 &&
-                  ctx.clip_rect->x1 >= ctx.width && ctx.clip_rect->y1 >= ctx.height)))
+                input_bboxes[1]->x1 >= ctx.frame.width && input_bboxes[1]->y1 >= ctx.frame.height &&
+                (!ctx.tile.clip_rect ||
+                 (ctx.tile.clip_rect->x0 <= 0 && ctx.tile.clip_rect->y0 <= 0 &&
+                  ctx.tile.clip_rect->x1 >= ctx.frame.width && ctx.tile.clip_rect->y1 >= ctx.frame.height)))
             {
                 result->set_opaque(true);
             }
 
-            if (ctx.counters) {
-                ctx.counters->composite_calls.fetch_add(1, std::memory_order_relaxed);
+            if (ctx.telemetry.counters) {
+                ctx.telemetry.counters->composite_calls.fetch_add(1, std::memory_order_relaxed);
                 uint64_t area = clip ? (static_cast<uint64_t>(std::max(0, clip->x1 - clip->x0)) * std::max(0, clip->y1 - clip->y0))
-                                     : static_cast<uint64_t>(ctx.width * ctx.height);
+                                     : static_cast<uint64_t>(ctx.frame.width * ctx.frame.height);
                 if (m_mode == BlendMode::Normal && top->is_opaque()) {
-                    ctx.counters->composite_copy_pixels.fetch_add(area, std::memory_order_relaxed);
+                    ctx.telemetry.counters->composite_copy_pixels.fetch_add(area, std::memory_order_relaxed);
                 } else {
-                    ctx.counters->composite_pixels.fetch_add(area, std::memory_order_relaxed);
+                    ctx.telemetry.counters->composite_pixels.fetch_add(area, std::memory_order_relaxed);
                 }
             }
         }

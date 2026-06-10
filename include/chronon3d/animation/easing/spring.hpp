@@ -66,11 +66,11 @@ inline f32 spring(Frame frame, FrameRate fps, f32 from, f32 to, const SpringConf
 }
 
 inline f32 spring(const FrameContext& ctx, f32 from, f32 to, const SpringConfig& config = {}) {
-    return spring(ctx.frame, ctx.frame_rate, from, to, config);
+    return spring(ctx.frame.frame, ctx.frame_rate, from, to, config);
 }
 
 inline f32 spring(const SequenceContext& ctx, f32 from, f32 to, const SpringConfig& config = {}) {
-    return spring(ctx.frame, ctx.parent.frame_rate, from, to, config);
+    return spring(ctx.frame.frame, ctx.parent.frame_rate, from, to, config);
 }
 
 } // namespace chronon3d
