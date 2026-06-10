@@ -106,5 +106,3 @@ Composition glow_06_video_layer() {
 
 } // namespace chronon3d::content::effects
 
-CHRONON_REGISTER_COMPOSITION("GlowVideoSourceAsset", chronon3d::content::effects::glow_video_source_asset)
-CHRONON_REGISTER_COMPOSITION("GlowVideoLayer",       chronon3d::content::effects::glow_06_video_layer)

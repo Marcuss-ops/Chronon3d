@@ -71,4 +71,3 @@ Composition glow_01_neon_sign() {
 
 } // namespace chronon3d::content::effects
 
-CHRONON_REGISTER_COMPOSITION("GlowNeonSign", chronon3d::content::effects::glow_01_neon_sign)

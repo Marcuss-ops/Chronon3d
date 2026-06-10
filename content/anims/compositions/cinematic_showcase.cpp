@@ -14,7 +14,6 @@
 //   chronon3d_cli render CatmullRomShowcase --frame 30 -o output/catmull.png
 //   chronon3d_cli render CatmullRomShowcase --frames 0-90 -o output/cm_t###.png
 
-#include <chronon3d/core/composition/composition_registration.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
@@ -318,10 +317,6 @@ Composition camera_spline_comparison() {
     });
 }
 
-} // namespace
-
-CHRONON_REGISTER_COMPOSITION("CatmullRomShowcase",      chronon3d::content::anims::catmull_rom_showcase)
-CHRONON_REGISTER_COMPOSITION("DollyZoomShowcase",       chronon3d::content::anims::dolly_zoom_showcase)
-CHRONON_REGISTER_COMPOSITION("CameraSplineComparison",  chronon3d::content::anims::camera_spline_comparison)
+}
 
 } // namespace chronon3d::content::anims

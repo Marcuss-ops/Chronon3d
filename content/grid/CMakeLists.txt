@@ -1,4 +1,5 @@
 add_library(chronon3d_content_grid STATIC
+    grid_module.cpp
     compositions/grid_showcase.cpp
 )
 set_target_properties(chronon3d_content_grid PROPERTIES UNITY_BUILD OFF)

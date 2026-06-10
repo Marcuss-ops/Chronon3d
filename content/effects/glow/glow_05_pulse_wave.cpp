@@ -65,4 +65,3 @@ Composition glow_05_pulse_wave() {
 
 } // namespace chronon3d::content::effects
 
-CHRONON_REGISTER_COMPOSITION("GlowPulseWave", chronon3d::content::effects::glow_05_pulse_wave)
