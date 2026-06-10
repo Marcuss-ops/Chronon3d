@@ -1,6 +1,7 @@
 // content/effects/glow_05_pulse_wave.cpp
 // TEST 5 — Pulse Wave: animated concentric rings + text pulsating in sync
 #include "../common/glow_test_common.hpp"
+#include <chronon3d/effects/effect_params.hpp>
 
 namespace chronon3d::content::effects {
 
@@ -18,7 +19,7 @@ Composition glow_05_pulse_wave() {
         // Outer ring — large soft cyan glow
         s.layer("ring_outer", [p](LayerBuilder& l) {
             l.position({0, 0, 0})
-             .glow(140.f + p*40.f, 0.40f + p*0.45f, Color{0.18f,0.78f,1.f,1.f});
+             .glow(GlowParams{.radius = 140.f + p*40.f, .intensity = 0.40f + p*0.45f, .color = Color{0.18f,0.78f,1.f,1.f}});
             // Invisible circle just to anchor the glow
             l.circle("c", {.radius=190.f,.color=Color{0,0,0,0},.pos={0,0,0}});
         });
@@ -26,28 +27,28 @@ Composition glow_05_pulse_wave() {
         // Mid ring — purple
         s.layer("ring_mid", [p2](LayerBuilder& l) {
             l.position({0, 0, 0})
-             .glow(80.f + p2*30.f, 0.70f + p2*0.50f, Color{0.65f,0.25f,1.f,1.f});
+             .glow(GlowParams{.radius = 80.f + p2*30.f, .intensity = 0.70f + p2*0.50f, .color = Color{0.65f,0.25f,1.f,1.f}});
             l.circle("c", {.radius=110.f,.color=Color{0,0,0,0},.pos={0,0,0}});
         });
 
         // Inner ring — magenta
         s.layer("ring_inner", [p3](LayerBuilder& l) {
             l.position({0, 0, 0})
-             .glow(40.f + p3*20.f, 1.0f + p3*0.6f, Color{1.f,0.22f,0.72f,1.f});
+             .glow(GlowParams{.radius = 40.f + p3*20.f, .intensity = 1.0f + p3*0.6f, .color = Color{1.f,0.22f,0.72f,1.f}});
             l.circle("c", {.radius=60.f,.color=Color{0,0,0,0},.pos={0,0,0}});
         });
 
         // Core bright orb
         s.layer("core", [p](LayerBuilder& l) {
             l.position({0, 0, 0})
-             .glow(30.f, 1.8f + p*0.5f, Color{0.90f,0.97f,1.f,1.f});
+             .glow(GlowParams{.radius = 30.f, .intensity = 1.8f + p*0.5f, .color = Color{0.90f,0.97f,1.f,1.f}});
             l.circle("c", {.radius=32.f + p*8.f,.color=Color{1,1,1,0.95f},.pos={0,0,0}});
         });
 
         // Pulsing label
         s.layer("pulse_text", [p](LayerBuilder& l) {
             l.position({0, 340, 0})
-             .glow(18.f, 0.7f + p*0.6f, Color{0.18f,0.78f,1.f,1.f});
+             .glow(GlowParams{.radius = 18.f, .intensity = 0.7f + p*0.6f, .color = Color{0.18f,0.78f,1.f,1.f}});
             l.text("t", {
                 .text="PULSE WAVE",
                 .size={700,60},.pos={0,0,0},

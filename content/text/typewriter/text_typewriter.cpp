@@ -1,4 +1,5 @@
 #include "typewriter_common.hpp"
+#include "content/common/background_helpers.hpp"
 
 namespace chronon3d::content::text {
 
@@ -8,19 +9,12 @@ namespace chronon3d::content::text {
 
 namespace {
 
+// Delegates to the shared helper using the TextTypewriter preset style
+// (deep navy bg + blue grid).  Kept as a local wrapper so existing call
+// sites in this file don't need to change.
 void add_grid_background(SceneBuilder& s) {
-    s.layer("bg", [](auto& l) {
-        l.cache_static().grid_background("g", {
-            .size = {1920.0f, 1080.0f},
-            .bg_color = {0.01f, 0.012f, 0.022f, 1.0f},
-            .grid_color = {0.18f, 0.5f, 0.96f, 0.12f},
-            .spacing = 96.0f,
-            .minor_thickness = 1.0f,
-            .major_thickness = 2.5f,
-            .major_every = 4,
-            .centered = true,
-        });
-    });
+    chronon3d::content::backgrounds::add_common_background(
+        s, chronon3d::content::backgrounds::BackgroundStyles::TextTypewriter());
 }
 
 } // namespace

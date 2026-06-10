@@ -81,7 +81,7 @@ TEST_CASE("EffectStack: chained effects preserve order") {
 TEST_CASE("EffectStack: drop_shadow and glow added to stack") {
     LayerBuilder lb("test");
     lb.drop_shadow({4,4}, Color::black(), 8.0f)
-      .glow(12.0f, 0.9f);
+      .glow(GlowParams{.radius = 12.0f, .intensity = 0.9f, .color = Color::white()});
     auto layer = lb.build();
     CHECK(layer.effects.size() == 2);
     CHECK(holds_effect<DropShadowParams>(layer.effects[0]));

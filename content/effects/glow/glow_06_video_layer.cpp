@@ -1,6 +1,7 @@
 // content/effects/glow_06_video_layer.cpp
 // TEST 6 — Video Layer: city video content wrapped with glow + title
 #include "../common/glow_test_common.hpp"
+#include <chronon3d/effects/effect_params.hpp>
 
 namespace chronon3d::content::effects {
 
@@ -50,7 +51,7 @@ Composition glow_video_source_asset() {
         s.layer("car", [wave](LayerBuilder& l) {
             const float bob = (wave-0.5f)*4.f;
             l.position({0, 42.f+bob, 0})
-             .glow(12.f, 0.60f, Color{0.25f,0.70f,1,1});
+             .glow(GlowParams{.radius = 12.f, .intensity = 0.60f, .color = Color{0.25f,0.70f,1,1}});
             l.rect("body", {.size={58,24},.color=Color{0.06f,0.07f,0.10f,1},.pos={-29,-12,0}});
             l.rounded_rect("roof", {.size={38,18},.radius=6,.color=Color{0.05f,0.05f,0.08f,1},.pos={-19,-22,0}});
             l.rect("tl", {.size={12,4},.color=Color{1,.2f,.3f,1},.pos={-24,-8,0}});
@@ -71,14 +72,14 @@ Composition glow_06_video_layer() {
         // Large ambient city glow behind video
         s.layer("city_glow", [](LayerBuilder& l) {
             l.position({0,80,0})
-             .glow(320.f,0.38f,Color{0.20f,0.40f,1.f,1.f});
+             .glow(GlowParams{.radius = 320.f, .intensity = 0.38f, .color = Color{0.20f,0.40f,1.f,1.f}});
             l.rect("r", {.size={1400,2},.color=Color{0,0,0,0},.pos={-700,0,0}});
         });
 
         // Title above with electric blue glow
         s.layer("title", [](LayerBuilder& l) {
             l.position({0,-370,0})
-             .glow(22.f,1.0f,Color{0.22f,0.72f,1.f,1.f});
+             .glow(GlowParams{.radius = 22.f, .intensity = 1.0f, .color = Color{0.22f,0.72f,1.f,1.f}});
             l.text("t", {
                 .text="VIDEO LAYER GLOW",
                 .size={900,80},.pos={0,0,0},
@@ -94,7 +95,7 @@ Composition glow_06_video_layer() {
         source.size = {606.f, 366.f};
         s.video_layer("video_glow", source, [](LayerBuilder& l) {
             l.position({0,-20,0})
-             .glow(32.f, 1.0f, Color{0.28f,0.72f,1.f,1.f})
+             .glow(GlowParams{.radius = 32.f, .intensity = 1.0f, .color = Color{0.28f,0.72f,1.f,1.f}})
              .drop_shadow({0,14}, Color{0,0,0,0.65f}, 20.f);
         });
 

@@ -41,7 +41,7 @@ Composition glow_02_orb_galaxy() {
             s.layer("orb"+std::to_string(idx), [orbs,idx](LayerBuilder& l) {
                 const auto& o = orbs[idx];
                 l.position({o.x, o.y, 0})
-                 .glow(o.rad, o.inten, o.col);
+                 .glow(GlowParams{.radius = o.rad, .intensity = o.inten, .color = o.col});
                 l.circle("c", {.radius=o.r,.color=Color{1,1,1,0.95f},.pos={0,0,0}});
             });
         }

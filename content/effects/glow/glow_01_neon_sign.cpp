@@ -24,14 +24,14 @@ Composition glow_01_neon_sign() {
         // Top decorative bar — electric blue
         s.layer("bar_top", [](LayerBuilder& l) {
             l.position({0, -kHH + 140.f, 0})
-             .glow(16.f, 1.4f, Color{0.18f,0.62f,1.f,1.f});
+             .glow(GlowParams{.radius = 16.f, .intensity = 1.4f, .color = Color{0.18f,0.62f,1.f,1.f}});
             l.rect("r", {.size={800,2},.color=Color{0.5f,0.85f,1.f,1.f},.pos={-400,-1,0}});
         });
 
         // Hero text — massive, electric blue glow
         s.layer("hero", [](LayerBuilder& l) {
             l.position({0, -60, 0})
-             .glow(55.f, 1.7f, Color{0.18f,0.62f,1.f,1.f});
+             .glow(GlowParams{.radius = 55.f, .intensity = 1.7f, .color = Color{0.18f,0.62f,1.f,1.f}});
             l.text("t", {
                 .text="NEON\nGLOW",
                 .size={1100,400}, .pos={0,0,0},
@@ -46,7 +46,7 @@ Composition glow_01_neon_sign() {
         // Tagline — magenta glow
         s.layer("tagline", [](LayerBuilder& l) {
             l.position({0, 260, 0})
-             .glow(22.f, 1.2f, Color{1.f,0.20f,0.72f,1.f});
+             .glow(GlowParams{.radius = 22.f, .intensity = 1.2f, .color = Color{1.f,0.20f,0.72f,1.f}});
             l.text("t", {
                 .text="CHRONON3D · GLOW PIPELINE · TEST 1",
                 .size={1100,50}, .pos={0,0,0},
@@ -60,7 +60,7 @@ Composition glow_01_neon_sign() {
         // Bottom bar — magenta
         s.layer("bar_bot", [](LayerBuilder& l) {
             l.position({0, kHH - 140.f, 0})
-             .glow(16.f, 1.2f, Color{1.f,0.20f,0.72f,1.f});
+             .glow(GlowParams{.radius = 16.f, .intensity = 1.2f, .color = Color{1.f,0.20f,0.72f,1.f}});
             l.rect("r", {.size={800,2},.color=Color{1.f,0.5f,0.9f,1.f},.pos={-400,-1,0}});
         });
 

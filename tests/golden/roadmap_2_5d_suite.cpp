@@ -143,7 +143,7 @@ Composition make_hero_push_scene() {
         });
 
         s.layer("halo", [](LayerBuilder& l) {
-            l.position({0.0f, -45.0f, 0.0f}).glow(84.0f, 1.0f, Color{0.12f, 0.62f, 1.0f, 1.0f});
+            l.position({0.0f, -45.0f, 0.0f}).glow(GlowParams{.radius = 84.0f, .intensity = 1.0f, .color = Color{0.12f, 0.62f, 1.0f, 1.0f}});
             l.circle("c", {.radius = 220.0f, .color = Color{0.10f, 0.35f, 0.85f, 0.08f}});
         });
 
@@ -507,7 +507,7 @@ Composition make_artifact_torture_scene() {
                     .radius = 16.0f,
                     .color = Color{0.18f + 0.05f * i, 0.12f, 0.42f + 0.04f * i, 0.92f}
                 });
-                l.glow(18.0f + static_cast<float>(i) * 2.0f, 0.5f + 0.05f * i, Color{0.38f, 0.15f + 0.05f * i, 1.0f, 1.0f});
+                l.glow(GlowParams{.radius = 18.0f + static_cast<float>(i) * 2.0f, .intensity = 0.5f + 0.05f * i, .color = Color{0.38f, 0.15f + 0.05f * i, 1.0f, 1.0f}});
             });
         }
 

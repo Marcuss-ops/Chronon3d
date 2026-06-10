@@ -119,7 +119,7 @@ TEST_CASE("Test 10.4 — Contrast effect adjusts visual contrast") {
 
 TEST_CASE("Test 10.5 — Glow effect adds visual glowing border") {
     auto glowed = render_with_effects([](LayerBuilder& l) {
-        l.glow(12.0f, 0.8f, Color::white());
+        l.glow(GlowParams{.radius = 12.0f, .intensity = 0.8f, .color = Color::white()});
     });
 
     REQUIRE(glowed != nullptr);

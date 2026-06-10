@@ -34,7 +34,7 @@ void add_hero_text(
 ) {
     s.layer("hero_text", [&](LayerBuilder& l) {
         l.position({0.0f, -14.0f, 0.0f});
-        l.glow(42.0f, 1.25f, glow_color);
+        l.glow(GlowParams{.radius = 42.0f, .intensity = 1.25f, .color = glow_color});
         l.drop_shadow({0.0f, 14.0f}, shadow_color, 26.0f);
         auto hero_style = presets::text::premium_hero_title();
         hero_style.paint.fill_style = fill;
@@ -130,7 +130,7 @@ Composition premium_thumbnail_buttery_smooth() {
         // 2. Transparent Capsule Outline
         s.layer("capsule", [](LayerBuilder& l) {
             l.position({-130.0f, -110.0f, 0.0f});
-            l.glow(16.0f, 0.25f, Color{0.95f, 0.12f, 0.58f, 0.30f});
+            l.glow(GlowParams{.radius = 16.0f, .intensity = 0.25f, .color = Color{0.95f, 0.12f, 0.58f, 0.30f}});
             draw_premium_pill(l, "pill", PremiumPillStyle{
                 .size = {930.0f, 120.0f},
                 .radius = 60.0f,
@@ -234,7 +234,7 @@ Composition premium_thumbnail_saas_blue() {
         // 3. Upgraded centered "Ae" Branding Badge (directly above SaaS)
         s.layer("badge", [](LayerBuilder& l) {
             l.position({0.0f, -250.0f, 0.0f});
-            l.glow(20.0f, 0.80f, Color{0.0f, 0.80f, 1.0f, 0.60f});
+            l.glow(GlowParams{.radius = 20.0f, .intensity = 0.80f, .color = Color{0.0f, 0.80f, 1.0f, 0.60f}});
             l.drop_shadow({0.0f, 10.0f}, Color{0.0f, 0.0f, 0.0f, 0.50f}, 14.0f);
             
             // Outer border card
@@ -274,7 +274,7 @@ Composition premium_thumbnail_saas_blue() {
 
         // 4. Star Sparkles/Glints (Aesthetic template glints left and right)
         s.layer("sparkles", [](LayerBuilder& l) {
-            l.glow(18.0f, 0.95f, Color::white());
+            l.glow(GlowParams{.radius = 18.0f, .intensity = 0.95f, .color = Color::white()});
             
             l.star("star_left", {
                 .center = {-340.0f, -50.0f},
@@ -365,7 +365,7 @@ Composition premium_thumbnail_saas_blue() {
         // 6. Thin Glowing Curved Horizon Line (Bottom)
         s.layer("arc", [](LayerBuilder& l) {
             l.position({0.0f, 512.0f, 0.0f}); // Placed at the bottom edge
-            l.glow(35.0f, 1.6f, Color{0.0f, 0.85f, 1.0f, 1.0f});
+            l.glow(GlowParams{.radius = 35.0f, .intensity = 1.6f, .color = Color{0.0f, 0.85f, 1.0f, 1.0f}});
             
             PathParams p;
             p.commands = {

@@ -336,7 +336,7 @@ inline Composition floating_cards_hero() {
                 44.0f, 800, {0.95f, 0.96f, 1.0f, 1.0f},
                 TextAlign::Center, {900.0f, 70.0f}
             ));
-            l.glow(18.0f, 0.30f, Color{0.3f, 0.6f, 1.0f, 1.0f}, 0.0f);
+            l.glow(GlowParams{.radius = 18.0f, .intensity = 0.30f, .color = Color{0.3f, 0.6f, 1.0f, 1.0f}, .threshold = 0.0f});
             l.float_idle(8.0f, Frame{100});
         });
 
@@ -423,7 +423,7 @@ inline Composition kinetic_title() {
                 "Impact", 100.0f, 900, {0.60f, 0.35f, 1.0f, 0.90f},
                 TextAlign::Center, {400.0f, 110.0f}
             ));
-            l.glow(24.0f, 0.40f, Color{0.50f, 0.30f, 1.0f, 1.0f}, 0.0f);
+            l.glow(GlowParams{.radius = 24.0f, .intensity = 0.40f, .color = Color{0.50f, 0.30f, 1.0f, 1.0f}, .threshold = 0.0f});
             l.bloom(0.60f, 20.0f, 0.35f);
             l.settle(0.08f, Frame{30});
         });
@@ -522,7 +522,7 @@ inline Composition depth_product_reveal() {
                     {0.05f, 0.05f, 0.12f, 0.95f}
                 ),
             });
-            l.glow(32.0f, 0.45f, Color{0.3f, 0.5f, 1.0f, 1.0f}, 0.0f);
+            l.glow(GlowParams{.radius = 32.0f, .intensity = 0.45f, .color = Color{0.3f, 0.5f, 1.0f, 1.0f}, .threshold = 0.0f});
             l.bloom(0.70f, 24.0f, 0.40f);
 
             l.rounded_rect("icon_bg", {
@@ -558,7 +558,7 @@ inline Composition depth_product_reveal() {
                 l.circle("dot", {
                     .radius = 6.0f, .color = n.color, .pos = {0.0f, 0.0f, 0.0f},
                 });
-                l.glow(12.0f, 0.60f, n.color, 0.0f);
+                l.glow(GlowParams{.radius = 12.0f, .intensity = 0.60f, .color = n.color, .threshold = 0.0f});
                 l.float_idle(10.0f, Frame{80});
             });
         }
