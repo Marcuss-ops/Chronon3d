@@ -1,113 +1,35 @@
 #include "render_job_detail.hpp"
-#include "report/render_job_report.hpp"
-#include "../telemetry/telemetry_run.hpp"
+#include "render_job_setup.hpp"
+#include "render_job_finalize.hpp"
+#include "write_pool.hpp"
 
 #include <chronon3d/core/memory/framebuffer.hpp>
-#include <chronon3d/core/telemetry/telemetry_bundle.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/system_metrics.hpp>
-#include <chronon3d/runtime/renderer_warmup.hpp>
 #include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
-#include <chronon3d/assets/asset_registry.hpp>
-
-#include "write_pool.hpp"
 
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
 
-#include <chrono>
 #include <future>
-#include <vector>
 
 namespace chronon3d::cli {
-    extern std::string g_command_line;
-}
-
-namespace chronon3d::cli {
-
-namespace {
-std::string resolve_output_path_for_telemetry(const std::string& output) {
-    if (output.empty()) {
-        return output;
-    }
-
-    std::filesystem::path resolved(output);
-    if (!resolved.is_absolute()) {
-        resolved = std::filesystem::absolute(resolved);
-    }
-    return resolved.lexically_normal().string();
-}
-}
 
 bool execute_render_job(const CompositionRegistry& registry, const RenderJobPlan& plan) {
-    // Mount current working directory as asset root so relative asset paths
-    // (fonts, images, etc.) resolve correctly for all engines (Blend2D,
-    // FreeType, image loaders).
-    AssetRegistry::mount(std::filesystem::current_path());
-
-    profiling::g_live_framebuffer_bytes.store(0, std::memory_order_relaxed);
-    profiling::g_peak_live_framebuffer_bytes.store(0, std::memory_order_relaxed);
-
-    const auto job_started_iso = chronon3d::telemetry::TelemetryManager::get_current_iso_time();
-    const auto wall_t0 = std::chrono::steady_clock::now();
-    SystemMetricsCollector sys_metrics;
-
-    const auto setup_t0 = std::chrono::steady_clock::now();
-    auto renderer = create_renderer(registry, plan.settings);
-    const auto renderer_t1 = std::chrono::steady_clock::now();
-    if (renderer->counters()) {
-        const auto setup_ms = static_cast<uint64_t>(
-            std::chrono::duration<double, std::milli>(renderer_t1 - setup_t0).count());
-        renderer->counters()->setup_graph_parsing_ms.fetch_add(setup_ms, std::memory_order_relaxed);
+    // ═══════════════════════════════════════════════════════════════════
+    // PHASE 1 — Setup:  asset mount, renderer creation, warmup,
+    //                    counter reset, telemetry-store clear
+    // ═══════════════════════════════════════════════════════════════════
+    RenderJobSetupResult setup;
+    setup_render_job(registry, plan, setup);
+    if (!setup.renderer) {
+        spdlog::error("Failed to create renderer for composition '{}'", plan.comp_id);
+        return false;
     }
 
-    // Renderer warmup (preallocate framebuffers + optional dummy frame)
-    uint64_t saved_fb_alloc = 0;
-    uint64_t saved_fb_reuses = 0;
-    uint64_t saved_fb_bytes = 0;
-    uint64_t saved_fb_peak = 0;
-    if (plan.warmup_renderer) {
-        const auto warmup_t0 = std::chrono::steady_clock::now();
-        runtime::warmup_renderer(*renderer, *plan.comp, runtime::RendererWarmupOptions{
-            .width = plan.comp->width(),
-            .height = plan.comp->height(),
-            .framebuffer_count = plan.warmup_framebuffers,
-            .preallocate_framebuffers = true,
-            .touch_memory = true,
-            .render_dummy_frame = plan.warmup_dummy_frame,
-            .dummy_frame = 0,
-            .quiet = (plan.log_level != "trace" && plan.log_level != "debug")
-        });
-        const auto warmup_t1 = std::chrono::steady_clock::now();
+    auto& renderer = setup.renderer;
 
-        if (renderer->counters()) {
-            const auto warmup_ms = static_cast<uint64_t>(
-                std::chrono::duration<double, std::milli>(warmup_t1 - warmup_t0).count());
-            renderer->counters()->setup_pool_preallocation_ms.fetch_add(warmup_ms, std::memory_order_relaxed);
-
-            saved_fb_alloc = renderer->counters()->framebuffer_allocations.load(std::memory_order_relaxed);
-            saved_fb_reuses = renderer->counters()->framebuffer_reuses.load(std::memory_order_relaxed);
-            saved_fb_bytes = renderer->counters()->framebuffer_bytes_allocated.load(std::memory_order_relaxed);
-            saved_fb_peak = renderer->counters()->framebuffer_bytes_peak.load(std::memory_order_relaxed);
-        }
-    }
-
-    renderer->counters()->reset();
-
-    if (renderer->counters()) {
-        renderer->counters()->framebuffer_allocations.store(saved_fb_alloc, std::memory_order_relaxed);
-        renderer->counters()->framebuffer_reuses.store(saved_fb_reuses, std::memory_order_relaxed);
-        renderer->counters()->framebuffer_bytes_allocated.store(saved_fb_bytes, std::memory_order_relaxed);
-        renderer->counters()->framebuffer_bytes_peak.store(saved_fb_peak, std::memory_order_relaxed);
-    }
-
-    // Clear per-event telemetry stores after warmup, since atomic counters
-    // were reset above.  This keeps Hot Nodes events in sync with
-    // nodes_executed/composite_calls atomic counters.
-    chronon3d::telemetry::clear_telemetry_stores();
-
-    const auto setup_t1 = std::chrono::steady_clock::now();
-
+    // ── Short interlude: specscene motion-blur warning ──────────────
     if (plan.from_specscene && plan.settings.motion_blur.enabled) {
         spdlog::warn("Motion blur is ignored for specscene inputs in this build");
     }
@@ -123,9 +45,12 @@ bool execute_render_job(const CompositionRegistry& registry, const RenderJobPlan
                      ? fmt::format(" [SSAA {:.1f}x]", plan.settings.ssaa_factor)
                      : "");
 
+    // ═══════════════════════════════════════════════════════════════════
+    // PHASE 2 — Render Loop:  double-buffered or single-frame fallback
+    // ═══════════════════════════════════════════════════════════════════
     const bool write_telemetry = plan.report;
     if (write_telemetry) {
-        // Initialize the default telemetry manager stores only when we are
+        // Initialise the default telemetry manager stores only when we are
         // actually generating an execution report. Normal renders should not
         // depend on SQLite telemetry being available.
         chronon3d::telemetry::TelemetryManager::instance().initialize_default_stores();
@@ -136,16 +61,18 @@ bool execute_render_job(const CompositionRegistry& registry, const RenderJobPlan
     double total_encode_ms = 0.0;
     int frames_written = 0;
 
-    const int64_t effective_end = (plan.range.start == plan.range.end) ? plan.range.start + 1 : plan.range.end;
+    const int64_t effective_end = (plan.range.start == plan.range.end)
+                                      ? plan.range.start + 1
+                                      : plan.range.end;
     const int64_t total_frames = (effective_end - plan.range.start + plan.range.step - 1) / plan.range.step;
     bool ok = true;
 
     // Capture CPU baseline before the render loop
-    sys_metrics.sample_cpu_start();
+    setup.sys_metrics.sample_cpu_start();
 
     const auto loop_t0 = std::chrono::steady_clock::now();
 
-    // ── Double-buffered render/write pipeline ────────────────────────
+    // ── Double-buffered render / write pipeline ────────────────────────
     // Overlaps CPU-bound rendering of frame N+1 with I/O-bound writing
     // of frame N.  For single-frame renders, falls back to sequential.
     //
@@ -154,18 +81,15 @@ bool execute_render_job(const CompositionRegistry& registry, const RenderJobPlan
     //   Frame N: render(N) → wait_write(N-1) → launch async_write(N)
     //   Last:    wait_write(last)
     if (total_frames > 1) {
-        // ── Bounded write pool ────────────────────────────────
+        // ── Bounded write pool ──────────────────────────────────
         // Up to 2 writes can be in flight at the same time: the current
         // frame's write + the next frame's write (if the render loop is
-        // already past it).  This is a small but real win over the old
-        // std::async chain that only allowed 1 in-flight write (because
-        // the previous write had to complete before the next was
-        // launched).  The pool also reuses 2 worker threads for the
+        // already past it).  The pool reuses 2 worker threads for the
         // entire render instead of spawning one detached thread per
-        // frame (saves ~900 thread spawns on a 900-frame clip).
+        // frame.
         WritePool write_pool(2);
 
-        // ── Frame 0: render + submit write to pool ─────────────────────
+        // ── Frame 0: render + submit write to pool ─────────────
         int64_t f = plan.range.start;
         {
             const auto hits_before = renderer->node_cache().stats().hits;
@@ -197,7 +121,7 @@ bool execute_render_job(const CompositionRegistry& registry, const RenderJobPlan
 
             f += plan.range.step;
 
-            // ── Pipeline: render frame N, wait for write of N-1, submit write of N
+            // ── Pipeline: render N → wait N-1 → submit N ──────
             for (; f < effective_end; f += plan.range.step) {
                 const auto hits_before_n = renderer->node_cache().stats().hits;
                 const auto t0_n = std::chrono::steady_clock::now();
@@ -218,12 +142,10 @@ bool execute_render_job(const CompositionRegistry& registry, const RenderJobPlan
                 const double dirty_ratio_n = renderer->last_dirty_area_ratio();
                 total_render_ms += render_ms_n;
 
-                // Wait for previous frame's write to finish (propagates exceptions).
-                // This also serves as a backpressure point: if the pool is full,
-                // this .get() blocks until the previous write completes.
+                // Wait for previous frame's write to finish.
                 prev_write.get();
 
-                // Submit write for current frame to the pool (overlap with next render)
+                // Submit write for current frame (overlap with next render)
                 prev_write = write_pool.submit(
                     WritePool::Job([fb_n, f, &plan, cache_hit_n, dirty_ratio_n, render_ms_n,
                                     &ok, &telemetry_frames, &total_encode_ms, &frames_written] {
@@ -234,7 +156,7 @@ bool execute_render_job(const CompositionRegistry& registry, const RenderJobPlan
                     }));
             }
 
-            // Wait for the final async write (propagates exceptions)
+            // Wait for the final async write
             prev_write.get();
             write_pool.drain();
         }
@@ -251,78 +173,12 @@ bool execute_render_job(const CompositionRegistry& registry, const RenderJobPlan
 render_loop_done:
     const auto loop_t1 = std::chrono::steady_clock::now();
 
-    spdlog::info("Render complete.");
-
-
-
-    const auto wall_t1 = std::chrono::steady_clock::now();
-    const double wall_time_ms = std::chrono::duration<double, std::milli>(wall_t1 - wall_t0).count();
-    if (renderer->counters()) {
-        sys_metrics.fill_system_counters(*renderer->counters());
-    }
-    const auto* counters = renderer->counters();
-    chronon3d::telemetry::RenderTelemetryRecord run;
-    run.run_id = chronon3d::telemetry::TelemetryManager::generate_uuid();
-    run.composition_id = plan.comp_id;
-    run.output_path = resolve_output_path_for_telemetry(plan.output);
-    run.success = ok;
-    run.frames_total = static_cast<int>(telemetry_frames.size());
-    run.frames_written = frames_written;
-    run.wall_time_ms = wall_time_ms;
-    run.render_ms = total_render_ms;
-    run.encode_ms = total_encode_ms;
-    run.effective_fps = wall_time_ms > 0 ? (run.frames_total * 1000.0 / wall_time_ms) : 0.0;
-    run.started_at_iso = job_started_iso;
-    run.finished_at_iso = chronon3d::telemetry::TelemetryManager::get_current_iso_time();
-
-    if (counters) {
-        cli::telemetry::populate_run_metrics(run, *counters);
-    }
-
-    // Pool metrics
-    const auto pool_current_bytes = renderer->software_framebuffer_pool().current_bytes();
-    const auto pool_available_count = renderer->software_framebuffer_pool().available_count();
-
-    std::vector<chronon3d::telemetry::CounterTelemetryRecord> counters_list;
-    if (counters) {
-        counters_list = cli::telemetry::capture_counters(*counters);
-    }
-    counters_list.push_back({"pool_current_bytes", pool_current_bytes});
-    counters_list.push_back({"pool_available_count", pool_available_count});
-
-    std::vector<chronon3d::telemetry::PhaseTelemetryRecord> phases = {
-        {"setup_renderer", std::chrono::duration<double, std::milli>(setup_t1 - setup_t0).count()}
-    };
-    if (renderer->counters()) {
-        auto graph_phases = cli::telemetry::capture_graph_phase_records(*renderer->counters());
-        phases.insert(phases.end(), graph_phases.begin(), graph_phases.end());
-    }
-    phases.push_back({"rendering_loop", std::chrono::duration<double, std::milli>(loop_t1 - loop_t0).count()});
-
-    // Flush per-node telemetry collected during graph execution
-    auto telemetry = chronon3d::telemetry::collect_all_telemetry();
-
-    if (write_telemetry) {
-        chronon3d::telemetry::TelemetryManager::instance().record_run(run, telemetry_frames, phases, counters_list,
-                                                            telemetry.node_events, telemetry.layer_events,
-                                                            telemetry.cache_events, telemetry.culling_events,
-                                                            telemetry.text_events, telemetry.image_events,
-                                                            telemetry.tile_events);
-    }
-
-    if (plan.report) {
-        RenderReportContext ctx;
-        ctx.run               = run;
-        ctx.counters          = counters_list;
-        ctx.phases            = phases;
-        ctx.frames            = telemetry_frames;
-        ctx.pool_current_bytes = pool_current_bytes;
-        ctx.pool_available_count = pool_available_count;
-        ctx.command_line      = cli::g_command_line;
-        generate_execution_report(ctx);
-    }
-
-    return ok;
+    // ═══════════════════════════════════════════════════════════════════
+    // PHASE 3 — Finalize:  telemetry collection, report generation
+    // ═══════════════════════════════════════════════════════════════════
+    return finalize_render_job(plan, setup, telemetry_frames,
+                               total_render_ms, total_encode_ms, frames_written,
+                               ok, loop_t0, loop_t1);
 }
 
 } // namespace chronon3d::cli

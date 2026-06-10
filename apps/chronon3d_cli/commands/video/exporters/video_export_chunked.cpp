@@ -1,6 +1,7 @@
 #include "../common/video_export_common.hpp"
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/core/telemetry/telemetry_bundle.hpp>
 #include <spdlog/spdlog.h>
 #include <chrono>
 #include <filesystem>

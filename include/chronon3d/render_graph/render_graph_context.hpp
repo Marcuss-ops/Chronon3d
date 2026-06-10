@@ -9,6 +9,7 @@
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/runtime/telemetry/render_telemetry_record.hpp>
 
+#include <functional>
 #include <algorithm>
 #include <memory>
 #include <string>
@@ -21,6 +22,7 @@
 namespace chronon3d {
     class CompositionRegistry;
     struct RenderCounters;
+    class TransformScratchBuffer;
 }
 
 namespace chronon3d::video {
@@ -73,8 +75,9 @@ struct RenderGraphContext {
 
     /// Acquire the transform scratch buffer as an OwnedFB.
     /// If the scratch is available and large enough, returns it without
-    /// touching the pool.  The PoolFbDeleter's scratch_slot will restore
-    /// the buffer to transform_scratch_slot when released.
+    /// touching the pool.  The PoolFbDeleter's scratch_cleanup callback
+    /// (capturing a TransformScratchBuffer::Handle) restores the buffer
+    /// to the owner on release.
     /// Falls back to normal pool acquire when scratch isn't available.
     OwnedFB acquire_scratch_fb(
         int w,
@@ -140,13 +143,12 @@ struct RenderGraphContext {
     // When set, TransformNode::execute() uses this buffer instead of
     // acquire_owned_fb(), eliminating pool bucket misses caused by
     // frame-to-frame size variation in animated transforms.
-    // The buffer is managed by SoftwareRenderer; the PoolFbDeleter's
-    // scratch_slot restores it to transform_scratch_slot when released.
-    // Mutable because acquire_owned_fb (and acquire_scratch_fb) are const
-    // but need to mark the scratch as "in use" (set to nullptr) while the
-    // OwnedFB is alive; the deleter restores the pointer when released.
-    mutable Framebuffer* transform_scratch{nullptr};
-    mutable Framebuffer** transform_scratch_slot{nullptr};
+    // The buffer is owned by a TransformScratchBuffer (on SoftwareRenderer);
+    // acquire_scratch_fb() borrows it via acquire_handle() and the
+    // PoolFbDeleter's scratch_cleanup callback restores it to the owner
+    // on release.  No raw-pointer slot dance needed.
+    // Mutable because acquire_scratch_fb() is const but needs to borrow.
+    mutable chronon3d::TransformScratchBuffer* transform_scratch_owner{nullptr};
 
     // ── Ping-pong framebuffers ───────────────────────────────────────────
     // Two persistent framebuffers alternated each frame so ClearNode

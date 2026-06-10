@@ -43,6 +43,7 @@ struct RenderArgs {
     std::string log_level{"info"};
     bool benchmark_all{false};
     bool report{false};
+    std::string command_line; // reconstructed from argv
 };
 
 struct VideoArgs {

@@ -204,7 +204,7 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(
         m_video_decoder.get()
     );
     if (res && m_settings.diagnostic) {
-        diagnostics::draw_null_overlay(*res, effective_scene, effective_scene.camera_2_5d());
+        renderer::diagnostics::draw_null_overlay(*res, effective_scene, effective_scene.camera_2_5d());
     }
     return res;
 }
@@ -260,7 +260,7 @@ void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node,
     }
     processor->draw(*this, fb, node, state, camera, width, height);
     if (m_settings.diagnostic) {
-        diagnostics::draw_layout_preview(fb, node, state, *processor);
+        renderer::diagnostics::draw_layout_preview(fb, node, state, *processor);
     }
 }
 

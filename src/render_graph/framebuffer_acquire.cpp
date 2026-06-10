@@ -1,4 +1,5 @@
 #include <chronon3d/render_graph/render_graph_context.hpp>
+#include <chronon3d/backends/software/transform_scratch_buffer.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/cache/framebuffer_pool.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
@@ -44,10 +45,19 @@ OwnedFB RenderGraphContext::acquire_scratch_fb(
     std::optional<raster::BBox> bounds
 ) const {
     // Use scratch buffer when available and large enough.
-    if (transform_scratch &&
-        transform_scratch->allocated_width() >= w &&
-        transform_scratch->allocated_height() >= h) {
-        auto* scratch = transform_scratch;
+    if (transform_scratch_owner &&
+        transform_scratch_owner->is_allocated()) {
+        // Through a raw pointer member in a const method, the pointed-to
+        // object is still non-const (C++ only const-qualifies the pointer
+        // value, not the pointed-to type).  No const_cast needed.
+        auto handle = transform_scratch_owner->acquire_handle();
+        auto* scratch = handle.get();
+        if (!scratch ||
+            scratch->allocated_width() < w ||
+            scratch->allocated_height() < h) {
+            // Handle goes out of scope here, restoring FB to scratch buffer.
+            return acquire_owned_fb(w, h, clear, bounds);
+        }
         scratch->resize_logical(w, h);
         if (bounds) {
             scratch->set_origin(bounds->x0, bounds->y0);
@@ -57,10 +67,19 @@ OwnedFB RenderGraphContext::acquire_scratch_fb(
         if (clear) {
             scratch->clear(Color::transparent());
         }
-        // Mark the scratch as in-use — deleter will restore it.
-        transform_scratch = nullptr;
+        // Borrow the scratch via RAII Handle.  Wrap in shared_ptr so the
+        // lambda is copyable (std::function requires copyable callables).
+        // When scratch_cleanup is called/cleared, the shared_ptr is reset
+        // and the Handle destructor restores the FB to the scratch buffer.
+        auto handle_shared = std::make_shared<TransformScratchBuffer::Handle>(
+            std::move(handle));
         PoolFbDeleter deleter;
-        deleter.scratch_slot = transform_scratch_slot;
+        // Lambda captures the shared_ptr by copy (copyable for std::function).
+        // The Handle is released naturally when the lambda is destroyed
+        // (after PoolFbDeleter is destroyed in the OwnedFB deleter path).
+        deleter.scratch_cleanup = [handle_shared]() mutable {
+            (void)handle_shared; // keep alive until std::function is destroyed
+        };
         return OwnedFB(scratch, std::move(deleter));
     }
     // Fall back to normal pool acquire.
@@ -264,8 +283,7 @@ RenderGraphContext RenderGraphContext::clone_for_node_execution() const {
     copy.skip_initial_clear = skip_initial_clear;
     copy.graph_structure_unchanged = graph_structure_unchanged;
     copy.track_dof_depth    = track_dof_depth;
-    copy.transform_scratch      = transform_scratch;
-    copy.transform_scratch_slot = transform_scratch_slot;
+    copy.transform_scratch_owner = transform_scratch_owner;
     copy.ping_write_fb          = ping_write_fb;
     copy.ping_write_slot        = ping_write_slot;
 

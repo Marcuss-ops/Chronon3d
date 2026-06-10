@@ -17,5 +17,4 @@ void apply_bloom_effect(
     run_glow_pipeline(fb, GlowPipeline::from(p), clip);
 }
 
-} // namespace renderer
-} // namespace chronon3d
+} // namespace chronon3d::renderer
