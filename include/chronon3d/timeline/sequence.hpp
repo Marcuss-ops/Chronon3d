@@ -36,8 +36,8 @@ struct SequenceContext {
  * Creates a SequenceContext from the current FrameContext.
  */
 inline SequenceContext sequence(const FrameContext& ctx, Frame from, Frame duration) {
-    bool active = ctx.frame.frame >= from && ctx.frame.frame < from + duration;
-    Frame local_frame = active ? Frame{ctx.frame.frame - from} : Frame{0};
+    bool active = ctx.frame.frame.frame >= from && ctx.frame.frame.frame < from + duration;
+    Frame local_frame = active ? Frame{ctx.frame.frame.frame - from} : Frame{0};
 
     return SequenceContext{
         .parent = ctx,

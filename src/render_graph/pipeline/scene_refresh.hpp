@@ -35,15 +35,15 @@ namespace chronon3d::graph::detail {
 ) {
     const Layer& layer = *resolved_layer.layer;
 
-    if (ctx.camera_2_5d.enabled && layer.uses_2_5d_projection) {
+    if (ctx.camera.camera.camera_2_5d.enabled && layer.uses_2_5d_projection) {
         Transform effective_transform = resolved_layer.world_transform;
         const Mat4 projection_world_matrix = effective_transform.to_mat4();
         auto proj = project_layer_2_5d(
             effective_transform,
             projection_world_matrix,
-            ctx.camera.camera_2_5d,
-            static_cast<f32>(ctx.frame.width),
-            static_cast<f32>(ctx.frame.height),
+            ctx.camera.camera.camera_2_5d,
+            static_cast<f32>(ctx.frame.frame.width),
+            static_cast<f32>(ctx.frame.frame.height),
             ctx.options.diagnostics_enabled
         );
         if (proj.visible) {
@@ -118,9 +118,9 @@ inline void refresh_compiled_graph_payloads(
             const RenderNode& src_node = *it->second;
             cache::NodeCacheKey key{
                 .scope = "root.source:" + std::string(src_node.name),
-                .frame = ctx.frame.frame,
-                .width = ctx.frame.width,
-                .height = ctx.frame.height,
+                .frame = ctx.frame.frame.frame,
+                .width = ctx.frame.frame.width,
+                .height = ctx.frame.frame.height,
                 .params_hash = hash_render_node(src_node),
                 .source_hash = hash_bytes(src_node.name.data(), src_node.name.size())
             };
@@ -165,9 +165,9 @@ inline void refresh_compiled_graph_payloads(
             : (item.transform.opacity * src_node.world_transform.opacity);
         cache::NodeCacheKey key{
             .scope = "layer.source:" + layer_name_str + ":" + std::string(src_node.name),
-            .frame = source_is_static ? Frame{0} : ctx.frame.frame,
-            .width = ctx.frame.width,
-            .height = ctx.frame.height,
+            .frame = source_is_static ? Frame{0} : ctx.frame.frame.frame,
+            .width = ctx.frame.frame.width,
+            .height = ctx.frame.frame.height,
             .params_hash = hash_render_node(src_node),
             .source_hash = hash_bytes(src_node.name.data(), src_node.name.size())
         };
@@ -231,9 +231,9 @@ inline void refresh_compiled_graph_payloads(
 
         cache::NodeCacheKey key{
             .scope = "layer.multisource:" + layer_name_str,
-            .frame = source_is_static ? Frame{0} : ctx.frame.frame,
-            .width = ctx.frame.width,
-            .height = ctx.frame.height,
+            .frame = source_is_static ? Frame{0} : ctx.frame.frame.frame,
+            .width = ctx.frame.frame.width,
+            .height = ctx.frame.frame.height,
             .params_hash = aggregated_params_hash,
             .source_hash = hash_string(layer_name_str + "_multisource")
         };
@@ -257,7 +257,7 @@ inline void refresh_compiled_graph_payloads(
         }
         const Layer& layer = *layer_it->second->layer;
         if (layer.anim_transform.blur.is_animated()) {
-            const Frame local_frame = layer.local_frame(ctx.frame.frame);
+            const Frame local_frame = layer.local_frame(ctx.frame.frame.frame);
             const f32 blur_radius = layer.anim_transform.blur.evaluate(local_frame);
             for (auto& effect : node.effects()) {
                 if (auto* blur = std::get_if<BlurParams>(&effect.params)) {
@@ -293,7 +293,7 @@ inline void refresh_compiled_graph_payloads(
                     effective_matrix = ssaa_world;
                 }
                 effective_matrix =
-                    glm::translate(Mat4(1.0f), Vec3(-ctx.frame.width * 0.5f, -ctx.frame.height * 0.5f, 0.0f)) *
+                    glm::translate(Mat4(1.0f), Vec3(-ctx.frame.frame.width * 0.5f, -ctx.frame.frame.height * 0.5f, 0.0f)) *
                     effective_matrix;
             } else {
                 // Delegate to the shared helper so the refresh-path stays in
@@ -304,7 +304,7 @@ inline void refresh_compiled_graph_payloads(
                     (stripped[3][0] != effective_matrix[3][0] ||
                      stripped[3][1] != effective_matrix[3][1])) {
                     spdlog::info("[refresh-transform] stripped centering translation for layer='{}' frame={}",
-                        layer_id, static_cast<int>(ctx.frame.frame));
+                        layer_id, static_cast<int>(ctx.frame.frame.frame));
                 }
                 effective_matrix = stripped;
             }

@@ -25,7 +25,7 @@ Composition minimalist_clean_quote() {
             });
         });
 
-        s.layer("quote_text_layer", [frame = ctx.frame.frame](auto& l) {
+        s.layer("quote_text_layer", [frame = ctx.frame.frame.frame](auto& l) {
             l.pin_to(Anchor::Center);
 
             l.rounded_rect("text_backdrop", {

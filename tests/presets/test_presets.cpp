@@ -143,7 +143,7 @@ TEST_CASE("MotionPresetRegistry Dynamic Registration and Evaluation") {
     obj.preset(motion::MotionPreset::None);
 
     FrameContext ctx;
-    ctx.frame.frame = 10;
+    ctx.frame.frame.frame = 10;
     ctx.frame_rate = {60, 1};
 
     auto state = motion::resolve_motion_state(ctx, obj);
@@ -180,7 +180,7 @@ TEST_CASE("MotionStyle and unified effects resolving") {
     CHECK(obj.style.cache_static == true);
 
     FrameContext ctx;
-    ctx.frame.frame = 10;
+    ctx.frame.frame.frame = 10;
     ctx.frame_rate = {60, 1};
     auto state = motion::resolve_motion_state(ctx, obj);
 
@@ -208,7 +208,7 @@ TEST_CASE("Video and Stock MotionObject + 3D presets resolving") {
     CHECK(s_obj.stock_tag_value == "tag_name");
 
     FrameContext ctx;
-    ctx.frame.frame = 15;
+    ctx.frame.frame.frame = 15;
     ctx.frame_rate = {60, 1};
 
     auto state = motion::resolve_motion_state(ctx, v_obj);

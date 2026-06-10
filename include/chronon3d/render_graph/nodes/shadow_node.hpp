@@ -55,9 +55,9 @@ public:
         h = hash_combine(h, hash_color(m_settings.tint));
         return cache::NodeCacheKey{
             .scope = "shadow:" + m_caster_name,
-            .frame = frame_dependent() ? ctx.frame.frame : Frame{0},
-            .width = ctx.frame.width,
-            .height = ctx.frame.height,
+            .frame = frame_dependent() ? ctx.frame.frame.frame : Frame{0},
+            .width = ctx.frame.frame.width,
+            .height = ctx.frame.frame.height,
             .params_hash = h
         };
     }
@@ -100,13 +100,13 @@ public:
         if (blur > 0.0f) {
             bbox.x0 = std::max(0, static_cast<i32>(std::floor(static_cast<f32>(bbox.x0) - blur)));
             bbox.y0 = std::max(0, static_cast<i32>(std::floor(static_cast<f32>(bbox.y0) - blur)));
-            bbox.x1 = std::min(ctx.frame.width, static_cast<i32>(std::ceil(static_cast<f32>(bbox.x1) + blur)));
-            bbox.y1 = std::min(ctx.frame.height, static_cast<i32>(std::ceil(static_cast<f32>(bbox.y1) + blur)));
+            bbox.x1 = std::min(ctx.frame.frame.width, static_cast<i32>(std::ceil(static_cast<f32>(bbox.x1) + blur)));
+            bbox.y1 = std::min(ctx.frame.frame.height, static_cast<i32>(std::ceil(static_cast<f32>(bbox.y1) + blur)));
         } else {
             bbox.x0 = std::max(0, bbox.x0);
             bbox.y0 = std::max(0, bbox.y0);
-            bbox.x1 = std::min(ctx.frame.width, bbox.x1);
-            bbox.y1 = std::min(ctx.frame.height, bbox.y1);
+            bbox.x1 = std::min(ctx.frame.frame.width, bbox.x1);
+            bbox.y1 = std::min(ctx.frame.frame.height, bbox.y1);
         }
         return bbox;
     }
@@ -116,7 +116,7 @@ public:
         std::span<const FramebufferRef> inputs,
         std::span<const std::optional<raster::BBox>>
     ) override {
-        auto result = ctx.acquire_owned_fb(ctx.frame.width, ctx.frame.height);
+        auto result = ctx.acquire_owned_fb(ctx.frame.frame.width, ctx.frame.frame.height);
         if (inputs.empty() || !inputs[0]) return result;
         const Framebuffer& src = *inputs[0];
 
@@ -143,7 +143,7 @@ public:
         auto render_shadow_layer = [&](f32 opacity_scale, f32 blur_radius, f32 offset_scale, Color tint) {
             const int layer_dx = static_cast<int>(std::round(static_cast<f32>(dx) * offset_scale));
             const int layer_dy = static_cast<int>(std::round(static_cast<f32>(dy) * offset_scale));
-            auto shadow_fb = ctx.acquire_owned_fb(ctx.frame.width, ctx.frame.height);
+            auto shadow_fb = ctx.acquire_owned_fb(ctx.frame.frame.width, ctx.frame.frame.height);
             shadow_fb->clear({0.0f, 0.0f, 0.0f, 0.0f});
 
             int projected_pixels = 0;
@@ -185,11 +185,11 @@ public:
         auto contact = render_shadow_layer(m_settings.contact_opacity, contact_blur, 1.0f, shadow_tint);
         auto ambient = render_shadow_layer(m_settings.ambient_opacity, ambient_blur, 1.75f, shadow_tint);
 
-        for (int y = 0; y < ctx.frame.height; ++y) {
+        for (int y = 0; y < ctx.frame.frame.height; ++y) {
             Color* dst_row = result->pixels_row(y);
             const Color* contact_row = contact->pixels_row(y);
             const Color* ambient_row = ambient->pixels_row(y);
-            for (int x = 0; x < ctx.frame.width; ++x) {
+            for (int x = 0; x < ctx.frame.frame.width; ++x) {
                 const Color mixed = compositor::blend(contact_row[x], ambient_row[x], BlendMode::Normal);
                 if (mixed.a > 0.0f) {
                     dst_row[x] = compositor::blend(dst_row[x], mixed, BlendMode::Normal);

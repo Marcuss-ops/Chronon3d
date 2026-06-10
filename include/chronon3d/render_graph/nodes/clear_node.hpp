@@ -26,7 +26,7 @@ public:
         if (ctx.tile.clip_rect) {
             return *ctx.tile.clip_rect;
         }
-        return raster::BBox{0, 0, ctx.frame.width, ctx.frame.height};
+        return raster::BBox{0, 0, ctx.frame.frame.width, ctx.frame.frame.height};
     }
 
     [[nodiscard]] CacheFramePolicy cache_frame_policy() const override {
@@ -37,8 +37,8 @@ public:
         return cache::NodeCacheKey{
             .scope = "clear",
             .frame = 0,
-            .width = ctx.frame.width,
-            .height = ctx.frame.height
+            .width = ctx.frame.frame.width,
+            .height = ctx.frame.frame.height
         };
     }
 
@@ -53,17 +53,17 @@ public:
         const uint64_t clear_pixels = ctx.tile.clip_rect
             ? static_cast<uint64_t>(std::max(0, ctx.tile.clip_rect->x1 - ctx.tile.clip_rect->x0)) *
               static_cast<uint64_t>(std::max(0, ctx.tile.clip_rect->y1 - ctx.tile.clip_rect->y0))
-            : static_cast<uint64_t>(ctx.frame.width) * static_cast<uint64_t>(ctx.frame.height);
+            : static_cast<uint64_t>(ctx.frame.frame.width) * static_cast<uint64_t>(ctx.frame.frame.height);
 
         if (sw_renderer && ctx.options.diagnostics_enabled) {
             spdlog::info(
                 "[dirty-debug] frame={} Clear reuse_prev={} clip=[{}:{} -> {}:{}] prev_origin=[{},{}] prev_opaque={}",
-                static_cast<int>(ctx.frame.frame),
+                static_cast<int>(ctx.frame.frame.frame),
                 use_dirty_rects ? 1 : 0,
                 ctx.tile.clip_rect ? ctx.tile.clip_rect->x0 : 0,
                 ctx.tile.clip_rect ? ctx.tile.clip_rect->y0 : 0,
-                ctx.tile.clip_rect ? ctx.tile.clip_rect->x1 : ctx.frame.width,
-                ctx.tile.clip_rect ? ctx.tile.clip_rect->y1 : ctx.frame.height,
+                ctx.tile.clip_rect ? ctx.tile.clip_rect->x1 : ctx.frame.frame.width,
+                ctx.tile.clip_rect ? ctx.tile.clip_rect->y1 : ctx.frame.frame.height,
                 sw_renderer->m_prev_framebuffer ? sw_renderer->m_prev_framebuffer->origin_x() : 0,
                 sw_renderer->m_prev_framebuffer ? sw_renderer->m_prev_framebuffer->origin_y() : 0,
                 sw_renderer->m_prev_framebuffer ? (sw_renderer->m_prev_framebuffer->is_opaque() ? 1 : 0) : 0
@@ -75,8 +75,8 @@ public:
             if (ctx.scratch.ping_write_fb) {
                 Framebuffer* write_fb = ctx.scratch.ping_write_fb;
                 const Framebuffer* read_fb = sw_renderer->m_prev_framebuffer.get();
-                const int h = ctx.frame.height;
-                const int logical_w = ctx.frame.width;
+                const int h = ctx.frame.frame.height;
+                const int logical_w = ctx.frame.frame.width;
                 const int stride = write_fb->allocated_width();
                 const auto& clip = ctx.tile.clip_rect;
                 const bool is_empty = clip && clip->is_empty();
@@ -203,7 +203,7 @@ public:
             // overwritten.  Skip the copy to save ~16ms/frame.
             const bool is_full_clip = !ctx.tile.clip_rect ||
                 (ctx.tile.clip_rect->x0 <= 0 && ctx.tile.clip_rect->y0 <= 0 &&
-                 ctx.tile.clip_rect->x1 >= ctx.frame.width && ctx.tile.clip_rect->y1 >= ctx.frame.height);
+                 ctx.tile.clip_rect->x1 >= ctx.frame.frame.width && ctx.tile.clip_rect->y1 >= ctx.frame.frame.height);
 
             const uint64_t fb_size_bytes = fb->size_bytes();
             if (ctx.telemetry.counters) {
@@ -235,7 +235,7 @@ public:
                     ctx.telemetry.counters->clearnode_memcpy_bytes.fetch_add(fb_size_bytes, std::memory_order_relaxed);
                     if (!is_full_clip && ctx.tile.clip_rect &&
                         !(ctx.tile.clip_rect->x0 <= 0 && ctx.tile.clip_rect->x0 <= 0 &&
-                          ctx.tile.clip_rect->x1 >= ctx.frame.width && ctx.tile.clip_rect->y1 >= ctx.frame.height)) {
+                          ctx.tile.clip_rect->x1 >= ctx.frame.frame.width && ctx.tile.clip_rect->y1 >= ctx.frame.frame.height)) {
                         ctx.telemetry.counters->clearnode_partial_clip_copy_count.fetch_add(1, std::memory_order_relaxed);
                     }
                 }
@@ -298,7 +298,7 @@ public:
                 Framebuffer* raw = owned.release();
                 if (ctx.resources.framebuffer_pool) {
                     fb = std::shared_ptr<Framebuffer>(raw,
-                        PoolFbDeleter{ctx.framebuffer_pool.get(), ctx.resources.framebuffer_pool->alive_token()});
+                        PoolFbDeleter{ctx.resources.framebuffer_pool.get(), ctx.resources.framebuffer_pool->alive_token()});
                 } else {
                     fb = std::shared_ptr<Framebuffer>(raw);
                 }
@@ -353,7 +353,7 @@ public:
         }
         // Fresh FB path (no dirty rects, or previous FB is shared)
         {
-            auto fb = ctx.acquire_owned_fb(ctx.frame.width, ctx.frame.height, !skip_clear);
+            auto fb = ctx.acquire_owned_fb(ctx.frame.frame.width, ctx.frame.frame.height, !skip_clear);
             if (skip_clear) {
                 if (ctx.telemetry.counters) {
                     ctx.telemetry.counters->clear_skipped_calls.fetch_add(1, std::memory_order_relaxed);

@@ -32,7 +32,7 @@ static Composition make_linear_camera_comp() {
 
         Camera2_5D cam;
         cam.enabled = true;
-        const f32 t = static_cast<f32>(ctx.frame.frame) / 89.0f;
+        const f32 t = static_cast<f32>(ctx.frame.frame.frame) / 89.0f;
         cam.position = Vec3{300.0f * t, 0.0f, -1000.0f};
         cam.rotation = Vec3{0.0f, 0.0f, 0.0f};
         cam.zoom = 1000.0f;
@@ -58,7 +58,7 @@ static Composition make_curved_camera_comp() {
 
         Camera2_5D cam;
         cam.enabled = true;
-        const f32 t = static_cast<f32>(ctx.frame.frame) / 59.0f;
+        const f32 t = static_cast<f32>(ctx.frame.frame.frame) / 59.0f;
         const f32 angle = t * 3.14159265f; // half circle
         cam.position = Vec3{200.0f * std::sin(angle), 0.0f, -1000.0f - 200.0f * std::cos(angle)};
         cam.rotation = Vec3{0.0f, glm::degrees(angle), 0.0f};

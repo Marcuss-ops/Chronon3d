@@ -36,7 +36,7 @@ CompositionRegistry build_sub_composition_registry(
                 CompositionSpec{.name = sub_name, .width = w, .height = h, .frame_rate = fr, .duration = dur},
                 [nested_desc = std::move(nested_desc)](const FrameContext& ctx) -> Scene {
                     TimelineEvaluator eval;
-                    return eval.evaluate(nested_desc, ctx.frame.frame, ctx.resource);
+                    return eval.evaluate(nested_desc, ctx.frame.frame.frame, ctx.resource);
                 }
             );
         });

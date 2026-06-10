@@ -22,9 +22,9 @@ public:
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         return cache::NodeCacheKey{
             .scope = "effect_stack",
-            .frame = m_cache_frame >= 0 ? m_cache_frame : (frame_dependent() ? ctx.frame.frame : Frame{0}),
-            .width = ctx.frame.width,
-            .height = ctx.frame.height,
+            .frame = m_cache_frame >= 0 ? m_cache_frame : (frame_dependent() ? ctx.frame.frame.frame : Frame{0}),
+            .width = ctx.frame.frame.width,
+            .height = ctx.frame.frame.height,
             .params_hash = hash_effect_stack(m_effects)
         };
     }
@@ -46,8 +46,8 @@ public:
         }
         bbox.x0 = std::max(0, static_cast<i32>(std::floor(static_cast<f32>(bbox.x0) - spread)));
         bbox.y0 = std::max(0, static_cast<i32>(std::floor(static_cast<f32>(bbox.y0) - spread)));
-        bbox.x1 = std::min(ctx.frame.width, static_cast<i32>(std::ceil(static_cast<f32>(bbox.x1) + spread)));
-        bbox.y1 = std::min(ctx.frame.height, static_cast<i32>(std::ceil(static_cast<f32>(bbox.y1) + spread)));
+        bbox.x1 = std::min(ctx.frame.frame.width, static_cast<i32>(std::ceil(static_cast<f32>(bbox.x1) + spread)));
+        bbox.y1 = std::min(ctx.frame.frame.height, static_cast<i32>(std::ceil(static_cast<f32>(bbox.y1) + spread)));
         
         if (ctx.options.diagnostics_enabled) {
             spdlog::info(
@@ -72,7 +72,7 @@ public:
 
     OwnedFB execute(RenderGraphContext& ctx, std::span<const FramebufferRef> inputs, std::span<const std::optional<raster::BBox>> input_bboxes) override {
         if (inputs.empty() || !inputs[0]) {
-            auto empty = ctx.acquire_owned_fb(ctx.frame.width, ctx.frame.height);
+            auto empty = ctx.acquire_owned_fb(ctx.frame.frame.width, ctx.frame.frame.height);
             empty->clear(Color::transparent());
             return empty;
         }
@@ -120,13 +120,13 @@ public:
                     local_clip = pred_bbox;
                 }
             }
-            ctx.resources.backend->apply_effect_stack(*result, m_effects, ctx.frame.time_seconds, local_clip);
+            ctx.resources.backend->apply_effect_stack(*result, m_effects, ctx.frame.frame.time_seconds, local_clip);
             if (ctx.telemetry.counters) {
                 ctx.telemetry.counters->effect_stack_calls.fetch_add(1, std::memory_order_relaxed);
-                uint64_t area = static_cast<uint64_t>(ctx.frame.width * ctx.frame.height);
+                uint64_t area = static_cast<uint64_t>(ctx.frame.frame.width * ctx.frame.frame.height);
                 if (local_clip) {
                     raster::BBox clipped = *local_clip;
-                    clipped.clip_to(ctx.frame.width, ctx.frame.height);
+                    clipped.clip_to(ctx.frame.frame.width, ctx.frame.frame.height);
                     if (!clipped.is_empty()) {
                         area = static_cast<uint64_t>(clipped.x1 - clipped.x0) * (clipped.y1 - clipped.y0);
                     } else {

@@ -68,7 +68,7 @@ TEST_CASE("DirtyRectContract: animated scene is pixel-identical with dirty rects
     Composition comp(spec, [](const FrameContext& ctx) {
         SceneBuilder builder(ctx.resource);
         builder.rect("bg", {.size = {160, 120}, .color = Color{0.05f, 0.05f, 0.1f, 1.0f}, .pos = {80, 60, 0}});
-        float x = 40.0f + static_cast<float>(ctx.frame.frame) * 4.0f;
+        float x = 40.0f + static_cast<float>(ctx.frame.frame.frame) * 4.0f;
         builder.circle("ball", {.radius = 15.0f, .color = Color::green(), .pos = {x, 60.0f, 0}});
         return builder.build();
     });
@@ -103,7 +103,7 @@ TEST_CASE("DirtyRectContract: dirty pixels counter is less than total pixels") {
     Composition comp(spec, [](const FrameContext& ctx) {
         SceneBuilder builder(ctx.resource);
         builder.rect("bg", {.size = {200, 150}, .color = Color{0.2f, 0.3f, 0.4f, 1.0f}, .pos = {100, 75, 0}});
-        float x = 30.0f + static_cast<float>(ctx.frame.frame) * 5.0f;
+        float x = 30.0f + static_cast<float>(ctx.frame.frame.frame) * 5.0f;
         builder.rect("block", {.size = {30, 30}, .color = Color::yellow(), .pos = {x, 75, 0}});
         return builder.build();
     });

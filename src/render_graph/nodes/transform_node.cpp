@@ -25,12 +25,12 @@ OwnedFB TransformNode::execute(
     }
 
     if (inputs.empty() || !inputs[0]) {
-        return ctx.acquire_owned_fb(ctx.frame.width, ctx.frame.height);
+        return ctx.acquire_owned_fb(ctx.frame.frame.width, ctx.frame.frame.height);
     }
 
     const FramebufferRef& input = inputs[0];
     const auto predicted = predicted_bbox(ctx, input_bboxes);
-    const raster::BBox out_bounds = predicted.value_or(raster::BBox{0, 0, ctx.frame.width, ctx.frame.height});
+    const raster::BBox out_bounds = predicted.value_or(raster::BBox{0, 0, ctx.frame.frame.width, ctx.frame.frame.height});
     const i32 out_w = std::max(1, out_bounds.x1 - out_bounds.x0);
     const i32 out_h = std::max(1, out_bounds.y1 - out_bounds.y0);
 
@@ -67,7 +67,7 @@ OwnedFB TransformNode::execute(
     auto result = ctx.acquire_scratch_fb(out_w, out_h, true, out_bounds);
 
     // ── Centering & homography ──────────────────────────────────────────
-    const Mat4 dst_canvas_offset = glm::translate(Mat4(1.0f), Vec3(ctx.frame.width * 0.5f, ctx.frame.height * 0.5f, 0.0f));
+    const Mat4 dst_canvas_offset = glm::translate(Mat4(1.0f), Vec3(ctx.frame.frame.width * 0.5f, ctx.frame.frame.height * 0.5f, 0.0f));
     const Mat4 src_canvas_offset = glm::translate(Mat4(1.0f), Vec3(input->width() * 0.5f, input->height() * 0.5f, 0.0f));
     const Mat4 pixel_model = dst_canvas_offset * model * glm::inverse(src_canvas_offset);
 
@@ -349,20 +349,20 @@ std::optional<raster::BBox> TransformNode::predicted_bbox(
         const f32 tx = model[3][0];
         const f32 ty = model[3][1];
 
-        const i32 x0 = std::clamp(static_cast<i32>(std::floor(static_cast<f32>(in_box.x0) + tx)) - 1, 0, ctx.frame.width);
-        const i32 y0 = std::clamp(static_cast<i32>(std::floor(static_cast<f32>(in_box.y0) + ty)) - 1, 0, ctx.frame.height);
-        const i32 x1 = std::clamp(x0 + src_w + 2, 0, ctx.frame.width);
-        const i32 y1 = std::clamp(y0 + src_h + 2, 0, ctx.frame.height);
+        const i32 x0 = std::clamp(static_cast<i32>(std::floor(static_cast<f32>(in_box.x0) + tx)) - 1, 0, ctx.frame.frame.width);
+        const i32 y0 = std::clamp(static_cast<i32>(std::floor(static_cast<f32>(in_box.y0) + ty)) - 1, 0, ctx.frame.frame.height);
+        const i32 x1 = std::clamp(x0 + src_w + 2, 0, ctx.frame.frame.width);
+        const i32 y1 = std::clamp(y0 + src_h + 2, 0, ctx.frame.frame.height);
 
         return raster::BBox{x0, y0, x1, y1};
     }
 
-    const Mat4 dst_canvas_offset = glm::translate(Mat4(1.0f), Vec3(ctx.frame.width * 0.5f, ctx.frame.height * 0.5f, 0.0f));
+    const Mat4 dst_canvas_offset = glm::translate(Mat4(1.0f), Vec3(ctx.frame.frame.width * 0.5f, ctx.frame.frame.height * 0.5f, 0.0f));
 
     f32 x_min_src = 0.0f;
     f32 y_min_src = 0.0f;
-    f32 x_max_src = static_cast<f32>(ctx.frame.width);
-    f32 y_max_src = static_cast<f32>(ctx.frame.height);
+    f32 x_max_src = static_cast<f32>(ctx.frame.frame.width);
+    f32 y_max_src = static_cast<f32>(ctx.frame.frame.height);
 
     if (!input_bboxes.empty() && input_bboxes[0].has_value()) {
         const auto& in_box = *input_bboxes[0];
@@ -372,7 +372,7 @@ std::optional<raster::BBox> TransformNode::predicted_bbox(
         y_max_src = static_cast<f32>(in_box.y1);
     }
 
-    const Mat4 src_canvas_offset = glm::translate(Mat4(1.0f), Vec3(ctx.frame.width * 0.5f, ctx.frame.height * 0.5f, 0.0f));
+    const Mat4 src_canvas_offset = glm::translate(Mat4(1.0f), Vec3(ctx.frame.frame.width * 0.5f, ctx.frame.frame.height * 0.5f, 0.0f));
     const Mat4 pixel_model = dst_canvas_offset * model * glm::inverse(src_canvas_offset);
 
     Vec4 corners[4] = {
@@ -395,10 +395,10 @@ std::optional<raster::BBox> TransformNode::predicted_bbox(
     }
 
     return raster::BBox{
-        std::clamp(static_cast<i32>(std::floor(min_x)), 0, ctx.frame.width),
-        std::clamp(static_cast<i32>(std::floor(min_y)), 0, ctx.frame.height),
-        std::clamp(static_cast<i32>(std::ceil(max_x)), 0, ctx.frame.width),
-        std::clamp(static_cast<i32>(std::ceil(max_y)), 0, ctx.frame.height)
+        std::clamp(static_cast<i32>(std::floor(min_x)), 0, ctx.frame.frame.width),
+        std::clamp(static_cast<i32>(std::floor(min_y)), 0, ctx.frame.frame.height),
+        std::clamp(static_cast<i32>(std::ceil(max_x)), 0, ctx.frame.frame.width),
+        std::clamp(static_cast<i32>(std::ceil(max_y)), 0, ctx.frame.frame.height)
     };
 }
 

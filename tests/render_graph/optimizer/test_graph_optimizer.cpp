@@ -31,7 +31,7 @@ public:
         const RenderGraphContext& ctx,
         std::span<const std::optional<raster::BBox>>
     ) const override {
-        return raster::BBox{0, 0, ctx.frame.width, ctx.frame.height};
+        return raster::BBox{0, 0, ctx.frame.frame.width, ctx.frame.frame.height};
     }
 
     cache::NodeCacheKey cache_key(const RenderGraphContext&) const override {
@@ -55,8 +55,8 @@ private:
 
 static RenderGraphContext make_test_context(int w, int h) {
     RenderGraphContext ctx;
-    ctx.frame.width  = w;
-    ctx.frame.height = h;
+    ctx.frame.frame.width  = w;
+    ctx.frame.frame.height = h;
     return ctx;
 }
 

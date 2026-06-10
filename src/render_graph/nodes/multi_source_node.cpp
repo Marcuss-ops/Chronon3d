@@ -17,7 +17,7 @@ std::optional<raster::BBox> MultiSourceNode::predicted_bbox(
     std::span<const std::optional<raster::BBox>>
 ) const {
     const Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(ctx.options.ssaa_factor, ctx.options.ssaa_factor, 1.0f));
-    const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.frame.width * 0.5f, ctx.frame.height * 0.5f, 0.0f));
+    const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.frame.frame.width * 0.5f, ctx.frame.frame.height * 0.5f, 0.0f));
 
     i32 x0 = std::numeric_limits<i32>::max();
     i32 y0 = std::numeric_limits<i32>::max();
@@ -44,19 +44,19 @@ std::optional<raster::BBox> MultiSourceNode::predicted_bbox(
         spread += 8.0f;
 
         raster::BBox bbox;
-        if (ctx.camera.has_camera_2_5d &&
+        if (ctx.camera.camera.has_camera_2_5d &&
             (item.node->shape.type == ShapeType::FakeBox3D || item.node->shape.type == ShapeType::GridPlane)) {
             if (auto proj_bbox = detail::projected_native_3d_bbox(ctx, *item.node, item.matrix, spread)) {
                 bbox = *proj_bbox;
             } else {
-                bbox = raster::BBox{0, 0, ctx.frame.width, ctx.frame.height};
+                bbox = raster::BBox{0, 0, ctx.frame.frame.width, ctx.frame.frame.height};
             }
         } else {
             bbox = renderer::compute_world_bbox(item.node->shape, matrix, spread);
         }
 
         if (!ctx.options.diagnostics_enabled) {
-            bbox.clip_to(ctx.frame.width, ctx.frame.height);
+            bbox.clip_to(ctx.frame.frame.width, ctx.frame.frame.height);
         }
         if (!bbox.is_empty()) {
             x0 = std::min(x0, bbox.x0);
@@ -104,16 +104,16 @@ OwnedFB MultiSourceNode::execute(
     std::span<const std::optional<raster::BBox>>
 ) {
     CHRONON_ZONE_C("multi_source_render", trace_category::kRasterize);
-    auto fb = ctx.acquire_owned_fb(ctx.frame.width, ctx.frame.height, /*clear=*/true);
+    auto fb = ctx.acquire_owned_fb(ctx.frame.frame.width, ctx.frame.frame.height, /*clear=*/true);
 
     if (ctx.resources.backend) {
         const Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(ctx.options.ssaa_factor, ctx.options.ssaa_factor, 1.0f));
-        const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.frame.width * 0.5f, ctx.frame.height * 0.5f, 0.0f));
+        const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.frame.frame.width * 0.5f, ctx.frame.frame.height * 0.5f, 0.0f));
 
         for (const auto& item : m_items) {
             if (!item.node) continue;
             RenderState state;
-            state.frame_number = static_cast<int>(ctx.frame.frame);
+            state.frame_number = static_cast<int>(ctx.frame.frame.frame);
             state.ssaa_factor = ctx.options.ssaa_factor;
             if (m_uses_2_5d_projection) {
                 state.matrix = canvas_center * ssaa_scale * item.matrix;
@@ -130,11 +130,11 @@ OwnedFB MultiSourceNode::execute(
             state.clip_rect = ctx.tile.clip_rect;
             state.diagnostics_enabled = ctx.options.diagnostics_enabled;
 
-            if (ctx.camera.has_camera_2_5d) {
-                state.projection  = ctx.camera.projection_ctx;
+            if (ctx.camera.camera.has_camera_2_5d) {
+                state.projection  = ctx.camera.camera.projection_ctx;
             }
 
-            ctx.resources.backend->draw_node(*fb, *item.node, state, ctx.camera.camera, ctx.frame.width, ctx.frame.height);
+            ctx.resources.backend->draw_node(*fb, *item.node, state, ctx.camera.camera.camera, ctx.frame.frame.width, ctx.frame.frame.height);
         }
 
         fb->set_opaque(false);

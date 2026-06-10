@@ -23,9 +23,9 @@ GraphNodeId append_root_sources(RenderGraph& graph, const Scene& scene,
     for (const auto& node : scene.nodes()) {
         cache::NodeCacheKey source_key{
             .scope = "root.source:" + std::string(node.name),
-            .frame = ctx.frame.frame,
-            .width = ctx.frame.width,
-            .height = ctx.frame.height,
+            .frame = ctx.frame.frame.frame,
+            .width = ctx.frame.frame.width,
+            .height = ctx.frame.frame.height,
             .params_hash = hash_render_node(node),
             .source_hash = hash_bytes(node.name.data(), node.name.size())
         };
@@ -121,9 +121,9 @@ void append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
     if (layer.track_matte.active() && item.matte_node != k_invalid_node) {
         cache::NodeCacheKey matte_key{
             .scope       = "matte:" + std::string(layer.name),
-            .frame       = (layer.cache_static || item.is_static) ? Frame{0} : ctx.frame.frame,
-            .width       = ctx.frame.width,
-            .height      = ctx.frame.height,
+            .frame       = (layer.cache_static || item.is_static) ? Frame{0} : ctx.frame.frame.frame,
+            .width       = ctx.frame.frame.width,
+            .height      = ctx.frame.frame.height,
             .params_hash = hash_bytes(layer.track_matte.source_layer.data(),
                                       layer.track_matte.source_layer.size()),
         };

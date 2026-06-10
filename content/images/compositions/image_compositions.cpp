@@ -108,7 +108,7 @@ Composition img_shake_zoom() {
             l.grid_background("grid", {.size = {W, H}, .grid_color = {0.18f, 0.52f, 1, 0.10f}, .spacing = 80});
         });
 
-        f32 t = static_cast<f32>(ctx.frame.frame) / 60.0f;
+        f32 t = static_cast<f32>(ctx.frame.frame.frame) / 60.0f;
         f32 shake_x = std::sin(t * 22.0f) * 8.0f * std::exp(-t * 3.0f);
         f32 shake_y = std::cos(t * 18.0f) * 5.0f * std::exp(-t * 2.8f);
         f32 scale = 1.0f + t * 0.03f;
@@ -139,7 +139,7 @@ Composition img_reference_shake_reveal() {
         });
 
         const f32 p = std::clamp(ctx.progress(), 0.0f, 1.0f);
-        const f32 t = static_cast<f32>(ctx.frame.frame) / ctx.frame.fps();
+        const f32 t = static_cast<f32>(ctx.frame.frame.frame) / ctx.frame.frame.fps();
 
         const f32 fade = std::clamp(p / 0.22f, 0.0f, 1.0f);
         const f32 fade_eased = fade * fade * (3.0f - 2.0f * fade);
@@ -172,7 +172,7 @@ Composition img_corner_smoothing() {
             l.grid_background("grid", {.size = {W, H}, .grid_color = {0.18f, 0.52f, 1, 0.12f}, .spacing = 80});
         });
 
-        f32 t = static_cast<f32>(ctx.frame.frame) / 60.0f;
+        f32 t = static_cast<f32>(ctx.frame.frame.frame) / 60.0f;
         f32 radius = (std::sin(t * glm::pi<float>()) * 0.5f + 0.5f) * 60.0f;
 
         // 1. Animated Rounded Rectangle

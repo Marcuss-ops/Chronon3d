@@ -182,7 +182,7 @@ static inline void compute_scene_root_bboxes(
     for (const auto& node : scene.nodes()) {
         if (!node.visible) continue;
         const Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(ctx.options.ssaa_factor, ctx.options.ssaa_factor, 1.0f));
-        const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.frame.width * 0.5f, ctx.frame.height * 0.5f, 0.0f));
+        const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.frame.frame.width * 0.5f, ctx.frame.frame.height * 0.5f, 0.0f));
         Mat4 matrix;
         if (ctx.options.modular_coordinates) {
             matrix = canvas_center * ssaa_scale * node.world_transform.to_mat4();

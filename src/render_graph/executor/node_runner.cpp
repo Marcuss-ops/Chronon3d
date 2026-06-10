@@ -101,7 +101,7 @@ void execute_single_node(
     double* out_clone_context_ms,
     double* out_state_assign_ms
 ) {
-    if (id < ctx.early_exit_skip.size() && ctx.tile.early_exit_skip[id]) {
+    if (id < ctx.tile.early_exit_skip.size() && ctx.tile.early_exit_skip[id]) {
         auto owned_fb = ctx.acquire_owned_fb(64, 64, false);
         owned_fb->clear(Color::transparent());
         Framebuffer* raw = owned_fb.release();
@@ -118,7 +118,7 @@ void execute_single_node(
             ctx.telemetry.counters->layers_culled.fetch_add(1, std::memory_order_relaxed);
             if (graph.node(id).name() == "Clear") {
                 ctx.telemetry.counters->clear_skipped_calls.fetch_add(1, std::memory_order_relaxed);
-                const uint64_t clear_pixels = static_cast<uint64_t>(ctx.frame.width) * static_cast<uint64_t>(ctx.frame.height);
+                const uint64_t clear_pixels = static_cast<uint64_t>(ctx.frame.frame.width) * static_cast<uint64_t>(ctx.frame.frame.height);
                 ctx.telemetry.counters->clear_skipped_pixels.fetch_add(clear_pixels, std::memory_order_relaxed);
             }
         }
@@ -147,7 +147,7 @@ void execute_single_node(
 
     if (ctx.options.diagnostics_enabled) {
         spdlog::debug("[DIAG-exec] frame={} node='{}' id={} kind='{}' cache='{}' frame_dep={} use_cache={} result_ptr={}",
-            static_cast<int>(ctx.frame.frame), node.name(), id, to_string(node.kind()),
+            static_cast<int>(ctx.frame.frame.frame), node.name(), id, to_string(node.kind()),
             cache_eval.cache_status, cache_eval.node_frame_dependent ? 1 : 0,
             cache_eval.use_cache ? 1 : 0,
             cache_eval.result ? fmt::ptr(cache_eval.result.get()) : "null");
@@ -258,13 +258,13 @@ void execute_single_node(
         *out_dirty_ms = std::chrono::duration<double, std::milli>(t_dirty1 - t_dirty0).count();
     }
 
-    node_ctx.reusable_inputs.clear();
+    node_ctx.scratch.reusable_inputs.clear();
     for (size_t j = 0; j < input_ids.size(); ++j) {
         const GraphNodeId input_id = input_ids[j];
         if (contains_index(state.temp, input_id) && state.temp[input_id]) {
             if (consumer_remaining[input_id].load(std::memory_order_relaxed) == 1 &&
                 state.temp[input_id].use_count() == 1) {
-                node_ctx.reusable_inputs.push_back(state.temp[input_id].get());
+                node_ctx.scratch.reusable_inputs.push_back(state.temp[input_id].get());
             }
         }
     }
