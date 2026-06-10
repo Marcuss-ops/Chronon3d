@@ -196,10 +196,6 @@ private:
                 }
                 break;
             }
-            case FocusInLadder:
-                // FocusInLadder precomputes blur levels inside the layer's
-                // clip rect — the effect is geometrically bounded.
-                break;
             default: break;
             }
         }

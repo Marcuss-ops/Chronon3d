@@ -19,7 +19,4 @@ inline constexpr std::string_view ColorHueRotate   = "color.hue_rotate";
 inline constexpr std::string_view ColorInvert      = "color.invert";
 inline constexpr std::string_view ColorVignette    = "color.vignette";
 
-// ── Precomputed Blur Ladder ──
-inline constexpr std::string_view FocusInLadder   = "effect.focus_in_ladder";
-
 } // namespace chronon3d::effects::ids
