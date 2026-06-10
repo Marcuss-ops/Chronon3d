@@ -15,8 +15,8 @@ namespace chronon3d::graph::detail {
 namespace {
 
 raster::BBox project_bbox_to_canvas(const raster::BBox& bbox, const Mat4& model, const RenderGraphContext& ctx) {
-    const Mat4 dst_canvas_offset = glm::translate(Mat4(1.0f), Vec3(ctx.frame.frame.width * 0.5f, ctx.frame.frame.height * 0.5f, 0.0f));
-    const Mat4 src_canvas_offset = glm::translate(Mat4(1.0f), Vec3(ctx.frame.frame.width * 0.5f, ctx.frame.frame.height * 0.5f, 0.0f));
+    const Mat4 dst_canvas_offset = glm::translate(Mat4(1.0f), Vec3(ctx.frame.width * 0.5f, ctx.frame.height * 0.5f, 0.0f));
+    const Mat4 src_canvas_offset = glm::translate(Mat4(1.0f), Vec3(ctx.frame.width * 0.5f, ctx.frame.height * 0.5f, 0.0f));
     const Mat4 pixel_model = dst_canvas_offset * model * glm::inverse(src_canvas_offset);
 
     Vec4 corners[4] = {
@@ -41,7 +41,7 @@ raster::BBox project_bbox_to_canvas(const raster::BBox& bbox, const Mat4& model,
     }
 
     if (min_x > max_x || min_y > max_y) {
-        return raster::BBox{0, 0, ctx.frame.frame.width, ctx.frame.frame.height};
+        return raster::BBox{0, 0, ctx.frame.width, ctx.frame.height};
     }
 
     return raster::BBox{
@@ -58,19 +58,19 @@ raster::BBox compute_layer_bbox(const LayerGraphItem& item, const RenderGraphCon
     const Layer& layer = *item.layer;
 
     if (layer.kind == LayerKind::Adjustment) {
-        return raster::BBox{0, 0, ctx.frame.frame.width, ctx.frame.frame.height};
+        return raster::BBox{0, 0, ctx.frame.width, ctx.frame.height};
     }
 
     if (layer.kind != LayerKind::Normal) {
-        return raster::BBox{0, 0, ctx.frame.frame.width, ctx.frame.frame.height};
+        return raster::BBox{0, 0, ctx.frame.width, ctx.frame.height};
     }
 
     if (!renderer) {
-        return raster::BBox{0, 0, ctx.frame.frame.width, ctx.frame.frame.height};
+        return raster::BBox{0, 0, ctx.frame.width, ctx.frame.height};
     }
 
     const Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(ctx.options.ssaa_factor, ctx.options.ssaa_factor, 1.0f));
-    const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.frame.frame.width * 0.5f, ctx.frame.frame.height * 0.5f, 0.0f));
+    const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.frame.width * 0.5f, ctx.frame.height * 0.5f, 0.0f));
     const bool centered = should_use_centered_rendering(item, ctx);
 
     const bool layer_needs_transform = layer_needs_render_transform(item, ctx);
@@ -115,7 +115,7 @@ raster::BBox compute_layer_bbox(const LayerGraphItem& item, const RenderGraphCon
 
         auto* processor = renderer->software_registry().get_shape(node.shape.type);
         if (!processor) {
-            return raster::BBox{0, 0, ctx.frame.frame.width, ctx.frame.frame.height};
+            return raster::BBox{0, 0, ctx.frame.width, ctx.frame.height};
         }
 
         f32 spread = 0.0f;
@@ -132,7 +132,7 @@ raster::BBox compute_layer_bbox(const LayerGraphItem& item, const RenderGraphCon
     }
 
     if (layer_bbox.x0 > layer_bbox.x1 || layer_bbox.y0 > layer_bbox.y1) {
-        return raster::BBox{0, 0, ctx.frame.frame.width, ctx.frame.frame.height};
+        return raster::BBox{0, 0, ctx.frame.width, ctx.frame.height};
     }
 
     if (item.projected) {
@@ -148,7 +148,7 @@ raster::BBox compute_layer_bbox(const LayerGraphItem& item, const RenderGraphCon
             ssaa_world[3][1] *= ctx.options.ssaa_factor;
             ssaa_world[3][2] *= ctx.options.ssaa_factor;
             model =
-                glm::translate(Mat4(1.0f), Vec3(-ctx.frame.frame.width * 0.5f, -ctx.frame.frame.height * 0.5f, 0.0f)) *
+                glm::translate(Mat4(1.0f), Vec3(-ctx.frame.width * 0.5f, -ctx.frame.height * 0.5f, 0.0f)) *
                 ssaa_world;
         }
         return project_bbox_to_canvas(layer_bbox, model, ctx);

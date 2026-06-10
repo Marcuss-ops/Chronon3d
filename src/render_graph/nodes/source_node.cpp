@@ -91,7 +91,7 @@ std::optional<raster::BBox> SourceNode::predicted_bbox(
     std::span<const std::optional<raster::BBox>>
 ) const {
     const Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(ctx.options.ssaa_factor, ctx.options.ssaa_factor, 1.0f));
-    const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.frame.frame.width * 0.5f, ctx.frame.frame.height * 0.5f, 0.0f));
+    const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.frame.width * 0.5f, ctx.frame.height * 0.5f, 0.0f));
 
     Mat4 matrix;        if (m_uses_2_5d_projection || m_centered) {
             matrix = canvas_center * ssaa_scale * m_matrix_override.value_or(m_node.world_transform.to_mat4());
@@ -108,18 +108,18 @@ std::optional<raster::BBox> SourceNode::predicted_bbox(
     }
     spread += 8.0f;
 
-    if (ctx.camera.camera.has_camera_2_5d &&
+    if (ctx.camera.has_camera_2_5d &&
         (m_node.shape.type == ShapeType::FakeBox3D || m_node.shape.type == ShapeType::GridPlane)) {
         const Mat4 world_matrix = m_matrix_override.value_or(m_node.world_transform.to_mat4());
         if (auto bbox = detail::projected_native_3d_bbox(ctx, m_node, world_matrix, spread)) {
             return bbox;
         }
-        return raster::BBox{0, 0, ctx.frame.frame.width, ctx.frame.frame.height};
+        return raster::BBox{0, 0, ctx.frame.width, ctx.frame.height};
     }
 
     auto bbox = renderer::compute_world_bbox(m_node.shape, matrix, spread);
     if (!ctx.options.diagnostics_enabled) {
-        bbox.clip_to(ctx.frame.frame.width, ctx.frame.frame.height);
+        bbox.clip_to(ctx.frame.width, ctx.frame.height);
     }
     if (bbox.is_empty()) {
         return raster::BBox{0, 0, 0, 0};
@@ -136,8 +136,8 @@ cache::NodeCacheKey SourceNode::cache_key(const RenderGraphContext& ctx) const {
     if (m_opacity_override) {
         key.params_hash = hash_combine(key.params_hash, hash_bytes(&(*m_opacity_override), sizeof(f32)));
     }
-    if (m_uses_2_5d_projection && ctx.camera.camera.has_camera_2_5d) {
-        const auto& cam = ctx.camera.camera.camera_2_5d;
+    if (m_uses_2_5d_projection && ctx.camera.has_camera_2_5d) {
+        const auto& cam = ctx.camera.camera_2_5d;
         key.params_hash = hash_combine(key.params_hash, hash_bytes(&cam.position, sizeof(Vec3)));
         key.params_hash = hash_combine(key.params_hash, hash_bytes(&cam.rotation, sizeof(Vec3)));
         key.params_hash = hash_combine(key.params_hash, hash_bytes(&cam.zoom, sizeof(f32)));
@@ -175,12 +175,12 @@ OwnedFB SourceNode::execute(
         }
     }
 
-    auto fb = ctx.acquire_owned_fb(ctx.frame.frame.width, ctx.frame.frame.height, !skip_clear);        if (ctx.resources.backend) {
+    auto fb = ctx.acquire_owned_fb(ctx.frame.width, ctx.frame.height, !skip_clear);        if (ctx.resources.backend) {
         RenderState state;
-        state.frame_number = static_cast<int>(ctx.frame.frame.frame);
+        state.frame_number = static_cast<int>(ctx.frame.frame);
         state.ssaa_factor = ctx.options.ssaa_factor;
         const Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(ctx.options.ssaa_factor, ctx.options.ssaa_factor, 1.0f));
-        const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.frame.frame.width * 0.5f, ctx.frame.frame.height * 0.5f, 0.0f));
+        const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.frame.width * 0.5f, ctx.frame.height * 0.5f, 0.0f));
 
         if (m_uses_2_5d_projection || m_centered) {
             state.matrix = canvas_center * ssaa_scale * m_matrix_override.value_or(m_node.world_transform.to_mat4());
@@ -189,16 +189,16 @@ OwnedFB SourceNode::execute(
         }
         state.opacity = m_opacity_override.value_or(m_node.world_transform.opacity);
         state.world_matrix = m_matrix_override.value_or(m_node.world_transform.to_mat4());
-        state.frame_number = static_cast<int>(ctx.frame.frame.frame);
+        state.frame_number = static_cast<int>(ctx.frame.frame);
 
         state.clip_rect = ctx.tile.clip_rect;
         state.diagnostics_enabled = ctx.options.diagnostics_enabled;
 
-        if (ctx.camera.camera.has_camera_2_5d) {
-            state.projection  = ctx.camera.camera.projection_ctx;
+        if (ctx.camera.has_camera_2_5d) {
+            state.projection  = ctx.camera.projection_ctx;
         }
 
-        ctx.resources.backend->draw_node(*fb, m_node, state, ctx.camera.camera.camera, ctx.frame.frame.width, ctx.frame.frame.height);
+        ctx.resources.backend->draw_node(*fb, m_node, state, ctx.camera.camera, ctx.frame.width, ctx.frame.height);
         fb->set_opaque(full_frame_seed);
 
         if (ctx.options.diagnostics_enabled) {
@@ -247,27 +247,27 @@ bool SourceNode::can_seed_full_frame(const RenderGraphContext& ctx) const {
 
     if (ctx.tile.clip_rect) {
         const bool clip_is_full = ctx.tile.clip_rect->x0 <= 0 && ctx.tile.clip_rect->y0 <= 0 &&
-                                  ctx.tile.clip_rect->x1 >= ctx.frame.frame.width && ctx.tile.clip_rect->y1 >= ctx.frame.frame.height;
+                                  ctx.tile.clip_rect->x1 >= ctx.frame.width && ctx.tile.clip_rect->y1 >= ctx.frame.height;
         if (!clip_is_full) {
             return false;
         }
     }
 
-    const bool full_size = std::abs(img.size.x - static_cast<f32>(ctx.frame.frame.width)) < kSeedFrameEpsilon &&
-                           std::abs(img.size.y - static_cast<f32>(ctx.frame.frame.height)) < kSeedFrameEpsilon;
+    const bool full_size = std::abs(img.size.x - static_cast<f32>(ctx.frame.width)) < kSeedFrameEpsilon &&
+                           std::abs(img.size.y - static_cast<f32>(ctx.frame.height)) < kSeedFrameEpsilon;
     const bool opaque = img.opacity >= 0.999f && opacity >= 0.999f;
     if (!full_size || !opaque) {
         return false;
     }
 
     const Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(ctx.options.ssaa_factor, ctx.options.ssaa_factor, 1.0f));
-    const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.frame.frame.width * 0.5f, ctx.frame.frame.height * 0.5f, 0.0f));
+    const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.frame.width * 0.5f, ctx.frame.height * 0.5f, 0.0f));
     const Mat4 local_matrix = m_matrix_override.value_or(tr.to_mat4());
     const Mat4 effective_matrix = m_uses_2_5d_projection || m_centered
         ? (canvas_center * ssaa_scale * local_matrix)
         : (ssaa_scale * local_matrix);
 
-    return covers_full_frame_as_rectangle(effective_matrix, static_cast<f32>(ctx.frame.frame.width), static_cast<f32>(ctx.frame.frame.height), m_uses_2_5d_projection || m_centered);
+    return covers_full_frame_as_rectangle(effective_matrix, static_cast<f32>(ctx.frame.width), static_cast<f32>(ctx.frame.height), m_uses_2_5d_projection || m_centered);
 }
 
 } // namespace chronon3d::graph

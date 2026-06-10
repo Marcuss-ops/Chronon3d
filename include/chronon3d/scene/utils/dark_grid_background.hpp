@@ -128,8 +128,8 @@ inline std::filesystem::path ensure_dark_grid_background_image(
 inline void dark_grid_background(SceneBuilder& s,
                                 const FrameContext& ctx,
                                 const DarkGridBgParams& p = {}) {
-    const f32 W = static_cast<f32>(ctx.frame.frame.width > 0 ? ctx.frame.frame.width : 1280);
-    const f32 H = static_cast<f32>(ctx.frame.frame.height > 0 ? ctx.frame.frame.height : 720);
+    const f32 W = static_cast<f32>(ctx.width > 0 ? ctx.width : 1280);
+    const f32 H = static_cast<f32>(ctx.height > 0 ? ctx.height : 720);
 
     s.layer("nbg_bg", [W, H, p](LayerBuilder& l) {
         l.cache_static();

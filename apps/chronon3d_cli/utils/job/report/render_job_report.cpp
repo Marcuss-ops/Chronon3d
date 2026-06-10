@@ -292,7 +292,7 @@ static void write_bottleneck_diagnosis(
 // ── Public API ───────────────────────────────────────────────────────────
 std::string generate_execution_report(const RenderReportContext& ctx) {
     const chronon3d::telemetry::RenderTelemetryRecord& run = ctx.run;
-    const auto& counters_list = ctx.telemetry.counters;
+    const auto& counters_list = ctx.counters;
     const auto& phases        = ctx.phases;
     const auto& frames        = ctx.frames;
 

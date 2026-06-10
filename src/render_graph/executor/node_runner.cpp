@@ -118,7 +118,7 @@ void execute_single_node(
             ctx.telemetry.counters->layers_culled.fetch_add(1, std::memory_order_relaxed);
             if (graph.node(id).name() == "Clear") {
                 ctx.telemetry.counters->clear_skipped_calls.fetch_add(1, std::memory_order_relaxed);
-                const uint64_t clear_pixels = static_cast<uint64_t>(ctx.frame.frame.width) * static_cast<uint64_t>(ctx.frame.frame.height);
+                const uint64_t clear_pixels = static_cast<uint64_t>(ctx.frame.width) * static_cast<uint64_t>(ctx.frame.height);
                 ctx.telemetry.counters->clear_skipped_pixels.fetch_add(clear_pixels, std::memory_order_relaxed);
             }
         }
@@ -147,7 +147,7 @@ void execute_single_node(
 
     if (ctx.options.diagnostics_enabled) {
         spdlog::debug("[DIAG-exec] frame={} node='{}' id={} kind='{}' cache='{}' frame_dep={} use_cache={} result_ptr={}",
-            static_cast<int>(ctx.frame.frame.frame), node.name(), id, to_string(node.kind()),
+            static_cast<int>(ctx.frame.frame), node.name(), id, to_string(node.kind()),
             cache_eval.cache_status, cache_eval.node_frame_dependent ? 1 : 0,
             cache_eval.use_cache ? 1 : 0,
             cache_eval.result ? fmt::ptr(cache_eval.result.get()) : "null");

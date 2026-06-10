@@ -90,13 +90,13 @@ CacheEvalResult evaluate_cache(
             }
             if (ctx.options.diagnostics_enabled) {
                 spdlog::warn("[cache-bypass] frame={} node='{}' node_id={} kind='{}' reason='not_cacheable'",
-                             static_cast<int>(ctx.frame.frame.frame), node.name(), node_id, to_string(node.kind()));
+                             static_cast<int>(ctx.frame.frame), node.name(), node_id, to_string(node.kind()));
             }
         } else {
             cr.cache_status = "bypass_frame_dependent";
             if (ctx.options.diagnostics_enabled) {
                 spdlog::debug("[cache-bypass] frame={} node='{}' node_id={} kind='{}' reason='frame_dependent'",
-                              static_cast<int>(ctx.frame.frame.frame), node.name(), node_id, to_string(node.kind()));
+                              static_cast<int>(ctx.frame.frame), node.name(), node_id, to_string(node.kind()));
             }
         }
     }

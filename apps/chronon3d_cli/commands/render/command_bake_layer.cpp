@@ -31,10 +31,10 @@ int command_bake_layer(const CompositionRegistry& registry, const BakeLayerArgs&
 
     // Build the full render graph for the scene
     graph::RenderGraphContext graph_ctx;
-    graph_ctx.frame.frame.frame = frame;
-    graph_ctx.frame.frame.width = comp.width();
-    graph_ctx.frame.frame.height = comp.height();
-    graph_ctx.camera.camera.camera = comp.camera;
+    graph_ctx.frame.frame = frame;
+    graph_ctx.frame.width = comp.width();
+    graph_ctx.frame.height = comp.height();
+    graph_ctx.camera.camera = comp.camera;
     graph_ctx.resources.backend = renderer.get();
     graph_ctx.resources.node_cache = &renderer->node_cache();
     graph_ctx.resources.framebuffer_pool = renderer->framebuffer_pool();
@@ -103,7 +103,7 @@ void register_bake_layer_commands(CLI::App& app, CliContext& ctx) {
     bake->add_flag("--diagnostic", bake_args.diagnostic, "Enable diagnostic overlays");
     bake->add_flag("--exr-bake", bake_args.exr_bake, "Bake layer as OpenEXR with DWAA compression (linear 16-bit float)");
     bake->callback([state, &ctx]() {
-        ctx.exit_code = command_bake_layer(ctx.resources.registry, *state->args);
+        ctx.exit_code = command_bake_layer(ctx.registry, *state->args);
     });
 }
 

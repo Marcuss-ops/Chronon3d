@@ -12,7 +12,7 @@ void init_shared_transparent_fb(
 ) {
     (void)res;
     if (ctx.tile.tile_execution_enabled && ctx.tile.active_tile_clip) {
-        auto owned_fb = ctx.acquire_owned_fb(ctx.frame.frame.width, ctx.frame.frame.height, false);
+        auto owned_fb = ctx.acquire_owned_fb(ctx.frame.width, ctx.frame.height, false);
         owned_fb->clear(Color::transparent());
         Framebuffer* raw = owned_fb.release();
         PoolFbDeleter deleter{nullptr};

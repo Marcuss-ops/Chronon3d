@@ -33,7 +33,7 @@ f32 sweep_wave(Frame frame, Frame start_frame, const Motion3D::Sweep2_5D& sweep)
 MotionState resolve_motion_state(const FrameContext& ctx, const MotionObject& obj) {
     MotionState st;
 
-    st.visible = obj.time_value.contains(ctx.frame.frame.frame);
+    st.visible = obj.time_value.contains(ctx.frame);
     st.position = obj.position_value + obj.motion3d.position;
     st.position.z += obj.motion3d.z;
     st.scale = {
@@ -55,7 +55,7 @@ MotionState resolve_motion_state(const FrameContext& ctx, const MotionObject& ob
     st.effects.bloom = obj.style.bloom;
 
     if (obj.motion3d.sweep_2_5d.enabled) {
-        const f32 wave = sweep_wave(ctx.frame.frame.frame, obj.time_value.start, obj.motion3d.sweep_2_5d);
+        const f32 wave = sweep_wave(ctx.frame, obj.time_value.start, obj.motion3d.sweep_2_5d);
         const auto& sweep = obj.motion3d.sweep_2_5d;
         st.position.x += sweep.position_amplitude.x * wave;
         st.position.y += sweep.position_amplitude.y * wave;
@@ -72,7 +72,7 @@ MotionState resolve_motion_state(const FrameContext& ctx, const MotionObject& ob
         return st;
     }
 
-    const f32 t = obj.time_value.normalized(ctx.frame.frame.frame);
+    const f32 t = obj.time_value.normalized(ctx.frame);
 
     auto& registry = MotionPresetRegistry::instance();
     if (registry.contains(obj.preset_value)) {
@@ -81,9 +81,9 @@ MotionState resolve_motion_state(const FrameContext& ctx, const MotionObject& ob
 
     // Apply custom modular animations
     AnimationContext actx{
-        ctx.frame.frame.frame,
+        ctx.frame,
         obj.time_value.end - obj.time_value.start,
-        ctx.frame.frame.fps()
+        ctx.fps()
     };
     for (const auto& anim : obj.get_animations()) {
         anim.apply(actx, st);

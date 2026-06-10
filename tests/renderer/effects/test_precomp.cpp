@@ -284,7 +284,7 @@ TEST_CASE("AE-6: Precomp renders via CompositionRegistry") {
         return Composition(
             CompositionSpec{.name="inner", .width=80, .height=80, .duration=Frame{60}},
             [](const FrameContext& ctx) -> Scene {
-                SceneBuilder s(ctx.frame.frame.width, ctx.frame.frame.height, ctx.resource);
+                SceneBuilder s(ctx.frame.width, ctx.frame.height, ctx.resource);
                 s.rect("bg", {.size={80,80}, .color=Color::blue(), .pos={40,40,0}});
                 return s.build();
             }
@@ -309,7 +309,7 @@ TEST_CASE("AE-6: Precomp with transform applied to parent layer") {
         return Composition(
             CompositionSpec{.name="inner", .width=80, .height=80, .duration=Frame{60}},
             [](const FrameContext& ctx) -> Scene {
-                SceneBuilder s(ctx.frame.frame.width, ctx.frame.frame.height, ctx.resource);
+                SceneBuilder s(ctx.frame.width, ctx.frame.height, ctx.resource);
                 s.rect("bg", {.size={40,40}, .color=Color::red(), .pos={20,20,0}});
                 return s.build();
             }
@@ -336,7 +336,7 @@ TEST_CASE("AE-6: Precomp with time remap") {
         return Composition(
             CompositionSpec{.name="inner", .width=80, .height=80, .duration=Frame{60}},
             [](const FrameContext& ctx) -> Scene {
-                SceneBuilder s(ctx.frame.frame.width, ctx.frame.frame.height, ctx.resource);
+                SceneBuilder s(ctx.frame.width, ctx.frame.height, ctx.resource);
                 s.rect("bg", {.size={80,80}, .color=Color::green(), .pos={40,40,0}});
                 return s.build();
             }
@@ -361,7 +361,7 @@ TEST_CASE("AE-6: Multiple precomp layers in same scene") {
         return Composition(
             CompositionSpec{.name="comp_a", .width=60, .height=60, .duration=Frame{60}},
             [](const FrameContext& ctx) -> Scene {
-                SceneBuilder s(ctx.frame.frame.width, ctx.frame.frame.height, ctx.resource);
+                SceneBuilder s(ctx.frame.width, ctx.frame.height, ctx.resource);
                 s.rect("bg", {.size={60,60}, .color=Color::red(), .pos={30,30,0}});
                 return s.build();
             }
@@ -371,7 +371,7 @@ TEST_CASE("AE-6: Multiple precomp layers in same scene") {
         return Composition(
             CompositionSpec{.name="comp_b", .width=60, .height=60, .duration=Frame{60}},
             [](const FrameContext& ctx) -> Scene {
-                SceneBuilder s(ctx.frame.frame.width, ctx.frame.frame.height, ctx.resource);
+                SceneBuilder s(ctx.frame.width, ctx.frame.height, ctx.resource);
                 s.rect("bg", {.size={60,60}, .color=Color::blue(), .pos={30,30,0}});
                 return s.build();
             }
@@ -482,7 +482,7 @@ TEST_CASE("AE-6: Nested precomp (precomp inside precomp)") {
         return Composition(
             CompositionSpec{.name="inner", .width=100, .height=100, .duration=Frame{90}},
             [](const FrameContext& ctx) -> Scene {
-                SceneBuilder s(ctx.frame.frame.width, ctx.frame.frame.height, ctx.resource);
+                SceneBuilder s(ctx.frame.width, ctx.frame.height, ctx.resource);
                 s.rect("bg", {.size={80,80}, .color=Color::red(), .pos={0,0,0}});
                 return s.build();
             }
@@ -493,7 +493,7 @@ TEST_CASE("AE-6: Nested precomp (precomp inside precomp)") {
         return Composition(
             CompositionSpec{.name="middle", .width=100, .height=100, .duration=Frame{90}},
             [](const FrameContext& ctx) -> Scene {
-                SceneBuilder s(ctx.frame.frame.width, ctx.frame.frame.height, ctx.resource);
+                SceneBuilder s(ctx.frame.width, ctx.frame.height, ctx.resource);
                 s.precomp_layer("inner_layer", "inner", [](LayerBuilder& l) {
                     l.from(Frame{0});
                 });
@@ -531,7 +531,7 @@ TEST_CASE("AE-6: Nested precomp with parent transform") {
         return Composition(
             CompositionSpec{.name="inner", .width=100, .height=100, .duration=Frame{90}},
             [](const FrameContext& ctx) -> Scene {
-                SceneBuilder s(ctx.frame.frame.width, ctx.frame.frame.height, ctx.resource);
+                SceneBuilder s(ctx.frame.width, ctx.frame.height, ctx.resource);
                 s.rect("bg", {.size={40,40}, .color=Color::blue(), .pos={0,0,0}});
                 return s.build();
             }
@@ -543,7 +543,7 @@ TEST_CASE("AE-6: Nested precomp with parent transform") {
         return Composition(
             CompositionSpec{.name="middle", .width=100, .height=100, .duration=Frame{90}},
             [](const FrameContext& ctx) -> Scene {
-                SceneBuilder s(ctx.frame.frame.width, ctx.frame.frame.height, ctx.resource);
+                SceneBuilder s(ctx.frame.width, ctx.frame.height, ctx.resource);
                 s.precomp_layer("inner_layer", "inner", [](LayerBuilder& l) {
                     l.from(Frame{0});
                     l.position({-30, 0, 0});  // shift left within middle comp
@@ -570,7 +570,7 @@ TEST_CASE("AE-6: Nested precomp with parent transform") {
 }
 
 TEST_CASE("AE-6: Precomp with time remap reverse does not affect inner time") {
-    // NOTE: PrecompNode computes nested_frame = ctx.frame.frame.frame - start_frame directly,
+    // NOTE: PrecompNode computes nested_frame = ctx.frame.frame - start_frame directly,
     // bypassing the layer's TimeRemap. reverse() on the precomp layer affects the
     // outer layer's transform properties but NOT the inner composition's time.
     // The inner composition progresses forward regardless of the outer layer's speed/reverse.
@@ -580,7 +580,7 @@ TEST_CASE("AE-6: Precomp with time remap reverse does not affect inner time") {
         return Composition(
             CompositionSpec{.name="moving", .width=200, .height=200, .duration=Frame{90}},
             [](const FrameContext& ctx) -> Scene {
-                SceneBuilder s(ctx.frame.frame.width, ctx.frame.frame.height, ctx.resource);
+                SceneBuilder s(ctx.frame.width, ctx.frame.height, ctx.resource);
                 s.layer("dot", [](LayerBuilder& l) {
                     l.position_anim().key(Frame{0}, Vec3{-60, 0, 0}).key(Frame{60}, Vec3{60, 0, 0});
                     l.rect("r", {.size={10,10}, .color=Color::green()});
@@ -591,7 +591,7 @@ TEST_CASE("AE-6: Precomp with time remap reverse does not affect inner time") {
     });
 
     // reverse/speed on precomp layers are no-ops for inner composition time
-    // (PrecompNode::execute computes nested_frame = ctx.frame.frame.frame - start_frame directly)
+    // (PrecompNode::execute computes nested_frame = ctx.frame.frame - start_frame directly)
     auto fb_rev_0 = render_precomp_with_registry(registry, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         s.precomp_layer("nested", "moving", [](LayerBuilder& l) {
@@ -624,7 +624,7 @@ TEST_CASE("AE-6: Precomp with time remap reverse does not affect inner time") {
 }
 
 TEST_CASE("AE-6: Precomp with speed does not affect inner composition time") {
-    // NOTE: PrecompNode computes nested_frame = ctx.frame.frame.frame - start_frame directly,
+    // NOTE: PrecompNode computes nested_frame = ctx.frame.frame - start_frame directly,
     // bypassing the layer's TimeRemap. Speed on the precomp layer affects the
     // outer layer's transform properties but NOT the inner composition's time.
     // This test verifies that both renders produce identical results.
@@ -634,7 +634,7 @@ TEST_CASE("AE-6: Precomp with speed does not affect inner composition time") {
         return Composition(
             CompositionSpec{.name="moving", .width=200, .height=200, .duration=Frame{60}},
             [](const FrameContext& ctx) -> Scene {
-                SceneBuilder s(ctx.frame.frame.width, ctx.frame.frame.height, ctx.resource);
+                SceneBuilder s(ctx.frame.width, ctx.frame.height, ctx.resource);
                 s.layer("dot", [](LayerBuilder& l) {
                     l.position_anim().key(Frame{0}, Vec3{-60, 0, 0}).key(Frame{60}, Vec3{60, 0, 0});
                     l.rect("r", {.size={10,10}, .color=Color::yellow()});
@@ -684,7 +684,7 @@ TEST_CASE("AE-6: Precomp with effects stack (blur + tint)") {
         return Composition(
             CompositionSpec{.name="white_rect", .width=200, .height=200, .duration=Frame{90}},
             [](const FrameContext& ctx) -> Scene {
-                SceneBuilder s(ctx.frame.frame.width, ctx.frame.frame.height, ctx.resource);
+                SceneBuilder s(ctx.frame.width, ctx.frame.height, ctx.resource);
                 s.rect("bg", {.size={80,80}, .color=Color::white(), .pos={0,0,0}});
                 return s.build();
             }
@@ -730,7 +730,7 @@ TEST_CASE("AE-6: Precomp with saturation effect") {
         return Composition(
             CompositionSpec{.name="green_rect", .width=200, .height=200, .duration=Frame{90}},
             [](const FrameContext& ctx) -> Scene {
-                SceneBuilder s(ctx.frame.frame.width, ctx.frame.frame.height, ctx.resource);
+                SceneBuilder s(ctx.frame.width, ctx.frame.height, ctx.resource);
                 s.rect("bg", {.size={80,80}, .color=Color::green(), .pos={0,0,0}});
                 return s.build();
             }
@@ -783,7 +783,7 @@ TEST_CASE("AE-6: Precomp layer respects outer layer duration") {
         return Composition(
             CompositionSpec{.name="short", .width=100, .height=100, .duration=Frame{90}},
             [](const FrameContext& ctx) -> Scene {
-                SceneBuilder s(ctx.frame.frame.width, ctx.frame.frame.height, ctx.resource);
+                SceneBuilder s(ctx.frame.width, ctx.frame.height, ctx.resource);
                 s.rect("bg", {.size={80,80}, .color=Color::red(), .pos={0,0,0}});
                 return s.build();
             }
@@ -826,7 +826,7 @@ TEST_CASE("AE-6: Multiple precomps with pixel verification") {
         return Composition(
             CompositionSpec{.name="red_comp", .width=80, .height=80, .duration=Frame{90}},
             [](const FrameContext& ctx) -> Scene {
-                SceneBuilder s(ctx.frame.frame.width, ctx.frame.frame.height, ctx.resource);
+                SceneBuilder s(ctx.frame.width, ctx.frame.height, ctx.resource);
                 s.rect("bg", {.size={80,80}, .color=Color::red(), .pos={0,0,0}});
                 return s.build();
             }
@@ -837,7 +837,7 @@ TEST_CASE("AE-6: Multiple precomps with pixel verification") {
         return Composition(
             CompositionSpec{.name="blue_comp", .width=80, .height=80, .duration=Frame{90}},
             [](const FrameContext& ctx) -> Scene {
-                SceneBuilder s(ctx.frame.frame.width, ctx.frame.frame.height, ctx.resource);
+                SceneBuilder s(ctx.frame.width, ctx.frame.height, ctx.resource);
                 s.rect("bg", {.size={80,80}, .color=Color::blue(), .pos={0,0,0}});
                 return s.build();
             }

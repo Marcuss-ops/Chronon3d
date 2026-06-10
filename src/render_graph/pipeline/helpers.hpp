@@ -111,9 +111,6 @@ namespace chronon3d::graph {
             .registry = registry,
             .video_decoder = video_decoder,
         },
-        .telemetry = RenderTelemetryContext{
-            .counters = backend.counters(),
-        },
         .options = RenderOptimizationContext{
             .diagnostics_enabled = settings.diagnostics.enabled,
             .ssaa_factor = settings.ssaa_factor,
@@ -123,6 +120,9 @@ namespace chronon3d::graph {
             // Without this, the Clear node can erase an entire reused buffer,
             // which wipes cached full-frame backgrounds on the next frame.
             .dirty_rects_enabled = settings.dirty.is_active(),
+        },
+        .telemetry = RenderTelemetryContext{
+            .counters = backend.counters(),
         },
         .tile = RenderTileContext{
             .tile_size = settings.dirty.tile_size,
