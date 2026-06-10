@@ -23,7 +23,7 @@ TEST_CASE("Coordinate Centered vs Top Left - 2D standard top left layer") {
     SoftwareRenderer renderer;
     RenderSettings settings = renderer.settings();
     settings.use_modular_graph = false;
-    settings.diagnostic = false;
+    settings.diagnostics.enabled = false;
     renderer.set_settings(settings);
 
     Camera camera;
@@ -118,7 +118,7 @@ TEST_CASE("Coordinate Centered vs Top Left - Centered exactly on canvas") {
     SoftwareRenderer renderer;
     RenderSettings settings = renderer.settings();
     settings.use_modular_graph = false;
-    settings.diagnostic = false;
+    settings.diagnostics.enabled = false;
     renderer.set_settings(settings);
 
     Camera camera;
@@ -188,7 +188,7 @@ TEST_CASE("Coordinate Centered vs Top Left - Transform matrix offset") {
     SoftwareRenderer renderer;
     RenderSettings settings = renderer.settings();
     settings.use_modular_graph = false;
-    settings.diagnostic = true;
+    settings.diagnostics.enabled = true;
     renderer.set_settings(settings);
 
     Camera camera;
@@ -233,7 +233,7 @@ TEST_CASE("Coordinate Centered vs Top Left - Layer near border should not disapp
     SoftwareRenderer renderer;
     RenderSettings settings = renderer.settings();
     settings.use_modular_graph = false;
-    settings.diagnostic = false;
+    settings.diagnostics.enabled = false;
     renderer.set_settings(settings);
 
     Camera camera;
@@ -262,7 +262,7 @@ TEST_CASE("Coordinate Centered vs Top Left - Render graph mixed 2D and centered"
     SoftwareRenderer renderer;
     RenderSettings settings = renderer.settings();
     settings.use_modular_graph = false;
-    settings.diagnostic = false;
+    settings.diagnostics.enabled = false;
     renderer.set_settings(settings);
 
     Camera camera;

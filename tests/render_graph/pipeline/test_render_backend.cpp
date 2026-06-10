@@ -41,8 +41,7 @@ TEST_CASE("RenderBackend - RenderGraphContext accepts and executes RenderBackend
     FakeBackend backend;
     cache::NodeCache cache;
     RenderGraphContext ctx{
-        .backend = &backend,
-        .node_cache = &cache
+        .resources = {.backend = &backend, .node_cache = &cache}
     };
     CHECK(ctx.resources.backend == &backend);
 }
@@ -57,10 +56,8 @@ TEST_CASE("RenderBackend - SourceNode execution calls draw_node on backend") {
     Scene scene = builder.build();
 
     RenderGraphContext ctx{
-        .width = 64,
-        .height = 64,
-        .backend = &backend,
-        .node_cache = &cache
+        .frame = {.width = 64, .height = 64},
+        .resources = {.backend = &backend, .node_cache = &cache}
     };
     
     RenderGraph graph = GraphBuilder::build(scene, ctx);
@@ -85,10 +82,8 @@ TEST_CASE("RenderBackend - EffectStackNode execution calls apply_effect_stack on
     Scene scene = builder.build();
 
     RenderGraphContext ctx{
-        .width = 64,
-        .height = 64,
-        .backend = &backend,
-        .node_cache = &cache
+        .frame = {.width = 64, .height = 64},
+        .resources = {.backend = &backend, .node_cache = &cache}
     };
     
     RenderGraph graph = GraphBuilder::build(scene, ctx);
@@ -111,10 +106,8 @@ TEST_CASE("RenderBackend - CompositeNode execution calls composite_layer on back
     Scene scene = builder.build();
 
     RenderGraphContext ctx{
-        .width = 64,
-        .height = 64,
-        .backend = &backend,
-        .node_cache = &cache
+        .frame = {.width = 64, .height = 64},
+        .resources = {.backend = &backend, .node_cache = &cache}
     };
     
     RenderGraph graph = GraphBuilder::build(scene, ctx);

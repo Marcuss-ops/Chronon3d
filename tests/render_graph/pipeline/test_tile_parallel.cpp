@@ -48,7 +48,7 @@ Composition make_two_corner_scene(int width, int height, int duration) {
             .pos = {static_cast<float>(width) * 0.5f, static_cast<float>(height) * 0.5f, 0}
         });
         // Top-left moving circle
-        float ax = 20.0f + static_cast<float>(ctx.frame.frame) * 3.0f;
+        float ax = 20.0f + static_cast<float>(ctx.frame) * 3.0f;
         s.circle("objA", {
             .radius = 8.0f,
             .color = Color::red(),
@@ -56,7 +56,7 @@ Composition make_two_corner_scene(int width, int height, int duration) {
         });
         // Bottom-right moving circle
         float bx = static_cast<float>(width) - 20.0f
-                   - static_cast<float>(ctx.frame.frame) * 3.0f;
+                   - static_cast<float>(ctx.frame) * 3.0f;
         s.circle("objB", {
             .radius = 8.0f,
             .color = Color::green(),
@@ -252,7 +252,7 @@ TEST_CASE("TileParallel: Stress — medium resolution with multiple tile sizes")
         });
         for (int i = 0; i < 8; ++i) {
             float x = 40.0f + static_cast<float>(i) * 60.0f
-                      + static_cast<float>(ctx.frame.frame) * 2.0f;
+                      + static_cast<float>(ctx.frame) * 2.0f;
             s.circle("ball" + std::to_string(i), {
                 .radius = 6.0f,
                 .color = Color{
@@ -317,9 +317,9 @@ TEST_CASE("TileParallel: Stress — full-screen dirty (all tiles dirty) still co
         .name = "FullScreenDirty", .width = W, .height = H, .duration = kFrames
     }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx.resource);
-        float r = 0.2f + static_cast<float>(ctx.frame.frame) * 0.1f;
+        float r = 0.2f + static_cast<float>(ctx.frame) * 0.1f;
         float g = 0.3f;
-        float b = 0.5f + static_cast<float>(ctx.frame.frame) * 0.05f;
+        float b = 0.5f + static_cast<float>(ctx.frame) * 0.05f;
         s.rect("full", {
             .size = {128.0f, 128.0f},
             .color = Color{r, g, b, 1.0f},

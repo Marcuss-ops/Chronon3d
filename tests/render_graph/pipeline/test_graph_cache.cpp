@@ -132,7 +132,7 @@ TEST_CASE("GraphCache - pixel output matches non-cached path") {
     // --- Cached path: frame 0 builds, frame 2 reuses cached graph ---
     SoftwareRenderer renderer_cached;
     RenderSettings settings_c = renderer_cached.render_settings();
-    settings_c.enable_dirty_rects = false;
+    settings_c.dirty.enabled = false;
     renderer_cached.set_settings(settings_c);
     cache::NodeCache node_cache_cached;
     Camera camera;
@@ -145,7 +145,7 @@ TEST_CASE("GraphCache - pixel output matches non-cached path") {
     // --- Non-cached path: clear graph cache before every frame ---
     SoftwareRenderer renderer_fresh;
     RenderSettings settings_f = renderer_fresh.render_settings();
-    settings_f.enable_dirty_rects = false;
+    settings_f.dirty.enabled = false;
     renderer_fresh.set_settings(settings_f);
     cache::NodeCache node_cache_fresh;
 

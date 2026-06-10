@@ -31,6 +31,7 @@
 
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/core/memory/framebuffer_handle.hpp>
+#include <chronon3d/core/memory/framebuffer_slot_view.hpp>
 #include <chronon3d/scene/model/camera/camera.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/rendering/light_context.hpp>
@@ -149,14 +150,12 @@ struct RenderScratchContext {
     // SoftwareRenderer for ownership details.  Mutable because the const
     // acquire methods need to mark the scratch as "in use" while an
     // OwnedFB is alive; the deleter restores it when released.
-    mutable Framebuffer*  transform_scratch{nullptr};
-    mutable Framebuffer** transform_scratch_slot{nullptr};
+    mutable FramebufferSlotView transform_scratch;
 
     // ── Ping-pong framebuffers ───────────────────────────────────────────
     // See SoftwareRenderer for the ping-pong protocol.  Same mutability
     // rationale as transform_scratch.
-    mutable Framebuffer*  ping_write_fb{nullptr};
-    mutable Framebuffer** ping_write_slot{nullptr};
+    mutable FramebufferSlotView ping_write;
 
     // Track reusable inputs to allow in-place swap optimization during node
     // execution.  Mutable for the same reason as the scratch pointers.

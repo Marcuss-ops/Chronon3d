@@ -72,8 +72,8 @@ public:
         
         if (use_dirty_rects) {
             // ── Ping-pong fast path: write ping is exclusive, no COW ──────────
-            if (ctx.scratch.ping_write_fb) {
-                Framebuffer* write_fb = ctx.scratch.ping_write_fb;
+            if (ctx.scratch.ping_write.fb) {
+                Framebuffer* write_fb = ctx.scratch.ping_write.fb;
                 const Framebuffer* read_fb = sw_renderer->buffer_ring().prev_framebuffer().get();
                 const int h = ctx.frame.height;
                 const int logical_w = ctx.frame.width;
@@ -185,7 +185,7 @@ public:
                 // restore the FB.  This avoids the data race with the encoder
                 // thread (which holds the CachedFB ref) and keeps the content
                 // intact for the next frame's ClearNode read.
-                ctx.scratch.ping_write_fb = nullptr;
+                ctx.scratch.ping_write.fb = nullptr;
                 PoolFbDeleter deleter;
                 deleter.owned_by_renderer = true;
                 return OwnedFB(write_fb, std::move(deleter));

@@ -45,10 +45,10 @@ OwnedFB RenderGraphContext::acquire_scratch_fb(
     std::optional<raster::BBox> bounds
 ) const {
     // Use scratch buffer when available and large enough.
-    if (scratch.transform_scratch &&
-        scratch.transform_scratch->allocated_width() >= w &&
-        scratch.transform_scratch->allocated_height() >= h) {
-        auto* sc = scratch.transform_scratch;
+    if (scratch.transform_scratch.fb &&
+        scratch.transform_scratch.fb->allocated_width() >= w &&
+        scratch.transform_scratch.fb->allocated_height() >= h) {
+        auto* sc = scratch.transform_scratch.fb;
         sc->resize_logical(w, h);
         if (bounds) {
             sc->set_origin(bounds->x0, bounds->y0);
@@ -59,9 +59,9 @@ OwnedFB RenderGraphContext::acquire_scratch_fb(
             sc->clear(Color::transparent());
         }
         // Mark the scratch as in-use — deleter will restore it.
-        scratch.transform_scratch = nullptr;
+        scratch.transform_scratch.fb = nullptr;
         PoolFbDeleter deleter;
-        deleter.scratch_slot = scratch.transform_scratch_slot;
+        deleter.scratch_slot = scratch.transform_scratch.slot;
         return OwnedFB(sc, std::move(deleter));
     }
     // Fall back to normal pool acquire.
@@ -244,10 +244,8 @@ RenderGraphContext RenderGraphContext::clone_for_node_execution() const {
     copy.tile.tile_size             = tile.tile_size;
     copy.tile.tile_execution_enabled = tile.tile_execution_enabled;
     copy.tile.active_tile_clip      = tile.active_tile_clip;
-    copy.scratch.transform_scratch      = scratch.transform_scratch;
-    copy.scratch.transform_scratch_slot = scratch.transform_scratch_slot;
-    copy.scratch.ping_write_fb          = scratch.ping_write_fb;
-    copy.scratch.ping_write_slot        = scratch.ping_write_slot;
+    copy.scratch.transform_scratch = scratch.transform_scratch;
+    copy.scratch.ping_write          = scratch.ping_write;
 
     // ── Vectors — selectively copy only what node.execute() may read ────
     // • early_exit_skip:  checked against the *parent* ctx before the copy

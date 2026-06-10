@@ -45,11 +45,11 @@ TEST_CASE("DirtyRectContract: static scene is pixel-identical with and without d
     });
 
     SoftwareRenderer renderer_base;
-    RenderSettings s_base; s_base.use_modular_graph = true; s_base.dirty_rects = false;
+    RenderSettings s_base; s_base.use_modular_graph = true; s_base.dirty.dirty_rects_v1 = false;
     renderer_base.set_settings(s_base);
 
     SoftwareRenderer renderer_opt;
-    RenderSettings s_opt; s_opt.use_modular_graph = true; s_opt.dirty_rects = true;
+    RenderSettings s_opt; s_opt.use_modular_graph = true; s_opt.dirty.dirty_rects_v1 = true;
     renderer_opt.set_settings(s_opt);
 
     for (int f = 0; f < spec.duration; ++f) {
@@ -68,17 +68,17 @@ TEST_CASE("DirtyRectContract: animated scene is pixel-identical with dirty rects
     Composition comp(spec, [](const FrameContext& ctx) {
         SceneBuilder builder(ctx.resource);
         builder.rect("bg", {.size = {160, 120}, .color = Color{0.05f, 0.05f, 0.1f, 1.0f}, .pos = {80, 60, 0}});
-        float x = 40.0f + static_cast<float>(ctx.frame.frame) * 4.0f;
+        float x = 40.0f + static_cast<float>(ctx.frame) * 4.0f;
         builder.circle("ball", {.radius = 15.0f, .color = Color::green(), .pos = {x, 60.0f, 0}});
         return builder.build();
     });
 
     SoftwareRenderer renderer_base;
-    RenderSettings s_base; s_base.use_modular_graph = true; s_base.dirty_rects = false;
+    RenderSettings s_base; s_base.use_modular_graph = true; s_base.dirty.dirty_rects_v1 = false;
     renderer_base.set_settings(s_base);
 
     SoftwareRenderer renderer_opt;
-    RenderSettings s_opt; s_opt.use_modular_graph = true; s_opt.dirty_rects = true;
+    RenderSettings s_opt; s_opt.use_modular_graph = true; s_opt.dirty.dirty_rects_v1 = true;
     renderer_opt.set_settings(s_opt);
 
     for (int f = 0; f < spec.duration; ++f) {
@@ -103,13 +103,13 @@ TEST_CASE("DirtyRectContract: dirty pixels counter is less than total pixels") {
     Composition comp(spec, [](const FrameContext& ctx) {
         SceneBuilder builder(ctx.resource);
         builder.rect("bg", {.size = {200, 150}, .color = Color{0.2f, 0.3f, 0.4f, 1.0f}, .pos = {100, 75, 0}});
-        float x = 30.0f + static_cast<float>(ctx.frame.frame) * 5.0f;
+        float x = 30.0f + static_cast<float>(ctx.frame) * 5.0f;
         builder.rect("block", {.size = {30, 30}, .color = Color::yellow(), .pos = {x, 75, 0}});
         return builder.build();
     });
 
     SoftwareRenderer renderer;
-    RenderSettings s; s.use_modular_graph = true; s.dirty_rects = true;
+    RenderSettings s; s.use_modular_graph = true; s.dirty.dirty_rects_v1 = true;
     renderer.set_settings(s);
 
     // Render enough frames to exercise dirty rect tracking

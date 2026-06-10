@@ -642,7 +642,7 @@ TEST_CASE("Chronon3d Suite: Animation Tests") {
     Composition comp(CompositionSpec{.width = 256, .height = 256}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         // Linear animated rect position based on frame number (relative to canvas center 128, 128)
-        float x_offset = static_cast<float>(ctx.frame.frame);
+        float x_offset = static_cast<float>(ctx.frame);
         s.rect("animated_box", {
             .size = {50, 50},
             .color = Color::white(),
@@ -839,7 +839,7 @@ TEST_CASE("Chronon3d Suite: Final Combined Stress Test") {
 
     Composition comp(CompositionSpec{.width = 512, .height = 512}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        float t = static_cast<float>(ctx.frame.frame) / 100.0f; // animation progress 0.0 to 1.0
+        float t = static_cast<float>(ctx.frame) / 100.0f; // animation progress 0.0 to 1.0
         
         s.layer("main_layer", [t](LayerBuilder& l) {
             // 1. Dark grid background

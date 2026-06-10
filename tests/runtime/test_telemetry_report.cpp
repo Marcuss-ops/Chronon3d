@@ -29,9 +29,9 @@ static const std::vector<std::string> RENDER_FIELDS = {
 
 static const std::vector<std::string> FRAMEBUFFER_FIELDS = {
     "framebuffer_acquire_ms", "framebuffer_clear_ms", "framebuffer_pool_clear_ms",
-    "framebuffer_enqueue_ms", "framebuffer_pool_hits",
-    "framebuffer_pool_miss_count_size_mismatch", "framebuffer_pool_miss_count_empty",
-    "framebuffer_pool_miss_count_best_fit", "framebuffer_buffer_returned_to_pool_count"
+    "framebuffer_enqueue_ms", "framebuffer_pool_exact_hit",
+    "framebuffer_pool_empty_alloc",
+    "framebuffer_pool_best_fit_reuse", "framebuffer_buffer_returned_to_pool_count"
 };
 
 static const std::vector<std::string> CLEAR_FIELDS = {
@@ -80,9 +80,8 @@ TEST_CASE("Telemetry Report: All section fields exist in RenderTelemetryRecord")
     r.framebuffer_clear_ms = 11;
     r.framebuffer_pool_clear_ms = 12;
     r.framebuffer_enqueue_ms = 13;
-    r.framebuffer_pool_hits = 14;
-    r.framebuffer_pool_miss_count_size_mismatch = 15;
-    r.framebuffer_pool_miss_count_empty = 16;
+    r.framebuffer_pool_exact_hit = 14;
+    r.framebuffer_pool_empty_alloc = 16;
     r.framebuffer_buffer_returned_to_pool_count = 17;
 
     // Clear section
@@ -115,7 +114,7 @@ TEST_CASE("Telemetry Report: All section fields exist in RenderTelemetryRecord")
     CHECK(r.framebuffer_clear_ms == 11);
     CHECK(r.framebuffer_pool_clear_ms == 12);
     CHECK(r.framebuffer_enqueue_ms == 13);
-    CHECK(r.framebuffer_pool_hits == 14);
+    CHECK(r.framebuffer_pool_exact_hit == 14);
     CHECK(r.clear_calls == 20);
     CHECK(r.clear_pixels == 21);
     CHECK(r.clear_skipped_calls == 22);

@@ -113,6 +113,7 @@ namespace renderer {
 void prune_focus_in_ladder_cache(size_t max_bytes = 180ULL * 1024ULL * 1024ULL);
 }  // namespace renderer
 
+
 // Type-erased variant: stores exactly one effect parameter struct, indexed by
 // EffectType.  Extraction via std::get_if<T>() is O(1) with no type_info
 // comparison — strictly faster than std::any_cast's runtime type check.

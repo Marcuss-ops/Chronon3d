@@ -62,7 +62,7 @@ TEST_CASE("Dirty Rectangles V1 Pixel-Perfect Equivalence & Counters Test") {
         });
 
         // Dynamic foreground object (position changes with frame)
-        float x = 40.0f + static_cast<float>(ctx.frame.frame) * 4.0f;
+        float x = 40.0f + static_cast<float>(ctx.frame) * 4.0f;
         builder.circle("ball", {
             .radius = 20.0f,
             .color = Color::red(),
@@ -76,7 +76,7 @@ TEST_CASE("Dirty Rectangles V1 Pixel-Perfect Equivalence & Counters Test") {
     SoftwareRenderer renderer_baseline;
     RenderSettings settings_baseline;
     settings_baseline.use_modular_graph = true;
-    settings_baseline.dirty_rects = false;
+    settings_baseline.dirty.dirty_rects_v1 = false;
     renderer_baseline.set_settings(settings_baseline);
 
     auto fb_baseline = renderer_baseline.render_frame(comp, 10);
@@ -86,7 +86,7 @@ TEST_CASE("Dirty Rectangles V1 Pixel-Perfect Equivalence & Counters Test") {
     SoftwareRenderer renderer_opt;
     RenderSettings settings_opt;
     settings_opt.use_modular_graph = true;
-    settings_opt.dirty_rects = true;
+    settings_opt.dirty.dirty_rects_v1 = true;
     renderer_opt.set_settings(settings_opt);
 
     auto fb_opt = renderer_opt.render_frame(comp, 10);
@@ -156,7 +156,7 @@ TEST_CASE("Dirty rectangles stay stable for geometric backgrounds across frames"
             .color = Color{0.35f, 0.75f, 1.0f, 0.75f}
         });
 
-        const float t = static_cast<float>(ctx.frame.frame);
+        const float t = static_cast<float>(ctx.frame);
         const float orb_x = 26.25f + t * 0.5f;
         const float orb_y = 30.25f + std::sin(t * 0.45f) * 0.35f;
         builder.rounded_rect("orb", {
@@ -179,13 +179,13 @@ TEST_CASE("Dirty rectangles stay stable for geometric backgrounds across frames"
     SoftwareRenderer renderer_baseline;
     RenderSettings settings_baseline;
     settings_baseline.use_modular_graph = true;
-    settings_baseline.dirty_rects = false;
+    settings_baseline.dirty.dirty_rects_v1 = false;
     renderer_baseline.set_settings(settings_baseline);
 
     SoftwareRenderer renderer_opt;
     RenderSettings settings_opt;
     settings_opt.use_modular_graph = true;
-    settings_opt.dirty_rects = true;
+    settings_opt.dirty.dirty_rects_v1 = true;
     renderer_opt.set_settings(settings_opt);
 
     int total_mismatches = 0;

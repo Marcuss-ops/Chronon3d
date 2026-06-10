@@ -104,11 +104,6 @@ set(CHRONON3D_GRAPH_SOURCES
     render_graph/render_graph.cpp
     render_graph/framebuffer_acquire.cpp
     render_graph/pipeline/scene.cpp
-    render_graph/pipeline/scene_frame_reuse.cpp
-    render_graph/pipeline/scene_dirty_phase.cpp
-    render_graph/pipeline/scene_graph_phase.cpp
-    render_graph/pipeline/scene_execute_phase.cpp
-    render_graph/pipeline/scene_commit_phase.cpp
     render_graph/pipeline/scene_dirty.cpp
     render_graph/pipeline/scene_tile_execution.cpp
     render_graph/pipeline/tile_execution_policy.cpp
@@ -260,6 +255,10 @@ set(CHRONON3D_BACKEND_SOFTWARE_SOURCES
     backends/software/buffer_ring.cpp
     backends/software/scratch_buffer.cpp
     backends/software/graph_cache.cpp
+    backends/software/diagnostics/bbox_overlay.cpp
+    backends/software/diagnostics/layout_preview_overlay.cpp
+    backends/software/diagnostics/nulls_overlay.cpp
+    backends/software/diagnostics/internal/helpers.cpp
     backends/software/utils/framebuffer_analysis.cpp
     backends/software/utils/projection_utils.cpp
     backends/software/utils/blend2d_bridge_core.cpp

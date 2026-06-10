@@ -31,6 +31,9 @@ namespace renderer {
 
 // ── Forward declarations ─────────────────────────────────────────────────────
 
+void apply_focus_in_ladder(Framebuffer& fb, const FocusInLadderParams& p,
+                            float time_seconds, const std::optional<raster::BBox>& clip);
+
 void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
                         float time_seconds, const std::optional<raster::BBox>& clip,
                         bool diagnostics_enabled) {

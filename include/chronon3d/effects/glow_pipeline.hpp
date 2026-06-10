@@ -19,22 +19,65 @@
 // GlowPipeline is a unified config struct that captures every parameter any
 // of the four paths need. The existing param structs (GlowParams,
 // BloomParams, DropShadowParams) keep their identity — `from()` converters
-// produce a fully-populated GlowPipeline, and the new `run_glow_pipeline()`
-// function dispatches on `mode` and runs the appropriate code path.
+// produce a fully-populated GlowPipeline, and `run_glow_pipeline()`
+// dispatches on `mode` and runs the appropriate code path.
 //
 // `draw_glow` (the 5 expanded-shape node primitive) intentionally stays
 // outside this pipeline — it is a fast path with no blur, useful for small
 // radii where the blur cost is not amortised.
+//
+// New unified entry point (Item 17):
+//   GlowPipeline::render(ctx, input) → GlowPipelineOutput
+// Both apply_glow_effect() and text_glow.cpp should use this single entry
+// point so that layer glow and text glow share the same blur/accumulate/
+// composite code path.  Text glow still builds its own padded alpha mask
+// (the text-specific step) and passes source_is_alpha_mask = true.
 // ---------------------------------------------------------------------------
 
 #include <chronon3d/core/memory/framebuffer.hpp>
+#include <chronon3d/core/memory/framebuffer_handle.hpp>
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/effects/effect_params.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <optional>
 #include <vector>
 
+namespace chronon3d::graph {
+    struct RenderGraphContext;
+}
+
 namespace chronon3d {
+
+// ── Input descriptor for GlowPipeline::render() ──────────────────────
+struct GlowPipelineInput {
+    /// Source framebuffer to glow.  When source_is_alpha_mask is true,
+    /// only the alpha channel is used as the trigger; RGB is ignored.
+    /// The framebuffer is NOT modified in-place — the glow is returned
+    /// as a separate output.
+    const Framebuffer* source{nullptr};
+
+    /// Optional clip rect (in source coordinates).
+    std::optional<raster::BBox> clip;
+
+    /// Glow parameters (converted to GlowPipeline internally).
+    GlowParams params;
+
+    /// When true, the source is treated as a pre-built alpha mask
+    /// (white-on-transparent).  The trigger is taken directly from
+    /// source alpha instead of computing luminance-based threshold.
+    /// Used by text_glow.cpp for its padded alpha mask.
+    bool source_is_alpha_mask{false};
+};
+
+// ── Output descriptor for GlowPipeline::render() ─────────────────────
+struct GlowPipelineOutput {
+    /// The accumulated glow result (additive, pre-composited).
+    /// Dimensions match the input source framebuffer.
+    OwnedFB glow;
+
+    /// Bounding box of the glow-affected region (source coordinates).
+    raster::BBox affected_bounds;
+};
 
 struct GlowPipeline {
     /// Which implementation path to use.
@@ -75,6 +118,16 @@ struct GlowPipeline {
     static GlowPipeline from(const GlowParams& p);
     static GlowPipeline from(const BloomParams& p);
     static GlowPipeline from(const DropShadowParams& p);
+
+    /// Unified entry point (Item 17).  Renders glow for a source
+    /// framebuffer and returns the accumulated glow output separate
+    /// from the source (so the caller controls compositing).
+    ///
+    /// Internally converts GlowParams → GlowPipeline and dispatches
+    /// to the same run_layer_mode / run_bloom_mode paths used by
+    /// apply_glow_effect / apply_bloom_effect.
+    static GlowPipelineOutput render(class graph::RenderGraphContext& ctx,
+                                     const GlowPipelineInput& input);
 };
 
 } // namespace chronon3d
@@ -83,7 +136,10 @@ namespace chronon3d::renderer {
 
 /// Run the glow pipeline. Dispatches on GlowPipeline::mode.
 /// Currently supports Layer and Bloom. Shadow is a no-op placeholder.
+/// When source_is_alpha_mask is true, the trigger is taken directly
+/// from source alpha (used by text glow).
 void run_glow_pipeline(Framebuffer& fb, const GlowPipeline& p,
-                       const std::optional<raster::BBox>& clip);
+                       const std::optional<raster::BBox>& clip,
+                       bool source_is_alpha_mask = false);
 
 } // namespace chronon3d::renderer

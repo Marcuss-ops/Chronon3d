@@ -355,7 +355,7 @@ TEST_CASE("GraphHealth: dirty rects on and off render identically") {
             });
         });
 
-        const float x = 40.0f + static_cast<float>(ctx.frame.frame) * 20.0f;
+        const float x = 40.0f + static_cast<float>(ctx.frame) * 20.0f;
         s.layer("moving", [&](LayerBuilder& l) {
             l.position({x - 40.0f, 0.0f, 0.0f});
             l.circle("ball", {
@@ -371,13 +371,13 @@ TEST_CASE("GraphHealth: dirty rects on and off render identically") {
     SoftwareRenderer baseline;
     RenderSettings baseline_settings;
     baseline_settings.use_modular_graph = true;
-    baseline_settings.enable_dirty_rects = false;
+    baseline_settings.dirty.enabled = false;
     baseline.set_settings(baseline_settings);
 
     SoftwareRenderer dirty;
     RenderSettings dirty_settings;
     dirty_settings.use_modular_graph = true;
-    dirty_settings.enable_dirty_rects = true;
+    dirty_settings.dirty.enabled = true;
     dirty.set_settings(dirty_settings);
 
     auto fb0_base = baseline.render_frame(comp, 0);
