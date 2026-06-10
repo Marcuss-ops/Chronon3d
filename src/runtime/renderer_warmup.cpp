@@ -1,5 +1,6 @@
 #include <chronon3d/runtime/renderer_warmup.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/effects/effect_params.hpp>
 
 #include <chrono>
 #include <limits>
@@ -121,6 +122,13 @@ RendererWarmupResult warmup_renderer(
             result.focus_in_ladder_precompute_ms = static_cast<double>(
                 cnt->effect_focus_in_ladder_precompute_ms.load(std::memory_order_relaxed));
         }
+
+        // Prune the ladder cache to reclaim memory before the render loop.
+        // All dimension buckets were precomputed during warmup; we keep only
+        // the smallest entries (earliest animation frames) and evict the rest.
+        // Evicted entries will be re-precomputed on demand during the render
+        // loop if needed, at a one-time cost per bucket (typically <100ms).
+        ::chronon3d::renderer::prune_focus_in_ladder_cache();
     }
 
     // 3. Capture post-warmup pool stats

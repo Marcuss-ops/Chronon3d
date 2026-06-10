@@ -34,7 +34,7 @@ static Composition make_integration_comp(int width, int height, int duration) {
     return Composition(spec, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         s.rect("bg", {
-            .size = {static_cast<float>(ctx.width), static_cast<float>(ctx.height)},
+            .size = {static_cast<float>(ctx.frame.width), static_cast<float>(ctx.frame.height)},
             .color = Color{0.2f, 0.3f, 0.8f, 1.0f},
             .pos = {0.0f, 0.0f, 0.0f}
         });

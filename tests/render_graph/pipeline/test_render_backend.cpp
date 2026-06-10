@@ -44,7 +44,7 @@ TEST_CASE("RenderBackend - RenderGraphContext accepts and executes RenderBackend
         .backend = &backend,
         .node_cache = &cache
     };
-    CHECK(ctx.backend == &backend);
+    CHECK(ctx.resources.backend == &backend);
 }
 
 TEST_CASE("RenderBackend - SourceNode execution calls draw_node on backend") {

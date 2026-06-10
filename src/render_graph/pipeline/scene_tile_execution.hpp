@@ -91,12 +91,12 @@ struct TileExecutionResult {
     Framebuffer& output_fb
 ) {
     RenderGraphContext tile_ctx = ctx;
-    tile_ctx.clip_rect = region_bbox;
-    tile_ctx.dirty_rect = region_bbox;
-    tile_ctx.reuse_prev_framebuffer = false;
-    tile_ctx.tile_execution_enabled = true;
-    tile_ctx.active_tile_clip = region_bbox;
-    tile_ctx.skip_initial_clear = false;
+    tile_ctx.tile.clip_rect = region_bbox;
+    tile_ctx.tile.dirty_rect = region_bbox;
+    tile_ctx.options.reuse_prev_framebuffer = false;
+    tile_ctx.tile.tile_execution_enabled = true;
+    tile_ctx.tile.active_tile_clip = region_bbox;
+    tile_ctx.options.skip_initial_clear = false;
     tile_ctx.early_exit_skip.clear();
 
     FrameArena tile_arena;

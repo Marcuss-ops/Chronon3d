@@ -47,7 +47,7 @@ public:
     ) override {
         if (inputs.size() < 2 || !inputs[0] || !inputs[1]) {
             if (inputs.empty() || !inputs[0]) {
-                return ctx.acquire_owned_fb(ctx.width, ctx.height);
+                return ctx.acquire_owned_fb(ctx.frame.width, ctx.frame.height);
             }
             return ctx.acquire_owned_fb(*inputs[0]);
         }

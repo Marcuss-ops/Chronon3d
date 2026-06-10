@@ -81,14 +81,14 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
     // ── Cached execution plan ───────────────────────────────────────
     // Avoid the topological sort + reachability analysis every frame
     // when the graph structure hasn't changed.
-    // When ctx.graph_structure_unchanged is true, the caller guarantees
+    // When ctx.options.graph_structure_unchanged is true, the caller guarantees
     // the graph topology is identical to the previous call, so we use
     // the cached plan directly without recomputing the structure hash.
     bool plan_cached = false;
-    if (ctx.graph_structure_unchanged && m_cached_plan.valid && m_cached_plan.output == output) {
+    if (ctx.options.graph_structure_unchanged && m_cached_plan.valid && m_cached_plan.output == output) {
         plan_cached = true;
-        if (ctx.counters && ctx.diagnostics_enabled) {
-            ctx.counters->execution_plan_cache_hits.fetch_add(1, std::memory_order_relaxed);
+        if (ctx.telemetry.counters && ctx.options.diagnostics_enabled) {
+            ctx.telemetry.counters->execution_plan_cache_hits.fetch_add(1, std::memory_order_relaxed);
         }
     } else {
         const uint64_t sig = compute_structure_signature(graph, output);
@@ -97,8 +97,8 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
             m_cached_plan.output == output)
         {
             plan_cached = true;
-            if (ctx.counters && ctx.diagnostics_enabled) {
-                ctx.counters->execution_plan_cache_hits.fetch_add(1, std::memory_order_relaxed);
+            if (ctx.telemetry.counters && ctx.options.diagnostics_enabled) {
+                ctx.telemetry.counters->execution_plan_cache_hits.fetch_add(1, std::memory_order_relaxed);
             }
         } else {
             m_cached_plan.plan = build_execution_plan(graph, output);
@@ -137,13 +137,13 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
             node_count, plan.consumer_counts, res
         );
         const auto t_fb1 = std::chrono::steady_clock::now();
-        if (ctx.counters) {
-            ctx.counters->framebuffer_lifetime_ms.fetch_add(
+        if (ctx.telemetry.counters) {
+            ctx.telemetry.counters->framebuffer_lifetime_ms.fetch_add(
                 static_cast<uint64_t>(std::llround(std::chrono::duration<double, std::milli>(t_fb1 - t_fb0).count())),
                 std::memory_order_relaxed);
         }
 
-        auto* parent_counters = ctx.counters;
+        auto* parent_counters = ctx.telemetry.counters;
         auto* parent_pool = ctx.framebuffer_pool.get();
 
         // Populate TBB arena max concurrency once per graph execution
@@ -197,13 +197,13 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
             node_count, consumer_counts, res
         );
         const auto t_fb1 = std::chrono::steady_clock::now();
-        if (ctx.counters) {
-            ctx.counters->framebuffer_lifetime_ms.fetch_add(
+        if (ctx.telemetry.counters) {
+            ctx.telemetry.counters->framebuffer_lifetime_ms.fetch_add(
                 static_cast<uint64_t>(std::llround(std::chrono::duration<double, std::milli>(t_fb1 - t_fb0).count())),
                 std::memory_order_relaxed);
         }
 
-        auto* parent_counters = ctx.counters;
+        auto* parent_counters = ctx.telemetry.counters;
         auto* parent_pool = ctx.framebuffer_pool.get();
 
         // Populate TBB arena max concurrency once per graph execution

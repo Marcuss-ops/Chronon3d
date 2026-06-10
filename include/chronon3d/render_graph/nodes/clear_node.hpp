@@ -23,10 +23,10 @@ public:
         const RenderGraphContext& ctx,
         std::span<const std::optional<raster::BBox>> = {}
     ) const override {
-        if (ctx.clip_rect) {
-            return *ctx.clip_rect;
+        if (ctx.tile.clip_rect) {
+            return *ctx.tile.clip_rect;
         }
-        return raster::BBox{0, 0, ctx.width, ctx.height};
+        return raster::BBox{0, 0, ctx.frame.width, ctx.frame.height};
     }
 
     [[nodiscard]] CacheFramePolicy cache_frame_policy() const override {
@@ -37,8 +37,8 @@ public:
         return cache::NodeCacheKey{
             .scope = "clear",
             .frame = 0,
-            .width = ctx.width,
-            .height = ctx.height
+            .width = ctx.frame.width,
+            .height = ctx.frame.height
         };
     }
 
@@ -47,23 +47,23 @@ public:
         std::span<const FramebufferRef>,
         std::span<const std::optional<raster::BBox>>
     ) override {
-        auto* sw_renderer = dynamic_cast<SoftwareRenderer*>(ctx.backend);
-        bool use_dirty_rects = sw_renderer && ctx.reuse_prev_framebuffer && sw_renderer->m_prev_framebuffer;
-        const bool skip_clear = ctx.skip_initial_clear && !use_dirty_rects;
-        const uint64_t clear_pixels = ctx.clip_rect
-            ? static_cast<uint64_t>(std::max(0, ctx.clip_rect->x1 - ctx.clip_rect->x0)) *
-              static_cast<uint64_t>(std::max(0, ctx.clip_rect->y1 - ctx.clip_rect->y0))
-            : static_cast<uint64_t>(ctx.width) * static_cast<uint64_t>(ctx.height);
+        auto* sw_renderer = dynamic_cast<SoftwareRenderer*>(ctx.resources.backend);
+        bool use_dirty_rects = sw_renderer && ctx.options.reuse_prev_framebuffer && sw_renderer->m_prev_framebuffer;
+        const bool skip_clear = ctx.options.skip_initial_clear && !use_dirty_rects;
+        const uint64_t clear_pixels = ctx.tile.clip_rect
+            ? static_cast<uint64_t>(std::max(0, ctx.tile.clip_rect->x1 - ctx.tile.clip_rect->x0)) *
+              static_cast<uint64_t>(std::max(0, ctx.tile.clip_rect->y1 - ctx.tile.clip_rect->y0))
+            : static_cast<uint64_t>(ctx.frame.width) * static_cast<uint64_t>(ctx.frame.height);
 
-        if (sw_renderer && ctx.diagnostics_enabled) {
+        if (sw_renderer && ctx.options.diagnostics_enabled) {
             spdlog::info(
                 "[dirty-debug] frame={} Clear reuse_prev={} clip=[{}:{} -> {}:{}] prev_origin=[{},{}] prev_opaque={}",
-                static_cast<int>(ctx.frame),
+                static_cast<int>(ctx.frame.frame),
                 use_dirty_rects ? 1 : 0,
-                ctx.clip_rect ? ctx.clip_rect->x0 : 0,
-                ctx.clip_rect ? ctx.clip_rect->y0 : 0,
-                ctx.clip_rect ? ctx.clip_rect->x1 : ctx.width,
-                ctx.clip_rect ? ctx.clip_rect->y1 : ctx.height,
+                ctx.tile.clip_rect ? ctx.tile.clip_rect->x0 : 0,
+                ctx.tile.clip_rect ? ctx.tile.clip_rect->y0 : 0,
+                ctx.tile.clip_rect ? ctx.tile.clip_rect->x1 : ctx.frame.width,
+                ctx.tile.clip_rect ? ctx.tile.clip_rect->y1 : ctx.frame.height,
                 sw_renderer->m_prev_framebuffer ? sw_renderer->m_prev_framebuffer->origin_x() : 0,
                 sw_renderer->m_prev_framebuffer ? sw_renderer->m_prev_framebuffer->origin_y() : 0,
                 sw_renderer->m_prev_framebuffer ? (sw_renderer->m_prev_framebuffer->is_opaque() ? 1 : 0) : 0
@@ -72,13 +72,13 @@ public:
         
         if (use_dirty_rects) {
             // ── Ping-pong fast path: write ping is exclusive, no COW ──────────
-            if (ctx.ping_write_fb) {
-                Framebuffer* write_fb = ctx.ping_write_fb;
+            if (ctx.scratch.ping_write_fb) {
+                Framebuffer* write_fb = ctx.scratch.ping_write_fb;
                 const Framebuffer* read_fb = sw_renderer->m_prev_framebuffer.get();
-                const int h = ctx.height;
-                const int logical_w = ctx.width;
+                const int h = ctx.frame.height;
+                const int logical_w = ctx.frame.width;
                 const int stride = write_fb->allocated_width();
-                const auto& clip = ctx.clip_rect;
+                const auto& clip = ctx.tile.clip_rect;
                 const bool is_empty = clip && clip->is_empty();
 
                 // ── Copy preserved content from read ping → write ping ──────
@@ -124,7 +124,7 @@ public:
                                                         row_bytes);
                                         }
                                     },
-                                    ctx.counters);
+                                    ctx.telemetry.counters);
                             } else {
                                 for (int y = 0; y < h; ++y) {
                                     std::memcpy(dst_data + static_cast<size_t>(y) * stride,
@@ -133,11 +133,11 @@ public:
                                 }
                             }
                         }
-                        if (ctx.counters) {
+                        if (ctx.telemetry.counters) {
                             const auto t_restore1 = std::chrono::high_resolution_clock::now();
                             const auto elapsed = static_cast<uint64_t>(
                                 std::chrono::duration<double, std::milli>(t_restore1 - t_restore0).count());
-                            ctx.counters->clearnode_restore_ms.fetch_add(elapsed, std::memory_order_relaxed);
+                            ctx.telemetry.counters->clearnode_restore_ms.fetch_add(elapsed, std::memory_order_relaxed);
                         }
                     }
                 }
@@ -150,14 +150,14 @@ public:
                     const auto t0 = std::chrono::high_resolution_clock::now();
                     write_fb->clear(Color::transparent(), *clip);
                     const auto t1 = std::chrono::high_resolution_clock::now();
-                    if (ctx.counters) {
+                    if (ctx.telemetry.counters) {
                         const auto elapsed = static_cast<uint64_t>(
                             std::chrono::duration<double, std::milli>(t1 - t0).count());
-                        ctx.counters->clearnode_ms.fetch_add(elapsed, std::memory_order_relaxed);
-                        ctx.counters->clearnode_clear_ms.fetch_add(elapsed, std::memory_order_relaxed);
-                        ctx.counters->framebuffer_clear_ms.fetch_add(elapsed, std::memory_order_relaxed);
-                        ctx.counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
-                        ctx.counters->clear_pixels.fetch_add(clear_pixels, std::memory_order_relaxed);
+                        ctx.telemetry.counters->clearnode_ms.fetch_add(elapsed, std::memory_order_relaxed);
+                        ctx.telemetry.counters->clearnode_clear_ms.fetch_add(elapsed, std::memory_order_relaxed);
+                        ctx.telemetry.counters->framebuffer_clear_ms.fetch_add(elapsed, std::memory_order_relaxed);
+                        ctx.telemetry.counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
+                        ctx.telemetry.counters->clear_pixels.fetch_add(clear_pixels, std::memory_order_relaxed);
                     }
                 } else {
                     // No clip (full canvas) or empty clip: clear entire FB.
@@ -165,17 +165,17 @@ public:
                         const auto t0 = std::chrono::high_resolution_clock::now();
                         write_fb->clear(Color::transparent());
                         const auto t1 = std::chrono::high_resolution_clock::now();
-                        if (ctx.counters) {
+                        if (ctx.telemetry.counters) {
                             const auto elapsed = static_cast<uint64_t>(
                                 std::chrono::duration<double, std::milli>(t1 - t0).count());
-                            ctx.counters->framebuffer_clear_ms.fetch_add(elapsed, std::memory_order_relaxed);
-                            ctx.counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
-                            ctx.counters->clear_pixels.fetch_add(clear_pixels, std::memory_order_relaxed);
+                            ctx.telemetry.counters->framebuffer_clear_ms.fetch_add(elapsed, std::memory_order_relaxed);
+                            ctx.telemetry.counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
+                            ctx.telemetry.counters->clear_pixels.fetch_add(clear_pixels, std::memory_order_relaxed);
                         }
                     }
-                    if (ctx.counters) {
-                        ctx.counters->clear_skipped_calls.fetch_add(1, std::memory_order_relaxed);
-                        ctx.counters->clear_skipped_pixels.fetch_add(clear_pixels, std::memory_order_relaxed);
+                    if (ctx.telemetry.counters) {
+                        ctx.telemetry.counters->clear_skipped_calls.fetch_add(1, std::memory_order_relaxed);
+                        ctx.telemetry.counters->clear_skipped_pixels.fetch_add(clear_pixels, std::memory_order_relaxed);
                     }
                 }
 
@@ -185,7 +185,7 @@ public:
                 // restore the FB.  This avoids the data race with the encoder
                 // thread (which holds the CachedFB ref) and keeps the content
                 // intact for the next frame's ClearNode read.
-                ctx.ping_write_fb = nullptr;
+                ctx.scratch.ping_write_fb = nullptr;
                 PoolFbDeleter deleter;
                 deleter.owned_by_renderer = true;
                 return OwnedFB(write_fb, std::move(deleter));
@@ -197,22 +197,22 @@ public:
                 sw_renderer->m_prev_framebuffer.use_count());
             const bool fb_is_shared = prev_use_count > 1;
             auto fb = std::move(sw_renderer->m_prev_framebuffer);
-            const bool is_empty_clip = ctx.clip_rect && ctx.clip_rect->is_empty();
+            const bool is_empty_clip = ctx.tile.clip_rect && ctx.tile.clip_rect->is_empty();
             // When the clip covers the full canvas, the clear will erase every pixel —
             // the previous frame content we'd copy via memcpy would be immediately
             // overwritten.  Skip the copy to save ~16ms/frame.
-            const bool is_full_clip = !ctx.clip_rect ||
-                (ctx.clip_rect->x0 <= 0 && ctx.clip_rect->y0 <= 0 &&
-                 ctx.clip_rect->x1 >= ctx.width && ctx.clip_rect->y1 >= ctx.height);
+            const bool is_full_clip = !ctx.tile.clip_rect ||
+                (ctx.tile.clip_rect->x0 <= 0 && ctx.tile.clip_rect->y0 <= 0 &&
+                 ctx.tile.clip_rect->x1 >= ctx.frame.width && ctx.tile.clip_rect->y1 >= ctx.frame.height);
 
             const uint64_t fb_size_bytes = fb->size_bytes();
-            if (ctx.counters) {
-                ctx.counters->prev_fb_use_count_sum.fetch_add(prev_use_count, std::memory_order_relaxed);
-                ctx.counters->prev_fb_use_count_samples.fetch_add(1, std::memory_order_relaxed);
+            if (ctx.telemetry.counters) {
+                ctx.telemetry.counters->prev_fb_use_count_sum.fetch_add(prev_use_count, std::memory_order_relaxed);
+                ctx.telemetry.counters->prev_fb_use_count_samples.fetch_add(1, std::memory_order_relaxed);
                 {
-                    uint64_t prev_peak = ctx.counters->prev_fb_use_count_peak.load(std::memory_order_relaxed);
+                    uint64_t prev_peak = ctx.telemetry.counters->prev_fb_use_count_peak.load(std::memory_order_relaxed);
                     while (prev_use_count > prev_peak &&
-                           !ctx.counters->prev_fb_use_count_peak.compare_exchange_weak(
+                           !ctx.telemetry.counters->prev_fb_use_count_peak.compare_exchange_weak(
                                prev_peak, prev_use_count, std::memory_order_relaxed)) {}
                 }
             }
@@ -227,16 +227,16 @@ public:
                 // is ~3-4× faster than a segmented copy that skips the dirty
                 // rect, because the loop overhead of ~1000 small memcpy calls
                 // dominates (~0.5µs per call vs ~0.01µs for the extra bytes).
-                if (ctx.counters) {
-                    ctx.counters->clearnode_detach_shared_count.fetch_add(1, std::memory_order_relaxed);
-                    ctx.counters->clearnode_copy_pixels.fetch_add(
+                if (ctx.telemetry.counters) {
+                    ctx.telemetry.counters->clearnode_detach_shared_count.fetch_add(1, std::memory_order_relaxed);
+                    ctx.telemetry.counters->clearnode_copy_pixels.fetch_add(
                         static_cast<uint64_t>(fb->pixel_count()), std::memory_order_relaxed);
-                    ctx.counters->clearnode_memcpy_calls.fetch_add(1, std::memory_order_relaxed);
-                    ctx.counters->clearnode_memcpy_bytes.fetch_add(fb_size_bytes, std::memory_order_relaxed);
-                    if (!is_full_clip && ctx.clip_rect &&
-                        !(ctx.clip_rect->x0 <= 0 && ctx.clip_rect->x0 <= 0 &&
-                          ctx.clip_rect->x1 >= ctx.width && ctx.clip_rect->y1 >= ctx.height)) {
-                        ctx.counters->clearnode_partial_clip_copy_count.fetch_add(1, std::memory_order_relaxed);
+                    ctx.telemetry.counters->clearnode_memcpy_calls.fetch_add(1, std::memory_order_relaxed);
+                    ctx.telemetry.counters->clearnode_memcpy_bytes.fetch_add(fb_size_bytes, std::memory_order_relaxed);
+                    if (!is_full_clip && ctx.tile.clip_rect &&
+                        !(ctx.tile.clip_rect->x0 <= 0 && ctx.tile.clip_rect->x0 <= 0 &&
+                          ctx.tile.clip_rect->x1 >= ctx.frame.width && ctx.tile.clip_rect->y1 >= ctx.frame.height)) {
+                        ctx.telemetry.counters->clearnode_partial_clip_copy_count.fetch_add(1, std::memory_order_relaxed);
                     }
                 }
                 const auto t_memcpy0 = std::chrono::high_resolution_clock::now();
@@ -250,8 +250,8 @@ public:
                 const int64_t total_pixels = static_cast<int64_t>(copy_h) * copy_w;
                 const bool use_parallel_copy = total_pixels >= (int64_t{1} << 20) && copy_h >= 16;
                 if (use_parallel_copy) {
-                    if (ctx.counters) {
-                        ctx.counters->framebuffer_copy_parallel_calls.fetch_add(1, std::memory_order_relaxed);
+                    if (ctx.telemetry.counters) {
+                        ctx.telemetry.counters->framebuffer_copy_parallel_calls.fetch_add(1, std::memory_order_relaxed);
                     }
                     if (owned->allocated_width() == copy_w) {
                         // Same stride: each band copies a contiguous block.
@@ -263,7 +263,7 @@ public:
                                     fb->data()   + static_cast<size_t>(range.begin()) * copy_w,
                                     static_cast<size_t>(range.size()) * copy_w * sizeof(Color));
                             },
-                            ctx.counters
+                            ctx.telemetry.counters
                         );
                     } else {
                         // Different stride: each band copies its own rows.
@@ -275,7 +275,7 @@ public:
                                                  static_cast<size_t>(copy_w) * sizeof(Color));
                                 }
                             },
-                            ctx.counters
+                            ctx.telemetry.counters
                         );
                     }
                 } else {
@@ -296,31 +296,31 @@ public:
                     }
                 }
                 Framebuffer* raw = owned.release();
-                if (ctx.framebuffer_pool) {
+                if (ctx.resources.framebuffer_pool) {
                     fb = std::shared_ptr<Framebuffer>(raw,
-                        PoolFbDeleter{ctx.framebuffer_pool.get(), ctx.framebuffer_pool->alive_token()});
+                        PoolFbDeleter{ctx.framebuffer_pool.get(), ctx.resources.framebuffer_pool->alive_token()});
                 } else {
                     fb = std::shared_ptr<Framebuffer>(raw);
                 }
-                if (ctx.counters) {
+                if (ctx.telemetry.counters) {
                     const auto t_memcpy1 = std::chrono::high_resolution_clock::now();
                     const auto elapsed = static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t_memcpy1 - t_memcpy0).count());
-                    ctx.counters->clearnode_memcpy_ms.fetch_add(elapsed, std::memory_order_relaxed);
+                    ctx.telemetry.counters->clearnode_memcpy_ms.fetch_add(elapsed, std::memory_order_relaxed);
                 }
             } else {
                 // COW: framebuffer is not shared OR full-clip clear will
                 // overwrite everything — no copy needed.  Track bytes avoided.
-                if (ctx.counters && fb_size_bytes > 0) {
-                    ctx.counters->clearnode_bytes_avoided.fetch_add(
+                if (ctx.telemetry.counters && fb_size_bytes > 0) {
+                    ctx.telemetry.counters->clearnode_bytes_avoided.fetch_add(
                         static_cast<uint64_t>(fb_size_bytes), std::memory_order_relaxed);
                     // Track reason: was it skipped because the clip is full?
                     if (fb_is_shared && is_full_clip) {
-                        ctx.counters->clearnode_full_clip_skip_count.fetch_add(1, std::memory_order_relaxed);
+                        ctx.telemetry.counters->clearnode_full_clip_skip_count.fetch_add(1, std::memory_order_relaxed);
                     }
                 }
             }
             // ── Clear dirty area (shared path preserves previous FB content) ──
-            std::optional<raster::BBox> local_clip = ctx.clip_rect;
+            std::optional<raster::BBox> local_clip = ctx.tile.clip_rect;
             if (local_clip) {
                 local_clip->x0 -= fb->origin_x();
                 local_clip->x1 -= fb->origin_x();
@@ -328,36 +328,36 @@ public:
                 local_clip->y1 -= fb->origin_y();
                 local_clip->clip_to(fb->width(), fb->height());
             }
-            if (ctx.counters) {
+            if (ctx.telemetry.counters) {
                 if (skip_clear || is_empty_clip) {
-                    ctx.counters->clear_skipped_calls.fetch_add(1, std::memory_order_relaxed);
-                    ctx.counters->clear_skipped_pixels.fetch_add(clear_pixels, std::memory_order_relaxed);
+                    ctx.telemetry.counters->clear_skipped_calls.fetch_add(1, std::memory_order_relaxed);
+                    ctx.telemetry.counters->clear_skipped_pixels.fetch_add(clear_pixels, std::memory_order_relaxed);
                 }
                 if (!is_empty_clip) {
-                    ctx.counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
-                    ctx.counters->clear_pixels.fetch_add(clear_pixels, std::memory_order_relaxed);
+                    ctx.telemetry.counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
+                    ctx.telemetry.counters->clear_pixels.fetch_add(clear_pixels, std::memory_order_relaxed);
                 }
             }
             if (!is_empty_clip) {
                 const auto t0 = std::chrono::high_resolution_clock::now();
                 fb->clear(Color::transparent(), local_clip);
                 const auto t1 = std::chrono::high_resolution_clock::now();
-                if (ctx.counters) {
+                if (ctx.telemetry.counters) {
                     const auto elapsed = static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t1 - t0).count());
-                    ctx.counters->clearnode_ms.fetch_add(elapsed, std::memory_order_relaxed);
-                    ctx.counters->clearnode_clear_ms.fetch_add(elapsed, std::memory_order_relaxed);
-                    ctx.counters->framebuffer_clear_ms.fetch_add(elapsed, std::memory_order_relaxed);
+                    ctx.telemetry.counters->clearnode_ms.fetch_add(elapsed, std::memory_order_relaxed);
+                    ctx.telemetry.counters->clearnode_clear_ms.fetch_add(elapsed, std::memory_order_relaxed);
+                    ctx.telemetry.counters->framebuffer_clear_ms.fetch_add(elapsed, std::memory_order_relaxed);
                 }
             }
             return ctx.acquire_owned_fb(std::move(fb));
         }
         // Fresh FB path (no dirty rects, or previous FB is shared)
         {
-            auto fb = ctx.acquire_owned_fb(ctx.width, ctx.height, !skip_clear);
+            auto fb = ctx.acquire_owned_fb(ctx.frame.width, ctx.frame.height, !skip_clear);
             if (skip_clear) {
-                if (ctx.counters) {
-                    ctx.counters->clear_skipped_calls.fetch_add(1, std::memory_order_relaxed);
-                    ctx.counters->clear_skipped_pixels.fetch_add(clear_pixels, std::memory_order_relaxed);
+                if (ctx.telemetry.counters) {
+                    ctx.telemetry.counters->clear_skipped_calls.fetch_add(1, std::memory_order_relaxed);
+                    ctx.telemetry.counters->clear_skipped_pixels.fetch_add(clear_pixels, std::memory_order_relaxed);
                 }
                 fb->set_opaque(false);
             }

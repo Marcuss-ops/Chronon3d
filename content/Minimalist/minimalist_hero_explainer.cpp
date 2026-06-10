@@ -25,7 +25,7 @@ Composition minimalist_hero_explainer() {
             });
         });
 
-        s.layer("hero_title_layer", [frame = ctx.frame](auto& l) {
+        s.layer("hero_title_layer", [frame = ctx.frame.frame](auto& l) {
             l.pin_to(Anchor::Center);
 
             l.rounded_rect("text_backdrop", {

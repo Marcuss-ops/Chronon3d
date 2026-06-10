@@ -41,7 +41,7 @@ TEST_CASE("GraphCache - cache hit on structurally identical frames") {
     SoftwareRenderer renderer;
     // Disable dirty rects so fast_path_reuse does not trigger.
     RenderSettings settings = renderer.render_settings();
-    settings.enable_dirty_rects = false;
+    settings.dirty.enabled = false;
     renderer.set_settings(settings);
 
     cache::NodeCache node_cache;
@@ -70,7 +70,7 @@ TEST_CASE("GraphCache - cache miss when dimensions change") {
 
     SoftwareRenderer renderer;
     RenderSettings settings = renderer.render_settings();
-    settings.enable_dirty_rects = false;
+    settings.dirty.enabled = false;
     renderer.set_settings(settings);
 
     cache::NodeCache node_cache;
@@ -103,7 +103,7 @@ TEST_CASE("GraphCache - cache miss when layer added") {
 
     SoftwareRenderer renderer;
     RenderSettings settings = renderer.render_settings();
-    settings.enable_dirty_rects = false;
+    settings.dirty.enabled = false;
     renderer.set_settings(settings);
 
     cache::NodeCache node_cache;
