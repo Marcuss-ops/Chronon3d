@@ -492,14 +492,14 @@ TEST_CASE("Stabilization: tile_effect renders identically to full-frame pass") {
     settings.use_modular_graph = true;
 
     // Render without tiles (full-frame)
-    settings.tile_size  = 0;  // 0 = disabled
+    settings.dirty.tile_size  = 0;  // 0 = disabled
     renderer.set_settings(settings);
     auto full_fb = renderer.render_scene(scene, scene.camera_2_5d(), 320, 240);
     REQUIRE(full_fb != nullptr);
     CHECK(framebuffer_has_only_finite(*full_fb));
 
     // Render with tile rendering
-    settings.tile_size  = 64;
+    settings.dirty.tile_size  = 64;
     renderer.set_settings(settings);
     auto tile_fb = renderer.render_scene(scene, scene.camera_2_5d(), 320, 240);
     REQUIRE(tile_fb != nullptr);
@@ -536,14 +536,14 @@ TEST_CASE("Stabilization: tile_effect small tile sizes produce identical output"
     settings.use_modular_graph = true;
 
     // Full-frame reference
-    settings.tile_size = 0;
+    settings.dirty.tile_size = 0;
     renderer.set_settings(settings);
     auto ref_fb = renderer.render_scene(scene, scene.camera_2_5d(), 128, 128);
     REQUIRE(ref_fb != nullptr);
 
     // Test with multiple tile sizes
     for (int ts : {8, 16, 32, 64}) {
-        settings.tile_size = ts;
+        settings.dirty.tile_size = ts;
         renderer.set_settings(settings);
         auto fb = renderer.render_scene(scene, scene.camera_2_5d(), 128, 128);
         REQUIRE(fb != nullptr);
@@ -587,7 +587,7 @@ TEST_CASE("Stabilization: tile_effect produces no NaN/Inf for complex scenes") {
     SoftwareRenderer renderer;
     RenderSettings settings;
     settings.use_modular_graph = true;
-    settings.tile_size = 32;
+    settings.dirty.tile_size = 32;
     renderer.set_settings(settings);
 
     auto fb = renderer.render_scene(scene, scene.camera_2_5d(), 320, 240);

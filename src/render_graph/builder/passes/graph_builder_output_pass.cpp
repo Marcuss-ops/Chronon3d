@@ -89,9 +89,9 @@ void OutputPass::run(GraphBuildContext& ctx) {
     // When the 2.5D camera has DOF enabled, insert a PerPixelDofNode after
     // all layers are composited.
     if (cam25d.dof.enabled && cam25d.enabled) {
-        rctx.track_dof_depth = true;
-        rctx.dof_depth.assign(
-            static_cast<size_t>(rctx.width) * rctx.height,
+        rctx.options.track_dof_depth = true;
+        rctx.telemetry.dof_depth.assign(
+            static_cast<size_t>(rctx.frame.width) * rctx.frame.height,
             1e18f  // sentinel: no layer contributed
         );
         auto dof_node = graph.add_node(PerPixelDofNode::create(cam25d));
@@ -104,7 +104,7 @@ void OutputPass::run(GraphBuildContext& ctx) {
 
     // ── Early-exit analysis ────────────────────────────────────────────
     // Mark nodes covered by full-frame opaque layers for skip during execution.
-    rctx.early_exit_skip.assign(graph.size(), false);
+    rctx.tile.early_exit_skip.assign(graph.size(), false);
     {
         std::unordered_map<GraphNodeId, bool> opaque_memo;
         std::vector<GraphNodeId> stack;
@@ -117,7 +117,7 @@ void OutputPass::run(GraphBuildContext& ctx) {
             stack.pop_back();
 
             if (id >= static_cast<GraphNodeId>(graph.size())) continue;
-            if (rctx.early_exit_skip[id]) continue;
+            if (rctx.tile.early_exit_skip[id]) continue;
 
             const auto& node = graph.node(id);
             if (node.kind() == RenderGraphNodeKind::Composite) {
@@ -129,7 +129,7 @@ void OutputPass::run(GraphBuildContext& ctx) {
                     bool layer_fully_covers = is_full_frame_opaque_impl(
                         layer_id, graph, rctx, opaque_memo);
 
-                    if (rctx.diagnostics_enabled) {
+                    if (rctx.options.diagnostics_enabled) {
                         spdlog::info(
                             "[early-exit-debug] composite_id={} layer_id={} "
                             "layer_name='{}' kind={} layer_fully_covers={}",
@@ -149,7 +149,7 @@ void OutputPass::run(GraphBuildContext& ctx) {
                             if (visited.count(bg)) continue;
                             if (bg >= static_cast<GraphNodeId>(graph.size())) continue;
                             visited.insert(bg);
-                            rctx.early_exit_skip[bg] = true;
+                            rctx.tile.early_exit_skip[bg] = true;
                             for (GraphNodeId bg_in : graph.inputs(bg)) {
                                 bg_queue.push(bg_in);
                             }

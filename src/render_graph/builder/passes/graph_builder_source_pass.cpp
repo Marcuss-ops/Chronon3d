@@ -27,10 +27,10 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
         }
 
         const bool layer_needs_transform = layer_needs_render_transform(item, ctx);
-        const bool use_local = ctx.modular_coordinates && layer_needs_transform && !item.native_3d;
+        const bool use_local = ctx.options.modular_coordinates && layer_needs_transform && !item.native_3d;
         const bool source_is_static = is_static || use_local;
 
-        if (ctx.diagnostics_enabled) {
+        if (ctx.options.diagnostics_enabled) {
             spdlog::info(
                 "[source-pass] layer='{}' kind={} item_transform_any={} implicit_center_only={} custom_transform={} use_local={} centered={} tx={} ty={}",
                 layer.name.c_str(),
@@ -57,9 +57,9 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
             if (node.shape.type == ShapeType::Text) {
                 cache::NodeCacheKey source_key{
                     .scope = "layer.source:" + std::string(layer.name) + ":" + std::string(node.name),
-                    .frame = source_is_static ? Frame{0} : ctx.frame,
-                    .width = ctx.width,
-                    .height = ctx.height,
+                    .frame = source_is_static ? Frame{0} : ctx.frame.frame,
+                    .width = ctx.frame.width,
+                    .height = ctx.frame.height,
                     .params_hash = content_hash,
                     .source_hash = hash_combine(hash_string(node.name), placement_hash)
                 };
@@ -75,17 +75,17 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                     std::string(node.name), node, source_key,
                     should_use_centered_rendering(item, ctx),
                     item.projected,
-                    ctx.modular_coordinates ? std::optional<Mat4>(text_matrix) : std::nullopt,
-                    ctx.modular_coordinates ? std::optional<f32>(text_opacity) : std::nullopt,
+                    ctx.options.modular_coordinates ? std::optional<Mat4>(text_matrix) : std::nullopt,
+                    ctx.options.modular_coordinates ? std::optional<f32>(text_opacity) : std::nullopt,
                     source_is_static
                 ));
                 graph.node(source).set_frame_dependent(!source_is_static);
             } else {
                 cache::NodeCacheKey source_key{
                     .scope = "layer.source:" + std::string(layer.name) + ":" + std::string(node.name),
-                    .frame = source_is_static ? Frame{0} : ctx.frame,
-                    .width = ctx.width,
-                    .height = ctx.height,
+                    .frame = source_is_static ? Frame{0} : ctx.frame.frame,
+                    .width = ctx.frame.width,
+                    .height = ctx.frame.height,
                     .params_hash = content_hash,
                     .source_hash = hash_combine(hash_string(node.name), placement_hash)
                 };
@@ -101,8 +101,8 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                     std::string(node.name), node, source_key,
                     should_use_centered_rendering(item, ctx),
                     item.projected,
-                    ctx.modular_coordinates ? std::optional<Mat4>(shape_matrix) : std::nullopt,
-                    ctx.modular_coordinates ? std::optional<f32>(shape_opacity) : std::nullopt,
+                    ctx.options.modular_coordinates ? std::optional<Mat4>(shape_matrix) : std::nullopt,
+                    ctx.options.modular_coordinates ? std::optional<f32>(shape_opacity) : std::nullopt,
                     source_is_static
                 ));
                 graph.node(source).set_frame_dependent(!source_is_static);
@@ -123,9 +123,9 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
 
         cache::NodeCacheKey source_key{
             .scope = "layer.multisource:" + std::string(layer.name),
-            .frame = source_is_static ? Frame{0} : ctx.frame,
-            .width = ctx.width,
-            .height = ctx.height,
+            .frame = source_is_static ? Frame{0} : ctx.frame.frame,
+            .width = ctx.frame.width,
+            .height = ctx.frame.height,
             .params_hash = aggregated_params_hash,
             .source_hash = aggregated_source_hash
         };
@@ -171,7 +171,7 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
 
     if (layer.kind == LayerKind::Video && layer.video_source) {
         auto video_id = graph.add_node(std::make_unique<VideoNode>(
-            *layer.video_source, ctx.video_decoder, layer.from
+            *layer.video_source, ctx.resources.video_decoder, layer.from
         ));
         graph.node(video_id).set_frame_dependent(true);
         return video_id;

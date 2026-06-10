@@ -37,9 +37,9 @@ public:
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         return cache::NodeCacheKey{
             .scope = "per_pixel_dof",
-            .frame = frame_dependent() ? ctx.frame : Frame{0},
-            .width = ctx.width,
-            .height = ctx.height,
+            .frame = frame_dependent() ? ctx.frame.frame : Frame{0},
+            .width = ctx.frame.width,
+            .height = ctx.frame.height,
             .params_hash = hash_combine(
                 hash_combine(
                     hash_value(m_camera.dof.focus_z),
@@ -64,8 +64,8 @@ public:
 
         bbox.x0 = std::max(0, static_cast<i32>(std::floor(static_cast<f32>(bbox.x0) - blur)));
         bbox.y0 = std::max(0, static_cast<i32>(std::floor(static_cast<f32>(bbox.y0) - blur)));
-        bbox.x1 = std::min(ctx.width, static_cast<i32>(std::ceil(static_cast<f32>(bbox.x1) + blur)));
-        bbox.y1 = std::min(ctx.height, static_cast<i32>(std::ceil(static_cast<f32>(bbox.y1) + blur)));
+        bbox.x1 = std::min(ctx.frame.width, static_cast<i32>(std::ceil(static_cast<f32>(bbox.x1) + blur)));
+        bbox.y1 = std::min(ctx.frame.height, static_cast<i32>(std::ceil(static_cast<f32>(bbox.y1) + blur)));
         return bbox;
     }
 
@@ -75,7 +75,7 @@ public:
         std::span<const std::optional<raster::BBox>> input_bboxes
     ) override {
         if (inputs.empty() || !inputs[0]) {
-            auto empty = ctx.acquire_owned_fb(ctx.width, ctx.height);
+            auto empty = ctx.acquire_owned_fb(ctx.frame.width, ctx.frame.height);
             empty->clear(Color::transparent());
             return empty;
         }
@@ -85,7 +85,7 @@ public:
         }
 
         // Check that the depth buffer was populated during compositing
-        if (ctx.dof_depth.empty()) {
+        if (ctx.telemetry.dof_depth.empty()) {
             // No depth data — fall through without blur
             return ctx.acquire_owned_fb(*inputs[0]);
         }
@@ -93,7 +93,7 @@ public:
         auto result = ctx.acquire_owned_fb(*inputs[0]);
 
         // Determine clip region
-        std::optional<raster::BBox> clip = ctx.clip_rect;
+        std::optional<raster::BBox> clip = ctx.tile.clip_rect;
         auto pred = predicted_bbox(ctx, input_bboxes);
         if (pred && clip) {
             clip->x0 = std::max(clip->x0, pred->x0);
@@ -103,18 +103,18 @@ public:
         }
 
         // Apply per-pixel DOF blur using the depth buffer populated by compositing
-        renderer::apply_per_pixel_dof(*result, ctx.dof_depth, m_camera.dof, clip);
+        renderer::apply_per_pixel_dof(*result, ctx.telemetry.dof_depth, m_camera.dof, clip);
 
-        if (ctx.counters) {
-            ctx.counters->effect_stack_calls.fetch_add(1, std::memory_order_relaxed);
-            uint64_t area = static_cast<uint64_t>(ctx.width) * ctx.height;
+        if (ctx.telemetry.counters) {
+            ctx.telemetry.counters->effect_stack_calls.fetch_add(1, std::memory_order_relaxed);
+            uint64_t area = static_cast<uint64_t>(ctx.frame.width) * ctx.frame.height;
             if (clip) {
                 raster::BBox clipped = *clip;
-                clipped.clip_to(ctx.width, ctx.height);
+                clipped.clip_to(ctx.frame.width, ctx.frame.height);
                 area = clipped.is_empty() ? 0
                     : static_cast<uint64_t>(clipped.x1 - clipped.x0) * (clipped.y1 - clipped.y0);
             }
-            ctx.counters->effect_pixels.fetch_add(area, std::memory_order_relaxed);
+            ctx.telemetry.counters->effect_pixels.fetch_add(area, std::memory_order_relaxed);
         }
 
         return result;

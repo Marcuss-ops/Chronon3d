@@ -18,6 +18,10 @@ TEST_CASE("PipeExportHelpers: encoded frame count is zero on failure") {
     PipeExportStatus status;
     status.frames_written = 42;
 
+    // success defaults to false — frames_written returned only on explicit success
+    CHECK(pipe_encoded_frame_count(status) == 0);
+
+    status.success = true;
     CHECK(pipe_encoded_frame_count(status) == 42);
 
     status.success = false;

@@ -56,8 +56,8 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
         "framebuffer_acquire_ms, framebuffer_clear_ms, clearnode_ms, "
         "clearnode_restore_ms, "
         "framebuffer_pool_clear_ms, framebuffer_enqueue_ms, "
-        "framebuffer_pool_miss_count_size_mismatch, framebuffer_pool_miss_count_empty, "
-        "framebuffer_pool_miss_count_best_fit, framebuffer_pool_hits, framebuffer_buffer_returned_to_pool_count, "
+        "framebuffer_pool_empty_alloc, framebuffer_pool_miss_count_empty, "
+        "framebuffer_pool_best_fit_reuse, framebuffer_pool_exact_hit, framebuffer_buffer_returned_to_pool_count, "
         "unaligned_memory_copies, frame_conversion_copy_ms, "
         "video_graph_eval_ms, video_conversion_ms, video_pipe_write_ms, video_ffmpeg_latency_ms, "
         "io_queue_push_blocked_ms, io_queue_pop_wait_ms, io_writer_idle_wait_ms, io_queue_peak_depth, ffmpeg_pipe_write_blocked_ms, converted_frame_cache_hits, ffmpeg_flush_ms, "        "io_queue_peak_bytes, setup_graph_parsing_ms, setup_asset_io_load_ms, setup_pool_preallocation_ms, image_decode_ms, "
@@ -147,10 +147,10 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
         run.clearnode_restore_ms,
         run.framebuffer_pool_clear_ms,
         run.framebuffer_enqueue_ms,
-        run.framebuffer_pool_miss_count_size_mismatch,
-        run.framebuffer_pool_miss_count_empty,
-        run.framebuffer_pool_miss_count_best_fit,
-        run.framebuffer_pool_hits,
+        run.framebuffer_pool_empty_alloc,
+        uint64_t{0},  // framebuffer_pool_miss_count_empty — legacy, merged into empty_alloc
+        run.framebuffer_pool_best_fit_reuse,
+        run.framebuffer_pool_exact_hit,
         run.framebuffer_buffer_returned_to_pool_count,
         run.unaligned_memory_copies,
         run.frame_conversion_copy_ms,

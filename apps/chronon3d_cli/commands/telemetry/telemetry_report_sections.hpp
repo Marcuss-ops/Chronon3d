@@ -127,10 +127,9 @@ inline void write_framebuffer_metrics(std::stringstream& out,
     out << "| framebuffer clear | " << format_ms(run.framebuffer_clear_ms) << " |\n";
     out << "| framebuffer pool clear | " << format_ms(run.framebuffer_pool_clear_ms) << " |\n";
     out << "| framebuffer enqueue | " << format_ms(run.framebuffer_enqueue_ms) << " |\n";
-    out << "| framebuffer pool hits | " << run.framebuffer_pool_hits << " |\n";
-    out << "| framebuffer pool miss (size) | " << run.framebuffer_pool_miss_count_size_mismatch << " |\n";
-    out << "| framebuffer pool miss (empty) | " << run.framebuffer_pool_miss_count_empty << " |\n";
-    out << "| framebuffer pool miss (best-fit) | " << run.framebuffer_pool_miss_count_best_fit << " |\n";
+    out << "| framebuffer pool exact hit | " << run.framebuffer_pool_exact_hit << " |\n";
+    out << "| framebuffer pool empty alloc | " << run.framebuffer_pool_empty_alloc << " |\n";
+    out << "| framebuffer pool best-fit reuse | " << run.framebuffer_pool_best_fit_reuse << " |\n";
     out << "| framebuffer returned to pool | " << run.framebuffer_buffer_returned_to_pool_count << " |\n\n";
 }
 

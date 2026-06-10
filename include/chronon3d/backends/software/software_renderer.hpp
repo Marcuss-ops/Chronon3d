@@ -22,6 +22,9 @@
 #include <chronon3d/scene/model/camera/camera.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/render_graph/core/scene_hasher.hpp>
+#include <chronon3d/backends/software/buffer_ring.hpp>
+#include <chronon3d/backends/software/scratch_buffer.hpp>
+#include <chronon3d/backends/software/graph_cache.hpp>
 
 #include <chronon3d/backends/software/renderer_buffer_ring.hpp>
 #include <chronon3d/backends/software/transform_scratch_buffer.hpp>
@@ -78,8 +81,8 @@ public:
     void set_motion_blur(MotionBlurSettings mb) { m_settings.motion_blur = mb; }
     [[nodiscard]] const MotionBlurSettings& motion_blur() const { return m_settings.motion_blur; }
 
-    void set_diagnostic_mode(bool enabled) { m_settings.diagnostic = enabled; }
-    [[nodiscard]] bool is_diagnostic_mode() const { return m_settings.diagnostic; }
+    void set_diagnostic_mode(bool enabled) { m_settings.diagnostics.enabled = enabled; }
+    [[nodiscard]] bool is_diagnostic_mode() const { return m_settings.diagnostics.enabled; }
 
     // Clear image and font caches (useful between unrelated render sessions)
     void clear_caches() {
@@ -88,13 +91,10 @@ public:
         renderer::clear_text_shadow_cache();
         m_node_cache.clear();
         if (m_framebuffer_pool) m_framebuffer_pool->clear();
-        m_cached_compiled_graph.reset();
-        m_cached_compiled_width = 0;
-        m_cached_compiled_height = 0;
-        m_cached_compiled_structure_hash = 0;
+        m_graph_cache.reset();
         m_prev_graph_structure_fingerprint = 0;
-        reset_transform_scratch();
-        reset_ping_framebuffers();
+        m_buffer_ring.reset();
+        m_scratch_buffer.reset();
         // Video cache clearing is now responsibility of the decoder implementation
     }
 
@@ -170,8 +170,7 @@ public:
         uint64_t content_hash{0};
     };
 
-    // Dirty rectangles tracking
-    std::shared_ptr<Framebuffer> m_prev_framebuffer;
+    // ── Per-frame dirty-rect / telemetry state (written by graph pipeline) ──
     std::unordered_map<std::string, LayerBBoxState> m_prev_layer_bboxes;
     Frame m_prev_frame{-1};
     double m_last_dirty_area_ratio{1.0};
@@ -189,68 +188,13 @@ public:
     uint64_t m_prev_active_at_fingerprint{0}; // tracks which layers are active at each frame
     graph::SceneHasher m_scene_hasher;
 
-    /// Cached compiled render graph for incremental rebuild (Phase 1).
-    /// When graph_structure_unchanged is true, the previously built,
-    /// optimized and compiled graph is reused — skipping build_graph(), optimize_graph() and compile().
-    std::unique_ptr<graph::CompiledFrameGraph> m_cached_compiled_graph;
-    int m_cached_compiled_width{0};
-    int m_cached_compiled_height{0};
-    uint64_t m_cached_compiled_structure_hash{0};
-
-    // ── Ping-pong framebuffers ───────────────────────────────────────────
-    // Two persistent framebuffers used alternately as the render output.
-    // The writer thread reads one (read_idx) while the ClearNode writes to
-    // the other (write_idx).  Because write_idx is always exclusive (not
-    // shared with the writer), ClearNode never needs the COW detach.
-    //
-    // Raw pointers owned by the renderer; the scratch_slot deleter restores
-    // them when the CachedFB pipeline releases them.  m_prev_framebuffer is
-    // a shared_ptr wrapping the read ping for early-exit path compatibility.
-    Framebuffer* m_ping_fb[2]{nullptr, nullptr};
-    int m_ping_read_idx{0};
-    int m_ping_write_idx{1};
-
-    /// Allocate/reallocate both ping buffers to match canvas.
-    void ensure_ping_framebuffers(int width, int height);
-
-    /// Swap read/write indices after a frame completes.
-    /// Also repoints m_prev_framebuffer to the new read ping.
-    void swap_ping_indices();
-
-    /// Address-of the write slot for the scratch deleter.
-    Framebuffer** write_ping_slot() { return &m_ping_fb[m_ping_write_idx]; }
-
-    // ── Transform scratch buffer ────────────────────────────────────────
-    // Persistent framebuffer reused by TransformNode across frames.
-    // Eliminates pool bucket misses when transform output size varies
-    // by a few pixels per frame (animated transforms).
-    // Owned via raw pointer + PoolFbDeleter with scratch_slot; the deleter
-    // clears the buffer and stores it back into this slot.
-    Framebuffer* m_transform_scratch{nullptr};
-
-    /// Lazily ensure the scratch is allocated at given size.
-    /// Returns a pointer to the scratch (stable across frames once created).
-    /// The scratch is held by m_transform_scratch_slot pointer; when the
-    /// transformation work is done, the deleter clears it and restores it.
-    Framebuffer* ensure_transform_scratch(int width, int height);
-
-    /// Returns the address of the scratch slot pointer, so the deleter can
-    /// store the cleared FB back into it.
-    Framebuffer** transform_scratch_slot() { return &m_transform_scratch; }
-
-    /// Direct access to the TransformScratchBuffer RAII member.
-    /// Used by the render graph pipeline (scene_graph_phase.cpp) to wire
-    /// up the scratch buffer in the RenderGraphContext without the old
-    /// raw-pointer shim methods.
-    [[nodiscard]] TransformScratchBuffer& transform_scratch_buffer() {
-        return m_transform_scratch_buf;
-    }
-
-    /// Reset the scratch (e.g. on resolution change).
-    void reset_transform_scratch();
-
-    /// Deallocate both ping framebuffers (renderer destruction or cache clear).
-    void reset_ping_framebuffers();
+    // ── RAII buffer management ──────────────────────────────────────────
+    [[nodiscard]] RendererBufferRing& buffer_ring() { return m_buffer_ring; }
+    [[nodiscard]] const RendererBufferRing& buffer_ring() const { return m_buffer_ring; }
+    [[nodiscard]] TransformScratchBuffer& scratch_buffer() { return m_scratch_buffer; }
+    [[nodiscard]] const TransformScratchBuffer& scratch_buffer() const { return m_scratch_buffer; }
+    [[nodiscard]] CompiledGraphCache& graph_cache() { return m_graph_cache; }
+    [[nodiscard]] const CompiledGraphCache& graph_cache() const { return m_graph_cache; }
 
     [[nodiscard]] int last_layer_count() const { return m_last_layer_count; }
 
@@ -269,16 +213,9 @@ private:
     RenderCounters    m_counters;
     std::unique_ptr<graph::GraphExecutor> m_executor;
 
-    // ── Ping-pong + transform scratch, now owned via dedicated RAII types ──
-    // RendererBufferRing owns the two ping buffers via std::unique_ptr (no
-    // raw pointer + no-op deleter).  TransformScratchBuffer owns the
-    // transform scratch via std::unique_ptr with a RAII Handle.  The legacy
-    // m_ping_fb[2] / m_ping_write_idx / m_transform_scratch members above
-    // are kept as compatibility shims for external callers (scene.cpp,
-    // clear_node.hpp, etc.) and are synced from the new classes after each
-    // ensure_capacity / commit / acquire call.
-    RendererBufferRing     m_ping_ring;
-    TransformScratchBuffer m_transform_scratch_buf;
+    RendererBufferRing    m_buffer_ring;
+    TransformScratchBuffer m_scratch_buffer;
+    CompiledGraphCache    m_graph_cache;
 };
 
 } // namespace chronon3d

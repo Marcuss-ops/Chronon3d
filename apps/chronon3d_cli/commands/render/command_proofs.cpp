@@ -27,7 +27,7 @@ int command_proofs(const CompositionRegistry& registry, const ProofsArgs& args) 
     RenderSettings settings;
     settings.use_modular_graph = true;   // proof compositions require graph path
     settings.ssaa_factor       = args.ssaa;
-    settings.diagnostic        = true;
+    settings.diagnostics.enabled        = true;
 
     auto renderer = create_renderer(registry, settings);
 

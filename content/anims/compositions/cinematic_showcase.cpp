@@ -125,7 +125,7 @@ Composition catmull_rom_showcase() {
         motion.fov_deg = 50.0f;
 
         // Evaluate the camera at the current frame and apply.
-        Camera2_5D cam = motion.evaluate(ctx.frame, Frame{0}, Frame{89});
+        Camera2_5D cam = motion.evaluate(ctx.frame.frame, Frame{0}, Frame{89});
         s.camera().set(cam);
 
         // A center subject so we can see the camera moving around it.
@@ -138,7 +138,7 @@ Composition catmull_rom_showcase() {
         s.layer("hud", [ctx](LayerBuilder& l) {
             l.position({-560.0f, 320.0f, 0.0f});
             l.text("frame_label", {
-                .text = "Catmull-Rom: t = " + std::to_string(static_cast<int>(ctx.frame)),
+                .text = "Catmull-Rom: t = " + std::to_string(static_cast<int>(ctx.frame.frame)),
                 .size = {1100.0f, 40.0f},
                 .font_size = 18.0f,
                 .color = {0.75f, 0.78f, 0.95f, 1.0f},
@@ -235,7 +235,7 @@ Composition dolly_zoom_showcase() {
         s.layer("hud", [ctx](LayerBuilder& l) {
             l.position({-560.0f, 320.0f, 0.0f});
             l.text("frame_label", {
-                .text = "Dolly Zoom: t = " + std::to_string(static_cast<int>(ctx.frame)),
+                .text = "Dolly Zoom: t = " + std::to_string(static_cast<int>(ctx.frame.frame)),
                 .size = {1100, 40},
                 .font_size = 18.0f,
                 .color = {0.75f, 0.78f, 0.95f, 1.0f},
@@ -300,13 +300,13 @@ Composition camera_spline_comparison() {
         motion.zoom = 800.0f;
         motion.fov_deg = 60.0f;
 
-        Camera2_5D cam = motion.evaluate(ctx.frame, Frame{0}, Frame{119});
+        Camera2_5D cam = motion.evaluate(ctx.frame.frame, Frame{0}, Frame{119});
         s.camera().set(cam);
 
         s.layer("hud", [ctx](LayerBuilder& l) {
             l.position({-560.0f, 320.0f, 0.0f});
             l.text("frame_label", {
-                .text = "Catmull-Rom: t = " + std::to_string(static_cast<int>(ctx.frame)),
+                .text = "Catmull-Rom: t = " + std::to_string(static_cast<int>(ctx.frame.frame)),
                 .size = {1100, 40},
                 .font_size = 18.0f,
                 .color = {0.75f, 0.78f, 0.95f, 1.0f},

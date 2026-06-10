@@ -81,10 +81,9 @@ struct RenderTelemetryRecord {
     uint64_t clearnode_restore_ms{0};
     uint64_t framebuffer_pool_clear_ms{0};
     uint64_t framebuffer_enqueue_ms{0};
-    uint64_t framebuffer_pool_miss_count_size_mismatch{0};
-    uint64_t framebuffer_pool_miss_count_empty{0};
-    uint64_t framebuffer_pool_miss_count_best_fit{0};
-    uint64_t framebuffer_pool_hits{0};
+    uint64_t framebuffer_pool_empty_alloc{0};
+    uint64_t framebuffer_pool_best_fit_reuse{0};
+    uint64_t framebuffer_pool_exact_hit{0};
     uint64_t framebuffer_buffer_returned_to_pool_count{0};
     uint64_t unaligned_memory_copies{0};
     uint64_t frame_conversion_copy_ms{0};
