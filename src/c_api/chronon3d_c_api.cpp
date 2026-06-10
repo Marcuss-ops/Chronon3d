@@ -1,5 +1,8 @@
 #include "chronon3d/c_api/chronon3d.h"
 #include <chronon3d/chronon3d.hpp>
+#include <chronon3d/core/composition/composition_registry.hpp>
+#include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/runtime/timeline_evaluator.hpp>
 #include <chronon3d/specscene/model/specscene.hpp>
 #include <chronon3d/backends/image/image_writer.hpp>
