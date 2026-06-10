@@ -22,7 +22,7 @@ std::shared_ptr<Framebuffer> render_composition_frame(
     cache::NodeCache& node_cache,
     const RenderSettings& settings,
     const CompositionRegistry* registry,
-    video::VideoFrameDecoder* video_decoder,
+    media::MediaFrameProvider* video_decoder,
     const Composition& comp,
     Frame frame
 ) {

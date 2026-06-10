@@ -180,7 +180,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     f32 frame_time,
     const RenderSettings& settings,
     const CompositionRegistry* registry,
-    video::VideoFrameDecoder* video_decoder,
+    media::MediaFrameProvider* video_decoder,
     float fps,
     std::string_view diagnostic_label
 ) {

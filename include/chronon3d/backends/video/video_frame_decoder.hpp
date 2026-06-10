@@ -1,23 +1,17 @@
 #pragma once
 
-#include <chronon3d/core/memory/framebuffer.hpp>
-#include <chronon3d/core/types/frame.hpp>
-
-#include <memory>
-#include <string>
+#include <chronon3d/media/frame_source_provider.hpp>
 
 namespace chronon3d::video {
 
-class VideoFrameDecoder {
-public:
-    virtual ~VideoFrameDecoder() = default;
-
-    virtual std::shared_ptr<Framebuffer> decode_frame(
-        const std::string& path,
-        Frame frame,
-        i32 width,
-        i32 height,
-        f32 fps) = 0;
+/// Concrete video decoder interface — inherits the abstract
+/// media::MediaFrameProvider contract and adds no extra methods.
+/// The render graph now uses media::MediaFrameProvider* directly;
+/// this alias-interface remains for backward compatibility and
+/// to keep concrete implementations namespaced under video::
+class VideoFrameDecoder : public media::MediaFrameProvider {
+    // decode_frame() is inherited from MediaFrameProvider.
+    // Concrete implementations override it as before.
 };
 
 } // namespace chronon3d::video

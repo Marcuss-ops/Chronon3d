@@ -90,7 +90,7 @@ struct RenderLoopContext {
     cache::NodeCache& node_cache;
     const RenderSettings& settings;
     const CompositionRegistry& registry;
-    video::VideoFrameDecoder* video_decoder;
+    media::MediaFrameProvider* video_decoder;
     const Composition& comp;
     Frame start;
     Frame end;
