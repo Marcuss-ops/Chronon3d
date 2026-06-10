@@ -7,12 +7,32 @@ namespace chronon3d {
 
 constexpr std::size_t kHardwareDestructiveInterferenceSize = 64;
 
-#define CHRONON_RENDER_COUNTERS(X) \
+// ═════════════════════════════════════════════════════════════════════════════
+// Render Counter Macros — split by domain (Item 8)
+//
+// Each domain macro emits X(name) for its counters.  CHRONON_RENDER_COUNTERS
+// remains the combined umbrella, so existing code using the single macro
+// continues to work unchanged.
+// ═════════════════════════════════════════════════════════════════════════════
+
+#define CHRONON_COUNTERS_CORE(X) \
     X(pixels_touched) \
-    X(cache_hits) \
-    X(cache_misses) \
     X(nodes_executed) \
     X(layers_rendered) \
+    X(images_sampled) \
+    X(blur_pixels) \
+    X(simd_lerp_calls)
+
+#define CHRONON_COUNTERS_CACHE(X) \
+    X(cache_hits) \
+    X(cache_misses) \
+    X(node_cache_hash_collisions) \
+    X(glow_cache_hits) \
+    X(glow_cache_misses) \
+    X(converted_frame_cache_hits) \
+    X(converted_frame_cache_misses)
+
+#define CHRONON_COUNTERS_TEXT(X) \
     X(text_glyphs_rasterized) \
     X(text_cache_hits) \
     X(text_cache_misses) \
@@ -21,12 +41,9 @@ constexpr std::size_t kHardwareDestructiveInterferenceSize = 64;
     X(text_shadow_cache_hits) \
     X(text_shadow_cache_misses) \
     X(text_glow_cache_hits) \
-    X(text_glow_cache_misses) \
-    X(glow_cache_hits) \
-    X(glow_cache_misses) \
-    X(images_sampled) \
-    X(blur_pixels) \
-    X(simd_lerp_calls) \
+    X(text_glow_cache_misses)
+
+#define CHRONON_COUNTERS_TILE(X) \
     X(tiles_total) \
     X(tiles_hit) \
     X(tiles_miss) \
@@ -35,8 +52,9 @@ constexpr std::size_t kHardwareDestructiveInterferenceSize = 64;
     X(tile_clean_count) \
     X(tile_pixels_rendered) \
     X(tile_pixels_skipped) \
-    X(tile_full_fallbacks) \
-    X(node_cache_hash_collisions) \
+    X(tile_full_fallbacks)
+
+#define CHRONON_COUNTERS_COMPOSITE(X) \
     X(clear_skipped_calls) \
     X(clear_skipped_pixels) \
     X(clear_calls) \
@@ -54,26 +72,57 @@ constexpr std::size_t kHardwareDestructiveInterferenceSize = 64;
     X(prev_fb_use_count_peak) \
     X(composite_calls) \
     X(composite_pixels) \
+    X(clearnode_ms) \
+    X(clearnode_memcpy_ms) \
+    X(clearnode_restore_ms) \
+    X(clearnode_acquire_ms) \
+    X(clearnode_clear_ms) \
+    X(compositenode_blend_ms) \
+    X(compositenode_setup_ms) \
+    X(compositenode_copy_ms) \
+    X(compositenode_row_ms)
+
+#define CHRONON_COUNTERS_TRANSFORM(X) \
     X(transform_calls) \
     X(transform_pixels) \
-    X(projected_winding_flips) \
+    X(projected_winding_flips)
+
+#define CHRONON_COUNTERS_EFFECTS(X) \
     X(effect_stack_calls) \
     X(effect_pixels) \
     X(effect_stack_total_ms) \
     X(effect_focus_in_ladder_ms) \
     X(effect_focus_in_ladder_precompute_ms) \
-    X(effect_focus_in_ladder_crossfade_ms) \
-    X(layer_culling_tests) \
-    X(layers_culled) \
-    X(layers_visible) \
+    X(effect_focus_in_ladder_crossfade_ms)
+
+#define CHRONON_COUNTERS_FRAMEBUFFER(X) \
     X(framebuffer_allocations) \
     X(framebuffer_reuses) \
     X(framebuffer_bytes_allocated) \
     X(framebuffer_bytes_peak) \
+    X(framebuffer_pool_clear_ms) \
+    X(framebuffer_enqueue_ms) \
+    X(framebuffer_pool_empty_alloc) \
+    X(framebuffer_pool_best_fit_reuse) \
+    X(framebuffer_pool_exact_hit) \
+    X(framebuffer_buffer_returned_to_pool_count) \
+    X(framebuffer_prealloc_created) \
+    X(framebuffer_copy_ms) \
+    X(framebuffer_copy_parallel_calls) \
+    X(unaligned_memory_copies)
+
+#define CHRONON_COUNTERS_DIRTY(X) \
     X(dirty_rect_count) \
     X(dirty_pixels) \
     X(dirty_union_area_pixels) \
-    X(dirty_full_fallbacks) \
+    X(dirty_full_fallbacks)
+
+#define CHRONON_COUNTERS_LAYER(X) \
+    X(layer_culling_tests) \
+    X(layers_culled) \
+    X(layers_visible)
+
+#define CHRONON_COUNTERS_GRAPH(X) \
     X(graph_cache_hits) \
     X(graph_cache_misses) \
     X(execution_plan_cache_hits) \
@@ -101,25 +150,12 @@ constexpr std::size_t kHardwareDestructiveInterferenceSize = 64;
     X(nodes_skipped) \
     X(framebuffer_acquire_ms) \
     X(framebuffer_clear_ms) \
-    X(clearnode_ms) \
-    X(clearnode_memcpy_ms) \
-    X(clearnode_restore_ms) \
-    X(clearnode_acquire_ms) \
-    X(clearnode_clear_ms) \
-    X(compositenode_blend_ms) \
-    X(compositenode_setup_ms) \
-    X(compositenode_copy_ms) \
-    X(compositenode_row_ms) \
-    X(framebuffer_pool_clear_ms) \
-    X(framebuffer_enqueue_ms) \
-    X(framebuffer_pool_empty_alloc) \
-    X(framebuffer_pool_best_fit_reuse) \
-    X(framebuffer_pool_exact_hit) \
-    X(framebuffer_buffer_returned_to_pool_count) \
-    X(framebuffer_prealloc_created) \
-    X(framebuffer_copy_ms) \
-    X(framebuffer_copy_parallel_calls) \
-    X(unaligned_memory_copies) \
+    X(graph_executed_frames) \
+    X(graph_skipped_frames) \
+    X(graph_executed_ms_sum) \
+    X(graph_skipped_ms_sum)
+
+#define CHRONON_COUNTERS_VIDEO(X) \
     X(frame_conversion_copy_ms) \
     X(video_graph_eval_ms) \
     X(video_conversion_ms) \
@@ -129,21 +165,31 @@ constexpr std::size_t kHardwareDestructiveInterferenceSize = 64;
     X(io_queue_pop_wait_ms) \
     X(io_writer_idle_wait_ms) \
     X(io_queue_peak_depth) \
+    X(io_queue_peak_bytes) \
     X(ffmpeg_pipe_write_blocked_ms) \
+    X(ffmpeg_flush_ms) \
     X(native_av_convert_ms) \
     X(native_av_send_frame_ms) \
     X(native_av_receive_packet_ms) \
     X(native_av_mux_write_ms) \
     X(native_av_trailer_ms) \
-    X(native_av_convert_skipped_ms) \
-    X(converted_frame_cache_hits) \
-    X(converted_frame_cache_misses) \
-    X(ffmpeg_flush_ms) \
-    X(io_queue_peak_bytes) \
-    X(graph_executed_frames) \
-    X(graph_skipped_frames) \
-    X(graph_executed_ms_sum) \
-    X(graph_skipped_ms_sum)
+    X(native_av_convert_skipped_ms)
+
+// ── Combined umbrella (backward-compatible) ─────────────────────────────────
+
+#define CHRONON_RENDER_COUNTERS(X) \
+    CHRONON_COUNTERS_CORE(X) \
+    CHRONON_COUNTERS_CACHE(X) \
+    CHRONON_COUNTERS_TEXT(X) \
+    CHRONON_COUNTERS_TILE(X) \
+    CHRONON_COUNTERS_COMPOSITE(X) \
+    CHRONON_COUNTERS_TRANSFORM(X) \
+    CHRONON_COUNTERS_EFFECTS(X) \
+    CHRONON_COUNTERS_FRAMEBUFFER(X) \
+    CHRONON_COUNTERS_DIRTY(X) \
+    CHRONON_COUNTERS_LAYER(X) \
+    CHRONON_COUNTERS_GRAPH(X) \
+    CHRONON_COUNTERS_VIDEO(X)
 
 #define CHRONON_RENDER_COUNTERS_SYSTEM(X) \
     X(process_context_switches_voluntary) \

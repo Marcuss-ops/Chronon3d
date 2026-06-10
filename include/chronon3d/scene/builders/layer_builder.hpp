@@ -51,12 +51,12 @@ public:
                           std::pmr::memory_resource* res);
 
     // ── Command declarations (split by domain) ──────────────────────────
-#include <chronon3d/scene/builders/layer_builder_core.hpp>
-#include <chronon3d/scene/builders/layer_builder_masks.hpp>
-#include <chronon3d/scene/builders/layer_builder_effects.hpp>
-#include <chronon3d/scene/builders/layer_builder_shapes.hpp>
-#include <chronon3d/scene/builders/layer_builder_motion.hpp>
-#include <chronon3d/scene/builders/layer_builder_video.hpp>
+#include <chronon3d/scene/builders/layer_builder_commands/core.hpp>
+#include <chronon3d/scene/builders/layer_builder_commands/masks.hpp>
+#include <chronon3d/scene/builders/layer_builder_commands/effects.hpp>
+#include <chronon3d/scene/builders/layer_builder_commands/shapes.hpp>
+#include <chronon3d/scene/builders/layer_builder_commands/motion.hpp>
+#include <chronon3d/scene/builders/layer_builder_commands/video.hpp>
 
     [[nodiscard]] std::pmr::memory_resource* resource() const { return m_layer.nodes.get_allocator().resource(); }
     [[nodiscard]] Layer build();
