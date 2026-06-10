@@ -93,10 +93,9 @@ RunSummary query_run_summary(sqlite3* db, const std::string& run_id) {
         run.clearnode_ms = get_i64("clearnode_ms");
         run.framebuffer_pool_clear_ms = get_i64("framebuffer_pool_clear_ms");
         run.framebuffer_enqueue_ms = get_i64("framebuffer_enqueue_ms");
-        run.framebuffer_pool_miss_count_size_mismatch = get_i64("framebuffer_pool_miss_count_size_mismatch");
-        run.framebuffer_pool_miss_count_empty = get_i64("framebuffer_pool_miss_count_empty");
-        run.framebuffer_pool_miss_count_best_fit = get_i64("framebuffer_pool_miss_count_best_fit");
-        run.framebuffer_pool_hits = get_i64("framebuffer_pool_hits");
+        run.framebuffer_pool_empty_alloc = get_i64("framebuffer_pool_empty_alloc");
+        run.framebuffer_pool_best_fit_reuse = get_i64("framebuffer_pool_best_fit_reuse");
+        run.framebuffer_pool_exact_hit = get_i64("framebuffer_pool_exact_hit");
         run.framebuffer_buffer_returned_to_pool_count = get_i64("framebuffer_buffer_returned_to_pool_count");
         run.unaligned_memory_copies = get_i64("unaligned_memory_copies");
         run.frame_conversion_copy_ms = get_i64("frame_conversion_copy_ms");

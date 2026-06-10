@@ -22,6 +22,7 @@
 #include <algorithm>
 #include <chrono>
 #include <unordered_map>
+#include <mutex>
 #include <cstring>
 #include <spdlog/spdlog.h>
 
@@ -36,7 +37,7 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
                         float time_seconds, const std::optional<raster::BBox>& clip,
                         bool diagnostics_enabled) {
     using enum effects::EffectType;
-    const auto stack_start = diagnostics_enabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
+    const auto stack_start = std::chrono::steady_clock::now();
     double blur_ms = 0.0;
     double tint_ms = 0.0;
     double brightness_ms = 0.0;
@@ -45,6 +46,7 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
     double shadow_ms = 0.0;
     double bloom_ms = 0.0;
     double fake3d_ms = 0.0;
+    double focus_in_ladder_ms = 0.0;
 
     for (const auto& inst : stack) {
         if (!inst.enabled) continue;
@@ -179,7 +181,11 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
         case FocusInLadder: {
             auto* p = std::get_if<FocusInLadderParams>(&inst.params);
             if (p && !p->levels.empty()) {
+                const auto t0 = std::chrono::steady_clock::now();
                 apply_focus_in_ladder(fb, *p, time_seconds, clip);
+                const auto elapsed_ms = std::chrono::duration<double, std::milli>(
+                    std::chrono::steady_clock::now() - t0).count();
+                focus_in_ladder_ms += elapsed_ms;
             }
             break;
         }
@@ -192,9 +198,20 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
     if (diagnostics_enabled) {
         const double total_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - stack_start).count();
         spdlog::info(
-            "[EffectStack] total={:.2f}ms blur={:.2f} tint={:.2f} brightness={:.2f} contrast={:.2f} glow={:.2f} shadow={:.2f} bloom={:.2f} fake3d={:.2f}",
-            total_ms, blur_ms, tint_ms, brightness_ms, contrast_ms, glow_ms, shadow_ms, bloom_ms, fake3d_ms
+            "[EffectStack] total={:.2f}ms blur={:.2f} tint={:.2f} brightness={:.2f} contrast={:.2f} glow={:.2f} shadow={:.2f} bloom={:.2f} fake3d={:.2f} focus_in_ladder={:.2f}",
+            total_ms, blur_ms, tint_ms, brightness_ms, contrast_ms, glow_ms, shadow_ms, bloom_ms, fake3d_ms, focus_in_ladder_ms
         );
+    }
+
+    // ── Per-effect wall-time counters (always emitted, not just diagnostics) ──
+    {
+        const double total_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - stack_start).count();
+        if (auto* cnt = profiling::g_current_counters) {
+            cnt->effect_stack_total_ms.fetch_add(
+                static_cast<uint64_t>(std::llround(total_ms)), std::memory_order_relaxed);
+            cnt->effect_focus_in_ladder_ms.fetch_add(
+                static_cast<uint64_t>(std::llround(focus_in_ladder_ms)), std::memory_order_relaxed);
+        }
     }
 }
 
@@ -220,29 +237,96 @@ void draw_glow(Framebuffer& fb, const RenderNode& node, const RenderState& state
 // Precomputed Blur Ladder (FocusInLadder)
 //
 // Pre-renders N blur levels on first frame and caches them in a
-// thread_local map.  Each subsequent frame performs only a lightweight
-// crossfade between two adjacent levels — zero blur operations.
+// shared (static) map with mutex for thread safety.  Previously used
+// thread_local, but that broke warmup priming because TBB's work-stealing
+// scheduler may execute EffectStack on a different thread each frame.
 //
-// Cache key: address of the FocusInLadderParams (unique per layer instance)
-// + framebuffer dimensions (stale check).
+// Cache key: content hash of levels + duration + easing + framebuffer dims.
 // ===========================================================================
 
 namespace {
 
-struct LadderCacheEntry {
-    std::vector<std::shared_ptr<Framebuffer>> levels;
-    int cached_width{0};
-    int cached_height{0};
+struct LadderKey {
+    std::vector<f32> levels;
+    Frame duration;
+    EasingCurve easing;
+    bool interpolate_between_levels;
+    int cache_w{0};
+    int cache_h{0};
+    bool operator==(const LadderKey& other) const = default;
 };
 
-thread_local std::unordered_map<const FocusInLadderParams*, LadderCacheEntry> t_ladder_cache;
+struct LadderKeyHash {
+    size_t operator()(const LadderKey& k) const noexcept {
+        size_t h = 0;
+        for (f32 v : k.levels) {
+            h ^= std::hash<f32>{}(v) + 0x9e3779b9 + (h << 6) + (h >> 2);
+        }
+        h ^= std::hash<int>{}(static_cast<int>(k.duration)) + 0x9e3779b9 + (h << 6) + (h >> 2);
+        h ^= std::hash<int>{}(static_cast<int>(k.easing.preset)) + 0x9e3779b9 + (h << 6) + (h >> 2);
+        if (k.easing.cubic.has_value()) {
+            h ^= std::hash<f32>{}(k.easing.cubic->x1) + 0x9e3779b9 + (h << 6) + (h >> 2);
+            h ^= std::hash<f32>{}(k.easing.cubic->y1) + 0x9e3779b9 + (h << 6) + (h >> 2);
+            h ^= std::hash<f32>{}(k.easing.cubic->x2) + 0x9e3779b9 + (h << 6) + (h >> 2);
+            h ^= std::hash<f32>{}(k.easing.cubic->y2) + 0x9e3779b9 + (h << 6) + (h >> 2);
+        }
+        h ^= std::hash<bool>{}(k.interpolate_between_levels) + 0x9e3779b9 + (h << 6) + (h >> 2);
+        h ^= std::hash<int>{}(k.cache_w) + 0x9e3779b9 + (h << 6) + (h >> 2);
+        h ^= std::hash<int>{}(k.cache_h) + 0x9e3779b9 + (h << 6) + (h >> 2);
+        return h;
+    }
+};
+
+struct LadderCacheEntry {
+    std::vector<std::shared_ptr<Framebuffer>> levels;
+};
+
+// Shared (non-thread_local) cache + mutex — survives across TBB worker
+// threads so that warmup priming (on thread A) is visible to subsequent
+// render-loop frames (which may execute on thread B via work-stealing).
+static std::unordered_map<LadderKey, LadderCacheEntry, LadderKeyHash> s_ladder_cache;
+static std::mutex s_ladder_cache_mutex;
 
 } // anonymous namespace
 
 void apply_focus_in_ladder(Framebuffer& fb, const FocusInLadderParams& p,
                             float time_seconds, const std::optional<raster::BBox>& clip) {
     const int num_levels = static_cast<int>(p.levels.size());
-    const int w = fb.width(), h = fb.height();
+    const int fb_w = fb.width(), fb_h = fb.height();
+
+    // ── Determine effective region: clip rect or full framebuffer ────
+    // When a clip rect is available (e.g. image layer occupies only a
+    // sub-region of the composition), restrict ALL blur ladder operations
+    // to that region.  For MinimalistImageFocusIn (800×450 image in a
+    // 1920×1080 frame), this reduces the per-level blur area by ~6×.
+    int w = fb_w, h = fb_h;
+    int dst_x0 = 0, dst_y0 = 0;
+    bool has_clip = false;
+    if (clip) {
+        raster::BBox cl = *clip;
+        cl.clip_to(fb_w, fb_h);
+        if (!cl.is_empty()) {
+            w = cl.x1 - cl.x0;
+            h = cl.y1 - cl.y0;
+            dst_x0 = cl.x0;
+            dst_y0 = cl.y0;
+            has_clip = true;
+        }
+    }
+
+    if (w <= 0 || h <= 0) return;
+
+    // ── Stabilize cache key dimensions ──────────────────────────────────
+    // The clip rect may vary slightly per frame due to dirty-rect bbox
+    // changes during opacity/scale animation.  Without stabilization,
+    // every other frame triggers a full precompute.  Bucketing to
+    // 64-aligned values collapses these fluctuations into fewer stable
+    // cache entries than 32-aligned while keeping blur quality
+    // indistinguishable (max ~64 px variance per bucket).  Combined
+    // with consecutive warmup rendering, all dimension pairs the render
+    // loop will encounter are precomputed during warmup.
+    const int cache_w = ((w + 63) / 64) * 64;
+    const int cache_h = ((h + 63) / 64) * 64;
 
     // ── Compute animation progress ──────────────────────────────────────
     // time_seconds is the current frame number (float).
@@ -261,65 +345,136 @@ void apply_focus_in_ladder(Framebuffer& fb, const FocusInLadderParams& p,
                             : 0.0f;
 
     // ── Pre-render all levels (first frame or size change) ──────────────
-    auto& cache = t_ladder_cache[&p];
-    if (cache.levels.empty() || cache.cached_width != w || cache.cached_height != h) {
-        cache.levels.clear();
-        cache.levels.reserve(num_levels);
-        cache.cached_width = w;
-        cache.cached_height = h;
+    // Dimensions are part of the cache key so frames with different clip
+    // sizes (e.g. frame 0: 960×576, frame 1+: 864×512 during focus-in)
+    // each get their own precomputed blur ladder.  Without dimensions in
+    // the key, the two sizes alternate and overwrite each other's cached
+    // levels, causing a full precompute on every frame (thrashing).
+    const LadderKey cache_key{
+        p.levels, p.duration, p.easing, p.interpolate_between_levels,
+        cache_w, cache_h};
 
-        // Snapshot the current framebuffer content (sharp source)
-        auto sharp = acquire_temp_framebuffer(w, h);
-        for (int y = 0; y < h; ++y)
-            std::memcpy(sharp->pixels_row(y), fb.pixels_row(y),
-                        static_cast<size_t>(w) * sizeof(Color));
-
-        for (int i = 0; i < num_levels; ++i) {
-            const float radius = p.levels[i];
-            auto level_fb = acquire_temp_framebuffer(w, h);
-            // Copy sharp source into this level
-            for (int y = 0; y < h; ++y)
-                std::memcpy(level_fb->pixels_row(y), sharp->pixels_row(y),
-                            static_cast<size_t>(w) * sizeof(Color));
-            // Blur at the requested radius
-            if (radius > 0.5f) {
-                apply_blur(*level_fb, radius, clip, 3);
+    // Lock the shared cache for lookup/precompute.  We copy shared_ptrs
+    // to local variables before releasing the lock so the crossfade loop
+    // (which may involve TBB parallel_for) runs outside the critical
+    // section.
+    std::shared_ptr<Framebuffer> level_a;
+    std::shared_ptr<Framebuffer> level_b;
+    int stride_a = 0, stride_b = 0;
+    {
+        std::lock_guard<std::mutex> lock(s_ladder_cache_mutex);
+        auto& cache = s_ladder_cache[cache_key];
+        // Cache key now includes dimensions, so levels.empty() alone
+        // tells us whether we've precomputed for this exact size.
+        const bool need_precompute = cache.levels.empty();
+        auto precompute_t0 = need_precompute ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
+        if (need_precompute) {
+            cache.levels.clear();
+            cache.levels.reserve(num_levels);
+            auto sharp = acquire_temp_framebuffer(cache_w, cache_h);
+            if (has_clip) {
+                for (int y = 0; y < h; ++y)
+                    std::memcpy(sharp->pixels_row(y),
+                                fb.pixels_row(dst_y0 + y) + dst_x0,
+                                static_cast<size_t>(w) * sizeof(Color));
+            } else {
+                for (int y = 0; y < h; ++y)
+                    std::memcpy(sharp->pixels_row(y), fb.pixels_row(y),
+                                static_cast<size_t>(w) * sizeof(Color));
             }
-            cache.levels.push_back(std::move(level_fb));
+
+            for (int i = 0; i < num_levels; ++i) {
+                const float radius = p.levels[i];
+                auto level_fb = acquire_temp_framebuffer(cache_w, cache_h);
+                for (int y = 0; y < cache_h; ++y)
+                    std::memcpy(level_fb->pixels_row(y), sharp->pixels_row(y),
+                                static_cast<size_t>(cache_w) * sizeof(Color));
+                if (radius > 0.5f) {
+                    apply_blur(*level_fb, radius, std::nullopt, 3);
+                }
+                cache.levels.push_back(std::move(level_fb));
+            }
+
+            if (auto* cnt = profiling::g_current_counters) {
+                const auto precompute_ms = std::chrono::duration<double, std::milli>(
+                    std::chrono::steady_clock::now() - precompute_t0).count();
+                cnt->effect_focus_in_ladder_precompute_ms.fetch_add(
+                    static_cast<uint64_t>(std::llround(precompute_ms)), std::memory_order_relaxed);
+            }
+        }
+
+        // Copy shared_ptrs for crossfade while lock is held.  The shared_ptr
+        // refcount ensures the framebuffers stay alive after we release the
+        // lock and another thread starts a new precompute.
+        level_a = cache.levels[idx_a];
+        stride_a = level_a ? level_a->allocated_width() : 0;
+        if (idx_b != idx_a) {
+            level_b = cache.levels[idx_b];
+            stride_b = level_b ? level_b->allocated_width() : 0;
+        }
+    } // lock released — crossfade runs unlocked
+
+    // ── Write crossfade result back into the fb clip region ─────────────
+    const auto xfade_t0 = std::chrono::steady_clock::now();
+    if (blend < 0.001f || idx_a >= num_levels) {
+        // Single level — fast path: copy directly into clip region
+        const auto* src = level_a->data();
+        if (has_clip) {
+            for (int y = 0; y < h; ++y)
+                std::memcpy(fb.pixels_row(dst_y0 + y) + dst_x0,
+                            src + static_cast<size_t>(y) * stride_a,
+                            static_cast<size_t>(w) * sizeof(Color));
+        } else {
+            for (int y = 0; y < h; ++y)
+                std::memcpy(fb.pixels_row(y), src + static_cast<size_t>(y) * stride_a,
+                            static_cast<size_t>(w) * sizeof(Color));
+        }
+    } else {
+        // Crossfade: blend between idx_a and idx_b into clip region
+        const auto* src_a = level_a->data();
+        const auto* src_b = level_b->data();
+        const float inv_blend = 1.0f - blend;
+
+        if (has_clip) {
+            tbb::parallel_for(tbb::blocked_range<int>(0, h, 16), [&](const tbb::blocked_range<int>& ry) {
+                for (int y = ry.begin(); y < ry.end(); ++y) {
+                    Color* dst = fb.pixels_row(dst_y0 + y) + dst_x0;
+                    const Color* row_a = src_a + static_cast<size_t>(y) * stride_a;
+                    const Color* row_b = src_b + static_cast<size_t>(y) * stride_b;
+                    for (int x = 0; x < w; ++x) {
+                        dst[x] = Color{
+                            row_a[x].r * inv_blend + row_b[x].r * blend,
+                            row_a[x].g * inv_blend + row_b[x].g * blend,
+                            row_a[x].b * inv_blend + row_b[x].b * blend,
+                            std::max(row_a[x].a, row_b[x].a)
+                        };
+                    }
+                }
+            });
+        } else {
+            tbb::parallel_for(tbb::blocked_range<int>(0, h, 16), [&](const tbb::blocked_range<int>& ry) {
+                for (int y = ry.begin(); y < ry.end(); ++y) {
+                    Color* dst = fb.pixels_row(y);
+                    const Color* row_a = src_a + static_cast<size_t>(y) * stride_a;
+                    const Color* row_b = src_b + static_cast<size_t>(y) * stride_b;
+                    for (int x = 0; x < w; ++x) {
+                        dst[x] = Color{
+                            row_a[x].r * inv_blend + row_b[x].r * blend,
+                            row_a[x].g * inv_blend + row_b[x].g * blend,
+                            row_a[x].b * inv_blend + row_b[x].b * blend,
+                            std::max(row_a[x].a, row_b[x].a)
+                        };
+                    }
+                }
+            });
         }
     }
 
-    // ── Crossfade between adjacent levels into fb ───────────────────────
-    if (blend < 0.001f || idx_a >= num_levels) {
-        // Single level — fast path: copy directly
-        const auto* src = cache.levels[idx_a]->data();
-        const auto stride = cache.levels[idx_a]->allocated_width();
-        for (int y = 0; y < h; ++y)
-            std::memcpy(fb.pixels_row(y), src + static_cast<size_t>(y) * stride,
-                        static_cast<size_t>(w) * sizeof(Color));
-    } else {
-        // Crossfade: blend between idx_a and idx_b
-        const auto* src_a = cache.levels[idx_a]->data();
-        const auto* src_b = cache.levels[idx_b]->data();
-        const auto stride_a = cache.levels[idx_a]->allocated_width();
-        const auto stride_b = cache.levels[idx_b]->allocated_width();
-        const float inv_blend = 1.0f - blend;
-
-        tbb::parallel_for(tbb::blocked_range<int>(0, h, 16), [&](const tbb::blocked_range<int>& ry) {
-            for (int y = ry.begin(); y < ry.end(); ++y) {
-                Color* dst = fb.pixels_row(y);
-                const Color* row_a = src_a + static_cast<size_t>(y) * stride_a;
-                const Color* row_b = src_b + static_cast<size_t>(y) * stride_b;
-                for (int x = 0; x < w; ++x) {
-                    dst[x] = Color{
-                        row_a[x].r * inv_blend + row_b[x].r * blend,
-                        row_a[x].g * inv_blend + row_b[x].g * blend,
-                        row_a[x].b * inv_blend + row_b[x].b * blend,
-                        std::max(row_a[x].a, row_b[x].a)
-                    };
-                }
-            }
-        });
+    if (auto* cnt = profiling::g_current_counters) {
+        const auto xfade_ms = std::chrono::duration<double, std::milli>(
+            std::chrono::steady_clock::now() - xfade_t0).count();
+        cnt->effect_focus_in_ladder_crossfade_ms.fetch_add(
+            static_cast<uint64_t>(std::llround(xfade_ms)), std::memory_order_relaxed);
     }
 }
 

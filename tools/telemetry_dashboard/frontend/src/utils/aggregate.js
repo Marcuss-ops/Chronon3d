@@ -37,14 +37,14 @@ export const getAggregatedLayers = (runDetail, selectedFrame) => {
   }
 
   return Object.values(groups).map(g => {
-    const avgDur = g.durations.reduce((a, b) => a + b, 0) / g.durations.length;
+    const totalDur = g.durations.reduce((a, b) => a + b, 0);
     const avgVisPix = g.visible_pixels.reduce((a, b) => a + b, 0) / g.visible_pixels.length;
     return {
       layer_id: g.layer_id,
       layer_name: g.layer_name,
       layer_type: g.layer_type,
       executions: g.total_count,
-      duration_ms: avgDur,
+      duration_ms: totalDur,
       visible: g.visible_count > 0,
       cull_rate: 1.0 - (g.visible_count / g.total_count),
       cull_reason: Array.from(g.cull_reasons).filter(Boolean).join(', '),
@@ -103,7 +103,7 @@ export const getAggregatedNodes = (runDetail, selectedFrame) => {
   }
 
   return Object.values(groups).map(g => {
-    const avgDur = g.durations.reduce((a, b) => a + b, 0) / g.durations.length;
+    const totalDur = g.durations.reduce((a, b) => a + b, 0);
     let status = 'mixed';
     if (g.cache_hits === g.total_count) status = 'hit';
     else if (g.cache_misses === g.total_count) status = 'miss';
@@ -113,7 +113,7 @@ export const getAggregatedNodes = (runDetail, selectedFrame) => {
       node_name: g.node_name,
       node_type: g.node_type,
       layer_id: g.layer_id,
-      duration_ms: avgDur,
+      duration_ms: totalDur,
       executions: g.total_count,
       cache_status: status,
       hit_rate: g.cache_hits / g.total_count,

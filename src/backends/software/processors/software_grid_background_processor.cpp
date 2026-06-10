@@ -21,14 +21,11 @@ public:
             return;
         }
 
+        // Always render full viewport — the clip_rect from the render system may
+        // be a dirty rect union from other layers (e.g., text fade-in), and clipping
+        // the grid to that region would chop off grid lines at the viewport edges.
         raster::BBox clip{0, 0, fb.width(), fb.height()};
-        if (state.clip_rect) {
-            clip = *state.clip_rect;
-            clip.clip_to(fb.width(), fb.height());
-            if (clip.is_empty()) {
-                return;
-            }
-        }
+        // Note: state.clip_rect is intentionally ignored for GridBackground.
 
         render_grid_background_kernel(fb, g, clip, state);
     }
