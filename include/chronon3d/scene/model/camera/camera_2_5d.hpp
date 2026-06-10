@@ -32,6 +32,13 @@ enum class Camera2_5DProjectionMode {
 struct Camera2_5D {
     bool enabled{false};
 
+    // Set to true by AnimatedCamera2_5D::evaluate() and by camera motion
+    // appliers/presets that mutate the camera per-frame.  Read by
+    // SceneHasher::camera_is_static() to decide whether the camera is
+    // effectively time-dependent for fast-path / caching purposes.
+    // Defaults to false (static camera).
+    bool is_animated{false};
+
     // Camera position in screen-space world coordinates.
     // Default: 1000 units "in front" of the z=0 plane.
     Vec3 position{0.0f, 0.0f, -1000.0f};

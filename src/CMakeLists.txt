@@ -8,9 +8,23 @@
 # all references to a given system library routed through these variables so
 # the dependency set lives in one place (and the README build instructions
 # stay in sync with the actual link command).
+#
+# As IMPORTED targets (so callers can target_link_libraries them like any
+# other modern CMake target — no more raw "-l" strings in the graph).
+# The targets exist with the CHRONON3D_ prefix so they don't collide with
+# the system / vcpkg-provided FFmpeg imported targets (avcodec, avformat, ...).
 # ==============================================================================
-set(CHRONON3D_FFMPEG_LIBS_LIGHT "-lswscale;-lavutil")      # swscale + pixel utils (frame_converter.cpp)
-set(CHRONON3D_FFMPEG_LIBS_FULL  "-lswscale;-lavcodec;-lavformat;-lavutil")  # full mux/pipe path (cli_video)
+add_library(chronon3d_ffmpeg_light INTERFACE)
+target_link_libraries(chronon3d_ffmpeg_light INTERFACE swscale avutil)
+add_library(chronon3d_ffmpeg_light_alias INTERFACE)  # legacy alias for back-compat
+add_library(chronon3d_ffmpeg_full  INTERFACE)
+target_link_libraries(chronon3d_ffmpeg_full  INTERFACE swscale avcodec avformat avutil)
+
+# Legacy string variables (kept for any external caller that referenced the
+# old CHRONON3D_FFMPEG_LIBS_* raw lists).  These are now derived from the
+# imported targets above so there is a single source of truth.
+set(CHRONON3D_FFMPEG_LIBS_LIGHT "swscale;avutil")
+set(CHRONON3D_FFMPEG_LIBS_FULL  "swscale;avcodec;avformat;avutil")
 
 # 1. Core Impl
 add_library(chronon3d_core_impl STATIC

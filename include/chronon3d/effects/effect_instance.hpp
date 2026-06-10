@@ -83,8 +83,8 @@ struct EffectInstance {
             case EffectType::Saturation:  return typeid(SaturationParams);
             case EffectType::HueRotate:   return typeid(HueRotateParams);
             case EffectType::Invert:      return typeid(InvertParams);
-            case EffectType::Vignette:    return typeid(VignetteParams);
-            default:                      return typeid(void);
+            case EffectType::Vignette:       return typeid(VignetteParams);
+            default:                         return typeid(void);
         }
     }
 };

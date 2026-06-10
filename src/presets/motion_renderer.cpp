@@ -124,8 +124,12 @@ void draw_content(LayerBuilder& l, const MotionObject& obj, const MotionState& s
                     ? chronon3d::TextAlign::Right
                     : chronon3d::TextAlign::Center,
             .vertical_align = obj.text_style.vertical_align,
-            .line_height = 1.2f,
+            .line_height = obj.text_style.line_height,
             .tracking = obj.text_style.tracking,
+            .auto_fit = false,
+            .max_lines = 0,
+            .overflow = TextOverflow::Clip,
+            .wrap = TextWrap::Word,
         });
         break;
     case MotionObjectType::Image:

@@ -16,12 +16,19 @@
 #include "effect_helpers.hpp"
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/effects/effect_params.hpp>
+#include <chronon3d/animation/easing/easing.hpp>
+#include <tbb/parallel_for.h>
+#include <tbb/blocked_range.h>
 #include <algorithm>
 #include <chrono>
+#include <unordered_map>
+#include <cstring>
 #include <spdlog/spdlog.h>
 
 namespace chronon3d {
 namespace renderer {
+
+// ── Forward declarations ─────────────────────────────────────────────────────
 
 void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
                         float time_seconds, const std::optional<raster::BBox>& clip,
@@ -167,6 +174,8 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
             break;
         }
 
+
+
         case Unknown:
             break;
         }
@@ -199,5 +208,7 @@ void draw_glow(Framebuffer& fb, const RenderNode& node, const RenderState& state
     }
 }
 
+
 } // namespace renderer
 } // namespace chronon3d
+

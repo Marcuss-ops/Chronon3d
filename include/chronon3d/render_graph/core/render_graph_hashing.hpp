@@ -187,6 +187,26 @@ template <typename T>
                 seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
             break;
         }
+        case Saturation: {
+            if (auto* p = std::get_if<SaturationParams>(&e.params))
+                seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
+            break;
+        }
+        case HueRotate: {
+            if (auto* p = std::get_if<HueRotateParams>(&e.params))
+                seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
+            break;
+        }
+        case Invert: {
+            if (auto* p = std::get_if<InvertParams>(&e.params))
+                seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
+            break;
+        }
+        case Vignette: {
+            if (auto* p = std::get_if<VignetteParams>(&e.params))
+                seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
+            break;
+        }
         case Unknown:
             break;
         }

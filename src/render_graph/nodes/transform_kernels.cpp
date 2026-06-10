@@ -159,16 +159,61 @@ void execute_affine_rows(
             }
         }
     } else {
-        // Bilinear sampling with Highway SIMD lerp + source-row prefetch.
+        // Bilinear sampling with Highway SIMD lerp + interior fast path.
+        //
+        // Interior-pixel definition: all 4 bilinear neighbours are within
+        // the source image bounds, i.e. floor(sx-0.5) >= 0,
+        // floor(sx-0.5)+1 < src_w, floor(sy-0.5) >= 0, floor(sy-0.5)+1 < src_h.
+        // Equivalently: sx in [0.5, src_w-0.5) and sy in [0.5, src_h-0.5).
+        //
+        // For each row, we pre-compute the x-range where this holds AND
+        // the pixel is within the content bounding box [x_min_src, x_max_src).
+        // Interior pixels use a stripped-down sampler (no bounds check).
+        // Edge pixels fall back to the general clamped sampler.
+
+        const f32 interior_x_min = std::max(0.5f, x_min_src);
+        const f32 interior_x_max = std::min(static_cast<f32>(src_w) - 0.5f, x_max_src);
+        const f32 interior_y_min = std::max(0.5f, y_min_src);
+        const f32 interior_y_max = std::min(static_cast<f32>(src_h) - 0.5f, y_max_src);
+
         for (i32 y = row_begin; y < row_end; ++y) {
             Color* dst_row = result->pixels_row(y - result->origin_y());
             const Vec3 h_row = h_col_start + h_step_y * static_cast<f32>(y - y0);
             f32 sx = h_row.x * inv_z;
             f32 sy = h_row.y * inv_z;
 
-            // Prefetch the two source rows needed for bilinear sampling.
-            // sy advances by dsy per pixel; prefetch the rows around
-            // the current sy for the next cache line.
+            // ── Determine interior x-range for this row ─────────────
+            // We solve: sx + k*dsx in [interior_x_min, interior_x_max)
+            // with k ∈ [0, span)  and  sy + k*dsy in [interior_y_min, interior_y_max)
+            const i32 span = x1 - x0;
+            i32 interior_start = x1;  // default: no interior pixels
+            i32 interior_end   = x1;
+
+            if (dsx > 0.0f && sy >= interior_y_min && sy < interior_y_max) {
+                // Check last pixel's y too
+                const f32 sy_last = sy + static_cast<f32>(span - 1) * dsy;
+                if (sy_last >= interior_y_min && sy_last < interior_y_max) {
+                    // Solve sx + k*dsx >= interior_x_min
+                    if (sx < interior_x_min) {
+                        const f32 k_min_float = (interior_x_min - sx) / dsx;
+                        interior_start = x0 + static_cast<i32>(std::ceil(k_min_float - 1e-6f));
+                        interior_start = std::clamp(interior_start, x0, x1);
+                    } else {
+                        interior_start = x0;
+                    }
+                    // Solve sx + k*dsx < interior_x_max
+                    const f32 sx_last = sx + static_cast<f32>(span - 1) * dsx;
+                    if (sx_last >= interior_x_max) {
+                        const f32 k_max_float = (interior_x_max - sx) / dsx;
+                        interior_end = x0 + static_cast<i32>(std::ceil(k_max_float - 1e-6f));
+                        interior_end = std::clamp(interior_end, interior_start, x1);
+                    } else {
+                        interior_end = x1;
+                    }
+                }
+            }
+
+            // ── Prefetch for the whole row ──────────────────────────
             const i32 src_y0 = static_cast<i32>(sy);
             const i32 src_y1 = src_y0 + 1;
             const i32 sx_idx = static_cast<i32>(sx);
@@ -181,15 +226,78 @@ void execute_affine_rows(
                     &src_data[static_cast<size_t>(src_y1) * stride + static_cast<size_t>(sx_idx)], 0, 1);
             }
 
-            for (i32 x = x0; x < x1; ++x) {
-                if (sx >= x_min_src && sx < x_max_src && sy >= y_min_src && sy < y_max_src) {
-                    Color src = sample_bilinear(src_data, src_w, src_h, stride, sx, sy);
+            // ── Region 1: left edge (clamped sampler) ───────────────
+            {
+                f32 edge_sx = sx;
+                f32 edge_sy = sy;
+                for (i32 x = x0; x < interior_start; ++x) {
+                    if (edge_sx >= x_min_src && edge_sx < x_max_src &&
+                        edge_sy >= y_min_src && edge_sy < y_max_src) {
+                        Color src = sample_bilinear(src_data, src_w, src_h, stride, edge_sx, edge_sy);
+                        if (src.a > 0.001f) {
+                            dst_row[x - dst_origin_x] = apply_opacity(src, opacity);
+                        }
+                    }
+                    edge_sx += dsx;
+                    edge_sy += dsy;
+                }
+            }
+
+            // ── Region 2: interior (no bounds check, SIMD bilinear) ─
+            if (interior_end > interior_start) {
+                const i32 k_start = interior_start - x0;
+                f32 int_sx = sx + static_cast<f32>(k_start) * dsx;
+                f32 int_sy = sy + static_cast<f32>(k_start) * dsy;
+                const i32 base_y = static_cast<i32>(sy - 0.5f);
+                const Color* int_row0 = src_data + static_cast<size_t>(base_y) * stride;
+                const Color* int_row1 = int_row0 + stride;
+                i32 current_base_y = base_y;
+                const Color* current_row0 = int_row0;
+                const Color* current_row1 = int_row1;
+
+                for (i32 x = interior_start; x < interior_end; ++x) {
+                    const float u = int_sx - 0.5f;
+                    const float v = int_sy - 0.5f;
+                    const i32 ix0 = static_cast<i32>(u);
+                    const i32 iy0 = static_cast<i32>(v);
+                    const float tx = u - static_cast<float>(ix0);
+                    const float ty = v - static_cast<float>(iy0);
+
+                    // Update row pointers if source row changed
+                    if (iy0 != current_base_y) {
+                        current_base_y = iy0;
+                        current_row0 = src_data + static_cast<size_t>(iy0) * stride;
+                        current_row1 = current_row0 + stride;
+                    }
+
+                    Color src = sample_bilinear_interior(current_row0, current_row1, ix0, tx, ty);
+                    // Note: interior pixels are guaranteed to have all 4 texels
+                    // in-bounds (by the interior range computation), so no clamping
+                    // is needed. The source row pointers are always valid.
                     if (src.a > 0.001f) {
                         dst_row[x - dst_origin_x] = apply_opacity(src, opacity);
                     }
+                    int_sx += dsx;
+                    int_sy += dsy;
                 }
-                sx += dsx;
-                sy += dsy;
+            }
+
+            // ── Region 3: right edge (clamped sampler) ──────────────
+            if (interior_end < x1) {
+                const i32 k_end = interior_end - x0;
+                f32 edge_sx = sx + static_cast<f32>(k_end) * dsx;
+                f32 edge_sy = sy + static_cast<f32>(k_end) * dsy;
+                for (i32 x = interior_end; x < x1; ++x) {
+                    if (edge_sx >= x_min_src && edge_sx < x_max_src &&
+                        edge_sy >= y_min_src && edge_sy < y_max_src) {
+                        Color src = sample_bilinear(src_data, src_w, src_h, stride, edge_sx, edge_sy);
+                        if (src.a > 0.001f) {
+                            dst_row[x - dst_origin_x] = apply_opacity(src, opacity);
+                        }
+                    }
+                    edge_sx += dsx;
+                    edge_sy += dsy;
+                }
             }
         }
     }

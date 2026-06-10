@@ -19,7 +19,7 @@ constexpr f32 H = 1080.0f;
 Composition img_gradient() {
     return composition({.name = "ImgGradient", .duration = 1}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        s.layer("base", [](auto& l) { l.fullscreen_rect("base", {0.02f, 0.02f, 0.06f, 1}); });
+        s.layer("base", [](auto& l) { l.cache_static().fullscreen_rect("base", {0.02f, 0.02f, 0.06f, 1}); });
 
         const i32 steps = 32;
         for (i32 i = 0; i < steps; ++i) {
@@ -31,7 +31,7 @@ Composition img_gradient() {
         }
 
         s.layer("glow", [](auto& l) {
-            l.pin_to(Anchor::Center).circle("glow", {.radius = 300, .color = {0.25f, 0.52f, 1, 0.06f}});
+            l.cache_static().pin_to(Anchor::Center).circle("glow", {.radius = 300, .color = {0.25f, 0.52f, 1, 0.06f}});
         });
         return s.build();
     });
@@ -44,7 +44,7 @@ Composition img_checker() {
         const i32 cols = static_cast<i32>(W / sq) + 1;
         const i32 rows = static_cast<i32>(H / sq) + 1;
 
-        s.layer("bg", [](auto& l) { l.fill({0.15f, 0.15f, 0.17f, 1}); });
+        s.layer("bg", [](auto& l) { l.cache_static().fill({0.15f, 0.15f, 0.17f, 1}); });
 
         for (i32 r = 0; r < rows && r < 20; ++r) {
             for (i32 c = 0; c < cols && c < 30; ++c) {
@@ -62,9 +62,9 @@ Composition img_checker() {
 Composition img_grid_test() {
     return composition({.name = "ImgGridTest", .duration = 1}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        s.layer("bg", [](auto& l) { l.fill({0.01f, 0.012f, 0.02f, 1}); });
+        s.layer("bg", [](auto& l) { l.cache_static().fill({0.01f, 0.012f, 0.02f, 1}); });
         s.layer("grid", [](auto& l) {
-            l.grid_background("grid", {.size = {W, H}, .grid_color = {0.18f, 0.52f, 1, 0.15f}, .spacing = 80});
+            l.cache_static().grid_background("grid", {.size = {W, H}, .grid_color = {0.18f, 0.52f, 1, 0.15f}, .spacing = 80});
         });
         s.layer("label", [](auto& l) {
             l.pin_to(Anchor::BottomCenter, 40);
@@ -88,7 +88,7 @@ Composition img_grid_test() {
 Composition img_test_pattern() {
     return composition({.name = "ImgTestPattern", .duration = 1}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        s.layer("bg", [](auto& l) { l.fill({0.1f, 0.1f, 0.1f, 1}); });
+        s.layer("bg", [](auto& l) { l.cache_static().fill({0.1f, 0.1f, 0.1f, 1}); });
         
         for (int i = 0; i < 8; ++i) {
             s.layer("bar_" + std::to_string(i), [&](auto& l) {
@@ -454,12 +454,8 @@ Composition image_proofs() {
 
 } // namespace chronon3d::content::images
 
-CHRONON_REGISTER_COMPOSITION("ImgGradient",    chronon3d::content::images::img_gradient)
-CHRONON_REGISTER_COMPOSITION("ImgChecker",     chronon3d::content::images::img_checker)
-CHRONON_REGISTER_COMPOSITION("ImgGridTest",    chronon3d::content::images::img_grid_test)
-CHRONON_REGISTER_COMPOSITION("ImgTestPattern", chronon3d::content::images::img_test_pattern)
-CHRONON_REGISTER_COMPOSITION("ImgShakeZoom",   chronon3d::content::images::img_shake_zoom)
-CHRONON_REGISTER_COMPOSITION("ImgReferenceShakeReveal", chronon3d::content::images::img_reference_shake_reveal)
-CHRONON_REGISTER_COMPOSITION("ImgCornerSmoothing", chronon3d::content::images::img_corner_smoothing)
-CHRONON_REGISTER_COMPOSITION("ImageProofs",          chronon3d::content::images::image_proofs)
+// Compositions are now registered via ImagesModule in images_module.cpp
+// (ExtensionRegistry pattern).  Do NOT also CHRONON_REGISTER_COMPOSITION
+// here or we get duplicate-registration runtime errors from
+// `ExtensionRegistry::register_composition` ("Duplicate composition: ...").
 

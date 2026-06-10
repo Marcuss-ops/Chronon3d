@@ -38,6 +38,11 @@ struct AnimatedCamera2_5D {
     [[nodiscard]] Camera2_5D evaluate(Frame frame) const {
         Camera2_5D cam;
         cam.enabled = enabled;
+        // Mark the evaluated camera as animated so that SceneHasher
+        // (and any other consumers) can detect that this camera has
+        // time-dependent properties without needing access to the
+        // AnimatedCamera2_5D wrapper.
+        cam.is_animated = is_animated();
         cam.position = position.evaluate(frame);
         cam.rotation = rotation.evaluate(frame);
         cam.zoom     = zoom.evaluate(frame);

@@ -16,8 +16,6 @@
 #include <utility>
 #include <vector>
 
-#include "../helpers/text_helpers.hpp"
-
 namespace chronon3d::content::text::typewriter {
 
 using presets::motion::MotionObject;
@@ -91,9 +89,29 @@ inline Composition make_typewriter(
             s.camera().set(camera_motion::dolly_in(p, camera_zoom));
         }
 
-        s.layer("bg", [&](auto& l) { l.fill(bg); });
-        s.layer("grid", [&](auto& l) {
-            l.opacity(0.12f).grid_background("g", {.size={static_cast<f32>(canvas_width), static_cast<f32>(canvas_height)}, .grid_color={0.18f, 0.5f, 0.96f, 1.0f}, .spacing=96.0f});
+        // Background — Minimalist-style: solid fill + centered grid
+        s.layer("bg", [bg, canvas_width, canvas_height](auto& l) {
+            l.cache_static();
+            l.pin_to(Anchor::Center);
+            l.rect("fill", {
+                .size = {static_cast<f32>(canvas_width), static_cast<f32>(canvas_height)},
+                .color = bg,
+            });
+        });
+        s.layer("grid", [canvas_width, canvas_height](auto& l) {
+            l.cache_static();
+            l.pin_to(Anchor::Center);
+            l.grid_background("g", {
+                .size = {static_cast<f32>(canvas_width), static_cast<f32>(canvas_height)},
+                .offset = {0.0f, 0.0f},
+                .bg_color = {0.0f, 0.0f, 0.0f, 0.0f},
+                .grid_color = {0.18f, 0.5f, 0.96f, 0.12f},
+                .spacing = 96.0f,
+                .minor_thickness = 1.0f,
+                .major_thickness = 2.5f,
+                .major_every = 4,
+                .centered = true
+            });
         });
 
         for (size_t i = 0; i < lines.size(); ++i) {

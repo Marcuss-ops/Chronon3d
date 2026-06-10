@@ -10,7 +10,7 @@ namespace {
 
 void add_grid_background(SceneBuilder& s) {
     s.layer("bg", [](auto& l) {
-        l.grid_background("g", {
+        l.cache_static().grid_background("g", {
             .size = {1920.0f, 1080.0f},
             .bg_color = {0.01f, 0.012f, 0.022f, 1.0f},
             .grid_color = {0.18f, 0.5f, 0.96f, 0.12f},
@@ -54,6 +54,7 @@ Composition text_hello() {
                  .text = "HELLO, CHRONON3D.",
                  .size = {1500.0f, 120.0f},
                  .pos = {0.0f, 0.0f, 0.0f},
+                 .font_path = "assets/fonts/Inter-Bold.ttf",
                  .font_size = 64.0f,
                  .color = {0.25f, 0.58f, 1.0f, 1.0f},
                  .align = TextAlign::Center,
@@ -71,6 +72,7 @@ Composition text_hello() {
                  .text = "grid + text = clean",
                  .size = {800.0f, 50.0f},
                  .pos = {0.0f, 0.0f, 0.0f},
+                 .font_path = "assets/fonts/Inter-Bold.ttf",
                  .font_size = 28.0f,
                  .color = {0.78f, 0.82f, 0.9f, 1.0f},
                  .align = TextAlign::Center,
@@ -130,9 +132,11 @@ Composition text_image_on_grid() {
              .text("cap", {
                  .text = "landscape — minimalist scene",
                  .size = {500.0f, 30.0f},
+                 .font_path = "assets/fonts/Inter-Bold.ttf",
                  .font_size = 22.0f,
                  .color = {0.6f, 0.65f, 0.8f, 1.0f},
                  .align = TextAlign::Center,
+                 .vertical_align = VerticalAlign::Middle,
                  .tracking = 3.0f,
              });
         });
@@ -161,6 +165,7 @@ Composition text_quote_on_grid() {
              .text("qm", {
                  .text = "\"",
                  .size = {120.0f, 180.0f},
+                 .font_path = "assets/fonts/Inter-Bold.ttf",
                  .font_size = 160.0f,
                  .color = {0.25f, 0.58f, 1.0f, 1.0f},
                  .align = TextAlign::Center,
@@ -176,6 +181,7 @@ Composition text_quote_on_grid() {
              .text("qt", {
                  .text = "Design is not just what it looks like and feels on the surface — design is actually how the whole thing works together as a unified experience from the very first interaction to the very last detail, every single piece of the puzzle has to be carefully considered and crafted with purpose, intention, and love for the craft.",
                  .size = {1500.0f, 520.0f},
+                 .font_path = "assets/fonts/Inter-Bold.ttf",
                  .font_size = 48.0f,
                  .color = {0.9f, 0.92f, 0.98f, 1.0f},
                  .align = TextAlign::Left,
@@ -196,9 +202,11 @@ Composition text_quote_on_grid() {
              .text("attr", {
                  .text = "— Steve Jobs",
                  .size = {400.0f, 30.0f},
+                 .font_path = "assets/fonts/Inter-Bold.ttf",
                  .font_size = 22.0f,
                  .color = {0.4f, 0.45f, 0.6f, 1.0f},
                  .align = TextAlign::Center,
+                 .vertical_align = VerticalAlign::Middle,
                  .tracking = 2.0f,
              });
         });
@@ -237,6 +245,7 @@ Composition text_shape_on_grid() {
              .text("title", {
                  .text = "SHAPES",
                  .size = {500.0f, 60.0f},
+                 .font_path = "assets/fonts/Inter-Bold.ttf",
                  .font_size = 42.0f,
                  .color = {0.7f, 0.75f, 0.9f, 1.0f},
                  .align = TextAlign::Center,
@@ -260,6 +269,7 @@ Composition text_shape_on_grid() {
             l.text("label", {
                 .text = "RECT",
                 .size = {300.0f, 130.0f},
+                .font_path = "assets/fonts/Inter-Bold.ttf",
                 .font_size = 56.0f,
                 .color = {1.0f, 1.0f, 1.0f, 1.0f},
                 .align = TextAlign::Center,
@@ -286,6 +296,7 @@ Composition text_shape_on_grid() {
             l.text("label", {
                 .text = "CIRCLE",
                 .size = {300.0f, 130.0f},
+                .font_path = "assets/fonts/Inter-Bold.ttf",
                 .font_size = 52.0f,
                 .color = {1.0f, 1.0f, 1.0f, 1.0f},
                 .align = TextAlign::Center,
@@ -307,6 +318,7 @@ Composition text_shape_on_grid() {
             l.text("label", {
                 .text = "R-RECT",
                 .size = {300.0f, 130.0f},
+                .font_path = "assets/fonts/Inter-Bold.ttf",
                 .font_size = 50.0f,
                 .color = {1.0f, 1.0f, 1.0f, 1.0f},
                 .align = TextAlign::Center,
@@ -335,6 +347,7 @@ Composition text_shape_on_grid() {
             l.text("label", {
                 .text = "LINE",
                 .size = {300.0f, 110.0f},
+                .font_path = "assets/fonts/Inter-Bold.ttf",
                 .font_size = 44.0f,
                 .color = {1.0f, 1.0f, 1.0f, 1.0f},
                 .align = TextAlign::Center,
@@ -356,6 +369,7 @@ Composition text_shape_on_grid() {
             l.text("label", {
                 .text = "TINTED",
                 .size = {300.0f, 110.0f},
+                .font_path = "assets/fonts/Inter-Bold.ttf",
                 .font_size = 44.0f,
                 .color = {1.0f, 1.0f, 1.0f, 1.0f},
                 .align = TextAlign::Center,
@@ -382,6 +396,7 @@ Composition text_shape_on_grid() {
             l.text("label", {
                 .text = "STROKE",
                 .size = {300.0f, 110.0f},
+                .font_path = "assets/fonts/Inter-Bold.ttf",
                 .font_size = 44.0f,
                 .color = {1.0f, 1.0f, 1.0f, 1.0f},
                 .align = TextAlign::Center,
@@ -412,6 +427,7 @@ Composition text_basic() {
              .text("hl", {
                  .text = "CHRONON3D",
                  .size = {1500.0f, 120.0f},
+                 .font_path = "assets/fonts/Inter-Bold.ttf",
                  .font_size = 72.0f,
                  .color = {0.25f, 0.58f, 1.0f, 1.0f},
                  .align = TextAlign::Center,
@@ -428,6 +444,7 @@ Composition text_basic() {
              .text("sub", {
                  .text = "motion graphics engine",
                  .size = {800.0f, 50.0f},
+                 .font_path = "assets/fonts/Inter-Bold.ttf",
                  .font_size = 26.0f,
                  .color = {0.7f, 0.75f, 0.88f, 1.0f},
                  .align = TextAlign::Center,
@@ -451,7 +468,7 @@ Composition text_typewriter() {
     return make_typewriter("TextTypewriter", {
         TypewriterLine("THE ENGINE LEARNED TO SPEAK, typed frame by frame — a single line that wraps when it reaches the edge of the viewport so you can see the centered alignment in action on multiple rows.")
             .set_pos({0, 0, 0})
-            .set_font(56, 4)
+            .set_font(52, 4)
             // Static render: chars_per_frame=1000 reveals the full line in
             // one tick (no typewriter animation) so the frame is identical
             // across all 30 frames.
@@ -460,7 +477,10 @@ Composition text_typewriter() {
             // blue text reads clearly against the dark grid background.
             .set_color({0.62f, 0.88f, 1.0f, 1.0f})
             .set_align(TextAlign::Center)
-            .set_size({1500.0f, 480.0f})
+            // 600px height gives ~80px of bottom headroom for descender
+            // glyphs (p, y, g, j, q) which extend ~25% below the baseline
+            // and were being clipped at 480px.
+            .set_size({1500.0f, 600.0f})
             // Hide the blinking cursor for the centered reveal.
             .set_cursor(false)
     },

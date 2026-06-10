@@ -367,7 +367,7 @@ void SoftwareRenderer::apply_blur(Framebuffer& fb, f32 radius, const std::option
     const auto local_clip = to_local_clip(fb, clip);
     m_counters.blur_pixels.fetch_add(clipped_area(fb.width(), fb.height(), local_clip), std::memory_order_relaxed);
     CHRONON_ZONE_C("apply_blur", trace_category::kEffect);
-    renderer::apply_blur(fb, radius, local_clip, 3);
+    renderer::apply_blur(fb, radius, local_clip);
 }
 
 void SoftwareRenderer::apply_effect_stack(Framebuffer& fb, const EffectStack& stack, float time_seconds, const std::optional<raster::BBox>& clip) {

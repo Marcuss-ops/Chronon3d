@@ -39,6 +39,7 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
         "frames_total, frames_written, wall_time_ms, render_ms, encode_ms, "
         "effective_fps, pixels_touched, cache_hits, cache_misses, nodes_executed, "
         "layers_rendered, text_glyphs_rasterized, images_sampled, blur_pixels, "
+
         "simd_lerp_calls, "
         "bytes_allocated_peak, node_cache_hash_collisions, "
         "clear_skipped_calls, clear_skipped_pixels, clear_calls, clear_pixels, composite_calls, composite_pixels, "
@@ -110,6 +111,7 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
         run.text_glyphs_rasterized,
         run.images_sampled,
         run.blur_pixels,
+
         run.simd_lerp_calls,
         run.bytes_allocated_peak,
         run.node_cache_hash_collisions,

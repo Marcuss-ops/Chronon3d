@@ -12,6 +12,7 @@ add_executable(chronon3d_core_tests
     cache/test_video_frame_cache.cpp
     cache/test_persistent_bake_cache.cpp
     core/test_sharded_telemetry_store.cpp
+    core/test_render_counters.cpp
     core/math/test_camera_pose.cpp
     core/math/test_camera_2_5d_projection.cpp
     core/math/test_projector_2_5d.cpp
@@ -53,6 +54,7 @@ add_executable(chronon3d_core_tests
     extension/test_extension_registry.cpp
     extension/test_graph_node_registry.cpp
     architecture/test_protected_core_contracts.cpp
+    core/test_scene_hasher_camera.cpp
     render_graph/executor/test_cache_key_contract.cpp
     render_graph/executor/test_framebuffer_lifetime.cpp
     render_graph/builder/test_graph_build_pass_order.cpp

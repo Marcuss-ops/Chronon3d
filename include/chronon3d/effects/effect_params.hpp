@@ -7,7 +7,9 @@
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/core/types/types.hpp>
+#include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
+#include <chronon3d/animation/easing/easing.hpp>
 #include <variant>
 #include <vector>
 
