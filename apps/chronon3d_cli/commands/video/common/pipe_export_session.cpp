@@ -190,7 +190,7 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
                 std::this_thread::yield();
             }
 
-            if (!status.success) {
+            if (status.cancelled || status.writer_error || status.render_failed) {
                 ctx.triple_arena.release(current_arena);
                 break;
             }
@@ -231,6 +231,13 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
         }
     } catch (const std::exception& e) {
         mark_pipe_exception(status, current_frame, e);
+    }
+
+    // All frames rendered without interruption → mark success.
+    // The mark_* functions set success=false on failures/breaks.
+    if (current_frame == ctx.end && !status.cancelled &&
+        !status.render_failed && !status.writer_error && !status.exception_error) {
+        status.success = true;
     }
 
     return result;

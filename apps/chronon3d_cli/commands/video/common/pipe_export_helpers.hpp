@@ -13,7 +13,7 @@
 namespace chronon3d::cli {
 
 struct PipeExportStatus {
-    bool success{true};
+    bool success{false};   // explicitly set to true only when ALL frames export successfully
     bool cancelled{false};
     bool render_failed{false};
     bool writer_error{false};
