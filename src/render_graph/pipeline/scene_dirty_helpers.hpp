@@ -66,10 +66,10 @@ namespace chronon3d::graph::detail {
 
     CHRONON_ZONE_C("scroll_optimization", trace_category::kFrame);
 
-    if (sw_renderer->m_prev_framebuffer.use_count() > 1) {
-        sw_renderer->m_prev_framebuffer = std::make_shared<Framebuffer>(*sw_renderer->m_prev_framebuffer);
+    if (sw_renderer->buffer_ring().prev_framebuffer().use_count() > 1) {
+        sw_renderer->buffer_ring().prev_framebuffer() = std::make_shared<Framebuffer>(*sw_renderer->buffer_ring().prev_framebuffer());
     }
-    sw_renderer->m_prev_framebuffer->shift(dx, dy);
+    sw_renderer->buffer_ring().prev_framebuffer()->shift(dx, dy);
 
     raster::BBox strip{0, 0, width, height};
     if (dx > 0) strip.x1 = dx;

@@ -48,7 +48,7 @@ public:
         std::span<const std::optional<raster::BBox>>
     ) override {
         auto* sw_renderer = dynamic_cast<SoftwareRenderer*>(ctx.resources.backend);
-        bool use_dirty_rects = sw_renderer && ctx.options.reuse_prev_framebuffer && sw_renderer->m_prev_framebuffer;
+        bool use_dirty_rects = sw_renderer && ctx.options.reuse_prev_framebuffer && sw_renderer->buffer_ring().prev_framebuffer();
         const bool skip_clear = ctx.options.skip_initial_clear && !use_dirty_rects;
         const uint64_t clear_pixels = ctx.tile.clip_rect
             ? static_cast<uint64_t>(std::max(0, ctx.tile.clip_rect->x1 - ctx.tile.clip_rect->x0)) *
@@ -64,9 +64,9 @@ public:
                 ctx.tile.clip_rect ? ctx.tile.clip_rect->y0 : 0,
                 ctx.tile.clip_rect ? ctx.tile.clip_rect->x1 : ctx.frame.width,
                 ctx.tile.clip_rect ? ctx.tile.clip_rect->y1 : ctx.frame.height,
-                sw_renderer->m_prev_framebuffer ? sw_renderer->m_prev_framebuffer->origin_x() : 0,
-                sw_renderer->m_prev_framebuffer ? sw_renderer->m_prev_framebuffer->origin_y() : 0,
-                sw_renderer->m_prev_framebuffer ? (sw_renderer->m_prev_framebuffer->is_opaque() ? 1 : 0) : 0
+                sw_renderer->buffer_ring().prev_framebuffer() ? sw_renderer->buffer_ring().prev_framebuffer()->origin_x() : 0,
+                sw_renderer->buffer_ring().prev_framebuffer() ? sw_renderer->buffer_ring().prev_framebuffer()->origin_y() : 0,
+                sw_renderer->buffer_ring().prev_framebuffer() ? (sw_renderer->buffer_ring().prev_framebuffer()->is_opaque() ? 1 : 0) : 0
             );
         }
         
@@ -74,7 +74,7 @@ public:
             // ── Ping-pong fast path: write ping is exclusive, no COW ──────────
             if (ctx.scratch.ping_write_fb) {
                 Framebuffer* write_fb = ctx.scratch.ping_write_fb;
-                const Framebuffer* read_fb = sw_renderer->m_prev_framebuffer.get();
+                const Framebuffer* read_fb = sw_renderer->buffer_ring().prev_framebuffer().get();
                 const int h = ctx.frame.height;
                 const int logical_w = ctx.frame.width;
                 const int stride = write_fb->allocated_width();
@@ -180,7 +180,7 @@ public:
                 }
 
                 // Return write ping with owned_by_renderer deleter — the
-                // renderer owns the ping buffer permanently via m_ping_fb[].
+                // renderer owns the ping buffer permanently via RendererBufferRing.
                 // The deleter is a true no-op: it does NOT clear, delete, or
                 // restore the FB.  This avoids the data race with the encoder
                 // thread (which holds the CachedFB ref) and keeps the content
@@ -194,9 +194,9 @@ public:
             // ── Original COW path (fallback when ping-pong unavailable) ───────
             // Read use_count BEFORE std::move — after move it's always 1.
             const uint64_t prev_use_count = static_cast<uint64_t>(
-                sw_renderer->m_prev_framebuffer.use_count());
+                sw_renderer->buffer_ring().prev_framebuffer().use_count());
             const bool fb_is_shared = prev_use_count > 1;
-            auto fb = std::move(sw_renderer->m_prev_framebuffer);
+            auto fb = std::move(sw_renderer->buffer_ring().prev_framebuffer());
             const bool is_empty_clip = ctx.tile.clip_rect && ctx.tile.clip_rect->is_empty();
             // When the clip covers the full canvas, the clear will erase every pixel —
             // the previous frame content we'd copy via memcpy would be immediately
