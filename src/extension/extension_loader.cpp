@@ -171,7 +171,21 @@ bool ExtensionLoader::load(const std::filesystem::path& path,
     }
 
     // 5. Create the module and register it.
-    ExtensionModule* raw = desc->create();
+    ExtensionModule* raw = nullptr;
+    try {
+        raw = desc->create();
+    } catch (const std::exception& e) {
+        result.error = "create() threw: " + std::string(e.what());
+        platform_close_library(handle);
+        m_impl->diag.push_back(std::move(result));
+        return false;
+    } catch (...) {
+        result.error = "create() threw unknown exception";
+        platform_close_library(handle);
+        m_impl->diag.push_back(std::move(result));
+        return false;
+    }
+
     if (!raw) {
         result.error = "create() returned null for module '" + result.id + "'";
         platform_close_library(handle);
@@ -179,10 +193,27 @@ bool ExtensionLoader::load(const std::filesystem::path& path,
         return false;
     }
 
-    registry.register_module(std::unique_ptr<ExtensionModule>(raw));
-
-    // 6. Initialize the new module immediately.
-    registry.initialize_all();
+    try {
+        registry.register_module(std::unique_ptr<ExtensionModule>(raw));
+        // 6. Initialize the new module immediately.
+        registry.initialize_all();
+    } catch (const std::exception& e) {
+        result.error = "registration/initialization failed for module '" +
+                       result.id + "': " + e.what();
+        // Destroy module objects while handle is still open to avoid
+        // use-after-free if module code is in this library.
+        registry.clear_modules();
+        platform_close_library(handle);
+        m_impl->diag.push_back(std::move(result));
+        return false;
+    } catch (...) {
+        result.error = "registration/initialization failed for module '" +
+                       result.id + "': unknown exception";
+        registry.clear_modules();
+        platform_close_library(handle);
+        m_impl->diag.push_back(std::move(result));
+        return false;
+    }
 
     // 7. Store the handle for later cleanup.
     m_impl->entries.push_back({handle, path, result.id});
@@ -210,11 +241,23 @@ std::size_t ExtensionLoader::load_all(const std::filesystem::path& directory,
 }
 
 void ExtensionLoader::unload_all() {
+    // The caller is responsible for clearing the registry first
+    // (e.g., registry.clear_modules()) to destroy module objects
+    // before their shared library handles are closed.
     for (auto& e : m_impl->entries) {
         platform_close_library(e.handle);
         e.handle = nullptr;
     }
     m_impl->entries.clear();
+    // Diagnostics are cleared after unload — they are no longer relevant
+    // since all library handles have been closed.
+    m_impl->diag.clear();
+}
+
+void ExtensionLoader::unload_all(ExtensionRegistry& registry) {
+    // Safely destroy modules before closing library handles.
+    registry.clear_modules();
+    unload_all();
 }
 
 const std::vector<LoadedPlugin>& ExtensionLoader::diagnostics() const {
