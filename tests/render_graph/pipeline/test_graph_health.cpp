@@ -285,13 +285,13 @@ TEST_CASE("GraphHealth: glow falloff is radial and fades with distance") {
     auto fb = render_graph_scene(renderer, node_cache, scene, camera, W, H);
     REQUIRE(fb != nullptr);
 
-    const Color near = fb->get_pixel(W / 2 + 48, H / 2);
+    const Color near_pixel = fb->get_pixel(W / 2 + 48, H / 2);
     const Color mid = fb->get_pixel(W / 2 + 92, H / 2);
-    const Color far = fb->get_pixel(W / 2 + 156, H / 2);
+    const Color far_pixel = fb->get_pixel(W / 2 + 156, H / 2);
     const Color diag = fb->get_pixel(W / 2 + 92, H / 2 + 92);
 
-    CHECK(near.b > mid.b);
-    CHECK(mid.b > far.b);
+    CHECK(near_pixel.b > mid.b);
+    CHECK(mid.b > far_pixel.b);
     CHECK(std::abs(mid.b - diag.b) < 0.08f);
 }
 

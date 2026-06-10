@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <vector>
+#include <bit>
 
 namespace chronon3d::raster {
 
@@ -81,7 +82,7 @@ public:
     [[nodiscard]] int dirty_count() const {
         int count = 0;
         for (uint64_t w : m_bits) {
-            count += __builtin_popcountll(w);
+            count += static_cast<int>(std::popcount(w));
         }
         return count;
     }
@@ -94,7 +95,7 @@ public:
         for (size_t word_idx = 0; word_idx < m_bits.size(); ++word_idx) {
             uint64_t w = m_bits[word_idx];
             while (w != 0) {
-                const int bit = __builtin_ctzll(w);
+                const int bit = std::countr_zero(w);
                 const int idx = static_cast<int>(word_idx * 64 + bit);
                 if (idx >= m_tile_count) break; // partial final word guard
                 const int tx = idx % m_cols;

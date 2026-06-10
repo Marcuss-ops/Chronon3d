@@ -34,7 +34,7 @@ struct Tangent {
         : dx(time_offset), dy(value_offset) {}
 
     [[nodiscard]] constexpr bool is_zero() const {
-        return std::abs(dx) < 1e-7f && std::abs(dy) < 1e-7f;
+        return (dx < 0.0f ? -dx : dx) < 1e-7f && (dy < 0.0f ? -dy : dy) < 1e-7f;
     }
 };
 

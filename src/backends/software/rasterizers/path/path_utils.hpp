@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/math/glm_types.hpp>
+#include <chronon3d/core/memory_utils.hpp>
 #include <cmath>
 #include <cstdlib>
 #include <string>
@@ -30,13 +31,7 @@ inline bool is_prefetch_enabled() {
 }
 
 inline void chrono_prefetch(const void* addr) {
-#if defined(__GNUC__) || defined(__clang__)
-    __builtin_prefetch(addr, 0, 3);
-#elif defined(_MSC_VER)
-    #if defined(_M_X64) || defined(_M_IX86)
-    _mm_prefetch(static_cast<const char*>(addr), _MM_HINT_T0);
-    #endif
-#endif
+    chronon3d::prefetch(addr, false, 3);
 }
 
 } // namespace chronon3d::renderer

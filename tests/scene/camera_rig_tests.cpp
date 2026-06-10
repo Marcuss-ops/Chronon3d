@@ -42,13 +42,13 @@ TEST_CASE("CameraRig dolly moves along forward vector") {
     rig.orbit_radius.set(1000.0f);
 
     rig.dolly.set(0.0f);
-    auto far = rig.evaluate(0);
+    auto far_cam = rig.evaluate(0);
 
     rig.dolly.set(200.0f);
-    auto near = rig.evaluate(0);
+    auto near_cam = rig.evaluate(0);
 
-    CHECK(glm::length(near.position - rig.target.evaluate(0)) <
-          glm::length(far.position - rig.target.evaluate(0)));
+    CHECK(glm::length(near_cam.position - rig.target.evaluate(0)) <
+          glm::length(far_cam.position - rig.target.evaluate(0)));
 }
 
 TEST_CASE("CameraRig resolves target null") {

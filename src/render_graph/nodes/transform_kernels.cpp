@@ -7,6 +7,7 @@
 #include <cstring>
 
 #include <spdlog/spdlog.h>
+#include <chronon3d/core/memory_utils.hpp>
 
 #include "sampling_utils.hpp"
 
@@ -218,12 +219,12 @@ void execute_affine_rows(
             const i32 src_y1 = src_y0 + 1;
             const i32 sx_idx = static_cast<i32>(sx);
             if (src_y0 >= 0 && src_y0 < src_h) {
-                __builtin_prefetch(
-                    &src_data[static_cast<size_t>(src_y0) * stride + static_cast<size_t>(sx_idx)], 0, 1);
+                chronon3d::prefetch(
+                    &src_data[static_cast<size_t>(src_y0) * stride + static_cast<size_t>(sx_idx)], false, 1);
             }
             if (src_y1 >= 0 && src_y1 < src_h) {
-                __builtin_prefetch(
-                    &src_data[static_cast<size_t>(src_y1) * stride + static_cast<size_t>(sx_idx)], 0, 1);
+                chronon3d::prefetch(
+                    &src_data[static_cast<size_t>(src_y1) * stride + static_cast<size_t>(sx_idx)], false, 1);
             }
 
             // ── Region 1: left edge (clamped sampler) ───────────────
@@ -352,12 +353,12 @@ void execute_projective_rows(
                 const i32 src_y1 = src_y0 + 1;
                 const i32 sx_idx = static_cast<i32>(proj_sx);
                 if (src_y0 >= 0 && src_y0 < src_h) {
-                    __builtin_prefetch(
-                        &src_data[static_cast<size_t>(src_y0) * stride + static_cast<size_t>(sx_idx)], 0, 1);
+                    chronon3d::prefetch(
+                        &src_data[static_cast<size_t>(src_y0) * stride + static_cast<size_t>(sx_idx)], false, 1);
                 }
                 if (src_y1 >= 0 && src_y1 < src_h) {
-                    __builtin_prefetch(
-                        &src_data[static_cast<size_t>(src_y1) * stride + static_cast<size_t>(sx_idx)], 0, 1);
+                    chronon3d::prefetch(
+                        &src_data[static_cast<size_t>(src_y1) * stride + static_cast<size_t>(sx_idx)], false, 1);
                 }
             }
 
