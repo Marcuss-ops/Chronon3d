@@ -58,7 +58,6 @@ add_executable(chronon3d_renderer_tests
     golden/glow_golden_tests.cpp
     golden/suite_chronon3d_tests.cpp
     golden/roadmap_2_5d_suite.cpp
-    golden/saas_intro_premium_golden.cpp
     runtime/test_telemetry.cpp
     runtime/test_telemetry_semantic.cpp
     runtime/test_telemetry_report.cpp

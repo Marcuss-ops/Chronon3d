@@ -251,6 +251,10 @@ set(CHRONON3D_BACKEND_SOFTWARE_SOURCES
     backends/software/software_effect_runner.cpp
     backends/software/software_node_dispatcher.cpp
     backends/software/software_renderer.cpp
+    backends/software/diagnostics/bbox_overlay.cpp
+    backends/software/diagnostics/layout_preview_overlay.cpp
+    backends/software/diagnostics/nulls_overlay.cpp
+    backends/software/diagnostics/internal/helpers.cpp
     backends/software/utils/framebuffer_analysis.cpp
     backends/software/utils/projection_utils.cpp
     backends/software/utils/blend2d_bridge_core.cpp
@@ -262,6 +266,7 @@ set(CHRONON3D_BACKEND_SOFTWARE_SOURCES
     backends/software/utils/effects/effect_blur.cpp
     backends/software/utils/effects/effect_color.cpp
     backends/software/utils/effects/effect_wave.cpp
+    backends/software/utils/effects/glow_pipeline.cpp
     backends/software/utils/effects/effect_glow_impl.cpp
     backends/software/utils/effects/effect_shadow_impl.cpp
     backends/software/utils/effects/effect_bloom_impl.cpp

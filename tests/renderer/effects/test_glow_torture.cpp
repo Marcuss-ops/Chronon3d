@@ -345,12 +345,12 @@ TEST_CASE("GlowTorture: warm white UI card reads as light, not fog") {
     const int cx = fb->width() / 2;
     const int cy = fb->height() / 2;
     const Color center = fb->get_pixel(cx, cy);
-    const Color near = fb->get_pixel(cx + 88, cy);
-    const Color far = fb->get_pixel(cx + 124, cy);
+    const Color near_pixel = fb->get_pixel(cx + 88, cy);
+    const Color far_pixel = fb->get_pixel(cx + 124, cy);
 
     CHECK(center.r > 0.90f);
     CHECK(center.g > 0.88f);
     CHECK(center.b > 0.80f);
-    CHECK(near.r > far.r * 2.0f);
-    CHECK(far.r < 0.08f);
+    CHECK(near_pixel.r > far_pixel.r * 2.0f);
+    CHECK(far_pixel.r < 0.08f);
 }
