@@ -31,8 +31,8 @@ void draw_topdown_preview(const OverlayContext& ctx) {
         w_min_x = std::min(w_min_x, pos.x); w_max_x = std::max(w_max_x, pos.x);
         w_min_z = std::min(w_min_z, pos.z); w_max_z = std::max(w_max_z, pos.z);
     }
-    w_min_x = std::min(w_min_x, ctx.camera.camera.position.x); w_max_x = std::max(w_max_x, ctx.camera.camera.position.x);
-    w_min_z = std::min(w_min_z, ctx.camera.camera.position.z); w_max_z = std::max(w_max_z, ctx.camera.camera.position.z);
+    w_min_x = std::min(w_min_x, ctx.camera.position.x); w_max_x = std::max(w_max_x, ctx.camera.position.x);
+    w_min_z = std::min(w_min_z, ctx.camera.position.z); w_max_z = std::max(w_max_z, ctx.camera.position.z);
     if (w_min_x >= w_max_x) { w_min_x -= 200.0f; w_max_x += 200.0f; }
     if (w_min_z >= w_max_z) { w_min_z -= 200.0f; w_max_z += 200.0f; }
     float range_x = w_max_x - w_min_x, range_z = w_max_z - w_min_z;
@@ -72,13 +72,13 @@ void draw_topdown_preview(const OverlayContext& ctx) {
         td_idx++;
     }
 
-    Vec2 cam_screen = to_td(ctx.camera.camera.position.x, ctx.camera.camera.position.z);
+    Vec2 cam_screen = to_td(ctx.camera.position.x, ctx.camera.position.z);
     if (cam_screen.x >= td_x + draw_margin && cam_screen.x <= td_x + td_w - draw_margin && cam_screen.y >= draw_y0 && cam_screen.y <= draw_y0 + draw_h) {
         l.circle("td_cam_pos", CircleParams{.radius = 5.0f, .color = Color{1.0f, 1.0f, 1.0f, 0.95f}, .pos = {cam_screen.x, cam_screen.y, 0.0f}});
-        float yaw_rad = glm::radians(ctx.camera.camera.rotation.y);
+        float yaw_rad = glm::radians(ctx.camera.rotation.y);
         float dir_x = std::sin(yaw_rad), dir_z = -std::cos(yaw_rad);
         l.line("td_cam_dir", LineParams{.from = {cam_screen.x, cam_screen.y, 0.0f}, .to = {cam_screen.x + dir_x * 40.0f, cam_screen.y - dir_z * 40.0f, 0.0f}, .thickness = 2.0f, .color = Color{1.0f, 1.0f, 1.0f, 0.8f}});
-        float fov_half = glm::radians(ctx.camera.camera.fov_deg * 0.5f);
+        float fov_half = glm::radians(ctx.camera.fov_deg * 0.5f);
         l.line("td_fov_l", LineParams{.from = {cam_screen.x, cam_screen.y, 0.0f}, .to = {cam_screen.x + std::sin(yaw_rad - fov_half) * 30.0f, cam_screen.y + std::cos(yaw_rad - fov_half) * 30.0f, 0.0f}, .thickness = 1.0f, .color = Color{1.0f, 1.0f, 1.0f, 0.35f}});
         l.line("td_fov_r", LineParams{.from = {cam_screen.x, cam_screen.y, 0.0f}, .to = {cam_screen.x + std::sin(yaw_rad + fov_half) * 30.0f, cam_screen.y + std::cos(yaw_rad + fov_half) * 30.0f, 0.0f}, .thickness = 1.0f, .color = Color{1.0f, 1.0f, 1.0f, 0.35f}});
         l.text("td_cam_lbl", TextParams{.text = "CAM", .pos = {cam_screen.x + 7.0f, cam_screen.y - 8.0f, 0.0f}, .font_size = 8.0f, .color = Color{1.0f, 1.0f, 1.0f, 0.8f}});
@@ -115,8 +115,8 @@ void draw_sideview_depth(const OverlayContext& ctx) {
         w_min_x = std::min(w_min_x, pos.x); w_max_x = std::max(w_max_x, pos.x);
         w_min_z = std::min(w_min_z, pos.z); w_max_z = std::max(w_max_z, pos.z);
     }
-    w_min_x = std::min(w_min_x, ctx.camera.camera.position.x); w_max_x = std::max(w_max_x, ctx.camera.camera.position.x);
-    w_min_z = std::min(w_min_z, ctx.camera.camera.position.z); w_max_z = std::max(w_max_z, ctx.camera.camera.position.z);
+    w_min_x = std::min(w_min_x, ctx.camera.position.x); w_max_x = std::max(w_max_x, ctx.camera.position.x);
+    w_min_z = std::min(w_min_z, ctx.camera.position.z); w_max_z = std::max(w_max_z, ctx.camera.position.z);
     if (w_min_x >= w_max_x) { w_min_x -= 200.0f; w_max_x += 200.0f; }
     if (w_min_z >= w_max_z) { w_min_z -= 200.0f; w_max_z += 200.0f; }
     float range_x = w_max_x - w_min_x, range_z = w_max_z - w_min_z;
@@ -169,7 +169,7 @@ void draw_sideview_depth(const OverlayContext& ctx) {
         sv_idx++;
     }
 
-    Vec2 cam_sv = to_sv(ctx.camera.camera.position.x, ctx.camera.camera.position.z);
+    Vec2 cam_sv = to_sv(ctx.camera.position.x, ctx.camera.position.z);
     if (cam_sv.x >= sv_x + d_margin && cam_sv.x <= sv_x + sv_w - d_margin && cam_sv.y >= d_y0 && cam_sv.y <= d_y0 + d_h) {
         l.circle("sv_cam", CircleParams{.radius = 5.0f, .color = Color{1.0f, 1.0f, 1.0f, 0.9f}, .pos = {cam_sv.x, cam_sv.y, 0.0f}});
         l.text("sv_cam_lbl", TextParams{.text = "CAM", .pos = {cam_sv.x + 7.0f, cam_sv.y - 4.0f, 0.0f}, .font_size = 7.0f, .color = Color{1.0f, 1.0f, 1.0f, 0.8f}});

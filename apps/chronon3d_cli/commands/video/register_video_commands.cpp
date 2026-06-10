@@ -76,7 +76,7 @@ void register_video_commands(CLI::App& app, CliContext& ctx) {
                   "Prime FocusInLadder blur cache during warmup (default: on)");
     cmd->add_flag("--dry-run", args.dry_run,
                   "Validate composition and settings without rendering");
-    cmd->callback([state, &ctx]() { ctx.exit_code = command_video(ctx.resources.registry, *state->args); });
+    cmd->callback([state, &ctx]() { ctx.exit_code = command_video(ctx.registry, *state->args); });
 }
 
 } // namespace chronon3d::cli

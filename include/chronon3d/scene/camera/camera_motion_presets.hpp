@@ -8,7 +8,7 @@
 // Call camera_motion::smoothstep(t) is already applied internally.
 //
 // Usage:
-//   const float t = ctx.frame.frame.frame / float(ctx.duration - 1);
+//   const float t = ctx.frame.frame / float(ctx.duration - 1);
 //   s.camera().set(camera_motion::orbit(t, {.radius=220, .target={0,0,0}}));
 
 namespace chronon3d {

@@ -20,19 +20,19 @@ struct VerifyState {
 
 void register_list(CLI::App& app, CliContext& ctx) {
     auto* cmd = app.add_subcommand("list", "List all registered compositions");
-    cmd->callback([&ctx]() { ctx.exit_code = command_list(ctx.resources.registry); });
+    cmd->callback([&ctx]() { ctx.exit_code = command_list(ctx.registry); });
 }
 
 void register_info(CLI::App& app, CliContext& ctx) {
     auto state = std::make_shared<InfoState>();
     auto* cmd = app.add_subcommand("info", "Get information about a composition");
     cmd->add_option("id", *state->id, "Composition name")->required();
-    cmd->callback([state, &ctx]() { ctx.exit_code = command_info(ctx.resources.registry, *state->id); });
+    cmd->callback([state, &ctx]() { ctx.exit_code = command_info(ctx.registry, *state->id); });
 }
 
 void register_doctor(CLI::App& app, CliContext& ctx) {
     auto* cmd = app.add_subcommand("doctor", "Check whether the local Chronon3d environment is ready");
-    cmd->callback([&ctx]() { ctx.exit_code = command_doctor(ctx.resources.registry); });
+    cmd->callback([&ctx]() { ctx.exit_code = command_doctor(ctx.registry); });
 }
 
 void register_verify(CLI::App& app, CliContext& ctx) {
@@ -40,7 +40,7 @@ void register_verify(CLI::App& app, CliContext& ctx) {
     auto* cmd = app.add_subcommand("verify", "Run a quick render and video smoke test");
     cmd->add_option("-o,--output-dir", *state->output_dir, "Output directory")
         ->default_val(chronon_artifact_path("verify", "").string());
-    cmd->callback([state, &ctx]() { ctx.exit_code = command_verify(ctx.resources.registry, *state->output_dir); });
+    cmd->callback([state, &ctx]() { ctx.exit_code = command_verify(ctx.registry, *state->output_dir); });
 }
 
 } // namespace

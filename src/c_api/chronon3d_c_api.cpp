@@ -75,7 +75,7 @@ std::optional<chronon3d::Composition> compile_json_string(const std::string& jso
         chronon3d::SceneDescription scene = std::move(doc->scene);
         chronon3d::Composition comp(spec, [scene = std::move(scene)](const chronon3d::FrameContext& ctx) {
             chronon3d::TimelineEvaluator evaluator;
-            return evaluator.evaluate(scene, ctx.frame.frame.frame, ctx.resource);
+            return evaluator.evaluate(scene, ctx.frame.frame, ctx.resource);
         });
 
         if (doc->has_render_camera) {
@@ -159,7 +159,7 @@ chronon_status chronon_render_json_string(
                     chronon3d::SceneDescription scene = std::move(doc->scene);
                     chronon3d::Composition comp(spec, [scene = std::move(scene)](const chronon3d::FrameContext& ctx) {
                         chronon3d::TimelineEvaluator evaluator;
-                        return evaluator.evaluate(scene, ctx.frame.frame.frame, ctx.resource);
+                        return evaluator.evaluate(scene, ctx.frame.frame, ctx.resource);
                     });
                     
                     if (doc->has_render_camera) {

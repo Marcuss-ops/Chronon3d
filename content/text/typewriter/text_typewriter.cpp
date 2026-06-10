@@ -47,7 +47,7 @@ Composition text_hello() {
         add_grid_background(s);
 
         s.layer("title", [&ctx](auto& l) {
-            f32 opacity = std::clamp((static_cast<f32>(ctx.frame.frame.frame) - 10.0f) / 20.0f, 0.0f, 1.0f);
+            f32 opacity = std::clamp((static_cast<f32>(ctx.frame.frame) - 10.0f) / 20.0f, 0.0f, 1.0f);
             l.pin_to(Anchor::Center)
              .opacity(opacity)
              .text("hello", {
@@ -63,7 +63,7 @@ Composition text_hello() {
         });
 
         s.layer("subtitle", [&ctx](auto& l) {
-            f32 opacity = std::clamp((static_cast<f32>(ctx.frame.frame.frame) - 30.0f) / 20.0f, 0.0f, 1.0f);
+            f32 opacity = std::clamp((static_cast<f32>(ctx.frame.frame) - 30.0f) / 20.0f, 0.0f, 1.0f);
             l.pin_to(Anchor::Center)
              .position({0.0f, 70.0f, 0.0f})
              .opacity(opacity)
@@ -92,7 +92,7 @@ Composition text_image_on_grid() {
         SceneBuilder s(ctx);
         add_grid_background(s);
 
-        f32 opacity = std::clamp((static_cast<f32>(ctx.frame.frame.frame) - 10.0f) / 20.0f, 0.0f, 1.0f);
+        f32 opacity = std::clamp((static_cast<f32>(ctx.frame.frame) - 10.0f) / 20.0f, 0.0f, 1.0f);
 
         s.layer("image_card", [opacity](auto& l) {
             l.pin_to(Anchor::Center)
@@ -119,7 +119,7 @@ Composition text_image_on_grid() {
             });
         });
 
-        f32 cap_op = std::clamp((static_cast<f32>(ctx.frame.frame.frame) - 30.0f) / 20.0f, 0.0f, 1.0f);
+        f32 cap_op = std::clamp((static_cast<f32>(ctx.frame.frame) - 30.0f) / 20.0f, 0.0f, 1.0f);
         s.layer("caption", [cap_op](auto& l) {
             l.pin_to(Anchor::Center)
              .position({0.0f, 290.0f, 0.0f})
@@ -147,8 +147,8 @@ Composition text_quote_on_grid() {
         SceneBuilder s(ctx);
         add_grid_background(s);
 
-        f32 quote_op = std::clamp((static_cast<f32>(ctx.frame.frame.frame) - 10.0f) / 25.0f, 0.0f, 1.0f);
-        f32 attr_op = std::clamp((static_cast<f32>(ctx.frame.frame.frame) - 45.0f) / 20.0f, 0.0f, 1.0f);
+        f32 quote_op = std::clamp((static_cast<f32>(ctx.frame.frame) - 10.0f) / 25.0f, 0.0f, 1.0f);
+        f32 attr_op = std::clamp((static_cast<f32>(ctx.frame.frame) - 45.0f) / 20.0f, 0.0f, 1.0f);
 
         s.layer("quote_mark", [quote_op](auto& l) {
             l.pin_to(Anchor::Center)
@@ -221,7 +221,7 @@ Composition text_shape_on_grid() {
         SceneBuilder s(ctx);
         add_grid_background(s);
 
-        f32 op = std::clamp((static_cast<f32>(ctx.frame.frame.frame) - 10.0f) / 20.0f, 0.0f, 1.0f);
+        f32 op = std::clamp((static_cast<f32>(ctx.frame.frame) - 10.0f) / 20.0f, 0.0f, 1.0f);
 
         s.layer("title", [op](auto& l) {
             l.pin_to(Anchor::TopCenter, 50.0f)
@@ -286,7 +286,7 @@ Composition text_basic() {
         SceneBuilder s(ctx);
         add_grid_background(s);
 
-        f32 op = std::clamp((static_cast<f32>(ctx.frame.frame.frame) - 10.0f) / 20.0f, 0.0f, 1.0f);
+        f32 op = std::clamp((static_cast<f32>(ctx.frame.frame) - 10.0f) / 20.0f, 0.0f, 1.0f);
 
         s.layer("headline", [op](auto& l) {
             l.pin_to(Anchor::Center)
@@ -303,7 +303,7 @@ Composition text_basic() {
              });
         });
 
-        f32 sub_op = std::clamp((static_cast<f32>(ctx.frame.frame.frame) - 30.0f) / 20.0f, 0.0f, 1.0f);
+        f32 sub_op = std::clamp((static_cast<f32>(ctx.frame.frame) - 30.0f) / 20.0f, 0.0f, 1.0f);
         s.layer("subtitle", [sub_op](auto& l) {
             l.pin_to(Anchor::Center)
              .position({0.0f, 55.0f, 0.0f})

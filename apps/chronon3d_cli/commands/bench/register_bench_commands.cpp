@@ -28,7 +28,7 @@ void register_bench_commands(CLI::App& app, CliContext& ctx) {
                     "Number of framebuffers to preallocate (default 8)");
     cmd->add_flag("--warmup-dummy-frame", args.warmup_dummy_frame,
                   "Render a dummy frame 0 to prime all caches");
-    cmd->callback([state, &ctx]() { ctx.exit_code = command_bench(ctx.resources.registry, *state->args); });
+    cmd->callback([state, &ctx]() { ctx.exit_code = command_bench(ctx.registry, *state->args); });
 }
 
 } // namespace chronon3d::cli

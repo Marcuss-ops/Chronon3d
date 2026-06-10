@@ -10,7 +10,7 @@ Composition glow_05_pulse_wave() {
         SceneBuilder s(ctx);
         deep_bg(s, Color{0.01f,0.02f,0.04f,1}, Color{0.02f,0.04f,0.08f,1});
 
-        const float t  = static_cast<float>(ctx.frame.frame.frame) / 120.f;
+        const float t  = static_cast<float>(ctx.frame.frame) / 120.f;
         const float p  = 0.5f + 0.5f * std::sinf(t * 6.2831853f * 2.f);
         const float p2 = 0.5f + 0.5f * std::sinf(t * 6.2831853f * 2.f + 1.0f);
         const float p3 = 0.5f + 0.5f * std::sinf(t * 6.2831853f * 2.f + 2.1f);

@@ -27,7 +27,7 @@ void register_inspect_commands(CLI::App& app, CliContext& ctx) {
                 state->args->output = "output/graph.dot";
                 spdlog::warn("No --output and no --summary; defaulting to {}", state->args->output);
             }
-            ctx.exit_code = command_graph(ctx.resources.registry, *state->args);
+            ctx.exit_code = command_graph(ctx.registry, *state->args);
         });
     }
 
@@ -42,7 +42,7 @@ void register_inspect_commands(CLI::App& app, CliContext& ctx) {
         cmd->add_option("--step", args.step, "Sample every N frames")->default_val(1);
         cmd->add_option("-o,--output", args.output, "Output file path (.json or .csv)");
         cmd->add_option("--format", args.format, "Export format: json or csv (auto-detected from -o extension)")->default_val("json");
-        cmd->callback([state, &ctx]() { ctx.exit_code = command_camera_path(ctx.resources.registry, *state->args); });
+        cmd->callback([state, &ctx]() { ctx.exit_code = command_camera_path(ctx.registry, *state->args); });
     }
 
     // --- preflight ---
@@ -56,7 +56,7 @@ void register_inspect_commands(CLI::App& app, CliContext& ctx) {
         cmd->add_option("--sample-step", args.sample_step, "Sample every N frames");
         cmd->add_option("-o,--output", args.output, "Output file path (to check writability)");
         cmd->add_option("--json", args.json_file, "Path to output preflight JSON report");
-        cmd->callback([state, &ctx]() { ctx.exit_code = command_preflight(ctx.resources.registry, *state->args); });
+        cmd->callback([state, &ctx]() { ctx.exit_code = command_preflight(ctx.registry, *state->args); });
     }
 }
 

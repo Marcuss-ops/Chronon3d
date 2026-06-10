@@ -43,9 +43,9 @@ public:
         h = hash_combine(h, hash_value(m_layer_world_z));
         return cache::NodeCacheKey{
             .scope = "depth_grade",
-            .frame = frame_dependent() ? ctx.frame.frame.frame : Frame{0},
-            .width = ctx.frame.frame.width,
-            .height = ctx.frame.frame.height,
+            .frame = frame_dependent() ? ctx.frame.frame : Frame{0},
+            .width = ctx.frame.width,
+            .height = ctx.frame.height,
             .params_hash = h
         };
     }
@@ -66,7 +66,7 @@ public:
         std::span<const std::optional<raster::BBox>>
     ) override {
         if (inputs.empty() || !inputs[0]) {
-            return ctx.acquire_owned_fb(ctx.frame.frame.width, ctx.frame.frame.height);
+            return ctx.acquire_owned_fb(ctx.frame.width, ctx.frame.height);
         }
 
         if (!m_grade.enabled || !m_accepts_lights) {

@@ -73,8 +73,8 @@ TEST_CASE("Invariants: bbox_expands_with_glow_radius") {
     using namespace chronon3d::graph;
     
     RenderGraphContext ctx;
-    ctx.frame.frame.width = 200;
-    ctx.frame.frame.height = 200;
+    ctx.frame.width = 200;
+    ctx.frame.height = 200;
 
     std::optional<raster::BBox> input_bbox = raster::BBox{80, 80, 120, 120};
     std::vector<std::optional<raster::BBox>> inputs = {input_bbox};
@@ -342,8 +342,8 @@ TEST_CASE("Invariants: dirty_rect_contains_glow_spread") {
     using namespace chronon3d::graph;
 
     RenderGraphContext ctx;
-    ctx.frame.frame.width = 500;
-    ctx.frame.frame.height = 500;
+    ctx.frame.width = 500;
+    ctx.frame.height = 500;
 
     std::optional<raster::BBox> input_bbox = raster::BBox{100, 100, 200, 200};
     std::vector<std::optional<raster::BBox>> inputs = {input_bbox};

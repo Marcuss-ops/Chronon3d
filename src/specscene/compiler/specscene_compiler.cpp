@@ -30,7 +30,7 @@ std::optional<Composition> compile_document(
     SceneDescription scene = doc.scene;  // copy
     Composition comp(spec, [scene = std::move(scene)](const FrameContext& ctx) {
         TimelineEvaluator evaluator;
-        return evaluator.evaluate(scene, ctx.frame.frame.frame, ctx.resource);
+        return evaluator.evaluate(scene, ctx.frame, ctx.resource);
     });
 
     if (doc.has_render_camera) {

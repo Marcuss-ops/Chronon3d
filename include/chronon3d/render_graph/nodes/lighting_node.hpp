@@ -23,15 +23,15 @@ public:
     [[nodiscard]] bool cacheable() const override { return true; }
 
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
-        const u64 light_hash = rendering::hash_light_context(ctx.camera.camera.light_context);
+        const u64 light_hash = rendering::hash_light_context(ctx.camera.light_context);
         const u64 material_hash = rendering::hash_material_2_5d(m_material);
         const u64 world_hash = hash_bytes(&m_world_matrix[0][0], sizeof(Mat4));
 
         return cache::NodeCacheKey{
             .scope = "lighting:" + m_layer_name,
-            .frame = frame_dependent() ? ctx.frame.frame.frame : Frame{0},
-            .width = ctx.frame.frame.width,
-            .height = ctx.frame.frame.height,
+            .frame = frame_dependent() ? ctx.frame.frame : Frame{0},
+            .width = ctx.frame.width,
+            .height = ctx.frame.height,
             .params_hash = hash_combine(hash_combine(light_hash, material_hash), world_hash)
         };
     }
@@ -52,10 +52,10 @@ public:
         std::span<const std::optional<raster::BBox>>
     ) override {
         if (inputs.empty()) {
-            return ctx.acquire_owned_fb(ctx.frame.frame.width, ctx.frame.frame.height);
+            return ctx.acquire_owned_fb(ctx.frame.width, ctx.frame.height);
         }
 
-        if (!ctx.camera.camera.light_context.enabled || !m_material.accepts_lights) {
+        if (!ctx.camera.light_context.enabled || !m_material.accepts_lights) {
             return ctx.acquire_owned_fb(*inputs[0]);
         }
 
@@ -68,7 +68,7 @@ public:
                 if (row[x].a <= 0.0f) {
                     continue;
                 }
-                row[x] = rendering::evaluate_lighting(row[x], normal_world, ctx.camera.camera.light_context, m_material);
+                row[x] = rendering::evaluate_lighting(row[x], normal_world, ctx.camera.light_context, m_material);
             }
         }
 

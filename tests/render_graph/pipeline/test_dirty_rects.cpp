@@ -62,7 +62,7 @@ TEST_CASE("Dirty Rectangles V1 Pixel-Perfect Equivalence & Counters Test") {
         });
 
         // Dynamic foreground object (position changes with frame)
-        float x = 40.0f + static_cast<float>(ctx.frame.frame.frame) * 4.0f;
+        float x = 40.0f + static_cast<float>(ctx.frame.frame) * 4.0f;
         builder.circle("ball", {
             .radius = 20.0f,
             .color = Color::red(),
@@ -156,7 +156,7 @@ TEST_CASE("Dirty rectangles stay stable for geometric backgrounds across frames"
             .color = Color{0.35f, 0.75f, 1.0f, 0.75f}
         });
 
-        const float t = static_cast<float>(ctx.frame.frame.frame);
+        const float t = static_cast<float>(ctx.frame.frame);
         const float orb_x = 26.25f + t * 0.5f;
         const float orb_y = 30.25f + std::sin(t * 0.45f) * 0.35f;
         builder.rounded_rect("orb", {

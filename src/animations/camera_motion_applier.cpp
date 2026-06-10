@@ -19,7 +19,7 @@ Camera2_5D make_camera_from_pose(const CameraMotionPose& pose) {
 void apply_camera_motion(SceneBuilder& s,
                          const FrameContext& ctx,
                          const CameraMotionParams& p) {
-    const Frame local_frame = (ctx.frame.frame.frame >= p.start_frame) ? (ctx.frame.frame.frame - p.start_frame) : 0;
+    const Frame local_frame = (ctx.frame >= p.start_frame) ? (ctx.frame - p.start_frame) : 0;
     Camera2_5D cam = make_camera_from_pose(p.pose);
 
     if (p.primary.enabled && p.primary.duration > 0) {

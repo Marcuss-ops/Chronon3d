@@ -186,14 +186,14 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         settings, registry, video_decoder, fps
     );
 
-    ctx.camera.camera.light_context = scene.light_context();
+    ctx.camera.light_context = scene.light_context();
     const auto resolved_camera = resolve_scene_camera(scene);
     if (resolved_camera.camera.enabled) {
-        ctx.camera.camera.camera_2_5d = resolved_camera.camera;
-        ctx.camera.camera.has_camera_2_5d = true;
-        ctx.camera.camera.projection_ctx = renderer::make_projection_context(
-            ctx.camera.camera.camera_2_5d, ctx.frame.frame.width, ctx.frame.frame.height);
-        ctx.camera.camera.projection_ctx.ready = true;
+        ctx.camera.camera_2_5d = resolved_camera.camera;
+        ctx.camera.has_camera_2_5d = true;
+        ctx.camera.projection_ctx = renderer::make_projection_context(
+            ctx.camera.camera_2_5d, ctx.frame.width, ctx.frame.height);
+        ctx.camera.projection_ctx.ready = true;
     }
 
     // RAII guard: sets profiling thread-locals and restores on any exit path
@@ -224,7 +224,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         (sw_renderer->m_prev_frame == frame - 1 || sw_renderer->m_prev_frame == frame))
     {
         CHRONON_ZONE_C("resolved_scene_reuse", trace_category::kFrame);
-        const Camera2_5D& cam = ctx.camera.camera.camera_2_5d;
+        const Camera2_5D& cam = ctx.camera.camera_2_5d;
         const bool cam_changed = detail::camera_changed(
             cam, &sw_renderer->m_prev_camera, sw_renderer->m_prev_camera_valid);
         const uint64_t static_fp = sw_renderer->m_scene_hasher.compute_static_fingerprint(scene);
@@ -272,7 +272,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         current_static_fp = sw_renderer->m_scene_hasher.compute_static_fingerprint(scene);
         current_structure_fp = sw_renderer->m_scene_hasher.compute_structure_fingerprint(scene);
         scene_structure_unchanged = (current_structure_fp == sw_renderer->m_prev_graph_structure_fingerprint);
-        const Camera2_5D& cam = ctx.camera.camera.camera_2_5d;
+        const Camera2_5D& cam = ctx.camera.camera_2_5d;
         static_cam_changed = detail::camera_changed(
             cam, &sw_renderer->m_prev_camera, sw_renderer->m_prev_camera_valid);
         // Use frame-aware static check so that animations which have reached
@@ -319,8 +319,8 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         sw_renderer->m_last_fast_path_reused = true;
         sw_renderer->m_last_graph_reused = false;
         sw_renderer->m_prev_frame = frame;
-        sw_renderer->m_prev_camera = ctx.camera.camera.camera_2_5d;
-        sw_renderer->m_prev_camera_valid = ctx.camera.camera.camera_2_5d.enabled;
+        sw_renderer->m_prev_camera = ctx.camera.camera_2_5d;
+        sw_renderer->m_prev_camera_valid = ctx.camera.camera_2_5d.enabled;
         if (ctx.telemetry.counters) {
             ctx.telemetry.counters->dirty_union_area_pixels.store(0, std::memory_order_relaxed);
             ctx.telemetry.counters->clear_skipped_calls.fetch_add(1, std::memory_order_relaxed);

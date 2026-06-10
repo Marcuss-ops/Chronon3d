@@ -55,9 +55,9 @@ public:
 
         return cache::NodeCacheKey{
             .scope = "transform",
-            .frame = m_cache_frame >= 0 ? m_cache_frame : ctx.frame.frame.frame,
-            .width = ctx.frame.frame.width,
-            .height = ctx.frame.frame.height,
+            .frame = m_cache_frame >= 0 ? m_cache_frame : ctx.frame.frame,
+            .width = ctx.frame.width,
+            .height = ctx.frame.height,
             .params_hash = params_hash
         };
     }

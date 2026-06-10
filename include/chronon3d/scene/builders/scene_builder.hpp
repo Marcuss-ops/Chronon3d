@@ -45,7 +45,7 @@ namespace chronon3d {
 
         // Convenience constructor for compositions
         explicit SceneBuilder(const FrameContext &ctx)
-            : scene_(ctx.resource), current_frame_(ctx.frame.frame.frame), m_ctx(ctx), m_width(ctx.frame.frame.width), m_height(ctx.frame.frame.height) {}
+            : scene_(ctx.resource), current_frame_(ctx.frame), m_ctx(ctx), m_width(ctx.width), m_height(ctx.height) {}
 
         [[nodiscard]] CameraApi camera() { return CameraApi(*this); }
 
