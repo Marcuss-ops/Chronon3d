@@ -220,7 +220,7 @@ set_target_properties(chronon3d_backend_video PROPERTIES UNITY_BUILD OFF)
 target_link_libraries(chronon3d_backend_video PUBLIC chronon3d chronon3d_cache spdlog::spdlog_header_only fmt::fmt TBB::tbb hwy::hwy ${CHRONON3D_FFMPEG_LIBS_LIGHT})
 target_include_directories(chronon3d_backend_video PRIVATE ${CMAKE_SOURCE_DIR})
 
-target_link_libraries(chronon3d_graph PUBLIC chronon3d_backend_video)
+target_link_libraries(chronon3d_graph PRIVATE chronon3d_backend_video)
 
 # Software Renderer Backend
 set(CHRONON3D_BACKEND_SOFTWARE_SOURCES
