@@ -13,6 +13,7 @@
 #include <vector>
 #include <filesystem>
 #include <algorithm>
+#include <cmath>
 #include <cctype>
 
 namespace chronon3d {
@@ -56,8 +57,14 @@ ImageFormat image_format_from_path(const std::string& path) {
 
 bool save_png(const Framebuffer& framebuffer, const std::string& path) {
     CHRONON_ZONE_C("write_png", trace_category::kOutput);
-    // Use lower compression (2 vs default 8) for ~3x faster encoding
-    stbi_write_png_compression_level = 2;
+    // Use lower compression (2 vs default 8) for ~3x faster encoding.
+    // Thread-local to prevent race condition on stbi's global variable
+    // when multiple frames are exported in parallel.
+    thread_local int saved_compression = -1;
+    if (saved_compression != 2) {
+        stbi_write_png_compression_level = 2;
+        saved_compression = 2;
+    }
     ensure_parent_dir(path);
 
     i32 width = framebuffer.width();
@@ -69,6 +76,11 @@ bool save_png(const Framebuffer& framebuffer, const std::string& path) {
     for (i32 y = 0; y < height; ++y) {
         for (i32 x = 0; x < width; ++x) {
             Color linear_c = framebuffer.get_pixel(x, y);
+            // NaN/Inf guard: skip corrupted pixels to prevent output file corruption
+            if (std::isnan(linear_c.r) || std::isnan(linear_c.g) || std::isnan(linear_c.b) || std::isnan(linear_c.a) ||
+                std::isinf(linear_c.r) || std::isinf(linear_c.g) || std::isinf(linear_c.b) || std::isinf(linear_c.a)) {
+                linear_c = Color::transparent();
+            }
             Color c = linear_c.to_srgb(); // Convert from linear to sRGB for saving
             usize index = (y * width + x) * 4;
             
@@ -96,6 +108,12 @@ bool save_exr(const Framebuffer& framebuffer,
             return false;
         }
 
+        // NaN/Inf guard helper: returns 0.0f for corrupted channels
+        const auto safe_channel = [](float v) -> float {
+            if (std::isnan(v) || std::isinf(v)) return 0.0f;
+            return v;
+        };
+
         const size_t pixel_count = static_cast<size_t>(width) * height;
         const Imf::PixelType pixel_type = options.exr_half_float ? Imf::HALF : Imf::FLOAT;
 
@@ -109,10 +127,10 @@ bool save_exr(const Framebuffer& framebuffer,
                 for (int x = 0; x < width; ++x) {
                     const Color c = framebuffer.get_pixel(x, y);
                     const size_t index = static_cast<size_t>(y) * width + x;
-                    r[index] = static_cast<half>(c.r);
-                    g[index] = static_cast<half>(c.g);
-                    b[index] = static_cast<half>(c.b);
-                    a[index] = static_cast<half>(c.a);
+                    r[index] = static_cast<half>(safe_channel(c.r));
+                    g[index] = static_cast<half>(safe_channel(c.g));
+                    b[index] = static_cast<half>(safe_channel(c.b));
+                    a[index] = static_cast<half>(safe_channel(c.a));
                 }
             }
 
@@ -155,10 +173,10 @@ bool save_exr(const Framebuffer& framebuffer,
                 for (int x = 0; x < width; ++x) {
                     const Color c = framebuffer.get_pixel(x, y);
                     const size_t index = static_cast<size_t>(y) * width + x;
-                    r[index] = c.r;
-                    g[index] = c.g;
-                    b[index] = c.b;
-                    a[index] = c.a;
+                    r[index] = safe_channel(c.r);
+                    g[index] = safe_channel(c.g);
+                    b[index] = safe_channel(c.b);
+                    a[index] = safe_channel(c.a);
                 }
             }
 

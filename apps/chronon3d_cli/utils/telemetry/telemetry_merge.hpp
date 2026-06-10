@@ -70,10 +70,9 @@ inline void add_counters(chronon3d::RenderCounters& dst, const chronon3d::Render
     dst.clearnode_restore_ms.fetch_add(src.clearnode_restore_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.framebuffer_pool_clear_ms.fetch_add(src.framebuffer_pool_clear_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.framebuffer_enqueue_ms.fetch_add(src.framebuffer_enqueue_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
-    dst.framebuffer_pool_miss_count_size_mismatch.fetch_add(src.framebuffer_pool_miss_count_size_mismatch.load(std::memory_order_relaxed), std::memory_order_relaxed);
-    dst.framebuffer_pool_miss_count_empty.fetch_add(src.framebuffer_pool_miss_count_empty.load(std::memory_order_relaxed), std::memory_order_relaxed);
-    dst.framebuffer_pool_miss_count_best_fit.fetch_add(src.framebuffer_pool_miss_count_best_fit.load(std::memory_order_relaxed), std::memory_order_relaxed);
-    dst.framebuffer_pool_hits.fetch_add(src.framebuffer_pool_hits.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.framebuffer_pool_empty_alloc.fetch_add(src.framebuffer_pool_empty_alloc.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.framebuffer_pool_best_fit_reuse.fetch_add(src.framebuffer_pool_best_fit_reuse.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.framebuffer_pool_exact_hit.fetch_add(src.framebuffer_pool_exact_hit.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.framebuffer_buffer_returned_to_pool_count.fetch_add(src.framebuffer_buffer_returned_to_pool_count.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.framebuffer_prealloc_created.fetch_add(src.framebuffer_prealloc_created.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.unaligned_memory_copies.fetch_add(src.unaligned_memory_copies.load(std::memory_order_relaxed), std::memory_order_relaxed);

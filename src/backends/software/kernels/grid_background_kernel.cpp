@@ -64,8 +64,10 @@ void render_grid_background_kernel(
     const f32 minor_step          = std::max(grid.spacing, 1.0f);
     const bool use_major          = grid.major_every > 1;
     const f32 major_step          = use_major ? minor_step * static_cast<f32>(grid.major_every) : minor_step;
-    const f32 half_w              = static_cast<f32>(fb.width()) * 0.5f;
-    const f32 half_h              = static_cast<f32>(fb.height()) * 0.5f;
+    // Use grid.size (viewport dimensions) for centering origin, NOT fb dimensions.
+    // fb may be a sub-region (dirty rect / tile) — fb.width() would give the wrong origin.
+    const f32 half_w              = grid.size.x * 0.5f;
+    const f32 half_h              = grid.size.y * 0.5f;
     const f32 origin_x            = grid.centered ? half_w : 0.0f;
     const f32 origin_y            = grid.centered ? half_h : 0.0f;
     const f32 offset_x            = grid.offset.x;

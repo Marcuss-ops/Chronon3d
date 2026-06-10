@@ -40,9 +40,9 @@ export default function MetricsGrid({ runDetail }) {
   const fbEnqueueMs = getCounter('framebuffer_enqueue_ms');
   const frameConvCopyMs = getCounter('frame_conversion_copy_ms');
   const fbReturnedPool = getCounter('framebuffer_buffer_returned_to_pool_count');
-  const fbMissSize = getCounter('framebuffer_pool_miss_count_size_mismatch');
-  const fbMissEmpty = getCounter('framebuffer_pool_miss_count_empty');
-  const fbMissTotal = fbMissSize + fbMissEmpty;
+  const fbEmptyAlloc = getCounter('framebuffer_pool_empty_alloc');
+  const fbBestFitReuse = getCounter('framebuffer_pool_best_fit_reuse');
+  const fbMissTotal = fbEmptyAlloc + fbBestFitReuse;
 
   // Benchmark separation counters (per-run totals)
   const videoGraphEvalMs = getCounter('video_graph_eval_ms');
@@ -259,15 +259,15 @@ export default function MetricsGrid({ runDetail }) {
         </div>
         <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-accent)' }}>
           <div className="metric-label">
-            Framebuffer Pool Misses (size / empty)
-            {renderInfoIcon('framebuffer_pool_miss_count_size_mismatch')}
+            Framebuffer Pool Misses (empty alloc / best-fit)
+            {renderInfoIcon('framebuffer_pool_empty_alloc')}
           </div>
           <div className="metric-value" style={{ color: fbMissTotal > 0 ? 'var(--color-danger)' : 'var(--color-success)' }}>
-            {fbMissSize.toLocaleString()} / {fbMissEmpty.toLocaleString()}
+            {fbEmptyAlloc.toLocaleString()} / {fbBestFitReuse.toLocaleString()}
             <span className="metric-unit">miss</span>
           </div>
           <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-            dimensioni errate / pool vuoto
+            alloc da vuoto / riuso best-fit
           </div>
         </div>
         <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-accent)', gridColumn: 'span 1' }}>

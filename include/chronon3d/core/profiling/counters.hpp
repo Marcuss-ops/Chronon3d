@@ -57,6 +57,10 @@ constexpr std::size_t kHardwareDestructiveInterferenceSize = 64;
     X(projected_winding_flips) \
     X(effect_stack_calls) \
     X(effect_pixels) \
+    X(effect_stack_total_ms) \
+    X(effect_focus_in_ladder_ms) \
+    X(effect_focus_in_ladder_precompute_ms) \
+    X(effect_focus_in_ladder_crossfade_ms) \
     X(layer_culling_tests) \
     X(layers_culled) \
     X(layers_visible) \
@@ -106,10 +110,9 @@ constexpr std::size_t kHardwareDestructiveInterferenceSize = 64;
     X(compositenode_row_ms) \
     X(framebuffer_pool_clear_ms) \
     X(framebuffer_enqueue_ms) \
-    X(framebuffer_pool_miss_count_size_mismatch) \
-    X(framebuffer_pool_miss_count_empty) \
-    X(framebuffer_pool_miss_count_best_fit) \
-    X(framebuffer_pool_hits) \
+    X(framebuffer_pool_empty_alloc) \
+    X(framebuffer_pool_best_fit_reuse) \
+    X(framebuffer_pool_exact_hit) \
     X(framebuffer_buffer_returned_to_pool_count) \
     X(framebuffer_prealloc_created) \
     X(framebuffer_copy_ms) \
@@ -176,6 +179,7 @@ constexpr std::size_t kHardwareDestructiveInterferenceSize = 64;
     X(setup_graph_parsing_ms) \
     X(setup_asset_io_load_ms) \
     X(setup_pool_preallocation_ms) \
+    X(effect_focus_in_ladder_warmup_ms) \
     X(image_decode_ms)
 
 // ---------------------------------------------------------------------------

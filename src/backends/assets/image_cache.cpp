@@ -113,7 +113,12 @@ std::shared_ptr<const CachedImage> ImageCache::get_or_load_shared(const std::str
             return {entry, weight};
         });
 
-    if (!shared || !shared->valid()) {
+    if (!shared) {
+        return nullptr;
+    }
+    if (!shared->valid()) {
+        spdlog::warn("ImageCache: '{}' is too large ({:.1f} MB) to fit in the cache — decoding on every frame",
+                     path, static_cast<double>(shared->width) * shared->height * 4 / (1024.0 * 1024.0));
         return nullptr;
     }
     return shared;
