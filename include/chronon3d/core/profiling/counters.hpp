@@ -90,10 +90,7 @@ constexpr std::size_t kHardwareDestructiveInterferenceSize = 64;
 #define CHRONON_COUNTERS_EFFECTS(X) \
     X(effect_stack_calls) \
     X(effect_pixels) \
-    X(effect_stack_total_ms) \
-    X(effect_focus_in_ladder_ms) \
-    X(effect_focus_in_ladder_precompute_ms) \
-    X(effect_focus_in_ladder_crossfade_ms)
+    X(effect_stack_total_ms)
 
 #define CHRONON_COUNTERS_FRAMEBUFFER(X) \
     X(framebuffer_allocations) \
@@ -227,7 +224,6 @@ constexpr std::size_t kHardwareDestructiveInterferenceSize = 64;
     X(setup_graph_parsing_ms) \
     X(setup_asset_io_load_ms) \
     X(setup_pool_preallocation_ms) \
-    X(effect_focus_in_ladder_warmup_ms) \
     X(image_decode_ms)
 
 // ---------------------------------------------------------------------------
