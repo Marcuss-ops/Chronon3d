@@ -34,10 +34,10 @@ inline u64 framebuffer_hash(const Framebuffer& fb) {
 
 inline FrameContext make_ctx(Frame frame, int width = 1920, int height = 1080) {
     FrameContext ctx;
-    ctx.frame.frame = frame;
+    ctx.frame = frame;
     ctx.frame_rate = FrameRate{30, 1};
-    ctx.frame.width = width;
-    ctx.frame.height = height;
+    ctx.width = width;
+    ctx.height = height;
     return ctx;
 }
 
