@@ -82,6 +82,7 @@ add_library(chronon3d_content_effects STATIC
     effects/glow/glow_05_pulse_wave.cpp
     effects/glow/glow_06_video_layer.cpp
     effects/glow/glow_07_premium_suite.cpp
+    effects/glow/glow_v2_ab_tests.cpp
     effects/thumbnails/premium_thumbnail_showcase.cpp
     effects/ref_2_5d/reference_2_5d_suite.cpp
 )

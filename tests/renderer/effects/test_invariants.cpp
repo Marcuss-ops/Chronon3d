@@ -213,7 +213,7 @@ TEST_CASE("Invariants: glow_intensity_zero_noop") {
     Composition comp_glow_intensity0({.width = 100, .height = 100, .duration = 1}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         s.layer("l", [](LayerBuilder& l) {
-            l.glow(10.0f, 0.0f);
+            l.glow(GlowParams{.radius = 10.0f, .intensity = 0.0f, .color = Color::white()});
             l.rect("r", {.size = {50, 50}, .color = Color::white()});
         });
         return s.build();
@@ -283,22 +283,22 @@ TEST_CASE("Invariants: cache_key_changes_when_glow_params_change") {
 
     // Base glow params
     LayerBuilder lb_base("l");
-    lb_base.glow(10.0f, 0.8f, Color::white());
+    lb_base.glow(GlowParams{.radius = 10.0f, .intensity = 0.8f, .color = Color::white()});
     u64 hash_base = hash_effect_stack(lb_base.build().effects);
 
     // Different radius
     LayerBuilder lb_radius("l");
-    lb_radius.glow(15.0f, 0.8f, Color::white());
+    lb_radius.glow(GlowParams{.radius = 15.0f, .intensity = 0.8f, .color = Color::white()});
     u64 hash_radius = hash_effect_stack(lb_radius.build().effects);
 
     // Different intensity
     LayerBuilder lb_intensity("l");
-    lb_intensity.glow(10.0f, 0.5f, Color::white());
+    lb_intensity.glow(GlowParams{.radius = 10.0f, .intensity = 0.5f, .color = Color::white()});
     u64 hash_intensity = hash_effect_stack(lb_intensity.build().effects);
 
     // Different color
     LayerBuilder lb_color("l");
-    lb_color.glow(10.0f, 0.8f, Color::red());
+    lb_color.glow(GlowParams{.radius = 10.0f, .intensity = 0.8f, .color = Color::red()});
     u64 hash_color = hash_effect_stack(lb_color.build().effects);
 
     CHECK(hash_base != hash_radius);
@@ -350,7 +350,7 @@ TEST_CASE("Invariants: dirty_rect_contains_glow_spread") {
 
     // Glow with radius 30
     LayerBuilder lb("l");
-    lb.glow(30.0f, 0.8f, Color::white());
+    lb.glow(GlowParams{.radius = 30.0f, .intensity = 0.8f, .color = Color::white()});
     auto layer = lb.build();
 
     EffectStackNode node(layer.effects);
@@ -378,7 +378,7 @@ TEST_CASE("Invariants: no_nan_after_effect_stack") {
              .tint(Color::red(), 0.5f)
              .brightness(0.2f)
              .contrast(1.2f)
-             .glow(10.0f, 0.8f, Color::yellow())
+             .glow(GlowParams{.radius = 10.0f, .intensity = 0.8f, .color = Color::yellow()})
              .bloom(0.5f, 15.0f, 0.7f);
             l.rect("r", {.size = {40, 40}, .color = Color::white()});
         });

@@ -224,7 +224,7 @@ TEST_CASE("GlowTorture: colored glow stack keeps saturation in overlap") {
 
         auto orb = [&](const char* layer, Vec3 pos, Color glow) {
             s.layer(layer, [=](LayerBuilder& l) {
-                l.position(pos).blend(BlendMode::Screen).glow(38.0f, 1.60f, glow);
+                l.position(pos).blend(BlendMode::Screen).glow(GlowParams{.radius = 38.0f, .intensity = 1.60f, .color = glow});
                 l.circle("c", {
                     .radius = 14.0f,
                     .color = Color{0.98f, 0.98f, 1.0f, 0.82f},
@@ -292,7 +292,7 @@ TEST_CASE("GlowTorture: subpixel movement advances smoothly") {
 
         const float x = static_cast<float>(ctx.frame) * 0.15f;
         s.layer("moving", [x](LayerBuilder& l) {
-            l.position({x, 0.0f, 0.0f}).glow(26.0f, 0.9f, Color{0.20f, 0.80f, 1.0f, 1.0f});
+            l.position({x, 0.0f, 0.0f}).glow(GlowParams{.radius = 26.0f, .intensity = 0.9f, .color = Color{0.20f, 0.80f, 1.0f, 1.0f}});
             l.circle("c", {
                 .radius = 18.0f,
                 .color = Color{1.0f, 1.0f, 1.0f, 1.0f},

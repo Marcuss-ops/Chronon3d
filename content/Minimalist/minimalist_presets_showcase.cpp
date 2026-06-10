@@ -3,26 +3,17 @@
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 
+#include "content/common/background_helpers.hpp"
+
 namespace chronon3d::content::minimalist {
 
 namespace {
-// Common setup helper for the background grid
-void add_common_background(SceneBuilder& s) {
-    s.layer("background", [](auto& l) {
-        l.cache_static();
-        l.pin_to(Anchor::Center);
-        l.grid_background("grid_bg", {
-            .size = {1920.0f, 1080.0f},
-            .offset = {0.0f, 0.0f},
-            .bg_color = {0.025f, 0.027f, 0.031f, 1.0f},
-            .grid_color = {0.58f, 0.61f, 0.66f, 0.045f},
-            .spacing = 136.0f,
-            .minor_thickness = 1.0f,
-            .major_thickness = 2.0f,
-            .major_every = 4,
-            .centered = true
-        });
-    });
+// Common setup helper for the background grid — delegates to shared helper.
+using chronon3d::content::backgrounds::add_common_background;
+namespace BGS = chronon3d::content::backgrounds::BackgroundStyles;
+
+inline void add_minimalist_background(SceneBuilder& s) {
+    add_common_background(s, BGS::Minimalist());
 }
 
 // Common setup helper for the text backdrop
