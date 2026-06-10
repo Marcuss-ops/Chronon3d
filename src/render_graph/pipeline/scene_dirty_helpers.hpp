@@ -155,7 +155,19 @@ namespace chronon3d::graph::detail {
                     state.visible = rl.layer->visible;
                     state.cache_static = rl.layer->cache_static;
                     state.uses_2_5d_projection = rl.layer->uses_2_5d_projection;
-                    state.content_hash = rl.layer->get_static_hash();
+                    // Start with the static hash (cached, includes effects, mask, etc.)
+                    uint64_t content_h = rl.layer->get_static_hash();
+                    // Include frame-evaluated animated parameters that affect visual
+                    // output but NOT geometry/position (which is tracked separately via
+                    // world_matrix comparison).  Blur is the primary case: animating
+                    // blur in-place changes pixel values each frame but leaves the
+                    // bounding box unchanged — without this hash the dirty rect system
+                    // sees identical content_hash and incorrectly reuses the previous
+                    // frame, skipping the animation entirely.
+                    if (rl.layer->anim_transform.blur.is_animated()) {
+                        content_h = hash_combine(content_h, hash_value(rl.layer->anim_transform.blur.evaluate(frame)));
+                    }
+                    state.content_hash = content_h;
                     local_map[std::string(rl.layer->name)] = state;
                 }
             }

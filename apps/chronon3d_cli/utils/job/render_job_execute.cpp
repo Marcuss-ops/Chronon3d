@@ -8,6 +8,7 @@
 #include <chronon3d/core/system_metrics.hpp>
 #include <chronon3d/runtime/renderer_warmup.hpp>
 #include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
+#include <chronon3d/assets/asset_registry.hpp>
 
 #include "write_pool.hpp"
 
@@ -39,6 +40,11 @@ std::string resolve_output_path_for_telemetry(const std::string& output) {
 }
 
 bool execute_render_job(const CompositionRegistry& registry, const RenderJobPlan& plan) {
+    // Mount current working directory as asset root so relative asset paths
+    // (fonts, images, etc.) resolve correctly for all engines (Blend2D,
+    // FreeType, image loaders).
+    AssetRegistry::mount(std::filesystem::current_path());
+
     profiling::g_live_framebuffer_bytes.store(0, std::memory_order_relaxed);
     profiling::g_peak_live_framebuffer_bytes.store(0, std::memory_order_relaxed);
 

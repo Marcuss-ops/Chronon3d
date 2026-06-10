@@ -88,20 +88,6 @@ struct Fake3DWaveParams {
     bool expand_bounds{true};
 };
 
-// ── Precomputed Blur Ladder (for focus_in_preblurred) ────────────────────
-// Instead of computing blur per-frame, precompute N blur levels and
-// crossfade between adjacent levels during animation.
-// Cost per frame: 0 blur ops, just 2 lookups + 1 composite.
-
-struct FocusInLadderParams {
-    std::vector<f32> levels;           // blur radii in descending order, e.g. {24, 16, 12, 8, 4, 0}
-    Frame duration{45};                // animation duration in frames
-    EasingCurve easing{Easing::OutCubic};
-    bool interpolate_between_levels{true};  // smooth crossfade vs discrete snap
-    f32 scale_start{1.04f};            // subtle scale pop to compensate
-    f32 scale_end{1.0f};
-};
-
 // Type-erased variant: stores exactly one effect parameter struct, indexed by
 // EffectType.  Extraction via std::get_if<T>() is O(1) with no type_info
 // comparison — strictly faster than std::any_cast's runtime type check.
@@ -118,8 +104,7 @@ using EffectParams = std::variant<
     SaturationParams,
     HueRotateParams,
     InvertParams,
-    VignetteParams,
-    FocusInLadderParams
+    VignetteParams
 >;
 
 } // namespace chronon3d

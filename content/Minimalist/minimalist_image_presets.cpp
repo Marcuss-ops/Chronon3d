@@ -68,22 +68,26 @@ Composition minimalist_image_fade_in() {
     });
 }
 
-// 2. Image Focus-In — precomputed blur ladder: 6 levels, crossfade during animation
-// Cost per frame after first frame: 0 blur ops, just crossfade between cached levels.
+// 2. Image Focus-In — animated blur + opacity fade-in + subtle scale pop.
+// Blur starts at 8px and animates to 0 over 45 frames with OutCubic easing.
 Composition minimalist_image_focus_in() {
     return composition({.name = "MinimalistImageFocusIn", .duration = 120}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         add_common_background(s);
         s.layer("image_layer", [](auto& l) {
             l.pin_to(Anchor::Center);
-            l.focus_in_preblurred({
-                .levels = {24.0f, 16.0f, 12.0f, 8.0f, 4.0f, 0.0f},
-                .duration = Frame{45},
-                .easing = EasingCurve{Easing::OutCubic},
-                .interpolate_between_levels = true,
-                .scale_start = 1.04f,
-                .scale_end = 1.0f
-            });
+            // Opacity fade-in: from transparent to fully visible
+            auto& op = l.opacity_anim();
+            op.key(Frame{0}, 0.0f, EasingCurve{Easing::OutCubic});
+            op.key(Frame{45}, 1.0f);
+            // Blur animation: from blurry to sharp
+            auto& bl = l.blur_anim();
+            bl.key(Frame{0}, 8.0f, EasingCurve{Easing::OutCubic});
+            bl.key(Frame{45}, 0.0f);
+            // Subtle scale pop to compensate for blur perception
+            auto& sc = l.scale_anim();
+            sc.key(Frame{0}, Vec3{1.04f, 1.04f, 1.0f}, EasingCurve{Easing::OutCubic});
+            sc.key(Frame{45}, Vec3{1.0f, 1.0f, 1.0f});
             add_image_border(l, IMAGE_SIZE);
             l.image("img", {
                 .path = IMAGE_PATH,

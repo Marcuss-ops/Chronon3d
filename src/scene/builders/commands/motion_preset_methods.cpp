@@ -128,33 +128,7 @@ LayerBuilder& LayerBuilder::focus_in(f32 start_blur, Frame duration, EasingCurve
     return *this;
 }
 
-LayerBuilder& LayerBuilder::focus_in_preblurred(FocusInLadderParams params) {
-    // Capture values before move
-    auto easing = params.easing;
-    auto duration = params.duration;
-    auto scale_start = params.scale_start;
-    auto scale_end = params.scale_end;
 
-    // Add the FocusInLadder effect — pre-renders blur levels on first frame
-    // then does only lightweight crossfade during animation.
-    m_layer.effects.push_back(EffectInstance{
-        effects::EffectDescriptor{.id = std::string{effects::ids::FocusInLadder}},
-        std::move(params)
-    });
-
-    // Opacity animation (same as focus_in)
-    auto& op = opacity_anim();
-    op.key(Frame{0}, 0.0f, easing);
-    op.key(duration, m_layer.transform.opacity);
-
-    // Subtle scale pop to compensate for reduced blur perception
-    if (scale_start != 1.0f || scale_end != 1.0f) {
-        auto& sc = scale_anim();
-        sc.key(Frame{0}, Vec3{scale_start, scale_start, 1.0f}, easing);
-        sc.key(duration, Vec3{scale_end, scale_end, 1.0f});
-    }
-    return *this;
-}
 
 LayerBuilder& LayerBuilder::scale_drop(f32 start_scale, Frame duration, EasingCurve easing) {
     auto& sc = scale_anim();
