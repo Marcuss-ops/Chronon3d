@@ -26,9 +26,6 @@
 #include <chronon3d/backends/software/scratch_buffer.hpp>
 #include <chronon3d/backends/software/graph_cache.hpp>
 
-#include <chronon3d/backends/software/renderer_buffer_ring.hpp>
-#include <chronon3d/backends/software/transform_scratch_buffer.hpp>
-
 #include <memory>
 #include <optional>
 #include <unordered_map>

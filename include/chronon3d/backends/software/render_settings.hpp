@@ -37,10 +37,16 @@ struct DirtyRenderSettings {
     /// Equivalent to the previous `enable_dirty_bitmask`.
     bool use_bitmask{true};
 
-    /// V1 legacy flag.  When true, graph nodes may restrict their work to
-    /// the node's predicted bbox instead of the layer's true bbox.  This
-    /// is a pre-V2 fallback and is rarely useful in modern scenes.
+    /// Deprecated: kept only for old graph-node bbox clipping path.
+    /// Prefer dirty.enabled + dirty.use_bitmask.
+    ///
+    /// When true, graph nodes may restrict their work to the node's
+    /// predicted bbox instead of the layer's true bbox.  This is a
+    /// pre-V2 fallback and is rarely useful in modern scenes.
     /// Equivalent to the previous `dirty_rects` field.
+    ///
+    /// @deprecated Will be removed in a future release.  Use
+    /// dirty.enabled + dirty.use_bitmask instead.
     bool dirty_rects_v1{false};
 
     /// Attempt tile-based execution when tile_size > 0 and the bitmask is
