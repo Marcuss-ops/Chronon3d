@@ -23,7 +23,7 @@ TEST_CASE("AnimatedValue expression receives time variable using fps") {
     v.expression("time * 100");
 
     AnimationEvalContext ctx;
-    ctx.frame.fps = 25.0f;
+    ctx.fps = 25.0f;
 
     CHECK(v.evaluate(25, ctx) == doctest::Approx(100.0f));
 }
