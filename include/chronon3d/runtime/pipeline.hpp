@@ -22,10 +22,10 @@ struct RenderedFrame {
     std::shared_ptr<FrameArena> arena;
 };
 
-class RenderPipeline {
+class LegacyRenderPipeline {
 public:
-    RenderPipeline(std::shared_ptr<const Composition> composition,
-                   std::shared_ptr<Renderer> renderer)
+    LegacyRenderPipeline(std::shared_ptr<const Composition> composition,
+                         std::shared_ptr<Renderer> renderer)
         : m_composition(std::move(composition))
         , m_renderer(std::move(renderer)) {}
 
@@ -35,5 +35,8 @@ private:
     std::shared_ptr<const Composition> m_composition;
     std::shared_ptr<Renderer> m_renderer;
 };
+
+// Temporarily deprecated alias — routes through LegacyRenderPipeline
+using RenderPipeline [[deprecated("Use graph render pipeline via SoftwareRenderer::render_frame / render_composition_frame")]] = LegacyRenderPipeline;
 
 } // namespace chronon3d

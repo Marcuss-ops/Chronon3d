@@ -8,8 +8,11 @@
 #include <chronon3d/scene/model/camera/camera.hpp>
 #include <chronon3d/backends/software/render_settings.hpp>
 #include <chronon3d/core/composition/composition_registry.hpp>
-#include <chronon3d/backends/video/video_frame_decoder.hpp>
 #include <chronon3d/timeline/composition.hpp>
+
+namespace chronon3d::video {
+class VideoFrameDecoder;
+}
 #include <memory>
 #include <string>
 #include <string_view>

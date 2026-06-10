@@ -29,6 +29,7 @@ add_library(chronon3d_cli_render STATIC
     utils/job/render_job_setup.cpp
     utils/job/render_job_finalize.cpp
     utils/job/render_job_execute.cpp
+    utils/job/render_job_loop.cpp
     utils/job/render_job_write_frame.cpp
     utils/job/cli_render_utils.cpp
     utils/job/report/render_job_report.cpp
