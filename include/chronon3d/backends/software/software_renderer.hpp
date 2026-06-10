@@ -14,7 +14,7 @@
 #include <chronon3d/backends/software/render_settings.hpp>
 #include <chronon3d/backends/image/image_backend.hpp>
 #include <chronon3d/backends/software/software_registry.hpp>
-#include <chronon3d/backends/video/video_frame_decoder.hpp>
+#include <chronon3d/media/frame_source_provider.hpp>
 #include <chronon3d/simd/kernels.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/timeline/composition.hpp>
@@ -102,10 +102,10 @@ public:
     [[nodiscard]] cache::NodeCache& node_cache() { return m_node_cache; }
     [[nodiscard]] const RenderSettings& render_settings() const { return m_settings; }
 
-    void set_video_decoder(std::shared_ptr<video::VideoFrameDecoder> decoder) {
+    void set_video_decoder(std::shared_ptr<media::MediaFrameProvider> decoder) {
         m_video_decoder = std::move(decoder);
     }
-    [[nodiscard]] video::VideoFrameDecoder* video_decoder() const {
+    [[nodiscard]] media::MediaFrameProvider* video_decoder() const {
         return m_video_decoder.get();
     }
 
@@ -252,7 +252,7 @@ private:
     ImageRenderer     m_image_renderer;
     mutable cache::NodeCache  m_node_cache;
 
-    std::shared_ptr<video::VideoFrameDecoder> m_video_decoder;
+    std::shared_ptr<media::MediaFrameProvider> m_video_decoder;
     std::shared_ptr<image::ImageBackend> m_image_backend;
 
     std::unique_ptr<renderer::SoftwareRegistry> m_software_registry;

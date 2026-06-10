@@ -8,11 +8,8 @@
 #include <chronon3d/scene/model/camera/camera.hpp>
 #include <chronon3d/backends/software/render_settings.hpp>
 #include <chronon3d/core/composition/composition_registry.hpp>
+#include <chronon3d/media/frame_source_provider.hpp>
 #include <chronon3d/timeline/composition.hpp>
-
-namespace chronon3d::video {
-class VideoFrameDecoder;
-}
 #include <memory>
 #include <string>
 #include <string_view>
@@ -34,7 +31,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     f32 frame_time,
     const RenderSettings& settings,
     const CompositionRegistry* registry,
-    video::VideoFrameDecoder* video_decoder,
+    media::MediaFrameProvider* video_decoder,
     float fps = 30.0f,
     std::string_view diagnostic_label = "scene"
 );
@@ -53,7 +50,7 @@ std::string debug_scene_graph(
     f32 frame_time,
     const RenderSettings& settings,
     const CompositionRegistry* registry,
-    video::VideoFrameDecoder* video_decoder,
+    media::MediaFrameProvider* video_decoder,
     float fps = 30.0f
 );
 
@@ -66,7 +63,7 @@ std::shared_ptr<Framebuffer> render_composition_frame(
     cache::NodeCache& node_cache,
     const RenderSettings& settings,
     const CompositionRegistry* registry,
-    video::VideoFrameDecoder* video_decoder,
+    media::MediaFrameProvider* video_decoder,
     const Composition& comp,
     Frame frame
 );
@@ -109,7 +106,7 @@ SceneGraphStats analyze_scene_graph(
     Frame frame, f32 frame_time,
     const RenderSettings& settings,
     const CompositionRegistry* registry,
-    video::VideoFrameDecoder* video_decoder,
+    media::MediaFrameProvider* video_decoder,
     bool execute = true,
     bool include_dot = false,
     float fps = 30.0f

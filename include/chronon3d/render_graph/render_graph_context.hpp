@@ -55,8 +55,8 @@ namespace chronon3d {
     class TransformScratchBuffer;
 }
 
-namespace chronon3d::video {
-    class VideoFrameDecoder;
+namespace chronon3d::media {
+    class MediaFrameProvider;
 }
 
 namespace chronon3d::cache {
@@ -93,7 +93,7 @@ struct RenderResourceContext {
     cache::NodeCache* node_cache{nullptr};
     std::shared_ptr<cache::FramebufferPool> framebuffer_pool;
     const CompositionRegistry* registry{nullptr};
-    video::VideoFrameDecoder* video_decoder{nullptr};
+    media::MediaFrameProvider* video_decoder{nullptr};
 };
 
 // ── Optimization flags + structure-unchanged hints ───────────────────────

@@ -27,7 +27,7 @@ namespace chronon3d {
 }
 
 namespace chronon3d::video {
-    class VideoFrameDecoder;
+    class MediaFrameProvider;
 }
 
 namespace chronon3d::graph {
