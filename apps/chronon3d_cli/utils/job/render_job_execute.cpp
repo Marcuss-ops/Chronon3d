@@ -307,7 +307,7 @@ render_loop_done:
     if (plan.report) {
         RenderReportContext ctx;
         ctx.run               = run;
-        ctx.telemetry.counters          = counters_list;
+        ctx.counters          = counters_list;
         ctx.phases            = phases;
         ctx.frames            = telemetry_frames;
         ctx.pool_current_bytes = pool_current_bytes;

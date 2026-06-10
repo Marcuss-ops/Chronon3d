@@ -100,7 +100,7 @@ Composition make_center_composition() {
         rig.camera_position = Vec3{0.0f, 0.0f, -1100.0f};
         rig.zoom.set(1000.0f);
 
-        rig.apply(s, ctx.frame.frame.frame, [&](SceneBuilder& scene) {
+        rig.apply(s, ctx.frame.frame, [&](SceneBuilder& scene) {
             scene.layer("bg", [](LayerBuilder& l) {
                 l.grid_background("grid", GridBackgroundParams{
                     .size = {960.0f, 540.0f},
@@ -146,7 +146,7 @@ Composition make_orbit_composition() {
         rig.camera_position = Vec3{0.0f, 0.0f, -1120.0f};
         rig.zoom.set(1000.0f);
 
-        rig.apply(s, ctx.frame.frame.frame, [&](SceneBuilder& scene) {
+        rig.apply(s, ctx.frame.frame, [&](SceneBuilder& scene) {
             scene.layer("bg", [](LayerBuilder& l) {
                 l.grid_background("grid", GridBackgroundParams{
                     .size = {960.0f, 540.0f},

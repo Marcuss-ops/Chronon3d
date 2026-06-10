@@ -17,18 +17,18 @@ void add_motion_content(SceneBuilder& s, const FrameContext& ctx, const CameraMo
     s.layer("card", [ctx](LayerBuilder& l) {
         l.enable_3d()
          .rect("card", {
-             .size = {static_cast<f32>(ctx.frame.frame.width) * 0.55f, static_cast<f32>(ctx.frame.frame.height) * 0.35f},
+             .size = {static_cast<f32>(ctx.frame.width) * 0.55f, static_cast<f32>(ctx.frame.height) * 0.35f},
              .color = Color::from_hex("#f2f2f2"),
-             .pos = {static_cast<f32>(ctx.frame.frame.width) * 0.5f, static_cast<f32>(ctx.frame.frame.height) * 0.5f, 0.0f},
+             .pos = {static_cast<f32>(ctx.frame.width) * 0.5f, static_cast<f32>(ctx.frame.height) * 0.5f, 0.0f},
          })
          .rect("marker", {
-             .size = {static_cast<f32>(ctx.frame.frame.width) * 0.08f, static_cast<f32>(ctx.frame.frame.height) * 0.08f},
+             .size = {static_cast<f32>(ctx.frame.width) * 0.08f, static_cast<f32>(ctx.frame.height) * 0.08f},
              .color = Color::from_hex("#d44c4c"),
-             .pos = {static_cast<f32>(ctx.frame.frame.width) * 0.36f, static_cast<f32>(ctx.frame.frame.height) * 0.35f, 0.0f},
+             .pos = {static_cast<f32>(ctx.frame.width) * 0.36f, static_cast<f32>(ctx.frame.height) * 0.35f, 0.0f},
          })
          .line("slash", {
-             .from = {static_cast<f32>(ctx.frame.frame.width) * 0.30f, static_cast<f32>(ctx.frame.frame.height) * 0.25f, 0.0f},
-             .to = {static_cast<f32>(ctx.frame.frame.width) * 0.70f, static_cast<f32>(ctx.frame.frame.height) * 0.68f, 0.0f},
+             .from = {static_cast<f32>(ctx.frame.width) * 0.30f, static_cast<f32>(ctx.frame.height) * 0.25f, 0.0f},
+             .to = {static_cast<f32>(ctx.frame.width) * 0.70f, static_cast<f32>(ctx.frame.height) * 0.68f, 0.0f},
              .thickness = 12.0f,
              .color = Color::from_hex("#2b59ff"),
          });

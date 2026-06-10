@@ -28,15 +28,15 @@ public:
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
         return cache::NodeCacheKey{
             .scope = "mask",
-            .frame = m_cache_frame >= 0 ? m_cache_frame : ctx.frame.frame.frame,
-            .width = ctx.frame.frame.width,
-            .height = ctx.frame.frame.height,
+            .frame = m_cache_frame >= 0 ? m_cache_frame : ctx.frame.frame,
+            .width = ctx.frame.width,
+            .height = ctx.frame.height,
             .params_hash = hash_mask(m_mask)
         };
     }
 
     OwnedFB execute(RenderGraphContext& ctx, std::span<const FramebufferRef> inputs, std::span<const std::optional<raster::BBox>>) override {
-        if (inputs.empty()) return ctx.acquire_owned_fb(ctx.frame.frame.width, ctx.frame.frame.height);
+        if (inputs.empty()) return ctx.acquire_owned_fb(ctx.frame.width, ctx.frame.height);
 
         auto result = ctx.acquire_owned_fb(*inputs[0]);
         if (!m_mask.enabled()) {
@@ -48,8 +48,8 @@ public:
             result->height(),
             result->origin_x(),
             result->origin_y(),
-            ctx.frame.frame.width,
-            ctx.frame.frame.height,
+            ctx.frame.width,
+            ctx.frame.height,
             ctx.options.modular_coordinates
         );
         if (!m_alpha_cache || m_alpha_cache_key != cache_key) {
@@ -58,8 +58,8 @@ public:
                 result->height(),
                 result->origin_x(),
                 result->origin_y(),
-                ctx.frame.frame.width,
-                ctx.frame.frame.height,
+                ctx.frame.width,
+                ctx.frame.height,
                 ctx.options.modular_coordinates
             );
             m_alpha_cache_key = cache_key;

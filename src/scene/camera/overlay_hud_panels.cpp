@@ -31,19 +31,19 @@ void draw_safe_area_and_target(const OverlayContext& ctx, bool& has_target, Scre
 
     Vec3 target_world{0.0f, 0.0f, 0.0f};
     has_target = false;
-    if (!ctx.camera.camera.target_name.empty()) {
-        auto pos_opt = ctx.resolved.world_position(std::string(ctx.camera.camera.target_name));
+    if (!ctx.camera.target_name.empty()) {
+        auto pos_opt = ctx.resolved.world_position(std::string(ctx.camera.target_name));
         if (pos_opt) {
             target_world = *pos_opt;
             has_target = true;
         }
-    } else if (ctx.camera.camera.point_of_interest_enabled) {
-        target_world = ctx.camera.camera.point_of_interest;
+    } else if (ctx.camera.point_of_interest_enabled) {
+        target_world = ctx.camera.point_of_interest;
         has_target = true;
     }
 
     if (has_target) {
-        sp = project_world_to_screen(target_world, ctx.camera.camera.camera, ctx.viewport);
+        sp = project_world_to_screen(target_world, ctx.camera, ctx.viewport);
     }
 
     target_color = Color{0.2f, 0.9f, 0.2f, 0.8f};
@@ -99,7 +99,7 @@ void draw_null_parent_markers(const OverlayContext& ctx) {
         const std::string& name = pair.first;
         if (name.find("_null") != std::string::npos || name.find("_parent") != std::string::npos) {
             Vec3 null_pos = Vec3(pair.second.world_matrix[3]);
-            ScreenPoint n_sp = project_world_to_screen(null_pos, ctx.camera.camera.camera, ctx.viewport);
+            ScreenPoint n_sp = project_world_to_screen(null_pos, ctx.camera, ctx.viewport);
             if (!n_sp.behind_camera) {
                 l.rect("null_parent_rect_" + name, RectParams{
                     .size = {12.0f, 12.0f},
@@ -136,8 +136,8 @@ void draw_parent_child_links(const OverlayContext& ctx) {
             auto parent_pos_opt = ctx.resolved.world_position(r3d.local.parent_name);
             auto child_pos_opt = ctx.resolved.world_position(child_name);
             if (parent_pos_opt && child_pos_opt) {
-                ScreenPoint parent_sp = project_world_to_screen(*parent_pos_opt, ctx.camera.camera.camera, ctx.viewport);
-                ScreenPoint child_sp = project_world_to_screen(*child_pos_opt, ctx.camera.camera.camera, ctx.viewport);
+                ScreenPoint parent_sp = project_world_to_screen(*parent_pos_opt, ctx.camera, ctx.viewport);
+                ScreenPoint child_sp = project_world_to_screen(*child_pos_opt, ctx.camera, ctx.viewport);
                 if (!parent_sp.behind_camera && !child_sp.behind_camera) {
                     l.line("link_" + r3d.local.parent_name + "_" + child_name, LineParams{
                         .from = {parent_sp.position.x, parent_sp.position.y, 0.0f},

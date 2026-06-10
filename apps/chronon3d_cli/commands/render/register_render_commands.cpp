@@ -60,7 +60,7 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
         } else if (state->args->log_level == "error" || state->args->log_level == "err") {
             spdlog::set_level(spdlog::level::err);
         }
-        ctx.exit_code = command_render(ctx.resources.registry, *state->args);
+        ctx.exit_code = command_render(ctx.registry, *state->args);
     });
 }
 

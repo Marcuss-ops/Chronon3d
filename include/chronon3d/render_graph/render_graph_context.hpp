@@ -21,8 +21,8 @@
 // Naming notes:
 //   - The sub-struct members use the same names as the top-level struct's old
 //     fields (frame, camera, tile, etc.) so that the resulting paths read
-//     naturally:  ctx.frame.frame.frame  (= frame number)
-//                 ctx.camera.camera.camera (= 2D Camera)
+//     naturally:  ctx.frame.frame  (= frame number)
+//                 ctx.camera.camera (= 2D Camera)
 //                 ctx.tile.tile_size
 //     The inner `frame` / `camera` repeats are intentional — they keep the
 //     inner-field names that were already in use everywhere in the codebase
