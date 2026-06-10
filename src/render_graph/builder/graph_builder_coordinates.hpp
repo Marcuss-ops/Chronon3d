@@ -13,8 +13,8 @@ inline bool is_implicit_2d_centering_only(const LayerGraphItem& item, const Rend
 
 inline Mat4 implicit_canvas_center_matrix(const RenderGraphContext& ctx) {
     return glm::translate(Mat4(1.0f), Vec3(
-        ctx.frame.width * 0.5f,
-        ctx.frame.height * 0.5f,
+        ctx.frame.frame.width * 0.5f,
+        ctx.frame.frame.height * 0.5f,
         0.0f
     ));
 }
@@ -116,8 +116,8 @@ inline Mat4 strip_implicit_canvas_centering(
     if (item.native_3d) return matrix;
     if (!item.layer || item.layer->kind != LayerKind::Normal) return matrix;
 
-    const f32 cx = static_cast<f32>(ctx.frame.width) * 0.5f;
-    const f32 cy = static_cast<f32>(ctx.frame.height) * 0.5f;
+    const f32 cx = static_cast<f32>(ctx.frame.frame.width) * 0.5f;
+    const f32 cy = static_cast<f32>(ctx.frame.frame.height) * 0.5f;
 
     if (std::abs(matrix[3][0] - cx) < tolerance &&
         std::abs(matrix[3][1] - cy) < tolerance) {

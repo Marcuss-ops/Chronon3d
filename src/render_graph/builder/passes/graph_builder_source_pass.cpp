@@ -57,9 +57,9 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
             if (node.shape.type == ShapeType::Text) {
                 cache::NodeCacheKey source_key{
                     .scope = "layer.source:" + std::string(layer.name) + ":" + std::string(node.name),
-                    .frame = source_is_static ? Frame{0} : ctx.frame.frame,
-                    .width = ctx.frame.width,
-                    .height = ctx.frame.height,
+                    .frame = source_is_static ? Frame{0} : ctx.frame.frame.frame,
+                    .width = ctx.frame.frame.width,
+                    .height = ctx.frame.frame.height,
                     .params_hash = content_hash,
                     .source_hash = hash_combine(hash_string(node.name), placement_hash)
                 };
@@ -83,9 +83,9 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
             } else {
                 cache::NodeCacheKey source_key{
                     .scope = "layer.source:" + std::string(layer.name) + ":" + std::string(node.name),
-                    .frame = source_is_static ? Frame{0} : ctx.frame.frame,
-                    .width = ctx.frame.width,
-                    .height = ctx.frame.height,
+                    .frame = source_is_static ? Frame{0} : ctx.frame.frame.frame,
+                    .width = ctx.frame.frame.width,
+                    .height = ctx.frame.frame.height,
                     .params_hash = content_hash,
                     .source_hash = hash_combine(hash_string(node.name), placement_hash)
                 };
@@ -123,9 +123,9 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
 
         cache::NodeCacheKey source_key{
             .scope = "layer.multisource:" + std::string(layer.name),
-            .frame = source_is_static ? Frame{0} : ctx.frame.frame,
-            .width = ctx.frame.width,
-            .height = ctx.frame.height,
+            .frame = source_is_static ? Frame{0} : ctx.frame.frame.frame,
+            .width = ctx.frame.frame.width,
+            .height = ctx.frame.frame.height,
             .params_hash = aggregated_params_hash,
             .source_hash = aggregated_source_hash
         };

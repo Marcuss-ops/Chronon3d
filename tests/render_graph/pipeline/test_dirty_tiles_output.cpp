@@ -49,7 +49,7 @@ Composition make_moving_circle_comp(int width, int height, int duration) {
             .pos = {100.0f, 75.0f, 0}
         });
         // Small animated circle
-        float x = 40.0f + static_cast<float>(ctx.frame.frame) * 4.0f;
+        float x = 40.0f + static_cast<float>(ctx.frame.frame.frame) * 4.0f;
         s.circle("ball", {
             .radius = 12.0f,
             .color = Color::red(),
@@ -247,7 +247,7 @@ TEST_CASE("Dirty Tiles: Two distant moving objects render correctly") {
         });
 
         // Object A: top-left
-        float ax = 25.0f + static_cast<float>(ctx.frame.frame) * 3.0f;
+        float ax = 25.0f + static_cast<float>(ctx.frame.frame.frame) * 3.0f;
         s.circle("objA", {
             .radius = 10.0f,
             .color = Color::red(),
@@ -255,7 +255,7 @@ TEST_CASE("Dirty Tiles: Two distant moving objects render correctly") {
         });
 
         // Object B: bottom-right
-        float bx = 175.0f - static_cast<float>(ctx.frame.frame) * 3.0f;
+        float bx = 175.0f - static_cast<float>(ctx.frame.frame.frame) * 3.0f;
         s.circle("objB", {
             .radius = 10.0f,
             .color = Color::green(),

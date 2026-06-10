@@ -115,7 +115,7 @@ void append_transform_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_outp
             ssaa_world[3][1] *= ctx.options.ssaa_factor;
             ssaa_world[3][2] *= ctx.options.ssaa_factor;
             effective_matrix =
-                glm::translate(Mat4(1.0f), Vec3(-ctx.frame.width * 0.5f, -ctx.frame.height * 0.5f, 0.0f)) *
+                glm::translate(Mat4(1.0f), Vec3(-ctx.frame.frame.width * 0.5f, -ctx.frame.frame.height * 0.5f, 0.0f)) *
                 ssaa_world;
         } else {
             // Delegate to the shared helper so the build-path stays in sync

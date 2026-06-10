@@ -94,10 +94,10 @@ std::string builtin_background_catalog_json() {
 
 void render_builtin_background(SceneBuilder& s, const FrameContext& ctx, std::string_view id, const BackgroundOptions& opt) {
     if (id == "grid_clean") {
-        auto path = scene::utils::detail::ensure_dark_grid_background_image(ctx.frame.width, ctx.frame.height, {
+        auto path = scene::utils::detail::ensure_dark_grid_background_image(ctx.frame.frame.width, ctx.frame.frame.height, {
             .bg_color = opt.background, .grid_color = {1,1,1,0.9f}, .spacing = 160, .extent = 4000, .centered = true
         });
-        s.screen_layer("grid_clean", [path, w=ctx.frame.width, h=ctx.frame.height](auto& l) {
+        s.screen_layer("grid_clean", [path, w=ctx.frame.frame.width, h=ctx.frame.frame.height](auto& l) {
             l.cache_static().image("img", {.path = path.string(), .size = {static_cast<f32>(w), static_cast<f32>(h)}});
         });
     }

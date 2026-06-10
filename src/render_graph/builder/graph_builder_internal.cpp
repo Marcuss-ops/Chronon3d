@@ -19,7 +19,7 @@ LayerResolutionResult resolve_layers(const Scene& scene, const RenderGraphContex
     });
     
     tg.run([&]() {
-        result.layers = resolver.resolve_layers(ctx.frame.frame);
+        result.layers = resolver.resolve_layers(ctx.frame.frame.frame);
     });
     
     tg.wait();
@@ -34,8 +34,8 @@ LayerResolutionResult resolve_layers(const Scene& scene, const RenderGraphContex
             }
         }
 
-        const f32 half_w = ctx.frame.width * 0.5f;
-        const f32 half_h = ctx.frame.height * 0.5f;
+        const f32 half_w = ctx.frame.frame.width * 0.5f;
+        const f32 half_h = ctx.frame.frame.height * 0.5f;
 
         // Shift unpinned layers and propagate down the hierarchy
         for (auto& rl : result.layers) {

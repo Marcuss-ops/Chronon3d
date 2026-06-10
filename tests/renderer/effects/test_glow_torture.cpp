@@ -290,7 +290,7 @@ TEST_CASE("GlowTorture: subpixel movement advances smoothly") {
             l.fill(Color{0.006f, 0.008f, 0.018f, 1.0f});
         });
 
-        const float x = static_cast<float>(ctx.frame.frame) * 0.15f;
+        const float x = static_cast<float>(ctx.frame.frame.frame) * 0.15f;
         s.layer("moving", [x](LayerBuilder& l) {
             l.position({x, 0.0f, 0.0f}).glow(26.0f, 0.9f, Color{0.20f, 0.80f, 1.0f, 1.0f});
             l.circle("c", {

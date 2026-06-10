@@ -15,7 +15,7 @@ import re
 import glob
 
 # Variables that hold a RenderGraphContext.
-VARS = ['ctx', 'tile_ctx', 'node_ctx', 'mutable_ctx', 'bridge_ctx', 'graph_ctx']
+VARS = ['ctx', 'tile_ctx', 'node_ctx', 'mutable_ctx', 'bridge_ctx', 'graph_ctx', 'nested_ctx', 'parent_ctx', 'output_ctx']
 
 # Field renames: (old_field, new_path_after_var).
 # Order matters: longer prefixes first to avoid partial-match collisions.
@@ -78,12 +78,16 @@ for f in files:
     original = content
     for var in VARS:
         for old, new in RENAMES:
-            # Match `var.old` only when the next char is NOT a word char or dot
-            # (i.e. NOT followed by `.x`, `_x`, or other identifier chars).
-            # This prevents re-matching the new path (e.g. ctx.frame.frame
-            # must not be re-matched as `ctx.frame` + suffix).
+            # Match `var.old` only when the next char is NOT a word char
+            # (i.e. NOT followed by `_x` or other identifier chars).  We do
+            # allow a following dot so that `ctx.framebuffer_pool.get()` is
+            # matched (the `.<sub-field>` access still belongs to the same
+            # field on the struct).  Re-matching the already-renamed path
+            # is prevented because the new path is `ctx.resources.<old>`,
+            # not `ctx.<old>`, so the leading `\b{var}\.` literal does not
+            # match.
             pattern = re.compile(
-                rf'\b{re.escape(var)}\.{re.escape(old)}(?![a-zA-Z0-9_.])'
+                rf'\b{re.escape(var)}\.{re.escape(old)}(?![a-zA-Z0-9_])'
             )
             replacement = f'{var}.{new}'
             content = pattern.sub(replacement, content)
