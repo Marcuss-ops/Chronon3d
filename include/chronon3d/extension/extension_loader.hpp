@@ -64,8 +64,15 @@ public:
 
     /// Unload all previously loaded plugins and close their library handles.
     /// Modules remain registered in the ExtensionRegistry but may become
-    /// dangling — use with care.
+    /// dangling — use with care.  Prefer the overload that takes a registry.
+    /// Diagnostics are cleared after this call — check them before unloading.
     void unload_all();
+
+    /// Unload all plugins and safely destroy their modules in the registry
+    /// before closing library handles.  This is the safe variant — it calls
+    /// registry.clear_modules() first, then closes all library handles.
+    /// Diagnostics are cleared after this call.
+    void unload_all(ExtensionRegistry& registry);
 
     /// Diagnostics for all load attempts (successes and failures).
     [[nodiscard]] const std::vector<LoadedPlugin>& diagnostics() const;

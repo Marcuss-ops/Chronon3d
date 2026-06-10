@@ -83,10 +83,11 @@ TEST_CASE("ExtensionRegistry: initialize_all can be called multiple times") {
     MESSAGE("initialize_all called twice without issue");
 }
 
-TEST_CASE("ExtensionRegistry: register_module with null module does not crash") {
+TEST_CASE("ExtensionRegistry: register_module with null module throws") {
     auto& reg = ExtensionRegistry::instance();
-    reg.register_module(nullptr);
-    MESSAGE("register_module(nullptr) did not crash");
+    // The registry must reject null module pointers with an exception
+    // rather than silently accepting or crashing.
+    CHECK_THROWS_AS(reg.register_module(nullptr), std::invalid_argument);
 }
 
 TEST_CASE("ExtensionRegistry: module_count is consistent") {
