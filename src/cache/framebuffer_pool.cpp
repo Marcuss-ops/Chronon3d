@@ -69,6 +69,7 @@ size_t resolve_default_max_bytes(size_t fallback) {
         }
         return mb * 1024ULL * 1024ULL;
     } catch (...) {
+        spdlog::warn("CHRONON_FRAMEBUFFER_POOL_MAX_MB: invalid value '{}', using default", env);
         return fallback;
     }
 }

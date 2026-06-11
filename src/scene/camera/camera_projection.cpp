@@ -37,8 +37,8 @@ ProjectedBounds project_quad_to_screen(
     Viewport viewport
 ) {
     ProjectedBounds pb;
-    pb.min = Vec2{999999.0f, 999999.0f};
-    pb.max = Vec2{-999999.0f, -999999.0f};
+    pb.min = Vec2{std::numeric_limits<float>::max(), std::numeric_limits<float>::max()};
+    pb.max = Vec2{-std::numeric_limits<float>::max(), -std::numeric_limits<float>::max()};
 
     int visible_count = 0;
     for (size_t i = 0; i < 4; ++i) {

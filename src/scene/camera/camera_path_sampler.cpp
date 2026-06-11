@@ -2,6 +2,7 @@
 #include <chronon3d/scene/camera/camera_projection.hpp>
 #include <glm/glm.hpp>
 #include <algorithm>
+#include <limits>
 
 namespace chronon3d {
 
@@ -32,7 +33,7 @@ CameraPathReport sample_camera_path(
 
         ScreenPoint sp = project_world_to_screen(sample.target, cam, viewport);
         if (sp.behind_camera) {
-            sample.target_center_error_px = 999999.0f;
+            sample.target_center_error_px = std::numeric_limits<float>::max();
         } else {
             sample.target_center_error_px = glm::distance(sp.position, Vec2{viewport.width * 0.5f, viewport.height * 0.5f});
         }
