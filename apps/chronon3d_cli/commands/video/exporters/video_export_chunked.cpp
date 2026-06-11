@@ -14,6 +14,12 @@
 
 namespace chronon3d::cli {
 
+namespace {
+bool is_shell_safe(const std::string& s) {
+    return s.find_first_of(";|&$`\\\"'<>{}()!") == std::string::npos;
+}
+} // namespace
+
 ChunkedExportResult render_and_encode_ffmpeg_chunked(
     const CompositionRegistry& registry,
     const Composition& comp,
@@ -232,7 +238,14 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
 
             spdlog::info("[video] {}", cmd);
             const auto encode_t0 = std::chrono::steady_clock::now();
-            const int rc = std::system(cmd.c_str());
+            const int rc = [&]() {
+                if (!is_shell_safe(opts.encode_preset) || !is_shell_safe(opts.output)) {
+                    spdlog::error("[video] encode_preset or output path contains shell metacharacters, refusing to execute");
+                    result.encode_failed = true;
+                    return -1;
+                }
+                return std::system(cmd.c_str());
+            }();
             const auto encode_t1 = std::chrono::steady_clock::now();
             result.encode_ms = std::chrono::duration<double, std::milli>(encode_t1 - encode_t0).count();
 

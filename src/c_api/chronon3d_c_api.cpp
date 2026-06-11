@@ -16,7 +16,6 @@
 #include <fstream>
 #include <filesystem>
 #include <memory>
-#include <iostream>
 
 struct chronon_context {
     std::string last_error;
@@ -90,6 +89,40 @@ std::optional<chronon3d::Composition> compile_json_string(const std::string& jso
         diagnostics.push_back(std::string("JSON parse/compile failed: ") + e.what());
         return std::nullopt;
     }
+}
+
+} // namespace
+
+namespace {
+
+chronon_status render_and_save(
+    chronon_context* ctx,
+    chronon3d::Composition& comp,
+    const chronon_render_options* options,
+    const char* output_png_path
+) {
+    chronon3d::SoftwareRenderer renderer;
+    chronon3d::Frame target_frame = options ? options->frame : 0;
+
+    std::shared_ptr<chronon3d::Framebuffer> fb;
+    if (options && options->width > 0 && options->height > 0) {
+        auto scene = comp.evaluate(target_frame);
+        fb = renderer.render_scene(scene, comp.camera, options->width, options->height);
+    } else {
+        fb = renderer.render_frame(comp, target_frame);
+    }
+
+    if (!fb) {
+        ctx->last_error = "Renderer returned null framebuffer";
+        return CHRONON_ERROR_RENDER_FAILED;
+    }
+
+    if (!chronon3d::save_png(*fb, output_png_path)) {
+        ctx->last_error = "Failed to save output PNG image";
+        return CHRONON_ERROR_IO_FAILED;
+    }
+
+    return CHRONON_OK;
 }
 
 } // namespace
@@ -192,29 +225,7 @@ chronon_status chronon_render_json_string(
 
         auto& comp = *compOpt;
 
-        // Setup renderer
-        chronon3d::SoftwareRenderer renderer;
-        chronon3d::Frame target_frame = options ? options->frame : 0;
-        
-        std::shared_ptr<chronon3d::Framebuffer> fb;
-        if (options && options->width > 0 && options->height > 0) {
-            auto scene = comp.evaluate(target_frame);
-            fb = renderer.render_scene(scene, comp.camera, options->width, options->height);
-        } else {
-            fb = renderer.render_frame(comp, target_frame);
-        }
-
-        if (!fb) {
-            ctx->last_error = "Renderer returned null framebuffer";
-            return CHRONON_ERROR_RENDER_FAILED;
-        }
-
-        if (!chronon3d::save_png(*fb, output_png_path)) {
-            ctx->last_error = "Failed to save output PNG image";
-            return CHRONON_ERROR_IO_FAILED;
-        }
-
-        return CHRONON_OK;
+        return render_and_save(ctx, comp, options, output_png_path);
     } catch (const std::exception& e) {
         ctx->last_error = e.what();
         return CHRONON_ERROR_RENDER_FAILED;
@@ -241,28 +252,7 @@ chronon_status chronon_render_json_file(
             // Check if it's a registered composition ID instead of a file
             if (ctx->registry && ctx->registry->contains(path_str)) {
                 auto comp = ctx->registry->create(path_str);
-                chronon3d::SoftwareRenderer renderer;
-                chronon3d::Frame target_frame = options ? options->frame : 0;
-                
-                std::shared_ptr<chronon3d::Framebuffer> fb;
-                if (options && options->width > 0 && options->height > 0) {
-                    auto scene = comp.evaluate(target_frame);
-                    fb = renderer.render_scene(scene, comp.camera, options->width, options->height);
-                } else {
-                    fb = renderer.render_frame(comp, target_frame);
-                }
-
-                if (!fb) {
-                    ctx->last_error = "Renderer returned null framebuffer";
-                    return CHRONON_ERROR_RENDER_FAILED;
-                }
-
-                if (!chronon3d::save_png(*fb, output_png_path)) {
-                    ctx->last_error = "Failed to save output PNG image";
-                    return CHRONON_ERROR_IO_FAILED;
-                }
-
-                return CHRONON_OK;
+                return render_and_save(ctx, comp, options, output_png_path);
             }
             ctx->last_error = "File does not exist: " + path_str;
             return CHRONON_ERROR_IO_FAILED;

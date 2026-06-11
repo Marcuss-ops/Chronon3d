@@ -16,13 +16,16 @@ CORS(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 # ── Simple Password Auth ─────────────────────────────────────────────────────────────
-DASHBOARD_PASSWORD = "ciao"
+DASHBOARD_PASSWORD = os.environ.get("CHRONON3D_DASHBOARD_PASSWORD", "")
 # In-memory token store (valid for session lifetime)
 auth_tokens = set()
 
 def require_auth(f):
     @wraps(f)
     def decorated(*args, **kwargs):
+        token = request.headers.get('Authorization', '').replace('Bearer ', '')
+        if not token or token not in auth_tokens:
+            return jsonify({"error": "Unauthorized"}), 401
         return f(*args, **kwargs)
     return decorated
 
@@ -71,6 +74,8 @@ def resolve_artifact_path(raw_path: str) -> Path | None:
 
 @app.route('/api/login', methods=['POST'])
 def login():
+    if not DASHBOARD_PASSWORD:
+        return jsonify({"error": "Dashboard password not configured (set CHRONON3D_DASHBOARD_PASSWORD)"}), 500
     data = request.get_json() or {}
     password = data.get('password', '')
     if password == DASHBOARD_PASSWORD:
@@ -379,4 +384,4 @@ def handle_connect():
 socketio.start_background_task(watch_database)
 
 if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=8000, debug=True, allow_unsafe_werkzeug=True)
+    socketio.run(app, host='127.0.0.1', port=8000, debug=True, allow_unsafe_werkzeug=True)
