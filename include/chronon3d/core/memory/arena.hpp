@@ -26,12 +26,6 @@ public:
         m_resource.release();
     }
 
-    // Helper types for PMR containers
-    template <typename T>
-    using vector = std::pmr::vector<T>;
-
-    using string = std::pmr::string;
-
 private:
     std::vector<std::byte> m_buffer;
     std::pmr::monotonic_buffer_resource m_resource;

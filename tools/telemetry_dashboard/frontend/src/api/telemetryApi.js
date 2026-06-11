@@ -47,14 +47,26 @@ export const outputPathToArtifactUrl = (outputPath, cacheBuster = '') => {
 export const isVideoOutput = (outputPath) => /\.(mp4|webm|mov)$/i.test(outputPath || '');
 export const isImageOutput = (outputPath) => /\.(png|jpg|jpeg|webp|gif|svg)$/i.test(outputPath || '');
 
+export class AuthError extends Error {
+  constructor(msg) { super(msg); this.name = 'AuthError'; }
+}
+
 export const fetchRuns = async () => {
   const res = await fetch(`${API_BASE}/api/runs`, { headers: getAuthHeaders() });
+  if (res.status === 401) {
+    localStorage.removeItem('chronon_auth_token');
+    throw new AuthError('Session expired');
+  }
   if (!res.ok) throw new Error('Failed to load runs');
   return await res.json();
 };
 
 export const fetchRunDetail = async (id) => {
   const res = await fetch(`${API_BASE}/api/run/${id}`, { headers: getAuthHeaders() });
+  if (res.status === 401) {
+    localStorage.removeItem('chronon_auth_token');
+    throw new AuthError('Session expired');
+  }
   if (!res.ok) throw new Error('Failed to load run details');
   return await res.json();
 };

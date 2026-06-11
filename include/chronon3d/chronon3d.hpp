@@ -16,8 +16,6 @@
 
 // ── Public scene-building API ──────────────────────────────────────────
 
-#include <chronon3d/api/composition.hpp>
-#include <chronon3d/api/scene.hpp>
 #include <chronon3d/api/animations.hpp>
 #include <chronon3d/api/backgrounds.hpp>
 #include <chronon3d/math/color.hpp>
