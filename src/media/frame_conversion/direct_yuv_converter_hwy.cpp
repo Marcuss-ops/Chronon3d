@@ -22,6 +22,7 @@
 #include <chronon3d/media/frame_conversion/direct_yuv_converter.hpp>
 #include <chronon3d/media/frame_conversion/direct_yuv_lut.hpp>
 
+#include <chronon3d/core/memory_utils.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <algorithm>
 #include <cstdint>
@@ -116,6 +117,12 @@ static void process_block_hwy(const DirectYuvRequest& req,
     int x = 0;
     while (x < w) {
         const int chunk = std::min(N, w - x);
+
+        // Prefetch source rows 64 pixels ahead (4 cache lines)
+        if ((x & 63) == 0 && x + 64 < w) {
+            chronon3d::prefetch(&src_row0[x + 64], false, 1);
+            chronon3d::prefetch(&src_row1[x + 64], false, 1);
+        }
 
         // ── Phase 1: Gamma LUT (scalar) ────────────────────────────────
         for (int i = 0; i < chunk; ++i) {
@@ -290,6 +297,12 @@ HWY_ATTR DirectYuvResult convert_to_nv12_hwy_impl(const DirectYuvRequest& req) {
             int x = 0;
             while (x < req.width) {
                 const int chunk = std::min(N, req.width - x);
+
+                // Prefetch source rows 64 pixels ahead (4 cache lines)
+                if ((x & 63) == 0 && x + 64 < req.width) {
+                    chronon3d::prefetch(&s0[x + 64], false, 1);
+                    chronon3d::prefetch(&s1[x + 64], false, 1);
+                }
 
                 for (int i = 0; i < chunk; ++i) {
                     if (apply_gamma) {

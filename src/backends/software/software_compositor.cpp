@@ -1,4 +1,5 @@
 #include <chronon3d/backends/software/software_compositor.hpp>
+#include <chronon3d/core/memory_utils.hpp>
 #include <chronon3d/core/parallel_tracked.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
@@ -92,6 +93,11 @@ void SoftwareCompositor::composite_layer(Framebuffer& dst, const Framebuffer& sr
                 Color* d_row = dst.pixels_row(y);
                 for (i32 x = sx_begin; x < sx_end; ++x) {
                     const i32 sx = x + x_offset;
+                    // Prefetch next cache line every 16 pixels
+                    if ((x & 15) == 0 && x + 16 < sx_end) {
+                        chronon3d::prefetch(&s_row[sx + 16], false, 1);
+                        chronon3d::prefetch(&d_row[x + 16], true, 1);
+                    }
                     Color s = s_row[sx];
                     if (s.a <= 0.0f) continue;
                     if (std::isnan(s.r) || std::isnan(s.g) || std::isnan(s.b) || std::isnan(s.a) ||
@@ -159,6 +165,11 @@ bool SoftwareCompositor::composite_layer_normal_optimized(
         const i32 d_stride = dst.allocated_width();
         const i32 s_stride = src.allocated_width();
         for (i32 y = row_begin; y < row_end; ++y) {
+            // Prefetch next rows every 4 rows to warm cache
+            if (!use_tbb && (y & 3) == 0 && y + 4 < row_end) {
+                chronon3d::prefetch(s_row + 4 * s_stride, false, 1);
+                chronon3d::prefetch(d_row + 4 * d_stride, true, 1);
+            }
             if (!use_tbb) {
                 const auto t_rs0 = profiling::now();
                 simd::composite_normal_premul(d_row, s_row, width_to_process);
@@ -219,6 +230,11 @@ bool SoftwareCompositor::composite_layer_non_normal_optimized(
         const i32 d_stride = dst.allocated_width();
         const i32 s_stride = src.allocated_width();
         for (i32 y = row_begin; y < row_end; ++y) {
+            // Prefetch next rows every 4 rows to warm cache
+            if ((y & 3) == 0 && y + 4 < row_end) {
+                chronon3d::prefetch(s_row + 4 * s_stride, false, 1);
+                chronon3d::prefetch(d_row + 4 * d_stride, true, 1);
+            }
             switch (mode) {
                 case BlendMode::Add:
                     simd::composite_add_premul(d_row, s_row, width_to_process);

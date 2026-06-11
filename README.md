@@ -144,6 +144,7 @@ The default build includes example compositions, so `chronon3d_cli list` and `ch
 | **[V3_BLUEPRINT.md](docs/V3_BLUEPRINT.md)** | Tile-based architecture evolution (frame-based to tile-first) |
 | **[CHANGELOG.md](docs/CHANGELOG.md)** | Completed items and release history |
 | **[CONTRIBUTING.md](CONTRIBUTING.md)** | Contributor guide |
+| **[FEATURES.md](docs/FEATURES.md)** | Detailed feature reference — SVG Path Import V1, Text V1 layout engine & presets, limitations |
 | **`docs/improvements/`** | Detailed improvement tiers (game-changers, quick wins, long-term vision) |
 
 ---
