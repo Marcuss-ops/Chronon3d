@@ -56,6 +56,8 @@ void waypoint_markers(SceneBuilder& s, std::initializer_list<Vec3> waypoints) {
     }
 }
 
+} // anonymous namespace
+
 // ────────────────────────────────────────────────────────────────────────────
 // 1. CatmullRomShowcase — camera flies through 4 waypoints
 // ────────────────────────────────────────────────────────────────────────────
@@ -315,8 +317,6 @@ Composition camera_spline_comparison() {
 
         return s.build();
     });
-}
-
 }
 
 } // namespace chronon3d::content::anims

@@ -10,7 +10,7 @@ from .database import create_merged_connection
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 OUTPUT_DIR = PROJECT_ROOT / 'output'
-ALLOWED_ARTIFACT_ROOTS = [OUTPUT_DIR]
+ALLOWED_ARTIFACT_ROOTS = [OUTPUT_DIR, PROJECT_ROOT]
 
 
 def resolve_artifact_path(raw_path: str) -> Path | None:
