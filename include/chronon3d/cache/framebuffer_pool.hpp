@@ -50,9 +50,7 @@ struct FramebufferPoolPreallocOptions {
 enum class FramebufferAcquireHint {
     Default,          // Standard acquire: may clear, may reuse
     ReuseNoClear,     // Caller will overwrite every pixel — skip clear
-    ReusePartial,     // Caller writes only a subregion — clear only the unwritten area
     Temporary,        // Short-lived intermediate — return to pool immediately after use
-    LongLived,        // Will be held across frames — don't reuse eagerly
 };
 
 // ---------------------------------------------------------------------------
