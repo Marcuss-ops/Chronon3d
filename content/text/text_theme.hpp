@@ -27,7 +27,7 @@ inline constexpr Color IMAGE_SHADOW_COLOR = {0.0f,  0.0f,  0.0f, 0.35f};
 inline constexpr Color IMAGE_BORDER_COLOR = {0.25f, 0.27f, 0.31f, 0.7f};
 
 // ── Typography ─────────────────────────────────────────────────────────────
-inline constexpr const char* TEXT_FONT_PATH = "assets/fonts/Inter-Bold.ttf";
+inline constexpr const char* TEXT_FONT_PATH = "assets/fonts/Poppins-Bold.ttf";
 
 // ── Background ─────────────────────────────────────────────────────────────
 inline void add_text_background(SceneBuilder& s) {
