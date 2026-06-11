@@ -91,11 +91,6 @@ namespace chronon3d::graph {
 
 // ── RenderGraphContext factory ───────────────────────────────────────────────
 [[nodiscard]] inline RenderGraphContext make_graph_context(
-    return dst;
-}
-
-// ── RenderGraphContext factory ───────────────────────────────────────────────
-[[nodiscard]] inline RenderGraphContext make_graph_context(
     RenderBackend& backend,
     cache::NodeCache& node_cache,
     const Camera& camera,
