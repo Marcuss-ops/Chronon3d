@@ -7,6 +7,7 @@
 #include <chronon3d/scene/model/shape/fill.hpp>
 #include <chronon3d/scene/model/shape/shape.hpp>
 #include <chronon3d/scene/model/render/render_runtime.hpp>
+#include <chronon3d/effects/effect_params.hpp>
 #include <vector>
 #include <memory>
 #include <string>
@@ -40,6 +41,18 @@ struct Glow {
     f32   core_strength{0.25f};   // inner — tight character hug
     f32   aura_strength{0.12f};   // mid   — soft between-letters
     f32   bloom_strength{0.05f};  // outer — wide atmospheric wash
+
+    // Extra glow pipeline params (mirror GlowParams)
+    bool           additive{true};
+    BlendMode      blend{BlendMode::Add};
+    GlowQuality    quality{GlowQuality::Standard};
+    std::vector<GlowLayer> layers;
+    f32            spread{1.0f};
+    f32            softness{1.0f};
+    f32            threshold{0.0f};
+    f32            falloff{0.85f};
+    f32            outer_downscale{0.25f};
+    bool           preserve_source{true};
 };
 
 // What kind of surface the node naturally produces.
