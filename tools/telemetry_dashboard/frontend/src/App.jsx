@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import './App.css';
 
-import { fetchRuns, fetchRunDetail, login, logout, AuthError } from './api/telemetryApi.js';
+import { fetchRuns, fetchRunDetail } from './api/telemetryApi.js';
 import { formatBytes, formatIso, formatCounterValue } from './utils/format.jsx';
 import { API_BASE } from './data/constants.js';
 import { copyTextToClipboard } from './utils/clipboard.js';
@@ -63,14 +63,6 @@ function App() {
     setSelectedFrame(null);
   }, [selectedRunId, comparisonRunId]);
 
-  const handleAuthError = useCallback((err) => {
-    if (err instanceof AuthError) {
-      setIsAuthenticated(false);
-      return true;
-    }
-    return false;
-  }, []);
-
   const loadRuns = useCallback(async () => {
     try {
       setLoading(true);
@@ -85,13 +77,11 @@ function App() {
       });
       setError('');
     } catch (err) {
-      if (!handleAuthError(err)) {
-        setError(err.message);
-      }
+      setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, [handleAuthError]);
+  }, []);
 
   const loadRunDetail = useCallback(async (id, isComparison = false, silent = false) => {
     if (!id) {
@@ -108,42 +98,15 @@ function App() {
       }
       if (!silent) setError('');
     } catch (err) {
-      if (!handleAuthError(err) && !silent) {
+      if (!silent) {
         setError(err.message);
       }
     } finally {
       if (!silent) setLoading(false);
     }
-  }, [handleAuthError]);
-
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    setLoginError('');
-    setIsLoggingIn(true);
-    try {
-      const data = await login(password);
-      localStorage.setItem('chronon_auth_token', data.token);
-      setIsAuthenticated(true);
-      setPassword('');
-    } catch (err) {
-      setLoginError(err.message || 'Login failed');
-    } finally {
-      setIsLoggingIn(false);
-    }
-  };
-
-  const handleLogout = () => {
-    logout();
-    setIsAuthenticated(false);
-    setRunDetail(null);
-    setComparisonRunDetail(null);
-    setRuns([]);
-    setSelectedRunId('');
-    setComparisonRunId('');
-  };
+  }, []);
 
   useEffect(() => {
-    if (!isAuthenticated) return;
     const socket = io(WS_BASE, {
       transports: ['websocket', 'polling']
     });
@@ -153,10 +116,9 @@ function App() {
       setSelectedRunId(data.run_id);
     });
     return () => socket.disconnect();
-  }, [loadRuns, isAuthenticated]);
+  }, [loadRuns]);
 
   useEffect(() => {
-    if (!isAuthenticated) return;
     loadRuns();
     const interval = setInterval(async () => {
       try {
@@ -186,14 +148,11 @@ function App() {
         if (err instanceof TypeError) {
           return;
         }
-        if (handleAuthError(err)) {
-          return;
-        }
         console.error('Polling error:', err);
       }
     }, 3000);
     return () => clearInterval(interval);
-  }, [loadRuns, loadRunDetail, handleAuthError]);
+  }, [loadRuns, loadRunDetail]);
 
   useEffect(() => {
     if (selectedRunId) {
@@ -569,78 +528,6 @@ function App() {
       setError('Unable to copy metrics report to clipboard');
     }
   };
-
-  if (!isAuthenticated) {
-    return (
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        height: '100vh',
-        width: '100vw',
-        background: 'linear-gradient(135deg, #0a0a0f 0%, #12121a 50%, #0a0a0f 100%)',
-        color: '#e2e8f0',
-      }}>
-        <form onSubmit={handleLogin} style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '16px',
-          padding: '40px',
-          borderRadius: '16px',
-          background: 'rgba(255,255,255,0.03)',
-          border: '1px solid rgba(255,255,255,0.08)',
-          backdropFilter: 'blur(20px)',
-          boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)',
-          width: '320px',
-        }}>
-          <h2 style={{ margin: 0, textAlign: 'center', fontSize: '1.5rem', fontWeight: 700, color: '#fff' }}>
-            Chronon3D Dashboard
-          </h2>
-          <p style={{ margin: 0, textAlign: 'center', fontSize: '0.85rem', color: '#94a3b8' }}>
-            Inserisci la password per accedere
-          </p>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Password..."
-            style={{
-              padding: '12px 16px',
-              borderRadius: '8px',
-              border: '1px solid rgba(255,255,255,0.1)',
-              background: 'rgba(255,255,255,0.05)',
-              color: '#fff',
-              fontSize: '0.95rem',
-              outline: 'none',
-            }}
-            autoFocus
-          />
-          {loginError && (
-            <p style={{ margin: 0, color: '#ef4444', fontSize: '0.8rem', textAlign: 'center' }}>
-              {loginError}
-            </p>
-          )}
-          <button
-            type="submit"
-            disabled={isLoggingIn}
-            style={{
-              padding: '12px',
-              borderRadius: '8px',
-              border: 'none',
-              background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
-              color: '#fff',
-              fontWeight: 600,
-              fontSize: '0.95rem',
-              cursor: isLoggingIn ? 'wait' : 'pointer',
-              opacity: isLoggingIn ? 0.7 : 1,
-            }}
-          >
-            {isLoggingIn ? 'Accesso in corso...' : 'Accedi'}
-          </button>
-        </form>
-      </div>
-    );
-  }
 
   return (
     <div className="dashboard-container">
