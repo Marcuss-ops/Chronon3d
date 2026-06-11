@@ -9,6 +9,7 @@ add_library(chronon3d_cache STATIC
     framebuffer_pool.cpp
     persistent_bake_cache.cpp
     video_frame_cache.cpp
+    lru_log.cpp
 )
 target_link_libraries(chronon3d_cache PUBLIC chronon3d xxHash::xxhash)
 target_precompile_headers(chronon3d_cache PRIVATE <xxhash.h>)

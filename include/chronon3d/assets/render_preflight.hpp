@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 #include <stdexcept>
-#include <nlohmann/json.hpp>
+#include <nlohmann/json_fwd.hpp>
 
 namespace chronon3d {
 
