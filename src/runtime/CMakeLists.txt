@@ -4,7 +4,6 @@
 
 set(CHRONON3D_RUNTIME_SOURCES
     bench_runner.cpp
-    pipeline.cpp
     scene_to_render_graph.cpp
     timeline_evaluator.cpp
     sub_composition_registry.cpp
