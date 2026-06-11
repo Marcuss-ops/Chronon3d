@@ -7,7 +7,7 @@ namespace chronon3d::content::effects {
 // ── Glow compositions ───────────────────────────────────────────────────────
 Composition glow_01_neon_sign();
 Composition glow_02_orb_galaxy();
-Composition glow_03_cinematic_text();
+// Composition glow_03_cinematic_text();  // removed — fresh start
 Composition glow_04_ui_card();
 Composition glow_05_pulse_wave();
 Composition glow_video_source_asset();
@@ -46,7 +46,7 @@ public:
         // Glow tests 1–7
         registry.register_composition("GlowNeonSign",          glow_01_neon_sign);
         registry.register_composition("GlowOrbGalaxy",         glow_02_orb_galaxy);
-        registry.register_composition("GlowCinematicText",     glow_03_cinematic_text);
+        // (GlowCinematicText removed — fresh start)
         registry.register_composition("GlowUICard",            glow_04_ui_card);
         registry.register_composition("GlowPulseWave",         glow_05_pulse_wave);
         registry.register_composition("GlowVideoSourceAsset",  glow_video_source_asset);

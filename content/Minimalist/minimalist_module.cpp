@@ -35,7 +35,7 @@ Composition minimalist_focus_quote();
 Composition minimalist_phrase_float();
 Composition minimalist_hero_explainer();
 Composition minimalist_scale_explainer();
-Composition minimalist_clean_quote();
+// Composition minimalist_clean_quote();  // removed — fresh start
 
 } // namespace chronon3d::content::minimalist
 
@@ -82,7 +82,7 @@ public:
         registry.register_composition("MinimalistPhraseFloat", minimalist_phrase_float);
         registry.register_composition("MinimalistHeroExplainer", minimalist_hero_explainer);
         registry.register_composition("MinimalistScaleExplainer", minimalist_scale_explainer);
-        registry.register_composition("MinimalistCleanQuote", minimalist_clean_quote);
+        // (MinimalistCleanQuote removed — fresh start)
     }
 };
 
