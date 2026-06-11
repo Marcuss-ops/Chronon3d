@@ -1,6 +1,7 @@
 #include <chronon3d/scene/camera/camera_projection.hpp>
 #include <cmath>
 #include <algorithm>
+#include <limits>
 
 namespace chronon3d {
 
@@ -15,7 +16,7 @@ ScreenPoint project_world_to_screen(
     sp.depth = cam_space.z;
     if (cam_space.z <= 1e-4f) {
         sp.behind_camera = true;
-        sp.position = Vec2{-999999.0f, -999999.0f};
+        sp.position = Vec2{-std::numeric_limits<float>::max(), -std::numeric_limits<float>::max()};
         return sp;
     }
     sp.behind_camera = false;
