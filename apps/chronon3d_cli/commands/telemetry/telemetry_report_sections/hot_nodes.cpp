@@ -34,6 +34,7 @@ void write_hot_nodes(std::stringstream& out, const ReportModel& model, const Ana
         else if (label == "compositenode_blend_ms") label = "Composite blend";
         else if (label == "compositenode_copy_ms") label = "Composite copy";
         else if (label == "compositenode_setup_ms") label = "Composite setup";
+        else if (label == "compositenode_dispatch_ms") label = "Composite dispatch";
         else if (label == "frame_conversion_copy_ms") label = "Frame conversion copy";
         else if (label == "video_pipe_write_ms") label = "Video pipe write";
 

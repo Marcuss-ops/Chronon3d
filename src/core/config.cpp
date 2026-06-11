@@ -51,7 +51,11 @@ Config::Config() {
     debug_text_bbox        = env_bool("CHRONON_DEBUG_TEXT_BBOX");
 
     // Feature flags
-    pingpong_framebuffer    = env_bool("CHRONON_PINGPONG_FRAMEBUFFER");
+    // pingpong: default true (in-class default). Only override if env var is explicitly set.
+    {
+        const char* pp_v = std::getenv("CHRONON_PINGPONG_FRAMEBUFFER");
+        if (pp_v && *pp_v) pingpong_framebuffer = env_bool("CHRONON_PINGPONG_FRAMEBUFFER");
+    }
     prefetch_enabled        = env_bool("CHRONON_PREFETCH");
     pip_mode                = env_bool("CHRONON_PIP_MODE");
     disable_disk_node_cache = env_bool("CHRONON_DISABLE_DISK_NODE_CACHE");
