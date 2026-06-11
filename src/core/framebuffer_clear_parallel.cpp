@@ -45,9 +45,9 @@ void framebuffer_clear_parallel(
 
     const int num_threads = static_cast<int>(std::thread::hardware_concurrency());
 
-    // Threshold: at least ~128KB and at least 16 rows.
+    // Threshold: ~256KB to justify TBB overhead — 4096 pixels ~ 64×64 tile.
     const int64_t pixel_count = static_cast<int64_t>(w) * h;
-    const bool use_parallel = (pixel_count >= 8192 && h >= 16);
+    const bool use_parallel = (pixel_count >= 4096 && h >= 8);
 
     // Track decision: used_parallel_clear vs skipped_clear_small
     auto* decision_cnt = profiling::g_current_counters;
@@ -64,7 +64,7 @@ void framebuffer_clear_parallel(
     if (use_parallel) {
         // Split the rows into bands, each band gets a contiguous chunk.
         // Minimum band size of 16 rows ensures meaningful work per thread.
-        const int band_size = std::max(16, h / std::max(1, num_threads));
+        const int band_size = std::max(4, h / std::max(1, num_threads * 2));
 
         Color* base = fb.data();  // fb.data() may set content_cleared = false,
                                    // but clear is about to overwrite everything.

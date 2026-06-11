@@ -3,7 +3,7 @@
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/math/transform.hpp>
 #include <chronon3d/core/string_utils.hpp>
-#include "../parser/specscene_parsers.hpp"
+#include "../../specscene/parser/specscene_parsers.hpp"
 #include <fmt/format.h>
 #include <filesystem>
 

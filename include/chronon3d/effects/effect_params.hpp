@@ -89,6 +89,15 @@ struct Fake3DWaveParams {
     bool expand_bounds{true};
 };
 
+struct FocusInLadderParams {
+    std::vector<f32> levels;
+    Frame duration{0};
+    EasingCurve easing{};
+    bool interpolate_between_levels{false};
+    f32 scale_start{1.04f};
+    f32 scale_end{1.0f};
+};
+
 // Type-erased variant: stores exactly one effect parameter struct, indexed by
 // EffectType.  Extraction via std::get_if<T>() is O(1) with no type_info
 // comparison — strictly faster than std::any_cast's runtime type check.
@@ -102,6 +111,7 @@ using EffectParams = std::variant<
     GlowParams,
     BloomParams,
     Fake3DWaveParams,
+    FocusInLadderParams,
     SaturationParams,
     HueRotateParams,
     InvertParams,
