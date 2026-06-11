@@ -2,7 +2,6 @@
 
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
-#include <unordered_map>
 #include <string>
 
 namespace chronon3d::graph {
@@ -113,7 +112,7 @@ public:
     }
 
     void clear() {
-        m_layer_hashes.clear();
+        // No cached state to clear — hashing is stateless.
     }
 
 private:
@@ -269,7 +268,6 @@ private:
         return true;
     }
 
-    std::unordered_map<std::string, uint64_t> m_layer_hashes;
 };
 
 // Free function implementing is_static_scene check across all scene layers.

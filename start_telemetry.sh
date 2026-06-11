@@ -22,7 +22,7 @@ echo "=== Chronon3D Telemetry Dashboard ==="
 
 # ── 1. Flask backend (port 5005) ───────────────────────────────────────────────
 echo "[1/2] Starting Flask backend on :5005..."
-setsid sh -c "cd '$DIR/tools/telemetry_dashboard' && exec python3 server.py 5005" >/tmp/flask.log 2>&1 &
+setsid sh -c "cd '$DIR/tools/telemetry_dashboard' && CHRONON3D_DASHBOARD_PASSWORD=chronon3d exec python3 server.py 5005" >/tmp/flask.log 2>&1 &
 FLASK_PID=$!
 
 # ── 2. Vite frontend (port 5173) ──────────────────────────────────────────────
