@@ -13,8 +13,6 @@
 // For graph/executor internals, prefer <chronon3d/internal.hpp>.
 // ═════════════════════════════════════════════════════════════════════════════
 
-#include <chronon3d/api/renderer.hpp>
-
 #include <chronon3d/backends/software/renderer.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 
