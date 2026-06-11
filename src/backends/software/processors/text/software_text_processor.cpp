@@ -12,6 +12,7 @@
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/backends/text/text_rasterizer_utils.hpp>
 #include <chronon3d/text/font_engine.hpp>
+#include <chronon3d/core/config.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include "text_processor_helpers.hpp"
@@ -20,7 +21,6 @@
 #include <blend2d.h>
 #include <spdlog/spdlog.h>
 #include <glm/gtc/matrix_transform.hpp>
-#include <chrono>
 #include <cstdlib>
 #include <memory>
 
@@ -36,7 +36,7 @@ public:
               const Camera& camera, i32 width, i32 height) override {
         CHRONON_ZONE_C("text_render", trace_category::kText);
         const bool diagnostics_enabled = renderer.is_diagnostic_mode();
-        const auto draw_start = diagnostics_enabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
+        const auto draw_start = diagnostics_enabled ? profiling::now() : profiling::Clock::time_point{};
         const Mat4& model = state.matrix;
         const f32 opacity = state.opacity;
         const float effective_size = node.shape.text.style.size * state.ssaa_factor;
@@ -55,18 +55,18 @@ public:
 
         bool raster_cache_hit = false;
         double rasterize_ms = 0.0;
-        const auto raster_start = diagnostics_enabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
+        const auto raster_start = diagnostics_enabled ? profiling::now() : profiling::Clock::time_point{};
         FontEngine* engine = node.font_engine ? node.font_engine : &shared_font_engine();
         auto raster = rasterize_text_to_bl_image(node.shape.text, effective_size, 32, &raster_cache_hit, raster_transform, engine);
         if (diagnostics_enabled) {
-            rasterize_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - raster_start).count();
+            rasterize_ms = profiling::elapsed_ms(raster_start);
         }
         if (!raster) {
             spdlog::warn("Text rasterization failed for node '{}'", node.name);
             return;
         }
 
-        if (std::getenv("CHRONON_DEBUG_DUMP_TEXT_RASTER")) {
+        if (chronon3d::Config::get().debug_dump_text_raster) {
             BLImageData debug_data;
             if (raster->image.getData(&debug_data) == BL_SUCCESS) {
                 const int sw = debug_data.size.w;
@@ -113,25 +113,25 @@ public:
         for (size_t i = 0; i < node.shape.text.style.shadows.size(); ++i) {
             const auto& shadow = node.shape.text.style.shadows[i];
             if (shadow.enabled && shadow.opacity > 0.0f && shadow.color.a > 0.0f) {
-                const auto shadow_start = diagnostics_enabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
+                const auto shadow_start = diagnostics_enabled ? profiling::now() : profiling::Clock::time_point{};
                 draw_text_shadow(renderer, fb, node, state, *raster, shadow, i, effective_size);
                 if (diagnostics_enabled) {
-                    shadow_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - shadow_start).count();
+                    shadow_ms += profiling::elapsed_ms(shadow_start);
                 }
             }
         }
 
         // 2. Glow
         if (node.glow.enabled && node.glow.intensity > 0.0f && node.glow.color.a > 0.0f) {
-            const auto glow_start = diagnostics_enabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
+            const auto glow_start = diagnostics_enabled ? profiling::now() : profiling::Clock::time_point{};
             draw_text_glow(renderer, fb, node, state, *raster, effective_size);
             if (diagnostics_enabled) {
-                glow_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - glow_start).count();
+                glow_ms += profiling::elapsed_ms(glow_start);
             }
         }
 
         // 3. Text
-        const auto composite_start = diagnostics_enabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
+        const auto composite_start = diagnostics_enabled ? profiling::now() : profiling::Clock::time_point{};
         if (use_geo_transform) {
             int x = static_cast<int>(std::lround(raster->x_offset));
             int y = static_cast<int>(std::lround(raster->y_offset));
@@ -142,8 +142,8 @@ public:
             chronon3d::blend2d_bridge::composite_bl_image(fb, raster->image, x, y, opacity, BlendMode::Normal);
         }
         if (diagnostics_enabled) {
-            composite_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - composite_start).count();
-            const double total_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - draw_start).count();
+            composite_ms += profiling::elapsed_ms(composite_start);
+            const double total_ms = profiling::elapsed_ms(draw_start);
             spdlog::info(
                 "[TextRender] node='{}' cache_hit={} rasterize={:.2f}ms shadow={:.2f}ms glow={:.2f}ms composite={:.2f}ms total={:.2f}ms",
                 node.name,

@@ -3,6 +3,7 @@
 # ==============================================================================
 
 add_library(chronon3d_core_impl STATIC
+    config.cpp
     profiling.cpp
     benchmark_report.cpp
     system_metrics.cpp

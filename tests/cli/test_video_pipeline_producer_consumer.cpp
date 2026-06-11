@@ -4,8 +4,8 @@
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/math/color.hpp>
 #include <concurrentqueue/moodycamel/concurrentqueue.h>
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <atomic>
-#include <chrono>
 #include <thread>
 #include <vector>
 #include <algorithm>
@@ -109,7 +109,7 @@ TEST_CASE("Pipeline Producer/Consumer: Backpressure with full queue") {
     // Fast producer: enqueues 20 frames rapidly
     const int kTotalFrames = 20;
     for (int i = 0; i < kTotalFrames; ++i) {
-        const auto wait_t0 = std::chrono::steady_clock::now();
+        const auto wait_t0 = profiling::now();
 
         // Track peak depth
         auto qs = queue.size_approx();
@@ -126,8 +126,8 @@ TEST_CASE("Pipeline Producer/Consumer: Backpressure with full queue") {
         auto fb = std::make_shared<Framebuffer>(make_test_fb(32, 32));
         queue.enqueue(Package{i, fb});
 
-        const auto wait_t1 = std::chrono::steady_clock::now();
-        double wait_ms = std::chrono::duration<double, std::milli>(wait_t1 - wait_t0).count();
+        const auto wait_t1 = profiling::now();
+        double wait_ms = profiling::duration_ms(wait_t0, wait_t1);
         counters.io_queue_push_blocked_ms.fetch_add(
             static_cast<uint64_t>(wait_ms), std::memory_order_relaxed);
     }
@@ -175,7 +175,7 @@ TEST_CASE("Pipeline Producer/Consumer: Fast consumer, slow producer") {
     // Producer: slow (20ms per frame)
     std::thread producer([&]() {
         for (int i = 0; i < 10; ++i) {
-            const auto wait_t0 = std::chrono::steady_clock::now();
+            const auto wait_t0 = profiling::now();
             while (queue.size_approx() > 16) {
                 std::this_thread::yield();
             }
@@ -183,8 +183,8 @@ TEST_CASE("Pipeline Producer/Consumer: Fast consumer, slow producer") {
             queue.enqueue(Package{i, fb});
             frames_produced.fetch_add(1);
 
-            const auto wait_t1 = std::chrono::steady_clock::now();
-            double wait_ms = std::chrono::duration<double, std::milli>(wait_t1 - wait_t0).count();
+            const auto wait_t1 = profiling::now();
+            double wait_ms = profiling::duration_ms(wait_t0, wait_t1);
             counters.io_queue_push_blocked_ms.fetch_add(
                 static_cast<uint64_t>(wait_ms), std::memory_order_relaxed);
 
@@ -195,15 +195,15 @@ TEST_CASE("Pipeline Producer/Consumer: Fast consumer, slow producer") {
 
     // Consumer: fast — spins rapidly
     while (!producer_done.load() || queue.size_approx() > 0) {
-        const auto pop_t0 = std::chrono::steady_clock::now();
+        const auto pop_t0 = profiling::now();
         Package pkg;
         if (queue.try_dequeue(pkg)) {
             frames_consumed.fetch_add(1);
         } else {
             std::this_thread::sleep_for(std::chrono::milliseconds(2));
         }
-        const auto pop_t1 = std::chrono::steady_clock::now();
-        double pop_ms = std::chrono::duration<double, std::milli>(pop_t1 - pop_t0).count();
+        const auto pop_t1 = profiling::now();
+        double pop_ms = profiling::duration_ms(pop_t0, pop_t1);
         counters.io_queue_pop_wait_ms.fetch_add(
             static_cast<uint64_t>(pop_ms), std::memory_order_relaxed);
     }

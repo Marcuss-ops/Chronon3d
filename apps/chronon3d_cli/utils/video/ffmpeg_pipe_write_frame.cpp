@@ -3,8 +3,8 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
-#include <chrono>
 #include <thread>
+#include <chronon3d/core/profiling/profiling.hpp>
 
 #if defined(__linux__)
     #include <fcntl.h>
@@ -49,7 +49,7 @@ bool FfmpegPipeEncoder::write_frame(const Framebuffer& fb) {
         .apply_gamma        = options_.color_transform.apply_gamma,
     };
 
-    const auto t_conv0 = std::chrono::high_resolution_clock::now();
+    const auto t_conv0 = profiling::now();
 
     double frame_conv_ms = 0.0;
     double frame_write_ms = 0.0;
@@ -202,9 +202,9 @@ bool FfmpegPipeEncoder::write_frame(const Framebuffer& fb) {
                 return false;
         }
 
-        const auto t_conv1 = std::chrono::high_resolution_clock::now();
+        const auto t_conv1 = profiling::now();
         const auto conv_ms = static_cast<uint64_t>(
-            std::chrono::duration<double, std::milli>(t_conv1 - t_conv0).count());
+            profiling::duration_ms(t_conv0, t_conv1));
         frame_conv_ms = static_cast<double>(conv_ms);
         if (profiling::g_current_counters) {
             profiling::g_current_counters->video_conversion_ms
@@ -228,10 +228,10 @@ do_pipe_write:
 #ifdef __linux__
     if (use_uring_) {
         size_t prev_idx = (ring_buffer_index_ + kRingEntries - 1) % kRingEntries;
-        const auto t_write0 = std::chrono::high_resolution_clock::now();
+        const auto t_write0 = profiling::now();
         bool written = write_uring(prev_idx, bytes_to_write);
-        const auto t_write1 = std::chrono::high_resolution_clock::now();
-        const auto write_ms = std::chrono::duration<double, std::milli>(t_write1 - t_write0).count();
+        const auto t_write1 = profiling::now();
+        const auto write_ms = profiling::duration_ms(t_write0, t_write1);
         frame_write_ms = write_ms;
         total_write_blocked_ms_ += write_ms;
         if (profiling::g_current_counters) {
@@ -242,10 +242,10 @@ do_pipe_write:
     } else
 #endif
     {
-        const auto t_write0 = std::chrono::high_resolution_clock::now();
+        const auto t_write0 = profiling::now();
         size_t res = std::fwrite(target_buffer, 1, bytes_to_write, pipe_);
-        const auto t_write1 = std::chrono::high_resolution_clock::now();
-        const auto write_ms = std::chrono::duration<double, std::milli>(t_write1 - t_write0).count();
+        const auto t_write1 = profiling::now();
+        const auto write_ms = profiling::duration_ms(t_write0, t_write1);
         frame_write_ms = write_ms;
         total_write_blocked_ms_ += write_ms;
         if (profiling::g_current_counters) {

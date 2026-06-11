@@ -37,13 +37,13 @@ bool finalize_render_job(
     double total_encode_ms,
     int frames_written,
     bool ok,
-    std::chrono::steady_clock::time_point loop_t0,
-    std::chrono::steady_clock::time_point loop_t1)
+    profiling::Clock::time_point loop_t0,
+    profiling::Clock::time_point loop_t1)
 {
     spdlog::info("Render complete.");
 
-    const auto wall_t1 = std::chrono::steady_clock::now();
-    const double wall_time_ms = std::chrono::duration<double, std::milli>(wall_t1 - setup.wall_t0).count();
+    const auto wall_t1 = profiling::now();
+    const double wall_time_ms = profiling::duration_ms(setup.wall_t0, wall_t1);
     if (setup.renderer->counters()) {
         setup.sys_metrics.fill_system_counters(*setup.renderer->counters());
     }
@@ -82,13 +82,13 @@ bool finalize_render_job(
 
     // ── Phase timing records ──────────────────────────────────────────
     std::vector<chronon3d::telemetry::PhaseTelemetryRecord> phases = {
-        {"setup_renderer", std::chrono::duration<double, std::milli>(setup.setup_t1 - setup.setup_t0).count()}
+        {"setup_renderer", profiling::duration_ms(setup.setup_t0, setup.setup_t1)}
     };
     if (setup.renderer->counters()) {
         auto graph_phases = cli::telemetry::capture_graph_phase_records(*setup.renderer->counters());
         phases.insert(phases.end(), graph_phases.begin(), graph_phases.end());
     }
-    phases.push_back({"rendering_loop", std::chrono::duration<double, std::milli>(loop_t1 - loop_t0).count()});
+    phases.push_back({"rendering_loop", profiling::duration_ms(loop_t0, loop_t1)});
 
     // ── Flush per-node telemetry collected during graph execution ─────
     auto telemetry = chronon3d::telemetry::collect_all_telemetry();

@@ -12,7 +12,7 @@
 
 #include <algorithm>
 #include <atomic>
-#include <chrono>
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <filesystem>
 #include <fstream>
 #include <memory>
@@ -74,7 +74,7 @@ std::optional<std::filesystem::path> make_temp_json_path() {
     try {
         auto dir = std::filesystem::temp_directory_path();
         auto stamp = std::to_string(
-            static_cast<long long>(std::chrono::steady_clock::now().time_since_epoch().count()));
+            static_cast<long long>(profiling::timestamp_ns()));
         return dir / ("chronon3d_bench_" + stamp + ".json");
     } catch (const std::exception&) {
         return std::nullopt;

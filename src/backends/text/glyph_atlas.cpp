@@ -1,5 +1,6 @@
 #include <chronon3d/text/glyph_atlas.hpp>
 #include <chronon3d/cache/lru_cache.hpp>
+#include <chronon3d/core/config.hpp>
 #include <blend2d.h>
 #include <spdlog/spdlog.h>
 
@@ -35,15 +36,8 @@ struct GlyphAtlasKeyHash {
 
 // ── LRU cache with 8 shards, 32 MB default ────────────────────────────
 size_t resolve_atlas_max_mb() {
-    const char* env = std::getenv("CHRONON_GLYPH_ATLAS_MAX_MB");
-    if (!env || !*env) return 32ULL * 1024ULL * 1024ULL;
-    try {
-        size_t mb = static_cast<size_t>(std::stoull(env));
-        return mb > 0 ? mb * 1024ULL * 1024ULL : 32ULL * 1024ULL * 1024ULL;
-    } catch (...) {
-        spdlog::warn("CHRONON_GLYPH_ATLAS_MAX_MB: invalid value '{}', using default", env);
-        return 32ULL * 1024ULL * 1024ULL;
-    }
+    auto max_bytes = Config::get().glyph_atlas_max_bytes;
+    return max_bytes > 0 ? max_bytes : 32ULL * 1024ULL * 1024ULL;
 }
 
 using GlyphAtlasCache = cache::LruCache<GlyphAtlasKey, std::shared_ptr<BLImage>,

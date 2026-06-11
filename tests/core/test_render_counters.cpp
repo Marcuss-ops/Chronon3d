@@ -20,8 +20,8 @@
 #include <chronon3d/core/dirty_fallback_reason.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <atomic>
-#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <thread>
@@ -213,7 +213,7 @@ TEST_CASE("RenderCounters: thread_local is faster than atomic on N threads") {
     RenderCounters shared;
     shared.reset();
     std::vector<std::thread> workers_a;
-    auto t0 = std::chrono::steady_clock::now();
+    auto t0 = profiling::now();
     for (int t = 0; t < kNumThreads; ++t) {
         workers_a.emplace_back([&] {
             for (int i = 0; i < kBenchIters; ++i) {
@@ -223,8 +223,7 @@ TEST_CASE("RenderCounters: thread_local is faster than atomic on N threads") {
         });
     }
     for (auto& th : workers_a) th.join();
-    auto t1 = std::chrono::steady_clock::now();
-    const auto atomic_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0).count();
+    const auto atomic_ns = profiling::elapsed_us(t0) * 1000.0;
     REQUIRE(shared.pixels_touched.load() ==
             static_cast<uint64_t>(kNumThreads) * kBenchIters);
 
@@ -233,7 +232,7 @@ TEST_CASE("RenderCounters: thread_local is faster than atomic on N threads") {
     RenderCounters merged;
     merged.reset();
     std::vector<std::thread> workers_b;
-    auto t2 = std::chrono::steady_clock::now();
+    auto t2 = profiling::now();
     for (int t = 0; t < kNumThreads; ++t) {
         workers_b.emplace_back([&] {
             auto& tls = thread_local_counters();
@@ -246,8 +245,7 @@ TEST_CASE("RenderCounters: thread_local is faster than atomic on N threads") {
         });
     }
     for (auto& th : workers_b) th.join();
-    auto t3 = std::chrono::steady_clock::now();
-    const auto tls_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(t3 - t2).count();
+    const auto tls_ns = profiling::elapsed_us(t2) * 1000.0;
     REQUIRE(merged.pixels_touched.load() ==
             static_cast<uint64_t>(kNumThreads) * kBenchIters);
 

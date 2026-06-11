@@ -1,8 +1,8 @@
 #include "../common/pipe_export_session.hpp"
 #include "../common/pipe_export_helpers.hpp"
 
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <spdlog/spdlog.h>
-#include <chrono>
 
 namespace chronon3d::cli {
 
@@ -15,7 +15,7 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     Frame end,
     const FfmpegExportOptions& opts)
 {
-    const auto wall_t0 = std::chrono::steady_clock::now();
+    const auto wall_t0 = profiling::now();
 
     // Phase 1 — Setup
     auto session = setup_pipe_export_session(registry, comp, settings, opts, start, end);
@@ -41,9 +41,9 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     // Phase 6 — Encoder close
     auto close_result = close_pipe_encoder(*session);
 
-    const auto wall_t1 = std::chrono::steady_clock::now();
-    const double wall_time_ms = std::chrono::duration<double, std::milli>(wall_t1 - wall_t0).count();
-    const double encode_ms = std::chrono::duration<double, std::milli>(wall_t1 - loop_output.render_end).count();
+    const auto wall_t1 = profiling::now();
+    const double wall_time_ms = profiling::duration_ms(wall_t0, wall_t1);
+    const double encode_ms = profiling::duration_ms(loop_output.render_end, wall_t1);
 
     spdlog::info("[video] FFmpeg queue wait duration: {:.2f} ms", loop_output.loop_result.queue_wait_ms);
 

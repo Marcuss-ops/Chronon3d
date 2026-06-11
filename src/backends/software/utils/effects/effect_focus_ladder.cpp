@@ -21,7 +21,6 @@
 #include <tbb/parallel_for.h>
 #include <tbb/blocked_range.h>
 #include <algorithm>
-#include <chrono>
 #include <unordered_map>
 #include <mutex>
 #include <cstring>
@@ -135,7 +134,7 @@ void apply_focus_in_ladder(Framebuffer& fb, const FocusInLadderParams& p,
         std::lock_guard<std::mutex> lock(s_ladder_cache_mutex);
         auto& cache = s_ladder_cache[cache_key];
         const bool need_precompute = cache.levels.empty();
-        auto precompute_t0 = need_precompute ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
+        auto precompute_t0 = need_precompute ? profiling::now() : std::chrono::steady_clock::time_point{};
         if (need_precompute) {
             cache.levels.clear();
             cache.levels.reserve(num_levels);
@@ -164,8 +163,8 @@ void apply_focus_in_ladder(Framebuffer& fb, const FocusInLadderParams& p,
             }
 
             if (auto* cnt = profiling::g_current_counters) {
-                const auto precompute_ms = std::chrono::duration<double, std::milli>(
-                    std::chrono::steady_clock::now() - precompute_t0).count();
+                const auto precompute_ms = profiling::duration_ms(
+                    profiling::now() - precompute_t0).count();
                 cnt->effect_focus_in_ladder_precompute_ms.fetch_add(
                     static_cast<uint64_t>(std::llround(precompute_ms)), std::memory_order_relaxed);
             }
@@ -180,7 +179,7 @@ void apply_focus_in_ladder(Framebuffer& fb, const FocusInLadderParams& p,
     } // lock released — crossfade runs unlocked
 
     // ── Write crossfade result back into the fb clip region ─────────────
-    const auto xfade_t0 = std::chrono::steady_clock::now();
+    const auto xfade_t0 = profiling::now();
     if (blend < 0.001f || idx_a >= num_levels) {
         const auto* src = level_a->data();
         if (has_clip) {
@@ -234,8 +233,8 @@ void apply_focus_in_ladder(Framebuffer& fb, const FocusInLadderParams& p,
     }
 
     if (auto* cnt = profiling::g_current_counters) {
-        const auto xfade_ms = std::chrono::duration<double, std::milli>(
-            std::chrono::steady_clock::now() - xfade_t0).count();
+        const auto xfade_ms = profiling::duration_ms(
+            profiling::now() - xfade_t0).count();
         cnt->effect_focus_in_ladder_crossfade_ms.fetch_add(
             static_cast<uint64_t>(std::llround(xfade_ms)), std::memory_order_relaxed);
     }

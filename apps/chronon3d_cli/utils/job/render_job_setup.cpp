@@ -27,21 +27,21 @@ void setup_render_job(const CompositionRegistry& registry,
     profiling::g_peak_live_framebuffer_bytes.store(0, std::memory_order_relaxed);
 
     out.job_started_iso = chronon3d::telemetry::TelemetryManager::get_current_iso_time();
-    out.wall_t0 = std::chrono::steady_clock::now();
+    out.wall_t0 = profiling::now();
 
     // ── Renderer creation ──────────────────────────────────────────────
-    out.setup_t0 = std::chrono::steady_clock::now();
+    out.setup_t0 = profiling::now();
     out.renderer = create_renderer(registry, plan.settings);
-    const auto renderer_t1 = std::chrono::steady_clock::now();
+    const auto renderer_t1 = profiling::now();
     if (out.renderer->counters()) {
         const auto setup_ms = static_cast<uint64_t>(
-            std::chrono::duration<double, std::milli>(renderer_t1 - out.setup_t0).count());
+            profiling::duration_ms(out.setup_t0, renderer_t1));
         out.renderer->counters()->setup_graph_parsing_ms.fetch_add(setup_ms, std::memory_order_relaxed);
     }
 
     // ── Warmup (preallocate framebuffers + optional dummy frame) ────────
     if (plan.warmup_renderer) {
-        const auto warmup_t0 = std::chrono::steady_clock::now();
+        const auto warmup_t0 = profiling::now();
         runtime::warmup_renderer(*out.renderer, *plan.comp, runtime::RendererWarmupOptions{
             .width = static_cast<int>(plan.comp->width()),
             .height = static_cast<int>(plan.comp->height()),
@@ -52,11 +52,11 @@ void setup_render_job(const CompositionRegistry& registry,
             .dummy_frame = 0,
             .quiet = (plan.log_level != "trace" && plan.log_level != "debug")
         });
-        const auto warmup_t1 = std::chrono::steady_clock::now();
+        const auto warmup_t1 = profiling::now();
 
         if (out.renderer->counters()) {
             const auto warmup_ms = static_cast<uint64_t>(
-                std::chrono::duration<double, std::milli>(warmup_t1 - warmup_t0).count());
+                profiling::duration_ms(warmup_t0, warmup_t1));
             out.renderer->counters()->setup_pool_preallocation_ms.fetch_add(warmup_ms, std::memory_order_relaxed);
 
             out.saved_fb_alloc = out.renderer->counters()->framebuffer_allocations.load(std::memory_order_relaxed);
@@ -81,7 +81,7 @@ void setup_render_job(const CompositionRegistry& registry,
     // in sync with nodes_executed / composite_calls atomics.
     chronon3d::telemetry::clear_telemetry_stores();
 
-    out.setup_t1 = std::chrono::steady_clock::now();
+    out.setup_t1 = profiling::now();
 }
 
 } // namespace chronon3d::cli

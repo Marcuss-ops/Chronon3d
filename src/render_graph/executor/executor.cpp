@@ -13,12 +13,12 @@
 #include "executor_levels.hpp"
 #include "framebuffer_lifetime.hpp"
 #include <chronon3d/render_graph/core/graph_profiler.hpp>
+#include <chronon3d/core/config.hpp>
 #include <chronon3d/core/memory/arena.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <algorithm>
 #include <atomic>
-#include <chrono>
 #include <cmath>
 #include <cstdlib>
 #include <string_view>
@@ -47,13 +47,7 @@ void pin_thread_to_core(int core_id) {
 }
 
 bool should_pin_executor_thread() {
-    const char* env = std::getenv("CHRONON3D_PIN_MAIN_THREAD");
-    if (!env || *env == '\0') {
-        return false;
-    }
-    return std::string_view(env) == "1" ||
-           std::string_view(env) == "true" ||
-           std::string_view(env) == "yes";
+    return Config::get().pin_main_thread;
 }
 } // namespace
 
@@ -130,16 +124,16 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
         state.resolved_bboxes.resize(node_count);
 
         // ── Pre-allocate shared transparent framebuffer for tile pruning ──
-        const auto t_fb0 = std::chrono::steady_clock::now();
+        const auto t_fb0 = profiling::now();
         init_shared_transparent_fb(state, ctx, res);
 
         auto consumer_remaining = init_consumer_remaining(
             node_count, plan.consumer_counts, res
         );
-        const auto t_fb1 = std::chrono::steady_clock::now();
+        const auto t_fb1 = profiling::now();
         if (ctx.telemetry.counters) {
             ctx.telemetry.counters->framebuffer_lifetime_ms.fetch_add(
-                static_cast<uint64_t>(std::llround(std::chrono::duration<double, std::milli>(t_fb1 - t_fb0).count())),
+                static_cast<uint64_t>(std::llround(profiling::duration_ms(t_fb0, t_fb1))),
                 std::memory_order_relaxed);
         }
 
@@ -190,16 +184,16 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
         state.resolved_bboxes.resize(node_count);
 
         // ── Pre-allocate shared transparent framebuffer for tile pruning ──
-        const auto t_fb0 = std::chrono::steady_clock::now();
+        const auto t_fb0 = profiling::now();
         init_shared_transparent_fb(state, ctx, res);
 
         auto consumer_remaining = init_consumer_remaining(
             node_count, consumer_counts, res
         );
-        const auto t_fb1 = std::chrono::steady_clock::now();
+        const auto t_fb1 = profiling::now();
         if (ctx.telemetry.counters) {
             ctx.telemetry.counters->framebuffer_lifetime_ms.fetch_add(
-                static_cast<uint64_t>(std::llround(std::chrono::duration<double, std::milli>(t_fb1 - t_fb0).count())),
+                static_cast<uint64_t>(std::llround(profiling::duration_ms(t_fb0, t_fb1))),
                 std::memory_order_relaxed);
         }
 

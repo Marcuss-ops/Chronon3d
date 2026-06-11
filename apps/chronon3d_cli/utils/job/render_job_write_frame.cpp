@@ -6,7 +6,6 @@
 
 #include <spdlog/spdlog.h>
 
-#include <chrono>
 #include <filesystem>
 
 namespace chronon3d::cli {
@@ -22,9 +21,9 @@ bool write_render_frame(const Composition& comp,
                         double& total_encode_ms,
                         int& frames_written) {
     const auto hits_before = renderer.node_cache().stats().hits;
-    const auto t0 = std::chrono::steady_clock::now();
+    const auto t0 = profiling::now();
     auto fb = renderer.render_frame(comp, frame);
-    const auto t1 = std::chrono::steady_clock::now();
+    const auto t1 = profiling::now();
     const auto hits_after = renderer.node_cache().stats().hits;
     const double dirty_ratio = renderer.last_dirty_area_ratio();
 
@@ -35,7 +34,7 @@ bool write_render_frame(const Composition& comp,
     }
 
     const bool cache_hit = (hits_after > hits_before);
-    const double render_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+    const double render_ms = profiling::duration_ms(t0, t1);
     total_render_ms += render_ms;
 
     const double encode_ms = write_frame_to_disk(
@@ -69,7 +68,7 @@ double write_frame_to_disk(std::shared_ptr<Framebuffer> fb,
         std::filesystem::create_directories(p.parent_path());
     }
 
-    const auto t_encode0 = std::chrono::steady_clock::now();
+    const auto t_encode0 = profiling::now();
 
     ImageWriteOptions write_options;
     write_options.format = image_format_from_path(path);
@@ -92,9 +91,7 @@ double write_frame_to_disk(std::shared_ptr<Framebuffer> fb,
         }
     }
 
-    const auto t_encode1 = std::chrono::steady_clock::now();
-
-    const double encode_ms = std::chrono::duration<double, std::milli>(t_encode1 - t_encode0).count();
+    const double encode_ms = profiling::elapsed_ms(t_encode0);
     total_encode_ms += encode_ms;
     frames_written++;
 

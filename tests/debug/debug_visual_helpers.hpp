@@ -11,9 +11,9 @@
 //   CHRONON_DEBUG_VISUAL         — logs [VDBG Source/Transform/Composite] lines
 //   CHRONON_DEBUG_DUMP_FB        — saves intermediate framebuffers as PNG
 //
-// This file is NOT included by any production source file.
+// This file lives in tests/debug/ — not included by production code.
 // To use during debugging, temporarily add:
-//   #include "src/debug_visual_helpers.hpp"
+//   #include "tests/debug/debug_visual_helpers.hpp"
 
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/math/raster_utils.hpp>

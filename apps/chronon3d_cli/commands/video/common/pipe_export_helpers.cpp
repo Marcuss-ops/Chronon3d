@@ -4,8 +4,8 @@
 #include <chronon3d/core/telemetry/render_telemetry.hpp>
 #include <chronon3d/runtime/renderer_warmup.hpp>
 
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <algorithm>
-#include <chrono>
 #include <exception>
 #include <filesystem>
 #include <spdlog/spdlog.h>
@@ -139,7 +139,7 @@ void warmup_pipe_renderer(
     uint64_t saved_fb_bytes = 0;
     uint64_t saved_fb_peak = 0;
 
-    const auto warmup_t0 = std::chrono::steady_clock::now();
+    const auto warmup_t0 = profiling::now();
     runtime::warmup_renderer(renderer, comp, runtime::RendererWarmupOptions{
         .width = comp.width(),
         .height = comp.height(),
@@ -150,11 +150,11 @@ void warmup_pipe_renderer(
         .dummy_frame = 0,
         .quiet = false,
     });
-    const auto warmup_t1 = std::chrono::steady_clock::now();
+    const auto warmup_t1 = profiling::now();
 
     if (renderer.counters()) {
         const auto warmup_ms = static_cast<uint64_t>(
-            std::chrono::duration<double, std::milli>(warmup_t1 - warmup_t0).count());
+            profiling::duration_ms(warmup_t0, warmup_t1));
         renderer.counters()->setup_pool_preallocation_ms.fetch_add(warmup_ms, std::memory_order_relaxed);
 
         // Save ALL counters before reset so we can restore non-framebuffer ones

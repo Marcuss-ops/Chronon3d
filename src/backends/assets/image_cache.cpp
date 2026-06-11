@@ -1,7 +1,8 @@
 #include <chronon3d/backends/assets/image_cache.hpp>
+#include <chronon3d/core/config.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/simd/kernels.hpp>
 #include <spdlog/spdlog.h>
-#include <chrono>
 #include <cstdlib>
 #include <thread>
 
@@ -10,16 +11,8 @@ namespace chronon3d {
 namespace {
 
 size_t resolve_image_cache_capacity(size_t fallback) {
-    const char* env = std::getenv("CHRONON_IMAGE_CACHE_MAX_MB");
-    if (!env || !*env) return fallback;
-    try {
-        const size_t mb = static_cast<size_t>(std::stoull(env));
-        if (mb == 0) return fallback;
-        return mb * 1024ULL * 1024ULL;
-    } catch (...) {
-        spdlog::warn("CHRONON_IMAGE_CACHE_MAX_MB: invalid value '{}', using default", env);
-        return fallback;
-    }
+    auto max_bytes = Config::get().image_cache_max_bytes;
+    return max_bytes > 0 ? max_bytes : fallback;
 }
 
 } // namespace
@@ -58,7 +51,7 @@ std::shared_ptr<const CachedImage> ImageCache::get_or_load_shared(const std::str
     // loads of images that hash to different shards run in parallel.
     auto shared = m_cache.compute_if_absent(path,
         [&]() -> std::pair<std::shared_ptr<CachedImage>, size_t> {
-            const auto t0 = std::chrono::steady_clock::now();
+            const auto t0 = profiling::now();
             auto buffer = backend->load_image(path);
             if (!buffer || !buffer->pixels) {
                 // Cache a null entry (weight 1) so repeated lookups for a
@@ -106,8 +99,7 @@ std::shared_ptr<const CachedImage> ImageCache::get_or_load_shared(const std::str
                 }
             }
 
-            const auto t1 = std::chrono::steady_clock::now();
-            const double load_dur_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+            const double load_dur_ms = profiling::elapsed_ms(t0);
             spdlog::info("ImageCache: loaded '{}' ({}x{}) in {:.3f}ms", path, entry->width, entry->height, load_dur_ms);
 
             const size_t weight = static_cast<size_t>(entry->width) * entry->height * 4;

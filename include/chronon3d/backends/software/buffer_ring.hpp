@@ -4,6 +4,10 @@
 #include <chronon3d/core/memory/framebuffer_slot_view.hpp>
 #include <memory>
 
+namespace chronon3d::cache {
+class FramebufferPool;
+}
+
 namespace chronon3d {
 
 /**
@@ -26,7 +30,10 @@ public:
     RendererBufferRing& operator=(RendererBufferRing&& other) noexcept;
 
     /// Allocate/reallocate both ping buffers to match canvas size.
-    void ensure_size(int width, int height);
+    /// @param pool Optional FramebufferPool to acquire from (and return to).
+    ///             When null, raw new/delete is used as fallback.
+    void ensure_size(int width, int height,
+                     cache::FramebufferPool* pool = nullptr);
 
     /// Swap read/write indices after a frame completes.
     /// Also repoints prev_framebuffer() to the new read ping.
@@ -61,6 +68,7 @@ private:
     Framebuffer* m_ping_fb[2]{nullptr, nullptr};
     int m_ping_read_idx{0};
     int m_ping_write_idx{1};
+    cache::FramebufferPool* m_pool{nullptr};
     std::shared_ptr<Framebuffer> m_prev_framebuffer;
 };
 

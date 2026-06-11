@@ -16,6 +16,7 @@
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/timeline/composition.hpp>
 
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -359,15 +360,15 @@ static void BM_TileDirtyRatioSweep(benchmark::State& state, bool use_tiles) {
         }
         renderer.set_settings(s);
 
-        auto t0 = std::chrono::steady_clock::now();
+        auto t0 = profiling::now();
         for (Frame f = 0; f < kFrames; ++f) {
             auto fb = renderer.render_frame(comp, f);
             benchmark::DoNotOptimize(fb);
         }
-        auto t1 = std::chrono::steady_clock::now();
+        auto t1 = profiling::now();
 
         last_dirty_ratio = renderer.last_dirty_area_ratio();
-        per_frame_ms = std::chrono::duration<double, std::milli>(t1 - t0).count()
+        per_frame_ms = profiling::duration_ms(t0, t1)
                        / static_cast<double>(kFrames);
     }
 

@@ -2,8 +2,8 @@
 #include <chronon3d/media/frame_conversion/direct_yuv_converter.hpp>
 #include "internal/yuv_conversion_internal.hpp"
 
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <algorithm>
-#include <chrono>
 #include <cstdint>
 #include <mutex>
 #include <stdexcept>
@@ -70,7 +70,7 @@ static std::vector<uint8_t>& rgba8_staging(size_t min_bytes) {
 }
 
 static inline uint64_t now_ns() {
-    return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count());
+    return profiling::timestamp_ns();
 }
 
 void convert_fb_to_rgba8_public(const Framebuffer& src, int width, int height, bool apply_gamma, uint8_t* rgba8) noexcept {
