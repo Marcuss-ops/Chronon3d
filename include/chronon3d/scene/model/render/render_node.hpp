@@ -3,11 +3,11 @@
 #include <chronon3d/math/transform.hpp>
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/math/glm_types.hpp>
+#include <chronon3d/effects/effect_params.hpp>
 #include <chronon3d/geometry/mesh.hpp>
 #include <chronon3d/scene/model/shape/fill.hpp>
 #include <chronon3d/scene/model/shape/shape.hpp>
 #include <chronon3d/scene/model/render/render_runtime.hpp>
-#include <chronon3d/effects/effect_params.hpp>
 #include <vector>
 #include <memory>
 #include <string>
@@ -27,33 +27,8 @@ struct DropShadow {
 };
 
 // Soft glow emanating outward from the shape.
-struct Glow {
-    bool  enabled{false};
-    f32   radius{15.0f};
-    f32   intensity{0.8f};
-    Color color{1.0f, 1.0f, 1.0f, 1.0f};
-
-    // Per-layer strengths (0..1) for the multi-layer text glow pipeline.
-    // These mirror GlowParams.core_strength / aura_strength / bloom_strength
-    // so the text glow path can be tuned via the same fields as the layer
-    // effect pipeline.  Defaults preserve the legacy hardcoded values
-    // (0.25/0.12/0.05) from text_glow.cpp's previous kGlowLayers table.
-    f32   core_strength{0.25f};   // inner — tight character hug
-    f32   aura_strength{0.12f};   // mid   — soft between-letters
-    f32   bloom_strength{0.05f};  // outer — wide atmospheric wash
-
-    // Extra glow pipeline params (mirror GlowParams)
-    bool           additive{true};
-    BlendMode      blend{BlendMode::Add};
-    GlowQuality    quality{GlowQuality::Standard};
-    std::vector<GlowLayer> layers;
-    f32            spread{1.0f};
-    f32            softness{1.0f};
-    f32            threshold{0.0f};
-    f32            falloff{0.85f};
-    f32            outer_downscale{0.25f};
-    bool           preserve_source{true};
-};
+// Unified with GlowParams from effect_params.hpp — the single source of truth.
+using Glow = GlowParams;
 
 // What kind of surface the node naturally produces.
 // IntrinsicSize: content-driven layers such as text, shapes and images.
@@ -80,7 +55,7 @@ struct RenderNode {
     Fill fill{true, FillType::Solid, {1, 1, 1, 1}, {}};
     Shape shape;
     DropShadow shadow;
-    Glow glow;
+    GlowParams glow;
     std::shared_ptr<Mesh> mesh;
     f32 corner_radius{0.0f};
 

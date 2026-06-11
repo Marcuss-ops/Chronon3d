@@ -99,6 +99,24 @@ using chronon3d::graph::hash_text_style_full;
     seed = hash_combine(seed, hash_value(node.glow.color.g));
     seed = hash_combine(seed, hash_value(node.glow.color.b));
     seed = hash_combine(seed, hash_value(node.glow.color.a));
+    seed = hash_combine(seed, hash_value(node.glow.core_strength));
+    seed = hash_combine(seed, hash_value(node.glow.aura_strength));
+    seed = hash_combine(seed, hash_value(node.glow.bloom_strength));
+    seed = hash_combine(seed, hash_value(node.glow.spread));
+    seed = hash_combine(seed, hash_value(node.glow.softness));
+    seed = hash_combine(seed, hash_value(node.glow.threshold));
+    seed = hash_combine(seed, hash_value(node.glow.falloff));
+    seed = hash_combine(seed, hash_value(node.glow.outer_downscale));
+    seed = hash_combine(seed, hash_value(static_cast<int>(node.glow.quality)));
+    seed = hash_combine(seed, hash_value(static_cast<int>(node.glow.blend)));
+    seed = hash_combine(seed, hash_value(node.glow.preserve_source ? 1 : 0));
+    seed = hash_combine(seed, hash_value(node.glow.additive ? 1 : 0));
+    seed = hash_combine(seed, hash_value(node.glow.layers.size()));
+    for (const auto& layer : node.glow.layers) {
+        seed = hash_combine(seed, hash_value(layer.radius));
+        seed = hash_combine(seed, hash_value(layer.opacity));
+        seed = hash_combine(seed, hash_value(layer.scale));
+    }
     return seed;
 }
 

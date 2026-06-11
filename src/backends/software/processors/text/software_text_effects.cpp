@@ -89,13 +89,26 @@ CacheKey hash_glow_params(const RenderNode& node, float effective_size) {
     seed = hash_combine(seed, hash_value(node.glow.color.g));
     seed = hash_combine(seed, hash_value(node.glow.color.b));
     seed = hash_combine(seed, hash_value(node.glow.color.a));
-    // Per-layer strengths: these change the inner/mid/outer layer
-    // intensity of the multi-layer text glow pipeline.  Without them in
-    // the cache key, a tuning change (e.g. GlowBloom preset going from
-    // 0.12/0.05/0.015 to 0.45/0.20/0.08) would return the stale buffer.
     seed = hash_combine(seed, hash_value(node.glow.core_strength));
     seed = hash_combine(seed, hash_value(node.glow.aura_strength));
     seed = hash_combine(seed, hash_value(node.glow.bloom_strength));
+    // GlowParams fields that affect output (were missing from old Glow struct)
+    seed = hash_combine(seed, hash_value(node.glow.spread));
+    seed = hash_combine(seed, hash_value(node.glow.softness));
+    seed = hash_combine(seed, hash_value(node.glow.threshold));
+    seed = hash_combine(seed, hash_value(node.glow.falloff));
+    seed = hash_combine(seed, hash_value(node.glow.outer_downscale));
+    seed = hash_combine(seed, hash_value(static_cast<int>(node.glow.quality)));
+    seed = hash_combine(seed, hash_value(static_cast<int>(node.glow.blend)));
+    seed = hash_combine(seed, hash_value(node.glow.preserve_source ? 1 : 0));
+    seed = hash_combine(seed, hash_value(node.glow.additive ? 1 : 0));
+    // Hash layers vector (affects multi-layer glow output dramatically)
+    seed = hash_combine(seed, hash_value(node.glow.layers.size()));
+    for (const auto& layer : node.glow.layers) {
+        seed = hash_combine(seed, hash_value(layer.radius));
+        seed = hash_combine(seed, hash_value(layer.opacity));
+        seed = hash_combine(seed, hash_value(layer.scale));
+    }
     return seed;
 }
 

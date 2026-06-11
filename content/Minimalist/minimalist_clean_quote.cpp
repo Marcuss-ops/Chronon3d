@@ -15,11 +15,15 @@ Composition minimalist_clean_quote() {
             add_text_backdrop(l);
         });
 
-        // Text layer with cinematic glow
+        // Multi-layer cinematic glow — debug mode to find rectangular artifact source
         s.layer("quote_text", [frame = ctx.frame](auto& l) {
             l.pin_to(Anchor::Center);
-            // Cinematic white glow with cool blue bloom
-            l.glow(TextGlowPresets::ae_cinematic_white().to_glow_params());
+            auto glow_spec = TextGlowPresets::ae_cinematic_white();
+            glow_spec.inner_intensity = 0.18f;
+            glow_spec.mid_intensity   = 0.07f;
+            glow_spec.bloom_intensity = 0.03f;
+            glow_spec.micro_shadow    = false;  // disable to isolate glow issue
+            l.glow(glow_spec.to_glow_params());
             auto tp = make_text_params(reveal_text_by_frame(
                 "Minimalism is not emptiness.\nIt is the discipline of keeping\nonly what matters.", frame));
             tp.align = TextAlign::Center;  // override theme default
