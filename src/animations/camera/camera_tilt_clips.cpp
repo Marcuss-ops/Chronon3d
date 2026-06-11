@@ -1,5 +1,6 @@
 #include <chronon3d/animations/camera_motion.hpp>
 #include <chronon3d/core/composition/composition_registration.hpp>
+#include <chronon3d/core/composition/register_builtin_compositions.hpp>
 #include <chronon3d/presets/camera_motion_clip.hpp>
 #include <chronon3d/scene/utils/dark_grid_background.hpp>
 
@@ -37,21 +38,25 @@ void build_reference_image_content(SceneBuilder& s, const FrameContext& ctx, con
     });
 }
 
-Composition make_camera_image_clip() {
-    CameraMotionParams params;
-    params.axis = MotionAxis::Tilt;
-    params.duration = 60;
-    params.start_frame = 0;
+} // namespace
+} // namespace chronon3d
 
-    return chronon3d::presets::camera_motion_clip(
-        "CameraImageClip",
-        params,
-        [](SceneBuilder& s, const FrameContext& ctx, const CameraMotionParams& p) {
-            build_reference_image_content(s, ctx, p);
-        });
+namespace chronon3d {
+
+void register_camera_tilt_clip() {
+    detail::add_builtin_composition("CameraImageClip", []() {
+        CameraMotionParams params;
+        params.axis = animation::MotionAxis::Tilt;
+        params.duration = 60;
+        params.start_frame = 0;
+
+        return presets::camera_motion_clip(
+            "CameraImageClip",
+            params,
+            [](SceneBuilder& s, const FrameContext& ctx, const animation::CameraMotionParams& p) {
+                build_reference_image_content(s, ctx, p);
+            });
+    });
 }
 
-CHRONON_REGISTER_COMPOSITION("CameraImageClip", make_camera_image_clip)
-
-} // namespace
 } // namespace chronon3d

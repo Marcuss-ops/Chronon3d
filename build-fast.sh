@@ -1,21 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ──────────────────────────────────────────────────────────────────
-#  build-fast.sh —  Sviluppo fulmineo per Chronon3d
-#  Usage:
-#    ./build-fast.sh                    # build preset linux-fast-dev
-#    ./build-fast.sh turbo              # ultra-fast clean build (Debug, no tests)
-#    ./build-fast.sh turbo-inc dev      # rebuild only changed CLI group + relink
-#    ./build-fast.sh turbo-inc render   # rebuild only changed CLI group + relink
-#    ./build-fast.sh turbo-inc video    # rebuild only changed CLI group + relink
-#    ./build-fast.sh arch               # build graph + core contracts
-#    ./build-fast.sh executor           # build graph after executor changes
-#    ./build-fast.sh scene              # build solo chronon3d_scene
-#    ./build-fast.sh test "Extension*"  # build + run test pattern
-#    ./build-fast.sh ext                # build solo chronon3d_extension
-#──────────────────────────────────────────────────────────────────
-
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BUILD_DIR="$ROOT_DIR/build/chronon/linux-fast-dev"
 PRESET="linux-fast-dev"
@@ -24,8 +9,43 @@ TURBO_PRESET="linux-turbo"
 TARGET="${1:-}"
 JOBS="${JOBS:-$(nproc)}"
 
-if [[ -z "${VCPKG_ROOT:-}" && -f "/home/pierone/vcpkg/scripts/buildsystems/vcpkg.cmake" ]]; then
-    export VCPKG_ROOT="/home/pierone/vcpkg"
+show_help() {
+    cat <<'EOF'
+build-fast.sh — Fast development builds for Chronon3d
+
+Usage:
+  ./build-fast.sh [command] [args...]
+
+Commands:
+  (none)              Build CLI + fast tests in parallel
+  arch                Build graph + run core contract tests
+  executor            Build graph + run framebuffer lifetime tests
+  scene               Build chronon3d_scene only
+  ext, extension      Build chronon3d_extension only
+  pipeline, pipe      Build chronon3d_pipeline only
+  cli                 Build chronon3d_cli only
+  test [pattern]      Build + run core tests matching pattern
+  scene-test [pat]    Build + run scene tests matching pattern
+  cli-test [pat]      Build + run CLI tests matching pattern
+  ctest [filter]      Run ctest with filter (default: core|scene|cli)
+  turbo               Ultra-fast Debug build (CLI only, no tests/content)
+  turbo-inc <group>   Incremental rebuild of CLI group + relink
+    Groups: dev | render | video | telemetry | bench | core
+
+Environment:
+  JOBS                 Parallel jobs (default: nproc)
+
+Examples:
+  ./build-fast.sh                     # parallel CLI + fast tests
+  ./build-fast.sh test "Extension*"   # run matching core tests
+  ./build-fast.sh turbo-inc video     # incremental video group rebuild
+  JOBS=8 ./build-fast.sh cli          # limit parallel jobs
+EOF
+    exit 0
+}
+
+if [[ "$TARGET" == "-h" || "$TARGET" == "--help" || "$TARGET" == "help" ]]; then
+    show_help
 fi
 
 ensure_configured() {

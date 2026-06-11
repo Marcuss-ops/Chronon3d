@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chronon3d/backends/software/renderer.hpp>
 #include <chronon3d/timeline/composition.hpp>
 
 #include <string>

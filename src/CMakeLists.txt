@@ -23,7 +23,6 @@
 # ==============================================================================
 add_library(chronon3d_ffmpeg_light INTERFACE)
 target_link_libraries(chronon3d_ffmpeg_light INTERFACE swscale avutil)
-add_library(chronon3d_ffmpeg_light_alias INTERFACE)  # legacy alias for back-compat
 add_library(chronon3d_ffmpeg_full  INTERFACE)
 target_link_libraries(chronon3d_ffmpeg_full  INTERFACE swscale avcodec avformat avutil)
 
@@ -86,37 +85,30 @@ add_subdirectory(animations)        # chronon3d_animations
 # ==============================================================================
 
 # --- Aggregati Architetturali finali ---
-# WHOLE_ARCHIVE is needed for targets containing CHRONON_REGISTER_* macros.
-# These rely on static initialization which can be dead-code-eliminated if no
-# symbol is visibly referenced. Using WHOLE_ARCHIVE only on registration targets
-# (scene, animations, backend_video) avoids over-linking while ensuring
-# registration symbols survive linking.
+# Aggregati Architetturali finali
+# WHOLE_ARCHIVE removed — all built-in compositions now use explicit
+# registration via register_builtin_compositions().
 add_library(chronon3d_core INTERFACE)
 target_link_libraries(chronon3d_core INTERFACE
     chronon3d_extension
     chronon3d_assets
     chronon3d_registry
-    $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_scene>
+    chronon3d_scene
     chronon3d_runtime
     chronon3d_graph
     chronon3d_cache
-    $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_animations>
+    chronon3d_animations
     chronon3d_core_impl
-    $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_backend_video>
+    chronon3d_backend_video
 )
 
 add_library(chronon3d_software INTERFACE)
 target_link_libraries(chronon3d_software INTERFACE
-    $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_backend_software>
-    $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_backend_video>
+    chronon3d_backend_software
+    chronon3d_backend_video
     chronon3d_backend_assets
     chronon3d_backend_image
 )
-
-set(FFMPEG_LIBS "")
-if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
-    set(FFMPEG_LIBS swscale avutil)
-endif()
 
 add_library(chronon3d_pipeline INTERFACE)
 target_link_libraries(chronon3d_pipeline INTERFACE
