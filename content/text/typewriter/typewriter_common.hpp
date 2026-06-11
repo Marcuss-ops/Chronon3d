@@ -69,29 +69,17 @@ struct TypewriterLine {
     }
 };
 
-// ── FadeIn opacity helper ────────────────────────────────────────────────
-inline f32 fade_in_opacity(Frame frame, Frame duration) {
+// ── Generic ramp opacity helper ──────────────────────────────────────────
+inline f32 ramp_opacity(Frame frame, Frame duration, f32 ramp_end) {
     f32 t = std::clamp(static_cast<f32>(frame) / static_cast<f32>(std::max<Frame>(duration, 1)), 0.0f, 1.0f);
-    return interpolate(t, 0.0f, 0.30f, 0.0f, 1.0f, Easing::OutCubic);
+    return interpolate(t, 0.0f, ramp_end, 0.0f, 1.0f, Easing::OutCubic);
 }
 
-// ── PerspectiveSweepTextReveal opacity helper ────────────────────────────
-inline f32 sweep_text_opacity(Frame frame, Frame duration) {
-    f32 t = std::clamp(static_cast<f32>(frame) / static_cast<f32>(std::max<Frame>(duration, 1)), 0.0f, 1.0f);
-    return interpolate(t, 0.0f, 0.18f, 0.0f, 1.0f, Easing::OutCubic);
-}
-
-// ── StaggerReveal opacity helper ─────────────────────────────────────────
-inline f32 stagger_opacity(Frame frame, Frame duration) {
-    f32 t = std::clamp(static_cast<f32>(frame) / static_cast<f32>(std::max<Frame>(duration, 1)), 0.0f, 1.0f);
-    return interpolate(t, 0.0f, 0.18f, 0.0f, 1.0f, Easing::OutCubic);
-}
-
-// ── GlowBloom opacity helper ─────────────────────────────────────────────
-inline f32 glow_bloom_opacity(Frame frame, Frame duration) {
-    f32 t = std::clamp(static_cast<f32>(frame) / static_cast<f32>(std::max<Frame>(duration, 1)), 0.0f, 1.0f);
-    return interpolate(t, 0.0f, 0.22f, 0.0f, 1.0f, Easing::OutCubic);
-}
+// ── Preset-specific opacity helpers ──────────────────────────────────────
+inline f32 fade_in_opacity(Frame frame, Frame duration) { return ramp_opacity(frame, duration, 0.30f); }
+inline f32 sweep_text_opacity(Frame frame, Frame duration) { return ramp_opacity(frame, duration, 0.18f); }
+inline f32 stagger_opacity(Frame frame, Frame duration) { return ramp_opacity(frame, duration, 0.18f); }
+inline f32 glow_bloom_opacity(Frame frame, Frame duration) { return ramp_opacity(frame, duration, 0.22f); }
 
 // ── Default opacity (no animation) ───────────────────────────────────────
 inline f32 full_opacity(Frame, Frame) { return 1.0f; }

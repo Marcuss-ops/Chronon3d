@@ -1,66 +1,19 @@
 #include <chronon3d/core/composition/composition_registration.hpp>
-#include <chronon3d/core/types/frame_context.hpp>
-#include <chronon3d/timeline/composition.hpp>
-#include <chronon3d/scene/builders/scene_builder.hpp>
-
-#include "content/common/background_helpers.hpp"
+#include "content/Minimalist/minimalist_theme.hpp"
 
 namespace chronon3d::content::minimalist {
 
-namespace {
-// Common setup helper for the background grid — delegates to shared helper.
-using chronon3d::content::backgrounds::add_common_background;
-namespace BGS = chronon3d::content::backgrounds::BackgroundStyles;
-
-inline void add_minimalist_background(SceneBuilder& s) {
-    add_common_background(s, BGS::Minimalist());
-}
-
-// Common setup helper for the text backdrop
-void add_text_backdrop(LayerBuilder& l) {
-    l.rounded_rect("text_backdrop", {
-        .size = {1580.0f, 380.0f},
-        .radius = 28.0f,
-        .color = Color{0.0f, 0.0f, 0.0f, 0.22f},
-        .pos = {0.0f, 0.0f, 0.0f}
-    });
-}
-
-// Common text parameters
-TextParams common_text_params(std::string text) {
-    return TextParams{
-        .text = std::move(text),
-        .size = {1450.0f, 340.0f},
-        .pos = {0.0f, 0.0f, 0.0f},
-        .font_path = "assets/fonts/Inter-Bold.ttf",
-        .font_size = 58.0f,
-        .color = {0.94f, 0.94f, 0.94f, 1.0f},
-        .align = TextAlign::Left,
-        .vertical_align = VerticalAlign::Middle,
-
-        .line_height = 1.10f,
-        .tracking = 0.0f,
-        .auto_fit = false,
-        .max_lines = 3,
-        .min_font_size = 42.0f,
-        .max_font_size = 64.0f,
-        .overflow = TextOverflow::Clip,
-        .wrap = TextWrap::None
-    };
-}
-
-} // namespace
 
 // 1. Fade-In Minimal
 Composition minimalist_fade_in() {
     return composition({.name = "MinimalistFadeIn", .duration = 120}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        add_common_background(s);
+        add_minimalist_background(s);
         s.layer("text_layer", [](auto& l) {
             l.pin_to(Anchor::Center);
             l.fade_in(Frame{45});
             add_text_backdrop(l);
-            l.text("text", common_text_params("This is a simple fade.\nClean, readable, and elegant.\nNo distractions."));
+            l.text("text", make_text_params("This is a simple fade.\nClean, readable, and elegant.\nNo distractions."));
         });
         return s.build();
     });
@@ -70,12 +23,12 @@ Composition minimalist_fade_in() {
 Composition minimalist_fade_shift_vertical() {
     return composition({.name = "MinimalistFadeShiftVertical", .duration = 120}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        add_common_background(s);
+        add_minimalist_background(s);
         s.layer("text_layer", [](auto& l) {
             l.pin_to(Anchor::Center);
             l.fade_shift_vertical(Vec3{0.0f, 25.0f, 0.0f}, Frame{45});
             add_text_backdrop(l);
-            l.text("text", common_text_params("The text rises smoothly\nfrom below into its place.\nNatural flow."));
+            l.text("text", make_text_params("The text rises smoothly\nfrom below into its place.\nNatural flow."));
         });
         return s.build();
     });
@@ -85,12 +38,12 @@ Composition minimalist_fade_shift_vertical() {
 Composition minimalist_fade_shift_horizontal() {
     return composition({.name = "MinimalistFadeShiftHorizontal", .duration = 120}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        add_common_background(s);
+        add_minimalist_background(s);
         s.layer("text_layer", [](auto& l) {
             l.pin_to(Anchor::Center);
             l.fade_shift_horizontal(Vec3{-30.0f, 0.0f, 0.0f}, Frame{45});
             add_text_backdrop(l);
-            l.text("text", common_text_params("Sliding in from the left,\nfollowing the direction of reading.\nHighly intuitive."));
+            l.text("text", make_text_params("Sliding in from the left,\nfollowing the direction of reading.\nHighly intuitive."));
         });
         return s.build();
     });
@@ -100,12 +53,12 @@ Composition minimalist_fade_shift_horizontal() {
 Composition minimalist_focus_in() {
     return composition({.name = "MinimalistFocusIn", .duration = 120}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        add_common_background(s);
+        add_minimalist_background(s);
         s.layer("text_layer", [](auto& l) {
             l.pin_to(Anchor::Center);
             l.focus_in(16.0f, Frame{45});
             add_text_backdrop(l);
-            l.text("text", common_text_params("Passing from blurred lens\nto perfect focus.\nCinematic feeling."));
+            l.text("text", make_text_params("Passing from blurred lens\nto perfect focus.\nCinematic feeling."));
         });
         return s.build();
     });
@@ -115,12 +68,12 @@ Composition minimalist_focus_in() {
 Composition minimalist_reveal_from_bottom() {
     return composition({.name = "MinimalistRevealFromBottom", .duration = 120}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        add_common_background(s);
+        add_minimalist_background(s);
         s.layer("text_layer", [](auto& l) {
             l.pin_to(Anchor::Center);
             l.reveal_from_bottom(40.0f, Frame{45});
             add_text_backdrop(l);
-            l.text("text", common_text_params("Born from an invisible horizon line.\nClean split from grid.\nGeometric style."));
+            l.text("text", make_text_params("Born from an invisible horizon line.\nClean split from grid.\nGeometric style."));
         });
         return s.build();
     });
@@ -130,12 +83,12 @@ Composition minimalist_reveal_from_bottom() {
 Composition minimalist_center_split() {
     return composition({.name = "MinimalistCenterSplit", .duration = 120}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        add_common_background(s);
+        add_minimalist_background(s);
         s.layer("text_layer", [](auto& l) {
             l.pin_to(Anchor::Center);
             l.center_split(Frame{45});
             add_text_backdrop(l);
-            l.text("text", common_text_params("Revealing from center\nopening up and down.\nPerfect symmetry."));
+            l.text("text", make_text_params("Revealing from center\nopening up and down.\nPerfect symmetry."));
         });
         return s.build();
     });
@@ -145,11 +98,11 @@ Composition minimalist_center_split() {
 Composition minimalist_underline_draw() {
     return composition({.name = "MinimalistUnderlineDraw", .duration = 120}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        add_common_background(s);
+        add_minimalist_background(s);
         s.layer("text_layer", [](auto& l) {
             l.pin_to(Anchor::Center);
             add_text_backdrop(l);
-            l.text("text", common_text_params("An underline line\ndraws right below this text.\nAccentuating meaning."));
+            l.text("text", make_text_params("An underline line\ndraws right below this text.\nAccentuating meaning."));
         });
         s.layer("underline", [](auto& l) {
             l.pin_to(Anchor::Center);
@@ -169,7 +122,7 @@ Composition minimalist_underline_draw() {
 Composition minimalist_highlight_block() {
     return composition({.name = "MinimalistHighlightBlock", .duration = 120}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        add_common_background(s);
+        add_minimalist_background(s);
         s.layer("highlight_layer", [](auto& l) {
             l.pin_to(Anchor::Center);
             l.highlight_block(Frame{45});
@@ -183,7 +136,7 @@ Composition minimalist_highlight_block() {
         s.layer("text_layer", [](auto& l) {
             l.pin_to(Anchor::Center);
             add_text_backdrop(l);
-            l.text("text", common_text_params("An accent block\nhighlights behind the core phrase.\nFocused sight."));
+            l.text("text", make_text_params("An accent block\nhighlights behind the core phrase.\nFocused sight."));
         });
         return s.build();
     });
@@ -193,7 +146,7 @@ Composition minimalist_highlight_block() {
 Composition minimalist_framing_bracket() {
     return composition({.name = "MinimalistFramingBracket", .duration = 120}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        add_common_background(s);
+        add_minimalist_background(s);
         s.layer("bracket", [](auto& l) {
             l.pin_to(Anchor::Center);
             l.position({-560.0f, 0.0f, 0.0f});
@@ -207,7 +160,7 @@ Composition minimalist_framing_bracket() {
         s.layer("text_layer", [](auto& l) {
             l.pin_to(Anchor::Center);
             add_text_backdrop(l);
-            l.text("text", common_text_params("A vertical quote bar\nisolates the quote layout.\nPremium formatting."));
+            l.text("text", make_text_params("A vertical quote bar\nisolates the quote layout.\nPremium formatting."));
         });
         return s.build();
     });
@@ -217,24 +170,24 @@ Composition minimalist_framing_bracket() {
 Composition minimalist_word_stagger() {
     return composition({.name = "MinimalistWordStagger", .duration = 150}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        add_common_background(s);
+        add_minimalist_background(s);
         s.layer("line1", [](auto& l) {
             l.pin_to(Anchor::Center);
             l.position({0.0f, -80.0f, 0.0f});
             l.word_stagger(Frame{0}, Frame{30});
-            l.text("t1", common_text_params("First line reveals first."));
+            l.text("t1", make_text_params("First line reveals first."));
         });
         s.layer("line2", [](auto& l) {
             l.pin_to(Anchor::Center);
             l.position({0.0f, 0.0f, 0.0f});
             l.word_stagger(Frame{25}, Frame{30});
-            l.text("t2", common_text_params("Second line starts soon after."));
+            l.text("t2", make_text_params("Second line starts soon after."));
         });
         s.layer("line3", [](auto& l) {
             l.pin_to(Anchor::Center);
             l.position({0.0f, 80.0f, 0.0f});
             l.word_stagger(Frame{50}, Frame{30});
-            l.text("t3", common_text_params("Third line finishes the block."));
+            l.text("t3", make_text_params("Third line finishes the block."));
         });
         return s.build();
     });
@@ -244,12 +197,12 @@ Composition minimalist_word_stagger() {
 Composition minimalist_scale_drop() {
     return composition({.name = "MinimalistScaleDrop", .duration = 120}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        add_common_background(s);
+        add_minimalist_background(s);
         s.layer("text_layer", [](auto& l) {
             l.pin_to(Anchor::Center);
             l.scale_drop(1.08f, Frame{45});
             add_text_backdrop(l);
-            l.text("text", common_text_params("Settling down softly\nfrom a slightly larger scale.\nWeighty drop."));
+            l.text("text", make_text_params("Settling down softly\nfrom a slightly larger scale.\nWeighty drop."));
         });
         return s.build();
     });
@@ -259,12 +212,12 @@ Composition minimalist_scale_drop() {
 Composition minimalist_tracking_breathing() {
     return composition({.name = "MinimalistTrackingBreathing", .duration = 120}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        add_common_background(s);
+        add_minimalist_background(s);
         s.layer("text_layer", [](auto& l) {
             l.pin_to(Anchor::Center);
             l.tracking_breathing(0.96f, Frame{120});
             add_text_backdrop(l);
-            l.text("text", common_text_params("Breathing scale expansion.\nVery subtle size adjustment.\nMotion feeling."));
+            l.text("text", make_text_params("Breathing scale expansion.\nVery subtle size adjustment.\nMotion feeling."));
         });
         return s.build();
     });
@@ -274,13 +227,13 @@ Composition minimalist_tracking_breathing() {
 Composition minimalist_elegant_exit_vertical() {
     return composition({.name = "MinimalistElegantExitVertical", .duration = 150}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        add_common_background(s);
+        add_minimalist_background(s);
         s.layer("text_layer", [](auto& l) {
             l.pin_to(Anchor::Center);
             l.fade_in(Frame{40});
             l.elegant_exit_vertical(Vec3{0.0f, 30.0f, 0.0f}, Frame{40}); // exits after frame 90 (local time evaluate inside build)
             add_text_backdrop(l);
-            l.text("text", common_text_params("This slide is here,\nbut it will slide down out of view\nas the curtain falls."));
+            l.text("text", make_text_params("This slide is here,\nbut it will slide down out of view\nas the curtain falls."));
         });
         return s.build();
     });
@@ -290,13 +243,13 @@ Composition minimalist_elegant_exit_vertical() {
 Composition minimalist_elegant_exit_horizontal() {
     return composition({.name = "MinimalistElegantExitHorizontal", .duration = 150}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        add_common_background(s);
+        add_minimalist_background(s);
         s.layer("text_layer", [](auto& l) {
             l.pin_to(Anchor::Center);
             l.fade_in(Frame{40});
             l.elegant_exit_horizontal(Vec3{40.0f, 0.0f, 0.0f}, Frame{40});
             add_text_backdrop(l);
-            l.text("text", common_text_params("Watch the text carefully,\nas it slides horizontally away\nleaving empty room."));
+            l.text("text", make_text_params("Watch the text carefully,\nas it slides horizontally away\nleaving empty room."));
         });
         return s.build();
     });
@@ -306,12 +259,12 @@ Composition minimalist_elegant_exit_horizontal() {
 Composition minimalist_curtain_close() {
     return composition({.name = "MinimalistCurtainClose", .duration = 120}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        add_common_background(s);
+        add_minimalist_background(s);
         s.layer("text_layer", [](auto& l) {
             l.pin_to(Anchor::Center);
             l.curtain_close(Frame{45});
             add_text_backdrop(l);
-            l.text("text", common_text_params("The curtain closes down.\nThe presentation ends.\nSmooth vertical exit."));
+            l.text("text", make_text_params("The curtain closes down.\nThe presentation ends.\nSmooth vertical exit."));
         });
         return s.build();
     });
