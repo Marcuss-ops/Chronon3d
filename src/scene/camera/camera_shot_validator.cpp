@@ -1,6 +1,7 @@
 #include <chronon3d/scene/camera/camera_shot_validator.hpp>
 #include <cmath>
 #include <algorithm>
+#include <limits>
 
 namespace chronon3d {
 
@@ -77,7 +78,7 @@ CameraShotReport CameraShotValidator::validate(
             ScreenPoint sp = project_world_to_screen(world_center, camera, viewport);
             lr.depth = sp.depth;
             if (sp.behind_camera) {
-                lr.center_error_px = 999999.0f;
+                lr.center_error_px = std::numeric_limits<float>::max();
             } else {
                 lr.center_error_px = glm::distance(sp.position, Vec2{viewport.width * 0.5f, viewport.height * 0.5f});
             }
@@ -93,7 +94,7 @@ CameraShotReport CameraShotValidator::validate(
             continue;
         }
         ScreenPoint sp = project_world_to_screen(*pos_opt, camera, viewport);
-        float err = 999999.0f;
+        float err = std::numeric_limits<float>::max();
         if (!sp.behind_camera) {
             err = glm::distance(sp.position, Vec2{viewport.width * 0.5f, viewport.height * 0.5f});
         }
