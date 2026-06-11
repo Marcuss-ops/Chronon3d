@@ -54,6 +54,8 @@ add_library(chronon3d_graph STATIC
     nodes/transform_kernels.cpp
     nodes/transition_node.cpp
     nodes/effect_stack_node.cpp
+    nodes/clear_node.cpp
+    nodes/composite_node.cpp
     nodes/transition/transition_node_math.cpp
     # Moved from src/scene/model/ — mask_utils belongs to graph, not scene
     mask_utils.cpp
