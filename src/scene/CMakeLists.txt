@@ -7,33 +7,8 @@
 # ==============================================================================
 
 add_library(chronon3d_scene STATIC
-    camera/camera_motion_presets.cpp
-    camera/camera_rig.cpp
-    camera/camera_rig_presets.cpp
-    camera/camera_projection.cpp
-    camera/camera_shot_validator.cpp
-    camera/camera_framing.cpp
-    camera/camera_path_sampler.cpp
-    camera/camera_debug_overlay.cpp
-    camera/overlay_hud_panels.cpp
-    camera/overlay_kinematic_panels.cpp
-    camera/overlay_spatial_panels.cpp
-    model/layer.cpp
-    model/render_node_factory.cpp
-    model/transform_resolver.cpp
+    # Local files outside subsystem dirs
     utils/dark_grid_background.cpp
-    builders/layer_builder.cpp
-    builders/layer_builder_effects.cpp
-    builders/layer_command_registry.cpp
-    builders/commands/motion_preset_methods.cpp
-    builders/commands/motion_preset_commands.cpp
-    builders/commands/shape_commands.cpp
-    builders/commands/node_transform_commands.cpp
-    builders/commands/layer_property_commands.cpp
-    validation/scene_validator.cpp
-    validation/scene_validation_registry.cpp
-    builders/camera_api.cpp
-    builders/scene_builder.cpp
     # Cross-directory sources
     ../timeline/timeline_builder.cpp
     ../animations/camera/camera_tilt_clips.cpp
@@ -58,6 +33,14 @@ add_library(chronon3d_scene STATIC
     ../media/media_placement.cpp
     ../vector/path_factories.cpp
 )
+
+# ==============================================================================
+# Subsystem source files (each directory adds its sources via target_sources)
+# ==============================================================================
+add_subdirectory(camera)
+add_subdirectory(model)
+add_subdirectory(builders)
+add_subdirectory(validation)
 target_include_directories(chronon3d_scene PRIVATE ${CMAKE_SOURCE_DIR})
 target_link_libraries(chronon3d_scene
     PUBLIC
