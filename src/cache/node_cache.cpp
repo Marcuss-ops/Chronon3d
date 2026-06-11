@@ -1,4 +1,5 @@
 #include <chronon3d/cache/node_cache.hpp>
+#include <chronon3d/core/config.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <spdlog/spdlog.h>
 #include <cstdlib>
@@ -21,20 +22,8 @@ template <typename T>
 namespace {
 
 size_t resolve_default_capacity(size_t fallback) {
-    const char* env = std::getenv("CHRONON_NODE_CACHE_MAX_MB");
-    if (!env || !*env) {
-        return fallback;
-    }
-    try {
-        const size_t mb = static_cast<size_t>(std::stoull(env));
-        if (mb == 0) {
-            return fallback;
-        }
-        return mb * 1024ULL * 1024ULL;
-    } catch (...) {
-        spdlog::warn("CHRONON_NODE_CACHE_MAX_MB: invalid value '{}', using default", env);
-        return fallback;
-    }
+    auto max_bytes = Config::get().node_cache_max_bytes;
+    return max_bytes > 0 ? max_bytes : fallback;
 }
 
 } // namespace

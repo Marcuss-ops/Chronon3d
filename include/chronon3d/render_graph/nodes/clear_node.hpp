@@ -2,7 +2,7 @@
 
 #include <chronon3d/core/parallel_tracked.hpp>
 #include <chronon3d/render_graph/nodes/basic_nodes_common.hpp>
-#include <chrono>
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <cstring>
 #include <span>
 
@@ -97,7 +97,7 @@ public:
                     const bool is_full_clip = (clip->x0 <= 0 && clip->y0 <= 0 &&
                                                clip->x1 >= logical_w && clip->y1 >= h);
                     if (!is_full_clip) {
-                        const auto t_restore0 = std::chrono::high_resolution_clock::now();
+                        const auto t_restore0 = profiling::now();
                         const Color* src_data = read_fb->data();
                         Color* dst_data = write_fb->data();
                         const int src_stride = read_fb->allocated_width();
@@ -134,9 +134,9 @@ public:
                             }
                         }
                         if (ctx.telemetry.counters) {
-                            const auto t_restore1 = std::chrono::high_resolution_clock::now();
+                            const auto t_restore1 = profiling::now();
                             const auto elapsed = static_cast<uint64_t>(
-                                std::chrono::duration<double, std::milli>(t_restore1 - t_restore0).count());
+                                profiling::duration_ms(t_restore0, t_restore1));
                             ctx.telemetry.counters->clearnode_restore_ms.fetch_add(elapsed, std::memory_order_relaxed);
                         }
                     }
@@ -147,12 +147,12 @@ public:
 
                 // Clear dirty area (or entire FB when no clip = full canvas) and record timing.
                 if (clip && !is_empty) {
-                    const auto t0 = std::chrono::high_resolution_clock::now();
+                    const auto t0 = profiling::now();
                     write_fb->clear(Color::transparent(), *clip);
-                    const auto t1 = std::chrono::high_resolution_clock::now();
+                    const auto t1 = profiling::now();
                     if (ctx.telemetry.counters) {
                         const auto elapsed = static_cast<uint64_t>(
-                            std::chrono::duration<double, std::milli>(t1 - t0).count());
+                            profiling::duration_ms(t0, t1));
                         ctx.telemetry.counters->clearnode_ms.fetch_add(elapsed, std::memory_order_relaxed);
                         ctx.telemetry.counters->clearnode_clear_ms.fetch_add(elapsed, std::memory_order_relaxed);
                         ctx.telemetry.counters->framebuffer_clear_ms.fetch_add(elapsed, std::memory_order_relaxed);
@@ -162,12 +162,12 @@ public:
                 } else {
                     // No clip (full canvas) or empty clip: clear entire FB.
                     if (!is_empty) {
-                        const auto t0 = std::chrono::high_resolution_clock::now();
+                        const auto t0 = profiling::now();
                         write_fb->clear(Color::transparent());
-                        const auto t1 = std::chrono::high_resolution_clock::now();
+                        const auto t1 = profiling::now();
                         if (ctx.telemetry.counters) {
                             const auto elapsed = static_cast<uint64_t>(
-                                std::chrono::duration<double, std::milli>(t1 - t0).count());
+                                profiling::duration_ms(t0, t1));
                             ctx.telemetry.counters->framebuffer_clear_ms.fetch_add(elapsed, std::memory_order_relaxed);
                             ctx.telemetry.counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
                             ctx.telemetry.counters->clear_pixels.fetch_add(clear_pixels, std::memory_order_relaxed);
@@ -239,7 +239,7 @@ public:
                         ctx.telemetry.counters->clearnode_partial_clip_copy_count.fetch_add(1, std::memory_order_relaxed);
                     }
                 }
-                const auto t_memcpy0 = std::chrono::high_resolution_clock::now();
+                const auto t_memcpy0 = profiling::now();
                 auto owned = ctx.acquire_owned_fb(fb->width(), fb->height(), false);
                 owned->set_origin(fb->origin_x(), fb->origin_y());
                 const int copy_h = fb->height();
@@ -303,8 +303,8 @@ public:
                     fb = std::shared_ptr<Framebuffer>(raw);
                 }
                 if (ctx.telemetry.counters) {
-                    const auto t_memcpy1 = std::chrono::high_resolution_clock::now();
-                    const auto elapsed = static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t_memcpy1 - t_memcpy0).count());
+                    const auto t_memcpy1 = profiling::now();
+                    const auto elapsed = static_cast<uint64_t>(profiling::duration_ms(t_memcpy0, t_memcpy1));
                     ctx.telemetry.counters->clearnode_memcpy_ms.fetch_add(elapsed, std::memory_order_relaxed);
                 }
             } else {
@@ -339,11 +339,11 @@ public:
                 }
             }
             if (!is_empty_clip) {
-                const auto t0 = std::chrono::high_resolution_clock::now();
+                const auto t0 = profiling::now();
                 fb->clear(Color::transparent(), local_clip);
-                const auto t1 = std::chrono::high_resolution_clock::now();
+                const auto t1 = profiling::now();
                 if (ctx.telemetry.counters) {
-                    const auto elapsed = static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t1 - t0).count());
+                    const auto elapsed = static_cast<uint64_t>(profiling::duration_ms(t0, t1));
                     ctx.telemetry.counters->clearnode_ms.fetch_add(elapsed, std::memory_order_relaxed);
                     ctx.telemetry.counters->clearnode_clear_ms.fetch_add(elapsed, std::memory_order_relaxed);
                     ctx.telemetry.counters->framebuffer_clear_ms.fetch_add(elapsed, std::memory_order_relaxed);

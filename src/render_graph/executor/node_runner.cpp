@@ -9,7 +9,6 @@
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/math/color.hpp>
 #include <spdlog/spdlog.h>
-#include <chrono>
 #include <cmath>
 
 namespace chronon3d::graph {
@@ -29,7 +28,7 @@ double run_node(
         return 0.001;
     }
 
-    const auto exec_t0 = std::chrono::steady_clock::now();
+    const auto exec_t0 = profiling::now();
     OwnedFB owned;
     {
         CHRONON_ZONE_C("node_execute", trace_category::kGraph);
@@ -79,8 +78,8 @@ double run_node(
             }
         }
     }
-    const auto exec_t1 = std::chrono::steady_clock::now();
-    return std::chrono::duration<double, std::milli>(exec_t1 - exec_t0).count();
+    const auto exec_t1 = profiling::now();
+    return profiling::duration_ms(exec_t0, exec_t1);
 }
 
 void execute_single_node(
@@ -131,7 +130,7 @@ void execute_single_node(
     const auto& input_ids = graph.inputs(id);
     const auto& pr = level_resolved[level_index];
 
-    const auto t_cache0 = std::chrono::steady_clock::now();
+    const auto t_cache0 = profiling::now();
     auto cache_eval = evaluate_cache(
         node, ctx,
         pr.input_hash,
@@ -140,9 +139,9 @@ void execute_single_node(
         id,
         pr.inputs_all_cache_hits
     );
-    const auto t_cache1 = std::chrono::steady_clock::now();
+    const auto t_cache1 = profiling::now();
     if (out_cache_ms) {
-        *out_cache_ms = std::chrono::duration<double, std::milli>(t_cache1 - t_cache0).count();
+        *out_cache_ms = profiling::duration_ms(t_cache0, t_cache1);
     }
 
     if (ctx.options.diagnostics_enabled) {
@@ -153,11 +152,11 @@ void execute_single_node(
             cache_eval.result ? fmt::ptr(cache_eval.result.get()) : "null");
     }
 
-    const auto t_bbox0 = std::chrono::steady_clock::now();
+    const auto t_bbox0 = profiling::now();
     auto predicted_bbox = node.predicted_bbox(ctx, pr.input_bboxes);
-    const auto t_bbox1 = std::chrono::steady_clock::now();
+    const auto t_bbox1 = profiling::now();
     if (out_predicted_bbox_ms) {
-        *out_predicted_bbox_ms = std::chrono::duration<double, std::milli>(t_bbox1 - t_bbox0).count();
+        *out_predicted_bbox_ms = profiling::duration_ms(t_bbox0, t_bbox1);
     }
 
     const bool cache_hit_fast_path =
@@ -167,7 +166,7 @@ void execute_single_node(
         !ctx.tile.tile_execution_enabled;
 
     if (cache_hit_fast_path) {
-        const auto t_fast0 = std::chrono::steady_clock::now();
+        const auto t_fast0 = profiling::now();
 
         state.temp[id] = cache_eval.result;
         state.resolved_key_digest[id] = cache_eval.key.digest();
@@ -175,10 +174,10 @@ void execute_single_node(
         state.resolved_cache_hit[id] = 1;
         state.resolved_bboxes[id] = predicted_bbox;
 
-        const auto t_fast1 = std::chrono::steady_clock::now();
-        const double fast_duration_ms = std::chrono::duration<double, std::milli>(t_fast1 - t_fast0).count();
+        const auto t_fast1 = profiling::now();
+        const double fast_duration_ms = profiling::duration_ms(t_fast0, t_fast1);
 
-        const auto t_telemetry0 = std::chrono::steady_clock::now();
+        const auto t_telemetry0 = profiling::now();
         emit_node_records(
             ctx, node,
             cache_eval.key,
@@ -189,15 +188,15 @@ void execute_single_node(
             static_cast<int>(input_ids.size()),
             fast_duration_ms
         );
-        const auto t_telemetry1 = std::chrono::steady_clock::now();
+        const auto t_telemetry1 = profiling::now();
         if (ctx.telemetry.counters) {
             ctx.telemetry.counters->nodes_executed.fetch_add(1, std::memory_order_relaxed);
         }
         if (out_telemetry_ms) {
-            *out_telemetry_ms = std::chrono::duration<double, std::milli>(t_telemetry1 - t_telemetry0).count();
+            *out_telemetry_ms = profiling::duration_ms(t_telemetry0, t_telemetry1);
         }
         if (out_cache_ms) {
-            *out_cache_ms = std::chrono::duration<double, std::milli>(t_cache1 - t_cache0).count();
+            *out_cache_ms = profiling::duration_ms(t_cache0, t_cache1);
         }
         if (out_dirty_ms) {
             *out_dirty_ms = 0.0;
@@ -240,22 +239,22 @@ void execute_single_node(
     // (node_telemetry, layer_telemetry, dof_depth, early_exit_skip).
     // These are not read during node.execute() — the full copy was the
     // #1 bottleneck (~20K ms overhead for 90 node executions).
-    const auto t_clone0 = std::chrono::steady_clock::now();
+    const auto t_clone0 = profiling::now();
     auto node_ctx = ctx.clone_for_node_execution();
-    const auto t_clone1 = std::chrono::steady_clock::now();
+    const auto t_clone1 = profiling::now();
     if (out_clone_context_ms) {
-        *out_clone_context_ms = std::chrono::duration<double, std::milli>(t_clone1 - t_clone0).count();
+        *out_clone_context_ms = profiling::duration_ms(t_clone0, t_clone1);
     }
 
-    const auto t_dirty0 = std::chrono::steady_clock::now();
+    const auto t_dirty0 = profiling::now();
     if (ctx.options.dirty_rects_enabled) {
         node_ctx.tile.clip_rect = compute_dirty_clip(ctx, node, predicted_bbox);
     } else {
         node_ctx.tile.clip_rect = predicted_bbox;
     }
-    const auto t_dirty1 = std::chrono::steady_clock::now();
+    const auto t_dirty1 = profiling::now();
     if (out_dirty_ms) {
-        *out_dirty_ms = std::chrono::duration<double, std::milli>(t_dirty1 - t_dirty0).count();
+        *out_dirty_ms = profiling::duration_ms(t_dirty0, t_dirty1);
     }
 
     node_ctx.scratch.reusable_inputs.clear();
@@ -282,7 +281,7 @@ void execute_single_node(
         *out_execute_ms = duration_ms;
     }
 
-    const auto t_telemetry0 = std::chrono::steady_clock::now();
+    const auto t_telemetry0 = profiling::now();
     emit_node_records(
         ctx, node,
         cache_eval.key,
@@ -293,9 +292,9 @@ void execute_single_node(
         static_cast<int>(input_ids.size()),
         duration_ms
     );
-    const auto t_telemetry1 = std::chrono::steady_clock::now();
+    const auto t_telemetry1 = profiling::now();
     if (out_telemetry_ms) {
-        *out_telemetry_ms = std::chrono::duration<double, std::milli>(t_telemetry1 - t_telemetry0).count();
+        *out_telemetry_ms = profiling::duration_ms(t_telemetry0, t_telemetry1);
     }
 
     state.temp[id] = cache_eval.result;
@@ -304,9 +303,9 @@ void execute_single_node(
     state.resolved_cache_hit[id] = (cache_eval.cache_status == "hit") ? 1 : 0;
     state.resolved_bboxes[id] = predicted_bbox;
 
-    const auto t_state1 = std::chrono::steady_clock::now();
+    const auto t_state1 = profiling::now();
     if (out_state_assign_ms) {
-        *out_state_assign_ms = std::chrono::duration<double, std::milli>(t_state1 - t_telemetry1).count();
+        *out_state_assign_ms = profiling::duration_ms(t_telemetry1, t_state1);
     }
 }
 

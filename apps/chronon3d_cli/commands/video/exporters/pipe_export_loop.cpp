@@ -4,7 +4,7 @@
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/core/telemetry/telemetry_bundle.hpp>
 
-#include <chrono>
+#include <chronon3d/core/profiling/profiling.hpp>
 
 namespace chronon3d::cli {
 
@@ -24,7 +24,7 @@ RenderLoopOutput run_pipe_export_loop(
     telemetry_frames.reserve(session.total_frames > 0
         ? static_cast<size_t>(session.total_frames) : 0);
 
-    const auto render_t0 = std::chrono::steady_clock::now();
+    const auto render_t0 = profiling::now();
 
     RenderLoopContext loop_ctx{
         .backend = *session.renderer,
@@ -45,7 +45,7 @@ RenderLoopOutput run_pipe_export_loop(
     };
     auto loop_result = run_render_loop(loop_ctx);
 
-    const auto render_t1 = std::chrono::steady_clock::now();
+    const auto render_t1 = profiling::now();
 
     // Signal writer done and join
     session.writer_done.store(true);
@@ -61,7 +61,7 @@ RenderLoopOutput run_pipe_export_loop(
     RenderLoopOutput output;
     output.loop_result = std::move(loop_result);
     output.telemetry_frames = std::move(telemetry_frames);
-    output.render_ms = std::chrono::duration<double, std::milli>(render_t1 - render_t0).count();
+    output.render_ms = profiling::duration_ms(render_t0, render_t1);
     output.render_end = render_t1;
     return output;
 }

@@ -26,7 +26,7 @@
 #include <cstdlib>
 #include <algorithm>
 #include <memory>
-#include <chrono>
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <vector>
 
 using namespace chronon3d;
@@ -400,17 +400,17 @@ static void run_test(const char* label,
 
     // Full-res reference (3-pass)
     auto ref = std::make_shared<Framebuffer>(original);
-    auto t0 = std::chrono::steady_clock::now();
+    auto t0 = profiling::now();
     apply_3pass_blur(*ref, static_cast<int>(std::round(radius)));
-    auto t1 = std::chrono::steady_clock::now();
-    double ref_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+    auto t1 = profiling::now();
+    double ref_ms = profiling::duration_ms(t0, t1);
 
     // Downsample path
     auto ds = std::make_shared<Framebuffer>(original);
-    auto t2 = std::chrono::steady_clock::now();
+    auto t2 = profiling::now();
     apply_downsample_blur(*ds, radius, downsample_factor);
-    auto t3 = std::chrono::steady_clock::now();
-    double ds_ms = std::chrono::duration<double, std::milli>(t3 - t2).count();
+    auto t3 = profiling::now();
+    double ds_ms = profiling::duration_ms(t2, t3);
 
     // Save outputs
     char path_ref[128], path_ds[128], path_err[128], path_orig[128];
@@ -524,17 +524,17 @@ int main(int argc, char** argv) {
 
         // 3-pass reference
         auto ref = std::make_shared<Framebuffer>(*fb);
-        auto t0 = std::chrono::steady_clock::now();
+        auto t0 = profiling::now();
         apply_3pass_blur(*ref, r);
-        auto t1 = std::chrono::steady_clock::now();
-        double t3_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+        auto t1 = profiling::now();
+        double t3_ms = profiling::duration_ms(t0, t1);
 
         // 2-pass with equivalent radius
         auto two = std::make_shared<Framebuffer>(*fb);
-        auto t2 = std::chrono::steady_clock::now();
+        auto t2 = profiling::now();
         apply_2pass_blur(*two, r);
-        auto t3 = std::chrono::steady_clock::now();
-        double t2_ms = std::chrono::duration<double, std::milli>(t3 - t2).count();
+        auto t3 = profiling::now();
+        double t2_ms = profiling::duration_ms(t2, t3);
 
         auto cr = compare(*ref, *two);
         int r2 = two_pass_equivalent_radius(r);

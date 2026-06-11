@@ -22,8 +22,8 @@
 #include <chronon3d/media/frame_conversion/direct_yuv_converter.hpp>
 #include <chronon3d/media/frame_conversion/direct_yuv_lut.hpp>
 
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <algorithm>
-#include <chrono>
 #include <cstdint>
 
 #include <chronon3d/core/parallel_tracked.hpp>
@@ -214,7 +214,7 @@ static void process_block_hwy(const DirectYuvRequest& req,
 // ============================================================================
 
 HWY_ATTR DirectYuvResult convert_to_yuv420p_hwy_impl(const DirectYuvRequest& req) {
-    const uint64_t t0 = std::chrono::steady_clock::now().time_since_epoch().count();
+    const uint64_t t0 = profiling::timestamp_ns();
     if (req.width % 2 != 0 || req.height % 2 != 0) return DirectYuvResult{};
     if (!req.dst_y || !req.dst_u || !req.dst_v)    return DirectYuvResult{};
 
@@ -226,7 +226,7 @@ HWY_ATTR DirectYuvResult convert_to_yuv420p_hwy_impl(const DirectYuvRequest& req
             process_block_hwy(req, b*2, req.width, coeffs);
     });
 
-    const uint64_t t1 = std::chrono::steady_clock::now().time_since_epoch().count();
+    const uint64_t t1 = profiling::timestamp_ns();
     return DirectYuvResult{.success = true, .used_simd = true, .conversion_ns = t1 - t0};
 }
 
@@ -235,7 +235,7 @@ HWY_ATTR DirectYuvResult convert_to_yuv420p_hwy_impl(const DirectYuvRequest& req
 // ============================================================================
 
 HWY_ATTR DirectYuvResult convert_to_nv12_hwy_impl(const DirectYuvRequest& req) {
-    const uint64_t t0 = std::chrono::steady_clock::now().time_since_epoch().count();
+    const uint64_t t0 = profiling::timestamp_ns();
     if (req.width % 2 != 0 || req.height % 2 != 0) return DirectYuvResult{};
     if (!req.dst_y || !req.dst_uv)                  return DirectYuvResult{};
 
@@ -351,7 +351,7 @@ HWY_ATTR DirectYuvResult convert_to_nv12_hwy_impl(const DirectYuvRequest& req) {
         }
     });
 
-    const uint64_t t1 = std::chrono::steady_clock::now().time_since_epoch().count();
+    const uint64_t t1 = profiling::timestamp_ns();
     return DirectYuvResult{.success = true, .used_simd = true, .conversion_ns = t1 - t0};
 }
 

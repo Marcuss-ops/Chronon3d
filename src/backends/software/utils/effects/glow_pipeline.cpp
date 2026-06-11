@@ -13,6 +13,7 @@
 #include "effect_helpers.hpp"
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
+#include <chronon3d/core/config.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/effects/glow_pipeline.hpp>
 #include <chronon3d/render_graph/render_graph_context.hpp>
@@ -194,7 +195,7 @@ void run_layer_mode(Framebuffer& fb, const GlowPipeline& p,
     }
 
     // ── Debug: save source framebuffer ─────────────────────────────────
-    if (std::getenv("CHRONON_DEBUG_GLOW")) {
+    if (chronon3d::Config::get().debug_glow) {
         save_png(*source_fb, "output/debug_glow_source.png");
     }
 
@@ -238,7 +239,7 @@ void run_layer_mode(Framebuffer& fb, const GlowPipeline& p,
             accumulate_glow_pass(*glow_acc_fb, *pass_fb, p);
 
             // Debug: save each glow pass before accumulation
-            if (std::getenv("CHRONON_DEBUG_GLOW")) {
+            if (chronon3d::Config::get().debug_glow) {
                 static thread_local int pass_counter = 0;
                 save_png(*pass_fb, "output/debug_glow_pass_" + std::to_string(pass_counter++) + ".png");
             }
@@ -269,7 +270,7 @@ void run_layer_mode(Framebuffer& fb, const GlowPipeline& p,
     }
 
     // ── Debug: save accumulated glow before compositing ────────────────
-    if (std::getenv("CHRONON_DEBUG_GLOW")) {
+    if (chronon3d::Config::get().debug_glow) {
         save_png(*glow_acc_fb, "output/debug_glow_accumulated.png");
     }
 
@@ -431,8 +432,14 @@ GlowPipelineOutput GlowPipeline::render(graph::RenderGraphContext& ctx,
     // Build internal pipeline config from GlowParams.
     GlowPipeline p = GlowPipeline::from(input.params);
 
-    // Allocate a working framebuffer (raw new — will be adopted by OwnedFB).
-    auto* work_fb = new Framebuffer(w, h);
+    // Acquire from pool or allocate fresh.
+    OwnedFB result;
+    if (ctx.resources.framebuffer_pool) {
+        result = ctx.resources.framebuffer_pool->acquire_owned(w, h, false);
+    } else {
+        result = OwnedFB(new Framebuffer(w, h), PoolFbDeleter{nullptr});
+    }
+    auto* work_fb = result.get();
     work_fb->clear(Color::transparent());
 
     // Compute affected bounds from clip + glow extent.
@@ -454,12 +461,6 @@ GlowPipelineOutput GlowPipeline::render(graph::RenderGraphContext& ctx,
 
     // Run the pipeline on the working copy.
     renderer::run_glow_pipeline(*work_fb, p, input.clip, input.source_is_alpha_mask);
-
-    // Adopt the working framebuffer as an OwnedFB.
-    OwnedFB result(work_fb, PoolFbDeleter{nullptr});
-    if (ctx.resources.framebuffer_pool) {
-        result.get_deleter().pool = ctx.resources.framebuffer_pool.get();
-    }
 
     return {std::move(result), bbox};
 }

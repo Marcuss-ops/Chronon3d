@@ -1,4 +1,5 @@
 #include <chronon3d/cache/disk_node_cache.hpp>
+#include <chronon3d/core/config.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <spdlog/spdlog.h>
 #include <fstream>
@@ -19,9 +20,9 @@ DiskNodeCache& DiskNodeCache::instance() {
 }
 
 DiskNodeCache::DiskNodeCache() {
-    const char* env = std::getenv("CHRONON_DISK_CACHE_DIR");
-    if (env && *env) {
-        m_cache_dir = env;
+    auto& dir = Config::get().disk_cache_dir;
+    if (!dir.empty()) {
+        m_cache_dir = dir;
     } else {
         m_cache_dir = std::filesystem::path("output") / "cache" / "nodes";
     }

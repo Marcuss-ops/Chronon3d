@@ -8,7 +8,6 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 
 #include <spdlog/spdlog.h>
-#include <chrono>
 #include <thread>
 #include <memory>
 
@@ -60,13 +59,13 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     track_pipe_encoder_process(opts, *session->encoder, session->sys_metrics);
 
     // ── Create renderer ──────────────────────────────────────────────────
-    const auto renderer_t0 = std::chrono::steady_clock::now();
+    const auto renderer_t0 = profiling::now();
     session->renderer = create_renderer(registry, settings);
-    const auto renderer_t1 = std::chrono::steady_clock::now();
+    const auto renderer_t1 = profiling::now();
 
     if (session->renderer->counters()) {
         const auto setup_ms = static_cast<uint64_t>(
-            std::chrono::duration<double, std::milli>(renderer_t1 - renderer_t0).count());
+            profiling::duration_ms(renderer_t0, renderer_t1));
         session->renderer->counters()->setup_graph_parsing_ms.fetch_add(setup_ms, std::memory_order_relaxed);
     }
     session->sw_renderer = dynamic_cast<SoftwareRenderer*>(session->renderer.get());

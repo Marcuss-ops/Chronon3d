@@ -7,7 +7,7 @@
 #include "../builder/graph_builder_pipeline.hpp"
 #include "../builder/graph_builder_internal.hpp"
 #include "helpers.hpp"
-#include <chrono>
+#include <chronon3d/core/profiling/profiling.hpp>
 
 namespace chronon3d::graph {
 
@@ -63,7 +63,7 @@ SceneGraphStats analyze_scene_graph(
     SceneGraphStats stats;
     stats.scene_layers = static_cast<int>(scene.layers().size());
 
-    const auto t0 = std::chrono::steady_clock::now();
+    const auto t0 = profiling::now();
 
     auto ctx = make_graph_context(backend, node_cache, camera, width, height,
                                    frame, frame_time, settings, registry, video_decoder, fps);
@@ -76,9 +76,9 @@ SceneGraphStats analyze_scene_graph(
         ctx.camera.projection_ctx.ready = true;
     }
 
-    const auto t_build0 = std::chrono::steady_clock::now();
+    const auto t_build0 = profiling::now();
     RenderGraph graph = GraphBuilder::build(scene, ctx);
-    const auto t_build1 = std::chrono::steady_clock::now();
+    const auto t_build1 = profiling::now();
 
     stats.total_nodes    = graph.size();
     stats.output_id      = graph.has_output() ? graph.output() : k_invalid_node;
@@ -101,23 +101,23 @@ SceneGraphStats analyze_scene_graph(
 
     if (include_dot) stats.dot = graph.to_dot();
 
-    stats.build_ms = std::chrono::duration<double, std::milli>(t_build1 - t_build0).count();
+    stats.build_ms = profiling::duration_ms(t_build0, t_build1);
 
     if (execute && graph.has_output()) {
         stats.cache_before = node_cache.stats();
-    const auto t_exec0 = std::chrono::steady_clock::now();
+    const auto t_exec0 = profiling::now();
     GraphExecutor executor;
     std::shared_ptr<Framebuffer> fb_shared;
     {
         CHRONON_ZONE_C("execute_graph", trace_category::kGraph);
         fb_shared = executor.execute(graph, graph.output(), ctx);
     }
-    const auto t_exec1 = std::chrono::steady_clock::now();
+    const auto t_exec1 = profiling::now();
         stats.cache_after  = node_cache.stats();
-        stats.execute_ms   = std::chrono::duration<double, std::milli>(t_exec1 - t_exec0).count();
+        stats.execute_ms   = profiling::duration_ms(t_exec0, t_exec1);
     }
 
-    stats.total_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+    stats.total_ms = profiling::duration_ms(t0, profiling::now());
     return stats;
 }
 

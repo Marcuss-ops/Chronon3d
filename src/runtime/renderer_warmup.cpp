@@ -1,7 +1,6 @@
 #include <chronon3d/runtime/renderer_warmup.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
-
-#include <chrono>
+#include <chronon3d/core/profiling/profiling.hpp>
 
 namespace chronon3d::runtime {
 
@@ -10,7 +9,7 @@ RendererWarmupResult warmup_renderer(
     const Composition& composition,
     const RendererWarmupOptions& options)
 {
-    const auto t0 = std::chrono::steady_clock::now();
+    const auto t0 = profiling::now();
 
     RendererWarmupResult result;
 
@@ -69,8 +68,7 @@ RendererWarmupResult warmup_renderer(
         result.pool_bytes_after = stats.current_bytes;
     }
 
-    const auto t1 = std::chrono::steady_clock::now();
-    result.elapsed_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+    result.elapsed_ms = profiling::elapsed_ms(t0);
 
     return result;
 }

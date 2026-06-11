@@ -1,7 +1,6 @@
 #include <spdlog/spdlog.h>
 #include <algorithm>
 #include <cmath>
-#include <chrono>
 #include <cctype>
 #include <mutex>
 #include <unordered_map>
@@ -12,6 +11,7 @@
 #include <chronon3d/backends/text/text_rasterizer_utils.hpp>
 #include <chronon3d/backends/text/text_layout_engine.hpp>
 #include <chronon3d/text/font_engine.hpp>
+#include <chronon3d/core/config.hpp>
 #include <blend2d/gradient.h>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
@@ -222,11 +222,10 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     layout_in.bl_font_ptr = &face;
     layout_in.bl_measure_fn = bl2d_measure_text;
 
-    auto start_layout = std::chrono::steady_clock::now();
+    auto start_layout = profiling::now();
     auto layout_res = TextLayoutEngine::layout(layout_in);
-    auto end_layout = std::chrono::steady_clock::now();
-    if (profiling::g_current_counters) {
-        auto dur = std::chrono::duration_cast<std::chrono::milliseconds>(end_layout - start_layout).count();
+        if (profiling::g_current_counters) {
+        auto dur = static_cast<uint64_t>(profiling::elapsed_ms(start_layout));
         profiling::g_current_counters->text_layout_ms.fetch_add(static_cast<uint64_t>(dur), std::memory_order_relaxed);
     }
 
@@ -311,7 +310,7 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     ctx.setFillStyle(BLRgba32(0, 0, 0, 0));
     ctx.fillAll();
 
-    auto start_raster = std::chrono::steady_clock::now();
+    auto start_raster = profiling::now();
 
     if (use_geometric_transform) {
         BLMatrix2D bl_mat;
@@ -576,7 +575,7 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
             }
             
             // Debug: log text bounds for box-enabled text (env-gated)
-            if (t.box.enabled && !t.text.empty() && std::getenv("CHRONON_DEBUG_TEXT_RASTER")) {
+            if (t.box.enabled && !t.text.empty() && chronon3d::Config::get().debug_text_raster) {
                 spdlog::info("[TextRaster] '{}' img={}x{} box={:.0f}x{:.0f} ink=[{},{},{},{}] ink_w={:.0f} ink_cx={:.1f}",
                     t.text, sw, sh, t.box.size.x, t.box.size.y,
                     ink_left, ink_right, ink_top, ink_bottom, ink_w, ink_center_frac);
@@ -585,7 +584,7 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     }
 
     // ── Debug: draw bounding box overlays (env-gated) ──────────────
-    if (std::getenv("CHRONON_DEBUG_TEXT_BBOX") && !t.text.empty()) {
+    if (chronon3d::Config::get().debug_text_bbox && !t.text.empty()) {
         BLContext dbg(img);
         dbg.setCompOp(BL_COMP_OP_SRC_OVER);
 
@@ -653,9 +652,8 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
         dbg.end();
     }
 
-    auto end_raster = std::chrono::steady_clock::now();
     if (profiling::g_current_counters) {
-        auto dur = std::chrono::duration_cast<std::chrono::milliseconds>(end_raster - start_raster).count();
+        auto dur = static_cast<uint64_t>(profiling::elapsed_ms(start_raster));
         profiling::g_current_counters->text_rasterization_ms.fetch_add(static_cast<uint64_t>(dur), std::memory_order_relaxed);
     }
 
@@ -708,7 +706,7 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     }
 
     // Debug: log final offsets for box text
-    if (t.box.enabled && !t.text.empty() && std::getenv("CHRONON_DEBUG_TEXT_RASTER")) {
+    if (t.box.enabled && !t.text.empty() && chronon3d::Config::get().debug_text_raster) {
         spdlog::info("[TextFinal] '{}' box={:.0f}x{:.0f} img={}x{} ink_center={:.1f} shift={:.1f} x_offset_final={:.1f} y_offset_final={:.1f} model_x={:.0f} frame_ink_cx={:.0f}",
             t.text, t.box.size.x, t.box.size.y, img_w, img_h,
             ink_center_frac,

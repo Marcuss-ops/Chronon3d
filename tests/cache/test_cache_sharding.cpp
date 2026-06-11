@@ -1,8 +1,8 @@
 #include <chronon3d/cache/lru_cache.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <doctest/doctest.h>
 #include <thread>
 #include <vector>
-#include <chrono>
 #include <atomic>
 #include <iostream>
 
@@ -17,7 +17,7 @@ TEST_CASE("LruCache - Sharding Contention") {
     const int ops_per_thread = 5000;
     std::vector<std::thread> threads;
 
-    auto start = std::chrono::high_resolution_clock::now();
+    auto start = profiling::now();
 
     for (int t = 0; t < num_threads; ++t) {
         threads.emplace_back([&cache, t, ops_per_thread]() {
@@ -33,10 +33,10 @@ TEST_CASE("LruCache - Sharding Contention") {
         thread.join();
     }
 
-    auto end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    auto end = profiling::now();
+    auto duration_ms = static_cast<int64_t>(profiling::duration_ms(start, end));
 
-    std::cout << "Sharded Cache (16 shards) duration: " << duration.count() << "ms" << std::endl;
+    std::cout << "Sharded Cache (16 shards) duration: " << duration_ms << "ms" << std::endl;
 }
 
 TEST_CASE("LruCache - Single Shard Contention") {
@@ -48,7 +48,7 @@ TEST_CASE("LruCache - Single Shard Contention") {
     const int ops_per_thread = 5000;
     std::vector<std::thread> threads;
 
-    auto start = std::chrono::high_resolution_clock::now();
+    auto start = profiling::now();
 
     for (int t = 0; t < num_threads; ++t) {
         threads.emplace_back([&cache, t, ops_per_thread]() {
@@ -64,10 +64,10 @@ TEST_CASE("LruCache - Single Shard Contention") {
         thread.join();
     }
 
-    auto end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    auto end = profiling::now();
+    auto duration_ms = static_cast<int64_t>(profiling::duration_ms(start, end));
 
-    std::cout << "Single Shard Cache duration: " << duration.count() << "ms" << std::endl;
+    std::cout << "Single Shard Cache duration: " << duration_ms << "ms" << std::endl;
 }
 
 TEST_CASE("LruCache - Hit/Miss Stats") {

@@ -5,7 +5,7 @@
 #include <chronon3d/cache/node_cache.hpp>
 #include <spdlog/spdlog.h>
 
-#include <chrono>
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <optional>
 #include <thread>
 
@@ -20,7 +20,7 @@ void run_writer_thread(const WriterThreadContext& ctx) {
 
     for (;;) {
         RenderFramePackage package;
-        const auto pop_t0 = std::chrono::steady_clock::now();
+        const auto pop_t0 = profiling::now();
         bool was_idle = false;
 
         while (!ctx.queue.try_dequeue(package)) {
@@ -39,9 +39,9 @@ void run_writer_thread(const WriterThreadContext& ctx) {
             (ctx.writer_done.load() && !package.framebuffer))
             break;
 
-        const auto pop_t1 = std::chrono::steady_clock::now();
+        const auto pop_t1 = profiling::now();
         const uint64_t dequeue_ms = static_cast<uint64_t>(
-            std::chrono::duration<double, std::milli>(pop_t1 - pop_t0).count());
+            profiling::duration_ms(pop_t0, pop_t1));
 
         if (ctx.renderer.counters()) {
             ctx.renderer.counters()->io_queue_pop_wait_ms.fetch_add(
@@ -58,14 +58,14 @@ void run_writer_thread(const WriterThreadContext& ctx) {
                 arena_notified = true;
             }
 
-            const auto enc_t0 = std::chrono::steady_clock::now();
+            const auto enc_t0 = profiling::now();
             if (!ctx.encoder.write_frame(*package.framebuffer)) {
                 ctx.writer_failed.store(true);
                 return;
             }
-            const auto enc_t1 = std::chrono::steady_clock::now();
+            const auto enc_t1 = profiling::now();
             const uint64_t enc_us = static_cast<uint64_t>(
-                std::chrono::duration<double, std::micro>(enc_t1 - enc_t0).count());
+                profiling::duration_us(enc_t0, enc_t1));
             ctx.writer_encode_us_total.fetch_add(enc_us, std::memory_order_relaxed);
 
             ctx.frame_encoder_telemetry.push_back({
@@ -116,13 +116,13 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
                 ctx.sw_renderer->framebuffer_pool()->set_arena(current_arena);
             }
 
-            const auto frame_t0 = std::chrono::steady_clock::now();
+            const auto frame_t0 = profiling::now();
             auto fb = graph::render_composition_frame(
                 ctx.backend, ctx.node_cache, ctx.settings, &ctx.registry,
                 ctx.video_decoder, ctx.comp, current_frame);
-            const auto frame_t1 = std::chrono::steady_clock::now();
+            const auto frame_t1 = profiling::now();
             const double frame_ms =
-                std::chrono::duration<double, std::milli>(frame_t1 - frame_t0).count();
+                profiling::duration_ms(frame_t0, frame_t1);
             result.render_graph_eval_ms += frame_ms;
 
             if (ctx.counters) {
@@ -169,7 +169,7 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
             }
 
             // High-throughput enqueue
-            const auto wait_t0 = std::chrono::steady_clock::now();
+            const auto wait_t0 = profiling::now();
             const auto q_size = ctx.queue.size_approx();
 
             if (ctx.counters) {
@@ -200,9 +200,9 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
                                    .framebuffer = std::move(fb),
                                    .arena = std::move(current_arena)});
 
-            const auto wait_t1 = std::chrono::steady_clock::now();
+            const auto wait_t1 = profiling::now();
             const double wait_ms =
-                std::chrono::duration<double, std::milli>(wait_t1 - wait_t0).count();
+                profiling::duration_ms(wait_t0, wait_t1);
             result.queue_wait_ms += wait_ms;
 
             if (ctx.counters) {

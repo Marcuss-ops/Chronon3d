@@ -22,6 +22,7 @@
 #include "../../utils/blend2d_bridge.hpp"
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/backends/text/text_rasterizer_utils.hpp>
+#include <chronon3d/core/config.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/effects/glow_pipeline.hpp>
@@ -91,7 +92,7 @@ struct PaddedMask {
     }
 
     // ── Debug save ───────────────────────────────────────────────────
-    if (std::getenv("CHRONON_DEBUG_DUMP_ALPHA_MASK")) {
+    if (chronon3d::Config::get().debug_dump_alpha_mask) {
         BLImageData md;
         if (mask.getData(&md) == BL_SUCCESS && md.pixelData) {
             const int stride = static_cast<int>(md.stride / sizeof(uint32_t));

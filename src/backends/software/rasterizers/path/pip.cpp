@@ -12,14 +12,7 @@
 namespace chronon3d::renderer {
 
 PipMode get_pip_mode() {
-    static PipMode mode = []() {
-        const char* env = std::getenv("CHRONON_PIP_MODE");
-        if (env && std::string_view(env) == "simd") {
-            return PipMode::Simd;
-        }
-        return PipMode::Scalar;
-    }();
-    return mode;
+    return Config::get().pip_mode ? PipMode::Simd : PipMode::Scalar;
 }
 
 bool point_in_polygon_even_odd(Vec2 p, const std::vector<Vec2>& poly) {

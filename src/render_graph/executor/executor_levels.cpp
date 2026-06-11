@@ -6,7 +6,6 @@
 
 #include <chronon3d/core/profiling/profiling.hpp>
 
-#include <chrono>
 #include <cmath>
 #include <thread>
 #include <tbb/tbb.h>
@@ -26,21 +25,21 @@ void execute_levels(
     for (const auto& level : levels) {
         CHRONON_ZONE_C("execute_level", trace_category::kGraph);
 
-        const auto t_schedule0 = std::chrono::steady_clock::now();
+        const auto t_schedule0 = profiling::now();
 
         std::pmr::vector<PreResolvedNode> level_resolved(res);
         level_resolved.reserve(level.size());
 
         // Input resolution is sequential because resolve_inputs allocates
         // from the shared PMR frame arena (bump allocator, not thread-safe).
-        const auto t_input0 = std::chrono::steady_clock::now();
+        const auto t_input0 = profiling::now();
         for (size_t i = 0; i < level.size(); ++i) {
             level_resolved.emplace_back(res);
             level_resolved[i] = resolve_inputs(graph, level[i], state, consumer_remaining, res);
         }
-        const auto t_input1 = std::chrono::steady_clock::now();
+        const auto t_input1 = profiling::now();
 
-        const auto t_schedule1 = std::chrono::steady_clock::now();
+        const auto t_schedule1 = profiling::now();
 
         std::vector<double> level_cache_ms(level.size(), 0.0);
         std::vector<double> level_dirty_ms(level.size(), 0.0);
@@ -157,7 +156,7 @@ void execute_levels(
                 }
             }
         } else {
-            const auto t_seq0 = std::chrono::steady_clock::now();
+            const auto t_seq0 = profiling::now();
             for (size_t level_index = 0; level_index < level.size(); ++level_index) {
                 execute_single_node(
                     state,
@@ -179,19 +178,18 @@ void execute_levels(
                 );
             }
             if (parent_counters) {
-                const auto seq_ms = std::chrono::duration<double, std::milli>(
-                    std::chrono::steady_clock::now() - t_seq0).count();
+                const auto seq_ms = profiling::duration_ms(t_seq0, profiling::now());
                 parent_counters->sequential_level_execute_ms.fetch_add(
                     static_cast<uint64_t>(std::llround(seq_ms)),
                     std::memory_order_relaxed);
             }
         }
 
-        const auto t_dispatch1 = std::chrono::steady_clock::now();
+        const auto t_dispatch1 = profiling::now();
 
-        const auto t_fb0 = std::chrono::steady_clock::now();
+        const auto t_fb0 = profiling::now();
         release_consumed_framebuffers(state, graph, level, consumer_remaining);
-        const auto t_fb1 = std::chrono::steady_clock::now();
+        const auto t_fb1 = profiling::now();
 
         if (parent_counters) {
             double cache_sum = 0.0, dirty_sum = 0.0, telemetry_sum = 0.0, execute_sum = 0.0;
@@ -206,22 +204,22 @@ void execute_levels(
                 state_sum += level_state_ms[i];
             }
 
-            const double dispatch_ms = std::chrono::duration<double, std::milli>(t_dispatch1 - t_schedule1).count();
+            const double dispatch_ms = profiling::duration_ms(t_schedule1, t_dispatch1);
             double overhead_ms = dispatch_ms - execute_sum - cache_sum - dirty_sum - telemetry_sum
                                  - pred_bbox_sum - clone_ctx_sum - state_sum;
             if (overhead_ms < 0.0) overhead_ms = 0.0;
 
             parent_counters->input_resolve_ms.fetch_add(
-                static_cast<uint64_t>(std::llround(std::chrono::duration<double, std::milli>(t_input1 - t_input0).count())),
+                static_cast<uint64_t>(std::llround(profiling::duration_ms(t_input0, t_input1))),
                 std::memory_order_relaxed);
             parent_counters->node_schedule_ms.fetch_add(
-                static_cast<uint64_t>(std::llround(std::chrono::duration<double, std::milli>(t_schedule1 - t_schedule0).count())),
+                static_cast<uint64_t>(std::llround(profiling::duration_ms(t_schedule0, t_schedule1))),
                 std::memory_order_relaxed);
             parent_counters->node_dispatch_ms.fetch_add(
                 static_cast<uint64_t>(std::llround(dispatch_ms)),
                 std::memory_order_relaxed);
             parent_counters->framebuffer_lifetime_ms.fetch_add(
-                static_cast<uint64_t>(std::llround(std::chrono::duration<double, std::milli>(t_fb1 - t_fb0).count())),
+                static_cast<uint64_t>(std::llround(profiling::duration_ms(t_fb0, t_fb1))),
                 std::memory_order_relaxed);
             parent_counters->cache_eval_ms.fetch_add(
                 static_cast<uint64_t>(std::llround(cache_sum)),

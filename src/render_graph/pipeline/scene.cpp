@@ -31,7 +31,7 @@
 #include <spdlog/spdlog.h>
 #include <fmt/format.h>
 
-#include <chrono>
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <cmath>
 #include <cstdlib>
 #include <filesystem>
@@ -184,7 +184,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     std::string_view diagnostic_label
 ) {
     ZoneScoped;
-    const auto t0 = std::chrono::steady_clock::now();
+    const auto t0 = profiling::now();
     const auto hits_before = node_cache.stats().hits;
 
     // ── Graph context + camera ────────────────────────────────────────────
@@ -352,14 +352,14 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         }
     }
 
-    const auto t_resolve0 = std::chrono::steady_clock::now();
+    const auto t_resolve0 = profiling::now();
     const auto resolved = detail::resolve_layers(scene, ctx);
-    const auto t_resolve1 = std::chrono::steady_clock::now();
+    const auto t_resolve1 = profiling::now();
 
-    const auto t_dirty0 = std::chrono::steady_clock::now();
+    const auto t_dirty0 = profiling::now();
     auto dirty_out = detail::compute_dirty_rect(
         ctx, resolved, scene, settings, sw_renderer, frame, width, height);
-    const auto t_dirty1 = std::chrono::steady_clock::now();
+    const auto t_dirty1 = profiling::now();
 
     // ── Dirty ratio / counters / diagnostics ────────────────────────────
     double dirty_ratio = 1.0;
@@ -410,7 +410,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
                                  sw_renderer->buffer_ring().prev_framebuffer()->width() == width &&
                                  sw_renderer->buffer_ring().prev_framebuffer()->height() == height;
 
-    const auto t_build1 = std::chrono::steady_clock::now();
+    const auto t_build1 = profiling::now();
 
     if (fast_path_reuse) {
         if (ctx.options.diagnostics_enabled) {
@@ -433,16 +433,10 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     // Ping-pong: ClearNode uses the exclusive write ping instead of COW.
     // Disable with CHRONON_PINGPONG_FRAMEBUFFER=0 env var for benchmarking.
     // Transform scratch: TransformNode reuses a persistent buffer.
-    static const bool s_pingpong_enabled = []() -> bool {
-        const char* env = std::getenv("CHRONON_PINGPONG_FRAMEBUFFER");
-        if (env) {
-            return std::string_view(env) != "0";
-        }
-        return true; // enabled by default
-    }();
     if (sw_renderer) {
-        if (s_pingpong_enabled) {
-            sw_renderer->buffer_ring().ensure_size(width, height);
+        if (chronon3d::Config::get().pingpong_framebuffer) {
+            sw_renderer->buffer_ring().ensure_size(width, height,
+                                                         sw_renderer->framebuffer_pool().get());
             ctx.scratch.ping_write = sw_renderer->buffer_ring().write_slot_view();
         }
 
@@ -459,7 +453,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
 
     CompiledFrameGraph compiled;
 
-    const auto t_graph0 = std::chrono::steady_clock::now();
+    const auto t_graph0 = profiling::now();
     bool graph_reused = false;
     if (can_reuse_compiled_graph) {
         // Reuse the cached compiled graph from the previous frame
@@ -471,12 +465,12 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
             compiled = std::move(*maybe_compiled);
         }
 
-        const auto t_refresh0 = std::chrono::steady_clock::now();
+        const auto t_refresh0 = profiling::now();
         detail::refresh_compiled_graph_payloads(compiled, scene, ctx, resolved);
-        const auto t_refresh1 = std::chrono::steady_clock::now();
+        const auto t_refresh1 = profiling::now();
         if (ctx.telemetry.counters) {
             ctx.telemetry.counters->compiled_graph_refresh_ms.fetch_add(
-                to_ms_u64(std::chrono::duration<double, std::milli>(t_refresh1 - t_refresh0).count()),
+                to_ms_u64(profiling::duration_ms(t_refresh0, t_refresh1)),
                 std::memory_order_relaxed);
         }
         compiled.skip_initial_clear = false;
@@ -532,8 +526,8 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
 
         compiled = compiler.compile(std::move(graph), ctx, compile_options);
     }
-    const auto t_graph1 = std::chrono::steady_clock::now();
-    const auto t_build2 = std::chrono::steady_clock::now();
+    const auto t_graph1 = profiling::now();
+    const auto t_build2 = profiling::now();
 
     // ── Pre-frame pool preallocation: ensure the exact bucket sizes the
     // upcoming frame will need are already in the pool, eliminating allocation
@@ -541,15 +535,15 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     // because even a warm pool can fragment or exhaust ready buffers after
     // ~100 frames, causing the 4× slowdown observed at frame ~104 in exports.
     if (sw_renderer && sw_renderer->framebuffer_pool()) {
-        const auto t_prealloc0 = std::chrono::steady_clock::now();
+        const auto t_prealloc0 = profiling::now();
         auto predictions = predict_pool_requirements(compiled, width, height);
         auto pool = sw_renderer->framebuffer_pool();
         size_t prealloc_total = 0;
         for (const auto& pred : predictions) {
             prealloc_total += pool->ensure_preallocated(pred);
         }
-        const auto t_prealloc1 = std::chrono::steady_clock::now();
-        const double prealloc_ms = std::chrono::duration<double, std::milli>(t_prealloc1 - t_prealloc0).count();
+        const auto t_prealloc1 = profiling::now();
+        const double prealloc_ms = profiling::duration_ms(t_prealloc0, t_prealloc1);
         if (ctx.telemetry.counters) {
             ctx.telemetry.counters->framebuffer_prealloc_created.fetch_add(prealloc_total, std::memory_order_relaxed);
         }
@@ -560,7 +554,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     }
 
     // ── Execute: tile-based (V1) or traditional single-pass ─────────────
-    const auto t_exec0 = std::chrono::steady_clock::now();
+    const auto t_exec0 = profiling::now();
     std::shared_ptr<Framebuffer> fb_shared;
 
     // Delegate the "safe/unsafe" decision to TileExecutionPolicy.  This
@@ -637,13 +631,13 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
             ctx.telemetry.counters->tile_full_fallbacks.fetch_add(1, std::memory_order_relaxed);
         }
     }
-    const auto t_exec1 = std::chrono::steady_clock::now();
+    const auto t_exec1 = profiling::now();
 
     if (ctx.telemetry.counters || ctx.options.diagnostics_enabled) {
-        const double resolve_ms = std::chrono::duration<double, std::milli>(t_resolve1 - t_resolve0).count();
-        const double dirty_ms = std::chrono::duration<double, std::milli>(t_dirty1 - t_dirty0).count();
-        const double graph_ms = std::chrono::duration<double, std::milli>(t_graph1 - t_graph0).count();
-        const double exec_ms = std::chrono::duration<double, std::milli>(t_exec1 - t_exec0).count();
+        const double resolve_ms = profiling::duration_ms(t_resolve0, t_resolve1);
+        const double dirty_ms = profiling::duration_ms(t_dirty0, t_dirty1);
+        const double graph_ms = profiling::duration_ms(t_graph0, t_graph1);
+        const double exec_ms = profiling::duration_ms(t_exec0, t_exec1);
         const double total_graph_ms = resolve_ms + dirty_ms + graph_ms + exec_ms;
         if (ctx.telemetry.counters) {
             ctx.telemetry.counters->graph_resolve_layers_ms.fetch_add(to_ms_u64(resolve_ms), std::memory_order_relaxed);

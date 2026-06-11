@@ -9,7 +9,6 @@
 #include "../software/utils/blend2d_bridge.hpp"
 #include <spdlog/spdlog.h>
 #include <algorithm>
-#include <chrono>
 #include <cmath>
 #include <sstream>
 
@@ -124,10 +123,10 @@ bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state
     }
 
     const CachedImage* cached = nullptr;
-    const auto t_decode0 = std::chrono::steady_clock::now();
+    const auto t_decode0 = profiling::now();
     cached = ImageCache::instance().get_or_load(image.path);
-    const auto t_decode1 = std::chrono::steady_clock::now();
-    const double decode_ms = std::chrono::duration<double, std::milli>(t_decode1 - t_decode0).count();
+    const auto t_decode1 = profiling::now();
+    const double decode_ms = profiling::duration_ms(t_decode0, t_decode1);
     if (profiling::g_current_counters && decode_ms > 0.0) {
         profiling::g_current_counters->image_decode_ms.fetch_add(
             static_cast<uint64_t>(std::llround(decode_ms)),
@@ -249,7 +248,7 @@ bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state
     const bool full_source = src_x == 0 && src_y == 0 && src_w == img_w && src_h == img_h;
     const bool use_cached_fb = full_source && !using_placeholder && image.fit == FitMode::Stretch && cached && cached->fb_img;
 
-    const auto composite_start = std::chrono::steady_clock::now();
+    const auto composite_start = profiling::now();
 
     if (use_cached_fb && image.radius <= 0.0f) {
         blend2d_bridge::composite_framebuffer_transformed(fb, *cached->fb_img, scaled_model, final_opacity, BlendMode::Normal, &state);
@@ -266,8 +265,8 @@ bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state
         blend2d_bridge::composite_bl_image_transformed(fb, sub_img, scaled_model, final_opacity, BlendMode::Normal, &state, scaled_radius);
     }
 
-    const auto t_sample1 = std::chrono::steady_clock::now();
-    const double sample_ms = std::chrono::duration<double, std::milli>(t_sample1 - composite_start).count();
+    const auto t_sample1 = profiling::now();
+    const double sample_ms = profiling::duration_ms(composite_start, t_sample1);
     const uint64_t sampled_pixels = static_cast<uint64_t>(src_w) * static_cast<uint64_t>(src_h);
     record_image_telemetry(
         state,
@@ -289,10 +288,10 @@ bool ImageRenderer::draw_image_tiled(const ImageShape& image, const RenderState&
     }
 
     const CachedImage* cached = nullptr;
-    const auto t_decode0 = std::chrono::steady_clock::now();
+    const auto t_decode0 = profiling::now();
     cached = ImageCache::instance().get_or_load(image.path);
-    const auto t_decode1 = std::chrono::steady_clock::now();
-    const double decode_ms = std::chrono::duration<double, std::milli>(t_decode1 - t_decode0).count();
+    const auto t_decode1 = profiling::now();
+    const double decode_ms = profiling::duration_ms(t_decode0, t_decode1);
     if (profiling::g_current_counters && decode_ms > 0.0) {
         profiling::g_current_counters->image_decode_ms.fetch_add(
             static_cast<uint64_t>(std::llround(decode_ms)),
@@ -347,12 +346,12 @@ bool ImageRenderer::draw_image_tiled(const ImageShape& image, const RenderState&
         scaled_model[3][1]
     );
 
-    const auto composite_start = std::chrono::steady_clock::now();
+    const auto composite_start = profiling::now();
 
     blend2d_bridge::composite_bl_image_tiled(fb, cached->bl_img, scaled_model, final_opacity, BlendMode::Normal, &state);
 
-    const auto t_sample1 = std::chrono::steady_clock::now();
-    const double sample_ms = std::chrono::duration<double, std::milli>(t_sample1 - composite_start).count();
+    const auto t_sample1 = profiling::now();
+    const double sample_ms = profiling::duration_ms(composite_start, t_sample1);
     record_image_telemetry(
         state,
         image.path,

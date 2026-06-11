@@ -5,7 +5,7 @@
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/image/stb_image_backend.hpp>
-#include <chrono>
+#include <chronon3d/core/profiling/profiling.hpp>
 
 using namespace chronon3d;
 
@@ -26,11 +26,11 @@ Composition make_perf_comp(int w, int h) {
 }
 
 long long render_ms(SoftwareRenderer& r, Composition& comp, int frames) {
-    auto t0 = std::chrono::steady_clock::now();
+    auto t0 = profiling::now();
     for (int f = 0; f < frames; ++f)
         r.render_frame(comp, f);
-    auto t1 = std::chrono::steady_clock::now();
-    return std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
+    auto t1 = profiling::now();
+    return static_cast<long long>(profiling::duration_ms(t0, t1));
 }
 
 } // namespace
@@ -50,10 +50,9 @@ TEST_CASE("perf: render frame singolo 480x270 sotto 200ms") {
     SoftwareRenderer renderer;
     renderer.set_image_backend(std::make_shared<image::StbImageBackend>());
 
-    auto t0 = std::chrono::steady_clock::now();
+    auto t0 = profiling::now();
     auto fb = renderer.render_frame(comp, 0);
-    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::steady_clock::now() - t0).count();
+    auto ms = static_cast<long long>(profiling::elapsed_ms(t0));
 
     REQUIRE(fb != nullptr);
     MESSAGE("Primo frame (cold cache) 480x270: ", ms, "ms");
@@ -66,10 +65,9 @@ TEST_CASE("perf: warm render e' piu' veloce del cold") {
     renderer.set_image_backend(std::make_shared<image::StbImageBackend>());
 
     // Cold
-    auto t0 = std::chrono::steady_clock::now();
+    auto t0 = profiling::now();
     renderer.render_frame(comp, 0);
-    auto cold_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::steady_clock::now() - t0).count();
+    auto cold_ms = static_cast<long long>(profiling::elapsed_ms(t0));
 
     // Warm (3 frame successivi)
     auto warm_ms = render_ms(renderer, comp, 3) / 3;

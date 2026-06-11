@@ -1,11 +1,9 @@
 #pragma once
 
 #include <chronon3d/math/glm_types.hpp>
+#include <chronon3d/core/config.hpp>
 #include <chronon3d/core/memory_utils.hpp>
 #include <cmath>
-#include <cstdlib>
-#include <string>
-#include <string_view>
 
 namespace chronon3d::renderer {
 
@@ -20,14 +18,7 @@ inline Vec2 transform_point(const Mat4& model, Vec2 p) {
 }
 
 inline bool is_prefetch_enabled() {
-    static bool enabled = []() {
-        const char* env = std::getenv("CHRONON_PREFETCH");
-        if (env && std::string_view(env) == "0") {
-            return false;
-        }
-        return true;
-    }();
-    return enabled;
+    return Config::get().prefetch_enabled;
 }
 
 inline void chrono_prefetch(const void* addr) {
