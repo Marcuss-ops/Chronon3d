@@ -11,6 +11,7 @@
 
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
+#include <chronon3d/core/memory_utils.hpp>
 #include <chronon3d/core/telemetry/render_telemetry.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
@@ -55,6 +56,10 @@ namespace chronon3d::graph {
     auto dst = std::make_unique<Framebuffer>(dst_w, dst_h);
     const float sx = static_cast<float>(src.width())  / static_cast<float>(dst_w);
     const float sy = static_cast<float>(src.height()) / static_cast<float>(dst_h);
+    const int src_stride = src.allocated_width();
+    const Color* src_data = src.data();
+    const int dst_stride = dst->allocated_width();
+    Color* dst_data = dst->data();
     for (int y = 0; y < dst_h; ++y) {
         for (int x = 0; x < dst_w; ++x) {
             float r = 0, g = 0, b = 0, a = 0;
@@ -64,18 +69,28 @@ namespace chronon3d::graph {
             const int x1 = std::min(static_cast<int>((x + 1) * sx), src.width());
             const int y1 = std::min(static_cast<int>((y + 1) * sy), src.height());
             for (int iy = y0; iy < y1; ++iy) {
+                // Prefetch next source row every 4 rows
+                if ((iy & 3) == 0 && iy + 4 < y1) {
+                    chronon3d::prefetch(src_data + static_cast<size_t>(iy + 4) * src_stride + x0, false, 1);
+                }
+                const Color* src_row = src_data + static_cast<size_t>(iy) * src_stride;
                 for (int ix = x0; ix < x1; ++ix) {
-                    const Color c = src.get_pixel(ix, iy);
+                    const Color& c = src_row[ix];
                     r += c.r; g += c.g; b += c.b; a += c.a;
                     ++count;
                 }
             }
             if (count > 0) {
                 const float inv = 1.0f / count;
-                dst->set_pixel(x, y, Color{r * inv, g * inv, b * inv, a * inv});
+                dst_data[static_cast<size_t>(y) * dst_stride + x] = Color{r * inv, g * inv, b * inv, a * inv};
             }
         }
     }
+    return dst;
+}
+
+// ── RenderGraphContext factory ───────────────────────────────────────────────
+[[nodiscard]] inline RenderGraphContext make_graph_context(
     return dst;
 }
 
