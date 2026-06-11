@@ -45,10 +45,8 @@ struct Glow {
 // What kind of surface the node naturally produces.
 // IntrinsicSize: content-driven layers such as text, shapes and images.
 // ViewportSize: full-canvas layers such as grid backgrounds.
-// EffectBounds: layers whose bounds are expanded by effects.
 enum class SurfacePolicy {
     IntrinsicSize,
-    EffectBounds,
     ViewportSize,
 };
 
