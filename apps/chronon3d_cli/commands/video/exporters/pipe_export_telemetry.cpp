@@ -15,7 +15,7 @@ namespace chronon3d::cli {
 
 void record_pipe_telemetry(
     const std::string& composition_id,
-    const PipeExportSession& session,
+    PipeExportSession& session,
     const RenderLoopResult& loop_result,
     const EncoderCloseResult& close_result,
     const std::vector<chronon3d::telemetry::FrameTelemetryRecord>& telemetry_frames,

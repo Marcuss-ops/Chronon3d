@@ -19,7 +19,7 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
 
     // Phase 1 — Setup
     auto session = setup_pipe_export_session(registry, comp, settings, opts, start, end);
-    if (!session.encoder || !session.renderer) {
+    if (!session || !session->encoder || !session->renderer) {
         return PipeExportResult{};
     }
 
@@ -30,16 +30,16 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     // Phase 2-4 — Warmup
     RenderSettings render_opts = settings;
     render_opts.use_modular_graph = true;
-    warmup_pipe_renderer(*session.renderer, comp, opts);
-    warmup_pipe_pool(session);
-    session.sys_metrics.sample_cpu_start();
+    warmup_pipe_renderer(*session->renderer, comp, opts);
+    warmup_pipe_pool(*session);
+    session->sys_metrics.sample_cpu_start();
 
     // Phase 5 — Render loop + writer join
     auto loop_output = run_pipe_export_loop(
-        session, registry, comp, render_opts, start, end, opts);
+        *session, registry, comp, render_opts, start, end, opts);
 
     // Phase 6 — Encoder close
-    auto close_result = close_pipe_encoder(session);
+    auto close_result = close_pipe_encoder(*session);
 
     const auto wall_t1 = std::chrono::steady_clock::now();
     const double wall_time_ms = std::chrono::duration<double, std::milli>(wall_t1 - wall_t0).count();
@@ -48,12 +48,12 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     spdlog::info("[video] FFmpeg queue wait duration: {:.2f} ms", loop_output.loop_result.queue_wait_ms);
 
     // Phase 7 — Telemetry
-    record_pipe_telemetry(composition_id, session, loop_output.loop_result,
+    record_pipe_telemetry(composition_id, *session, loop_output.loop_result,
                           close_result, loop_output.telemetry_frames,
                           wall_time_ms, loop_output.render_ms, encode_ms);
 
     // Phase 8 — Result
-    return make_pipe_export_result(session, loop_output.loop_result, close_result,
+    return make_pipe_export_result(*session, loop_output.loop_result, close_result,
                                    loop_output.render_ms, encode_ms, wall_time_ms);
 }
 

@@ -27,14 +27,38 @@
 
 namespace chronon3d::debug {
 
-// ── Env var queries ───────────────────────────────────────────────
+// ── Env var queries (cached once per process) ─────────────────────
 
 inline bool visual_debug_enabled() {
-    return std::getenv("CHRONON_DEBUG_VISUAL") != nullptr;
+    static const bool enabled = [] {
+        const char* v = std::getenv("CHRONON_DEBUG_VISUAL");
+        return v && v[0] != '\0';
+    }();
+    return enabled;
 }
 
 inline bool dump_fb_enabled() {
-    return std::getenv("CHRONON_DEBUG_DUMP_FB") != nullptr;
+    static const bool enabled = [] {
+        const char* v = std::getenv("CHRONON_DEBUG_DUMP_FB");
+        return v && v[0] != '\0';
+    }();
+    return enabled;
+}
+
+inline bool disable_dirty_enabled() {
+    static const bool enabled = [] {
+        const char* v = std::getenv("CHRONON_DEBUG_DISABLE_DIRTY");
+        return v && v[0] != '\0';
+    }();
+    return enabled;
+}
+
+inline bool source_no_clip_enabled() {
+    static const bool enabled = [] {
+        const char* v = std::getenv("CHRONON_DEBUG_SOURCE_NO_CLIP");
+        return v && v[0] != '\0';
+    }();
+    return enabled;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────
@@ -59,7 +83,7 @@ inline void save_debug_fb(const Framebuffer& fb, const std::string& label, int f
 /// compute_dirty_rect() in the render pipeline.
 template <typename DirtyOut, typename Ctx>
 inline void apply_disable_dirty(DirtyOut& dirty_out, Ctx& ctx) {
-    if (!std::getenv("CHRONON_DEBUG_DISABLE_DIRTY")) return;
+    if (!disable_dirty_enabled()) return;
     dirty_out.dirty_rect = std::nullopt;
     dirty_out.use_dirty_rects = false;
     dirty_out.use_dirty_tiles = false;
@@ -76,7 +100,7 @@ inline std::optional<raster::BBox> source_debug_clip(
     const std::optional<raster::BBox>& original_clip,
     const std::string& node_name)
 {
-    if (!std::getenv("CHRONON_DEBUG_SOURCE_NO_CLIP")) return original_clip;
+    if (!source_no_clip_enabled()) return original_clip;
     spdlog::warn("[VDBG] CHRONON_DEBUG_SOURCE_NO_CLIP — clip_rect forced nullopt for node='{}'", node_name);
     return std::nullopt;
 }

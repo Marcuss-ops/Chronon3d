@@ -18,7 +18,22 @@ namespace chronon3d {
  */
 class TripleBufferArena {
 public:
+    TripleBufferArena() = default;
+
     TripleBufferArena(size_t pool_count, size_t arena_size) {
+        m_mutex = std::make_unique<std::mutex>();
+        m_cv = std::make_unique<std::condition_variable>();
+        for (size_t i = 0; i < pool_count; ++i) {
+            m_arenas.push_back(std::make_shared<FramebufferArena>(arena_size));
+            m_in_use.push_back(false);
+        }
+    }
+
+    void init(size_t pool_count, size_t arena_size) {
+        m_mutex = std::make_unique<std::mutex>();
+        m_cv = std::make_unique<std::condition_variable>();
+        m_arenas.clear();
+        m_in_use.clear();
         for (size_t i = 0; i < pool_count; ++i) {
             m_arenas.push_back(std::make_shared<FramebufferArena>(arena_size));
             m_in_use.push_back(false);
@@ -30,8 +45,8 @@ public:
      * Blocks if no arena is available.
      */
     std::shared_ptr<FramebufferArena> acquire() {
-        std::unique_lock<std::mutex> lock(m_mutex);
-        m_cv.wait(lock, [this]() {
+        std::unique_lock<std::mutex> lock(*m_mutex);
+        m_cv->wait(lock, [this]() {
             for (bool use : m_in_use) if (!use) return true;
             return false;
         });
@@ -51,7 +66,7 @@ public:
      */
     void release(const std::shared_ptr<FramebufferArena>& arena) {
         {
-            std::lock_guard<std::mutex> lock(m_mutex);
+            std::lock_guard<std::mutex> lock(*m_mutex);
             for (size_t i = 0; i < m_arenas.size(); ++i) {
                 if (m_arenas[i] == arena) {
                     m_in_use[i] = false;
@@ -59,14 +74,14 @@ public:
                 }
             }
         }
-        m_cv.notify_one();
+        m_cv->notify_one();
     }
 
 private:
     std::vector<std::shared_ptr<FramebufferArena>> m_arenas;
     std::vector<bool> m_in_use;
-    std::mutex m_mutex;
-    std::condition_variable m_cv;
+    std::unique_ptr<std::mutex> m_mutex;
+    std::unique_ptr<std::condition_variable> m_cv;
 };
 
 } // namespace chronon3d

@@ -239,7 +239,7 @@ void run_layer_mode(Framebuffer& fb, const GlowPipeline& p,
 
             // Debug: save each glow pass before accumulation
             if (std::getenv("CHRONON_DEBUG_GLOW")) {
-                static int pass_counter = 0;
+                static thread_local int pass_counter = 0;
                 save_png(*pass_fb, "output/debug_glow_pass_" + std::to_string(pass_counter++) + ".png");
             }
         } else {

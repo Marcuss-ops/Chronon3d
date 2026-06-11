@@ -29,17 +29,17 @@ std::unique_ptr<IVideoEncoder> create_pipe_encoder(
     return encoder;
 }
 
-std::optional<PipeExportSetupResult> setup_pipe_export(
+std::unique_ptr<PipeExportSetupResult> setup_pipe_export(
     const CompositionRegistry& registry,
     const Composition& comp,
     const RenderSettings& settings,
     const FfmpegExportOptions& opts)
 {
-    PipeExportSetupResult result;
+    auto result = std::make_unique<PipeExportSetupResult>();
 
     // ── Wall clock start ────────────────────────────────────────────────
-    result.wall_t0 = std::chrono::steady_clock::now();
-    result.setup_t0 = result.wall_t0;
+    result->wall_t0 = std::chrono::steady_clock::now();
+    result->setup_t0 = result->wall_t0;
 
     // ── Reset profiling globals ─────────────────────────────────────────
     profiling::g_live_framebuffer_bytes.store(0, std::memory_order_relaxed);
@@ -48,21 +48,20 @@ std::optional<PipeExportSetupResult> setup_pipe_export(
     // ── Encoder ─────────────────────────────────────────────────────────
     {
         FfmpegPipeOptions pipe_options;
-        result.encoder = create_pipe_encoder(comp, opts, result.codec, pipe_options);
-        if (!result.encoder) {
-            return std::nullopt;
+        result->encoder = create_pipe_encoder(comp, opts, result->codec, pipe_options);
+        if (!result->encoder) {
+            return nullptr;
         }
-        track_pipe_encoder_process(opts, *result.encoder, result.sys_metrics);
+        track_pipe_encoder_process(opts, *result->encoder, result->sys_metrics);
     }
 
     // ── Renderer ────────────────────────────────────────────────────────
     {
         const auto renderer_t0 = std::chrono::steady_clock::now();
-        result.renderer = create_renderer(registry, settings);
+        result->renderer = create_renderer(registry, settings);
         const auto renderer_t1 = std::chrono::steady_clock::now();
-        if (result.renderer) {
-            result.sw_renderer = dynamic_cast<SoftwareRenderer*>(result.renderer.get());
-            if (auto* cnt = result.renderer->counters()) {
+        if (result->renderer) {
+            if (auto* cnt = result->renderer->counters()) {
                 const auto setup_ms = static_cast<uint64_t>(
                     std::chrono::duration<double, std::milli>(renderer_t1 - renderer_t0).count());
                 cnt->setup_graph_parsing_ms.fetch_add(setup_ms, std::memory_order_relaxed);
@@ -71,9 +70,9 @@ std::optional<PipeExportSetupResult> setup_pipe_export(
     }
 
     // ── Arena + queue ───────────────────────────────────────────────────
-    result.video_decoder = nullptr;
-    result.arena_size = compute_pipe_arena_size(comp.width(), comp.height());
-    result.triple_arena = TripleBufferArena(8, result.arena_size);
+    result->video_decoder = nullptr;
+    result->arena_size = compute_pipe_arena_size(comp.width(), comp.height());
+    result->triple_arena = std::make_unique<TripleBufferArena>(8, result->arena_size);
 
     return result;
 }

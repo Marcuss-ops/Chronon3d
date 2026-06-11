@@ -139,8 +139,8 @@ struct PipeExportSession {
     moodycamel::ConcurrentQueue<RenderFramePackage> queue;
     std::atomic<bool> writer_failed{false};
     std::atomic<bool> writer_done{false};
-    TripleBufferArena triple_arena;
-    WriterThreadContext writer_ctx;  // outlives the thread (stored in session)
+    std::unique_ptr<TripleBufferArena> triple_arena;
+    std::unique_ptr<WriterThreadContext> writer_ctx;  // outlives the thread (stored in session)
     std::thread writer_thread;
     std::atomic<uint64_t> writer_encode_us_total{0};
 
@@ -151,7 +151,7 @@ struct PipeExportSession {
 // ── Pipeline phases (each extracted into its own .cpp file) ─────────────────
 
 /// Phase 1: Create encoder, renderer, arena, queue, writer thread.
-[[nodiscard]] PipeExportSession setup_pipe_export_session(
+[[nodiscard]] std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     const CompositionRegistry& registry,
     const Composition& comp,
     const RenderSettings& settings,
@@ -177,7 +177,7 @@ struct EncoderCloseResult {
 /// Phase 8-9: Collect and record telemetry.
 void record_pipe_telemetry(
     const std::string& composition_id,
-    const PipeExportSession& session,
+    PipeExportSession& session,
     const RenderLoopResult& loop_result,
     const EncoderCloseResult& close_result,
     const std::vector<chronon3d::telemetry::FrameTelemetryRecord>& telemetry_frames,

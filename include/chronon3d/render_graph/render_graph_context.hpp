@@ -181,10 +181,10 @@ struct RenderGraphContext {
     ) const;
 
     /// Copy an existing framebuffer into a new OwnedFB.
-    OwnedFB acquire_owned_fb(const Framebuffer& other) const;
+    OwnedFB acquire_owned_fb(const Framebuffer& other);
 
     /// Adopt a uniquely-owned shared_ptr<Framebuffer> into an OwnedFB without copying pixel data.
-    OwnedFB acquire_owned_fb(std::shared_ptr<Framebuffer>&& src) const;
+    OwnedFB acquire_owned_fb(std::shared_ptr<Framebuffer>&& src);
 
     /// Acquire the transform scratch buffer as an OwnedFB.
     OwnedFB acquire_scratch_fb(
