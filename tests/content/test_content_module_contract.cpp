@@ -77,7 +77,7 @@ TEST_CASE("Minimalist module: showcase compositions are available") {
     CHECK(registry.contains("MinimalistPhraseFloat"));
     CHECK(registry.contains("MinimalistHeroExplainer"));
     CHECK(registry.contains("MinimalistScaleExplainer"));
-    CHECK(registry.contains("MinimalistCleanQuote"));
+    // MinimalistCleanQuote removed — compositions deleted for fresh start
 }
 
 TEST_CASE("Minimalist module: no duplicate composition ids") {
@@ -128,7 +128,7 @@ TEST_CASE("Text module: typewriter variants are available") {
     register_text_content();
     CompositionRegistry registry;
 
-    CHECK(registry.contains("TextTypewriter"));
+    // TextTypewriter removed — compositions deleted for fresh start
     CHECK(registry.contains("TextTypewriterTerminal"));
     CHECK(registry.contains("TextTypewriterTerminalPreview"));
     CHECK(registry.contains("TextTypewriterQuote"));

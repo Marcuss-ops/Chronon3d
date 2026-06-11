@@ -1,5 +1,6 @@
-#include "typewriter_common.hpp"
 #include "content/text/text_theme.hpp"
+
+#include <chronon3d/timeline/composition.hpp>
 
 namespace chronon3d::content::text {
 
@@ -283,95 +284,6 @@ Composition text_basic() {
 
         return s.build();
     });
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-//  TextTypewriter — classic typewriter on grid (centered, wrapping)
-// ──────────────────────────────────────────────────────────────────────────────
-
-Composition text_typewriter() {
-    using typewriter::TypewriterLine;
-    using typewriter::make_typewriter;
-
-    return make_typewriter("TextTypewriter", {
-        TypewriterLine("THE ENGINE LEARNED TO SPEAK, typed frame by frame — a single line that wraps when it reaches the edge of the viewport so you can see the centered alignment in action on multiple rows.")
-            .set_pos({0.0f, 0.0f, 0})
-            .set_font(52, 4)
-            .set_timing(0, 1000.0f)
-            .set_color({0.62f, 0.88f, 1.0f, 1.0f})
-            .set_align(TextAlign::Center)
-            .set_size({1500.0f, 600.0f})
-            .set_cursor(false)
-    },
-    presets::motion::MotionPreset::FadeIn,
-    false,
-    {0.01f, 0.012f, 0.022f, 1.0f},
-    30,
-    1100.0f, 1920, 1080,
-    [](f32) {
-        Camera2_5D cam;
-        cam.enabled = true;
-        cam.position = {0.0f, 0.0f, -1000.0f};
-        cam.zoom = 1100.0f;
-        return cam;
-    });
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-//  TextSweepReveal — dramatic perspective sweep with camera motion
-// ──────────────────────────────────────────────────────────────────────────────
-
-Composition text_sweep_reveal() {
-    using typewriter::TypewriterLine;
-    using typewriter::make_typewriter;
-
-    return make_typewriter("TextSweepReveal", {
-        TypewriterLine("A SINGLE TYPEWRITER LINE SWEEPS INTO VIEW with perspective camera motion and a dramatic reveal that pushes the text from deep space toward the viewer.")
-            .set_pos({0, 0, 0})
-            .set_font(42, 3)
-            .set_timing(0, 1.5f)
-            .set_color({0.25f, 0.58f, 1, 1})
-            .set_align(TextAlign::Left)
-            .set_size({1400.0f, 300.0f})
-    }, presets::motion::MotionPreset::PerspectiveSweepTextReveal, false, {0.01f, 0.012f, 0.022f, 1.0f}, 180, 1380.0f, 1920, 1080);
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-//  TextStaggerReveal — letters stagger in one by one with subtle movement
-// ──────────────────────────────────────────────────────────────────────────────
-
-Composition text_stagger_reveal() {
-    using typewriter::TypewriterLine;
-    using typewriter::make_typewriter;
-
-    return make_typewriter("TextStaggerReveal", {
-        TypewriterLine("EACH LETTER STAGGERS INTO VIEW one character at a time with a gentle lift and settle — a clean animated reveal for a single longer sentence that tests both the stagger timing and the wrapping layout on multiple rows.")
-            .set_pos({0, 0, 0})
-            .set_font(36, 2)
-            .set_timing(0, 2.0f)
-            .set_color({0.25f, 0.58f, 1, 1})
-            .set_align(TextAlign::Left)
-            .set_size({1400.0f, 360.0f})
-    }, presets::motion::MotionPreset::StaggerReveal, false, {0.01f, 0.012f, 0.022f, 1.0f}, 220, 1200.0f, 1920, 1080);
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-//  TextGlowReveal — soft glow bloom with typewriter reveal
-// ──────────────────────────────────────────────────────────────────────────────
-
-Composition text_glow_reveal() {
-    using typewriter::TypewriterLine;
-    using typewriter::make_typewriter;
-
-    return make_typewriter("TextGlowReveal", {
-        TypewriterLine("A GLOWING TYPEWRITER LINE BLOOMS ON SCREEN with a soft halo effect that makes each character pulse gently as it appears — perfect for dramatic and atmospheric typography motion.")
-            .set_pos({0, 0, 0})
-            .set_font(40, 3)
-            .set_timing(0, 1.8f)
-            .set_color({0.90f, 0.92f, 1.0f, 1})
-            .set_align(TextAlign::Left)
-            .set_size({1400.0f, 280.0f})
-    }, presets::motion::MotionPreset::GlowBloom, false, {0.01f, 0.012f, 0.022f, 1.0f}, 180, 1100.0f, 1920, 1080);
 }
 
 } // namespace chronon3d::content::text

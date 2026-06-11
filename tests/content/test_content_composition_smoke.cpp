@@ -66,8 +66,7 @@ TEST_CASE("Minimalist: showcase compositions evaluate frame 0") {
 
     const std::vector<std::string> names = {
         "MinimalistFocusQuote", "MinimalistPhraseFloat",
-        "MinimalistHeroExplainer", "MinimalistScaleExplainer",
-        "MinimalistCleanQuote"
+        "MinimalistHeroExplainer", "MinimalistScaleExplainer"
     };
 
     for (const auto& name : names) {
@@ -104,7 +103,7 @@ TEST_CASE("Text: typewriter variants evaluate frame 0") {
     CompositionRegistry registry;
 
     const std::vector<std::string> names = {
-        "TextTypewriter", "TextTypewriterTerminal",
+        "TextTypewriterTerminal",
         "TextTypewriterQuote", "TextTypewriterManifest",
         "TextTypewriterChapter", "TextTypewriterShowcase"
     };

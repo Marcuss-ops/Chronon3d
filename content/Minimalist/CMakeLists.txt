@@ -1,5 +1,4 @@
 add_library(chronon3d_content_minimalist STATIC
-    minimalist_clean_quote.cpp
     minimalist_focus_quote.cpp
     minimalist_hero_explainer.cpp
     minimalist_phrase_float.cpp
