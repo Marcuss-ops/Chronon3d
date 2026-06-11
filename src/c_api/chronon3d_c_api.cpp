@@ -20,6 +20,12 @@
 #include <filesystem>
 #include <memory>
 
+namespace {
+// Thread-local global error for failures that occur before a context exists
+// (e.g. chronon_create_context failure).  chronon_last_error(NULL) reads this.
+thread_local std::string g_last_error;
+} // namespace
+
 struct chronon_context {
     std::string last_error;
     std::unique_ptr<chronon3d::CompositionRegistry> registry;
@@ -147,7 +153,11 @@ chronon_context* chronon_create_context(void) {
         auto* ctx = new chronon_context();
         ctx->registry = std::make_unique<chronon3d::CompositionRegistry>();
         return ctx;
+    } catch (const std::exception& e) {
+        g_last_error = std::string("chronon_create_context failed: ") + e.what();
+        return nullptr;
     } catch (...) {
+        g_last_error = "chronon_create_context failed: unknown exception";
         return nullptr;
     }
 }
@@ -157,7 +167,9 @@ void chronon_destroy_context(chronon_context* ctx) {
 }
 
 const char* chronon_last_error(chronon_context* ctx) {
-    if (!ctx) return "Invalid context";
+    if (!ctx) {
+        return g_last_error.empty() ? "Invalid context" : g_last_error.c_str();
+    }
     return ctx->last_error.c_str();
 }
 
