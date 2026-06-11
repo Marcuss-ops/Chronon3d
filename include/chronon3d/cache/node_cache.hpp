@@ -38,13 +38,6 @@ struct NodeCacheKeyHash {
 
 using FramebufferCache = LruCache<NodeCacheKey, std::shared_ptr<Framebuffer>, NodeCacheKeyHash>;
 
-/**
- * @brief Domain-specific caches as recommended by the technical audit.
- */
-using PropertyCache    = LruCache<u64, double>; 
-using LayerCache       = LruCache<u64, std::shared_ptr<void>>; // Placeholder for evaluated layers
-using CompositionCache = LruCache<u64, std::shared_ptr<void>>; // Placeholder for evaluated compositions
-
 class NodeCache {
 public:
     using Value = std::shared_ptr<Framebuffer>;
