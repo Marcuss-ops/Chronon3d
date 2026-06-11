@@ -30,7 +30,7 @@ namespace {
 // ── Layer-mode helpers (moved from effect_glow_impl.cpp) ─────────────
 
 [[nodiscard]] BlendMode glow_blend_mode(const GlowPipeline& p) {
-    if (p.quality == GlowQuality::SkiaLike || !p.layers.empty()) {
+    if (p.quality == GlowQuality::MultiLayer || !p.layers.empty()) {
         return p.blend;
     }
     return p.additive ? BlendMode::Add : BlendMode::Screen;
@@ -123,19 +123,6 @@ struct GlowLayerPass {
     float intensity_scale;
     float buffer_scale;
 };
-
-[[nodiscard]] f32 glow_effect_extent(const GlowPipeline& p) {
-    f32 base_radius = std::max(0.0f, p.radius);
-    if (!p.layers.empty()) {
-        f32 max_layer_r = 0.0f;
-        for (const auto& l : p.layers) {
-            max_layer_r = std::max(max_layer_r, l.radius);
-        }
-        base_radius = max_layer_r;
-    }
-    const f32 radius = base_radius * std::max(0.0f, p.spread);
-    return radius + 4.0f;
-}
 
 // ── run_layer_mode (moved from apply_glow_effect) ────────────────────
 
@@ -443,7 +430,7 @@ GlowPipelineOutput GlowPipeline::render(graph::RenderGraphContext& ctx,
     work_fb->clear(Color::transparent());
 
     // Compute affected bounds from clip + glow extent.
-    const f32 extent = renderer::glow_effect_extent(p);
+    const f32 extent = glow_effect_extent(p);
     auto effect_clip = renderer::expand_effect_clip(input.clip, w, h, extent);
     raster::BBox bbox = effect_clip.value_or(raster::BBox{0, 0, w, h});
     // Clamp to source dimensions

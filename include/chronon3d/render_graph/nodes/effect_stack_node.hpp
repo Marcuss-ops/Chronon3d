@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chronon3d/effects/glow_pipeline.hpp>
 #include <chronon3d/render_graph/nodes/basic_nodes_common.hpp>
 #include <span>
 
