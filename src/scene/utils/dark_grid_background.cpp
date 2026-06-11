@@ -1,14 +1,13 @@
 #include <chronon3d/core/composition/composition_registration.hpp>
+#include <chronon3d/core/composition/register_builtin_compositions.hpp>
 #include <chronon3d/scene/utils/dark_grid_background.hpp>
 
 namespace chronon3d {
-namespace {
 
-Composition make_dark_grid_background() {
-    return scene::utils::dark_grid_background_scene(1920, 1080, {}, 150);
+void register_dark_grid_background() {
+    detail::add_builtin_composition("DarkGridBackground", []() {
+        return scene::utils::dark_grid_background_scene(1920, 1080, {}, 150);
+    });
 }
 
-CHRONON_REGISTER_COMPOSITION("DarkGridBackground", make_dark_grid_background)
-
-} // namespace
 } // namespace chronon3d
