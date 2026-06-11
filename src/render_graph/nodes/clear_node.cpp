@@ -85,13 +85,13 @@ OwnedFB ClearNode::execute(
                                 static_cast<uint64_t>(logical_w) * h, std::memory_order_relaxed);
                         }
                     } else {
-                        // Partial restore: copy from read_fb skipping the clip
-                        // rect area (which will be zeroed by clip clear anyway).
+                        // Single-pass restore: copy from read_fb skipping the
+                        // clip rect area (which will be zeroed by clip clear).
+                        // Rows above/below clip: full row copy.
+                        // Rows inside clip: left+right segments.
                         //
-                        // For rows outside the clip rect: copy full row width.
-                        // For rows inside the clip rect: copy left and right
-                        // segments only, skipping the clip rect.
-                        // Total savings: ~20-25% of restore memcpy.
+                        // Single parallel_for avoids 3x TBB scheduling overhead
+                        // from splitting into three regions.
                         const auto t_restore0 = profiling::now();
                         const Color* src_data = read_fb->data();
                         Color* dst_data = write_fb->data();
@@ -99,58 +99,34 @@ OwnedFB ClearNode::execute(
                         const int fh = ctx.frame.height;
                         const int cx0 = clip->x0;
                         const int cy0 = clip->y0;
-                        const int cx1_restore = clip->x1;
+                        const int cx1_r = clip->x1;  // restore end X
                         const int cy1 = clip->y1;
                         const int copy_stride = std::min(stride, src_stride);
-                        const size_t full_row_bytes =
+                        const size_t row_bytes =
                             static_cast<size_t>(copy_stride) * sizeof(Color);
-                        if (fh >= 8) {
-                            parallel_for_tracked(
-                                tbb::blocked_range<int>(0, fh, 16),
-                                [&](const tbb::blocked_range<int>& range) {
-                                    for (int y = range.begin(); y < range.end(); ++y) {
-                                        if (y >= cy0 && y < cy1) {
-                                            Color* dst = dst_data + static_cast<size_t>(y) * stride;
-                                            const Color* src = src_data + static_cast<size_t>(y) * src_stride;
-                                            if (cx0 > 0) {
-                                                std::memcpy(dst, src,
-                                                    static_cast<size_t>(cx0) * sizeof(Color));
-                                            }
-                                            if (cx1_restore < copy_stride) {
-                                                std::memcpy(dst + cx1_restore, src + cx1_restore,
-                                                    static_cast<size_t>(copy_stride - cx1_restore) * sizeof(Color));
-                                            }
-                                        } else {
-                                            std::memcpy(
-                                                dst_data + static_cast<size_t>(y) * stride,
-                                                src_data + static_cast<size_t>(y) * src_stride,
-                                                full_row_bytes);
-                                        }
-                                    }
-                                },
-                                ctx.telemetry.counters,
-                                tbb::simple_partitioner{});
-                        } else {
-                            for (int y = 0; y < fh; ++y) {
-                                if (y >= cy0 && y < cy1) {
+
+                        parallel_for_tracked(
+                            tbb::blocked_range<int>(0, fh, 64),
+                            [&](const tbb::blocked_range<int>& range) {
+                                for (int y = range.begin(); y < range.end(); ++y) {
                                     Color* dst = dst_data + static_cast<size_t>(y) * stride;
                                     const Color* src = src_data + static_cast<size_t>(y) * src_stride;
-                                    if (cx0 > 0) {
-                                        std::memcpy(dst, src,
-                                            static_cast<size_t>(cx0) * sizeof(Color));
+                                    if (y < cy0 || y >= cy1) {
+                                        // Rows outside clip: copy entire row from prev frame
+                                        std::memcpy(dst, src, row_bytes);
+                                    } else {
+                                        // Rows inside clip: left + right segments
+                                        if (cx0 > 0)
+                                            std::memcpy(dst, src,
+                                                static_cast<size_t>(cx0) * sizeof(Color));
+                                        if (cx1_r < copy_stride)
+                                            std::memcpy(dst + cx1_r, src + cx1_r,
+                                                static_cast<size_t>(copy_stride - cx1_r) * sizeof(Color));
                                     }
-                                    if (cx1_restore < copy_stride) {
-                                        std::memcpy(dst + cx1_restore, src + cx1_restore,
-                                            static_cast<size_t>(copy_stride - cx1_restore) * sizeof(Color));
-                                    }
-                                } else {
-                                    std::memcpy(
-                                        dst_data + static_cast<size_t>(y) * stride,
-                                        src_data + static_cast<size_t>(y) * src_stride,
-                                        full_row_bytes);
                                 }
-                            }
-                        }
+                            },
+                            ctx.telemetry.counters,
+                            tbb::simple_partitioner{});
                         uint64_t restore_elapsed = 0;
                         if (ctx.telemetry.counters) {
                             const auto t_restore1 = profiling::now();
@@ -171,15 +147,14 @@ OwnedFB ClearNode::execute(
                         if (ch > 0 && cw > 0) {
                             if (ch >= 8) {
                                 parallel_for_tracked(
-                                    tbb::blocked_range<int>(ccy0, ccy1, 16),
+                                    tbb::blocked_range<int>(ccy0, ccy1, 64),
                                     [&](const tbb::blocked_range<int>& range) {
                                         for (int y = range.begin(); y < range.end(); ++y) {
                                             Color* row = dst_data + static_cast<size_t>(y) * stride + ccx0;
                                             std::memset(row, 0, static_cast<size_t>(cw) * sizeof(Color));
                                         }
                                     },
-                                    ctx.telemetry.counters,
-                                    tbb::simple_partitioner{});
+                                    ctx.telemetry.counters);
                             } else {
                                 for (int y = ccy0; y < ccy1; ++y) {
                                     Color* row = dst_data + static_cast<size_t>(y) * stride + ccx0;
