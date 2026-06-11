@@ -64,12 +64,14 @@ void execute_translate_clamped(
         }
     };
 
-    if (y1 - y0 >= 24) {
+    if (y1 - y0 >= 12) {
         parallel_for_tracked(
             tbb::blocked_range<i32>(y0, y1),
             [&](const tbb::blocked_range<i32>& range) {
                 worker(range.begin(), range.end());
-            }
+            },
+            profiling::g_current_counters,
+            tbb::simple_partitioner{}
         );
     } else {
         worker(y0, y1);
@@ -115,12 +117,14 @@ void execute_translate_memcpy(
         }
     };
 
-    if (y1 - y0 >= 24) {
+    if (y1 - y0 >= 12) {
         parallel_for_tracked(
             tbb::blocked_range<i32>(y0, y1),
             [&](const tbb::blocked_range<i32>& range) {
                 worker(range.begin(), range.end());
-            }
+            },
+            profiling::g_current_counters,
+            tbb::simple_partitioner{}
         );
     } else {
         worker(y0, y1);

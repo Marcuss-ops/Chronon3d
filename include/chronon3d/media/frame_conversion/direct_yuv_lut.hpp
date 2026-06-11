@@ -15,10 +15,15 @@ namespace chronon3d::video {
 //  Shared sRGB gamma LUT
 // ============================================================================
 
-/// 64 KB sRGB gamma lookup table: index = uint16(linear_float * 65535).
+/// 64 KB sRGB gamma lookup table (uint8): index = uint16(linear_float * 65535).
 /// Precomputed at startup via Color::linear_to_srgb8().  Defined in
 /// direct_yuv_converter.cpp, declared extern here for the HWY variant.
-alignas(64) extern uint8_t g_srgb_lut[65536];
+alignas(64) extern uint8_t  g_srgb_lut[65536];
+
+/// 256 KB sRGB gamma lookup table (uint32, mirrors g_srgb_lut).
+/// Used by HWY GatherIndex which requires element size ≥ 4 bytes.
+alignas(64) extern int32_t g_srgb_lut_u32[65536];
+
 extern bool        g_srgb_lut_ready;
 
 /// Fast LUT-based sRGB gamma encoding: linear float [0..1] → uint8 [0..255].
