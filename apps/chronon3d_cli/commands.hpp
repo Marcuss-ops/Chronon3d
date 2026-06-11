@@ -30,7 +30,6 @@ struct RenderPipelineArgs {
     bool   warmup_renderer{false};
     size_t warmup_framebuffers{2};
     bool   warmup_dummy_frame{false};
-    bool   warmup_focus_in_ladder{true};
 
     // Debug: force scalar (non-SIMD) Normal blend for diagnosing regression
     bool   force_scalar_normal_blend{false};
