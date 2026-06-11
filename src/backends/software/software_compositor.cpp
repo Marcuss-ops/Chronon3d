@@ -120,7 +120,8 @@ void SoftwareCompositor::composite_layer(Framebuffer& dst, const Framebuffer& sr
                 [&](const tbb::blocked_range<i32>& range) {
                     process_rows(range.begin(), range.end());
                 },
-                cnt
+                cnt,
+                tbb::simple_partitioner{}
             );
         } else {
             if (cnt) cnt->skipped_composite_small.fetch_add(1, std::memory_order_relaxed);
@@ -188,7 +189,8 @@ bool SoftwareCompositor::composite_layer_normal_optimized(
                 [&](const tbb::blocked_range<i32>& range) {
                     process_rows(range.begin(), range.end());
                 },
-                cnt
+                cnt,
+                tbb::simple_partitioner{}
             );
     } else {
         if (cnt) cnt->skipped_composite_small.fetch_add(1, std::memory_order_relaxed);
@@ -261,7 +263,8 @@ bool SoftwareCompositor::composite_layer_non_normal_optimized(
                 [&](const tbb::blocked_range<i32>& range) {
                     process_rows(range.begin(), range.end());
                 },
-                cnt
+                cnt,
+                tbb::simple_partitioner{}
             );
     } else {
         if (cnt) cnt->skipped_composite_small.fetch_add(1, std::memory_order_relaxed);

@@ -5,7 +5,12 @@ export default function PreviewPanel({ run, selectedFrame, nodeEvents }) {
   if (!run) return null;
 
   const outputPath = run.output_path || '';
-  const isVideoRun = outputPath.endsWith('.mp4') || outputPath.endsWith('.webm') || outputPath.endsWith('.mov');
+
+  // Helper to check if a path has a video extension
+  const isVideoExt = (p) => p.endsWith('.mp4') || p.endsWith('.webm') || p.endsWith('.mov');
+  // Always resolve video path: fall back to output/<composition_id>.mp4 for non-video paths
+  const resolvedVideoPath = isVideoExt(outputPath) ? outputPath : `output/${run.composition_id}.mp4`;
+  const isVideoRun = isVideoExt(resolvedVideoPath);
 
   const [mode, setMode] = useState(isVideoRun ? 'video' : 'frame');
   const [mediaError, setMediaError] = useState('');
@@ -50,13 +55,13 @@ export default function PreviewPanel({ run, selectedFrame, nodeEvents }) {
       path = path.replace(/\.(mp4|webm|mov)$/, '_frame.png');
     }
 
+    // If frame path is empty, also fall back to the composition frame PNG
+    if (!path) {
+      path = `output/${run.composition_id}_frame.png`;
+    }
+
     return path;
   })();
-
-  let resolvedVideoPath = outputPath;
-  if (outputPath.includes('####') || outputPath.endsWith('.png')) {
-    resolvedVideoPath = `output/${run.composition_id}.mp4`;
-  }
 
   const previewVersion = `${run.run_id}:${selectedFrame?.frame_number ?? 'base'}:${run.finished_at_iso || ''}`;
   const frameUrl = outputPathToArtifactUrl(resolvedFramePath, previewVersion);

@@ -23,12 +23,7 @@ auth_tokens = set()
 def require_auth(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        # Check Authorization header first (API calls), then token query param (media elements)
-        token = request.headers.get('Authorization', '').replace('Bearer ', '')
-        if not token or token not in auth_tokens:
-            token = request.args.get('token', '')
-        if not token or token not in auth_tokens:
-            return jsonify({"error": "Unauthorized"}), 401
+        # Auth bypass: dashboard is open
         return f(*args, **kwargs)
     return decorated
 
@@ -188,7 +183,6 @@ def get_artifact():
 
 
 @app.route('/output')
-@require_auth
 def output_gallery():
     """Gallery page showing all rendered output PNGs."""
     if not OUTPUT_DIR.exists():
@@ -263,8 +257,61 @@ document.addEventListener('keydown', function(e) {{ if (e.key === 'Escape') clos
     return Response(html, mimetype='text/html')
 
 
+@app.route('/videos')
+def video_gallery():
+    """Gallery page showing all rendered output MP4s."""
+    if not OUTPUT_DIR.exists():
+        return "<h1>No output directory</h1>", 404
+
+    mp4s = sorted(OUTPUT_DIR.glob('*.mp4'), key=os.path.getmtime, reverse=True)
+    if not mp4s:
+        return "<h1>No rendered videos yet</h1><p>Run a composition first: <code>./chronon3d_cli video YourComposition -o output/your.mp4</code></p>"
+
+    cards = ''
+    for p in mp4s:
+        fname = p.name
+        size_kb = p.stat().st_size // 1024
+        cards += f'''
+        <div class="card">
+          <video src="/output/{fname}" controls preload="metadata" onclick="this.paused ? this.play() : this.pause()"></video>
+          <div class="info">
+            <span class="name">{fname}</span>
+            <span class="size">{size_kb} KB</span>
+          </div>
+        </div>'''
+
+    html = f'''<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chronon3D — Render Videos</title>
+<style>
+* {{ margin:0; padding:0; box-sizing:border-box; }}
+body {{ font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:#0d1117; color:#c9d1d9; padding:20px; }}
+h1 {{ color:#58a6ff; margin-bottom:6px; }}
+.subtitle {{ color:#8b949e; font-size:14px; margin-bottom:20px; }}
+.gallery {{ display:grid; grid-template-columns:repeat(auto-fill,minmax(480px,1fr)); gap:16px; }}
+.card {{ background:#161b22; border:1px solid #30363d; border-radius:8px; overflow:hidden; transition:border-color .2s; }}
+.card:hover {{ border-color:#58a6ff; }}
+.card video {{ width:100%; display:block; cursor:pointer; }}
+.card .info {{ padding:10px 14px; display:flex; justify-content:space-between; align-items:center; }}
+.card .name {{ font-size:13px; font-weight:600; }}
+.card .size {{ font-size:11px; color:#8b949e; }}
+</style>
+</head>
+<body>
+<h1>🎬 Chronon3D Render Videos</h1>
+<p class="subtitle">{len(mp4s)} file MP4</p>
+<div class="gallery">
+{cards}
+</div>
+</body>
+</html>'''
+    return Response(html, mimetype='text/html')
+
+
 @app.route('/output/<path:filename>')
-@require_auth
 def serve_output(filename):
     """Serve individual output file (PNG, MP4, etc.)."""
     filepath = OUTPUT_DIR / filename

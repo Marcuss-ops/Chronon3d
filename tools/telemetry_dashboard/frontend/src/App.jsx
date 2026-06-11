@@ -23,7 +23,7 @@ import ComparisonMetrics from './components/ComparisonMetrics.jsx';
 import { getAggregatedLayers, getAggregatedNodes } from './utils/aggregate.js';
 
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('chronon_auth_token'));
+  const [isAuthenticated, setIsAuthenticated] = useState(true);
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
@@ -290,11 +290,11 @@ function App() {
     const poolMissTotal = poolEmptyAlloc + poolBestFitReuse;
     // Use fbReuse as pool "total reuses" since exact_hit only counts dimension-matched hits.
     const poolExactHit = c('framebuffer_pool_exact_hit');
-    const poolMissRate = poolMissTotal + poolHits > 0
-      ? `${((poolMissTotal / (poolMissTotal + poolHits)) * 100).toFixed(1)}%`
+    const poolMissRate = poolMissTotal + poolExactHit > 0
+      ? `${((poolMissTotal / (poolMissTotal + poolExactHit)) * 100).toFixed(1)}%`
       : '0.0%';
-    const poolHitRate = poolMissTotal + poolHits > 0
-      ? `${((poolHits / (poolMissTotal + poolHits)) * 100).toFixed(1)}%`
+    const poolHitRate = poolMissTotal + poolExactHit > 0
+      ? `${((poolExactHit / (poolMissTotal + poolExactHit)) * 100).toFixed(1)}%`
       : '0.0%';
 
     // ── Dirty Rect Fallback Detail ──

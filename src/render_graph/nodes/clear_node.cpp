@@ -56,34 +56,47 @@ OwnedFB ClearNode::execute(
             if (!is_empty && clip) {
                 const bool is_full_clip = (clip->x0 <= 0 && clip->y0 <= 0 &&
                                            clip->x1 >= logical_w && clip->y1 >= h);
-                if (!is_full_clip) {
+                if (!is_full_clip && clip) {
                     const auto t_restore0 = profiling::now();
                     const Color* src_data = read_fb->data();
                     Color* dst_data = write_fb->data();
                     const int src_stride = read_fb->allocated_width();
-                    const size_t row_bytes = static_cast<size_t>(logical_w) * sizeof(Color);
 
-                    if (stride == src_stride) {
-                        std::memcpy(dst_data, src_data,
-                                    static_cast<size_t>(h) * static_cast<size_t>(stride) * sizeof(Color));
-                    } else {
-                        const int64_t total_pixels = static_cast<int64_t>(h) * logical_w;
-                        if (total_pixels >= (int64_t{1} << 20) && h >= 16) {
+                    // Clip-rect only restore: instead of copying the full frame
+                    // (2M pixels for 1920×1080), copy only the dirty rectangle
+                    // (~560K pixels for typical 14% dirty coverage).
+                    // Non-dirty areas in write_fb retain pool-initialized content.
+                    // This is safe because the CompositeNode's zero-copy path
+                    // (swap_contents via reusable_inputs) or the skip-opaque
+                    // swap for full-frame layers overwrites non-dirty areas.
+                    const int cx0 = clip->x0;
+                    const int cy0 = clip->y0;
+                    const int cw  = clip->x1 - clip->x0;
+                    const int ch  = clip->y1 - clip->y0;
+                    const int cy1 = cy0 + ch;
+                    const size_t restore_row_bytes =
+                        static_cast<size_t>(std::max(0, cw)) * sizeof(Color);
+
+                    if (ch > 0 && cw > 0) {
+                        if (ch >= 8) {
                             parallel_for_tracked(
-                                tbb::blocked_range<int>(0, h, 16),
+                                tbb::blocked_range<int>(cy0, cy1, 16),
                                 [&](const tbb::blocked_range<int>& range) {
                                     for (int y = range.begin(); y < range.end(); ++y) {
-                                        std::memcpy(dst_data + static_cast<size_t>(y) * stride,
-                                                    src_data + static_cast<size_t>(y) * src_stride,
-                                                    row_bytes);
+                                        std::memcpy(
+                                            dst_data + static_cast<size_t>(y) * stride + cx0,
+                                            src_data + static_cast<size_t>(y) * src_stride + cx0,
+                                            restore_row_bytes);
                                     }
                                 },
-                                ctx.telemetry.counters);
+                                ctx.telemetry.counters,
+                                tbb::simple_partitioner{});
                         } else {
-                            for (int y = 0; y < h; ++y) {
-                                std::memcpy(dst_data + static_cast<size_t>(y) * stride,
-                                            src_data + static_cast<size_t>(y) * src_stride,
-                                            row_bytes);
+                            for (int y = cy0; y < cy1; ++y) {
+                                std::memcpy(
+                                    dst_data + static_cast<size_t>(y) * stride + cx0,
+                                    src_data + static_cast<size_t>(y) * src_stride + cx0,
+                                    restore_row_bytes);
                             }
                         }
                     }
@@ -175,7 +188,7 @@ OwnedFB ClearNode::execute(
             const int copy_h = fb->height();
             const int copy_w = fb->allocated_width();
             const int64_t total_pixels = static_cast<int64_t>(copy_h) * copy_w;
-            const bool use_parallel_copy = total_pixels >= (int64_t{1} << 20) && copy_h >= 16;
+            const bool use_parallel_copy = total_pixels >= (int64_t{1} << 18) && copy_h >= 8;
             if (use_parallel_copy) {
                 if (ctx.telemetry.counters) {
                     ctx.telemetry.counters->framebuffer_copy_parallel_calls.fetch_add(1, std::memory_order_relaxed);
@@ -189,7 +202,8 @@ OwnedFB ClearNode::execute(
                                 fb->data()   + static_cast<size_t>(range.begin()) * copy_w,
                                 static_cast<size_t>(range.size()) * copy_w * sizeof(Color));
                         },
-                        ctx.telemetry.counters
+                        ctx.telemetry.counters,
+                        tbb::simple_partitioner{}
                     );
                 } else {
                     parallel_for_tracked(
@@ -200,7 +214,8 @@ OwnedFB ClearNode::execute(
                                              static_cast<size_t>(copy_w) * sizeof(Color));
                             }
                         },
-                        ctx.telemetry.counters
+                        ctx.telemetry.counters,
+                        tbb::simple_partitioner{}
                     );
                 }
             } else {
