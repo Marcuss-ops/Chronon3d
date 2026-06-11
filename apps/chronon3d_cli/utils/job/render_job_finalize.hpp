@@ -9,13 +9,13 @@
 // finaliser.
 // ---------------------------------------------------------------------------
 
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/runtime/telemetry/render_telemetry_record.hpp>
 
 #include "render_job.hpp"
 #include "render_job_setup.hpp"
 
-#include <chrono>
 #include <vector>
 
 namespace chronon3d::cli {
@@ -42,7 +42,7 @@ bool finalize_render_job(
     double total_encode_ms,
     int frames_written,
     bool ok,
-    std::chrono::steady_clock::time_point loop_t0,
-    std::chrono::steady_clock::time_point loop_t1);
+    profiling::Clock::time_point loop_t0,
+    profiling::Clock::time_point loop_t1);
 
 } // namespace chronon3d::cli

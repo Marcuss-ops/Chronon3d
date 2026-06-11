@@ -8,7 +8,7 @@
 #include "../builder/graph_builder_pipeline.hpp"
 #include "../builder/graph_builder_internal.hpp"
 #include "helpers.hpp"
-#include <chrono>
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <vector>
 #include <spdlog/spdlog.h>
 #include <tbb/parallel_for.h>
@@ -26,7 +26,7 @@ std::shared_ptr<Framebuffer> render_composition_frame(
     const Composition& comp,
     Frame frame
 ) {
-    const auto t0 = std::chrono::steady_clock::now();
+    const auto t0 = profiling::now();
     const auto hits_before = node_cache.stats().hits;
     const float ssaa = std::max(1.0f, settings.ssaa_factor);
     const int w = comp.width();
@@ -52,30 +52,28 @@ std::shared_ptr<Framebuffer> render_composition_frame(
     };
 
     if (!settings.motion_blur.enabled || settings.motion_blur.samples <= 1) {
-        const auto t_eval0 = std::chrono::steady_clock::now();
+        const auto t_eval0 = profiling::now();
         Scene scene;
         {
             CHRONON_ZONE_C("evaluate_composition", trace_category::kTimeline);
             scene = comp.evaluate(frame);
         }
-        evaluate_ms = std::chrono::duration<double, std::milli>(
-            std::chrono::steady_clock::now() - t_eval0).count();
+        evaluate_ms = profiling::duration_ms(t_eval0, profiling::now());
         layer_count = static_cast<int>(scene.layers().size());
 
-        const auto t_scene0 = std::chrono::steady_clock::now();
+        const auto t_scene0 = profiling::now();
         {
             CHRONON_ZONE_C("render_scene_graph", trace_category::kGraph);
             render_fb = call_graph(scene, frame, 0.0f);
         }
-        scene_ms = std::chrono::duration<double, std::milli>(
-            std::chrono::steady_clock::now() - t_scene0).count();
+        scene_ms = profiling::duration_ms(t_scene0, profiling::now());
     } else {
         const int N = std::max(2, settings.motion_blur.samples);
         const float shutter = settings.motion_blur.shutter_angle / 360.0f;
         std::vector<float> accum(static_cast<size_t>(rw * rh * 4), 0.0f);
         const float weight = 1.0f / static_cast<float>(N);
 
-        const auto t_mb0 = std::chrono::steady_clock::now();
+        const auto t_mb0 = profiling::now();
         {
             CHRONON_ZONE_C("motion_blur_accumulation", trace_category::kEffect);
             for (int s = 0; s < N; ++s) {
@@ -115,8 +113,7 @@ std::shared_ptr<Framebuffer> render_composition_frame(
                 );
             }
         }
-        motion_blur_ms = std::chrono::duration<double, std::milli>(
-            std::chrono::steady_clock::now() - t_mb0).count();
+        motion_blur_ms = profiling::duration_ms(t_mb0, profiling::now());
 
         // Write accumulated float buffer to output framebuffer (parallel + SIMD)
         render_fb = backend.framebuffer_pool()->acquire(rw, rh, true);
@@ -148,7 +145,7 @@ std::shared_ptr<Framebuffer> render_composition_frame(
     }
 
     if (ssaa > 1.0f) {
-        const auto t_down0 = std::chrono::steady_clock::now();
+        const auto t_down0 = profiling::now();
         std::unique_ptr<Framebuffer> out;
         {
             CHRONON_ZONE_C("downsample_ssaa", trace_category::kDownsample);

@@ -5,7 +5,7 @@
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <spdlog/spdlog.h>
 
-#include <chrono>
+#include <chronon3d/core/profiling/profiling.hpp>
 
 namespace chronon3d::cli {
 
@@ -38,7 +38,7 @@ std::unique_ptr<PipeExportSetupResult> setup_pipe_export(
     auto result = std::make_unique<PipeExportSetupResult>();
 
     // ── Wall clock start ────────────────────────────────────────────────
-    result->wall_t0 = std::chrono::steady_clock::now();
+    result->wall_t0 = profiling::now();
     result->setup_t0 = result->wall_t0;
 
     // ── Reset profiling globals ─────────────────────────────────────────
@@ -57,13 +57,13 @@ std::unique_ptr<PipeExportSetupResult> setup_pipe_export(
 
     // ── Renderer ────────────────────────────────────────────────────────
     {
-        const auto renderer_t0 = std::chrono::steady_clock::now();
+        const auto renderer_t0 = profiling::now();
         result->renderer = create_renderer(registry, settings);
-        const auto renderer_t1 = std::chrono::steady_clock::now();
+        const auto renderer_t1 = profiling::now();
         if (result->renderer) {
             if (auto* cnt = result->renderer->counters()) {
                 const auto setup_ms = static_cast<uint64_t>(
-                    std::chrono::duration<double, std::milli>(renderer_t1 - renderer_t0).count());
+                    profiling::duration_ms(renderer_t0, renderer_t1));
                 cnt->setup_graph_parsing_ms.fetch_add(setup_ms, std::memory_order_relaxed);
             }
         }

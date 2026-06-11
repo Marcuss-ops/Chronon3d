@@ -17,7 +17,6 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/effects/effect_params.hpp>
 #include <algorithm>
-#include <chrono>
 #include <spdlog/spdlog.h>
 
 namespace chronon3d {
@@ -29,7 +28,7 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
                         float time_seconds, const std::optional<raster::BBox>& clip,
                         bool diagnostics_enabled) {
     using enum effects::EffectType;
-    const auto stack_start = std::chrono::steady_clock::now();
+    const auto stack_start = profiling::now();
     double blur_ms = 0.0;
     double tint_ms = 0.0;
     double brightness_ms = 0.0;
@@ -47,11 +46,11 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
         case Blur: {
             auto* p = std::get_if<BlurParams>(&inst.params);
             if (p && p->radius > 0.0f) {
-                const auto t0 = diagnostics_enabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
+                const auto t0 = diagnostics_enabled ? profiling::now() : profiling::Clock::time_point{};
                 auto effect_clip = expand_effect_clip(clip, fb.width(), fb.height(), p->radius);
                 apply_blur(fb, p->radius, effect_clip);
                 if (diagnostics_enabled) {
-                    blur_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+                    blur_ms += profiling::duration_ms(t0, profiling::now());
                 }
             }
             break;
@@ -60,12 +59,12 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
         case Tint: {
             auto* p = std::get_if<TintParams>(&inst.params);
             if (p) {
-                const auto t0 = diagnostics_enabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
+                const auto t0 = diagnostics_enabled ? profiling::now() : profiling::Clock::time_point{};
                 LayerEffect e;
                 e.tint = Color{p->color.r, p->color.g, p->color.b, p->color.a * p->amount};
                 apply_color_effects(fb, e, clip);
                 if (diagnostics_enabled) {
-                    tint_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+                    tint_ms += profiling::duration_ms(t0, profiling::now());
                 }
             }
             break;
@@ -74,11 +73,11 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
         case Brightness: {
             auto* p = std::get_if<BrightnessParams>(&inst.params);
             if (p) {
-                const auto t0 = diagnostics_enabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
+                const auto t0 = diagnostics_enabled ? profiling::now() : profiling::Clock::time_point{};
                 LayerEffect e; e.brightness = p->value;
                 apply_color_effects(fb, e, clip);
                 if (diagnostics_enabled) {
-                    brightness_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+                    brightness_ms += profiling::duration_ms(t0, profiling::now());
                 }
             }
             break;
@@ -87,11 +86,11 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
         case Contrast: {
             auto* p = std::get_if<ContrastParams>(&inst.params);
             if (p) {
-                const auto t0 = diagnostics_enabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
+                const auto t0 = diagnostics_enabled ? profiling::now() : profiling::Clock::time_point{};
                 LayerEffect e; e.contrast = p->value;
                 apply_color_effects(fb, e, clip);
                 if (diagnostics_enabled) {
-                    contrast_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+                    contrast_ms += profiling::duration_ms(t0, profiling::now());
                 }
             }
             break;
@@ -100,10 +99,10 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
         case Glow: {
             auto* p = std::get_if<GlowParams>(&inst.params);
             if (p && p->intensity > 0.0f) {
-                const auto t0 = diagnostics_enabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
+                const auto t0 = diagnostics_enabled ? profiling::now() : profiling::Clock::time_point{};
                 apply_glow_effect(fb, *p, clip);
                 if (diagnostics_enabled) {
-                    glow_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+                    glow_ms += profiling::duration_ms(t0, profiling::now());
                 }
             }
             break;
@@ -112,10 +111,10 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
         case DropShadow: {
             auto* p = std::get_if<DropShadowParams>(&inst.params);
             if (p) {
-                const auto t0 = diagnostics_enabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
+                const auto t0 = diagnostics_enabled ? profiling::now() : profiling::Clock::time_point{};
                 apply_shadow_effect(fb, *p, clip, diagnostics_enabled);
                 if (diagnostics_enabled) {
-                    shadow_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+                    shadow_ms += profiling::duration_ms(t0, profiling::now());
                 }
             }
             break;
@@ -124,10 +123,10 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
         case Bloom: {
             auto* p = std::get_if<BloomParams>(&inst.params);
             if (p) {
-                const auto t0 = diagnostics_enabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
+                const auto t0 = diagnostics_enabled ? profiling::now() : profiling::Clock::time_point{};
                 apply_bloom_effect(fb, *p, clip, diagnostics_enabled);
                 if (diagnostics_enabled) {
-                    bloom_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+                    bloom_ms += profiling::duration_ms(t0, profiling::now());
                 }
             }
             break;
@@ -136,10 +135,10 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
         case Fake3DWave: {
             auto* p = std::get_if<Fake3DWaveParams>(&inst.params);
             if (p) {
-                const auto t0 = diagnostics_enabled ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
+                const auto t0 = diagnostics_enabled ? profiling::now() : profiling::Clock::time_point{};
                 apply_fake_3d_wave(fb, *p, time_seconds);
                 if (diagnostics_enabled) {
-                    fake3d_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+                    fake3d_ms += profiling::duration_ms(t0, profiling::now());
                 }
             }
             break;
@@ -175,7 +174,7 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
     }
 
     if (diagnostics_enabled) {
-        const double total_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - stack_start).count();
+        const double total_ms = profiling::duration_ms(stack_start, profiling::now());
         spdlog::info(
             "[EffectStack] total={:.2f}ms blur={:.2f} tint={:.2f} brightness={:.2f} contrast={:.2f} glow={:.2f} shadow={:.2f} bloom={:.2f} fake3d={:.2f}",
             total_ms, blur_ms, tint_ms, brightness_ms, contrast_ms, glow_ms, shadow_ms, bloom_ms, fake3d_ms
@@ -184,7 +183,7 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
 
     // ── Per-effect wall-time counters (always emitted, not just diagnostics) ──
     {
-        const double total_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - stack_start).count();
+        const double total_ms = profiling::duration_ms(stack_start, profiling::now());
         if (auto* cnt = profiling::g_current_counters) {
             cnt->effect_stack_total_ms.fetch_add(
                 static_cast<uint64_t>(std::llround(total_ms)), std::memory_order_relaxed);

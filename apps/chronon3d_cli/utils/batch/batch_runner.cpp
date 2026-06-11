@@ -1,10 +1,10 @@
 #include "batch_runner.hpp"
-#include <chrono>
+#include <chronon3d/core/profiling/profiling.hpp>
 
 namespace chronon3d::cli {
 
 BatchSummary BatchRunner::run(const std::vector<BatchJob>& jobs, JobExecutor executor) {
-    const auto t0 = std::chrono::steady_clock::now();
+    const auto t0 = profiling::now();
     BatchSummary summary{ static_cast<int>(jobs.size()), 0, 0, 0 };
 
     for (const auto& job : jobs) {
@@ -15,7 +15,7 @@ BatchSummary BatchRunner::run(const std::vector<BatchJob>& jobs, JobExecutor exe
         }
     }
 
-    const auto t1 = std::chrono::steady_clock::now();
+    const auto t1 = profiling::now();
     summary.total_ms = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
     
     return summary;

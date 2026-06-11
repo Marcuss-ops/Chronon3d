@@ -1,6 +1,7 @@
 #include <chronon3d/cache/framebuffer_pool.hpp>
 #include <chronon3d/core/framebuffer_arena.hpp>
 #include <chronon3d/core/memory/framebuffer_handle.hpp>
+#include <chronon3d/core/config.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <spdlog/spdlog.h>
@@ -55,24 +56,8 @@ namespace chronon3d::cache {
 namespace {
 
 size_t resolve_default_max_bytes(size_t fallback) {
-    const char* env = std::getenv("CHRONON_FB_POOL_MAX_MB");
-    if (!env || !*env) {
-        return fallback;
-    }
-    std::string env_str(env);
-    if (env_str == "illimitato" || env_str == "unlimited") {
-        return std::numeric_limits<size_t>::max();
-    }
-    try {
-        const size_t mb = static_cast<size_t>(std::stoull(env));
-        if (mb == 0) {
-            return fallback;
-        }
-        return mb * 1024ULL * 1024ULL;
-    } catch (...) {
-        spdlog::warn("CHRONON_FRAMEBUFFER_POOL_MAX_MB: invalid value '{}', using default", env);
-        return fallback;
-    }
+    auto max_bytes = Config::get().fb_pool_max_bytes;
+    return max_bytes > 0 ? max_bytes : fallback;
 }
 
 // Round up to a fixed-size bucket with coarser granularity for larger sizes.
@@ -129,14 +114,14 @@ std::shared_ptr<Framebuffer> FramebufferPool::acquire_hinted(
 {
     const bool clear = (hint == FramebufferAcquireHint::Default);
 
-    const auto t0 = std::chrono::high_resolution_clock::now();
+    const auto t0 = profiling::now();
     bool fresh_alloc = false;
     auto fb = acquire_unique(width, height, &fresh_alloc);
-    const auto t1 = std::chrono::high_resolution_clock::now();
+    const auto t1 = profiling::now();
 
     if (profiling::g_current_counters) {
         profiling::g_current_counters->framebuffer_acquire_ms.fetch_add(
-            static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t1 - t0).count()),
+            static_cast<uint64_t>(profiling::duration_ms(t0, t1)),
             std::memory_order_relaxed);
         // Note: pool counters are incremented inside acquire_unique()
         // (exact_hit, best_fit_reuse, empty_alloc) — not here.
@@ -145,12 +130,12 @@ std::shared_ptr<Framebuffer> FramebufferPool::acquire_hinted(
     // Skip clear when the FB was freshly allocated (constructor zero-initializes)
     // OR when the framebuffer is already known to be fully cleared to transparent.
     if (clear && fb && !fresh_alloc && !fb->is_content_cleared()) {
-        const auto tc0 = std::chrono::high_resolution_clock::now();
+        const auto tc0 = profiling::now();
         fb->clear(Color::transparent());
-        const auto tc1 = std::chrono::high_resolution_clock::now();
+        const auto tc1 = profiling::now();
         m_total_clears.fetch_add(1, std::memory_order_relaxed);
         if (profiling::g_current_counters) {
-            const auto elapsed = static_cast<uint64_t>(std::chrono::duration<double, std::milli>(tc1 - tc0).count());
+            const auto elapsed = static_cast<uint64_t>(profiling::duration_ms(tc0, tc1));
             profiling::g_current_counters->framebuffer_clear_ms.fetch_add(elapsed, std::memory_order_relaxed);
             profiling::g_current_counters->framebuffer_pool_clear_ms.fetch_add(elapsed, std::memory_order_relaxed);
         }

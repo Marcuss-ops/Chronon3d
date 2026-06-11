@@ -11,7 +11,7 @@
 
 #include <algorithm>
 #include <cctype>
-#include <chrono>
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <cstring>
 #include <iomanip>
 #include <sstream>
@@ -24,9 +24,7 @@ using namespace video;
 // ── BenchConvertArgs is defined in commands.hpp ──
 
 static uint64_t now_ns() {
-    return static_cast<uint64_t>(
-        std::chrono::duration_cast<std::chrono::nanoseconds>(
-            std::chrono::steady_clock::now().time_since_epoch()).count());
+    return profiling::timestamp_ns();
 }
 
 // ==========================================================================

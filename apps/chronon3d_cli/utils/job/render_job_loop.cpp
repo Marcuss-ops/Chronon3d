@@ -32,7 +32,7 @@ RenderLoopResult run_render_job_loop(
                                       : plan.range.end;
     const int64_t total_frames = (effective_end - plan.range.start + plan.range.step - 1) / plan.range.step;
 
-    result.loop_start = std::chrono::steady_clock::now();
+    result.loop_start = profiling::now();
 
     // ── Double-buffered render / write pipeline ────────────────────────
     // Overlaps CPU-bound rendering of frame N+1 with I/O-bound writing
@@ -55,9 +55,9 @@ RenderLoopResult run_render_job_loop(
         int64_t f = plan.range.start;
         {
             const auto hits_before = renderer.node_cache().stats().hits;
-            const auto t0 = std::chrono::steady_clock::now();
+            const auto t0 = profiling::now();
             auto fb = renderer.render_frame(*plan.comp, static_cast<Frame>(f));
-            const auto t1 = std::chrono::steady_clock::now();
+            const auto t1 = profiling::now();
             const auto hits_after = renderer.node_cache().stats().hits;
 
             if (!fb) {
@@ -67,7 +67,7 @@ RenderLoopResult run_render_job_loop(
             }
 
             const bool cache_hit = (hits_after > hits_before);
-            const double render_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+            const double render_ms = profiling::duration_ms(t0, t1);
             const double dirty_ratio = renderer.last_dirty_area_ratio();
             result.total_render_ms += render_ms;
 
@@ -86,9 +86,9 @@ RenderLoopResult run_render_job_loop(
             // ── Pipeline: render N → wait N-1 → submit N ──────
             for (; f < effective_end; f += plan.range.step) {
                 const auto hits_before_n = renderer.node_cache().stats().hits;
-                const auto t0_n = std::chrono::steady_clock::now();
+                const auto t0_n = profiling::now();
                 auto fb_n = renderer.render_frame(*plan.comp, static_cast<Frame>(f));
-                const auto t1_n = std::chrono::steady_clock::now();
+                const auto t1_n = profiling::now();
                 const auto hits_after_n = renderer.node_cache().stats().hits;
 
                 if (!fb_n) {
@@ -100,7 +100,7 @@ RenderLoopResult run_render_job_loop(
                 }
 
                 const bool cache_hit_n = (hits_after_n > hits_before_n);
-                const double render_ms_n = std::chrono::duration<double, std::milli>(t1_n - t0_n).count();
+                const double render_ms_n = profiling::duration_ms(t0_n, t1_n);
                 const double dirty_ratio_n = renderer.last_dirty_area_ratio();
                 result.total_render_ms += render_ms_n;
 
@@ -134,7 +134,7 @@ RenderLoopResult run_render_job_loop(
     }
 
 render_loop_done:
-    result.loop_end = std::chrono::steady_clock::now();
+    result.loop_end = profiling::now();
 
     return result;
 }

@@ -2,8 +2,8 @@
 #include <chronon3d/media/frame_conversion/direct_yuv_lut.hpp>
 #include "internal/yuv_conversion_internal.hpp"
 
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <algorithm>
-#include <chrono>
 #include <cstdint>
 
 #include <chronon3d/core/parallel_tracked.hpp>
@@ -42,7 +42,7 @@ static SrgbLutInit s_lut_init;
 // ============================================================================
 
 DirectYuvResult convert_to_yuv420p_parallel(const DirectYuvRequest& req) {
-    const uint64_t t0 = std::chrono::steady_clock::now().time_since_epoch().count();
+    const uint64_t t0 = profiling::timestamp_ns();
 
     const int w = req.width;
     const int h = req.height;
@@ -121,7 +121,7 @@ DirectYuvResult convert_to_yuv420p_parallel(const DirectYuvRequest& req) {
         }
     });
 
-    const uint64_t t1 = std::chrono::steady_clock::now().time_since_epoch().count();
+    const uint64_t t1 = profiling::timestamp_ns();
     return DirectYuvResult{
         .success       = true,
         .used_simd     = false,
@@ -134,7 +134,7 @@ DirectYuvResult convert_to_yuv420p_parallel(const DirectYuvRequest& req) {
 // ============================================================================
 
 DirectYuvResult convert_to_nv12_parallel(const DirectYuvRequest& req) {
-    const uint64_t t0 = std::chrono::steady_clock::now().time_since_epoch().count();
+    const uint64_t t0 = profiling::timestamp_ns();
 
     const int w = req.width;
     const int h = req.height;
@@ -202,7 +202,7 @@ DirectYuvResult convert_to_nv12_parallel(const DirectYuvRequest& req) {
         }
     });
 
-    const uint64_t t1 = std::chrono::steady_clock::now().time_since_epoch().count();
+    const uint64_t t1 = profiling::timestamp_ns();
     return DirectYuvResult{
         .success       = true,
         .used_simd     = false,

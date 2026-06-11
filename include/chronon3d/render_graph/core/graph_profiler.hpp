@@ -1,7 +1,7 @@
 #pragma once
 
 #include <chronon3d/render_graph/nodes/render_graph_node.hpp>
-#include <chrono>
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <map>
 #include <vector>
 #include <string>
@@ -64,12 +64,12 @@ public:
     void begin_frame(Frame frame) {
         m_current_frame.frame = frame;
         m_current_frame.nodes.clear();
-        m_frame_start = std::chrono::high_resolution_clock::now();
+        m_frame_start = profiling::now();
     }
 
     void end_frame() {
-        auto end = std::chrono::high_resolution_clock::now();
-        m_current_frame.total_time_ms = std::chrono::duration<double, std::milli>(end - m_frame_start).count();
+        auto end = profiling::now();
+        m_current_frame.total_time_ms = profiling::duration_ms(m_frame_start, end);
 
         // Drain every thread's TLS buffer into the current frame, in
         // arbitrary order.  The ordering of nodes within a single frame
@@ -136,7 +136,7 @@ private:
 
     FrameProfile m_current_frame;
     std::vector<FrameProfile> m_history;
-    std::chrono::time_point<std::chrono::high_resolution_clock> m_frame_start;
+    profiling::Clock::time_point m_frame_start;
 };
 
 } // namespace chronon3d::graph

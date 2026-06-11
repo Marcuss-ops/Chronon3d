@@ -3,7 +3,7 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/telemetry/telemetry_bundle.hpp>
 #include <spdlog/spdlog.h>
-#include <chrono>
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <filesystem>
 #include <thread>
 #include <atomic>
@@ -50,7 +50,7 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
                  total, start, end, opts.fps, chunks, opts.output);
 
     const auto started_at_iso = chronon3d::telemetry::TelemetryManager::get_current_iso_time();
-    const auto wall_t0 = std::chrono::steady_clock::now();
+    const auto wall_t0 = profiling::now();
     const auto setup_t0 = wall_t0;
     chronon3d::RenderCounters aggregate_counters{};
     std::mutex aggregate_mutex;
@@ -66,7 +66,7 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
     std::mutex frames_mutex;
 
     auto ranges = split_frame_range(start, end, chunks);
-    const auto setup_done_at = std::chrono::steady_clock::now();
+    const auto setup_done_at = profiling::now();
     const auto render_t0 = setup_done_at;
     std::atomic<bool> failed{false};
     std::atomic<int> frames_done{0};
@@ -76,12 +76,12 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
     for (const auto& chunk : ranges) {
         workers.emplace_back([&, chunk]() {
             try {
-                const auto renderer_t0 = std::chrono::steady_clock::now();
+                const auto renderer_t0 = profiling::now();
                 auto renderer = create_renderer(registry, settings);
-                const auto renderer_t1 = std::chrono::steady_clock::now();
+                const auto renderer_t1 = profiling::now();
                 if (renderer->counters()) {
                     const auto setup_ms = static_cast<uint64_t>(
-                        std::chrono::duration<double, std::milli>(renderer_t1 - renderer_t0).count());
+                        profiling::duration_ms(renderer_t0, renderer_t1));
                     renderer->counters()->setup_graph_parsing_ms.fetch_add(setup_ms, std::memory_order_relaxed);
                     // Note: in chunked mode each worker creates its own renderer, so
                     // setup_graph_parsing_ms will be summed across all workers in the aggregate.
@@ -93,7 +93,7 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
                 uint64_t saved_fb_bytes = 0;
                 uint64_t saved_fb_peak = 0;
                 if (opts.warmup_renderer) {
-                    const auto warmup_t0 = std::chrono::steady_clock::now();
+                    const auto warmup_t0 = profiling::now();
                     runtime::warmup_renderer(*renderer, comp, runtime::RendererWarmupOptions{
                         .width = comp.width(),
                         .height = comp.height(),
@@ -104,11 +104,11 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
                         .dummy_frame = 0,
                         .quiet = false,
                     });
-                    const auto warmup_t1 = std::chrono::steady_clock::now();
+                    const auto warmup_t1 = profiling::now();
 
                     if (renderer->counters()) {
                         const auto warmup_ms = static_cast<uint64_t>(
-                            std::chrono::duration<double, std::milli>(warmup_t1 - warmup_t0).count());
+                            profiling::duration_ms(warmup_t0, warmup_t1));
                         renderer->counters()->setup_pool_preallocation_ms.fetch_add(warmup_ms, std::memory_order_relaxed);
                         // Note: in chunked mode each worker runs its own warmup, so
                         // setup_pool_preallocation_ms will be summed across all workers in the aggregate.
@@ -138,7 +138,7 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
                 local_frames.reserve(static_cast<size_t>(chunk.end - chunk.start));
                 for (Frame f = chunk.start; f < chunk.end; ++f) {
                     if (failed.load()) return;
-                    const auto frame_t0 = std::chrono::steady_clock::now();
+                    const auto frame_t0 = profiling::now();
                     const auto hits_before = renderer->node_cache().stats().hits;
                     auto fb = renderer->render_frame(comp, f);
                     const auto hits_after_render = renderer->node_cache().stats().hits;
@@ -148,19 +148,19 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
                         failed.store(true);
                         return;
                     }
-                    const auto frame_render_t1 = std::chrono::steady_clock::now();
+                    const auto frame_render_t1 = profiling::now();
                     const auto png = (frames_dir / fmt::format("frame_{:06d}.png", f - start)).string();
                     if (!save_png(*fb, png)) {
                         spdlog::error("[video] PNG write failed: {}", png);
                         failed.store(true);
                         return;
                     }
-                    const auto frame_t1 = std::chrono::steady_clock::now();
-                    const double render_ms = std::chrono::duration<double, std::milli>(frame_render_t1 - frame_t0).count();
-                    const double encode_ms = std::chrono::duration<double, std::milli>(frame_t1 - frame_render_t1).count();
+                    const auto frame_t1 = profiling::now();
+                    const double render_ms = profiling::duration_ms(frame_t0, frame_render_t1);
+                    const double encode_ms = profiling::duration_ms(frame_render_t1, frame_t1);
                     local_frames.push_back({
                         .frame_number = static_cast<int>(f),
-                        .duration_ms = std::chrono::duration<double, std::milli>(frame_t1 - frame_t0).count(),
+                        .duration_ms = profiling::duration_ms(frame_t0, frame_t1),
                         .cache_hit = (hits_after_render > hits_before),
                         .dirty_area_ratio = dirty_ratio,
                         .graph_eval_ms = render_ms,
@@ -206,7 +206,7 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
         w.join();
     }
 
-    const auto render_t1 = std::chrono::steady_clock::now();
+    const auto render_t1 = profiling::now();
     const auto setup_t1 = setup_done_at;
 
     result.chunk_failed = failed.load();
@@ -237,7 +237,7 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
                 opts.fps, pattern, codec, opts.crf, opts.encode_preset, pix_fmt, opts.output);
 
             spdlog::info("[video] {}", cmd);
-            const auto encode_t0 = std::chrono::steady_clock::now();
+            const auto encode_t0 = profiling::now();
             const int rc = [&]() {
                 if (!is_shell_safe(opts.encode_preset) || !is_shell_safe(opts.output)) {
                     spdlog::error("[video] encode_preset or output path contains shell metacharacters, refusing to execute");
@@ -246,8 +246,8 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
                 }
                 return std::system(cmd.c_str());
             }();
-            const auto encode_t1 = std::chrono::steady_clock::now();
-            result.encode_ms = std::chrono::duration<double, std::milli>(encode_t1 - encode_t0).count();
+            const auto encode_t1 = profiling::now();
+            result.encode_ms = profiling::duration_ms(encode_t0, encode_t1);
 
             if (rc != 0) {
                 spdlog::error("[video] ffmpeg exited with code {}", rc);
@@ -261,9 +261,9 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
         std::filesystem::remove_all(frames_dir, ec);
     }
 
-    const auto wall_t1 = std::chrono::steady_clock::now();
-    result.render_ms = std::chrono::duration<double, std::milli>(render_t1 - render_t0).count();
-    result.wall_time_ms = std::chrono::duration<double, std::milli>(wall_t1 - wall_t0).count();
+    const auto wall_t1 = profiling::now();
+    result.render_ms = profiling::duration_ms(render_t0, render_t1);
+    result.wall_time_ms = profiling::duration_ms(wall_t0, wall_t1);
     result.success = success;
     result.return_code = success ? 0 : 1;
 
@@ -275,8 +275,8 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
     std::sort(telemetry_frames.begin(), telemetry_frames.end(),
               [](const auto& a, const auto& b) { return a.frame_number < b.frame_number; });
     auto phases = std::vector<chronon3d::telemetry::PhaseTelemetryRecord>{
-        {"setup_renderer", std::chrono::duration<double, std::milli>(setup_t1 - setup_t0).count()},
-        {"rendering_loop", std::chrono::duration<double, std::milli>(render_t1 - render_t0).count()},
+        {"setup_renderer", profiling::duration_ms(setup_t0, setup_t1)},
+        {"rendering_loop", profiling::duration_ms(render_t0, render_t1)},
         {"encoder_close_and_flush", encode_ms},
     };
     auto graph_phases = cli::telemetry::capture_graph_phase_records(aggregate_counters);

@@ -1,5 +1,5 @@
 #include <chronon3d/runtime/bench_runner.hpp>
-#include <chrono>
+#include <chronon3d/core/profiling/profiling.hpp>
 
 namespace chronon3d::runtime {
 
@@ -14,13 +14,13 @@ BenchResult BenchRunner::run(const std::string& comp_id,
         renderer.render_scene(scene, comp.camera, comp.width(), comp.height());
     }
 
-    const auto t0 = std::chrono::steady_clock::now();
+    const auto t0 = profiling::now();
     for (int i = 0; i < frames; ++i) {
         const auto frame = static_cast<Frame>(warmup + i);
         auto scene = comp.evaluate(frame);
         renderer.render_scene(scene, comp.camera, comp.width(), comp.height());
     }
-    const auto t1 = std::chrono::steady_clock::now();
+    const auto t1 = profiling::now();
 
     const auto elapsed_ms = std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(t1 - t0).count();
     const double avg_ms = elapsed_ms / static_cast<double>(frames);

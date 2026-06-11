@@ -9,12 +9,12 @@
 // reusable setup helper.
 // ---------------------------------------------------------------------------
 
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/composition/composition_registry.hpp>
 #include <chronon3d/core/system_metrics.hpp>
 
 #include "render_job.hpp"
 
-#include <chrono>
 #include <memory>
 #include <string>
 
@@ -25,9 +25,9 @@ struct RenderJobSetupResult {
     std::shared_ptr<SoftwareRenderer> renderer;
     SystemMetricsCollector sys_metrics;
     std::string job_started_iso;
-    std::chrono::steady_clock::time_point wall_t0;
-    std::chrono::steady_clock::time_point setup_t0;
-    std::chrono::steady_clock::time_point setup_t1;
+    profiling::Clock::time_point wall_t0;
+    profiling::Clock::time_point setup_t0;
+    profiling::Clock::time_point setup_t1;
 
     // Warmup counter baselines preserved across the counter reset
     uint64_t saved_fb_alloc{0};

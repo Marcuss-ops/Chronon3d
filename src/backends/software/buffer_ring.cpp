@@ -1,10 +1,13 @@
 #include <chronon3d/backends/software/buffer_ring.hpp>
 #include <chronon3d/cache/framebuffer_pool.hpp>
+#include <chronon3d/core/memory/framebuffer_handle.hpp>
 #include <chronon3d/math/color.hpp>
 
 namespace chronon3d {
 
-void RendererBufferRing::ensure_size(int width, int height) {
+void RendererBufferRing::ensure_size(int width, int height,
+                                     cache::FramebufferPool* pool) {
+    m_pool = pool;
     auto allocate_ping = [&](int idx) {
         if (m_ping_fb[idx] &&
             m_ping_fb[idx]->allocated_width() >= width &&
@@ -16,9 +19,23 @@ void RendererBufferRing::ensure_size(int width, int height) {
         if (m_ping_fb[idx] && m_prev_framebuffer.get() == m_ping_fb[idx]) {
             m_prev_framebuffer.reset();
         }
-        delete m_ping_fb[idx];
+        // Return old buffer to pool before acquiring new one.
+        if (m_ping_fb[idx]) {
+            if (m_pool) {
+                m_pool->release(m_ping_fb[idx]);
+            } else {
+                delete m_ping_fb[idx];
+            }
+        }
         auto [bw, bh] = cache::FramebufferPool::round_to_bucket(width, height);
-        m_ping_fb[idx] = new Framebuffer(bw, bh);
+        if (m_pool) {
+            // Acquire from pool — the buffer will be held persistently
+            // by the ring.  On reset() we return both buffers to the pool.
+            auto owned = m_pool->acquire_owned(bw, bh, false);
+            m_ping_fb[idx] = owned.release();
+        } else {
+            m_ping_fb[idx] = new Framebuffer(bw, bh);
+        }
         m_ping_fb[idx]->resize_logical(width, height);
         m_ping_fb[idx]->set_origin(0, 0);
         m_ping_fb[idx]->clear(Color::transparent());
@@ -52,10 +69,17 @@ Framebuffer* RendererBufferRing::ping_fb(int idx) const noexcept {
 
 void RendererBufferRing::reset() {
     m_prev_framebuffer.reset();
-    delete m_ping_fb[0];
-    m_ping_fb[0] = nullptr;
-    delete m_ping_fb[1];
-    m_ping_fb[1] = nullptr;
+    for (int i = 0; i < 2; ++i) {
+        if (m_ping_fb[i]) {
+            if (m_pool) {
+                m_pool->release(m_ping_fb[i]);
+            } else {
+                delete m_ping_fb[i];
+            }
+            m_ping_fb[i] = nullptr;
+        }
+    }
+    m_pool = nullptr;
     m_ping_read_idx = 0;
     m_ping_write_idx = 1;
 }

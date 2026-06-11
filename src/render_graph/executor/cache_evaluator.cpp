@@ -1,6 +1,7 @@
 #include "execution_state.hpp"
 #include <chronon3d/cache/disk_node_cache.hpp>
 #include <chronon3d/cache/persistent_bake_cache.hpp>
+#include <chronon3d/core/config.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <spdlog/spdlog.h>
 #include <cstdlib>
@@ -12,12 +13,7 @@ bool disk_node_cache_enabled_for_current_run() {
 #ifdef CHRONON_BUILD_TESTS
     return false;
 #else
-    const char* env = std::getenv("CHRONON_DISABLE_DISK_NODE_CACHE");
-    if (!env || !*env) {
-        return true;
-    }
-    const std::string_view value{env};
-    return value == "0" || value == "false" || value == "FALSE";
+    return !Config::get().disable_disk_node_cache;
 #endif
 }
 

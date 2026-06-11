@@ -6,8 +6,6 @@
 #include <chronon3d/math/color.hpp>
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
-#include <chrono>
-
 namespace chronon3d::graph {
 
 OwnedFB RenderGraphContext::acquire_owned_fb(
@@ -86,7 +84,7 @@ OwnedFB RenderGraphContext::acquire_owned_fb(const Framebuffer& other) {
     const Color* src_base = other.data();
     Color* dst_base = fb->data();
     {
-        const auto t0 = std::chrono::high_resolution_clock::now();
+        const auto t0 = profiling::now();
         for (i32 y = 0; y < other.height(); ++y) {
             std::copy_n(
                 src_base + y * other.stride(), other.width(),
@@ -94,8 +92,7 @@ OwnedFB RenderGraphContext::acquire_owned_fb(const Framebuffer& other) {
         }
         if (telemetry.counters) {
             const auto elapsed = static_cast<uint64_t>(
-                std::chrono::duration<double, std::milli>(
-                    std::chrono::high_resolution_clock::now() - t0).count());
+                profiling::elapsed_ms(t0));
             telemetry.counters->framebuffer_copy_ms.fetch_add(elapsed, std::memory_order_relaxed);
         }
     }
@@ -163,11 +160,11 @@ std::shared_ptr<Framebuffer> RenderGraphContext::acquire_framebuffer(
         }
         if (clear) {
             const auto local_clip = resolve_clear_clip(*fb);
-            const auto t_clr0 = std::chrono::high_resolution_clock::now();
+            const auto t_clr0 = profiling::now();
             fb->clear(Color::transparent(), local_clip);
-            const auto t_clr1 = std::chrono::high_resolution_clock::now();
+            const auto t_clr1 = profiling::now();
             if (telemetry.counters) {
-                const auto elapsed = static_cast<uint64_t>(std::chrono::duration<double, std::milli>(t_clr1 - t_clr0).count());
+                const auto elapsed = static_cast<uint64_t>(profiling::duration_ms(t_clr0, t_clr1));
                 telemetry.counters->framebuffer_clear_ms.fetch_add(elapsed, std::memory_order_relaxed);
                 if (specific_clear_ms) {
                     specific_clear_ms->fetch_add(elapsed, std::memory_order_relaxed);
@@ -209,7 +206,7 @@ std::shared_ptr<Framebuffer> RenderGraphContext::acquire_framebuffer(const Frame
         return fb;
     }
     {
-        const auto t0 = std::chrono::high_resolution_clock::now();
+        const auto t0 = profiling::now();
         const Color* src_base = other.data();
         Color* dst_base = fb->data();
         for (i32 y = 0; y < other.height(); ++y) {
@@ -219,8 +216,7 @@ std::shared_ptr<Framebuffer> RenderGraphContext::acquire_framebuffer(const Frame
         }
         if (telemetry.counters) {
             const auto elapsed = static_cast<uint64_t>(
-                std::chrono::duration<double, std::milli>(
-                    std::chrono::high_resolution_clock::now() - t0).count());
+                profiling::elapsed_ms(t0));
             telemetry.counters->framebuffer_copy_ms.fetch_add(elapsed, std::memory_order_relaxed);
         }
     }
