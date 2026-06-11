@@ -57,8 +57,9 @@ int command_preview(const CompositionRegistry& registry, const RenderArgs& args)
     } else {
         try {
             frame = static_cast<Frame>(std::stoll(args.frames));
-        } catch (...) {
-            frame = Frame{0};
+        } catch (const std::exception& e) {
+            spdlog::error("Invalid frame value '{}': {}", args.frames, e.what());
+            return 1;
         }
     }
 

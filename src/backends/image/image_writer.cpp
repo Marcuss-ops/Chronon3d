@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cctype>
+#include <spdlog/spdlog.h>
 
 namespace chronon3d {
 
@@ -212,7 +213,11 @@ bool save_exr(const Framebuffer& framebuffer,
         }
 
         return true;
-    } catch (const std::exception&) {
+    } catch (const std::exception& e) {
+        spdlog::error("Failed to write EXR image '{}': {}", path, e.what());
+        return false;
+    } catch (...) {
+        spdlog::error("Failed to write EXR image '{}': unknown exception", path);
         return false;
     }
 }
