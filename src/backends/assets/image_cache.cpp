@@ -17,6 +17,7 @@ size_t resolve_image_cache_capacity(size_t fallback) {
         if (mb == 0) return fallback;
         return mb * 1024ULL * 1024ULL;
     } catch (...) {
+        spdlog::warn("CHRONON_IMAGE_CACHE_MAX_MB: invalid value '{}', using default", env);
         return fallback;
     }
 }
