@@ -19,6 +19,7 @@ namespace chronon3d::video {
 // ============================================================================
 
 alignas(64) uint8_t g_srgb_lut[65536];
+alignas(64) int32_t g_srgb_lut_u32[65536];
 bool g_srgb_lut_ready = false;
 
 namespace {
@@ -26,7 +27,9 @@ struct SrgbLutInit {
     SrgbLutInit() {
         for (int i = 0; i < 65536; ++i) {
             const float v = static_cast<float>(i) / 65535.0f;
-            g_srgb_lut[i] = Color::linear_to_srgb8(v);
+            const uint8_t val = Color::linear_to_srgb8(v);
+            g_srgb_lut[i] = val;
+            g_srgb_lut_u32[i] = val;
         }
         g_srgb_lut_ready = true;
     }

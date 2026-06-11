@@ -7,9 +7,12 @@
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include "../software/utils/blend2d_bridge.hpp"
+#include <tbb/blocked_range.h>
+#include <tbb/parallel_for.h>
 #include <spdlog/spdlog.h>
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <sstream>
 
 namespace chronon3d {
@@ -65,6 +68,80 @@ void record_image_telemetry(
     telemetry::record_image_telemetry(std::move(rec));
 }
 
+void apply_rounded_coverage(Framebuffer& fb, float radius) {
+    const int w = fb.width();
+    const int h = fb.height();
+    if (w <= 0 || h <= 0 || radius <= 0.0f) return;
+
+    const float r = std::min({radius, static_cast<float>(w) * 0.5f, static_cast<float>(h) * 0.5f});
+    const int ix0 = static_cast<int>(r);
+    const int iy0 = static_cast<int>(r);
+    const int ix1 = w - ix0;
+    const int iy1 = h - iy0;
+    const float r_sq = (r + 0.5f) * (r + 0.5f);
+
+    tbb::parallel_for(tbb::blocked_range<int>(0, h, 16), [&](const tbb::blocked_range<int>& range) {
+        for (int y = range.begin(); y < range.end(); ++y) {
+            Color* row = fb.pixels_row(y);
+            const bool edge_row = (y < iy0 || y >= iy1);
+
+            if (edge_row) {
+                // Top or bottom edge: all pixels potentially need coverage
+                for (int x = 0; x < w; ++x) {
+                    const float fx = static_cast<float>(x) + 0.5f;
+                    const float fy = static_cast<float>(y) + 0.5f;
+                    const float dx = (fx < r) ? fx - r : ((fx > w - r) ? fx - (w - r) : 0.0f);
+                    const float dy = (fy < r) ? fy - r : ((fy > h - r) ? fy - (h - r) : 0.0f);
+                    if (dx == 0.0f && dy == 0.0f) continue; // interior, coverage = 1
+                    const float dist = std::sqrt(dx * dx + dy * dy);
+                    const float coverage = std::clamp(r + 0.5f - dist, 0.0f, 1.0f);
+                    if (coverage <= 0.0f) {
+                        row[x] = Color::transparent();
+                    } else if (coverage < 1.0f) {
+                        row[x].r *= coverage;
+                        row[x].g *= coverage;
+                        row[x].b *= coverage;
+                        row[x].a *= coverage;
+                    }
+                }
+            } else {
+                // Middle rows: only left and right edge pixels need coverage
+                // Left edge
+                for (int x = 0; x < ix0 && x < w; ++x) {
+                    const float fx = static_cast<float>(x) + 0.5f;
+                    const float dx = fx - r;
+                    const float dy = 0.0f; // interior y
+                    const float dist_sq = dx * dx;
+                    if (dist_sq >= r_sq) {
+                        row[x] = Color::transparent();
+                    } else {
+                        const float coverage = 1.0f - std::sqrt(dist_sq) / (r + 0.5f);
+                        row[x].r *= coverage;
+                        row[x].g *= coverage;
+                        row[x].b *= coverage;
+                        row[x].a *= coverage;
+                    }
+                }
+                // Right edge
+                for (int x = ix1; x < w; ++x) {
+                    const float fx = static_cast<float>(x) + 0.5f;
+                    const float dx = fx - (w - r);
+                    const float dist_sq = dx * dx;
+                    if (dist_sq >= r_sq) {
+                        row[x] = Color::transparent();
+                    } else {
+                        const float coverage = 1.0f - std::sqrt(dist_sq) / (r + 0.5f);
+                        row[x].r *= coverage;
+                        row[x].g *= coverage;
+                        row[x].b *= coverage;
+                        row[x].a *= coverage;
+                    }
+                }
+            }
+        }
+    });
+}
+
 } // namespace
 
 std::shared_ptr<const Framebuffer> ImageRenderer::rounded_framebuffer(
@@ -90,25 +167,27 @@ std::shared_ptr<const Framebuffer> ImageRenderer::rounded_framebuffer(
 
     const float w = static_cast<float>(cached.width);
     const float h = static_cast<float>(cached.height);
-    for (int y = 0; y < cached.height; ++y) {
-        const Color* src_row = cached.fb_img->pixels_row(y);
-        Color* dst_row = rounded->pixels_row(y);
-        for (int x = 0; x < cached.width; ++x) {
-            const float coverage = rounded_rect_coverage(
-                static_cast<float>(x) + 0.5f,
-                static_cast<float>(y) + 0.5f,
-                w,
-                h,
-                radius
-            );
-            Color c = src_row[x];
-            c.r *= coverage;
-            c.g *= coverage;
-            c.b *= coverage;
-            c.a *= coverage;
-            dst_row[x] = c;
+    tbb::parallel_for(tbb::blocked_range<int>(0, cached.height, 16), [&](const tbb::blocked_range<int>& range) {
+        for (int y = range.begin(); y < range.end(); ++y) {
+            const Color* src_row = cached.fb_img->pixels_row(y);
+            Color* dst_row = rounded->pixels_row(y);
+            for (int x = 0; x < cached.width; ++x) {
+                const float coverage = rounded_rect_coverage(
+                    static_cast<float>(x) + 0.5f,
+                    static_cast<float>(y) + 0.5f,
+                    w,
+                    h,
+                    radius
+                );
+                Color c = src_row[x];
+                c.r *= coverage;
+                c.g *= coverage;
+                c.b *= coverage;
+                c.a *= coverage;
+                dst_row[x] = c;
+            }
         }
-    }
+    });
 
     {
         std::lock_guard<std::mutex> lock(*m_rounded_mutex);
@@ -256,8 +335,29 @@ bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state
         if (auto rounded = rounded_framebuffer(image.path, *cached, scaled_radius)) {
             blend2d_bridge::composite_framebuffer_transformed(fb, *rounded, scaled_model, final_opacity, BlendMode::Normal, &state);
         }
+    } else if (cached && cached->fb_img && !using_placeholder) {
+        // Framebuffer fast-path: crop cached fb_img with memcpy (avoids Blend2D),
+        // pre-apply radius, then composite via SIMD-accelerated path.
+        Framebuffer cropped(src_w, src_h);
+        cropped.set_opaque(false);
+
+        // Parallel memcpy of cropped rows from cached framebuffer
+        tbb::parallel_for(tbb::blocked_range<int>(0, src_h, 16), [&](const tbb::blocked_range<int>& range) {
+            for (int y = range.begin(); y < range.end(); ++y) {
+                std::memcpy(cropped.pixels_row(y),
+                            cached->fb_img->pixels_row(src_y + y) + src_x,
+                            static_cast<size_t>(src_w) * sizeof(Color));
+            }
+        });
+
+        // Pre-apply rounded corners on the cropped framebuffer (parallelized)
+        if (scaled_radius > 0.0f) {
+            apply_rounded_coverage(cropped, scaled_radius);
+        }
+
+        blend2d_bridge::composite_framebuffer_transformed(fb, cropped, scaled_model, final_opacity, BlendMode::Normal, &state);
     } else {
-        // Crop/cover/focal placement still needs a materialized source image.
+        // Fallback: Blend2D path (for placeholders or uncached images)
         BLImage sub_img(src_w, src_h, BL_FORMAT_PRGB32);
         BLContext ctx(sub_img);
         ctx.blitImage(BLPointI(0, 0), render_img, BLRectI(src_x, src_y, src_w, src_h));
