@@ -38,9 +38,11 @@ void RendererBufferRing::swap() {
     std::swap(m_ping_read_idx, m_ping_write_idx);
     // Re-point prev_framebuffer to the new read ping (ex-write, now
     // the completed frame that the writer and early-exit paths see).
+    // Use a raw pointer wrapped in shared_ptr with no-op deleter —
+    // the ring owns the memory and manages its lifetime.
     m_prev_framebuffer = std::shared_ptr<Framebuffer>(
         m_ping_fb[m_ping_read_idx],
-        [](Framebuffer*) {});  // no-op deleter — ring owns the memory
+        [](Framebuffer*) noexcept {});
 }
 
 Framebuffer* RendererBufferRing::ping_fb(int idx) const noexcept {

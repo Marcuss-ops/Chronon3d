@@ -120,7 +120,7 @@ void record_pipe_export_run(
         bench.wall_time_ms, bench.render_ms, bench.encode_ms,
         started_at_iso, phases, counters,
         telemetry.node_events, counters_src,
-        telemetry.frames,
+        {}, // frames (not in TelemetryBundle, passed separately)
         telemetry.layer_events, telemetry.cache_events, telemetry.culling_events,
         telemetry.text_events, telemetry.image_events, telemetry.tile_events);
 }
