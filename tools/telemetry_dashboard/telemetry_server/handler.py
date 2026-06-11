@@ -8,37 +8,32 @@ from .config import DB_PATH, ARTIFACT_MIME_TYPES, STATIC_MIME_TYPES
 from .database import create_merged_connection
 
 
-def resolve_artifact_path(raw_path: str) -> Path | None:
-    path = Path(raw_path)
-    if path.is_absolute():
-        candidates = [path]
-    else:
-        project_root = Path(__file__).resolve().parent.parent.parent.parent
-        candidates = [
-            Path.cwd() / path,
-            project_root / path,
-            project_root / 'build' / 'chronon' / 'linux-release' / path,
-            project_root / 'build' / path,
-        ]
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+OUTPUT_DIR = PROJECT_ROOT / 'output'
+ALLOWED_ARTIFACT_ROOTS = [OUTPUT_DIR]
 
-    for candidate in candidates:
+
+def resolve_artifact_path(raw_path: str) -> Path | None:
+    """Resolve artifact paths safely, restricted to allowed artifact directories.
+
+    Only relative paths within ALLOWED_ARTIFACT_ROOTS are accepted.
+    Absolute paths and path-traversal attempts are rejected.
+    """
+    path = Path(raw_path)
+
+    # Reject absolute paths outright
+    if path.is_absolute():
+        return None
+
+    for root in ALLOWED_ARTIFACT_ROOTS:
+        resolved_root = root.resolve()
+        candidate = resolved_root / path
         try:
             resolved = candidate.resolve()
         except Exception:
             continue
-        if resolved.exists() and resolved.is_file():
+        if resolved.exists() and resolved.is_file() and resolved.is_relative_to(resolved_root):
             return resolved
-
-    if not path.is_absolute():
-        for parent in [Path.cwd(), project_root, project_root / 'build']:
-            if not parent.exists():
-                continue
-            try:
-                match = next(parent.rglob(path.name))
-            except StopIteration:
-                continue
-            if match.exists() and match.is_file():
-                return match.resolve()
 
     return None
 

@@ -71,11 +71,12 @@ jobs:
             echo "clang-tidy not found; skipping static analysis"
             exit 0
           fi
-          if [ ! -f build/compile_commands.json ]; then
-            cmake --preset linux-release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          BUILD_DIR="build/chronon/${{ matrix.preset }}"
+          if [ ! -f "$BUILD_DIR/compile_commands.json" ]; then
+            cmake --preset "${{ matrix.preset }}" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
           fi
           find src include apps -name '*.cpp' -o -name '*.hpp' | \
-            xargs $TIDY --quiet --config-file=.clang-tidy -p build 2>&1 | \
+            xargs $TIDY --quiet --config-file=.clang-tidy -p "$BUILD_DIR" 2>&1 | \
             tee clang-tidy-report.txt
           if grep -q "error:" clang-tidy-report.txt; then
             echo "clang-tidy found errors!"
