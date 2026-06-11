@@ -25,6 +25,11 @@ jobs:
             test_preset: linux-ci-test
             vcpkg_commit: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4'
           - os: ubuntu-latest
+            preset: linux-ci-nocontent
+            build_preset: linux-ci-nocontent
+            test_preset: linux-ci-nocontent-test
+            vcpkg_commit: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4'
+          - os: ubuntu-latest
             preset: linux-asan
             build_preset: linux-asan
             test_preset: linux-asan-test

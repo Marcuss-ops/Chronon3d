@@ -6,6 +6,7 @@
 #include <chronon3d/runtime/timeline_evaluator.hpp>
 #include <chronon3d/specscene/model/specscene.hpp>
 #include <chronon3d/backends/image/image_writer.hpp>
+#include <chronon3d/core/composition/register_builtin_compositions.hpp>
 #ifdef CHRONON3D_BUILD_CONTENT
 #include <content/register_content_modules.hpp>
 #endif
@@ -137,6 +138,11 @@ chronon_context* chronon_create_context(void) {
         // Ensure content ExtensionModules are registered before CompositionRegistry is built.
         chronon3d::register_content_modules();
 #endif
+
+        // Register built-in compositions (DarkGridBackground, GridCleanBackground,
+        // CameraImageClip) before CompositionRegistry is built so that populate()
+        // finds the factories.  Safe to call multiple times.
+        chronon3d::register_builtin_compositions();
 
         auto* ctx = new chronon_context();
         ctx->registry = std::make_unique<chronon3d::CompositionRegistry>();

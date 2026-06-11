@@ -82,6 +82,13 @@
       }
     },
     {
+      "name": "linux-ci-nocontent",
+      "inherits": "linux-ci",
+      "cacheVariables": {
+        "CHRONON3D_BUILD_CONTENT": "OFF"
+      }
+    },
+    {
       "name": "linux-debug-render",
       "inherits": "base-linux",
       "condition": {
@@ -295,6 +302,15 @@
       "jobs": 16
     },
     {
+      "name": "linux-ci-nocontent",
+      "configurePreset": "linux-ci-nocontent",
+      "targets": [
+        "chronon3d_cli",
+        "chronon3d_tests"
+      ],
+      "jobs": 16
+    },
+    {
       "name": "linux-debug-render",
       "configurePreset": "linux-debug-render",
       "targets": [
@@ -395,6 +411,13 @@
     {
       "name": "linux-ci-test",
       "configurePreset": "linux-ci",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "linux-ci-nocontent-test",
+      "configurePreset": "linux-ci-nocontent",
       "output": {
         "outputOnFailure": true
       }
