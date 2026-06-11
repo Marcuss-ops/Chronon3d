@@ -26,11 +26,7 @@ target_link_libraries(chronon3d_ffmpeg_light INTERFACE swscale avutil)
 add_library(chronon3d_ffmpeg_full  INTERFACE)
 target_link_libraries(chronon3d_ffmpeg_full  INTERFACE swscale avcodec avformat avutil)
 
-# Legacy string variables (kept for any external caller that referenced the
-# old CHRONON3D_FFMPEG_LIBS_* raw lists).  These are now derived from the
-# imported targets above so there is a single source of truth.
-set(CHRONON3D_FFMPEG_LIBS_LIGHT "swscale;avutil")
-set(CHRONON3D_FFMPEG_LIBS_FULL  "swscale;avcodec;avformat;avutil")
+
 
 # ==============================================================================
 # Base Interface (must be defined before any add_subdirectory that uses it)
@@ -117,5 +113,4 @@ target_link_libraries(chronon3d_pipeline INTERFACE
     Taskflow::Taskflow
     concurrentqueue::concurrentqueue
     yuv
-    ${CHRONON3D_FFMPEG_LIBS_LIGHT}
 )

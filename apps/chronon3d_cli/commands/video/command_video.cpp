@@ -14,11 +14,9 @@ int command_video(const CompositionRegistry& registry, const VideoArgs& args) {
     auto plan = plan_video_job(registry, args);
     if (!plan) return 1;
 
-    if (plan->dry_run) {
-        return dry_run_video_job(*plan);
-    }
+    if (!validate_video_job(*plan)) return 1;
 
-    return execute_video_job(*plan);
+    return plan->dry_run ? dry_run_video_job(*plan) : execute_video_job(*plan);
 }
 
 } // namespace chronon3d::cli

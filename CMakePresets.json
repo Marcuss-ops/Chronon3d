@@ -13,7 +13,8 @@
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
         "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
         "VCPKG_MANIFEST_MODE": "ON",
-        "VCPKG_INSTALLED_DIR": "${sourceDir}/vcpkg_installed"
+        "VCPKG_INSTALLED_DIR": "${sourceDir}/vcpkg_installed",
+        "VCPKG_MANIFEST_FEATURES": ""
       }
     },
     {
@@ -46,7 +47,8 @@
         "rhs": "Linux"
       },
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release"
+        "CMAKE_BUILD_TYPE": "Release",
+        "VCPKG_MANIFEST_FEATURES": "tests"
       }
     },
     {
@@ -59,7 +61,8 @@
       },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "CHRONON3D_UNITY_BUILD": "OFF"
+        "CHRONON3D_UNITY_BUILD": "OFF",
+        "VCPKG_MANIFEST_FEATURES": "tests"
       }
     },
     {
@@ -74,7 +77,8 @@
         "CMAKE_BUILD_TYPE": "Debug",
         "CHRONON3D_UNITY_BUILD": "OFF",
         "CHRONON3D_BUILD_TOOLS": "OFF",
-        "CHRONON3D_ENABLE_PROFILING": "OFF"
+        "CHRONON3D_ENABLE_PROFILING": "OFF",
+        "VCPKG_MANIFEST_FEATURES": "tests"
       }
     },
     {
@@ -151,7 +155,8 @@
         "CHRONON3D_ENABLE_SQLITE_TELEMETRY": "ON",
         "CHRONON3D_ENABLE_PROFILING": "OFF",
         "CHRONON3D_UNITY_BUILD": "ON",
-        "CMAKE_UNITY_BUILD_BATCH_SIZE": "16"
+        "CMAKE_UNITY_BUILD_BATCH_SIZE": "16",
+        "VCPKG_MANIFEST_FEATURES": "tests;telemetry"
       }
     },
     {
@@ -171,7 +176,8 @@
         "CHRONON3D_ENABLE_NATIVE_FFMPEG": "OFF",
         "CHRONON3D_ENABLE_SQLITE_TELEMETRY": "ON",
         "CHRONON3D_ENABLE_PROFILING": "OFF",
-        "CHRONON3D_UNITY_BUILD": "ON"
+        "CHRONON3D_UNITY_BUILD": "ON",
+        "VCPKG_MANIFEST_FEATURES": "tests;telemetry"
       }
     },
     {
@@ -191,7 +197,8 @@
         "CHRONON3D_ENABLE_NATIVE_FFMPEG": "ON",
         "CHRONON3D_ENABLE_SQLITE_TELEMETRY": "ON",
         "CHRONON3D_ENABLE_PROFILING": "OFF",
-        "CHRONON3D_UNITY_BUILD": "ON"
+        "CHRONON3D_UNITY_BUILD": "ON",
+        "VCPKG_MANIFEST_FEATURES": "tests;telemetry"
       }
     },
     {
@@ -211,7 +218,8 @@
         "CHRONON3D_ENABLE_NATIVE_FFMPEG": "ON",
         "CHRONON3D_ENABLE_SQLITE_TELEMETRY": "ON",
         "CHRONON3D_ENABLE_PROFILING": "OFF",
-        "CHRONON3D_UNITY_BUILD": "ON"
+        "CHRONON3D_UNITY_BUILD": "ON",
+        "VCPKG_MANIFEST_FEATURES": "tests;benchmarks;telemetry"
       }
     },
     {
@@ -226,7 +234,8 @@
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_CXX_FLAGS": "-fsanitize=address,undefined -fno-omit-frame-pointer",
         "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=address,undefined",
-        "CMAKE_SHARED_LINKER_FLAGS": "-fsanitize=address,undefined"
+        "CMAKE_SHARED_LINKER_FLAGS": "-fsanitize=address,undefined",
+        "VCPKG_MANIFEST_FEATURES": "tests"
       }
     },
     {
@@ -238,7 +247,8 @@
         "rhs": "Windows"
       },
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release"
+        "CMAKE_BUILD_TYPE": "Release",
+        "VCPKG_MANIFEST_FEATURES": "tests"
       }
     },
     {
@@ -251,7 +261,8 @@
       },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "CHRONON3D_UNITY_BUILD": "OFF"
+        "CHRONON3D_UNITY_BUILD": "OFF",
+        "VCPKG_MANIFEST_FEATURES": "tests"
       }
     }
   ],
@@ -346,6 +357,15 @@
       "jobs": 16
     },
     {
+      "name": "linux-asan",
+      "configurePreset": "linux-asan",
+      "targets": [
+        "chronon3d_cli",
+        "chronon3d_tests"
+      ],
+      "jobs": 16
+    },
+    {
       "name": "win",
       "configurePreset": "win-release",
       "targets": [
@@ -396,6 +416,13 @@
     {
       "name": "linux-release-full-test",
       "configurePreset": "linux-release-full",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "linux-asan-test",
+      "configurePreset": "linux-asan",
       "output": {
         "outputOnFailure": true
       }

@@ -8,8 +8,6 @@
     "glm",
     "taskflow",
     "tbb",
-    "tracy",
-    "doctest",
     "stb",
     "concurrentqueue",
     "meshoptimizer",
@@ -21,16 +19,26 @@
     "freetype",
     "harfbuzz",
     "nlohmann-json",
-    "sqlite3",
     "openexr",
     "libyuv",
-    "magic-enum",
-    "benchmark"
+    "magic-enum"
   ],
   "features": {
+    "tests": {
+      "description": "Build tests (requires doctest)",
+      "dependencies": ["doctest"]
+    },
     "benchmarks": {
-      "description": "Build benchmarks",
+      "description": "Build benchmarks (requires Google Benchmark)",
       "dependencies": ["benchmark"]
+    },
+    "telemetry": {
+      "description": "Enable SQLite telemetry store",
+      "dependencies": ["sqlite3"]
+    },
+    "profiling": {
+      "description": "Enable Tracy profiling",
+      "dependencies": ["tracy"]
     }
   },
   "default-features": []

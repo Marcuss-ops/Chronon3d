@@ -68,7 +68,8 @@ class ExporterRegistry;
 
 /// Shared render + encode dispatch used by both the job executor and
 /// the video-camera command (which builds its own composition on the fly).
-/// Does NOT validate — callers must call validate_video_job() first.
+/// Validates internally as a safety net for direct callers (e.g.
+/// command_video_camera) that bypass validate_video_job().
 [[nodiscard]] int render_and_encode_ffmpeg(
     const CompositionRegistry& registry,
     const Composition& comp,
