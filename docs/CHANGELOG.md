@@ -100,6 +100,27 @@ Unificato con S5.
 
 ---
 
+## Refactoring
+
+### R1 — Umbrella header invertito (opt-in)
+
+2026-06-11 — `include/chronon3d/chronon3d.hpp`:
+- Logica invertita: `#ifndef CHRONON3D_LEAN_UMBRELLA` (opt-out) → `#ifdef CHRONON3D_LEGACY_FULL_UMBRELLA` (opt-in)
+- `chronon3d.hpp` ora è **leggero di default**: include solo l'API pubblica scene-building
+- Per il vecchio comportamento (runtime + internal): compilare con `-DCHRONON3D_LEGACY_FULL_UMBRELLA`
+
+### R2 — Split di chronon3d_c_api.cpp in 4 file
+
+2026-06-11 — `src/c_api/chronon3d_c_api.cpp` suddiviso in:
+- `src/c_api/c_api_context.cpp` — contesto + error handling + funzioni ciclo vita
+- `src/c_api/c_api_compile.cpp` — parsing JSON→TOML + compilazione specscene + registry fallback
+- `src/c_api/c_api_render.cpp` — rendering e salvataggio PNG
+- `src/c_api/chronon3d_c_api.cpp` — ridotto alle sole 2 funzioni pubbliche extern "C"
+- `src/c_api/c_api_internal.hpp` — nuovo header interno condiviso (`chronon_context` struct + dichiarazioni helper)
+- `CMakeLists.txt` aggiornato con i 4 file sorgente
+
+---
+
 ## Altri completamenti
 
 - **SIMD Rect Rasterizer** — `rasterize_rect_simd()` via Highway in `highway_kernels.cpp`

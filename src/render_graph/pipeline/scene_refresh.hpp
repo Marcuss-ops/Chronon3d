@@ -13,6 +13,7 @@
 
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include <spdlog/spdlog.h>
 #include <chronon3d/render_graph/nodes/source_node.hpp>
 #include <chronon3d/render_graph/nodes/multi_source_node.hpp>
 #include <chronon3d/render_graph/nodes/transform_node.hpp>
