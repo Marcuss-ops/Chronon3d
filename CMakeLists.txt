@@ -61,7 +61,7 @@ option(CHRONON3D_BUILD_BENCHMARKS "Build Chronon3d benchmarks" OFF)
 option(CHRONON3D_BUILD_CONTENT "Build bundled content compositions (proofs, demos)" ON)
 option(CHRONON3D_ENABLE_NATIVE_FFMPEG "Enable native FFmpeg/libav encoder support" OFF)
 option(CHRONON3D_ENABLE_PROFILING "Enable Tracy profiling" OFF)
-option(CHRONON3D_ENABLE_SQLITE_TELEMETRY "Enable SQLite telemetry store" ON)
+option(CHRONON3D_ENABLE_SQLITE_TELEMETRY "Enable SQLite telemetry store" OFF)
 
 if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
     add_compile_definitions(CHRONON3D_ENABLE_NATIVE_FFMPEG)
@@ -174,9 +174,17 @@ set_target_properties(chronon3d_shared PROPERTIES
 target_compile_definitions(chronon3d_shared PRIVATE CHRONON3D_BUILD_SHARED)
 
 if(CHRONON3D_BUILD_TESTS)
-    add_executable(test_c_api tests/test_c_api.c)
-    target_link_libraries(test_c_api PRIVATE chronon3d_shared)
-    target_include_directories(test_c_api PRIVATE ${CMAKE_SOURCE_DIR}/include)
-    add_test(NAME test_c_api COMMAND test_c_api WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+    if(CHRONON3D_BUILD_CONTENT)
+        add_executable(test_c_api tests/test_c_api.c)
+        target_link_libraries(test_c_api PRIVATE chronon3d_shared)
+        target_include_directories(test_c_api PRIVATE ${CMAKE_SOURCE_DIR}/include)
+        add_test(NAME test_c_api COMMAND test_c_api WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+    endif()
+
+    # Minimal C API test — works with or without content modules
+    add_executable(test_c_api_minimal tests/test_c_api_minimal.c)
+    target_link_libraries(test_c_api_minimal PRIVATE chronon3d_shared)
+    target_include_directories(test_c_api_minimal PRIVATE ${CMAKE_SOURCE_DIR}/include)
+    add_test(NAME test_c_api_minimal COMMAND test_c_api_minimal WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 endif()
 
