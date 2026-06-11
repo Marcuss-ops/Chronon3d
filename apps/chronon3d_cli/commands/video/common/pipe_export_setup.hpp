@@ -6,7 +6,7 @@
 #include <chronon3d/core/system_metrics.hpp>
 #include <chronon3d/core/triple_buffer_arena.hpp>
 #include <chronon3d/cache/node_cache.hpp>
-#include <chronon3d/media/media_frame_provider.hpp>
+#include <chronon3d/media/frame_source_provider.hpp>
 
 // Forward declarations
 namespace chronon3d { class SoftwareRenderer; }
@@ -25,14 +25,13 @@ struct PipeExportSetupResult {
     std::string codec;                          // resolved codec name
 
     // Renderer
-    std::unique_ptr<graph::RenderBackend> renderer;
-    SoftwareRenderer* sw_renderer{nullptr};     // non-owning, cast from renderer
+    std::shared_ptr<SoftwareRenderer> renderer;
 
     // Cache + arena + queue
     cache::NodeCache node_cache;
     media::MediaFrameProvider* video_decoder{nullptr};
     size_t arena_size{0};
-    TripleBufferArena triple_arena;             // empty until init
+    std::unique_ptr<TripleBufferArena> triple_arena;
     moodycamel::ConcurrentQueue<RenderFramePackage> queue;
 
     // Writer thread shared state
@@ -58,7 +57,7 @@ struct PipeExportSetupResult {
 /// Run the full setup phase for pipe export.
 /// Includes: encoder creation, renderer creation, arena allocation, queue init.
 /// On failure returns nullopt (caller should check and abort).
-[[nodiscard]] std::optional<PipeExportSetupResult> setup_pipe_export(
+[[nodiscard]] std::unique_ptr<PipeExportSetupResult> setup_pipe_export(
     const CompositionRegistry& registry,
     const Composition& comp,
     const RenderSettings& settings,

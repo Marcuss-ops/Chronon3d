@@ -68,13 +68,13 @@ OwnedFB RenderGraphContext::acquire_scratch_fb(
     return acquire_owned_fb(w, h, clear, bounds);
 }
 
-OwnedFB RenderGraphContext::acquire_owned_fb(const Framebuffer& other) const {
-    auto it = std::find(scratch.reusable_inputs.begin(), scratch.reusable_inputs.end(), const_cast<Framebuffer*>(&other));
+OwnedFB RenderGraphContext::acquire_owned_fb(const Framebuffer& other) {
+    auto it = std::find(scratch.reusable_inputs.begin(), scratch.reusable_inputs.end(), &other);
     if (it != scratch.reusable_inputs.end()) {
         scratch.reusable_inputs.erase(it);
         OwnedFB fb = acquire_owned_fb(other.width(), other.height(), false);
         fb->set_origin(other.origin_x(), other.origin_y());
-        fb->swap_contents(*const_cast<Framebuffer*>(&other));
+        fb->swap_contents(const_cast<Framebuffer&>(other));
         return fb;
     }
 
@@ -105,7 +105,7 @@ OwnedFB RenderGraphContext::acquire_owned_fb(const Framebuffer& other) const {
     return fb;
 }
 
-OwnedFB RenderGraphContext::acquire_owned_fb(std::shared_ptr<Framebuffer>&& src) const {
+OwnedFB RenderGraphContext::acquire_owned_fb(std::shared_ptr<Framebuffer>&& src) {
     if (!src) return nullptr;
     if (src.use_count() != 1) return acquire_owned_fb(*src);
 

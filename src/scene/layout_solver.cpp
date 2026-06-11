@@ -35,7 +35,7 @@ void LayoutSolver::solve(Scene& scene, i32 canvas_w, i32 canvas_h) const {
     const f32 W = static_cast<f32>(canvas_w);
     const f32 H = static_cast<f32>(canvas_h);
 
-    for (auto& layer : const_cast<std::pmr::vector<Layer>&>(scene.layers())) {
+    for (auto& layer : scene.layers()) {
         if (!layer.layout.enabled) continue;
 
         // --- Pin ---

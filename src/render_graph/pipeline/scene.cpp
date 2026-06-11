@@ -455,9 +455,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     // rebuilding and re-optimizing from scratch.
     const bool can_reuse_compiled_graph = ctx.options.graph_structure_unchanged &&
                                           sw_renderer &&
-                                          sw_renderer->graph_cache().has(width, height) &&
-                                          true &&
-                                          true;
+                                          sw_renderer->graph_cache().has(width, height);
 
     CompiledFrameGraph compiled;
 

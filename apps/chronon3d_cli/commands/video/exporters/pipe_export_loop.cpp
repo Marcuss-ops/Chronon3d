@@ -18,7 +18,7 @@ RenderLoopOutput run_pipe_export_loop(
     const FfmpegExportOptions& opts)
 {
     cache::NodeCache node_cache;
-    video::VideoFrameDecoder* video_decoder = nullptr;
+    media::MediaFrameProvider* video_decoder = nullptr;
 
     std::vector<chronon3d::telemetry::FrameTelemetryRecord> telemetry_frames;
     telemetry_frames.reserve(session.total_frames > 0
@@ -39,7 +39,7 @@ RenderLoopOutput run_pipe_export_loop(
         .sw_renderer = session.sw_renderer,
         .queue = session.queue,
         .writer_failed = session.writer_failed,
-        .triple_arena = session.triple_arena,
+        .triple_arena = *session.triple_arena,
         .counters = session.renderer->counters(),
         .telemetry_frames = telemetry_frames,
     };
