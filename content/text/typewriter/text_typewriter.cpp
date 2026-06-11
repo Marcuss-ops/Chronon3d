@@ -1,23 +1,7 @@
 #include "typewriter_common.hpp"
-#include "content/common/background_helpers.hpp"
+#include "content/text/text_theme.hpp"
 
 namespace chronon3d::content::text {
-
-// ──────────────────────────────────────────────────────────────────────────────
-//  Helper — common grid background layer
-// ──────────────────────────────────────────────────────────────────────────────
-
-namespace {
-
-// Delegates to the shared helper using the TextTypewriter preset style
-// (deep navy bg + blue grid).  Kept as a local wrapper so existing call
-// sites in this file don't need to change.
-void add_grid_background(SceneBuilder& s) {
-    chronon3d::content::backgrounds::add_common_background(
-        s, chronon3d::content::backgrounds::BackgroundStyles::TextTypewriter());
-}
-
-} // namespace
 
 // ──────────────────────────────────────────────────────────────────────────────
 //  TextGridBackground — clean grid on dark background
@@ -26,7 +10,7 @@ void add_grid_background(SceneBuilder& s) {
 Composition text_grid_background() {
     return composition({.name = "TextGridBackground", .width = 1920, .height = 1080, .duration = 60}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        add_grid_background(s);
+        add_text_background(s);
         return s.build();
     });
 }
@@ -38,37 +22,37 @@ Composition text_grid_background() {
 Composition text_hello() {
     return composition({.name = "TextHello", .width = 1920, .height = 1080, .duration = 90}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        add_grid_background(s);
+        add_text_background(s);
 
-        s.layer("title", [&ctx](auto& l) {
-            f32 opacity = std::clamp((static_cast<f32>(ctx.frame) - 10.0f) / 20.0f, 0.0f, 1.0f);
+        f32 title_op = fade_in(ctx.frame, 10.0f, 20.0f);
+        s.layer("title", [title_op](auto& l) {
             l.pin_to(Anchor::Center)
-             .opacity(opacity)
+             .opacity(title_op)
              .text("hello", {
                  .text = "HELLO, CHRONON3D.",
                  .size = {1500.0f, 120.0f},
                  .pos = {0.0f, 0.0f, 0.0f},
-                 .font_path = "assets/fonts/Inter-Bold.ttf",
+                 .font_path = TEXT_FONT_PATH,
                  .font_size = 64.0f,
-                 .color = {0.25f, 0.58f, 1.0f, 1.0f},
+                 .color = TEXT_COLOR_BLUE,
                  .align = TextAlign::Center,
                  .vertical_align = VerticalAlign::Middle,
                  .tracking = 6.0f,
              });
         });
 
-        s.layer("subtitle", [&ctx](auto& l) {
-            f32 opacity = std::clamp((static_cast<f32>(ctx.frame) - 30.0f) / 20.0f, 0.0f, 1.0f);
+        f32 sub_op = fade_in(ctx.frame, 30.0f, 20.0f);
+        s.layer("subtitle", [sub_op](auto& l) {
             l.pin_to(Anchor::Center)
              .position({0.0f, 70.0f, 0.0f})
-             .opacity(opacity)
+             .opacity(sub_op)
              .text("sub", {
                  .text = "grid + text = clean",
                  .size = {800.0f, 50.0f},
                  .pos = {0.0f, 0.0f, 0.0f},
-                 .font_path = "assets/fonts/Inter-Bold.ttf",
+                 .font_path = TEXT_FONT_PATH,
                  .font_size = 28.0f,
-                 .color = {0.78f, 0.82f, 0.9f, 1.0f},
+                 .color = SUBTITLE_COLOR,
                  .align = TextAlign::Center,
                  .vertical_align = VerticalAlign::Middle,
                  .tracking = 1.0f,
@@ -86,36 +70,18 @@ Composition text_hello() {
 Composition text_image_on_grid() {
     return composition({.name = "ImageOnGrid", .width = 1920, .height = 1080, .duration = 90}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        add_grid_background(s);
+        add_text_background(s);
 
-        f32 opacity = std::clamp((static_cast<f32>(ctx.frame) - 10.0f) / 20.0f, 0.0f, 1.0f);
+        f32 opacity = fade_in(ctx.frame, 10.0f, 20.0f);
 
         s.layer("image_card", [opacity](auto& l) {
             l.pin_to(Anchor::Center)
              .position({0.0f, -40.0f, 0.0f})
              .opacity(opacity);
-
-            l.rounded_rect("shadow", {
-                .size = {824.0f, 474.0f},
-                .radius = 18.0f,
-                .color = {0.0f, 0.0f, 0.0f, 0.35f},
-                .pos = {0.0f, 6.0f, 0.0f},
-            });
-
-            l.rounded_rect("border", {
-                .size = {802.0f, 452.0f},
-                .radius = 14.0f,
-                .color = {0.25f, 0.27f, 0.31f, 0.7f},
-            });
-
-            l.image("img", {
-                .path = "assets/images/minimalist_landscape.png",
-                .size = {800.0f, 450.0f},
-                .radius = 12.0f,
-            });
+            add_image_card(l, "assets/images/minimalist_landscape.png", {800.0f, 450.0f}, 12.0f);
         });
 
-        f32 cap_op = std::clamp((static_cast<f32>(ctx.frame) - 30.0f) / 20.0f, 0.0f, 1.0f);
+        f32 cap_op = fade_in(ctx.frame, 30.0f, 20.0f);
         s.layer("caption", [cap_op](auto& l) {
             l.pin_to(Anchor::Center)
              .position({0.0f, 290.0f, 0.0f})
@@ -123,9 +89,9 @@ Composition text_image_on_grid() {
              .text("cap", {
                  .text = "landscape — minimalist scene",
                  .size = {500.0f, 30.0f},
-                 .font_path = "assets/fonts/Inter-Bold.ttf",
+                 .font_path = TEXT_FONT_PATH,
                  .font_size = 22.0f,
-                 .color = {0.6f, 0.65f, 0.8f, 1.0f},
+                 .color = CAPTION_COLOR,
                  .align = TextAlign::Center,
                  .vertical_align = VerticalAlign::Middle,
                  .tracking = 3.0f,
@@ -143,10 +109,10 @@ Composition text_image_on_grid() {
 Composition text_quote_on_grid() {
     return composition({.name = "QuoteOnGrid", .width = 1920, .height = 1080, .duration = 120}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        add_grid_background(s);
+        add_text_background(s);
 
-        f32 quote_op = std::clamp((static_cast<f32>(ctx.frame) - 10.0f) / 25.0f, 0.0f, 1.0f);
-        f32 attr_op = std::clamp((static_cast<f32>(ctx.frame) - 45.0f) / 20.0f, 0.0f, 1.0f);
+        f32 quote_op = fade_in(ctx.frame, 10.0f, 25.0f);
+        f32 attr_op  = fade_in(ctx.frame, 45.0f, 20.0f);
 
         s.layer("quote_mark", [quote_op](auto& l) {
             l.pin_to(Anchor::Center)
@@ -155,9 +121,9 @@ Composition text_quote_on_grid() {
              .text("qm", {
                  .text = "\"",
                  .size = {120.0f, 180.0f},
-                 .font_path = "assets/fonts/Inter-Bold.ttf",
+                 .font_path = TEXT_FONT_PATH,
                  .font_size = 160.0f,
-                 .color = {0.25f, 0.58f, 1.0f, 1.0f},
+                 .color = TEXT_COLOR_BLUE,
                  .align = TextAlign::Center,
                  .vertical_align = VerticalAlign::Middle,
              });
@@ -170,9 +136,9 @@ Composition text_quote_on_grid() {
              .text("qt", {
                  .text = "Design is not just what it looks like and feels on the surface — design is actually how the whole thing works together as a unified experience from the very first interaction to the very last detail, every single piece of the puzzle has to be carefully considered and crafted with purpose, intention, and love for the craft.",
                  .size = {1500.0f, 520.0f},
-                 .font_path = "assets/fonts/Inter-Bold.ttf",
+                 .font_path = TEXT_FONT_PATH,
                  .font_size = 48.0f,
-                 .color = {0.9f, 0.92f, 0.98f, 1.0f},
+                 .color = TEXT_COLOR_WHITE,
                  .align = TextAlign::Left,
                  .vertical_align = VerticalAlign::Middle,
                  .line_height = 1.3f,
@@ -190,9 +156,9 @@ Composition text_quote_on_grid() {
              .text("attr", {
                  .text = "— Steve Jobs",
                  .size = {400.0f, 30.0f},
-                 .font_path = "assets/fonts/Inter-Bold.ttf",
+                 .font_path = TEXT_FONT_PATH,
                  .font_size = 22.0f,
-                 .color = {0.4f, 0.45f, 0.6f, 1.0f},
+                 .color = ATTR_COLOR,
                  .align = TextAlign::Center,
                  .vertical_align = VerticalAlign::Middle,
                  .tracking = 2.0f,
@@ -206,7 +172,7 @@ Composition text_quote_on_grid() {
              .opacity(line_op)
              .rect("div", {
                  .size = {60.0f, 2.0f},
-                 .color = {0.25f, 0.58f, 1.0f, 1.0f},
+                 .color = DIVIDER_COLOR,
              });
         });
 
@@ -221,9 +187,9 @@ Composition text_quote_on_grid() {
 Composition text_shape_on_grid() {
     return composition({.name = "ShapeOnGrid", .width = 1920, .height = 1080, .duration = 90}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        add_grid_background(s);
+        add_text_background(s);
 
-        f32 op = std::clamp((static_cast<f32>(ctx.frame) - 10.0f) / 20.0f, 0.0f, 1.0f);
+        f32 op = fade_in(ctx.frame, 10.0f, 20.0f);
 
         s.layer("title", [op](auto& l) {
             l.pin_to(Anchor::TopCenter, 50.0f)
@@ -231,9 +197,9 @@ Composition text_shape_on_grid() {
              .text("title", {
                  .text = "SHAPES",
                  .size = {500.0f, 60.0f},
-                 .font_path = "assets/fonts/Inter-Bold.ttf",
+                 .font_path = TEXT_FONT_PATH,
                  .font_size = 42.0f,
-                 .color = {0.7f, 0.75f, 0.9f, 1.0f},
+                 .color = TITLE_COLOR,
                  .align = TextAlign::Center,
                  .vertical_align = VerticalAlign::Middle,
                  .tracking = 10.0f,
@@ -245,16 +211,7 @@ Composition text_shape_on_grid() {
             l.pin_to(Anchor::Center)
              .position(pos)
              .opacity(op);
-            l.rounded_rect("bg", {.size = size, .radius = radius, .color = bg_color});
-            l.text("label", {
-                .text = badge_text,
-                .size = size,
-                .font_size = font_size,
-                .color = {1.0f, 1.0f, 1.0f, 1.0f},
-                .align = TextAlign::Center,
-                .vertical_align = VerticalAlign::Middle,
-                .tracking = 8.0f,
-            });
+            add_badge(l, badge_text, size, radius, bg_color, font_size);
         };
 
         s.layer("rect_badge", [&](auto& l) {
@@ -287,9 +244,9 @@ Composition text_shape_on_grid() {
 Composition text_basic() {
     return composition({.name = "TextBasic", .width = 1920, .height = 1080, .duration = 90}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        add_grid_background(s);
+        add_text_background(s);
 
-        f32 op = std::clamp((static_cast<f32>(ctx.frame) - 10.0f) / 20.0f, 0.0f, 1.0f);
+        f32 op = fade_in(ctx.frame, 10.0f, 20.0f);
 
         s.layer("headline", [op](auto& l) {
             l.pin_to(Anchor::Center)
@@ -298,16 +255,16 @@ Composition text_basic() {
              .text("hl", {
                  .text = "CHRONON3D",
                  .size = {1500.0f, 120.0f},
-                 .font_path = "assets/fonts/Inter-Bold.ttf",
+                 .font_path = TEXT_FONT_PATH,
                  .font_size = 72.0f,
-                 .color = {0.25f, 0.58f, 1.0f, 1.0f},
+                 .color = TEXT_COLOR_BLUE,
                  .align = TextAlign::Center,
                  .vertical_align = VerticalAlign::Middle,
                  .tracking = 12.0f,
              });
         });
 
-        f32 sub_op = std::clamp((static_cast<f32>(ctx.frame) - 30.0f) / 20.0f, 0.0f, 1.0f);
+        f32 sub_op = fade_in(ctx.frame, 30.0f, 20.0f);
         s.layer("subtitle", [sub_op](auto& l) {
             l.pin_to(Anchor::Center)
              .position({0.0f, 55.0f, 0.0f})
@@ -315,9 +272,9 @@ Composition text_basic() {
              .text("sub", {
                  .text = "motion graphics engine",
                  .size = {800.0f, 50.0f},
-                 .font_path = "assets/fonts/Inter-Bold.ttf",
+                 .font_path = TEXT_FONT_PATH,
                  .font_size = 26.0f,
-                 .color = {0.7f, 0.75f, 0.88f, 1.0f},
+                 .color = SUBTITLE_COLOR,
                  .align = TextAlign::Center,
                  .vertical_align = VerticalAlign::Middle,
                  .tracking = 6.0f,
