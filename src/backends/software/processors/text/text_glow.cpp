@@ -223,22 +223,9 @@ void draw_text_glow(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNod
         GlowPipelineInput input;
         input.source = mask_fb.get();
         input.source_is_alpha_mask = true;
-        input.params.color = node.glow.color;
+        // Copy all glow params directly from the unified GlowParams struct
+        input.params = node.glow;
         input.params.radius = base_radius;
-        input.params.intensity = node.glow.intensity;
-        input.params.core_strength = std::max(0.0f, node.glow.core_strength);
-        input.params.aura_strength = std::max(0.0f, node.glow.aura_strength);
-        input.params.bloom_strength = std::max(0.0f, node.glow.bloom_strength);
-        input.params.spread = node.glow.spread;
-        input.params.softness = node.glow.softness;
-        input.params.threshold = node.glow.threshold;
-        input.params.falloff = node.glow.falloff;
-        input.params.outer_downscale = node.glow.outer_downscale;
-        input.params.preserve_source = node.glow.preserve_source;
-        input.params.additive = node.glow.additive;
-        input.params.blend = node.glow.blend;
-        input.params.quality = node.glow.quality;
-        input.params.layers = node.glow.layers;
 
         // Minimal context — the counters/pool are optional.
         graph::RenderGraphContext ctx{};
