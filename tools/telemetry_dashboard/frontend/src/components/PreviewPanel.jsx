@@ -8,9 +8,10 @@ export default function PreviewPanel({ run, selectedFrame, nodeEvents }) {
 
   // Helper to check if a path has a video extension
   const isVideoExt = (p) => p.endsWith('.mp4') || p.endsWith('.webm') || p.endsWith('.mov');
-  // Always resolve video path: fall back to output/<composition_id>.mp4 for non-video paths
-  const resolvedVideoPath = isVideoExt(outputPath) ? outputPath : `output/${run.composition_id}.mp4`;
-  const isVideoRun = isVideoExt(resolvedVideoPath);
+  // Only treat as video if the actual output path is a video
+  const isVideoRun = isVideoExt(outputPath);
+  // Resolve video path only when it is actually a video
+  const resolvedVideoPath = isVideoRun ? outputPath : `output/${run.composition_id}.mp4`;
 
   const [mode, setMode] = useState(isVideoRun ? 'video' : 'frame');
   const [mediaError, setMediaError] = useState('');
