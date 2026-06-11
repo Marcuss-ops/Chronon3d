@@ -11,7 +11,10 @@ add_executable(chronon3d_cli_tests
     cli/test_render_loop_integration.cpp
     cli/bench_json_tests.cpp
     cli/test_camera_path_command.cpp
+    cli/test_video_end_semantics.cpp
     ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/common/cli_utils.cpp
+    ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/job/cli_render_utils.cpp
+    ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/video/video_job_plan.cpp
     ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/commands/video/common/video_export_common.cpp
     ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/commands/video/common/pipe_export_helpers.cpp
     ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/commands/video/common/pipe_export_session.cpp

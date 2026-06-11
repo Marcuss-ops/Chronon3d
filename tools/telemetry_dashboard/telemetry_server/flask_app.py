@@ -239,8 +239,7 @@ def serve_output(filename):
     """Serve individual output file (PNG, MP4, etc.)."""
     filepath = OUTPUT_DIR / filename
     safe_path = filepath.resolve()
-    # Prevent directory traversal
-    if not str(safe_path).startswith(str(OUTPUT_DIR.resolve())):
+    if not safe_path.is_relative_to(OUTPUT_DIR.resolve()):
         return "Forbidden", 403
     if not safe_path.exists() or not safe_path.is_file():
         return "Not found", 404
@@ -251,24 +250,47 @@ def serve_output(filename):
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve_static(path):
-    base_dir = os.path.join(os.path.dirname(__file__), '..', 'frontend', 'dist')
+    base_dir = Path(__file__).resolve().parent / '..' / 'frontend' / 'dist'
     if not path or path == '/':
-        return send_file(os.path.join(base_dir, 'index.html'))
-    
-    file_path = os.path.join(base_dir, path)
-    if os.path.exists(file_path) and not os.path.isdir(file_path):
-        return send_file(file_path)
-    else:
-        return send_file(os.path.join(base_dir, 'index.html'))
+        return send_file(base_dir / 'index.html')
+
+    candidate = (base_dir / path).resolve()
+    if not candidate.is_relative_to(base_dir.resolve()):
+        return "Forbidden", 403
+    if candidate.exists() and candidate.is_file():
+        return send_file(candidate)
+    return send_file(base_dir / 'index.html')
 
 import re
+
+def _find_cli() -> Path | None:
+    """Search for chronon3d_cli binary in common build directories."""
+    import subprocess
+    candidates = [
+        PROJECT_ROOT / "build" / "chronon" / "linux-release" / "apps" / "chronon3d_cli" / "chronon3d_cli",
+        PROJECT_ROOT / "build" / "chronon" / "linux-fast-dev" / "apps" / "chronon3d_cli" / "chronon3d_cli",
+        PROJECT_ROOT / "build" / "chronon" / "linux-dev" / "apps" / "chronon3d_cli" / "chronon3d_cli",
+        PROJECT_ROOT / "build" / "chronon" / "linux-ci" / "apps" / "chronon3d_cli" / "chronon3d_cli",
+        PROJECT_ROOT / "build_vs" / "apps" / "chronon3d_cli" / "Release" / "chronon3d_cli.exe",
+        PROJECT_ROOT / "build_vs" / "apps" / "chronon3d_cli" / "Debug" / "chronon3d_cli.exe",
+    ]
+    env_path = os.environ.get("CHRONON3D_CLI_PATH")
+    if env_path:
+        candidates.insert(0, Path(env_path))
+    for c in candidates:
+        if c.exists() and c.is_file():
+            return c
+    return None
+
 
 @app.route('/api/graph/<composition_id>')
 @require_auth
 def get_graph(composition_id):
     dot_path = PROJECT_ROOT / "output" / f"{composition_id}_graph.dot"
-    cli_path = PROJECT_ROOT / "build_vs" / "apps" / "chronon3d_cli" / "Release" / "chronon3d_cli.exe"
-    
+    cli_path = _find_cli()
+    if cli_path is None:
+        return jsonify({"error": "chronon3d_cli not found. Set CHRONON3D_CLI_PATH or build the project first."}), 500
+
     # Run CLI to generate DOT
     import subprocess
     try:

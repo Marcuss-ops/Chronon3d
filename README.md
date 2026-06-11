@@ -66,9 +66,22 @@ See [ORIENTATION.md](docs/ORIENTATION.md) for a full build guide and architectur
 ### Prerequisites (Linux)
 
 ```bash
-sudo apt-get install -y build-essential cmake ninja-build ccache ffmpeg
-sudo apt-get install -y libswscale-dev libavutil-dev libavcodec-dev libavformat-dev \
-                        zip unzip curl pkg-config
+# Install build tools
+sudo apt-get install -y build-essential cmake ninja-build
+
+# Install ccache for faster rebuilds (optional but recommended)
+sudo apt-get install -y ccache
+# Configure cache size to your liking (default: 5 GB)
+ccache --set-config=max_size=10G
+ccache --set-config=compression=true
+
+# ffmpeg runtime (for video export via external process)
+sudo apt-get install -y ffmpeg
+
+# Only needed if you enable native FFmpeg: -DCHRONON3D_ENABLE_NATIVE_FFMPEG=ON
+# sudo apt-get install -y libswscale-dev libavutil-dev libavcodec-dev libavformat-dev
+
+sudo apt-get install -y zip unzip curl pkg-config
 ```
 
 > **Windows:** Standard CMake + vcpkg — see [ORIENTATION.md](docs/ORIENTATION.md#windows) for details.
