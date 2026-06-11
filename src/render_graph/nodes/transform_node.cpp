@@ -232,7 +232,7 @@ OwnedFB TransformNode::execute(
                 h_col_start, h_step_y, inv_z, dsx, dsy,
                 row_begin, row_end);
         };
-        const bool use_par = (y1 - y0 >= 32 && area >= 64 * 32);
+        const bool use_par = (y1 - y0 >= 16 && area >= 16 * 32);
         if (ctx.telemetry.counters) {
             if (use_par) {
                 ctx.telemetry.counters->used_parallel_transform.fetch_add(1, std::memory_order_relaxed);
@@ -259,7 +259,7 @@ OwnedFB TransformNode::execute(
                 h_col_start, h_step_x, h_step_y,
                 row_begin, row_end);
         };
-        const bool use_par = (y1 - y0 >= 32 && area >= 64 * 32);
+        const bool use_par = (y1 - y0 >= 16 && area >= 16 * 32);
         if (ctx.telemetry.counters) {
             if (use_par) {
                 ctx.telemetry.counters->used_parallel_transform.fetch_add(1, std::memory_order_relaxed);

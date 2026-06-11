@@ -6,6 +6,7 @@
 // ============================================================================
 
 #include <chronon3d/render_graph/nodes/composite_node.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <spdlog/spdlog.h>
 
 namespace chronon3d::graph {
@@ -70,6 +71,11 @@ OwnedFB CompositeNode::execute(
         }
     }
 
+    // Start dispatch timing here — AFTER acquire and optional bottom composite,
+    // so dispatch_ms measures only clip/bbox computation + overhead, without
+    // double-counting bottom composite time (already in compositenode_blend_ms).
+    const auto t_dispatch0 = profiling::now();
+
     if (ctx.resources.backend) {
         std::optional<raster::BBox> clip = (input_bboxes.size() >= 2) ? input_bboxes[1] : std::nullopt;
         if (ctx.tile.clip_rect) {
@@ -87,6 +93,16 @@ OwnedFB CompositeNode::execute(
                 clip = ctx.tile.clip_rect;
             }
         }
+
+        // Record dispatch time (clip/bbox computation + overhead) before composite_layer call.
+        // Acquire + optional bottom composite are NOT included — those are already tracked
+        // in blend/copy/setup counters or are trivially fast (acquire_owned_fb from pool).
+        if (ctx.telemetry.counters) {
+            const auto t_dispatch_end = profiling::now();
+            const auto dispatch_ms = static_cast<uint64_t>(profiling::duration_ms(t_dispatch0, t_dispatch_end));
+            ctx.telemetry.counters->compositenode_dispatch_ms.fetch_add(dispatch_ms, std::memory_order_relaxed);
+        }
+
         ctx.resources.backend->composite_layer(*result, *top, m_mode, clip);
 
         if (ctx.options.track_dof_depth && !ctx.telemetry.dof_depth.empty()) {
