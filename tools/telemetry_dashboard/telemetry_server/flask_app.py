@@ -30,45 +30,31 @@ def require_auth(f):
     return decorated
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+OUTPUT_DIR = PROJECT_ROOT / 'output'
+ALLOWED_ARTIFACT_ROOTS = [OUTPUT_DIR]
 
 
 def resolve_artifact_path(raw_path: str) -> Path | None:
-    """Resolve artifact paths recorded by the CLI.
+    """Resolve artifact paths safely, restricted to allowed artifact directories.
 
-    Runs may store either absolute paths or relative paths such as
-    `output/foo.png`.  The relative path is often relative to the CLI cwd
-    (for example `build/chronon/linux-release`), not the repository root, so
-    we try a small set of plausible bases before failing.
+    Only relative paths within ALLOWED_ARTIFACT_ROOTS are accepted.
+    Absolute paths and path-traversal attempts are rejected.
     """
     path = Path(raw_path)
-    if path.is_absolute():
-        candidates = [path]
-    else:
-        candidates = [
-            Path.cwd() / path,
-            PROJECT_ROOT / path,
-            PROJECT_ROOT / 'build' / 'chronon' / 'linux-release' / path,
-            PROJECT_ROOT / 'build' / path,
-        ]
 
-    for candidate in candidates:
+    # Reject absolute paths outright
+    if path.is_absolute():
+        return None
+
+    for root in ALLOWED_ARTIFACT_ROOTS:
+        resolved_root = root.resolve()
+        candidate = resolved_root / path
         try:
             resolved = candidate.resolve()
         except Exception:
             continue
-        if resolved.exists() and resolved.is_file():
+        if resolved.exists() and resolved.is_file() and resolved.is_relative_to(resolved_root):
             return resolved
-
-    if not path.is_absolute():
-        for parent in [Path.cwd(), PROJECT_ROOT, PROJECT_ROOT / 'build']:
-            if not parent.exists():
-                continue
-            try:
-                match = next(parent.rglob(path.name))
-            except StopIteration:
-                continue
-            if match.exists() and match.is_file():
-                return match.resolve()
 
     return None
 
@@ -157,9 +143,8 @@ def get_run_detail(run_id):
             conn.close()
 
 @app.route('/artifact')
+@require_auth
 def get_artifact():
-    # Bypassed auth check
-
     raw_path = request.args.get('path', '')
     if not raw_path:
         return "Missing path", 400
@@ -170,8 +155,6 @@ def get_artifact():
 
     content_type = ARTIFACT_MIME_TYPES.get(artifact_path.suffix.lower(), 'application/octet-stream')
     return send_file(artifact_path, mimetype=content_type)
-
-OUTPUT_DIR = PROJECT_ROOT / 'output'
 
 
 @app.route('/output')

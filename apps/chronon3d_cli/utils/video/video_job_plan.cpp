@@ -35,9 +35,9 @@ std::optional<VideoJobPlan> plan_video_job(
     // ── RenderSettings ──────────────────────────────────────────────────
     RenderSettings settings = settings_from_args(args, !resolved.from_specscene);
 
-    // ── CLI end is INCLUSIVE → convert to exclusive internal ────────────
+    // ── CLI end is EXCLUSIVE (documented semantic [start, end)) ─────────
     const Frame end = (args.end > args.start)
-        ? (args.end + 1)
+        ? args.end
         : comp.duration();
 
     // ── FfmpegExportOptions ─────────────────────────────────────────────
