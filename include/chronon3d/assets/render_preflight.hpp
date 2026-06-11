@@ -116,6 +116,25 @@ std::string format_preflight_issues_text(const std::vector<PreflightIssue>& issu
 /// Convert a list of issues to a structured JSON object.
 nlohmann::json preflight_issues_to_json(const std::vector<PreflightIssue>& issues);
 
+/// Returns true if any issue in the list has Error severity.
+[[nodiscard]] inline bool has_preflight_errors(const std::vector<PreflightIssue>& issues) {
+    for (const auto& i : issues) {
+        if (i.severity == PreflightSeverity::Error) return true;
+    }
+    return false;
+}
+
+/// Throws ChrononAssetError if any issue in the list has Error severity.
+/// The error message is constructed from format_preflight_issues_text().
+inline void throw_if_preflight_errors(const std::vector<PreflightIssue>& issues) {
+    if (has_preflight_errors(issues)) {
+        throw ChrononAssetError(format_preflight_issues_text(issues));
+    }
+}
+
+/// Convert a list of issues to a structured JSON object.
+nlohmann::json preflight_issues_to_json(const std::vector<PreflightIssue>& issues);
+
 /// Check whether an external tool exists in PATH.
 bool tool_exists_in_path(const std::string& tool);
 

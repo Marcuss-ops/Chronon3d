@@ -177,27 +177,11 @@ std::vector<PreflightIssue> RenderPreflight::validate() const {
 }
 
 void RenderPreflight::validate_or_throw() {
-    auto issues = validate();
-
-    bool has_error = false;
-    for (const auto& i : issues) {
-        if (i.severity == PreflightSeverity::Error) {
-            has_error = true;
-            break;
-        }
-    }
-
-    if (has_error) {
-        throw ChrononAssetError(format_preflight_issues_text(issues));
-    }
+    throw_if_preflight_errors(validate());
 }
 
 bool RenderPreflight::ok() const {
-    auto issues = validate();
-    for (const auto& i : issues) {
-        if (i.severity == PreflightSeverity::Error) return false;
-    }
-    return true;
+    return !has_preflight_errors(validate());
 }
 
 } // namespace chronon3d
