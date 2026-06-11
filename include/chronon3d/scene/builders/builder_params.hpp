@@ -130,13 +130,6 @@ struct ShadowStyle {
     };
 };
 
-[[nodiscard]] inline std::vector<TextShadow> make_text_shadows(const ShadowStyle& style) {
-    return {
-        style.contact,
-        style.ambient,
-    };
-}
-
 struct ContactShadowParams {
     Vec3  pos{0, 0, 0};       // position on the floor
     Vec2  size{300, 80};       // shadow footprint (width, depth)

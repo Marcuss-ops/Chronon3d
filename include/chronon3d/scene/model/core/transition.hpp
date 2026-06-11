@@ -17,10 +17,6 @@ enum class TransitionDirection {
     Out
 };
 
-[[nodiscard]] inline std::string transition_direction_to_string(TransitionDirection dir) {
-    return enum_utils::enum_name_lower_snake(dir);
-}
-
 [[nodiscard]] inline TransitionDirection string_to_transition_direction(const std::string& str) {
     if (str == "left") return TransitionDirection::Left;
     if (str == "right") return TransitionDirection::Right;

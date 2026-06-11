@@ -22,21 +22,5 @@ struct BBox {
     bool is_empty() const { return x0 >= x1 || y0 >= y1; }
 };
 
-// Point-in-shape tests (Local space, centered at 0,0)
-
-inline bool point_in_rect(f32 px, f32 py, f32 hw, f32 hh) {
-    return std::abs(px) <= hw && std::abs(py) <= hh;
-}
-
-inline bool point_in_rounded_rect(f32 px, f32 py, f32 hw, f32 hh, f32 r) {
-    const f32 qx = std::max(std::abs(px) - (hw - r), 0.0f);
-    const f32 qy = std::max(std::abs(py) - (hh - r), 0.0f);
-    return qx * qx + qy * qy <= r * r;
-}
-
-inline bool point_in_circle(f32 px, f32 py, f32 r) {
-    return px * px + py * py <= r * r;
-}
-
 } // namespace raster
 } // namespace chronon3d
