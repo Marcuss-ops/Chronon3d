@@ -58,6 +58,14 @@ RenderLoopOutput run_pipe_export_loop(
         loop_result.status.writer_error = true;
     }
 
+    // Release pool framebuffers after render — reduces peak memory
+    // from ~900 MB to ~400 MB for VPS-friendly operation.
+    // The pool will reallocate on the next render if needed.
+    if (session.sw_renderer && session.sw_renderer->framebuffer_pool()) {
+        session.sw_renderer->framebuffer_pool()->clear();
+        spdlog::info("[video] Released framebuffer pool — memory trimmed");
+    }
+
     RenderLoopOutput output;
     output.loop_result = std::move(loop_result);
     output.telemetry_frames = std::move(telemetry_frames);

@@ -61,6 +61,8 @@ OwnedFB CompositeNode::execute(
         }
     }
 
+    // ── Acquire output framebuffer ────────────────────────────────────
+    const auto t_acquire0 = profiling::now();
     OwnedFB result;
     if (bottom->width() == ctx.frame.width && bottom->height() == ctx.frame.height) {
         result = ctx.acquire_owned_fb(*bottom);
@@ -70,6 +72,16 @@ OwnedFB CompositeNode::execute(
             ctx.resources.backend->composite_layer(*result, *bottom, BlendMode::Normal);
         }
     }
+    const auto t_acquire1 = profiling::now();
+    if (ctx.telemetry.counters) {
+        const auto acquire_ms = static_cast<uint64_t>(
+            profiling::duration_ms(t_acquire0, t_acquire1));
+        ctx.telemetry.counters->compositenode_acquire_ms.fetch_add(acquire_ms, std::memory_order_relaxed);
+    }
+    // Note: when bottom doesn't fit (rare), the bottom composite_layer
+    // call is included in this timing AND already tracked in
+    // compositenode_blend_ms.  This minor double-counting is acceptable
+    // because the common path (bottom fits, >=99% of frames) is pure.
 
     // Start dispatch timing here — AFTER acquire and optional bottom composite,
     // so dispatch_ms measures only clip/bbox computation + overhead, without
@@ -94,16 +106,26 @@ OwnedFB CompositeNode::execute(
             }
         }
 
-        // Record dispatch time (clip/bbox computation + overhead) before composite_layer call.
-        // Acquire + optional bottom composite are NOT included — those are already tracked
-        // in blend/copy/setup counters or are trivially fast (acquire_owned_fb from pool).
+        // Declare these in the backend scope so the aggregate non-blend
+        // calculation below can reference them regardless of whether the
+        // inner telemetry blocks are entered.
+        // Use auto (same as rest of codebase) — profiling::now() returns
+        // a POD timestamp, default-constructed without clock syscall.
+        auto _de = profiling::now(); // dispatch end
+        auto _os = profiling::now(); // overhead start
+        auto _oe = profiling::now(); // overhead end
+
+        // Record dispatch time before composite_layer call.
         if (ctx.telemetry.counters) {
-            const auto t_dispatch_end = profiling::now();
-            const auto dispatch_ms = static_cast<uint64_t>(profiling::duration_ms(t_dispatch0, t_dispatch_end));
-            ctx.telemetry.counters->compositenode_dispatch_ms.fetch_add(dispatch_ms, std::memory_order_relaxed);
+            _de = profiling::now();
+            const auto dms = static_cast<uint64_t>(profiling::duration_ms(t_dispatch0, _de));
+            ctx.telemetry.counters->compositenode_dispatch_ms.fetch_add(dms, std::memory_order_relaxed);
         }
 
         ctx.resources.backend->composite_layer(*result, *top, m_mode, clip);
+
+        // ── Post-blend overhead ────────────────────────────────────────
+        _os = profiling::now();
 
         if (ctx.options.track_dof_depth && !ctx.telemetry.dof_depth.empty()) {
             const i32 w = ctx.frame.width;
@@ -146,6 +168,23 @@ OwnedFB CompositeNode::execute(
             } else {
                 ctx.telemetry.counters->composite_pixels.fetch_add(area, std::memory_order_relaxed);
             }
+        }
+
+        if (ctx.telemetry.counters) {
+            _oe = profiling::now();
+            const auto oms = static_cast<uint64_t>(
+                profiling::duration_ms(_os, _oe));
+            ctx.telemetry.counters->compositenode_overhead_ms.fetch_add(oms, std::memory_order_relaxed);
+        }
+
+        // Aggregate non-blend cost: (acquire + dispatch) + overhead.
+        // Blend (composite_layer) is excluded because it runs between _de and _os.
+        if (ctx.telemetry.counters) {
+            const auto nb_work = profiling::duration_us(t_acquire0, _de)
+                               + profiling::duration_us(_os, _oe);
+            const auto nb_us = static_cast<uint64_t>(std::max(0.0, nb_work));
+            ctx.telemetry.counters->compositenode_internal_us.fetch_add(
+                nb_us, std::memory_order_relaxed);
         }
     }
     return result;

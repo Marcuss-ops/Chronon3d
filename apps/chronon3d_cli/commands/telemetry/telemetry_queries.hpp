@@ -48,6 +48,8 @@ AND counter_name IN (
 'clearnode_memcpy_ms','clearnode_clear_ms','clearnode_restore_ms',
 'framebuffer_copy_ms',
 'compositenode_blend_ms','compositenode_copy_ms','compositenode_setup_ms',
+'compositenode_acquire_ms','compositenode_dispatch_ms','compositenode_overhead_ms',
+'compositenode_internal_us',
 'frame_conversion_copy_ms','video_pipe_write_ms')
 ORDER BY counter_name;
 )";
@@ -63,6 +65,8 @@ SELECT counter_name, counter_value FROM render_counters WHERE run_id = ?
 AND counter_name IN (
 'clearnode_memcpy_ms','clearnode_clear_ms','clearnode_restore_ms',
 'compositenode_blend_ms',
+'compositenode_acquire_ms','compositenode_dispatch_ms','compositenode_overhead_ms',
+'compositenode_internal_us',
 'frame_conversion_copy_ms','video_pipe_write_ms')
 ORDER BY counter_name;
 )";
@@ -155,7 +159,9 @@ inline constexpr const char* kBottleneckCoverage = R"(
 SELECT counter_name, counter_value FROM render_counters WHERE run_id = ?
 AND counter_name IN (
 'clearnode_memcpy_ms','clearnode_clear_ms','clearnode_restore_ms',
-'compositenode_blend_ms')
+'compositenode_blend_ms',
+'compositenode_acquire_ms','compositenode_dispatch_ms','compositenode_overhead_ms',
+'compositenode_internal_us')
 ORDER BY counter_name;
 )";
 
