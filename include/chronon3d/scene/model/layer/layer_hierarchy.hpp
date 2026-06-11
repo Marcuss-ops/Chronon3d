@@ -18,8 +18,6 @@
 
 namespace chronon3d {
 
-// Removed ResolvedLayer and ResolvedCamera definitions (now in resolved_types.hpp)
-
 inline Transform combine_transforms_simple(const Transform& parent, const Transform& child) {
     Transform out = child;
 
