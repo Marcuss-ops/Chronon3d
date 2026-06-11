@@ -1,9 +1,11 @@
 #include <string>
+#include <thread>
 
 #include <CLI/App.hpp>
 #include <CLI/Config.hpp>
 #include <CLI/Formatter.hpp>
 #include <spdlog/spdlog.h>
+#include <tbb/global_control.h>
 
 #include <chronon3d/core/composition/composition_registry.hpp>
 #include "cli_context.hpp"
@@ -11,6 +13,14 @@
 #include "commands/cli_groups.hpp"
 
 int main(int argc, char** argv) {
+    // Ensure TBB uses all available hardware cores for maximum parallelism.
+    // Without this, TBB's default thread count may be limited by the task_arena
+    // or environment constraints, leading to underutilized cores.
+    tbb::global_control tbb_control(
+        tbb::global_control::max_allowed_parallelism,
+        std::thread::hardware_concurrency()
+    );
+
     // Reconstruct command line into CliContext
     std::string cmd_line;
     for (int i = 0; i < argc; ++i) {

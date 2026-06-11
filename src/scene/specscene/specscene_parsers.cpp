@@ -1,4 +1,4 @@
-#include "specscene_parsers.hpp"
+#include "../../specscene/parser/specscene_parsers.hpp"
 #include <chronon3d/core/string_utils.hpp>
 #include <fmt/format.h>
 

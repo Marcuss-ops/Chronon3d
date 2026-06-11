@@ -123,6 +123,14 @@ def get_run_detail(run_id):
         
         # Helper to get all data for a run
         def fetch_table(table, order_by=None):
+            allowed_tables = {
+                "render_frames", "render_phase_events", "render_counters",
+                "render_node_events", "render_layer_events", "render_cache_events",
+                "render_culling_events", "render_text_events", "render_image_events",
+                "render_tile_events"
+            }
+            if table not in allowed_tables:
+                return []
             sql = f"SELECT * FROM {table} WHERE run_id = ?"
             if order_by:
                 sql += f" ORDER BY {order_by}"

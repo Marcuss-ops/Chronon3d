@@ -129,6 +129,8 @@ void render_grid_background_kernel(
     const bool has_active_cols = !active_x.empty();
     const i32 active_count = static_cast<i32>(active_x.size());
 
+    // auto_partitioner (no explicit grain size) — TBB dynamically adapts
+    // chunk size based on workload, cache locality, and available workers.
     tbb::parallel_for(tbb::blocked_range<i32>(y0, y1),
         [&](const tbb::blocked_range<i32>& range) {
 

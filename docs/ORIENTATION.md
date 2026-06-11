@@ -76,9 +76,10 @@ Composition (C++) → Scene → RenderGraph (DAG) → GraphExecutor → Software
 
 | Documento | Contenuto |
 |---|---|
-| **`IMPROVEMENTS.md`** | Roadmap dettagliata: ottimizzazioni, V3 Blueprint tile-based, priorità implementazione |
+| **`ROADMAP.md`** | Roadmap attiva: item prioritari da implementare |
+| **`CHANGELOG.md`** | Cronologia item completati |
+| **`V3_BLUEPRINT.md`** | Architettura tile-based: da frame-based a tile-first |
 | **`Future Implementations.md`** | Idee speculative, brainstorming, architetture estreme |
-| **`CHANGELOG.md`** | Cronologia modifiche del progetto |
 
 ---
 
@@ -276,9 +277,9 @@ La `x_offset` viene poi spostata in modo che il centro dell'inchiostro coincida 
 
 ---
 
-## V3 Blueprint (IMPROVEMENTS.md)
+## V3 Blueprint (V3_BLUEPRINT.md)
 
-L'evoluzione V3 del motore è documentata in `IMPROVEMENTS.md` — 10 pillar per passare da frame-based a tile-based rendering:
+L'evoluzione V3 del motore è documentata in [`V3_BLUEPRINT.md`](V3_BLUEPRINT.md) — 10 pillar per passare da frame-based a tile-based rendering:
 
 1. **P5** — Procedural kernels (grid SIMD, ~25× speedup)
 2. **P3** — TileMask invalidation (solo tile cambiati)

@@ -49,12 +49,18 @@ void execute_levels(
         std::vector<double> level_clone_ctx_ms(level.size(), 0.0);
         std::vector<double> level_state_ms(level.size(), 0.0);
 
-        // Parallelize node execution for levels with multiple independent nodes.
+        // Parallelize node execution for all levels. Even single-node levels
+        // benefit from TBB's internal work-stealing and nested parallelism
+        // (blur, composite, grid kernels use TBB internally).
         // Nodes within the same level have no data dependencies — they only read
         // from previously-completed levels (state.temp, state.resolved_*), so
         // parallel execution is safe.  Each node writes to its own state.temp[id]
         // slot, and shared data (counters, cache, pool) uses atomics/mutexes.
-        const bool use_parallel = level.size() > 1;
+        // Always use parallel_for for level execution, even for single-node levels,
+        // to enable TBB work-stealing and nested parallelism in pixel-processing
+        // loops (blur, composite, grid kernels). Grain size of 1 ensures each node
+        // is its own task, letting TBB distribute across all available workers.
+        const bool use_parallel = level.size() > 0;
 
         if (parent_counters) {
             if (use_parallel) {
