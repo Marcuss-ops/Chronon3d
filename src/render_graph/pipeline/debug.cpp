@@ -7,7 +7,6 @@
 #include "../builder/graph_builder_pipeline.hpp"
 #include "../builder/graph_builder_internal.hpp"
 #include "helpers.hpp"
-#include <chronon3d/core/profiling/profiling.hpp>
 
 namespace chronon3d::graph {
 
