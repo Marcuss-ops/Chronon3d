@@ -131,8 +131,6 @@ public:
         return m_assets;
     }
 
-    [[nodiscard]] bool is_loaded(AssetId id) const { return contains(id); }
-
     [[nodiscard]] std::string get_path(AssetId id) const {
         return metadata(id).path.string();
     }
