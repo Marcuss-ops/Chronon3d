@@ -40,9 +40,18 @@ export default function PreviewPanel({ run, selectedFrame, nodeEvents }) {
     }
   }, [mode, tryPlayVideo]);
 
-  const resolvedFramePath = outputPath.includes('####')
-    ? outputPath.replace('####', (selectedFrame?.frame_number || 0).toString().padStart(4, '0'))
-    : outputPath;
+  const resolvedFramePath = (() => {
+    let path = outputPath.includes('####')
+      ? outputPath.replace('####', (selectedFrame?.frame_number || 0).toString().padStart(4, '0'))
+      : outputPath;
+
+    // When output is a video, derive frame PNG path from basename (e.g. output/focus_quote.mp4 → output/focus_quote_frame.png)
+    if (path.endsWith('.mp4') || path.endsWith('.webm') || path.endsWith('.mov')) {
+      path = path.replace(/\.(mp4|webm|mov)$/, '_frame.png');
+    }
+
+    return path;
+  })();
 
   let resolvedVideoPath = outputPath;
   if (outputPath.includes('####') || outputPath.endsWith('.png')) {

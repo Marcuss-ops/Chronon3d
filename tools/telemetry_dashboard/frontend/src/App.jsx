@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import './App.css';
 
-import { fetchRuns, fetchRunDetail, login, logout } from './api/telemetryApi.js';
+import { fetchRuns, fetchRunDetail, login, logout, AuthError } from './api/telemetryApi.js';
 import { formatBytes, formatIso, formatCounterValue } from './utils/format.jsx';
 import { API_BASE } from './data/constants.js';
 import { copyTextToClipboard } from './utils/clipboard.js';
@@ -77,6 +77,10 @@ function App() {
       });
       setError('');
     } catch (err) {
+      if (err instanceof AuthError) {
+        setIsAuthenticated(false);
+        return;
+      }
       setError(err.message);
     } finally {
       setLoading(false);
@@ -171,6 +175,10 @@ function App() {
           loadRunDetail(comparisonRunIdRef.current, true, true);
         }
       } catch (err) {
+        if (err instanceof AuthError) {
+          setIsAuthenticated(false);
+          return;
+        }
         if (err instanceof TypeError) {
           return;
         }
