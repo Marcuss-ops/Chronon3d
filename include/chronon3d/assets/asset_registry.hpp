@@ -94,14 +94,19 @@ public:
         return m_assets[it->second];
     }
 
-    /// Throws std::out_of_range if the asset is unknown.
-    /// Prefer try_metadata() for non-throwing access; keep using metadata()
-    /// when the caller already verified contains(id) or expects the id to exist.
-    [[nodiscard]] AssetMetadata metadata(AssetId id) const {
+    /// Explicit throwing accessor — use when the caller expects the id to exist.
+    [[nodiscard]] AssetMetadata metadata_or_throw(AssetId id) const {
         auto meta = try_metadata(id);
         if (!meta)
             throw std::out_of_range("AssetRegistry: unknown AssetId");
         return *meta;
+    }
+
+    /// Throws std::out_of_range if the asset is unknown.
+    /// Prefer try_metadata() for non-throwing access, or metadata_or_throw()
+    /// when you explicitly want an exception on failure.
+    [[nodiscard]] AssetMetadata metadata(AssetId id) const {
+        return metadata_or_throw(id);
     }
 
     [[nodiscard]] std::optional<AssetId> find_by_path(const std::filesystem::path& path) const {
