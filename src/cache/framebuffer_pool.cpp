@@ -3,6 +3,7 @@
 #include <chronon3d/core/memory/framebuffer_handle.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
+#include <spdlog/spdlog.h>
 #include <cstdlib>
 #include <limits>
 #include <string>

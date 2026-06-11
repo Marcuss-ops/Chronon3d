@@ -2,6 +2,9 @@
 # src/backends/software/processors/CMakeLists.txt
 # ==============================================================================
 
+# Top-level processor sources
+# Image and text sub-processors are added via add_subdirectory(image) and
+# add_subdirectory(text) below.
 target_sources(chronon3d_backend_software PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/builtin_processors.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/path_processor.cpp
@@ -13,16 +16,5 @@ target_sources(chronon3d_backend_software PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/software_utility_processors.cpp
 )
 
-# Image sub-processors
-target_sources(chronon3d_backend_software PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/image/software_image_processor.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/image/software_tiled_image_processor.cpp
-)
-
-# Text sub-processors
-target_sources(chronon3d_backend_software PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/text/software_text_effects.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/text/software_text_processor.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/text/text_glow.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/text/text_shadow.cpp
-)
+add_subdirectory(image)
+add_subdirectory(text)
