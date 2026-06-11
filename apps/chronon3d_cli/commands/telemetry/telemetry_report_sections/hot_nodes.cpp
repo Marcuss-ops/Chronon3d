@@ -28,9 +28,11 @@ void write_hot_nodes(std::stringstream& out, const ReportModel& model, const Ana
         if (counter.value == 0) continue;
         
         // Determine if this counter stores microseconds (suffix _us) vs milliseconds (_ms).
+        // framebuffer_copy_ms also stores µs (sub-ms precision for pixel copies).
         const bool is_us = counter.name.size() > 3 &&
             counter.name.substr(counter.name.size() - 3) == "_us";
-        const double display_value_ms = is_us
+        const bool copy_is_us = counter.name == "framebuffer_copy_ms";
+        const double display_value_ms = (is_us || copy_is_us)
             ? static_cast<double>(counter.value) / 1000.0
             : static_cast<double>(counter.value);
         
