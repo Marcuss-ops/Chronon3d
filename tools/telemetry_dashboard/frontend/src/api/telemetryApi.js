@@ -1,8 +1,27 @@
 import { API_BASE } from '../data/constants.js';
 
+export class AuthError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'AuthError';
+  }
+}
+
 function getAuthHeaders() {
   const token = localStorage.getItem('chronon_auth_token');
   return token ? { 'Authorization': `Bearer ${token}` } : {};
+}
+
+async function handleApiResponse(res, defaultError) {
+  if (res.ok) {
+    return await res.json();
+  }
+  if (res.status === 401) {
+    localStorage.removeItem('chronon_auth_token');
+    throw new AuthError('Session expired — please log in again');
+  }
+  const data = await res.json().catch(() => ({}));
+  throw new Error(data.error || defaultError);
 }
 
 export const login = async (password) => {
@@ -47,26 +66,12 @@ export const outputPathToArtifactUrl = (outputPath, cacheBuster = '') => {
 export const isVideoOutput = (outputPath) => /\.(mp4|webm|mov)$/i.test(outputPath || '');
 export const isImageOutput = (outputPath) => /\.(png|jpg|jpeg|webp|gif|svg)$/i.test(outputPath || '');
 
-export class AuthError extends Error {
-  constructor(msg) { super(msg); this.name = 'AuthError'; }
-}
-
 export const fetchRuns = async () => {
   const res = await fetch(`${API_BASE}/api/runs`, { headers: getAuthHeaders() });
-  if (res.status === 401) {
-    localStorage.removeItem('chronon_auth_token');
-    throw new AuthError('Session expired');
-  }
-  if (!res.ok) throw new Error('Failed to load runs');
-  return await res.json();
+  return await handleApiResponse(res, 'Failed to load runs');
 };
 
 export const fetchRunDetail = async (id) => {
   const res = await fetch(`${API_BASE}/api/run/${id}`, { headers: getAuthHeaders() });
-  if (res.status === 401) {
-    localStorage.removeItem('chronon_auth_token');
-    throw new AuthError('Session expired');
-  }
-  if (!res.ok) throw new Error('Failed to load run details');
-  return await res.json();
+  return await handleApiResponse(res, 'Failed to load run details');
 };

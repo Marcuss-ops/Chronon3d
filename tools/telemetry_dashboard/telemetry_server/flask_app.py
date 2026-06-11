@@ -23,7 +23,7 @@ auth_tokens = set()
 def require_auth(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        # Check Authorization header first, then fall back to query param (for <img>/<video> tags)
+        # Check Authorization header first (API calls), then token query param (media elements)
         token = request.headers.get('Authorization', '').replace('Bearer ', '')
         if not token or token not in auth_tokens:
             token = request.args.get('token', '')
@@ -40,24 +40,51 @@ ALLOWED_ARTIFACT_ROOTS = [OUTPUT_DIR, PROJECT_ROOT]
 def resolve_artifact_path(raw_path: str) -> Path | None:
     """Resolve artifact paths safely, restricted to allowed artifact directories.
 
-    Only relative paths within ALLOWED_ARTIFACT_ROOTS are accepted.
-    Absolute paths and path-traversal attempts are rejected.
+    Handles three formats stored in the telemetry database:
+    1. Relative path within OUTPUT_DIR (e.g. "minimalist_quote.png")
+    2. Relative path with output/ prefix (e.g. "output/minimalist_quote.png")
+    3. Absolute path within OUTPUT_DIR (e.g. "/home/.../output/minimalist_quote.png")
+
+    Absolute paths and path-traversal attempts outside ALLOWED_ARTIFACT_ROOTS
+    are rejected.
     """
     path = Path(raw_path)
 
-    # Reject absolute paths outright
-    if path.is_absolute():
-        return None
-
     for root in ALLOWED_ARTIFACT_ROOTS:
         resolved_root = root.resolve()
+
+        if path.is_absolute():
+            # Case 3: absolute path — check if it's inside OUTPUT_DIR
+            try:
+                resolved = path.resolve()
+            except Exception:
+                continue
+            if resolved.exists() and resolved.is_file() and resolved.is_relative_to(resolved_root):
+                return resolved
+            # Not inside this root, try next
+            continue
+
+        # Case 1: try the raw relative path first
         candidate = resolved_root / path
         try:
             resolved = candidate.resolve()
         except Exception:
-            continue
-        if resolved.exists() and resolved.is_file() and resolved.is_relative_to(resolved_root):
+            resolved = None
+        if resolved and resolved.exists() and resolved.is_file() and resolved.is_relative_to(resolved_root):
             return resolved
+
+        # Case 2: if the path starts with the root's basename (e.g. "output/..."
+        # inside OUTPUT_DIR), strip that prefix and retry.
+        parts = path.parts
+        if len(parts) > 1 and parts[0] == resolved_root.name:
+            stripped = Path(*parts[1:])
+            candidate = resolved_root / stripped
+            try:
+                resolved = candidate.resolve()
+            except Exception:
+                continue
+            if resolved.exists() and resolved.is_file() and resolved.is_relative_to(resolved_root):
+                return resolved
 
     return None
 

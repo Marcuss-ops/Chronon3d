@@ -26,8 +26,6 @@
 
 namespace chronon3d::content::anims {
 
-namespace {
-
 // Helper: dark cinematic gradient background.
 void dark_bg(SceneBuilder& s) {
     s.layer("bg", [](LayerBuilder& l) {

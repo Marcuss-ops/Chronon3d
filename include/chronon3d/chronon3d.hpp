@@ -7,11 +7,14 @@
 // this header also re-exports the full runtime and internal headers, so
 // existing code that includes <chronon3d/chronon3d.hpp> continues to work.
 //
-// New projects should prefer including exactly what they need:
+// By default this header only includes the public scene-building API.
+// Define CHRONON3D_LEGACY_FULL_UMBRELLA to restore the old behaviour
+// of re-exporting runtime and internal headers:
 //
-//   <chronon3d/chronon3d.hpp>    — scene-building API only
-//   <chronon3d/runtime.hpp>      — + renderer / export / cache / camera
-//   <chronon3d/internal.hpp>     — + graph / executor / effects / presets
+//   <chronon3d/chronon3d.hpp>          — scene-building API only (default)
+//   -DCHRONON3D_LEGACY_FULL_UMBRELLA   — + runtime + internal (legacy compat)
+//   <chronon3d/runtime.hpp>            — renderer / export / cache / camera
+//   <chronon3d/internal.hpp>           — graph / executor / effects / presets
 // ═════════════════════════════════════════════════════════════════════════════
 
 // ── Public scene-building API ──────────────────────────────────────────
@@ -37,9 +40,10 @@
 #include <chronon3d/geometry/ray.hpp>
 #include <chronon3d/geometry/mesh.hpp>
 
-// ── Backward-compat: re-export runtime & internal headers ──────────────
-// Skip when CHRONON3D_LEAN_UMBRELLA is defined (compile with -DCHRONON3D_LEAN_UMBRELLA)
-#ifndef CHRONON3D_LEAN_UMBRELLA
+// ── Legacy full-umbrella mode (opt-in) ────────────────────────────────
+// Compile with -DCHRONON3D_LEGACY_FULL_UMBRELLA to restore the old
+// behaviour of re-exporting runtime and internal headers.
+#ifdef CHRONON3D_LEGACY_FULL_UMBRELLA
 #include <chronon3d/runtime.hpp>
 #include <chronon3d/internal.hpp>
 #endif

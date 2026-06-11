@@ -154,12 +154,40 @@ endif()
 # ==============================================================================
 # C API SHARED LIBRARY & C TEST (Defined at the end to ensure all targets exist)
 # ==============================================================================
-add_library(chronon3d_shared SHARED src/c_api/chronon3d_c_api.cpp)
+add_library(chronon3d_shared SHARED
+    src/c_api/chronon3d_c_api.cpp
+    src/c_api/c_api_context.cpp
+    src/c_api/c_api_compile.cpp
+    src/c_api/c_api_render.cpp
+)
 target_link_libraries(chronon3d_shared PRIVATE chronon3d_pipeline)
 
 if(CHRONON3D_BUILD_CONTENT)
     if(TARGET chronon3d_content_registry)
-        target_link_libraries(chronon3d_shared PRIVATE chronon3d_content_registry)
+        # --whole-archive ensures all static-registration symbols from content
+        # modules (minimalist, anims, text, …) are included in the shared library.
+        # Without it the linker drops unreferenced objects whose constructors or
+        # registration calls are needed at runtime.
+        #
+        # We list every content module explicitly inside the whole-archive region
+        # because CMake places transitive PUBLIC deps AFTER --no-whole-archive.
+        if(NOT MSVC)
+            target_link_libraries(chronon3d_shared PRIVATE
+                "-Wl,--whole-archive"
+                chronon3d_content_registry
+                chronon3d_content_anims
+                chronon3d_content_minimalist
+                chronon3d_content_text
+                chronon3d_content_shapes
+                chronon3d_content_images
+                chronon3d_content_effects
+                chronon3d_content_2d5
+                chronon3d_content_grid
+                "-Wl,--no-whole-archive"
+            )
+        else()
+            target_link_libraries(chronon3d_shared PRIVATE chronon3d_content_registry)
+        endif()
     endif()
     target_compile_definitions(chronon3d_shared PRIVATE CHRONON3D_BUILD_CONTENT)
 endif()

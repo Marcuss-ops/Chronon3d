@@ -23,7 +23,7 @@ import ComparisonMetrics from './components/ComparisonMetrics.jsx';
 import { getAggregatedLayers, getAggregatedNodes } from './utils/aggregate.js';
 
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('chronon_auth_token'));
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
@@ -63,6 +63,14 @@ function App() {
     setSelectedFrame(null);
   }, [selectedRunId, comparisonRunId]);
 
+  const handleAuthError = useCallback((err) => {
+    if (err instanceof AuthError) {
+      setIsAuthenticated(false);
+      return true;
+    }
+    return false;
+  }, []);
+
   const loadRuns = useCallback(async () => {
     try {
       setLoading(true);
@@ -77,15 +85,13 @@ function App() {
       });
       setError('');
     } catch (err) {
-      if (err instanceof AuthError) {
-        setIsAuthenticated(false);
-        return;
+      if (!handleAuthError(err)) {
+        setError(err.message);
       }
-      setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [handleAuthError]);
 
   const loadRunDetail = useCallback(async (id, isComparison = false, silent = false) => {
     if (!id) {
@@ -102,11 +108,13 @@ function App() {
       }
       if (!silent) setError('');
     } catch (err) {
-      if (!silent) setError(err.message);
+      if (!handleAuthError(err) && !silent) {
+        setError(err.message);
+      }
     } finally {
       if (!silent) setLoading(false);
     }
-  }, []);
+  }, [handleAuthError]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -175,18 +183,17 @@ function App() {
           loadRunDetail(comparisonRunIdRef.current, true, true);
         }
       } catch (err) {
-        if (err instanceof AuthError) {
-          setIsAuthenticated(false);
+        if (err instanceof TypeError) {
           return;
         }
-        if (err instanceof TypeError) {
+        if (handleAuthError(err)) {
           return;
         }
         console.error('Polling error:', err);
       }
     }, 3000);
     return () => clearInterval(interval);
-  }, [loadRuns, loadRunDetail]);
+  }, [loadRuns, loadRunDetail, handleAuthError]);
 
   useEffect(() => {
     if (selectedRunId) {
