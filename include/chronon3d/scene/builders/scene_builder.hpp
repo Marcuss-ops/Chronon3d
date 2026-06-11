@@ -79,8 +79,6 @@ namespace chronon3d {
         SceneBuilder &grid_background(std::string name, GridBackgroundParams p);
         SceneBuilder &shape(std::string_view id, std::string name, registry::ShapeParams params);
 
-        // text() removed — text engine deprecated
-
         struct SequenceSpec {
             Frame from{0};
             Frame duration{0};
