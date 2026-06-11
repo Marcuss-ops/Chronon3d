@@ -12,6 +12,7 @@
 #include <chronon3d/scene/model/render/render_node.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/cache/lru_cache.hpp>
+#include <chronon3d/core/config.hpp>
 #include <blend2d.h>
 #include <cstdlib>
 #include <memory>
@@ -57,26 +58,15 @@ namespace chronon3d::renderer {
 using CacheKey = u64;
 using ShadowCache = cache::LruCache<CacheKey, std::shared_ptr<BLImage>>;
 
-[[nodiscard]] static inline size_t resolve_cache_max_mb(const char* env_name, size_t default_mb) {
-    const char* env = std::getenv(env_name);
-    if (!env || !*env) return default_mb * 1024ULL * 1024ULL;
-    try {
-        size_t mb = static_cast<size_t>(std::stoull(env));
-        return mb > 0 ? mb * 1024ULL * 1024ULL : default_mb * 1024ULL * 1024ULL;
-    } catch (...) {
-        return default_mb * 1024ULL * 1024ULL;
-    }
-}
-
 // Note: cache and mutex functions are `inline` (not `static inline`) to
 // guarantee a single shared instance across translation units.
 [[nodiscard]] inline ShadowCache& get_shadow_cache() {
-    static ShadowCache cache(resolve_cache_max_mb("CHRONON_SHADOW_CACHE_MAX_MB", 64), 4);
+    static ShadowCache cache(Config::get().shadow_cache_max_bytes, 4);
     return cache;
 }
 
 [[nodiscard]] inline ShadowCache& get_glow_cache() {
-    static ShadowCache cache(resolve_cache_max_mb("CHRONON_GLOW_CACHE_MAX_MB", 64), 4);
+    static ShadowCache cache(Config::get().glow_cache_max_bytes, 4);
     return cache;
 }
 

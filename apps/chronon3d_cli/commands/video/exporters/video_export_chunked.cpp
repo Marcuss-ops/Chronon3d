@@ -3,7 +3,6 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/telemetry/telemetry_bundle.hpp>
 #include <spdlog/spdlog.h>
-#include <chronon3d/core/profiling/profiling.hpp>
 #include <filesystem>
 #include <thread>
 #include <atomic>
