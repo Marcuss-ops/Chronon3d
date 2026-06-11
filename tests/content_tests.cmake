@@ -14,19 +14,19 @@ target_link_libraries(chronon3d_content_tests
         doctest::doctest
 )
 target_include_directories(chronon3d_content_tests PRIVATE ${CMAKE_SOURCE_DIR})
-# WHOLE_ARCHIVE removed: content targets are now small and explicitly registered
+# WHOLE_ARCHIVE removed — content uses explicit ExtensionRegistry registration
 if(CHRONON3D_BUILD_CONTENT)
     if(TARGET chronon3d_content_anims)
-        target_link_libraries(chronon3d_content_tests PRIVATE $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_content_anims>)
+        target_link_libraries(chronon3d_content_tests PRIVATE chronon3d_content_anims)
     endif()
     if(TARGET chronon3d_content_minimalist)
-        target_link_libraries(chronon3d_content_tests PRIVATE $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_content_minimalist>)
+        target_link_libraries(chronon3d_content_tests PRIVATE chronon3d_content_minimalist)
     endif()
     if(TARGET chronon3d_content_text)
-        target_link_libraries(chronon3d_content_tests PRIVATE $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_content_text>)
+        target_link_libraries(chronon3d_content_tests PRIVATE chronon3d_content_text)
     endif()
     if(TARGET chronon3d_content_2d5)
-        target_link_libraries(chronon3d_content_tests PRIVATE $<LINK_LIBRARY:WHOLE_ARCHIVE,chronon3d_content_2d5>)
+        target_link_libraries(chronon3d_content_tests PRIVATE chronon3d_content_2d5)
     endif()
     target_sources(chronon3d_content_tests PRIVATE
         ${CMAKE_SOURCE_DIR}/content/register_minimalist_content.cpp
