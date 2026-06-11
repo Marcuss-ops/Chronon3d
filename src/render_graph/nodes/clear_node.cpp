@@ -56,19 +56,32 @@ OwnedFB ClearNode::execute(
             if (!is_empty && clip) {
                 const bool is_full_clip = (clip->x0 <= 0 && clip->y0 <= 0 &&
                                            clip->x1 >= logical_w && clip->y1 >= h);
-                if (!is_full_clip && clip) {
+                if (!is_full_clip) {
+                    // Two-step: full clear + clip-only restore.
+                    // Full clear ensures non-dirty areas are transparent (zeros),
+                    // preventing garbage from ping buffer swap_contents from
+                    // leaking into the output.  Clip-only restore copies the
+                    // previous frame's content into the dirty rect so the
+                    // subsequent clear can zero it out for compositing.
+                    // Same total work as full restore + clip clear (~2.56M px),
+                    // but clears are faster (write-only, no read-before-write).
+                    const auto t_clear0 = profiling::now();
+                    write_fb->clear(Color::transparent());
+                    const auto t_clear1 = profiling::now();
+                    if (ctx.telemetry.counters) {
+                        const auto clear_elapsed = static_cast<uint64_t>(
+                            profiling::duration_ms(t_clear0, t_clear1));
+                        ctx.telemetry.counters->framebuffer_clear_ms.fetch_add(clear_elapsed, std::memory_order_relaxed);
+                        ctx.telemetry.counters->clearnode_ms.fetch_add(clear_elapsed, std::memory_order_relaxed);
+                        ctx.telemetry.counters->clearnode_clear_ms.fetch_add(clear_elapsed, std::memory_order_relaxed);
+                        ctx.telemetry.counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
+                        ctx.telemetry.counters->clear_pixels.fetch_add(clear_pixels, std::memory_order_relaxed);
+                    }
+
                     const auto t_restore0 = profiling::now();
                     const Color* src_data = read_fb->data();
                     Color* dst_data = write_fb->data();
                     const int src_stride = read_fb->allocated_width();
-
-                    // Clip-rect only restore: instead of copying the full frame
-                    // (2M pixels for 1920×1080), copy only the dirty rectangle
-                    // (~560K pixels for typical 14% dirty coverage).
-                    // Non-dirty areas in write_fb retain pool-initialized content.
-                    // This is safe because the CompositeNode's zero-copy path
-                    // (swap_contents via reusable_inputs) or the skip-opaque
-                    // swap for full-frame layers overwrites non-dirty areas.
                     const int cx0 = clip->x0;
                     const int cy0 = clip->y0;
                     const int cw  = clip->x1 - clip->x0;
@@ -106,25 +119,29 @@ OwnedFB ClearNode::execute(
                             profiling::duration_ms(t_restore0, t_restore1));
                         ctx.telemetry.counters->clearnode_restore_ms.fetch_add(elapsed, std::memory_order_relaxed);
                     }
+                } else {
+                    // Full clip: clear everything (no restore needed).
+                    const auto t_clear0 = profiling::now();
+                    write_fb->clear(Color::transparent());
+                    const auto t_clear1 = profiling::now();
+                    if (ctx.telemetry.counters) {
+                        const auto elapsed = static_cast<uint64_t>(
+                            profiling::duration_ms(t_clear0, t_clear1));
+                        ctx.telemetry.counters->framebuffer_clear_ms.fetch_add(elapsed, std::memory_order_relaxed);
+                        ctx.telemetry.counters->clearnode_ms.fetch_add(elapsed, std::memory_order_relaxed);
+                        ctx.telemetry.counters->clearnode_clear_ms.fetch_add(elapsed, std::memory_order_relaxed);
+                        ctx.telemetry.counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
+                        ctx.telemetry.counters->clear_pixels.fetch_add(clear_pixels, std::memory_order_relaxed);
+                    }
                 }
             }
 
             write_fb->set_origin(0, 0);
 
-            if (clip && !is_empty) {
-                const auto t0 = profiling::now();
-                write_fb->clear(Color::transparent(), *clip);
-                const auto t1 = profiling::now();
-                if (ctx.telemetry.counters) {
-                    const auto elapsed = static_cast<uint64_t>(
-                        profiling::duration_ms(t0, t1));
-                    ctx.telemetry.counters->clearnode_ms.fetch_add(elapsed, std::memory_order_relaxed);
-                    ctx.telemetry.counters->clearnode_clear_ms.fetch_add(elapsed, std::memory_order_relaxed);
-                    ctx.telemetry.counters->framebuffer_clear_ms.fetch_add(elapsed, std::memory_order_relaxed);
-                    ctx.telemetry.counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
-                    ctx.telemetry.counters->clear_pixels.fetch_add(clear_pixels, std::memory_order_relaxed);
-                }
-            } else {
+            // The two-step (full clear + clip restore) above already handled
+            // the clear for non-empty clips (both partial and full).
+            // Only handle null/empty clip cases here.
+            if (!clip || is_empty) {
                 if (!is_empty) {
                     const auto t0 = profiling::now();
                     write_fb->clear(Color::transparent());
