@@ -33,10 +33,10 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
     cmd->add_option("--shutter-angle", args.pipeline.quality.shutter_angle, "Shutter angle in degrees (default 180)");
     cmd->add_option("--ssaa", args.pipeline.quality.ssaa, "Super Sampling factor (default 1.0)");
     cmd->add_option("-v,--log-level", args.log_level, "Log level: trace | debug | info | warn | error");
-    cmd->add_flag("--benchmark_all,-benchmark_all", args.benchmark_all,
+    cmd->add_flag("--benchmark_all", args.benchmark_all,
         "Write detailed phase durations for all graph nodes");
 
-    cmd->add_flag("--report,-report", args.report,
+    cmd->add_flag("--report", args.report,
         "Generate an execution report log");
     cmd->add_flag("--force-scalar-normal-blend", args.pipeline.force_scalar_normal_blend,
                   "Force scalar (non-SIMD) Normal blend for diagnosing rendering regressions");

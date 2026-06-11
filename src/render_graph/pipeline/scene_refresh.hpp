@@ -23,6 +23,8 @@
 #include "../builder/graph_builder_coordinates.hpp"
 #include "../builder/graph_builder_internal.hpp"
 #include "../builder/graph_builder_pipeline.hpp"
+#include <spdlog/spdlog.h>
+
 #include <algorithm>
 #include <unordered_map>
 #include <string>

@@ -7,6 +7,8 @@
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 
+#include <spdlog/spdlog.h>
+
 #include <algorithm>
 #include <cmath>
 #include <memory>

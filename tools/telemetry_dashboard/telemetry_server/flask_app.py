@@ -23,7 +23,10 @@ auth_tokens = set()
 def require_auth(f):
     @wraps(f)
     def decorated(*args, **kwargs):
+        # Check Authorization header first, then fall back to query param (for <img>/<video> tags)
         token = request.headers.get('Authorization', '').replace('Bearer ', '')
+        if not token or token not in auth_tokens:
+            token = request.args.get('token', '')
         if not token or token not in auth_tokens:
             return jsonify({"error": "Unauthorized"}), 401
         return f(*args, **kwargs)
@@ -31,7 +34,7 @@ def require_auth(f):
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 OUTPUT_DIR = PROJECT_ROOT / 'output'
-ALLOWED_ARTIFACT_ROOTS = [OUTPUT_DIR]
+ALLOWED_ARTIFACT_ROOTS = [OUTPUT_DIR, PROJECT_ROOT]
 
 
 def resolve_artifact_path(raw_path: str) -> Path | None:
