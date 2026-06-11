@@ -26,6 +26,14 @@ inline constexpr Color BADGE_TEXT_COLOR   = {1.0f,  1.0f,  1.0f, 1.0f};
 inline constexpr Color IMAGE_SHADOW_COLOR = {0.0f,  0.0f,  0.0f, 0.35f};
 inline constexpr Color IMAGE_BORDER_COLOR = {0.25f, 0.27f, 0.31f, 0.7f};
 
+// ── Fresh palette (for new compositions) ─────────────────────────────────
+inline constexpr Color FRESH_GLOW_BLUE  = {0.18f, 0.55f, 1.0f, 0.75f};
+inline constexpr Color FRESH_GLOW_GOLD  = {1.0f, 0.72f, 0.22f, 0.70f};
+inline constexpr Color FRESH_GLOW_CYAN  = {0.22f, 0.95f, 1.0f, 0.65f};
+inline constexpr Color FRESH_GLOW_PINK  = {1.0f, 0.35f, 0.65f, 0.70f};
+inline constexpr Color FRESH_TEXT_WHITE = {0.95f, 0.96f, 0.98f, 1.0f};
+inline constexpr Color FRESH_TEXT_MUTED = {0.55f, 0.60f, 0.72f, 1.0f};
+
 // ── Typography ─────────────────────────────────────────────────────────────
 inline constexpr const char* TEXT_FONT_PATH = "assets/fonts/Poppins-Bold.ttf";
 
