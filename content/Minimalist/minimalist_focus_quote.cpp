@@ -44,7 +44,7 @@ Composition minimalist_focus_quote() {
                 .font_path = "assets/fonts/Inter-Bold.ttf",
                 .font_size = 58.0f,
                 .color = {0.94f, 0.94f, 0.94f, 1.0f},
-                .align = TextAlign::Left,
+                .align = TextAlign::Center,
                 .vertical_align = VerticalAlign::Middle,
                 .line_height = 1.10f,
                 .tracking = 0.0f,
