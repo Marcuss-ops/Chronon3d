@@ -23,11 +23,18 @@
       "inherits": "base",
       "cacheVariables": {
         "VCPKG_TARGET_TRIPLET": "x64-linux",
-        "CMAKE_LINKER_TYPE": "MOLD",
         "CMAKE_C_COMPILER_LAUNCHER": "ccache",
         "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
         "CMAKE_CXX_FLAGS": "-fdiagnostics-color=always -pipe",
         "CMAKE_C_FLAGS": "-fdiagnostics-color=always -pipe"
+      }
+    },
+    {
+      "name": "base-linux-mold",
+      "hidden": true,
+      "inherits": "base-linux",
+      "cacheVariables": {
+        "CMAKE_LINKER_TYPE": "MOLD"
       }
     },
     {
