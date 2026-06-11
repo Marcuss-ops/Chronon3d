@@ -44,6 +44,18 @@
 **Dove:** `src/backends/software/simd/highway_kernels.cpp`
 **Guadagno stimato:** ~3-5% IPC su Zen3.
 
+**STATO: 🟡 Parzialmente implementato** — il prefetch è già presente in:
+- `highway_color_kernels.cpp` (color conversion loop)
+- `transform_kernels.cpp` (bilinear sampling)
+- `effect_blur.cpp` (blur loop — C3D_PREFETCH_READ/WRITE)
+- `path_rasterizer.cpp` + `pip.cpp` (path raster hot loop)
+- API portatile in `include/chronon3d/core/memory_utils.hpp`
+
+**Mancante:**
+- Compositing puro (`software_compositor.cpp`): non ha prefetch esplicito
+- Benchmark dedicati: mancano misurazioni IPC/cache-miss con `perf stat`
+- Prefetch abilitabile via `CHRONON_PREFETCH` env var (default true)
+
 ### S6. SIMD Point-in-Polygon per Path Rasterizer
 **Problema:** `point_in_polygon_even_odd()` chiamato per ogni pixel dentro la bbox. Interamente scalar.
 **Soluzione:** Batch processing — per 8 pixel contemporaneamente con SIMD.

@@ -223,13 +223,29 @@
     Add _mm_prefetch() intrinsics every 16 pixels (one cache line) to load
     data into L1 before it's needed.
 
+  **Stato attuale: 🟡 Parzialmente implementato**
+  - ✅ `chronon3d::prefetch()` portatile in `include/chronon3d/core/memory_utils.hpp`
+  - ✅ Color kernels (`highway_color_kernels.cpp`): prefetch read/write ogni 16 pixel
+  - ✅ Transform kernels (`transform_kernels.cpp`): prefetch source righe in bilinear sampling
+  - ✅ Effect blur (`effect_blur.cpp`): C3D_PREFETCH_READ/WRITE nei loop
+  - ✅ Path rasterizer (`path_rasterizer.cpp`, `pip.cpp`): chrono_prefetch() nei loop hot
+  - ❌ Compositing puro (`software_compositor.cpp`): ancora da aggiungere
+  - ❌ YUV conversion loops: ancora da aggiungere
+  - ❌ Benchmark dedicati IPC/cache-miss: da fare con `perf stat`
+
   Files to modify:
-    - src/backends/software/highway_kernels.cpp
-        Inside composite_normal_premul and similar hot loops
+    - src/backends/software/simd/highway_color_kernels.cpp
+        Inside color conversion loops — ✅ Already done
     - src/backends/software/utils/effects/effect_blur.cpp
-        Inside box blur horizontal/vertical loops
+        Inside box blur loops — ✅ Already done (C3D_PREFETCH)
+    - src/render_graph/nodes/transform_kernels.cpp
+        Inside bilinear sampling — ✅ Already done
+    - src/backends/software/rasterizers/path/path_rasterizer.cpp
+        Inside path contour loops — ✅ Already done (chrono_prefetch)
+    - src/backends/software/software_compositor.cpp
+        Inside composite_normal_premul — ❌ Not yet prefetched
     - src/video/direct_yuv_converter_hwy.cpp
-        Inside YUV conversion loops
+        Inside YUV conversion loops — ❌ Not yet prefetched
 
   Implementation pattern:
   ```cpp
@@ -246,7 +262,7 @@
   }
   ```
 
-  Expected impact: 3-5% IPC improvement on Zen3. A few hours.
+  Expected impact: 3-5% IPC improvement on Zen3 for remaining missing loops. A few hours.
   Complexity: Very Low
 
   ──────────────────────────────────────────────────────────────────────────────
