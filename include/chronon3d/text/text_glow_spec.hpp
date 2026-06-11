@@ -76,7 +76,7 @@ struct TextGlowSpec {
     [[nodiscard]] GlowParams to_glow_params() const {
         GlowParams p;
         p.color         = inner_color;
-        p.quality       = GlowQuality::SkiaLike;
+        p.quality       = GlowQuality::MultiLayer;
         p.preserve_source = core_preservation;
         p.blend         = use_additive_bloom ? BlendMode::Add : BlendMode::Screen;
         p.additive      = use_additive_bloom;

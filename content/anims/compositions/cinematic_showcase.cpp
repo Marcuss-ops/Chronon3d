@@ -54,8 +54,6 @@ void waypoint_markers(SceneBuilder& s, std::initializer_list<Vec3> waypoints) {
     }
 }
 
-} // anonymous namespace
-
 // ────────────────────────────────────────────────────────────────────────────
 // 1. CatmullRomShowcase — camera flies through 4 waypoints
 // ────────────────────────────────────────────────────────────────────────────
