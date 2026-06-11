@@ -31,7 +31,8 @@ int render_and_encode_ffmpeg(
     Frame end,
     const FfmpegExportOptions& opts)
 {
-    // Validation (also protects direct callers like command_video_camera)
+    // Safety-net validation for direct callers (e.g. command_video_camera)
+    // that bypass validate_video_job().
     if (opts.output.empty()) {
         spdlog::error("[video] No output path specified.");
         return 1;
@@ -76,7 +77,8 @@ int render_and_encode_ffmpeg(
 // ── Phase 4 — Execute ───────────────────────────────────────────────────────
 
 int execute_video_job(const VideoJobPlan& plan) {
-    // render_and_encode_ffmpeg validates internally — no double-check here
+    // Validation already done by command_video() via validate_video_job().
+    // render_and_encode_ffmpeg() still validates as a safety net for direct callers.
 
     // ── Graceful cancellation (SIGINT/SIGTERM) ──
     chronon3d::CancellationToken cancel_token;

@@ -12,7 +12,7 @@
 #include <chronon3d/core/parallel_tracked.hpp>
 #include <tbb/parallel_for.h>
 
-#ifdef CHRONON_ENABLE_NATIVE_FFMPEG
+#ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
 extern "C" {
 #include <libswscale/swscale.h>
 #include <libavutil/pixfmt.h>
@@ -21,7 +21,7 @@ extern "C" {
 
 namespace chronon3d::video {
 
-#ifdef CHRONON_ENABLE_NATIVE_FFMPEG
+#ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
 struct SwsParams {
     int          src_w, src_h;
     AVPixelFormat src_fmt;
@@ -97,7 +97,7 @@ void convert_fb_to_rgba8_public(const Framebuffer& src, int width, int height, b
     });
 }
 
-#ifdef CHRONON_ENABLE_NATIVE_FFMPEG
+#ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
 static ConvertFrameResult convert_rgba_to_target(const ConvertFrameRequest& req, AVPixelFormat dst_avfmt) {
     const uint64_t t0 = now_ns();
     const size_t rgba_bytes = static_cast<size_t>(req.width) * req.height * 4;
@@ -136,7 +136,7 @@ static ConvertFrameResult convert_rgba_to_target(const ConvertFrameRequest& req,
 #endif
 
 ConvertFrameResult convert_rgba_to_yuv420p_swscale(const ConvertFrameRequest& req) {
-#ifdef CHRONON_ENABLE_NATIVE_FFMPEG
+#ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
     if (req.width % 2 != 0 || req.height % 2 != 0) return ConvertFrameResult{.success = false};
     return convert_rgba_to_target(req, AV_PIX_FMT_YUV420P);
 #else
@@ -145,7 +145,7 @@ ConvertFrameResult convert_rgba_to_yuv420p_swscale(const ConvertFrameRequest& re
 }
 
 ConvertFrameResult convert_rgba_to_nv12_swscale(const ConvertFrameRequest& req) {
-#ifdef CHRONON_ENABLE_NATIVE_FFMPEG
+#ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
     if (req.width % 2 != 0 || req.height % 2 != 0) return ConvertFrameResult{.success = false};
     return convert_rgba_to_target(req, AV_PIX_FMT_NV12);
 #else
@@ -154,7 +154,7 @@ ConvertFrameResult convert_rgba_to_nv12_swscale(const ConvertFrameRequest& req) 
 }
 
 static ConvertFrameResult convert_rgba_to_rgb24(const ConvertFrameRequest& req) {
-#ifdef CHRONON_ENABLE_NATIVE_FFMPEG
+#ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
     return convert_rgba_to_target(req, AV_PIX_FMT_RGB24);
 #else
     (void)req; return ConvertFrameResult{.success = false};
@@ -174,7 +174,7 @@ ConvertFrameResult convert_frame(const ConvertFrameRequest& req) {
         }
     }
 
-#ifdef CHRONON_ENABLE_NATIVE_FFMPEG
+#ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
     switch (req.format) {
         case EncoderPixelFormat::YUV420P: return convert_rgba_to_target(req, AV_PIX_FMT_YUV420P);
         case EncoderPixelFormat::NV12:    return convert_rgba_to_target(req, AV_PIX_FMT_NV12);

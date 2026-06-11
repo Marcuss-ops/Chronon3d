@@ -22,6 +22,6 @@ target_link_libraries(chronon3d_backend_video PUBLIC
     fmt::fmt
     TBB::tbb
     hwy::hwy
-    ${CHRONON3D_FFMPEG_LIBS_LIGHT}
+    chronon3d_ffmpeg_light
 )
 target_include_directories(chronon3d_backend_video PRIVATE ${CMAKE_SOURCE_DIR})

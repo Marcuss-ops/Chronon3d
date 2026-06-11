@@ -64,7 +64,7 @@ option(CHRONON3D_ENABLE_PROFILING "Enable Tracy profiling" OFF)
 option(CHRONON3D_ENABLE_SQLITE_TELEMETRY "Enable SQLite telemetry store" ON)
 
 if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
-    add_compile_definitions(CHRONON_ENABLE_NATIVE_FFMPEG)
+    add_compile_definitions(CHRONON3D_ENABLE_NATIVE_FFMPEG)
 endif()
 
 if(CHRONON3D_UNITY_BUILD)
@@ -93,11 +93,14 @@ find_package(harfbuzz CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(OpenEXR CONFIG REQUIRED)
 find_package(magic_enum CONFIG REQUIRED)
-find_package(benchmark CONFIG REQUIRED)
 find_package(libyuv CONFIG REQUIRED)
 
 if(CHRONON3D_ENABLE_SQLITE_TELEMETRY)
     find_package(unofficial-sqlite3 CONFIG REQUIRED)
+endif()
+
+if(CHRONON3D_BUILD_BENCHMARKS)
+    find_package(benchmark CONFIG REQUIRED)
 endif()
 
 if(CHRONON3D_ENABLE_PROFILING)
