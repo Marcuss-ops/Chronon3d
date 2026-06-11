@@ -15,6 +15,7 @@
 #include <string>
 #include <utility>
 #include <span>
+#include <spdlog/spdlog.h>
 
 namespace chronon3d::graph {
 
