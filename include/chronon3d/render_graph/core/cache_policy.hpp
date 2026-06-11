@@ -12,8 +12,6 @@ enum class CacheLifetime {
     /// Cache lives only for the current frame's execution (default for animated nodes).
     PerFrame,
     /// Cache persists for the entire composition duration (static/invariant nodes).
-    PerComposition,
-    /// Cache could be written to disk and reused across sessions (future).
     PersistentDisk
 };
 
@@ -26,9 +24,7 @@ enum class CacheInvalidation {
     /// Re-execute only when this node's parameters change.
     WhenParamsChange,
     /// Re-execute when this node's input data changes.
-    WhenInputsChange,
-    /// Never invalidate — cache lives forever (once computed).
-    Never
+    WhenInputsChange
 };
 
 // ---------------------------------------------------------------------------
