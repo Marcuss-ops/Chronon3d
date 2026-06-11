@@ -255,19 +255,4 @@ inline ResolvedCamera resolve_camera_hierarchy(
     return resolver.resolve_camera(input_camera);
 }
 
-[[deprecated("Use resolve_layer_hierarchy and resolve_camera_hierarchy separately")]]
-inline std::pmr::vector<ResolvedLayer> resolve_layer_hierarchy(
-    const std::pmr::vector<Layer>& layers,
-    Frame frame,
-    std::pmr::memory_resource* res,
-    const Camera2_5DRuntime* input_camera,
-    ResolvedCamera* out_camera
-) {
-    auto resolved = resolve_layer_hierarchy(layers, frame, res);
-    if (input_camera && out_camera) {
-        *out_camera = resolve_camera_hierarchy(layers, res, *input_camera);
-    }
-    return resolved;
-}
-
 } // namespace chronon3d

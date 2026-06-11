@@ -1,7 +1,6 @@
 #pragma once
 
 #include <chronon3d/timeline/composition.hpp>
-#include <chronon3d/runtime/pipeline.hpp>
 
 #include <string>
 #include <vector>
