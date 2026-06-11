@@ -112,5 +112,4 @@ target_link_libraries(chronon3d_pipeline INTERFACE
     chronon3d_software
     Taskflow::Taskflow
     concurrentqueue::concurrentqueue
-    yuv
 )
