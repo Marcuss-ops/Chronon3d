@@ -1,4 +1,5 @@
 #include <chronon3d/core/composition/composition_registration.hpp>
+#include <chronon3d/text/text_glow_spec.hpp>
 #include "content/Minimalist/minimalist_theme.hpp"
 
 namespace chronon3d::content::minimalist {
@@ -8,11 +9,21 @@ Composition minimalist_clean_quote() {
         SceneBuilder s(ctx);
         add_minimalist_background(s);
 
-        s.layer("quote_text_layer", [frame = ctx.frame](auto& l) {
+        // Backdrop layer (no glow)
+        s.layer("quote_backdrop", [](auto& l) {
             l.pin_to(Anchor::Center);
             add_text_backdrop(l);
-            l.text("quote_text", make_text_params(reveal_text_by_frame(
-                "Minimalism is not emptiness.\nIt is the discipline of keeping\nonly what matters.", frame)));
+        });
+
+        // Text layer with cinematic glow
+        s.layer("quote_text", [frame = ctx.frame](auto& l) {
+            l.pin_to(Anchor::Center);
+            // Cinematic white glow with cool blue bloom
+            l.glow(TextGlowPresets::ae_cinematic_white().to_glow_params());
+            auto tp = make_text_params(reveal_text_by_frame(
+                "Minimalism is not emptiness.\nIt is the discipline of keeping\nonly what matters.", frame));
+            tp.align = TextAlign::Center;  // override theme default
+            l.text("quote_text", std::move(tp));
         });
 
         return s.build();
