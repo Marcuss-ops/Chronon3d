@@ -53,13 +53,14 @@ namespace {
     return trigger;
 }
 
-[[nodiscard]] Color glow_color_from_trigger(float trigger, const GlowPipeline& p, float intensity_scale) {
+[[nodiscard]] Color glow_color_from_trigger(float trigger, const GlowPipeline& p, float intensity_scale, const Color& tint = {0,0,0,0}) {
+    const Color& src = (tint.a > 0.0f) ? tint : p.color;
     const float amount = trigger * p.intensity * intensity_scale;
     return {
-        p.color.r * amount,
-        p.color.g * amount,
-        p.color.b * amount,
-        p.color.a * amount
+        src.r * amount,
+        src.g * amount,
+        src.b * amount,
+        src.a * amount
     };
 }
 
@@ -122,13 +123,25 @@ struct GlowLayerPass {
     float radius_scale;
     float intensity_scale;
     float buffer_scale;
+    Color  tint{0, 0, 0, 0};  // per-layer color override (alpha > 0 means use this)
 };
 
 // ── run_layer_mode (moved from apply_glow_effect) ────────────────────
 
-void run_layer_mode(Framebuffer& fb, const GlowPipeline& p,
-                    const std::optional<raster::BBox>& clip,
-                    bool source_is_alpha_mask = false) {
+// ── Glow accumulator result ────────────────────────────────────────────
+struct GlowAccumResult {
+    std::shared_ptr<Framebuffer> glow;
+    raster::BBox roi_bounds;
+};
+
+/// Build ONLY the accumulated glow light from the source, without compositing
+/// it back.  Caller decides how to composite.
+/// Returns std::nullopt when the ROI is empty.
+[[nodiscard]] std::optional<GlowAccumResult> build_glow_accumulator(
+    const Framebuffer& fb,
+    const GlowPipeline& p,
+    const std::optional<raster::BBox>& clip,
+    bool source_is_alpha_mask) {
     const i32 w = fb.width(), h = fb.height();
     const float extent = glow_effect_extent(p);
     auto effect_clip = expand_effect_clip(clip, w, h, extent);
@@ -156,7 +169,7 @@ void run_layer_mode(Framebuffer& fb, const GlowPipeline& p,
     const i32 y_max_pad = std::min(h, y_max + blur_pad);
     const i32 roi_w = x_max_pad - x_min_pad;
     const i32 roi_h = y_max_pad - y_min_pad;
-    if (roi_w <= 0 || roi_h <= 0) return;
+    if (roi_w <= 0 || roi_h <= 0) return std::nullopt;
 
     auto source_fb = acquire_temp_framebuffer(roi_w, roi_h);
     source_fb->clear({0,0,0,0});
@@ -167,7 +180,7 @@ void run_layer_mode(Framebuffer& fb, const GlowPipeline& p,
     // glyph bounding boxes, which the blur would amplify into a visible
     // rectangular fog.  This threshold eliminates that without affecting
     // legitimate anti-aliased edges (≥ 32/255 at the glyph boundary).
-    static constexpr float kAlphaFloor = 16.0f / 255.0f;
+    static constexpr float kAlphaFloor = 8.0f / 255.0f;
     for (i32 y = 0; y < roi_h; ++y) {
         const i32 sy = y + y_min_pad;
         const Color* src_row = fb.pixels_row(sy);
@@ -194,7 +207,7 @@ void run_layer_mode(Framebuffer& fb, const GlowPipeline& p,
     std::vector<GlowLayerPass> passes;
     if (!p.layers.empty()) {
         for (const auto& layer : p.layers) {
-            passes.push_back({layer.radius, layer.opacity, std::clamp(layer.scale, 0.05f, 1.0f)});
+            passes.push_back({layer.radius, layer.opacity, std::clamp(layer.scale, 0.05f, 1.0f), layer.color});
         }
     } else {
         const float outer_downscale = std::clamp(p.outer_downscale, 0.05f, 1.0f);
@@ -217,12 +230,12 @@ void run_layer_mode(Framebuffer& fb, const GlowPipeline& p,
                     ? source_row[x].a
                     : glow_trigger_from_pixel(source_row[x], p);
                     if (trigger > 0.0f) {
-                        pass_row[x] = glow_color_from_trigger(trigger, p, pass.intensity_scale);
+                        pass_row[x] = glow_color_from_trigger(trigger, p, pass.intensity_scale, pass.tint);
                     }
                 }
             }
 
-            apply_blur(*pass_fb, r, std::nullopt, 1);
+            apply_blur(*pass_fb, r, std::nullopt, 3);
             accumulate_glow_pass(*glow_acc_fb, *pass_fb, p);
 
             // Debug: save each glow pass before accumulation
@@ -246,12 +259,12 @@ void run_layer_mode(Framebuffer& fb, const GlowPipeline& p,
                             ? c.a
                             : glow_trigger_from_pixel(c, p);
                     if (trigger > 0.0f) {
-                        small_row[x] = glow_color_from_trigger(trigger, p, pass.intensity_scale);
+                        small_row[x] = glow_color_from_trigger(trigger, p, pass.intensity_scale, pass.tint);
                     }
                 }
             }
 
-            apply_blur(*small_fb, std::max(0.5f, r * pass.buffer_scale), std::nullopt, 1);
+            apply_blur(*small_fb, std::max(0.5f, r * pass.buffer_scale), std::nullopt, 3);
             accumulate_scaled_glow_pass(*glow_acc_fb, *small_fb, p, pass.buffer_scale);
         }
     }
@@ -261,20 +274,36 @@ void run_layer_mode(Framebuffer& fb, const GlowPipeline& p,
         save_png(*glow_acc_fb, "output/debug_glow_accumulated.png");
     }
 
-    for (i32 y = 0; y < roi_h; ++y) {
-        const i32 dy = y + y_min_pad;
+    return GlowAccumResult{
+        glow_acc_fb,
+        raster::BBox{x_min_pad, y_min_pad, x_max_pad, y_max_pad}
+    };
+}
+
+void run_layer_mode(Framebuffer& fb, const GlowPipeline& p,
+                    const std::optional<raster::BBox>& clip,
+                    bool source_is_alpha_mask) {
+    const i32 w = fb.width(), h = fb.height();
+    auto acc = build_glow_accumulator(fb, p, clip, source_is_alpha_mask);
+    if (!acc) return;
+
+    // Composite the accumulated glow back into the source framebuffer
+    const auto& rb = acc->roi_bounds;
+    const i32 g_w = rb.x1 - rb.x0;
+    const i32 g_h = rb.y1 - rb.y0;
+    for (i32 y = 0; y < g_h; ++y) {
+        const i32 dy = y + rb.y0;
         if (dy < 0 || dy >= h) continue;
         Color* dst_row = fb.pixels_row(dy);
-        const Color* glow_row = glow_acc_fb->pixels_row(y);
-        const Color* source_row = source_fb->pixels_row(y);
-        for (i32 x = 0; x < roi_w; ++x) {
-            const i32 dx = x + x_min_pad;
+        const Color* glow_row = acc->glow->pixels_row(y);
+        for (i32 x = 0; x < g_w; ++x) {
+            const i32 dx = x + rb.x0;
             if (dx < 0 || dx >= w) continue;
-
+            const Color src_c = dst_row[dx];
             if (p.preserve_source) {
-                dst_row[dx] = compositor::blend(source_row[x], glow_row[x], BlendMode::Normal);
+                dst_row[dx] = compositor::blend(src_c, glow_row[x], BlendMode::Normal);
             } else {
-                dst_row[dx] = compositor::blend(glow_row[x], source_row[x], glow_blend_mode(p));
+                dst_row[dx] = compositor::blend(glow_row[x], src_c, glow_blend_mode(p));
             }
         }
     }
@@ -407,6 +436,16 @@ GlowPipeline GlowPipeline::from(const DropShadowParams& p) {
 
 } // namespace chronon3d
 
+// ── Forward declarations ───────────────────────────────────────────────
+namespace chronon3d::renderer {
+[[nodiscard]] std::optional<raster::BBox> run_glow_accumulate(
+    Framebuffer& glow_dst,
+    const Framebuffer& source,
+    const GlowPipeline& p,
+    const std::optional<raster::BBox>& clip,
+    bool source_is_alpha_mask);
+}
+
 // ── GlowPipeline::render() — unified entry point (Item 17) ────────────
 
 namespace chronon3d {
@@ -439,15 +478,23 @@ GlowPipelineOutput GlowPipeline::render(graph::RenderGraphContext& ctx,
     bbox.x1 = std::min(w, bbox.x1);
     bbox.y1 = std::min(h, bbox.y1);
 
-    // Copy source → work_fb
-    for (i32 y = 0; y < h; ++y) {
-        const Color* src_row = input.source->pixels_row(y);
-        Color* dst_row = work_fb->pixels_row(y);
-        std::copy_n(src_row, w, dst_row);
+    if (input.source_is_alpha_mask) {
+        // Glow-only path: return accumulated glow WITHOUT compositing
+        // into the source.  Used by text_glow.cpp which composites the
+        // glow behind the text.
+        auto glow_only = renderer::run_glow_accumulate(*work_fb, *input.source, p, input.clip, true);
+        if (glow_only) {
+            bbox = *glow_only;
+        }
+    } else {
+        // Standard path: copy source, composite glow over it.
+        for (i32 y = 0; y < h; ++y) {
+            const Color* src_row = input.source->pixels_row(y);
+            Color* dst_row = work_fb->pixels_row(y);
+            std::copy_n(src_row, w, dst_row);
+        }
+        renderer::run_glow_pipeline(*work_fb, p, input.clip, false);
     }
-
-    // Run the pipeline on the working copy.
-    renderer::run_glow_pipeline(*work_fb, p, input.clip, input.source_is_alpha_mask);
 
     return {std::move(result), bbox};
 }
@@ -473,6 +520,40 @@ void run_glow_pipeline(Framebuffer& fb, const GlowPipeline& p,
         // apply_shadow_effect remains in effect_shadow_impl.cpp.
         break;
     }
+}
+
+/// Build glow-only accumulator into a clean framebuffer (no source compositing).
+/// glow_dst must be cleared to transparent before calling.
+/// Reads source from the provided framebuffer and writes accumulated glow
+/// into glow_dst.  Returns the ROI bounds or std::nullopt on empty ROI.
+[[nodiscard]] std::optional<raster::BBox> run_glow_accumulate(
+    Framebuffer& glow_dst,
+    const Framebuffer& source,
+    const GlowPipeline& p,
+    const std::optional<raster::BBox>& clip,
+    bool source_is_alpha_mask) {
+    auto acc = build_glow_accumulator(source, p, clip, source_is_alpha_mask);
+    if (!acc) return std::nullopt;
+
+    // Copy accumulated glow into glow_dst (same size, positioned at ROI)
+    const auto& rb = acc->roi_bounds;
+    const i32 g_w = acc->glow->width();
+    const i32 g_h = acc->glow->height();
+    const i32 dst_w = glow_dst.width();
+    const i32 dst_h = glow_dst.height();
+    for (i32 y = 0; y < g_h; ++y) {
+        const i32 dy = y + rb.y0;
+        if (dy < 0 || dy >= dst_h) continue;
+        Color* dst_row = glow_dst.pixels_row(dy);
+        const Color* glow_row = acc->glow->pixels_row(y);
+        for (i32 x = 0; x < g_w; ++x) {
+            const i32 dx = x + rb.x0;
+            if (dx < 0 || dx >= dst_w) continue;
+            dst_row[dx] = glow_row[x];
+        }
+    }
+
+    return rb;
 }
 
 } // namespace chronon3d::renderer

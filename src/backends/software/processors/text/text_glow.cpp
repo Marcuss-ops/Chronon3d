@@ -117,6 +117,8 @@ struct PaddedMask {
 }
 
 /// Convert a BLImage (PRGB32 format) to a Framebuffer.
+/// PRGB32 stores premultiplied RGBA, so we un-premultiply on read:
+///   RGB = stored_RGB * (255.0 / alpha)  to recover the original color.
 [[nodiscard]] static inline std::shared_ptr<Framebuffer> bl_image_to_framebuffer(const BLImage& img) {
     const int w = img.width();
     const int h = img.height();
@@ -128,12 +130,16 @@ struct PaddedMask {
         for (int y = 0; y < h; ++y) {
             for (int x = 0; x < w; ++x) {
                 const uint32_t p = px[y * stride + x];
-                fb->set_pixel(x, y, Color{
-                    static_cast<float>((p >> 16) & 0xFF) / 255.0f,
-                    static_cast<float>((p >>  8) & 0xFF) / 255.0f,
-                    static_cast<float>( p        & 0xFF) / 255.0f,
-                    static_cast<float>((p >> 24) & 0xFF) / 255.0f
-                });
+                const float a = static_cast<float>((p >> 24) & 0xFF) / 255.0f;
+                if (a > 0.0f) {
+                    const float inv_a = 1.0f / a;
+                    fb->set_pixel(x, y, Color{
+                        std::clamp(((p >> 16) & 0xFF) / 255.0f * inv_a, 0.0f, 1.0f),
+                        std::clamp(((p >>  8) & 0xFF) / 255.0f * inv_a, 0.0f, 1.0f),
+                        std::clamp(( p        & 0xFF) / 255.0f * inv_a, 0.0f, 1.0f),
+                        a
+                    });
+                }
             }
         }
     }
@@ -154,11 +160,13 @@ struct PaddedMask {
             const Color* row = fb.pixels_row(y);
             for (int x = 0; x < w; ++x) {
                 const Color& c = row[x];
+                // PRGB32 requires premultiplied alpha: RGB × alpha
+                const float pa = std::clamp(c.a, 0.0f, 1.0f);
                 px[y * stride + x] =
-                    (static_cast<uint32_t>(std::clamp(c.a * 255.0f, 0.0f, 255.0f)) << 24) |
-                    (static_cast<uint32_t>(std::clamp(c.r * 255.0f, 0.0f, 255.0f)) << 16) |
-                    (static_cast<uint32_t>(std::clamp(c.g * 255.0f, 0.0f, 255.0f)) <<  8) |
-                     static_cast<uint32_t>(std::clamp(c.b * 255.0f, 0.0f, 255.0f));
+                    (static_cast<uint32_t>(pa * 255.0f + 0.5f) << 24) |
+                    (static_cast<uint32_t>(std::clamp(c.r * pa, 0.0f, 1.0f) * 255.0f + 0.5f) << 16) |
+                    (static_cast<uint32_t>(std::clamp(c.g * pa, 0.0f, 1.0f) * 255.0f + 0.5f) <<  8) |
+                     static_cast<uint32_t>(std::clamp(c.b * pa, 0.0f, 1.0f) * 255.0f + 0.5f);
             }
         }
     }
@@ -201,7 +209,7 @@ void draw_text_glow(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNod
         }
 
         const f32 base_radius = std::max(1.0f, node.glow.radius);
-        const int padding = static_cast<int>(std::ceil(base_radius * 1.2f)) + 4;
+        const int padding = static_cast<int>(std::ceil(base_radius * 4.0f)) + 8;
 
         // ── Step 1: Build padded white alpha mask (text-specific) ────
         auto [alpha_mask, actual_pad] = make_padded_alpha_mask(raster.image, padding);
@@ -221,13 +229,16 @@ void draw_text_glow(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNod
         input.params.core_strength = std::max(0.0f, node.glow.core_strength);
         input.params.aura_strength = std::max(0.0f, node.glow.aura_strength);
         input.params.bloom_strength = std::max(0.0f, node.glow.bloom_strength);
-        input.params.spread = 1.0f;
-        input.params.softness = 1.0f;
-        input.params.falloff = 0.85f;
-        input.params.outer_downscale = 0.25f;
-        input.params.preserve_source = true;
-        input.params.additive = true;
-        input.params.blend = BlendMode::Add;
+        input.params.spread = node.glow.spread;
+        input.params.softness = node.glow.softness;
+        input.params.threshold = node.glow.threshold;
+        input.params.falloff = node.glow.falloff;
+        input.params.outer_downscale = node.glow.outer_downscale;
+        input.params.preserve_source = node.glow.preserve_source;
+        input.params.additive = node.glow.additive;
+        input.params.blend = node.glow.blend;
+        input.params.quality = node.glow.quality;
+        input.params.layers = node.glow.layers;
 
         // Minimal context — the counters/pool are optional.
         graph::RenderGraphContext ctx{};
@@ -250,7 +261,7 @@ void draw_text_glow(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNod
 
     // ── Composite with additive blend ────────────────────────────────
     const f32 base_radius = std::max(1.0f, node.glow.radius);
-    const int padding = static_cast<int>(std::ceil(base_radius * 1.2f)) + 4;
+    const int padding = static_cast<int>(std::ceil(base_radius * 4.0f)) + 8;
 
     if (glow_cache) {
         const f32 glow_alpha = opacity * node.glow.color.a;

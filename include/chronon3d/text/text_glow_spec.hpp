@@ -91,9 +91,9 @@ struct TextGlowSpec {
         // radius is in absolute pixels; scale=1.0 means full-res (no
         // downsample) except the outer bloom which uses outer_downscale.
         p.layers = {
-            {inner_radius, inner_intensity, 1.0f},
-            {mid_radius,   mid_intensity,   1.0f},
-            {bloom_radius, bloom_intensity, outer_downscale},
+            {inner_radius, inner_intensity, 1.0f, inner_color},
+            {mid_radius,   mid_intensity,   1.0f, outer_color},
+            {bloom_radius, bloom_intensity, outer_downscale, outer_color},
         };
         // Also keep the legacy core/aura/bloom_strength fields in sync so
         // any code path that reads them instead of layers still gets a
