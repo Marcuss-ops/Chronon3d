@@ -9,6 +9,7 @@ add_library(chronon3d_core_impl STATIC
     system_metrics.cpp
     cancellation_token.cpp
     framebuffer_clear_parallel.cpp
+    camera_2_5d_log.cpp
 )
 target_include_directories(chronon3d_core_impl PUBLIC
     ${CMAKE_SOURCE_DIR}/include

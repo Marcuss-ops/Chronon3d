@@ -6,10 +6,13 @@
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/math/camera_pose.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+namespace chronon3d::detail {
+void log_camera_projection_diagnostics(float depth, float determinant);
+}
+
 #include <algorithm>
 #include <cmath>
 #include <optional>
-#include <spdlog/spdlog.h>
 
 namespace chronon3d {
 
@@ -288,8 +291,7 @@ inline ProjectedLayer2_5D project_layer_2_5d(
         H_diag[2][0] = out.projection_matrix[3][0]; H_diag[2][1] = out.projection_matrix[3][1]; H_diag[2][2] = out.projection_matrix[3][3];
         f32 det = glm::determinant(H_diag);
         if (diagnostics_enabled) {
-            spdlog::info("[diagnostics-3d] Compiled projection matrix. Depth={:.2f}, Det={:.4f} ({})",
-                         depth, det, (det >= 0.0f ? "OK" : "FLIPPED/MIRRORED"));
+            detail::log_camera_projection_diagnostics(depth, det);
         }
     } else {
         out.projection_matrix = out.transform.to_mat4();

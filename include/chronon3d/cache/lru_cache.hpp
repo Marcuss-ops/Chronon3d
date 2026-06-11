@@ -10,7 +10,9 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
-#include <spdlog/spdlog.h>
+namespace chronon3d::cache::detail {
+void log_item_too_large(size_t weight, size_t capacity_weight, const char* context);
+} // namespace chronon3d::cache::detail
 
 namespace chronon3d::cache {
 
@@ -98,8 +100,7 @@ public:
         auto [loaded, weight] = loader();
 
         if (weight > shard.capacity_weight) {
-            spdlog::warn("[LRU] Warning: item weight {} exceeds shard capacity {} - not cached",
-                         weight, shard.capacity_weight);
+            detail::log_item_too_large(weight, shard.capacity_weight, "compute_if_absent");
             return loaded;
         }
 
@@ -189,8 +190,7 @@ private:
             if (weight > capacity_weight) {
                 // Oversized entries are never cached. Log a warning so the caller knows
                 // the item was silently dropped from the cache.
-                spdlog::warn("[LRU] Warning: item weight {} exceeds shard capacity {} - not cached",
-                             weight, capacity_weight);
+                detail::log_item_too_large(weight, capacity_weight, "put");
                 return;
             }
 

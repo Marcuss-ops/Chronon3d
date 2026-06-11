@@ -8,7 +8,6 @@
 #include <chronon3d/math/transform.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <glm/glm.hpp>
-#include <spdlog/spdlog.h>
 #include <span>
 
 namespace chronon3d::graph {
