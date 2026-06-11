@@ -80,7 +80,8 @@ constexpr std::size_t kHardwareDestructiveInterferenceSize = 64;
     X(compositenode_blend_ms) \
     X(compositenode_setup_ms) \
     X(compositenode_copy_ms) \
-    X(compositenode_row_ms)
+    X(compositenode_row_ms) \
+    X(compositenode_dispatch_ms)
 
 #define CHRONON_COUNTERS_TRANSFORM(X) \
     X(transform_calls) \

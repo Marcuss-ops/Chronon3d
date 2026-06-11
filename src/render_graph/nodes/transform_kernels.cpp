@@ -64,6 +64,13 @@ void execute_translate_clamped(
         }
     };
 
+    if (profiling::g_current_counters) {
+        if (y1 - y0 >= 12) {
+            profiling::g_current_counters->used_parallel_transform.fetch_add(1, std::memory_order_relaxed);
+        } else {
+            profiling::g_current_counters->skipped_transform_small.fetch_add(1, std::memory_order_relaxed);
+        }
+    }
     if (y1 - y0 >= 12) {
         parallel_for_tracked(
             tbb::blocked_range<i32>(y0, y1),
@@ -117,6 +124,13 @@ void execute_translate_memcpy(
         }
     };
 
+    if (profiling::g_current_counters) {
+        if (y1 - y0 >= 12) {
+            profiling::g_current_counters->used_parallel_transform.fetch_add(1, std::memory_order_relaxed);
+        } else {
+            profiling::g_current_counters->skipped_transform_small.fetch_add(1, std::memory_order_relaxed);
+        }
+    }
     if (y1 - y0 >= 12) {
         parallel_for_tracked(
             tbb::blocked_range<i32>(y0, y1),
