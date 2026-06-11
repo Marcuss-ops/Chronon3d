@@ -16,8 +16,6 @@ struct GraphBuildContext;
 /// Passes are executed in registration order.  The pipeline guarantees that
 /// earlier passes have finished before later ones begin.
 ///
-/// Phase 3 introduces this interface.  Phase 4 will extract individual passes
-/// from the monolithic LegacyGraphBuildPass.
 class GraphBuildPass {
 public:
     virtual ~GraphBuildPass() = default;
