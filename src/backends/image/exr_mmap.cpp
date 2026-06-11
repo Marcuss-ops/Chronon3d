@@ -3,6 +3,7 @@
 #include <OpenEXR/ImfRgbaFile.h>
 #include <OpenEXR/ImfIO.h>
 #include <Imath/half.h>
+#include <spdlog/spdlog.h>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -159,6 +160,7 @@ std::unique_ptr<ImageBuffer> load_exr_mmap(const std::string& path) {
 
         return buffer;
     } catch (...) {
+        spdlog::error("exr_mmap: failed to load EXR file (unknown exception)");
         return nullptr;
     }
 }
