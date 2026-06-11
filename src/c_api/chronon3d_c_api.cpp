@@ -6,7 +6,9 @@
 #include <chronon3d/runtime/timeline_evaluator.hpp>
 #include <chronon3d/specscene/model/specscene.hpp>
 #include <chronon3d/backends/image/image_writer.hpp>
+#ifdef CHRONON3D_BUILD_CONTENT
 #include <content/register_content_modules.hpp>
+#endif
 #include <nlohmann/json.hpp>
 #include <toml++/toml.h>
 #include "../specscene/parser/specscene_parsers.hpp"
@@ -131,8 +133,10 @@ extern "C" {
 
 chronon_context* chronon_create_context(void) {
     try {
+#ifdef CHRONON3D_BUILD_CONTENT
         // Ensure content ExtensionModules are registered before CompositionRegistry is built.
         chronon3d::register_content_modules();
+#endif
 
         auto* ctx = new chronon_context();
         ctx->registry = std::make_unique<chronon3d::CompositionRegistry>();
