@@ -164,7 +164,7 @@ void apply_focus_in_ladder(Framebuffer& fb, const FocusInLadderParams& p,
 
             if (auto* cnt = profiling::g_current_counters) {
                 const auto precompute_ms = profiling::duration_ms(
-                    profiling::now() - precompute_t0).count();
+                    precompute_t0, profiling::now());
                 cnt->effect_focus_in_ladder_precompute_ms.fetch_add(
                     static_cast<uint64_t>(std::llround(precompute_ms)), std::memory_order_relaxed);
             }
@@ -234,7 +234,7 @@ void apply_focus_in_ladder(Framebuffer& fb, const FocusInLadderParams& p,
 
     if (auto* cnt = profiling::g_current_counters) {
         const auto xfade_ms = profiling::duration_ms(
-            profiling::now() - xfade_t0).count();
+            xfade_t0, profiling::now());
         cnt->effect_focus_in_ladder_crossfade_ms.fetch_add(
             static_cast<uint64_t>(std::llround(xfade_ms)), std::memory_order_relaxed);
     }
