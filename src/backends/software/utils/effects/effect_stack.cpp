@@ -14,10 +14,8 @@
 #include "../../primitive_renderer.hpp"
 #include "effects_internal.hpp"
 #include "effect_helpers.hpp"
-#include "effect_focus_ladder.hpp"
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/effects/effect_params.hpp>
-#include <chronon3d/animation/easing/easing.hpp>
 #include <algorithm>
 #include <chrono>
 #include <spdlog/spdlog.h>
@@ -40,7 +38,6 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
     double shadow_ms = 0.0;
     double bloom_ms = 0.0;
     double fake3d_ms = 0.0;
-    double focus_in_ladder_ms = 0.0;
 
     for (const auto& inst : stack) {
         if (!inst.enabled) continue;
@@ -172,18 +169,6 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
             break;
         }
 
-        case FocusInLadder: {
-            auto* p = std::get_if<FocusInLadderParams>(&inst.params);
-            if (p && !p->levels.empty()) {
-                const auto t0 = std::chrono::steady_clock::now();
-                apply_focus_in_ladder(fb, *p, time_seconds, clip);
-                const auto elapsed_ms = std::chrono::duration<double, std::milli>(
-                    std::chrono::steady_clock::now() - t0).count();
-                focus_in_ladder_ms += elapsed_ms;
-            }
-            break;
-        }
-
         case Unknown:
             break;
         }
@@ -192,8 +177,8 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
     if (diagnostics_enabled) {
         const double total_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - stack_start).count();
         spdlog::info(
-            "[EffectStack] total={:.2f}ms blur={:.2f} tint={:.2f} brightness={:.2f} contrast={:.2f} glow={:.2f} shadow={:.2f} bloom={:.2f} fake3d={:.2f} focus_in_ladder={:.2f}",
-            total_ms, blur_ms, tint_ms, brightness_ms, contrast_ms, glow_ms, shadow_ms, bloom_ms, fake3d_ms, focus_in_ladder_ms
+            "[EffectStack] total={:.2f}ms blur={:.2f} tint={:.2f} brightness={:.2f} contrast={:.2f} glow={:.2f} shadow={:.2f} bloom={:.2f} fake3d={:.2f}",
+            total_ms, blur_ms, tint_ms, brightness_ms, contrast_ms, glow_ms, shadow_ms, bloom_ms, fake3d_ms
         );
     }
 
@@ -203,8 +188,6 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
         if (auto* cnt = profiling::g_current_counters) {
             cnt->effect_stack_total_ms.fetch_add(
                 static_cast<uint64_t>(std::llround(total_ms)), std::memory_order_relaxed);
-            cnt->effect_focus_in_ladder_ms.fetch_add(
-                static_cast<uint64_t>(std::llround(focus_in_ladder_ms)), std::memory_order_relaxed);
         }
     }
 }

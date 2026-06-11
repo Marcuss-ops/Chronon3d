@@ -53,7 +53,6 @@ add_library(chronon3d_backend_software STATIC
     utils/effects/effect_glow_impl.cpp
     utils/effects/effect_shadow_impl.cpp
     utils/effects/effect_bloom_impl.cpp
-    utils/effects/effect_focus_ladder.cpp
     utils/effects/effect_stack.cpp
     simd/highway_color_kernels.cpp
     simd/highway_rasterize_kernels.cpp
