@@ -35,7 +35,8 @@ enum class GlowQuality {
 };
 
 struct GlowParams {
-    f32 radius{15.0f};
+    bool  enabled{false};
+    f32   radius{15.0f};
     f32 intensity{0.8f};
     Color color{1,1,1,1};
     f32 threshold{0.0f};
