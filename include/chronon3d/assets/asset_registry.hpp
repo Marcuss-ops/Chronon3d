@@ -84,12 +84,24 @@ public:
         return register_asset_unlocked(path, AssetType::Audio, ColorSpace::LinearSRGB, AlphaMode::None);
     }
 
-    [[nodiscard]] AssetMetadata metadata(AssetId id) const {
+    /// Non-throwing metadata lookup.  Returns std::nullopt when the asset
+    /// is not registered — no exception, no crash.
+    [[nodiscard]] std::optional<AssetMetadata> try_metadata(AssetId id) const {
         std::lock_guard<std::mutex> lock(m_mutex);
         const auto it = m_by_id.find(id);
         if (it == m_by_id.end())
-            throw std::out_of_range("AssetRegistry: unknown AssetId");
+            return std::nullopt;
         return m_assets[it->second];
+    }
+
+    /// Throws std::out_of_range if the asset is unknown.
+    /// Prefer try_metadata() for non-throwing access; keep using metadata()
+    /// when the caller already verified contains(id) or expects the id to exist.
+    [[nodiscard]] AssetMetadata metadata(AssetId id) const {
+        auto meta = try_metadata(id);
+        if (!meta)
+            throw std::out_of_range("AssetRegistry: unknown AssetId");
+        return *meta;
     }
 
     [[nodiscard]] std::optional<AssetId> find_by_path(const std::filesystem::path& path) const {
