@@ -26,6 +26,7 @@ struct GlowLayer {
     f32 radius{0.0f};
     f32 opacity{1.0f};
     f32 scale{1.0f};
+    Color color{0, 0, 0, 0};    // per-layer color tint; alpha=0 means "use pipeline color"
 };
 
 enum class GlowQuality {
