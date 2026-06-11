@@ -37,6 +37,21 @@ cmake --build build/chronon/linux-release -j$(nproc)
 
 Build presets: `linux-release`, `linux-debug`, `linux-debug-render`.
 
+### Windows
+
+```powershell
+git clone https://github.com/microsoft/vcpkg C:\vcpkg
+& "C:\vcpkg\bootstrap-vcpkg.bat" -disableMetrics
+$env:VCPKG_ROOT="C:\vcpkg"
+
+cmake --preset win-release
+cmake --build --preset win
+```
+
+Build output: `build\chronon\win-release\apps\chronon3d_cli\chronon3d_cli.exe`
+
+For debug: use `win-debug` preset. Run commands from the repo root so relative asset paths work.
+
 ---
 
 ## Architettura in 30 secondi
@@ -286,3 +301,148 @@ L'evoluzione V3 del motore è documentata in [`V3_BLUEPRINT.md`](V3_BLUEPRINT.md
 3. **P1** — TileGrid execution (non più framebuffer full-frame)
 4. **P2** — Display list compilation (scene compiled once)
 5. ... e altri fino a P10 (per-tile cache, output pipeline separata)
+
+---
+
+## API Overview
+
+### Composition
+```cpp
+composition({ .name, .width, .height, .duration }, [](const FrameContext& ctx) {
+    SceneBuilder s(ctx);
+    // ...
+    return s.build();
+});
+```
+
+### Shapes (root level)
+```cpp
+s.rect("id",         { .size, .color, .pos });
+s.rounded_rect("id", { .size, .radius, .color, .pos });
+s.circle("id",       { .radius, .color, .pos });
+s.line("id",         { .from, .to, .thickness, .color });
+s.text("id",         { .content, .style, .pos });
+s.image("id",        { .path, .size, .pos, .opacity });
+```
+
+### Layers
+```cpp
+s.layer("name", [](LayerBuilder& l) {
+    l.position({x, y, z})
+     .scale({sx, sy, 1})
+     .rotate({0, 0, deg})
+     .opacity(alpha)
+     .enable_3d(true)                           // Camera 2.5D
+     .mask_rounded_rect({ .size, .radius })     // Mask
+     .blur(radius)                              // Effects
+     .tint(Color{r, g, b, strength})
+     .brightness(value)
+     .contrast(value)
+     .blend(BlendMode::Screen);
+
+    l.rect(...);
+    l.image(...);
+    l.text(...);
+});
+```
+
+### Camera 2.5D
+```cpp
+s.camera_2_5d({
+    .enabled          = true,
+    .position         = {cam_x, cam_y, -1000},
+    .point_of_interest = {0, 0, 0},
+    .zoom             = 1000.0f
+});
+```
+Convention: Z negative = closer (larger), Z positive = farther (smaller).
+
+### Animation
+```cpp
+auto x  = interpolate(ctx.frame, 0, 60, 0.0f, 800.0f, Easing::InOutCubic);
+auto [v, vel] = spring(ctx.frame, target, { .stiffness = 120, .damping = 14 });
+```
+
+---
+
+## Coordinate System
+
+- Origin (0, 0) — top-left
+- X increases right, Y increases down
+- Z negative — closer to camera (Camera 2.5D)
+- **Hybrid Coordinates**:
+    - **2D Layers**: Use standard top-left screen coordinates.
+    - **3D / Projected Layers**: Use centered coordinates (e.g., 0,0 is screen center) to simplify perspective transformations and parallax.
+- Shapes are **center-anchored** by default
+- Draw order — painter's algorithm (insertion order for 2D, depth-sorted for 3D layers)
+
+---
+
+## CLI Reference
+
+### `render`
+```
+chronon3d_cli render <Comp> [--frame N] [--start N] [--end N] [-o path]
+```
+- `--frame N` — render single frame N
+- `--start / --end` — render frame range [start, end)
+- `-o path` — output path; use `####` for zero-padded frame number
+- `--diagnostic` — overlay debug info
+- `--report` — save execution report to telemetry database (appears in web dashboard)
+- `--warmup-renderer` — preallocate framebuffers and prime caches
+
+### `video`
+```
+chronon3d_cli video <Comp> --end N -o output.mp4 [options]
+```
+| Option | Default | Description |
+|---|---|---|
+| `--start` | 0 | Start frame (inclusive) |
+| `--end` | required | End frame (exclusive) |
+| `--fps` | 30 | Output frame rate |
+| `--crf` | 18 | x264 quality (0=best, 51=worst) |
+| `--codec` | auto | Encoder selection |
+| `--encode-preset` | medium | x264 preset |
+| `--hardware` | none | Hardware encoder |
+| `--keep-frames` | off | Keep temporary PNG frames |
+| `--frames-dir` | auto | Override temp frames directory |
+| `--chunks` | 1 | Render in N parallel chunks |
+| `--ffmpeg-mode` | pipe | `pipe` (raw YUV to stdin) or `png` |
+| `--dry-run` | off | Validate without rendering |
+
+### `video camera`
+```
+chronon3d_cli video camera [--axis Tilt|Pan|Roll] [options]
+```
+| Option | Default | Description |
+|---|---|---|
+| `--axis` | Tilt | Camera motion axis |
+| `--start` | 0 | Start frame |
+| `--end` | 60 | End frame |
+| `--fps` | 30 | Output frame rate |
+| `--ssaa` | 1.0 | Super sampling factor |
+
+### Other commands
+```
+chronon3d_cli verify           # quick smoke test
+chronon3d_cli doctor           # environment diagnostics
+chronon3d_cli bench <Comp>     # performance benchmark
+chronon3d_cli graph <Comp>     # print frame DAG
+```
+
+---
+
+## Dependencies
+
+| Library | Purpose |
+|---|---|
+| glm | Math (Vec, Mat, Quat) |
+| stb_truetype | Font rasterization |
+| stb_image | PNG/JPG loading |
+| spdlog + fmt | Logging |
+| Google Highway | SIMD blending |
+| Taskflow | Parallel frame pipeline |
+| CLI11 | CLI argument parsing |
+| doctest | Tests |
+| FreeType + HarfBuzz | Text shaping |
+| **ffmpeg** (external) | MP4 encoding — must be in PATH, not linked |
