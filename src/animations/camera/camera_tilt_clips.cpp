@@ -54,21 +54,7 @@ void register_camera_tilt_clip() {
             "CameraImageClip",
             params,
             [](SceneBuilder& s, const FrameContext& ctx, const animation::CameraMotionParams& p) {
-                // Reuse the anonymous-namespace helper
-                s.layer("grid", [](LayerBuilder& l) {
-                    scene::utils::dark_grid_background(l, {});
-                });
-                s.layer("reference-image", [&p, &ctx](LayerBuilder& l) {
-                    const f32 inset_x = static_cast<f32>(ctx.width) * 0.06f;
-                    const f32 inset_y = static_cast<f32>(ctx.height) * 0.06f;
-                    l.enable_3d()
-                     .image("grid_reference", {
-                         .path = p.reference_image,
-                         .size = {ctx.width - inset_x * 2.0f, ctx.height - inset_y * 2.0f},
-                         .pos = {ctx.width * 0.5f, ctx.height * 0.5f, 0.0f},
-                         .opacity = 1.0f,
-                     });
-                });
+                build_reference_image_content(s, ctx, p);
             });
     });
 }
