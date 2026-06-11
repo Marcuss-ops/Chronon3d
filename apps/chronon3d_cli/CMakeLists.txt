@@ -78,14 +78,7 @@ if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
         utils/video/native_av_encoder.cpp
         utils/video/native_av_encoder_write.cpp
     )
-    # Prefer the modern IMPORTED target; fall back to the legacy string list
-    # if the imported target wasn't created (e.g. when src/CMakeLists.txt
-    # hasn't been loaded yet for a partial configure).
-    if(TARGET chronon3d_ffmpeg_full)
-        target_link_libraries(chronon3d_cli_video PRIVATE chronon3d_ffmpeg_full)
-    else()
-        target_link_libraries(chronon3d_cli_video PRIVATE ${CHRONON3D_FFMPEG_LIBS_FULL})
-    endif()
+    target_link_libraries(chronon3d_cli_video PRIVATE chronon3d_ffmpeg_full)
     target_compile_definitions(chronon3d_cli_video PRIVATE CHRONON3D_ENABLE_NATIVE_FFMPEG)
 endif()
 

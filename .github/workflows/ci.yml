@@ -16,7 +16,23 @@ jobs:
         include:
           - os: ubuntu-latest
             preset: linux-release
+            build_preset: linux
             test_preset: linux-test
+            vcpkg_commit: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4'
+          - os: ubuntu-latest
+            preset: linux-ci
+            build_preset: linux-ci
+            test_preset: linux-ci-test
+            vcpkg_commit: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4'
+          - os: ubuntu-latest
+            preset: linux-asan
+            build_preset: linux-asan
+            test_preset: linux-asan-test
+            vcpkg_commit: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4'
+          - os: windows-latest
+            preset: win-release
+            build_preset: win
+            test_preset: win-test
             vcpkg_commit: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4'
 
     env:
@@ -38,9 +54,10 @@ jobs:
         uses: lukka/run-cmake@v10
         with:
           configurePreset: ${{ matrix.preset }}
-          buildPreset: linux
+          buildPreset: ${{ matrix.build_preset }}
 
       - name: Clang-Tidy (static analysis)
+        if: runner.os == 'Linux'
         run: |
           if command -v clang-tidy-18 &> /dev/null; then
             TIDY=clang-tidy-18
