@@ -5,7 +5,6 @@
 #include <chronon3d/cache/node_cache.hpp>
 #include <spdlog/spdlog.h>
 
-#include <chronon3d/core/profiling/profiling.hpp>
 #include <optional>
 #include <thread>
 

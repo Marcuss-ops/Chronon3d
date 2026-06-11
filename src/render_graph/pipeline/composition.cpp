@@ -8,7 +8,6 @@
 #include "../builder/graph_builder_pipeline.hpp"
 #include "../builder/graph_builder_internal.hpp"
 #include "helpers.hpp"
-#include <chronon3d/core/profiling/profiling.hpp>
 #include <vector>
 #include <spdlog/spdlog.h>
 #include <tbb/parallel_for.h>

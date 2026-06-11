@@ -32,6 +32,7 @@
 #include <fmt/format.h>
 
 #include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/core/config.hpp>
 #include <cmath>
 #include <cstdlib>
 #include <filesystem>
