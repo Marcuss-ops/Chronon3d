@@ -238,7 +238,7 @@ void draw_text_glow(SoftwareRenderer& renderer, Framebuffer& fb, const RenderNod
         auto output = GlowPipeline::render(ctx, input);
 
         // ── Step 3: Convert result to BLImage and cache ──────────────
-        BLImage glow_result = framebuffer_to_bl_image(*output.glow);
+        BLImage glow_result = framebuffer_to_bl_image(*output.composited);
         auto cached_img = std::make_shared<BLImage>(std::move(glow_result));
         {
             std::lock_guard<std::mutex> lock(text_glow_cache_mutex());

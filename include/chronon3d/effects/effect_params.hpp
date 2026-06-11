@@ -30,7 +30,7 @@ struct GlowLayer {
 
 enum class GlowQuality {
     Standard,
-    SkiaLike
+    MultiLayer   // previously SkiaLike — multi-layer glow with explicit GlowLayer[] entries
 };
 
 struct GlowParams {

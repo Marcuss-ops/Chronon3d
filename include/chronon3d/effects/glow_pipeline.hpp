@@ -41,6 +41,7 @@
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <optional>
 #include <vector>
+#include <algorithm>
 
 namespace chronon3d::graph {
     struct RenderGraphContext;
@@ -52,8 +53,8 @@ namespace chronon3d {
 struct GlowPipelineInput {
     /// Source framebuffer to glow.  When source_is_alpha_mask is true,
     /// only the alpha channel is used as the trigger; RGB is ignored.
-    /// The framebuffer is NOT modified in-place — the glow is returned
-    /// as a separate output.
+    /// The framebuffer is NOT modified in-place — the composited result
+    /// is returned as a new framebuffer.
     const Framebuffer* source{nullptr};
 
     /// Optional clip rect (in source coordinates).
@@ -71,9 +72,11 @@ struct GlowPipelineInput {
 
 // ── Output descriptor for GlowPipeline::render() ─────────────────────
 struct GlowPipelineOutput {
-    /// The accumulated glow result (additive, pre-composited).
+    /// The composited result (source + glow applied).
     /// Dimensions match the input source framebuffer.
-    OwnedFB glow;
+    /// Note: the glow is composited into the source internally;
+    /// this output is NOT a separate glow-only buffer.
+    OwnedFB composited;
 
     /// Bounding box of the glow-affected region (source coordinates).
     raster::BBox affected_bounds;
@@ -120,8 +123,8 @@ struct GlowPipeline {
     static GlowPipeline from(const DropShadowParams& p);
 
     /// Unified entry point (Item 17).  Renders glow for a source
-    /// framebuffer and returns the accumulated glow output separate
-    /// from the source (so the caller controls compositing).
+    /// framebuffer and returns the composited result (source + glow
+    /// already applied).
     ///
     /// Internally converts GlowParams → GlowPipeline and dispatches
     /// to the same run_layer_mode / run_bloom_mode paths used by
@@ -129,6 +132,37 @@ struct GlowPipeline {
     static GlowPipelineOutput render(class graph::RenderGraphContext& ctx,
                                      const GlowPipelineInput& input);
 };
+
+/// Compute the maximum spatial extent (in pixels) that a glow effect
+/// can reach beyond its source geometry.  Used for bounding-box prediction
+/// and clipping decisions in the render graph.
+[[nodiscard]] inline f32 glow_effect_extent(const GlowParams& p) {
+    f32 base_radius = std::max(0.0f, p.radius);
+    if (!p.layers.empty()) {
+        f32 max_layer_r = 0.0f;
+        for (const auto& l : p.layers) {
+            max_layer_r = std::max(max_layer_r, l.radius);
+        }
+        base_radius = max_layer_r;
+    }
+    const f32 radius = base_radius * std::max(0.0f, p.spread);
+    return radius + 4.0f;
+}
+
+/// Overload for GlowPipeline (uses the same logic — fields are already
+/// converted from GlowParams via GlowPipeline::from()).
+[[nodiscard]] inline f32 glow_effect_extent(const GlowPipeline& p) {
+    f32 base_radius = std::max(0.0f, p.radius);
+    if (!p.layers.empty()) {
+        f32 max_layer_r = 0.0f;
+        for (const auto& l : p.layers) {
+            max_layer_r = std::max(max_layer_r, l.radius);
+        }
+        base_radius = max_layer_r;
+    }
+    const f32 radius = base_radius * std::max(0.0f, p.spread);
+    return radius + 4.0f;
+}
 
 } // namespace chronon3d
 

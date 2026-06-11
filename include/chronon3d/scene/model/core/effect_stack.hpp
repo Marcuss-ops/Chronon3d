@@ -62,7 +62,7 @@ struct GlowStyle {
 inline GlowStyle::operator GlowParams() const {
     GlowParams p;
     p.color = color;
-    p.quality = GlowQuality::SkiaLike;
+    p.quality = GlowQuality::MultiLayer;
     p.preserve_source = preserve_source;
     p.blend = blend;
     p.additive = (blend == BlendMode::Add);
@@ -78,19 +78,6 @@ inline GlowStyle::operator GlowParams() const {
     p.bloom_strength = outer_opacity;
     p.outer_downscale = outer_downscale;
     return p;
-}
-
-[[nodiscard]] inline f32 glow_effect_extent(const GlowParams& p) {
-    f32 base_radius = std::max(0.0f, p.radius);
-    if (!p.layers.empty()) {
-        f32 max_layer_r = 0.0f;
-        for (const auto& l : p.layers) {
-            max_layer_r = std::max(max_layer_r, l.radius);
-        }
-        base_radius = max_layer_r;
-    }
-    const f32 radius = base_radius * std::max(0.0f, p.spread);
-    return radius + 4.0f;
 }
 
 namespace GlowPresets {
