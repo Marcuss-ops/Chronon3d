@@ -1,18 +1,33 @@
 #include <chronon3d/core/config.hpp>
 #include <cstdlib>
+#include <charconv>
 #include <string_view>
+#include <spdlog/spdlog.h>
 
 namespace chronon3d {
 
 std::size_t Config::resolve_env_mb(const char* env_name, std::size_t default_mb) {
+    const auto fallback = default_mb * 1024ULL * 1024ULL;
+
     const char* env = std::getenv(env_name);
-    if (!env || !*env) return default_mb * 1024ULL * 1024ULL;
-    try {
-        std::size_t mb = static_cast<std::size_t>(std::stoull(env));
-        return mb > 0 ? mb * 1024ULL * 1024ULL : default_mb * 1024ULL * 1024ULL;
-    } catch (...) {
-        return default_mb * 1024ULL * 1024ULL;
+    if (!env || !*env) return fallback;
+
+    std::string_view sv(env);
+    std::size_t mb = 0;
+
+    const auto* begin = sv.data();
+    const auto* end = sv.data() + sv.size();
+    auto [ptr, ec] = std::from_chars(begin, end, mb);
+
+    if (ec != std::errc{} || ptr != end || mb == 0) {
+        spdlog::warn(
+            "Invalid environment value {}='{}'; using default {} MB",
+            env_name, env, default_mb
+        );
+        return fallback;
     }
+
+    return mb * 1024ULL * 1024ULL;
 }
 
 static bool env_bool(const char* name) {
