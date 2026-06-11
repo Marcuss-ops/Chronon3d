@@ -72,10 +72,12 @@ struct GlowPipelineInput {
 
 // ── Output descriptor for GlowPipeline::render() ─────────────────────
 struct GlowPipelineOutput {
-    /// The composited result (source + glow applied).
+    /// The output framebuffer.
+    /// - For standard callers: source + glow composited together.
+    /// - When source_is_alpha_mask=true (text glow): contains ONLY the
+    ///   accumulated glow light (no source compositing), so the caller
+    ///   can composite it behind the text.
     /// Dimensions match the input source framebuffer.
-    /// Note: the glow is composited into the source internally;
-    /// this output is NOT a separate glow-only buffer.
     OwnedFB composited;
 
     /// Bounding box of the glow-affected region (source coordinates).
