@@ -45,357 +45,127 @@ chronon3d_cli video MyVideo --start 0 --end 90 --fps 30 -o output/my_video.mp4
 
 ---
 
-## Features
+## Quick Start
 
-| Area | What's implemented |
-|---|---|
-| **Shapes** | Rect, RoundedRect, Circle, Line |
-| **SVG Import** | SVG Path Import V1 (`parse_svg_path_data` / `load_svg_path_file` supporting `M L H V C Q Z` absolute/relative) |
-| **Text** | TTF rendering, Left/Center/Right alignment, perspective scale |
-| **Images** | PNG loading, opacity, UV mapping |
-| **Layers** | Hierarchical transforms, opacity, draw order |
-| **Masks** | Rect / RoundedRect / Circle per layer, inverted masks |
-| **Effects** | Blur (Gaussian approx.), Tint, Brightness, Contrast |
-| **Blend modes** | Normal, Add, Multiply, Screen, Overlay |
-| **Camera 2.5D** | AE-style Classic 3D — Z depth, perspective scale, parallax, Z-sorting |
-| **Animation** | `interpolate()`, `spring()`, `Sequence`, `Easing` presets |
-| **Video export** | PNG sequence → MP4 via external `ffmpeg` |
-| **Node effects** | Drop shadow, Glow (node-level) |
-| **Modular Graph** | Content-hash caching, dependency-aware invalidation, adjustment layers |
+```bash
+# Build everything (vcpkg + cmake — automatic)
+bash tools/chronon-linux.sh
 
-**Architecture:** CPU-only, headless, deterministic, code-first, PMR arena per frame.
+# List registered compositions
+./build/chronon/linux-release/apps/chronon3d_cli/chronon3d_cli list
 
----
+# Render a single frame
+./build/chronon/linux-release/apps/chronon3d_cli/chronon3d_cli render BackgroundGrid --frame 0 -o output/test.png
 
-## SVG Path Import V1
-
-Chronon3d supports importing paths directly from SVG path strings or files. This is designed for direct integration with `PathShape`.
-
-### Usage
-```cpp
-#include <chronon3d/assets/svg_path_loader.hpp>
-
-// 1. Parsing directly from path data:
-auto result = chronon3d::assets::parse_svg_path_data("M 10 10 L 50 50 Z");
-if (result.ok) {
-    PathShape my_path = result.path;
-}
-
-// 2. Loading from a file:
-auto result_file = chronon3d::assets::load_svg_path_file("assets/my_icon.svg");
+# Export a video
+./build/chronon/linux-release/apps/chronon3d_cli/chronon3d_cli video MyComp --start 0 --end 30 --fps 30 -o output/video.mp4
 ```
 
-### V1 Supported Features & Limitations
-- **Supported Commands**: `M`, `L`, `H`, `V`, `C`, `Q`, `Z` (and their relative lowercase counterparts `m`, `l`, `h`, `v`, `c`, `q`, `z`).
-- **File Extraction**: Extracts only the first `<path d="...">` attribute found inside the SVG file.
-- **Unsupported Features**: Gradients, masks, multiple paths, groups, transforms, viewBox dimensions, CSS styling (`fill`, `stroke` width), text, or filters. Any unsupported commands will return a result with `ok = false` and a detailed error message.
-
----
-
-## Text V1 & Presets
-
-Chronon3d has a fully-functional, cache-invalidation-safe Text V1 layout engine with layout presets, automatic fitting (`auto_fit`), wrapping, overflow control, and subtitle/karaoke model support.
-
-### Supported Features
-- **Wrapping & Overflow**: Word wrap, character wrap, max lines limit, and text ellipsis.
-- **Auto-Fit**: Bin-search algorithm to scale text down to fit a target box dynamically.
-- **Presets**: Predefined templates (`headline`, `subtitle`, `lower_third`, `quote`, `breaking_news`, `luxury_gold`, `neon`).
-- **Subtitles**: Standard cues, word timings, and highlight models.
-
-### Limitations
-> [!IMPORTANT]
-> **Unicode & Language Support**: Text V1 wrapping and layout engine measures strings byte-by-byte (`char`). It is friendly with Latin / simple UTF-8 languages (English, Italian, Spanish, Portuguese, etc.). Global Unicode layout, RTL languages (Arabic, Hebrew), complex ligatures (Hindi), CJK line-breaking, emoji, and HarfBuzz/ICU integration are planned for future versions.
-
----
-
-## Quick Start
+See [ORIENTATION.md](docs/ORIENTATION.md) for a full build guide and architecture overview.
 
 ### Prerequisites (Linux)
 
 ```bash
-# Install build tools
-sudo apt-get install -y build-essential cmake ninja-build
-
-# Install ccache for faster rebuilds (optional but recommended)
-sudo apt-get install -y ccache
-# Configure cache size to your liking (default: 5 GB)
-ccache --set-config=max_size=10G
-ccache --set-config=compression=true
-
-# ffmpeg runtime (for video export)
-sudo apt-get install -y ffmpeg
-
-# ffmpeg development headers (required for building — libswscale, libavutil, libavcodec, libavformat)
-sudo apt-get install -y libswscale-dev libavutil-dev libavcodec-dev libavformat-dev zip unzip curl pkg-config
+sudo apt-get install -y build-essential cmake ninja-build ccache ffmpeg
+sudo apt-get install -y libswscale-dev libavutil-dev libavcodec-dev libavformat-dev \
+                        zip unzip curl pkg-config
 ```
 
-### 1. Build (Linux)
+> **Windows:** Standard CMake + vcpkg — see [ORIENTATION.md](docs/ORIENTATION.md#windows) for details.
 
-```bash
-# Set vcpkg root to the bundled vcpkg clone
-export VCPKG_ROOT=$(pwd)/vcpkg_bootstrap2
+---
 
-# Ensure vcpkg has the required baseline commit (one-time)
-cd vcpkg_bootstrap2 && git fetch --unshallow 2>/dev/null || git fetch origin && cd ..
+## Main CLI Commands
 
-# Configure + build (ccache auto-detected if installed)
-cmake --preset linux-release
-cmake --build build/chronon/linux-release -j$(nproc)
-```
+| Command | Description |
+|---|---|
+| `chronon3d_cli list` | List all registered compositions |
+| `chronon3d_cli info <comp>` | Show composition metadata |
+| `chronon3d_cli doctor` | Environment diagnostics |
+| `chronon3d_cli verify` | Quick render smoke test |
+| `chronon3d_cli render <comp> --frame N -o path` | Render a single frame |
+| `chronon3d_cli video <comp> --end N -o path` | Export video via ffmpeg |
+| `chronon3d_cli bench <comp> --frames 30` | Performance benchmark |
+| `chronon3d_cli graph <comp> --frame 0` | Print frame DAG |
+| `chronon3d_cli video camera --axis Pan ...` | Render camera motion clips |
 
-To make `VCPKG_ROOT` permanent, add it to your shell profile:
-```bash
-echo 'export VCPKG_ROOT=/path/to/Chronon3d/vcpkg_bootstrap2' >> ~/.bashrc
-```
+> `--report` saves render data to the telemetry database for the web dashboard.
 
-Or use the helper script which handles vcpkg bootstrap automatically:
+Full CLI reference and all options in [ORIENTATION.md](docs/ORIENTATION.md#cli-reference).
 
-```bash
-bash tools/chronon-linux.sh
-```
+---
 
-### 2. Build (Windows)
+## Features at a Glance
 
-Chronon3d is built and tested primarily on Linux, but Windows is supported through standard CMake + vcpkg.
+| Area | Status |
+|---|---|
+| **Shapes** | Rect, RoundedRect, Circle, Line, SVG Path |
+| **Text** | TTF + HarfBuzz shaping, per-glyph animation, layout presets |
+| **Images** | PNG loading, opacity, UV mapping |
+| **Layers** | Hierarchical transforms, blend modes, masks, 2.5D camera |
+| **Effects** | Blur, Tint, Brightness, Contrast, Glow, DropShadow, Bloom |
+| **Animation** | Interpolation, spring physics, keyframes, expressions |
+| **Camera 2.5D** | AE-style 3D: Z depth, perspective, parallax, Z-sorting |
+| **Video Export** | PNG sequence / ffmpeg pipe (YUV420P, NV12, io_uring) |
+| **Performance** | SIMD (Highway), render graph DAG + content-hash caching, TBB parallelism, Huge Pages, Framebuffer Pool |
+| **Telemetry** | 30+ counters, SQLite DB, React dashboard |
 
-```powershell
-git clone https://github.com/microsoft/vcpkg C:\vcpkg
-& "C:\vcpkg\bootstrap-vcpkg.bat" -disableMetrics
-$env:VCPKG_ROOT="C:\vcpkg"
+---
 
-cmake --preset win-release
-cmake --build --preset win
-```
-
-That configures the `win-release` preset and writes the CLI to:
-
-```text
-build\chronon\win-release\apps\chronon3d_cli\chronon3d_cli.exe
-```
-
-For a debug binary, use:
-
-```powershell
-cmake --preset win-debug
-cmake --build --preset win-debug
-```
-
-Run commands from the repo root so relative asset paths work:
-
-```powershell
-.\build\chronon\win-release\apps\chronon3d_cli\chronon3d_cli.exe list
-```
-
-See [ORIENTATION.md](docs/ORIENTATION.md) for the repo map, build guide, architecture overview, and key references.
-
-### 3. Register a composition
+## Register a Composition
 
 ```cpp
 // your_app/my_comp.cpp
 #include <chronon3d/chronon3d.hpp>
 using namespace chronon3d;
 
-static Composition MyComp() { ... }
+static Composition MyComp() {
+    return composition({ .name = "MyComp", .width = 1920, .height = 1080, .duration = 60 },
+        [](const FrameContext& ctx) {
+            SceneBuilder s(ctx);
+            // ... build your scene ...
+            return s.build();
+        });
+}
 CHRONON_REGISTER_COMPOSITION("MyComp", MyComp)
 ```
 
-The default build includes the example compositions, so `chronon3d_cli list` and `chronon3d_cli dev proofs ...` work out of the box.
-
-### 4. Use the CLI
-
-```bash
-# list all registered compositions
-chronon3d_cli list
-
-# get composition metadata
-chronon3d_cli info MyComp
-
-# check the local environment
-chronon3d_cli doctor
-
-# run a quick render/video smoke test
-chronon3d_cli verify -o output/verify
-
-# render a single frame
-chronon3d_cli render MyComp --frame 0 -o output/frame.png
-
-# render the premium presets with telemetry enabled
-bash tools/render_premium_artifacts.sh
-
-# render a frame range
-chronon3d_cli render MyComp --start 0 --end 90 -o output/frames/frame_####.png
-
-# export video  (requires ffmpeg in PATH)
-chronon3d_cli video MyComp --start 0 --end 90 --fps 30 -o output/my_comp.mp4
-
-# render the built-in camera clip directly from CLI args
-chronon3d_cli video camera --axis Pan --start 0 --end 90 -o output/camera_pan_3s.mp4
-```
+The default build includes example compositions, so `chronon3d_cli list` and `chronon3d_cli verify` work out of the box.
 
 ---
 
-## CLI Reference
+## Further Reading
 
-### `render`
-```
-chronon3d_cli render <Comp> [--frame N] [--start N] [--end N] [-o path]
-```
-- `--frame N` — render single frame N
-- `--start / --end` — render frame range [start, end)
-- `-o path` — output path; use `####` for zero-padded frame number
-- `--diagnostic` — overlay debug info
-- `--report` — save execution report to telemetry database (appears in web dashboard)
-- `--warmup-renderer` — preallocate framebuffers and prime caches
-
-> **⚠️ `--report` è necessario per vedere il render nella web dashboard.**
-> Senza `--report` il render produce solo il file PNG/MP4 ma non viene registrato.
-> Vedi [Telemetry Dashboard](docs/ORIENTATION.md#telemetry-dashboard--web-gallery) per i dettagli.
-
-### `video`
-```
-chronon3d_cli video <Comp> --end N -o output.mp4 [options]
-```
-| Option | Default | Description |
-|---|---|---|
-| `--start` | 0 | Start frame (inclusive) |
-| `--end` | required | End frame (exclusive) |
-| `--fps` | 30 | Output frame rate |
-| `--crf` | 18 | x264 quality (0=best, 51=worst) |
-| `--codec` | auto | Encoder selection (`auto`, `libx264`, `mpeg4`, etc.) |
-| `--encode-preset` / `--preset` | medium | x264 preset |
-| `--hardware` | none | Hardware encoder (`none`, `auto`, `nvenc`, `qsv`, `videotoolbox`, `amf`) |
-| `--keep-frames` | off | Keep temporary PNG frames |
-| `--frames-dir` | auto | Override temp frames directory |
-| `--chunks` | 1 | Render PNG frame range in N parallel chunks before final FFmpeg encode |
-| `--ffmpeg-mode` | pipe | Modes: `pipe` streams raw YUV/RGBA frames to FFmpeg stdin, `png` writes temporary frames |
-
-**Note on Video Export:** Video encoding is handled exclusively via the CLI application invoking an external `ffmpeg` process. There is no native FFmpeg SDK linked into the engine.
-
-`--ffmpeg-mode pipe` (the default) avoids temporary PNG frame files by streaming raw frames directly to an external `ffmpeg` process. The `png` mode is a fallback that writes a sequence of images to disk first.
-
-**Requires `ffmpeg` in PATH.** The engine itself has no FFmpeg dependency.
-
-### `video camera`
-```
-chronon3d_cli video camera [--axis Tilt|Pan|Roll] [--reference path] [options]
-```
-| Option | Default | Description |
-|---|---|---|
-| `--axis` | Tilt | Camera motion axis |
-| `--reference` | `assets/images/camera_reference.jpg` | Reference image to animate |
-| `--output` | auto | Output .mp4 path |
-| `--start` | 0 | Start frame (inclusive) |
-| `--end` | 60 | End frame (exclusive) |
-| `--roll-start` | -18 | Roll image start angle in degrees |
-| `--roll-end` | 0 | Roll image end angle in degrees |
-| `--fps` | 30 | Output frame rate |
-| `--crf` | 18 | x264 quality (0=best, 51=worst) |
-| `--codec` | auto | Encoder selection (`auto`, `libx264`, `mpeg4`, etc.) |
-| `--encode-preset` | medium | x264 preset |
-| `--hardware` | none | Hardware encoder (`none`, `auto`, `nvenc`, `qsv`, `videotoolbox`, `amf`) |
-| `--ssaa` | 1.0 | Super sampling factor |
-
-For `--axis Roll`, the clip now rotates the centered reference image layer instead of rolling the camera itself.
-
-## API Overview
-
-### Composition
-```cpp
-composition({ .name, .width, .height, .duration }, [](const FrameContext& ctx) {
-    SceneBuilder s(ctx);
-    // ...
-    return s.build();
-});
-```
-
-### Shapes (root level)
-```cpp
-s.rect("id",         { .size, .color, .pos });
-s.rounded_rect("id", { .size, .radius, .color, .pos });
-s.circle("id",       { .radius, .color, .pos });
-s.line("id",         { .from, .to, .thickness, .color });
-s.text("id",         { .content, .style, .pos });
-s.image("id",        { .path, .size, .pos, .opacity });
-```
-
-### Layers
-```cpp
-s.layer("name", [](LayerBuilder& l) {
-    l.position({x, y, z})
-     .scale({sx, sy, 1})
-     .rotate({0, 0, deg})
-     .opacity(alpha)
-     .enable_3d(true)                           // Camera 2.5D
-     .mask_rounded_rect({ .size, .radius })     // Mask
-     .blur(radius)                              // Effects
-     .tint(Color{r, g, b, strength})
-     .brightness(value)
-     .contrast(value)
-     .blend(BlendMode::Screen);
-
-    l.rect(...);
-    l.image(...);
-    l.text(...);
-});
-```
-
-### Camera 2.5D
-```cpp
-s.camera_2_5d({
-    .enabled          = true,
-    .position         = {cam_x, cam_y, -1000},
-    .point_of_interest = {0, 0, 0},
-    .zoom             = 1000.0f
-});
-```
-Convention: Z negative = closer (larger), Z positive = farther (smaller).
-
-### Animation
-```cpp
-auto x  = interpolate(ctx.frame, 0, 60, 0.0f, 800.0f, Easing::InOutCubic);
-auto [v, vel] = spring(ctx.frame, target, { .stiffness = 120, .damping = 14 });
-```
-
----
-
-## Coordinate System
-
-- Origin (0, 0) — top-left
-- X increases right, Y increases down
-- Z negative — closer to camera (Camera 2.5D)
-- **Hybrid Coordinates**:
-    - **2D Layers**: Use standard top-left screen coordinates.
-    - **3D / Projected Layers**: Use centered coordinates (e.g., 0,0 is screen center) to simplify perspective transformations and parallax.
-- Shapes are **center-anchored** by default
-- Draw order — painter's algorithm (insertion order for 2D, depth-sorted for 3D layers)
-
----
-
-## Dependencies
-
-| Library | Purpose |
+| Document | Content |
 |---|---|
-| glm | Math (Vec, Mat, Quat) |
-| stb_truetype | Font rasterization |
-| stb_image | PNG/JPG loading |
-| spdlog + fmt | Logging |
-| Google Highway | SIMD blending |
-| Taskflow | Parallel frame pipeline |
-| CLI11 | CLI argument parsing |
-| doctest | Tests |
-| **ffmpeg** (external) | MP4 encoding — must be in PATH, not linked |
+| **[ORIENTATION.md](docs/ORIENTATION.md)** | Architecture overview, repo structure, build guide, CLI reference, API overview, telemetry dashboard, test instructions |
+| **[ROADMAP.md](docs/ROADMAP.md)** | Active roadmap — prioritized items to implement |
+| **[IMPROVEMENTS.md](docs/IMPROVEMENTS.md)** | Full improvement backlog with matrix, gap analysis, and V3 blueprint |
+| **[V3_BLUEPRINT.md](docs/V3_BLUEPRINT.md)** | Tile-based architecture evolution (frame-based to tile-first) |
+| **[CHANGELOG.md](docs/CHANGELOG.md)** | Completed items and release history |
+| **[CONTRIBUTING.md](CONTRIBUTING.md)** | Contributor guide |
+| **`docs/improvements/`** | Detailed improvement tiers (game-changers, quick wins, long-term vision) |
 
 ---
 
-## Project Structure
+## Key Architecture (30 seconds)
 
-| Path | Content |
+```
+Composition (C++) → Scene → RenderGraph (DAG) → GraphExecutor → SoftwareRenderer → Framebuffer → PNG/MP4
+```
+
+| Layer | Role |
 |---|---|
-| `apps/chronon3d_cli/` | CLI entry point and commands |
-| `templates/` | Reusable scene templates and composition helpers |
-| `include/chronon3d/` | Public engine headers |
-| `src/` | Renderer, scene, IO implementations |
-| `tests/` | Automated tests (doctest) |
-| `tools/` | Build helpers (`chronon-linux.sh`) |
-| `assets/` | Test fonts and images |
-| `output/` | Generated files — gitignored |
+| **Composition** | Defines the animated scene in C++ |
+| **SceneBuilder** | Fluent API for shapes, layers, camera, effects |
+| **RenderGraph** | DAG of render nodes per frame (source, effect, composite) |
+| **GraphExecutor** | Executes the DAG with content-hash caching + dirty rect |
+| **SoftwareRenderer** | CPU rasterization with SIMD (Highway), Framebuffer Pool |
+
+Headless, deterministic, CPU-only, PMR arena per frame.
+
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE).

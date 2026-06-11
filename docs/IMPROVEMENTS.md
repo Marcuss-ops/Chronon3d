@@ -780,7 +780,7 @@ registry.register_shape(ShapeType::Path, create_path_processor());     // vince 
 | I8 | Ridurre boilerplate counters | Oggi | 🟢 Bassa | 🟢 Basso | ✅ Fatto |
 | S1 | io_uring pipe | Questa settimana | 🟡 Media | 🟡 Medio | ✅ Fatto |
 | S2 | Temporal hashing | Questa settimana | 🟡 Media | 🔴 Alto | Da fare |
-| S3 | L1/L2 prefetch | Questa settimana | 🟢 Bassa | 🟡 Medio | Da fare |
+| S3 | L1/L2 prefetch | Questa settimana | 🟢 Bassa | 🟡 Medio | 🟡 Parziale — implementato in color kernels, blur, path raster; da estendere a composite loop |
 | S4 | OpenEXR DWAA bake | Questa settimana | 🟡 Media | 🟡 Medio | ✅ Fatto |
 | S5 | Path flatten cache sharded | Questa settimana | 🟢 Bassa | 🟡 Medio | ✅ Fatto |
 | S6 | SIMD point-in-polygon | Questa settimana | 🟡 Media | 🟡 Medio | Da fare |
