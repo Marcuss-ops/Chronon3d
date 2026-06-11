@@ -45,7 +45,7 @@ sudo apt-get install -y ffmpeg
 
 ## Code Style
 
-- C++20 with `-fno-exceptions` and strict compiler flags.
+- C++20 with strict compiler flags. The codebase uses exceptions (`std::runtime_error`, `std::invalid_argument`, `std::out_of_range`) for error reporting in registries, asset loading, graph compilation, and other runtime validation paths.
 - 4-space indentation, no tabs.
 - Follow the naming conventions you see in the codebase:
   - `snake_case` for functions and variables

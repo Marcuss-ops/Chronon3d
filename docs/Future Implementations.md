@@ -1,4 +1,9 @@
-> ⚠️ **NOTA:** Questo documento contiene idee speculative e brainstorming. Molte sono state implementate nell'attuale codebase. Vedi [IMPROVEMENTS.md](IMPROVEMENTS.md) per la matrice aggiornata con gli item completati.
+> **Language status / Stato lingua:** Questo documento è interamente in italiano (come da policy storica del progetto).
+> Per la roadmap tecnica aggiornata in inglese, vedi `docs/ROADMAP.md` e `docs/improvements/00_INDEX.md`.
+
+> ⚠️ **NOTA STORICA:** Questo documento contiene idee speculative e brainstorming raccolte durante le prime fasi di sviluppo. Molte idee sono state **implementate** nell'attuale codebase (warmup, huge pages, EXR bake, FrameArena, dirty rect mask, DiskNodeCache).
+> Vedi [ROADMAP.md](ROADMAP.md) per la roadmap attiva aggiornata.
+> Vedi [CHANGELOG.md](CHANGELOG.md) per gli item completati.
 
 Sì, puoi preriscaldare il forno. Anzi, è la cosa più facile e più ignorata. E poi ci sono un paio di idee "pazze" che in un renderer come il tuo funzionano davvero.
 
