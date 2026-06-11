@@ -4,14 +4,12 @@
 
 namespace chronon3d::content::text {
 
-// ── Forward declarations (definitions in separate .cpp files) ──────────
+// ── Forward declarations (fresh compositions) ───────────────────────────
 
-Composition text_grid_background();
-Composition text_basic();
-Composition text_hello();
-Composition text_image_on_grid();
-Composition text_quote_on_grid();
-Composition text_shape_on_grid();
+Composition text_center_title();
+Composition text_center_glow();
+Composition text_subtitle_glow();
+Composition text_badge_glow();
 
 } // namespace chronon3d::content::text
 
@@ -24,15 +22,11 @@ public:
     void register_with(ExtensionRegistry& registry) override {
         using namespace content::text;
 
-        // Simple scenes (grid background + clean text)
-        registry.register_composition("TextGridBackground", text_grid_background);
-        registry.register_composition("TextBasic", text_basic);
-        registry.register_composition("TextHello", text_hello);
-        registry.register_composition("ImageOnGrid", text_image_on_grid);
-        registry.register_composition("QuoteOnGrid", text_quote_on_grid);
-        registry.register_composition("ShapeOnGrid", text_shape_on_grid);
-
-        // (Typewriter compositions removed — fresh start)
+        // Fresh compositions: grid + centered text + glow
+        registry.register_composition("TextCenterTitle", text_center_title);
+        registry.register_composition("TextCenterGlow", text_center_glow);
+        registry.register_composition("TextSubtitleGlow", text_subtitle_glow);
+        registry.register_composition("TextBadgeGlow", text_badge_glow);
     }
 };
 
