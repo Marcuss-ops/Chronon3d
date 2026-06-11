@@ -1,5 +1,6 @@
 #include <chronon3d/core/profiling/benchmark_report.hpp>
 
+#include <nlohmann/json.hpp>
 #include <chrono>
 #include <ctime>
 #include <sstream>

@@ -1,5 +1,6 @@
 #include "render_preflight_helpers.hpp"
 
+#include <nlohmann/json.hpp>
 #include <chronon3d/core/enum_utils.hpp>
 
 #include <sstream>
