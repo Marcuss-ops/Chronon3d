@@ -128,23 +128,6 @@ template <typename T>
     return hash_combine(seed, hash_value(p.additive));
 }
 
-[[nodiscard]] inline u64 hash_focus_in_ladder_params(const FocusInLadderParams& p) {
-    u64 seed = 0;
-    for (f32 level : p.levels)
-        seed = hash_combine(seed, hash_value(level));
-    seed = hash_combine(seed, hash_value(static_cast<int>(p.duration)));
-    seed = hash_combine(seed, hash_value(static_cast<int>(p.easing.preset)));
-    if (p.easing.cubic.has_value()) {
-        seed = hash_combine(seed, hash_value(p.easing.cubic->x1));
-        seed = hash_combine(seed, hash_value(p.easing.cubic->y1));
-        seed = hash_combine(seed, hash_value(p.easing.cubic->x2));
-        seed = hash_combine(seed, hash_value(p.easing.cubic->y2));
-    }
-    seed = hash_combine(seed, hash_value(p.interpolate_between_levels));
-    seed = hash_combine(seed, hash_value(p.scale_start));
-    return hash_combine(seed, hash_value(p.scale_end));
-}
-
 [[nodiscard]] inline u64 hash_bloom_params(const BloomParams& p) {
     u64 seed = hash_value(p.threshold);
     seed = hash_combine(seed, hash_value(p.radius));
@@ -222,11 +205,6 @@ template <typename T>
         case Vignette: {
             if (auto* p = std::get_if<VignetteParams>(&e.params))
                 seed = hash_combine(seed, hash_bytes(p, sizeof(*p)));
-            break;
-        }
-        case FocusInLadder: {
-            if (auto* p = std::get_if<FocusInLadderParams>(&e.params))
-                seed = hash_combine(seed, hash_focus_in_ladder_params(*p));
             break;
         }
         case Unknown:

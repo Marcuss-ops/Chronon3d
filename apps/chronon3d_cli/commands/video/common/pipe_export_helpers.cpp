@@ -138,10 +138,9 @@ void warmup_pipe_renderer(
     uint64_t saved_fb_reuses = 0;
     uint64_t saved_fb_bytes = 0;
     uint64_t saved_fb_peak = 0;
-    uint64_t saved_focus_in_ladder_warmup = 0;
 
     const auto warmup_t0 = std::chrono::steady_clock::now();
-    auto warmup_result = runtime::warmup_renderer(renderer, comp, runtime::RendererWarmupOptions{
+    runtime::warmup_renderer(renderer, comp, runtime::RendererWarmupOptions{
         .width = comp.width(),
         .height = comp.height(),
         .framebuffer_count = opts.warmup_framebuffers,
@@ -150,13 +149,8 @@ void warmup_pipe_renderer(
         .render_dummy_frame = opts.warmup_dummy_frame,
         .dummy_frame = 0,
         .quiet = false,
-        .warmup_focus_in_ladder = opts.warmup_focus_in_ladder
     });
     const auto warmup_t1 = std::chrono::steady_clock::now();
-
-    // Capture FocusInLadder precompute time before counter reset
-    saved_focus_in_ladder_warmup = static_cast<uint64_t>(
-        std::llround(warmup_result.focus_in_ladder_precompute_ms));
 
     if (renderer.counters()) {
         const auto warmup_ms = static_cast<uint64_t>(
@@ -219,8 +213,6 @@ void warmup_pipe_renderer(
         if (saved_cpu_user > 0) renderer.counters()->process_cpu_user_ms.store(saved_cpu_user, std::memory_order_relaxed);
         if (saved_cpu_sys > 0) renderer.counters()->process_cpu_sys_ms.store(saved_cpu_sys, std::memory_order_relaxed);
         if (saved_rss > 0) renderer.counters()->process_rss_peak_mb.store(saved_rss, std::memory_order_relaxed);
-        if (saved_focus_in_ladder_warmup > 0) renderer.counters()->effect_focus_in_ladder_warmup_ms.store(
-            saved_focus_in_ladder_warmup, std::memory_order_relaxed);
     }
 
     chronon3d::telemetry::clear_telemetry_stores();

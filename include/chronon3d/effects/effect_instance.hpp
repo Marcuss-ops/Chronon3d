@@ -27,7 +27,6 @@ enum class EffectType : uint8_t {
     HueRotate,
     Invert,
     Vignette,
-    FocusInLadder,
 };
 
 // ── effect_type_for<T> trait ────────────────────────────────────────────────
@@ -85,7 +84,6 @@ struct EffectInstance {
             case EffectType::HueRotate:   return typeid(HueRotateParams);
             case EffectType::Invert:      return typeid(InvertParams);
             case EffectType::Vignette:       return typeid(VignetteParams);
-            case EffectType::FocusInLadder:  return typeid(FocusInLadderParams);
             default:                         return typeid(void);
         }
     }
@@ -110,7 +108,6 @@ struct EffectInstance {
         case 10: return EffectType::HueRotate;
         case 11: return EffectType::Invert;
         case 12: return EffectType::Vignette;
-        case 13: return EffectType::FocusInLadder;
         default: return EffectType::Unknown;
     }
 }
