@@ -26,6 +26,14 @@ void write_hot_nodes(std::stringstream& out, const ReportModel& model, const Ana
     uint64_t phase_costs_total_ms = 0;
     for (const auto& counter : model.phase_cost_counters) {
         if (counter.value == 0) continue;
+        
+        // Determine if this counter stores microseconds (suffix _us) vs milliseconds (_ms).
+        const bool is_us = counter.name.size() > 3 &&
+            counter.name.substr(counter.name.size() - 3) == "_us";
+        const double display_value_ms = is_us
+            ? static_cast<double>(counter.value) / 1000.0
+            : static_cast<double>(counter.value);
+        
         std::string label = counter.name;
         if (label == "clearnode_memcpy_ms") label = "ClearNode memcpy";
         else if (label == "clearnode_clear_ms") label = "ClearNode clear";
@@ -35,13 +43,16 @@ void write_hot_nodes(std::stringstream& out, const ReportModel& model, const Ana
         else if (label == "compositenode_copy_ms") label = "Composite copy";
         else if (label == "compositenode_setup_ms") label = "Composite setup";
         else if (label == "compositenode_dispatch_ms") label = "Composite dispatch";
+        else if (label == "compositenode_acquire_ms") label = "Composite acquire";
+        else if (label == "compositenode_overhead_ms") label = "Composite overhead";
+        else if (label == "compositenode_internal_us") label = "Composite internal (non-blend)";
         else if (label == "frame_conversion_copy_ms") label = "Frame conversion copy";
         else if (label == "video_pipe_write_ms") label = "Video pipe write";
 
         out << "| " << label << " | Overhead | 1 | "
-            << format_ms(static_cast<double>(counter.value)) << " | "
-            << format_ms(static_cast<double>(counter.value)) << " | — | 0 |\n";
-        phase_costs_total_ms += counter.value;
+            << format_ms(display_value_ms) << " | "
+            << format_ms(display_value_ms) << " | — | 0 |\n";
+        phase_costs_total_ms += static_cast<uint64_t>(display_value_ms);
     }
 
     // Parse node_execute_actual_ms

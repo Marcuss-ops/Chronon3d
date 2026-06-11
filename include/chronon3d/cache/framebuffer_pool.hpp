@@ -73,7 +73,11 @@ struct FramebufferPoolStats {
 // ---------------------------------------------------------------------------
 class FramebufferPool : public std::enable_shared_from_this<FramebufferPool> {
 public:
-    explicit FramebufferPool(size_t max_bytes = 8192ULL * 1024ULL * 1024ULL);
+    // Default max: 550 MB — reduced from 700 MB to bring FB peak
+    // under 550 MB (target set by benchmarking).  Enough for ~16
+    // full-resolution 1920×1080 framebuffers.
+    // Override via CHRONON_FB_POOL_MAX_MB env var.
+    explicit FramebufferPool(size_t max_bytes = 550ULL * 1024ULL * 1024ULL);
     ~FramebufferPool();
 
     /// Set a static arena to be used for new allocations.
