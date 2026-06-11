@@ -23,27 +23,11 @@ Composition
 **Key characteristics:**
 - Render graph compilation + optimisation
 - Dirty-rect / tile-based incremental rendering
-- Precomputed blur ladders (FocusInLadder)
 - Cache: node cache, framebuffer pool, compiled graph cache
 - Double-buffered render/write pipeline (WritePool)
 - Per-frame telemetry collection
 - SSAA / motion blur handled in `render_composition_frame()`
 
----
-
-## Legacy runtime path (RenderPipeline)
-
-```
-Composition
-  → RenderPipeline::run                    (src/runtime/pipeline.cpp)
-    → evaluate all frames                  (sequential)
-    → renderer.render_scene                (Taskflow parallel)
-    → output callback                      (sequential)
-```
-
-**Status:** Legacy. Only used by `BenchRunner` in benchmark contexts. Uses the old `Renderer::render_scene()` API (pre-graph-pipeline) and spawns its own Taskflow executor.
-
-**Not maintained — no dirty rects, no tile execution, no graph caching.**
 
 ---
 
@@ -56,13 +40,4 @@ Composition
 | `render_scene_via_graph` | `src/render_graph/pipeline/scene.cpp` | **Active** — scene-level orchestration |
 | 5 scene phases | `src/render_graph/pipeline/scene_*.cpp` | **Active** — phase decomposition |
 | `GraphExecutor` | `src/render_graph/executor/` | **Active** — execution engine |
-| `RenderPipeline::run` | `src/runtime/pipeline.cpp` | **Legacy** — pre-graph path |
-| `BenchRunner` | `include/chronon3d/runtime/bench_runner.hpp` | **Active** — still uses legacy path |
-
----
-
-## Recommended actions
-
-1. Rename `RenderPipeline` → `LegacyRenderPipeline` with `[[deprecated]]` alias
-2. Eventually route `BenchRunner` through `render_frame()` + `render_composition_frame()`
-3. Remove the legacy path entirely once benchmarks are migrated
+| `BenchRunner` | `include/chronon3d/runtime/bench_runner.hpp` | **Active** |
