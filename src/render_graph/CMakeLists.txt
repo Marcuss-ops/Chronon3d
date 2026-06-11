@@ -54,8 +54,8 @@ add_library(chronon3d_graph STATIC
     nodes/transform_kernels.cpp
     nodes/transition_node.cpp
     nodes/transition/transition_node_math.cpp
-    # Cross-directory dependency: lives in src/scene/model/ but belongs to graph
-    ../scene/model/mask_utils.cpp
+    # Moved from src/scene/model/ — mask_utils belongs to graph, not scene
+    mask_utils.cpp
 )
 set_target_properties(chronon3d_graph PROPERTIES UNITY_BUILD OFF)
 target_link_libraries(chronon3d_graph PUBLIC

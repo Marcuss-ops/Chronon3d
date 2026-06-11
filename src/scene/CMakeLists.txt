@@ -9,29 +9,29 @@
 add_library(chronon3d_scene STATIC
     # Local files outside subsystem dirs
     utils/dark_grid_background.cpp
-    # Cross-directory sources
-    ../timeline/timeline_builder.cpp
-    ../animations/camera/camera_tilt_clips.cpp
-    ../animations/camera_motion_applier.cpp
-    ../layout/layout_solver.cpp
-    ../math/path_utils.cpp
-    ../presets/camera_motion_clip.cpp
-    ../presets/motion_renderer.cpp
-    ../presets/motion_resolver.cpp
-    ../presets/motion_preset_registry.cpp
-    ../presets/motion_presets_reveal.cpp
-    ../presets/motion_presets_3d.cpp
-    ../presets/motion_presets_glow.cpp
-    ../presets/motion_presets_idle.cpp
-    ../presets/motion_presets_impact.cpp
-    ../presets/phrase_presets.cpp
-    ../presets/phrase_group_builder.cpp
-    ../specscene/model/specscene.cpp
-    ../specscene/parser/specscene_parsers.cpp
-    ../specscene/compiler/specscene_compiler.cpp
-    ../specscene/validation/specscene_validator.cpp
-    ../media/media_placement.cpp
-    ../vector/path_factories.cpp
+    # Moved into src/scene/ to eliminate ../ cross-directory references
+    timeline_builder.cpp
+    camera_tilt_clips.cpp
+    camera_motion_applier.cpp
+    layout_solver.cpp
+    path_utils.cpp
+    media_placement.cpp
+    path_factories.cpp
+    presets/camera_motion_clip.cpp
+    presets/motion_renderer.cpp
+    presets/motion_resolver.cpp
+    presets/motion_preset_registry.cpp
+    presets/motion_presets_reveal.cpp
+    presets/motion_presets_3d.cpp
+    presets/motion_presets_glow.cpp
+    presets/motion_presets_idle.cpp
+    presets/motion_presets_impact.cpp
+    presets/phrase_presets.cpp
+    presets/phrase_group_builder.cpp
+    specscene/specscene.cpp
+    specscene/specscene_parsers.cpp
+    specscene/specscene_compiler.cpp
+    specscene/specscene_validator.cpp
 )
 
 # ==============================================================================
