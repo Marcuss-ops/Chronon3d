@@ -9,7 +9,7 @@ namespace {
 [[nodiscard]] RichTextLine make_single_run_line(std::string text,
                                                 Color color,
                                                 f32 size,
-                                                std::string font = "assets/fonts/Inter-Bold.ttf") {
+                                                std::string font = "assets/fonts/Poppins-Bold.ttf") {
     RichTextLine line;
     line.run(std::move(text), color, size, std::move(font));
     return line;
@@ -171,7 +171,7 @@ Composition premium_thumbnail_buttery_smooth() {
                 .text = "*",
                 .size = {60.0f, 60.0f},
                 .pos = {610.0f, -16.0f, 0.0f},
-                .font_path = "assets/fonts/Inter-Bold.ttf",
+                .font_path = "assets/fonts/Poppins-Bold.ttf",
                 .font_family = "Inter",
                 .font_weight = 800,
                 .font_size = 52.0f,
@@ -262,7 +262,7 @@ Composition premium_thumbnail_saas_blue() {
             l.text("ae_text", {
                 .text = "Ae",
                 .size = {120.0f, 120.0f},
-                .font_path = "assets/fonts/Inter-Bold.ttf",
+                .font_path = "assets/fonts/Poppins-Bold.ttf",
                 .font_family = "Inter",
                 .font_weight = 800,
                 .font_size = 48.0f,
@@ -323,7 +323,7 @@ Composition premium_thumbnail_saas_blue() {
                 .text = "SAAS",
                 .size = {960.0f, 260.0f},
                 .pos = {0.0f, 0.0f, 0.0f},
-                .font_path = "assets/fonts/Inter-Bold.ttf",
+                .font_path = "assets/fonts/Poppins-Bold.ttf",
                 .font_family = "Inter",
                 .font_weight = 800,
                 .font_size = 110.0f,

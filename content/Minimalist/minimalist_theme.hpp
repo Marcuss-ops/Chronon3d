@@ -23,7 +23,7 @@ inline constexpr Color BORDER_COLOR     = {0.25f, 0.27f, 0.31f, 0.8f};
 inline constexpr Color IMAGE_BACKDROP   = {0.0f,  0.0f,  0.0f,  0.35f};
 
 // ── Typography ─────────────────────────────────────────────────────────────
-inline constexpr const char* FONT_PATH = "assets/fonts/Inter-Bold.ttf";
+inline constexpr const char* FONT_PATH = "assets/fonts/Poppins-Bold.ttf";
 inline constexpr f32 FONT_SIZE         = 58.0f;
 inline constexpr f32 MIN_FONT_SIZE     = 42.0f;
 inline constexpr f32 MAX_FONT_SIZE   = 64.0f;
