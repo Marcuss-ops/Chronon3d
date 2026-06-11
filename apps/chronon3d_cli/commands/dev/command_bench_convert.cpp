@@ -17,6 +17,19 @@
 #include <sstream>
 #include <vector>
 
+// Forward declarations for libyuv — C linkage, no header conflicts.
+extern "C" {
+int ABGRToI420(const uint8_t* src_abgr, int src_stride_abgr,
+               uint8_t* dst_y, int dst_stride_y,
+               uint8_t* dst_u, int dst_stride_u,
+               uint8_t* dst_v, int dst_stride_v,
+               int width, int height);
+int ABGRToNV12(const uint8_t* src_abgr, int src_stride_abgr,
+               uint8_t* dst_y, int dst_stride_y,
+               uint8_t* dst_uv, int dst_stride_uv,
+               int width, int height);
+}
+
 namespace chronon3d::cli {
 
 using namespace video;
@@ -172,6 +185,60 @@ static BenchResult run_bench_path(
                 video::convert_rgba_to_yuv420p_swscale(creq);
             else
                 video::convert_rgba_to_nv12_swscale(creq);
+
+        } else if (name == "libyuv") {
+            // Float framebuffer → RGBA8 staging → libyuv ABGRToI420/NV12.
+            // (Our byte order R,G,B,A = libyuv ABGR).
+            const size_t rgba_bytes = static_cast<size_t>(w) * h * 4;
+            thread_local std::vector<uint8_t> rgba_buf;
+            if (rgba_buf.size() < rgba_bytes) rgba_buf.resize(rgba_bytes);
+
+            // Serial float→RGBA8 conversion (no parallel_for needed for benchmark)
+            const Color* src_data = fb.data();
+            const int src_stride = fb.allocated_width();
+            for (int y = 0; y < h; ++y) {
+                const Color* src_row = src_data + static_cast<size_t>(y) * src_stride;
+                uint8_t* dst_row = rgba_buf.data() + static_cast<size_t>(y) * w * 4;
+                for (int x = 0; x < w; ++x) {
+                    const Color& c = src_row[x];
+                    if (apply_gamma) {
+                        dst_row[x * 4 + 0] = Color::linear_to_srgb8(c.r);
+                        dst_row[x * 4 + 1] = Color::linear_to_srgb8(c.g);
+                        dst_row[x * 4 + 2] = Color::linear_to_srgb8(c.b);
+                    } else {
+                        auto to8 = [](float v) -> uint8_t {
+                            return static_cast<uint8_t>(
+                                std::clamp(v, 0.0f, 1.0f) * 255.0f + 0.5f);
+                        };
+                        dst_row[x * 4 + 0] = to8(c.r);
+                        dst_row[x * 4 + 1] = to8(c.g);
+                        dst_row[x * 4 + 2] = to8(c.b);
+                    }
+                    dst_row[x * 4 + 3] = static_cast<uint8_t>(
+                        std::clamp(c.a, 0.0f, 1.0f) * 255.0f + 0.5f);
+                }
+            }
+
+            // RGBA8 → YUV via libyuv
+            const int src_stride_rgba = w * 4;
+            const int dst_stride_y = w;
+            if (fmt_name == "yuv420p") {
+                uint8_t* dst_u = work_buf.data() + static_cast<size_t>(w) * h;
+                uint8_t* dst_v = work_buf.data() + static_cast<size_t>(w) * h * 5 / 4;
+                ABGRToI420(
+                    rgba_buf.data(), src_stride_rgba,
+                    work_buf.data(), dst_stride_y,
+                    dst_u, w / 2,
+                    dst_v, w / 2,
+                    w, h);
+            } else {
+                uint8_t* dst_uv = work_buf.data() + static_cast<size_t>(w) * h;
+                ABGRToNV12(
+                    rgba_buf.data(), src_stride_rgba,
+                    work_buf.data(), dst_stride_y,
+                    dst_uv, w,
+                    w, h);
+            }
         }
 
         total_ns += now_ns() - t0;
@@ -187,6 +254,7 @@ static BenchResult run_bench_path(
     result.name      = name;
     result.mean_ns   = mean_ns;
     result.gb_s      = gb_s;
+    result.used_simd = (name == "direct_hwy_yuv" || name == "libyuv");
     if (name != "direct_hwy_yuv" && !ref_buf.empty()) {
         result.bytes_mismatch   = count_mismatched_bytes(ref_buf.data(), work_buf.data(), total_bytes);
         result.max_channel_diff = max_abs_diff(ref_buf.data(), work_buf.data(), total_bytes);
@@ -270,6 +338,11 @@ int command_bench_convert(const CompositionRegistry& registry, const BenchConver
                               args.apply_gamma, args.iterations,
                               ref_buf, work_buf);
 
+    // ── Phase 4: libyuv (RGBA8 staging + libyuv ABGRToI420/NV12) ───────
+    auto libyuv_res = run_bench_path("libyuv", *fb, w, h, fmt,
+                                     args.apply_gamma, args.iterations,
+                                     ref_buf, work_buf);
+
     // ── Print results table ────────────────────────────────────────────
     const auto col_name = std::setw(17);
     const auto col_val  = std::setw(12);
@@ -316,6 +389,7 @@ int command_bench_convert(const CompositionRegistry& registry, const BenchConver
     print_row(hwy);
     print_row(tbb);
     print_row(sws);
+    print_row(libyuv_res);
 
     // ── Speedup ratios ─────────────────────────────────────────────────
     if (hwy.mean_ns > 0 && tbb.mean_ns > 0) {
@@ -333,6 +407,20 @@ int command_bench_convert(const CompositionRegistry& registry, const BenchConver
         if (sws.bytes_mismatch > 0) {
             const double mismatch_pct = yuv_total > 0
                 ? (static_cast<double>(sws.bytes_mismatch) / static_cast<double>(yuv_total)) * 100.0
+                : 0.0;
+            out << "  (" << fmt::format("{:.2f}%", mismatch_pct) << " bytes differ)";
+        }
+        out << "\n";
+    }
+    if (hwy.mean_ns > 0 && libyuv_res.mean_ns > 0) {
+        const double speedup = libyuv_res.mean_ns / hwy.mean_ns;
+        out << "  HWY SIMD vs libyuv:      "
+            << fmt::format("{:.2f}× faster", speedup);
+        if (libyuv_res.bytes_mismatch == 0) {
+            out << "  (pixel-identical)";
+        } else {
+            const double mismatch_pct = yuv_total > 0
+                ? (static_cast<double>(libyuv_res.bytes_mismatch) / static_cast<double>(yuv_total)) * 100.0
                 : 0.0;
             out << "  (" << fmt::format("{:.2f}%", mismatch_pct) << " bytes differ)";
         }
