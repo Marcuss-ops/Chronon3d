@@ -1,6 +1,7 @@
 #include <chronon3d/text/glyph_atlas.hpp>
 #include <chronon3d/cache/lru_cache.hpp>
 #include <blend2d.h>
+#include <spdlog/spdlog.h>
 
 #include <cstdlib>
 #include <shared_mutex>
@@ -40,6 +41,7 @@ size_t resolve_atlas_max_mb() {
         size_t mb = static_cast<size_t>(std::stoull(env));
         return mb > 0 ? mb * 1024ULL * 1024ULL : 32ULL * 1024ULL * 1024ULL;
     } catch (...) {
+        spdlog::warn("CHRONON_GLYPH_ATLAS_MAX_MB: invalid value '{}', using default", env);
         return 32ULL * 1024ULL * 1024ULL;
     }
 }

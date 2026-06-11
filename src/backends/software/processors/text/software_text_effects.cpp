@@ -55,6 +55,7 @@ size_t resolve_cache_max_mb(const char* env_name, size_t default_mb) {
         size_t mb = static_cast<size_t>(std::stoull(env));
         return mb > 0 ? mb * 1024ULL * 1024ULL : default_mb * 1024ULL * 1024ULL;
     } catch (...) {
+        spdlog::warn("{}: invalid value '{}', using default", env_name, env);
         return default_mb * 1024ULL * 1024ULL;
     }
 }

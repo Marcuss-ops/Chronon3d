@@ -1,5 +1,6 @@
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
+#include <spdlog/spdlog.h>
 #include <cstdlib>
 #include <string_view>
 
@@ -31,6 +32,7 @@ size_t resolve_default_capacity(size_t fallback) {
         }
         return mb * 1024ULL * 1024ULL;
     } catch (...) {
+        spdlog::warn("CHRONON_NODE_CACHE_MAX_MB: invalid value '{}', using default", env);
         return fallback;
     }
 }
