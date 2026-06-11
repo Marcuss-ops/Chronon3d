@@ -2,7 +2,6 @@ import os
 import json
 import sqlite3
 import time
-import secrets
 from functools import wraps
 from pathlib import Path
 from flask import Flask, jsonify, request, send_file, Response
@@ -15,11 +14,7 @@ app = Flask(__name__)
 CORS(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-# ── Simple Password Auth ─────────────────────────────────────────────────────────────
-DASHBOARD_PASSWORD = os.environ.get("CHRONON3D_DASHBOARD_PASSWORD", "")
-# In-memory token store (valid for session lifetime)
-auth_tokens = set()
-
+# ── Auth: disabled (no-op) ───────────────────────────────────────────────────────────
 def require_auth(f):
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -85,20 +80,10 @@ def resolve_artifact_path(raw_path: str) -> Path | None:
 
 @app.route('/api/login', methods=['POST'])
 def login():
-    if not DASHBOARD_PASSWORD:
-        return jsonify({"error": "Dashboard password not configured (set CHRONON3D_DASHBOARD_PASSWORD)"}), 500
-    data = request.get_json() or {}
-    password = data.get('password', '')
-    if password == DASHBOARD_PASSWORD:
-        token = secrets.token_urlsafe(32)
-        auth_tokens.add(token)
-        return jsonify({"token": token, "success": True})
-    return jsonify({"error": "Invalid password"}), 403
+    return jsonify({"token": "no-auth", "success": True})
 
 @app.route('/api/logout', methods=['POST'])
 def logout():
-    token = request.headers.get('Authorization', '').replace('Bearer ', '')
-    auth_tokens.discard(token)
     return jsonify({"success": True})
 
 @app.route('/api/runs')
