@@ -47,6 +47,11 @@ struct RenderArgs {
     bool benchmark_all{false};
     bool report{false};
     std::string command_line; // reconstructed from argv
+
+    // Quick-preview batch count: when > 0, dev preview renders frames 0..count-1
+    // as sequential PNGs instead of a single frame.  This avoids the full render
+    // or video-encode path, giving a sub-second feedback loop for timing checks.
+    int quick_frames{0};
 };
 
 struct VideoArgs {

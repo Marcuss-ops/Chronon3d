@@ -33,6 +33,7 @@ inline void bottom_label(SceneBuilder& s, const std::string& text, Color col = C
             .pos  = {0,0,0},
             .font_size = 18.f,
             .color = col,
+            .anchor = TextAnchor::Center,
             .align = TextAlign::Center,
             .vertical_align = VerticalAlign::Middle
         });
