@@ -83,17 +83,15 @@ RenderNodeCachePolicy MultiSourceNode::cache_policy() const {
     }
     // Hybrid policy for animated multi-source: the cache key is frame-
     // independent — cache_key() always sets frame = Frame{0} and embeds
-    // the items' matrices in the params_hash.  PerFrame lifetime prevents
-    // unbounded framebuffer accumulation (the node cache's LRU evicts
-    // entries between frames, keeping peak memory ~1× a single frame).
-    // Consecutive frames with the same effective transform benefit from
-    // cross-frame cache hits while memory stays bounded.
+    // the items' matrices in the params_hash.  Entries persist via the
+    // node cache's LRU eviction policy; unique transforms accumulate
+    // entries up to the cache capacity, then oldest are evicted.
     return RenderNodeCachePolicy{
         .cacheable = true,
-        .frame_dependent = false,
+        .frame_dependent = false,     // frame number NOT in the key dimension
         .frame_invariant = false,
         .disk_cacheable = false,
-        .lifetime = CacheLifetime::PerFrame,
+        .lifetime = CacheLifetime::PersistentDisk,  // kept until LRU evicts
         .invalidation = CacheInvalidation::WhenParamsChange,
         .debug_reason = "multi_source_hybrid"
     };
