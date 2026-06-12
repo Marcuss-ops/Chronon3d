@@ -77,7 +77,7 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
 
     // ── Arena, queue ──────────────────────────────────────────────────────
     const size_t arena_size = compute_pipe_arena_size(comp.width(), comp.height());
-    session->triple_arena = std::make_unique<TripleBufferArena>(8, arena_size);
+    session->triple_arena = std::make_unique<TripleBufferArena>(4, arena_size);
 
     // ── Writer thread (context stored in session so it outlives the thread) ─
     auto writer_ctx = std::unique_ptr<WriterThreadContext>(
