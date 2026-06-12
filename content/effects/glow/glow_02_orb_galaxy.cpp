@@ -55,7 +55,7 @@ Composition glow_02_orb_galaxy() {
                 l.text("t", {
                     .text=labels[idx], .size={140,32}, .pos={0,0,0},
                     .font_size=14.f, .color=Color{0.65f,0.72f,0.85f,1},
-                    .align=TextAlign::Center, .vertical_align=VerticalAlign::Middle
+                    .anchor=TextAnchor::Center, .align=TextAlign::Center, .vertical_align=VerticalAlign::Middle
                 });
             });
         }

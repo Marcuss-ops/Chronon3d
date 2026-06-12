@@ -5,6 +5,7 @@
 #include "../../utils/common/cli_utils.hpp"
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
+#include <cctype>
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
 #include <chronon3d/core/profiling/profiling.hpp>
@@ -50,7 +51,82 @@ int command_preview(const CompositionRegistry& registry, const RenderArgs& args)
         return 1;
     }
 
-    // Default to middle frame if default value "0" or empty
+    // ── Batch mode: render N sequential frames as individual PNGs ─────
+    if (args.quick_frames > 0) {
+        const Frame count = static_cast<Frame>(args.quick_frames);
+        const Frame duration = plan->comp->duration();
+        const Frame actual = std::min(count, duration);
+
+        spdlog::info("Quick batch: rendering {} frames (0..{}) of '{}'...",
+                     actual, actual - 1, plan->comp_id);
+
+        auto renderer = create_renderer(registry, plan->settings);
+        const auto wall_t0 = profiling::now();
+
+        // Resolve output directory from the output path
+        std::filesystem::path out_path(args.output.empty()
+            ? chronon_artifact_path("previews", "preview_0000.png")
+            : std::filesystem::path(args.output));
+        std::filesystem::path out_dir = out_path.parent_path();
+        std::string base_name = out_path.stem().string();
+        // Strip trailing frame number pattern if present (e.g. "preview_0000" → "preview")
+        // We always append _{:04d} so the user's -o path is treated as a prefix.
+        {
+            // Find the last underscore followed by digits — if present, strip it
+            std::string stem = out_path.stem().string();
+            auto pos = stem.find_last_of('_');
+            if (pos != std::string::npos && pos + 1 < stem.size()) {
+                bool all_digits = true;
+                for (size_t i = pos + 1; i < stem.size(); ++i) {
+                    if (!std::isdigit(static_cast<unsigned char>(stem[i]))) {
+                        all_digits = false;
+                        break;
+                    }
+                }
+                if (all_digits) {
+                    stem = stem.substr(0, pos);  // strip trailing _NNNN
+                }
+            }
+            base_name = stem;
+        }
+
+        if (!out_dir.empty()) {
+            std::error_code ec;
+            std::filesystem::create_directories(out_dir, ec);
+            if (ec) {
+                spdlog::error("Failed to create directory {}: {}", out_dir.string(), ec.message());
+                return 1;
+            }
+        }
+
+        int saved_count = 0;
+        const auto render_t0 = profiling::now();
+        for (Frame f = 0; f < actual; ++f) {
+            auto fb = renderer->render_frame(*plan->comp, f);
+            if (!fb) {
+                spdlog::warn("Failed to render frame {} — skipping", f);
+                continue;
+            }
+
+            // Build output path: <dir>/<base>_0000.png, <dir>/<base>_0001.png, ...
+            auto frame_path = out_dir /
+                fmt::format("{}_{:04d}.png", base_name, f);
+            if (save_png(*fb, frame_path.string())) {
+                ++saved_count;
+            } else {
+                spdlog::warn("Failed to save frame {} to {}", f, frame_path.string());
+            }
+        }
+        const auto render_t1 = profiling::now();
+        const auto wall_t1 = profiling::now();
+
+        spdlog::info("Quick batch done: {}/{} frames saved in {:.0f}ms",
+                     saved_count, actual,
+                     profiling::duration_ms(wall_t0, wall_t1));
+        return (saved_count > 0) ? 0 : 1;
+    }
+
+    // ── Single-frame mode (existing behaviour) ────────────────────────
     Frame frame{0};
     if (args.frames == "0" || args.frames.empty()) {
         frame = static_cast<Frame>(plan->comp->duration() / 2);
