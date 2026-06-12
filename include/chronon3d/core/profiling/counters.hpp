@@ -188,7 +188,15 @@ constexpr std::size_t kHardwareDestructiveInterferenceSize = 64;
     X(native_av_receive_packet_ms) \
     X(native_av_mux_write_ms) \
     X(native_av_trailer_ms) \
-    X(native_av_convert_skipped_ms)
+    X(native_av_convert_skipped_ms) \
+    X(video_sink_mode_id) \
+    X(video_frames_submitted) \
+    X(video_frames_converted) \
+    X(video_frames_written_counter) \
+    X(video_frames_dropped) \
+    X(video_convert_only_ms) \
+    X(video_pipe_write_only_ms) \
+    X(video_writer_wait_ms)
 
 // ── Combined umbrella (backward-compatible) ─────────────────────────────────
 
