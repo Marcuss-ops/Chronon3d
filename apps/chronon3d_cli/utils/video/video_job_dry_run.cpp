@@ -19,11 +19,12 @@ int dry_run_video_job(const VideoJobPlan& plan) {
                  plan.comp->width(), plan.comp->height());
     spdlog::info("[dry-run]   Frame range: {} – {} ({} frames)",
                  plan.start, plan.end_exclusive, total);
-    spdlog::info("[dry-run]   FPS: {}", plan.export_options.fps);
+    spdlog::info("[dry-run]   FPS: {}", plan.output.fps);
     spdlog::info("[dry-run]   Duration: {:.1f}s",
-                 static_cast<double>(total) / plan.export_options.fps);
-    spdlog::info("[dry-run]   Output: {}", plan.export_options.output);
-    spdlog::info("[dry-run]   FFmpeg mode: {}", plan.export_options.ffmpeg_mode);
+                 static_cast<double>(total) / plan.output.fps);
+    spdlog::info("[dry-run]   Output: {}", plan.output.output);
+    spdlog::info("[dry-run]   Sink: {} ({})",
+                 to_string(plan.sink.sink_type), plan.sink.ffmpeg_mode);
     spdlog::info("[dry-run]   SSAA: {}×", plan.settings.ssaa_factor);
 
     // Try to build the render graph to detect errors early

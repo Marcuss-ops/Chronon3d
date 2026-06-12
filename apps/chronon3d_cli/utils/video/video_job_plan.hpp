@@ -12,6 +12,11 @@
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/backends/software/render_settings.hpp>
 #include "../../commands/video/common/video_export_common.hpp"
+#include "../../commands/video/common/output_options.hpp"
+#include "../../commands/video/common/encoder_options.hpp"
+#include "../../commands/video/common/pipe_options.hpp"
+#include "../../commands/video/common/warmup_options.hpp"
+#include "../../commands/video/common/sink_options.hpp"
 #include <optional>
 #include <string>
 
@@ -19,12 +24,26 @@ namespace chronon3d::cli {
 
 /// Aggregated parameters built during the planning phase.
 /// Owns the composition via shared_ptr so downstream phases are safe.
+///
+/// Uses focused sub-option structs (OutputOptions, EncoderOptions, etc.)
+/// instead of the monolithic FfmpegExportOptions where possible.  The
+/// flat FfmpegExportOptions is still kept for backward compat with the
+/// legacy render_and_encode_ffmpeg() dispatch path.
 struct VideoJobPlan {
     const CompositionRegistry*            registry{};
     std::shared_ptr<const Composition>    comp;
     std::string                           comp_id;
 
     RenderSettings                        settings;
+
+    // Focused sub-option structs (replacing FfmpegExportOptions)
+    OutputOptions                         output;
+    EncoderOptions                        encoder;
+    PipeOptions                           pipe;
+    RenderWarmupOptions                   warmup;
+    SinkOptions                           sink;
+
+    // Legacy export options (kept for backward compat callback path)
     FfmpegExportOptions                   export_options;
 
     Frame start{0};

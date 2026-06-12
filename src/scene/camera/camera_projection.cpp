@@ -1,4 +1,16 @@
+// ============================================================================
+// camera_projection.cpp — Camera Projection Helpers
+//
+/// @file    camera_projection.cpp
+/// @brief   Project world-space points and quads to screen space.
+///
+/// All core math now delegates to camera_projection_contract.hpp so that
+/// every projection path in Chronon3D uses the same sign, centre, depth,
+/// and FOV/zoom conventions.
+// ============================================================================
+
 #include <chronon3d/scene/camera/camera_projection.hpp>
+#include <chronon3d/math/camera_projection_contract.hpp>
 #include <cmath>
 #include <algorithm>
 #include <limits>
@@ -10,24 +22,16 @@ ScreenPoint project_world_to_screen(
     const Camera2_5D& camera,
     Viewport viewport
 ) {
-    const Mat4 view = camera.view_matrix();
-    const Vec4 cam_space = view * Vec4(world, 1.0f);
+    auto p = camera_math::project_world_point(
+        camera,
+        world,
+        camera_math::Viewport2D{viewport.width, viewport.height}
+    );
+
     ScreenPoint sp;
-    sp.depth = cam_space.z;
-    if (cam_space.z <= 1e-4f) {
-        sp.behind_camera = true;
-        sp.position = Vec2{-std::numeric_limits<float>::max(), -std::numeric_limits<float>::max()};
-        return sp;
-    }
-    sp.behind_camera = false;
-    const float focal = (camera.projection_mode == Camera2_5DProjectionMode::Fov)
-        ? (viewport.height * 0.5f) / std::tan(glm::radians(camera.fov_deg) * 0.5f)
-        : camera.zoom;
-    const float ps = focal / cam_space.z;
-    sp.position = Vec2{
-        cam_space.x * ps + viewport.width * 0.5f,
-        -cam_space.y * ps + viewport.height * 0.5f
-    };
+    sp.position = p.screen;
+    sp.depth = p.depth;
+    sp.behind_camera = !p.visible;
     return sp;
 }
 
@@ -42,12 +46,16 @@ ProjectedBounds project_quad_to_screen(
 
     int visible_count = 0;
     for (size_t i = 0; i < 4; ++i) {
-        ScreenPoint sp = project_world_to_screen(world_corners[i], camera, viewport);
-        if (!sp.behind_camera) {
-            pb.min.x = std::min(pb.min.x, sp.position.x);
-            pb.min.y = std::min(pb.min.y, sp.position.y);
-            pb.max.x = std::max(pb.max.x, sp.position.x);
-            pb.max.y = std::max(pb.max.y, sp.position.y);
+        auto p = camera_math::project_world_point(
+            camera,
+            world_corners[i],
+            camera_math::Viewport2D{viewport.width, viewport.height}
+        );
+        if (p.visible) {
+            pb.min.x = std::min(pb.min.x, p.screen.x);
+            pb.min.y = std::min(pb.min.y, p.screen.y);
+            pb.max.x = std::max(pb.max.x, p.screen.x);
+            pb.max.y = std::max(pb.max.y, p.screen.y);
             visible_count++;
         }
     }
