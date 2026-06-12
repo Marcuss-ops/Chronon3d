@@ -9,6 +9,7 @@
 #include "../../../utils/video/native_av_encoder.hpp"
 #endif
 #include "../../../utils/telemetry/telemetry_run.hpp"
+#include "sink_options.hpp"
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/core/telemetry/render_telemetry.hpp>
 #include <chronon3d/core/cancellation_token.hpp>
@@ -19,31 +20,9 @@
 
 namespace chronon3d::cli {
 
-// ── Video sink modes for pipeline isolation ────────────────────────────────
-enum class VideoSinkMode {
-    Ffmpeg,       // full pipeline: render → convert → FFmpeg pipe (current default)
-    NullRender,   // render only — skip conversion and output entirely
-    NullConvert,  // render + convert — skip FFmpeg pipe write
-    Raw,          // render + convert + write raw bytes to file (no FFmpeg)
-};
-
-inline VideoSinkMode parse_video_sink_mode(const std::string& value) {
-    if (value == "ffmpeg")       return VideoSinkMode::Ffmpeg;
-    if (value == "null-render")  return VideoSinkMode::NullRender;
-    if (value == "null-convert") return VideoSinkMode::NullConvert;
-    if (value == "raw")          return VideoSinkMode::Raw;
-    throw std::runtime_error("Invalid --video-sink: " + value);
-}
-
-inline const char* video_sink_mode_name(VideoSinkMode mode) {
-    switch (mode) {
-        case VideoSinkMode::Ffmpeg:       return "ffmpeg";
-        case VideoSinkMode::NullRender:  return "null-render";
-        case VideoSinkMode::NullConvert: return "null-convert";
-        case VideoSinkMode::Raw:         return "raw";
-    }
-    return "unknown";
-}
+// VideoSinkType is now defined in sink_options.hpp.
+// Use parse_video_sink_type() to parse CLI strings to VideoSinkType.
+// Use chronon3d::cli::to_string() to convert VideoSinkType to string.
 
 bool ffmpeg_in_path();
 PipePixelFormat parse_pipe_pixfmt(const std::string& fmt);
@@ -74,9 +53,8 @@ struct FfmpegExportOptions {
     size_t warmup_framebuffers{2};
     bool   warmup_dummy_frame{false};
 
-    // Video sink mode for pipeline isolation measurement
-    VideoSinkMode sink_mode{VideoSinkMode::Ffmpeg};
-    std::string video_sink{"ffmpeg"};
+    // Video sink type for pipeline isolation measurement
+    VideoSinkType sink_type{VideoSinkType::Ffmpeg};
 
     // Graceful cancellation (optional — set by command_video SIGINT handler)
     chronon3d::CancellationToken* cancellation_token{nullptr};

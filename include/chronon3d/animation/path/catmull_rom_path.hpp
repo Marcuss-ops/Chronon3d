@@ -63,8 +63,6 @@ class CatmullRomPath3D {
 public:
     CatmullRomPath3D() = default;
 
-    // ── Configuration ────────────────────────────────────────────────────────
-
     CatmullRomPath3D& set_boundary(CatmullRomBoundary b) {
         m_boundary = b;
         m_param_dirty = true;
@@ -76,8 +74,6 @@ public:
         m_param_dirty = true;
         return *this;
     }
-
-    // ── Builder ──────────────────────────────────────────────────────────────
 
     CatmullRomPath3D& add_waypoint(Vec3 position) {
         m_waypoints.push_back(CatmullRomWaypoint{position});
@@ -103,8 +99,6 @@ public:
         m_arc_length_dirty = true;
     }
 
-    // ── Queries ──────────────────────────────────────────────────────────────
-
     [[nodiscard]] std::size_t waypoint_count() const { return m_waypoints.size(); }
     [[nodiscard]] std::size_t segment_count() const {
         if (m_waypoints.size() < 2) return 0;
@@ -117,9 +111,7 @@ public:
 
     [[nodiscard]] const std::vector<CatmullRomWaypoint>& waypoints() const { return m_waypoints; }
 
-    // ── Evaluation ───────────────────────────────────────────────────────────
-
-    // Evaluate the position at normalized t ∈ [0, 1] across the entire path.
+    /// Evaluate the position at normalized t ∈ [0, 1] across the entire path.
     [[nodiscard]] Vec3 evaluate(f32 t) const {
         if (m_waypoints.empty()) return Vec3{0.0f};
         if (m_waypoints.size() == 1) return m_waypoints[0].position;
@@ -153,8 +145,6 @@ public:
         return (len > 1e-6f) ? (tan / len) : Vec3{0.0f, 0.0f, -1.0f};
     }
 
-    // ── Arc-length parameterization ──────────────────────────────────────────
-
     [[nodiscard]] Vec3 evaluate_arc_length(f32 t) const {
         if (m_waypoints.size() < 2) return evaluate(t);
 
@@ -179,8 +169,6 @@ public:
         ensure_arc_length_table();
         return m_total_arc_length;
     }
-
-    // ── Internal helpers ─────────────────────────────────────────────────────
 
 private:
     // Effective boundary: Closed only valid with ≥ 3 unique points.
