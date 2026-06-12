@@ -33,11 +33,13 @@ int render_and_encode_ffmpeg(
 {
     // Safety-net validation for direct callers (e.g. command_video_camera)
     // that bypass validate_video_job().
-    if (opts.output.empty()) {
+    if (opts.output.empty() &&
+        opts.sink_mode != VideoSinkMode::NullRender &&
+        opts.sink_mode != VideoSinkMode::NullConvert) {
         spdlog::error("[video] No output path specified.");
         return 1;
     }
-    if (!ffmpeg_in_path()) {
+    if (opts.sink_mode == VideoSinkMode::Ffmpeg && !ffmpeg_in_path()) {
         spdlog::error("[video] ffmpeg not found in PATH.");
         return 1;
     }

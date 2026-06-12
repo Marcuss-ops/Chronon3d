@@ -11,12 +11,15 @@ namespace chronon3d::cli {
 bool validate_video_job(const VideoJobPlan& plan) {
     const auto& opts = plan.export_options;
 
-    if (opts.output.empty()) {
+    if (opts.output.empty() &&
+        opts.sink_mode != VideoSinkMode::NullRender &&
+        opts.sink_mode != VideoSinkMode::NullConvert) {
         spdlog::error("[video] No output path specified.");
         return false;
     }
 
-    if (!ffmpeg_in_path()) {
+    // Only require ffmpeg in PATH for actual ffmpeg sink mode
+    if (opts.sink_mode == VideoSinkMode::Ffmpeg && !ffmpeg_in_path()) {
         spdlog::error("[video] ffmpeg not found in PATH.");
         return false;
     }
