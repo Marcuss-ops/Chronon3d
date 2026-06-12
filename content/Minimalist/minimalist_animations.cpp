@@ -95,4 +95,21 @@ Composition minimalist_text_drift() {
     });
 }
 
+Composition minimalist_text_typewriter() {
+    return composition({.name = "MinimalistTextTypewriter", .width = 1920, .height = 1080, .duration = 150}, [](const FrameContext& ctx) {
+        SceneBuilder s(ctx);
+        add_black_background(s);
+        Frame f = ctx.frame;
+        s.layer("phrase", [f](LayerBuilder& l) {
+            l.pin_to(Anchor::Center);
+            l.text("phrase", text::typewriter_text({
+                .text = "TYPEWRITER TEST",
+                .font_size = 110,
+                .tracking = 6,
+            }, f, 2.0f));
+        });
+        return s.build();
+    });
+}
+
 } // namespace chronon3d::content::minimalist
