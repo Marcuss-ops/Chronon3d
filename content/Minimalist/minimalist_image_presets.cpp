@@ -184,4 +184,5 @@ Composition minimalist_image_elastic_slide() {
 
 } // namespace chronon3d::content::minimalist
 
-// Registrations are now handled by MinimalistModule in minimalist_module.cpp
+// Registration is intentionally left to the caller; this file only defines the
+// standalone image preset compositions.

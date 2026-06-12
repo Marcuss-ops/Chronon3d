@@ -1,10 +1,5 @@
 add_library(chronon3d_content_minimalist STATIC
-    minimalist_focus_quote.cpp
-    minimalist_hero_explainer.cpp
-    minimalist_phrase_float.cpp
-    minimalist_presets_showcase.cpp
-    minimalist_scale_explainer.cpp
-    minimalist_image_presets.cpp
+    minimalist_animations.cpp
     minimalist_module.cpp
 )
 set_target_properties(chronon3d_content_minimalist PROPERTIES UNITY_BUILD OFF)
