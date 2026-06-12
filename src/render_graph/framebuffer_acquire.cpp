@@ -122,7 +122,7 @@ OwnedFB RenderGraphContext::acquire_owned_fb(const Framebuffer& other) {
         }
         if (telemetry.counters) {
             const auto elapsed = static_cast<uint64_t>(
-                profiling::elapsed_us(t0));
+                profiling::elapsed_us(t0) / 1000.0);
             telemetry.counters->framebuffer_copy_ms.fetch_add(elapsed, std::memory_order_relaxed);
         }
     }

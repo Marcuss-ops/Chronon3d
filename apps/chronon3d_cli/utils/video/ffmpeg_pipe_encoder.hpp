@@ -6,6 +6,12 @@
 #include <chronon3d/media/frame_conversion/converted_frame_cache.hpp>
 #include <string>
 #include <vector>
+#include <array>
+#include <atomic>
+#include <thread>
+#include <memory>
+
+#include <tbb/task_arena.h>
 
 namespace chronon3d::cli {
 
@@ -28,6 +34,10 @@ struct IVideoEncoder {
     virtual ~IVideoEncoder() = default;
     virtual bool open(const FfmpegPipeOptions& options) = 0;
     virtual bool write_frame(const Framebuffer& fb) = 0;
+    virtual bool write_frame_async(const Framebuffer& fb, std::shared_ptr<Framebuffer> owner) {
+        return write_frame(fb);
+    }
+    virtual void set_counters(chronon3d::RenderCounters* counters) { (void)counters; }
     virtual bool close() = 0;
     [[nodiscard]] virtual uint64_t frames_written() const = 0;
     [[nodiscard]] virtual EncoderFrameTelemetry last_frame_telemetry() const { return {}; }
@@ -76,7 +86,10 @@ public:
 
     bool open(const FfmpegPipeOptions& options) override;
     bool write_frame(const Framebuffer& fb) override;
+    bool write_frame_async(const Framebuffer& fb, std::shared_ptr<Framebuffer> owner) override;
     bool close() override;
+
+    void set_counters(chronon3d::RenderCounters* counters) { frame_counters_ = counters; }
 
     [[nodiscard]] uint64_t frames_written() const override { return frames_written_; }
     [[nodiscard]] EncoderFrameTelemetry last_frame_telemetry() const override { return last_frame_telemetry_; }
@@ -107,6 +120,28 @@ private:
     double total_write_blocked_ms_{0.0};
     EncoderFrameTelemetry last_frame_telemetry_{};
     bool pipe_failed_{false};
+    chronon3d::RenderCounters* frame_counters_{nullptr};
+
+    // ── Async conversion ring buffer (producer: writer thread, consumer: converter thread) ──
+    static constexpr size_t kAsyncConversionSlots = 4;
+    struct AsyncSlot {
+        std::atomic<int> state{0}; // 0=empty, 1=staged, 2=converted
+        std::shared_ptr<Framebuffer> fb;
+        std::vector<uint8_t> converted;
+        chronon3d::video::ConvertedFrameCacheKey cache_key;
+        bool can_cache{false};
+    };
+    std::array<AsyncSlot, kAsyncConversionSlots> async_slots_;
+    std::atomic<size_t> producer_idx_{0};
+    std::atomic<size_t> consumer_idx_{0};
+    std::atomic<size_t> writer_idx_{0};
+    std::thread converter_thread_;
+    std::atomic<bool> converter_stop_{false};
+    tbb::task_arena converter_arena_{tbb::task_arena::automatic, 1}; // full concurrency, isolated from global TBB arena
+
+    void converter_loop();
+    bool write_next_converted_frame();
+    bool write_raw_to_pipe(const uint8_t* data, size_t size);
 
 #ifdef __linux__
     bool use_uring_{false};

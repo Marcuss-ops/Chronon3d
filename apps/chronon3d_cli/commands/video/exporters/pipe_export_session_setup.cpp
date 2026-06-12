@@ -70,6 +70,11 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     }
     session->sw_renderer = dynamic_cast<SoftwareRenderer*>(session->renderer.get());
 
+    // ── Wire counters into encoder so async converter thread can report telemetry ──
+    if (session->sw_renderer && session->sw_renderer->counters()) {
+        session->encoder->set_counters(session->sw_renderer->counters());
+    }
+
     // ── Arena, queue ──────────────────────────────────────────────────────
     const size_t arena_size = compute_pipe_arena_size(comp.width(), comp.height());
     session->triple_arena = std::make_unique<TripleBufferArena>(8, arena_size);

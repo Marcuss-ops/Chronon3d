@@ -58,7 +58,11 @@ void run_writer_thread(const WriterThreadContext& ctx) {
             }
 
             const auto enc_t0 = profiling::now();
-            if (!ctx.encoder.write_frame(*package.framebuffer)) {
+            // Capture the reference BEFORE moving the shared_ptr —
+            // C++ argument evaluation order is unspecified.
+            const Framebuffer& fb_ref = *package.framebuffer;
+            if (!ctx.encoder.write_frame_async(fb_ref,
+                                                std::move(package.framebuffer))) {
                 ctx.writer_failed.store(true);
                 return;
             }

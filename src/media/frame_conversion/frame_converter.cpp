@@ -12,6 +12,19 @@
 #include <chronon3d/core/parallel_tracked.hpp>
 #include <tbb/parallel_for.h>
 
+// libyuv forward declarations — C linkage, no header conflicts.
+extern "C" {
+int ABGRToI420(const uint8_t* src_abgr, int src_stride_abgr,
+               uint8_t* dst_y, int dst_stride_y,
+               uint8_t* dst_u, int dst_stride_u,
+               uint8_t* dst_v, int dst_stride_v,
+               int width, int height);
+int ABGRToNV12(const uint8_t* src_abgr, int src_stride_abgr,
+               uint8_t* dst_y, int dst_stride_y,
+               uint8_t* dst_uv, int dst_stride_uv,
+               int width, int height);
+}
+
 #ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
 extern "C" {
 #include <libswscale/swscale.h>
@@ -64,7 +77,7 @@ static SwsContext* get_or_create_sws_context(const SwsParams& params) {
 #endif
 
 static std::vector<uint8_t>& rgba8_staging(size_t min_bytes) {
-    static std::vector<uint8_t> buf;
+    thread_local std::vector<uint8_t> buf;
     if (buf.size() < min_bytes) buf.resize(min_bytes);
     return buf;
 }
@@ -73,10 +86,11 @@ static inline uint64_t now_ns() {
     return profiling::timestamp_ns();
 }
 
-void convert_fb_to_rgba8_public(const Framebuffer& src, int width, int height, bool apply_gamma, uint8_t* rgba8) noexcept {
+void convert_fb_to_rgba8_public(const Framebuffer& src, int width, int height, bool apply_gamma, uint8_t* rgba8) {
     const Color* src_data = src.data();
     const int alloc_w = src.allocated_width();
-    parallel_for_tracked(tbb::blocked_range<int>(0, height), [&](const tbb::blocked_range<int>& range) {
+    const int grain = std::max(32, height / 16);
+    parallel_for_tracked(tbb::blocked_range<int>(0, height, grain), [&](const tbb::blocked_range<int>& range) {
         for (int y = range.begin(); y < range.end(); ++y) {
             const Color* src_row = src_data + static_cast<size_t>(y) * alloc_w;
             uint8_t* dst_row = rgba8 + static_cast<size_t>(y) * width * 4;
@@ -161,7 +175,71 @@ static ConvertFrameResult convert_rgba_to_rgb24(const ConvertFrameRequest& req) 
 #endif
 }
 
+// ── libyuv RGBA8 → YUV420P ─────────────────────────────────────────────────
+static ConvertFrameResult convert_rgba_to_yuv420p_libyuv(const ConvertFrameRequest& req) {
+    if (req.width % 2 != 0 || req.height % 2 != 0)
+        return ConvertFrameResult{.success = false};
+    if (!req.dst_y || !req.dst_u || !req.dst_v)
+        return ConvertFrameResult{.success = false};
+
+    const uint64_t t0 = now_ns();
+    const size_t rgba_bytes = static_cast<size_t>(req.width) * req.height * 4;
+    auto& staging = rgba8_staging(rgba_bytes);
+    convert_fb_to_rgba8_public(req.src, req.width, req.height, req.apply_gamma, staging.data());
+
+    const int src_stride = req.width * 4;
+    const int dst_stride_y = req.dst_stride_y ? req.dst_stride_y : req.width;
+    const int dst_stride_u = req.dst_stride_u ? req.dst_stride_u : (req.width / 2);
+    const int dst_stride_v = req.dst_stride_v ? req.dst_stride_v : (req.width / 2);
+
+    const int ret = ABGRToI420(
+        staging.data(), src_stride,
+        req.dst_y, dst_stride_y,
+        req.dst_u, dst_stride_u,
+        req.dst_v, dst_stride_v,
+        req.width, req.height);
+
+    return ConvertFrameResult{
+        .success = (ret == 0),
+        .used_simd = true,
+        .conversion_ns = now_ns() - t0,
+    };
+}
+
+// ── libyuv RGBA8 → NV12 ──────────────────────────────────────────────────
+static ConvertFrameResult convert_rgba_to_nv12_libyuv(const ConvertFrameRequest& req) {
+    if (req.width % 2 != 0 || req.height % 2 != 0)
+        return ConvertFrameResult{.success = false};
+    if (!req.dst_y || !req.dst_uv)
+        return ConvertFrameResult{.success = false};
+
+    const uint64_t t0 = now_ns();
+    const size_t rgba_bytes = static_cast<size_t>(req.width) * req.height * 4;
+    auto& staging = rgba8_staging(rgba_bytes);
+    convert_fb_to_rgba8_public(req.src, req.width, req.height, req.apply_gamma, staging.data());
+
+    const int src_stride = req.width * 4;
+    const int dst_stride_y  = req.dst_stride_y  ? req.dst_stride_y  : req.width;
+    const int dst_stride_uv = req.dst_stride_uv ? req.dst_stride_uv : req.width;
+
+    const int ret = ABGRToNV12(
+        staging.data(), src_stride,
+        req.dst_y, dst_stride_y,
+        req.dst_uv, dst_stride_uv,
+        req.width, req.height);
+
+    return ConvertFrameResult{
+        .success = (ret == 0),
+        .used_simd = true,
+        .conversion_ns = now_ns() - t0,
+    };
+}
+
 ConvertFrameResult convert_frame(const ConvertFrameRequest& req) {
+    // ── YUV420P / NV12 ──────────────────────────────────────────────────
+    // Primary path: direct float→YUV via Highway SIMD (single-pass, no
+    // intermediate RGBA8 buffer).  Fallback to libyuv for platforms where
+    // the direct path is unavailable or broken.  Final fallback to sws_scale.
     if (req.format == EncoderPixelFormat::YUV420P || req.format == EncoderPixelFormat::NV12) {
         DirectYuvRequest dreq{
             .src = req.src, .dst_y = req.dst_y, .dst_u = req.dst_u, .dst_v = req.dst_v, .dst_uv = req.dst_uv,
@@ -171,6 +249,18 @@ ConvertFrameResult convert_frame(const ConvertFrameRequest& req) {
         auto direct = convert_framebuffer_to_yuv_direct(dreq);
         if (direct.success) {
             return ConvertFrameResult{ .success = true, .used_simd = direct.used_simd, .conversion_ns = direct.conversion_ns };
+        }
+
+        // libyuv only supports the default color matrix (BT.709 for HD, BT.601
+        // for SD). If a custom color matrix is requested, skip libyuv.
+        if (req.color_matrix == 0) {
+            if (req.format == EncoderPixelFormat::YUV420P) {
+                auto libyuv = convert_rgba_to_yuv420p_libyuv(req);
+                if (libyuv.success) return libyuv;
+            } else {
+                auto libyuv = convert_rgba_to_nv12_libyuv(req);
+                if (libyuv.success) return libyuv;
+            }
         }
     }
 

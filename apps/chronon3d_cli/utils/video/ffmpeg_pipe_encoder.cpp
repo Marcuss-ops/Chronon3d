@@ -172,6 +172,15 @@ bool FfmpegPipeEncoder::close() {
         return true;
     }
 
+    // ── Signal and join the async converter thread ───────────────────────
+    converter_stop_.store(true, std::memory_order_release);
+    if (converter_thread_.joinable()) {
+        converter_thread_.join();
+    }
+
+    // ── Flush any remaining converted frames to the pipe ──────────────────
+    while (write_next_converted_frame()) {}
+
 #ifdef __linux__
     if (use_uring_) {
         while (pending_writes_count_ > 0) {
