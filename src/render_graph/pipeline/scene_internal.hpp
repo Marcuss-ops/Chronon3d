@@ -1,7 +1,7 @@
 #pragma once
 
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
-#include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/backends/software/renderer_types.hpp>
 #include <chronon3d/scene/model/layer/layer.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/effects/effect_category.hpp>
@@ -12,6 +12,10 @@
 #include "../builder/graph_builder_internal.hpp"
 #include <unordered_map>
 #include <optional>
+
+namespace chronon3d {
+class SoftwareRenderer;
+}
 
 namespace chronon3d::graph::detail {
 
@@ -107,7 +111,7 @@ namespace chronon3d::graph::detail {
 //
 // Returns the union dirty rectangle (nullopt = full frame).
 struct DirtyRectOutput {
-    std::unordered_map<std::string, SoftwareRenderer::LayerBBoxState> layer_bboxes;
+    std::unordered_map<std::string, LayerBBoxState> layer_bboxes;
     std::optional<raster::BBox> dirty_rect;
     bool use_dirty_rects{false};
 
@@ -124,7 +128,7 @@ DirtyRectOutput compute_dirty_rect(
     const LayerResolutionResult& resolved,
     const Scene& scene,
     const RenderSettings& settings,
-    SoftwareRenderer* sw_renderer,
+    ::chronon3d::SoftwareRenderer* sw_renderer,
     Frame frame,
     i32 width,
     i32 height
