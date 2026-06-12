@@ -40,6 +40,7 @@ public:
 
     // ── Cache limits (bytes) ─────────────────────────────────────
     std::size_t fb_pool_max_bytes     = 0;
+    std::size_t fb_pool_budget_bytes   = 0;   // 0 = use pool default; override via CHRONON3D_FB_POOL_BUDGET_MB
     std::size_t image_cache_max_bytes = 0;
     std::size_t node_cache_max_bytes  = 0;
     std::size_t glyph_atlas_max_bytes = 0;

@@ -136,22 +136,26 @@ AND counter_name IN (
 ORDER BY counter_name;
 )";
 
-/// Framebuffer pool runtime snapshot from telemetry_counters table.
+/// Framebuffer pool runtime snapshot from render_counters table.
 inline constexpr const char* kFramebufferPool = R"(
-SELECT counter_name, counter_value FROM telemetry_counters WHERE run_id = ?
+SELECT counter_name, counter_value FROM render_counters WHERE run_id = ?
 AND counter_name IN (
-'framebuffer_pool_capacity', 'framebuffer_pool_available_count',
 'framebuffer_pool_current_bytes', 'framebuffer_pool_total_allocations',
-'framebuffer_pool_total_reuses', 'pool_current_bytes', 'pool_available_count')
+'framebuffer_pool_total_reuses',
+'framebuffer_pool_budget_bytes', 'framebuffer_pool_retained_bytes',
+'framebuffer_pool_evicted_count', 'framebuffer_pool_evicted_bytes',
+'framebuffer_pool_pressure_count', 'framebuffer_pool_size_class_count')
 ORDER BY CASE counter_name
-WHEN 'framebuffer_pool_capacity' THEN 1
-WHEN 'framebuffer_pool_available_count' THEN 2
+WHEN 'framebuffer_pool_budget_bytes' THEN 1
+WHEN 'framebuffer_pool_retained_bytes' THEN 2
 WHEN 'framebuffer_pool_current_bytes' THEN 3
-WHEN 'framebuffer_pool_total_allocations' THEN 4
-WHEN 'framebuffer_pool_total_reuses' THEN 5
-WHEN 'pool_current_bytes' THEN 6
-WHEN 'pool_available_count' THEN 7
-ELSE 8 END;
+WHEN 'framebuffer_pool_evicted_count' THEN 4
+WHEN 'framebuffer_pool_evicted_bytes' THEN 5
+WHEN 'framebuffer_pool_pressure_count' THEN 6
+WHEN 'framebuffer_pool_size_class_count' THEN 7
+WHEN 'framebuffer_pool_total_allocations' THEN 8
+WHEN 'framebuffer_pool_total_reuses' THEN 9
+ELSE 10 END;
 )";
 
 /// Coverage counters for Bottleneck Diagnosis hot attribution.

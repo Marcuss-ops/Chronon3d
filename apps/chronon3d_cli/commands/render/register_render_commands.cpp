@@ -1,6 +1,7 @@
 #include "../../command_registry.hpp"
 #include "../../commands.hpp"
 #include "../../utils/common/cli_utils.hpp"
+#include <chronon3d/core/config.hpp>
 #include <spdlog/spdlog.h>
 #include <memory>
 
@@ -46,9 +47,14 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
                     "Number of framebuffers to preallocate (default 8)");
     cmd->add_flag("--warmup-dummy-frame", args.pipeline.warmup_dummy_frame,
                   "Render a dummy frame 0 to prime all caches");
+    cmd->add_option("--fb-pool-budget-mb", args.pipeline.fb_pool_budget_mb,
+                    "Framebuffer pool retention budget in MB (0=unlimited, default 384)");
     cmd->allow_windows_style_options();
     cmd->callback([state, &ctx]() {
         state->args->command_line = ctx.command_line;
+        if (state->args->pipeline.fb_pool_budget_mb > 0) {
+            Config::get().fb_pool_budget_bytes = state->args->pipeline.fb_pool_budget_mb * 1024ULL * 1024ULL;
+        }
         if (state->args->output.empty()) {
             state->args->output = chronon_artifact_path("renders", "render_####.png").string();
             spdlog::warn("No output path specified, defaulting to {}", state->args->output);

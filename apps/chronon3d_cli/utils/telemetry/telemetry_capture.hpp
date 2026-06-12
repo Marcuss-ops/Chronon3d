@@ -165,6 +165,12 @@ inline std::vector<chronon3d::telemetry::CounterTelemetryRecord> capture_counter
         {"framebuffer_pool_current_bytes", 0},
         {"framebuffer_pool_total_allocations", 0},
         {"framebuffer_pool_total_reuses", 0},
+        {"framebuffer_pool_budget_bytes", 0},
+        {"framebuffer_pool_retained_bytes", 0},
+        {"framebuffer_pool_evicted_count", 0},
+        {"framebuffer_pool_evicted_bytes", 0},
+        {"framebuffer_pool_pressure_count", 0},
+        {"framebuffer_pool_size_class_count", 0},
     };
 
     // Enrich with live framebuffer pool stats if available
@@ -181,6 +187,18 @@ inline std::vector<chronon3d::telemetry::CounterTelemetryRecord> capture_counter
                 counter.counter_value = pool_stats.total_allocations;
             } else if (counter.counter_name == "framebuffer_pool_total_reuses") {
                 counter.counter_value = pool_stats.total_reuses;
+            } else if (counter.counter_name == "framebuffer_pool_budget_bytes") {
+                counter.counter_value = pool_stats.budget_bytes;
+            } else if (counter.counter_name == "framebuffer_pool_retained_bytes") {
+                counter.counter_value = pool_stats.retained_bytes;
+            } else if (counter.counter_name == "framebuffer_pool_evicted_count") {
+                counter.counter_value = pool_stats.evicted_count;
+            } else if (counter.counter_name == "framebuffer_pool_evicted_bytes") {
+                counter.counter_value = pool_stats.evicted_bytes;
+            } else if (counter.counter_name == "framebuffer_pool_pressure_count") {
+                counter.counter_value = pool_stats.pressure_count;
+            } else if (counter.counter_name == "framebuffer_pool_size_class_count") {
+                counter.counter_value = pool_stats.size_class_count;
             }
         }
     }

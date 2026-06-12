@@ -32,7 +32,7 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
     std::scoped_lock lock(m_impl->mutex);
     if (!m_impl->db) return false;
 
-    // Named-column INSERT: column order matches telemetry_schema.sql exactly (97 columns)
+    // Named-column INSERT: column order matches telemetry_schema.sql exactly (120 columns)
     const char* sql =
         "INSERT OR REPLACE INTO render_runs ("
         "run_id, composition_id, output_path, success, error_code, error_message, "
@@ -60,6 +60,9 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
         "framebuffer_pool_clear_ms, framebuffer_enqueue_ms, "
         "framebuffer_pool_empty_alloc, framebuffer_pool_miss_count_empty, "
         "framebuffer_pool_best_fit_reuse, framebuffer_pool_exact_hit, framebuffer_buffer_returned_to_pool_count, "
+        "framebuffer_pool_budget_bytes, framebuffer_pool_retained_bytes, "
+        "framebuffer_pool_evicted_count, framebuffer_pool_evicted_bytes, "
+        "framebuffer_pool_pressure_count, framebuffer_pool_size_class_count, "
         "unaligned_memory_copies, frame_conversion_copy_ms, "
         "video_graph_eval_ms, video_conversion_ms, video_pipe_write_ms, video_ffmpeg_latency_ms, "
         "io_queue_push_blocked_ms, io_queue_pop_wait_ms, io_writer_idle_wait_ms, io_queue_peak_depth, ffmpeg_pipe_write_blocked_ms, converted_frame_cache_hits, ffmpeg_flush_ms, "        "io_queue_peak_bytes, setup_graph_parsing_ms, setup_asset_io_load_ms, setup_pool_preallocation_ms, image_decode_ms, "
@@ -85,7 +88,8 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
         "?81, ?82, ?83, ?84, ?85, ?86, ?87, ?88, ?89, "
         "?90, ?91, ?92, ?93, ?94, ?95, ?96, ?97, ?98, "
         "?99, ?100, ?101, ?102, ?103, ?104, ?105, ?106, ?107, ?108, "
-        "?109, ?110, ?111, ?112, ?113, ?114"
+        "?109, ?110, ?111, ?112, ?113, ?114, "
+        "?115, ?116, ?117, ?118, ?119, ?120"
         ");";
 
     SqliteStatement stmt(m_impl->db, sql);
@@ -161,6 +165,12 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
         run.framebuffer_pool_best_fit_reuse,
         run.framebuffer_pool_exact_hit,
         run.framebuffer_buffer_returned_to_pool_count,
+        uint64_t{0},  // framebuffer_pool_budget_bytes — set via render_counters table
+        uint64_t{0},  // framebuffer_pool_retained_bytes
+        uint64_t{0},  // framebuffer_pool_evicted_count
+        uint64_t{0},  // framebuffer_pool_evicted_bytes
+        uint64_t{0},  // framebuffer_pool_pressure_count
+        uint64_t{0},  // framebuffer_pool_size_class_count
         run.unaligned_memory_copies,
         run.frame_conversion_copy_ms,
         run.video_graph_eval_ms,

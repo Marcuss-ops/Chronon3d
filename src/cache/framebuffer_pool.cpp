@@ -7,41 +7,24 @@
 #include <spdlog/spdlog.h>
 #include <cstdlib>
 #include <limits>
+#include <optional>
 #include <string>
 
 namespace chronon3d {
 
 void PoolFbDeleter::operator()(Framebuffer* fb) const noexcept {
     if (!fb) return;
-    // ── Scratch cleanup: FB is borrowed from a TransformScratchBuffer ──
-    // The cleanup callback (a std::function capturing a Handle RAII) will
-    // be destroyed when the PoolFbDeleter itself goes out of scope (after
-    // this function returns).  The Handle destructor restores the FB to
-    // the owner's storage.  We do NOT delete the FB here — the
-    // TransformScratchBuffer still owns it.
-    // Takes precedence over all other modes.
     if (scratch_cleanup) {
-        return; // scratch_cleanup (and its captured Handle) destroyed after return
+        return;
     }
-    // ── Renderer-owned FB: no-op — renderer manages lifetime explicitly ──
-    // Used by ping-pong buffers owned by SoftwareRenderer via RendererBufferRing.
-    // No pool release, no scratch restore, no delete.  The renderer is
-    // responsible for cleanup on resolution change or destruction.
     if (owned_by_renderer) {
         return;
     }
-    // ── Scratch slot: return the FB to the slot (cleared) instead of pool ──
-    // This keeps a persistent buffer alive across frames without the
-    // acquire/release cycle that causes pool bucket misses.
     if (scratch_slot) {
         fb->clear(Color::transparent());
         *scratch_slot = fb;
         return;
     }
-    // Check that the pool is still alive before dereferencing.
-    // pool_alive is a weak_ptr created from the pool's m_alive shared_ptr.
-    // When the pool is destroyed, m_alive is set false and its shared_ptr is
-    // released, making pool_alive.lock() return null.
     if (pool && pool_alive.lock()) {
         pool->release(fb);
     } else {
@@ -60,28 +43,16 @@ size_t resolve_default_max_bytes(size_t fallback) {
     return max_bytes > 0 ? max_bytes : fallback;
 }
 
-// Round up to a fixed-size bucket with coarser granularity for larger sizes.
-// The goal is to ensure that similar size requests (e.g. 602 vs 652 pixels)
-// land in the SAME bucket, eliminating framebuffer pool size mismatches.
-//
-// Bucket scheme:
-//      1 –   64 → 64-wide  (tiny intermediates / early-exit buffers)
-//     65 –  256 → 128-wide (small effect inputs)
-//    257 – 1024 → 256-wide (medium intermediate renders)
-//   1025+        → 512-wide (full-frame buffers, stable at video resolution)
-// Round up to a fixed-size bucket with finer granularity.
-// This prevents massive memory bloat (e.g., 1080p rounding to 2048x1536, wasting 50% memory)
-// while keeping similar sizes grouped together to maintain high cache hit rates.
 int round_up_bucket(int val) {
     if (val <= 0) return 0;
     if (val <= 64) {
-        return ((val + 7) / 8) * 8; // 8-aligned for micro-buffers
+        return ((val + 7) / 8) * 8;
     } else if (val <= 256) {
-        return ((val + 15) / 16) * 16; // 16-aligned
+        return ((val + 15) / 16) * 16;
     } else if (val <= 1024) {
-        return ((val + 127) / 128) * 128; // 128-aligned to collapse near-size buckets
+        return ((val + 127) / 128) * 128;
     } else {
-        return ((val + 127) / 128) * 128; // 128-aligned (full-frame buffers round close to exact resolution)
+        return ((val + 127) / 128) * 128;
     }
 }
 
@@ -89,6 +60,20 @@ int round_up_bucket(int val) {
 
 FramebufferPool::FramebufferPool(size_t max_bytes)
     : m_max_bytes(resolve_default_max_bytes(max_bytes)),
+      m_alive(std::make_shared<bool>(true)) {
+    // If Config has a budget override, apply it.  Otherwise use the same
+    // m_max_bytes as the retention budget for backward compatibility.
+    auto budget_from_env = Config::get().fb_pool_budget_bytes;
+    if (budget_from_env > 0) {
+        m_config.max_retained_bytes = budget_from_env;
+    } else {
+        m_config.max_retained_bytes = m_max_bytes;
+    }
+}
+
+FramebufferPool::FramebufferPool(const FramebufferPoolConfig& config, size_t max_bytes)
+    : m_config(config),
+      m_max_bytes(resolve_default_max_bytes(max_bytes)),
       m_alive(std::make_shared<bool>(true)) {}
 
 FramebufferPool::~FramebufferPool() {
@@ -101,6 +86,17 @@ void FramebufferPool::set_arena(std::shared_ptr<FramebufferArena> arena) {
     std::lock_guard<std::mutex> lock(m_mutex);
     if (m_arena != arena) {
         m_arena = std::move(arena);
+    }
+}
+
+void FramebufferPool::set_budget_bytes(size_t max_retained_bytes) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_config.max_retained_bytes = max_retained_bytes;
+    // If the new budget is tighter, evict immediately.
+    if (max_retained_bytes > 0) {
+        while (m_current_bytes > max_retained_bytes) {
+            if (!evict_global_lru()) break;
+        }
     }
 }
 
@@ -123,12 +119,8 @@ std::shared_ptr<Framebuffer> FramebufferPool::acquire_hinted(
         profiling::g_current_counters->framebuffer_acquire_ms.fetch_add(
             static_cast<uint64_t>(profiling::duration_ms(t0, t1)),
             std::memory_order_relaxed);
-        // Note: pool counters are incremented inside acquire_unique()
-        // (exact_hit, best_fit_reuse, empty_alloc) — not here.
     }
 
-    // Skip clear when the FB was freshly allocated (constructor zero-initializes)
-    // OR when the framebuffer is already known to be fully cleared to transparent.
     if (clear && fb && !fresh_alloc && !fb->is_content_cleared()) {
         const auto tc0 = profiling::now();
         fb->clear(Color::transparent());
@@ -163,27 +155,20 @@ std::unique_ptr<Framebuffer> FramebufferPool::acquire_unique(int width, int heig
         auto it = m_free.find(key);
         if (it != m_free.end() && !it->second.empty()) {
             auto& bucket = it->second;
-            auto fb = std::move(bucket.back());
-            bucket.pop_back();
-            m_current_bytes -= fb->size_bytes();
+            // Take the oldest (LRU) entry from the front to keep fresher entries for later.
+            auto entry = std::move(bucket.front());
+            bucket.erase(bucket.begin());
+            m_current_bytes -= entry.fb->size_bytes();
             m_total_reuses.fetch_add(1, std::memory_order_relaxed);
             if (profiling::g_current_counters) {
                 profiling::g_current_counters->framebuffer_reuses.fetch_add(1, std::memory_order_relaxed);
                 profiling::g_current_counters->framebuffer_pool_exact_hit.fetch_add(1, std::memory_order_relaxed);
             }
-            fb->resize_logical(width, height);
-            // Pool FB: content is stale — caller must clear if needed.
-            return fb;
+            entry.fb->resize_logical(width, height);
+            return std::move(entry.fb);
         }
-        // No exact match — will try best-fit or allocate fresh.
-        // empty_alloc is incremented when a fresh allocation is made
-        // (after best-fit scan also fails).
     }
 
-    // Best-effort fallback: reuse a larger bucket when an exact bucket is not
-    // available. This reduces fragmentation when different logical sizes land
-    // in nearby rounded buckets, while still guaranteeing the buffer is at
-    // least as large as the request after logical resize.
     auto best_fit = m_free.end();
     size_t best_area = std::numeric_limits<size_t>::max();
     for (auto it = m_free.begin(); it != m_free.end(); ++it) {
@@ -200,17 +185,16 @@ std::unique_ptr<Framebuffer> FramebufferPool::acquire_unique(int width, int heig
 
     if (best_fit != m_free.end()) {
         auto& bucket = best_fit->second;
-        auto fb = std::move(bucket.back());
+        auto entry = std::move(bucket.back());
         bucket.pop_back();
-        m_current_bytes -= fb->size_bytes();
+        m_current_bytes -= entry.fb->size_bytes();
         m_total_reuses.fetch_add(1, std::memory_order_relaxed);
         if (profiling::g_current_counters) {
             profiling::g_current_counters->framebuffer_reuses.fetch_add(1, std::memory_order_relaxed);
             profiling::g_current_counters->framebuffer_pool_best_fit_reuse.fetch_add(1, std::memory_order_relaxed);
         }
-        fb->resize_logical(width, height);
-        // Best-fit pool FB: content is stale — caller must clear if needed.
-        return fb;
+        entry.fb->resize_logical(width, height);
+        return std::move(entry.fb);
     }
 
     if (m_arena) {
@@ -218,7 +202,6 @@ std::unique_ptr<Framebuffer> FramebufferPool::acquire_unique(int width, int heig
         if (ptr) {
             auto fb = std::make_unique<Framebuffer>(rounded_w, rounded_h, static_cast<Color*>(ptr));
             fb->resize_logical(width, height);
-            // Arena memory is NOT zero-initialized — caller must clear.
             return fb;
         }
     }
@@ -230,8 +213,6 @@ std::unique_ptr<Framebuffer> FramebufferPool::acquire_unique(int width, int heig
         profiling::g_current_counters->framebuffer_allocations.fetch_add(1, std::memory_order_relaxed);
     }
     fb->resize_logical(width, height);
-    // Fresh allocation: Framebuffer constructor zero-initializes via
-    // m_pixels.resize(..., Color::transparent()).  No clear needed.
     if (out_fresh_alloc) *out_fresh_alloc = true;
     return fb;
 }
@@ -244,8 +225,6 @@ std::shared_ptr<Framebuffer> FramebufferPool::acquire_pooled(int width, int heig
 
     bool fresh_alloc = false;
     auto fb = pool->acquire_unique(width, height, &fresh_alloc);
-    // Skip clear for fresh allocations (constructor zero-initializes)
-    // or when the framebuffer is already fully cleared to transparent.
     if (clear && !fresh_alloc && !fb->is_content_cleared()) {
         fb->clear(Color::transparent());
     }
@@ -262,8 +241,6 @@ std::shared_ptr<Framebuffer> FramebufferPool::acquire_pooled(int width, int heig
 OwnedFB FramebufferPool::acquire_owned(int width, int height, bool clear) {
     bool fresh_alloc = false;
     auto fb = acquire_unique(width, height, &fresh_alloc);
-    // Skip clear for fresh allocations (constructor zero-initializes)
-    // or when the framebuffer is already fully cleared to transparent.
     if (clear && fb && !fresh_alloc && !fb->is_content_cleared()) {
         fb->clear(Color::transparent());
     }
@@ -273,13 +250,97 @@ OwnedFB FramebufferPool::acquire_owned(int width, int height, bool clear) {
 OwnedFB FramebufferPool::acquire_owned_raw(int width, int height, bool clear) {
     bool fresh_alloc = false;
     auto fb = acquire_unique(width, height, &fresh_alloc);
-    // Skip clear for fresh allocations (constructor zero-initializes)
-    // or when the framebuffer is already fully cleared to transparent.
     if (clear && fb && !fresh_alloc && !fb->is_content_cleared()) {
         fb->clear(Color::transparent());
     }
     return OwnedFB(fb.release(), PoolFbDeleter{this, m_alive});
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Eviction helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+bool FramebufferPool::evict_one_from_bucket(FramebufferPoolKey key) {
+    auto it = m_free.find(key);
+    if (it == m_free.end() || it->second.empty()) return false;
+
+    auto& bucket = it->second;
+    // Find LRU entry in this bucket
+    size_t lru_idx = 0;
+    uint64_t min_tick = std::numeric_limits<uint64_t>::max();
+    for (size_t i = 0; i < bucket.size(); ++i) {
+        if (bucket[i].last_used_tick < min_tick) {
+            min_tick = bucket[i].last_used_tick;
+            lru_idx = i;
+        }
+    }
+
+    size_t evicted_bytes = bucket[lru_idx].fb->size_bytes();
+    bucket[lru_idx] = std::move(bucket.back());
+    bucket.pop_back();
+    m_current_bytes -= evicted_bytes;
+    m_evicted_count.fetch_add(1, std::memory_order_relaxed);
+    m_evicted_bytes.fetch_add(evicted_bytes, std::memory_order_relaxed);
+    m_pressure_count.fetch_add(1, std::memory_order_relaxed);
+
+    if (bucket.empty()) {
+        m_free.erase(it);
+    }
+    return true;
+}
+
+bool FramebufferPool::evict_global_lru() {
+    std::optional<FramebufferPoolKey> lru_key;
+    size_t lru_idx = 0;
+    uint64_t min_tick = std::numeric_limits<uint64_t>::max();
+
+    for (auto& [key, bucket] : m_free) {
+        if (bucket.empty()) continue;
+        for (size_t i = 0; i < bucket.size(); ++i) {
+            if (bucket[i].last_used_tick < min_tick) {
+                min_tick = bucket[i].last_used_tick;
+                lru_idx = i;
+                lru_key = key;
+            }
+        }
+    }
+
+    if (!lru_key.has_value()) return false;
+
+    auto it = m_free.find(*lru_key);
+    if (it == m_free.end()) return false;
+
+    auto& bucket = it->second;
+    if (lru_idx >= bucket.size()) return false;
+
+    size_t evicted_bytes = bucket[lru_idx].fb->size_bytes();
+    bucket[lru_idx] = std::move(bucket.back());
+    bucket.pop_back();
+    m_current_bytes -= evicted_bytes;
+    m_evicted_count.fetch_add(1, std::memory_order_relaxed);
+    m_evicted_bytes.fetch_add(evicted_bytes, std::memory_order_relaxed);
+    m_pressure_count.fetch_add(1, std::memory_order_relaxed);
+
+    if (bucket.empty()) {
+        m_free.erase(it);
+    }
+    return true;
+}
+
+bool FramebufferPool::evict_lru_for(size_t incoming_bytes) {
+    if (m_config.max_retained_bytes == 0) return true; // unlimited
+
+    bool evicted_any = false;
+    while (m_current_bytes + incoming_bytes > m_config.max_retained_bytes) {
+        if (!evict_global_lru()) break;
+        evicted_any = true;
+    }
+    return evicted_any;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// release() — with retention budget and per-size-class limit
+// ─────────────────────────────────────────────────────────────────────────────
 
 void FramebufferPool::release(Framebuffer* fb) {
     CHRONON_ZONE_C("framebuffer_release", trace_category::kPipeline);
@@ -290,10 +351,8 @@ void FramebufferPool::release(Framebuffer* fb) {
     std::unique_ptr<Framebuffer> owned(fb);
 
     // Arena-backed framebuffers are non-owning wrappers around arena memory.
-    // They become stale when the arena is reset for the next frame, so they
-    // must NOT be returned to the free list — just drop them.
     if (owned->is_arena_allocated()) {
-        return; // wrapper destroyed by unique_ptr; pixels remain arena-owned
+        return;
     }
 
     std::lock_guard<std::mutex> lock(m_mutex);
@@ -304,18 +363,45 @@ void FramebufferPool::release(Framebuffer* fb) {
     owned->resize_logical(alloc_w, alloc_h);
 
     const size_t weight = owned->size_bytes();
-    if (m_current_bytes + weight > m_max_bytes) {
-        // Pool is full; drop the framebuffer
+    const uint64_t current_tick = ++m_tick;
+    FramebufferPoolKey key{alloc_w, alloc_h};
+
+    // Check the overall budget first — we may need to evict BEFORE inserting.
+    // If the pool is over budget, evict LRU entries until there's room.
+    if (m_config.max_retained_bytes > 0 && m_current_bytes + weight > m_config.max_retained_bytes) {
+        evict_lru_for(weight);
+    }
+
+    // Check per-size-class limit.  If this bucket already has max entries,
+    // evict the LRU entry in it to make room.
+    auto it = m_free.find(key);
+    if (it != m_free.end() && m_config.max_buffers_per_size_class > 0) {
+        while (it->second.size() >= m_config.max_buffers_per_size_class) {
+            if (!evict_one_from_bucket(key)) break;
+        }
+    }
+
+    // If after eviction we still can't fit (no entries to evict), drop.
+    if (m_config.max_retained_bytes > 0 && m_current_bytes + weight > m_config.max_retained_bytes) {
+        // Can't fit — drop this framebuffer.
+        m_evicted_count.fetch_add(1, std::memory_order_relaxed);
+        m_evicted_bytes.fetch_add(weight, std::memory_order_relaxed);
+        m_pressure_count.fetch_add(1, std::memory_order_relaxed);
         return;
     }
 
-    FramebufferPoolKey key{alloc_w, alloc_h};
+    // Insert into pool
     m_current_bytes += weight;
-    m_free[key].push_back(std::move(owned));
+    m_free[key].push_back(PoolEntry{std::move(owned), current_tick});
+
     if (profiling::g_current_counters) {
         profiling::g_current_counters->framebuffer_buffer_returned_to_pool_count.fetch_add(1, std::memory_order_relaxed);
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Pool management (unchanged logic, updated for PoolEntry)
+// ─────────────────────────────────────────────────────────────────────────────
 
 void FramebufferPool::clear() {
     std::lock_guard<std::mutex> lock(m_mutex);
@@ -339,12 +425,10 @@ size_t FramebufferPool::available_count() const {
 
 namespace {
 
-/// Shared allocation helper used by both preallocate() and ensure_preallocated().
-/// Must be called while holding the pool mutex.
 size_t do_preallocate_into_bucket(
     std::unordered_map<
         FramebufferPoolKey,
-        std::vector<std::unique_ptr<Framebuffer>>,
+        std::vector<PoolEntry>,
         FramebufferPoolKeyHash
     >& free_map,
     size_t& current_bytes,
@@ -379,7 +463,7 @@ size_t do_preallocate_into_bucket(
         }
 
         current_bytes += weight;
-        free_map[key].push_back(std::move(fb));
+        free_map[key].push_back(PoolEntry{std::move(fb), 0});
         ++created;
     }
     return created;
@@ -464,7 +548,13 @@ FramebufferPoolStats FramebufferPool::stats() const {
         .total_returns = m_total_returns.load(std::memory_order_relaxed),
         .total_clears = m_total_clears.load(std::memory_order_relaxed),
         .arena_bytes = m_arena ? m_arena->total_bytes() : 0,
-        .hit_rate = total > 0 ? static_cast<double>(reuses) / static_cast<double>(total) : 0.0
+        .hit_rate = total > 0 ? static_cast<double>(reuses) / static_cast<double>(total) : 0.0,
+        .budget_bytes = m_config.max_retained_bytes,
+        .retained_bytes = m_current_bytes,
+        .evicted_count = m_evicted_count.load(std::memory_order_relaxed),
+        .evicted_bytes = m_evicted_bytes.load(std::memory_order_relaxed),
+        .pressure_count = m_pressure_count.load(std::memory_order_relaxed),
+        .size_class_count = m_free.size(),
     };
 }
 
@@ -473,6 +563,9 @@ void FramebufferPool::reset_counters() {
     m_total_reuses.store(0, std::memory_order_relaxed);
     m_total_returns.store(0, std::memory_order_relaxed);
     m_total_clears.store(0, std::memory_order_relaxed);
+    m_evicted_count.store(0, std::memory_order_relaxed);
+    m_evicted_bytes.store(0, std::memory_order_relaxed);
+    m_pressure_count.store(0, std::memory_order_relaxed);
 }
 
 } // namespace chronon3d::cache

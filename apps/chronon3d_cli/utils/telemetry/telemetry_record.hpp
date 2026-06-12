@@ -83,6 +83,12 @@ inline void populate_run_metrics(chronon3d::telemetry::RenderTelemetryRecord& ru
     run.framebuffer_pool_best_fit_reuse = counters.framebuffer_pool_best_fit_reuse.load(std::memory_order_relaxed);
     run.framebuffer_pool_exact_hit = counters.framebuffer_pool_exact_hit.load(std::memory_order_relaxed);
     run.framebuffer_buffer_returned_to_pool_count = counters.framebuffer_buffer_returned_to_pool_count.load(std::memory_order_relaxed);
+    run.framebuffer_pool_budget_bytes = counters.framebuffer_pool_budget_bytes.load(std::memory_order_relaxed);
+    run.framebuffer_pool_retained_bytes = counters.framebuffer_pool_retained_bytes.load(std::memory_order_relaxed);
+    run.framebuffer_pool_evicted_count = counters.framebuffer_pool_evicted_count.load(std::memory_order_relaxed);
+    run.framebuffer_pool_evicted_bytes = counters.framebuffer_pool_evicted_bytes.load(std::memory_order_relaxed);
+    run.framebuffer_pool_pressure_count = counters.framebuffer_pool_pressure_count.load(std::memory_order_relaxed);
+    run.framebuffer_pool_size_class_count = counters.framebuffer_pool_size_class_count.load(std::memory_order_relaxed);
     run.unaligned_memory_copies = counters.unaligned_memory_copies.load(std::memory_order_relaxed);
     run.frame_conversion_copy_ms = counters.frame_conversion_copy_ms.load(std::memory_order_relaxed);
     run.video_graph_eval_ms = counters.video_graph_eval_ms.load(std::memory_order_relaxed);

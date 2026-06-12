@@ -68,6 +68,12 @@ std::vector<chronon3d::telemetry::CounterTelemetryRecord>
         result.push_back({"framebuffer_pool_current_bytes", pool_stats.current_bytes});
         result.push_back({"framebuffer_pool_total_allocations", pool_stats.total_allocations});
         result.push_back({"framebuffer_pool_total_reuses", pool_stats.total_reuses});
+        result.push_back({"framebuffer_pool_budget_bytes", pool_stats.budget_bytes});
+        result.push_back({"framebuffer_pool_retained_bytes", pool_stats.retained_bytes});
+        result.push_back({"framebuffer_pool_evicted_count", pool_stats.evicted_count});
+        result.push_back({"framebuffer_pool_evicted_bytes", pool_stats.evicted_bytes});
+        result.push_back({"framebuffer_pool_pressure_count", pool_stats.pressure_count});
+        result.push_back({"framebuffer_pool_size_class_count", pool_stats.size_class_count});
     }
 
     return result;
