@@ -85,10 +85,7 @@ namespace chronon3d::graph {
         }
     }
 
-    // Reduced from 5→3 to cut pool growth during long exports.
-    // At 1080p each FB is ~8 MB; 3 per bucket caps intermediate
-    // allocation at ~24 MB per bucket instead of ~40 MB.
-    constexpr size_t kMaxPreallocPerBucket = 3;
+    constexpr size_t kMaxPreallocPerBucket = 5;
     std::vector<cache::FramebufferPoolPreallocOptions> predictions;
     predictions.reserve(peak_counts.size() + 1);
 
@@ -97,7 +94,7 @@ namespace chronon3d::graph {
         predictions.push_back(cache::FramebufferPoolPreallocOptions{
             .width  = bw,
             .height = bh,
-            .count  = 3,
+            .count  = 4,
             .clear  = true,
             .touch_memory = false,
         });
@@ -441,14 +438,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         if (chronon3d::Config::get().pingpong_framebuffer) {
             sw_renderer->buffer_ring().ensure_size(width, height,
                                                          sw_renderer->framebuffer_pool().get());
-            // In-place optimization: when the encoder is done reading
-            // prev_framebuffer (use_count == 1), skip the write ping so
-            // ClearNode reuses the previous framebuffer directly —
-            // eliminating the ~31MB restore copy for those frames.
-            const auto& prev_fb = sw_renderer->buffer_ring().prev_framebuffer();
-            if (!prev_fb || prev_fb.use_count() > 1) {
-                ctx.scratch.ping_write = sw_renderer->buffer_ring().write_slot_view();
-            }
+            ctx.scratch.ping_write = sw_renderer->buffer_ring().write_slot_view();
         }
 
         ctx.scratch.transform_scratch = sw_renderer->scratch_buffer().slot_view(width, height);
@@ -693,20 +683,15 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         // ── Update prev_framebuffer: swap ping-pong or assign directly ──
         // When the graph rendered into a ping buffer (ClearNode's ping-pong path),
         // swap indices so prev_framebuffer points to the completed frame.
-        // If the in-place path was taken (fb_shared == read ping), don't swap
-        // — just reassign prev_framebuffer directly to avoid pointing to the
-        // stale write ping.
         // Otherwise (first frame, tile execution, or COW fallback), fb_shared is
         // a pool FB and must be assigned directly.
         if (fb_shared.get() == sw_renderer->buffer_ring().ping_fb(0) ||
             fb_shared.get() == sw_renderer->buffer_ring().ping_fb(1)) {
-            if (fb_shared.get() == sw_renderer->buffer_ring().read_fb()) {
-                // In-place path: ClearNode reused the read ping directly.
-                sw_renderer->buffer_ring().prev_framebuffer() = fb_shared;
-            } else {
-                // Normal ping-pong path: swap indices to advance the cycle.
-                sw_renderer->buffer_ring().swap();
-            }
+            // Rendered into a ping — swap indices to advance the ping cycle.
+            // swap() repoints prev_framebuffer to the new read ping
+            // (the frame we just finished writing), making it the "previous" frame
+            // for ClearNode's dirty-rect read in the next cycle.
+            sw_renderer->buffer_ring().swap();
         } else {
             // Rendered into a pool FB — assign directly.
             sw_renderer->buffer_ring().prev_framebuffer() = fb_shared;
