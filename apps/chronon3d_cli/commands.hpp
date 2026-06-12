@@ -33,6 +33,9 @@ struct RenderPipelineArgs {
 
     // Debug: force scalar (non-SIMD) Normal blend for diagnosing regression
     bool   force_scalar_normal_blend{false};
+
+    // Framebuffer pool retention budget (MB). 0 = use default / env var.
+    size_t fb_pool_budget_mb{0};
 };
 
 struct RenderArgs {

@@ -124,6 +124,12 @@ void record_pipe_telemetry(
         resolved_counters.push_back({"framebuffer_pool_current_bytes", pool_stats.current_bytes});
         resolved_counters.push_back({"framebuffer_pool_total_allocations", pool_stats.total_allocations});
         resolved_counters.push_back({"framebuffer_pool_total_reuses", pool_stats.total_reuses});
+        resolved_counters.push_back({"framebuffer_pool_budget_bytes", pool_stats.budget_bytes});
+        resolved_counters.push_back({"framebuffer_pool_retained_bytes", pool_stats.retained_bytes});
+        resolved_counters.push_back({"framebuffer_pool_evicted_count", pool_stats.evicted_count});
+        resolved_counters.push_back({"framebuffer_pool_evicted_bytes", pool_stats.evicted_bytes});
+        resolved_counters.push_back({"framebuffer_pool_pressure_count", pool_stats.pressure_count});
+        resolved_counters.push_back({"framebuffer_pool_size_class_count", pool_stats.size_class_count});
     }
 
     // ── Record ─────────────────────────────────────────────────────────────

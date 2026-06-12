@@ -81,6 +81,20 @@ inline void add_counters(chronon3d::RenderCounters& dst, const chronon3d::Render
     dst.framebuffer_pool_exact_hit.fetch_add(src.framebuffer_pool_exact_hit.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.framebuffer_buffer_returned_to_pool_count.fetch_add(src.framebuffer_buffer_returned_to_pool_count.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.framebuffer_prealloc_created.fetch_add(src.framebuffer_prealloc_created.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.framebuffer_pool_budget_bytes.store(src.framebuffer_pool_budget_bytes.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    {
+        const auto v = src.framebuffer_pool_retained_bytes.load(std::memory_order_relaxed);
+        if (v > dst.framebuffer_pool_retained_bytes.load(std::memory_order_relaxed))
+            dst.framebuffer_pool_retained_bytes.store(v, std::memory_order_relaxed);
+    }
+    dst.framebuffer_pool_evicted_count.fetch_add(src.framebuffer_pool_evicted_count.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.framebuffer_pool_evicted_bytes.fetch_add(src.framebuffer_pool_evicted_bytes.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.framebuffer_pool_pressure_count.fetch_add(src.framebuffer_pool_pressure_count.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    {
+        const auto v = src.framebuffer_pool_size_class_count.load(std::memory_order_relaxed);
+        if (v > dst.framebuffer_pool_size_class_count.load(std::memory_order_relaxed))
+            dst.framebuffer_pool_size_class_count.store(v, std::memory_order_relaxed);
+    }
     dst.unaligned_memory_copies.fetch_add(src.unaligned_memory_copies.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.frame_conversion_copy_ms.fetch_add(src.frame_conversion_copy_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.video_graph_eval_ms.fetch_add(src.video_graph_eval_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);

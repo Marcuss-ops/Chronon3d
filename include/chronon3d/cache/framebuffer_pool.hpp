@@ -45,6 +45,29 @@ struct FramebufferPoolPreallocOptions {
 };
 
 // ---------------------------------------------------------------------------
+// FramebufferPoolConfig — retention budget and eviction policy
+// ---------------------------------------------------------------------------
+struct FramebufferPoolConfig {
+    // 0 = unlimited (debug/local). Default 384 MB keeps peak memory ~1.0–1.2 GB.
+    // Override via --fb-pool-budget-mb CLI flag or CHRONON3D_FB_POOL_BUDGET_MB env.
+    size_t max_retained_bytes = 384ULL * 1024ULL * 1024ULL;
+
+    // Avoid one size class keeping too many buffers.
+    size_t max_buffers_per_size_class = 4;
+
+    // When true, eviction prefers the least-recently-used entry.
+    bool enable_lru_eviction = true;
+};
+
+// ---------------------------------------------------------------------------
+// PoolEntry — framebuffer with LRU tracking
+// ---------------------------------------------------------------------------
+struct PoolEntry {
+    std::unique_ptr<Framebuffer> fb;
+    uint64_t last_used_tick{0};  // monotonic tick from FramebufferPool::m_tick
+};
+
+// ---------------------------------------------------------------------------
 // FramebufferAcquireHint — guides the pool on lifecycle intent
 // ---------------------------------------------------------------------------
 enum class FramebufferAcquireHint {
@@ -66,6 +89,12 @@ struct FramebufferPoolStats {
     size_t total_clears{0};             // lifetime clear operations
     size_t arena_bytes{0};              // bytes allocated via arena
     double hit_rate{0.0};               // reuse / (alloc + reuse)
+    size_t budget_bytes{0};             // configured max_retained_bytes (0 = unlimited)
+    size_t retained_bytes{0};           // current bytes retained in pool free list
+    size_t evicted_count{0};            // FBs evicted due to budget pressure
+    size_t evicted_bytes{0};            // total bytes evicted
+    size_t pressure_count{0};           // number of eviction events
+    size_t size_class_count{0};         // distinct size classes in the pool
 };
 
 // ---------------------------------------------------------------------------
@@ -78,10 +107,20 @@ public:
     // full-resolution 1920×1080 framebuffers.
     // Override via CHRONON_FB_POOL_MAX_MB env var.
     explicit FramebufferPool(size_t max_bytes = 550ULL * 1024ULL * 1024ULL);
+
+    /// Construct with explicit config (from CLI/Config system).
+    explicit FramebufferPool(const FramebufferPoolConfig& config,
+                             size_t max_bytes = 550ULL * 1024ULL * 1024ULL);
     ~FramebufferPool();
 
     /// Set a static arena to be used for new allocations.
     void set_arena(std::shared_ptr<chronon3d::FramebufferArena> arena);
+
+    /// Dynamically update the retention budget (0 = unlimited).
+    void set_budget_bytes(size_t max_retained_bytes);
+
+    /// Get the current config.
+    [[nodiscard]] const FramebufferPoolConfig& config() const { return m_config; }
 
     /// Acquire a framebuffer of the requested size.
     /// Clearing is optional and only happens when requested by the caller.
@@ -146,10 +185,27 @@ private:
     /// and therefore doesn't need explicit clearing.
     std::unique_ptr<Framebuffer> acquire_unique(int width, int height, bool* out_fresh_alloc = nullptr);
 
+    /// Evict entries until there is room for `incoming_bytes`, or until no
+    /// more entries can be evicted.  Returns true if room was made.
+    bool evict_lru_for(size_t incoming_bytes);
+
+    /// Evict the oldest entry from a specific size class.
+    bool evict_one_from_bucket(FramebufferPoolKey key);
+
+    /// Evict the globally oldest entry across all size classes.
+    bool evict_global_lru();
+
     mutable std::mutex m_mutex;
+    FramebufferPoolConfig m_config;
     size_t m_max_bytes;
     size_t m_current_bytes{0};
+    uint64_t m_tick{0};  // monotonic LRU tick
     std::shared_ptr<chronon3d::FramebufferArena> m_arena;
+
+    // Eviction counters (lifetime)
+    std::atomic<size_t> m_evicted_count{0};
+    std::atomic<size_t> m_evicted_bytes{0};
+    std::atomic<size_t> m_pressure_count{0};
 
     // Lifetime counters (reset via reset_counters)
     std::atomic<size_t> m_total_allocations{0};
@@ -159,7 +215,7 @@ private:
 
     std::unordered_map<
         FramebufferPoolKey,
-        std::vector<std::unique_ptr<Framebuffer>>,
+        std::vector<PoolEntry>,
         FramebufferPoolKeyHash
     > m_free;
 

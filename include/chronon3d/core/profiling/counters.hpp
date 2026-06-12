@@ -118,7 +118,13 @@ constexpr std::size_t kHardwareDestructiveInterferenceSize = 64;
     X(framebuffer_prealloc_created) \
     X(framebuffer_copy_ms) \
     X(framebuffer_copy_parallel_calls) \
-    X(unaligned_memory_copies)
+    X(unaligned_memory_copies) \
+    X(framebuffer_pool_budget_bytes) \
+    X(framebuffer_pool_retained_bytes) \
+    X(framebuffer_pool_evicted_count) \
+    X(framebuffer_pool_evicted_bytes) \
+    X(framebuffer_pool_pressure_count) \
+    X(framebuffer_pool_size_class_count)
 
 #define CHRONON_COUNTERS_DIRTY(X) \
     X(dirty_rect_count) \

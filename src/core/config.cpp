@@ -63,6 +63,7 @@ Config::Config() {
 
     // Cache limits
     fb_pool_max_bytes      = resolve_env_mb("CHRONON_FB_POOL_MAX_MB", 0);
+    fb_pool_budget_bytes   = resolve_env_mb("CHRONON3D_FB_POOL_BUDGET_MB", 0);
     image_cache_max_bytes  = resolve_env_mb("CHRONON_IMAGE_CACHE_MAX_MB", 0);
     node_cache_max_bytes   = resolve_env_mb("CHRONON_NODE_CACHE_MAX_MB", 0);
     glyph_atlas_max_bytes = resolve_env_mb("CHRONON_GLYPH_ATLAS_MAX_MB", 0);
