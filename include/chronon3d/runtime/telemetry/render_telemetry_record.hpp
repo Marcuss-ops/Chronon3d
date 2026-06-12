@@ -79,6 +79,12 @@ struct RenderTelemetryRecord {
     uint64_t framebuffer_clear_ms{0};
     uint64_t clearnode_ms{0};
     uint64_t clearnode_restore_ms{0};
+    uint64_t clearnode_restore_rect_count{0};
+    uint64_t clearnode_restore_pixels{0};
+    uint64_t clearnode_restore_bytes{0};
+    uint64_t clearnode_restore_full_frame_count{0};
+    uint64_t clearnode_restore_dirty_rect_count{0};
+    uint64_t clearnode_restore_noop_count{0};
     uint64_t framebuffer_pool_clear_ms{0};
     uint64_t framebuffer_enqueue_ms{0};
     uint64_t framebuffer_pool_empty_alloc{0};

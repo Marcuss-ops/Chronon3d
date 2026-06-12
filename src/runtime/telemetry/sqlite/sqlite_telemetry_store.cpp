@@ -32,7 +32,7 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
     std::scoped_lock lock(m_impl->mutex);
     if (!m_impl->db) return false;
 
-    // Named-column INSERT: column order matches telemetry_schema.sql exactly (91 columns)
+    // Named-column INSERT: column order matches telemetry_schema.sql exactly (97 columns)
     const char* sql =
         "INSERT OR REPLACE INTO render_runs ("
         "run_id, composition_id, output_path, success, error_code, error_message, "
@@ -55,6 +55,8 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
         "dirty_full_fallback_effect_bounds_unknown, "
         "framebuffer_acquire_ms, framebuffer_clear_ms, clearnode_ms, "
         "clearnode_restore_ms, "
+        "clearnode_restore_rect_count, clearnode_restore_pixels, clearnode_restore_bytes, "
+        "clearnode_restore_full_frame_count, clearnode_restore_dirty_rect_count, clearnode_restore_noop_count, "
         "framebuffer_pool_clear_ms, framebuffer_enqueue_ms, "
         "framebuffer_pool_empty_alloc, framebuffer_pool_miss_count_empty, "
         "framebuffer_pool_best_fit_reuse, framebuffer_pool_exact_hit, framebuffer_buffer_returned_to_pool_count, "
@@ -82,7 +84,8 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
         "?71, ?72, ?73, ?74, ?75, ?76, ?77, ?78, ?79, ?80, "
         "?81, ?82, ?83, ?84, ?85, ?86, ?87, ?88, ?89, "
         "?90, ?91, ?92, ?93, ?94, ?95, ?96, ?97, ?98, "
-        "?99, ?100, ?101, ?102, ?103, ?104, ?105, ?106, ?107, ?108"
+        "?99, ?100, ?101, ?102, ?103, ?104, ?105, ?106, ?107, ?108, "
+        "?109, ?110, ?111, ?112, ?113, ?114"
         ");";
 
     SqliteStatement stmt(m_impl->db, sql);
@@ -145,6 +148,12 @@ bool SqliteTelemetryStore::write_render_run(const RenderTelemetryRecord& run) {
         run.framebuffer_clear_ms,
         run.clearnode_ms,
         run.clearnode_restore_ms,
+        run.clearnode_restore_rect_count,
+        run.clearnode_restore_pixels,
+        run.clearnode_restore_bytes,
+        run.clearnode_restore_full_frame_count,
+        run.clearnode_restore_dirty_rect_count,
+        run.clearnode_restore_noop_count,
         run.framebuffer_pool_clear_ms,
         run.framebuffer_enqueue_ms,
         run.framebuffer_pool_empty_alloc,

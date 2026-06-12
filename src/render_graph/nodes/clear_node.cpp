@@ -73,7 +73,6 @@ OwnedFB ClearNode::execute(
                         const auto t_clear0 = profiling::now();
                         chronon3d::framebuffer_clear_parallel(*write_fb, Color::transparent(), std::nullopt);
                         const auto t_clear1 = profiling::now();
-                        // restore_ms stays 0 (skipped)
                         if (ctx.telemetry.counters) {
                             const auto elapsed = static_cast<uint64_t>(
                                 profiling::duration_ms(t_clear0, t_clear1));
@@ -81,9 +80,9 @@ OwnedFB ClearNode::execute(
                             ctx.telemetry.counters->clearnode_ms.fetch_add(elapsed, std::memory_order_relaxed);
                             ctx.telemetry.counters->clearnode_clear_ms.fetch_add(elapsed, std::memory_order_relaxed);
                             ctx.telemetry.counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
-                            // Full frame pixels (full clear, not just clip)
                             ctx.telemetry.counters->clear_pixels.fetch_add(
                                 static_cast<uint64_t>(logical_w) * h, std::memory_order_relaxed);
+                            ctx.telemetry.counters->clearnode_restore_noop_count.fetch_add(1, std::memory_order_relaxed);
                         }
                     } else {
                         // Combined restore+clear pass: copy from read_fb
@@ -142,6 +141,14 @@ OwnedFB ClearNode::execute(
                             ctx.telemetry.counters->framebuffer_clear_ms.fetch_add(restore_elapsed, std::memory_order_relaxed);
                             ctx.telemetry.counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
                             ctx.telemetry.counters->clear_pixels.fetch_add(clear_pixels, std::memory_order_relaxed);
+                            // ── New restore telemetry (PR 1: dirty-region restore) ──
+                            ctx.telemetry.counters->clearnode_restore_dirty_rect_count.fetch_add(1, std::memory_order_relaxed);
+                            ctx.telemetry.counters->clearnode_restore_rect_count.fetch_add(1, std::memory_order_relaxed);
+                            // Pixels restored = total frame minus clip area
+                            const uint64_t frame_total = static_cast<uint64_t>(logical_w) * h;
+                            const uint64_t restore_px = (frame_total > clear_pixels) ? (frame_total - clear_pixels) : 0;
+                            ctx.telemetry.counters->clearnode_restore_pixels.fetch_add(restore_px, std::memory_order_relaxed);
+                            ctx.telemetry.counters->clearnode_restore_bytes.fetch_add(restore_px * sizeof(Color), std::memory_order_relaxed);
                         }
                     }
 
@@ -159,6 +166,7 @@ OwnedFB ClearNode::execute(
                         ctx.telemetry.counters->clearnode_clear_ms.fetch_add(elapsed, std::memory_order_relaxed);
                         ctx.telemetry.counters->clear_calls.fetch_add(1, std::memory_order_relaxed);
                         ctx.telemetry.counters->clear_pixels.fetch_add(clear_pixels, std::memory_order_relaxed);
+                        ctx.telemetry.counters->clearnode_restore_noop_count.fetch_add(1, std::memory_order_relaxed);
                     }
                 }
             }
@@ -184,6 +192,7 @@ OwnedFB ClearNode::execute(
                 if (ctx.telemetry.counters) {
                     ctx.telemetry.counters->clear_skipped_calls.fetch_add(1, std::memory_order_relaxed);
                     ctx.telemetry.counters->clear_skipped_pixels.fetch_add(clear_pixels, std::memory_order_relaxed);
+                    ctx.telemetry.counters->clearnode_restore_noop_count.fetch_add(1, std::memory_order_relaxed);
                 }
             }
 
@@ -228,6 +237,7 @@ OwnedFB ClearNode::execute(
             if (clip_fraction > 0.5f) {
                 if (ctx.telemetry.counters) {
                     ctx.telemetry.counters->clearnode_full_clip_skip_count.fetch_add(1, std::memory_order_relaxed);
+                    ctx.telemetry.counters->clearnode_restore_noop_count.fetch_add(1, std::memory_order_relaxed);
                 }
                 auto owned = ctx.acquire_owned_fb(fb->width(), fb->height(), true);
                 owned->set_origin(fb->origin_x(), fb->origin_y());
@@ -243,63 +253,64 @@ OwnedFB ClearNode::execute(
                     fb = std::shared_ptr<Framebuffer>(raw);
                 }
             } else {
+                // ── PR 1: dirty-region-aware restore for shared framebuffers ──
+                // Instead of full memcpy, copy only pixels outside the clip
+                // rect and zero the clip area in a single parallel_for pass.
+                // This mirrors the ping_write path's combined restore+clear
+                // and avoids copying pixels that will be immediately cleared.
                 if (ctx.telemetry.counters) {
                     ctx.telemetry.counters->clearnode_detach_shared_count.fetch_add(1, std::memory_order_relaxed);
-                    ctx.telemetry.counters->clearnode_copy_pixels.fetch_add(
-                        static_cast<uint64_t>(fb->pixel_count()), std::memory_order_relaxed);
                     ctx.telemetry.counters->clearnode_memcpy_calls.fetch_add(1, std::memory_order_relaxed);
-                    ctx.telemetry.counters->clearnode_memcpy_bytes.fetch_add(fb_size_bytes, std::memory_order_relaxed);
-                    if (!is_full_clip && ctx.tile.clip_rect &&
-                        !(ctx.tile.clip_rect->x0 <= 0 && ctx.tile.clip_rect->x0 <= 0 &&
-                          ctx.tile.clip_rect->x1 >= ctx.frame.width && ctx.tile.clip_rect->y1 >= ctx.frame.height)) {
-                        ctx.telemetry.counters->clearnode_partial_clip_copy_count.fetch_add(1, std::memory_order_relaxed);
-                    }
                 }
-                const auto t_memcpy0 = profiling::now();
+                const auto t_restore0 = profiling::now();
                 auto owned = ctx.acquire_owned_fb(fb->width(), fb->height(), false);
                 owned->set_origin(fb->origin_x(), fb->origin_y());
-                const int copy_h = fb->height();
-                const int copy_w = fb->allocated_width();
-                const int64_t total_pixels = static_cast<int64_t>(copy_h) * copy_w;
-                const bool use_parallel_copy = total_pixels >= (int64_t{1} << 18) && copy_h >= 8;
-                if (use_parallel_copy) {
-                    if (ctx.telemetry.counters) {
-                        ctx.telemetry.counters->framebuffer_copy_parallel_calls.fetch_add(1, std::memory_order_relaxed);
-                    }
-                    if (owned->allocated_width() == copy_w) {                                parallel_for_tracked(
-                                        tbb::blocked_range<int>(0, copy_h, 64),
-                                        [&](const tbb::blocked_range<int>& range) {
-                                            std::memcpy(
-                                                owned->data() + static_cast<size_t>(range.begin()) * copy_w,
-                                                fb->data()   + static_cast<size_t>(range.begin()) * copy_w,
-                                                static_cast<size_t>(range.size()) * copy_w * sizeof(Color));
-                                        },
-                                        ctx.telemetry.counters,
-                                        tbb::simple_partitioner{}
-                                    );
-                    } else {                                parallel_for_tracked(
-                                        tbb::blocked_range<int>(0, copy_h, 64),
-                                        [&](const tbb::blocked_range<int>& range) {
-                                            for (int y = range.begin(); y < range.end(); ++y) {
-                                                std::memcpy(owned->pixels_row(y), fb->pixels_row(y),
-                                                             static_cast<size_t>(copy_w) * sizeof(Color));
-                                            }
-                                        },
-                                        ctx.telemetry.counters,
-                                        tbb::simple_partitioner{}
-                                    );
-                    }
-                } else {
-                    if (owned->allocated_width() == copy_w) {
-                        std::memcpy(owned->data(), fb->data(),
-                                     static_cast<size_t>(copy_h) * copy_w * sizeof(Color));
-                    } else {
-                        for (int y = 0; y < copy_h; ++y) {
-                            std::memcpy(owned->pixels_row(y), fb->pixels_row(y),
-                                         static_cast<size_t>(copy_w) * sizeof(Color));
+                const Color* src_data = fb->data();
+                Color* dst_data = owned->data();
+                const int src_stride = fb->allocated_width();
+                const int dst_stride = owned->allocated_width();
+                const int fh = ctx.frame.height;
+                const int fw = ctx.frame.width;
+                const int copy_stride = std::min(dst_stride, src_stride);
+                const size_t row_bytes = static_cast<size_t>(copy_stride) * sizeof(Color);
+                // Use clip rect from context for dirty-region restore
+                const int cx0 = ctx.tile.clip_rect ? ctx.tile.clip_rect->x0 : 0;
+                const int cy0 = ctx.tile.clip_rect ? ctx.tile.clip_rect->y0 : 0;
+                const int cx1 = ctx.tile.clip_rect ? ctx.tile.clip_rect->x1 : fw;
+                const int cy1 = ctx.tile.clip_rect ? ctx.tile.clip_rect->y1 : fh;
+                const int cw = cx1 - cx0;
+                const size_t cw_bytes = static_cast<size_t>(std::max(0, cw)) * sizeof(Color);
+
+                parallel_for_tracked(
+                    tbb::blocked_range<int>(0, fh, 64),
+                    [&](const tbb::blocked_range<int>& range) {
+                        for (int y = range.begin(); y < range.end(); ++y) {
+                            Color* dst = dst_data + static_cast<size_t>(y) * dst_stride;
+                            const Color* src = src_data + static_cast<size_t>(y) * src_stride;
+                            if (y < cy0 || y >= cy1) {
+                                // Rows outside clip: copy entire row from prev frame
+                                std::memcpy(dst, src, row_bytes);
+                            } else {
+                                // Rows inside clip: restore left + right segments
+                                // and zero the clip area in one row pass.
+                                if (cx0 > 0)
+                                    std::memcpy(dst, src,
+                                        static_cast<size_t>(cx0) * sizeof(Color));
+                                if (cx1 < copy_stride)
+                                    std::memcpy(dst + cx1, src + cx1,
+                                        static_cast<size_t>(copy_stride - cx1) * sizeof(Color));
+                                // Clear the clip rect portion
+                                std::memset(dst + cx0, 0, cw_bytes);
+                            }
                         }
-                    }
-                }
+                    },
+                    ctx.telemetry.counters,
+                    tbb::simple_partitioner{});
+
+                // Mark as fresh_cleared so the subsequent clear below is skipped
+                // (clip area was already zeroed in the loop above).
+                owned->set_content_cleared(true);
+                fresh_cleared = true;
                 Framebuffer* raw = owned.release();
                 if (ctx.resources.framebuffer_pool) {
                     fb = std::shared_ptr<Framebuffer>(raw,
@@ -308,18 +319,31 @@ OwnedFB ClearNode::execute(
                     fb = std::shared_ptr<Framebuffer>(raw);
                 }
                 if (ctx.telemetry.counters) {
-                    const auto t_memcpy1 = profiling::now();
-                    const auto elapsed = static_cast<uint64_t>(profiling::duration_ms(t_memcpy0, t_memcpy1));
-                    ctx.telemetry.counters->clearnode_memcpy_ms.fetch_add(elapsed, std::memory_order_relaxed);
+                    const auto t_restore1 = profiling::now();
+                    const auto elapsed = static_cast<uint64_t>(profiling::duration_ms(t_restore0, t_restore1));
+                    ctx.telemetry.counters->clearnode_restore_ms.fetch_add(elapsed, std::memory_order_relaxed);
+                    // New restore telemetry
+                    ctx.telemetry.counters->clearnode_restore_dirty_rect_count.fetch_add(1, std::memory_order_relaxed);
+                    ctx.telemetry.counters->clearnode_restore_rect_count.fetch_add(1, std::memory_order_relaxed);
+                    const uint64_t frame_total = static_cast<uint64_t>(fw) * fh;
+                    const uint64_t clip_total = static_cast<uint64_t>(std::max(0, cw)) * std::max(0, cy1 - cy0);
+                    const uint64_t restore_px = (frame_total > clip_total) ? (frame_total - clip_total) : 0;
+                    ctx.telemetry.counters->clearnode_restore_pixels.fetch_add(restore_px, std::memory_order_relaxed);
+                    ctx.telemetry.counters->clearnode_restore_bytes.fetch_add(restore_px * sizeof(Color), std::memory_order_relaxed);
                 }
             }
         } else {
-            if (ctx.telemetry.counters && fb_size_bytes > 0) {
-                ctx.telemetry.counters->clearnode_bytes_avoided.fetch_add(
-                    static_cast<uint64_t>(fb_size_bytes), std::memory_order_relaxed);
+            if (ctx.telemetry.counters) {
+                if (fb_size_bytes > 0) {
+                    ctx.telemetry.counters->clearnode_bytes_avoided.fetch_add(
+                        static_cast<uint64_t>(fb_size_bytes), std::memory_order_relaxed);
+                }
                 if (fb_is_shared && is_full_clip) {
                     ctx.telemetry.counters->clearnode_full_clip_skip_count.fetch_add(1, std::memory_order_relaxed);
                 }
+                // Prev FB reused without copy: effectively a full-frame restore at zero cost.
+                ctx.telemetry.counters->clearnode_restore_full_frame_count.fetch_add(1, std::memory_order_relaxed);
+                ctx.telemetry.counters->clearnode_restore_noop_count.fetch_add(1, std::memory_order_relaxed);
             }
         }
         {
