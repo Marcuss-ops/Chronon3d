@@ -4,7 +4,6 @@
 # ==============================================================================
 
 # Add category subdirectories
-add_subdirectory(text)
 add_subdirectory(shapes)
 add_subdirectory(images)
 add_subdirectory(anims)
@@ -22,7 +21,6 @@ add_subdirectory(grid)
 add_library(chronon3d_content_registry STATIC
     register_content_modules.cpp
     register_minimalist_content.cpp
-    register_text_content.cpp
     register_shapes_content.cpp
     register_images_content.cpp
     register_2d5_content.cpp
@@ -34,7 +32,6 @@ target_include_directories(chronon3d_content_registry PRIVATE ${CMAKE_SOURCE_DIR
 target_link_libraries(chronon3d_content_registry
     PUBLIC
         chronon3d
-        chronon3d_content_text
         chronon3d_content_shapes
         chronon3d_content_images
         chronon3d_content_anims
@@ -49,7 +46,6 @@ add_library(chronon3d::content_registry ALIAS chronon3d_content_registry)
 # Meta-target: all content (used for full builds)
 add_custom_target(chronon3d_content ALL
     DEPENDS
-        chronon3d_content_text
         chronon3d_content_shapes
         chronon3d_content_images
         chronon3d_content_anims

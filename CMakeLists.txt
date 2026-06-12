@@ -177,7 +177,6 @@ if(CHRONON3D_BUILD_CONTENT)
                 chronon3d_content_registry
                 chronon3d_content_anims
                 chronon3d_content_minimalist
-                chronon3d_content_text
                 chronon3d_content_shapes
                 chronon3d_content_images
                 chronon3d_content_effects
