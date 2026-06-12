@@ -1,6 +1,0 @@
-# Performance benchmark reports directory
-# Each report should be named clearly:
-#   reports/perf/breathing_v14.json
-#   reports/perf/breathing_v19.json
-#   reports/perf/breathing_no_floor.json
-#   reports/perf/current.json

@@ -242,6 +242,174 @@ TEST_CASE("FramebufferPool reuse - allocations stable after warmup") {
     CHECK(stats2.hit_rate > 0.0);
 }
 
+// ── PR 2: Pool budget tests ─────────────────────────────────────────────
+
+TEST_CASE("FramebufferPool budget respected — eviction on release") {
+    // 64x64 framebuffer = 64*64*16 = 65536 bytes ≈ 64KB
+    // Budget allows 2 framebuffers (128KB)
+    FramebufferPoolConfig config;
+    config.max_retained_bytes = 65536 * 2;
+    config.max_buffers_per_size_class = 10;  // high enough to not trigger per-class limit
+    config.enable_lru_eviction = true;
+
+    auto pool = std::make_shared<FramebufferPool>(config, 10ULL * 1024 * 1024);
+    pool->reset_counters();
+
+    // Release 3 framebuffers — only 2 should fit
+    auto fb1 = pool->acquire(64, 64);
+    auto fb2 = pool->acquire(64, 64);
+    auto fb3 = pool->acquire(64, 64);
+    fb1.reset();
+    fb2.reset();
+    fb3.reset();
+
+    auto stats = pool->stats();
+    CHECK(stats.current_bytes <= config.max_retained_bytes);
+    CHECK(stats.available_count == 2);
+    CHECK(stats.evicted_count >= 1);  // one FB was evicted
+    CHECK(stats.pressure_count >= 1);
+}
+
+TEST_CASE("FramebufferPool exact hit still works with budget") {
+    FramebufferPoolConfig config;
+    config.max_retained_bytes = 100ULL * 1024 * 1024;  // 100MB — plenty for 1920×1080 (≈32MB)
+    config.max_buffers_per_size_class = 4;
+
+    auto pool = std::make_shared<FramebufferPool>(config, 200ULL * 1024 * 1024);
+    pool->reset_counters();
+
+    // First acquire = fresh alloc
+    auto fb1 = pool->acquire(1920, 1080);
+    auto* ptr1 = fb1.get();
+    auto stats1 = pool->stats();
+    CHECK(stats1.total_allocations == 1);
+
+    // Release then re-acquire = exact hit
+    fb1.reset();
+    auto fb2 = pool->acquire(1920, 1080);
+    auto stats2 = pool->stats();
+    CHECK(fb2.get() == ptr1);
+    CHECK(stats2.total_reuses == 1);
+    CHECK(stats2.total_allocations == 1);  // no new alloc
+}
+
+TEST_CASE("FramebufferPool LRU eviction — oldest entry evicted first") {
+    // Test per-size-class eviction: limit 2 per bucket, release 3 FBs.
+    // The oldest (lowest tick) should be evicted from the bucket.
+    FramebufferPoolConfig config;
+    config.max_retained_bytes = 10ULL * 1024 * 1024;  // large — not the limiting factor
+    config.max_buffers_per_size_class = 2;  // only 2 per bucket triggers eviction
+    config.enable_lru_eviction = true;
+
+    auto pool = std::make_shared<FramebufferPool>(config, 100ULL * 1024 * 1024);
+    pool->reset_counters();
+
+    // Hold 3 distinct FBs simultaneously so they all survive on release.
+    auto hold_a = pool->acquire(64, 64);
+    auto* ptr_a = hold_a.get();
+    auto hold_b = pool->acquire(64, 64);
+    auto* ptr_b = hold_b.get();
+    auto hold_c = pool->acquire(64, 64);
+    auto* ptr_c = hold_c.get();
+    CHECK(ptr_a != ptr_b);
+    CHECK(ptr_b != ptr_c);
+    CHECK(ptr_a != ptr_c);  // 3 distinct allocations
+
+    // Release A first (oldest), then B, then C (newest).
+    hold_a.reset();  // tick: A=1
+    hold_b.reset();  // tick: B=2
+    hold_c.reset();  // tick: C=3 — per-class limit exceeded, oldest (A) evicted
+
+    auto stats = pool->stats();
+    CHECK(stats.available_count == 2);   // only 2 remain (limit per class)
+    CHECK(stats.evicted_count >= 1);     // one FB was evicted
+    CHECK(stats.pressure_count >= 1);
+
+    // The remaining two should be B and C (A was evicted as oldest).
+    // Acquire twice and check we don't get A back.
+    auto get1 = pool->acquire(64, 64);
+    auto* p1 = get1.get();
+    auto get2 = pool->acquire(64, 64);
+    auto* p2 = get2.get();
+
+    bool got_a = (p1 == ptr_a || p2 == ptr_a);
+    CHECK(!got_a);  // A should have been evicted
+}
+
+TEST_CASE("FramebufferPool per-size-class limit enforced") {
+    FramebufferPoolConfig config;
+    config.max_retained_bytes = 10ULL * 1024 * 1024;  // plenty of room
+    config.max_buffers_per_size_class = 2;  // only 2 per bucket
+    config.enable_lru_eviction = true;
+
+    auto pool = std::make_shared<FramebufferPool>(config, 100ULL * 1024 * 1024);
+    pool->reset_counters();
+
+    // Release 3 framebuffers of the same size
+    auto fb1 = pool->acquire(128, 128);
+    auto fb2 = pool->acquire(128, 128);
+    auto fb3 = pool->acquire(128, 128);
+    fb1.reset();
+    fb2.reset();
+    fb3.reset();
+
+    auto stats = pool->stats();
+    // Should have at most 2 in this size class
+    CHECK(stats.available_count == 2);
+    CHECK(stats.evicted_count >= 1);
+}
+
+TEST_CASE("FramebufferPool set_budget_bytes shrinks pool immediately") {
+    FramebufferPoolConfig config;
+    config.max_retained_bytes = 10ULL * 1024 * 1024;  // start generous
+    config.max_buffers_per_size_class = 10;
+
+    auto pool = std::make_shared<FramebufferPool>(config, 100ULL * 1024 * 1024);
+
+    // Release 3 FBs (~192KB)
+    auto fb1 = pool->acquire(64, 64);
+    auto fb2 = pool->acquire(64, 64);
+    auto fb3 = pool->acquire(64, 64);
+    fb1.reset();
+    fb2.reset();
+    fb3.reset();
+    CHECK(pool->available_count() == 3);
+
+    // Shrink budget to only fit 1 FB
+    pool->set_budget_bytes(65536);
+
+    auto stats = pool->stats();
+    CHECK(stats.available_count <= 1);
+    CHECK(stats.current_bytes <= 65536);
+    CHECK(stats.budget_bytes == 65536);
+    CHECK(stats.pressure_count >= 1);
+}
+
+TEST_CASE("FramebufferPool budget unlimited (0) never evicts") {
+    FramebufferPoolConfig config;
+    config.max_retained_bytes = 0;  // unlimited
+    config.max_buffers_per_size_class = 10;
+
+    auto pool = std::make_shared<FramebufferPool>(config, 100ULL * 1024 * 1024);
+    pool->reset_counters();
+
+    // Acquire and release 5 FBs of the same size.  Each release retains the FB
+    // but the next acquire reuses it, so the pool keeps only 1 FB.
+    auto* last_ptr = static_cast<Framebuffer*>(nullptr);
+    for (int i = 0; i < 5; ++i) {
+        auto fb = pool->acquire(64, 64);
+        if (i == 0) last_ptr = fb.get();
+        // Each acquire reuses the same FB; ptr should be the same
+        CHECK(fb.get() == last_ptr);
+    }
+
+    auto stats = pool->stats();
+    CHECK(stats.available_count == 1);  // one FB reused 5 times
+    CHECK(stats.total_reuses == 4);     // reused 4 times after first alloc
+    CHECK(stats.evicted_count == 0);
+    CHECK(stats.pressure_count == 0);
+}
+
 TEST_CASE("FramebufferPool reuse with smaller logical size from same bucket") {
     auto pool = std::make_shared<FramebufferPool>(1024ULL * 1024ULL * 1024ULL);
     pool->reset_counters();

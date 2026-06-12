@@ -1,5 +1,6 @@
 #include "../../command_registry.hpp"
 #include "../../commands.hpp"
+#include <chronon3d/core/config.hpp>
 #include <CLI/Validators.hpp>
 #include <CLI/ExtraValidators.hpp>
 #include <memory>
@@ -74,7 +75,14 @@ void register_video_commands(CLI::App& app, CliContext& ctx) {
                   "Render a dummy frame 0 to prime all caches");
     cmd->add_flag("--dry-run", args.dry_run,
                   "Validate composition and settings without rendering");
-    cmd->callback([state, &ctx]() { ctx.exit_code = command_video(ctx.registry, *state->args); });
+    cmd->add_option("--fb-pool-budget-mb", args.pipeline.fb_pool_budget_mb,
+                    "Framebuffer pool retention budget in MB (0=unlimited, default 384)");
+    cmd->callback([state, &ctx]() {
+        if (state->args->pipeline.fb_pool_budget_mb > 0) {
+            Config::get().fb_pool_budget_bytes = state->args->pipeline.fb_pool_budget_mb * 1024ULL * 1024ULL;
+        }
+        ctx.exit_code = command_video(ctx.registry, *state->args);
+    });
 }
 
 } // namespace chronon3d::cli
