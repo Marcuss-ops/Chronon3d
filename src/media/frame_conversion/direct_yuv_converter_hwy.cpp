@@ -70,13 +70,19 @@ HWY_ATTR static void gamma_convert_chunk_hwy(
     for (int i = chunk; i < N; ++i) rf[i]=rf[chunk-1], gf[i]=gf[chunk-1], bf[i]=bf[chunk-1];
 
     if (apply_gamma) {
-        // ── SIMD: float → int32 index → GatherIndex LUT ────────────────
+        // ── SIMD: float → int32 index → GatherIndex 65536-entry LUT ─────
+        // Using the full 256 KB LUT (g_srgb_lut_u32) for bit-exact accuracy
+        // with the scalar path. The 256-entry LUT caused green tint in dark
+        // colors due to coarse quantization of the sRGB gamma curve.
         const auto v_idx_max = hn::Set(DI32(), 65535);
         const auto v_zero_i32 = hn::Zero(DI32());
+        const auto v_scale = hn::Set(df, 65535.0f);
+        const auto v_half  = hn::Set(df, 0.5f);
 
         auto do_channel = [&](const float* src, uint8_t* dst) HWY_ATTR {
             auto v = hn::LoadU(df, src);
-            auto idx = hn::ConvertTo(DI32(), hn::Mul(v, v65535));
+            // Round to nearest: float * 65535 + 0.5 → int32 [0, 65535]
+            auto idx = hn::ConvertTo(DI32(), hn::MulAdd(v, v_scale, v_half));
             idx = hn::Min(hn::Max(idx, v_zero_i32), v_idx_max);
             auto gathered = hn::GatherIndex(DI32(), g_srgb_lut_u32, idx);
             HWY_ALIGN int32_t tmp[16];
