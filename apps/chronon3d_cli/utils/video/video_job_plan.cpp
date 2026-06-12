@@ -80,33 +80,9 @@ std::optional<VideoJobPlan> plan_video_job(
     warmup_opts.warmup_framebuffers = args.pipeline.warmup_framebuffers;
     warmup_opts.warmup_dummy_frame  = args.pipeline.warmup_dummy_frame || (args.ffmpeg_mode == "pipe");
 
-    // ── Legacy FfmpegExportOptions (backward compat) ─────────────────────
-    FfmpegExportOptions opts;
-    opts.output            = video_output;
-    opts.frames_dir_name   = args.frames_dir.empty()
-        ? ("chronon_" + std::filesystem::path(args.comp_id).filename().string())
-        : args.frames_dir;
-    opts.fps               = args.fps;
-    opts.crf               = args.crf;
-    opts.codec             = args.codec;
-    opts.hardware_encoder  = args.hardware_encoder;
-    opts.encode_preset     = args.encode_preset;
-    opts.tune              = args.tune;
-    opts.keep_frames       = args.keep_frames;
-    opts.chunks            = args.chunks;
-    opts.ffmpeg_mode       = args.ffmpeg_mode;
-    opts.ffmpeg_verbose    = args.ffmpeg_verbose;
-    opts.pipe_pixfmt       = args.pipe_pixfmt;
-    opts.color_output      = args.color_output;
-    opts.pipe_writer       = args.pipe_writer;
-    opts.encoder_backend   = args.encoder_backend;
-    opts.video_sink        = args.video_sink;
-    opts.sink_mode         = parse_video_sink_mode(args.video_sink);
-
     // ── Auto-tuning ─────────────────────────────────────────────────────
     if (encoder_opts.tune.empty() && encoder_opts.codec == "libx264") {
         encoder_opts.tune = "zerolatency";
-        opts.tune = "zerolatency";
         spdlog::info("[video] Auto-selecting x264 tune=zerolatency for low-latency pipe export");
     }
 
@@ -116,7 +92,6 @@ std::optional<VideoJobPlan> plan_video_job(
         args.codec != "libx264rgb")
     {
         pipe_opts.pipe_pixfmt = "yuv420p";
-        opts.pipe_pixfmt = "yuv420p";
         spdlog::info("[video] Auto-selecting yuv420p pipe pixel format for {}x{} output",
                      comp.width(), comp.height());
     }
@@ -144,7 +119,6 @@ std::optional<VideoJobPlan> plan_video_job(
         .pipe           = pipe_opts,
         .warmup         = warmup_opts,
         .sink           = sink_opts,
-        .export_options = opts,
         .start          = args.start,
         .end_exclusive  = end,
         .dry_run        = args.dry_run,
