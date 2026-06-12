@@ -80,6 +80,10 @@ struct VideoArgs {
 #else
     std::string encoder_backend{"pipe"};
 #endif
+
+    // Sink selection: "ffmpeg", "null-render", "null-convert"
+    std::string sink_mode{"ffmpeg"};
+
     bool dry_run{false};
 
     // Video sink mode for pipeline isolation
@@ -180,6 +184,13 @@ struct CameraPathArgs {
     std::string format{"auto"}; // "json", "csv", or "auto" (detect from -o extension)
 };
 
+struct VisualTestCameraArgs {
+    bool update_golden{false};
+    std::string case_name;
+    std::string out_dir{"artifacts/visual/camera"};
+};
+
+int command_visual_test_camera(const VisualTestCameraArgs& args);
 int command_list(const CompositionRegistry& registry);
 int command_info(const CompositionRegistry& registry, const std::string& id);
 int command_doctor(const CompositionRegistry& registry);
