@@ -670,10 +670,14 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     } else {
         if (t.box.enabled) {
             x_offset = -padding / 2.0f;
+            // Pixel-ink centering (opt-in via TextCenteringMode::PixelInk):
             // Adjust x_offset so that the actual ink centre aligns with the
-            // centre of the text box, fixing cases where the layout engine's
-            // measurement (FreeType+HarfBuzz) disagrees with Blend2D rendering.
-            if (ink_center_frac >= 0.0f && t.style.align == TextAlign::Center) {
+            // centre of the text box.  This was the historical default when
+            // the layout engine (FreeType+HarfBuzz) disagreed with Blend2D
+            // rendering.  Now that both use Blend2D measurement, LayoutBox
+            // is accurate enough and PixelInk is a debug/transition aid.
+            if (t.style.centering_mode == TextCenteringMode::PixelInk &&
+                ink_center_frac >= 0.0f && t.style.align == TextAlign::Center) {
                 const float box_img_cx = static_cast<float>(img_w) * 0.5f;
                 const float shift = std::round(box_img_cx - ink_center_frac);
                 x_offset += shift;
@@ -687,8 +691,9 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
             if (t.style.align == TextAlign::Center) x_offset = -full_width * 0.5f;
             else if (t.style.align == TextAlign::Right) x_offset = -full_width;
             x_offset += metrics.boundingBox.x0 - (padding / 2.0f);
-            // Also apply pixel-ink centering for non-box text when centered
-            if (ink_center_frac >= 0.0f && t.style.align == TextAlign::Center) {
+            // Pixel-ink centering for non-box text (opt-in via PixelInk)
+            if (t.style.centering_mode == TextCenteringMode::PixelInk &&
+                ink_center_frac >= 0.0f && t.style.align == TextAlign::Center) {
                 const float box_img_cx = static_cast<float>(img_w) * 0.5f;
                 const float shift = std::round(box_img_cx - ink_center_frac);
                 x_offset += shift;

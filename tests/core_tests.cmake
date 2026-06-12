@@ -43,6 +43,7 @@ add_executable(chronon3d_core_tests
     core/math/test_expression.cpp
     core/math/test_expression_extended.cpp
     text/test_text_layout.cpp
+    text/test_text_bounds.cpp
     text/test_text_cache_key.cpp
     text/test_text_animator.cpp
     text/test_text_material.cpp

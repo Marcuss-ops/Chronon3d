@@ -32,6 +32,7 @@ struct TestTextParams {
     f32 font_size{64.0f};
     Color color{0.95f, 0.96f, 1.0f, 1.0f};
     Vec2 size{1400.0f, 220.0f};
+    // ⚠️ DEPRECATED: use anchor
     TextAlign align{TextAlign::Center};
 };
 

@@ -28,6 +28,7 @@ TextParams common_text_params(std::string text, f32 font_size = 64.0f) {
         .font_path = "assets/fonts/Poppins-Bold.ttf",
         .font_size = font_size,
         .color = {0.94f, 0.94f, 0.94f, 1.0f},
+        .anchor = TextAnchor::Center,
         .align = TextAlign::Center,
         .vertical_align = VerticalAlign::Middle,
         .line_height = 1.10f,

@@ -60,10 +60,15 @@ void register_studio_tools(CLI::App& dev, CliContext& ctx) {
     {
         auto state = std::make_shared<RenderState>();
         auto& args = *state->args;
-        auto* cmd = dev.add_subcommand("preview", "Render a single frame of a composition (default: middle frame)");
+        auto* cmd = dev.add_subcommand("preview", "Render a single frame (or quick batch) of a composition");
         cmd->add_option("input", args.comp_id, "Composition name or .specscene path")->required();
-        cmd->add_option("--frame", args.frames, "Frame number to preview (default: middle frame)");
+        cmd->add_option("--frame", args.frames, "Single frame number to preview (default: middle frame)");
         cmd->add_option("-o,--output", args.output, "Output image path")->default_val(chronon_artifact_path("previews", "preview.png").string());
+        cmd->add_option("--count,-n", args.quick_frames,
+                        "Quick batch: render N sequential frames (0..N-1) as individual PNGs.\n"
+                        "Skips video encoding — ideal for timing & reveal checks.\n"
+                        "Example: --count 30 → preview_0000.png .. preview_0029.png")
+            ->default_val(0)->check(CLI::Range(0, 100000));
         cmd->add_flag("--diagnostic,--layout-preview", args.pipeline.diagnostic,
                       "Enable layout preview overlays (bbox, anchors, center guide)");
         cmd->add_flag("--graph,!--no-graph", args.pipeline.use_modular_graph, "Use modular RenderGraph path");
