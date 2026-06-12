@@ -11,6 +11,7 @@
 #include <chronon3d/core/tile_grid.hpp>
 #include <chronon3d/core/dirty_tile_mask.hpp>
 #include "scene_dirty_helpers.hpp"
+#include "scene_internal.hpp"
 #include <algorithm>
 
 namespace chronon3d::graph::detail {

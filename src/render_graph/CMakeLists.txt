@@ -38,9 +38,13 @@ add_library(chronon3d_graph STATIC
     framebuffer_acquire.cpp
     pipeline/scene.cpp
     pipeline/scene_dirty.cpp
-    pipeline/scene_dirty_helpers.cpp
+    pipeline/dirty/scroll_optimization.cpp
+    pipeline/dirty/layer_bbox_collector.cpp
+    pipeline/dirty/root_bbox_collector.cpp
     pipeline/scene_tile_execution.cpp
     pipeline/tile_execution_policy.cpp
+    pipeline/camera_change_policy.cpp
+    pipeline/dirty_safety_policy.cpp
     pipeline/scene_fingerprint.cpp
     pipeline/frame_reuse_policy.cpp
     pipeline/pool_preallocation.cpp
