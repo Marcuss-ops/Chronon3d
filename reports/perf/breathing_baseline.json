@@ -1,0 +1,68 @@
+{
+  "schema": "chronon3d.perf.compare.v1",
+  "baseline": {
+    "label": "prev_v14",
+    "run_id": "run_512f9ed3_b565bb81",
+    "metrics": {
+      "effective_fps": 0.0,
+      "e2e_wall_time_ms": 0.0,
+      "chronon_render_ms": 0.0,
+      "peak_memory_mb": 0.0,
+      "framebuffer_peak_mb": 0.0,
+      "cores": 1,
+      "frame_conversion_copy_ms": 0,
+      "clearnode_restore_ms": 0,
+      "clearnode_clear_ms": 0,
+      "clearnode_ms": 0,
+      "composite_calls": 0,
+      "composite_pixels": 0,
+      "transform_calls": 0,
+      "transform_pixels": 0,
+      "nodes_executed": 0,
+      "graph_executed_frames": 0,
+      "graph_skipped_frames": 0,
+      "framebuffer_pool_current_bytes": 0,
+      "composite_ms": 0.0,
+      "transform_ms": 0.0,
+      "source_node_ms": 0.0,
+      "image_layer_multi_ms": 0.0,
+      "cpu_efficiency_pct": 0.0,
+      "avg_frame_ms": 0.0,
+      "frame_count": 0
+    }
+  },
+  "current": {
+    "label": "baseline",
+    "run_id": "run_2fd4b700_d58a5d20",
+    "metrics": {
+      "effective_fps": 0.0,
+      "e2e_wall_time_ms": 0.0,
+      "chronon_render_ms": 0.0,
+      "peak_memory_mb": 0.0,
+      "framebuffer_peak_mb": 0.0,
+      "cores": 1,
+      "frame_conversion_copy_ms": 0,
+      "clearnode_restore_ms": 0,
+      "clearnode_clear_ms": 0,
+      "clearnode_ms": 0,
+      "composite_calls": 0,
+      "composite_pixels": 0,
+      "transform_calls": 0,
+      "transform_pixels": 0,
+      "nodes_executed": 0,
+      "graph_executed_frames": 0,
+      "graph_skipped_frames": 0,
+      "framebuffer_pool_current_bytes": 0,
+      "composite_ms": 0.0,
+      "transform_ms": 0.0,
+      "source_node_ms": 0.0,
+      "image_layer_multi_ms": 0.0,
+      "cpu_efficiency_pct": 0.0,
+      "avg_frame_ms": 0.0,
+      "frame_count": 0
+    }
+  },
+  "deltas": {
+    "cores": 0.0
+  }
+}
