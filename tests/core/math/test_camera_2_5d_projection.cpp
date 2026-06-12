@@ -220,5 +220,7 @@ TEST_CASE("Camera2_5D projection: direct point projection keeps X and Y orientat
         screen, depth
     );
     CHECK(ok_up);
-    CHECK(screen.y > 0.0f);
+    // Contract Y sign: inverted — a point above camera centre (world Y > 0)
+    // projects to a negative screen Y (above centre in screen coordinates).
+    CHECK(screen.y < 0.0f);
 }

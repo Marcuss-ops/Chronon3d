@@ -36,8 +36,9 @@ struct ProjectionContext {
 
     [[nodiscard]] Vec2 view_to_screen(const Vec3& cam) const {
         // LH (pos Z forward): cam.z > 0.
+        // Contract: Y sign inverted (screen Y increases downward).
         const f32 ps = (cam.z > 0.0001f) ? (focal / cam.z) : 10000.0f;
-        return {cam.x * ps + vp_cx, cam.y * ps + vp_cy};
+        return {cam.x * ps + vp_cx, -cam.y * ps + vp_cy};
     }
 
     [[nodiscard]] Vec2 project(const Vec3& world, bool& ok) const {
@@ -109,8 +110,9 @@ struct ProjectionContext {
         }
         const f32 ps0 = focal / c0.z;
         const f32 ps1 = focal / c1.z;
-        p0 = {c0.x * ps0 + vp_cx, c0.y * ps0 + vp_cy};
-        p1 = {c1.x * ps1 + vp_cx, c1.y * ps1 + vp_cy};
+        // Contract: Y sign inverted (screen Y increases downward).
+        p0 = {c0.x * ps0 + vp_cx, -c0.y * ps0 + vp_cy};
+        p1 = {c1.x * ps1 + vp_cx, -c1.y * ps1 + vp_cy};
         return true;
     }
 };

@@ -26,6 +26,7 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/content_tests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/video_tests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/compositor_tests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/breathing_golden_tests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/visual_tests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/benchmarks.cmake)
 
 # ── Aggregate targets: build test executables grouped by cost/speed ──
