@@ -9,6 +9,35 @@
 
 namespace chronon3d::cli {
 
+// ── Helper: assemble FfmpegExportOptions from focused sub-option structs ────
+// Single point where the legacy flat options struct is populated, so both
+// the FFmpeg and null-sink paths stay in sync.
+
+[[nodiscard]] static FfmpegExportOptions make_ffmpeg_opts(const VideoJobPlan& plan) {
+    FfmpegExportOptions opts;
+    opts.output            = plan.output.output;
+    opts.frames_dir_name   = plan.output.frames_dir_name;
+    opts.fps               = plan.output.fps;
+    opts.codec             = plan.encoder.codec;
+    opts.hardware_encoder  = plan.encoder.hardware_encoder;
+    opts.encode_preset     = plan.encoder.encode_preset;
+    opts.tune              = plan.encoder.tune;
+    opts.crf               = plan.encoder.crf;
+    opts.encoder_backend   = plan.encoder.encoder_backend;
+    opts.pipe_pixfmt       = plan.pipe.pipe_pixfmt;
+    opts.pipe_writer       = plan.pipe.pipe_writer;
+    opts.color_output      = plan.pipe.color_output;
+    opts.ffmpeg_verbose    = plan.pipe.ffmpeg_verbose;
+    opts.warmup_renderer     = plan.warmup.warmup_renderer;
+    opts.warmup_framebuffers = plan.warmup.warmup_framebuffers;
+    opts.warmup_dummy_frame  = plan.warmup.warmup_dummy_frame;
+    opts.keep_frames       = plan.sink.keep_frames;
+    opts.chunks            = plan.sink.chunks;
+    opts.ffmpeg_mode       = plan.sink.ffmpeg_mode;
+    opts.sink_type         = plan.sink.sink_type;
+    return opts;
+}
+
 // ── Shared exporter registry (single instance across validate + execute) ────
 
 ExporterRegistry& shared_exporter_registry() {
@@ -34,12 +63,12 @@ int render_and_encode_ffmpeg(
     // Safety-net validation for direct callers (e.g. command_video_camera)
     // that bypass validate_video_job().
     if (opts.output.empty() &&
-        opts.sink_mode != VideoSinkMode::NullRender &&
-        opts.sink_mode != VideoSinkMode::NullConvert) {
+        opts.sink_type != VideoSinkType::NullRender &&
+        opts.sink_type != VideoSinkType::NullConvert) {
         spdlog::error("[video] No output path specified.");
         return 1;
     }
-    if (opts.sink_mode == VideoSinkMode::Ffmpeg && !ffmpeg_in_path()) {
+    if (opts.sink_type == VideoSinkType::Ffmpeg && !ffmpeg_in_path()) {
         spdlog::error("[video] ffmpeg not found in PATH.");
         return 1;
     }
@@ -92,25 +121,7 @@ int execute_video_job(const VideoJobPlan& plan) {
         }
 
         // Build VideoExportJob from sub-option structs
-        FfmpegExportOptions opts;
-        opts.output            = plan.output.output;
-        opts.frames_dir_name   = plan.output.frames_dir_name;
-        opts.fps               = plan.output.fps;
-        opts.codec             = plan.encoder.codec;
-        opts.hardware_encoder  = plan.encoder.hardware_encoder;
-        opts.encode_preset     = plan.encoder.encode_preset;
-        opts.tune              = plan.encoder.tune;
-        opts.crf               = plan.encoder.crf;
-        opts.encoder_backend   = plan.encoder.encoder_backend;
-        opts.pipe_pixfmt       = plan.pipe.pipe_pixfmt;
-        opts.pipe_writer       = plan.pipe.pipe_writer;
-        opts.color_output      = plan.pipe.color_output;
-        opts.ffmpeg_verbose    = plan.pipe.ffmpeg_verbose;
-        opts.warmup_renderer     = plan.warmup.warmup_renderer;
-        opts.warmup_framebuffers = plan.warmup.warmup_framebuffers;
-        opts.warmup_dummy_frame  = plan.warmup.warmup_dummy_frame;
-        opts.keep_frames       = plan.sink.keep_frames;
-        opts.chunks            = plan.sink.chunks;
+        auto opts = make_ffmpeg_opts(plan);
 
         const VideoExportJob job{
             .registry       = *plan.registry,
@@ -124,16 +135,12 @@ int execute_video_job(const VideoJobPlan& plan) {
         return exporter->export_video(job);
     }
 
-    // ── Legacy FFmpeg path (pipe / png) ────────────────────────────────
-    // Validation already done by command_video() via validate_video_job().
-    // render_and_encode_ffmpeg() still validates as a safety net for callers.
+    // ── FFmpeg path (pipe / png) ───────────────────────────────────────
+    auto opts = make_ffmpeg_opts(plan);
 
     // ── Graceful cancellation (SIGINT/SIGTERM) ──
     chronon3d::CancellationToken cancel_token;
     install_signal_cancellation(cancel_token);
-
-    // Attach cancellation token to options (non-const copy)
-    FfmpegExportOptions opts = plan.export_options;
     opts.cancellation_token = &cancel_token;
 
     return render_and_encode_ffmpeg(
