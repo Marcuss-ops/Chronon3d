@@ -27,11 +27,8 @@
 
 namespace chronon3d::camera_math {
 
-// ── Constants ────────────────────────────────────────────────────────────
-// The near-plane Z threshold.  Points with z < kNearClipZ are clipped.
 inline constexpr f32 kNearClipZ = 1e-3f;
 
-// ── Clipped polygon result ──────────────────────────────────────────────
 struct ClippedPolygon3D {
     std::array<Vec3, 8> points{};   // clipped vertices (max 8 for quad→hex)
     int   count{0};                  // number of valid vertices
@@ -39,7 +36,6 @@ struct ClippedPolygon3D {
     bool  was_clipped{false};        // true if any vertex was actually clipped
 };
 
-// ── Intersection: edge endpoint on the near plane ────────────────────────
 // Linearly interpolate between `a` (outside) and `b` (inside) to find
 // the point where z == kNearClipZ.
 inline Vec3 intersect_near_plane(const Vec3& a, const Vec3& b, f32 near_z = kNearClipZ) {
@@ -55,16 +51,10 @@ inline Vec3 intersect_near_plane(const Vec3& a, const Vec3& b, f32 near_z = kNea
     return a + (b - a) * t;
 }
 
-// ── Sutherland-Hodgman clip against near plane ───────────────────────────
-//
-// Clips a convex polygon (given in camera space) against the near plane
-// z = kNearClipZ.  The polygon is assumed to have vertices in CCW or CW
-// order (any consistent winding).
-//
-// @param input      Array of input vertices (first `count` are valid).
-// @param count      Number of valid vertices in `input` (max 8).
-// @param near_z     Near-plane Z threshold (default kNearClipZ).
-// @return           ClippedPolygon3D with clipped vertices.
+/// Clip a convex polygon against the near plane (z = kNearClipZ).
+/// @param input  Array of input vertices (first `count` are valid).
+/// @param count  Number of valid vertices (max 8).
+/// @param near_z Near-plane Z threshold (default kNearClipZ).
 template <size_t N>
 inline ClippedPolygon3D clip_polygon_against_near_plane(
     const std::array<Vec3, N>& input,
@@ -159,7 +149,6 @@ inline ClippedPolygon3D clip_polygon_against_near_plane(
     return out;
 }
 
-// ── Convenience: clip a quad (4 camera-space corners) ────────────────────
 inline ClippedPolygon3D clip_quad_against_near_plane(
     const std::array<Vec3, 4>& camera_quad,
     f32 near_z = kNearClipZ

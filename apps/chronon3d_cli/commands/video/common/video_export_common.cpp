@@ -11,20 +11,20 @@ std::unique_ptr<IVideoEncoder> create_video_encoder(const FfmpegExportOptions& o
     // Note: video_sink_mode_id is set in setup_pipe_export_session() after the
     // renderer (and its counters) are created — g_current_counters is null here.
 
-    switch (opts.sink_mode) {
-        case VideoSinkMode::NullRender:
+    switch (opts.sink_type) {
+        case VideoSinkType::NullRender:
             spdlog::info("[video] Using null-render sink — frames will be counted but not converted/written");
             return std::make_unique<NullRenderEncoder>();
 
-        case VideoSinkMode::NullConvert:
+        case VideoSinkType::NullConvert:
             spdlog::info("[video] Using null-convert sink — frames will be converted but not written to FFmpeg");
             return std::make_unique<NullConvertEncoder>();
 
-        case VideoSinkMode::Raw:
+        case VideoSinkType::RawFile:
             spdlog::info("[video] Using raw sink — frames will be written as raw pixel data to {}", opts.output);
             return std::make_unique<RawVideoSinkEncoder>();
 
-        case VideoSinkMode::Ffmpeg:
+        case VideoSinkType::Ffmpeg:
             break;
     }
 

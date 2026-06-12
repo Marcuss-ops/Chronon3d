@@ -13,37 +13,34 @@
 
 namespace chronon3d::math {
 
-// ── ExpressionContext ─────────────────────────────────────────────────────
-// Carries all context needed for expression evaluation: time, frame, fps,
-// composition dimensions, current layer index, and a cross-layer resolver.
-
+/// Carries all context needed for expression evaluation: time, frame, fps,
+/// composition dimensions, current layer index, and a cross-layer resolver.
 struct ExpressionContext {
-    // ── Time ──
+    // Time
     double frame{0.0};
     double time{0.0};         // seconds
     double fps{30.0};
 
-    // ── Composition ──
+    // Composition
     double width{1280.0};
     double height{720.0};
     double num_layers{0.0};
 
-    // ── Current layer ──
+    // Current layer
     double index{0.0};         // 1-based layer index
     double in_point{0.0};      // layer in-point in seconds
     double out_point{0.0};     // layer out-point in seconds
     double width_0{0.0};       // layer source width (pixels)
     double height_0{0.0};      // layer source height (pixels)
 
-    // ── Current property value (set by AnimatedValue before eval) ──
+    // Current property value (set by AnimatedValue before eval)
     double value{0.0};         // current base value (keyframed)
     double value0{0.0};        // scalar component 0 (same as value for f32)
     double value1{0.0};        // scalar component 1 (for Vec2/Vec3)
     double value2{0.0};        // scalar component 2 (for Vec3)
 
-    // ── Cross-layer resolver ──
-    // Given a layer name and a dot-separated property path (e.g. "transform.opacity"),
-    // returns the evaluated value.  Returns NaN on failure.
+    /// Cross-layer resolver: given a layer name and a dot-separated property path
+    /// (e.g. "transform.opacity"), returns the evaluated value. NaN on failure.
     using LayerPropertyResolver =
         std::function<double(const std::string& layer_name,
                              const std::string& property_path,
@@ -52,9 +49,7 @@ struct ExpressionContext {
     LayerPropertyResolver layer_resolver;
 };
 
-// ── ExpressionState ──────────────────────────────────────────────────────
-// Per-evaluation mutable state (seedRandom, etc.)
-
+/// Per-evaluation mutable state (seedRandom, etc.)
 struct ExpressionState {
     unsigned int random_seed{0};
     bool seed_random_active{false};
@@ -66,8 +61,6 @@ struct ExpressionState {
     // Key: "layer_name::property_path"
     std::unordered_map<std::string, double> layer_cache;
 };
-
-// ── Helpers ──────────────────────────────────────────────────────────────
 
 namespace expr_detail {
 
@@ -163,8 +156,7 @@ inline double loop_helper(double t, double t_min, double t_max, int num_keyframe
 
 } // namespace expr_detail
 
-// ── ExpressionParser ─────────────────────────────────────────────────────
-
+/// Recursive-descent expression parser for AE-style expressions.
 class ExpressionParser {
 public:
     ExpressionParser(std::string_view expr,
@@ -190,19 +182,6 @@ public:
     bool error() const { return m_error; }
 
 private:
-    // ── Operator precedence (lowest → highest) ──
-    //  1. Ternary           ?:
-    //  2. Logical OR         ||
-    //  3. Logical AND        &&
-    //  4. Equality           ==, !=
-    //  5. Comparison         <, >, <=, >=
-    //  6. Additive           +, -
-    //  7. Multiplicative     *, /, %
-    //  8. Exponentiation     ^  (right-associative)
-    //  9. Unary              -, !, +  (prefix)
-    // 10. Atoms              numbers, identifiers, function calls, dot-access, parentheses
-
-    // ── 1. Ternary ────────────────────────────────────────────────────────
     double parse_ternary() {
         double cond = parse_logical_or();
         skip_ws();
@@ -215,7 +194,6 @@ private:
         return cond;
     }
 
-    // ── 2. Logical OR ─────────────────────────────────────────────────────
     double parse_logical_or() {
         double lhs = parse_logical_and();
         while (!m_error) {
@@ -231,7 +209,6 @@ private:
         return lhs;
     }
 
-    // ── 3. Logical AND ────────────────────────────────────────────────────
     double parse_logical_and() {
         double lhs = parse_equality();
         while (!m_error) {
@@ -247,7 +224,6 @@ private:
         return lhs;
     }
 
-    // ── 4. Equality ───────────────────────────────────────────────────────
     double parse_equality() {
         double lhs = parse_comparison();
         while (!m_error) {
@@ -267,7 +243,6 @@ private:
         return lhs;
     }
 
-    // ── 5. Comparison ─────────────────────────────────────────────────────
     double parse_comparison() {
         double lhs = parse_additive();
         while (!m_error) {
@@ -291,7 +266,6 @@ private:
         return lhs;
     }
 
-    // ── 6. Additive ───────────────────────────────────────────────────────
     double parse_additive() {
         double lhs = parse_multiplicative();
         while (!m_error) {
@@ -307,7 +281,6 @@ private:
         return lhs;
     }
 
-    // ── 7. Multiplicative ─────────────────────────────────────────────────
     double parse_multiplicative() {
         double lhs = parse_exponentiation();
         while (!m_error) {
@@ -327,7 +300,6 @@ private:
         return lhs;
     }
 
-    // ── 8. Exponentiation (right-associative) ─────────────────────────────
     double parse_exponentiation() {
         double base = parse_unary();
         skip_ws();
@@ -338,7 +310,6 @@ private:
         return base;
     }
 
-    // ── 9. Unary ──────────────────────────────────────────────────────────
     double parse_unary() {
         skip_ws();
         if (match('+')) return parse_unary();
@@ -350,7 +321,6 @@ private:
         return parse_atom();
     }
 
-    // ── 10. Atoms ─────────────────────────────────────────────────────────
     double parse_atom() {
         skip_ws();
 
@@ -388,9 +358,8 @@ private:
         return parse_number();
     }
 
-    // ── Postfix: dot-access and bracket-access ────────────────────────────
-    // After parsing an atom, check for `.property` or `[index]`.
-    // This enables `layer("name").opacity` and `thisComp.width`.
+    // Postfix: after parsing an atom, check for `.property` or `[index]`.
+    // Enables `layer("name").opacity` and `thisComp.width`.
     double parse_postfix(double lhs) {
         while (!m_error) {
             skip_ws();
@@ -424,7 +393,6 @@ private:
         return lhs;
     }
 
-    // ── Resolve variable from context or legacy map ───────────────────────
     double resolve_variable(const std::string& ident) {
         if (m_has_context) {
             // AE-standard variables
@@ -482,7 +450,6 @@ private:
         return 0.0;
     }
 
-    // ── Resolve member access (dot notation) ──────────────────────────────
     double resolve_member_access(double lhs, const std::string& member) {
         // thisComp.width / thisComp.height / thisComp.numLayers
         if (m_current_object == "thisComp") {
@@ -568,7 +535,6 @@ private:
         return lhs;
     }
 
-    // ── Resolve bracket access ────────────────────────────────────────────
     double resolve_bracket_access(double lhs, double idx) {
         // For Vec3 values: [0]=x, [1]=y, [2]=z
         // If we're accessing a layer property, include the index in the path
@@ -591,7 +557,6 @@ private:
         return lhs;
     }
 
-    // ── Resolve a cross-layer property ────────────────────────────────────
     double resolve_layer_property(const std::string& prop_path) {
         if (!m_ctx || !m_ctx->layer_resolver) return 0.0;
 
@@ -613,9 +578,7 @@ private:
         return result;
     }
 
-    // ── Function calls ────────────────────────────────────────────────────
     double parse_function(std::string name) {
-        // ── Special: layer("name") — needs string argument ─────────────
         if (name == "layer") {
             return parse_layer_ref();
         }
@@ -639,7 +602,6 @@ private:
 
         if (m_error) return 0.0;
 
-        // ── Standard math ──────────────────────────────────────────────
         if (name == "sin")    return std::sin(a);
         if (name == "cos")    return std::cos(a);
         if (name == "tan")    return std::tan(a);
@@ -659,16 +621,13 @@ private:
         if (name == "sign")   return (a > 0.0) ? 1.0 : ((a < 0.0) ? -1.0 : 0.0);
         if (name == "pow")    return std::pow(a, b);
 
-        // ── min / max / clamp ──────────────────────────────────────────
         if (name == "min")    return std::min(a, b);
         if (name == "max")    return std::max(a, b);
         if (name == "clamp")  return std::clamp(a, b, c);
 
-        // ── Radians ↔ Degrees ─────────────────────────────────────────
         if (name == "degreesToRadians" || name == "radians") return a * (3.14159265358979323846 / 180.0);
         if (name == "radiansToDegrees" || name == "degrees") return a * (180.0 / 3.14159265358979323846);
 
-        // ── Random ────────────────────────────────────────────────────
         if (name == "random") {
             unsigned int seed = m_state ? m_state->random_seed : 0;
             if (m_state && m_state->seed_random_active) {
@@ -697,7 +656,6 @@ private:
             return 0.0;
         }
 
-        // ── Posterize ─────────────────────────────────────────────────
         if (name == "posterizeTime" || name == "posterize") {
             if (m_state) {
                 m_state->posterize_fps = std::max(0.001, a);
@@ -706,7 +664,6 @@ private:
             return a;  // Returns the fps; actual posterization applied externally
         }
 
-        // ── Wiggle ────────────────────────────────────────────────────
         if (name == "wiggle") {
             double freq = std::max(0.001, a);
             double amp  = b;
@@ -717,7 +674,6 @@ private:
             return expr_detail::wiggle_impl(freq, amp, t, seed);
         }
 
-        // ── Linear remapping ──────────────────────────────────────────
         if (name == "linear") {
             // linear(t, t_min, t_max, v_min, v_max)
             // Also: linear(t, v_min, v_max) — shorthand with t_min=0, t_max=1
@@ -731,7 +687,6 @@ private:
             return expr_detail::linear_t(a, b, c, 0.0, d);
         }
 
-        // ── Ease remapping ────────────────────────────────────────────
         if (name == "ease") {
             if (nargs == 3) {
                 return expr_detail::ease_t(a, 0.0, 1.0, b, c);
@@ -761,7 +716,6 @@ private:
             return v_min + frac * (v_max - v_min);
         }
 
-        // ── Loop ──────────────────────────────────────────────────────
         if (name == "loopOut" || name == "loopIn") {
             // loopOut(type, num_keyframes) — simplified: operates on current time range
             std::string type = "cycle";
@@ -804,7 +758,6 @@ private:
             return m_ctx ? m_ctx->value : 0.0;
         }
 
-        // ── valueAtTime(t) ────────────────────────────────────────────
         if (name == "valueAtTime") {
             // Evaluates this property at a different time.
             // In this implementation, we can only approximate using the context.
@@ -820,19 +773,16 @@ private:
             return m_ctx ? m_ctx->value : 0.0;
         }
 
-        // ── toComp / fromComp (simplified) ────────────────────────────
         if (name == "toComp" || name == "fromComp") {
             // toComp([x,y,z]) converts from layer space to comp space
             // Returns x component; full 3D return would need Vec3 expression support.
             return a;  // identity transform (no camera offset applied in simplified version)
         }
 
-        // ── Unknown function ──────────────────────────────────────────
         m_error = true;
         return 0.0;
     }
 
-    // ── Special parser for layer("name") ──────────────────────────────────
     // Returns 0.0 but stores the layer name for postfix member access.
     double parse_layer_ref() {
         skip_ws();
@@ -862,7 +812,6 @@ private:
         return 0.0;  // actual value resolved by parse_postfix → resolve_member_access
     }
 
-    // ── Number literal ────────────────────────────────────────────────────
     double parse_number() {
         skip_ws();
         const char* begin = m_expr.data() + m_pos;
@@ -877,7 +826,6 @@ private:
         return value;
     }
 
-    // ── Identifier ────────────────────────────────────────────────────────
     std::string parse_identifier() {
         size_t start = m_pos;
         while (m_pos < m_expr.size() &&
@@ -887,7 +835,6 @@ private:
         return std::string(m_expr.substr(start, m_pos - start));
     }
 
-    // ── Utility ───────────────────────────────────────────────────────────
     void skip_ws() {
         while (m_pos < m_expr.size() && std::isspace(static_cast<unsigned char>(m_expr[m_pos]))) {
             ++m_pos;
@@ -918,7 +865,6 @@ private:
         return std::isalpha(static_cast<unsigned char>(c)) || c == '_';
     }
 
-    // ── State ─────────────────────────────────────────────────────────────
     std::string_view m_expr;
     const std::unordered_map<std::string, double>& m_legacy_vars;
     const ExpressionContext* m_ctx;
@@ -933,8 +879,6 @@ private:
     std::string m_current_layer_name;    // Set by layer("name") calls
     std::string m_current_property_path; // Accumulated property path for nested dot access
 };
-
-// ── Public API ───────────────────────────────────────────────────────────
 
 /// Legacy API — backward compatible.
 inline double evaluate_expression(std::string_view expr,

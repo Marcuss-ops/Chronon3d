@@ -42,8 +42,7 @@ struct ProjectedLayer2_5D {
     bool      visible{true};       // false when layer is behind or on the camera plane
 };
 
-// ── Backward-compatible wrapper ─────────────────────────────────────────────
-// Delegates to the contract.
+/// Delegates to camera_projection_contract.
 inline f32 focal_length_from_fov(f32 viewport_height, f32 fov_deg) {
     Camera2_5D tmp;
     tmp.projection_mode = Camera2_5DProjectionMode::Fov;
@@ -51,14 +50,12 @@ inline f32 focal_length_from_fov(f32 viewport_height, f32 fov_deg) {
     return camera_math::focal_from_camera(tmp, viewport_height);
 }
 
-// ── Backward-compatible wrapper ─────────────────────────────────────────────
-// Delegates to the contract.
+/// Delegates to camera_projection_contract.
 inline Mat4 get_camera_view_matrix(const Camera2_5D& camera) {
     return camera_math::view_matrix_for_camera(camera);
 }
 
-// ── Backward-compatible wrapper ─────────────────────────────────────────────
-// Delegates to the contract.
+/// Delegates to camera_projection_contract.
 inline bool project_world_point_2_5d(
     const Camera2_5D& camera,
     const Mat4& view,
@@ -94,7 +91,7 @@ inline bool project_world_point_2_5d(
     return true;
 }
 
-// ── Internal helper: build the 4×4 perspective projection matrix ───────────
+/// Build the 4×4 perspective projection matrix.
 //
 // The matrix maps camera-space coords to centred-screen coords.
 //   proj[0][0] = focal       (X scale)
@@ -114,7 +111,6 @@ inline Mat4 build_perspective_matrix(f32 focal) {
     return proj;
 }
 
-// ── Convenience overload (derives layer_matrix from transform) ─────────────
 inline ProjectedLayer2_5D project_layer_2_5d(
     const Transform& layer_transform,
     const Camera2_5D& camera,
@@ -123,8 +119,6 @@ inline ProjectedLayer2_5D project_layer_2_5d(
     bool diagnostics_enabled = false
 );
 
-// ── Main projection function ───────────────────────────────────────────────
-//
 /// Project a 3D layer transform through a Camera2_5D into screen space.
 ///
 /// Returns a ProjectedLayer2_5D with:
@@ -149,7 +143,6 @@ inline ProjectedLayer2_5D project_layer_2_5d(
     ProjectedLayer2_5D out;
     out.transform = layer_transform;
 
-    // ── Camera-space position ──────────────────────────────────────────
     Mat4 view{1.0f};
     Vec4 cam_pos{0.0f, 0.0f, 0.0f, 1.0f};
     Vec4 world_pos = layer_matrix * Vec4(0.0f, 0.0f, 0.0f, 1.0f);
@@ -175,11 +168,9 @@ inline ProjectedLayer2_5D project_layer_2_5d(
 
     const f32 depth = cam_pos.z;
 
-    // ── Focal length (shared by all paths) ─────────────────────────────
     const f32 focal = camera_math::focal_from_camera(camera, viewport_height);
 
-    // ── Near-plane check: test the 4 camera-space corners ──────────────
-    //
+    // Near-plane check: test the 4 camera-space corners
     // The layer is a flat quad in the XY plane at local Z = 0.
     // We transform the 4 corners to camera space and check each against
     // the near plane (z = kNearClipZ from near_plane_clip.hpp).
@@ -225,13 +216,11 @@ inline ProjectedLayer2_5D project_layer_2_5d(
         any_behind = (depth <= camera_math::kNearClipZ);
     }
 
-    // ── All corners behind → invisible ─────────────────────────────────
     if (all_behind) {
         out.visible = false;
         return out;
     }
 
-    // ── Some corners behind → clip against near plane (rare) ────────────
     if (any_behind) {
         auto clipped = camera_math::clip_quad_against_near_plane(cam_corners);
         if (!clipped.visible || clipped.count < 3) {
@@ -285,11 +274,8 @@ inline ProjectedLayer2_5D project_layer_2_5d(
         return out;
     }
 
-    // ── ALL corners in front → fast path (no clipping needed) ───────────
-    // ── Focal & perspective scale ──────────────────────────────────────
     const f32 ps = focal / depth;
 
-    // ── Contract: centred screen position with inverted Y ──────────────
     out.transform.position.x =  cam_pos.x * ps;   // centred X
     out.transform.position.y = -cam_pos.y * ps;   // centred Y — inverted
     out.transform.position.z = 0.0f;
@@ -300,7 +286,6 @@ inline ProjectedLayer2_5D project_layer_2_5d(
     out.depth             = depth;
     out.perspective_scale = ps;
 
-    // ── Build projection matrix ────────────────────────────────────────
     if (use_view_matrix) {
         // Full perspective: proj * view * model → maps world to centred screen
         const Mat4 proj = build_perspective_matrix(focal);
@@ -325,7 +310,6 @@ inline ProjectedLayer2_5D project_layer_2_5d(
     return out;
 }
 
-// ── Convenience overload ───────────────────────────────────────────────────
 inline ProjectedLayer2_5D project_layer_2_5d(
     const Transform& layer_transform,
     const Camera2_5D& camera,
@@ -338,7 +322,6 @@ inline ProjectedLayer2_5D project_layer_2_5d(
                               diagnostics_enabled);
 }
 
-// ── Utility: signed area of a projected quad ───────────────────────────────
 inline f32 quad_signed_area(const Vec2& p0, const Vec2& p1, const Vec2& p2, const Vec2& p3) {
     const f32 twice_area =
         p0.x * p1.y - p1.x * p0.y +
@@ -371,7 +354,6 @@ inline std::optional<f32> projected_quad_signed_area(
     return quad_signed_area(projected[0], projected[1], projected[2], projected[3]);
 }
 
-// ── Homography solvers ─────────────────────────────────────────────────────
 inline bool solve_homography_4pt(const Vec2 src[4], const Vec2 dst[4], glm::mat3& out) {
     double a[8][9]{};
     for (int i = 0; i < 4; ++i) {

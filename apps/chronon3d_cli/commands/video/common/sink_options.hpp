@@ -22,16 +22,16 @@ namespace chronon3d::cli {
 /// which VideoExporter implementation is chosen from the registry.
 enum class VideoSinkType {
     /// Render → encode via FFmpeg (pipe subprocess or native libav).
-    Ffmpeg,
-
-    /// Render → write raw RGBA/PNG frames to disk (no encode step).
-    RawFile,
+    Ffmpeg = 0,
 
     /// Render + convert pixels but discard output (benchmark render path).
-    NullRender,
+    NullRender = 1,
 
     /// Render + convert + encode but discard output (benchmark full path).
-    NullConvert,
+    NullConvert = 2,
+
+    /// Render → write raw RGBA/PNG frames to disk (no encode step).
+    RawFile = 3,
 };
 
 /// Returns a stable string identifier for the sink type (e.g. "ffmpeg", "raw").
@@ -43,6 +43,16 @@ enum class VideoSinkType {
         case VideoSinkType::NullConvert: return "null-convert";
     }
     return "unknown";
+}
+
+/// Parse a sink type from a CLI string value.
+/// Accepted values: "ffmpeg", "null-render", "null-convert", "raw".
+[[nodiscard]] inline VideoSinkType parse_video_sink_type(const std::string& value) {
+    if (value == "ffmpeg")       return VideoSinkType::Ffmpeg;
+    if (value == "null-render")  return VideoSinkType::NullRender;
+    if (value == "null-convert") return VideoSinkType::NullConvert;
+    if (value == "raw")          return VideoSinkType::RawFile;
+    throw std::runtime_error("Invalid --video-sink: " + value);
 }
 
 /// Sink-specific options.
