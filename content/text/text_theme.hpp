@@ -35,7 +35,9 @@ inline constexpr Color FRESH_TEXT_WHITE = {0.95f, 0.96f, 0.98f, 1.0f};
 inline constexpr Color FRESH_TEXT_MUTED = {0.55f, 0.60f, 0.72f, 1.0f};
 
 // ── Typography ─────────────────────────────────────────────────────────────
-inline constexpr const char* TEXT_FONT_PATH = "assets/fonts/Poppins-Bold.ttf";
+inline constexpr const char* TEXT_FONT_BOLD_PATH = "assets/fonts/Poppins-Bold.ttf";
+inline constexpr const char* TEXT_FONT_REGULAR_PATH = "assets/fonts/Poppins-Regular.ttf";
+inline constexpr const char* TEXT_FONT_PATH = TEXT_FONT_BOLD_PATH;
 
 // ── Background ─────────────────────────────────────────────────────────────
 inline void add_text_background(SceneBuilder& s) {

@@ -5,14 +5,9 @@
 namespace chronon3d::content::effects {
 
 // ── Glow compositions ───────────────────────────────────────────────────────
-Composition glow_01_neon_sign();
 Composition glow_02_orb_galaxy();
+Composition glow_basic_word();
 // Composition glow_03_cinematic_text();  // removed — fresh start
-Composition glow_04_ui_card();
-Composition glow_05_pulse_wave();
-Composition glow_video_source_asset();
-Composition glow_06_video_layer();
-Composition glow_07_premium_suite();
 Composition glow_sharpness_test();
 Composition glow_paragraph_test();
 Composition glow_radius_compare_test();
@@ -43,15 +38,9 @@ public:
     void register_with(ExtensionRegistry& registry) override {
         using namespace content::effects;
 
-        // Glow tests 1–7
-        registry.register_composition("GlowNeonSign",          glow_01_neon_sign);
+        // Glow compositions kept in the module
         registry.register_composition("GlowOrbGalaxy",         glow_02_orb_galaxy);
-        // (GlowCinematicText removed — fresh start)
-        registry.register_composition("GlowUICard",            glow_04_ui_card);
-        registry.register_composition("GlowPulseWave",         glow_05_pulse_wave);
-        registry.register_composition("GlowVideoSourceAsset",  glow_video_source_asset);
-        registry.register_composition("GlowVideoLayer",        glow_06_video_layer);
-        registry.register_composition("GlowPremiumSuite",      glow_07_premium_suite);
+        registry.register_composition("GlowBasicWord",         glow_basic_word);
 
         // V2 glow A/B tests
         registry.register_composition("GlowSharpnessTest",        glow_sharpness_test);

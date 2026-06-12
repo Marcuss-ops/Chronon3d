@@ -5,6 +5,7 @@
 #include <chronon3d/core/telemetry/telemetry_bundle.hpp>
 
 #include <chronon3d/core/profiling/profiling.hpp>
+#include <spdlog/spdlog.h>
 
 namespace chronon3d::cli {
 
