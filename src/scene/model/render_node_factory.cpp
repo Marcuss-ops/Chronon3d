@@ -130,6 +130,20 @@ RenderNode RenderNodeFactory::grid_background(std::pmr::memory_resource* res, st
     return node;
 }
 
+// ── resolve_text_anchor — maps TextAnchor enum to world_transform anchor ──
+// Determines which point of the text box corresponds to TextParams.pos.
+static Vec3 resolve_text_anchor(TextAnchor anchor, Vec2 box) {
+    switch (anchor) {
+        case TextAnchor::TopLeft:        return {0.0f, 0.0f, 0.0f};
+        case TextAnchor::TopCenter:      return {box.x * 0.5f, 0.0f, 0.0f};
+        case TextAnchor::Center:         return {box.x * 0.5f, box.y * 0.5f, 0.0f};
+        case TextAnchor::BottomCenter:   return {box.x * 0.5f, box.y, 0.0f};
+        case TextAnchor::BaselineLeft:   return {0.0f, box.y * 0.5f, 0.0f};
+        case TextAnchor::BaselineCenter: return {box.x * 0.5f, box.y * 0.5f, 0.0f};
+    }
+    return {box.x * 0.5f, box.y * 0.5f, 0.0f}; // fallback = Center
+}
+
 RenderNode RenderNodeFactory::text(std::pmr::memory_resource* res, std::string name, TextParams p) {
     auto node = base(res, std::move(name));
     node.shape.type = ShapeType::Text;
@@ -146,7 +160,10 @@ RenderNode RenderNodeFactory::text(std::pmr::memory_resource* res, std::string n
     node.shape.text.style.font_style = std::move(p.font_style);
     node.shape.text.style.size = p.font_size;
     node.shape.text.style.color = p.color;
-    node.shape.text.style.align = p.align;
+    // ── TextAnchor: anchor determines the box attachment point ──
+    node.shape.text.style.anchor    = p.anchor;
+    // ── Intra-box alignment: separate from box anchoring ──
+    node.shape.text.style.align         = p.align;
     node.shape.text.style.vertical_align = p.vertical_align;
     node.shape.text.style.line_height = p.line_height;
     node.shape.text.style.tracking = p.tracking;
@@ -166,7 +183,7 @@ RenderNode RenderNodeFactory::text(std::pmr::memory_resource* res, std::string n
 
     node.shape.text.box.enabled = true;
     node.shape.text.box.size = p.size;
-    node.world_transform.anchor = {p.size.x * 0.5f, p.size.y * 0.5f, 0.0f};
+    node.world_transform.anchor = resolve_text_anchor(p.anchor, p.size);
     node.world_transform.position = p.pos;
     node.color = p.color;
     node.fill = Fill::solid_color(p.color);
