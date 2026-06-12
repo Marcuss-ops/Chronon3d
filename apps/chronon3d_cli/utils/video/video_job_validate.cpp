@@ -9,7 +9,6 @@
 namespace chronon3d::cli {
 
 bool validate_video_job(const VideoJobPlan& plan) {
-    const auto& opts = plan.export_options;
 
     if (plan.output.output.empty()) {
         spdlog::error("[video] No output path specified.");

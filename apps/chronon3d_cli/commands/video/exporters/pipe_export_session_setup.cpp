@@ -47,8 +47,8 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     }
 
     // Only create output directory for sinks that actually write output
-    if (opts.sink_mode == VideoSinkMode::Ffmpeg ||
-        opts.sink_mode == VideoSinkMode::Raw) {
+    if (opts.sink_type == VideoSinkType::Ffmpeg ||
+        opts.sink_type == VideoSinkType::RawFile) {
         if (!ensure_output_directory_exists(opts.output)) {
             return session;
         }
@@ -61,7 +61,7 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     }
 
     // Track FFmpeg process only for ffmpeg pipe sink
-    if (opts.sink_mode == VideoSinkMode::Ffmpeg) {
+    if (opts.sink_type == VideoSinkType::Ffmpeg) {
         track_pipe_encoder_process(opts, *session->encoder, session->sys_metrics);
     }
 
@@ -83,7 +83,7 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
 
         // Record the sink mode in telemetry counters (renderer must exist first)
         session->sw_renderer->counters()->video_sink_mode_id.store(
-            static_cast<uint64_t>(opts.sink_mode), std::memory_order_relaxed);
+            static_cast<uint64_t>(opts.sink_type), std::memory_order_relaxed);
     }
 
     // ── Arena, queue ──────────────────────────────────────────────────────

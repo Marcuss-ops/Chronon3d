@@ -26,9 +26,8 @@ namespace chronon3d::cli {
 /// Owns the composition via shared_ptr so downstream phases are safe.
 ///
 /// Uses focused sub-option structs (OutputOptions, EncoderOptions, etc.)
-/// instead of the monolithic FfmpegExportOptions where possible.  The
-/// flat FfmpegExportOptions is still kept for backward compat with the
-/// legacy render_and_encode_ffmpeg() dispatch path.
+/// instead of the monolithic FfmpegExportOptions.  FfmpegExportOptions is
+/// built from these sub-options only at the last moment in execute_video_job().
 struct VideoJobPlan {
     const CompositionRegistry*            registry{};
     std::shared_ptr<const Composition>    comp;
@@ -36,15 +35,11 @@ struct VideoJobPlan {
 
     RenderSettings                        settings;
 
-    // Focused sub-option structs (replacing FfmpegExportOptions)
     OutputOptions                         output;
     EncoderOptions                        encoder;
     PipeOptions                           pipe;
     RenderWarmupOptions                   warmup;
     SinkOptions                           sink;
-
-    // Legacy export options (kept for backward compat callback path)
-    FfmpegExportOptions                   export_options;
 
     Frame start{0};
     Frame end_exclusive{0};
@@ -54,7 +49,8 @@ struct VideoJobPlan {
 };
 
 /// Phase 1 — Plan.
-/// Resolve the composition, build RenderSettings + FfmpegExportOptions,
+/// Resolve the composition, build sub-option structs (OutputOptions,
+/// EncoderOptions, etc.) from VideoArgs,
 /// handle end-inclusive-to-exclusive conversion.
 /// Returns std::nullopt on resolution failure.
 [[nodiscard]] std::optional<VideoJobPlan> plan_video_job(
