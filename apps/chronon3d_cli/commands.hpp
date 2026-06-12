@@ -76,6 +76,9 @@ struct VideoArgs {
     std::string encoder_backend{"pipe"};
 #endif
     bool dry_run{false};
+
+    // Video sink mode for pipeline isolation
+    std::string video_sink{"ffmpeg"};
 };
 
 struct VideoCameraArgs {
