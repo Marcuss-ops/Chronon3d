@@ -1,11 +1,7 @@
 add_library(chronon3d_content_effects STATIC
     effects_module.cpp
-    glow/glow_01_neon_sign.cpp
     glow/glow_02_orb_galaxy.cpp
-    glow/glow_04_ui_card.cpp
-    glow/glow_05_pulse_wave.cpp
-    glow/glow_06_video_layer.cpp
-    glow/glow_07_premium_suite.cpp
+    glow/glow_basic_word.cpp
     glow/glow_v2_ab_tests.cpp
     thumbnails/premium_thumbnail_showcase.cpp
     ref_2_5d/reference_2_5d_suite.cpp

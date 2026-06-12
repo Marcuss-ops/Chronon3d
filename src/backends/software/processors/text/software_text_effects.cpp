@@ -8,6 +8,7 @@
 
 #include <blend2d.h>
 #include <glm/gtc/matrix_transform.hpp>
+#include <spdlog/spdlog.h>
 
 #include <cstdlib>
 #include <memory>

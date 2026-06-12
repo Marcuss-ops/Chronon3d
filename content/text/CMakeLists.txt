@@ -1,6 +1,5 @@
 add_library(chronon3d_content_text STATIC
     text_module.cpp
-    text_fresh_compositions.cpp
 )
 set_target_properties(chronon3d_content_text PROPERTIES UNITY_BUILD OFF)
 target_include_directories(chronon3d_content_text PRIVATE ${CMAKE_SOURCE_DIR})

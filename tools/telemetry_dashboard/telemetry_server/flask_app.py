@@ -164,7 +164,11 @@ def get_artifact():
         return "Not found", 404
 
     content_type = ARTIFACT_MIME_TYPES.get(artifact_path.suffix.lower(), 'application/octet-stream')
-    return send_file(artifact_path, mimetype=content_type)
+    response = send_file(artifact_path, mimetype=content_type)
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
 
 
 @app.route('/output')
@@ -181,9 +185,10 @@ def output_gallery():
     for p in pngs:
         fname = p.name
         size_kb = p.stat().st_size // 1024
+        cache_buster = int(p.stat().st_mtime)
         cards += f'''
         <div class="card">
-          <img src="/output/{fname}" loading="lazy" onclick="openModal(this.src)">
+          <img src="/output/{fname}?v={cache_buster}" loading="lazy" onclick="openModal(this.src)">
           <div class="info">
             <span class="name">{fname}</span>
             <span class="size">{size_kb} KB</span>
@@ -306,7 +311,11 @@ def serve_output(filename):
     if not safe_path.exists() or not safe_path.is_file():
         return "Not found", 404
     content_type = ARTIFACT_MIME_TYPES.get(safe_path.suffix.lower(), 'application/octet-stream')
-    return send_file(safe_path, mimetype=content_type)
+    response = send_file(safe_path, mimetype=content_type)
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
 
 
 @app.route('/', defaults={'path': ''})

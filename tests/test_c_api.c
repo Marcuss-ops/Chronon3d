@@ -17,13 +17,13 @@ int main() {
     options.height = 1080;
     options.fps = 30;
 
-    // Render 1: MinimalistCleanQuote (Frame 45)
-    options.frame = 45;
-    printf("Rendering MinimalistCleanQuote to output/minimalist_quote.png...\n");
+    // Render 1: GridColorShowcase (Frame 0)
+    options.frame = 0;
+    printf("Rendering GridColorShowcase to output/grid_color.png...\n");
     chronon_status status = chronon_render_json_file(
         ctx,
-        "MinimalistCleanQuote",
-        "output/minimalist_quote.png",
+        "GridColorShowcase",
+        "output/grid_color.png",
         &options
     );
 
@@ -32,15 +32,15 @@ int main() {
         chronon_destroy_context(ctx);
         return 1;
     }
-    printf("Render 1 succeeded! Saved to output/minimalist_quote.png\n");
+    printf("Render 1 succeeded! Saved to output/grid_color.png\n");
 
-    // Render 2: MinimalistHeroExplainer (Frame 30)
+    // Render 2: GlowOrbGalaxy (Frame 30)
     options.frame = 30;
-    printf("Rendering MinimalistHeroExplainer to output/minimalist_hero.png...\n");
+    printf("Rendering GlowOrbGalaxy to output/glow_orb_galaxy.png...\n");
     status = chronon_render_json_file(
         ctx,
-        "MinimalistHeroExplainer",
-        "output/minimalist_hero.png",
+        "GlowOrbGalaxy",
+        "output/glow_orb_galaxy.png",
         &options
     );
 
@@ -49,7 +49,7 @@ int main() {
         chronon_destroy_context(ctx);
         return 1;
     }
-    printf("Render 2 succeeded! Saved to output/minimalist_hero.png\n");
+    printf("Render 2 succeeded! Saved to output/glow_orb_galaxy.png\n");
 
     chronon_destroy_context(ctx);
     return 0;
