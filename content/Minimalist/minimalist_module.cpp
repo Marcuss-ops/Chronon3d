@@ -10,6 +10,7 @@ Composition minimalist_text_rise();
 Composition minimalist_text_focus();
 Composition minimalist_text_scale();
 Composition minimalist_text_drift();
+Composition minimalist_text_typewriter();
 
 // Image presets
 Composition minimalist_image_fade_in();
@@ -40,6 +41,7 @@ public:
         registry.register_composition("MinimalistTextFocus", minimalist_text_focus);
         registry.register_composition("MinimalistTextScale", minimalist_text_scale);
         registry.register_composition("MinimalistTextDrift", minimalist_text_drift);
+        registry.register_composition("MinimalistTextTypewriter", minimalist_text_typewriter);
 
         // Image presets
         registry.register_composition("MinimalistImageFadeIn", minimalist_image_fade_in);
