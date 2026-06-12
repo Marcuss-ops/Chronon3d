@@ -72,7 +72,7 @@ std::unique_ptr<PipeExportSetupResult> setup_pipe_export(
     // ── Arena + queue ───────────────────────────────────────────────────
     result->video_decoder = nullptr;
     result->arena_size = compute_pipe_arena_size(comp.width(), comp.height());
-    result->triple_arena = std::make_unique<TripleBufferArena>(8, result->arena_size);
+    result->triple_arena = std::make_unique<TripleBufferArena>(4, result->arena_size);
 
     return result;
 }
