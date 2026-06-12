@@ -4,7 +4,7 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <spdlog/spdlog.h>
 
-#if defined(CHRONON3D_HAS_CONTENT_MINIMALIST) || defined(CHRONON3D_HAS_CONTENT_TEXT) || defined(CHRONON3D_HAS_CONTENT_2D5)
+#if defined(CHRONON3D_HAS_CONTENT_MINIMALIST) || defined(CHRONON3D_HAS_CONTENT_2D5)
 #include <content/register_content_modules.hpp>
 #endif
 
@@ -14,9 +14,6 @@ int main(int argc, char** argv) {
 
 #ifdef CHRONON3D_HAS_CONTENT_MINIMALIST
     chronon3d::register_minimalist_content();
-#endif
-#ifdef CHRONON3D_HAS_CONTENT_TEXT
-    chronon3d::register_text_content();
 #endif
 #ifdef CHRONON3D_HAS_CONTENT_2D5
     chronon3d::register_two_point_five_d_content();

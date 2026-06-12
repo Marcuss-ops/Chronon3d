@@ -8,9 +8,6 @@ namespace chronon3d {
 /// Register the Minimalist content module (requires chronon3d_content_anims).
 void register_minimalist_content();
 
-/// Register the Text content module (requires chronon3d_content_text).
-void register_text_content();
-
 /// Register the 2.5D content module (requires chronon3d_content_2d5).
 void register_two_point_five_d_content();
 
