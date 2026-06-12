@@ -26,10 +26,6 @@ alignas(64) extern int32_t g_srgb_lut_u32[65536];
 
 extern bool        g_srgb_lut_ready;
 
-// (Removed: the 256-entry LUT was removed because it caused green tint
-// in dark colors due to coarse quantization. The SIMD path now uses the
-// full 65536-entry LUT for bit-exact accuracy with the scalar path.)
-
 /// Fast LUT-based sRGB gamma encoding: linear float [0..1] → uint8 [0..255].
 inline uint8_t linear_to_srgb8_fast(float v) {
     int idx = static_cast<int>(v * 65535.0f + 0.5f);
