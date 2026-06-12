@@ -18,11 +18,10 @@ RendererWarmupResult warmup_renderer(
     // 1. Preallocate framebuffers into the pool
     if (options.preallocate_framebuffers && pool) {
         // Primary canvas size: keep the hot path focused on the actual render target.
-        // Reduced from 4→3 to cut ~16 MB from pool peak (each FB is ~8 MB at 1080p).
         result.framebuffers_created += pool->preallocate({
             .width = options.width,
             .height = options.height,
-            .count = std::max<size_t>(3, options.framebuffer_count),
+            .count = std::max<size_t>(4, options.framebuffer_count),
             .clear = true,
             .touch_memory = options.touch_memory
         });
@@ -33,7 +32,7 @@ RendererWarmupResult warmup_renderer(
         result.framebuffers_created += pool->preallocate({
             .width = 896,
             .height = 512,
-            .count = std::max<size_t>(2, options.framebuffer_count / 2),
+            .count = std::max<size_t>(4, options.framebuffer_count / 2),
             .clear = true,
             .touch_memory = options.touch_memory
         });
@@ -42,7 +41,7 @@ RendererWarmupResult warmup_renderer(
         result.framebuffers_created += pool->preallocate({
             .width = 1024,
             .height = 1024,
-            .count = std::max<size_t>(1, options.framebuffer_count / 4),
+            .count = std::max<size_t>(2, options.framebuffer_count / 4),
             .clear = true,
             .touch_memory = options.touch_memory
         });
