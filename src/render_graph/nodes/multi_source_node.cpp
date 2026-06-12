@@ -81,20 +81,40 @@ RenderNodeCachePolicy MultiSourceNode::cache_policy() const {
     if (m_cache_static) {
         return static_memory_cache("source_static");
     }
+    // Hybrid policy for animated multi-source: the cache key is frame-
+    // independent — cache_key() always sets frame = Frame{0} and embeds
+    // the items' matrices in the params_hash.  Entries persist via the
+    // node cache's LRU eviction policy; unique transforms accumulate
+    // entries up to the cache capacity, then oldest are evicted.
     return RenderNodeCachePolicy{
         .cacheable = true,
-        .frame_dependent = true,
+        .frame_dependent = false,     // frame number NOT in the key dimension
         .frame_invariant = false,
         .disk_cacheable = false,
-        .lifetime = CacheLifetime::PerFrame,
+        .lifetime = CacheLifetime::PersistentDisk,  // kept until LRU evicts
         .invalidation = CacheInvalidation::WhenParamsChange,
-        .debug_reason = "source_animated"
+        .debug_reason = "multi_source_hybrid"
     };
 }
 
 cache::NodeCacheKey MultiSourceNode::cache_key(const RenderGraphContext& ctx) const {
     auto key = m_key;
+    // Strip the frame number — the items' full world matrices (embedded in
+    // the loop below) already capture frame-to-frame animation changes, so
+    // the frame dimension adds no useful discrimination.  This lets the LRU
+    // cache reuse a rendered result across frames that share the same
+    // effective transform (e.g. settled tail of an animation).
+    key.frame = Frame{0};
     key.params_hash = hash_combine(key.params_hash, static_cast<u64>(ctx.options.modular_coordinates));
+
+    // Hash every item's full world matrix and opacity so the cache key
+    // changes when the layer-level animation (e.g. tracking_breathing)
+    // produces a different transform.
+    for (const auto& item : m_items) {
+        key.params_hash = hash_combine(key.params_hash, hash_value(item.matrix));
+        key.params_hash = hash_combine(key.params_hash, hash_value(item.opacity));
+    }
+
     return key;
 }
 

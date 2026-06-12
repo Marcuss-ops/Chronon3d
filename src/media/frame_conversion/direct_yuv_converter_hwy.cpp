@@ -273,8 +273,9 @@ HWY_ATTR DirectYuvResult convert_to_yuv420p_hwy_impl(const DirectYuvRequest& req
 
     const auto& coeffs = get_coeffs(req.color_matrix);
     const int nb = req.height / 2;
+    const int grain = std::max(16, nb / 16);
 
-    parallel_for_tracked(tbb::blocked_range<int>(0, nb), [&](auto& r) {
+    parallel_for_tracked(tbb::blocked_range<int>(0, nb, grain), [&](auto& r) {
         for (int b = r.begin(); b < r.end(); ++b)
             process_block_hwy(req, b*2, req.width, coeffs);
     });
@@ -299,8 +300,9 @@ HWY_ATTR DirectYuvResult convert_to_nv12_hwy_impl(const DirectYuvRequest& req) {
     const int stride_y  = req.dst_stride_y  ? req.dst_stride_y  : req.width;
     const int stride_uv = req.dst_stride_uv ? req.dst_stride_uv : req.width;
     const int nb = req.height / 2;
+    const int grain = std::max(16, nb / 16);
 
-    parallel_for_tracked(tbb::blocked_range<int>(0, nb), [&](auto& r) {
+    parallel_for_tracked(tbb::blocked_range<int>(0, nb, grain), [&](auto& r) {
         const DF   df;
         const int  N = hn::Lanes(df);
 
