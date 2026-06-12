@@ -46,8 +46,12 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
         return session;  // encoder is null → caller checks
     }
 
-    if (!ensure_output_directory_exists(opts.output)) {
-        return session;
+    // Only create output directory for sinks that actually write output
+    if (opts.sink_mode == VideoSinkMode::Ffmpeg ||
+        opts.sink_mode == VideoSinkMode::Raw) {
+        if (!ensure_output_directory_exists(opts.output)) {
+            return session;
+        }
     }
 
     auto pipe_options = make_pipe_options(comp, opts, codec);
@@ -56,7 +60,10 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
         return session;
     }
 
-    track_pipe_encoder_process(opts, *session->encoder, session->sys_metrics);
+    // Track FFmpeg process only for ffmpeg pipe sink
+    if (opts.sink_mode == VideoSinkMode::Ffmpeg) {
+        track_pipe_encoder_process(opts, *session->encoder, session->sys_metrics);
+    }
 
     // ── Create renderer ──────────────────────────────────────────────────
     const auto renderer_t0 = profiling::now();
@@ -73,6 +80,10 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     // ── Wire counters into encoder so async converter thread can report telemetry ──
     if (session->sw_renderer && session->sw_renderer->counters()) {
         session->encoder->set_counters(session->sw_renderer->counters());
+
+        // Record the sink mode in telemetry counters (renderer must exist first)
+        session->sw_renderer->counters()->video_sink_mode_id.store(
+            static_cast<uint64_t>(opts.sink_mode), std::memory_order_relaxed);
     }
 
     // ── Arena, queue ──────────────────────────────────────────────────────
