@@ -22,6 +22,7 @@ Composition glow_basic_word() {
                 .font_path = "assets/fonts/Poppins-Bold.ttf",
                 .font_size = 118.0f,
                 .color = Color{1.0f, 1.0f, 1.0f, 1.0f},
+                .anchor = TextAnchor::Center,
                 .align = TextAlign::Center,
                 .vertical_align = VerticalAlign::Middle,
                 .tracking = 12.0f,

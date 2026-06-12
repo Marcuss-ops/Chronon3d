@@ -4,12 +4,24 @@
 
 namespace chronon3d::content::minimalist {
 
-// New text animations
+// Text animations
 Composition minimalist_text_fade();
 Composition minimalist_text_rise();
 Composition minimalist_text_focus();
 Composition minimalist_text_scale();
 Composition minimalist_text_drift();
+
+// Image presets
+Composition minimalist_image_fade_in();
+Composition minimalist_image_focus_in();
+Composition minimalist_image_scale_drop();
+Composition minimalist_image_fade_shift_vertical();
+Composition minimalist_image_center_split();
+Composition minimalist_image_reveal_from_bottom();
+Composition minimalist_image_framing_bracket();
+Composition minimalist_image_tracking_breathing();
+Composition minimalist_image_elegant_exit();
+Composition minimalist_image_elastic_slide();
 
 } // namespace chronon3d::content::minimalist
 
@@ -22,12 +34,24 @@ public:
     void register_with(ExtensionRegistry& registry) override {
         using namespace content::minimalist;
 
-        // First 5 minimalist text animations
+        // Text animations
         registry.register_composition("MinimalistTextFade", minimalist_text_fade);
         registry.register_composition("MinimalistTextRise", minimalist_text_rise);
         registry.register_composition("MinimalistTextFocus", minimalist_text_focus);
         registry.register_composition("MinimalistTextScale", minimalist_text_scale);
         registry.register_composition("MinimalistTextDrift", minimalist_text_drift);
+
+        // Image presets
+        registry.register_composition("MinimalistImageFadeIn", minimalist_image_fade_in);
+        registry.register_composition("MinimalistImageFocusIn", minimalist_image_focus_in);
+        registry.register_composition("MinimalistImageScaleDrop", minimalist_image_scale_drop);
+        registry.register_composition("MinimalistImageFadeShiftVertical", minimalist_image_fade_shift_vertical);
+        registry.register_composition("MinimalistImageCenterSplit", minimalist_image_center_split);
+        registry.register_composition("MinimalistImageRevealFromBottom", minimalist_image_reveal_from_bottom);
+        registry.register_composition("MinimalistImageFramingBracket", minimalist_image_framing_bracket);
+        registry.register_composition("MinimalistImageTrackingBreathing", minimalist_image_tracking_breathing);
+        registry.register_composition("MinimalistImageElegantExit", minimalist_image_elegant_exit);
+        registry.register_composition("MinimalistImageElasticSlide", minimalist_image_elastic_slide);
     }
 };
 

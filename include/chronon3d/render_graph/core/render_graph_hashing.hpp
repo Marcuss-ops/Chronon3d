@@ -305,7 +305,10 @@ template <typename T>
             seed = hash_combine(seed, hash_bytes(&s.text.style.font_weight, sizeof(int)));
             seed = hash_combine(seed, hash_bytes(&s.text.style.size, sizeof(f32)));
             seed = hash_combine(seed, hash_color(s.text.style.color));
+            seed = hash_combine(seed, hash_bytes(&s.text.style.anchor, sizeof(TextAnchor)));
+            seed = hash_combine(seed, hash_bytes(&s.text.style.centering_mode, sizeof(TextCenteringMode)));
             seed = hash_combine(seed, hash_bytes(&s.text.style.align, sizeof(TextAlign)));
+            seed = hash_combine(seed, hash_bytes(&s.text.style.vertical_align, sizeof(VerticalAlign)));
             seed = hash_combine(seed, hash_bytes(&s.text.style.line_height, sizeof(f32)));
             return hash_combine(seed, hash_bytes(&s.text.style.tracking, sizeof(f32)));
         case ShapeType::FakeBox3D:
@@ -344,7 +347,10 @@ template <typename T>
     seed = hash_combine(seed, hash_string(t.style.font_style));
     seed = hash_combine(seed, hash_value(effective_size));
     seed = hash_combine(seed, hash_color(t.style.color));
+    seed = hash_combine(seed, hash_bytes(&t.style.anchor, sizeof(TextAnchor)));
+    seed = hash_combine(seed, hash_bytes(&t.style.centering_mode, sizeof(TextCenteringMode)));
     seed = hash_combine(seed, hash_bytes(&t.style.align, sizeof(TextAlign)));
+    seed = hash_combine(seed, hash_bytes(&t.style.vertical_align, sizeof(VerticalAlign)));
     seed = hash_combine(seed, hash_value(t.style.line_height));
     seed = hash_combine(seed, hash_value(t.style.tracking));
     seed = hash_combine(seed, hash_value(t.style.max_lines));
@@ -374,8 +380,7 @@ template <typename T>
     seed = hash_combine(seed, hash_color(t.style.box_style.border_color));
     seed = hash_combine(seed, hash_value(t.style.box_style.border_width));
 
-    // Vertical align
-    seed = hash_combine(seed, hash_bytes(&t.style.vertical_align, sizeof(VerticalAlign)));
+    // ── TextAnchor has align + vertical_align + padding baked in above
 
     // Shadows
     seed = hash_combine(seed, hash_value(t.style.shadows.size()));

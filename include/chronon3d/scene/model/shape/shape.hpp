@@ -80,6 +80,45 @@ struct LineShape {
 };
 
 enum class TextAlign { Left, Center, Right };
+enum class VerticalAlign { Top, Middle, Bottom };
+
+// ── TextAnchor — defines how the text box is anchored to pos ─────
+// Determines which point of the text box corresponds to TextParams.pos.
+//
+//   Center:       pos = center of the text box
+//   TopLeft:      pos = top-left corner
+//   TopCenter:    pos = top-center
+//   BottomCenter: pos = bottom-center
+//   BaselineLeft: pos = left end of the first baseline (approx)
+//   BaselineCenter: pos = center of the first baseline (approx)
+//
+// This is SEPARATE from TextAlign/VerticalAlign, which control how
+// text is positioned INSIDE the box.
+enum class TextAnchor : u8 {
+    Center,
+    TopLeft,
+    TopCenter,
+    BottomCenter,
+    BaselineLeft,
+    BaselineCenter,
+};
+
+// ── TextCenteringMode — controls how centered text is positioned ───
+// Determines the method used to compute the centering offset for text
+// with TextAlign::Center.
+//
+//   LayoutBox:  center is computed from the layout engine's reported text
+//               bounding box (default). Fast and consistent.
+//   PixelInk:   center is computed by scanning the rasterized pixel ink.
+//               More accurate when font measurement (layout) disagrees
+//               with the actual rendered glyph shapes, but slower.
+//
+// LayoutBox is strongly recommended for all production use. PixelInk
+// exists as a safety net for debugging / migration off legacy content.
+enum class TextCenteringMode : u8 {
+    LayoutBox,
+    PixelInk,
+};
 
 struct TextPaint {
     Color fill{1.0f, 1.0f, 1.0f, 1.0f};
@@ -107,8 +146,6 @@ struct TextBoxStyle {
     f32 border_width{1.0f};
 };
 
-enum class VerticalAlign { Top, Middle, Bottom };
-
 enum class TextOverflow {
     Clip,
     Ellipsis,
@@ -129,7 +166,8 @@ struct TextStyle {
     std::string font_style{"normal"};
     f32   size{32.0f};
     Color color{1.0f, 1.0f, 1.0f, 1.0f};
-    TextAlign align{TextAlign::Left};
+    // ── TextAnchor — how the box is anchored to pos ──────────────
+    TextAnchor anchor{TextAnchor::Center};
 
     f32 line_height{1.2f};   // multiplier of font size
     f32 tracking{0.0f};      // extra px per glyph advance
@@ -148,7 +186,13 @@ struct TextStyle {
     TextPaint paint{};
     std::vector<TextShadow> shadows{};
     TextBoxStyle box_style{};
-    VerticalAlign vertical_align{VerticalAlign::Top};
+
+    // ── Centering mode (LayoutBox = default, PixelInk = opt-in) ────
+    TextCenteringMode centering_mode{TextCenteringMode::LayoutBox};
+
+    // ── Intra-box alignment (separate from box anchoring) ─────────
+    TextAlign align{TextAlign::Center};
+    VerticalAlign vertical_align{VerticalAlign::Middle};
 
     // Premium TextMaterial (gradient, bevel, highlight, etc.)
     TextMaterial material{};
