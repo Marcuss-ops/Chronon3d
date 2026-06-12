@@ -69,6 +69,7 @@ add_library(chronon3d_cli_video STATIC
     utils/video/video_job_validate.cpp
     utils/video/video_job_dry_run.cpp
     utils/video/video_job_execute.cpp
+    utils/video/video_sink_encoders.cpp
 )
 target_include_directories(chronon3d_cli_video PRIVATE ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli)
 target_link_libraries(chronon3d_cli_video PRIVATE chronon3d_cli_core chronon3d_pipeline chronon3d_backend_image CLI11::CLI11 spdlog::spdlog_header_only fmt::fmt)

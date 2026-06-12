@@ -1,12 +1,33 @@
 #include "video_export_common.hpp"
+#include "../../../utils/video/video_sink_encoders.hpp"
 #include <spdlog/spdlog.h>
 #include <cstdlib>
 
 namespace chronon3d::cli {
 
-// ── Factory: create the appropriate encoder based on backend setting ──────────
+// ── Factory: create the appropriate encoder based on sink_mode / backend ──────
 
 std::unique_ptr<IVideoEncoder> create_video_encoder(const FfmpegExportOptions& opts) {
+    // Note: video_sink_mode_id is set in setup_pipe_export_session() after the
+    // renderer (and its counters) are created — g_current_counters is null here.
+
+    switch (opts.sink_mode) {
+        case VideoSinkMode::NullRender:
+            spdlog::info("[video] Using null-render sink — frames will be counted but not converted/written");
+            return std::make_unique<NullRenderEncoder>();
+
+        case VideoSinkMode::NullConvert:
+            spdlog::info("[video] Using null-convert sink — frames will be converted but not written to FFmpeg");
+            return std::make_unique<NullConvertEncoder>();
+
+        case VideoSinkMode::Raw:
+            spdlog::info("[video] Using raw sink — frames will be written as raw pixel data to {}", opts.output);
+            return std::make_unique<RawVideoSinkEncoder>();
+
+        case VideoSinkMode::Ffmpeg:
+            break;
+    }
+
 #ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
     if (opts.encoder_backend == "native") {
         return std::make_unique<NativeAvEncoder>();

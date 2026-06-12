@@ -60,6 +60,8 @@ std::optional<VideoJobPlan> plan_video_job(
     opts.color_output      = args.color_output;
     opts.pipe_writer       = args.pipe_writer;
     opts.encoder_backend   = args.encoder_backend;
+    opts.video_sink        = args.video_sink;
+    opts.sink_mode         = parse_video_sink_mode(args.video_sink);
 
     // ── Auto-tuning ─────────────────────────────────────────────────────
     if (opts.tune.empty() && opts.codec == "libx264") {
