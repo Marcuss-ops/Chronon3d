@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/backends/software/renderer.hpp>
+#include <chronon3d/backends/software/renderer_types.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/backends/assets/image_renderer.hpp>
 #include <chronon3d/math/transform.hpp>
@@ -155,42 +156,12 @@ public:
     SoftwareRenderer(SoftwareRenderer&&) noexcept = default;
     SoftwareRenderer& operator=(SoftwareRenderer&&) noexcept = default;
 
-    struct LayerBBoxState {
-        raster::BBox bbox;
-        Mat4 world_matrix;
-        f32 opacity{1.0f};
-        bool visible{true};
-        bool cache_static{false};
-        bool uses_2_5d_projection{false};
-        uint64_t content_hash{0};
-    };
+    // ── Accessor methods for per-frame state ────────────────────────────
+    using LayerBBoxState          = chronon3d::LayerBBoxState;
+    using RendererFrameHistory    = chronon3d::RendererFrameHistory;
+    using RendererDirtyTelemetry  = chronon3d::RendererDirtyTelemetry;
+    using RendererLayerHistory    = chronon3d::RendererLayerHistory;
 
-    // ── Encapsulated per-frame state structs ──────────────────────────────
-    struct RendererFrameHistory {
-        Frame prev_frame{-1};
-        Camera2_5D prev_camera;
-        bool prev_camera_valid{false};
-        uint64_t prev_scene_fingerprint{0};
-        uint64_t prev_static_scene_fingerprint{0};
-        uint64_t prev_graph_structure_fingerprint{0};
-        uint64_t prev_active_at_fingerprint{0};
-    };
-
-    struct RendererDirtyTelemetry {
-        double last_dirty_area_ratio{1.0};
-        int last_layer_count{0};
-        bool last_dirty_rect_enabled{false};
-        std::optional<raster::BBox> last_dirty_rect;
-        bool last_tile_execution_used{false};
-        bool last_fast_path_reused{false};
-        bool last_graph_reused{false};
-    };
-
-    struct RendererLayerHistory {
-        std::unordered_map<std::string, LayerBBoxState> prev_layer_bboxes;
-    };
-
-    // ── Accessor methods for encapsulated state ──────────────────────────
     [[nodiscard]] RendererFrameHistory& frame_history() { return m_frame_history; }
     [[nodiscard]] const RendererFrameHistory& frame_history() const { return m_frame_history; }
     [[nodiscard]] RendererDirtyTelemetry& dirty_telemetry() { return m_dirty_telemetry; }

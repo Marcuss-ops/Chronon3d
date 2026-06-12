@@ -1,8 +1,8 @@
 const dashboardHost = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
 const backendPort = import.meta.env.VITE_BACKEND_PORT || '8000';
 
-export const API_BASE = import.meta.env.DEV ? '' : '';
-export const WS_BASE = import.meta.env.DEV ? window.location.origin : window.location.origin;
+export const API_BASE = '';
+export const WS_BASE = typeof window !== 'undefined' ? window.location.origin : '';
 
 
 export const INFO_DESCRIPTIONS = {

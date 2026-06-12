@@ -26,6 +26,8 @@ std::vector<std::string_view> ExporterRegistry::list_ids() const {
 void register_builtin_exporters(ExporterRegistry& registry) {
     register_pipe_exporter(registry);
     register_chunked_exporter(registry);
+    register_null_render_sink(registry);
+    register_null_convert_sink(registry);
 }
 
 } // namespace chronon3d::cli

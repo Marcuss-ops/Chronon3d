@@ -38,8 +38,20 @@ add_library(chronon3d_graph STATIC
     framebuffer_acquire.cpp
     pipeline/scene.cpp
     pipeline/scene_dirty.cpp
+    pipeline/scene_dirty_helpers.cpp
     pipeline/scene_tile_execution.cpp
     pipeline/tile_execution_policy.cpp
+    pipeline/scene_fingerprint.cpp
+    pipeline/frame_reuse_policy.cpp
+    pipeline/pool_preallocation.cpp
+    pipeline/graph_cache_coordinator.cpp
+    pipeline/frame_state_commit.cpp
+    pipeline/scene_refresh.cpp
+    pipeline/refresh/layer_item.cpp
+    pipeline/refresh/source.cpp
+    pipeline/refresh/multi_source.cpp
+    pipeline/refresh/effect_stack.cpp
+    pipeline/refresh/transform.cpp
     pipeline/debug.cpp
     pipeline/composition.cpp
     preflight/preflight.cpp

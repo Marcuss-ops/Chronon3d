@@ -7,6 +7,7 @@
 
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/backends/software/renderer_types.hpp>
 #include <chronon3d/core/tile_grid.hpp>
 #include <chronon3d/core/dirty_tile_mask.hpp>
 #include "scene_dirty_helpers.hpp"
@@ -94,8 +95,8 @@ DirtyRectOutput compute_dirty_rect(
             return a.x0 == b.x0 && a.y0 == b.y0 && a.x1 == b.x1 && a.y1 == b.y1;
         };
 
-        auto add_layer_dirty = [&](const SoftwareRenderer::LayerBBoxState& curr,
-                                   const SoftwareRenderer::LayerBBoxState* prev) {
+        auto add_layer_dirty = [&](const LayerBBoxState& curr,
+                                   const LayerBBoxState* prev) {
             const bool prev_exists = prev != nullptr;
             const bool curr_visible = curr.visible;
             const bool prev_visible = prev_exists ? prev->visible : false;

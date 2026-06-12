@@ -138,6 +138,16 @@ void register_camera_video(CLI::App& dev, CliContext& ctx) {
     camera_cmd->callback([camera_args, &ctx]() { ctx.exit_code = command_video_camera(ctx.registry, *camera_args); });
 }
 
+void register_visual_test_camera(CLI::App& dev, CliContext& ctx) {
+    auto args = std::make_shared<VisualTestCameraArgs>();
+    auto* cmd = dev.add_subcommand("visual-test", "Camera visual test suite");
+    auto* camera = cmd->add_subcommand("camera", "Run camera visual golden tests");
+    camera->add_flag("--update-golden", args->update_golden, "Regenerate golden images");
+    camera->add_option("--case", args->case_name, "Specific test case to run");
+    camera->add_option("--out", args->out_dir, "Output directory for artifacts")->default_val("artifacts/visual/camera");
+    camera->callback([args, &ctx]() { ctx.exit_code = command_visual_test_camera(*args); });
+}
+
 } // namespace
 
 void register_dev_commands(CLI::App& app, CliContext& ctx) {
@@ -149,6 +159,7 @@ void register_dev_commands(CLI::App& app, CliContext& ctx) {
     register_studio_tools(*dev, ctx);
     register_bench_convert(*dev, ctx);
     register_camera_video(*dev, ctx);
+    register_visual_test_camera(*dev, ctx);
 }
 
 } // namespace chronon3d::cli

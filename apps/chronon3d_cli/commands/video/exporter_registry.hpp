@@ -33,4 +33,8 @@ private:
     std::unordered_map<std::string, std::unique_ptr<VideoExporter>> exporters_;
 };
 
+// ── Null/benchmark sink registration ────────────────────────────────────────
+void register_null_render_sink(ExporterRegistry& registry);
+void register_null_convert_sink(ExporterRegistry& registry);
+
 } // namespace chronon3d::cli
