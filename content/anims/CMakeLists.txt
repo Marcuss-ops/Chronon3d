@@ -1,6 +1,7 @@
 add_library(chronon3d_content_anims STATIC
     anims_module.cpp
     compositions/animation_compositions.cpp
+    compositions/text_animations.cpp
     compositions/cinematic_showcase.cpp
 )
 set_target_properties(chronon3d_content_anims PROPERTIES UNITY_BUILD OFF)
