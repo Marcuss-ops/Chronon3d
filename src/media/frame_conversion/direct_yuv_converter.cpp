@@ -66,8 +66,9 @@ DirectYuvResult convert_to_yuv420p_parallel(const DirectYuvRequest& req) {
 
     // Each iteration processes a 2-row block: [y_block*2 .. y_block*2+1]
     const int num_blocks = h / 2;
+    const int grain = std::max(16, num_blocks / 16);
 
-    parallel_for_tracked(tbb::blocked_range<int>(0, num_blocks), [&](const tbb::blocked_range<int>& r) {
+    parallel_for_tracked(tbb::blocked_range<int>(0, num_blocks, grain), [&](const tbb::blocked_range<int>& r) {
         for (int block = r.begin(); block < r.end(); ++block) {
             const int y = block * 2;
 
@@ -156,8 +157,9 @@ DirectYuvResult convert_to_nv12_parallel(const DirectYuvRequest& req) {
     const bool apply_gamma = req.apply_gamma;
 
     const int num_blocks = h / 2;
+    const int grain = std::max(16, num_blocks / 16);
 
-    parallel_for_tracked(tbb::blocked_range<int>(0, num_blocks), [&](const tbb::blocked_range<int>& r) {
+    parallel_for_tracked(tbb::blocked_range<int>(0, num_blocks, grain), [&](const tbb::blocked_range<int>& r) {
         for (int block = r.begin(); block < r.end(); ++block) {
             const int y = block * 2;
 
