@@ -54,7 +54,7 @@ void mark_pipe_exception(PipeExportStatus& status, Frame frame, const std::excep
 
 size_t compute_pipe_arena_size(int width, int height) {
     const size_t frame_bytes = static_cast<size_t>(width) * static_cast<size_t>(height) * sizeof(Color);
-    return align_up(std::max<size_t>(128ULL * 1024ULL * 1024ULL, frame_bytes * 8ULL),
+    return align_up(frame_bytes * 8ULL,
                     2ULL * 1024ULL * 1024ULL);
 }
 
