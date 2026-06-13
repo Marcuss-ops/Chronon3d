@@ -109,6 +109,9 @@ struct RenderTelemetryRecord {
     uint64_t io_queue_peak_depth{0};
     uint64_t ffmpeg_pipe_write_blocked_ms{0};
     uint64_t converted_frame_cache_hits{0};
+    uint64_t program_cache_hits{0};
+    uint64_t program_cache_misses{0};
+    uint64_t program_cache_evictions{0};
     uint64_t ffmpeg_flush_ms{0};
     uint64_t io_queue_peak_bytes{0};
 
@@ -201,6 +204,10 @@ struct FrameTelemetryRecord {
     bool tile_execution_used{false};
     bool fast_path_reused{false};
     bool graph_reused{false};
+
+    /// Current SceneProgramCache capacity at this frame.
+    /// Populated by the render loop for per-frame trend charts.
+    int program_cache_capacity{0};
 };
 
 struct FrameEncoderTelemetryRecord {

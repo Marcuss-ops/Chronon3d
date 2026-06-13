@@ -71,13 +71,18 @@ RenderLoopResult run_render_job_loop(
             const double dirty_ratio = renderer.last_dirty_area_ratio();
             result.total_render_ms += render_ms;
 
+            int prog_cache_cap_0 = static_cast<int>(
+                renderer.counters()
+                    ? renderer.counters()->program_cache_capacity.load(std::memory_order_relaxed)
+                    : 0);
+
             // Submit write for frame 0 to the pool
             std::future<double> prev_write = write_pool.submit(
                 WritePool::Job([fb, f, &plan, cache_hit, dirty_ratio, render_ms,
-                                &result] {
+                                prog_cache_cap_0, &result] {
                     return write_frame_to_disk(
                         fb, static_cast<Frame>(f), plan.range, plan.output,
-                        cache_hit, dirty_ratio, render_ms,
+                        cache_hit, dirty_ratio, render_ms, prog_cache_cap_0,
                         result.ok, result.telemetry_frames, result.total_encode_ms, result.frames_written);
                 }));
 
@@ -104,16 +109,21 @@ RenderLoopResult run_render_job_loop(
                 const double dirty_ratio_n = renderer.last_dirty_area_ratio();
                 result.total_render_ms += render_ms_n;
 
+                int prog_cache_cap_n = static_cast<int>(
+                    renderer.counters()
+                        ? renderer.counters()->program_cache_capacity.load(std::memory_order_relaxed)
+                        : 0);
+
                 // Wait for previous frame's write to finish.
                 prev_write.get();
 
                 // Submit write for current frame (overlap with next render)
                 prev_write = write_pool.submit(
                     WritePool::Job([fb_n, f, &plan, cache_hit_n, dirty_ratio_n, render_ms_n,
-                                    &result] {
+                                    prog_cache_cap_n, &result] {
                         return write_frame_to_disk(
                             fb_n, static_cast<Frame>(f), plan.range, plan.output,
-                            cache_hit_n, dirty_ratio_n, render_ms_n,
+                            cache_hit_n, dirty_ratio_n, render_ms_n, prog_cache_cap_n,
                             result.ok, result.telemetry_frames, result.total_encode_ms, result.frames_written);
                     }));
             }

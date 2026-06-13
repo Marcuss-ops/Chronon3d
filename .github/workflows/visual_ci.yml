@@ -1,0 +1,245 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# visual_ci.yml — B7: Visual Regression + Golden Matrix + Benchmarks
+#
+# Runs on every push/PR to main (Ubuntu-only for deterministic golden images).
+#
+# Golden matrix strategy:
+#   Each variant runs independently (sharing vcpkg cache, not build cache).
+#   The workflow file is the single source of truth for all golden suites.
+#
+# To update golden images: set CHRONON3D_UPDATE_GOLDENS=1 in repo secrets.
+# Golden tests detect this and overwrite baselines instead of verifying.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+name: Visual CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+  VCPKG_BINARY_SOURCES: "clear;nuget,GitHub,readwrite"
+  CHRONON3D_UPDATE_GOLDENS: ${{ secrets.CHRONON3D_UPDATE_GOLDENS || '' }}
+
+jobs:
+  # ────────────────────────────────────────────────────────────────────────────
+  # Golden Matrix — each variant builds independently, shares vcpkg cache
+  # ────────────────────────────────────────────────────────────────────────────
+  golden:
+    name: Golden (${{ matrix.golden.label }})
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        golden:
+          - name: breathing
+            label: "Breathing"
+            ctest_filter: "-R chronon3d_breathing_golden_tests"
+            golden_subdir: breathing
+          - name: camera
+            label: "Camera"
+            ctest_filter: "-R chronon3d_camera_visual_tests"
+            golden_subdir: camera
+          - name: glow
+            label: "Glow+Suite"
+            ctest_filter: "-R chronon3d_renderer_tests"
+            golden_subdir: glow_suite
+          - name: support
+            label: "Visual Support"
+            ctest_filter: "-R chronon3d_visual_test_support_tests"
+            golden_subdir: ""
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          lfs: true
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python deps
+        run: pip install --upgrade pip pillow numpy
+
+      - name: Install system deps for rendering (Qt/EGL)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libgtk-3-0 libxkbcommon-x11-0 \
+            libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 \
+            libxcb-render-util0 libxcb-shape0 libxcb-xfixes0 \
+            libxcb-xinerama0 libxcb-xinput0 2>/dev/null || true
+        continue-on-error: true
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4'
+
+      - name: Configure (tests only)
+        run: cmake --preset linux-ci
+
+      - name: Build all targets
+        run: cmake --build --preset linux-ci -j$(nproc)
+
+      # ── Run golden suite ──────────────────────────────────────────────
+      - name: Run ${{ matrix.golden.label }} tests
+        id: golden-test
+        continue-on-error: true
+        run: |
+          mkdir -p artifacts
+          ctest --preset linux-ci-test \
+                ${{ matrix.golden.ctest_filter }} \
+                --output-on-failure 2>&1 | \
+            tee artifacts/test_output_${{ matrix.golden.name }}.txt; \
+            exit_code=${PIPESTATUS[0]}
+          echo "status=$exit_code" >> $GITHUB_OUTPUT
+
+      # ── Collect artifacts ─────────────────────────────────────────────
+      - name: Collect artifacts (${{ matrix.golden.name }})
+        if: always()
+        run: |
+          # Golden reference images (test_renders/golden/)
+          if [ -d "test_renders/golden" ]; then
+            cp -r test_renders/golden artifacts/golden/ 2>/dev/null || true
+          fi
+
+          # Debug / diff outputs
+          for dir in output/debug output/diff; do
+            if [ -d "$dir" ]; then
+              find "$dir" -type f \( -name "*.png" -o -name "*.txt" -o \
+                -name "*.json" \) -exec cp {} artifacts/diff/ \; 2>/dev/null || true
+            fi
+          done
+
+          # Camera test artifacts
+          if [ -d "output/camera_visual" ]; then
+            cp -r output/camera_visual artifacts/camera_visual/ 2>/dev/null || true
+          fi
+
+      - name: Upload artifacts (${{ matrix.golden.name }})
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: golden-${{ matrix.golden.name }}-${{ github.run_id }}
+          path: artifacts/
+          retention-days: 14
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # Benchmarks — blend modes + scene program (separate build with benchmarks ON)
+  # ────────────────────────────────────────────────────────────────────────────
+  benchmarks:
+    name: Benchmarks
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          lfs: true
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4'
+
+      - name: Configure (tests + benchmarks)
+        run: cmake --preset linux-ci -DCHRONON3D_BUILD_BENCHMARKS=ON
+
+      - name: Build benchmark targets only
+        run: |
+          cmake --build build/chronon/linux-ci \
+            --target chronon3d_benchmarks \
+            --target chronon3d_scene_program_benchmarks \
+            -j$(nproc)
+
+      - name: Run blend benchmark
+        id: bench-blend
+        continue-on-error: true
+        run: |
+          mkdir -p output/benchmarks
+          BENCH_BIN="${{ github.workspace }}/build/chronon/linux-ci/tests/chronon3d_benchmarks"
+          if [ -f "$BENCH_BIN" ]; then
+            $BENCH_BIN --benchmark_min_time=0.01 \
+                       --benchmark_out=output/benchmarks/bench_blend.json \
+                       --benchmark_out_format=json 2>&1 | \
+              tee output/benchmarks/bench_blend_output.txt
+          else
+            echo "Blend benchmark binary NOT FOUND at $BENCH_BIN"
+          fi
+
+      - name: Run program benchmark
+        id: bench-program
+        continue-on-error: true
+        run: |
+          mkdir -p output/benchmarks
+          PROG_BENCH_BIN="${{ github.workspace }}/build/chronon/linux-ci/tests/chronon3d_scene_program_benchmarks"
+          if [ -f "$PROG_BENCH_BIN" ]; then
+            $PROG_BENCH_BIN --benchmark_min_time=0.01 \
+                           --benchmark_out=output/benchmarks/bench_program.json \
+                           --benchmark_out_format=json 2>&1 | \
+              tee output/benchmarks/bench_program_output.txt
+          else
+            echo "Program benchmark binary NOT FOUND at $PROG_BENCH_BIN"
+          fi
+
+      - name: Generate benchmark report
+        if: always()
+        run: |
+          {
+            echo "# Benchmark Results — ${{ github.run_id }}"
+            echo "SHA: ${{ github.sha }}"
+            echo ""
+            echo "## Blend Benchmarks"
+            if [ -f "output/benchmarks/bench_blend.json" ]; then
+              echo '```json'
+              python3 -c "
+import json
+with open('output/benchmarks/bench_blend.json') as f:
+    data = json.load(f)
+for b in data.get('benchmarks', []):
+    name = b.get('name', '?')
+    gbs = b.get('counters', {}).get('gb_s', {}).get('value', 0)
+    time = b.get('real_time', 0)
+    items = b.get('items_per_second', 0)
+    print(f'{name}: {gbs:.2f} GB/s, {items:.0f} items/s, {time:.0f} us')
+" 2>/dev/null || echo "(parse error)"
+              echo '```'
+            else:
+              echo "(no blend results)"
+            fi
+            echo ""
+            echo "## Program Benchmarks"
+            if [ -f "output/benchmarks/bench_program.json" ]; then
+              echo '```json'
+              python3 -c "
+import json
+with open('output/benchmarks/bench_program.json') as f:
+    data = json.load(f)
+for b in data.get('benchmarks', []):
+    name = b.get('name', '?')
+    time = b.get('real_time', 0)
+    items = b.get('items_per_second', 0)
+    print(f'{name}: {items:.0f} items/s, {time:.0f} us')
+" 2>/dev/null || echo "(parse error)"
+              echo '```'
+            else:
+              echo "(no program results)"
+            fi
+          } >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload benchmark results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results-${{ github.run_id }}
+          path: output/benchmarks/
+          retention-days: 30

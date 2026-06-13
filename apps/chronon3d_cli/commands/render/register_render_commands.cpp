@@ -49,6 +49,16 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
                   "Render a dummy frame 0 to prime all caches");
     cmd->add_option("--fb-pool-budget-mb", args.pipeline.fb_pool_budget_mb,
                     "Framebuffer pool retention budget in MB (0=unlimited, default 384)");
+    cmd->add_option("--program-cache-capacity", args.pipeline.program_cache_capacity,
+                    "SceneProgramCache entries per Precomp node (0=default 8)");
+    cmd->add_flag("--program-cache-tune", args.pipeline.program_cache_tune,
+                  "Auto-tune SceneProgramCache capacity based on hit/eviction ratio");
+    cmd->add_option("--program-cache-tune-interval", args.pipeline.program_cache_tune_interval,
+                    "Frames between auto-tune checks (default 30)");
+    cmd->add_option("--program-cache-tune-min", args.pipeline.program_cache_tune_min_capacity,
+                    "Minimum capacity when down-tuning (default 2)");
+    cmd->add_option("--program-cache-tune-max", args.pipeline.program_cache_tune_max_capacity,
+                    "Maximum capacity when up-tuning (default 128)");
     cmd->allow_windows_style_options();
     cmd->callback([state, &ctx]() {
         state->args->command_line = ctx.command_line;

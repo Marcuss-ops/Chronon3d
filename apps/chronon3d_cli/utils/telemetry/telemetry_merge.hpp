@@ -108,6 +108,9 @@ inline void add_counters(chronon3d::RenderCounters& dst, const chronon3d::Render
     dst.ffmpeg_pipe_write_blocked_ms.fetch_add(src.ffmpeg_pipe_write_blocked_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.converted_frame_cache_hits.fetch_add(src.converted_frame_cache_hits.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.converted_frame_cache_misses.fetch_add(src.converted_frame_cache_misses.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.program_cache_hits.fetch_add(src.program_cache_hits.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.program_cache_misses.fetch_add(src.program_cache_misses.load(std::memory_order_relaxed), std::memory_order_relaxed);
+    dst.program_cache_evictions.fetch_add(src.program_cache_evictions.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.ffmpeg_flush_ms.fetch_add(src.ffmpeg_flush_ms.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.framebuffer_bytes_allocated.fetch_add(src.framebuffer_bytes_allocated.load(std::memory_order_relaxed), std::memory_order_relaxed);
     dst.framebuffer_bytes_peak.fetch_add(src.framebuffer_bytes_peak.load(std::memory_order_relaxed), std::memory_order_relaxed);

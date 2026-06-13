@@ -154,13 +154,40 @@ struct RenderSettings {
     CompositingSettings compositing{};
 
     /// Diagnostic overlay and preflight report settings.
-    DiagnosticSettings diagnostics{};
-
-    /**
+    DiagnosticSettings diagnostics{};    /**
      * Diagnostic: when true, composite_normal_premul uses the safe scalar fallback
      * instead of the Highway SIMD path. Helps isolate SIMD-related rendering bugs.
      */
     bool force_scalar_normal_blend{false};
+
+    /**
+     * SceneProgramCache capacity (number of entries).
+     * 0 = use default (8).  Affects how many distinct nested scene programs
+     * can be cached before LRU eviction kicks in.
+     */
+    size_t program_cache_capacity{0};
+
+    /**
+     * Enable automatic capacity tuning based on hit/eviction statistics.
+     * When true, PrecompNode periodically adjusts its SceneProgramCache.
+     */
+    bool program_cache_tune{false};
+
+    /**
+     * Number of find_or_compile() calls between auto-tune checks.
+     * Default 30 frames.
+     */
+    size_t program_cache_tune_interval{30};
+
+    /**
+     * Minimum capacity when down-tuning (auto mode).  Default 2.
+     */
+    size_t program_cache_tune_min_capacity{2};
+
+    /**
+     * Maximum capacity when up-tuning (auto mode).  Default 128.
+     */
+    size_t program_cache_tune_max_capacity{128};
 };
 
 } // namespace chronon3d

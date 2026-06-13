@@ -1,5 +1,6 @@
 #include <doctest/doctest.h>
 #include <chronon3d/render_graph/render_backend.hpp>
+#include <chronon3d/compositor/composite_operator.hpp>
 #include <chronon3d/render_graph/render_graph.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/render_graph/builder/graph_builder.hpp>
@@ -27,7 +28,8 @@ public:
     }
 
     void composite_layer(Framebuffer&, const Framebuffer&, BlendMode,
-                         const std::optional<raster::BBox>& = std::nullopt) override {
+                         const std::optional<raster::BBox>& = std::nullopt,
+                         CompositeOperator = CompositeOperator::SourceOver) override {
         composite_layer_called++;
     }
 

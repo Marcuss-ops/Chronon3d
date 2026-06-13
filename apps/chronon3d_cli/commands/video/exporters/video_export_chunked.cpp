@@ -164,6 +164,10 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
                         .dirty_area_ratio = dirty_ratio,
                         .graph_eval_ms = render_ms,
                         .encoder_ms = encode_ms,
+                        .program_cache_capacity = static_cast<int>(
+                            renderer->counters()
+                                ? renderer->counters()->program_cache_capacity.load(std::memory_order_relaxed)
+                                : 0)
                     });
                     
                     int done = ++frames_done;

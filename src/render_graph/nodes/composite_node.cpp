@@ -37,8 +37,9 @@ OwnedFB CompositeNode::execute(
         );
     }
 
-    // Skip-opaque optimization
-    if (m_mode == BlendMode::Normal && top->is_opaque() &&
+    // Skip-opaque optimization — only applies to SourceOver + Normal blend
+    if (m_operator == CompositeOperator::SourceOver &&
+        m_mode == BlendMode::Normal && top->is_opaque() &&
         input_bboxes.size() >= 2 && input_bboxes[1].has_value())
     {
         const auto& tb = *input_bboxes[1];
@@ -122,7 +123,17 @@ OwnedFB CompositeNode::execute(
             ctx.telemetry.counters->compositenode_dispatch_ms.fetch_add(dms, std::memory_order_relaxed);
         }
 
-        ctx.resources.backend->composite_layer(*result, *top, m_mode, clip);
+        // Check if stencil/silhouette operator — these use the underlying
+        // composite operator field instead of a blend mode when applicable.
+        if (m_operator != CompositeOperator::SourceOver) {
+            // Stencil/Silhouette: use Normal blend to copy top first, then
+            // apply the operator via the backend (which handles the masking).
+            // The operator is passed along so the backend can apply the
+            // appropriate matte-style coverage to the backdrop.
+            ctx.resources.backend->composite_layer(*result, *top, m_mode, clip, m_operator);
+        } else {
+            ctx.resources.backend->composite_layer(*result, *top, m_mode, clip);
+        }
 
         // ── Post-blend overhead ────────────────────────────────────────
         _os = profiling::now();
