@@ -5,10 +5,10 @@
 
 namespace chronon3d::cli {
 
-// ── Factory: create the appropriate encoder based on sink_mode / backend ──────
+// ── Factory: create the appropriate encoder based on sink_type / backend ──────
 
 std::unique_ptr<IVideoEncoder> create_video_encoder(const FfmpegExportOptions& opts) {
-    // Note: video_sink_mode_id is set in setup_pipe_export_session() after the
+    // Note: video_sink_type_id is set in setup_pipe_export_session() after the
     // renderer (and its counters) are created — g_current_counters is null here.
 
     switch (opts.sink_type) {
