@@ -1,6 +1,7 @@
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/timeline/composition.hpp>
+#include <chronon3d/animation/easing/easing.hpp>
 #include "content/text/text_helpers.hpp"
 
 namespace chronon3d::content::minimalist {
@@ -103,10 +104,15 @@ Composition minimalist_text_typewriter() {
         s.layer("phrase", [f](LayerBuilder& l) {
             l.pin_to(Anchor::Center);
             l.text("phrase", text::typewriter_text({
-                .text = "TYPEWRITER TEST",
+                .text = "SMOOTH REVEAL",
                 .font_size = 110,
                 .tracking = 6,
-            }, f, 2.0f));
+            }, f, 1.5f,
+            {
+                .easing     = EasingCurve{Easing::OutCubic},
+                .start_delay = Frame{15},
+                .fade_chars  = 0.8f,
+            }));
         });
         return s.build();
     });
