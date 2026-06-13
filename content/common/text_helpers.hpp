@@ -34,6 +34,7 @@
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/text/text_glow_spec.hpp>
+#include <chronon3d/animation/easing/easing.hpp>
 #include <string>
 #include <algorithm>
 
@@ -157,12 +158,23 @@ namespace typewriter {
 //       l.text("t", centered_text::make_centered_text(visible, 64.0f));
 //   });
 //
+struct TypewriterRevealOptions {
+    EasingCurve easing{Easing::Linear};
+    Frame       start_delay{0};
+};
+
 inline std::string reveal_text_by_frame(const std::string& full_text,
                                         Frame frame,
-                                        f32 chars_per_frame = 2.0f) {
-    size_t visible = std::min(
-        full_text.size(),
-        static_cast<size_t>(static_cast<f32>(frame) * chars_per_frame));
+                                        f32 chars_per_frame = 2.0f,
+                                        TypewriterRevealOptions tw = {}) {
+    const f32 raw_frame = static_cast<f32>(frame) - static_cast<f32>(tw.start_delay);
+    if (raw_frame < 0.0f) return " ";
+
+    const f32 total = static_cast<f32>(full_text.size());
+    const f32 linear_t = std::clamp(raw_frame * chars_per_frame / total, 0.0f, 1.0f);
+    const f32 eased_t  = tw.easing.apply(linear_t);
+    const size_t visible = std::min(full_text.size(),
+                                    static_cast<size_t>(eased_t * total));
     if (visible == 0) return " ";
     return full_text.substr(0, visible);
 }
@@ -172,12 +184,15 @@ inline std::string reveal_text_by_frame(const std::string& full_text,
 // useful for driving secondary animations (glow settle, blur fade, etc.).
 inline f32 typewriter_progress(const std::string& full_text,
                                Frame frame,
-                               f32 chars_per_frame = 2.0f) {
+                               f32 chars_per_frame = 2.0f,
+                               TypewriterRevealOptions tw = {}) {
     if (full_text.empty()) return 1.0f;
-    f32 total_chars = static_cast<f32>(full_text.size());
-    f32 revealed = std::min(static_cast<f32>(frame) * chars_per_frame,
-                            total_chars);
-    return revealed / total_chars;
+    const f32 raw_frame = static_cast<f32>(frame) - static_cast<f32>(tw.start_delay);
+    if (raw_frame < 0.0f) return 0.0f;
+
+    const f32 total = static_cast<f32>(full_text.size());
+    const f32 linear_t = std::clamp(raw_frame * chars_per_frame / total, 0.0f, 1.0f);
+    return tw.easing.apply(linear_t);
 }
 
 } // namespace typewriter
