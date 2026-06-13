@@ -109,7 +109,7 @@ double write_frame_to_disk(std::shared_ptr<Framebuffer> fb,
         .dirty_area_ratio = dirty_ratio,
         .graph_eval_ms = render_ms,
         .encoder_ms = encode_ms,
-        .program_cache_capacity = prog_cache_cap
+        .program_cache_capacity = program_cache_capacity
     });
 
     spdlog::info("Frame {} saved to {}", frame, path);

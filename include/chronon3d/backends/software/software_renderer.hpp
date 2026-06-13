@@ -133,7 +133,7 @@ public:
                    const Camera& camera, i32 width, i32 height) override;
     void apply_blur(Framebuffer& fb, f32 radius, const std::optional<raster::BBox>& clip = std::nullopt) override;
     void apply_effect_stack(Framebuffer& fb, const EffectStack& stack, const effects::EffectExecutionContext& context) override;
-    void composite_layer(Framebuffer& dst, const Framebuffer& src, BlendMode mode, const std::optional<raster::BBox>& clip = std::nullopt) override;
+    void composite_layer(Framebuffer& dst, const Framebuffer& src, BlendMode mode, const std::optional<raster::BBox>& clip = std::nullopt, CompositeOperator op = CompositeOperator::SourceOver) override;
 
     [[nodiscard]] renderer::SoftwareRegistry& software_registry() { return *m_runtime_resources.software_registry; }
     [[nodiscard]] const renderer::SoftwareRegistry& software_registry() const { return *m_runtime_resources.software_registry; }

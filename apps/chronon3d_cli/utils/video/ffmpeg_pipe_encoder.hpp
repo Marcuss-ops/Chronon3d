@@ -4,6 +4,7 @@
 #include <chronon3d/color/output_transform.hpp>
 #include <chronon3d/media/frame_conversion/frame_converter.hpp>
 #include <chronon3d/media/frame_conversion/converted_frame_cache.hpp>
+#include <chronon3d/media/frame_conversion/frame_conversion_service.hpp>
 #include <string>
 #include <vector>
 #include <array>
@@ -108,6 +109,9 @@ private:
     FfmpegPipeOptions options_{};
     std::vector<uint8_t> rgba_buffer_;
     std::vector<uint8_t> yuv_buffer_;
+
+    // ── Centralised frame conversion service ─────────────────────────────
+    chronon3d::video::FrameConversionService conv_svc_{8};
 
     // ── Converted frame cache (LRU, replaces the old single-entry digest cache) ──
     chronon3d::video::ConvertedFrameCache frame_cache_{};

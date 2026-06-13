@@ -13,6 +13,7 @@
 //  - YUV420P  (planar, 3 separate planes: Y, U, V)
 //  - NV12     (biplanar: Y plane + interleaved UV plane)
 //  - RGB24    (packed, no alpha, drop A channel)
+//  - RGBA8    (packed, 4 bytes/pixel, preserves alpha channel)
 // ---------------------------------------------------------------------------
 
 #include <chronon3d/core/memory/framebuffer.hpp>
@@ -24,9 +25,17 @@ namespace chronon3d::video {
 
 /// Target pixel format for the hardware or software encoder.
 enum class EncoderPixelFormat {
-    YUV420P,   ///< Planar 4:2:0 — most common for H.264/H.265 YouTube exports
-    NV12,      ///< Biplanar 4:2:0 — preferred by NVENC / VAAPI hardware encoders
-    RGB24,     ///< Packed RGB, no alpha — used with libx264rgb
+    /// Planar 4:2:0 Y′CbCr — 3 planes: Y (w×h) + U (w/2×h/2) + V (w/2×h/2).
+    YUV420P,
+
+    /// Biplanar 4:2:0 Y′CbCr — Y plane + interleaved UV (w×h/2).
+    NV12,
+
+    /// Packed 8-bit RGB, 3 bytes/pixel, no alpha — used with libx264rgb.
+    RGB24,
+
+    /// Packed 8-bit RGBA, 4 bytes/pixel — native renderer output format.
+    RGBA8,
 };
 
 /// Full description of a single frame conversion request.
