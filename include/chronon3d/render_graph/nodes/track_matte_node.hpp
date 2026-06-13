@@ -14,6 +14,9 @@ namespace chronon3d::graph {
 //   input[0] = target layer framebuffer
 //   input[1] = matte layer framebuffer
 // Output = target FB with alpha modulated by matte alpha or luma.
+//
+// Coordinate fix: uses canvas-relative coordinates to correctly map
+// between target and matte origins.  See track_matte_node.cpp.
 class TrackMatteNode final : public RenderGraphNode {
 public:
     TrackMatteNode(TrackMatteType type,
@@ -31,7 +34,23 @@ public:
         if (input_bboxes.empty() || !input_bboxes[0]) {
             return std::nullopt;
         }
-        return input_bboxes[0];
+        if (input_bboxes.size() < 2 || !input_bboxes[1]) {
+            return input_bboxes[0];
+        }
+        // For Alpha/Luma → intersection(target, matte)
+        // For AlphaInverted/LumaInverted → target (full coverage outside matte)
+        if (m_type == TrackMatteType::AlphaInverted || m_type == TrackMatteType::LumaInverted) {
+            return input_bboxes[0];
+        }
+        // Intersection for non-inverted
+        const auto& target_bb = *input_bboxes[0];
+        const auto& matte_bb  = *input_bboxes[1];
+        return raster::BBox{
+            .x0 = std::max(target_bb.x0, matte_bb.x0),
+            .y0 = std::max(target_bb.y0, matte_bb.y0),
+            .x1 = std::min(target_bb.x1, matte_bb.x1),
+            .y1 = std::min(target_bb.y1, matte_bb.y1)
+        };
     }
 
     [[nodiscard]] CacheFramePolicy cache_frame_policy() const override {
@@ -43,63 +62,8 @@ public:
     OwnedFB execute(
         RenderGraphContext& ctx,
         std::span<const FramebufferRef> inputs,
-        std::span<const std::optional<raster::BBox>>
-    ) override {
-        if (inputs.size() < 2 || !inputs[0] || !inputs[1]) {
-            if (inputs.empty() || !inputs[0]) {
-                return ctx.acquire_owned_fb(ctx.frame.width, ctx.frame.height);
-            }
-            return ctx.acquire_owned_fb(*inputs[0]);
-        }
-
-        const Framebuffer& target = *inputs[0];
-        const Framebuffer& matte  = *inputs[1];
-
-        auto out = ctx.acquire_owned_fb(target.width(), target.height());
-
-        const int W = target.width();
-        const int H = target.height();
-        const int matte_w = matte.width();
-        const int matte_h = matte.height();
-
-        for (int y = 0; y < H; ++y) {
-            const Color* target_row = target.pixels_row(y);
-            const Color* matte_row = y < matte_h ? matte.pixels_row(y) : nullptr;
-            Color* out_row = out->pixels_row(y);
-            for (int x = 0; x < W; ++x) {
-                Color tc = target_row[x];
-                if (tc.a <= 0.0f) { out_row[x] = tc; continue; }
-
-                const Color mc = (matte_row && x < matte_w) ? matte_row[x] : Color{0, 0, 0, 0};
-
-                f32 mask = 1.0f;
-                switch (m_type) {
-                    case TrackMatteType::Alpha:
-                        mask = mc.a;
-                        break;
-                    case TrackMatteType::AlphaInverted:
-                        mask = 1.0f - mc.a;
-                        break;
-                    case TrackMatteType::Luma:
-                        mask = (0.2126f * mc.r + 0.7152f * mc.g + 0.0722f * mc.b) * mc.a;
-                        break;
-                    case TrackMatteType::LumaInverted:
-                        mask = 1.0f - ((0.2126f * mc.r + 0.7152f * mc.g + 0.0722f * mc.b) * mc.a);
-                        break;
-                    default: break;
-                }
-
-                f32 clamp_mask = std::clamp(mask, 0.0f, 1.0f);
-                tc.r *= clamp_mask;
-                tc.g *= clamp_mask;
-                tc.b *= clamp_mask;
-                tc.a *= clamp_mask;
-                out_row[x] = tc;
-            }
-        }
-        out->set_opaque(false);
-        return out;
-    }
+        std::span<const std::optional<raster::BBox>> input_bboxes
+    ) override;
 
 private:
     TrackMatteType      m_type;

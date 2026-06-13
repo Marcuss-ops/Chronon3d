@@ -61,6 +61,66 @@ void composite_overlay_premul(Color* __restrict__ dst,
                                const Color* __restrict__ src,
                                int pixel_count);
 
+/// Darken blend:
+///   dst[i].a = src[i].a + dst[i].a * (1 - src[i].a)
+///   dst[i].rgb = min(src[i].rgb, dst[i].rgb)
+void composite_darken_premul(Color* __restrict__ dst,
+                              const Color* __restrict__ src,
+                              int pixel_count);
+
+/// Lighten blend:
+///   dst[i].a = src[i].a + dst[i].a * (1 - src[i].a)
+///   dst[i].rgb = max(src[i].rgb, dst[i].rgb)
+void composite_lighten_premul(Color* __restrict__ dst,
+                               const Color* __restrict__ src,
+                               int pixel_count);
+
+/// Difference blend:
+///   dst[i].a = src[i].a + dst[i].a * (1 - src[i].a)
+///   dst[i].rgb = abs(src[i].rgb - dst[i].rgb)
+void composite_difference_premul(Color* __restrict__ dst,
+                                  const Color* __restrict__ src,
+                                  int pixel_count);
+
+/// Exclusion blend:
+///   dst[i].a = src[i].a + dst[i].a * (1 - src[i].a)
+///   dst[i].rgb = src.rgb + dst.rgb - 2 * src.rgb * dst.rgb
+void composite_exclusion_premul(Color* __restrict__ dst,
+                                 const Color* __restrict__ src,
+                                 int pixel_count);
+
+/// SoftLight blend:
+///   dst[i].a = src[i].a + dst[i].a * (1 - src[i].a)
+///   Uses the canonical soft_light formula with soft_light_d() helper.
+///   Input straight RGB clamped to [0,1] per HDR contract.
+void composite_soft_light_premul(Color* __restrict__ dst,
+                                  const Color* __restrict__ src,
+                                  int pixel_count);
+
+/// HardLight blend:
+///   dst[i].a = src[i].a + dst[i].a * (1 - src[i].a)
+///   if cs <= 0.5: 2*cb*cs  else 1-2*(1-cb)*(1-cs)
+///   Input straight RGB clamped to [0,1] per HDR contract.
+void composite_hard_light_premul(Color* __restrict__ dst,
+                                  const Color* __restrict__ src,
+                                  int pixel_count);
+
+/// ColorDodge blend:
+///   dst[i].a = src[i].a + dst[i].a * (1 - src[i].a)
+///   cs >= 1 → 1,  cb <= 0 → 0,  else min(1, cb/(1-cs))
+///   Input straight RGB clamped to [0,1] per HDR contract.
+void composite_color_dodge_premul(Color* __restrict__ dst,
+                                   const Color* __restrict__ src,
+                                   int pixel_count);
+
+/// ColorBurn blend:
+///   dst[i].a = src[i].a + dst[i].a * (1 - src[i].a)
+///   cs <= 0 → 0,  cb >= 1 → 1,  else 1 - min(1, (1-cb)/cs)
+///   Input straight RGB clamped to [0,1] per HDR contract.
+void composite_color_burn_premul(Color* __restrict__ dst,
+                                  const Color* __restrict__ src,
+                                  int pixel_count);
+
 /// Fill `pixel_count` contiguous Color elements with `color`.
 void clear_framebuffer(Color* data, int pixel_count, const Color& color);
 
@@ -78,6 +138,24 @@ void rasterize_rect_simd(
 /// Vectorized alpha premultiplication for RGBA8 to PRGB32 (Blend2D format).
 /// `src` is RGBA8, `dst` is PRGB32 (0xAARRGGBB).
 void premultiply_alpha_rgba8(uint32_t* __restrict__ dst, const uint8_t* __restrict__ src, int pixel_count);
+
+/// Apply alpha matte coverage to a contiguous run of target pixels.
+/// Each target pixel[i] is multiplied by matte[i].alpha (or 1-alpha if inverted).
+void apply_alpha_matte_premul(
+    Color* __restrict__ target,
+    const Color* __restrict__ matte,
+    int pixel_count,
+    bool inverted
+);
+
+/// Apply luma matte coverage to a contiguous run of target pixels.
+/// Each target pixel[i] is multiplied by matte[i].luma (or 1-luma if inverted).
+void apply_luma_matte_premul(
+    Color* __restrict__ target,
+    const Color* __restrict__ matte,
+    int pixel_count,
+    bool inverted
+);
 
 } // namespace simd
 } // namespace chronon3d

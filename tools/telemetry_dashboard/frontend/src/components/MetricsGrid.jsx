@@ -35,6 +35,17 @@ export default function MetricsGrid({ runDetail }) {
     const found = counters.find(c => c.counter_name === name);
     return found ? Number(found.counter_value) : 0;
   };
+
+  // ── Scene Program Cache counters (B6/B8) ─────────────────────────
+  const progCacheHits = getCounter('program_cache_hits');
+  const progCacheMisses = getCounter('program_cache_misses');
+  const progCacheEvictions = getCounter('program_cache_evictions');
+  const progCacheCapacity = getCounter('program_cache_capacity');
+  const progCacheTune = getCounter('program_cache_tune');
+  const progCacheTotal = progCacheHits + progCacheMisses;
+  const progCacheHitRate = progCacheTotal > 0
+    ? (progCacheHits / progCacheTotal * 100).toFixed(1)
+    : '—';
   const fbAcquireMs = getCounter('framebuffer_acquire_ms');
   const fbClearMs = getCounter('framebuffer_clear_ms');
   const fbEnqueueMs = getCounter('framebuffer_enqueue_ms');
@@ -353,6 +364,109 @@ export default function MetricsGrid({ runDetail }) {
           </div>
           <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
             % del pipeline spesa in rendering puro (vs overhead)
+          </div>
+        </div>
+      </section>
+
+      {/* ── Scene Program Cache (B6/B8) ── */}
+      <h3 className="section-subtitle" style={{ marginTop: '24px', marginBottom: '12px', fontSize: '1rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+        🗂️ Scene Program Cache (B6/B8)
+      </h3>
+      <section className="metrics-grid">
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-success)' }}>
+          <div className="metric-label">
+            Program Cache Hits
+            {renderInfoIcon('program_cache_hits')}
+          </div>
+          <div className="metric-value" style={{ color: progCacheHits > 0 ? 'var(--color-success)' : 'var(--text-secondary)' }}>
+            {progCacheHits.toLocaleString()}
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            programmi trovati in cache (grafo riusato)
+          </div>
+        </div>
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-warning)' }}>
+          <div className="metric-label">
+            Program Cache Misses
+            {renderInfoIcon('program_cache_misses')}
+          </div>
+          <div className="metric-value" style={{ color: progCacheMisses > 0 ? 'var(--color-warning)' : 'var(--text-secondary)' }}>
+            {progCacheMisses.toLocaleString()}
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            compilazioni da zero (struttura cambiata)
+          </div>
+        </div>
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-accent)' }}>
+          <div className="metric-label">
+            Hit Rate
+            {renderInfoIcon('program_cache_hits')}
+          </div>
+          <div className="metric-value" style={{
+            color: progCacheHitRate === '—' ? 'var(--text-secondary)' :
+                   parseFloat(progCacheHitRate) > 80 ? 'var(--color-success)' :
+                   parseFloat(progCacheHitRate) > 50 ? 'var(--color-warning)' :
+                   'var(--color-danger)'
+          }}>
+            {progCacheHitRate}
+            <span className="metric-unit">%</span>
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            {progCacheTotal > 0
+              ? `${progCacheHits} hits / ${progCacheTotal} totali`
+              : 'nessuna attività cache rilevata'}
+          </div>
+        </div>
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-danger)' }}>
+          <div className="metric-label">
+            Evictions
+            {renderInfoIcon('program_cache_evictions')}
+          </div>
+          <div className="metric-value" style={{ color: progCacheEvictions > 0 ? 'var(--color-danger)' : 'var(--color-success)' }}>
+            {progCacheEvictions.toLocaleString()}
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            entry rimosse per capacità esaurita (LRU)
+          </div>
+        </div>
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-info)', gridColumn: 'span 2' }}>
+          <div className="metric-label">
+            Ratio Hits / Evictions
+          </div>
+          <div className="metric-value" style={{ color: progCacheEvictions > 0 && progCacheHits > 0 ? 'var(--color-warning)' : 'var(--color-success)' }}>
+            {progCacheEvictions > 0
+              ? (progCacheHits / progCacheEvictions).toFixed(1)
+              : progCacheHits > 0 ? '∞ (no evictions)' : '—'}
+            <span className="metric-unit">×</span>
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            quante hits per ogni eviction. Basso = capacity troppo piccola per il carico di lavoro.
+          </div>
+        </div>
+        <div className="glass-panel metric-card" style={{ borderLeft: '3px solid var(--color-accent)' }}>
+          <div className="metric-label">
+            Cache Capacity
+            {renderInfoIcon('program_cache_capacity')}
+          </div>
+          <div className="metric-value" style={{ color: progCacheCapacity > 0 ? 'var(--color-accent)' : 'var(--text-secondary)' }}>
+            {progCacheCapacity > 0 ? progCacheCapacity.toLocaleString() : 'default (8)'}
+            <span className="metric-unit">entries</span>
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            dimensione della cache per PrecompNode (configurabile via --program-cache-capacity)
+          </div>
+        </div>
+        <div className="glass-panel metric-card" style={{ borderLeft: progCacheTune > 0 ? '3px solid var(--color-info)' : '3px solid var(--text-muted)' }}>
+          <div className="metric-label">
+            Tune Mode
+          </div>
+          <div className="metric-value" style={{ color: progCacheTune > 0 ? 'var(--color-info)' : 'var(--text-secondary)' }}>
+            {progCacheTune > 0 ? 'Auto' : 'Fixed'}
+          </div>
+          <div className="metric-sub" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            {progCacheTune > 0
+              ? 'capacity regolata automaticamente in base a hit/eviction ratio'
+              : 'capacity fissa (modificabile via --program-cache-tune)'}
           </div>
         </div>
       </section>

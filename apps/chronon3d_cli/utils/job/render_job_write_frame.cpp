@@ -37,9 +37,15 @@ bool write_render_frame(const Composition& comp,
     const double render_ms = profiling::duration_ms(t0, t1);
     total_render_ms += render_ms;
 
+    const int prog_cache_cap = static_cast<int>(
+        renderer.counters()
+            ? renderer.counters()->program_cache_capacity.load(std::memory_order_relaxed)
+            : 0);
+
     const double encode_ms = write_frame_to_disk(
         fb, frame, range, output_pattern, cache_hit, dirty_ratio,
-        render_ms, ok, telemetry_frames, total_encode_ms, frames_written);
+        render_ms, prog_cache_cap,
+        ok, telemetry_frames, total_encode_ms, frames_written);
 
     return encode_ms >= 0.0;
 }
@@ -51,6 +57,7 @@ double write_frame_to_disk(std::shared_ptr<Framebuffer> fb,
                            bool cache_hit,
                            double dirty_ratio,
                            double render_ms,
+                           int program_cache_capacity,
                            bool& ok,
                            std::vector<chronon3d::telemetry::FrameTelemetryRecord>& telemetry_frames,
                            double& total_encode_ms,
@@ -95,13 +102,14 @@ double write_frame_to_disk(std::shared_ptr<Framebuffer> fb,
     total_encode_ms += encode_ms;
     frames_written++;
 
-    telemetry_frames.push_back({
+        telemetry_frames.push_back({
         .frame_number = static_cast<int>(frame),
         .duration_ms = render_ms + encode_ms,
         .cache_hit = cache_hit,
         .dirty_area_ratio = dirty_ratio,
         .graph_eval_ms = render_ms,
-        .encoder_ms = encode_ms
+        .encoder_ms = encode_ms,
+        .program_cache_capacity = prog_cache_cap
     });
 
     spdlog::info("Frame {} saved to {}", frame, path);

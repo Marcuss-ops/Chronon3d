@@ -32,7 +32,9 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/benchmarks.cmake)
 # ── Aggregate targets: build test executables grouped by cost/speed ──
 # Note: benchmarks are conditional; included only when TARGET chronon3d_benchmarks exists
 if(TARGET chronon3d_benchmarks)
-    set(CHRONON3D_BENCHMARK_DEP chronon3d_benchmarks)
+    set(CHRONON3D_BENCHMARK_DEP
+        chronon3d_benchmarks
+        chronon3d_scene_program_benchmarks)
 else()
     set(CHRONON3D_BENCHMARK_DEP "")
 endif()

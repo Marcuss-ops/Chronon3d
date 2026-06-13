@@ -161,9 +161,20 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
     }
 
     if (layer.kind == LayerKind::Precomp) {
+        const size_t cache_cap   = ctx.options.program_cache_capacity > 0
+            ? ctx.options.program_cache_capacity
+            : 8;  // default
+        const auto tune_mode     = ctx.options.program_cache_tune
+            ? cache::TuneMode::Auto
+            : cache::TuneMode::Fixed;
         auto precomp_id = graph.add_node(std::make_unique<PrecompNode>(
             std::string(layer.precomp_composition_name), layer.from, layer.duration,
-            is_static ? Frame{0} : Frame{-1}
+            is_static ? Frame{0} : Frame{-1},
+            cache_cap,
+            tune_mode,
+            ctx.options.program_cache_tune_interval,
+            ctx.options.program_cache_tune_min_capacity,
+            ctx.options.program_cache_tune_max_capacity
         ));
         graph.node(precomp_id).set_frame_dependent(!is_static);
         return precomp_id;

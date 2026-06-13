@@ -58,5 +58,11 @@ export const INFO_DESCRIPTIONS = {
   video_ffmpeg_latency_ms: 'Time Chronon is blocked waiting for FFmpeg to drain its internal buffer.',
   minor_grid: 'Renders the fine grid system layout.',
   major_grid: 'Renders the primary coordinates grid layout.',
-  glow_outer: 'Computes glowing particle filters around text or objects.'
+  glow_outer: 'Computes glowing particle filters around text or objects.',
+
+  // B6/B8: Scene Program Cache
+  program_cache_hits: 'Number of SceneProgramCache lookups that found an existing compiled program. Alto = buon riuso del grafo compilato tra frame consecutivi.',
+  program_cache_misses: 'Number of SceneProgramCache lookups that required a fresh compilation (struttura scena cambiata). Alto = molti cambiamenti di scena o cache troppo piccola.',
+  program_cache_evictions: 'Number of entries evicted from SceneProgramCache per far spazio a nuovi programmi (LRU). Alto = capacity insufficiente rispetto alla varietà strutturale delle scene.',
+  program_cache_capacity: 'Capacità configurata della SceneProgramCache (numero di entry). Default 8. Valori più alti riducono le ricompilazioni ma consumano più memoria.'
 };

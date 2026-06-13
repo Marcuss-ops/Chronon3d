@@ -130,6 +130,11 @@ namespace chronon3d::graph {
             // Without this, the Clear node can erase an entire reused buffer,
             // which wipes cached full-frame backgrounds on the next frame.
             .dirty_rects_enabled = settings.dirty.is_active(),
+            .program_cache_capacity = settings.program_cache_capacity,
+            .program_cache_tune = settings.program_cache_tune,
+            .program_cache_tune_interval = settings.program_cache_tune_interval,
+            .program_cache_tune_min_capacity = settings.program_cache_tune_min_capacity,
+            .program_cache_tune_max_capacity = settings.program_cache_tune_max_capacity,
         },
         .telemetry = RenderTelemetryContext{
             .counters = backend.counters(),

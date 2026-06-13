@@ -101,6 +101,9 @@ inline void populate_run_metrics(chronon3d::telemetry::RenderTelemetryRecord& ru
     run.io_queue_peak_depth = counters.io_queue_peak_depth.load(std::memory_order_relaxed);
     run.ffmpeg_pipe_write_blocked_ms = counters.ffmpeg_pipe_write_blocked_ms.load(std::memory_order_relaxed);
     run.converted_frame_cache_hits = counters.converted_frame_cache_hits.load(std::memory_order_relaxed);
+    run.program_cache_hits = counters.program_cache_hits.load(std::memory_order_relaxed);
+    run.program_cache_misses = counters.program_cache_misses.load(std::memory_order_relaxed);
+    run.program_cache_evictions = counters.program_cache_evictions.load(std::memory_order_relaxed);
     run.ffmpeg_flush_ms = counters.ffmpeg_flush_ms.load(std::memory_order_relaxed);
 
     run.chronon_conversion_copy_ms = counters.frame_conversion_copy_ms.load(std::memory_order_relaxed);

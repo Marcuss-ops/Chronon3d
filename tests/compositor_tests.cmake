@@ -5,6 +5,9 @@
 add_executable(chronon3d_compositor_tests
     ${TEST_MAIN}
     render_graph/pipeline/test_composite_origin_regression.cpp
+    compositor/test_blend_reference.cpp
+    compositor/test_blend_simd_equivalence.cpp
+    compositor/test_track_matte.cpp
 )
 
 target_link_libraries(chronon3d_compositor_tests

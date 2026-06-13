@@ -112,6 +112,15 @@ struct RenderOptimizationContext {
     // Graph topology / DOF tracking hints
     bool graph_structure_unchanged{false};
     bool track_dof_depth{false};
+
+    // SceneProgramCache capacity for nested Precomp nodes
+    size_t program_cache_capacity{0};
+
+    // Auto-tuning for SceneProgramCache
+    bool   program_cache_tune{false};
+    size_t program_cache_tune_interval{30};
+    size_t program_cache_tune_min_capacity{2};
+    size_t program_cache_tune_max_capacity{128};
 };
 
 // ── Counters, profiler, telemetry record vectors, DOF depth map ───────────

@@ -6,12 +6,24 @@
 
 namespace chronon3d {
 
-enum class BlendMode {
-    Normal,
-    Add,
-    Multiply,
-    Screen,
-    Overlay
+enum class BlendMode : uint8_t {
+    Normal     = 0,
+    Add        = 1,
+    Multiply   = 2,
+    Screen     = 3,
+    Overlay    = 4,
+
+    // B2: basic blend modes (Darken, Lighten, Difference, Exclusion)
+    Darken     = 5,
+    Lighten    = 6,
+    Difference = 7,
+    Exclusion  = 8,
+
+    // B3: advanced blend modes (SoftLight, HardLight, ColorDodge, ColorBurn)
+    SoftLight  = 9,
+    HardLight  = 10,
+    ColorDodge = 11,
+    ColorBurn  = 12
 };
 
 namespace compositor {
@@ -65,6 +77,82 @@ inline Color blend(const Color& src, const Color& dst, BlendMode mode) {
                 return d < 0.5f ? 2.0f * s * d : 1.0f - 2.0f * (1.0f - s) * (1.0f - d);
             };
             return {ov(src.r, dst.r), ov(src.g, dst.g), ov(src.b, dst.b), a};
+        }
+        case BlendMode::Darken: {
+            const f32 a = src.a + dst.a * (1.0f - src.a);
+            if (a <= 0.0f) return {0,0,0,0};
+            return {std::min(src.r, dst.r), std::min(src.g, dst.g),
+                    std::min(src.b, dst.b), a};
+        }
+        case BlendMode::Lighten: {
+            const f32 a = src.a + dst.a * (1.0f - src.a);
+            if (a <= 0.0f) return {0,0,0,0};
+            return {std::max(src.r, dst.r), std::max(src.g, dst.g),
+                    std::max(src.b, dst.b), a};
+        }
+        case BlendMode::Difference: {
+            const f32 a = src.a + dst.a * (1.0f - src.a);
+            if (a <= 0.0f) return {0,0,0,0};
+            return {std::abs(src.r - dst.r), std::abs(src.g - dst.g),
+                    std::abs(src.b - dst.b), a};
+        }
+        case BlendMode::Exclusion: {
+            const f32 a = src.a + dst.a * (1.0f - src.a);
+            if (a <= 0.0f) return {0,0,0,0};
+            return {src.r + dst.r - 2.0f * src.r * dst.r,
+                    src.g + dst.g - 2.0f * src.g * dst.g,
+                    src.b + dst.b - 2.0f * src.b * dst.b, a};
+        }
+        case BlendMode::SoftLight: {
+            const f32 a = src.a + dst.a * (1.0f - src.a);
+            if (a <= 0.0f) return {0,0,0,0};
+            auto sl = [](f32 cb, f32 cs) -> f32 {
+                if (cs <= 0.5f) return cb - (1.0f - 2.0f * cs) * cb * (1.0f - cb);
+                auto d = [](f32 c) -> f32 {
+                    if (c <= 0.25f) return ((16.0f * c - 12.0f) * c + 4.0f) * c;
+                    return std::sqrt(c);
+                };
+                return cb + (2.0f * cs - 1.0f) * (d(cb) - cb);
+            };
+            // Clamp input straight RGB to [0,1] for the blend function (HDR contract).
+            return {sl(std::min(dst.r, 1.0f), std::min(src.r, 1.0f)),
+                    sl(std::min(dst.g, 1.0f), std::min(src.g, 1.0f)),
+                    sl(std::min(dst.b, 1.0f), std::min(src.b, 1.0f)), a};
+        }
+        case BlendMode::HardLight: {
+            const f32 a = src.a + dst.a * (1.0f - src.a);
+            if (a <= 0.0f) return {0,0,0,0};
+            auto hl = [](f32 cb, f32 cs) -> f32 {
+                if (cs <= 0.5f) return 2.0f * cb * cs;
+                return 1.0f - 2.0f * (1.0f - cb) * (1.0f - cs);
+            };
+            return {hl(std::min(dst.r, 1.0f), std::min(src.r, 1.0f)),
+                    hl(std::min(dst.g, 1.0f), std::min(src.g, 1.0f)),
+                    hl(std::min(dst.b, 1.0f), std::min(src.b, 1.0f)), a};
+        }
+        case BlendMode::ColorDodge: {
+            const f32 a = src.a + dst.a * (1.0f - src.a);
+            if (a <= 0.0f) return {0,0,0,0};
+            auto dodge = [](f32 cb, f32 cs) -> f32 {
+                if (cs >= 1.0f) return 1.0f;
+                if (cb <= 0.0f) return 0.0f;
+                return std::min(1.0f, cb / std::max(1.0f - cs, 1e-8f));
+            };
+            return {dodge(std::min(dst.r, 1.0f), std::min(src.r, 1.0f)),
+                    dodge(std::min(dst.g, 1.0f), std::min(src.g, 1.0f)),
+                    dodge(std::min(dst.b, 1.0f), std::min(src.b, 1.0f)), a};
+        }
+        case BlendMode::ColorBurn: {
+            const f32 a = src.a + dst.a * (1.0f - src.a);
+            if (a <= 0.0f) return {0,0,0,0};
+            auto burn = [](f32 cb, f32 cs) -> f32 {
+                if (cs <= 0.0f) return 0.0f;
+                if (cb >= 1.0f) return 1.0f;
+                return 1.0f - std::min(1.0f, (1.0f - cb) / std::max(cs, 1e-8f));
+            };
+            return {burn(std::min(dst.r, 1.0f), std::min(src.r, 1.0f)),
+                    burn(std::min(dst.g, 1.0f), std::min(src.g, 1.0f)),
+                    burn(std::min(dst.b, 1.0f), std::min(src.b, 1.0f)), a};
         }
         default:
             return blend_normal(src, dst);

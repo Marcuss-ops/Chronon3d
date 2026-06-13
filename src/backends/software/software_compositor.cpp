@@ -12,7 +12,7 @@
 
 namespace chronon3d {
 
-void SoftwareCompositor::composite_layer(Framebuffer& dst, const Framebuffer& src, BlendMode mode, const std::optional<raster::BBox>& clip) {
+void SoftwareCompositor::composite_layer(Framebuffer& dst, const Framebuffer& src, BlendMode mode, const std::optional<raster::BBox>& clip, CompositeOperator op) {
     i32 x0 = 0, y0 = 0, x1 = dst.width(), y1 = dst.height();
     if (clip) {
         // clip is in canvas coordinates — convert to dst-local
@@ -22,6 +22,43 @@ void SoftwareCompositor::composite_layer(Framebuffer& dst, const Framebuffer& sr
         y1 = std::clamp(clip->y1 - dst.origin_y(), 0, dst.height());
     }
 
+    if (x0 >= x1 || y0 >= y1) return;
+
+    // ── CompositeOperator (Stencil/Silhouette) ─────────────────────────────
+    if (op != CompositeOperator::SourceOver) {
+        const i32 src_x0 = std::max(x0 + dst.origin_x(), src.origin_x());
+        const i32 src_y0 = std::max(y0 + dst.origin_y(), src.origin_y());
+        const i32 src_x1 = std::min(x1 + dst.origin_x(), src.origin_x() + src.width());
+        const i32 src_y1 = std::min(y1 + dst.origin_y(), src.origin_y() + src.height());
+
+        if (src_x0 >= src_x1 || src_y0 >= src_y1) return;
+
+        const int width_to_process = src_x1 - src_x0;
+        const bool alpha_op = (op == CompositeOperator::StencilAlpha ||
+                               op == CompositeOperator::SilhouetteAlpha);
+        const bool inverted = (op == CompositeOperator::SilhouetteAlpha ||
+                               op == CompositeOperator::SilhouetteLuma);
+
+        for (i32 y = src_y0; y < src_y1; ++y) {
+            const i32 sy = y - src.origin_y();
+            const i32 dy = y - dst.origin_y();
+            if (dy < 0 || dy >= dst.height()) continue;
+            const Color* s_row = src.pixels_row(sy);
+            Color* d_row = dst.pixels_row(dy);
+            const i32 sx0 = src_x0 - src.origin_x();
+            const i32 dx0 = src_x0 - dst.origin_x();
+            if (dx0 < 0 || dx0 + width_to_process > dst.width()) continue;
+
+            if (alpha_op) {
+                simd::apply_alpha_matte_premul(d_row + dx0, s_row + sx0, width_to_process, inverted);
+            } else {
+                simd::apply_luma_matte_premul(d_row + dx0, s_row + sx0, width_to_process, inverted);
+            }
+        }
+        return;
+    }
+
+    // ── Standard SourceOver blend path ─────────────────────────────────────
     if (x0 >= x1 || y0 >= y1) return;
 
     const auto t_setup0 = profiling::now();
@@ -61,7 +98,11 @@ void SoftwareCompositor::composite_layer(Framebuffer& dst, const Framebuffer& sr
 
     // ── Non-normal SIMD+parallel path (Add, Multiply, Screen, Overlay) ────
     if (mode == BlendMode::Add || mode == BlendMode::Multiply ||
-        mode == BlendMode::Screen || mode == BlendMode::Overlay) {
+        mode == BlendMode::Screen || mode == BlendMode::Overlay ||
+        mode == BlendMode::Darken || mode == BlendMode::Lighten ||
+        mode == BlendMode::Difference || mode == BlendMode::Exclusion ||
+        mode == BlendMode::SoftLight || mode == BlendMode::HardLight ||
+        mode == BlendMode::ColorDodge || mode == BlendMode::ColorBurn) {
         const i32 src_x0 = std::max(x0 + dst.origin_x(), src.origin_x());
         const i32 src_y0 = std::max(y0 + dst.origin_y(), src.origin_y());
         const i32 src_x1 = std::min(x1 + dst.origin_x(), src.origin_x() + src.width());
@@ -249,6 +290,30 @@ bool SoftwareCompositor::composite_layer_non_normal_optimized(
                     break;
                 case BlendMode::Overlay:
                     simd::composite_overlay_premul(d_row, s_row, width_to_process);
+                    break;
+                case BlendMode::Darken:
+                    simd::composite_darken_premul(d_row, s_row, width_to_process);
+                    break;
+                case BlendMode::Lighten:
+                    simd::composite_lighten_premul(d_row, s_row, width_to_process);
+                    break;
+                case BlendMode::Difference:
+                    simd::composite_difference_premul(d_row, s_row, width_to_process);
+                    break;
+                case BlendMode::Exclusion:
+                    simd::composite_exclusion_premul(d_row, s_row, width_to_process);
+                    break;
+                case BlendMode::SoftLight:
+                    simd::composite_soft_light_premul(d_row, s_row, width_to_process);
+                    break;
+                case BlendMode::HardLight:
+                    simd::composite_hard_light_premul(d_row, s_row, width_to_process);
+                    break;
+                case BlendMode::ColorDodge:
+                    simd::composite_color_dodge_premul(d_row, s_row, width_to_process);
+                    break;
+                case BlendMode::ColorBurn:
+                    simd::composite_color_burn_premul(d_row, s_row, width_to_process);
                     break;
                 default:
                     break;

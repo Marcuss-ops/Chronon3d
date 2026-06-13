@@ -14,6 +14,7 @@
 #include <chronon3d/scene/model/core/card3d_material.hpp>
 #include <chronon3d/layout/layout_rules.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
+#include <chronon3d/compositor/composite_operator.hpp>
 #include <string>
 #include <vector>
 #include <memory>
@@ -64,6 +65,7 @@ struct Layer {
     Mask      mask{};
     EffectStack effects;     // ordered effect stack
     BlendMode blend_mode{BlendMode::Normal};
+    CompositeOperator composite_operator{CompositeOperator::SourceOver};
     DepthRole   depth_role{DepthRole::None};
     f32         depth_offset{0.0f};
     LayoutRules layout{};

@@ -2,6 +2,7 @@
 
 #include "camera_visual_scenes.hpp"
 #include "camera_visual_compare.hpp"
+#include "../support/golden_test.hpp"
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/backends/image/stb_image_backend.hpp>
@@ -23,6 +24,19 @@ ImageDiffThreshold lenient_threshold() {
     t.max_abs_error = 24.0 / 255.0;
     t.max_changed_pixel_ratio = 0.02;
     return t;
+}
+
+void verify_camera_golden(const Framebuffer& fb, const std::string& case_name) {
+    auto config = camera_golden_config(kGoldenDir, kArtifactDir, lenient_threshold());
+    auto result = verify_golden(fb, case_name, config);
+
+    if (result.golden_missing) {
+        FAIL("Golden missing: " << result.golden_path.string()
+             << ". Set CHRONON3D_UPDATE_GOLDENS=1 to create.");
+    }
+
+    INFO(result.message);
+    CHECK(result.passed);
 }
 
 } // namespace
@@ -73,7 +87,7 @@ TEST_CASE("Camera visual: center target renders correctly") {
     const float avg_luma = average_luma_rect(*fb, 0, 0, 960, 540);
     CHECK(avg_luma > 0.005f);
 
-    verify_golden_or_create(*fb, "center_target", kGoldenDir, kArtifactDir, lenient_threshold());
+    verify_camera_golden(*fb, "center_target");
 }
 
 TEST_CASE("Camera visual: parallax stack frame 000") {
@@ -83,7 +97,7 @@ TEST_CASE("Camera visual: parallax stack frame 000") {
     auto fb = renderer.render_frame(comp, 0);
     REQUIRE(fb != nullptr);
 
-    verify_golden_or_create(*fb, "parallax_stack_frame_000", kGoldenDir, kArtifactDir, lenient_threshold());
+    verify_camera_golden(*fb, "parallax_stack_frame_000");
 }
 
 TEST_CASE("Camera visual: parallax stack frame 030") {
@@ -93,7 +107,7 @@ TEST_CASE("Camera visual: parallax stack frame 030") {
     auto fb = renderer.render_frame(comp, 30);
     REQUIRE(fb != nullptr);
 
-    verify_golden_or_create(*fb, "parallax_stack_frame_030", kGoldenDir, kArtifactDir, lenient_threshold());
+    verify_camera_golden(*fb, "parallax_stack_frame_030");
 }
 
 TEST_CASE("Camera visual: parallax stack displacement is correct") {
@@ -127,7 +141,7 @@ TEST_CASE("Camera visual: orbit two node frame 000") {
     auto fb = renderer.render_frame(comp, 0);
     REQUIRE(fb != nullptr);
 
-    verify_golden_or_create(*fb, "orbit_two_node_frame_000", kGoldenDir, kArtifactDir, lenient_threshold());
+    verify_camera_golden(*fb, "orbit_two_node_frame_000");
 }
 
 TEST_CASE("Camera visual: orbit two node frame 030") {
@@ -137,7 +151,7 @@ TEST_CASE("Camera visual: orbit two node frame 030") {
     auto fb = renderer.render_frame(comp, 30);
     REQUIRE(fb != nullptr);
 
-    verify_golden_or_create(*fb, "orbit_two_node_frame_030", kGoldenDir, kArtifactDir, lenient_threshold());
+    verify_camera_golden(*fb, "orbit_two_node_frame_030");
 }
 
 TEST_CASE("Camera visual: orbit two node frame 060") {
@@ -147,7 +161,7 @@ TEST_CASE("Camera visual: orbit two node frame 060") {
     auto fb = renderer.render_frame(comp, 60);
     REQUIRE(fb != nullptr);
 
-    verify_golden_or_create(*fb, "orbit_two_node_frame_060", kGoldenDir, kArtifactDir, lenient_threshold());
+    verify_camera_golden(*fb, "orbit_two_node_frame_060");
 }
 
 TEST_CASE("Camera visual: near plane crossing does not explode") {
@@ -174,7 +188,7 @@ TEST_CASE("Camera visual: near plane crossing does not explode") {
     }
     CHECK_FALSE(has_nan);
 
-    verify_golden_or_create(*fb, "near_plane_crossing", kGoldenDir, kArtifactDir, lenient_threshold());
+    verify_camera_golden(*fb, "near_plane_crossing");
 }
 
 TEST_CASE("Camera visual: z sort stack is correct") {
@@ -190,5 +204,5 @@ TEST_CASE("Camera visual: z sort stack is correct") {
     CHECK(avg.r > avg.b);
     CHECK(avg.r > avg.g);
 
-    verify_golden_or_create(*fb, "z_sort_stack", kGoldenDir, kArtifactDir, lenient_threshold());
+    verify_camera_golden(*fb, "z_sort_stack");
 }

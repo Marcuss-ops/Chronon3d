@@ -30,7 +30,10 @@ constexpr std::size_t kHardwareDestructiveInterferenceSize = 64;
     X(glow_cache_hits) \
     X(glow_cache_misses) \
     X(converted_frame_cache_hits) \
-    X(converted_frame_cache_misses)
+    X(converted_frame_cache_misses) \
+    X(program_cache_hits) \
+    X(program_cache_misses) \
+    X(program_cache_evictions)
 
 #define CHRONON_COUNTERS_TEXT(X) \
     X(text_glyphs_rasterized) \
@@ -327,6 +330,13 @@ struct RenderCounters {
     CHRONON_RENDER_COUNTERS_SETUP(X)
 #undef X
 
+    // ── Non-resettable metadata counters ──────────────────────────────
+    // These are set once by set_settings() and survive reset() calls.
+    // They are NOT part of any X-macro so reset() and merge_tls() skip them.
+    alignas(kHardwareDestructiveInterferenceSize) std::atomic<uint64_t> program_cache_capacity{0};
+    // 1 = auto-tuning enabled, 0 = fixed.
+    alignas(kHardwareDestructiveInterferenceSize) std::atomic<uint64_t> program_cache_tune{0};
+
     RenderCounters() = default;
 
 private:
@@ -345,6 +355,9 @@ private:
         CHRONON_RENDER_COUNTERS_SYSTEM(X)
         CHRONON_RENDER_COUNTERS_SETUP(X)
 #undef X
+        // Non-resettable metadata counters (outside X-macros):
+        program_cache_capacity.store(other.program_cache_capacity.load(std::memory_order_relaxed), std::memory_order_relaxed);
+        program_cache_tune.store(other.program_cache_tune.load(std::memory_order_relaxed), std::memory_order_relaxed);
     }
 
 public:

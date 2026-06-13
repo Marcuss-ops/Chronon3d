@@ -36,6 +36,18 @@ struct RenderPipelineArgs {
 
     // Framebuffer pool retention budget (MB). 0 = use default / env var.
     size_t fb_pool_budget_mb{0};
+
+    // SceneProgramCache capacity per Precomp node. 0 = use default (8).
+    size_t program_cache_capacity{0};
+
+    // Auto-tune SceneProgramCache capacity based on hit/eviction ratio.
+    bool program_cache_tune{false};
+    // How many frames between auto-tune checks (default 30).
+    size_t program_cache_tune_interval{30};
+    // Minimum capacity when auto-tuning down (default 2).
+    size_t program_cache_tune_min_capacity{2};
+    // Maximum capacity when auto-tuning up (default 128).
+    size_t program_cache_tune_max_capacity{128};
 };
 
 struct RenderArgs {
