@@ -20,6 +20,8 @@ size_t FrameConversionService::encoded_size(int width, int height, EncoderPixelF
             return w * h + (w / 2) * (h / 2) * 2;
         case EncoderPixelFormat::RGB24:
             return w * h * 3;
+        case EncoderPixelFormat::RGBA8:
+            return w * h * 4;
     }
     return 0;
 }
@@ -104,7 +106,8 @@ ConvertedFrame FrameConversionService::convert(
             break;
         }
         case EncoderPixelFormat::RGB24:
-            // dst_y points to the packed RGB output
+        case EncoderPixelFormat::RGBA8:
+            // dst_y points to the packed output (RGB: 3B/px, RGBA: 4B/px)
             break;
     }
 
