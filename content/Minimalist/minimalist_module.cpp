@@ -11,6 +11,11 @@ Composition minimalist_text_focus();
 Composition minimalist_text_scale();
 Composition minimalist_text_drift();
 Composition minimalist_text_typewriter();
+Composition minimalist_text_tw_cascade();
+Composition minimalist_text_tw_wave();
+Composition minimalist_text_tw_snap();
+Composition minimalist_text_tw_drift();
+Composition minimalist_text_tw_bold();
 
 // Image presets
 Composition minimalist_image_fade_in();
@@ -42,6 +47,11 @@ public:
         registry.register_composition("MinimalistTextScale", minimalist_text_scale);
         registry.register_composition("MinimalistTextDrift", minimalist_text_drift);
         registry.register_composition("MinimalistTextTypewriter", minimalist_text_typewriter);
+        registry.register_composition("MinimalistTextTWCascade", minimalist_text_tw_cascade);
+        registry.register_composition("MinimalistTextTWWave", minimalist_text_tw_wave);
+        registry.register_composition("MinimalistTextTWSnap", minimalist_text_tw_snap);
+        registry.register_composition("MinimalistTextTWDrift", minimalist_text_tw_drift);
+        registry.register_composition("MinimalistTextTWBold", minimalist_text_tw_bold);
 
         // Image presets
         registry.register_composition("MinimalistImageFadeIn", minimalist_image_fade_in);
