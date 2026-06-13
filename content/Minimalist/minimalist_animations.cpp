@@ -104,10 +104,16 @@ Composition minimalist_text_typewriter() {
         Frame f = ctx.frame;
         s.layer("phrase", [f](LayerBuilder& l) {
             l.pin_to(Anchor::Center);
-            l.glow(TextGlowPresets::ae_cinematic_white().to_glow_params());
-            l.drop_shadow({0.0f, 4.0f}, Color{0.0f, 0.02f, 0.12f, 0.15f}, 10.0f);
+            auto glow = TextGlowPresets::ae_cinematic_white();
+            glow.bloom_radius    = 18.0f;
+            glow.bloom_intensity = 0.04f;
+            glow.mid_intensity   = 0.12f;
+            glow.inner_intensity = 0.35f;
+            glow.outer_color     = Color{0.80f, 0.85f, 1.0f, 1.0f};
+            l.glow(glow.to_glow_params());
             l.text("phrase", text::typewriter_text({
                 .text = "SMOOTH REVEAL",
+                .box = Vec2{800.0f, 160.0f},
                 .font_size = 110,
                 .tracking = 6,
             }, f, 1.5f,
