@@ -82,7 +82,7 @@ struct CameraNullRig {
     // Motion Blur
     AnimatedValue<bool> motion_blur_enabled{false};
     AnimatedValue<int> motion_blur_samples{8};
-    AnimatedValue<f32> shutter_angle{180.0f};
+    AnimatedValue<f32> shutter_angle_deg{180.0f};
 
     CameraNullRig() = default;
 

@@ -14,7 +14,7 @@
 #include <chronon3d/compositor/blend_math.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/simd/kernels.hpp>
-#include "helpers/check_helpers.hpp"
+#include <tests/helpers/check_helpers.hpp>
 
 #include <random>
 #include <cmath>

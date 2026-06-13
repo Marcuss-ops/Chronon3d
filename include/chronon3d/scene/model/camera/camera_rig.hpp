@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/animation/core/animated_value.hpp>
+#include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/scene/camera/animated_camera_2_5d.hpp>
 #include <chronon3d/scene/model/core/transform_resolver.hpp>
@@ -28,7 +29,11 @@ struct CameraRigDOF {
 struct CameraRigMotionBlur {
     bool enabled{false};
     int samples{8};
-    f32 shutter_angle{180.0f};
+    f32 shutter_angle_deg{180.0f};
+    f32 shutter_phase_deg{-90.0f};
+    TemporalSamplePattern pattern{TemporalSamplePattern::Stratified};
+    TemporalFilter        filter{TemporalFilter::Box};
+    u64  jitter_seed{0x3A5C9F1E};
 };
 
 struct CameraRig {
@@ -58,6 +63,14 @@ struct CameraRig {
 
     [[nodiscard]] Camera2_5D evaluate(
         Frame frame,
+        const TransformResolverResult* resolved = nullptr
+    ) const {
+        return evaluate(SampleTime::from_frame_int(frame), resolved);
+    }
+
+    /// Sub-frame evaluation — enables true multi-sample motion blur.
+    [[nodiscard]] Camera2_5D evaluate(
+        SampleTime time,
         const TransformResolverResult* resolved = nullptr
     ) const;
 };

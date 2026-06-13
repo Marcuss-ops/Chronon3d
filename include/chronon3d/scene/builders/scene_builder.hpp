@@ -2,6 +2,7 @@
 
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
+#include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/math/transform.hpp>
 #include <chronon3d/scene/builders/builder_params.hpp>
@@ -30,14 +31,14 @@ namespace chronon3d {
     class SceneBuilder {
       public:
         explicit SceneBuilder(std::pmr::memory_resource *res = std::pmr::get_default_resource())
-            : scene_(res), current_frame_(0) {
+            : scene_(res), current_time_(SampleTime::from_frame_int(0)) {
             m_ctx.resource = res;
             m_ctx.width = m_width;
             m_ctx.height = m_height;
         }
 
         explicit SceneBuilder(i32 width, i32 height, std::pmr::memory_resource *res = std::pmr::get_default_resource())
-            : scene_(res), current_frame_(0), m_width(width), m_height(height) {
+            : scene_(res), current_time_(SampleTime::from_frame_int(0)), m_width(width), m_height(height) {
             m_ctx.resource = res;
             m_ctx.width = width;
             m_ctx.height = height;
@@ -45,13 +46,17 @@ namespace chronon3d {
 
         // Convenience constructor for compositions
         explicit SceneBuilder(const FrameContext &ctx)
-            : scene_(ctx.resource), current_frame_(ctx.frame), m_ctx(ctx), m_width(ctx.width), m_height(ctx.height) {}
+            : scene_(ctx.resource),
+              current_time_(SampleTime::from_frame(
+                  static_cast<double>(ctx.frame) + static_cast<double>(ctx.frame_time),
+                  ctx.fps())),
+              m_ctx(ctx), m_width(ctx.width), m_height(ctx.height) {}
 
         [[nodiscard]] CameraApi camera() { return CameraApi(*this); }
 
-        /// Set camera from an AnimatedCamera2_5D, evaluated at the current frame.
+        /// Set camera from an AnimatedCamera2_5D, evaluated at the current time.
         SceneBuilder& animated_camera(const AnimatedCamera2_5D& cam) {
-            set_camera(cam.evaluate(current_frame_));
+            set_camera(cam.evaluate(current_time_));
             return *this;
         }
 
@@ -86,13 +91,14 @@ namespace chronon3d {
 
         template <typename Fn>
         SceneBuilder &sequence(const std::string & /*name*/, SequenceSpec spec, Fn &&fn) {
-            bool active = current_frame_ >= spec.from && current_frame_ < spec.from + spec.duration;
+            const Frame cf = current_integer_frame();
+            bool active = cf >= spec.from && cf < spec.from + spec.duration;
             if (!active) {
                 return *this;
             }
 
             FrameContext local_ctx = m_ctx;
-            local_ctx.frame = Frame{current_frame_ - spec.from};
+            local_ctx.frame = Frame{cf - spec.from};
             local_ctx.local_frame = local_ctx.frame;
             local_ctx.duration = spec.duration;
 
@@ -121,12 +127,13 @@ namespace chronon3d {
         // Standard Layers
         template <typename Fn>
         SceneBuilder &layer(std::string name, Fn &&fn) {
-            LayerBuilder builder(std::move(name), current_frame_, scene_.resource());
+            const Frame cf = current_integer_frame();
+            LayerBuilder builder(std::move(name), cf, scene_.resource());
             builder.screen_dimensions(static_cast<f32>(m_width), static_cast<f32>(m_height));
             std::forward<Fn>(fn)(builder);
 
             Layer l = builder.build();
-            if (l.active_at(current_frame_)) {
+            if (l.active_at(cf)) {
                 scene_.add_layer(std::move(l));
             }
             return *this;
@@ -134,12 +141,13 @@ namespace chronon3d {
 
         template <typename Fn>
         SceneBuilder &screen_layer(std::string name, Fn &&fn) {
-            LayerBuilder builder(std::move(name), current_frame_, scene_.resource());
+            const Frame cf = current_integer_frame();
+            LayerBuilder builder(std::move(name), cf, scene_.resource());
             builder.screen_dimensions(static_cast<f32>(m_width), static_cast<f32>(m_height));
             std::forward<Fn>(fn)(builder);
 
             Layer l = builder.build();
-            if (l.active_at(current_frame_)) {
+            if (l.active_at(cf)) {
                 scene_.add_layer(std::move(l));
             }
             return *this;
@@ -149,13 +157,14 @@ namespace chronon3d {
         // The lambda receives a LayerBuilder but any visuals added are ignored.
         template <typename Fn>
         SceneBuilder &adjustment_layer(std::string name, Fn &&fn) {
-            LayerBuilder builder(std::move(name), current_frame_, scene_.resource());
+            const Frame cf = current_integer_frame();
+            LayerBuilder builder(std::move(name), cf, scene_.resource());
             builder.screen_dimensions(static_cast<f32>(m_width), static_cast<f32>(m_height));
             std::forward<Fn>(fn)(builder);
 
             Layer l = builder.build();
             l.kind = LayerKind::Adjustment;
-            if (l.active_at(current_frame_)) {
+            if (l.active_at(cf)) {
                 scene_.add_layer(std::move(l));
             }
             return *this;
@@ -163,13 +172,14 @@ namespace chronon3d {
 
         template <typename Fn>
         SceneBuilder &precomp_layer(std::string name, std::string comp_name, Fn &&fn) {
-            LayerBuilder builder(std::move(name), current_frame_, scene_.resource());
+            const Frame cf = current_integer_frame();
+            LayerBuilder builder(std::move(name), cf, scene_.resource());
             std::forward<Fn>(fn)(builder);
 
             Layer l = builder.build();
             l.kind = LayerKind::Precomp;
             l.precomp_composition_name = std::pmr::string{comp_name, scene_.resource()};
-            if (l.active_at(current_frame_)) {
+            if (l.active_at(cf)) {
                 scene_.add_layer(std::move(l));
             }
             return *this;
@@ -177,13 +187,14 @@ namespace chronon3d {
 
         template <typename Fn>
         SceneBuilder &video_layer(std::string name, video::VideoSource source, Fn &&fn) {
-            LayerBuilder builder(std::move(name), current_frame_, scene_.resource());
+            const Frame cf = current_integer_frame();
+            LayerBuilder builder(std::move(name), cf, scene_.resource());
             std::forward<Fn>(fn)(builder);
 
             Layer l = builder.build();
             l.kind = LayerKind::Video;
             l.video_source = std::make_unique<video::VideoSource>(std::move(source));
-            if (l.active_at(current_frame_)) {
+            if (l.active_at(cf)) {
                 scene_.add_layer(std::move(l));
             }
             return *this;
@@ -198,6 +209,7 @@ namespace chronon3d {
 
         template <typename Fn>
         SceneBuilder &null_layer(std::string name, Fn &&fn) {
+            const Frame cf = current_integer_frame();
             if constexpr (std::is_invocable_v<Fn, NullBuilder&>) {
                 NullParams params;
                 params.name = std::move(name);
@@ -214,17 +226,17 @@ namespace chronon3d {
                 l.parent_name = std::pmr::string(params.transform.parent_name, scene_.resource());
                 l.visible = params.visible_in_diagnostics;
 
-                if (l.active_at(current_frame_)) {
+                if (l.active_at(cf)) {
                     scene_.add_layer(std::move(l));
                 }
                 return *this;
             } else {
-                LayerBuilder builder(std::move(name), current_frame_, scene_.resource());
+                LayerBuilder builder(std::move(name), cf, scene_.resource());
                 std::forward<Fn>(fn)(builder);
 
                 Layer l = builder.build();
                 l.kind = LayerKind::Null;
-                if (l.active_at(current_frame_)) {
+                if (l.active_at(cf)) {
                     scene_.add_layer(std::move(l));
                 }
                 return *this;
@@ -266,7 +278,7 @@ namespace chronon3d {
             }
             auto results = registry.resolve_all();
             
-            Camera2_5D camera_baked = rig.evaluate(current_frame_, &results);
+            Camera2_5D camera_baked = rig.evaluate(current_time_, &results);
             scene_.set_camera_2_5d(camera_baked);
             return *this;
         }
@@ -281,7 +293,12 @@ namespace chronon3d {
             return scene_.resource();
         }
         [[nodiscard]] Frame frame() const {
-            return current_frame_;
+            return current_integer_frame();
+        }
+
+        /// Access the full sub-frame time for animation evaluation.
+        [[nodiscard]] SampleTime sample_time() const {
+            return current_time_;
         }
 
         friend class CameraApi;
@@ -298,8 +315,12 @@ namespace chronon3d {
             scene_.set_camera_2_5d(cam);
         }
 
+        [[nodiscard]] Frame current_integer_frame() const {
+            return Frame{static_cast<i64>(std::floor(current_time_.frame))};
+        }
+
         Scene scene_;
-        Frame current_frame_;
+        SampleTime current_time_{SampleTime::from_frame_int(0)};
         FrameContext m_ctx{};
         i32 m_width{1920};
         i32 m_height{1080};

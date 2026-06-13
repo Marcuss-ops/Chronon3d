@@ -100,6 +100,31 @@ struct SceneStructureKey {
     }
 };
 
+} // namespace chronon3d::graph
+
+// ── std::hash<SceneStructureKey> ────────────────────────────────────────────
+namespace std {
+template <>
+struct hash<chronon3d::graph::SceneStructureKey> {
+    size_t operator()(const chronon3d::graph::SceneStructureKey& key) const noexcept {
+        size_t h = 1469598103934665603ULL;  // FNV-1a offset basis
+        auto combine = [&](uint64_t v) {
+            h ^= static_cast<size_t>(v);
+            h *= 1099511628211ULL;
+        };
+        combine(key.topology_hash);
+        combine(key.active_set_hash);
+        combine(key.render_options_hash);
+        combine(static_cast<uint64_t>(key.width));
+        combine(static_cast<uint64_t>(key.height));
+        combine(static_cast<uint64_t>(key.ssaa_factor));
+        return h;
+    }
+};
+} // namespace std
+
+namespace chronon3d::graph {
+
 // ── CompiledSceneProgram ─────────────────────────────────────────────────────
 //
 /// The complete output of scene compilation: a compiled frame graph, its

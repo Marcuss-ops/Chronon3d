@@ -31,6 +31,7 @@ size_t resolve_default_capacity(size_t fallback) {
 u64 NodeCacheKey::digest() const {
     u64 seed = node_cache_detail::hash_string(scope);
     seed = node_cache_detail::hash_combine(seed, node_cache_detail::hash_value(frame));
+    seed = node_cache_detail::hash_combine(seed, node_cache_detail::hash_value(sample_time_key.ticks));
     seed = node_cache_detail::hash_combine(seed, node_cache_detail::hash_value(width));
     seed = node_cache_detail::hash_combine(seed, node_cache_detail::hash_value(height));
     seed = node_cache_detail::hash_combine(seed, params_hash);

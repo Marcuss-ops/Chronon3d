@@ -400,7 +400,7 @@ private:
     void ensure_arc_length_table() const {
         if (!m_arc_length_dirty) return;
 
-        constexpr int kSamples = 256;
+        constexpr int kSamples = 512;
         m_samples.resize(kSamples + 1);
         m_arc_lengths.resize(kSamples + 1);
 
@@ -476,9 +476,8 @@ struct CatmullRomCameraMotion {
             case AutoOrientMode::AlongPath: {
                 Vec3 forward = path.forward_at(t);
                 if (glm::length(forward) > 1e-4f) {
-                    f32 yaw   = glm::degrees(std::atan2(forward.x, -forward.z));
-                    f32 pitch = glm::degrees(std::asin(std::clamp(forward.y, -1.0f, 1.0f)));
-                    cam.rotation = Vec3{pitch, yaw, roll_deg};
+                    const Quat orientation = quat_look_along(forward);
+                    cam.rotation = quat_to_camera_euler(orientation, roll_deg);
                     cam.point_of_interest = cam.position + forward * 1000.0f;
                     cam.point_of_interest_enabled = true;
                 }
@@ -487,7 +486,9 @@ struct CatmullRomCameraMotion {
             case AutoOrientMode::TowardsPOI: {
                 cam.point_of_interest = point_of_interest;
                 cam.point_of_interest_enabled = true;
-                cam.rotation = Vec3{0.0f, 0.0f, roll_deg};
+                const Vec3 look_dir = glm::normalize(point_of_interest - cam.position);
+                const Quat orientation = quat_look_along(look_dir);
+                cam.rotation = quat_to_camera_euler(orientation, roll_deg);
                 break;
             }
         }
@@ -515,19 +516,21 @@ struct CatmullRomCameraMotion {
             case AutoOrientMode::AlongPath: {
                 Vec3 forward = path.forward_at(t);
                 if (glm::length(forward) > 1e-4f) {
-                    f32 yaw   = glm::degrees(std::atan2(forward.x, -forward.z));
-                    f32 pitch = glm::degrees(std::asin(std::clamp(forward.y, -1.0f, 1.0f)));
-                    cam.rotation = Vec3{pitch, yaw, roll_deg};
+                    const Quat orientation = quat_look_along(forward);
+                    cam.rotation = quat_to_camera_euler(orientation, roll_deg);
                     cam.point_of_interest = cam.position + forward * 1000.0f;
                     cam.point_of_interest_enabled = true;
                 }
                 break;
             }
-            case AutoOrientMode::TowardsPOI:
+            case AutoOrientMode::TowardsPOI: {
                 cam.point_of_interest = point_of_interest;
                 cam.point_of_interest_enabled = true;
-                cam.rotation = Vec3{0.0f, 0.0f, roll_deg};
+                const Vec3 look_dir = glm::normalize(point_of_interest - cam.position);
+                const Quat orientation = quat_look_along(look_dir);
+                cam.rotation = quat_to_camera_euler(orientation, roll_deg);
                 break;
+            }
         }
         return cam;
     }

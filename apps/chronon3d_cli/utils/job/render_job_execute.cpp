@@ -34,9 +34,10 @@ bool execute_render_job(const CompositionRegistry& registry, const RenderJobPlan
     spdlog::info("Rendering {} [{} -> {} step {}]{}{}...",
                  plan.comp_id, plan.range.start, plan.range.end, plan.range.step,
                  plan.settings.motion_blur.enabled
-                     ? fmt::format(" [MB {}smp {:.0f}°]",
+                     ? fmt::format(" [MB {}smp {:.0f}°/{:.0f}°]",
                                    plan.settings.motion_blur.samples,
-                                   plan.settings.motion_blur.shutter_angle)
+                                   plan.settings.motion_blur.shutter_angle_deg,
+                                   plan.settings.motion_blur.shutter_phase_deg)
                      : "",
                  plan.settings.ssaa_factor > 1.0f
                      ? fmt::format(" [SSAA {:.1f}x]", plan.settings.ssaa_factor)

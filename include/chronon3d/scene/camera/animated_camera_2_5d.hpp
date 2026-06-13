@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/animation/core/animated_value.hpp>
+#include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/math/glm_types.hpp>
 
@@ -36,25 +37,26 @@ struct AnimatedCamera2_5D {
 
     /// Evaluate all animated properties at `frame` and return a static Camera2_5D.
     [[nodiscard]] Camera2_5D evaluate(Frame frame) const {
+        return evaluate(SampleTime::from_frame_int(frame));
+    }
+
+    /// Sub-frame evaluation — enables true multi-sample motion blur.
+    [[nodiscard]] Camera2_5D evaluate(SampleTime time) const {
         Camera2_5D cam;
         cam.enabled = enabled;
-        // Mark the evaluated camera as animated so that SceneHasher
-        // (and any other consumers) can detect that this camera has
-        // time-dependent properties without needing access to the
-        // AnimatedCamera2_5D wrapper.
         cam.is_animated = is_animated();
-        cam.position = position.evaluate(frame);
-        cam.rotation = rotation.evaluate(frame);
-        cam.zoom     = zoom.evaluate(frame);
-        cam.fov_deg  = fov_deg.evaluate(frame);
+        cam.position = position.evaluate(time);
+        cam.rotation = rotation.evaluate(time);
+        cam.zoom     = zoom.evaluate(time);
+        cam.fov_deg  = fov_deg.evaluate(time);
 
-        cam.point_of_interest          = point_of_interest.evaluate(frame);
+        cam.point_of_interest          = point_of_interest.evaluate(time);
         cam.point_of_interest_enabled  = point_of_interest_enabled;
 
         cam.dof.enabled  = focus_z.is_animated() || aperture.is_animated() || max_blur.is_animated();
-        cam.dof.focus_z  = focus_z.evaluate(frame);
-        cam.dof.aperture = aperture.evaluate(frame);
-        cam.dof.max_blur = max_blur.evaluate(frame);
+        cam.dof.focus_z  = focus_z.evaluate(time);
+        cam.dof.aperture = aperture.evaluate(time);
+        cam.dof.max_blur = max_blur.evaluate(time);
 
         return cam;
     }
