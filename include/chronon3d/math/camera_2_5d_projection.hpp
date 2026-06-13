@@ -138,7 +138,7 @@ inline ProjectedLayer2_5D project_layer_2_5d(
     const Camera2_5D& camera,
     f32 viewport_width,
     f32 viewport_height,
-    bool diagnostics_enabled
+    bool diagnostics_enabled = false
 ) {
     ProjectedLayer2_5D out;
     out.transform = layer_transform;

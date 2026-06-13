@@ -4,15 +4,17 @@
 
 using namespace chronon3d;
 
-static float mock_char_width(const void* /*ctx*/, char /*c*/, float font_size) {
-    return font_size * 0.6f;
+namespace {
+    static float mock_char_width_layout(const void* /*ctx*/, char /*c*/, float font_size) {
+        return font_size * 0.6f;
+    }
 }
 
 TEST_CASE("TextLayoutEngine layout V2 specifications") {
     auto setup_input = [](TextLayoutInput& input, const char* text, float size) {
         input.text = text;
         input.style.size = size;
-        input.char_width_fn = mock_char_width;
+        input.char_width_fn = mock_char_width_layout;
     };
 
     SUBCASE("Empty text returns safe result") {
@@ -310,7 +312,7 @@ TEST_CASE("TextLayoutEngine layout V2 specifications") {
         TextLayoutInput input;
         input.text = "abc";
         input.style.size = 10.0f;
-        input.char_width_fn = mock_char_width;
+        input.char_width_fn = mock_char_width_layout;
         // font_engine is null → should use mock
 
         auto res = TextLayoutEngine::layout(input);

@@ -253,7 +253,7 @@ TEST_CASE("RenderCounters: thread_local is faster than atomic on N threads") {
     // threads, otherwise the refactor is a regression.  In practice
     // it is 2-5x faster on a 4+ core machine.
     MESSAGE("atomic_ns=", atomic_ns, " tls_ns=", tls_ns,
-            " speedup_x=", static_cast<double>(atomic_ns) / std::max(tls_ns, int64_t{1}));
+            " speedup_x=", static_cast<double>(atomic_ns) / std::max(tls_ns, double{1.0}));
     CHECK(tls_ns <= atomic_ns * 2);
 }
 
