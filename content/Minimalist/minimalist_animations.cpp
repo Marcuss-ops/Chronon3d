@@ -3,6 +3,7 @@
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
 #include "content/text/text_helpers.hpp"
+#include <chronon3d/text/text_glow_spec.hpp>
 
 namespace chronon3d::content::minimalist {
 
@@ -103,6 +104,8 @@ Composition minimalist_text_typewriter() {
         Frame f = ctx.frame;
         s.layer("phrase", [f](LayerBuilder& l) {
             l.pin_to(Anchor::Center);
+            l.glow(TextGlowPresets::ae_cinematic_white().to_glow_params());
+            l.drop_shadow({0.0f, 4.0f}, Color{0.0f, 0.02f, 0.12f, 0.15f}, 10.0f);
             l.text("phrase", text::typewriter_text({
                 .text = "SMOOTH REVEAL",
                 .font_size = 110,
