@@ -265,8 +265,12 @@ bool RawVideoSink::flush() {
 }
 
 bool RawVideoSink::close() noexcept {
-    if (state_ == VideoSinkState::Closed || state_ == VideoSinkState::Created) {
-        return true;  // idempotent
+    if (state_ == VideoSinkState::Closed) {
+        return true;  // already closed
+    }
+    if (state_ == VideoSinkState::Created) {
+        state_ = VideoSinkState::Closed;  // close before open is valid
+        return true;
     }
 
     if (file_.is_open()) {
@@ -293,8 +297,6 @@ bool RawVideoSink::write_bytes(const uint8_t* data, size_t size) {
         return false;
     }
 
-    stats_.frames_submitted++;
-    stats_.bytes_written += size;
     return true;
 }
 
