@@ -53,10 +53,10 @@ if(NOT MSVC AND NOT CMAKE_CXX_LINKER_LAUNCHER)
 endif()
 
 # --- Opzioni del Progetto ---
-option(CHRONON3D_UNITY_BUILD "Enable unity (jumbo) build" ON)
-option(CHRONON3D_BUILD_TESTS "Build Chronon3d tests" ON)
+option(CHRONON3D_UNITY_BUILD "Enable unity (jumbo) build" OFF)
+option(CHRONON3D_BUILD_TESTS "Build Chronon3d tests" OFF)
 option(CHRONON3D_BUILD_CLI "Build Chronon3d CLI" ON)
-option(CHRONON3D_BUILD_TOOLS "Build development tools" OFF)
+option(CHRONON3D_BUILD_C_API "Build experimental C bindings (shared library + C tests)" OFF)
 option(CHRONON3D_BUILD_BENCHMARKS "Build Chronon3d benchmarks" OFF)
 option(CHRONON3D_BUILD_CONTENT "Build bundled content compositions (proofs, demos)" ON)
 option(CHRONON3D_ENABLE_NATIVE_FFMPEG "Enable native FFmpeg/libav encoder support" OFF)
@@ -147,71 +147,85 @@ if(CHRONON3D_BUILD_CLI)
     add_subdirectory(apps/chronon3d_cli)
 endif()
 
-if(CHRONON3D_BUILD_TOOLS)
-    # preview_new_features target removed - tools/preview_new_features.cpp does not exist
+# ── Aggregate developer target (CLI + fast tests) ──────────────────────────────
+# Convenience target for daily development: builds the CLI and the fast test suite
+# in a single invocation. Only created when both CLI and tests are enabled.
+if(CHRONON3D_BUILD_CLI AND CHRONON3D_BUILD_TESTS)
+    add_custom_target(chronon3d_dev_fast
+        DEPENDS
+            chronon3d_cli
+            chronon3d_tests_fast
+    )
 endif()
 
+# CHRONON3D_BUILD_TOOLS removed — the option was a no-op (the only target
+# it guarded, preview_new_features, was deleted in a previous cleanup).
+
 # ==============================================================================
-# C API SHARED LIBRARY & C TEST (Defined at the end to ensure all targets exist)
+# C API SHARED LIBRARY & C TEST (Experimental — opt-in via CHRONON3D_BUILD_C_API)
 # ==============================================================================
-add_library(chronon3d_shared SHARED
-    src/c_api/chronon3d_c_api.cpp
-    src/c_api/c_api_context.cpp
-    src/c_api/c_api_compile.cpp
-    src/c_api/c_api_render.cpp
-)
-target_link_libraries(chronon3d_shared PRIVATE chronon3d_pipeline)
+# The C bindings expose JSON → TOML → specscene compilation via a C ABI for
+# interop with Python, Rust, and other languages. They are NOT part of the
+# core engine surface and are opt-in to keep the default build lean.
+#
+# Files live in bindings/c/ rather than src/c_api/ to make the isolation clear.
+if(CHRONON3D_BUILD_C_API)
+    add_library(chronon3d_shared SHARED
+        bindings/c/chronon3d_c_api.cpp
+        bindings/c/c_api_context.cpp
+        bindings/c/c_api_compile.cpp
+        bindings/c/c_api_render.cpp
+    )
+    target_link_libraries(chronon3d_shared PRIVATE chronon3d_pipeline)
 
-if(CHRONON3D_BUILD_CONTENT)
-    if(TARGET chronon3d_content_registry)
-        # --whole-archive ensures all static-registration symbols from content
-        # modules (minimalist, anims, text, …) are included in the shared library.
-        # Without it the linker drops unreferenced objects whose constructors or
-        # registration calls are needed at runtime.
-        #
-        # We list every content module explicitly inside the whole-archive region
-        # because CMake places transitive PUBLIC deps AFTER --no-whole-archive.
-        if(NOT MSVC)
-            target_link_libraries(chronon3d_shared PRIVATE
-                "-Wl,--whole-archive"
-                chronon3d_content_registry
-                chronon3d_content_anims
-                chronon3d_content_minimalist
-                chronon3d_content_shapes
-                chronon3d_content_images
-                chronon3d_content_effects
-                chronon3d_content_2d5
-                chronon3d_content_grid
-                "-Wl,--no-whole-archive"
-            )
-        else()
-            target_link_libraries(chronon3d_shared PRIVATE chronon3d_content_registry)
-        endif()
-    endif()
-    target_compile_definitions(chronon3d_shared PRIVATE CHRONON3D_BUILD_CONTENT)
-endif()
-
-target_include_directories(chronon3d_shared PUBLIC ${CMAKE_SOURCE_DIR}/include)
-target_include_directories(chronon3d_shared PRIVATE ${CMAKE_SOURCE_DIR})
-set_target_properties(chronon3d_shared PROPERTIES
-    OUTPUT_NAME "chronon3d"
-    POSITION_INDEPENDENT_CODE ON
-    UNITY_BUILD OFF
-)
-target_compile_definitions(chronon3d_shared PRIVATE CHRONON3D_BUILD_SHARED)
-
-if(CHRONON3D_BUILD_TESTS)
     if(CHRONON3D_BUILD_CONTENT)
-        add_executable(test_c_api tests/test_c_api.c)
-        target_link_libraries(test_c_api PRIVATE chronon3d_shared)
-        target_include_directories(test_c_api PRIVATE ${CMAKE_SOURCE_DIR}/include)
-        add_test(NAME test_c_api COMMAND test_c_api WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+        if(TARGET chronon3d_content_registry)
+            # --whole-archive ensures all static-registration symbols from content
+            # modules (minimalist, anims, text, …) are included in the shared library.
+            # While content modules use explicit ExtensionRegistry registration
+            # (not static-init macros), the symbols live in STATIC libraries that
+            # the linker may drop from a SHARED target without whole-archive.
+            #
+            # We list every content module explicitly inside the whole-archive region
+            # because CMake places transitive PUBLIC deps AFTER --no-whole-archive.
+            # chronon3d_content_registry's PUBLIC link to each module would end up
+            # outside the wrapper otherwise.
+            if(NOT MSVC)
+                target_link_libraries(chronon3d_shared PRIVATE
+                    "-Wl,--whole-archive"
+                    chronon3d_content_registry
+                    chronon3d_all_content_modules
+                    "-Wl,--no-whole-archive"
+                )
+            else()
+                target_link_libraries(chronon3d_shared PRIVATE chronon3d_content_registry)
+            endif()
+        endif()
+        target_compile_definitions(chronon3d_shared PRIVATE CHRONON3D_BUILD_CONTENT)
     endif()
 
-    # Minimal C API test — works with or without content modules
-    add_executable(test_c_api_minimal tests/test_c_api_minimal.c)
-    target_link_libraries(test_c_api_minimal PRIVATE chronon3d_shared)
-    target_include_directories(test_c_api_minimal PRIVATE ${CMAKE_SOURCE_DIR}/include)
-    add_test(NAME test_c_api_minimal COMMAND test_c_api_minimal WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+    target_include_directories(chronon3d_shared PUBLIC ${CMAKE_SOURCE_DIR}/include)
+    target_include_directories(chronon3d_shared PRIVATE ${CMAKE_SOURCE_DIR})
+    set_target_properties(chronon3d_shared PROPERTIES
+        OUTPUT_NAME "chronon3d"
+        POSITION_INDEPENDENT_CODE ON
+        UNITY_BUILD OFF
+    )
+    target_compile_definitions(chronon3d_shared PRIVATE CHRONON3D_BUILD_SHARED)
+
+    if(CHRONON3D_BUILD_TESTS)
+        if(CHRONON3D_BUILD_CONTENT)
+            add_executable(test_c_api tests/test_c_api.c)
+            target_link_libraries(test_c_api PRIVATE chronon3d_shared)
+            target_include_directories(test_c_api PRIVATE ${CMAKE_SOURCE_DIR}/include)
+            add_test(NAME test_c_api COMMAND test_c_api WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+        endif()
+
+        # Minimal C API test — works with or without content modules
+        add_executable(test_c_api_minimal tests/test_c_api_minimal.c)
+        target_link_libraries(test_c_api_minimal PRIVATE chronon3d_shared)
+        target_include_directories(test_c_api_minimal PRIVATE ${CMAKE_SOURCE_DIR}/include)
+        add_test(NAME test_c_api_minimal COMMAND test_c_api_minimal WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+    endif()
 endif()
 

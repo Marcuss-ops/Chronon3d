@@ -182,12 +182,13 @@ The default build includes example compositions, so `chronon3d_cli list` and `ch
 |---|---|
 | **[ORIENTATION.md](docs/ORIENTATION.md)** | Architecture overview, repo structure, build guide, CLI reference, API overview, telemetry dashboard, test instructions |
 | **[ROADMAP.md](docs/ROADMAP.md)** | Active roadmap — prioritized items to implement |
-| **[IMPROVEMENTS.md](docs/IMPROVEMENTS.md)** | Full improvement backlog with matrix, gap analysis, and V3 blueprint |
-| **[V3_BLUEPRINT.md](docs/V3_BLUEPRINT.md)** | Tile-based architecture evolution (frame-based to tile-first) |
 | **[CHANGELOG.md](docs/CHANGELOG.md)** | Completed items and release history |
 | **[CONTRIBUTING.md](CONTRIBUTING.md)** | Contributor guide |
 | **[FEATURES.md](docs/FEATURES.md)** | Detailed feature reference — SVG Path Import V1, Text V1 layout engine & presets, limitations |
-| **`docs/improvements/`** | Detailed improvement tiers (game-changers, quick wins, long-term vision) |
+| **[ARCHITECTURE_EVOLUTION_PLAN.md](docs/ARCHITECTURE_EVOLUTION_PLAN.md)** | Engine modularization roadmap and core architecture |
+| **[V3_BLUEPRINT.md](docs/V3_BLUEPRINT.md)** | Tile-based architecture evolution (frame-based to tile-first) |
+| **[CORE_OWNERSHIP.md](docs/CORE_OWNERSHIP.md)** | Protected files, agent rules, ownership model |
+| **`docs/archive/`** | Historical documentation (past roadmaps, speculative ideas, archived improvement backlogs) |
 
 ---
 
