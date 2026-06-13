@@ -127,13 +127,12 @@ namespace chronon3d {
         // Standard Layers
         template <typename Fn>
         SceneBuilder &layer(std::string name, Fn &&fn) {
-            const Frame cf = current_integer_frame();
-            LayerBuilder builder(std::move(name), cf, scene_.resource());
+            LayerBuilder builder(std::move(name), current_time_, scene_.resource());
             builder.screen_dimensions(static_cast<f32>(m_width), static_cast<f32>(m_height));
             std::forward<Fn>(fn)(builder);
 
             Layer l = builder.build();
-            if (l.active_at(cf)) {
+            if (l.active_at(current_integer_frame())) {
                 scene_.add_layer(std::move(l));
             }
             return *this;
@@ -141,13 +140,12 @@ namespace chronon3d {
 
         template <typename Fn>
         SceneBuilder &screen_layer(std::string name, Fn &&fn) {
-            const Frame cf = current_integer_frame();
-            LayerBuilder builder(std::move(name), cf, scene_.resource());
+            LayerBuilder builder(std::move(name), current_time_, scene_.resource());
             builder.screen_dimensions(static_cast<f32>(m_width), static_cast<f32>(m_height));
             std::forward<Fn>(fn)(builder);
 
             Layer l = builder.build();
-            if (l.active_at(cf)) {
+            if (l.active_at(current_integer_frame())) {
                 scene_.add_layer(std::move(l));
             }
             return *this;
@@ -157,14 +155,13 @@ namespace chronon3d {
         // The lambda receives a LayerBuilder but any visuals added are ignored.
         template <typename Fn>
         SceneBuilder &adjustment_layer(std::string name, Fn &&fn) {
-            const Frame cf = current_integer_frame();
-            LayerBuilder builder(std::move(name), cf, scene_.resource());
+            LayerBuilder builder(std::move(name), current_time_, scene_.resource());
             builder.screen_dimensions(static_cast<f32>(m_width), static_cast<f32>(m_height));
             std::forward<Fn>(fn)(builder);
 
             Layer l = builder.build();
             l.kind = LayerKind::Adjustment;
-            if (l.active_at(cf)) {
+            if (l.active_at(current_integer_frame())) {
                 scene_.add_layer(std::move(l));
             }
             return *this;
@@ -172,14 +169,13 @@ namespace chronon3d {
 
         template <typename Fn>
         SceneBuilder &precomp_layer(std::string name, std::string comp_name, Fn &&fn) {
-            const Frame cf = current_integer_frame();
-            LayerBuilder builder(std::move(name), cf, scene_.resource());
+            LayerBuilder builder(std::move(name), current_time_, scene_.resource());
             std::forward<Fn>(fn)(builder);
 
             Layer l = builder.build();
             l.kind = LayerKind::Precomp;
             l.precomp_composition_name = std::pmr::string{comp_name, scene_.resource()};
-            if (l.active_at(cf)) {
+            if (l.active_at(current_integer_frame())) {
                 scene_.add_layer(std::move(l));
             }
             return *this;
@@ -187,14 +183,13 @@ namespace chronon3d {
 
         template <typename Fn>
         SceneBuilder &video_layer(std::string name, video::VideoSource source, Fn &&fn) {
-            const Frame cf = current_integer_frame();
-            LayerBuilder builder(std::move(name), cf, scene_.resource());
+            LayerBuilder builder(std::move(name), current_time_, scene_.resource());
             std::forward<Fn>(fn)(builder);
 
             Layer l = builder.build();
             l.kind = LayerKind::Video;
             l.video_source = std::make_unique<video::VideoSource>(std::move(source));
-            if (l.active_at(cf)) {
+            if (l.active_at(current_integer_frame())) {
                 scene_.add_layer(std::move(l));
             }
             return *this;
@@ -209,7 +204,6 @@ namespace chronon3d {
 
         template <typename Fn>
         SceneBuilder &null_layer(std::string name, Fn &&fn) {
-            const Frame cf = current_integer_frame();
             if constexpr (std::is_invocable_v<Fn, NullBuilder&>) {
                 NullParams params;
                 params.name = std::move(name);
@@ -226,17 +220,17 @@ namespace chronon3d {
                 l.parent_name = std::pmr::string(params.transform.parent_name, scene_.resource());
                 l.visible = params.visible_in_diagnostics;
 
-                if (l.active_at(cf)) {
+                if (l.active_at(current_integer_frame())) {
                     scene_.add_layer(std::move(l));
                 }
                 return *this;
             } else {
-                LayerBuilder builder(std::move(name), cf, scene_.resource());
+                LayerBuilder builder(std::move(name), current_time_, scene_.resource());
                 std::forward<Fn>(fn)(builder);
 
                 Layer l = builder.build();
                 l.kind = LayerKind::Null;
-                if (l.active_at(cf)) {
+                if (l.active_at(current_integer_frame())) {
                     scene_.add_layer(std::move(l));
                 }
                 return *this;
