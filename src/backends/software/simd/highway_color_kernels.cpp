@@ -724,7 +724,121 @@ HWY_ATTR void composite_color_burn_premul_impl(float* HWY_RESTRICT dst_ptr,
     }
 }
 
-// ── B3 safe scalar fallbacks ────────────────────────────────────────────────
+
+// ── B4: Matte kernels ────────────────────────────────────────────────────
+
+HWY_ATTR void apply_alpha_matte_premul_impl(float* HWY_RESTRICT target_ptr,
+                                            const float* HWY_RESTRICT matte_ptr,
+                                            int pixel_count,
+                                            bool inverted) {
+    const hn::FixedTag<float, 4> d4;
+    const auto one = hn::Set(d4, 1.0f);
+    const auto zero = hn::Zero(d4);
+
+    if (inverted) {
+        for (int i = 0; i < pixel_count; ++i) {
+            const auto t = hn::LoadU(d4, target_ptr + i * 4);
+            const auto m = hn::LoadU(d4, matte_ptr + i * 4);
+            const auto matte_alpha = hn::Broadcast<3>(m);
+            auto coverage = hn::Sub(one, matte_alpha);  // 1 - ma
+            coverage = hn::Min(hn::Max(coverage, zero), one);
+            const auto result = hn::Mul(t, coverage);
+            hn::StoreU(result, d4, target_ptr + i * 4);
+        }
+    } else {
+        for (int i = 0; i < pixel_count; ++i) {
+            const auto t = hn::LoadU(d4, target_ptr + i * 4);
+            const auto m = hn::LoadU(d4, matte_ptr + i * 4);
+            const auto matte_alpha = hn::Broadcast<3>(m);
+            auto coverage = hn::Min(hn::Max(matte_alpha, zero), one);
+            const auto result = hn::Mul(t, coverage);
+            hn::StoreU(result, d4, target_ptr + i * 4);
+        }
+    }
+}
+
+HWY_ATTR void apply_luma_matte_premul_impl(float* HWY_RESTRICT target_ptr,
+                                           const float* HWY_RESTRICT matte_ptr,
+                                           int pixel_count,
+                                           bool inverted) {
+    const hn::FixedTag<float, 4> d4;
+    const auto one = hn::Set(d4, 1.0f);
+    const auto zero = hn::Zero(d4);
+    const auto w_r = hn::Set(d4, 0.2126f);
+    const auto w_g = hn::Set(d4, 0.7152f);
+    const auto w_b = hn::Set(d4, 0.0722f);
+
+    // Compute luma as: 0.2126*r + 0.7152*g + 0.0722*b
+    // Using premultiplied channels directly (no extra alpha multiply).
+    if (inverted) {
+        for (int i = 0; i < pixel_count; ++i) {
+            const auto t = hn::LoadU(d4, target_ptr + i * 4);
+            const auto m = hn::LoadU(d4, matte_ptr + i * 4);
+            // Compute luma in lane 0 via MulAdd chain
+            auto luma = hn::Mul(hn::Broadcast<0>(m), w_r);      // r * 0.2126
+            luma = hn::MulAdd(hn::Broadcast<1>(m), w_g, luma); // + g * 0.7152
+            luma = hn::MulAdd(hn::Broadcast<2>(m), w_b, luma); // + b * 0.0722
+            // All lanes now contain luma
+            auto coverage = hn::Sub(one, hn::Broadcast<0>(luma));
+            coverage = hn::Min(hn::Max(coverage, zero), one);
+            const auto result = hn::Mul(t, coverage);
+            hn::StoreU(result, d4, target_ptr + i * 4);
+        }
+    } else {
+        for (int i = 0; i < pixel_count; ++i) {
+            const auto t = hn::LoadU(d4, target_ptr + i * 4);
+            const auto m = hn::LoadU(d4, matte_ptr + i * 4);
+            auto luma = hn::Mul(hn::Broadcast<0>(m), w_r);
+            luma = hn::MulAdd(hn::Broadcast<1>(m), w_g, luma);
+            luma = hn::MulAdd(hn::Broadcast<2>(m), w_b, luma);
+            auto coverage = hn::Broadcast<0>(luma);
+            coverage = hn::Min(hn::Max(coverage, zero), one);
+            const auto result = hn::Mul(t, coverage);
+            hn::StoreU(result, d4, target_ptr + i * 4);
+        }
+    }
+}
+
+}  // namespace HWY_NAMESPACE
+}  // namespace chronon3d::simd
+HWY_AFTER_NAMESPACE();
+
+#if HWY_ONCE
+namespace chronon3d::simd {
+
+HWY_EXPORT(composite_normal_premul_impl);
+HWY_EXPORT(composite_add_premul_impl);
+HWY_EXPORT(composite_multiply_premul_impl);
+HWY_EXPORT(composite_screen_premul_impl);
+HWY_EXPORT(composite_overlay_premul_impl);
+HWY_EXPORT(composite_darken_premul_impl);
+HWY_EXPORT(composite_lighten_premul_impl);
+HWY_EXPORT(composite_difference_premul_impl);
+HWY_EXPORT(composite_exclusion_premul_impl);
+HWY_EXPORT(composite_soft_light_premul_impl);
+HWY_EXPORT(composite_hard_light_premul_impl);
+HWY_EXPORT(composite_color_dodge_premul_impl);
+HWY_EXPORT(composite_color_burn_premul_impl);
+HWY_EXPORT(apply_alpha_matte_premul_impl);
+HWY_EXPORT(apply_luma_matte_premul_impl);
+HWY_EXPORT(premultiply_alpha_rgba8_impl);
+
+// ── Helpers ──────────────────────────────────────────────────────────────
+
+/// Check a single Color for NaN/Inf contamination.
+static bool has_bad_color(const Color& c) {
+    return std::isnan(c.r) || std::isnan(c.g) || std::isnan(c.b) || std::isnan(c.a) ||
+           std::isinf(c.r) || std::isinf(c.g) || std::isinf(c.b) || std::isinf(c.a);
+}
+
+/// Canary check on first + last pixel of both buffers.  Returns true if safe
+/// for the fast SIMD path; falls back to a safe scalar loop when contaminated.
+static bool check_nan_canary(const Color* dst, const Color* src, int pixel_count) {
+    return !has_bad_color(src[0]) && !has_bad_color(dst[0]) &&
+           !has_bad_color(src[pixel_count - 1]) && !has_bad_color(dst[pixel_count - 1]);
+}
+
+// ── B3 safe scalar fallbacks (must be after has_bad_color) ────────────
 
 static void composite_soft_light_safe(Color* dst, const Color* src, int pixel_count) {
     for (int i = 0; i < pixel_count; ++i) {
@@ -733,7 +847,6 @@ static void composite_soft_light_safe(Color* dst, const Color* src, int pixel_co
         const Color& s = src[i];
         const float new_a = s.a + d.a * (1.0f - s.a);
         if (new_a <= 0.0f) { d = Color::transparent(); continue; }
-        // Un-premultiply, clamp, blend
         const float Cs_r = s.a > 1e-8f ? std::min(s.r / s.a, 1.0f) : 0.0f;
         const float Cs_g = s.a > 1e-8f ? std::min(s.g / s.a, 1.0f) : 0.0f;
         const float Cs_b = s.a > 1e-8f ? std::min(s.b / s.a, 1.0f) : 0.0f;
@@ -831,118 +944,29 @@ static void composite_color_burn_safe(Color* dst, const Color* src, int pixel_co
     }
 }
 
-// ── B4: Matte kernels ────────────────────────────────────────────────────
+// ── Scalar matte safe fallbacks ─────────────────────────────────────────
 
-HWY_ATTR void apply_alpha_matte_premul_impl(float* HWY_RESTRICT target_ptr,
-                                            const float* HWY_RESTRICT matte_ptr,
-                                            int pixel_count,
-                                            bool inverted) {
-    const hn::FixedTag<float, 4> d4;
-    const auto one = hn::Set(d4, 1.0f);
-    const auto zero = hn::Zero(d4);
-
-    if (inverted) {
-        for (int i = 0; i < pixel_count; ++i) {
-            const auto t = hn::LoadU(d4, target_ptr + i * 4);
-            const auto m = hn::LoadU(d4, matte_ptr + i * 4);
-            const auto matte_alpha = hn::Broadcast<3>(m);
-            auto coverage = hn::Sub(one, matte_alpha);  // 1 - ma
-            coverage = hn::Min(hn::Max(coverage, zero), one);
-            const auto result = hn::Mul(t, coverage);
-            hn::StoreU(result, d4, target_ptr + i * 4);
-        }
-    } else {
-        for (int i = 0; i < pixel_count; ++i) {
-            const auto t = hn::LoadU(d4, target_ptr + i * 4);
-            const auto m = hn::LoadU(d4, matte_ptr + i * 4);
-            const auto matte_alpha = hn::Broadcast<3>(m);
-            auto coverage = hn::Min(hn::Max(matte_alpha, zero), one);
-            const auto result = hn::Mul(t, coverage);
-            hn::StoreU(result, d4, target_ptr + i * 4);
-        }
+static void apply_alpha_matte_safe(Color* target, const Color* matte, int pixel_count, bool inverted) {
+    for (int i = 0; i < pixel_count; ++i) {
+        if (has_bad_color(target[i]) || has_bad_color(matte[i])) continue;
+        Color& t = target[i];
+        const float ma = matte[i].a;
+        const float coverage = inverted ? (1.0f - ma) : ma;
+        const float c = std::min(std::max(coverage, 0.0f), 1.0f);
+        t.r *= c; t.g *= c; t.b *= c; t.a *= c;
     }
 }
 
-HWY_ATTR void apply_luma_matte_premul_impl(float* HWY_RESTRICT target_ptr,
-                                           const float* HWY_RESTRICT matte_ptr,
-                                           int pixel_count,
-                                           bool inverted) {
-    const hn::FixedTag<float, 4> d4;
-    const auto one = hn::Set(d4, 1.0f);
-    const auto zero = hn::Zero(d4);
-    const auto w_r = hn::Set(d4, 0.2126f);
-    const auto w_g = hn::Set(d4, 0.7152f);
-    const auto w_b = hn::Set(d4, 0.0722f);
-
-    // Compute luma as: 0.2126*r + 0.7152*g + 0.0722*b
-    // Using premultiplied channels directly (no extra alpha multiply).
-    if (inverted) {
-        for (int i = 0; i < pixel_count; ++i) {
-            const auto t = hn::LoadU(d4, target_ptr + i * 4);
-            const auto m = hn::LoadU(d4, matte_ptr + i * 4);
-            // Compute luma in lane 0 via MulAdd chain
-            auto luma = hn::Mul(hn::Broadcast<0>(m), w_r);      // r * 0.2126
-            luma = hn::MulAdd(hn::Broadcast<1>(m), w_g, luma); // + g * 0.7152
-            luma = hn::MulAdd(hn::Broadcast<2>(m), w_b, luma); // + b * 0.0722
-            // All lanes now contain luma
-            auto coverage = hn::Sub(one, hn::Broadcast<0>(luma));
-            coverage = hn::Min(hn::Max(coverage, zero), one);
-            const auto result = hn::Mul(t, coverage);
-            hn::StoreU(result, d4, target_ptr + i * 4);
-        }
-    } else {
-        for (int i = 0; i < pixel_count; ++i) {
-            const auto t = hn::LoadU(d4, target_ptr + i * 4);
-            const auto m = hn::LoadU(d4, matte_ptr + i * 4);
-            auto luma = hn::Mul(hn::Broadcast<0>(m), w_r);
-            luma = hn::MulAdd(hn::Broadcast<1>(m), w_g, luma);
-            luma = hn::MulAdd(hn::Broadcast<2>(m), w_b, luma);
-            auto coverage = hn::Broadcast<0>(luma);
-            coverage = hn::Min(hn::Max(coverage, zero), one);
-            const auto result = hn::Mul(t, coverage);
-            hn::StoreU(result, d4, target_ptr + i * 4);
-        }
+static void apply_luma_matte_safe(Color* target, const Color* matte, int pixel_count, bool inverted) {
+    for (int i = 0; i < pixel_count; ++i) {
+        if (has_bad_color(target[i]) || has_bad_color(matte[i])) continue;
+        Color& t = target[i];
+        const Color& m = matte[i];
+        const float luma = 0.2126f * m.r + 0.7152f * m.g + 0.0722f * m.b;
+        const float coverage = inverted ? (1.0f - luma) : luma;
+        const float c = std::min(std::max(coverage, 0.0f), 1.0f);
+        t.r *= c; t.g *= c; t.b *= c; t.a *= c;
     }
-}
-
-}  // namespace HWY_NAMESPACE
-}  // namespace chronon3d::simd
-HWY_AFTER_NAMESPACE();
-
-#if HWY_ONCE
-namespace chronon3d::simd {
-
- (sprint: fix export success flag, remove global SIMD state, add intentional renderer ops, frame conversion analysis)
-HWY_EXPORT(composite_normal_premul_impl);
-HWY_EXPORT(composite_add_premul_impl);
-HWY_EXPORT(composite_multiply_premul_impl);
-HWY_EXPORT(composite_screen_premul_impl);
-HWY_EXPORT(composite_overlay_premul_impl);
-HWY_EXPORT(composite_darken_premul_impl);
-HWY_EXPORT(composite_lighten_premul_impl);
-HWY_EXPORT(composite_difference_premul_impl);
-HWY_EXPORT(composite_exclusion_premul_impl);
-HWY_EXPORT(composite_soft_light_premul_impl);
-HWY_EXPORT(composite_hard_light_premul_impl);
-HWY_EXPORT(composite_color_dodge_premul_impl);
-HWY_EXPORT(composite_color_burn_premul_impl);
-HWY_EXPORT(apply_alpha_matte_premul_impl);
-HWY_EXPORT(apply_luma_matte_premul_impl);
-HWY_EXPORT(premultiply_alpha_rgba8_impl);
-
-// ── Helpers ──────────────────────────────────────────────────────────────
-
-/// Check a single Color for NaN/Inf contamination.
-static bool has_bad_color(const Color& c) {
-    return std::isnan(c.r) || std::isnan(c.g) || std::isnan(c.b) || std::isnan(c.a) ||
-           std::isinf(c.r) || std::isinf(c.g) || std::isinf(c.b) || std::isinf(c.a);
-}
-
-/// Canary check on first + last pixel of both buffers.  Returns true if safe
-/// for the fast SIMD path; falls back to a safe scalar loop when contaminated.
-static bool check_nan_canary(const Color* dst, const Color* src, int pixel_count) {
-    return !has_bad_color(src[0]) && !has_bad_color(dst[0]) &&
-           !has_bad_color(src[pixel_count - 1]) && !has_bad_color(dst[pixel_count - 1]);
 }
 
 /// Safe scalar fallback for Normal blend (called when NaN/Inf detected).

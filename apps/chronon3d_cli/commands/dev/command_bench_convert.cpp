@@ -361,7 +361,7 @@ int command_bench_convert(const CompositionRegistry& registry, const BenchConver
         << col_val << "Mismatch"
         << col_unit << "MaxΔ"
         << "\n"
-        << std::string(75, '─') << "\n";
+        << std::string(75, '-') << "\n";
 
     auto print_row = [&](const BenchResult& r) {
         out << std::left << col_name << r.name

@@ -54,7 +54,8 @@ public:
 
 class SoftwareExposureEffectProcessor final : public EffectProcessor {
 public:
-    void apply(Framebuffer& fb, const EffectParams& params, float /*time_seconds*/) override {
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& /*context*/) override {
         if (auto* p = std::get_if<ExposureParams>(&params)) {
             apply_exposure(fb, p->stops);
         }
@@ -65,7 +66,8 @@ public:
 
 class SoftwareLevelsEffectProcessor final : public EffectProcessor {
 public:
-    void apply(Framebuffer& fb, const EffectParams& params, float /*time_seconds*/) override {
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& /*context*/) override {
         if (auto* p = std::get_if<LevelsParams>(&params)) {
             apply_levels(fb,
                          p->master.input_black, p->master.input_white,
@@ -88,7 +90,8 @@ public:
 
 class SoftwareFillEffectProcessor final : public EffectProcessor {
 public:
-    void apply(Framebuffer& fb, const EffectParams& params, float /*time_seconds*/) override {
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& /*context*/) override {
         if (auto* p = std::get_if<FillParams>(&params)) {
             apply_fill(fb, p->color, p->amount,
                        p->mode == FillMode::Replace);
@@ -100,7 +103,8 @@ public:
 
 class SoftwareNoiseEffectProcessor final : public EffectProcessor {
 public:
-    void apply(Framebuffer& fb, const EffectParams& params, float /*time_seconds*/) override {
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& /*context*/) override {
         if (auto* p = std::get_if<NoiseParams>(&params)) {
             apply_noise(fb, p->amount, p->seed,
                         p->animated, p->color_mode == NoiseColorMode::RGB,
@@ -113,7 +117,8 @@ public:
 
 class SoftwareCurvesEffectProcessor final : public EffectProcessor {
 public:
-    void apply(Framebuffer& fb, const EffectParams& params, float /*time_seconds*/) override {
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& /*context*/) override {
         if (auto* p = std::get_if<CurvesParams>(&params)) {
             // Use the global curve cache to share with dispatch and other processors
             ColorPipeline pipeline;
@@ -136,7 +141,8 @@ public:
 
 class SoftwareStrokeEffectProcessor final : public EffectProcessor {
 public:
-    void apply(Framebuffer& fb, const EffectParams& params, float /*time_seconds*/) override {
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& /*context*/) override {
         if (auto* p = std::get_if<StrokeParams>(&params)) {
             apply_stroke(fb, p->color, p->width, p->softness, p->mode);
         }
@@ -147,7 +153,8 @@ public:
 
 class SoftwareRadialBlurEffectProcessor final : public EffectProcessor {
 public:
-    void apply(Framebuffer& fb, const EffectParams& params, float /*time_seconds*/) override {
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& /*context*/) override {
         if (auto* p = std::get_if<RadialBlurParams>(&params)) {
             apply_radial_blur(fb, p->center.x, p->center.y,
                               p->amount, p->render_samples);
@@ -159,7 +166,8 @@ public:
 
 class SoftwareDirectionalBlurEffectProcessor final : public EffectProcessor {
 public:
-    void apply(Framebuffer& fb, const EffectParams& params, float /*time_seconds*/) override {
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& /*context*/) override {
         if (auto* p = std::get_if<DirectionalBlurParams>(&params)) {
             apply_directional_blur(fb, p->angle, p->length, p->samples);
         }
@@ -170,7 +178,8 @@ public:
 
 class SoftwareOffsetEffectProcessor final : public EffectProcessor {
 public:
-    void apply(Framebuffer& fb, const EffectParams& params, float /*time_seconds*/) override {
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& /*context*/) override {
         if (auto* p = std::get_if<OffsetParams>(&params)) {
             apply_offset(fb, p->offset.x, p->offset.y,
                          p->edge_mode, p->filter);

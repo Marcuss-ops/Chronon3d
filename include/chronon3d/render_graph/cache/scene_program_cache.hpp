@@ -212,17 +212,8 @@ private:
         std::list<graph::SceneStructureKey>::iterator lru_iterator;
     };
 
-    struct Shard {
-        mutable std::mutex mutex;
-        std::unordered_map<
-            graph::SceneStructureKey,
-            Entry,
-            std::hash<graph::SceneStructureKey>
-        > entries;
-        std::list<graph::SceneStructureKey> lru_list;
-    };
-
-    /// Hash functor for SceneStructureKey.
+    /// Hash functor for SceneStructureKey.  Defined before Shard to ensure
+    /// the unordered_map template parameter is visible at point of use.
     struct KeyHash {
         size_t operator()(const graph::SceneStructureKey& key) const noexcept {
             size_t h = 1469598103934665603ULL;  // FNV-1a offset basis
@@ -238,6 +229,16 @@ private:
             combine(static_cast<uint64_t>(key.ssaa_factor));
             return h;
         }
+    };
+
+    struct Shard {
+        mutable std::mutex mutex;
+        std::unordered_map<
+            graph::SceneStructureKey,
+            Entry,
+            KeyHash
+        > entries;
+        std::list<graph::SceneStructureKey> lru_list;
     };
 
     Shard& get_shard(const graph::SceneStructureKey& key) {
@@ -257,6 +258,12 @@ private:
     mutable std::atomic<uint64_t> m_hits{0};
     mutable std::atomic<uint64_t> m_misses{0};
     mutable std::atomic<uint64_t> m_evictions{0};
+
+    // ── Telemetry counters (optional) — set via set_counters() ──────────
+    chronon3d::RenderCounters* m_counters{nullptr};
+
+    // ── Eviction callback (optional) — set via set_on_evict() ───────────
+    ProgramEvictCallback m_on_evict;
 
     // ── Auto-tuning state ───────────────────────────────────────────────
     TuneMode m_tune_mode{TuneMode::Fixed};

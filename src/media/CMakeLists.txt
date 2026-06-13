@@ -24,13 +24,17 @@ target_link_libraries(chronon3d_backend_video PUBLIC
     TBB::tbb
     hwy::hwy
 )
-# ── chronon3d_media_video — Public video sink API (header-only) ──────────
-# This target will gain implementation files (ffmpeg_pipe_sink.cpp, etc.)
-# in subsequent PRs.
-add_library(chronon3d_media_video INTERFACE)
-target_link_libraries(chronon3d_media_video INTERFACE
+# ── chronon3d_media_video — Video sink library ──────────────────────────
+# Concrete VideoSink implementations live here.  Initially RawVideoSink;
+# FfmpegPipeSink and NativeAvSink will be added in later PRs.
+add_library(chronon3d_media_video STATIC
+    video/raw_video_sink.cpp
+    video/video_sink_factory.cpp
+)
+target_link_libraries(chronon3d_media_video PUBLIC
     chronon3d_media_interface
 )
+target_include_directories(chronon3d_media_video PRIVATE ${CMAKE_SOURCE_DIR})
 
 if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
     target_link_libraries(chronon3d_backend_video PUBLIC chronon3d_ffmpeg_light)

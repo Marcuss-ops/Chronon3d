@@ -264,11 +264,24 @@ ConvertFrameResult convert_frame(const ConvertFrameRequest& req) {
         }
     }
 
+    // ── RGBA8: direct float→uint8 with gamma (no conversion needed) ─────
+    if (req.format == EncoderPixelFormat::RGBA8) {
+        const uint64_t t0 = now_ns();
+        convert_fb_to_rgba8_public(req.src, req.width, req.height, req.apply_gamma, req.dst_y);
+        return ConvertFrameResult{
+            .success = true,
+            .used_simd = true,
+            .conversion_ns = now_ns() - t0,
+        };
+    }
+
 #ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
     switch (req.format) {
         case EncoderPixelFormat::YUV420P: return convert_rgba_to_target(req, AV_PIX_FMT_YUV420P);
         case EncoderPixelFormat::NV12:    return convert_rgba_to_target(req, AV_PIX_FMT_NV12);
         case EncoderPixelFormat::RGB24:   return convert_rgba_to_target(req, AV_PIX_FMT_RGB24);
+        case EncoderPixelFormat::RGBA8:   // Handled above — never reached
+            break;
     }
 #else
     if (req.format == EncoderPixelFormat::RGB24) {
@@ -280,9 +293,13 @@ ConvertFrameResult convert_frame(const ConvertFrameRequest& req) {
 }
 
 ConvertFrameResult convert_frame_tight(const Framebuffer& src, uint8_t* dst_y, uint8_t* dst_u, uint8_t* dst_v, uint8_t* dst_uv, int width, int height, EncoderPixelFormat format, bool apply_gamma) {
+    // Compute tight stride: RGBA8 = width*4, RGB24 = width*3, YUV = width.
+    const int tight_stride_y = (format == EncoderPixelFormat::RGBA8) ? (width * 4)
+                            : (format == EncoderPixelFormat::RGB24) ? (width * 3)
+                            : width;
     ConvertFrameRequest req{
         .src = src, .dst_y = dst_y, .dst_u = dst_u, .dst_v = dst_v, .dst_uv = dst_uv,
-        .dst_stride_y = (format == EncoderPixelFormat::RGB24) ? (width * 3) : width,
+        .dst_stride_y = tight_stride_y,
         .dst_stride_uv = width, .dst_stride_u = width / 2, .dst_stride_v = width / 2,
         .color_matrix = 0, .width = width, .height = height, .format = format, .apply_gamma = apply_gamma,
     };
