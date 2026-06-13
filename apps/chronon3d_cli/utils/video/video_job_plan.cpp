@@ -63,10 +63,10 @@ std::optional<VideoJobPlan> plan_video_job(
     pipe_opts.ffmpeg_verbose = args.ffmpeg_verbose;
 
     SinkOptions sink_opts;
-    // Parse sink mode: "ffmpeg", "null-render", "null-convert"
-    if (args.sink_mode == "null-render") {
+    // Parse sink type: "ffmpeg", "null-render", "null-convert"
+    if (args.sink_type == "null-render") {
         sink_opts.sink_type = VideoSinkType::NullRender;
-    } else if (args.sink_mode == "null-convert") {
+    } else if (args.sink_type == "null-convert") {
         sink_opts.sink_type = VideoSinkType::NullConvert;
     } else {
         sink_opts.sink_type = VideoSinkType::Ffmpeg;  // default
