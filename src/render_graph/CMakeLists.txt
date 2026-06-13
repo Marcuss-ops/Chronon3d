@@ -65,6 +65,7 @@ add_library(chronon3d_graph_builder STATIC
     builder/passes/graph_builder_output_pass.cpp
     builder/passes/graph_builder_validation_pass.cpp
     builder/graph_build_registry.cpp
+    builder/builder_layer_id.cpp
 )
 set_target_properties(chronon3d_graph_builder PROPERTIES UNITY_BUILD OFF)
 target_link_libraries(chronon3d_graph_builder PUBLIC
@@ -105,6 +106,11 @@ target_link_libraries(chronon3d_graph_executor PUBLIC
     chronon3d_graph_core
     chronon3d_graph_nodes
     chronon3d_graph_compiler
+)
+target_precompile_headers(chronon3d_graph_executor PRIVATE
+    <glm/glm.hpp>
+    <glm/gtc/matrix_transform.hpp>
+    <fmt/core.h>
 )
 
 # ── Preflight: validation & analysis before render ──────────────────────────
@@ -156,6 +162,11 @@ target_link_libraries(chronon3d_graph_pipeline PUBLIC
     chronon3d_graph_executor
     chronon3d_graph_compiler
     chronon3d_graph_preflight
+)
+target_precompile_headers(chronon3d_graph_pipeline PRIVATE
+    <glm/glm.hpp>
+    <glm/gtc/matrix_transform.hpp>
+    <fmt/core.h>
 )
 
 # ── Umbrella INTERFACE: all sub-targets bundled for downstream consumers ─────
