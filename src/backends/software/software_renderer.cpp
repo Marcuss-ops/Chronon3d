@@ -26,7 +26,7 @@ namespace chronon3d::renderer {
 
 void apply_blur(Framebuffer& fb, f32 radius, const std::optional<raster::BBox>& clip, int passes);
 void apply_color_effects(Framebuffer& fb, const LayerEffect& effect, const std::optional<raster::BBox>& clip);
-void apply_effect_stack(Framebuffer& fb, const EffectStack& stack, float time_seconds, const std::optional<raster::BBox>& clip, bool diagnostics_enabled);
+void apply_effect_stack(Framebuffer& fb, const EffectStack& stack, const effects::EffectExecutionContext& context);
 }
 
 namespace chronon3d {
@@ -169,10 +169,12 @@ void SoftwareRenderer::apply_blur(Framebuffer& fb, f32 radius, const std::option
     renderer::apply_blur(fb, radius, local_clip);
 }
 
-void SoftwareRenderer::apply_effect_stack(Framebuffer& fb, const EffectStack& stack, float time_seconds, const std::optional<raster::BBox>& clip) {
+void SoftwareRenderer::apply_effect_stack(Framebuffer& fb, const EffectStack& stack, const effects::EffectExecutionContext& context) {
     CHRONON_ZONE_C("apply_effect_stack", trace_category::kEffect);
 
-    const auto local_clip = to_local_clip(fb, clip);
+    const auto local_clip = context.clip.has_value()
+        ? to_local_clip(fb, context.clip)
+        : std::nullopt;
     const uint64_t area = clipped_area(fb.width(), fb.height(), local_clip);
     for (const auto& effect : stack) {
         if (effect.enabled && effect.effect_type == effects::EffectType::Blur) {
@@ -180,7 +182,10 @@ void SoftwareRenderer::apply_effect_stack(Framebuffer& fb, const EffectStack& st
         }
     }
 
-    renderer::apply_effect_stack(fb, stack, time_seconds, local_clip, m_settings.diagnostics.enabled);
+    // Rebuild context with local (fb-relative) clip
+    effects::EffectExecutionContext local_context = context;
+    local_context.clip = local_clip;
+    renderer::apply_effect_stack(fb, stack, local_context);
 }
 
 void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node,
@@ -203,7 +208,7 @@ void SoftwareRenderer::composite_layer(Framebuffer& dst, const Framebuffer& src,
     m_counters.layers_rendered.fetch_add(1, std::memory_order_relaxed);
     CHRONON_ZONE_C("composite_layer", trace_category::kComposite);
     m_counters.pixels_touched.fetch_add(clipped_area(dst.width(), dst.height(), to_local_clip(dst, clip)), std::memory_order_relaxed);
-    SoftwareCompositor::composite_layer(dst, src, mode, clip, op);
+    SoftwareCompositor::composite_layer(dst, src, mode, clip, op, m_settings.force_scalar_normal_blend);
 }
 
 } // namespace chronon3d

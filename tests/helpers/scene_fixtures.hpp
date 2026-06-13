@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/chronon3d.hpp>
 
 namespace chronon3d::test {

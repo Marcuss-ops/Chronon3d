@@ -1,3 +1,4 @@
+#include <chronon3d/scene/builders/scene_builder.hpp>
 #include "camera_visual_scenes.hpp"
 
 #include <chronon3d/scene/builders/builder_params.hpp>

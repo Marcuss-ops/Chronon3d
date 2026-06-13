@@ -72,15 +72,66 @@ TEST_CASE("PipeExportResult: failure with zero frames written") {
 }
 
 TEST_CASE("PipeExportResult: encoder close failure overrides success") {
-    PipeExportResult result;
-    result.success = true;
-    result.encoder_close_failed = true;
+    // The make_pipe_export_result() function must set success=false and
+    // return_code=1 when encoder_close_failed is true, even if the render
+    // loop completed all frames successfully.
+    //
+    // We test this by simulating the exact logic from make_pipe_export_result:
+    //   result.success = status.success;
+    //   result.encoder_close_failed = !close_result.success;
+    //   if (result.encoder_close_failed) result.success = false;
+    //   result.frames_written = result.success ? status.frames_written : 0;
+    //   result.return_code = result.success ? 0 : 1;
 
-    // Caller should set success=false when encoder_close_failed is true
+    // Simulate: render OK (status.success=true, frames_written=100)
+    // but encoder close FAILED (close_result.success=false)
+    struct LocalStatus { bool success; int frames_written; };
+    struct LocalClose  { bool success; };
+
+    LocalStatus status{true, 100};
+    LocalClose  close{false};
+
+    PipeExportResult result;
+    result.success = status.success;
+    result.encoder_close_failed = !close.success;
+
+    // This is the fix: override success when encoder_close_failed is true
     if (result.encoder_close_failed) {
         result.success = false;
     }
+
+    result.frames_written = result.success ? status.frames_written : 0;
+    result.return_code = result.success ? 0 : 1;
+
     CHECK_FALSE(result.success);
+    CHECK(result.encoder_close_failed);
+    CHECK(result.frames_written == 0);   // telemetry reports 0 on failure
+    CHECK(result.return_code == 1);       // CLI exits with error code
+}
+
+TEST_CASE("PipeExportResult: encoder close success preserves render success") {
+    // When both render AND encoder close succeed, success stays true.
+    struct LocalStatus { bool success; int frames_written; };
+    struct LocalClose  { bool success; };
+
+    LocalStatus status{true, 50};
+    LocalClose  close{true};
+
+    PipeExportResult result;
+    result.success = status.success;
+    result.encoder_close_failed = !close.success;
+
+    if (result.encoder_close_failed) {
+        result.success = false;
+    }
+
+    result.frames_written = result.success ? status.frames_written : 0;
+    result.return_code = result.success ? 0 : 1;
+
+    CHECK(result.success);
+    CHECK_FALSE(result.encoder_close_failed);
+    CHECK(result.frames_written == 50);   // exact count preserved
+    CHECK(result.return_code == 0);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

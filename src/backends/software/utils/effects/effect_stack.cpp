@@ -23,6 +23,7 @@
 #include <chronon3d/effects/color_pipeline.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/effects/effect_params.hpp>
+#include <chronon3d/effects/effect_execution_context.hpp>
 #include <algorithm>
 #include <spdlog/spdlog.h>
 
@@ -32,8 +33,10 @@ namespace renderer {
 // ── Forward declarations ─────────────────────────────────────────────────────
 
 void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
-                        float time_seconds, const std::optional<raster::BBox>& clip,
-                        bool diagnostics_enabled) {
+                        const effects::EffectExecutionContext& context) {
+    const auto& clip = context.clip;
+    const float time_seconds = context.time_seconds;
+    const bool diagnostics_enabled = context.diagnostics_enabled;
     using enum effects::EffectType;
     const auto stack_start = profiling::now();
     double blur_ms = 0.0;

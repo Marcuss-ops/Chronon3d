@@ -912,35 +912,7 @@ HWY_AFTER_NAMESPACE();
 #if HWY_ONCE
 namespace chronon3d::simd {
 
-// ── B4: Safe scalar fallbacks for matte ─────────────────────────────────────
-
-static void apply_alpha_matte_safe(Color* target, const Color* matte, int pixel_count, bool inverted) {
-    for (int i = 0; i < pixel_count; ++i) {
-        const float ma = matte[i].a;
-        const float coverage = inverted ? (1.0f - ma) : ma;
-        const float c = std::clamp(coverage, 0.0f, 1.0f);
-        target[i].r *= c;
-        target[i].g *= c;
-        target[i].b *= c;
-        target[i].a *= c;
-    }
-}
-
-static void apply_luma_matte_safe(Color* target, const Color* matte, int pixel_count, bool inverted) {
-    for (int i = 0; i < pixel_count; ++i) {
-        const float luma = 0.2126f * matte[i].r + 0.7152f * matte[i].g + 0.0722f * matte[i].b;
-        const float coverage = inverted ? (1.0f - luma) : luma;
-        const float c = std::clamp(coverage, 0.0f, 1.0f);
-        target[i].r *= c;
-        target[i].g *= c;
-        target[i].b *= c;
-        target[i].a *= c;
-    }
-}
-
-// Global flag: force scalar Normal blend for diagnostic purposes
-std::atomic<bool> g_force_scalar_normal_blend{false};
-
+ (sprint: fix export success flag, remove global SIMD state, add intentional renderer ops, frame conversion analysis)
 HWY_EXPORT(composite_normal_premul_impl);
 HWY_EXPORT(composite_add_premul_impl);
 HWY_EXPORT(composite_multiply_premul_impl);
@@ -988,9 +960,9 @@ static void composite_normal_premul_safe(Color* dst, const Color* src, int pixel
     }
 }
 
-void composite_normal_premul(Color* __restrict__ dst, const Color* __restrict__ src, int pixel_count) {
+void composite_normal_premul(Color* __restrict__ dst, const Color* __restrict__ src, int pixel_count, bool force_scalar) {
     if (pixel_count <= 0) return;
-    if (!check_nan_canary(dst, src, pixel_count) || g_force_scalar_normal_blend.load(std::memory_order_relaxed)) {
+    if (!check_nan_canary(dst, src, pixel_count) || force_scalar) {
         composite_normal_premul_safe(dst, src, pixel_count);
         return;
     }
