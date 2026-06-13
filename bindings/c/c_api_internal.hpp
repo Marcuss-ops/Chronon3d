@@ -2,7 +2,7 @@
 
 // ═════════════════════════════════════════════════════════════════════════════
 // Internal shared declarations for the C API implementation.
-// Not part of the public API — only included by .cpp files in src/c_api/.
+// Not part of the public API — only included by .cpp files in bindings/c/.
 // ═════════════════════════════════════════════════════════════════════════════
 
 #include "chronon3d/c_api/chronon3d.h"

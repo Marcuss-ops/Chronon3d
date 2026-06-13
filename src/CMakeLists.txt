@@ -20,11 +20,16 @@
 # other modern CMake target — no more raw "-l" strings in the graph).
 # The targets exist with the CHRONON3D_ prefix so they don't collide with
 # the system / vcpkg-provided FFmpeg imported targets (avcodec, avformat, ...).
+#
+# Only defined when native FFmpeg is enabled — otherwise the code paths
+# that use swscale/avutil are compiled out via #ifdef guards.
 # ==============================================================================
-add_library(chronon3d_ffmpeg_light INTERFACE)
-target_link_libraries(chronon3d_ffmpeg_light INTERFACE swscale avutil)
-add_library(chronon3d_ffmpeg_full  INTERFACE)
-target_link_libraries(chronon3d_ffmpeg_full  INTERFACE swscale avcodec avformat avutil)
+if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
+    add_library(chronon3d_ffmpeg_light INTERFACE)
+    target_link_libraries(chronon3d_ffmpeg_light INTERFACE swscale avutil)
+    add_library(chronon3d_ffmpeg_full  INTERFACE)
+    target_link_libraries(chronon3d_ffmpeg_full  INTERFACE swscale avcodec avformat avutil)
+endif()
 
 
 

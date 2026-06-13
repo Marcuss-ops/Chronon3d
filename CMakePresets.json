@@ -23,8 +23,6 @@
       "inherits": "base",
       "cacheVariables": {
         "VCPKG_TARGET_TRIPLET": "x64-linux",
-        "CMAKE_C_COMPILER_LAUNCHER": "ccache",
-        "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
         "CMAKE_CXX_FLAGS": "-fdiagnostics-color=always -pipe",
         "CMAKE_C_FLAGS": "-fdiagnostics-color=always -pipe"
       }
@@ -55,6 +53,7 @@
       },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
+        "CHRONON3D_BUILD_C_API": "ON",
         "VCPKG_MANIFEST_FEATURES": "tests"
       }
     },
@@ -68,6 +67,7 @@
       },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
+        "CHRONON3D_BUILD_C_API": "ON",
         "CHRONON3D_UNITY_BUILD": "OFF",
         "VCPKG_MANIFEST_FEATURES": "tests"
       }
@@ -82,8 +82,8 @@
       },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
+        "CHRONON3D_BUILD_C_API": "ON",
         "CHRONON3D_UNITY_BUILD": "OFF",
-        "CHRONON3D_BUILD_TOOLS": "OFF",
         "CHRONON3D_ENABLE_PROFILING": "OFF",
         "VCPKG_MANIFEST_FEATURES": "tests"
       }
@@ -105,6 +105,7 @@
       },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
+        "CHRONON3D_BUILD_C_API": "OFF",
         "CHRONON3D_BUILD_TESTS": "OFF",
         "CHRONON3D_UNITY_BUILD": "OFF"
       }
@@ -119,8 +120,8 @@
       },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
+        "CHRONON3D_BUILD_C_API": "OFF",
         "CHRONON3D_BUILD_TESTS": "OFF",
-        "CHRONON3D_BUILD_TOOLS": "OFF",
         "CHRONON3D_BUILD_BENCHMARKS": "OFF",
         "CHRONON3D_BUILD_CONTENT": "OFF",
         "CHRONON3D_ENABLE_NATIVE_FFMPEG": "OFF",
@@ -141,7 +142,6 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CHRONON3D_BUILD_TESTS": "OFF",
-        "CHRONON3D_BUILD_TOOLS": "OFF",
         "CHRONON3D_BUILD_BENCHMARKS": "OFF",
         "CHRONON3D_BUILD_CONTENT": "OFF",
         "CHRONON3D_ENABLE_NATIVE_FFMPEG": "OFF",
@@ -161,8 +161,8 @@
       },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CHRONON3D_BUILD_C_API": "ON",
         "CHRONON3D_BUILD_TESTS": "ON",
-        "CHRONON3D_BUILD_TOOLS": "OFF",
         "CHRONON3D_BUILD_BENCHMARKS": "OFF",
         "CHRONON3D_BUILD_CONTENT": "ON",
         "CHRONON3D_ENABLE_NATIVE_FFMPEG": "OFF",
@@ -183,8 +183,8 @@
       },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
+        "CHRONON3D_BUILD_C_API": "ON",
         "CHRONON3D_BUILD_TESTS": "ON",
-        "CHRONON3D_BUILD_TOOLS": "OFF",
         "CHRONON3D_BUILD_BENCHMARKS": "OFF",
         "CHRONON3D_BUILD_CONTENT": "ON",
         "CHRONON3D_ENABLE_NATIVE_FFMPEG": "OFF",
@@ -204,8 +204,8 @@
       },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
+        "CHRONON3D_BUILD_C_API": "ON",
         "CHRONON3D_BUILD_TESTS": "ON",
-        "CHRONON3D_BUILD_TOOLS": "OFF",
         "CHRONON3D_BUILD_BENCHMARKS": "OFF",
         "CHRONON3D_BUILD_CONTENT": "ON",
         "CHRONON3D_ENABLE_NATIVE_FFMPEG": "ON",
@@ -225,8 +225,8 @@
       },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
+        "CHRONON3D_BUILD_C_API": "ON",
         "CHRONON3D_BUILD_TESTS": "ON",
-        "CHRONON3D_BUILD_TOOLS": "OFF",
         "CHRONON3D_BUILD_BENCHMARKS": "ON",
         "CHRONON3D_BUILD_CONTENT": "ON",
         "CHRONON3D_ENABLE_NATIVE_FFMPEG": "ON",
@@ -246,6 +246,7 @@
       },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
+        "CHRONON3D_BUILD_C_API": "ON",
         "CMAKE_CXX_FLAGS": "-fsanitize=address,undefined -fno-omit-frame-pointer",
         "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=address,undefined",
         "CMAKE_SHARED_LINKER_FLAGS": "-fsanitize=address,undefined",
@@ -262,6 +263,7 @@
       },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
+        "CHRONON3D_BUILD_C_API": "ON",
         "VCPKG_MANIFEST_FEATURES": "tests"
       }
     },
@@ -275,6 +277,7 @@
       },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
+        "CHRONON3D_BUILD_C_API": "ON",
         "CHRONON3D_UNITY_BUILD": "OFF",
         "VCPKG_MANIFEST_FEATURES": "tests"
       }
