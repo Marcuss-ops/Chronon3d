@@ -45,6 +45,9 @@ add_library(chronon3d_graph STATIC
     pipeline/tile_execution_policy.cpp
     pipeline/camera_change_policy.cpp
     pipeline/dirty_safety_policy.cpp
+    pipeline/dirty_telemetry_reporter.cpp
+    pipeline/tile_execution_coordinator.cpp
+    pipeline/frame_timing_recorder.cpp
     pipeline/scene_fingerprint.cpp
     pipeline/frame_reuse_policy.cpp
     pipeline/pool_preallocation.cpp
