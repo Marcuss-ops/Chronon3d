@@ -30,6 +30,7 @@
 // =============================================================================
 
 #include <doctest/doctest.h>
+#include <glm/gtx/quaternion.hpp>
 #include <chronon3d/render_graph/compiler/compiled_scene_program.hpp>
 #include <chronon3d/render_graph/compiler/scene_binding.hpp>
 #include <chronon3d/render_graph/render_graph.hpp>
@@ -191,11 +192,10 @@ TEST_CASE("scene_program: different structure when effect added") {
     if (layers_b.size() >= 2) {
         // Add an Exposure effect — this changes structure because a new
         // EffectStack node must be added.
-        Effect e;
-        e.descriptor.id = "exposure";
-        e.effect_type = effects::EffectType::Brightness;
-        e.enabled = true;
-        e.params = BrightnessParams{0.5f};
+        effects::EffectInstance e{
+            effects::EffectDescriptor{.id = "exposure"},
+            BrightnessParams{0.5f}
+        };
         layers_b[1].effects.push_back(std::move(e));
     }
 
@@ -259,9 +259,9 @@ TEST_CASE("scene_program: binding table construction") {
     RenderGraph graph;
     auto source_id = graph.add_node(std::make_unique<SourceNode>(
         "test_source", RenderNode{}, cache::NodeCacheKey{}, false));
-    auto xform_id = graph.add_node(std::make_unique<TransformNode>());
+    auto xform_id = graph.add_node(std::make_unique<TransformNode>(Transform{}));
     auto effect_id = graph.add_node(std::make_unique<EffectStackNode>(
-        EffectStack{}, std::string("test"), Frame{0}));
+        EffectStack{}, Frame{0}));
 
     graph.connect(source_id, xform_id);
     graph.connect(xform_id, effect_id);
@@ -336,9 +336,9 @@ TEST_CASE("scene_program: binding table skips nodes without metadata") {
 TEST_CASE("scene_program: effect range merging") {
     RenderGraph graph;
     auto effect1 = graph.add_node(std::make_unique<EffectStackNode>(
-        EffectStack{}, "layer0", Frame{0}));
+        EffectStack{}, Frame{0}));
     auto effect2 = graph.add_node(std::make_unique<EffectStackNode>(
-        EffectStack{}, "layer0", Frame{0}));
+        EffectStack{}, Frame{0}));
 
     graph.connect(effect1, effect2);
     graph.set_output(effect2);
@@ -377,24 +377,24 @@ TEST_CASE("scene_program: SceneStructureKey comparison") {
     a.width = 1920;
     a.height = 1080;
 
-    SECTION("same keys are equal") {
+    SUBCASE("same keys are equal") {
         b = a;
         CHECK(a == b);
     }
 
-    SECTION("different topology hash") {
+    SUBCASE("different topology hash") {
         b = a;
         b.topology_hash = 0x9999;
         CHECK(a != b);
     }
 
-    SECTION("different active set hash") {
+    SUBCASE("different active set hash") {
         b = a;
         b.active_set_hash = 0x9999;
         CHECK(a != b);
     }
 
-    SECTION("different width") {
+    SUBCASE("different width") {
         b = a;
         b.width = 1280;
         CHECK(a != b);
@@ -518,7 +518,7 @@ TEST_CASE("scene_program: animated transforms preserve structure hash "
     REQUIRE(layers_50.size() >= 2);
     layers_50[1].transform.position = Vec3{500.0f, 300.0f, 0.0f};
     layers_50[1].transform.opacity = 0.25f;
-    layers_50[1].transform.rotation_euler = Vec3{0.0f, 0.0f, 45.0f};
+    layers_50[1].transform.rotation = glm::angleAxis(glm::radians(45.0f), Vec3{0.0f, 0.0f, 1.0f});
     auto key_50 = make_key(scene_50);
 
     // Structure keys MUST be equal (transform is excluded from structure hash).
@@ -595,7 +595,7 @@ TEST_CASE("scene_program: binding table valid after optimizer pass") {
         "src_a", RenderNode{}, cache::NodeCacheKey{}, false));
     auto xform_a = graph.add_node(std::make_unique<TransformNode>(Transform{}));
     auto effect_a = graph.add_node(std::make_unique<EffectStackNode>(
-        EffectStack{}, "layer_0", Frame{0}));
+        EffectStack{}, Frame{0}));
 
     auto src_b = graph.add_node(std::make_unique<SourceNode>(
         "src_b", RenderNode{}, cache::NodeCacheKey{}, false));
@@ -702,7 +702,7 @@ TEST_CASE("scene_program: optimizer preserves binding metadata "
         "src", RenderNode{}, cache::NodeCacheKey{}, false));
     auto xform = graph.add_node(std::make_unique<TransformNode>(Transform{}));
     auto effect = graph.add_node(std::make_unique<EffectStackNode>(
-        EffectStack{}, "layer", Frame{0}));
+        EffectStack{}, Frame{0}));
 
     graph.connect(src, xform);
     graph.connect(xform, effect);
