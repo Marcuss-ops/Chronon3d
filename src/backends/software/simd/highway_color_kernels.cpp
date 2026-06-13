@@ -874,9 +874,9 @@ static void composite_normal_premul_safe(Color* dst, const Color* src, int pixel
     }
 }
 
-void composite_normal_premul(Color* __restrict__ dst, const Color* __restrict__ src, int pixel_count) {
+void composite_normal_premul(Color* __restrict__ dst, const Color* __restrict__ src, int pixel_count, bool force_scalar) {
     if (pixel_count <= 0) return;
-    if (!check_nan_canary(dst, src, pixel_count) || g_force_scalar_normal_blend.load(std::memory_order_relaxed)) {
+    if (!check_nan_canary(dst, src, pixel_count) || force_scalar || g_force_scalar_normal_blend.load(std::memory_order_relaxed)) {
         composite_normal_premul_safe(dst, src, pixel_count);
         return;
     }
