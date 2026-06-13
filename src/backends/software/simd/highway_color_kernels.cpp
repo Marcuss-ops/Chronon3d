@@ -805,119 +805,6 @@ HWY_AFTER_NAMESPACE();
 #if HWY_ONCE
 namespace chronon3d::simd {
 
-// ── B3 safe scalar fallbacks ────────────────────────────────────────────────
-// NOTE: These are defined in the HWY_ONCE block (chronon3d::simd namespace)
-// because they are called from the dispatch functions below, not from within
-// the per-target HWY_NAMESPACE.
-
-static bool has_bad_color(const Color& c) {
-    return std::isnan(c.r) || std::isnan(c.g) || std::isnan(c.b) || std::isnan(c.a) ||
-           std::isinf(c.r) || std::isinf(c.g) || std::isinf(c.b) || std::isinf(c.a);
-}
-
-static void composite_soft_light_safe(Color* dst, const Color* src, int pixel_count) {
-    for (int i = 0; i < pixel_count; ++i) {
-        if (has_bad_color(src[i]) || has_bad_color(dst[i])) continue;
-        Color& d = dst[i];
-        const Color& s = src[i];
-        const float new_a = s.a + d.a * (1.0f - s.a);
-        if (new_a <= 0.0f) { d = Color::transparent(); continue; }
-        const float Cs_r = s.a > 1e-8f ? std::min(s.r / s.a, 1.0f) : 0.0f;
-        const float Cs_g = s.a > 1e-8f ? std::min(s.g / s.a, 1.0f) : 0.0f;
-        const float Cs_b = s.a > 1e-8f ? std::min(s.b / s.a, 1.0f) : 0.0f;
-        const float Cb_r = d.a > 1e-8f ? std::min(d.r / d.a, 1.0f) : 0.0f;
-        const float Cb_g = d.a > 1e-8f ? std::min(d.g / d.a, 1.0f) : 0.0f;
-        const float Cb_b = d.a > 1e-8f ? std::min(d.b / d.a, 1.0f) : 0.0f;
-        const float br = blend_math::blend_soft_light(Cb_r, Cs_r);
-        const float bg = blend_math::blend_soft_light(Cb_g, Cs_g);
-        const float bb = blend_math::blend_soft_light(Cb_b, Cs_b);
-        const float inv_As = 1.0f - s.a;
-        const float inv_Ab = 1.0f - d.a;
-        const float AsAb = s.a * d.a;
-        d.r = d.r * inv_As + s.r * inv_Ab + br * AsAb;
-        d.g = d.g * inv_As + s.g * inv_Ab + bg * AsAb;
-        d.b = d.b * inv_As + s.b * inv_Ab + bb * AsAb;
-        d.a = new_a;
-    }
-}
-
-static void composite_hard_light_safe(Color* dst, const Color* src, int pixel_count) {
-    for (int i = 0; i < pixel_count; ++i) {
-        if (has_bad_color(src[i]) || has_bad_color(dst[i])) continue;
-        Color& d = dst[i];
-        const Color& s = src[i];
-        const float new_a = s.a + d.a * (1.0f - s.a);
-        if (new_a <= 0.0f) { d = Color::transparent(); continue; }
-        const float Cs_r = s.a > 1e-8f ? std::min(s.r / s.a, 1.0f) : 0.0f;
-        const float Cs_g = s.a > 1e-8f ? std::min(s.g / s.a, 1.0f) : 0.0f;
-        const float Cs_b = s.a > 1e-8f ? std::min(s.b / s.a, 1.0f) : 0.0f;
-        const float Cb_r = d.a > 1e-8f ? std::min(d.r / d.a, 1.0f) : 0.0f;
-        const float Cb_g = d.a > 1e-8f ? std::min(d.g / d.a, 1.0f) : 0.0f;
-        const float Cb_b = d.a > 1e-8f ? std::min(d.b / d.a, 1.0f) : 0.0f;
-        const float br = blend_math::blend_hard_light(Cb_r, Cs_r);
-        const float bg = blend_math::blend_hard_light(Cb_g, Cs_g);
-        const float bb = blend_math::blend_hard_light(Cb_b, Cs_b);
-        const float inv_As = 1.0f - s.a;
-        const float inv_Ab = 1.0f - d.a;
-        const float AsAb = s.a * d.a;
-        d.r = d.r * inv_As + s.r * inv_Ab + br * AsAb;
-        d.g = d.g * inv_As + s.g * inv_Ab + bg * AsAb;
-        d.b = d.b * inv_As + s.b * inv_Ab + bb * AsAb;
-        d.a = new_a;
-    }
-}
-
-static void composite_color_dodge_safe(Color* dst, const Color* src, int pixel_count) {
-    for (int i = 0; i < pixel_count; ++i) {
-        if (has_bad_color(src[i]) || has_bad_color(dst[i])) continue;
-        Color& d = dst[i];
-        const Color& s = src[i];
-        const float new_a = s.a + d.a * (1.0f - s.a);
-        if (new_a <= 0.0f) { d = Color::transparent(); continue; }
-        const float Cs_r = s.a > 1e-8f ? std::min(s.r / s.a, 1.0f) : 0.0f;
-        const float Cs_g = s.a > 1e-8f ? std::min(s.g / s.a, 1.0f) : 0.0f;
-        const float Cs_b = s.a > 1e-8f ? std::min(s.b / s.a, 1.0f) : 0.0f;
-        const float Cb_r = d.a > 1e-8f ? std::min(d.r / d.a, 1.0f) : 0.0f;
-        const float Cb_g = d.a > 1e-8f ? std::min(d.g / d.a, 1.0f) : 0.0f;
-        const float Cb_b = d.a > 1e-8f ? std::min(d.b / d.a, 1.0f) : 0.0f;
-        const float br = blend_math::blend_color_dodge(Cb_r, Cs_r);
-        const float bg = blend_math::blend_color_dodge(Cb_g, Cs_g);
-        const float bb = blend_math::blend_color_dodge(Cb_b, Cs_b);
-        const float inv_As = 1.0f - s.a;
-        const float inv_Ab = 1.0f - d.a;
-        const float AsAb = s.a * d.a;
-        d.r = d.r * inv_As + s.r * inv_Ab + br * AsAb;
-        d.g = d.g * inv_As + s.g * inv_Ab + bg * AsAb;
-        d.b = d.b * inv_As + s.b * inv_Ab + bb * AsAb;
-        d.a = new_a;
-    }
-}
-
-static void composite_color_burn_safe(Color* dst, const Color* src, int pixel_count) {
-    for (int i = 0; i < pixel_count; ++i) {
-        if (has_bad_color(src[i]) || has_bad_color(dst[i])) continue;
-        Color& d = dst[i];
-        const Color& s = src[i];
-        const float new_a = s.a + d.a * (1.0f - s.a);
-        if (new_a <= 0.0f) { d = Color::transparent(); continue; }
-        const float Cs_r = s.a > 1e-8f ? std::min(s.r / s.a, 1.0f) : 0.0f;
-        const float Cs_g = s.a > 1e-8f ? std::min(s.g / s.a, 1.0f) : 0.0f;
-        const float Cs_b = s.a > 1e-8f ? std::min(s.b / s.a, 1.0f) : 0.0f;
-        const float Cb_r = d.a > 1e-8f ? std::min(d.r / d.a, 1.0f) : 0.0f;
-        const float Cb_g = d.a > 1e-8f ? std::min(d.g / d.a, 1.0f) : 0.0f;
-        const float Cb_b = d.a > 1e-8f ? std::min(d.b / d.a, 1.0f) : 0.0f;
-        const float br = blend_math::blend_color_burn(Cb_r, Cs_r);
-        const float bg = blend_math::blend_color_burn(Cb_g, Cs_g);
-        const float bb = blend_math::blend_color_burn(Cb_b, Cs_b);
-        const float inv_As = 1.0f - s.a;
-        const float inv_Ab = 1.0f - d.a;
-        const float AsAb = s.a * d.a;
-        d.r = d.r * inv_As + s.r * inv_Ab + br * AsAb;
-        d.g = d.g * inv_As + s.g * inv_Ab + bg * AsAb;
-        d.b = d.b * inv_As + s.b * inv_Ab + bb * AsAb;
-        d.a = new_a;
-    }
-}
 
 // ── B4: Safe scalar fallbacks for matte ─────────────────────────────────────
 
@@ -1176,6 +1063,112 @@ void composite_exclusion_premul(Color* __restrict__ dst, const Color* __restrict
         return;
     }
     HWY_DYNAMIC_DISPATCH(composite_exclusion_premul_impl)(reinterpret_cast<float*>(dst), reinterpret_cast<const float*>(src), pixel_count);
+}
+
+// ── B3 safe scalar fallbacks ────────────────────────────────────────────────
+
+static void composite_soft_light_safe(Color* dst, const Color* src, int pixel_count) {
+    for (int i = 0; i < pixel_count; ++i) {
+        if (has_bad_color(src[i]) || has_bad_color(dst[i])) continue;
+        Color& d = dst[i];
+        const Color& s = src[i];
+        const float new_a = s.a + d.a * (1.0f - s.a);
+        if (new_a <= 0.0f) { d = Color::transparent(); continue; }
+        const float Cs_r = s.a > 1e-8f ? std::min(s.r / s.a, 1.0f) : 0.0f;
+        const float Cs_g = s.a > 1e-8f ? std::min(s.g / s.a, 1.0f) : 0.0f;
+        const float Cs_b = s.a > 1e-8f ? std::min(s.b / s.a, 1.0f) : 0.0f;
+        const float Cb_r = d.a > 1e-8f ? std::min(d.r / d.a, 1.0f) : 0.0f;
+        const float Cb_g = d.a > 1e-8f ? std::min(d.g / d.a, 1.0f) : 0.0f;
+        const float Cb_b = d.a > 1e-8f ? std::min(d.b / d.a, 1.0f) : 0.0f;
+        const float br = blend_math::blend_soft_light(Cb_r, Cs_r);
+        const float bg = blend_math::blend_soft_light(Cb_g, Cs_g);
+        const float bb = blend_math::blend_soft_light(Cb_b, Cs_b);
+        const float inv_As = 1.0f - s.a;
+        const float inv_Ab = 1.0f - d.a;
+        const float AsAb = s.a * d.a;
+        d.r = d.r * inv_As + s.r * inv_Ab + br * AsAb;
+        d.g = d.g * inv_As + s.g * inv_Ab + bg * AsAb;
+        d.b = d.b * inv_As + s.b * inv_Ab + bb * AsAb;
+        d.a = new_a;
+    }
+}
+
+static void composite_hard_light_safe(Color* dst, const Color* src, int pixel_count) {
+    for (int i = 0; i < pixel_count; ++i) {
+        if (has_bad_color(src[i]) || has_bad_color(dst[i])) continue;
+        Color& d = dst[i];
+        const Color& s = src[i];
+        const float new_a = s.a + d.a * (1.0f - s.a);
+        if (new_a <= 0.0f) { d = Color::transparent(); continue; }
+        const float Cs_r = s.a > 1e-8f ? std::min(s.r / s.a, 1.0f) : 0.0f;
+        const float Cs_g = s.a > 1e-8f ? std::min(s.g / s.a, 1.0f) : 0.0f;
+        const float Cs_b = s.a > 1e-8f ? std::min(s.b / s.a, 1.0f) : 0.0f;
+        const float Cb_r = d.a > 1e-8f ? std::min(d.r / d.a, 1.0f) : 0.0f;
+        const float Cb_g = d.a > 1e-8f ? std::min(d.g / d.a, 1.0f) : 0.0f;
+        const float Cb_b = d.a > 1e-8f ? std::min(d.b / d.a, 1.0f) : 0.0f;
+        const float br = blend_math::blend_hard_light(Cb_r, Cs_r);
+        const float bg = blend_math::blend_hard_light(Cb_g, Cs_g);
+        const float bb = blend_math::blend_hard_light(Cb_b, Cs_b);
+        const float inv_As = 1.0f - s.a;
+        const float inv_Ab = 1.0f - d.a;
+        const float AsAb = s.a * d.a;
+        d.r = d.r * inv_As + s.r * inv_Ab + br * AsAb;
+        d.g = d.g * inv_As + s.g * inv_Ab + bg * AsAb;
+        d.b = d.b * inv_As + s.b * inv_Ab + bb * AsAb;
+        d.a = new_a;
+    }
+}
+
+static void composite_color_dodge_safe(Color* dst, const Color* src, int pixel_count) {
+    for (int i = 0; i < pixel_count; ++i) {
+        if (has_bad_color(src[i]) || has_bad_color(dst[i])) continue;
+        Color& d = dst[i];
+        const Color& s = src[i];
+        const float new_a = s.a + d.a * (1.0f - s.a);
+        if (new_a <= 0.0f) { d = Color::transparent(); continue; }
+        const float Cs_r = s.a > 1e-8f ? std::min(s.r / s.a, 1.0f) : 0.0f;
+        const float Cs_g = s.a > 1e-8f ? std::min(s.g / s.a, 1.0f) : 0.0f;
+        const float Cs_b = s.a > 1e-8f ? std::min(s.b / s.a, 1.0f) : 0.0f;
+        const float Cb_r = d.a > 1e-8f ? std::min(d.r / d.a, 1.0f) : 0.0f;
+        const float Cb_g = d.a > 1e-8f ? std::min(d.g / d.a, 1.0f) : 0.0f;
+        const float Cb_b = d.a > 1e-8f ? std::min(d.b / d.a, 1.0f) : 0.0f;
+        const float br = blend_math::blend_color_dodge(Cb_r, Cs_r);
+        const float bg = blend_math::blend_color_dodge(Cb_g, Cs_g);
+        const float bb = blend_math::blend_color_dodge(Cb_b, Cs_b);
+        const float inv_As = 1.0f - s.a;
+        const float inv_Ab = 1.0f - d.a;
+        const float AsAb = s.a * d.a;
+        d.r = d.r * inv_As + s.r * inv_Ab + br * AsAb;
+        d.g = d.g * inv_As + s.g * inv_Ab + bg * AsAb;
+        d.b = d.b * inv_As + s.b * inv_Ab + bb * AsAb;
+        d.a = new_a;
+    }
+}
+
+static void composite_color_burn_safe(Color* dst, const Color* src, int pixel_count) {
+    for (int i = 0; i < pixel_count; ++i) {
+        if (has_bad_color(src[i]) || has_bad_color(dst[i])) continue;
+        Color& d = dst[i];
+        const Color& s = src[i];
+        const float new_a = s.a + d.a * (1.0f - s.a);
+        if (new_a <= 0.0f) { d = Color::transparent(); continue; }
+        const float Cs_r = s.a > 1e-8f ? std::min(s.r / s.a, 1.0f) : 0.0f;
+        const float Cs_g = s.a > 1e-8f ? std::min(s.g / s.a, 1.0f) : 0.0f;
+        const float Cs_b = s.a > 1e-8f ? std::min(s.b / s.a, 1.0f) : 0.0f;
+        const float Cb_r = d.a > 1e-8f ? std::min(d.r / d.a, 1.0f) : 0.0f;
+        const float Cb_g = d.a > 1e-8f ? std::min(d.g / d.a, 1.0f) : 0.0f;
+        const float Cb_b = d.a > 1e-8f ? std::min(d.b / d.a, 1.0f) : 0.0f;
+        const float br = blend_math::blend_color_burn(Cb_r, Cs_r);
+        const float bg = blend_math::blend_color_burn(Cb_g, Cs_g);
+        const float bb = blend_math::blend_color_burn(Cb_b, Cs_b);
+        const float inv_As = 1.0f - s.a;
+        const float inv_Ab = 1.0f - d.a;
+        const float AsAb = s.a * d.a;
+        d.r = d.r * inv_As + s.r * inv_Ab + br * AsAb;
+        d.g = d.g * inv_As + s.g * inv_Ab + bg * AsAb;
+        d.b = d.b * inv_As + s.b * inv_Ab + bb * AsAb;
+        d.a = new_a;
+    }
 }
 
 void composite_soft_light_premul(Color* __restrict__ dst, const Color* __restrict__ src, int pixel_count) {

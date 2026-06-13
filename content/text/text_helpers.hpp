@@ -106,6 +106,30 @@ inline TextParams centered_text(CenterTextOptions o) {
     };
 }
 
+// ── UTF-8 code-point-safe helpers ──────────────────────────────────────
+
+/// Count Unicode code points (not bytes) in a UTF-8 string.
+/// Continuation bytes (10xxxxxx) are skipped.
+inline size_t utf8_code_point_count(const std::string& s) {
+    size_t count = 0;
+    for (size_t i = 0; i < s.size(); ++i) {
+        if ((static_cast<unsigned char>(s[i]) & 0xC0) != 0x80) ++count;
+    }
+    return count;
+}
+
+/// Find the byte offset after exactly N complete code points.
+/// Returns s.size() if N exceeds the string length.  Safe for use with
+/// std::string::substr() — never splits a multi-byte character.
+inline size_t utf8_byte_offset_at(const std::string& s, size_t code_points) {
+    size_t cp = 0;
+    for (size_t i = 0; i < s.size(); ++i) {
+        if (cp == code_points) return i;
+        if ((static_cast<unsigned char>(s[i]) & 0xC0) != 0x80) ++cp;
+    }
+    return s.size();
+}
+
 // ═════════════════════════════════════════════════════════════════════════════
 // 2. typewriter_text — simple substr-based reveal
 // ═════════════════════════════════════════════════════════════════════════════
@@ -113,6 +137,10 @@ inline TextParams centered_text(CenterTextOptions o) {
 // Like centered_text but reveals `text` character-by-character based on
 // the current frame.  Returns a single space (" ") for frame 0 so the
 // text layer never collapses to zero size.
+//
+// **UTF-8 safe**: uses code-point counting, not byte counting, so strings
+// with multi-byte characters (emoji, accented letters, CJK) are never split
+// mid-character.
 //
 // TypewriterOptions gives full control over the reveal:
 //   - easing:       curve applied to the linear progress (default Linear)
@@ -137,7 +165,7 @@ inline TextParams typewriter_text(CenterTextOptions o,
                                   f32 chars_per_frame = 1.5f,
                                   TypewriterOptions tw = {}) {
     const f32 raw_frame = static_cast<f32>(frame) - static_cast<f32>(tw.start_delay);
-    const f32 total_chars_f = static_cast<f32>(o.text.size());
+    const f32 total_chars_f = static_cast<f32>(utf8_code_point_count(o.text));
 
     // Nothing visible yet (before delay or at frame 0)
     if (raw_frame < 0.0f || total_chars_f <= 0.0f) {
@@ -184,13 +212,13 @@ inline TextParams typewriter_text(CenterTextOptions o,
 
     std::string visible = (revealed == 0)
         ? std::string(" ")
-        : o.text.substr(0, revealed);
+        : o.text.substr(0, utf8_byte_offset_at(o.text, revealed));
 
     // Fade: during a character transition the layer alpha dips, creating a
     // soft leading-edge glow.  fade_chars is clamped to [0,1] so the text
     // never goes fully dark; a floor of 0.25 keeps it readable at all times.
     Color c = o.color;
-    if (tw.fade_chars > 0.0f && revealed < o.text.size() && revealed > 0) {
+    if (tw.fade_chars > 0.0f && revealed < static_cast<size_t>(total_chars_f) && revealed > 0) {
         const f32 fade_range = std::clamp(tw.fade_chars, 0.0f, 1.0f);
         const f32 fade_t = std::clamp(1.0f - fade_range * partial, 0.25f, 1.0f);
         c.a *= fade_t;

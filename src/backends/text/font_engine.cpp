@@ -138,10 +138,11 @@ struct FontEngine::Impl {
         return entry;
     }
 
-        // Scale factor for HarfBuzz glyph positions (font units -> pixels).
-    [[nodiscard]] static float font_unit_scale(FT_Face face, float font_size) {
-        if (!face || face->units_per_EM == 0) return font_size / 64.0f;
-        return font_size / static_cast<float>(face->units_per_EM);
+        // After hb_ft_font_changed(), both HarfBuzz glyph positions and
+    // FT glyph/size metrics are in 26.6 fixed-point format.
+    // Multiplying by 1/64 converts to pixels for both subsystems.
+    [[nodiscard]] static float pixel_scale_26_6() {
+        return 1.0f / 64.0f;
     }
 
     // FT size metrics and glyph metrics are in 26.6 fixed-point after FT_Set_Pixel_Sizes.
@@ -185,8 +186,7 @@ std::optional<GlyphRun> FontEngine::shape_text(
     if (!entry->valid()) return std::nullopt;
 
     FT_Face face = entry->ft_face;
-    const float hb_scale = Impl::font_unit_scale(face, font_size);
-    const float ft_scale = Impl::ft_pixel_scale();
+    const float scale = Impl::pixel_scale_26_6();
 
     // Re-set pixel size in case font_size differs from cache creation size.
     // Must call hb_ft_font_changed() so HarfBuzz sees the new FT scale.
@@ -263,10 +263,10 @@ std::optional<GlyphRun> FontEngine::shape_text(
     for (unsigned int i = 0; i < glyph_count; ++i) {
         GlyphPosition gp;
         gp.glyph_id = static_cast<u32>(glyph_infos[i].codepoint);
-        gp.x = cursor_x + static_cast<float>(glyph_positions[i].x_offset) * hb_scale;
-        gp.y = cursor_y + static_cast<float>(glyph_positions[i].y_offset) * hb_scale;
-        gp.advance_x = static_cast<float>(glyph_positions[i].x_advance) * hb_scale;
-        gp.advance_y = static_cast<float>(glyph_positions[i].y_advance) * hb_scale;
+        gp.x = cursor_x + static_cast<float>(glyph_positions[i].x_offset) * scale;
+        gp.y = cursor_y + static_cast<float>(glyph_positions[i].y_offset) * scale;
+        gp.advance_x = static_cast<float>(glyph_positions[i].x_advance) * scale;
+        gp.advance_y = static_cast<float>(glyph_positions[i].y_advance) * scale;
         gp.cluster = static_cast<u32>(glyph_infos[i].cluster);
         gp.is_cluster_start = (glyph_infos[i].cluster == 0) ||
                               (i > 0 && glyph_infos[i].cluster != glyph_infos[i - 1].cluster);
@@ -284,10 +284,10 @@ std::optional<GlyphRun> FontEngine::shape_text(
             FT_Error err = FT_Load_Glyph(face, gp.glyph_id, FT_LOAD_DEFAULT);
             if (err == 0) {
                 FT_GlyphSlot slot = face->glyph;
-                gp.bbox_x0 = static_cast<float>(slot->metrics.horiBearingX) * ft_scale;
-                gp.bbox_y0 = static_cast<float>(slot->metrics.horiBearingY) * ft_scale;
-                gp.bbox_x1 = gp.bbox_x0 + static_cast<float>(slot->metrics.width) * ft_scale;
-                gp.bbox_y1 = gp.bbox_y0 - static_cast<float>(slot->metrics.height) * ft_scale;
+                gp.bbox_x0 = static_cast<float>(slot->metrics.horiBearingX) * scale;
+                gp.bbox_y0 = static_cast<float>(slot->metrics.horiBearingY) * scale;
+                gp.bbox_x1 = gp.bbox_x0 + static_cast<float>(slot->metrics.width) * scale;
+                gp.bbox_y1 = gp.bbox_y0 - static_cast<float>(slot->metrics.height) * scale;
 
                 m_impl->glyph_bbox_cache.put(key, GlyphBBoxCacheEntry{
                     gp.bbox_x0, gp.bbox_y0, gp.bbox_x1, gp.bbox_y1
@@ -304,10 +304,10 @@ std::optional<GlyphRun> FontEngine::shape_text(
 
     run.width = cursor_x;
     // face->size->metrics are in 26.6 after FT_Set_Pixel_Sizes
-    run.ascent  = static_cast<float>(face->size->metrics.ascender)  * ft_scale;
-    run.descent = -static_cast<float>(face->size->metrics.descender) * ft_scale;
+    run.ascent  = static_cast<float>(face->size->metrics.ascender)  * scale;
+    run.descent = -static_cast<float>(face->size->metrics.descender) * scale;
     run.baseline = 0.0f;
-    run.line_height = static_cast<float>(face->size->metrics.height) * ft_scale;
+    run.line_height = static_cast<float>(face->size->metrics.height) * scale;
 
     return run;
 }
@@ -336,28 +336,28 @@ FontEngine::FontMetrics FontEngine::get_font_metrics(const FontSpec& spec, float
     if (!entry->valid()) return metrics;
 
     FT_Face face = entry->ft_face;
-    const float ft_scale = Impl::ft_pixel_scale();
+    const float scale = Impl::pixel_scale_26_6();
 
     FT_Error size_err = FT_Set_Pixel_Sizes(face, 0, static_cast<unsigned int>(std::ceil(font_size)));
     if (size_err != 0) return metrics;
 
     // face->size->metrics are in 26.6 after FT_Set_Pixel_Sizes
-    metrics.ascent  = static_cast<float>(face->size->metrics.ascender)  * ft_scale;
-    metrics.descent = -static_cast<float>(face->size->metrics.descender) * ft_scale;
-    metrics.line_height = static_cast<float>(face->size->metrics.height) * ft_scale;
+    metrics.ascent  = static_cast<float>(face->size->metrics.ascender)  * scale;
+    metrics.descent = -static_cast<float>(face->size->metrics.descender) * scale;
+    metrics.line_height = static_cast<float>(face->size->metrics.height) * scale;
 
     // x-height from 'x' glyph, cap-height from 'H' glyph (glyph metrics in 26.6)
     FT_Load_Char(face, 'x', FT_LOAD_DEFAULT);
     if (face->glyph) {
-        metrics.x_height = static_cast<float>(face->glyph->metrics.horiBearingY) * ft_scale;
+        metrics.x_height = static_cast<float>(face->glyph->metrics.horiBearingY) * scale;
     }
 
     FT_Load_Char(face, 'H', FT_LOAD_DEFAULT);
     if (face->glyph) {
-        metrics.cap_height = static_cast<float>(face->glyph->metrics.horiBearingY) * ft_scale;
+        metrics.cap_height = static_cast<float>(face->glyph->metrics.horiBearingY) * scale;
     }
 
-    metrics.max_advance = static_cast<float>(face->size->metrics.max_advance) * ft_scale;
+    metrics.max_advance = static_cast<float>(face->size->metrics.max_advance) * scale;
     return metrics;
 }
 

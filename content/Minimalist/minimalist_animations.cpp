@@ -215,4 +215,80 @@ Composition minimalist_text_tw_bold() {
     });
 }
 
+// ── Unicode typewriter — verifies UTF-8 safe reveal ─────────────────────
+//
+// Uses typewriter_text() (the simple substr-based reveal) with strings
+// that contain multi-byte characters: accented letters (è, ï), emoji
+// (☕, 🚀, 🎉, ✨), and CJK (世界).  The UTF-8 fix ensures these are
+// never split mid-character — each code point is revealed atomically.
+
+Composition minimalist_text_typewriter_unicode() {
+    return composition({.name = "MinimalistTextTypewriterUnicode", .width = 1920, .height = 1080, .duration = 280}, [](const FrameContext& ctx) {
+        SceneBuilder s(ctx);
+        add_black_background(s);
+
+        // Line 1 — accented + emoji
+        s.layer("line1", [&ctx](LayerBuilder& l) {
+            l.pin_to(Anchor::Center);
+            l.text("t", text::typewriter_text(
+                text::CenterTextOptions{
+                    .text = "Caffè ☕ — buongiorno!",
+                    .box = Vec2{1400.0f, 160.0f},
+                    .pos = Vec3{0.0f, -100.0f, 0.0f},
+                    .font_size = 64.0f,
+                    .tracking = 3.0f,
+                },
+                ctx.frame, 1.2f,
+                text::TypewriterOptions{
+                    .easing = EasingCurve{Easing::OutCubic},
+                    .start_delay = Frame{5},
+                    .fade_chars = 1.0f,
+                }
+            ));
+        });
+
+        // Line 2 — mixed scripts: CJK + emoji + accented
+        s.layer("line2", [&ctx](LayerBuilder& l) {
+            l.pin_to(Anchor::Center);
+            l.text("t", text::typewriter_text(
+                text::CenterTextOptions{
+                    .text = "Hello 世界 🎉 café naïve résumé",
+                    .box = Vec2{1400.0f, 160.0f},
+                    .pos = Vec3{0.0f, 60.0f, 0.0f},
+                    .font_size = 56.0f,
+                    .tracking = 2.0f,
+                },
+                ctx.frame, 1.0f,
+                text::TypewriterOptions{
+                    .easing = EasingCurve{Easing::InOutCubic},
+                    .start_delay = Frame{40},
+                    .fade_chars = 1.5f,
+                }
+            ));
+        });
+
+        // Line 3 — emoji-only at larger size
+        s.layer("line3", [&ctx](LayerBuilder& l) {
+            l.pin_to(Anchor::Center);
+            l.text("t", text::typewriter_text(
+                text::CenterTextOptions{
+                    .text = "🚀✨🌟💫🔥",
+                    .box = Vec2{800.0f, 140.0f},
+                    .pos = Vec3{0.0f, 200.0f, 0.0f},
+                    .font_size = 72.0f,
+                    .tracking = 8.0f,
+                },
+                ctx.frame, 0.6f,
+                text::TypewriterOptions{
+                    .easing = EasingCurve{Easing::OutExpo},
+                    .start_delay = Frame{90},
+                    .fade_chars = 2.0f,
+                }
+            ));
+        });
+
+        return s.build();
+    });
+}
+
 } // namespace chronon3d::content::minimalist
