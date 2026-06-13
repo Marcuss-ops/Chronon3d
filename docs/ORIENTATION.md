@@ -304,6 +304,35 @@ L'evoluzione V3 del motore è documentata in [`V3_BLUEPRINT.md`](V3_BLUEPRINT.md
 
 ---
 
+## API Changes (June 2026 Refactoring)
+
+### Renderer State Refactoring
+
+The `SoftwareRenderer` internal state has been decomposed into dedicated aggregates. These types live in the new headers under `include/chronon3d/backends/software/`:
+
+| Type | Header | Purpose |
+|---|---|---|
+| `RendererFrameHistory` | `renderer_types.hpp` | Per-frame camera + fingerprint history for fast-path reuse checks |
+| `RendererDirtyTelemetry` | `renderer_types.hpp` | Dirty-rect / tile-execution telemetry counters |
+| `RendererLayerHistory` | `renderer_types.hpp` | Per-layer bbox state for frame-to-frame dirty-rect diffing |
+| `LayerBBoxState` | `renderer_types.hpp` | Per-layer bounding box + diff state |
+| `RendererBufferRing` | `buffer_ring.hpp` | managed ping-pong framebuffer ring (replaces raw `m_ping_fb[]`) |
+| `TransformScratchBuffer` | `scratch_buffer.hpp` | managed transform scratch buffer (replaces raw `m_transform_scratch`) |
+| `CompiledGraphCache` | `graph_cache.hpp` | managed cached compiled render graph (replaces `m_cached_compiled_graph`) |
+
+**SoftwareRenderer accessors** — `SoftwareRenderer` now exposes `.frame_history()`, `.dirty_telemetry()`, `.layer_history()`, `.buffer_ring()`, `.scratch_buffer()`, and `.graph_cache()` instead of the old direct public members.
+
+**Deleted headers:**
+- `include/chronon3d/backends/software/software_renderer_internal.hpp` — removed; migrate includes to the four new headers above.
+
+### Breaking Changes
+
+- **`TextAnchor` is now an `enum class : u8`** (was a struct). Remove `.align` / `.padding` accessors — use `TextStyle::align` and `TextStyle::vertical_align` directly.
+- **`SceneBuilder` / `LayerBuilder` includes are no longer transitive.** Add `#include <chronon3d/scene/builders/scene_builder.hpp>` explicitly in your code.
+- **`project_layer_2_5d()`** Mat4 overload gains `bool diagnostics_enabled = false` default parameter.
+
+---
+
 ## API Overview
 
 ### Composition

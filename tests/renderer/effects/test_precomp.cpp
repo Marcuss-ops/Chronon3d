@@ -4,6 +4,7 @@
 #include <chronon3d/api/renderer.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/description/scene_description.hpp>
 #include <chronon3d/runtime/timeline_evaluator.hpp>
 #include <chronon3d/core/composition/composition_registry.hpp>
