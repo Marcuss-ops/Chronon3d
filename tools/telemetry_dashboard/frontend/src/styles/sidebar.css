@@ -3,16 +3,17 @@
   position: fixed;
   left: 0;
   top: 0;
-  width: 14px;
+  width: 8px;
   height: 100vh;
-  z-index: 999;
+  z-index: 1000;
   cursor: pointer;
-  transition: background 0.2s ease;
+  transition: background 0.2s ease, width 0.2s ease;
 }
 
 .sidebar-peek-trigger:hover {
-  background: rgba(139, 92, 246, 0.25);
-  box-shadow: 0 0 12px rgba(139, 92, 246, 0.3);
+  width: 12px;
+  background: rgba(139, 92, 246, 0.35);
+  box-shadow: 0 0 16px rgba(139, 92, 246, 0.4);
 }
 
 /* ── Sidebar (fixed, slide laterale) ── */
