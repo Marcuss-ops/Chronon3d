@@ -2,6 +2,7 @@
 
 #include <chronon3d/animation/easing/easing.hpp>
 #include <chronon3d/core/types/frame.hpp>
+#include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/core/types/types.hpp>
 
 #include <algorithm>
@@ -125,57 +126,27 @@ public:
 
     // ── Evaluation ───────────────────────────────────────────────────────────
 
+    /// Sub-frame evaluation (SampleTime) — the primary entry point.
+    [[nodiscard]] f32 evaluate(SampleTime time) const {
+        return evaluate_double(time.frame);
+    }
+
+    /// Double-precision evaluation — core interpolation engine.
+    [[nodiscard]] f32 evaluate(double frame) const {
+        return evaluate_double(frame);
+    }
+
+    /// Integer-frame evaluation (backward compatible).
     [[nodiscard]] f32 evaluate(Frame frame) const {
-        if (m_keyframes.empty()) {
-            return m_default_value;
-        }
+        return evaluate_double(static_cast<double>(frame));
+    }
 
-        ensure_sorted();
-
-        // Lazy auto-bezier computation
-        if (m_auto_bezier_dirty) {
-            compute_auto_beziers();
-            m_auto_bezier_dirty = false;
-        }
-
-        const Frame start_f = m_keyframes.front().frame;
-        const Frame end_f = m_keyframes.back().frame;
-
-        // Before first keyframe
-        if (frame <= start_f) return m_keyframes.front().value;
-        // After last keyframe
-        if (frame >= end_f) return m_keyframes.back().value;
-
-        // Find the segment containing this frame
-        auto it = std::lower_bound(m_keyframes.begin(), m_keyframes.end(), frame,
-            [](const AnimationKeyframe& kf, Frame f) { return kf.frame < f; });
-
-        if (it == m_keyframes.begin()) return it->value;
-
-        auto next = it;
-        auto prev = std::prev(it);
-
-        if (frame == next->frame) return next->value;
-
-        const f32 duration = static_cast<f32>(next->frame - prev->frame);
-        if (duration <= 0.0f) return prev->value;
-
-        const f32 t = static_cast<f32>(frame - prev->frame) / duration;
-
-        // Select interpolation method based on the outgoing interpolation
-        // of the previous keyframe (same as AE: the interp mode of the "from" key
-        // determines how the curve travels to the "to" key)
-        switch (prev->interp) {
-            case KeyInterp::Hold:
-                return prev->value;
-            case KeyInterp::Linear:
-                return eval_linear_segment(prev->value, next->value, t);
-            case KeyInterp::Bezier:
-            case KeyInterp::AutoBezier:
-                return eval_bezier_segment(*prev, *next, t);
-            default:
-                return eval_linear_segment(prev->value, next->value, t);
-        }
+    /// Check if this curve is animated (has keyframes beyond default).
+    [[nodiscard]] bool should_cache(SampleTime time) const {
+        if (m_keyframes.empty()) return false;
+        const double start_f = static_cast<double>(m_keyframes.front().frame);
+        const double end_f   = static_cast<double>(m_keyframes.back().frame);
+        return time.frame > start_f && time.frame < end_f;
     }
 
     // ── Queries ──────────────────────────────────────────────────────────────
@@ -294,6 +265,56 @@ private:
     // Evaluate a linear segment.
     [[nodiscard]] static f32 eval_linear_segment(f32 v0, f32 v1, f32 t) {
         return v0 + (v1 - v0) * t;
+    }
+
+    // Core double-precision evaluation engine — used by all evaluate() overloads.
+    [[nodiscard]] f32 evaluate_double(double frame) const {
+        if (m_keyframes.empty()) {
+            return m_default_value;
+        }
+
+        ensure_sorted();
+
+        if (m_auto_bezier_dirty) {
+            compute_auto_beziers();
+            m_auto_bezier_dirty = false;
+        }
+
+        const double start_f = static_cast<double>(m_keyframes.front().frame);
+        const double end_f   = static_cast<double>(m_keyframes.back().frame);
+
+        if (frame <= start_f) return m_keyframes.front().value;
+        if (frame >= end_f)   return m_keyframes.back().value;
+
+        // Find the segment containing this frame (binary search with double comparison)
+        auto it = std::lower_bound(m_keyframes.begin(), m_keyframes.end(), frame,
+            [](const AnimationKeyframe& kf, double f) {
+                return static_cast<double>(kf.frame) < f;
+            });
+
+        if (it == m_keyframes.begin()) return it->value;
+        if (it == m_keyframes.end()) return m_keyframes.back().value;
+
+        const auto& next = *it;
+        const auto& prev = *std::prev(it);
+
+        const double prev_f = static_cast<double>(prev.frame);
+        const double next_f = static_cast<double>(next.frame);
+        if (next_f <= prev_f) return prev.value;
+
+        const f32 t = static_cast<f32>((frame - prev_f) / (next_f - prev_f));
+
+        switch (prev.interp) {
+            case KeyInterp::Hold:
+                return prev.value;
+            case KeyInterp::Linear:
+                return eval_linear_segment(prev.value, next.value, t);
+            case KeyInterp::Bezier:
+            case KeyInterp::AutoBezier:
+                return eval_bezier_segment(prev, next, t);
+            default:
+                return eval_linear_segment(prev.value, next.value, t);
+        }
     }
 
     f32 m_default_value{0.0f};

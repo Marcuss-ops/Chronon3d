@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/core/types/frame_context.hpp>
+#include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/scene/model/camera/camera.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/assets/asset_registry.hpp>
@@ -39,17 +40,28 @@ public:
         return evaluate(frame, 0.0f, res);
     }
 
+    /// Sub-frame evaluation (SampleTime) — enables true multi-sample motion blur.
+    [[nodiscard]] Scene evaluate(SampleTime time,
+                                 std::pmr::memory_resource* res = std::pmr::get_default_resource()) const {
+        return evaluate_double(time.frame, res);
+    }
+
     // Evaluate at a fractional frame offset (used by motion blur subsampling).
     [[nodiscard]] Scene evaluate(Frame frame, f32 frame_time,
                                  std::pmr::memory_resource* res = std::pmr::get_default_resource()) const {
-        // Handle auto-load / auto-mount of assets and props
+        return evaluate_double(static_cast<double>(frame) + static_cast<double>(frame_time), res);
+    }
+
+private:
+    [[nodiscard]] Scene evaluate_double(double frame,
+                                        std::pmr::memory_resource* res) const {
         if (!m_spec.assets_root.empty()) {
             AssetRegistry::mount(m_spec.assets_root);
         }
-        
+
         FrameContext ctx{
-            .frame      = frame,
-            .frame_time = frame_time,
+            .frame      = Frame{static_cast<i64>(std::floor(frame))},
+            .frame_time = static_cast<f32>(frame - std::floor(frame)),
             .duration   = m_spec.duration,
             .frame_rate = m_spec.frame_rate,
             .width      = m_spec.width,
@@ -58,6 +70,8 @@ public:
         };
         return m_render(ctx);
     }
+
+public:
 
     Camera camera;
 

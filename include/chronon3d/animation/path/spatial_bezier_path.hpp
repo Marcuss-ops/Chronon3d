@@ -169,7 +169,7 @@ private:
     void ensure_arc_length_table() const {
         if (!m_arc_length_dirty) return;
 
-        constexpr int kSamples = 256;
+        constexpr int kSamples = 512;
         m_samples.resize(kSamples + 1);
         m_arc_lengths.resize(kSamples + 1);
 
@@ -202,6 +202,44 @@ enum class AutoOrientMode {
     AlongPath,     // camera looks in direction of movement
     TowardsPOI     // camera always looks towards a fixed point of interest
 };
+
+// ── Quaternion helpers for camera orientation ───────────────────────────────
+
+/// Build a quaternion that looks along `forward` with `up` as the world-up axis.
+/// Uses quaternion lookAt to avoid gimbal lock from Euler conversion.
+/// In left-handed Y-up coordinates (Chronon3d convention): forward = -Z, up = +Y.
+[[nodiscard]] inline Quat quat_look_along(Vec3 forward, Vec3 up = {0.0f, 1.0f, 0.0f}) {
+    const f32 len = glm::length(forward);
+    if (len < 1e-6f) return glm::quat_identity<float, glm::defaultp>();
+    forward = forward / len;
+    return glm::quatLookAt(forward, up);
+}
+
+/// Compute a stable orientation that avoids flipping near poles.
+/// Uses the previous frame's orientation as a reference to pick the
+/// shortest-arc quaternion, preventing 180° flips.
+[[nodiscard]] inline Quat quat_stable_look_along(Vec3 forward, const Quat& prev_orientation,
+                                                   Vec3 up = {0.0f, 1.0f, 0.0f}) {
+    Quat target = quat_look_along(forward, up);
+    // If the dot product is negative, flip to the shorter arc
+    if (glm::dot(target, prev_orientation) < 0.0f) {
+        target = -target;
+    }
+    return target;
+}
+
+/// Convert a quaternion orientation + roll to Camera2_5D Euler rotation.
+/// Extracts pitch/yaw from the quaternion's forward direction and applies
+/// roll directly, matching the Camera2_5D Euler convention (x=pitch, y=yaw, z=roll).
+[[nodiscard]] inline Vec3 quat_to_camera_euler(const Quat& orientation, f32 roll_deg) {
+    // Extract forward direction from the quaternion
+    const Vec3 forward = orientation * Vec3{0.0f, 0.0f, -1.0f};
+    // Pitch and yaw from forward direction (same as legacy Euler code)
+    const f32 yaw   = glm::degrees(std::atan2(forward.x, -forward.z));
+    const f32 pitch = glm::degrees(std::asin(std::clamp(forward.y, -1.0f, 1.0f)));
+    // Roll is applied directly around the view axis
+    return Vec3{pitch, yaw, roll_deg};
+}
 
 // ── CameraMotionPath — lets CameraRig follow a 3D bezier path ───────────────
 //
@@ -250,19 +288,16 @@ struct CameraMotionPath {
         cam.fov_deg = fov_deg;
         cam.projection_mode = projection_mode;
 
-        // Auto-orientation
+        // Auto-orientation (quaternion-based, no gimbal lock)
         switch (auto_orient) {
             case AutoOrientMode::None:
                 break;
 
             case AutoOrientMode::AlongPath: {
                 Vec3 forward = path.forward_at(t);
-                // Compute rotation from forward direction
-                // In our coordinate system: forward is -Z, up is +Y
                 if (glm::length(forward) > 1e-4f) {
-                    f32 yaw = glm::degrees(std::atan2(forward.x, -forward.z));
-                    f32 pitch = glm::degrees(std::asin(std::clamp(forward.y, -1.0f, 1.0f)));
-                    cam.rotation = Vec3{pitch, yaw, roll_deg};
+                    const Quat orientation = quat_look_along(forward);
+                    cam.rotation = quat_to_camera_euler(orientation, roll_deg);
                     cam.point_of_interest = cam.position + forward * 1000.0f;
                     cam.point_of_interest_enabled = true;
                 }
@@ -272,7 +307,9 @@ struct CameraMotionPath {
             case AutoOrientMode::TowardsPOI: {
                 cam.point_of_interest = point_of_interest;
                 cam.point_of_interest_enabled = true;
-                cam.rotation = Vec3{0.0f, 0.0f, roll_deg};
+                const Vec3 look_dir = glm::normalize(point_of_interest - cam.position);
+                const Quat orientation = quat_look_along(look_dir);
+                cam.rotation = quat_to_camera_euler(orientation, roll_deg);
                 break;
             }
         }
@@ -305,19 +342,21 @@ struct CameraMotionPath {
             case AutoOrientMode::AlongPath: {
                 Vec3 forward = path.forward_at(t);
                 if (glm::length(forward) > 1e-4f) {
-                    f32 yaw = glm::degrees(std::atan2(forward.x, -forward.z));
-                    f32 pitch = glm::degrees(std::asin(std::clamp(forward.y, -1.0f, 1.0f)));
-                    cam.rotation = Vec3{pitch, yaw, roll_deg};
+                    const Quat orientation = quat_look_along(forward);
+                    cam.rotation = quat_to_camera_euler(orientation, roll_deg);
                     cam.point_of_interest = cam.position + forward * 1000.0f;
                     cam.point_of_interest_enabled = true;
                 }
                 break;
             }
-            case AutoOrientMode::TowardsPOI:
+            case AutoOrientMode::TowardsPOI: {
                 cam.point_of_interest = point_of_interest;
                 cam.point_of_interest_enabled = true;
-                cam.rotation = Vec3{0.0f, 0.0f, roll_deg};
+                const Vec3 look_dir = glm::normalize(point_of_interest - cam.position);
+                const Quat orientation = quat_look_along(look_dir);
+                cam.rotation = quat_to_camera_euler(orientation, roll_deg);
                 break;
+            }
         }
 
         return cam;

@@ -13,15 +13,16 @@ static Vec3 orbit_offset(f32 yaw_deg, f32 pitch_deg, f32 radius) {
     };
 }
 
+// ── Sub-frame evaluation (primary implementation) ────────────────────────
 Camera2_5D CameraRig::evaluate(
-    Frame frame,
+    SampleTime time,
     const TransformResolverResult* resolved
 ) const {
     Camera2_5D cam;
     cam.enabled = true;
     cam.projection_mode = projection_mode;
 
-    Vec3 resolved_target = target.evaluate(frame);
+    Vec3 resolved_target = target.evaluate(time);
 
     if (resolved && !target_name.empty()) {
         if (auto target_world = resolved->world_position(target_name)) {
@@ -29,16 +30,16 @@ Camera2_5D CameraRig::evaluate(
         }
     }
 
-    const f32 yaw    = orbit_yaw.evaluate(frame);
-    const f32 pitch  = orbit_pitch.evaluate(frame);
-    const f32 radius = orbit_radius.evaluate(frame);
+    const f32 yaw    = orbit_yaw.evaluate(time);
+    const f32 pitch  = orbit_pitch.evaluate(time);
+    const f32 radius = orbit_radius.evaluate(time);
 
     Vec3 pos = resolved_target + orbit_offset(yaw, pitch, radius);
 
-    pos += track.evaluate(frame);
+    pos += track.evaluate(time);
 
     const Vec3 forward = glm::normalize(resolved_target - pos);
-    pos += forward * dolly.evaluate(frame);
+    pos += forward * dolly.evaluate(time);
 
     if (resolved && !parent_name.empty()) {
         if (auto parent_matrix = resolved->world_matrix(parent_name)) {
@@ -48,26 +49,26 @@ Camera2_5D CameraRig::evaluate(
     }
 
     cam.position = pos;
-    cam.zoom = zoom.evaluate(frame);
-    cam.fov_deg = fov_deg.evaluate(frame);
+    cam.zoom = zoom.evaluate(time);
+    cam.fov_deg = fov_deg.evaluate(time);
 
     if (mode == CameraRigMode::TwoNode) {
         cam.point_of_interest = resolved_target;
         cam.point_of_interest_enabled = true;
-        cam.rotation.z = roll.evaluate(frame);
+        cam.rotation.z = roll.evaluate(time);
     } else {
         cam.point_of_interest_enabled = false;
         cam.rotation = Vec3{
-            tilt.evaluate(frame),
-            pan.evaluate(frame),
-            roll.evaluate(frame)
+            tilt.evaluate(time),
+            pan.evaluate(time),
+            roll.evaluate(time)
         };
     }
 
     cam.dof.enabled = dof.enabled;
-    cam.dof.focus_z = dof.use_target_z ? resolved_target.z : dof.focus_z.evaluate(frame);
-    cam.dof.aperture = dof.aperture.evaluate(frame);
-    cam.dof.max_blur = dof.max_blur.evaluate(frame);
+    cam.dof.focus_z = dof.use_target_z ? resolved_target.z : dof.focus_z.evaluate(time);
+    cam.dof.aperture = dof.aperture.evaluate(time);
+    cam.dof.max_blur = dof.max_blur.evaluate(time);
 
     return cam;
 }

@@ -271,6 +271,12 @@ private:
 
     /// Optional label for log messages (e.g. "Precomp:MyComposition").
     std::string m_log_label;
+
+    /// Telemetry counters (optional, not owned).
+    chronon3d::RenderCounters* m_counters{nullptr};
+
+    /// Callback invoked when an entry is evicted.
+    ProgramEvictCallback m_on_evict;
 };
 
 } // namespace chronon3d::cache

@@ -8,10 +8,35 @@
 
 namespace chronon3d {
 
+// ── Temporal sample pattern for motion blur ──────────────────────────────
+// Controls how sub-frame samples are distributed across the shutter window.
+// All patterns produce deterministic results for the same seed.
+enum class TemporalSamplePattern {
+    Uniform,     // evenly spaced samples (no jitter)
+    Stratified,  // one random point per equal-sized stratum
+    Halton       // low-discrepancy Halton sequence (2,3)
+};
+
+// ── Temporal reconstruction filter ───────────────────────────────────────
+// Weight function applied across the shutter window.
+enum class TemporalFilter {
+    Box,         // equal weight for all samples (1/N)
+    Triangle,    // linear ramp: highest weight at center, zero at edges
+    Gaussian     // Gaussian bell curve (sigma = exposure_duration / 4)
+};
+
 struct MotionBlurSettings {
     bool enabled{false};
-    int  samples{8};           // number of subframes to accumulate
-    f32  shutter_angle{180.0f}; // degrees; 180 = half-frame exposure
+    int  samples{8};                    // number of subframes to accumulate
+    f32  shutter_angle_deg{180.0f};     // degrees; 180 = half-frame exposure
+    f32  shutter_phase_deg{-90.0f};     // degrees; -90 centres exposure around the frame
+
+    TemporalSamplePattern pattern{TemporalSamplePattern::Stratified};
+    TemporalFilter        filter{TemporalFilter::Box};
+
+    // Deterministic seed for jitter patterns. Same seed → same jitter.
+    // Defaults to 0x3A5C9F1E (arbitrary constant).
+    u64  jitter_seed{0x3A5C9F1E};
 };
 
 struct DepthOfFieldSettings {

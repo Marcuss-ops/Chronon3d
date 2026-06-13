@@ -31,7 +31,10 @@ void register_video_commands(CLI::App& app, CliContext& ctx) {
     cmd->add_flag("--diagnostic", args.pipeline.diagnostic, "Enable diagnostic overlays and logging");
     cmd->add_flag("--motion-blur", args.pipeline.quality.motion_blur, "Enable temporal motion blur");
     cmd->add_option("--motion-blur-samples", args.pipeline.quality.motion_blur_samples, "Subframe samples")->default_val(8);
-    cmd->add_option("--shutter-angle", args.pipeline.quality.shutter_angle, "Shutter angle in degrees")->default_val(180.0f);
+    cmd->add_option("--shutter-angle", args.pipeline.quality.shutter_angle_deg, "Shutter angle in degrees")->default_val(180.0f);
+    cmd->add_option("--shutter-phase", args.pipeline.quality.shutter_phase_deg, "Shutter phase in degrees")->default_val(-90.0f);
+    cmd->add_option("--motion-blur-pattern", args.pipeline.quality.motion_blur_pattern, "Sample pattern: 0=Uniform, 1=Stratified, 2=Halton")->default_val(1);
+    cmd->add_option("--motion-blur-filter", args.pipeline.quality.motion_blur_filter, "Reconstruction filter: 0=Box, 1=Triangle, 2=Gaussian")->default_val(0);
     cmd->add_option("--frames-dir", args.frames_dir, "Override temporary frames directory");
     cmd->add_option("--ssaa", args.pipeline.quality.ssaa, "Super Sampling factor")->default_val(1.0f);
     cmd->add_option("--chunks", args.chunks, "Render frame range in N parallel chunks before encoding")->default_val(1);

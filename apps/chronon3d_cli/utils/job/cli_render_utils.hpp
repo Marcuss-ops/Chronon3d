@@ -26,9 +26,12 @@ RenderSettings settings_from_args(const Args& args,
     s.use_modular_graph         = args.pipeline.use_modular_graph;
     s.dirty.dirty_rects_v1      = args.pipeline.dirty_rects;
     s.dirty.tile_size           = args.pipeline.tile_size;
-    s.motion_blur.enabled       = motion_blur_allowed && args.pipeline.quality.motion_blur;
-    s.motion_blur.samples       = args.pipeline.quality.motion_blur_samples;
-    s.motion_blur.shutter_angle = args.pipeline.quality.shutter_angle;
+    s.motion_blur.enabled          = motion_blur_allowed && args.pipeline.quality.motion_blur;
+    s.motion_blur.samples          = args.pipeline.quality.motion_blur_samples;
+    s.motion_blur.shutter_angle_deg = args.pipeline.quality.shutter_angle_deg;
+    s.motion_blur.shutter_phase_deg = args.pipeline.quality.shutter_phase_deg;
+    s.motion_blur.pattern          = static_cast<TemporalSamplePattern>(args.pipeline.quality.motion_blur_pattern);
+    s.motion_blur.filter           = static_cast<TemporalFilter>(args.pipeline.quality.motion_blur_filter);
     s.ssaa_factor               = args.pipeline.quality.ssaa;
     s.force_scalar_normal_blend = args.pipeline.force_scalar_normal_blend;
     s.program_cache_capacity     = args.pipeline.program_cache_capacity;

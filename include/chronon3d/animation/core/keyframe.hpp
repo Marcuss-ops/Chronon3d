@@ -3,6 +3,7 @@
 #include <chronon3d/animation/easing/easing.hpp>
 #include <chronon3d/animation/easing/interpolate.hpp>
 #include <chronon3d/core/types/frame.hpp>
+#include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/core/types/types.hpp>
 
 #include <algorithm>
@@ -112,6 +113,21 @@ public:
 
     [[nodiscard]] T sample(Frame current) const {
         return sample_at(static_cast<f32>(current));
+    }
+
+    /// SampleTime-based sampling — delegates to double-precision sample_at.
+    [[nodiscard]] T evaluate(SampleTime time) const {
+        return sample_at(static_cast<f32>(time.frame));
+    }
+
+    /// Double-precision sampling.
+    [[nodiscard]] T evaluate(double frame) const {
+        return sample_at(static_cast<f32>(frame));
+    }
+
+    /// Integer-frame evaluation (backward compatible).
+    [[nodiscard]] T evaluate(Frame current) const {
+        return sample(current);
     }
 
     // Float-based query — required for motion blur subframe accuracy.

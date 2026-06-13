@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/core/types/frame.hpp>
+#include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/core/types/types.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <memory>
@@ -19,6 +20,10 @@ struct FrameCacheKey {
     i32 height{0};
     u64 scene_hash{0};
     u64 render_hash{0};
+
+    /// Sub-frame tick for motion blur / temporal supersampling.
+    /// Default 0 = integer frame (backward compatible).
+    SampleTimeKey sample_time_key{0};
 
     [[nodiscard]] u64 digest() const;
     [[nodiscard]] bool operator==(const FrameCacheKey&) const = default;

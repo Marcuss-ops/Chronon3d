@@ -102,15 +102,17 @@ double write_frame_to_disk(std::shared_ptr<Framebuffer> fb,
     total_encode_ms += encode_ms;
     frames_written++;
 
-        telemetry_frames.push_back({
-        .frame_number = static_cast<int>(frame),
-        .duration_ms = render_ms + encode_ms,
-        .cache_hit = cache_hit,
-        .dirty_area_ratio = dirty_ratio,
-        .graph_eval_ms = render_ms,
-        .encoder_ms = encode_ms,
-        .program_cache_capacity = program_cache_capacity
-    });
+    {
+        chronon3d::telemetry::FrameTelemetryRecord rec{};
+        rec.frame_number = static_cast<int>(frame);
+        rec.duration_ms = render_ms + encode_ms;
+        rec.cache_hit = cache_hit;
+        rec.dirty_area_ratio = dirty_ratio;
+        rec.graph_eval_ms = render_ms;
+        rec.encoder_ms = encode_ms;
+        rec.program_cache_capacity = program_cache_capacity;
+        telemetry_frames.push_back(rec);
+    }
 
     spdlog::info("Frame {} saved to {}", frame, path);
     return encode_ms;

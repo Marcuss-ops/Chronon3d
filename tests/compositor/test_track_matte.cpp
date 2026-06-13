@@ -15,7 +15,7 @@
 #include <chronon3d/compositor/composite_operator.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/simd/kernels.hpp>
-#include "helpers/check_helpers.hpp"
+#include <tests/helpers/check_helpers.hpp>
 
 #include <memory>
 #include <vector>
