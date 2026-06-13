@@ -70,7 +70,8 @@
         "CMAKE_BUILD_TYPE": "Debug",
         "CHRONON3D_BUILD_C_API": "ON",
         "CHRONON3D_UNITY_BUILD": "OFF",
-        "VCPKG_MANIFEST_FEATURES": "tests"
+        "VCPKG_MANIFEST_FEATURES": "tests",
+        "CHRONON3D_BUILD_TESTS": "ON"
       }
     },
     {
@@ -86,7 +87,8 @@
         "CHRONON3D_BUILD_C_API": "ON",
         "CHRONON3D_UNITY_BUILD": "OFF",
         "CHRONON3D_ENABLE_PROFILING": "OFF",
-        "VCPKG_MANIFEST_FEATURES": "tests"
+        "VCPKG_MANIFEST_FEATURES": "tests",
+        "CHRONON3D_BUILD_TESTS": "ON"
       }
     },
     {
