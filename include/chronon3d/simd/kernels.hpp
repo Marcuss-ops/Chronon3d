@@ -20,10 +20,6 @@
 namespace chronon3d {
 namespace simd {
 
-/// Global flag: when true, composite_normal_premul falls back to the safe scalar
-/// path instead of using Highway SIMD. Set before rendering for diagnostic purposes.
-extern std::atomic<bool> g_force_scalar_normal_blend;
-
 /// Premultiplied alpha "over" composite (SRC_OVER).
 ///
 /// For each pixel i:
@@ -31,9 +27,12 @@ extern std::atomic<bool> g_force_scalar_normal_blend;
 ///   dst[i].a   = src[i].a   + dst[i].a   * (1 - src[i].a)
 ///
 /// `pixel_count` is the number of Color (4×f32) elements to process.
+/// `force_scalar` — when true, use the safe scalar fallback instead of Highway SIMD
+/// (useful for diagnosing SIMD-related rendering regressions).
 void composite_normal_premul(Color* __restrict__ dst,
                               const Color* __restrict__ src,
-                              int pixel_count);
+                              int pixel_count,
+                              bool force_scalar = false);
 
 /// Add blend: dst[i] += src[i]  (per component).
 void composite_add_premul(Color* __restrict__ dst,

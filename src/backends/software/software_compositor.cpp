@@ -12,7 +12,7 @@
 
 namespace chronon3d {
 
-void SoftwareCompositor::composite_layer(Framebuffer& dst, const Framebuffer& src, BlendMode mode, const std::optional<raster::BBox>& clip, CompositeOperator op) {
+void SoftwareCompositor::composite_layer(Framebuffer& dst, const Framebuffer& src, BlendMode mode, const std::optional<raster::BBox>& clip, CompositeOperator op, bool force_scalar_normal_blend) {
     i32 x0 = 0, y0 = 0, x1 = dst.width(), y1 = dst.height();
     if (clip) {
         // clip is in canvas coordinates — convert to dst-local
@@ -91,7 +91,7 @@ void SoftwareCompositor::composite_layer(Framebuffer& dst, const Framebuffer& sr
         }
 
         if (src_x0 < src_x1 && src_y0 < src_y1 &&
-            composite_layer_normal_optimized(dst, src, src_x0, src_y0, src_x1, src_y1, cnt, t_setup0)) {
+            composite_layer_normal_optimized(dst, src, src_x0, src_y0, src_x1, src_y1, cnt, t_setup0, force_scalar_normal_blend)) {
             return;
         }
     }
@@ -178,7 +178,8 @@ void SoftwareCompositor::composite_layer(Framebuffer& dst, const Framebuffer& sr
 
 bool SoftwareCompositor::composite_layer_normal_optimized(
     Framebuffer& dst, const Framebuffer& src, i32 x0, i32 y0, i32 x1, i32 y1,
-    RenderCounters* cnt, profiling::Clock::time_point t_setup0) {
+    RenderCounters* cnt, profiling::Clock::time_point t_setup0,
+    bool force_scalar_normal_blend) {
     if (profiling::g_current_counters) {
         profiling::g_current_counters->simd_lerp_calls.fetch_add(1, std::memory_order_relaxed);
     }
@@ -214,11 +215,11 @@ bool SoftwareCompositor::composite_layer_normal_optimized(
             }
             if (!use_tbb) {
                 const auto t_rs0 = profiling::now();
-                simd::composite_normal_premul(d_row, s_row, width_to_process);
+                simd::composite_normal_premul(d_row, s_row, width_to_process, force_scalar_normal_blend);
                 const auto t_rs1 = profiling::now();
                 row_setup_ns += static_cast<uint64_t>(profiling::duration_us(t_rs0, t_rs1) * 1000.0);
             } else {
-                simd::composite_normal_premul(d_row, s_row, width_to_process);
+                simd::composite_normal_premul(d_row, s_row, width_to_process, force_scalar_normal_blend);
             }
             d_row += d_stride;
             s_row += s_stride;

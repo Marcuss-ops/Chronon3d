@@ -18,13 +18,15 @@ public:
         const Framebuffer& src,
         BlendMode mode,
         const std::optional<raster::BBox>& clip = std::nullopt,
-        CompositeOperator op = CompositeOperator::SourceOver
+        CompositeOperator op = CompositeOperator::SourceOver,
+        bool force_scalar_normal_blend = false
     );
 
 private:
     static bool composite_layer_normal_optimized(
         Framebuffer& dst, const Framebuffer& src, i32 x0, i32 y0, i32 x1, i32 y1,
-        RenderCounters* cnt, profiling::Clock::time_point t_setup0);
+        RenderCounters* cnt, profiling::Clock::time_point t_setup0,
+        bool force_scalar_normal_blend = false);
 
     /// Highway-accelerated + TBB-parallelized path for Add / Multiply / Screen / Overlay.
     /// Returns true if processed (SIMD path available), false to fall back to scalar.

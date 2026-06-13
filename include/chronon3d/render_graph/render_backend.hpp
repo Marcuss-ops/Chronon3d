@@ -6,6 +6,7 @@
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/compositor/composite_operator.hpp>
 #include <chronon3d/math/raster_utils.hpp>
+#include <chronon3d/effects/effect_execution_context.hpp>
 #include <memory>
 #include <optional>
 
@@ -45,8 +46,7 @@ public:
     virtual void apply_effect_stack(
         Framebuffer& fb,
         const EffectStack& effects,
-        float time_seconds,
-        const std::optional<raster::BBox>& clip = std::nullopt
+        const effects::EffectExecutionContext& context
     ) = 0;
 
     virtual void composite_layer(

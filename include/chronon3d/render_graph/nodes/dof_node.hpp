@@ -6,6 +6,7 @@
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/scene/model/core/effect_stack.hpp>
 #include <chronon3d/effects/effect_ids.hpp>
+#include <chronon3d/effects/effect_execution_context.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
 
 #include <cmath>
@@ -95,7 +96,14 @@ public:
                     local_clip = pred_bbox;
                 }
             }
-            ctx.resources.backend->apply_effect_stack(*result, dof_stack, ctx.frame.time_seconds, local_clip);
+            const effects::EffectExecutionContext dof_context{
+                .time_seconds = ctx.frame.time_seconds,
+                .frame = ctx.frame.frame,
+                .clip = local_clip,
+                .quality = effects::RenderQuality::Final,
+                .diagnostics_enabled = ctx.options.diagnostics_enabled
+            };
+            ctx.resources.backend->apply_effect_stack(*result, dof_stack, dof_context);
             if (ctx.telemetry.counters) {
                 ctx.telemetry.counters->effect_stack_calls.fetch_add(1, std::memory_order_relaxed);
                 uint64_t area = static_cast<uint64_t>(ctx.frame.width * ctx.frame.height);

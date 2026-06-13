@@ -5,6 +5,7 @@
 #include <chronon3d/scene/model/layer/layer_effect.hpp>
 #include <chronon3d/scene/model/render/render_node.hpp>
 #include <chronon3d/math/raster_utils.hpp>
+#include <chronon3d/effects/effect_execution_context.hpp>
 #include <optional>
 
 namespace chronon3d {
@@ -12,7 +13,7 @@ namespace renderer {
 
 void apply_blur(Framebuffer& fb, f32 radius, const std::optional<raster::BBox>& clip = std::nullopt, int passes = 2);
 void apply_color_effects(Framebuffer& fb, const LayerEffect& effect, const std::optional<raster::BBox>& clip = std::nullopt);
-void apply_effect_stack(Framebuffer& fb, const EffectStack& stack, float time_seconds, const std::optional<raster::BBox>& clip = std::nullopt, bool diagnostics_enabled = false);
+void apply_effect_stack(Framebuffer& fb, const EffectStack& stack, const effects::EffectExecutionContext& context);
 void apply_fake_3d_wave(Framebuffer& fb, const Fake3DWaveParams& params, float time_seconds);
 
 // ── Individual effect implementations (extracted from effect_stack.cpp) ──

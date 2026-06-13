@@ -1,3 +1,4 @@
+#include <chronon3d/scene/builders/scene_builder.hpp>
 #include <benchmark/benchmark.h>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/profiling/counters.hpp>

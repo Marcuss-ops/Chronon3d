@@ -3,7 +3,12 @@
 #include <chronon3d/api/scene.hpp>
 #include <chronon3d/api/renderer.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
+#include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/animation/easing/spring.hpp>
+#include <chronon3d/animation/easing/interpolate.hpp>
+#include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/backends/software/render_settings.hpp>
+#include <chronon3d/core/memory/framebuffer.hpp>
 
 using namespace chronon3d;
 

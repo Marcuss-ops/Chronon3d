@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/render_graph/nodes/basic_nodes_common.hpp>
+#include <chronon3d/effects/effect_execution_context.hpp>
 #include <span>
 
 namespace chronon3d::graph {
@@ -39,7 +40,14 @@ public:
         
         auto result = ctx.acquire_owned_fb(*inputs[0]);
         if (ctx.resources.backend) {
-            ctx.resources.backend->apply_effect_stack(*result, m_effects, ctx.frame.time_seconds, ctx.tile.clip_rect);
+            const effects::EffectExecutionContext effect_context{
+                .time_seconds = ctx.frame.time_seconds,
+                .frame = ctx.frame.frame,
+                .clip = ctx.tile.clip_rect,
+                .quality = effects::RenderQuality::Final,
+                .diagnostics_enabled = ctx.options.diagnostics_enabled
+            };
+            ctx.resources.backend->apply_effect_stack(*result, m_effects, effect_context);
             if (ctx.telemetry.counters) {
                 ctx.telemetry.counters->effect_stack_calls.fetch_add(1, std::memory_order_relaxed);
                 ctx.telemetry.counters->effect_pixels.fetch_add(static_cast<uint64_t>(ctx.frame.width * ctx.frame.height), std::memory_order_relaxed);

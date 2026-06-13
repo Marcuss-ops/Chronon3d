@@ -43,6 +43,7 @@ add_executable(chronon3d_renderer_tests
     effects/test_stroke.cpp
     effects/test_curves.cpp
     effects/test_compose_color_op.cpp
+    effects/test_effect_execution_context.cpp
     deterministic/test_deterministic.cpp
     render_graph/pipeline/test_render_pipeline.cpp
     render_graph/pipeline/test_line_grid.cpp

@@ -19,7 +19,53 @@ jobs:
         run: |
           bash -n tools/*.sh
 
-      - name: Check CMake syntax
+      - name: Check CMake syntax (cmake-format)
         run: |
-          find . -name "CMakeLists.txt" -exec bash -c 'cmake --system-information /dev/null > /dev/null' \;
-          # (Basic check, real validation happens in build)
+          # Validate CMakeLists.txt syntax using cmake-format.
+          # This catches parse errors without requiring vcpkg.
+          pip install cmakelang 2>/dev/null || pip3 install cmakelang 2>/dev/null || true
+          if command -v cmake-format &> /dev/null; then
+            find . -name CMakeLists.txt -exec cmake-format --check {} + 2>&1 || {
+              echo "CMake syntax errors found — run 'cmake-format -i <file>' to fix";
+              exit 1;
+            }
+            echo "All CMakeLists.txt pass syntax check."
+          else
+            echo "cmake-format not available — install with 'pip install cmakelang'"
+            # Basic fallback: just check for obvious syntax issues
+            ERRORS=0
+            while IFS= read -r cmakefile; do
+              # Check balanced parentheses (quick heuristic)
+              opens=$(grep -c '(' "$cmakefile" 2>/dev/null || echo 0)
+              closes=$(grep -c ')' "$cmakefile" 2>/dev/null || echo 0)
+              if [ "$opens" -ne "$closes" ]; then
+                echo "WARNING: Possible unbalanced parens in $cmakefile"
+                ERRORS=$((ERRORS + 1))
+              fi
+            done < <(find . -name CMakeLists.txt)
+            [ "$ERRORS" -eq 0 ] && echo "Basic CMake check passed." || echo "Found $ERRORS potential issues"
+          fi
+
+      - name: Detect stale docs paths
+        run: |
+          # Scan markdown docs for file paths and verify they exist
+          ERRORS=0
+          while IFS= read -r line; do
+            # Extract paths from code blocks and inline code in markdown
+            for path in $(echo "$line" | grep -oP '(?<=`)[a-zA-Z0-9_/.-]+(?=`)' | grep -v '^http'); do
+              # Skip known patterns that aren't real paths
+              echo "$path" | grep -qE '^\.\./|^/|\.(h|cpp|py|jsx|ts|json|md|sh)$' || continue
+              if [ ! -f "$path" ] && [ ! -d "$path" ]; then
+                # Try with relative prefix
+                if [ ! -f "docs/$path" ] && [ ! -f "src/$path" ] && [ ! -f "tests/$path" ]; then
+                  echo "WARNING: Possible stale path in docs: $path"
+                  ERRORS=$((ERRORS + 1))
+                fi
+              fi
+            done
+          done < <(find docs/ -name '*.md' -exec cat {} \;)
+          if [ "$ERRORS" -gt 0 ]; then
+            echo "Found $ERRORS potential stale paths in documentation"
+          else
+            echo "All documentation paths appear valid"
+          fi
