@@ -12,6 +12,7 @@ add_library(chronon3d_backend_video STATIC
     frame_conversion/direct_yuv_converter.cpp
     frame_conversion/direct_yuv_converter_hwy.cpp
     frame_conversion/converted_frame_cache.cpp
+    frame_conversion/frame_conversion_service.cpp
 )
 set_target_properties(chronon3d_backend_video PROPERTIES UNITY_BUILD OFF)
 target_link_libraries(chronon3d_backend_video PUBLIC
@@ -23,6 +24,14 @@ target_link_libraries(chronon3d_backend_video PUBLIC
     TBB::tbb
     hwy::hwy
 )
+# ── chronon3d_media_video — Public video sink API (header-only) ──────────
+# This target will gain implementation files (ffmpeg_pipe_sink.cpp, etc.)
+# in subsequent PRs.
+add_library(chronon3d_media_video INTERFACE)
+target_link_libraries(chronon3d_media_video INTERFACE
+    chronon3d_media_interface
+)
+
 if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
     target_link_libraries(chronon3d_backend_video PUBLIC chronon3d_ffmpeg_light)
 endif()
