@@ -137,6 +137,6 @@ add_dependencies(chronon3d_core_tests
     chronon3d_test_plugin_no_symbol
     chronon3d_test_plugin_throws
 )
-target_include_directories(chronon3d_core_tests PRIVATE ${CMAKE_SOURCE_DIR})
+target_include_directories(chronon3d_core_tests PRIVATE ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/tests)
 chronon3d_enable_test_pch(chronon3d_core_tests)
 add_test(NAME chronon3d_core_tests COMMAND chronon3d_core_tests WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
