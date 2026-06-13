@@ -1,12 +1,54 @@
 # ==============================================================================
-# src/render_graph/CMakeLists.txt — chronon3d_graph
+# src/render_graph/CMakeLists.txt — chronon3d_graph split into sub-targets
 #
-# Note: scene/model/mask_utils.cpp lives under src/scene/ but is logically part
-# of the graph target. Referenced via relative path; consider moving it to
-# src/render_graph/ in a future cleanup.
+
 # ==============================================================================
 
-add_library(chronon3d_graph STATIC
+# ── Core: base types, registry, utilities ───────────────────────────────────
+add_library(chronon3d_graph_core STATIC
+    render_graph.cpp
+    framebuffer_acquire.cpp
+    graph_profiler.cpp
+    registry/graph_node_registry.cpp
+)
+set_target_properties(chronon3d_graph_core PROPERTIES UNITY_BUILD OFF)
+target_link_libraries(chronon3d_graph_core PUBLIC
+    chronon3d
+    chronon3d_cache
+    chronon3d_media_interface
+    fmt::fmt
+    hwy::hwy
+    tomlplusplus::tomlplusplus
+    TBB::tbb
+)
+target_precompile_headers(chronon3d_graph_core PRIVATE
+    <glm/glm.hpp>
+    <glm/gtc/matrix_transform.hpp>
+    <fmt/core.h>
+)
+
+# ── Nodes: graph node implementations ───────────────────────────────────────
+add_library(chronon3d_graph_nodes STATIC
+    nodes/source_node.cpp
+    nodes/multi_source_node.cpp
+    nodes/transform_node.cpp
+    nodes/transform_kernels.cpp
+    nodes/transition_node.cpp
+    nodes/effect_stack_node.cpp
+    nodes/clear_node.cpp
+    nodes/composite_node.cpp
+    nodes/transition/transition_node_math.cpp
+)
+set_target_properties(chronon3d_graph_nodes PROPERTIES UNITY_BUILD OFF)
+target_link_libraries(chronon3d_graph_nodes PUBLIC chronon3d_graph_core)
+target_precompile_headers(chronon3d_graph_nodes PRIVATE
+    <glm/glm.hpp>
+    <glm/gtc/matrix_transform.hpp>
+    <fmt/core.h>
+)
+
+# ── Builder: graph construction ─────────────────────────────────────────────
+add_library(chronon3d_graph_builder STATIC
     builder/graph_builder_internal.cpp
     builder/graph_builder_pipeline.cpp
     builder/graph_builder_static_analysis.cpp
@@ -23,7 +65,31 @@ add_library(chronon3d_graph STATIC
     builder/passes/graph_builder_output_pass.cpp
     builder/passes/graph_builder_validation_pass.cpp
     builder/graph_build_registry.cpp
-    registry/graph_node_registry.cpp
+)
+set_target_properties(chronon3d_graph_builder PROPERTIES UNITY_BUILD OFF)
+target_link_libraries(chronon3d_graph_builder PUBLIC
+    chronon3d_graph_core
+    chronon3d_graph_nodes
+)
+target_precompile_headers(chronon3d_graph_builder PRIVATE
+    <glm/glm.hpp>
+    <glm/gtc/matrix_transform.hpp>
+    <fmt/core.h>
+)
+
+# ── Compiler: graph compilation & optimization ──────────────────────────────
+add_library(chronon3d_graph_compiler STATIC
+    compiler/frame_graph_compiler.cpp
+    optimizer/graph_optimizer.cpp
+)
+set_target_properties(chronon3d_graph_compiler PROPERTIES UNITY_BUILD OFF)
+target_link_libraries(chronon3d_graph_compiler PUBLIC
+    chronon3d_graph_core
+    chronon3d_graph_nodes
+)
+
+# ── Executor: graph execution ───────────────────────────────────────────────
+add_library(chronon3d_graph_executor STATIC
     executor/executor.cpp
     executor/input_resolver.cpp
     executor/cache_evaluator.cpp
@@ -33,9 +99,30 @@ add_library(chronon3d_graph STATIC
     executor/executor_levels.cpp
     executor/framebuffer_lifetime.cpp
     executor/executor_plan.cpp
-    graph_profiler.cpp
-    render_graph.cpp
-    framebuffer_acquire.cpp
+)
+set_target_properties(chronon3d_graph_executor PROPERTIES UNITY_BUILD OFF)
+target_link_libraries(chronon3d_graph_executor PUBLIC
+    chronon3d_graph_core
+    chronon3d_graph_nodes
+    chronon3d_graph_compiler
+)
+
+# ── Preflight: validation & analysis before render ──────────────────────────
+add_library(chronon3d_graph_preflight STATIC
+    preflight/preflight.cpp
+    preflight/analysis.cpp
+    preflight/analysis_graph.cpp
+    preflight/analysis_diagnostics.cpp
+)
+set_target_properties(chronon3d_graph_preflight PROPERTIES UNITY_BUILD OFF)
+target_link_libraries(chronon3d_graph_preflight PUBLIC
+    chronon3d_graph_core
+    chronon3d_graph_builder
+    chronon3d_graph_compiler
+)
+
+# ── Pipeline: scene orchestration, dirty rects, tile execution ───────────────
+add_library(chronon3d_graph_pipeline STATIC
     pipeline/scene.cpp
     pipeline/scene_dirty.cpp
     pipeline/dirty/scroll_optimization.cpp
@@ -61,36 +148,24 @@ add_library(chronon3d_graph STATIC
     pipeline/refresh/transform.cpp
     pipeline/debug.cpp
     pipeline/composition.cpp
-    preflight/preflight.cpp
-    preflight/analysis.cpp
-    preflight/analysis_graph.cpp
-    preflight/analysis_diagnostics.cpp
-    optimizer/graph_optimizer.cpp
-    compiler/frame_graph_compiler.cpp
-    nodes/source_node.cpp
-    nodes/multi_source_node.cpp
-    nodes/transform_node.cpp
-    nodes/transform_kernels.cpp
-    nodes/transition_node.cpp
-    nodes/effect_stack_node.cpp
-    nodes/clear_node.cpp
-    nodes/composite_node.cpp
-    nodes/transition/transition_node_math.cpp
-    # Moved from src/scene/model/ — mask_utils belongs to graph, not scene
-    mask_utils.cpp
 )
-set_target_properties(chronon3d_graph PROPERTIES UNITY_BUILD OFF)
-target_link_libraries(chronon3d_graph PUBLIC
-    chronon3d
-    chronon3d_cache
-    chronon3d_media_interface
-    fmt::fmt
-    hwy::hwy
-    tomlplusplus::tomlplusplus
-    TBB::tbb
+set_target_properties(chronon3d_graph_pipeline PROPERTIES UNITY_BUILD OFF)
+target_link_libraries(chronon3d_graph_pipeline PUBLIC
+    chronon3d_graph_core
+    chronon3d_graph_builder
+    chronon3d_graph_executor
+    chronon3d_graph_compiler
+    chronon3d_graph_preflight
 )
-target_precompile_headers(chronon3d_graph PRIVATE
-    <glm/glm.hpp>
-    <glm/gtc/matrix_transform.hpp>
-    <fmt/core.h>
+
+# ── Umbrella INTERFACE: all sub-targets bundled for downstream consumers ─────
+add_library(chronon3d_graph INTERFACE)
+target_link_libraries(chronon3d_graph INTERFACE
+    chronon3d_graph_core
+    chronon3d_graph_nodes
+    chronon3d_graph_builder
+    chronon3d_graph_executor
+    chronon3d_graph_compiler
+    chronon3d_graph_preflight
+    chronon3d_graph_pipeline
 )
