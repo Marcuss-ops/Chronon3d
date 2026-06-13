@@ -371,6 +371,48 @@ template <typename T>
     seed = hash_combine(seed, hash_color(t.style.paint.stroke_color));
     seed = hash_combine(seed, hash_value(t.style.paint.stroke_width));
 
+    // Fill style (gradient, etc.)
+    if (t.style.paint.fill_style.has_value()) {
+        seed = hash_combine(seed, hash_fill(*t.style.paint.fill_style));
+    } else {
+        seed = hash_combine(seed, 0ULL);  // explicit "no fill_style" sentinel
+    }
+
+    // ── TextMaterial ────────────────────────────────────────────
+    seed = hash_combine(seed, hash_value(t.style.material.enabled));
+    if (t.style.material.enabled) {
+        seed = hash_combine(seed, hash_color(t.style.material.top_color));
+        seed = hash_combine(seed, hash_color(t.style.material.bottom_color));
+        seed = hash_combine(seed, hash_value(t.style.material.gradient_angle));
+        seed = hash_combine(seed, hash_value(t.style.material.bevel_px));
+        seed = hash_combine(seed, hash_value(t.style.material.bevel_highlight_opacity));
+        seed = hash_combine(seed, hash_color(t.style.material.bevel_highlight_color));
+        seed = hash_combine(seed, hash_value(t.style.material.bevel_shadow_opacity));
+        seed = hash_combine(seed, hash_value(t.style.material.top_highlight_opacity));
+        seed = hash_combine(seed, hash_value(t.style.material.top_highlight_fraction));
+        seed = hash_combine(seed, hash_value(t.style.material.bottom_shade_opacity));
+        seed = hash_combine(seed, hash_value(t.style.material.bottom_shade_fraction));
+        seed = hash_combine(seed, hash_value(t.style.material.inner_shadow_enabled));
+        seed = hash_combine(seed, hash_vec2(t.style.material.inner_shadow_offset));
+        seed = hash_combine(seed, hash_value(t.style.material.inner_shadow_blur));
+        seed = hash_combine(seed, hash_color(t.style.material.inner_shadow_color));
+        seed = hash_combine(seed, hash_value(t.style.material.emissive));
+        seed = hash_combine(seed, hash_value(t.style.material.use_material_glow));
+        seed = hash_combine(seed, hash_value(t.style.material.glow_radius));
+        seed = hash_combine(seed, hash_value(t.style.material.glow_intensity));
+        seed = hash_combine(seed, hash_color(t.style.material.glow_color));
+        seed = hash_combine(seed, hash_value(t.style.material.use_material_shadow));
+        seed = hash_combine(seed, hash_vec2(t.style.material.shadow_offset));
+        seed = hash_combine(seed, hash_value(t.style.material.shadow_blur));
+        seed = hash_combine(seed, hash_value(t.style.material.shadow_opacity));
+        seed = hash_combine(seed, hash_color(t.style.material.shadow_color));
+    }
+
+    // ── TextShaping (direction, script, language) ────────────────
+    seed = hash_combine(seed, hash_bytes(&t.style.shaping.direction, sizeof(TextDirection)));
+    seed = hash_combine(seed, hash_value(t.style.shaping.script));
+    seed = hash_combine(seed, hash_string(t.style.shaping.language));
+
     // Box style
     seed = hash_combine(seed, hash_value(t.style.box_style.enabled));
     seed = hash_combine(seed, hash_vec2(t.style.box_style.padding));

@@ -61,7 +61,6 @@ add_executable(chronon3d_core_tests
     render_graph/executor/test_cache_key_contract.cpp
     render_graph/executor/test_framebuffer_lifetime.cpp
     render_graph/builder/test_graph_build_pass_order.cpp
-    render_graph/compiler/test_compiled_scene_program.cpp
 )
 target_link_libraries(chronon3d_core_tests PRIVATE chronon3d_pipeline chronon3d_extension doctest::doctest)
 

@@ -142,10 +142,12 @@ void apply_text_material(BLImage& img, const TextMaterial& mat) {
             float t = std::clamp((proj - p_min) / p_range, 0.0f, 1.0f);
             const Color grad_color = mat.top_color * (1.0f - t) + mat.bottom_color * t;
 
-            // Apply gradient color using the original alpha as mask
-            float r = grad_color.r * emissive;
-            float g = grad_color.g * emissive;
-            float b = grad_color.b * emissive;
+            // Apply gradient color using the original alpha as mask.
+            // BL_FORMAT_PRGB32 requires premultiplied alpha: RGB must be
+            // multiplied by the pixel's alpha value.
+            float r = grad_color.r * emissive * a;
+            float g = grad_color.g * emissive * a;
+            float b = grad_color.b * emissive * a;
 
             // Clamp
             r = std::clamp(r, 0.0f, 1.0f);
