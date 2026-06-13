@@ -4,8 +4,6 @@
 
 namespace chronon3d::graph {
 
-thread_local std::string g_current_builder_layer_id;
-
 std::string RenderGraph::to_dot() const {
     std::ostringstream out;
     out << "digraph RenderGraph {\n";
