@@ -64,28 +64,32 @@ uint64_t clipped_area(int32_t width, int32_t height, const std::optional<raster:
 } // namespace
 
 SoftwareRenderer::SoftwareRenderer()
-    : m_software_registry(std::make_unique<renderer::SoftwareRegistry>())
-    , m_framebuffer_pool(std::make_shared<cache::FramebufferPool>())
-    , m_executor(std::make_unique<graph::GraphExecutor>()) {
-    renderer::register_builtin_processors(*m_software_registry);
+    : m_runtime_resources{
+        .software_registry = std::make_unique<renderer::SoftwareRegistry>(),
+        .executor = std::make_unique<graph::GraphExecutor>()
+    }
+    , m_cache_state{
+        .framebuffer_pool = std::make_shared<cache::FramebufferPool>()
+    } {
+    renderer::register_builtin_processors(*m_runtime_resources.software_registry);
 }
 
 SoftwareRenderer::~SoftwareRenderer() = default;
 
 graph::GraphExecutor* SoftwareRenderer::executor() {
-    return m_executor.get();
+    return m_runtime_resources.executor.get();
 }
 
 const graph::GraphExecutor* SoftwareRenderer::executor() const {
-    return m_executor.get();
+    return m_runtime_resources.executor.get();
 }
 
 std::shared_ptr<Framebuffer> SoftwareRenderer::render_frame(const Composition& comp,
                                                             Frame frame) {
-    profiling::ProfilingGuard scope(&m_counters, m_framebuffer_pool.get());
+    profiling::ProfilingGuard scope(&m_counters, m_cache_state.framebuffer_pool.get());
 
     auto res = graph::render_composition_frame(
-        *this, m_node_cache, m_settings, m_registry, m_video_decoder.get(), comp, frame
+        *this, m_cache_state.node_cache, m_settings, m_registry, m_video_decoder.get(), comp, frame
     );
     return res;
 }
@@ -93,11 +97,11 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_frame(const Composition& c
 std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(const Scene& scene,
                                                             const Camera& camera, i32 width,
                                                             i32 height) {
-    profiling::ProfilingGuard scope(&m_counters, m_framebuffer_pool.get());
+    profiling::ProfilingGuard scope(&m_counters, m_cache_state.framebuffer_pool.get());
 
     auto res = graph::render_scene_via_graph(
         *this,
-        m_node_cache,
+        m_cache_state.node_cache,
         scene,
         camera,
         width,
@@ -113,7 +117,7 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(const Scene& scene,
 
 std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(
     const Scene& scene, const std::optional<Camera2_5D>& camera, i32 width, i32 height) {
-    profiling::ProfilingGuard scope(&m_counters, m_framebuffer_pool.get());
+    profiling::ProfilingGuard scope(&m_counters, m_cache_state.framebuffer_pool.get());
 
     Scene effective_scene = scene;
     if (camera.has_value()) {
@@ -123,7 +127,7 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(
     Camera default_camera;
     auto res = graph::render_scene_via_graph(
         *this,
-        m_node_cache,
+        m_cache_state.node_cache,
         effective_scene,
         default_camera,
         width,
@@ -145,7 +149,7 @@ std::string SoftwareRenderer::debug_render_graph(const Scene& scene, const Camer
                                                   f32 frame_time) const {
     return graph::debug_scene_graph(
         const_cast<SoftwareRenderer&>(*this),
-        m_node_cache,
+        m_cache_state.node_cache,
         scene,
         camera,
         width,

@@ -189,7 +189,7 @@ constexpr std::size_t kHardwareDestructiveInterferenceSize = 64;
     X(native_av_mux_write_ms) \
     X(native_av_trailer_ms) \
     X(native_av_convert_skipped_ms) \
-    X(video_sink_mode_id) \
+    X(video_sink_type_id) \
     X(video_frames_submitted) \
     X(video_frames_converted) \
     X(video_frames_written_counter) \
