@@ -187,6 +187,19 @@ struct VisualTestCameraArgs {
     std::string out_dir{"artifacts/visual/camera"};
 };
 
+struct TextAuditArgs {
+    std::string comp_id;
+    std::string frames;            // e.g. "0,19,20,40,80,160,299" or "0-300x10"
+    std::string json_output;       // --json output path
+    std::string render_dir;        // --render-dir for frame PNGs
+    float safe_margin_x{0.05f};    // fraction of canvas width
+    float safe_margin_y{0.05f};    // fraction of canvas height
+    float max_center_error_px{2.0f};
+    int   max_border_alpha_pixels{0};
+    float glyph_tolerance{0.01f};
+    int   alpha_threshold{8};
+};
+
 int command_visual_test_camera(const VisualTestCameraArgs& args);
 int command_list(const CompositionRegistry& registry);
 int command_info(const CompositionRegistry& registry, const std::string& id);
@@ -208,6 +221,7 @@ int command_telemetry(const TelemetryArgs& args);
 int command_preflight(const CompositionRegistry& registry, const PreflightArgs& args);
 int command_bake_layer(const CompositionRegistry& registry, const BakeLayerArgs& args);
 int command_camera_path(const CompositionRegistry& registry, const CameraPathArgs& args);
+int command_text_audit(const CompositionRegistry& registry, const TextAuditArgs& args);
 
 } // namespace cli
 } // namespace chronon3d
