@@ -55,7 +55,7 @@ TEST_CASE("FramebufferLifetime: acquire_owned with clear=false preserves content
     FramebufferPool pool(256 * 1024 * 1024);
     auto fb1 = pool.acquire_owned(100, 100, true);
     Framebuffer* raw = fb1.release();
-    PoolFbDeleter deleter{&pool};
+    PoolFbDeleter deleter;
     OwnedFB fb2(raw, std::move(deleter));
 
     auto fb3 = pool.acquire_owned(100, 100, false);

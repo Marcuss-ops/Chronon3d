@@ -252,7 +252,7 @@ TEST_CASE("FramebufferPool budget respected — eviction on release") {
     config.max_buffers_per_size_class = 10;  // high enough to not trigger per-class limit
     config.enable_lru_eviction = true;
 
-    auto pool = std::make_shared<FramebufferPool>(config, 10ULL * 1024 * 1024);
+    auto pool = std::make_shared<FramebufferPool>(config);
     pool->reset_counters();
 
     // Release 3 framebuffers — only 2 should fit
@@ -275,7 +275,7 @@ TEST_CASE("FramebufferPool exact hit still works with budget") {
     config.max_retained_bytes = 100ULL * 1024 * 1024;  // 100MB — plenty for 1920×1080 (≈32MB)
     config.max_buffers_per_size_class = 4;
 
-    auto pool = std::make_shared<FramebufferPool>(config, 200ULL * 1024 * 1024);
+    auto pool = std::make_shared<FramebufferPool>(config);
     pool->reset_counters();
 
     // First acquire = fresh alloc
@@ -301,7 +301,7 @@ TEST_CASE("FramebufferPool LRU eviction — oldest entry evicted first") {
     config.max_buffers_per_size_class = 2;  // only 2 per bucket triggers eviction
     config.enable_lru_eviction = true;
 
-    auto pool = std::make_shared<FramebufferPool>(config, 100ULL * 1024 * 1024);
+    auto pool = std::make_shared<FramebufferPool>(config);
     pool->reset_counters();
 
     // Hold 3 distinct FBs simultaneously so they all survive on release.
@@ -342,7 +342,7 @@ TEST_CASE("FramebufferPool per-size-class limit enforced") {
     config.max_buffers_per_size_class = 2;  // only 2 per bucket
     config.enable_lru_eviction = true;
 
-    auto pool = std::make_shared<FramebufferPool>(config, 100ULL * 1024 * 1024);
+    auto pool = std::make_shared<FramebufferPool>(config);
     pool->reset_counters();
 
     // Release 3 framebuffers of the same size
@@ -364,7 +364,7 @@ TEST_CASE("FramebufferPool set_budget_bytes shrinks pool immediately") {
     config.max_retained_bytes = 10ULL * 1024 * 1024;  // start generous
     config.max_buffers_per_size_class = 10;
 
-    auto pool = std::make_shared<FramebufferPool>(config, 100ULL * 1024 * 1024);
+    auto pool = std::make_shared<FramebufferPool>(config);
 
     // Release 3 FBs (~192KB)
     auto fb1 = pool->acquire(64, 64);
@@ -390,7 +390,7 @@ TEST_CASE("FramebufferPool budget unlimited (0) never evicts") {
     config.max_retained_bytes = 0;  // unlimited
     config.max_buffers_per_size_class = 10;
 
-    auto pool = std::make_shared<FramebufferPool>(config, 100ULL * 1024 * 1024);
+    auto pool = std::make_shared<FramebufferPool>(config);
     pool->reset_counters();
 
     // Acquire and release 5 FBs of the same size.  Each release retains the FB
