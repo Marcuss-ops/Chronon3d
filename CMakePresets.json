@@ -84,7 +84,7 @@
       },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "CHRONON3D_BUILD_C_API": "ON",
+        "CHRONON3D_BUILD_C_API": "OFF",
         "CHRONON3D_UNITY_BUILD": "OFF",
         "CHRONON3D_ENABLE_PROFILING": "OFF",
         "VCPKG_MANIFEST_FEATURES": "tests",
@@ -291,7 +291,8 @@
         "CMAKE_BUILD_TYPE": "Debug",
         "CHRONON3D_BUILD_C_API": "OFF",
         "CHRONON3D_UNITY_BUILD": "OFF",
-        "VCPKG_MANIFEST_FEATURES": "tests"
+        "VCPKG_MANIFEST_FEATURES": "tests",
+        "CHRONON3D_BUILD_TESTS": "ON"
       }
     },
     {
@@ -432,8 +433,7 @@
       "name": "linux-ci-c-api",
       "configurePreset": "linux-ci-c-api",
       "targets": [
-        "chronon3d_cli",
-        "chronon3d_tests"
+        "chronon3d_c_api_tests"
       ],
       "jobs": 16
     },
@@ -441,8 +441,7 @@
       "name": "win-ci-c-api",
       "configurePreset": "win-ci-c-api",
       "targets": [
-        "chronon3d_cli",
-        "chronon3d_tests"
+        "chronon3d_c_api_tests"
       ],
       "jobs": 16
     }
