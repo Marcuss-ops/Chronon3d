@@ -167,6 +167,7 @@ RenderNode RenderNodeFactory::text(std::pmr::memory_resource* res, std::string n
     node.shape.text.style.vertical_align = p.vertical_align;
     node.shape.text.style.line_height = p.line_height;
     node.shape.text.style.tracking = p.tracking;
+    node.shape.text.style.centering_mode = p.centering_mode;
     node.shape.text.style.box_style = p.box_style;
     node.shape.text.style.paint = p.paint;
     node.shape.text.style.shadows = std::move(p.shadows);
