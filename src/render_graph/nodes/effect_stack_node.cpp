@@ -105,7 +105,14 @@ OwnedFB EffectStackNode::execute(
                 local_clip = pred_bbox;
             }
         }
-        ctx.resources.backend->apply_effect_stack(*result, m_effects, ctx.frame.time_seconds, local_clip);
+        const effects::EffectExecutionContext effect_context{
+            .time_seconds = ctx.frame.time_seconds,
+            .frame = ctx.frame.frame,
+            .clip = local_clip,
+            .quality = effects::RenderQuality::Final,
+            .diagnostics_enabled = ctx.options.diagnostics_enabled
+        };
+        ctx.resources.backend->apply_effect_stack(*result, m_effects, effect_context);
         if (ctx.telemetry.counters) {
             ctx.telemetry.counters->effect_stack_calls.fetch_add(1, std::memory_order_relaxed);
             uint64_t area = static_cast<uint64_t>(ctx.frame.width * ctx.frame.height);

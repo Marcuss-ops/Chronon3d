@@ -1,3 +1,4 @@
+#include <chronon3d/scene/builders/scene_builder.hpp>
 #include <doctest/doctest.h>
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>

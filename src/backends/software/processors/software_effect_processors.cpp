@@ -16,7 +16,8 @@ namespace chronon3d::renderer {
 
 class SoftwareBlurEffectProcessor final : public EffectProcessor {
 public:
-    void apply(Framebuffer& fb, const EffectParams& params, float /*time_seconds*/) override {
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& /*context*/) override {
         if (auto* p = std::get_if<BlurParams>(&params)) {
             SoftwareEffectRunner::apply_blur(fb, p->radius);
         }
@@ -27,7 +28,8 @@ public:
 
 class SoftwareTintEffectProcessor final : public EffectProcessor {
 public:
-    void apply(Framebuffer& fb, const EffectParams& params, float /*time_seconds*/) override {
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& /*context*/) override {
         if (auto* p = std::get_if<TintParams>(&params)) {
             LayerEffect e;
             e.tint = Color{p->color.r, p->color.g, p->color.b, p->color.a * p->amount};
@@ -40,9 +42,10 @@ public:
 
 class SoftwareFake3DWaveEffectProcessor final : public EffectProcessor {
 public:
-    void apply(Framebuffer& fb, const EffectParams& params, float time_seconds) override {
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
         if (auto* p = std::get_if<Fake3DWaveParams>(&params)) {
-            apply_fake_3d_wave(fb, *p, time_seconds);
+            apply_fake_3d_wave(fb, *p, context.time_seconds);
         }
     }
 };

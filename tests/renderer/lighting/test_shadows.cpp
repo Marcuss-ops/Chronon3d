@@ -1,3 +1,4 @@
+#include <chronon3d/scene/builders/scene_builder.hpp>
 #include <doctest/doctest.h>
 #include <xxhash.h>
 

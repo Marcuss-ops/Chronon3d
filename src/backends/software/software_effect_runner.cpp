@@ -6,7 +6,7 @@ namespace chronon3d {
 
 void SoftwareEffectRunner::apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
                                              const renderer::SoftwareRegistry& registry,
-                                             float time_seconds) {
+                                             const effects::EffectExecutionContext& context) {
     for (const auto& effect : stack) {
         if (!effect.enabled) continue;
 
@@ -14,13 +14,13 @@ void SoftwareEffectRunner::apply_effect_stack(Framebuffer& fb, const EffectStack
         // std::any::type() which is no longer available now that params is a
         // variant (std::get_if is O(1) with no type_info comparison).
         if (auto* processor = registry.get_effect(effect.param_type_index())) {
-            processor->apply(fb, effect.params, time_seconds);
+            processor->apply(fb, effect.params, context);
             continue;
         }
 
         // Fallback for effects not in software registry or if resolution failed
         EffectStack single_effect{effect};
-        renderer::apply_effect_stack(fb, single_effect, time_seconds);
+        renderer::apply_effect_stack(fb, single_effect, context);
     }
 }
 

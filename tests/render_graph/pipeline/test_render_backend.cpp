@@ -6,6 +6,7 @@
 #include <chronon3d/render_graph/builder/graph_builder.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/cache/node_cache.hpp>
+#include <chronon3d/effects/effect_execution_context.hpp>
 
 using namespace chronon3d;
 using namespace chronon3d::graph;
@@ -22,8 +23,8 @@ public:
         draw_node_called++;
     }
 
-    void apply_effect_stack(Framebuffer&, const EffectStack&, float,
-                            const std::optional<raster::BBox>& = std::nullopt) override {
+    void apply_effect_stack(Framebuffer&, const EffectStack&,
+                            const effects::EffectExecutionContext&) override {
         apply_effect_stack_called++;
     }
 

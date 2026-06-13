@@ -1,4 +1,6 @@
+#include <chronon3d/scene/builders/scene_builder.hpp>
 #include <doctest/doctest.h>
+#include <fmt/core.h>
 #include <chronon3d/api/composition.hpp>
 #include <chronon3d/api/scene.hpp>
 #include <chronon3d/api/renderer.hpp>

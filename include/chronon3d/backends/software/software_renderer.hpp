@@ -61,7 +61,6 @@ public:
     // Render settings management
     void set_settings(const RenderSettings& settings) {
         m_settings = settings;
-        simd::g_force_scalar_normal_blend.store(settings.force_scalar_normal_blend, std::memory_order_relaxed);
         m_counters.program_cache_capacity.store(settings.program_cache_capacity, std::memory_order_relaxed);
         m_counters.program_cache_tune.store(settings.program_cache_tune ? 1 : 0, std::memory_order_relaxed);
     }
@@ -74,12 +73,15 @@ public:
     void set_diagnostic_mode(bool enabled) { m_settings.diagnostics.enabled = enabled; }
     [[nodiscard]] bool is_diagnostic_mode() const { return m_settings.diagnostics.enabled; }
 
-    // Clear image and font caches (useful between unrelated render sessions)
+    // ── Intentional cache operations ──────────────────────────────────
+
+    /// Clear all caches (image, font, node, pool, graph, frame state).
+    /// Useful between unrelated render sessions.
     void clear_caches() {
         m_image_renderer.clear_cache();
         renderer::clear_text_glow_cache();
         renderer::clear_text_shadow_cache();
-        m_cache_state.node_cache.clear();
+        clear_node_cache();
         if (m_cache_state.framebuffer_pool) m_cache_state.framebuffer_pool->clear();
         m_cache_state.graph_cache.reset();
         m_frame_state.frame_history.prev_graph_structure_fingerprint = 0;
@@ -87,6 +89,13 @@ public:
         m_frame_state.scratch_buffer.reset();
         // Video cache clearing is now responsibility of the decoder implementation
     }
+
+    /// Clear only the node cache (e.g. between unrelated render sessions
+    /// where the composition/scene has changed).
+    void clear_node_cache() { m_cache_state.node_cache.clear(); }
+
+    /// Reset all profiling counters to their default (zero) state.
+    void reset_counters() { m_counters.reset(); }
 
     void set_composition_registry(const CompositionRegistry* registry) { m_registry = registry; }
     [[nodiscard]] const CompositionRegistry* composition_registry() const { return m_registry; }
@@ -123,8 +132,8 @@ public:
     void draw_node(Framebuffer& fb, const RenderNode& node, const RenderState& state,
                    const Camera& camera, i32 width, i32 height) override;
     void apply_blur(Framebuffer& fb, f32 radius, const std::optional<raster::BBox>& clip = std::nullopt) override;
-    void apply_effect_stack(Framebuffer& fb, const EffectStack& stack, float time_seconds, const std::optional<raster::BBox>& clip = std::nullopt) override;
-    void composite_layer(Framebuffer& dst, const Framebuffer& src, BlendMode mode, const std::optional<raster::BBox>& clip = std::nullopt, CompositeOperator op = CompositeOperator::SourceOver) override;
+    void apply_effect_stack(Framebuffer& fb, const EffectStack& stack, const effects::EffectExecutionContext& context) override;
+    void composite_layer(Framebuffer& dst, const Framebuffer& src, BlendMode mode, const std::optional<raster::BBox>& clip = std::nullopt) override;
 
     [[nodiscard]] renderer::SoftwareRegistry& software_registry() { return *m_runtime_resources.software_registry; }
     [[nodiscard]] const renderer::SoftwareRegistry& software_registry() const { return *m_runtime_resources.software_registry; }
@@ -177,6 +186,15 @@ public:
         m_frame_state.frame_history.prev_scene_fingerprint = combined_fp;
         m_frame_state.frame_history.prev_camera = cam;
         m_frame_state.frame_history.prev_camera_valid = cam.enabled;
+    }
+
+    /// Alias for backward compatibility — prefer commit_prev_frame_state().
+    void commit_frame_state(Frame frame, const Camera2_5D& cam,
+                             uint64_t combined_fp, uint64_t static_fp,
+                             uint64_t structure_fp, uint64_t active_at_fp,
+                             std::unordered_map<std::string, LayerBBoxState>&& layer_bboxes) {
+        commit_prev_frame_state(frame, cam, combined_fp, static_fp,
+                                structure_fp, active_at_fp, std::move(layer_bboxes));
     }
 
     void commit_prev_frame_state(Frame frame, const Camera2_5D& cam,
