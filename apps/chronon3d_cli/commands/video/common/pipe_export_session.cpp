@@ -229,7 +229,10 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
                 .dirty_rect_y1 = dirty_rect ? dirty_rect->y1 : 0,
                 .tile_execution_used = tile_execution_used,
                 .fast_path_reused = fast_path_reused,
-                .graph_reused = graph_reused
+                .graph_reused = graph_reused,
+                .program_cache_capacity = ctx.counters
+                    ? static_cast<int>(ctx.counters->program_cache_capacity.load(std::memory_order_relaxed))
+                    : 0
             });
         }
     } catch (const std::exception& e) {

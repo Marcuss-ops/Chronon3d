@@ -153,6 +153,7 @@ CREATE TABLE IF NOT EXISTS render_frames (
     tile_execution_used INTEGER DEFAULT 0,
     fast_path_reused INTEGER DEFAULT 0,
     graph_reused INTEGER DEFAULT 0,
+    program_cache_capacity INTEGER DEFAULT 0,
     PRIMARY KEY (run_id, frame_number)
 );
 

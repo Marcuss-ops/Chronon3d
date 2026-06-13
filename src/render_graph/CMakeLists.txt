@@ -41,6 +41,7 @@ add_library(chronon3d_graph_nodes STATIC
     nodes/effect_stack_node.cpp
     nodes/clear_node.cpp
     nodes/composite_node.cpp
+    nodes/track_matte_node.cpp
     nodes/transition/transition_node_math.cpp
 )
 set_target_properties(chronon3d_graph_nodes PROPERTIES UNITY_BUILD OFF)
@@ -85,6 +86,7 @@ target_precompile_headers(chronon3d_graph_builder PRIVATE
 # ── Compiler: graph compilation & optimization ──────────────────────────────
 add_library(chronon3d_graph_compiler STATIC
     compiler/frame_graph_compiler.cpp
+    compiler/scene_binding_compiler.cpp
     optimizer/graph_optimizer.cpp
 )
 set_target_properties(chronon3d_graph_compiler PROPERTIES UNITY_BUILD OFF)
@@ -131,6 +133,16 @@ target_link_libraries(chronon3d_graph_preflight PUBLIC
     chronon3d_graph_compiler
 )
 
+# ── Cache: scene program cache ──────────────────────────────────────────────
+add_library(chronon3d_graph_cache STATIC
+    cache/scene_program_cache.cpp
+)
+set_target_properties(chronon3d_graph_cache PROPERTIES UNITY_BUILD OFF)
+target_link_libraries(chronon3d_graph_cache PUBLIC
+    chronon3d_graph_core
+    chronon3d_graph_compiler
+)
+
 # ── Pipeline: scene orchestration, dirty rects, tile execution ───────────────
 add_library(chronon3d_graph_pipeline STATIC
     pipeline/scene.cpp
@@ -158,6 +170,7 @@ add_library(chronon3d_graph_pipeline STATIC
     pipeline/refresh/transform.cpp
     pipeline/debug.cpp
     pipeline/composition.cpp
+    pipeline/precomp_node_execute.cpp
 )
 set_target_properties(chronon3d_graph_pipeline PROPERTIES UNITY_BUILD OFF)
 target_link_libraries(chronon3d_graph_pipeline PUBLIC
@@ -166,6 +179,7 @@ target_link_libraries(chronon3d_graph_pipeline PUBLIC
     chronon3d_graph_executor
     chronon3d_graph_compiler
     chronon3d_graph_preflight
+    chronon3d_graph_cache
 )
 target_precompile_headers(chronon3d_graph_pipeline PRIVATE
     <glm/glm.hpp>
@@ -183,4 +197,5 @@ target_link_libraries(chronon3d_graph INTERFACE
     chronon3d_graph_compiler
     chronon3d_graph_preflight
     chronon3d_graph_pipeline
+    chronon3d_graph_cache
 )

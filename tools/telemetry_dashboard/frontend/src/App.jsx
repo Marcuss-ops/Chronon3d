@@ -672,7 +672,7 @@ function App() {
                 )}
 
                 <MetricsGrid runDetail={runDetail} />
-                <PerformanceCharts frames={runDetail.frames} phases={runDetail.phases} />
+                <PerformanceCharts frames={runDetail.frames} phases={runDetail.phases} counters={runDetail.counters} />
 
                 {(runDetail.frames || []).length > 0 && (() => {
                   const allFrames = runDetail.frames;

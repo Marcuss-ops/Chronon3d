@@ -1,7 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import Chart from 'react-apexcharts';
 
-export default function PerformanceCharts({ frames, phases }) {
+export default function PerformanceCharts({ frames, phases, counters }) {
+  // ── Program Cache hit rate from per-run counters ────────────────────
+  const pcHits = Number((counters || []).find(c => c.counter_name === 'program_cache_hits')?.counter_value || 0);
+  const pcMisses = Number((counters || []).find(c => c.counter_name === 'program_cache_misses')?.counter_value || 0);
+  const pcTotal = pcHits + pcMisses;
+  const pcHitRate = pcTotal > 0 ? (pcHits / pcTotal * 100) : 0;
+  const pcEvictions = Number((counters || []).find(c => c.counter_name === 'program_cache_evictions')?.counter_value || 0);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -127,6 +133,110 @@ export default function PerformanceCharts({ frames, phases }) {
     tooltip: { theme: 'dark' }
   };
 
+  // ── Program Cache capacity trend data ──────────────────────────────
+  // Only show the trend chart if capacity actually changed (auto-tuning active).
+  const capacityData = frames.map(f => Number(f.program_cache_capacity || 0));
+  const capacityVaried = capacityData.some(v => v !== capacityData[0]);
+  const capacityMin = Math.min(...capacityData);
+  const capacityMax = Math.max(...capacityData);
+  const capacityRange = capacityMax - capacityMin;
+
+  const capacityOptions = {
+    chart: {
+      id: 'program-cache-capacity-trend',
+      toolbar: { show: true },
+      background: 'transparent',
+      animations: { enabled: false }
+    },
+    theme: { mode: 'dark' },
+    stroke: { curve: 'stepline', width: 2 },
+    colors: ['#f0883e'],
+    fill: {
+      type: 'gradient',
+      gradient: {
+        shadeIntensity: 1,
+        opacityFrom: 0.35,
+        opacityTo: 0.05,
+        stops: [20, 100]
+      }
+    },
+    xaxis: {
+      categories: categories,
+      title: { text: 'Frame Number', style: { color: '#8b949e' } },
+      labels: { show: categories.length < 50, style: { colors: '#8b949e' } }
+    },
+    yaxis: {
+      title: { text: 'Cache Capacity (entries)', style: { color: '#8b949e' } },
+      labels: { style: { colors: '#8b949e' } },
+      min: capacityRange > 0 ? Math.max(0, capacityMin - Math.ceil(capacityRange * 0.2)) : 0,
+      forceNiceScale: true
+    },
+    tooltip: {
+      theme: 'dark',
+      y: {
+        formatter: (val) => `${val} entries`
+      }
+    },
+    grid: { borderColor: '#30363d' },
+    annotations: {}
+  };
+
+  // ── Program Cache radial gauge options ─────────────────────────────
+  const pcHitRateColor = pcHitRate > 80 ? '#3fb950' : pcHitRate > 50 ? '#d29922' : '#f85149';
+  const pcGaugeOptions = {
+    chart: {
+      id: 'program-cache-hit-rate',
+      background: 'transparent',
+      animations: { enabled: false }
+    },
+    theme: { mode: 'dark' },
+    plotOptions: {
+      radialBar: {
+        startAngle: -135,
+        endAngle: 135,
+        hollow: {
+          size: '60%',
+          background: 'transparent'
+        },
+        track: {
+          background: '#30363d',
+          strokeWidth: '80%'
+        },
+        dataLabels: {
+          name: {
+            show: true,
+            fontSize: '14px',
+            color: '#8b949e',
+            offsetY: -8
+          },
+          value: {
+            show: true,
+            fontSize: '28px',
+            fontWeight: 700,
+            color: pcHitRateColor,
+            offsetY: 4,
+            formatter: (val) => `${val.toFixed(1)}%`
+          }
+        }
+      }
+    },
+    fill: {
+      colors: [pcHitRateColor]
+    },
+    stroke: {
+      lineCap: 'round'
+    },
+    labels: ['Program Cache Hit Rate'],
+    tooltip: {
+      theme: 'dark',
+      y: {
+        formatter: (val) => `${pcHits} hits / ${pcTotal} total`
+      }
+    }
+  };
+
+  const pcGaugeSeries = [pcHitRate];
+
   return (
     <div className="charts-container" style={{ marginBottom: '24px' }}>
       <div className="charts-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
@@ -157,6 +267,46 @@ export default function PerformanceCharts({ frames, phases }) {
             height={250}
           />
         </div>
+        {capacityVaried && (
+          <div className="glass-panel" style={{ padding: '16px' }}>
+            <h3 style={{ marginBottom: '12px', fontSize: '0.9rem', color: '#f0f6fc' }}>
+              Program Cache Capacity Trend
+              <span style={{ marginLeft: '8px', fontSize: '0.7rem', color: '#8b949e' }}>
+                (auto-tune active)
+              </span>
+            </h3>
+            <Chart
+              options={capacityOptions}
+              series={[{ name: 'Capacity', data: capacityData }]}
+              type="area"
+              height={250}
+            />
+            <div style={{ display: 'flex', justifyContent: 'space-around', marginTop: '4px', fontSize: '0.75rem', color: '#8b949e' }}>
+              <span>start: {capacityData[0]}</span>
+              <span>end: {capacityData[capacityData.length - 1]}</span>
+              <span>min: {capacityMin}</span>
+              <span>max: {capacityMax}</span>
+            </div>
+          </div>
+        )}
+        {pcTotal > 0 && (
+          <div className="glass-panel" style={{ padding: '16px' }}>
+            <h3 style={{ marginBottom: '12px', fontSize: '0.9rem', color: '#f0f6fc' }}>
+              Program Cache Hit Rate
+            </h3>
+            <Chart
+              options={pcGaugeOptions}
+              series={pcGaugeSeries}
+              type="radialBar"
+              height={250}
+            />
+            <div style={{ display: 'flex', justifyContent: 'space-around', marginTop: '4px', fontSize: '0.75rem', color: '#8b949e' }}>
+              <span>{pcHits.toLocaleString()} hits</span>
+              <span>{pcMisses.toLocaleString()} misses</span>
+              <span>{pcEvictions.toLocaleString()} evictions</span>
+            </div>
+          </div>
+        )}
       </div>
       
       {phaseValues.length > 0 && (

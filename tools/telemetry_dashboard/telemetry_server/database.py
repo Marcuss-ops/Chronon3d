@@ -165,6 +165,7 @@ CREATE TABLE IF NOT EXISTS render_frames (
     tile_execution_used INTEGER DEFAULT 0,
     fast_path_reused INTEGER DEFAULT 0,
     graph_reused INTEGER DEFAULT 0,
+    program_cache_capacity INTEGER DEFAULT 0,
     PRIMARY KEY (run_id, frame_number)
 );
 
@@ -460,6 +461,7 @@ def _build_frame_row(record):
         int(bool(record.get('tile_execution_used'))),
         int(bool(record.get('fast_path_reused'))),
         int(bool(record.get('graph_reused'))),
+        record.get('program_cache_capacity') or 0,
     ]
 
 

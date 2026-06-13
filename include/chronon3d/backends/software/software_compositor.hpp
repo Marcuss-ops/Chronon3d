@@ -2,6 +2,7 @@
 
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
+#include <chronon3d/compositor/composite_operator.hpp>
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <optional>
@@ -16,7 +17,8 @@ public:
         Framebuffer& dest,
         const Framebuffer& src,
         BlendMode mode,
-        const std::optional<raster::BBox>& clip = std::nullopt
+        const std::optional<raster::BBox>& clip = std::nullopt,
+        CompositeOperator op = CompositeOperator::SourceOver
     );
 
 private:

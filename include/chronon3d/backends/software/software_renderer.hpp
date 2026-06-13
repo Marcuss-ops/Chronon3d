@@ -3,6 +3,7 @@
 #include <chronon3d/backends/software/renderer.hpp>
 #include <chronon3d/backends/software/renderer_types.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
+#include <chronon3d/compositor/composite_operator.hpp>
 #include <chronon3d/backends/assets/image_renderer.hpp>
 #include <chronon3d/math/transform.hpp>
 #include <chronon3d/scene/model/render/render_node.hpp>
@@ -61,6 +62,8 @@ public:
     void set_settings(const RenderSettings& settings) {
         m_settings = settings;
         simd::g_force_scalar_normal_blend.store(settings.force_scalar_normal_blend, std::memory_order_relaxed);
+        m_counters.program_cache_capacity.store(settings.program_cache_capacity, std::memory_order_relaxed);
+        m_counters.program_cache_tune.store(settings.program_cache_tune ? 1 : 0, std::memory_order_relaxed);
     }
     [[nodiscard]] const RenderSettings& settings() const { return m_settings; }
 
@@ -121,7 +124,7 @@ public:
                    const Camera& camera, i32 width, i32 height) override;
     void apply_blur(Framebuffer& fb, f32 radius, const std::optional<raster::BBox>& clip = std::nullopt) override;
     void apply_effect_stack(Framebuffer& fb, const EffectStack& stack, float time_seconds, const std::optional<raster::BBox>& clip = std::nullopt) override;
-    void composite_layer(Framebuffer& dst, const Framebuffer& src, BlendMode mode, const std::optional<raster::BBox>& clip = std::nullopt) override;
+    void composite_layer(Framebuffer& dst, const Framebuffer& src, BlendMode mode, const std::optional<raster::BBox>& clip = std::nullopt, CompositeOperator op = CompositeOperator::SourceOver) override;
 
     [[nodiscard]] renderer::SoftwareRegistry& software_registry() { return *m_runtime_resources.software_registry; }
     [[nodiscard]] const renderer::SoftwareRegistry& software_registry() const { return *m_runtime_resources.software_registry; }

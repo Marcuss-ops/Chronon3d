@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/render_graph/nodes/basic_nodes_common.hpp>
+#include <chronon3d/compositor/composite_operator.hpp>
 #include <span>
 
 namespace chronon3d::graph {
@@ -9,8 +10,11 @@ class CompositeNode final : public RenderGraphNode {
 public:
     bool cacheable() const override { return m_cache_frame >= 0; }
 
-    CompositeNode(::chronon3d::BlendMode mode, Frame cache_frame = Frame{-1}, float world_z = 0.0f)
-        : m_mode(mode), m_cache_frame(cache_frame), m_world_z(world_z) {}
+    CompositeNode(::chronon3d::BlendMode mode,
+                  Frame cache_frame = Frame{-1},
+                  float world_z = 0.0f,
+                  ::chronon3d::CompositeOperator op = ::chronon3d::CompositeOperator::SourceOver)
+        : m_mode(mode), m_cache_frame(cache_frame), m_world_z(world_z), m_operator(op) {}
 
     RenderGraphNodeKind kind() const override { return RenderGraphNodeKind::Composite; }
     std::string name() const override { return "Composite"; }
@@ -35,12 +39,32 @@ public:
             return raster::BBox{x, y, x, y};
         }
 
-        raster::BBox union_box;
-        union_box.x0 = std::min(bottom->x0, top->x0);
-        union_box.y0 = std::min(bottom->y0, top->y0);
-        union_box.x1 = std::max(bottom->x1, top->x1);
-        union_box.y1 = std::max(bottom->y1, top->y1);
-        return union_box;
+        // CompositeOperator-specific bbox:
+        // SourceOver:    union(bottom, top)
+        // Stencil:       intersection(bottom, top) — source masks backdrop
+        // Silhouette:    bottom — only backdrop (source only subtracts)
+        if (m_operator == ::chronon3d::CompositeOperator::SourceOver) {
+            raster::BBox union_box;
+            union_box.x0 = std::min(bottom->x0, top->x0);
+            union_box.y0 = std::min(bottom->y0, top->y0);
+            union_box.x1 = std::max(bottom->x1, top->x1);
+            union_box.y1 = std::max(bottom->y1, top->y1);
+            return union_box;
+        }
+
+        // Stencil/Silhouette: intersection for Stencil, bottom for Silhouette
+        if (m_operator == ::chronon3d::CompositeOperator::StencilAlpha ||
+            m_operator == ::chronon3d::CompositeOperator::StencilLuma) {
+            raster::BBox inter_box;
+            inter_box.x0 = std::max(bottom->x0, top->x0);
+            inter_box.y0 = std::max(bottom->y0, top->y0);
+            inter_box.x1 = std::min(bottom->x1, top->x1);
+            inter_box.y1 = std::min(bottom->y1, top->y1);
+            return inter_box;
+        }
+
+        // SilhouetteAlpha / SilhouetteLuma → bottom only
+        return *bottom;
     }
 
     [[nodiscard]] CacheFramePolicy cache_frame_policy() const override {
@@ -48,12 +72,16 @@ public:
     }
 
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
+        const u64 params_hash = hash_combine(
+            static_cast<u64>(m_mode),
+            static_cast<u64>(m_operator)
+        );
         return cache::NodeCacheKey{
             .scope = "composite",
             .frame = m_cache_frame >= 0 ? m_cache_frame : Frame{0},
             .width = ctx.frame.width,
             .height = ctx.frame.height,
-            .params_hash = static_cast<u64>(m_mode)
+            .params_hash = params_hash
         };
     }
 
@@ -63,13 +91,15 @@ public:
         std::span<const std::optional<raster::BBox>> input_bboxes
     ) override;
 
-    // ── Accessor for graph optimization ─────────────────────────────────
+    // ── Accessors for graph optimization ────────────────────────────────
     [[nodiscard]] BlendMode blend_mode() const { return m_mode; }
+    [[nodiscard]] ::chronon3d::CompositeOperator composite_operator() const { return m_operator; }
 
 private:
-    BlendMode m_mode;
-    Frame m_cache_frame{-1};
-    float m_world_z{0.0f};
+    BlendMode                  m_mode;
+    CompositeOperator          m_operator{CompositeOperator::SourceOver};
+    Frame                      m_cache_frame{-1};
+    float                      m_world_z{0.0f};
 };
 
 } // namespace chronon3d::graph

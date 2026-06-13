@@ -6,6 +6,7 @@
 #include <chronon3d/core/memory_utils.hpp>
 
 #include <chronon3d/simd/kernels.hpp>
+#include <chronon3d/compositor/blend_math.hpp>
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -305,12 +306,637 @@ HWY_ATTR void composite_overlay_premul_impl(float* HWY_RESTRICT dst_ptr,
     }
 }
 
+// ── B2: Canonical premultiplied blend helpers ───────────────────────────────
+//
+// These implement the full Porter-Duff "over" compositing equation:
+//   Co = cb * (1 - As) + cs * (1 - Ab) + B(Cb, Cs) * (As * Ab)
+//
+// Where cb/cs are premultiplied, Cb/Cs are straight, and B is the blend function.
+// This matches blend_math::blend_reference_premul exactly.
+
+// Helper: un-premultiply RGB.  Returns zero for alpha near zero.
+HWY_ATTR hn::Vec<hn::FixedTag<float, 4>> safe_unpremul_rgb(
+    hn::Vec<hn::FixedTag<float, 4>> premul,
+    hn::Vec<hn::FixedTag<float, 4>> alpha_bb,
+    const hn::FixedTag<float, 4>& d4,
+    const hn::Vec<hn::FixedTag<float, 4>>& epsilon) {
+    // Safe division: where alpha <= epsilon, result is 0.
+    const auto safe_div = hn::Div(premul, alpha_bb);
+    const auto mask = hn::Gt(alpha_bb, epsilon);
+    return hn::IfThenElse(mask, safe_div, hn::Zero(d4));
+}
+
+HWY_ATTR void composite_darken_premul_impl(float* HWY_RESTRICT dst_ptr,
+                                            const float* HWY_RESTRICT src_ptr,
+                                            int pixel_count) {
+    const hn::FixedTag<float, 4> d4;
+    const auto one = hn::Set(d4, 1.0f);
+    const auto eps = hn::Set(d4, 1e-8f);
+
+    for (int i = 0; i < pixel_count; ++i) {
+        if (src_ptr[i * 4 + 3] <= 0.0f) continue;
+        const auto s = hn::LoadU(d4, src_ptr + i * 4);  // premul src
+        const auto d = hn::LoadU(d4, dst_ptr + i * 4);   // premul dst
+
+        const auto As = hn::Broadcast<3>(s);
+        const auto Ab = hn::Broadcast<3>(d);
+
+        // Alpha: Ao = As + Ab - As*Ab = Ab + As*(1 - Ab)
+        const auto Ao = hn::MulAdd(As, hn::Sub(one, Ab), Ab);
+
+        // Un-premultiply to straight
+        const auto Cs_rgb = safe_unpremul_rgb(s, As, d4, eps);
+        const auto Cb_rgb = safe_unpremul_rgb(d, Ab, d4, eps);
+
+        // Blend function: Darken = min(Cb, Cs)
+        const auto B = hn::Min(Cb_rgb, Cs_rgb);
+
+        // Porter-Duff over: Co = d * (1-As) + s * (1-Ab) + B * (As * Ab)
+        const auto inv_As = hn::Sub(one, As);
+        const auto inv_Ab = hn::Sub(one, Ab);
+        const auto AsAb = hn::Mul(As, Ab);
+
+        auto Co = hn::Mul(d, inv_As);             // d * (1-As)
+        Co = hn::MulAdd(s, inv_Ab, Co);           // + s * (1-Ab)
+        Co = hn::MulAdd(B, AsAb, Co);             // + B * As*Ab
+
+        // Replace alpha.
+        hn::StoreU(Co, d4, dst_ptr + i * 4);
+        const float corrected_a = hn::GetLane(Ao);
+        dst_ptr[i * 4 + 3] = corrected_a > 0.0f ? corrected_a : 0.0f;
+        if (dst_ptr[i * 4 + 3] <= 0.0f) {
+            dst_ptr[i * 4 + 0] = 0.0f;
+            dst_ptr[i * 4 + 1] = 0.0f;
+            dst_ptr[i * 4 + 2] = 0.0f;
+        }
+    }
+}
+
+HWY_ATTR void composite_lighten_premul_impl(float* HWY_RESTRICT dst_ptr,
+                                             const float* HWY_RESTRICT src_ptr,
+                                             int pixel_count) {
+    const hn::FixedTag<float, 4> d4;
+    const auto one = hn::Set(d4, 1.0f);
+    const auto eps = hn::Set(d4, 1e-8f);
+
+    for (int i = 0; i < pixel_count; ++i) {
+        if (src_ptr[i * 4 + 3] <= 0.0f) continue;
+        const auto s = hn::LoadU(d4, src_ptr + i * 4);
+        const auto d = hn::LoadU(d4, dst_ptr + i * 4);
+
+        const auto As = hn::Broadcast<3>(s);
+        const auto Ab = hn::Broadcast<3>(d);
+        const auto Ao = hn::MulAdd(As, hn::Sub(one, Ab), Ab);
+
+        const auto Cs_rgb = safe_unpremul_rgb(s, As, d4, eps);
+        const auto Cb_rgb = safe_unpremul_rgb(d, Ab, d4, eps);
+
+        // Lighten = max(Cb, Cs)
+        const auto B = hn::Max(Cb_rgb, Cs_rgb);
+
+        const auto inv_As = hn::Sub(one, As);
+        const auto inv_Ab = hn::Sub(one, Ab);
+        const auto AsAb = hn::Mul(As, Ab);
+
+        auto Co = hn::Mul(d, inv_As);
+        Co = hn::MulAdd(s, inv_Ab, Co);
+        Co = hn::MulAdd(B, AsAb, Co);
+
+        hn::StoreU(Co, d4, dst_ptr + i * 4);
+        const float corrected_a = hn::GetLane(Ao);
+        dst_ptr[i * 4 + 3] = corrected_a > 0.0f ? corrected_a : 0.0f;
+        if (dst_ptr[i * 4 + 3] <= 0.0f) {
+            dst_ptr[i * 4 + 0] = 0.0f;
+            dst_ptr[i * 4 + 1] = 0.0f;
+            dst_ptr[i * 4 + 2] = 0.0f;
+        }
+    }
+}
+
+HWY_ATTR void composite_difference_premul_impl(float* HWY_RESTRICT dst_ptr,
+                                                const float* HWY_RESTRICT src_ptr,
+                                                int pixel_count) {
+    const hn::FixedTag<float, 4> d4;
+    const auto one = hn::Set(d4, 1.0f);
+    const auto eps = hn::Set(d4, 1e-8f);
+
+    for (int i = 0; i < pixel_count; ++i) {
+        if (src_ptr[i * 4 + 3] <= 0.0f) continue;
+        const auto s = hn::LoadU(d4, src_ptr + i * 4);
+        const auto d = hn::LoadU(d4, dst_ptr + i * 4);
+
+        const auto As = hn::Broadcast<3>(s);
+        const auto Ab = hn::Broadcast<3>(d);
+        const auto Ao = hn::MulAdd(As, hn::Sub(one, Ab), Ab);
+
+        const auto Cs_rgb = safe_unpremul_rgb(s, As, d4, eps);
+        const auto Cb_rgb = safe_unpremul_rgb(d, Ab, d4, eps);
+
+        // Difference = |Cb - Cs|
+        const auto diff = hn::Sub(Cb_rgb, Cs_rgb);
+        const auto B = hn::Abs(diff);
+
+        const auto inv_As = hn::Sub(one, As);
+        const auto inv_Ab = hn::Sub(one, Ab);
+        const auto AsAb = hn::Mul(As, Ab);
+
+        auto Co = hn::Mul(d, inv_As);
+        Co = hn::MulAdd(s, inv_Ab, Co);
+        Co = hn::MulAdd(B, AsAb, Co);
+
+        hn::StoreU(Co, d4, dst_ptr + i * 4);
+        const float corrected_a = hn::GetLane(Ao);
+        dst_ptr[i * 4 + 3] = corrected_a > 0.0f ? corrected_a : 0.0f;
+        if (dst_ptr[i * 4 + 3] <= 0.0f) {
+            dst_ptr[i * 4 + 0] = 0.0f;
+            dst_ptr[i * 4 + 1] = 0.0f;
+            dst_ptr[i * 4 + 2] = 0.0f;
+        }
+    }
+}
+
+HWY_ATTR void composite_exclusion_premul_impl(float* HWY_RESTRICT dst_ptr,
+                                               const float* HWY_RESTRICT src_ptr,
+                                               int pixel_count) {
+    const hn::FixedTag<float, 4> d4;
+    const auto one = hn::Set(d4, 1.0f);
+    const auto two = hn::Set(d4, 2.0f);
+    const auto eps = hn::Set(d4, 1e-8f);
+
+    for (int i = 0; i < pixel_count; ++i) {
+        if (src_ptr[i * 4 + 3] <= 0.0f) continue;
+        const auto s = hn::LoadU(d4, src_ptr + i * 4);
+        const auto d = hn::LoadU(d4, dst_ptr + i * 4);
+
+        const auto As = hn::Broadcast<3>(s);
+        const auto Ab = hn::Broadcast<3>(d);
+        const auto Ao = hn::MulAdd(As, hn::Sub(one, Ab), Ab);
+
+        const auto Cs_rgb = safe_unpremul_rgb(s, As, d4, eps);
+        const auto Cb_rgb = safe_unpremul_rgb(d, Ab, d4, eps);
+
+        // Exclusion = Cb + Cs - 2*Cb*Cs
+        const auto prod = hn::Mul(Cb_rgb, Cs_rgb);
+        const auto sum = hn::Add(Cb_rgb, Cs_rgb);
+        const auto B = hn::Sub(sum, hn::Mul(prod, two));
+
+        const auto inv_As = hn::Sub(one, As);
+        const auto inv_Ab = hn::Sub(one, Ab);
+        const auto AsAb = hn::Mul(As, Ab);
+
+        auto Co = hn::Mul(d, inv_As);
+        Co = hn::MulAdd(s, inv_Ab, Co);
+        Co = hn::MulAdd(B, AsAb, Co);
+
+        hn::StoreU(Co, d4, dst_ptr + i * 4);
+        const float corrected_a = hn::GetLane(Ao);
+        dst_ptr[i * 4 + 3] = corrected_a > 0.0f ? corrected_a : 0.0f;
+        if (dst_ptr[i * 4 + 3] <= 0.0f) {
+            dst_ptr[i * 4 + 0] = 0.0f;
+            dst_ptr[i * 4 + 1] = 0.0f;
+            dst_ptr[i * 4 + 2] = 0.0f;
+        }
+    }
+}
+
+// ── B3: SoftLight SIMD ─────────────────────────────────────────────────
+HWY_ATTR void composite_soft_light_premul_impl(float* HWY_RESTRICT dst_ptr,
+                                                const float* HWY_RESTRICT src_ptr,
+                                                int pixel_count) {
+    const hn::FixedTag<float, 4> d4;
+    const auto one  = hn::Set(d4, 1.0f);
+    const auto two  = hn::Set(d4, 2.0f);
+    const auto half = hn::Set(d4, 0.5f);
+    const auto quarter = hn::Set(d4, 0.25f);
+    const auto c16 = hn::Set(d4, 16.0f);
+    const auto c12 = hn::Set(d4, 12.0f);
+    const auto c4  = hn::Set(d4, 4.0f);
+    const auto eps = hn::Set(d4, 1e-8f);
+
+    for (int i = 0; i < pixel_count; ++i) {
+        if (src_ptr[i * 4 + 3] <= 0.0f) continue;
+        const auto s = hn::LoadU(d4, src_ptr + i * 4);           // premul src
+        const auto d = hn::LoadU(d4, dst_ptr + i * 4);           // premul dst
+
+        const auto As = hn::Broadcast<3>(s);
+        const auto Ab = hn::Broadcast<3>(d);
+        const auto Ao = hn::MulAdd(As, hn::Sub(one, Ab), Ab);
+
+        // Un-premultiply
+        const auto Cs_rgb = hn::Div(s, hn::Max(As, eps));
+        const auto Cb_rgb = hn::Div(d, hn::Max(Ab, eps));
+
+        // Clamp to [0,1] per HDR contract
+        const auto Cs_clamped = hn::Min(hn::Max(Cs_rgb, hn::Zero(d4)), one);
+        const auto Cb_clamped = hn::Min(hn::Max(Cb_rgb, hn::Zero(d4)), one);
+
+        // soft_light_d(cb): if cb <= 0.25 → ((16*cb - 12)*cb + 4)*cb  else sqrt(cb)
+        auto d_val = hn::Sqrt(Cb_clamped);
+        {
+            auto poly = hn::Mul(Cb_clamped, hn::Sub(hn::Mul(Cb_clamped, c16), c12));
+            poly = hn::Add(poly, c4);
+            poly = hn::Mul(poly, Cb_clamped);
+            const auto mask = hn::Le(Cb_clamped, quarter);
+            d_val = hn::IfThenElse(mask, poly, d_val);
+        }
+
+        // soft_light(cb, cs): if cs <= 0.5 → cb - (1-2*cs)*cb*(1-cb)  else cb + (2*cs-1)*(d(cb)-cb)
+        const auto om_cs = hn::Sub(one, Cs_clamped);
+        const auto branch1 = hn::Sub(Cb_clamped,
+                                      hn::Mul(hn::Mul(hn::Sub(one, hn::Mul(two, Cs_clamped)), Cb_clamped),
+                                              hn::Sub(one, Cb_clamped)));
+        const auto branch2 = hn::Add(Cb_clamped,
+                                      hn::Mul(hn::Sub(hn::Mul(two, Cs_clamped), one),
+                                              hn::Sub(d_val, Cb_clamped)));
+        const auto B = hn::IfThenElse(hn::Le(Cs_clamped, half), branch1, branch2);
+
+        // Porter-Duff over
+        const auto inv_As = hn::Sub(one, As);
+        const auto inv_Ab = hn::Sub(one, Ab);
+        const auto AsAb = hn::Mul(As, Ab);
+        auto Co = hn::Mul(d, inv_As);
+        Co = hn::MulAdd(s, inv_Ab, Co);
+        Co = hn::MulAdd(B, AsAb, Co);
+
+        hn::StoreU(Co, d4, dst_ptr + i * 4);
+        dst_ptr[i * 4 + 3] = hn::GetLane(Ao);
+        if (dst_ptr[i * 4 + 3] <= 0.0f) {
+            dst_ptr[i * 4 + 0] = 0.0f;
+            dst_ptr[i * 4 + 1] = 0.0f;
+            dst_ptr[i * 4 + 2] = 0.0f;
+        }
+    }
+}
+
+// ── B3: HardLight SIMD ────────────────────────────────────────────────
+HWY_ATTR void composite_hard_light_premul_impl(float* HWY_RESTRICT dst_ptr,
+                                                const float* HWY_RESTRICT src_ptr,
+                                                int pixel_count) {
+    const hn::FixedTag<float, 4> d4;
+    const auto one  = hn::Set(d4, 1.0f);
+    const auto two  = hn::Set(d4, 2.0f);
+    const auto half = hn::Set(d4, 0.5f);
+    const auto eps  = hn::Set(d4, 1e-8f);
+
+    for (int i = 0; i < pixel_count; ++i) {
+        if (src_ptr[i * 4 + 3] <= 0.0f) continue;
+        const auto s = hn::LoadU(d4, src_ptr + i * 4);
+        const auto d = hn::LoadU(d4, dst_ptr + i * 4);
+
+        const auto As = hn::Broadcast<3>(s);
+        const auto Ab = hn::Broadcast<3>(d);
+        const auto Ao = hn::MulAdd(As, hn::Sub(one, Ab), Ab);
+
+        const auto Cs_rgb = hn::Div(s, hn::Max(As, eps));
+        const auto Cb_rgb = hn::Div(d, hn::Max(Ab, eps));
+
+        // Clamp to [0,1]
+        const auto Cs_clamped = hn::Min(hn::Max(Cs_rgb, hn::Zero(d4)), one);
+        const auto Cb_clamped = hn::Min(hn::Max(Cb_rgb, hn::Zero(d4)), one);
+
+        // if cs <= 0.5 → 2*cb*cs  else 1 - 2*(1-cb)*(1-cs)
+        const auto om_cb = hn::Sub(one, Cb_clamped);
+        const auto om_cs = hn::Sub(one, Cs_clamped);
+        const auto branch1 = hn::Mul(hn::Mul(two, Cb_clamped), Cs_clamped);
+        const auto branch2 = hn::Sub(one, hn::Mul(hn::Mul(two, om_cb), om_cs));
+        const auto B = hn::IfThenElse(hn::Le(Cs_clamped, half), branch1, branch2);
+
+        const auto inv_As = hn::Sub(one, As);
+        const auto inv_Ab = hn::Sub(one, Ab);
+        const auto AsAb = hn::Mul(As, Ab);
+        auto Co = hn::Mul(d, inv_As);
+        Co = hn::MulAdd(s, inv_Ab, Co);
+        Co = hn::MulAdd(B, AsAb, Co);
+
+        hn::StoreU(Co, d4, dst_ptr + i * 4);
+        dst_ptr[i * 4 + 3] = hn::GetLane(Ao);
+        if (dst_ptr[i * 4 + 3] <= 0.0f) {
+            dst_ptr[i * 4 + 0] = 0.0f;
+            dst_ptr[i * 4 + 1] = 0.0f;
+            dst_ptr[i * 4 + 2] = 0.0f;
+        }
+    }
+}
+
+// ── B3: ColorDodge SIMD ───────────────────────────────────────────────
+HWY_ATTR void composite_color_dodge_premul_impl(float* HWY_RESTRICT dst_ptr,
+                                                 const float* HWY_RESTRICT src_ptr,
+                                                 int pixel_count) {
+    const hn::FixedTag<float, 4> d4;
+    const auto one  = hn::Set(d4, 1.0f);
+    const auto eps  = hn::Set(d4, 1e-8f);
+
+    for (int i = 0; i < pixel_count; ++i) {
+        if (src_ptr[i * 4 + 3] <= 0.0f) continue;
+        const auto s = hn::LoadU(d4, src_ptr + i * 4);
+        const auto d = hn::LoadU(d4, dst_ptr + i * 4);
+
+        const auto As = hn::Broadcast<3>(s);
+        const auto Ab = hn::Broadcast<3>(d);
+        const auto Ao = hn::MulAdd(As, hn::Sub(one, Ab), Ab);
+
+        const auto Cs_rgb = hn::Div(s, hn::Max(As, eps));
+        const auto Cb_rgb = hn::Div(d, hn::Max(Ab, eps));
+
+        // Clamp to [0,1]
+        const auto Cs_clamped = hn::Min(hn::Max(Cs_rgb, hn::Zero(d4)), one);
+        const auto Cb_clamped = hn::Min(hn::Max(Cb_rgb, hn::Zero(d4)), one);
+
+        // dodge: if cs >= 1 → 1, if cb <= 0 → 0, else min(1, cb/(1-cs))
+        const auto om_cs = hn::Sub(one, Cs_clamped);
+        const auto dodge_val = hn::Div(Cb_clamped, hn::Max(om_cs, eps));
+        const auto dodged = hn::Min(dodge_val, one);
+
+        // cs >= 1 → 1
+        const auto cs_ge_1 = hn::Ge(Cs_clamped, one);
+        // cb <= 0 → 0
+        const auto cb_le_0 = hn::Le(Cb_clamped, hn::Zero(d4));
+
+        auto B = hn::IfThenElse(cb_le_0, hn::Zero(d4), dodged);
+        B = hn::IfThenElse(cs_ge_1, one, B);
+
+        const auto inv_As = hn::Sub(one, As);
+        const auto inv_Ab = hn::Sub(one, Ab);
+        const auto AsAb = hn::Mul(As, Ab);
+        auto Co = hn::Mul(d, inv_As);
+        Co = hn::MulAdd(s, inv_Ab, Co);
+        Co = hn::MulAdd(B, AsAb, Co);
+
+        hn::StoreU(Co, d4, dst_ptr + i * 4);
+        dst_ptr[i * 4 + 3] = hn::GetLane(Ao);
+        if (dst_ptr[i * 4 + 3] <= 0.0f) {
+            dst_ptr[i * 4 + 0] = 0.0f;
+            dst_ptr[i * 4 + 1] = 0.0f;
+            dst_ptr[i * 4 + 2] = 0.0f;
+        }
+    }
+}
+
+// ── B3: ColorBurn SIMD ────────────────────────────────────────────────
+HWY_ATTR void composite_color_burn_premul_impl(float* HWY_RESTRICT dst_ptr,
+                                                const float* HWY_RESTRICT src_ptr,
+                                                int pixel_count) {
+    const hn::FixedTag<float, 4> d4;
+    const auto one  = hn::Set(d4, 1.0f);
+    const auto eps  = hn::Set(d4, 1e-8f);
+
+    for (int i = 0; i < pixel_count; ++i) {
+        if (src_ptr[i * 4 + 3] <= 0.0f) continue;
+        const auto s = hn::LoadU(d4, src_ptr + i * 4);
+        const auto d = hn::LoadU(d4, dst_ptr + i * 4);
+
+        const auto As = hn::Broadcast<3>(s);
+        const auto Ab = hn::Broadcast<3>(d);
+        const auto Ao = hn::MulAdd(As, hn::Sub(one, Ab), Ab);
+
+        const auto Cs_rgb = hn::Div(s, hn::Max(As, eps));
+        const auto Cb_rgb = hn::Div(d, hn::Max(Ab, eps));
+
+        // Clamp to [0,1]
+        const auto Cs_clamped = hn::Min(hn::Max(Cs_rgb, hn::Zero(d4)), one);
+        const auto Cb_clamped = hn::Min(hn::Max(Cb_rgb, hn::Zero(d4)), one);
+
+        // burn: if cs <= 0 → 0, if cb >= 1 → 1, else 1 - min(1, (1-cb)/cs)
+        const auto om_cb = hn::Sub(one, Cb_clamped);
+        const auto burn_val = hn::Div(om_cb, hn::Max(Cs_clamped, eps));
+        const auto burned = hn::Sub(one, hn::Min(burn_val, one));
+
+        const auto cs_le_0 = hn::Le(Cs_clamped, hn::Zero(d4));
+        const auto cb_ge_1 = hn::Ge(Cb_clamped, one);
+
+        auto B = hn::IfThenElse(cs_le_0, hn::Zero(d4), burned);
+        B = hn::IfThenElse(cb_ge_1, one, B);
+
+        const auto inv_As = hn::Sub(one, As);
+        const auto inv_Ab = hn::Sub(one, Ab);
+        const auto AsAb = hn::Mul(As, Ab);
+        auto Co = hn::Mul(d, inv_As);
+        Co = hn::MulAdd(s, inv_Ab, Co);
+        Co = hn::MulAdd(B, AsAb, Co);
+
+        hn::StoreU(Co, d4, dst_ptr + i * 4);
+        dst_ptr[i * 4 + 3] = hn::GetLane(Ao);
+        if (dst_ptr[i * 4 + 3] <= 0.0f) {
+            dst_ptr[i * 4 + 0] = 0.0f;
+            dst_ptr[i * 4 + 1] = 0.0f;
+            dst_ptr[i * 4 + 2] = 0.0f;
+        }
+    }
+}
+
+// ── B3 safe scalar fallbacks ────────────────────────────────────────────────
+
+static void composite_soft_light_safe(Color* dst, const Color* src, int pixel_count) {
+    for (int i = 0; i < pixel_count; ++i) {
+        if (has_bad_color(src[i]) || has_bad_color(dst[i])) continue;
+        Color& d = dst[i];
+        const Color& s = src[i];
+        const float new_a = s.a + d.a * (1.0f - s.a);
+        if (new_a <= 0.0f) { d = Color::transparent(); continue; }
+        // Un-premultiply, clamp, blend
+        const float Cs_r = s.a > 1e-8f ? std::min(s.r / s.a, 1.0f) : 0.0f;
+        const float Cs_g = s.a > 1e-8f ? std::min(s.g / s.a, 1.0f) : 0.0f;
+        const float Cs_b = s.a > 1e-8f ? std::min(s.b / s.a, 1.0f) : 0.0f;
+        const float Cb_r = d.a > 1e-8f ? std::min(d.r / d.a, 1.0f) : 0.0f;
+        const float Cb_g = d.a > 1e-8f ? std::min(d.g / d.a, 1.0f) : 0.0f;
+        const float Cb_b = d.a > 1e-8f ? std::min(d.b / d.a, 1.0f) : 0.0f;
+        const float br = blend_math::blend_soft_light(Cb_r, Cs_r);
+        const float bg = blend_math::blend_soft_light(Cb_g, Cs_g);
+        const float bb = blend_math::blend_soft_light(Cb_b, Cs_b);
+        const float inv_As = 1.0f - s.a;
+        const float inv_Ab = 1.0f - d.a;
+        const float AsAb = s.a * d.a;
+        d.r = d.r * inv_As + s.r * inv_Ab + br * AsAb;
+        d.g = d.g * inv_As + s.g * inv_Ab + bg * AsAb;
+        d.b = d.b * inv_As + s.b * inv_Ab + bb * AsAb;
+        d.a = new_a;
+    }
+}
+
+static void composite_hard_light_safe(Color* dst, const Color* src, int pixel_count) {
+    for (int i = 0; i < pixel_count; ++i) {
+        if (has_bad_color(src[i]) || has_bad_color(dst[i])) continue;
+        Color& d = dst[i];
+        const Color& s = src[i];
+        const float new_a = s.a + d.a * (1.0f - s.a);
+        if (new_a <= 0.0f) { d = Color::transparent(); continue; }
+        const float Cs_r = s.a > 1e-8f ? std::min(s.r / s.a, 1.0f) : 0.0f;
+        const float Cs_g = s.a > 1e-8f ? std::min(s.g / s.a, 1.0f) : 0.0f;
+        const float Cs_b = s.a > 1e-8f ? std::min(s.b / s.a, 1.0f) : 0.0f;
+        const float Cb_r = d.a > 1e-8f ? std::min(d.r / d.a, 1.0f) : 0.0f;
+        const float Cb_g = d.a > 1e-8f ? std::min(d.g / d.a, 1.0f) : 0.0f;
+        const float Cb_b = d.a > 1e-8f ? std::min(d.b / d.a, 1.0f) : 0.0f;
+        const float br = blend_math::blend_hard_light(Cb_r, Cs_r);
+        const float bg = blend_math::blend_hard_light(Cb_g, Cs_g);
+        const float bb = blend_math::blend_hard_light(Cb_b, Cs_b);
+        const float inv_As = 1.0f - s.a;
+        const float inv_Ab = 1.0f - d.a;
+        const float AsAb = s.a * d.a;
+        d.r = d.r * inv_As + s.r * inv_Ab + br * AsAb;
+        d.g = d.g * inv_As + s.g * inv_Ab + bg * AsAb;
+        d.b = d.b * inv_As + s.b * inv_Ab + bb * AsAb;
+        d.a = new_a;
+    }
+}
+
+static void composite_color_dodge_safe(Color* dst, const Color* src, int pixel_count) {
+    for (int i = 0; i < pixel_count; ++i) {
+        if (has_bad_color(src[i]) || has_bad_color(dst[i])) continue;
+        Color& d = dst[i];
+        const Color& s = src[i];
+        const float new_a = s.a + d.a * (1.0f - s.a);
+        if (new_a <= 0.0f) { d = Color::transparent(); continue; }
+        const float Cs_r = s.a > 1e-8f ? std::min(s.r / s.a, 1.0f) : 0.0f;
+        const float Cs_g = s.a > 1e-8f ? std::min(s.g / s.a, 1.0f) : 0.0f;
+        const float Cs_b = s.a > 1e-8f ? std::min(s.b / s.a, 1.0f) : 0.0f;
+        const float Cb_r = d.a > 1e-8f ? std::min(d.r / d.a, 1.0f) : 0.0f;
+        const float Cb_g = d.a > 1e-8f ? std::min(d.g / d.a, 1.0f) : 0.0f;
+        const float Cb_b = d.a > 1e-8f ? std::min(d.b / d.a, 1.0f) : 0.0f;
+        const float br = blend_math::blend_color_dodge(Cb_r, Cs_r);
+        const float bg = blend_math::blend_color_dodge(Cb_g, Cs_g);
+        const float bb = blend_math::blend_color_dodge(Cb_b, Cs_b);
+        const float inv_As = 1.0f - s.a;
+        const float inv_Ab = 1.0f - d.a;
+        const float AsAb = s.a * d.a;
+        d.r = d.r * inv_As + s.r * inv_Ab + br * AsAb;
+        d.g = d.g * inv_As + s.g * inv_Ab + bg * AsAb;
+        d.b = d.b * inv_As + s.b * inv_Ab + bb * AsAb;
+        d.a = new_a;
+    }
+}
+
+static void composite_color_burn_safe(Color* dst, const Color* src, int pixel_count) {
+    for (int i = 0; i < pixel_count; ++i) {
+        if (has_bad_color(src[i]) || has_bad_color(dst[i])) continue;
+        Color& d = dst[i];
+        const Color& s = src[i];
+        const float new_a = s.a + d.a * (1.0f - s.a);
+        if (new_a <= 0.0f) { d = Color::transparent(); continue; }
+        const float Cs_r = s.a > 1e-8f ? std::min(s.r / s.a, 1.0f) : 0.0f;
+        const float Cs_g = s.a > 1e-8f ? std::min(s.g / s.a, 1.0f) : 0.0f;
+        const float Cs_b = s.a > 1e-8f ? std::min(s.b / s.a, 1.0f) : 0.0f;
+        const float Cb_r = d.a > 1e-8f ? std::min(d.r / d.a, 1.0f) : 0.0f;
+        const float Cb_g = d.a > 1e-8f ? std::min(d.g / d.a, 1.0f) : 0.0f;
+        const float Cb_b = d.a > 1e-8f ? std::min(d.b / d.a, 1.0f) : 0.0f;
+        const float br = blend_math::blend_color_burn(Cb_r, Cs_r);
+        const float bg = blend_math::blend_color_burn(Cb_g, Cs_g);
+        const float bb = blend_math::blend_color_burn(Cb_b, Cs_b);
+        const float inv_As = 1.0f - s.a;
+        const float inv_Ab = 1.0f - d.a;
+        const float AsAb = s.a * d.a;
+        d.r = d.r * inv_As + s.r * inv_Ab + br * AsAb;
+        d.g = d.g * inv_As + s.g * inv_Ab + bg * AsAb;
+        d.b = d.b * inv_As + s.b * inv_Ab + bb * AsAb;
+        d.a = new_a;
+    }
+}
+
+// ── B4: Matte kernels ────────────────────────────────────────────────────
+
+HWY_ATTR void apply_alpha_matte_premul_impl(float* HWY_RESTRICT target_ptr,
+                                            const float* HWY_RESTRICT matte_ptr,
+                                            int pixel_count,
+                                            bool inverted) {
+    const hn::FixedTag<float, 4> d4;
+    const auto one = hn::Set(d4, 1.0f);
+    const auto zero = hn::Zero(d4);
+
+    if (inverted) {
+        for (int i = 0; i < pixel_count; ++i) {
+            const auto t = hn::LoadU(d4, target_ptr + i * 4);
+            const auto m = hn::LoadU(d4, matte_ptr + i * 4);
+            const auto matte_alpha = hn::Broadcast<3>(m);
+            auto coverage = hn::Sub(one, matte_alpha);  // 1 - ma
+            coverage = hn::Min(hn::Max(coverage, zero), one);
+            const auto result = hn::Mul(t, coverage);
+            hn::StoreU(result, d4, target_ptr + i * 4);
+        }
+    } else {
+        for (int i = 0; i < pixel_count; ++i) {
+            const auto t = hn::LoadU(d4, target_ptr + i * 4);
+            const auto m = hn::LoadU(d4, matte_ptr + i * 4);
+            const auto matte_alpha = hn::Broadcast<3>(m);
+            auto coverage = hn::Min(hn::Max(matte_alpha, zero), one);
+            const auto result = hn::Mul(t, coverage);
+            hn::StoreU(result, d4, target_ptr + i * 4);
+        }
+    }
+}
+
+HWY_ATTR void apply_luma_matte_premul_impl(float* HWY_RESTRICT target_ptr,
+                                           const float* HWY_RESTRICT matte_ptr,
+                                           int pixel_count,
+                                           bool inverted) {
+    const hn::FixedTag<float, 4> d4;
+    const auto one = hn::Set(d4, 1.0f);
+    const auto zero = hn::Zero(d4);
+    const auto w_r = hn::Set(d4, 0.2126f);
+    const auto w_g = hn::Set(d4, 0.7152f);
+    const auto w_b = hn::Set(d4, 0.0722f);
+
+    // Compute luma as: 0.2126*r + 0.7152*g + 0.0722*b
+    // Using premultiplied channels directly (no extra alpha multiply).
+    if (inverted) {
+        for (int i = 0; i < pixel_count; ++i) {
+            const auto t = hn::LoadU(d4, target_ptr + i * 4);
+            const auto m = hn::LoadU(d4, matte_ptr + i * 4);
+            // Compute luma in lane 0 via MulAdd chain
+            auto luma = hn::Mul(hn::Broadcast<0>(m), w_r);      // r * 0.2126
+            luma = hn::MulAdd(hn::Broadcast<1>(m), w_g, luma); // + g * 0.7152
+            luma = hn::MulAdd(hn::Broadcast<2>(m), w_b, luma); // + b * 0.0722
+            // All lanes now contain luma
+            auto coverage = hn::Sub(one, hn::Broadcast<0>(luma));
+            coverage = hn::Min(hn::Max(coverage, zero), one);
+            const auto result = hn::Mul(t, coverage);
+            hn::StoreU(result, d4, target_ptr + i * 4);
+        }
+    } else {
+        for (int i = 0; i < pixel_count; ++i) {
+            const auto t = hn::LoadU(d4, target_ptr + i * 4);
+            const auto m = hn::LoadU(d4, matte_ptr + i * 4);
+            auto luma = hn::Mul(hn::Broadcast<0>(m), w_r);
+            luma = hn::MulAdd(hn::Broadcast<1>(m), w_g, luma);
+            luma = hn::MulAdd(hn::Broadcast<2>(m), w_b, luma);
+            auto coverage = hn::Broadcast<0>(luma);
+            coverage = hn::Min(hn::Max(coverage, zero), one);
+            const auto result = hn::Mul(t, coverage);
+            hn::StoreU(result, d4, target_ptr + i * 4);
+        }
+    }
+}
+
 }  // namespace HWY_NAMESPACE
 }  // namespace chronon3d::simd
 HWY_AFTER_NAMESPACE();
 
 #if HWY_ONCE
 namespace chronon3d::simd {
+
+// ── B4: Safe scalar fallbacks for matte ─────────────────────────────────────
+
+static void apply_alpha_matte_safe(Color* target, const Color* matte, int pixel_count, bool inverted) {
+    for (int i = 0; i < pixel_count; ++i) {
+        const float ma = matte[i].a;
+        const float coverage = inverted ? (1.0f - ma) : ma;
+        const float c = std::clamp(coverage, 0.0f, 1.0f);
+        target[i].r *= c;
+        target[i].g *= c;
+        target[i].b *= c;
+        target[i].a *= c;
+    }
+}
+
+static void apply_luma_matte_safe(Color* target, const Color* matte, int pixel_count, bool inverted) {
+    for (int i = 0; i < pixel_count; ++i) {
+        const float luma = 0.2126f * matte[i].r + 0.7152f * matte[i].g + 0.0722f * matte[i].b;
+        const float coverage = inverted ? (1.0f - luma) : luma;
+        const float c = std::clamp(coverage, 0.0f, 1.0f);
+        target[i].r *= c;
+        target[i].g *= c;
+        target[i].b *= c;
+        target[i].a *= c;
+    }
+}
 
 // Global flag: force scalar Normal blend for diagnostic purposes
 std::atomic<bool> g_force_scalar_normal_blend{false};
@@ -320,6 +946,16 @@ HWY_EXPORT(composite_add_premul_impl);
 HWY_EXPORT(composite_multiply_premul_impl);
 HWY_EXPORT(composite_screen_premul_impl);
 HWY_EXPORT(composite_overlay_premul_impl);
+HWY_EXPORT(composite_darken_premul_impl);
+HWY_EXPORT(composite_lighten_premul_impl);
+HWY_EXPORT(composite_difference_premul_impl);
+HWY_EXPORT(composite_exclusion_premul_impl);
+HWY_EXPORT(composite_soft_light_premul_impl);
+HWY_EXPORT(composite_hard_light_premul_impl);
+HWY_EXPORT(composite_color_dodge_premul_impl);
+HWY_EXPORT(composite_color_burn_premul_impl);
+HWY_EXPORT(apply_alpha_matte_premul_impl);
+HWY_EXPORT(apply_luma_matte_premul_impl);
 HWY_EXPORT(premultiply_alpha_rgba8_impl);
 
 // ── Helpers ──────────────────────────────────────────────────────────────
@@ -361,7 +997,7 @@ void composite_normal_premul(Color* __restrict__ dst, const Color* __restrict__ 
     HWY_DYNAMIC_DISPATCH(composite_normal_premul_impl)(reinterpret_cast<float*>(dst), reinterpret_cast<const float*>(src), pixel_count);
 }
 
-// ── Non-normal blend modes (Add, Multiply, Screen, Overlay) ────────────
+// ── Non-normal blend modes (Add, Multiply, Screen, Overlay, Darken, etc.) ──
 
 static void composite_add_safe(Color* dst, const Color* src, int pixel_count) {
     for (int i = 0; i < pixel_count; ++i) {
@@ -403,12 +1039,69 @@ static void composite_overlay_safe(Color* dst, const Color* src, int pixel_count
         Color& d = dst[i];
         const Color& s = src[i];
         const float new_a = s.a + d.a * (1.0f - s.a);
-        // Overlay: if dst.ch < 0.5 → 2 * src.ch * dst.ch else 1 - 2*(1-src.ch)*(1-dst.ch)
         const float sr = s.r, sg = s.g, sb = s.b;
         const float dr = d.r, dg = d.g, db = d.b;
         d.r = dr < 0.5f ? 2.0f * sr * dr : 1.0f - 2.0f * (1.0f - sr) * (1.0f - dr);
         d.g = dg < 0.5f ? 2.0f * sg * dg : 1.0f - 2.0f * (1.0f - sg) * (1.0f - dg);
         d.b = db < 0.5f ? 2.0f * sb * db : 1.0f - 2.0f * (1.0f - sb) * (1.0f - db);
+        d.a = new_a;
+        if (new_a <= 0.0f) { d.r = 0.0f; d.g = 0.0f; d.b = 0.0f; d.a = 0.0f; }
+    }
+}
+
+// ── B2 safe scalar fallbacks ─────────────────────────────────────────────
+
+static void composite_darken_safe(Color* dst, const Color* src, int pixel_count) {
+    for (int i = 0; i < pixel_count; ++i) {
+        if (has_bad_color(src[i]) || has_bad_color(dst[i])) continue;
+        Color& d = dst[i];
+        const Color& s = src[i];
+        const float new_a = s.a + d.a * (1.0f - s.a);
+        d.r = std::min(s.r, d.r);
+        d.g = std::min(s.g, d.g);
+        d.b = std::min(s.b, d.b);
+        d.a = new_a;
+        if (new_a <= 0.0f) { d.r = 0.0f; d.g = 0.0f; d.b = 0.0f; d.a = 0.0f; }
+    }
+}
+
+static void composite_lighten_safe(Color* dst, const Color* src, int pixel_count) {
+    for (int i = 0; i < pixel_count; ++i) {
+        if (has_bad_color(src[i]) || has_bad_color(dst[i])) continue;
+        Color& d = dst[i];
+        const Color& s = src[i];
+        const float new_a = s.a + d.a * (1.0f - s.a);
+        d.r = std::max(s.r, d.r);
+        d.g = std::max(s.g, d.g);
+        d.b = std::max(s.b, d.b);
+        d.a = new_a;
+        if (new_a <= 0.0f) { d.r = 0.0f; d.g = 0.0f; d.b = 0.0f; d.a = 0.0f; }
+    }
+}
+
+static void composite_difference_safe(Color* dst, const Color* src, int pixel_count) {
+    for (int i = 0; i < pixel_count; ++i) {
+        if (has_bad_color(src[i]) || has_bad_color(dst[i])) continue;
+        Color& d = dst[i];
+        const Color& s = src[i];
+        const float new_a = s.a + d.a * (1.0f - s.a);
+        d.r = std::abs(s.r - d.r);
+        d.g = std::abs(s.g - d.g);
+        d.b = std::abs(s.b - d.b);
+        d.a = new_a;
+        if (new_a <= 0.0f) { d.r = 0.0f; d.g = 0.0f; d.b = 0.0f; d.a = 0.0f; }
+    }
+}
+
+static void composite_exclusion_safe(Color* dst, const Color* src, int pixel_count) {
+    for (int i = 0; i < pixel_count; ++i) {
+        if (has_bad_color(src[i]) || has_bad_color(dst[i])) continue;
+        Color& d = dst[i];
+        const Color& s = src[i];
+        const float new_a = s.a + d.a * (1.0f - s.a);
+        d.r = s.r + d.r - 2.0f * s.r * d.r;
+        d.g = s.g + d.g - 2.0f * s.g * d.g;
+        d.b = s.b + d.b - 2.0f * s.b * d.b;
         d.a = new_a;
         if (new_a <= 0.0f) { d.r = 0.0f; d.g = 0.0f; d.b = 0.0f; d.a = 0.0f; }
     }
@@ -448,6 +1141,96 @@ void composite_overlay_premul(Color* __restrict__ dst, const Color* __restrict__
         return;
     }
     HWY_DYNAMIC_DISPATCH(composite_overlay_premul_impl)(reinterpret_cast<float*>(dst), reinterpret_cast<const float*>(src), pixel_count);
+}
+
+void composite_darken_premul(Color* __restrict__ dst, const Color* __restrict__ src, int pixel_count) {
+    if (pixel_count <= 0) return;
+    if (!check_nan_canary(dst, src, pixel_count)) {
+        composite_darken_safe(dst, src, pixel_count);
+        return;
+    }
+    HWY_DYNAMIC_DISPATCH(composite_darken_premul_impl)(reinterpret_cast<float*>(dst), reinterpret_cast<const float*>(src), pixel_count);
+}
+
+void composite_lighten_premul(Color* __restrict__ dst, const Color* __restrict__ src, int pixel_count) {
+    if (pixel_count <= 0) return;
+    if (!check_nan_canary(dst, src, pixel_count)) {
+        composite_lighten_safe(dst, src, pixel_count);
+        return;
+    }
+    HWY_DYNAMIC_DISPATCH(composite_lighten_premul_impl)(reinterpret_cast<float*>(dst), reinterpret_cast<const float*>(src), pixel_count);
+}
+
+void composite_difference_premul(Color* __restrict__ dst, const Color* __restrict__ src, int pixel_count) {
+    if (pixel_count <= 0) return;
+    if (!check_nan_canary(dst, src, pixel_count)) {
+        composite_difference_safe(dst, src, pixel_count);
+        return;
+    }
+    HWY_DYNAMIC_DISPATCH(composite_difference_premul_impl)(reinterpret_cast<float*>(dst), reinterpret_cast<const float*>(src), pixel_count);
+}
+
+void composite_exclusion_premul(Color* __restrict__ dst, const Color* __restrict__ src, int pixel_count) {
+    if (pixel_count <= 0) return;
+    if (!check_nan_canary(dst, src, pixel_count)) {
+        composite_exclusion_safe(dst, src, pixel_count);
+        return;
+    }
+    HWY_DYNAMIC_DISPATCH(composite_exclusion_premul_impl)(reinterpret_cast<float*>(dst), reinterpret_cast<const float*>(src), pixel_count);
+}
+
+void composite_soft_light_premul(Color* __restrict__ dst, const Color* __restrict__ src, int pixel_count) {
+    if (pixel_count <= 0) return;
+    if (!check_nan_canary(dst, src, pixel_count)) {
+        composite_soft_light_safe(dst, src, pixel_count);
+        return;
+    }
+    HWY_DYNAMIC_DISPATCH(composite_soft_light_premul_impl)(reinterpret_cast<float*>(dst), reinterpret_cast<const float*>(src), pixel_count);
+}
+
+void composite_hard_light_premul(Color* __restrict__ dst, const Color* __restrict__ src, int pixel_count) {
+    if (pixel_count <= 0) return;
+    if (!check_nan_canary(dst, src, pixel_count)) {
+        composite_hard_light_safe(dst, src, pixel_count);
+        return;
+    }
+    HWY_DYNAMIC_DISPATCH(composite_hard_light_premul_impl)(reinterpret_cast<float*>(dst), reinterpret_cast<const float*>(src), pixel_count);
+}
+
+void composite_color_dodge_premul(Color* __restrict__ dst, const Color* __restrict__ src, int pixel_count) {
+    if (pixel_count <= 0) return;
+    if (!check_nan_canary(dst, src, pixel_count)) {
+        composite_color_dodge_safe(dst, src, pixel_count);
+        return;
+    }
+    HWY_DYNAMIC_DISPATCH(composite_color_dodge_premul_impl)(reinterpret_cast<float*>(dst), reinterpret_cast<const float*>(src), pixel_count);
+}
+
+void composite_color_burn_premul(Color* __restrict__ dst, const Color* __restrict__ src, int pixel_count) {
+    if (pixel_count <= 0) return;
+    if (!check_nan_canary(dst, src, pixel_count)) {
+        composite_color_burn_safe(dst, src, pixel_count);
+        return;
+    }
+    HWY_DYNAMIC_DISPATCH(composite_color_burn_premul_impl)(reinterpret_cast<float*>(dst), reinterpret_cast<const float*>(src), pixel_count);
+}
+
+void apply_alpha_matte_premul(Color* __restrict__ target, const Color* __restrict__ matte, int pixel_count, bool inverted) {
+    if (pixel_count <= 0) return;
+    if (!check_nan_canary(target, matte, pixel_count)) {
+        apply_alpha_matte_safe(target, matte, pixel_count, inverted);
+        return;
+    }
+    HWY_DYNAMIC_DISPATCH(apply_alpha_matte_premul_impl)(reinterpret_cast<float*>(target), reinterpret_cast<const float*>(matte), pixel_count, inverted);
+}
+
+void apply_luma_matte_premul(Color* __restrict__ target, const Color* __restrict__ matte, int pixel_count, bool inverted) {
+    if (pixel_count <= 0) return;
+    if (!check_nan_canary(target, matte, pixel_count)) {
+        apply_luma_matte_safe(target, matte, pixel_count, inverted);
+        return;
+    }
+    HWY_DYNAMIC_DISPATCH(apply_luma_matte_premul_impl)(reinterpret_cast<float*>(target), reinterpret_cast<const float*>(matte), pixel_count, inverted);
 }
 
 void premultiply_alpha_rgba8(uint32_t* __restrict__ dst, const uint8_t* __restrict__ src, int pixel_count) {

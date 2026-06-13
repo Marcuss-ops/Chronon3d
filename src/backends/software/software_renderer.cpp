@@ -199,11 +199,11 @@ void SoftwareRenderer::draw_node(Framebuffer& fb, const RenderNode& node,
     }
 }
 
-void SoftwareRenderer::composite_layer(Framebuffer& dst, const Framebuffer& src, BlendMode mode, const std::optional<raster::BBox>& clip) {
+void SoftwareRenderer::composite_layer(Framebuffer& dst, const Framebuffer& src, BlendMode mode, const std::optional<raster::BBox>& clip, CompositeOperator op) {
     m_counters.layers_rendered.fetch_add(1, std::memory_order_relaxed);
     CHRONON_ZONE_C("composite_layer", trace_category::kComposite);
     m_counters.pixels_touched.fetch_add(clipped_area(dst.width(), dst.height(), to_local_clip(dst, clip)), std::memory_order_relaxed);
-    SoftwareCompositor::composite_layer(dst, src, mode, clip);
+    SoftwareCompositor::composite_layer(dst, src, mode, clip, op);
 }
 
 } // namespace chronon3d

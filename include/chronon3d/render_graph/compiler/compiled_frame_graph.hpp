@@ -3,12 +3,26 @@
 #include <chronon3d/render_graph/render_graph.hpp>
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/math/raster_utils.hpp>
+#include <chronon3d/core/types/types.hpp>
 #include <cstdint>
 #include <optional>
 #include <string>
 #include <vector>
 
 namespace chronon3d::graph {
+
+// ── Binding metadata (B5) ────────────────────────────────────────────────
+// Attached to CompiledNodeInfo during graph build/compilation.
+// The binding compiler reads this to build the binding table.
+struct SceneBindingMetadata {
+    bool     active{false};       // explicitly opt-in; avoids layer-0/item-0 ambiguity
+    uint32_t layer_index{0};
+    uint32_t item_index{0};
+    uint16_t effect_begin{0};
+    uint16_t effect_count{0};
+
+    [[nodiscard]] bool has_binding() const { return active; }
+};
 
 struct CompiledNodeInfo {
     GraphNodeId id{k_invalid_node};
@@ -22,6 +36,8 @@ struct CompiledNodeInfo {
 
     cache::NodeCacheKey static_key{};
     RenderNodeCachePolicy cache_policy{};
+
+    SceneBindingMetadata binding_meta{};  // B5: binding table metadata
 
     bool reachable{false};
     bool frame_dependent{true};

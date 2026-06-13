@@ -4,6 +4,7 @@
 #include <chronon3d/scene/model/camera/camera.hpp>
 #include <chronon3d/scene/model/core/effect_stack.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
+#include <chronon3d/compositor/composite_operator.hpp>
 #include <chronon3d/math/raster_utils.hpp>
 #include <memory>
 #include <optional>
@@ -52,7 +53,8 @@ public:
         Framebuffer& dest,
         const Framebuffer& src,
         BlendMode mode,
-        const std::optional<raster::BBox>& clip = std::nullopt
+        const std::optional<raster::BBox>& clip = std::nullopt,
+        CompositeOperator op = CompositeOperator::SourceOver
     ) = 0;
 
     virtual void apply_blur(
