@@ -2,7 +2,7 @@
 
 #include <chronon3d/runtime/timeline_evaluator.hpp>
 #include <chronon3d/specscene/model/specscene.hpp>
-#include "../specscene/parser/specscene_parsers.hpp"
+#include "src/specscene/parser/specscene_parsers.hpp"
 
 #include <nlohmann/json.hpp>
 #include <toml++/toml.h>

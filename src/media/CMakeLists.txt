@@ -22,8 +22,10 @@ target_link_libraries(chronon3d_backend_video PUBLIC
     fmt::fmt
     TBB::tbb
     hwy::hwy
-    chronon3d_ffmpeg_light
 )
+if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
+    target_link_libraries(chronon3d_backend_video PUBLIC chronon3d_ffmpeg_light)
+endif()
 target_link_libraries(chronon3d_backend_video PRIVATE
     yuv
 )

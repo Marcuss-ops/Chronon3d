@@ -22,12 +22,11 @@ sudo apt-get install -y ffmpeg
 ### Build
 
 1. Fork and clone the repo.
-2. Set vcpkg root and fetch the baseline:
+2. Set vcpkg root (the build script uses `$HOME/vcpkg` by default, or set your own):
    ```bash
-   export VCPKG_ROOT=$(pwd)/vcpkg_bootstrap2
-   cd vcpkg_bootstrap2 && git fetch --unshallow 2>/dev/null || git fetch origin && cd ..
+   export VCPKG_ROOT="${VCPKG_ROOT:-$HOME/vcpkg}"
    ```
-   Tip: add `export VCPKG_ROOT=/path/to/Chronon3d/vcpkg_bootstrap2` to your `~/.bashrc`.
+   Or let `tools/chronon-linux.sh` handle it automatically.
 3. Configure and build (ccache is auto-detected):
    ```bash
    cmake --preset linux-release
@@ -71,7 +70,6 @@ content/             — Composition definitions
 - [ ] Compiles without warnings
 - [ ] All existing tests pass
 - [ ] New tests added for changed/added code
-- [ ] `docs/IMPROVEMENTS.md` updated if relevant
 - [ ] CHANGELOG note added (if user-facing change)
 
 ## Architecture

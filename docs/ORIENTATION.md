@@ -6,8 +6,10 @@ Componi video scrivendo codice C++ — niente GUI, niente JSON, niente editor di
 
 > **Language status / Stato lingua:** Questo documento è in italiano.
 > Una guida rapida in inglese per i contributor non-italofoni è in
-> `README.md` (root) e `CONTRIBUTING.md` (root).  Per la roadmap
-> tecnica, vedi `docs/IMPROVEMENTS.md` e `docs/improvements/00_INDEX.md`.
+> `README.md` (root) e `CONTRIBUTING.md` (root).
+> Per la roadmap tecnica attiva, vedi [`ROADMAP.md`](ROADMAP.md).
+> Per la cronologia degli item completati, vedi [`CHANGELOG.md`](CHANGELOG.md).
+> I documenti storici sono in [`docs/archive/`](archive/).
 >
 > Nuove sezioni in questa pagina vanno aggiunte in inglese per favorire
 > la collaborazione internazionale; le sezioni preesistenti restano
@@ -94,7 +96,9 @@ Composition (C++) → Scene → RenderGraph (DAG) → GraphExecutor → Software
 | **`ROADMAP.md`** | Roadmap attiva: item prioritari da implementare |
 | **`CHANGELOG.md`** | Cronologia item completati |
 | **`V3_BLUEPRINT.md`** | Architettura tile-based: da frame-based a tile-first |
-| **`Future Implementations.md`** | Idee speculative, brainstorming, architetture estreme |
+| **`ARCHITECTURE_EVOLUTION_PLAN.md`** | Piano di modularizzazione del motore |
+| **`CORE_OWNERSHIP.md`** | File protetti, regole agenti, ownership |
+| **`archive/`** | Documentazione storica (roadmap passate, idee speculative, backlog archiviati) |
 
 ---
 

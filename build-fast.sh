@@ -72,11 +72,11 @@ run_test_binary() {
 
 case "${TARGET}" in
     arch)
-        build_target "chronon3d_graph"
+        # chronon3d_graph is an INTERFACE target — build the test binary directly
         run_test_binary "chronon3d_core_tests" "CoreContract*"
         ;;
     executor)
-        build_target "chronon3d_graph"
+        # chronon3d_graph is an INTERFACE target — build the test binary directly
         run_test_binary "chronon3d_core_tests" "*framebuffer*lifetime*"
         ;;
     video)
@@ -90,7 +90,10 @@ case "${TARGET}" in
         build_target "chronon3d_extension"
         ;;
     pipeline|pipe)
-        build_target "chronon3d_pipeline"
+        echo "chronon3d_pipeline is an INTERFACE target — use 'cli' or build a concrete target instead"
+        ;;
+    graph)
+        echo "chronon3d_graph is an INTERFACE target — use 'cli' or build a concrete target instead"
         ;;
     cli)
         build_target "chronon3d_cli"
@@ -185,14 +188,13 @@ case "${TARGET}" in
         ;;
     all|fast|"")
         echo "╔══════════════════════════════════════════╗"
-        echo "║  Building: cli + tests_fast (parallel)   ║"
+        echo "║  Building: dev_fast (CLI + tests_fast)   ║"
         echo "╚══════════════════════════════════════════╝"
         ensure_configured
-        cmake --build "$BUILD_DIR" --target chronon3d_cli -j "$JOBS" &
-        cmake --build "$BUILD_DIR" --target chronon3d_tests_fast -j "$JOBS" &
-        wait -n  # wait for first to finish
-        wait     # wait for remaining
-        echo "✅ Both targets built."
+        # Single Ninja invocation — chronon3d_dev_fast aggregate target bundles
+        # chronon3d_cli + chronon3d_tests_fast.
+        cmake --build "$BUILD_DIR" --target chronon3d_dev_fast -j "$JOBS"
+        echo "✅ Dev-fast build complete."
         ;;
     *)
         # Assume it's a CMake target name

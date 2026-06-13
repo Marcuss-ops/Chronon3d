@@ -38,13 +38,16 @@ fi
 
 export VCPKG_ROOT
 
-# ── Compiler cache (optional) ─────────────────────────────────────────────────
-if command -v sccache >/dev/null 2>&1; then
-  export CMAKE_C_COMPILER_LAUNCHER=sccache
-  export CMAKE_CXX_COMPILER_LAUNCHER=sccache
-elif command -v ccache >/dev/null 2>&1; then
-  export CMAKE_C_COMPILER_LAUNCHER=ccache
-  export CMAKE_CXX_COMPILER_LAUNCHER=ccache
+# ── Compiler cache (optional — preset may already set it) ────────────────────
+# Only set if the preset hasn't already configured a launcher.
+if [[ -z "${CMAKE_CXX_COMPILER_LAUNCHER:-}" && -z "${CMAKE_C_COMPILER_LAUNCHER:-}" ]]; then
+  if command -v sccache >/dev/null 2>&1; then
+    export CMAKE_C_COMPILER_LAUNCHER=sccache
+    export CMAKE_CXX_COMPILER_LAUNCHER=sccache
+  elif command -v ccache >/dev/null 2>&1; then
+    export CMAKE_C_COMPILER_LAUNCHER=ccache
+    export CMAKE_CXX_COMPILER_LAUNCHER=ccache
+  fi
 fi
 
 # ── Configure + Build ─────────────────────────────────────────────────────────
