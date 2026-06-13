@@ -81,8 +81,8 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     if (session->sw_renderer && session->sw_renderer->counters()) {
         session->encoder->set_counters(session->sw_renderer->counters());
 
-        // Record the sink mode in telemetry counters (renderer must exist first)
-        session->sw_renderer->counters()->video_sink_mode_id.store(
+        // Record the sink type in telemetry counters (renderer must exist first)
+        session->sw_renderer->counters()->video_sink_type_id.store(
             static_cast<uint64_t>(opts.sink_type), std::memory_order_relaxed);
     }
 
