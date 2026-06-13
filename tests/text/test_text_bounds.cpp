@@ -4,16 +4,18 @@
 
 using namespace chronon3d;
 
-static float mock_char_width(const void* /*ctx*/, char /*c*/, float font_size) {
-    return font_size * 0.6f;
-}
+namespace {
+    static float mock_char_width_bounds(const void* /*ctx*/, char /*c*/, float font_size) {
+        return font_size * 0.6f;
+    }
 
-static TextLayoutInput make_input(const char* text, float size = 20.0f) {
-    TextLayoutInput input;
-    input.text = text;
-    input.style.size = size;
-    input.char_width_fn = mock_char_width;
-    return input;
+    static TextLayoutInput make_input(const char* text, float size = 20.0f) {
+        TextLayoutInput input;
+        input.text = text;
+        input.style.size = size;
+        input.char_width_fn = mock_char_width_bounds;
+        return input;
+    }
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -103,7 +105,7 @@ TEST_CASE("TextLayoutEngine bounds: TextAnchor horizontal alignment") {
 
     SUBCASE("Anchor alignment works identically to legacy align field") {
         auto input_anchor = make_input("Hello\nWorld", 10.0f);
-        input_anchor.style.anchor.align = TextAlign::Center;
+        input_anchor.style.align = TextAlign::Center;
 
         auto input_legacy = make_input("Hello\nWorld", 10.0f);
         input_legacy.style.align = TextAlign::Center;
@@ -351,34 +353,7 @@ TEST_CASE("TextLayoutEngine bounds: FontEngine real metrics") {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// 9. TextAnchor Padding (reserved for future use)
-// ═════════════════════════════════════════════════════════════════════════════
-
-TEST_CASE("TextLayoutEngine bounds: TextAnchor padding is stored but inert") {
-    // The padding field exists on TextAnchor but is not yet applied
-    // by the layout engine or rasterizer.  These tests verify it does
-    // not cause crashes or unexpected behavior when set.
-    //
-    // When padding is activated in a future change, these tests should
-    // be updated to verify that bounds expand by the padding amount.
-
-    SUBCASE("Setting padding does not crash or change layout") {
-        auto input_no_pad = make_input("Hello", 20.0f);
-        auto res_no_pad = TextLayoutEngine::layout(input_no_pad);
-
-        auto input_pad = make_input("Hello", 20.0f);
-        input_pad.style.anchor.padding = {10.0f, 5.0f};
-        auto res_pad = TextLayoutEngine::layout(input_pad);
-
-        // Currently padding is not applied — bounds should be identical
-        CHECK(res_pad.size.x == doctest::Approx(res_no_pad.size.x));
-        CHECK(res_pad.size.y == doctest::Approx(res_no_pad.size.y));
-        REQUIRE(res_pad.lines.size() == res_no_pad.lines.size());
-    }
-}
-
-// ═════════════════════════════════════════════════════════════════════════════
-// 10. Edge Cases
+// 9. Edge Cases
 // ═════════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("TextLayoutEngine bounds: edge cases") {
