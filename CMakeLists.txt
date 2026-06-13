@@ -180,26 +180,15 @@ if(CHRONON3D_BUILD_C_API)
 
     if(CHRONON3D_BUILD_CONTENT)
         if(TARGET chronon3d_content_registry)
-            # --whole-archive ensures all static-registration symbols from content
-            # modules (minimalist, anims, text, …) are included in the shared library.
-            # While content modules use explicit ExtensionRegistry registration
-            # (not static-init macros), the symbols live in STATIC libraries that
-            # the linker may drop from a SHARED target without whole-archive.
-            #
-            # We list every content module explicitly inside the whole-archive region
-            # because CMake places transitive PUBLIC deps AFTER --no-whole-archive.
-            # chronon3d_content_registry's PUBLIC link to each module would end up
-            # outside the wrapper otherwise.
-            if(NOT MSVC)
-                target_link_libraries(chronon3d_shared PRIVATE
-                    "-Wl,--whole-archive"
-                    chronon3d_content_registry
-                    chronon3d_all_content_modules
-                    "-Wl,--no-whole-archive"
-                )
-            else()
-                target_link_libraries(chronon3d_shared PRIVATE chronon3d_content_registry)
-            endif()
+            # Content modules use explicit ExtensionRegistry registration (not static-init
+            # macros), so the linker preserves registration symbols without --whole-archive
+            # on Linux. CMake's PUBLIC/INTERFACE propagation ensures all STATIC deps are
+            # linked. On MSVC the linker never drops unreferenced symbols from STATIC
+            # libraries linked into a SHARED target.
+            target_link_libraries(chronon3d_shared PRIVATE
+                chronon3d_content_registry
+                chronon3d_all_content_modules
+            )
         endif()
         target_compile_definitions(chronon3d_shared PRIVATE CHRONON3D_BUILD_CONTENT)
     endif()
