@@ -64,9 +64,9 @@ double run_node(
             result = CachedFB(raw, std::move(noop));
         } else {
             Framebuffer* raw = owned.release();
-            PoolFbDeleter deleter{nullptr};
+            PoolFbDeleter deleter;
             if (parent_pool) {
-                deleter = PoolFbDeleter{parent_pool, parent_pool->alive_token()};
+                deleter = PoolFbDeleter{parent_pool->shared_from_this()};
             }
             result = CachedFB(raw, std::move(deleter));
         }
@@ -104,9 +104,9 @@ void execute_single_node(
         auto owned_fb = ctx.acquire_owned_fb(64, 64, false);
         owned_fb->clear(Color::transparent());
         Framebuffer* raw = owned_fb.release();
-        PoolFbDeleter deleter{nullptr};
+        PoolFbDeleter deleter;
         if (parent_pool) {
-            deleter = PoolFbDeleter{parent_pool, parent_pool->alive_token()};
+            deleter = PoolFbDeleter{parent_pool->shared_from_this()};
         }
         state.temp[id] = CachedFB(raw, std::move(deleter));
         state.resolved_key_digest[id] = 0;

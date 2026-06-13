@@ -25,7 +25,7 @@ void PoolFbDeleter::operator()(Framebuffer* fb) const noexcept {
         *scratch_slot = fb;
         return;
     }
-    if (pool && pool_alive.lock()) {
+    if (auto pool = pool_weak.lock()) {
         pool->release(fb);
     } else {
         delete fb;
@@ -58,29 +58,17 @@ int round_up_bucket(int val) {
 
 } // namespace
 
-FramebufferPool::FramebufferPool(size_t max_bytes)
-    : m_max_bytes(resolve_default_max_bytes(max_bytes)),
-      m_alive(std::make_shared<bool>(true)) {
-    // If Config has a budget override, apply it.  Otherwise use the same
-    // m_max_bytes as the retention budget for backward compatibility.
-    auto budget_from_env = Config::get().fb_pool_budget_bytes;
-    if (budget_from_env > 0) {
-        m_config.max_retained_bytes = budget_from_env;
-    } else {
-        m_config.max_retained_bytes = m_max_bytes;
-    }
+FramebufferPool::FramebufferPool(size_t max_bytes) {
+    // Single source of truth: the constructor parameter (or env override)
+    // sets the retention budget.  All limits derive from m_config.
+    const size_t resolved = resolve_default_max_bytes(max_bytes);
+    m_config.max_retained_bytes = resolved;
 }
 
-FramebufferPool::FramebufferPool(const FramebufferPoolConfig& config, size_t max_bytes)
-    : m_config(config),
-      m_max_bytes(resolve_default_max_bytes(max_bytes)),
-      m_alive(std::make_shared<bool>(true)) {}
+FramebufferPool::FramebufferPool(const FramebufferPoolConfig& config)
+    : m_config(config) {}
 
-FramebufferPool::~FramebufferPool() {
-    if (m_alive) {
-        *m_alive = false;
-    }
-}
+FramebufferPool::~FramebufferPool() = default;
 
 void FramebufferPool::set_arena(std::shared_ptr<FramebufferArena> arena) {
     std::lock_guard<std::mutex> lock(m_mutex);
@@ -244,7 +232,7 @@ OwnedFB FramebufferPool::acquire_owned(int width, int height, bool clear) {
     if (clear && fb && !fresh_alloc && !fb->is_content_cleared()) {
         fb->clear(Color::transparent());
     }
-    return OwnedFB(fb.release(), PoolFbDeleter{this, m_alive});
+    return OwnedFB(fb.release(), PoolFbDeleter{weak_from_this()});
 }
 
 OwnedFB FramebufferPool::acquire_owned_raw(int width, int height, bool clear) {
@@ -253,7 +241,7 @@ OwnedFB FramebufferPool::acquire_owned_raw(int width, int height, bool clear) {
     if (clear && fb && !fresh_alloc && !fb->is_content_cleared()) {
         fb->clear(Color::transparent());
     }
-    return OwnedFB(fb.release(), PoolFbDeleter{this, m_alive});
+    return OwnedFB(fb.release(), PoolFbDeleter{weak_from_this()});
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -481,7 +469,8 @@ size_t FramebufferPool::preallocate(const FramebufferPoolPreallocOptions& option
     const int rounded_w = round_up_bucket(options.width);
     const int rounded_h = round_up_bucket(options.height);
 
-    return do_preallocate_into_bucket(m_free, m_current_bytes, m_max_bytes,
+    return do_preallocate_into_bucket(m_free, m_current_bytes,
+                                      m_config.max_retained_bytes,
                                       options, rounded_w, rounded_h, options.count);
 }
 
@@ -506,7 +495,8 @@ size_t FramebufferPool::ensure_preallocated(const FramebufferPoolPreallocOptions
     }
 
     const size_t needed = options.count - existing;
-    return do_preallocate_into_bucket(m_free, m_current_bytes, m_max_bytes,
+    return do_preallocate_into_bucket(m_free, m_current_bytes,
+                                      m_config.max_retained_bytes,
                                       options, rounded_w, rounded_h, needed);
 }
 
@@ -524,7 +514,7 @@ size_t FramebufferPool::warm_up(const std::vector<FramebufferPoolPreallocOptions
 
 size_t FramebufferPool::max_bytes() const {
     std::lock_guard<std::mutex> lock(m_mutex);
-    return m_max_bytes;
+    return m_config.max_retained_bytes;
 }
 
 FramebufferPoolStats FramebufferPool::stats() const {
@@ -542,7 +532,7 @@ FramebufferPoolStats FramebufferPool::stats() const {
     return FramebufferPoolStats{
         .current_bytes = m_current_bytes,
         .available_count = count,
-        .max_bytes = m_max_bytes,
+        .max_bytes = m_config.max_retained_bytes,
         .total_allocations = allocs,
         .total_reuses = reuses,
         .total_returns = m_total_returns.load(std::memory_order_relaxed),

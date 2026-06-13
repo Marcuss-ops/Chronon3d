@@ -42,10 +42,13 @@ private:
 
 // ---------------------------------------------------------------------------
 // PoolFbDeleter — custom deleter that returns a Framebuffer to its pool.
+//
+// Uses weak_ptr<FramebufferPool> instead of a raw pointer + alive token.
+// This is safe against concurrent pool destruction: if the pool is gone,
+// the weak_ptr::lock() fails and the framebuffer is simply deleted.
 // ---------------------------------------------------------------------------
 struct PoolFbDeleter {
-    cache::FramebufferPool* pool{nullptr};
-    std::weak_ptr<bool> pool_alive;
+    std::weak_ptr<cache::FramebufferPool> pool_weak;
     /// When set, the FB is returned to this slot (cleared) instead of
     /// released to the pool.  Used by the TransformNode scratch buffer
     /// to keep a persistent buffer across frames without acquire/recycle.
@@ -59,7 +62,7 @@ struct PoolFbDeleter {
     /// RAII Handle, captured inside this std::function as a lambda.
     /// Calling scratch_cleanup() or replacing/clearing it destroys the
     /// lambda (and with it the Handle), which restores the FB to the
-    /// owner's storage.  Takes precedence over pool / scratch_slot /
+    /// owner's storage.  Takes precedence over pool_weak / scratch_slot /
     /// owned_by_renderer when set.
     std::function<void()> scratch_cleanup{};
     void operator()(Framebuffer* fb) const noexcept;

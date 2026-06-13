@@ -248,7 +248,7 @@ OwnedFB ClearNode::execute(
                 Framebuffer* raw = owned.release();
                 if (ctx.resources.framebuffer_pool) {
                     fb = std::shared_ptr<Framebuffer>(raw,
-                        PoolFbDeleter{ctx.resources.framebuffer_pool.get(), ctx.resources.framebuffer_pool->alive_token()});
+                        PoolFbDeleter{ctx.resources.framebuffer_pool});
                 } else {
                     fb = std::shared_ptr<Framebuffer>(raw);
                 }
@@ -314,7 +314,7 @@ OwnedFB ClearNode::execute(
                 Framebuffer* raw = owned.release();
                 if (ctx.resources.framebuffer_pool) {
                     fb = std::shared_ptr<Framebuffer>(raw,
-                        PoolFbDeleter{ctx.resources.framebuffer_pool.get(), ctx.resources.framebuffer_pool->alive_token()});
+                        PoolFbDeleter{ctx.resources.framebuffer_pool});
                 } else {
                     fb = std::shared_ptr<Framebuffer>(raw);
                 }

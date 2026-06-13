@@ -12,14 +12,18 @@ add_library(chronon3d_graph_core STATIC
     registry/graph_node_registry.cpp
 )
 set_target_properties(chronon3d_graph_core PROPERTIES UNITY_BUILD OFF)
-target_link_libraries(chronon3d_graph_core PUBLIC
-    chronon3d
-    chronon3d_cache
-    chronon3d_media_interface
-    fmt::fmt
-    hwy::hwy
-    tomlplusplus::tomlplusplus
-    TBB::tbb
+target_link_libraries(chronon3d_graph_core
+    # PUBLIC: types from these appear in public headers (render_graph.hpp, graph_executor.hpp)
+    PUBLIC
+        chronon3d
+        chronon3d_cache
+        chronon3d_media_interface
+        TBB::tbb       # tbb::task_arena in graph_executor.hpp
+    # PRIVATE: only used in .cpp files, not exposed in public API
+    PRIVATE
+        fmt::fmt
+        hwy::hwy
+        tomlplusplus::tomlplusplus
 )
 target_precompile_headers(chronon3d_graph_core PRIVATE
     <glm/glm.hpp>

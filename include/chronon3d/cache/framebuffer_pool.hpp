@@ -102,15 +102,15 @@ struct FramebufferPoolStats {
 // ---------------------------------------------------------------------------
 class FramebufferPool : public std::enable_shared_from_this<FramebufferPool> {
 public:
-    // Default max: 550 MB — reduced from 700 MB to bring FB peak
-    // under 550 MB (target set by benchmarking).  Enough for ~16
-    // full-resolution 1920×1080 framebuffers.
-    // Override via CHRONON_FB_POOL_MAX_MB env var.
-    explicit FramebufferPool(size_t max_bytes = 550ULL * 1024ULL * 1024ULL);
+    // Default budget: 384 MB — single source of truth, matches
+    // FramebufferPoolConfig::max_retained_bytes.  Override via
+    // CHRONON3D_FB_POOL_BUDGET_MB env var or --fb-pool-budget-mb CLI flag.
+    static constexpr size_t kDefaultBudgetBytes = 384ULL * 1024ULL * 1024ULL;
+
+    explicit FramebufferPool(size_t max_bytes = kDefaultBudgetBytes);
 
     /// Construct with explicit config (from CLI/Config system).
-    explicit FramebufferPool(const FramebufferPoolConfig& config,
-                             size_t max_bytes = 550ULL * 1024ULL * 1024ULL);
+    explicit FramebufferPool(const FramebufferPoolConfig& config);
     ~FramebufferPool();
 
     /// Set a static arena to be used for new allocations.
@@ -145,6 +145,17 @@ public:
     OwnedFB acquire_owned_raw(int width, int height, bool clear = true);
 
     void release(Framebuffer* fb);
+
+    /// Create a shared_ptr-managed pool.  Use this instead of raw construction
+    /// to enable weak_from_this() in OwnedFB deleter.
+    [[nodiscard]] static std::shared_ptr<FramebufferPool> create_shared(
+        size_t max_bytes = kDefaultBudgetBytes) {
+        return std::shared_ptr<FramebufferPool>(new FramebufferPool(max_bytes));
+    }
+    [[nodiscard]] static std::shared_ptr<FramebufferPool> create_shared(
+        const FramebufferPoolConfig& config) {
+        return std::shared_ptr<FramebufferPool>(new FramebufferPool(config));
+    }
 
     /// Pre-warm the pool with framebuffers matching a predicted usage pattern.
     /// Useful before starting a render to ensure the first frames don't stall on allocation.
@@ -197,7 +208,6 @@ private:
 
     mutable std::mutex m_mutex;
     FramebufferPoolConfig m_config;
-    size_t m_max_bytes;
     size_t m_current_bytes{0};
     uint64_t m_tick{0};  // monotonic LRU tick
     std::shared_ptr<chronon3d::FramebufferArena> m_arena;
@@ -219,9 +229,9 @@ private:
         FramebufferPoolKeyHash
     > m_free;
 
-    std::shared_ptr<bool> m_alive;
 public:
-    [[nodiscard]] std::shared_ptr<bool> alive_token() const { return m_alive; }
+    // NOTE: alive_token() removed. PoolFbDeleter now uses weak_ptr<FramebufferPool>
+    // which is strictly safer against concurrent pool destruction.
 };
 
 } // namespace chronon3d::cache

@@ -296,16 +296,15 @@ bool FfmpegPipeEncoder::write_frame_async(const Framebuffer& fb,
         .apply_gamma        = options_.color_transform.apply_gamma,
     };
 
-    // ── Reserve an empty slot (CAS 0→1) ───────────────────────────────────
-    // State machine: 0=empty, 1=reserved, 2=staged, 3=converted
+    // ── Reserve an empty slot (CAS Empty→Reserved) ───────────────────────
     size_t idx = producer_idx_.load(std::memory_order_relaxed);
     for (;;) {
         if (pipe_failed_) {
             return false;
         }
-        int expected = 0;
+        int expected = static_cast<int>(SlotState::Empty);
         if (async_slots_[idx].state.compare_exchange_strong(
-                expected, 1,
+                expected, static_cast<int>(SlotState::Reserved),
                 std::memory_order_acquire, std::memory_order_relaxed)) {
             break;
         }
@@ -335,10 +334,9 @@ bool FfmpegPipeEncoder::write_frame_async(const Framebuffer& fb,
         slot.converted.resize(req_size);
     }
 
-    // Release fence ensures all slot data writes are visible before the
-    // converter thread sees state==2.
-    std::atomic_thread_fence(std::memory_order_release);
-    slot.state.store(2, std::memory_order_release);
+    // Release store ensures all slot data writes are visible before the
+    // converter thread sees SlotState::Staged.
+    slot.state.store(static_cast<int>(SlotState::Staged), std::memory_order_release);
 
     producer_idx_.store((idx + 1) % kAsyncConversionSlots,
                          std::memory_order_relaxed);
@@ -372,7 +370,7 @@ void FfmpegPipeEncoder::converter_loop() {
     while (!converter_stop_.load(std::memory_order_relaxed)) {
         size_t idx = consumer_idx_.load(std::memory_order_relaxed);
         auto& slot = async_slots_[idx];
-        if (slot.state.load(std::memory_order_acquire) != 2) {
+        if (slot.state.load(std::memory_order_acquire) != static_cast<int>(SlotState::Staged)) {
             std::this_thread::yield();
             continue;
         }
@@ -435,7 +433,18 @@ void FfmpegPipeEncoder::converter_loop() {
                     conv_ms, std::memory_order_relaxed);
             }
 
-            if (ok && slot.can_cache) {
+            if (!ok) {
+                // Conversion failed — mark as Failed so the writer skips
+                // this slot instead of writing corrupted data.
+                slot.fb.reset();
+                slot.state.store(static_cast<int>(SlotState::Failed),
+                                 std::memory_order_release);
+                consumer_idx_.store((idx + 1) % kAsyncConversionSlots,
+                                    std::memory_order_relaxed);
+                continue;
+            }
+
+            if (slot.can_cache) {
                 frame_cache_.insert(
                     slot.cache_key, slot.converted.data(), req_size);
             }
@@ -444,8 +453,11 @@ void FfmpegPipeEncoder::converter_loop() {
         // Release the framebuffer memory (allow FB pool to reclaim)
         slot.fb.reset();
 
-        // Mark as converted (state=3) and advance to next slot
-        slot.state.store(3, std::memory_order_release);
+        // Mark as converted and advance to next slot.
+        // On conversion failure, mark as Failed so write_next_converted_frame()
+        // can skip it instead of writing corrupted data to the pipe.
+        slot.state.store(static_cast<int>(SlotState::Converted),
+                         std::memory_order_release);
         consumer_idx_.store((idx + 1) % kAsyncConversionSlots,
                             std::memory_order_relaxed);
     }
@@ -454,7 +466,16 @@ void FfmpegPipeEncoder::converter_loop() {
 bool FfmpegPipeEncoder::write_next_converted_frame() {
     // Only check the slot at writer_idx_ — strict FIFO order
     size_t idx = writer_idx_.load(std::memory_order_relaxed);
-    if (async_slots_[idx].state.load(std::memory_order_acquire) != 3) {
+    const int slot_state = async_slots_[idx].state.load(std::memory_order_acquire);
+    // Skip Failed slots — they cannot be written to the pipe.
+    if (slot_state == static_cast<int>(SlotState::Failed)) {
+        async_slots_[idx].state.store(static_cast<int>(SlotState::Empty),
+                                      std::memory_order_release);
+        writer_idx_.store((idx + 1) % kAsyncConversionSlots,
+                          std::memory_order_relaxed);
+        return true; // consumed the slot, may have more
+    }
+    if (slot_state != static_cast<int>(SlotState::Converted)) {
         return false;
     }
 
@@ -469,7 +490,7 @@ bool FfmpegPipeEncoder::write_next_converted_frame() {
     bool ok = write_raw_to_pipe(slot.converted.data(), req_size);
 
     // Mark empty and advance to next slot
-    slot.state.store(0, std::memory_order_release);
+    slot.state.store(static_cast<int>(SlotState::Empty), std::memory_order_release);
     writer_idx_.store((idx + 1) % kAsyncConversionSlots,
                       std::memory_order_relaxed);
     return ok;
