@@ -102,8 +102,8 @@ double write_frame_to_disk(std::shared_ptr<Framebuffer> fb,
     total_encode_ms += encode_ms;
     frames_written++;
 
-    {
-        chronon3d::telemetry::FrameTelemetryRecord rec{};
+        telemetry_frames.emplace_back();
+        auto& rec = telemetry_frames.back();
         rec.frame_number = static_cast<int>(frame);
         rec.duration_ms = render_ms + encode_ms;
         rec.cache_hit = cache_hit;
@@ -111,8 +111,6 @@ double write_frame_to_disk(std::shared_ptr<Framebuffer> fb,
         rec.graph_eval_ms = render_ms;
         rec.encoder_ms = encode_ms;
         rec.program_cache_capacity = program_cache_capacity;
-        telemetry_frames.push_back(rec);
-    }
 
     spdlog::info("Frame {} saved to {}", frame, path);
     return encode_ms;

@@ -1,6 +1,8 @@
 #include <doctest/doctest.h>
 #include <chronon3d/text/font_engine.hpp>
 #include <cmath>
+#include <vector>
+#include <string>
 
 using namespace chronon3d;
 
@@ -10,6 +12,87 @@ static FontSpec inter_bold() {
         .font_family = "Inter",
         .font_weight = 700,
     };
+}
+
+static FontSpec poppins_bold() {
+    return FontSpec{
+        .font_path = "assets/fonts/Poppins-Bold.ttf",
+        .font_family = "Poppins",
+        .font_weight = 700,
+    };
+}
+
+TEST_CASE("FontEngine: HarfBuzz linear proportionality across font sizes") {
+    // Verify that shaping widths scale LINEARLY with font size.
+    // If font_unit_scale() is wrong (e.g. double-applied after
+    // hb_ft_font_changed), width would grow quadratically:
+    //   width ∝ font_size²   →   width_64/width_32 ≈ 4.0  (BUG!)
+    // Correct linear scaling:
+    //   width ∝ font_size    →   width_64/width_32 ≈ 2.0
+    //
+    // Test on Poppins-Bold with multiple strings to avoid
+    // coincidental passing from a single glyph.
+
+    FontEngine engine;
+    const FontSpec font = poppins_bold();
+
+    struct TestCase { std::string text; };
+    std::vector<TestCase> cases = {
+        {"Hello"},
+        {"Minimum"},       // many vertical strokes, sensitive to advance errors
+        {"AV"},             // classic kerning pair
+        {"The quick brown fox"},  // multi-word sentence
+    };
+
+    // Tolerance: 5% allows for hinting differences at small sizes
+    // but rejects the 100% error (ratio ≈ 4.0) from quadratic scaling.
+    const double kEpsilon = 0.05;
+
+    for (const auto& tc : cases) {
+        float w16 = engine.measure_text(tc.text, font, 16.0f);
+        float w32 = engine.measure_text(tc.text, font, 32.0f);
+        float w64 = engine.measure_text(tc.text, font, 64.0f);
+
+        INFO("Text: '", tc.text, "'");
+        REQUIRE(w16 > 0.0f);
+        REQUIRE(w32 > 0.0f);
+        REQUIRE(w64 > 0.0f);
+
+        // ratio_32_16 = w32 / w16 should be ≈ 2.0 (not 4.0!)
+        float ratio_32_16 = w32 / w16;
+        CHECK(ratio_32_16 == doctest::Approx(2.0f).epsilon(kEpsilon));
+
+        // ratio_64_32 = w64 / w32 should be ≈ 2.0
+        float ratio_64_32 = w64 / w32;
+        CHECK(ratio_64_32 == doctest::Approx(2.0f).epsilon(kEpsilon));
+    }
+}
+
+TEST_CASE("FontEngine: HarfBuzz glyph advance is pixel-correct at known size") {
+    // Sanity check: at 100px, a capital 'M' (typically widest glyph)
+    // should have advance between 50-120px on Poppins-Bold.
+    // This guards against orders-of-magnitude errors in the scale factor.
+
+    FontEngine engine;
+    const FontSpec font = poppins_bold();
+
+    auto run = engine.shape_text("M", font, 100.0f);
+    REQUIRE(run.has_value());
+    REQUIRE(run->glyphs.size() == 1);
+
+    float advance = run->glyphs[0].advance_x;
+    INFO("M advance at 100px: ", advance);
+    CHECK(advance > 50.0f);
+    CHECK(advance < 120.0f);
+
+    // Run the same at 50px and check ratio
+    auto run2 = engine.shape_text("M", font, 50.0f);
+    REQUIRE(run2.has_value());
+    float advance_50 = run2->glyphs[0].advance_x;
+
+    float ratio = advance / advance_50;
+    INFO("M advance ratio 100/50: ", ratio);
+    CHECK(ratio == doctest::Approx(2.0f).epsilon(0.05));
 }
 
 TEST_CASE("FontEngine: can load Inter-Bold") {

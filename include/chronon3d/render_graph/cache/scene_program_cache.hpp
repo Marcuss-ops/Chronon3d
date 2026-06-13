@@ -206,14 +206,7 @@ public:
     /// next auto-tune interval measures fresh statistics.
     void auto_tune();
 
-private:
-    struct Entry {
-        std::unique_ptr<graph::CompiledSceneProgram> program;
-        std::list<graph::SceneStructureKey>::iterator lru_iterator;
-    };
-
-    /// Hash functor for SceneStructureKey.  Defined before Shard to ensure
-    /// the unordered_map template parameter is visible at point of use.
+private:    /// Hash functor for SceneStructureKey.
     struct KeyHash {
         size_t operator()(const graph::SceneStructureKey& key) const noexcept {
             size_t h = 1469598103934665603ULL;  // FNV-1a offset basis
@@ -229,6 +222,11 @@ private:
             combine(static_cast<uint64_t>(key.ssaa_factor));
             return h;
         }
+    };
+
+    struct Entry {
+        std::unique_ptr<graph::CompiledSceneProgram> program;
+        std::list<graph::SceneStructureKey>::iterator lru_iterator;
     };
 
     struct Shard {
@@ -259,10 +257,8 @@ private:
     mutable std::atomic<uint64_t> m_misses{0};
     mutable std::atomic<uint64_t> m_evictions{0};
 
-    // ── Telemetry counters (optional) — set via set_counters() ──────────
+    // ── Optional integrations ───────────────────────────────────────────
     chronon3d::RenderCounters* m_counters{nullptr};
-
-    // ── Eviction callback (optional) — set via set_on_evict() ───────────
     ProgramEvictCallback m_on_evict;
 
     // ── Auto-tuning state ───────────────────────────────────────────────
