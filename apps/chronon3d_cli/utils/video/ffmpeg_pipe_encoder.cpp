@@ -8,6 +8,7 @@
 #include <vector>
 #include <chrono>
 #include <thread>
+#include <spdlog/spdlog.h>
 
 #if defined(_WIN32)
     #include <io.h>
@@ -151,15 +152,16 @@ bool FfmpegPipeEncoder::open(const FfmpegPipeOptions& options) {
 #endif
 
 #ifdef __linux__
-    // ── Async pipe I/O via io_uring (enabled by default) ─────────────────
-    // io_uring replaces blocking fwrite() with submission-queue writes,
-    // so the writer thread never stalls on the pipe.  This decouples the
-    // render loop from ffmpeg's consumption speed, eliminating the
-    // ffmpeg_pipe_write_blocked back-pressure that was wasting 30-79%
-    // of wall time on producer/consumer compositions.
-    if (pipe_ && (options_.pipe_writer != "classic")) {
+    // ── Async pipe I/O via io_uring (opt-in, experimental) ──────────────
+    // io_uring replaces blocking fwrite() with submission-queue writes.
+    // Disabled by default because it can produce corrupted output on some
+    // kernels and lacks full EINTR/short-write handling.  Enable explicitly
+    // with --pipe-writer io_uring.
+    if (pipe_ && options_.pipe_writer == "io_uring") {
         if (init_uring()) {
             use_uring_ = true;
+        } else {
+            spdlog::warn("[video] io_uring init failed, falling back to classic write");
         }
     }
 #endif
@@ -167,18 +169,88 @@ bool FfmpegPipeEncoder::open(const FfmpegPipeOptions& options) {
     return pipe_ != nullptr;
 }
 
+void FfmpegPipeEncoder::drain_staged_slots() {
+    // Convert any slots still in Staged state (state==2) synchronously.
+    // This runs on the calling thread (close path) after new frames are
+    // no longer accepted, so there is no producer contention.
+    for (size_t i = 0; i < kAsyncConversionSlots; ++i) {
+        auto& slot = async_slots_[i];
+        int expected = static_cast<int>(SlotState::Staged);
+        if (!slot.state.compare_exchange_strong(
+                expected, static_cast<int>(SlotState::Reserved),
+                std::memory_order_acquire, std::memory_order_relaxed)) {
+            continue;
+        }
+
+        const size_t req_size =
+            (options_.input_format == PipePixelFormat::RGBA)
+                ? static_cast<size_t>(options_.width) *
+                  static_cast<size_t>(options_.height) * 4u
+                : static_cast<size_t>(options_.width) *
+                  static_cast<size_t>(options_.height) * 3u / 2u;
+        if (slot.converted.size() < req_size) {
+            slot.converted.resize(req_size);
+        }
+
+        bool converted = false;
+        if (slot.can_cache) {
+            const auto* hit = frame_cache_.lookup(slot.cache_key);
+            if (hit) {
+                if (slot.converted.size() < hit->data_size) {
+                    slot.converted.resize(hit->data_size);
+                }
+                std::memcpy(slot.converted.data(), hit->data.data(), hit->data_size);
+                converted = true;
+            }
+        }
+
+        if (!converted) {
+            bool ok = false;
+            switch (options_.input_format) {
+                case PipePixelFormat::YUV420P:
+                    ok = convert_framebuffer_to_yuv420p(*slot.fb, slot.converted.data());
+                    break;
+                case PipePixelFormat::NV12:
+                    ok = convert_framebuffer_to_nv12(*slot.fb, slot.converted.data());
+                    break;
+                case PipePixelFormat::RGBA:
+                    ok = convert_framebuffer_to_rgba(*slot.fb, slot.converted.data());
+                    break;
+            }
+            if (ok && slot.can_cache) {
+                frame_cache_.insert(slot.cache_key, slot.converted.data(), req_size);
+            }
+            if (!ok) {
+                slot.state.store(static_cast<int>(SlotState::Failed),
+                                 std::memory_order_release);
+                slot.fb.reset();
+                continue;
+            }
+        }
+
+        slot.fb.reset();
+        slot.state.store(static_cast<int>(SlotState::Converted),
+                         std::memory_order_release);
+    }
+}
+
 bool FfmpegPipeEncoder::close() {
     if (!pipe_) {
         return true;
     }
 
-    // ── Signal and join the async converter thread ───────────────────────
+    // ── Protocol: stop converter first, then drain ────────────────────
+    // The caller guarantees no new frames are submitted after close().
+    // Stop the converter thread first to avoid racing on staged slots.
     converter_stop_.store(true, std::memory_order_release);
     if (converter_thread_.joinable()) {
         converter_thread_.join();
     }
 
-    // ── Flush any remaining converted frames to the pipe ──────────────────
+    // 1. Convert any remaining staged slots synchronously (converter is stopped).
+    drain_staged_slots();
+
+    // 2. Flush all converted frames to the pipe in FIFO order.
     while (write_next_converted_frame()) {}
 
 #ifdef __linux__

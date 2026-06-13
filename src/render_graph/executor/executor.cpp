@@ -75,35 +75,43 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
     // ── Cached execution plan ───────────────────────────────────────
     // Avoid the topological sort + reachability analysis every frame
     // when the graph structure hasn't changed.
-    // When ctx.options.graph_structure_unchanged is true, the caller guarantees
-    // the graph topology is identical to the previous call, so we use
-    // the cached plan directly without recomputing the structure hash.
-    bool plan_cached = false;
-    if (ctx.options.graph_structure_unchanged && m_cached_plan.valid && m_cached_plan.output == output) {
-        plan_cached = true;
-        if (ctx.telemetry.counters && ctx.options.diagnostics_enabled) {
-            ctx.telemetry.counters->execution_plan_cache_hits.fetch_add(1, std::memory_order_relaxed);
-        }
-    } else {
-        const uint64_t sig = compute_structure_signature(graph, output);
-        if (m_cached_plan.valid &&
-            m_cached_plan.structure_hash == sig &&
-            m_cached_plan.output == output)
-        {
+    // m_plan_mutex protects m_cached_plan so that concurrent execute()
+    // calls (each with their own arena_override) do not race on the
+    // shared cache.  The lock is held only for the cache lookup/update;
+    // the actual execution runs outside the lock.
+    std::vector<std::vector<GraphNodeId>> plan_levels;
+    std::vector<size_t> plan_consumer_counts;
+    {
+        std::lock_guard<std::mutex> lock(m_plan_mutex);
+        bool plan_cached = false;
+        if (ctx.options.graph_structure_unchanged && m_cached_plan.valid && m_cached_plan.output == output) {
             plan_cached = true;
             if (ctx.telemetry.counters && ctx.options.diagnostics_enabled) {
                 ctx.telemetry.counters->execution_plan_cache_hits.fetch_add(1, std::memory_order_relaxed);
             }
         } else {
-            m_cached_plan.plan = build_execution_plan(graph, output);
-            m_cached_plan.structure_hash = sig;
-            m_cached_plan.output = output;
-            m_cached_plan.valid = true;
+            const uint64_t sig = compute_structure_signature(graph, output);
+            if (m_cached_plan.valid &&
+                m_cached_plan.structure_hash == sig &&
+                m_cached_plan.output == output)
+            {
+                plan_cached = true;
+                if (ctx.telemetry.counters && ctx.options.diagnostics_enabled) {
+                    ctx.telemetry.counters->execution_plan_cache_hits.fetch_add(1, std::memory_order_relaxed);
+                }
+            } else {
+                m_cached_plan.plan = build_execution_plan(graph, output);
+                m_cached_plan.structure_hash = sig;
+                m_cached_plan.output = output;
+                m_cached_plan.valid = true;
+            }
         }
-    }
+        plan_levels = m_cached_plan.plan.levels;
+        plan_consumer_counts = m_cached_plan.plan.consumer_counts;
+    } // lock released — execution runs outside the critical section
 
-    const auto& plan = m_cached_plan.plan;
-    if (plan.levels.empty()) {
+    const auto& plan_levels_ref = plan_levels;
+    if (plan_levels_ref.empty()) {
         return nullptr;
     }
 
@@ -128,7 +136,7 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
         init_shared_transparent_fb(state, ctx, res);
 
         auto consumer_remaining = init_consumer_remaining(
-            node_count, plan.consumer_counts, res
+            node_count, plan_consumer_counts, res
         );
         const auto t_fb1 = profiling::now();
         if (ctx.telemetry.counters) {
@@ -147,7 +155,7 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
                 std::memory_order_relaxed);
         }
 
-        execute_levels(graph, ctx, state, plan.levels, consumer_remaining, parent_counters, parent_pool, res);
+        execute_levels(graph, ctx, state, plan_levels_ref, consumer_remaining, parent_counters, parent_pool, res);
 
         return state.temp[output];
     });
