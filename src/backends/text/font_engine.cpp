@@ -188,9 +188,11 @@ std::optional<GlyphRun> FontEngine::shape_text(
     const float hb_scale = Impl::font_unit_scale(face, font_size);
     const float ft_scale = Impl::ft_pixel_scale();
 
-    // Re-set pixel size in case font_size differs from cache creation size
+    // Re-set pixel size in case font_size differs from cache creation size.
+    // Must call hb_ft_font_changed() so HarfBuzz sees the new FT scale.
     FT_Error size_err = FT_Set_Pixel_Sizes(face, 0, static_cast<unsigned int>(std::ceil(font_size)));
     if (size_err != 0) return std::nullopt;
+    hb_ft_font_changed(entry->hb_font);
 
     // Create HarfBuzz buffer and shape
     hb_buffer_t* buf = hb_buffer_create();
