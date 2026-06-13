@@ -463,7 +463,7 @@ GlowPipelineOutput GlowPipeline::render(graph::RenderGraphContext& ctx,
     if (ctx.resources.framebuffer_pool) {
         result = ctx.resources.framebuffer_pool->acquire_owned(w, h, false);
     } else {
-        result = OwnedFB(new Framebuffer(w, h), PoolFbDeleter{nullptr});
+        result = OwnedFB(new Framebuffer(w, h), PoolFbDeleter{});
     }
     auto* work_fb = result.get();
     work_fb->clear(Color::transparent());

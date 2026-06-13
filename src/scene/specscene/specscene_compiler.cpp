@@ -13,11 +13,14 @@ std::optional<Composition> compile_document(
     const SpecSceneDocument& doc,
     std::vector<std::string>* diagnostics)
 {
-    // Validate before compiling
-    if (diagnostics) {
-        if (!validate_document(doc, *diagnostics)) {
-            return std::nullopt;
-        }
+    // Validation is always mandatory — caller may pass nullptr for
+    // diagnostics, in which case we use a local vector and discard
+    // the messages.  This prevents unvalidated documents from reaching
+    // the allocation-heavy Composition path.
+    std::vector<std::string> local_diagnostics;
+    auto& diag = diagnostics ? *diagnostics : local_diagnostics;
+    if (!validate_document(doc, diag)) {
+        return std::nullopt;
     }
 
     CompositionSpec spec;

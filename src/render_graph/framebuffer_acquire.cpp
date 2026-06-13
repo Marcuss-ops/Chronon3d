@@ -20,7 +20,7 @@ OwnedFB RenderGraphContext::acquire_owned_fb(
     if (resources.framebuffer_pool) {
         fb = resources.framebuffer_pool->acquire_owned(w, h, clear);
     } else {
-        fb = OwnedFB(new Framebuffer(w, h), PoolFbDeleter{nullptr});
+        fb = OwnedFB(new Framebuffer(w, h), PoolFbDeleter{});
         if (clear) fb->clear(Color::transparent());
     }
     if (bounds) {
@@ -150,7 +150,10 @@ OwnedFB RenderGraphContext::acquire_owned_fb(std::shared_ptr<Framebuffer>&& src)
 CachedFB RenderGraphContext::own_to_cache(OwnedFB& owned, cache::FramebufferPool* pool) {
     if (!owned) return nullptr;
     Framebuffer* raw = owned.release();
-    return CachedFB(raw, PoolFbDeleter{pool});
+    if (pool) {
+        return CachedFB(raw, PoolFbDeleter{pool->shared_from_this()});
+    }
+    return CachedFB(raw, PoolFbDeleter{});
 }
 
 std::shared_ptr<Framebuffer> RenderGraphContext::acquire_framebuffer(

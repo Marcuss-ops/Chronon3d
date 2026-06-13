@@ -6,6 +6,7 @@
 #include <tbb/task_arena.h>
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <vector>
 
 namespace chronon3d::graph {
@@ -43,7 +44,10 @@ public:
 
     /// Invalidate the cached execution plan — call this after the graph topology
     /// changes (nodes added/removed/reconnected) between execute() calls.
-    void invalidate_plan_cache() { m_cached_plan.valid = false; }
+    void invalidate_plan_cache() {
+        std::lock_guard<std::mutex> lock(m_plan_mutex);
+        m_cached_plan.valid = false;
+    }
 
 private:
     struct ExecutionPlan {
@@ -60,6 +64,7 @@ private:
 
     tbb::task_arena m_arena;
     FrameArena      m_frame_arena;
+    mutable std::mutex m_plan_mutex;
     CachedExecutionPlan m_cached_plan;
 
     [[nodiscard]] ExecutionPlan build_execution_plan(RenderGraph& graph, GraphNodeId output) const;

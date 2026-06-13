@@ -70,7 +70,7 @@ struct FfmpegPipeOptions {
     bool verbose{false};
     color::OutputTransformOptions color_transform{};
     std::string tune;                          // x264 tune (empty = default "zerolatency")
-    std::string pipe_writer{"auto"};     // "auto" → try io_uring first, fall back to classic write
+    std::string pipe_writer{"classic"}; // "io_uring" to opt-in to experimental async I/O
 };
 
 std::string build_ffmpeg_raw_pipe_command(const FfmpegPipeOptions& options);
@@ -124,13 +124,26 @@ private:
 
     // ── Async conversion ring buffer (producer: writer thread, consumer: converter thread) ──
     static constexpr size_t kAsyncConversionSlots = 4;
+
+    enum class SlotState : int {
+        Empty     = 0,  // slot available for staging
+        Reserved  = 1,  // producer is writing slot data
+        Staged    = 2,  // data written, waiting for converter
+        Converted = 3,  // conversion done, ready for writer
+        Failed    = 4,  // conversion failed — must still be drained
+    };
+
     struct AsyncSlot {
-        std::atomic<int> state{0}; // 0=empty, 1=staged, 2=converted
+        std::atomic<int> state{static_cast<int>(SlotState::Empty)};
         std::shared_ptr<Framebuffer> fb;
         std::vector<uint8_t> converted;
         chronon3d::video::ConvertedFrameCacheKey cache_key;
         bool can_cache{false};
     };
+
+    /// Drain all staged (state==2) slots by running the converter on them
+    /// synchronously.  Called during close() before stopping the converter thread.
+    void drain_staged_slots();
     std::array<AsyncSlot, kAsyncConversionSlots> async_slots_;
     std::atomic<size_t> producer_idx_{0};
     std::atomic<size_t> consumer_idx_{0};
