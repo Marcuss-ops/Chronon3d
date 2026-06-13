@@ -148,6 +148,24 @@ void register_visual_test_camera(CLI::App& dev, CliContext& ctx) {
     camera->callback([args, &ctx]() { ctx.exit_code = command_visual_test_camera(*args); });
 }
 
+void register_text_audit(CLI::App& dev, CliContext& ctx) {
+    auto args = std::make_shared<TextAuditArgs>();
+    auto* cmd = dev.add_subcommand("text-audit", "Headless text layout audit: validates geometry, wrapping, stability, and ink bounds");
+    cmd->add_option("input", args->comp_id, "Composition name")->required();
+    cmd->add_option("--frames", args->frames, "Frame spec: '0,19,20,40' or '0-300x10'")->default_val("");
+    cmd->add_option("--json", args->json_output, "Output JSON report path")->default_val("");
+    cmd->add_option("--render-dir", args->render_dir, "Directory for rendered frame PNGs")->default_val("");
+    cmd->add_option("--safe-margin-x", args->safe_margin_x, "Safe area horizontal margin (fraction)")->default_val(0.05f);
+    cmd->add_option("--safe-margin-y", args->safe_margin_y, "Safe area vertical margin (fraction)")->default_val(0.05f);
+    cmd->add_option("--max-center-error", args->max_center_error_px, "Max centering error in pixels")->default_val(2.0f);
+    cmd->add_option("--max-border-alpha", args->max_border_alpha_pixels, "Max alpha pixels on texture border")->default_val(0);
+    cmd->add_option("--glyph-tolerance", args->glyph_tolerance, "Glyph position stability tolerance (px)")->default_val(0.01f);
+    cmd->add_option("--alpha-threshold", args->alpha_threshold, "Alpha threshold for ink detection")->default_val(8);
+    cmd->callback([args, &ctx]() {
+        ctx.exit_code = command_text_audit(ctx.registry, *args);
+    });
+}
+
 } // namespace
 
 void register_dev_commands(CLI::App& app, CliContext& ctx) {
@@ -160,6 +178,7 @@ void register_dev_commands(CLI::App& app, CliContext& ctx) {
     register_bench_convert(*dev, ctx);
     register_camera_video(*dev, ctx);
     register_visual_test_camera(*dev, ctx);
+    register_text_audit(*dev, ctx);
 }
 
 } // namespace chronon3d::cli
