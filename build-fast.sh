@@ -22,7 +22,7 @@ Commands:
   executor            Build graph + run framebuffer lifetime tests
   scene               Build chronon3d_scene only
   ext, extension      Build chronon3d_extension only
-  pipeline, pipe      Build chronon3d_pipeline only
+  pipeline, pipe      Build a concrete target instead (chronon3d_pipeline is INTERFACE)
   cli                 Build chronon3d_cli only
   test [pattern]      Build + run core tests matching pattern
   scene-test [pat]    Build + run scene tests matching pattern
@@ -36,7 +36,7 @@ Environment:
   JOBS                 Parallel jobs (default: nproc)
 
 Examples:
-  ./build-fast.sh                     # parallel CLI + fast tests
+  ./build-fast.sh                     # single Ninja invocation for dev_fast
   ./build-fast.sh test "Extension*"   # run matching core tests
   ./build-fast.sh turbo-inc video     # incremental video group rebuild
   JOBS=8 ./build-fast.sh cli          # limit parallel jobs

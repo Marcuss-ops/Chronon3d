@@ -215,6 +215,14 @@ if(CHRONON3D_BUILD_C_API)
         target_link_libraries(test_c_api_minimal PRIVATE chronon3d_shared)
         target_include_directories(test_c_api_minimal PRIVATE ${CMAKE_SOURCE_DIR}/include)
         add_test(NAME test_c_api_minimal COMMAND test_c_api_minimal WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+        # Aggregate target for CI: shared library + both C API tests
+        add_custom_target(chronon3d_c_api_tests
+            DEPENDS
+                chronon3d_shared
+                test_c_api_minimal
+                $<IF:$<BOOL:${CHRONON3D_BUILD_CONTENT}>,test_c_api,>
+        )
     endif()
 endif()
 
