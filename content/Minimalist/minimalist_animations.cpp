@@ -105,11 +105,12 @@ Composition minimalist_text_typewriter() {
         s.layer("phrase", [f](LayerBuilder& l) {
             l.pin_to(Anchor::Center);
             auto glow = TextGlowPresets::ae_cinematic_white();
-            glow.bloom_radius    = 18.0f;
-            glow.bloom_intensity = 0.04f;
-            glow.mid_intensity   = 0.12f;
-            glow.inner_intensity = 0.35f;
-            glow.outer_color     = Color{0.80f, 0.85f, 1.0f, 1.0f};
+            glow.bloom_radius    = 12.0f;
+            glow.mid_radius      = 8.0f;
+            glow.bloom_intensity = 0.02f;
+            glow.mid_intensity   = 0.06f;
+            glow.inner_intensity = 0.18f;
+            glow.outer_color     = Color{0.90f, 0.92f, 1.0f, 1.0f};
             l.glow(glow.to_glow_params());
             l.text("phrase", text::typewriter_text({
                 .text = "SMOOTH REVEAL",
