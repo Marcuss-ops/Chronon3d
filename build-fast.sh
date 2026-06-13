@@ -17,7 +17,7 @@ Usage:
   ./build-fast.sh [command] [args...]
 
 Commands:
-  (none)              Build CLI + fast tests in parallel
+  (none)              Build chronon3d_dev_fast (CLI + fast tests)
   arch                Build graph + run core contract tests
   executor            Build graph + run framebuffer lifetime tests
   scene               Build chronon3d_scene only
@@ -91,9 +91,11 @@ case "${TARGET}" in
         ;;
     pipeline|pipe)
         echo "chronon3d_pipeline is an INTERFACE target — use 'cli' or build a concrete target instead"
+        exit 1
         ;;
     graph)
         echo "chronon3d_graph is an INTERFACE target — use 'cli' or build a concrete target instead"
+        exit 1
         ;;
     cli)
         build_target "chronon3d_cli"

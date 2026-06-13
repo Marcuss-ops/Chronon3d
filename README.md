@@ -4,6 +4,11 @@ A **code-first**, headless, CPU-only motion graphics engine written in C++20.
 Compose videos the same way you write code — no GUI, no JSON, no keyframe editor.
 
 ```cpp
+#include <chronon3d/chronon3d.hpp>
+#include <chronon3d/scene/builders/scene_builder.hpp>
+
+using namespace chronon3d;
+
 Composition MyVideo() {
     return composition({
         .name = "MyVideo", .width = 1280, .height = 720, .duration = 90
@@ -159,6 +164,7 @@ The `SoftwareRenderer` internal state has been refactored into dedicated aggrega
 ```cpp
 // your_app/my_comp.cpp
 #include <chronon3d/chronon3d.hpp>
+#include <chronon3d/scene/builders/scene_builder.hpp>
 using namespace chronon3d;
 
 static Composition MyComp() {
