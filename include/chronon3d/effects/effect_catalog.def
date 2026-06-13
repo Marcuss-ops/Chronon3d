@@ -1,0 +1,226 @@
+// ── Effect Catalog X-Macro ─────────────────────────────────────────────────
+//
+// This file is NOT a standalone header — it is #included multiple times
+// by effect_catalog.hpp, each time with a different definition of the
+// CHRONON_EFFECT macro to extract different information (template
+// specializations, catalog entries, etc.).
+//
+// DO NOT add #pragma once or include guards.
+//
+// Fields:
+//   val           — EffectType numeric value (must match effect_type.hpp)
+//   enum_name    — EffectType enumerator name
+//   params_type  — Concrete parameter struct (in namespace chronon3d)
+//   id_str       — String-view constant from effect_ids.hpp (chronon3d::effects::ids::*)
+//   display_name — Human-readable name
+//   category     — EffectCategory enum value
+//   stage        — EffectStage enum value
+//   domain       — EffectDomain (Color / Spatial / Generate / Composite)
+//   alpha        — AlphaPolicy (Preserve / MayModify / Generate)
+//   dirty        — DirtyPolicy (Preserve / Expand / Translate / FullFrame)
+//   bounds       — BoundsPolicy (Preserve / Expand / Translate / FullFrame)
+//   temporal     — bool: varies per frame?
+//   fusible      — bool: can fuse into ColorPipeline?
+//
+// ── Core effects (existing, values 1-12) ──
+
+CHRONON_EFFECT(
+    1, Blur, BlurParams, ids::BlurGaussian,
+    "Gaussian Blur",
+    EffectCategory::Blur, EffectStage::LayerPostTransform,
+    EffectDomain::Spatial, AlphaPolicy::MayModify,
+    DirtyPolicy::Expand, BoundsPolicy::Expand,
+    false, false
+)
+
+CHRONON_EFFECT(
+    2, Tint, TintParams, ids::ColorTint,
+    "Tint",
+    EffectCategory::Color, EffectStage::Adjustment,
+    EffectDomain::Color, AlphaPolicy::MayModify,
+    DirtyPolicy::Preserve, BoundsPolicy::Preserve,
+    false, false
+)
+
+CHRONON_EFFECT(
+    3, Brightness, BrightnessParams, ids::ColorBrightness,
+    "Brightness",
+    EffectCategory::Color, EffectStage::Adjustment,
+    EffectDomain::Color, AlphaPolicy::MayModify,
+    DirtyPolicy::Preserve, BoundsPolicy::Preserve,
+    false, false
+)
+
+CHRONON_EFFECT(
+    4, Contrast, ContrastParams, ids::ColorContrast,
+    "Contrast",
+    EffectCategory::Color, EffectStage::Adjustment,
+    EffectDomain::Color, AlphaPolicy::MayModify,
+    DirtyPolicy::Preserve, BoundsPolicy::Preserve,
+    false, false
+)
+
+CHRONON_EFFECT(
+    5, DropShadow, DropShadowParams, ids::LightDropShadow,
+    "Drop Shadow",
+    EffectCategory::Light, EffectStage::LayerPostTransform,
+    EffectDomain::Spatial, AlphaPolicy::MayModify,
+    DirtyPolicy::Expand, BoundsPolicy::Expand,
+    false, false
+)
+
+CHRONON_EFFECT(
+    6, Glow, GlowParams, ids::LightGlow,
+    "Glow",
+    EffectCategory::Light, EffectStage::LayerPostTransform,
+    EffectDomain::Spatial, AlphaPolicy::MayModify,
+    DirtyPolicy::Expand, BoundsPolicy::Expand,
+    false, false
+)
+
+CHRONON_EFFECT(
+    7, Bloom, BloomParams, ids::LightBloom,
+    "Bloom",
+    EffectCategory::Light, EffectStage::Adjustment,
+    EffectDomain::Spatial, AlphaPolicy::MayModify,
+    DirtyPolicy::Expand, BoundsPolicy::Expand,
+    false, false
+)
+
+CHRONON_EFFECT(
+    8, Fake3DWave, Fake3DWaveParams, ids::DistortFake3DWave,
+    "Fake 3D Wave",
+    EffectCategory::Distort, EffectStage::LayerPostTransform,
+    EffectDomain::Spatial, AlphaPolicy::MayModify,
+    DirtyPolicy::Expand, BoundsPolicy::Expand,
+    true, false
+)
+
+CHRONON_EFFECT(
+    9, Saturation, SaturationParams, ids::ColorSaturation,
+    "Saturation",
+    EffectCategory::Color, EffectStage::Adjustment,
+    EffectDomain::Color, AlphaPolicy::MayModify,
+    DirtyPolicy::Preserve, BoundsPolicy::Preserve,
+    false, false
+)
+
+CHRONON_EFFECT(
+    10, HueRotate, HueRotateParams, ids::ColorHueRotate,
+    "Hue Rotate",
+    EffectCategory::Color, EffectStage::Adjustment,
+    EffectDomain::Color, AlphaPolicy::MayModify,
+    DirtyPolicy::Preserve, BoundsPolicy::Preserve,
+    false, false
+)
+
+CHRONON_EFFECT(
+    11, Invert, InvertParams, ids::ColorInvert,
+    "Invert",
+    EffectCategory::Color, EffectStage::Adjustment,
+    EffectDomain::Color, AlphaPolicy::MayModify,
+    DirtyPolicy::Preserve, BoundsPolicy::Preserve,
+    false, false
+)
+
+CHRONON_EFFECT(
+    12, Vignette, VignetteParams, ids::ColorVignette,
+    "Vignette",
+    EffectCategory::Color, EffectStage::Adjustment,
+    EffectDomain::Color, AlphaPolicy::MayModify,
+    DirtyPolicy::Preserve, BoundsPolicy::Preserve,
+    false, false
+)
+
+// ── A2: Color effects ──
+
+CHRONON_EFFECT(
+    13, Exposure, ExposureParams, ids::ColorExposure,
+    "Exposure",
+    EffectCategory::Color, EffectStage::Adjustment,
+    EffectDomain::Color, AlphaPolicy::Preserve,
+    DirtyPolicy::Preserve, BoundsPolicy::Preserve,
+    false, true
+)
+
+CHRONON_EFFECT(
+    14, Levels, LevelsParams, ids::ColorLevels,
+    "Levels",
+    EffectCategory::Color, EffectStage::Adjustment,
+    EffectDomain::Color, AlphaPolicy::Preserve,
+    DirtyPolicy::Preserve, BoundsPolicy::Preserve,
+    false, true
+)
+
+// ── A4: Fill, Noise, Offset ──
+
+CHRONON_EFFECT(
+    16, Fill, FillParams, ids::GenerateFill,
+    "Fill",
+    EffectCategory::Color, EffectStage::Adjustment,
+    EffectDomain::Color, AlphaPolicy::Preserve,
+    DirtyPolicy::Preserve, BoundsPolicy::Preserve,
+    false, false
+)
+
+CHRONON_EFFECT(
+    17, Noise, NoiseParams, ids::GenerateNoise,
+    "Noise",
+    EffectCategory::Stylize, EffectStage::Adjustment,
+    EffectDomain::Color, AlphaPolicy::Preserve,
+    DirtyPolicy::Preserve, BoundsPolicy::Preserve,
+    false, false
+)
+
+CHRONON_EFFECT(
+    18, Offset, OffsetParams, ids::DistortOffset,
+    "Offset",
+    EffectCategory::Distort, EffectStage::LayerPostTransform,
+    EffectDomain::Spatial, AlphaPolicy::Preserve,
+    DirtyPolicy::Translate, BoundsPolicy::Translate,
+    false, false
+)
+
+// ── A5: Directional Blur ──
+
+CHRONON_EFFECT(
+    19, DirectionalBlur, DirectionalBlurParams, ids::DistortDirectionalBlur,
+    "Directional Blur",
+    EffectCategory::Blur, EffectStage::LayerPostTransform,
+    EffectDomain::Spatial, AlphaPolicy::MayModify,
+    DirtyPolicy::Expand, BoundsPolicy::Expand,
+    false, false
+)
+
+// ── A6: Radial Blur ──
+
+CHRONON_EFFECT(
+    20, RadialBlur, RadialBlurParams, ids::DistortRadialBlur,
+    "Radial Blur",
+    EffectCategory::Blur, EffectStage::LayerPostTransform,
+    EffectDomain::Spatial, AlphaPolicy::MayModify,
+    DirtyPolicy::FullFrame, BoundsPolicy::FullFrame,
+    false, false
+)
+
+// ── A7: Stroke ──
+
+CHRONON_EFFECT(
+    21, Stroke, StrokeParams, ids::StylizeStroke,
+    "Stroke",
+    EffectCategory::Stylize, EffectStage::LayerPostTransform,
+    EffectDomain::Spatial, AlphaPolicy::MayModify,
+    DirtyPolicy::Expand, BoundsPolicy::Expand,
+    false, false
+)
+
+// ── A3: Curves (fusable in color pipeline) ──
+
+CHRONON_EFFECT(
+    15, Curves, CurvesParams, ids::ColorCurves,
+    "Curves",
+    EffectCategory::Color, EffectStage::Adjustment,
+    EffectDomain::Color, AlphaPolicy::Preserve,
+    DirtyPolicy::Preserve, BoundsPolicy::Preserve,
+    false, true
+)

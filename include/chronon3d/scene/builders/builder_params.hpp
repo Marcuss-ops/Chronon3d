@@ -35,7 +35,7 @@ struct CircleParams {
     ShapeStroke stroke{};
 };
 
-struct StrokeParams {
+struct ShapeStrokeParams {
     f32 trim_start{0.0f};  // normalised [0..1]
     f32 trim_end{1.0f};
     bool enabled{true};
@@ -49,7 +49,7 @@ struct LineParams {
     Vec3 to{100, 0, 0};
     f32 thickness{1.0f};
     Color color{1, 1, 1, 1};
-    StrokeParams stroke{};
+    ShapeStrokeParams stroke{};
 };
 
 struct PathParams {
