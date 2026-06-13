@@ -21,6 +21,15 @@ std::unique_ptr<ShapeProcessor> create_text_processor();
 std::unique_ptr<EffectProcessor> create_blur_effect_processor();
 std::unique_ptr<EffectProcessor> create_tint_effect_processor();
 std::unique_ptr<EffectProcessor> create_fake_3d_wave_effect_processor();
+std::unique_ptr<EffectProcessor> create_exposure_effect_processor();
+std::unique_ptr<EffectProcessor> create_levels_effect_processor();
+std::unique_ptr<EffectProcessor> create_fill_effect_processor();
+std::unique_ptr<EffectProcessor> create_noise_effect_processor();
+std::unique_ptr<EffectProcessor> create_offset_effect_processor();
+std::unique_ptr<EffectProcessor> create_curves_effect_processor();
+std::unique_ptr<EffectProcessor> create_stroke_effect_processor();
+std::unique_ptr<EffectProcessor> create_radial_blur_effect_processor();
+std::unique_ptr<EffectProcessor> create_directional_blur_effect_processor();
 
 void register_builtin_processors(SoftwareRegistry& registry) {
     // Shapes
@@ -43,6 +52,15 @@ void register_builtin_processors(SoftwareRegistry& registry) {
     registry.register_effect_processor<BlurParams>(create_blur_effect_processor());
     registry.register_effect_processor<TintParams>(create_tint_effect_processor());
     registry.register_effect_processor<Fake3DWaveParams>(create_fake_3d_wave_effect_processor());
+    registry.register_effect_processor<ExposureParams>(create_exposure_effect_processor());
+    registry.register_effect_processor<LevelsParams>(create_levels_effect_processor());
+    registry.register_effect_processor<FillParams>(create_fill_effect_processor());
+    registry.register_effect_processor<NoiseParams>(create_noise_effect_processor());
+    registry.register_effect_processor<OffsetParams>(create_offset_effect_processor());
+    registry.register_effect_processor<DirectionalBlurParams>(create_directional_blur_effect_processor());
+    registry.register_effect_processor<RadialBlurParams>(create_radial_blur_effect_processor());
+    registry.register_effect_processor<StrokeParams>(create_stroke_effect_processor());
+    registry.register_effect_processor<CurvesParams>(create_curves_effect_processor());
 }
 
 } // namespace chronon3d::renderer

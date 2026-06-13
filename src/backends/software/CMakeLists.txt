@@ -43,6 +43,7 @@ target_precompile_headers(chronon3d_backend_software PRIVATE
 # ==============================================================================
 add_subdirectory(processors)
 add_subdirectory(rasterizers)
+add_subdirectory(sampling)
 add_subdirectory(utils)
 add_subdirectory(diagnostics)
 add_subdirectory(simd)

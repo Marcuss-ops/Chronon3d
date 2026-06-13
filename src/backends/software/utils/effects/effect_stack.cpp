@@ -14,6 +14,13 @@
 #include "../../primitive_renderer.hpp"
 #include "effects_internal.hpp"
 #include "effect_helpers.hpp"
+#include "../../processors/effects/color/exposure_levels.hpp"
+#include "../../processors/effects/generate/fill_noise_offset.hpp"
+#include "../../processors/effects/blur/directional_blur.hpp"
+#include "../../processors/effects/blur/radial_blur.hpp"
+#include "../../processors/effects/stroke/stroke.hpp"
+#include <chronon3d/effects/curves.hpp>
+#include <chronon3d/effects/color_pipeline.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/effects/effect_params.hpp>
 #include <algorithm>
@@ -165,6 +172,108 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
         case Vignette: {
             auto* p = std::get_if<VignetteParams>(&inst.params);
             if (p) apply_vignette(fb, p->radius, p->softness, p->amount, p->color, clip);
+            break;
+        }
+
+        case Exposure: {
+            auto* p = std::get_if<ExposureParams>(&inst.params);
+            if (p) apply_exposure(fb, p->stops, clip);
+            break;
+        }
+
+        case Levels: {
+            auto* p = std::get_if<LevelsParams>(&inst.params);
+            if (p) {
+                const auto& l = *p;
+                apply_levels(fb,
+                             l.master.input_black, l.master.input_white,
+                             l.master.gamma,
+                             l.master.output_black, l.master.output_white,
+                             l.red.input_black, l.red.input_white,
+                             l.red.gamma,
+                             l.red.output_black, l.red.output_white,
+                             l.green.input_black, l.green.input_white,
+                             l.green.gamma,
+                             l.green.output_black, l.green.output_white,
+                             l.blue.input_black, l.blue.input_white,
+                             l.blue.gamma,
+                             l.blue.output_black, l.blue.output_white,
+                             clip);
+            }
+            break;
+        }
+
+        case Fill: {
+            auto* p = std::get_if<FillParams>(&inst.params);
+            if (p) apply_fill(fb, p->color, p->amount,
+                              p->mode == FillMode::Replace, clip);
+            break;
+        }
+
+        case Noise: {
+            auto* p = std::get_if<NoiseParams>(&inst.params);
+            if (p) apply_noise(fb, p->amount, p->seed,
+                               p->animated, p->color_mode == NoiseColorMode::RGB,
+                               static_cast<uint32_t>(0), clip);
+            break;
+        }
+
+        case Offset: {
+            auto* p = std::get_if<OffsetParams>(&inst.params);
+            if (p) apply_offset(fb, p->offset.x, p->offset.y,
+                                p->edge_mode, p->filter, clip);
+            break;
+        }
+
+        case DirectionalBlur: {
+            auto* p = std::get_if<DirectionalBlurParams>(&inst.params);
+            if (p && p->length > 0.0f) {
+                auto effect_clip = expand_effect_clip(clip, fb.width(), fb.height(),
+                    std::max(static_cast<float>(directional_blur_margins(p->angle, p->length).first),
+                             static_cast<float>(directional_blur_margins(p->angle, p->length).second)));
+                apply_directional_blur(fb, p->angle, p->length, p->samples, effect_clip);
+            }
+            break;
+        }
+
+        case RadialBlur: {
+            auto* p = std::get_if<RadialBlurParams>(&inst.params);
+            if (p && p->amount > 0.0f) {
+                // Radial blur affects the entire frame — no clip expansion needed
+                apply_radial_blur(fb, p->center.x, p->center.y,
+                                  p->amount, p->render_samples);
+            }
+            break;
+        }
+
+        case Stroke: {
+            auto* p = std::get_if<StrokeParams>(&inst.params);
+            if (p && p->width > 0.0f) {
+                auto margins = stroke_margins(p->width, p->softness, p->mode);
+                auto effect_clip = expand_effect_clip(clip, fb.width(), fb.height(),
+                    static_cast<float>(std::max(margins.first, margins.second)));
+                apply_stroke(fb, p->color, p->width, p->softness, p->mode, effect_clip);
+            }
+            break;
+        }
+
+        case Curves: {
+            auto* p = std::get_if<CurvesParams>(&inst.params);
+            if (p) {
+                // Use global cache to avoid re-compiling identical curves
+                ColorPipeline pipeline;
+                CurvesStage stage;
+                if (!p->master.empty())
+                    stage.master = global_curve_cache().get_or_compile(p->master);
+                if (!p->red.empty())
+                    stage.red = global_curve_cache().get_or_compile(p->red);
+                if (!p->green.empty())
+                    stage.green = global_curve_cache().get_or_compile(p->green);
+                if (!p->blue.empty())
+                    stage.blue = global_curve_cache().get_or_compile(p->blue);
+                pipeline.add_stage(stage);
+                pipeline.apply(fb, clip);
+            }
             break;
         }
 

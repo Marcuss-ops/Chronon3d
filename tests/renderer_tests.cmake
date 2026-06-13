@@ -28,11 +28,21 @@ add_executable(chronon3d_renderer_tests
     renderer/2d5/test_depth_grade.cpp
     render_graph/features/test_unified_transform_path.cpp
     renderer/dispatch/test_software_node_dispatcher.cpp
+    backends/software/sampling/test_sampler2d.cpp
     render_graph/features/test_transition.cpp
     registry/test_registries.cpp
     cache/test_cache_sharding.cpp
     cache/test_tile_cache.cpp
     effects/test_effect_registry.cpp
+    effects/test_effect_catalog.cpp
+    effects/test_exposure_levels.cpp
+    effects/test_levels.cpp
+    effects/test_fill_noise_offset.cpp
+    effects/test_directional_blur.cpp
+    effects/test_radial_blur.cpp
+    effects/test_stroke.cpp
+    effects/test_curves.cpp
+    effects/test_compose_color_op.cpp
     deterministic/test_deterministic.cpp
     render_graph/pipeline/test_render_pipeline.cpp
     render_graph/pipeline/test_line_grid.cpp
