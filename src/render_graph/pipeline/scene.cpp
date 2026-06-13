@@ -2,23 +2,23 @@
 // scene.cpp — Thin orchestrator for render_scene_via_graph()
 //
 // Delegates to focused modules (each handles one phase):
-//   frame_reuse_policy.cpp       — Phase 1-3: fast-path frame reuse checks
-//   scene_fingerprint.cpp        — Fingerprint computation
-//   scene_dirty.cpp              — Phase 4: dirty rect computation
-//   graph_cache_coordinator.cpp  — Phase 5: build or reuse compiled graph
-//   pool_preallocation.cpp       — Phase 6: preallocate framebuffers
-//   tile_execution_policy.cpp    — Tile execution decision
-//   scene_tile_execution.cpp     — Tile-based graph execution
-//   frame_state_commit.cpp       — Phase 7: commit state + telemetry
-//   scene_refresh.cpp/hpp        — Refresh compiled graph payloads
-//   debug.cpp                    — Diagnostic graph analysis
-//   composition.cpp              — render_composition_frame (handles SSAA, MB)
+//   frame_reuse_policy.cpp           — Phase 1-3: fast-path frame reuse checks
+//   scene_fingerprint.cpp            — Fingerprint computation
+//   scene_dirty.cpp                  — Phase 4: dirty rect computation
+//   dirty_telemetry_reporter.cpp     — Dirty ratio/counters/debug logging
+//   graph_cache_coordinator.cpp      — Phase 5: build or reuse compiled graph
+//   pool_preallocation.cpp           — Phase 6: preallocate framebuffers
+//   tile_execution_coordinator.cpp   — Tile decision + execution + counters
+//   frame_timing_recorder.cpp        — Phase timing telemetry + diagnostics
+//   frame_state_commit.cpp           — Commit state + telemetry
+//   scene_refresh.cpp/hpp            — Refresh compiled graph payloads
+//   debug.cpp                        — Diagnostic graph analysis
+//   composition.cpp                  — render_composition_frame (handles SSAA, MB)
 // ===========================================================================
 
 #include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
 #include <chronon3d/render_graph/compiler/compiled_frame_graph.hpp>
 #include <chronon3d/render_graph/optimizer/graph_optimizer.hpp>
-#include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/render_graph/builder/graph_build_pipeline.hpp>
 #include <chronon3d/render_graph/preflight/preflight_render_graph.hpp>
 #include <chronon3d/cache/framebuffer_pool.hpp>
@@ -30,8 +30,6 @@
 #include "helpers.hpp"
 #include "scene_internal.hpp"
 #include "scene_refresh.hpp"
-#include "scene_tile_execution.hpp"
-#include "tile_execution_policy.hpp"
 #include "scene_fingerprint.hpp"
 #include "frame_reuse_policy.hpp"
 #include "graph_cache_coordinator.hpp"
@@ -39,9 +37,11 @@
 #include "frame_state_commit.hpp"
 #include "../builder/graph_builder_internal.hpp"
 #include "../builder/graph_builder_pipeline.hpp"
+#include "dirty_telemetry_reporter.hpp"
+#include "tile_execution_coordinator.hpp"
+#include "frame_timing_recorder.hpp"
 
 #include <spdlog/spdlog.h>
-#include <cmath>
 
 namespace chronon3d::graph {
 
@@ -197,46 +197,12 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         ctx, resolved, scene, settings, sw_renderer, frame, width, height);
     const auto t_dirty1 = profiling::now();
 
-    // ── Dirty ratio / counters / diagnostics ────────────────────────────
-    double dirty_ratio = 1.0;
-    u64 dirty_union_area_pixels = 0;
-    if (dirty_out.dirty_rect) {
-        const int dw = std::max(0, dirty_out.dirty_rect->x1 - dirty_out.dirty_rect->x0);
-        const int dh = std::max(0, dirty_out.dirty_rect->y1 - dirty_out.dirty_rect->y0);
-        const double area = static_cast<double>(dw) * static_cast<double>(dh);
-        const double total = static_cast<double>(width) * height;
-        if (total > 0) dirty_ratio = area / total;
-        dirty_union_area_pixels = static_cast<u64>(area);
-    }
-    if (ctx.telemetry.counters) {
-        ctx.telemetry.counters->dirty_union_area_pixels.store(
-            dirty_union_area_pixels, std::memory_order_relaxed);
-    }
-    if (sw_renderer) {
-        sw_renderer->dirty_telemetry().last_dirty_area_ratio = dirty_ratio;
-    }
+    // ── Dirty metrics ───────────────────────────────────────────────────
+    const double dirty_ratio = compute_and_apply_dirty_metrics(
+        dirty_out, width, height, ctx.telemetry.counters, sw_renderer);
+    log_dirty_debug(sw_renderer, ctx.options.diagnostics_enabled, dirty_out, frame);
     ctx.tile.dirty_rect = dirty_out.dirty_rect;
     ctx.options.reuse_prev_framebuffer = dirty_out.use_dirty_rects;
-
-    if (sw_renderer && ctx.options.diagnostics_enabled) {
-        if (dirty_out.dirty_rect) {
-            spdlog::info(
-                "[dirty-debug] frame={} use_dirty_rects={} prev_fb={} dirty_rect=[{},{} -> {},{}] prev_frame={}",
-                static_cast<int>(frame),
-                dirty_out.use_dirty_rects ? 1 : 0,
-                sw_renderer->buffer_ring().prev_framebuffer() ? 1 : 0,
-                dirty_out.dirty_rect->x0, dirty_out.dirty_rect->y0,
-                dirty_out.dirty_rect->x1, dirty_out.dirty_rect->y1,
-                static_cast<int>(sw_renderer->frame_history().prev_frame));
-        } else {
-            spdlog::info(
-                "[dirty-debug] frame={} use_dirty_rects={} prev_fb={} dirty_rect=null prev_frame={}",
-                static_cast<int>(frame),
-                dirty_out.use_dirty_rects ? 1 : 0,
-                sw_renderer->buffer_ring().prev_framebuffer() ? 1 : 0,
-                static_cast<int>(sw_renderer->frame_history().prev_frame));
-        }
-    }
 
     // ── 6. Fast-path: Empty dirty-rect reuse ─────────────────────────────
     {
@@ -293,129 +259,31 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
 
     // ── 10. Execute: tile-based (V1) or traditional single-pass ──────────
     const auto t_exec0 = profiling::now();
-    std::shared_ptr<Framebuffer> fb_shared;
-
-    const TileDecision tile_decision = TileExecutionPolicy::decide(
-        resolved, settings, dirty_out, dirty_ratio, sw_renderer, frame);
-    const bool use_tile_execution = tile_decision.enabled;
-
-    if (ctx.options.diagnostics_enabled && !use_tile_execution) {
-        spdlog::info(
-            "[tile-debug] frame={} tile_execution_skipped dirty_ratio={:.3f} threshold={} reason={}",
-            static_cast<int>(frame), dirty_ratio,
-            settings.dirty.tile_dirty_ratio_threshold, tile_decision.reason_if_disabled);
-    }
-
-    if (use_tile_execution) {
-        // ── Allocate final framebuffer ──────────────────────────────────
-        {
-            CHRONON_ZONE_C("tile_acquire", trace_category::kFrame);
-            const bool have_prev = sw_renderer &&
-                sw_renderer->buffer_ring().prev_framebuffer() &&
-                sw_renderer->buffer_ring().prev_framebuffer()->width() == width &&
-                sw_renderer->buffer_ring().prev_framebuffer()->height() == height;
-            if (have_prev) {
-                fb_shared = ctx.acquire_framebuffer(
-                    *sw_renderer->buffer_ring().prev_framebuffer());
-            } else {
-                fb_shared = ctx.acquire_framebuffer(width, height, true);
-            }
-        }
-
-        // ── Tile execution ──────────────────────────────────────────────
-        {
-            CHRONON_ZONE_C("tile_execute", trace_category::kGraph);
-            const int total_tiles = dirty_out.tile_grid
-                ? dirty_out.tile_grid->tile_count() : 0;
-            const bool parallel_tiles = settings.dirty.parallel_tiles;
-
-            auto tile_result = detail::execute_dirty_tiles(
-                graph_result.compiled, ctx, sw_renderer, dirty_out,
-                *fb_shared, width, height, parallel_tiles);
-
-            // ── Tile counters ───────────────────────────────────────────
-            if (ctx.telemetry.counters) {
-                ctx.telemetry.counters->tile_dirty_count.fetch_add(
-                    tile_result.dirty_count, std::memory_order_relaxed);
-                const int clean_count = std::max(0, total_tiles - tile_result.dirty_count);
-                ctx.telemetry.counters->tile_clean_count.fetch_add(
-                    clean_count, std::memory_order_relaxed);
-                ctx.telemetry.counters->tile_pixels_rendered.fetch_add(
-                    tile_result.pixels_rendered, std::memory_order_relaxed);
-                const uint64_t total_pixels =
-                    static_cast<uint64_t>(width) * static_cast<uint64_t>(height);
-                const uint64_t pixels_skipped = (total_pixels > tile_result.pixels_rendered)
-                    ? total_pixels - tile_result.pixels_rendered : 0;
-                ctx.telemetry.counters->tile_pixels_skipped.fetch_add(
-                    pixels_skipped, std::memory_order_relaxed);
-            }
-
-            if (ctx.options.diagnostics_enabled) {
-                spdlog::info("[tile-debug] frame={} tile_total={} tile_dirty={}",
-                    static_cast<int>(frame), total_tiles, tile_result.dirty_count);
-            }
-        }
-    } else {
-        // ── Traditional single-pass execution ───────────────────────────
-        {
-            CHRONON_ZONE_C("graph_execute", trace_category::kGraph);
-            if (sw_renderer && sw_renderer->executor()) {
-                fb_shared = sw_renderer->executor()->execute(
-                    graph_result.compiled, ctx);
-            } else {
-                GraphExecutor local_executor;
-                fb_shared = local_executor.execute(graph_result.compiled, ctx);
-            }
-        }
-        // Track tile fallbacks when tile system requested but couldn't execute
-        if (dirty_out.use_dirty_tiles && ctx.telemetry.counters) {
-            ctx.telemetry.counters->tile_full_fallbacks.fetch_add(
-                1, std::memory_order_relaxed);
-        }
-    }
+    auto exec_result = execute_tile_or_fallback(
+        ctx, graph_result.compiled, resolved, settings, dirty_out,
+        dirty_ratio, sw_renderer, frame, width, height);
     const auto t_exec1 = profiling::now();
 
     // ── 11. Phase timing telemetry ───────────────────────────────────────
-    const double resolve_ms = profiling::duration_ms(t_resolve0, t_resolve1);
-    const double dirty_ms = profiling::duration_ms(t_dirty0, t_dirty1);
-    const double graph_ms = profiling::duration_ms(t_graph0, t_graph1);
-    const double exec_ms = profiling::duration_ms(t_exec0, t_exec1);
-    const double total_graph_ms = resolve_ms + dirty_ms + graph_ms + exec_ms;
-
-    if (ctx.telemetry.counters || ctx.options.diagnostics_enabled) {
-        record_frame_timings(ctx.telemetry.counters, {
-            .resolve_ms       = resolve_ms,
-            .dirty_ms         = dirty_ms,
-            .graph_ms         = graph_ms,
-            .exec_ms          = exec_ms,
-            .total_graph_ms   = total_graph_ms,
-        });
-
-        if (ctx.options.diagnostics_enabled) {
-            spdlog::info(
-                "[graph-timing] frame={} resolve_layers_ms={:.2f} dirty_rect_ms={:.2f} "
-                "graph_phase_ms={:.2f} graph_exec_ms={:.2f} graph_total_ms={:.2f} graph_reused={}",
-                static_cast<int>(frame), resolve_ms, dirty_ms, graph_ms, exec_ms,
-                total_graph_ms, graph_result.graph_reused ? 1 : 0);
-        }
-    }
+    compute_and_record_timings(
+        t_resolve0, t_resolve1, t_dirty0, t_dirty1,
+        t_graph0, t_graph1, t_exec0, t_exec1,
+        ctx.telemetry.counters, ctx.options.diagnostics_enabled,
+        frame, graph_result.graph_reused);
 
     // ── Record per-frame dirty-rect telemetry ────────────────────────────
-    if (sw_renderer) {
-        sw_renderer->update_dirty_telemetry(
-            dirty_out.use_dirty_rects, dirty_out.dirty_rect,
-            use_tile_execution, false, graph_result.graph_reused);
-    }
+    record_dirty_telemetry(sw_renderer, dirty_out,
+        exec_result.use_tile_execution, graph_result.graph_reused);
 
     // ── 12. Save state for next frame ─────────────────────────────────────
     if (sw_renderer) {
         commit_frame_state(
             sw_renderer, frame, ctx.camera.camera_2_5d,
-            std::move(graph_result.compiled), fb_shared,
+            std::move(graph_result.compiled), exec_result.fb,
             resolved, frame_fp, dirty_out, width, height);
     }
 
-    return fb_shared;
+    return exec_result.fb;
 }
 
 } // namespace chronon3d::graph
