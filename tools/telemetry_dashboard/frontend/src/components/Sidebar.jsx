@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 
 export default function Sidebar({
   runs,
@@ -7,16 +7,37 @@ export default function Sidebar({
   comparisonRunId,
   onSelectComparisonRun,
 }) {
-  const [isVisible, setIsVisible] = useState(true);
-  const [isPinned, setIsPinned] = useState(true);
+  const [isVisible, setIsVisible] = useState(false);
+  const [isPinned, setIsPinned] = useState(false);
   const [query, setQuery] = useState('');
+  const hideTimer = useRef(null);
 
   const togglePin = useCallback(() => {
     setIsPinned(prev => !prev);
   }, []);
 
+  const showSidebar = useCallback(() => {
+    if (hideTimer.current) {
+      clearTimeout(hideTimer.current);
+      hideTimer.current = null;
+    }
+    setIsVisible(true);
+  }, []);
+
+  const scheduleHide = useCallback(() => {
+    if (isPinned) return;
+    hideTimer.current = setTimeout(() => {
+      setIsVisible(false);
+    }, 300);
+  }, [isPinned]);
+
   const toggleVisible = useCallback(() => {
     setIsVisible(prev => !prev);
+  }, []);
+
+  // Cleanup hide timer on unmount
+  useEffect(() => {
+    return () => { if (hideTimer.current) clearTimeout(hideTimer.current); };
   }, []);
 
   const runsArray = Array.isArray(runs) ? runs : [];
@@ -27,18 +48,18 @@ export default function Sidebar({
 
   return (
     <>
-      {/* Collapse/expand trigger (visible when sidebar is hidden) */}
-      {!isVisible && (
-        <div
-          className="sidebar-peek-trigger"
-          onClick={toggleVisible}
-          title="Click to open sidebar"
-        />
-      )}
+      {/* Hover trigger strip on the left edge */}
+      <div
+        className="sidebar-peek-trigger"
+        onMouseEnter={showSidebar}
+        title="Hover to open sidebar"
+      />
 
       {/* ── Sidebar ── */}
       <aside
         className={`sidebar ${isVisible ? 'visible' : 'hidden'}`}
+        onMouseEnter={showSidebar}
+        onMouseLeave={scheduleHide}
       >
         <div className="sidebar-header">
           <div className="brand">
