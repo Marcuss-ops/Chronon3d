@@ -1,5 +1,6 @@
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/math/transform.hpp>
+#include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/effects/effect_ids.hpp>
 #include <chronon3d/text/font_engine.hpp>
 
@@ -8,14 +9,18 @@
 
 namespace chronon3d {
 
-
-LayerBuilder::LayerBuilder(std::string name, Frame current_frame, std::pmr::memory_resource* res)
-    : m_layer(res), m_current_frame(current_frame) {
+// ── Primary constructor (SampleTime) ────────────────────────────────────────
+LayerBuilder::LayerBuilder(std::string name, SampleTime current_time, std::pmr::memory_resource* res)
+    : m_layer(res), m_current_time(current_time) {
     m_layer.name = std::pmr::string{name, res};
 }
 
+// ── Backward-compatible constructor (Frame → SampleTime) ────────────────────
+LayerBuilder::LayerBuilder(std::string name, Frame current_frame, std::pmr::memory_resource* res)
+    : LayerBuilder(std::move(name), SampleTime::from_frame_int(current_frame), res) {}
+
 LayerBuilder::LayerBuilder(std::string name, std::pmr::memory_resource* res)
-    : LayerBuilder(std::move(name), Frame{0}, res) {}
+    : LayerBuilder(std::move(name), SampleTime::from_frame_int(0), res) {}
 
 LayerBuilder& LayerBuilder::parent(std::string name) {
     m_layer.parent_name = std::pmr::string{name, m_layer.name.get_allocator()};
@@ -190,8 +195,8 @@ Layer LayerBuilder::build() {
     }
     m_layer.font_engine = m_font_engine;
     if (m_layer.anim_transform.is_animated()) {
-        const Frame local_frame = m_layer.local_frame(m_current_frame);
-        Transform baked = m_layer.anim_transform.evaluate(local_frame);
+        const SampleTime local_time = m_layer.local_time(m_current_time);
+        Transform baked = m_layer.anim_transform.evaluate(local_time);
         if (m_layer.anim_transform.position.is_animated())
             m_layer.transform.position = baked.position;
         if (m_layer.anim_transform.rotation_euler.is_animated())
@@ -203,10 +208,10 @@ Layer LayerBuilder::build() {
         if (m_layer.anim_transform.opacity.is_animated())
             m_layer.transform.opacity = baked.opacity;
     }
-    // Bake animated blur into the effect stack at the current frame.
+    // Bake animated blur into the effect stack at the current sub-frame time.
     if (m_layer.anim_transform.blur.is_animated()) {
-        const Frame local_frame = m_layer.local_frame(m_current_frame);
-        f32 blur_radius = m_layer.anim_transform.blur.evaluate(local_frame);
+        const SampleTime local_time = m_layer.local_time(m_current_time);
+        f32 blur_radius = m_layer.anim_transform.blur.evaluate(local_time);
         bool found = false;
         for (auto& effect : m_layer.effects) {
             if (auto* blur = std::get_if<BlurParams>(&effect.params)) {
