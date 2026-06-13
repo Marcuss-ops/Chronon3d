@@ -119,6 +119,31 @@ Unificato con S5.
 - `src/c_api/c_api_internal.hpp` — nuovo header interno condiviso (`chronon_context` struct + dichiarazioni helper)
 - `CMakeLists.txt` aggiornato con i 4 file sorgente
 
+### R3 — Renderer State Refactoring
+
+2026-06-13 — `SoftwareRenderer` state decomposed into dedicated aggregates:
+- `RendererFrameHistory` — per-frame camera + fingerprint history
+- `RendererDirtyTelemetry` — dirty-rect / tile-execution telemetry counters
+- `RendererLayerHistory` — per-layer bbox state for frame-to-frame diffing
+- `LayerBBoxState` — per-layer bounding box + diff state
+- `RendererBufferRing` — managed ping-pong framebuffer ring (replaces raw `m_ping_fb[]`)
+- `TransformScratchBuffer` — managed transform scratch buffer (replaces raw `m_transform_scratch`)
+- `CompiledGraphCache` — managed cached compiled render graph (replaces `m_cached_compiled_graph`)
+
+**New headers:**
+- `include/chronon3d/backends/software/renderer_types.hpp`
+- `include/chronon3d/backends/software/buffer_ring.hpp`
+- `include/chronon3d/backends/software/scratch_buffer.hpp`
+- `include/chronon3d/backends/software/graph_cache.hpp`
+
+**Deleted headers:**
+- `include/chronon3d/backends/software/software_renderer_internal.hpp` — removed; migrate includes to the four new headers above.
+
+**API changes:**
+- `TextAnchor` is now an `enum class : u8` (was a struct). Remove `.align` / `.padding` accessors — use `TextStyle::align` and `TextStyle::vertical_align` directly.
+- `project_layer_2_5d()` Mat4 overload gains `bool diagnostics_enabled = false` default parameter.
+- `SceneBuilder` and `LayerBuilder` are no longer transitively included — add `#include <chronon3d/scene/builders/scene_builder.hpp>` explicitly.
+
 ---
 
 ## Altri completamenti
