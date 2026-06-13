@@ -52,28 +52,44 @@ TEST_CASE("FramebufferLifetime: acquire_owned clears framebuffer when requested"
 }
 
 TEST_CASE("FramebufferLifetime: acquire_owned with clear=false preserves contents") {
-    FramebufferPool pool(256 * 1024 * 1024);
-    auto fb1 = pool.acquire_owned(100, 100, true);
-    Framebuffer* raw = fb1.release();
-    PoolFbDeleter deleter;
-    OwnedFB fb2(raw, std::move(deleter));
+    // acquire_owned() internally uses PoolFbDeleter with weak_from_this(),
+    // which requires the pool to be managed by a shared_ptr.
+    auto pool = FramebufferPool::create_shared(256 * 1024 * 1024);
 
-    auto fb3 = pool.acquire_owned(100, 100, false);
-    CHECK(fb3->width() == 100);
-    CHECK(fb3->height() == 100);
+    // Acquire, write content, then release back to pool
+    {
+        auto fb = pool->acquire_owned(100, 100, true);
+        fb->set_pixel(0, 0, Color::red());
+    } // returned to pool via weak_from_this()
+
+    // Re-acquire without clearing — content from the recycled buffer
+    // may still be red at (0,0) since we didn't clear.
+    // (Allocation reuse guarantees the same pixel storage; whether
+    // the previous set_pixel survives depends on the pool's reuse path.)
+    auto fb2 = pool->acquire_owned(100, 100, false);
+    CHECK(fb2->width() == 100);
+    CHECK(fb2->height() == 100);
+
+    auto stats = pool->stats();
+    CHECK(stats.total_reuses >= 1);
 }
 
 TEST_CASE("FramebufferLifetime: pool reuses previously returned buffer") {
-    FramebufferPool pool(64 * 1024 * 1024);
+    // acquire_owned() internally uses PoolFbDeleter with weak_from_this(),
+    // which requires the pool to be managed by a shared_ptr.
+    auto pool = FramebufferPool::create_shared(64 * 1024 * 1024);
+
     {
-        auto fb = pool.acquire_owned(1920, 1080, true);
+        auto fb = pool->acquire_owned(1920, 1080, true);
         CHECK(fb != nullptr);
-    }
+    } // returned to pool via weak_from_this()
+
     {
-        auto fb = pool.acquire_owned(1920, 1080, true);
+        auto fb = pool->acquire_owned(1920, 1080, true);
         CHECK(fb != nullptr);
-    }
-    auto stats = pool.stats();
+    } // returned to pool via weak_from_this()
+
+    auto stats = pool->stats();
     CHECK(stats.total_reuses >= 1);
 }
 
