@@ -81,13 +81,10 @@ struct VideoArgs {
     std::string encoder_backend{"pipe"};
 #endif
 
-    // Sink selection: "ffmpeg", "null-render", "null-convert"
-    std::string sink_mode{"ffmpeg"};
+    // Sink type selection: "ffmpeg", "null-render", "null-convert"
+    std::string sink_type{"ffmpeg"};
 
     bool dry_run{false};
-
-    // Video sink mode for pipeline isolation
-    std::string video_sink{"ffmpeg"};
 };
 
 struct VideoCameraArgs {
