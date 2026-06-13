@@ -3,7 +3,7 @@
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
 #include "content/text/text_helpers.hpp"
-#include <chronon3d/text/text_glow_spec.hpp>
+
 
 namespace chronon3d::content::minimalist {
 
@@ -101,29 +101,16 @@ Composition minimalist_text_typewriter() {
     return composition({.name = "MinimalistTextTypewriter", .width = 1920, .height = 1080, .duration = 150}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         add_black_background(s);
-        Frame f = ctx.frame;
-        s.layer("phrase", [f](LayerBuilder& l) {
-            l.pin_to(Anchor::Center);
-            auto glow = TextGlowPresets::ae_cinematic_white();
-            glow.bloom_radius    = 12.0f;
-            glow.mid_radius      = 8.0f;
-            glow.bloom_intensity = 0.02f;
-            glow.mid_intensity   = 0.06f;
-            glow.inner_intensity = 0.18f;
-            glow.outer_color     = Color{0.90f, 0.92f, 1.0f, 1.0f};
-            l.glow(glow.to_glow_params());
-            l.text("phrase", text::typewriter_text({
-                .text = "SMOOTH REVEAL",
-                .box = Vec2{800.0f, 160.0f},
-                .font_size = 110,
-                .tracking = 6,
-            }, f, 1.5f,
-            {
-                .easing     = EasingCurve{Easing::OutCubic},
-                .start_delay = Frame{15},
-                .fade_chars  = 0.8f,
-            }));
-        });
+        text::typewriter_build(s, "tw", {
+            .text = "SMOOTH REVEAL",
+            .box = Vec2{800.0f, 200.0f},
+            .font_size = 110.0f,
+            .tracking = 6.0f,
+            .line_height = 1.0f,
+            .chars_per_frame = 1.5f,
+            .start_delay = Frame{15},
+            .easing = EasingCurve{Easing::OutCubic},
+        }, ctx.frame);
         return s.build();
     });
 }
@@ -136,30 +123,16 @@ Composition minimalist_text_tw_cascade() {
     return composition({.name = "MinimalistTextTWCascade", .width = 1920, .height = 1080, .duration = 300}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         add_black_background(s);
-        Frame f = ctx.frame;
-        s.layer("phrase", [f](LayerBuilder& l) {
-            l.pin_to(Anchor::Center);
-            auto glow = TextGlowPresets::ae_cinematic_white();
-            glow.bloom_radius = 10.0f; glow.mid_radius = 6.0f;
-            glow.bloom_intensity = 0.015f; glow.mid_intensity = 0.04f;
-            glow.inner_intensity = 0.12f;
-            glow.outer_color = Color{0.92f, 0.94f, 1.0f, 1.0f};
-            l.glow(glow.to_glow_params());
-            l.text("phrase", text::typewriter_text({
-                .text = "Design is not just what it looks like. Design is how it works.",
-                .box = Vec2{1200.0f, 400.0f},
-                .font_size = 64,
-                .tracking = 2,
-                .max_lines = 0,
-                .auto_fit = false,
-                .line_height = 1.15f,
-            }, f, 0.45f,
-            {
-                .easing = EasingCurve{Easing::OutSine},
-                .start_delay = Frame{20},
-                .fade_chars = 0.6f,
-            }));
-        });
+        text::typewriter_build(s, "tw", {
+            .text = "Design creates order. Order creates clarity. Clarity creates trust.",
+            .box = Vec2{1200.0f, 400.0f},
+            .font_size = 64.0f,
+            .tracking = 2.0f,
+            .line_height = 1.15f,
+            .chars_per_frame = 0.45f,
+            .start_delay = Frame{20},
+            .easing = EasingCurve{Easing::OutSine},
+        }, ctx.frame);
         return s.build();
     });
 }
@@ -168,30 +141,16 @@ Composition minimalist_text_tw_wave() {
     return composition({.name = "MinimalistTextTWWave", .width = 1920, .height = 1080, .duration = 300}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         add_black_background(s);
-        Frame f = ctx.frame;
-        s.layer("phrase", [f](LayerBuilder& l) {
-            l.pin_to(Anchor::Center);
-            auto glow = TextGlowPresets::ae_cinematic_white();
-            glow.bloom_radius = 10.0f; glow.mid_radius = 6.0f;
-            glow.bloom_intensity = 0.015f; glow.mid_intensity = 0.04f;
-            glow.inner_intensity = 0.12f;
-            glow.outer_color = Color{0.92f, 0.94f, 1.0f, 1.0f};
-            l.glow(glow.to_glow_params());
-            l.text("phrase", text::typewriter_text({
-                .text = "Every great design begins with an even better story.",
-                .box = Vec2{1100.0f, 350.0f},
-                .font_size = 62,
-                .tracking = 3,
-                .max_lines = 0,
-                .auto_fit = false,
-                .line_height = 1.10f,
-            }, f, 0.40f,
-            {
-                .easing = EasingCurve{Easing::InOutSine},
-                .start_delay = Frame{25},
-                .fade_chars = 0.5f,
-            }));
-        });
+        text::typewriter_build(s, "tw", {
+            .text = "Every great idea moves through rhythm, contrast, space, and balance.",
+            .box = Vec2{1100.0f, 350.0f},
+            .font_size = 62.0f,
+            .tracking = 3.0f,
+            .line_height = 1.10f,
+            .chars_per_frame = 0.40f,
+            .start_delay = Frame{25},
+            .easing = EasingCurve{Easing::InOutSine},
+        }, ctx.frame);
         return s.build();
     });
 }
@@ -200,30 +159,16 @@ Composition minimalist_text_tw_snap() {
     return composition({.name = "MinimalistTextTWSnap", .width = 1920, .height = 1080, .duration = 300}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         add_black_background(s);
-        Frame f = ctx.frame;
-        s.layer("phrase", [f](LayerBuilder& l) {
-            l.pin_to(Anchor::Center);
-            auto glow = TextGlowPresets::ae_cinematic_white();
-            glow.bloom_radius = 10.0f; glow.mid_radius = 6.0f;
-            glow.bloom_intensity = 0.015f; glow.mid_intensity = 0.04f;
-            glow.inner_intensity = 0.12f;
-            glow.outer_color = Color{0.92f, 0.94f, 1.0f, 1.0f};
-            l.glow(glow.to_glow_params());
-            l.text("phrase", text::typewriter_text({
-                .text = "Simplicity is the ultimate sophistication. Less is always more.",
-                .box = Vec2{1200.0f, 350.0f},
-                .font_size = 60,
-                .tracking = 2,
-                .max_lines = 0,
-                .auto_fit = false,
-                .line_height = 1.12f,
-            }, f, 0.50f,
-            {
-                .easing = EasingCurve{Easing::OutExpo},
-                .start_delay = Frame{30},
-                .fade_chars = 0.7f,
-            }));
-        });
+        text::typewriter_build(s, "tw", {
+            .text = "Simple. Clear. Immediate. Memorable.",
+            .box = Vec2{1200.0f, 350.0f},
+            .font_size = 68.0f,
+            .tracking = 2.0f,
+            .line_height = 1.10f,
+            .chars_per_frame = 0.50f,
+            .start_delay = Frame{30},
+            .easing = EasingCurve{Easing::OutExpo},
+        }, ctx.frame);
         return s.build();
     });
 }
@@ -232,30 +177,16 @@ Composition minimalist_text_tw_drift() {
     return composition({.name = "MinimalistTextTWDrift", .width = 1920, .height = 1080, .duration = 300}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         add_black_background(s);
-        Frame f = ctx.frame;
-        s.layer("phrase", [f](LayerBuilder& l) {
-            l.pin_to(Anchor::Center);
-            auto glow = TextGlowPresets::ae_cinematic_white();
-            glow.bloom_radius = 10.0f; glow.mid_radius = 6.0f;
-            glow.bloom_intensity = 0.015f; glow.mid_intensity = 0.04f;
-            glow.inner_intensity = 0.12f;
-            glow.outer_color = Color{0.92f, 0.94f, 1.0f, 1.0f};
-            l.glow(glow.to_glow_params());
-            l.text("phrase", text::typewriter_text({
-                .text = "The details are not the details. They make the design.",
-                .box = Vec2{1100.0f, 350.0f},
-                .font_size = 58,
-                .tracking = 4,
-                .max_lines = 0,
-                .auto_fit = false,
-                .line_height = 1.18f,
-            }, f, 0.35f,
-            {
-                .easing = EasingCurve{Easing::InOutCubic},
-                .start_delay = Frame{20},
-                .fade_chars = 0.5f,
-            }));
-        });
+        text::typewriter_build(s, "tw", {
+            .text = "The details are not the details. They make the design.",
+            .box = Vec2{1100.0f, 350.0f},
+            .font_size = 58.0f,
+            .tracking = 4.0f,
+            .line_height = 1.18f,
+            .chars_per_frame = 0.35f,
+            .start_delay = Frame{20},
+            .easing = EasingCurve{Easing::InOutCubic},
+        }, ctx.frame);
         return s.build();
     });
 }
@@ -264,30 +195,16 @@ Composition minimalist_text_tw_bold() {
     return composition({.name = "MinimalistTextTWBold", .width = 1920, .height = 1080, .duration = 300}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         add_black_background(s);
-        Frame f = ctx.frame;
-        s.layer("phrase", [f](LayerBuilder& l) {
-            l.pin_to(Anchor::Center);
-            auto glow = TextGlowPresets::ae_cinematic_white();
-            glow.bloom_radius = 10.0f; glow.mid_radius = 6.0f;
-            glow.bloom_intensity = 0.015f; glow.mid_intensity = 0.04f;
-            glow.inner_intensity = 0.12f;
-            glow.outer_color = Color{0.92f, 0.94f, 1.0f, 1.0f};
-            l.glow(glow.to_glow_params());
-            l.text("phrase", text::typewriter_text({
-                .text = "Good design is as little design as possible. Back to simplicity.",
-                .box = Vec2{1200.0f, 400.0f},
-                .font_size = 66,
-                .tracking = 3,
-                .max_lines = 0,
-                .auto_fit = false,
-                .line_height = 1.10f,
-            }, f, 0.42f,
-            {
-                .easing = EasingCurve{Easing::OutCubic},
-                .start_delay = Frame{35},
-                .fade_chars = 0.6f,
-            }));
-        });
+        text::typewriter_build(s, "tw", {
+            .text = "Good design is as little design as possible. Everything else must earn its place.",
+            .box = Vec2{1200.0f, 400.0f},
+            .font_size = 54.0f,
+            .tracking = 3.0f,
+            .line_height = 1.12f,
+            .chars_per_frame = 0.42f,
+            .start_delay = Frame{35},
+            .easing = EasingCurve{Easing::OutCubic},
+        }, ctx.frame);
         return s.build();
     });
 }
