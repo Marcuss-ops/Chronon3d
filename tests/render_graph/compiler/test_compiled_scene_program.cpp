@@ -38,10 +38,11 @@
 #include <chronon3d/render_graph/nodes/transform_node.hpp>
 #include <chronon3d/render_graph/nodes/effect_stack_node.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
+#include <chronon3d/scene/model/core/effect_stack.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/compositor/composite_operator.hpp>
-#include "helpers/check_helpers.hpp"
+#include <tests/helpers/check_helpers.hpp>
 
 #include <chronon3d/render_graph/cache/scene_program_cache.hpp>
 #include <chronon3d/render_graph/optimizer/graph_optimizer.hpp>
@@ -58,10 +59,9 @@ namespace {
 
 /// Build a simple scene with configurable layers for structure hash testing.
 Scene make_test_scene() {
-    SceneBuilder builder;
-    builder.rect("bg", {.size = {100, 100}, .color = Color::gray()});
-    builder.layer("fg", [](LayerBuilder& lb) {
-        lb.rect("box", {.size = {50, 50}, .color = Color::red()});
+    SceneBuilder builder;        builder.rect("bg", {.size = {100, 100}, .color = Color{0.5f, 0.5f, 0.5f}});
+        builder.layer("fg", [](LayerBuilder& lb) {
+            lb.rect("box", {.size = {50, 50}, .color = Color::red()});
         lb.blend(BlendMode::Multiply);
         lb.blur(5.0f);
     });
@@ -498,7 +498,7 @@ TEST_CASE("scene_program: animated transforms preserve structure hash "
 
     // Build a scene with a layer that has animated transforms.
     SceneBuilder builder;
-    builder.rect("bg", {.size = {1920, 1080}, .color = Color::gray()});
+    builder.rect("bg", {.size = {1920, 1080}, .color = Color{0.5f, 0.5f, 0.5f}});
     builder.layer("anim", [](LayerBuilder& lb) {
         lb.rect("box", {.size = {100, 100}, .color = Color::red()});
         lb.blur(5.0f);

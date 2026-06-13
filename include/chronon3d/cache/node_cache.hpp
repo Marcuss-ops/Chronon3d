@@ -2,6 +2,7 @@
 
 #include <chronon3d/cache/lru_cache.hpp>
 #include <chronon3d/core/types/frame.hpp>
+#include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/core/types/types.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <memory>
@@ -17,6 +18,10 @@ struct NodeCacheKey {
     u64         params_hash{0};
     u64         source_hash{0};
     u64         input_hash{0};
+
+    /// Sub-frame tick for motion blur / temporal supersampling.
+    /// Default 0 = integer frame (backward compatible).
+    SampleTimeKey sample_time_key{0};
 
     // Tile-based cache differentiation (Branch 4).
     // Defaults (-1, -1, 0, 0) produce the same digest as before,

@@ -20,6 +20,7 @@ template <typename T>
 u64 FrameCacheKey::digest() const {
     u64 seed = frame_cache_detail::hash_string(composition_id);
     seed = frame_cache_detail::hash_combine(seed, frame_cache_detail::hash_value(frame));
+    seed = frame_cache_detail::hash_combine(seed, frame_cache_detail::hash_value(sample_time_key.ticks));
     seed = frame_cache_detail::hash_combine(seed, frame_cache_detail::hash_value(width));
     seed = frame_cache_detail::hash_combine(seed, frame_cache_detail::hash_value(height));
     seed = frame_cache_detail::hash_combine(seed, scene_hash);

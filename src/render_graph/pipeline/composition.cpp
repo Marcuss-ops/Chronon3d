@@ -16,6 +16,62 @@
 
 namespace chronon3d::graph {
 
+// ── Deterministic jitter for motion blur sub-samples ───────────────────────
+// Produces a value in [-0.5, 0.5) based on seed, frame, sample index.
+// Same inputs always produce the same output (deterministic).
+[[nodiscard]] static double motion_blur_jitter(
+    TemporalSamplePattern pattern, u64 seed, int frame, int sample_idx, int total_samples)
+{
+    switch (pattern) {
+        case TemporalSamplePattern::Uniform:
+            return 0.0;
+        case TemporalSamplePattern::Stratified: {
+            // Hash-based deterministic jitter: map to [0, 1) then shift to [-0.5, 0.5)
+            uint64_t h = seed;
+            h ^= static_cast<uint64_t>(frame) * 0x9E3779B97F4A7C15ULL;
+            h ^= static_cast<uint64_t>(sample_idx) * 0xBF58476D1CE4E5B9ULL;
+            h ^= static_cast<uint64_t>(total_samples) * 0x94D049BB133111EBULL;
+            h = (h ^ (h >> 30)) * 0xBF58476D1CE4E5B9ULL;
+            h = (h ^ (h >> 27)) * 0x94D049BB133111EBULL;
+            h = h ^ (h >> 31);
+            const double u = static_cast<double>(h & 0x7FFFFFFFFFFFFFFFULL)
+                           / static_cast<double>(0x8000000000000000ULL);
+            return u - 0.5;  // centre in [-0.5, 0.5)
+        }
+        case TemporalSamplePattern::Halton: {
+            // Halton sequence (base 2) for low-discrepancy sampling
+            double h_val = 0.0;
+            double f = 0.5;
+            int n = sample_idx + 1;
+            while (n > 0) {
+                h_val += f * static_cast<double>(n & 1);
+                n >>= 1;
+                f *= 0.5;
+            }
+            return h_val - 0.5;  // centre in [-0.5, 0.5)
+        }
+    }
+    return 0.0;
+}
+
+// ── Reconstruction filter weight ──────────────────────────────────────────
+// Returns the filter weight at normalised time t ∈ [0, 1].
+// Weights are normalised later by the caller.
+[[nodiscard]] static double motion_blur_filter_weight(TemporalFilter filter, double t) {
+    switch (filter) {
+        case TemporalFilter::Box:
+            return 1.0;
+        case TemporalFilter::Triangle:
+            return 1.0 - std::abs(2.0 * t - 1.0);
+        case TemporalFilter::Gaussian: {
+            constexpr double kSigma = 0.25;  // exposure_duration / 4
+            const double z = (t - 0.5) / kSigma;
+            return std::exp(-0.5 * z * z);
+        }
+    }
+    return 1.0;
+}
+
 std::shared_ptr<Framebuffer> render_composition_frame(
     RenderBackend& backend,
     cache::NodeCache& node_cache,
@@ -68,15 +124,44 @@ std::shared_ptr<Framebuffer> render_composition_frame(
         scene_ms = profiling::duration_ms(t_scene0, profiling::now());
     } else {
         const int N = std::max(2, settings.motion_blur.samples);
-        const float shutter = settings.motion_blur.shutter_angle / 360.0f;
+        const double exposure_frames = static_cast<double>(settings.motion_blur.shutter_angle_deg) / 360.0;
+        const double opening_offset   = static_cast<double>(settings.motion_blur.shutter_phase_deg) / 360.0;
+        const u64   jitter_seed       = settings.motion_blur.jitter_seed;
+        const TemporalSamplePattern pattern = settings.motion_blur.pattern;
+        const TemporalFilter        filter  = settings.motion_blur.filter;
+
+        // ── Pre-compute sample times and normalised filter weights ──────
+        std::vector<double> sample_times(static_cast<size_t>(N));
+        std::vector<float>  sample_weights(static_cast<size_t>(N));
+        {
+            double weight_sum = 0.0;
+            for (int s = 0; s < N; ++s) {
+                const double j = motion_blur_jitter(pattern, jitter_seed,
+                    static_cast<int>(frame), s, N);
+                sample_times[s] = opening_offset
+                    + ((static_cast<double>(s) + j) / static_cast<double>(N)) * exposure_frames;
+
+                const double t_norm = (static_cast<double>(s) + j) / static_cast<double>(N);
+                const double raw_w  = motion_blur_filter_weight(filter, t_norm);
+                sample_weights[s] = static_cast<float>(raw_w);
+                weight_sum += raw_w;
+            }
+            // Normalise so weights sum to 1.0 (correct alpha accumulation)
+            const float inv_sum = (weight_sum > 0.0)
+                ? static_cast<float>(1.0 / weight_sum) : 1.0f;
+            for (int s = 0; s < N; ++s) {
+                sample_weights[s] *= inv_sum;
+            }
+        }
+
         std::vector<float> accum(static_cast<size_t>(rw * rh * 4), 0.0f);
-        const float weight = 1.0f / static_cast<float>(N);
 
         const auto t_mb0 = profiling::now();
         {
             CHRONON_ZONE_C("motion_blur_accumulation", trace_category::kEffect);
             for (int s = 0; s < N; ++s) {
-                const float t = (static_cast<float>(s) / static_cast<float>(N)) * shutter;
+                const float t = static_cast<float>(sample_times[s]);
+                const float w = sample_weights[s];
                 Scene sub = comp.evaluate(frame, t);
                 if (s == 0) layer_count = static_cast<int>(sub.layers().size());
                 const Framebuffer& sub_fb = *call_graph(sub, frame, t);
@@ -88,7 +173,7 @@ std::shared_ptr<Framebuffer> render_composition_frame(
                         using namespace hwy::HWY_NAMESPACE;
                         const ScalableTag<float> df;
                         const size_t lanes = Lanes(df);
-                        const auto v_weight = Set(df, weight);
+                        const auto v_weight = Set(df, w);
 
                         for (int y = range.begin(); y < range.end(); ++y) {
                             const float* src = reinterpret_cast<const float*>(sub_fb.pixels_row(y));
@@ -105,7 +190,7 @@ std::shared_ptr<Framebuffer> render_composition_frame(
                             }
                             // Scalar tail for remaining floats
                             for (; x < total_floats; ++x) {
-                                dst[x] += src[x] * weight;
+                                dst[x] += src[x] * w;
                             }
                         }
                     }

@@ -98,7 +98,7 @@ SceneBuilder& SceneBuilder::with_glow(Glow glow) {
 
 Scene SceneBuilder::build() {
     LayoutSolver().solve(scene_, m_width, m_height);
-    scene_.resolve_hierarchy(current_frame_);
+    scene_.resolve_hierarchy(current_integer_frame());
     return std::move(scene_);
 }
 

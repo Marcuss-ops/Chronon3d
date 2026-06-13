@@ -724,7 +724,6 @@ HWY_ATTR void composite_color_burn_premul_impl(float* HWY_RESTRICT dst_ptr,
     }
 }
 
-
 // ── B4: Matte kernels ────────────────────────────────────────────────────
 
 HWY_ATTR void apply_alpha_matte_premul_impl(float* HWY_RESTRICT target_ptr,
@@ -806,39 +805,15 @@ HWY_AFTER_NAMESPACE();
 #if HWY_ONCE
 namespace chronon3d::simd {
 
-HWY_EXPORT(composite_normal_premul_impl);
-HWY_EXPORT(composite_add_premul_impl);
-HWY_EXPORT(composite_multiply_premul_impl);
-HWY_EXPORT(composite_screen_premul_impl);
-HWY_EXPORT(composite_overlay_premul_impl);
-HWY_EXPORT(composite_darken_premul_impl);
-HWY_EXPORT(composite_lighten_premul_impl);
-HWY_EXPORT(composite_difference_premul_impl);
-HWY_EXPORT(composite_exclusion_premul_impl);
-HWY_EXPORT(composite_soft_light_premul_impl);
-HWY_EXPORT(composite_hard_light_premul_impl);
-HWY_EXPORT(composite_color_dodge_premul_impl);
-HWY_EXPORT(composite_color_burn_premul_impl);
-HWY_EXPORT(apply_alpha_matte_premul_impl);
-HWY_EXPORT(apply_luma_matte_premul_impl);
-HWY_EXPORT(premultiply_alpha_rgba8_impl);
+// ── B3 safe scalar fallbacks ────────────────────────────────────────────────
+// NOTE: These are defined in the HWY_ONCE block (chronon3d::simd namespace)
+// because they are called from the dispatch functions below, not from within
+// the per-target HWY_NAMESPACE.
 
-// ── Helpers ──────────────────────────────────────────────────────────────
-
-/// Check a single Color for NaN/Inf contamination.
 static bool has_bad_color(const Color& c) {
     return std::isnan(c.r) || std::isnan(c.g) || std::isnan(c.b) || std::isnan(c.a) ||
            std::isinf(c.r) || std::isinf(c.g) || std::isinf(c.b) || std::isinf(c.a);
 }
-
-/// Canary check on first + last pixel of both buffers.  Returns true if safe
-/// for the fast SIMD path; falls back to a safe scalar loop when contaminated.
-static bool check_nan_canary(const Color* dst, const Color* src, int pixel_count) {
-    return !has_bad_color(src[0]) && !has_bad_color(dst[0]) &&
-           !has_bad_color(src[pixel_count - 1]) && !has_bad_color(dst[pixel_count - 1]);
-}
-
-// ── B3 safe scalar fallbacks (must be after has_bad_color) ────────────
 
 static void composite_soft_light_safe(Color* dst, const Color* src, int pixel_count) {
     for (int i = 0; i < pixel_count; ++i) {
@@ -944,29 +919,57 @@ static void composite_color_burn_safe(Color* dst, const Color* src, int pixel_co
     }
 }
 
-// ── Scalar matte safe fallbacks ─────────────────────────────────────────
+// ── B4: Safe scalar fallbacks for matte ─────────────────────────────────────
 
 static void apply_alpha_matte_safe(Color* target, const Color* matte, int pixel_count, bool inverted) {
     for (int i = 0; i < pixel_count; ++i) {
-        if (has_bad_color(target[i]) || has_bad_color(matte[i])) continue;
-        Color& t = target[i];
         const float ma = matte[i].a;
         const float coverage = inverted ? (1.0f - ma) : ma;
-        const float c = std::min(std::max(coverage, 0.0f), 1.0f);
-        t.r *= c; t.g *= c; t.b *= c; t.a *= c;
+        const float c = std::clamp(coverage, 0.0f, 1.0f);
+        target[i].r *= c;
+        target[i].g *= c;
+        target[i].b *= c;
+        target[i].a *= c;
     }
 }
 
 static void apply_luma_matte_safe(Color* target, const Color* matte, int pixel_count, bool inverted) {
     for (int i = 0; i < pixel_count; ++i) {
-        if (has_bad_color(target[i]) || has_bad_color(matte[i])) continue;
-        Color& t = target[i];
-        const Color& m = matte[i];
-        const float luma = 0.2126f * m.r + 0.7152f * m.g + 0.0722f * m.b;
+        const float luma = 0.2126f * matte[i].r + 0.7152f * matte[i].g + 0.0722f * matte[i].b;
         const float coverage = inverted ? (1.0f - luma) : luma;
-        const float c = std::min(std::max(coverage, 0.0f), 1.0f);
-        t.r *= c; t.g *= c; t.b *= c; t.a *= c;
+        const float c = std::clamp(coverage, 0.0f, 1.0f);
+        target[i].r *= c;
+        target[i].g *= c;
+        target[i].b *= c;
+        target[i].a *= c;
     }
+}
+
+// Global flag: force scalar Normal blend for diagnostic purposes
+std::atomic<bool> g_force_scalar_normal_blend{false};
+
+HWY_EXPORT(composite_normal_premul_impl);
+HWY_EXPORT(composite_add_premul_impl);
+HWY_EXPORT(composite_multiply_premul_impl);
+HWY_EXPORT(composite_screen_premul_impl);
+HWY_EXPORT(composite_overlay_premul_impl);
+HWY_EXPORT(composite_darken_premul_impl);
+HWY_EXPORT(composite_lighten_premul_impl);
+HWY_EXPORT(composite_difference_premul_impl);
+HWY_EXPORT(composite_exclusion_premul_impl);
+HWY_EXPORT(composite_soft_light_premul_impl);
+HWY_EXPORT(composite_hard_light_premul_impl);
+HWY_EXPORT(composite_color_dodge_premul_impl);
+HWY_EXPORT(composite_color_burn_premul_impl);
+HWY_EXPORT(apply_alpha_matte_premul_impl);
+HWY_EXPORT(apply_luma_matte_premul_impl);
+HWY_EXPORT(premultiply_alpha_rgba8_impl);
+
+/// Canary check on first + last pixel of both buffers.  Returns true if safe
+/// for the fast SIMD path; falls back to a safe scalar loop when contaminated.
+static bool check_nan_canary(const Color* dst, const Color* src, int pixel_count) {
+    return !has_bad_color(src[0]) && !has_bad_color(dst[0]) &&
+           !has_bad_color(src[pixel_count - 1]) && !has_bad_color(dst[pixel_count - 1]);
 }
 
 /// Safe scalar fallback for Normal blend (called when NaN/Inf detected).
@@ -984,9 +987,9 @@ static void composite_normal_premul_safe(Color* dst, const Color* src, int pixel
     }
 }
 
-void composite_normal_premul(Color* __restrict__ dst, const Color* __restrict__ src, int pixel_count, bool force_scalar) {
+void composite_normal_premul(Color* __restrict__ dst, const Color* __restrict__ src, int pixel_count) {
     if (pixel_count <= 0) return;
-    if (!check_nan_canary(dst, src, pixel_count) || force_scalar) {
+    if (!check_nan_canary(dst, src, pixel_count) || g_force_scalar_normal_blend.load(std::memory_order_relaxed)) {
         composite_normal_premul_safe(dst, src, pixel_count);
         return;
     }

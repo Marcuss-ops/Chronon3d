@@ -1,7 +1,9 @@
 #pragma once
 
 #include <chronon3d/animation/core/keyframe.hpp>
+#include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/math/expression.hpp>
+#include <chronon3d/math/glm_types.hpp>
 #include <vector>
 #include <string>
 #include <algorithm>
@@ -128,8 +130,28 @@ public:
                         )};
                     }
                 }
+            } else if constexpr (requires(const T& a, const T& b) { glm::length(a - b); }) {
+                // Spatial types (Vec3, etc.): roving based on spatial distance
+                const f32 total_dist = glm::length(m_keyframes[right].value - m_keyframes[left].value);
+                if (total_dist < 1e-7f || dt <= 0.0f) {
+                    const size_t count = right - left - 1;
+                    for (size_t j = 0; j < count; ++j) {
+                        f32 frac = static_cast<f32>(j + 1) / static_cast<f32>(count + 1);
+                        m_keyframes[left + 1 + j].frame =
+                            Frame{static_cast<i32>(std::round(t_left + frac * dt))};
+                    }
+                } else {
+                    for (size_t j = left + 1; j < right; ++j) {
+                        const f32 dist_from_left = glm::length(m_keyframes[j].value - m_keyframes[left].value);
+                        const f32 frac = dist_from_left / total_dist;
+                        const f32 target = t_left + frac * dt;
+                        m_keyframes[j].frame = Frame{static_cast<i32>(
+                            std::round(std::clamp(target, t_left + 1.0f, t_right - 1.0f))
+                        )};
+                    }
+                }
             } else {
-                // Non-arithmetic T (e.g. Vec3): distribute frames evenly
+                // Non-arithmetic, non-spatial T: distribute frames evenly
                 const size_t count = right - left - 1;
                 for (size_t j = 0; j < count; ++j) {
                     f32 frac = static_cast<f32>(j + 1) / static_cast<f32>(count + 1);
@@ -170,53 +192,54 @@ public:
     // Preferred name in new code.
     [[nodiscard]] T value_at(Frame frame) const { return evaluate(frame); }
 
-    [[nodiscard]] T evaluate(Frame frame) const {
-        return evaluate(frame, AnimationEvalContext{});
+    // ── Sub-frame evaluation (SampleTime) ── the future ─────────────────────
+    [[nodiscard]] T evaluate(SampleTime time) const {
+        return evaluate(time, AnimationEvalContext{});
     }
 
-    [[nodiscard]] T evaluate(Frame frame, const AnimationEvalContext& ctx) const {
-        const T base = evaluate_base(frame);
+    [[nodiscard]] T evaluate(SampleTime time, const AnimationEvalContext& ctx) const {
+        const T base = evaluate_base_double(time.frame);
 
-        if (!has_expression()) {
-            return base;
-        }
+        if (!has_expression()) return base;
 
         if constexpr (std::is_same_v<T, f32>) {
-            const double fps = ctx.fps > 0.0f ? static_cast<double>(ctx.fps) : 30.0;
-            const double time = ctx.has_explicit_time
-                ? static_cast<double>(ctx.time)
-                : static_cast<double>(frame) / fps;
+            const double fps = (time.fps > 0.0) ? time.fps : 30.0;
+            const double t = time.seconds;
+            const double frame = time.frame;
 
-            // If we have an extended expression context, use context-aware API
             if (ctx.expression_context) {
                 math::ExpressionContext ectx = *ctx.expression_context;
-                // Fill in current property value and frame/time
                 ectx.value  = static_cast<double>(base);
                 ectx.value0 = static_cast<double>(base);
-                ectx.frame  = static_cast<double>(frame);
-                ectx.time   = time;
+                ectx.frame  = frame;
+                ectx.time   = t;
                 ectx.fps    = fps;
                 ectx.index  = static_cast<double>(ctx.index);
-
                 return static_cast<f32>(
                     math::evaluate_expression(m_expression, ectx, {}, static_cast<double>(base))
                 );
             }
 
-            // Legacy path — no cross-layer references
             const std::unordered_map<std::string, double> vars{
-                {"frame", static_cast<double>(frame)},
-                {"time", time},
+                {"frame", frame},
+                {"time", t},
                 {"value", static_cast<double>(base)},
                 {"index", static_cast<double>(ctx.index)},
             };
-
             return static_cast<f32>(
                 math::evaluate_expression(m_expression, vars, static_cast<double>(base))
             );
-        } else {
-            return base;
         }
+        return base;
+    }
+
+    // ── Legacy Frame evaluation (backward compatible) ────────────────────────
+    [[nodiscard]] T evaluate(Frame frame) const {
+        return evaluate(SampleTime::from_frame_int(frame));
+    }
+
+    [[nodiscard]] T evaluate(Frame frame, const AnimationEvalContext& ctx) const {
+        return evaluate(SampleTime::from_frame_int(frame), ctx);
     }
 
     [[nodiscard]] bool is_animated() const { return !m_keyframes.empty(); }
@@ -225,21 +248,9 @@ public:
      * @brief Determines if evaluating this property at a specific frame is "expensive"
      * enough to justify caching.
      */
-    [[nodiscard]] bool should_cache(Frame frame) const {
-        if (has_expression()) return true;
-        if (m_keyframes.empty()) return false; // Constant value is cheap
-        
-        const Frame start_f = m_keyframes.front().frame;
-        const Frame end_f   = m_keyframes.back().frame;
-        
-        if (frame <= start_f || frame >= end_f) return false; // Edge values are cheap
-        
-        // If we are between keyframes, we check easing complexity.
-        // For now, assume any non-linear easing or many keyframes might benefit,
-        // but simple linear is definitely cheap.
-        // In a real implementation, we'd check the easing of the active segment.
-        return true; 
-    }
+    [[nodiscard]] bool should_cache(Frame frame) const { return should_cache_double(static_cast<double>(frame)); }
+
+    [[nodiscard]] bool should_cache(const SampleTime& time) const { return should_cache_double(time.frame); }
 
     /// Returns the time (frame) of the last keyframe, or Frame{0} if empty.
     /// Useful for determining when an animation has reached its terminal state.
@@ -259,51 +270,80 @@ public:
     }
 
 private:
-    [[nodiscard]] T evaluate_base(Frame frame) const {
+    // Core interpolation engine — works with double precision for sub-frame accuracy.
+    [[nodiscard]] T evaluate_base_double(double frame) const {
         if (m_keyframes.empty()) {
             return m_default_value;
         }
 
-        const Frame start_f = m_keyframes.front().frame;
-        const Frame end_f   = m_keyframes.back().frame;
-        const Frame range   = end_f - start_f;
+        const double start_f = static_cast<double>(m_keyframes.front().frame);
+        const double end_f   = static_cast<double>(m_keyframes.back().frame);
+        const double range   = end_f - start_f;
 
-        Frame eval_frame = frame;
+        double eval_frame = frame;
 
         if (m_loop_mode == LoopMode::Loop && range > 0) {
             if (frame < start_f) {
-                // To properly loop negative frames: offset to positive
-                eval_frame = end_f - (start_f - frame - 1) % range - 1;
+                eval_frame = end_f - std::fmod(start_f - frame, range);
             } else {
-                eval_frame = start_f + (frame - start_f) % range;
+                eval_frame = start_f + std::fmod(frame - start_f, range);
             }
         } else if (m_loop_mode == LoopMode::PingPong && range > 0) {
-            Frame t = (frame < start_f) ? (start_f - frame) : (frame - start_f);
-            Frame cycle = t / range;
-            Frame offset = t % range;
-            if (cycle % 2 == 0) {
+            double t = (frame < start_f) ? (start_f - frame) : (frame - start_f);
+            double cycle = std::floor(t / range);
+            double offset = std::fmod(t, range);
+            if (static_cast<int64_t>(cycle) % 2 == 0) {
                 eval_frame = start_f + offset;
             } else {
                 eval_frame = end_f - offset;
             }
         } else {
-            // Hold mode (default)
             if (frame <= start_f) return m_keyframes.front().value;
             if (frame >= end_f)   return m_keyframes.back().value;
         }
 
-        auto it   = std::lower_bound(m_keyframes.begin(), m_keyframes.end(), eval_frame,
-            [](const Keyframe<T>& kf, Frame f) { return kf.frame < f; });
-        
-        if (it == m_keyframes.begin()) return it->value;
-        if (eval_frame == it->frame) return it->value;
+        // Binary search keyframe segment with double precision
+        size_t idx = 0;
+        for (size_t i = 0; i + 1 < m_keyframes.size(); ++i) {
+            if (static_cast<double>(m_keyframes[i + 1].frame) >= eval_frame) {
+                idx = i;
+                break;
+            }
+            idx = i + 1;
+        }
+        if (idx + 1 >= m_keyframes.size()) {
+            return m_keyframes.back().value;
+        }
 
-        auto next = it;
-        auto prev = std::prev(it);
+        const auto& prev = m_keyframes[idx];
+        const auto& next = m_keyframes[idx + 1];
 
-        const f32 t = static_cast<f32>(eval_frame - prev->frame) / static_cast<f32>(next->frame - prev->frame);
-        return interpolate_values(prev->value, next->value, t, prev->easing);
+        const double prev_f = static_cast<double>(prev.frame);
+        const double next_f = static_cast<double>(next.frame);
+        if (next_f <= prev_f) return prev.value;
+
+        const f32 t = static_cast<f32>((eval_frame - prev_f) / (next_f - prev_f));
+        return interpolate_values(prev.value, next.value, std::clamp(t, 0.0f, 1.0f), prev.easing);
     }
+
+    // Shared cache-check logic (Frame + SampleTime)
+    [[nodiscard]] bool should_cache_double(double frame) const {
+        if (has_expression()) return true;
+        if (m_keyframes.empty()) return false;
+
+        const double start_f = static_cast<double>(m_keyframes.front().frame);
+        const double end_f   = static_cast<double>(m_keyframes.back().frame);
+
+        if (frame <= start_f || frame >= end_f) return false;
+        return true;
+    }
+
+    // Legacy: delegates to double precision engine
+    [[nodiscard]] T evaluate_base(Frame frame) const {
+        return evaluate_base_double(static_cast<double>(frame));
+    }
+
+
 
     T m_default_value{};
     std::vector<Keyframe<T>> m_keyframes;

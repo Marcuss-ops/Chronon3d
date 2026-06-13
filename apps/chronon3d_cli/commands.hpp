@@ -13,7 +13,10 @@ namespace cli {
 struct RenderQualityArgs {
     bool   motion_blur{false};
     int    motion_blur_samples{8};
-    float  shutter_angle{180.0f};
+    float  shutter_angle_deg{180.0f};
+    float  shutter_phase_deg{-90.0f};
+    int    motion_blur_pattern{1};  // 0=Uniform, 1=Stratified, 2=Halton
+    int    motion_blur_filter{0};   // 0=Box, 1=Triangle, 2=Gaussian
     float  ssaa{1.0f};
 };
 
