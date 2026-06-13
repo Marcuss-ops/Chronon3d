@@ -23,6 +23,7 @@ add_executable(chronon3d_cli_tests
     ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/video/ffmpeg_pipe_encoder_uring.cpp
     ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/video/ffmpeg_pipe_command.cpp
     ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/video/ffmpeg_pipe_yuv.cpp
+    ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/video/video_sink_encoders.cpp
 )
 
 target_link_libraries(chronon3d_cli_tests
