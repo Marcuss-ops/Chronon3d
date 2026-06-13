@@ -18,3 +18,4 @@ target_sources(chronon3d_backend_software PRIVATE
 
 add_subdirectory(image)
 add_subdirectory(text)
+add_subdirectory(effects)

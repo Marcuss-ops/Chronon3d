@@ -10,6 +10,7 @@
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/compositor/blend_mode.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
+#include <chronon3d/backends/software/sampling/edge_mode.hpp>
 #include <variant>
 #include <vector>
 #include <cstddef>
@@ -57,6 +58,25 @@ struct GlowParams {
 
 struct BloomParams         { f32 threshold{0.80f}; f32 radius{24.0f}; f32 intensity{0.60f}; };
 
+// ── Exposure (stops-based, HDR-safe) ───────────────────────────────
+struct ExposureParams { f32 stops{0.0f}; };
+
+// ── Levels (per-channel + master) ────────────────────────────────────────
+struct LevelsChannel {
+    f32 input_black{0.0f};
+    f32 input_white{1.0f};
+    f32 gamma{1.0f};
+    f32 output_black{0.0f};
+    f32 output_white{1.0f};
+};
+
+struct LevelsParams {
+    LevelsChannel master{};
+    LevelsChannel red{};
+    LevelsChannel green{};
+    LevelsChannel blue{};
+};
+
 // ── Adjustment-layer color correction params (AE-5) ─────────────────────
 struct SaturationParams    { f32 value{1.0f}; };  // 1.0 = unchanged, 0 = greyscale
 struct HueRotateParams     { f32 degrees{0.0f}; }; // 0 = unchanged, 180 = invert hue
@@ -91,6 +111,80 @@ struct Fake3DWaveParams {
     bool expand_bounds{true};
 };
 
+// ── Curves (A3) — per-channel + master curve via control points ──────────
+struct CurvePoint {
+    float x{0.0f};
+    float y{0.0f};
+};
+
+struct CurvesParams {
+    std::vector<CurvePoint> master;  // combined RGB curve
+    std::vector<CurvePoint> red;     // per-channel curves (overrides master if non-empty)
+    std::vector<CurvePoint> green;
+    std::vector<CurvePoint> blue;
+};
+
+// ── Fill (Replace / Mix) ───────────────────────────────────────────────
+enum class FillMode {
+    Replace,
+    Mix
+};
+
+struct FillParams {
+    Color color{1, 1, 1, 1};
+    float amount{1.0f};
+    FillMode mode{FillMode::Replace};
+};
+
+// ── Noise (deterministic, thread-safe) ─────────────────────────────────
+enum class NoiseColorMode {
+    Monochrome,
+    RGB
+};
+
+struct NoiseParams {
+    float amount{0.0f};
+    uint32_t seed{0};
+    bool animated{false};
+    NoiseColorMode color_mode{NoiseColorMode::Monochrome};
+};
+
+// ── Offset (pixel shift with edge modes) ────────────────────────────────
+struct OffsetParams {
+    Vec2 offset{0.0f, 0.0f};
+    sampling::EdgeMode edge_mode{sampling::EdgeMode::Transparent};
+    sampling::SampleFilter filter{sampling::SampleFilter::Bilinear};
+};
+
+// ── Directional Blur (A5) ───────────────────────────────────────────────
+struct DirectionalBlurParams {
+    float angle{0.0f};    // degrees, 0 = horizontal right
+    float length{0.0f};    // full extent of blur in pixels
+    int samples{0};        // 0 = auto (derived from length, ceil(length/2))
+};
+
+// ── Radial Blur (A6) ───────────────────────────────────────────────────
+struct RadialBlurParams {
+    Vec2 center{0.5f, 0.5f};  // normalized center [0, 1]
+    float amount{0.0f};       // blur strength, 0 = identity
+    int render_samples{8};    // tap count for final render
+    int preview_samples{4};   // tap count for preview
+};
+
+// ── Stroke (A7) ───────────────────────────────────────────────────────
+enum class StrokeMode {
+    Outside,    // stroke only outside the source shape
+    Inside,     // stroke only inside the source shape
+    Center      // stroke centered on the source edge
+};
+
+struct StrokeParams {
+    Color color{1.0f, 1.0f, 1.0f, 1.0f};  // stroke colour (straight RGBA)
+    float width{0.0f};                      // stroke width in pixels
+    float softness{0.0f};                   // edge feather in pixels
+    StrokeMode mode{StrokeMode::Outside};
+};
+
 struct FocusInLadderParams {
     std::vector<f32> levels;
     Frame duration{0};
@@ -117,7 +211,16 @@ using EffectParams = std::variant<
     SaturationParams,
     HueRotateParams,
     InvertParams,
-    VignetteParams
+    VignetteParams,
+    ExposureParams,
+    LevelsParams,
+    FillParams,
+    NoiseParams,
+    OffsetParams,
+    DirectionalBlurParams,
+    RadialBlurParams,
+    StrokeParams,
+    CurvesParams
 >;
 
 } // namespace chronon3d

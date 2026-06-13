@@ -1,6 +1,6 @@
 #include <chronon3d/effects/effect_registry.hpp>
+#include <chronon3d/effects/effect_catalog.hpp>
 #include <chronon3d/effects/effect_instance.hpp>
-#include <chronon3d/effects/effect_ids.hpp>
 #include <chronon3d/render_graph/nodes/basic_nodes_common.hpp>
 #include <stdexcept>
 #include <utility>
@@ -16,139 +16,11 @@ std::unique_ptr<graph::RenderGraphNode> generic_effect_factory(const EffectInsta
 }
 
 void register_builtin_effects(EffectRegistry& registry) {
-    registry.register_effect(EffectDescriptor{
-        .id = std::string{ids::BlurGaussian},
-        .display_name = "Gaussian Blur",
-        .category = EffectCategory::Blur,
-        .stage = EffectStage::LayerPostTransform,
-        .description = "Soft blur for layer content",
-        .builtin = true,
-        .temporal = false,
-        .factory = generic_effect_factory
-    });
-
-    registry.register_effect(EffectDescriptor{
-        .id = std::string{ids::ColorTint},
-        .display_name = "Tint",
-        .category = EffectCategory::Color,
-        .stage = EffectStage::Adjustment,
-        .description = "Blend layer content toward a target color",
-        .builtin = true,
-        .temporal = false,
-        .factory = generic_effect_factory
-    });
-
-    registry.register_effect(EffectDescriptor{
-        .id = std::string{ids::ColorBrightness},
-        .display_name = "Brightness",
-        .category = EffectCategory::Color,
-        .stage = EffectStage::Adjustment,
-        .description = "Shift layer luminance",
-        .builtin = true,
-        .temporal = false,
-        .factory = generic_effect_factory
-    });
-
-    registry.register_effect(EffectDescriptor{
-        .id = std::string{ids::ColorContrast},
-        .display_name = "Contrast",
-        .category = EffectCategory::Color,
-        .stage = EffectStage::Adjustment,
-        .description = "Scale layer contrast around mid-gray",
-        .builtin = true,
-        .temporal = false,
-        .factory = generic_effect_factory
-    });
-
-    registry.register_effect(EffectDescriptor{
-        .id = std::string{ids::LightDropShadow},
-        .display_name = "Drop Shadow",
-        .category = EffectCategory::Light,
-        .stage = EffectStage::LayerPostTransform,
-        .description = "Project a soft shadow behind the layer",
-        .builtin = true,
-        .temporal = false,
-        .factory = generic_effect_factory
-    });
-
-    registry.register_effect(EffectDescriptor{
-        .id = std::string{ids::LightGlow},
-        .display_name = "Glow",
-        .category = EffectCategory::Light,
-        .stage = EffectStage::LayerPostTransform,
-        .description = "Add halo-style glow around content",
-        .builtin = true,
-        .temporal = false,
-        .factory = generic_effect_factory
-    });
-
-    registry.register_effect(EffectDescriptor{
-        .id = std::string{ids::LightBloom},
-        .display_name = "Bloom",
-        .category = EffectCategory::Light,
-        .stage = EffectStage::Adjustment,
-        .description = "Add cinematic bloom highlight glow",
-        .builtin = true,
-        .temporal = false,
-        .factory = generic_effect_factory
-    });
-
-    registry.register_effect(EffectDescriptor{
-        .id = std::string{ids::DistortFake3DWave},
-        .display_name = "Fake 3D Wave",
-        .category = EffectCategory::Distort,
-        .stage = EffectStage::LayerPostTransform,
-        .description = "Slice-deform a layer surface into a wave",
-        .builtin = true,
-        .temporal = true,
-        .factory = generic_effect_factory
-    });
-
-    // ── Adjustment-layer color correction effects (AE-5) ──
-    registry.register_effect(EffectDescriptor{
-        .id = std::string{ids::ColorSaturation},
-        .display_name = "Saturation",
-        .category = EffectCategory::Color,
-        .stage = EffectStage::Adjustment,
-        .description = "Adjust color saturation (1.0 = normal, 0 = greyscale)",
-        .builtin = true,
-        .temporal = false,
-        .factory = generic_effect_factory
-    });
-
-    registry.register_effect(EffectDescriptor{
-        .id = std::string{ids::ColorHueRotate},
-        .display_name = "Hue Rotate",
-        .category = EffectCategory::Color,
-        .stage = EffectStage::Adjustment,
-        .description = "Rotate hue by a given number of degrees",
-        .builtin = true,
-        .temporal = false,
-        .factory = generic_effect_factory
-    });
-
-    registry.register_effect(EffectDescriptor{
-        .id = std::string{ids::ColorInvert},
-        .display_name = "Invert",
-        .category = EffectCategory::Color,
-        .stage = EffectStage::Adjustment,
-        .description = "Invert all colors",
-        .builtin = true,
-        .temporal = false,
-        .factory = generic_effect_factory
-    });
-
-    registry.register_effect(EffectDescriptor{
-        .id = std::string{ids::ColorVignette},
-        .display_name = "Vignette",
-        .category = EffectCategory::Color,
-        .stage = EffectStage::Adjustment,
-        .description = "Darken edges of the frame",
-        .builtin = true,
-        .temporal = false,
-        .factory = generic_effect_factory
-    });
-
+    for (const auto& entry : builtin_effect_catalog()) {
+        EffectDescriptor desc = entry.to_descriptor();
+        desc.factory = generic_effect_factory;
+        registry.register_effect(std::move(desc));
+    }
 }
 
 } // namespace
