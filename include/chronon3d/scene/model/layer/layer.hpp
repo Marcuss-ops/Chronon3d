@@ -2,6 +2,7 @@
 
 #include <chronon3d/core/types/types.hpp>
 #include <chronon3d/core/types/frame.hpp>
+#include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/math/transform.hpp>
 #include <chronon3d/animation/effects/animated_transform.hpp>
 #include <chronon3d/scene/model/render/render_node.hpp>
@@ -106,6 +107,47 @@ struct Layer {
         return frame < from + duration;
     }
 
+    /// Sub-frame local time — the primary entry point for continuous-time animation.
+    /// Resolves layer in/out points, time offset, and time remapping at sub-frame precision.
+    [[nodiscard]] SampleTime local_time(SampleTime global_time) const {
+        const double raw_frame = global_time.frame - static_cast<double>(from) + static_cast<double>(time_offset);
+
+        if (!time_remap.active()) {
+            return SampleTime::from_frame(raw_frame, global_time.fps);
+        }
+
+        // Freeze frame: always return the frozen source frame
+        if (time_remap.freeze_frame >= 0) {
+            return SampleTime::from_frame_int(time_remap.freeze_frame, global_time.fps);
+        }
+
+        // Animated time_remap curve: maps comp frame → source frame at sub-frame precision
+        if (time_remap.time_remap.is_animated()) {
+            const SampleTime raw_st = SampleTime::from_frame(raw_frame, global_time.fps);
+            const double remapped = static_cast<double>(time_remap.time_remap.evaluate(raw_st));
+            return SampleTime::from_frame(remapped, global_time.fps);
+        }
+
+        // Speed control: scale the local frame by the speed multiplier.
+        //
+        // Positive speed: source = speed * raw   (slow-motion or fast-forward)
+        // Negative speed: source = duration + speed * raw  (reverse playback)
+        //   At raw=0 → source = duration (last frame),
+        //   at raw=duration → source = 0 (first frame).
+        //
+        // If duration is unknown (-1), negative speed falls back to
+        // raw * speed which produces negative frames — AnimatedValue in
+        // Hold mode clamps those to the first keyframe.
+        f64 scaled;
+        if (time_remap.speed < 0.0f && duration > 0) {
+            scaled = static_cast<f64>(duration) + static_cast<f64>(time_remap.speed) * raw_frame;
+        } else {
+            scaled = static_cast<f64>(time_remap.speed) * raw_frame;
+        }
+        return SampleTime::from_frame(scaled, global_time.fps);
+    }
+
+    /// Legacy integer-frame local time (backward compatible).
     [[nodiscard]] Frame local_frame(Frame global_frame) const {
         const Frame raw = global_frame - from + time_offset;
 
@@ -124,15 +166,6 @@ struct Layer {
         }
 
         // Speed control: scale the local frame by the speed multiplier.
-        //
-        // Positive speed: source = speed * raw   (slow-motion or fast-forward)
-        // Negative speed: source = duration + speed * raw  (reverse playback)
-        //   At raw=0 → source = duration (last frame),
-        //   at raw=duration → source = 0 (first frame).
-        //
-        // If duration is unknown (-1), negative speed falls back to
-        // raw * speed which produces negative frames — AnimatedValue in
-        // Hold mode clamps those to the first keyframe.
         f32 scaled;
         if (time_remap.speed < 0.0f && duration > 0) {
             scaled = static_cast<f32>(duration) + time_remap.speed * static_cast<f32>(raw);

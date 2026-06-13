@@ -2,6 +2,7 @@
 
 #include <chronon3d/math/transform.hpp>
 #include <chronon3d/animation/core/animated_value.hpp>
+#include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/math/glm_types.hpp>
 
 namespace chronon3d {
@@ -14,14 +15,20 @@ struct AnimatedTransform {
     AnimatedValue<f32>  opacity{1.0f};
     AnimatedValue<f32>  blur{0.0f};  // gaussian blur radius in pixels
 
-    [[nodiscard]] Transform evaluate(Frame frame) const {
+    /// Sub-frame evaluation — the primary entry point for continuous-time animation.
+    [[nodiscard]] Transform evaluate(SampleTime time) const {
         Transform t;
-        t.position = position.evaluate(frame);
-        t.rotation = glm::quat(glm::radians(rotation_euler.evaluate(frame)));
-        t.scale    = scale.evaluate(frame);
-        t.anchor   = anchor.evaluate(frame);
-        t.opacity  = opacity.evaluate(frame);
+        t.position = position.evaluate(time);
+        t.rotation = glm::quat(glm::radians(rotation_euler.evaluate(time)));
+        t.scale    = scale.evaluate(time);
+        t.anchor   = anchor.evaluate(time);
+        t.opacity  = opacity.evaluate(time);
         return t;
+    }
+
+    /// Legacy integer-frame evaluation (backward compatible).
+    [[nodiscard]] Transform evaluate(Frame frame) const {
+        return evaluate(SampleTime::from_frame_int(frame));
     }
 
     [[nodiscard]] bool is_animated() const {
