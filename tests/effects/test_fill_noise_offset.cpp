@@ -118,8 +118,8 @@ TEST_CASE("Fill: transparent input stays transparent") {
 // =============================================================================
 
 TEST_CASE("Fill: clip preserves pixels outside clip region") {
-    Framebuffer fb = ::make_coord_fb(8, 8);
-    Framebuffer original = ::make_coord_fb(8, 8);
+    Framebuffer fb = make_coord_fb(8, 8);
+    Framebuffer original = make_coord_fb(8, 8);
 
     apply_fill(fb, Color{1.0f, 0.0f, 0.0f, 1.0f}, 1.0f, true,
                raster::BBox{2, 3, 6, 7});
@@ -128,7 +128,7 @@ TEST_CASE("Fill: clip preserves pixels outside clip region") {
         for (int x = 0; x < 8; ++x) {
             bool inside = (x >= 2 && x < 6 && y >= 3 && y < 7);
             if (!inside) {
-                ::check_color_near(fb.get_pixel(x, y),
+                check_color_near(fb.get_pixel(x, y),
                                  original.get_pixel(x, y),
                                  kExactEpsilon);
             }
@@ -287,8 +287,8 @@ TEST_CASE("Noise: transparent input stays transparent") {
 // =============================================================================
 
 TEST_CASE("Noise: clip preserves pixels outside clip region") {
-    Framebuffer fb = ::make_coord_fb(8, 8);
-    Framebuffer original = ::make_coord_fb(8, 8);
+    Framebuffer fb = make_coord_fb(8, 8);
+    Framebuffer original = make_coord_fb(8, 8);
 
     apply_noise(fb, 0.5f, 42u, false, false, 0u,
                 raster::BBox{2, 3, 6, 7});
@@ -297,7 +297,7 @@ TEST_CASE("Noise: clip preserves pixels outside clip region") {
         for (int x = 0; x < 8; ++x) {
             bool inside = (x >= 2 && x < 6 && y >= 3 && y < 7);
             if (!inside) {
-                ::check_color_near(fb.get_pixel(x, y),
+                check_color_near(fb.get_pixel(x, y),
                                  original.get_pixel(x, y),
                                  kExactEpsilon);
             }
@@ -462,8 +462,8 @@ TEST_CASE("Offset: integer offset with bilinear ≈ nearest") {
 // =============================================================================
 
 TEST_CASE("Offset: clip preserves pixels outside clip region") {
-    Framebuffer fb = ::make_coord_fb(8, 8);
-    Framebuffer original = ::make_coord_fb(8, 8);
+    Framebuffer fb = make_coord_fb(8, 8);
+    Framebuffer original = make_coord_fb(8, 8);
 
     apply_offset(fb, 2.0f, 0.0f, EdgeMode::Transparent, SampleFilter::Nearest,
                  raster::BBox{2, 3, 6, 7});
@@ -472,7 +472,7 @@ TEST_CASE("Offset: clip preserves pixels outside clip region") {
         for (int x = 0; x < 8; ++x) {
             bool inside = (x >= 2 && x < 6 && y >= 3 && y < 7);
             if (!inside) {
-                ::check_color_near(fb.get_pixel(x, y),
+                check_color_near(fb.get_pixel(x, y),
                                  original.get_pixel(x, y),
                                  kExactEpsilon);
             }
