@@ -22,8 +22,10 @@ namespace chronon3d {
 
 struct GlyphPosition {
     u32     glyph_id{0};         // font-specific glyph index
-    float   x{0.0f};             // x offset in pixels (horizontal advance accumulated)
-    float   y{0.0f};             // y offset in pixels (usually 0 for LTR, used for vertical)
+    float   x{0.0f};             // cumulative x position (cursor + hb offset) in pixels
+    float   y{0.0f};             // cumulative y position in pixels
+    float   x_offset{0.0f};      // raw HarfBuzz x_offset (relative, not cumulative)
+    float   y_offset{0.0f};      // raw HarfBuzz y_offset (relative, not cumulative)
     float   advance_x{0.0f};     // horizontal advance for this glyph (pixels)
     float   advance_y{0.0f};     // vertical advance (usually 0 for horizontal text)
     float   bbox_x0{0.0f};       // glyph ink bounding box (pixels)

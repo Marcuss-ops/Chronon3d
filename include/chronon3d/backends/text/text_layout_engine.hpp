@@ -356,31 +356,114 @@ inline bool is_regional_indicator(char32_t cp) noexcept {
     return cp >= 0x1F1E6 && cp <= 0x1F1FF;
 }
 
+/// True if `cp` has the Unicode Extended_Pictographic property.
+/// Approximation covering the most common emoji and pictographic ranges
+/// (SMP emoji blocks, Misc Symbols, Dingbats, and common BMP pictographs).
+/// Used by GB11 (ZWJ emoji sequence) grapheme segmentation.
+inline bool is_extended_pictographic(char32_t cp) noexcept {
+    // ── SMP emoji / pictographic blocks ───────────────────────────
+    // Supplemental Symbols and Pictographs, Emoticons, Transport,
+    // and other pictorial SMP ranges.
+    if (cp >= 0x1F000 && cp <= 0x1F9FF) return true;
+    if (cp >= 0x1FA00 && cp <= 0x1FAFF) return true;
+
+    // ── Misc Symbols and Pictographs (BMP) ────────────────────────
+    if (cp >= 0x2600 && cp <= 0x27BF) return true;
+
+    // ── Dingbats (BMP) ────────────────────────────────────────────
+    if (cp >= 0x2700 && cp <= 0x27BF) return true;  // overlap, kept for clarity
+
+    // ── Ornamental and other pictorial BMP ────────────────────────
+    if (cp >= 0x1F300 && cp <= 0x1F5FF) return true;  // already in 1F000-1F9FF
+
+    // ── Common BMP pictographs used as emoji ──────────────────────
+    if (cp == 0x00A9 || cp == 0x00AE) return true;  // © ®
+    if (cp == 0x203C || cp == 0x2049) return true;  // ‼ ⁉
+    if (cp == 0x2122 || cp == 0x2139) return true;  // ™ ℹ
+    if (cp >= 0x2194 && cp <= 0x2199) return true;  // ↔ ↕ ↖ ↗ ↘ ↙
+    if (cp >= 0x21A9 && cp <= 0x21AA) return true;  // ↩ ↪
+    if (cp >= 0x231A && cp <= 0x231B) return true;  // ⌚ ⌛
+    if (cp == 0x2328 || cp == 0x23CF) return true;  // ⌨ ⏏
+    if (cp >= 0x23E9 && cp <= 0x23F3) return true;  // ⏩–⏳
+    if (cp >= 0x23F8 && cp <= 0x23FA) return true;  // ⏸–⏺
+    if (cp == 0x24C2) return true;                   // Ⓜ
+    if (cp >= 0x25AA && cp <= 0x25AB) return true;  // ▪ ▫
+    if (cp == 0x25B6 || cp == 0x25C0) return true;  // ▶ ◀
+    if (cp >= 0x25FB && cp <= 0x25FE) return true;  // ◻–◾
+    if (cp >= 0x2600 && cp <= 0x27BF) return true;  // ☀–➿ (already covered)
+    if (cp >= 0x2934 && cp <= 0x2935) return true;  // ⤴ ⤵
+    if (cp >= 0x2B05 && cp <= 0x2B07) return true;  // ⬅ ⬆ ⬇
+    if (cp >= 0x2B1B && cp <= 0x2B1C) return true;  // ⬛ ⬜
+    if (cp == 0x2B50 || cp == 0x2B55) return true;  // ⭐ ⭕
+    if (cp == 0x3030 || cp == 0x303D) return true;  // 〰 〽
+    if (cp == 0x3297 || cp == 0x3299) return true;  // ㊗ ㊙
+
+    return false;
+}
+
 /// Count the number of extended grapheme clusters in a UTF-8 string.
 /// Combining marks, ZWJ sequences, emoji modifiers, and regional-indicator
 /// flag pairs are not counted as separate clusters — they stay attached
 /// to their base character.
+///
+/// Implements UAX #29 GB11: Extended_Pictographic Extend* ZWJ ×
+/// Extended_Pictographic.  An emoji ZWJ sequence (e.g. family emoji) is
+/// counted as a single grapheme cluster.
 inline size_t grapheme_cluster_count(std::string_view sv) {
     size_t count = 0;
     size_t ri_toggle = 0;  // 0 = expecting first RI, 1 = expecting second
 
+    // GB11 state machine for emoji ZWJ sequences:
+    //   Normal  → ExtPict when we see an Extended_Pictographic
+    //   ExtPict → ExtPictZWJ when we see ZWJ (U+200D) after ExtPict + optional Extend*
+    //   ExtPictZWJ → stays ExtPictZWJ on more Extend, returns to Normal on
+    //                 non-ExtPict, non-Extend (breaking the ZWJ chain)
+    // When state == ExtPictZWJ and we see Extended_Pictographic, it continues the
+    // current cluster (GB11: ExtPict Extend* ZWJ × ExtPict).
+    enum class GB11State { Normal, ExtPict, ExtPictZWJ };
+    GB11State gb11 = GB11State::Normal;
+
     for (size_t i = 0; i < sv.size();) {
         const char32_t cp = utf8_decode_cp(sv, i);
 
-        if (is_grapheme_extend(cp)) {
+        const bool is_ext  = is_grapheme_extend(cp);
+        const bool is_ri   = is_regional_indicator(cp);
+        const bool is_ep   = is_extended_pictographic(cp);
+        const bool is_zwj  = (cp == 0x200D);
+
+        if (is_ri) {
+            if (ri_toggle == 0) ++count;  // first RI of a flag
+            ri_toggle ^= 1;               // toggle 0↔1
+            gb11 = GB11State::Normal;     // RI breaks any ZWJ chain
+            continue;
+        }
+
+        // GB11: ZWJ after Extended_Pictographic transitions to ExtPictZWJ.
+        // Subsequent Extend characters keep the current state.
+        if (is_zwj && gb11 == GB11State::ExtPict) {
+            gb11 = GB11State::ExtPictZWJ;
             ri_toggle = 0;
             continue;
         }
 
-        if (is_regional_indicator(cp)) {
-            if (ri_toggle == 0) ++count;  // first RI of a flag
-            ri_toggle ^= 1;               // toggle 0↔1
+        if (is_ext) {
+            // Extend keeps the current GB11 state (doesn't break ZWJ chain).
+            ri_toggle = 0;
             continue;
         }
 
-        // Non-extender, non-RI: always starts a new cluster
+        // GB11: Extended_Pictographic after ExtPictZWJ continues the
+        // current cluster (the ZWJ glues emoji together).
+        if (is_ep && gb11 == GB11State::ExtPictZWJ) {
+            gb11 = GB11State::ExtPict;  // back to ExtPict (ZWJ consumed)
+            ri_toggle = 0;
+            continue;  // no new cluster
+        }
+
+        // Non-extender, non-RI, non-ZWJ-sequenced picto: starts a new cluster.
         ++count;
         ri_toggle = 0;
+        gb11 = is_ep ? GB11State::ExtPict : GB11State::Normal;
     }
 
     return count;
@@ -389,6 +472,8 @@ inline size_t grapheme_cluster_count(std::string_view sv) {
 /// Find the byte offset after exactly N complete grapheme clusters.
 /// Returns sv.size() if N exceeds the string length.  Safe for
 /// std::string::substr() — never splits a grapheme cluster.
+/// Implements UAX #29 GB11 for emoji ZWJ sequences and GB12/GB13 for
+/// Regional Indicator flag pairs.
 inline size_t grapheme_byte_offset_at(std::string_view sv, size_t n) {
     if (n == 0) return 0;
 
@@ -396,12 +481,16 @@ inline size_t grapheme_byte_offset_at(std::string_view sv, size_t n) {
     size_t offset = 0;
     size_t ri_toggle = 0;
 
+    // GB11 state machine (same as grapheme_cluster_count above).
+    enum class GB11State { Normal, ExtPict, ExtPictZWJ };
+    GB11State gb11 = GB11State::Normal;
+
     while (offset < sv.size() && clusters < n) {
         const unsigned char lead = static_cast<unsigned char>(sv[offset]);
         const size_t len = utf8_seq_len(lead);
         if (offset + len > sv.size()) break;
 
-        // Decode the code point inline (avoids needing utf8_decode_cp here)
+        // Decode the code point inline
         char32_t cp;
         switch (len) {
             case 1: cp = lead; break;
@@ -411,23 +500,32 @@ inline size_t grapheme_byte_offset_at(std::string_view sv, size_t n) {
             default: cp = 0xFFFD; break;
         }
 
-        if (is_grapheme_extend(cp)) {
-            offset += len;
-            ri_toggle = 0;
-            continue;
-        }
+        const bool is_ext = is_grapheme_extend(cp);
+        const bool is_ri  = is_regional_indicator(cp);
+        const bool is_ep  = is_extended_pictographic(cp);
+        const bool is_zwj = (cp == 0x200D);
 
-        if (is_regional_indicator(cp)) {
+        if (is_ri) {
             if (ri_toggle == 0) {
                 ++clusters;
                 if (clusters == n) {
-                    // Advance past the full RI pair
+                    // Advance past the full RI pair, but only if next is RI.
                     offset += len;
                     if (offset < sv.size()) {
                         const unsigned char lead2 = static_cast<unsigned char>(sv[offset]);
                         const size_t len2 = utf8_seq_len(lead2);
                         if (offset + len2 <= sv.size()) {
-                            offset += len2;
+                            char32_t next_cp;
+                            switch (len2) {
+                                case 1: next_cp = lead2; break;
+                                case 2: next_cp = ((lead2 & 0x1F) << 6) | (static_cast<unsigned char>(sv[offset+1]) & 0x3F); break;
+                                case 3: next_cp = ((lead2 & 0x0F) << 12) | ((static_cast<unsigned char>(sv[offset+1]) & 0x3F) << 6) | (static_cast<unsigned char>(sv[offset+2]) & 0x3F); break;
+                                case 4: next_cp = ((lead2 & 0x07) << 18) | ((static_cast<unsigned char>(sv[offset+1]) & 0x3F) << 12) | ((static_cast<unsigned char>(sv[offset+2]) & 0x3F) << 6) | (static_cast<unsigned char>(sv[offset+3]) & 0x3F); break;
+                                default: next_cp = 0; break;
+                            }
+                            if (is_regional_indicator(next_cp)) {
+                                offset += len2;
+                            }
                         }
                     }
                     return offset;
@@ -435,12 +533,36 @@ inline size_t grapheme_byte_offset_at(std::string_view sv, size_t n) {
             }
             ri_toggle ^= 1;
             offset += len;
+            gb11 = GB11State::Normal;
             continue;
         }
 
-        // Non-extender, non-RI: starts a new cluster
+        // GB11: ZWJ after Extended_Pictographic → ExtPictZWJ state.
+        if (is_zwj && gb11 == GB11State::ExtPict) {
+            gb11 = GB11State::ExtPictZWJ;
+            ri_toggle = 0;
+            offset += len;
+            continue;
+        }
+
+        if (is_ext) {
+            ri_toggle = 0;
+            offset += len;
+            continue;
+        }
+
+        // GB11: Extended_Pictographic after ExtPictZWJ continues current cluster.
+        if (is_ep && gb11 == GB11State::ExtPictZWJ) {
+            gb11 = GB11State::ExtPict;
+            ri_toggle = 0;
+            offset += len;
+            continue;  // no new cluster
+        }
+
+        // Non-extender, non-RI, non-ZWJ-sequenced: starts a new cluster.
         ++clusters;
         ri_toggle = 0;
+        gb11 = is_ep ? GB11State::ExtPict : GB11State::Normal;
         if (clusters == n) {
             offset += len;
             return offset;
@@ -754,19 +876,21 @@ private:
                         if (is_space) continue;
                     }
                     if (token_w > max_width) {
-                    // UTF-8 aware character-level fallback for overlong tokens
+                    // Grapheme-cluster-aware character fallback for overlong tokens.
+                    // Never splits combining marks, ZWJ sequences, or flag pairs.
+                    const size_t total_clusters = detail::grapheme_cluster_count(token);
+                    const float avg_cluster_w = total_clusters > 0
+                        ? token_w / static_cast<float>(total_clusters) : token_w;
                     for (size_t ci = 0; ci < token.size();) {
-                        size_t clen = detail::utf8_seq_len(static_cast<unsigned char>(token[ci]));
-                        // Use per-char measurement for ASCII; average for multi-byte
-                        const float cw = (clen == 1)
-                            ? measure_char(token[ci]) + input.style.tracking
-                            : (token_w / static_cast<float>(detail::utf8_length(token))) + input.style.tracking;
+                        std::string_view suffix(token.data() + ci, token.size() - ci);
+                        const size_t cluster_len = detail::grapheme_byte_offset_at(suffix, 1);
+                        const float cw = avg_cluster_w + input.style.tracking;
                         if (current_width + cw > max_width && !current_line.empty()) {
                             push_line_with_width();
                         }
-                        current_line.append(token.data() + ci, clen);
+                        current_line.append(token.data() + ci, cluster_len);
                         current_width += cw;
-                        ci += clen;
+                        ci += cluster_len;
                     }
                     } else {
                         current_line = token;
@@ -777,19 +901,21 @@ private:
                     current_width += token_w;
                 }
             } else if (input.style.wrap == TextWrap::Character) {
-                // UTF-8 aware character wrap
+                // Grapheme-cluster-aware character wrap.
+                // Never splits combining marks, ZWJ sequences, or flag pairs.
+                const size_t total_clusters = detail::grapheme_cluster_count(token);
+                const float avg_cluster_w = total_clusters > 0
+                    ? token_w / static_cast<float>(total_clusters) : token_w;
                 for (size_t ci = 0; ci < token.size();) {
-                    size_t clen = detail::utf8_seq_len(static_cast<unsigned char>(token[ci]));
-                    // Use per-char measurement for ASCII; average for multi-byte
-                    const float cw = (clen == 1)
-                        ? measure_char(token[ci]) + input.style.tracking
-                        : (token_w / static_cast<float>(detail::utf8_length(token))) + input.style.tracking;
+                    std::string_view suffix(token.data() + ci, token.size() - ci);
+                    const size_t cluster_len = detail::grapheme_byte_offset_at(suffix, 1);
+                    const float cw = avg_cluster_w + input.style.tracking;
                     if (current_width + cw > max_width && !current_line.empty()) {
                         push_line_with_width();
                     }
-                    current_line.append(token.data() + ci, clen);
+                    current_line.append(token.data() + ci, cluster_len);
                     current_width += cw;
-                    ci += clen;
+                    ci += cluster_len;
                 }
             }
         }
@@ -813,22 +939,21 @@ private:
                 std::string& last_line = raw_lines.back();
                 float& last_line_w = line_widths.back();
                 const float ellipsis_w = measure_string_input("...");
-                // O(n) trim: subtract per-character width instead of re-measuring the whole line
+                // Grapheme-cluster-aware trim: remove whole clusters, never
+                // splitting combining marks, ZWJ sequences, or flag pairs.
                 while (!last_line.empty() && last_line_w + ellipsis_w > max_width) {
-                    // Find the last code point's starting byte
-                    size_t end = last_line.size();
-                    size_t start = end - 1;
-                    while (start > 0 && (static_cast<unsigned char>(last_line[start]) & 0xC0) == 0x80)
-                        --start;
-                    const size_t clen = end - start;
-                    // Measure the removed width (single-byte fast path, average for multi-byte)
-                    float removed_w;
-                    if (clen == 1) {
-                        removed_w = measure_char(last_line[start]) + input.style.tracking;
-                    } else {
-                        removed_w = font_size * 0.6f + input.style.tracking;
+                    const size_t num_clusters = detail::grapheme_cluster_count(last_line);
+                    if (num_clusters <= 1) {
+                        last_line.clear();
+                        last_line_w = 0.0f;
+                        break;
                     }
-                    last_line.resize(start);
+                    const size_t trim_to = detail::grapheme_byte_offset_at(
+                        last_line, num_clusters - 1);
+                    const std::string_view removed_suffix(
+                        last_line.data() + trim_to, last_line.size() - trim_to);
+                    const float removed_w = measure_string_input(removed_suffix);
+                    last_line.resize(trim_to);
                     last_line_w -= removed_w;
                 }
                 last_line += "...";
@@ -984,34 +1109,40 @@ private:
             }
 
             if (char_wrap) {
-                // UTF-8 aware character wrap: iterate by code-point, not by byte
+                // Grapheme-cluster-aware character wrap.
+                // Never splits combining marks, ZWJ sequences, or flag pairs.
+                const float full_width = measure_string(input, run.style, text, run_size);
+                const size_t total_clusters = detail::grapheme_cluster_count(text);
+                const float avg_cluster_w = total_clusters > 0
+                    ? full_width / static_cast<float>(total_clusters) : run_size * 0.6f;
                 for (size_t ci = 0; ci < text.size();) {
-                    size_t clen = detail::utf8_seq_len(static_cast<unsigned char>(text[ci]));
-                    if (clen == 1 && text[ci] == '\r') { ci += 1; continue; }
-                    if (clen == 1 && text[ci] == '\n') {
-                        if (!current.runs.empty()) {
-                            push_current();
+                    std::string_view suffix(text.data() + ci, text.size() - ci);
+                    const size_t cluster_len = detail::grapheme_byte_offset_at(suffix, 1);
+                    // Handle \r and \n within the cluster (single-byte guard)
+                    if (cluster_len == 1) {
+                        if (text[ci] == '\r') { ci += 1; continue; }
+                        if (text[ci] == '\n') {
+                            if (!current.runs.empty()) {
+                                push_current();
+                            }
+                            ci += 1;
+                            continue;
                         }
-                        ci += 1;
-                        continue;
                     }
 
-                    const float cw = (clen == 1)
-                        ? measure_single_char(text[ci], have_precomputed, char_widths,
-                            input, run.style, run_size)
-                        : run_size * 0.6f + input.style.tracking;
+                    const float cw = avg_cluster_w + run.style.tracking;
                     if (current.width + cw > max_width_limit && !current.runs.empty()) {
                         push_current();
                     }
-                    if (clen == 1 && (text[ci] == ' ' || text[ci] == '\t')) {
+                    if (cluster_len == 1 && (text[ci] == ' ' || text[ci] == '\t')) {
                         if (current.runs.empty()) {
                             ci += 1;
                             continue;
                         }
                     }
-                    std::string glyph(text, ci, clen);
+                    std::string glyph(text, ci, cluster_len);
                     append_piece(run, glyph);
-                    ci += clen;
+                    ci += cluster_len;
                 }
                 return;
             }
@@ -1047,20 +1178,20 @@ private:
                 }
 
                 if (token_w > max_width_limit && current.runs.empty()) {
-                    // UTF-8 aware character-level fallback for overlong tokens
-                    const float avg_cw = token_w / static_cast<float>(detail::utf8_length(token));
+                    // Grapheme-cluster-aware character fallback for overlong tokens.
+                    const size_t total_clusters = detail::grapheme_cluster_count(token);
+                    const float avg_cluster_w = total_clusters > 0
+                        ? token_w / static_cast<float>(total_clusters) : token_w;
                     for (size_t ci = 0; ci < token.size();) {
-                        size_t clen = detail::utf8_seq_len(static_cast<unsigned char>(token[ci]));
-                        const float cw = (clen == 1)
-                            ? measure_single_char(token[ci], have_precomputed, char_widths,
-                                input, run.style, run_size)
-                            : avg_cw + input.style.tracking;
+                        std::string_view suffix(token.data() + ci, token.size() - ci);
+                        const size_t cluster_len = detail::grapheme_byte_offset_at(suffix, 1);
+                        const float cw = avg_cluster_w + run.style.tracking;
                         if (current.width + cw > max_width_limit && !current.runs.empty()) {
                             push_current();
                         }
-                        const std::string glyph(token, ci, clen);
+                        const std::string glyph(token, ci, cluster_len);
                         append_piece(run, glyph);
-                        ci += clen;
+                        ci += cluster_len;
                     }
                 } else {
                     append_piece(run, token);
@@ -1156,24 +1287,21 @@ private:
                 if (line.runs.size() == 1) {
                     auto& run = line.runs.front();
                     const float run_size = std::max(1.0f, run.style.size <= 0.0f ? font_size_hint : run.style.size);
-                    // O(n) trim: subtract per-char width instead of re-measuring the whole run
+                    // Grapheme-cluster-aware trim: remove whole clusters.
                     while (!run.text.empty() && line.width > max_width_limit) {
-                        size_t end = run.text.size();
-                        size_t start = end - 1;
-                        while (start > 0 && (static_cast<unsigned char>(run.text[start]) & 0xC0) == 0x80)
-                            --start;
-                        const size_t clen = end - start;
-                        float removed_w;
-                        if (clen == 1) {
-                            removed_w = measure_single_char(run.text[start], have_precomputed,
-                                char_widths, input, run.style, run_size);
-                            removed_w += run.style.tracking;
-                        } else {
-                            removed_w = run_size * 0.6f + input.style.tracking;
+                        const size_t num_clusters = detail::grapheme_cluster_count(run.text);
+                        if (num_clusters <= 1) {
+                            line.width -= run.width;
+                            run.width = 0.0f;
+                            run.text.clear();
+                            break;
                         }
-                        run.text.resize(start);
-                        run.width -= removed_w;
-                        line.width -= removed_w;
+                        const size_t trim_to = detail::grapheme_byte_offset_at(
+                            run.text, num_clusters - 1);
+                        run.text.resize(trim_to);
+                        const float new_width = measure_string(input, run.style, run.text, run_size);
+                        line.width -= (run.width - new_width);
+                        run.width = new_width;
                     }
                     const float ellip_w = measure_string(input, run.style, "...", run_size);
                     run.text += "...";
