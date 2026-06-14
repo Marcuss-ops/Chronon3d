@@ -245,8 +245,10 @@ struct FtGlyphPathBuilder {
 
     /// Build a BLPath from a HarfBuzz GlyphRun, translating each glyph
     /// outline to the given (origin_x, origin_y) baseline position.
+    /// @param tracking extra per-cluster spacing; added to the pen the same
+    ///                 way as HbToBlGlyphRun so fill and stroke stay aligned.
     /// Returns an empty path if the face cannot be loaded or the run is empty.
-    BLPath build_path(const GlyphRun& hb_run, float origin_x, float origin_y) {
+    BLPath build_path(const GlyphRun& hb_run, float origin_x, float origin_y, float tracking = 0.0f) {
         BLPath path;
         if (!ft_face || hb_run.glyphs.empty()) return path;
 
@@ -257,24 +259,21 @@ struct FtGlyphPathBuilder {
         constexpr float kScale = 1.0f / 64.0f;
 
         // Weight for converting standard quadratic Bézier (FT conic) to
-        // Blend2D's rational quadratic conicTo.  sqrt(2)/2 makes them identical.
-        constexpr double kConicWeight = 0.7071067811865476;
+        // Blend2D's rational quadratic conicTo.  Weight 1.0 makes them
+        // identical: the rational form with w=1 collapses to the standard
+        // quadratic (the denominator becomes 1).
+        constexpr double kConicWeight = 1.0;
 
-        // User-data struct passed through FT_Outline_Decompose to the callbacks.
-        // `first_contour` tracks whether we've just started a contour and
-        // must NOT call close() before the next move_to.
         struct DecomposeCtx {
             BLPath* path;
-            double  off_x;  // glyph origin x in BL coordinates
-            double  off_y;  // glyph origin y in BL coordinates
+            double  off_x;
+            double  off_y;
             bool    first_contour{true};
         };
 
         FT_Outline_Funcs funcs;
         funcs.move_to = [](const FT_Vector* to, void* user) -> int {
             auto* ctx = static_cast<DecomposeCtx*>(user);
-            // Close the previous contour before starting a new one.
-            // (First contour has nothing to close.)
             if (!ctx->first_contour) ctx->path->close();
             ctx->first_contour = false;
             ctx->path->moveTo(
@@ -291,7 +290,6 @@ struct FtGlyphPathBuilder {
         };
         funcs.conic_to = [](const FT_Vector* control, const FT_Vector* to, void* user) -> int {
             auto* ctx = static_cast<DecomposeCtx*>(user);
-            // Blend2D conicTo takes (x1,y1, x2,y2, weight) — 5 doubles.
             ctx->path->conicTo(
                 ctx->off_x + static_cast<double>(control->x) * kScale,
                 ctx->off_y - static_cast<double>(control->y) * kScale,
@@ -314,17 +312,43 @@ struct FtGlyphPathBuilder {
         funcs.delta = 0;
         funcs.shift = 0;
 
-        for (const auto& g : hb_run.glyphs) {
-            if (FT_Load_Glyph(ft_face, g.glyph_id, FT_LOAD_NO_BITMAP) != 0) continue;
-            if (ft_face->glyph->format != FT_GLYPH_FORMAT_OUTLINE) continue;
+        // Track a tracking-aware pen so the path positions match what
+        // HbToBlGlyphRun produces for fillGlyphRun.  The pen accumulates
+        // glyph advances + per-cluster tracking, same logic as in from().
+        float pen_x = 0.0f;
+        float pen_y = 0.0f;
 
-            const float glyph_ox = origin_x + g.x;
-            const float glyph_oy = origin_y + g.y;
+        for (size_t i = 0; i < hb_run.glyphs.size(); ++i) {
+            const auto& g = hb_run.glyphs[i];
 
-            DecomposeCtx ctx{&path, static_cast<double>(glyph_ox), static_cast<double>(glyph_oy), true};
-            FT_Outline_Decompose(&ft_face->glyph->outline, &funcs, &ctx);
-            // Close the last contour of this glyph.
-            if (!ctx.first_contour) path.close();
+            if (FT_Load_Glyph(ft_face, g.glyph_id, FT_LOAD_NO_BITMAP) != 0) {
+                goto advance_pen;
+            }
+            if (ft_face->glyph->format != FT_GLYPH_FORMAT_OUTLINE) {
+                goto advance_pen;
+            }
+
+            {
+                const float glyph_ox = origin_x + pen_x + g.x_offset;
+                const float glyph_oy = origin_y + pen_y + g.y_offset;
+
+                DecomposeCtx ctx{&path, static_cast<double>(glyph_ox), static_cast<double>(glyph_oy), true};
+                FT_Outline_Decompose(&ft_face->glyph->outline, &funcs, &ctx);
+                if (!ctx.first_contour) path.close();
+            }
+
+        advance_pen:
+            float adv_x = g.advance_x;
+            if (tracking != 0.0f && i + 1 < hb_run.glyphs.size()) {
+                if (hb_run.glyphs[i + 1].is_cluster_start) {
+                    adv_x += tracking;
+                }
+            }
+            // Pen must accumulate BOTH offset and advance, matching
+            // Blend2D's BL_GLYPH_PLACEMENT_TYPE_ADVANCE_OFFSET: offset
+            // is added to pen BEFORE drawing, advance moves it AFTER.
+            pen_x += g.x_offset + adv_x;
+            pen_y += g.y_offset + g.advance_y;
         }
         return path;
     }
@@ -621,7 +645,7 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
                 const std::string stroke_font_path = run_style.font_path;
                 FtGlyphPathBuilder ft_path;
                 if (ft_path.load_face(stroke_font_path, run_shape_size)) {
-                    BLPath stroke_path = ft_path.build_path(*hb_run, lx, baseline_y);
+                    BLPath stroke_path = ft_path.build_path(*hb_run, lx, baseline_y, run_style.tracking);
                     if (!stroke_path.empty()) {
                         ctx.setStrokeWidth(run_style.paint.stroke_width);
                         ctx.setStrokeStyle(to_bl_rgba(run_style.paint.stroke_color));
@@ -689,7 +713,7 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
                 const std::string stroke_font_path = t.style.font_path;
                 FtGlyphPathBuilder ft_path;
                 if (ft_path.load_face(stroke_font_path, layout_res.font_size)) {
-                    BLPath stroke_path = ft_path.build_path(*hb_run, lx, ly);
+                    BLPath stroke_path = ft_path.build_path(*hb_run, lx, ly, t.style.tracking);
                     if (!stroke_path.empty()) {
                         ctx.setStrokeWidth(t.style.paint.stroke_width);
                         ctx.setStrokeStyle(to_bl_rgba(t.style.paint.stroke_color));
