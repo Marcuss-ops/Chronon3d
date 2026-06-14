@@ -49,6 +49,35 @@ Composition make_arc_length_spacing_scene();
 
 Composition make_temporal_spatial_separation_scene();
 
+// ── Test 7: QuaternionShortestPath ──────────────────────────────────────────
+// 9 cards showing quaternion rotation from yaw=+179° to yaw=-179°.
+// With shortest-path quaternion, the rotation is ~2° instead of ~358°.
+
+Composition make_quaternion_shortest_path_scene();
+
+// ── Test 8: QuaternionPathOrientation ───────────────────────────────────────
+// 16 camera frustums along an S-shaped bezier path with forward/up/right axes.
+
+Composition make_quaternion_path_orientation_scene();
+
+// ── Test 9: TwoNodeTargetLock ───────────────────────────────────────────────
+// Contact sheet of 5 frames with camera orbiting/dollying around centered target.
+
+Framebuffer render_two_node_target_lock_contact_sheet(
+    SoftwareRenderer& renderer);
+
+// ── Test 10: MotionBlurShutter ──────────────────────────────────────────────
+// 4-panel comparison: 1 sample, 8s/180°, 16s/180°, 16s/360° shutter.
+
+Framebuffer render_motion_blur_comparison(
+    SoftwareRenderer& renderer);
+
+// ── Test 11: ArcLengthCacheInvalidation ─────────────────────────────────────
+// Before/after comparison when bezier handle changes (placeholder for PR5 LUT).
+
+Composition make_arc_length_cache_invalidation_before();
+Composition make_arc_length_cache_invalidation_after();
+
 // ── General-purpose compositing helpers ─────────────────────────────────────
 
 /// Copy a source framebuffer into a region of a destination framebuffer.
