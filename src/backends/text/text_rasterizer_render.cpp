@@ -147,8 +147,13 @@ Blend2DResources& blend2d_resources() {
 /// advanced by `advance`.  We therefore use the raw HarfBuzz relative
 /// offsets (x_offset / y_offset), NOT the cumulative x / y positions.
 ///
+/// IMPORTANT: fillGlyphRun with ADVANCE_OFFSET expects placement values
+/// in FONT DESIGN UNITS, not pixels.  HarfBuzz provides values in pixels
+/// (26.6 fixed-point ÷ 64).  This conversion multiplies by (upem / font_size)
+/// to convert pixels to design units, matching Blend2D's expectations.
+///
 /// The tracking-aware advances come pre-computed from PlacedGlyphRun,
-/// so this conversion is a simple field copy — no tracking logic needed.
+/// so this conversion handles field copies + design-unit scaling.
 struct HbToBlGlyphRun {
     std::vector<uint32_t> glyph_ids;
     std::vector<BLGlyphPlacement> placements;
@@ -157,8 +162,16 @@ struct HbToBlGlyphRun {
     /// Convert a PlacedGlyphRun into a Blend2D BLGlyphRun.
     /// Uses the raw offsets (x_offset, y_offset) and tracking-aware
     /// advances from the PlacedGlyphRun, matching the ADVANCE_OFFSET
-    /// placement type.
-    static HbToBlGlyphRun from(const PlacedGlyphRun& placed) {
+    /// placement type.  Scales pixel values to font design units.
+    static HbToBlGlyphRun from(const PlacedGlyphRun& placed,
+                                const BLFontFace& face,
+                                float font_size) {
+        // Convert pixel values to font design units (Blend2D's
+        // ADVANCE_OFFSET expects design units, not pixels).
+        const double upem = static_cast<double>(face.unitsPerEm());
+        const double scale = (upem > 0.0 && font_size > 0.0f)
+            ? upem / static_cast<double>(font_size) : 1.0;
+
         HbToBlGlyphRun result;
         result.glyph_ids.reserve(placed.glyphs.size());
         result.placements.reserve(placed.glyphs.size());
@@ -167,8 +180,8 @@ struct HbToBlGlyphRun {
             BLGlyphPlacement p;
             // Use raw offsets (not cumulative x/y), matching
             // BL_GLYPH_PLACEMENT_TYPE_ADVANCE_OFFSET semantics.
-            p.placement.reset(pg.x_offset, pg.y_offset);
-            p.advance.reset(pg.advance_x, pg.advance_y);
+            p.placement.reset(pg.x_offset * scale, pg.y_offset * scale);
+            p.advance.reset(pg.advance_x * scale, pg.advance_y * scale);
             result.placements.push_back(p);
         }
         result.bl_run.glyphData = result.glyph_ids.data();
@@ -657,9 +670,7 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
         );
 
         if (placed) {
-            // HarfBuzz glyph indices match Blend2D glyph IDs because
-            // both read the same FreeType face from the same font file.
-            auto bl = HbToBlGlyphRun::from(*placed);
+            auto bl = HbToBlGlyphRun::from(*placed, run_face, run_shape_size);
             ctx.fillGlyphRun(BLPoint(lx, baseline_y), run_font, bl.bl_run);
         } else {
             // Fallback: Blend2D internal shaping if HarfBuzz unavailable
@@ -739,7 +750,7 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
         );
 
         if (placed) {
-            auto bl = HbToBlGlyphRun::from(*placed);
+            auto bl = HbToBlGlyphRun::from(*placed, face, layout_res.font_size);
             ctx.fillGlyphRun(BLPoint(lx, ly), font, bl.bl_run);
         } else {
             ctx.fillUtf8Text(BLPoint(lx, ly), font, line.text.c_str());
