@@ -21,7 +21,8 @@
     "nlohmann-json",
     "openexr",
     "libyuv",
-    "magic-enum"
+    "magic-enum",
+    "fribidi"
   ],
   "features": {
     "tests": {

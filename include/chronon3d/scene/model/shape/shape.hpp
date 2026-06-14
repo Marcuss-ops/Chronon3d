@@ -5,6 +5,7 @@
 #include <chronon3d/core/types/types.hpp>
 #include <chronon3d/scene/model/shape/fill.hpp>
 #include <chronon3d/scene/model/shape/path.hpp>
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
@@ -200,6 +201,19 @@ struct TextStyle {
     // Shaping control (direction, script, language)
     // Added in 2026 — empty defaults auto-detect from text content.
     TextShaping shaping{};
+
+    // ── Optional pre-shaped glyph run ───────────────────────────────
+    // When set, the rasterizer SKIPS HarfBuzz shaping and uses these
+    // glyphs directly.  This is critical for typewriter-style layers
+    // where each character is a separate layer: without pre-shaping,
+    // a character rendered in isolation would lose its contextual form
+    // (e.g. Arabic medial → isolated).
+    //
+    // The PlacedGlyphRun must contain glyphs with resolved positions.
+    // The rasterizer still requires the font to be loaded for
+    // Blend2D glyph access (fillGlyphRun / strokePath) — only the
+    // HarfBuzz shaping step is bypassed.
+    std::shared_ptr<PlacedGlyphRun> pre_shaped;
 };
 
 // Optional bounding box for word-wrap and auto-scale.

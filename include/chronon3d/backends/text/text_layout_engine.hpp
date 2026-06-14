@@ -2,6 +2,7 @@
 
 #include <chronon3d/scene/model/shape/shape.hpp>
 #include <chronon3d/text/font_engine.hpp>
+#include <chronon3d/backends/text/bidi_segmenter.hpp>
 
 #include <algorithm>
 #include <array>
@@ -930,21 +931,29 @@ private:
                     if (token_w > max_width) {
                     // Grapheme-cluster-aware character fallback for overlong tokens.
                     // Never splits combining marks, ZWJ sequences, or flag pairs.
+                    // Tracking is applied PER LINE, not across the line break.
                     const size_t total_clusters = detail::grapheme_cluster_count(token);
-                    const float avg_cluster_w = total_clusters > 0
-                        ? token_w / static_cast<float>(total_clusters) : token_w;
+                    const float raw_token_w = (total_clusters > 1)
+                        ? token_w - tracking_amount * static_cast<float>(total_clusters - 1)
+                        : token_w;
+                    const float avg_raw_cluster_w = total_clusters > 0
+                        ? raw_token_w / static_cast<float>(total_clusters) : token_w;
                     bool had_content_on_line = false;
+                    int clusters_on_line = 0;
                     for (size_t ci = 0; ci < token.size();) {
                         std::string_view suffix(token.data() + ci, token.size() - ci);
                         const size_t cluster_len = detail::grapheme_byte_offset_at(suffix, 1);
-                        const float cw = avg_cluster_w;
+                        const float cw = avg_raw_cluster_w +
+                            (clusters_on_line > 0 ? tracking_amount : 0.0f);
                         if (current_width + cw > max_width && !current_line.empty()) {
                             push_line_with_width();
                             had_content_on_line = false;
+                            clusters_on_line = 0;
                         }
                         current_line.append(token.data() + ci, cluster_len);
                         current_width += cw;
                         had_content_on_line = true;
+                        ++clusters_on_line;
                         ci += cluster_len;
                     }
                     if (had_content_on_line) segments_on_line = 1;
@@ -962,18 +971,29 @@ private:
             } else if (input.style.wrap == TextWrap::Character) {
                 // Grapheme-cluster-aware character wrap.
                 // Never splits combining marks, ZWJ sequences, or flag pairs.
+                //
+                // Tracking is applied PER LINE, not across the line break.
+                // We compute raw cluster width (without tracking) and add
+                // tracking only between clusters on the same line.
                 const size_t total_clusters = detail::grapheme_cluster_count(token);
-                const float avg_cluster_w = total_clusters > 0
-                    ? token_w / static_cast<float>(total_clusters) : token_w;
+                const float raw_token_w = (total_clusters > 1)
+                    ? token_w - tracking_amount * static_cast<float>(total_clusters - 1)
+                    : token_w;
+                const float avg_raw_cluster_w = total_clusters > 0
+                    ? raw_token_w / static_cast<float>(total_clusters) : token_w;
+                int clusters_on_line = 0;
                 for (size_t ci = 0; ci < token.size();) {
                     std::string_view suffix(token.data() + ci, token.size() - ci);
                     const size_t cluster_len = detail::grapheme_byte_offset_at(suffix, 1);
-                    const float cw = avg_cluster_w;
+                    const float cw = avg_raw_cluster_w +
+                        (clusters_on_line > 0 ? tracking_amount : 0.0f);
                     if (current_width + cw > max_width && !current_line.empty()) {
                         push_line_with_width();
+                        clusters_on_line = 0;
                     }
                     current_line.append(token.data() + ci, cluster_len);
                     current_width += cw;
+                    ++clusters_on_line;
                     ci += cluster_len;
                 }
             }
@@ -1013,8 +1033,13 @@ private:
                     // subtraction would miss.
                     last_line_w = measure_string_input(last_line);
                 }
+                // Append "..." and re-measure the ENTIRE line so that
+                // the inter-character tracking between the last preserved
+                // character and the first dot of the ellipsis is correctly
+                // accounted for.  Adding ellipsis_w separately would miss
+                // that gap.
                 last_line += "...";
-                last_line_w += ellipsis_w;
+                last_line_w = measure_string_input(last_line);
             }
         }
 
@@ -1408,7 +1433,45 @@ private:
 
 public:
     [[nodiscard]] static TextLayoutResult layout(const TextLayoutInput& input) {
+        // ── Bidi segmentation ──────────────────────────────────────
+        // When no explicit runs are provided and direction is Auto,
+        // segment the text into directional runs (LTR / RTL) so that
+        // mixed LTR+RTL text (e.g. Arabic+English) is shaped with the
+        // correct direction per-run.
+        //
+        // We skip segmentation when:
+        //   - The user has provided explicit runs (they already encode
+        //     the desired structure).
+        //   - Direction is explicitly LTR or RTL (the user wants the
+        //     whole text shaped that way).
         TextLayoutInput current_input = input;
+        if (current_input.runs.empty() &&
+            current_input.style.shaping.direction == TextDirection::Auto) {
+            auto bidi_runs = segment_bidi_runs(current_input.text);
+            if (!bidi_runs.empty()) {
+                // Only activate bidi runs when at least one run is RTL.
+                // Pure-Latin text returns a single LTR run; keeping the
+                // original layout_single_run path avoids subtle width
+                // differences between layout_single_run and
+                // layout_inline_runs for the same single-run input.
+                bool has_rtl = false;
+                for (const auto& br : bidi_runs) {
+                    if (br.direction == TextDirection::RTL) {
+                        has_rtl = true;
+                        break;
+                    }
+                }
+                if (has_rtl) {
+                    for (const auto& br : bidi_runs) {
+                        TextLayoutRun r;
+                        r.text = br.text;
+                        r.style = current_input.style;
+                        r.style.shaping.direction = br.direction;
+                        current_input.runs.push_back(std::move(r));
+                    }
+                }
+            }
+        }
         const bool auto_fit = input.style.auto_fit || input.style.auto_scale;
 
         const auto measure_with_size = [&](float size) {
