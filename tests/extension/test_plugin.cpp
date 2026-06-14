@@ -10,6 +10,16 @@
 
 using namespace chronon3d;
 
+// Descriptor struct — must match the layout expected by ExtensionLoader::load().
+// The struct is NOT provided in a public header because it is an implementation
+// detail of the dlopen/dlsym protocol.  Plugin authors copy this struct into
+// their own source file.
+struct ChrononModuleDescriptor {
+    std::uint32_t    api_version;
+    const char*      id;
+    ExtensionModule* (*create)();
+};
+
 namespace {
 
 class TestPluginModule final : public ExtensionModule {
@@ -21,24 +31,20 @@ public:
     }
 };
 
-// Descriptor struct — must match the layout expected by ExtensionLoader::load().
-// The struct is NOT provided in a public header because it is an implementation
-// detail of the dlopen/dlsym protocol.  Plugin authors copy this struct into
-// their own source file.
-struct ChrononModuleDescriptor {
-    std::uint32_t    api_version;
-    const char*      id;
-    ExtensionModule* (*create)();
-};
+} // namespace
 
 // Plugin descriptor — must be exported as "chronon3d_module"
 // to match the symbol name expected by ExtensionLoader::load().
+// Use extern "C" block (not CHRONON_MODULE_EXPORT) to avoid
+// "initialized and declared extern" warning on GCC 15+.
 // clang-format off
-CHRONON_MODULE_EXPORT ChrononModuleDescriptor chronon3d_module = {
+extern "C" {
+__attribute__((visibility("default")))
+ChrononModuleDescriptor chronon3d_module = {
     .api_version = CHRONON_MODULE_API_VERSION,
     .id          = "test_plugin",
     .create      = []() -> ExtensionModule* {
         return new TestPluginModule();
     },
 };
-} // namespace
+}

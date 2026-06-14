@@ -83,12 +83,12 @@ TEST_CASE("ShapeRegistry rejects shapes without factories") {
     ShapeRegistry registry;
 
     CHECK_THROWS_AS(
-        registry.create_node(
+        static_cast<void>(registry.create_node(
             shape_ids::Mesh,
             std::pmr::get_default_resource(),
             "mesh",
             RectParams{}
-        ),
+        )),
         std::runtime_error
     );
 }

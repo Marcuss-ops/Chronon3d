@@ -69,6 +69,7 @@ SoftwareRenderer::SoftwareRenderer()
         .executor = std::make_unique<graph::GraphExecutor>()
     }
     , m_cache_state{
+        .node_cache{2048ULL * 1024 * 1024},
         .framebuffer_pool = std::make_shared<cache::FramebufferPool>()
     } {
     renderer::register_builtin_processors(*m_runtime_resources.software_registry);

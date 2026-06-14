@@ -59,7 +59,8 @@ namespace {
     // The current sinks only support synchronous mode.
     cfg.transport.asynchronous = false;
     cfg.output.output_path = std::filesystem::path(path);
-    cfg.output.overwrite = overwrite;
+    cfg.output.overwrite       = overwrite;
+    cfg.transport.asynchronous = false;
     return cfg;
 }
 

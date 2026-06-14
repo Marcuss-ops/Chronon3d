@@ -131,7 +131,7 @@ TEST_CASE("FrameGraphCompiler - cycle detection throws") {
     FrameGraphCompileOptions options;
     options.run_optimizer = false;
 
-    CHECK_THROWS_AS(compiler.compile(std::move(graph), ctx, options), std::runtime_error);
+    CHECK_THROWS_AS(static_cast<void>(compiler.compile(std::move(graph), ctx, options)), std::runtime_error);
 }
 
 TEST_CASE("FrameGraphCompiler - lifetimes computation") {
