@@ -268,6 +268,22 @@ TEST_CASE("TextQuality: grapheme — single RI followed by ASCII counts separate
     CHECK(grapheme_cluster_count(ri_a) == 2);
 }
 
+TEST_CASE("TextQuality: grapheme — byte offset at works for ZWJ emoji sequence") {
+    using namespace detail;
+
+    // Woman + ZWJ + Woman = 1 cluster (GB11)
+    // U+1F469 U+200D U+1F469 = 3 code points, 1 cluster
+    std::string zwj_seq =
+        "\xF0\x9F\x91\xA9"   // U+1F469 Woman (4 bytes)
+        "\xE2\x80\x8D"       // U+200D ZWJ (3 bytes)
+        "\xF0\x9F\x91\xA9";  // U+1F469 Woman (4 bytes)
+    // Total: 11 bytes
+
+    CHECK(grapheme_cluster_count(zwj_seq) == 1);
+    // Byte offset after 1st (and only) cluster = all 11 bytes
+    CHECK(grapheme_byte_offset_at(zwj_seq, 1) == 11);
+}
+
 TEST_CASE("TextQuality: grapheme — byte offset at works correctly") {
     using namespace detail;
 
