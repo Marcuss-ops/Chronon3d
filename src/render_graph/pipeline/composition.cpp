@@ -138,11 +138,18 @@ std::shared_ptr<Framebuffer> render_composition_frame(
             for (int s = 0; s < N; ++s) {
                 const double j = motion_blur_jitter(pattern, jitter_seed,
                     static_cast<int>(frame), s, N);
-                sample_times[s] = opening_offset
-                    + ((static_cast<double>(s) + j) / static_cast<double>(N)) * exposure_frames;
+                // Centred sampling: (s + 0.5 + jitter) / N so that samples
+                // are distributed *within* their intervals, not on the edges.
+                // Without +0.5 the first sample lands at t=0 and the
+                // distribution bias is -1/(2N) instead of zero.
+                const double u = std::clamp(
+                    (static_cast<double>(s) + 0.5 + j) / static_cast<double>(N),
+                    0.0, 1.0);
 
-                const double t_norm = (static_cast<double>(s) + j) / static_cast<double>(N);
-                const double raw_w  = motion_blur_filter_weight(filter, t_norm);
+                sample_times[s] = opening_offset + u * exposure_frames;
+
+                const double raw_w = std::max(
+                    0.0, motion_blur_filter_weight(filter, u));
                 sample_weights[s] = static_cast<float>(raw_w);
                 weight_sum += raw_w;
             }

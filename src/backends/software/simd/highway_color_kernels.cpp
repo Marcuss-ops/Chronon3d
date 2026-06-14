@@ -852,6 +852,12 @@ HWY_EXPORT(apply_alpha_matte_premul_impl);
 HWY_EXPORT(apply_luma_matte_premul_impl);
 HWY_EXPORT(premultiply_alpha_rgba8_impl);
 
+/// Returns true if any channel (r,g,b,a) is NaN or Inf.
+static bool has_bad_color(const Color& c) {
+    return std::isnan(c.r) || std::isnan(c.g) || std::isnan(c.b) || std::isnan(c.a) ||
+           std::isinf(c.r) || std::isinf(c.g) || std::isinf(c.b) || std::isinf(c.a);
+}
+
 /// Canary check on first + last pixel of both buffers.  Returns true if safe
 /// for the fast SIMD path; falls back to a safe scalar loop when contaminated.
 static bool check_nan_canary(const Color* dst, const Color* src, int pixel_count) {
@@ -874,9 +880,9 @@ static void composite_normal_premul_safe(Color* dst, const Color* src, int pixel
     }
 }
 
-void composite_normal_premul(Color* __restrict__ dst, const Color* __restrict__ src, int pixel_count) {
+void composite_normal_premul(Color* __restrict__ dst, const Color* __restrict__ src, int pixel_count, bool force_scalar) {
     if (pixel_count <= 0) return;
-    if (!check_nan_canary(dst, src, pixel_count) || g_force_scalar_normal_blend.load(std::memory_order_relaxed)) {
+    if (!check_nan_canary(dst, src, pixel_count) || force_scalar || g_force_scalar_normal_blend.load(std::memory_order_relaxed)) {
         composite_normal_premul_safe(dst, src, pixel_count);
         return;
     }
