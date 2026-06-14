@@ -98,6 +98,7 @@ bool ProcessRunner::launch(const std::string&, const std::vector<std::string>&) 
     return false;
 }
 bool ProcessRunner::write(const std::uint8_t*, std::size_t) { return false; }
+bool ProcessRunner::write_for(const std::uint8_t*, std::size_t, std::chrono::milliseconds) { return false; }
 void ProcessRunner::close_stdin() {}
 int  ProcessRunner::wait() { return -1; }
 int  ProcessRunner::wait_for(std::chrono::milliseconds) { return -1; }
@@ -125,9 +126,11 @@ std::string ProcessRunner::consume_stderr() noexcept {
 
 #else  // ── Linux / POSIX ────────────────────────────────────────────────────
 
+#include <algorithm>
 #include <cerrno>
 #include <cstring>
 #include <fcntl.h>
+#include <poll.h>
 #include <signal.h>
 #include <spawn.h>
 #include <sys/wait.h>
@@ -320,6 +323,13 @@ bool ProcessRunner::launch(const std::string& executable,
         ::fcntl(stderr_fd_, F_SETFL, flags | O_NONBLOCK);
     }
 
+    // Set stdin write-end to non-blocking so that write_for() can honour
+    // the deadline via poll() without blocking indefinitely on a full pipe.
+    const int stdin_fl = ::fcntl(stdin_fd_, F_GETFL);
+    if (stdin_fl >= 0) {
+        ::fcntl(stdin_fd_, F_SETFL, stdin_fl | O_NONBLOCK);
+    }
+
     // Enlarge the kernel pipe buffer to reduce backpressure.
     constexpr int kDesiredPipeSize = 2 * 1024 * 1024;  // 2 MiB
     (void)fcntl(stdin_fd_, F_SETPIPE_SZ, kDesiredPipeSize);
@@ -338,7 +348,18 @@ void ProcessRunner::drain_stderr() {
     for (;;) {
         const ssize_t n = ::read(stderr_fd_, buf, sizeof(buf));
         if (n > 0) {
-            stderr_buffer_.append(buf, static_cast<std::size_t>(n));
+            // Apply the stderr buffer cap — clamp to the last kMaxStderrBytes
+            // so runaway stderr doesn't exhaust memory.
+            if (stderr_buffer_.size() + static_cast<std::size_t>(n) > kMaxStderrBytes) {
+                const auto excess = stderr_buffer_.size() + static_cast<std::size_t>(n) - kMaxStderrBytes;
+                if (static_cast<std::size_t>(n) > excess) {
+                    const auto keep = static_cast<std::size_t>(n) - excess;
+                    stderr_buffer_.append(buf, keep);
+                }
+                // otherwise discard entirely — the buffer is full of newer data
+            } else {
+                stderr_buffer_.append(buf, static_cast<std::size_t>(n));
+            }
         } else if (n == 0) {
             // EOF — pipe write-end closed by the child.
             break;
@@ -390,6 +411,88 @@ bool ProcessRunner::write(const std::uint8_t* data, std::size_t size) {
             return false;
         }
         written += static_cast<std::size_t>(n);
+    }
+
+    return true;
+}
+
+// ============================================================================
+//  write_for() — poll-based write with deadline + stderr drain
+// ============================================================================
+
+bool ProcessRunner::write_for(const std::uint8_t* data, std::size_t size,
+                               std::chrono::milliseconds timeout) {
+    if (stdin_fd_ < 0) {
+        return false;
+    }
+
+    // If timeout is zero or negative, behave like write() (blocking).
+    if (timeout.count() <= 0) {
+        return write(data, size);
+    }
+
+    const auto deadline = std::chrono::steady_clock::now() + timeout;
+    std::size_t written = 0;
+
+    while (written < size) {
+        const auto remaining_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+            deadline - std::chrono::steady_clock::now()).count();
+        if (remaining_ms <= 0) {
+            return false;  // deadline exceeded
+        }
+
+        // Poll stdin for POLLOUT and stderr for POLLIN simultaneously.
+        struct pollfd fds[2];
+        fds[0].fd     = stdin_fd_;
+        fds[0].events = POLLOUT;
+        fds[0].revents = 0;
+        fds[1].fd     = stderr_fd_;
+        fds[1].events = POLLIN;
+        fds[1].revents = 0;
+
+        const int nfds = (stderr_fd_ >= 0) ? 2 : 1;
+        // Clamp remaining_ms to int range for poll().
+        const int poll_timeout_ms = (remaining_ms > static_cast<decltype(remaining_ms)>(
+                                        std::numeric_limits<int>::max()))
+            ? std::numeric_limits<int>::max()
+            : static_cast<int>(remaining_ms);
+        const int result = ::poll(fds, nfds, poll_timeout_ms);
+
+        if (result < 0) {
+            if (errno == EINTR) continue;
+            return false;  // poll error
+        }
+
+        if (result == 0) {
+            return false;  // timeout — no progress
+        }
+
+        // Drain stderr first (non-blocking inside drain_stderr).
+        if (nfds > 1 && (fds[1].revents & (POLLIN | POLLERR | POLLHUP))) {
+            drain_stderr();
+        }
+
+        // Check if stdin is writable or broken.
+        if (fds[0].revents & POLLOUT) {
+            const ssize_t n = ::write(stdin_fd_, data + written, size - written);
+            if (n > 0) {
+                written += static_cast<std::size_t>(n);
+            } else if (n == 0) {
+                return false;  // unexpected condition on pipe write
+            } else {
+                // n < 0
+                if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                    continue;  // retry poll
+                }
+                if (errno == EINTR) continue;
+                return false;  // EPIPE or other error
+            }
+        }
+
+        // Check for pipe errors / hangup on stdin.
+        if (fds[0].revents & (POLLERR | POLLHUP | POLLNVAL)) {
+            return false;
+        }
     }
 
     return true;

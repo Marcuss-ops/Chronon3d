@@ -194,6 +194,26 @@ struct ValidationResult {
     explicit operator bool() const noexcept { return valid; }
 };
 
+/// Resolve VideoCodec::Auto to a concrete codec based on the output container.
+///
+/// Rules:
+///   WebM → VP9
+///   MP4 / MKV → H264
+///   Raw  → Uncompressed
+///
+/// When the codec is already concrete (not Auto), returns it unchanged.
+[[nodiscard]] inline VideoCodec resolve_auto_codec(
+    VideoCodec codec, VideoContainer container) noexcept {
+    if (codec != VideoCodec::Auto) return codec;
+    switch (container) {
+        case VideoContainer::WebM: return VideoCodec::VP9;
+        case VideoContainer::Raw:  return VideoCodec::Uncompressed;
+        case VideoContainer::Mp4:
+        case VideoContainer::Mkv:
+        default:                   return VideoCodec::H264;
+    }
+}
+
 /// Validate a complete VideoSinkConfig against all known constraints.
 ///
 /// Checks:
