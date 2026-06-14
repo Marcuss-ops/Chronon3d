@@ -565,6 +565,24 @@ inline size_t grapheme_byte_offset_at(std::string_view sv, size_t n) {
         gb11 = is_ep ? GB11State::ExtPict : GB11State::Normal;
         if (clusters == n) {
             offset += len;
+            // Consume any trailing extenders (combining marks, ZWJ, etc.)
+            // that belong to this cluster before returning.
+            while (offset < sv.size()) {
+                const unsigned char next_lead = static_cast<unsigned char>(sv[offset]);
+                const size_t next_len = utf8_seq_len(next_lead);
+                if (offset + next_len > sv.size()) break;
+                // Peek the next code point
+                char32_t next_cp;
+                switch (next_len) {
+                    case 1: next_cp = next_lead; break;
+                    case 2: next_cp = ((next_lead & 0x1F) << 6) | (static_cast<unsigned char>(sv[offset+1]) & 0x3F); break;
+                    case 3: next_cp = ((next_lead & 0x0F) << 12) | ((static_cast<unsigned char>(sv[offset+1]) & 0x3F) << 6) | (static_cast<unsigned char>(sv[offset+2]) & 0x3F); break;
+                    case 4: next_cp = ((next_lead & 0x07) << 18) | ((static_cast<unsigned char>(sv[offset+1]) & 0x3F) << 12) | ((static_cast<unsigned char>(sv[offset+2]) & 0x3F) << 6) | (static_cast<unsigned char>(sv[offset+3]) & 0x3F); break;
+                    default: next_cp = 0; break;
+                }
+                if (!is_grapheme_extend(next_cp)) break;
+                offset += next_len;
+            }
             return offset;
         }
         offset += len;
