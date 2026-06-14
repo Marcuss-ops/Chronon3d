@@ -19,9 +19,10 @@ struct NodeCacheKey {
     u64         source_hash{0};
     u64         input_hash{0};
 
-    /// Sub-frame tick for motion blur / temporal supersampling.
-    /// Default 0 = integer frame (backward compatible).
-    SampleTimeKey sample_time_key{0};
+    /// Sub-frame temporal key for motion blur / temporal supersampling.
+    /// Static nodes share the same key (frame=0, tick=0) to avoid
+    /// re-rendering across motion-blur sub-samples.
+    TemporalSampleKey temporal_key{0, 0, 0};
 
     // Tile-based cache differentiation (Branch 4).
     // Defaults (-1, -1, 0, 0) produce the same digest as before,

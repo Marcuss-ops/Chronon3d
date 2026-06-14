@@ -28,6 +28,7 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/media_tests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/compositor_tests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/breathing_golden_tests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/visual_tests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/deterministic_tests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/benchmarks.cmake)
 
 # ── Aggregate targets: build test executables grouped by cost/speed ──
@@ -40,7 +41,7 @@ else()
     set(CHRONON3D_BENCHMARK_DEP "")
 endif()
 
-# Fast tests: core + scene + CLI (no rendering, no video, no content)
+# Fast tests: core + scene + CLI + deterministic (no rendering, no video, no content)
 add_custom_target(chronon3d_tests_fast
     DEPENDS
         chronon3d_core_tests
@@ -49,6 +50,7 @@ add_custom_target(chronon3d_tests_fast
         chronon3d_optimizer_tests
         chronon3d_cache_tests
         chronon3d_compositor_tests
+        chronon3d_deterministic_tests
 )
 
 # Render tests: scene + renderer + golden + content (heavy, needs software backend + content)

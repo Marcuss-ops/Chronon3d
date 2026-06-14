@@ -110,4 +110,8 @@ std::vector<SourceDescriptor> SourceRegistry::list() const {
     return descriptors;
 }
 
+void SourceRegistry::clear() {
+    m_sources.clear();
+}
+
 } // namespace chronon3d::registry

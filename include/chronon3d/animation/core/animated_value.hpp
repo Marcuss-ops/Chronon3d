@@ -203,8 +203,8 @@ public:
         if (!has_expression()) return base;
 
         if constexpr (std::is_same_v<T, f32>) {
-            const double fps = (time.fps > 0.0) ? time.fps : 30.0;
-            const double t = time.seconds;
+            const double fps = time.fps();
+            const double t = time.seconds();
             const double frame = time.frame;
 
             if (ctx.expression_context) {
@@ -235,11 +235,11 @@ public:
 
     // ── Legacy Frame evaluation (backward compatible) ────────────────────────
     [[nodiscard]] T evaluate(Frame frame) const {
-        return evaluate(SampleTime::from_frame_int(frame));
+        return evaluate(SampleTime::from_frame_int(frame, FrameRate{30, 1}));
     }
 
     [[nodiscard]] T evaluate(Frame frame, const AnimationEvalContext& ctx) const {
-        return evaluate(SampleTime::from_frame_int(frame), ctx);
+        return evaluate(SampleTime::from_frame_int(frame, FrameRate{30, 1}), ctx);
     }
 
     [[nodiscard]] bool is_animated() const { return !m_keyframes.empty(); }

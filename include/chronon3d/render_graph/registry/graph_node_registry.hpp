@@ -58,6 +58,9 @@ public:
     /// Create a node instance by id (returns nullptr if not found or no factory).
     [[nodiscard]] std::unique_ptr<RenderGraphNode> create(std::string_view id) const;
 
+    /// Clear all registered nodes (used in tests for clean reset).
+    void clear();
+
 private:
     std::map<std::string, GraphNodeDescriptor, std::less<>> m_nodes;
 };

@@ -19,10 +19,10 @@ LayerBuilder::LayerBuilder(std::string name, SampleTime current_time, std::pmr::
 // ── Backward-compatible constructor (Frame → SampleTime) ────────────────────
 
 LayerBuilder::LayerBuilder(std::string name, Frame current_frame, std::pmr::memory_resource* res)
-    : LayerBuilder(std::move(name), SampleTime::from_frame_int(current_frame), res) {}
+    : LayerBuilder(std::move(name), SampleTime::from_frame_int(current_frame, FrameRate{30, 1}), res) {}
 
 LayerBuilder::LayerBuilder(std::string name, std::pmr::memory_resource* res)
-    : LayerBuilder(std::move(name), SampleTime::from_frame_int(0), res) {}
+    : LayerBuilder(std::move(name), SampleTime::from_frame_int(0, FrameRate{30, 1}), res) {}
 
 LayerBuilder& LayerBuilder::parent(std::string name) {
     m_layer.parent_name = std::pmr::string{name, m_layer.name.get_allocator()};
@@ -202,7 +202,7 @@ Layer LayerBuilder::build() {
     if (m_layer.anim_transform.is_time_dependent()) {
         const auto local_frame_int = static_cast<Frame>(std::round(m_current_time.frame));
         const Frame remapped_frame = m_layer.local_frame(local_frame_int);
-        const SampleTime local_time = SampleTime::from_frame_int(remapped_frame, m_current_time.fps);
+        const SampleTime local_time = SampleTime::from_frame_int(remapped_frame, m_current_time.frame_rate);
         Transform baked = m_layer.anim_transform.evaluate(local_time);
         if (m_layer.anim_transform.position.is_time_dependent())
             m_layer.transform.position = baked.position;
@@ -220,7 +220,7 @@ Layer LayerBuilder::build() {
     if (m_layer.anim_transform.blur.is_time_dependent()) {
         const auto local_frame_int = static_cast<Frame>(std::round(m_current_time.frame));
         const Frame remapped_frame = m_layer.local_frame(local_frame_int);
-        const SampleTime local_time = SampleTime::from_frame_int(remapped_frame, m_current_time.fps);
+        const SampleTime local_time = SampleTime::from_frame_int(remapped_frame, m_current_time.frame_rate);
         f32 blur_radius = m_layer.anim_transform.blur.evaluate(local_time);
         bool found = false;
         for (auto& effect : m_layer.effects) {

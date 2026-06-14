@@ -190,4 +190,8 @@ RenderNode ShapeRegistry::create_node(
     return descriptor.factory(res, std::move(name), std::move(params));
 }
 
+void ShapeRegistry::clear() {
+    m_shapes.clear();
+}
+
 } // namespace chronon3d::registry

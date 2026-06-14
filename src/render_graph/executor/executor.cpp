@@ -79,8 +79,9 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
     // calls (each with their own arena_override) do not race on the
     // shared cache.  The lock is held only for the cache lookup/update;
     // the actual execution runs outside the lock.
-    std::vector<std::vector<GraphNodeId>> plan_levels;
-    std::vector<size_t> plan_consumer_counts;
+    // The plan is immutable once built and shared via shared_ptr so that
+    // per-frame copies are O(1) pointer copies instead of deep vector copies.
+    std::shared_ptr<const ExecutionPlan> plan;
     {
         std::lock_guard<std::mutex> lock(m_plan_mutex);
         bool plan_cached = false;
@@ -106,12 +107,10 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
                 m_cached_plan.valid = true;
             }
         }
-        plan_levels = m_cached_plan.plan.levels;
-        plan_consumer_counts = m_cached_plan.plan.consumer_counts;
+        plan = m_cached_plan.plan;
     } // lock released — execution runs outside the critical section
 
-    const auto& plan_levels_ref = plan_levels;
-    if (plan_levels_ref.empty()) {
+    if (!plan || plan->levels.empty()) {
         return nullptr;
     }
 
@@ -136,7 +135,7 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
         init_shared_transparent_fb(state, ctx, res);
 
         auto consumer_remaining = init_consumer_remaining(
-            node_count, plan_consumer_counts, res
+            node_count, plan->consumer_counts, res
         );
         const auto t_fb1 = profiling::now();
         if (ctx.telemetry.counters) {
@@ -155,7 +154,7 @@ std::shared_ptr<Framebuffer> GraphExecutor::execute(
                 std::memory_order_relaxed);
         }
 
-        execute_levels(graph, ctx, state, plan_levels_ref, consumer_remaining, parent_counters, parent_pool, res);
+        execute_levels(graph, ctx, state, plan->levels, consumer_remaining, parent_counters, parent_pool, res);
 
         return state.temp[output];
     });

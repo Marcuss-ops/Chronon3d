@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/core/types/time.hpp>
+#include <algorithm>
 #include <memory_resource>
 
 namespace chronon3d {
@@ -15,20 +16,26 @@ struct FrameContext {
     i32 height{1080};
     std::pmr::memory_resource* resource{std::pmr::get_default_resource()};
 
-    [[nodiscard]] f32 fps() const { return frame_rate.fps(); }
+    [[nodiscard]] double fps() const { return frame_rate.fps(); }
 
     // Effective time: integral frame + fractional offset.
-    [[nodiscard]] f32 effective_frame() const {
-        return static_cast<f32>(frame) + frame_time;
+    [[nodiscard]] double effective_frame() const {
+        return static_cast<double>(frame) + static_cast<double>(frame_time);
     }
 
     [[nodiscard]] TimeSeconds seconds() const {
-        return frame_rate.to_seconds(frame);
+        return effective_frame()
+             * static_cast<double>(frame_rate.denominator)
+             / static_cast<double>(frame_rate.numerator);
     }
 
-    [[nodiscard]] f32 progress() const {
-        if (duration <= 0) return 0.0f;
-        return static_cast<f32>(frame) / static_cast<f32>(duration);
+    [[nodiscard]] double progress() const {
+        if (duration <= 0) return 0.0;
+        return std::clamp(
+            effective_frame() / static_cast<double>(duration),
+            0.0,
+            1.0
+        );
     }
 
     [[nodiscard]] bool is_first_frame() const { return frame == 0; }

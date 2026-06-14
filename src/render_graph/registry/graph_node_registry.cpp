@@ -75,4 +75,8 @@ std::unique_ptr<RenderGraphNode> GraphNodeRegistry::create(std::string_view id) 
     return it->second.factory();
 }
 
+void GraphNodeRegistry::clear() {
+    m_nodes.clear();
+}
+
 } // namespace chronon3d::graph

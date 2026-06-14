@@ -55,6 +55,9 @@ public:
         std::string name,
         ShapeParams params) const;
 
+    /// Clear all registered shapes (used in tests for clean reset).
+    void clear();
+
 private:
     std::map<std::string, ShapeDescriptor, std::less<>> m_shapes;
 };
