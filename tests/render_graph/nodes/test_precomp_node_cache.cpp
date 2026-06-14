@@ -45,9 +45,13 @@ namespace {
 Composition make_inner_comp(const char* name, int w, int h, Color color) {
     return Composition(
         CompositionSpec{.name=name, .width=w, .height=h, .duration=Frame{60}},
-        [color](const FrameContext& ctx) -> Scene {
+        [color, w, h](const FrameContext& ctx) -> Scene {
             SceneBuilder s(ctx.width, ctx.height, ctx.resource);
-            s.rect("bg", {.size={w,h}, .color=color, .pos={w/2,h/2,0}});
+            s.rect("bg", RectParams{
+                .size = Vec2{static_cast<f32>(w), static_cast<f32>(h)},
+                .color = color,
+                .pos = Vec3{static_cast<f32>(w / 2), static_cast<f32>(h / 2), 0.0f}
+            });
             return s.build();
         }
     );
@@ -407,8 +411,8 @@ TEST_CASE("precomp_cache: end-to-end via SoftwareRenderer does not crash") {
 
     // Verify both frames rendered something visible
     Color blue = Color::blue();
-    CHECK(any_pixel(*fb0, blue));
-    CHECK(any_pixel(*fb1, blue));
+    CHECK(test::any_pixel(*fb0, blue));
+    CHECK(test::any_pixel(*fb1, blue));
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
