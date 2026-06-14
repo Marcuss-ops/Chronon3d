@@ -651,7 +651,8 @@ private:
         for (char c : s) {
             width += measure_char_legacy(input, c, font_size);
         }
-        width += input.style.tracking * static_cast<float>(cp_count);
+        const size_t n_clusters2 = detail::grapheme_cluster_count(s);
+        width += input.style.tracking * static_cast<float>(n_clusters2 > 0 ? n_clusters2 - 1 : 0);
         return std::max(0.0f, width);
     }
 
@@ -691,7 +692,8 @@ private:
         // Only used when the style inherits the input font (no per-run override).
         if (input.bl_measure_fn && input.bl_font_ptr && style.font_path.empty()) {
             float width = input.bl_measure_fn(input.bl_font_ptr, s, font_size);
-            width += style.tracking * static_cast<float>(detail::utf8_length(s));
+            const size_t n_clusters = detail::grapheme_cluster_count(s);
+        width += style.tracking * static_cast<float>(n_clusters > 0 ? n_clusters - 1 : 0);
             return std::max(0.0f, width);
         }
         if (input.font_engine) {
@@ -702,7 +704,8 @@ private:
                 .font_style = style.font_style.empty() ? input.font_spec.font_style : style.font_style,
             };
             float width = input.font_engine->measure_text(s, spec, font_size, style.shaping);
-            width += style.tracking * static_cast<float>(detail::utf8_length(s));
+            const size_t n_clusters = detail::grapheme_cluster_count(s);
+        width += style.tracking * static_cast<float>(n_clusters > 0 ? n_clusters - 1 : 0);
             return std::max(0.0f, width);
         }
         return measure_string_legacy(input, s, font_size);
@@ -884,7 +887,7 @@ private:
                     for (size_t ci = 0; ci < token.size();) {
                         std::string_view suffix(token.data() + ci, token.size() - ci);
                         const size_t cluster_len = detail::grapheme_byte_offset_at(suffix, 1);
-                        const float cw = avg_cluster_w + input.style.tracking;
+                        const float cw = avg_cluster_w;
                         if (current_width + cw > max_width && !current_line.empty()) {
                             push_line_with_width();
                         }
@@ -909,7 +912,7 @@ private:
                 for (size_t ci = 0; ci < token.size();) {
                     std::string_view suffix(token.data() + ci, token.size() - ci);
                     const size_t cluster_len = detail::grapheme_byte_offset_at(suffix, 1);
-                    const float cw = avg_cluster_w + input.style.tracking;
+                    const float cw = avg_cluster_w;
                     if (current_width + cw > max_width && !current_line.empty()) {
                         push_line_with_width();
                     }
@@ -1130,7 +1133,7 @@ private:
                         }
                     }
 
-                    const float cw = avg_cluster_w + run.style.tracking;
+                    const float cw = avg_cluster_w;
                     if (current.width + cw > max_width_limit && !current.runs.empty()) {
                         push_current();
                     }
@@ -1185,7 +1188,7 @@ private:
                     for (size_t ci = 0; ci < token.size();) {
                         std::string_view suffix(token.data() + ci, token.size() - ci);
                         const size_t cluster_len = detail::grapheme_byte_offset_at(suffix, 1);
-                        const float cw = avg_cluster_w + run.style.tracking;
+                        const float cw = avg_cluster_w;
                         if (current.width + cw > max_width_limit && !current.runs.empty()) {
                             push_current();
                         }
