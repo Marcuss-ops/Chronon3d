@@ -36,7 +36,7 @@ struct TimeRemap {
     AnimatedValue<f32> time_remap;  // maps comp frame → source frame (in frames). When animated, overrides speed.
 
     [[nodiscard]] bool active() const {
-        return speed != 1.0f || freeze_frame >= 0 || time_remap.is_animated();
+        return speed != 1.0f || freeze_frame >= 0 || time_remap.is_time_dependent();
     }
 };
 
@@ -161,7 +161,7 @@ struct Layer {
         }
 
         // Animated time_remap curve: maps comp frame → source frame directly
-        if (time_remap.time_remap.is_animated()) {
+        if (time_remap.time_remap.is_time_dependent()) {
             return Frame{static_cast<i64>(time_remap.time_remap.evaluate(raw))};
         }
 
@@ -173,6 +173,40 @@ struct Layer {
             scaled = static_cast<f32>(raw) * time_remap.speed;
         }
         return Frame{static_cast<i64>(std::round(scaled))};
+    }
+
+    /// Sub-frame aware local time — preserves fractional precision through
+    /// offset, time remap, speed, and freeze-frame so that animated transforms
+    /// evaluated in LayerBuilder::build() see true sub-frame differences.
+    [[nodiscard]] SampleTime local_time(SampleTime global_time) const {
+        const double raw_frame = global_time.frame
+            - static_cast<double>(from) + static_cast<double>(time_offset);
+
+        if (!time_remap.active()) {
+            return SampleTime::from_frame(raw_frame, global_time.fps);
+        }
+
+        // Freeze frame
+        if (time_remap.freeze_frame >= 0) {
+            return SampleTime::from_frame_int(time_remap.freeze_frame, global_time.fps);
+        }
+
+        // Animated time_remap curve — evaluate at sub-frame precision
+        if (time_remap.time_remap.is_time_dependent()) {
+            const double mapped = static_cast<double>(
+                time_remap.time_remap.evaluate(
+                    SampleTime::from_frame(raw_frame, global_time.fps)));
+            return SampleTime::from_frame(mapped, global_time.fps);
+        }
+
+        // Speed control — preserves fractional portion
+        double scaled;
+        if (time_remap.speed < 0.0 && static_cast<double>(duration) > 0.0) {
+            scaled = static_cast<double>(duration) + time_remap.speed * raw_frame;
+        } else {
+            scaled = raw_frame * static_cast<double>(time_remap.speed);
+        }
+        return SampleTime::from_frame(scaled, global_time.fps);
     }
 };
 

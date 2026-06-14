@@ -39,13 +39,7 @@ bool check_static_recursive_impl(
         } else if ((!l.transition_in.transition_id.empty() && l.transition_in.transition_id != "none") ||
                    (!l.transition_out.transition_id.empty() && l.transition_out.transition_id != "none")) {
             is_local_static = false;
-        } else if (l.anim_transform.is_animated()) {
-            is_local_static = false;
-        } else if (l.anim_transform.position.has_expression() ||
-                   l.anim_transform.rotation_euler.has_expression() ||
-                   l.anim_transform.scale.has_expression() ||
-                   l.anim_transform.anchor.has_expression() ||
-                   l.anim_transform.opacity.has_expression()) {
+        } else if (l.anim_transform.is_time_dependent()) {
             is_local_static = false;
         }
 
