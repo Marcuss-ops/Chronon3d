@@ -9,6 +9,8 @@
 #include <cstring>
 #include <filesystem>
 
+#include <spdlog/spdlog.h>
+
 namespace chronon3d::media::video {
 
 // ============================================================================
@@ -533,16 +535,34 @@ bool FfmpegPipeSink::close() noexcept {
         if (exit_code == -2) {
             // Timeout — escalate.
             process_.terminate_and_wait(std::chrono::seconds(5));
+            const std::string stderr_log = process_.consume_stderr();
+            if (!stderr_log.empty()) {
+                spdlog::warn("[FfmpegPipeSink] ffmpeg timed out — stderr:\n{}",
+                             stderr_log);
+            }
             state_ = VideoSinkState::Failed;
             return false;
         }
         if (exit_code != 0) {
+            const std::string stderr_log = process_.consume_stderr();
+            if (!stderr_log.empty()) {
+                spdlog::error("[FfmpegPipeSink] ffmpeg exited with code {} — stderr:\n{}",
+                              exit_code, stderr_log);
+            } else {
+                spdlog::error("[FfmpegPipeSink] ffmpeg exited with code {} (no stderr)",
+                              exit_code);
+            }
             state_ = VideoSinkState::Failed;
             return false;
         }
     } else {
         // Pipe failed — terminate the child gracefully, then escalate.
         process_.terminate_and_wait(std::chrono::seconds(5));
+        const std::string stderr_log = process_.consume_stderr();
+        if (!stderr_log.empty()) {
+            spdlog::error("[FfmpegPipeSink] pipe broken — ffmpeg stderr:\n{}",
+                          stderr_log);
+        }
         state_ = VideoSinkState::Failed;
         return false;
     }

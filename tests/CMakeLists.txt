@@ -24,6 +24,7 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/optimizer_tests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cache_tests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/content_tests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/video_tests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/media_tests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/compositor_tests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/breathing_golden_tests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/visual_tests.cmake)
@@ -60,10 +61,10 @@ add_custom_target(chronon3d_tests_render
         chronon3d_breathing_golden_tests
 )
 
-# Video tests: video pipeline tests (isolated, no content needed)
+# Video tests: video pipeline tests (isolated, no pipeline dependency)
 add_custom_target(chronon3d_tests_video
     DEPENDS
-        chronon3d_video_tests
+        chronon3d_media_video_tests
 )
 
 # All tests: everything
@@ -75,4 +76,4 @@ add_custom_target(chronon3d_tests
         ${CHRONON3D_BENCHMARK_DEP}
 )
 
-add_dependencies(chronon3d_tests chronon3d_video_tests)
+add_dependencies(chronon3d_tests chronon3d_media_video_tests)
