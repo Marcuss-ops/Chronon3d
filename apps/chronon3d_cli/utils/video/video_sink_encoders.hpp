@@ -74,36 +74,4 @@ private:
     bool convert_selected_format(const Framebuffer& fb, uint8_t* dst);
 };
 
-// ── RawVideoSinkEncoder ────────────────────────────────────────────────────
-// Renders + converts + writes raw pixel bytes to a file (no FFmpeg/container).
-// Use to isolate render + convert + write cost without FFmpeg overhead.
-class RawVideoSinkEncoder final : public IVideoEncoder {
-public:
-    bool open(const FfmpegPipeOptions& options) override;
-    bool write_frame(const Framebuffer& fb) override;
-    bool write_frame_async(const Framebuffer& fb, std::shared_ptr<Framebuffer> owner) override {
-        const bool ok = write_frame(fb);
-        owner.reset();
-        return ok;
-    }
-    bool close() override;
-
-    void set_counters(chronon3d::RenderCounters* counters) override {
-        counters_ = counters;
-    }
-
-    [[nodiscard]] uint64_t frames_written() const override {
-        return frames_written_;
-    }
-
-private:
-    FfmpegPipeOptions options_{};
-    std::ofstream out_;
-    std::vector<uint8_t> buffer_;
-    uint64_t frames_written_{0};
-    chronon3d::RenderCounters* counters_{nullptr};
-
-    bool convert_selected_format(const Framebuffer& fb, uint8_t* dst);
-};
-
 } // namespace chronon3d::cli
