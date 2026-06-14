@@ -1009,7 +1009,8 @@ private:
         tokens.shrink_to_fit();
 
         const int max_allowed_lines = input.style.max_lines;
-        const bool apply_ellipsis = input.style.ellipsis || input.style.overflow == TextOverflow::Ellipsis;                if (max_allowed_lines > 0 && static_cast<int>(raw_lines.size()) > max_allowed_lines) {
+        const bool apply_ellipsis = input.style.ellipsis || input.style.overflow == TextOverflow::Ellipsis;
+        if (max_allowed_lines > 0 && static_cast<int>(raw_lines.size()) > max_allowed_lines) {
             raw_lines.resize(max_allowed_lines);
             line_widths.resize(max_allowed_lines);
             if (apply_ellipsis && !raw_lines.empty()) {
