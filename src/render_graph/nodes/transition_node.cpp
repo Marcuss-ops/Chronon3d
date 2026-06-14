@@ -13,9 +13,7 @@ float TransitionNode::compute_progress(const RenderGraphContext& ctx) const {
     if (ctx.frame.fps <= 0.0f) return 0.0f;
 
     const double fps = static_cast<double>(ctx.frame.fps);
-    // ctx.frame.time_seconds = frame + frame_time (frame number, not seconds)
-    // Convert to seconds
-    double global_time_s = static_cast<double>(ctx.frame.time_seconds) / fps;
+    double global_time_s = static_cast<double>(ctx.frame.time_seconds);
     double layer_start_s = static_cast<double>(m_layer_from) / fps;
     double layer_time_s = global_time_s - layer_start_s;
 
