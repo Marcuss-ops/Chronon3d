@@ -85,6 +85,57 @@ struct VideoFrameView {
     std::int64_t pts{0};
 };
 
+// ==========================================================================
+//  Frame validation helpers (shared contract between RawVideoSink and
+//  FfmpegPipeSink).
+// ==========================================================================
+
+/// Validate that a planar YUV420P frame view has valid dimensions and strides.
+/// Returns true if all checks pass.
+[[nodiscard]] inline bool validate_planar_frame(int width, int height,
+                                                  std::size_t y_stride,
+                                                  std::size_t u_stride,
+                                                  std::size_t v_stride) noexcept {
+    if (width <= 0 || height <= 0) return false;
+    if (width % 2 != 0 || height % 2 != 0) return false;  // YUV420P requires even dims
+    const std::size_t y_row  = static_cast<std::size_t>(width);
+    const std::size_t uv_row = static_cast<std::size_t>(width / 2);
+    const std::size_t ys = (y_stride > 0) ? y_stride : y_row;
+    const std::size_t us = (u_stride > 0) ? u_stride : uv_row;
+    const std::size_t vs = (v_stride > 0) ? v_stride : uv_row;
+    return ys >= y_row && us >= uv_row && vs >= uv_row;
+}
+
+/// Validate that a biplanar NV12 frame view has valid dimensions and strides.
+/// Returns true if all checks pass.
+[[nodiscard]] inline bool validate_biplanar_frame(int width, int height,
+                                                    std::size_t y_stride,
+                                                    std::size_t uv_stride) noexcept {
+    if (width <= 0 || height <= 0) return false;
+    if (width % 2 != 0 || height % 2 != 0) return false;  // NV12 requires even dims
+    const std::size_t y_row  = static_cast<std::size_t>(width);
+    const std::size_t uv_row = static_cast<std::size_t>(width);
+    const std::size_t ys  = (y_stride > 0)  ? y_stride  : y_row;
+    const std::size_t uvs = (uv_stride > 0) ? uv_stride : uv_row;
+    return ys >= y_row && uvs >= uv_row;
+}
+
+/// Validate that a packed frame stride is at least the tight row bytes.
+/// For YUV planar formats, only stride==0 (tight packing) is allowed in
+/// packed mode — callers with padded planar data must use the separate
+/// planar/biplanar submit overloads.
+[[nodiscard]] inline bool validate_packed_stride(PixelFormat fmt, int width,
+                                                   std::size_t stride_bytes) noexcept {
+    if (width <= 0) return false;
+    // Planar formats in packed mode: only tight packing is supported.
+    if (fmt == PixelFormat::YUV420P || fmt == PixelFormat::NV12) {
+        return stride_bytes == 0;
+    }
+    if (stride_bytes == 0) return true;  // tight packing is always valid
+    const uint64_t tight_row = frame_buffer_size(fmt, width, 1);
+    return stride_bytes >= tight_row;
+}
+
 /// Extended frame view for planar YUV420P data.
 struct PlanarVideoFrameView {
     const void* y_data{nullptr};

@@ -4,17 +4,10 @@
 
 #include <algorithm>
 #include <chrono>
-#include <cstdio>
-#include <cstdlib>
+#include <cstddef>
+#include <cstdint>
 #include <cstring>
-
-#if defined(_WIN32)
-#include <io.h>
-#else
-#include <fcntl.h>
-#include <sys/wait.h>
-#include <unistd.h>
-#endif
+#include <filesystem>
 
 namespace chronon3d::media::video {
 
@@ -58,7 +51,7 @@ namespace {
 } // anonymous namespace
 
 // ============================================================================
-//  build_argv() — construct ffmpeg command line as executable + arguments
+//  build_argv() — construct ffmpeg argv vector (executable + arguments)
 // ============================================================================
 
 std::vector<std::string> FfmpegPipeSink::build_argv(const VideoSinkConfig& config) {
@@ -70,13 +63,18 @@ std::vector<std::string> FfmpegPipeSink::build_argv(const VideoSinkConfig& confi
     argv.push_back("-hide_banner");
     argv.push_back("-loglevel");
     argv.push_back("error");
-    argv.push_back("-y");
+    // Overwrite.
+    if (config.output.overwrite) {
+        argv.push_back("-y");
+    } else {
+        argv.push_back("-n");
+    }
 
     // Input: raw video via stdin pipe.
     argv.push_back("-f");
     argv.push_back("rawvideo");
     argv.push_back("-pix_fmt");
-    argv.push_back(pix_fmt_to_ffmpeg(config.encoder.output_format));
+    argv.push_back(pix_fmt_to_ffmpeg(config.stream.submitted_format));
     argv.push_back("-s");
     argv.push_back(std::to_string(config.stream.width) + "x" +
                    std::to_string(config.stream.height));
@@ -110,19 +108,21 @@ std::vector<std::string> FfmpegPipeSink::build_argv(const VideoSinkConfig& confi
     if (config.encoder.tune.has_value() && !config.encoder.tune->empty()) {
         argv.push_back("-tune");
         argv.push_back(*config.encoder.tune);
-    } else {
-        // Default: zerolatency for pipe streaming.
-        argv.push_back("-tune");
-        argv.push_back("zerolatency");
     }
 
-    // Output pixel format.
+    // Bitrate.
+    if (config.encoder.bitrate > 0) {
+        argv.push_back("-b:v");
+        argv.push_back(std::to_string(config.encoder.bitrate));
+    }
+
+    // Output (encoded) pixel format.
     argv.push_back("-pix_fmt");
-    argv.push_back(pix_fmt_to_ffmpeg(config.encoder.output_format));
+    argv.push_back(pix_fmt_to_ffmpeg(config.encoder.encoded_pixel_format));
 
     // Color metadata (BT.709 for YUV).
-    if (config.encoder.output_format == PixelFormat::YUV420P ||
-        config.encoder.output_format == PixelFormat::NV12) {
+    if (config.encoder.encoded_pixel_format == PixelFormat::YUV420P ||
+        config.encoder.encoded_pixel_format == PixelFormat::NV12) {
         argv.push_back("-colorspace");
         argv.push_back("bt709");
         argv.push_back("-color_primaries");
@@ -152,45 +152,16 @@ std::vector<std::string> FfmpegPipeSink::build_argv(const VideoSinkConfig& confi
 }
 
 // ============================================================================
-//  launch_ffmpeg() — spawn the subprocess
+//  launch_ffmpeg() — spawn via ProcessRunner (posix_spawnp, no shell)
 // ============================================================================
 
 bool FfmpegPipeSink::launch_ffmpeg(const std::vector<std::string>& argv) {
-    // Build command string from argv (popen requires a command string).
-    std::string cmd;
-    for (const auto& arg : argv) {
-        if (!cmd.empty()) cmd += ' ';
-        // Quote arguments containing spaces.
-        if (arg.find(' ') != std::string::npos || arg.empty()) {
-            cmd += '"' + arg + '"';
-        } else {
-            cmd += arg;
-        }
-    }
-
-#if defined(_WIN32)
-    pipe_ = _popen(cmd.c_str(), "wb");
-#else
-    pipe_ = popen(cmd.c_str(), "w");
-    if (pipe_) {
-        // Full buffering: 1 MiB buffer reduces context switches.
-        setvbuf(pipe_, nullptr, _IOFBF, 1 << 20);
-
-        // Enlarge kernel pipe buffer to fit 2 frames, reducing backpressure.
-        const int fd = fileno(pipe_);
-        if (fd >= 0) {
-            const int desired = static_cast<int>(
-                std::clamp<size_t>(tight_frame_size_ * 2, 1ULL << 20, 16ULL << 20));
-            fcntl(fd, F_SETPIPE_SZ, desired);
-        }
-    }
-#endif
-
-    if (!pipe_) {
+    // argv[0] is "ffmpeg" — use as both executable name and argv[0].
+    const bool ok = process_.launch(argv[0], argv);
+    if (!ok) {
         state_ = VideoSinkState::Failed;
         return false;
     }
-
     return true;
 }
 
@@ -199,22 +170,23 @@ bool FfmpegPipeSink::launch_ffmpeg(const std::vector<std::string>& argv) {
 // ============================================================================
 
 bool FfmpegPipeSink::write_to_pipe(const uint8_t* data, size_t size) {
-    if (!pipe_ || pipe_failed_) {
+    if (pipe_failed_) {
         return false;
     }
 
     const auto t0 = std::chrono::steady_clock::now();
-    const size_t written = std::fwrite(data, 1, size, pipe_);
+    const bool ok = process_.write(data, size);
     const auto t1 = std::chrono::steady_clock::now();
 
-    if (written != size) {
+    const double elapsed = std::chrono::duration<double, std::milli>(t1 - t0).count();
+    total_write_blocked_ms_ += elapsed;
+
+    if (!ok) {
         pipe_failed_ = true;
         state_ = VideoSinkState::Failed;
         return false;
     }
 
-    const double elapsed = std::chrono::duration<double, std::milli>(t1 - t0).count();
-    total_write_blocked_ms_ += elapsed;
     stats_.bytes_written += size;
     return true;
 }
@@ -250,7 +222,7 @@ bool FfmpegPipeSink::open(const VideoSinkConfig& config) {
     }
 
     // YUV formats require even dimensions.
-    const auto fmt = config.encoder.output_format;
+    const auto fmt = config.stream.submitted_format;
     if (fmt == PixelFormat::YUV420P || fmt == PixelFormat::NV12) {
         if (stream.width % 2 != 0 || stream.height % 2 != 0) {
             state_ = VideoSinkState::Failed;
@@ -258,7 +230,16 @@ bool FfmpegPipeSink::open(const VideoSinkConfig& config) {
         }
     }
 
-    // Store session contract.
+    // Pre-check: if overwrite=false and file exists, fail early.
+    if (!config.output.overwrite) {
+        const auto output_path = config.output.output_path;
+        if (std::filesystem::exists(output_path)) {
+            state_ = VideoSinkState::Failed;
+            return false;
+        }
+    }
+
+    // Store session contract (the format callers submit frames in).
     width_ = stream.width;
     height_ = stream.height;
     session_format_ = fmt;
@@ -300,6 +281,13 @@ bool FfmpegPipeSink::submit(const VideoFrameView& frame) {
         ? frame.stride_bytes
         : tight_row_bytes;
 
+    // Validate stride (must be >= tight row; YUV planar only tight).
+    if (!validate_packed_stride(frame.pixel_format, frame.width,
+                                 frame.stride_bytes)) {
+        state_ = VideoSinkState::Failed;
+        return false;
+    }
+
     bool ok;
     if (actual_stride == tight_row_bytes) {
         // Tight packing.
@@ -340,7 +328,17 @@ bool FfmpegPipeSink::submit_planar(const PlanarVideoFrameView& frame) {
         return false;
     }
 
+    // Validate dimensions and format.
     if (session_format_ != PixelFormat::YUV420P) {
+        state_ = VideoSinkState::Failed;
+        return false;
+    }
+    if (!validate_planar_frame(frame.width, frame.height,
+                                frame.y_stride, frame.u_stride, frame.v_stride)) {
+        state_ = VideoSinkState::Failed;
+        return false;
+    }
+    if (frame.width != width_ || frame.height != height_) {
         state_ = VideoSinkState::Failed;
         return false;
     }
@@ -428,7 +426,17 @@ bool FfmpegPipeSink::submit_biplanar(const BiplanarVideoFrameView& frame) {
         return false;
     }
 
+    // Validate dimensions and format.
     if (session_format_ != PixelFormat::NV12) {
+        state_ = VideoSinkState::Failed;
+        return false;
+    }
+    if (!validate_biplanar_frame(frame.width, frame.height,
+                                  frame.y_stride, frame.uv_stride)) {
+        state_ = VideoSinkState::Failed;
+        return false;
+    }
+    if (frame.width != width_ || frame.height != height_) {
         state_ = VideoSinkState::Failed;
         return false;
     }
@@ -498,9 +506,9 @@ bool FfmpegPipeSink::flush() {
 
     const auto t0 = std::chrono::steady_clock::now();
 
-    if (pipe_ && !pipe_failed_) {
-        std::fflush(pipe_);
-    }
+    // fd-based writes have no userspace buffering; flush is effectively
+    // a no-op.  We still track timing for telemetry parity.
+    // The kernel pipe buffer is drained asynchronously by the child.
 
     const auto t1 = std::chrono::steady_clock::now();
     stats_.total_flush_ms += std::chrono::duration<double, std::milli>(t1 - t0).count();
@@ -520,32 +528,18 @@ bool FfmpegPipeSink::close() noexcept {
         return true;
     }
 
-    // If the pipe already failed internally, don't try to pclose —
-    // the ffmpeg subprocess may be dead, and pclose() could hang.
-    if (pipe_ && !pipe_failed_) {
-        std::fflush(pipe_);
-#if defined(_WIN32)
-        const int rc = _pclose(pipe_);
-#else
-        const int rc = pclose(pipe_);
-#endif
-        pipe_ = nullptr;
-        if (rc != 0) {
+    // Normal path: close stdin (signals EOF) and wait for ffmpeg to exit.
+    if (!pipe_failed_) {
+        const int exit_code = process_.wait();
+        if (exit_code != 0) {
             state_ = VideoSinkState::Failed;
             return false;
         }
-    } else if (pipe_) {
-        // Pipe already failed — just close the FILE* without waiting.
-#if defined(_WIN32)
-        _pclose(pipe_);
-#else
-        // Terminate the child process rather than waiting.
-        if (ffmpeg_pid_ > 0) {
-            kill(ffmpeg_pid_, SIGTERM);
-        }
-        pclose(pipe_);
-#endif
-        pipe_ = nullptr;
+    } else {
+        // Pipe failed — terminate the child rather than waiting potentially
+        // for a dead process.
+        process_.terminate();
+        process_.wait();
         state_ = VideoSinkState::Failed;
         return false;
     }
@@ -559,15 +553,8 @@ bool FfmpegPipeSink::close() noexcept {
 // ============================================================================
 
 FfmpegPipeSink::~FfmpegPipeSink() noexcept {
-    if (pipe_) {
-        std::fflush(pipe_);
-#if defined(_WIN32)
-        _pclose(pipe_);
-#else
-        pclose(pipe_);
-#endif
-        pipe_ = nullptr;
-    }
+    // ProcessRunner destructor handles cleanup: close stdin, terminate,
+    // wait for child.  Nothing extra needed here.
 }
 
 } // namespace chronon3d::media::video

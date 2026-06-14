@@ -41,9 +41,10 @@ struct VideoStreamConfig {
     int frame_rate_num{30};
     int frame_rate_den{1};
 
-    /// Pixel format of the input frames supplied to VideoSink::submit().
-    /// The sink will convert to the encoder's output format as needed.
-    PixelFormat input_format{PixelFormat::RGBA8};
+    /// Pixel format of the frames supplied to VideoSink::submit().
+    /// This is the format the caller provides; the sink validates
+    /// all submitted frames against this contract.
+    PixelFormat submitted_format{PixelFormat::RGBA8};
 };
 
 // ==========================================================================
@@ -106,9 +107,10 @@ struct VideoEncoderConfig {
     /// -1 = use codec default.
     int crf{-1};
 
-    /// Pixel format for the encoded output (e.g. YUV420P).
-    /// The sink will convert from input_format to this before encoding.
-    PixelFormat output_format{PixelFormat::YUV420P};
+    /// Pixel format for the encoded output stream (e.g. YUV420P).
+    /// This is the pixel format written into the final container, distinct
+    /// from the submitted frame format (VideoStreamConfig::submitted_format).
+    PixelFormat encoded_pixel_format{PixelFormat::YUV420P};
 
     /// Apply sRGB gamma curve during conversion (default true).
     bool apply_gamma{true};

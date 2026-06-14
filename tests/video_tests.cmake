@@ -7,6 +7,7 @@ add_executable(chronon3d_video_tests
     video/test_long_export.cpp
     video/test_near_static_frames.cpp
     video/test_raw_video_sink.cpp
+    video/test_ffmpeg_pipe_sink.cpp
 )
 target_link_libraries(chronon3d_video_tests
     PRIVATE
