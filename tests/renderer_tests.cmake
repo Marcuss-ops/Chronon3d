@@ -19,6 +19,7 @@ add_executable(chronon3d_renderer_tests
     renderer/media/test_video_card.cpp
     stabilization/test_stabilization.cpp
     renderer/perf/test_render_perf.cpp
+    renderer/perf/test_motion_blur_integration.cpp
     renderer/lighting/test_light_context.cpp
     renderer/lighting/test_directional_lights.cpp
     renderer/lighting/test_shadows.cpp

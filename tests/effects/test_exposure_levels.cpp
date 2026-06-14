@@ -292,13 +292,13 @@ TEST_CASE("Levels: only red channel modified") {
 // =============================================================================
 
 TEST_CASE("Exposure: clip preserves pixels outside clip region") {
-    Framebuffer fb = make_coord_fb(8, 8);
-    Framebuffer original = make_coord_fb(8, 8);
+    Framebuffer fb = ::make_coord_fb(8, 8);
+    Framebuffer original = ::make_coord_fb(8, 8);
 
     // Applica exposure su tutto il fb
     apply_exposure(fb, 2.0f);
     // Ora riapplica con clip su una porzione, su una copia
-    Framebuffer fb2 = make_coord_fb(8, 8);
+    Framebuffer fb2 = ::make_coord_fb(8, 8);
     apply_exposure(fb2, 2.0f,
                    raster::BBox{2, 3, 6, 7});
 
@@ -310,7 +310,7 @@ TEST_CASE("Exposure: clip preserves pixels outside clip region") {
             bool inside = (x >= 2 && x < 6 && y >= 3 && y < 7);
             if (!inside) {
                 // Fuori dal clip: deve essere identico all'originale
-                check_color_near(fb2.get_pixel(x, y),
+                ::check_color_near(fb2.get_pixel(x, y),
                                  original.get_pixel(x, y),
                                  kExactEpsilon);
             }
@@ -319,8 +319,8 @@ TEST_CASE("Exposure: clip preserves pixels outside clip region") {
 }
 
 TEST_CASE("Levels: clip preserves pixels outside clip region") {
-    Framebuffer fb = make_coord_fb(8, 8);
-    Framebuffer fb2 = make_coord_fb(8, 8);
+    Framebuffer fb = ::make_coord_fb(8, 8);
+    Framebuffer fb2 = ::make_coord_fb(8, 8);
 
     // Applica levels con clip parziale
     apply_levels(fb2,
@@ -334,7 +334,7 @@ TEST_CASE("Levels: clip preserves pixels outside clip region") {
         for (int x = 0; x < 8; ++x) {
             bool inside = (x >= 2 && x < 6 && y >= 3 && y < 7);
             if (!inside) {
-                check_color_near(fb2.get_pixel(x, y),
+                ::check_color_near(fb2.get_pixel(x, y),
                                  fb.get_pixel(x, y),
                                  kExactEpsilon);
             }

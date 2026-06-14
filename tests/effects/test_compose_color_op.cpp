@@ -26,6 +26,7 @@
 
 using namespace chronon3d;
 using namespace chronon3d::color;
+using namespace chronon3d::renderer;
 
 // =============================================================================
 // 1. ComposeOp::Multiply — identity (section 2.1)
