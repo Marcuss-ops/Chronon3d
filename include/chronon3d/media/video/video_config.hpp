@@ -128,7 +128,9 @@ struct PipeTransportConfig {
 
     /// When true, frame submission returns immediately after enqueuing.
     /// When false, submit() blocks until the frame is fully written.
-    bool asynchronous{true};
+    /// Note: only synchronous mode (false) is currently implemented;
+    /// the validator rejects asynchronous=true.
+    bool asynchronous{false};
 
     /// Use Linux io_uring for asynchronous I/O (experimental).
     /// Ignored on non-Linux platforms or when io_uring is unavailable.
