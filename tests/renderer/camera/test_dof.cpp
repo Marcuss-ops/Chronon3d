@@ -100,3 +100,120 @@ TEST_CASE("DOF: render with DOF enabled does not crash") {
     Color centre = fb->get_pixel(60, 60);
     CHECK(centre.a > 0.0f);  // something was rendered
 }
+
+// ---------------------------------------------------------------------------
+// Physical DoF model — Circle of Confusion
+// ---------------------------------------------------------------------------
+
+TEST_CASE("DOF: physical model default params") {
+    DepthOfFieldSettings d{.enabled=true, .f_stop=2.8f, .use_physical_model=true};
+    CHECK(d.focal_length    == doctest::Approx(50.0f));
+    CHECK(d.sensor_width    == doctest::Approx(36.0f));
+    CHECK(d.f_stop          == doctest::Approx(2.8f));
+    CHECK(d.focus_distance  == doctest::Approx(1000.0f));
+}
+
+TEST_CASE("DOF: physical CoC at focus plane is zero") {
+    DepthOfFieldSettings d{
+        .enabled = true,
+        .max_blur = 100.0f,
+        .focal_length = 50.0f, .sensor_width = 36.0f,
+        .f_stop = 2.8f, .focus_distance = 1000.0f,
+        .use_physical_model = true
+    };
+    f32 blur = compute_dof_blur_radius(d, -1000.0f, 1920.0f);
+    CHECK(blur == doctest::Approx(0.0f));
+}
+
+TEST_CASE("DOF: physical CoC grows with distance from focus") {
+    DepthOfFieldSettings d{
+        .enabled = true,
+        .max_blur = 100.0f,
+        .focal_length = 50.0f, .sensor_width = 36.0f,
+        .f_stop = 2.8f, .focus_distance = 1000.0f,
+        .use_physical_model = true
+    };
+    // Object at ~ 500 units: closer than focus plane → some blur.
+    f32 blur_near = compute_dof_blur_radius(d, -500.0f, 1920.0f);
+    CHECK(blur_near > 0.0f);
+    // Object at ~ 2000 units: far from focus plane → more blur.
+    f32 blur_far = compute_dof_blur_radius(d, -2000.0f, 1920.0f);
+    CHECK(blur_far > 0.0f);
+    CHECK(blur_far > blur_near);  // farther → blurrier
+}
+
+TEST_CASE("DOF: physical CoC respects max_blur clamp") {
+    DepthOfFieldSettings d{
+        .enabled = true,
+        .max_blur = 8.0f,
+        .focal_length = 50.0f, .sensor_width = 36.0f,
+        .f_stop = 1.0f, .focus_distance = 1000.0f,  // wide-open aperture
+        .use_physical_model = true
+    };
+    // Very far object with f/1.0 should produce large CoC, but clamped.
+    f32 blur = compute_dof_blur_radius(d, -10000.0f, 1920.0f);
+    CHECK(blur <= doctest::Approx(8.0f));
+}
+
+TEST_CASE("DOF: physical CoC with smaller f-stop (wider aperture) = more blur") {
+    DepthOfFieldSettings fast{
+        .enabled = true,
+        .max_blur = 100.0f,
+        .focal_length = 50.0f, .sensor_width = 36.0f,
+        .f_stop = 1.4f, .focus_distance = 1000.0f,
+        .use_physical_model = true
+    };
+    DepthOfFieldSettings slow{
+        .enabled = true,
+        .max_blur = 100.0f,
+        .focal_length = 50.0f, .sensor_width = 36.0f,
+        .f_stop = 16.0f, .focus_distance = 1000.0f,
+        .use_physical_model = true
+    };
+    f32 blur_fast = compute_dof_blur_radius(fast, -2000.0f, 1920.0f);
+    f32 blur_slow = compute_dof_blur_radius(slow, -2000.0f, 1920.0f);
+    CHECK(blur_fast > blur_slow);  // f/1.4 should be blurrier than f/16
+}
+
+TEST_CASE("DOF: physical model disabled uses legacy formula") {
+    // Disabled DoF → zero.
+    DepthOfFieldSettings d_off{.enabled = false,
+        .focal_length = 50.0f,
+        .f_stop = 1.0f, .focus_distance = 1000.0f,
+        .use_physical_model = true};
+    CHECK(compute_dof_blur_radius(d_off, -500.0f, 1920.0f) == doctest::Approx(0.0f));
+}
+
+TEST_CASE("DOF: legacy model unchanged (backward compat)") {
+    // With use_physical_model=false, old formula still works.
+    DepthOfFieldSettings d{.enabled=true, .focus_z=0.0f, .aperture=0.02f, .max_blur=20.0f};
+    f32 blur = compute_dof_blur_radius(d, -500.0f);
+    CHECK(blur == doctest::Approx(10.0f));  // 500 * 0.02 = 10
+}
+
+TEST_CASE("DOF: AnimatedCamera2_5D dof_enabled flag works with constant values") {
+    AnimatedCamera2_5D cam;
+    cam.dof_enabled = true;
+    cam.aperture.set(0.03f);
+    cam.max_blur.set(12.0f);
+    // Not animated — but dof_enabled should still activate DoF.
+    Camera2_5D result = cam.evaluate(Frame{30});
+    CHECK(result.dof.enabled == true);
+    CHECK(result.dof.aperture == doctest::Approx(0.03f));
+    CHECK(result.dof.max_blur == doctest::Approx(12.0f));
+}
+
+TEST_CASE("DOF: AnimatedCamera2_5D physical model propagates to Camera2_5D") {
+    AnimatedCamera2_5D cam;
+    cam.dof_enabled = true;
+    cam.use_physical_model = true;
+    cam.focal_length.set(85.0f);
+    cam.f_stop.set(4.0f);
+    cam.focus_distance.set(1500.0f);
+
+    Camera2_5D result = cam.evaluate(Frame{30});
+    CHECK(result.dof.use_physical_model == true);
+    CHECK(result.dof.focal_length == doctest::Approx(85.0f));
+    CHECK(result.dof.f_stop == doctest::Approx(4.0f));
+    CHECK(result.dof.focus_distance == doctest::Approx(1500.0f));
+}

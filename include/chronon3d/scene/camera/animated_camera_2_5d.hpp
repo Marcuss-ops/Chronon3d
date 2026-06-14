@@ -35,6 +35,17 @@ struct AnimatedCamera2_5D {
     AnimatedValue<f32>  aperture{0.015f};
     AnimatedValue<f32>  max_blur{24.0f};
 
+    // Separate enable flag — DoF can be enabled with constant values,
+    // independent of whether the parameters are keyframed.
+    bool  dof_enabled{false};
+
+    // Physical lens parameters (used when dof.use_physical_model is true).
+    AnimatedValue<f32>  focal_length{50.0f};
+    AnimatedValue<f32>  sensor_width{36.0f};
+    AnimatedValue<f32>  f_stop{2.8f};
+    AnimatedValue<f32>  focus_distance{1000.0f};
+    bool  use_physical_model{false};
+
     /// Evaluate all animated properties at `frame` and return a static Camera2_5D.
     [[nodiscard]] Camera2_5D evaluate(Frame frame) const {
         return evaluate(SampleTime::from_frame_int(frame));
@@ -53,10 +64,20 @@ struct AnimatedCamera2_5D {
         cam.point_of_interest          = point_of_interest.evaluate(time);
         cam.point_of_interest_enabled  = point_of_interest_enabled;
 
-        cam.dof.enabled  = focus_z.is_animated() || aperture.is_animated() || max_blur.is_animated();
+        // DoF: enabled explicitly OR via any animated param (legacy or physical).
+        cam.dof.enabled  = dof_enabled || focus_z.is_animated() || aperture.is_animated() || max_blur.is_animated()
+                           || focal_length.is_animated() || f_stop.is_animated() || focus_distance.is_animated()
+                           || sensor_width.is_animated();
         cam.dof.focus_z  = focus_z.evaluate(time);
         cam.dof.aperture = aperture.evaluate(time);
         cam.dof.max_blur = max_blur.evaluate(time);
+
+        // Physical lens params.
+        cam.dof.focal_length        = focal_length.evaluate(time);
+        cam.dof.sensor_width        = sensor_width.evaluate(time);
+        cam.dof.f_stop              = f_stop.evaluate(time);
+        cam.dof.focus_distance      = focus_distance.evaluate(time);
+        cam.dof.use_physical_model  = use_physical_model;
 
         return cam;
     }
@@ -66,7 +87,9 @@ struct AnimatedCamera2_5D {
         return position.is_animated() || rotation.is_animated() ||
                zoom.is_animated()     || fov_deg.is_animated() ||
                point_of_interest.is_animated() ||
-               focus_z.is_animated()  || aperture.is_animated() || max_blur.is_animated();
+               focus_z.is_animated()  || aperture.is_animated() || max_blur.is_animated() ||
+               focal_length.is_animated() || sensor_width.is_animated() ||
+               f_stop.is_animated()   || focus_distance.is_animated();
     }
 };
 

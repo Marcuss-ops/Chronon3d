@@ -20,10 +20,19 @@ enum class CameraRigMode {
 struct CameraRigDOF {
     bool enabled{false};
     std::string focus_target_name;
+
+    // Legacy model.
     AnimatedValue<f32> focus_z{0.0f};
     AnimatedValue<f32> aperture{0.015f};
     AnimatedValue<f32> max_blur{24.0f};
     bool use_target_z{false};
+
+    // Physical lens model.
+    AnimatedValue<f32> focal_length{50.0f};
+    AnimatedValue<f32> sensor_width{36.0f};
+    AnimatedValue<f32> f_stop{2.8f};
+    AnimatedValue<f32> focus_distance{1000.0f};
+    bool use_physical_model{false};
 };
 
 struct CameraRigMotionBlur {

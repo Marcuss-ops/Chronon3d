@@ -121,20 +121,18 @@ private:
 
     // Compute a DOF blur radius for the layer (single-pass, no per-pixel depth
     // because CPU doesn't have a depth buffer; uses the layer's world Z as
-    // its depth). This is the same logic used by DofEffectNode.
-    [[nodiscard]] f32 dof_blur_radius(const Camera2_5D& camera, f32 layer_world_z) const {
+    // its depth). This delegates to compute_dof_blur_radius() which supports
+    // both the legacy linear model and the physical thin-lens CoC model.
+    [[nodiscard]] f32 dof_blur_radius(const Camera2_5D& camera, f32 layer_world_z, f32 viewport_w) const {
         if (!m_dof.enabled) return 0.0f;
-        const f32 dz = layer_world_z - m_dof.focus_z;
-        f32 r = std::abs(dz) * m_dof.aperture;
-        r = std::min(r, m_dof.max_blur);
-        return r;
+        return compute_dof_blur_radius(m_dof, layer_world_z, viewport_w);
     }
 
     // Apply a separable box-blur with radius `r` to `src` → `dst`. Used as
     // a CPU-friendly approximation of a Gaussian for DOF.
     void apply_dof(const Framebuffer& src, Framebuffer& dst,
                    const Camera2_5D& camera, f32 layer_world_z) {
-        const f32 r = dof_blur_radius(camera, layer_world_z);
+        const f32 r = dof_blur_radius(camera, layer_world_z, static_cast<f32>(src.width()));
         const i32 W = src.width();
         const i32 H = src.height();
 

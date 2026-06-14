@@ -39,7 +39,7 @@ static std::shared_ptr<Framebuffer> render_precomp_with_registry(
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("AE-6: LayerBuilder precomp sets kind and composition name") {
-    LayerBuilder builder("test");
+    LayerBuilder builder("test", std::pmr::get_default_resource());
     builder.precomp("my_comp");
     Layer l = builder.build();
     CHECK(l.kind == LayerKind::Precomp);
@@ -60,7 +60,7 @@ TEST_CASE("AE-6: SceneBuilder precomp_layer creates Precomp layer") {
 }
 
 TEST_CASE("AE-6: LayerBuilder precomp via kind() method") {
-    LayerBuilder builder("test");
+    LayerBuilder builder("test", std::pmr::get_default_resource());
     builder.kind(LayerKind::Precomp);
     // kind() alone doesn't set the composition name
     Layer l = builder.build();
