@@ -5,6 +5,7 @@
 #include <chronon3d/scene/model/shape/fill.hpp>
 #include <chronon3d/scene/model/shape/shape.hpp>
 #include <chronon3d/media/media_placement.hpp>
+#include <memory>
 #include <optional>
 #include <string>
 
@@ -117,6 +118,12 @@ struct TextParams {
     f32 max_font_size{160.0f};
     TextOverflow overflow{TextOverflow::Clip};
     TextWrap wrap{TextWrap::Word};
+
+    // ── Optional pre-shaped glyph run ───────────────────────────────
+    // When set, the rasterizer uses these pre-shaped glyphs directly
+    // instead of re-shaping the text with HarfBuzz.  Used by
+    // typewriter_build() to preserve contextual Arabic/Indic shaping.
+    std::shared_ptr<PlacedGlyphRun> pre_shaped;
 };
 
 struct ShadowStyle {

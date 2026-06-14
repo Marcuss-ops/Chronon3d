@@ -51,6 +51,7 @@ add_executable(chronon3d_core_tests
     text/test_text_style_presets.cpp
     text/test_font_engine.cpp
     text/test_text_quality_suite.cpp
+    text/test_text_bidi.cpp
     media/test_media_placement.cpp
     scene_presets/test_scene_presets.cpp
     extension/test_extension_loader.cpp

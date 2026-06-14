@@ -349,10 +349,14 @@ struct TypewriterLayout {
 // advance_x values are correct because font_engine.cpp calls
 // hb_ft_font_changed() after FT_Set_Pixel_Sizes.
 //
+/// Optional output parameter: when non-null, the fully resolved
+/// PlacedGlyphRun is written here (avoids double-shaping when caller
+/// also needs the pre-shaped glyphs, e.g. typewriter_build).
 inline TypewriterLayout compute_typewriter_layout(
     const std::string& text, f32 font_size, f32 tracking,
     Vec2 box, f32 line_height,
-    const FontSpec& font_spec)
+    const FontSpec& font_spec,
+    PlacedGlyphRun* out_placed = nullptr)
 {
     TypewriterLayout result;
     if (text.empty()) return result;
@@ -463,18 +467,11 @@ inline TypewriterLayout compute_typewriter_layout(
         char_advances = std::move(merged);
     }
 
-    // ── Apply tracking BETWEEN final grapheme clusters (not within) ────
-    // Tracking adds `tracking` pixels of extra space between each adjacent
-    // pair of grapheme clusters.  We add it to the advance of every
-    // grapheme except the last, so positioning works correctly.
-    //
-    // Note: raw_advance from the resolver has no per-HarfBuzz-cluster
-    // tracking, so tracking is applied cleanly only at the grapheme
-    // level (after the merge).  This avoids double-counting that would
-    // occur if the resolver's tracking-inclusive advances were used.
-    for (size_t i = 0; i + 1 < char_advances.size(); ++i) {
-        char_advances[i].advance += tracking;
-    }
+    // ⚠  Tracking is NOT applied before wrapping.  Applying tracking to
+    // the full sequence and then wrapping causes the last character of
+    // each line to retain the gap intended for the first character of the
+    // next line — an error visible at every line break.
+    // Tracking is applied PER LINE after the wrap step below.
 
     // Word-wrap
     struct Line { size_t begin_idx; size_t end_idx; f32 width; };
@@ -526,6 +523,22 @@ inline TypewriterLayout compute_typewriter_layout(
     if (line_start < char_advances.size())
         lines.push_back({line_start, char_advances.size(), line_width});
 
+    // ── Apply tracking PER LINE (after wrapping) ──────────────────
+    // Tracking adds `tracking` pixels between each adjacent pair of
+    // grapheme clusters within a line.  The last character of a line
+    // does NOT receive tracking because the gap to the next line is
+    // handled by the line-step (no gap between lines for tracking).
+    for (auto& ln : lines) {
+        if (tracking != 0.0f && ln.end_idx > ln.begin_idx) {
+            f32 line_tracking = 0.0f;
+            for (size_t i = ln.begin_idx; i + 1 < ln.end_idx; ++i) {
+                char_advances[i].advance += tracking;
+                line_tracking += tracking;
+            }
+            ln.width += line_tracking;
+        }
+    }
+
     const f32 line_step = std::max(1.0f, font_size * line_height);
 
     if (box.y > 0.0f) {
@@ -557,6 +570,19 @@ inline TypewriterLayout compute_typewriter_layout(
             x += ca.advance;
         }
     }
+
+    // ── Populate out_placed (avoids double-shaping for callers who
+    //     also need pre-shaped glyphs, e.g. typewriter_build). ───────
+    // We use tracking=0 so the per-line tracking in the typewriter is
+    // the single source of truth — the pre-shaped glyphs in out_placed
+    // must NOT include resolver-level tracking, or glyph positions
+    // would be inconsistent with the layout's raw_advance + per-line
+    // tracking model.
+    if (out_placed) {
+        // run is still alive (captured in outer scope).
+        *out_placed = resolve_placed_glyph_run(*run, 0.0f, text);
+    }
+
     return result;
 }
 
@@ -587,8 +613,13 @@ inline void typewriter_build(
     // typewriter_build() is typically called for short titles, not
     // paragraphs.  If per-composition isolation is ever needed the
     // cache can be lifted into a caller-supplied structure.
+    //
+    // Also caches the full PlacedGlyphRun so each character layer can
+    // pass pre-shaped glyphs to the rasterizer (P0 fix for Arabic/Indic
+    // contextual shaping).
     static std::mutex s_cache_mutex;
     static TypewriterLayout cached_layout;
+    static PlacedGlyphRun cached_placed;  // full pre-shaped run
     static std::string cached_text;
     static f32         cached_font_size{0.0f};
     static f32         cached_tracking{0.0f};
@@ -609,9 +640,13 @@ inline void typewriter_build(
                       cached_font_spec.font_weight == font_spec.font_weight);
 
     if (!cache_hit) {
+        // Recompute layout and get the PlacedGlyphRun via out_placed parameter
+        // (avoids double-shaping: the layout function already shapes the text).
+        cached_placed = PlacedGlyphRun{};
         cached_layout = compute_typewriter_layout(
             opts.text, opts.font_size, opts.tracking,
-            opts.box, opts.line_height, font_spec);
+            opts.box, opts.line_height, font_spec,
+            &cached_placed);  // populate cached_placed from the layout pass
         cached_text = opts.text;
         cached_font_size = opts.font_size;
         cached_tracking = opts.tracking;
@@ -635,6 +670,10 @@ inline void typewriter_build(
     const size_t revealed_count = static_cast<size_t>(revealed_exact);
     const f32 revealed_frac = revealed_exact - static_cast<f32>(revealed_count);
 
+    // Build a pre-shaped mini run once and share it across layers via shared_ptr.
+    // The shared_ptr ensures the data lives until all layers are rendered.
+    // We build one run per revealed character, extracting just that character's
+    // glyphs from the full cached_placed run.
     for (size_t i = 0; i < layout.chars.size(); ++i) {
         auto& cp = layout.chars[i];
 
@@ -652,10 +691,78 @@ inline void typewriter_build(
 
         if (opacity < 0.005f) continue;
 
+        // ── Extract this character's glyphs from the full placed run ──
+        // Find which HarfBuzz clusters overlap this character's byte range.
+        std::shared_ptr<PlacedGlyphRun> char_placed;
+        if (!cached_placed.clusters.empty() && !cached_placed.glyphs.empty()) {
+            const size_t char_start = cp.byte_offset;
+            const size_t char_end = cp.byte_offset + cp.byte_len;
+
+            // Find the first and last cluster index that overlap this range.
+            size_t first_cl = cached_placed.clusters.size();
+            size_t last_cl = 0;
+            for (size_t ci = 0; ci < cached_placed.clusters.size(); ++ci) {
+                const auto& cl = cached_placed.clusters[ci];
+                const size_t cl_start = cl.byte_offset;
+                const size_t cl_end = cl.byte_offset + cl.byte_len;
+                // Overlap if ranges intersect
+                if (cl_start < char_end && cl_end > char_start) {
+                    if (ci < first_cl) first_cl = ci;
+                    if (ci > last_cl) last_cl = ci;
+                }
+            }
+
+            if (last_cl >= first_cl && first_cl < cached_placed.clusters.size()) {
+                const auto& first_cluster = cached_placed.clusters[first_cl];
+                const auto& last_cluster = cached_placed.clusters[last_cl];
+                const size_t start_glyph = first_cluster.start_glyph;
+                const size_t end_glyph = last_cluster.end_glyph;
+
+                if (end_glyph > start_glyph && start_glyph < cached_placed.glyphs.size()) {
+                    auto mini_run = std::make_shared<PlacedGlyphRun>();
+                    mini_run->ascent = cached_placed.ascent;
+                    mini_run->descent = cached_placed.descent;
+                    mini_run->baseline = cached_placed.baseline;
+                    mini_run->font_size = cached_placed.font_size;
+
+                    // Copy the glyphs for this character, adjusting positions
+                    // so the first glyph starts at (0, 0) relative offset.
+                    const float base_x = cached_placed.glyphs[start_glyph].x;
+                    const float base_y = cached_placed.glyphs[start_glyph].y;
+                    for (size_t gi = start_glyph; gi < end_glyph; ++gi) {
+                        const auto& src = cached_placed.glyphs[gi];
+                        PlacedGlyph pg = src;
+                        pg.x = src.x - base_x;
+                        pg.y = src.y - base_y;
+                        mini_run->glyphs.push_back(pg);
+                        mini_run->total_width += src.advance_x;
+                    }
+
+                    // Build a single cluster for this mini run
+                    PlacedGlyphRun::Cluster mini_cl;
+                    mini_cl.start_glyph = 0;
+                    mini_cl.end_glyph = mini_run->glyphs.size();
+                    mini_cl.byte_offset = cp.byte_offset;
+                    mini_cl.byte_len = cp.byte_len;
+                    for (const auto& pg : mini_run->glyphs) {
+                        mini_cl.advance += pg.advance_x;
+                        mini_cl.raw_advance += pg.raw_advance_x;
+                    }
+                    mini_run->clusters.push_back(mini_cl);
+                    mini_run->total_height = cached_placed.total_height;
+
+                    char_placed = std::move(mini_run);
+                }
+            }
+        }
+
+        // For the text we still keep the substr — the rasterizer uses
+        // pre_shaped glyphs (bypassing HarfBuzz), but the text is also
+        // used for layout bounds / fallback.
         std::string glyph = opts.text.substr(cp.byte_offset, cp.byte_len);
         std::string lname = std::string(layer_prefix) + "_c" + std::to_string(i);
 
-        s.layer(lname, [cp, glyph, opacity,
+        s.layer(lname, [cp, glyph, opacity, char_placed,
                         fp = opts.font_path, ff = opts.font_family,
                         fw = opts.font_weight, fs = opts.font_size,
                         col = opts.color, lh = opts.line_height](LayerBuilder& l) {
@@ -679,6 +786,7 @@ inline void typewriter_build(
             tp.tracking = 0.0f;
             tp.wrap = TextWrap::None;
             tp.overflow = TextOverflow::Clip;
+            tp.pre_shaped = char_placed;  // passes pre-shaped glyphs
 
             l.text("glyph", tp);
         });
