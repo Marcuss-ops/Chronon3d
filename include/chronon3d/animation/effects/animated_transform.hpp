@@ -37,6 +37,15 @@ struct AnimatedTransform {
                opacity.is_animated() || blur.is_animated();
     }
 
+    /// Returns true if any component depends on time (keyframes or expression).
+    /// Use this for cache invalidation, scene hashing, dirty-rect decisions,
+    /// and to decide whether the transform must be re-evaluated each frame.
+    [[nodiscard]] bool is_time_dependent() const {
+        return position.is_time_dependent() || rotation_euler.is_time_dependent() ||
+               scale.is_time_dependent()    || anchor.is_time_dependent() ||
+               opacity.is_time_dependent() || blur.is_time_dependent();
+    }
+
     /// Shift every keyframe track by offset frames.
     void shift(Frame offset) {
         position.shift(offset);

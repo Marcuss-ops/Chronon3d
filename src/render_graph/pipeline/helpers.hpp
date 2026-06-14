@@ -14,6 +14,7 @@
 #include <chronon3d/core/memory_utils.hpp>
 #include <chronon3d/core/telemetry/render_telemetry.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
+#include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <xxhash.h>
 #include <algorithm>
@@ -103,10 +104,15 @@ namespace chronon3d::graph {
     media::MediaFrameProvider* video_decoder,
     float fps
 ) {
+    const float effective_frame = static_cast<float>(frame) + frame_time;
+    const SampleTime st = SampleTime::from_frame(
+        static_cast<double>(effective_frame), static_cast<double>(fps));
     return RenderGraphContext{
         .frame = RenderFrameInfo{
             .frame = frame,
-            .time_seconds = static_cast<float>(frame) + frame_time,
+            .sample_time = st,
+            .sample_time_key = SampleTimeKey::from_sample_time(st),
+            .time_seconds = fps > 0.0f ? effective_frame / fps : 0.0f,
             .fps = fps,
             .width = width,
             .height = height,
