@@ -887,11 +887,15 @@ private:
 
         // ── Record line widths during push, not via post-hoc re-measurement ──
         std::vector<float> line_widths;
+        int segments_on_line = 0;  // token count on current line (for inter-token tracking)
+        const float tracking_amount = input.style.tracking;
+
         auto push_line_with_width = [&]() {
             raw_lines.push_back(std::move(current_line));
             line_widths.push_back(current_width);
             current_line.clear();
             current_width = 0.0f;
+            segments_on_line = 0;
         };
 
         const bool wrapping_enabled = max_width > 0.0f && input.style.wrap != TextWrap::None;
@@ -908,13 +912,17 @@ private:
             if (!wrapping_enabled) {
                 current_line += token;
                 current_width += measure_string_input(token);
+                if (segments_on_line > 0) current_width += tracking_amount;
+                ++segments_on_line;
                 continue;
             }
 
             const float token_w = measure_string_input(token);
 
             if (input.style.wrap == TextWrap::Word) {
-                if (current_width + token_w > max_width) {
+                // Account for the inter-token tracking gap when checking fit
+                const float inter_token_gap = (segments_on_line > 0) ? tracking_amount : 0.0f;
+                if (current_width + inter_token_gap + token_w > max_width) {
                     if (!current_line.empty()) {
                         push_line_with_width();
                         if (is_space) continue;
@@ -925,24 +933,31 @@ private:
                     const size_t total_clusters = detail::grapheme_cluster_count(token);
                     const float avg_cluster_w = total_clusters > 0
                         ? token_w / static_cast<float>(total_clusters) : token_w;
+                    bool had_content_on_line = false;
                     for (size_t ci = 0; ci < token.size();) {
                         std::string_view suffix(token.data() + ci, token.size() - ci);
                         const size_t cluster_len = detail::grapheme_byte_offset_at(suffix, 1);
                         const float cw = avg_cluster_w;
                         if (current_width + cw > max_width && !current_line.empty()) {
                             push_line_with_width();
+                            had_content_on_line = false;
                         }
                         current_line.append(token.data() + ci, cluster_len);
                         current_width += cw;
+                        had_content_on_line = true;
                         ci += cluster_len;
                     }
+                    if (had_content_on_line) segments_on_line = 1;
                     } else {
                         current_line = token;
                         current_width = token_w;
+                        segments_on_line = 1;
                     }
                 } else {
                     current_line += token;
                     current_width += token_w;
+                    if (segments_on_line > 0) current_width += tracking_amount;
+                    ++segments_on_line;
                 }
             } else if (input.style.wrap == TextWrap::Character) {
                 // Grapheme-cluster-aware character wrap.
@@ -974,9 +989,7 @@ private:
         tokens.shrink_to_fit();
 
         const int max_allowed_lines = input.style.max_lines;
-        const bool apply_ellipsis = input.style.ellipsis || input.style.overflow == TextOverflow::Ellipsis;
-
-        if (max_allowed_lines > 0 && static_cast<int>(raw_lines.size()) > max_allowed_lines) {
+        const bool apply_ellipsis = input.style.ellipsis || input.style.overflow == TextOverflow::Ellipsis;                if (max_allowed_lines > 0 && static_cast<int>(raw_lines.size()) > max_allowed_lines) {
             raw_lines.resize(max_allowed_lines);
             line_widths.resize(max_allowed_lines);
             if (apply_ellipsis && !raw_lines.empty()) {
@@ -994,11 +1007,11 @@ private:
                     }
                     const size_t trim_to = detail::grapheme_byte_offset_at(
                         last_line, num_clusters - 1);
-                    const std::string_view removed_suffix(
-                        last_line.data() + trim_to, last_line.size() - trim_to);
-                    const float removed_w = measure_string_input(removed_suffix);
                     last_line.resize(trim_to);
-                    last_line_w -= removed_w;
+                    // Remeasure the trimmed line directly — this correctly
+                    // accounts for inter-token tracking that incremental
+                    // subtraction would miss.
+                    last_line_w = measure_string_input(last_line);
                 }
                 last_line += "...";
                 last_line_w += ellipsis_w;

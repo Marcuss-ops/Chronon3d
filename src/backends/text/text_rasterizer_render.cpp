@@ -138,7 +138,7 @@ Blend2DResources& blend2d_resources() {
     return resources;
 }
 
-/// Converts a HarfBuzz GlyphRun to Blend2D's BLGlyphRun for fillGlyphRun().
+/// Converts a PlacedGlyphRun to Blend2D's BLGlyphRun for fillGlyphRun().
 /// The struct must outlive the BLGlyphRun (which holds raw pointers into
 /// the vectors).  Keep the struct alive through the rendering call.
 ///
@@ -146,41 +146,29 @@ Blend2DResources& blend2d_resources() {
 /// offset from the current pen position, and after each glyph the pen is
 /// advanced by `advance`.  We therefore use the raw HarfBuzz relative
 /// offsets (x_offset / y_offset), NOT the cumulative x / y positions.
+///
+/// The tracking-aware advances come pre-computed from PlacedGlyphRun,
+/// so this conversion is a simple field copy — no tracking logic needed.
 struct HbToBlGlyphRun {
     std::vector<uint32_t> glyph_ids;
     std::vector<BLGlyphPlacement> placements;
     BLGlyphRun bl_run{};
 
-    /// Convert a HarfBuzz-shaped GlyphRun into a Blend2D BLGlyphRun.
-    /// @param hb_run   the HarfBuzz shaping result (relative offsets + advances)
-    /// @param tracking extra per-glyph spacing in pixels; added to the advance
-    ///                 of every glyph except the last (inter-cluster spacing).
-    static HbToBlGlyphRun from(const GlyphRun& hb_run, float tracking = 0.0f) {
+    /// Convert a PlacedGlyphRun into a Blend2D BLGlyphRun.
+    /// Uses the raw offsets (x_offset, y_offset) and tracking-aware
+    /// advances from the PlacedGlyphRun, matching the ADVANCE_OFFSET
+    /// placement type.
+    static HbToBlGlyphRun from(const PlacedGlyphRun& placed) {
         HbToBlGlyphRun result;
-        result.glyph_ids.reserve(hb_run.glyphs.size());
-        result.placements.reserve(hb_run.glyphs.size());
-        for (size_t i = 0; i < hb_run.glyphs.size(); ++i) {
-            const auto& g = hb_run.glyphs[i];
-            result.glyph_ids.push_back(g.glyph_id);
+        result.glyph_ids.reserve(placed.glyphs.size());
+        result.placements.reserve(placed.glyphs.size());
+        for (const auto& pg : placed.glyphs) {
+            result.glyph_ids.push_back(pg.glyph_id);
             BLGlyphPlacement p;
-            // Use the raw HarfBuzz relative offsets — NOT the cumulative g.x / g.y.
-            // With ADVANCE_OFFSET placement, Blend2D adds placement to the current
-            // pen, then advances the pen by `advance`.  If we passed cumulative
-            // positions the pen would be advanced twice: once from previous advances
-            // and once from the placement value.
-            p.placement.reset(g.x_offset, g.y_offset);
-            float adv_x = g.advance_x;
-            // Tracking: add extra spacing between grapheme clusters, not
-            // after every glyph.  A single cluster may produce multiple
-            // glyphs (base + combining mark, ligature decomposition), and
-            // tracking should only be added once — when the NEXT glyph
-            // starts a new cluster (is_cluster_start).
-            if (tracking != 0.0f && i + 1 < hb_run.glyphs.size()) {
-                if (hb_run.glyphs[i + 1].is_cluster_start) {
-                    adv_x += tracking;
-                }
-            }
-            p.advance.reset(adv_x, g.advance_y);
+            // Use raw offsets (not cumulative x/y), matching
+            // BL_GLYPH_PLACEMENT_TYPE_ADVANCE_OFFSET semantics.
+            p.placement.reset(pg.x_offset, pg.y_offset);
+            p.advance.reset(pg.advance_x, pg.advance_y);
             result.placements.push_back(p);
         }
         result.bl_run.glyphData = result.glyph_ids.data();
@@ -243,14 +231,14 @@ struct FtGlyphPathBuilder {
     FtGlyphPathBuilder(const FtGlyphPathBuilder&) = delete;
     FtGlyphPathBuilder& operator=(const FtGlyphPathBuilder&) = delete;
 
-    /// Build a BLPath from a HarfBuzz GlyphRun, translating each glyph
-    /// outline to the given (origin_x, origin_y) baseline position.
-    /// @param tracking extra per-cluster spacing; added to the pen the same
-    ///                 way as HbToBlGlyphRun so fill and stroke stay aligned.
+    /// Build a BLPath from a PlacedGlyphRun, translating each glyph outline
+    /// to the given (origin_x, origin_y) baseline position.
+    /// Uses the pre-computed cumulative positions from PlacedGlyphRun,
+    /// so no pen tracking or tracking logic is needed here.
     /// Returns an empty path if the face cannot be loaded or the run is empty.
-    BLPath build_path(const GlyphRun& hb_run, float origin_x, float origin_y, float tracking = 0.0f) {
+    BLPath build_path(const PlacedGlyphRun& placed, float origin_x, float origin_y) {
         BLPath path;
-        if (!ft_face || hb_run.glyphs.empty()) return path;
+        if (!ft_face || placed.glyphs.empty()) return path;
 
         std::lock_guard<std::mutex> lock(mutex);
 
@@ -312,43 +300,25 @@ struct FtGlyphPathBuilder {
         funcs.delta = 0;
         funcs.shift = 0;
 
-        // Track a tracking-aware pen so the path positions match what
-        // HbToBlGlyphRun produces for fillGlyphRun.  The pen accumulates
-        // glyph advances + per-cluster tracking, same logic as in from().
-        float pen_x = 0.0f;
-        float pen_y = 0.0f;
-
-        for (size_t i = 0; i < hb_run.glyphs.size(); ++i) {
-            const auto& g = hb_run.glyphs[i];
-
-            if (FT_Load_Glyph(ft_face, g.glyph_id, FT_LOAD_NO_BITMAP) != 0) {
-                goto advance_pen;
+        // Use the pre-computed cumulative positions from PlacedGlyphRun.
+        // Each glyph's x/y already includes pen accumulation + x_offset.
+        // No pen tracking needed — positions come from the resolver.
+        for (const auto& pg : placed.glyphs) {
+            if (FT_Load_Glyph(ft_face, pg.glyph_id, FT_LOAD_NO_BITMAP) != 0) {
+                continue;
             }
             if (ft_face->glyph->format != FT_GLYPH_FORMAT_OUTLINE) {
-                goto advance_pen;
+                continue;
             }
 
             {
-                const float glyph_ox = origin_x + pen_x + g.x_offset;
-                const float glyph_oy = origin_y + pen_y + g.y_offset;
+                const float glyph_ox = origin_x + pg.x;
+                const float glyph_oy = origin_y + pg.y;
 
                 DecomposeCtx ctx{&path, static_cast<double>(glyph_ox), static_cast<double>(glyph_oy), true};
                 FT_Outline_Decompose(&ft_face->glyph->outline, &funcs, &ctx);
                 if (!ctx.first_contour) path.close();
             }
-
-        advance_pen:
-            float adv_x = g.advance_x;
-            if (tracking != 0.0f && i + 1 < hb_run.glyphs.size()) {
-                if (hb_run.glyphs[i + 1].is_cluster_start) {
-                    adv_x += tracking;
-                }
-            }
-            // Pen must accumulate BOTH offset and advance, matching
-            // Blend2D's BL_GLYPH_PLACEMENT_TYPE_ADVANCE_OFFSET: offset
-            // is added to pen BEFORE drawing, advance moves it AFTER.
-            pen_x += g.x_offset + adv_x;
-            pen_y += g.y_offset + g.advance_y;
         }
         return path;
     }
@@ -636,16 +606,23 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
 
         auto hb_run = engine->shape_text(run.text, run_spec, run_shape_size, run_style.shaping);
 
+        // ── Canonical PlacedGlyphRun: resolve once, share between
+        // fill and stroke for identical tracking and positioning. ──
+        std::optional<PlacedGlyphRun> placed;
+        if (hb_run && !hb_run->glyphs.empty()) {
+            placed = resolve_placed_glyph_run(*hb_run, run_style.tracking, run.text);
+        }
+
         // ── Stroke: convert HarfBuzz glyphs to paths so fill and
         // stroke use identical shaped glyphs.  strokeUtf8Text would
         // re-shape with Blend2D's internal shaper and may produce
         // different GSUB substitutions for Arabic, Devanagari, etc.
         if (run_style.paint.stroke_enabled && run_style.paint.stroke_width > 0.0f) {
-            if (hb_run && !hb_run->glyphs.empty()) {
+            if (placed) {
                 const std::string stroke_font_path = run_style.font_path;
                 FtGlyphPathBuilder ft_path;
                 if (ft_path.load_face(stroke_font_path, run_shape_size)) {
-                    BLPath stroke_path = ft_path.build_path(*hb_run, lx, baseline_y, run_style.tracking);
+                    BLPath stroke_path = ft_path.build_path(*placed, lx, baseline_y);
                     if (!stroke_path.empty()) {
                         ctx.setStrokeWidth(run_style.paint.stroke_width);
                         ctx.setStrokeStyle(to_bl_rgba(run_style.paint.stroke_color));
@@ -670,10 +647,10 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
             line.baseline + line.descent
         );
 
-        if (hb_run && !hb_run->glyphs.empty()) {
+        if (placed) {
             // HarfBuzz glyph indices match Blend2D glyph IDs because
             // both read the same FreeType face from the same font file.
-            auto bl = HbToBlGlyphRun::from(*hb_run, run_style.tracking);
+            auto bl = HbToBlGlyphRun::from(*placed);
             ctx.fillGlyphRun(BLPoint(lx, baseline_y), run_font, bl.bl_run);
         } else {
             // Fallback: Blend2D internal shaping if HarfBuzz unavailable
@@ -707,13 +684,20 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
 
         auto hb_run = engine->shape_text(line.text, line_spec, layout_res.font_size, t.style.shaping);
 
+        // ── Canonical PlacedGlyphRun: resolve once, share between
+        // fill and stroke for identical tracking and positioning. ──
+        std::optional<PlacedGlyphRun> placed;
+        if (hb_run && !hb_run->glyphs.empty()) {
+            placed = resolve_placed_glyph_run(*hb_run, t.style.tracking, line.text);
+        }
+
         // ── Stroke: same HarfBuzz glyph paths as fill (see render_run above).
         if (t.style.paint.stroke_enabled && t.style.paint.stroke_width > 0.0f) {
-            if (hb_run && !hb_run->glyphs.empty()) {
+            if (placed) {
                 const std::string stroke_font_path = t.style.font_path;
                 FtGlyphPathBuilder ft_path;
                 if (ft_path.load_face(stroke_font_path, layout_res.font_size)) {
-                    BLPath stroke_path = ft_path.build_path(*hb_run, lx, ly, t.style.tracking);
+                    BLPath stroke_path = ft_path.build_path(*placed, lx, ly);
                     if (!stroke_path.empty()) {
                         ctx.setStrokeWidth(t.style.paint.stroke_width);
                         ctx.setStrokeStyle(to_bl_rgba(t.style.paint.stroke_color));
@@ -737,8 +721,8 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
             text_block_h
         );
 
-        if (hb_run && !hb_run->glyphs.empty()) {
-            auto bl = HbToBlGlyphRun::from(*hb_run, t.style.tracking);
+        if (placed) {
+            auto bl = HbToBlGlyphRun::from(*placed);
             ctx.fillGlyphRun(BLPoint(lx, ly), font, bl.bl_run);
         } else {
             ctx.fillUtf8Text(BLPoint(lx, ly), font, line.text.c_str());
