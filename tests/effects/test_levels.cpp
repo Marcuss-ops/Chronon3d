@@ -300,8 +300,8 @@ TEST_CASE("Levels: transparent input stays transparent") {
 // =============================================================================
 
 TEST_CASE("Levels: clip preserves pixels outside clip region") {
-    Framebuffer fb = make_coord_fb(8, 8);
-    Framebuffer original = make_coord_fb(8, 8);
+    Framebuffer fb = ::make_coord_fb(8, 8);
+    Framebuffer original = ::make_coord_fb(8, 8);
 
     // Apply with partial clip [2, 3] → [6, 7]
     apply_levels(fb,
@@ -315,7 +315,7 @@ TEST_CASE("Levels: clip preserves pixels outside clip region") {
         for (int x = 0; x < 8; ++x) {
             bool inside = (x >= 2 && x < 6 && y >= 3 && y < 7);
             if (!inside) {
-                check_color_near(fb.get_pixel(x, y),
+                ::check_color_near(fb.get_pixel(x, y),
                                  original.get_pixel(x, y),
                                  kExactEpsilon);
             }
