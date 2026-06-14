@@ -1,8 +1,7 @@
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
-
-#include "content/common/background_helpers.hpp"
+#include "content/text/text_helpers.hpp"
 
 #include <string>
 
@@ -10,36 +9,10 @@ namespace chronon3d::content::anims {
 
 namespace {
 
-// ── Common helpers (aligned with Minimalist family conventions) ──────────────
-
-void add_common_background(SceneBuilder& s) {
-    chronon3d::content::backgrounds::add_common_background(
-        s, chronon3d::content::backgrounds::BackgroundStyles::Minimalist());
-}
-
-// Common text params matching Minimalist convention — always explicit font_path
-// and vertical_align so text renders identically across all composition families.
-// Uses a compact box (600x100) appropriate for short single-line labels.
-TextParams common_text_params(std::string text, f32 font_size = 64.0f) {
-    return TextParams{
-        .text = std::move(text),
-        .size = {600.0f, 100.0f},
-        .pos = {0.0f, 0.0f, 0.0f},
-        .font_path = "assets/fonts/Poppins-Bold.ttf",
-        .font_size = font_size,
-        .color = {0.94f, 0.94f, 0.94f, 1.0f},
-        .anchor = TextAnchor::Center,
-        .align = TextAlign::Center,
-        .vertical_align = VerticalAlign::Middle,
-        .line_height = 1.10f,
-        .tracking = 0.0f,
-        .auto_fit = false,
-        .max_lines = 1,
-        .min_font_size = 42.0f,
-        .max_font_size = 64.0f,
-        .overflow = TextOverflow::Clip,
-        .wrap = TextWrap::None
-    };
+inline void add_black_background(SceneBuilder& s) {
+    s.layer("_bg", [](LayerBuilder& l) {
+        l.fullscreen_rect("bg", Color{0.0f, 0.0f, 0.0f, 1.0f});
+    });
 }
 
 } // namespace
@@ -47,11 +20,15 @@ TextParams common_text_params(std::string text, f32 font_size = 64.0f) {
 Composition anim_fade_in_text() {
     return composition({.name = "AnimFadeInText", .width = 1920, .height = 1080, .duration = 60}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        add_common_background(s);
+        add_black_background(s);
         s.layer("text", [&](auto& l) {
             l.pin_to(Anchor::Center);
             l.opacity(std::min(1.0f, ctx.progress() * 4.0f));
-            l.text("label", common_text_params("Fade In"));
+            l.text("label", text::centered_text({
+                .text = "Fade In",
+                .font_size = 64.0f,
+                .tracking = 3.0f,
+            }));
         });
         return s.build();
     });
@@ -60,12 +37,16 @@ Composition anim_fade_in_text() {
 Composition anim_slide_text() {
     return composition({.name = "AnimSlideText", .width = 1920, .height = 1080, .duration = 60}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        add_common_background(s);
+        add_black_background(s);
         const f32 p = ctx.progress();
         s.layer("text", [&](auto& l) {
             l.pin_to(Anchor::Center);
             l.opacity(std::min(1.0f, p * 3.0f)).position({-200.0f + p * 400.0f, 0, 0});
-            l.text("label", common_text_params("Slide In"));
+            l.text("label", text::centered_text({
+                .text = "Slide In",
+                .font_size = 64.0f,
+                .tracking = 3.0f,
+            }));
         });
         return s.build();
     });
@@ -74,24 +55,40 @@ Composition anim_slide_text() {
 Composition anim_scale_text() {
     return composition({.name = "AnimScaleText", .width = 1920, .height = 1080, .duration = 60}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        add_common_background(s);
+        add_black_background(s);
         const f32 p = ctx.progress();
         s.layer("text", [&](auto& l) {
             l.pin_to(Anchor::Center);
             l.opacity(std::min(1.0f, p * 4.0f)).scale({0.3f + 0.7f * std::min(1.0f, p * 3.0f), 0.3f + 0.7f * std::min(1.0f, p * 3.0f), 1});
-            l.text("label", common_text_params("Scale Up"));
+            l.text("label", text::centered_text({
+                .text = "Scale Up",
+                .font_size = 64.0f,
+                .tracking = 3.0f,
+            }));
         });
         return s.build();
     });
 }
 
 Composition anim_typewriter() {
-    return composition({.name = "AnimTypewriter", .width = 1920, .height = 1080, .duration = 60}, [](const FrameContext& ctx) {
+    return composition({.name = "AnimTypewriter", .width = 1920, .height = 1080, .duration = 90}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        add_common_background(s);
+        add_black_background(s);
         s.layer("text", [&](auto& l) {
             l.pin_to(Anchor::Center);
-            l.text("label", common_text_params("Typewriter"));
+            l.text("label", text::typewriter_text(
+                text::CenterTextOptions{
+                    .text = "Typewriter",
+                    .font_size = 64.0f,
+                    .tracking = 3.0f,
+                },
+                ctx.frame, 0.3f,
+                text::TypewriterOptions{
+                    .easing = EasingCurve{Easing::OutCubic},
+                    .start_delay = Frame{0},
+                    .fade_chars = 1.0f,
+                }
+            ));
         });
         return s.build();
     });
