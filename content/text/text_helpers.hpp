@@ -38,7 +38,9 @@
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/backends/text/text_layout_engine.hpp>
 #include <mutex>
+#include <set>
 #include <string>
+#include <unordered_map>
 #include <vector>
 #include <algorithm>
 #include <utility>
@@ -360,93 +362,134 @@ inline TypewriterLayout compute_typewriter_layout(
     auto run = engine.shape_text(text, font_spec, font_size);
     if (!run || run->glyphs.empty()) return result;
 
-    // Detect RTL: if glyph clusters decrease across the run
-    // (e.g. Arabic, Hebrew), we must swap byte_offset/byte_len
-    // to avoid unsigned underflow.
-    const bool is_rtl = !run->glyphs.empty() &&
-        run->glyphs.front().cluster > run->glyphs.back().cluster;
+    // ── Unified cluster-interval map (LTR, RTL, mixed bidi) ────────────
+    //
+    // HarfBuzz `cluster` values are byte offsets into the source text.
+    // Collect unique values, sort by source-text offset, and build
+    // intervals [sorted[k], sorted[k+1]) — each cluster-start glyph
+    // maps to its own interval regardless of visual (glyph) order.
+    //
+    // This replaces the old per-glyph RTL/LTR heuristic which assumed
+    // cluster == end byte and broke for complex scripts.
 
-    // Map glyph clusters → per-character advances (O(n))
-    struct CharAdv {
-        size_t byte_offset;
-        size_t byte_len;
-        f32 advance;
-    };
+    struct CharAdv { size_t byte_offset; size_t byte_len; f32 advance; };
+
+    // 1. Collect unique cluster values.
+    std::set<u32> cluster_set;
+    for (const auto& gp : run->glyphs) {
+        cluster_set.insert(gp.cluster);
+    }
+    cluster_set.insert(static_cast<u32>(text.size()));
+
+    // 2. Build sorted intervals → cluster-to-range map.
+    std::vector<u32> sorted_clusters(cluster_set.begin(), cluster_set.end());
+    std::unordered_map<u32, std::pair<size_t, size_t>> cluster_to_range;
+    for (size_t k = 0; k + 1 < sorted_clusters.size(); ++k) {
+        cluster_to_range[sorted_clusters[k]] = {
+            static_cast<size_t>(sorted_clusters[k]),
+            static_cast<size_t>(sorted_clusters[k + 1])
+        };
+    }
+
+    // 3. Aggregate advances per cluster (multiple glyphs may share a cluster).
+    std::unordered_map<u32, f32> cluster_advances;
+    for (const auto& gp : run->glyphs) {
+        cluster_advances[gp.cluster] += gp.advance_x;
+    }
+
+    // 4. Emit one entry per unique cluster in source-text order, with
+    //    tracking added once per cluster (not per glyph within a cluster).
     std::vector<CharAdv> char_advances;
-    char_advances.reserve(run->glyphs.size());
+    char_advances.reserve(sorted_clusters.size());
 
-    for (size_t gi = 0; gi < run->glyphs.size(); ++gi) {
-        const auto& gp = run->glyphs[gi];
-        size_t cur_cluster = static_cast<size_t>(gp.cluster);
-        size_t next_cluster = (gi + 1 < run->glyphs.size())
-            ? static_cast<size_t>(run->glyphs[gi + 1].cluster)
-            : (is_rtl ? 0 : text.size());
+    for (size_t k = 0; k + 1 < sorted_clusters.size(); ++k) {
+        const u32 c = sorted_clusters[k];
+        auto it = cluster_to_range.find(c);
+        if (it == cluster_to_range.end()) continue;
+
+        const auto& [start_byte, end_byte] = it->second;
+        if (end_byte <= start_byte || start_byte >= text.size()) continue;
 
         CharAdv ca;
-        if (is_rtl) {
-            // For RTL text, HarfBuzz glyph clusters decrease (high → low).
-            // gp.cluster points to the END byte of the visual character;
-            // the next glyph's cluster is the START byte.
-            // Example: cluster=12, next_cluster=8 → byte_offset=8, len=4.
-            ca.byte_offset = next_cluster;
-            if (cur_cluster >= next_cluster + 1) {
-                ca.byte_len = cur_cluster - next_cluster;
-            } else {
-                ca.byte_len = 1;  // safety: avoid zero or underflow
-            }
-        } else {
-            // LTR: clusters increase monotonically
-            ca.byte_offset = cur_cluster;
-            if (next_cluster > cur_cluster) {
-                ca.byte_len = next_cluster - cur_cluster;
-            } else {
-                ca.byte_len = 1;  // safety: avoid zero or underflow
-            }
-        }
-        ca.advance = gp.advance_x + tracking;
+        ca.byte_offset = start_byte;
+        ca.byte_len = end_byte - start_byte;
+        ca.advance = cluster_advances[c] + tracking;  // tracking once per cluster
         char_advances.push_back(ca);
     }
 
     // ── Grapheme-cluster merge: group glyphs that form a single
     //     user-perceived character (e.g. base + combining mark). ───
-    // This prevents the typewriter from revealing half of an accented
-    // letter or splitting an emoji ZWJ sequence across frames.
+    // This is a safety net for cases where HarfBuzz assigns different
+    // cluster values to grapheme extenders (ZWJ sequences, skin tones).
     {
         std::vector<CharAdv> merged;
         merged.reserve(char_advances.size());
 
+        // GB11 state for ZWJ emoji sequences
+        enum class GB11State { Normal, ExtPict, ExtPictZWJ };
+        GB11State gb11 = GB11State::Normal;
+
         for (size_t i = 0; i < char_advances.size(); ++i) {
             auto& ca = char_advances[i];
 
-            // Decode the first code point at this glyph's byte offset
             size_t cp_offset = ca.byte_offset;
             if (cp_offset < text.size()) {
                 const char32_t cp = utf8_decode_cp(std::string_view(text), cp_offset);
-
-                // Check if this is a grapheme extender or the second
-                // half of a regional-indicator flag pair
                 const bool is_ext = is_grapheme_extend(cp);
-                bool is_second_ri = false;
-                if (!merged.empty() && !is_ext) {
-                    // Check if both this and previous are regional indicators
-                    size_t prev_cp_off = merged.back().byte_offset;
-                    size_t prev_cp_off2 = prev_cp_off;
-                    if (prev_cp_off2 < text.size()) {
+                const bool is_ep  = chronon3d::detail::is_extended_pictographic(cp);
+                const bool is_ri  = chronon3d::detail::is_regional_indicator(cp);
+                const bool is_zwj = (cp == 0x200D);
+
+                // RI pair: merge two consecutive Regional Indicators
+                if (!merged.empty() && is_ri) {
+                    size_t prev_off = merged.back().byte_offset;
+                    size_t prev_off2 = prev_off;
+                    if (prev_off2 < text.size()) {
                         const char32_t prev_cp = utf8_decode_cp(
-                            std::string_view(text), prev_cp_off2);
-                        if (chronon3d::detail::is_regional_indicator(prev_cp) &&
-                            chronon3d::detail::is_regional_indicator(cp)) {
-                            is_second_ri = true;
+                            std::string_view(text), prev_off2);
+                        if (chronon3d::detail::is_regional_indicator(prev_cp)) {
+                            auto& prev = merged.back();
+                            prev.byte_len = ca.byte_offset + ca.byte_len - prev.byte_offset;
+                            prev.advance += ca.advance;
+                            gb11 = GB11State::Normal;
+                            continue;
                         }
                     }
                 }
 
-                if ((is_ext || is_second_ri) && !merged.empty()) {
-                    // Merge into the previous cluster
+                // ZWJ after ExtPict: transition state, merge
+                if (is_zwj && gb11 == GB11State::ExtPict) {
+                    gb11 = GB11State::ExtPictZWJ;
+                    if (!merged.empty()) {
+                        auto& prev = merged.back();
+                        prev.byte_len = ca.byte_offset + ca.byte_len - prev.byte_offset;
+                        prev.advance += ca.advance;
+                    }
+                    continue;
+                }
+
+                // ExtPict after ExtPictZWJ: merge (GB11 continuation)
+                if (is_ep && !is_ri && gb11 == GB11State::ExtPictZWJ) {
+                    gb11 = GB11State::ExtPict;
+                    if (!merged.empty()) {
+                        auto& prev = merged.back();
+                        prev.byte_len = ca.byte_offset + ca.byte_len - prev.byte_offset;
+                        prev.advance += ca.advance;
+                    }
+                    continue;
+                }
+
+                // Generic grapheme extender: merge into previous cluster
+                if (is_ext && !merged.empty()) {
                     auto& prev = merged.back();
                     prev.byte_len = ca.byte_offset + ca.byte_len - prev.byte_offset;
                     prev.advance += ca.advance;
                     continue;
+                }
+
+                // Update GB11 state for non-extend characters
+                if (!is_ext) {
+                    gb11 = is_ep ? GB11State::ExtPict : GB11State::Normal;
                 }
             }
 
