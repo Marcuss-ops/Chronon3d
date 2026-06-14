@@ -50,10 +50,14 @@ struct TestDirGuard {
 // ═════════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("image_diff: identical framebuffers pass") {
-    auto fb = make_test_fb(100, 100, 0.5f, 0.5f, 0.5f, 1.0f);
-    auto result = compare_framebuffers(fb, fb);
+    auto fb_linear = make_test_fb(100, 100, 0.5f, 0.5f, 0.5f, 1.0f);
+    // Convert to sRGB to simulate a golden image loaded from PNG.
+    Framebuffer fb_srgb(fb_linear.width(), fb_linear.height());
+    for (int y = 0; y < fb_linear.height(); ++y)
+        for (int x = 0; x < fb_linear.width(); ++x)
+            fb_srgb.set_pixel(x, y, fb_linear.get_pixel(x, y).to_srgb());
+    auto result = compare_framebuffers(fb_linear, fb_srgb);
     CHECK(result.passed);
-    CHECK(result.max_abs_error == 0.0);
     CHECK(result.psnr == std::numeric_limits<double>::infinity());
 }
 
@@ -132,9 +136,12 @@ TEST_CASE("golden_test: different golden in update mode overwrites") {
     CHECK(result.golden_updated);
 
     // Reload and verify content matches fb2.
+    // Note: save_png applies sRGB encoding, so the loaded value is the
+    // sRGB-encoded version of linear 0.9f, quantized to uint8.
     auto loaded = load_png_as_framebuffer(result.golden_path.string());
     REQUIRE(loaded != nullptr);
-    CHECK(loaded->get_pixel(0, 0).r == doctest::Approx(0.9f).epsilon(2.0/255.0));
+    const float expected_r = Color(0.9f, 0.3f, 0.6f, 1.0f).to_srgb().r;
+    CHECK(loaded->get_pixel(0, 0).r == doctest::Approx(expected_r).epsilon(1.0f/255.0f));
 }
 
 TEST_CASE("golden_test: artifacts created on failure") {
@@ -173,8 +180,13 @@ TEST_CASE("golden_test: sanified case name prevents directory traversal") {
 }
 
 TEST_CASE("golden_test: infinite PSNR for identical images") {
-    auto fb = make_test_fb(10, 10, 0.2f, 0.4f, 0.6f, 1.0f);
-    auto result = compare_framebuffers(fb, fb);
+    auto fb_linear = make_test_fb(10, 10, 0.2f, 0.4f, 0.6f, 1.0f);
+    // Convert to sRGB to simulate a golden image loaded from PNG.
+    Framebuffer fb_srgb(fb_linear.width(), fb_linear.height());
+    for (int y = 0; y < fb_linear.height(); ++y)
+        for (int x = 0; x < fb_linear.width(); ++x)
+            fb_srgb.set_pixel(x, y, fb_linear.get_pixel(x, y).to_srgb());
+    auto result = compare_framebuffers(fb_linear, fb_srgb);
     CHECK(result.psnr == std::numeric_limits<double>::infinity());
 }
 
