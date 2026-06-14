@@ -469,6 +469,25 @@ inline size_t grapheme_cluster_count(std::string_view sv) {
     return count;
 }
 
+/// Decode a UTF-8 code point at the given byte offset without advancing.
+/// Returns the code point, or U+FFFD if the sequence is invalid or
+/// would run past the end of the string_view.
+/// Used by grapheme_byte_offset_at for peek operations at multiple
+/// call sites (main loop, RI pair check, trailing extender loop).
+inline char32_t utf8_decode_at(std::string_view sv, size_t offset) {
+    if (offset >= sv.size()) return 0xFFFD;
+    const unsigned char lead = static_cast<unsigned char>(sv[offset]);
+    const size_t len = utf8_seq_len(lead);
+    if (offset + len > sv.size()) return 0xFFFD;
+    switch (len) {
+        case 1: return lead;
+        case 2: return ((lead & 0x1F) << 6) | (static_cast<unsigned char>(sv[offset + 1]) & 0x3F);
+        case 3: return ((lead & 0x0F) << 12) | ((static_cast<unsigned char>(sv[offset + 1]) & 0x3F) << 6) | (static_cast<unsigned char>(sv[offset + 2]) & 0x3F);
+        case 4: return ((lead & 0x07) << 18) | ((static_cast<unsigned char>(sv[offset + 1]) & 0x3F) << 12) | ((static_cast<unsigned char>(sv[offset + 2]) & 0x3F) << 6) | (static_cast<unsigned char>(sv[offset + 3]) & 0x3F);
+        default: return 0xFFFD;
+    }
+}
+
 /// Find the byte offset after exactly N complete grapheme clusters.
 /// Returns sv.size() if N exceeds the string length.  Safe for
 /// std::string::substr() — never splits a grapheme cluster.
@@ -490,15 +509,7 @@ inline size_t grapheme_byte_offset_at(std::string_view sv, size_t n) {
         const size_t len = utf8_seq_len(lead);
         if (offset + len > sv.size()) break;
 
-        // Decode the code point inline
-        char32_t cp;
-        switch (len) {
-            case 1: cp = lead; break;
-            case 2: cp = ((lead & 0x1F) << 6) | (static_cast<unsigned char>(sv[offset+1]) & 0x3F); break;
-            case 3: cp = ((lead & 0x0F) << 12) | ((static_cast<unsigned char>(sv[offset+1]) & 0x3F) << 6) | (static_cast<unsigned char>(sv[offset+2]) & 0x3F); break;
-            case 4: cp = ((lead & 0x07) << 18) | ((static_cast<unsigned char>(sv[offset+1]) & 0x3F) << 12) | ((static_cast<unsigned char>(sv[offset+2]) & 0x3F) << 6) | (static_cast<unsigned char>(sv[offset+3]) & 0x3F); break;
-            default: cp = 0xFFFD; break;
-        }
+        const char32_t cp = utf8_decode_at(sv, offset);
 
         const bool is_ext = is_grapheme_extend(cp);
         const bool is_ri  = is_regional_indicator(cp);
@@ -515,15 +526,8 @@ inline size_t grapheme_byte_offset_at(std::string_view sv, size_t n) {
                         const unsigned char lead2 = static_cast<unsigned char>(sv[offset]);
                         const size_t len2 = utf8_seq_len(lead2);
                         if (offset + len2 <= sv.size()) {
-                            char32_t next_cp;
-                            switch (len2) {
-                                case 1: next_cp = lead2; break;
-                                case 2: next_cp = ((lead2 & 0x1F) << 6) | (static_cast<unsigned char>(sv[offset+1]) & 0x3F); break;
-                                case 3: next_cp = ((lead2 & 0x0F) << 12) | ((static_cast<unsigned char>(sv[offset+1]) & 0x3F) << 6) | (static_cast<unsigned char>(sv[offset+2]) & 0x3F); break;
-                                case 4: next_cp = ((lead2 & 0x07) << 18) | ((static_cast<unsigned char>(sv[offset+1]) & 0x3F) << 12) | ((static_cast<unsigned char>(sv[offset+2]) & 0x3F) << 6) | (static_cast<unsigned char>(sv[offset+3]) & 0x3F); break;
-                                default: next_cp = 0; break;
-                            }
-                            if (is_regional_indicator(next_cp)) {
+                        const char32_t next_cp = utf8_decode_at(sv, offset);
+                        if (is_regional_indicator(next_cp)) {
                                 offset += len2;
                             }
                         }
@@ -573,14 +577,7 @@ inline size_t grapheme_byte_offset_at(std::string_view sv, size_t n) {
                 const unsigned char next_lead = static_cast<unsigned char>(sv[offset]);
                 const size_t next_len = utf8_seq_len(next_lead);
                 if (offset + next_len > sv.size()) break;
-                char32_t next_cp;
-                switch (next_len) {
-                    case 1: next_cp = next_lead; break;
-                    case 2: next_cp = ((next_lead & 0x1F) << 6) | (static_cast<unsigned char>(sv[offset+1]) & 0x3F); break;
-                    case 3: next_cp = ((next_lead & 0x0F) << 12) | ((static_cast<unsigned char>(sv[offset+1]) & 0x3F) << 6) | (static_cast<unsigned char>(sv[offset+2]) & 0x3F); break;
-                    case 4: next_cp = ((next_lead & 0x07) << 18) | ((static_cast<unsigned char>(sv[offset+1]) & 0x3F) << 12) | ((static_cast<unsigned char>(sv[offset+2]) & 0x3F) << 6) | (static_cast<unsigned char>(sv[offset+3]) & 0x3F); break;
-                    default: next_cp = 0; break;
-                }
+                const char32_t next_cp = utf8_decode_at(sv, offset);
                 const bool next_ext = is_grapheme_extend(next_cp);
                 const bool next_zwj = (next_cp == 0x200D);
                 const bool next_ep  = is_extended_pictographic(next_cp);
