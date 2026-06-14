@@ -36,6 +36,8 @@
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/text/text_glow_spec.hpp>
 #include <chronon3d/text/font_engine.hpp>
+#include <chronon3d/backends/text/text_layout_engine.hpp>
+#include <mutex>
 #include <string>
 #include <vector>
 #include <algorithm>
@@ -110,6 +112,8 @@ inline TextParams centered_text(CenterTextOptions o) {
 
 /// Count Unicode code points (not bytes) in a UTF-8 string.
 /// Continuation bytes (10xxxxxx) are skipped.
+/// Prefer grapheme_cluster_count() for user-visible characters —
+/// this function is kept for backward compatibility.
 inline size_t utf8_code_point_count(const std::string& s) {
     size_t count = 0;
     for (size_t i = 0; i < s.size(); ++i) {
@@ -121,14 +125,44 @@ inline size_t utf8_code_point_count(const std::string& s) {
 /// Find the byte offset after exactly N complete code points.
 /// Returns s.size() if N exceeds the string length.  Safe for use with
 /// std::string::substr() — never splits a multi-byte character.
+///
+/// Walks the entire multi-byte sequence before returning the offset,
+/// so that substr(0, offset) is always valid UTF-8.
+/// Prefer grapheme_byte_offset_at() for user-visible characters —
+/// this function is kept for backward compatibility.
 inline size_t utf8_byte_offset_at(const std::string& s, size_t code_points) {
-    size_t cp = 0;
-    for (size_t i = 0; i < s.size(); ++i) {
-        if (cp == code_points) return i;
-        if ((static_cast<unsigned char>(s[i]) & 0xC0) != 0x80) ++cp;
+    size_t offset = 0;
+    size_t count  = 0;
+
+    while (offset < s.size() && count < code_points) {
+        const unsigned char lead = static_cast<unsigned char>(s[offset]);
+
+        // Determine sequence length from the leading byte
+        size_t len = 1;
+        if      ((lead & 0xE0) == 0xC0) len = 2;
+        else if ((lead & 0xF0) == 0xE0) len = 3;
+        else if ((lead & 0xF8) == 0xF0) len = 4;
+
+        // Safety: clamp if the sequence extends past the end of the string
+        if (offset + len > s.size()) len = 1;
+
+        offset += len;
+        ++count;
     }
-    return s.size();
+
+    return offset;
 }
+
+// ── Grapheme-cluster-safe helpers (UAX #29) ──────────────────────────
+//
+// These delegate to the canonical implementation in
+// chronon3d::detail (text_layout_engine.hpp) so there is one
+// source of truth for grapheme cluster boundaries.
+
+using chronon3d::detail::grapheme_cluster_count;
+using chronon3d::detail::grapheme_byte_offset_at;
+using chronon3d::detail::is_grapheme_extend;
+using chronon3d::detail::utf8_decode_cp;
 
 // ═════════════════════════════════════════════════════════════════════════════
 // 2. typewriter_text — simple substr-based reveal
@@ -138,9 +172,9 @@ inline size_t utf8_byte_offset_at(const std::string& s, size_t code_points) {
 // the current frame.  Returns a single space (" ") for frame 0 so the
 // text layer never collapses to zero size.
 //
-// **UTF-8 safe**: uses code-point counting, not byte counting, so strings
-// with multi-byte characters (emoji, accented letters, CJK) are never split
-// mid-character.
+// **Grapheme-cluster safe**: uses UAX #29 grapheme cluster counting, so
+// combining marks, ZWJ emoji sequences, and emoji skin-tone modifiers are
+// never split from their base character during the reveal.
 //
 // TypewriterOptions gives full control over the reveal:
 //   - easing:       curve applied to the linear progress (default Linear)
@@ -165,7 +199,7 @@ inline TextParams typewriter_text(CenterTextOptions o,
                                   f32 chars_per_frame = 1.5f,
                                   TypewriterOptions tw = {}) {
     const f32 raw_frame = static_cast<f32>(frame) - static_cast<f32>(tw.start_delay);
-    const f32 total_chars_f = static_cast<f32>(utf8_code_point_count(o.text));
+    const f32 total_chars_f = static_cast<f32>(grapheme_cluster_count(o.text));
 
     // Nothing visible yet (before delay or at frame 0)
     if (raw_frame < 0.0f || total_chars_f <= 0.0f) {
@@ -212,7 +246,7 @@ inline TextParams typewriter_text(CenterTextOptions o,
 
     std::string visible = (revealed == 0)
         ? std::string(" ")
-        : o.text.substr(0, utf8_byte_offset_at(o.text, revealed));
+        : o.text.substr(0, grapheme_byte_offset_at(o.text, revealed));
 
     // Fade: during a character transition the layer alpha dips, creating a
     // soft leading-edge glow.  fade_chars is clamped to [0,1] so the text
@@ -326,6 +360,12 @@ inline TypewriterLayout compute_typewriter_layout(
     auto run = engine.shape_text(text, font_spec, font_size);
     if (!run || run->glyphs.empty()) return result;
 
+    // Detect RTL: if glyph clusters decrease across the run
+    // (e.g. Arabic, Hebrew), we must swap byte_offset/byte_len
+    // to avoid unsigned underflow.
+    const bool is_rtl = !run->glyphs.empty() &&
+        run->glyphs.front().cluster > run->glyphs.back().cluster;
+
     // Map glyph clusters → per-character advances (O(n))
     struct CharAdv {
         size_t byte_offset;
@@ -337,16 +377,83 @@ inline TypewriterLayout compute_typewriter_layout(
 
     for (size_t gi = 0; gi < run->glyphs.size(); ++gi) {
         const auto& gp = run->glyphs[gi];
-        size_t start_byte = static_cast<size_t>(gp.cluster);
-        size_t end_byte = (gi + 1 < run->glyphs.size())
+        size_t cur_cluster = static_cast<size_t>(gp.cluster);
+        size_t next_cluster = (gi + 1 < run->glyphs.size())
             ? static_cast<size_t>(run->glyphs[gi + 1].cluster)
-            : text.size();
+            : (is_rtl ? 0 : text.size());
 
         CharAdv ca;
-        ca.byte_offset = start_byte;
-        ca.byte_len = end_byte - start_byte;
+        if (is_rtl) {
+            // For RTL text, HarfBuzz glyph clusters decrease (high → low).
+            // gp.cluster points to the END byte of the visual character;
+            // the next glyph's cluster is the START byte.
+            // Example: cluster=12, next_cluster=8 → byte_offset=8, len=4.
+            ca.byte_offset = next_cluster;
+            if (cur_cluster >= next_cluster + 1) {
+                ca.byte_len = cur_cluster - next_cluster;
+            } else {
+                ca.byte_len = 1;  // safety: avoid zero or underflow
+            }
+        } else {
+            // LTR: clusters increase monotonically
+            ca.byte_offset = cur_cluster;
+            if (next_cluster > cur_cluster) {
+                ca.byte_len = next_cluster - cur_cluster;
+            } else {
+                ca.byte_len = 1;  // safety: avoid zero or underflow
+            }
+        }
         ca.advance = gp.advance_x + tracking;
         char_advances.push_back(ca);
+    }
+
+    // ── Grapheme-cluster merge: group glyphs that form a single
+    //     user-perceived character (e.g. base + combining mark). ───
+    // This prevents the typewriter from revealing half of an accented
+    // letter or splitting an emoji ZWJ sequence across frames.
+    {
+        std::vector<CharAdv> merged;
+        merged.reserve(char_advances.size());
+
+        for (size_t i = 0; i < char_advances.size(); ++i) {
+            auto& ca = char_advances[i];
+
+            // Decode the first code point at this glyph's byte offset
+            size_t cp_offset = ca.byte_offset;
+            if (cp_offset < text.size()) {
+                const char32_t cp = utf8_decode_cp(std::string_view(text), cp_offset);
+
+                // Check if this is a grapheme extender or the second
+                // half of a regional-indicator flag pair
+                const bool is_ext = is_grapheme_extend(cp);
+                bool is_second_ri = false;
+                if (!merged.empty() && !is_ext) {
+                    // Check if both this and previous are regional indicators
+                    size_t prev_cp_off = merged.back().byte_offset;
+                    size_t prev_cp_off2 = prev_cp_off;
+                    if (prev_cp_off2 < text.size()) {
+                        const char32_t prev_cp = utf8_decode_cp(
+                            std::string_view(text), prev_cp_off2);
+                        if (chronon3d::detail::is_regional_indicator(prev_cp) &&
+                            chronon3d::detail::is_regional_indicator(cp)) {
+                            is_second_ri = true;
+                        }
+                    }
+                }
+
+                if ((is_ext || is_second_ri) && !merged.empty()) {
+                    // Merge into the previous cluster
+                    auto& prev = merged.back();
+                    prev.byte_len = ca.byte_offset + ca.byte_len - prev.byte_offset;
+                    prev.advance += ca.advance;
+                    continue;
+                }
+            }
+
+            merged.push_back(ca);
+        }
+
+        char_advances = std::move(merged);
     }
 
     // Word-wrap
@@ -454,7 +561,13 @@ inline void typewriter_build(
     font_spec.font_family = opts.font_family;
     font_spec.font_weight = opts.font_weight;
 
-    // ── Single-entry layout cache (frame-invariant inputs) ──────────
+    // ── Thread-safe single-entry layout cache (frame-invariant inputs) ─
+    //
+    // A single static cache guarded by a mutex is sufficient because
+    // typewriter_build() is typically called for short titles, not
+    // paragraphs.  If per-composition isolation is ever needed the
+    // cache can be lifted into a caller-supplied structure.
+    static std::mutex s_cache_mutex;
     static TypewriterLayout cached_layout;
     static std::string cached_text;
     static f32         cached_font_size{0.0f};
@@ -462,6 +575,8 @@ inline void typewriter_build(
     static Vec2        cached_box{0.0f, 0.0f};
     static f32         cached_line_height{0.0f};
     static FontSpec    cached_font_spec;
+
+    std::lock_guard<std::mutex> lock(s_cache_mutex);
 
     bool cache_hit = (cached_text == opts.text &&
                       cached_font_size == opts.font_size &&
