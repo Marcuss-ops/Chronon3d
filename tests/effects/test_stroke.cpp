@@ -17,6 +17,7 @@
 #include <chronon3d/effects/effect_params.hpp>
 #include "src/backends/software/processors/effects/stroke/stroke.hpp"
 #include "tests/effects/test_helpers.hpp"
+using namespace test_fx;
 #include <cmath>
 #include <vector>
 

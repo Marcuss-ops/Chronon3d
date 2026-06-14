@@ -22,6 +22,7 @@
 #include <chronon3d/effects/color_contract.hpp>
 #include "src/backends/software/processors/effects/color/exposure_levels.hpp"
 #include "tests/effects/test_helpers.hpp"
+using namespace test_fx;
 #include <cmath>
 
 using namespace chronon3d;

@@ -11,6 +11,7 @@
 #include <chronon3d/effects/effect_catalog.hpp>
 #include <chronon3d/effects/effect_type.hpp>
 #include "tests/effects/test_helpers.hpp"
+using namespace test_fx;
 #include <set>
 #include <string>
 
