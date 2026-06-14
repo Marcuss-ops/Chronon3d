@@ -56,21 +56,15 @@ bool RawVideoSink::open(const VideoSinkConfig& config) {
         return false;
     }
 
-    const auto& stream = config.stream;
-    const auto fmt = config.stream.submitted_format;
-
-    if (stream.width <= 0 || stream.height <= 0) {
+    // Centralised config validation — reject invalid configurations early.
+    const auto validation = validate_video_sink_config(config);
+    if (!validation) {
         state_ = VideoSinkState::Failed;
         return false;
     }
 
-    // YUV420P and NV12 require even dimensions.
-    if (fmt == PixelFormat::YUV420P || fmt == PixelFormat::NV12) {
-        if (stream.width % 2 != 0 || stream.height % 2 != 0) {
-            state_ = VideoSinkState::Failed;
-            return false;
-        }
-    }
+    const auto& stream = config.stream;
+    const auto fmt = config.stream.submitted_format;
 
     // Open the output file.
     const auto& output = config.output;

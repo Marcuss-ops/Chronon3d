@@ -114,14 +114,10 @@ void track_pipe_encoder_process(
         return;
     }
 
-    auto* pipe_enc = dynamic_cast<FfmpegPipeEncoder*>(&encoder);
-    if (!pipe_enc) {
-        return;
-    }
-
-    sys_metrics.track_ffmpeg_pid(pipe_enc->ffmpeg_pid());
-    if (pipe_enc->ffmpeg_pid() > 0) {
-        spdlog::info("[video] Tracking FFmpeg child PID {} for system metrics", pipe_enc->ffmpeg_pid());
+    const int pid = encoder.ffmpeg_pid();
+    if (pid > 0) {
+        sys_metrics.track_ffmpeg_pid(pid);
+        spdlog::info("[video] Tracking FFmpeg child PID {} for system metrics", pid);
     }
 }
 
@@ -223,11 +219,7 @@ double pipe_write_blocked_ms(bool is_native, IVideoEncoder& encoder) {
         return 0.0;
     }
 
-    auto* pipe_enc = dynamic_cast<FfmpegPipeEncoder*>(&encoder);
-    if (pipe_enc) {
-        return pipe_enc->total_write_blocked_ms();
-    }
-    return 0.0;
+    return encoder.total_write_blocked_ms();
 }
 
 void log_pipe_export_failure(const PipeExportStatus& status) {
