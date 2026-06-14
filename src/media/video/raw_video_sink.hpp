@@ -22,7 +22,7 @@ namespace chronon3d::media::video {
 
 /// Writes raw pixel data to a file (no encoding, no container).
 ///
-/// Pixel format is determined by VideoSinkConfig::encoder::output_format.
+/// Pixel format is determined by VideoSinkConfig::stream::submitted_format.
 /// Each frame is appended as a tightly-packed byte sequence.
 /// No headers, no metadata, no framing — purely raw pixel bytes.
 ///

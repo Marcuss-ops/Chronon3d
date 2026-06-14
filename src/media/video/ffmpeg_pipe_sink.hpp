@@ -4,11 +4,12 @@
 // ffmpeg_pipe_sink.hpp — VideoSink that pipes frames to an FFmpeg subprocess.
 //
 // Launches ffmpeg as a child process connected via a pipe.  Raw pixel data
-// is converted (Framebuffer → YUV/RGB) and written to the pipe; ffmpeg
-// handles encoding and muxing.
+// is written to the pipe in the submitted format; ffmpeg handles encoding
+// and muxing to the configured output pixel format.
 //
 // Does NOT depend on CLI-level render loops or exporter orchestration.
-// Uses executable + argv (not command string) for subprocess spawn safety.
+// Uses posix_spawnp (Linux/macOS) / CreateProcessW (Windows) for shell-free
+// subprocess execution with real PID tracking and exit code collection.
 //
 // Thread-safety: NOT thread-safe.  The caller must serialise access.
 // ---------------------------------------------------------------------------
@@ -16,8 +17,9 @@
 #include <chronon3d/media/video/video_sink.hpp>
 #include <chronon3d/media/video/video_config.hpp>
 
+#include "process_runner.hpp"
+
 #include <atomic>
-#include <cstdio>
 #include <memory>
 #include <string>
 #include <vector>
@@ -28,7 +30,7 @@ namespace chronon3d::media::video {
 ///
 /// Lifecycle:  Created → open() → submit()×N → flush() → close() → Closed
 ///
-/// Format: frames are submitted in the encoder's output format (set during
+/// Format: frames are submitted in the stream's submitted_format (set during
 /// open()).  Planar/biplanar frames are tight-packed into interleaved
 /// layout before writing to the pipe.  Format conversion (Framebuffer →
 /// VideoFrameView) happens upstream, outside this sink.
@@ -60,7 +62,7 @@ public:
     // ── Diagnostics ─────────────────────────────────────────────────────
 
     /// PID of the ffmpeg child process (valid after successful open()).
-    [[nodiscard]] int ffmpeg_pid() const noexcept { return ffmpeg_pid_; }
+    [[nodiscard]] int ffmpeg_pid() const noexcept { return process_.pid(); }
 
     /// Total wall-clock time spent blocked on pipe writes (ms).
     [[nodiscard]] double total_write_blocked_ms() const noexcept { return total_write_blocked_ms_; }
@@ -68,13 +70,14 @@ public:
 private:
     // ── Subprocess management ──────────────────────────────────────────
 
-    /// Build the ffmpeg argument vector from config.  Returns executable + argv.
+    /// Build the ffmpeg argument vector from config.
+    /// Returns {executable, arg0, arg1, ...}.
     static std::vector<std::string> build_argv(const VideoSinkConfig& config);
 
-    /// Launch the ffmpeg subprocess and connect the write pipe.
+    /// Launch the ffmpeg subprocess via ProcessRunner.
     bool launch_ffmpeg(const std::vector<std::string>& argv);
 
-    /// Write raw bytes to the pipe, blocking until complete.
+    /// Write raw bytes to the child's stdin, blocking until complete.
     bool write_to_pipe(const uint8_t* data, size_t size);
 
     // ── Conversion ──────────────────────────────────────────────────────
@@ -84,8 +87,7 @@ private:
 
     // ── State ───────────────────────────────────────────────────────────
 
-    FILE*                     pipe_{nullptr};
-    int                       ffmpeg_pid_{-1};
+    ProcessRunner             process_;          // no-shell ffmpeg subprocess
     VideoSinkState            state_{VideoSinkState::Created};
     Stats                     stats_;
 

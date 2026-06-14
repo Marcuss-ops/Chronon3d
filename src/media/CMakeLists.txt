@@ -30,6 +30,7 @@ target_link_libraries(chronon3d_backend_video PUBLIC
 add_library(chronon3d_media_video STATIC
     video/raw_video_sink.cpp
     video/ffmpeg_pipe_sink.cpp
+    video/process_runner.cpp
     video/video_sink_factory.cpp
 )
 target_link_libraries(chronon3d_media_video PUBLIC
