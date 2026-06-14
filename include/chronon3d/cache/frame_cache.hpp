@@ -21,9 +21,9 @@ struct FrameCacheKey {
     u64 scene_hash{0};
     u64 render_hash{0};
 
-    /// Sub-frame tick for motion blur / temporal supersampling.
-    /// Default 0 = integer frame (backward compatible).
-    SampleTimeKey sample_time_key{0};
+    /// Sub-frame temporal key for motion blur / temporal supersampling.
+    /// Static frames share the same key (frame=0, tick=0, version=0).
+    TemporalSampleKey temporal_key{0, 0, 0};
 
     [[nodiscard]] u64 digest() const;
     [[nodiscard]] bool operator==(const FrameCacheKey&) const = default;

@@ -74,7 +74,7 @@ class RenderProfiler;
 struct RenderFrameInfo {
     Frame frame{0};
     SampleTime sample_time{};         // continuous sub-frame time coordinate
-    SampleTimeKey sample_time_key{};  // quantised cache key for sub-frame
+    TemporalSampleKey temporal_key{};    // quantised cache key (frame + subframe_tick + version)
     float time_seconds{0.0f};         // wall-clock seconds = frame / fps
     float fps{30.0f};
     int width{0};

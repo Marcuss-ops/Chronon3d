@@ -74,7 +74,7 @@ struct CameraRig {
         Frame frame,
         const TransformResolverResult* resolved = nullptr
     ) const {
-        return evaluate(SampleTime::from_frame_int(frame), resolved);
+        return evaluate(SampleTime::from_frame_int(frame, FrameRate{30, 1}), resolved);
     }
 
     /// Sub-frame evaluation — enables true multi-sample motion blur.

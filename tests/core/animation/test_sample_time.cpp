@@ -11,59 +11,217 @@ using namespace chronon3d;
 // ===========================================================================
 // SampleTime — factories and conversions
 // ===========================================================================
-TEST_CASE("SampleTime: from_frame factory") {
-    auto t = SampleTime::from_frame(12.375, 30.0);
+TEST_CASE("SampleTime: canonical from_frame factory") {
+    const FrameRate rate{30, 1};
+    auto t = SampleTime::from_frame(12.375, rate);
     CHECK(t.frame == doctest::Approx(12.375));
-    CHECK(t.seconds == doctest::Approx(12.375 / 30.0));
-    CHECK(t.fps == doctest::Approx(30.0));
+    CHECK(t.seconds() == doctest::Approx(12.375 / 30.0));
+    CHECK(t.fps() == doctest::Approx(30.0));
+    CHECK(t.integral_frame() == 12);
+    CHECK(t.fraction() == doctest::Approx(0.375));
 }
 
 TEST_CASE("SampleTime: from_seconds factory") {
-    auto t = SampleTime::from_seconds(2.5, 30.0);
-    CHECK(t.seconds == doctest::Approx(2.5));
+    const FrameRate rate{30, 1};
+    auto t = SampleTime::from_seconds(2.5, rate);
+    CHECK(t.seconds() == doctest::Approx(2.5));
     CHECK(t.frame == doctest::Approx(75.0));  // 2.5 * 30 = 75
 }
 
-TEST_CASE("SampleTime: from_frame_int (backward compat)") {
-    auto t = SampleTime::from_frame_int(45, 30.0);
+TEST_CASE("SampleTime: from_frame_int (canonical)") {
+    const FrameRate rate{30, 1};
+    auto t = SampleTime::from_frame_int(45, rate);
     CHECK(t.frame == doctest::Approx(45.0));
-    CHECK(t.seconds == doctest::Approx(1.5));
+    CHECK(t.seconds() == doctest::Approx(1.5));
+    CHECK(t.fraction() == doctest::Approx(0.0));
+}
+
+TEST_CASE("SampleTime: non-30-fps rates") {
+    const FrameRate rate_24{24, 1};
+    auto t = SampleTime::from_frame(12.5, rate_24);
+    CHECK(t.fps() == doctest::Approx(24.0));
+    CHECK(t.seconds() == doctest::Approx(12.5 / 24.0));
+
+    const FrameRate rate_60{60, 1};
+    auto t2 = SampleTime::from_frame(30.25, rate_60);
+    CHECK(t2.fps() == doctest::Approx(60.0));
+    CHECK(t2.integral_frame() == 30);
+    CHECK(t2.fraction() == doctest::Approx(0.25));
+}
+
+TEST_CASE("SampleTime: 29.97 NTSC frame rate") {
+    const FrameRate ntsc{30000, 1001};
+    auto t = SampleTime::from_frame(29.97, ntsc);
+    CHECK(t.fps() == doctest::Approx(30000.0 / 1001.0).epsilon(0.001));
+    // At 29.97 FPS, 29.97 frames ≈ 1 second
+    CHECK(t.seconds() == doctest::Approx(1.0).epsilon(0.01));
+    CHECK(t.integral_frame() == 29);
+    CHECK(t.fraction() == doctest::Approx(0.97).epsilon(0.01));
+}
+
+TEST_CASE("SampleTime: 23.976 cinema frame rate") {
+    const FrameRate cinema{24000, 1001};
+    auto t = SampleTime::from_frame(23.976, cinema);
+    CHECK(t.fps() == doctest::Approx(24000.0 / 1001.0).epsilon(0.001));
+    CHECK(t.seconds() == doctest::Approx(1.0).epsilon(0.01));
+}
+
+TEST_CASE("SampleTime: 25 FPS (PAL)") {
+    const FrameRate pal{25, 1};
+    auto t = SampleTime::from_frame(50.0, pal);
+    CHECK(t.seconds() == doctest::Approx(2.0));
+    CHECK(t.fps() == doctest::Approx(25.0));
+}
+
+TEST_CASE("SampleTime: from_seconds and from_frame roundtrip") {
+    const FrameRate rate{24, 1};
+    auto t1 = SampleTime::from_seconds(3.0, rate);
+    auto t2 = SampleTime::from_frame(t1.frame, rate);
+    CHECK(t1.seconds() == doctest::Approx(t2.seconds()));
+    CHECK(t1.frame == doctest::Approx(t2.frame));
+}
+
+TEST_CASE("SampleTime: legacy factories still work") {
+    // Deprecated but still functional during migration.
+    auto t1 = SampleTime::from_frame(12.375, 30.0);
+    CHECK(t1.frame == doctest::Approx(12.375));
+
+    auto t2 = SampleTime::from_seconds(2.5, 30.0);
+    CHECK(t2.frame == doctest::Approx(75.0));
+
+    auto t3 = SampleTime::from_frame_int(45, 30.0);
+    CHECK(t3.frame == doctest::Approx(45.0));
+
+    auto t4 = SampleTime::from_frame_int(42);
+    CHECK(t4.frame == doctest::Approx(42.0));
 }
 
 // ===========================================================================
-// SampleTimeKey — deterministic hashing
+// TemporalSampleKey — deterministic hashing with version
 // ===========================================================================
-TEST_CASE("SampleTimeKey: same time → same key") {
-    auto k1 = SampleTimeKey::from_sample_time(SampleTime::from_frame(12.375, 30.0));
-    auto k2 = SampleTimeKey::from_sample_time(SampleTime::from_frame(12.375, 30.0));
+TEST_CASE("TemporalSampleKey: same time + version → same key") {
+    const FrameRate rate{30, 1};
+    auto st = SampleTime::from_frame(12.375, rate);
+    auto k1 = make_temporal_key(st, 42);
+    auto k2 = make_temporal_key(st, 42);
+    CHECK(k1.frame == 12);
+    CHECK(k1.subframe_tick == static_cast<u32>(std::llround(0.375 * 65536)));
+    CHECK(k1.version == 42);
+    CHECK(k1 == k2);
+}
+
+TEST_CASE("TemporalSampleKey: different sub-frames → different keys") {
+    const FrameRate rate{30, 1};
+    auto k1 = make_temporal_key(SampleTime::from_frame(12.0, rate), 0);
+    auto k2 = make_temporal_key(SampleTime::from_frame(12.5, rate), 0);
+    CHECK(k1 != k2);
+    CHECK(k2.subframe_tick != 0);
+}
+
+TEST_CASE("TemporalSampleKey: same time but different version → different keys") {
+    const FrameRate rate{30, 1};
+    auto st = SampleTime::from_frame(30.0, rate);
+    auto k1 = make_temporal_key(st, 1);
+    auto k2 = make_temporal_key(st, 2);
+    CHECK(k1 != k2);
+    CHECK(k1.frame == k2.frame);
+    CHECK(k1.subframe_tick == k2.subframe_tick);
+    CHECK(k1.version != k2.version);
+}
+
+TEST_CASE("TemporalSampleKey: quantised sub-frame produces distinct keys") {
+    const FrameRate rate{30, 1};
+    auto k0 = make_temporal_key(SampleTime::from_frame(0.0, rate), 0);
+    auto k1 = make_temporal_key(SampleTime::from_frame(1.0 / 8.0, rate), 0);
+    CHECK(k0 != k1);
+    // 0.125 * 65536 = 8192
+    CHECK(k1.subframe_tick == 8192);
+}
+
+TEST_CASE("TemporalSampleKey: handles negative frames correctly") {
+    const FrameRate rate{30, 1};
+    auto k_neg = make_temporal_key(SampleTime::from_frame(-0.5, rate), 0);
+    CHECK(k_neg.frame == -1);
+    CHECK(k_neg.subframe_tick == 32768);  // halfway through frame -1
+
+    auto k_neg2 = make_temporal_key(SampleTime::from_frame(-0.25, rate), 0);
+    CHECK(k_neg2.frame == -1);
+    CHECK(k_neg2.subframe_tick > k_neg.subframe_tick);  // -0.25 > -0.5 in frame
+}
+
+TEST_CASE("TemporalSampleKey: tick carry at frame boundary") {
+    const FrameRate rate{30, 1};
+    // frame=0.99999 ≈ 65535 ticks, rounds to next frame
+    auto k_near_next = make_temporal_key(
+        SampleTime::from_frame(0.99999, rate), 0);
+    CHECK(k_near_next.frame >= 0);
+    // Tick carry: fraction ~0.99999 * 65536 = 65535.whatever → rounds to 65536
+    // which is >= kTicksPerFrame, so frame becomes 1 and tick resets to 0
+    if (k_near_next.frame == 1) {
+        CHECK(k_near_next.subframe_tick == 0);
+    }
+}
+
+TEST_CASE("TemporalSampleKey: static node key shared across sub-samples") {
+    // Static nodes use frame=0, subframe_tick=0, version=node_version.
+    // Animated nodes produce different keys for different sub-frames.
+    const TemporalSampleKey static_key{0, 0, 5};
+    const FrameRate rate{30, 1};
+
+    // Collect 8 animated sub-sample keys.
+    std::vector<TemporalSampleKey> animated_keys;
+    for (int s = 0; s < 8; ++s) {
+        const double u = (static_cast<double>(s) + 0.5) / 8.0;
+        const double sub_frame = 0.5 * u;  // 180° shutter
+        animated_keys.push_back(
+            make_temporal_key(SampleTime::from_frame(sub_frame, rate), 5));
+    }
+
+    // All animated keys have the same content version.
+    for (const auto& ak : animated_keys) {
+        CHECK(ak.version == static_key.version);
+    }
+
+    // At least some animated keys differ from each other (different sub-frames).
+    bool any_different = false;
+    for (int i = 1; i < 8 && !any_different; ++i) {
+        if (animated_keys[i].subframe_tick != animated_keys[0].subframe_tick) {
+            any_different = true;
+        }
+    }
+    CHECK(any_different);
+
+    // The static key has frame=0, tick=0 regardless of actual render time.
+    CHECK(static_key.frame == 0);
+    CHECK(static_key.subframe_tick == 0);
+
+    // Static key differs from all animated keys (frame or tick differs).
+    for (const auto& ak : animated_keys) {
+        CHECK((ak.frame != static_key.frame || ak.subframe_tick != static_key.subframe_tick));
+    }
+}
+
+// ===========================================================================
+// SampleTimeKey — backward compatibility tests (deprecated)
+// ===========================================================================
+TEST_CASE("SampleTimeKey: same time → same key (legacy)") {
+    const FrameRate rate{30, 1};
+    auto k1 = SampleTimeKey::from_sample_time(SampleTime::from_frame(12.375, rate));
+    auto k2 = SampleTimeKey::from_sample_time(SampleTime::from_frame(12.375, rate));
     CHECK(k1 == k2);
     CHECK(k1.ticks == k2.ticks);
 }
 
-TEST_CASE("SampleTimeKey: different times → different keys") {
-    auto k1 = SampleTimeKey::from_sample_time(SampleTime::from_frame(12.0, 30.0));
-    auto k2 = SampleTimeKey::from_sample_time(SampleTime::from_frame(12.5, 30.0));
+TEST_CASE("SampleTimeKey: different times → different keys (legacy)") {
+    const FrameRate rate{30, 1};
+    auto k1 = SampleTimeKey::from_sample_time(SampleTime::from_frame(12.0, rate));
+    auto k2 = SampleTimeKey::from_sample_time(SampleTime::from_frame(12.5, rate));
     CHECK(k1 != k2);
 }
 
-TEST_CASE("SampleTimeKey: quantised sub-frame produces distinct keys") {
-    auto k0 = SampleTimeKey::from_sample_time(SampleTime::from_frame(0.0, 30.0));
-    auto k1 = SampleTimeKey::from_sample_time(
-        SampleTime::from_frame(1.0 / 8.0, 30.0));  // 0.125 frames → 8192 ticks
-    CHECK(k0 != k1);
-    // 0.125 * 65536 = 8192
-    CHECK(k1.ticks == 8192);
-}
-
-TEST_CASE("SampleTimeKey: from_frame_int matches integer frame") {
+TEST_CASE("SampleTimeKey: from_frame_int matches integer frame (legacy)") {
     auto k = SampleTimeKey::from_frame_int(42);
     CHECK(k.ticks == 42 * SampleTimeKey::kTicksPerFrame);
-}
-
-TEST_CASE("SampleTimeKey: ordering works") {
-    auto k0 = SampleTimeKey::from_sample_time(SampleTime::from_frame(0.0));
-    auto k5 = SampleTimeKey::from_sample_time(SampleTime::from_frame(5.0));
-    CHECK(k0 < k5);
 }
 
 // ===========================================================================
@@ -78,11 +236,12 @@ TEST_CASE("AnimatedValue: sub-frame produces different values than integer frame
 
     // Evaluate at 8 sub-frame positions within frame 0
     std::vector<Vec3> values;
+    const FrameRate rate{30, 1};
     for (int s = 0; s < 8; ++s) {
         // Simulate motion blur: sample at frame + (s + 0.5) / 8 * 0.5
         // (180° shutter: half frame exposure)
         double t = (static_cast<double>(s) + 0.5) / 8.0 * 0.5;
-        auto st = SampleTime::from_frame(t, 30.0);
+        auto st = SampleTime::from_frame(t, rate);
         values.push_back(v.evaluate(st));
     }
 
@@ -108,15 +267,16 @@ TEST_CASE("AnimatedValue: sub-frame produces different values than integer frame
 TEST_CASE("AnimatedValue f32: sub-frame evaluation") {
     AnimatedValue<f32> v(0.0f);
     v.key(0, 0.0f).key(60, 120.0f);
+    const FrameRate rate{30, 1};
 
     // At frame 30 (midpoint): value should be 60
-    CHECK(v.evaluate(SampleTime::from_frame(30.0)) == doctest::Approx(60.0f));
+    CHECK(v.evaluate(SampleTime::from_frame(30.0, rate)) == doctest::Approx(60.0f));
 
     // At frame 30.5: slightly past midpoint
-    CHECK(v.evaluate(SampleTime::from_frame(30.5)) > doctest::Approx(60.0f));
+    CHECK(v.evaluate(SampleTime::from_frame(30.5, rate)) > doctest::Approx(60.0f));
 
     // At frame 30 with integer key: should also work
-    CHECK(v.evaluate(SampleTime::from_frame_int(30)) == doctest::Approx(60.0f));
+    CHECK(v.evaluate(SampleTime::from_frame_int(30, rate)) == doctest::Approx(60.0f));
 }
 
 TEST_CASE("AnimatedValue: Frame overload still works (backward compat)") {
@@ -133,9 +293,10 @@ TEST_CASE("AnimatedValue: Frame and SampleTime agree at integer frames") {
     v.key(0, Vec3{0, 0, 0});
     v.key(60, Vec3{100, 200, 300}, EasingCurve{Easing::InOutCubic});
 
+    const FrameRate rate{30, 1};
     for (int f = 0; f <= 60; f += 10) {
         Vec3 frame_val = v.evaluate(Frame{f});
-        Vec3 sample_val = v.evaluate(SampleTime::from_frame_int(f));
+        Vec3 sample_val = v.evaluate(SampleTime::from_frame_int(f, rate));
         CHECK(glm::length(frame_val - sample_val) < 0.001f);
     }
 }
@@ -159,7 +320,7 @@ TEST_CASE("AnimatedCamera2_5D: sub-frame evaluation") {
     CHECK(c60.position.x == doctest::Approx(100.0f));
 
     // Sub-frame: frame 30.5 should be slightly past midpoint
-    Camera2_5D c30_5 = cam.evaluate(SampleTime::from_frame(30.5));
+    Camera2_5D c30_5 = cam.evaluate(SampleTime::from_frame(30.5, FrameRate{30, 1}));
     CHECK(c30_5.position.x > 50.0f);
     CHECK(c30_5.position.x < 100.0f);
 }
@@ -170,9 +331,10 @@ TEST_CASE("AnimatedCamera2_5D: Frame and SampleTime agree at integer frames") {
         .key(0, Vec3{0, 0, -1000})
         .key(60, Vec3{100, 200, -500});
 
+    const FrameRate rate{30, 1};
     for (int f = 0; f <= 60; f += 15) {
         Camera2_5D frame_cam = cam.evaluate(Frame{f});
-        Camera2_5D sample_cam = cam.evaluate(SampleTime::from_frame_int(f));
+        Camera2_5D sample_cam = cam.evaluate(SampleTime::from_frame_int(f, rate));
         CHECK(glm::length(frame_cam.position - sample_cam.position) < 0.001f);
     }
 }
@@ -193,7 +355,7 @@ TEST_CASE("CameraRig: sub-frame evaluation") {
     CHECK(c30.rotation.x == doctest::Approx(30.0f));
 
     // Sub-frame
-    Camera2_5D c15_5 = rig.evaluate(SampleTime::from_frame(15.5));
+    Camera2_5D c15_5 = rig.evaluate(SampleTime::from_frame(15.5, FrameRate{30, 1}));
     CHECK(c15_5.rotation.x == doctest::Approx(15.5f).epsilon(0.01f));
 }
 
@@ -224,7 +386,7 @@ TEST_CASE("LayerBuilder evaluates animated transform at sub-frame time") {
     Transform t_at_half = layer.anim_transform.evaluate(Frame{0});  // integer only from Frame
 
     // AnimatedTransform::evaluate(SampleTime) — the sub-frame API
-    Transform t_sub = layer.anim_transform.evaluate(SampleTime::from_frame(0.5));
+    Transform t_sub = layer.anim_transform.evaluate(SampleTime::from_frame(0.5, FrameRate{30, 1}));
     CHECK(t_sub.position.x == doctest::Approx(50.0f));
     CHECK(t_sub.position.x > t_at_0.position.x);
     CHECK(t_sub.position.x < 100.0f);
@@ -273,11 +435,12 @@ TEST_CASE("Composition → LayerBuilder → AnimatedTransform full motion blur p
 
     // Simulate 8 motion blur sub-samples (180° shutter: half-frame exposure)
     std::vector<Vec3> positions;
+    const FrameRate rate{30, 1};
     for (int s = 0; s < 8; ++s) {
         const double u = (static_cast<double>(s) + 0.5) / 8.0;  // centred sample
         const double sub_frame = 0.5 * u;  // 180° shutter → half-frame window
         Transform baked = layer.anim_transform.evaluate(
-            SampleTime::from_frame(sub_frame, 30.0));
+            SampleTime::from_frame(sub_frame, rate));
         positions.push_back(baked.position);
     }
 

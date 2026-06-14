@@ -82,6 +82,9 @@ public:
     /// and move them into the given pipeline.
     void apply_to_pipeline(class GraphBuildPipeline& pipeline);
 
+    /// Clear all registered passes (used in tests for clean reset).
+    void clear();
+
 private:
     std::vector<GraphBuildPassEntry> m_entries;
 };

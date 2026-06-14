@@ -124,6 +124,18 @@ TEST_CASE("Camera visual: orbit two node renders without errors") {
     REQUIRE(fb != nullptr);
 
     CHECK(average_luma_rect(*fb, 0, 0, 960, 540) > 0.003f);
+
+    // No NaN pixels
+    bool has_nan = false;
+    for (int y = 0; y < fb->height(); ++y) {
+        for (int x = 0; x < fb->width(); ++x) {
+            Color c = fb->get_pixel(x, y);
+            if (std::isnan(c.r) || std::isnan(c.g) || std::isnan(c.b) || std::isnan(c.a)) {
+                has_nan = true;
+            }
+        }
+    }
+    CHECK_FALSE(has_nan);
 }
 
 TEST_CASE("Camera visual: near plane crossing does not explode") {

@@ -31,25 +31,25 @@ namespace chronon3d {
     class SceneBuilder {
       public:
         explicit SceneBuilder(std::pmr::memory_resource *res = std::pmr::get_default_resource())
-            : scene_(res), current_time_(SampleTime::from_frame_int(0)) {
+            : scene_(res), current_time_(SampleTime::from_frame_int(0, FrameRate{30, 1})) {
             m_ctx.resource = res;
             m_ctx.width = m_width;
             m_ctx.height = m_height;
         }
 
         explicit SceneBuilder(i32 width, i32 height, std::pmr::memory_resource *res = std::pmr::get_default_resource())
-            : scene_(res), current_time_(SampleTime::from_frame_int(0)), m_width(width), m_height(height) {
+            : scene_(res), current_time_(SampleTime::from_frame_int(0, FrameRate{30, 1})), m_width(width), m_height(height) {
             m_ctx.resource = res;
             m_ctx.width = width;
             m_ctx.height = height;
         }
 
-        // Convenience constructor for compositions
+        // Convenience constructor for compositions — preserves sub-frame time.
         explicit SceneBuilder(const FrameContext &ctx)
             : scene_(ctx.resource),
               current_time_(SampleTime::from_frame(
                   static_cast<double>(ctx.frame) + static_cast<double>(ctx.frame_time),
-                  ctx.fps())),
+                  ctx.frame_rate)),
               m_ctx(ctx), m_width(ctx.width), m_height(ctx.height) {}
 
         [[nodiscard]] CameraApi camera() { return CameraApi(*this); }
@@ -101,6 +101,8 @@ namespace chronon3d {
             local_ctx.frame = Frame{cf - spec.from};
             local_ctx.local_frame = local_ctx.frame;
             local_ctx.duration = spec.duration;
+            // Preserve sub-frame fraction from the parent time.
+            local_ctx.frame_time = m_ctx.frame_time;
 
             SceneBuilder sub_builder(local_ctx);
             std::forward<Fn>(fn)(sub_builder);
@@ -314,7 +316,7 @@ namespace chronon3d {
         }
 
         Scene scene_;
-        SampleTime current_time_{SampleTime::from_frame_int(0)};
+        SampleTime current_time_{SampleTime::from_frame_int(0, FrameRate{30, 1})};
         FrameContext m_ctx{};
         i32 m_width{1920};
         i32 m_height{1080};

@@ -39,6 +39,9 @@ public:
     [[nodiscard]] std::vector<std::string> available() const;
     [[nodiscard]] std::vector<SamplerDescriptor> list() const;
 
+    /// Clear all registered samplers (used in tests for clean reset).
+    void clear();
+
 private:
     std::map<std::string, SamplerDescriptor, std::less<>> m_samplers;
 };

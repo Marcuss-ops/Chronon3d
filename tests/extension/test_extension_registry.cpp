@@ -94,3 +94,51 @@ TEST_CASE("ExtensionRegistry: module_count is consistent") {
     auto& reg = ExtensionRegistry::instance();
     CHECK(reg.module_count() == reg.module_ids().size());
 }
+
+TEST_CASE("ExtensionRegistry: clear_modules resets everything") {
+    auto& reg = ExtensionRegistry::instance();
+    reg.clear_modules();
+
+    // After clear, there should be zero modules.
+    CHECK(reg.module_count() == 0);
+    CHECK(reg.module_ids().empty());
+    CHECK_FALSE(reg.has_module("test_module_reg_"));
+
+    // Domain registries remain accessible; singletons retain their builtins
+    // while non-singleton registries (source, sampler) are recreated fresh.
+    CHECK(&reg.effect_registry() != nullptr);
+    CHECK(&reg.shape_registry() != nullptr);
+    CHECK(&reg.source_registry() != nullptr);
+    CHECK(&reg.sampler_registry() != nullptr);
+    CHECK(&reg.graph_build_registry() != nullptr);
+    CHECK(&reg.graph_node_registry() != nullptr);
+
+    // After clearing, registering a new module should work.
+    static int counter = 0;
+    std::string id = "post_clear_test_" + std::to_string(++counter);
+    reg.register_module(std::make_unique<TestExtModule>(id));
+    CHECK(reg.module_count() == 1);
+    CHECK(reg.has_module(id));
+
+    // Clean up so subsequent tests start fresh.
+    reg.clear_modules();
+}
+
+TEST_CASE("ExtensionRegistry: register_module rejects duplicate id") {
+    auto& reg = ExtensionRegistry::instance();
+    reg.clear_modules();
+
+    std::string id = "duplicate_test_module";
+    reg.register_module(std::make_unique<TestExtModule>(id));
+    CHECK(reg.module_count() == 1);
+
+    // Registering a module with the same id must throw.
+    CHECK_THROWS_AS(
+        reg.register_module(std::make_unique<TestExtModule>(id)),
+        std::invalid_argument
+    );
+    // Module count must not change after the failed registration.
+    CHECK(reg.module_count() == 1);
+
+    reg.clear_modules();
+}

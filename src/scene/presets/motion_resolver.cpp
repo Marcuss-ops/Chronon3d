@@ -83,7 +83,7 @@ MotionState resolve_motion_state(const FrameContext& ctx, const MotionObject& ob
     AnimationContext actx{
         ctx.frame,
         obj.time_value.end - obj.time_value.start,
-        ctx.fps()
+        static_cast<f32>(ctx.fps())
     };
     for (const auto& anim : obj.get_animations()) {
         anim.apply(actx, st);

@@ -44,6 +44,9 @@ public:
     [[nodiscard]] std::vector<std::string> available() const;
     [[nodiscard]] std::vector<SourceDescriptor> list() const;
 
+    /// Clear all registered sources (used in tests for clean reset).
+    void clear();
+
 private:
     std::map<std::string, SourceDescriptor, std::less<>> m_sources;
 };

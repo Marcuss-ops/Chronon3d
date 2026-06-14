@@ -143,20 +143,20 @@ struct Layer {
             - static_cast<double>(from) + static_cast<double>(time_offset);
 
         if (!time_remap.active()) {
-            return SampleTime::from_frame(raw_frame, global_time.fps);
+            return SampleTime::from_frame(raw_frame, global_time.frame_rate);
         }
 
         // Freeze frame
         if (time_remap.freeze_frame >= 0) {
-            return SampleTime::from_frame_int(time_remap.freeze_frame, global_time.fps);
+            return SampleTime::from_frame_int(time_remap.freeze_frame, global_time.frame_rate);
         }
 
         // Animated time_remap curve — evaluate at sub-frame precision
         if (time_remap.time_remap.is_time_dependent()) {
             const double mapped = static_cast<double>(
                 time_remap.time_remap.evaluate(
-                    SampleTime::from_frame(raw_frame, global_time.fps)));
-            return SampleTime::from_frame(mapped, global_time.fps);
+                    SampleTime::from_frame(raw_frame, global_time.frame_rate)));
+            return SampleTime::from_frame(mapped, global_time.frame_rate);
         }
 
         // Speed control — preserves fractional portion
@@ -166,7 +166,7 @@ struct Layer {
         } else {
             scaled = raw_frame * static_cast<double>(time_remap.speed);
         }
-        return SampleTime::from_frame(scaled, global_time.fps);
+        return SampleTime::from_frame(scaled, global_time.frame_rate);
     }
 };
 

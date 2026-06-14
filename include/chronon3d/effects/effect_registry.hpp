@@ -31,6 +31,9 @@ public:
 
     [[nodiscard]] std::unique_ptr<graph::RenderGraphNode> create_node(const EffectInstance& effect) const;
 
+    /// Clear all registered effects (used in tests for clean reset).
+    void clear();
+
 private:
     std::map<std::string, EffectDescriptor, std::less<>> m_effects;
 };

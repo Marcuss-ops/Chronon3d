@@ -73,6 +73,11 @@ void ExtensionRegistry::clear_modules() {
     m_impl->modules.clear();
     m_impl->initialized_ids.clear();
     m_impl->initialized = false;
+
+    // Non-singleton registries (owned by ExtensionRegistry) are recreated
+    // on next access, which re-registers their builtins automatically.
+    m_impl->source_reg.reset();
+    m_impl->sampler_reg.reset();
 }
 
 bool ExtensionRegistry::has_module(std::string_view id) const {

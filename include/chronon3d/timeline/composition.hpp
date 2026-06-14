@@ -43,27 +43,30 @@ public:
     /// Sub-frame evaluation (SampleTime) — enables true multi-sample motion blur.
     [[nodiscard]] Scene evaluate(SampleTime time,
                                  std::pmr::memory_resource* res = std::pmr::get_default_resource()) const {
-        return evaluate_double(time.frame, res);
+        return evaluate_double(time.frame, time.frame_rate, res);
     }
 
     // Evaluate at a fractional frame offset (used by motion blur subsampling).
     [[nodiscard]] Scene evaluate(Frame frame, f32 frame_time,
                                  std::pmr::memory_resource* res = std::pmr::get_default_resource()) const {
-        return evaluate_double(static_cast<double>(frame) + static_cast<double>(frame_time), res);
+        return evaluate_double(static_cast<double>(frame) + static_cast<double>(frame_time),
+                               m_spec.frame_rate, res);
     }
 
 private:
-    [[nodiscard]] Scene evaluate_double(double frame,
+    [[nodiscard]] Scene evaluate_double(double frame, FrameRate rate,
                                         std::pmr::memory_resource* res) const {
         if (!m_spec.assets_root.empty()) {
             AssetRegistry::mount(m_spec.assets_root);
         }
 
+        const Frame integral = static_cast<Frame>(std::floor(frame));
         FrameContext ctx{
-            .frame      = Frame{static_cast<i64>(std::floor(frame))},
+            .frame      = integral,
+            .local_frame = integral,
             .frame_time = static_cast<f32>(frame - std::floor(frame)),
             .duration   = m_spec.duration,
-            .frame_rate = m_spec.frame_rate,
+            .frame_rate = rate,
             .width      = m_spec.width,
             .height     = m_spec.height,
             .resource   = res

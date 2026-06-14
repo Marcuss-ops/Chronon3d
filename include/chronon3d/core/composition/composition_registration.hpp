@@ -29,6 +29,11 @@ inline void add_builtin_composition(std::string_view id, CompositionFactory fact
     builtin_composition_entries().push_back({std::string(id), std::move(factory)});
 }
 
+/// Clear all builtin composition entries (used in tests for clean reset).
+inline void clear_builtin_compositions() {
+    builtin_composition_entries().clear();
+}
+
 inline void populate_registered_compositions(CompositionRegistry& registry);
 
 } // namespace detail
