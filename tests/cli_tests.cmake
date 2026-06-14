@@ -1,4 +1,4 @@
-# ── CLI Tests ──
+# -- CLI Tests --
 
 add_executable(chronon3d_cli_tests
     ${TEST_MAIN}
@@ -14,6 +14,10 @@ add_executable(chronon3d_cli_tests
 
 target_link_libraries(chronon3d_cli_tests
     PRIVATE
+        chronon3d_cli_video
+        chronon3d_cli_render
+        chronon3d_cli_core
+        chronon3d_cli_dev
         chronon3d_pipeline
         chronon3d_scene
         chronon3d_backend_software
