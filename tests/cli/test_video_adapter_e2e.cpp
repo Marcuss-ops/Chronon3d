@@ -1,9 +1,9 @@
 // ---------------------------------------------------------------------------
-// test_video_adapter_e2e.cpp — End-to-end tests for VideoSinkEncoderAdapter.
+// test_video_adapter_e2e.cpp -- End-to-end tests for VideoSinkEncoderAdapter.
 //
 // Tests the full chain from the CLI adapter through the new VideoSink pipeline:
 //
-//   Framebuffer → VideoSinkEncoderAdapter → VideoSink → file (raw / MP4)
+//   Framebuffer -> VideoSinkEncoderAdapter -> VideoSink -> file (raw / MP4)
 //
 // Unlike the unit tests in test_ffmpeg_pipe_sink.cpp (which test the sink
 // directly), these tests exercise the CLI adapter layer that bridges the
@@ -23,7 +23,9 @@
 #include <atomic>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <filesystem>
+#include <string>
 #include <system_error>
 #include <vector>
 
@@ -32,7 +34,7 @@ using namespace chronon3d::cli;
 
 namespace {
 
-// ── Runtime ffmpeg check ───────────────────────────────────────────────
+// -- Runtime ffmpeg check -----------------------------------------------
 
 bool ffmpeg_available() {
     static int avail = -1;
@@ -42,7 +44,39 @@ bool ffmpeg_available() {
     return avail == 1;
 }
 
-// ── Temp path helper ───────────────────────────────────────────────────
+// -- Runtime ffprobe check ----------------------------------------------
+
+bool ffprobe_available() {
+    static int avail = -1;
+    if (avail < 0) {
+        avail = (std::system("ffprobe -version > /dev/null 2>&1") == 0) ? 1 : 0;
+    }
+    return avail == 1;
+}
+
+// Run ffprobe on a file and return stdout as a string.
+std::string run_ffprobe(const std::string& path) {
+    const std::string cmd =
+        "ffprobe -v error "
+        "-select_streams v:0 "
+        "-show_entries stream=codec_name,width,height,pix_fmt,nb_frames "
+        "-of csv=p=0 " + path + " 2>/dev/null";
+
+    std::string result;
+    FILE* pipe = popen(cmd.c_str(), "r");
+    if (!pipe) return result;
+    char buf[4096];
+    while (fgets(buf, sizeof(buf), pipe) != nullptr) {
+        result += buf;
+    }
+    pclose(pipe);
+    // Trim trailing newline
+    while (!result.empty() && (result.back() == '\n' || result.back() == '\r'))
+        result.pop_back();
+    return result;
+}
+
+// -- Temp path helper ---------------------------------------------------
 
 std::string e2e_temp_path(const char* suffix) {
     static std::atomic<int> counter{0};
@@ -50,7 +84,7 @@ std::string e2e_temp_path(const char* suffix) {
     return "/tmp/chronon3d_adapter_e2e_" + std::to_string(id) + "_" + suffix;
 }
 
-// ── RAII temp file ─────────────────────────────────────────────────────
+// -- RAII temp file -----------------------------------------------------
 
 struct TempFile {
     std::string path;
@@ -61,7 +95,7 @@ struct TempFile {
     }
 };
 
-// ── Build options helper ───────────────────────────────────────────────
+// -- Build options helper -----------------------------------------------
 
 FfmpegPipeOptions make_adapter_opts(int w, int h,
                                     const std::string& path,
@@ -95,9 +129,9 @@ void fill_fb(Framebuffer& fb, float r, float g, float b) {
 
 } // anonymous namespace
 
-// ═════════════════════════════════════════════════════════════════════════════
-//  RawFile adapter — end-to-end
-// ═════════════════════════════════════════════════════════════════════════════
+// ==========================================================================
+//  RawFile adapter -- end-to-end
+// ==========================================================================
 
 TEST_CASE("VideoSinkEncoderAdapter: RawFile end-to-end with RGBA8") {
     const auto path = e2e_temp_path("raw_rgba.raw");
@@ -167,13 +201,13 @@ TEST_CASE("VideoSinkEncoderAdapter: RawFile zero frames produces empty output") 
     CHECK(sz == 0);
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
-//  FFmpeg adapter — end-to-end (requires ffmpeg)
-// ═════════════════════════════════════════════════════════════════════════════
+// ==========================================================================
+//  FFmpeg adapter -- end-to-end (requires ffmpeg)
+// ==========================================================================
 
 TEST_CASE("VideoSinkEncoderAdapter: FFmpeg end-to-end with RGBA8") {
     if (!ffmpeg_available()) {
-        MESSAGE("Skipping — ffmpeg not available");
+        MESSAGE("Skipping - ffmpeg not available");
         return;
     }
 
@@ -202,7 +236,7 @@ TEST_CASE("VideoSinkEncoderAdapter: FFmpeg end-to-end with RGBA8") {
 
 TEST_CASE("VideoSinkEncoderAdapter: FFmpeg end-to-end with YUV420P") {
     if (!ffmpeg_available()) {
-        MESSAGE("Skipping — ffmpeg not available");
+        MESSAGE("Skipping - ffmpeg not available");
         return;
     }
 
@@ -230,7 +264,7 @@ TEST_CASE("VideoSinkEncoderAdapter: FFmpeg end-to-end with YUV420P") {
 
 TEST_CASE("VideoSinkEncoderAdapter: FFmpeg zero frames produces valid output") {
     if (!ffmpeg_available()) {
-        MESSAGE("Skipping — ffmpeg not available");
+        MESSAGE("Skipping - ffmpeg not available");
         return;
     }
 
@@ -254,7 +288,7 @@ TEST_CASE("VideoSinkEncoderAdapter: FFmpeg close without open fails") {
 
 TEST_CASE("VideoSinkEncoderAdapter: FFmpeg unknown codec resolves to libx264") {
     if (!ffmpeg_available()) {
-        MESSAGE("Skipping — ffmpeg not available");
+        MESSAGE("Skipping - ffmpeg not available");
         return;
     }
 
@@ -284,7 +318,7 @@ TEST_CASE("VideoSinkEncoderAdapter: FFmpeg unknown codec resolves to libx264") {
 
 TEST_CASE("VideoSinkEncoderAdapter: FFmpeg nonexistent output dir does not crash") {
     if (!ffmpeg_available()) {
-        MESSAGE("Skipping — ffmpeg not available");
+        MESSAGE("Skipping - ffmpeg not available");
         return;
     }
 
@@ -304,7 +338,7 @@ TEST_CASE("VideoSinkEncoderAdapter: FFmpeg nonexistent output dir does not crash
 
 TEST_CASE("VideoSinkEncoderAdapter: hardware codec falls back to libx264") {
     if (!ffmpeg_available()) {
-        MESSAGE("Skipping — ffmpeg not available");
+        MESSAGE("Skipping - ffmpeg not available");
         return;
     }
 
@@ -329,4 +363,50 @@ TEST_CASE("VideoSinkEncoderAdapter: hardware codec falls back to libx264") {
     auto sz = std::filesystem::file_size(path, ec);
     CHECK_FALSE(ec);
     CHECK(sz > 0);
+}
+
+// ==========================================================================
+//  FFprobe validation -- structural check on generated MP4
+// ==========================================================================
+
+TEST_CASE("VideoSinkEncoderAdapter: ffprobe validates MP4 structure") {
+    if (!ffmpeg_available() || !ffprobe_available()) {
+        MESSAGE("Skipping - ffmpeg or ffprobe not available");
+        return;
+    }
+
+    const auto path = e2e_temp_path("ffprobe_check.mp4");
+    TempFile cleanup(path);
+    constexpr int W = 16, H = 16, N = 5;
+
+    VideoSinkEncoderAdapter adapter(VideoSinkType::Ffmpeg);
+    auto opts = make_adapter_opts(W, H, path, "libx264", PipePixelFormat::RGBA);
+    REQUIRE(adapter.open(opts));
+
+    for (int i = 0; i < N; ++i) {
+        Framebuffer fb(W, H);
+        fill_fb(fb, 0.0f, 0.5f, 1.0f);
+        CHECK(adapter.write_frame(fb));
+    }
+    CHECK(adapter.frames_written() == N);
+    CHECK(adapter.close());
+
+    // Run ffprobe and parse CSV output: codec_name,width,height,pix_fmt,nb_frames
+    const std::string probe = run_ffprobe(path);
+    REQUIRE_FALSE(probe.empty());
+
+    // Expected CSV format: "h264,16,16,yuv420p,5"
+    // Parse with sscanf
+    char codec[64] = {0};
+    char pix_fmt[64] = {0};
+    int width = 0, height = 0, nb_frames = 0;
+    const int parsed = std::sscanf(probe.c_str(), "%63[^,],%d,%d,%63[^,],%d",
+                                   codec, &width, &height, pix_fmt, &nb_frames);
+    REQUIRE(parsed == 5);
+
+    CHECK(std::strcmp(codec, "h264") == 0);
+    CHECK(width == W);
+    CHECK(height == H);
+    CHECK(std::strcmp(pix_fmt, "yuv420p") == 0);
+    CHECK(nb_frames == N);
 }

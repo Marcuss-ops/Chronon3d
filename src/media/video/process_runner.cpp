@@ -348,17 +348,12 @@ void ProcessRunner::drain_stderr() {
     for (;;) {
         const ssize_t n = ::read(stderr_fd_, buf, sizeof(buf));
         if (n > 0) {
-            // Apply the stderr buffer cap — clamp to the last kMaxStderrBytes
-            // so runaway stderr doesn't exhaust memory.
-            if (stderr_buffer_.size() + static_cast<std::size_t>(n) > kMaxStderrBytes) {
-                const auto excess = stderr_buffer_.size() + static_cast<std::size_t>(n) - kMaxStderrBytes;
-                if (static_cast<std::size_t>(n) > excess) {
-                    const auto keep = static_cast<std::size_t>(n) - excess;
-                    stderr_buffer_.append(buf, keep);
-                }
-                // otherwise discard entirely — the buffer is full of newer data
-            } else {
-                stderr_buffer_.append(buf, static_cast<std::size_t>(n));
+            // Always append new data first, then trim from the front if the
+            // buffer exceeds kMaxStderrBytes.  This keeps the *last* 1 MiB
+            // of stderr, which is most useful for diagnosing failures.
+            stderr_buffer_.append(buf, static_cast<std::size_t>(n));
+            if (stderr_buffer_.size() > kMaxStderrBytes) {
+                stderr_buffer_.erase(0, stderr_buffer_.size() - kMaxStderrBytes);
             }
         } else if (n == 0) {
             // EOF — pipe write-end closed by the child.
@@ -426,9 +421,11 @@ bool ProcessRunner::write_for(const std::uint8_t* data, std::size_t size,
         return false;
     }
 
-    // If timeout is zero or negative, behave like write() (blocking).
+    // If timeout is zero or negative, use a very large default instead of
+    // falling back to write() — the stdin fd is O_NONBLOCK, so write()
+    // would return EAGAIN on a full pipe instead of blocking.
     if (timeout.count() <= 0) {
-        return write(data, size);
+        timeout = std::chrono::hours(24);
     }
 
     const auto deadline = std::chrono::steady_clock::now() + timeout;
@@ -622,6 +619,10 @@ int ProcessRunner::wait_for(std::chrono::milliseconds timeout) {
     int status;
     pid_t result;
     do {
+        // Drain stderr every iteration to prevent the child from blocking
+        // on a full stderr pipe while we wait for it to exit.
+        drain_stderr();
+
         result = ::waitpid(child_pid_, &status, WNOHANG);
         if (result > 0) {
             // Child has exited.
