@@ -67,11 +67,21 @@ private:
     /// Stride in bytes per row (computed from config during open()).
     std::size_t stride_{0};
 
+    /// Session contract: dimensions and format set during open().
+    /// Every submitted frame must match these exactly.
+    int expected_width_{0};
+    int expected_height_{0};
+    PixelFormat expected_format_{};
+
     /// Cumulative statistics.
     Stats stats_;
 
     /// Write a byte span to the file.
     bool write_bytes(const uint8_t* data, size_t size);
+
+    /// Validate that a frame matches the session contract.
+    /// Returns true if valid; sets state to Failed and returns false otherwise.
+    bool validate_frame_match(int width, int height, PixelFormat fmt) noexcept;
 };
 
 } // namespace chronon3d::media::video

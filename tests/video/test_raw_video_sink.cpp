@@ -173,7 +173,7 @@ TEST_CASE("RawVideoSink: open succeeds when file exists and overwrite=true") {
     std::filesystem::remove(path);
 }
 
-TEST_CASE("RawVideoSink: open from Closed state reopens successfully") {
+TEST_CASE("RawVideoSink: open from Closed state fails (Closed is terminal)") {
     const auto path = temp_path("reopen");
 
     RawVideoSink sink;
@@ -184,13 +184,12 @@ TEST_CASE("RawVideoSink: open from Closed state reopens successfully") {
         CHECK(sink.state() == VideoSinkState::Closed);
     }
 
-    // Reopen
+    // Reopen from Closed should fail — Closed is terminal.
     const auto path2 = temp_path("reopen2");
     auto cfg2 = make_config(16, 16, PixelFormat::RGBA8, path2);
-    CHECK(sink.open(cfg2));
-    CHECK(sink.state() == VideoSinkState::Open);
+    CHECK_FALSE(sink.open(cfg2));
+    CHECK(sink.state() == VideoSinkState::Failed);
 
-    sink.close();
     std::filesystem::remove(path);
     std::filesystem::remove(path2);
 }
@@ -616,7 +615,17 @@ TEST_CASE("RawVideoSink: flush on open sink succeeds") {
     REQUIRE(sink.open(cfg));
 
     CHECK(sink.flush());
-    CHECK(sink.state() == VideoSinkState::Flushing);
+    CHECK(sink.state() == VideoSinkState::Open);  // flush returns to Open
+
+    // Can submit again after flush
+    std::vector<uint8_t> buf2(8 * 8 * 4, 0x42);
+    VideoFrameView fv2;
+    fv2.data          = buf2.data();
+    fv2.width         = 8;
+    fv2.height        = 8;
+    fv2.pixel_format  = PixelFormat::RGBA8;
+    fv2.stride_bytes  = 0;
+    CHECK(sink.submit(fv2));
 
     // Can still close after flush
     CHECK(sink.close());
@@ -789,8 +798,203 @@ TEST_CASE("RawVideoSink: submit_biplanar after close fails") {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-//  Destructor — no throw
+//  submit() with non-tight stride (row padding)
 // ═════════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("RawVideoSink: submit RGBA8 with row padding (non-zero stride)") {
+    const auto path = temp_path("submit_stride");
+    constexpr int W = 4, H = 4;
+    constexpr int STRIDE = 24;  // 4*4 = 16 tight, 8 bytes padding per row
+    const size_t tight_frame = static_cast<size_t>(W) * H * 4;
+    const size_t padded_size = static_cast<size_t>(STRIDE) * H;
+
+    RawVideoSink sink;
+    auto cfg = make_config(W, H, PixelFormat::RGBA8, path);
+    REQUIRE(sink.open(cfg));
+
+    // Allocate padded buffer and fill only the tight pixel region
+    std::vector<uint8_t> padded(padded_size, 0xAA);  // fill padding with garbage
+    std::vector<uint8_t> expected(tight_frame);
+    for (size_t i = 0; i < tight_frame; ++i) {
+        expected[i] = static_cast<uint8_t>(i * 13 + 0x77);
+    }
+    // Copy expected into padded rows (skip padding)
+    for (int y = 0; y < H; ++y) {
+        std::memcpy(padded.data() + y * STRIDE,
+                    expected.data() + y * (W * 4),
+                    static_cast<size_t>(W * 4));
+    }
+
+    VideoFrameView fv;
+    fv.data          = padded.data();
+    fv.width         = W;
+    fv.height        = H;
+    fv.pixel_format  = PixelFormat::RGBA8;
+    fv.stride_bytes  = static_cast<std::size_t>(STRIDE);
+
+    CHECK(sink.submit(fv));
+    CHECK(sink.frames_submitted() == 1);
+    sink.close();
+
+    // File should contain only tight pixels (no padding)
+    std::ifstream file(path, std::ios::binary);
+    std::vector<uint8_t> actual(tight_frame);
+    file.read(reinterpret_cast<char*>(actual.data()),
+              static_cast<std::streamsize>(tight_frame));
+    CHECK(std::memcmp(expected.data(), actual.data(), tight_frame) == 0);
+
+    std::filesystem::remove(path);
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  Session contract validation
+// ═════════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("RawVideoSink: submit with mismatched pixel format fails") {
+    const auto path = temp_path("mismatch_fmt");
+    constexpr int W = 8, H = 8;
+
+    RawVideoSink sink;
+    auto cfg = make_config(W, H, PixelFormat::YUV420P, path);
+    REQUIRE(sink.open(cfg));
+
+    // Submit RGBA8 frame to YUV420P session — must fail.
+    std::vector<uint8_t> buf(static_cast<size_t>(W) * H * 4);
+    VideoFrameView fv;
+    fv.data          = buf.data();
+    fv.width         = W;
+    fv.height        = H;
+    fv.pixel_format  = PixelFormat::RGBA8;  // wrong format
+    fv.stride_bytes  = 0;
+
+    CHECK_FALSE(sink.submit(fv));
+    CHECK(sink.state() == VideoSinkState::Failed);
+
+    std::filesystem::remove(path);
+}
+
+TEST_CASE("RawVideoSink: submit with mismatched dimensions fails") {
+    const auto path = temp_path("mismatch_dims");
+
+    RawVideoSink sink;
+    auto cfg = make_config(8, 8, PixelFormat::RGBA8, path);
+    REQUIRE(sink.open(cfg));
+
+    // Submit 16x16 frame to 8x8 session — must fail.
+    std::vector<uint8_t> buf(16 * 16 * 4);
+    VideoFrameView fv;
+    fv.data          = buf.data();
+    fv.width         = 16;   // wrong
+    fv.height        = 16;   // wrong
+    fv.pixel_format  = PixelFormat::RGBA8;
+    fv.stride_bytes  = 0;
+
+    CHECK_FALSE(sink.submit(fv));
+    CHECK(sink.state() == VideoSinkState::Failed);
+
+    std::filesystem::remove(path);
+}
+
+TEST_CASE("RawVideoSink: open with YUV odd width fails") {
+    const auto path = temp_path("yuv_odd_w");
+
+    RawVideoSink sink;
+    auto cfg = make_config(9, 8, PixelFormat::YUV420P, path);  // odd width
+    CHECK_FALSE(sink.open(cfg));
+    CHECK(sink.state() == VideoSinkState::Failed);
+
+    std::filesystem::remove(path);
+}
+
+TEST_CASE("RawVideoSink: open with YUV odd height fails") {
+    const auto path = temp_path("yuv_odd_h");
+
+    RawVideoSink sink;
+    auto cfg = make_config(8, 9, PixelFormat::NV12, path);  // odd height
+    CHECK_FALSE(sink.open(cfg));
+    CHECK(sink.state() == VideoSinkState::Failed);
+
+    std::filesystem::remove(path);
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  Null plane / null data validation
+// ═════════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("RawVideoSink: submit with null data fails") {
+    const auto path = temp_path("null_data");
+
+    RawVideoSink sink;
+    auto cfg = make_config(8, 8, PixelFormat::RGBA8, path);
+    REQUIRE(sink.open(cfg));
+
+    VideoFrameView fv;
+    fv.data          = nullptr;
+    fv.width         = 8;
+    fv.height        = 8;
+    fv.pixel_format  = PixelFormat::RGBA8;
+    fv.stride_bytes  = 0;
+
+    CHECK_FALSE(sink.submit(fv));
+    CHECK(sink.state() == VideoSinkState::Failed);
+
+    sink.close();
+    std::filesystem::remove(path);
+}
+
+TEST_CASE("RawVideoSink: submit_planar with null y_data fails") {
+    const auto path = temp_path("null_ydata");
+
+    RawVideoSink sink;
+    auto cfg = make_config(8, 8, PixelFormat::YUV420P, path);
+    REQUIRE(sink.open(cfg));
+
+    PlanarVideoFrameView pfv;
+    pfv.y_data   = nullptr;
+    pfv.u_data   = reinterpret_cast<const void*>(0x1);
+    pfv.v_data   = reinterpret_cast<const void*>(0x1);
+    pfv.width    = 8;
+    pfv.height   = 8;
+    pfv.y_stride = 0;
+    pfv.u_stride = 0;
+    pfv.v_stride = 0;
+
+    CHECK_FALSE(sink.submit_planar(pfv));
+    CHECK(sink.state() == VideoSinkState::Failed);
+
+    sink.close();
+    std::filesystem::remove(path);
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  Stats persist after close() for telemetry
+// ═════════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("RawVideoSink: stats persist after close") {
+    const auto path = temp_path("stats_persist");
+
+    RawVideoSink sink;
+    auto cfg = make_config(8, 8, PixelFormat::RGBA8, path);
+    REQUIRE(sink.open(cfg));
+
+    std::vector<uint8_t> buf(8 * 8 * 4);
+    VideoFrameView fv;
+    fv.data          = buf.data();
+    fv.width         = 8;
+    fv.height        = 8;
+    fv.pixel_format  = PixelFormat::RGBA8;
+    fv.stride_bytes  = 0;
+    CHECK(sink.submit(fv));
+    CHECK(sink.frames_submitted() == 1);
+
+    sink.close();
+    CHECK(sink.state() == VideoSinkState::Closed);
+    // Stats should still be readable for telemetry
+    CHECK(sink.frames_submitted() == 1);
+    CHECK(sink.stats().frames_submitted == 1);
+
+    std::filesystem::remove(path);
+}
 
 TEST_CASE("RawVideoSink: destructor closes open sink without throwing") {
     const auto path = temp_path("dtor_close");
@@ -923,7 +1127,7 @@ TEST_CASE("RawVideoSink: full lifecycle open->submit->flush->close") {
 
     // Flush
     CHECK(sink.flush());
-    CHECK(sink.state() == VideoSinkState::Flushing);
+    CHECK(sink.state() == VideoSinkState::Open);  // flush returns to Open
 
     // Close
     CHECK(sink.close());

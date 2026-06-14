@@ -43,10 +43,11 @@ enum class VideoSinkState : uint8_t {
     Open = 1,
 
     /// Currently flushing buffered frames.  submit() returns false during
-    /// this state.  Transitions to Closed or Failed after flush completes.
+    /// this state.  Transitions back to Open or to Failed after flush completes.
     Flushing = 2,
 
-    /// Successfully closed.  No further operations allowed.
+    /// Successfully closed.  Terminal state.  No further operations allowed.
+    /// Stats are preserved for telemetry after close().
     Closed = 3,
 
     /// An error occurred (I/O, encoder, broken pipe, etc.).
@@ -115,7 +116,8 @@ public:
     [[nodiscard]] virtual std::string_view name() const noexcept = 0;
 
     /// Total number of frames successfully submitted.
-    /// Resets to 0 after close() or on construction.
+    /// Resets on successful open() or reset_stats().
+    /// Persists after close() for telemetry consumption.
     [[nodiscard]] virtual uint64_t frames_submitted() const noexcept = 0;
 
     // ── Diagnostics ────────────────────────────────────────────────────
